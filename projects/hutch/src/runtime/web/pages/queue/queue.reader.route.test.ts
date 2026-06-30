@@ -660,6 +660,14 @@ describe("Queue routes", () => {
 			expect(summarySlot.textContent).toContain("Key points from the article");
 			expect(doc.querySelector(".article-body__summary-toggle")?.textContent).toBe("Summary (TL;DR)");
 			expect(summarySlot.hasAttribute("hx-get")).toBe(false);
+			// Internal reader ships the TL;DR collapsed so an expand is a deliberate,
+			// measurable act, and carries the beacon URL so the toggle is recorded.
+			const details = doc.querySelector(".article-body__summary");
+			assert(details, "summary details element must be rendered");
+			expect(details.hasAttribute("open")).toBe(false);
+			expect(details.getAttribute("data-summary-toggle-url")).toBe(
+				`/queue/${articleId}/summary-toggle`,
+			);
 		});
 
 		it("should show a pending loading indicator with hx-get polling when status=pending", async () => {

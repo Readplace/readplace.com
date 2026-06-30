@@ -479,6 +479,51 @@ describe("Auth routes", () => {
 			expect(conversions.events[0].user_id).toBeDefined();
 		});
 
+		it("persists the hutch_click acquisition attribution on the user row at signup", async () => {
+			const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
+			const { auth, conversions } = harness;
+			const attribution = {
+				utm_source: "hackernews",
+				utm_medium: "referral",
+				utm_campaign: "launch",
+				utm_content: "headline",
+				referrer_host: "news.ycombinator.com",
+				first_seen_at: "2026-06-01T00:00:00.000Z",
+				landing_path: "/",
+			};
+
+			const response = await request(harness.server)
+				.post("/signup")
+				.set("Cookie", `hutch_click=${encodeURIComponent(JSON.stringify(attribution))}`)
+				.type("form")
+				.send({
+					email: "attributed@example.com",
+					password: "password123",
+					confirmPassword: "password123",
+					loadedAt: freshLoadedAt(),
+				});
+
+			expect(response.status).toBe(303);
+			const persisted = await auth.getAcquisitionAttribution("attributed@example.com");
+			expect(persisted).toMatchObject(attribution);
+			// The same fields ride the conversion event (30-day retention) too.
+			expect(conversions.events[0]).toMatchObject({ utm_source: "hackernews", landing_path: "/" });
+		});
+
+		it("stores no attribution when the signup carries no hutch_click cookie", async () => {
+			const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
+			const { auth } = harness;
+
+			await request(harness.server).post("/signup").type("form").send({
+				email: "organic@example.com",
+				password: "password123",
+				confirmPassword: "password123",
+				loadedAt: freshLoadedAt(),
+			});
+
+			expect(await auth.getAcquisitionAttribution("organic@example.com")).toBeUndefined();
+		});
+
 		it("should show duplicate-email error when a race condition causes createUserWithPasswordHash to fail during free signup", async () => {
 			const fixture = createDefaultTestAppFixture(TEST_APP_ORIGIN);
 			let raceFindCount = 0;

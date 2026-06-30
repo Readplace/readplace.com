@@ -49,6 +49,41 @@ describe("ReaderPage", () => {
 		assert(wrap, "share balloon wrap must be rendered");
 	});
 
+	it("renders the TL;DR collapsed by default (internal reader) — an expand is then a deliberate, measurable act", () => {
+		const html = Base(
+			ReaderPage(makeArticle(), {
+				appOrigin: DEFAULT_APP_ORIGIN,
+				summary: { status: "ready", summary: "Key points." },
+				crawl: { status: "ready" },
+			}),
+			{ isAuthenticated: true, emailVerified: undefined },
+		).to("text/html").body;
+		const doc = new JSDOM(html).window.document;
+
+		const details = doc.querySelector(".article-body__summary");
+		assert(details, "ready summary <details> must render");
+		expect(details.hasAttribute("open")).toBe(false);
+	});
+
+	it("stamps the summary <details> with its tracking URL and loads the summary-toggle beacon script", () => {
+		const html = Base(
+			ReaderPage(makeArticle(), {
+				appOrigin: DEFAULT_APP_ORIGIN,
+				summary: { status: "ready", summary: "Key points." },
+				crawl: { status: "ready" },
+			}),
+			{ isAuthenticated: true, emailVerified: undefined },
+		).to("text/html").body;
+		const doc = new JSDOM(html).window.document;
+
+		const details = doc.querySelector(".article-body__summary");
+		assert(details, "ready summary <details> must render");
+		expect(details.getAttribute("data-summary-toggle-url")).toBe(
+			`/queue/${articleId.value}/summary-toggle`,
+		);
+		expect(html).toContain("/client-dist/summary-toggle.client.js");
+	});
+
 	it("stamps utm_content on the share balloon URLs with the first 6 chars of the article owner's user id", () => {
 		const article = makeArticle({
 			userId: UserIdSchema.parse("abcdef0123456789abcdef0123456789"),

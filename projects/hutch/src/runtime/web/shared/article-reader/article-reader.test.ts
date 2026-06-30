@@ -64,6 +64,9 @@ function initFakeDeps(initial: {
 	content?: string;
 	/** undefined means "use the default fake article"; null means "row missing". */
 	article?: GlobalArticleData | null;
+	/** Defaults to the public-reader behaviour (expanded) so existing assertions
+	 * stay green; the collapse case overrides it to false. */
+	summaryOpen?: boolean;
 } = {}): {
 	state: FakeState;
 	deps: ArticleReaderDeps;
@@ -81,6 +84,7 @@ function initFakeDeps(initial: {
 		findArticleByUrl: async () => state.article,
 		formatDocumentTitle: (title) => `${title} — TestReader`,
 		appOrigin: "https://readplace.com",
+		summaryOpen: initial.summaryOpen ?? true,
 		now: () => FIXED_NOW,
 	};
 	return { state, deps };
@@ -453,6 +457,7 @@ describe("initArticleReader", () => {
 				pollCount: 3,
 				pollUrlBuilder: makePollUrlBuilder(),
 				extensionInstallUrl: undefined,
+				summaryToggleUrl: undefined,
 			});
 
 			const slot = parse(toHtml(component)).querySelector("[data-test-reader-summary]");
@@ -473,6 +478,7 @@ describe("initArticleReader", () => {
 				pollCount: MAX_POLLS,
 				pollUrlBuilder: makePollUrlBuilder(),
 				extensionInstallUrl: undefined,
+				summaryToggleUrl: undefined,
 			});
 
 			const slot = parse(toHtml(component)).querySelector("[data-test-reader-summary]");
@@ -493,6 +499,7 @@ describe("initArticleReader", () => {
 				pollCount: 1,
 				pollUrlBuilder: makePollUrlBuilder(),
 				extensionInstallUrl: undefined,
+				summaryToggleUrl: undefined,
 			});
 
 			const doc = parse(toHtml(component));
@@ -515,6 +522,7 @@ describe("initArticleReader", () => {
 				pollCount: 1,
 				pollUrlBuilder: makePollUrlBuilder(),
 				extensionInstallUrl: undefined,
+				summaryToggleUrl: undefined,
 			});
 
 			const doc = parse(toHtml(component));
@@ -524,6 +532,29 @@ describe("initArticleReader", () => {
 			const details = doc.querySelector(".article-body__summary");
 			assert(details, "summary details element must be rendered");
 			expect(details.hasAttribute("open")).toBe(true);
+		});
+
+		it("renders a ready summary collapsed when the reader is configured summaryOpen: false (internal reader)", async () => {
+			const { deps } = initFakeDeps({
+				crawl: { status: "ready" },
+				summary: { status: "ready", summary: "TL;DR" },
+				summaryOpen: false,
+			});
+			const reader = initArticleReader(deps);
+
+			const component = await reader.handleSummaryPoll({
+				articleUrl: ARTICLE_URL,
+				pollCount: 1,
+				pollUrlBuilder: makePollUrlBuilder(),
+				extensionInstallUrl: undefined,
+				summaryToggleUrl: "/queue/abc/summary-toggle",
+			});
+
+			const doc = parse(toHtml(component));
+			const details = doc.querySelector(".article-body__summary");
+			assert(details, "summary details element must be rendered");
+			expect(details.hasAttribute("open")).toBe(false);
+			expect(details.getAttribute("data-summary-toggle-url")).toBe("/queue/abc/summary-toggle");
 		});
 
 		it("collapses the summary slot when the crawl has failed (no further polling)", async () => {
@@ -538,6 +569,7 @@ describe("initArticleReader", () => {
 				pollCount: 1,
 				pollUrlBuilder: makePollUrlBuilder(),
 				extensionInstallUrl: undefined,
+				summaryToggleUrl: undefined,
 			});
 
 			const slot = parse(toHtml(component)).querySelector("[data-test-reader-summary]");
@@ -560,6 +592,7 @@ describe("initArticleReader", () => {
 				pollCount: 2,
 				pollUrlBuilder: makePollUrlBuilder(),
 				extensionInstallUrl: undefined,
+				summaryToggleUrl: undefined,
 			});
 
 			const slot = parse(toHtml(component)).querySelector("[data-test-reader-slot]");
@@ -579,6 +612,7 @@ describe("initArticleReader", () => {
 				pollCount: MAX_POLLS,
 				pollUrlBuilder: makePollUrlBuilder(),
 				extensionInstallUrl: undefined,
+				summaryToggleUrl: undefined,
 			});
 
 			const doc = parse(toHtml(component));
@@ -603,6 +637,7 @@ describe("initArticleReader", () => {
 				pollCount: 1,
 				pollUrlBuilder: makePollUrlBuilder(),
 				extensionInstallUrl: undefined,
+				summaryToggleUrl: undefined,
 			});
 
 			const doc = parse(toHtml(component));
@@ -625,6 +660,7 @@ describe("initArticleReader", () => {
 				pollCount: 1,
 				pollUrlBuilder: makePollUrlBuilder(),
 				extensionInstallUrl: undefined,
+				summaryToggleUrl: undefined,
 			});
 
 			const slot = parse(toHtml(component)).querySelector("[data-test-reader-slot]");
@@ -645,6 +681,7 @@ describe("initArticleReader", () => {
 				pollCount: 5,
 				pollUrlBuilder: makePollUrlBuilder(),
 				extensionInstallUrl: undefined,
+				summaryToggleUrl: undefined,
 			});
 
 			const slot = parse(toHtml(component)).querySelector("[data-test-reader-slot]");
@@ -665,6 +702,7 @@ describe("initArticleReader", () => {
 				pollCount: 5,
 				pollUrlBuilder: makePollUrlBuilder(),
 				extensionInstallUrl: undefined,
+				summaryToggleUrl: undefined,
 			});
 
 			const slot = parse(toHtml(component)).querySelector("[data-test-reader-slot]");
@@ -685,6 +723,7 @@ describe("initArticleReader", () => {
 				pollCount: MAX_POLLS,
 				pollUrlBuilder: makePollUrlBuilder(),
 				extensionInstallUrl: undefined,
+				summaryToggleUrl: undefined,
 			});
 
 			const slot = parse(toHtml(component)).querySelector("[data-test-reader-slot]");
@@ -703,6 +742,7 @@ describe("initArticleReader", () => {
 				pollCount: 1,
 				pollUrlBuilder: makePollUrlBuilder(),
 				extensionInstallUrl: undefined,
+				summaryToggleUrl: undefined,
 			});
 
 			const slot = parse(toHtml(component)).querySelector("[data-test-reader-slot]");
@@ -731,6 +771,7 @@ describe("initArticleReader", () => {
 				pollCount: 1,
 				pollUrlBuilder: makePollUrlBuilder(),
 				extensionInstallUrl: undefined,
+				summaryToggleUrl: undefined,
 			});
 
 			const doc = parse(toHtml(component));
@@ -763,6 +804,7 @@ describe("initArticleReader", () => {
 				pollCount: 1,
 				pollUrlBuilder: makePollUrlBuilder(),
 				extensionInstallUrl: undefined,
+				summaryToggleUrl: undefined,
 			});
 
 			const doc = parse(toHtml(component));
@@ -787,6 +829,7 @@ describe("initArticleReader", () => {
 				pollCount: 1,
 				pollUrlBuilder: makePollUrlBuilder(),
 				extensionInstallUrl: undefined,
+				summaryToggleUrl: undefined,
 			});
 
 			const doc = parse(toHtml(component));
@@ -817,6 +860,7 @@ describe("initArticleReader", () => {
 				pollCount: 1,
 				pollUrlBuilder: makePollUrlBuilder(),
 				extensionInstallUrl: undefined,
+				summaryToggleUrl: undefined,
 			});
 
 			const doc = parse(toHtml(component));
@@ -842,6 +886,7 @@ describe("initArticleReader", () => {
 				pollCount: 1,
 				pollUrlBuilder: makePollUrlBuilder(),
 				extensionInstallUrl: undefined,
+				summaryToggleUrl: undefined,
 			});
 
 			const doc = parse(toHtml(component));
@@ -875,6 +920,7 @@ describe("initArticleReader", () => {
 				pollCount: 1,
 				pollUrlBuilder: makePollUrlBuilder(),
 				extensionInstallUrl: undefined,
+				summaryToggleUrl: undefined,
 			});
 
 			const doc = parse(toHtml(component));
@@ -904,6 +950,7 @@ describe("initArticleReader", () => {
 				pollCount: 1,
 				pollUrlBuilder: makePollUrlBuilder(),
 				extensionInstallUrl: undefined,
+				summaryToggleUrl: undefined,
 			});
 
 			const doc = parse(toHtml(component));
@@ -939,6 +986,7 @@ describe("initArticleReader", () => {
 				pollCount: 0,
 				pollUrlBuilder: makePollUrlBuilder(),
 				extensionInstallUrl: undefined,
+				summaryToggleUrl: undefined,
 			});
 
 			const doc = parse(toHtml(component));
@@ -962,6 +1010,7 @@ describe("initArticleReader", () => {
 				pollCount: 0,
 				pollUrlBuilder: makePollUrlBuilder(),
 				extensionInstallUrl: undefined,
+				summaryToggleUrl: undefined,
 			});
 
 			const doc = parse(toHtml(component));
@@ -989,6 +1038,7 @@ describe("initArticleReader", () => {
 				pollCount: 0,
 				pollUrlBuilder: makePollUrlBuilder(),
 				extensionInstallUrl: undefined,
+				summaryToggleUrl: undefined,
 			});
 
 			const doc = parse(toHtml(component));
@@ -1012,6 +1062,7 @@ describe("initArticleReader", () => {
 				pollCount: 1,
 				pollUrlBuilder: makePollUrlBuilder(),
 				extensionInstallUrl: undefined,
+				summaryToggleUrl: undefined,
 			});
 
 			const doc = parse(toHtml(component));
@@ -1035,6 +1086,7 @@ describe("initArticleReader", () => {
 				pollCount: 1,
 				pollUrlBuilder: makePollUrlBuilder(),
 				extensionInstallUrl: undefined,
+				summaryToggleUrl: undefined,
 			});
 
 			const doc = parse(toHtml(component));
@@ -1064,6 +1116,7 @@ describe("initArticleReader", () => {
 				pollCount: 0,
 				pollUrlBuilder: makePollUrlBuilder(),
 				extensionInstallUrl: undefined,
+				summaryToggleUrl: undefined,
 			});
 
 			const doc = parse(toHtml(component));

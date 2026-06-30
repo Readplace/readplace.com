@@ -25,6 +25,11 @@
 					data-test-inbox-email-status="{{status}}"
 					>{{statusLabel}}</span
 				>{{/if}}
+				{{#if linkCountLabel}}<span
+					class="inbox-emails__link-count"
+					data-test-inbox-email-link-count
+					>{{linkCountLabel}}</span
+				>{{/if}}
 				<time class="inbox-emails__time" data-test-inbox-email-time datetime="{{received.iso}}" data-local-time="{{received.mode}}">{{received.label}}</time>
 			</a>
 		</li>

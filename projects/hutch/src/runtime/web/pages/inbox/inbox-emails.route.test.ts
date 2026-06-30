@@ -2,6 +2,7 @@ import assert from "node:assert/strict";
 import { JSDOM } from "jsdom";
 import request from "supertest";
 import {
+	EmailLinkOrdinalSchema,
 	InboxAddressSchema,
 	type InboxEmailEntry,
 	MessageIdSchema,
@@ -178,5 +179,41 @@ describe("Inbox emails list route", () => {
 		expect(
 			rows[2].querySelector('[data-test-inbox-email-status="rejected"]'),
 		).not.toBeNull();
+	});
+
+	it("shows an 'N links' badge only on rows whose links have been extracted", async () => {
+		const fixture = createDefaultTestAppFixture(TEST_APP_ORIGIN);
+		const harness = useApp(fixture);
+		const agent = await loginAgent(harness.server, harness.auth);
+		const withLinks = "2026-06-24T09:00:00.000Z#<with@x>";
+		await seedEmails(fixture, (userId) => [
+			emailEntry(userId, { messageId: "<with@x>", receivedAt: "2026-06-24T09:00:00.000Z" }),
+			emailEntry(userId, { messageId: "<none@x>", receivedAt: "2026-06-24T08:00:00.000Z" }),
+		]);
+		const user = await fixture.auth.findUserByEmail("test@example.com");
+		assert(user, "user must exist");
+		for (const ordinal of ["0000", "0001"]) {
+			await fixture.inboxEmail.inboxEmailLinkStore.putLink({
+				userId: user.userId,
+				receivedAtMessageId: withLinks,
+				ordinal: EmailLinkOrdinalSchema.parse(ordinal),
+				url: `https://example.com/${ordinal}`,
+				status: "pending",
+				title: undefined,
+				excerpt: undefined,
+				siteName: undefined,
+				imageUrl: undefined,
+				failureReason: undefined,
+			});
+		}
+
+		const response = await agent.get("/inbox?feature=email");
+
+		const rows = Array.from(
+			new JSDOM(response.text).window.document.querySelectorAll("[data-test-inbox-emails-row]"),
+		);
+		// Newest row (with links) shows the count; the older link-free row does not.
+		expect(rows[0].querySelector("[data-test-inbox-email-link-count]")?.textContent).toBe("2 links");
+		expect(rows[1].querySelector("[data-test-inbox-email-link-count]")).toBeNull();
 	});
 });
