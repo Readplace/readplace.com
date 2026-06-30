@@ -1,7 +1,7 @@
 import assert from "node:assert";
 import { S3Client } from "@aws-sdk/client-s3";
 import { SendMessageCommand, SQSClient } from "@aws-sdk/client-sqs";
-import { deriveSanitizedBody, MAX_EMAIL_LINKS_PER_EMAIL, parseEmail } from "@packages/domain/inbox";
+import { deriveSanitizedBody, EMAIL_LINK_ORDINAL_CAPACITY, parseEmail } from "@packages/domain/inbox";
 import { CrawlEmailLinkPreview } from "@packages/hutch-infra-components";
 import { EventBridgeClient, initEventBridgePublisher } from "@packages/hutch-infra-components/runtime";
 import { HutchLogger, consoleLogger } from "@packages/hutch-logger";
@@ -19,8 +19,8 @@ const eventBusName = requireEnv("EVENT_BUS_NAME");
 const truncationAlertQueueUrl = requireEnv("EXTRACT_LINKS_TRUNCATION_ALERT_QUEUE_URL");
 const maxLinks = Number.parseInt(requireEnv("INBOX_MAX_LINKS_PER_EMAIL"), 10);
 assert(
-	maxLinks <= MAX_EMAIL_LINKS_PER_EMAIL,
-	`INBOX_MAX_LINKS_PER_EMAIL (${maxLinks}) exceeds ${MAX_EMAIL_LINKS_PER_EMAIL}; a higher cap would mint ordinals too wide for EmailLinkOrdinalSchema to parse`,
+	maxLinks <= EMAIL_LINK_ORDINAL_CAPACITY,
+	`INBOX_MAX_LINKS_PER_EMAIL (${maxLinks}) exceeds the email link ordinal capacity (${EMAIL_LINK_ORDINAL_CAPACITY}); a higher cap would mint ordinals too wide for EmailLinkOrdinalSchema to parse`,
 );
 
 const s3Client = new S3Client({});

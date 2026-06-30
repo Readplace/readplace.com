@@ -1,7 +1,8 @@
 import {
+	EMAIL_LINK_ORDINAL_CAPACITY,
 	EmailLinkOrdinalSchema,
 	EmailLinkStatusSchema,
-	MAX_EMAIL_LINKS_PER_EMAIL,
+	formatEmailLinkOrdinal,
 } from "./inbox-email-link.schema";
 
 describe("EmailLinkOrdinalSchema", () => {
@@ -17,19 +18,13 @@ describe("EmailLinkOrdinalSchema", () => {
 	});
 });
 
-describe("MAX_EMAIL_LINKS_PER_EMAIL", () => {
-	const ordinalFor = (index: number) => String(index).padStart(4, "0");
-
-	it("is the largest cap whose last index still parses", () => {
-		expect(EmailLinkOrdinalSchema.safeParse(ordinalFor(MAX_EMAIL_LINKS_PER_EMAIL - 1)).success).toBe(
-			true,
-		);
+describe("formatEmailLinkOrdinal", () => {
+	it("mints the last in-capacity index as a valid ordinal", () => {
+		expect(() => formatEmailLinkOrdinal(EMAIL_LINK_ORDINAL_CAPACITY - 1)).not.toThrow();
 	});
 
-	it("rejects the first index a one-larger cap would mint", () => {
-		expect(EmailLinkOrdinalSchema.safeParse(ordinalFor(MAX_EMAIL_LINKS_PER_EMAIL)).success).toBe(
-			false,
-		);
+	it("refuses the first index past the capacity", () => {
+		expect(() => formatEmailLinkOrdinal(EMAIL_LINK_ORDINAL_CAPACITY)).toThrow();
 	});
 });
 

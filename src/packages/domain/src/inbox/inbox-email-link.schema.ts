@@ -1,16 +1,19 @@
 import { z } from "zod";
 
-/** Width of the zero-padded ordinal. Single source of truth for the regex below
- * and the per-email link cap: extraction renders each link's index as this many
- * digits, so the width fixes the largest ordinal — and the largest safe cap. */
+/** Width of the zero-padded ordinal. Single source of truth for the regex below,
+ * the per-email link cap, and `formatEmailLinkOrdinal`: every link's index is
+ * rendered as this many digits, so the width fixes the largest ordinal — and the
+ * largest safe cap. */
 const EMAIL_LINK_ORDINAL_DIGITS = 4;
 
-/** Most links one email may extract before an index overflows the ordinal width.
- * `EMAIL_LINK_ORDINAL_DIGITS` digits represent indices `0`…`10^d - 1`, and the
- * last index is `maxLinks - 1`, so a cap of `10^d` is the largest that still
- * parses. The extract-email-links composition root asserts `maxLinks` stays at
- * or below this, so a higher cap can't mint an unparseable 5-digit ordinal. */
-export const MAX_EMAIL_LINKS_PER_EMAIL = 10 ** EMAIL_LINK_ORDINAL_DIGITS;
+/** How many links one email's ordinals can address before an index overflows the
+ * width. `EMAIL_LINK_ORDINAL_DIGITS` digits represent indices `0`…`10^d - 1`, and
+ * the last index is `cap - 1`, so a cap of `10^d` is the largest that still
+ * parses. Named for the ordinal, not the email, to stay distinct from the
+ * configured `INBOX_MAX_LINKS_PER_EMAIL` soft cap. The extract-email-links
+ * composition root asserts that configured cap stays at or below this, so it
+ * can't mint an unparseable 5-digit ordinal. */
+export const EMAIL_LINK_ORDINAL_CAPACITY = 10 ** EMAIL_LINK_ORDINAL_DIGITS;
 
 /** Stable per-link ordinal within one email: the zero-padded index of the link
  * in extraction order. Branded so a raw string can't stand in; it doubles as the
@@ -20,6 +23,13 @@ export const EmailLinkOrdinalSchema = z
 	.regex(new RegExp(`^\\d{${EMAIL_LINK_ORDINAL_DIGITS}}$`))
 	.brand<"EmailLinkOrdinal">();
 export type EmailLinkOrdinal = z.infer<typeof EmailLinkOrdinalSchema>;
+
+/** The one ordinal-minting site: pads a link's extraction-order `index` to
+ * `EMAIL_LINK_ORDINAL_DIGITS` and brands it, so width, cap and render move
+ * together. Throws once `index` reaches `EMAIL_LINK_ORDINAL_CAPACITY` — the
+ * padded value would be too wide for the schema to parse. */
+export const formatEmailLinkOrdinal = (index: number): EmailLinkOrdinal =>
+	EmailLinkOrdinalSchema.parse(String(index).padStart(EMAIL_LINK_ORDINAL_DIGITS, "0"));
 
 /** Crawl-preview lifecycle. Data-state words, contrasting "pending"/"staging":
  *  - `pending`  — extracted, not yet crawled (the only non-terminal state).
