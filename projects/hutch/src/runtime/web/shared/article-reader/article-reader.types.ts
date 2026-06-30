@@ -81,12 +81,6 @@ export interface ReaderState {
 	 * percentage that will never advance).
 	 */
 	progress: ProgressTick | undefined;
-	/**
-	 * The latest crawl timestamp (`contentFetchedAt`) as an absolute
-	 * short-datetime LocalTime, or `undefined` before the first crawl completes.
-	 * Drives the reader's "Last crawled at" bookmark; rendered on every page
-	 * load so it always reflects the most recent crawl.
-	 */
 	lastCrawledAt: LocalTime | undefined;
 }
 

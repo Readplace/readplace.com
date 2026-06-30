@@ -67,7 +67,7 @@
   line-height: 1.3;
 }
 
-/* purgecss-ignore-start: state modifier interpolated in crawl-bookmark.component.ts */
+/* purgecss-ignore-start: state modifier interpolated at runtime so purgecss cannot see the class statically */
 .crawl-bookmark__tab--selected {
   border-left: 3px solid var(--color-brand);
 }

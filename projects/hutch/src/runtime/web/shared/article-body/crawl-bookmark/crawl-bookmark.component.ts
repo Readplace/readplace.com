@@ -10,12 +10,6 @@ const CRAWL_BOOKMARK_TEMPLATE = readFileSync(
 
 export const CRAWL_BOOKMARK_SCRIPT = `<script src="/client-dist/crawl-bookmark.client.js" defer></script>`;
 
-/**
- * One tab in the bookmark strip. The strip is built to hold more than one tab
- * later (the in-flight Crawler Events work adds alternate crawl views), so the
- * template iterates a typed array even though today it always renders exactly
- * one item — the selected canonical view.
- */
 interface CrawlBookmarkTab {
 	key: string;
 	state: "selected";

@@ -46,8 +46,6 @@ export interface ArticleBodyInput {
 	 */
 	progress?: ProgressTick;
 	appOrigin: string;
-	/** Drives the "Last crawled at" bookmark. Absent until the first crawl
-	 * records a `contentFetchedAt`, in which case the bookmark is hidden. */
 	lastCrawledAt?: LocalTime;
 }
 

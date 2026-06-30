@@ -153,8 +153,6 @@ describe("View routes", () => {
 				},
 			});
 
-			// First visit creates the row and runs the synchronous worker; no crawl
-			// timestamp has been recorded yet, so the bookmark stays hidden.
 			const before = await request(harness.server).get(`/view/${CANONICAL_PATH}`);
 			const beforeDoc = new JSDOM(before.text).window.document;
 			assert(
