@@ -53,8 +53,7 @@ export type GetSessionUserId = (
 
 export type DestroySession = (sessionId: string) => Promise<void>;
 
-/** Destroy every live session for a user (queried via the sessions `userId-index`).
- * iOS mints a fresh session per reader open and holds none of their ids, so a
+/** iOS mints a fresh session per reader open and holds none of their ids, so a
  * sign-out can only guarantee no live session by bulk-destroying by userId. */
 export type DestroyUserSessions = (userId: UserId) => Promise<void>;
 
