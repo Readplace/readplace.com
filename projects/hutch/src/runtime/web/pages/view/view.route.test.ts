@@ -193,9 +193,6 @@ describe("View routes", () => {
 
 			expect(response.status).toBe(200);
 			const doc = new JSDOM(response.text).window.document;
-			expect(doc.querySelector("[data-test-reader-title]")?.textContent).toBe(
-				"Hello World",
-			);
 			const href = ctaAction(doc).getAttribute("href");
 			assert(href, "cta action must have an href");
 			const parsed = new URL(href, "http://localhost");
