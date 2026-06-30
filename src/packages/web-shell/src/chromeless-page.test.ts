@@ -54,7 +54,6 @@ describe("ChromelessPage", () => {
 		const doc = new JSDOM(
 			ChromelessPage(createTestPageBody({ scripts: undefined })).to("text/html").body,
 		).window.document;
-		// htmx is always present even when the page itself ships no scripts.
 		expect(doc.querySelector('script[src*="htmx.org"]')).not.toBeNull();
 		expect(doc.querySelector('script[src*="/client-dist/"]')).toBeNull();
 	});

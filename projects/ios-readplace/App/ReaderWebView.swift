@@ -80,10 +80,6 @@ struct ReaderWebView: UIViewControllerRepresentable {
 			onMarkedRead()
 		}
 
-		/// Routes each navigation through the pure `ReaderNavigation` decider: the
-		/// close deep link cancels and closes the sheet; a tapped external link
-		/// cancels and opens in Chrome (or the default browser), reusing the OAuth
-		/// flow's `chromeURLForHTTPS` rewrite; everything else proceeds in place.
 		func webView(
 			_ webView: WKWebView,
 			decidePolicyFor navigationAction: WKNavigationAction,

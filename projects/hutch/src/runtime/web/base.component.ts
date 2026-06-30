@@ -19,8 +19,6 @@ export const Base = initBase({
 	siteScripts: WEBMCP_SCRIPT + LOCAL_TIME_SCRIPT,
 });
 
-/** The shell the iOS app loads the reader through: the same reader content with
- * no logo, nav, or footer, so the native reading list provides the chrome. */
 export const ChromelessPage = initChromelessPage({
 	staticBaseUrl: requireEnv("STATIC_BASE_URL"),
 	liveReload: Boolean(getEnv("LIVERELOAD")),

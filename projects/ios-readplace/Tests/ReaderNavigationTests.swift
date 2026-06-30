@@ -2,8 +2,6 @@ import WebKit
 import XCTest
 @testable import Readplace
 
-/// Tests the pure reader navigation decider. The `WKNavigationDelegate` glue
-/// that calls it is an OS boundary and is left untested, like `ReaderBridge`.
 final class ReaderNavigationTests: XCTestCase {
 	private let current = URL(string: "https://readplace.com/queue/a1/app")!
 

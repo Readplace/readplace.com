@@ -8,9 +8,6 @@ import { injectPageStylesIntoMain } from "./inject-page-styles";
 import type { PageBody, SeoMetadata } from "./page-body.types";
 import { render } from "./render";
 
-/** Configuration the chromeless shell cannot read for itself. `staticBaseUrl`
- * fronts the favicon referenced in the template; `liveReload` injects the dev
- * livereload script. Mirrors `BaseConfig` minus the chrome the shell omits. */
 export interface ChromelessPageConfig {
 	staticBaseUrl: string;
 	liveReload: boolean;

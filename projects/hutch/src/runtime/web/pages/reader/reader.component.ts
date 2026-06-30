@@ -52,9 +52,6 @@ export function ReaderPage(
 		progress?: ProgressTick;
 		audioEnabled?: boolean;
 		extensionInstallUrl?: string;
-		/** Where "← Back to queue" (top and bottom) points. `/view` sends the
-		 * in-app web queue; the iOS chromeless `/app` sends a deep link the
-		 * WKWebView delegate intercepts to close the native sheet. */
 		backLink: { topHref: string; bottomHref: string; label: string };
 	},
 ): PageBody {

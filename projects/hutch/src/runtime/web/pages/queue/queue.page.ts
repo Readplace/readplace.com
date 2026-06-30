@@ -256,7 +256,6 @@ const SAVE_INTENT_PATH = {
 	saveContent: saveIntentPath(SAVE_ROUTE.saveContent),
 } as const;
 
-/** The `/view` reader's "← Back to queue" returns to the in-app web queue. */
 const VIEW_BACK_LINK = {
 	topHref: "/queue?utm_source=reader&utm_medium=internal&utm_content=back-top",
 	bottomHref: "/queue?utm_source=reader&utm_medium=internal&utm_content=back-bottom",
@@ -273,8 +272,6 @@ const APP_BACK_LINK = {
 	label: "← Back to queue",
 } as const;
 
-/** The iOS app gets the chromeless `/app` reader href; browsers and the
- * extension get the full-shell `/view`. Applied to every Siren `read` link. */
 const readerLinkPathFor = (req: Request): ReaderLinkPath =>
 	isIosClient(req) ? "app" : "view";
 
