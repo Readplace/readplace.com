@@ -3,7 +3,7 @@ import type { HutchLogger } from "@packages/hutch-logger";
 import type { LogParseError } from "@packages/hutch-infra-components";
 import type { ArticleMetadata, Minutes, ValidateSaveableUrl } from "@packages/domain/article";
 import type { ImportSessionStore } from "@packages/domain/import-session";
-import type { InboxAddressStore, InboxEmailStore } from "@packages/domain/inbox";
+import type { InboxAddressStore, InboxEmailLinkStore, InboxEmailStore } from "@packages/domain/inbox";
 import type { ExtractLinksFromPageUrl } from "@packages/extract-links-from-page";
 import type { ParseArticle } from "@packages/article-parser";
 import type {
@@ -59,6 +59,7 @@ import type {
 	MarkEmailVerified,
 	MarkReaderReadyEmailSent,
 	MarkReaderViewSucceeded,
+	MarkSummaryToggled,
 	MarkSessionEmailVerified,
 	MarkSubscriptionActive,
 	MarkSubscriptionCancelledByUserId,
@@ -97,6 +98,7 @@ import type {
 	UpdatePassword,
 	UpsertActiveSubscription,
 	UpsertTrialingSubscription,
+	UserAcquisitionAttribution,
 	UserExistsByEmail,
 	ValidateAccessToken,
 	VerifyCredentials,
@@ -130,6 +132,7 @@ export interface AuthBundle {
 	findEmailByUserId: FindEmailByUserId;
 	findUserById: FindUserById;
 	deleteUser: (email: string) => Promise<void>;
+	getAcquisitionAttribution: (email: string) => Promise<UserAcquisitionAttribution | undefined>;
 }
 
 export interface StripeCheckoutBundle {
@@ -195,10 +198,15 @@ export interface ArticleStoreBundle {
 	deleteArticle: DeleteArticle;
 	updateArticleStatus: UpdateArticleStatus;
 	markArticleViewed: MarkArticleViewed;
+	markSummaryToggled: MarkSummaryToggled;
 	markReaderViewSucceeded: MarkReaderViewSucceeded;
 	findUserArticlesByUrl: FindUserArticlesByUrl;
 	markReaderReadyEmailSent: MarkReaderReadyEmailSent;
 	findUserArticleNotificationState: FindUserArticleNotificationState;
+	getSummaryToggleState: (params: { userId: UserId; url: string }) => Promise<{
+		lastSummaryOpenedAt?: Date;
+		lastSummaryClosedAt?: Date;
+	} | null>;
 	readArticleContent: ReadArticleContent;
 	readContent: ContentProvider;
 	writeContent: (params: { url: string; content: string }) => Promise<void>;
@@ -324,6 +332,7 @@ export interface InboxAddressBundle {
 
 export interface InboxEmailBundle {
 	inboxEmailStore: InboxEmailStore;
+	inboxEmailLinkStore: InboxEmailLinkStore;
 	readEmailContent: ContentProvider;
 }
 

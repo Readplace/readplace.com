@@ -100,58 +100,9 @@ logger.info("[recovery] Starting…");
 
 **Swift:** route logging through `os.Logger` (with a subsystem/category) and mark sensitive interpolations `privacy: .private`; raw `NSLog`/`print` is the equivalent of raw `console.log`. Never log credentials, tokens, or user PII (e.g. saved URLs / reading history).
 
-### Comments Document Why, Not What
+### Comments
 
-Prefer code that explains its own why — a clearer name, an assert, a type, or a test (see the assert example at the end of this section) — over any comment. An approved comment explains **why**, never what.
-
-| Action                      | Approval                | Stance                                                            |
-|-----------------------------|-------------------------|-------------------------------------------------------------------|
-| Remove a comment            | None                    | Encouraged — remove freely, and more often than you add           |
-| Add a discretionary comment | Explicit human approval | Last resort — restructure the code to carry the why first         |
-
-```typescript
-// BAD - Explains what (obvious from code)
-// Re-export template function
-export { createHomePageContent } from './home.template';
-
-// GOOD - Explains why (not obvious)
-// Robots noindex because this page contains personal data
-robots: 'noindex, nofollow',
-```
-
-When a comment explains a specific line within a block and fits on one line, use an inline comment:
-
-```typescript
-options.addArguments("--no-sandbox"); // CI container has no user namespace
-```
-
-When a comment explains multiple lines within a block, use indexed references so the explanation stays together and each line is traceable:
-
-```typescript
-/** 1. DynamoDB stores missing attributes as null, not undefined. .nullish() accepts both. */
-const Row = z.object({
-  etag: z.string().nullish(), /* 1 */
-  lastModified: z.string().nullish(), /* 1 */
-});
-```
-
-Do not leave time-bound or plan-bound comments in the code. These include leftover notes from an implementation plan ("this is a test to do X, remove when Y is concluded"), references to the current task or PR ("added for the auth migration", "temporary until rollout completes"), or any wording that assumes a particular moment in time ("new", "recently", "for now", "currently", "as of today"). Such comments rot when the surrounding code changes — no one remembers to update them. If a condition genuinely needs to be revisited, encode it in code (a failing test, a feature flag with an owner, a tracked issue) rather than in a comment.
-
-```typescript
-// BAD - Plan-bound, will rot when the experiment ends
-// Temporary: remove this branch after the migration to v2 is complete
-if (useLegacyPath) { ... }
-
-// BAD - Time-bound, becomes a lie as the code evolves
-// Currently we only support GET — POST coming soon
-function handle(req: Request) { ... }
-
-// GOOD - Constraint enforced by assert; no comment to rot
-function handle(req: Request) {
-	assert.equal(req.method, "GET");
-	// ...
-}
-```
+Comment policy — when a comment may exist, the human-approval gate for adding or keeping one, the allowed formats, and the *why*-not-*what*/*how* rule — lives in the [code-comments skill](.claude/skills/code-comments/SKILL.md). Default stance: prefer code that explains its own why (a clearer name, a type, an `assert`, a test); remove comments freely and more often than you add.
 
 ### Unused Variables
 

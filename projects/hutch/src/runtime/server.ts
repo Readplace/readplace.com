@@ -61,6 +61,7 @@ import type {
 	FindArticleUrlById,
 	FindArticlesByUser,
 	MarkArticleViewed,
+	MarkSummaryToggled,
 	SaveArticle,
 	SaveArticleGlobally,
 	UpdateArticleStatus,
@@ -121,7 +122,7 @@ import { initQueueRoutes } from "./web/pages/queue/queue.page";
 import { QUEUE_PATH } from "./web/pages/queue/queue.url";
 import { initImportSessionRoutes } from "./web/pages/import/import.page";
 import type { ImportSessionStore } from "@packages/domain/import-session";
-import type { InboxAddressStore, InboxEmailStore } from "@packages/domain/inbox";
+import type { InboxAddressStore, InboxEmailLinkStore, InboxEmailStore } from "@packages/domain/inbox";
 import type { UserId } from "@packages/domain/user";
 import type { ExtractLinksFromPageUrl } from "@packages/extract-links-from-page";
 import type { HttpErrorMessageMapping } from "./web/pages/queue/queue.error";
@@ -208,6 +209,7 @@ interface AppDependencies {
 	deleteArticle: DeleteArticle;
 	updateArticleStatus: UpdateArticleStatus;
 	markArticleViewed: MarkArticleViewed;
+	markSummaryToggled: MarkSummaryToggled;
 	sendEmail: SendEmail;
 	createVerificationToken: CreateVerificationToken;
 	verifyEmailToken: VerifyEmailToken;
@@ -252,6 +254,7 @@ interface AppDependencies {
 	extractLinksFromPageUrl: ExtractLinksFromPageUrl;
 	inboxAddressStore: InboxAddressStore;
 	inboxEmailStore: InboxEmailStore;
+	inboxEmailLinkStore: InboxEmailLinkStore;
 	readEmailContent: ContentProvider;
 	inboxAddressDomain: string;
 	getChangelogBanner: GetChangelogBanner;
@@ -860,6 +863,7 @@ export function createApp(dependencies: AppDependencies): Express {
 		deleteArticle: deps.deleteArticle,
 		updateArticleStatus: deps.updateArticleStatus,
 		markArticleViewed: deps.markArticleViewed,
+		markSummaryToggled: deps.markSummaryToggled,
 		publishLinkSaved: deps.publishLinkSaved,
 		publishSaveLinkRawHtmlCommand: deps.publishSaveLinkRawHtmlCommand,
 		publishSaveLinkRawPdfCommand: deps.publishSaveLinkRawPdfCommand,
@@ -976,6 +980,7 @@ export function createApp(dependencies: AppDependencies): Express {
 		featureToggle,
 		inboxAddressStore: deps.inboxAddressStore,
 		inboxEmailStore: deps.inboxEmailStore,
+		inboxEmailLinkStore: deps.inboxEmailLinkStore,
 		readEmailContent: deps.readEmailContent,
 		inboxAddressDomain: deps.inboxAddressDomain,
 		logError: deps.logError,
