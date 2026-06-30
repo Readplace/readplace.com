@@ -2,7 +2,7 @@
   "manifest_version": 2,
   "name": "Readplace — Save Articles & Read Later",
   "version": "0.0.0",
-  "description": "Save articles with one click. A privacy-first read-it-later app and Pocket alternative.",
+  "description": "Save articles with one click. A privacy-first read-it-later app and Pocket alternative. Read the Web, not the Slop.",
   "browser_specific_settings": {
     "gecko": {
       "id": "hutch-extension@hutch-app.com",
