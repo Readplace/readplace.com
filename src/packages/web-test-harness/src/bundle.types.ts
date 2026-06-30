@@ -59,6 +59,7 @@ import type {
 	MarkEmailVerified,
 	MarkReaderReadyEmailSent,
 	MarkReaderViewSucceeded,
+	MarkSummaryToggled,
 	MarkSessionEmailVerified,
 	MarkSubscriptionActive,
 	MarkSubscriptionCancelledByUserId,
@@ -97,6 +98,7 @@ import type {
 	UpdatePassword,
 	UpsertActiveSubscription,
 	UpsertTrialingSubscription,
+	UserAcquisitionAttribution,
 	UserExistsByEmail,
 	ValidateAccessToken,
 	VerifyCredentials,
@@ -130,6 +132,7 @@ export interface AuthBundle {
 	findEmailByUserId: FindEmailByUserId;
 	findUserById: FindUserById;
 	deleteUser: (email: string) => Promise<void>;
+	getAcquisitionAttribution: (email: string) => Promise<UserAcquisitionAttribution | undefined>;
 }
 
 export interface StripeCheckoutBundle {
@@ -195,10 +198,15 @@ export interface ArticleStoreBundle {
 	deleteArticle: DeleteArticle;
 	updateArticleStatus: UpdateArticleStatus;
 	markArticleViewed: MarkArticleViewed;
+	markSummaryToggled: MarkSummaryToggled;
 	markReaderViewSucceeded: MarkReaderViewSucceeded;
 	findUserArticlesByUrl: FindUserArticlesByUrl;
 	markReaderReadyEmailSent: MarkReaderReadyEmailSent;
 	findUserArticleNotificationState: FindUserArticleNotificationState;
+	getSummaryToggleState: (params: { userId: UserId; url: string }) => Promise<{
+		lastSummaryOpenedAt?: Date;
+		lastSummaryClosedAt?: Date;
+	} | null>;
 	readArticleContent: ReadArticleContent;
 	readContent: ContentProvider;
 	writeContent: (params: { url: string; content: string }) => Promise<void>;

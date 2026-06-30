@@ -20,6 +20,7 @@ import { READER_STYLES } from "./reader.styles";
 const READER_TEMPLATE = readFileSync(join(__dirname, "reader.template.html"), "utf-8");
 const PROGRESS_BAR_SCRIPT = `<script src="/client-dist/progress-bar.client.js" defer></script>`;
 const READER_IFRAME_SCRIPT = `<script src="/client-dist/reader-iframe.client.js" defer></script>`;
+const SUMMARY_TOGGLE_SCRIPT = `<script src="/client-dist/summary-toggle.client.js" defer></script>`;
 
 /**
  * Both the initial SSR <title> and the OOB <title> swap emitted by reader
@@ -67,7 +68,8 @@ export function ReaderPage(
 		readerPollUrl: options.readerPollUrl,
 		summary: options.summary,
 		summaryPollUrl: options.summaryPollUrl,
-		summaryOpen: true,
+		summaryOpen: false,
+		summaryToggleUrl: `/queue/${articleId}/summary-toggle`,
 		progress: options.progress,
 		audioEnabled: options.audioEnabled,
 		appOrigin: options.appOrigin,
@@ -111,6 +113,6 @@ export function ReaderPage(
 		styles: READER_STYLES,
 		bodyClass: "page-reader",
 		content: { html: content },
-		scripts: SHARE_BALLOON_SCRIPT + PROGRESS_BAR_SCRIPT + READER_IFRAME_SCRIPT,
+		scripts: SHARE_BALLOON_SCRIPT + PROGRESS_BAR_SCRIPT + READER_IFRAME_SCRIPT + SUMMARY_TOGGLE_SCRIPT,
 	};
 }

@@ -1509,6 +1509,3 @@ export const staleCheckRequestedQueueUrl = staleCheckRequestedQueue.queueUrl;
 export const staleCheckRequestedDlqUrl = staleCheckRequestedQueue.dlqUrl;
 export const contentBucketOutputName = contentBucket.bucket;
 export const contentBucketOutputArn = contentBucket.arn;
-// Read cross-stack by hutch's inbox link-preview crawler, which uploads lead
-// images to the same content bucket and needs this CDN base to build their URLs.
-export const contentMediaCdnBaseUrl = contentMediaCdn.baseUrl;

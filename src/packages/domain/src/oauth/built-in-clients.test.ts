@@ -20,6 +20,14 @@ describe("getBuiltInClient", () => {
 		assert.equal(client.name, "Readplace Chrome Extension");
 	});
 
+	it("returns the registered iOS app client", () => {
+		const client = getBuiltInClient("ios-app");
+		assert(client, "iOS client should be defined");
+		assert.equal(client.name, "Readplace iOS App");
+		assert.ok(client.grants.includes("authorization_code"));
+		assert.ok(client.grants.includes("refresh_token"));
+	});
+
 	it("returns undefined for an unknown client ID", () => {
 		assert.equal(getBuiltInClient("unknown-client"), undefined);
 	});
@@ -36,7 +44,7 @@ describe("isBuiltInRedirectUri", () => {
 		);
 	});
 
-	it("accepts the iOS staging callback listed on the Chrome extension client", () => {
+	it("accepts the staging deployment callback listed on the Chrome extension client", () => {
 		const chromeClient = getBuiltInClient("hutch-chrome-extension");
 		assert(chromeClient, "Chrome client must exist");
 		assert.equal(
@@ -49,7 +57,19 @@ describe("isBuiltInRedirectUri", () => {
 		);
 	});
 
-	it("accepts the iOS native custom-scheme callback on the Chrome extension client", () => {
+	it("accepts the iOS native custom-scheme callback on the iOS app client", () => {
+		const iosClient = getBuiltInClient("ios-app");
+		assert(iosClient, "iOS client must exist");
+		assert.equal(
+			isBuiltInRedirectUri({
+				client: iosClient,
+				redirectUri: IOS_NATIVE_OAUTH_CALLBACK_URI,
+			}),
+			true,
+		);
+	});
+
+	it("rejects the iOS native custom-scheme callback on the Chrome extension client", () => {
 		const chromeClient = getBuiltInClient("hutch-chrome-extension");
 		assert(chromeClient, "Chrome client must exist");
 		assert.equal(
@@ -57,7 +77,7 @@ describe("isBuiltInRedirectUri", () => {
 				client: chromeClient,
 				redirectUri: IOS_NATIVE_OAUTH_CALLBACK_URI,
 			}),
-			true,
+			false,
 		);
 	});
 

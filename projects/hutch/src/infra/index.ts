@@ -48,13 +48,12 @@ const alertEmail = config.require("alertEmail");
 const rawEmailBucketName = config.require("rawEmailBucketName");
 const inboxMailParentZone = config.require("inboxMailParentZone");
 
-// The content-media CDN that fronts the shared article-content bucket is owned by
-// the save-link stack. The link-preview crawler uploads each lead image to that
-// same bucket, so it needs the same CDN base URL to build a stable image URL —
-// read it cross-stack rather than standing up a second CDN over the bucket.
-// (Deploy save-link before hutch so this output exists.)
-const saveLinkStack = new pulumi.StackReference(config.require("saveLinkStack"));
-const imagesCdnBaseUrl = saveLinkStack.requireOutput("contentMediaCdnBaseUrl").apply(String);
+// The content-media CDN over the shared article-content bucket is owned by save-link;
+// the link-preview crawler uploads lead images there and needs the CDN base URL. That
+// URL is the CDN's custom domain (a config constant), so derive it here the way save-link
+// does instead of a cross-stack requireOutput, which would couple deploy order (see the
+// infrastructure-design skill).
+const imagesCdnBaseUrl = `https://${config.require("contentMediaCdnDomain")}`;
 const tableNames = {
 	articles: config.require("dynamodbArticlesTable"),
 	userArticles: config.require("dynamodbUserArticlesTable"),

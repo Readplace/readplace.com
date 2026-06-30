@@ -30,7 +30,7 @@ final class OAuthServiceTests: XCTestCase {
 		XCTAssertEqual(body["grant_type"], "authorization_code")
 		XCTAssertEqual(body["code"], "AUTH_CODE")
 		XCTAssertEqual(body["code_verifier"], "VERIFIER")
-		XCTAssertEqual(body["client_id"], "hutch-chrome-extension")
+		XCTAssertEqual(body["client_id"], "ios-app")
 		XCTAssertEqual(body["redirect_uri"], AppConfig.nativeCallbackURL)
 	}
 

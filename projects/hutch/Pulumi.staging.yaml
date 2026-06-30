@@ -5,7 +5,6 @@ config:
   hutch:stage: staging
   hutch:nodeEnv: development
   hutch:platformStack: organization/platform/staging
-  hutch:saveLinkStack: organization/save-link/staging
   hutch:domains:
     - readplace-staging.com
   hutch:redirectSubdomains:
@@ -40,6 +39,7 @@ config:
   hutch:apiThrottleRateLimit: 2000
   hutch:trialSchedulerGroupName: hutch-trial-end-staging
   hutch:contentBucketName: hutch-article-content-staging
+  hutch:contentMediaCdnDomain: cdn.readplace-staging.com
   hutch:pendingHtmlBucketName: hutch-pending-html-staging
   hutch:pendingPdfBucketName: hutch-pending-pdf-staging
   hutch:userExportBucketName: hutch-user-exports-staging

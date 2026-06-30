@@ -19,6 +19,6 @@ export function renderInboxArticlesPanel(vm: ArticlesPanelViewModel): string {
 	return render(INBOX_ARTICLES_PANEL_TEMPLATE, {
 		...vm,
 		articleHtmls: vm.cards.map(renderInboxArticleCard),
-		panelStatus: vm.isExtracting ? "extracting" : "terminal",
+		panelStatus: vm.isExtracting ? "extracting" : vm.isStalePending ? "stale" : "terminal",
 	});
 }

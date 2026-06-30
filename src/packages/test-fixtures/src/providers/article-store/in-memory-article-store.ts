@@ -22,6 +22,7 @@ import type {
 	MarkArticleViewed,
 	MarkReaderReadyEmailSent,
 	MarkReaderViewSucceeded,
+	MarkSummaryToggled,
 	SaveArticle,
 	SaveArticleGlobally,
 	UpdateArticleStatus,
@@ -54,6 +55,8 @@ interface UserArticle {
 	succeededAt?: Date;
 	viewedAt?: Date;
 	emailSentAt?: Date;
+	lastSummaryOpenedAt?: Date;
+	lastSummaryClosedAt?: Date;
 }
 
 function toSavedArticle(article: GlobalArticle, userArticle: UserArticle): SavedArticle {
@@ -84,10 +87,17 @@ export function initInMemoryArticleStore(): {
 	deleteArticle: DeleteArticle;
 	updateArticleStatus: UpdateArticleStatus;
 	markArticleViewed: MarkArticleViewed;
+	markSummaryToggled: MarkSummaryToggled;
 	markReaderViewSucceeded: MarkReaderViewSucceeded;
 	findUserArticlesByUrl: FindUserArticlesByUrl;
 	markReaderReadyEmailSent: MarkReaderReadyEmailSent;
 	findUserArticleNotificationState: FindUserArticleNotificationState;
+	/** Test-only accessor for the latest TL;DR open/close stamps, so route tests
+	 * can assert the beacon reached the row. */
+	getSummaryToggleState: (params: { userId: UserId; url: string }) => Promise<{
+		lastSummaryOpenedAt?: Date;
+		lastSummaryClosedAt?: Date;
+	} | null>;
 	readContent: ContentProvider;
 	writeContent: (params: { url: string; content: string }) => Promise<void>;
 	writeMetadata: (params: { url: string; metadata: ArticleMetadata; estimatedReadTime: Minutes }) => Promise<void>;
@@ -278,6 +288,14 @@ export function initInMemoryArticleStore(): {
 		ua.viewedAt = at;
 	};
 
+	const markSummaryToggled: MarkSummaryToggled = async ({ userId, url, state, at }) => {
+		const articleResourceUniqueId = ArticleResourceUniqueId.parse(url);
+		const ua = userArticles.get(userArticleKey(userId, articleResourceUniqueId.value));
+		assert(ua, `User article must exist to mark summary toggled: ${articleResourceUniqueId.value}`);
+		if (state === "open") ua.lastSummaryOpenedAt = at;
+		else ua.lastSummaryClosedAt = at;
+	};
+
 	const markReaderViewSucceeded: MarkReaderViewSucceeded = async ({ userId, url, at }) => {
 		const articleResourceUniqueId = ArticleResourceUniqueId.parse(url);
 		const ua = userArticles.get(userArticleKey(userId, articleResourceUniqueId.value));
@@ -301,6 +319,16 @@ export function initInMemoryArticleStore(): {
 		const ua = userArticles.get(userArticleKey(userId, articleResourceUniqueId.value));
 		assert(ua, `User article must exist to mark email sent: ${articleResourceUniqueId.value}`);
 		if (ua.emailSentAt === undefined) ua.emailSentAt = at;
+	};
+
+	const getSummaryToggleState = async ({ userId, url }: { userId: UserId; url: string }) => {
+		const articleResourceUniqueId = ArticleResourceUniqueId.parse(url);
+		const ua = userArticles.get(userArticleKey(userId, articleResourceUniqueId.value));
+		if (!ua) return null;
+		return {
+			lastSummaryOpenedAt: ua.lastSummaryOpenedAt,
+			lastSummaryClosedAt: ua.lastSummaryClosedAt,
+		};
 	};
 
 	const findUserArticleNotificationState: FindUserArticleNotificationState = async ({ userId, url }) => {
@@ -369,10 +397,12 @@ export function initInMemoryArticleStore(): {
 		deleteArticle,
 		updateArticleStatus,
 		markArticleViewed,
+		markSummaryToggled,
 		markReaderViewSucceeded,
 		findUserArticlesByUrl,
 		markReaderReadyEmailSent,
 		findUserArticleNotificationState,
+		getSummaryToggleState,
 		readContent,
 		writeContent,
 		writeMetadata,

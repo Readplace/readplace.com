@@ -5,7 +5,6 @@ config:
   hutch:stage: production
   hutch:nodeEnv: production
   hutch:platformStack: organization/platform/prod
-  hutch:saveLinkStack: organization/save-link/prod
   hutch:domains:
     - hutch-app.com
     - readplace.com
@@ -48,6 +47,7 @@ config:
   hutch:apiThrottleRateLimit: 50
   hutch:trialSchedulerGroupName: hutch-trial-end-prod
   hutch:contentBucketName: hutch-article-content-prod
+  hutch:contentMediaCdnDomain: cdn.readplace.com
   hutch:pendingHtmlBucketName: hutch-pending-html-prod
   hutch:pendingPdfBucketName: hutch-pending-pdf-prod
   hutch:userExportBucketName: hutch-user-exports-prod

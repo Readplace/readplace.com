@@ -41,6 +41,24 @@ describe("renderSummaryReady", () => {
 		expect(details.hasAttribute("open")).toBe(true);
 	});
 
+	it("carries data-summary-toggle-url on the <details> when a tracking URL is supplied (internal reader)", () => {
+		const doc = parse(
+			renderSummaryReady({ summary: "Key points.", open: false, summaryToggleUrl: "/queue/abc/summary-toggle" }),
+		);
+
+		const details = doc.querySelector(".article-body__summary");
+		assert(details, "summary details element must be rendered");
+		expect(details.getAttribute("data-summary-toggle-url")).toBe("/queue/abc/summary-toggle");
+	});
+
+	it("omits data-summary-toggle-url when no tracking URL is supplied (public / admin readers)", () => {
+		const doc = parse(renderSummaryReady({ summary: "Key points.", open: true }));
+
+		const details = doc.querySelector(".article-body__summary");
+		assert(details, "summary details element must be rendered");
+		expect(details.hasAttribute("data-summary-toggle-url")).toBe(false);
+	});
+
 	it("HTML-escapes the summary text", () => {
 		const doc = parse(
 			renderSummaryReady({

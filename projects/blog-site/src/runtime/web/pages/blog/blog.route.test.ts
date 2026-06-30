@@ -172,6 +172,15 @@ describe("GET /blog/:slug", () => {
 		expect(doc.querySelector(".blog-post__content")?.innerHTML.length ?? 0).toBeGreaterThan(0);
 	});
 
+	// The blog renders no TL;DR summary slot, so it is out of scope for the
+	// summary open/close instrumentation: there is nothing to collapse or beacon.
+	it("renders no reader summary slot (the blog has no TL;DR to instrument)", async () => {
+		const response = await request(app).get(`/blog/${firstPost.slug}`);
+		const doc = new JSDOM(response.text).window.document;
+		expect(doc.querySelector("[data-test-reader-summary]")).toBeNull();
+		expect(doc.querySelector(".article-body__summary")).toBeNull();
+	});
+
 	it("should render post metadata", async () => {
 		const response = await request(app).get(`/blog/${firstPost.slug}`);
 		const doc = new JSDOM(response.text).window.document;
