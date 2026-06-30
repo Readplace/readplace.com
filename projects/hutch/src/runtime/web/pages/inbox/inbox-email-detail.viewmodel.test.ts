@@ -77,7 +77,7 @@ describe("toInboxEmailDetailViewModel", () => {
 
 		expect(vm.received).toEqual({
 			iso: "2026-06-24T09:00:00.000Z",
-			label: "24 June 2026, 09:00 UTC",
+			label: "Jun 24, 2026, 09:00 UTC",
 			mode: "datetime",
 		});
 	});

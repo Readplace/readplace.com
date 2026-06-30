@@ -22,7 +22,7 @@ describe("toAccountViewModel — state", () => {
 		assert.equal(vm.statusLine, "Your free trial ends on ");
 		assert.deepEqual(vm.statusDate, {
 			iso: trialEndsAt,
-			label: "24 May 2026",
+			label: "May 24, 2026",
 			mode: "date",
 		});
 		assert.equal(vm.statusDateTail, " — 1 day left.");
@@ -134,7 +134,7 @@ describe("toAccountViewModel — actions", () => {
 		assert.equal(vm.statusLine, "Your subscription ends on ");
 		assert.deepEqual(vm.statusDate, {
 			iso: "2026-06-22T10:00:00.000Z",
-			label: "22 June 2026",
+			label: "Jun 22, 2026",
 			mode: "date",
 		});
 		assert.equal(vm.statusDateTail, ".");
@@ -162,7 +162,7 @@ describe("toAccountViewModel — actions", () => {
 		assert.equal(vm.statusLine, "Your subscription ends on ");
 		assert.deepEqual(vm.statusDate, {
 			iso: "2026-06-05T00:00:00.000Z",
-			label: "5 June 2026",
+			label: "Jun 5, 2026",
 			mode: "date",
 		});
 		assert.equal(vm.statusDateTail, ".");

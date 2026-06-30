@@ -52,7 +52,7 @@ export function deriveTrialEscalation(
 }
 
 function formatEndDate(endsAtIso: string): string {
-	return new Date(endsAtIso).toLocaleDateString("en-AU", {
+	return new Date(endsAtIso).toLocaleDateString("en-US", {
 		day: "numeric",
 		month: "short",
 		year: "numeric",

@@ -17,11 +17,11 @@ export interface LocalTime {
 
 export type LocalTimeStyle = "datetime" | "date";
 
-const LOCALE = "en-AU";
+const LOCALE = "en-US";
 
 /** Explicit component options rather than dateStyle/timeStyle, which cannot be
  * combined with timeZoneName. hour12:false yields a 24-hour clock (09:00, not
- * 9:00 am); timeZoneName:"short" yields the abbreviation (UTC, AEST) and
+ * 9:00 am); timeZoneName:"short" yields the abbreviation (UTC, EDT) and
  * auto-falls back to a GMT offset (GMT+5:30) for zones without one. */
 const DATETIME_OPTIONS: Intl.DateTimeFormatOptions = {
 	day: "numeric",

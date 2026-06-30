@@ -50,7 +50,7 @@ describe("blog posts", () => {
 
 	it("should have formatted dates for every post", () => {
 		for (const post of posts) {
-			expect(post.formattedDate).toMatch(/\d{1,2} \w+ \d{4}/);
+			expect(post.formattedDate).toMatch(/\w+ \d{1,2}, \d{4}/);
 		}
 	});
 

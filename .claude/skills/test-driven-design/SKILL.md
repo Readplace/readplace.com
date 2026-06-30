@@ -151,7 +151,7 @@ interface EncryptedLink { ... }
 Use TypeScript's type system to prevent invalid states at compile time.
 
 ```typescript
-type SupportedLocale = 'en-AU';
+type SupportedLocale = 'en-US';
 ```
 
 ### Internal Contracts Are Not Versioned — Prefer Required Fields

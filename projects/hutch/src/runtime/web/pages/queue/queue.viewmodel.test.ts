@@ -195,7 +195,7 @@ describe("toQueueViewModel", () => {
 
 		expect(vm.articles[0].saved).toEqual({
 			iso: "2025-04-01T12:00:00.000Z",
-			label: "1 Apr 2025",
+			label: "Apr 1, 2025",
 			mode: "date",
 		});
 	});
