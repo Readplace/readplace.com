@@ -523,7 +523,38 @@ describe("Queue routes", () => {
 		});
 
 		it("redirects a logged-out owner arriving via the reader-ready email marker to /login, returning to the private reader after login", async () => {
-			const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
+			const articleHtml = `
+			<html><head><title>Email Reader Post</title></head>
+			<body><article>
+				<h1>Email Reader Post</h1>
+				<p>The reader-ready email drops the owner back into their private reader after they log in.</p>
+				<p>A second paragraph so the parser has more than the minimum word count to work with.</p>
+			</article></body></html>`;
+
+			const crawlArticle = async () => ({ status: "fetched" as const, html: articleHtml, bodyHash: "a".repeat(64) });
+			const fixture = createDefaultTestAppFixture(TEST_APP_ORIGIN);
+			const { parseArticle } = initReadabilityParser({ crawlArticle, siteRules: [], logError: createNoopLogError() });
+			const applyParseResult = createFakeApplyParseResult({
+				articleStore: fixture.articleStore,
+				articleCrawl: fixture.articleCrawl,
+				parseArticle,
+			});
+			const harness = useApp({
+				...fixture,
+				parser: { parseArticle, crawlArticle },
+				events: {
+					publishLinkSaved: createFakePublishLinkSaved(applyParseResult),
+					publishRecrawlLinkInitiated: createFakePublishRecrawlLinkInitiated(applyParseResult),
+					publishSaveAnonymousLink: createFakePublishSaveAnonymousLink(applyParseResult),
+					publishSaveLinkRawHtmlCommand: fixture.events.publishSaveLinkRawHtmlCommand,
+					publishSaveLinkRawPdfCommand: fixture.events.publishSaveLinkRawPdfCommand,
+					publishStaleCheckRequested: fixture.events.publishStaleCheckRequested,
+					publishUpdateFetchTimestamp: fixture.events.publishUpdateFetchTimestamp,
+					publishExportUserDataCommand: fixture.events.publishExportUserDataCommand,
+					publishCancelSubscriptionCommand: fixture.events.publishCancelSubscriptionCommand,
+					publishSubscriptionReactivated: fixture.events.publishSubscriptionReactivated,
+				},
+			});
 			const { auth } = harness;
 			const ownerAgent = await loginAgent(harness.server, auth);
 
@@ -536,14 +567,25 @@ describe("Queue routes", () => {
 				?.getAttribute("data-test-article");
 			assert.ok(articleId, "owner must see the saved article in their queue");
 
-			const response = await request(harness.server)
+			const loggedOutAgent = request.agent(harness.server);
+			const redirect = await loggedOutAgent
 				.get(`/queue/${articleId}/view`)
 				.query({ from: "reader-ready-email" });
 
-			expect(response.status).toBe(303);
-			expect(response.headers.location).toBe(
-				`/login?return=${encodeURIComponent(`/queue/${articleId}/view?from=reader-ready-email`)}`,
-			);
+			expect(redirect.status).toBe(303);
+			const returnPath = `/queue/${articleId}/view?from=reader-ready-email`;
+			expect(redirect.headers.location).toBe(`/login?return=${encodeURIComponent(returnPath)}`);
+
+			await loggedOutAgent
+				.post("/login")
+				.type("form")
+				.send({ email: "test@example.com", password: "password123" });
+
+			const readerResponse = await loggedOutAgent.get(returnPath);
+
+			expect(readerResponse.status).toBe(200);
+			const doc = new JSDOM(readerResponse.text).window.document;
+			assert(doc.querySelector("iframe[data-reader-iframe]"), "private reader iframe must be rendered after login");
 		});
 
 		it("renders the private reader for a logged-in owner even when the reader-ready email marker is present", async () => {
