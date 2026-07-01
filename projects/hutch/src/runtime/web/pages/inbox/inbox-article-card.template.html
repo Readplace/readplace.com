@@ -10,7 +10,7 @@
 	<p class="inbox-article-card__failed" data-test-inbox-article-failed>Couldn’t preview this link</p>
 	{{else}}
 	<a class="inbox-article-card__title inbox-article-card__title--bare" href="{{url}}" target="_blank" rel="noopener noreferrer">{{url}}</a>
-	<p class="inbox-article-card__pending" data-test-inbox-article-pending>Loading preview…</p>
+	{{#if isStalePending}}<p class="inbox-article-card__stale-pending" data-test-inbox-article-stale-pending>Taking a while — <a href="{{url}}" target="_blank" rel="noopener noreferrer">open on {{#if siteName}}{{siteName}}{{else}}the source{{/if}}</a></p>{{else}}<p class="inbox-article-card__pending" data-test-inbox-article-pending>Loading preview…</p>{{/if}}
 	{{/if}}
 	{{/if}}
 </article>

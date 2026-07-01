@@ -80,6 +80,7 @@ import { tabQuery } from "./queue.tabs";
 import type { HttpErrorMessageMapping } from "./queue.error";
 import { collectStatusFlashParams, importFlashMapping, statusFlashMapping } from "./queue.error";
 import { MAX_POLLS } from "../../shared/article-reader/article-reader";
+import { parsePollParam } from "../../shared/article-reader/poll-param";
 import { toQueueArticleViewModel, toQueueViewModel } from "./queue.viewmodel";
 import { QueuePage } from "./queue.component";
 import {
@@ -1093,7 +1094,7 @@ export function initQueueRoutes(deps: QueueDependencies): Router {
 
 		await deps.markArticleViewed({ userId, url: article.url, at: deps.now() });
 
-		const pollCount = Number(req.query.poll ?? "0");
+		const pollCount = parsePollParam(req.query.poll, MAX_POLLS);
 		const component = await reader.handleSummaryPoll({
 			articleUrl: article.url,
 			pollCount,
@@ -1119,7 +1120,7 @@ export function initQueueRoutes(deps: QueueDependencies): Router {
 
 		await deps.markArticleViewed({ userId, url: article.url, at: deps.now() });
 
-		const pollCount = Number(req.query.poll ?? "0");
+		const pollCount = parsePollParam(req.query.poll, MAX_POLLS);
 		const component = await reader.handleReaderPoll({
 			articleUrl: article.url,
 			pollCount,
@@ -1207,7 +1208,7 @@ export function initQueueRoutes(deps: QueueDependencies): Router {
 		const queueUrl = buildQueueUrl(filters);
 		const queryIndex = queueUrl.indexOf("?");
 		const returnQuery = queryIndex !== -1 ? queueUrl.slice(queryIndex) : "";
-		const requestedPoll = Number(req.query.poll ?? "0");
+		const requestedPoll = parsePollParam(req.query.poll, MAX_POLLS);
 		const articleVm = toQueueArticleViewModel({
 			article,
 			now: deps.now(),

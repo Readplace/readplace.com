@@ -31,6 +31,7 @@ import { InboxEmailsPage } from "./inbox-emails.component";
 import { type InboxEmailLinkSummary, toInboxEmailsViewModel } from "./inbox-emails.viewmodel";
 import { computeInboxLinkCardEtag } from "./inbox-link-card.etag";
 import { toInboxLinkCardViewModel } from "./inbox-link-card.viewmodel";
+import { parsePollParam } from "../../shared/article-reader/poll-param";
 import { InboxPage } from "./inbox.component";
 
 interface InboxDependencies {
@@ -162,7 +163,7 @@ export function initInboxRoutes(deps: InboxDependencies): Router {
 			userId,
 			receivedAtMessageId,
 		});
-		const requestedPoll = Number(req.query.poll ?? "0");
+		const requestedPoll = parsePollParam(req.query.poll, MAX_POLLS);
 		const vm = toInboxEmailDetailViewModel({
 			entry,
 			bodyHtml: undefined,
@@ -214,7 +215,7 @@ export function initInboxRoutes(deps: InboxDependencies): Router {
 				res.status(304).end();
 				return;
 			}
-			const requestedPoll = Number(req.query.poll ?? "0");
+			const requestedPoll = parsePollParam(req.query.poll, MAX_POLLS);
 			const cardVm = toInboxLinkCardViewModel({
 				link,
 				emailId: receivedAtMessageId,

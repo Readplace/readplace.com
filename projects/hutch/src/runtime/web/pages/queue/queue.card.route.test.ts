@@ -446,6 +446,27 @@ describe("Queue routes", () => {
 			expect(card.hasAttribute("hx-get")).toBe(false);
 		});
 
+		it("treats a non-numeric poll cursor as the start of the budget instead of polling unbounded", async () => {
+			const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
+			const { auth } = harness;
+			const agent = await loginAgent(harness.server, auth);
+
+			await agent
+				.post("/queue/save")
+				.type("form")
+				.send({ url: "https://example.com/card-poll-nan" });
+
+			const articleId = await getFirstArticleId(agent);
+			const response = await agent.get(`/queue/${articleId}/card?poll=not-a-number`);
+
+			expect(response.status).toBe(200);
+			const doc = new JSDOM(response.text).window.document;
+			const card = doc.querySelector(".queue-article");
+			assert(card, "card fragment must be rendered");
+			expect(card.getAttribute("hx-get")).toMatch(/[?&]poll=1(?:&|$)/);
+			expect(card.getAttribute("data-card-status")).toBe("pending");
+		});
+
 		it("GET /queue/:id/card returns 404 for an unknown article", async () => {
 			const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
 			const { auth } = harness;
