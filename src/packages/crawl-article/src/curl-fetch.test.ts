@@ -347,6 +347,19 @@ describe("fetchCurl redirect following (SSRF-guarded per hop)", () => {
 		expect(seq.calls).toHaveLength(1);
 	});
 
+	it("refuses to follow a redirect to a non-HTTP(S) scheme (no curl spawned for it)", async () => {
+		const seq = makeSequencedExec([
+			"HTTP/1.1 301 Moved Permanently\r\nlocation: gopher://example.com:70/1payload\r\n\r\n",
+			"HTTP/1.1 200 OK\r\n\r\nshould-not-be-reached",
+		]);
+		const fetchCurl = createCurlFetch({ execCurl: seq.execCurl, resolvePinnedAddress });
+
+		await expect(fetchCurl("https://example.com/start")).rejects.toThrow(
+			/refusing to follow redirect to non-HTTP.*gopher:/,
+		);
+		expect(seq.calls).toHaveLength(1);
+	});
+
 	it("stops and fails after MAX_REDIRECTS consecutive redirects", async () => {
 		const seq = makeSequencedExec([
 			"HTTP/1.1 302 Found\r\nlocation: https://example.com/loop\r\n\r\n",

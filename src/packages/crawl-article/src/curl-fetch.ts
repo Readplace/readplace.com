@@ -12,6 +12,7 @@ const DEFAULT_TIMEOUT_MS = 10000;
 
 const REDIRECT_STATUS_CODES = new Set([301, 302, 303, 307, 308]);
 const MAX_REDIRECTS = 5;
+const ALLOWED_REDIRECT_PROTOCOLS = new Set(["http:", "https:"]);
 
 type CurlFetchInit = {
 	headers?: Record<string, string>;
@@ -116,7 +117,13 @@ export function createCurlFetch(deps: { execCurl: ExecCurl; resolvePinnedAddress
 			// next fetchOnce re-runs resolvePinnedAddress on the target host — the
 			// per-hop SSRF re-validation that lets us follow a redirect curl itself
 			// (kept at --max-redirs 0) is not allowed to chase.
-			currentUrl = new URL(location, currentUrl).href;
+			const nextUrl = new URL(location, currentUrl);
+			if (!ALLOWED_REDIRECT_PROTOCOLS.has(nextUrl.protocol)) {
+				throw new Error(
+					`fetchCurl failed for ${url}: refusing to follow redirect to non-HTTP(S) scheme "${nextUrl.protocol}"`,
+				);
+			}
+			currentUrl = nextUrl.href;
 		}
 	};
 }
