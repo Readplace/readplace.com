@@ -29,7 +29,7 @@ const EXPLANATIONS: Record<ReaderFailedVariant, string> = {
 	unsupported:
 		"There are some links that are not webpages which we yet don't show in the reader.",
 	failed:
-		"We couldn't pull the article text. The site may be blocking automated fetches. Use the browser extension to save it.",
+		"We couldn't pull the article text. The site may be blocking automated fetches. Save it with the browser extension or your iPhone instead.",
 	slow: "Reader view is taking longer than usual.",
 };
 
