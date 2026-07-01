@@ -224,6 +224,29 @@ describe("GET /", () => {
 		);
 	});
 
+	it("should render the highlighted reader testimonial immediately after the hero", async () => {
+		const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
+		const response = await request(harness.server).get("/");
+		const doc = new JSDOM(response.text).window.document;
+
+		const testimonial = doc.querySelector('[data-test-section="testimonial"]');
+		assert(testimonial, "testimonial section must be rendered");
+		expect(testimonial.getAttribute("aria-label")).toBe("What readers say");
+
+		const quote = testimonial.querySelector(".home-testimonial__quote");
+		expect(quote?.textContent).toContain("it just works");
+
+		const attribution = testimonial.querySelector(".home-testimonial__attribution");
+		expect(attribution?.textContent).toContain("Matthew Motz");
+		expect(attribution?.textContent).toContain("early user");
+
+		const hero = doc.querySelector('[data-test-section="hero"]');
+		assert(hero, "hero section must be rendered");
+		expect(
+			hero.compareDocumentPosition(testimonial) & hero.DOCUMENT_POSITION_FOLLOWING,
+		).toBeTruthy();
+	});
+
 	it("should render the founding pricing card and hide the fallback when under the limit", async () => {
 		const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
 		const response = await request(harness.server).get("/");
@@ -463,6 +486,22 @@ describe("GET /", () => {
 		expect(faq.mainEntity[0].name).toBe("What is Readplace?");
 		expect(faq.mainEntity[4].name).toBe("What does the $49/year subscription pay for?");
 		expect(faq.mainEntity[5].name).toBe("Does Readplace hallucinate text when extracting PDFs?");
+	});
+
+	it("should include the reader review nested in the WebApplication structured data", async () => {
+		const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
+		const response = await request(harness.server).get("/");
+		const doc = new JSDOM(response.text).window.document;
+
+		const scripts = doc.querySelectorAll('script[type="application/ld+json"]');
+		const schemas = Array.from(scripts).map((s) => JSON.parse(s.textContent ?? "{}"));
+		const app = schemas.find((s: { "@type": string }) => s["@type"] === "WebApplication");
+
+		assert(app.review, "WebApplication schema must include a review");
+		expect(app.review["@type"]).toBe("Review");
+		expect(app.review.author.name).toBe("Matthew Motz");
+		expect(app.review.reviewBody).toContain("it just works");
+		expect(app.review.reviewRating.ratingValue).toBe("5");
 	});
 
 	it("should render section landmarks with aria-labels", async () => {

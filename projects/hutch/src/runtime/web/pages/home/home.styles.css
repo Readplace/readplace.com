@@ -1235,6 +1235,50 @@ hr::before {
   font-weight: 500;
 }
 
+/**
+ * Highlighted reader testimonial — a single featured pull-quote after the hero
+ * as social proof before the install / pricing ask. Colours use flip-aware
+ * tokens (--foreground, --muted, --primary, --muted-foreground), so dark mode
+ * adapts without a separate override.
+ */
+.home-testimonial {
+  padding: 80px 20px;
+  text-align: center;
+}
+
+.home-testimonial__figure {
+  max-width: var(--reader-max-width);
+  margin: 0 auto;
+  padding: 40px 32px;
+  background: var(--muted);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-lg);
+}
+
+.home-testimonial__quote {
+  margin: 0;
+  font-family: Georgia, "Times New Roman", serif;
+  font-size: 1.5rem;
+  line-height: 1.4;
+  color: var(--foreground);
+}
+
+.home-testimonial__quote::before {
+  content: "\201C";
+  display: block;
+  margin-bottom: 4px;
+  color: var(--primary);
+  font-family: Georgia, "Times New Roman", serif;
+  font-size: 3rem;
+  line-height: 1;
+}
+
+.home-testimonial__attribution {
+  margin-top: 24px;
+  font-size: 0.9375rem;
+  color: var(--muted-foreground);
+}
+
 @media (min-width: 768px) {
   .home-hero__title {
     font-size: 3.5rem;

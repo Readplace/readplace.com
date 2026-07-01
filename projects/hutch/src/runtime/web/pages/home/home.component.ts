@@ -106,6 +106,13 @@ export function HomePage(params: {
 						"No third-party tracking, no ads, no third-party analytics",
 						"Full data export available at any time, even after cancellation",
 					],
+					review: {
+						"@type": "Review",
+						author: { "@type": "Person", name: "Matthew Motz" },
+						reviewBody:
+							"The app works really well. It has really made it easier to save articles, and I haven't experienced any issues at all — it just works.",
+						reviewRating: { "@type": "Rating", ratingValue: "5", bestRating: "5" },
+					},
 				},
 				{
 					"@context": "https://schema.org",
