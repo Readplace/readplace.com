@@ -473,4 +473,14 @@ enum Href {
 			return nil
 		}
 	}
+
+	/// Appends a query item to an already-resolved URL, preserving any query the
+	/// URL already carries, or nil when the URL can't be decomposed/recomposed.
+	/// Kept beside `resolve` so appending a client parameter (e.g. the reader's
+	/// `platform=ios`) shares one URL-building rule and is unit-testable.
+	static func appending(_ item: URLQueryItem, to url: URL) -> URL? {
+		guard var components = URLComponents(url: url, resolvingAgainstBaseURL: false) else { return nil }
+		components.queryItems = (components.queryItems ?? []) + [item]
+		return components.url
+	}
 }

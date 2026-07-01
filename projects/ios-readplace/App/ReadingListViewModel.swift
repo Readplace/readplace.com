@@ -139,11 +139,17 @@ final class ReadingListViewModel: ObservableObject {
 	/// Opens the reader for a tapped row. A row whose server response carries no
 	/// usable read link is read-only, so this is a no-op for it — no sheet opens.
 	/// The sheet is presented immediately; the session cookie is minted inside it.
+	///
+	/// The server `read` link is the same href every client follows; the app appends
+	/// `?platform=ios` here so the server renders the reader chromeless inside the
+	/// WKWebView, where the native list is the chrome. An href the client can't
+	/// resolve or re-encode with the parameter is treated as absent (read-only row).
 	func openReader(for article: Article) {
 		guard let href = article.readHref,
-			let url = Href.resolve(href, baseURL: api.baseURL)
+			let url = Href.resolve(href, baseURL: api.baseURL),
+			let readerURL = Href.appending(AppConfig.readerPlatformQueryItem, to: url)
 		else { return }
-		readerPresentation = ReaderPresentation(readerURL: url, articleId: article.id)
+		readerPresentation = ReaderPresentation(readerURL: readerURL, articleId: article.id)
 	}
 
 	/// Follows a navigable collection-level link (e.g. a `save` link) by opening

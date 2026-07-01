@@ -3,7 +3,7 @@ import XCTest
 @testable import Readplace
 
 final class ReaderNavigationTests: XCTestCase {
-	private let current = URL(string: "https://readplace.com/queue/a1/app")!
+	private let current = URL(string: "https://readplace.com/queue/a1/view?platform=ios")!
 
 	func testCloseDeepLinkClosesViaLinkActivation() {
 		let url = URL(string: "readplace://reader/close")!
@@ -54,7 +54,7 @@ final class ReaderNavigationTests: XCTestCase {
 	}
 
 	func testSameDocumentFragmentTapStaysInTheWebView() {
-		let url = URL(string: "https://readplace.com/queue/a1/app#footnote")!
+		let url = URL(string: "https://readplace.com/queue/a1/view?platform=ios#footnote")!
 		XCTAssertEqual(
 			ReaderNavigation.decide(url: url, navigationType: .linkActivated, currentURL: current),
 			.allow

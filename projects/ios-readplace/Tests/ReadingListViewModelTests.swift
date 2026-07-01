@@ -573,14 +573,18 @@ final class ReadingListViewModelTests: XCTestCase {
 		)
 	}
 
-	func testOpenReaderPublishesPresentationWithResolvedURL() {
+	func testOpenReaderPublishesPresentationWithResolvedURLAndPlatformParam() {
 		let viewModel = makeViewModel(store: TestSupport.loggedInStore())
 
 		viewModel.openReader(for: article(readHref: "/queue/a1/view"))
 
 		let presentation = viewModel.readerPresentation
 		XCTAssertEqual(presentation?.articleId, "a1")
-		XCTAssertEqual(presentation?.readerURL.absoluteString, "\(AppConfig.serverBaseURL)/queue/a1/view")
+		XCTAssertEqual(
+			presentation?.readerURL.absoluteString,
+			"\(AppConfig.serverBaseURL)/queue/a1/view?platform=ios",
+			"the app appends ?platform=ios so the server renders the reader chromeless in the webview"
+		)
 	}
 
 	func testOpenReaderIsANoOpWhenArticleHasNoReadHref() {
