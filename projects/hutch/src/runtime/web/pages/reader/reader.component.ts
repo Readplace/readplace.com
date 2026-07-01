@@ -58,9 +58,9 @@ export function ReaderPage(
 		extensionInstallUrl?: string;
 		backLink: { topHref: string; bottomHref: string; label: string };
 		/** Injected per variant: the standard (top+bottom) or chromeless (sticky
-		 * top, back-only bottom) reader action bars. The variant also carries the
-		 * page body class, so the sticky-toolbar markup and its content offset are
-		 * decided by one value and can never drift apart. */
+		 * top, no bottom — the native sheet handles dismissal) reader action bars.
+		 * The variant also carries the page body class, so the sticky-toolbar markup
+		 * and its content offset are decided by one value and can never drift apart. */
 		renderActions: RenderReaderActions;
 	},
 ): PageBody {

@@ -8,11 +8,11 @@
   {{/if}}
   {{#if markRead}}
   <div class="article-body__mark-read-slot article-body__mark-read-slot--visible" data-test-mark-read-bottom-slot>
-    <form class="article-body__mark-read-form" method="POST" action="{{markRead.postUrl}}" hx-boost="true" hx-target="main" hx-select="main" hx-swap="outerHTML show:none" data-test-mark-read-bottom-form>
+    <form class="article-body__mark-read-form" method="POST" action="{{markRead.postUrl}}" hx-boost="true" hx-target="main" hx-select="main" hx-swap="outerHTML show:none" hx-disabled-elt=".article-body__mark-read" data-test-mark-read-bottom-form>
       {{#each markRead.fields}}
       <input type="hidden" name="{{name}}" value="{{value}}">
       {{/each}}
-      <button class="article-body__mark-read" type="submit" data-test-mark-read-bottom-btn>{{markRead.label}}</button>
+      <button class="article-body__mark-read" type="submit" data-test-mark-read-bottom-btn><span class="article-body__mark-read-label">{{markRead.label}}</span><span class="article-body__mark-read-loader" aria-hidden="true"><span></span><span></span><span></span></span></button>
     </form>
   </div>
   {{else}}

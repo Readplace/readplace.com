@@ -115,17 +115,18 @@ describe("Queue reader chromeless switch (GET /queue/:id/view?platform=ios)", ()
 		expect(doc.querySelector("[data-test-back-link]")?.getAttribute("href")).toBe("readplace://reader/close");
 	});
 
-	it("points both back links at the native-close deep link", async () => {
+	it("points the top back link at the native-close deep link and drops the bottom bar", async () => {
 		const harness = buildHarness();
 		const agent = await loginAgent(harness.server, harness.auth);
 		const articleId = await saveAndGetArticleId(agent, "https://example.com/app-back");
 
 		const doc = new JSDOM((await agent.get(`/queue/${articleId}/view?platform=ios`)).text).window.document;
 		expect(doc.querySelector("[data-test-back-link]")?.getAttribute("href")).toBe("readplace://reader/close");
-		expect(doc.querySelector("[data-test-back-bottom-link]")?.getAttribute("href")).toBe("readplace://reader/close");
+		expect(doc.querySelector("[data-test-back-bottom-link]")).toBe(null);
+		expect(doc.querySelector(".article-body__actions--bottom")).toBe(null);
 	});
 
-	it("keeps htmx and the top mark-read form but drops the bottom one so mark-as-read still bridges to the app", async () => {
+	it("keeps htmx and the top mark-read form but drops the whole bottom bar so mark-as-read still bridges to the app", async () => {
 		const harness = buildHarness();
 		const agent = await loginAgent(harness.server, harness.auth);
 		const articleId = await saveAndGetArticleId(agent, "https://example.com/app-markread");
@@ -141,9 +142,8 @@ describe("Queue reader chromeless switch (GET /queue/:id/view?platform=ios)", ()
 			topForm.querySelector('input[type="hidden"][name="status"]')?.getAttribute("value"),
 		).toBe("read");
 
-		const bottomSlot = doc.querySelector("[data-test-mark-read-bottom-slot]");
-		assert(bottomSlot, "bottom mark-read slot must still render as an empty hidden slot");
-		expect(bottomSlot.classList.contains("article-body__mark-read-slot--hidden")).toBe(true);
+		expect(doc.querySelector("[data-test-mark-read-bottom-slot]")).toBe(null);
+		expect(doc.querySelector(".article-body__actions--bottom")).toBe(null);
 	});
 
 	it("marks the body chromeless so the reader CSS can pin the top actions", async () => {

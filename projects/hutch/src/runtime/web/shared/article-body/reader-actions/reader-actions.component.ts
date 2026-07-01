@@ -59,6 +59,6 @@ export const RegularReader: RenderReaderActions = ({ actionBtns }) => ({
 
 export const ChromelessReader: RenderReaderActions = ({ actionBtns }) => ({
 	top: HtmlPage(`<div class="article-body__actions--sticky">${topBar(actionBtns)}</div>`),
-	bottom: HtmlPage(bottomBar(actionBtns, undefined)),
+	bottom: HtmlPage(""),
 	bodyClass: "page-reader page-reader--chromeless",
 });

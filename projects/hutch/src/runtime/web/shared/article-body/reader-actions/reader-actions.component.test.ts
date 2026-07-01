@@ -109,18 +109,9 @@ describe("ChromelessReader", () => {
 		assert(topDoc.querySelector("[data-test-mark-read-form]"), "chromeless keeps the top mark-read form");
 	});
 
-	it("keeps the bottom back link but drops the bottom mark-read", () => {
+	it("drops the entire bottom bar — the native sheet handles dismissal", () => {
 		const { bottom } = ChromelessReader({ actionBtns: ACTION_BTNS });
-		const bottomDoc = parse(bottom.to("text/html").body);
-
-		expect(bottomDoc.querySelector("[data-test-back-bottom-link]")?.getAttribute("href")).toBe(
-			BACK.bottomHref,
-		);
-		expect(
-			bottomDoc
-				.querySelector("[data-test-mark-read-bottom-slot]")
-				?.classList.contains("article-body__mark-read-slot--hidden"),
-		).toBe(true);
+		expect(bottom.to("text/html").body).toBe("");
 	});
 
 	it("carries the chromeless body class so the reader CSS offsets content below the sticky toolbar", () => {

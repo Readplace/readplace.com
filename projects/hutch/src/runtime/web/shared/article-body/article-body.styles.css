@@ -44,6 +44,7 @@
 }
 
 .article-body__mark-read {
+  position: relative;
   display: inline-block;
   padding: 0.5rem 1rem;
   font-size: 0.875rem;
@@ -58,6 +59,60 @@
 
 .article-body__mark-read:hover {
   filter: brightness(1.05);
+}
+
+.article-body__mark-read:disabled {
+  cursor: progress;
+  opacity: 1;
+}
+
+.article-body__mark-read-loader {
+  position: absolute;
+  inset: 0;
+  display: none;
+  align-items: center;
+  justify-content: center;
+  gap: 0.35em;
+}
+
+.htmx-request .article-body__mark-read-label {
+  visibility: hidden;
+}
+
+.htmx-request .article-body__mark-read-loader {
+  display: flex;
+}
+
+.article-body__mark-read-loader span {
+  width: 0.45em;
+  height: 0.45em;
+  border-radius: 50%;
+  background: currentColor;
+  animation: article-body-mark-read-dot 1.2s ease-in-out infinite both;
+}
+
+.article-body__mark-read-loader span:nth-child(2) {
+  animation-delay: 0.4s;
+}
+
+.article-body__mark-read-loader span:nth-child(3) {
+  animation-delay: 0.8s;
+}
+
+@keyframes article-body-mark-read-dot {
+  0%,
+  100% {
+    transform: scale(0.5);
+  }
+  50% {
+    transform: scale(1);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .article-body__mark-read-loader span {
+    animation: none;
+  }
 }
 
 .article-body__title {
