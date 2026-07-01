@@ -11,7 +11,6 @@ const TEMPLATE = readFileSync(join(__dirname, "queue-card.template.html"), "utf-
 
 export interface ActionDisplayModel extends ArticleAction {
 	buttonClass: string;
-	formClass: string;
 	disabled: boolean;
 }
 
@@ -34,15 +33,10 @@ export function toActionDisplayModel(
 	const buttonClass = isStatusAction
 		? "queue-article__action-btn queue-article__action-btn--status"
 		: "queue-article__action-btn queue-article__action-btn--delete";
-	const formClass =
-		action.testAction === "mark-read"
-			? "queue-article__action-form queue-article__action-form--mark-read"
-			: "queue-article__action-form";
 	return {
 		...action,
 		url: withInternalTracking(action.url, { source: "queue-card", content: action.testAction }),
 		buttonClass,
-		formClass,
 		disabled: options.isProcessing && isStatusAction,
 	};
 }

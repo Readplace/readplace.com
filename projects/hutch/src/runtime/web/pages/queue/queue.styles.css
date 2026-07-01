@@ -454,18 +454,6 @@
   margin: 0;
 }
 
-/**
- * 1. Below the tablet breakpoint the "Mark as read" toggle is dropped from the
- *    card — on phones the read flow is tap-title → read → mark read inside the
- *    reader. "Mark as unread" and Delete stay. Hiding the whole form (not just
- *    the button) avoids leaving a phantom flex gap in the actions row.
- */
-@media (max-width: 639.98px) {
-  .queue-article__action-form--mark-read {
-    display: none; /* 1 */
-  }
-}
-
 .queue-article__action-btn {
   display: inline-flex;
   align-items: center;

@@ -7,7 +7,7 @@
 		</div>
 		<div class="queue-article__actions">
 			{{#each actions}}
-			<form method="{{method}}" action="{{url}}" class="{{formClass}}" hx-boost="true" hx-target="main" hx-select="main" hx-swap="outerHTML show:none">
+			<form method="{{method}}" action="{{url}}" class="queue-article__action-form" hx-boost="true" hx-target="main" hx-select="main" hx-swap="outerHTML show:none">
 				{{#each fields}}<input type="hidden" name="{{name}}" value="{{value}}">{{/each}}
 				<button class="{{buttonClass}}" type="submit" title="{{title}}" data-test-action="{{testAction}}"{{#if disabled}} disabled{{/if}}>{{text}}</button>
 			</form>
