@@ -67,7 +67,7 @@ struct ReaderWebView: UIViewControllerRepresentable {
 		init(
 			onMarkedRead: @escaping () -> Void,
 			onClose: @escaping () -> Void,
-			externalBrowser: ExternalBrowser,
+			externalBrowser: ExternalBrowser
 		) {
 			self.onMarkedRead = onMarkedRead
 			self.onClose = onClose
@@ -83,7 +83,7 @@ struct ReaderWebView: UIViewControllerRepresentable {
 		func webView(
 			_ webView: WKWebView,
 			decidePolicyFor navigationAction: WKNavigationAction,
-			decisionHandler: @escaping (WKNavigationActionPolicy) -> Void,
+			decisionHandler: @escaping (WKNavigationActionPolicy) -> Void
 		) {
 			guard let url = navigationAction.request.url else {
 				decisionHandler(.allow)
@@ -92,7 +92,7 @@ struct ReaderWebView: UIViewControllerRepresentable {
 			switch ReaderNavigation.decide(
 				url: url,
 				navigationType: navigationAction.navigationType,
-				currentURL: webView.url,
+				currentURL: webView.url
 			) {
 			case .allow:
 				decisionHandler(.allow)

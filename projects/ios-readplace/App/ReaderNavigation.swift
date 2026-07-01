@@ -18,7 +18,7 @@ enum ReaderNavigation {
 	static func decide(
 		url: URL,
 		navigationType: WKNavigationType,
-		currentURL: URL?,
+		currentURL: URL?
 	) -> ReaderNavigationDecision {
 		if url.scheme?.lowercased() == "readplace",
 		   url.host?.lowercased() == "reader",
