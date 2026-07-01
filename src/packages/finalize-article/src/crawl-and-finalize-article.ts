@@ -65,6 +65,7 @@ export function initCrawlAndFinalizeArticle(deps: {
 		const finalized = await finalizeArticle({
 			url: params.url,
 			html: crawlResult.html,
+			finalUrl: crawlResult.finalUrl,
 			preFetchedThumbnail: crawlResult.thumbnailImage,
 			mediaType: crawlResult.mediaType,
 		});

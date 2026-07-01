@@ -25,6 +25,10 @@ export type CrawlArticleResult =
 			 * can pass it back as `previousBodyHash` and short-circuit when the
 			 * origin returns the same bytes under a 200 OK. */
 			bodyHash: string;
+			/* Post-redirect URL (undici `Response.url`) so a 3xx redirect resolves
+			 * the article's canonical identity. Absent when the fetch fell back to
+			 * h2/curl, which build a synthetic Response whose `.url` is empty. */
+			finalUrl?: string;
 	  }
 	| { status: "not-modified" }
 	| { status: "failed" }

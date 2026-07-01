@@ -630,6 +630,22 @@ describe("parseHtmlFromBuffer — thumbnailUrl extraction", () => {
 			bodyHash,
 		});
 	});
+
+	it("captures the post-redirect finalUrl from response.url", async () => {
+		const bodyHash = createHash("sha256").update(Buffer.from("<html></html>")).digest("hex");
+		const redirected = new Response(null, {});
+		Object.defineProperty(redirected, "url", { value: "https://example.com/final" });
+		const result = await parseHtmlFromBuffer({
+			buffer: Buffer.from("<html></html>"),
+			bodyHash,
+			response: redirected,
+			url: "https://example.com/requested",
+			crawlFetch: throwingCrawlFetch,
+			logError: noopLogError,
+		});
+		assertFetched(result);
+		expect(result.finalUrl).toBe("https://example.com/final");
+	});
 });
 
 describe("parseHtmlFromBuffer — thumbnail prefetch (fetchThumbnail opt-in)", () => {

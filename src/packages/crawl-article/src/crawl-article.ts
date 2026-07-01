@@ -156,6 +156,7 @@ export async function parseHtmlFromBuffer(input: {
 		lastModified: headerOrUndefined(response.headers, "last-modified"),
 		bodyHash,
 	};
+	if (response.url) result.finalUrl = response.url;
 	if (thumbnailUrl) result.thumbnailUrl = thumbnailUrl;
 	if (thumbnailImage) result.thumbnailImage = thumbnailImage;
 	return result;

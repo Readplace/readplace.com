@@ -36,6 +36,9 @@ export type FinalizeArticleResult =
 export type FinalizeArticle = (input: {
 	url: string;
 	html: string;
+	/** The origin's post-redirect URL, threaded from the crawler so a 3xx
+	 * redirect resolves the article's canonical identity. */
+	finalUrl?: string;
 	/** Image bytes that the crawler already fetched inline (SimpleCrawl with
 	 * `fetchThumbnail: true`). When present, skip the re-fetch and just upload.
 	 * When absent (raw-HTML save, comprehensive crawl), the finalizer fetches
@@ -88,7 +91,7 @@ export function initFinalizeArticle(deps: {
 		 * Readability for content extraction — different libraries, different
 		 * concerns, negligible overhead on article-sized documents. */
 		const candidates = extractThumbnailCandidates({ html: input.html, baseUrl: input.url });
-		const canonicalUrl = resolveCanonicalUrl({ html: input.html, requestedUrl: input.url });
+		const canonicalUrl = resolveCanonicalUrl({ html: input.html, requestedUrl: input.url, finalUrl: input.finalUrl });
 
 		if (input.mediaType === "image" || isBareImageCapture({ html: input.html, candidates, url: input.url })) {
 			const imageResult = await finalizeImageArticle({
