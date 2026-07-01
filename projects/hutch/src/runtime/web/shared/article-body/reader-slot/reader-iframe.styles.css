@@ -115,6 +115,61 @@ body {
   color: var(--color-text-secondary);
 }
 
+/**
+ * The article-parser replaces an unplayable YouTube <iframe> (the reader body
+ * has no allow-scripts, so the player errors) with this poster card: the video
+ * thumbnail under a play glyph, wrapped in a link to the watch page. The 16:9
+ * box keeps a stable height while the poster loads.
+ */
+.article-body__content .reader-embed-facade {
+  margin: 1.5rem 0;
+}
+
+.article-body__content .reader-embed-facade a {
+  position: relative;
+  display: block;
+  aspect-ratio: 16 / 9;
+  overflow: hidden;
+  border-radius: 4px;
+  background: var(--color-surface);
+}
+
+.article-body__content .reader-embed-facade img {
+  width: 100%;
+  height: 100%;
+  margin: 0;
+  border-radius: 0;
+  object-fit: cover;
+}
+
+.article-body__content .reader-embed-facade a::before {
+  content: "";
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  width: 68px;
+  height: 48px;
+  border-radius: 14px;
+  background: rgba(0, 0, 0, 0.55);
+  transform: translate(-50%, -50%);
+  transition: background 0.15s ease;
+}
+
+.article-body__content .reader-embed-facade a:hover::before {
+  background: var(--color-brand);
+}
+
+.article-body__content .reader-embed-facade a::after {
+  content: "";
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  border-style: solid;
+  border-width: 11px 0 11px 19px;
+  border-color: transparent transparent transparent #fff;
+  transform: translate(-40%, -50%);
+}
+
 .article-body__content pre {
   overflow-x: auto;
   padding: 1rem;

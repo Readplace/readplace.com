@@ -59,6 +59,26 @@ describe("resolveRelativeUrls", () => {
 		);
 	});
 
+	it("should normalise a camelCase srcSet to lowercase and resolve it", () => {
+		const html = '<img srcSet="/img/small.jpg 1x, /img/large.jpg 2x" src="/img/small.jpg">';
+		const result = resolveRelativeUrls({ html, baseUrl });
+		expect(result).toContain(
+			'srcset="https://example.com/img/small.jpg 1x, https://example.com/img/large.jpg 2x"',
+		);
+		expect(result).not.toContain("srcSet");
+	});
+
+	it("should resolve a Next.js camelCase srcSet with relative /_next/image candidates", () => {
+		const html =
+			'<img srcSet="/_next/image?url=%2Fa.png&w=640&q=75 640w, /_next/image?url=%2Fa.png&w=1920&q=75 1920w" src="https://cdn.example.com/a.png">';
+		const result = resolveRelativeUrls({ html, baseUrl });
+		expect(result).toContain(
+			"srcset=\"https://example.com/_next/image?url=%2Fa.png&w=640&q=75 640w",
+		);
+		expect(result).toContain("https://example.com/_next/image?url=%2Fa.png&w=1920&q=75 1920w");
+		expect(result).not.toContain("srcSet");
+	});
+
 	it("should resolve video[src] and audio[src] attributes", () => {
 		const html = '<video src="/media/video.mp4"></video><audio src="/media/audio.mp3"></audio>';
 		const result = resolveRelativeUrls({ html, baseUrl });
