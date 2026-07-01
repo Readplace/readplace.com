@@ -489,7 +489,6 @@ export function initQueueRoutes(deps: QueueDependencies): Router {
 				extensionInstallUrl: undefined,
 				backLink: APP_BACK_LINK,
 				renderActions: deps.chromelessReader,
-				chromeless: true,
 			})),
 		);
 	});

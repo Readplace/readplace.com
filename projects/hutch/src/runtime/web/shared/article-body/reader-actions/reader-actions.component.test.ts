@@ -88,6 +88,10 @@ describe("RegularReader", () => {
 				?.classList.contains("article-body__mark-read-slot--hidden"),
 		).toBe(true);
 	});
+
+	it("carries the standard page body class (no chromeless offset)", () => {
+		expect(RegularReader({ actionBtns: ACTION_BTNS }).bodyClass).toBe("page-reader");
+	});
 });
 
 describe("ChromelessReader", () => {
@@ -117,5 +121,11 @@ describe("ChromelessReader", () => {
 				.querySelector("[data-test-mark-read-bottom-slot]")
 				?.classList.contains("article-body__mark-read-slot--hidden"),
 		).toBe(true);
+	});
+
+	it("carries the chromeless body class so the reader CSS offsets content below the sticky toolbar", () => {
+		expect(ChromelessReader({ actionBtns: ACTION_BTNS }).bodyClass).toBe(
+			"page-reader page-reader--chromeless",
+		);
 	});
 });

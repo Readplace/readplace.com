@@ -20,6 +20,9 @@ export interface ActionButtons {
 export type RenderReaderActions = (params: { actionBtns: ActionButtons }) => {
 	top: Component;
 	bottom: Component;
+	/** The page body class for this variant. Colocated with the action markup so
+	 * the chromeless sticky toolbar and its content offset can never drift apart. */
+	bodyClass: string;
 };
 
 function markReadFields(action: MarkReadAction | undefined) {
@@ -51,9 +54,11 @@ export const RegularReader: RenderReaderActions = ({ actionBtns }) => ({
 	bottom: HtmlPage(
 		bottomBar(actionBtns, actionBtns.markReadActions?.find((action) => action.position === "bottom")),
 	),
+	bodyClass: "page-reader",
 });
 
 export const ChromelessReader: RenderReaderActions = ({ actionBtns }) => ({
 	top: HtmlPage(`<div class="article-body__actions--sticky">${topBar(actionBtns)}</div>`),
 	bottom: HtmlPage(bottomBar(actionBtns, undefined)),
+	bodyClass: "page-reader page-reader--chromeless",
 });
