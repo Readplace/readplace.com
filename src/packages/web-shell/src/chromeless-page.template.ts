@@ -2,7 +2,7 @@ export const CHROMELESS_TEMPLATE = `<!DOCTYPE html>
 <html lang="en-AU">
 <head>
   <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
   <title id="document-title">{{title}}</title>
   <meta name="description" content="{{description}}">
   <meta name="robots" content="{{robots}}">

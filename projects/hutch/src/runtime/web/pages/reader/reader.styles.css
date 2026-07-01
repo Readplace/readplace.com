@@ -24,6 +24,7 @@
  */
 .page-reader--chromeless {
   --chromeless-toolbar-height: 3.25rem;
+  --chromeless-safe-top: env(safe-area-inset-top, 0);
 }
 
 .article-body__actions--sticky {
@@ -31,8 +32,8 @@
   inset: 0 0 auto 0; /* 1 */
   z-index: 12;
   box-sizing: border-box;
-  min-height: var(--chromeless-toolbar-height);
-  padding: 0 1rem;
+  min-height: calc(var(--chromeless-toolbar-height) + var(--chromeless-safe-top));
+  padding: var(--chromeless-safe-top) 1rem 0;
   display: flex;
   align-items: center;
   background: var(--color-background);
@@ -46,5 +47,5 @@
 }
 
 .page-reader--chromeless .reader {
-  padding-top: calc(var(--chromeless-toolbar-height) + 1rem);
+  padding-top: calc(var(--chromeless-toolbar-height) + var(--chromeless-safe-top) + 1rem);
 }
