@@ -166,6 +166,63 @@ describe("resolveReaderPermalink", () => {
 		expect(location.searchParams.get("utm_content")).toBe(STRANGER_ID_PREFIX);
 	});
 
+	it("redirects a logged-out visitor arriving via the reader-ready email marker to /login, returning to the marked private reader after login", async () => {
+		const resolve = initReaderPermalink(createDeps({
+			findArticleUrlById: async () => ARTICLE_URL,
+		}));
+
+		const result = await resolve({
+			rawId: ARTICLE_ID.value,
+			requesterId: undefined,
+			query: { from: "reader-ready-email" },
+		});
+
+		expect(result).toEqual({
+			kind: "redirect",
+			redirect: {
+				statusCode: 303,
+				location: `/login?return=${encodeURIComponent(`/queue/${ARTICLE_ID.value}/view?from=reader-ready-email`)}`,
+			},
+		});
+	});
+
+	it("ignores the reader-ready email marker for a logged-in owner and renders the reader directly", async () => {
+		const owned = savedArticleFor(OWNER_ID);
+		const resolve = initReaderPermalink(createDeps({
+			findArticleById: async (id, userId) =>
+				id.value === ARTICLE_ID.value && userId === OWNER_ID ? owned : null,
+		}));
+
+		const result = await resolve({
+			rawId: ARTICLE_ID.value,
+			requesterId: OWNER_ID,
+			query: { from: "reader-ready-email" },
+		});
+
+		expect(result).toEqual({ kind: "article", article: owned });
+	});
+
+	it("ignores the reader-ready email marker for a logged-in non-owner and keeps the public /view share redirect", async () => {
+		const resolve = initReaderPermalink(createDeps({
+			findArticleById: async () => null,
+			findArticleUrlById: async (id) => (id.value === ARTICLE_ID.value ? ARTICLE_URL : null),
+		}));
+
+		const result = await resolve({
+			rawId: ARTICLE_ID.value,
+			requesterId: STRANGER_ID,
+			query: { from: "reader-ready-email" },
+		});
+
+		expect(result).toEqual({
+			kind: "redirect",
+			redirect: {
+				statusCode: 302,
+				location: `/view/example.com/shared-article?${DEFAULT_UTM}&utm_content=${STRANGER_ID_PREFIX}`,
+			},
+		});
+	});
+
 	it("overrides an incoming utm_content with the current sharer's userId prefix so a re-shared link traces back to the latest sharer, not the original", async () => {
 		const resolve = initReaderPermalink(createDeps({
 			findArticleUrlById: async () => ARTICLE_URL,

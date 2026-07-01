@@ -1,4 +1,5 @@
 import type { SQSEvent } from "aws-lambda";
+import { JSDOM } from "jsdom";
 import { buildLambdaContext } from "@packages/test-fixtures/lambda-context";
 import { noopLogger } from "@packages/hutch-logger";
 import { ReaderArticleHashId } from "@packages/domain/article";
@@ -88,7 +89,10 @@ describe("initReaderReadyNotifyHandler", () => {
 			expect(sent.to).toBe("reader@example.com");
 			expect(sent.bcc).toBe("readplace+reader_ready@readplace.com");
 			expect(sent.subject).toBe("An article you saved now has a reader view.");
-			expect(sent.html).toContain(`https://readplace.com/queue/${ReaderArticleHashId.from(URL).value}/view`);
+			const cta = new JSDOM(sent.html).window.document.querySelector("a[href]");
+			expect(cta?.getAttribute("href")).toBe(
+				`https://readplace.com/queue/${ReaderArticleHashId.from(URL).value}/view?from=reader-ready-email`,
+			);
 			expect(sent.html).toContain("Distributed systems");
 			expect(deps.markReaderReadyEmailSent).toHaveBeenCalledWith({ userId: USER_ID, url: URL, at: NOW });
 			expect(deps.publishEvent).toHaveBeenCalledWith(ReaderReadyEmailSentEvent, {
