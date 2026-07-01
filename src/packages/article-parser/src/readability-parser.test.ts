@@ -67,6 +67,27 @@ describe("initReadabilityParser", () => {
 		}
 	});
 
+	it("replaces a surviving YouTube embed with a poster-card facade and drops the iframe", () => {
+		const html = `
+		<html><head><title>Embed Article</title></head><body><article>
+		<h1>Embed Article</h1>
+		<p>An intro paragraph with enough words for readability to score this as a genuine article body worth extracting.</p>
+		<p><iframe src="https://www.youtube.com/embed/hVl9B3dTFB4?color=white&modestbranding=1" title="YouTube video player" allowfullscreen></iframe></p>
+		<p>A closing paragraph with additional words so readability keeps scoring the surrounding article content properly.</p>
+		</article></body></html>`;
+		const { parseHtml } = initParser();
+
+		const result = parseHtml({ url: "https://techhut.tv/windows-lite-ltsc-microsoft", html, thumbnailUrl: null });
+
+		expect(result.ok).toBe(true);
+		if (result.ok) {
+			expect(result.article.content).not.toContain("youtube.com/embed");
+			expect(result.article.content).toContain("reader-embed-facade");
+			expect(result.article.content).toContain("https://www.youtube.com/watch?v=hVl9B3dTFB4");
+			expect(result.article.content).toContain("https://i.ytimg.com/vi/hVl9B3dTFB4/hqdefault.jpg");
+		}
+	});
+
 	it("should calculate word count from extracted text", async () => {
 		const { parseArticle } = initParser();
 

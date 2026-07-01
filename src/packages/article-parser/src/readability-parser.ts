@@ -4,7 +4,9 @@ import { parseHTML } from "linkedom";
 import type { CrawlArticle } from "@packages/crawl-article";
 import type { ParseArticle, ParseHtml } from "./article-parser.types";
 import type { SiteArticleContent, SiteRules } from "@packages/site-rules";
+import type { YouTubeEmbed } from "./parse-embed-url";
 import { promoteBrParagraphHosts } from "./promote-br-paragraph-hosts";
+import { replaceEmbedsWithFacade } from "./replace-embeds-with-facade";
 import { replaceVideosWithPlaceholder } from "./replace-videos-with-placeholder";
 import { resolveRelativeUrls } from "./resolve-relative-urls";
 
@@ -48,6 +50,7 @@ export function initReadabilityParser(deps: {
 				originalUrl: params.url,
 				renderPlaceholder: renderVideoPlaceholder,
 			});
+			replaceEmbedsWithFacade({ document, renderFacade: renderEmbedFacade });
 			/* Site rules may mutate the document in place (e.g. LinkedIn
 			 * rebuilding `\n\n` `white-space: pre-wrap` paragraphs) before
 			 * Readability scores it. */
@@ -65,13 +68,14 @@ export function initReadabilityParser(deps: {
 			 * inline-post shape). In place, so a false match can't drop the
 			 * article — Readability still scores the whole document. */
 			promoteBrParagraphHosts(document);
-			/* `reader-video-placeholder` joins Readability's default
-			 * `CLASSES_TO_PRESERVE` (concat'd internally) so the CSS hook
-			 * survives `_cleanClasses`; the <p> tag is also exempt from
-			 * `_cleanConditionally`, keeping the link-bearing callout from
-			 * being dropped for link density. */
+			/* `reader-video-placeholder` and `reader-embed-facade` join
+			 * Readability's default `CLASSES_TO_PRESERVE` (concat'd internally) so
+			 * the CSS hooks survive `_cleanClasses`; the <p> tag is also exempt
+			 * from `_cleanConditionally`, and a <p> carrying an <img> survives
+			 * empty-paragraph removal, keeping the link-bearing callout and the
+			 * poster card from being dropped. */
 			parsed = new Readability(document, {
-				classesToPreserve: ["reader-video-placeholder"],
+				classesToPreserve: ["reader-video-placeholder", "reader-embed-facade"],
 			}).parse();
 		} catch (error) {
 			const message = error instanceof Error ? error.message : String(error);
@@ -248,4 +252,23 @@ function renderVideoPlaceholder(ctx: {
 	placeholder.appendChild(link);
 	placeholder.appendChild(ctx.document.createTextNode(VIDEO_PLACEHOLDER_TRAILING));
 	return placeholder;
+}
+
+function renderEmbedFacade(ctx: {
+	document: Document;
+	embed: YouTubeEmbed;
+}): Element {
+	const wrapper = ctx.document.createElement("p");
+	wrapper.setAttribute("class", "reader-embed-facade");
+	const link = ctx.document.createElement("a");
+	link.setAttribute("href", ctx.embed.watchUrl);
+	link.setAttribute("target", "_blank");
+	link.setAttribute("rel", "noopener noreferrer");
+	const poster = ctx.document.createElement("img");
+	poster.setAttribute("src", ctx.embed.posterUrl);
+	poster.setAttribute("alt", "Watch on YouTube");
+	poster.setAttribute("loading", "lazy");
+	link.appendChild(poster);
+	wrapper.appendChild(link);
+	return wrapper;
 }
