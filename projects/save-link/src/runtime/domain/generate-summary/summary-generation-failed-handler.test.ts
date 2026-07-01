@@ -30,7 +30,12 @@ function createSqsEvent(detail: { url: string; reason: string; receiveCount: num
 describe("initSummaryGenerationFailedHandler", () => {
 	it("logs a parse-error record with source=generate-summary", async () => {
 		const infoSpy = jest.fn();
-		const parseErrorLogger = { info: infoSpy } as unknown as HutchLogger.Typed<ParseErrorEvent>;
+		const parseErrorLogger: HutchLogger.Typed<ParseErrorEvent> = {
+			info: infoSpy,
+			error: jest.fn(),
+			warn: jest.fn(),
+			debug: jest.fn(),
+		};
 		const now = () => new Date("2026-04-19T12:00:00.000Z");
 
 		const handler = initSummaryGenerationFailedHandler({ parseErrorLogger, logger: noopLogger, now });
@@ -57,7 +62,12 @@ describe("initSummaryGenerationFailedHandler", () => {
 
 	it("appends receiveCount exactly once for the exhausted-retries reason (no doubled (receiveCount=N))", async () => {
 		const infoSpy = jest.fn();
-		const parseErrorLogger = { info: infoSpy } as unknown as HutchLogger.Typed<ParseErrorEvent>;
+		const parseErrorLogger: HutchLogger.Typed<ParseErrorEvent> = {
+			info: infoSpy,
+			error: jest.fn(),
+			warn: jest.fn(),
+			debug: jest.fn(),
+		};
 		const now = () => new Date("2026-04-19T12:00:00.000Z");
 
 		const handler = initSummaryGenerationFailedHandler({ parseErrorLogger, logger: noopLogger, now });
@@ -81,7 +91,12 @@ describe("initSummaryGenerationFailedHandler", () => {
 
 	it("reports invalid envelopes as a batch failure without logging the parse-error stream", async () => {
 		const infoSpy = jest.fn();
-		const parseErrorLogger = { info: infoSpy } as unknown as HutchLogger.Typed<ParseErrorEvent>;
+		const parseErrorLogger: HutchLogger.Typed<ParseErrorEvent> = {
+			info: infoSpy,
+			error: jest.fn(),
+			warn: jest.fn(),
+			debug: jest.fn(),
+		};
 		const handler = initSummaryGenerationFailedHandler({
 			parseErrorLogger,
 			logger: noopLogger,

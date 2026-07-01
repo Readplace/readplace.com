@@ -17,7 +17,7 @@ function reasonAsString(reason: CrawlFailureReason): string {
 				? `fetch-failed: HTTP ${reason.httpStatus}`
 				: "fetch-failed";
 		case "exhausted-retries":
-			return `exhausted-retries (receiveCount=${reason.receiveCount})`;
+			return "exhausted-retries";
 		case "blocked":
 			return `blocked: ${reason.cause}`;
 	}
