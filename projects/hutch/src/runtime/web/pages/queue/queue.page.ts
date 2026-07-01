@@ -53,6 +53,7 @@ import type {
 	MarkSummaryPending,
 } from "@packages/provider-contracts/article-summary";
 import { initArticleReader } from "../../shared/article-reader/article-reader";
+import type { RenderReaderActions } from "../../shared/article-body/reader-actions/reader-actions.component";
 import type { PollUrlBuilder } from "../../shared/article-reader/article-reader.types";
 import type { PublishLinkSaved } from "@packages/provider-contracts/events";
 import type { PublishSaveLinkRawHtmlCommand } from "@packages/provider-contracts/events";
@@ -85,7 +86,7 @@ import {
 	toQueueCardDisplayModel,
 } from "./queue-card/queue-card.component";
 import { computeQueueCardEtag, etagMatches } from "./queue-card/queue-card.etag";
-import { ReaderPage, formatReaderDocumentTitle, markReadPostUrl } from "../reader/reader.component";
+import { ReaderPage, formatReaderDocumentTitle } from "../reader/reader.component";
 import { ONBOARDING_VERSION } from "../../onboarding/onboarding.steps";
 import {
 	detectPlatform,
@@ -178,6 +179,10 @@ interface QueueDependencies {
 	refreshArticleIfStale: RefreshArticleIfStale;
 	publishUpdateFetchTimestamp: PublishUpdateFetchTimestamp;
 	readArticleContent: ReadArticleContent;
+	/** The reader's Back + Mark-as-read action bars, injected per variant: the
+	 * inline bars for the `/view` reader, the chromeless sticky variant for `/app`. */
+	regularReader: RenderReaderActions;
+	chromelessReader: RenderReaderActions;
 	httpErrorMessageMapping: HttpErrorMessageMapping;
 	/** Reads the per-user iOS onboarding signals for the Safari `/queue` render
 	 * when the visitor is on an iPhone (where completion can't come from cookies
@@ -349,12 +354,6 @@ export function initQueueRoutes(deps: QueueDependencies): Router {
 		appOrigin: deps.appOrigin,
 		formatDocumentTitle: formatReaderDocumentTitle,
 		summaryOpen: false,
-		backLink: { href: QUEUE_PATH, label: "← Back to queue" },
-		markReadAction: (articleId) => ({
-			postUrl: markReadPostUrl(articleId, "top"),
-			label: "Mark as read",
-			fields: [{ name: "status", value: "read" }],
-		}),
 		now: deps.now,
 	});
 	const resolveReaderPermalink = initReaderPermalink({
@@ -457,6 +456,7 @@ export function initQueueRoutes(deps: QueueDependencies): Router {
 				audioEnabled,
 				extensionInstallUrl: extensionInstallUrlIfMissing(req),
 				backLink: VIEW_BACK_LINK,
+				renderActions: deps.regularReader,
 			}), {
 				...(await deps.buildBannerState(req)),
 				showExtensionSuggestionBanner,
@@ -488,6 +488,8 @@ export function initQueueRoutes(deps: QueueDependencies): Router {
 				audioEnabled,
 				extensionInstallUrl: undefined,
 				backLink: APP_BACK_LINK,
+				renderActions: deps.chromelessReader,
+				chromeless: true,
 			})),
 		);
 	});

@@ -1,7 +1,7 @@
 import express from "express";
 import { hashPassword, verifyPassword } from "@packages/domain/user";
 import { HutchLogger, consoleLogger } from "@packages/hutch-logger";
-import { initBase } from "@packages/web-shell";
+import { initBase, GlobalNav } from "@packages/web-shell";
 import { initResolveLogin } from "@packages/web-session";
 import { initInMemoryAuth } from "@packages/test-fixtures/providers/auth";
 import { initEmbedRoutes } from "./embed/embed.page";
@@ -15,7 +15,7 @@ const logger = HutchLogger.from(consoleLogger);
  * static-asset origin (favicons/fonts are irrelevant to the snippet rendering
  * the visual tests assert) and an in-memory auth resolver (no sessions, so every
  * request resolves to guest). */
-const base = initBase({ staticBaseUrl: "", liveReload: false });
+const base = initBase({ staticBaseUrl: "", liveReload: false, renderNav: GlobalNav });
 const auth = initInMemoryAuth({ hashPassword, verifyPassword });
 const resolveLogin = initResolveLogin({ getSessionUserId: auth.getSessionUserId, logger });
 

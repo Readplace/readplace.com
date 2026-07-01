@@ -1,5 +1,6 @@
 import { hashPassword, verifyPassword } from "@packages/domain/user";
 import { HutchLogger, consoleLogger } from "@packages/hutch-logger";
+import { GlobalNav } from "@packages/web-shell";
 import { initResolveLogin } from "@packages/web-session";
 import { initInMemoryAuth } from "@packages/test-fixtures/providers/auth";
 import { createBlogApp, PORT } from "./app";
@@ -17,6 +18,7 @@ const app = createBlogApp(
 	{
 		staticBaseUrl: requireEnv("STATIC_BASE_URL"),
 		liveReload: Boolean(getEnv("LIVERELOAD")),
+		renderNav: GlobalNav,
 	},
 	{ resolveLogin },
 );

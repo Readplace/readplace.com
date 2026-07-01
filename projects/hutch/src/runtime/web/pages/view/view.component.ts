@@ -14,6 +14,7 @@ import { render } from "@packages/web-shell";
 import type { PageBody } from "@packages/web-shell";
 
 import { renderArticleBody } from "../../shared/article-body/article-body.component";
+import { RegularReader } from "../../shared/article-body/reader-actions/reader-actions.component";
 import type { ProgressTick } from "@packages/domain/article";
 import {
 	SHARE_BALLOON_SCRIPT,
@@ -119,6 +120,7 @@ export interface ViewPageInput {
 }
 
 export function ViewPage(input: ViewPageInput): PageBody {
+	const actions = RegularReader({ actionBtns: {} });
 	const innerContent = renderArticleBody({
 		title: input.metadata.title,
 		siteName: input.metadata.siteName,
@@ -133,6 +135,8 @@ export function ViewPage(input: ViewPageInput): PageBody {
 		progress: input.progress,
 		extensionInstallUrl: input.extensionInstallUrl,
 		appOrigin: input.appOrigin,
+		topActionsHtml: actions.top.to("text/html").body,
+		bottomActionsHtml: actions.bottom.to("text/html").body,
 	});
 
 	const viewPath = viewPathFor(input.articleUrl);

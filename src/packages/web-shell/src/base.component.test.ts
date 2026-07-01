@@ -1,11 +1,12 @@
 import assert from "node:assert/strict";
 import { JSDOM } from "jsdom";
 import { initBase } from "./base.component";
+import { GlobalNav, GlobalEmptyNav } from "./nav.component";
 import { CHANGELOG_SEEN_SCRIPT, isChangelogVersion } from "./changelog-banner";
 import type { BannerState } from "./banner-state";
 import type { PageBody } from "./page-body.types";
 
-const Base = initBase({ staticBaseUrl: "", liveReload: false });
+const Base = initBase({ staticBaseUrl: "", liveReload: false, renderNav: GlobalNav });
 
 const CHANGELOG_VERSION = "a1b2c3d4";
 assert(isChangelogVersion(CHANGELOG_VERSION));
@@ -776,7 +777,7 @@ describe("Base component", () => {
 
 describe("initBase config", () => {
 	it("prefixes static asset URLs with the configured staticBaseUrl", () => {
-		const Base = initBase({ staticBaseUrl: "https://static.readplace.com", liveReload: false });
+		const Base = initBase({ staticBaseUrl: "https://static.readplace.com", liveReload: false, renderNav: GlobalNav });
 		const page = createTestPageBody();
 		const result = Base(page, GUEST_STATE).to("text/html");
 		const doc = new JSDOM(result.body).window.document;
@@ -789,8 +790,8 @@ describe("initBase config", () => {
 	it("injects the livereload script only when liveReload is enabled", () => {
 		const page = createTestPageBody();
 
-		const withReload = initBase({ staticBaseUrl: "", liveReload: true })(page, GUEST_STATE).to("text/html");
-		const withoutReload = initBase({ staticBaseUrl: "", liveReload: false })(page, GUEST_STATE).to("text/html");
+		const withReload = initBase({ staticBaseUrl: "", liveReload: true, renderNav: GlobalNav })(page, GUEST_STATE).to("text/html");
+		const withoutReload = initBase({ staticBaseUrl: "", liveReload: false, renderNav: GlobalNav })(page, GUEST_STATE).to("text/html");
 
 		expect(withReload.body).toContain("livereload.js?snipver=1");
 		expect(withoutReload.body).not.toContain("livereload.js?snipver=1");
@@ -804,13 +805,25 @@ describe("initBase config", () => {
 			staticBaseUrl: "",
 			liveReload: false,
 			siteScripts: marker,
+			renderNav: GlobalNav,
 		})(page, GUEST_STATE).to("text/html");
-		const withoutScripts = initBase({ staticBaseUrl: "", liveReload: false })(
+		const withoutScripts = initBase({ staticBaseUrl: "", liveReload: false, renderNav: GlobalNav })(
 			page,
 			GUEST_STATE,
 		).to("text/html");
 
 		expect(withScripts.body).toContain(marker);
 		expect(withoutScripts.body).not.toContain(marker);
+	});
+
+	it("GlobalEmptyNav renders nothing so a bare shell can opt out of the site nav", () => {
+		expect(
+			GlobalEmptyNav({
+				variant: "default",
+				isAuthenticated: false,
+				accessIsReadOnly: false,
+				emailFeatureEnabled: false,
+			}),
+		).toBe("");
 	});
 });

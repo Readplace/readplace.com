@@ -60,10 +60,10 @@ export {
  * session package never depends on this view shell. */
 export { readCookie } from "@packages/web-session";
 export type { ChangelogBanner, ChangelogVersion } from "./changelog-banner";
-export { Nav } from "./nav.component";
+export { GlobalNav, GlobalEmptyNav } from "./nav.component";
 export type { NavProps } from "./nav.component";
 export { initBase } from "./base.component";
-export type { BaseConfig, RenderBase } from "./base.component";
+export type { BaseConfig, RenderBase, RenderSiteNav } from "./base.component";
 export { initChromelessPage } from "./chromeless-page";
 export type { ChromelessPageConfig, RenderChromelessPage } from "./chromeless-page";
 export { VERIFICATION_CONTACT_EMAIL } from "./shared/verify-banner/verify-banner.component";

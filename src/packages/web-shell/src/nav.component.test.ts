@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import { JSDOM } from "jsdom";
-import { Nav } from "./nav.component";
+import { GlobalNav } from "./nav.component";
 import type { TrialDisplay } from "./trial-countdown.format";
 
 function parse(html: string): Document {
@@ -15,10 +15,10 @@ const ACTIVE_TRIAL: TrialDisplay = {
 	escalation: "moderate",
 };
 
-describe("Nav component", () => {
+describe("GlobalNav component", () => {
 	it("renders the trial countdown hidden (via state class) when trialCounter is undefined", () => {
 		const doc = parse(
-			Nav({
+			GlobalNav({
 				variant: "default",
 				isAuthenticated: true,
 				accessIsReadOnly: false,
@@ -35,7 +35,7 @@ describe("Nav component", () => {
 
 	it("renders the trial countdown with active state, escalation class, and data attributes", () => {
 		const doc = parse(
-			Nav({
+			GlobalNav({
 				variant: "default",
 				isAuthenticated: true,
 				accessIsReadOnly: false,
@@ -57,7 +57,7 @@ describe("Nav component", () => {
 
 	it("renders the expired pill for an expired trial without active-trial data attributes", () => {
 		const doc = parse(
-			Nav({
+			GlobalNav({
 				variant: "default",
 				isAuthenticated: true,
 				accessIsReadOnly: false,
@@ -77,7 +77,7 @@ describe("Nav component", () => {
 
 	it("renders authenticated nav items (queue, import, export, account, sign out) for an authenticated full-access user", () => {
 		const doc = parse(
-			Nav({
+			GlobalNav({
 				variant: "default",
 				isAuthenticated: true,
 				accessIsReadOnly: false,
@@ -101,7 +101,7 @@ describe("Nav component", () => {
 
 	it("splits the authenticated nav into a Library section (queue, import, export) and an Account section (account, sign out)", () => {
 		const doc = parse(
-			Nav({
+			GlobalNav({
 				variant: "default",
 				isAuthenticated: true,
 				accessIsReadOnly: false,
@@ -134,13 +134,13 @@ describe("Nav component", () => {
 	it("omits the Inbox entry by default and appends it after Export when the email feature is enabled", () => {
 		const withoutFlag = Array.from(
 			parse(
-				Nav({ variant: "default", isAuthenticated: true, accessIsReadOnly: false, emailFeatureEnabled: false }),
+				GlobalNav({ variant: "default", isAuthenticated: true, accessIsReadOnly: false, emailFeatureEnabled: false }),
 			).querySelectorAll("[data-test-nav-item]"),
 		).map((el) => el.getAttribute("data-test-nav-item"));
 		expect(withoutFlag).not.toContain("inbox");
 
 		const withFlag = parse(
-			Nav({ variant: "default", isAuthenticated: true, accessIsReadOnly: false, emailFeatureEnabled: true }),
+			GlobalNav({ variant: "default", isAuthenticated: true, accessIsReadOnly: false, emailFeatureEnabled: true }),
 		);
 		const libraryItems = Array.from(
 			withFlag
@@ -152,7 +152,7 @@ describe("Nav component", () => {
 
 	it("carries feature=email as a hidden input on the Inbox entry so its GET form keeps the gate flag", () => {
 		const doc = parse(
-			Nav({ variant: "default", isAuthenticated: true, accessIsReadOnly: false, emailFeatureEnabled: true }),
+			GlobalNav({ variant: "default", isAuthenticated: true, accessIsReadOnly: false, emailFeatureEnabled: true }),
 		);
 
 		const inboxForm = doc.querySelector('[data-test-nav-item="inbox"]')?.closest("form");
@@ -169,7 +169,7 @@ describe("Nav component", () => {
 
 	it("renders an aria-hidden Font Awesome icon alongside each label without polluting the accessible name", () => {
 		const doc = parse(
-			Nav({
+			GlobalNav({
 				variant: "default",
 				isAuthenticated: true,
 				accessIsReadOnly: false,
@@ -188,7 +188,7 @@ describe("Nav component", () => {
 
 	it("renders guest nav items (install, features, import, signup) as a flat list without group structure, install left of features", () => {
 		const doc = parse(
-			Nav({
+			GlobalNav({
 				variant: "default",
 				isAuthenticated: false,
 				accessIsReadOnly: false,
@@ -213,7 +213,7 @@ describe("Nav component", () => {
 
 	it("applies the transparent header modifier when variant is 'transparent'", () => {
 		const doc = parse(
-			Nav({
+			GlobalNav({
 				variant: "transparent",
 				isAuthenticated: false,
 				accessIsReadOnly: false,

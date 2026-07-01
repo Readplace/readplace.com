@@ -1,4 +1,4 @@
-import { initBase, initChromelessPage } from "@packages/web-shell";
+import { initBase, initChromelessPage, GlobalNav } from "@packages/web-shell";
 import { getEnv, requireEnv } from "@packages/require-env";
 
 /** Loaded on every page so an in-browser AI agent discovers Readplace's
@@ -17,6 +17,7 @@ export const Base = initBase({
 	staticBaseUrl: requireEnv("STATIC_BASE_URL"),
 	liveReload: Boolean(getEnv("LIVERELOAD")),
 	siteScripts: WEBMCP_SCRIPT + LOCAL_TIME_SCRIPT,
+	renderNav: GlobalNav,
 });
 
 export const ChromelessPage = initChromelessPage({
