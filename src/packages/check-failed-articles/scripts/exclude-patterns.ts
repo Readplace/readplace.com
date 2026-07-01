@@ -167,6 +167,13 @@ export const EXCLUDE_PATTERNS: readonly RegExp[] = [
 	// `.html` form 302-loops through `/oauth2authorize` for anonymous fetchers,
 	// while the slashless `…/WebView` is the canonical page.
 	/^https:\/\/developer\.android\.com\/reference\/android\/webkit\/WebView\.html$/i,
+	// thehill.com 308s the slashless form to the trailing-slash article, then
+	// Fastly edge-blocks datacenter egress (AWS IP + curl-impersonate JA3), so the
+	// slashless variant exhausts retries as crawl-failed. The "/" form is the live
+	// article the reader actually serves (extension-saved + the /view trailing-slash
+	// fallback), so the slashless save is a redirect-variant duplicate. Anchored to
+	// the slashless form only — the "/" canonical must still surface if it fails.
+	/^https:\/\/thehill\.com\/changing-america\/enrichment\/arts-culture\/578724-5-points-for-anger-1-for-a-like-how-facebooks$/i,
 	// npmjs.com package-registry page — a package listing, not the readable
 	// article content the product renders; the crawl exhausts retries and there
 	// is nothing worth re-saving behind it.

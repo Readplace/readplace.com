@@ -489,6 +489,21 @@ describe("EXCLUDE_PATTERNS — permanently-unreachable saves", () => {
 			excluded: false,
 			label: "android canonical no-.html reference — must NOT be hidden",
 		},
+		{
+			url: "https://thehill.com/changing-america/enrichment/arts-culture/578724-5-points-for-anger-1-for-a-like-how-facebooks",
+			excluded: true,
+			label: "thehill slashless variant (308s to the '/' article, Fastly edge-blocks datacenter egress)",
+		},
+		{
+			url: "https://thehill.com/changing-america/enrichment/arts-culture/578724-5-points-for-anger-1-for-a-like-how-facebooks/",
+			excluded: false,
+			label: "thehill canonical trailing-slash article — must NOT be hidden",
+		},
+		{
+			url: "https://thehill.com/changing-america/enrichment/arts-culture/999999-some-other-story",
+			excluded: false,
+			label: "different thehill article — must NOT be hidden",
+		},
 		// Operator-curated excludes.
 		{
 			url: "https://npmjs.com/package/jquery",
