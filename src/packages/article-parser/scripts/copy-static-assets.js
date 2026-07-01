@@ -1,7 +1,8 @@
 /**
- * Cross-platform copy of non-TypeScript test fixtures (HTML samples that
- * `readability-parser.test.ts` reads via `readFileSync`) from src/ to dist/
- * so jest finds them at the same relative path as the compiled .test.js.
+ * Cross-platform copy of non-TypeScript test fixtures (HTML samples read at
+ * runtime) into the build output, since the TypeScript compiler emits only
+ * .js — the compiled tests must resolve them at the same relative path the
+ * source tests use.
  */
 const fs = require('fs')
 const path = require('path')

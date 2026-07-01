@@ -44,10 +44,10 @@ const INLINE_PHRASING_TAGS = new Set([
 /* Promote inline elements that hold `<br><br>`-separated paragraphs to `<div>`
  * so Mozilla Readability's own paragraph reconstruction takes over.
  *
- * Readability already converts a run of 2+ `<br>` into a `<p>` (`_replaceBrs`,
- * Readability.js:696) and already wraps the orphaned text that precedes the
- * first run into a `<p>` — but only when the host element is a `<div>` (the
- * recovery loop is guarded by `tagName === "DIV"`, Readability.js:1165). When a
+ * Readability already converts a run of 2+ `<br>` into a `<p>` and already
+ * wraps the orphaned text that precedes the first run into a `<p>` — but only
+ * when the host element is a `<div>` (its recovery loop is guarded by a
+ * `tagName === "DIV"` check). When a
  * site renders a post inside an inline `<span dir="ltr">` (LinkedIn, Substack
  * notes, plain WYSIWYG blogs) that recovery never fires; worse, the enclosing
  * block pulls the whole phrasing span into a single `<p>`, nesting the `<p>`s
@@ -78,7 +78,7 @@ function findBrParagraphHosts(root: Element): Element[] {
 }
 
 /* True when the element directly contains a run of 2+ consecutive `<br>`,
- * ignoring whitespace-only text between them (matching `_replaceBrs`) — a
+ * ignoring whitespace-only text between them — a
  * paragraph boundary rather than a single soft line break. */
 function hasParagraphBreakRun(element: Element): boolean {
 	let run = 0;

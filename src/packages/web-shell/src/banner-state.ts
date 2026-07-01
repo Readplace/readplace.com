@@ -17,7 +17,7 @@ type VerificationStatus =
 
 export interface BannerStateSource {
 	/** The authenticated user's id as a plain string. The shell reads it only for
-	 * truthiness (isAuthenticated) and carries no @packages/domain dependency, so
+	 * truthiness (isAuthenticated) and carries no domain-layer dependency, so
 	 * it deliberately does not reconstruct the domain's branded UserId here — a
 	 * domain change must not invalidate the content sites that consume this shell. */
 	userId?: string;

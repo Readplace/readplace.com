@@ -5,7 +5,7 @@ import {
 	buildNavGroups,
 } from "./banner-state";
 
-/** The shell carries no @packages/domain dependency and reads `userId` only for
+/** The shell carries no domain dependency and reads `userId` only for
  * truthiness, so a plain string id is sufficient — there is no brand to parse. */
 const USER_ID = "user-1";
 

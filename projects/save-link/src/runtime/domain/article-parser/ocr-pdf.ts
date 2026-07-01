@@ -30,14 +30,13 @@ const DEFAULT_BATCH_SIZE = 1;
 //     (the newer post-burst-quota model), so 300 cold starts in <1 s sits
 //     well under budget
 //   - LambdaClient HTTPS agent `maxSockets`: defaults to 50; must be set
-//     above this value where the client is constructed (see
-//     comprehensive-crawl-command.main.ts) or in-flight `InvokeCommand`
-//     calls queue at the SDK layer and effective concurrency caps at the
-//     socket count.
+//     above this value where the client is constructed, or in-flight
+//     `InvokeCommand` calls queue at the SDK layer and effective
+//     concurrency caps at the socket count.
 const DEFAULT_CONCURRENCY = MAX_PDF_PAGES;
 
-// In-flight LLM cleanup Lambda invocations. Mirrors the Tesseract fan-out
-// at `MAX_PDF_PAGES` so the worst-case PDF clears stage 1 in a single wave.
+// In-flight LLM cleanup Lambda invocations. Sized to `MAX_PDF_PAGES` so the
+// worst-case PDF clears stage 1 in a single fan-out wave.
 // The cleanup stage is sequential with Tesseract (Tesseract completes first,
 // then cleanup starts), so peak Lambda concurrency is bounded by whichever
 // fan-out is in flight — both consume up to 300 concurrent invocations of
@@ -68,7 +67,7 @@ const DEFAULT_DPI = 300;
 
 
 // One attempt per chunk. The per-page Lambda runs the vision call (400 s
-// SDK budget, see pdf-page-ocr.main.ts — DeepInfra's server cuts off at
+// SDK budget — DeepInfra's server cuts off at
 // ~302 s so the effective per-chunk wall clock is ~302 s anyway) and
 // falls back to pdftotext on vision exhaustion. The only failures that
 // bubble up to the orchestrator are pages that have no text layer to

@@ -11,8 +11,8 @@ enum ServerEnvironment {
 		switch self {
 		case .production: return "https://readplace.com"
 		// Staging has no custom domain; this is the staging stack's API Gateway
-		// endpoint (pulumi stack output appOrigin --stack staging). Update here +
-		// in built-in-clients.ts if the gateway is ever replaced (new api id).
+		// endpoint (pulumi stack output appOrigin --stack staging). Keep in sync
+		// with the server's OAuth client registration if the gateway is replaced.
 		case .staging: return "https://hkncrxpii6.execute-api.ap-southeast-2.amazonaws.com"
 		}
 	}
@@ -21,7 +21,7 @@ enum ServerEnvironment {
 /// Central configuration for the Readplace iOS app.
 ///
 /// The app authenticates with its own dedicated public OAuth/PKCE client
-/// (`ios-app`) registered in `built-in-clients.ts`, and talks to the Siren API
+/// (`ios-app`) registered on the server, and talks to the Siren API
 /// like the browser extension. The native `readplace://oauth-callback` redirect
 /// is registered on that client and is identical across production and staging,
 /// so sign-in needs no per-environment callback registration.
@@ -75,10 +75,10 @@ enum AppConfig {
 
 	/// Native redirect URI for the external-browser Sign up flow, composed from
 	/// the scheme + host above so what we register can't disagree with what the
-	/// deep-link handler accepts. Must equal `IOS_NATIVE_OAUTH_CALLBACK_URI` in
-	/// the server's `src/packages/domain/src/oauth/built-in-clients.ts` — the
-	/// OAuth server matches `redirect_uri` by exact string at authorize and token
-	/// time — and `SignupFlowTests` pins the value so a change fails a test.
+	/// deep-link handler accepts. Must equal the redirect URI registered for this
+	/// client on the server — the OAuth server matches `redirect_uri` by exact
+	/// string at authorize and token time — and a test pins the value so a change
+	/// fails a test.
 	static let nativeCallbackURL = "\(callbackURLScheme)://\(nativeCallbackHost)"
 
 	/// A Safari-like user agent for the off-screen `WKWebView` that `HTMLCaptor`

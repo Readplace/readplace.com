@@ -1417,7 +1417,7 @@ describe("View routes", () => {
 			const titleEl = doc.querySelector("title#document-title");
 			assert(titleEl, "<title> OOB fragment must accompany the reader-slot");
 			expect(titleEl.getAttribute("hx-swap-oob")).toBe("outerHTML");
-			// Format owned by view.component.ts — keep in sync if you change it there.
+			// Title suffix format is owned by the reader-view component; keep in sync.
 			expect(titleEl.textContent).toMatch(/\| Reader View$/);
 
 			const second = await request(harness.server)

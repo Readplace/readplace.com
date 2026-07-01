@@ -203,9 +203,8 @@ extension SirenCollection {
 
 /// A server-authored message a client renders generically — it carries no
 /// feature-specific code or action. `type` selects presentation (mapped to
-/// `kind`); `content` is a small HTML fragment. Mirrors the browser extension's
-/// `Message` and the server's `SirenMessage` — a stable contract shared across
-/// the clients.
+/// `kind`); `content` is a small HTML fragment. This is a stable contract shared
+	/// across the clients.
 struct ServerMessage: Decodable, Equatable {
 	struct Content: Decodable, Equatable {
 		let type: String
@@ -256,7 +255,7 @@ extension ServerMessage {
 	}
 
 	/// The named character references the server's escaped messages use. Numeric
-	/// references (`&#39;`, `&#x27;`) are resolved separately in `decodeReference`.
+	/// references (`&#39;`, `&#x27;`) are resolved separately.
 	private static let namedReferences: [Substring: Character] = [
 		"amp": "&", "lt": "<", "gt": ">", "quot": "\"", "apos": "'",
 	]
@@ -424,8 +423,7 @@ struct Affordance: Identifiable {
 	/// Turns a wire token (`mark-read`, `archive_now`) into a human label when the
 	/// server advertised no `title`: split on `-`/`_`, drop empty segments, then
 	/// Title-Case each word so an unlabelled affordance renders a readable control
-	/// instead of a raw slug. Mirrors the browser extension's `humanize` so the same
-	/// token reads identically across clients.
+	/// instead of a raw slug. The same token must read identically across clients.
 	static func humanize(_ token: String) -> String {
 		token
 			.split(whereSeparator: { $0 == "-" || $0 == "_" })

@@ -1,10 +1,9 @@
 /**
  * Copy non-TypeScript files (templates, markdown posts, CSS) from src/ to dist/.
  *
- * tsc emits only .js/.d.ts; the blog components read their templates with
- * readFileSync(join(__dirname, "*.template.html")) and the posts loader reads
- * the markdown files under posts/, so those assets must be mirrored into dist
- * alongside the compiled modules.
+ * The compiler emits only JavaScript and type declarations; components load
+ * their templates and posts at runtime by reading files alongside the compiled
+ * module, so those assets must be mirrored into dist next to the compiled code.
  */
 const fs = require("node:fs");
 const path = require("node:path");

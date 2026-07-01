@@ -357,8 +357,7 @@ describe("Admin recrawl routes", () => {
 			await harness.articleCrawl.markCrawlReady({ url: ARTICLE_URL });
 
 			const agent = await loginAs(harness.server, ADMIN_EMAIL, ADMIN_PASSWORD);
-			// Mirrors the real bug report: /admin/recrawl/example.com/post (no scheme)
-			// previously rendered the "No article URL provided" error page.
+			// A schemeless path segment must still resolve to a URL, not be rejected as missing.
 			const response = await agent.post("/admin/recrawl/example.com/post");
 
 			expect(response.status).toBe(303);

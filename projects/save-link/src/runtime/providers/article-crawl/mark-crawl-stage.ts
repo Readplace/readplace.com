@@ -6,13 +6,13 @@ import { z } from "zod";
 import { ArticleResourceUniqueId } from "../../domain/save-link/article-resource-unique-id";
 
 /**
- * Worker-side stage strings for the unified article-body progress bar. Mirrors
- * the hutch progress-mapping CrawlStage union — kept as a literal type here so
- * the save-link package does not take a cross-project relative import on the
- * percentage table. The worker only writes the stage name; the reader maps
- * stage → pct at render time. Terminal stages are omitted because by the time
- * the worker would write them the row's status attribute has already flipped
- * to a terminal value, which the reader respects ahead of any stage write.
+ * Worker-side stage strings for the unified article-body progress bar. The
+ * stage union is duplicated as a literal here rather than imported so this
+ * package takes no cross-project dependency on the stage → percentage table.
+ * The worker only writes the stage name; the reader maps stage → pct at render
+ * time. Terminal stages are omitted because by the time the worker would write
+ * them the row's status attribute has already flipped to a terminal value,
+ * which the reader respects ahead of any stage write.
  */
 export type CrawlStage =
 	| "crawl-fetching"

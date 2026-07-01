@@ -119,9 +119,8 @@ export interface ArticleFreshnessData {
 	etag?: string;
 	lastModified?: string;
 	contentFetchedAt?: string;
-	/* SHA-256 of the previously-fetched body. Used by the stale-check chain
-	 * to pre-parse-gate a refresh: if the new body hashes to the same value
-	 * the parser is skipped entirely. */
+	/* SHA-256 of the previously-fetched body, so a refresh can skip the parser
+	 * entirely when the newly-fetched body hashes to the same value. */
 	bodyHash?: string;
 }
 

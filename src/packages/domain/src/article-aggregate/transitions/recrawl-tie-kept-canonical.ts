@@ -10,8 +10,8 @@ export interface RecrawlTieKeptCanonicalInput {
  * exists on disk. No tier flip, no metadata refresh. The crawl axis flips
  * to ready to unstick the row, and no generate-summary effect is emitted
  * — re-summarising identical canonical content would burn DeepSeek tokens
- * for no value. Exception: a failed(crawl-failed) summary is a cross-axis
- * pairing from markCrawlExhausted that is stale now that crawl succeeded;
+ * for no value. Exception: a summary that failed because the crawl failed
+ * is stale now that crawl succeeded;
  * that gets reset to pending so the summary worker retries. */
 export function recrawlTieKeptCanonical(
 	article: Article,

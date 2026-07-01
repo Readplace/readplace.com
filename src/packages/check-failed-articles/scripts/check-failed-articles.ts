@@ -26,8 +26,6 @@
  *   - FAILED_ARTICLES_REPORT_PATH — when set, the canary writes a JSON
  *     report to this path. The workflow reads it to format the issue body
  *     without re-scanning DDB.
- *
- * Run via: pnpm nx run @packages/check-failed-articles:check-failed-articles
  */
 import assert from "node:assert/strict";
 import { writeFile } from "node:fs/promises";

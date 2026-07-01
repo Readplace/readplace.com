@@ -14,7 +14,7 @@ export interface InvokePdfPageOcrInput {
  * Sync-invoke response: success carries the semantic HTML fragment covering
  * every page in `pageIndices`, ordered by chunk dispatch. Failure carries the
  * thrown error so the orchestrator can retry against a fresh Lambda container
- * via `@packages/retriable` without losing the original cause.
+ * without losing the original cause.
  */
 export type InvokePdfPageOcrResult =
 	| { readonly ok: true; readonly html: string }

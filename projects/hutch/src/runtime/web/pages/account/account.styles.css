@@ -14,7 +14,7 @@
   color: var(--foreground);
 }
 
-/* purgecss-ignore-start: account-card and its modifiers are interpolated from AccountViewModel.stateClass in account.template.html */
+/* purgecss-ignore-start: account-card and its modifiers are interpolated dynamically from a state class in the template */
 .account-card {
   padding: 20px;
   border-radius: var(--radius-sm);
@@ -82,7 +82,7 @@
   margin: 0;
 }
 
-/* purgecss-ignore-start: action variants are interpolated from AccountAction.variant in account.template.html */
+/* purgecss-ignore-start: action variants are interpolated dynamically in the template */
 .account-card__action {
   display: inline-flex;
   cursor: pointer;

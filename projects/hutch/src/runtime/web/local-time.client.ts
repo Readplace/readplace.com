@@ -4,7 +4,7 @@
  * UTC-labelled value (unambiguous without JavaScript); this enhancer rewrites
  * each one into the browser's resolved timezone, and re-runs on htmx swaps so
  * boosted navigations stay localised. Dependencies are injected so the browser
- * wiring lives in build-client-bundles.js and the module stays unit-testable.
+ * wiring lives in the build step and the module stays unit-testable.
  */
 import {
 	formatLocalInstant,

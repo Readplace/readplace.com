@@ -2,11 +2,11 @@ import XCTest
 import UIKit
 @testable import Readplace
 
-/// Locks `BrandColor` to the web design tokens it mirrors. Each value is resolved
-/// against an explicit light and dark `UITraitCollection` and checked against the
-/// hex in `src/packages/web-shell/src/base.styles.ts` — the source of truth. A dark
-/// variant silently copying its light value (or any other drift from the web tokens)
-/// fails here rather than shipping the wrong colour on, e.g., the start-screen wordmark.
+/// Locks `BrandColor` to the web design tokens that are its source of truth. Each
+/// value is resolved against an explicit light and dark `UITraitCollection` and
+/// checked against the canonical web hex. A dark variant silently copying its light
+/// value (or any other drift from the web tokens) fails here rather than shipping the
+/// wrong colour on, e.g., the start-screen wordmark.
 final class BrandColorTests: XCTestCase {
 	func testAmberMirrorsBrandToken() {
 		assertHex(BrandColor.amber, light: "#C8702A", dark: "#D4833A")

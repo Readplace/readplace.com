@@ -8,11 +8,11 @@ if [ "$STACK" != "staging" ]; then
   exit 0
 fi
 
-# Read the staging hutch API URL from hutch's pulumi stack output. Same backend
-# (PULUMI_BACKEND_URL is set by the workflow), so a cd + pulumi stack output
-# reads it without StackReference plumbing. Mirrors hutch/scripts/post-deploy.sh
-# but cross-project, since chrome-extension's own stack does not export an URL —
-# the pdf-save-flow staging test hits hutch, not the extension's S3.
+# Read the staging backend API URL from the backend's pulumi stack output. Same
+# backend (PULUMI_BACKEND_URL is set by the workflow), so a cd + pulumi stack
+# output reads it without StackReference plumbing. Cross-project, since the
+# extension's own stack does not export an URL — the staging test hits the
+# backend, not the extension's S3.
 RAW_URL=$(cd ../../hutch && pulumi stack output apiUrl --stack "$STACK")
 # Strip /$default suffix that API Gateway appends to the URL
 URL="${RAW_URL%/\$default}"

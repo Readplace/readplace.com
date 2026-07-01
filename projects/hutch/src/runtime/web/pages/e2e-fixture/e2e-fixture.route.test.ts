@@ -59,10 +59,8 @@ describe("GET /e2e/article/:id", () => {
 		const doc = new JSDOM(response.text).window.document;
 		const article = doc.querySelector("article");
 		const visibleLength = (article?.textContent ?? "").replace(/\s/g, "").length;
-		// Summariser skips when visibleLength <= MAX_SUMMARY_LENGTH * 3 (see
-		// save-link/src/runtime/generate-summary.main.ts isTooShortToSummarize).
-		// The fixture must sit above that so staging exercises the real Deepseek
-		// path, not the short-circuit branch.
+		// The fixture must sit above the summariser's short-circuit threshold so
+		// staging exercises the real summarisation path, not the short-circuit branch.
 		expect(visibleLength).toBeGreaterThan(MAX_SUMMARY_LENGTH * 3);
 	});
 });

@@ -7,9 +7,9 @@ import {
 	type ResolveAll,
 } from "./blocked-address-lookup";
 
-/** Stand-in for the real `isBlockedIpAddress`; the full block-list lives in and
- * is tested by @packages/domain. The lookup mechanism only needs a predicate
- * that classifies the addresses these tests resolve to. */
+/** Stand-in for the real block-list predicate, which is tested elsewhere. The
+ * lookup mechanism only needs a predicate that classifies the addresses these
+ * tests resolve to. */
 const blocksPrivate: IsBlockedAddress = (ip) =>
 	ip.startsWith("10.") ||
 	ip.startsWith("127.") ||

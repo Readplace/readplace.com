@@ -28,9 +28,8 @@ type ChangelogFetch = (
  * the refetch (bounded by `timeoutMs`), so the source adds latency at most once
  * per TTL per instance — it blocks-to-revalidate rather than serving stale, which
  * keeps a 204 retraction immediate; it never errors a render. Failures log at
- * warn (no alarm — a missing promo banner is not an incident). Mirrors the
- * graceful fetchFirefoxDownloadUrl pattern, with caching added because every page
- * consults it. */
+ * warn (no alarm — a missing promo banner is not an incident). Caching is added
+ * because every page consults it. */
 export function initChangelogBannerSource(deps: {
 	fetch: ChangelogFetch;
 	sourceUrl: string;

@@ -76,9 +76,9 @@ export function initInMemoryAuth(opts: {
 	const userIdPrefixes = new Set<string>();
 	const gmailClaims = new Map<string, UserId>();
 
-	/** Mirrors the DynamoDB claim-item transaction: rejects when either the
-	 * delivery key or the Gmail identity claim is already taken, and reserves the
-	 * claim on success. Returns the normalized (delivery) email, or null if taken. */
+	/** Reserves the identity atomically: rejects when either the delivery key or
+	 * the Gmail identity claim is already taken, and reserves the claim on success.
+	 * Returns the normalized (delivery) email, or null if taken. */
 	const reserveIdentity = (email: string, userId: UserId): string | null => {
 		const normalizedEmail = normalizeEmail(email);
 		const claimKey = gmailIdentityKey(email);

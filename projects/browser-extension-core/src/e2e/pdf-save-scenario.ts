@@ -6,8 +6,7 @@ import { initSirenReadingList } from "../reading-list/siren-reading-list";
 
 /**
  * Pinned OAuth client for the e2e PDF scenario. The Chrome extension registers
- * under the same id, which is a built-in client in the domain registry
- * (src/packages/domain/src/oauth/built-in-clients.ts).
+ * under the same id, which is a built-in client in the domain registry.
  */
 const CLIENT_ID = "hutch-chrome-extension";
 
@@ -52,8 +51,7 @@ function parseSetCookieHeader(setCookieHeader: string): string[] {
  * background script runs. Returns a Bearer token suitable for
  * `Authorization: Bearer …` on Siren routes.
  *
- * Mirrors projects/hutch/src/runtime/web/api/save-article-via-oauth.integration.ts
- * but uses node's global fetch (no supertest) so it works against any base URL,
+ * Uses node's global fetch (no supertest) so it works against any base URL,
  * local or staging.
  */
 export async function obtainAccessToken(params: {
@@ -164,7 +162,7 @@ export interface PdfSaveScenarioConfig {
  * The scenario pins the contract:
  *   - extension follows Siren entry point and discovers `save-article` by name
  *   - server accepts the URL, kicks off SimpleCrawl → ComprehensiveCrawl
- *   - PDF branch (crawl-article.ts:190) runs extractPdf
+ *   - PDF branch runs extractPdf
  *   - selector promotes the article to `ready` and updates the title
  *   - re-walking Siren shows the updated title within the poll window
  */

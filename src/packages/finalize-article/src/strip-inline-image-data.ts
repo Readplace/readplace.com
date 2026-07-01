@@ -3,7 +3,7 @@
  * body: one Distill-style research page reached ~40 MB of newline-wrapped
  * base64 across dozens of <img>, while its real article text was a few hundred
  * KB. That body is persisted as the tier source and later re-loaded whole by
- * the select-content / recrawl / refresh handlers, where it OOM'd (#473).
+ * downstream handlers, where it OOM'd.
  * Replace every inline base64 image larger than the threshold with a 1×1
  * transparent placeholder so the persisted body stays small and every
  * downstream handler can load it. Payloads at or below the threshold (tiny

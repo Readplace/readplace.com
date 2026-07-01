@@ -8,10 +8,8 @@ export interface MarkSummaryReadyInput {
 	excerpt: string;
 	inputTokens: number;
 	outputTokens: number;
-	/** Persist-moment timestamp, threaded from the caller's clock (see the
-	 * submit-link.ts `input.now` precedent), carried as `succeededAt` on the
-	 * reader-view-loading-succeeded effect. Captured here so it is always ≤ any
-	 * later poll's viewedAt. */
+	/** Persist-moment timestamp, threaded from the caller's clock. Captured here so
+	 * it is always ≤ any later poll's viewedAt. */
 	now: string;
 	/** Optional: hash of the canonical readable text the summary was generated
 	 * against. Recorded on the ready summary so a future caller can detect

@@ -1,5 +1,5 @@
 /**
- * Labelled source list exercised by tier-1-plus-pipeline-health.ts.
+ * Labelled source list exercised by the tier-1-plus pipeline-health canary.
  *
  * Keep the list diverse — one entry per edge-sniffing vendor we care about.
  * Failures surface the `label` in the GitHub Actions UI, not a URL.
@@ -27,7 +27,7 @@ export const HEALTH_SOURCES: readonly HealthSource[] = [
 	{
 		// Medium publications (e.g. itnext.io) serve an incomplete TLS chain —
 		// leaf cert without the Sectigo intermediate. Node's fetch fails with
-		// UNABLE_TO_VERIFY_LEAF_SIGNATURE. AIA chasing (aia-fetch.ts) recovers
+		// UNABLE_TO_VERIFY_LEAF_SIGNATURE. AIA chasing recovers
 		// by fetching the intermediate from the leaf cert's AIA URL.
 		label: "Medium (itnext publication)",
 		url: "https://fagnerbrack.com/youre-not-praised-for-the-bugs-you-didn-t-create-ef3df6894d5c",
@@ -184,7 +184,7 @@ export const HEALTH_SOURCES: readonly HealthSource[] = [
 		// WHATWG URL re-encoding via the bracketed path segment `[16505689]`.
 		// Pages 22–25 of this 31-page scan are image-heavy and individually
 		// defeat DeepInfra's 360s SDK budget; the OCR pipeline's partial-
-		// success threshold (see ocr-pdf.ts) accepts the remaining 27/31
+		// success threshold accepts the remaining 27/31
 		// pages (0.871) and renders placeholders for the rest.
 		// `expectedContent` appears on pages 1, 2, 3, 5, 6, 18, 21, 28, 30,
 		// 31, all outside the known-flaky range — confirmed via

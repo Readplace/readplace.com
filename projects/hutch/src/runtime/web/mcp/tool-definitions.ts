@@ -15,7 +15,7 @@ interface McpToolAnnotations {
  * Public metadata for a Readplace MCP tool: the JSON Schema advertised in
  * `tools/list` and summarised on the server card. The matching Zod validator
  * for each tool's payload lives alongside as an exported schema, and
- * tool-definitions.test.ts keeps the two shapes in lock-step so an agent's
+ * a test keeps the two shapes in lock-step so an agent's
  * understanding of a tool's input never diverges from what the server accepts.
  */
 interface McpToolDefinition {

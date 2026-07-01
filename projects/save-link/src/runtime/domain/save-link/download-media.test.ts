@@ -239,7 +239,7 @@ describe("initDownloadMedia", () => {
 			`<img src="https://m.test/${name}/full.png">` +
 			"</picture></figure>";
 
-		// 2 images × (6 webp + 6 png + 1 img) = 26 rendition URLs, over the old 20-URL cap.
+		// 2 images × (6 webp + 6 png + 1 img) = 26 rendition URLs, over a per-URL cap of 20.
 		const media = await downloadMedia({
 			html: figure("cubicles") + figure("loop"),
 			articleUrl: ARTICLE_URL,
@@ -247,7 +247,7 @@ describe("initDownloadMedia", () => {
 		});
 		const originals = media.map((m) => m.originalUrl);
 
-		// The later figure's renditions — which the old per-URL cap dropped — are all mirrored.
+		// The later figure's renditions — which a per-URL cap would drop — are all mirrored.
 		for (const w of widths) {
 			expect(originals).toContain(`https://m.test/loop/${w}.webp`);
 			expect(originals).toContain(`https://m.test/loop/${w}.png`);

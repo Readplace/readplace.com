@@ -19,8 +19,8 @@ const OutputSchema = z.object({
  * Sync-invokes the per-page LLM cleanup Lambda. Returns a tagged union so the
  * orchestrator can decide per-page whether to fall back to the original
  * Tesseract output (the case for `{ ok: false }` AND for `{ ok: true, applied: false }`).
- * Mirrors the shape of `initInvokePdfPageOcr` so the orchestrator can route
- * both fan-outs through the same `mapWithConcurrency`/retriable helpers.
+ * Keeps the same tagged-union shape as the per-page OCR invoker so the
+ * orchestrator can drive both fan-outs through one shared concurrency/retry helper.
  */
 export function initInvokePdfPageLlmCleanup(deps: {
 	client: LambdaClient;

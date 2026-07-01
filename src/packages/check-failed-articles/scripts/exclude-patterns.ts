@@ -20,8 +20,8 @@ export const EXCLUDE_PATTERNS: readonly RegExp[] = [
 	// operator never actually needs to re-save.
 	/(?:^|\/\/)(?:[a-z0-9-]+\.)*example\.com(?:[/:?#]|$)/i,
 	// Internal/private-network hostnames — these have no public DNS resolution
-	// so the crawler can never succeed. Mirrors the suffix set that
-	// `validateSaveableUrl` rejects today (.local, .lan, .internal, .home.arpa);
+	// so the crawler can never succeed. These suffixes (.local, .lan,
+	// .internal, .home.arpa) mirror what intake URL validation rejects;
 	// included here to drain legacy rows persisted before that validation
 	// tightened, plus any future row that slips past validation via a
 	// non-/save code path. Requires at least one label before the suffix so
@@ -39,8 +39,8 @@ export const EXCLUDE_PATTERNS: readonly RegExp[] = [
 	/^nhttps:\/{1,2}/i,
 	// Quote-wrapped absolute URLs resolved as relative paths
 	// (`…/%22https:/…`) — link-extraction artifacts where a client kept the
-	// quotes around a malformed href and resolved it against the page origin
-	// (issue #522). No real page exists behind such a path, so the crawl
+	// quotes around a malformed href and resolved it against the page origin.
+	// No real page exists behind such a path, so the crawl
 	// deterministically 404s and recrawl can never succeed. Anchored to the
 	// path portion ([^?#]*) so a quoted URL inside a query string — where the
 	// underlying page may still be crawlable — does not match. Matches both
@@ -52,12 +52,11 @@ export const EXCLUDE_PATTERNS: readonly RegExp[] = [
 	// rejection. The crawler can never fetch these; intake now blocks them.
 	/^chrome:\/\//i,
 	/^about:/i,
-	// Reddit — any subdomain, any path. The tier-1 Reddit preprocessor
-	// (`reddit-via-json.ts`) has been removed and the generic crawl path
-	// gets blocked by Reddit's `snooserv` 403 from AWS-range IPs across
-	// every persona we have. Surfacing these in the failed-articles canary
-	// produces noise the operator cannot act on without a residential
-	// proxy; exclude them at the canary boundary.
+	// Reddit — any subdomain, any path. The generic crawl path gets blocked
+	// by Reddit's `snooserv` 403 from AWS-range IPs across every persona we
+	// have. Surfacing these in the failed-articles canary produces noise the
+	// operator cannot act on without a residential proxy; exclude them at the
+	// canary boundary.
 	/(?:^|\/\/)(?:[a-z0-9-]+\.)*reddit\.com(?:[/:?#]|$)/i,
 	// Operator-curated exact-URL excludes — individual rows the operator has
 	// decided are "known broken / not worth investigating again". Each entry
@@ -118,8 +117,7 @@ export const EXCLUDE_PATTERNS: readonly RegExp[] = [
 	/^https:\/\/medium\.com\/u\/8de1791147b8$/i,
 	// torvalds/linux has pull requests disabled, so this PR permalink 404s.
 	/^https:\/\/github\.com\/torvalds\/linux\/pull\/17#issuecomment-5654674$/i,
-	// (b) Domain no longer resolves — divshot.com was wound down post-acquisition
-	// and returns NXDOMAIN.
+	// (b) Domain no longer resolves — returns NXDOMAIN.
 	/^https:\/\/divshot\.com\/blog\/opinion\/angular-2-crazy-like-a-fox\/$/i,
 	// (c) Dead hosting platform — java.net was retired; the host serves a
 	// terminal 503.
@@ -133,7 +131,7 @@ export const EXCLUDE_PATTERNS: readonly RegExp[] = [
 	/^https:\/\/wiki\.scratch\.mit\.edu\/wiki\/Help:Hard_Refresh$/i,
 	/^https:\/\/mindsetworks\.com\/index\.html$/i,
 	// The `/Science/` section pages (saved with both capitalisations) no longer
-	// resolve on the rebuilt site — the fetch never lands.
+	// resolve — the fetch never lands.
 	/^https:\/\/www\.mindsetworks\.com\/[Ss]cience\/$/i,
 	// (e) Edge firewall / bot-wall that answers datacenter egress with a
 	// challenge or error instead of content (202 JS-challenge, 401 bot-check,
@@ -192,8 +190,7 @@ export const EXCLUDE_PATTERNS: readonly RegExp[] = [
 	// of itself appended to the slug — a paste/link-extraction artifact with no
 	// real page behind it, so the crawl exhausts retries. Anchored to the doubled
 	// form so the real single article (`…-9aceb0bdee03`) still crawls; `https:\/{1,2}`
-	// tolerates the embedded scheme whether normalization left one slash or two
-	// (issue #522 documents both shapes).
+	// tolerates the embedded scheme whether normalization left one slash or two.
 	/^https:\/\/fagnerbrack\.com\/learn-sql-once-use-it-for-30-years-9aceb0bdee03https:\/{1,2}fagnerbrack\.com\/learn-sql-once-use-it-for-30-years-9aceb0bdee03$/i,
 ];
 

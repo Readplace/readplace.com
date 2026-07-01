@@ -102,7 +102,7 @@ export function createAnonymousViewPageActions(
 				// balloon stays closed across the reload below.
 				//
 				// Summary polls OOB-swap the reader-slot, replacing the iframe.
-				// reader-iframe.client.ts re-sizes it on load, but there is a
+				// A client script re-sizes it on load, but there is a
 				// window between the swap and the load event where the iframe has
 				// no explicit height. If we scroll during that window, the article
 				// body is short and scrollTo falls short of the 50 % threshold.

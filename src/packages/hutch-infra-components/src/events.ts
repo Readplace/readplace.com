@@ -54,8 +54,7 @@ export type SaveLinkRawHtmlDetail = z.infer<typeof SaveLinkRawHtmlCommand.detail
  * the origin's bot defenses) and the server stages them to S3 before
  * publishing this command. The downstream `save-link-raw-pdf` Lambda reads
  * the staged buffer and runs `extractPdf` directly — no second fetch, no
- * bot defenses to negotiate. Mirrors `SaveLinkRawHtmlCommand` for the HTML
- * tier-0 path. */
+ * bot defenses to negotiate. */
 export const SaveLinkRawPdfCommand = defineEvent({
 	name: "save-link-raw-pdf-command",
 	source: "hutch.api",
@@ -366,8 +365,8 @@ export const GenerateSummaryCommand = defineCommand({
 export type GenerateSummaryDetail = z.infer<typeof GenerateSummaryCommand.detailSchema>;
 
 /** Refresh handler reads the freshly-fetched HTML from S3 (refresh-html/ prefix
- * in PENDING_HTML_BUCKET) using the same key derivation the publisher used —
- * mirrors the SaveLinkRawHtmlCommand pattern. Inlining the HTML in this detail
+ * in PENDING_HTML_BUCKET) using the same key derivation the publisher used.
+ * Inlining the HTML in this detail
  * blew past EventBridge's 256 KB per-request cap for large articles. */
 export const RefreshArticleContentCommand = defineEvent({
 	name: "refresh-article-content-command",
@@ -622,8 +621,7 @@ export type SendTrialFeedbackEmailDetail = z.infer<
 >;
 
 /** Global, per-URL fact: an article's clean reader view reached the successful
- * terminal state (crawl ready AND summary ready/skipped — see
- * `deriveReaderViewStatus` in @packages/article-state-types). Published by the
+ * terminal state (crawl ready AND summary ready/skipped). Published by the
  * save-link effect dispatcher when `markSummaryReady` / `markSummarySkipped`
  * fire. `succeededAt` is the domain persist-moment timestamp, captured before
  * any later reader poll can land, so it is always ≤ a present user's viewedAt.

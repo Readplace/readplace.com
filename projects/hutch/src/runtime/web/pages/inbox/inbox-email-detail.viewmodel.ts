@@ -24,7 +24,7 @@ export interface ArticlesPanelViewModel {
 	/** True when the poll budget is spent but extraction never wrote its meta
 	 * barrier — a permanent extract-DLQ failure or a pre-feature email that predates
 	 * the meta row. The panel gives up on "Looking for links…" and shows a terminal
-	 * notice instead of polling forever. Mirrors the queue card's `isStalePending`. */
+	 * notice instead of polling forever. */
 	isStalePending: boolean;
 	/** Present only while `isExtracting` and within the poll budget — drives the
 	 * page-level htmx poll that swaps the finished card set in on completion. */

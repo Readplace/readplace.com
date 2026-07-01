@@ -44,7 +44,7 @@
   cursor: pointer;
 }
 
-/* purgecss-ignore-start: modifier suffix is interpolated from ViewAction.variant in view.template.html */
+/* purgecss-ignore-start: modifier suffix is interpolated at runtime, so it never appears literally for the purge scanner to keep */
 .view__cta-btn--primary {
   color: #fff;
   background: var(--color-brand);
@@ -89,7 +89,7 @@
   text-align: center;
 }
 
-/* purgecss-ignore-start: modifier suffix is interpolated from ExpiryState in view.template.html */
+/* purgecss-ignore-start: modifier suffix is interpolated at runtime, so it never appears literally for the purge scanner to keep */
 .view__expiry--permanent {
   display: none;
 }
@@ -189,7 +189,7 @@
   filter: brightness(0.95);
 }
 
-/* purgecss-ignore-start: --inactive ships hidden in view-paywall.template.html; --active is toggled in view-paywall.client.ts and appears in no template literally */
+/* purgecss-ignore-start: --inactive ships hidden in markup; --active is toggled by client script and appears in no template literally */
 .view__paywall--inactive {
   display: none;
 }

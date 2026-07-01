@@ -2,7 +2,6 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 
-// `.architecture/` lives two levels up from this file (tools/bpmn/parse.mjs).
 // Overridable via ARCH_ROOT so the generator can run from an out-of-tree checkout.
 const HERE = path.dirname(fileURLToPath(import.meta.url));
 export const ROOT = process.env.ARCH_ROOT || path.resolve(HERE, '..', '..');

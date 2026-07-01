@@ -3,8 +3,7 @@ import type { GeneratedSummary } from "@packages/provider-contracts/article-summ
 
 /**
  * Polls `/queue/:id/card` stop ticking once both pipelines reach a terminal
- * state. Mirrors `shouldKeepPollingReader` in article-reader.ts but for the
- * queue-list card surface, where the only visible fields that change are
+ * state. On the queue-list card surface, the only visible fields that change are
  * title / siteName / excerpt / imageUrl / wordCount — i.e. the side effects of
  * crawl and summary completion.
  *
@@ -13,8 +12,8 @@ import type { GeneratedSummary } from "@packages/provider-contracts/article-summ
  * 2. Pending crawl: title / imageUrl / wordCount may still land.
  * 3. Crawl ready, summary pending: excerpt may still mature.
  * 4. crawl === undefined && summary === undefined: legacy stub before either
- *    state machine has a row. Same heal as article-reader.ts:38-40 — keep
- *    polling, the next save-link-work tick will mark them pending.
+ *    state machine has a row. Keep polling; the next save-link-work tick will
+ *    mark them pending.
  */
 export function isCardTerminal(
 	crawl: ArticleCrawl | undefined,

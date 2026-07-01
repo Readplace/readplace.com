@@ -19,8 +19,6 @@
  * Required env:
  *   - RECRAWL_SERVICE_TOKEN: the shared secret
  *   - READPLACE_ORIGIN: the origin URL (e.g. https://readplace.com)
- *
- * Run via: pnpm nx run @packages/crawl-article:tier-1-plus-pipeline-health
  */
 import assert from "node:assert/strict";
 import { describe, it } from "node:test";

@@ -138,11 +138,10 @@ final class SignupFlowTests: XCTestCase {
 	}
 
 	func testNativeCallbackURLPinnedToServerRegisteredValue() {
-		// Pinned cross-language contract: the server registers this exact string as
-		// a redirect_uri for the ios-app client
-		// (IOS_NATIVE_OAUTH_CALLBACK_URI in built-in-clients.ts) and matches it by
-		// exact string at token time. A change here must be mirrored there, and
-		// composing the URI from scheme + host keeps the deep-link parser in step.
+			// Pinned cross-language contract: the server registers this exact string as
+	// a redirect_uri for the ios-app client and matches it by exact string at
+	// token time. A change here must be mirrored on the server, and composing
+	// the URI from scheme + host keeps the deep-link parser in step.
 		XCTAssertEqual(AppConfig.nativeCallbackURL, "readplace://oauth-callback")
 		XCTAssertEqual(AppConfig.callbackURLScheme, "readplace")
 		XCTAssertEqual(AppConfig.nativeCallbackHost, "oauth-callback")

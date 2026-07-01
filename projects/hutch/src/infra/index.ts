@@ -300,9 +300,8 @@ const lambda = new HutchLambda(LAMBDA_NAMES.hutchHandler, {
 	environment: {
 		NODE_ENV: config.require("nodeEnv"),
 		PERSISTENCE: "prod",
-		/** server.ts reads PORT at module load (it is imported transitively by the
-		 * Lambda handler via createHutchApp). requireEnv no longer defaults it, so
-		 * it must be present even though serverless-http does not bind a port. */
+		/** The app reads PORT at module load via requireEnv, which has no default,
+		 * so it must be present even though serverless-http does not bind a port. */
 		PORT: "3000",
 		APP_ORIGIN: appOrigin,
 		/** Same-origin fragment endpoint served by blog-site behind this same API
@@ -417,8 +416,8 @@ for (const [i, domain] of additionalDomains.entries()) {
 // Bucket-private; downloads are issued via short-lived presigned URLs from the
 // worker Lambda. The lifecycle rule expires every object under the export
 // prefix after EXPORT_DOWNLOAD_TTL_DAYS so unused archives are evicted at the
-// same cadence as the presigned URL TTL — both numbers move together via the
-// shared constant in runtime/web/pages/export/export-ttl.ts.
+// same cadence as the presigned URL TTL — both numbers move together via a
+// shared constant.
 
 const userExportBucket = new HutchS3ReadWrite("user-export-bucket", {
 	bucketName: userExportBucketName,
@@ -1221,10 +1220,9 @@ const sendTrialFeedbackEmailWithSQS = new HutchSQSBackedLambda(
 eventBus.subscribe(SendTrialFeedbackEmailCommand, sendTrialFeedbackEmailWithSQS);
 
 // --- Analytics Dashboard ---
-// The widget builder lives in runtime/observability/analytics-dashboard so the
-// dashboard JSON is constructable and assertable outside the Pulumi runtime —
-// see analytics-dashboard.test.ts for the coverage / no-unknown-references
-// drift checks against the constants in runtime/observability/events.
+// The widget builder lives outside the Pulumi runtime so the dashboard JSON is
+// constructable and assertable in tests that guard against coverage gaps and
+// unknown references drifting from the analytics event constants.
 
 const region = aws.config.requireRegion();
 
@@ -1251,8 +1249,7 @@ new aws.cloudwatch.LogMetricFilter("imports-completed-filter", {
 // fires in a stack, none of these log groups exist and the analytics dashboard's
 // Logs Insights queries against them fail with `ResourceNotFoundException`.
 // Create them explicitly so the dashboard renders an empty result set instead
-// of erroring. Names are sourced from LOG_GROUPS so a rename in events.ts
-// propagates here without manual edits.
+// of erroring.
 const subscriptionLogGroups = [
 	new aws.cloudwatch.LogGroup("subscription-start-request-log-group", {
 		name: LOG_GROUPS.subscriptionStartRequest,

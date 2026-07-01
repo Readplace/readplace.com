@@ -7,7 +7,7 @@ import { tabQuery } from "../queue.tabs";
  * that action forms inside the refreshed card still post back with the
  * filter-aware redirect query the user expects.
  *
- * Mirrors `buildQueueUrl` in queue.url.ts in two ways: the `tab=queue` and
+ * The `tab=queue` and
  * default-order parameters are omitted because they are the implicit default,
  * keeping the polled URLs clean and stable across consecutive ticks.
  */

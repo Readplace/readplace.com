@@ -7,8 +7,8 @@ import { ArticleResourceUniqueId } from "../../domain/save-link/article-resource
 
 /**
  * Worker-side stage strings for the unified article-body progress bar.
- * Mirrors the hutch progress-mapping SummaryStage union — kept as a literal
- * type to keep the save-link package free of cross-project relative imports.
+ * Kept as a literal type, duplicating the consumer's stage union, to avoid
+ * a cross-project relative import.
  * Terminal stages are omitted because by the time the worker would write
  * them the row's status attribute has already flipped to a terminal value.
  */

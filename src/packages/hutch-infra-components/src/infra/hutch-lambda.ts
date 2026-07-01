@@ -126,11 +126,11 @@ function resolvePackageJsonPath(ctx: NodeJS.Require, packageName: string): strin
 }
 
 /**
- * esbuild bundles all code into a single index.js, so __dirname resolves to the
+ * esbuild bundles all code into a single output file, so __dirname resolves to the
  * bundle root for every source module. This plugin rewrites __dirname in files
  * within the asset directory to include the file's relative path from the asset
- * root, so readFileSync(join(__dirname, "file")) resolves to the correct
- * subdirectory where copyAssetFiles placed the asset.
+ * root, so reading a file relative to __dirname resolves to the correct
+ * subdirectory where the asset was placed.
  */
 function createDirnamePlugin(assetDir: string): Plugin {
 	const assetDirAbs = resolve(assetDir);

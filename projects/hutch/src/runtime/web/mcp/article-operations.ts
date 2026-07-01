@@ -47,9 +47,9 @@ export function toSummaryResult(
 	summary: GeneratedSummary | undefined,
 ): ArticleSummaryResult {
 	// An absent summary row maps to `pending`, the same state the reader UI shows
-	// for `undefined` (article-reader.ts: `summary?.status ?? "pending"`). Every
-	// save primes a pending row, so `undefined` is the pre-priming window — the
-	// MCP tool reports what the user's own reader would, not a separate verdict.
+	// for `undefined`. Every save primes a pending row, so `undefined` is the
+	// pre-priming window — the MCP tool reports what the user's own reader would,
+	// not a separate verdict.
 	if (!summary) return { status: "pending" };
 	switch (summary.status) {
 		case "pending":

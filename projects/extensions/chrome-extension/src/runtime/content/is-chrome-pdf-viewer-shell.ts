@@ -1,7 +1,7 @@
 /** Fingerprints Chrome's built-in "Chrome PDF Viewer" by resources its embedder
- * shell loads from this id (pdf_embedder.css) plus the chrome-internal plugin
+ * shell loads from this id plus the chrome-internal plugin
  * type — neither appears on an ordinary page. A hedge alongside the
- * browser-agnostic contentType check (isPdfViewerDocument): Chrome 149 already
+ * browser-agnostic contentType check: Chrome already
  * reports contentType "application/pdf", so this only earns its keep if some
  * Chromium build instead reports text/html for the shell. The id has been stable
  * for years. Unlike a bare embed[type="application/pdf"], it never matches an

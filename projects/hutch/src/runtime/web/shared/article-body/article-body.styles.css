@@ -239,7 +239,7 @@
 
 /**
  * 1. No `overflow: hidden`: the iframe height is sized to match its content
- *    by reader-iframe.client.ts. If that calculation regresses, the resulting
+ *    by the client at runtime. If that calculation regresses, the resulting
  *    internal scrollbar is an intentional debug signal — do not mask it.
  * 2. Transparent background so the parent surface colour shows through and
  *    the iframe is visually indistinguishable from inline content.
@@ -275,7 +275,7 @@
   /**
    * 1. SSR sets width inline. Each HTMX swap drops in a fresh inline width;
    *    150ms linear smooths the per-poll jump. Between polls the
-   *    progress-bar.client.ts loop overwrites the inline width via rAF for
+   *    client loop overwrites the inline width via rAF for
    *    sub-second updates, and we want that to look continuous rather than
    *    chasing a 150ms ease-in-out.
    */

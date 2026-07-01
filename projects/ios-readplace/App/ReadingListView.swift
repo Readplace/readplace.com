@@ -12,8 +12,7 @@ struct ReadingListView: View {
 
 	/// A destructive affordance paired with the row it would act on, so the
 	/// confirmation dialog can invoke the exact action the swipe carried and label
-	/// itself from the affordance's `label` (the server `title`, or the humanized
-	/// fallback) rather than the raw wire name.
+	/// itself with the human-readable label rather than the raw wire name.
 	private struct PendingDestructive: Identifiable {
 		let affordance: Affordance
 		let article: Article

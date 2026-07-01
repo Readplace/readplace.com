@@ -7,7 +7,7 @@ import {
 import type { GetEffectiveAccess } from "../../domain/access/effective-access";
 
 /**
- * Whether the MCP surface is open to an authenticated caller right now, and how
+ * Whether the MCP surface is open to an authenticated caller, and how
  * to monetise the moment if it isn't. This is the renewal experience the flat
  * `save_link` refusal lacked: a read-only (lapsed) subscription gets a renewal
  * upsell carrying the `/account` link instead of a bare "not active", and a
@@ -22,14 +22,11 @@ import type { GetEffectiveAccess } from "../../domain/access/effective-access";
  * `nudge` as a second text block to a successful result when the trial is ending.
  */
 
-/** The account page where a renewal is completed. Hard-coded prod URL, mirroring
- * `APP_QUEUE_URL` in mcp-server.ts; co-located with the copy that embeds it. */
+/** Hard-coded production URL for the account page where a renewal is completed. */
 const APP_ACCOUNT_URL = "https://readplace.com/account";
 
 /** Shown when a read-only subscription tries to save a new link; the read tools
- * stay open, so the copy pauses only saving. The voice mirrors the
- * checkout-recovery email — a coffee a month, no investor money, each
- * subscription keeps Readplace running another year. */
+ * stay open, so the copy pauses only saving. */
 const INACTIVE_UPSELL =
 	"Your Readplace subscription isn't active, so saving new links is paused — you can still read and export everything already in your queue. " +
 	`Readplace is ${ANNUAL_PRICE_DISPLAY}/year — about a coffee a month — and it's what pays for the computing and features usage on every link you save. ` +

@@ -6,13 +6,12 @@ import assert from "node:assert";
  * pdf-save E2E to give the OCR pipeline a deterministic, parseable PDF without
  * shipping an opaque binary blob in the repo.
  *
- * Production OCR uses pdftoppm (Poppler) for rasterisation — see
- * projects/save-link/src/runtime/comprehensive-crawl-command.main.ts. The
+ * Production OCR uses pdftoppm (Poppler) for rasterisation. The
  * structure below (Catalog → Pages → Page with Helvetica font + content stream
  * + Info dict) is the minimal subset Poppler accepts and renders as a single
  * line of black text.
  *
- * The `/Title` in the Info dict is what `ocr-pdf.ts` reads via `doc.getTitle()`
+ * The `/Title` in the Info dict is what the OCR pipeline reads
  * to populate the saved article's title — so embedding the marker text there
  * is what makes the staging test's title-substring poll converge regardless of
  * what the vision model returns for the rasterised page.

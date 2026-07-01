@@ -8,8 +8,8 @@ import { getEnv, requireEnv } from "@packages/require-env";
 const logger = HutchLogger.from(consoleLogger);
 
 /** Local dev needs no AWS: an in-memory auth resolver (no sessions, so every
- * request resolves to guest) mirrors hutch's composition-root persistence
- * selection — the production lambda wires the DynamoDB session reader instead. */
+ * request resolves to guest); the production lambda wires the DynamoDB session
+ * reader instead. */
 const auth = initInMemoryAuth({ hashPassword, verifyPassword });
 const resolveLogin = initResolveLogin({ getSessionUserId: auth.getSessionUserId, logger });
 

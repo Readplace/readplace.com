@@ -5,15 +5,14 @@
  * image URIs from `.lib/ocr-image-tags.json`.
  *
  * Each entry produces:
- *   1. esbuild bundles src/runtime/<entryPoint> → .lib/<name>/index.js
+ *   1. esbuild bundles each handler's entry point into a single file
  *   2. copyAssetFiles copies non-TS assets from src/ → .lib/<name>/
  *   3. docker buildx build with HANDLER_DIR=.lib/<name> + push to ECR
  *
  * All handlers share the same base image (poppler-utils for pdftoppm + pdfinfo).
  * Image tag: <gitSha>-<contentHash>-<name>, where contentHash covers the
- * bundled handler code, the Dockerfile, and the curl-impersonate build-arg —
- * see the inline comment near the tag construction for why each input is
- * required. ECR repo URL is resolved from the platform stack via
+ * bundled handler code, the Dockerfile, and the curl-impersonate build-arg.
+ * ECR repo URL is resolved from the platform stack via
  * `aws ecr describe-repositories` — the platform stack must already be
  * deployed before this runs.
  */

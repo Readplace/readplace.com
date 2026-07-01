@@ -379,10 +379,9 @@ export function initQueueRoutes(deps: QueueDependencies): Router {
 	 * so the auth middleware doesn't pre-empt anonymous traffic with a
 	 * /login redirect.
 	 *
-	 * The legacy `/queue/:id/read` URL — previously the page itself, now
-	 * the explicit mutation — 301-redirects to `/queue/:id/view` so old
-	 * bookmarks, share links, search-engine indexes and Siren `rel="read"`
-	 * hrefs emitted by historical responses keep resolving. */
+	 * The `/queue/:id/read` URL 301-redirects to `/queue/:id/view` so
+	 * existing bookmarks, share links, search-engine indexes and Siren
+	 * `rel="read"` hrefs keep resolving. */
 	router.get("/:id/read", (req: Request, res: Response) => {
 		const queryIndex = req.originalUrl.indexOf("?");
 		const queryString = queryIndex !== -1 ? req.originalUrl.slice(queryIndex) : "";

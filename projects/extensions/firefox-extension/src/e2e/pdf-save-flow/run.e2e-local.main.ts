@@ -23,10 +23,8 @@ async function waitForServer(port: number, timeoutMs: number): Promise<void> {
 }
 
 async function startTestServer(): Promise<ChildProcess> {
-	// Same pnpm-nx invocation as the login-flow harness: see
-	// projects/extensions/firefox-extension/src/e2e/login-flow/run.e2e-local.main.ts
-	// for the rationale on NX_DAEMON=false and detached:true (process-group
-	// cleanup so the e2e-server is killed when the harness exits).
+	// NX_DAEMON=false and detached:true keep the spawned server in its own process
+	// group so it is killed when the harness exits.
 	const child = spawn("pnpm", ["nx", "run", "hutch:e2e-server"], {
 		env: {
 			...process.env,

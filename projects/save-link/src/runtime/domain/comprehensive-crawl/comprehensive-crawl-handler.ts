@@ -216,10 +216,9 @@ export function initComprehensiveCrawlHandler(deps: {
 				});
 
 				if (refresh) {
-					// Stale-check refresh chain: the refresh-content-extracted Lambda
-					// runs the selector across all tier sources, picks a winner, and
-					// drives the refreshContent transition (which sets freshness +
-					// canonical) — mirrors the in-place refresh flow shape.
+					// Stale-check refresh chain: a downstream handler runs the selector
+					// across all tier sources, picks a winner, and drives the transition
+					// that sets freshness and canonical content.
 					await publishEvent(RefreshContentExtractedEvent, {
 						url,
 						etag: crawlResult.etag,

@@ -56,7 +56,7 @@ const VIEW_PAYWALL_TEMPLATE = readFileSync(
 /** The "Public access expired" paywall blurs the article below the reader's
  * scroll position and urges the visitor to save the link to their own queue. It
  * always ships hidden (`--inactive`) carrying the expiry deadline in
- * data-expires-at; view-paywall.client.ts reveals it once the reader scrolls
+ * data-expires-at; a client-side script reveals it once the reader scrolls
  * past 10% of the article AND access has expired, so the blur is a soft,
  * scroll-gated paywall rather than an on-load curtain. */
 function renderViewPaywall(input: { saveHref: string; expiresAtIso: string }): string {

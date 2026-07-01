@@ -72,8 +72,8 @@ async function seedLinks(
 	for (const link of links) {
 		await fixture.inboxEmail.inboxEmailLinkStore.putLink(linkEntry(user.userId, link));
 	}
-	// The extractor always writes the meta barrier once it finishes; mirror that
-	// here so seeded link rows render as the terminal card set rather than the
+	// The meta barrier is always written once extraction finishes, so write it here
+	// too: seeded link rows then render as the terminal card set rather than the
 	// still-extracting state.
 	await fixture.inboxEmail.inboxEmailLinkStore.putLinksMeta({
 		userId: user.userId,

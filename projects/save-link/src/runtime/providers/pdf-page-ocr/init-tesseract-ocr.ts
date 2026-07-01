@@ -139,7 +139,7 @@ function spawnTesseract(params: {
 }
 
 /** Wrap recognised text in `<p class="ocr-tesseract">` paragraphs so the
- * sanitiser in ocr-pdf.ts (which allows `class` on `<p>`) carries the marker
+ * downstream HTML sanitiser (which allows `class` on `<p>`) carries the marker
  * through and CSS can style OCR'd paragraphs distinctly if desired. */
 function renderTesseractHtml(text: string): string {
 	return text

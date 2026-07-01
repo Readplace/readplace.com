@@ -885,9 +885,8 @@ hr::before {
 }
 
 /**
- * Bridge title between the "won't become" decline and the "what you pay for"
- * receipt. Pivots the page from principles to ask — small section, no card,
- * mirrors the muted background of the decline section above so it reads as a
+ * Bridge title that pivots the page from principles to ask — small section, no
+ * card, sharing the muted background of the adjacent content so it reads as a
  * continuation rather than a new block.
  */
 .home-transition {

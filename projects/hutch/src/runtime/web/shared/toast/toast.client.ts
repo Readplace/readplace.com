@@ -3,8 +3,8 @@
  * declares. Lives globally (loaded on every page) and rescans on htmx swaps,
  * because a toast usually arrives inside a swapped `<main>` — a page-level
  * script that ran once on the initial load never sees it. Dependencies are
- * injected so the browser wiring lives in build-client-bundles.js and the
- * module stays unit-testable.
+ * injected so the browser wiring stays out of this module and it stays
+ * unit-testable.
  */
 export interface ToastDismissDeps {
 	document: Document;
@@ -12,7 +12,7 @@ export interface ToastDismissDeps {
 	addSwapListener: (listener: () => void) => void;
 }
 
-/** Matches the transition duration on `.toast` in toast.styles.ts: the toast
+/** Matches the CSS fade-out transition duration: the toast
  * fades for this long before it is removed from the DOM. */
 const FADE_OUT_MS = 300;
 

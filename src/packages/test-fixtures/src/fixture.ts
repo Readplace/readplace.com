@@ -64,11 +64,9 @@ import type {
 } from "./bundle.types";
 
 
-/** Inlined from projects/hutch/src/runtime/web/pages/queue/queue.error.ts.
- * Keep in sync — both locations carry the same wire-format `error_code` →
- * user-facing message map. The duplication exists because the fixture cannot
- * import from hutch (would re-introduce the @packages/test-fixtures → hutch
- * graph edge that this extraction set out to break). */
+/** Duplicates the application's wire-format `error_code` → user-facing message
+ * map. The fixture cannot import that map from the application package without
+ * re-introducing a dependency cycle, so both copies must be kept consistent. */
 const SAVE_ERROR_MESSAGES: Record<string, string> = {
 	save_failed: "Could not save article. Please try again.",
 	import_too_large:
@@ -415,7 +413,7 @@ export function createDefaultTestAppFixture(appOrigin: string): TestAppFixture {
 		conversions: { logger: conversionLogger, events: conversionEvents },
 		/** Small enough that founding-allocation seed loops finish in
 		 * milliseconds while still leaving room for "one above the limit" tests
-		 * to seed N+1 distinct emails. Production injects 50 via app.ts. */
+		 * to seed N+1 distinct emails. Production uses a much larger limit. */
 		foundingAllocation: { foundingMemberLimit: 3 },
 	};
 }

@@ -34,12 +34,12 @@ export function initReadabilityParser(deps: {
 		);
 		// Any throw from normalization, Readability construction, or
 		// Readability.parse() becomes a terminal parse failure so
-		// save-link-work can markCrawlFailed immediately — otherwise it
-		// escapes the whole pipeline and the reader slot is stuck on
-		// "pending" until the SQS → DLQ path ticks over. Readability 0.6
-		// still crashes on pages whose DOM shape trips its heuristics
-		// (mozilla/readability #435, #757); we normalize the common
-		// linkedom-implicit-body shape above but other shapes remain.
+		// the caller can mark the crawl failed immediately — otherwise
+		// it escapes the whole pipeline and the reader slot is stuck on
+		// "pending" until the dead-letter path ticks over. Readability
+		// still crashes on pages whose DOM shape trips its heuristics;
+		// we normalize the common linkedom-implicit-body shape above
+		// but other shapes remain.
 		let parsed: ReturnType<Readability["parse"]>;
 		try {
 			normalizeImplicitBody(document);
@@ -201,9 +201,7 @@ function buildSyntheticHtml(extracted: SiteArticleContent): string {
  *      — flow content gets stuck inside <head>, with <body> empty.
  * Either way, Readability's _grabArticle walks parent chains expecting
  * to reach <body>, overshoots into the document node, and crashes with
- * "Cannot read properties of null (reading 'tagName')". See
- * mozilla/readability #435 and #757 — the upstream null-guard has not
- * shipped as of @mozilla/readability@0.6.0. */
+ * "Cannot read properties of null (reading 'tagName')". */
 function normalizeImplicitBody(document: Document): void {
 	const head = document.head;
 	const body = document.body;

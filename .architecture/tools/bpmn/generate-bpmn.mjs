@@ -6,8 +6,8 @@
 // See README.md for the event-storming -> BPMN element mapping.
 //
 //   npm install @resvg/resvg-js          # one-off; not a workspace dependency
-//   node .architecture/tools/bpmn/generate-bpmn.mjs            # write into the repo
-//   node .architecture/tools/bpmn/generate-bpmn.mjs debug <fileSubstr> <nameSubstr>  # render to /tmp/out
+//   run with no arguments to write the diagrams into the repo
+//   run in debug mode with <fileSubstr>/<nameSubstr> filters to render to a temp dir for inspection
 import fs from 'node:fs';
 import path from 'node:path';
 import { Resvg } from '@resvg/resvg-js';

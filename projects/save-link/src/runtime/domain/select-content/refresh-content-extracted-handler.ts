@@ -14,8 +14,6 @@ import { resolveCanonicalImageUrl } from "./resolve-canonical-image-url";
 import type { SelectMostCompleteContent } from "./select-content";
 
 /**
- * Mirror of recrawl-content-extracted-handler for the refresh path.
- *
  * Refresh writes the freshly-fetched HTML as a tier-1 source, then this
  * handler runs the selector over ALL available tier sources so an existing
  * tier-0 winner doesn't silently flip to tier-1 just because refresh

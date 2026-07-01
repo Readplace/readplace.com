@@ -1,6 +1,6 @@
 /**
  * Pure, browser-and-node-safe instant formatting shared by the SSR view-models
- * and the `local-time.client.ts` enhancer. The server renders a UTC-labelled
+ * and the client-side enhancer. The server renders a UTC-labelled
  * baseline so the value is unambiguous without JavaScript; the client re-runs
  * the same formatter with the browser's resolved zone to localise it.
  */

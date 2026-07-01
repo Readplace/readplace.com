@@ -26,7 +26,7 @@
 # provided by devbox (see devbox.json) so the committed PNGs reproduce from this
 # script.
 #
-# Usage:  ./scripts/make-brandmark.sh   (from the devbox shell)
+# Usage: run this script from the devbox shell.
 
 set -euo pipefail
 cd "$(dirname "$0")/.."

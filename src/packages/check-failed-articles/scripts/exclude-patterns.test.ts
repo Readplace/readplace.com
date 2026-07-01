@@ -378,7 +378,7 @@ describe("EXCLUDE_PATTERNS — permanently-unreachable saves", () => {
 			label: "torvalds/linux PR permalink (PRs disabled, 404)",
 		},
 		{ url: "https://github.com/js-cookie/js-cookie", excluded: false, label: "live GitHub repo (health source) — must NOT be hidden" },
-		// (b) Domain no longer resolves (NXDOMAIN).
+		// (b) Domain does not resolve (NXDOMAIN).
 		{ url: "https://divshot.com/blog/opinion/angular-2-crazy-like-a-fox/", excluded: true, label: "divshot angular-2 post (NXDOMAIN)" },
 		{ url: "https://divshot.com/", excluded: false, label: "divshot root — should NOT match" },
 		// (c) Dead hosting platform (terminal 503).
@@ -489,7 +489,7 @@ describe("EXCLUDE_PATTERNS — permanently-unreachable saves", () => {
 			excluded: false,
 			label: "android canonical no-.html reference — must NOT be hidden",
 		},
-		// Operator-curated excludes from issue #573.
+		// Operator-curated excludes.
 		{
 			url: "https://npmjs.com/package/jquery",
 			excluded: true,
@@ -510,7 +510,7 @@ describe("EXCLUDE_PATTERNS — permanently-unreachable saves", () => {
 			excluded: false,
 			label: "different itnext article — must NOT be hidden",
 		},
-		// Operator-curated exclude from issue #591.
+		// Operator-curated exclude.
 		{
 			url: "https://www.castorama.fr/coffre-de-jardin-resine-effet-rotin-tresse-270-l-l-118-x-h-57-x-p-45-cm-marron-keter-emily/7290112634603_CAFR.prd",
 			excluded: true,

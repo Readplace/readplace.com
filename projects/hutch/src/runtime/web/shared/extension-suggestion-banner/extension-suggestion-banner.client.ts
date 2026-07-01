@@ -1,5 +1,5 @@
-/** Inline assertion — esbuild bundles this module for the browser, where
- * `node:assert` is not resolvable (same constraint as progress-bar.client.ts). */
+/** Inline assertion — this module is bundled for the browser, where
+ * `node:assert` is not resolvable. */
 function assert(condition: unknown, message: string): asserts condition {
 	if (!condition) throw new Error(message);
 }

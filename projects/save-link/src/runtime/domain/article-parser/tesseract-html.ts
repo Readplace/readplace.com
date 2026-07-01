@@ -1,16 +1,16 @@
 import { escapeHtmlText } from "@packages/crawl-article";
 
-/* The wrapping that init-tesseract-ocr.ts emits per paragraph. The cleanup
+/* The per-paragraph wrapping emitted by the OCR provider. The cleanup
  * pipeline strips this wrapping before sending text to the LLM and reapplies
- * the same wrapping when re-emitting cleaned text, so the orchestrator's
+ * the same wrapping when re-emitting cleaned text, so the downstream
  * sanitiser (which allows `class` on `<p>`) sees the same shape it did before. */
 const PARAGRAPH_OPEN = '<p class="ocr-tesseract">';
 const PARAGRAPH_OPEN_REGEX = /<p\s+class\s*=\s*(?:"ocr-tesseract"|'ocr-tesseract')\s*>/g;
 const PARAGRAPH_CLOSE = "</p>";
 
 /**
- * Reverse the HTML escaping that `escape-html` applies (`& < > " '` →
- * `&amp; &lt; &gt; &quot; &#39;`). Round-trip safe because the package
+ * Reverse the basic HTML escaping (`& < > " '` →
+ * `&amp; &lt; &gt; &quot; &#39;`). Round-trip safe because the escaper
  * is documented to escape exactly those five characters and nothing else,
  * and `&amp;` decodes last so chained entities like `&amp;lt;` come out as
  * `&lt;` rather than `<`.
@@ -50,9 +50,8 @@ export function extractTesseractParagraphs(html: string): string[] {
 }
 
 /**
- * The inverse of `extractTesseractParagraphs`: join paragraphs with the
- * blank-line separator the LLM cleanup pass operates on. The orchestrator
- * forwards the result to the cleanup Lambda and to the diff-review Lambda.
+ * Join paragraphs with the blank-line separator the LLM cleanup pass
+ * operates on.
  */
 export function joinParagraphsAsText(paragraphs: readonly string[]): string {
 	return paragraphs.join("\n\n");

@@ -31,9 +31,8 @@ export type QueueProgress = {
 
 export function createLocalTestArticles(baseUrl: string): TestArticleData {
   return {
-    // Same-origin fixture articles served by hutch's own e2e-fixture route
-    // (/e2e/article/:id). The blog moved to its own deployable, so the e2e
-    // server no longer serves /blog; the fixture's title query param gives each
+    // Same-origin fixture articles served by the e2e-fixture route
+    // (/e2e/article/:id). The fixture's title query param gives each
     // save a distinct, deterministic title without adding more fixture pages.
     urls: [
       `${baseUrl}/e2e/article/queue-flow-1?title=${encodeURIComponent("Readplace E2E Queue Article One")}`,

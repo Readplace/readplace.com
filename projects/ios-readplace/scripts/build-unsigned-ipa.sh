@@ -7,7 +7,7 @@
 # Usage:  make ipa            (production → https://readplace.com)
 #         make ipa-staging    (staging   → the deployed staging API Gateway)
 #
-# Both run `make generate` first: this script no longer generates the Xcode
+# Both run `make generate` first: this script does not generate the Xcode
 # project itself. To invoke it directly, run `make generate` once beforehand and
 # set READPLACE_ENV=staging for a staging build.
 #

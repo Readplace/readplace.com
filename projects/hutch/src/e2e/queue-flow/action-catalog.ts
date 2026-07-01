@@ -90,9 +90,8 @@ export type QueueFlowActionKey =
 	| ImportActionKey
 	| ImportFromUrlActionKey
 
-// Fails to compile if the tuple omits any union member — keeps skipFactory
-// callers in run.e2e-staging.ts from silently dropping a key the local test
-// registers.
+// Fails to compile if the tuple omits any union member — keeps action-skipping
+// callers from silently dropping a key the local test registers.
 type AssertExhaustive<U, Tuple extends readonly U[]> =
 	[Exclude<U, Tuple[number]>] extends [never] ? Tuple : ['missing keys', Exclude<U, Tuple[number]>]
 

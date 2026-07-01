@@ -37,8 +37,8 @@ export const BULK_SAVE_BATCH_SIZE = 20;
  * wholesale. Must stay ≤ the server cap. */
 export const MAX_BULK_SAVE_PAGE_CONTENT_BYTES = 20 * 1024 * 1024;
 
-/** Mirrors the server's bytes→MB rounding so a client-dropped page reads with
- * the same size in the popup's too-big line as a server-dropped one. */
+/** Round bytes→MB so a page dropped by the client shows the same size in the
+ * popup's too-big line as one dropped server-side. */
 function bytesToMb(bytes: number): number {
 	return Math.round((bytes / (1024 * 1024)) * 10) / 10;
 }

@@ -11,7 +11,7 @@ export type CrawlStatus = z.infer<typeof CrawlStatusSchema>;
  *
  * Composed of CrawlStatus + "unavailable". The "unavailable" state is a
  * UI-only signal for legacy rows where the article exists but no crawl
- * status / content was ever recorded (see reader-slot.component.ts) — it
+ * status / content was ever recorded — it
  * has no equivalent in the persisted crawl state machine. Composition via
  * z.union ensures a new CrawlStatus value propagates to ReaderStatus, so
  * any consumer with an exhaustive switch breaks at compile time.

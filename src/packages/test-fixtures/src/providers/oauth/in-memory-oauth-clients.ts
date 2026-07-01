@@ -36,7 +36,6 @@ function toOAuthClient(row: StoredClient): RegisteredOAuthClient {
 	};
 }
 
-/** In-memory mirror of the DynamoDB dynamic client store, for dev and tests. */
 export function initInMemoryOAuthClients(deps?: { now?: () => Date }): {
 	getClient: (clientId: string) => Promise<OAuthClient | undefined>;
 	registerClient: RegisterOAuthClient;

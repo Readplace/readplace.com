@@ -1,5 +1,5 @@
 /**
- * Extracted from `check-stuck-articles.ts` so the unit tests can exercise the
+ * Kept apart from the canary's test entry point so the unit tests can exercise the
  * canary logic without registering the top-level `test()` block (which fires
  * `requireEnv` at module load and aborts the test process).
  */
@@ -79,7 +79,7 @@ export const SUMMARY_MIN_AGE_MS = 20 * 60_000; /* 1 */
  *      before pendingSince existed.
  *   3. `summaryStatus = "skipped" AND summarySkippedReason = "ai-unavailable"`
  *      — `summaryPendingSince` is removed when the summary transitions to
- *      skipped (see `dynamodb-article-store.ts` REMOVE clause), so the
+ *      skipped, so the
  *      pending-age gates above can never match this state. Anchor the gate
  *      to `contentFetchedAt` (set by the freshness writer immediately
  *      before the summariser ran, so it bounds when the skip happened),

@@ -362,10 +362,9 @@ function setListError(message: string | null): void {
 }
 
 // Server-driven messages: the extension knows only how to render them, never
-// what they mean. `buildMessageView` (tested in browser-extension-core) makes
-// every rendering decision; this glue only paints it. `item.html` is the
-// server-authored text/html body, injected as HTML — trusted by contract (see
-// the Message type / the hypermedia-api-design skill).
+// what they mean. Every rendering decision is made upstream; this glue only
+// paints it. The message html is the server-authored text/html body, injected
+// as HTML — trusted by contract.
 function renderMessages(messages: Message[]): void {
 	const container = document.getElementById("messages");
 	if (!container) return;

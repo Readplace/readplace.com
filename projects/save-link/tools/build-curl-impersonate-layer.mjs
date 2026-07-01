@@ -63,9 +63,9 @@ function extractAndPackage(tarPath) {
 	const binDir = resolve(layerRoot, "bin");
 	mkdirSync(binDir, { recursive: true });
 
-	/* curl_chrome116 is a bash wrapper that execs ./curl-impersonate-chrome
-	 * from the same directory, so both files must be co-located in /opt/bin.
-	 * v0.8.0+ ship statically-linked binaries — no .so files to stage. */
+	/* The wrapper script execs its sibling binary by relative path, so both
+	 * must be co-located in the same /opt/bin directory.
+	 * Statically-linked binaries ship no shared objects to stage. */
 	run("cp", [resolve(extractDir, "curl_chrome116"), binDir]);
 	run("cp", [resolve(extractDir, "curl-impersonate-chrome"), binDir]);
 	chmodSync(resolve(binDir, "curl_chrome116"), 0o755);

@@ -34,8 +34,8 @@ const logger = HutchLogger.from(consoleLogger)
 const logError = (message: string, error?: Error) => logger.error(message, error)
 /** The e2e harness crawls its own fixtures, all served from the loopback server
  * below, so block nothing — otherwise the SSRF guard refuses every loopback
- * address. Mirrors e2eValidateSaveableUrl relaxing the string-level
- * private-network check; the guard's lookup returns every resolved address, so
+ * address, matching the relaxed string-level private-network check applied
+ * during URL validation; the guard's lookup returns every resolved address, so
  * undici still reaches the 127.0.0.1 listener when localhost yields ::1 first. */
 const e2eIsBlocked: IsBlockedAddress = () => false
 const crawlFetch = initCrawlFetch({ fetch: globalThis.fetch, personas: CRAWL_PERSONAS, isBlocked: e2eIsBlocked })

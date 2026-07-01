@@ -15,7 +15,7 @@ export type PdfExtractResult =
  * existing baseline). `comprehensive-cleaning` covers the per-page LLM
  * cleanup pass that runs after Tesseract completes and the document-level
  * diff review that runs at the end. Stage strings match the values consumed
- * by `@packages/domain/article/progress-mapping`.
+ * by the progress-mapping that drives the reader-facing progress bar.
  */
 export type PdfExtractStage = "comprehensive-extracting" | "comprehensive-cleaning";
 

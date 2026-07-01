@@ -129,8 +129,7 @@ export function createSaveLinkActions(config: {
 	/** Saves a second non-"pagination" URL so the queue ends up with 12 items
 	 * total but only 10 match the filter — keeps the pagination assertion
 	 * (page 2 = 2 items) and the filter-with-match assertion (filter hides
-	 * pagination because ≤10 matches) consistent now that the popup's auto-save
-	 * for chrome-extension:// no longer adds a stub. */
+	 * pagination because ≤10 matches) consistent. */
 	actions.set("save-extra-link", {
 		async isAvailable(driver: WebDriver): Promise<boolean> {
 			if (!config.progress.listVerified) return false;

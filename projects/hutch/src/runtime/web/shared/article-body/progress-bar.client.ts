@@ -11,8 +11,8 @@
  * module records (tickAt, pct) and extrapolates linearly so the fill
  * advances smoothly at the observed rate.
  *
- * One bar covers both the crawl and summary pipelines — see
- * progress-mapping.ts for the unified percentage scale.
+ * One bar covers both the crawl and summary pipelines on a unified
+ * percentage scale.
  */
 
 export interface BarTick {

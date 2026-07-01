@@ -55,10 +55,9 @@ export {
 	renderChangelogBannerFragment,
 	renderChangelogBannerShell,
 } from "./changelog-banner";
-/** Re-exported from @packages/web-session (its home, since cookie parsing is now
- * shared with the session-cookie reader) so existing web-shell consumers keep
- * importing it from here. web-shell → web-session is one-way: the auth package
- * never depends on this view shell. */
+/** Cookie parsing is owned by the session package and re-exported here so view-shell
+ * consumers can keep importing it from this shell. The dependency is one-way: the
+ * session package never depends on this view shell. */
 export { readCookie } from "@packages/web-session";
 export type { ChangelogBanner, ChangelogVersion } from "./changelog-banner";
 export { Nav } from "./nav.component";

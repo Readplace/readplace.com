@@ -111,10 +111,10 @@ export function initFinalizeArticle(deps: {
 		const { article } = parseResult;
 		const articleResourceUniqueId = ArticleResourceUniqueId.parse(input.url);
 
-		/* Drop multi-MB inline base64 images before the body is persisted as the
-		 * tier source; downstream finalize handlers re-load the whole source and
-		 * OOM on pages that inline tens of MB of images (#473). http(s) <img>
-		 * sources are untouched, so downloadMedia still mirrors them to the CDN. */
+			/* Drop multi-MB inline base64 images before the body is persisted as the
+	 * tier source; downstream finalize handlers re-load the whole source and
+	 * OOM on pages that inline tens of MB of images. http(s) <img>
+	 * sources are untouched, so they are still mirrored to the CDN. */
 		const content = stripOversizedInlineImages(article.content);
 
 		const media = await downloadMedia({
@@ -162,7 +162,7 @@ export function initFinalizeArticle(deps: {
  * reader renders the image directly. When the image *fetch* fails (the origin
  * blocked the hotlink) the body falls back to the origin URL so the reader
  * still shows something rather than the empty-content dead-end; an upload
- * failure propagates and fails the save, like the HTML path.
+ * failure propagates and fails the save.
  */
 async function finalizeImageArticle(args: {
 	url: string;

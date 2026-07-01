@@ -14,7 +14,7 @@ const logger = HutchLogger.from(consoleLogger);
 /** Local/e2e composition root needs no AWS: the shell renders against an empty
  * static-asset origin (favicons/fonts are irrelevant to the snippet rendering
  * the visual tests assert) and an in-memory auth resolver (no sessions, so every
- * request resolves to guest) mirrors the production lambda's DynamoDB wiring. */
+ * request resolves to guest). */
 const base = initBase({ staticBaseUrl: "", liveReload: false });
 const auth = initInMemoryAuth({ hashPassword, verifyPassword });
 const resolveLogin = initResolveLogin({ getSessionUserId: auth.getSessionUserId, logger });

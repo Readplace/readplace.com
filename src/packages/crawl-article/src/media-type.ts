@@ -17,14 +17,14 @@ interface MediaTypeMatcher {
 
 /**
  * The closed set of media types the crawler can turn into article HTML, each
- * paired with how to recognise it from a {@link MediaTypeSignal}.
+ * paired with how to recognise it from the fetched response signals.
  *
  * THIS ARRAY IS THE SINGLE SOURCE OF TRUTH. {@link SupportedMediaType} is
  * derived from it, so adding an entry here is the only edit needed to introduce
  * a media type — and it is impossible to add one without also supplying a
  * detector. The new member then propagates into the type, breaking every
- * exhaustive `switch (mediaType)` that selects a parser (see `initCrawlArticle`
- * in crawl-article.ts) until that switch handles it. There is no string
+ * exhaustive `switch (mediaType)` that selects a parser until that switch
+ * handles it. There is no string
  * fall-through: recognition lives only here.
  *
  * Order is significance order — the PDF magic-byte sniff runs first so a PDF

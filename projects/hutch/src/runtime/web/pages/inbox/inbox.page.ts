@@ -44,7 +44,7 @@ interface InboxDependencies {
 	buildBannerState: BuildBannerState;
 	/** Save gates applied only to /create, the sole route that mints an address —
 	 * a forwarding address is a save-flow input, so creating one is a write action.
-	 * Mirrors the import commit gate, which runs both: `requireNotLocked` blocks a
+	 * Both gates run: `requireNotLocked` blocks a
 	 * locked (unverified-past-window) account, `requireWriteAccess` blocks a
 	 * read-only (trial-expired / cancelled) account. Viewing and disabling existing
 	 * addresses stay open — disabling reduces footprint and is harmless. */

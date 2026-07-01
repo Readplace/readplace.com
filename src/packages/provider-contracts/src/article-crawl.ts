@@ -18,7 +18,7 @@ export type FindArticleCrawlStatus = (
 export type MarkCrawlPending = (params: { url: string }) => Promise<void>;
 
 /**
- * Unconditionally moves a row to crawlStatus=pending, even if it is currently
+ * Unconditionally moves a row to crawlStatus=pending, even if it is already
  * `ready` or terminal (`failed`/`unsupported`). Used only by the operator
  * recrawl endpoint where we explicitly want to discard the previous state so
  * the reader slot shows "recrawl in progress" while the worker re-runs. Clears

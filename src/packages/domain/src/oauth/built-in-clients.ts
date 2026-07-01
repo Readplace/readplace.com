@@ -7,9 +7,8 @@ import { OAuthClientIdSchema } from "./oauth.schema";
  * with the auth code. The OAuth server matches `redirect_uri` by exact string at
  * both authorize and token time, so this single constant — not a loose literal —
  * is the server-side source of truth. The iOS app composes the identical value
- * from `AppConfig.callbackURLScheme`/`nativeCallbackHost`; both sides pin it in
- * tests (`built-in-clients.test.ts` here, `SignupFlowTests` there) so a change
- * fails a test instead of silently breaking the token exchange for either flow.
+ * from its own configuration; both sides pin it in tests so a change fails a
+ * test instead of silently breaking the token exchange for either flow.
  */
 export const IOS_NATIVE_OAUTH_CALLBACK_URI = "readplace://oauth-callback";
 
@@ -37,9 +36,8 @@ const BUILT_IN_OAUTH_CLIENTS: Record<string, OAuthClient> = {
 			"https://readplace.com/oauth/callback",
 			"https://hutch-app.com/oauth/callback",
 			// The staging deployment's web OAuth callback: the staging stack's API
-			// Gateway endpoint (staging has no custom domain). Mirrors
-			// ServerEnvironment.staging in ios-readplace's AppConfig.swift — keep both
-			// in sync.
+			// Gateway endpoint (staging has no custom domain). Must stay in sync with
+			// the iOS app's staging configuration.
 			"https://hkncrxpii6.execute-api.ap-southeast-2.amazonaws.com/oauth/callback",
 			"http://127.0.0.1:3000/oauth/callback",
 			"http://127.0.0.1:3001/oauth/callback",

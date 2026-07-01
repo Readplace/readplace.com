@@ -24,8 +24,8 @@ final class ServerMessageTests: XCTestCase {
 	}
 
 	/// The reason for a single-pass decoder: a correctly-escaped `&amp;lt;` must
-	/// decode once to the literal text `&lt;`, not twice to `<`. The old chained
-	/// `replacingOccurrences` resolved `&amp;` first and then re-read the `&lt;`.
+	/// decode once to the literal text `&lt;`, not twice to `<`. A multi-pass
+	/// decode would resolve `&amp;` first and then re-read the `&lt;`.
 	func testDoesNotDoubleDecode() {
 		let message = message(body: "literal &amp;lt; entity")
 		XCTAssertEqual(message.plainText, "literal &lt; entity")

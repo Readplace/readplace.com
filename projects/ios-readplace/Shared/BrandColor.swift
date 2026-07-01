@@ -1,11 +1,9 @@
 import SwiftUI
 import UIKit
 
-/// Readplace's brand palette in code — the single source of truth that mirrors
-/// the web's design tokens. Values come from `src/packages/web-shell/src/base.styles.ts`
-/// (the complete token set the brand guidelines defer to — its table omits some
-/// dark-mode variants); each colour adapts to light/dark natively via a dynamic
-/// UIColor so views never branch on the colour scheme themselves.
+/// Readplace's brand palette in code — the values mirror the web's design tokens.
+/// Each colour adapts to light/dark natively via a dynamic UIColor so views never
+/// branch on the colour scheme themselves.
 enum BrandColor {
 	static let amber = dynamic(light: rgb(200, 112, 42), dark: rgb(212, 131, 58))
 	static let highlight = dynamic(light: rgb(200, 146, 60), dark: rgb(212, 160, 74))

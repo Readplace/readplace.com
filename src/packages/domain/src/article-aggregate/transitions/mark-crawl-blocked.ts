@@ -12,7 +12,7 @@ export interface MarkCrawlBlockedInput {
  * queue is maxReceiveCount=1, so a throw between two separate writes routes the
  * message to a DLQ handler that only advances the crawl axis — leaving the
  * summary pending and paging the stuck-articles canary over a transient spend
- * cap. Mirrors markCrawlUnsupported's cross-axis pairing. */
+ * cap. */
 export function markCrawlBlocked(
 	article: Article,
 	input: MarkCrawlBlockedInput,

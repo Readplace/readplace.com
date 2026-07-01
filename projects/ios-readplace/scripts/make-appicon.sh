@@ -1,17 +1,15 @@
 #!/usr/bin/env bash
 #
 # Regenerate the 1024x1024 App Store marketing icon from the Readplace brand mark
-# (a navy serif ampersand on white with a warm-amber marker dot — see
-# BRAND_GUIDELINES.md). Vector geometry matches projects/hutch/brand/
-# Readplace_Logo_only.svg; it is inlined here so this experiment stays
-# self-contained (it depends on no other project at build time).
+# (a navy serif ampersand on white with a warm-amber marker dot, per the brand
+# guidelines). Vector geometry matches the canonical brand logo SVG; it is
+# inlined here so this experiment stays self-contained (it depends on no other
+# project at build time).
 #
 # Two steps, both with tools already on the machine (no ImageMagick/rsvg needed):
 #   1. sips rasterises the SVG to a crisp 1024px PNG.
 #   2. CoreGraphics re-encodes it WITHOUT an alpha channel — App Store marketing
 #      icons are rejected if they carry alpha, even when fully opaque.
-#
-# Usage:  ./scripts/make-appicon.sh
 
 set -euo pipefail
 cd "$(dirname "$0")/.."

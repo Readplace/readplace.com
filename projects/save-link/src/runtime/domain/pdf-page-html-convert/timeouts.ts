@@ -1,4 +1,4 @@
-/* Mirrors `domain/pdf-page-llm-cleanup/timeouts.ts`: keep the DeepSeek SDK
+/* Keep the DeepSeek SDK
  * timeout strictly below the Lambda timeout so a hung upstream surfaces as
  * a DeepSeek error rather than a Lambda timeout. The Lambda is sync-invoked
  * from the comprehensive-crawl orchestrator (not SQS-backed), so the

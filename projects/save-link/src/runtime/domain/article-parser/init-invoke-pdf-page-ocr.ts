@@ -11,9 +11,8 @@ const OutputSchema = z.object({
 
 /**
  * Sync-invokes the per-page OCR Lambda. Returns a tagged union so the
- * orchestrator (`ocr-pdf.ts`) can drive retries through `@packages/retriable`
- * without losing the underlying error to the worker's catch block. The page
- * Lambda runs Tesseract locally (see init-tesseract-ocr.ts) so retries at
+ * orchestrator can drive retries without losing the underlying error to the
+ * worker's catch block. The page Lambda runs Tesseract locally, so retries at
  * this layer cover Lambda-runtime errors (cold-start failures, OOM, etc.),
  * not OCR-engine errors.
  */

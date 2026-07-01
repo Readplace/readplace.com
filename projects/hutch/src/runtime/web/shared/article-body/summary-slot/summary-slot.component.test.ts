@@ -165,7 +165,7 @@ describe("renderSummarySlot", () => {
 		});
 
 		// The query-joining '&' must be HTML-escaped in the attribute, exactly as
-		// {{pollUrl}} is escaped in summary-pending.template.html. getAttribute
+		// Handlebars escapes the interpolated poll URL. getAttribute
 		// then decodes it back to the URL htmx polls.
 		expect(html).toContain("&amp;poll");
 		const slot = parse(html).querySelector("[data-test-reader-summary]");

@@ -134,7 +134,7 @@ describe("MCP tool definitions", () => {
 	});
 
 	describe("no tool can accept a caller-supplied user identity", () => {
-		// The principal is bound server-side from the OAuth token (mcp.routes.ts),
+		// The principal is bound server-side from the OAuth token,
 		// never from arguments. A tool that declared a userId-like field — or left
 		// additionalProperties open — would reopen the cross-user door the transport
 		// closes, so this guard fails the moment such a field is added.

@@ -175,10 +175,10 @@ function renderMarkdown(body: PageBody): string {
 }
 
 /** Site-level configuration the shell cannot read for itself. `staticBaseUrl`
- * is the origin that fronts favicons/fonts referenced in base.template.ts
+ * is the origin that fronts the favicons/fonts referenced in the page template
  * (each consuming site points it at static.readplace.com); `liveReload`
- * injects the dev livereload script. Both were env reads in hutch — lifted to
- * an injected config so the package stays free of process.env coupling and can
+ * injects the dev livereload script. Both are injected rather than read from
+ * the environment so the package stays free of process.env coupling and can
  * be reused by sites that resolve these values differently. */
 export interface BaseConfig {
 	staticBaseUrl: string;

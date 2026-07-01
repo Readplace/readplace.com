@@ -3,14 +3,14 @@ import { By, until } from "selenium-webdriver";
 import type { WebDriver } from "selenium-webdriver";
 import { CSS_SELECTORS, READER_PERMALINK_PATTERN } from "../e2e";
 
-/** hutch's session cookie (SESSION_COOKIE_NAME in @packages/web-session).
+/** hutch's session cookie.
  * The reader at /queue/:id/view resolves its owner from this cookie, never from
  * the bearer, so the extension mints it out-of-band (POST /auth/session) before
  * surfacing reader links. */
 const SESSION_COOKIE_NAME = "hutch_sid";
 
-/** Body class of the owner's private reader vs the public fallback view
- * (hutch reader.component.ts / view.component.ts). A saved-article link that
+/** Body class of the owner's private reader vs the public fallback view.
+ * A saved-article link that
  * carries the session lands on `page-reader`; one that does not 302-redirects to
  * /view and lands on `page-view`. */
 const PRIVATE_READER_BODY_CLASS = "page-reader";

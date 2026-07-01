@@ -70,9 +70,9 @@ const pendingPdfBucketName = config.require("pendingPdfBucketName");
 const contentMediaCdnDomain = config.get("contentMediaCdnDomain");
 
 /**
- * Image URIs for the OCR container Lambdas, written by `tools/build-image.mjs`
- * before `pulumi up` runs. The file is in .gitignore (`.lib/`) and recreated
- * on every deploy. If it's missing, the build step was skipped — re-run
+ * Image URIs for the OCR container Lambdas, written by the image-build step
+ * before `pulumi up` runs. The file is gitignored and recreated on every
+ * deploy. If it's missing, the build step was skipped — re-run
  * `pnpm build-image` (or check CI ordering).
  */
 const ocrImageTags = z
@@ -87,7 +87,6 @@ const ocrImageTags = z
 // Contains the curl_chrome116 bash wrapper and the statically-linked
 // curl-impersonate-chrome binary (BoringSSL embedded) that produce a Chrome
 // TLS fingerprint, bypassing Akamai/Cloudflare JA3/JA4 blocks.
-// Built by tools/build-curl-impersonate-layer.mjs before `pulumi up`.
 const curlImpersonateLayer = new aws.lambda.LayerVersion("curl-impersonate", {
 	layerName: "curl-impersonate-chrome",
 	compatibleRuntimes: [aws.lambda.Runtime.NodeJS22dX],
@@ -197,7 +196,7 @@ const linkSavedQueue = new HutchSQS("link-saved", {
 // placeholder. Fail on the first attempt so the row resolves fast and the
 // browser-captured tier-0 source (which is not subject to the origin IP block)
 // can become canonical instead. Trade-off: a genuinely transient tier-1 blip
-// (503/timeout) no longer self-heals at the SQS layer; the user re-saving (or
+// (503/timeout) does not self-heal at the SQS layer; the user re-saving (or
 // /admin/recrawl) is the retry.
 const saveLinkCommandQueue = new HutchSQS("save-link-command", {
 	visibilityTimeoutSeconds: 480,
@@ -205,9 +204,9 @@ const saveLinkCommandQueue = new HutchSQS("save-link-command", {
 });
 
 // maxReceiveCount=1: SQS retries are removed for the anonymous save path.
-// Auto-heal-on-view is gone (Plan 3.2): a failed save no longer reprimes when
-// the user re-visits /view. The DLQ → SNS email alarm wired by HutchSQSBackedLambda
-// is the operator's redrive signal, and /admin/recrawl is the manual retry.
+// A failed save does not reprime when the user re-visits /view. The DLQ → SNS
+// email alarm wired by HutchSQSBackedLambda is the operator's redrive signal,
+// and /admin/recrawl is the manual retry.
 // Other queues that aren't user-retriable (select-most-complete-content,
 // generate-summary) keep the default maxReceiveCount=3 so transient
 // Deepseek/DDB blips still self-heal at the SQS layer.
@@ -223,7 +222,7 @@ const saveLinkRawHtmlCommandQueue = new HutchSQS("save-link-raw-html-command", {
 	visibilityTimeoutSeconds: 480,
 });
 
-// OCR path: mirror comprehensive-crawl-command — 1800s visibility = 2x the
+// OCR path: 1800s visibility = 2x the
 // 900s Lambda timeout; dlqMaxReceiveCount=1 because a retry re-OCRs every page
 // from scratch, so an automatic redrive is expensive and rarely succeeds.
 const saveLinkRawPdfCommandQueue = new HutchSQS("save-link-raw-pdf-command", {
@@ -333,7 +332,7 @@ const saveLinkRawHtmlCommandLambda = new HutchLambda(SAVE_LINK_LAMBDA_NAMES.save
 	entryPoint: "./src/runtime/save-link-raw-html-command.main.ts",
 	outputDir: ".lib/save-link-raw-html-command",
 	assetDir: "./src",
-	// 1769 MB = 1 full vCPU. Mirrors save-link-command headroom.
+	// 1769 MB = 1 full vCPU.
 	memorySize: 1769,
 	timeout: 240,
 	layers: [curlImpersonateLayer.arn],
@@ -348,8 +347,8 @@ const saveLinkRawHtmlCommandLambda = new HutchLambda(SAVE_LINK_LAMBDA_NAMES.save
 	policies: [
 		...saveLinkRawHtmlCommandDynamodb.policies,
 		...pendingHtmlBucket.readPolicies("save-link-raw-html-command-pending-html"),
-		// Worker writes sources/tier-0.html + sidecar; the select-content Lambda
-		// owns canonical reads/writes and the Deepseek selector contest.
+		// Worker writes sources/tier-0.html + sidecar; a separate content-selection
+		// stage owns canonical reads/writes and the Deepseek selector contest.
 		// readTierSnapshot HEAD-checks tier-0 source when logging the crawl outcome.
 		...contentBucket.readPolicies("save-link-raw-html-command-content-read"),
 		...contentBucket.writePolicies("save-link-raw-html-command-s3"),
@@ -393,7 +392,7 @@ const saveAnonymousLinkCommandLambda = new HutchLambda(SAVE_LINK_LAMBDA_NAMES.sa
 	entryPoint: "./src/runtime/save-anonymous-link-command.main.ts",
 	outputDir: ".lib/save-anonymous-link-command",
 	assetDir: "./src",
-	// 1769 MB = 1 full vCPU. Mirrors save-link-command headroom.
+	// 1769 MB = 1 full vCPU.
 	memorySize: 1769,
 	timeout: 240,
 	layers: [curlImpersonateLayer.arn],
@@ -752,8 +751,7 @@ new HutchDLQEventHandler("comprehensive-crawl-dlq", {
 // HTTP crawl: this worker reads the staged PDF from pending-pdf and runs the
 // same OCR orchestration as comprehensive-crawl-command (pdfinfo metadata, S3
 // staging, per-page OCR fan-out, LLM cleanup, diff review, semantic-HTML
-// convert), writes the tier-0 source, and emits the downstream event. Wiring
-// mirrors comprehensive-crawl-command; the only difference is the input bucket.
+// convert), writes the tier-0 source, and emits the downstream event.
 
 const saveLinkRawPdfCommandDynamodb = new HutchDynamoDBAccess("save-link-raw-pdf-command-dynamodb", {
 	tables: [{ arn: articlesTableArn, includeIndexes: false }],
@@ -805,7 +803,7 @@ const saveLinkRawPdfCommandStagingDelete: LambdaPolicy = {
 };
 
 const saveLinkRawPdfCommandLambda = new HutchLambda(SAVE_LINK_LAMBDA_NAMES.saveLinkRawPdfCommand, {
-	// Mirrors comprehensive-crawl-command: pdfinfo + one S3 PutObject + fan-out
+	// pdfinfo + one S3 PutObject + fan-out
 	// JSON Lambda invokes + HTML join + tier-write. 900s is the Lambda ceiling for
 	// a worst-case many-page document.
 	memorySize: 512,
@@ -863,8 +861,8 @@ new HutchDLQEventHandler("save-link-raw-pdf-dlq", {
 });
 
 // --- StaleCheckRequested handler ---
-// Background worker that runs the freshness/conditional-GET path that used to
-// happen inline on /view. Reads freshness + crawl status from DDB; on a stale
+// Background worker that runs the freshness/conditional-GET path. Reads
+// freshness + crawl status from DDB; on a stale
 // row publishes RefreshArticleContent (200) or UpdateFetchTimestamp (304); on
 // a failed/missing crawl status republishes SaveAnonymousLinkCommand to redrive
 // the crawl pipeline. PDFs (or any non-HTML body) emit SimpleCrawlUnsupportedEvent
@@ -883,7 +881,7 @@ const staleCheckRequestedLambda = new HutchLambda(SAVE_LINK_LAMBDA_NAMES.staleCh
 	entryPoint: "./src/runtime/stale-check.main.ts",
 	outputDir: ".lib/stale-check-requested",
 	assetDir: "./src",
-	// 1769 MB = 1 full vCPU. Mirrors save-link-command headroom.
+	// 1769 MB = 1 full vCPU.
 	memorySize: 1769,
 	timeout: 240,
 	layers: [curlImpersonateLayer.arn],

@@ -82,8 +82,8 @@ async function readSirenBody(response: Response): Promise<unknown> {
 /** Thrown when the server rejects a save by returning the current collection
  * (e.g. for non-saveable URL schemes). Carries the items so the caller can
  * drop the user back into the list view without a re-fetch. The optional
- * `warning` mirrors `properties.warning` on the Siren collection so the popup
- * can surface a human-readable reason next to the list. */
+ * `warning` carries the server-authored human-readable reason so the popup
+ * can surface it next to the list. */
 class NotSaveableError extends Error {
 	constructor(
 		public readonly items: ReadingListItem[],
@@ -106,9 +106,9 @@ const SirenPropertiesSchema = z.object({
 const SirenLinkSchema = z.object({
 	rel: z.array(z.string()),
 	href: z.string(),
-	/** The human label the server authored for this link (mirrors the server's
-	 * SirenLink.title). When a semantic link is rendered as a control, the client
-	 * uses it as the label; absent, the client humanizes the rel. */
+	/** The human label the server authored for this link. When a semantic link is
+	 * rendered as a control, the client uses it as the label; absent, the client
+	 * humanizes the rel. */
 	title: z.string().optional(),
 });
 

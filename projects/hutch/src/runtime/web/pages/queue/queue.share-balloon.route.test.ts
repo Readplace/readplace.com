@@ -58,7 +58,7 @@ async function saveAndOpenReader(appOrigin: string): Promise<Document> {
 	/** Authenticate with an explicit Cookie header instead of the agent's cookie
 	 * jar: an https appOrigin marks the session cookie Secure, and the jar
 	 * (correctly) refuses to replay Secure cookies over supertest's plain-http
-	 * connection. Cookie transport is covered by secure-cookies.route.test.ts —
+	 * connection. Cookie transport is covered elsewhere —
 	 * this test is about share-URL rendering. */
 	const created = await harness.auth.createUser({ email: "test@example.com", password: "password123" });
 	assert(created.ok, "test user must be created");

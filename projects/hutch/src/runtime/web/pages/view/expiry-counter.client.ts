@@ -16,10 +16,10 @@ export interface TimeLeft {
 	seconds: number;
 }
 
-/** Duplicate of `@packages/time-left`'s decomposeTimeLeft. The client IIFE
- * can't transitively pull view-expiry.ts (which imports zod) into the browser
- * bundle, so the formatters live here. A drift test in
- * expiry-counter.client.test.ts pins this output to the server's. */
+/** Duplicated from the server's time-decomposition logic. The client IIFE can't
+ * transitively pull the server module (which imports a schema-validation library)
+ * into the browser bundle, so the formatters live here. A drift test pins this
+ * output to the server's. */
 export function decomposeTimeLeft(ms: number): TimeLeft {
 	if (ms <= 0) return { days: 0, hours: 0, minutes: 0, seconds: 0 };
 	const totalSeconds = Math.floor(ms / 1000);
@@ -32,7 +32,6 @@ export function decomposeTimeLeft(ms: number): TimeLeft {
 	return { days, hours, minutes, seconds };
 }
 
-/** Mirror of `@packages/time-left`'s formatCounter. */
 export function formatCounter(timeLeft: TimeLeft): string {
 	const parts: string[] = [];
 	if (timeLeft.days > 0) parts.push(`${timeLeft.days}d`);
@@ -42,7 +41,6 @@ export function formatCounter(timeLeft: TimeLeft): string {
 	return parts.join(" ");
 }
 
-/** Mirror of view-expiry.ts's formatSaveUtmContent. */
 export function formatSaveUtmContent(timeLeft: TimeLeft): string {
 	return `${timeLeft.days}d_${timeLeft.hours}h_left`;
 }

@@ -223,13 +223,12 @@ function stripClapsSeparators(params: {
 /* Removes the "Get X's stories in your inbox" h2 and any join-medium /
  * remember-me CTA paragraphs anywhere inside the article container.
  *
- * Earlier versions tried to remove the h2's enclosing <section> or <div>
- * to wipe the whole subscribe widget in one shot, but Medium's SSR
- * sometimes nests the subscribe h2 inside the article body's main
- * <section> (the one wrapping the entire prose), so removing the
- * "container" obliterated the body too. The narrow version just removes
- * the h2 and the CTA paragraphs by their text fingerprint — the empty
- * wrapping div remains in the bodyHtml but contributes no rendered text. */
+ * Strip only the h2 and the CTA paragraphs by their text fingerprint, not
+ * their enclosing <section>/<div>: Medium's SSR sometimes nests the
+ * subscribe h2 inside the article body's main <section> (the one wrapping
+ * the entire prose), so removing that container would obliterate the body
+ * too. The empty wrapping div remains in the bodyHtml but contributes no
+ * rendered text. */
 /* c8 ignore start -- V8 block coverage phantom on for...of iterator + function declaration, see bcoe/c8#319 */
 function stripFooterSubscribeCta(container: DomElement): void {
 	const headings = container.querySelectorAll("h2");

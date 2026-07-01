@@ -2,9 +2,7 @@
  * Sync Disposable Email Domains
  *
  * Regenerates the canonical disposable-email blocklist from the upstream
- * disposable-email-domains project (CC0-1.0). Run manually to re-sync:
- *
- *   node projects/hutch/scripts/sync-disposable-domains.js
+ * disposable-email-domains project (CC0-1.0). Run this script manually to re-sync.
  *
  * Re-syncing only rewrites disposable-email-domains.txt. Hand-maintained
  * additions live in disposable-email-domains.custom.txt and are never touched,

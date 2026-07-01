@@ -488,9 +488,8 @@ export function createApp(dependencies: AppDependencies): Express {
 	}
 
 	app.get("/sitemap.xml", (_req: Request, res: Response) => {
-		/** Blog URLs live in blog-site's own sitemap at /blog/sitemap.xml
-		 * (advertised in robots.txt), since the blog is a separate deployable
-		 * and hutch can no longer enumerate its posts. */
+		/** Blog URLs live in the blog's own sitemap at /blog/sitemap.xml
+		 * (advertised in robots.txt), since the blog is a separate deployable. */
 		const pages: { loc: string; priority: string; changefreq: string; lastmod: string }[] = [
 			{ loc: "/", priority: "1.0", changefreq: "weekly", lastmod: "2026-04-08" },
 			{ loc: "/install", priority: "0.8", changefreq: "monthly", lastmod: "2026-03-01" },
@@ -688,9 +687,8 @@ export function createApp(dependencies: AppDependencies): Express {
 		});
 
 		/**
-		 * Path-uniqued PDF fixture for the extension's pdf-save-flow staging e2e
-		 * (projects/extensions/{chrome,firefox}-extension/src/e2e/pdf-save-flow/
-		 * run.e2e-staging.main.ts). The `:id` segment is ignored — bytes are
+		 * Path-uniqued PDF fixture for the extension's pdf-save-flow staging e2e.
+		 * The `:id` segment is ignored — bytes are
 		 * identical for every id — so callers pass `randomUUID()` to ensure each
 		 * CI run targets a fresh save row and the deferred OCR pipeline cannot
 		 * brick a subsequent run with cached state. Same gating as

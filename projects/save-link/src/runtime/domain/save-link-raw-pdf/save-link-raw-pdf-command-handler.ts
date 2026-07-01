@@ -101,10 +101,10 @@ export function initSaveLinkRawPdfCommandHandler(deps: {
 					continue;
 				}
 
-				/* parsePdfFromBuffer only returns "fetched" or "unsupported" — the type
-				 * union admits "failed"/"not-modified" but neither is reachable from
-				 * the buffer path. Assert the invariant so the parseHtml call below
-				 * can rely on crawlResult.html without an untestable branch. */
+				/* The PDF buffer path only yields "fetched" or "unsupported"; the
+				 * "failed"/"not-modified" statuses the result type also admits are
+				 * unreachable here. Assert the invariant to drop an untestable branch
+				 * before reading the parsed content. */
 				assert(
 					crawlResult.status === "fetched",
 					`${logPrefix} unexpected crawl status ${crawlResult.status}`,

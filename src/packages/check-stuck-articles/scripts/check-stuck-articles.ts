@@ -4,8 +4,7 @@
  *
  * Read-only DDB scan: returns one failing node:test sub-test per article
  * whose state machines never reached a terminal-good state. Zero stuck
- * rows = green. Replaces /tmp/list-stuck-articles.sh — same FilterExpression
- * and same exclude-regex semantics.
+ * rows = green.
  *
  * Required env:
  *   - AWS_REGION
@@ -14,8 +13,6 @@
  *
  *   - READPLACE_ORIGIN (used to build admin recrawl URLs in the
  *     failing-test message for each stuck row)
- *
- * Run via: pnpm nx run @packages/check-stuck-articles:check-stuck-articles
  */
 import assert from "node:assert/strict";
 import { writeFile } from "node:fs/promises";
@@ -32,8 +29,8 @@ import {
 
 /**
  * Reachability ping budget per stuck row. Matches the production crawler's
- * FETCH_TIMEOUT_MS in src/packages/crawl-article/src/crawl-article.ts so the
- * canary's idea of "reachable" tracks the crawler's idea of "had a chance".
+ * fetch timeout so the canary's idea of "reachable" tracks the crawler's
+ * idea of "had a chance".
  */
 const REACHABILITY_TIMEOUT_MS = 10_000;
 

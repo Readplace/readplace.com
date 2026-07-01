@@ -3,11 +3,10 @@ import { MAX_THUMBNAIL_BYTES } from "./extract-thumbnail";
 /**
  * The image formats the reader renders through a plain `<img>` — raster formats
  * plus SVG — each paired with the URL path suffixes a direct link to that format
- * uses. The single registry behind both {@link isSupportedImageContentType} (the
- * server-crawl gate, keyed off the HTTP `Content-Type`) and
- * {@link IMAGE_URL_EXTENSIONS} (the browser-extension path's fast heuristic, keyed
- * off the URL path), so the content-type allowlist and the extension list cannot
- * name different format sets. `.jpg` and `.jpeg` are both listed because direct
+ * uses. The single registry behind both the content-type allowlist (the
+ * server-crawl gate, keyed off the HTTP `Content-Type`) and the URL-extension
+ * list (the browser-extension path's fast heuristic, keyed off the URL path), so
+ * the two cannot name different format sets. `.jpg` and `.jpeg` are both listed because direct
  * `image/jpeg` links use either spelling.
  */
 const IMAGE_FORMATS = [
@@ -26,8 +25,7 @@ const SUPPORTED_IMAGE_CONTENT_TYPES: ReadonlySet<string> = new Set(
 /**
  * URL path suffixes of a direct image link, derived from {@link IMAGE_FORMATS} so
  * they cannot drift from the content-type allowlist. The browser-extension save
- * path matches these against a captured page's own URL to recognise a bare image
- * (see `isBareImageCapture` in @packages/finalize-article).
+ * path matches these against a captured page's own URL to recognise a bare image.
  */
 export const IMAGE_URL_EXTENSIONS: readonly string[] = IMAGE_FORMATS.flatMap(
 	(format) => format.extensions,

@@ -23,7 +23,7 @@ function createTestToken(userId: UserId): Token {
 
 /** Mints a bearer for `userId` directly through the harness's in-memory OAuth
  * model. Route tests only need a token the API will accept, so this skips the
- * PKCE authorize/token exchange that the `*.integration.ts` suites drive on
+ * PKCE authorize/token exchange that the integration suites drive on
  * purpose to cover the real grant flow. */
 export async function saveAccessTokenForUser(
 	harness: TestAppHarness,

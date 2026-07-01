@@ -9,8 +9,8 @@ const WEBMCP_SCRIPT = `<script src="/client-dist/webmcp.client.js" defer></scrip
  * (inbox, queue, account) is rewritten into the viewer's local timezone. */
 const LOCAL_TIME_SCRIPT = `<script src="/client-dist/local-time.client.js" defer></script>`;
 
-/** Hutch's configured shell renderer. The presentational layout lives in
- * @packages/web-shell; this composition point binds it to hutch's runtime
+/** Hutch's configured shell renderer. The presentational layout lives in a
+ * separate shell package; this composition point binds it to hutch's runtime
  * config (the static-asset origin and the dev livereload flag) so every page
  * keeps importing a ready-to-call `Base`. */
 export const Base = initBase({

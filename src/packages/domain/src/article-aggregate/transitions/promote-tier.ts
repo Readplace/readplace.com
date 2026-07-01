@@ -25,12 +25,12 @@ export interface PromoteTierInput {
 }
 
 /* Selector promotion: writes metadata + freshness + crawl=ready and records the
- * new canonical hash. It no longer touches the summary axis — instead it
+ * new canonical hash. It does not touch the summary axis; instead it
  * announces `publish-canonical-content-changed` whenever the canonical tier
  * flipped OR the readable text changed (lazy backfill: a row with no prior hash
  * counts as changed). The `canonical-content-changed` subscriber owns summary
- * regeneration, so future derived-artifact consumers attach without editing this
- * transition (OCP). `canonicalChanged` still gates the user-facing notification
+ * regeneration, so derived-artifact consumers attach without editing this
+ * transition (OCP). `canonicalChanged` gates the user-facing notification
  * so a re-pick of the same tier does not re-fire link-saved. */
 export function promoteTier(
 	article: Article,

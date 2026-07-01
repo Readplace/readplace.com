@@ -102,7 +102,7 @@ enum Fixtures {
 
 	/// The collection-level actions a healthy `/queue` advertises (URL-only save,
 	/// HTML save, file save, search), each carrying the server's `title` label.
-	/// Mirrors `toArticleCollectionEntity`. Overridable so a test can model a
+	/// Overridable so a test can model a
 	/// server that offers a different action set.
 	static let collectionActions = """
 		{ "name": "save-article", "title": "Save a link", "href": "/queue", "method": "POST", "type": "application/json", "fields": [{ "name": "url", "type": "url" }] },

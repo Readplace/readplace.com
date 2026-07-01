@@ -37,10 +37,9 @@ export function initInMemoryArticleCrawl(): {
 		const id = ArticleResourceUniqueId.parse(url);
 		const current = states.get(id.value);
 		if (current?.status === "ready") return;
-		// Preserve any previously recorded stage so the legacy-stub healing path
-		// (markCrawlPending called after the worker may have written a stage) does
-		// not reset the bar. Mirrors the DDB markCrawlPending UpdateExpression
-		// which only writes crawlStatus and leaves crawlStage untouched.
+		// Preserve any previously recorded stage when re-marking pending so the
+		// progress indicator does not reset: marking pending updates only the
+		// status and leaves any recorded stage untouched.
 		const existingStage =
 			current?.status === "pending" ? current.stage : undefined;
 		states.set(

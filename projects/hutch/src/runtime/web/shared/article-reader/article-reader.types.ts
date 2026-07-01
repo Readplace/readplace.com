@@ -82,7 +82,7 @@ export interface ReaderState {
 	summaryPollUrl: string | undefined;
 	/**
 	 * Single unified progress tick driving the article-body progress bar.
-	 * Computed from whichever pipeline (crawl → summary) is currently in flight,
+	 * Computed from whichever pipeline (crawl → summary) is in flight,
 	 * mapped onto a 0–100 scale. `undefined` once both pipelines are terminal
 	 * (or the crawl has failed — we hide the bar instead of stalling at a
 	 * percentage that will never advance).

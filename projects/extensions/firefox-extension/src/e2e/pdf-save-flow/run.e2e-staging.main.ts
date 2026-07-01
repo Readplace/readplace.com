@@ -11,10 +11,9 @@ const STAGING_TEST_PASSWORD = process.env.STAGING_TEST_PASSWORD;
  * Each CI run gets its own runId so the PDF URL the test feeds into the
  * extension's save-article action is unique. Reusing a shared URL across runs
  * would let one broken run strand the row at summaryStatus=pending and brick
- * every subsequent run on the cached state — same failure mode as hutch's
- * queue-flow staging test (see projects/hutch/src/e2e/queue-flow/run.e2e-staging.ts).
+ * every subsequent run on the cached state.
  *
- * The /e2e/fixtures/pdf/:id.pdf route on hutch (server.ts) returns the same
+ * The /e2e/fixtures/pdf/:id.pdf route on the staging server returns the same
  * fixture bytes for every :id — a deterministic single-page PDF whose `/Title`
  * metadata is "READPLACE_E2E_PDF_FIXTURE", which is what the OCR pipeline reads
  * back as the article title — so unique paths produce unique articles without

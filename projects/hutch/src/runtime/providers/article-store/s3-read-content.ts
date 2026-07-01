@@ -23,7 +23,7 @@ export function initS3ReadContent(deps: {
 			return await result.Body.transformToString("utf-8");
 		} catch (error) {
 			// NoSuchKey is the contract's "not found" signal — return undefined so the
-			// provider chain (read-article-content.ts) advances silently to the next
+							// provider chain advances silently to the next
 			// store. Real failures (throttling, network, IAM) keep throwing and stay
 			// visible in CloudWatch.
 			if (error instanceof NoSuchKey) return undefined;

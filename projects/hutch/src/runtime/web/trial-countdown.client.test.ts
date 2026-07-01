@@ -30,10 +30,9 @@ function buildFixture(opts: {
 	</body></html>`;
 }
 
-/** Same markup as buildFixture but WITHOUT the data-test-trial-countdown hook,
- * so the only handle on the element is the semantic .trial-countdown class. This
- * is what pins SELECTOR=".trial-countdown"; a fixture carrying the test attribute
- * would pass identically against the old [data-test-trial-countdown] selector. */
+/** Builds the fixture without any test-only attribute, so the only handle on the
+ * element is its semantic class. This proves the runtime locates the countdown by
+ * that class rather than by a test-only hook. */
 function buildSemanticOnlyFixture(opts: {
 	endsAtIso: string;
 	serverNowIso: string;

@@ -218,7 +218,7 @@ body {
 }
 
 /**
- * 1. Width is set inline from popup.browser.ts as each save milestone lands
+ * 1. Width is set inline as each save milestone lands
  *    (capturing → uploading). The asymptotic ease lets the bar glide to a
  *    milestone and settle there while that phase runs, rather than snapping.
  * 2. A settled segment would otherwise look frozen while a slow phase churns
@@ -422,7 +422,7 @@ body {
 }
 
 /**
- * 1. Deterministic colour based on domain — set via inline style in popup.ts
+ * 1. Deterministic colour based on domain — set via inline style
  */
 .list-view__avatar {
   width: 32px;

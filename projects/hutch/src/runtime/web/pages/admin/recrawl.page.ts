@@ -193,7 +193,7 @@ function handleTriggerRecrawl(deps: AdminRecrawlDependencies) {
 		}
 
 		// Always recrawl. No cache, no TTL. Force crawl back to pending (even if
-		// currently `ready`) so the reader slot shows the "recrawl in progress"
+		// already `ready`) so the reader slot shows the "recrawl in progress"
 		// skeleton. Summary state is owned by the recrawl pipeline: a promotion
 		// publishes CanonicalContentChanged, whose subscriber re-primes and
 		// regenerates the summary, so wiping it here would be redundant.

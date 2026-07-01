@@ -10,8 +10,8 @@ fi
 
 # Read the staging hutch API URL from hutch's pulumi stack output. Same backend
 # (PULUMI_BACKEND_URL is set by the workflow), so a cd + pulumi stack output
-# reads it without StackReference plumbing. Mirrors hutch/scripts/post-deploy.sh
-# but cross-project, since firefox-extension's own stack only exports its S3
+# reads it without StackReference plumbing. Read cross-project because
+# firefox-extension's own stack only exports its S3
 # bucket URL — the pdf-save-flow staging test hits hutch, not the extension's
 # S3 bucket.
 RAW_URL=$(cd ../../hutch && pulumi stack output apiUrl --stack "$STACK")

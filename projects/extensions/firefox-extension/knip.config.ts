@@ -27,7 +27,7 @@ export default {
 		"pulumi",
 	],
 	entry: [
-		// Extension entry points compiled by esbuild (scripts/build-extension.js)
+		// Extension entry points compiled by esbuild
 		"src/runtime/background/background.browser.ts",
 		"src/runtime/popup/popup.browser.ts",
 		"src/runtime/content/shortcut.browser.ts",

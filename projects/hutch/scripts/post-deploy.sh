@@ -3,7 +3,7 @@ set -euo pipefail
 
 STACK="${PULUMI_STACK:?PULUMI_STACK is not set}"
 
-# Default curl/* UA is rejected by src/runtime/web/middleware/naive-bot.ts.
+# Default curl/* UA is rejected by the server's bot-filtering middleware.
 USER_AGENT="Readplace-Deploy-Verify/1.0"
 
 RAW_URL=$(pulumi stack output apiUrl --stack "$STACK")

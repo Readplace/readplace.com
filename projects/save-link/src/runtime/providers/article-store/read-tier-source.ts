@@ -29,7 +29,7 @@ export function initReadTierSource(deps: {
 		const metadataRaw = await tryGetObject(client, bucketName, metadataKey);
 		if (metadataRaw === undefined) {
 			// HTML written but sidecar absent — treat as not-yet-fully-written.
-			// SQS retry on the worker (or a new save) will eventually backfill.
+			// The partial write is transient; a later write completes it.
 			logger.info("[ReadTierSource] missing metadata sidecar", {
 				url: params.url,
 				tier: params.tier,

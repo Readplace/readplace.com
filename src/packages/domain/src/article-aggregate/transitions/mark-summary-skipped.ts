@@ -5,10 +5,9 @@ import type { AggregateField } from "../storage.types";
 
 export interface MarkSummarySkippedInput {
 	reason: SummarySkipReason;
-	/** Persist-moment timestamp, threaded from the caller's clock (see the
-	 * submit-link.ts `input.now` precedent), carried as `succeededAt` on the
-	 * reader-view-loading-succeeded effect. A skip still reaches the successful
-	 * reader-view state — there is just nothing to summarise. */
+	/** Persist-moment timestamp, threaded from the caller's clock, carried as
+	 * `succeededAt` on the reader-view-loading-succeeded effect. A skip still
+	 * reaches the successful reader-view state — there is just nothing to summarise. */
 	now: string;
 }
 

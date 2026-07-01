@@ -2,10 +2,10 @@ import { z } from "zod";
 import type { SortOrder } from "@packages/provider-contracts/article-store";
 import { type TabId, tabQuery } from "./queue.tabs";
 
-/** Mount path of the queue router (`app.use(QUEUE_PATH, …)` in server.ts). The
- * queue router builds its redirects, links and analytics paths — plus the
- * skipped-import cookie scope and the query strings `buildQueueUrl` produces —
- * from this constant so they can't drift from where the router is mounted. */
+/** Single source of truth for where the queue router is mounted. Its redirects,
+ * links and analytics paths — plus the skipped-import cookie scope and the
+ * query strings built here — all derive from this constant so they can't drift
+ * from the mount point. */
 export const QUEUE_PATH = "/queue";
 
 export interface QueueUrlState {
@@ -56,8 +56,9 @@ export function buildQueueUrl(
 	return qs ? `${QUEUE_PATH}?${qs}` : QUEUE_PATH;
 }
 
-/** totalPages mirrors queue.viewmodel.ts so this read-boundary clamp and the
- * rendered pagination agree on where the list ends; they must not diverge. */
+/** This read-boundary clamp must compute the last page the same way the
+ * rendered pagination does, so they agree on where the list ends and can't
+ * diverge. */
 export function canonicalQueuePageRedirect(input: {
 	state: QueueUrlState;
 	total: number;

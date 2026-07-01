@@ -6,8 +6,8 @@ const BUNDLED_EXTENSIONS = [".ts"];
 /**
  * Recursively copies non-source assets (anything not bundled by esbuild) from a
  * Lambda's source tree into its output directory, preserving the relative path
- * layout so `__dirname`-based runtime lookups resolve. Shared between the zip
- * path (HutchLambda) and the container-image build (build-ocr-image.mjs).
+ * layout so `__dirname`-based runtime lookups resolve. Shared between the
+ * zip-based and container-image Lambda builds.
  */
 export function copyAssetFiles(dirs: { src: string; dest: string }): void {
 	for (const entry of readdirSync(dirs.src, { withFileTypes: true })) {

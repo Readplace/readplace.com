@@ -725,8 +725,8 @@ describe("Import routes", () => {
 			const userId = (await harness.auth.findUserByEmail("test@example.com"))?.userId;
 			assert(userId, "seeded login user must exist");
 			// A trial past its window leaves the account read-only: the commit
-			// (the bulk save) is gated by requireWriteAccess while the upload and
-			// review pages stay public — the read-only mirror of the locked case.
+			// (the bulk save) is gated by the write-access check while the upload
+			// and review pages stay public.
 			await harness.subscriptionProviders.upsertTrialing({
 				userId,
 				trialEndsAt: new Date(Date.now() - ONE_DAY_MS).toISOString(),

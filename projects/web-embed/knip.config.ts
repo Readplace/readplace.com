@@ -15,7 +15,7 @@ export default {
 	ignore: [...(baseConfig.ignore || [])],
 	ignoreDependencies: [
 		// Required by Pulumi to resolve the AWS provider at deploy time, but not
-		// imported directly (HutchLambda in @packages/hutch-infra-components is)
+		// imported directly
 		"@pulumi/aws",
 	],
 	ignoreBinaries: [

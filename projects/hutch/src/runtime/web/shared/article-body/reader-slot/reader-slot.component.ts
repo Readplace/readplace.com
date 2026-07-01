@@ -26,20 +26,19 @@ export interface ReaderSlotInput {
  * switch covers every variant explicitly and TypeScript's exhaustiveness
  * check via the discriminated union prevents a forgotten case from compiling.
  *
- * The legacy `crawl === undefined` shape comes from
- * dynamodb-article-crawl.ts:rowToArticleCrawl: rows that pre-date the
- * state machines have no `crawlStatus` attribute. We render content if
- * present, otherwise treat it as pending.
+ * The `crawl === undefined` shape comes from persisted rows that pre-date
+ * the state machines and have no `crawlStatus` attribute. We render content
+ * if present, otherwise treat it as pending.
  *
  * Pending without a poll URL (the worker is still going but the page has
  * exhausted its 40-tick budget) routes to the same `Your link is saved`
  * reframe as the failure variants — the user shouldn't sit watching a dead
- * spinner; the URL is recoverable on the source right now.
+ * spinner; the URL is recoverable on the source.
  */
 /* Tells readers used to "feels-right" LLM output that this pipeline prefers
  * visible OCR artifacts over confidently-wrong rewrites. Uses the shared
- * `isPDF` helper from `@packages/crawl-article` — the same predicate the
- * backend uses with `contentType` + `bodyBytes` signals at fetch time. Here
+ * `isPDF` helper — the same predicate the backend uses with `contentType`
+ * and `bodyBytes` signals at fetch time. Here
  * we only have the URL pre-fetch, so we pass the `pathname` signal alone;
  * `isPDF` treats `pathname` as the weakest signal and a false negative just
  * shows the standard pending message. */

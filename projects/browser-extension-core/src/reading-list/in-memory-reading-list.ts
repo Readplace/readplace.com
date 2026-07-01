@@ -27,10 +27,10 @@ export function initInMemoryReadingList(): {
 		}
 
 		const id = crypto.randomUUID() as ReadingListItemId;
-		/** Mirrors the server's per-item affordances: a removing `delete` and a
-		 * non-removing `update-status`. Advertising both lets the fake exercise an
-		 * action-aware invoke — only `delete` removes — instead of deleting on any
-		 * advertised action, which would mask a walker bug. */
+		/** Advertise both a removing action (`delete`) and a non-removing one
+		 * (`update-status`) so the fake exercises an action-aware invoke — only a
+		 * removing action deletes — instead of deleting on any advertised action,
+		 * which would mask a bug in the action walker. */
 		const item: ReadingListItem = {
 			id,
 			url,
@@ -51,8 +51,8 @@ export function initInMemoryReadingList(): {
 
 	const invokeAction: InvokeAction = async ({ id, name }) => {
 		const item = items.get(id);
-		/** The fake mirrors the Siren walker: an item or action the store no longer
-		 * advertises reports not-found. */
+		/** An item, or an action the store no longer advertises, reports not-found —
+		 * matching how a real client treats a withdrawn affordance. */
 		if (!item?.actions.some((action) => action.name === name)) {
 			return { ok: false, reason: "not-found" };
 		}

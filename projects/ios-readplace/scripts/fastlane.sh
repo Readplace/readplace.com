@@ -6,7 +6,7 @@
 # device archiving. fastlane shells out to xcodebuild/xcrun/xcodegen, so the
 # whole invocation must run in a sanitized env.
 #
-# Usage:  ./scripts/fastlane.sh beta        (or any other lane / fastlane args)
+# Usage:  pass a lane (e.g. beta) or any other fastlane args
 
 set -euo pipefail
 cd "$(dirname "$0")/.."

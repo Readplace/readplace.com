@@ -1,4 +1,4 @@
-/* Mirrors `domain/generate-summary/timeouts.ts`: keep the DeepSeek SDK timeout
+/* Keep the DeepSeek SDK timeout
  * strictly below the Lambda timeout so a hung upstream surfaces as a DeepSeek
  * error rather than a Lambda timeout, and let SQS visibility hold the message
  * past the Lambda's wall-clock so redrive sees it cleanly.

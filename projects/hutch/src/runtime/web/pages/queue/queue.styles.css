@@ -25,7 +25,7 @@
   border-left: 3px solid var(--primary);
 }
 
-/* purgecss-ignore-start: modifier suffix is interpolated from QueueViewModel.subscriptionBanner.state in queue.template.html */
+/* purgecss-ignore-start: modifier suffix is interpolated from runtime view state, so static analysis cannot detect these classes as used */
 .queue-banner--none {
   display: none;
 }

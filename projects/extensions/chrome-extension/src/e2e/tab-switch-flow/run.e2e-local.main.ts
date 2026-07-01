@@ -60,9 +60,8 @@ async function waitForServer(port: number, timeoutMs: number): Promise<void> {
 }
 
 async function startTestServer(): Promise<ChildProcess> {
-	// Same pnpm-nx invocation and process-group handling as the login-flow and
-	// pdf-save-flow harnesses; see login-flow/run.e2e-local.main.ts for the
-	// rationale on NX_DAEMON=false and detached:true.
+	// NX_DAEMON=false and detached:true so the server runs in its own process
+	// group and teardown can kill the whole group instead of orphaning it.
 	const child = spawn("pnpm", ["nx", "run", "hutch:e2e-server"], {
 		env: {
 			...process.env,

@@ -24,14 +24,13 @@ import type { EmitSimpleCrawlUnsupported } from "../../dep-bundles/events";
 import type { CrawlAndFinalizeArticle } from "@packages/finalize-article";
 
 /**
- * Stale-check is now a simple-only worker: PDFs flow through the same
- * `SimpleCrawlUnsupportedEvent` → policy → `ComprehensiveCrawlCommand` chain
- * as the save-link Lambdas, so this handler no longer holds the mupdf / OCR
- * dependency footprint. The comprehensive Lambda emits
- * `RefreshContentExtractedEvent` (instead of `TierContentExtractedEvent` or
- * `RecrawlContentExtractedEvent`) when the `refresh=true` flag threads
- * through, keeping the existing tier-selection + canonical write flow
- * intact for refreshed PDFs.
+ * Stale-check is a simple-only worker: PDFs flow through the
+ * unsupported-crawl → policy → comprehensive-crawl chain rather than
+ * being extracted here, so this handler avoids the mupdf / OCR
+ * dependency footprint. When the `refresh=true` flag threads through,
+ * the comprehensive crawl emits a refresh-flavoured content-extracted
+ * event, keeping the tier-selection + canonical write flow intact for
+ * refreshed PDFs.
  *
  * Action outcomes:
  *   - `"new"`             — row missing; re-published SaveAnonymousLinkCommand.
@@ -105,8 +104,8 @@ export function initStaleCheckHandler(deps: {
 		});
 
 		if (result.status === "not-modified") {
-			/* Carry forward the row's existing bodyHash so a row that previously
-			 * had none (legacy / 304 from origin honouring conditional headers)
+			/* Carry forward the row's existing bodyHash so a row that had
+			 * none (e.g. a 304 from an origin honouring conditional headers)
 			 * stays consistent with whatever the gate just compared against. */
 			await publishUpdateFetchTimestamp({
 				url,
@@ -119,10 +118,9 @@ export function initStaleCheckHandler(deps: {
 		if (result.status === "failed") return "skip";
 
 		if (result.status === "unsupported") {
-			/* Mirror save-link-work's deferral: write the stage marker so the
-			 * reader's progress bar advances immediately, then emit the event
-			 * with `refresh=true` so the comprehensive Lambda emits
-			 * RefreshContentExtractedEvent at the end. The comprehensive Lambda
+			/* Write the stage marker so the reader's progress bar advances
+			 * immediately, then emit the event with `refresh=true` so the
+			 * comprehensive crawl ultimately drives the refresh. That crawl
 			 * re-fetches and can short-circuit on the same hash gate, so the
 			 * previousBodyHash travels with the event. */
 			await markCrawlStage({ url, stage: "comprehensive-fetching" });

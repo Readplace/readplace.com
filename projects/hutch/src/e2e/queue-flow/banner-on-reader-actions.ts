@@ -51,7 +51,7 @@ export function createBannerOnReaderActions(
 				// staging strips arbitrary query strings, so a `?ts=${Date.now()}`
 				// trick collapses every run back to the same path and the cached
 				// row pins `summaryStatus='ready'` → banner never shows. The /e2e
-				// fixture URL pattern (used in run.e2e-staging.ts) avoids this by
+				// fixture URL pattern avoids this by
 				// embedding the runId in the path itself.
 				await page.goto(
 					`${config.baseUrl}/view/${encodeURIComponent(config.publicViewTestUrl)}`,
@@ -64,7 +64,7 @@ export function createBannerOnReaderActions(
 				// HTML keeps the entire `<div class="banner-area"><banner></div>`
 				// chrome wrapper inside the article reader slot; a descendant
 				// selector would still match both copies. The outer banner-area
-				// is body's first DOM child per base.template.ts.
+				// is body's first DOM child.
 				const banner = page.locator('body > .banner-area [data-test-extension-suggestion-banner]')
 				await expect(banner).toHaveAttribute('data-show-extension-suggestion', 'true')
 				await expect(banner).toHaveClass(/extension-suggestion-banner--visible/)
@@ -154,7 +154,7 @@ export function createBannerOnReaderActions(
 				}
 			},
 			execute: async (page) => {
-				// The reader no longer auto-marks articles as read, so the
+				// The reader does not auto-mark articles as read, so the
 				// article is still in the default unread tab — delete directly.
 				await clickAndWaitForPageReload(
 					page,

@@ -15,8 +15,8 @@ import { initFetchH2 } from "./h2-fetch";
 
 const PERSONAS = [{ name: "test", headers: { "user-agent": "test" } }] as const;
 
-/** Stand-in for the real `isBlockedIpAddress` (tested in @packages/domain);
- * classifies the addresses these transport tests resolve to. */
+/** Test stand-in for the real blocked-IP classifier; classifies the
+ * addresses these transport tests resolve to. */
 const blocksPrivate: IsBlockedAddress = (ip) =>
 	ip.startsWith("10.") ||
 	ip.startsWith("127.") ||
