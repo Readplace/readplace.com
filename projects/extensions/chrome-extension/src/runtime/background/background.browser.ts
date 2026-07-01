@@ -186,7 +186,10 @@ const corePromise = initCore();
 
 const CAPTURE_HTML_TIMEOUT_MS = 5000;
 
-async function captureTabHtml(tabId: number | undefined, url: string): Promise<string | undefined> {
+async function captureTabHtml(
+	tabId: number | undefined,
+	url: string,
+): Promise<{ rawHtml: string; canonicalUrl?: string } | undefined> {
 	if (tabId == null) return undefined;
 	const tab = await browser.tabs.get(tabId).catch(() => undefined);
 	if (!tab || tab.url !== url) return undefined;
@@ -198,7 +201,12 @@ async function captureTabHtml(tabId: number | undefined, url: string): Promise<s
 	]).catch(() => undefined);
 	if (captured && typeof captured === "object" && "rawHtml" in captured) {
 		const rawHtml = (captured as { rawHtml: unknown }).rawHtml;
-		if (typeof rawHtml === "string" && rawHtml.length > 0) return rawHtml;
+		if (typeof rawHtml === "string" && rawHtml.length > 0) {
+			const rawCanonical = (captured as { canonicalUrl?: unknown }).canonicalUrl;
+			const canonicalUrl =
+				typeof rawCanonical === "string" && rawCanonical.length > 0 ? rawCanonical : undefined;
+			return { rawHtml, canonicalUrl };
+		}
 	}
 	return undefined;
 }
@@ -206,8 +214,8 @@ async function captureTabHtml(tabId: number | undefined, url: string): Promise<s
 /** Best-effort content capture for one tab: the live DOM via the content script,
  * else a byte fetch in the user's session, else undefined (a URL-only save). */
 async function captureTabContent(tab: { url: string; tabId?: number }): Promise<{ bytes: ArrayBuffer; mediaType: string } | undefined> {
-	const rawHtml = await captureTabHtml(tab.tabId, tab.url);
-	if (rawHtml) return { bytes: new TextEncoder().encode(rawHtml).buffer, mediaType: "text/html" };
+	const captured = await captureTabHtml(tab.tabId, tab.url);
+	if (captured) return { bytes: new TextEncoder().encode(captured.rawHtml).buffer, mediaType: "text/html" };
 	return captureActiveTabBytes(tab.url, fetch);
 }
 
@@ -270,13 +278,13 @@ browser.runtime.onMessage.addListener((raw, _sender, sendResponse) => {
 					});
 					broadcastSaveProgress("capturing");
 					captureTabHtml(message.tabId, message.url)
-						.then(async (rawHtml) => {
+						.then(async (captured) => {
 							broadcastSaveProgress("uploading");
-							const content = rawHtml
-								? { bytes: new TextEncoder().encode(rawHtml).buffer, mediaType: "text/html" }
+							const content = captured
+								? { bytes: new TextEncoder().encode(captured.rawHtml).buffer, mediaType: "text/html" }
 								: await captureActiveTabBytes(message.url, fetch);
 							core.save("current-tab", {
-								url: message.url,
+								url: captured?.canonicalUrl ?? message.url,
 								title: message.title,
 								content,
 								tabId: message.tabId,

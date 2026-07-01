@@ -6,6 +6,7 @@ export type CrawlAndFinalizeResult =
 	| {
 			status: "fetched";
 			article: FinalizedArticle;
+			canonicalUrl?: string;
 			etag?: string;
 			lastModified?: string;
 			bodyHash: string;
@@ -72,6 +73,7 @@ export function initCrawlAndFinalizeArticle(deps: {
 		return {
 			status: "fetched",
 			article: finalized.article,
+			canonicalUrl: finalized.canonicalUrl,
 			etag: crawlResult.etag,
 			lastModified: crawlResult.lastModified,
 			bodyHash: crawlResult.bodyHash,

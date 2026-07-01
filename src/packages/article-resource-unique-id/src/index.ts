@@ -40,3 +40,6 @@ export class ArticleResourceUniqueId {
 		return this.value;
 	}
 }
+
+export { resolveCanonicalUrl, type CanonicalSignals } from "./resolve-canonical-url";
+export { extractCanonicalCandidates, type CanonicalDocument } from "./extract-canonical-candidates";

@@ -46,6 +46,7 @@
     "check-infra": "echo 'No infrastructure — shared library'"
   },
   "dependencies": {
+    "@packages/article-resource-unique-id": "workspace:*",
     "@packages/hutch-logger": "workspace:*",
     "esbuild": "catalog:",
     "js-base64": "3.7.8",

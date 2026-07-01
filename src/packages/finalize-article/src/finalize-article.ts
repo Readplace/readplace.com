@@ -11,6 +11,7 @@ import type { DownloadMedia, DownloadedMedia } from "./download-media.types";
 import type { PutImageObject } from "./put-image-object.types";
 import { estimatedReadTimeFromWordCount } from "./estimated-read-time";
 import { isBareImageCapture } from "./is-bare-image-capture";
+import { resolveCanonicalUrl } from "./resolve-canonical-url";
 import { stripOversizedInlineImages } from "./strip-inline-image-data";
 
 export type ProcessContent = (params: { html: string; media: DownloadedMedia[] }) => Promise<string>;
@@ -29,7 +30,7 @@ export type FinalizedArticle = {
 };
 
 export type FinalizeArticleResult =
-	| { ok: true; article: FinalizedArticle }
+	| { ok: true; article: FinalizedArticle; canonicalUrl?: string }
 	| { ok: false; reason: string };
 
 export type FinalizeArticle = (input: {
@@ -87,9 +88,10 @@ export function initFinalizeArticle(deps: {
 		 * Readability for content extraction — different libraries, different
 		 * concerns, negligible overhead on article-sized documents. */
 		const candidates = extractThumbnailCandidates({ html: input.html, baseUrl: input.url });
+		const canonicalUrl = resolveCanonicalUrl({ html: input.html, requestedUrl: input.url });
 
 		if (input.mediaType === "image" || isBareImageCapture({ html: input.html, candidates, url: input.url })) {
-			return finalizeImageArticle({
+			const imageResult = await finalizeImageArticle({
 				url: input.url,
 				candidates,
 				preFetchedThumbnail: input.preFetchedThumbnail,
@@ -97,6 +99,7 @@ export function initFinalizeArticle(deps: {
 				putImageObject,
 				imagesCdnBaseUrl,
 			});
+			return { ...imageResult, canonicalUrl };
 		}
 
 		const thumbnailUrl = candidates[0] ?? null;
@@ -139,6 +142,7 @@ export function initFinalizeArticle(deps: {
 
 		return {
 			ok: true,
+			canonicalUrl,
 			article: {
 				html,
 				metadata: {
@@ -171,7 +175,7 @@ async function finalizeImageArticle(args: {
 	fetchThumbnailImage: FetchThumbnailImage;
 	putImageObject: PutImageObject;
 	imagesCdnBaseUrl: string;
-}): Promise<FinalizeArticleResult> {
+}): Promise<{ ok: true; article: FinalizedArticle }> {
 	const { url, candidates, preFetchedThumbnail, fetchThumbnailImage, putImageObject, imagesCdnBaseUrl } = args;
 	const { hostname, pathname } = new URL(url);
 	const title = imageTitleFromPathname(pathname) || hostname;

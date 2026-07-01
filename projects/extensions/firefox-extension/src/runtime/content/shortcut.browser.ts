@@ -1,5 +1,5 @@
 /* c8 ignore start -- content script, runs in browser page context only */
-import { installShortcuts, isCmdD, isPdfViewerDocument } from "browser-extension-core";
+import { installShortcuts, isCmdD, isPdfViewerDocument, resolveCanonicalUrlFromDocument } from "browser-extension-core";
 
 installShortcuts(document, [
 	{
@@ -15,6 +15,7 @@ browser.runtime.onMessage.addListener((raw, _sender, sendResponse) => {
 		sendResponse({
 			rawHtml: isPdfViewerDocument(document) ? "" : document.documentElement.outerHTML,
 			title: document.title,
+			canonicalUrl: resolveCanonicalUrlFromDocument({ document, requestedUrl: document.location.href }),
 		});
 		return true;
 	}

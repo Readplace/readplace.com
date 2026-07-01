@@ -1,4 +1,5 @@
 export { BrowserExtensionCore } from "./core";
+export { resolveCanonicalUrlFromDocument } from "./resolve-canonical-url-from-document";
 export type { Core, CoreError, ResultCallbacks, ReadingList } from "./core";
 export type { BrowserShell } from "./shell.types";
 export type { SetIcon } from "./icon-status";
