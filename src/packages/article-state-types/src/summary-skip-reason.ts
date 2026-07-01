@@ -5,5 +5,6 @@ export const SummarySkipReasonSchema = z.enum([
 	"ai-unavailable",
 	"crawl-unsupported",
 	"crawl-failed",
+	"canonical-alias",
 ]);
 export type SummarySkipReason = z.infer<typeof SummarySkipReasonSchema>;

@@ -30,7 +30,7 @@ export type FinalizedArticle = {
 };
 
 export type FinalizeArticleResult =
-	| { ok: true; article: FinalizedArticle; canonicalUrl?: string }
+	| { ok: true; article: FinalizedArticle; canonicalUrl: string }
 	| { ok: false; reason: string };
 
 export type FinalizeArticle = (input: {

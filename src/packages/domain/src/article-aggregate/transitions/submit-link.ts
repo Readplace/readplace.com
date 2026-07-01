@@ -52,7 +52,7 @@ export function submitLink(
 	return { article, effects, writes: [] };
 }
 
-function synthesiseStub(input: SubmitLinkInput): Article {
+export function synthesiseStub(input: SubmitLinkInput): Article {
 	const hostname = new URL(input.url).hostname;
 	return {
 		url: input.url,

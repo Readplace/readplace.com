@@ -67,4 +67,8 @@ export interface Article {
 	crawl: CrawlState;
 	summary: SummaryState;
 	summaryAutoHeal: SummaryAutoHealState;
+	/* Present only on a terminal alias row: the full canonical URL this
+	 * as-entered URL resolves to (via redirect / rel=canonical). Readers follow
+	 * it one hop; absent on ordinary canonical and non-redirecting rows. */
+	canonicalUrl?: string;
 }

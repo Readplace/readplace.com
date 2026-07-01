@@ -81,6 +81,7 @@ export interface GlobalArticleData {
 	estimatedReadTime: SavedArticle["estimatedReadTime"];
 	savedAt: Date;
 	contentSourceTier?: "tier-0" | "tier-1";
+	canonicalUrl?: string;
 }
 
 export type FindArticleByUrl = (

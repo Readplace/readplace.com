@@ -59,6 +59,7 @@ const ArticleAggregateRow = z.object({
 	summaryAutoHealAttempts: dynamoField(z.number()),
 	summaryAutoHealLastAttemptAt: dynamoField(z.string()),
 	aggregateTransitionName: dynamoField(z.string()),
+	canonicalUrl: dynamoField(z.string()),
 });
 
 type RowShape = z.infer<typeof ArticleAggregateRow>;
@@ -181,6 +182,7 @@ function rowToArticle(url: string, row: RowShape): Article {
 		crawl: rowToCrawlState(row),
 		summary: rowToSummaryState(row),
 		summaryAutoHeal,
+		...(row.canonicalUrl !== undefined ? { canonicalUrl: row.canonicalUrl } : {}),
 	};
 }
 
@@ -340,6 +342,16 @@ function appendSummaryAutoHealClauses(
 	}
 }
 
+function appendCanonicalUrlClauses(
+	article: Article,
+	sets: string[],
+	values: Record<string, unknown>,
+): void {
+	assert(article.canonicalUrl, "canonical write requires canonicalUrl on the article");
+	sets.push("canonicalUrl = :canonicalUrl");
+	values[":canonicalUrl"] = article.canonicalUrl;
+}
+
 function buildSaveCommand(params: {
 	article: Article;
 	transitionName: string;
@@ -371,6 +383,9 @@ function buildSaveCommand(params: {
 	}
 	if (writesSet.has("summaryAutoHeal")) {
 		appendSummaryAutoHealClauses(params.article, sets, removes, values);
+	}
+	if (writesSet.has("canonicalUrl")) {
+		appendCanonicalUrlClauses(params.article, sets, values);
 	}
 
 	const setClause = `SET ${sets.join(", ")}`;
