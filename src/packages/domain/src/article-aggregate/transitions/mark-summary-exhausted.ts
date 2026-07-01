@@ -11,7 +11,7 @@ export interface MarkSummaryExhaustedInput {
 function reasonAsString(reason: SummaryFailureReason): string {
 	switch (reason.kind) {
 		case "exhausted-retries":
-			return `exhausted-retries (receiveCount=${reason.receiveCount})`;
+			return "exhausted-retries";
 		case "crawl-failed":
 			return "crawl-failed";
 		case "model-overload":
