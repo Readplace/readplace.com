@@ -4,7 +4,7 @@ import type {
 } from "@packages/provider-contracts/article-store";
 import type { ArticleStatus } from "@packages/domain/article";
 import type { SirenEntity, SirenLink } from "./siren";
-import { toArticleSubEntity, type ReaderLinkPath } from "./article-siren";
+import { toArticleSubEntity } from "./article-siren";
 
 interface CollectionQueryParams {
 	status?: ArticleStatus;
@@ -33,7 +33,7 @@ function buildQueryString(params: CollectionQueryParams): string {
 export function toArticleCollectionEntity(
 	result: FindArticlesResult,
 	queryParams: CollectionQueryParams,
-	options: { readerPath: ReaderLinkPath; warning?: CollectionWarning },
+	options: { warning?: CollectionWarning } = {},
 ): SirenEntity {
 	const { articles, total, page, pageSize } = result;
 	const totalPages = Math.ceil(total / pageSize);
@@ -73,9 +73,7 @@ export function toArticleCollectionEntity(
 	return {
 		class: ["collection", "articles"],
 		properties,
-		entities: articles.map((article) =>
-			toArticleSubEntity(article, { readerPath: options.readerPath }),
-		),
+		entities: articles.map((article) => toArticleSubEntity(article)),
 		links,
 		actions: [
 			{

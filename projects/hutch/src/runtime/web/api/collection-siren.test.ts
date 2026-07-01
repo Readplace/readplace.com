@@ -35,7 +35,7 @@ describe("toArticleCollectionEntity", () => {
 			pageSize: 20,
 		};
 
-		const entity = toArticleCollectionEntity(result, {}, { readerPath: "view" });
+		const entity = toArticleCollectionEntity(result, {});
 
 		expect(entity.class).toContain("collection");
 		expect(entity.class).toContain("articles");
@@ -49,7 +49,7 @@ describe("toArticleCollectionEntity", () => {
 			pageSize: 20,
 		};
 
-		const entity = toArticleCollectionEntity(result, { page: 2, pageSize: 20 }, { readerPath: "view" });
+		const entity = toArticleCollectionEntity(result, { page: 2, pageSize: 20 });
 
 		expect(entity.properties).toMatchObject({
 			total: 42,
@@ -66,7 +66,7 @@ describe("toArticleCollectionEntity", () => {
 			pageSize: 20,
 		};
 
-		const entity = toArticleCollectionEntity(result, {}, { readerPath: "view" });
+		const entity = toArticleCollectionEntity(result, {});
 
 		expect(entity.entities).toHaveLength(2);
 		expect(entity.entities?.[0].rel).toContain("item");
@@ -81,7 +81,7 @@ describe("toArticleCollectionEntity", () => {
 			pageSize: 20,
 		};
 
-		const entity = toArticleCollectionEntity(result, {}, { readerPath: "view" });
+		const entity = toArticleCollectionEntity(result, {});
 
 		expect(Object.keys(entity.entities?.[0].properties ?? {})).toEqual([
 			"id",
@@ -106,7 +106,7 @@ describe("toArticleCollectionEntity", () => {
 			pageSize: 20,
 		};
 
-		const entity = toArticleCollectionEntity(result, {}, { readerPath: "view" });
+		const entity = toArticleCollectionEntity(result, {});
 
 		expect(entity.links).toContainEqual({ rel: ["self"], href: "/queue" });
 		expect(entity.links).toContainEqual({ rel: ["root"], href: "/queue" });
@@ -120,7 +120,7 @@ describe("toArticleCollectionEntity", () => {
 			pageSize: 20,
 		};
 
-		const entity = toArticleCollectionEntity(result, {}, { readerPath: "view" });
+		const entity = toArticleCollectionEntity(result, {});
 
 		expect(entity.links).toContainEqual({
 			rel: ["add-links-help"],
@@ -137,7 +137,7 @@ describe("toArticleCollectionEntity", () => {
 			pageSize: 20,
 		};
 
-		const entity = toArticleCollectionEntity(result, { pageSize: 20 }, { readerPath: "view" });
+		const entity = toArticleCollectionEntity(result, { pageSize: 20 });
 
 		const nextLink = entity.links?.find((l) => l.rel.includes("next"));
 		expect(nextLink?.href).toContain("page=2");
@@ -151,7 +151,7 @@ describe("toArticleCollectionEntity", () => {
 			pageSize: 20,
 		};
 
-		const entity = toArticleCollectionEntity(result, { page: 2, pageSize: 20 }, { readerPath: "view" });
+		const entity = toArticleCollectionEntity(result, { page: 2, pageSize: 20 });
 
 		const prevLink = entity.links?.find((l) => l.rel.includes("prev"));
 		expect(prevLink?.href).toContain("page=1");
@@ -165,7 +165,7 @@ describe("toArticleCollectionEntity", () => {
 			pageSize: 20,
 		};
 
-		const entity = toArticleCollectionEntity(result, { page: 2, pageSize: 20 }, { readerPath: "view" });
+		const entity = toArticleCollectionEntity(result, { page: 2, pageSize: 20 });
 
 		const linkRels = entity.links?.map((l) => l.rel[0]);
 		expect(linkRels).toEqual(["self", "root", "add-links-help", "prev"]);
@@ -179,7 +179,7 @@ describe("toArticleCollectionEntity", () => {
 			pageSize: 20,
 		};
 
-		const entity = toArticleCollectionEntity(result, {}, { readerPath: "view" });
+		const entity = toArticleCollectionEntity(result, {});
 
 		const linkRels = entity.links?.map((l) => l.rel[0]);
 		expect(linkRels).toEqual(["self", "root", "add-links-help"]);
@@ -197,7 +197,7 @@ describe("toArticleCollectionEntity", () => {
 			status: "unread",
 			order: "desc",
 			pageSize: 20,
-		}, { readerPath: "view" });
+		});
 
 		const nextLink = entity.links?.find((l) => l.rel.includes("next"));
 		expect(nextLink?.href).toContain("status=unread");
@@ -212,7 +212,7 @@ describe("toArticleCollectionEntity", () => {
 			pageSize: 20,
 		};
 
-		const entity = toArticleCollectionEntity(result, {}, { readerPath: "view" });
+		const entity = toArticleCollectionEntity(result, {});
 
 		const saveAction = entity.actions?.find((a) => a.name === "save-article");
 		expect(saveAction?.method).toBe("POST");
@@ -228,7 +228,7 @@ describe("toArticleCollectionEntity", () => {
 			pageSize: 20,
 		};
 
-		const entity = toArticleCollectionEntity(result, {}, { readerPath: "view" });
+		const entity = toArticleCollectionEntity(result, {});
 
 		const titles = Object.fromEntries(
 			(entity.actions ?? []).map((a) => [a.name, a.title]),
@@ -249,7 +249,7 @@ describe("toArticleCollectionEntity", () => {
 			pageSize: 20,
 		};
 
-		const entity = toArticleCollectionEntity(result, {}, { readerPath: "view" });
+		const entity = toArticleCollectionEntity(result, {});
 
 		const saveArticlesAction = entity.actions?.find((a) => a.name === "save-articles");
 		expect(saveArticlesAction?.href).toBe("/queue/save-articles");
@@ -266,7 +266,7 @@ describe("toArticleCollectionEntity", () => {
 			pageSize: 20,
 		};
 
-		const entity = toArticleCollectionEntity(result, {}, { readerPath: "view" });
+		const entity = toArticleCollectionEntity(result, {});
 
 		const filterAction = entity.actions?.find(
 			(a) => a.name === "search",
@@ -292,7 +292,7 @@ describe("toArticleCollectionEntity", () => {
 		const entity = toArticleCollectionEntity(
 			result,
 			{},
-			{ readerPath: "view", warning: { code: "unsupported_scheme", message: "Only http and https URLs can be saved" } },
+			{ warning: { code: "unsupported_scheme", message: "Only http and https URLs can be saved" } },
 		);
 
 		expect(entity.properties).toMatchObject({
@@ -303,7 +303,7 @@ describe("toArticleCollectionEntity", () => {
 		});
 	});
 
-	it("threads readerPath into every embedded article's read link", () => {
+	it("points every embedded article's read link at the /view reader", () => {
 		const result: FindArticlesResult = {
 			articles: [makeArticle("1"), makeArticle("2")],
 			total: 2,
@@ -311,11 +311,11 @@ describe("toArticleCollectionEntity", () => {
 			pageSize: 20,
 		};
 
-		const entity = toArticleCollectionEntity(result, {}, { readerPath: "app" });
+		const entity = toArticleCollectionEntity(result, {});
 
 		for (const sub of entity.entities ?? []) {
 			const readLink = sub.links?.find((l) => l.rel.includes("read"));
-			expect(readLink?.href).toMatch(/\/queue\/.+\/app$/);
+			expect(readLink?.href).toMatch(/\/queue\/.+\/view$/);
 		}
 	});
 
@@ -327,7 +327,7 @@ describe("toArticleCollectionEntity", () => {
 			pageSize: 20,
 		};
 
-		const entity = toArticleCollectionEntity(result, {}, { readerPath: "view" });
+		const entity = toArticleCollectionEntity(result, {});
 
 		expect(entity.properties).not.toHaveProperty("warning");
 	});

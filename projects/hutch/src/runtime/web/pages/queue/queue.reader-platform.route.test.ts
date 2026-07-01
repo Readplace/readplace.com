@@ -29,7 +29,7 @@ const ARTICLE_HTML = `
 
 /** Builds a harness whose save pipeline parses content synchronously (so the
  * reader renders fully) and reports a ready AI summary, matching the extras the
- * chromeless `/app` reader must keep. */
+ * chromeless reader must keep. */
 function buildHarness(): ReturnType<typeof useApp> {
 	const crawlArticle = async () => ({ status: "fetched" as const, html: ARTICLE_HTML, bodyHash: "a".repeat(64) });
 	const findGeneratedSummary = async () => ({
@@ -72,16 +72,17 @@ async function saveAndGetArticleId(
 	return articleId;
 }
 
-describe("Queue chromeless app reader (GET /queue/:id/app)", () => {
+describe("Queue reader chromeless switch (GET /queue/:id/view?platform=ios)", () => {
 	it("renders the reader content without the web shell — no header, nav, or footer", async () => {
 		const harness = buildHarness();
 		const agent = await loginAgent(harness.server, harness.auth);
 		const articleId = await saveAndGetArticleId(agent, "https://example.com/app-post");
 
-		const response = await agent.get(`/queue/${articleId}/app`);
+		const response = await agent.get(`/queue/${articleId}/view?platform=ios`);
 		expect(response.status).toBe(200);
 		const doc = new JSDOM(response.text).window.document;
 
+		assert(doc.querySelector("[data-test-back-link]"), "the chromeless reader must render");
 		expect(doc.querySelector(".header")).toBe(null);
 		expect(doc.querySelector(".nav")).toBe(null);
 		expect(doc.querySelector(".footer")).toBe(null);
@@ -89,12 +90,37 @@ describe("Queue chromeless app reader (GET /queue/:id/app)", () => {
 		expect(doc.querySelector(".banner-area")).toBe(null);
 	});
 
+	it("renders the full web shell when platform=ios is absent", async () => {
+		const harness = buildHarness();
+		const agent = await loginAgent(harness.server, harness.auth);
+		const articleId = await saveAndGetArticleId(agent, "https://example.com/app-shell");
+
+		const doc = new JSDOM((await agent.get(`/queue/${articleId}/view`)).text).window.document;
+
+		expect(doc.querySelector(".header")).not.toBe(null);
+		expect(doc.querySelector(".footer")).not.toBe(null);
+	});
+
+	it("renders chromeless for a pre-param app build that sends only the client header", async () => {
+		const harness = buildHarness();
+		const agent = await loginAgent(harness.server, harness.auth);
+		const articleId = await saveAndGetArticleId(agent, "https://example.com/app-header-only");
+
+		const doc = new JSDOM(
+			(await agent.get(`/queue/${articleId}/view`).set(IOS_CLIENT_HEADER, IOS_CLIENT_VALUE)).text,
+		).window.document;
+
+		expect(doc.querySelector(".header")).toBe(null);
+		expect(doc.querySelector(".footer")).toBe(null);
+		expect(doc.querySelector("[data-test-back-link]")?.getAttribute("href")).toBe("readplace://reader/close");
+	});
+
 	it("points both back links at the native-close deep link", async () => {
 		const harness = buildHarness();
 		const agent = await loginAgent(harness.server, harness.auth);
 		const articleId = await saveAndGetArticleId(agent, "https://example.com/app-back");
 
-		const doc = new JSDOM((await agent.get(`/queue/${articleId}/app`)).text).window.document;
+		const doc = new JSDOM((await agent.get(`/queue/${articleId}/view?platform=ios`)).text).window.document;
 		expect(doc.querySelector("[data-test-back-link]")?.getAttribute("href")).toBe("readplace://reader/close");
 		expect(doc.querySelector("[data-test-back-bottom-link]")?.getAttribute("href")).toBe("readplace://reader/close");
 	});
@@ -104,7 +130,7 @@ describe("Queue chromeless app reader (GET /queue/:id/app)", () => {
 		const agent = await loginAgent(harness.server, harness.auth);
 		const articleId = await saveAndGetArticleId(agent, "https://example.com/app-markread");
 
-		const doc = new JSDOM((await agent.get(`/queue/${articleId}/app`)).text).window.document;
+		const doc = new JSDOM((await agent.get(`/queue/${articleId}/view?platform=ios`)).text).window.document;
 
 		expect(doc.querySelector('script[src*="htmx.org"]')).not.toBe(null);
 
@@ -125,7 +151,7 @@ describe("Queue chromeless app reader (GET /queue/:id/app)", () => {
 		const agent = await loginAgent(harness.server, harness.auth);
 		const articleId = await saveAndGetArticleId(agent, "https://example.com/app-chromeless-body");
 
-		const doc = new JSDOM((await agent.get(`/queue/${articleId}/app`)).text).window.document;
+		const doc = new JSDOM((await agent.get(`/queue/${articleId}/view?platform=ios`)).text).window.document;
 		expect(doc.body.classList.contains("page-reader")).toBe(true);
 		expect(doc.body.classList.contains("page-reader--chromeless")).toBe(true);
 	});
@@ -135,7 +161,7 @@ describe("Queue chromeless app reader (GET /queue/:id/app)", () => {
 		const agent = await loginAgent(harness.server, harness.auth);
 		const articleId = await saveAndGetArticleId(agent, "https://example.com/app-extras");
 
-		const doc = new JSDOM((await agent.get(`/queue/${articleId}/app`)).text).window.document;
+		const doc = new JSDOM((await agent.get(`/queue/${articleId}/view?platform=ios`)).text).window.document;
 
 		const summary = doc.querySelector("[data-test-reader-summary]");
 		assert(summary, "summary slot must be rendered");
@@ -153,7 +179,7 @@ describe("Queue chromeless app reader (GET /queue/:id/app)", () => {
 		const articleUrl = "https://example.com/app-anon";
 		const articleId = await saveAndGetArticleId(ownerAgent, articleUrl);
 
-		const response = await request(harness.server).get(`/queue/${articleId}/app`);
+		const response = await request(harness.server).get(`/queue/${articleId}/view?platform=ios`);
 
 		expect(response.status).toBe(302);
 		const location = new URL(response.headers.location, TEST_APP_ORIGIN);
@@ -170,7 +196,7 @@ describe("Queue chromeless app reader (GET /queue/:id/app)", () => {
 		const guestAgent = request.agent(harness.server);
 		await guestAgent.post("/login").type("form").send({ email: "guest@example.com", password: "password123" });
 
-		const response = await guestAgent.get(`/queue/${articleId}/app`);
+		const response = await guestAgent.get(`/queue/${articleId}/view?platform=ios`);
 
 		expect(response.status).toBe(302);
 		const location = new URL(response.headers.location, TEST_APP_ORIGIN);
@@ -181,14 +207,14 @@ describe("Queue chromeless app reader (GET /queue/:id/app)", () => {
 		const harness = buildHarness();
 		const agent = await loginAgent(harness.server, harness.auth);
 
-		const response = await agent.get("/queue/someid/app");
+		const response = await agent.get("/queue/someid/view?platform=ios");
 		expect(response.status).toBe(303);
 		expect(response.headers.location).toBe("/queue");
 	});
 });
 
-describe("Siren read-href varies by client (GET /queue)", () => {
-	it("emits the chromeless /app read href for the iOS app and /view for everyone else", async () => {
+describe("Siren read-href is client-independent (GET /queue)", () => {
+	it("emits the same /view read href whether or not the request is the iOS app", async () => {
 		const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
 		await harness.auth.createUser({ email: "siren@example.com", password: "password123" });
 		const agent = request.agent(harness.server);
@@ -211,22 +237,6 @@ describe("Siren read-href varies by client (GET /queue)", () => {
 		};
 
 		expect(await readHref({})).toMatch(/\/queue\/.+\/view$/);
-		expect(await readHref({ [IOS_CLIENT_HEADER]: IOS_CLIENT_VALUE })).toMatch(/\/queue\/.+\/app$/);
-	});
-
-	it("varies the Siren response on the client header so a shared cache can't cross client kinds", async () => {
-		const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
-		await harness.auth.createUser({ email: "vary@example.com", password: "password123" });
-		const loginResult = await harness.auth.verifyCredentials({ email: "vary@example.com", password: "password123" });
-		assert(loginResult.ok);
-		const accessToken = await saveAccessTokenForUser(harness, loginResult.userId);
-
-		const response = await request(harness.server)
-			.get("/queue")
-			.set("Accept", SIREN_MEDIA_TYPE)
-			.set("Authorization", `Bearer ${accessToken}`);
-
-		expect(response.status).toBe(200);
-		expect(response.headers.vary).toMatch(new RegExp(IOS_CLIENT_HEADER, "i"));
+		expect(await readHref({ [IOS_CLIENT_HEADER]: IOS_CLIENT_VALUE })).toMatch(/\/queue\/.+\/view$/);
 	});
 });
