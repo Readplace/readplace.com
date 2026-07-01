@@ -11,7 +11,7 @@ function fakeRenderer(): {
 } {
 	const calls: string[] = [];
 	const render: Parameters<typeof replaceEmbedsWithFacade>[0]["renderFacade"] = (ctx) => {
-		calls.push(ctx.embed.videoId);
+		calls.push(ctx.embed.videoId ?? ctx.embed.watchUrl);
 		const facade = ctx.document.createElement("p");
 		facade.setAttribute("data-facade", String(calls.length));
 		return facade;
@@ -75,7 +75,8 @@ describe("replaceEmbedsWithFacade", () => {
 
 		expect(calls).toEqual(["aaaaaaaaaaa", "bbbbbbbbbbb"]);
 		expect(document.querySelectorAll("p[data-facade]")).toHaveLength(2);
-		expect(document.querySelector('iframe[src="https://vimeo.com/keep-me"]')).not.toBeNull();
+		const remaining = Array.from(document.querySelectorAll("iframe")).map((f) => f.getAttribute("src"));
+		expect(remaining).toEqual(["https://vimeo.com/keep-me"]);
 		const texts = Array.from(document.querySelectorAll("p"))
 			.filter((el) => !el.hasAttribute("data-facade"))
 			.map((el) => el.textContent);

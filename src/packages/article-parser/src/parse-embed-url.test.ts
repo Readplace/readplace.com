@@ -66,11 +66,51 @@ describe("parseYouTubeEmbed", () => {
 		expect(parseYouTubeEmbed("https://www.youtube.com/")).toBeUndefined();
 	});
 
-	it("returns undefined when the id is the wrong length", () => {
-		expect(parseYouTubeEmbed("https://www.youtube.com/embed/tooshort")).toBeUndefined();
+	it("admits a video id whose length is not the historical 11 characters (gate relaxed)", () => {
+		const embed = parseYouTubeEmbed("https://www.youtube.com/embed/short-id");
+		expect(embed).toEqual({
+			videoId: "short-id",
+			watchUrl: "https://www.youtube.com/watch?v=short-id",
+			posterUrl: "https://i.ytimg.com/vi/short-id/hqdefault.jpg",
+		});
 	});
 
-	it("returns undefined when the id contains an illegal character", () => {
+	it("parses a /live/ID permalink URL", () => {
+		const embed = parseYouTubeEmbed("https://www.youtube.com/live/hVl9B3dTFB4");
+		expect(embed?.videoId).toBe("hVl9B3dTFB4");
+	});
+
+	it("parses a /watch?v=ID URL on music.youtube.com", () => {
+		const embed = parseYouTubeEmbed("https://music.youtube.com/watch?v=hVl9B3dTFB4");
+		expect(embed?.videoId).toBe("hVl9B3dTFB4");
+	});
+
+	it("maps a /embed/videoseries playlist to a playlist watch URL with no poster", () => {
+		expect(parseYouTubeEmbed("https://www.youtube.com/embed/videoseries?list=PLabc_123")).toEqual({
+			watchUrl: "https://www.youtube.com/playlist?list=PLabc_123",
+		});
+	});
+
+	it("maps a /playlist?list=ID URL to a playlist watch URL", () => {
+		const embed = parseYouTubeEmbed("https://www.youtube.com/playlist?list=PLabc_123");
+		expect(embed?.watchUrl).toBe("https://www.youtube.com/playlist?list=PLabc_123");
+	});
+
+	it("prefers the concrete video when an embed carries both a video id and a list", () => {
+		const embed = parseYouTubeEmbed("https://www.youtube.com/embed/hVl9B3dTFB4?list=PLabc_123");
+		expect(embed?.videoId).toBe("hVl9B3dTFB4");
+		expect(embed?.watchUrl).toBe("https://www.youtube.com/watch?v=hVl9B3dTFB4");
+	});
+
+	it("returns undefined for a videoseries embed with no list", () => {
+		expect(parseYouTubeEmbed("https://www.youtube.com/embed/videoseries")).toBeUndefined();
+	});
+
+	it("returns undefined when the video id contains an illegal character", () => {
 		expect(parseYouTubeEmbed("https://www.youtube.com/embed/abcdefghij!")).toBeUndefined();
+	});
+
+	it("returns undefined when the playlist id contains an illegal character", () => {
+		expect(parseYouTubeEmbed("https://www.youtube.com/playlist?list=PL/../evil")).toBeUndefined();
 	});
 });

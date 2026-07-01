@@ -1,6 +1,7 @@
 import { readFileSync } from "node:fs";
 import { join } from "node:path";
 import { Readability } from "@mozilla/readability";
+import { parseHTML } from "linkedom";
 import { initReadabilityParser } from "./readability-parser";
 import { noExtract, noTransform, skipCrawl } from "@packages/site-rules";
 import type { SiteRules } from "@packages/site-rules";
@@ -81,10 +82,32 @@ describe("initReadabilityParser", () => {
 
 		expect(result.ok).toBe(true);
 		if (result.ok) {
-			expect(result.article.content).not.toContain("youtube.com/embed");
+			const { document } = parseHTML(result.article.content);
+			expect(document.querySelectorAll("iframe")).toHaveLength(0);
 			expect(result.article.content).toContain("reader-embed-facade");
 			expect(result.article.content).toContain("https://www.youtube.com/watch?v=hVl9B3dTFB4");
 			expect(result.article.content).toContain("https://i.ytimg.com/vi/hVl9B3dTFB4/hqdefault.jpg");
+		}
+	});
+
+	it("replaces a surviving YouTube playlist embed with a text callout linking to the playlist", () => {
+		const html = `
+		<html><head><title>Playlist Article</title></head><body><article>
+		<h1>Playlist Article</h1>
+		<p>An intro paragraph with enough words for readability to score this as a genuine article body worth extracting.</p>
+		<p><iframe src="https://www.youtube.com/embed/videoseries?list=PLabc_123" title="YouTube playlist" allowfullscreen></iframe></p>
+		<p>A closing paragraph with additional words so readability keeps scoring the surrounding article content properly.</p>
+		</article></body></html>`;
+		const { parseHtml } = initParser();
+
+		const result = parseHtml({ url: "https://example.com/playlist-post", html, thumbnailUrl: null });
+
+		expect(result.ok).toBe(true);
+		if (result.ok) {
+			const { document } = parseHTML(result.article.content);
+			expect(document.querySelectorAll("iframe")).toHaveLength(0);
+			expect(result.article.content).toContain("reader-video-placeholder");
+			expect(result.article.content).toContain("https://www.youtube.com/playlist?list=PLabc_123");
 		}
 	});
 

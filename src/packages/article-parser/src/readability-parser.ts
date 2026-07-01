@@ -254,16 +254,33 @@ function renderVideoPlaceholder(ctx: {
 	return placeholder;
 }
 
+const EMBED_PLAYLIST_LEAD = "Watch this playlist on ";
+const EMBED_PLAYLIST_LABEL = "YouTube";
+const EMBED_PLAYLIST_TRAILING = " →";
+
 function renderEmbedFacade(ctx: {
 	document: Document;
 	embed: YouTubeEmbed;
 }): Element {
-	const wrapper = ctx.document.createElement("p");
-	wrapper.setAttribute("class", "reader-embed-facade");
 	const link = ctx.document.createElement("a");
 	link.setAttribute("href", ctx.embed.watchUrl);
 	link.setAttribute("target", "_blank");
 	link.setAttribute("rel", "noopener noreferrer");
+	if (!ctx.embed.posterUrl) {
+		/* A playlist embed has no single-video thumbnail to rehost, so it can't
+		 * become a poster card; reuse the native-<video> text callout instead so
+		 * the link still survives Readability's empty-<p> prune (it carries text
+		 * rather than an <img>). */
+		const callout = ctx.document.createElement("p");
+		callout.setAttribute("class", "reader-video-placeholder");
+		callout.appendChild(ctx.document.createTextNode(EMBED_PLAYLIST_LEAD));
+		link.appendChild(ctx.document.createTextNode(EMBED_PLAYLIST_LABEL));
+		callout.appendChild(link);
+		callout.appendChild(ctx.document.createTextNode(EMBED_PLAYLIST_TRAILING));
+		return callout;
+	}
+	const wrapper = ctx.document.createElement("p");
+	wrapper.setAttribute("class", "reader-embed-facade");
 	const poster = ctx.document.createElement("img");
 	poster.setAttribute("src", ctx.embed.posterUrl);
 	poster.setAttribute("alt", "Watch on YouTube");
