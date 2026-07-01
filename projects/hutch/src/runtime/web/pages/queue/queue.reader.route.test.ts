@@ -11,6 +11,7 @@ import {
 	createNoopLogError,
 } from "@packages/test-fixtures";
 import { initReadabilityParser } from "@packages/article-parser";
+import { ReaderArticleHashId, calculateReadTime } from "@packages/domain/article";
 import { MAX_POLLS } from "../../shared/article-reader/article-reader";
 
 import request from "supertest";
@@ -81,6 +82,82 @@ describe("Queue routes", () => {
 			expect(doc.querySelector("[data-test-back-link]")?.getAttribute("href")).toBe("/queue?utm_source=reader&utm_medium=internal&utm_content=back-top");
 			expect(doc.querySelector("[data-test-back-bottom-link]")?.getAttribute("href")).toBe("/queue?utm_source=reader&utm_medium=internal&utm_content=back-bottom");
 			expect(doc.querySelector("[data-test-original-link]")?.getAttribute("href")).toBe("https://example.com/saved-post");
+		});
+
+		it("follows a canonical alias: the owner's reader renders the canonical row's content + metadata, not the empty alias saved under the requested url", async () => {
+			const CANONICAL = "https://fagnerbrack.com/real-article";
+			const ALIAS = "https://example.com/aliased-post";
+			const articleHtml = `
+			<html><head><title>Aliased</title></head>
+			<body><article>
+				<h1>Aliased</h1>
+				<p>Alias body that should NOT render because this url redirected to a different canonical.</p>
+				<p>More filler text so the readability parser accepts the document.</p>
+			</article></body></html>`;
+			const crawlArticle = async () => ({ status: "fetched" as const, html: articleHtml, bodyHash: "a".repeat(64) });
+			const fixture = createDefaultTestAppFixture(TEST_APP_ORIGIN);
+			const { parseArticle } = initReadabilityParser({ crawlArticle, siteRules: [], logError: createNoopLogError() });
+			const applyParseResult = createFakeApplyParseResult({
+				articleStore: fixture.articleStore,
+				articleCrawl: fixture.articleCrawl,
+				parseArticle,
+			});
+			const canonicalRow = {
+				id: ReaderArticleHashId.from(CANONICAL),
+				url: CANONICAL,
+				metadata: { title: "The Real Canonical Article", siteName: "fagnerbrack.com", excerpt: "Real.", wordCount: 500 },
+				estimatedReadTime: calculateReadTime(500),
+				savedAt: new Date("2026-06-01T00:00:00.000Z"),
+			};
+			const aliasStore = {
+				...fixture.articleStore,
+				findArticleByUrl: async (url: string) => {
+					if (url === CANONICAL) return canonicalRow;
+					const row = await fixture.articleStore.findArticleByUrl(url);
+					return row && url === ALIAS ? { ...row, canonicalUrl: CANONICAL } : row;
+				},
+				readArticleContent: async (url: string) =>
+					url === CANONICAL
+						? "<article><p>Canonical archived body.</p></article>"
+						: fixture.articleStore.readArticleContent(url),
+			};
+			const harness = useApp({
+				...fixture,
+				articleStore: aliasStore,
+				parser: { parseArticle, crawlArticle },
+				events: {
+					publishLinkSaved: createFakePublishLinkSaved(applyParseResult),
+					publishRecrawlLinkInitiated: createFakePublishRecrawlLinkInitiated(applyParseResult),
+					publishSaveAnonymousLink: createFakePublishSaveAnonymousLink(applyParseResult),
+					publishSaveLinkRawHtmlCommand: fixture.events.publishSaveLinkRawHtmlCommand,
+					publishSaveLinkRawPdfCommand: fixture.events.publishSaveLinkRawPdfCommand,
+					publishStaleCheckRequested: fixture.events.publishStaleCheckRequested,
+					publishUpdateFetchTimestamp: fixture.events.publishUpdateFetchTimestamp,
+					publishExportUserDataCommand: fixture.events.publishExportUserDataCommand,
+					publishCancelSubscriptionCommand: fixture.events.publishCancelSubscriptionCommand,
+					publishSubscriptionReactivated: fixture.events.publishSubscriptionReactivated,
+				},
+			});
+			const { auth } = harness;
+			const agent = await loginAgent(harness.server, auth);
+
+			await agent.post("/queue/save").type("form").send({ url: ALIAS });
+
+			const queueResponse = await agent.get("/queue");
+			const articleId = new JSDOM(queueResponse.text).window.document
+				.querySelector("[data-test-article-list] .queue-article")
+				?.getAttribute("data-test-article");
+
+			const readerResponse = await agent.get(`/queue/${articleId}/view`);
+
+			expect(readerResponse.status).toBe(200);
+			const doc = new JSDOM(readerResponse.text).window.document;
+			expect(doc.querySelector("[data-test-reader-title]")?.textContent).toBe("The Real Canonical Article");
+			expect(doc.querySelector("[data-test-original-link]")?.getAttribute("href")).toBe(CANONICAL);
+			const iframe = doc.querySelector("iframe[data-reader-iframe]");
+			assert(iframe, "reader iframe must be rendered");
+			const iframeDoc = new JSDOM(iframe.getAttribute("srcdoc") ?? "").window.document;
+			expect(iframeDoc.body?.textContent).toContain("Canonical archived body");
 		});
 
 		it("should leave the article unread when opening the reader (the user must click the explicit Mark-as-read button)", async () => {

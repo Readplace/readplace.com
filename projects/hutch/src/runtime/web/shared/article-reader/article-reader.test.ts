@@ -1045,4 +1045,84 @@ describe("initArticleReader", () => {
 			expect(bar.getAttribute("hx-swap-oob")).toBe("outerHTML");
 		});
 	});
+
+	/* A queue id-based poll route passes the owner's saved url, which may be a
+	 * canonical alias (the saved url redirected to a different canonical at crawl
+	 * time). The poll must follow the pointer and read the canonical row so the
+	 * slot doesn't render the empty alias content / its skipped-summary stub. */
+	describe("canonical alias follow", () => {
+		const ALIAS_URL = "https://medium.com/p/9aceb0bdee03";
+		const CANONICAL_URL = "https://fagnerbrack.com/the-post";
+
+		function aliasFollowDeps(): ArticleReaderDeps {
+			const aliasRow: GlobalArticleData = {
+				id: ReaderArticleHashId.from(ALIAS_URL),
+				url: ALIAS_URL,
+				metadata: { title: "Article from medium.com", siteName: "medium.com", excerpt: "", wordCount: 0 },
+				estimatedReadTime: 0 as Minutes,
+				savedAt: FIXED_NOW,
+				canonicalUrl: CANONICAL_URL,
+			};
+			const canonicalRow: GlobalArticleData = {
+				id: ReaderArticleHashId.from(CANONICAL_URL),
+				url: CANONICAL_URL,
+				metadata: { title: "The Post", siteName: "fagnerbrack.com", excerpt: "Body.", wordCount: 500 },
+				estimatedReadTime: 3 as Minutes,
+				savedAt: FIXED_NOW,
+			};
+			return {
+				findArticleCrawlStatus: async () => ({ status: "ready" }),
+				// The alias row holds no content of its own; the canonical row does.
+				readArticleContent: async (url) =>
+					url === CANONICAL_URL ? "<article><p>Body</p></article>" : undefined,
+				// The alias's own summary is a skipped stub; the canonical's is the real one.
+				findGeneratedSummary: async (url) =>
+					url === CANONICAL_URL
+						? { status: "ready", summary: "TL;DR" }
+						: { status: "skipped", reason: "canonical-alias" },
+				findArticleByUrl: async (url) =>
+					url === CANONICAL_URL ? canonicalRow : url === ALIAS_URL ? aliasRow : null,
+				formatDocumentTitle: (title) => `${title} — TestReader`,
+				appOrigin: "https://readplace.com",
+				summaryOpen: false,
+				now: () => FIXED_NOW,
+			};
+		}
+
+		it("handleReaderPoll reads the canonical row's content + metadata, not the empty alias keyed under the requested url", async () => {
+			const reader = initArticleReader(aliasFollowDeps());
+
+			const component = await reader.handleReaderPoll({
+				articleUrl: ALIAS_URL,
+				pollCount: 1,
+				pollUrlBuilder: makePollUrlBuilder(),
+				extensionInstallUrl: undefined,
+				summaryToggleUrl: undefined,
+			});
+
+			const doc = parse(toHtml(component));
+			const slot = doc.querySelector("[data-test-reader-slot]");
+			assert(slot, "reader slot must render");
+			// Ready-with-content proves the canonical was read: the alias content is
+			// undefined, which would render the promotion-race pending slot instead.
+			expect(slot.getAttribute("data-reader-status")).toBe("ready");
+			expect(doc.querySelector("[data-test-reader-title]")?.textContent).toBe("The Post");
+		});
+
+		it("handleSummaryPoll renders the canonical summary, not the alias's skipped canonical-alias stub", async () => {
+			const reader = initArticleReader(aliasFollowDeps());
+
+			const component = await reader.handleSummaryPoll({
+				articleUrl: ALIAS_URL,
+				pollCount: 1,
+				pollUrlBuilder: makePollUrlBuilder(),
+				extensionInstallUrl: undefined,
+				summaryToggleUrl: undefined,
+			});
+
+			const slot = parse(toHtml(component)).querySelector("[data-test-reader-summary]");
+			assert(slot, "summary slot must render");
+			expect(slot.getAttribute("data-summary-status")).toBe("ready");
+		});
+	});
 });

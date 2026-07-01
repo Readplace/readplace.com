@@ -1,7 +1,7 @@
 import type { Handler, SQSBatchItemFailure, SQSBatchResponse, SQSEvent } from "aws-lambda";
 import type { HutchLogger } from "@packages/hutch-logger";
 import type { PublishEvent } from "@packages/hutch-infra-components/runtime";
-import type { TransitionAndPersist } from "@packages/domain/article-aggregate";
+import type { TransitionAndPersist, UpsertAndPersist } from "@packages/domain/article-aggregate";
 import {
 	RecrawlLinkInitiatedEvent,
 	RecrawlContentExtractedEvent,
@@ -9,7 +9,7 @@ import {
 import type { MarkCrawlStage } from "../../providers/article-crawl/mark-crawl-stage";
 import type { UpdateFetchTimestamp } from "./update-fetch-timestamp-handler";
 import type { LogCrawlOutcome, LogParseError } from "@packages/hutch-infra-components";
-import type { ReadTierSnapshot } from "../crawl-article-state/read-tier-snapshot";
+import type { CheckTier0SourceExists, ReadTierSnapshot } from "../crawl-article-state/read-tier-snapshot";
 import { initSaveLinkWork } from "./save-link-work";
 import type { CrawlAndFinalizeArticle } from "@packages/finalize-article";
 import type { PutTierSource } from "../../providers/article-store/put-tier-source";
@@ -21,6 +21,8 @@ export function initRecrawlLinkInitiatedHandler(deps: {
 	putTierSource: PutTierSource;
 	updateFetchTimestamp: UpdateFetchTimestamp;
 	transitionAndPersist: TransitionAndPersist;
+	upsertAndPersist: UpsertAndPersist;
+	checkTier0SourceExists: CheckTier0SourceExists;
 	markCrawlStage: MarkCrawlStage;
 	publishEvent: PublishEvent;
 	now: () => Date;
@@ -37,6 +39,8 @@ export function initRecrawlLinkInitiatedHandler(deps: {
 		putTierSource: deps.putTierSource,
 		updateFetchTimestamp: deps.updateFetchTimestamp,
 		transitionAndPersist: deps.transitionAndPersist,
+		upsertAndPersist: deps.upsertAndPersist,
+		checkTier0SourceExists: deps.checkTier0SourceExists,
 		markCrawlStage: deps.markCrawlStage,
 		now: deps.now,
 		logger,
@@ -57,14 +61,14 @@ export function initRecrawlLinkInitiatedHandler(deps: {
 				logger.info("[RecrawlLinkInitiated] processing", { url: detail.url });
 
 				const result = await saveLinkWork(detail.url, { recrawl: true });
-				if (result === "tier-1-deferred") {
+				if (result.status === "tier-1-deferred") {
 					logger.info("[RecrawlLinkInitiated] tier-1 deferred to comprehensive Lambda", {
 						url: detail.url,
 					});
 					continue;
 				}
 
-				await publishEvent(RecrawlContentExtractedEvent, { url: detail.url });
+				await publishEvent(RecrawlContentExtractedEvent, { url: result.eventUrl });
 				logger.info("[RecrawlLinkInitiated] emitted RecrawlContentExtractedEvent", {
 					url: detail.url,
 				});

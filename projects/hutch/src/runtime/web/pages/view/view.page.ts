@@ -52,6 +52,7 @@ import { ViewLandingPage } from "./view-landing.component";
 import type { ExistsUserByIdPrefix } from "@packages/provider-contracts/auth";
 import { PERMANENT_ARTICLE_DOMAINS, computePublicViewExpiry, formatSaveUtmContent, sharedUserIdFrom, sharedUserIdFromQueryParams, type ExpiryCountdown } from "./view-expiry";
 import { parseViewPath, viewPathFor } from "./view-path";
+import { canonicalRedirectTarget } from "../../shared/canonical-redirect";
 import { ViewPage, formatViewDocumentTitle, type ViewAction } from "./view.component";
 
 interface ViewDependencies {
@@ -145,6 +146,14 @@ function handleViewArticle(deps: ViewDependencies, reader: ReturnType<typeof ini
 		// 5-30s). On first visit we still write a stub synchronously so the page
 		// has metadata to render and the existing summary/reader pollers see a row.
 		const existing = await deps.findArticleByUrl(articleUrl);
+		const canonicalTarget = canonicalRedirectTarget({ requestedUrl: articleUrl, article: existing });
+		if (canonicalTarget) {
+			// This url redirected to a different canonical identity at crawl time;
+			// send the reader to the canonical view so it renders that row's real
+			// content + metadata instead of the empty alias.
+			res.redirect(302, viewPathFor(canonicalTarget));
+			return;
+		}
 		if (!existing) {
 			// First visit is the request that triggers the whole crawl cascade
 			// (stub save → crawl → summary → possibly OCR), each leg with real

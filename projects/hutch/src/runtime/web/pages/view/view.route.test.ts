@@ -17,7 +17,7 @@ import {
 	createFakePublishSaveAnonymousLink,
 } from "@packages/test-fixtures";
 import { initInMemoryRateLimit } from "@packages/test-fixtures/providers/rate-limit";
-import { calculateReadTime } from "@packages/domain/article";
+import { calculateReadTime, ReaderArticleHashId } from "@packages/domain/article";
 import { MAX_POLLS } from "../../shared/article-reader/article-reader";
 import type { ViewOpenedEvent } from "../../middleware/analytics";
 
@@ -546,6 +546,55 @@ describe("View routes", () => {
 			expect(parsed.searchParams.get("utm_source")).toBe("view-article");
 			expect(parsed.searchParams.get("utm_medium")).toBe("internal");
 			expect(parsed.searchParams.get("utm_content")).toBe("paste-another-link");
+		});
+	});
+
+	describe("GET /view of a canonical alias", () => {
+		it("302-redirects to the canonical view so the reader renders the real article, not the empty alias row", async () => {
+			const parseArticle: ParseArticle = async () => buildParseResult();
+			const fixture = createDefaultTestAppFixture(TEST_APP_ORIGIN);
+			const applyParseResult = createFakeApplyParseResult({
+				articleStore: fixture.articleStore,
+				articleCrawl: fixture.articleCrawl,
+				parseArticle,
+			});
+			const CANONICAL = `https://${PERMANENT_CANONICAL_PATH}`;
+			const aliasStore = {
+				...fixture.articleStore,
+				findArticleByUrl: async (url: string) =>
+					url === ARTICLE_URL
+						? {
+							id: ReaderArticleHashId.from(ARTICLE_URL),
+							url: ARTICLE_URL,
+							metadata: { title: "Article from example.com", siteName: "example.com", excerpt: "", wordCount: 0 },
+							estimatedReadTime: calculateReadTime(0),
+							savedAt: new Date("2026-06-01T00:00:00.000Z"),
+							canonicalUrl: CANONICAL,
+						}
+						: fixture.articleStore.findArticleByUrl(url),
+			};
+			const harness = useApp({
+				...fixture,
+				articleStore: aliasStore,
+				parser: { parseArticle, crawlArticle: fixture.parser.crawlArticle },
+				events: {
+					publishLinkSaved: createFakePublishLinkSaved(applyParseResult),
+					publishRecrawlLinkInitiated: createFakePublishRecrawlLinkInitiated(applyParseResult),
+					publishSaveAnonymousLink: createFakePublishSaveAnonymousLink(applyParseResult),
+					publishSaveLinkRawHtmlCommand: fixture.events.publishSaveLinkRawHtmlCommand,
+					publishSaveLinkRawPdfCommand: fixture.events.publishSaveLinkRawPdfCommand,
+					publishStaleCheckRequested: fixture.events.publishStaleCheckRequested,
+					publishUpdateFetchTimestamp: fixture.events.publishUpdateFetchTimestamp,
+					publishExportUserDataCommand: fixture.events.publishExportUserDataCommand,
+					publishCancelSubscriptionCommand: fixture.events.publishCancelSubscriptionCommand,
+					publishSubscriptionReactivated: fixture.events.publishSubscriptionReactivated,
+				},
+			});
+
+			const response = await request(harness.server).get(`/view/${CANONICAL_PATH}`);
+
+			expect(response.status).toBe(302);
+			expect(response.headers.location).toBe(`/view/${PERMANENT_CANONICAL_PATH}`);
 		});
 	});
 

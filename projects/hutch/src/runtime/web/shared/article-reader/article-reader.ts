@@ -20,6 +20,7 @@ import {
 } from "@packages/domain/article";
 import { renderReaderSlot } from "../article-body/reader-slot/reader-slot.component";
 import { renderSummarySlot } from "../article-body/summary-slot/summary-slot.component";
+import { canonicalRedirectTarget } from "../canonical-redirect";
 import type {
 	ArticleReaderDeps,
 	HandlePollParams,
@@ -250,20 +251,35 @@ export function initArticleReader(deps: ArticleReaderDeps): {
 		return headerOob + titleOob;
 	}
 
+	/**
+	 * Follow a canonical alias so a poll reads the canonical row's content +
+	 * summary, not the empty alias keyed under the requested url (the queue's
+	 * id-based poll routes pass the owner's saved url, which may be an alias).
+	 * Non-alias urls resolve to themselves. Cycle-safe: canonical rows carry no
+	 * pointer, so this never chains.
+	 */
+	async function resolveContentUrl(requestedUrl: string): Promise<string> {
+		const row = await deps.findArticleByUrl(requestedUrl);
+		const target = canonicalRedirectTarget({ requestedUrl, article: row });
+		if (target) return target;
+		return requestedUrl;
+	}
+
 	async function handleSummaryPoll(params: HandlePollParams): Promise<Component> {
 		const { articleUrl, pollCount, pollUrlBuilder, extensionInstallUrl } = params;
+		const contentUrl = await resolveContentUrl(articleUrl);
 		const [crawl, summary, content, article] = await Promise.all([
-			deps.findArticleCrawlStatus(articleUrl),
-			deps.findGeneratedSummary(articleUrl),
-			deps.readArticleContent(articleUrl),
-			deps.findArticleByUrl(articleUrl),
+			deps.findArticleCrawlStatus(contentUrl),
+			deps.findGeneratedSummary(contentUrl),
+			deps.readArticleContent(contentUrl),
+			deps.findArticleByUrl(contentUrl),
 		]);
 		const { readerPollUrl, summaryPollUrl } = computePollUrls({
 			crawl, summary, content, pollCount, pollUrlBuilder,
 		});
 		return HtmlPage(renderPollResponseBody({
 			primary: "summary",
-			url: articleUrl,
+			url: contentUrl,
 			crawl,
 			summary,
 			content,
@@ -273,25 +289,26 @@ export function initArticleReader(deps: ArticleReaderDeps): {
 			summaryToggleUrl: params.summaryToggleUrl,
 			extensionInstallUrl,
 			progress: buildUnifiedProgress(crawl, summary, deps.now()),
-			metadataOob: buildMetadataOob(article, articleUrl),
+			metadataOob: buildMetadataOob(article, contentUrl),
 			appOrigin: deps.appOrigin,
 		}));
 	}
 
 	async function handleReaderPoll(params: HandlePollParams): Promise<Component> {
 		const { articleUrl, pollCount, pollUrlBuilder, extensionInstallUrl } = params;
+		const contentUrl = await resolveContentUrl(articleUrl);
 		const [crawl, summary, content, article] = await Promise.all([
-			deps.findArticleCrawlStatus(articleUrl),
-			deps.findGeneratedSummary(articleUrl),
-			deps.readArticleContent(articleUrl),
-			deps.findArticleByUrl(articleUrl),
+			deps.findArticleCrawlStatus(contentUrl),
+			deps.findGeneratedSummary(contentUrl),
+			deps.readArticleContent(contentUrl),
+			deps.findArticleByUrl(contentUrl),
 		]);
 		const { readerPollUrl, summaryPollUrl } = computePollUrls({
 			crawl, summary, content, pollCount, pollUrlBuilder,
 		});
 		return HtmlPage(renderPollResponseBody({
 			primary: "reader",
-			url: articleUrl,
+			url: contentUrl,
 			crawl,
 			summary,
 			content,
@@ -301,7 +318,7 @@ export function initArticleReader(deps: ArticleReaderDeps): {
 			summaryToggleUrl: params.summaryToggleUrl,
 			extensionInstallUrl,
 			progress: buildUnifiedProgress(crawl, summary, deps.now()),
-			metadataOob: buildMetadataOob(article, articleUrl),
+			metadataOob: buildMetadataOob(article, contentUrl),
 			appOrigin: deps.appOrigin,
 		}));
 	}

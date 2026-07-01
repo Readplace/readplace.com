@@ -64,9 +64,16 @@ const ArticleRow = z.object({
 	estimatedReadTime: MinutesSchema,
 	savedAt: dynamoField(z.string()),
 	contentSourceTier: dynamoField(z.enum(["tier-0", "tier-1"])),
+	/* Present only on a canonical alias row: the url whose canonical identity
+	 * this requested-url row points at. Reader/queue paths follow it so every
+	 * url that redirects to the same article collapses to one reader identity. */
+	canonicalUrl: dynamoField(z.string()),
 });
-/** Every ArticleRow attribute except `content`, derived so the list stays in sync with the schema. */
-const ArticleMetadataFields = ArticleRow.omit({ content: true }).keyof().options;
+/** Every ArticleRow attribute except `content` (never listed) and `canonicalUrl`
+ * (only the single-row reader path follows the pointer; the list mapping ignores
+ * it, so listing it would just fetch a column no card reads), derived so the list
+ * stays in sync with the schema. */
+const ArticleMetadataFields = ArticleRow.omit({ content: true, canonicalUrl: true }).keyof().options;
 
 const UserArticleRow = z.object({
 	userId: UserIdSchema,
@@ -537,6 +544,7 @@ export function initDynamoDbArticleStore(deps: {
 					"estimatedReadTime",
 					"savedAt",
 					"contentSourceTier",
+					"canonicalUrl",
 				],
 			},
 		);
@@ -554,6 +562,7 @@ export function initDynamoDbArticleStore(deps: {
 			estimatedReadTime: row.estimatedReadTime,
 			savedAt: row.savedAt ? new Date(row.savedAt) : new Date(0),
 			contentSourceTier: row.contentSourceTier,
+			...(row.canonicalUrl !== undefined ? { canonicalUrl: row.canonicalUrl } : {}),
 		};
 	};
 
