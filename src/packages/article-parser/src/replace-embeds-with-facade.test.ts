@@ -11,7 +11,7 @@ function fakeRenderer(): {
 } {
 	const calls: string[] = [];
 	const render: Parameters<typeof replaceEmbedsWithFacade>[0]["renderFacade"] = (ctx) => {
-		calls.push(ctx.embed.videoId ?? ctx.embed.watchUrl);
+		calls.push(ctx.embed.kind === "video" ? ctx.embed.videoId : ctx.embed.watchUrl);
 		const facade = ctx.document.createElement("p");
 		facade.setAttribute("data-facade", String(calls.length));
 		return facade;
