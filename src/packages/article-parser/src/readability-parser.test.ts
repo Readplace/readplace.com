@@ -87,6 +87,9 @@ describe("initReadabilityParser", () => {
 			expect(result.article.content).toContain("reader-embed-facade");
 			expect(result.article.content).toContain("https://www.youtube.com/watch?v=hVl9B3dTFB4");
 			expect(result.article.content).toContain("https://i.ytimg.com/vi/hVl9B3dTFB4/hqdefault.jpg");
+			const facadeLink = document.querySelector(".reader-embed-facade a");
+			expect(facadeLink?.getAttribute("target")).toBe("_blank");
+			expect(facadeLink?.getAttribute("rel")).toBe("noopener noreferrer");
 		}
 	});
 
