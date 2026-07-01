@@ -8,7 +8,6 @@ import { HutchLogger, consoleLogger } from "@packages/hutch-logger";
 import { getEnv, requireEnv } from "@packages/require-env";
 import { createSubscriptionsApp } from "./app";
 
-// present in Lambda runtime, absent locally — https://docs.aws.amazon.com/lambda/latest/dg/configuration-envvars.html#configuration-envvars-runtime
 const lambda = !!getEnv("AWS_LAMBDA_FUNCTION_NAME");
 
 const application = express()

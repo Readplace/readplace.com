@@ -11,8 +11,7 @@
  *   - AWS_ACCESS_KEY_ID, AWS_SECRET_ACCESS_KEY (the SDK reads these directly)
  *   - DYNAMODB_ARTICLES_TABLE
  *
- *   - READPLACE_ORIGIN (used to build admin recrawl URLs in the
- *     failing-test message for each stuck row)
+ *   - READPLACE_ORIGIN
  */
 import assert from "node:assert/strict";
 import { writeFile } from "node:fs/promises";

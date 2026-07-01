@@ -1,13 +1,8 @@
 import { MAX_THUMBNAIL_BYTES } from "./extract-thumbnail";
 
 /**
- * The image formats the reader renders through a plain `<img>` — raster formats
- * plus SVG — each paired with the URL path suffixes a direct link to that format
- * uses. The single registry behind both the content-type allowlist (the
- * server-crawl gate, keyed off the HTTP `Content-Type`) and the URL-extension
- * list (the browser-extension path's fast heuristic, keyed off the URL path), so
- * the two cannot name different format sets. `.jpg` and `.jpeg` are both listed because direct
- * `image/jpeg` links use either spelling.
+ * A single registry backs both the content-type allowlist and the URL-extension
+ * list so the two cannot name different format sets.
  */
 const IMAGE_FORMATS = [
 	{ contentType: "image/jpeg", extensions: [".jpg", ".jpeg"] },

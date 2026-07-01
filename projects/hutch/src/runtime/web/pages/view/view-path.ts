@@ -12,9 +12,6 @@ export type ParseViewPathResult =
 export type ParseViewPathInput = {
 	/** Express-decoded wildcard from `req.params.splat.join("/")`. */
 	rawPath: string;
-	/** Original URL-encoded wildcard from `req.originalUrl` (path-only, no
-	 * query). Used to detect the percent-encoded `http%3A%2F%2F` form whose
-	 * decoded value collides with the canonical `http://` form. */
 	encodedPath: string;
 };
 

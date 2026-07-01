@@ -61,7 +61,7 @@ const BASE_EXCLUDE_PATTERNS = [
   // Entry points — side-effectful bootstrap code with no logic to unit test
   '**/*.main.ts',
 
-  // Browser-only code — WebExtension APIs, Canvas, DOM; not runnable in Node.js
+  // Browser-only code — not runnable in Node.js
   '**/*.browser.ts',
 
   // E2E source — only exercised by e2e tests, which are skipped in

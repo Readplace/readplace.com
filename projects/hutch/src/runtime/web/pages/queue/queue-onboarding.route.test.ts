@@ -175,28 +175,6 @@ describe("Queue onboarding", () => {
 		assert(success, "success section must be rendered");
 	});
 
-	/** Dismissal hides the onboarding only when *both* cookies are present together.
-	 *
-	 * The dismiss button only appears in the success state, which requires the
-	 * install-extension step to be complete — meaning the alive cookie was set in
-	 * this browser at the moment of dismissal. So the only way to reach
-	 * "dismiss cookie present, alive cookie absent" is if the user has moved to
-	 * a different context where the alive cookie doesn't apply:
-	 *
-	 *   - Same user, different browser. The user installed the extension in
-	 *     Browser A and dismissed there. Cookies are browser-scoped, so Browser B
-	 *     normally has neither cookie — but if the dismiss cookie is carried over
-	 *     (profile import, manual cookie copy, sync tooling) without the alive
-	 *     cookie, Browser B still needs the extension installed locally.
-	 *   - Same browser, extension uninstalled after dismissing. The alive cookie
-	 *     stops being renewed and lapses; the dismiss should not silently
-	 *     suppress the prompt to reinstall once that happens.
-	 *
-	 * The two tests below pin both directions of the rule:
-	 *   1. Both cookies present → onboarding stays hidden (the happy path).
-	 *   2. Dismiss cookie alone → onboarding re-renders with install-extension
-	 *      marked incomplete, so the user is prompted to install in this browser.
-	 */
 	it("renders onboarding hidden when dismiss cookie matches current version and extension is alive", async () => {
 		const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
 		const { auth } = harness;
@@ -277,9 +255,8 @@ function stepComplete(html: string, stepId: string): string | null | undefined {
 		?.getAttribute("data-test-onboarding-complete");
 }
 
-/** Mints a Bearer access token for the agent's logged-in user, so an app
- * request (Bearer, like the real iOS app) and Safari (the session cookie) act
- * as the same userId — the link the cross-app server-side signal depends on. */
+/** Bearer (app) and the session cookie (Safari) must resolve to the same
+ * userId — the link the cross-app server-side signal depends on. */
 async function bearerForLoggedInUser(harness: TestAppHarness): Promise<string> {
 	const user = await harness.auth.findUserByEmail("test@example.com");
 	assert(user, "logged-in user must exist");

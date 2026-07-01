@@ -161,14 +161,6 @@ export const GET_ARTICLE_SUMMARY_TOOL: McpToolDefinition = {
 	annotations: { readOnlyHint: true, openWorldHint: false },
 };
 
-/** `mark_as_read`, `mark_as_unread`, and `delete_article` are deliberately
- * app-only: an assistant must not flip an article's read state or delete it on
- * the user's behalf. Marking an article read is the reader's own act — asking
- * the assistant to summarise a piece is not the same as reading it — so it
- * stays a deliberate step the user takes in the app. The tools are advertised
- * (so the assistant maps the user's intent to a clear answer instead of an
- * empty "I can't") but their handlers never mutate; they return instructions to
- * do it in the app. Hence `readOnlyHint: true`. */
 export const MARK_AS_READ_TOOL: McpToolDefinition = {
 	name: "mark_as_read",
 	title: "Mark an article read (in the app)",

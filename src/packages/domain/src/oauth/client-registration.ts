@@ -1,10 +1,8 @@
 import { createHash } from "node:crypto";
 
 /**
- * A stable fingerprint of a registration's identifying metadata, used to return
- * the same `client_id` when an agent re-registers with identical parameters
- * (RFC 7591 permits this) instead of accumulating a fresh row per reconnect.
- * Arrays are sorted so element order never changes the fingerprint.
+ * RFC 7591 permits returning the same `client_id` when an agent re-registers
+ * with identical parameters, rather than accumulating a fresh row per reconnect.
  */
 export function computeOAuthClientDedupeKey(input: {
 	redirectUris: readonly string[];

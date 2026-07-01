@@ -13,7 +13,6 @@ import { logAndRespondOnError } from "./web/middleware/error-handler";
 import { createHutchApp, localServer } from "./app";
 import { getEnv, requireEnv } from "@packages/require-env";
 
-// present in Lambda runtime, absent locally — https://docs.aws.amazon.com/lambda/latest/dg/configuration-envvars.html#configuration-envvars-runtime
 const lambda = !!getEnv("AWS_LAMBDA_FUNCTION_NAME");
 
 const { app, analyticsLogger } = createHutchApp();

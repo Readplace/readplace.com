@@ -10,9 +10,6 @@ struct ReadingListView: View {
 	/// for an explicit confirm before the invoke fires, rather than acting on the tap.
 	@State private var pendingDestructive: PendingDestructive?
 
-	/// A destructive affordance paired with the row it would act on, so the
-	/// confirmation dialog can invoke the exact action the swipe carried and label
-	/// itself with the human-readable label rather than the raw wire name.
 	private struct PendingDestructive: Identifiable {
 		let affordance: Affordance
 		let article: Article

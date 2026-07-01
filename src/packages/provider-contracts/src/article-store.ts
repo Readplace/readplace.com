@@ -70,10 +70,6 @@ export type FindArticleById = (
 	userId: UserId,
 ) => Promise<SavedArticle | null>;
 
-/** Resolve the original URL for a shared `/queue/<id>/view` permalink without
- * requiring the requester to own the article. Used to redirect non-owners
- * (anonymous or different account) to the public `/view/<url>` route. Returns
- * `null` when the hash doesn't match any saved article. */
 export type FindArticleUrlById = (
 	id: ReaderArticleHashId,
 ) => Promise<string | null>;
@@ -119,8 +115,6 @@ export interface ArticleFreshnessData {
 	etag?: string;
 	lastModified?: string;
 	contentFetchedAt?: string;
-	/* SHA-256 of the previously-fetched body, so a refresh can skip the parser
-	 * entirely when the newly-fetched body hashes to the same value. */
 	bodyHash?: string;
 }
 

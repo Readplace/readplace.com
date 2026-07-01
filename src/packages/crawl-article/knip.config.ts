@@ -7,9 +7,7 @@ export default {
 		// compiled output to the TypeScript source.
 		"src/index.ts",
 		// Real-network canary invoked by the nx `tier-1-plus-pipeline-health` target
-		// and the tier-1-plus-crawl-pipeline-health workflow. Compiled to
-		// dist/scripts/tier-1-plus-pipeline-health.js and run with `node --test`.
-		// Requires the sources table (health-sources.ts) as a direct import.
+		// and the tier-1-plus-crawl-pipeline-health workflow.
 		"scripts/tier-1-plus-pipeline-health.ts",
 		"scripts/health-sources.ts",
 	],

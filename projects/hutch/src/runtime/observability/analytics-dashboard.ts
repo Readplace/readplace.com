@@ -37,7 +37,6 @@ export interface BuildAnalyticsDashboardDeps {
  * and join them with `|`. The `logGroups(namePrefix: [...])` function exists
  * only for the start-query CLI/API and the dashboard renderer rejects it with
  * `Invalid NamePrefix: "namePrefix: ["`.
- * See https://docs.aws.amazon.com/AmazonCloudWatch/latest/APIReference/CloudWatch-Dashboard-Body-Structure.html#CloudWatch-Dashboard-Properties-Log-Widget-Object
  */
 function sourceClause(logGroupNames: readonly string[]): string {
 	assert(logGroupNames.length > 0, "sourceClause requires at least one log group name");

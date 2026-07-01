@@ -2,9 +2,7 @@ import Foundation
 
 // MARK: - Lenient decoding
 
-/// Decodes a single value, capturing `nil` instead of throwing when the value is
-/// malformed. Used to decode arrays element-by-element so one bad element is
-/// dropped rather than failing the whole array.
+
 private struct FailableDecodable<Wrapped: Decodable>: Decodable {
 	let wrapped: Wrapped?
 
@@ -254,8 +252,6 @@ extension ServerMessage {
 		).trimmingCharacters(in: .whitespacesAndNewlines)
 	}
 
-	/// The named character references the server's escaped messages use. Numeric
-	/// references (`&#39;`, `&#x27;`) are resolved separately.
 	private static let namedReferences: [Substring: Character] = [
 		"amp": "&", "lt": "<", "gt": ">", "quot": "\"", "apos": "'",
 	]

@@ -302,9 +302,6 @@ final class ReadingListViewModelTests: XCTestCase {
 	}
 
 	func testInvokeCollectionSubmitsTheActionAndReloadsFromTheServer() async throws {
-		// A bare-invokable collection action is submitted through the generic invoker
-		// (honouring its own href/method) — not opened as a GET web view of its href —
-		// then the collection is reloaded so the server's new state replaces the old.
 		var queueGETs = 0
 		StubURLProtocol.setHandler { request, _ in
 			let path = request.url?.path ?? ""

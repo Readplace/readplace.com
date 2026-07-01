@@ -11,10 +11,6 @@
  * iframe element's inline style on every event that could change it. There is
  * no `overflow: hidden` anywhere — if the height calculation regresses, the
  * resulting internal scrollbar is a visible bug signal we want to surface.
- *
- * Idempotent re-bind on HTMX swap: when a reader poll replaces the iframe
- * element, observers on the old element are disposed and re-attached to the
- * new one.
  */
 
 function assert(cond: unknown, message: string): asserts cond {

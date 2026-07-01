@@ -1,12 +1,4 @@
-/**
- * Copy Static Assets Script
- *
- * Cross-platform replacement for rsync to copy non-TypeScript files from src/ to dist/.
- * Copies: *.css, *.html, *.json, *.md, *.txt
- *
- * This script exists because rsync is not available on all platforms (e.g., Windows,
- * some CI environments). Node.js fs operations work everywhere.
- */
+// Uses Node.js fs instead of rsync, which is not available on all platforms.
 const fs = require('fs')
 const path = require('path')
 

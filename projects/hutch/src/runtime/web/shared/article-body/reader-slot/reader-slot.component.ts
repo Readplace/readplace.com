@@ -10,8 +10,6 @@ export interface ReaderSlotInput {
 	url: string;
 	readerPollUrl?: string;
 	extensionInstallUrl?: string;
-	/** Deployment origin, used to keep same-host in-article links in the reader
-	 * tab. */
 	appOrigin: string;
 	/* When true, the rendered slot carries `hx-swap-oob="outerHTML"` so HTMX
 	 * splices it into a sibling poll response and replaces the live slot. The

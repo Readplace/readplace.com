@@ -50,8 +50,6 @@ export interface ArticleBodyInput {
 	 * initial SSR bar was hidden.
 	 */
 	progress?: ProgressTick;
-	/** Deployment origin, used to keep same-host in-article links in the reader
-	 * tab rather than opening a new one. */
 	appOrigin: string;
 }
 

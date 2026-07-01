@@ -9,10 +9,7 @@ const PARAGRAPH_OPEN_REGEX = /<p\s+class\s*=\s*(?:"ocr-tesseract"|'ocr-tesseract
 const PARAGRAPH_CLOSE = "</p>";
 
 /**
- * Reverse the basic HTML escaping (`& < > " '` →
- * `&amp; &lt; &gt; &quot; &#39;`). Round-trip safe because the escaper
- * is documented to escape exactly those five characters and nothing else,
- * and `&amp;` decodes last so chained entities like `&amp;lt;` come out as
+ * `&amp;` must decode last so chained entities like `&amp;lt;` come out as
  * `&lt;` rather than `<`.
  */
 function decodeBasicEntities(text: string): string {

@@ -37,10 +37,6 @@ class UnsupportedMediaTypeError extends Error {
 	}
 }
 
-/** Thrown when invoking an advertised entity action 404s: the item is gone (or
- * the server no longer offers the action). A typed signal so the adapter detects
- * not-found by class, not by regex-matching an error message ending in "404" —
- * the message is presentation, not a contract. */
 class ItemGoneError extends Error {
 	constructor(actionName: string) {
 		super(`${actionName} target not found`);

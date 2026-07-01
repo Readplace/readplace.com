@@ -17,7 +17,7 @@
  *   - AWS_REGION
  *   - AWS_ACCESS_KEY_ID, AWS_SECRET_ACCESS_KEY (the SDK reads these directly)
  *   - DYNAMODB_ARTICLES_TABLE
- *   - READPLACE_ORIGIN (used to build the admin recrawl URL per row)
+ *   - READPLACE_ORIGIN
  *
  * Optional env:
  *   - FAILED_ARTICLES_LOOKBACK_DAYS — non-negative integer. 0 (default)

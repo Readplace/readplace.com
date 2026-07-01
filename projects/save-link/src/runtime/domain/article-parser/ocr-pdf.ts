@@ -41,15 +41,6 @@ const DEFAULT_CONCURRENCY = MAX_PDF_PAGES;
 // then cleanup starts), so peak Lambda concurrency is bounded by whichever
 // fan-out is in flight — both consume up to 300 concurrent invocations of
 // their respective functions, not 600 simultaneously.
-//
-// DeepSeek does not impose a hard per-account concurrent-request ceiling
-// (https://api-docs.deepseek.com/quick_start/rate_limit); the service
-// throttles latency dynamically and returns 429 only when the upstream is
-// truly overloaded. The cleanup handler treats a 429 the same as any other
-// LLM failure — pass the original Tesseract text through unchanged — so
-// transient throttling degrades quality on the affected pages instead of
-// failing the crawl. The 429 status is logged explicitly when it surfaces
-// so operators can spot sustained rate-limiting in CloudWatch.
 const DEFAULT_CLEANUP_CONCURRENCY = MAX_PDF_PAGES;
 
 /**

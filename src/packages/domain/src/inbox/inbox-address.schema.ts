@@ -35,8 +35,7 @@ export const INBOX_ADDRESS_MAX_CREATE_ATTEMPTS = 5;
  * loop — e.g. an account hammering POST /inbox/create — mints rows without
  * limit, and every row is permanent (a freed hash could be re-minted for
  * another user and leak their mail, so disabling stamps `disabledAt` rather
- * than deleting). Counting only live rows caps the active footprint while
- * leaving a recovery path: disable one you no longer need to free a slot.
+ * than deleting). Counting only live rows caps the active footprint.
  * Generous enough that honest one-per-newsletter use never reaches it. */
 export const INBOX_ADDRESS_MAX_PER_USER = 25;
 
