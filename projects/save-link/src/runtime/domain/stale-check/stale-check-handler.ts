@@ -34,8 +34,12 @@ import type { CrawlAndFinalizeArticle } from "@packages/finalize-article";
  *
  * Action outcomes:
  *   - `"new"`             — row missing; re-published SaveAnonymousLinkCommand.
- *   - `"skip"`            — within TTL, terminal state, parse failure, or
- *                           simpleCrawl failure. No downstream effect.
+ *   - `"skip"`            — within TTL, terminal state, or parse failure. No
+ *                           downstream effect.
+ *   - `"backoff"`         — the refresh fetch failed (cert error, redirect,
+ *                           bot block); reset the freshness clock so the next
+ *                           attempt waits a full TTL instead of re-firing on
+ *                           every /view.
  *   - `"unchanged"`       — 304 Not Modified; published UpdateFetchTimestamp.
  *   - `"refreshed"`       — HTML refetched + parsed; published RefreshArticleContent.
  *   - `"tier-1-deferred"` — non-HTML body; emitted SimpleCrawlUnsupportedEvent
@@ -46,6 +50,7 @@ import type { CrawlAndFinalizeArticle } from "@packages/finalize-article";
 export type StaleCheckAction =
 	| "new"
 	| "skip"
+	| "backoff"
 	| "unchanged"
 	| "refreshed"
 	| "tier-1-deferred";
@@ -115,7 +120,18 @@ export function initStaleCheckHandler(deps: {
 			return "unchanged";
 		}
 
-		if (result.status === "failed") return "skip";
+		if (result.status === "failed") {
+			/* A permanently-failing origin (cert error, redirect, bot block) would
+			 * otherwise be re-crawled on every /view, since the failed branch never
+			 * advanced contentFetchedAt. Reset the freshness clock so the next
+			 * attempt waits a full TTL instead of firing on the next visit. */
+			await publishUpdateFetchTimestamp({
+				url,
+				contentFetchedAt: now().toISOString(),
+				bodyHash: freshness.bodyHash,
+			});
+			return "backoff";
+		}
 
 		if (result.status === "unsupported") {
 			/* Write the stage marker so the reader's progress bar advances
@@ -176,6 +192,8 @@ export function initStaleCheckHandler(deps: {
 						url: detail.url,
 						action,
 					});
+				} else if (action === "backoff") {
+					logger.info(`${logPrefix} backed off after refresh failure`, { url: detail.url });
 				} else {
 					logger.info(`${logPrefix} no-op`, { url: detail.url, action });
 				}

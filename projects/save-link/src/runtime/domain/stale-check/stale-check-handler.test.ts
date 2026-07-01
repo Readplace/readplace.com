@@ -284,11 +284,12 @@ describe("initStaleCheckHandler", () => {
 		expect(publishRefreshArticleContent).not.toHaveBeenCalled();
 	});
 
-	it("skips when crawl returns failed (no further effect)", async () => {
+	it("backs off when crawl returns failed: resets the freshness clock (carrying the bodyHash) so the next attempt waits a full TTL", async () => {
 		const findArticleFreshness: FindArticleFreshness = async () => ({
 			etag: undefined,
 			lastModified: undefined,
 			contentFetchedAt: "2026-04-01T00:00:00.000Z",
+			bodyHash: "h".repeat(64),
 		});
 		const crawlAndFinalizeArticle: CrawlAndFinalizeArticle = async () => ({ status: "failed", reason: "crawl-failed" });
 		const publishRefreshArticleContent: PublishRefreshArticleContent = jest
@@ -300,6 +301,7 @@ describe("initStaleCheckHandler", () => {
 		const emitSimpleCrawlUnsupported: EmitSimpleCrawlUnsupported = jest
 			.fn()
 			.mockResolvedValue(undefined);
+		const logger = { info: jest.fn(), warn: jest.fn(), error: jest.fn(), debug: jest.fn() };
 
 		const handler = createHandler({
 			findArticleFreshness,
@@ -307,12 +309,21 @@ describe("initStaleCheckHandler", () => {
 			publishRefreshArticleContent,
 			publishUpdateFetchTimestamp,
 			emitSimpleCrawlUnsupported,
+			logger,
 		});
 
 		await handler(createSqsEvent({ url: URL_UNDER_TEST }), buildLambdaContext(), () => {});
 
+		expect(publishUpdateFetchTimestamp).toHaveBeenCalledTimes(1);
+		expect(publishUpdateFetchTimestamp).toHaveBeenCalledWith({
+			url: URL_UNDER_TEST,
+			contentFetchedAt: fixedNow().toISOString(),
+			bodyHash: "h".repeat(64),
+		});
+		expect(logger.info).toHaveBeenCalledWith("[StaleCheckRequested] backed off after refresh failure", {
+			url: URL_UNDER_TEST,
+		});
 		expect(publishRefreshArticleContent).not.toHaveBeenCalled();
-		expect(publishUpdateFetchTimestamp).not.toHaveBeenCalled();
 		expect(emitSimpleCrawlUnsupported).not.toHaveBeenCalled();
 	});
 
