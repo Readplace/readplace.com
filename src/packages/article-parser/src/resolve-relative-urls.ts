@@ -21,7 +21,7 @@ export function resolveRelativeUrls(params: {
 		resolveAttribute(a, "href", base);
 	}
 
-	for (const el of document.querySelectorAll("[srcset]")) {
+	for (const el of document.querySelectorAll("img, source")) {
 		resolveSrcset(el, base);
 	}
 
@@ -30,8 +30,19 @@ export function resolveRelativeUrls(params: {
 	return root.innerHTML;
 }
 
+/* Server-rendered React/Next.js markup emits camelCase `srcSet`, which linkedom
+ * (and the downstream image-rehoster and reader) treat as a distinct attribute
+ * from `srcset` — so an un-normalised camelCase srcset is never absolutised or
+ * mirrored to the CDN, and its relative `/_next/image?...` candidates resolve
+ * against the reader origin and 404. Look the attribute up case-insensitively
+ * and write it back as lowercase `srcset` so every later stage sees it. */
 function resolveSrcset(element: Element, base: URL): void {
-	const value = element.getAttribute("srcset");
+	const attrName = element
+		.getAttributeNames()
+		.find((name) => name.toLowerCase() === "srcset");
+	if (!attrName) return;
+
+	const value = element.getAttribute(attrName);
 	if (!value) return;
 
 	const entries = parseSrcset(value);
@@ -48,6 +59,7 @@ function resolveSrcset(element: Element, base: URL): void {
 		})
 		.join(", ");
 
+	if (attrName !== "srcset") element.removeAttribute(attrName);
 	element.setAttribute("srcset", resolved);
 }
 
