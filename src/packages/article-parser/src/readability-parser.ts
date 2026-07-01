@@ -266,7 +266,7 @@ function renderEmbedFacade(ctx: {
 	link.setAttribute("href", ctx.embed.watchUrl);
 	link.setAttribute("target", "_blank");
 	link.setAttribute("rel", "noopener noreferrer");
-	if (!ctx.embed.posterUrl) {
+	if (ctx.embed.kind === "playlist") {
 		/* A playlist embed has no single-video thumbnail to rehost, so it can't
 		 * become a poster card; reuse the native-<video> text callout instead so
 		 * the link still survives Readability's empty-<p> prune (it carries text

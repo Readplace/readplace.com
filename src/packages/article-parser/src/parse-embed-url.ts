@@ -1,8 +1,6 @@
-export interface YouTubeEmbed {
-	videoId?: string;
-	watchUrl: string;
-	posterUrl?: string;
-}
+export type YouTubeEmbed =
+	| { kind: "video"; videoId: string; watchUrl: string; posterUrl: string }
+	| { kind: "playlist"; watchUrl: string };
 
 const URL_SAFE_ID = /^[A-Za-z0-9_-]+$/;
 
@@ -46,6 +44,7 @@ export function parseYouTubeEmbed(rawUrl: string): YouTubeEmbed | undefined {
 function video(id: string | null | undefined): YouTubeEmbed | undefined {
 	if (!id || !URL_SAFE_ID.test(id)) return undefined;
 	return {
+		kind: "video",
 		videoId: id,
 		watchUrl: `https://www.youtube.com/watch?v=${id}`,
 		posterUrl: `https://i.ytimg.com/vi/${id}/hqdefault.jpg`,
@@ -55,5 +54,5 @@ function video(id: string | null | undefined): YouTubeEmbed | undefined {
 function playlist(url: URL): YouTubeEmbed | undefined {
 	const listId = url.searchParams.get("list");
 	if (!listId || !URL_SAFE_ID.test(listId)) return undefined;
-	return { watchUrl: `https://www.youtube.com/playlist?list=${listId}` };
+	return { kind: "playlist", watchUrl: `https://www.youtube.com/playlist?list=${listId}` };
 }
