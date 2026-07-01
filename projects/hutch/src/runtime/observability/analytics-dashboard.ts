@@ -506,6 +506,7 @@ export function buildAnalyticsDashboardBody(deps: BuildAnalyticsDashboardDeps): 
 			query: [
 				"fields @timestamp, level, source, url, coalesce(message, reason) as detail, @message, stack",
 				`| filter level = "ERROR" or stream = "${STREAMS.parseErrors}" or @message like "ERROR"`,
+				'| filter (not ispresent(reason)) or reason != "crawl-failed"',
 				"| sort @timestamp desc",
 				"| limit 100",
 			].join(" "),

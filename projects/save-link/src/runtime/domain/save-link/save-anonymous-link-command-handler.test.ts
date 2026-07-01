@@ -202,4 +202,38 @@ describe("initSaveAnonymousLinkCommandHandler", () => {
 		const result = await handler(invalidEvent, buildLambdaContext(), () => {});
 		expect(result).toEqual({ batchItemFailures: [{ itemIdentifier: "msg-1" }] });
 	});
+
+	it("logs a tier-1 crawl-failed at warn (not error) so it stays off the errors dashboard, still reporting a batch failure for retry", async () => {
+		const logger = { info: jest.fn(), warn: jest.fn(), error: jest.fn(), debug: jest.fn() };
+		const crawlAndFinalizeArticle: CrawlAndFinalizeArticle = async () => ({ status: "failed", reason: "crawl-failed" });
+
+		const handler = createHandler({ crawlAndFinalizeArticle, logger });
+
+		const result = await handler(
+			createSqsEvent({ url: "https://example.com/article" }),
+			buildLambdaContext(),
+			() => {},
+		);
+
+		expect(logger.warn).toHaveBeenCalledWith("[SaveAnonymousLinkCommand] tier-1 crawl failed", {
+			url: "https://example.com/article",
+		});
+		expect(logger.error).not.toHaveBeenCalled();
+		expect(result).toEqual({ batchItemFailures: [{ itemIdentifier: "msg-1" }] });
+	});
+
+	it("logs a genuine unexpected failure at error (not warn) so real bugs still surface on the dashboard", async () => {
+		const logger = { info: jest.fn(), warn: jest.fn(), error: jest.fn(), debug: jest.fn() };
+		const publishEvent = jest.fn().mockRejectedValue(new Error("eventbridge down"));
+
+		const handler = createHandler({ logger, publishEvent });
+
+		await handler(createSqsEvent({ url: "https://example.com/article" }), buildLambdaContext(), () => {});
+
+		expect(logger.error).toHaveBeenCalledWith(
+			"[SaveAnonymousLinkCommand] record failed",
+			expect.objectContaining({ messageId: "msg-1" }),
+		);
+		expect(logger.warn).not.toHaveBeenCalled();
+	});
 });

@@ -31,6 +31,14 @@ export type SaveLinkWorkOptions = {
 	recrawl?: boolean;
 };
 
+export class CrawlFailedError extends Error {
+	readonly url: string;
+	constructor(url: string) {
+		super(`crawl failed for ${url}: crawl-failed`);
+		this.url = url;
+	}
+}
+
 /* c8 ignore next -- V8 block coverage phantom on typed-parameter destructuring, see bcoe/c8#319 */
 export function initSaveLinkWork(deps: {
 	crawlAndFinalizeArticle: CrawlAndFinalizeArticle;
@@ -105,6 +113,9 @@ export function initSaveLinkWork(deps: {
 				});
 			}
 			await emitTier1Failure(url);
+			if (result.reason === "crawl-failed") {
+				throw new CrawlFailedError(url);
+			}
 			throw new Error(`crawl failed for ${url}: ${result.reason}`);
 		}
 

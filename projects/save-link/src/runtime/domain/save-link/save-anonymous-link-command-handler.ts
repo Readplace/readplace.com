@@ -10,7 +10,7 @@ import type { MarkCrawlStage } from "../../providers/article-crawl/mark-crawl-st
 import type { UpdateFetchTimestamp } from "./update-fetch-timestamp-handler";
 import type { LogCrawlOutcome, LogParseError } from "@packages/hutch-infra-components";
 import type { ReadTierSnapshot } from "../crawl-article-state/read-tier-snapshot";
-import { initSaveLinkWork } from "./save-link-work";
+import { CrawlFailedError, initSaveLinkWork } from "./save-link-work";
 import type { CrawlAndFinalizeArticle } from "@packages/finalize-article";
 import type { PutTierSource } from "../../providers/article-store/put-tier-source";
 import type { EmitSimpleCrawlUnsupported } from "../../dep-bundles/events";
@@ -73,10 +73,14 @@ export function initSaveAnonymousLinkCommandHandler(deps: {
 					tier: "tier-1",
 				});
 			} catch (error) {
-				logger.error("[SaveAnonymousLinkCommand] record failed", {
-					messageId: record.messageId,
-					error,
-				});
+				if (error instanceof CrawlFailedError) {
+					logger.warn("[SaveAnonymousLinkCommand] tier-1 crawl failed", { url: error.url });
+				} else {
+					logger.error("[SaveAnonymousLinkCommand] record failed", {
+						messageId: record.messageId,
+						error,
+					});
+				}
 				batchItemFailures.push({ itemIdentifier: record.messageId });
 			}
 		}
