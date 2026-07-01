@@ -245,10 +245,9 @@
 }
 
 .queue-article {
-  display: grid;
-  grid-template-columns: minmax(0, 1fr) auto;
-  align-items: stretch;
-  column-gap: clamp(12px, 3vw, 16px);
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
   padding: clamp(12px, 3vw, 16px);
   background: var(--card);
 }
@@ -257,12 +256,32 @@
   background: var(--secondary);
 }
 
+.queue-article__header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  min-width: 0;
+}
+
+/**
+ * 1. The content flexes to full width, so when there is no thumbnail (imageUrl
+ *    absent, or removed by the img onerror handler) the title and excerpt
+ *    reclaim the whole row instead of leaving an empty thumbnail gap.
+ */
+.queue-article__body {
+  display: flex;
+  align-items: flex-start;
+  gap: clamp(12px, 3vw, 16px);
+}
+
 /**
  * 1. visibility (not display) reserves the thumbnail box before the bitmap
- *    loads — the img is sized by width + aspect-ratio — so the rail height is
+ *    loads — the img is sized by width + aspect-ratio — so the body height is
  *    fixed at first paint and never jumps on load or on the 3s self-swap.
  */
 .queue-article__thumbnail-link {
+  flex: 0 0 auto;
   visibility: hidden; /* 1 */
 }
 
@@ -279,22 +298,11 @@
 }
 
 .queue-article__content {
+  flex: 1 1 auto;
   min-width: 0;
   display: flex;
   flex-direction: column;
   gap: 4px;
-}
-
-/**
- * 1. The rail stretches to the card height (grid align-items: stretch), and the
- *    actions are pinned to its bottom (margin-top: auto on __actions) so they
- *    fill the space under the thumbnail instead of leaving it empty.
- */
-.queue-article__rail {
-  display: flex;
-  flex-direction: column;
-  align-items: flex-end; /* 1 */
-  gap: 8px;
 }
 
 .queue-article__url {
@@ -398,6 +406,7 @@
 
 .queue-article__meta {
   display: flex;
+  flex: 1 1 auto;
   align-items: center;
   gap: 8px;
   min-width: 0;
@@ -436,13 +445,25 @@
 
 .queue-article__actions {
   display: flex;
+  flex: 0 0 auto;
   gap: 4px;
-  margin-top: auto;
 }
 
 .queue-article__action-form {
   display: inline;
   margin: 0;
+}
+
+/**
+ * 1. Below the tablet breakpoint the "Mark as read" toggle is dropped from the
+ *    card — on phones the read flow is tap-title → read → mark read inside the
+ *    reader. "Mark as unread" and Delete stay. Hiding the whole form (not just
+ *    the button) avoids leaving a phantom flex gap in the actions row.
+ */
+@media (max-width: 639.98px) {
+  .queue-article__action-form--mark-read {
+    display: none; /* 1 */
+  }
 }
 
 .queue-article__action-btn {

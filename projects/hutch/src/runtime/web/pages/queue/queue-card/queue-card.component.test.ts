@@ -182,6 +182,14 @@ describe("renderQueueCard", () => {
 		testAction: "mark-read",
 		fields: [{ name: "status", value: "read" }],
 	};
+	const MARK_UNREAD_ACTION = {
+		method: "POST",
+		url: "/queue/abc123/status",
+		text: "Mark as unread",
+		title: "Mark as unread",
+		testAction: "mark-unread",
+		fields: [{ name: "status", value: "unread" }],
+	};
 	const DELETE_ACTION = {
 		method: "POST",
 		url: "/queue/abc123/delete",
@@ -190,6 +198,49 @@ describe("renderQueueCard", () => {
 		testAction: "delete",
 		fields: [],
 	};
+
+	it("tags only the mark-read form so CSS can drop it below the tablet breakpoint", () => {
+		const html = renderQueueCard(
+			toQueueCardDisplayModel(
+				makeViewModel({
+					actions: [MARK_READ_ACTION, MARK_UNREAD_ACTION, DELETE_ACTION],
+				}),
+				{ isFirst: false },
+			),
+		);
+		const doc = parse(html);
+		const markReadForm = doc
+			.querySelector("[data-test-action='mark-read']")
+			?.closest("form");
+		const markUnreadForm = doc
+			.querySelector("[data-test-action='mark-unread']")
+			?.closest("form");
+		const deleteForm = doc
+			.querySelector("[data-test-action='delete']")
+			?.closest("form");
+		assert(
+			markReadForm && markUnreadForm && deleteForm,
+			"all three action forms must be present",
+		);
+		assert(
+			markReadForm.classList.contains("queue-article__action-form--mark-read"),
+			"the mark-read form carries the breakpoint-hide modifier",
+		);
+		assert(
+			!markUnreadForm.classList.contains("queue-article__action-form--mark-read"),
+			"mark-unread stays visible on mobile — no hide modifier",
+		);
+		assert(
+			!deleteForm.classList.contains("queue-article__action-form--mark-read"),
+			"delete stays visible on mobile — no hide modifier",
+		);
+		for (const form of [markReadForm, markUnreadForm, deleteForm]) {
+			assert(
+				form.classList.contains("queue-article__action-form"),
+				"every action form keeps the base class",
+			);
+		}
+	});
 
 	it("styles the mark-read control as a primary status button", () => {
 		const html = renderQueueCard(
