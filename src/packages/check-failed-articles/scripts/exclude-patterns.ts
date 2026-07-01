@@ -192,6 +192,16 @@ export const EXCLUDE_PATTERNS: readonly RegExp[] = [
 	// form so the real single article (`…-9aceb0bdee03`) still crawls; `https:\/{1,2}`
 	// tolerates the embedded scheme whether normalization left one slash or two.
 	/^https:\/\/fagnerbrack\.com\/learn-sql-once-use-it-for-30-years-9aceb0bdee03https:\/{1,2}fagnerbrack\.com\/learn-sql-once-use-it-for-30-years-9aceb0bdee03$/i,
+	// (h) Origin returns 404 for the exact saved path — the page never existed or
+	// was removed, so a recrawl can never reproduce it. Each URL was surfaced by
+	// the failed-articles canary and confirmed 404 at origin. Anchored to the
+	// exact saved path (host + path only, no query string was stored) so a
+	// working sibling page on the same host still surfaces as a real failure.
+	/^https:\/\/www\.infoq\.com\/news\/2008\/08\/manifesto$/i,
+	/^https:\/\/www\.slashdata\.co\/post\/global$/i,
+	/^https:\/\/www\.developernation\.net\/developer$/i,
+	/^https:\/\/simpleflying\.com\/captain$/i,
+	/^https:\/\/www\.jetbrains\.com\/lp\/devecosystem$/i,
 ];
 
 export function isExcluded(url: string, patterns: readonly RegExp[]): boolean {
