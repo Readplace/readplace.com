@@ -1,3 +1,5 @@
+import { LOCALE } from "./local-time.format";
+
 export interface TrialRemaining {
 	days: number;
 	hours: number;
@@ -52,7 +54,7 @@ export function deriveTrialEscalation(
 }
 
 function formatEndDate(endsAtIso: string): string {
-	return new Date(endsAtIso).toLocaleDateString("en-US", {
+	return new Date(endsAtIso).toLocaleDateString(LOCALE, {
 		day: "numeric",
 		month: "short",
 		year: "numeric",
