@@ -76,6 +76,34 @@ describe("Base component", () => {
 		expect(main?.querySelector("style")?.textContent).toBe(".lead { color: rebeccapurple; }");
 	});
 
+	it("preserves the reader iframe's double-escaped srcdoc when injecting page styles, so code samples stay text", () => {
+		const srcdoc =
+			"&lt;!doctype html&gt;&lt;body&gt;&lt;code&gt;&amp;lt;input&amp;gt;&lt;/code&gt;&lt;/body&gt;";
+		const page = createTestPageBody({
+			styles: ".reader { color: rebeccapurple; }",
+			content: { html: `<main><iframe data-reader-iframe srcdoc="${srcdoc}"></iframe></main>` },
+		});
+		const result = Base(page, GUEST_STATE).to("text/html");
+
+		// Byte-level guard: the double-escaping must survive style injection. A DOM
+		// re-parse of the page decodes one level and would turn the code sample into
+		// a live <input> inside the frame, so assert on the raw output bytes.
+		expect(result.body).toContain("&amp;lt;input&amp;gt;");
+
+		const doc = new JSDOM(result.body).window.document;
+		const iframeSrcdoc = doc.querySelector("iframe[data-reader-iframe]")?.getAttribute("srcdoc");
+		assert(iframeSrcdoc, "reader iframe must carry a srcdoc");
+		const innerDoc = new JSDOM(iframeSrcdoc).window.document;
+		const codeSample = innerDoc.querySelector("code");
+		assert(codeSample, "the code sample must survive into the framed document");
+		expect(codeSample.textContent).toBe("<input>");
+		expect(innerDoc.querySelectorAll("input").length).toBe(0);
+
+		const main = doc.querySelector("main");
+		assert(main, "page styles inject a <style> as the first child of <main>");
+		expect(main.firstElementChild?.tagName).toBe("STYLE");
+	});
+
 	it("should apply bodyClass when provided", () => {
 		const page = createTestPageBody({ bodyClass: "page-home" });
 		const result = Base(page, GUEST_STATE).to("text/html");
