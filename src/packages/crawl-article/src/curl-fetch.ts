@@ -10,6 +10,9 @@ import { MAX_PDF_BYTES } from "./pdf-page-limits";
 
 const DEFAULT_TIMEOUT_MS = 10000;
 
+const REDIRECT_STATUS_CODES = new Set([301, 302, 303, 307, 308]);
+const MAX_REDIRECTS = 5;
+
 type CurlFetchInit = {
 	headers?: Record<string, string>;
 	signal?: AbortSignal;
@@ -65,7 +68,8 @@ const defaultExecCurl: ExecCurl = (args, options, callback) => {
  */
 export function createCurlFetch(deps: { execCurl: ExecCurl; resolvePinnedAddress: ResolvePinnedAddress }): CurlFetch {
 	const { execCurl, resolvePinnedAddress } = deps;
-	return async function fetchCurl(url, init) {
+
+	async function fetchOnce(url: string, init?: CurlFetchInit): Promise<Response> {
 		const parsed = new URL(url);
 		const port = parsed.port ? Number(parsed.port) : parsed.protocol === "https:" ? 443 : 80;
 		const pinnedAddress = await resolvePinnedAddress({ hostname: parsed.hostname });
@@ -95,6 +99,25 @@ export function createCurlFetch(deps: { execCurl: ExecCurl; resolvePinnedAddress
 				child.onClose(() => signal.removeEventListener("abort", onAbort));
 			}
 		});
+	}
+
+	return async function fetchCurl(url, init) {
+		let currentUrl = url;
+		for (let redirects = 0; ; redirects++) {
+			const response = await fetchOnce(currentUrl, init);
+			const location = response.headers.get("location");
+			if (location === null || !REDIRECT_STATUS_CODES.has(response.status)) {
+				return response;
+			}
+			if (redirects >= MAX_REDIRECTS) {
+				throw new Error(`fetchCurl failed for ${url}: too many redirects (>${MAX_REDIRECTS})`);
+			}
+			// Resolve against the current hop so a relative Location works, then the
+			// next fetchOnce re-runs resolvePinnedAddress on the target host — the
+			// per-hop SSRF re-validation that lets us follow a redirect curl itself
+			// (kept at --max-redirs 0) is not allowed to chase.
+			currentUrl = new URL(location, currentUrl).href;
+		}
 	};
 }
 
@@ -127,12 +150,11 @@ function buildCurlArgs(params: {
 		"--globoff",
 		"--silent",
 		"--show-error",
-		"--location",
 		// curl resolves DNS itself, bypassing the Node-level SSRF guard, so a
-		// redirect could reach an unchecked private IP. Pin to the address we
-		// already verified (--resolve below) and refuse to follow any redirect:
-		// a 3xx exits non-zero and the crawl fails closed rather than chasing an
-		// unvalidated host.
+		// redirect could reach an unchecked private IP. `--location` is deliberately
+		// omitted and `--max-redirs 0` stops curl following any redirect on its own;
+		// the 3xx is handed back to fetchCurl, which re-pins the target through the
+		// SSRF guard (resolvePinnedAddress) before following it.
 		"--max-redirs",
 		"0",
 		"--dump-header",
