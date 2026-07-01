@@ -15,16 +15,19 @@
 }
 
 /**
- * 1. The chromeless iOS reader (/queue/:id/app) is served renderChromelessReaderActions,
- *    which tags the top action bar with --sticky and omits the bottom "Mark as read"
- *    (only the bottom "Back to queue" remains). The sticky bar is pinned as a fixed
- *    toolbar so "Back to queue" and "Mark as read" stay reachable for the whole
- *    article while the title and body scroll under it; the reader is offset by the
- *    toolbar height. The page-reader--chromeless body class carries the offset var.
+ * 1. The chromeless iOS reader (/queue/:id/app, body class page-reader--chromeless)
+ *    renders its action bar as a fixed toolbar via ChromelessReader, so "Back to
+ *    queue" and "Mark as read" stay reachable while the title and body scroll under
+ *    it; the --chromeless-* vars offset the body by the same height so the toolbar
+ *    and its content offset can never drift.
+ * 2. The reader loads inside a native sheet (ReaderSheet) that sits below the status
+ *    bar, so env(safe-area-inset-top) is 0 there — a bare inset lets the toolbar hug
+ *    the sheet's rounded top corners. Floor it at 1rem so the controls always clear
+ *    the corners; a real inset (notch/full-screen) still wins.
  */
 .page-reader--chromeless {
   --chromeless-toolbar-height: 3.25rem;
-  --chromeless-safe-top: env(safe-area-inset-top, 0);
+  --chromeless-safe-top: max(env(safe-area-inset-top, 0px), 1rem); /* 2 */
 }
 
 .article-body__actions--sticky {
