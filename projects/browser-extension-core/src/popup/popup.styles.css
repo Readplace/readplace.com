@@ -251,7 +251,7 @@ body {
   .saving-view__progress-fill { animation: none; } /* 2 */
 }
 
-/* purgecss-ignore-start: applied dynamically in popup.browser.ts when the save completes */
+/* purgecss-ignore-start: applied dynamically when the save completes */
 .saving-view__progress-fill--complete {
   width: 100%;
   transition: width 0.2s ease-out;
@@ -388,7 +388,7 @@ body {
   flex-direction: column;
 }
 
-/* purgecss-ignore-start: applied dynamically in popup.ts when rendering saved links */
+/* purgecss-ignore-start: applied dynamically when rendering saved links */
 
 /**
  * 1. Row wrapper keeps the <a> and <button> as siblings (not nested),
@@ -545,7 +545,7 @@ body {
 
 /* --- Pagination --- */
 
-/* purgecss-ignore-start: applied dynamically in popup.ts when rendering pagination controls */
+/* purgecss-ignore-start: applied dynamically when rendering pagination controls */
 .pagination {
   display: flex;
   align-items: center;
@@ -663,7 +663,7 @@ body {
   display: none;
 }
 
-/* purgecss-ignore-start: .messages__item variants are applied dynamically in popup.browser.ts as the server's messages render */
+/* purgecss-ignore-start: .messages__item variants are applied dynamically as the server's messages render */
 .messages__item {
   padding: 8px 12px;
   font-size: 13px;

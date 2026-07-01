@@ -442,7 +442,7 @@ export const UpdateFetchTimestampCommand = defineEvent({
 		url: z.string(),
 		contentFetchedAt: z.string(),
 		/* SHA-256 of the body that proved unchanged. Carried forward so a
-		 * row that previously had no `bodyHash` (legacy / first refresh) lands
+		 * row that previously had no `bodyHash` (first refresh) lands
 		 * one on the first 200-OK-with-matching-bytes hit. Optional because
 		 * the 304 Not Modified branch never computes a hash. */
 		bodyHash: z.string().optional(),

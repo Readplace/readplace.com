@@ -345,7 +345,7 @@ export function buildAnalyticsDashboardBody(deps: BuildAnalyticsDashboardDeps): 
 	// The pageview middleware cannot see /view (hx-request + redirect chain), so
 	// these widgets are driven by the explicit view_opened / view_save_intent
 	// events. Counting distinct visitor_id makes the funnel joinable to
-	// user_created, which now also carries visitor_id.
+	// user_created, which also carries visitor_id.
 
 	widgets.push(
 		logWidget({

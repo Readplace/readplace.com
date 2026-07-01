@@ -16,8 +16,7 @@ interface MediaTypeMatcher {
 }
 
 /**
- * The closed set of media types the crawler can turn into article HTML, each
- * paired with how to recognise it from the fetched response signals.
+ * The closed set of media types the crawler can turn into article HTML.
  *
  * THIS ARRAY IS THE SINGLE SOURCE OF TRUTH. {@link SupportedMediaType} is
  * derived from it, so adding an entry here is the only edit needed to introduce

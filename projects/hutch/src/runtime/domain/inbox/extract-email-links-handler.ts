@@ -101,7 +101,7 @@ export function initExtractEmailLinksHandler(deps: {
 
 				const parsedEmail = await parseEmail({ raw, receivedAt: email.receivedAt });
 				if (!parsedEmail.ok) {
-					// The raw is already audited; a body that no longer parses has no links.
+					// A body that does not parse has no links to extract.
 					logger.warn("[extract-email-links] raw no longer parseable", { receivedAtMessageId });
 					continue;
 				}

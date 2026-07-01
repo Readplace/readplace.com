@@ -1,4 +1,4 @@
-/* c8 ignore start -- thin poppler-utils boundary wrapper, exercised in production at Lambda cold start and in CI via the PDF health canary (scripts/health-sources.ts → arXiv Transformer paper). The child_process call to pdfinfo can't be unit-tested without re-implementing it, so consumers stub this function at the orchestrator. */
+/* c8 ignore start -- thin poppler-utils boundary wrapper, exercised in production at Lambda cold start and in CI via the PDF health canary. The child_process call to pdfinfo can't be unit-tested without re-implementing it, so consumers stub this function at the orchestrator. */
 import { mkdtemp, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";

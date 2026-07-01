@@ -2,9 +2,8 @@ import type { KnipConfig } from "knip";
 
 export default {
 	entry: [
-		// Library entry point — published as `main`/`types` in package.json
-		// (dist/index.js). Listed explicitly because knip's package.json
-		// detection doesn't back-resolve dist/index.js to src/index.ts.
+		// Listed explicitly because knip's package.json detection doesn't
+		// back-resolve the built entry to its source entry.
 		"src/index.ts",
 	],
 	ignoreBinaries: [

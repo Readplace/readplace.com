@@ -30,11 +30,9 @@ async function createUnverifiedUser(
 	return created.userId;
 }
 
-/** Mints a bearer access token for the extension client, the way the iOS app
- * and browser extension authenticate — no session cookie, so the lock has to
- * resolve from the token's user rather than the session. `emailVerified` mirrors
- * what the authorize step records at issuance: a token minted for a verified
- * account carries that standing so the request can skip the record lookup. */
+	/** Mints a bearer access token — no session cookie, so the lock has to
+	 * resolve from the token's user rather than the session. A token minted for a
+	 * verified account carries that standing so the request can skip the record lookup. */
 async function mintAccessToken(
 	harness: TestAppHarness,
 	userId: UserId,

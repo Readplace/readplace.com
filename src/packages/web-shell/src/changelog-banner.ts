@@ -87,9 +87,9 @@ export function parseChangelogBannerFragment(html: string): ChangelogBanner | un
 }
 
 /** The single localStorage key recording the last banner version this browser
- * has seen. One key (not one-per-version) so a newer post overwrites the old
- * value and the entry never grows unbounded. Shared by the inline seen-script
- * and its test, single-sourced here so they cannot drift. */
+ * has seen. One key (not one-per-version) so a newer post overwrites the
+ * previous value and the entry never grows unbounded. Single-sourced here so
+ * consumers cannot drift. */
 export const CHANGELOG_SEEN_STORAGE_KEY = "readplace.changelog-seen";
 
 /** Runs synchronously before paint, so an already-seen banner never flashes its

@@ -38,8 +38,7 @@ export function initInMemoryArticleCrawl(): {
 		const current = states.get(id.value);
 		if (current?.status === "ready") return;
 		// Preserve any previously recorded stage when re-marking pending so the
-		// progress indicator does not reset: marking pending updates only the
-		// status and leaves any recorded stage untouched.
+		// progress indicator does not reset.
 		const existingStage =
 			current?.status === "pending" ? current.stage : undefined;
 		states.set(

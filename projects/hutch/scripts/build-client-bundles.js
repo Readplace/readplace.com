@@ -8,7 +8,7 @@
  *
  * Output goes under `src/runtime/web/client-dist/` so the Lambda `copyAssetFiles`
  * step (everything in src/runtime that isn't .ts) ships it alongside the
- * handler, and a static-asset copy step mirrors it into the build output for test runs.
+ * handler, and it is also copied into the build output for test runs.
  */
 const esbuild = require("esbuild");
 const fs = require("node:fs");
@@ -19,7 +19,7 @@ const OUT_DIR = path.join(PROJECT_ROOT, "src", "runtime", "web", "client-dist");
 
 /**
  * 1. `globalName` exposes the module exports on `window.ShareBalloon` inside the IIFE.
- * 2. `footer.js` runs *after* the IIFE body, calling the exported factory with
+ * 2. the appended footer runs *after* the IIFE body, calling the exported factory with
  *    the real browser globals. The wiring stays out of the source TS so the
  *    client module remains pure and unit-testable.
  * 3. `keepNames: false` — the only reason esbuild's `__name` helper caused the

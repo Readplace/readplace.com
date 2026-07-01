@@ -104,11 +104,10 @@ function errorResult(code: SaveableUrlErrorCode): SaveableUrlResult {
 	return { status: "ERROR", error: { code, message: SAVEABLE_URL_ERROR_MESSAGES[code] } };
 }
 
-/** Zod schema wrapper around validateSaveableUrl so HTTP boundaries can keep
+/** Zod schema wrapper around the validator so HTTP boundaries can keep
  * using `safeParse()` for form-field validation. The custom issue carries the
- * SaveableUrlErrorCode via `params.saveableUrlCode` so callers that need to
- * branch on the failure kind (e.g., the extension hypermedia path) can do so
- * without re-running the validator. */
+ * error code via its params so callers that need to branch on the failure
+ * kind can do so without re-running the validator. */
 export const SaveableUrlSchema = z.string().transform((value, ctx) => {
 	const result = validateSaveableUrl(value);
 	if (result.status === "SUCCESS") return result.url;

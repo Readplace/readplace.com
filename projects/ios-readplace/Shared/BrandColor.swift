@@ -1,7 +1,7 @@
 import SwiftUI
 import UIKit
 
-/// Readplace's brand palette in code — the values mirror the web's design tokens.
+/// Readplace's brand palette in code.
 /// Each colour adapts to light/dark natively via a dynamic UIColor so views never
 /// branch on the colour scheme themselves.
 enum BrandColor {

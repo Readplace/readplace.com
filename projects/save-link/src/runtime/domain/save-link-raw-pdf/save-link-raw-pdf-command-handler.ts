@@ -72,8 +72,7 @@ export function initSaveLinkRawPdfCommandHandler(deps: {
 					bodyHash,
 					/* The buffer came from the user's browser, not from a server fetch —
 					 * there is no Response object and therefore no ETag/Last-Modified
-					 * headers to forward. parsePdfFromBuffer accepts `undefined` and drops
-					 * those fields from the result accordingly. */
+					 * headers to forward. */
 					response: undefined,
 					url: detail.url,
 					maxPdfBytes: MAX_PDF_BYTES.bytes,

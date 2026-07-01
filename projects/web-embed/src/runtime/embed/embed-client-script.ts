@@ -1,7 +1,6 @@
 /** Copy-to-clipboard + live PAGE_URL substitution for the embed builder page.
- * Served same-origin at `/embed/embed.client.js` and referenced with
- * `<script src>` rather than inlined because inline scripts are a CSP
- * liability. Kept as a self-executing IIFE string because there is no
+ * Referenced with `<script src>` rather than inlined because inline scripts
+ * are a CSP liability. Kept as a self-executing IIFE string because there is no
  * client-side TS bundler here. */
 export const EMBED_CLIENT_JS = `(function() {
   var buttons = document.querySelectorAll('[data-copy]');

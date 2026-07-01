@@ -19,7 +19,7 @@ interface StripeBundle {
  * fake, stores an `existing-user-subscribe` pending signup keyed by that session
  * id, marks the session paid, then GETs the success URL using a shared agent.
  *
- * This mirrors production: a logged-in user clicks Subscribe on /account, which
+ * In production, a logged-in user clicks Subscribe on /account, which
  * stores the pending signup; `/auth/checkout/success` then upserts an active
  * subscription on the pre-existing account (no account creation, no session
  * cookie, no verification email — those belong to `POST /signup`). */

@@ -20,12 +20,9 @@ export const EXCLUDE_PATTERNS: readonly RegExp[] = [
 	// operator never actually needs to re-save.
 	/(?:^|\/\/)(?:[a-z0-9-]+\.)*example\.com(?:[/:?#]|$)/i,
 	// Internal/private-network hostnames — these have no public DNS resolution
-	// so the crawler can never succeed. These suffixes (.local, .lan,
-	// .internal, .home.arpa) mirror what intake URL validation rejects;
-	// included here to drain legacy rows persisted before that validation
-	// tightened, plus any future row that slips past validation via a
-	// non-/save code path. Requires at least one label before the suffix so
-	// bare suffixes (which can't be real hostnames) still surface as failures.
+	// so the crawler can never succeed. Requires at least one label before the
+	// suffix so bare suffixes (which can't be real hostnames) still surface as
+	// failures.
 	/(?:^|\/\/)(?:[a-z0-9-]+\.)+(?:local|lan|internal|home\.arpa)(?:[/:?#]|$)/i,
 	// Singleton local hostnames, same rationale as the suffix entry above.
 	/(?:^|\/\/)(?:localhost|ip6-localhost|ip6-loopback)(?:[/:?#]|$)/i,
@@ -117,7 +114,7 @@ export const EXCLUDE_PATTERNS: readonly RegExp[] = [
 	/^https:\/\/medium\.com\/u\/8de1791147b8$/i,
 	// torvalds/linux has pull requests disabled, so this PR permalink 404s.
 	/^https:\/\/github\.com\/torvalds\/linux\/pull\/17#issuecomment-5654674$/i,
-	// (b) Domain no longer resolves — returns NXDOMAIN.
+	// (b) Domain does not resolve — returns NXDOMAIN.
 	/^https:\/\/divshot\.com\/blog\/opinion\/angular-2-crazy-like-a-fox\/$/i,
 	// (c) Dead hosting platform — java.net was retired; the host serves a
 	// terminal 503.
@@ -130,7 +127,7 @@ export const EXCLUDE_PATTERNS: readonly RegExp[] = [
 	/^https:\/\/www\.fastcodesign\.com\/3062292\/evidence\/brainstorming-is-dumb$/i,
 	/^https:\/\/wiki\.scratch\.mit\.edu\/wiki\/Help:Hard_Refresh$/i,
 	/^https:\/\/mindsetworks\.com\/index\.html$/i,
-	// The `/Science/` section pages (saved with both capitalisations) no longer
+	// The `/Science/` section pages (saved with both capitalisations) do not
 	// resolve — the fetch never lands.
 	/^https:\/\/www\.mindsetworks\.com\/[Ss]cience\/$/i,
 	// (e) Edge firewall / bot-wall that answers datacenter egress with a

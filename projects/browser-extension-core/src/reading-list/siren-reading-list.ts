@@ -23,7 +23,7 @@ import { pdfContentBody, htmlContentBody, base64ToBytes, type ContentBodyBuilder
 const SIREN_MEDIA_TYPE = "application/vnd.siren+json";
 
 // Cannot use node:assert in browser bundles — this minimal assert
-// provides the same asserts-value narrowing for runtime invariants.
+// narrows the asserts-value for runtime invariants.
 function assert(value: unknown, message: string): asserts value {
 	if (!value) throw new Error(message);
 }

@@ -11,7 +11,7 @@ export interface ReaderSlotInput {
 	readerPollUrl?: string;
 	extensionInstallUrl?: string;
 	/** Deployment origin, used to keep same-host in-article links in the reader
-	 * tab. Threaded down to the iframe builder. */
+	 * tab. */
 	appOrigin: string;
 	/* When true, the rendered slot carries `hx-swap-oob="outerHTML"` so HTMX
 	 * splices it into a sibling poll response and replaces the live slot. The
@@ -35,13 +35,10 @@ export interface ReaderSlotInput {
  * reframe as the failure variants — the user shouldn't sit watching a dead
  * spinner; the URL is recoverable on the source.
  */
-/* Tells readers used to "feels-right" LLM output that this pipeline prefers
- * visible OCR artifacts over confidently-wrong rewrites. Uses the shared
- * `isPDF` helper — the same predicate the backend uses with `contentType`
- * and `bodyBytes` signals at fetch time. Here
- * we only have the URL pre-fetch, so we pass the `pathname` signal alone;
- * `isPDF` treats `pathname` as the weakest signal and a false negative just
- * shows the standard pending message. */
+/* The message tells readers this pipeline prefers visible OCR artifacts over
+ * confidently-wrong rewrites. Pre-fetch we only have the URL, so we pass the
+ * pathname signal alone; a false negative just shows the standard pending
+ * message. */
 const PDF_LOADING_HINT =
 	"We optimise for accuracy over slop — low-quality PDFs may produce some optical scan gibberish.";
 

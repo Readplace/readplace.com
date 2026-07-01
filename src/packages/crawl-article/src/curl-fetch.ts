@@ -56,8 +56,8 @@ const defaultExecCurl: ExecCurl = (args, options, callback) => {
  * Fetch via curl-impersonate subprocess. curl-impersonate patches curl's TLS
  * ClientHello to match Chrome's fingerprint (JA3/JA4, ALPN, extensions order,
  * supported curves), bypassing CDN TLS-fingerprint blocks (Akamai BotManager,
- * Cloudflare) that reject both Node.js's undici and standard curl. Used as a
- * last-resort fallback when both Node's fetch and the HTTP/2 module are blocked.
+ * Cloudflare) that reject standard HTTP clients. Used as a last-resort fallback
+ * when standard clients are blocked.
  *
  * The execCurl dependency is injectable so tests can drive the full function
  * (argument construction, header title-casing, abort handling, error mapping,

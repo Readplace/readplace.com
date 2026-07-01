@@ -13,7 +13,7 @@ export type RenderPdfPageToPng = (params: {
 /**
  * Renders a single PDF page to PNG. Uses pdftoppm's `-f <n> -l <n>` to limit
  * rasterisation to one page, so a 200-page PDF still produces a single PNG.
- * `pageIndex` is 0-based to match the existing rasterizer convention; pdftoppm
+ * `pageIndex` is 0-based to match the rasterizer convention; pdftoppm
  * uses 1-based numbering, so this function adds 1 internally. The output
  * filename's zero-padding depends on the `-l` value, so we enumerate the temp
  * directory to find the produced PNG rather than guess the padding.

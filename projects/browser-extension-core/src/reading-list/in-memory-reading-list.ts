@@ -51,8 +51,8 @@ export function initInMemoryReadingList(): {
 
 	const invokeAction: InvokeAction = async ({ id, name }) => {
 		const item = items.get(id);
-		/** An item, or an action the store no longer advertises, reports not-found —
-		 * matching how a real client treats a withdrawn affordance. */
+		/** A missing item, or an action the store does not advertise, reports
+		 * not-found — matching how a real client treats a withdrawn affordance. */
 		if (!item?.actions.some((action) => action.name === name)) {
 			return { ok: false, reason: "not-found" };
 		}

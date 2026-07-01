@@ -67,12 +67,12 @@ export function initSaveLinkRawHtmlCommandHandler(deps: {
 					});
 					/* Parse errors are terminal on the same HTML — re-running yields the
 					 * same failure. Flip crawlStatus immediately so the reader shows a
-					 * failed state at t+0 instead of polling for ~90s until SQS exhausts
-					 * retries and the DLQ handler marks failed. Snapshot is read above
+					 * failed state right away instead of polling until SQS exhausts
+					 * retries and the failure path marks failed. Snapshot is read above
 					 * before this flip so otherTierStatus reflects tier-1's pre-flip
-					 * state. Re-throw preserves the SQS retry + DLQ observability path —
+					 * state. Re-throw preserves the SQS retry + observability path —
 					 * the surrounding try/catch routes the throw to batchItemFailures so
-					 * sibling records still settle under any future batchSize > 1. */
+					 * sibling records still settle when a batch holds more than one. */
 					await transitionAndPersist(markCrawlFailed, {
 						url: detail.url,
 						input: {

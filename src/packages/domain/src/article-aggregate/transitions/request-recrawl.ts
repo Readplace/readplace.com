@@ -15,8 +15,8 @@ export interface RequestRecrawlInput {
  * There is no parallel recrawl pipeline — the standard flow is the recovery
  * affordance.
  *
- * `summaryAutoHeal` is reset so a previously exhausted summary gets a fresh
- * retry budget when the new content lands.
+ * `summaryAutoHeal` is reset so a summary that has exhausted its retry
+ * budget gets a fresh one when the new content lands.
  *
  * Not idempotent by design: the operator is asking for the row to be
  * reprocessed from scratch.

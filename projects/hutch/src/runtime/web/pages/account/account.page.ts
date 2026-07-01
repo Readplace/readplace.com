@@ -209,13 +209,10 @@ export function initAccountRoutes(deps: AccountDependencies): Router {
 				});
 				res.redirect(303, buildAccountUrl());
 			} catch (err) {
-				/** Stripe rejected the saved card (declined, expired, fingerprint
-				 * mismatch, etc.). Rather than parking the user on a dead-end
-				 * error page, fall through to Stripe Checkout so they can enter
-				 * a new card. The fresh Checkout flow creates a brand-new
-				 * subscription on success; the previously cancelled subscription
-				 * stays orphan in Stripe and the user's row gets the new
-				 * subscriptionId — same shape as a first-time subscription. */
+									/** Stripe rejected the saved card (declined, expired, fingerprint
+					 * mismatch, etc.). Rather than parking the user on a dead-end
+					 * error page, fall through to Stripe Checkout so they can enter
+					 * a new card. */
 				deps.logger.warn(
 					"[subscribe/cancelled] one-click resub failed — falling back to checkout",
 					{ userId, error: err instanceof Error ? err.message : String(err) },

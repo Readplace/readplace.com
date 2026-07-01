@@ -58,14 +58,10 @@ export function initSelectMostCompleteContentHandler(deps: {
 				if (sources.length === 0) {
 					/* Throw so SQS redelivers after the visibility timeout. The
 					 * common cause is a transient race between the worker writing
-					 * `<tier>.html` + sidecar to S3 and EventBridge → SQS delivery
-					 * arriving here; a later retry from the same message converges
-					 * once both objects are listable. After maxReceiveCount the
-					 * message lands in the DLQ, where the DLQ handler flips
-					 * crawlStatus to "failed" and emits CrawlArticleFailedEvent.
-					 * Surrounding try/catch routes the throw to batchItemFailures
-					 * so sibling records still settle under any future
-					 * batchSize > 1. */
+					 * content to S3 and the event delivery arriving here; a later
+					 * retry from the same message converges once both objects are
+					 * listable. The surrounding try/catch routes the throw to
+					 * batchItemFailures so sibling records still settle. */
 					logger.warn("[SelectContent] no tier sources available, retrying", {
 						url: detail.url,
 					});
@@ -115,11 +111,10 @@ export function initSelectMostCompleteContentHandler(deps: {
 				}
 
 				const winnerSource = sources.find((source) => source.tier === winnerTier);
-				/* Invariant: the selector maps its label back to a tier in
-				 * the candidate list (single-source short-circuits to its own
-				 * tier; multi-source maps via labelForIndex). A miss here would
-				 * be a programming error in the selector — assert rather than
-				 * silently skip so the bug surfaces as a DLQ. */
+				/* Invariant: the selector always maps its label back to a tier
+				 * in the candidate set. A miss here would be a programming error
+				 * in the selector — assert rather than silently skip so the bug
+				 * surfaces as a DLQ. */
 				assert(winnerSource, `winner tier ${winnerTier} missing from candidate set`);
 
 				const currentTier = resolvedExistingTier ?? await findContentSourceTier(detail.url);

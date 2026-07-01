@@ -347,9 +347,9 @@ const saveLinkRawHtmlCommandLambda = new HutchLambda(SAVE_LINK_LAMBDA_NAMES.save
 	policies: [
 		...saveLinkRawHtmlCommandDynamodb.policies,
 		...pendingHtmlBucket.readPolicies("save-link-raw-html-command-pending-html"),
-		// Worker writes sources/tier-0.html + sidecar; a separate content-selection
+		// Worker writes the tier source and its sidecar; a separate content-selection
 		// stage owns canonical reads/writes and the Deepseek selector contest.
-		// readTierSnapshot HEAD-checks tier-0 source when logging the crawl outcome.
+		// Read access exists to HEAD-check the tier source when logging the crawl outcome.
 		...contentBucket.readPolicies("save-link-raw-html-command-content-read"),
 		...contentBucket.writePolicies("save-link-raw-html-command-s3"),
 		...renamePolicies(generateSummaryQueue.policies, "save-link-raw-html-command"),
@@ -935,14 +935,13 @@ const selectMostCompleteContentDynamodb = new HutchDynamoDBAccess("select-most-c
 });
 
 const selectMostCompleteContentLambda = new HutchLambda("select-most-complete-content", {
-	entryPoint: "./src/runtime/select-most-complete-content.main.ts",
-	outputDir: ".lib/select-most-complete-content",
-	assetDir: "./src",
-	// 3008 MB (this AWS account's Lambda memory ceiling — the 10240 MB
-	// platform max needs a quota increase AWS rejected with a 3008 cap):
-	// this finalize handler loads the full tier-source HTML from S3, so a
-	// page carrying many MB of inline base64 images OOM'd at 256 MB
-	// (#473, transformer-circuits.pub).
+			entryPoint: "./src/runtime/select-most-complete-content.main.ts",
+		outputDir: ".lib/select-most-complete-content",
+		assetDir: "./src",
+		// 3008 MB (this AWS account's Lambda memory ceiling — the 10240 MB
+		// platform max needs a quota increase AWS rejected with a 3008 cap):
+		// this finalize handler loads the full tier-source HTML from S3, so a
+		// page carrying many MB of inline base64 images OOM'd at 256 MB.
 	memorySize: 3008,
 	timeout: SELECT_CONTENT_TIMEOUTS.lambdaSeconds,
 	environment: {
@@ -972,10 +971,7 @@ const selectMostCompleteContentLambdaWithSQS = new HutchSQSBackedLambda("select-
 eventBus.subscribe(TierContentExtractedEvent, selectMostCompleteContentLambdaWithSQS);
 
 // --- SelectMostCompleteContent DLQ consumer ---
-// Mirrors save-link-dlq: flips crawlStatus to "failed" and publishes
-// CrawlArticleFailedEvent when a TierContentExtractedEvent message
-// exhausts maxReceiveCount on the selector queue.
-new HutchDLQEventHandler("select-most-complete-content-dlq", {
+	new HutchDLQEventHandler("select-most-complete-content-dlq", {
 	sourceQueue: selectMostCompleteContentQueue,
 	tableArn: articlesTableArn,
 	tableName: articlesTableName,
@@ -1118,7 +1114,7 @@ eventBus.subscribe(AnonymousLinkSavedEvent, anonymousLinkSavedLambdaWithSQS);
 // without touching the publisher. No dedicated DLQ event handler — the crawl has
 // already succeeded, so there is no terminal row state to flip on the rare
 // read-your-writes lag; the HutchSQSBackedLambda DLQ + email alarm is the
-// operator signal (mirrors link-saved).
+	// operator signal.
 
 const canonicalContentChangedQueue = new HutchSQS("canonical-content-changed", {
 	visibilityTimeoutSeconds: 60,
@@ -1170,7 +1166,7 @@ const recrawlLinkInitiatedLambda = new HutchLambda(SAVE_LINK_LAMBDA_NAMES.recraw
 	entryPoint: "./src/runtime/recrawl-link-initiated.main.ts",
 	outputDir: ".lib/recrawl-link-initiated",
 	assetDir: "./src",
-	// 1769 MB = 1 full vCPU. Mirrors save-link-command headroom.
+			// 1769 MB = 1 full vCPU.
 	memorySize: 1769,
 	timeout: 240,
 	layers: [curlImpersonateLayer.arn],
@@ -1225,14 +1221,13 @@ const recrawlContentExtractedDynamodb = new HutchDynamoDBAccess("recrawl-content
 });
 
 const recrawlContentExtractedLambda = new HutchLambda("recrawl-content-extracted", {
-	entryPoint: "./src/runtime/recrawl-content-extracted.main.ts",
-	outputDir: ".lib/recrawl-content-extracted",
-	assetDir: "./src",
-	// 3008 MB (this AWS account's Lambda memory ceiling — the 10240 MB
-	// platform max needs a quota increase AWS rejected with a 3008 cap):
-	// this finalize handler loads the full tier-source HTML from S3, so a
-	// page carrying many MB of inline base64 images OOM'd at 256 MB
-	// (#473, transformer-circuits.pub).
+			entryPoint: "./src/runtime/recrawl-content-extracted.main.ts",
+		outputDir: ".lib/recrawl-content-extracted",
+		assetDir: "./src",
+		// 3008 MB (this AWS account's Lambda memory ceiling — the 10240 MB
+		// platform max needs a quota increase AWS rejected with a 3008 cap):
+		// this finalize handler loads the full tier-source HTML from S3, so a
+		// page carrying many MB of inline base64 images OOM'd at 256 MB.
 	memorySize: 3008,
 	timeout: SELECT_CONTENT_TIMEOUTS.lambdaSeconds,
 	environment: {
@@ -1369,14 +1364,13 @@ const refreshContentExtractedDynamodb = new HutchDynamoDBAccess("refresh-content
 });
 
 const refreshContentExtractedLambda = new HutchLambda("refresh-content-extracted", {
-	entryPoint: "./src/runtime/refresh-content-extracted.main.ts",
-	outputDir: ".lib/refresh-content-extracted",
-	assetDir: "./src",
-	// 3008 MB (this AWS account's Lambda memory ceiling — the 10240 MB
-	// platform max needs a quota increase AWS rejected with a 3008 cap):
-	// this finalize handler loads the full tier-source HTML from S3, so a
-	// page carrying many MB of inline base64 images OOM'd at 256 MB
-	// (#473, transformer-circuits.pub).
+			entryPoint: "./src/runtime/refresh-content-extracted.main.ts",
+		outputDir: ".lib/refresh-content-extracted",
+		assetDir: "./src",
+		// 3008 MB (this AWS account's Lambda memory ceiling — the 10240 MB
+		// platform max needs a quota increase AWS rejected with a 3008 cap):
+		// this finalize handler loads the full tier-source HTML from S3, so a
+		// page carrying many MB of inline base64 images OOM'd at 256 MB.
 	memorySize: 3008,
 	timeout: SELECT_CONTENT_TIMEOUTS.lambdaSeconds,
 	environment: {
