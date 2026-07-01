@@ -6,6 +6,7 @@ import type { ArticleCrawl } from "@packages/provider-contracts/article-crawl";
 import type { GeneratedSummary } from "@packages/provider-contracts/article-summary";
 import type { PageBody } from "@packages/web-shell";
 import { renderArticleBody } from "../../shared/article-body/article-body.component";
+import { RegularReader } from "../../shared/article-body/reader-actions/reader-actions.component";
 import type { ProgressTick } from "@packages/domain/article";
 import { RECRAWL_STYLES } from "./recrawl.styles";
 
@@ -77,6 +78,7 @@ export interface AdminRecrawlPageInput {
  * column and surface as "(legacy)".
  */
 export function AdminRecrawlPage(input: AdminRecrawlPageInput): PageBody {
+	const actions = RegularReader({ actionBtns: {} });
 	const innerContent = renderArticleBody({
 		title: input.metadata.title,
 		siteName: input.metadata.siteName,
@@ -91,6 +93,8 @@ export function AdminRecrawlPage(input: AdminRecrawlPageInput): PageBody {
 		progress: input.progress,
 		extensionInstallUrl: input.extensionInstallUrl,
 		appOrigin: input.appOrigin,
+		topActionsHtml: actions.top.to("text/html").body,
+		bottomActionsHtml: actions.bottom.to("text/html").body,
 	});
 
 	const tierBadge = renderTierBadge(input.contentSourceTier);

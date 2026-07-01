@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import express from "express";
 import { authenticatedUserIdFrom } from "@packages/domain/user";
-import { type ChangelogBanner, initBase, isChangelogVersion } from "@packages/web-shell";
+import { type ChangelogBanner, initBase, isChangelogVersion, GlobalNav } from "@packages/web-shell";
 import type { ResolveLogin } from "@packages/web-session";
 import { JSDOM } from "jsdom";
 import request from "supertest";
@@ -21,7 +21,7 @@ const authedResolver: ResolveLogin = async (cookieHeader) =>
 		? { isAuthenticated: true, userId: authenticatedUserIdFrom("user-1"), emailVerified: true }
 		: { isAuthenticated: false };
 
-const app = createBlogApp({ staticBaseUrl: "", liveReload: false }, { resolveLogin: guestResolver });
+const app = createBlogApp({ staticBaseUrl: "", liveReload: false, renderNav: GlobalNav }, { resolveLogin: guestResolver });
 const blogPosts = initBlogPosts();
 const firstPost = blogPosts.getAllPosts()[0];
 
@@ -45,7 +45,7 @@ function appWithChangelogBanner(banner: ChangelogBanner | undefined) {
 	};
 	const expressApp = express();
 	expressApp.disable("x-powered-by");
-	const base = initBase({ staticBaseUrl: "", liveReload: false });
+	const base = initBase({ staticBaseUrl: "", liveReload: false, renderNav: GlobalNav });
 	expressApp.use(
 		"/blog",
 		initBlogRoutes({ blogPosts: blogPostsStub, base, resolveLogin: guestResolver }),
@@ -58,7 +58,7 @@ function appWithChangelogBanner(banner: ChangelogBanner | undefined) {
 function appWithResolver(resolveLogin: ResolveLogin) {
 	const expressApp = express();
 	expressApp.disable("x-powered-by");
-	const base = initBase({ staticBaseUrl: "", liveReload: false });
+	const base = initBase({ staticBaseUrl: "", liveReload: false, renderNav: GlobalNav });
 	expressApp.use("/blog", initBlogRoutes({ blogPosts, base, resolveLogin }));
 	return expressApp;
 }
@@ -397,7 +397,7 @@ describe("changelog banner on /blog pages", () => {
 		};
 		const expressApp = express();
 		expressApp.disable("x-powered-by");
-		const base = initBase({ staticBaseUrl: "", liveReload: false });
+		const base = initBase({ staticBaseUrl: "", liveReload: false, renderNav: GlobalNav });
 		expressApp.use(
 			"/blog",
 			initBlogRoutes({ blogPosts: blogPostsStub, base, resolveLogin: guestResolver }),

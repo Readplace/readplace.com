@@ -23,7 +23,7 @@ import { injectPageStylesIntoMain } from "./inject-page-styles";
 import { htmlToMarkdown } from "./html-to-markdown";
 import { MarkdownPage } from "./markdown-page";
 import { buildMarkdownFrontmatter } from "./markdown-frontmatter";
-import { Nav } from "./nav.component";
+import type { NavProps } from "./nav.component";
 import type { PageBody, SeoMetadata } from "./page-body.types";
 import { render } from "./render";
 import {
@@ -188,7 +188,13 @@ export interface BaseConfig {
 	 * WebMCP tool registration) without each page opting in, while a site that
 	 * omits it — like the blog, which ships no such bundle — stays untouched. */
 	siteScripts?: string;
+	/** The site's nav renderer. Mandatory (no default) so every shell states its
+	 * nav explicitly: a site with a nav passes `GlobalNav`, a bare shell passes
+	 * `GlobalEmptyNav`. */
+	renderNav: RenderSiteNav;
 }
+
+export type RenderSiteNav = (props: NavProps) => string;
 
 export type RenderBase = (body: PageBody, state: BannerState) => Component;
 
@@ -247,7 +253,7 @@ export function initBase(config: BaseConfig): RenderBase {
 				extensionInstalled: state.extensionInstalled ?? false,
 			}),
 			bodyClass: body.bodyClass,
-			header: Nav({
+			header: config.renderNav({
 				variant: headerVariant,
 				isAuthenticated: state.isAuthenticated,
 				accessIsReadOnly: state.accessIsReadOnly ?? false,

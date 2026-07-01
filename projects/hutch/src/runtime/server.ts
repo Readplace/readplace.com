@@ -119,6 +119,10 @@ import { SESSION_COOKIE_NAME } from "@packages/web-session";
 import { isHttpsOrigin } from "./web/cookie-options";
 import { initForgotPasswordRoutes } from "./web/auth/forgot-password.page";
 import { initQueueRoutes } from "./web/pages/queue/queue.page";
+import {
+	ChromelessReader,
+	RegularReader,
+} from "./web/shared/article-body/reader-actions/reader-actions.component";
 import { QUEUE_PATH } from "./web/pages/queue/queue.url";
 import { initImportSessionRoutes } from "./web/pages/import/import.page";
 import type { ImportSessionStore } from "@packages/domain/import-session";
@@ -874,6 +878,8 @@ export function createApp(dependencies: AppDependencies): Express {
 		refreshArticleIfStale: deps.refreshArticleIfStale,
 		publishUpdateFetchTimestamp: deps.publishUpdateFetchTimestamp,
 		readArticleContent: deps.readArticleContent,
+		regularReader: RegularReader,
+		chromelessReader: ChromelessReader,
 		httpErrorMessageMapping: deps.httpErrorMessageMapping,
 		getIosAppSignals: deps.getIosAppSignals,
 		recordIosAnyActivity: deps.recordIosAnyActivity,

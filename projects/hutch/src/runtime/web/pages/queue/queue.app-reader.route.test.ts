@@ -99,7 +99,7 @@ describe("Queue chromeless app reader (GET /queue/:id/app)", () => {
 		expect(doc.querySelector("[data-test-back-bottom-link]")?.getAttribute("href")).toBe("readplace://reader/close");
 	});
 
-	it("keeps htmx and both mark-read forms so mark-as-read still bridges to the app", async () => {
+	it("keeps htmx and the top mark-read form but drops the bottom one so mark-as-read still bridges to the app", async () => {
 		const harness = buildHarness();
 		const agent = await loginAgent(harness.server, harness.auth);
 		const articleId = await saveAndGetArticleId(agent, "https://example.com/app-markread");
@@ -109,14 +109,25 @@ describe("Queue chromeless app reader (GET /queue/:id/app)", () => {
 		expect(doc.querySelector('script[src*="htmx.org"]')).not.toBe(null);
 
 		const topForm = doc.querySelector("[data-test-mark-read-form]");
-		const bottomForm = doc.querySelector("[data-test-mark-read-bottom-form]");
 		assert(topForm, "top mark-read form must be rendered");
-		assert(bottomForm, "bottom mark-read form must be rendered");
 		expect(topForm.getAttribute("action")).toContain(`/queue/${articleId}/status`);
-		expect(bottomForm.getAttribute("action")).toContain(`/queue/${articleId}/status`);
 		expect(
 			topForm.querySelector('input[type="hidden"][name="status"]')?.getAttribute("value"),
 		).toBe("read");
+
+		const bottomSlot = doc.querySelector("[data-test-mark-read-bottom-slot]");
+		assert(bottomSlot, "bottom mark-read slot must still render as an empty hidden slot");
+		expect(bottomSlot.classList.contains("article-body__mark-read-slot--hidden")).toBe(true);
+	});
+
+	it("marks the body chromeless so the reader CSS can pin the top actions", async () => {
+		const harness = buildHarness();
+		const agent = await loginAgent(harness.server, harness.auth);
+		const articleId = await saveAndGetArticleId(agent, "https://example.com/app-chromeless-body");
+
+		const doc = new JSDOM((await agent.get(`/queue/${articleId}/app`)).text).window.document;
+		expect(doc.body.classList.contains("page-reader")).toBe(true);
+		expect(doc.body.classList.contains("page-reader--chromeless")).toBe(true);
 	});
 
 	it("keeps the reader extras: AI summary, progress bar, share balloon, and View original", async () => {

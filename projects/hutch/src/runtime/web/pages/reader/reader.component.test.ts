@@ -9,6 +9,7 @@ import type { SavedArticle } from "@packages/domain/article";
 import { UserIdSchema } from "@packages/domain/user";
 import { Base } from "../../base.component";
 import { ReaderPage } from "./reader.component";
+import { RegularReader } from "../../shared/article-body/reader-actions/reader-actions.component";
 
 const userId = UserIdSchema.parse("00000000000000000000000000000001");
 const articleId = ReaderArticleHashIdSchema.parse(
@@ -44,7 +45,7 @@ const TEST_BACK_LINK = {
 
 describe("ReaderPage", () => {
 	it("renders the share balloon wrap so client init can attach to it", () => {
-		const html = Base(ReaderPage(makeArticle(), { appOrigin: DEFAULT_APP_ORIGIN, backLink: TEST_BACK_LINK }), {
+		const html = Base(ReaderPage(makeArticle(), { appOrigin: DEFAULT_APP_ORIGIN, backLink: TEST_BACK_LINK, renderActions: RegularReader }), {
 			isAuthenticated: true,
 			emailVerified: undefined,
 		}).to("text/html").body;
@@ -56,7 +57,7 @@ describe("ReaderPage", () => {
 
 	it("points both back links at the supplied backLink hrefs", () => {
 		const html = Base(
-			ReaderPage(makeArticle(), { appOrigin: DEFAULT_APP_ORIGIN, backLink: TEST_BACK_LINK }),
+			ReaderPage(makeArticle(), { appOrigin: DEFAULT_APP_ORIGIN, backLink: TEST_BACK_LINK, renderActions: RegularReader }),
 			{ isAuthenticated: true, emailVerified: undefined },
 		).to("text/html").body;
 		const doc = new JSDOM(html).window.document;
@@ -78,6 +79,7 @@ describe("ReaderPage", () => {
 				summary: { status: "ready", summary: "Key points." },
 				crawl: { status: "ready" },
 				backLink: TEST_BACK_LINK,
+				renderActions: RegularReader,
 			}),
 			{ isAuthenticated: true, emailVerified: undefined },
 		).to("text/html").body;
@@ -95,6 +97,7 @@ describe("ReaderPage", () => {
 				summary: { status: "ready", summary: "Key points." },
 				crawl: { status: "ready" },
 				backLink: TEST_BACK_LINK,
+				renderActions: RegularReader,
 			}),
 			{ isAuthenticated: true, emailVerified: undefined },
 		).to("text/html").body;
@@ -112,7 +115,7 @@ describe("ReaderPage", () => {
 		const article = makeArticle({
 			userId: UserIdSchema.parse("abcdef0123456789abcdef0123456789"),
 		});
-		const html = Base(ReaderPage(article, { appOrigin: DEFAULT_APP_ORIGIN, backLink: TEST_BACK_LINK }), {
+		const html = Base(ReaderPage(article, { appOrigin: DEFAULT_APP_ORIGIN, backLink: TEST_BACK_LINK, renderActions: RegularReader }), {
 			isAuthenticated: true,
 			emailVerified: undefined,
 		}).to("text/html").body;
@@ -139,7 +142,7 @@ describe("ReaderPage", () => {
 				'<a href="https://readplace.com/queue" target="_blank">my queue</a>' +
 				'<a href="https://example.com/other" target="_blank">elsewhere</a>',
 		});
-		const html = Base(ReaderPage(article, { appOrigin: "https://readplace.com", backLink: TEST_BACK_LINK }), {
+		const html = Base(ReaderPage(article, { appOrigin: "https://readplace.com", backLink: TEST_BACK_LINK, renderActions: RegularReader }), {
 			isAuthenticated: true,
 			emailVerified: undefined,
 		}).to("text/html").body;
@@ -166,7 +169,7 @@ describe("ReaderPage", () => {
 
 	it("renders the share-balloon URLs against the supplied appOrigin, not a hardcoded host", () => {
 		const html = Base(
-			ReaderPage(makeArticle(), { appOrigin: "https://staging.readplace.com", backLink: TEST_BACK_LINK }),
+			ReaderPage(makeArticle(), { appOrigin: "https://staging.readplace.com", backLink: TEST_BACK_LINK, renderActions: RegularReader }),
 			{ isAuthenticated: true, emailVerified: undefined },
 		).to("text/html").body;
 		const doc = new JSDOM(html).window.document;

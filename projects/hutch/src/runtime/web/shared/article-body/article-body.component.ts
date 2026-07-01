@@ -18,13 +18,6 @@ const ARTICLE_BODY_TEMPLATE = readFileSync(
 	"utf-8",
 );
 
-export interface MarkReadAction {
-	position: "top" | "bottom";
-	postUrl: string;
-	label: string;
-	fields: ReadonlyArray<{ name: string; value: string }>;
-}
-
 export interface ArticleBodyInput {
 	title: string;
 	siteName: string;
@@ -40,8 +33,8 @@ export interface ArticleBodyInput {
 	 * internal reader, where summary open/close is recorded; omitted elsewhere. */
 	summaryToggleUrl?: string;
 	audioEnabled?: boolean;
-	backLink?: { topHref: string; bottomHref: string; label: string };
-	markReadActions?: ReadonlyArray<MarkReadAction>;
+	topActionsHtml: string;
+	bottomActionsHtml: string;
 	extensionInstallUrl?: string;
 	/**
 	 * Single unified progress tick. When omitted (everything terminal, or
@@ -74,30 +67,21 @@ export function renderArticleBody(input: ArticleBodyInput): string {
 
 	const progressBarHtml = renderProgressBar({ progress: input.progress });
 
-	const topMarkRead = input.markReadActions?.find(a => a.position === "top");
-	const bottomMarkRead = input.markReadActions?.find(a => a.position === "bottom");
-
 	const headerHtml = renderArticleHeader({
 		title: input.title,
 		siteName: input.siteName,
 		estimatedReadTime: input.estimatedReadTime,
 		url: input.url,
-		backLink: input.backLink
-			? { href: input.backLink.topHref, label: input.backLink.label }
-			: undefined,
-		markReadAction: topMarkRead
-			? { postUrl: topMarkRead.postUrl, label: topMarkRead.label, fields: topMarkRead.fields }
-			: undefined,
 	});
 
 	return render(ARTICLE_BODY_TEMPLATE, {
+		topActionsHtml: input.topActionsHtml,
 		headerHtml,
 		readerSlotHtml,
 		summarySlotHtml,
 		progressBarHtml,
 		audioEnabled: input.audioEnabled,
 		staticBaseUrl: STATIC_BASE_URL,
-		backLink: input.backLink,
-		bottomMarkReadAction: bottomMarkRead,
+		bottomActionsHtml: input.bottomActionsHtml,
 	});
 }

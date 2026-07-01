@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import type { Server } from "node:http";
 import { authenticatedUserIdFrom } from "@packages/domain/user";
-import { initBase } from "@packages/web-shell";
+import { initBase, GlobalNav } from "@packages/web-shell";
 import type { ResolveLogin } from "@packages/web-session";
 import { JSDOM } from "jsdom";
 import request from "supertest";
@@ -30,7 +30,7 @@ const authedResolver: ResolveLogin = async (cookieHeader) =>
 
 function makeServer(overrides?: { appOrigin?: string; resolveLogin?: ResolveLogin }): Server {
 	const app = express();
-	const base = initBase({ staticBaseUrl: "", liveReload: false });
+	const base = initBase({ staticBaseUrl: "", liveReload: false, renderNav: GlobalNav });
 	app.use(
 		"/embed",
 		initEmbedRoutes({

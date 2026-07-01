@@ -36,7 +36,14 @@ function escalationClassFor(trial: TrialDisplay | undefined): string {
 	return "expired";
 }
 
-export function Nav(props: NavProps): string {
+/** Renders no site nav, for a shell that intentionally has none (a bare embed or
+ * other minimal surface) — the Base-shell analog of the chromeless page's absent
+ * nav. Injected explicitly so "no nav" is a deliberate choice, not a missing dep. */
+export function GlobalEmptyNav(_props: NavProps): string {
+	return "";
+}
+
+export function GlobalNav(props: NavProps): string {
 	const trial = props.trialCounter;
 	return render(NAV_TEMPLATE, {
 		transparent: props.variant === "transparent",

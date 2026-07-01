@@ -3,7 +3,7 @@ import express from "express";
 import serverless from "serverless-http";
 import { HutchLogger, consoleLogger } from "@packages/hutch-logger";
 import { createDynamoDocumentClient } from "@packages/hutch-storage-client";
-import { initBase } from "@packages/web-shell";
+import { initBase, GlobalNav } from "@packages/web-shell";
 import { initGetSessionUserId, initResolveLogin } from "@packages/web-session";
 import { initEmbedRoutes } from "./embed/embed.page";
 import { getEnv, requireEnv } from "@packages/require-env";
@@ -14,6 +14,7 @@ const logger = HutchLogger.from(consoleLogger);
 const base = initBase({
 	staticBaseUrl: requireEnv("STATIC_BASE_URL"),
 	liveReload: Boolean(getEnv("LIVERELOAD")),
+	renderNav: GlobalNav,
 });
 
 const getSessionUserId = initGetSessionUserId({

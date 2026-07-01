@@ -39,56 +39,12 @@ describe("renderArticleHeader (inline)", () => {
 		expect(originalLink.getAttribute("href")).toBe("https://example.com/post");
 	});
 
-	it("renders the back-slot in its visible state when backLink is provided", () => {
-		const doc = parse(renderArticleHeader({
-			...baseInput,
-			backLink: { href: "/queue", label: "← Back to queue" },
-		}));
-
-		const slot = doc.querySelector("[data-test-back-slot]");
-		assert(slot, "back slot must be rendered");
-		expect(slot.classList.contains("article-body__back-slot--visible")).toBe(true);
-		const link = slot.querySelector("[data-test-back-link]");
-		assert(link, "back link must be rendered when backLink is provided");
-		expect(link.getAttribute("href")).toBe("/queue");
-		expect(link.textContent).toBe("← Back to queue");
-	});
-
-	it("renders the back-slot hidden (rather than absent) when backLink is omitted, so the visible/hidden swap is a class toggle and not a tree mutation", () => {
+	it("no longer renders the top action bar inside the header (it moved to reader-actions)", () => {
 		const doc = parse(renderArticleHeader(baseInput));
 
-		const slot = doc.querySelector("[data-test-back-slot]");
-		assert(slot, "back slot must always be present");
-		expect(slot.classList.contains("article-body__back-slot--hidden")).toBe(true);
-	});
-
-	it("renders a mark-read form in the top slot when markReadAction is provided", () => {
-		const doc = parse(renderArticleHeader({
-			...baseInput,
-			markReadAction: {
-				postUrl: "/queue/abc/status?utm_content=mark-read-top",
-				label: "Mark as read",
-				fields: [{ name: "status", value: "read" }],
-			},
-		}));
-
-		const slot = doc.querySelector("[data-test-mark-read-slot]");
-		assert(slot, "top mark-read slot must be rendered");
-		expect(slot.classList.contains("article-body__mark-read-slot--visible")).toBe(true);
-		const form = slot.querySelector("[data-test-mark-read-form]");
-		assert(form, "top mark-read form must be rendered");
-		expect(form.getAttribute("action")).toBe("/queue/abc/status?utm_content=mark-read-top");
-		const hidden = form.querySelector('input[type="hidden"][name="status"]');
-		assert(hidden, "form must carry the status hidden input");
-		expect(hidden.getAttribute("value")).toBe("read");
-	});
-
-	it("renders the mark-read slot hidden when markReadAction is omitted", () => {
-		const doc = parse(renderArticleHeader(baseInput));
-
-		const slot = doc.querySelector("[data-test-mark-read-slot]");
-		assert(slot, "mark-read slot must always be present");
-		expect(slot.classList.contains("article-body__mark-read-slot--hidden")).toBe(true);
+		const header = doc.querySelector("#article-header");
+		assert(header, "header must render");
+		expect(header.querySelector(".article-body__actions--top")).toBe(null);
 	});
 });
 
@@ -100,17 +56,6 @@ describe("renderArticleHeaderOob", () => {
 		assert(header, "OOB header must be rendered");
 		expect(header.getAttribute("hx-swap-oob")).toBe("outerHTML");
 		expect(doc.querySelector("[data-test-reader-title]")?.textContent).toBe("Hello World");
-	});
-
-	it("preserves the back-slot visibility class in the OOB form so a poll-driven header swap on /queue/:id/view does not erase the back-link styling", () => {
-		const doc = parse(renderArticleHeaderOob({
-			...baseInput,
-			backLink: { href: "/queue", label: "← Back to queue" },
-		}));
-
-		const slot = doc.querySelector("[data-test-back-slot]");
-		assert(slot, "back slot must be rendered in the OOB form");
-		expect(slot.classList.contains("article-body__back-slot--visible")).toBe(true);
 	});
 });
 

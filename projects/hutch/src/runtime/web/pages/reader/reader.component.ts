@@ -8,6 +8,10 @@ import { render } from "@packages/web-shell";
 import type { PageBody } from "@packages/web-shell";
 
 import { renderArticleBody } from "../../shared/article-body/article-body.component";
+import type {
+	MarkReadAction,
+	RenderReaderActions,
+} from "../../shared/article-body/reader-actions/reader-actions.component";
 import type { ProgressTick } from "@packages/domain/article";
 import {
 	SHARE_BALLOON_SCRIPT,
@@ -32,7 +36,7 @@ export function formatReaderDocumentTitle(articleTitle: string): string {
 	return `${articleTitle} — Readplace Reader`;
 }
 
-export function markReadPostUrl(articleId: string, slot: "top" | "bottom"): string {
+function markReadPostUrl(articleId: string, slot: "top" | "bottom"): string {
 	const params = new URLSearchParams([
 		["utm_source", "reader"],
 		["utm_medium", "internal"],
@@ -53,12 +57,32 @@ export function ReaderPage(
 		audioEnabled?: boolean;
 		extensionInstallUrl?: string;
 		backLink: { topHref: string; bottomHref: string; label: string };
+		/** Injected per variant: the standard (top+bottom) or chromeless (sticky
+		 * top, back-only bottom) reader action bars. The variant also carries the
+		 * page body class, so the sticky-toolbar markup and its content offset are
+		 * decided by one value and can never drift apart. */
+		renderActions: RenderReaderActions;
 	},
 ): PageBody {
 	const articleId = article.id.value;
 	const isRead = article.status === "read";
 	const markReadLabel = isRead ? "Mark as unread" : "Mark as read";
 	const markReadStatus = isRead ? "unread" : "read";
+	const markReadActions: MarkReadAction[] = [
+		{
+			position: "top",
+			postUrl: markReadPostUrl(articleId, "top"),
+			label: markReadLabel,
+			fields: [{ name: "status", value: markReadStatus }],
+		},
+		{
+			position: "bottom",
+			postUrl: markReadPostUrl(articleId, "bottom"),
+			label: markReadLabel,
+			fields: [{ name: "status", value: markReadStatus }],
+		},
+	];
+	const actions = options.renderActions({ actionBtns: { backLink: options.backLink, markReadActions } });
 	const innerContent = renderArticleBody({
 		title: article.metadata.title,
 		siteName: article.metadata.siteName,
@@ -74,21 +98,8 @@ export function ReaderPage(
 		progress: options.progress,
 		audioEnabled: options.audioEnabled,
 		appOrigin: options.appOrigin,
-		backLink: options.backLink,
-		markReadActions: [
-			{
-				position: "top",
-				postUrl: markReadPostUrl(articleId, "top"),
-				label: markReadLabel,
-				fields: [{ name: "status", value: markReadStatus }],
-			},
-			{
-				position: "bottom",
-				postUrl: markReadPostUrl(articleId, "bottom"),
-				label: markReadLabel,
-				fields: [{ name: "status", value: markReadStatus }],
-			},
-		],
+		topActionsHtml: actions.top.to("text/html").body,
+		bottomActionsHtml: actions.bottom.to("text/html").body,
 		extensionInstallUrl: options.extensionInstallUrl,
 	});
 	const shareBalloon = renderShareBalloon({
@@ -108,7 +119,7 @@ export function ReaderPage(
 			robots: "noindex, nofollow",
 		},
 		styles: READER_STYLES,
-		bodyClass: "page-reader",
+		bodyClass: actions.bodyClass,
 		content: { html: content },
 		scripts: SHARE_BALLOON_SCRIPT + PROGRESS_BAR_SCRIPT + READER_IFRAME_SCRIPT + SUMMARY_TOGGLE_SCRIPT,
 	};

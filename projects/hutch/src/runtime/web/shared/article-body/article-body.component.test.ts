@@ -9,6 +9,8 @@ const baseInput = {
 	estimatedReadTime: 3 as Minutes,
 	url: "https://example.com/post",
 	appOrigin: "https://readplace.com",
+	topActionsHtml: "",
+	bottomActionsHtml: "",
 };
 
 function parse(html: string) {
@@ -93,190 +95,19 @@ describe("renderArticleBody", () => {
 		).toBe("Generating summary");
 	});
 
-	it("renders the back link inside the back slot when backLink is provided", () => {
+	it("splices the injected action bars above the header and below the reader slot", () => {
 		const html = renderArticleBody({
 			...baseInput,
 			content: "<p>Body</p>",
-			backLink: {
-				topHref: "/queue?utm_content=back-top",
-				bottomHref: "/queue?utm_content=back-bottom",
-				label: "← Back",
-			},
+			topActionsHtml: '<div data-test-top-actions>top</div>',
+			bottomActionsHtml: '<div data-test-bottom-actions>bottom</div>',
 		});
 		const doc = parse(html);
 
-		const slot = doc.querySelector("[data-test-back-slot]");
-		assert(slot, "back slot must be rendered");
-		expect(slot.classList.contains("article-body__back-slot--visible")).toBe(
-			true,
-		);
-		const link = slot.querySelector("[data-test-back-link]");
-		assert(link, "back link must be rendered when backLink is provided");
-		expect(link.getAttribute("href")).toBe("/queue?utm_content=back-top");
-		expect(link.textContent).toBe("← Back");
-	});
-
-	it("marks the back slot as hidden when backLink is not provided", () => {
-		const html = renderArticleBody({
-			...baseInput,
-			content: "<p>Body</p>",
-		});
-		const doc = parse(html);
-
-		const slot = doc.querySelector("[data-test-back-slot]");
-		assert(slot, "back slot must be rendered");
-		expect(slot.classList.contains("article-body__back-slot--hidden")).toBe(
-			true,
-		);
-	});
-
-	it("renders the bottom back link inside the bottom back slot when backLink is provided", () => {
-		const html = renderArticleBody({
-			...baseInput,
-			content: "<p>Body</p>",
-			backLink: {
-				topHref: "/queue?utm_content=back-top",
-				bottomHref: "/queue?utm_content=back-bottom",
-				label: "← Back",
-			},
-		});
-		const doc = parse(html);
-
-		const slot = doc.querySelector("[data-test-back-bottom-slot]");
-		assert(slot, "bottom back slot must be rendered");
-		expect(
-			slot.classList.contains("article-body__back-bottom-slot--visible"),
-		).toBe(true);
-		const link = slot.querySelector("[data-test-back-bottom-link]");
-		assert(link, "bottom back link must be rendered when backLink is provided");
-		expect(link.getAttribute("href")).toBe("/queue?utm_content=back-bottom");
-		expect(link.textContent).toBe("← Back");
-	});
-
-	it("marks the bottom back slot as hidden when backLink is not provided", () => {
-		const html = renderArticleBody({
-			...baseInput,
-			content: "<p>Body</p>",
-		});
-		const doc = parse(html);
-
-		const slot = doc.querySelector("[data-test-back-bottom-slot]");
-		assert(slot, "bottom back slot must be rendered");
-		expect(
-			slot.classList.contains("article-body__back-bottom-slot--hidden"),
-		).toBe(true);
-	});
-
-	it("renders independent hrefs for the top and bottom back links so they can carry distinct UTM markers", () => {
-		const html = renderArticleBody({
-			...baseInput,
-			content: "<p>Body</p>",
-			backLink: {
-				topHref: "/queue?utm_source=reader&utm_content=back-top",
-				bottomHref: "/queue?utm_source=reader&utm_content=back-bottom",
-				label: "← Back to queue",
-			},
-		});
-		const doc = parse(html);
-
-		const topLink = doc.querySelector("[data-test-back-link]");
-		const bottomLink = doc.querySelector("[data-test-back-bottom-link]");
-		assert(topLink, "top back link must be rendered");
-		assert(bottomLink, "bottom back link must be rendered");
-		expect(topLink.getAttribute("href")).toBe(
-			"/queue?utm_source=reader&utm_content=back-top",
-		);
-		expect(bottomLink.getAttribute("href")).toBe(
-			"/queue?utm_source=reader&utm_content=back-bottom",
-		);
-	});
-
-	it("renders a mark-read form in the top slot when markReadActions is provided", () => {
-		const html = renderArticleBody({
-			...baseInput,
-			content: "<p>Body</p>",
-			markReadActions: [
-				{
-					position: "top",
-					postUrl: "/queue/abc/status?utm_content=mark-read-top",
-					label: "Mark as read",
-					fields: [{ name: "status", value: "read" }],
-				},
-				{
-					position: "bottom",
-					postUrl: "/queue/abc/status?utm_content=mark-read-bottom",
-					label: "Mark as read",
-					fields: [{ name: "status", value: "read" }],
-				},
-			],
-		});
-		const doc = parse(html);
-
-		const slot = doc.querySelector("[data-test-mark-read-slot]");
-		assert(slot, "top mark-read slot must be rendered");
-		expect(slot.classList.contains("article-body__mark-read-slot--visible")).toBe(true);
-
-		const form = slot.querySelector("[data-test-mark-read-form]");
-		assert(form, "top mark-read form must be rendered");
-		expect(form.getAttribute("method")).toMatch(/post/i);
-		expect(form.getAttribute("action")).toBe("/queue/abc/status?utm_content=mark-read-top");
-		const hidden = form.querySelector('input[type="hidden"][name="status"]');
-		assert(hidden, "form must carry the status hidden input");
-		expect(hidden.getAttribute("value")).toBe("read");
-		const button = form.querySelector("[data-test-mark-read-btn]");
-		assert(button, "top mark-read button must be rendered");
-		expect(button.textContent).toBe("Mark as read");
-	});
-
-	it("renders a mark-read form in the bottom slot when markReadActions is provided", () => {
-		const html = renderArticleBody({
-			...baseInput,
-			content: "<p>Body</p>",
-			markReadActions: [
-				{
-					position: "top",
-					postUrl: "/queue/abc/status?utm_content=mark-read-top",
-					label: "Mark as read",
-					fields: [{ name: "status", value: "read" }],
-				},
-				{
-					position: "bottom",
-					postUrl: "/queue/abc/status?utm_content=mark-read-bottom",
-					label: "Mark as read",
-					fields: [{ name: "status", value: "read" }],
-				},
-			],
-		});
-		const doc = parse(html);
-
-		const slot = doc.querySelector("[data-test-mark-read-bottom-slot]");
-		assert(slot, "bottom mark-read slot must be rendered");
-		expect(
-			slot.classList.contains("article-body__mark-read-slot--visible"),
-		).toBe(true);
-
-		const form = slot.querySelector("[data-test-mark-read-bottom-form]");
-		assert(form, "bottom mark-read form must be rendered");
-		expect(form.getAttribute("action")).toBe(
-			"/queue/abc/status?utm_content=mark-read-bottom",
-		);
-	});
-
-	it("hides both mark-read slots when markReadActions is not provided", () => {
-		const html = renderArticleBody({
-			...baseInput,
-			content: "<p>Body</p>",
-		});
-		const doc = parse(html);
-
-		const top = doc.querySelector("[data-test-mark-read-slot]");
-		const bottom = doc.querySelector("[data-test-mark-read-bottom-slot]");
-		assert(top, "top mark-read slot must be rendered");
-		assert(bottom, "bottom mark-read slot must be rendered");
-		expect(top.classList.contains("article-body__mark-read-slot--hidden")).toBe(true);
-		expect(
-			bottom.classList.contains("article-body__mark-read-slot--hidden"),
-		).toBe(true);
+		assert(doc.querySelector("[data-test-top-actions]"), "top actions must be spliced in");
+		assert(doc.querySelector("[data-test-bottom-actions]"), "bottom actions must be spliced in");
+		expect(html.indexOf("data-test-top-actions")).toBeLessThan(html.indexOf('id="article-header"'));
+		expect(html.indexOf("data-test-bottom-actions")).toBeGreaterThan(html.indexOf("data-reader-iframe"));
 	});
 
 	it("marks the audio slot as visible when audioEnabled is true", () => {
