@@ -125,18 +125,12 @@ describe("formatTrialDisplay", () => {
 	});
 
 	it("renders cancellation-scheduled as 'Subscription ends on <date>' so the user sees the cutoff date in the header", () => {
-		const endsAtIso = "2026-06-22T10:00:00.000Z";
-		const expectedDate = new Date(endsAtIso).toLocaleDateString("en-US", {
-			day: "numeric",
-			month: "short",
-			year: "numeric",
-		});
 		expect(
 			formatTrialDisplay({
 				state: "cancellation-scheduled",
-				endsAtIso,
+				endsAtIso: "2026-06-22T10:00:00.000Z",
 				serverNowIso: "2026-05-23T12:00:00.000Z",
 			}),
-		).toBe(`Subscription ends on ${expectedDate}`);
+		).toBe("Subscription ends on Jun 22, 2026");
 	});
 });

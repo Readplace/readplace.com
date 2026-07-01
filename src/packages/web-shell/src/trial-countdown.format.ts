@@ -58,6 +58,7 @@ function formatEndDate(endsAtIso: string): string {
 		day: "numeric",
 		month: "short",
 		year: "numeric",
+		timeZone: "UTC",
 	});
 }
 
