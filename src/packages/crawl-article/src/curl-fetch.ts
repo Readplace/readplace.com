@@ -33,7 +33,7 @@ export type CurlFetch = (url: string, init?: CurlFetchInit) => Promise<Response>
  * /opt/ and Lambda adds /opt/bin to PATH, so the bare binary name resolves
  * without a full path on both Lambda (layer) and container-image runtimes.
  */
-export const CURL_IMPERSONATE_BIN = "curl_chrome116";
+export const CURL_IMPERSONATE_BIN = "curl_chrome131";
 
 const defaultExecCurl: ExecCurl = (args, options, callback) => {
 	const child = execFile(

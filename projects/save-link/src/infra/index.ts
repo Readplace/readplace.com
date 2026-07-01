@@ -84,14 +84,14 @@ const ocrImageTags = z
 	.parse(JSON.parse(readFileSync(".lib/ocr-image-tags.json", "utf-8")));
 
 // --- curl-impersonate Lambda Layer ---
-// Contains the curl_chrome116 bash wrapper and the statically-linked
-// curl-impersonate-chrome binary (BoringSSL embedded) that produce a Chrome
+// Contains the curl_chrome131 bash wrapper and the statically-linked
+// curl-impersonate binary (BoringSSL embedded) that produce a Chrome
 // TLS fingerprint, bypassing Akamai/Cloudflare JA3/JA4 blocks.
 const curlImpersonateLayer = new aws.lambda.LayerVersion("curl-impersonate", {
 	layerName: "curl-impersonate-chrome",
 	compatibleRuntimes: [aws.lambda.Runtime.NodeJS22dX],
 	code: new pulumi.asset.FileArchive(".lib/curl-impersonate-layer.zip"),
-	description: "curl-impersonate Chrome variant (curl_chrome116) for TLS fingerprint bypass",
+	description: "curl-impersonate Chrome variant (curl_chrome131) for TLS fingerprint bypass",
 });
 
 // --- Content S3 Bucket ---

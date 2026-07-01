@@ -85,6 +85,19 @@ export const HEALTH_SOURCES: readonly HealthSource[] = [
 		expectsThumbnail: true,
 	},
 	{
+		// The Hill fronts articles with Fastly, which JA3-fingerprints the TLS
+		// ClientHello and 403s clients whose fingerprint isn't on its
+		// current-browser allowlist — so the curl-impersonate Chrome persona must
+		// track a recent Chrome (chrome116 aged out and is now blocked; chrome131
+		// passes). The slash-less URL also exercises the origin's 308 → "/"
+		// redirect before it serves the article; its og:image rides the same
+		// fingerprint-gated path.
+		label: "The Hill (Fastly JA3)",
+		url: "https://thehill.com/changing-america/enrichment/arts-culture/578724-5-points-for-anger-1-for-a-like-how-facebooks",
+		expectedContent: "ranked five times more valuable than likes",
+		expectsThumbnail: true,
+	},
+	{
 		label: "The New Yorker",
 		url: "https://www.newyorker.com/magazine/1946/08/31/hiroshima",
 		expectedContent: "Mr. Matsuo dashed up the front steps into the house and dived among the bedrolls and buried himself there",
