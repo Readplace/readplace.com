@@ -10,7 +10,7 @@ import type { Redirect } from "../../redirect.component";
 import { shareUserIdPrefix } from "../../shared/share-user-id";
 import { collectUtmParams } from "../../shared/utm";
 import { viewPathFor } from "../view/view-path";
-import { buildOwnerReaderPath, wantsOwnerLogin } from "./owner-reader-link";
+import { buildOwnerReaderPath, readerPermalinkPath, wantsOwnerLogin } from "./owner-reader-link";
 
 export interface ReaderPermalinkDeps {
 	findArticleById: FindArticleById;
@@ -80,7 +80,19 @@ export function initReaderPermalink(deps: ReaderPermalinkDeps) {
 		const ownedArticle = input.requesterId
 			? await deps.findArticleById(parsedId.data, input.requesterId)
 			: null;
-		if (ownedArticle) return { kind: "article", article: ownedArticle };
+		if (ownedArticle) {
+			/** The email marker only gates the logged-out → /login hop; once the
+			 * owner is authenticated it is inert. Redirect to strip it so the
+			 * address bar settles on the clean shareable permalink instead of the
+			 * `?from=reader-ready-email` link the owner clicked from their inbox. */
+			if (wantsOwnerLogin(input.query)) {
+				return {
+					kind: "redirect",
+					redirect: { statusCode: 303, location: readerPermalinkPath(parsedId.data) },
+				};
+			}
+			return { kind: "article", article: ownedArticle };
+		}
 
 		const articleUrl = await deps.findArticleUrlById(parsedId.data);
 		if (!articleUrl) return REDIRECT_TO_QUEUE;

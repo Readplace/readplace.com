@@ -186,7 +186,23 @@ describe("resolveReaderPermalink", () => {
 		});
 	});
 
-	it("ignores the reader-ready email marker for a logged-in owner and renders the reader directly", async () => {
+	it("renders the reader directly for a logged-in owner when no email marker is present", async () => {
+		const owned = savedArticleFor(OWNER_ID);
+		const resolve = initReaderPermalink(createDeps({
+			findArticleById: async (id, userId) =>
+				id.value === ARTICLE_ID.value && userId === OWNER_ID ? owned : null,
+		}));
+
+		const result = await resolve({
+			rawId: ARTICLE_ID.value,
+			requesterId: OWNER_ID,
+			query: {},
+		});
+
+		expect(result).toEqual({ kind: "article", article: owned });
+	});
+
+	it("strips the reader-ready email marker for a logged-in owner by redirecting to the clean shareable permalink", async () => {
 		const owned = savedArticleFor(OWNER_ID);
 		const resolve = initReaderPermalink(createDeps({
 			findArticleById: async (id, userId) =>
@@ -199,7 +215,10 @@ describe("resolveReaderPermalink", () => {
 			query: { from: "reader-ready-email" },
 		});
 
-		expect(result).toEqual({ kind: "article", article: owned });
+		expect(result).toEqual({
+			kind: "redirect",
+			redirect: { statusCode: 303, location: `/queue/${ARTICLE_ID.value}/view` },
+		});
 	});
 
 	it("ignores the reader-ready email marker for a logged-in non-owner and keeps the public /view share redirect", async () => {
