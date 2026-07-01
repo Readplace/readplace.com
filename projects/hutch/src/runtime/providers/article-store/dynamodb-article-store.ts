@@ -244,9 +244,12 @@ export function initDynamoDbArticleStore(deps: {
 			}),
 		]);
 
+		// Strongly-consistent read-your-writes: a default eventually-consistent read
+		// can miss the row we just wrote and trip the asserts below on an otherwise
+		// successful save. ConsistentRead makes both reflect the writes above.
 		const [article, userArticle] = await Promise.all([
-			articles.get({ url: articleResourceUniqueId.value }),
-			userArticles.get({ userId: params.userId, url: articleResourceUniqueId.value }),
+			articles.get({ url: articleResourceUniqueId.value }, { consistentRead: true }),
+			userArticles.get({ userId: params.userId, url: articleResourceUniqueId.value }, { consistentRead: true }),
 		]);
 		assertItem(article, "article must exist immediately after save");
 		assertItem(userArticle, "user article must exist immediately after save");

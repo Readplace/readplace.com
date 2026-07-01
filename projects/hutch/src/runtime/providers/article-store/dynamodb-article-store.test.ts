@@ -309,6 +309,12 @@ describe("initDynamoDbArticleStore global writes", () => {
 		});
 
 		expect(commands.some((c) => c.name === "PutCommand")).toBe(true);
+		// Read-back-after-write must be strongly consistent, otherwise an
+		// eventually-consistent miss trips the "must exist immediately after save"
+		// asserts and 500s a healthy save (the readplace save-failure RCA).
+		const reads = commands.filter((c) => c.name === "GetCommand");
+		expect(reads).toHaveLength(2);
+		expect(reads.every((c) => c.input.ConsistentRead === true)).toBe(true);
 		expect(saved.id).toBeInstanceOf(ReaderArticleHashId);
 		expect(saved.url).toBe(URL);
 		expect(saved.status).toBe("read");

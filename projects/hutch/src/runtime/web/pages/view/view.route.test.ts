@@ -549,6 +549,47 @@ describe("View routes", () => {
 		});
 	});
 
+	describe("GET /view when the just-saved row is not yet readable", () => {
+		it("renders the pending stub (200), not a 500, when the post-save read misses (eventual consistency)", async () => {
+			const parseArticle: ParseArticle = async () => buildParseResult();
+			const fixture = createDefaultTestAppFixture(TEST_APP_ORIGIN);
+			const applyParseResult = createFakeApplyParseResult({
+				articleStore: fixture.articleStore,
+				articleCrawl: fixture.articleCrawl,
+				parseArticle,
+			});
+			// Simulate DynamoDB eventual consistency: the row is never visible on
+			// read, so both the first-visit probe and the post-save re-read miss.
+			const missingReadStore = {
+				...fixture.articleStore,
+				findArticleByUrl: async () => null,
+			};
+			const harness = useApp({
+				...fixture,
+				articleStore: missingReadStore,
+				parser: { parseArticle, crawlArticle: fixture.parser.crawlArticle },
+				events: {
+					publishLinkSaved: createFakePublishLinkSaved(applyParseResult),
+					publishRecrawlLinkInitiated: createFakePublishRecrawlLinkInitiated(applyParseResult),
+					publishSaveAnonymousLink: createFakePublishSaveAnonymousLink(applyParseResult),
+					publishSaveLinkRawHtmlCommand: fixture.events.publishSaveLinkRawHtmlCommand,
+					publishSaveLinkRawPdfCommand: fixture.events.publishSaveLinkRawPdfCommand,
+					publishStaleCheckRequested: fixture.events.publishStaleCheckRequested,
+					publishUpdateFetchTimestamp: fixture.events.publishUpdateFetchTimestamp,
+					publishExportUserDataCommand: fixture.events.publishExportUserDataCommand,
+					publishCancelSubscriptionCommand: fixture.events.publishCancelSubscriptionCommand,
+					publishSubscriptionReactivated: fixture.events.publishSubscriptionReactivated,
+				},
+			});
+
+			const response = await request(harness.server).get(`/view/${CANONICAL_PATH}`);
+
+			expect(response.status).toBe(200);
+			const doc = new JSDOM(response.text).window.document;
+			expect(doc.querySelector("[data-test-view-cta-action]")).not.toBeNull();
+		});
+	});
+
 	describe("view_opened analytics emission", () => {
 		it("emits one view_opened with the article host and a joinable visitor_id when an anonymous visitor opens the reader", async () => {
 			const harness = buildReaderHarness();
