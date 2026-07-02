@@ -16,6 +16,9 @@ export function markCrawlFailed(
 	effects: readonly Effect[];
 	writes: readonly AggregateField[];
 } {
+	if (article.crawl.kind === "ready") {
+		return { article, effects: [], writes: [] };
+	}
 	const next: Article = {
 		...article,
 		crawl: { kind: "failed", reason: input.reason },

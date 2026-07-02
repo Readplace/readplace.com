@@ -97,6 +97,18 @@ describe("markCrawlFailed", () => {
 		assert.deepEqual(before, snapshot);
 	});
 
+	it("no-ops on a crawl=ready row so a slower failing path cannot clobber content another tier already promoted", () => {
+		const before = buildArticle({ crawl: { kind: "ready" } });
+
+		const { article, effects, writes } = markCrawlFailed(before, {
+			reason: { kind: "parse-error", detail: "bot challenge" },
+		});
+
+		assert.deepEqual(article.crawl, { kind: "ready" });
+		assert.deepEqual(effects, []);
+		assert.deepEqual(writes, []);
+	});
+
 	it("exposes its function name so transitionAndPersist can tag the row for the Phase 2 canary measurement", () => {
 		assert.equal(markCrawlFailed.name, "markCrawlFailed");
 	});
