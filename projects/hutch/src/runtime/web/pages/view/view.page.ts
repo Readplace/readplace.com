@@ -90,20 +90,6 @@ function pollUrlBuilderFor(articleUrl: string): PollUrlBuilder {
 	};
 }
 
-/** True when the url's path already ends in "/". Only slash-less paths get the
- * trailing-slash fallback rewrite, which is also what prevents a redirect loop. */
-function pathHasTrailingSlash(url: string): boolean {
-	return new URL(url).pathname.endsWith("/");
-}
-
-/** The same url with a single trailing slash appended to its path (query + hash
- * preserved), so the storage identity matches the origin's "/" canonical. */
-function withTrailingSlashPath(url: string): string {
-	const u = new URL(url);
-	u.pathname = `${u.pathname}/`;
-	return u.toString();
-}
-
 function buildArticleReaderDeps(deps: ViewDependencies): ArticleReaderDeps {
 	return {
 		findArticleCrawlStatus: deps.findArticleCrawlStatus,
@@ -168,25 +154,6 @@ function handleViewArticle(deps: ViewDependencies, reader: ReturnType<typeof ini
 			res.redirect(302, viewPathFor(canonicalTarget));
 			return;
 		}
-
-		// Trailing-slash content fallback: many origins 308 a slash-less URL to its
-		// "/" canonical. When we have no content for the slash-less URL — its origin
-		// crawl was edge-blocked (IP/JA3), or it was never fetched — but the "/" one
-		// does (e.g. saved via the extension, since the browser lands on the "/"
-		// form after the 308), serve the "/" one instead of a blank reader. Only
-		// slash-less paths qualify, so this can never loop.
-		if (!pathHasTrailingSlash(articleUrl)) {
-			const ownContent = await deps.readArticleContent(articleUrl);
-			if (!ownContent) {
-				const slashUrl = withTrailingSlashPath(articleUrl);
-				const slashContent = await deps.readArticleContent(slashUrl);
-				if (slashContent) {
-					res.redirect(302, viewPathFor(slashUrl));
-					return;
-				}
-			}
-		}
-
 		if (!existing) {
 			// First visit is the request that triggers the whole crawl cascade
 			// (stub save → crawl → summary → possibly OCR), each leg with real
