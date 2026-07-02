@@ -11,6 +11,7 @@ import type { SavedArticle } from "@packages/domain/article";
 import { MinutesSchema, ArticleStatusSchema } from "@packages/domain/article";
 import { ArticleResourceUniqueId } from "@packages/article-resource-unique-id";
 import { ReaderArticleHashId, ReaderArticleHashIdSchema } from "@packages/domain/article";
+import type { HutchLogger } from "@packages/hutch-logger";
 import { UserIdSchema } from "@packages/domain/user";
 import type { UserId } from "@packages/domain/user";
 import type {
@@ -75,6 +76,11 @@ const ArticleRow = z.object({
  * stays in sync with the schema. */
 const ArticleMetadataFields = ArticleRow.omit({ content: true, canonicalUrl: true }).keyof().options;
 
+const UnverifiedArticleRow = ArticleRow.extend({
+	routeId: dynamoField(ReaderArticleHashIdSchema),
+	originalUrl: dynamoField(z.string()),
+});
+
 const UserArticleRow = z.object({
 	userId: UserIdSchema,
 	url: z.string(),
@@ -119,6 +125,7 @@ export function initDynamoDbArticleStore(deps: {
 	client: DynamoDBDocumentClient;
 	tableName: string;
 	userArticlesTableName: string;
+	logger: HutchLogger;
 }): {
 	saveArticle: SaveArticle;
 	saveArticleGlobally: SaveArticleGlobally;
@@ -139,9 +146,10 @@ export function initDynamoDbArticleStore(deps: {
 	findUserArticleNotificationState: FindUserArticleNotificationState;
 	readContent: ContentProvider;
 } {
-	const { client, tableName, userArticlesTableName } = deps;
+	const { client, tableName, userArticlesTableName, logger } = deps;
 
 	const articles = defineDynamoTable({ client, tableName, schema: ArticleRow });
+	const unverifiedArticles = defineDynamoTable({ client, tableName, schema: UnverifiedArticleRow });
 	const articleContent = defineDynamoTable({ client, tableName, schema: ArticleContentRow });
 	const articleFreshness = defineDynamoTable({ client, tableName, schema: ArticleFreshnessRow });
 	const userArticles = defineDynamoTable({
@@ -529,7 +537,7 @@ export function initDynamoDbArticleStore(deps: {
 
 	const findArticleByUrl: FindArticleByUrl = async (url) => {
 		const articleResourceUniqueId = ArticleResourceUniqueId.parse(url);
-		const row = await articles.get(
+		const row = await unverifiedArticles.get(
 			{ url: articleResourceUniqueId.value },
 			{
 				projection: [
@@ -549,6 +557,12 @@ export function initDynamoDbArticleStore(deps: {
 			},
 		);
 		if (!row) return null;
+		if (row.routeId === undefined || row.originalUrl === undefined) {
+			logger.warn(
+				`[article-store] article row "${articleResourceUniqueId.value}" is missing reader identity columns (routeId/originalUrl); treating it as not found`,
+			);
+			return null;
+		}
 		return {
 			id: row.routeId,
 			url: row.originalUrl,

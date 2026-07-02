@@ -36,6 +36,7 @@ const articleStore = initDynamoDbArticleStore({
 	client: dynamoClient,
 	tableName: articlesTable,
 	userArticlesTableName: userArticlesTable,
+	logger: HutchLogger.from(consoleLogger),
 });
 
 const { sendEmail } = initResendEmail(resendApiKey);

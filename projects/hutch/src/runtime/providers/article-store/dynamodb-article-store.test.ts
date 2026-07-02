@@ -2,6 +2,7 @@ import { ConditionalCheckFailedException, type DynamoDBDocumentClient } from "@p
 import { ArticleResourceUniqueId } from "@packages/article-resource-unique-id";
 import { MinutesSchema, ReaderArticleHashId } from "@packages/domain/article";
 import type { UserId } from "@packages/domain/user";
+import { HutchLogger, noopLogger } from "@packages/hutch-logger";
 import { initDynamoDbArticleStore } from "./dynamodb-article-store";
 
 const USER = "abc123" as UserId;
@@ -46,11 +47,12 @@ function createFakeClient(
 	return { client: client as typeof client & DynamoDBDocumentClient, commands };
 }
 
-function initStore(client: DynamoDBDocumentClient) {
+function initStore(client: DynamoDBDocumentClient, logger: HutchLogger = HutchLogger.from(noopLogger)) {
 	return initDynamoDbArticleStore({
 		client,
 		tableName: "articles",
 		userArticlesTableName: "user-articles",
+		logger,
 	});
 }
 
@@ -728,6 +730,33 @@ describe("initDynamoDbArticleStore freshness, notification state, content and ur
 
 	it("findArticleByUrl returns null when the global row is absent", async () => {
 		const { client } = createFakeClient({ GetCommand: { default: { Item: undefined } } });
+
+		const data = await initStore(client).findArticleByUrl(URL);
+
+		expect(data).toBeNull();
+	});
+
+	it("findArticleByUrl reads a row missing both reader identity columns as absent and warns, instead of throwing (the canonical stub a crawl re-key creates has no routeId/originalUrl)", async () => {
+		const { client } = createFakeClient({
+			GetCommand: {
+				default: { Item: articleItem({ routeId: undefined, originalUrl: undefined, savedAt: undefined, content: undefined }) },
+			},
+		});
+		const warnings: unknown[] = [];
+		const store = initStore(client, { ...noopLogger, warn: (...args: unknown[]) => warnings.push(args[0]) });
+
+		const data = await store.findArticleByUrl(URL);
+
+		expect(data).toBeNull();
+		expect(warnings).toEqual([
+			`[article-store] article row "${RESOURCE_ID}" is missing reader identity columns (routeId/originalUrl); treating it as not found`,
+		]);
+	});
+
+	it("findArticleByUrl reads a row that has a routeId but no originalUrl as absent", async () => {
+		const { client } = createFakeClient({
+			GetCommand: { default: { Item: articleItem({ originalUrl: undefined, content: undefined }) } },
+		});
 
 		const data = await initStore(client).findArticleByUrl(URL);
 

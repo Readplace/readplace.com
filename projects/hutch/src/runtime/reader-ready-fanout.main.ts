@@ -23,6 +23,7 @@ const articleStore = initDynamoDbArticleStore({
 	client: dynamoClient,
 	tableName: articlesTable,
 	userArticlesTableName: userArticlesTable,
+	logger: HutchLogger.from(consoleLogger),
 });
 
 const { dispatch: dispatchNotifyReaderViewReady } = initSqsCommandDispatcher({
