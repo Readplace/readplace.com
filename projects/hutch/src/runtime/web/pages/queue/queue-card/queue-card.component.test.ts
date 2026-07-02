@@ -240,9 +240,11 @@ describe("renderQueueCard", () => {
 		const deleteButton = doc.querySelector("[data-test-action='delete']");
 		assert(deleteButton, "delete button must be present");
 		expect(deleteButton.textContent).toBe("×");
-		expect(deleteButton.querySelector(".queue-article__action-btn-loader")).toBe(null);
-		expect(deleteButton.querySelector(".queue-article__action-btn-label")).toBe(null);
-		expect(deleteButton.closest("form")?.hasAttribute("hx-disabled-elt")).toBe(false);
+		// The status shape wraps its text in label + loader spans and its form
+		// carries hx-disabled-elt — both gated on the same isStatus flag. Zero
+		// element children is the positive proof the delete control opted out of
+		// that treatment; a selector typo can't make it pass for the wrong reason.
+		expect(deleteButton.children.length).toBe(0);
 	});
 
 	it("shows a processing state and disables the status action while the card is still being fetched", () => {
