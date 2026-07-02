@@ -551,6 +551,54 @@ describe("EXCLUDE_PATTERNS — permanently-unreachable saves", () => {
 			excluded: false,
 			label: "castorama homepage — should NOT match",
 		},
+		// (h) TODAY delisted article — 404 at origin for datacenter egress,
+		// 403 bot-wall residentially.
+		{
+			url: "http://www.todayonline.com/singapore/channel-newsasia-opens-bureau-myanmar",
+			excluded: true,
+			label: "todayonline CNA-Myanmar article stored http shape (origin 404)",
+		},
+		{
+			url: "https://www.todayonline.com/singapore/channel-newsasia-opens-bureau-myanmar",
+			excluded: true,
+			label: "todayonline CNA-Myanmar article https re-save shape",
+		},
+		{
+			url: "https://www.todayonline.com/singapore/some-other-story",
+			excluded: false,
+			label: "different todayonline article — must NOT be hidden",
+		},
+		// (i) web.archive.org captures behind datacenter throttling.
+		{
+			url: "https://web.archive.org/web/20180322015406/http://www.todayonline.com/singapore/channel-newsasia-opens-bureau-myanmar",
+			excluded: true,
+			label: "wayback TODAY capture uncollapsed embedded scheme (http://)",
+		},
+		{
+			url: "https://web.archive.org/web/20180322015406/http:/www.todayonline.com/singapore/channel-newsasia-opens-bureau-myanmar",
+			excluded: true,
+			label: "wayback TODAY capture collapsed embedded scheme (http:/)",
+		},
+		{
+			url: "https://web.archive.org/web/20180630105838/https://www.todayonline.com/singapore/channel-newsasia-opens-bureau-myanmar",
+			excluded: false,
+			label: "the later TODAY capture the 302 lands on — must NOT be hidden",
+		},
+		{
+			url: "https://web.archive.org/web/20180630081250/https://www.abu.org.my/Latest_News-@-CNA_to_launch_satellite_studio_in_Malaysia.aspx",
+			excluded: true,
+			label: "wayback ABU press-page capture (uncollapsed scheme)",
+		},
+		{
+			url: "https://web.archive.org/web/20180630081250/https:/www.abu.org.my/Latest_News-@-CNA_to_launch_satellite_studio_in_Malaysia.aspx",
+			excluded: true,
+			label: "wayback ABU press-page capture (collapsed scheme)",
+		},
+		{
+			url: "https://web.archive.org/web/20200101000000/https://www.abu.org.my/Latest_News-@-CNA_to_launch_satellite_studio_in_Malaysia.aspx",
+			excluded: false,
+			label: "different-timestamp ABU capture — must NOT be hidden",
+		},
 	];
 	for (const { url, excluded, label } of cases) {
 		it(`${excluded ? "excludes" : "keeps"}: ${label} — ${url}`, () => {

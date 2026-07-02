@@ -206,6 +206,26 @@ export const EXCLUDE_PATTERNS: readonly RegExp[] = [
 	/^https:\/\/www\.developernation\.net\/developer$/i,
 	/^https:\/\/simpleflying\.com\/captain$/i,
 	/^https:\/\/www\.jetbrains\.com\/lp\/devecosystem$/i,
+	// TODAY (Mediacorp) removed this 2013 article: datacenter egress gets a
+	// hard 404 at origin and residential curl gets a 403 bot-wall, so no
+	// egress path can reproduce the page. `https?` covers the stored `http`
+	// row and any future `https` re-save of the same path.
+	/^https?:\/\/www\.todayonline\.com\/singapore\/channel-newsasia-opens-bureau-myanmar$/i,
+	// (i) web.archive.org captures — archive.org throttles datacenter egress
+	// (tarpits/429s AWS-range IPs), so saved captures intermittently exhaust
+	// retries with nothing the operator can act on. Anchored per capture
+	// timestamp so other snapshots of the same page still surface;
+	// `\/{1,2}` tolerates the embedded scheme whether upstream normalization
+	// left one slash or two.
+	//
+	// The 2018-03-22 TODAY capture additionally 302s to a later capture
+	// (20180630105838), so the saved form never lands even when wayback
+	// answers — and the underlying article is the delisted TODAY page above.
+	/^https:\/\/web\.archive\.org\/web\/20180322015406\/http:\/{1,2}www\.todayonline\.com\/singapore\/channel-newsasia-opens-bureau-myanmar$/i,
+	// ABU press-page capture: fetchable on a quiet day (the row has crawled
+	// successfully) but exhausts retries whenever wayback throttles, so it
+	// recurs as canary noise on bulk imports.
+	/^https:\/\/web\.archive\.org\/web\/20180630081250\/https:\/{1,2}www\.abu\.org\.my\/Latest_News-@-CNA_to_launch_satellite_studio_in_Malaysia\.aspx$/i,
 ];
 
 export function isExcluded(url: string, patterns: readonly RegExp[]): boolean {
