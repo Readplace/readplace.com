@@ -773,7 +773,7 @@ describe("parseHtmlFromBuffer — thumbnail prefetch (fetchThumbnail opt-in)", (
 
 		assertFetched(result);
 		expect(result.thumbnailImage).toBeUndefined();
-		expect(logError).toHaveBeenCalledWith(`[CrawlArticle] Thumbnail too large (${oversizedBody.length} bytes) for https://cdn.example.com/thumb.jpg`);
+		expect(logError).toHaveBeenCalledWith("[CrawlArticle] Thumbnail too large for https://cdn.example.com/thumb.jpg");
 	});
 
 	it("logs the Error instance when the thumbnail fetch throws a network error", async () => {

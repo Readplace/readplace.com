@@ -409,6 +409,25 @@ describe("initExtractLinksFromPageUrl", () => {
 		expect(result).toEqual({ status: "FETCH_FAILED", reason: "too_large" });
 	});
 
+	it("aborts the stream and returns too_large when a chunked (Content-Length-less) body streams past 5 MiB", async () => {
+		const oversized = new ReadableStream<Uint8Array>({
+			start(controller) {
+				controller.enqueue(new Uint8Array(5 * 1024 * 1024 + 1));
+				controller.close();
+			},
+		});
+		const extract = initExtractLinksFromPageUrl({
+			validateUrl: validateSaveableUrl,
+			crawlFetch: fakeFetch(
+				async () => new Response(oversized, { status: 200, headers: { "content-type": "text/html" } }),
+			),
+		});
+
+		const result = await extract("https://news.example/issues/42");
+
+		expect(result).toEqual({ status: "FETCH_FAILED", reason: "too_large" });
+	});
+
 	it("returns UNSUPPORTED_CONTENT_TYPE for non-HTML responses", async () => {
 		const extract = initExtractLinksFromPageUrl({
 			validateUrl: validateSaveableUrl,

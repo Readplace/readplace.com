@@ -1,7 +1,7 @@
 import assert from "node:assert";
 import { parseHTML } from "linkedom";
 import { getDomain } from "tldts";
-import type { CrawlFetch } from "@packages/crawl-article";
+import { BodyTooLargeError, type CrawlFetch, readBodyWithCap } from "@packages/crawl-article";
 import type { ValidateSaveableUrl } from "@packages/domain/article";
 import {
 	collectImportLinks,
@@ -29,6 +29,18 @@ export type ExtractLinksFromPageUrl = (
 function contentTypeIsHtml(contentType: string): boolean {
 	const lower = contentType.toLowerCase().split(";")[0].trim();
 	return HTML_CONTENT_TYPES.includes(lower);
+}
+
+function isAbortError(error: unknown): boolean {
+	if (!(error instanceof Error)) return false;
+	return error.name === "AbortError";
+}
+
+function classifyFetchFailure(error: unknown, aborted: boolean): "too_large" | "timeout" | "network" {
+	if (error instanceof BodyTooLargeError) return "too_large";
+	if (aborted) return "timeout";
+	if (isAbortError(error)) return "timeout";
+	return "network";
 }
 
 function resolveHref(href: string | null, base: URL): string | undefined {
@@ -87,11 +99,7 @@ export function initExtractLinksFromPageUrl(deps: {
 		try {
 			response = await deps.crawlFetch(validation.url, { signal: controller.signal });
 		} catch (error) {
-			if (controller.signal.aborted) {
-				return { status: "FETCH_FAILED", reason: "timeout" };
-			}
-			const reason = error instanceof Error && error.name === "AbortError" ? "timeout" : "network";
-			return { status: "FETCH_FAILED", reason };
+			return { status: "FETCH_FAILED", reason: classifyFetchFailure(error, controller.signal.aborted) };
 		} finally {
 			clearTimeout(timer);
 		}
@@ -110,9 +118,11 @@ export function initExtractLinksFromPageUrl(deps: {
 			return { status: "FETCH_FAILED", reason: "too_large" };
 		}
 
-		const buffer = await response.arrayBuffer();
-		if (buffer.byteLength > MAX_PAGE_BYTES) {
-			return { status: "FETCH_FAILED", reason: "too_large" };
+		let buffer: Buffer;
+		try {
+			buffer = await readBodyWithCap(response, MAX_PAGE_BYTES);
+		} catch (error) {
+			return { status: "FETCH_FAILED", reason: classifyFetchFailure(error, controller.signal.aborted) };
 		}
 
 		const html = new TextDecoder("utf-8").decode(buffer);

@@ -11,6 +11,7 @@ import { classifyMediaType } from "./media-type";
 import { parseImageFromBuffer } from "./parse-image";
 import { parsePlainTextFromBuffer } from "./parse-plain-text";
 import { MAX_PDF_BYTES } from "./pdf-page-limits";
+import { readBodyWithCap } from "./read-capped-body";
 import type { ExtractPdf } from "./pdf-extract.types";
 import type { SiteCrawlOutcome, SiteRules } from "@packages/site-rules";
 
@@ -117,7 +118,7 @@ function initConditionalGet(deps: {
 				logError(`[CrawlArticle] HTTP ${response.status} for ${params.url}`);
 				return { status: "failed" };
 			}
-			return { status: "ok", response, buffer: Buffer.from(await response.arrayBuffer()) };
+			return { status: "ok", response, buffer: await readBodyWithCap(response, MAX_PDF_BYTES.bytes) };
 		} catch (error) {
 			logError(`[CrawlArticle] Network error for ${params.url}`, error instanceof Error ? error : undefined);
 			return { status: "failed" };

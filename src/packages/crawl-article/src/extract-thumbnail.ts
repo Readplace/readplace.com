@@ -2,6 +2,7 @@ import { parseHTML } from "linkedom";
 import type { CrawlFetch } from "./crawl-fetch";
 import { extensionFromContentType } from "./extension-from-content-type";
 import type { ThumbnailImage } from "./crawl-article.types";
+import { BodyTooLargeError, readBodyWithCap } from "./read-capped-body";
 
 const THUMBNAIL_FETCH_TIMEOUT_MS = 5000;
 export const MAX_THUMBNAIL_BYTES = 5 * 1024 * 1024;
@@ -116,14 +117,13 @@ async function tryFetchImage(args: {
 			logError(`[CrawlArticle] Thumbnail too large (${contentLength} bytes) for ${url}`);
 			return undefined;
 		}
-		const arrayBuffer = await response.arrayBuffer();
-		const body = Buffer.from(arrayBuffer);
-		if (body.length > MAX_THUMBNAIL_BYTES) {
-			logError(`[CrawlArticle] Thumbnail too large (${body.length} bytes) for ${url}`);
-			return undefined;
-		}
+		const body = await readBodyWithCap(response, MAX_THUMBNAIL_BYTES);
 		return { body, contentType, url, extension: extensionFromContentType({ contentType, url }) };
 	} catch (error) {
+		if (error instanceof BodyTooLargeError) {
+			logError(`[CrawlArticle] Thumbnail too large for ${url}`);
+			return undefined;
+		}
 		logError(`[CrawlArticle] Thumbnail network error for ${url}`, error instanceof Error ? error : undefined);
 		return undefined;
 	}

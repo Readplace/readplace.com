@@ -20,6 +20,7 @@ export type {
 } from "./crawl-article.types";
 export { initCrawlFetch } from "./crawl-fetch";
 export type { CrawlFetch, CrawlFetchInit } from "./crawl-fetch";
+export { readBodyWithCap, BodyTooLargeError } from "./read-capped-body";
 export type { IsBlockedAddress, ResolveAll } from "./blocked-address-lookup";
 export type { ExtractPdf, PdfExtractProgress, PdfExtractResult, PdfExtractStage } from "./pdf-extract.types";
 export { isPDF } from "./pdf-detect";
