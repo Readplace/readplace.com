@@ -2,7 +2,10 @@ import express, { type Request, type Response, type Router } from "express";
 import { CHANGELOG_DISMISS_COOKIE_NAME, isChangelogVersion } from "@packages/web-shell";
 import { baseCookieOptions } from "../../cookie-options";
 
-const RFC_6265BIS_MAX_COOKIE_AGE_MS = 400 * 24 * 60 * 60 * 1000;
+/** The full 23 months is honoured by WebKit/Firefox, which cap only JS-set
+ * cookies; Chrome 104+ clamps any server-set Max-Age to 400 days (rfc6265bis),
+ * so requesting less would shorten every other engine to Chrome's floor. */
+const TWENTY_THREE_MONTHS_MS = 23 * 30 * 24 * 60 * 60 * 1000;
 
 /** A throwaway origin to resolve the posted `returnTo` against, so a same-origin
  * relative path keeps this origin while anything off-site (an absolute URL,
@@ -53,7 +56,7 @@ export function initChangelogDismissRoute(deps: {
 		if (isChangelogVersion(version)) {
 			res.cookie(CHANGELOG_DISMISS_COOKIE_NAME, version, {
 				...baseCookieOptions(deps.secureCookies),
-				maxAge: RFC_6265BIS_MAX_COOKIE_AGE_MS,
+				maxAge: TWENTY_THREE_MONTHS_MS,
 			});
 		}
 		res.redirect(303, safeReturnPath(req.body.returnTo));

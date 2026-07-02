@@ -3,7 +3,7 @@ import {
 	IOS_NATIVE_OAUTH_CALLBACK_URI,
 	getBuiltInClient,
 	isBuiltInRedirectUri,
-	revokeSignsOutEverywhere,
+	revokeDestroysUserSessions,
 } from "./built-in-clients";
 
 describe("getBuiltInClient", () => {
@@ -112,17 +112,17 @@ describe("isBuiltInRedirectUri", () => {
 	});
 });
 
-describe("revokeSignsOutEverywhere", () => {
-	it("signs out everywhere for the iOS app client", () => {
-		assert.equal(revokeSignsOutEverywhere("ios-app"), true);
+describe("revokeDestroysUserSessions", () => {
+	it("destroys the user's sessions for the iOS app client", () => {
+		assert.equal(revokeDestroysUserSessions("ios-app"), true);
 	});
 
 	it("keeps extension revocation scoped to the presented token", () => {
-		assert.equal(revokeSignsOutEverywhere("hutch-firefox-extension"), false);
-		assert.equal(revokeSignsOutEverywhere("hutch-chrome-extension"), false);
+		assert.equal(revokeDestroysUserSessions("hutch-firefox-extension"), false);
+		assert.equal(revokeDestroysUserSessions("hutch-chrome-extension"), false);
 	});
 
 	it("keeps dynamically registered client revocation scoped to the presented token", () => {
-		assert.equal(revokeSignsOutEverywhere("dyn-client-b6cbd6"), false);
+		assert.equal(revokeDestroysUserSessions("dyn-client-b6cbd6"), false);
 	});
 });

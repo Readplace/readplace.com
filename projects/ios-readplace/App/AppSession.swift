@@ -114,10 +114,11 @@ final class AppSession: ObservableObject {
 
 	/// Removes the reader's authenticated traces from the process-wide WebKit
 	/// default store on sign-out. The session cookie is deleted by name — a
-	/// blanket cookie wipe would also drop server-set reader state (the dismissed
-	/// changelog banner would reappear) — while every non-cookie data type
-	/// (cache, local/session storage, IndexedDB) is cleared so the reading
-	/// history of the signed-out account doesn't stay on disk.
+	/// blanket cookie wipe would also drop server-set cookies a full-shell page
+	/// may have put in this store (e.g. a changelog dismissal set after a
+	/// session-expiry redirect) — while every non-cookie data type is cleared so
+	/// the signed-out account's reading history doesn't stay on disk, accepting
+	/// that the share hint's localStorage dismissal resets with it.
 	private static func removeReaderWebStoreData() async {
 		let store = WKWebsiteDataStore.default()
 		for cookie in await store.httpCookieStore.allCookies() where isSessionCookie(cookie) {

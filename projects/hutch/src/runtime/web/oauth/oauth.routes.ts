@@ -13,7 +13,7 @@ import type {
 } from "@packages/provider-contracts/oauth";
 import type { ConsumeRateLimit } from "@packages/provider-contracts/rate-limit";
 import type { DestroyUserSessions } from "@packages/provider-contracts/auth";
-import { revokeSignsOutEverywhere } from "@packages/domain/oauth";
+import { revokeDestroysUserSessions } from "@packages/domain/oauth";
 import { UserIdSchema } from "@packages/domain/user";
 import { Base } from "../base.component";
 import type { BuildBannerState } from "../banner-state";
@@ -307,15 +307,15 @@ export function initOAuthRoutes(deps: OAuthRouteDeps): Router {
 
 		const refreshRecord = await findRefreshRecord(token);
 		if (refreshRecord) {
-			if (revokeSignsOutEverywhere(refreshRecord.client.id)) {
+			if (revokeDestroysUserSessions(refreshRecord.client.id)) {
 				const userId = UserIdSchema.parse(refreshRecord.user.id);
-				// Sessions before tokens: if the session destroy fails, the presented
+				// Sessions before the token: if the session destroy fails, the presented
 				// token is still valid and the client's retry re-runs the whole sign-out.
+				// Other clients' tokens survive on purpose — their devices transparently
+				// re-mint a session on next use instead of being signed out too.
 				await deps.destroyUserSessions(userId);
-				await deps.model.revokeAllUserTokens(userId);
-			} else {
-				await deps.model.revokeToken(refreshRecord);
 			}
+			await deps.model.revokeToken(refreshRecord);
 		}
 
 		res.status(200).json({});

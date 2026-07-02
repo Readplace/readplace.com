@@ -59,14 +59,15 @@ export function getBuiltInClient(clientId: string): OAuthClient | undefined {
 /**
  * Clients whose token revocation means "the user pressed sign out on a device
  * that mints a server session per reader open and keeps none of their ids".
- * The only way to honor that sign-out is to destroy every session and token
- * the user has. A revoke from any client not listed here stays scoped to the
- * single token it presents.
+ * The only way to honor that sign-out is to destroy every session the user
+ * has; other clients' tokens stay valid so their devices re-mint a session on
+ * next use rather than being signed out too. A revoke from any client not
+ * listed here touches no sessions at all.
  */
-const SIGN_OUT_EVERYWHERE_CLIENT_IDS: ReadonlySet<string> = new Set(["ios-app"]);
+const SESSION_DESTROYING_REVOKE_CLIENT_IDS: ReadonlySet<string> = new Set(["ios-app"]);
 
-export function revokeSignsOutEverywhere(clientId: string): boolean {
-	return SIGN_OUT_EVERYWHERE_CLIENT_IDS.has(clientId);
+export function revokeDestroysUserSessions(clientId: string): boolean {
+	return SESSION_DESTROYING_REVOKE_CLIENT_IDS.has(clientId);
 }
 
 /**

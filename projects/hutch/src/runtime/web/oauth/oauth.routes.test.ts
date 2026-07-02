@@ -448,7 +448,7 @@ describe("OAuth routes", () => {
 			expect(revokedRefresh).toBeNull();
 		});
 
-		it("destroys all of the user's sessions and tokens when the revoked token belongs to the iOS app", async () => {
+		it("destroys all of the user's sessions but only the presented token when the revoked token belongs to the iOS app", async () => {
 			const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
 			const iosClient = await harness.oauthModel.getClient("ios-app", "");
 			assert(iosClient, "Built-in ios-app client must exist");
@@ -491,7 +491,9 @@ describe("OAuth routes", () => {
 			expect(await harness.auth.getSessionUserId(sessionA)).toBeNull();
 			expect(await harness.auth.getSessionUserId(sessionB)).toBeNull();
 			expect(await harness.oauthModel.getRefreshToken("ios-revoke-refresh")).toBeNull();
-			expect(await harness.oauthModel.getRefreshToken("extension-bystander-refresh")).toBeNull();
+			const bystander = await harness.oauthModel.getRefreshToken("extension-bystander-refresh");
+			assert(bystander, "The extension token must survive the iOS sign-out so its device re-mints instead of being signed out");
+			expect(bystander.user.id).toBe(TEST_USER_ID);
 		});
 
 		it("keeps other sessions and tokens when the revoked token belongs to an extension", async () => {

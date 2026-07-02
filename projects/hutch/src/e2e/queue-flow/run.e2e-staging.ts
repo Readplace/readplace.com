@@ -43,10 +43,6 @@ function skipFactory<K extends string>(
   }
 }
 
-// Serial: the revoke flow below destroys every session of the shared staging
-// user, so it must only run after the UI flow is done with that account.
-test.describe.configure({ mode: 'serial' })
-
 test.describe('Queue management flow (staging)', () => {
   test('signup, logout, login, add articles, pagination, sort, read, delete, verify tabs', async ({ page, baseURL }) => {
     assert(baseURL, "baseURL must be defined — set STAGING_URL env var")
@@ -210,9 +206,12 @@ test.describe('Queue management flow (staging)', () => {
 
     // Runs against the deployed stack, so it exercises the sessions-table
     // userId-index and its IAM grant — the parts no in-memory test can reach.
+    // A user of its own: the flow destroys every session of its account, so
+    // sharing the UI flow's user would sign out concurrently running suites
+    // (or a human) logged in as that account.
     await runOAuthRevokeFlow({
       baseURL,
-      email: 'e2e-test@example.com',
+      email: 'oauth-revoke-e2e@example.com',
       password: 'test-password-123',
     })
   })
