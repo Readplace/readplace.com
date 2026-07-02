@@ -10,7 +10,7 @@ import type { MarkCrawlStage } from "../../providers/article-crawl/mark-crawl-st
 import type { UpdateFetchTimestamp } from "./update-fetch-timestamp-handler";
 import type { LogCrawlOutcome, LogParseError } from "@packages/hutch-infra-components";
 import type { ReadTierSnapshot } from "../crawl-article-state/read-tier-snapshot";
-import { CrawlFailedError, initSaveLinkWork } from "./save-link-work";
+import { initSaveLinkWork, logRecordFailure } from "./save-link-work";
 import type { CrawlAndFinalizeArticle } from "@packages/finalize-article";
 import type { PutTierSource } from "../../providers/article-store/put-tier-source";
 import type { EmitSimpleCrawlUnsupported } from "../../dep-bundles/events";
@@ -30,6 +30,7 @@ export function initSaveAnonymousLinkCommandHandler(deps: {
 	readTierSnapshot: ReadTierSnapshot;
 }): Handler<SQSEvent, SQSBatchResponse> {
 	const { publishEvent, logger } = deps;
+	const logPrefix = "[SaveAnonymousLinkCommand]";
 
 	const { saveLinkWork } = initSaveLinkWork({
 		crawlAndFinalizeArticle: deps.crawlAndFinalizeArticle,
@@ -43,7 +44,7 @@ export function initSaveAnonymousLinkCommandHandler(deps: {
 		logParseError: deps.logParseError,
 		logCrawlOutcome: deps.logCrawlOutcome,
 		readTierSnapshot: deps.readTierSnapshot,
-		logPrefix: "[SaveAnonymousLinkCommand]",
+		logPrefix,
 	});
 
 	return async (event): Promise<SQSBatchResponse> => {
@@ -73,14 +74,7 @@ export function initSaveAnonymousLinkCommandHandler(deps: {
 					tier: "tier-1",
 				});
 			} catch (error) {
-				if (error instanceof CrawlFailedError) {
-					logger.warn("[SaveAnonymousLinkCommand] tier-1 crawl failed", { url: error.url });
-				} else {
-					logger.error("[SaveAnonymousLinkCommand] record failed", {
-						messageId: record.messageId,
-						error,
-					});
-				}
+				logRecordFailure({ logger, logPrefix, record, error });
 				batchItemFailures.push({ itemIdentifier: record.messageId });
 			}
 		}

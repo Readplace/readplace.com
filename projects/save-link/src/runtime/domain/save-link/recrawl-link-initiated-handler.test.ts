@@ -176,6 +176,7 @@ describe("initRecrawlLinkInitiatedHandler", () => {
 
 		expect(logger.warn).toHaveBeenCalledWith("[RecrawlLinkInitiated] tier-1 crawl failed", {
 			url: "https://example.com/article",
+			messageId: "msg-1",
 		});
 		expect(logger.error).not.toHaveBeenCalled();
 		expect(result).toEqual({ batchItemFailures: [{ itemIdentifier: "msg-1" }] });

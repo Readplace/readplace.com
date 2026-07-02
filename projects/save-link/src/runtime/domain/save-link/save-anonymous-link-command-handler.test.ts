@@ -115,7 +115,7 @@ describe("initSaveAnonymousLinkCommandHandler", () => {
 		expect(publishEvent).not.toHaveBeenCalled();
 	});
 
-	it("reports crawl failures via logParseError so the parse-errors dashboard reflects them", async () => {
+	it("does not report a tier-1 crawl-failed via logParseError (a network fetch failure is not a parse defect, so it stays off the parse-errors stream)", async () => {
 		const logParseError = jest.fn();
 		const crawlAndFinalizeArticle: CrawlAndFinalizeArticle = async () => ({ status: "failed", reason: "crawl-failed" });
 
@@ -123,10 +123,7 @@ describe("initSaveAnonymousLinkCommandHandler", () => {
 
 		await handler(createSqsEvent({ url: "https://example.com/unreachable" }), buildLambdaContext(), () => {});
 
-		expect(logParseError).toHaveBeenCalledWith({
-			url: "https://example.com/unreachable",
-			reason: "crawl-failed",
-		});
+		expect(logParseError).not.toHaveBeenCalled();
 	});
 
 	it("routes terminal parse-error failures through markCrawlFailed via transitionAndPersist so /view + /admin/recrawl polling see failure at t+0", async () => {
@@ -217,6 +214,7 @@ describe("initSaveAnonymousLinkCommandHandler", () => {
 
 		expect(logger.warn).toHaveBeenCalledWith("[SaveAnonymousLinkCommand] tier-1 crawl failed", {
 			url: "https://example.com/article",
+			messageId: "msg-1",
 		});
 		expect(logger.error).not.toHaveBeenCalled();
 		expect(result).toEqual({ batchItemFailures: [{ itemIdentifier: "msg-1" }] });

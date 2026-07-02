@@ -108,7 +108,6 @@ describe("buildAnalyticsDashboardBody — drift prevention", () => {
 		expect(query).toContain('filter level = "ERROR"');
 		expect(query).toContain(`stream = "${STREAMS.parseErrors}"`);
 		expect(query).toContain('@message like "ERROR"');
-		expect(query).toContain('| filter (not ispresent(reason)) or reason != "crawl-failed"');
 		expect(query).toContain("| sort @timestamp desc");
 		expect(query).toContain("| limit 100");
 		const expectedSource = [
