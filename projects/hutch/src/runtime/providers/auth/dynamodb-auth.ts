@@ -278,11 +278,18 @@ export function initDynamoDbAuth(deps: {
 	const countUsers: CountUsers = async () => {
 		// Claim items share the table but carry ownerUserId, not userId, so this
 		// filter counts only real user rows (the founding-member gate reads this).
-		const { count } = await users.scan({
-			Select: "COUNT",
-			FilterExpression: "attribute_exists(userId)",
-		});
-		return count;
+		let total = 0;
+		let startKey: Record<string, unknown> | undefined;
+		do {
+			const { count, lastEvaluatedKey } = await users.scan({
+				Select: "COUNT",
+				FilterExpression: "attribute_exists(userId)",
+				ExclusiveStartKey: startKey,
+			});
+			total += count;
+			startKey = lastEvaluatedKey;
+		} while (startKey);
+		return total;
 	};
 
 	const markEmailVerified: MarkEmailVerified = async (email) => {
