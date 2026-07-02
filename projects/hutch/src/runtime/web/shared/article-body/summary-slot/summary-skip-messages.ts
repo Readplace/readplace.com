@@ -11,8 +11,6 @@ const SUMMARY_SKIP_MESSAGES: Record<SummarySkipReason, string> = {
 		"Summary not generated for this link.",
 	"crawl-failed":
 		"Summary not generated for this link.",
-	"canonical-alias":
-		"This link is an alias for another saved article.",
 };
 
 const SUMMARY_SKIP_FALLBACK = "No summary was generated for this article.";

@@ -47,14 +47,6 @@ export {
 	type MarkCrawlBlockedInput,
 } from "./transitions/mark-crawl-blocked";
 export {
-	ensureCanonicalStub,
-	type EnsureCanonicalStubInput,
-} from "./transitions/ensure-canonical-stub";
-export {
-	markCanonicalAlias,
-	type MarkCanonicalAliasInput,
-} from "./transitions/mark-canonical-alias";
-export {
 	markSummarySkipped,
 	type MarkSummarySkippedInput,
 } from "./transitions/mark-summary-skipped";

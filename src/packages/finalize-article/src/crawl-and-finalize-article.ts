@@ -6,7 +6,7 @@ export type CrawlAndFinalizeResult =
 	| {
 			status: "fetched";
 			article: FinalizedArticle;
-			canonicalUrl: string;
+			canonicalUrl?: string;
 			etag?: string;
 			lastModified?: string;
 			bodyHash: string;

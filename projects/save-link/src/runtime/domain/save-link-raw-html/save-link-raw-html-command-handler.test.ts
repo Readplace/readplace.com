@@ -42,7 +42,7 @@ const stubFinalizedArticle: FinalizedArticle = {
 	},
 };
 
-const okFinalize: FinalizeArticle = async (input) => ({ ok: true, canonicalUrl: input.url, article: stubFinalizedArticle });
+const okFinalize: FinalizeArticle = async () => ({ ok: true, article: stubFinalizedArticle });
 
 type HandlerDeps = Parameters<typeof initSaveLinkRawHtmlCommandHandler>[0];
 

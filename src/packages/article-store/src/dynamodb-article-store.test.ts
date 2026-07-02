@@ -136,22 +136,6 @@ describe("initDynamoDbArticleStore (unit)", () => {
 			});
 		});
 
-		it("maps the canonicalUrl pointer on a terminal alias row", async () => {
-			const client = createFakeClient(() => ({
-				Item: {
-					crawlStatus: "ready",
-					summaryStatus: "skipped",
-					summarySkippedReason: "canonical-alias",
-					canonicalUrl: "https://example.com/canonical",
-				},
-			}));
-			const { store } = initDynamoDbArticleStore({ client, tableName: TABLE });
-
-			const article = await store.load(URL);
-
-			expect(article?.canonicalUrl).toBe("https://example.com/canonical");
-		});
-
 		it("leaves canonicalContentHash undefined for legacy rows that pre-date the hash column", async () => {
 			const client = createFakeClient(() => ({
 				Item: {
@@ -526,25 +510,6 @@ describe("initDynamoDbArticleStore (unit)", () => {
 	});
 
 	describe("save (refresh-content shape: writes metadata, freshness, summary)", () => {
-		it("writes the canonicalUrl attribute when the canonical axis is in the write set", async () => {
-			let received: unknown;
-			const client = createFakeClient((input) => {
-				received = input;
-				return {};
-			});
-			const { store } = initDynamoDbArticleStore({ client, tableName: TABLE });
-
-			await store.save({
-				article: buildArticle({ canonicalUrl: "https://example.com/canonical" }),
-				transitionName: "markCanonicalAlias",
-				writes: ["canonicalUrl"],
-			});
-
-			const command = capturedCommand(received);
-			expect(command.input.UpdateExpression).toContain("canonicalUrl = :canonicalUrl");
-			expect(command.input.ExpressionAttributeValues?.[":canonicalUrl"]).toBe("https://example.com/canonical");
-		});
-
 		it("issues an UpdateItem that writes metadata, freshness, estimatedReadTime, and resets summary to pending", async () => {
 			let received: unknown;
 			const client = createFakeClient((input) => {

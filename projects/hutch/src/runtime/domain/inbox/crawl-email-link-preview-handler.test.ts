@@ -34,7 +34,6 @@ function fetched(
 	return {
 		status: "fetched",
 		bodyHash: "hash",
-		canonicalUrl: "https://example.com/post",
 		article: {
 			html: "<p>body that is discarded</p>",
 			metadata: {

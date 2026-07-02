@@ -336,7 +336,6 @@ describe("initStaleCheckHandler", () => {
 		const crawlAndFinalizeArticle: CrawlAndFinalizeArticle = async () => ({
 			status: "fetched",
 			article: finalizedArticle,
-			canonicalUrl: "https://example.com/article",
 			etag: '"new"',
 			lastModified: "Sat, 17 May 2026 00:00:00 GMT",
 			bodyHash: "deadbeef".repeat(8),

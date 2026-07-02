@@ -48,7 +48,6 @@ const stubFinalizedArticle: FinalizedArticle = {
 const fetchedResult: CrawlAndFinalizeResult = {
 	status: "fetched",
 	article: stubFinalizedArticle,
-	canonicalUrl: "https://example.com/article",
 	bodyHash: "a".repeat(64),
 };
 

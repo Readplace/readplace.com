@@ -6,8 +6,7 @@ export type AggregateField =
 	| "freshness"
 	| "summary"
 	| "crawl"
-	| "summaryAutoHeal"
-	| "canonicalUrl";
+	| "summaryAutoHeal";
 
 /**
  * Storage adapter contract for the Article aggregate.

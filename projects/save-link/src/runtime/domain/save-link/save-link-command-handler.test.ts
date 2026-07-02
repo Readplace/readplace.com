@@ -50,7 +50,6 @@ const stubFinalizedArticle: FinalizedArticle = {
 const fetchedResult: CrawlAndFinalizeResult = {
 	status: "fetched",
 	article: stubFinalizedArticle,
-	canonicalUrl: "https://example.com/article",
 	bodyHash: "a".repeat(64),
 };
 
@@ -119,7 +118,6 @@ describe("initSaveLinkCommandHandler", () => {
 		const crawlAndFinalizeArticle: CrawlAndFinalizeArticle = async () => ({
 			status: "fetched",
 			article: stubFinalizedArticle,
-			canonicalUrl: "https://example.com/article",
 			etag: '"v1"',
 			lastModified: "Wed, 01 Apr 2026 00:00:00 GMT",
 			bodyHash: "deadbeef".repeat(8),
