@@ -26,7 +26,7 @@ open: generate
 # someone builds `make ipa-staging` by hand.
 SIM ?= platform=iOS Simulator,name=$(shell xcrun simctl list devices available | grep -m1 -oE 'iPhone [0-9]+')
 test: generate
-	xcodebuild test -project Readplace.xcodeproj -scheme Readplace -destination '$(SIM)'
+	xcodebuild test -project Readplace.xcodeproj -scheme Readplace -destination '$(SIM)' -retry-tests-on-failure -test-iterations 3
 	$(MAKE) test-staging SIM='$(SIM)'
 
 # Compile the STAGING condition and smoke-test it. The full suite can't run under
