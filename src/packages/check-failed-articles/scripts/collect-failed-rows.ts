@@ -22,6 +22,11 @@
  * transient, self-inflicted spend cap, not a crawler defect. Re-saving only
  * re-trips it until the window frees, so it is not a debug-worklist item.
  *
+ * A crawl that `failed` with a `not-found` reason (HTTP 404/410) is also
+ * dropped: the origin definitively no longer serves the page, so a recrawl
+ * can never succeed. A dead link is a fact about the web, not a crawler
+ * defect an operator can fix.
+ *
  * The scan also accepts an optional lookback (in days) that gates rows on
  * `savedAt` — a value of `0` disables the gate and surfaces every historical
  * row, which is the default so the operator gets the full backlog and can
@@ -31,6 +36,7 @@ import assert from "node:assert/strict";
 import {
 	classifyCrawlOutcome,
 	classifySummaryOutcome,
+	type CrawlFailureReason,
 	CrawlFailureReasonSchema,
 	CrawlStatusSchema,
 	SummaryStatusSchema,
@@ -115,20 +121,28 @@ export function buildScanInput(now: Date, lookbackDays: number) {
 }
 
 /* The crawl-failure reason is persisted as `JSON.stringify(reason)`; parse it
- * back and recognise the paid-crawl-budget block so the worklist can drop it.
- * Legacy rows whose reason is a bare (non-JSON) string fall through as "not a
- * rate-limited block" and surface normally. */
-function isRateLimitedBlock(rawReason: string | undefined): boolean {
-	if (rawReason === undefined) return false;
+ * back so the worklist can drop reason kinds that are not operator-actionable.
+ * Legacy rows whose reason is a bare (non-JSON) string or an unknown kind
+ * parse to `undefined` and surface normally. */
+function parseReason(rawReason: string | undefined): CrawlFailureReason | undefined {
+	if (rawReason === undefined) return undefined;
 	let parsed: unknown;
 	try {
 		parsed = JSON.parse(rawReason);
 	} catch {
-		return false;
+		return undefined;
 	}
 	const result = CrawlFailureReasonSchema.safeParse(parsed);
-	if (!result.success) return false;
-	return result.data.kind === "blocked" && result.data.cause === "rate-limited";
+	if (!result.success) return undefined;
+	return result.data;
+}
+
+function isRateLimitedBlock(reason: CrawlFailureReason | undefined): boolean {
+	return reason !== undefined && reason.kind === "blocked" && reason.cause === "rate-limited";
+}
+
+function isNotFound(reason: CrawlFailureReason | undefined): boolean {
+	return reason !== undefined && reason.kind === "not-found";
 }
 
 function classifyAxes(row: z.infer<typeof FailedArticleRow>): {
@@ -137,9 +151,11 @@ function classifyAxes(row: z.infer<typeof FailedArticleRow>): {
 } {
 	const axes: FailedAxis[] = [];
 	const reasons: Partial<Record<FailedAxis, string>> = {};
+	const crawlReason = parseReason(row.crawlFailureReason);
 	if (
 		classifyCrawlOutcome(row.crawlStatus) === "error" &&
-		!isRateLimitedBlock(row.crawlFailureReason)
+		!isRateLimitedBlock(crawlReason) &&
+		!isNotFound(crawlReason)
 	) {
 		axes.push("crawl-failed");
 		if (row.crawlFailureReason !== undefined) reasons["crawl-failed"] = row.crawlFailureReason;

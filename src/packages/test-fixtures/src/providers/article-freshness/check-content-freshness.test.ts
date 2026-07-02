@@ -206,6 +206,29 @@ describe("refreshArticleIfStale", () => {
 		expect(result.action).toBe("skip");
 	});
 
+	it("returns action 'skip' when crawlArticle returns not-found on re-crawl (permanently dead link keeps its prior content)", async () => {
+		const publishCalled: string[] = [];
+		const deps = createDeps({
+			findArticleFreshness: async () => ({
+				contentFetchedAt: "2026-03-19T00:00:00Z",
+			}),
+			findArticleCrawlStatus: async () => ({ status: "ready" as const }),
+			crawlArticle: async () => ({ status: "not-found" as const, httpStatus: 404 as const }),
+			publishRefreshArticleContent: async () => {
+				publishCalled.push("refresh");
+			},
+			publishUpdateFetchTimestamp: async () => {
+				publishCalled.push("timestamp");
+			},
+		});
+		const { refreshArticleIfStale } = initRefreshArticleIfStale(deps);
+
+		const result = await refreshArticleIfStale({ url: "https://example.com/article" });
+
+		expect(result.action).toBe("skip");
+		expect(publishCalled).toEqual([]);
+	});
+
 	it("returns action 'skip' when parseHtml returns not ok after fetched content", async () => {
 		const deps = createDeps({
 			findArticleFreshness: async () => ({

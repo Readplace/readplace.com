@@ -1,6 +1,11 @@
 import { noopLogger } from "@packages/hutch-logger";
 import type { CrawlArticle } from "@packages/crawl-article";
-import { markCrawlBlocked, markCrawlFailed, markCrawlUnsupported } from "@packages/domain/article-aggregate";
+import {
+	markCrawlBlocked,
+	markCrawlFailed,
+	markCrawlNotFound,
+	markCrawlUnsupported,
+} from "@packages/domain/article-aggregate";
 import {
 	RecrawlContentExtractedEvent,
 	RefreshContentExtractedEvent,
@@ -327,6 +332,113 @@ describe("initComprehensiveCrawlHandler", () => {
 		expect(result).toEqual({ batchItemFailures: [{ itemIdentifier: "msg-1" }] });
 		expect(transitionAndPersist).not.toHaveBeenCalled();
 		expect(publishEvent).not.toHaveBeenCalled();
+	});
+
+	it("consumes the message (empty batchItemFailures, no SQS retry) and terminalises via markCrawlNotFound when the origin says the page is permanently gone — a retry can never resurrect a 404", async () => {
+		const notFoundComprehensiveCrawl: CrawlArticle = async () => ({ status: "not-found", httpStatus: 404 });
+		const transitionAndPersist = jest.fn().mockResolvedValue(undefined);
+		const publishEvent = jest.fn().mockResolvedValue(undefined);
+		const logParseError = jest.fn();
+
+		const handler = createHandler({
+			crawlArticle: notFoundComprehensiveCrawl,
+			transitionAndPersist,
+			publishEvent,
+			logParseError,
+		});
+
+		const result = await handler(
+			createSqsEvent({ url: "https://example.com/gone.pdf" }),
+			buildLambdaContext(),
+			() => {},
+		);
+
+		expect(result).toEqual({ batchItemFailures: [] });
+		expect(transitionAndPersist).toHaveBeenCalledWith(markCrawlNotFound, {
+			url: "https://example.com/gone.pdf",
+			input: { reason: { kind: "not-found", httpStatus: 404 } },
+		});
+		expect(transitionAndPersist).toHaveBeenCalledTimes(1);
+		expect(publishEvent).not.toHaveBeenCalled();
+		expect(logParseError).toHaveBeenCalledWith({
+			url: "https://example.com/gone.pdf",
+			reason: "crawl-not-found: HTTP 404",
+		});
+	});
+
+	it("terminalises a refresh's 404 through the same markCrawlNotFound transition — its crawl-ready guard preserves a served row while a stuck-pending row still lands terminal", async () => {
+		const notFoundComprehensiveCrawl: CrawlArticle = async () => ({ status: "not-found", httpStatus: 404 });
+		const transitionAndPersist = jest.fn().mockResolvedValue(undefined);
+		const publishEvent = jest.fn().mockResolvedValue(undefined);
+
+		const handler = createHandler({
+			crawlArticle: notFoundComprehensiveCrawl,
+			transitionAndPersist,
+			publishEvent,
+		});
+
+		const result = await handler(
+			createSqsEvent({ url: "https://example.com/gone.pdf", refresh: true }),
+			buildLambdaContext(),
+			() => {},
+		);
+
+		expect(result).toEqual({ batchItemFailures: [] });
+		expect(transitionAndPersist).toHaveBeenCalledWith(markCrawlNotFound, {
+			url: "https://example.com/gone.pdf",
+			input: { reason: { kind: "not-found", httpStatus: 404 } },
+		});
+		expect(publishEvent).not.toHaveBeenCalled();
+	});
+
+	it("still consumes a permanently-gone message when the tier-1 failure outcome log fails — a telemetry hiccup must not dead-letter a row that is already terminal", async () => {
+		const notFoundComprehensiveCrawl: CrawlArticle = async () => ({ status: "not-found", httpStatus: 404 });
+		const transitionAndPersist = jest.fn().mockResolvedValue(undefined);
+		const readTierSnapshot = jest.fn().mockRejectedValue(new Error("DDB read timed out"));
+
+		const handler = createHandler({
+			crawlArticle: notFoundComprehensiveCrawl,
+			transitionAndPersist,
+			readTierSnapshot,
+		});
+
+		const result = await handler(
+			createSqsEvent({ url: "https://example.com/gone.pdf" }),
+			buildLambdaContext(),
+			() => {},
+		);
+
+		expect(result).toEqual({ batchItemFailures: [] });
+		expect(transitionAndPersist).toHaveBeenCalledWith(markCrawlNotFound, {
+			url: "https://example.com/gone.pdf",
+			input: { reason: { kind: "not-found", httpStatus: 404 } },
+		});
+	});
+
+	it("emits a tier-1 failure crawl-outcome on a permanently-gone page (HTTP 410), snapshotting the other tier's state", async () => {
+		const notFoundComprehensiveCrawl: CrawlArticle = async () => ({ status: "not-found", httpStatus: 410 });
+		const logCrawlOutcome = jest.fn();
+		const readTierSnapshot = jest.fn().mockResolvedValue({
+			tier0Status: "success",
+			tier1Status: "not_attempted",
+			pickedTier: "tier-0",
+		});
+
+		const handler = createHandler({
+			crawlArticle: notFoundComprehensiveCrawl,
+			logCrawlOutcome,
+			readTierSnapshot,
+		});
+
+		await handler(createSqsEvent({ url: "https://example.com/gone.pdf" }), buildLambdaContext(), () => {});
+
+		expect(logCrawlOutcome).toHaveBeenCalledWith({
+			url: "https://example.com/gone.pdf",
+			thisTier: "tier-1",
+			thisTierStatus: "failed",
+			otherTierStatus: "success",
+			pickedTier: "tier-0",
+		});
 	});
 
 	it("routes terminal parse errors through markCrawlFailed via transitionAndPersist (same behavior as save-link-work)", async () => {

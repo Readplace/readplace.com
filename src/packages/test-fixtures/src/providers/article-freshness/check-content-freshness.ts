@@ -58,7 +58,11 @@ export function initRefreshArticleIfStale(deps: {
 			return { action: "unchanged" };
 		}
 
-		if (result.status === "failed" || result.status === "unsupported") {
+		if (
+			result.status === "failed" ||
+			result.status === "not-found" ||
+			result.status === "unsupported"
+		) {
 			return { action: "skip" };
 		}
 

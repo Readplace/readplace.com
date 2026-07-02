@@ -152,6 +152,16 @@ describe("markCrawlExhausted", () => {
 		assert.equal(failed.reason, "blocked: cloudflare");
 	});
 
+	it("stringifies not-found reasons with the httpStatus", () => {
+		const { effects } = markCrawlExhausted(buildArticle(), {
+			reason: { kind: "not-found", httpStatus: 404 },
+			receiveCount: 1,
+		});
+		const failed = effects[0];
+		assert.ok(failed && failed.kind === "publish-crawl-article-failed");
+		assert.equal(failed.reason, "not-found: HTTP 404");
+	});
+
 	it("exposes its function name so transitionAndPersist can tag the row for the Phase 2 canary measurement", () => {
 		assert.equal(markCrawlExhausted.name, "markCrawlExhausted");
 	});

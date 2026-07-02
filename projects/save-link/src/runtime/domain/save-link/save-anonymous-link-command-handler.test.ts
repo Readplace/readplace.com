@@ -1,5 +1,5 @@
 import { noopLogger } from "@packages/hutch-logger";
-import { markCrawlFailed } from "@packages/domain/article-aggregate";
+import { markCrawlFailed, markCrawlNotFound } from "@packages/domain/article-aggregate";
 import { TierContentExtractedEvent } from "@packages/hutch-infra-components";
 import { initSaveAnonymousLinkCommandHandler } from "./save-anonymous-link-command-handler";
 import type {
@@ -141,6 +141,29 @@ describe("initSaveAnonymousLinkCommandHandler", () => {
 			url: "https://example.com/bad",
 			input: { reason: { kind: "parse-error", detail: "Readability crashed on this DOM" } },
 		});
+	});
+
+	it("terminalises a permanently-dead link (HTTP 410) via markCrawlNotFound and neither emits TierContentExtractedEvent nor reports a batch failure — an SQS retry can never revive a page the origin no longer serves", async () => {
+		const transitionAndPersist = jest.fn().mockResolvedValue(undefined);
+		const publishEvent = jest.fn().mockResolvedValue(undefined);
+		const putTierSource: PutTierSource = jest.fn().mockResolvedValue(undefined);
+		const crawlAndFinalizeArticle: CrawlAndFinalizeArticle = async () => ({ status: "not-found", httpStatus: 410 });
+
+		const handler = createHandler({ crawlAndFinalizeArticle, transitionAndPersist, publishEvent, putTierSource });
+
+		const result = await handler(
+			createSqsEvent({ url: "https://example.com/gone" }),
+			buildLambdaContext(),
+			() => {},
+		);
+
+		expect(result).toEqual({ batchItemFailures: [] });
+		expect(transitionAndPersist).toHaveBeenCalledWith(markCrawlNotFound, {
+			url: "https://example.com/gone",
+			input: { reason: { kind: "not-found", httpStatus: 410 } },
+		});
+		expect(publishEvent).not.toHaveBeenCalled();
+		expect(putTierSource).not.toHaveBeenCalled();
 	});
 
 	it("emits SimpleCrawlUnsupportedEvent without userId when the crawl returns unsupported (anonymous path)", async () => {

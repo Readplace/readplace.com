@@ -123,6 +123,17 @@ describe("initCrawlAndFinalizeArticle", () => {
 		expect(result).toEqual({ status: "failed", reason: "crawl-failed" });
 	});
 
+	it("maps the crawler's not-found status through with the httpStatus (callers terminalise without retries)", async () => {
+		const crawlAndFinalize = initCrawlAndFinalizeArticle({
+			crawlArticle: async () => ({ status: "not-found", httpStatus: 404 }),
+			finalizeArticle: okFinalize,
+		});
+
+		const result = await crawlAndFinalize({ url: URL_UNDER_TEST });
+
+		expect(result).toEqual({ status: "not-found", httpStatus: 404 });
+	});
+
 	it("threads the crawler's pre-fetched thumbnailImage into finalizeArticle so no second image fetch fires", async () => {
 		const preFetched: ThumbnailImage = {
 			body: Buffer.from([0xff, 0xd8, 0xff]),

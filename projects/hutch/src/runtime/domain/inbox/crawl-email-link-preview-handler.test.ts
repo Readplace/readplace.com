@@ -152,6 +152,23 @@ describe("initCrawlEmailLinkPreviewHandler", () => {
 		expect((await getLink(store)).failureReason).toBe("not-modified");
 	});
 
+	it("maps a permanently-dead (404) link to a failed preview with the not-found reason and ACKs the record", async () => {
+		const store = initInMemoryInboxEmailLink();
+		await seedPending(store);
+		const run = makeHandler({
+			crawlAndFinalize: async () => ({ status: "not-found", httpStatus: 404 }),
+			setLinkOutcome: store.setLinkOutcome,
+		});
+
+		const result = await run(commandBody());
+
+		assert(result);
+		expect(result.batchItemFailures).toHaveLength(0);
+		const link = await getLink(store);
+		expect(link.status).toBe("failed");
+		expect(link.failureReason).toBe("not-found");
+	});
+
 	it("fails the record for a malformed command envelope", async () => {
 		const store = initInMemoryInboxEmailLink();
 		const run = makeHandler({

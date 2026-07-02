@@ -14,5 +14,9 @@ export const CrawlFailureReasonSchema = z.discriminatedUnion("kind", [
 		kind: z.literal("blocked"),
 		cause: z.enum(["cloudflare", "robots", "rate-limited"]),
 	}),
+	z.object({
+		kind: z.literal("not-found"),
+		httpStatus: z.union([z.literal(404), z.literal(410)]),
+	}),
 ]);
 export type CrawlFailureReason = z.infer<typeof CrawlFailureReasonSchema>;

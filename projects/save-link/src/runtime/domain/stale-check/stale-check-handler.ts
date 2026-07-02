@@ -117,6 +117,8 @@ export function initStaleCheckHandler(deps: {
 
 		if (result.status === "failed") return "skip";
 
+		if (result.status === "not-found") return "skip";
+
 		if (result.status === "unsupported") {
 			/* Write the stage marker so the reader's progress bar advances
 			 * immediately, then emit the event with `refresh=true` so the

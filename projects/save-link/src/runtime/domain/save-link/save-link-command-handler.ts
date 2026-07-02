@@ -61,6 +61,12 @@ export function initSaveLinkCommandHandler(deps: {
 					});
 					continue;
 				}
+				if (result === "tier-1-terminal") {
+					logger.info("[SaveLinkCommand] tier-1 terminal — origin no longer serves the page", {
+						url: detail.url,
+					});
+					continue;
+				}
 
 				await publishEvent(TierContentExtractedEvent, {
 					url: detail.url,

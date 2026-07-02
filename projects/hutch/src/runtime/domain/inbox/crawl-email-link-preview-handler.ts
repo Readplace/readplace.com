@@ -63,7 +63,10 @@ export function initCrawlEmailLinkPreviewHandler(deps: {
 					logger.info("[crawl-email-link-preview] crawled", { receivedAtMessageId, ordinal });
 					continue;
 				}
-				const failureReason = result.status === "not-modified" ? "not-modified" : result.reason;
+				const failureReason =
+					result.status === "not-modified" || result.status === "not-found"
+						? result.status
+						: result.reason;
 				await setLinkOutcome({
 					userId,
 					receivedAtMessageId,

@@ -443,6 +443,10 @@ function initProviders() {
 			await crawlStore.markCrawlFailed({ url, reason: result.reason });
 			return;
 		}
+		if (result.status === "not-found") {
+			await crawlStore.markCrawlFailed({ url, reason: `not-found: HTTP ${result.httpStatus}` });
+			return;
+		}
 		if (result.status === "not-modified") return;
 		await articleStore.writeContent({ url, content: result.article.html });
 		await crawlStore.markCrawlReady({ url });

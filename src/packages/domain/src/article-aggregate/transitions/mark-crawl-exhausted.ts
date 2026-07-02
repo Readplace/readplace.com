@@ -20,6 +20,8 @@ function reasonAsString(reason: CrawlFailureReason): string {
 			return `exhausted-retries (receiveCount=${reason.receiveCount})`;
 		case "blocked":
 			return `blocked: ${reason.cause}`;
+		case "not-found":
+			return `not-found: HTTP ${reason.httpStatus}`;
 	}
 }
 

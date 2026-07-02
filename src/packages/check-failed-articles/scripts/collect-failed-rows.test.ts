@@ -206,6 +206,58 @@ describe("collectFailedRows", () => {
 		assert.deepEqual(failed, []);
 	});
 
+	it("drops a not-found crawl failure — the origin no longer serves the page, so a recrawl can never succeed", async () => {
+		const { client } = createFakeClient(() => ({
+			Items: [
+				{
+					url: "site.test/deleted",
+					originalUrl: "https://site.test/deleted",
+					crawlStatus: "failed",
+					crawlFailureReason: '{"kind":"not-found","httpStatus":404}',
+					summaryStatus: "skipped",
+					savedAt: "2026-05-10T00:00:00.000Z",
+				},
+			],
+			Count: 1,
+		}));
+		const failed = await collectFailedRows({
+			client,
+			tableName: TABLE,
+			origin: ORIGIN,
+			now: () => NOW,
+			lookbackDays: 0,
+			excludePatterns: NO_EXCLUDES,
+		});
+		assert.deepEqual(failed, []);
+	});
+
+	it("still surfaces the summary axis when a not-found crawl left the summary failed (pre-fix legacy rows)", async () => {
+		const { client } = createFakeClient(() => ({
+			Items: [
+				{
+					url: "site.test/deleted-legacy",
+					originalUrl: "https://site.test/deleted-legacy",
+					crawlStatus: "failed",
+					crawlFailureReason: '{"kind":"not-found","httpStatus":404}',
+					summaryStatus: "failed",
+					summaryFailureReason: '{"kind":"crawl-failed"}',
+					savedAt: "2026-05-10T00:00:00.000Z",
+				},
+			],
+			Count: 1,
+		}));
+		const failed = await collectFailedRows({
+			client,
+			tableName: TABLE,
+			origin: ORIGIN,
+			now: () => NOW,
+			lookbackDays: 0,
+			excludePatterns: NO_EXCLUDES,
+		});
+		assert.equal(failed.length, 1);
+		assert.deepEqual(failed[0]?.axes, ["summary-failed"]);
+	});
+
 	it("surfaces a non-rate-limited block (e.g. cloudflare) — a real crawler block to investigate", async () => {
 		const { client } = createFakeClient(() => ({
 			Items: [

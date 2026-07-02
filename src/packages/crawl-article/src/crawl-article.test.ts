@@ -450,6 +450,28 @@ describe("initCrawlArticle — single-fetch orchestration", () => {
 		expect(logError).toHaveBeenCalledWith("[CrawlArticle] HTTP 500 for https://example.com");
 	});
 
+	it("returns not-found with the status on an HTTP 404 so callers can terminalise without retries", async () => {
+		const fakeFetch: typeof fetch = async () => new Response(null, { status: 404 });
+		const logError = jest.fn();
+		const crawlArticle = initCrawl({ fetch: fakeFetch, logError });
+
+		const result = await crawlArticle({ url: "https://example.com/deleted" });
+
+		expect(result).toEqual({ status: "not-found", httpStatus: 404 });
+		expect(logError).toHaveBeenCalledWith("[CrawlArticle] HTTP 404 for https://example.com/deleted");
+	});
+
+	it("returns not-found with the status on an HTTP 410 Gone", async () => {
+		const fakeFetch: typeof fetch = async () => new Response(null, { status: 410 });
+		const logError = jest.fn();
+		const crawlArticle = initCrawl({ fetch: fakeFetch, logError });
+
+		const result = await crawlArticle({ url: "https://example.com/delisted" });
+
+		expect(result).toEqual({ status: "not-found", httpStatus: 410 });
+		expect(logError).toHaveBeenCalledWith("[CrawlArticle] HTTP 410 for https://example.com/delisted");
+	});
+
 	it("returns failed and logs the Error when the fetch throws a network error", async () => {
 		const networkError = Object.assign(new Error("connect ECONNREFUSED"), { code: "ECONNREFUSED" });
 		const fakeFetch: typeof fetch = async () => { throw networkError; };

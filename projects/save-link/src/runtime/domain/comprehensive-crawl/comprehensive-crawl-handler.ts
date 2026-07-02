@@ -3,7 +3,12 @@ import type { HutchLogger } from "@packages/hutch-logger";
 import type { CrawlArticle } from "@packages/crawl-article";
 import type { PublishEvent } from "@packages/hutch-infra-components/runtime";
 import type { TransitionAndPersist } from "@packages/domain/article-aggregate";
-import { markCrawlBlocked, markCrawlFailed, markCrawlUnsupported } from "@packages/domain/article-aggregate";
+import {
+	markCrawlBlocked,
+	markCrawlFailed,
+	markCrawlNotFound,
+	markCrawlUnsupported,
+} from "@packages/domain/article-aggregate";
 import {
 	ComprehensiveCrawlCommand,
 	RecrawlContentExtractedEvent,
@@ -160,6 +165,23 @@ export function initComprehensiveCrawlHandler(deps: {
 				logParseError({ url, reason });
 				await emitTier1Failure(url);
 				throw new Error(`crawl failed for ${url}: ${reason}`);
+			}
+			case "not-found": {
+				logParseError({ url, reason: `crawl-not-found: HTTP ${crawlResult.httpStatus}` });
+				await transitionAndPersist(markCrawlNotFound, {
+					url,
+					input: { reason: { kind: "not-found", httpStatus: crawlResult.httpStatus } },
+				});
+				/* Best-effort: the row is already terminal, and this queue is
+				 * maxReceiveCount=1 — a throw here would dead-letter the message and
+				 * let the DLQ handler overwrite the not-found classification. */
+				await emitTier1Failure(url).catch((error: unknown) => {
+					logger.warn(`${logPrefix} tier-1 failure outcome log failed`, {
+						url,
+						error: String(error),
+					});
+				});
+				return { via: "committed-in-process" };
 			}
 			case "fetched": {
 				const finalized = await finalizeArticle({

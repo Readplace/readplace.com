@@ -13,6 +13,8 @@ export function messageForCrawlFailure(reason: CrawlFailureReason): string {
 				: "We couldn't reach the article's host.";
 		case "exhausted-retries":
 			return "We retried fetching this article several times without success.";
+		case "not-found":
+			return `The page no longer exists at this address (HTTP ${reason.httpStatus}).`;
 		case "blocked":
 			switch (reason.cause) {
 				case "cloudflare":

@@ -63,6 +63,12 @@ export function initRecrawlLinkInitiatedHandler(deps: {
 					});
 					continue;
 				}
+				if (result === "tier-1-terminal") {
+					logger.info("[RecrawlLinkInitiated] tier-1 terminal — origin no longer serves the page", {
+						url: detail.url,
+					});
+					continue;
+				}
 
 				await publishEvent(RecrawlContentExtractedEvent, { url: detail.url });
 				logger.info("[RecrawlLinkInitiated] emitted RecrawlContentExtractedEvent", {

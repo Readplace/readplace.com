@@ -47,6 +47,10 @@ export {
 	type MarkCrawlBlockedInput,
 } from "./transitions/mark-crawl-blocked";
 export {
+	markCrawlNotFound,
+	type MarkCrawlNotFoundInput,
+} from "./transitions/mark-crawl-not-found";
+export {
 	markSummarySkipped,
 	type MarkSummarySkippedInput,
 } from "./transitions/mark-summary-skipped";

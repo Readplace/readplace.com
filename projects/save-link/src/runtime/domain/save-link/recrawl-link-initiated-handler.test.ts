@@ -1,4 +1,5 @@
 import { noopLogger } from "@packages/hutch-logger";
+import { markCrawlNotFound } from "@packages/domain/article-aggregate";
 import { RecrawlContentExtractedEvent } from "@packages/hutch-infra-components";
 import { initRecrawlLinkInitiatedHandler } from "./recrawl-link-initiated-handler";
 import type {
@@ -103,6 +104,27 @@ describe("initRecrawlLinkInitiatedHandler", () => {
 		);
 
 		expect(result).toEqual({ batchItemFailures: [{ itemIdentifier: "msg-1" }] });
+		expect(publishEvent).not.toHaveBeenCalled();
+	});
+
+	it("terminalises a permanently-dead link (HTTP 404) via markCrawlNotFound and neither emits RecrawlContentExtractedEvent nor reports a batch failure — recrawling a page the origin no longer serves can never succeed", async () => {
+		const transitionAndPersist = jest.fn().mockResolvedValue(undefined);
+		const publishEvent = jest.fn().mockResolvedValue(undefined);
+		const crawlAndFinalizeArticle: CrawlAndFinalizeArticle = async () => ({ status: "not-found", httpStatus: 404 });
+
+		const handler = createHandler({ crawlAndFinalizeArticle, transitionAndPersist, publishEvent });
+
+		const result = await handler(
+			createSqsEvent({ url: "https://example.com/gone" }),
+			buildLambdaContext(),
+			() => {},
+		);
+
+		expect(result).toEqual({ batchItemFailures: [] });
+		expect(transitionAndPersist).toHaveBeenCalledWith(markCrawlNotFound, {
+			url: "https://example.com/gone",
+			input: { reason: { kind: "not-found", httpStatus: 404 } },
+		});
 		expect(publishEvent).not.toHaveBeenCalled();
 	});
 

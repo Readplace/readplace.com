@@ -31,6 +31,12 @@ describe("messageForCrawlFailure", () => {
 		).toContain("retried");
 	});
 
+	it("maps not-found to a page-no-longer-exists explanation carrying the status", () => {
+		expect(
+			messageForCrawlFailure({ kind: "not-found", httpStatus: 404 }),
+		).toContain("HTTP 404");
+	});
+
 	it("maps blocked/cloudflare to a Cloudflare-specific explanation", () => {
 		expect(
 			messageForCrawlFailure({ kind: "blocked", cause: "cloudflare" }),

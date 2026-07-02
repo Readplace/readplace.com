@@ -316,6 +316,42 @@ describe("initStaleCheckHandler", () => {
 		expect(emitSimpleCrawlUnsupported).not.toHaveBeenCalled();
 	});
 
+	it("skips when crawl returns not-found (the prior served content stays; no refresh, timestamp bump, or deferral)", async () => {
+		const findArticleFreshness: FindArticleFreshness = async () => ({
+			etag: undefined,
+			lastModified: undefined,
+			contentFetchedAt: "2026-04-01T00:00:00.000Z",
+		});
+		const crawlAndFinalizeArticle: CrawlAndFinalizeArticle = async () => ({ status: "not-found", httpStatus: 404 });
+		const publishRefreshArticleContent: PublishRefreshArticleContent = jest
+			.fn()
+			.mockResolvedValue(undefined);
+		const publishUpdateFetchTimestamp: PublishUpdateFetchTimestamp = jest
+			.fn()
+			.mockResolvedValue(undefined);
+		const emitSimpleCrawlUnsupported: EmitSimpleCrawlUnsupported = jest
+			.fn()
+			.mockResolvedValue(undefined);
+		const markCrawlStage: MarkCrawlStage = jest.fn().mockResolvedValue(undefined);
+
+		const handler = createHandler({
+			findArticleFreshness,
+			crawlAndFinalizeArticle,
+			publishRefreshArticleContent,
+			publishUpdateFetchTimestamp,
+			emitSimpleCrawlUnsupported,
+			markCrawlStage,
+		});
+
+		const result = await handler(createSqsEvent({ url: URL_UNDER_TEST }), buildLambdaContext(), () => {});
+
+		expect(result).toEqual({ batchItemFailures: [] });
+		expect(publishRefreshArticleContent).not.toHaveBeenCalled();
+		expect(publishUpdateFetchTimestamp).not.toHaveBeenCalled();
+		expect(emitSimpleCrawlUnsupported).not.toHaveBeenCalled();
+		expect(markCrawlStage).not.toHaveBeenCalled();
+	});
+
 	it("publishes RefreshArticleContent with the finalizer's metadata + freshness when the crawl returns fetched", async () => {
 		const findArticleFreshness: FindArticleFreshness = async () => ({
 			etag: '"prev"',

@@ -1,6 +1,7 @@
 import type { HutchLogger } from "@packages/hutch-logger";
 import {
 	markCrawlFailed,
+	markCrawlNotFound,
 	type TransitionAndPersist,
 } from "@packages/domain/article-aggregate";
 import type { MarkCrawlStage } from "../../providers/article-crawl/mark-crawl-stage";
@@ -23,8 +24,13 @@ import type { CrawlAndFinalizeArticle } from "@packages/finalize-article";
  * must NOT publish a follow-up event itself; the comprehensive Lambda emits
  * the appropriate event after it finishes (TierContentExtractedEvent or
  * RecrawlContentExtractedEvent).
+ *
+ * `"tier-1-terminal"` — the origin no longer serves the page (HTTP 404/410)
+ * and the worker terminalised both axes in-process. No tier source was
+ * written, so the caller must NOT publish a follow-up event: there is no new
+ * content for a selector to pick and no summary to generate.
  */
-export type SaveLinkWorkResult = "tier-1-written" | "tier-1-deferred";
+export type SaveLinkWorkResult = "tier-1-written" | "tier-1-deferred" | "tier-1-terminal";
 
 export type SaveLinkWorkOptions = {
 	userId?: string;
@@ -89,6 +95,24 @@ export function initSaveLinkWork(deps: {
 				reason: result.reason,
 			});
 			return "tier-1-deferred";
+		}
+
+		if (result.status === "not-found") {
+			logParseError({ url, reason: `crawl-not-found: HTTP ${result.httpStatus}` });
+			await transitionAndPersist(markCrawlNotFound, {
+				url,
+				input: { reason: { kind: "not-found", httpStatus: result.httpStatus } },
+			});
+			/* Best-effort: the row is already terminal, and the crawl queues are
+			 * maxReceiveCount=1 — a throw here would dead-letter the message and
+			 * let the DLQ handler overwrite the not-found classification. */
+			await emitTier1Failure(url).catch((error: unknown) => {
+				logger.warn(`${logPrefix} tier-1 failure outcome log failed`, {
+					url,
+					error: String(error),
+				});
+			});
+			return "tier-1-terminal";
 		}
 
 		if (result.status === "failed") {

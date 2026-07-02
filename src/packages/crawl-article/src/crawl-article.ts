@@ -86,8 +86,7 @@ export const CRAWL_PERSONAS = [
  * Buffer so the orchestrator can dispatch on content-type without a second
  * round-trip. Sends `If-None-Match` / `If-Modified-Since` when the caller has
  * cached validators. All failure modes collapse to a discriminated result —
- * the caller never has to catch: `not-modified` (304), `failed` (non-2xx or
- * network error, already logged), or `ok` (2xx with the response + bytes).
+ * the caller never has to catch; failures are already logged.
  */
 function initConditionalGet(deps: {
 	crawlFetch: CrawlFetch;
@@ -100,6 +99,7 @@ function initConditionalGet(deps: {
 	| { status: "ok"; response: Response; buffer: Buffer }
 	| { status: "not-modified" }
 	| { status: "failed" }
+	| { status: "not-found"; httpStatus: 404 | 410 }
 > {
 	const { crawlFetch, logError } = deps;
 	return async (params) => {
@@ -113,6 +113,10 @@ function initConditionalGet(deps: {
 			});
 			if (response.status === 304) {
 				return { status: "not-modified" };
+			}
+			if (response.status === 404 || response.status === 410) {
+				logError(`[CrawlArticle] HTTP ${response.status} for ${params.url}`);
+				return { status: "not-found", httpStatus: response.status };
 			}
 			if (!response.ok) {
 				logError(`[CrawlArticle] HTTP ${response.status} for ${params.url}`);

@@ -63,6 +63,12 @@ export function initSaveAnonymousLinkCommandHandler(deps: {
 					});
 					continue;
 				}
+				if (result === "tier-1-terminal") {
+					logger.info("[SaveAnonymousLinkCommand] tier-1 terminal — origin no longer serves the page", {
+						url: detail.url,
+					});
+					continue;
+				}
 
 				await publishEvent(TierContentExtractedEvent, {
 					url: detail.url,
