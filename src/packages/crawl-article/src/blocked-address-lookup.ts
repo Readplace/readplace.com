@@ -1,4 +1,5 @@
 import dns from "node:dns";
+import { isIP } from "node:net";
 
 /**
  * The `lookup` option shape that `net.connect`, `tls.connect`, `http2.connect`,
@@ -99,6 +100,36 @@ export function createBlockedAddressLookup(deps: {
 			}
 			callback(null, first.address, first.family);
 		});
+	};
+}
+
+/** Reduce a URL `hostname` to the bare IP literal `isBlocked` expects: strip
+ * IPv6 brackets (`[::1]` → `::1`) and any zone id (`fe80::1%eth0` → `fe80::1`). */
+function bareIpHost(hostname: string): string {
+	const unbracketed = hostname.startsWith("[") && hostname.endsWith("]") ? hostname.slice(1, -1) : hostname;
+	return unbracketed.split("%")[0];
+}
+
+export type AssertHostAllowed = (hostname: string) => void;
+
+/**
+ * Pre-connect guard for the IP-literal case the socket `lookup` hook cannot
+ * cover. `net`/`tls`/`http2` connect straight to a host that is already an IP
+ * literal (`isIP(host)` truthy) and never invoke the custom `lookup`, so the
+ * DNS-resolving guard is silently skipped for a raw address. Every transport
+ * must run this on the target host of the initial request AND each redirect hop
+ * (and any cert-derived AIA URL) before connecting, so a private/link-local/
+ * cloud-metadata literal — submitted directly, reached via a redirect
+ * `Location`, or read from a leaf certificate — is refused. Hostnames carry no
+ * `isIP` match here and stay on the resolving, pinning `lookup`/resolver path,
+ * which is the DNS-rebinding-safe guard for names.
+ */
+export function createLiteralHostGuard(deps: { isBlocked: IsBlockedAddress }): AssertHostAllowed {
+	return (hostname) => {
+		const bare = bareIpHost(hostname);
+		if (isIP(bare) !== 0 && deps.isBlocked(bare)) {
+			throw blockedError(hostname, bare);
+		}
 	};
 }
 

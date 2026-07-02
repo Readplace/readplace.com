@@ -2,7 +2,7 @@ import assert from "node:assert";
 import http from "node:http";
 import https from "node:https";
 import tls from "node:tls";
-import type { SocketLookup } from "./blocked-address-lookup";
+import type { AssertHostAllowed, SocketLookup } from "./blocked-address-lookup";
 
 const MAX_REDIRECTS = 5;
 const REDIRECT_STATUS_CODES = new Set([301, 302, 303, 307, 308]);
@@ -22,6 +22,7 @@ type AiaDeps = {
 	fetchPeerCertificate: (params: { hostname: string; port: number; signal?: AbortSignal }) => Promise<tls.PeerCertificate | null>;
 	downloadIssuerBytes: (url: string, signal?: AbortSignal) => Promise<Buffer>;
 	httpsGet: (params: HttpsGetParams) => Promise<HttpsGetResult>;
+	assertHostAllowed?: AssertHostAllowed;
 };
 
 type HttpsGetParams = {
@@ -57,6 +58,7 @@ export function initFetchAia(deps: AiaDeps) {
 		const extraCa: string[] = [];
 		for (let i = 0; i <= MAX_REDIRECTS; i++) {
 			const parsed = new URL(currentUrl);
+			deps.assertHostAllowed?.(parsed.hostname);
 			const port = parsed.port ? Number(parsed.port) : 443;
 			const cached = intermediateCache.get(parsed.hostname);
 			const effectiveCa = cached && !extraCa.includes(cached) ? [...extraCa, cached] : extraCa;
@@ -243,11 +245,12 @@ function initHttpsGet(deps: { lookup?: SocketLookup }): AiaDeps["httpsGet"] {
  * the main request, the TLS cert probe, AND the intermediate-cert download
  * (whose URL comes from the origin's leaf cert, so it is attacker-influenced).
  */
-export function initDefaultFetchAia(deps: { lookup?: SocketLookup }) {
+export function initDefaultFetchAia(deps: { lookup?: SocketLookup; assertHostAllowed?: AssertHostAllowed }) {
 	return initFetchAia({
 		fetchPeerCertificate: initFetchPeerCertificate({ lookup: deps.lookup }),
 		downloadIssuerBytes: initDownloadIssuerBytes({ lookup: deps.lookup }),
 		httpsGet: initHttpsGet({ lookup: deps.lookup }),
+		assertHostAllowed: deps.assertHostAllowed,
 	});
 }
 

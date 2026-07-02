@@ -1,6 +1,7 @@
 import type dns from "node:dns";
 import {
 	createBlockedAddressLookup,
+	createLiteralHostGuard,
 	createPinnedAddressResolver,
 	defaultResolveAll,
 	type IsBlockedAddress,
@@ -101,6 +102,28 @@ describe("createBlockedAddressLookup", () => {
 		const err = Object.assign(new Error("getaddrinfo ENOTFOUND"), { code: "ENOTFOUND" });
 		const outcome = await runLookup(resolverFailing(err), "nope.test");
 		expect(outcome.err).toBe(err);
+	});
+});
+
+describe("createLiteralHostGuard", () => {
+	const blocksLiterals: IsBlockedAddress = (ip) =>
+		ip === "127.0.0.1" || ip === "10.0.0.1" || ip === "169.254.169.254" || ip === "::1";
+	const guard = createLiteralHostGuard({ isBlocked: blocksLiterals });
+
+	it("throws for a blocked IPv4 literal host", () => {
+		expect(() => guard("169.254.169.254")).toThrow(/blocked address 169\.254\.169\.254/);
+	});
+
+	it("throws for a blocked IPv6 literal host, stripping the URL brackets", () => {
+		expect(() => guard("[::1]")).toThrow(/blocked address ::1/);
+	});
+
+	it("does not throw for a public IP literal host", () => {
+		expect(() => guard("93.184.216.34")).not.toThrow();
+	});
+
+	it("does not throw for a hostname (names stay on the resolving lookup path)", () => {
+		expect(() => guard("example.test")).not.toThrow();
 	});
 });
 

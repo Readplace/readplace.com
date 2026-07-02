@@ -1,8 +1,9 @@
 import assert from "node:assert";
-import { Agent } from "undici";
+import { Agent, buildConnector } from "undici";
 import { initDefaultFetchAia, withAiaChasing } from "./aia-fetch";
 import {
 	createBlockedAddressLookup,
+	createLiteralHostGuard,
 	defaultResolveAll,
 	type IsBlockedAddress,
 	type ResolveAll,
@@ -45,16 +46,33 @@ export function initCrawlFetch(deps: {
 	const resolve = deps.resolve ?? defaultResolveAll;
 	const { isBlocked } = deps;
 	const lookup = createBlockedAddressLookup({ resolve, isBlocked });
+	const assertHostAllowed = createLiteralHostGuard({ isBlocked });
 	/** undici Agent applied only to crawl traffic (threaded as the request
 	 * dispatcher, never setGlobalDispatcher) so Stripe/Google calls keep the
-	 * unguarded global dispatcher. The Agent's connector runs `lookup` on the
-	 * initial connect and every redirect hop. */
-	const dispatcher = new Agent({ connect: { lookup } });
+	 * unguarded global dispatcher. The base connector runs `lookup` — which
+	 * resolves, checks, and pins every hostname on the initial connect and every
+	 * redirect hop. `assertHostAllowed` covers the gap `lookup` cannot: Node skips
+	 * a custom `lookup` for IP-literal hosts, so a redirect to a raw private/
+	 * metadata IP would otherwise connect unchecked. undici invokes this connector
+	 * per origin, so it fires on the initial request and each redirect hop. */
+	const baseConnector = buildConnector({ lookup });
+	const dispatcher = new Agent({
+		connect(options, callback) {
+			try {
+				assertHostAllowed(options.hostname);
+			} catch (error) {
+				assert(error instanceof Error, "createLiteralHostGuard only throws Error");
+				callback(error, null);
+				return;
+			}
+			baseConnector(options, callback);
+		},
+	});
 	const guardedFetch: typeof fetch = (input, init) => deps.fetch(input, { ...init, dispatcher });
 	const fetchWithFallback = withPersonaFallback(
 		withH2Fallback(
-			withAiaChasing(guardedFetch, initDefaultFetchAia({ lookup })),
-			deps.fetchH2 ?? initFetchH2({ lookup }),
+			withAiaChasing(guardedFetch, initDefaultFetchAia({ lookup, assertHostAllowed })),
+			deps.fetchH2 ?? initFetchH2({ lookup, assertHostAllowed }),
 			deps.fetchCurl ?? initGuardedCurlFetch({ resolve, isBlocked }),
 		),
 		deps.personas,

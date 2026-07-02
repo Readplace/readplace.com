@@ -1,6 +1,6 @@
 import assert from "node:assert";
 import http2 from "node:http2";
-import type { SocketLookup } from "./blocked-address-lookup";
+import type { AssertHostAllowed, SocketLookup } from "./blocked-address-lookup";
 import type { CurlFetch } from "./curl-fetch";
 
 const MAX_REDIRECTS = 5;
@@ -28,13 +28,17 @@ export type FetchH2 = (url: string, init?: FetchH2Init) => Promise<Response>;
  * The optional `lookup` is threaded into every `http2.connect` — the initial
  * request and each redirect hop open a fresh connection — so the SSRF guard
  * rejects any host that resolves to a private/loopback/link-local address.
+ * `assertHostAllowed` closes the IP-literal gap `lookup` cannot: http2.connect
+ * skips a custom `lookup` for a literal host, so each hop's host is checked here
+ * before the connection opens.
  */
-export function initFetchH2(deps: { lookup?: SocketLookup } = {}): FetchH2 {
+export function initFetchH2(deps: { lookup?: SocketLookup; assertHostAllowed?: AssertHostAllowed } = {}): FetchH2 {
 	const connectOptions = deps.lookup ? { lookup: deps.lookup } : {};
 	return async (url, init) => {
 		let currentUrl = url;
 		for (let i = 0; i <= MAX_REDIRECTS; i++) {
 			const parsed = new URL(currentUrl);
+			deps.assertHostAllowed?.(parsed.hostname);
 			const client = http2.connect(parsed.origin, connectOptions);
 			try {
 				const result = await h2Request(client, parsed, init);
