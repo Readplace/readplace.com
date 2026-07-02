@@ -708,16 +708,6 @@ describe("initDynamoDbArticleStore freshness, notification state, content and ur
 		expect(data?.contentSourceTier).toBe("tier-1");
 	});
 
-	it("findArticleByUrl surfaces the canonicalUrl pointer when the row is a canonical alias", async () => {
-		const { client } = createFakeClient({
-			GetCommand: { default: { Item: articleItem({ canonicalUrl: "https://fagnerbrack.com/the-post", content: undefined }) } },
-		});
-
-		const data = await initStore(client).findArticleByUrl(URL);
-
-		expect(data?.canonicalUrl).toBe("https://fagnerbrack.com/the-post");
-	});
-
 	it("findArticleByUrl falls back to the epoch savedAt for legacy rows missing the column", async () => {
 		const { client } = createFakeClient({
 			GetCommand: { default: { Item: articleItem({ savedAt: undefined, content: undefined }) } },

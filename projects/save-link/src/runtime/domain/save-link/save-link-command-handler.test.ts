@@ -1,5 +1,5 @@
 import { noopLogger } from "@packages/hutch-logger";
-import { ensureCanonicalStub, markCanonicalAlias, markCrawlFailed } from "@packages/domain/article-aggregate";
+import { markCrawlFailed } from "@packages/domain/article-aggregate";
 import { TierContentExtractedEvent } from "@packages/hutch-infra-components";
 import { initSaveLinkCommandHandler } from "./save-link-command-handler";
 import type {
@@ -69,8 +69,6 @@ function createHandler(overrides: Partial<HandlerDeps> = {}) {
 		putTierSource: jest.fn().mockResolvedValue(undefined),
 		updateFetchTimestamp: jest.fn().mockResolvedValue(undefined),
 		transitionAndPersist: jest.fn().mockResolvedValue(undefined),
-		upsertAndPersist: jest.fn().mockResolvedValue(undefined),
-		checkTier0SourceExists: jest.fn().mockResolvedValue(false),
 		markCrawlStage: jest.fn().mockResolvedValue(undefined),
 		publishEvent: jest.fn().mockResolvedValue(undefined),
 		now: fixedNow,
@@ -99,90 +97,6 @@ describe("initSaveLinkCommandHandler", () => {
 		});
 		expect(publishEvent).toHaveBeenCalledWith(TierContentExtractedEvent, {
 			url: "https://example.com/article",
-			tier: "tier-1",
-			userId: "user-1",
-		});
-	});
-
-	it("re-keys a cross-identity redirect onto the canonical row: content, timestamp, and event under the canonical, with the requested row aliased to it", async () => {
-		const putTierSource: PutTierSource = jest.fn().mockResolvedValue(undefined);
-		const publishEvent = jest.fn().mockResolvedValue(undefined);
-		const upsertAndPersist = jest.fn().mockResolvedValue(undefined);
-		const transitionAndPersist = jest.fn().mockResolvedValue(undefined);
-		const checkTier0SourceExists = jest.fn().mockResolvedValue(false);
-		const crawlAndFinalizeArticle: CrawlAndFinalizeArticle = async () => ({
-			status: "fetched",
-			article: stubFinalizedArticle,
-			canonicalUrl: "https://fagnerbrack.com/the-post",
-			bodyHash: "a".repeat(64),
-		});
-
-		const handler = createHandler({
-			crawlAndFinalizeArticle,
-			putTierSource,
-			publishEvent,
-			upsertAndPersist,
-			transitionAndPersist,
-			checkTier0SourceExists,
-		});
-
-		await handler(createSqsEvent({ url: "https://medium.com/p/9aceb0bdee03", userId: "user-1" }), buildLambdaContext(), () => {});
-
-		expect(upsertAndPersist).toHaveBeenCalledWith(ensureCanonicalStub, {
-			url: "https://fagnerbrack.com/the-post",
-			input: { url: "https://fagnerbrack.com/the-post", now: fixedNow().toISOString() },
-		});
-		expect(putTierSource).toHaveBeenCalledWith({
-			url: "https://fagnerbrack.com/the-post",
-			tier: "tier-1",
-			html: stubFinalizedArticle.html,
-			metadata: stubFinalizedArticle.metadata,
-		});
-		expect(transitionAndPersist).toHaveBeenCalledWith(markCanonicalAlias, {
-			url: "https://medium.com/p/9aceb0bdee03",
-			input: { canonicalUrl: "https://fagnerbrack.com/the-post" },
-		});
-		expect(publishEvent).toHaveBeenCalledWith(TierContentExtractedEvent, {
-			url: "https://fagnerbrack.com/the-post",
-			tier: "tier-1",
-			userId: "user-1",
-		});
-	});
-
-	it("keeps the requested identity (no re-key, no alias) when the requested url already has its own tier-0 capture", async () => {
-		const putTierSource: PutTierSource = jest.fn().mockResolvedValue(undefined);
-		const publishEvent = jest.fn().mockResolvedValue(undefined);
-		const upsertAndPersist = jest.fn().mockResolvedValue(undefined);
-		const transitionAndPersist = jest.fn().mockResolvedValue(undefined);
-		const checkTier0SourceExists = jest.fn().mockResolvedValue(true);
-		const crawlAndFinalizeArticle: CrawlAndFinalizeArticle = async () => ({
-			status: "fetched",
-			article: stubFinalizedArticle,
-			canonicalUrl: "https://fagnerbrack.com/the-post",
-			bodyHash: "a".repeat(64),
-		});
-
-		const handler = createHandler({
-			crawlAndFinalizeArticle,
-			putTierSource,
-			publishEvent,
-			upsertAndPersist,
-			transitionAndPersist,
-			checkTier0SourceExists,
-		});
-
-		await handler(createSqsEvent({ url: "https://medium.com/p/9aceb0bdee03", userId: "user-1" }), buildLambdaContext(), () => {});
-
-		expect(upsertAndPersist).not.toHaveBeenCalled();
-		expect(transitionAndPersist).not.toHaveBeenCalled();
-		expect(putTierSource).toHaveBeenCalledWith({
-			url: "https://medium.com/p/9aceb0bdee03",
-			tier: "tier-1",
-			html: stubFinalizedArticle.html,
-			metadata: stubFinalizedArticle.metadata,
-		});
-		expect(publishEvent).toHaveBeenCalledWith(TierContentExtractedEvent, {
-			url: "https://medium.com/p/9aceb0bdee03",
 			tier: "tier-1",
 			userId: "user-1",
 		});

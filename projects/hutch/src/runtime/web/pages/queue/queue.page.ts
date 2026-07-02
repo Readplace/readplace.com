@@ -66,7 +66,6 @@ import { requireNotLocked } from "../../middleware/require-not-locked.middleware
 import { RedirectComponent, type Redirect } from "../../redirect.component";
 import { CacheableComponent } from "../../conditional-get";
 import { isFullyParsed } from "../../shared/article-state/is-fully-parsed";
-import { canonicalRedirectTarget } from "../../shared/canonical-redirect";
 import { initReaderPermalink } from "./reader-permalink";
 import { wantsSiren } from "../../content-negotiation";
 import type { QuerystringFeatureToggle } from "../../feature-toggle";
@@ -426,28 +425,17 @@ export function initQueueRoutes(deps: QueueDependencies): Router {
 			at: deps.now(),
 		});
 
-		// If the saved url redirected to a different canonical identity at crawl
-		// time, its own row is an empty alias — read the canonical row's content +
-		// metadata instead so the owner's card renders the real article. The card's
-		// id/mark-read/poll wiring stays keyed to the owned article.
-		const ownedRow = await deps.findArticleByUrl(ownedArticle.url);
-		const canonicalTarget = canonicalRedirectTarget({ requestedUrl: ownedArticle.url, article: ownedRow });
-		const canonicalRow = canonicalTarget ? await deps.findArticleByUrl(canonicalTarget) : null;
-		const readerArticle = canonicalRow
-			? { ...ownedArticle, url: canonicalRow.url, metadata: canonicalRow.metadata, estimatedReadTime: canonicalRow.estimatedReadTime }
-			: ownedArticle;
-
 		const audioEnabled = deps.featureToggle.isEnabled(req, "audio");
 		const state = await reader.resolveReaderState({
 			article: {
-				url: readerArticle.url,
-				metadata: readerArticle.metadata,
-				estimatedReadTime: readerArticle.estimatedReadTime,
+				url: ownedArticle.url,
+				metadata: ownedArticle.metadata,
+				estimatedReadTime: ownedArticle.estimatedReadTime,
 			},
 			pollUrlBuilder: pollUrlBuilderForId(ownedArticle.id.value),
 		});
 
-		return { kind: "ready", article: readerArticle, state, audioEnabled };
+		return { kind: "ready", article: ownedArticle, state, audioEnabled };
 	};
 
 	router.get("/:id/view", async (req: Request<{ id: string }>, res: Response) => {

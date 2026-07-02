@@ -69,8 +69,6 @@ function createHandler(overrides: Partial<HandlerDeps> = {}) {
 		putTierSource: jest.fn().mockResolvedValue(undefined),
 		updateFetchTimestamp: jest.fn().mockResolvedValue(undefined),
 		transitionAndPersist: jest.fn().mockResolvedValue(undefined),
-		upsertAndPersist: jest.fn().mockResolvedValue(undefined),
-		checkTier0SourceExists: jest.fn().mockResolvedValue(false),
 		markCrawlStage: jest.fn().mockResolvedValue(undefined),
 		publishEvent: jest.fn().mockResolvedValue(undefined),
 		now: fixedNow,

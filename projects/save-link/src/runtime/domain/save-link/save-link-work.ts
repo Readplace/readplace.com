@@ -1,16 +1,12 @@
 import type { HutchLogger } from "@packages/hutch-logger";
 import {
-	ensureCanonicalStub,
-	markCanonicalAlias,
 	markCrawlFailed,
 	type TransitionAndPersist,
-	type UpsertAndPersist,
 } from "@packages/domain/article-aggregate";
-import { ArticleResourceUniqueId } from "./article-resource-unique-id";
 import type { MarkCrawlStage } from "../../providers/article-crawl/mark-crawl-stage";
 import type { UpdateFetchTimestamp } from "./update-fetch-timestamp-handler";
 import type { LogCrawlOutcome, LogParseError } from "@packages/hutch-infra-components";
-import type { CheckTier0SourceExists, ReadTierSnapshot } from "../crawl-article-state/read-tier-snapshot";
+import type { ReadTierSnapshot } from "../crawl-article-state/read-tier-snapshot";
 import type { PutTierSource } from "../../providers/article-store/put-tier-source";
 import type { EmitSimpleCrawlUnsupported } from "../../dep-bundles/events";
 import type { CrawlAndFinalizeArticle } from "@packages/finalize-article";
@@ -27,15 +23,8 @@ import type { CrawlAndFinalizeArticle } from "@packages/finalize-article";
  * must NOT publish a follow-up event itself; the comprehensive Lambda emits
  * the appropriate event after it finishes (TierContentExtractedEvent or
  * RecrawlContentExtractedEvent).
- *
- * `eventUrl` on the written result is the url the caller must publish its
- * follow-up event under: the canonical url when a cross-identity redirect was
- * re-keyed, otherwise the requested url. Publishing under a stale requested url
- * would run the selector against the wrong (alias) row.
  */
-export type SaveLinkWorkResult =
-	| { status: "tier-1-written"; eventUrl: string }
-	| { status: "tier-1-deferred" };
+export type SaveLinkWorkResult = "tier-1-written" | "tier-1-deferred";
 
 export type SaveLinkWorkOptions = {
 	userId?: string;
@@ -49,8 +38,6 @@ export function initSaveLinkWork(deps: {
 	putTierSource: PutTierSource;
 	updateFetchTimestamp: UpdateFetchTimestamp;
 	transitionAndPersist: TransitionAndPersist;
-	upsertAndPersist: UpsertAndPersist;
-	checkTier0SourceExists: CheckTier0SourceExists;
 	markCrawlStage: MarkCrawlStage;
 	now: () => Date;
 	logger: HutchLogger;
@@ -65,8 +52,6 @@ export function initSaveLinkWork(deps: {
 		putTierSource,
 		updateFetchTimestamp,
 		transitionAndPersist,
-		upsertAndPersist,
-		checkTier0SourceExists,
 		markCrawlStage,
 		now,
 		logger,
@@ -103,7 +88,7 @@ export function initSaveLinkWork(deps: {
 				url,
 				reason: result.reason,
 			});
-			return { status: "tier-1-deferred" };
+			return "tier-1-deferred";
 		}
 
 		if (result.status === "failed") {
@@ -131,72 +116,25 @@ export function initSaveLinkWork(deps: {
 			throw new Error(`save-link-work received unexpected not-modified for ${url}`);
 		}
 
-		/* The crawler followed the origin's redirects and the finalizer resolved
-		 * the canonical identity (link rel=canonical / og:url / the final redirect
-		 * target). When that canonical resolves to a DIFFERENT storage identity
-		 * than the requested url, the tier-1 content, freshness, and follow-up
-		 * event belong on the canonical row so every url that redirects there
-		 * collapses to one reader/summary — not one row per requested spelling.
-		 *
-		 * Two carve-outs keep the requested identity: a recrawl re-fetches an
-		 * existing identity in place (re-keying it would orphan the row the
-		 * operator asked to refresh), and a requested url that already has its
-		 * own tier-0 capture is honoured as-entered (the extension deliberately
-		 * saved that url; the user chose "alias only when no tier-0 exists"). */
-		const canonicalUrl = result.canonicalUrl;
-		let contentUrl = url;
-		let reKey = false;
-		if (!options?.recrawl) {
-			const identityDiffers =
-				ArticleResourceUniqueId.parse(canonicalUrl).value !==
-				ArticleResourceUniqueId.parse(url).value;
-			if (identityDiffers) {
-				const requestedHasTier0 = await checkTier0SourceExists({ url });
-				if (!requestedHasTier0) {
-					reKey = true;
-					contentUrl = canonicalUrl;
-				}
-			}
-		}
-
-		if (reKey) {
-			/* Guarantee the canonical row exists before the tier source + event so
-			 * the selector's promoteTier (which asserts the row loads) has a target.
-			 * Idempotent: an existing canonical row is left untouched. */
-			await upsertAndPersist(ensureCanonicalStub, {
-				url: contentUrl,
-				input: { url: contentUrl, now: now().toISOString() },
-			});
-		}
-
 		await putTierSource({
-			url: contentUrl,
+			url,
 			tier: "tier-1",
 			html: result.article.html,
 			metadata: result.article.metadata,
 		});
-		await markCrawlStage({ url: contentUrl, stage: "crawl-content-uploaded" });
+		await markCrawlStage({ url, stage: "crawl-content-uploaded" });
 
 		await updateFetchTimestamp({
-			url: contentUrl,
+			url,
 			contentFetchedAt: now().toISOString(),
 			etag: result.etag,
 			lastModified: result.lastModified,
 			bodyHash: result.bodyHash,
 		});
 
-		if (reKey) {
-			/* Point the requested row at the canonical so its reader/summary follow
-			 * the pointer and neither canary flags it as stuck-pending. */
-			await transitionAndPersist(markCanonicalAlias, {
-				url,
-				input: { canonicalUrl },
-			});
-		}
-
-		const successSnapshot = await readTierSnapshot({ url: contentUrl });
+		const successSnapshot = await readTierSnapshot({ url });
 		logCrawlOutcome({
-			url: contentUrl,
+			url,
 			thisTier: "tier-1",
 			thisTierStatus: "success",
 			otherTierStatus: successSnapshot.tier0Status,
@@ -204,10 +142,10 @@ export function initSaveLinkWork(deps: {
 		});
 
 		logger.info(`${logPrefix} tier-1 source written`, {
-			url: contentUrl,
+			url,
 			imageUrl: result.article.metadata.imageUrl ?? null,
 		});
-		return { status: "tier-1-written", eventUrl: contentUrl };
+		return "tier-1-written";
 	};
 
 	return { saveLinkWork };
