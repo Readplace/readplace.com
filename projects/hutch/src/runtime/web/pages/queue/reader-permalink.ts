@@ -10,7 +10,11 @@ import type { Redirect } from "../../redirect.component";
 import { shareUserIdPrefix } from "../../shared/share-user-id";
 import { collectUtmParams } from "../../shared/utm";
 import { viewPathFor } from "../view/view-path";
-import { buildOwnerReaderPath, readerPermalinkPath, wantsOwnerLogin } from "./owner-reader-link";
+import {
+	buildOwnerReaderPath,
+	readerPermalinkPathWithoutMarker,
+	wantsOwnerLogin,
+} from "./owner-reader-link";
 
 export interface ReaderPermalinkDeps {
 	findArticleById: FindArticleById;
@@ -88,7 +92,10 @@ export function initReaderPermalink(deps: ReaderPermalinkDeps) {
 			if (wantsOwnerLogin(input.query)) {
 				return {
 					kind: "redirect",
-					redirect: { statusCode: 303, location: readerPermalinkPath(parsedId.data) },
+					redirect: {
+						statusCode: 303,
+						location: readerPermalinkPathWithoutMarker(parsedId.data, input.query),
+					},
 				};
 			}
 			return { kind: "article", article: ownedArticle };
