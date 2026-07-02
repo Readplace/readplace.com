@@ -14,6 +14,9 @@ import type { ImportSessionStore } from "@packages/domain/import-session";
 import type { ValidateSaveableUrl, SaveableUrl, SaveableUrlErrorCode } from "@packages/domain/article";
 import type { ExtractLinksFromPageUrl } from "@packages/extract-links-from-page";
 import type { HutchLogger } from "@packages/hutch-logger";
+import type { ConsumeRateLimit } from "@packages/provider-contracts/rate-limit";
+import type { RateLimitRule } from "@packages/domain/rate-limit";
+import { createRateLimitMiddleware } from "../../middleware/rate-limit";
 import { Base } from "../../base.component";
 import type { BuildBannerState } from "../../banner-state";
 import { sendComponent } from "@packages/web-shell";
@@ -49,6 +52,14 @@ interface ImportRouteDependencies extends SaveArticleFromUrlDependencies {
 	 * identity, so they run after the anonymous-visitor redirect. */
 	requireNotLocked: RequestHandler;
 	requireWriteAccess: RequestHandler;
+	/** Per-IP throttle for the public, unauthenticated import routes. The whole
+	 * router is reachable logged out, so without this a single client can create
+	 * unbounded review sessions and — via `/from-url` — drive unbounded outbound
+	 * fetches of attacker-chosen origins. `importFromUrl` is tighter than `import`
+	 * because each `/from-url` request makes the server fetch a remote page. */
+	consumeRateLimit: ConsumeRateLimit;
+	importRateLimit: RateLimitRule;
+	importFromUrlRateLimit: RateLimitRule;
 }
 
 const UPLOAD_ERROR_REDIRECT = {
@@ -68,6 +79,17 @@ const FROM_URL_ERROR_REDIRECT = {
 export function initImportSessionRoutes(deps: ImportRouteDependencies): Router {
 	const router = express.Router();
 	const { rawBodyParser, parseRequest } = initMultipartUpload({ maxBytes: MAX_IMPORT_FILE_BYTES });
+
+	const importRateLimit = createRateLimitMiddleware({
+		consumeRateLimit: deps.consumeRateLimit,
+		bucket: "import",
+		rule: deps.importRateLimit,
+	});
+	const importFromUrlRateLimit = createRateLimitMiddleware({
+		consumeRateLimit: deps.consumeRateLimit,
+		bucket: "import-from-url",
+		rule: deps.importFromUrlRateLimit,
+	});
 
 	const sizeLimitHandler: ErrorRequestHandler = (err, _req, res, next) => {
 		if (err && typeof err === "object" && "type" in err && err.type === "entity.too.large") {
@@ -107,7 +129,7 @@ export function initImportSessionRoutes(deps: ImportRouteDependencies): Router {
 		sendComponent(req, res, Base(ImportAcquirePage(vm), await deps.buildBannerState(req)));
 	});
 
-	router.post("/", rawBodyParser, sizeLimitHandler, async (req: Request, res: Response) => {
+	router.post("/", importRateLimit, rawBodyParser, sizeLimitHandler, async (req: Request, res: Response) => {
 		const parsed = parseRequest(req);
 		if (!parsed.ok) {
 			res.redirect(303, UPLOAD_ERROR_REDIRECT.noUrls);
@@ -142,7 +164,7 @@ export function initImportSessionRoutes(deps: ImportRouteDependencies): Router {
 		res.redirect(303, `/import/${session.id}`);
 	});
 
-	router.post("/from-url", async (req: Request, res: Response) => {
+	router.post("/from-url", importFromUrlRateLimit, async (req: Request, res: Response) => {
 		const rawUrl = typeof req.body?.url === "string" ? req.body.url.trim() : "";
 		if (rawUrl === "") {
 			res.redirect(303, FROM_URL_ERROR_REDIRECT.invalid);

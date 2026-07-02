@@ -8,6 +8,7 @@ import {
 	TEST_APP_ORIGIN,
 	createDefaultTestAppFixture,
 } from "@packages/test-fixtures";
+import { initInMemoryRateLimit } from "@packages/test-fixtures/providers/rate-limit";
 
 function sessionIdFromLocation(location: string): ReturnType<typeof ImportSessionIdSchema.parse> {
 	return ImportSessionIdSchema.parse(location.replace("/import/", ""));
@@ -954,6 +955,25 @@ describe("Import routes", () => {
 				0,
 				"no import analytics events on error paths",
 			);
+		});
+	});
+
+	describe("rate limiting", () => {
+		it("returns 429 past the per-IP import upload limit", async () => {
+			const fixture = createDefaultTestAppFixture(TEST_APP_ORIGIN);
+			fixture.rateLimit = {
+				consumeRateLimit: initInMemoryRateLimit({ now: () => new Date() }).consumeRateLimit,
+				rules: { ...fixture.rateLimit.rules, import: { limit: 1, windowSeconds: 3600 } },
+			};
+			const harness = useApp(fixture);
+			const { body, contentType } = multipartBody("urls.txt", Buffer.from("https://example.com/a"));
+
+			const first = await request(harness.server).post("/import").set("Content-Type", contentType).send(body);
+			const throttled = await request(harness.server).post("/import").set("Content-Type", contentType).send(body);
+
+			expect(first.status).toBe(303);
+			expect(throttled.status).toBe(429);
+			expect(String(throttled.headers["retry-after"])).toMatch(/^\d+$/);
 		});
 	});
 });

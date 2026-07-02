@@ -250,6 +250,8 @@ export function createDefaultTestAppFixture(appOrigin: string): TestAppFixture {
 			signup: unlimitedRule,
 			forgotPassword: unlimitedRule,
 			oauthRegister: unlimitedRule,
+			import: unlimitedRule,
+			importFromUrl: unlimitedRule,
 		},
 	};
 	const pendingHtml = initInMemoryPendingHtml();

@@ -7,7 +7,9 @@ export type RateLimitBucket =
 	| "login"
 	| "signup"
 	| "forgot-password"
-	| "oauth-register";
+	| "oauth-register"
+	| "import"
+	| "import-from-url";
 
 /**
  * Atomically count one request against `(bucket, key)` for the rule's current
@@ -27,4 +29,10 @@ export interface RateLimitRules {
 	signup: RateLimitRule;
 	forgotPassword: RateLimitRule;
 	oauthRegister: RateLimitRule;
+	/** Anonymous file upload that creates an import review session. */
+	import: RateLimitRule;
+	/** Anonymous outbound fetch that extracts links from a pasted URL. Tighter
+	 * than {@link import} because each request makes the server fetch an
+	 * attacker-chosen origin (SSRF/DoS amplification surface). */
+	importFromUrl: RateLimitRule;
 }

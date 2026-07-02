@@ -921,6 +921,9 @@ export function createApp(dependencies: AppDependencies): Express {
 		buildBannerState,
 		requireNotLocked,
 		requireWriteAccess,
+		consumeRateLimit: deps.consumeRateLimit,
+		importRateLimit: deps.rateLimitRules.import,
+		importFromUrlRateLimit: deps.rateLimitRules.importFromUrl,
 	});
 	/** Public on purpose: a logged-out visitor can upload, review, and toggle a
 	 * selection before being asked to sign up. Auth is enforced only at commit

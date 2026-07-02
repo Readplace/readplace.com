@@ -6,6 +6,7 @@ import {
 	TEST_APP_ORIGIN,
 	createDefaultTestAppFixture,
 } from "@packages/test-fixtures";
+import { initInMemoryRateLimit } from "@packages/test-fixtures/providers/rate-limit";
 import type { ExtractLinksFromPageResult } from "@packages/extract-links-from-page";
 
 function withExtractor(result: ExtractLinksFromPageResult) {
@@ -402,6 +403,34 @@ describe("POST /import/from-url routes", () => {
 				(e) => e.event === "import_from_url_acquired",
 			);
 			assert.equal(events.length, 0);
+		});
+	});
+
+	describe("rate limiting", () => {
+		it("returns 429 past the per-IP import-from-url limit without fetching the remote page", async () => {
+			let fetches = 0;
+			const fixture = withExtractor({
+				status: "OK",
+				links: { urls: ["https://example.com/a"], truncated: false, totalFound: 1 },
+			});
+			const baseExtractor = fixture.importSession.extractLinksFromPageUrl;
+			fixture.importSession.extractLinksFromPageUrl = async (url) => {
+				fetches += 1;
+				return baseExtractor(url);
+			};
+			fixture.rateLimit = {
+				consumeRateLimit: initInMemoryRateLimit({ now: () => new Date() }).consumeRateLimit,
+				rules: { ...fixture.rateLimit.rules, importFromUrl: { limit: 1, windowSeconds: 3600 } },
+			};
+			const harness = useApp(fixture);
+
+			const first = await request(harness.server).post("/import/from-url").type("form").send({ url: "https://example.com" });
+			const throttled = await request(harness.server).post("/import/from-url").type("form").send({ url: "https://example.com" });
+
+			expect(first.status).toBe(303);
+			expect(throttled.status).toBe(429);
+			expect(String(throttled.headers["retry-after"])).toMatch(/^\d+$/);
+			expect(fetches).toBe(1);
 		});
 	});
 });
