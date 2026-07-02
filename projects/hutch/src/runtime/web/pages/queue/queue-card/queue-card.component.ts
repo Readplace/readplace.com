@@ -12,6 +12,10 @@ const TEMPLATE = readFileSync(join(__dirname, "queue-card.template.html"), "utf-
 export interface ActionDisplayModel extends ArticleAction {
 	buttonClass: string;
 	disabled: boolean;
+	/** The mark-read/unread toggle. Drives the in-flight loader affordance and
+	 * hx-disabled-elt so the button behaves like the reader's mark-read control
+	 * during the htmx <main> swap. The delete action opts out. */
+	isStatus: boolean;
 }
 
 export interface QueueCardDisplayModel extends QueueArticleViewModel {
@@ -38,6 +42,7 @@ export function toActionDisplayModel(
 		url: withInternalTracking(action.url, { source: "queue-card", content: action.testAction }),
 		buttonClass,
 		disabled: options.isProcessing && isStatusAction,
+		isStatus: isStatusAction,
 	};
 }
 

@@ -205,6 +205,46 @@ describe("renderQueueCard", () => {
 		);
 	});
 
+	it("gives the status toggle the reader's in-flight loader affordance and disables it during the request", () => {
+		const html = renderQueueCard(
+			toQueueCardDisplayModel(makeViewModel({ actions: [MARK_READ_ACTION, DELETE_ACTION] }), {
+				isFirst: false,
+			}),
+		);
+		const doc = parse(html);
+		const button = doc.querySelector("[data-test-action='mark-read']");
+		assert(button, "mark-read button must be present");
+
+		const label = button.querySelector(".queue-article__action-btn-label");
+		assert(label, "status button must wrap its text in a label span");
+		expect(label.textContent).toBe("Mark as read");
+		// The label carries the whole visible text so textContent stays stable for
+		// the listing route assertion; the dots are empty, styled spans.
+		expect(button.textContent).toBe("Mark as read");
+
+		const loaderDots = button.querySelectorAll(".queue-article__action-btn-loader span");
+		expect(loaderDots.length).toBe(3);
+
+		const statusForm = button.closest("form");
+		assert(statusForm, "status button must live in a form");
+		expect(statusForm.getAttribute("hx-disabled-elt")).toBe("find button");
+	});
+
+	it("leaves the delete control as a bare icon with no loader or request-disable", () => {
+		const html = renderQueueCard(
+			toQueueCardDisplayModel(makeViewModel({ actions: [MARK_READ_ACTION, DELETE_ACTION] }), {
+				isFirst: false,
+			}),
+		);
+		const doc = parse(html);
+		const deleteButton = doc.querySelector("[data-test-action='delete']");
+		assert(deleteButton, "delete button must be present");
+		expect(deleteButton.textContent).toBe("×");
+		expect(deleteButton.querySelector(".queue-article__action-btn-loader")).toBe(null);
+		expect(deleteButton.querySelector(".queue-article__action-btn-label")).toBe(null);
+		expect(deleteButton.closest("form")?.hasAttribute("hx-disabled-elt")).toBe(false);
+	});
+
 	it("shows a processing state and disables the status action while the card is still being fetched", () => {
 		const html = renderQueueCard(
 			toQueueCardDisplayModel(
