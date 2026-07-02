@@ -27,27 +27,10 @@ interface CapturedCommand {
 	input: Record<string, unknown>;
 }
 
-/** Records commands and replays a single queried user row (or none). */
-function createQueryFakeClient(opts: {
-	row?: Record<string, unknown>;
-}): { client: DynamoDBDocumentClient; commands: CapturedCommand[] } {
-	const commands: CapturedCommand[] = [];
-	const client = {
-		send: (async (command: { constructor: { name: string }; input: Record<string, unknown> }) => {
-			const name = command.constructor.name;
-			commands.push({ name, input: command.input });
-			if (name === "QueryCommand") {
-				return { Items: opts.row ? [opts.row] : [], Count: opts.row ? 1 : 0 };
-			}
-			return {};
-		}) as DynamoDBDocumentClient["send"],
-	};
-	return { client: client as typeof client & DynamoDBDocumentClient, commands };
-}
-
-/** Replays a sequence of query pages so the destroyUserSessions pagination loop
- * runs more than once: each page carries its rows and the LastEvaluatedKey that
- * drives the next iteration (omitted on the final page to end the loop). */
+/** Replays a sequence of query pages: each page carries its rows and the
+ * LastEvaluatedKey that drives the next iteration (omitted on the final page to
+ * end pagination). Queries past the last page replay the final page, so
+ * single-page fakes serve any number of independent queries. */
 function createPaginatedQueryFakeClient(
 	pages: { rows: Record<string, unknown>[]; lastEvaluatedKey?: Record<string, unknown> }[],
 ): { client: DynamoDBDocumentClient; commands: CapturedCommand[] } {
@@ -58,7 +41,7 @@ function createPaginatedQueryFakeClient(
 			const name = command.constructor.name;
 			commands.push({ name, input: command.input });
 			if (name === "QueryCommand") {
-				const page = pages[queryCount];
+				const page = pages[Math.min(queryCount, pages.length - 1)];
 				queryCount += 1;
 				return { Items: page.rows, Count: page.rows.length, LastEvaluatedKey: page.lastEvaluatedKey };
 			}
@@ -66,6 +49,13 @@ function createPaginatedQueryFakeClient(
 		}) as DynamoDBDocumentClient["send"],
 	};
 	return { client: client as typeof client & DynamoDBDocumentClient, commands };
+}
+
+/** Records commands and replays a single queried user row (or none). */
+function createQueryFakeClient(opts: {
+	row?: Record<string, unknown>;
+}): { client: DynamoDBDocumentClient; commands: CapturedCommand[] } {
+	return createPaginatedQueryFakeClient([{ rows: opts.row ? [opts.row] : [] }]);
 }
 
 /** Records write commands and optionally fails every send with a given error. */

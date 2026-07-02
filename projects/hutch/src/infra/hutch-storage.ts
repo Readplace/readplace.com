@@ -140,14 +140,11 @@ export class HutchStorage extends pulumi.ComponentResource {
 				{ name: "sessionId", type: "S" },
 				{ name: "userId", type: "S" },
 			],
-			/* Projection ALL, not the cheaper KEYS_ONLY: the by-userId session delete
-			 * parses each matched row in full, so a keys-only projection would drop
-			 * required attributes and throw. */
 			globalSecondaryIndexes: [
 				{
 					name: "userId-index",
 					hashKey: "userId",
-					projectionType: "ALL",
+					projectionType: "KEYS_ONLY",
 				},
 			],
 			ttl: {

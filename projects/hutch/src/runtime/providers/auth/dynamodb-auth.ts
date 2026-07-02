@@ -8,6 +8,7 @@ import {
 	TransactionCanceledException,
 	defineDynamoTable,
 	dynamoField,
+	forEachQueryPage,
 } from "@packages/hutch-storage-client";
 import { z } from "zod";
 import {
@@ -105,6 +106,12 @@ export function initDynamoDbAuth(deps: {
 		client: deps.client,
 		tableName: deps.sessionsTableName,
 		schema: SessionRow,
+	});
+	/* Matches the KEYS_ONLY projection of the sessions userId-index. */
+	const sessionKeysByUser = defineDynamoTable({
+		client: deps.client,
+		tableName: deps.sessionsTableName,
+		schema: z.object({ sessionId: z.string() }),
 	});
 
 	/** Persists a new user row, guarded by attribute_not_exists(email). For Gmail
@@ -278,19 +285,17 @@ export function initDynamoDbAuth(deps: {
 	};
 
 	const destroyUserSessions: DestroyUserSessions = async (userId) => {
-		let exclusiveStartKey: Record<string, unknown> | undefined;
-		do {
-			const { items, lastEvaluatedKey } = await sessions.query({
+		await forEachQueryPage(
+			sessionKeysByUser,
+			{
 				IndexName: "userId-index",
 				KeyConditionExpression: "userId = :userId",
 				ExpressionAttributeValues: { ":userId": userId },
-				ExclusiveStartKey: exclusiveStartKey,
-			});
-			exclusiveStartKey = lastEvaluatedKey;
-			for (const session of items) {
-				await sessions.delete({ Key: { sessionId: session.sessionId } });
-			}
-		} while (exclusiveStartKey);
+			},
+			async (rows) => {
+				await Promise.all(rows.map((row) => sessions.delete({ Key: { sessionId: row.sessionId } })));
+			},
+		);
 	};
 
 	const countUsers: CountUsers = async () => {

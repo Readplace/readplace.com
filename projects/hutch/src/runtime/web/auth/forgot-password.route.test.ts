@@ -150,6 +150,44 @@ describe("Forgot password", () => {
 			expect(loginResponse.status).toBe(303);
 		});
 
+		it("destroys every session issued before the reset", async () => {
+			const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
+			const { auth, email } = harness;
+			const created = await auth.createUser({ email: "user@example.com", password: "oldpassword1" });
+			assert(created.ok, "User must be created");
+			const stolenSession = await auth.createSession({ userId: created.userId, emailVerified: true });
+
+			await request(harness.server)
+				.post("/forgot-password")
+				.type("form")
+				.send({ email: "user@example.com" });
+			const sent = email.getSentEmails();
+			const tokenMatch = sent[0].html.match(/token&#x3D;([a-f0-9]+)/);
+			assert(tokenMatch, "Expected token in password reset email");
+
+			const response = await request(harness.server)
+				.post(`/reset-password?token=${tokenMatch[1]}`)
+				.type("form")
+				.send({ password: "newpassword1", confirmPassword: "newpassword1" });
+
+			expect(response.status).toBe(200);
+			expect(await auth.getSessionUserId(stolenSession)).toBeNull();
+		});
+
+		it("rejects a token whose account no longer exists", async () => {
+			const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
+			const token = await harness.passwordReset.createPasswordResetToken({ email: "ghost@example.com" });
+
+			const response = await request(harness.server)
+				.post(`/reset-password?token=${token}`)
+				.type("form")
+				.send({ password: "newpassword1", confirmPassword: "newpassword1" });
+
+			expect(response.status).toBe(400);
+			const doc = new JSDOM(response.text).window.document;
+			expect(doc.querySelector("h1")?.textContent).toBe("Reset failed");
+		});
+
 		it("should reject an invalid token", async () => {
 			const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
 

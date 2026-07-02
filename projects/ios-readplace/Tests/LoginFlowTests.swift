@@ -84,29 +84,27 @@ final class LoginFlowTests: XCTestCase {
 		XCTAssertTrue(StubURLProtocol.records.isEmpty, "a rejected callback must not exchange the code")
 	}
 
-	func testForceLogoutClearsTheMintedSessionCookie() {
+	func testForceLogoutClearsTheMintedSessionCookie() async {
 		let config = TestSupport.stubbedConfiguration()
 		config.httpCookieStorage?.setCookie(TestSupport.sessionCookie(value: "sess-abc"))
 		var readerWipeInvoked = false
 		let session = AppSession(
 			store: TestSupport.loggedInStore(),
 			sessionConfiguration: config,
-			wipeReaderSessionCookie: { completion in
-				readerWipeInvoked = true
-				completion()
-			}
+			wipeReaderWebStore: { readerWipeInvoked = true }
 		)
 
-		session.forceLogout()
+		let readerWipe = session.forceLogout()
 
 		XCTAssertFalse(session.isLoggedIn)
 		XCTAssertNil(
 			config.httpCookieStorage?.cookies?.first { $0.name == AppConfig.sessionCookieName },
 			"the minted hutch_sid cookie must not survive a forced sign-out"
 		)
+		await readerWipe.value
 		XCTAssertTrue(
 			readerWipeInvoked,
-			"sign-out must wipe the reader's persisted hutch_sid from the WebKit store"
+			"sign-out must wipe the reader's traces from the WebKit store"
 		)
 	}
 
@@ -118,10 +116,7 @@ final class LoginFlowTests: XCTestCase {
 		let session = AppSession(
 			store: TestSupport.loggedInStore(),
 			sessionConfiguration: config,
-			wipeReaderSessionCookie: { completion in
-				readerWipeInvoked = true
-				completion()
-			}
+			wipeReaderWebStore: { readerWipeInvoked = true }
 		)
 
 		await session.logout()
@@ -133,7 +128,7 @@ final class LoginFlowTests: XCTestCase {
 		)
 		XCTAssertTrue(
 			readerWipeInvoked,
-			"sign-out must wipe the reader's persisted hutch_sid from the WebKit store"
+			"sign-out must wipe the reader's traces from the WebKit store"
 		)
 	}
 

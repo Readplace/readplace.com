@@ -3,6 +3,7 @@ import assert from "node:assert";
 import {
 	type DynamoDBDocumentClient,
 	defineDynamoTable,
+	forEachQueryPage,
 } from "@packages/hutch-storage-client";
 import { z } from "zod";
 import type {
@@ -257,26 +258,24 @@ export function initDynamoDbOAuthModel(deps: {
 		},
 
 		async revokeAllUserTokens(userId: UserId): Promise<void> {
-			let exclusiveStartKey: Record<string, unknown> | undefined;
-
-			do {
-				const { items, lastEvaluatedKey } = await revokeView.query({
+			await forEachQueryPage(
+				revokeView,
+				{
 					IndexName: "userId-index",
 					KeyConditionExpression: "userId = :userId",
 					ExpressionAttributeValues: { ":userId": userId },
-					ExclusiveStartKey: exclusiveStartKey,
-				});
-
-				exclusiveStartKey = lastEvaluatedKey;
-
-				for (const item of items) {
-					if (item.pk.startsWith("token#") && item.refreshToken) {
-						await refreshIndex.delete({ Key: { pk: `refresh#${item.refreshToken}` } });
-					}
-
-					await revokeView.delete({ Key: { pk: item.pk } });
-				}
-			} while (exclusiveStartKey);
+				},
+				async (items) => {
+					await Promise.all(
+						items.map(async (item) => {
+							if (item.pk.startsWith("token#") && item.refreshToken) {
+								await refreshIndex.delete({ Key: { pk: `refresh#${item.refreshToken}` } });
+							}
+							await revokeView.delete({ Key: { pk: item.pk } });
+						}),
+					);
+				},
+			);
 		},
 
 		generateAccessToken: async () => generateToken(),

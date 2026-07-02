@@ -24,23 +24,23 @@ final class AppSession: ObservableObject {
 
 	private let store: TokenStore
 	private let sessionConfiguration: URLSessionConfiguration
-	private let wipeReaderSessionCookie: (@escaping () -> Void) -> Void
+	private let wipeReaderWebStore: () async -> Void
 
 	// Defaults to an ephemeral configuration so the API/OAuth sessions keep their
 	// cookie jar in an isolated, in-memory store rather than process-wide
 	// `HTTPCookieStorage.shared` — the minted `hutch_sid` reader cookie must not
 	// linger in the shared jar where it would outlive a sign-out.
 	//
-	// `wipeReaderSessionCookie` defaults to the real WebKit deletion; it's the
+	// `wipeReaderWebStore` defaults to the real WebKit deletion; it's the
 	// OS-boundary seam tests replace with a spy.
 	init(
 		store: TokenStore = TokenStore(),
 		sessionConfiguration: URLSessionConfiguration = .ephemeral,
-		wipeReaderSessionCookie: @escaping (@escaping () -> Void) -> Void = AppSession.deleteReaderSessionCookieFromWebKit
+		wipeReaderWebStore: @escaping () async -> Void = AppSession.removeReaderWebStoreData
 	) {
 		self.store = store
 		self.sessionConfiguration = sessionConfiguration
-		self.wipeReaderSessionCookie = wipeReaderSessionCookie
+		self.wipeReaderWebStore = wipeReaderWebStore
 		self.isLoggedIn = store.isLoggedIn
 	}
 
@@ -76,29 +76,29 @@ final class AppSession: ObservableObject {
 	}
 
 	func logout() async {
+		// The WebKit wipe and the network revoke are independent, so they run
+		// concurrently; both finish before the logged-out state is published.
+		let readerWipe = Task { await self.wipeReaderWebStore() }
 		await makeOAuth().revoke()
 		clearSessionCookie()
-		await wipeReaderSession()
+		await readerWipe.value
 		isLoggedIn = false
 	}
 
 	/// Local sign-out used when the session is already invalid (refresh failed).
 	/// Stays synchronous so the non-async `onSessionExpired` caller is unaffected;
-	/// the WebKit wipe is fire-and-forget (enqueued before `isLoggedIn` flips).
-	func forceLogout() {
+	/// the returned wipe task lets tests await the fire-and-forget WebKit wipe.
+	@discardableResult
+	func forceLogout() -> Task<Void, Never> {
 		store.clear()
 		clearSessionCookie()
-		wipeReaderSessionCookie {}
+		let readerWipe = Task { await self.wipeReaderWebStore() }
 		isLoggedIn = false
+		return readerWipe
 	}
 
-	/// Bridges the completion-based WebKit wipe to async so `logout()` enqueues
-	/// the `hutch_sid` deletion before flipping `isLoggedIn` (and any re-login
-	/// navigation that follows it).
-	private func wipeReaderSession() async {
-		await withCheckedContinuation { continuation in
-			wipeReaderSessionCookie { continuation.resume() }
-		}
+	private static func isSessionCookie(_ cookie: HTTPCookie) -> Bool {
+		cookie.name == AppConfig.sessionCookieName
 	}
 
 	/// Drops the minted browser session cookie (`hutch_sid`) on sign-out so it
@@ -107,27 +107,24 @@ final class AppSession: ObservableObject {
 	/// `HTTPCookieStorage.shared`), so this clears only this app's copy.
 	private func clearSessionCookie() {
 		let storage = sessionConfiguration.httpCookieStorage
-		for cookie in storage?.cookies ?? [] where cookie.name == AppConfig.sessionCookieName {
+		for cookie in storage?.cookies ?? [] where Self.isSessionCookie(cookie) {
 			storage?.deleteCookie(cookie)
 		}
 	}
 
-	/// Deletes only `hutch_sid` from the process-wide WebKit default store the
-	/// reader (`ReaderWebView`) now persists into. Name-scoped on purpose: a
-	/// blanket `removeData(ofTypes: [WKWebsiteDataTypeCookies])` would also drop
-	/// the reader's `rp_changelog_dismissed` cookie and make the dismissed
-	/// changelog banner reappear after sign-out. The real WebKit call is the
-	/// OS boundary; tests inject a spy via `wipeReaderSessionCookie`.
-	private static func deleteReaderSessionCookieFromWebKit(completion: @escaping () -> Void) {
-		let store = WKWebsiteDataStore.default().httpCookieStore
-		store.getAllCookies { cookies in
-			let group = DispatchGroup()
-			for cookie in cookies where cookie.name == AppConfig.sessionCookieName {
-				group.enter()
-				store.delete(cookie) { group.leave() }
-			}
-			group.notify(queue: .main, execute: completion)
+	/// Removes the reader's authenticated traces from the process-wide WebKit
+	/// default store on sign-out. The session cookie is deleted by name — a
+	/// blanket cookie wipe would also drop server-set reader state (the dismissed
+	/// changelog banner would reappear) — while every non-cookie data type
+	/// (cache, local/session storage, IndexedDB) is cleared so the reading
+	/// history of the signed-out account doesn't stay on disk.
+	private static func removeReaderWebStoreData() async {
+		let store = WKWebsiteDataStore.default()
+		for cookie in await store.httpCookieStore.allCookies() where isSessionCookie(cookie) {
+			await store.httpCookieStore.delete(cookie)
 		}
+		let nonCookieTypes = WKWebsiteDataStore.allWebsiteDataTypes().subtracting([WKWebsiteDataTypeCookies])
+		await store.removeData(ofTypes: nonCookieTypes, modifiedSince: .distantPast)
 	}
 
 	func makeAPI() -> ReadplaceAPI {

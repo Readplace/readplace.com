@@ -839,7 +839,9 @@ export function createApp(dependencies: AppDependencies): Express {
 	const forgotPasswordRouter = initForgotPasswordRoutes({
 		sendEmail: deps.sendEmail,
 		userExistsByEmail: deps.userExistsByEmail,
+		findUserByEmail: deps.findUserByEmail,
 		updatePassword: deps.updatePassword,
+		destroyUserSessions: deps.destroyUserSessions,
 		createPasswordResetToken: deps.createPasswordResetToken,
 		verifyPasswordResetToken: deps.verifyPasswordResetToken,
 		baseUrl: deps.baseUrl,

@@ -21,6 +21,7 @@ import type { PasswordResetProgress } from './password-reset-actions'
 import type { SeedProgress } from './seed-actions'
 import type { QueueProgress, TestArticleData } from './queue-actions'
 import { runQueueFlow } from './queue-flow'
+import { runOAuthRevokeFlow } from '../oauth-revoke/oauth-revoke-flow'
 
 // No-op factory for action groups that staging legitimately cannot exercise
 // (e.g. password reset needs /e2e/sent-emails, onboarding needs an extension
@@ -41,6 +42,10 @@ function skipFactory<K extends string>(
     return result
   }
 }
+
+// Serial: the revoke flow below destroys every session of the shared staging
+// user, so it must only run after the UI flow is done with that account.
+test.describe.configure({ mode: 'serial' })
 
 test.describe('Queue management flow (staging)', () => {
   test('signup, logout, login, add articles, pagination, sort, read, delete, verify tabs', async ({ page, baseURL }) => {
@@ -197,6 +202,18 @@ test.describe('Queue management flow (staging)', () => {
         importFromUrlProgress,
       ],
       maxNavigations: 100,
+    })
+  })
+
+  test('iOS token revocation destroys every session the user holds', async ({ baseURL }) => {
+    assert(baseURL, "baseURL must be defined — set STAGING_URL env var")
+
+    // Runs against the deployed stack, so it exercises the sessions-table
+    // userId-index and its IAM grant — the parts no in-memory test can reach.
+    await runOAuthRevokeFlow({
+      baseURL,
+      email: 'e2e-test@example.com',
+      password: 'test-password-123',
     })
   })
 })

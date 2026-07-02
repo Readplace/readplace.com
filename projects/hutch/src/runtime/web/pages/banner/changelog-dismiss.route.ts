@@ -2,10 +2,7 @@ import express, { type Request, type Response, type Router } from "express";
 import { CHANGELOG_DISMISS_COOKIE_NAME, isChangelogVersion } from "@packages/web-shell";
 import { baseCookieOptions } from "../../cookie-options";
 
-/** Requested guest-dismissal lifetime. Browsers and WebKit cap persistent
- * cookies at ~400 days (RFC 6265bis), so the client silently clamps this to
- * ~13 months; the constant is the config we ask for, not the guaranteed life. */
-const CHANGELOG_DISMISS_COOKIE_MAX_AGE_MS = 23 * 30 * 24 * 60 * 60 * 1000;
+const RFC_6265BIS_MAX_COOKIE_AGE_MS = 400 * 24 * 60 * 60 * 1000;
 
 /** A throwaway origin to resolve the posted `returnTo` against, so a same-origin
  * relative path keeps this origin while anything off-site (an absolute URL,
@@ -56,7 +53,7 @@ export function initChangelogDismissRoute(deps: {
 		if (isChangelogVersion(version)) {
 			res.cookie(CHANGELOG_DISMISS_COOKIE_NAME, version, {
 				...baseCookieOptions(deps.secureCookies),
-				maxAge: CHANGELOG_DISMISS_COOKIE_MAX_AGE_MS,
+				maxAge: RFC_6265BIS_MAX_COOKIE_AGE_MS,
 			});
 		}
 		res.redirect(303, safeReturnPath(req.body.returnTo));

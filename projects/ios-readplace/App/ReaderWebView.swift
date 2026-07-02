@@ -36,12 +36,10 @@ struct ReaderWebView: UIViewControllerRepresentable {
 
 		let configuration = WKWebViewConfiguration()
 		configuration.userContentController = userContent
-		// Use the persistent, process-wide default store so the server's
-		// `rp_changelog_dismissed` httpOnly cookie set inside one reader survives to
-		// the next one (a per-sheet `.nonPersistent()` store discarded it, so the
-		// banner kept reappearing). The minted `hutch_sid` also persists here, but
-		// it is re-injected per open (below) so the reader always authenticates as
-		// the current user, and `AppSession` name-scope-wipes it on sign-out.
+		// The persistent, process-wide default store: server-set reader state (e.g.
+		// a dismissed banner's httpOnly cookie) must survive from one reader open to
+		// the next. The session cookie also persists here, but it is re-injected per
+		// open (below) and wiped on sign-out.
 		configuration.websiteDataStore = .default()
 
 		let webView = WKWebView(frame: .zero, configuration: configuration)
