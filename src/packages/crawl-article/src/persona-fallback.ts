@@ -30,6 +30,7 @@ const BLOCK_ERROR_SIGNATURES = [
 	"not closed cleanly", /* curl exit 92 — server killed the h2 stream mid-request */
 	"err_http2_protocol_error", /* undici's mapping of generic h2 protocol errors */
 	"max_redirects", /* undici's mapping of redirect-loop failures */
+	"too many redirects",
 ];
 
 export function isBlockClassResponse(response: Response): boolean {

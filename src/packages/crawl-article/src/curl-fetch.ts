@@ -12,7 +12,8 @@ const DEFAULT_TIMEOUT_MS = 10000;
 
 const REDIRECT_STATUS_CODES = new Set([301, 302, 303, 307, 308]);
 const MAX_REDIRECTS = 5;
-const ALLOWED_REDIRECT_PROTOCOLS = new Set(["http:", "https:"]);
+const ALLOWED_PROTOCOLS = new Set(["http:", "https:"]);
+const CROSS_ORIGIN_SENSITIVE_HEADERS = new Set(["cookie", "authorization", "proxy-authorization"]);
 
 type CurlFetchInit = {
 	headers?: Record<string, string>;
@@ -26,7 +27,6 @@ type CurlChild = {
 
 export type ExecCurl = (
 	args: readonly string[],
-	options: { timeoutMs: number | undefined },
 	callback: (error: Error | null, stdout: Buffer) => void,
 ) => CurlChild;
 
@@ -39,11 +39,11 @@ export type CurlFetch = (url: string, init?: CurlFetchInit) => Promise<Response>
  */
 export const CURL_IMPERSONATE_BIN = "curl_chrome131";
 
-const defaultExecCurl: ExecCurl = (args, options, callback) => {
+const defaultExecCurl: ExecCurl = (args, callback) => {
 	const child = execFile(
 		CURL_IMPERSONATE_BIN,
 		args,
-		{ encoding: "buffer", maxBuffer: MAX_PDF_BYTES.bytes, timeout: options.timeoutMs },
+		{ encoding: "buffer", maxBuffer: MAX_PDF_BYTES.bytes },
 		callback,
 	);
 	return {
@@ -70,14 +70,16 @@ const defaultExecCurl: ExecCurl = (args, options, callback) => {
 export function createCurlFetch(deps: { execCurl: ExecCurl; resolvePinnedAddress: ResolvePinnedAddress }): CurlFetch {
 	const { execCurl, resolvePinnedAddress } = deps;
 
-	async function fetchOnce(url: string, init?: CurlFetchInit): Promise<Response> {
+	async function fetchOnce(
+		url: string,
+		init: { headers?: Record<string, string>; signal: AbortSignal },
+	): Promise<Response> {
 		const parsed = new URL(url);
 		const port = parsed.port ? Number(parsed.port) : parsed.protocol === "https:" ? 443 : 80;
 		const pinnedAddress = await resolvePinnedAddress({ hostname: parsed.hostname });
 		return new Promise<Response>((resolve, reject) => {
-			const args = buildCurlArgs({ url, headers: init?.headers, hostname: parsed.hostname, port, pinnedAddress });
-			const timeoutMs = init?.signal ? undefined : DEFAULT_TIMEOUT_MS;
-			const child = execCurl(args, { timeoutMs }, (error, stdout) => {
+			const args = buildCurlArgs({ url, headers: init.headers, hostname: parsed.hostname, port, pinnedAddress });
+			const child = execCurl(args, (error, stdout) => {
 				if (error) {
 					reject(new Error(`fetchCurl failed for ${url}: ${error.message}`));
 					return;
@@ -85,27 +87,33 @@ export function createCurlFetch(deps: { execCurl: ExecCurl; resolvePinnedAddress
 				const { status, headers, body } = parseCurlOutput(stdout);
 				resolve(new Response(body.length === 0 ? null : body, { status, headers }));
 			});
-			const signal = init?.signal;
-			if (signal) {
-				if (signal.aborted) {
-					child.kill();
-					reject(signal.reason);
-					return;
-				}
-				const onAbort = () => {
-					child.kill();
-					reject(signal.reason);
-				};
-				signal.addEventListener("abort", onAbort, { once: true });
-				child.onClose(() => signal.removeEventListener("abort", onAbort));
+			const { signal } = init;
+			if (signal.aborted) {
+				child.kill();
+				reject(signal.reason);
+				return;
 			}
+			const onAbort = () => {
+				child.kill();
+				reject(signal.reason);
+			};
+			signal.addEventListener("abort", onAbort, { once: true });
+			child.onClose(() => signal.removeEventListener("abort", onAbort));
 		});
 	}
 
 	return async function fetchCurl(url, init) {
+		const entryUrl = new URL(url);
+		if (!ALLOWED_PROTOCOLS.has(entryUrl.protocol)) {
+			throw new Error(
+				`fetchCurl failed for ${url}: refusing to fetch non-HTTP(S) scheme "${entryUrl.protocol}"`,
+			);
+		}
+		const signal = init?.signal ?? AbortSignal.timeout(DEFAULT_TIMEOUT_MS);
 		let currentUrl = url;
+		let headers = init?.headers;
 		for (let redirects = 0; ; redirects++) {
-			const response = await fetchOnce(currentUrl, init);
+			const response = await fetchOnce(currentUrl, { headers, signal });
 			const location = response.headers.get("location");
 			if (location === null || !REDIRECT_STATUS_CODES.has(response.status)) {
 				return response;
@@ -117,11 +125,19 @@ export function createCurlFetch(deps: { execCurl: ExecCurl; resolvePinnedAddress
 			// next fetchOnce re-runs resolvePinnedAddress on the target host — the
 			// per-hop SSRF re-validation that lets us follow a redirect curl itself
 			// (kept at --max-redirs 0) is not allowed to chase.
-			const nextUrl = new URL(location, currentUrl);
-			if (!ALLOWED_REDIRECT_PROTOCOLS.has(nextUrl.protocol)) {
+			let nextUrl: URL;
+			try {
+				nextUrl = new URL(location, currentUrl);
+			} catch {
+				throw new Error(`fetchCurl failed for ${url}: invalid redirect Location "${location}"`);
+			}
+			if (!ALLOWED_PROTOCOLS.has(nextUrl.protocol)) {
 				throw new Error(
 					`fetchCurl failed for ${url}: refusing to follow redirect to non-HTTP(S) scheme "${nextUrl.protocol}"`,
 				);
+			}
+			if (headers && nextUrl.origin !== new URL(currentUrl).origin) {
+				headers = stripCrossOriginSensitiveHeaders(headers);
 			}
 			currentUrl = nextUrl.href;
 		}
@@ -158,10 +174,13 @@ function buildCurlArgs(params: {
 		"--silent",
 		"--show-error",
 		// curl resolves DNS itself, bypassing the Node-level SSRF guard, so a
-		// redirect could reach an unchecked private IP. `--location` is deliberately
-		// omitted and `--max-redirs 0` stops curl following any redirect on its own;
-		// the 3xx is handed back to fetchCurl, which re-pins the target through the
-		// SSRF guard (resolvePinnedAddress) before following it.
+		// redirect could reach an unchecked private IP. Omitting `--location` is
+		// what stops curl from following redirects on its own — each 3xx is handed
+		// back to fetchCurl, which re-pins the target through the SSRF guard
+		// (resolvePinnedAddress) before following it. `--max-redirs 0` is inert
+		// without `--location` (curl consults it only under -L); it stays as a
+		// fail-closed backstop so that a re-added `--location` would make curl exit
+		// 47 instead of following a redirect unguarded.
 		"--max-redirs",
 		"0",
 		"--dump-header",
@@ -198,6 +217,16 @@ function toTitleCase(header: string): string {
 	return header.replace(/\b\w/g, (c) => c.toUpperCase());
 }
 
+function stripCrossOriginSensitiveHeaders(headers: Record<string, string>): Record<string, string> {
+	const out: Record<string, string> = {};
+	for (const [key, value] of Object.entries(headers)) {
+		if (!CROSS_ORIGIN_SENSITIVE_HEADERS.has(key.toLowerCase())) {
+			out[key] = value;
+		}
+	}
+	return out;
+}
+
 type ParsedCurlOutput = {
 	status: number;
 	headers: Headers;
@@ -206,8 +235,9 @@ type ParsedCurlOutput = {
 
 /**
  * curl --dump-header - --output - writes headers then a blank line then body.
- * With --location, intermediate redirect headers appear before the final ones.
- * We parse the LAST header block (after the last HTTP status line).
+ * A single response can still carry more than one header block: an HTTP 1xx
+ * interim response (100 Continue, 103 Early Hints) precedes the final status,
+ * so we parse the LAST header block (after the last HTTP status line).
  */
 function parseCurlOutput(raw: Buffer): ParsedCurlOutput {
 	const crlfIndex = findLastHeaderBlock(raw);
@@ -234,8 +264,9 @@ function parseCurlOutput(raw: Buffer): ParsedCurlOutput {
 }
 
 /**
- * Finds the end of the last header block (\r\n\r\n boundary).
- * With --location, each redirect response has its own header block.
+ * Finds the end of the last header block (\r\n\r\n boundary). An HTTP 1xx
+ * interim response (100 Continue, 103 Early Hints) emits its own header block
+ * before the final one, so we skip past every interim block to the last.
  */
 function findLastHeaderBlock(raw: Buffer): number {
 	const separator = Buffer.from("\r\n\r\n");

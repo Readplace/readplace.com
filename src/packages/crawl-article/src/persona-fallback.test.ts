@@ -40,6 +40,7 @@ describe("isBlockClassError", () => {
 		"ERR_HTTP2_STREAM_ERROR: RST_STREAM",
 		"ERR_HTTP2_PROTOCOL_ERROR",
 		"UND_ERR_MAX_REDIRECTS: max_redirects exceeded",
+		"fetchCurl failed for https://example.com: too many redirects (>5)",
 	])("treats %j as block-class error", (message) => {
 		expect(isBlockClassError(new Error(message))).toBe(true);
 	});
