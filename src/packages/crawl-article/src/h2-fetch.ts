@@ -2,9 +2,8 @@ import assert from "node:assert";
 import http2 from "node:http2";
 import type { AssertHostAllowed, SocketLookup } from "./blocked-address-lookup";
 import type { CurlFetch } from "./curl-fetch";
+import { followRedirects } from "./follow-redirects";
 
-const MAX_REDIRECTS = 5;
-const REDIRECT_STATUS_CODES = new Set([301, 302, 303, 307, 308]);
 const FALLBACK_STATUS_CODES = new Set([403, 429]);
 
 type FetchH2Init = {
@@ -35,30 +34,26 @@ export type FetchH2 = (url: string, init?: FetchH2Init) => Promise<Response>;
  */
 export function initFetchH2(deps: { lookup?: SocketLookup; assertHostAllowed?: AssertHostAllowed } = {}): FetchH2 {
 	const connectOptions = deps.lookup ? { lookup: deps.lookup } : {};
-	return async (url, init) => {
-		let currentUrl = url;
-		for (let i = 0; i <= MAX_REDIRECTS; i++) {
-			const parsed = new URL(currentUrl);
-			deps.assertHostAllowed?.(parsed.hostname);
-			const client = http2.connect(parsed.origin, connectOptions);
-			try {
-				const result = await h2Request(client, parsed, init);
-				if (REDIRECT_STATUS_CODES.has(result.status)) {
-					const location = result.headers.location;
-					assert(typeof location === "string" && location.length > 0, `HTTP/2 ${result.status} from ${currentUrl} missing location header`);
-					currentUrl = new URL(location, parsed.origin).href;
-					continue;
+	return (url, init) =>
+		followRedirects({
+			label: "fetchH2",
+			url,
+			headers: init?.headers,
+			requestHop: async ({ url: hopUrl, headers }) => {
+				const parsed = new URL(hopUrl);
+				deps.assertHostAllowed?.(parsed.hostname);
+				const client = http2.connect(parsed.origin, connectOptions);
+				try {
+					const result = await h2Request(client, parsed, { headers, signal: init?.signal });
+					return new Response(result.body, {
+						status: result.status,
+						headers: toFetchHeaders(result.headers),
+					});
+				} finally {
+					client.close();
 				}
-				return new Response(result.body, {
-					status: result.status,
-					headers: toFetchHeaders(result.headers),
-				});
-			} finally {
-				client.close();
-			}
-		}
-		throw new Error(`fetchH2: too many redirects for ${url}`);
-	};
+			},
+		});
 }
 
 export const fetchH2: FetchH2 = initFetchH2();
@@ -107,6 +102,7 @@ function h2Request(
 			assert(status !== undefined, "HTTP/2 stream ended without :status");
 			/* c8 ignore next -- V8 block-coverage phantom: this assert's message string gets a spurious zero-count sub-range even though the guard runs on every response; see bcoe/c8#319 and https://v8.dev/blog/javascript-code-coverage */
 			assert(responseHeaders, "HTTP/2 stream ended without response headers");
+			/* c8 ignore next -- V8 block-coverage phantom: the resolve/Buffer.concat continuation gets a spurious zero-count sub-range even though every h2 response reaches it; see bcoe/c8#319 and https://v8.dev/blog/javascript-code-coverage */
 			resolve({ status, headers: responseHeaders, body: Buffer.concat(chunks) });
 		});
 		req.end();

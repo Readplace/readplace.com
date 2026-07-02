@@ -315,13 +315,15 @@ describe("initFetchAia", () => {
 		await expect(fetchAia("https://example.com/")).rejects.toThrow(/AIA URL/);
 	});
 
-	it("throws on a redirect without a location header", async () => {
-		const deps = makeDeps({
-			httpsGet: jest.fn(async () => ({ status: 301, headers: {}, body: Buffer.alloc(0) })),
-		});
+	it("returns a redirect without a location header as the final response (WHATWG fetch semantics)", async () => {
+		const httpsGet = jest.fn(async () => ({ status: 301, headers: {}, body: Buffer.alloc(0) }));
+		const deps = makeDeps({ httpsGet });
 		const fetchAia = initFetchAia(deps);
 
-		await expect(fetchAia("https://example.com/")).rejects.toThrow(/missing location/);
+		const response = await fetchAia("https://example.com/");
+
+		expect(response.status).toBe(301);
+		expect(httpsGet).toHaveBeenCalledTimes(1);
 	});
 
 	it("throws after more than MAX_REDIRECTS consecutive redirects", async () => {
