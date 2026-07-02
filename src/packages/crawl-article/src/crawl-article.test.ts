@@ -56,6 +56,7 @@ function initCrawl(overrides: {
 	fetchCurl?: CurlFetch;
 	fetchH2?: typeof fetchH2;
 	siteRules?: readonly SiteRules[];
+	fetchTimeouts?: { headersMs: number; bodyMs: number };
 }) {
 	const crawlFetch = buildCrawlFetch(overrides);
 	const logError = overrides.logError ?? noopLogError;
@@ -64,6 +65,7 @@ function initCrawl(overrides: {
 		siteRules: overrides.siteRules ?? [initXTwitterSiteRules({ crawlFetch, logError })],
 		extractPdf: overrides.extractPdf,
 		logError,
+		fetchTimeouts: overrides.fetchTimeouts,
 	});
 }
 
@@ -572,6 +574,107 @@ describe("initCrawlArticle — single-fetch orchestration", () => {
 			contentType: "image/jpeg",
 			url: "https://cdn.example.com/thumb.jpg",
 			extension: ".jpg",
+		});
+	});
+});
+
+describe("initCrawlArticle — split fetch budgets (headers vs body)", () => {
+	const delay = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms));
+
+	function requireSignal(init: RequestInit | undefined): AbortSignal {
+		const signal = init?.signal;
+		assert(signal, "Expected the crawl fetch to pass an AbortSignal");
+		return signal;
+	}
+
+	it("aborts with a TimeoutError when no headers arrive within the headers budget, then falls back to signal-less curl", async () => {
+		const curlError = new Error("curl fallback also failed");
+		const curlSignals: Array<AbortSignal | undefined> = [];
+		const fakeFetchCurl: CurlFetch = async (_url, init) => {
+			curlSignals.push(init?.signal);
+			throw curlError;
+		};
+		const fakeFetch: typeof fetch = (_input, init) =>
+			new Promise((_resolve, reject) => {
+				const signal = requireSignal(init);
+				signal.addEventListener("abort", () => reject(signal.reason), { once: true });
+			});
+		const logError = jest.fn();
+		const crawlArticle = initCrawl({
+			fetch: fakeFetch,
+			fetchCurl: fakeFetchCurl,
+			logError,
+			fetchTimeouts: { headersMs: 15, bodyMs: 5000 },
+		});
+
+		const result = await crawlArticle({ url: "https://example.com/huge.pdf" });
+
+		expect(result).toEqual({ status: "failed" });
+		expect(logError).toHaveBeenCalledWith(
+			"[CrawlArticle] Network error for https://example.com/huge.pdf",
+			curlError,
+		);
+		expect(curlSignals).toEqual([undefined]);
+	});
+
+	it("aborts with a TimeoutError when the body is not fully read within the body budget", async () => {
+		const fakeFetch: typeof fetch = async (_input, init) => {
+			const signal = requireSignal(init);
+			const body = new ReadableStream<Uint8Array>({
+				start(streamController) {
+					streamController.enqueue(new Uint8Array(Buffer.from("<html>")));
+					signal.addEventListener("abort", () => streamController.error(signal.reason), { once: true });
+				},
+			});
+			return new Response(body, { status: 200, headers: { "content-type": "text/html" } });
+		};
+		const logError = jest.fn();
+		const crawlArticle = initCrawl({
+			fetch: fakeFetch,
+			logError,
+			fetchTimeouts: { headersMs: 5000, bodyMs: 15 },
+		});
+
+		const result = await crawlArticle({ url: "https://example.com" });
+
+		expect(result).toEqual({ status: "failed" });
+		expect(logError).toHaveBeenCalledTimes(1);
+		const loggedError = logError.mock.calls[0][1];
+		assert(loggedError instanceof Error, "Expected the body timeout to be logged as an Error");
+		expect(loggedError.name).toBe("TimeoutError");
+		expect(loggedError.message).toBe("body not fully read within 15ms");
+	});
+
+	it("materialises a body that takes longer than the headers budget (slow large PDF) and defers it as unsupported", async () => {
+		const chunkSize = Math.ceil(PDF_MAGIC_BUFFER.length / 3);
+		const chunks = [
+			new Uint8Array(PDF_MAGIC_BUFFER.subarray(0, chunkSize)),
+			new Uint8Array(PDF_MAGIC_BUFFER.subarray(chunkSize, chunkSize * 2)),
+			new Uint8Array(PDF_MAGIC_BUFFER.subarray(chunkSize * 2)),
+		];
+		let delivered = 0;
+		const fakeFetch: typeof fetch = async () => {
+			const body = new ReadableStream<Uint8Array>({
+				async pull(streamController) {
+					await delay(20);
+					streamController.enqueue(chunks[delivered]);
+					delivered += 1;
+					if (delivered === chunks.length) streamController.close();
+				},
+			});
+			return new Response(body, { status: 200, headers: { "content-type": "application/pdf" } });
+		};
+		const crawlArticle = initCrawl({
+			fetch: fakeFetch,
+			fetchTimeouts: { headersMs: 25, bodyMs: 5000 },
+		});
+
+		const result = await crawlArticle({ url: "https://example.com/report.pdf" });
+
+		expect(delivered).toBe(3);
+		expect(result).toEqual({
+			status: "unsupported",
+			reason: "unsupported content type: application/pdf",
 		});
 	});
 });

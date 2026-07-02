@@ -15,7 +15,34 @@ import { readBodyWithCap } from "./read-capped-body";
 import type { ExtractPdf } from "./pdf-extract.types";
 import type { SiteCrawlOutcome, SiteRules } from "@packages/site-rules";
 
-const FETCH_TIMEOUT_MS = 30000;
+/**
+ * Split fetch budgets: time-to-headers and body-materialisation are separate
+ * failure modes. A single wall-clock signal over both meant the body read
+ * competed with body size — a healthy 14 MB PDF needs ~50 s at observed
+ * Lambda-to-origin throughput (~0.3 MB/s), so it could never fit the old
+ * 30 s combined budget no matter how fast the origin responded. Headers stay
+ * tight so dead or blocking origins still fail fast; the body budget scales
+ * to the largest fetchable documents while staying under the tier-1 Lambda's
+ * 240 s timeout (30 + 180 = 210 s worst case).
+ */
+const DEFAULT_FETCH_TIMEOUTS = { headersMs: 30000, bodyMs: 180000 } as const;
+
+type FetchTimeouts = { headersMs: number; bodyMs: number };
+
+/**
+ * Mirrors the reason `AbortSignal.timeout()` aborts with: h2-fetch's
+ * `shouldTryFallback` only proceeds past an aborted signal when
+ * `reason instanceof Error && reason.name === "TimeoutError"`, so the manual
+ * aborts here must keep that shape or timeouts stop falling back to curl.
+ * A plain `Error` rather than `DOMException` because platform-constructed
+ * DOMExceptions come from the host realm — under jest's sandbox they fail
+ * `instanceof Error` and silently disable the fallback chain.
+ */
+function fetchTimeoutReason(message: string): Error {
+	const reason = new Error(message);
+	reason.name = "TimeoutError";
+	return reason;
+}
 
 /**
  * Browser-like headers required by Fastly/Cloudflare edge sniffers.
@@ -91,6 +118,7 @@ export const CRAWL_PERSONAS = [
 function initConditionalGet(deps: {
 	crawlFetch: CrawlFetch;
 	logError: (message: string, error?: Error) => void;
+	fetchTimeouts: FetchTimeouts;
 }): (params: {
 	url: string;
 	etag?: string;
@@ -101,16 +129,26 @@ function initConditionalGet(deps: {
 	| { status: "failed" }
 	| { status: "not-found"; httpStatus: 404 | 410 }
 > {
-	const { crawlFetch, logError } = deps;
+	const { crawlFetch, logError, fetchTimeouts } = deps;
 	return async (params) => {
+		/* One AbortController spans both phases because undici ties the request
+		 * signal to the response body stream — aborting it is the only way to
+		 * cancel an in-flight body read. AbortSignal.timeout() can't express
+		 * this: it fires at a fixed wall-clock point regardless of which phase
+		 * the fetch is in, which is exactly the coupling being removed. */
+		const controller = new AbortController();
+		let budgetTimer = setTimeout(() => {
+			controller.abort(fetchTimeoutReason(`no response headers within ${fetchTimeouts.headersMs}ms`));
+		}, fetchTimeouts.headersMs);
 		try {
 			const headers: Record<string, string> = {};
 			if (params.etag) headers["if-none-match"] = params.etag;
 			if (params.lastModified) headers["if-modified-since"] = params.lastModified;
 			const response = await crawlFetch(params.url, {
-				signal: AbortSignal.timeout(FETCH_TIMEOUT_MS),
+				signal: controller.signal,
 				headers,
 			});
+			clearTimeout(budgetTimer);
 			if (response.status === 304) {
 				return { status: "not-modified" };
 			}
@@ -122,8 +160,15 @@ function initConditionalGet(deps: {
 				logError(`[CrawlArticle] HTTP ${response.status} for ${params.url}`);
 				return { status: "failed" };
 			}
-			return { status: "ok", response, buffer: await readBodyWithCap(response, MAX_PDF_BYTES.bytes) };
+			budgetTimer = setTimeout(() => {
+				controller.abort(fetchTimeoutReason(`body not fully read within ${fetchTimeouts.bodyMs}ms`));
+			}, fetchTimeouts.bodyMs);
+			/* c8 ignore next -- V8 async continuation phantom on the await, see bcoe/c8#319 */
+			const buffer = await readBodyWithCap(response, MAX_PDF_BYTES.bytes);
+			clearTimeout(budgetTimer);
+			return { status: "ok", response, buffer };
 		} catch (error) {
+			clearTimeout(budgetTimer);
 			logError(`[CrawlArticle] Network error for ${params.url}`, error instanceof Error ? error : undefined);
 			return { status: "failed" };
 		}
@@ -238,9 +283,13 @@ export function initCrawlArticle(deps: {
 	siteRules: readonly SiteRules[];
 	extractPdf?: ExtractPdf;
 	logError: (message: string, error?: Error) => void;
+	/** Test seam: production callers take the defaults; tests inject
+	 * millisecond-scale budgets so the timer-abort paths run for real. */
+	fetchTimeouts?: FetchTimeouts;
 }): CrawlArticle {
 	const { crawlFetch, siteRules, extractPdf, logError } = deps;
-	const conditionalGet = initConditionalGet({ crawlFetch, logError });
+	const fetchTimeouts = deps.fetchTimeouts ?? DEFAULT_FETCH_TIMEOUTS;
+	const conditionalGet = initConditionalGet({ crawlFetch, logError, fetchTimeouts });
 	return async (params) => {
 		let hostname: string;
 		try {
