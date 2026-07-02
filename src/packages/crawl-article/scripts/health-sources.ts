@@ -143,6 +143,18 @@ export const HEALTH_SOURCES: readonly HealthSource[] = [
 		expectsThumbnail: true,
 	},
 	{
+		// News Corp (Daily Telegraph) bounces any cookieless client to its
+		// /nocookies cookie wall — both direct article URLs and the
+		// subscribe-wrapper `?dest=` form that users save from the paywall
+		// exit. The crawl must carry a cookie jar across the bounce to reach
+		// the article page. expectedContent anchors the standfirst, which the
+		// page serves publicly (the premium body stays paywalled).
+		label: "Daily Telegraph (News Corp cookie wall)",
+		url: "https://www.dailytelegraph.com.au/subscribe/news/1/?sourceCode=DTWEB_WRE170_a&dest=https%3A%2F%2Fwww.dailytelegraph.com.au%2Fnews%2Fnsw%2Fpiers-is-spot-on-daily-telegraph-readers-split-but-many-back-karl-stefanovic-after-piers-morgan-says-nine-will-regret-sacking-today-host%2Fnews-story%2F47f5e5602e54eb328657a95bd5c1356f&memtype=anonymous&mode=premium&v21=GROUPA-Segment-1-NOSCORE",
+		expectedContent: "overwhelmingly backed Karl Stefanovic",
+		expectsThumbnail: true,
+	},
+	{
 		// Exercises the PDF path end-to-end: detection + per-page OCR Lambda
 		// fan-out (rasterisation + DeepInfra vision) + sanitizer + Readability
 		// over the synthetic HTML. fai.org serves the file with Content-Type
