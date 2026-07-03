@@ -1,3 +1,6 @@
+import type { HutchLogger } from "@packages/hutch-logger";
+import { condenseCandidateHtml } from "./condense-candidate-html";
+import { DEEPSEEK_CONTEXT_TOKENS, DEEPSEEK_MAX_OUTPUT_TOKENS } from "./deepseek-limits";
 import type { Tier } from "./tier.types";
 
 export const SELECT_CONTENT_SYSTEM_PROMPT = [
@@ -26,28 +29,51 @@ export type SelectorCandidate = {
 	html: string;
 };
 
-export const MAX_CANDIDATE_HTML_CHARS = 200_000;
+// HTML tokenises denser than prose (~2–3 chars/token vs prose's ~4). Filling a
+// char budget of tokens×A with HTML that really tokenises at R chars/token
+// costs tokens×(A/R), which stays within budget whenever A ≤ R — so picking the
+// LOW end (A=2) keeps the derived char cap safely under the token limit for any
+// Latin HTML (≥2 chars/token). CJK/other dense scripts can fall below 1
+// char/token, so a very large non-Latin pair can still overflow; that degrades
+// to select-content's 400 → "tie" net (canonical kept, no DLQ), never a failed
+// crawl.
+export const CHARS_PER_INPUT_TOKEN = 2;
+const SAFETY = 0.85;
+const SYSTEM_AND_FRAMING_RESERVE_CHARS = 8_000;
+export const INPUT_TOKEN_BUDGET = DEEPSEEK_CONTEXT_TOKENS - DEEPSEEK_MAX_OUTPUT_TOKENS;
+export const TOTAL_HTML_CHAR_BUDGET =
+	Math.floor(INPUT_TOKEN_BUDGET * CHARS_PER_INPUT_TOKEN * SAFETY) - SYSTEM_AND_FRAMING_RESERVE_CHARS;
 
-function capCandidateHtml(html: string): string {
-	if (html.length <= MAX_CANDIDATE_HTML_CHARS) return html;
-	return `${html.slice(0, MAX_CANDIDATE_HTML_CHARS)}\n[truncated: showing the first ${MAX_CANDIDATE_HTML_CHARS} of ${html.length} characters]`;
+export function perCandidateHtmlCap(candidateCount: number): number {
+	return Math.floor(TOTAL_HTML_CHAR_BUDGET / candidateCount);
 }
 
 /**
- * Candidates are presented to the model with letter labels A, B, C, … in input order
- * (mapped back to Tier by the caller). Letters keep the prompt short while staying
- * unambiguous regardless of how many tiers we contest in the future.
+ * Candidates are presented to the model with letter labels A, B, C, … in input
+ * order (mapped back to Tier by the caller). Letters keep the prompt short while
+ * staying unambiguous regardless of how many tiers we contest in the future.
  */
 export function buildSelectContentUserMessage(params: {
 	url: string;
 	candidates: readonly SelectorCandidate[];
+	logger: HutchLogger;
 }): string {
+	const cap = perCandidateHtmlCap(params.candidates.length);
 	const lines: string[] = [`URL: ${params.url}`, ""];
 	params.candidates.forEach((candidate, index) => {
 		const label = labelForIndex(index);
+		const cleaned = condenseCandidateHtml(candidate.html);
+		let body = cleaned;
+		if (cleaned.length > cap) {
+			params.logger.error(
+				"[SelectContent] condensed candidate exceeds per-candidate budget; truncating, article signal lost",
+				{ url: params.url, tier: candidate.tier, label, cleanedChars: cleaned.length, cap },
+			);
+			body = `${cleaned.slice(0, cap)}\n[truncated: showing the first ${cap} of ${cleaned.length} characters]`;
+		}
 		lines.push(
 			`--- ${label} (tier=${candidate.tier}, title ${JSON.stringify(candidate.title)}, words ${candidate.wordCount}) ---`,
-			capCandidateHtml(candidate.html),
+			body,
 			"",
 		);
 	});

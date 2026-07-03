@@ -934,7 +934,7 @@ const selectMostCompleteContentDynamodb = new HutchDynamoDBAccess("select-most-c
 	actions: ["dynamodb:GetItem", "dynamodb:UpdateItem"],
 });
 
-const selectMostCompleteContentLambda = new HutchLambda("select-most-complete-content", {
+const selectMostCompleteContentLambda = new HutchLambda(SAVE_LINK_LAMBDA_NAMES.selectMostCompleteContent, {
 			entryPoint: "./src/runtime/select-most-complete-content.main.ts",
 		outputDir: ".lib/select-most-complete-content",
 		assetDir: "./src",

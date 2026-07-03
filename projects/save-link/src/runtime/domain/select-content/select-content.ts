@@ -6,10 +6,8 @@ import {
 	buildSelectContentUserMessage,
 	labelForIndex,
 } from "./select-content-prompt";
+import { DEEPSEEK_MAX_OUTPUT_TOKENS } from "./deepseek-limits";
 import type { Tier } from "./tier.types";
-
-// https://api-docs.deepseek.com/quick_start/pricing — deepseek-chat max output is 8K
-const DEEPSEEK_MAX_OUTPUT_TOKENS = 8192;
 
 export type SelectMostCompleteContent = (params: {
 	url: string;
@@ -53,7 +51,7 @@ export function initSelectMostCompleteContent(deps: {
 				response_format: { type: "json_object" },
 				messages: [
 					{ role: "system", content: SELECT_CONTENT_SYSTEM_PROMPT },
-					{ role: "user", content: buildSelectContentUserMessage(params) },
+					{ role: "user", content: buildSelectContentUserMessage({ ...params, logger }) },
 				],
 			});
 		} catch (error) {
