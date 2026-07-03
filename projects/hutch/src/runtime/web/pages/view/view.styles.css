@@ -34,7 +34,7 @@
   display: block;
   box-sizing: border-box;
   width: 100%;
-  padding: 0.875rem 1.25rem;
+  padding: var(--button-padding);
   font-size: 1rem;
   font-weight: 600;
   border: 1px solid var(--color-brand);
@@ -168,7 +168,7 @@
 .view__paywall-save {
   display: inline-block;
   box-sizing: border-box;
-  padding: 0.875rem 1.5rem;
+  padding: var(--button-padding);
   font-size: 1rem;
   font-weight: 600;
   color: var(--color-on-brand);

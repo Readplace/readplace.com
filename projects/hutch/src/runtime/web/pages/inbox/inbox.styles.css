@@ -70,7 +70,7 @@
 }
 
 .inbox__copy-btn {
-  padding: 8px 16px;
+  padding: var(--button-padding-sm);
   font-size: 0.9rem;
   font-weight: 600;
   color: var(--primary-foreground);
@@ -102,7 +102,7 @@
 }
 
 .inbox__disable-btn {
-  padding: 8px 12px;
+  padding: var(--button-padding-sm);
   font-size: 0.85rem;
   color: var(--muted-foreground);
   background: transparent;
@@ -126,7 +126,7 @@
 
 .inbox__create-btn {
   display: inline-block;
-  padding: 12px 32px;
+  padding: var(--button-padding);
   background: var(--primary);
   color: var(--primary-foreground);
   font-size: 1rem;

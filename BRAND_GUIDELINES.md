@@ -59,7 +59,7 @@ Icon assets live in `/projects/hutch/static-assets/` and `/projects/extensions/f
 
 ## Colour Palette
 
-> **Source of truth:** `projects/hutch/src/runtime/web/base.styles.ts`
+> **Source of truth:** `src/packages/web-shell/src/base.styles.ts`
 
 ### Primary Colours
 
@@ -128,13 +128,13 @@ The Firefox extension uses a slightly different palette tuned for small popup co
 
 ## Typography
 
-> **Source of truth:** `projects/hutch/src/runtime/web/base.styles.ts` (body font), `projects/hutch/src/runtime/web/base.template.html` (font loading)
+> **Source of truth:** `src/packages/web-shell/src/base.styles.ts` (body font), `src/packages/web-shell/src/base.template.ts` (font loading)
 
 ### Typefaces in Use
 
 | Role | Typeface | Weight | Where defined |
 |---|---|---|---|
-| **Body / UI** | `Inter, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif` (Inter loaded from Google Fonts, weights 400–700) | 400, 500, 600, 700 | `base.styles.ts` → `BASE_RESET_STYLES`; `base.template.html` preload link |
+| **Body / UI** | `Inter, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif` (Inter loaded from Google Fonts, weights 400–700) | 400, 500, 600, 700 | `base.styles.ts` → `BASE_RESET_STYLES`; `base.template.ts` preload link |
 | **Extension UI** | `Inter, "Source Sans Pro", system-ui, -apple-system, sans-serif` | — | `popup.styles.css` |
 | **Brand serif** | `Georgia, "Times New Roman", serif` | — | Extension popup brand text |
 | **Reader view** | User-configurable (default: high-legibility serif or sans) | Regular | Article body text in reading mode — this is the user's space |
@@ -185,6 +185,19 @@ A single highlight word inside a phrase can be recoloured with `--color-highligh
 | **Destructive** | Muted red outline, red text → solid on hover | Delete, remove, unsave |
 | **Ghost** | Text-only with hover underline or subtle background | Tertiary actions, inline links |
 | **Brand** | `--primary` background, white text | Landing page CTAs |
+
+#### Padding
+
+> Defined in `src/packages/web-shell/src/base.styles.ts` as CSS custom properties. Reference the tier token — never hardcode button padding.
+
+| Tier | Value | CSS variable | Usage |
+|---|---|---|---|
+| **Primary / Brand** | `12px 24px` | `--button-padding` | Main CTA per screen (Save, Import, Subscribe, hero + landing buttons) |
+| **Secondary / Compact** | `8px 16px` | `--button-padding-sm` | Supporting actions — tabs, pagination, filter/copy chips, banner CTAs |
+| **Small / Icon** | `4px 8px` | `--button-padding-xs` | Icon, close, dismiss, and row-toggle buttons |
+| **Fixed-height (horizontal)** | `24px` | `--button-padding-x` | Buttons sized by `height` (`--input-height` / 48px, or 40px) use `padding: 0 var(--button-padding-x)` so they align with adjacent inputs |
+
+Vertical padding (`12px`) matches `--input-padding`; horizontal follows the 4px spacing scale (`lg` 24 / `md` 16 / `sm` 8). Disclosure toggles (`<details>`/`<summary>` panel headers) and circular icon buttons (the share bubble) are sized to their content, not these tiers.
 
 ### Border Radius
 
@@ -339,6 +352,7 @@ Use a **4px base unit** with the following standard increments:
 - Sacrifice legibility for aesthetics.
 - Ship something that feels like a startup template.
 - Hardcode hex values — always use the CSS custom properties.
+- Hardcode button padding — use the `--button-padding*` tier tokens.
 
 ---
 

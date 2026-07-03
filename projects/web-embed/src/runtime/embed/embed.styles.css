@@ -183,7 +183,7 @@
   position: absolute;
   top: 12px;
   right: 12px;
-  padding: 6px 12px;
+  padding: var(--button-padding-sm);
   background: var(--color-background);
   color: var(--color-navy);
   border: 1px solid var(--color-border);

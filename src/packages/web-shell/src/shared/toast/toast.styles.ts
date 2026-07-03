@@ -46,7 +46,7 @@ export const TOAST_STYLES = `.toast {
 }
 
 .toast__action {
-  padding: 6px 14px;
+  padding: var(--button-padding-sm);
   background: var(--primary);
   color: var(--primary-foreground);
   border: none;

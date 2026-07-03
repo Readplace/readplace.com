@@ -132,7 +132,7 @@ export const EXTENSION_SUGGESTION_BANNER_STYLES = `
     color: var(--color-on-brand);
     font-weight: 600;
     text-decoration: none;
-    padding: 10px 16px;
+    padding: var(--button-padding-sm);
     border-radius: var(--radius-sm);
     border: 1px solid var(--color-brand);
     transition: background 0.15s ease, border-color 0.15s ease, transform 0.15s ease;
@@ -155,7 +155,7 @@ export const EXTENSION_SUGGESTION_BANNER_STYLES = `
     font-size: 18px;
     line-height: 1;
     cursor: pointer;
-    padding: 6px 8px;
+    padding: var(--button-padding-xs);
     border-radius: var(--radius-sm);
     transition: color 0.15s ease, background 0.15s ease;
   }
@@ -181,7 +181,6 @@ export const EXTENSION_SUGGESTION_BANNER_STYLES = `
     .extension-suggestion-banner__cta {
       width: auto;
       flex: 0 0 auto;
-      padding: 8px 18px;
     }
   }
 `;

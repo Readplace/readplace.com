@@ -46,7 +46,7 @@
 .queue-banner__cta {
   display: inline-flex;
   flex: 0 0 auto;
-  padding: 8px 16px;
+  padding: var(--button-padding-sm);
   background: var(--primary);
   color: var(--primary-foreground);
   border-radius: var(--radius-sm);
@@ -86,7 +86,7 @@
 
 .queue__save-btn {
   height: var(--input-height);
-  padding: 0 clamp(16px, 4vw, 24px);
+  padding: 0 var(--button-padding-x);
   background: var(--primary);
   color: var(--primary-foreground);
   border: none;
@@ -190,7 +190,7 @@
 }
 
 .queue__filter-link {
-  padding: 8px 14px;
+  padding: var(--button-padding-sm);
   border: 1px solid var(--border);
   border-radius: var(--radius);
   font-size: 0.8125rem;
@@ -461,7 +461,7 @@
   background: transparent;
   border: 1px solid var(--border);
   border-radius: var(--radius-sm);
-  padding: 6px 10px;
+  padding: var(--button-padding-xs);
   font-size: 0.75rem;
   line-height: 1;
   color: var(--muted-foreground);
@@ -539,7 +539,7 @@
 }
 
 .queue__pagination-link {
-  padding: 8px 16px;
+  padding: var(--button-padding-sm);
   border: 1px solid var(--border);
   border-radius: var(--radius-sm);
   font-size: 0.875rem;

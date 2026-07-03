@@ -136,7 +136,7 @@
   font-weight: 500;
   color: var(--primary-foreground);
   background: var(--primary);
-  padding: 6px 14px;
+  padding: var(--button-padding-sm);
   border-radius: var(--radius-sm);
   text-decoration: none;
   transition: opacity 0.15s ease;
@@ -171,7 +171,7 @@
   font-size: 1.25rem;
   color: var(--muted-foreground);
   cursor: pointer;
-  padding: 4px 8px;
+  padding: var(--button-padding-xs);
   line-height: 1;
 }
 

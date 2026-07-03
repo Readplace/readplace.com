@@ -45,6 +45,10 @@ const LIGHT_THEME_VARIABLES: Record<string, string> = {
 	"--input-padding": "12px 16px",
 	"--input-font-size": "16px",
 	"--form-gap": "20px",
+	"--button-padding": "12px 24px",
+	"--button-padding-sm": "8px 16px",
+	"--button-padding-xs": "4px 8px",
+	"--button-padding-x": "24px",
 	"--color-on-brand": "#FFFFFF",
 	"--header-brand-stem": "var(--color-secondary)",
 	"--header-brand-tail": "var(--color-brand)",
@@ -674,7 +678,7 @@ export const CHANGELOG_BANNER_STYLES = `
     font-size: 18px;
     line-height: 1;
     cursor: pointer;
-    padding: 4px 6px;
+    padding: var(--button-padding-xs);
     border-radius: var(--radius-sm);
     transition: color 0.15s ease, background 0.15s ease;
   }

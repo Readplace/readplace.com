@@ -46,7 +46,7 @@
 .article-body__mark-read {
   position: relative;
   display: inline-block;
-  padding: 0.5rem 1rem;
+  padding: var(--button-padding-sm);
   font-size: 0.875rem;
   font-weight: 600;
   color: var(--color-on-brand);
@@ -383,7 +383,7 @@
 
 .article-body__reader-notice-link {
   display: inline-block;
-  padding: 0.6rem 1.2rem;
+  padding: var(--button-padding);
   background: var(--color-brand);
   color: var(--color-on-brand);
   border-radius: 6px;

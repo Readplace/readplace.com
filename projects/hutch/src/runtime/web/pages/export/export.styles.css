@@ -52,7 +52,7 @@
 
 .export__action-btn {
   display: inline-block;
-  padding: 12px 32px;
+  padding: var(--button-padding);
   background: var(--primary);
   color: var(--primary-foreground);
   font-size: 1rem;

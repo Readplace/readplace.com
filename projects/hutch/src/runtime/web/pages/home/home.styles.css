@@ -185,7 +185,7 @@ hr::before {
 
 .btn {
   display: inline-block;
-  padding: 16px 28px;
+  padding: var(--button-padding);
   border-radius: var(--radius);
   font-size: 1rem;
   font-weight: 600;
@@ -290,7 +290,7 @@ hr::before {
 }
 
 .home-try__submit {
-  padding: 14px 20px;
+  padding: var(--button-padding);
   font-size: 1rem;
   font-weight: 600;
   color: var(--primary-foreground);

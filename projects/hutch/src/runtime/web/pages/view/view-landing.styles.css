@@ -46,7 +46,7 @@
 }
 
 .view-landing__submit {
-  padding: 0.875rem 1.25rem;
+  padding: var(--button-padding);
   font-size: 1rem;
   font-weight: 600;
   color: #fff;

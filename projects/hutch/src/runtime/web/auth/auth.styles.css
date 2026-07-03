@@ -108,6 +108,7 @@
 
 .auth-form__submit {
   height: var(--input-height);
+  padding: 0 var(--button-padding-x);
   background: var(--primary);
   color: var(--primary-foreground);
   border: none;
@@ -194,7 +195,7 @@
   align-items: center;
   justify-content: center;
   height: var(--input-height);
-  padding: 0 12px;
+  padding: 0 var(--button-padding-x);
   border: 1px solid #747775;
   border-radius: var(--radius);
   background: #ffffff;

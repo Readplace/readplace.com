@@ -62,7 +62,7 @@ export const INSTALL_PAGE_STYLES = `
   display: inline-flex;
   align-items: center;
   gap: 8px;
-  padding: 9px 16px;
+  padding: var(--button-padding-sm);
   font-size: 0.9375rem;
   font-weight: 500;
   text-decoration: none;
@@ -121,7 +121,7 @@ export const INSTALL_PAGE_STYLES = `
 
 .install-page__download {
   display: inline-block;
-  padding: 16px 28px;
+  padding: var(--button-padding);
   border-radius: var(--radius);
   font-weight: 600;
   font-size: 1rem;
@@ -271,7 +271,7 @@ export const INSTALL_PAGE_STYLES = `
 
 .install-page__copy-btn {
   flex: 0 0 auto;
-  padding: 9px 16px;
+  padding: var(--button-padding-sm);
   border: none;
   border-radius: var(--radius-sm);
   background: var(--primary);

@@ -51,7 +51,7 @@
 .import__tab {
   display: inline-flex;
   align-items: center;
-  padding: 10px 16px;
+  padding: var(--button-padding-sm);
   font-size: 0.9375rem;
   font-weight: 500;
   color: var(--muted-foreground);
@@ -110,7 +110,7 @@
 
 .import__from-url-btn {
   height: var(--input-height);
-  padding: 0 20px;
+  padding: 0 var(--button-padding-x);
   background: var(--primary);
   color: var(--primary-foreground);
   border: none;
@@ -265,7 +265,7 @@
 .import__upload-btn {
   justify-self: end;
   height: var(--input-height);
-  padding: 0 28px;
+  padding: 0 var(--button-padding-x);
   background: var(--primary);
   color: var(--primary-foreground);
   border: none;
@@ -366,7 +366,7 @@
 
 .import__commit-btn {
   height: 40px;
-  padding: 0 20px;
+  padding: 0 var(--button-padding-x);
   background: var(--primary);
   color: var(--primary-foreground);
   border: none;
@@ -440,7 +440,7 @@
 
 .import__row-toggle-btn {
   font-size: 0.85rem;
-  padding: 4px 10px;
+  padding: var(--button-padding-xs);
   cursor: pointer;
   margin-right: 12px;
   border: 1px solid var(--border);
@@ -465,7 +465,7 @@
   display: inline-flex;
   align-items: center;
   gap: 6px;
-  padding: 8px 16px;
+  padding: var(--button-padding-sm);
   height: 40px;
   border: 1px solid var(--border);
   border-radius: var(--radius);
