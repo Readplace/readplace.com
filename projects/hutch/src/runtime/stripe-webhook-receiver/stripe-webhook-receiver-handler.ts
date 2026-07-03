@@ -1,4 +1,3 @@
-import assert from "node:assert";
 import type { APIGatewayProxyEventV2, APIGatewayProxyStructuredResultV2, Handler } from "aws-lambda";
 import type { HutchLogger } from "@packages/hutch-logger";
 import type { StripeEventType } from "@packages/hutch-infra-components";
@@ -29,7 +28,12 @@ export function initStripeWebhookReceiverHandler(deps: {
 			return { statusCode: 400, body: "Missing signature" };
 		}
 
-		assert(event.body, "API Gateway POST route always provides a body");
+		// Return 400 rather than throwing: an uncaught throw becomes a Lambda 5xx that
+		// trips the operator alarm (threshold 1, meant for Stripe event-type drift), so
+		// an anonymous empty POST could page on demand. Real faults still throw below.
+		if (!event.body) {
+			return { statusCode: 400, body: "Missing body" };
+		}
 		const rawBody = event.isBase64Encoded
 			? Buffer.from(event.body, "base64")
 			: Buffer.from(event.body, "utf-8");
