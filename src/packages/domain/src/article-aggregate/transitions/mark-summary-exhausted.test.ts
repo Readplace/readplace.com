@@ -33,7 +33,7 @@ describe("markSummaryExhausted", () => {
 		});
 	});
 
-	it("emits a publish-summary-generation-failed effect carrying the url, a stringified reason, and receiveCount", () => {
+	it("stringifies exhausted-retries as a bare label so the sink's single receiveCount append is not doubled", () => {
 		const { effects } = markSummaryExhausted(
 			buildArticle({ url: "https://example.com/post" }),
 			{ reason: { kind: "exhausted-retries", receiveCount: 7 }, receiveCount: 7 },
@@ -43,7 +43,7 @@ describe("markSummaryExhausted", () => {
 			{
 				kind: "publish-summary-generation-failed",
 				url: "https://example.com/post",
-				reason: "exhausted-retries (receiveCount=7)",
+				reason: "exhausted-retries",
 				receiveCount: 7,
 			},
 		]);

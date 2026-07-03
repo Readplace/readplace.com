@@ -45,7 +45,7 @@ describe("markCrawlExhausted", () => {
 		});
 	});
 
-	it("emits a publish-crawl-article-failed effect carrying the url, a stringified reason, and receiveCount", () => {
+	it("stringifies exhausted-retries as a bare label, keeping receiveCount only in the structured effect field so a future crawl parse-error sink could not double it (mirrors the summary axis)", () => {
 		const { effects } = markCrawlExhausted(
 			buildArticle({ url: "https://example.com/post" }),
 			{ reason: { kind: "exhausted-retries", receiveCount: 7 }, receiveCount: 7 },
@@ -55,7 +55,7 @@ describe("markCrawlExhausted", () => {
 			{
 				kind: "publish-crawl-article-failed",
 				url: "https://example.com/post",
-				reason: "exhausted-retries (receiveCount=7)",
+				reason: "exhausted-retries",
 				receiveCount: 7,
 			},
 		]);
