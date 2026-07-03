@@ -105,6 +105,36 @@ describe("OAuth routes", () => {
 			expect(response.status).toBe(200);
 			expect(response.text).toContain("Authorize");
 			expect(response.text).toContain("Firefox Extension");
+			// A built-in first-party client shows no self-registered disclosure.
+			expect(response.text).toContain("wants to access your Readplace account");
+			expect(response.text).not.toContain("registered itself");
+		});
+
+		it("shows a self-registered client's redirect destination host with a recognise-it notice", async () => {
+			const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
+			const registration = await request(harness.server)
+				.post("/oauth/register")
+				.send({ redirect_uris: [CLAUDE_CALLBACK], client_name: "Definitely Readplace" });
+			const clientId = registration.body.client_id;
+
+			await harness.auth.createUser({ email: "consent@example.com", password: "password123" });
+			const agent = request.agent(harness.server);
+			await agent.post("/login").type("form").send({
+				email: "consent@example.com",
+				password: "password123",
+			});
+
+			const response = await agent.get("/oauth/authorize").query({
+				client_id: clientId,
+				redirect_uri: CLAUDE_CALLBACK,
+				response_type: "code",
+				code_challenge: "E9Melhoa2OwvFrEMTJguCHaoeK1t8URWbuGJSstw-cM",
+				code_challenge_method: "S256",
+			});
+
+			expect(response.status).toBe(200);
+			expect(response.text).toContain("registered itself with Readplace");
+			expect(response.text).toContain("to <strong>claude.ai</strong>");
 		});
 
 		it("returns 400 for unknown client", async () => {
@@ -647,6 +677,15 @@ describe("OAuth routes", () => {
 			const response = await request(harness.server)
 				.post("/oauth/register")
 				.send({ redirect_uris: [overlongUri] });
+			expect(response.status).toBe(400);
+			expect(response.body.error).toBe("invalid_client_metadata");
+		});
+
+		it("rejects a client_name longer than 120 chars as invalid_client_metadata", async () => {
+			const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
+			const response = await request(harness.server)
+				.post("/oauth/register")
+				.send({ redirect_uris: [CLAUDE_CALLBACK], client_name: "n".repeat(121) });
 			expect(response.status).toBe(400);
 			expect(response.body.error).toBe("invalid_client_metadata");
 		});

@@ -13,7 +13,7 @@ import type {
 } from "@packages/provider-contracts/oauth";
 import type { ConsumeRateLimit } from "@packages/provider-contracts/rate-limit";
 import type { DestroyUserSessions } from "@packages/provider-contracts/auth";
-import { revokeDestroysUserSessions } from "@packages/domain/oauth";
+import { getBuiltInClient, revokeDestroysUserSessions } from "@packages/domain/oauth";
 import { UserIdSchema } from "@packages/domain/user";
 import { Base } from "../base.component";
 import type { BuildBannerState } from "../banner-state";
@@ -57,7 +57,7 @@ const SUPPORTED_GRANTS = new Set(["authorization_code", "refresh_token"]);
 
 const registerBodySchema = z.object({
 	redirect_uris: z.array(z.string().max(2048)).min(1).max(32),
-	client_name: z.string().optional(),
+	client_name: z.string().max(120).optional(),
 	grant_types: z.array(z.string()).optional(),
 	response_types: z.array(z.string()).optional(),
 	token_endpoint_auth_method: z.string().optional(),
@@ -234,6 +234,8 @@ export function initOAuthRoutes(deps: OAuthRouteDeps): Router {
 				clientName: client.name,
 				clientId: client_id,
 				redirectUri: redirect_uri,
+				redirectHost: new URL(redirect_uri).host,
+				selfRegistered: getBuiltInClient(client_id) === undefined,
 				codeChallenge: parsed.data.code_challenge,
 				state,
 			}), await deps.buildBannerState(req)),
