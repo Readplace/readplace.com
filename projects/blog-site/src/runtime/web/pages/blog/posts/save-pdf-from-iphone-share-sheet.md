@@ -32,7 +32,7 @@ The part that caught me out was the knock-on effect. iOS checks the whole of wha
 
 The short-list form of the rule cannot say "take PDFs and web pages, and nothing else." Adding files to that form at all waves through every file type, which is worse than the gap I started with. So I moved the rule to the other shape iOS allows, a small query written as a predicate.
 
-The new rule names three things it will take: a web address that is not a file, text that is not a file, and a PDF. I checked it by running the real iOS predicate against 17 shapes of shared payload, the actual forms a share can arrive in, so a stray type could not push an icon into the sheet or out of it where it should not go.
+The new rule names three things it will take: a web address that is not a file, text that is not a file, and a PDF. I checked it by running the real iOS predicate against 16 shapes of shared payload, the actual forms a share can arrive in, so a stray type could not push an icon into the sheet or out of it where it should not go.
 
 ## Sending the file it already holds
 
