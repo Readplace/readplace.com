@@ -12,7 +12,7 @@ import { initInMemoryRateLimit } from "@packages/test-fixtures/providers/rate-li
 import { completeStripeSignup } from "./test-helpers/complete-stripe-signup";
 import { createAccessToken, saveAccessTokenForUser } from "../test-helpers/oauth-token";
 import { DISPOSABLE_EMAIL_MESSAGE } from "./disposable-email";
-import { SESSION_COOKIE_NAME } from "@packages/web-session";
+import { SESSION_COOKIE_NAME, SESSION_TTL_SECONDS } from "@packages/web-session";
 
 const TEST_FOUNDING_MEMBER_LIMIT = 3;
 
@@ -117,6 +117,9 @@ describe("Auth routes", () => {
 			expect(response.status).toBe(303);
 			expect(response.headers.location).toBe("/queue");
 			expect(response.headers["set-cookie"].length).toBeGreaterThan(0);
+			// Persistent (not a bare session cookie) so an already-signed-in browser —
+			// e.g. iOS Chrome-first login — still carries it after the browser closes.
+			expect(sessionCookie(response)).toContain(`Max-Age=${SESSION_TTL_SECONDS}`);
 		});
 
 		it("should show error on invalid credentials", async () => {

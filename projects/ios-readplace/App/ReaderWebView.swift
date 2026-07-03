@@ -104,7 +104,7 @@ struct ReaderWebView: UIViewControllerRepresentable {
 				onClose()
 			case let .openExternally(target):
 				decisionHandler(.cancel)
-				externalBrowser.open(target)
+				externalBrowser.open(target) { _ in }
 			}
 		}
 	}

@@ -48,8 +48,7 @@ final class SignupFlowTests: XCTestCase {
 
 		let flow = initWebAuthFlow(deps: WebAuthFlowDependencies(
 			pendingStore: pendingStore,
-			canOpenURL: { _ in false },
-			openURL: { _ in },
+			openAuthorizeURL: { _ in },
 			exchange: { callbackURL, pending in
 				await session.completeSignIn(
 					callbackURL: callbackURL,
@@ -75,25 +74,45 @@ final class SignupFlowTests: XCTestCase {
 		XCTAssertEqual(body["redirect_uri"], AppConfig.nativeCallbackURL)
 	}
 
-	func testChromeURLForHTTPSRewritesSchemeWhenChromeAvailable() {
+	func testChromeURLForHTTPSRewritesSchemeToGoogleChrome() {
 		let https = URL(string: "https://readplace.com/oauth/authorize?client_id=ios-app&state=abc")!
-		var probed: URL?
-		let chrome = chromeURLForHTTPS(https, canOpen: { probed = $0; return true })
+		let chrome = chromeURLForHTTPS(https)
 
-		XCTAssertEqual(probed?.scheme, "googlechromes", "Chrome availability is probed with the https scheme variant")
 		let components = URLComponents(url: chrome, resolvingAgainstBaseURL: false)!
-		XCTAssertEqual(components.scheme, "googlechromes")
+		XCTAssertEqual(components.scheme, "googlechromes", "https is rewritten to Chrome's https scheme variant")
 		XCTAssertEqual(components.host, "readplace.com")
 		XCTAssertEqual(components.path, "/oauth/authorize")
 		XCTAssertEqual(components.percentEncodedQuery, "client_id=ios-app&state=abc")
 	}
 
-	func testChromeURLForHTTPSReturnsHTTPSUnchangedWhenChromeUnavailable() {
+	func testOpenAuthorizeURLOpensChromeAndNeverFallsBackWhenChromeOpens() {
 		let https = URL(string: "https://readplace.com/oauth/authorize?client_id=ios-app&state=abc")!
-		let fallback = chromeURLForHTTPS(https, canOpen: { _ in false })
+		var opened: [URL] = []
+		let browser = ExternalBrowser(open: { url, completion in
+			opened.append(url)
+			completion(true)
+		})
 
-		XCTAssertEqual(fallback, https)
-		XCTAssertEqual(fallback.absoluteString, https.absoluteString)
+		openAuthorizeURLChromeFirst(https, browser: browser)
+
+		// The requirement: when Chrome opens, login must never touch the default
+		// browser (Safari), where the user isn't signed in.
+		XCTAssertEqual(opened.map(\.scheme), ["googlechromes"])
+	}
+
+	func testOpenAuthorizeURLFallsBackToHTTPSOnlyWhenChromeCannotOpen() {
+		let https = URL(string: "https://readplace.com/oauth/authorize?client_id=ios-app&state=abc")!
+		var opened: [URL] = []
+		let browser = ExternalBrowser(open: { url, completion in
+			opened.append(url)
+			completion(url.scheme == "https") // Chrome (googlechromes) can't open; https can
+		})
+
+		openAuthorizeURLChromeFirst(https, browser: browser)
+
+		// Only a genuine Chrome-open failure (Chrome not installed) falls through to
+		// the default browser with the original https URL.
+		XCTAssertEqual(opened.map(\.scheme), ["googlechromes", "https"])
 	}
 
 	func testPendingAuthStoreRoundTrip() {
@@ -116,8 +135,7 @@ final class SignupFlowTests: XCTestCase {
 		var pendingWhenOpened: PendingAuth?
 		let flow = initWebAuthFlow(deps: WebAuthFlowDependencies(
 			pendingStore: store,
-			canOpenURL: { _ in false },
-			openURL: { url in
+			openAuthorizeURL: { url in
 				openedURL = url
 				pendingWhenOpened = store.load()
 			},
@@ -131,6 +149,7 @@ final class SignupFlowTests: XCTestCase {
 		XCTAssertEqual(pending.redirectURI, AppConfig.nativeCallbackURL)
 
 		let opened = try XCTUnwrap(openedURL)
+		XCTAssertEqual(opened.scheme, "https", "the core hands the raw https authorize URL to the seam; the Chrome rewrite lives in the App layer")
 		let items = Dictionary(uniqueKeysWithValues: (URLComponents(url: opened, resolvingAgainstBaseURL: false)?.queryItems ?? []).map { ($0.name, $0.value ?? "") })
 		XCTAssertEqual(items["state"], pending.state, "the opened authorize URL carries the persisted state")
 		XCTAssertEqual(items["redirect_uri"], AppConfig.nativeCallbackURL)

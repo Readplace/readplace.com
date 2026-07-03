@@ -24,6 +24,10 @@ Workflow for a canary failure:
 3. Re-run the canary locally until the failing source passes — never commit until it does.
 4. Only then push and watch CI.
 
+### iOS login is Chrome-first
+
+When the iOS app opens the browser to log in, it must reuse the user's existing **Chrome** web session — most users browse in Chrome but never change the iOS default-browser setting, so their OS default stays **Safari**, where they are not signed in. The app therefore opens the authorize URL via Chrome's `googlechromes://` scheme ([`openAuthorizeURLChromeFirst`](./projects/ios-readplace/App/WebAuthOpeners.swift)) and must **not** fall back to the OS default browser when Chrome is installed — the fallback fires only when the system reports Chrome can't be opened (not installed). Do not reintroduce a `canOpenURL` pre-check to decide the browser (a false-negative probe silently routes login into Safari and regresses session reuse); let the actual open result decide. Reuse also depends on the `hutch_sid` session cookie being **persistent** — it carries `maxAge: SESSION_COOKIE_MAX_AGE_MS` (bounded by the server session TTL) so a Chrome login survives Chrome fully closing; do not downgrade it back to a bare session cookie.
+
 ## Architecture Guidelines
 
 ### Brand & Design Guidelines

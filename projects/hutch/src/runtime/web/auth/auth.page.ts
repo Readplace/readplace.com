@@ -51,7 +51,7 @@ import { LoginSchema } from "./auth.schema";
 import { LoginPage, SignupPage, VerifyEmailPage } from "./auth.component";
 import { extractReturnUrl, parseReturnUrl } from "./parse-return-url";
 import { baseCookieOptions } from "../cookie-options";
-import { SESSION_COOKIE_NAME } from "@packages/web-session";
+import { SESSION_COOKIE_MAX_AGE_MS, SESSION_COOKIE_NAME } from "@packages/web-session";
 import { buildVerificationEmailHtml } from "./verification-email";
 import { flattenZodErrors } from "./flatten-zod-errors";
 import { initFetchUserCount } from "./fetch-user-count";
@@ -112,7 +112,7 @@ interface AuthDependencies {
 
 export function initAuthRoutes(deps: AuthDependencies): Router {
 	const router = express.Router();
-	const sessionCookieOptions = baseCookieOptions(deps.secureCookies);
+	const sessionCookieOptions = { ...baseCookieOptions(deps.secureCookies), maxAge: SESSION_COOKIE_MAX_AGE_MS };
 
 	const fetchUserCount = initFetchUserCount({
 		countUsers: deps.countUsers,

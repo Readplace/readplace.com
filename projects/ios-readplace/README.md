@@ -65,9 +65,12 @@ That produces `build/Readplace-unsigned.ipa` (the app + its share extension).
   in the **external browser** via the same flow as **Sign up** (below), carrying
   `screen_hint=login` so a logged-out user lands on the web `/login` page and
   returns authenticated through the native `readplace://oauth-callback` deep link.
-- **Sign up** by opening `/oauth/authorize` in the **external browser** — Chrome
-  if installed (`googlechromes://`), else the default — so an existing Chrome
-  session is reused. The redirect is a native `readplace://oauth-callback` deep
+- **Sign up** by opening `/oauth/authorize` in the **external browser**,
+  Chrome-first: it rewrites to `googlechromes://` and opens Chrome, falling back to
+  the default browser only if the system reports Chrome can't be opened (not
+  installed) — so an existing Chrome session is reused rather than the app landing
+  in the default browser (usually Safari), where the user isn't signed in. The
+  redirect is a native `readplace://oauth-callback` deep
   link and the request carries `screen_hint=signup`: an already-logged-in Chrome
   passes straight to consent, while a new/logged-out user lands on the web
   `/signup` page and returns authenticated. This mirrors the browser extension's
@@ -273,11 +276,12 @@ cases:
 - **Web-auth flow (shared by Login & Sign up)**: the native authorize requests
   (`readplace://oauth-callback` redirect + `screen_hint=login`/`signup`), the
   deep-link callback exchanging the code with the native `redirect_uri` and
-  flipping the session logged-in, the Chrome-scheme selection (rewrite to
-  `googlechromes://` when Chrome is available, byte-equal HTTPS fallback
-  otherwise), the `PendingAuthStore` save/load/clear round-trip, and the flow
-  persisting the PKCE secrets before opening the browser (so a kill mid-hop can't
-  lose them).
+  flipping the session logged-in, the Chrome-first open (unconditional rewrite to
+  `googlechromes://`, opening Chrome, with the default-browser fallback taken only
+  when the system reports Chrome can't be opened), the core handing the raw https
+  authorize URL to its open seam, the `PendingAuthStore` save/load/clear
+  round-trip, and the flow persisting the PKCE secrets before opening the browser
+  (so a kill mid-hop can't lose them).
 
 `make test` then runs a **staging smoke pass** (`make test-staging`): it
 recompiles the app, extension and tests with the `STAGING` condition and runs

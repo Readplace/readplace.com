@@ -1,4 +1,4 @@
-export { SESSION_COOKIE_NAME } from "./session-cookie";
+export { SESSION_COOKIE_NAME, SESSION_COOKIE_MAX_AGE_MS } from "./session-cookie";
 export { readCookie } from "./cookie";
 export { SESSION_TTL_SECONDS, SessionRow } from "./session-row";
 export { initGetSessionUserId } from "./get-session-user-id";
