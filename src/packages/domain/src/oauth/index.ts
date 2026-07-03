@@ -11,6 +11,7 @@ export type {
 	AccessToken,
 	RefreshToken,
 } from "./oauth.schema";
+export { generateToken } from "./generate-token";
 export { getBuiltInClient, isBuiltInRedirectUri, revokeDestroysUserSessions } from "./built-in-clients";
 export {
 	computeOAuthClientDedupeKey,

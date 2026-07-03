@@ -1,6 +1,6 @@
 import type { AccessToken } from "@packages/domain/oauth";
 import type { UserId } from "@packages/domain/user";
-import type { OAuthModel } from "./oauth-model";
+import type { OAuthModel } from "@packages/provider-contracts/oauth";
 import { createValidateAccessToken } from "./validate-access-token";
 
 describe("createValidateAccessToken", () => {

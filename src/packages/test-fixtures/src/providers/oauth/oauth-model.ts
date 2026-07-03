@@ -29,7 +29,7 @@ import {
 	getBuiltInClient,
 } from "@packages/domain/oauth";
 import { UserIdSchema } from "@packages/domain/user";
-import { generateToken } from "./generate-token";
+import { generateToken } from "@packages/domain/oauth";
 
 interface StoredAuthorizationCode {
 	code: AuthorizationCodeBrand;

@@ -1318,6 +1318,9 @@ importers:
       '@packages/provider-contracts':
         specifier: workspace:*
         version: link:../provider-contracts
+      '@packages/web-session':
+        specifier: workspace:*
+        version: link:../web-session
       '@packages/web-test-harness':
         specifier: workspace:*
         version: link:../web-test-harness

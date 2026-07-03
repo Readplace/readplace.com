@@ -20,7 +20,7 @@ import type {
 	OAuthModel,
 } from "@packages/provider-contracts/oauth";
 import type { FindUserById } from "@packages/provider-contracts/auth";
-import { generateToken } from "@packages/test-fixtures/providers/oauth";
+import { generateToken } from "@packages/domain/oauth";
 
 function toEpochSeconds(date: Date): number {
 	return Math.floor(date.getTime() / 1000);

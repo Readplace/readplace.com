@@ -70,9 +70,9 @@ const registeredOverrides = [
 		includes: [
 			"**/*.test.ts",
 			"**/providers/auth/dynamodb-auth.ts",
-			"**/providers/oauth/validate-access-token.ts",
 			"**/providers/auth/in-memory-auth.ts",
 			"src/get-session-user-id.ts",
+			"src/validate-access-token.ts",
 		],
 		withheld: ["@packages/domain/user"],
 	},

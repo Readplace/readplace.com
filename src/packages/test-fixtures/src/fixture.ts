@@ -41,7 +41,7 @@ import {
 } from "./providers/oauth/oauth-model";
 import { initInMemoryOAuthClients } from "./providers/oauth/in-memory-oauth-clients";
 import { initOAuthClientLookup } from "@packages/domain/oauth";
-import { createValidateAccessToken } from "./providers/oauth/validate-access-token";
+import { createValidateAccessToken } from "@packages/web-session";
 import type {
 	FindGeneratedSummary,
 	GeneratedSummary,
