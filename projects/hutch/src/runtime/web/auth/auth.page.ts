@@ -39,7 +39,8 @@ import type {
 	ConsumeRateLimit,
 	RateLimitRules,
 } from "@packages/provider-contracts/rate-limit";
-import { createRateLimitMiddleware } from "../middleware/rate-limit";
+import { createRateLimitMiddleware, sendRateLimited } from "../middleware/rate-limit";
+import { normalizeEmail } from "@packages/domain/user";
 import { STRIPE_TRIAL_PERIOD_DAYS } from "../../domain/stripe/stripe-trial-config";
 import { Base } from "../base.component";
 import { bannerStateFromRequest, sendComponent } from "@packages/web-shell";
@@ -106,7 +107,7 @@ interface AuthDependencies {
 	foundingAllocation: FoundingAllocation;
 	buildBannerState: BuildBannerState;
 	consumeRateLimit: ConsumeRateLimit;
-	rateLimitRules: Pick<RateLimitRules, "login" | "signup">;
+	rateLimitRules: Pick<RateLimitRules, "login" | "loginAccount" | "signup">;
 }
 
 export function initAuthRoutes(deps: AuthDependencies): Router {
@@ -184,6 +185,17 @@ export function initAuthRoutes(deps: AuthDependencies): Router {
 		}
 
 		const { email, password } = parsed.data;
+
+		const accountDecision = await deps.consumeRateLimit({
+			bucket: "login-account",
+			key: normalizeEmail(email),
+			rule: deps.rateLimitRules.loginAccount,
+		});
+		if (!accountDecision.allowed) {
+			sendRateLimited(res, accountDecision.retryAfterSeconds);
+			return;
+		}
+
 		const credentials = await deps.verifyCredentials({ email, password });
 
 		if (!credentials.ok) {

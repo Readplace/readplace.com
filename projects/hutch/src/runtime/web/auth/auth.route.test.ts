@@ -8,6 +8,7 @@ import {
 	TEST_APP_ORIGIN,
 	createDefaultTestAppFixture,
 } from "@packages/test-fixtures";
+import { initInMemoryRateLimit } from "@packages/test-fixtures/providers/rate-limit";
 import { completeStripeSignup } from "./test-helpers/complete-stripe-signup";
 import { createAccessToken, saveAccessTokenForUser } from "../test-helpers/oauth-token";
 import { DISPOSABLE_EMAIL_MESSAGE } from "./disposable-email";
@@ -80,6 +81,28 @@ describe("Auth routes", () => {
 	});
 
 	describe("POST /login", () => {
+		it("returns 429 past the per-account login limit (distributed credential-stuffing defense)", async () => {
+			const fixture = createDefaultTestAppFixture(TEST_APP_ORIGIN);
+			fixture.rateLimit = {
+				consumeRateLimit: initInMemoryRateLimit({ now: () => new Date() }).consumeRateLimit,
+				rules: { ...fixture.rateLimit.rules, loginAccount: { limit: 1, windowSeconds: 900 } },
+			};
+			const harness = useApp(fixture);
+
+			const first = await request(harness.server)
+				.post("/login")
+				.type("form")
+				.send({ email: "victim@example.com", password: "wrongpassword" });
+			const throttled = await request(harness.server)
+				.post("/login")
+				.type("form")
+				.send({ email: "victim@example.com", password: "wrongpassword" });
+
+			expect(first.status).not.toBe(429);
+			expect(throttled.status).toBe(429);
+			expect(String(throttled.headers["retry-after"])).toMatch(/^\d+$/);
+		});
+
 		it("should redirect to /queue on valid credentials", async () => {
 			const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
 			const { auth } = harness;

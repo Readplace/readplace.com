@@ -79,6 +79,7 @@ const tableNames = {
 const rateLimitRules = {
 	viewCrawl: config.require("rateLimitViewCrawl"),
 	login: config.require("rateLimitLogin"),
+	loginAccount: config.require("rateLimitLoginAccount"),
 	signup: config.require("rateLimitSignup"),
 	forgotPassword: config.require("rateLimitForgotPassword"),
 	oauthRegister: config.require("rateLimitOauthRegister"),
@@ -329,6 +330,7 @@ const lambda = new HutchLambda(LAMBDA_NAMES.hutchHandler, {
 		DYNAMODB_RATE_LIMITS_TABLE: storage.rateLimitsTable.name,
 		RATE_LIMIT_VIEW_CRAWL: rateLimitRules.viewCrawl,
 		RATE_LIMIT_LOGIN: rateLimitRules.login,
+		RATE_LIMIT_LOGIN_ACCOUNT: rateLimitRules.loginAccount,
 		RATE_LIMIT_SIGNUP: rateLimitRules.signup,
 		RATE_LIMIT_FORGOT_PASSWORD: rateLimitRules.forgotPassword,
 		RATE_LIMIT_OAUTH_REGISTER: rateLimitRules.oauthRegister,

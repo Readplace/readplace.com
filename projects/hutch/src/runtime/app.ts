@@ -296,6 +296,7 @@ function initProviders() {
 		const rateLimitRules: RateLimitRules = {
 			viewCrawl: parseRateLimitRule(requireEnv("RATE_LIMIT_VIEW_CRAWL")),
 			login: parseRateLimitRule(requireEnv("RATE_LIMIT_LOGIN")),
+			loginAccount: parseRateLimitRule(requireEnv("RATE_LIMIT_LOGIN_ACCOUNT")),
 			signup: parseRateLimitRule(requireEnv("RATE_LIMIT_SIGNUP")),
 			forgotPassword: parseRateLimitRule(requireEnv("RATE_LIMIT_FORGOT_PASSWORD")),
 			oauthRegister: parseRateLimitRule(requireEnv("RATE_LIMIT_OAUTH_REGISTER")),
@@ -501,6 +502,7 @@ function initProviders() {
 	const rateLimitRules: RateLimitRules = {
 		viewCrawl: parseRateLimitRule(requireEnv("RATE_LIMIT_VIEW_CRAWL")),
 		login: parseRateLimitRule(requireEnv("RATE_LIMIT_LOGIN")),
+		loginAccount: parseRateLimitRule(requireEnv("RATE_LIMIT_LOGIN_ACCOUNT")),
 		signup: parseRateLimitRule(requireEnv("RATE_LIMIT_SIGNUP")),
 		forgotPassword: parseRateLimitRule(requireEnv("RATE_LIMIT_FORGOT_PASSWORD")),
 		oauthRegister: parseRateLimitRule(requireEnv("RATE_LIMIT_OAUTH_REGISTER")),

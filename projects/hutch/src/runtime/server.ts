@@ -805,6 +805,7 @@ export function createApp(dependencies: AppDependencies): Express {
 		consumeRateLimit: deps.consumeRateLimit,
 		rateLimitRules: {
 			login: deps.rateLimitRules.login,
+			loginAccount: deps.rateLimitRules.loginAccount,
 			signup: deps.rateLimitRules.signup,
 		},
 	});

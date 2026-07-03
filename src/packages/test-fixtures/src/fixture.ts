@@ -247,6 +247,7 @@ export function createDefaultTestAppFixture(appOrigin: string): TestAppFixture {
 		rules: {
 			viewCrawl: unlimitedRule,
 			login: unlimitedRule,
+			loginAccount: unlimitedRule,
 			signup: unlimitedRule,
 			forgotPassword: unlimitedRule,
 			oauthRegister: unlimitedRule,

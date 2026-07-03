@@ -40,6 +40,7 @@ config:
   hutch:dynamodbRateLimitsTable: hutch-rate-limits-prod
   hutch:rateLimitViewCrawl: 100/3600
   hutch:rateLimitLogin: 10/900
+  hutch:rateLimitLoginAccount: 20/900
   hutch:rateLimitSignup: 10/3600
   hutch:rateLimitForgotPassword: 5/3600
   hutch:rateLimitOauthRegister: 30/3600
