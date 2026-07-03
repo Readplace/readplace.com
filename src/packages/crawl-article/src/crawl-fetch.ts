@@ -11,6 +11,7 @@ import {
 import { type CurlFetch, initGuardedCurlFetch } from "./curl-fetch";
 import { type FetchH2, initFetchH2, withH2Fallback } from "./h2-fetch";
 import { type Persona, withPersonaFallback } from "./persona-fallback";
+import { RATE_LIMIT_RETRY_DELAYS_MS, withRateLimitRetry } from "./rate-limit-retry";
 
 export type CrawlFetchInit = {
 	headers?: Record<string, string>;
@@ -42,6 +43,7 @@ export function initCrawlFetch(deps: {
 	resolve?: ResolveAll;
 	fetchH2?: FetchH2;
 	fetchCurl?: CurlFetch;
+	rateLimitRetryDelaysMs?: readonly number[];
 }): CrawlFetch {
 	const resolve = deps.resolve ?? defaultResolveAll;
 	const { isBlocked } = deps;
@@ -69,13 +71,16 @@ export function initCrawlFetch(deps: {
 		},
 	});
 	const guardedFetch: typeof fetch = (input, init) => deps.fetch(input, { ...init, dispatcher });
-	const fetchWithFallback = withPersonaFallback(
-		withH2Fallback(
-			withAiaChasing(guardedFetch, initDefaultFetchAia({ lookup, assertHostAllowed })),
-			deps.fetchH2 ?? initFetchH2({ lookup, assertHostAllowed }),
-			deps.fetchCurl ?? initGuardedCurlFetch({ resolve, isBlocked }),
+	const fetchWithFallback = withRateLimitRetry(
+		withPersonaFallback(
+			withH2Fallback(
+				withAiaChasing(guardedFetch, initDefaultFetchAia({ lookup, assertHostAllowed })),
+				deps.fetchH2 ?? initFetchH2({ lookup, assertHostAllowed }),
+				deps.fetchCurl ?? initGuardedCurlFetch({ resolve, isBlocked }),
+			),
+			deps.personas,
 		),
-		deps.personas,
+		{ delaysMs: deps.rateLimitRetryDelaysMs ?? RATE_LIMIT_RETRY_DELAYS_MS },
 	);
 	return async (url, init) => {
 		assert(

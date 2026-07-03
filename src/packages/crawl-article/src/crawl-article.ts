@@ -46,7 +46,7 @@ function fetchTimeoutReason(message: string): Error {
 
 function describeEdgeHeaders(headers: Headers): string {
 	const parts: string[] = [];
-	for (const name of ["server", "cf-mitigated", "cf-ray"]) {
+	for (const name of ["server", "cf-mitigated", "cf-ray", "retry-after"]) {
 		const value = headers.get(name);
 		if (value !== null) parts.push(`${name}=${value}`);
 	}
