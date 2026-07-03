@@ -48,4 +48,42 @@ final class TokenStoreTests: XCTestCase {
 		let store = TokenStore(defaults: defaults)
 		XCTAssertNil(store.tokens, "a missing refresh token should not count as logged in")
 	}
+
+	func testMigratesLegacyDefaultsIntoStorage() {
+		let legacy = TestSupport.ephemeralDefaults()
+		legacy.set("legacy-access", forKey: TokenKey.accessToken.rawValue)
+		legacy.set("legacy-refresh", forKey: TokenKey.refreshToken.rawValue)
+		let target = UserDefaultsTokenStorage(defaults: TestSupport.ephemeralDefaults())
+
+		TokenStore.migrateLegacyDefaults(from: legacy, into: target)
+
+		XCTAssertEqual(target.value(for: .accessToken), "legacy-access")
+		XCTAssertEqual(target.value(for: .refreshToken), "legacy-refresh")
+		XCTAssertNil(legacy.string(forKey: TokenKey.accessToken.rawValue), "legacy copy is cleared after migrating")
+	}
+
+	func testMigrationLeavesExistingStorageTokensUntouched() {
+		let legacy = TestSupport.ephemeralDefaults()
+		legacy.set("legacy-access", forKey: TokenKey.accessToken.rawValue)
+		legacy.set("legacy-refresh", forKey: TokenKey.refreshToken.rawValue)
+		let target = UserDefaultsTokenStorage(defaults: TestSupport.ephemeralDefaults())
+		target.setValue("keychain-access", for: .accessToken)
+		target.setValue("keychain-refresh", for: .refreshToken)
+
+		TokenStore.migrateLegacyDefaults(from: legacy, into: target)
+
+		XCTAssertEqual(target.value(for: .accessToken), "keychain-access", "an existing session must not be overwritten")
+		XCTAssertEqual(legacy.string(forKey: TokenKey.accessToken.rawValue), "legacy-access", "legacy is left intact when nothing migrates")
+	}
+
+	func testMigrationClearsPartialLegacyWithoutLoggingIn() {
+		let legacy = TestSupport.ephemeralDefaults()
+		legacy.set("only-access", forKey: TokenKey.accessToken.rawValue)
+		let target = UserDefaultsTokenStorage(defaults: TestSupport.ephemeralDefaults())
+
+		TokenStore.migrateLegacyDefaults(from: legacy, into: target)
+
+		XCTAssertNil(target.value(for: .accessToken), "a partial legacy token is not a valid session")
+		XCTAssertNil(legacy.string(forKey: TokenKey.accessToken.rawValue), "the stray partial token is cleared")
+	}
 }
