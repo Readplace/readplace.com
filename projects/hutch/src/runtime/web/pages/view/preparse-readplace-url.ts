@@ -1,5 +1,5 @@
 import type { ValidateSaveableUrl } from "@packages/domain/article";
-import { originalUrlFromViewPath } from "./view-path";
+import { MAX_VIEW_UNWRAP_DEPTH, originalUrlFromViewPath } from "./view-path";
 
 const VIEW_PREFIX = "/view/";
 
@@ -15,9 +15,7 @@ const LANDING_PATHS: ReadonlySet<string> = new Set([VIEW_PREFIX, "/view"]);
 export function initPreparseReadplaceUrl(deps: { selfHost: string }): (rawUrl: string) => string {
 	return function preparse(rawUrl: string): string {
 		let current = rawUrl;
-		/** Each accepted step removes one `/view/<host>` layer, so the path strictly
-		 * shrinks and the loop terminates without a depth cap. */
-		for (;;) {
+		for (let depth = 0; depth < MAX_VIEW_UNWRAP_DEPTH; depth += 1) {
 			let url: URL;
 			try {
 				url = new URL(current);
@@ -29,6 +27,7 @@ export function initPreparseReadplaceUrl(deps: { selfHost: string }): (rawUrl: s
 			if (original === undefined) return current;
 			current = original;
 		}
+		return current;
 	};
 }
 

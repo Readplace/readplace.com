@@ -1,5 +1,6 @@
 import type { SaveableUrlResult, ValidateSaveableUrl } from "@packages/domain/article";
 import { initPreparseReadplaceUrl, withReadplacePreparse } from "./preparse-readplace-url";
+import { MAX_VIEW_UNWRAP_DEPTH } from "./view-path";
 
 const SELF_HOST = "readplace.com";
 const preparse = initPreparseReadplaceUrl({ selfHost: SELF_HOST });
@@ -102,6 +103,11 @@ describe("initPreparseReadplaceUrl", () => {
 		expect(preparse("https://readplace.com/view/example.com/path%foo")).toBe(
 			"https://readplace.com/view/example.com/path%foo",
 		);
+	});
+
+	it("stops unwrapping past the depth cap, leaving the residual wrapper intact", () => {
+		const nested = `https://readplace.com/view/${"readplace.com/view/".repeat(MAX_VIEW_UNWRAP_DEPTH)}fagnerbrack.com/x`;
+		expect(preparse(nested)).toBe("https://readplace.com/view/fagnerbrack.com/x");
 	});
 
 	describe("self-host is matched including port", () => {

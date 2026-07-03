@@ -124,8 +124,7 @@ describe("POST /queue/save-articles", () => {
 		);
 		const stored = await testApp.articleStore.findArticlesByUser({ userId: TEST_USER_ID });
 		const urls = stored.articles.map((a) => a.url);
-		expect(urls).toContain("https://fagnerbrack.com/business-success");
-		expect(urls).not.toContain("http://localhost:3000/view/fagnerbrack.com/business-success");
+		expect(urls).toEqual(["https://fagnerbrack.com/business-success"]);
 	});
 
 	it("dispatches a pdf content page through the pdf pipeline", async () => {

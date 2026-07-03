@@ -44,21 +44,27 @@ export function parseViewPath(input: ParseViewPathInput): ParseViewPathResult {
 	return { kind: "render", articleUrl: `https://${rawPath}` };
 }
 
+export const MAX_VIEW_UNWRAP_DEPTH = 16;
+
 /** Recovers the original article URL from a `/view/<tail>` segment, or undefined
  * if the tail can't be decoded (e.g. a lone `%`). Single source of truth for the
  * `/view` ↔ original mapping: it reuses parseViewPath so the `%3F`→`?`, `%23`→`#`,
  * `%2525`→`%25`, and explicit-`http://` rules are not reimplemented. A redirect
- * result is the same article in canonical form, so it is resolved recursively. */
+ * result is the same article in canonical form, so it is resolved iteratively. */
 export function originalUrlFromViewPath(tail: string): string | undefined {
-	let rawPath: string;
-	try {
-		rawPath = decodeURIComponent(tail);
-	} catch {
-		return undefined;
+	let current = tail;
+	for (let depth = 0; depth < MAX_VIEW_UNWRAP_DEPTH; depth += 1) {
+		let rawPath: string;
+		try {
+			rawPath = decodeURIComponent(current);
+		} catch {
+			return undefined;
+		}
+		const result = parseViewPath({ rawPath, encodedPath: current });
+		if (result.kind === "render") return result.articleUrl;
+		current = result.canonicalPath.slice("/view/".length);
 	}
-	const result = parseViewPath({ rawPath, encodedPath: tail });
-	if (result.kind === "render") return result.articleUrl;
-	return originalUrlFromViewPath(result.canonicalPath.slice("/view/".length));
+	return undefined;
 }
 
 /** Re-encode `%25` (literal `%`), `?`, and `#` so the canonical survives
