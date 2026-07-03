@@ -189,6 +189,40 @@ describe("withH2Fallback", () => {
 		expect(h2Impl).toHaveBeenCalledTimes(1);
 	});
 
+	it("retries via h2 on a 429 bot-score verdict (e.g. LinkedIn via Cloudflare)", async () => {
+		const baseFetch: typeof fetch = async () =>
+			new Response("Too Many Requests", { status: 429, headers: { server: "cloudflare" } });
+		const h2Impl = jest.fn<ReturnType<typeof fetchH2>, Parameters<typeof fetchH2>>(async () =>
+			new Response("<html>h2 bypassed the 429</html>", { status: 200, headers: { "content-type": "text/html" } }),
+		);
+		const wrapped = withH2Fallback(baseFetch, h2Impl, stubCurl);
+
+		const response = await wrapped("https://example.com");
+
+		expect(response.status).toBe(200);
+		expect(await response.text()).toBe("<html>h2 bypassed the 429</html>");
+		expect(h2Impl).toHaveBeenCalledTimes(1);
+	});
+
+	it("escalates to curl when h2 also returns 429", async () => {
+		const baseFetch: typeof fetch = async () =>
+			new Response("Too Many Requests", { status: 429, headers: { server: "cloudflare" } });
+		const h2Impl = jest.fn<ReturnType<typeof fetchH2>, Parameters<typeof fetchH2>>(async () =>
+			new Response("Too Many Requests", { status: 429, headers: { server: "cloudflare" } }),
+		);
+		const curlImpl = jest.fn<ReturnType<CurlFetch>, Parameters<CurlFetch>>(async () =>
+			new Response("<html>curl bypassed the 429</html>", { status: 200, headers: { "content-type": "text/html" } }),
+		);
+		const wrapped = withH2Fallback(baseFetch, h2Impl, curlImpl);
+
+		const response = await wrapped("https://example.com");
+
+		expect(response.status).toBe(200);
+		expect(await response.text()).toBe("<html>curl bypassed the 429</html>");
+		expect(h2Impl).toHaveBeenCalledTimes(1);
+		expect(curlImpl).toHaveBeenCalledTimes(1);
+	});
+
 	it("retries via h2 on a 403 even when the server header is missing", async () => {
 		const baseFetch: typeof fetch = async () =>
 			new Response("Forbidden", { status: 403 });

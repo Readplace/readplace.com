@@ -5,6 +5,7 @@ import type { CurlFetch } from "./curl-fetch";
 
 const MAX_REDIRECTS = 5;
 const REDIRECT_STATUS_CODES = new Set([301, 302, 303, 307, 308]);
+const FALLBACK_STATUS_CODES = new Set([403, 429]);
 
 type FetchH2Init = {
 	headers?: Record<string, string>;
@@ -123,14 +124,17 @@ function toFetchHeaders(incoming: http2.IncomingHttpHeaders): Headers {
 
 /**
  * Wraps a fetch with an HTTP/2 + curl-impersonate fallback that kicks in on
- * any 403 response. 403s on the crawl path are almost always TLS-fingerprint
- * or IP-based edge blocks (Cloudflare managed challenges and "Attention
- * Required!" interstitials, Reddit's snooserv block on AWS-range IPs, Akamai
- * BotManager, etc.). Real browsers — and curl-impersonate's Chrome
- * ClientHello — bypass the typical instance of each. The handful of true
- * permission-denied 403s the crawler can hit (paywalled subscriber pages,
- * friends-only Medium drafts) also return 403 from h2/curl; the extra
- * attempts add ~1-2s of latency but never mask a real failure.
+ * any 403 or 429 response. 403s on the crawl path are almost always
+ * TLS-fingerprint or IP-based edge blocks (Cloudflare managed challenges and
+ * "Attention Required!" interstitials, Reddit's snooserv block on AWS-range
+ * IPs, Akamai BotManager, etc.), and Cloudflare expresses the same bot-score
+ * verdict as a 429 with no retry-after (observed on linkedin.com from Lambda
+ * egress: 429 on every request hours apart, so not a genuine rate limit).
+ * Real browsers — and curl-impersonate's Chrome ClientHello — bypass the
+ * typical instance of each. The handful of true permission-denied 403s the
+ * crawler can hit (paywalled subscriber pages, friends-only Medium drafts)
+ * also return 403 from h2/curl; the extra attempts add ~1-2s of latency but
+ * never mask a real failure.
  *
  * If the primary fetch fails with a transient TLS- or connection-level error
  * (timeout, ECONNRESET, "fetch failed", HTTP/2 RST_STREAM from Akamai
@@ -157,7 +161,7 @@ export function withH2Fallback(
 			const url = urlFromInput(input);
 			return h2ThenCurl(url, init, h2FetchImpl, curlFetchImpl);
 		}
-		if (response.status !== 403) return response;
+		if (!FALLBACK_STATUS_CODES.has(response.status)) return response;
 		await response.text();
 		const url = urlFromInput(input);
 		return h2ThenCurl(url, init, h2FetchImpl, curlFetchImpl);
@@ -165,9 +169,9 @@ export function withH2Fallback(
 }
 
 /**
- * Try Node's http2 module, then curl subprocess. Shared by the Cloudflare-403
- * path and the baseFetch-error path — both represent a TLS-fingerprint block
- * where varying the TLS client is the right remedy.
+ * Try Node's http2 module, then curl subprocess. Shared by the Cloudflare
+ * 403/429 path and the baseFetch-error path — both represent a
+ * TLS-fingerprint block where varying the TLS client is the right remedy.
  */
 async function h2ThenCurl(
 	url: string,
@@ -184,7 +188,7 @@ async function h2ThenCurl(
 	if (!fallbackInit.signal?.aborted) {
 		try {
 			const h2Response = await h2FetchImpl(url, fallbackInit);
-			if (h2Response.status !== 403) return h2Response;
+			if (!FALLBACK_STATUS_CODES.has(h2Response.status)) return h2Response;
 			await h2Response.text();
 		} catch (error) {
 			if (!shouldTryFallback(error, fallbackInit.signal)) throw error;
