@@ -24,6 +24,7 @@ export const SAVE_LINK_LAMBDA_NAMES = {
 	staleCheckRequested: "stale-check-requested",
 	recrawlLinkInitiated: "recrawl-link-initiated",
 	summaryGenerationFailed: "summary-generation-failed",
+	selectMostCompleteContent: "select-most-complete-content",
 } as const;
 
 type LogGroupName<T extends string> = `/aws/lambda/${T}-handler`;
@@ -37,6 +38,7 @@ export const SAVE_LINK_LOG_GROUPS = {
 	staleCheckRequested: `/aws/lambda/${SAVE_LINK_LAMBDA_NAMES.staleCheckRequested}-handler`,
 	recrawlLinkInitiated: `/aws/lambda/${SAVE_LINK_LAMBDA_NAMES.recrawlLinkInitiated}-handler`,
 	summaryGenerationFailed: `/aws/lambda/${SAVE_LINK_LAMBDA_NAMES.summaryGenerationFailed}-handler`,
+	selectMostCompleteContent: `/aws/lambda/${SAVE_LINK_LAMBDA_NAMES.selectMostCompleteContent}-handler`,
 } as const satisfies {
 	readonly [K in keyof typeof SAVE_LINK_LAMBDA_NAMES]: LogGroupName<(typeof SAVE_LINK_LAMBDA_NAMES)[K]>;
 };
