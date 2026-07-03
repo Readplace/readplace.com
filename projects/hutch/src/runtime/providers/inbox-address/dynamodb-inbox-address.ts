@@ -7,12 +7,15 @@ import {
 import { z } from "zod";
 import { UserIdSchema } from "@packages/domain/user";
 import {
+	aliasNameFromAddress,
+	AliasNameSchema,
 	buildInboxAddress,
 	countLiveAddresses,
 	generateInboxToken,
 	INBOX_ADDRESS_MAX_CREATE_ATTEMPTS,
 	INBOX_ADDRESS_MAX_PER_USER,
 	InboxAddressLimitReachedError,
+	type InboxAddressEntry,
 	InboxAddressSchema,
 	type InboxAddressStore,
 	InboxTokenSchema,
@@ -21,10 +24,28 @@ import {
 const InboxAddressRow = z.object({
 	address: InboxAddressSchema,
 	userId: UserIdSchema,
+	// Optional for read-compat with legacy `in-<token>` rows written before the
+	// column existed; always written on new creates. `toEntry` backfills a label
+	// from the address when it is absent.
+	name: dynamoField(AliasNameSchema),
 	token: InboxTokenSchema,
 	createdAt: z.string(),
 	disabledAt: dynamoField(z.string()),
 });
+
+/** The one seam that turns a stored row into a fully-populated entry, deriving
+ * the alias label for a legacy row that predates the `name` column so every
+ * caller sees a labelled address. */
+function toEntry(row: z.infer<typeof InboxAddressRow>): InboxAddressEntry {
+	return {
+		address: row.address,
+		userId: row.userId,
+		name: row.name ?? aliasNameFromAddress(row.address),
+		token: row.token,
+		createdAt: row.createdAt,
+		disabledAt: row.disabledAt,
+	};
+}
 
 export function initDynamoDbInboxAddress(deps: {
 	client: DynamoDBDocumentClient;
@@ -51,11 +72,11 @@ export function initDynamoDbInboxAddress(deps: {
 			KeyConditionExpression: "userId = :uid",
 			ExpressionAttributeValues: { ":uid": userId },
 		});
-		return items;
+		return items.map(toEntry);
 	};
 
 	return {
-		createAddress: async ({ userId, domain }) => {
+		createAddress: async ({ userId, domain, name }) => {
 			// Bound the live addresses a user can hold. disabledAt is not a key
 			// attribute, so the cap is counted in code over the GSI rows rather than
 			// pushed into a COUNT query. The GSI is eventually consistent, so this is a
@@ -69,13 +90,13 @@ export function initDynamoDbInboxAddress(deps: {
 			const createdAt = deps.now().toISOString();
 			for (let attempt = 0; attempt < INBOX_ADDRESS_MAX_CREATE_ATTEMPTS; attempt++) {
 				const token = generateInboxToken();
-				const address = buildInboxAddress({ token, domain });
+				const address = buildInboxAddress({ name, token, domain });
 				try {
 					await table.put({
-						Item: { address, userId, token, createdAt },
+						Item: { address, userId, name, token, createdAt },
 						ConditionExpression: "attribute_not_exists(address)",
 					});
-					return { address, userId, token, createdAt, disabledAt: undefined };
+					return { address, userId, name, token, createdAt, disabledAt: undefined };
 				} catch (error) {
 					if (error instanceof ConditionalCheckFailedException) continue;
 					throw error;
@@ -94,6 +115,9 @@ export function initDynamoDbInboxAddress(deps: {
 				ExpressionAttributeValues: { ":uid": userId, ":now": deps.now().toISOString() },
 			});
 		},
-		findByAddress: async (address) => table.get({ address }),
+		findByAddress: async (address) => {
+			const row = await table.get({ address });
+			return row === undefined ? undefined : toEntry(row);
+		},
 	};
 }

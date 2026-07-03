@@ -133,6 +133,7 @@ import {
 import { QUEUE_PATH } from "./web/pages/queue/queue.url";
 import { initImportSessionRoutes } from "./web/pages/import/import.page";
 import type { ImportSessionStore } from "@packages/domain/import-session";
+import { DEFAULT_INBOX_ALIAS } from "@packages/domain/inbox";
 import type { InboxAddressStore, InboxEmailLinkStore, InboxEmailStore } from "@packages/domain/inbox";
 import type { UserId } from "@packages/domain/user";
 import type { ExtractLinksFromPageUrl } from "@packages/extract-links-from-page";
@@ -769,7 +770,11 @@ export function createApp(dependencies: AppDependencies): Express {
 	 * signup — the inbox page's "Create Inbox Email" CTA is the recovery path. */
 	const provisionInboxAddressOnSignup = async (userId: UserId): Promise<void> => {
 		try {
-			await deps.inboxAddressStore.createAddress({ userId, domain: deps.inboxAddressDomain });
+			await deps.inboxAddressStore.createAddress({
+				userId,
+				domain: deps.inboxAddressDomain,
+				name: DEFAULT_INBOX_ALIAS,
+			});
 		} catch (error) {
 			deps.logError(
 				"[Inbox] Failed to provision a forwarding address at signup",

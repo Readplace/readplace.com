@@ -1,6 +1,10 @@
 import assert from "node:assert/strict";
 import { HutchLogger, noopLogger } from "@packages/hutch-logger";
-import { MessageIdSchema, type ParseEmailResult } from "@packages/domain/inbox";
+import {
+	DEFAULT_INBOX_ALIAS,
+	MessageIdSchema,
+	type ParseEmailResult,
+} from "@packages/domain/inbox";
 import { UserIdSchema } from "@packages/domain/user";
 import { buildLambdaContext } from "@packages/test-fixtures/lambda-context";
 import { initInMemoryInboxAddress } from "@packages/test-fixtures/providers/inbox-address";
@@ -76,7 +80,11 @@ function makeHarness(opts?: {
 }
 
 async function mintAddress(addressStore: ReturnType<typeof initInMemoryInboxAddress>) {
-	const entry = await addressStore.createAddress({ userId: OWNER, domain: "read.place" });
+	const entry = await addressStore.createAddress({
+		userId: OWNER,
+		domain: "read.place",
+		name: DEFAULT_INBOX_ALIAS,
+	});
 	return entry.address;
 }
 
@@ -286,7 +294,11 @@ describe("initReceiveEmailHandler", () => {
 	it("stores a row and publishes for EVERY forwarding recipient in one envelope", async () => {
 		const { addressStore, emailStore, rawMap, published, runMany } = makeHarness();
 		const ownerAddress = await mintAddress(addressStore);
-		const second = await addressStore.createAddress({ userId: SECOND, domain: "read.place" });
+		const second = await addressStore.createAddress({
+			userId: SECOND,
+			domain: "read.place",
+			name: DEFAULT_INBOX_ALIAS,
+		});
 		rawMap.set(RAW_KEY, Buffer.from("raw"));
 
 		const result = await runMany([ownerAddress, second.address]);
@@ -308,6 +320,7 @@ describe("initReceiveEmailHandler", () => {
 		const { address: secondOfSameUser } = await addressStore.createAddress({
 			userId: OWNER,
 			domain: "read.place",
+			name: DEFAULT_INBOX_ALIAS,
 		});
 		rawMap.set(RAW_KEY, Buffer.from("raw"));
 

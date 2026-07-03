@@ -13,7 +13,7 @@ export function initInMemoryInboxAddress(deps: { now: () => Date }): InboxAddres
 	const rows = new Map<string, InboxAddressEntry>();
 
 	return {
-		createAddress: async ({ userId, domain }) => {
+		createAddress: async ({ userId, domain, name }) => {
 			const live = [...rows.values()].filter(
 				(row) => row.userId === userId && isLiveAddress(row),
 			);
@@ -21,10 +21,11 @@ export function initInMemoryInboxAddress(deps: { now: () => Date }): InboxAddres
 				throw new InboxAddressLimitReachedError(INBOX_ADDRESS_MAX_PER_USER);
 			}
 			const token = generateInboxToken();
-			const address = buildInboxAddress({ token, domain });
+			const address = buildInboxAddress({ name, token, domain });
 			const entry: InboxAddressEntry = {
 				address,
 				userId,
+				name,
 				token,
 				createdAt: deps.now().toISOString(),
 				disabledAt: undefined,

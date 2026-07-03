@@ -13,11 +13,26 @@ export const InboxTokenSchema = z
 
 export type InboxToken = z.infer<typeof InboxTokenSchema>;
 
-/** A full forwarding address, `in-<token>@<domain>`. Branded so a raw string
- * can't stand in for one without passing through the parser. */
+/** The user-chosen label in a forwarding address — the human-readable prefix in
+ * `<alias>-<token>@<domain>` (e.g. `netflix` in `netflix-a7b2c9@read.place`).
+ * Lowercase alphanumerics with single internal hyphens (no leading, trailing, or
+ * doubled hyphen), 1–24 chars. Kept email-safe so it reads cleanly as a local
+ * part and can never smuggle a second `@` or `.` into the address. */
+export const AliasNameSchema = z
+	.string()
+	.regex(/^[a-z0-9]+(?:-[a-z0-9]+)*$/)
+	.max(24)
+	.brand<"AliasName">();
+
+export type AliasName = z.infer<typeof AliasNameSchema>;
+
+/** A full forwarding address, `<alias>-<token>@<domain>`. Branded so a raw
+ * string can't stand in for one without passing through the parser. The trailing
+ * `-<token>` is the six-char random suffix by construction, so an address is a
+ * strict generalization of the legacy `in-<token>` form (alias = `in`). */
 export const InboxAddressSchema = z
 	.string()
-	.regex(/^in-[0-9a-z]{6}@[a-z0-9.-]+$/)
+	.regex(/^[a-z0-9]+(?:-[a-z0-9]+)*-[0-9a-z]{6}@[a-z0-9.-]+$/)
 	.brand<"InboxAddress">();
 
 export type InboxAddress = z.infer<typeof InboxAddressSchema>;
@@ -59,6 +74,40 @@ export function generateInboxToken(): InboxToken {
 	return InboxTokenSchema.parse(chars.join(""));
 }
 
-export function buildInboxAddress(input: { token: InboxToken; domain: string }): InboxAddress {
-	return InboxAddressSchema.parse(`in-${input.token}@${input.domain}`);
+export function buildInboxAddress(input: {
+	name: AliasName;
+	token: InboxToken;
+	domain: string;
+}): InboxAddress {
+	return InboxAddressSchema.parse(`${input.name}-${input.token}@${input.domain}`);
 }
+
+/** Recover the alias label from a stored address. Used to backfill a label for a
+ * legacy `in-<token>` row written before the `name` column existed. The address
+ * is `<alias>-<token>@…` by construction (guaranteed by {@link
+ * InboxAddressSchema}), so the label is the local part with the trailing
+ * `-<token>` removed. */
+export function aliasNameFromAddress(address: InboxAddress): AliasName {
+	const localPart = address.slice(0, address.indexOf("@"));
+	return AliasNameSchema.parse(localPart.slice(0, localPart.lastIndexOf("-")));
+}
+
+/** The single normalization seam for a user-typed alias. Lowercases, collapses
+ * every run of non-alphanumerics to one hyphen, truncates to the max length, and
+ * trims leading/trailing hyphens, then validates. Returns `undefined` when no
+ * valid label survives (empty, whitespace-only, or emoji-only input) so callers
+ * can reject rather than mint a nameless address. */
+export function normalizeAliasName(raw: string): AliasName | undefined {
+	const normalized = raw
+		.trim()
+		.toLowerCase()
+		.replace(/[^a-z0-9]+/g, "-")
+		.slice(0, 24)
+		.replace(/^-+|-+$/g, "");
+	const parsed = AliasNameSchema.safeParse(normalized);
+	return parsed.success ? parsed.data : undefined;
+}
+
+/** The alias every account's first forwarding address is minted under at signup,
+ * so a brand-new user lands on `inbox-<token>@…` without having to name one. */
+export const DEFAULT_INBOX_ALIAS: AliasName = AliasNameSchema.parse("inbox");

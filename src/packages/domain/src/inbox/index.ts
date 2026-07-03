@@ -3,14 +3,19 @@ export { countLiveAddresses, isLiveAddress } from "./inbox-address.live";
 export {
 	InboxTokenSchema,
 	type InboxToken,
+	AliasNameSchema,
+	type AliasName,
 	InboxAddressSchema,
 	type InboxAddress,
 	INBOX_TOKEN_LENGTH,
 	INBOX_ADDRESS_MAX_CREATE_ATTEMPTS,
 	INBOX_ADDRESS_MAX_PER_USER,
+	DEFAULT_INBOX_ALIAS,
 	InboxAddressLimitReachedError,
 	generateInboxToken,
 	buildInboxAddress,
+	aliasNameFromAddress,
+	normalizeAliasName,
 } from "./inbox-address.schema";
 export type { InboxEmailEntry, InboxEmailStore } from "./inbox-email.types";
 export {

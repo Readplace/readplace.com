@@ -8,10 +8,19 @@
       <p class="inbox__error" role="alert" data-test-inbox-error>We couldn't create a forwarding address just now. Please try again in a moment.</p>
       {{/if}}
 
+      {{#if nameInvalid}}
+      <p class="inbox__error" role="alert" data-test-inbox-name-error>Give the address a name using letters and numbers — for example, netflix.</p>
+      {{/if}}
+
+      {{#if nameTaken}}
+      <p class="inbox__error" role="alert" data-test-inbox-name-taken>You already have an active address with that name. Pick a different one.</p>
+      {{/if}}
+
       {{#if hasAddresses}}
       <ul class="inbox__list" data-test-inbox-list>
         {{#each addresses}}
         <li class="inbox__item" data-test-inbox-item>
+          <span class="inbox__name" data-test-inbox-name>{{this.name}}</span>
           {{#if this.enabled}}
           <input class="inbox__address-field" type="text" value="{{this.address}}" readonly aria-label="Forwarding address" data-inbox-address="{{this.address}}" />
           <button type="button" class="inbox__copy-btn" data-inbox-copy data-inbox-address="{{this.address}}" hidden>Copy</button>
@@ -36,7 +45,11 @@
       {{/if}}
 
       <form action="{{createAction}}" method="POST" class="inbox__create">
-        <button type="submit" class="inbox__create-btn" data-test-inbox-create>Create Inbox Email</button>
+        <label class="inbox__create-label" for="inbox-name">Name this address</label>
+        <div class="inbox__create-row">
+          <input class="inbox__name-input" id="inbox-name" name="name" type="text" required maxlength="24" pattern="[A-Za-z0-9 -]+" placeholder="e.g. netflix" autocomplete="off" data-test-inbox-name-input />
+          <button type="submit" class="inbox__create-btn" data-test-inbox-create>Create Inbox Email</button>
+        </div>
       </form>
 
       <section class="inbox__instructions">
