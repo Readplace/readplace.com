@@ -98,6 +98,8 @@ final class ReadplaceAPI {
 	/// oversize resource degrades to a URL-only save without ever being buffered whole.
 	private let maxExternalContentBytes: Int
 
+	static let defaultMaxExternalContentBytes = 25 * 1024 * 1024
+
 	// Defaults to an ephemeral configuration so the session's cookie jar is its
 	// own isolated, in-memory store rather than process-wide `HTTPCookieStorage.shared`:
 	// the `hutch_sid` cookie minted by `bootstrapSession` must not linger in the
@@ -106,7 +108,7 @@ final class ReadplaceAPI {
 		baseURL: String,
 		store: TokenStore,
 		sessionConfiguration: URLSessionConfiguration = .ephemeral,
-		maxExternalContentBytes: Int = 25 * 1024 * 1024
+		maxExternalContentBytes: Int = ReadplaceAPI.defaultMaxExternalContentBytes
 	) {
 		self.baseURL = baseURL
 		self.store = store

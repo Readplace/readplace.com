@@ -1,9 +1,10 @@
 import UIKit
 
 /// The share-sheet entry point. Renders the shared page in a WKWebView (or
-/// fetches a shared PDF's bytes), uploads the captured content via the
-/// `save-content` action — degrading to a URL-only save if the token is missing,
-/// capture fails, or the content is too big.
+/// takes a shared PDF's bytes straight from the payload, or fetches them),
+/// uploads the captured content via the `save-content` action — degrading to a
+/// URL-only save if the token is missing, capture fails, or the content is too
+/// big.
 @MainActor
 final class ShareViewController: UIViewController {
 	private let store = TokenStore()
@@ -25,7 +26,10 @@ final class ShareViewController: UIViewController {
 
 		let captor = LazyHTMLCaptor { [weak self] webView in self?.attachHidden(webView) }
 		let saver = SaveSharedPage(store: store, api: ReadplaceAPI(baseURL: AppConfig.serverBaseURL, store: store), captor: captor)
-		switch await saver.run(url: shared?.url, fallbackTitle: shared?.title) {
+		let sharedPdf: (() async -> Data?)? = shared?.pdfProvider.map { provider in
+			{ await ShareURLExtractor.loadPDFData(provider) }
+		}
+		switch await saver.run(url: shared?.url, fallbackTitle: shared?.title, sharedPdf: sharedPdf) {
 		case .savedWithContent:
 			finish(message: "Saved with content", symbol: "checkmark.circle.fill", tint: .brandSuccess)
 		case .savedLinkOnly:

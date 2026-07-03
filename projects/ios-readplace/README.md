@@ -93,16 +93,22 @@ That produces `build/Readplace-unsigned.ipa` (the app + its share extension).
   reachable from inside the reader. The reader's mark-read is detected by the
   `status` field on its request, not its URL, so the endpoint can move freely.
 - **Save by sharing**: a **Share Extension** appears in the iOS share sheet for
-  URLs/web pages. It loads the page in an off-screen `WKWebView`, captures
-  `document.documentElement.outerHTML`, and uploads it as a `multipart/form-data`
-  `{url, mediaType, title, content}` body to `POST /queue/save-content`. A shared
-  URL that resolves to a PDF is fetched directly (the web view declines to render
-  it) and uploaded as `application/pdf` instead. If capture fails, or a shared PDF
-  is blocked or larger than the client's own 25 MiB external-fetch ceiling, it
-  degrades to the URL-only `save-article` path — and the server's crawler, which
-  allows far larger PDFs, then fetches it. (A payload that instead exceeds the
-  *server's* cap comes back with that same URL-only fallback action.) This mirrors
-  the extension's own fallback.
+  URLs/web pages, plain text, and PDF documents — via a SUBQUERY
+  `NSExtensionActivationRule` predicate ([`ShareExtension/Info.plist`](./ShareExtension/Info.plist)
+  explains why the dictionary keys cannot express PDF support without accepting
+  every file type). For a page, it loads the URL in an off-screen `WKWebView`,
+  captures `document.documentElement.outerHTML`, and uploads it as a
+  `multipart/form-data` `{url, mediaType, title, content}` body to
+  `POST /queue/save-content`. A PDF the payload carries as a file is uploaded
+  as-is (no render, no refetch); a shared URL that merely resolves to a PDF is
+  fetched directly (the web view declines to render it) and uploaded as
+  `application/pdf`. Both PDF routes respect the same 25 MiB client ceiling and
+  require the `%PDF-` magic header. If capture fails, or a shared PDF is blocked
+  or oversized, it degrades to the URL-only `save-article` path — and the
+  server's crawler, which allows far larger PDFs, then fetches it. (A payload
+  that instead exceeds the *server's* cap comes back with that same URL-only
+  fallback action.) A PDF shared with no web link at all (e.g. straight from
+  Files) reports "No link found to save." — articles are keyed by URL.
 - **Add links via Share**: the `+` button is a client-side control — an
   `add-links-help` affordance the app injects itself and treats as canonical,
   ignoring (deduping) any the server also advertises. It opens a sheet whose
@@ -264,10 +270,13 @@ cases:
   token across the entry-point `303`, and both sign-out paths (`logout` /
   `forceLogout`) dropping the minted `hutch_sid` session cookie.
   Share-save — `SaveSharedPage` saving rendered HTML via `save-content`, saving a
-  shared PDF's fetched bytes as `application/pdf`, degrading to URL-only when the
+  shared PDF's fetched bytes as `application/pdf`, uploading share-sheet-delivered
+  PDF bytes without rendering or refetching (and rejecting delivered bytes missing
+  the `%PDF-` magic header), degrading to URL-only when the
   capture is empty, the PDF fetch is blocked, or the server refuses the payload
   with a fallback action, short-circuiting before any network call when logged out
-  or when there's no link, and reporting no-op when the server advertises no save
+  or when there's no link (even when PDF bytes were delivered), and reporting
+  no-op when the server advertises no save
   action; plus the `HTMLCaptor` navigation-response decision (render HTML vs.
   capture a main-frame PDF as a file) in isolation.
 - **Web-auth flow (shared by Login & Sign up)**: the native authorize requests

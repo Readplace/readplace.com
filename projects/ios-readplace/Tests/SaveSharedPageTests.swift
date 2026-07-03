@@ -33,7 +33,7 @@ final class SaveSharedPageTests: XCTestCase {
 		}
 
 		let saver = SaveSharedPage(store: store, api: makeAPI(store: store), captor: captor)
-		let outcome = await saver.run(url: URL(string: "https://example.com/post")!, fallbackTitle: nil)
+		let outcome = await saver.run(url: URL(string: "https://example.com/post")!, fallbackTitle: nil, sharedPdf: nil)
 
 		XCTAssertEqual(outcome, .savedWithContent)
 		XCTAssertEqual(captor.capturedURLs, [URL(string: "https://example.com/post")!])
@@ -83,7 +83,7 @@ final class SaveSharedPageTests: XCTestCase {
 		}
 
 		let saver = SaveSharedPage(store: store, api: makeAPI(store: store), captor: captor)
-		let outcome = await saver.run(url: URL(string: "https://example.com/post")!, fallbackTitle: nil)
+		let outcome = await saver.run(url: URL(string: "https://example.com/post")!, fallbackTitle: nil, sharedPdf: nil)
 
 		guard case let .refused(messages) = outcome else {
 			return XCTFail("expected .refused, got \(outcome)")
@@ -115,7 +115,7 @@ final class SaveSharedPageTests: XCTestCase {
 		}
 
 		let saver = SaveSharedPage(store: store, api: makeAPI(store: store), captor: emptyCaptor)
-		let outcome = await saver.run(url: URL(string: "https://example.com/post")!, fallbackTitle: "Shared title")
+		let outcome = await saver.run(url: URL(string: "https://example.com/post")!, fallbackTitle: "Shared title", sharedPdf: nil)
 
 		XCTAssertEqual(outcome, .savedLinkOnly)
 		let queuePosts = StubURLProtocol.records(path: "/queue").filter { $0.request.httpMethod == "POST" }
@@ -148,7 +148,7 @@ final class SaveSharedPageTests: XCTestCase {
 		}
 
 		let saver = SaveSharedPage(store: store, api: makeAPI(store: store), captor: captor)
-		let outcome = await saver.run(url: URL(string: "https://example.com/post")!, fallbackTitle: nil)
+		let outcome = await saver.run(url: URL(string: "https://example.com/post")!, fallbackTitle: nil, sharedPdf: nil)
 
 		XCTAssertEqual(outcome, .savedLinkOnly)
 		XCTAssertEqual(
@@ -185,7 +185,7 @@ final class SaveSharedPageTests: XCTestCase {
 		}
 
 		let saver = SaveSharedPage(store: store, api: makeAPI(store: store), captor: captor)
-		let outcome = await saver.run(url: URL(string: "https://example.com/paper.pdf")!, fallbackTitle: "Paper")
+		let outcome = await saver.run(url: URL(string: "https://example.com/paper.pdf")!, fallbackTitle: "Paper", sharedPdf: nil)
 
 		XCTAssertEqual(outcome, .savedWithContent)
 
@@ -207,6 +207,109 @@ final class SaveSharedPageTests: XCTestCase {
 			externalRecord.request.value(forHTTPHeaderField: "Authorization"),
 			"the external PDF fetch must never carry the Readplace bearer token"
 		)
+	}
+
+	func testSavesShareSheetPdfBytesWithoutRenderingOrRefetching() async throws {
+		// The share sheet delivered the PDF itself (Safari's PDF viewer, Files).
+		// The journey must upload those bytes directly — no WKWebView render, no
+		// refetch of an origin that might block a cookie-less second request.
+		let store = TestSupport.loggedInStore()
+		let captor = FakeHTMLCaptor(page: CapturedPage(rawHtml: "<html>never used</html>", title: "never used"))
+		let pdfBytes = Data("%PDF-1.7\nshared pdf body".utf8)
+		StubURLProtocol.setHandler { request, _ in
+			switch request.url?.path {
+			case "/":
+				return .redirect(to: "/queue")
+			case "/queue":
+				return .json(200, Fixtures.collection(entitiesJSON: [Fixtures.article(id: "a1")]))
+			case "/queue/save-content":
+				return .json(201, Fixtures.article(id: "saved", url: "https://example.com/paper.pdf"))
+			default:
+				return .json(404, "{}")
+			}
+		}
+
+		let saver = SaveSharedPage(store: store, api: makeAPI(store: store), captor: captor)
+		let outcome = await saver.run(
+			url: URL(string: "https://example.com/paper.pdf")!,
+			fallbackTitle: "Paper",
+			sharedPdf: { pdfBytes }
+		)
+
+		XCTAssertEqual(outcome, .savedWithContent)
+		XCTAssertEqual(captor.capturedURLs, [], "delivered bytes must not trigger a WKWebView render")
+		XCTAssertTrue(
+			StubURLProtocol.records(path: "/paper.pdf").isEmpty,
+			"delivered bytes must not be refetched from the origin"
+		)
+
+		let record = try XCTUnwrap(StubURLProtocol.records(path: "/queue/save-content").first)
+		let parts = TestSupport.multipartParts(
+			contentType: record.request.value(forHTTPHeaderField: "Content-Type"),
+			body: record.body
+		)
+		XCTAssertEqual(parts.first { $0.name == "url" }?.text, "https://example.com/paper.pdf")
+		XCTAssertEqual(parts.first { $0.name == "mediaType" }?.text, "application/pdf")
+		XCTAssertEqual(parts.first { $0.name == "title" }?.text, "Paper")
+		let contentPart = try XCTUnwrap(parts.first { $0.name == "content" })
+		XCTAssertEqual(contentPart.body, pdfBytes, "the shared PDF bytes must reach the server unaltered")
+	}
+
+	func testIgnoresSharedBytesWithoutPdfMagic() async throws {
+		// Bytes the share sheet claimed were a PDF but that don't carry the
+		// `%PDF-` magic header must not be uploaded; the journey falls back to the
+		// normal capture path for the URL.
+		let store = TestSupport.loggedInStore()
+		let captor = FakeHTMLCaptor(page: CapturedPage(rawHtml: "<html><body>hi</body></html>", title: "Captured"))
+		StubURLProtocol.setHandler { request, _ in
+			switch request.url?.path {
+			case "/":
+				return .redirect(to: "/queue")
+			case "/queue":
+				return .json(200, Fixtures.collection(entitiesJSON: [Fixtures.article(id: "a1")]))
+			case "/queue/save-content":
+				return .json(201, Fixtures.article(id: "saved", url: "https://example.com/post"))
+			default:
+				return .json(404, "{}")
+			}
+		}
+
+		let saver = SaveSharedPage(store: store, api: makeAPI(store: store), captor: captor)
+		let outcome = await saver.run(
+			url: URL(string: "https://example.com/post")!,
+			fallbackTitle: nil,
+			sharedPdf: { Data("not a pdf at all".utf8) }
+		)
+
+		XCTAssertEqual(outcome, .savedWithContent)
+		XCTAssertEqual(
+			captor.capturedURLs, [URL(string: "https://example.com/post")!],
+			"junk shared bytes must fall back to the capture path"
+		)
+		let record = try XCTUnwrap(StubURLProtocol.records(path: "/queue/save-content").first)
+		let parts = TestSupport.multipartParts(
+			contentType: record.request.value(forHTTPHeaderField: "Content-Type"),
+			body: record.body
+		)
+		XCTAssertEqual(parts.first { $0.name == "mediaType" }?.text, "text/html", "the junk bytes must never be uploaded as a PDF")
+	}
+
+	func testReturnsNoLinkWhenOnlyPdfBytesShared() async throws {
+		// A PDF shared with no web link (e.g. straight from the Files app) has no
+		// URL to key the article on, so the journey reports .noLink before any
+		// capture, network call, or PDF byte load.
+		let store = TestSupport.loggedInStore()
+		let captor = FakeHTMLCaptor(page: CapturedPage(rawHtml: "<html></html>", title: "x"))
+		let saver = SaveSharedPage(store: store, api: makeAPI(store: store), captor: captor)
+
+		let outcome = await saver.run(url: nil, fallbackTitle: "Form.pdf", sharedPdf: { () async -> Data? in
+			XCTFail("PDF bytes must not be loaded when there is no article URL")
+			return nil
+		})
+
+		XCTAssertEqual(outcome, .noLink)
+		XCTAssertEqual(captor.capturedURLs, [])
+		XCTAssertTrue(StubURLProtocol.records.isEmpty, "no network must be attempted without an article URL")
 	}
 
 	func testPdfFetchFailureDegradesToSaveArticle() async throws {
@@ -231,7 +334,7 @@ final class SaveSharedPageTests: XCTestCase {
 		}
 
 		let saver = SaveSharedPage(store: store, api: makeAPI(store: store), captor: captor)
-		let outcome = await saver.run(url: URL(string: "https://example.com/paper.pdf")!, fallbackTitle: nil)
+		let outcome = await saver.run(url: URL(string: "https://example.com/paper.pdf")!, fallbackTitle: nil, sharedPdf: nil)
 
 		XCTAssertEqual(outcome, .savedLinkOnly)
 		XCTAssertTrue(
@@ -243,14 +346,18 @@ final class SaveSharedPageTests: XCTestCase {
 	}
 
 	func testGuardsWhenLoggedOut() async throws {
-		// A logged-out store must short-circuit before any network call.
+		// A logged-out store must short-circuit before any network call or PDF
+		// byte load.
 		let loggedOut = TokenStore(defaults: TestSupport.ephemeralDefaults())
 		let saver = SaveSharedPage(
 			store: loggedOut,
 			api: makeAPI(store: loggedOut),
 			captor: FakeHTMLCaptor(page: CapturedPage(rawHtml: "<html></html>", title: "x"))
 		)
-		let outcome = await saver.run(url: URL(string: "https://example.com/post")!, fallbackTitle: nil)
+		let outcome = await saver.run(url: URL(string: "https://example.com/post")!, fallbackTitle: nil, sharedPdf: { () async -> Data? in
+			XCTFail("PDF bytes must not be loaded when logged out")
+			return nil
+		})
 
 		XCTAssertEqual(outcome, .notLoggedIn)
 		XCTAssertTrue(StubURLProtocol.records.isEmpty, "no network must be attempted when logged out")
@@ -262,7 +369,7 @@ final class SaveSharedPageTests: XCTestCase {
 		let captor = FakeHTMLCaptor(page: CapturedPage(rawHtml: "<html></html>", title: "x"))
 		let saver = SaveSharedPage(store: store, api: makeAPI(store: store), captor: captor)
 
-		let outcome = await saver.run(url: nil, fallbackTitle: "Shared title")
+		let outcome = await saver.run(url: nil, fallbackTitle: "Shared title", sharedPdf: nil)
 
 		XCTAssertEqual(outcome, .noLink)
 		XCTAssertEqual(captor.capturedURLs, [], "must not capture a page when there is no link")
@@ -288,7 +395,7 @@ final class SaveSharedPageTests: XCTestCase {
 		}
 
 		let saver = SaveSharedPage(store: store, api: makeAPI(store: store), captor: captor)
-		let outcome = await saver.run(url: URL(string: "https://example.com/post")!, fallbackTitle: nil)
+		let outcome = await saver.run(url: URL(string: "https://example.com/post")!, fallbackTitle: nil, sharedPdf: nil)
 
 		XCTAssertEqual(outcome, .noSaveAction)
 		let posts = StubURLProtocol.records.filter { $0.request.httpMethod == "POST" }
