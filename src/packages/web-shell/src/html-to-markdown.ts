@@ -1,7 +1,7 @@
 import { NodeHtmlMarkdown } from "node-html-markdown";
 
 const converter = new NodeHtmlMarkdown({
-	ignore: ["script", "style", "noscript", "template"],
+	ignore: ["script", "style", "noscript", "template", "svg"],
 	useInlineLinks: false,
 	useLinkReferenceDefinitions: false,
 	keepDataImages: false,

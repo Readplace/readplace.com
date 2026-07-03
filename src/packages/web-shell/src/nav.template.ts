@@ -1,6 +1,6 @@
 export const NAV_TEMPLATE = `  <header class="header{{#if transparent}} header--transparent{{/if}}">
     <div class="header__content">
-      <a href="{{track '/' source='header' content='brand'}}" class="header__brand">Read<span class="header__brand-mark">place</span></a>
+      <a href="{{track '/' source='header' content='brand'}}" class="header__brand"><svg class="header__brand-icon" viewBox="0 0 512 512" aria-hidden="true" focusable="false"><rect x="15" y="15" width="482" height="482" rx="102" fill="#2B3A55"/><text x="240" y="400" text-anchor="middle" font-family="Georgia, 'Times New Roman', serif" font-size="368" font-weight="700" fill="#FFFFFF">&amp;</text><circle cx="331" cy="166" r="44" fill="#C8923C"/></svg><span class="header__brand-text">Read<span class="header__brand-mark">place</span></span></a>
       <a class="trial-countdown trial-countdown--{{trialEscalationClass}} trial-countdown--{{trialVisibility}}"
          href="{{track '/account' source='header' content='trial-countdown'}}"
          data-trial-ends-at-iso="{{trialEndsAtIso}}"

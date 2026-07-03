@@ -46,6 +46,8 @@ const LIGHT_THEME_VARIABLES: Record<string, string> = {
 	"--input-font-size": "16px",
 	"--form-gap": "20px",
 	"--color-on-brand": "#FFFFFF",
+	"--header-brand-stem": "var(--color-secondary)",
+	"--header-brand-tail": "var(--color-brand)",
 	"--footer-bg": "#1A1A1A",
 	"--footer-text": "hsl(0 0% 100% / 0.7)",
 	"--footer-link": "hsl(0 0% 100% / 0.9)",
@@ -78,6 +80,8 @@ const DARK_THEME_VARIABLES: Record<string, string> = {
 	"--ring": "hsl(27 65% 52%)",
 	"--ring-shadow": "hsl(27 65% 52% / 0.25)",
 	"--error-bg": "hsl(0 43% 56% / 0.15)",
+	"--header-brand-stem": "var(--color-text-primary)",
+	"--header-brand-tail": "var(--color-highlight)",
 	"--footer-bg": "#0D0D0D",
 };
 
@@ -159,15 +163,26 @@ export const HEADER_STYLES = `
     font-family: Georgia, "Times New Roman", serif;
     font-size: 1.5rem;
     font-weight: 700;
-    color: var(--primary);
+    color: var(--header-brand-stem);
     text-decoration: none;
     letter-spacing: -0.02em;
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+  }
+  .header__brand-icon {
+    width: 26px;
+    height: 26px;
+    flex-shrink: 0;
   }
   .header__brand-mark {
-    color: var(--color-highlight);
+    color: var(--header-brand-tail);
   }
   .header--transparent .header__brand {
     color: var(--color-on-brand);
+  }
+  .header--transparent .header__brand-mark {
+    color: var(--color-highlight);
   }
 `;
 

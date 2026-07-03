@@ -50,7 +50,10 @@ describe("Base component", () => {
 		const doc = new JSDOM(result.body).window.document;
 
 		const brand = doc.querySelector(".header__brand") as HTMLAnchorElement;
-		expect(brand.textContent).toBe("Readplace");
+		const brandText = brand.querySelector(".header__brand-text");
+		assert(brandText, "brand link must contain the wordmark text span");
+		expect(brandText.textContent).toBe("Readplace");
+		expect(brand.querySelector("svg.header__brand-icon")).not.toBe(null);
 		expect(brand.getAttribute("href")).toBe("/?utm_source=header&utm_medium=internal&utm_content=brand");
 	});
 
