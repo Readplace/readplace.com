@@ -142,18 +142,25 @@ export const HEALTH_SOURCES: readonly HealthSource[] = [
 		expectedContent: "his stake in SpaceX last year by purchasing $1.4 billion of stock",
 		expectsThumbnail: true,
 	},
+	// PDF sources run last and are ordered cheapest-first: each one fans out
+	// per-page OCR (rasterisation + DeepInfra vision) and burns real tokens, so
+	// the tier-1-plus canary's fail-fast gate skips every remaining PDF once any
+	// earlier source has failed. Keeping the slowest PDFs (CIA, Adobe) at the
+	// very end means a quick-link regression never pays for the most expensive
+	// OCR runs. Reorder within this block by observed duration, not vendor.
 	{
-		// Exercises the PDF path end-to-end: detection + per-page OCR Lambda
-		// fan-out (rasterisation + DeepInfra vision) + sanitizer + Readability
-		// over the synthetic HTML. fai.org serves the file with Content-Type
-		// `application/pdf`.
+		// Akamai BotManager blocks standard curl's TLS fingerprint with HTTP/2
+		// RST_STREAM (exit 92). curl-impersonate's Chrome ClientHello bypasses
+		// this without a proxy — the discriminator is the TLS handshake, not the
+		// source IP.
 		//
 		// PDFs do not expose og:image/twitter:image metadata, so the thumbnail
 		// path is intentionally skipped — same precedent as the X/Twitter
-		// oembed entry below.
-		label: "PDF (FAI airmanship)",
-		url: "https://www.fai.org/sites/default/files/documents/airmanship_good.pdf",
-		expectedContent: "considerable confusion as to what airmanship actually comprises",
+		// oembed entry above. A single-page dummy PDF, so it is the cheapest OCR
+		// run and leads the block.
+		label: "PDF (USDA sample)",
+		url: "https://www.rd.usda.gov/sites/default/files/pdf-sample_0.pdf",
+		expectedContent: "Dummy PDF file",
 		expectsThumbnail: false,
 	},
 	{
@@ -168,30 +175,13 @@ export const HEALTH_SOURCES: readonly HealthSource[] = [
 		expectsThumbnail: false,
 	},
 	{
-		// Akamai BotManager blocks standard curl's TLS fingerprint with HTTP/2
-		// RST_STREAM (exit 92). curl-impersonate's Chrome ClientHello bypasses
-		// this without a proxy — the discriminator is the TLS handshake, not the
-		// source IP.
-		label: "PDF (USDA sample)",
-		url: "https://www.rd.usda.gov/sites/default/files/pdf-sample_0.pdf",
-		expectedContent: "Dummy PDF file",
-		expectsThumbnail: false,
-	},
-	{
-		// CIA reading-room 302-loops AWS IPs to /readingroom when the TLS
-		// fingerprint looks non-browser (curl exit 47). curl-impersonate with
-		// Chrome fingerprint returns 200 directly. Exercises --globoff +
-		// WHATWG URL re-encoding via the bracketed path segment `[16505689]`.
-		// Pages 22–25 of this 31-page scan are image-heavy and individually
-		// defeat DeepInfra's 360s SDK budget; the OCR pipeline's partial-
-		// success threshold accepts the remaining 27/31
-		// pages (0.871) and renders placeholders for the rest.
-		// `expectedContent` appears on pages 1, 2, 3, 5, 6, 18, 21, 28, 30,
-		// 31, all outside the known-flaky range — confirmed via
-		// `pdftotext -f N -l N` against the staged source PDF.
-		label: "PDF (CIA reading room)",
-		url: "https://www.cia.gov/readingroom/docs/COMPUTERS%20AND%20AUTOMATION%20[16505689].pdf",
-		expectedContent: "Warren Commission",
+		// Exercises the PDF path end-to-end: detection + per-page OCR Lambda
+		// fan-out (rasterisation + DeepInfra vision) + sanitizer + Readability
+		// over the synthetic HTML. fai.org serves the file with Content-Type
+		// `application/pdf`.
+		label: "PDF (FAI airmanship)",
+		url: "https://www.fai.org/sites/default/files/documents/airmanship_good.pdf",
+		expectedContent: "considerable confusion as to what airmanship actually comprises",
 		expectsThumbnail: false,
 	},
 	{
@@ -207,6 +197,26 @@ export const HEALTH_SOURCES: readonly HealthSource[] = [
 		label: "PDF (Adobe sample)",
 		url: "https://www.adobe.com/support/products/enterprise/knowledgecenter/media/c4611_sample_explain.pdf",
 		expectedContent: "simple form containing four distinct fields",
+		expectsThumbnail: false,
+	},
+	{
+		// CIA reading-room 302-loops AWS IPs to /readingroom when the TLS
+		// fingerprint looks non-browser (curl exit 47). curl-impersonate with
+		// Chrome fingerprint returns 200 directly. Exercises --globoff +
+		// WHATWG URL re-encoding via the bracketed path segment `[16505689]`.
+		// Pages 22–25 of this 31-page scan are image-heavy and individually
+		// defeat DeepInfra's 360s SDK budget; the OCR pipeline's partial-
+		// success threshold accepts the remaining 27/31
+		// pages (0.871) and renders placeholders for the rest.
+		// `expectedContent` appears on pages 1, 2, 3, 5, 6, 18, 21, 28, 30,
+		// 31, all outside the known-flaky range — confirmed via
+		// `pdftotext -f N -l N` against the staged source PDF.
+		//
+		// The slowest and most token-hungry entry (31 scanned pages), so it
+		// sits last: nothing more expensive runs after it.
+		label: "PDF (CIA reading room)",
+		url: "https://www.cia.gov/readingroom/docs/COMPUTERS%20AND%20AUTOMATION%20[16505689].pdf",
+		expectedContent: "Warren Commission",
 		expectsThumbnail: false,
 	},
 ];
