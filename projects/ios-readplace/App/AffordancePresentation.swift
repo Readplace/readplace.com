@@ -19,9 +19,7 @@ struct AffordancePresentation {
 	/// `update-status` is a server toggle (it may set the status to `read` OR
 	/// `unread`), so whether it removes the row depends on the action's `status`
 	/// field `value`, not the token — that transition-aware decision lives in
-	/// `Affordance.removesItemFromUnreadList`, not here. Per 'State Lives in the
-	/// Network', an action that does not remove the item leaves the list untouched
-	/// and lets the next load reconcile it.
+	/// `Affordance.removesItemFromUnreadList`, not here.
 	let removesItem: Bool
 	/// Whether the wire token alone allows presenting this affordance as a
 	/// collection toolbar control. `false` for two kinds excluded structurally (not
@@ -133,14 +131,13 @@ extension Affordance {
 	}
 
 	/// Whether invoking this affordance removes the item it acts on from the
-	/// unread-only reading list, so the View can scope its optimistic row removal to
-	/// transitions that actually leave the view. `delete` always removes (known from
-	/// the token). `update-status` is a server toggle, so it removes the row only
-	/// when its `status` field's server-supplied `value` moves the item out of the
+	/// unread-only reading list — the row the post-action adoption drops when the
+	/// server's returned collection can't confirm it (a deep-scrolled merge keeps
+	/// rows the fresh head doesn't cover, and a non-collection response carries no
+	/// re-list direction at all). `delete` always removes (known from the token).
+	/// `update-status` is a server toggle, so it removes the row only when its
+	/// `status` field's server-supplied `value` moves the item out of the
 	/// unread-only list (`read`); a toggle back to `unread` leaves the row in place.
-	/// Any other action does not remove the row — per 'State Lives in the Network'
-	/// the list is left for the next load to reconcile rather than synthesised
-	/// client-side.
 	var removesItemFromUnreadList: Bool {
 		if presentation.removesItem { return true }
 		guard case let .action(action) = invocation else { return false }

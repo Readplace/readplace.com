@@ -29,6 +29,14 @@ final class ReadingListViewModel: ObservableObject {
 
 	private var nextHref: String?
 	private var isLoadingMore = false
+	/// Whether rows beyond the first page are loaded. A post-action adoption
+	/// replaces the list outright only while everything on screen came from one
+	/// page; once the user has scrolled deeper, adoption merges instead, so the
+	/// rows anchoring the scroll position survive (see `adopt`).
+	private var hasPaginated = false
+	/// Whether a collection has ever been applied. Gates the foreground refresh so
+	/// it never races the initial `.task` load with a second fetch at launch.
+	private var hasLoadedOnce = false
 
 	private let api: ReadplaceAPI
 	private let onSessionExpired: () -> Void
@@ -94,46 +102,102 @@ final class ReadingListViewModel: ObservableObject {
 	/// href/method/fields. The client supplies no field knowledge: every declared
 	/// field's server-suggested `value` is posted by the generic invoker, so a bare
 	/// (action, item) invocation is sufficient — `update-status` carries its target
-	/// status as the field `value`, not a client constant. Whether the row leaves
-	/// the unread-only list is derived from that transition, not the action name:
-	/// `delete` always removes, an `update-status` toggle removes only when its
-	/// `status` value is `read` (a toggle back to `unread` leaves the row), and any
-	/// other action leaves the list untouched for the next load to reconcile. A row
-	/// that removes drops optimistically and the server confirms; a failed removal
-	/// restores the snapshot and surfaces the error.
+	/// status as the field `value`, not a client constant. On success the list
+	/// converges to whatever collection the server drove the invoke back to — the
+	/// post-action truth, carrying changes made elsewhere (an item marked unread on
+	/// the website appears right here). A failure surfaces the error and leaves the
+	/// current list in place; there is no optimistic removal to roll back.
 	func invoke(_ action: SirenAction, on article: Article) async {
 		let removesItem = Affordance(action: action)?.removesItemFromUnreadList ?? false
-		let snapshot = articles
-		// Optimistically drop the row only for an item-removing action, then confirm
-		// with the server. Nothing is re-applied on success, so the pagination cursor
-		// (nextHref/hasMore) survives; a failure restores the snapshot.
-		if removesItem { articles.removeAll { $0.id == article.id } }
 		do {
-			try await api.invoke(action: action)
+			let page = try await api.invoke(action: action)
+			adopt(page, droppingId: removesItem ? article.id : nil)
 		} catch {
-			if removesItem { articles = snapshot }
 			handle(error)
 		}
 	}
 
 	/// Invokes a collection-level action via its own href/method/type/fields through
 	/// the generic invoker — the bare-invokable toolbar control path. The action
-	/// carries no row, so nothing is dropped optimistically; the server is the source
-	/// of truth, so a successful invoke reloads the collection to reflect the new
-	/// state. A failure surfaces the error and leaves the current list in place.
+	/// carries no row and reshapes the whole list (e.g. a purge), so the server's
+	/// post-invoke collection replaces it outright; when the invoke lands on no
+	/// collection, a fresh first-page load converges instead. A failure surfaces
+	/// the error and leaves the current list in place.
 	func invokeCollection(_ action: SirenAction) async {
 		do {
-			try await api.invoke(action: action)
-			await fetchFirstPage()
+			if let page = try await api.invoke(action: action) {
+				apply(page, replacing: true)
+			} else {
+				await fetchFirstPage()
+			}
 		} catch {
 			handle(error)
 		}
 	}
 
-	/// Removes a row after the reader marked it read, so it leaves the
-	/// unread-only list without a round trip.
-	func removeArticle(id: String) {
+	/// Drops the row the reader just marked read — instantly, so the unread-only
+	/// list never shows it again behind the sheet — then converges with the server.
+	/// The reader's own POST answers inside the webview where no Siren body is
+	/// available, so a shallow list re-reads to bring in whatever changed elsewhere
+	/// (e.g. an item marked unread on the website); a deep-scrolled list keeps only
+	/// the local drop so the viewport never moves (`convergeWithServer`).
+	func readerMarkedRead(id: String) async {
 		articles.removeAll { $0.id == id }
+		await convergeWithServer(droppingId: id)
+	}
+
+	/// Re-reads the list when the app returns to the foreground, so changes made
+	/// while backgrounded — a share-sheet save, an item marked unread on the
+	/// website — appear without pull-to-refresh. Gated on a completed first load:
+	/// at launch the `.task` load owns the fetch and this is a no-op. A deep-scrolled
+	/// list is left untouched (`convergeWithServer` no-ops) so returning to the app
+	/// never yanks the user's position; a pull-to-refresh is their explicit re-read.
+	func handleForeground() async {
+		guard hasLoadedOnce else { return }
+		await convergeWithServer(droppingId: nil)
+	}
+
+	/// Reconciles the visible list with the server's post-action collection.
+	///
+	/// While the user is near the top (only the first page loaded) the collection
+	/// replaces the list outright — pure server truth, dropping the acted-on row and
+	/// surfacing whatever changed elsewhere. Once the user has scrolled deeper,
+	/// replacing would collapse the list to one page and yank the scroll, and
+	/// splicing a fresh head above the viewport would shift it (a plain `List` does
+	/// not hold its offset across an above-viewport insert), so a deep-scrolled list
+	/// stays exactly where it is: the only change applied is the confirmed removal
+	/// of the acted-on row. The rest reconciles on the next pull-to-refresh — the
+	/// user's explicit "re-read now" gesture, which is the one place a jump to the
+	/// top is expected. With no collection to adopt (a non-collection response) the
+	/// server directed no re-list, so again only the confirmed removal is applied.
+	private func adopt(_ page: QueuePage?, droppingId removedId: String?) {
+		guard !hasPaginated, let page else {
+			if let removedId { articles.removeAll { $0.id == removedId } }
+			return
+		}
+		apply(page, replacing: true, droppingId: removedId)
+	}
+
+	/// Fetches a fresh first page and adopts it, for the surfaces that have no
+	/// invoke response body of their own (the reader's mark-as-read, the foreground
+	/// refresh). A deep-scrolled list is not re-read at all — it only applies the
+	/// confirmed removal locally and holds its position; reconciliation waits for a
+	/// pull-to-refresh. A shallow list re-reads under an in-flight guard so
+	/// overlapping foregrounds (e.g. rapid app switches) can't interleave.
+	private func convergeWithServer(droppingId removedId: String?) async {
+		guard !hasPaginated else {
+			if let removedId { articles.removeAll { $0.id == removedId } }
+			return
+		}
+		guard !isLoading else { return }
+		isLoading = true
+		defer { isLoading = false }
+		do {
+			let page = try await api.loadQueue()
+			adopt(page, droppingId: removedId)
+		} catch {
+			handle(error)
+		}
 	}
 
 	/// Opens the reader for a tapped row. A row whose server response carries no
@@ -176,36 +240,55 @@ final class ReadingListViewModel: ObservableObject {
 		}
 	}
 
-	private func apply(_ page: QueuePage, replacing: Bool) {
+	/// Applies a loaded page to the list. A replacing load (first page, refresh, or
+	/// a post-action collection) becomes the whole list, minus the acted-on row when
+	/// one is given — so a just-removed row never reappears even if an
+	/// eventually-consistent server GET still lists it. A paginated load appends the
+	/// rows the list doesn't already hold. `droppingId` matters only for a replacing
+	/// load; an append never re-introduces a removed row because its ids are already
+	/// present.
+	private func apply(_ page: QueuePage, replacing: Bool, droppingId removedId: String? = nil) {
 		if replacing {
-			articles = page.articles
+			articles = page.articles.filter { $0.id != removedId }
+			hasPaginated = false
+			// A fresh successful collection reconciles transient banners: a stale
+			// write-refusal (e.g. a since-verified locked account) or error is cleared
+			// here, re-surfacing only if a later write is refused.
+			messages = []
+			errorText = nil
 		} else {
 			let existing = Set(articles.map(\.id))
 			articles += page.articles.filter { !existing.contains($0.id) }
+			hasPaginated = true
 		}
+		hasLoadedOnce = true
 		nextHref = page.nextHref
 		hasMore = page.nextHref != nil
-		// The toolbar renders a client-derived subset of the advertised affordances:
-		// each one the client can present as a toolbar control, dropping the rest by
-		// their presentation (a structural navigation link the client follows itself
-		// for pagination/identity, or a capture-only save reachable only via the
-		// Share Sheet) — not by name-gating a known capability. The client-side add
-		// (+) control is always appended so the reading list can reach the Share help
-		// regardless of what the server advertised. Because that + is now client-owned,
-		// a same-token server affordance is dropped first (via the single isAddLinksHelp
-		// source), so the injected control stays canonical and a server that re-advertises
-		// add-links-help never renders a duplicate +. The toolbar is sourced from the
-		// replacing (first-page) load only: that load is the current collection, so
-		// its subset is the current toolbar. A paginated page only appends rows, so it
-		// neither clears the controls when it advertises none nor flaps them to a
-		// page-scoped set — the first page owns the toolbar for the whole scroll.
+		// The toolbar is sourced from the current collection (a replacing load). A
+		// paginated page only appends rows, so it neither clears the controls when it
+		// advertises none nor flaps them to a page-scoped set — the first page owns
+		// the toolbar for the whole scroll.
 		if replacing {
-			let serverControls = page.affordances.filter {
-				$0.isToolbarControl && !Affordance.isAddLinksHelp($0.token)
-			}
-			collectionAffordances = serverControls + [Self.addLinksHelp]
+			applyToolbar(page)
 		}
 		warningText = page.warning?.message
+	}
+
+	/// Derives the toolbar from a page's advertised affordances: a client-derived
+	/// subset — each one the client can present as a toolbar control, dropping the
+	/// rest by their presentation (a structural navigation link the client follows
+	/// itself for pagination/identity, or a capture-only save reachable only via
+	/// the Share Sheet) — not by name-gating a known capability. The client-side
+	/// add (+) control is always appended so the reading list can reach the Share
+	/// help regardless of what the server advertised. Because that + is client-owned,
+	/// a same-token server affordance is dropped first (via the single isAddLinksHelp
+	/// source), so the injected control stays canonical and a server that re-advertises
+	/// add-links-help never renders a duplicate +.
+	private func applyToolbar(_ page: QueuePage) {
+		let serverControls = page.affordances.filter {
+			$0.isToolbarControl && !Affordance.isAddLinksHelp($0.token)
+		}
+		collectionAffordances = serverControls + [Self.addLinksHelp]
 	}
 
 	private func handle(_ error: Error) {

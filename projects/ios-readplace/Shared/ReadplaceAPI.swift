@@ -145,13 +145,14 @@ final class ReadplaceAPI {
 	/// invokable with no new per-operation code. The caller supplies values only
 	/// for the field names whose semantics the protocol fixes (`status`); the
 	/// action's own declared field defaults fill the rest, and a field the caller
-	/// neither supplies nor the server defaults is simply omitted. The body is
-	/// verified at the protocol level only: a successful follow (a 2xx/3xx, after
-	/// the redirect-preserving delegate re-attaches auth across any redirect)
-	/// confirms it; anything else surfaces as a server error. The response body is
-	/// deliberately not consumed, so a caller's optimistic update is never rolled
-	/// back by a 2xx whose shape this method doesn't read.
-	func invoke(action: SirenAction, values: [String: String] = [:]) async throws {
+	/// neither supplies nor the server defaults is simply omitted. A successful
+	/// follow (a 2xx/3xx, after the redirect-preserving delegate re-attaches auth
+	/// across any redirect) confirms the invoke; anything else surfaces as a server
+	/// error. Returns the followed response's collection when the server drove the
+	/// client back to one — the post-action truth the caller adopts, carrying
+	/// whatever changed elsewhere (e.g. an item marked unread on the website) — or
+	/// nil when the response is no collection: the server directed no re-list.
+	func invoke(action: SirenAction, values: [String: String] = [:]) async throws -> QueuePage? {
 		var fields = values
 		for declared in action.fields ?? [] where fields[declared.name] == nil {
 			if let value = declared.value { fields[declared.name] = value }
@@ -161,6 +162,22 @@ final class ReadplaceAPI {
 		guard (200...399).contains(http.statusCode) else {
 			throw apiError(from: data, status: http.statusCode)
 		}
+		return postActionCollection(data: data, response: http)
+	}
+
+	/// The collection the server drove a successful action back to, or nil when
+	/// the response is not one. Decoded leniently on purpose: an action may land
+	/// on any representation (an entity, an empty body, a non-Siren page), and
+	/// none of those is an error — it just means the server issued no re-list
+	/// direction. The `collection` class is the discriminator because every
+	/// `SirenCollection` field is optional, so any JSON object would otherwise
+	/// pass the decode.
+	private func postActionCollection(data: Data, response: HTTPURLResponse) -> QueuePage? {
+		guard isSirenMediaType(response.value(forHTTPHeaderField: "Content-Type")),
+			let collection = try? JSONDecoder().decode(SirenCollection.self, from: data),
+			(collection.`class` ?? []).contains("collection")
+		else { return nil }
+		return QueuePage(collection: collection)
 	}
 
 	// MARK: - Reader session

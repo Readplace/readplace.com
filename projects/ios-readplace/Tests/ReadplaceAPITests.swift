@@ -505,7 +505,7 @@ final class ReadplaceAPITests: XCTestCase {
 			}
 		}
 
-		try await makeAPI(store: store).invoke(action: updateStatusAction(statusValue: "read"))
+		let page = try await makeAPI(store: store).invoke(action: updateStatusAction(statusValue: "read"))
 
 		let statusRecord = try XCTUnwrap(StubURLProtocol.records(path: "/queue/a1/status").first)
 		XCTAssertEqual(statusRecord.request.httpMethod, "POST")
@@ -516,9 +516,49 @@ final class ReadplaceAPITests: XCTestCase {
 		)
 		XCTAssertNil(
 			statusRecord.request.value(forHTTPHeaderField: "Prefer"),
-			"success is decoupled from the response body, so no representation is requested"
+			"the representation rides the followed redirect, so none is requested"
 		)
 		XCTAssertEqual(StubURLProtocol.records(path: "/queue").count, 1, "the 303 to /queue is followed")
+		XCTAssertEqual(
+			page?.articles.map(\.id), ["remaining"],
+			"the followed collection is returned as the post-action truth for the caller to adopt"
+		)
+	}
+
+	func testInvokeReturnsNoPageWhenTheResponseIsNotACollection() async throws {
+		// An invoke may land on any representation. A Siren body without the
+		// `collection` class (here: an article entity) is no re-list direction —
+		// and because every SirenCollection field is optional, the class is the
+		// only honest discriminator against misreading an entity as a list.
+		let store = TestSupport.loggedInStore()
+		StubURLProtocol.setHandler { request, _ in
+			request.url?.path == "/queue/a1/status"
+				? .json(200, Fixtures.article(id: "a1"))
+				: .json(404, "{}")
+		}
+
+		let page = try await makeAPI(store: store).invoke(action: updateStatusAction(statusValue: "read"))
+
+		XCTAssertNil(page, "a non-collection response carries no post-action list to adopt")
+	}
+
+	func testInvokeReturnsNoPageWhenTheResponseIsNotSiren() async throws {
+		// A 2xx in a media type the client doesn't speak still confirms the invoke
+		// (the protocol-level outcome), but carries no collection to adopt.
+		let store = TestSupport.loggedInStore()
+		StubURLProtocol.setHandler { request, _ in
+			request.url?.path == "/queue/a1/status"
+				? StubURLProtocol.Stub(
+					status: 200,
+					headers: ["Content-Type": "text/html"],
+					body: Data("<!doctype html>".utf8)
+				)
+				: .json(404, "{}")
+		}
+
+		let page = try await makeAPI(store: store).invoke(action: updateStatusAction(statusValue: "read"))
+
+		XCTAssertNil(page, "a non-Siren response carries no post-action list to adopt")
 	}
 
 	func testInvokeTakesTheStatusFromTheFieldValueNotAClientConstant() async throws {
@@ -531,7 +571,7 @@ final class ReadplaceAPITests: XCTestCase {
 				: .redirect(to: "/queue")
 		}
 
-		try await makeAPI(store: store).invoke(action: updateStatusAction(statusValue: "archived"))
+		_ = try await makeAPI(store: store).invoke(action: updateStatusAction(statusValue: "archived"))
 
 		XCTAssertEqual(
 			TestSupport.formFields(StubURLProtocol.records(path: "/queue/a1/status").first!.body)["status"],
@@ -555,7 +595,7 @@ final class ReadplaceAPITests: XCTestCase {
 			fields: [SirenField(name: "status", type: "text", value: "unread")]
 		)
 
-		try await makeAPI(store: store).invoke(action: search)
+		_ = try await makeAPI(store: store).invoke(action: search)
 
 		let record = try XCTUnwrap(StubURLProtocol.records(path: "/queue").first)
 		XCTAssertEqual(record.request.httpMethod, "GET")
@@ -585,7 +625,7 @@ final class ReadplaceAPITests: XCTestCase {
 			fields: [SirenField(name: "status", type: "text", value: "read")]
 		)
 
-		try await makeAPI(store: store).invoke(action: action)
+		_ = try await makeAPI(store: store).invoke(action: action)
 
 		let record = try XCTUnwrap(StubURLProtocol.records(path: "/queue/a1/status").first)
 		XCTAssertEqual(
@@ -604,7 +644,7 @@ final class ReadplaceAPITests: XCTestCase {
 			.json(500, Fixtures.sirenError(code: "boom", message: "nope", withSaveArticleFallback: false))
 		}
 		do {
-			try await makeAPI(store: store).invoke(action: updateStatusAction(), values: ["status": "read"])
+			_ = try await makeAPI(store: store).invoke(action: updateStatusAction(), values: ["status": "read"])
 			XCTFail("Expected a server error")
 		} catch let error as APIError {
 			// The client verifies the protocol-level outcome only: any non-2xx/3xx
