@@ -340,10 +340,14 @@ exercised on every run, not only when someone builds `make ipa-staging` by hand.
   not immediate). Deploy the server with the `ios-app` client before the build
   that uses it — an older build still sending `hutch-chrome-extension` +
   `readplace://oauth-callback` can no longer start a login. This one-time
-  re-login is an acceptable cost for proper client isolation because the app
-  ships only via TestFlight / sideload (not the App Store), where the tester pool
-  updates quickly. The native scheme is identical across production and staging,
-  so sign-in needs no per-environment callback registration.
+  re-login was a bounded cost while the app shipped only via TestFlight /
+  sideload, where the tester pool turns over quickly. Once it is on the App
+  Store, users stay on old builds for a long time, so a change like this — one
+  that invalidates existing installs' credentials — is no longer safe to make
+  unilaterally: future server-side auth changes must stay backward-compatible
+  with shipped App Store builds. The native scheme is identical across
+  production and staging, so sign-in needs no per-environment callback
+  registration.
 - **The server URL is fixed at build time** in `AppConfig.serverBaseURL` — there
   is no Server field on the sign-in screen. `make ipa` targets production;
   `make ipa-staging` compiles with the `STAGING` condition to target staging.
