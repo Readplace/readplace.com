@@ -268,21 +268,29 @@
  * 1. The content flexes to full width, so when there is no thumbnail (imageUrl
  *    absent, or removed by the img onerror handler) the title and excerpt
  *    reclaim the whole row instead of leaving an empty thumbnail gap.
+ * 2. gap:0 (not a flex gap) so no unclickable gutter sits between the text
+ *    column and the thumbnail — the visual gap is recreated as the thumbnail
+ *    link's own padding (clickable), see __thumbnail-link.
  */
 .queue-article__body {
   display: flex;
   align-items: flex-start;
-  gap: clamp(12px, 3vw, 16px);
+  gap: 0; /* 2 */
 }
 
 /**
  * 1. visibility (not display) reserves the thumbnail box before the bitmap
  *    loads — the img is sized by width + aspect-ratio — so the body height is
  *    fixed at first paint and never jumps on load or on the 3s self-swap.
+ * 2. padding-left is the (clickable) gutter to the text column; align-self
+ *    stretches the link to the full body height so the whole strip beside and
+ *    below the image opens the reader too — no unclickable area next to it.
  */
 .queue-article__thumbnail-link {
   flex: 0 0 auto;
   visibility: hidden; /* 1 */
+  padding-left: clamp(12px, 3vw, 16px); /* 2 */
+  align-self: stretch; /* 2 */
 }
 
 .queue-article__thumbnail-link--loaded {
@@ -297,12 +305,18 @@
   border-radius: var(--radius);
 }
 
+/**
+ * 1. gap:0 so the space between the title and excerpt is not an unclickable
+ *    band — each anchor carries its own share of it as padding (see __title
+ *    and __excerpt). The non-link rows (__processing, __stale-pending) restore
+ *    their own spacing with margin-top.
+ */
 .queue-article__content {
   flex: 1 1 auto;
   min-width: 0;
   display: flex;
   flex-direction: column;
-  gap: 4px;
+  gap: 0; /* 1 */
 }
 
 .queue-article__url {
@@ -333,6 +347,7 @@
   line-clamp: 2;
   -webkit-box-orient: vertical;
   overflow: hidden;
+  padding-bottom: 2px;
 }
 
 .queue-article__title:hover {
@@ -347,23 +362,33 @@
   color: var(--primary);
 }
 
+/**
+ * 1. The excerpt is an anchor to the reader view (its own utm_content), so it
+ *    needs the link reset — there is no global bare-`a` reset — else the text
+ *    would render underlined.
+ * 2. padding-top makes the band above the excerpt part of its clickable box, so
+ *    it meets the title's padding-bottom with no dead space between them.
+ */
 .queue-article__excerpt {
   margin: 0;
   font-size: 0.875rem;
   line-height: 1.5;
   color: var(--muted-foreground);
+  text-decoration: none; /* 1 */
   display: -webkit-box;
   -webkit-line-clamp: 2;
   line-clamp: 2;
   -webkit-box-orient: vertical;
   overflow: hidden;
+  padding-top: 2px; /* 2 */
 }
 
 .queue-article__processing {
   display: flex;
   align-items: center;
   gap: 6px;
-  margin: 0;
+  /* Restores the row spacing that __content's gap:0 removed. */
+  margin: 4px 0 0;
   font-size: 0.75rem;
   font-weight: 500;
   color: var(--muted-foreground);
@@ -394,7 +419,8 @@
 }
 
 .queue-article__stale-pending {
-  margin: 0;
+  /* Restores the row spacing that __content's gap:0 removed. */
+  margin: 4px 0 0;
   font-size: 0.75rem;
   color: var(--muted-foreground);
 }

@@ -189,6 +189,17 @@ describe("createAnalyticsMiddleware — internal click events", () => {
 		expect(JSON.stringify(click)).not.toContain("utm_campaign");
 	});
 
+	it("captures utm_term on a click so device-tagged reader-view links (queue-card) are sliceable by device", () => {
+		const req = createReq({ query: { ...internalQuery, utm_content: "open-article-title", utm_term: "mobile_ios" } });
+		const [click] = runMiddlewareClicks(req, createRes(200));
+		expect(click).toMatchObject({ utm_content: "open-article-title", utm_term: "mobile_ios" });
+	});
+
+	it("drops utm_term from the emitted JSON when the link carries no term (most clicks)", () => {
+		const [click] = runMiddlewareClicks(createReq({ query: internalQuery }), createRes(200));
+		expect(JSON.stringify(click)).not.toContain("utm_term");
+	});
+
 	it("counts an HTMX-boosted navigation as a click even though the pageview path drops hx-request — boosted links are still clicks", () => {
 		const req = createReq({ query: internalQuery, headers: { "hx-request": "true" } });
 		expect(runMiddlewareClicks(req, createRes(200))).toHaveLength(1);

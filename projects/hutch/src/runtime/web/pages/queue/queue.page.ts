@@ -595,7 +595,7 @@ export function initQueueRoutes(deps: QueueDependencies): Router {
 		sendComponent(
 			req, res,
 			Base(
-				QueuePage(vm, { saveUrl: filterUrl, platform, installed, savedArticle, onboardingDismissed }),
+				QueuePage(vm, { saveUrl: filterUrl, platform, installed, savedArticle, onboardingDismissed, deviceClass: classifyDeviceClass(req.get("user-agent")) }),
 				await deps.buildBannerState(req, { preFetchedAccess: effectiveAccess }),
 			),
 		);
@@ -1051,7 +1051,7 @@ export function initQueueRoutes(deps: QueueDependencies): Router {
 				summaryByUrl,
 				crawlByUrl,
 			});
-			sendComponent(req, res, Base(QueuePage(vm, { statusCode: 422 }), await deps.buildBannerState(req)));
+			sendComponent(req, res, Base(QueuePage(vm, { statusCode: 422, deviceClass: classifyDeviceClass(req.get("user-agent")) }), await deps.buildBannerState(req)));
 			return;
 		}
 
@@ -1208,7 +1208,10 @@ export function initQueueRoutes(deps: QueueDependencies): Router {
 			maxPolls: MAX_POLLS,
 		});
 		const html = renderQueueCard(
-			toQueueCardDisplayModel(articleVm, { isFirst: false }),
+			toQueueCardDisplayModel(articleVm, {
+				isFirst: false,
+				deviceClass: classifyDeviceClass(req.get("user-agent")),
+			}),
 		);
 		res.status(200).type("html").send(html);
 	});
