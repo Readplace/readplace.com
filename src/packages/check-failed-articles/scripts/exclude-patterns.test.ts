@@ -595,6 +595,16 @@ describe("EXCLUDE_PATTERNS — permanently-unreachable saves", () => {
 			label: "wayback ABU press-page capture (collapsed scheme)",
 		},
 		{
+			url: "https://web.archive.org/web/20180322015139/http://www.abu.org.my/Latest_News-@-CNA_to_launch_satellite_studio_in_Malaysia.aspx",
+			excluded: true,
+			label: "wayback ABU press-page 2018-03-22 capture, uncollapsed embedded scheme (http://)",
+		},
+		{
+			url: "https://web.archive.org/web/20180322015139/http:/www.abu.org.my/Latest_News-@-CNA_to_launch_satellite_studio_in_Malaysia.aspx",
+			excluded: true,
+			label: "wayback ABU press-page 2018-03-22 capture, collapsed embedded scheme (http:/)",
+		},
+		{
 			url: "https://web.archive.org/web/20200101000000/https://www.abu.org.my/Latest_News-@-CNA_to_launch_satellite_studio_in_Malaysia.aspx",
 			excluded: false,
 			label: "different-timestamp ABU capture — must NOT be hidden",
