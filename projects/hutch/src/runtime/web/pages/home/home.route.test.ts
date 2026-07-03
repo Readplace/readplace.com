@@ -64,6 +64,16 @@ describe("GET /", () => {
 		expect(script.hasAttribute("defer")).toBe(true);
 	});
 
+	it("should load the homepage-split A/B redirect bundle on the guest entry", async () => {
+		const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
+		const response = await request(harness.server).get("/");
+		const doc = new JSDOM(response.text).window.document;
+
+		const script = doc.querySelector('script[src="/client-dist/homepage-split.client.js"]');
+		assert(script, "homepage-split.client.js bundle must be loaded on the guest / entry");
+		expect(script.hasAttribute("defer")).toBe(true);
+	});
+
 	it("should render a generic install CTA when browser is unrecognized", async () => {
 		const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
 		const response = await request(harness.server).get("/");

@@ -177,6 +177,7 @@ import { HelpAddLinksPage } from "./web/pages/help";
 import { E2EFixturePage } from "./web/pages/e2e-fixture";
 import { createE2EFixturePdf } from "./web/pages/e2e-fixture-pdf";
 import { initInstallRoutes } from "./web/pages/install";
+import { initLandingRoutes } from "./web/pages/landing";
 import { NotFoundPage } from "./web/pages/not-found";
 import { initGetEffectiveAccess } from "./domain/access/effective-access";
 import { initRequireWriteAccess } from "./web/middleware/require-write-access.middleware";
@@ -758,6 +759,12 @@ export function createApp(dependencies: AppDependencies): Express {
 	}
 
 	app.use(initInstallRoutes({ buildBannerState }));
+
+	// A/B landing arms for the homepage split (`/landing-a`, `/landing-b`),
+	// reached by the client-side redirect from `/`. Same guest render as `/`.
+	app.use(
+		initLandingRoutes({ buildBannerState, countUsers, foundingAllocation, staticBaseUrl }),
+	);
 
 	/** Same-origin dismissal endpoint for the site-wide changelog banner; served
 	 * here on $default even when the close button is clicked on a /blog page. */

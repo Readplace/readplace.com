@@ -13,13 +13,21 @@ const HOME_TEMPLATE = readFileSync(join(__dirname, "home.template.html"), "utf-8
 
 const HOME_CLIENT_SCRIPT = `<script src="/client-dist/home.client.js" defer></script>`;
 
+/** Only emitted on the bare `/` entry (no `variant`). It reads/assigns the A/B
+ * bucket in localStorage and redirects to the matching landing arm. The landing
+ * arms render HomePage *with* a `variant`, so they omit this script and can't
+ * redirect into a loop. */
+const HOME_SPLIT_SCRIPT = `<script src="/client-dist/homepage-split.client.js" defer></script>`;
+
 export function HomePage(params: {
 	userCount: number;
 	staticBaseUrl: string;
 	browser: "firefox" | "chrome" | "other";
 	foundingAllocation: FoundingAllocation;
+	/** Set on the A/B landing arms (`/landing-a`, `/landing-b`); absent on `/`. */
+	variant?: "a" | "b";
 }): PageBody {
-	const { userCount, staticBaseUrl, browser, foundingAllocation } = params;
+	const { userCount, staticBaseUrl, browser, foundingAllocation, variant } = params;
 	const foundingMemberLimit = foundingAllocation.foundingMemberLimit;
 	const foundingProgressHtml = renderFoundingProgress({ userCount, foundingAllocation });
 	const foundingAllocationAvailable = !foundingAllocation.isFoundingAllocationExhausted(userCount);
@@ -42,6 +50,9 @@ export function HomePage(params: {
 				"The read-it-later app and online reader for distraction-free reading — save any article or web page in one click and read it later in a clean reader view. A privacy-first Pocket alternative with real Tesseract OCR for scanned PDFs (no LLM hallucination). Read the Web, not the Slop.",
 			canonicalUrl: "https://readplace.com",
 			ogType: "website",
+			// The A/B arms are noindex so only the canonical `/` competes for SEO;
+			// the canonical above stays on `/` for all three renders.
+			robots: variant ? "noindex, follow" : "index, follow",
 			ogImage: `${staticBaseUrl}/og-image-1200x630.png`,
 			ogImageType: "image/png",
 			ogImageAlt:
@@ -227,8 +238,8 @@ export function HomePage(params: {
 			],
 		},
 		styles: HOME_PAGE_STYLES,
-		scripts: HOME_CLIENT_SCRIPT,
-		bodyClass: "page-home",
+		scripts: variant ? HOME_CLIENT_SCRIPT : `${HOME_CLIENT_SCRIPT}${HOME_SPLIT_SCRIPT}`,
+		bodyClass: variant ? `page-home variant-${variant}` : "page-home",
 		content: { html: render(HOME_TEMPLATE, {
 			staticBaseUrl,
 			browserName: browser,

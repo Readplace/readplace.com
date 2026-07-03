@@ -235,6 +235,25 @@ const BUNDLES = [
 	{
 		entry: path.join(
 			PROJECT_ROOT,
+			"src/runtime/web/experiments/homepage-split.client.ts",
+		),
+		outfile: path.join(OUT_DIR, "homepage-split.client.js"),
+		globalName: "HomepageSplit",
+		footer: [
+			// Runs immediately (defer already waits for parse) so the A/B redirect
+			// fires before paint. randomByte draws one unsigned byte from the CSPRNG
+			// — no Math.random.
+			"HomepageSplit.initHomepageSplit({",
+			"  config: HomepageSplit.HOMEPAGE_SPLIT,",
+			"  location: window.location,",
+			"  storage: window.localStorage,",
+			"  randomByte: function () { return window.crypto.getRandomValues(new Uint8Array(1))[0]; }",
+			"});",
+		].join("\n"),
+	},
+	{
+		entry: path.join(
+			PROJECT_ROOT,
 			"src/runtime/web/trial-countdown.client.ts",
 		),
 		outfile: path.join(OUT_DIR, "trial-countdown.client.js"),

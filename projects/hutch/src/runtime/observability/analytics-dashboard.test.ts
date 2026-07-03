@@ -1,4 +1,5 @@
 import { SAVE_LINK_LOG_GROUPS } from "@packages/hutch-infra-components";
+import { HOMEPAGE_SPLIT } from "../web/experiments/homepage-split";
 import {
 	ANALYTICS_EVENTS,
 	CONVERSION_EVENTS,
@@ -68,9 +69,17 @@ function collectReferencedEvents(): Set<string> {
 }
 
 describe("buildAnalyticsDashboardBody — drift prevention", () => {
-	it("emits 26 widgets (7 traffic+audience, 3 conversions, 3 imports+medium, 3 subscriptions, 2 view-funnel, 1 internal-clicks, 3 save-funnel, 1 summary-engagement, 2 audience-device, 1 errors) — adding or dropping one without updating this count is a deliberate signal to review the dashboard's scope", () => {
+	it("emits 27 widgets (7 traffic+audience, 3 conversions, 3 imports+medium, 3 subscriptions, 2 view-funnel, 1 internal-clicks, 3 save-funnel, 1 summary-engagement, 2 audience-device, 1 errors, 1 homepage-ab) — adding or dropping one without updating this count is a deliberate signal to review the dashboard's scope", () => {
 		const body = buildBody();
-		expect(body.widgets).toHaveLength(26);
+		expect(body.widgets).toHaveLength(27);
+	});
+
+	it("the homepage A/B widget counts pageviews on the experiment campaign, grouped by variant (utm_content)", () => {
+		const queries = widgetQueries();
+		const ab = queries.find((q) => q.includes(`utm_campaign = "${HOMEPAGE_SPLIT.campaign}"`));
+		expect(ab).toBeDefined();
+		expect(ab).toContain(`event = "${ANALYTICS_EVENTS.pageview}"`);
+		expect(ab).toContain("stats count(*) as landings by utm_content");
 	});
 
 	it("the readers widget counts distinct user_ids from article_read events (not pageviews) — distinguishes opening the reader from explicitly marking-as-read", () => {
