@@ -1,4 +1,5 @@
 import assert from "node:assert/strict";
+import { type HutchLogger, noopLogger } from "@packages/hutch-logger";
 import { PaymentMethodIdSchema } from "@packages/provider-contracts/payment-methods";
 import { initStripePaymentMethods } from "./stripe-payment-methods";
 
@@ -43,7 +44,7 @@ describe("initStripePaymentMethods", () => {
 				});
 			};
 
-			const stripe = initStripePaymentMethods({ apiKey: "sk_test_abc", fetch: fakeFetch });
+			const stripe = initStripePaymentMethods({ apiKey: "sk_test_abc", fetch: fakeFetch, logger: noopLogger });
 			const cards = await stripe.listCards({ customerId: "cus_abc" });
 
 			assert.deepEqual(receivedUrls, [
@@ -73,7 +74,7 @@ describe("initStripePaymentMethods", () => {
 				return jsonResponse(200, { invoice_settings: { default_payment_method: null } });
 			};
 
-			const stripe = initStripePaymentMethods({ apiKey: "sk_test_abc", fetch: fakeFetch });
+			const stripe = initStripePaymentMethods({ apiKey: "sk_test_abc", fetch: fakeFetch, logger: noopLogger });
 			const cards = await stripe.listCards({ customerId: "cus_abc" });
 
 			assert.equal(cards[0].isPrimary, false);
@@ -90,7 +91,7 @@ describe("initStripePaymentMethods", () => {
 				return jsonResponse(200, { invoice_settings: { default_payment_method: null } });
 			};
 
-			const stripe = initStripePaymentMethods({ apiKey: "sk_test_abc", fetch: fakeFetch });
+			const stripe = initStripePaymentMethods({ apiKey: "sk_test_abc", fetch: fakeFetch, logger: noopLogger });
 			await stripe.listCards({ customerId: "cus with/slash" });
 
 			assert.equal(
@@ -103,7 +104,7 @@ describe("initStripePaymentMethods", () => {
 			const fakeFetch: typeof globalThis.fetch = async () =>
 				jsonResponse(500, { error: { code: "api_error", message: "Stripe is down" } });
 
-			const stripe = initStripePaymentMethods({ apiKey: "sk_test_abc", fetch: fakeFetch });
+			const stripe = initStripePaymentMethods({ apiKey: "sk_test_abc", fetch: fakeFetch, logger: noopLogger });
 
 			await assert.rejects(
 				() => stripe.listCards({ customerId: "cus_abc" }),
@@ -111,7 +112,7 @@ describe("initStripePaymentMethods", () => {
 			);
 		});
 
-		it("throws when the customer read fails after a successful list", async () => {
+		it("throws with the Stripe error message when the customer read fails", async () => {
 			const fakeFetch: typeof globalThis.fetch = async (input) => {
 				const url = typeof input === "string" ? input : input.toString();
 				if (url.includes("/payment_methods")) {
@@ -120,7 +121,7 @@ describe("initStripePaymentMethods", () => {
 				return jsonResponse(503, { unexpected: "shape" });
 			};
 
-			const stripe = initStripePaymentMethods({ apiKey: "sk_test_abc", fetch: fakeFetch });
+			const stripe = initStripePaymentMethods({ apiKey: "sk_test_abc", fetch: fakeFetch, logger: noopLogger });
 
 			await assert.rejects(
 				() => stripe.listCards({ customerId: "cus_abc" }),
@@ -146,7 +147,7 @@ describe("initStripePaymentMethods", () => {
 				});
 			};
 
-			const stripe = initStripePaymentMethods({ apiKey: "sk_test_abc", fetch: fakeFetch });
+			const stripe = initStripePaymentMethods({ apiKey: "sk_test_abc", fetch: fakeFetch, logger: noopLogger });
 			const cards = await stripe.listCards({ customerId: "cus_abc", subscriptionId: "sub_abc" });
 
 			assert.ok(receivedUrls.includes("https://api.stripe.com/v1/subscriptions/sub_abc"));
@@ -170,7 +171,7 @@ describe("initStripePaymentMethods", () => {
 				});
 			};
 
-			const stripe = initStripePaymentMethods({ apiKey: "sk_test_abc", fetch: fakeFetch });
+			const stripe = initStripePaymentMethods({ apiKey: "sk_test_abc", fetch: fakeFetch, logger: noopLogger });
 			const cards = await stripe.listCards({ customerId: "cus_abc", subscriptionId: "sub_abc" });
 
 			assert.equal(cards.find((c) => c.id === "pm_customer_default")?.isPrimary, true);
@@ -189,12 +190,91 @@ describe("initStripePaymentMethods", () => {
 				return jsonResponse(200, { invoice_settings: { default_payment_method: null } });
 			};
 
-			const stripe = initStripePaymentMethods({ apiKey: "sk_test_abc", fetch: fakeFetch });
+			const stripe = initStripePaymentMethods({ apiKey: "sk_test_abc", fetch: fakeFetch, logger: noopLogger });
 
 			await assert.rejects(
 				() => stripe.listCards({ customerId: "cus_abc", subscriptionId: "sub_abc" }),
 				/Stripe listCards failed \(404\): No such subscription/,
 			);
+		});
+
+		it("issues the payment_methods, customer, and subscription reads concurrently", async () => {
+			let inFlight = 0;
+			let peakInFlight = 0;
+			const fakeFetch: typeof globalThis.fetch = async (input) => {
+				const url = typeof input === "string" ? input : input.toString();
+				inFlight += 1;
+				peakInFlight = Math.max(peakInFlight, inFlight);
+				await Promise.resolve();
+				inFlight -= 1;
+				if (url.includes("/payment_methods")) {
+					return jsonResponse(200, { data: [] });
+				}
+				if (url.includes("/subscriptions/")) {
+					return jsonResponse(200, { default_payment_method: null });
+				}
+				return jsonResponse(200, { invoice_settings: { default_payment_method: null } });
+			};
+
+			const stripe = initStripePaymentMethods({
+				apiKey: "sk_test_abc",
+				fetch: fakeFetch,
+				logger: noopLogger,
+			});
+			await stripe.listCards({ customerId: "cus_abc", subscriptionId: "sub_abc" });
+
+			assert.equal(peakInFlight, 3);
+		});
+
+		it("warns when the funding payment method is absent from the returned card list", async () => {
+			const warnings: unknown[][] = [];
+			const logger: HutchLogger = {
+				...noopLogger,
+				warn: (...args) => {
+					warnings.push(args);
+				},
+			};
+			const fakeFetch: typeof globalThis.fetch = async (input) => {
+				const url = typeof input === "string" ? input : input.toString();
+				if (url.includes("/payment_methods")) {
+					return jsonResponse(200, { data: [cardPayload("pm_listed")] });
+				}
+				return jsonResponse(200, { invoice_settings: { default_payment_method: "pm_missing" } });
+			};
+
+			const stripe = initStripePaymentMethods({ apiKey: "sk_test_abc", fetch: fakeFetch, logger });
+			const cards = await stripe.listCards({ customerId: "cus_abc" });
+
+			assert.equal(cards.length, 1);
+			assert.equal(cards[0].isPrimary, false);
+			assert.equal(warnings.length, 1);
+			assert.deepEqual(warnings[0][1], {
+				customerId: "cus_abc",
+				fundingPaymentMethodId: "pm_missing",
+			});
+		});
+
+		it("does not warn when the funding card is present in the list", async () => {
+			const warnings: unknown[][] = [];
+			const logger: HutchLogger = {
+				...noopLogger,
+				warn: (...args) => {
+					warnings.push(args);
+				},
+			};
+			const fakeFetch: typeof globalThis.fetch = async (input) => {
+				const url = typeof input === "string" ? input : input.toString();
+				if (url.includes("/payment_methods")) {
+					return jsonResponse(200, { data: [cardPayload("pm_primary")] });
+				}
+				return jsonResponse(200, { invoice_settings: { default_payment_method: "pm_primary" } });
+			};
+
+			const stripe = initStripePaymentMethods({ apiKey: "sk_test_abc", fetch: fakeFetch, logger });
+			const cards = await stripe.listCards({ customerId: "cus_abc" });
+
+			assert.equal(cards[0].isPrimary, true);
+			assert.equal(warnings.length, 0);
 		});
 	});
 
@@ -208,7 +288,7 @@ describe("initStripePaymentMethods", () => {
 				return jsonResponse(200, { client_secret: "seti_123_secret_abc" });
 			};
 
-			const stripe = initStripePaymentMethods({ apiKey: "sk_test_abc", fetch: fakeFetch });
+			const stripe = initStripePaymentMethods({ apiKey: "sk_test_abc", fetch: fakeFetch, logger: noopLogger });
 			const result = await stripe.beginAddCard({ customerId: "cus_abc" });
 
 			assert.equal(result.clientSecret, "seti_123_secret_abc");
@@ -226,7 +306,7 @@ describe("initStripePaymentMethods", () => {
 			const fakeFetch: typeof globalThis.fetch = async () =>
 				jsonResponse(400, { error: { code: "missing_message" } });
 
-			const stripe = initStripePaymentMethods({ apiKey: "sk_test_abc", fetch: fakeFetch });
+			const stripe = initStripePaymentMethods({ apiKey: "sk_test_abc", fetch: fakeFetch, logger: noopLogger });
 
 			await assert.rejects(
 				() => stripe.beginAddCard({ customerId: "cus_abc" }),
@@ -245,7 +325,7 @@ describe("initStripePaymentMethods", () => {
 				return jsonResponse(200, { id: "pm_card_123" });
 			};
 
-			const stripe = initStripePaymentMethods({ apiKey: "sk_test_abc", fetch: fakeFetch });
+			const stripe = initStripePaymentMethods({ apiKey: "sk_test_abc", fetch: fakeFetch, logger: noopLogger });
 			await stripe.removeCard({ customerId: "cus_abc", cardId: CARD_ID });
 
 			assert.equal(receivedUrl, "https://api.stripe.com/v1/payment_methods/pm_card_123/detach");
@@ -256,7 +336,7 @@ describe("initStripePaymentMethods", () => {
 			const fakeFetch: typeof globalThis.fetch = async () =>
 				jsonResponse(404, { error: { code: "resource_missing", message: "No such PaymentMethod" } });
 
-			const stripe = initStripePaymentMethods({ apiKey: "sk_test_abc", fetch: fakeFetch });
+			const stripe = initStripePaymentMethods({ apiKey: "sk_test_abc", fetch: fakeFetch, logger: noopLogger });
 			await stripe.removeCard({ customerId: "cus_abc", cardId: CARD_ID });
 		});
 
@@ -264,7 +344,7 @@ describe("initStripePaymentMethods", () => {
 			const fakeFetch: typeof globalThis.fetch = async () =>
 				jsonResponse(500, { error: { code: "api_error", message: "Stripe is down" } });
 
-			const stripe = initStripePaymentMethods({ apiKey: "sk_test_abc", fetch: fakeFetch });
+			const stripe = initStripePaymentMethods({ apiKey: "sk_test_abc", fetch: fakeFetch, logger: noopLogger });
 
 			await assert.rejects(
 				() => stripe.removeCard({ customerId: "cus_abc", cardId: CARD_ID }),
@@ -284,7 +364,7 @@ describe("initStripePaymentMethods", () => {
 				return jsonResponse(200, { id: "ok" });
 			};
 
-			const stripe = initStripePaymentMethods({ apiKey: "sk_test_abc", fetch: fakeFetch });
+			const stripe = initStripePaymentMethods({ apiKey: "sk_test_abc", fetch: fakeFetch, logger: noopLogger });
 			await stripe.setPrimaryCard({
 				customerId: "cus_abc",
 				cardId: CARD_ID,
@@ -305,7 +385,7 @@ describe("initStripePaymentMethods", () => {
 				return jsonResponse(200, { id: "ok" });
 			};
 
-			const stripe = initStripePaymentMethods({ apiKey: "sk_test_abc", fetch: fakeFetch });
+			const stripe = initStripePaymentMethods({ apiKey: "sk_test_abc", fetch: fakeFetch, logger: noopLogger });
 			await stripe.setPrimaryCard({ customerId: "cus_abc", cardId: CARD_ID });
 
 			assert.deepEqual(calls, ["https://api.stripe.com/v1/customers/cus_abc"]);
@@ -315,7 +395,7 @@ describe("initStripePaymentMethods", () => {
 			const fakeFetch: typeof globalThis.fetch = async () =>
 				jsonResponse(500, { error: { message: "Stripe is down" } });
 
-			const stripe = initStripePaymentMethods({ apiKey: "sk_test_abc", fetch: fakeFetch });
+			const stripe = initStripePaymentMethods({ apiKey: "sk_test_abc", fetch: fakeFetch, logger: noopLogger });
 
 			await assert.rejects(
 				() => stripe.setPrimaryCard({ customerId: "cus_abc", cardId: CARD_ID }),
@@ -332,7 +412,7 @@ describe("initStripePaymentMethods", () => {
 					: jsonResponse(402, { error: { message: "Card declined" } });
 			};
 
-			const stripe = initStripePaymentMethods({ apiKey: "sk_test_abc", fetch: fakeFetch });
+			const stripe = initStripePaymentMethods({ apiKey: "sk_test_abc", fetch: fakeFetch, logger: noopLogger });
 
 			await assert.rejects(
 				() =>

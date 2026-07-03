@@ -1,4 +1,5 @@
 import { z } from "zod";
+import type { HutchLogger } from "@packages/hutch-logger";
 import {
 	type BeginAddCard,
 	type ListCards,
@@ -53,6 +54,7 @@ const StripeSetupIntentResponse = z.object({
 export function initStripePaymentMethods(deps: {
 	apiKey: string;
 	fetch: typeof globalThis.fetch;
+	logger: HutchLogger;
 }): {
 	listCards: ListCards;
 	beginAddCard: BeginAddCard;
@@ -80,6 +82,29 @@ export function initStripePaymentMethods(deps: {
 		return new Error(`Stripe ${operation} failed (${response.status}): ${message}`);
 	}
 
+	async function readCards(customerIdEncoded: string) {
+		const response = await deps.fetch(
+			`${STRIPE_API}/customers/${customerIdEncoded}/payment_methods?type=card`,
+			{ headers: stripeHeaders },
+		);
+		if (!response.ok) {
+			throw await failed("listCards", response);
+		}
+		return StripePaymentMethodList.parse(await response.json()).data;
+	}
+
+	async function readCustomerDefaultPaymentMethod(
+		customerIdEncoded: string,
+	): Promise<string | null | undefined> {
+		const response = await deps.fetch(`${STRIPE_API}/customers/${customerIdEncoded}`, {
+			headers: stripeHeaders,
+		});
+		if (!response.ok) {
+			throw await failed("listCards", response);
+		}
+		return StripeCustomer.parse(await response.json()).invoice_settings.default_payment_method;
+	}
+
 	async function readSubscriptionDefaultPaymentMethod(
 		subscriptionId: string,
 	): Promise<string | null | undefined> {
@@ -96,22 +121,13 @@ export function initStripePaymentMethods(deps: {
 	const listCards: ListCards = async ({ customerId, subscriptionId }) => {
 		const id = encodeURIComponent(customerId);
 
-		const listResponse = await deps.fetch(
-			`${STRIPE_API}/customers/${id}/payment_methods?type=card`,
-			{ headers: stripeHeaders },
-		);
-		if (!listResponse.ok) {
-			throw await failed("listCards", listResponse);
-		}
-		const list = StripePaymentMethodList.parse(await listResponse.json());
-
-		const customerResponse = await deps.fetch(`${STRIPE_API}/customers/${id}`, {
-			headers: stripeHeaders,
-		});
-		if (!customerResponse.ok) {
-			throw await failed("listCards", customerResponse);
-		}
-		const customer = StripeCustomer.parse(await customerResponse.json());
+		const [cards, customerDefault, subscriptionDefault] = await Promise.all([
+			readCards(id),
+			readCustomerDefaultPaymentMethod(id),
+			subscriptionId === undefined
+				? Promise.resolve(undefined)
+				: readSubscriptionDefaultPaymentMethod(subscriptionId),
+		]);
 
 		// The card that actually funds renewals is the subscription's
 		// default_payment_method; Stripe charges invoices against it and only
@@ -119,14 +135,9 @@ export function initStripePaymentMethods(deps: {
 		// Checkout sets the subscription default without always setting the
 		// customer default, so reading the customer default alone can leave the
 		// live funding card looking like a removable backup.
-		const subscriptionDefault =
-			subscriptionId === undefined
-				? undefined
-				: await readSubscriptionDefaultPaymentMethod(subscriptionId);
-		const fundingPaymentMethodId =
-			subscriptionDefault ?? customer.invoice_settings.default_payment_method;
+		const fundingPaymentMethodId = subscriptionDefault ?? customerDefault;
 
-		return list.data.map(
+		const saved = cards.map(
 			(pm): SavedCard => ({
 				id: PaymentMethodIdSchema.parse(pm.id),
 				brand: pm.card.brand,
@@ -136,6 +147,15 @@ export function initStripePaymentMethods(deps: {
 				isPrimary: pm.id === fundingPaymentMethodId,
 			}),
 		);
+
+		if (fundingPaymentMethodId && !saved.some((card) => card.isPrimary)) {
+			deps.logger.warn(
+				"[stripe-payment-methods] funding payment method not found in customer card list",
+				{ customerId, fundingPaymentMethodId },
+			);
+		}
+
+		return saved;
 	};
 
 	const beginAddCard: BeginAddCard = async ({ customerId }) => {

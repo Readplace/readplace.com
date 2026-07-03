@@ -259,6 +259,7 @@ function initProviders() {
 		const paymentMethods = initStripePaymentMethods({
 			apiKey: stripeApiKey,
 			fetch: globalThis.fetch,
+			logger,
 		});
 		const pendingSignup = initDynamoDbPendingSignup({ client, tableName: pendingSignupsTable, logger: consoleLogger });
 		const subscriptionProviders = {
