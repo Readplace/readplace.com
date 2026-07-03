@@ -3,12 +3,9 @@ import type {
 	RefreshTokenModel,
 } from "@node-oauth/oauth2-server";
 import type { AccessToken, OAuthClient } from "@packages/domain/oauth";
-import type { AuthenticatedUserId, UserId } from "@packages/domain/user";
+import type { AuthenticatedUserId } from "@packages/domain/user";
 
-export type OAuthModel = AuthorizationCodeModel &
-	RefreshTokenModel & {
-		revokeAllUserTokens(userId: UserId): Promise<void>;
-	};
+export type OAuthModel = AuthorizationCodeModel & RefreshTokenModel;
 
 export type ValidateAccessToken = (
 	accessToken: AccessToken,
