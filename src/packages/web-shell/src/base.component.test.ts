@@ -53,7 +53,12 @@ describe("Base component", () => {
 		const brandText = brand.querySelector(".header__brand-text");
 		assert(brandText, "brand link must contain the wordmark text span");
 		expect(brandText.textContent).toBe("Readplace");
-		expect(brand.querySelector("svg.header__brand-icon")).not.toBe(null);
+		const brandIcon = brand.querySelector("svg.header__brand-icon");
+		assert(brandIcon, "brand link must contain the inline mark");
+		const tile = brandIcon.querySelector("rect");
+		assert(tile, "the mark must contain the navy tile");
+		expect(tile.getAttribute("fill")).toBe("#2B3A55");
+		expect(tile.getAttribute("stroke-opacity")).toBe("0.4");
 		expect(brand.getAttribute("href")).toBe("/?utm_source=header&utm_medium=internal&utm_content=brand");
 	});
 

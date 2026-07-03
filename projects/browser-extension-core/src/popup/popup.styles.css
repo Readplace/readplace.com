@@ -17,6 +17,7 @@
   --popup-disabled: #C0C4CC;
   --popup-icon-bg: #2B3A55;
   --popup-icon-text: #C8923C;
+  --popup-icon-ring: rgba(255, 255, 255, 0.4);
   --popup-brand-text: #1A202C;
   --popup-active-bg: #2B3A55;
   --popup-active-text: #FFFFFF;
@@ -108,6 +109,7 @@ body {
   background: var(--popup-icon-bg);
   color: var(--popup-icon-text);
   border-radius: 10px;
+  box-shadow: 0 0 0 1px var(--popup-icon-ring);
   display: flex;
   align-items: center;
   justify-content: center;
@@ -302,6 +304,7 @@ body {
   background: var(--popup-icon-bg);
   color: var(--popup-icon-text);
   border-radius: 6px;
+  box-shadow: 0 0 0 1px var(--popup-icon-ring);
   display: flex;
   align-items: center;
   justify-content: center;

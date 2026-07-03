@@ -53,7 +53,9 @@ Icon assets live in `/projects/hutch/static-assets/` and `/projects/extensions/f
 - **Do not** recreate or approximate the logo — always use the provided assets.
 - **Do not** remove or reposition the amber dot, recolour the ampersand, or change the navy background fill.
 - **Backgrounds:** The mark already contains its navy rounded-square tile — keep the full mark intact on both light and dark surfaces rather than swapping fills.
+- **Keyline (part of the mark):** The tile carries a hairline white keyline (`#FFFFFF` at 40% opacity, ~1px rendered) stroked on its edge. It is present on every surface and alpha-composites against whatever sits behind the mark, so the navy tile stays delineated at ≥3:1 contrast on dark/navy surfaces (blog/web header in dark mode, extension popup, the navy hero, a dark browser tab strip) where an opaque navy tile would otherwise dissolve into the background. It is imperceptible on light surfaces (the tile is already ~11:1 there), so it is always on. **Do not** remove it, and never lighten the navy fill to compensate — the keyline is what makes the mark legible on dark, not a fill change.
 - **At 16×16px:** The amber dot may be dropped in favour of the ampersand alone for legibility. Prioritise recognisability over fidelity.
+- **`Readplace_Logo_only.svg` is not a web asset.** `projects/hutch/brand/Readplace_Logo_only.svg` is a tile-less navy ampersand kept only as source geometry for the iOS icon pipeline. It has no tile and no keyline, so on web or dark surfaces the navy glyph would vanish — never render it there. Use the full mark everywhere on the web (`brandMarkSvg` from `@packages/web-shell`, `favicon.svg`, or `/embed/icon.svg`).
 
 ---
 
@@ -122,6 +124,7 @@ The Firefox extension uses a slightly different palette tuned for small popup co
 | Brand | `#c8923c` | `#d4a04a` | `--popup-brand` |
 | Icon background | `#2b3a55` | `#2b3a55` | `--popup-icon-bg` |
 | Icon text | `#c8923c` | `#d4a04a` | `--popup-icon-text` |
+| Icon keyline | `rgba(255,255,255,0.4)` | `rgba(255,255,255,0.4)` | `--popup-icon-ring` |
 | Active background | `#2b3a55` | `#3d4f6f` | `--popup-active-bg` |
 
 ---
@@ -356,4 +359,4 @@ Use a **4px base unit** with the following standard increments:
 
 ---
 
-*Last updated: March 2026*
+*Last updated: July 2026*
