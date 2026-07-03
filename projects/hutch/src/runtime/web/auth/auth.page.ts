@@ -20,7 +20,7 @@ import type {
 	CreateVerificationToken,
 	VerifyEmailToken,
 } from "@packages/provider-contracts/email-verification";
-import { VerificationTokenSchema } from "@packages/test-fixtures/providers/email-verification";
+import { VerificationTokenSchema } from "@packages/provider-contracts/email-verification";
 import assert from "node:assert";
 import type { ConsumePendingSignup } from "@packages/provider-contracts/pending-signup";
 import type {

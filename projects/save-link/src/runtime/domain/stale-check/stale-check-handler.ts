@@ -7,7 +7,7 @@ import {
 	type TransitionAndPersist,
 } from "@packages/domain/article-aggregate";
 import { StaleCheckRequestedEvent } from "@packages/hutch-infra-components";
-import { decideTerminalAction } from "@packages/test-fixtures/providers/article-freshness";
+import { decideTerminalAction } from "@packages/finalize-article";
 import type {
 	FindArticleFreshness,
 } from "@packages/provider-contracts/article-store";

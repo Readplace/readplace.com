@@ -318,6 +318,9 @@ importers:
       '@packages/article-state-types':
         specifier: workspace:*
         version: link:../../src/packages/article-state-types
+      '@packages/article-store':
+        specifier: workspace:*
+        version: link:../../src/packages/article-store
       '@packages/crawl-article':
         specifier: workspace:*
         version: link:../../src/packages/crawl-article
@@ -856,6 +859,9 @@ importers:
       '@packages/hutch-storage-client':
         specifier: workspace:*
         version: link:../hutch-storage-client
+      '@packages/provider-contracts':
+        specifier: workspace:*
+        version: link:../provider-contracts
       zod:
         specifier: 4.4.3
         version: 4.4.3
@@ -1051,6 +1057,9 @@ importers:
       '@packages/domain':
         specifier: workspace:*
         version: link:../domain
+      '@packages/provider-contracts':
+        specifier: workspace:*
+        version: link:../provider-contracts
       linkedom:
         specifier: 0.18.12
         version: 0.18.12
@@ -1324,9 +1333,6 @@ importers:
       '@packages/web-test-harness':
         specifier: workspace:*
         version: link:../web-test-harness
-      zod:
-        specifier: 4.4.3
-        version: 4.4.3
     devDependencies:
       '@types/aws-lambda':
         specifier: 8.10.161

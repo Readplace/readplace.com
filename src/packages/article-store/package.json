@@ -18,6 +18,7 @@
     "@packages/article-state-types": "workspace:*",
     "@packages/domain": "workspace:*",
     "@packages/hutch-storage-client": "workspace:*",
+    "@packages/provider-contracts": "workspace:*",
     "zod": "4.4.3"
   },
   "devDependencies": {

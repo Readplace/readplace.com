@@ -25,10 +25,6 @@
       "types": "./dist/providers/article-store/index.d.ts",
       "default": "./dist/providers/article-store/index.js"
     },
-    "./providers/article-freshness": {
-      "types": "./dist/providers/article-freshness/index.d.ts",
-      "default": "./dist/providers/article-freshness/index.js"
-    },
     "./providers/article-summary": {
       "types": "./dist/providers/article-summary/index.d.ts",
       "default": "./dist/providers/article-summary/index.js"
@@ -132,7 +128,6 @@
       "providers/article-aggregate": ["./dist/providers/article-aggregate/index.d.ts"],
       "providers/article-crawl": ["./dist/providers/article-crawl/index.d.ts"],
       "providers/article-store": ["./dist/providers/article-store/index.d.ts"],
-      "providers/article-freshness": ["./dist/providers/article-freshness/index.d.ts"],
       "providers/article-summary": ["./dist/providers/article-summary/index.d.ts"],
       "providers/auth": ["./dist/providers/auth/index.d.ts"],
       "providers/email": ["./dist/providers/email/index.d.ts"],
@@ -179,8 +174,7 @@
     "@packages/hutch-storage-client": "workspace:*",
     "@packages/provider-contracts": "workspace:*",
     "@packages/web-session": "workspace:*",
-    "@packages/web-test-harness": "workspace:*",
-    "zod": "4.4.3"
+    "@packages/web-test-harness": "workspace:*"
   },
   "devDependencies": {
     "@types/aws-lambda": "8.10.161",

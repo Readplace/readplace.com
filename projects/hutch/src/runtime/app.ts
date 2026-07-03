@@ -22,7 +22,7 @@ import { initExtractLinksFromPageUrl } from "@packages/extract-links-from-page";
 import { initCrawlAndFinalizeArticle, initFinalizeArticle } from "@packages/finalize-article";
 import type { PublishStaleCheckRequested } from "@packages/provider-contracts/events";
 import { initReadabilityParser, linkedinSiteRules, mediumSiteRules, theInformationSiteRules } from "@packages/article-parser";
-import { initRefreshArticleIfStale } from "@packages/test-fixtures/providers/article-freshness";
+import { initRefreshArticleIfStale } from "@packages/finalize-article";
 import {
 	createOAuthModel,
 	initInMemoryOAuthClients,
@@ -54,7 +54,7 @@ import { initStripeSubscriptions } from "./providers/stripe-subscriptions/stripe
 import { initAwsTrialScheduler } from "./providers/trial-scheduler/aws-trial-scheduler";
 import { initInMemoryStripeSubscriptions } from "@packages/test-fixtures/providers/stripe-subscriptions";
 import { initInMemoryTrialScheduler } from "@packages/test-fixtures/providers/trial-scheduler";
-import { initReadArticleContent } from "@packages/test-fixtures/providers/article-store";
+import { initReadArticleContent } from "@packages/article-store";
 import { EventBridgeClient, initEventBridgePublisher } from "@packages/hutch-infra-components/runtime";
 import { initEventBridgeLinkSaved } from "./providers/events/eventbridge-link-saved";
 import { initEventBridgeRecrawlLinkInitiated } from "./providers/events/eventbridge-recrawl-link-initiated";

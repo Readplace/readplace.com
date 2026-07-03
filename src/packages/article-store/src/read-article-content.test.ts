@@ -73,6 +73,25 @@ describe("initReadArticleContent", () => {
 		expect(content).toBeUndefined();
 	});
 
+	it("passes undefined to logError when a provider throws a non-Error", async () => {
+		const s3: ContentProvider = async () => {
+			throw "boom";
+		};
+		const dynamodb: ContentProvider = async () => "dynamodb content";
+		let loggedError: unknown = "unset";
+
+		const readArticleContent = initReadArticleContent({
+			storageProviderQueryOrder: [s3, dynamodb],
+			logError: (_message, error) => {
+				loggedError = error;
+			},
+		});
+
+		const content = await readArticleContent("https://example.com/article");
+		expect(content).toBe("dynamodb content");
+		expect(loggedError).toBeUndefined();
+	});
+
 	it("normalizes the URL before passing to providers", async () => {
 		const receivedValues: string[] = [];
 		const provider: ContentProvider = async (articleResourceUniqueId) => {

@@ -1,4 +1,4 @@
-import { initRefreshArticleIfStale } from "@packages/test-fixtures/providers/article-freshness";
+import { initRefreshArticleIfStale } from "@packages/finalize-article";
 import type { PublishRefreshArticleContent } from "@packages/test-fixtures/providers/events";
 import type { PublishUpdateFetchTimestamp } from "@packages/test-fixtures/providers/events";
 import { useTestServer, loginAgent } from "../../../test-app";

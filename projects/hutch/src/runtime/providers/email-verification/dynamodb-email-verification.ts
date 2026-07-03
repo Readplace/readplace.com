@@ -10,7 +10,7 @@ import type {
 	CreateVerificationToken,
 	VerifyEmailToken,
 } from "@packages/provider-contracts/email-verification";
-import { VerificationTokenSchema } from "@packages/test-fixtures/providers/email-verification";
+import { VerificationTokenSchema } from "@packages/provider-contracts/email-verification";
 import { VERIFICATION_WINDOW_MS } from "../../domain/access/verification-deadline";
 
 // Keep the single mailed link valid for the whole lockout window, so it never

@@ -10,3 +10,6 @@ export type {
 } from "./finalize-article";
 export { initFinalizeArticle } from "./finalize-article";
 export type { PutImageObject } from "./put-image-object.types";
+export { decideTerminalAction } from "./decide-terminal-action";
+export { initRefreshArticleIfStale } from "./check-content-freshness";
+export type { ContentFreshnessResult, RefreshArticleIfStale } from "./check-content-freshness";
