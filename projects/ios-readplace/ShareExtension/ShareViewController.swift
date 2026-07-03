@@ -1,8 +1,9 @@
 import UIKit
 
-/// The share-sheet entry point. Renders the shared page in a WKWebView,
-/// captures its HTML, and saves it via the `save-html` action — degrading to a
-/// URL-only save if the token is missing, capture fails, or the HTML is too big.
+/// The share-sheet entry point. Renders the shared page in a WKWebView (or
+/// fetches a shared PDF's bytes), uploads the captured content via the
+/// `save-content` action — degrading to a URL-only save if the token is missing,
+/// capture fails, or the content is too big.
 @MainActor
 final class ShareViewController: UIViewController {
 	private let store = TokenStore()

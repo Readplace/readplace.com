@@ -3,8 +3,9 @@
 An iPhone app that behaves like the Readplace **browser
 extension**: it lists your saved links and lets you save new ones by **sharing a
 URL to it** from any app. When you share a link, the app renders the page in a
-hidden `WKWebView` first and uploads the **rendered HTML** (not just the URL) via
-the server's `save-html` Siren action — exactly what the extension does.
+hidden `WKWebView` first and uploads the **captured content** (the rendered HTML,
+or a shared PDF's bytes — not just the URL) via the server's `save-content` Siren
+action — exactly what the extension does.
 
 It lives under `projects/` as an nx project
 (`ios-readplace`). It builds with its own Swift/fastlane toolchain rather
@@ -93,10 +94,15 @@ That produces `build/Readplace-unsigned.ipa` (the app + its share extension).
   `status` field on its request, not its URL, so the endpoint can move freely.
 - **Save by sharing**: a **Share Extension** appears in the iOS share sheet for
   URLs/web pages. It loads the page in an off-screen `WKWebView`, captures
-  `document.documentElement.outerHTML`, and POSTs `{url, rawHtml, title}` to
-  `POST /queue/save-html`. If the token is missing, capture fails, or the HTML is
-  over the 10 MiB server limit, it degrades to the URL-only `save-article` path —
-  mirroring the extension's own fallback.
+  `document.documentElement.outerHTML`, and uploads it as a `multipart/form-data`
+  `{url, mediaType, title, content}` body to `POST /queue/save-content`. A shared
+  URL that resolves to a PDF is fetched directly (the web view declines to render
+  it) and uploaded as `application/pdf` instead. If capture fails, or a shared PDF
+  is blocked or larger than the client's own 25 MiB external-fetch ceiling, it
+  degrades to the URL-only `save-article` path — and the server's crawler, which
+  allows far larger PDFs, then fetches it. (A payload that instead exceeds the
+  *server's* cap comes back with that same URL-only fallback action.) This mirrors
+  the extension's own fallback.
 - **Add links via Share**: the `+` button is a client-side control — an
   `add-links-help` affordance the app injects itself and treats as canonical,
   ignoring (deduping) any the server also advertises. It opens a sheet whose
@@ -241,7 +247,8 @@ cases:
   tokens.
 - **API**: entry-point `303` redirect with the `Authorization` header preserved,
   `401` → single refresh → retry (and no retry loop when refresh fails),
-  `save-html` body + fallback to URL-only on an error action, `save-article`,
+  `save-content` multipart body + fallback to URL-only on an error action,
+  the external content fetch never leaking the bearer token, `save-article`,
   the status action posting the urlencoded `status` field, following the `303`
   back to the collection and verifying the status at the protocol level only (any
   non-2xx/3xx surfaces a generic server error — no per-code special-casing),
@@ -256,10 +263,13 @@ cases:
   without exchanging the code), then a reading-list load preserving the bearer
   token across the entry-point `303`, and both sign-out paths (`logout` /
   `forceLogout`) dropping the minted `hutch_sid` session cookie.
-  Share-save — `SaveSharedPage` saving rendered HTML when it's under the cap,
-  degrading to URL-only when the capture is empty or the HTML is over the cap,
-  short-circuiting before any network call when logged out or when there's no
-  link, and reporting no-op when the server advertises no save action.
+  Share-save — `SaveSharedPage` saving rendered HTML via `save-content`, saving a
+  shared PDF's fetched bytes as `application/pdf`, degrading to URL-only when the
+  capture is empty, the PDF fetch is blocked, or the server refuses the payload
+  with a fallback action, short-circuiting before any network call when logged out
+  or when there's no link, and reporting no-op when the server advertises no save
+  action; plus the `HTMLCaptor` navigation-response decision (render HTML vs.
+  capture a main-frame PDF as a file) in isolation.
 - **Web-auth flow (shared by Login & Sign up)**: the native authorize requests
   (`readplace://oauth-callback` redirect + `screen_hint=login`/`signup`), the
   deep-link callback exchanging the code with the native `redirect_uri` and
