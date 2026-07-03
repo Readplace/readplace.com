@@ -1,5 +1,6 @@
 import type { Express } from "express";
 import type { HutchLogger } from "@packages/hutch-logger";
+import type { GetSessionUserId } from "@packages/provider-contracts/auth";
 import type { OAuthModel } from "@packages/provider-contracts/oauth";
 import type {
 	ArticleCrawlBundle,
@@ -211,12 +212,16 @@ function flattenFixtureToAppDependencies(
 	};
 }
 
-/** `overrides` lets a test swap a single decorative dependency without rebuilding
- * the whole fixture — `getChangelogBanner`, which defaults to "no banner" so the
- * banner stays hidden in every other route test. */
+/** `overrides` lets a test swap a single dependency without rebuilding the whole
+ * fixture — `getChangelogBanner` (defaults to "no banner" so it stays hidden in
+ * every other route test), and `getSessionUserId` (so a test can make the session
+ * lookup throw and assert the request still degrades to guest). */
 export function createTestApp(
 	fixture: TestAppFixture,
-	overrides?: { getChangelogBanner?: GetChangelogBanner },
+	overrides?: {
+		getChangelogBanner?: GetChangelogBanner;
+		getSessionUserId?: GetSessionUserId;
+	},
 ): TestAppResult {
 	const analyticsEvents: AnalyticsEvent[] = [];
 	const captureAnalytics = (data: AnalyticsEvent) => { analyticsEvents.push(data); };

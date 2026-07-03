@@ -133,6 +133,10 @@ function createPdfDeferralStub(publishStaleCheckRequested: PublishStaleCheckRequ
 
 function initProviders() {
 	const persistence = requireEnv<"prod" | "development">("PERSISTENCE");
+	assert(
+		persistence === "prod" || persistence === "development",
+		`PERSISTENCE must be "prod" or "development", got "${persistence}"`,
+	);
 	const logger = HutchLogger.from(consoleLogger);
 	const logError = (message: string, error?: Error) => logger.error(JSON.stringify({ level: "ERROR", timestamp: new Date().toISOString(), message, stack: error?.stack }));
 
