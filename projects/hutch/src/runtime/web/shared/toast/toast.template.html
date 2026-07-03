@@ -3,7 +3,7 @@
 	{{#each actions}}
 	<form class="toast__action-form" method="{{method}}" action="{{url}}" hx-boost="true" hx-target="main" hx-select="main" hx-swap="outerHTML show:none" hx-disabled-elt="find button">
 		{{#each fields}}<input type="hidden" name="{{name}}" value="{{value}}">{{/each}}
-		<button class="toast__action" type="submit" title="{{label}}" data-test-toast-action><span class="toast__action-label">{{label}}</span><span class="toast__action-loader" aria-hidden="true"><span></span><span></span><span></span></span></button>
+		<button class="toast__action" type="submit" aria-label="{{label}}" data-test-toast-action><span class="toast__action-label">{{label}}</span><span class="toast__action-loader" aria-hidden="true"><span></span><span></span><span></span></span></button>
 	</form>
 	{{/each}}
 </div>

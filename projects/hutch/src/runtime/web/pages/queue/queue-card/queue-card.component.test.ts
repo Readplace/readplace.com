@@ -241,9 +241,9 @@ describe("renderQueueCard", () => {
 		assert(deleteButton, "delete button must be present");
 		expect(deleteButton.textContent).toBe("×");
 		// The status shape wraps its text in label + loader spans and its form
-		// carries hx-disabled-elt — both gated on the same isStatus flag. Zero
-		// element children is the positive proof the delete control opted out of
-		// that treatment; a selector typo can't make it pass for the wrong reason.
+		// carries hx-disabled-elt — both gated on status === "loading". Zero
+		// element children is the positive proof the delete control ("loaded")
+		// opted out; a selector typo can't make it pass for the wrong reason.
 		expect(deleteButton.children.length).toBe(0);
 	});
 

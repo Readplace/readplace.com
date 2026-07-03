@@ -69,9 +69,10 @@ describe("renderToast", () => {
 		expect(label.textContent).toBe("Undo");
 		expect(button.querySelectorAll(".toast__action-loader span").length).toBe(3);
 		// Mid-request the label is visibility:hidden (dropped from the a11y tree)
-		// and the loader is aria-hidden, so title carries the button's accessible
-		// name while it is disabled and in flight.
-		expect(button.getAttribute("title")).toBe("Undo");
+		// and the loader is aria-hidden, so aria-label carries the button's
+		// accessible name while it is disabled and in flight. aria-label (not
+		// title) avoids a hover tooltip that would merely repeat the visible label.
+		expect(button.getAttribute("aria-label")).toBe("Undo");
 
 		expect(button.closest("form")?.getAttribute("hx-disabled-elt")).toBe("find button");
 	});

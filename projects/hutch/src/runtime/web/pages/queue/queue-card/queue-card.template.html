@@ -7,9 +7,9 @@
 		</div>
 		<div class="queue-article__actions">
 			{{#each actions}}
-			<form method="{{method}}" action="{{url}}" class="queue-article__action-form" hx-boost="true" hx-target="main" hx-select="main" hx-swap="outerHTML show:none"{{#if isStatus}} hx-disabled-elt="find button"{{/if}}>
+			<form method="{{method}}" action="{{url}}" class="queue-article__action-form" hx-boost="true" hx-target="main" hx-select="main" hx-swap="outerHTML show:none"{{#if (eq status "loading")}} hx-disabled-elt="find button"{{/if}}>
 				{{#each fields}}<input type="hidden" name="{{name}}" value="{{value}}">{{/each}}
-				<button class="{{buttonClass}}" type="submit" title="{{title}}" data-test-action="{{testAction}}"{{#if disabled}} disabled{{/if}}>{{#if isStatus}}<span class="queue-article__action-btn-label">{{text}}</span><span class="queue-article__action-btn-loader" aria-hidden="true"><span></span><span></span><span></span></span>{{else}}{{text}}{{/if}}</button>
+				<button class="{{buttonClass}}" type="submit" title="{{title}}" data-test-action="{{testAction}}"{{#if disabled}} disabled{{/if}}>{{#if (eq status "loading")}}<span class="queue-article__action-btn-label">{{text}}</span><span class="queue-article__action-btn-loader" aria-hidden="true"><span></span><span></span><span></span></span>{{else}}{{text}}{{/if}}</button>
 			</form>
 			{{/each}}
 		</div>
