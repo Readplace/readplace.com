@@ -186,7 +186,23 @@ describe("resolveReaderPermalink", () => {
 		});
 	});
 
-	it("ignores the reader-ready email marker for a logged-in owner and renders the reader directly", async () => {
+	it("renders the reader directly for a logged-in owner when no email marker is present", async () => {
+		const owned = savedArticleFor(OWNER_ID);
+		const resolve = initReaderPermalink(createDeps({
+			findArticleById: async (id, userId) =>
+				id.value === ARTICLE_ID.value && userId === OWNER_ID ? owned : null,
+		}));
+
+		const result = await resolve({
+			rawId: ARTICLE_ID.value,
+			requesterId: OWNER_ID,
+			query: {},
+		});
+
+		expect(result).toEqual({ kind: "article", article: owned });
+	});
+
+	it("strips the reader-ready email marker for a logged-in owner by redirecting to the clean shareable permalink", async () => {
 		const owned = savedArticleFor(OWNER_ID);
 		const resolve = initReaderPermalink(createDeps({
 			findArticleById: async (id, userId) =>
@@ -199,7 +215,38 @@ describe("resolveReaderPermalink", () => {
 			query: { from: "reader-ready-email" },
 		});
 
-		expect(result).toEqual({ kind: "article", article: owned });
+		expect(result).toEqual({
+			kind: "redirect",
+			redirect: { statusCode: 303, location: `/queue/${ARTICLE_ID.value}/view` },
+		});
+	});
+
+	it("strips only the email marker for a logged-in owner, carrying scalar params (platform=ios, utm_*) onto the clean permalink while dropping array-valued params", async () => {
+		const owned = savedArticleFor(OWNER_ID);
+		const resolve = initReaderPermalink(createDeps({
+			findArticleById: async (id, userId) =>
+				id.value === ARTICLE_ID.value && userId === OWNER_ID ? owned : null,
+		}));
+
+		const result = await resolve({
+			rawId: ARTICLE_ID.value,
+			requesterId: OWNER_ID,
+			query: {
+				from: "reader-ready-email",
+				platform: "ios",
+				utm_source: "newsletter",
+				tags: ["a", "b"],
+			},
+		});
+
+		assert(result.kind === "redirect");
+		expect(result.redirect.statusCode).toBe(303);
+		const location = new URL(result.redirect.location, "https://example.test");
+		expect(location.pathname).toBe(`/queue/${ARTICLE_ID.value}/view`);
+		expect(location.searchParams.get("platform")).toBe("ios");
+		expect(location.searchParams.get("utm_source")).toBe("newsletter");
+		expect(location.searchParams.has("tags")).toBe(false);
+		expect(location.searchParams.has("from")).toBe(false);
 	});
 
 	it("ignores the reader-ready email marker for a logged-in non-owner and keeps the public /view share redirect", async () => {

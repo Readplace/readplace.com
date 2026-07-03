@@ -173,6 +173,32 @@ describe("Queue reader chromeless switch (GET /queue/:id/view?platform=ios)", ()
 		);
 	});
 
+	it("strips the reader-ready email marker but keeps platform=ios so the owner's in-app open still renders chromeless", async () => {
+		const harness = buildHarness();
+		const agent = await loginAgent(harness.server, harness.auth);
+		const articleId = await saveAndGetArticleId(agent, "https://example.com/app-email-marker");
+
+		const redirect = await agent
+			.get(`/queue/${articleId}/view`)
+			.query({ from: "reader-ready-email", platform: "ios" });
+
+		expect(redirect.status).toBe(303);
+		const location = new URL(redirect.headers.location, TEST_APP_ORIGIN);
+		expect(location.pathname).toBe(`/queue/${articleId}/view`);
+		expect(location.searchParams.get("platform")).toBe("ios");
+		expect(location.searchParams.has("from")).toBe(false);
+
+		const doc = new JSDOM(
+			(await agent.get(`${location.pathname}${location.search}`)).text,
+		).window.document;
+		assert(
+			doc.querySelector("[data-test-back-link]"),
+			"the chromeless reader must render after the marker strip",
+		);
+		expect(doc.querySelector(".header")).toBe(null);
+		expect(doc.querySelector(".footer")).toBe(null);
+	});
+
 	it("redirects an anonymous visitor to the public /view permalink, exactly like /view", async () => {
 		const harness = buildHarness();
 		const ownerAgent = await loginAgent(harness.server, harness.auth);
