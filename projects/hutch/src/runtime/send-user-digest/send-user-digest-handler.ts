@@ -170,18 +170,18 @@ async function processUserDigest(
 	}
 
 	/* Post-send bookkeeping is best-effort: the email is already out, so this
-	 * record MUST ack (a throw here would redrive and, past the cooldown, re-send).
-	 * A mark/delete that fails leaves a row that re-appears next cycle, where the
-	 * set-once emailSentAt gate drops it — no article is ever emailed twice. */
+	 * record MUST ack — a throw would redrive and, past the cooldown, re-send.
+	 * Draining the queue row is the digest's real dedup, so it runs independently
+	 * of the emailSentAt stamp: a failed mark must not skip the delete, or the row
+	 * re-appears next cycle and re-sends. emailSentAt only backstops a double-fail. */
 	for (const { item } of included) {
 		try {
 			await deps.markReaderReadyEmailSent({ userId, url: item.originalUrl, at: now });
-			await deps.deleteDigestItem({ userId, url: item.url });
 		} catch (error) {
-			deps.logger.error("[SendUserDigest] post-send bookkeeping failed", { userId: detail.userId, url: item.url, error });
+			deps.logger.error("[SendUserDigest] mark-email-sent failed", { userId: detail.userId, url: item.url, error });
 		}
 	}
-	await deleteKeys(staleKeys, userId, deps);
+	await deleteKeys([...included.map(({ item }) => item.url), ...staleKeys], userId, deps);
 	try {
 		await deps.publishEvent(DigestEmailSentEvent, {
 			userId: detail.userId,
@@ -194,14 +194,14 @@ async function processUserDigest(
 	deps.logger.info("[SendUserDigest] sent digest", { userId: detail.userId, itemCount: included.length });
 }
 
-/** Best-effort removal of stale rows: TTL is the backstop, so a failed delete is
- * logged, never thrown. */
+/** Best-effort removal of digest-queue rows: TTL is the backstop, so a failed
+ * delete is logged, never thrown. */
 async function deleteKeys(urls: string[], userId: UserId, deps: SendUserDigestDeps): Promise<void> {
 	for (const url of urls) {
 		try {
 			await deps.deleteDigestItem({ userId, url });
 		} catch (error) {
-			deps.logger.error("[SendUserDigest] stale-row delete failed", { userId, url, error });
+			deps.logger.error("[SendUserDigest] digest-row delete failed", { userId, url, error });
 		}
 	}
 }

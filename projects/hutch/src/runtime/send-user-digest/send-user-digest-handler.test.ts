@@ -224,7 +224,7 @@ describe("initSendUserDigestHandler", () => {
 			expect(deps.markReaderReadyEmailSent).not.toHaveBeenCalled();
 		});
 
-		it("acks the record even if post-send bookkeeping fails (best effort)", async () => {
+		it("still drains the queue row when the emailSentAt stamp write fails, so the article is not re-sent next tick", async () => {
 			const { handler, deps } = createHandler({
 				markReaderReadyEmailSent: jest.fn().mockRejectedValue(new Error("mark down")),
 			});
@@ -233,6 +233,7 @@ describe("initSendUserDigestHandler", () => {
 
 			expect(result).toEqual({ batchItemFailures: [] });
 			expect(deps.sendEmail).toHaveBeenCalledTimes(1);
+			expect(deps.deleteDigestItem).toHaveBeenCalledWith({ userId: USER_ID, url: CANON_A });
 			expect(deps.publishEvent).toHaveBeenCalledTimes(1);
 		});
 
