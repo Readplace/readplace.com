@@ -1,6 +1,7 @@
 import assert from "node:assert/strict";
 import { JSDOM } from "jsdom";
 import {
+	AliasNameSchema,
 	INBOX_ADDRESS_MAX_PER_USER,
 	type InboxAddressEntry,
 	InboxAddressSchema,
@@ -13,6 +14,7 @@ function entry(overrides: Partial<InboxAddressEntry> = {}): InboxAddressEntry {
 	return {
 		address: InboxAddressSchema.parse("in-3f9a2c@read.place"),
 		userId: UserIdSchema.parse("user-1"),
+		name: AliasNameSchema.parse("in"),
 		token: InboxTokenSchema.parse("3f9a2c"),
 		createdAt: "2026-06-23T00:00:00.000Z",
 		disabledAt: undefined,
@@ -124,6 +126,46 @@ describe("InboxPage", () => {
 			doc.querySelector(".inbox__disable")?.getAttribute("action"),
 			"/inbox/disable?feature=email",
 		);
+	});
+
+	it("renders the chosen alias name as a per-row label", () => {
+		const doc = parse(
+			InboxPage({
+				addresses: [entry({ name: AliasNameSchema.parse("netflix") })],
+				limitReached: false,
+			}).content.html,
+		);
+		const label = doc.querySelector("[data-test-inbox-name]");
+		assert.equal(label?.textContent, "netflix");
+	});
+
+	it("offers a required, length-capped name input on the create form", () => {
+		const doc = parse(InboxPage({ addresses: [], limitReached: false }).content.html);
+		const input = doc.querySelector("[data-test-inbox-name-input]");
+		assert.ok(input, "name input must render");
+		assert.equal(input.getAttribute("name"), "name");
+		assert.equal(input.hasAttribute("required"), true);
+		assert.equal(input.getAttribute("maxlength"), "24");
+	});
+
+	it("shows the invalid-name alert only when nameInvalid is set", () => {
+		const without = parse(InboxPage({ addresses: [], limitReached: false }).content.html);
+		assert.equal(without.querySelector("[data-test-inbox-name-error]"), null);
+
+		const withError = parse(
+			InboxPage({ addresses: [], limitReached: false, nameInvalid: true }).content.html,
+		);
+		assert.ok(withError.querySelector("[data-test-inbox-name-error]"), "invalid-name alert must render");
+	});
+
+	it("shows the duplicate-name alert only when nameTaken is set", () => {
+		const without = parse(InboxPage({ addresses: [], limitReached: false }).content.html);
+		assert.equal(without.querySelector("[data-test-inbox-name-taken]"), null);
+
+		const withError = parse(
+			InboxPage({ addresses: [], limitReached: false, nameTaken: true }).content.html,
+		);
+		assert.ok(withError.querySelector("[data-test-inbox-name-taken]"), "duplicate-name alert must render");
 	});
 
 	it("shows the per-user limit message naming the cap only when the limit is reached", () => {

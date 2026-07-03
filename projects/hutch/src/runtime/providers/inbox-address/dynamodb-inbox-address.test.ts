@@ -4,6 +4,7 @@ import {
 	type DynamoDBDocumentClient,
 } from "@packages/hutch-storage-client";
 import {
+	AliasNameSchema,
 	INBOX_ADDRESS_MAX_PER_USER,
 	InboxAddressLimitReachedError,
 	InboxAddressSchema,
@@ -36,6 +37,7 @@ interface CapturedCommand {
 const TABLE = "test-inbox-addresses";
 const USER = UserIdSchema.parse("user-1");
 const DOMAIN = "read.place";
+const NAME = AliasNameSchema.parse("netflix");
 const NOW = new Date("2026-06-23T00:00:00.000Z");
 
 function conditionalCheckFailed(): ConditionalCheckFailedException {
@@ -73,16 +75,18 @@ describe("initDynamoDbInboxAddress", () => {
 				now: () => NOW,
 			});
 
-			const entry = await store.createAddress({ userId: USER, domain: DOMAIN });
+			const entry = await store.createAddress({ userId: USER, domain: DOMAIN, name: NAME });
 
 			const puts = commands.filter((c) => c.input.Item);
 			expect(puts).toHaveLength(1);
 			expect(puts[0].input.ConditionExpression).toBe("attribute_not_exists(address)");
 			expect(puts[0].input.Item?.address).toBe(entry.address);
 			expect(puts[0].input.Item?.userId).toBe(USER);
+			expect(puts[0].input.Item?.name).toBe(NAME);
 			expect(puts[0].input.Item?.token).toBe(entry.token);
 			expect(puts[0].input.Item?.createdAt).toBe(NOW.toISOString());
-			expect(entry.address).toMatch(/^in-[0-9a-z]{6}@read\.place$/);
+			expect(entry.address).toMatch(/^netflix-[0-9a-z]{6}@read\.place$/);
+			expect(entry.name).toBe(NAME);
 			expect(entry.createdAt).toBe(NOW.toISOString());
 			expect(entry.disabledAt).toBeUndefined();
 		});
@@ -100,10 +104,10 @@ describe("initDynamoDbInboxAddress", () => {
 				now: () => NOW,
 			});
 
-			const entry = await store.createAddress({ userId: USER, domain: DOMAIN });
+			const entry = await store.createAddress({ userId: USER, domain: DOMAIN, name: NAME });
 
 			expect(puts).toBe(2);
-			expect(entry.address).toMatch(/^in-[0-9a-z]{6}@read\.place$/);
+			expect(entry.address).toMatch(/^netflix-[0-9a-z]{6}@read\.place$/);
 		});
 
 		it("throws after exhausting retries on persistent collisions", async () => {
@@ -116,7 +120,7 @@ describe("initDynamoDbInboxAddress", () => {
 				now: () => NOW,
 			});
 
-			await expect(store.createAddress({ userId: USER, domain: DOMAIN })).rejects.toThrow(
+			await expect(store.createAddress({ userId: USER, domain: DOMAIN, name: NAME })).rejects.toThrow(
 				"Failed to mint a unique inbox address",
 			);
 		});
@@ -131,7 +135,7 @@ describe("initDynamoDbInboxAddress", () => {
 				now: () => NOW,
 			});
 
-			await expect(store.createAddress({ userId: USER, domain: DOMAIN })).rejects.toThrow(
+			await expect(store.createAddress({ userId: USER, domain: DOMAIN, name: NAME })).rejects.toThrow(
 				"throttled",
 			);
 		});
@@ -151,7 +155,7 @@ describe("initDynamoDbInboxAddress", () => {
 				now: () => NOW,
 			});
 
-			await expect(store.createAddress({ userId: USER, domain: DOMAIN })).rejects.toThrow(
+			await expect(store.createAddress({ userId: USER, domain: DOMAIN, name: NAME })).rejects.toThrow(
 				InboxAddressLimitReachedError,
 			);
 			expect(commands.some((c) => c.input.Item)).toBe(false);
@@ -175,9 +179,9 @@ describe("initDynamoDbInboxAddress", () => {
 				now: () => NOW,
 			});
 
-			const entry = await store.createAddress({ userId: USER, domain: DOMAIN });
+			const entry = await store.createAddress({ userId: USER, domain: DOMAIN, name: NAME });
 
-			expect(entry.address).toMatch(/^in-[0-9a-z]{6}@read\.place$/);
+			expect(entry.address).toMatch(/^netflix-[0-9a-z]{6}@read\.place$/);
 			expect(commands.some((c) => c.input.Item)).toBe(true);
 		});
 	});
@@ -191,9 +195,10 @@ describe("initDynamoDbInboxAddress", () => {
 					return {
 						Items: [
 							{
-								address: "in-3f9a2c@read.place",
+								address: "netflix-a7b2c9@read.place",
 								userId: "user-1",
-								token: "3f9a2c",
+								name: "netflix",
+								token: "a7b2c9",
 								createdAt: "2026-06-20T00:00:00.000Z",
 								disabledAt: null,
 							},
@@ -218,8 +223,11 @@ describe("initDynamoDbInboxAddress", () => {
 			expect(captured?.input.KeyConditionExpression).toBe("userId = :uid");
 			expect(captured?.input.ExpressionAttributeValues?.[":uid"]).toBe(USER);
 			expect(result).toHaveLength(2);
-			expect(result[0].address).toBe("in-3f9a2c@read.place");
+			expect(result[0].address).toBe("netflix-a7b2c9@read.place");
+			expect(result[0].name).toBe("netflix");
 			expect(result[0].disabledAt).toBeUndefined();
+			// A legacy row predating the name column derives its label from the address.
+			expect(result[1].name).toBe("in");
 			expect(result[1].disabledAt).toBe("2026-06-22T00:00:00.000Z");
 		});
 	});
@@ -276,6 +284,8 @@ describe("initDynamoDbInboxAddress", () => {
 			assert(entry, "expected the row to be returned");
 			expect(entry.userId).toBe(USER);
 			expect(entry.address).toBe(address);
+			// The legacy row carries no name column, so the label is derived.
+			expect(entry.name).toBe("in");
 		});
 
 		it("returns undefined for an unknown address", async () => {

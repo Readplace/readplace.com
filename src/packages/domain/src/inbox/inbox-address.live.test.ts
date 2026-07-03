@@ -1,14 +1,17 @@
 import assert from "node:assert/strict";
 import { UserIdSchema } from "../user";
 import { countLiveAddresses, isLiveAddress } from "./inbox-address.live";
-import { buildInboxAddress, generateInboxToken } from "./inbox-address.schema";
+import { AliasNameSchema, buildInboxAddress, generateInboxToken } from "./inbox-address.schema";
 import type { InboxAddressEntry } from "./inbox-address.types";
+
+const NAME = AliasNameSchema.parse("news");
 
 function makeEntry(disabledAt: string | undefined): InboxAddressEntry {
 	const token = generateInboxToken();
 	return {
-		address: buildInboxAddress({ token, domain: "read.place" }),
+		address: buildInboxAddress({ name: NAME, token, domain: "read.place" }),
 		userId: UserIdSchema.parse("user-1"),
+		name: NAME,
 		token,
 		createdAt: "2026-01-01T00:00:00.000Z",
 		disabledAt,
