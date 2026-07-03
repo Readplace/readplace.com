@@ -226,6 +226,10 @@ export const EXCLUDE_PATTERNS: readonly RegExp[] = [
 	// successfully) but exhausts retries whenever wayback throttles, so it
 	// recurs as canary noise on bulk imports.
 	/^https:\/\/web\.archive\.org\/web\/20180630081250\/https:\/{1,2}www\.abu\.org\.my\/Latest_News-@-CNA_to_launch_satellite_studio_in_Malaysia\.aspx$/i,
+	// An earlier capture of the same ABU press page (2018-03-22, embedded
+	// `http://` scheme) — same wayback-throttling failure mode as the June
+	// capture above. Anchored per timestamp so other snapshots still surface.
+	/^https:\/\/web\.archive\.org\/web\/20180322015139\/http:\/{1,2}www\.abu\.org\.my\/Latest_News-@-CNA_to_launch_satellite_studio_in_Malaysia\.aspx$/i,
 ];
 
 export function isExcluded(url: string, patterns: readonly RegExp[]): boolean {
