@@ -299,6 +299,7 @@ function initProviders() {
 			signup: parseRateLimitRule(requireEnv("RATE_LIMIT_SIGNUP")),
 			forgotPassword: parseRateLimitRule(requireEnv("RATE_LIMIT_FORGOT_PASSWORD")),
 			oauthRegister: parseRateLimitRule(requireEnv("RATE_LIMIT_OAUTH_REGISTER")),
+			oauthToken: parseRateLimitRule(requireEnv("RATE_LIMIT_OAUTH_TOKEN")),
 			import: parseRateLimitRule(requireEnv("RATE_LIMIT_IMPORT")),
 			importFromUrl: parseRateLimitRule(requireEnv("RATE_LIMIT_IMPORT_FROM_URL")),
 		};
@@ -503,6 +504,7 @@ function initProviders() {
 		signup: parseRateLimitRule(requireEnv("RATE_LIMIT_SIGNUP")),
 		forgotPassword: parseRateLimitRule(requireEnv("RATE_LIMIT_FORGOT_PASSWORD")),
 		oauthRegister: parseRateLimitRule(requireEnv("RATE_LIMIT_OAUTH_REGISTER")),
+		oauthToken: parseRateLimitRule(requireEnv("RATE_LIMIT_OAUTH_TOKEN")),
 		import: parseRateLimitRule(requireEnv("RATE_LIMIT_IMPORT")),
 		importFromUrl: parseRateLimitRule(requireEnv("RATE_LIMIT_IMPORT_FROM_URL")),
 	};

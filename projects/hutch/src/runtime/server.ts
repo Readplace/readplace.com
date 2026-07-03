@@ -1044,6 +1044,7 @@ export function createApp(dependencies: AppDependencies): Express {
 		destroyUserSessions: deps.destroyUserSessions,
 		consumeRateLimit: deps.consumeRateLimit,
 		registerRateLimitRule: deps.rateLimitRules.oauthRegister,
+		tokenRateLimitRule: deps.rateLimitRules.oauthToken,
 	});
 	app.use("/oauth/token", extensionCors);
 	app.use("/oauth/revoke", extensionCors);

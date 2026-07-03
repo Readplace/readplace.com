@@ -43,6 +43,7 @@ config:
   hutch:rateLimitSignup: 10/3600
   hutch:rateLimitForgotPassword: 5/3600
   hutch:rateLimitOauthRegister: 30/3600
+  hutch:rateLimitOauthToken: 60/3600
   hutch:rateLimitImport: 60/3600
   hutch:rateLimitImportFromUrl: 30/3600
   hutch:apiThrottleBurstLimit: 200

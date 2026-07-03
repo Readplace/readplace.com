@@ -132,6 +132,7 @@ interface OAuthRouteDeps {
 	destroyUserSessions: DestroyUserSessions;
 	consumeRateLimit: ConsumeRateLimit;
 	registerRateLimitRule: RateLimitRule;
+	tokenRateLimitRule: RateLimitRule;
 }
 
 export function initOAuthRoutes(deps: OAuthRouteDeps): Router {
@@ -291,7 +292,15 @@ export function initOAuthRoutes(deps: OAuthRouteDeps): Router {
 		}),
 	);
 
-	router.post("/token", oauthServer.token());
+	router.post(
+		"/token",
+		createRateLimitMiddleware({
+			consumeRateLimit: deps.consumeRateLimit,
+			bucket: "oauth-token",
+			rule: deps.tokenRateLimitRule,
+		}),
+		oauthServer.token(),
+	);
 
 	router.post("/revoke", express.json(), async (req: Request, res: Response) => {
 		const parsed = revokeBodySchema.safeParse(req.body);

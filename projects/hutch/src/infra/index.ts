@@ -82,6 +82,7 @@ const rateLimitRules = {
 	signup: config.require("rateLimitSignup"),
 	forgotPassword: config.require("rateLimitForgotPassword"),
 	oauthRegister: config.require("rateLimitOauthRegister"),
+	oauthToken: config.require("rateLimitOauthToken"),
 	import: config.require("rateLimitImport"),
 	importFromUrl: config.require("rateLimitImportFromUrl"),
 };
@@ -331,6 +332,7 @@ const lambda = new HutchLambda(LAMBDA_NAMES.hutchHandler, {
 		RATE_LIMIT_SIGNUP: rateLimitRules.signup,
 		RATE_LIMIT_FORGOT_PASSWORD: rateLimitRules.forgotPassword,
 		RATE_LIMIT_OAUTH_REGISTER: rateLimitRules.oauthRegister,
+		RATE_LIMIT_OAUTH_TOKEN: rateLimitRules.oauthToken,
 		RATE_LIMIT_IMPORT: rateLimitRules.import,
 		RATE_LIMIT_IMPORT_FROM_URL: rateLimitRules.importFromUrl,
 		GOOGLE_LOGIN_CLIENT_ID: requireEnv("GOOGLE_LOGIN_CLIENT_ID"),

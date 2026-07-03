@@ -327,6 +327,28 @@ describe("OAuth routes", () => {
 	});
 
 	describe("POST /oauth/token", () => {
+		it("returns 429 past the per-IP token rate limit", async () => {
+			const fixture = createDefaultTestAppFixture(TEST_APP_ORIGIN);
+			fixture.rateLimit = {
+				consumeRateLimit: initInMemoryRateLimit({ now: () => new Date() }).consumeRateLimit,
+				rules: { ...fixture.rateLimit.rules, oauthToken: { limit: 1, windowSeconds: 3600 } },
+			};
+			const harness = useApp(fixture);
+
+			const first = await request(harness.server)
+				.post("/oauth/token")
+				.type("form")
+				.send({ grant_type: "authorization_code", code: "invalid" });
+			const throttled = await request(harness.server)
+				.post("/oauth/token")
+				.type("form")
+				.send({ grant_type: "authorization_code", code: "invalid" });
+
+			expect(first.status).not.toBe(429);
+			expect(throttled.status).toBe(429);
+			expect(String(throttled.headers["retry-after"])).toMatch(/^\d+$/);
+		});
+
 		it("exchanges authorization code for access token", async () => {
 			const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
 			const pkce = generatePKCE();
