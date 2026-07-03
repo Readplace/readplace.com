@@ -10,6 +10,7 @@ import type {
 	EmailBundle,
 	EmailVerificationBundle,
 	PasswordResetBundle,
+	PaymentMethodsBundle,
 	PendingHtmlBundle,
 	PendingPdfBundle,
 	PendingSignupBundle,
@@ -43,6 +44,7 @@ export type {
 	OAuthBundle,
 	ParserBundle,
 	PasswordResetBundle,
+	PaymentMethodsBundle,
 	PendingHtmlBundle,
 	PendingPdfBundle,
 	PendingSignupBundle,
@@ -77,6 +79,7 @@ export interface TestAppResult {
 	subscriptionProviders: SubscriptionProvidersBundle;
 	trialScheduler: TrialSchedulerBundle;
 	stripeSubscriptions: StripeSubscriptionsBundle;
+	paymentMethods: PaymentMethodsBundle;
 	botDefense: BotDefenseBundle;
 	conversions: ConversionsBundle;
 	analytics: AnalyticsBundle;
@@ -189,7 +192,14 @@ function flattenFixtureToAppDependencies(
 			fixture.stripeSubscriptions.createSubscriptionOnExistingCustomer,
 		reverseScheduledCancellation:
 			fixture.stripeSubscriptions.reverseScheduledCancellation,
+		paymentMethods: {
+			listCards: fixture.paymentMethods.listCards,
+			beginAddCard: fixture.paymentMethods.beginAddCard,
+			removeCard: fixture.paymentMethods.removeCard,
+			setPrimaryCard: fixture.paymentMethods.setPrimaryCard,
+		},
 		stripePriceId: fixture.stripePriceId,
+		stripePublishableKey: fixture.stripePublishableKey,
 		botDefenseLogger: fixture.botDefense.logger,
 		conversionLogger: fixture.conversions.logger,
 		analytics: analyticsBundle.logger,
@@ -231,6 +241,7 @@ export function createTestApp(
 		subscriptionProviders: fixture.subscriptionProviders,
 		trialScheduler: fixture.trialScheduler,
 		stripeSubscriptions: fixture.stripeSubscriptions,
+		paymentMethods: fixture.paymentMethods,
 		botDefense: fixture.botDefense,
 		conversions: fixture.conversions,
 		analytics: analyticsBundle,

@@ -342,6 +342,7 @@ const lambda = new HutchLambda(LAMBDA_NAMES.hutchHandler, {
 		RESEND_API_KEY: requireEnv("RESEND_API_KEY"),
 		STRIPE_SECRET_KEY: requireEnv("STRIPE_SECRET_KEY"),
 		STRIPE_PRICE_ID: requireEnv("STRIPE_PRICE_ID"),
+		STRIPE_PUBLISHABLE_KEY: requireEnv("STRIPE_PUBLISHABLE_KEY"),
 		STATIC_BASE_URL: staticAssets.baseUrl,
 		EVENT_BUS_NAME: eventBus.eventBusName,
 		EVENT_BUS_ARN: eventBus.eventBusArn,

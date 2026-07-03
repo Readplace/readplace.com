@@ -57,6 +57,10 @@
       "types": "./dist/password-reset.d.ts",
       "default": "./dist/password-reset.js"
     },
+    "./payment-methods": {
+      "types": "./dist/payment-methods.d.ts",
+      "default": "./dist/payment-methods.js"
+    },
     "./pending-html": {
       "types": "./dist/pending-html.d.ts",
       "default": "./dist/pending-html.js"
@@ -112,6 +116,7 @@
       "ios-onboarding-signal": ["./dist/ios-onboarding-signal.d.ts"],
       "oauth": ["./dist/oauth.d.ts"],
       "password-reset": ["./dist/password-reset.d.ts"],
+      "payment-methods": ["./dist/payment-methods.d.ts"],
       "pending-html": ["./dist/pending-html.d.ts"],
       "pending-pdf": ["./dist/pending-pdf.d.ts"],
       "pending-signup": ["./dist/pending-signup.d.ts"],

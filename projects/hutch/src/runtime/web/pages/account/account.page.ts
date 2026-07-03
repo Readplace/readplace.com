@@ -21,6 +21,13 @@ import type {
 	CreateSubscriptionOnExistingCustomer,
 	ReverseScheduledCancellation,
 } from "@packages/provider-contracts/stripe-subscriptions";
+import {
+	type BeginAddCard,
+	type ListCards,
+	PaymentMethodIdSchema,
+	type RemoveCard,
+	type SetPrimaryCard,
+} from "@packages/provider-contracts/payment-methods";
 import type {
 	CreateTrialEndSchedule,
 	DeleteDeferredCancellationSchedule,
@@ -30,10 +37,23 @@ import { Base } from "../../base.component";
 import type { BuildBannerState } from "../../banner-state";
 import { HxRedirectPage } from "../../hx-redirect-page";
 import { sendComponent } from "@packages/web-shell";
-import type { GetEffectiveAccess } from "../../../domain/access/effective-access";
+import type { EffectiveAccess, GetEffectiveAccess } from "../../../domain/access/effective-access";
 import { AccountPage } from "./account.component";
-import { parseAccountQuery, toAccountViewModel } from "./account.view-model";
-import { ACCOUNT_ERROR_PAYMENT_METHOD_URL, buildAccountUrl } from "./account.url";
+import {
+	type CardError,
+	type CardSectionViewModel,
+	MAX_CARDS,
+	buildCardSectionViewModel,
+	parseAccountQuery,
+	toAccountViewModel,
+} from "./account.view-model";
+import {
+	ACCOUNT_ERROR_ADD_CARD_FAILED_URL,
+	ACCOUNT_ERROR_CANNOT_REMOVE_PRIMARY_URL,
+	ACCOUNT_ERROR_CARD_LIMIT_URL,
+	ACCOUNT_ERROR_PAYMENT_METHOD_URL,
+	buildAccountUrl,
+} from "./account.url";
 
 interface AccountDependencies {
 	getEffectiveAccess: GetEffectiveAccess;
@@ -47,6 +67,11 @@ interface AccountDependencies {
 	createCheckoutSession: CreateCheckoutSession;
 	createSubscriptionOnExistingCustomer: CreateSubscriptionOnExistingCustomer;
 	reverseScheduledCancellation: ReverseScheduledCancellation;
+	listCards: ListCards;
+	beginAddCard: BeginAddCard;
+	removeCard: RemoveCard;
+	setPrimaryCard: SetPrimaryCard;
+	stripePublishableKey: string | undefined;
 	createTrialEndSchedule: CreateTrialEndSchedule;
 	deleteDeferredCancellationSchedule: DeleteDeferredCancellationSchedule;
 	storePendingSignup: StorePendingSignup;
@@ -63,12 +88,224 @@ type SubscribeBranchKey = "trialing" | "cancelled" | "noop" | "forbidden";
 export function initAccountRoutes(deps: AccountDependencies): Router {
 	const router = express.Router();
 
+	/** Server-authoritative card section. The live card set is re-read from the
+	 * provider on every render and every mutation — the UI is never trusted. */
+	async function loadCardSection(input: {
+		customerId: string | undefined;
+		subscriptionId: string | undefined;
+		access: EffectiveAccess;
+		cardError: CardError | undefined;
+		adding: { clientSecret: string } | undefined;
+	}): Promise<CardSectionViewModel> {
+		if (!input.customerId || input.access.access !== "full") {
+			return buildCardSectionViewModel({ kind: "no-customer" });
+		}
+		try {
+			const cards = await deps.listCards({
+				customerId: input.customerId,
+				subscriptionId: input.subscriptionId,
+			});
+			return buildCardSectionViewModel({
+				kind: "loaded",
+				cards,
+				publishableKey: deps.stripePublishableKey,
+				cardError: input.cardError,
+				adding: input.adding,
+			});
+		} catch (err) {
+			deps.logger.error("[account/cards] live read failed", {
+				error: err instanceof Error ? err.message : String(err),
+			});
+			return buildCardSectionViewModel({ kind: "provider-error" });
+		}
+	}
+
+	async function renderAccount(
+		req: Request,
+		res: Response,
+		input: {
+			access: EffectiveAccess;
+			cardSection: CardSectionViewModel;
+		},
+	): Promise<void> {
+		const vm = toAccountViewModel(input.access, parseAccountQuery(req.query), deps.now());
+		const bannerState = await deps.buildBannerState(req, { preFetchedAccess: input.access });
+		sendComponent(req, res, Base(AccountPage(vm, input.cardSection), bannerState));
+	}
+
 	router.get("/", async (req: Request, res: Response) => {
 		assert(req.userId, "userId required - route must be protected by requireAuth");
 		const access = await deps.getEffectiveAccess(req.userId);
-		const vm = toAccountViewModel(access, parseAccountQuery(req.query), deps.now());
-		const bannerState = await deps.buildBannerState(req, { preFetchedAccess: access });
-		sendComponent(req, res, Base(AccountPage(vm), bannerState));
+		const row = await deps.findSubscriptionByUserId(req.userId);
+		const cardSection = await loadCardSection({
+			customerId: row?.customerId,
+			subscriptionId: row?.subscriptionId,
+			access,
+			cardError: parseAccountQuery(req.query).cardError,
+			adding: undefined,
+		});
+		await renderAccount(req, res, { access, cardSection });
+	});
+
+	router.post("/cards/:id/primary", async (req: Request, res: Response) => {
+		assert(req.userId, "userId required - route must be protected by requireAuth");
+		const userId = req.userId;
+		try {
+			const row = await deps.findSubscriptionByUserId(userId);
+			const access = await deps.getEffectiveAccess(userId);
+			const parsed = PaymentMethodIdSchema.safeParse(req.params.id);
+			if (!row?.customerId || access.access !== "full" || !parsed.success) {
+				res.redirect(303, buildAccountUrl());
+				return;
+			}
+			const cardId = parsed.data;
+			const cards = await deps.listCards({
+				customerId: row.customerId,
+				subscriptionId: row.subscriptionId,
+			});
+			const target = cards.find((card) => card.id === cardId);
+			// Unknown card or already-primary → idempotent noop; the next render
+			// shows whatever the live read actually contains.
+			if (!target || target.isPrimary) {
+				res.redirect(303, buildAccountUrl());
+				return;
+			}
+			await deps.setPrimaryCard({
+				customerId: row.customerId,
+				cardId,
+				subscriptionId: row.subscriptionId,
+			});
+			res.redirect(303, buildAccountUrl());
+		} catch (err) {
+			deps.logger.error("[account/cards/primary] failed", {
+				userId,
+				error: err instanceof Error ? err.message : String(err),
+			});
+			res.redirect(303, buildAccountUrl());
+		}
+	});
+
+	router.post("/cards/:id/remove", async (req: Request, res: Response) => {
+		assert(req.userId, "userId required - route must be protected by requireAuth");
+		const userId = req.userId;
+		try {
+			const row = await deps.findSubscriptionByUserId(userId);
+			const access = await deps.getEffectiveAccess(userId);
+			const parsed = PaymentMethodIdSchema.safeParse(req.params.id);
+			if (!row?.customerId || access.access !== "full" || !parsed.success) {
+				res.redirect(303, buildAccountUrl());
+				return;
+			}
+			const cardId = parsed.data;
+			const cards = await deps.listCards({
+				customerId: row.customerId,
+				subscriptionId: row.subscriptionId,
+			});
+			const target = cards.find((card) => card.id === cardId);
+			if (!target) {
+				res.redirect(303, buildAccountUrl());
+				return;
+			}
+			// The primary card is never removable — the user must promote a backup
+			// first so there is always exactly one primary card.
+			if (target.isPrimary) {
+				res.redirect(303, ACCOUNT_ERROR_CANNOT_REMOVE_PRIMARY_URL);
+				return;
+			}
+			await deps.removeCard({ customerId: row.customerId, cardId });
+			res.redirect(303, buildAccountUrl());
+		} catch (err) {
+			deps.logger.error("[account/cards/remove] failed", {
+				userId,
+				error: err instanceof Error ? err.message : String(err),
+			});
+			res.redirect(303, buildAccountUrl());
+		}
+	});
+
+	router.post("/cards/new", async (req: Request, res: Response) => {
+		assert(req.userId, "userId required - route must be protected by requireAuth");
+		const userId = req.userId;
+		try {
+			const row = await deps.findSubscriptionByUserId(userId);
+			const access = await deps.getEffectiveAccess(userId);
+			const publishableKey = deps.stripePublishableKey;
+			if (
+				!row?.customerId ||
+				access.access !== "full" ||
+				publishableKey === undefined ||
+				publishableKey.length === 0
+			) {
+				res.redirect(303, buildAccountUrl());
+				return;
+			}
+			const cards = await deps.listCards({
+				customerId: row.customerId,
+				subscriptionId: row.subscriptionId,
+			});
+			if (cards.length >= MAX_CARDS) {
+				res.redirect(303, ACCOUNT_ERROR_CARD_LIMIT_URL);
+				return;
+			}
+			const { clientSecret } = await deps.beginAddCard({ customerId: row.customerId });
+			const cardSection = buildCardSectionViewModel({
+				kind: "loaded",
+				cards,
+				publishableKey,
+				cardError: undefined,
+				adding: { clientSecret },
+			});
+			await renderAccount(req, res, { access, cardSection });
+		} catch (err) {
+			deps.logger.error("[account/cards/new] failed", {
+				userId,
+				error: err instanceof Error ? err.message : String(err),
+			});
+			res.redirect(303, ACCOUNT_ERROR_ADD_CARD_FAILED_URL);
+		}
+	});
+
+	/** Post-attach reconciliation. The card is attached to the customer
+	 * client-side when Stripe.js confirms the SetupIntent, so the begin-time cap
+	 * check in /cards/new can be out-raced by a second add opened in another tab.
+	 * The client posts the just-added payment method here; we re-read the live
+	 * set and, if it now exceeds MAX_CARDS, detach that card so the cap stays
+	 * server-authoritative. The funding (primary) card is never detached. */
+	router.post("/cards/confirm", async (req: Request, res: Response) => {
+		assert(req.userId, "userId required - route must be protected by requireAuth");
+		const userId = req.userId;
+		try {
+			const row = await deps.findSubscriptionByUserId(userId);
+			const access = await deps.getEffectiveAccess(userId);
+			if (!row?.customerId || access.access !== "full") {
+				res.redirect(303, buildAccountUrl());
+				return;
+			}
+			const cards = await deps.listCards({
+				customerId: row.customerId,
+				subscriptionId: row.subscriptionId,
+			});
+			if (cards.length <= MAX_CARDS) {
+				res.redirect(303, buildAccountUrl());
+				return;
+			}
+			const parsed = PaymentMethodIdSchema.safeParse(req.body?.paymentMethodId);
+			const surplus = parsed.success
+				? cards.find((card) => card.id === parsed.data && !card.isPrimary)
+				: undefined;
+			if (!surplus) {
+				res.redirect(303, buildAccountUrl());
+				return;
+			}
+			await deps.removeCard({ customerId: row.customerId, cardId: surplus.id });
+			res.redirect(303, ACCOUNT_ERROR_CARD_LIMIT_URL);
+		} catch (err) {
+			deps.logger.error("[account/cards/confirm] failed", {
+				userId,
+				error: err instanceof Error ? err.message : String(err),
+			});
+			res.redirect(303, buildAccountUrl());
+		}
 	});
 
 	router.post("/cancel", async (req: Request, res: Response) => {

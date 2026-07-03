@@ -52,6 +52,12 @@ import type {
 	CreateSubscriptionOnExistingCustomer,
 	ReverseScheduledCancellation,
 } from "@packages/provider-contracts/stripe-subscriptions";
+import type {
+	BeginAddCard,
+	ListCards,
+	RemoveCard,
+	SetPrimaryCard,
+} from "@packages/provider-contracts/payment-methods";
 import type { ExchangeGoogleCode } from "@packages/provider-contracts/google-auth";
 import type { GetIosAppSignals, RecordIosAnyActivity, RecordIosSavedArticle } from "@packages/provider-contracts/ios-onboarding-signal";
 import type {
@@ -284,7 +290,14 @@ interface AppDependencies {
 	};
 	createSubscriptionOnExistingCustomer: CreateSubscriptionOnExistingCustomer;
 	reverseScheduledCancellation: ReverseScheduledCancellation;
+	paymentMethods: {
+		listCards: ListCards;
+		beginAddCard: BeginAddCard;
+		removeCard: RemoveCard;
+		setPrimaryCard: SetPrimaryCard;
+	};
 	stripePriceId: string;
+	stripePublishableKey: string | undefined;
 	botDefenseLogger: HutchLogger.Typed<BotDefenseEvent>;
 	conversionLogger: HutchLogger.Typed<ConversionEvent>;
 	analytics: HutchLogger.Typed<AnalyticsEvent>;
@@ -1015,6 +1028,11 @@ export function createApp(dependencies: AppDependencies): Express {
 		createCheckoutSession: deps.createCheckoutSession,
 		createSubscriptionOnExistingCustomer: deps.createSubscriptionOnExistingCustomer,
 		reverseScheduledCancellation: deps.reverseScheduledCancellation,
+		listCards: deps.paymentMethods.listCards,
+		beginAddCard: deps.paymentMethods.beginAddCard,
+		removeCard: deps.paymentMethods.removeCard,
+		setPrimaryCard: deps.paymentMethods.setPrimaryCard,
+		stripePublishableKey: deps.stripePublishableKey,
 		createTrialEndSchedule: deps.trialScheduler.createTrialEndSchedule,
 		deleteDeferredCancellationSchedule:
 			deps.trialScheduler.deleteDeferredCancellationSchedule,

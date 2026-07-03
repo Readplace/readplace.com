@@ -19,6 +19,7 @@ export type {
 	OAuthBundle,
 	ParserBundle,
 	PasswordResetBundle,
+	PaymentMethodsBundle,
 	RateLimitBundle,
 	PendingHtmlBundle,
 	PendingPdfBundle,

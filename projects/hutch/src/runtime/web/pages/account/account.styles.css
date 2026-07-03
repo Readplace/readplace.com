@@ -118,3 +118,191 @@
   color: var(--foreground);
   text-decoration: underline;
 }
+
+/* purgecss-ignore-start: account-cards and its state modifiers are interpolated from CardSectionViewModel.stateClass / item.itemClass in account.template.html */
+.account-cards {
+  padding: 20px;
+  border-radius: var(--radius-sm);
+  background: var(--muted);
+  border-left: 3px solid var(--primary);
+  margin-bottom: 16px;
+}
+
+.account-cards--loaded {
+  border-left-color: var(--primary);
+}
+
+.account-cards--no-customer {
+  border-left-color: var(--border);
+}
+
+.account-cards--provider-error {
+  border-left-color: var(--error);
+}
+
+.account-cards__item {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 12px 0;
+  border-bottom: 1px solid var(--border);
+}
+
+.account-cards__item--primary {
+  font-weight: 600;
+}
+
+.account-cards__item--backup {
+  font-weight: 400;
+}
+/* purgecss-ignore-end */
+
+.account-cards__heading {
+  font-size: 1.25rem;
+  font-weight: 700;
+  margin: 0 0 12px;
+  color: var(--foreground);
+}
+
+.account-cards__body {
+  font-size: 0.9375rem;
+  margin: 0;
+  color: var(--foreground);
+  line-height: 1.45;
+}
+
+.account-cards__notice {
+  font-size: 0.875rem;
+  margin: 0 0 12px;
+  color: var(--error);
+}
+
+.account-cards__hint {
+  font-size: 0.875rem;
+  margin: 12px 0 0;
+  color: var(--foreground);
+  font-style: italic;
+}
+
+.account-cards__list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+
+.account-cards__summary {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+  color: var(--foreground);
+}
+
+.account-cards__brand {
+  font-weight: 600;
+}
+
+.account-cards__sep {
+  color: var(--muted-foreground);
+}
+
+.account-cards__digits {
+  font-variant-numeric: tabular-nums;
+}
+
+.account-cards__exp {
+  color: var(--muted-foreground);
+  font-size: 0.875rem;
+}
+
+.account-cards__badge {
+  display: inline-flex;
+  padding: 2px 8px;
+  border-radius: var(--radius-sm);
+  background: var(--primary);
+  color: var(--primary-foreground);
+  font-size: 0.75rem;
+  font-weight: 600;
+}
+
+.account-cards__actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  align-items: center;
+}
+
+.account-cards__action-form {
+  margin: 0;
+}
+
+.account-cards__add-form {
+  margin: 16px 0 0;
+}
+
+/* purgecss-ignore-start: action variants are interpolated from CardActionView.variant in account.template.html */
+.account-cards__action {
+  display: inline-flex;
+  cursor: pointer;
+  border: 0;
+  font-family: inherit;
+  padding: 8px 14px;
+  font-size: 0.875rem;
+  font-weight: 600;
+  border-radius: var(--radius-sm);
+}
+
+.account-cards__action--primary {
+  background: var(--primary);
+  color: var(--primary-foreground);
+}
+
+.account-cards__action--secondary {
+  background: var(--background);
+  color: var(--foreground);
+  border: 1px solid var(--border);
+}
+
+.account-cards__action--destructive {
+  background: var(--error);
+  color: var(--primary-foreground);
+}
+
+.account-cards__action:hover {
+  opacity: 0.9;
+}
+/* purgecss-ignore-end */
+
+.account-cards__elements {
+  margin: 16px 0 0;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.account-cards__element-mount {
+  padding: 12px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  background: var(--background);
+}
+
+.account-cards__element-error {
+  margin: 0;
+  font-size: 0.875rem;
+  color: var(--error);
+}
+
+.account-cards__elements-actions {
+  display: flex;
+  gap: 12px;
+  align-items: center;
+}
+
+.account-cards__cancel {
+  color: var(--foreground);
+  text-decoration: underline;
+  font-size: 0.875rem;
+}

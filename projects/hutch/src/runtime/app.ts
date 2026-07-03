@@ -51,6 +51,8 @@ import { S3Client } from "@aws-sdk/client-s3";
 import { SchedulerClient } from "@aws-sdk/client-scheduler";
 import { initS3ReadContent } from "./providers/article-store/s3-read-content";
 import { initStripeSubscriptions } from "./providers/stripe-subscriptions/stripe-subscriptions";
+import { initStripePaymentMethods } from "./providers/stripe-payment-methods/stripe-payment-methods";
+import { initInMemoryPaymentMethods } from "@packages/test-fixtures/providers/payment-methods";
 import { initAwsTrialScheduler } from "./providers/trial-scheduler/aws-trial-scheduler";
 import { initInMemoryStripeSubscriptions } from "@packages/test-fixtures/providers/stripe-subscriptions";
 import { initInMemoryTrialScheduler } from "@packages/test-fixtures/providers/trial-scheduler";
@@ -152,6 +154,7 @@ function initProviders() {
 		const resendApiKey = requireEnv("RESEND_API_KEY");
 		const stripeApiKey = requireEnv("STRIPE_SECRET_KEY");
 		const stripePriceId = requireEnv("STRIPE_PRICE_ID");
+		const stripePublishableKey = requireEnv("STRIPE_PUBLISHABLE_KEY");
 		const eventBusName = requireEnv("EVENT_BUS_NAME");
 		const contentBucketName = requireEnv("CONTENT_BUCKET_NAME");
 		const pendingHtmlBucketName = requireEnv("PENDING_HTML_BUCKET_NAME");
@@ -254,6 +257,11 @@ function initProviders() {
 			apiKey: stripeApiKey,
 			fetch: globalThis.fetch,
 		});
+		const paymentMethods = initStripePaymentMethods({
+			apiKey: stripeApiKey,
+			fetch: globalThis.fetch,
+			logger,
+		});
 		const pendingSignup = initDynamoDbPendingSignup({ client, tableName: pendingSignupsTable, logger: consoleLogger });
 		const subscriptionProviders = {
 			...initDynamoDbSubscriptionRead({ client, tableName: subscriptionProvidersTable }),
@@ -320,7 +328,9 @@ function initProviders() {
 			trialScheduler,
 			createSubscriptionOnExistingCustomer: stripeSubscriptions.createSubscriptionOnExistingCustomer,
 			reverseScheduledCancellation: stripeSubscriptions.reverseScheduledCancellation,
+			paymentMethods,
 			stripePriceId,
+			stripePublishableKey,
 
 			...initResendEmail(resendApiKey),
 			...initDynamoDbEmailVerification({ client, tableName: verificationTokensTable }),
@@ -373,6 +383,7 @@ function initProviders() {
 	const devStripeSubscriptions = initInMemoryStripeSubscriptions();
 	const devPendingSignup = initInMemoryPendingSignup();
 	const devSubscriptionProviders = initInMemorySubscriptionProviders({ now: () => new Date() });
+	const devPaymentMethods = initInMemoryPaymentMethods();
 	const devTrialScheduler = initInMemoryTrialScheduler();
 	const devGoogleClientId = getEnv("GOOGLE_LOGIN_CLIENT_ID");
 	const devGoogleClientSecret = getEnv("GOOGLE_LOGIN_CLIENT_SECRET");
@@ -529,7 +540,9 @@ function initProviders() {
 		trialScheduler: devTrialScheduler,
 		createSubscriptionOnExistingCustomer: devStripeSubscriptions.createSubscriptionOnExistingCustomer,
 		reverseScheduledCancellation: devStripeSubscriptions.reverseScheduledCancellation,
+		paymentMethods: devPaymentMethods,
 		stripePriceId: "price_dev_default",
+		stripePublishableKey: getEnv("STRIPE_PUBLISHABLE_KEY"),
 
 		...initLogEmail({ logger: HutchLogger.from(consoleLogger) }),
 		...initInMemoryEmailVerification(),
