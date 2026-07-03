@@ -7,7 +7,11 @@ enum PKCE {
 	/// A high-entropy verifier (43 characters, within the 43–128 RFC range).
 	static func makeCodeVerifier() -> String {
 		var bytes = [UInt8](repeating: 0, count: 32)
-		_ = SecRandomCopyBytes(kSecRandomDefault, bytes.count, &bytes)
+		let status = SecRandomCopyBytes(kSecRandomDefault, bytes.count, &bytes)
+		// On RNG failure the buffer stays all-zero, which would make the verifier
+		// and CSRF state constant and guessable — fail the build of a login rather
+		// than proceed with a predictable secret.
+		precondition(status == errSecSuccess, "SecRandomCopyBytes failed (\(status))")
 		return base64URLEncode(Data(bytes))
 	}
 
