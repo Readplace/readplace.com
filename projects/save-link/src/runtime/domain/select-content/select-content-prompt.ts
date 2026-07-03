@@ -44,6 +44,14 @@ export const INPUT_TOKEN_BUDGET = DEEPSEEK_CONTEXT_TOKENS - DEEPSEEK_MAX_OUTPUT_
 export const TOTAL_HTML_CHAR_BUDGET =
 	Math.floor(INPUT_TOKEN_BUDGET * CHARS_PER_INPUT_TOKEN * SAFETY) - SYSTEM_AND_FRAMING_RESERVE_CHARS;
 
+// Ceiling on the raw chars condenseCandidateHtml will DOM-parse before falling
+// back to a raw front-slice. linkedom builds the whole tree before markup can be
+// dropped: a spot-check peaked ~1.6 GB RSS on ~40 MB of HTML and ~3.2 GB on
+// ~80 MB, past the select Lambda's 3008 MB ceiling. 40M chars keeps the parse at
+// ~half the ceiling for the observed ~40 MB worst case and only front-slices
+// pages larger than any real article (base64-heavy outliers).
+const MAX_CONDENSE_INPUT_CHARS = 40_000_000;
+
 export function perCandidateHtmlCap(candidateCount: number): number {
 	return Math.floor(TOTAL_HTML_CHAR_BUDGET / candidateCount);
 }
@@ -62,7 +70,7 @@ export function buildSelectContentUserMessage(params: {
 	const lines: string[] = [`URL: ${params.url}`, ""];
 	params.candidates.forEach((candidate, index) => {
 		const label = labelForIndex(index);
-		const cleaned = condenseCandidateHtml(candidate.html);
+		const cleaned = condenseCandidateHtml(candidate.html, MAX_CONDENSE_INPUT_CHARS);
 		let body = cleaned;
 		if (cleaned.length > cap) {
 			params.logger.error(

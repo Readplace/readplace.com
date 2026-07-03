@@ -1,7 +1,6 @@
 import assert from "node:assert";
 import { parseHTML } from "linkedom";
-
-const COMMENT_NODE = 8;
+import { COMMENT_NODE } from "../dom-node-types";
 
 /**
  * Strip everything the select-content model never judges — attributes,
@@ -18,9 +17,19 @@ const COMMENT_NODE = 8;
  * guarantees the `#root` assert cannot fire, and linkedom does not throw on
  * already-crawled HTML — so preserve both when editing; otherwise wrap the
  * body in a try/catch that returns the raw html.
+ *
+ * `maxInputChars` bounds the parse: linkedom builds the whole tree before any
+ * markup can be dropped, so a large enough candidate would OOM the Lambda.
+ * Above the bound the raw html is returned unparsed and the caller's
+ * per-candidate cap front-slices it — worse selection on a giant page, but no
+ * OOM. That trade matters because an OOM is a process crash, not a throw: it
+ * would slip past the 400→tie net and DLQ a crawl that in fact succeeded, the
+ * same class the throw-safety above guards against. See MAX_CONDENSE_INPUT_CHARS
+ * for the measured value.
  */
-export function condenseCandidateHtml(html: string): string {
+export function condenseCandidateHtml(html: string, maxInputChars: number): string {
 	if (!html) return html;
+	if (html.length > maxInputChars) return html;
 
 	const { document } = parseHTML(`<div id="root">${html}</div>`);
 	const root = document.getElementById("root");

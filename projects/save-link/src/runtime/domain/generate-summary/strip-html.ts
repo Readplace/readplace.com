@@ -1,8 +1,9 @@
 import assert from "node:assert";
 import { parseHTML } from "linkedom";
+import { TEXT_NODE } from "../dom-node-types";
 
 function extractText(node: Node): string {
-	if (node.nodeType === 3) {
+	if (node.nodeType === TEXT_NODE) {
 		assert(node.textContent !== null, "Text node must have textContent");
 		return node.textContent;
 	}
