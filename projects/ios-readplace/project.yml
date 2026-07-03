@@ -24,7 +24,6 @@ settings:
     # `make ipa` still works because it forces CODE_SIGNING_ALLOWED=NO.
     CODE_SIGN_STYLE: Manual
     DEVELOPMENT_TEAM: ""
-    TARGETED_DEVICE_FAMILY: "1"
 
 targets:
   Readplace:
@@ -40,6 +39,11 @@ targets:
         CODE_SIGN_ENTITLEMENTS: App/App.entitlements
         GENERATE_INFOPLIST_FILE: NO
         ASSETCATALOG_COMPILER_APPICON_NAME: AppIcon
+        # Must be set per target: XcodeGen injects its platform default "1,2"
+        # into every target's build settings, which overrides any project-level
+        # value — so iPhone-only (no iPad in App Store review scope) only holds
+        # if each shipping target pins it here.
+        TARGETED_DEVICE_FAMILY: "1"
     dependencies:
       - target: ShareExtension
     scheme:
@@ -59,6 +63,7 @@ targets:
         INFOPLIST_FILE: ShareExtension/Info.plist
         CODE_SIGN_ENTITLEMENTS: ShareExtension/ShareExtension.entitlements
         GENERATE_INFOPLIST_FILE: NO
+        TARGETED_DEVICE_FAMILY: "1"
 
   ReadplaceTests:
     type: bundle.unit-test
