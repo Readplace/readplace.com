@@ -10,9 +10,14 @@ const COMMENT_NODE = 8;
  * anti-signals rather than markup. Walks the parsed tree instead of using
  * regex: Readability bodies embed code samples whose text contains literal
  * `<`, `class=`, and `href="…"`, and a regex attribute-strip would corrupt
- * that text; the DOM never confuses text for markup. Must never throw — it
- * runs inside select-content's try, and a generic (non-400) error there
- * escapes to the SQS retry chain and DLQs a crawl that in fact succeeded.
+ * that text; the DOM never confuses text for markup.
+ *
+ * It is assumed, not guaranteed, not to throw: a non-400 throw escapes to
+ * the SQS retry chain and DLQs a crawl that in fact succeeded. Both throw
+ * sites are safe by construction — the literal `<div id="root">` wrapper
+ * guarantees the `#root` assert cannot fire, and linkedom does not throw on
+ * already-crawled HTML — so preserve both when editing; otherwise wrap the
+ * body in a try/catch that returns the raw html.
  */
 export function condenseCandidateHtml(html: string): string {
 	if (!html) return html;
