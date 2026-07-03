@@ -5,9 +5,9 @@ import { initCrawlBookmark } from "./crawl-bookmark.client";
 function initWithDom(
 	bodyHtml: string,
 	isNarrow: boolean,
-): { document: Document; triggerSwap: () => void } {
+): { document: Document; triggerSwap: (swapTarget: ParentNode) => void } {
 	const dom = new JSDOM(`<!DOCTYPE html><html><body>${bodyHtml}</body></html>`);
-	let swapListener: (() => void) | undefined;
+	let swapListener: ((swapTarget: ParentNode) => void) | undefined;
 	initCrawlBookmark({
 		document: dom.window.document,
 		isNarrow: () => isNarrow,
@@ -17,9 +17,9 @@ function initWithDom(
 	}).attach();
 	return {
 		document: dom.window.document,
-		triggerSwap: () => {
+		triggerSwap: (swapTarget) => {
 			assert(swapListener, "a swap listener must be registered");
-			swapListener();
+			swapListener(swapTarget);
 		},
 	};
 }
@@ -38,11 +38,27 @@ describe("initCrawlBookmark", () => {
 		expect(document.querySelector(".crawl-bookmark")?.hasAttribute("open")).toBe(true);
 	});
 
-	it("re-applies the per-viewport default after an htmx swap", () => {
+	it("marks the bookmark JS-enhanced so the no-JS CSS collapse stops applying", () => {
+		const { document } = initWithDom(OPEN_BOOKMARK, false);
+		expect(
+			document.querySelector(".crawl-bookmark")?.classList.contains("crawl-bookmark--js"),
+		).toBe(true);
+	});
+
+	it("re-applies the per-viewport default when a swap delivers a fresh bookmark", () => {
 		const { document, triggerSwap } = initWithDom("", true);
 		document.body.innerHTML = OPEN_BOOKMARK;
-		triggerSwap();
+		triggerSwap(document.body);
 		expect(document.querySelector(".crawl-bookmark")?.hasAttribute("open")).toBe(false);
+	});
+
+	it("leaves a manually-toggled bookmark alone when the swapped fragment has no bookmark", () => {
+		const { document, triggerSwap } = initWithDom(OPEN_BOOKMARK, false);
+		const bookmark = document.querySelector(".crawl-bookmark");
+		assert(bookmark, "the bookmark must be present");
+		bookmark.removeAttribute("open");
+		triggerSwap(document.createElement("div"));
+		expect(bookmark.hasAttribute("open")).toBe(false);
 	});
 
 	it("no-ops when no bookmark is present (article still crawling)", () => {

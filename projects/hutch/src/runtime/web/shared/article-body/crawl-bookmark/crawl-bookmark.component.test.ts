@@ -13,9 +13,9 @@ describe("renderCrawlBookmark", () => {
 
 		const doc = parse(renderCrawlBookmark({ lastCrawledAt }));
 
-		const tab = doc.querySelector('[aria-selected="true"]');
-		assert(tab, "the canonical tab must render in the selected state");
-		expect(tab.getAttribute("data-test-crawl-bookmark-tab")).toBe("canonical");
+		const tab = doc.querySelector('[data-test-crawl-bookmark-tab="canonical"]');
+		assert(tab, "the canonical tab must render");
+		expect(tab.classList.contains("crawl-bookmark__tab--selected")).toBe(true);
 		expect(tab.textContent).toContain("Last crawled at");
 
 		const time = tab.querySelector("time");

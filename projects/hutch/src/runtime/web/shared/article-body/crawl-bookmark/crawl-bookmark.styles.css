@@ -72,3 +72,9 @@
 .crawl-bookmark__time {
   opacity: 0.75;
 }
+
+@media (max-width: 767px) {
+  .crawl-bookmark:not(.crawl-bookmark--js) .crawl-bookmark__tabs {
+    display: none;
+  }
+}

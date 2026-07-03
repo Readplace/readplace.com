@@ -13,7 +13,6 @@ export const CRAWL_BOOKMARK_SCRIPT = `<script src="/client-dist/crawl-bookmark.c
 interface CrawlBookmarkTab {
 	key: string;
 	state: "selected";
-	ariaSelected: "true";
 	prefix: string;
 	iso: string;
 	mode: LocalTimeMode;
@@ -26,7 +25,6 @@ export function renderCrawlBookmark(input: { lastCrawledAt?: LocalTime }): strin
 		{
 			key: "canonical",
 			state: "selected",
-			ariaSelected: "true",
 			prefix: "Last crawled at",
 			iso: input.lastCrawledAt.iso,
 			mode: input.lastCrawledAt.mode,
