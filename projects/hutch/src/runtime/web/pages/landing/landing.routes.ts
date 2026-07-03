@@ -5,6 +5,7 @@ import type { Request, Response, Router } from "express";
 import type { BuildBannerState } from "../../banner-state";
 import { Base } from "../../base.component";
 import { HOMEPAGE_SPLIT } from "../../experiments/homepage-split";
+import { detectInstallBrowser } from "../../onboarding/extension-install";
 import type { FoundingAllocation } from "../../shared/founding-progress/founding-allocation";
 import { QUEUE_PATH } from "../queue/queue.url";
 import { HomePage } from "../home";
@@ -31,11 +32,7 @@ export function initLandingRoutes(deps: {
 			res.redirect(303, QUEUE_PATH);
 			return;
 		}
-		const ua = req.headers["user-agent"] ?? "";
-		const browser: "firefox" | "chrome" | "other" =
-			ua.includes("Firefox/") ? "firefox"
-			: ua.includes("Chrome/") ? "chrome"
-			: "other";
+		const browser = detectInstallBrowser(req);
 		const userCount = await countUsers().catch(() => 0);
 		const banner = await buildBannerState(req);
 		sendComponent(

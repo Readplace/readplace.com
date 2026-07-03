@@ -178,6 +178,7 @@ import { E2EFixturePage } from "./web/pages/e2e-fixture";
 import { createE2EFixturePdf } from "./web/pages/e2e-fixture-pdf";
 import { initInstallRoutes } from "./web/pages/install";
 import { initLandingRoutes } from "./web/pages/landing";
+import { detectInstallBrowser } from "./web/onboarding/extension-install";
 import { NotFoundPage } from "./web/pages/not-found";
 import { initGetEffectiveAccess } from "./domain/access/effective-access";
 import { initRequireWriteAccess } from "./web/middleware/require-write-access.middleware";
@@ -669,11 +670,7 @@ export function createApp(dependencies: AppDependencies): Express {
 			return;
 		}
 
-		const ua = req.headers["user-agent"] ?? "";
-		const browser: "firefox" | "chrome" | "other" =
-			ua.includes("Firefox/") ? "firefox"
-			: ua.includes("Chrome/") ? "chrome"
-			: "other";
+		const browser = detectInstallBrowser(req);
 		const userCount = await countUsers().catch(() => 0);
 		const banner = await buildBannerState(req);
 		sendComponent(

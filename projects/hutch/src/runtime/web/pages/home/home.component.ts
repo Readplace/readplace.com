@@ -5,6 +5,7 @@ import { render } from "@packages/web-shell";
 import type { PageBody } from "@packages/web-shell";
 
 import { switchHelpers } from "../../handlebars-switch";
+import type { InstallBrowser } from "../../onboarding/onboarding.types";
 import { renderFoundingProgress } from "../../shared/founding-progress/founding-progress.component";
 import type { FoundingAllocation } from "../../shared/founding-progress/founding-allocation";
 import { HOME_PAGE_STYLES } from "./home.styles";
@@ -22,7 +23,7 @@ const HOME_SPLIT_SCRIPT = `<script src="/client-dist/homepage-split.client.js" d
 export function HomePage(params: {
 	userCount: number;
 	staticBaseUrl: string;
-	browser: "firefox" | "chrome" | "other";
+	browser: InstallBrowser;
 	foundingAllocation: FoundingAllocation;
 	/** Set on the A/B landing arms (`/landing-a`, `/landing-b`); absent on `/`. */
 	variant?: "a" | "b";

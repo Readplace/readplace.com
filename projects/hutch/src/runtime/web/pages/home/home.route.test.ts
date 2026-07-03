@@ -125,6 +125,18 @@ describe("GET /", () => {
 		expect(cta?.textContent).toBe("Install Chrome Extension");
 	});
 
+	it("should render a generic install CTA for iPhone (no extension CTA on the marketing pages)", async () => {
+		const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
+		const response = await request(harness.server)
+			.get("/")
+			.set("User-Agent", "Mozilla/5.0 (iPhone; CPU iPhone OS 17_0 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/17.0 Mobile/15E148 Safari/604.1");
+		const doc = new JSDOM(response.text).window.document;
+
+		const cta = doc.querySelector('[data-test-cta="install-extension"]');
+		expect(cta?.textContent).toBe("Install Browser Extension");
+		expect(cta?.getAttribute("href")).toBe("/install?utm_source=home-hero&utm_medium=internal&utm_content=install");
+	});
+
 	it("should render generic trust line when browser is unrecognized", async () => {
 		const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
 		const response = await request(harness.server).get("/");
