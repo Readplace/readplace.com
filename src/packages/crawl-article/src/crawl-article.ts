@@ -44,6 +44,15 @@ function fetchTimeoutReason(message: string): Error {
 	return reason;
 }
 
+function describeEdgeHeaders(headers: Headers): string {
+	const parts: string[] = [];
+	for (const name of ["server", "cf-mitigated", "cf-ray"]) {
+		const value = headers.get(name);
+		if (value !== null) parts.push(`${name}=${value}`);
+	}
+	return parts.length === 0 ? "" : ` (${parts.join(", ")})`;
+}
+
 /**
  * Browser-like headers required by Fastly/Cloudflare edge sniffers.
  * Medium returns 403 without both User-Agent AND Accept-Language.
@@ -153,11 +162,11 @@ function initConditionalGet(deps: {
 				return { status: "not-modified" };
 			}
 			if (response.status === 404 || response.status === 410) {
-				logError(`[CrawlArticle] HTTP ${response.status} for ${params.url}`);
+				logError(`[CrawlArticle] HTTP ${response.status} for ${params.url}${describeEdgeHeaders(response.headers)}`);
 				return { status: "not-found", httpStatus: response.status };
 			}
 			if (!response.ok) {
-				logError(`[CrawlArticle] HTTP ${response.status} for ${params.url}`);
+				logError(`[CrawlArticle] HTTP ${response.status} for ${params.url}${describeEdgeHeaders(response.headers)}`);
 				return { status: "failed" };
 			}
 			budgetTimer = setTimeout(() => {

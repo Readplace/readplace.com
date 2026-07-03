@@ -452,6 +452,27 @@ describe("initCrawlArticle — single-fetch orchestration", () => {
 		expect(logError).toHaveBeenCalledWith("[CrawlArticle] HTTP 500 for https://example.com");
 	});
 
+	it("logs edge-diagnostic headers when the failing response carries them", async () => {
+		const fakeFetch: typeof fetch = async () =>
+			new Response(null, {
+				status: 503,
+				headers: {
+					server: "cloudflare",
+					"cf-mitigated": "challenge",
+					"cf-ray": "9560a1b2c3d4e5f6-SYD",
+				},
+			});
+		const logError = jest.fn();
+		const crawlArticle = initCrawl({ fetch: fakeFetch, logError });
+
+		const result = await crawlArticle({ url: "https://example.com" });
+
+		expect(result).toEqual({ status: "failed" });
+		expect(logError).toHaveBeenCalledWith(
+			"[CrawlArticle] HTTP 503 for https://example.com (server=cloudflare, cf-mitigated=challenge, cf-ray=9560a1b2c3d4e5f6-SYD)",
+		);
+	});
+
 	it("returns not-found with the status on an HTTP 404 so callers can terminalise without retries", async () => {
 		const fakeFetch: typeof fetch = async () => new Response(null, { status: 404 });
 		const logError = jest.fn();

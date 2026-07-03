@@ -105,6 +105,45 @@ describe("initSelectMostCompleteContent (variadic)", () => {
 		expect(result).toEqual({ winner: "tier-1", reason: "only candidate" });
 	});
 
+	it("returns 'tie' when the provider rejects the request outright (HTTP 400) instead of throwing into the retry chain", async () => {
+		const rejection = Object.assign(
+			new Error("400 This model's maximum context length is 1048565 tokens."),
+			{ status: 400 },
+		);
+		const { selectMostCompleteContent } = initSelectMostCompleteContent({
+			createChatCompletion: jest.fn().mockRejectedValue(rejection),
+			logger: noopLogger,
+		});
+
+		const result = await selectMostCompleteContent({
+			url: "https://example.com/a",
+			candidates: [
+				{ tier: "tier-0", title: "T", wordCount: 1, html: "" },
+				{ tier: "tier-1", title: "T", wordCount: 1, html: "" },
+			],
+		});
+
+		expect(result).toEqual({ winner: "tie", reason: "provider rejected request" });
+	});
+
+	it("rethrows provider failures a retry can heal (HTTP 500)", async () => {
+		const failure = Object.assign(new Error("500 internal error"), { status: 500 });
+		const { selectMostCompleteContent } = initSelectMostCompleteContent({
+			createChatCompletion: jest.fn().mockRejectedValue(failure),
+			logger: noopLogger,
+		});
+
+		await expect(
+			selectMostCompleteContent({
+				url: "https://example.com/a",
+				candidates: [
+					{ tier: "tier-0", title: "T", wordCount: 1, html: "" },
+					{ tier: "tier-1", title: "T", wordCount: 1, html: "" },
+				],
+			}),
+		).rejects.toThrow("500 internal error");
+	});
+
 	it("returns 'tie' on schema mismatch (e.g. missing reason)", async () => {
 		const { selectMostCompleteContent } = initSelectMostCompleteContent({
 			createChatCompletion: fakeChat(JSON.stringify({ winner: "A" })),

@@ -32,6 +32,8 @@ const ResponseSchema = z.object({
 	reason: z.string(),
 });
 
+const NonRetryableRejectionSchema = z.object({ status: z.literal(400) });
+
 export function initSelectMostCompleteContent(deps: {
 	createChatCompletion: CreateSelectorChatCompletion;
 	logger: HutchLogger;
@@ -39,19 +41,29 @@ export function initSelectMostCompleteContent(deps: {
 	const { createChatCompletion, logger } = deps;
 
 	const selectMostCompleteContent: SelectMostCompleteContent = async (params) => {
-		const response = await createChatCompletion({
-			model: "deepseek-chat",
-			max_tokens: DEEPSEEK_MAX_OUTPUT_TOKENS,
-			// Deepseek's JSON-mode flag — guarantees the response body is parseable
-			// JSON (no prose, no fences). Shape is still validated by ResponseSchema
-			// below, since json_object enforces only that the output IS json.
-			// https://api-docs.deepseek.com/guides/json_mode
-			response_format: { type: "json_object" },
-			messages: [
-				{ role: "system", content: SELECT_CONTENT_SYSTEM_PROMPT },
-				{ role: "user", content: buildSelectContentUserMessage(params) },
-			],
-		});
+		let response: ChatCompletionResponse;
+		try {
+			response = await createChatCompletion({
+				model: "deepseek-chat",
+				max_tokens: DEEPSEEK_MAX_OUTPUT_TOKENS,
+				// Deepseek's JSON-mode flag — guarantees the response body is parseable
+				// JSON (no prose, no fences). Shape is still validated by ResponseSchema
+				// below, since json_object enforces only that the output IS json.
+				// https://api-docs.deepseek.com/guides/json_mode
+				response_format: { type: "json_object" },
+				messages: [
+					{ role: "system", content: SELECT_CONTENT_SYSTEM_PROMPT },
+					{ role: "user", content: buildSelectContentUserMessage(params) },
+				],
+			});
+		} catch (error) {
+			if (!NonRetryableRejectionSchema.safeParse(error).success) throw error;
+			logger.error("[SelectContent] provider rejected the request, returning tie", {
+				url: params.url,
+				error,
+			});
+			return { winner: "tie", reason: "provider rejected request" };
+		}
 
 		const text = response.choices[0]?.message?.content?.trim();
 		if (!text) {

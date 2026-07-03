@@ -26,6 +26,13 @@ export type SelectorCandidate = {
 	html: string;
 };
 
+export const MAX_CANDIDATE_HTML_CHARS = 200_000;
+
+function capCandidateHtml(html: string): string {
+	if (html.length <= MAX_CANDIDATE_HTML_CHARS) return html;
+	return `${html.slice(0, MAX_CANDIDATE_HTML_CHARS)}\n[truncated: showing the first ${MAX_CANDIDATE_HTML_CHARS} of ${html.length} characters]`;
+}
+
 /**
  * Candidates are presented to the model with letter labels A, B, C, … in input order
  * (mapped back to Tier by the caller). Letters keep the prompt short while staying
@@ -40,7 +47,7 @@ export function buildSelectContentUserMessage(params: {
 		const label = labelForIndex(index);
 		lines.push(
 			`--- ${label} (tier=${candidate.tier}, title ${JSON.stringify(candidate.title)}, words ${candidate.wordCount}) ---`,
-			candidate.html,
+			capCandidateHtml(candidate.html),
 			"",
 		);
 	});
