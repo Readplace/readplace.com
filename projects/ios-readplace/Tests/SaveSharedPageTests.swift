@@ -18,7 +18,7 @@ final class SaveSharedPageTests: XCTestCase {
 
 	func testSavesRenderedHTMLViaSaveContent() async throws {
 		let store = TestSupport.loggedInStore()
-		let captor = FakeHTMLCaptor(page: CapturedPage(rawHtml: "<html><body>hi</body></html>", title: "Captured"))
+		let captor = FakeHTMLCaptor(page: CapturedPage(rawHtml: "<html><body>hi</body></html>", title: "Captured", mediaType: nil))
 		StubURLProtocol.setHandler { request, _ in
 			switch request.url?.path {
 			case "/":
@@ -68,7 +68,7 @@ final class SaveSharedPageTests: XCTestCase {
 		// server's message, not the generic "Save failed."; and the refusal must not
 		// fall back to a URL-only save.
 		let store = TestSupport.loggedInStore()
-		let captor = FakeHTMLCaptor(page: CapturedPage(rawHtml: "<html><body>hi</body></html>", title: "Captured"))
+		let captor = FakeHTMLCaptor(page: CapturedPage(rawHtml: "<html><body>hi</body></html>", title: "Captured", mediaType: nil))
 		StubURLProtocol.setHandler { request, _ in
 			switch request.url?.path {
 			case "/":
@@ -100,7 +100,7 @@ final class SaveSharedPageTests: XCTestCase {
 	func testDegradesToLinkOnlyWhenCaptureEmpty() async throws {
 		// The capture produced no HTML, so the orchestrator saves URL-only.
 		let store = TestSupport.loggedInStore()
-		let emptyCaptor = FakeHTMLCaptor(page: CapturedPage(rawHtml: nil, title: nil))
+		let emptyCaptor = FakeHTMLCaptor(page: CapturedPage(rawHtml: nil, title: nil, mediaType: nil))
 		StubURLProtocol.setHandler { request, _ in
 			switch request.url?.path {
 			case "/":
@@ -131,7 +131,7 @@ final class SaveSharedPageTests: XCTestCase {
 		// refuses the payload with a URL-only fallback action, and the journey
 		// follows it — surfacing the server-driven degradation as savedLinkOnly.
 		let store = TestSupport.loggedInStore()
-		let captor = FakeHTMLCaptor(page: CapturedPage(rawHtml: "<html><body>hi</body></html>", title: "Captured"))
+		let captor = FakeHTMLCaptor(page: CapturedPage(rawHtml: "<html><body>hi</body></html>", title: "Captured", mediaType: nil))
 		StubURLProtocol.setHandler { request, _ in
 			switch request.url?.path {
 			case "/":
@@ -214,7 +214,7 @@ final class SaveSharedPageTests: XCTestCase {
 		// The journey must upload those bytes directly — no WKWebView render, no
 		// refetch of an origin that might block a cookie-less second request.
 		let store = TestSupport.loggedInStore()
-		let captor = FakeHTMLCaptor(page: CapturedPage(rawHtml: "<html>never used</html>", title: "never used"))
+		let captor = FakeHTMLCaptor(page: CapturedPage(rawHtml: "<html>never used</html>", title: "never used", mediaType: nil))
 		let pdfBytes = Data("%PDF-1.7\nshared pdf body".utf8)
 		StubURLProtocol.setHandler { request, _ in
 			switch request.url?.path {
@@ -260,7 +260,7 @@ final class SaveSharedPageTests: XCTestCase {
 		// `%PDF-` magic header must not be uploaded; the journey falls back to the
 		// normal capture path for the URL.
 		let store = TestSupport.loggedInStore()
-		let captor = FakeHTMLCaptor(page: CapturedPage(rawHtml: "<html><body>hi</body></html>", title: "Captured"))
+		let captor = FakeHTMLCaptor(page: CapturedPage(rawHtml: "<html><body>hi</body></html>", title: "Captured", mediaType: nil))
 		StubURLProtocol.setHandler { request, _ in
 			switch request.url?.path {
 			case "/":
@@ -299,7 +299,7 @@ final class SaveSharedPageTests: XCTestCase {
 		// URL to key the article on, so the journey reports .noLink before any
 		// capture, network call, or PDF byte load.
 		let store = TestSupport.loggedInStore()
-		let captor = FakeHTMLCaptor(page: CapturedPage(rawHtml: "<html></html>", title: "x"))
+		let captor = FakeHTMLCaptor(page: CapturedPage(rawHtml: "<html></html>", title: "x", mediaType: nil))
 		let saver = SaveSharedPage(store: store, api: makeAPI(store: store), captor: captor)
 
 		let outcome = await saver.run(url: nil, fallbackTitle: "Form.pdf", sharedPdf: { () async -> Data? in
@@ -352,7 +352,7 @@ final class SaveSharedPageTests: XCTestCase {
 		let saver = SaveSharedPage(
 			store: loggedOut,
 			api: makeAPI(store: loggedOut),
-			captor: FakeHTMLCaptor(page: CapturedPage(rawHtml: "<html></html>", title: "x"))
+			captor: FakeHTMLCaptor(page: CapturedPage(rawHtml: "<html></html>", title: "x", mediaType: nil))
 		)
 		let outcome = await saver.run(url: URL(string: "https://example.com/post")!, fallbackTitle: nil, sharedPdf: { () async -> Data? in
 			XCTFail("PDF bytes must not be loaded when logged out")
@@ -366,7 +366,7 @@ final class SaveSharedPageTests: XCTestCase {
 	func testReturnsNoLinkWhenURLMissing() async throws {
 		// A share with no extractable URL must neither capture nor hit the network.
 		let store = TestSupport.loggedInStore()
-		let captor = FakeHTMLCaptor(page: CapturedPage(rawHtml: "<html></html>", title: "x"))
+		let captor = FakeHTMLCaptor(page: CapturedPage(rawHtml: "<html></html>", title: "x", mediaType: nil))
 		let saver = SaveSharedPage(store: store, api: makeAPI(store: store), captor: captor)
 
 		let outcome = await saver.run(url: nil, fallbackTitle: "Shared title", sharedPdf: nil)
@@ -379,7 +379,7 @@ final class SaveSharedPageTests: XCTestCase {
 	func testReturnsNoSaveActionWhenServerOffersNeither() async throws {
 		// The queue loaded but advertised neither save action, so there is nothing to do.
 		let store = TestSupport.loggedInStore()
-		let captor = FakeHTMLCaptor(page: CapturedPage(rawHtml: "<html><body>hi</body></html>", title: "Captured"))
+		let captor = FakeHTMLCaptor(page: CapturedPage(rawHtml: "<html><body>hi</body></html>", title: "Captured", mediaType: nil))
 		let searchOnly = """
 		{ "name": "search", "href": "/queue", "method": "GET" }
 		"""

@@ -40,10 +40,8 @@ struct SaveSharedPage {
 		if let sharedPdf {
 			providedPdf = await sharedPdf().flatMap { $0.starts(with: Self.pdfMagic) ? $0 : nil }
 		}
-		let captured = providedPdf != nil
-			? CapturedPage(rawHtml: nil, title: nil, mediaType: "application/pdf")
-			: await captor.capture(url: url)
-		let title = (captured.title?.isEmpty == false) ? captured.title : fallbackTitle
+		let captured = providedPdf == nil ? await captor.capture(url: url) : nil
+		let title = (captured?.title?.isEmpty == false) ? captured?.title : fallbackTitle
 
 		do {
 			let page = try await api.loadQueue()
@@ -78,14 +76,14 @@ struct SaveSharedPage {
 	/// header, so a 200-but-not-a-PDF response (a bot-defence challenge page, say)
 	/// degrades cleanly rather than uploading junk. HTML uses the bytes the captor
 	/// already rendered.
-	private func resolveContentPayload(captured: CapturedPage, url: URL, providedPdf: Data?) async -> (bytes: Data, mediaType: String)? {
+	private func resolveContentPayload(captured: CapturedPage?, url: URL, providedPdf: Data?) async -> (bytes: Data, mediaType: String)? {
 		if let providedPdf { return (providedPdf, "application/pdf") }
-		if captured.mediaType == "application/pdf" {
+		if captured?.mediaType == "application/pdf" {
 			guard let bytes = await api.fetchExternalContent(url),
 				bytes.starts(with: Self.pdfMagic) else { return nil }
 			return (bytes, "application/pdf")
 		}
-		if let html = captured.rawHtml, !html.isEmpty { return (Data(html.utf8), "text/html") }
+		if let html = captured?.rawHtml, !html.isEmpty { return (Data(html.utf8), "text/html") }
 		return nil
 	}
 }

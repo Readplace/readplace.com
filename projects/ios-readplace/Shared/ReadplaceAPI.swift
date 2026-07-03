@@ -33,10 +33,7 @@ enum APIError: LocalizedError {
 /// and pagination links the server advertised.
 struct QueuePage {
 	let articles: [Article]
-	let selfHref: String?
 	let nextHref: String?
-	let prevHref: String?
-	let total: Int?
 	/// Every collection-level action and navigable link the server advertised, in
 	/// wire order — the complete set, so the share-sheet save journey can still find
 	/// its bespoke action by name (`action(named:)`, below). The toolbar does not
@@ -51,10 +48,7 @@ struct QueuePage {
 	init(collection: SirenCollection) {
 		articles = (collection.entities ?? []).compactMap(Article.init(entity:))
 		let links = collection.links ?? []
-		selfHref = links.first { $0.rel.contains("self") }?.href
 		nextHref = links.first { $0.rel.contains("next") }?.href
-		prevHref = links.first { $0.rel.contains("prev") }?.href
-		total = collection.properties?.total
 		let actionAffordances = (collection.actions ?? []).compactMap(Affordance.init(action:))
 		let linkAffordances = links.compactMap(Affordance.init(link:))
 		affordances = actionAffordances + linkAffordances

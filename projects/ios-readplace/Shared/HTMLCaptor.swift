@@ -11,12 +11,6 @@ struct CapturedPage {
 	let rawHtml: String?
 	let title: String?
 	let mediaType: String?
-
-	init(rawHtml: String?, title: String?, mediaType: String? = nil) {
-		self.rawHtml = rawHtml
-		self.title = title
-		self.mediaType = mediaType
-	}
 }
 
 /// Loads a URL in an off-screen WKWebView and returns the rendered DOM as
@@ -49,7 +43,7 @@ final class HTMLCaptor: NSObject, WKNavigationDelegate {
 		webView.customUserAgent = AppConfig.webViewUserAgent
 	}
 
-	func capture(url: URL, timeout: TimeInterval = 12) async -> CapturedPage {
+	func capture(url: URL, timeout: TimeInterval) async -> CapturedPage {
 		await withCheckedContinuation { continuation in
 			self.continuation = continuation
 			self.timeoutTask = Task { [weak self] in
@@ -141,7 +135,6 @@ final class HTMLCaptor: NSObject, WKNavigationDelegate {
 }
 
 extension HTMLCaptor: HTMLCapturing {
-	/// The orchestrator-facing capture. Passes the default timeout explicitly so
-	/// the call resolves to `capture(url:timeout:)` rather than recursing.
+	/// The orchestrator-facing capture, pinned to the production timeout.
 	func capture(url: URL) async -> CapturedPage { await capture(url: url, timeout: 12) }
 }
