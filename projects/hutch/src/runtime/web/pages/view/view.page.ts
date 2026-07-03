@@ -145,6 +145,9 @@ function handleViewArticle(deps: ViewDependencies, reader: ReturnType<typeof ini
 		// 5-30s). On first visit we still write a stub synchronously so the page
 		// has metadata to render and the existing summary/reader pollers see a row.
 		const existing = await deps.findArticleByUrl(articleUrl);
+		const hostname = articleHostFrom(articleUrl);
+		const stubMetadata: ArticleMetadata = { title: hostname, siteName: hostname, excerpt: "", wordCount: 0 };
+		const stubReadTime = calculateReadTime(0);
 		if (!existing) {
 			// First visit is the request that triggers the whole crawl cascade
 			// (stub save → crawl → summary → possibly OCR), each leg with real
@@ -159,16 +162,10 @@ function handleViewArticle(deps: ViewDependencies, reader: ReturnType<typeof ini
 				sendRateLimited(res, decision.retryAfterSeconds);
 				return;
 			}
-			const hostname = articleHostFrom(articleUrl);
 			await deps.saveArticleGlobally({
 				url: articleUrl,
-				metadata: {
-					title: hostname,
-					siteName: hostname,
-					excerpt: "",
-					wordCount: 0,
-				},
-				estimatedReadTime: calculateReadTime(0),
+				metadata: stubMetadata,
+				estimatedReadTime: stubReadTime,
 				savedAt: deps.now(),
 			});
 			await deps.markCrawlPending({ url: articleUrl });
@@ -180,11 +177,16 @@ function handleViewArticle(deps: ViewDependencies, reader: ReturnType<typeof ini
 		// Re-read metadata after any first-visit save. In production this returns
 		// the stub we just wrote (the worker is async); in tests where the
 		// in-memory worker fixture runs synchronously inside the awaited dispatch,
-		// this picks up the parsed metadata the fixture wrote.
+		// this picks up the parsed metadata the fixture wrote. A just-written stub
+		// is not always visible on the immediately-following read (DynamoDB is
+		// eventually consistent), so a transient miss renders the row we already
+		// had or the stub we just wrote — pending, never a 500.
 		const articleSnapshot = await deps.findArticleByUrl(articleUrl);
-		assert(articleSnapshot, "article row must exist after saveArticleGlobally");
-		const metadata: ArticleMetadata = articleSnapshot.metadata;
-		const estimatedReadTime: Minutes = articleSnapshot.estimatedReadTime;
+		const pendingSnapshot: { metadata: ArticleMetadata; estimatedReadTime: Minutes; savedAt: Date } =
+			existing ?? { metadata: stubMetadata, estimatedReadTime: stubReadTime, savedAt: deps.now() };
+		const snapshot = articleSnapshot ?? pendingSnapshot;
+		const metadata: ArticleMetadata = snapshot.metadata;
+		const estimatedReadTime: Minutes = snapshot.estimatedReadTime;
 
 		const pollUrlBuilder = pollUrlBuilderFor(articleUrl);
 		const state = await reader.resolveReaderState({
@@ -227,7 +229,7 @@ function handleViewArticle(deps: ViewDependencies, reader: ReturnType<typeof ini
 			const isValidSharer = sharerPrefix !== null && await deps.existsUserByIdPrefix(sharerPrefix);
 			const articleDomain = new URL(articleUrl).hostname;
 			({ expiresAt } = computePublicViewExpiry({
-				savedAt: articleSnapshot.savedAt,
+				savedAt: snapshot.savedAt,
 				articleDomain,
 				permanentArticleDomains: PERMANENT_ARTICLE_DOMAINS,
 				isValidSharer,
