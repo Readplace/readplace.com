@@ -71,6 +71,7 @@ const tableNames = {
 	subscriptionProviders: config.require("dynamodbSubscriptionProvidersTable"),
 	onboarding: config.require("dynamodbOnboardingTable"),
 	rateLimits: config.require("dynamodbRateLimitsTable"),
+	digestQueue: config.require("dynamodbDigestQueueTable"),
 };
 
 /* Per-stack "<limit>/<windowSeconds>" rules so staging e2e (one CI egress IP
@@ -751,37 +752,40 @@ const crawlEmailLinkPreviewWithSQS = new HutchSQSBackedLambda("crawl-email-link-
 
 eventBus.subscribe(CrawlEmailLinkPreview, crawlEmailLinkPreviewWithSQS);
 
-// --- Reader-ready notification (fan-out + notify) ---
+// --- Reader-ready digest (fan-out + 6h flush + send) ---
 // When an article's clean reader view reaches the successful terminal state,
 // save-link publishes ReaderViewLoadingSucceeded (per-URL, global). The fan-out
 // Lambda reverse-looks-up every saver via the user-articles url-index, stamps a
 // per-user succeededAt, and — for savers who opened the reader while it was
-// loading — dispatches NotifyReaderViewReadyCommand to the notify queue with a
-// ~5 min delay. The notify Lambda re-checks every per-user gate against the live
-// row, atomically claims the 6h cooldown, and emails the saver a link.
+// loading — appends the article to that user's digest queue. A recurring
+// rate(6 hours) schedule fans the sparse queue into one SendUserDigestCommand
+// per pending user; the send Lambda re-checks every per-article gate against the
+// live row, claims the per-user cooldown, and emails a single digest.
 
-// Notify queue is created first so the fan-out can address it for dispatch.
-const readerReadyNotifyQueue = new HutchSQS("reader-ready-notify", {
+// send-user-digest queue is created first so digest-scan can address it.
+const sendUserDigestQueue = new HutchSQS("send-user-digest", {
 	visibilityTimeoutSeconds: 120,
 });
 
-const readerReadyNotifyDynamodb = new HutchDynamoDBAccess("reader-ready-notify-dynamodb", {
+const sendUserDigestDynamodb = new HutchDynamoDBAccess("send-user-digest-dynamodb", {
 	tables: [
 		{ arn: storage.articlesTable.arn, includeIndexes: false },
 		{ arn: storage.userArticlesTable.arn, includeIndexes: false },
 		// users table is read-only here: Query the userId-index to resolve the
 		// saver's verified contact email.
 		{ arn: storage.usersTable.arn, includeIndexes: true },
-		// reader-ready-notifications carries the per-user 6h email cooldown,
-		// claimed by a direct PK conditional UpdateItem.
+		// reader-ready-notifications carries the per-user digest cooldown, claimed
+		// by a direct PK conditional UpdateItem.
 		{ arn: storage.readerReadyNotificationsTable.arn, includeIndexes: false },
+		// digest queue: Query one user's items, DeleteItem on send/drain.
+		{ arn: storage.digestQueueTable.arn, includeIndexes: false },
 	],
-	actions: ["dynamodb:GetItem", "dynamodb:Query", "dynamodb:UpdateItem"],
+	actions: ["dynamodb:GetItem", "dynamodb:Query", "dynamodb:UpdateItem", "dynamodb:DeleteItem"],
 });
 
-const readerReadyNotifyLambda = new HutchLambda("reader-ready-notify", {
-	entryPoint: "./src/runtime/reader-ready-notify.main.ts",
-	outputDir: ".lib/reader-ready-notify",
+const sendUserDigestLambda = new HutchLambda("send-user-digest", {
+	entryPoint: "./src/runtime/send-user-digest.main.ts",
+	outputDir: ".lib/send-user-digest",
 	assetDir: "./src/runtime",
 	memorySize: 512,
 	timeout: 60,
@@ -794,23 +798,108 @@ const readerReadyNotifyLambda = new HutchLambda("reader-ready-notify", {
 		DYNAMODB_USERS_TABLE: storage.usersTable.name,
 		DYNAMODB_SESSIONS_TABLE: storage.sessionsTable.name,
 		DYNAMODB_READER_READY_NOTIFICATIONS_TABLE: storage.readerReadyNotificationsTable.name,
+		DYNAMODB_DIGEST_QUEUE_TABLE: storage.digestQueueTable.name,
+		CONTENT_BUCKET_NAME: contentBucketName,
 		EVENT_BUS_NAME: eventBus.eventBusName,
 	},
-	policies: [...readerReadyNotifyDynamodb.policies],
+	policies: [
+		...sendUserDigestDynamodb.policies,
+		// Reads stored reader content (S3) to build the in-email preview.
+		...HutchS3ReadWrite.readPoliciesForBucket("send-user-digest-content", contentBucketName),
+	],
 });
 
-eventBus.grantPublish(readerReadyNotifyLambda);
+eventBus.grantPublish(sendUserDigestLambda);
 
-// Direct-SQS source (the fan-out dispatches to this queue with DelaySeconds) —
-// no eventBus.subscribe, unlike the fan-out below. Constructed as a bare
-// statement for its EventSourceMapping + DLQ alarm side effects.
-new HutchSQSBackedLambda("reader-ready-notify", {
-	lambda: readerReadyNotifyLambda,
-	queue: readerReadyNotifyQueue,
+// Direct-SQS source (digest-scan dispatches SendUserDigestCommand here) — no
+// eventBus.subscribe. Bare statement for its EventSourceMapping + DLQ alarm.
+new HutchSQSBackedLambda("send-user-digest", {
+	lambda: sendUserDigestLambda,
+	queue: sendUserDigestQueue,
 	alertEmailDLQEntry: alertEmail,
 	batchSize: 1,
 });
 
+// digest-scan: driven by the recurring schedule; scans the sparse queue and
+// dispatches one SendUserDigestCommand per pending user.
+const digestScanQueue = new HutchSQS("digest-scan", {
+	visibilityTimeoutSeconds: 120,
+});
+
+const digestScanDynamodb = new HutchDynamoDBAccess("digest-scan-dynamodb", {
+	tables: [{ arn: storage.digestQueueTable.arn, includeIndexes: false }],
+	actions: ["dynamodb:Scan"],
+});
+
+const digestScanLambda = new HutchLambda("digest-scan", {
+	entryPoint: "./src/runtime/digest-scan.main.ts",
+	outputDir: ".lib/digest-scan",
+	assetDir: "./src/runtime",
+	memorySize: 512,
+	timeout: 60,
+	environment: {
+		PERSISTENCE: "prod",
+		DYNAMODB_DIGEST_QUEUE_TABLE: storage.digestQueueTable.name,
+		SEND_USER_DIGEST_QUEUE_URL: sendUserDigestQueue.queueUrl,
+	},
+	policies: [
+		...digestScanDynamodb.policies,
+		// SendMessage on the send-user-digest queue to dispatch the per-user commands.
+		...sendUserDigestQueue.policies,
+	],
+});
+
+new HutchSQSBackedLambda("digest-scan", {
+	lambda: digestScanLambda,
+	queue: digestScanQueue,
+	alertEmailDLQEntry: alertEmail,
+	batchSize: 1,
+});
+
+// Recurring 6h flush: EventBridge Scheduler puts a trigger message on the
+// digest-scan queue. A dedicated execution role lets the scheduler service
+// SendMessage to that one queue.
+const digestSchedulerRole = new aws.iam.Role("hutch-digest-scheduler-role", {
+	assumeRolePolicy: JSON.stringify({
+		Version: "2012-10-17",
+		Statement: [
+			{
+				Effect: "Allow",
+				Principal: { Service: "scheduler.amazonaws.com" },
+				Action: "sts:AssumeRole",
+			},
+		],
+	}),
+});
+
+new aws.iam.RolePolicy("hutch-digest-scheduler-role-policy", {
+	role: digestSchedulerRole.id,
+	policy: digestScanQueue.queueArn.apply((arn) =>
+		JSON.stringify({
+			Version: "2012-10-17",
+			Statement: [
+				{
+					Effect: "Allow",
+					Action: ["sqs:SendMessage"],
+					Resource: arn,
+				},
+			],
+		}),
+	),
+});
+
+new aws.scheduler.Schedule("hutch-digest-flush", {
+	scheduleExpression: "rate(6 hours)",
+	flexibleTimeWindow: { mode: "OFF" },
+	state: "ENABLED",
+	target: {
+		arn: digestScanQueue.queueArn,
+		roleArn: digestSchedulerRole.arn,
+		input: JSON.stringify({ trigger: "digest-flush" }),
+	},
+});
+
+// --- Reader-ready fan-out ---
 const readerReadyFanoutQueue = new HutchSQS("reader-ready-fanout", {
 	visibilityTimeoutSeconds: 120,
 });
@@ -819,6 +908,12 @@ const readerReadyFanoutDynamodb = new HutchDynamoDBAccess("reader-ready-fanout-d
 	// Query the url-index (includeIndexes) and stamp succeededAt per saver.
 	tables: [{ arn: storage.userArticlesTable.arn, includeIndexes: true }],
 	actions: ["dynamodb:Query", "dynamodb:UpdateItem"],
+});
+
+const readerReadyFanoutDigestDynamodb = new HutchDynamoDBAccess("reader-ready-fanout-digest-dynamodb", {
+	// Append eligible savers' articles to the digest queue.
+	tables: [{ arn: storage.digestQueueTable.arn, includeIndexes: false }],
+	actions: ["dynamodb:PutItem"],
 });
 
 const readerReadyFanoutLambda = new HutchLambda("reader-ready-fanout", {
@@ -831,12 +926,11 @@ const readerReadyFanoutLambda = new HutchLambda("reader-ready-fanout", {
 		PERSISTENCE: "prod",
 		DYNAMODB_ARTICLES_TABLE: storage.articlesTable.name,
 		DYNAMODB_USER_ARTICLES_TABLE: storage.userArticlesTable.name,
-		READER_READY_NOTIFY_QUEUE_URL: readerReadyNotifyQueue.queueUrl,
+		DYNAMODB_DIGEST_QUEUE_TABLE: storage.digestQueueTable.name,
 	},
 	policies: [
 		...readerReadyFanoutDynamodb.policies,
-		// SendMessage on the notify queue for the delayed dispatch.
-		...readerReadyNotifyQueue.policies,
+		...readerReadyFanoutDigestDynamodb.policies,
 	],
 });
 

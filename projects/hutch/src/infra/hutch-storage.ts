@@ -18,6 +18,7 @@ export class HutchStorage extends pulumi.ComponentResource {
 	public readonly subscriptionProvidersTable: aws.dynamodb.Table;
 	public readonly onboardingTable: aws.dynamodb.Table;
 	public readonly rateLimitsTable: aws.dynamodb.Table;
+	public readonly digestQueueTable: aws.dynamodb.Table;
 
 	constructor(name: string, args: { deletionProtection: boolean; tableNames: {
 		articles: string;
@@ -36,6 +37,7 @@ export class HutchStorage extends pulumi.ComponentResource {
 		subscriptionProviders: string;
 		onboarding: string;
 		rateLimits: string;
+		digestQueue: string;
 	} }, opts?: pulumi.ComponentResourceOptions) {
 		super("hutch:infra:HutchStorage", name, {}, opts);
 
@@ -283,6 +285,25 @@ export class HutchStorage extends pulumi.ComponentResource {
 			billingMode: "PAY_PER_REQUEST",
 			hashKey: "pk",
 			attributes: [{ name: "pk", type: "S" }],
+			ttl: {
+				attributeName: "expiresAt",
+				enabled: true,
+			},
+		}, { parent: this });
+
+		/* Per-(user, article) reader-ready digest queue. Rows are appended by the
+		 * reader-ready fan-out and drained when the 6h digest sends. Ephemeral by
+		 * definition — no deletion protection or point-in-time recovery; TTL on
+		 * `expiresAt` purges any row a send never got to. */
+		this.digestQueueTable = new aws.dynamodb.Table(`hutch-digest-queue`, {
+			name: args.tableNames.digestQueue,
+			billingMode: "PAY_PER_REQUEST",
+			hashKey: "userId",
+			rangeKey: "url",
+			attributes: [
+				{ name: "userId", type: "S" },
+				{ name: "url", type: "S" },
+			],
 			ttl: {
 				attributeName: "expiresAt",
 				enabled: true,

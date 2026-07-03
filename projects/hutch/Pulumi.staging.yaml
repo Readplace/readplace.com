@@ -30,6 +30,7 @@ config:
   hutch:dynamodbSubscriptionProvidersTable: hutch-subscription-providers-staging
   hutch:dynamodbOnboardingTable: hutch-onboarding-staging
   hutch:dynamodbRateLimitsTable: hutch-rate-limits-staging
+  hutch:dynamodbDigestQueueTable: hutch-digest-queue-staging
   hutch:rateLimitViewCrawl: 10000/3600
   hutch:rateLimitLogin: 5000/900
   hutch:rateLimitLoginAccount: 5000/900

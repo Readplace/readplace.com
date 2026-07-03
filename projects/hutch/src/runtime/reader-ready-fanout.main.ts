@@ -1,42 +1,41 @@
 /* c8 ignore start -- composition root, no logic to test */
-import { SQSClient } from "@aws-sdk/client-sqs";
 import { createDynamoDocumentClient } from "@packages/hutch-storage-client";
 import { HutchLogger, consoleLogger } from "@packages/hutch-logger";
-import { NotifyReaderViewReadyCommand } from "@packages/hutch-infra-components";
-import { initSqsCommandDispatcher } from "@packages/hutch-infra-components/runtime";
 import { initDynamoDbArticleStore } from "./providers/article-store/dynamodb-article-store";
+import { initDynamoDbDigestQueue } from "./providers/digest-queue/dynamodb-digest-queue";
 import { initReaderReadyUsersNotificationFanoutHandler } from "./reader-ready-fanout/reader-ready-fanout-handler";
 import { requireEnv } from "@packages/require-env";
 
-/** ~5 min so a present user's final in-reader poll lands before the notify gate
- * runs (viewedAt ≥ succeededAt ⇒ suppressed). Below the 900s SQS maximum. */
-const NOTIFY_DELAY_SECONDS = 300;
+/** TTL safety net on queued digest rows: generous enough that an unverified
+ * user can verify and still receive a queued article, bounded so abandoned rows
+ * are purged. Rows are normally drained on the next 6h digest send. */
+const DIGEST_QUEUE_RETENTION_MS = 30 * 24 * 60 * 60 * 1000;
 
 const articlesTable = requireEnv("DYNAMODB_ARTICLES_TABLE");
 const userArticlesTable = requireEnv("DYNAMODB_USER_ARTICLES_TABLE");
-const notifyQueueUrl = requireEnv("READER_READY_NOTIFY_QUEUE_URL");
+const digestQueueTable = requireEnv("DYNAMODB_DIGEST_QUEUE_TABLE");
 
 const dynamoClient = createDynamoDocumentClient();
-const sqsClient = new SQSClient({});
+const logger = HutchLogger.from(consoleLogger);
 
 const articleStore = initDynamoDbArticleStore({
 	client: dynamoClient,
 	tableName: articlesTable,
 	userArticlesTableName: userArticlesTable,
-	logger: HutchLogger.from(consoleLogger),
+	logger,
 });
 
-const { dispatch: dispatchNotifyReaderViewReady } = initSqsCommandDispatcher({
-	sqsClient,
-	queueUrl: notifyQueueUrl,
-	command: NotifyReaderViewReadyCommand,
-	delaySeconds: NOTIFY_DELAY_SECONDS,
+const digestQueue = initDynamoDbDigestQueue({
+	client: dynamoClient,
+	tableName: digestQueueTable,
+	retentionMs: DIGEST_QUEUE_RETENTION_MS,
 });
 
 export const handler = initReaderReadyUsersNotificationFanoutHandler({
 	findUserArticlesByUrl: articleStore.findUserArticlesByUrl,
 	markReaderViewSucceeded: articleStore.markReaderViewSucceeded,
-	dispatchNotifyReaderViewReady,
-	logger: HutchLogger.from(consoleLogger),
+	enqueueDigestItem: digestQueue.enqueueDigestItem,
+	now: () => new Date(),
+	logger,
 });
 /* c8 ignore stop */
