@@ -342,9 +342,8 @@ final class ReadplaceAPITests: XCTestCase {
 
 		let fetched = await makeAPI(store: store).fetchExternalContent(URL(string: "https://arxiv.org/pdf/1706.03762")!)
 
-		let (bytes, contentType) = try XCTUnwrap(fetched)
+		let bytes = try XCTUnwrap(fetched)
 		XCTAssertEqual(bytes, pdfBytes)
-		XCTAssertEqual(contentType, "application/pdf")
 		let record = try XCTUnwrap(StubURLProtocol.records.first)
 		XCTAssertNil(
 			record.request.value(forHTTPHeaderField: "Authorization"),
@@ -398,6 +397,26 @@ final class ReadplaceAPITests: XCTestCase {
 		let fetched = await api.fetchExternalContent(URL(string: "https://example.com/big.pdf")!)
 
 		XCTAssertNil(fetched, "a response announcing an oversize Content-Length must be refused up front")
+	}
+
+	func testFetchExternalContentReadsBodyWhenAnnouncedLengthIsWithinCeiling() async throws {
+		// An honestly-sized, in-bounds Content-Length passes the announced-length guard
+		// and pre-sizes the buffer, then the body is read in full — the known-length
+		// happy path the oversize and no-Content-Length tests never reach.
+		let store = TestSupport.loggedInStore()
+		let body = Data("%PDF-1.7 within ceiling".utf8)
+		StubURLProtocol.setHandler { _, _ in
+			StubURLProtocol.Stub(
+				status: 200,
+				headers: ["Content-Type": "application/pdf", "Content-Length": "\(body.count)"],
+				body: body
+			)
+		}
+
+		let fetched = await makeAPI(store: store).fetchExternalContent(URL(string: "https://example.com/small.pdf")!)
+
+		let bytes = try XCTUnwrap(fetched, "an in-bounds announced length is pre-sized and the body read in full")
+		XCTAssertEqual(bytes, body)
 	}
 
 	// MARK: - Saving URL only

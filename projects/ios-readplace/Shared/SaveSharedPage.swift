@@ -67,7 +67,7 @@ struct SaveSharedPage {
 	/// junk. HTML uses the bytes the captor already rendered.
 	private func resolveContentPayload(captured: CapturedPage, url: URL) async -> (bytes: Data, mediaType: String)? {
 		if captured.mediaType == "application/pdf" {
-			guard let (bytes, _) = await api.fetchExternalContent(url),
+			guard let bytes = await api.fetchExternalContent(url),
 				bytes.starts(with: Data("%PDF-".utf8)) else { return nil }
 			return (bytes, "application/pdf")
 		}

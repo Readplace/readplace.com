@@ -72,20 +72,33 @@ final class HTMLCaptor: NSObject, WKNavigationDelegate {
 		decidePolicyFor navigationResponse: WKNavigationResponse,
 		decisionHandler: @escaping (WKNavigationResponsePolicy) -> Void
 	) {
-		let mimeType = navigationResponse.response.mimeType
-		let isMainFrame = navigationResponse.isForMainFrame
+		let decision = Self.navigationResponseDecision(
+			mimeType: navigationResponse.response.mimeType,
+			isMainFrame: navigationResponse.isForMainFrame
+		)
 		Task { @MainActor [weak self] in
 			guard let self else { return decisionHandler(.allow) }
-			if isMainFrame {
-				self.detectedMediaType = mimeType
-				if mimeType == "application/pdf" {
-					decisionHandler(.cancel)
-					await self.finish(extractContent: false)
-					return
-				}
+			switch decision {
+			case .allow(let detectedMediaType):
+				if let detectedMediaType { self.detectedMediaType = detectedMediaType }
+				decisionHandler(.allow)
+			case .captureAsFile(let mediaType):
+				self.detectedMediaType = mediaType
+				decisionHandler(.cancel)
+				await self.finish(extractContent: false)
 			}
-			decisionHandler(.allow)
 		}
+	}
+
+	enum NavigationResponseDecision: Equatable {
+		case allow(detectedMediaType: String?)
+		case captureAsFile(mediaType: String)
+	}
+
+	nonisolated static func navigationResponseDecision(mimeType: String?, isMainFrame: Bool) -> NavigationResponseDecision {
+		guard isMainFrame else { return .allow(detectedMediaType: nil) }
+		if mimeType == "application/pdf" { return .captureAsFile(mediaType: "application/pdf") }
+		return .allow(detectedMediaType: mimeType)
 	}
 
 	// WKNavigationDelegate's requirements are nonisolated; these hop to the main

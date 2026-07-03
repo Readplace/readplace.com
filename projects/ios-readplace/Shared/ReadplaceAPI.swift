@@ -263,7 +263,7 @@ final class ReadplaceAPI {
 	/// — a large scanned PDF, say — never lands in the extension's memory budget
 	/// whole; returns nil on any non-2xx, oversize, or transport failure so the
 	/// caller degrades to a URL-only save.
-	func fetchExternalContent(_ url: URL) async -> (Data, String)? {
+	func fetchExternalContent(_ url: URL) async -> Data? {
 		var request = URLRequest(url: url)
 		request.httpMethod = "GET"
 		guard let (stream, response) = try? await externalSession.bytes(for: request),
@@ -281,8 +281,7 @@ final class ReadplaceAPI {
 		} catch {
 			return nil
 		}
-		let contentType = http.value(forHTTPHeaderField: "Content-Type") ?? ""
-		return (data, contentType)
+		return data
 	}
 
 	/// Builds a `multipart/form-data` request with a UUID boundary for
