@@ -11,7 +11,7 @@ export type {
 	AccessToken,
 	RefreshToken,
 } from "./oauth.schema";
-export { getBuiltInClient, isBuiltInRedirectUri } from "./built-in-clients";
+export { getBuiltInClient, isBuiltInRedirectUri, revokeDestroysUserSessions } from "./built-in-clients";
 export {
 	computeOAuthClientDedupeKey,
 	defaultOAuthClientName,

@@ -3,6 +3,7 @@ export type { DynamoFieldSchema } from "./dynamo-field";
 export {
 	defineDynamoTable,
 	batchGetFromTable,
+	forEachQueryPage,
 	assertItem,
 	type DynamoTable,
 	type DynamoDBDocumentClient,

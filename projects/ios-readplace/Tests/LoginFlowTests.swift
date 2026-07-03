@@ -84,17 +84,27 @@ final class LoginFlowTests: XCTestCase {
 		XCTAssertTrue(StubURLProtocol.records.isEmpty, "a rejected callback must not exchange the code")
 	}
 
-	func testForceLogoutClearsTheMintedSessionCookie() {
+	func testForceLogoutClearsTheMintedSessionCookie() async {
 		let config = TestSupport.stubbedConfiguration()
 		config.httpCookieStorage?.setCookie(TestSupport.sessionCookie(value: "sess-abc"))
-		let session = AppSession(store: TestSupport.loggedInStore(), sessionConfiguration: config)
+		var readerWipeInvoked = false
+		let session = AppSession(
+			store: TestSupport.loggedInStore(),
+			sessionConfiguration: config,
+			wipeReaderWebStore: { readerWipeInvoked = true }
+		)
 
-		session.forceLogout()
+		let readerWipe = session.forceLogout()
 
 		XCTAssertFalse(session.isLoggedIn)
 		XCTAssertNil(
 			config.httpCookieStorage?.cookies?.first { $0.name == AppConfig.sessionCookieName },
 			"the minted hutch_sid cookie must not survive a forced sign-out"
+		)
+		await readerWipe.value
+		XCTAssertTrue(
+			readerWipeInvoked,
+			"sign-out must wipe the reader's traces from the WebKit store"
 		)
 	}
 
@@ -102,7 +112,12 @@ final class LoginFlowTests: XCTestCase {
 		let config = TestSupport.stubbedConfiguration()
 		config.httpCookieStorage?.setCookie(TestSupport.sessionCookie(value: "sess-abc"))
 		StubURLProtocol.setHandler { _, _ in .json(200, "{}") }
-		let session = AppSession(store: TestSupport.loggedInStore(), sessionConfiguration: config)
+		var readerWipeInvoked = false
+		let session = AppSession(
+			store: TestSupport.loggedInStore(),
+			sessionConfiguration: config,
+			wipeReaderWebStore: { readerWipeInvoked = true }
+		)
 
 		await session.logout()
 
@@ -110,6 +125,10 @@ final class LoginFlowTests: XCTestCase {
 		XCTAssertNil(
 			config.httpCookieStorage?.cookies?.first { $0.name == AppConfig.sessionCookieName },
 			"the minted hutch_sid cookie must not survive sign-out"
+		)
+		XCTAssertTrue(
+			readerWipeInvoked,
+			"sign-out must wipe the reader's traces from the WebKit store"
 		)
 	}
 

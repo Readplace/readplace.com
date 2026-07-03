@@ -1,4 +1,5 @@
 import Foundation
+import WebKit
 
 /// Why an authorization callback was rejected before any token exchange.
 enum AuthFlowError: LocalizedError {
@@ -23,14 +24,23 @@ final class AppSession: ObservableObject {
 
 	private let store: TokenStore
 	private let sessionConfiguration: URLSessionConfiguration
+	private let wipeReaderWebStore: () async -> Void
 
 	// Defaults to an ephemeral configuration so the API/OAuth sessions keep their
 	// cookie jar in an isolated, in-memory store rather than process-wide
 	// `HTTPCookieStorage.shared` — the minted `hutch_sid` reader cookie must not
 	// linger in the shared jar where it would outlive a sign-out.
-	init(store: TokenStore = TokenStore(), sessionConfiguration: URLSessionConfiguration = .ephemeral) {
+	//
+	// `wipeReaderWebStore` defaults to the real WebKit deletion; it's the
+	// OS-boundary seam tests replace with a spy.
+	init(
+		store: TokenStore = TokenStore(),
+		sessionConfiguration: URLSessionConfiguration = .ephemeral,
+		wipeReaderWebStore: @escaping () async -> Void = AppSession.removeReaderWebStoreData
+	) {
 		self.store = store
 		self.sessionConfiguration = sessionConfiguration
+		self.wipeReaderWebStore = wipeReaderWebStore
 		self.isLoggedIn = store.isLoggedIn
 	}
 
@@ -66,16 +76,29 @@ final class AppSession: ObservableObject {
 	}
 
 	func logout() async {
+		// The WebKit wipe and the network revoke are independent, so they run
+		// concurrently; both finish before the logged-out state is published.
+		let readerWipe = Task { await self.wipeReaderWebStore() }
 		await makeOAuth().revoke()
 		clearSessionCookie()
+		await readerWipe.value
 		isLoggedIn = false
 	}
 
 	/// Local sign-out used when the session is already invalid (refresh failed).
-	func forceLogout() {
+	/// Stays synchronous so the non-async `onSessionExpired` caller is unaffected;
+	/// the returned wipe task lets tests await the fire-and-forget WebKit wipe.
+	@discardableResult
+	func forceLogout() -> Task<Void, Never> {
 		store.clear()
 		clearSessionCookie()
+		let readerWipe = Task { await self.wipeReaderWebStore() }
 		isLoggedIn = false
+		return readerWipe
+	}
+
+	private static func isSessionCookie(_ cookie: HTTPCookie) -> Bool {
+		cookie.name == AppConfig.sessionCookieName
 	}
 
 	/// Drops the minted browser session cookie (`hutch_sid`) on sign-out so it
@@ -84,9 +107,25 @@ final class AppSession: ObservableObject {
 	/// `HTTPCookieStorage.shared`), so this clears only this app's copy.
 	private func clearSessionCookie() {
 		let storage = sessionConfiguration.httpCookieStorage
-		for cookie in storage?.cookies ?? [] where cookie.name == AppConfig.sessionCookieName {
+		for cookie in storage?.cookies ?? [] where Self.isSessionCookie(cookie) {
 			storage?.deleteCookie(cookie)
 		}
+	}
+
+	/// Removes the reader's authenticated traces from the process-wide WebKit
+	/// default store on sign-out. The session cookie is deleted by name — a
+	/// blanket cookie wipe would also drop server-set cookies a full-shell page
+	/// may have put in this store (e.g. a changelog dismissal set after a
+	/// session-expiry redirect) — while every non-cookie data type is cleared so
+	/// the signed-out account's reading history doesn't stay on disk, accepting
+	/// that the share hint's localStorage dismissal resets with it.
+	private static func removeReaderWebStoreData() async {
+		let store = WKWebsiteDataStore.default()
+		for cookie in await store.httpCookieStore.allCookies() where isSessionCookie(cookie) {
+			await store.httpCookieStore.delete(cookie)
+		}
+		let nonCookieTypes = WKWebsiteDataStore.allWebsiteDataTypes().subtracting([WKWebsiteDataTypeCookies])
+		await store.removeData(ofTypes: nonCookieTypes, modifiedSince: .distantPast)
 	}
 
 	func makeAPI() -> ReadplaceAPI {

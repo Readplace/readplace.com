@@ -13,6 +13,7 @@ import type {
 	CreateUser,
 	CreateUserWithPasswordHash,
 	DestroySession,
+	DestroyUserSessions,
 	FindEmailByUserId,
 	FindUserById,
 	FindUserByEmail,
@@ -194,6 +195,7 @@ interface AppDependencies {
 	createSession: CreateSession;
 	getSessionUserId: GetSessionUserId;
 	destroySession: DestroySession;
+	destroyUserSessions: DestroyUserSessions;
 	countUsers: CountUsers;
 	markEmailVerified: MarkEmailVerified;
 	markSessionEmailVerified: MarkSessionEmailVerified;
@@ -837,7 +839,9 @@ export function createApp(dependencies: AppDependencies): Express {
 	const forgotPasswordRouter = initForgotPasswordRoutes({
 		sendEmail: deps.sendEmail,
 		userExistsByEmail: deps.userExistsByEmail,
+		findUserByEmail: deps.findUserByEmail,
 		updatePassword: deps.updatePassword,
+		destroyUserSessions: deps.destroyUserSessions,
 		createPasswordResetToken: deps.createPasswordResetToken,
 		verifyPasswordResetToken: deps.verifyPasswordResetToken,
 		baseUrl: deps.baseUrl,
@@ -1037,6 +1041,7 @@ export function createApp(dependencies: AppDependencies): Express {
 		findClient: deps.findOAuthClient,
 		validateRedirectUri: deps.validateOAuthRedirectUri,
 		registerClient: deps.registerOAuthClient,
+		destroyUserSessions: deps.destroyUserSessions,
 		consumeRateLimit: deps.consumeRateLimit,
 		registerRateLimitRule: deps.rateLimitRules.oauthRegister,
 	});

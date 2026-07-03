@@ -36,10 +36,13 @@ struct ReaderWebView: UIViewControllerRepresentable {
 
 		let configuration = WKWebViewConfiguration()
 		configuration.userContentController = userContent
-		// Scope the minted session cookie to this sheet: a non-persistent store
-		// keeps it off disk so it never outlives the reader or survives a sign-out
-		// (the default store is process-wide and on-disk).
-		configuration.websiteDataStore = .nonPersistent()
+		// The persistent, process-wide default store: state written inside one open
+		// (the share hint's localStorage dismissal — the chromeless reader renders
+		// no banners, so localStorage is its only dismissal state — plus any cookie
+		// a full-shell page sets when the reader gets redirected to one) must
+		// survive to the next open. The session cookie also persists here, but it
+		// is re-injected per open (below) and wiped on sign-out.
+		configuration.websiteDataStore = .default()
 
 		let webView = WKWebView(frame: .zero, configuration: configuration)
 		webView.customUserAgent = AppConfig.webViewUserAgent

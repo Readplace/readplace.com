@@ -448,6 +448,103 @@ describe("OAuth routes", () => {
 			expect(revokedRefresh).toBeNull();
 		});
 
+		it("destroys all of the user's sessions but only the presented token when the revoked token belongs to the iOS app", async () => {
+			const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
+			const iosClient = await harness.oauthModel.getClient("ios-app", "");
+			assert(iosClient, "Built-in ios-app client must exist");
+			const extensionClient = await harness.oauthModel.getClient(TEST_CLIENT_ID, "");
+			assert(extensionClient, "Test client must exist");
+
+			await harness.oauthModel.saveToken(
+				{
+					accessToken: "ios-revoke-access",
+					accessTokenExpiresAt: new Date(Date.now() + 3600000),
+					refreshToken: "ios-revoke-refresh",
+					refreshTokenExpiresAt: new Date(Date.now() + 30 * 24 * 3600000),
+					client: iosClient,
+					user: { id: TEST_USER_ID },
+				},
+				iosClient,
+				{ id: TEST_USER_ID },
+			);
+			await harness.oauthModel.saveToken(
+				{
+					accessToken: "extension-bystander-access",
+					accessTokenExpiresAt: new Date(Date.now() + 3600000),
+					refreshToken: "extension-bystander-refresh",
+					refreshTokenExpiresAt: new Date(Date.now() + 30 * 24 * 3600000),
+					client: extensionClient,
+					user: { id: TEST_USER_ID },
+				},
+				extensionClient,
+				{ id: TEST_USER_ID },
+			);
+
+			const sessionA = await harness.auth.createSession({ userId: TEST_USER_ID, emailVerified: true });
+			const sessionB = await harness.auth.createSession({ userId: TEST_USER_ID, emailVerified: true });
+
+			const response = await request(harness.server)
+				.post("/oauth/revoke")
+				.send({ token: "ios-revoke-refresh" });
+
+			expect(response.status).toBe(200);
+			expect(await harness.auth.getSessionUserId(sessionA)).toBeNull();
+			expect(await harness.auth.getSessionUserId(sessionB)).toBeNull();
+			expect(await harness.oauthModel.getRefreshToken("ios-revoke-refresh")).toBeNull();
+			const bystander = await harness.oauthModel.getRefreshToken("extension-bystander-refresh");
+			assert(bystander, "The extension token must survive the iOS sign-out so its device re-mints instead of being signed out");
+			expect(bystander.user.id).toBe(TEST_USER_ID);
+		});
+
+		it("keeps other sessions and tokens when the revoked token belongs to an extension", async () => {
+			const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
+			const extensionClient = await harness.oauthModel.getClient(TEST_CLIENT_ID, "");
+			assert(extensionClient, "Test client must exist");
+			const iosClient = await harness.oauthModel.getClient("ios-app", "");
+			assert(iosClient, "Built-in ios-app client must exist");
+
+			await harness.oauthModel.saveToken(
+				{
+					accessToken: "extension-revoke-access",
+					accessTokenExpiresAt: new Date(Date.now() + 3600000),
+					refreshToken: "extension-revoke-refresh",
+					refreshTokenExpiresAt: new Date(Date.now() + 30 * 24 * 3600000),
+					client: extensionClient,
+					user: { id: TEST_USER_ID },
+				},
+				extensionClient,
+				{ id: TEST_USER_ID },
+			);
+			await harness.oauthModel.saveToken(
+				{
+					accessToken: "ios-bystander-access",
+					accessTokenExpiresAt: new Date(Date.now() + 3600000),
+					refreshToken: "ios-bystander-refresh",
+					refreshTokenExpiresAt: new Date(Date.now() + 30 * 24 * 3600000),
+					client: iosClient,
+					user: { id: TEST_USER_ID },
+				},
+				iosClient,
+				{ id: TEST_USER_ID },
+			);
+
+			const session = await harness.auth.createSession({ userId: TEST_USER_ID, emailVerified: true });
+
+			const response = await request(harness.server)
+				.post("/oauth/revoke")
+				.send({ token: "extension-revoke-refresh" });
+
+			expect(response.status).toBe(200);
+			expect(await harness.auth.getSessionUserId(session)).toEqual({
+				userId: TEST_USER_ID,
+				emailVerified: true,
+			});
+			expect(await harness.oauthModel.getRefreshToken("extension-revoke-refresh")).toBeNull();
+			const bystander = await harness.oauthModel.getRefreshToken("ios-bystander-refresh");
+			assert(bystander, "The iOS token must survive an extension-scoped revoke");
+			expect(bystander.user.id).toBe(TEST_USER_ID);
+		});
+
 		it("returns 200 for non-existent token (RFC compliance)", async () => {
 			const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
 

@@ -8,6 +8,7 @@ import {
 	TransactionCanceledException,
 	defineDynamoTable,
 	dynamoField,
+	forEachQueryPage,
 } from "@packages/hutch-storage-client";
 import { z } from "zod";
 import {
@@ -29,6 +30,7 @@ import type {
 	CreateUser,
 	CreateUserWithPasswordHash,
 	DestroySession,
+	DestroyUserSessions,
 	ExistsUserByIdPrefix,
 	FindEmailByUserId,
 	FindUserById,
@@ -84,6 +86,7 @@ export function initDynamoDbAuth(deps: {
 	createSession: CreateSession;
 	getSessionUserId: GetSessionUserId;
 	destroySession: DestroySession;
+	destroyUserSessions: DestroyUserSessions;
 	countUsers: CountUsers;
 	markEmailVerified: MarkEmailVerified;
 	markSessionEmailVerified: MarkSessionEmailVerified;
@@ -103,6 +106,12 @@ export function initDynamoDbAuth(deps: {
 		client: deps.client,
 		tableName: deps.sessionsTableName,
 		schema: SessionRow,
+	});
+	/* Matches the KEYS_ONLY projection of the sessions userId-index. */
+	const sessionKeysByUser = defineDynamoTable({
+		client: deps.client,
+		tableName: deps.sessionsTableName,
+		schema: z.object({ sessionId: z.string() }),
 	});
 
 	/** Persists a new user row, guarded by attribute_not_exists(email). For Gmail
@@ -275,6 +284,20 @@ export function initDynamoDbAuth(deps: {
 		await sessions.delete({ Key: { sessionId } });
 	};
 
+	const destroyUserSessions: DestroyUserSessions = async (userId) => {
+		await forEachQueryPage(
+			sessionKeysByUser,
+			{
+				IndexName: "userId-index",
+				KeyConditionExpression: "userId = :userId",
+				ExpressionAttributeValues: { ":userId": userId },
+			},
+			async (rows) => {
+				await Promise.all(rows.map((row) => sessions.delete({ Key: { sessionId: row.sessionId } })));
+			},
+		);
+	};
+
 	const countUsers: CountUsers = async () => {
 		// Claim items share the table but carry ownerUserId, not userId, so this
 		// filter counts only real user rows (the founding-member gate reads this).
@@ -391,6 +414,7 @@ export function initDynamoDbAuth(deps: {
 		createSession,
 		getSessionUserId,
 		destroySession,
+		destroyUserSessions,
 		countUsers,
 		markEmailVerified,
 		markSessionEmailVerified,

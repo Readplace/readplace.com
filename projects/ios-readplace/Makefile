@@ -25,7 +25,9 @@ open: generate
 # below, so the `#if STAGING` build path is compiled on every run — not only when
 # someone builds `make ipa-staging` by hand.
 SIM ?= platform=iOS Simulator,name=$(shell xcrun simctl list devices available | grep -m1 -oE 'iPhone [0-9]+')
+SIM_DEVICE = $(shell printf '%s' '$(SIM)' | sed -E 's/.*=//')
 test: generate
+	xcrun simctl bootstatus '$(SIM_DEVICE)' -b
 	xcodebuild test -project Readplace.xcodeproj -scheme Readplace -destination '$(SIM)'
 	$(MAKE) test-staging SIM='$(SIM)'
 

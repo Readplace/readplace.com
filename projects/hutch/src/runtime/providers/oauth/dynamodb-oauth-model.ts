@@ -13,7 +13,6 @@ import type {
 	Token,
 	User,
 } from "@node-oauth/oauth2-server";
-import type { UserId } from "@packages/domain/user";
 import { UserIdSchema } from "@packages/domain/user";
 import type {
 	FindOAuthClient,
@@ -56,8 +55,6 @@ const RefreshIndexRow = z.object({
 	accessToken: z.string(),
 });
 
-const RevokeItemRow = z.object({ pk: z.string(), refreshToken: z.string().optional() });
-
 export function initDynamoDbOAuthModel(deps: {
 	client: DynamoDBDocumentClient;
 	tableName: string;
@@ -69,7 +66,6 @@ export function initDynamoDbOAuthModel(deps: {
 	const authCodes = defineDynamoTable({ client, tableName, schema: AuthCodeRow });
 	const tokens = defineDynamoTable({ client, tableName, schema: TokenRow });
 	const refreshIndex = defineDynamoTable({ client, tableName, schema: RefreshIndexRow });
-	const revokeView = defineDynamoTable({ client, tableName, schema: RevokeItemRow });
 
 	async function resolveClient(clientId: string): Promise<Client | null> {
 		const found = await findClient(clientId);
@@ -254,29 +250,6 @@ export function initDynamoDbOAuthModel(deps: {
 
 		async verifyScope(_token: Token, _scope: string | string[]): Promise<boolean> {
 			return true;
-		},
-
-		async revokeAllUserTokens(userId: UserId): Promise<void> {
-			let exclusiveStartKey: Record<string, unknown> | undefined;
-
-			do {
-				const { items, lastEvaluatedKey } = await revokeView.query({
-					IndexName: "userId-index",
-					KeyConditionExpression: "userId = :userId",
-					ExpressionAttributeValues: { ":userId": userId },
-					ExclusiveStartKey: exclusiveStartKey,
-				});
-
-				exclusiveStartKey = lastEvaluatedKey;
-
-				for (const item of items) {
-					if (item.pk.startsWith("token#") && item.refreshToken) {
-						await refreshIndex.delete({ Key: { pk: `refresh#${item.refreshToken}` } });
-					}
-
-					await revokeView.delete({ Key: { pk: item.pk } });
-				}
-			} while (exclusiveStartKey);
 		},
 
 		generateAccessToken: async () => generateToken(),

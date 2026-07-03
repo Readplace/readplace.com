@@ -27,22 +27,35 @@ interface CapturedCommand {
 	input: Record<string, unknown>;
 }
 
-/** Records commands and replays a single queried user row (or none). */
-function createQueryFakeClient(opts: {
-	row?: Record<string, unknown>;
-}): { client: DynamoDBDocumentClient; commands: CapturedCommand[] } {
+/** Replays a sequence of query pages: each page carries its rows and the
+ * LastEvaluatedKey that drives the next iteration (omitted on the final page to
+ * end pagination). Queries past the last page replay the final page, so
+ * single-page fakes serve any number of independent queries. */
+function createPaginatedQueryFakeClient(
+	pages: { rows: Record<string, unknown>[]; lastEvaluatedKey?: Record<string, unknown> }[],
+): { client: DynamoDBDocumentClient; commands: CapturedCommand[] } {
 	const commands: CapturedCommand[] = [];
+	let queryCount = 0;
 	const client = {
 		send: (async (command: { constructor: { name: string }; input: Record<string, unknown> }) => {
 			const name = command.constructor.name;
 			commands.push({ name, input: command.input });
 			if (name === "QueryCommand") {
-				return { Items: opts.row ? [opts.row] : [], Count: opts.row ? 1 : 0 };
+				const page = pages[Math.min(queryCount, pages.length - 1)];
+				queryCount += 1;
+				return { Items: page.rows, Count: page.rows.length, LastEvaluatedKey: page.lastEvaluatedKey };
 			}
 			return {};
 		}) as DynamoDBDocumentClient["send"],
 	};
 	return { client: client as typeof client & DynamoDBDocumentClient, commands };
+}
+
+/** Records commands and replays a single queried user row (or none). */
+function createQueryFakeClient(opts: {
+	row?: Record<string, unknown>;
+}): { client: DynamoDBDocumentClient; commands: CapturedCommand[] } {
+	return createPaginatedQueryFakeClient([{ rows: opts.row ? [opts.row] : [] }]);
 }
 
 /** Records write commands and optionally fails every send with a given error. */
@@ -283,6 +296,52 @@ describe("initDynamoDbAuth", () => {
 			});
 
 			expect(result).toEqual({ ok: false, reason: "email-already-exists" });
+		});
+	});
+
+	describe("destroyUserSessions", () => {
+		it("queries the sessions userId-index and deletes each session by id", async () => {
+			const { client, commands } = createQueryFakeClient({
+				row: { sessionId: "sess-1", userId: "abc123", expiresAt: 9999999999, emailVerified: true },
+			});
+
+			await initAuth(client).destroyUserSessions(USER);
+
+			const query = commands.find((c) => c.name === "QueryCommand");
+			expect(query?.input).toMatchObject({
+				IndexName: "userId-index",
+				KeyConditionExpression: "userId = :userId",
+				ExpressionAttributeValues: { ":userId": "abc123" },
+			});
+			const del = commands.find((c) => c.name === "DeleteCommand");
+			expect(del?.input).toMatchObject({ Key: { sessionId: "sess-1" } });
+		});
+
+		it("deletes nothing when the user has no sessions", async () => {
+			const { client, commands } = createQueryFakeClient({});
+
+			await initAuth(client).destroyUserSessions(USER);
+
+			expect(commands.some((c) => c.name === "DeleteCommand")).toBe(false);
+		});
+
+		it("paginates the userId-index, feeding each page's key back as ExclusiveStartKey", async () => {
+			const { client, commands } = createPaginatedQueryFakeClient([
+				{
+					rows: [{ sessionId: "sess-1", userId: "abc123", expiresAt: 9999999999, emailVerified: true }],
+					lastEvaluatedKey: { sessionId: "sess-1" },
+				},
+				{ rows: [{ sessionId: "sess-2", userId: "abc123", expiresAt: 9999999999, emailVerified: true }] },
+			]);
+
+			await initAuth(client).destroyUserSessions(USER);
+
+			const queries = commands.filter((c) => c.name === "QueryCommand");
+			expect(queries).toHaveLength(2);
+			expect(queries[0]?.input.ExclusiveStartKey).toBeUndefined();
+			expect(queries[1]?.input.ExclusiveStartKey).toEqual({ sessionId: "sess-1" });
+			const deleted = commands.filter((c) => c.name === "DeleteCommand").map((c) => c.input.Key);
+			expect(deleted).toEqual([{ sessionId: "sess-1" }, { sessionId: "sess-2" }]);
 		});
 	});
 

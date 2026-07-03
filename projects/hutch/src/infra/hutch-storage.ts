@@ -136,7 +136,17 @@ export class HutchStorage extends pulumi.ComponentResource {
 			name: args.tableNames.sessions,
 			billingMode: "PAY_PER_REQUEST",
 			hashKey: "sessionId",
-			attributes: [{ name: "sessionId", type: "S" }],
+			attributes: [
+				{ name: "sessionId", type: "S" },
+				{ name: "userId", type: "S" },
+			],
+			globalSecondaryIndexes: [
+				{
+					name: "userId-index",
+					hashKey: "userId",
+					projectionType: "KEYS_ONLY",
+				},
+			],
 			ttl: {
 				attributeName: "expiresAt",
 				enabled: true,

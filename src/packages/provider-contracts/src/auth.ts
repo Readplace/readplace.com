@@ -53,6 +53,8 @@ export type GetSessionUserId = (
 
 export type DestroySession = (sessionId: string) => Promise<void>;
 
+export type DestroyUserSessions = (userId: UserId) => Promise<void>;
+
 export type CountUsers = () => Promise<number>;
 
 export type MarkEmailVerified = (email: string) => Promise<void>;

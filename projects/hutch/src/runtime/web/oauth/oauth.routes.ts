@@ -2,6 +2,7 @@ import express, { Router } from "express";
 import type { Request, Response } from "express";
 import { z } from "zod";
 import ExpressOAuthServer from "@node-oauth/express-oauth-server";
+import type { RefreshToken } from "@node-oauth/oauth2-server";
 import type { RateLimitRule } from "@packages/domain/rate-limit";
 import type {
 	FindOAuthClient,
@@ -11,6 +12,9 @@ import type {
 	ValidateOAuthRedirectUri,
 } from "@packages/provider-contracts/oauth";
 import type { ConsumeRateLimit } from "@packages/provider-contracts/rate-limit";
+import type { DestroyUserSessions } from "@packages/provider-contracts/auth";
+import { revokeDestroysUserSessions } from "@packages/domain/oauth";
+import { UserIdSchema } from "@packages/domain/user";
 import { Base } from "../base.component";
 import type { BuildBannerState } from "../banner-state";
 import { createRateLimitMiddleware } from "../middleware/rate-limit";
@@ -125,6 +129,7 @@ interface OAuthRouteDeps {
 	findClient: FindOAuthClient;
 	validateRedirectUri: ValidateOAuthRedirectUri;
 	registerClient: RegisterOAuthClient;
+	destroyUserSessions: DestroyUserSessions;
 	consumeRateLimit: ConsumeRateLimit;
 	registerRateLimitRule: RateLimitRule;
 }
@@ -140,6 +145,18 @@ export function initOAuthRoutes(deps: OAuthRouteDeps): Router {
 			refresh_token: false,
 		},
 	});
+
+	const findRefreshRecord = async (token: string): Promise<RefreshToken | null> => {
+		const refreshToken = await deps.model.getRefreshToken(token);
+		if (refreshToken) return refreshToken;
+		const accessTokenResult = await deps.model.getAccessToken(token);
+		// biome-ignore lint/complexity/useOptionalChain: oauth2-server's Falsey type (false | "" | 0 | null | undefined) cannot be narrowed via ?. — needs a truthy guard
+		if (accessTokenResult && accessTokenResult.refreshToken) {
+			const associatedRefresh = await deps.model.getRefreshToken(accessTokenResult.refreshToken);
+			if (associatedRefresh) return associatedRefresh;
+		}
+		return null;
+	};
 
 	router.post(
 		"/register",
@@ -288,18 +305,17 @@ export function initOAuthRoutes(deps: OAuthRouteDeps): Router {
 
 		const { token } = parsed.data;
 
-		const refreshToken = await deps.model.getRefreshToken(token);
-		if (refreshToken) {
-			await deps.model.revokeToken(refreshToken);
-		} else {
-			const accessTokenResult = await deps.model.getAccessToken(token);
-			// biome-ignore lint/complexity/useOptionalChain: oauth2-server's Falsey type (false | "" | 0 | null | undefined) cannot be narrowed via ?. — needs a truthy guard
-			if (accessTokenResult && accessTokenResult.refreshToken) {
-				const associatedRefresh = await deps.model.getRefreshToken(accessTokenResult.refreshToken);
-				if (associatedRefresh) {
-					await deps.model.revokeToken(associatedRefresh);
-				}
+		const refreshRecord = await findRefreshRecord(token);
+		if (refreshRecord) {
+			if (revokeDestroysUserSessions(refreshRecord.client.id)) {
+				const userId = UserIdSchema.parse(refreshRecord.user.id);
+				// Sessions before the token: if the session destroy fails, the presented
+				// token is still valid and the client's retry re-runs the whole sign-out.
+				// Other clients' tokens survive on purpose — their devices transparently
+				// re-mint a session on next use instead of being signed out too.
+				await deps.destroyUserSessions(userId);
 			}
+			await deps.model.revokeToken(refreshRecord);
 		}
 
 		res.status(200).json({});

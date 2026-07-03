@@ -226,6 +226,28 @@ export async function batchGetFromTable<TSchema extends z.ZodObject>(config: {
 	return batches.flat().map((item) => schema.parse(item));
 }
 
+export async function forEachQueryPage<TItem>(
+	table: {
+		query: (input: WithoutTable<QueryCommandInput>) => Promise<{
+			items: TItem[];
+			count: number;
+			lastEvaluatedKey?: Record<string, unknown>;
+		}>;
+	},
+	input: WithoutTable<QueryCommandInput>,
+	onPage: (items: TItem[]) => Promise<void>,
+): Promise<void> {
+	let exclusiveStartKey: Record<string, unknown> | undefined;
+	do {
+		const { items, lastEvaluatedKey } = await table.query({
+			...input,
+			ExclusiveStartKey: exclusiveStartKey,
+		});
+		exclusiveStartKey = lastEvaluatedKey;
+		await onPage(items);
+	} while (exclusiveStartKey);
+}
+
 /** Re-exported so composition roots can type the client without importing the SDK. */
 export type { DynamoDBDocumentClient };
 

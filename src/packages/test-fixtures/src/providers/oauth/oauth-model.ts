@@ -298,20 +298,6 @@ export function createOAuthModel(
 			return true;
 		},
 
-		async revokeAllUserTokens(userId: UserId): Promise<void> {
-			const accessTokens = deps.userIdIndex.get(userId);
-			if (!accessTokens) return;
-
-			for (const accessToken of accessTokens) {
-				const stored = deps.tokens.get(accessToken);
-				if (stored) {
-					deps.refreshTokenIndex.delete(stored.refreshToken);
-				}
-				deps.tokens.delete(accessToken);
-			}
-			deps.userIdIndex.delete(userId);
-		},
-
 		generateAccessToken: async () => generateToken(),
 		generateRefreshToken: async () => generateToken(),
 		generateAuthorizationCode: async () => generateToken(),

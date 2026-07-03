@@ -1,7 +1,12 @@
 import type { Request, Response, Router } from "express";
 import express from "express";
 import type { SendEmail } from "@packages/provider-contracts/email";
-import type { UserExistsByEmail, UpdatePassword } from "@packages/provider-contracts/auth";
+import type {
+	DestroyUserSessions,
+	FindUserByEmail,
+	UpdatePassword,
+	UserExistsByEmail,
+} from "@packages/provider-contracts/auth";
 import type {
 	CreatePasswordResetToken,
 	VerifyPasswordResetToken,
@@ -26,7 +31,9 @@ const EMAIL_FROM = "Readplace Password Reset <readplace@readplace.com>";
 interface ForgotPasswordDependencies {
 	sendEmail: SendEmail;
 	userExistsByEmail: UserExistsByEmail;
+	findUserByEmail: FindUserByEmail;
 	updatePassword: UpdatePassword;
+	destroyUserSessions: DestroyUserSessions;
 	createPasswordResetToken: CreatePasswordResetToken;
 	verifyPasswordResetToken: VerifyPasswordResetToken;
 	baseUrl: string;
@@ -131,8 +138,9 @@ export function initForgotPasswordRoutes(deps: ForgotPasswordDependencies): Rout
 		}
 
 		const verifyResult = await deps.verifyPasswordResetToken(PasswordResetTokenSchema.parse(token));
+		const account = verifyResult.ok ? await deps.findUserByEmail(verifyResult.email) : null;
 
-		if (!verifyResult.ok) {
+		if (!verifyResult.ok || !account) {
 			sendComponent(
 				req, res,
 				Base(ResetPasswordPage(
@@ -144,6 +152,10 @@ export function initForgotPasswordRoutes(deps: ForgotPasswordDependencies): Rout
 		}
 
 		await deps.updatePassword({ email: verifyResult.email, password: parsed.data.password });
+		// A password reset invalidates the credential, so no session issued before
+		// it may keep working — an attacker holding a stolen session must be locked
+		// out by the victim's reset.
+		await deps.destroyUserSessions(account.userId);
 
 		sendComponent(req, res, Base(ResetPasswordPage({ success: true }), bannerStateFromRequest(req)));
 	});
