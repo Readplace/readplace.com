@@ -161,4 +161,51 @@ final class LoginFlowTests: XCTestCase {
 		XCTAssertEqual(queueRequest.value(forHTTPHeaderField: "Authorization"), "Bearer access-1")
 		XCTAssertEqual(queueRequest.value(forHTTPHeaderField: "Accept"), "application/vnd.siren+json")
 	}
+
+	func testCallbackCarryingAnErrorParamIsDeniedWithoutExchanging() async {
+		let store = TokenStore(defaults: TestSupport.ephemeralDefaults())
+		let session = AppSession(store: store, sessionConfiguration: TestSupport.stubbedConfiguration())
+
+		let result = await session.completeSignIn(
+			callbackURL: URL(string: "\(AppConfig.nativeCallbackURL)?error=access_denied&state=S")!,
+			verifier: "v", expectedState: "S", redirectURI: AppConfig.nativeCallbackURL
+		)
+
+		guard case .failure(let error) = result else { return XCTFail("expected .failure, got \(result)") }
+		XCTAssertEqual((error as? AuthFlowError)?.errorDescription, AuthFlowError.denied("access_denied").errorDescription)
+		XCTAssertFalse(session.isLoggedIn)
+		XCTAssertTrue(StubURLProtocol.records(path: "/oauth/token").isEmpty, "a denied authorization exchanges no code")
+	}
+
+	func testCallbackWithoutACodeIsMissingCodeWithoutExchanging() async {
+		let store = TokenStore(defaults: TestSupport.ephemeralDefaults())
+		let session = AppSession(store: store, sessionConfiguration: TestSupport.stubbedConfiguration())
+
+		let result = await session.completeSignIn(
+			callbackURL: URL(string: "\(AppConfig.nativeCallbackURL)?state=S")!,
+			verifier: "v", expectedState: "S", redirectURI: AppConfig.nativeCallbackURL
+		)
+
+		guard case .failure(let error) = result else { return XCTFail("expected .failure, got \(result)") }
+		XCTAssertEqual((error as? AuthFlowError)?.errorDescription, AuthFlowError.missingCode.errorDescription)
+		XCTAssertTrue(StubURLProtocol.records(path: "/oauth/token").isEmpty)
+	}
+
+	func testExchangeFailureDuringSignInSurfacesAsFailureAndStaysLoggedOut() async {
+		let store = TokenStore(defaults: TestSupport.ephemeralDefaults())
+		let session = AppSession(store: store, sessionConfiguration: TestSupport.stubbedConfiguration())
+		StubURLProtocol.setHandler { _, _ in .json(400, "{\"error\":\"invalid_grant\"}") }
+
+		let result = await session.completeSignIn(
+			callbackURL: URL(string: "\(AppConfig.nativeCallbackURL)?code=abc&state=S")!,
+			verifier: "v", expectedState: "S", redirectURI: AppConfig.nativeCallbackURL
+		)
+
+		guard case .failure(let error) = result else { return XCTFail("expected .failure, got \(result)") }
+		XCTAssertEqual(
+			(error as? OAuthError)?.errorDescription,
+			OAuthError.tokenExchangeFailed(status: 400).errorDescription
+		)
+		XCTAssertFalse(session.isLoggedIn)
+	}
 }

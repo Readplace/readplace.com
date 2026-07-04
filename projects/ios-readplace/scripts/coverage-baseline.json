@@ -24,14 +24,14 @@
     "PKCE.swift": 95,
     "ReadplaceAPI.swift": 94,
     "URLDetection.swift": 94,
-    "ReadingListViewModel.swift": 93,
+    "ReadingListViewModel.swift": 94,
     "SaveSharedPage.swift": 93,
     "LoginView.swift": 91,
     "AffordancePresentation.swift": 91,
-    "OAuthService.swift": 89,
-    "TokenStore.swift": 85,
-    "AppSession.swift": 79,
-    "ReadplaceApp.swift": 64,
-    "KeychainTokenStorage.swift": 57
+    "TokenStore.swift": 98,
+    "OAuthService.swift": 97,
+    "KeychainTokenStorage.swift": 97,
+    "AppSession.swift": 82,
+    "ReadplaceApp.swift": 64
   }
 }
