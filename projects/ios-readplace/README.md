@@ -234,8 +234,12 @@ You need a Mac with **Xcode 15+** and an Apple ID (a free personal team is fine)
 
 `make test` (or `Cmd+U` in Xcode) runs the XCTest suite. The network is stubbed
 with a `URLProtocol`, so tests exercise the real client logic — headers, bodies,
-redirects, retries — without a server. Coverage focuses on boundaries and edge
-cases:
+redirects, retries — without a server. `make test` then enforces a per-file
+line-coverage gate (`scripts/check-coverage.py` against
+`scripts/coverage-baseline.json`): pure SwiftUI views and WebKit/OS-boundary glue
+are excluded, and every other source file must stay at or above its recorded
+floor — a ratchet the logic files are walked toward 100%. Coverage focuses on
+boundaries and edge cases:
 
 - **Siren decoding**: rich vs. minimal entities, JSON `null` image/`readAt`,
   read-state from `status`/`readAt`, title fallback to URL, entities without
