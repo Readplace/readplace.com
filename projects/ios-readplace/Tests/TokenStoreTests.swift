@@ -86,4 +86,53 @@ final class TokenStoreTests: XCTestCase {
 		XCTAssertNil(target.value(for: .accessToken), "a partial legacy token is not a valid session")
 		XCTAssertNil(legacy.string(forKey: TokenKey.accessToken.rawValue), "the stray partial token is cleared")
 	}
+
+	// MARK: - parseAppGroupId (embedded provisioning profile)
+
+	private func profile(_ innerPlist: String) -> Data {
+		// A .mobileprovision is a CMS blob with a plist inside; the parser only
+		// scans out the <?xml…</plist> slice, so wrapping it in arbitrary bytes
+		// models the real container without needing a signed profile.
+		Data("....signature-bytes....\(innerPlist)....trailer....".utf8)
+	}
+
+	func testParsesTheFirstApplicationGroupFromAProfile() {
+		let plist = """
+		<?xml version="1.0" encoding="UTF-8"?>
+		<plist version="1.0"><dict>
+		<key>Entitlements</key><dict>
+		<key>com.apple.security.application-groups</key>
+		<array><string>group.com.rewritten.readplace</string><string>group.other</string></array>
+		</dict></dict></plist>
+		"""
+		XCTAssertEqual(
+			TokenStore.parseAppGroupId(fromProvisioningProfile: profile(plist)),
+			"group.com.rewritten.readplace"
+		)
+	}
+
+	func testReturnsNilWhenTheProfileHasNoPlist() {
+		XCTAssertNil(TokenStore.parseAppGroupId(fromProvisioningProfile: Data("no plist here".utf8)))
+	}
+
+	func testReturnsNilWhenTheProfileHasNoAppGroupEntitlement() {
+		let plist = """
+		<?xml version="1.0" encoding="UTF-8"?>
+		<plist version="1.0"><dict>
+		<key>Entitlements</key><dict><key>application-identifier</key><string>ABCDE.com.x</string></dict>
+		</dict></plist>
+		"""
+		XCTAssertNil(TokenStore.parseAppGroupId(fromProvisioningProfile: profile(plist)))
+	}
+
+	func testReturnsNilWhenTheAppGroupArrayIsEmpty() {
+		let plist = """
+		<?xml version="1.0" encoding="UTF-8"?>
+		<plist version="1.0"><dict>
+		<key>Entitlements</key><dict>
+		<key>com.apple.security.application-groups</key><array></array>
+		</dict></dict></plist>
+		"""
+		XCTAssertNil(TokenStore.parseAppGroupId(fromProvisioningProfile: profile(plist)))
+	}
 }

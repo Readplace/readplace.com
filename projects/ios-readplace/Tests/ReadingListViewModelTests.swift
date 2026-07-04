@@ -992,4 +992,44 @@ final class ReadingListViewModelTests: XCTestCase {
 		XCTAssertNil(cookies, "a failed bootstrap mints no session, so the sheet shows its unavailable view")
 		XCTAssertNotNil(viewModel.errorText)
 	}
+
+	// MARK: - Session expiry & warnings
+
+	func testUnauthorizedLoadLogsOutWithoutAnErrorBanner() async {
+		let api = ReadplaceAPI(
+			baseURL: AppConfig.serverBaseURL,
+			store: TestSupport.loggedInStore(),
+			sessionConfiguration: TestSupport.stubbedConfiguration()
+		)
+		var expired = false
+		let viewModel = ReadingListViewModel(api: api, onSessionExpired: { expired = true })
+		// 401 everywhere: the entry-point load 401s, the single refresh 401s, and
+		// the load surfaces .unauthorized.
+		StubURLProtocol.setHandler { _, _ in .json(401, "{}") }
+
+		await viewModel.refresh()
+
+		XCTAssertTrue(expired, "a 401 whose refresh also fails logs the user out")
+		XCTAssertNil(viewModel.errorText, "a session-expiry logout is not shown as an error banner")
+	}
+
+	func testCollectionWarningPopulatesWarningText() async {
+		let warnedQueue = """
+		{
+		  "class": ["collection", "articles"],
+		  "properties": { "total": 1, "page": 1, "pageSize": 20, "warning": { "code": "not-saveable", "message": "Cannot save that link." } },
+		  "entities": [\(Fixtures.article(id: "a1"))],
+		  "links": [{ "rel": ["self"], "href": "/queue" }, { "rel": ["root"], "href": "/queue" }],
+		  "actions": []
+		}
+		"""
+		StubURLProtocol.setHandler { request, _ in
+			request.url?.path == "/" ? .redirect(to: "/queue") : .json(200, warnedQueue)
+		}
+		let viewModel = makeViewModel(store: TestSupport.loggedInStore())
+
+		await viewModel.refresh()
+
+		XCTAssertEqual(viewModel.warningText, "Cannot save that link.")
+	}
 }
