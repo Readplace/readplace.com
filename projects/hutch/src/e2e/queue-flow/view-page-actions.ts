@@ -48,12 +48,16 @@ export function createAnonymousViewPageActions(
 				await expect(summarySlot).toHaveAttribute('data-summary-status', 'skipped')
 
 				// Return to the guest homepage. A guest hitting `/` runs the client-side
-				// A/B split redirect to a landing arm (/landing-a|b) — byte-identical to
-				// `/`, same body.page-home — so `goto` resolves at commit (before the
-				// deferred redirect can interrupt it) and we wait for the arm to settle
-				// before the next action picks up from its home entry state.
+				// A/B split redirect to a byte-identical landing arm (same body.page-home).
+				// `goto` resolves at commit (before the deferred redirect can interrupt
+				// it); networkidle then lets any redirect settle. We assert the terminal
+				// body.page-home rather than the arm URL so the documented kill switch
+				// stays honest: flipping HOMEPAGE_SPLIT.active off keeps the guest on `/`
+				// (also body.page-home), so this unrelated flow stays green instead of
+				// hanging until timeout on a redirect that never fires.
 				await page.goto(`${config.baseUrl}/`, { waitUntil: 'commit' })
-				await page.waitForURL(/\/landing-[ab](\?|$)/, { waitUntil: 'domcontentloaded' })
+				await page.waitForLoadState('networkidle')
+				await expect(page.locator('body.page-home')).toHaveCount(1)
 				progress.visitedCrawlFailure = true
 			},
 		},
