@@ -75,6 +75,7 @@ export function HomePage(params: HomePageParams): PageBody {
 			ogType: "website",
 			// The A/B arms are noindex so only the canonical `/` competes for SEO;
 			// the canonical above stays on `/` for all three renders.
+			// Defence-in-depth: the isbot gate already keeps crawlers off the arms, so pairing noindex with canonical=`/` here is deliberately redundant — don't remove either half.
 			robots: variant ? "noindex, follow" : "index, follow",
 			ogImage: `${staticBaseUrl}/og-image-1200x630.png`,
 			ogImageType: "image/png",
