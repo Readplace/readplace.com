@@ -94,6 +94,8 @@ import { initDynamoDbInboxAddress } from "./providers/inbox-address/dynamodb-inb
 import { initDynamoDbInboxEmail } from "./providers/inbox-email/dynamodb-inbox-email";
 import { initDynamoDbInboxEmailLink } from "./providers/inbox-email/dynamodb-inbox-email-link";
 import { initExchangeGoogleCode } from "./providers/google-auth/google-token";
+import { initExchangeAppleCode } from "./providers/apple-auth/apple-token";
+import { initCreateAppleClientSecret } from "./providers/apple-auth/apple-client-secret";
 import { initInMemoryStripeCheckout } from "@packages/test-fixtures/providers/stripe-checkout";
 import { initStripeCheckout } from "./providers/stripe-checkout/stripe-checkout";
 import { initInMemoryPendingSignup } from "@packages/test-fixtures/providers/pending-signup";
@@ -154,6 +156,11 @@ function initProviders() {
 		const pendingSignupsTable = requireEnv("DYNAMODB_PENDING_SIGNUPS_TABLE");
 		const googleClientId = requireEnv("GOOGLE_LOGIN_CLIENT_ID");
 		const googleClientSecret = requireEnv("GOOGLE_LOGIN_CLIENT_SECRET");
+		const appleClientId = requireEnv("APPLE_LOGIN_CLIENT_ID");
+		const appleTeamId = requireEnv("APPLE_LOGIN_TEAM_ID");
+		const appleKeyId = requireEnv("APPLE_LOGIN_KEY_ID");
+		const applePrivateKeyPem = Buffer.from(requireEnv("APPLE_LOGIN_PRIVATE_KEY_BASE64"), "base64").toString("utf8");
+		assert(applePrivateKeyPem.includes("BEGIN PRIVATE KEY"), "APPLE_LOGIN_PRIVATE_KEY_BASE64 must decode to a PKCS#8 PEM");
 		const appOriginForRedirect = requireEnv("APP_ORIGIN");
 		const resendApiKey = requireEnv("RESEND_API_KEY");
 		const stripeApiKey = requireEnv("STRIPE_SECRET_KEY");
@@ -251,6 +258,24 @@ function initProviders() {
 			clientId: googleClientId,
 			clientSecret: googleClientSecret,
 		};
+		const appleAuth = {
+			exchangeAppleCode: initExchangeAppleCode({
+				clientId: appleClientId,
+				createClientSecret: initCreateAppleClientSecret({
+					teamId: appleTeamId,
+					clientId: appleClientId,
+					keyId: appleKeyId,
+					privateKeyPem: applePrivateKeyPem,
+					now: () => new Date(),
+				}),
+				redirectUri: `${appOriginForRedirect}/auth/apple/callback`,
+				fetch: globalThis.fetch,
+			}),
+			clientId: appleClientId,
+			// The decoded .p8 PEM doubles as the HMAC secret for the sign-in state
+			// cookie — same trust class as Apple's client secret, so no fifth env var.
+			stateSigningSecret: applePrivateKeyPem,
+		};
 
 		const stripe = initStripeCheckout({
 			apiKey: stripeApiKey,
@@ -342,6 +367,7 @@ function initProviders() {
 			...stripe,
 			...pendingSignup,
 			googleAuth,
+			appleAuth,
 			oauthModel,
 			validateAccessToken: createValidateAccessToken(oauthModel),
 			findOAuthClient: oauthClientLookup.findClient,
@@ -407,6 +433,37 @@ function initProviders() {
 			clientSecret: devGoogleClientSecret,
 		}
 		: undefined;
+	const devAppleClientId = getEnv("APPLE_LOGIN_CLIENT_ID");
+	const devAppleTeamId = getEnv("APPLE_LOGIN_TEAM_ID");
+	const devAppleKeyId = getEnv("APPLE_LOGIN_KEY_ID");
+	const devApplePrivateKeyBase64 = getEnv("APPLE_LOGIN_PRIVATE_KEY_BASE64");
+	assert(
+		(devAppleClientId && devAppleTeamId && devAppleKeyId && devApplePrivateKeyBase64) ||
+			(!devAppleClientId && !devAppleTeamId && !devAppleKeyId && !devApplePrivateKeyBase64),
+		"APPLE_LOGIN_CLIENT_ID, APPLE_LOGIN_TEAM_ID, APPLE_LOGIN_KEY_ID and APPLE_LOGIN_PRIVATE_KEY_BASE64 must all be set or all unset",
+	);
+	const devApplePrivateKeyPem = devApplePrivateKeyBase64
+		? Buffer.from(devApplePrivateKeyBase64, "base64").toString("utf8")
+		: undefined;
+	const appleAuth =
+		devAppleClientId && devAppleTeamId && devAppleKeyId && devApplePrivateKeyPem
+			? {
+				exchangeAppleCode: initExchangeAppleCode({
+					clientId: devAppleClientId,
+					createClientSecret: initCreateAppleClientSecret({
+						teamId: devAppleTeamId,
+						clientId: devAppleClientId,
+						keyId: devAppleKeyId,
+						privateKeyPem: devApplePrivateKeyPem,
+						now: () => new Date(),
+					}),
+					redirectUri: `http://localhost:${getEnv("PORT") || "3000"}/auth/apple/callback`,
+					fetch: globalThis.fetch,
+				}),
+				clientId: devAppleClientId,
+				stateSigningSecret: devApplePrivateKeyPem,
+			}
+			: undefined;
 	const crawlStore = initInMemoryArticleCrawl();
 	const summaryStore = initInMemoryGeneratedSummary();
 	const { publishStaleCheckRequested } = initInMemoryStaleCheckRequested({ logger: consoleLogger });
@@ -556,6 +613,7 @@ function initProviders() {
 		storePendingSignup: devPendingSignup.storePendingSignup,
 		consumePendingSignup: devPendingSignup.consumePendingSignup,
 		googleAuth,
+		appleAuth,
 		oauthModel,
 		validateAccessToken: createValidateAccessToken(oauthModel),
 		findOAuthClient: oauthClientLookup.findClient,

@@ -1208,6 +1208,48 @@ describe("Auth routes", () => {
 		});
 	});
 
+	describe("Apple sign-in button", () => {
+		function getAppleButton(html: string) {
+			const doc = new JSDOM(html).window.document;
+			const section = doc.querySelector("[data-test-apple-section]");
+			assert(section, "apple section must be rendered");
+			const link = section.querySelector(".auth-apple-button");
+			assert(link, "apple button must be rendered");
+			return link;
+		}
+
+		it("should render Sign in with Apple on /login with the currentColor Apple logo", async () => {
+			const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
+			const response = await request(harness.server).get("/login");
+
+			const link = getAppleButton(response.text);
+			expect(link.getAttribute("href")).toBe("/auth/apple");
+			expect(link.querySelector(".auth-apple-button__label")?.textContent).toBe("Sign in with Apple");
+			const logo = link.querySelector("svg.auth-apple-button__logo");
+			assert(logo, "apple logo must be rendered");
+			expect(logo.getAttribute("aria-hidden")).toBe("true");
+			expect(logo.querySelectorAll('path[fill="currentColor"]').length).toBe(1);
+		});
+
+		it("should pass return URL through to the Apple sign-in link on /login", async () => {
+			const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
+			const response = await request(harness.server).get("/login?return=%2Fsave%3Furl%3Dhttps%253A%252F%252Fexample.com");
+
+			const link = getAppleButton(response.text);
+			expect(link.getAttribute("href")).toContain("/auth/apple?return=");
+		});
+
+		it("should render Sign up with Apple on /signup with the Apple logo", async () => {
+			const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
+			const response = await request(harness.server).get("/signup");
+
+			const link = getAppleButton(response.text);
+			expect(link.getAttribute("href")).toBe("/auth/apple");
+			expect(link.querySelector(".auth-apple-button__label")?.textContent).toBe("Sign up with Apple");
+			assert(link.querySelector("svg.auth-apple-button__logo"), "apple logo must be rendered");
+		});
+	});
+
 	describe("Founding members progress", () => {
 		it("should render the progress bar on GET /signup with zero users", async () => {
 			const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));

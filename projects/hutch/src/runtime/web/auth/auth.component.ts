@@ -113,6 +113,7 @@ export function SignupPage(data: SignupFormData, options?: { statusCode?: number
 		confirmPasswordField: toFieldViewModel(errors, "confirmPassword"),
 		submitLabel: `Join Readplace`,
 		googleLabel: `Sign up with Google`,
+		appleLabel: `Sign up with Apple`,
 		foundingProgressHtml: renderFoundingProgress({
 			userCount: data.userCount,
 			foundingAllocation: data.foundingAllocation,
