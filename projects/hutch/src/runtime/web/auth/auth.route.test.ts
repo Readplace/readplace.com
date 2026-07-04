@@ -810,6 +810,105 @@ describe("Auth routes", () => {
 
 	});
 
+	describe("POST /signup — signup_attempted analytics", () => {
+		function signupAttempts(harness: { analytics: { events: Array<{ event: string }> } }) {
+			return harness.analytics.events.filter((e) => e.event === "signup_attempted");
+		}
+
+		it("emits a single outcome=created event on a successful free signup", async () => {
+			const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
+
+			await request(harness.server).post("/signup").type("form").send({
+				email: "attempt-free@gmail.com",
+				password: "password123",
+				confirmPassword: "password123",
+				loadedAt: freshLoadedAt(),
+			});
+
+			const attempts = signupAttempts(harness);
+			assert.equal(attempts.length, 1, "exactly one signup_attempted");
+			expect(attempts[0]).toMatchObject({
+				stream: "analytics",
+				event: "signup_attempted",
+				method: "email",
+				outcome: "created",
+				is_authenticated: 0,
+			});
+		});
+
+		it("emits outcome=created on a trial signup once the founding allocation is exhausted", async () => {
+			const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
+			for (let i = 0; i < TEST_FOUNDING_MEMBER_LIMIT; i++) {
+				await harness.auth.createUser({ email: `seed${i}@test.com`, password: "password123" });
+			}
+
+			await request(harness.server).post("/signup").type("form").send({
+				email: "attempt-trial@gmail.com",
+				password: "password123",
+				confirmPassword: "password123",
+				loadedAt: freshLoadedAt(),
+			});
+
+			const attempts = signupAttempts(harness);
+			assert.equal(attempts.length, 1, "exactly one signup_attempted");
+			expect(attempts[0]).toMatchObject({ outcome: "created" });
+		}, 30000);
+
+		it("emits outcome=disposable_email when a disposable domain is rejected — the deliberate friction whose signup cost was previously invisible", async () => {
+			const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
+
+			await request(harness.server).post("/signup").type("form").send({
+				email: "user@slmail.me",
+				password: "password123",
+				confirmPassword: "password123",
+				loadedAt: freshLoadedAt(),
+			});
+
+			expect(signupAttempts(harness)).toMatchObject([{ outcome: "disposable_email" }]);
+		});
+
+		it("emits outcome=invalid_input for a generic validation failure (password too short)", async () => {
+			const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
+
+			await request(harness.server).post("/signup").type("form").send({
+				email: "shortpw@gmail.com",
+				password: "short",
+				confirmPassword: "short",
+				loadedAt: freshLoadedAt(),
+			});
+
+			expect(signupAttempts(harness)).toMatchObject([{ outcome: "invalid_input" }]);
+		});
+
+		it("emits outcome=duplicate_email when the address already has an account", async () => {
+			const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
+			await harness.auth.createUser({ email: "dupe@gmail.com", password: "password123" });
+
+			await request(harness.server).post("/signup").type("form").send({
+				email: "dupe@gmail.com",
+				password: "password123",
+				confirmPassword: "password123",
+				loadedAt: freshLoadedAt(),
+			});
+
+			expect(signupAttempts(harness)).toMatchObject([{ outcome: "duplicate_email" }]);
+		});
+
+		it("does not emit signup_attempted for a bot-rejected submission — those are counted on the bot-defense stream", async () => {
+			const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
+
+			await request(harness.server).post("/signup").type("form").send({
+				email: "bot@gmail.com",
+				password: "password123",
+				confirmPassword: "password123",
+				website: "http://spam.example",
+				loadedAt: freshLoadedAt(),
+			});
+
+			assert.equal(signupAttempts(harness).length, 0, "bot trips are not signup_attempted events");
+		});
+	});
+
 	describe("POST /signup — bot defense", () => {
 		it("returns a fake-success 303 to /?signup=pending and logs a 'honeypot' rejection when the hidden website field is filled", async () => {
 			const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));

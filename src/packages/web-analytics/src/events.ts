@@ -25,7 +25,27 @@ export const ANALYTICS_EVENTS = {
 	summaryToggled: "summary_toggled",
 	viewOpened: "view_opened",
 	viewSaveIntent: "view_save_intent",
+	signupAttempted: "signup_attempted",
 } as const;
+
+/**
+ * Terminal outcomes of a POST /signup submission, emitted so the signup form's
+ * own conversion (submissions → accounts) is measurable and the cost of each
+ * rejection gate is separable. `disposable_email` is split out from generic
+ * `invalid_input` because rejecting disposable-email domains is a deliberate
+ * product friction whose signup cost was previously invisible. Bot-defense
+ * trips are NOT counted here — they have their own bot-defense stream. The
+ * per-IP rate-limit (429) short-circuits in middleware before the handler, so
+ * it is likewise out of scope for this event.
+ */
+export const SIGNUP_OUTCOMES = {
+	created: "created",
+	disposableEmail: "disposable_email",
+	invalidInput: "invalid_input",
+	duplicateEmail: "duplicate_email",
+} as const;
+
+export type SignupOutcome = (typeof SIGNUP_OUTCOMES)[keyof typeof SIGNUP_OUTCOMES];
 
 /**
  * Dimensions of the `view_save_intent` event. Each is the single source of

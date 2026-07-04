@@ -9,6 +9,7 @@ import {
 	INTERNAL_CLICK_MEDIUM,
 	type SaveOutcome,
 	type SaveSurface,
+	type SignupOutcome,
 	STREAMS,
 } from "./events";
 import {
@@ -255,6 +256,25 @@ export interface ViewSaveIntentEvent {
 	is_authenticated: 0 | 1;
 }
 
+/**
+ * Emitted at each terminal branch of the POST /signup handler so the signup
+ * form's own conversion — submissions vs accounts created — is countable, and
+ * so the share lost to each rejection gate (disposable email, duplicate,
+ * generic validation) is separable. Carries `visitor_id` to join to
+ * `user_created` and to the anonymous reader funnel. Always `is_authenticated:
+ * 0` (a signed-in visitor is redirected off /signup before the handler runs).
+ */
+export interface SignupAttemptedEvent {
+	stream: typeof STREAMS.analytics;
+	event: typeof ANALYTICS_EVENTS.signupAttempted;
+	timestamp: string;
+	method: "email";
+	outcome: SignupOutcome;
+	visitor_hash: string | null;
+	visitor_id: string | null;
+	is_authenticated: 0;
+}
+
 export type AnalyticsEvent =
 	| AnalyticsPageview
 	| AnalyticsClick
@@ -264,7 +284,8 @@ export type AnalyticsEvent =
 	| ArticleReadEvent
 	| SummaryToggledEvent
 	| ViewOpenedEvent
-	| ViewSaveIntentEvent;
+	| ViewSaveIntentEvent
+	| SignupAttemptedEvent;
 
 function shouldLog(params: { req: Request; path: string; statusCode: number }): boolean {
 	if (params.req.method !== "GET") return false;
@@ -396,6 +417,28 @@ export function buildSaveIntentEvent(
 		visitor_hash: hashIp({ ip: params.req.ip, salt: deps.salt }),
 		visitor_id: params.req.visitorId,
 		is_authenticated: params.req.userId ? 1 : 0,
+	};
+}
+
+/**
+ * Builds a `signup_attempted` event for a terminal outcome of the POST /signup
+ * handler. Centralizes the `visitor_hash`/`visitor_id` derivation so signup
+ * attempts carry the same join and dashboard-exclusion identifiers as the rest
+ * of the analytics stream.
+ */
+export function buildSignupAttemptedEvent(
+	deps: { now: () => Date; salt: string },
+	params: { req: Request; outcome: SignupOutcome },
+): SignupAttemptedEvent {
+	return {
+		stream: STREAMS.analytics,
+		event: ANALYTICS_EVENTS.signupAttempted,
+		timestamp: deps.now().toISOString(),
+		method: "email",
+		outcome: params.outcome,
+		visitor_hash: hashIp({ ip: params.req.ip, salt: deps.salt }),
+		visitor_id: params.req.visitorId ?? null,
+		is_authenticated: 0,
 	};
 }
 

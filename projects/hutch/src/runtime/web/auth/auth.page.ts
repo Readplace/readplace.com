@@ -69,6 +69,10 @@ import { readClickAttribution } from "@packages/web-analytics";
 import { consumePendingSaveId } from "../pending-save";
 import type { ConversionEvent } from "../../conversions";
 import { emitUserCreated } from "../../conversions";
+import type { AnalyticsEvent } from "@packages/web-analytics";
+import { buildSignupAttemptedEvent } from "@packages/web-analytics";
+import { SIGNUP_OUTCOMES, type SignupOutcome } from "../../observability/events";
+import { DISPOSABLE_EMAIL_MESSAGE } from "./disposable-email";
 
 const TokenQuerySchema = z.object({ token: z.string().optional() }).passthrough();
 const CheckoutSuccessQuerySchema = z.object({ session_id: z.string().min(1) }).passthrough();
@@ -112,6 +116,8 @@ interface AuthDependencies {
 	now: () => Date;
 	botDefenseLogger: HutchLogger.Typed<BotDefenseEvent>;
 	conversionLogger: HutchLogger.Typed<ConversionEvent>;
+	analytics: HutchLogger.Typed<AnalyticsEvent>;
+	salt: string;
 	foundingAllocation: FoundingAllocation;
 	buildBannerState: BuildBannerState;
 	consumeRateLimit: ConsumeRateLimit;
@@ -254,6 +260,11 @@ export function initAuthRoutes(deps: AuthDependencies): Router {
 		const pendingSaveHost = pendingSaveHostFrom(returnUrl);
 		const body = (req.body ?? {}) as Record<string, unknown>;
 
+		const logSignupAttempt = (outcome: SignupOutcome) =>
+			deps.analytics.info(
+				buildSignupAttemptedEvent({ now: deps.now, salt: deps.salt }, { req, outcome }),
+			);
+
 		const renderFailure = async (email: string | undefined, errors: ComponentError[]) => {
 			const userCount = await fetchUserCount();
 			sendComponent(
@@ -296,9 +307,15 @@ export function initAuthRoutes(deps: AuthDependencies): Router {
 					res.redirect(303, "/?signup=pending");
 					break;
 				case "field-errors":
+					logSignupAttempt(
+						result.errors.some((e) => e.message === DISPOSABLE_EMAIL_MESSAGE)
+							? SIGNUP_OUTCOMES.disposableEmail
+							: SIGNUP_OUTCOMES.invalidInput,
+					);
 					await renderFailure(result.email, result.errors);
 					break;
 				case "duplicate-email":
+					logSignupAttempt(SIGNUP_OUTCOMES.duplicateEmail);
 					await renderFailure(result.email, [{ message: "An account with this email already exists" }]);
 					break;
 			}
@@ -322,6 +339,7 @@ export function initAuthRoutes(deps: AuthDependencies): Router {
 			const sessionId = await deps.createSession({ userId: created.userId, emailVerified: false });
 			res.cookie(SESSION_COOKIE_NAME, sessionId, sessionCookieOptions);
 			sendVerificationEmail(created.userId, email);
+			logSignupAttempt(SIGNUP_OUTCOMES.created);
 			emitUserCreated(
 				{ logger: deps.conversionLogger, now: deps.now },
 				{
@@ -377,6 +395,7 @@ export function initAuthRoutes(deps: AuthDependencies): Router {
 		const sessionId = await deps.createSession({ userId: created.userId, emailVerified: false });
 		res.cookie(SESSION_COOKIE_NAME, sessionId, sessionCookieOptions);
 		sendVerificationEmail(created.userId, email);
+		logSignupAttempt(SIGNUP_OUTCOMES.created);
 		emitUserCreated(
 			{ logger: deps.conversionLogger, now: deps.now },
 			{
