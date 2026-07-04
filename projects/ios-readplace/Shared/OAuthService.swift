@@ -47,17 +47,17 @@ struct OAuthService {
 	var nativeRedirectURI: String { AppConfig.nativeCallbackURL }
 
 	/// Builds the external-browser Login `/oauth/authorize` URL: the native
-	/// custom-scheme callback plus `screen_hint=login`, which routes an
-	/// unauthenticated user to `/login` (an already-authenticated Chrome session
-	/// passes straight through to consent, ignoring the hint).
+	/// custom-scheme callback plus `screen_hint=login`, so the server shows an
+	/// unauthenticated user the sign-in screen (an already-authenticated Chrome
+	/// session passes straight through to consent, ignoring the hint).
 	func makeNativeLoginAuthorizationRequest() -> AuthorizationRequest {
 		makeAuthorizationRequest(redirectURI: nativeRedirectURI, screenHint: "login")
 	}
 
 	/// Builds the external-browser Sign up `/oauth/authorize` URL: the native
-	/// custom-scheme callback plus `screen_hint=signup`, which routes an
-	/// unauthenticated user to `/signup` (an already-authenticated Chrome session
-	/// passes straight through to consent, ignoring the hint).
+	/// custom-scheme callback plus `screen_hint=signup`, so the server shows an
+	/// unauthenticated user the sign-up screen (an already-authenticated Chrome
+	/// session passes straight through to consent, ignoring the hint).
 	func makeSignupAuthorizationRequest() -> AuthorizationRequest {
 		makeAuthorizationRequest(redirectURI: nativeRedirectURI, screenHint: "signup")
 	}

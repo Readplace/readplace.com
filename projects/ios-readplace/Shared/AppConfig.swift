@@ -48,17 +48,10 @@ enum AppConfig {
 	/// advertising it as a Siren link.
 	static let addLinksHelpPath = "/help/add-links"
 
-	/// Query item the in-app reader appends to the server `read` link so the same
-	/// `/queue/:id/view` route renders chromeless — bare of the web shell — with the
-	/// native reading list as its chrome. An explicit client-sent signal (never a
-	/// user-agent sniff); must match the server's `?platform=ios` switch.
+	/// Query item the in-app reader appends to the server `read` link so the reader
+	/// renders chromeless — bare of the web shell — with the native reading list as
+	/// its chrome. An explicit client-sent signal, never a user-agent sniff.
 	static let readerPlatformQueryItem = URLQueryItem(name: "platform", value: "ios")
-
-	/// Name of the server's browser session cookie (`hutch_sid`). Minted from a
-	/// bearer token via `POST /auth/session` and injected into the in-app reader
-	/// webview so its cookie-authenticated pages load. Must match the server's
-	/// `SESSION_COOKIE_NAME`.
-	static let sessionCookieName = "hutch_sid"
 
 	/// Shared container so the app (which signs in) and the share extension
 	/// (which saves) can both read the OAuth tokens.

@@ -98,8 +98,8 @@ final class LoginFlowTests: XCTestCase {
 
 		XCTAssertFalse(session.isLoggedIn)
 		XCTAssertNil(
-			config.httpCookieStorage?.cookies?.first { $0.name == AppConfig.sessionCookieName },
-			"the minted hutch_sid cookie must not survive a forced sign-out"
+			config.httpCookieStorage?.cookies?.first { $0.name == "hutch_sid" },
+			"the minted session cookie must not survive a forced sign-out"
 		)
 		await readerWipe.value
 		XCTAssertTrue(
@@ -123,8 +123,8 @@ final class LoginFlowTests: XCTestCase {
 
 		XCTAssertFalse(session.isLoggedIn)
 		XCTAssertNil(
-			config.httpCookieStorage?.cookies?.first { $0.name == AppConfig.sessionCookieName },
-			"the minted hutch_sid cookie must not survive sign-out"
+			config.httpCookieStorage?.cookies?.first { $0.name == "hutch_sid" },
+			"the minted session cookie must not survive sign-out"
 		)
 		XCTAssertTrue(
 			readerWipeInvoked,

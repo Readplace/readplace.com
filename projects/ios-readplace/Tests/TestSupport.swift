@@ -16,11 +16,12 @@ enum TestSupport {
 		return config
 	}
 
-	/// A `hutch_sid` session cookie scoped to the server host, for seeding a
-	/// cookie jar before asserting sign-out clears it.
-	static func sessionCookie(value: String) -> HTTPCookie {
+	/// A session cookie scoped to the server host, for seeding a cookie jar before
+	/// asserting sign-out clears it. The name is arbitrary — the client no longer
+	/// selects the session cookie by name — so this uses a representative literal.
+	static func sessionCookie(value: String, name: String = "hutch_sid") -> HTTPCookie {
 		HTTPCookie(properties: [
-			.name: AppConfig.sessionCookieName,
+			.name: name,
 			.value: value,
 			.domain: URL(string: AppConfig.serverBaseURL)!.host!,
 			.path: "/",

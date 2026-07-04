@@ -135,15 +135,15 @@ final class ReadingListViewModel: ObservableObject {
 		}
 	}
 
-	/// Drops the row the reader just marked read — instantly, so the unread-only
-	/// list never shows it again behind the sheet — then converges with the server.
-	/// The reader's own POST answers inside the webview where no Siren body is
-	/// available, so a shallow list re-reads to bring in whatever changed elsewhere
-	/// (e.g. an item marked unread on the website); a deep-scrolled list keeps only
-	/// the local drop so the viewport never moves (`convergeWithServer`).
-	func readerMarkedRead(id: String) async {
-		articles.removeAll { $0.id == id }
-		await convergeWithServer(droppingId: id)
+	/// Reconciles the list after the reader reports a status change from inside the
+	/// webview. The reader's own POST answers where no Siren body is available and
+	/// the client cannot see which direction the toggle went, so it does not infer
+	/// "read" and drop a row — it re-reads the collection and adopts the server's
+	/// truth (a shallow list), which also brings in whatever changed elsewhere (e.g.
+	/// an item marked unread on the website). A deep-scrolled list holds its position
+	/// and reconciles on the next pull-to-refresh (`convergeWithServer`).
+	func readerStatusChanged() async {
+		await convergeWithServer(droppingId: nil)
 	}
 
 	/// Re-reads the list when the app returns to the foreground, so changes made
@@ -229,9 +229,10 @@ final class ReadingListViewModel: ObservableObject {
 	}
 
 	/// Mints the cookie session the reader webview needs from the current bearer.
-	/// Returns nil and surfaces the error when the bootstrap fails, so the reader
-	/// sheet can show its unavailable view instead of a blank page.
-	func mintReaderSession() async -> HTTPCookie? {
+	/// Returns the cookies the server set, or nil (surfacing the error) when the
+	/// bootstrap fails, so the reader sheet can show its unavailable view instead of
+	/// a blank page.
+	func mintReaderSession() async -> [HTTPCookie]? {
 		do {
 			return try await api.bootstrapSession()
 		} catch {

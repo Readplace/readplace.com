@@ -735,10 +735,12 @@ final class ReadingListViewModelTests: XCTestCase {
 		XCTAssertNil(viewModel.errorText)
 	}
 
-	func testReaderMarkedReadDropsTheRowAndConvergesWithTheServer() async {
-		// The reader's own POST already happened inside the webview, so the native
-		// side drops the row immediately and then converges with a fresh load —
-		// which also brings in an item marked unread on the website (w1).
+	func testReaderStatusChangedConvergesWithTheServerWithoutInferringDirection() async {
+		// The reader's own POST already happened inside the webview, but the client
+		// can't see which direction the toggle went, so it does not infer "read" and
+		// drop a row — it re-reads the collection and adopts the server's truth, which
+		// no longer lists the read item (a1) and brings in an item marked unread on
+		// the website (w1).
 		let postAction = Fixtures.collection(
 			entitiesJSON: [Fixtures.article(id: "a2"), Fixtures.article(id: "w1")], total: 2
 		)
@@ -746,11 +748,11 @@ final class ReadingListViewModelTests: XCTestCase {
 		let viewModel = makeViewModel(store: TestSupport.loggedInStore())
 		await viewModel.refresh()
 
-		await viewModel.readerMarkedRead(id: "a1")
+		await viewModel.readerStatusChanged()
 
 		XCTAssertEqual(
 			viewModel.articles.map(\.id), ["a2", "w1"],
-			"the read row is dropped and the convergence load is adopted"
+			"the server's re-read collection is adopted as truth; no row is dropped by inference"
 		)
 		XCTAssertTrue(
 			StubURLProtocol.records.allSatisfy { $0.request.httpMethod != "POST" },
@@ -799,7 +801,7 @@ final class ReadingListViewModelTests: XCTestCase {
 		Article(
 			id: id, url: "https://example.com/x", title: "X", siteName: nil, excerpt: nil,
 			imageURL: nil, readTimeMinutes: nil, isRead: false, savedAt: nil,
-			actions: [], readHref: readHref
+			actions: [], links: [], readHref: readHref
 		)
 	}
 
@@ -839,10 +841,9 @@ final class ReadingListViewModelTests: XCTestCase {
 		}
 		let viewModel = makeViewModel(store: TestSupport.loggedInStore())
 
-		let cookie = await viewModel.mintReaderSession()
+		let cookies = await viewModel.mintReaderSession()
 
-		XCTAssertEqual(cookie?.name, "hutch_sid")
-		XCTAssertEqual(cookie?.value, "sess-xyz")
+		XCTAssertEqual(cookies?.first?.value, "sess-xyz")
 		XCTAssertNil(viewModel.errorText)
 	}
 
@@ -852,9 +853,9 @@ final class ReadingListViewModelTests: XCTestCase {
 		}
 		let viewModel = makeViewModel(store: TestSupport.loggedInStore())
 
-		let cookie = await viewModel.mintReaderSession()
+		let cookies = await viewModel.mintReaderSession()
 
-		XCTAssertNil(cookie, "a failed bootstrap mints no session, so the sheet shows its unavailable view")
+		XCTAssertNil(cookies, "a failed bootstrap mints no session, so the sheet shows its unavailable view")
 		XCTAssertNotNil(viewModel.errorText)
 	}
 }

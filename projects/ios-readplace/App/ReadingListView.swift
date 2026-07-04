@@ -70,7 +70,7 @@ struct ReadingListView: View {
 						presentation: presentation,
 						mintSession: { await viewModel.mintReaderSession() },
 						onMarkedRead: {
-							if let id = presentation.articleId { Task { await viewModel.readerMarkedRead(id: id) } }
+							Task { await viewModel.readerStatusChanged() }
 							viewModel.readerPresentation = nil
 						},
 						onClose: { viewModel.readerPresentation = nil }

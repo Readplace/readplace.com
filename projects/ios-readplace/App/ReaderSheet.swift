@@ -7,19 +7,19 @@ import SwiftUI
 /// tap keeps tapping a row instantly responsive, like following a link.
 struct ReaderSheet: View {
 	let presentation: ReaderPresentation
-	let mintSession: () async -> HTTPCookie?
+	let mintSession: () async -> [HTTPCookie]?
 	let onMarkedRead: () -> Void
 	let onClose: () -> Void
 
-	@State private var cookie: HTTPCookie?
+	@State private var cookies: [HTTPCookie]?
 	@State private var bootstrapFailed = false
 
 	var body: some View {
 		Group {
-			if let cookie {
+			if let cookies {
 				ReaderWebView(
 					url: presentation.readerURL,
-					cookie: cookie,
+					cookies: cookies,
 					onMarkedRead: onMarkedRead,
 					onClose: onClose,
 					externalBrowser: .system
@@ -32,9 +32,9 @@ struct ReaderSheet: View {
 		}
 		.tint(.brandAmber)
 		.task {
-			guard cookie == nil, !bootstrapFailed else { return }
+			guard cookies == nil, !bootstrapFailed else { return }
 			if let minted = await mintSession() {
-				cookie = minted
+				cookies = minted
 			} else {
 				bootstrapFailed = true
 			}
