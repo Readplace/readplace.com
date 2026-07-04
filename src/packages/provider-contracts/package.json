@@ -9,6 +9,10 @@
       "types": "./dist/index.d.ts",
       "default": "./dist/index.js"
     },
+    "./apple-auth": {
+      "types": "./dist/apple-auth.d.ts",
+      "default": "./dist/apple-auth.js"
+    },
     "./article-crawl": {
       "types": "./dist/article-crawl.d.ts",
       "default": "./dist/article-crawl.js"
@@ -104,6 +108,7 @@
   },
   "typesVersions": {
     "*": {
+      "apple-auth": ["./dist/apple-auth.d.ts"],
       "article-crawl": ["./dist/article-crawl.d.ts"],
       "article-freshness": ["./dist/article-freshness.d.ts"],
       "article-store": ["./dist/article-store.d.ts"],

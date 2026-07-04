@@ -95,6 +95,12 @@ export type CreateGoogleUser = (user: {
 	attribution?: UserAcquisitionAttribution;
 }) => Promise<CreateUserResult>;
 
+export type CreateAppleUser = (user: {
+	email: string;
+	userId: UserId;
+	attribution?: UserAcquisitionAttribution;
+}) => Promise<CreateUserResult>;
+
 export type BotDefenseRejectReason =
 	| "honeypot"
 	| "submit_too_fast"
@@ -118,7 +124,7 @@ export interface ConversionEvent {
 	timestamp: string;
 	user_id: UserId;
 	email_hash: string;
-	method: "email" | "google";
+	method: "email" | "google" | "apple";
 	tier: "free" | "trial";
 	utm_source?: string;
 	utm_medium?: string;

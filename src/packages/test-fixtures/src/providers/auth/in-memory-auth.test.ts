@@ -423,6 +423,50 @@ describe("initInMemoryAuth", () => {
 		});
 	});
 
+	describe("createAppleUser", () => {
+		it("should create a user without a password and verified email", async () => {
+			const auth = makeAuth();
+			const userId = UserIdSchema.parse("apple-user-123");
+
+			const result = await auth.createAppleUser({ email: "apple@example.com", userId });
+
+			expect(result).toEqual({ ok: true, userId });
+			const lookup = await auth.findUserByEmail("apple@example.com");
+			expect(lookup).toEqual({
+				userId,
+				emailVerified: true,
+				registeredAt: expect.any(String),
+			});
+		});
+
+		it("should reject duplicate email", async () => {
+			const auth = makeAuth();
+			await auth.createUser({ email: "test@example.com", password: "password123" });
+
+			const result = await auth.createAppleUser({
+				email: "test@example.com",
+				userId: UserIdSchema.parse("other-id"),
+			});
+
+			expect(result).toEqual({ ok: false, reason: "email-already-exists" });
+		});
+
+		it("should normalize email case", async () => {
+			const auth = makeAuth();
+			await auth.createAppleUser({
+				email: "Apple@Example.COM",
+				userId: UserIdSchema.parse("apple-user-1"),
+			});
+
+			const result = await auth.createAppleUser({
+				email: "apple@example.com",
+				userId: UserIdSchema.parse("apple-user-2"),
+			});
+
+			expect(result).toEqual({ ok: false, reason: "email-already-exists" });
+		});
+	});
+
 	describe("findUserContactByUserId", () => {
 		it("returns email and unverified flag for a known userId", async () => {
 			const auth = makeAuth();
