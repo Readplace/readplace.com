@@ -14,6 +14,7 @@
         {{/if}}
         {{#if subscriptionBannerIsInactive}}
         <p class="queue-banner__message"><strong>Subscription not active.</strong> Your saved articles are still here.</p>
+        <a class="queue-banner__cta" href="{{track '/account' source='queue-banner' content='subscribe'}}">Subscribe — $49/year</a>
         {{/if}}
       </aside>
       {{{statusToastHtml}}}

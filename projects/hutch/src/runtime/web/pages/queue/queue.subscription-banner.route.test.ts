@@ -130,9 +130,17 @@ describe("Queue page banner state", () => {
 		const banner = doc.querySelector("[data-test-subscription-banner]");
 		assert(banner, "queue banner must always be rendered");
 		expect(banner.classList.contains("queue-banner--inactive")).toBe(true);
-		expect(banner.textContent?.replace(/\s+/g, " ").trim()).toBe(
+		const message = banner.querySelector(".queue-banner__message");
+		assert(message, "inactive banner must render its message");
+		expect(message.textContent?.replace(/\s+/g, " ").trim()).toBe(
 			"Subscription not active. Your saved articles are still here.",
 		);
+		// An expired/cancelled user must be able to re-subscribe from the queue
+		// itself, not be dead-ended into hunting for /account.
+		const cta = banner.querySelector(".queue-banner__cta");
+		assert(cta, "inactive banner must offer a subscribe CTA");
+		expect(cta.textContent).toBe("Subscribe — $49/year");
+		expect(cta.getAttribute("href")).toContain("/account");
 	});
 
 	it("flips the header countdown to 'Subscription not active' for a cancelled user too, with the same wording as trial-expired", async () => {
