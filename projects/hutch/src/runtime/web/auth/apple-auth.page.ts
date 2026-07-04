@@ -116,7 +116,7 @@ export const initAppleAuthRoutes = (deps: AppleAuthDependencies): Router => {
 			...(visitorId ? { visitorId } : {}),
 			...(pendingSaveId ? { pendingSaveId } : {}),
 		});
-		const signedState = signState(statePayload, deps.stateSigningSecret);
+		const signedState = signState({ payload: statePayload, secret: deps.stateSigningSecret });
 
 		res.cookie(STATE_COOKIE, signedState, {
 			...stateCookieOptions,
@@ -168,7 +168,7 @@ export const initAppleAuthRoutes = (deps: AppleAuthDependencies): Router => {
 		}
 		const { code, state: stateParam } = parsedBody.data;
 
-		const payload = verifyState(stateParam, deps.stateSigningSecret);
+		const payload = verifyState({ signed: stateParam, secret: deps.stateSigningSecret });
 		if (!payload) {
 			await renderError("Apple sign-in failed. Please try again.");
 			return;

@@ -89,7 +89,7 @@ export const initGoogleAuthRoutes = (deps: GoogleAuthDependencies): Router => {
 		const nonce = randomBytes(16).toString("hex");
 		const createdAt = Date.now();
 		const statePayload = JSON.stringify({ nonce, returnUrl, createdAt });
-		const signedState = signState(statePayload, deps.googleClientSecret);
+		const signedState = signState({ payload: statePayload, secret: deps.googleClientSecret });
 
 		res.cookie(STATE_COOKIE, signedState, {
 			...sessionCookieOptions,
@@ -131,7 +131,7 @@ export const initGoogleAuthRoutes = (deps: GoogleAuthDependencies): Router => {
 		}
 		const { code, state: stateParam } = parsedQuery.data;
 
-		const payload = verifyState(stateParam, deps.googleClientSecret);
+		const payload = verifyState({ signed: stateParam, secret: deps.googleClientSecret });
 		if (!payload) {
 			await renderError("Google sign-in failed. Please try again.");
 			return;
