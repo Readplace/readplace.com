@@ -1,3 +1,4 @@
+import * as aws from "@pulumi/aws";
 import * as pulumi from "@pulumi/pulumi";
 import {
 	HutchAPIGatewayLambdaRoute,
@@ -24,8 +25,17 @@ const apiGatewayExecutionArn = hutchStack.requireOutput("apiGatewayExecutionArn"
 const hutchApiUrl = hutchStack.requireOutput("apiUrl");
 const appOrigin = hutchStack.requireOutput("appOrigin");
 const staticBaseUrl = hutchStack.requireOutput("staticBaseUrl");
-const sessionsTableName = hutchStack.requireOutput("sessionsTableName");
-const sessionsTableArn = hutchStack.requireOutput("sessionsTableArn");
+
+// The sessions table name is a config constant (identical across envs), so this
+// stack reads it from its own config rather than via a StackReference — a
+// cross-stack read of a value you could put in config couples deploy order and
+// breaks the first deploy after any new hutch output (infrastructure-design:
+// "Don't StackReference a Value You Could Put in Config"). The ARN is derived
+// from account + region rather than read back.
+const awsRegion = new pulumi.Config("aws").require("region");
+const awsAccountId = pulumi.output(aws.getCallerIdentity({})).accountId;
+const sessionsTableName = config.require("dynamodbSessionsTable");
+const sessionsTableArn = pulumi.interpolate`arn:aws:dynamodb:${awsRegion}:${awsAccountId}:table/${sessionsTableName}`;
 
 /** Least-privilege: the embed only reads a single session row per logged-in page
  * view to flip the header nav, so it gets GetItem on the sessions table and

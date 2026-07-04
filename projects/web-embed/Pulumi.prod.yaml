@@ -4,3 +4,4 @@ config:
     - '278728209435'
   web-embed:nodeEnv: production
   web-embed:hutchStack: organization/hutch/prod
+  web-embed:dynamodbSessionsTable: hutch-sessions-d17dbb3

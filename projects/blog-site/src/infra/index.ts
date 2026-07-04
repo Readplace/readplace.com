@@ -1,3 +1,4 @@
+import * as aws from "@pulumi/aws";
 import * as pulumi from "@pulumi/pulumi";
 import {
 	HutchAPIGatewayLambdaRoute,
@@ -14,7 +15,7 @@ import {
  * integration + routes + invoke permission. There is no runtime code edge.
  */
 const config = new pulumi.Config();
-const stage = config.require("stage");
+const nodeEnv = config.require("nodeEnv");
 const staticBaseUrl = config.require("staticBaseUrl");
 const hutchStackName = config.require("hutchStack");
 
@@ -22,8 +23,17 @@ const hutchStack = new pulumi.StackReference(hutchStackName);
 const apiGatewayId = hutchStack.requireOutput("apiGatewayId");
 const apiGatewayExecutionArn = hutchStack.requireOutput("apiGatewayExecutionArn");
 const hutchApiUrl = hutchStack.requireOutput("apiUrl");
-const sessionsTableName = hutchStack.requireOutput("sessionsTableName");
-const sessionsTableArn = hutchStack.requireOutput("sessionsTableArn");
+
+// The sessions table name is a config constant (identical across envs), so this
+// stack reads it from its own config rather than via a StackReference — a
+// cross-stack read of a value you could put in config couples deploy order and
+// breaks the first deploy after any new hutch output (infrastructure-design:
+// "Don't StackReference a Value You Could Put in Config"). The ARN is derived
+// from account + region rather than read back.
+const awsRegion = new pulumi.Config("aws").require("region");
+const awsAccountId = pulumi.output(aws.getCallerIdentity({})).accountId;
+const sessionsTableName = config.require("dynamodbSessionsTable");
+const sessionsTableArn = pulumi.interpolate`arn:aws:dynamodb:${awsRegion}:${awsAccountId}:table/${sessionsTableName}`;
 
 /** Least-privilege: the blog only reads a single session row per logged-in page
  * view to flip the header nav, so it gets GetItem on the sessions table and
@@ -40,7 +50,7 @@ const lambda = new HutchLambda("blog-site", {
 	memorySize: 256,
 	timeout: 10,
 	environment: {
-		NODE_ENV: stage === "production" ? "production" : "development",
+		NODE_ENV: nodeEnv,
 		STATIC_BASE_URL: staticBaseUrl,
 		DYNAMODB_SESSIONS_TABLE: sessionsTableName,
 	},

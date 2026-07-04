@@ -4,4 +4,5 @@ config:
     - '572337278115'
   web-embed:nodeEnv: development
   web-embed:hutchStack: organization/hutch/staging
+  web-embed:dynamodbSessionsTable: hutch-sessions-d17dbb3
 encryptionsalt: v1:8THQlMwdci8=:v1:/uHyXUtFpsjVNuZ5:JlaKyeUtnhmFI9YYdkGwHW2YsWIDCw==
