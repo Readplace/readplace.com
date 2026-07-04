@@ -271,7 +271,7 @@ export interface SignupAttemptedEvent {
 	method: "email";
 	outcome: SignupOutcome;
 	visitor_hash: string | null;
-	visitor_id: string | null;
+	visitor_id: string;
 	is_authenticated: 0;
 }
 
@@ -430,6 +430,7 @@ export function buildSignupAttemptedEvent(
 	deps: { now: () => Date; salt: string },
 	params: { req: Request; outcome: SignupOutcome },
 ): SignupAttemptedEvent {
+	assert(params.req.visitorId, "visitor-id middleware must run before POST /signup emits signup_attempted");
 	return {
 		stream: STREAMS.analytics,
 		event: ANALYTICS_EVENTS.signupAttempted,
@@ -437,7 +438,7 @@ export function buildSignupAttemptedEvent(
 		method: "email",
 		outcome: params.outcome,
 		visitor_hash: hashIp({ ip: params.req.ip, salt: deps.salt }),
-		visitor_id: params.req.visitorId ?? null,
+		visitor_id: params.req.visitorId,
 		is_authenticated: 0,
 	};
 }

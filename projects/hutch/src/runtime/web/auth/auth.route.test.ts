@@ -894,6 +894,67 @@ describe("Auth routes", () => {
 			expect(signupAttempts(harness)).toMatchObject([{ outcome: "duplicate_email" }]);
 		});
 
+		it("emits outcome=duplicate_email on the free path when the duplicate is caught at insert time (createUserWithPasswordHash race), not by validation", async () => {
+			const fixture = createDefaultTestAppFixture(TEST_APP_ORIGIN);
+			let raceFindCount = 0;
+			const harness = useApp({
+				...fixture,
+				auth: {
+					...fixture.auth,
+					findUserByEmail: async (email) => {
+						if (email === "race-free@gmail.com") {
+							raceFindCount++;
+							if (raceFindCount === 1) return null;
+						}
+						return fixture.auth.findUserByEmail(email);
+					},
+				},
+			});
+			await fixture.auth.createUser({ email: "race-free@gmail.com", password: "existing" });
+
+			const response = await request(harness.server).post("/signup").type("form").send({
+				email: "race-free@gmail.com",
+				password: "password123",
+				confirmPassword: "password123",
+				loadedAt: freshLoadedAt(),
+			});
+
+			expect(response.status).toBe(422);
+			expect(signupAttempts(harness)).toMatchObject([{ outcome: "duplicate_email" }]);
+		});
+
+		it("emits outcome=duplicate_email on the trial path insert-time race once the founding allocation is exhausted", async () => {
+			const fixture = createDefaultTestAppFixture(TEST_APP_ORIGIN);
+			let raceFindCount = 0;
+			const harness = useApp({
+				...fixture,
+				auth: {
+					...fixture.auth,
+					findUserByEmail: async (email) => {
+						if (email === "race-trial@gmail.com") {
+							raceFindCount++;
+							if (raceFindCount === 1) return null;
+						}
+						return fixture.auth.findUserByEmail(email);
+					},
+				},
+			});
+			for (let i = 0; i < TEST_FOUNDING_MEMBER_LIMIT; i++) {
+				await fixture.auth.createUser({ email: `seed${i}@test.com`, password: "password123" });
+			}
+			await fixture.auth.createUser({ email: "race-trial@gmail.com", password: "existing" });
+
+			const response = await request(harness.server).post("/signup").type("form").send({
+				email: "race-trial@gmail.com",
+				password: "password123",
+				confirmPassword: "password123",
+				loadedAt: freshLoadedAt(),
+			});
+
+			expect(response.status).toBe(422);
+			expect(signupAttempts(harness)).toMatchObject([{ outcome: "duplicate_email" }]);
+		}, 30000);
+
 		it("does not emit signup_attempted for a bot-rejected submission — those are counted on the bot-defense stream", async () => {
 			const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
 

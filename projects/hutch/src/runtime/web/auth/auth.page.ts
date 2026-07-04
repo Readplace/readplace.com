@@ -332,6 +332,7 @@ export function initAuthRoutes(deps: AuthDependencies): Router {
 		if (!deps.foundingAllocation.isFoundingAllocationExhausted(userCount)) {
 			const created = await deps.createUserWithPasswordHash({ email, passwordHash, attribution });
 			if (!created.ok) {
+				logSignupAttempt(SIGNUP_OUTCOMES.duplicateEmail);
 				await renderFailure(email, [{ message: "An account with this email already exists" }]);
 				return;
 			}
@@ -358,6 +359,7 @@ export function initAuthRoutes(deps: AuthDependencies): Router {
 
 		const created = await deps.createUserWithPasswordHash({ email, passwordHash });
 		if (!created.ok) {
+			logSignupAttempt(SIGNUP_OUTCOMES.duplicateEmail);
 			await renderFailure(email, [{ message: "An account with this email already exists" }]);
 			return;
 		}
