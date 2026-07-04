@@ -68,9 +68,9 @@ function collectReferencedEvents(): Set<string> {
 }
 
 describe("buildAnalyticsDashboardBody — drift prevention", () => {
-	it("emits 24 widgets (7 traffic+audience, 3 conversions, 3 imports+medium, 3 subscriptions, 2 view-funnel, 1 internal-clicks, 3 save-funnel, 1 summary-engagement, 1 errors) — adding or dropping one without updating this count is a deliberate signal to review the dashboard's scope", () => {
+	it("emits 26 widgets (7 traffic+audience, 3 conversions, 3 imports+medium, 3 subscriptions, 2 view-funnel, 1 internal-clicks, 3 save-funnel, 1 summary-engagement, 2 audience-device, 1 errors) — adding or dropping one without updating this count is a deliberate signal to review the dashboard's scope", () => {
 		const body = buildBody();
-		expect(body.widgets).toHaveLength(24);
+		expect(body.widgets).toHaveLength(26);
 	});
 
 	it("the readers widget counts distinct user_ids from article_read events (not pageviews) — distinguishes opening the reader from explicitly marking-as-read", () => {
@@ -87,6 +87,22 @@ describe("buildAnalyticsDashboardBody — drift prevention", () => {
 		expect(opens).toBeDefined();
 		expect(opens).toContain(`event = "${ANALYTICS_EVENTS.pageview}"`);
 		expect(opens).toContain("\\/view$");
+	});
+
+	it("the device-mix widget slices pageviews by device_class so the audience's device usage is visible at pageview scale (not just the authenticated-reader cohort), excluding pageviews logged before the field shipped and the no-signal \"other\" (no-User-Agent) bucket so the pie reads as real devices", () => {
+		const queries = widgetQueries();
+		const device = queries.find((q) => q.includes("stats count(*) as pageviews by device_class"));
+		expect(device).toBeDefined();
+		expect(device).toContain(`event = "${ANALYTICS_EVENTS.pageview}"`);
+		expect(device).toContain('| filter ispresent(device_class) and device_class != "other"');
+	});
+
+	it("the device-trend widget counts distinct visitors per device_class per day (excluding the no-signal \"other\" bucket) so the device mix is trackable over time", () => {
+		const queries = widgetQueries();
+		const trend = queries.find((q) => q.includes("count_distinct(visitor_hash) as visitors by device_class, bin(1d)"));
+		expect(trend).toBeDefined();
+		expect(trend).toContain(`event = "${ANALYTICS_EVENTS.pageview}"`);
+		expect(trend).toContain('ispresent(visitor_hash) and ispresent(device_class) and device_class != "other"');
 	});
 
 	it("the internal-clicks widget surfaces utm_content as the element so the dashboard shows which tab/button was clicked (e.g. install-tabs → firefox), not just the section", () => {

@@ -485,6 +485,51 @@ export function buildAnalyticsDashboardBody(deps: BuildAnalyticsDashboardDeps): 
 		}),
 	);
 
+	// --- Audience device mix ---
+	// Which devices the audience actually uses. Driven by device_class on the
+	// pageview event, which the analytics middleware only logs after shouldLog
+	// drops bot user-agents — so this is a human-device signal spanning every
+	// visitor, not just the small authenticated-reader cohort article_read
+	// carries a device_class for. ispresent(device_class) excludes pageviews
+	// logged before the field shipped; device_class != "other" drops the
+	// no-User-Agent bucket (classifyDeviceClass's no-signal fallback, reachable
+	// because isbot(undefined) is false) so the mix reads as real devices, not a
+	// phantom "other" slice. Caveat: an iPad in Safari's default desktop mode
+	// sends a Mac User-Agent and counts as desktop — a UA-only limitation that
+	// undercounts tablets.
+
+	widgets.push(
+		logWidget({
+			region,
+			title: "Pageviews by device class (%)",
+			logGroupNames: [hutchLogGroupName],
+			query: [
+				"fields @timestamp, device_class",
+				`| filter stream = "${STREAMS.analytics}" and event = "${ANALYTICS_EVENTS.pageview}"`,
+				...exclude,
+				"| filter ispresent(device_class) and device_class != \"other\"",
+				"| stats count(*) as pageviews by device_class",
+				"| sort pageviews desc",
+			].join(" "),
+			x: 0, y: 106, width: 12, height: 8,
+			view: "pie",
+		}),
+		logWidget({
+			region,
+			title: "Distinct visitors by device class per day",
+			logGroupNames: [hutchLogGroupName],
+			query: [
+				"fields @timestamp, visitor_hash, device_class",
+				`| filter stream = "${STREAMS.analytics}" and event = "${ANALYTICS_EVENTS.pageview}"`,
+				"| filter ispresent(visitor_hash) and ispresent(device_class) and device_class != \"other\"",
+				...exclude,
+				"| stats count_distinct(visitor_hash) as visitors by device_class, bin(1d)",
+			].join(" "),
+			x: 12, y: 106, width: 12, height: 8,
+			view: "timeSeries",
+		}),
+	);
+
 	// --- Errors ---
 	// A standing table of the most recent error output across every wired log
 	// group, so surfacing "the latest logError occurrences" is a live view rather
@@ -509,7 +554,7 @@ export function buildAnalyticsDashboardBody(deps: BuildAnalyticsDashboardDeps): 
 				"| sort @timestamp desc",
 				"| limit 100",
 			].join(" "),
-			x: 0, y: 106, width: 24, height: 8,
+			x: 0, y: 114, width: 24, height: 8,
 			view: "table",
 		}),
 	);

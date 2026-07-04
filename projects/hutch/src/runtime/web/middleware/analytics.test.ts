@@ -84,6 +84,7 @@ describe("createAnalyticsMiddleware", () => {
 			event: "pageview",
 			timestamp: "2026-04-21T10:00:00.000Z",
 			path: "/queue",
+			device_class: "desktop",
 			visitor_hash: expect.any(String),
 			visitor_id: null,
 			is_authenticated: 0,
@@ -162,6 +163,12 @@ describe("createAnalyticsMiddleware", () => {
 		const [event] = runMiddleware(createReq({ query: {} }), createRes(200));
 		expect(JSON.stringify(event)).not.toContain("medium_post_id");
 	});
+
+	it("stamps device_class derived from the User-Agent so the audience's device mix is countable at pageview scale (bots are already dropped by shouldLog, so a logged pageview is human)", () => {
+		const iphone = "Mozilla/5.0 (iPhone; CPU iPhone OS 17_0 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/17.0 Mobile/15E148 Safari/604.1";
+		const [event] = runMiddleware(createReq({ headers: { "user-agent": iphone } }), createRes(200));
+		expect(event.device_class).toBe("mobile_ios");
+	});
 });
 
 describe("createAnalyticsMiddleware — internal click events", () => {
@@ -239,6 +246,7 @@ describe("createAnalyticsMiddleware — internal click events", () => {
 			event: "pageview",
 			timestamp: "2026-04-21T10:00:00.000Z",
 			path: "/signup",
+			device_class: "desktop",
 			visitor_hash: expect.any(String),
 			visitor_id: null,
 			is_authenticated: 0,

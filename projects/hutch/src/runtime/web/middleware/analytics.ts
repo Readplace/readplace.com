@@ -28,6 +28,12 @@ export interface AnalyticsPageview {
 	utm_content?: string;
 	referrer_host?: string;
 	medium_post_id?: string;
+	/**
+	 * Bots are already dropped by `shouldLog`, so a logged pageview never
+	 * classifies as `bot` — that is what makes the pageview stream a human-device
+	 * signal for the audience's device mix, not just article_read's reader cohort.
+	 */
+	device_class: DeviceClass;
 	visitor_hash: string | null;
 	visitor_id: string | null;
 	is_authenticated: 0 | 1;
@@ -374,6 +380,7 @@ export function createAnalyticsMiddleware(deps: {
 				...extractPageviewUtm(req),
 				referrer_host: extractReferrerHost(req),
 				medium_post_id: extractMediumPostId(req),
+				device_class: classifyDeviceClass(req.get("user-agent")),
 				visitor_hash: hashIp({ ip: req.ip, salt: deps.salt }),
 				visitor_id: req.visitorId ?? null,
 				is_authenticated: req.userId ? 1 : 0,
