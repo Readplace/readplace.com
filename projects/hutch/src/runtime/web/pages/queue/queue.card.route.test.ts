@@ -110,7 +110,15 @@ describe("Queue routes", () => {
 			const doc = new JSDOM(response.text).window.document;
 			const thumbnailLink = doc.querySelector(".queue-article__thumbnail")?.closest("a");
 			const titleLink = doc.querySelector("[data-test-article-title]");
-			expect(thumbnailLink?.getAttribute("href")).toBe(titleLink?.getAttribute("href"));
+			const thumbnailHref = new URL(thumbnailLink?.getAttribute("href") ?? "", "https://internal.invalid");
+			const titleHref = new URL(titleLink?.getAttribute("href") ?? "", "https://internal.invalid");
+			/* Both the thumbnail and the title open the reader view for the same
+			 * article, but each carries a distinct utm_content so the two click
+			 * targets are counted separately. */
+			expect(thumbnailHref.pathname).toMatch(/^\/queue\/.+\/view$/);
+			expect(thumbnailHref.pathname).toBe(titleHref.pathname);
+			expect(titleHref.searchParams.get("utm_content")).toBe("open-article-title");
+			expect(thumbnailHref.searchParams.get("utm_content")).toBe("open-article-thumbnail");
 		});
 
 		it("should not render thumbnail when page has no images", async () => {

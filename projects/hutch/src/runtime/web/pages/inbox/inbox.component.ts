@@ -16,13 +16,18 @@ const INBOX_QUERY = `?feature=${EMAIL_FEATURE}`;
 export function InboxPage(params: {
 	addresses: InboxAddressEntry[];
 	createFailed?: boolean;
+	nameInvalid?: boolean;
+	nameTaken?: boolean;
 	limitReached: boolean;
 }): PageBody {
 	const content = render(INBOX_TEMPLATE, {
 		createFailed: params.createFailed === true,
+		nameInvalid: params.nameInvalid === true,
+		nameTaken: params.nameTaken === true,
 		hasAddresses: params.addresses.length > 0,
 		addresses: params.addresses.map((entry) => ({
 			address: entry.address,
+			name: entry.name,
 			enabled: entry.disabledAt === undefined,
 		})),
 		limitReached: params.limitReached,

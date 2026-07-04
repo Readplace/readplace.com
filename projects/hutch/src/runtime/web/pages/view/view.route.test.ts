@@ -641,6 +641,44 @@ describe("View routes", () => {
 		});
 	});
 
+	describe("prefetch and bot requests do not trigger the paid crawl", () => {
+		it("skips the crawl cascade for a Sec-Purpose: prefetch request", async () => {
+			const harness = buildReaderHarness();
+
+			const response = await request(harness.server)
+				.get(`/view/${CANONICAL_PATH}`)
+				.set("Sec-Purpose", "prefetch");
+
+			expect(response.status).toBe(200);
+			const saved = await harness.articleStore.findArticleByUrl(ARTICLE_URL);
+			assert(!saved, "a prefetch must not save or crawl the article");
+		});
+
+		it("skips the crawl cascade for a legacy Purpose: prefetch request", async () => {
+			const harness = buildReaderHarness();
+
+			const response = await request(harness.server)
+				.get(`/view/${CANONICAL_PATH}`)
+				.set("Purpose", "prefetch");
+
+			expect(response.status).toBe(200);
+			const saved = await harness.articleStore.findArticleByUrl(ARTICLE_URL);
+			assert(!saved, "a legacy prefetch must not save or crawl the article");
+		});
+
+		it("skips the crawl cascade for a link-unfurler bot", async () => {
+			const harness = buildReaderHarness();
+
+			const response = await request(harness.server)
+				.get(`/view/${CANONICAL_PATH}`)
+				.set("User-Agent", GOOGLEBOT);
+
+			expect(response.status).toBe(200);
+			const saved = await harness.articleStore.findArticleByUrl(ARTICLE_URL);
+			assert(!saved, "a bot must not save or crawl the article");
+		});
+	});
+
 	describe("Share balloon", () => {
 		it("renders a share button with the canonical view URL, UTM tracking params, and article title", async () => {
 			const parseArticle: ParseArticle = async () => buildParseResult();

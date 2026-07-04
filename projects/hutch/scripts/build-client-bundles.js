@@ -156,6 +156,51 @@ const BUNDLES = [
 	{
 		entry: path.join(
 			PROJECT_ROOT,
+			"src/runtime/web/pages/account/account-cards.client.ts",
+		),
+		outfile: path.join(OUT_DIR, "account-cards.client.js"),
+		globalName: "AccountCards",
+		footer: [
+			// Stripe.js must load from js.stripe.com for PCI SAQ-A — it is the one
+			// allowed cross-origin script. This loader injects that tag on demand,
+			// then returns the Stripe instance bound to the publishable key the
+			// server rendered into the Elements container's data-* attributes.
+			"AccountCards.initAccountCards({",
+			"  document: window.document,",
+			"  loadStripe: function (publishableKey) {",
+			"    return new Promise(function (resolve, reject) {",
+			"      if (window.Stripe) { resolve(window.Stripe(publishableKey)); return; }",
+			"      var script = window.document.createElement('script');",
+			"      script.src = 'https://js.stripe.com/v3/';",
+			"      script.onload = function () { resolve(window.Stripe(publishableKey)); };",
+			"      script.onerror = function () { reject(new Error('Failed to load Stripe.js')); };",
+			"      window.document.head.appendChild(script);",
+			"    });",
+			"  },",
+			// The card was attached to the customer client-side; post it back so the
+			// server reconciles the 3-card cap against the live set (a second tab can
+			// out-race the begin-time check) before redirecting to /account.
+			"  confirmAdd: function (paymentMethodId) {",
+			"    var form = window.document.createElement('form');",
+			"    form.method = 'POST';",
+			"    form.action = '/account/cards/confirm';",
+			"    if (paymentMethodId) {",
+			"      var input = window.document.createElement('input');",
+			"      input.type = 'hidden';",
+			"      input.name = 'paymentMethodId';",
+			"      input.value = paymentMethodId;",
+			"      form.appendChild(input);",
+			"    }",
+			"    window.document.body.appendChild(form);",
+			"    form.submit();",
+			"  },",
+			"  addSettleListener: function (cb) { window.document.body.addEventListener('htmx:afterSettle', cb); }",
+			"});",
+		].join("\n"),
+	},
+	{
+		entry: path.join(
+			PROJECT_ROOT,
 			"src/runtime/web/shared/article-body/reader-slot/reader-iframe.client.ts",
 		),
 		outfile: path.join(OUT_DIR, "reader-iframe.client.js"),

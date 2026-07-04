@@ -55,13 +55,9 @@ struct SirenField: Decodable {
 	let name: String
 	let type: String?
 	let value: String?
+}
 
-	init(name: String, type: String?, value: String?) {
-		self.name = name
-		self.type = type
-		self.value = value
-	}
-
+extension SirenField {
 	private enum CodingKeys: String, CodingKey { case name, type, value }
 
 	init(from decoder: Decoder) throws {
@@ -159,9 +155,6 @@ extension SirenEntity {
 }
 
 struct CollectionProperties: Decodable {
-	let total: Int?
-	let page: Int?
-	let pageSize: Int?
 	let warning: SirenWarning?
 }
 

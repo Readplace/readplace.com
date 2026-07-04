@@ -24,7 +24,7 @@ import assert from "node:assert/strict";
 import { describe, it } from "node:test";
 import { type ReaderStatus, ReaderStatusSchema } from "@packages/article-state-types";
 import { requireEnv } from "@packages/require-env";
-import { HEALTH_SOURCES } from "./health-sources";
+import { type HealthSource, HEALTH_SOURCES } from "./health-sources";
 
 const ORIGIN = requireEnv("READPLACE_ORIGIN");
 assert(ORIGIN, "READPLACE_ORIGIN env var must not be empty");
@@ -104,28 +104,36 @@ async function pollUntilDone(url: string): Promise<{ status: TerminalReaderStatu
 	);
 }
 
-describe("Tier 1+ crawl pipeline health (via readplace.com/admin/recrawl)", () => {
-	for (const source of HEALTH_SOURCES) {
-		describe(source.label, () => {
-			it("force recrawls via prod Lambda and the parsed article matches expected content", async () => {
-				await forceRecrawl(source.url);
-				const { status, html } = await pollUntilDone(source.url);
-				assert.equal(
-					status,
-					"ready",
-					`crawl ended in '${status}' for ${source.url} — the Lambda could not parse the URL (likely an origin-side block of the Lambda egress IP, or a parser regression).`,
-				);
-				assert(
-					html.includes(source.expectedContent),
-					`expected content "${source.expectedContent}" not found in parsed output for ${source.url}`,
-				);
-				for (const forbidden of source.forbiddenContent ?? []) {
-					assert(
-						!html.includes(forbidden),
-						`forbidden chrome "${forbidden}" found in parsed output for ${source.url} — site rule regression`,
-					);
-				}
-			});
-		});
+async function checkSource(source: HealthSource): Promise<void> {
+	await forceRecrawl(source.url);
+	const { status, html } = await pollUntilDone(source.url);
+	assert.equal(
+		status,
+		"ready",
+		`${source.label}: crawl ended in '${status}' for ${source.url} — the Lambda could not parse the URL (likely an origin-side block of the Lambda egress IP, or a parser regression).`,
+	);
+	assert(
+		html.includes(source.expectedContent),
+		`${source.label}: expected content "${source.expectedContent}" not found in parsed output for ${source.url}`,
+	);
+	for (const forbidden of source.forbiddenContent ?? []) {
+		assert(
+			!html.includes(forbidden),
+			`${source.label}: forbidden chrome "${forbidden}" found in parsed output for ${source.url} — site rule regression`,
+		);
 	}
+}
+
+// HEALTH_SOURCES is ordered quick-link-first, slow-PDF-last. A single
+// sequential loop is the fail-fast gate: the first source that throws aborts
+// the loop, so a broken quick-link source can never reach the expensive PDF
+// sources and spend DeepInfra OCR tokens on a run that is already red. The
+// thrown assertion carries the failing source's label, and node --test exits
+// non-zero on the throw — no bail flag or shared failure state needed.
+describe("Tier 1+ crawl pipeline health (via readplace.com/admin/recrawl)", () => {
+	it("force recrawls every source via prod Lambda, in order, stopping at the first failure", async () => {
+		for (const source of HEALTH_SOURCES) {
+			await checkSource(source);
+		}
+	});
 });

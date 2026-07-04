@@ -13,7 +13,7 @@ import {
   createFakeSummaryProvider,
 } from '@packages/test-fixtures'
 import { getEnv, requireEnv } from "@packages/require-env"
-import { initRefreshArticleIfStale } from '@packages/test-fixtures/providers/article-freshness'
+import { initRefreshArticleIfStale } from '@packages/finalize-article'
 import type { ExtractPdf, IsBlockedAddress } from '@packages/crawl-article'
 import { CRAWL_PERSONAS, initCrawlArticle, initCrawlFetch, initXTwitterSiteRules } from '@packages/crawl-article'
 import { initExtractLinksFromPageUrl } from '@packages/extract-links-from-page'

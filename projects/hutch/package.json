@@ -51,6 +51,7 @@
     "@packages/article-parser": "workspace:*",
     "@packages/article-resource-unique-id": "workspace:*",
     "@packages/article-state-types": "workspace:*",
+    "@packages/article-store": "workspace:*",
     "@packages/crawl-article": "workspace:*",
     "@packages/domain": "workspace:*",
     "@packages/extract-links-from-page": "workspace:*",

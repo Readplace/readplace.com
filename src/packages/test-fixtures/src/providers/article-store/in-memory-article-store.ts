@@ -23,11 +23,11 @@ import type {
 	MarkReaderReadyEmailSent,
 	MarkReaderViewSucceeded,
 	MarkSummaryToggled,
+	ContentProvider,
 	SaveArticle,
 	SaveArticleGlobally,
 	UpdateArticleStatus,
 } from "@packages/provider-contracts/article-store";
-import type { ContentProvider } from "./read-article-content";
 
 interface GlobalArticle {
 	url: string;

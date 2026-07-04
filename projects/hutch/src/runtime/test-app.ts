@@ -1,5 +1,6 @@
 import type { Express } from "express";
 import type { HutchLogger } from "@packages/hutch-logger";
+import type { GetSessionUserId } from "@packages/provider-contracts/auth";
 import type { OAuthModel } from "@packages/provider-contracts/oauth";
 import type {
 	ArticleCrawlBundle,
@@ -10,6 +11,7 @@ import type {
 	EmailBundle,
 	EmailVerificationBundle,
 	PasswordResetBundle,
+	PaymentMethodsBundle,
 	PendingHtmlBundle,
 	PendingPdfBundle,
 	PendingSignupBundle,
@@ -43,6 +45,7 @@ export type {
 	OAuthBundle,
 	ParserBundle,
 	PasswordResetBundle,
+	PaymentMethodsBundle,
 	PendingHtmlBundle,
 	PendingPdfBundle,
 	PendingSignupBundle,
@@ -77,6 +80,7 @@ export interface TestAppResult {
 	subscriptionProviders: SubscriptionProvidersBundle;
 	trialScheduler: TrialSchedulerBundle;
 	stripeSubscriptions: StripeSubscriptionsBundle;
+	paymentMethods: PaymentMethodsBundle;
 	botDefense: BotDefenseBundle;
 	conversions: ConversionsBundle;
 	analytics: AnalyticsBundle;
@@ -189,7 +193,14 @@ function flattenFixtureToAppDependencies(
 			fixture.stripeSubscriptions.createSubscriptionOnExistingCustomer,
 		reverseScheduledCancellation:
 			fixture.stripeSubscriptions.reverseScheduledCancellation,
+		paymentMethods: {
+			listCards: fixture.paymentMethods.listCards,
+			beginAddCard: fixture.paymentMethods.beginAddCard,
+			removeCard: fixture.paymentMethods.removeCard,
+			setPrimaryCard: fixture.paymentMethods.setPrimaryCard,
+		},
 		stripePriceId: fixture.stripePriceId,
+		stripePublishableKey: fixture.stripePublishableKey,
 		botDefenseLogger: fixture.botDefense.logger,
 		conversionLogger: fixture.conversions.logger,
 		analytics: analyticsBundle.logger,
@@ -201,12 +212,16 @@ function flattenFixtureToAppDependencies(
 	};
 }
 
-/** `overrides` lets a test swap a single decorative dependency without rebuilding
- * the whole fixture — `getChangelogBanner`, which defaults to "no banner" so the
- * banner stays hidden in every other route test. */
+/** `overrides` lets a test swap a single dependency without rebuilding the whole
+ * fixture — `getChangelogBanner` (defaults to "no banner" so it stays hidden in
+ * every other route test), and `getSessionUserId` (so a test can make the session
+ * lookup throw and assert the request still degrades to guest). */
 export function createTestApp(
 	fixture: TestAppFixture,
-	overrides?: { getChangelogBanner?: GetChangelogBanner },
+	overrides?: {
+		getChangelogBanner?: GetChangelogBanner;
+		getSessionUserId?: GetSessionUserId;
+	},
 ): TestAppResult {
 	const analyticsEvents: AnalyticsEvent[] = [];
 	const captureAnalytics = (data: AnalyticsEvent) => { analyticsEvents.push(data); };
@@ -231,6 +246,7 @@ export function createTestApp(
 		subscriptionProviders: fixture.subscriptionProviders,
 		trialScheduler: fixture.trialScheduler,
 		stripeSubscriptions: fixture.stripeSubscriptions,
+		paymentMethods: fixture.paymentMethods,
 		botDefense: fixture.botDefense,
 		conversions: fixture.conversions,
 		analytics: analyticsBundle,

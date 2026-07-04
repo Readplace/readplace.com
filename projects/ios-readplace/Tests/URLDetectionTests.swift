@@ -35,4 +35,15 @@ final class URLDetectionTests: XCTestCase {
 			"https://example.com/a"
 		)
 	}
+
+	func testIsWebURLAcceptsHTTPAndHTTPSOnly() {
+		XCTAssertTrue(URLDetection.isWebURL(URL(string: "https://example.com/a.pdf")!))
+		XCTAssertTrue(URLDetection.isWebURL(URL(string: "HTTP://EXAMPLE.COM")!))
+		XCTAssertFalse(
+			URLDetection.isWebURL(URL(fileURLWithPath: "/tmp/shared.pdf")),
+			"a shared PDF's file URL must never become the article URL"
+		)
+		XCTAssertFalse(URLDetection.isWebURL(URL(string: "mailto:me@example.com")!))
+		XCTAssertFalse(URLDetection.isWebURL(URL(string: "no-scheme")!))
+	}
 }

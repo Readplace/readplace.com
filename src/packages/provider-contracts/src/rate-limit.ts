@@ -5,9 +5,11 @@ import type { RateLimitDecision, RateLimitRule } from "@packages/domain/rate-lim
 export type RateLimitBucket =
 	| "view-crawl"
 	| "login"
+	| "login-account"
 	| "signup"
 	| "forgot-password"
 	| "oauth-register"
+	| "oauth-token"
 	| "import"
 	| "import-from-url";
 
@@ -26,9 +28,16 @@ export type ConsumeRateLimit = (params: {
 export interface RateLimitRules {
 	viewCrawl: RateLimitRule;
 	login: RateLimitRule;
+	/** Per-account (normalized email) login throttle — the credential-stuffing
+	 * defense that the per-IP `login` limit cannot provide against a distributed
+	 * attacker hitting one account from many IPs. */
+	loginAccount: RateLimitRule;
 	signup: RateLimitRule;
 	forgotPassword: RateLimitRule;
 	oauthRegister: RateLimitRule;
+	/** PKCE token exchange (`POST /oauth/token`). Public and client-auth-disabled,
+	 * so without a per-IP ceiling it is open to unbounded hammering. */
+	oauthToken: RateLimitRule;
 	/** Anonymous file upload that creates an import review session. */
 	import: RateLimitRule;
 	/** Anonymous outbound fetch that extracts links from a pasted URL. Tighter

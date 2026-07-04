@@ -52,6 +52,12 @@ import type {
 	CreateSubscriptionOnExistingCustomer,
 	ReverseScheduledCancellation,
 } from "@packages/provider-contracts/stripe-subscriptions";
+import type {
+	BeginAddCard,
+	ListCards,
+	RemoveCard,
+	SetPrimaryCard,
+} from "@packages/provider-contracts/payment-methods";
 import type { ExchangeGoogleCode } from "@packages/provider-contracts/google-auth";
 import type { GetIosAppSignals, RecordIosAnyActivity, RecordIosSavedArticle } from "@packages/provider-contracts/ios-onboarding-signal";
 import type {
@@ -116,7 +122,7 @@ import type { ConversionEvent } from "./conversions";
 import { createClickAttributionMiddleware } from "./web/click-attribution.middleware";
 import { createVisitorIdMiddleware } from "./web/visitor-id.middleware";
 import { initGoogleAuthRoutes } from "./web/auth/google-auth.page";
-import { SESSION_COOKIE_NAME } from "@packages/web-session";
+import { initResolveLogin } from "@packages/web-session";
 import { isHttpsOrigin } from "./web/cookie-options";
 import { initForgotPasswordRoutes } from "./web/auth/forgot-password.page";
 import { initQueueRoutes } from "./web/pages/queue/queue.page";
@@ -127,6 +133,7 @@ import {
 import { QUEUE_PATH } from "./web/pages/queue/queue.url";
 import { initImportSessionRoutes } from "./web/pages/import/import.page";
 import type { ImportSessionStore } from "@packages/domain/import-session";
+import { DEFAULT_INBOX_ALIAS } from "@packages/domain/inbox";
 import type { InboxAddressStore, InboxEmailLinkStore, InboxEmailStore } from "@packages/domain/inbox";
 import type { UserId } from "@packages/domain/user";
 import type { ExtractLinksFromPageUrl } from "@packages/extract-links-from-page";
@@ -284,7 +291,14 @@ interface AppDependencies {
 	};
 	createSubscriptionOnExistingCustomer: CreateSubscriptionOnExistingCustomer;
 	reverseScheduledCancellation: ReverseScheduledCancellation;
+	paymentMethods: {
+		listCards: ListCards;
+		beginAddCard: BeginAddCard;
+		removeCard: RemoveCard;
+		setPrimaryCard: SetPrimaryCard;
+	};
 	stripePriceId: string;
+	stripePublishableKey: string | undefined;
 	botDefenseLogger: HutchLogger.Typed<BotDefenseEvent>;
 	conversionLogger: HutchLogger.Typed<ConversionEvent>;
 	analytics: HutchLogger.Typed<AnalyticsEvent>;
@@ -405,14 +419,20 @@ export function createApp(dependencies: AppDependencies): Express {
 	app.use(contentSignalMiddleware);
 	app.use(linkHeaderMiddleware);
 
+	const resolveLogin = initResolveLogin({
+		getSessionUserId,
+		logger: HutchLogger.from({
+			info: noop,
+			warn: noop,
+			debug: noop,
+			error: (...args) => deps.logError(String(args[0])),
+		}),
+	});
 	app.use(async (req: Request, _res: Response, next: NextFunction) => {
-		const sessionId = req.cookies?.[SESSION_COOKIE_NAME];
-		if (sessionId) {
-			const session = await getSessionUserId(sessionId);
-			if (session) {
-				req.userId = session.userId;
-				req.emailVerified = session.emailVerified;
-			}
+		const login = await resolveLogin(req.headers.cookie);
+		if (login.isAuthenticated) {
+			req.userId = login.userId;
+			req.emailVerified = login.emailVerified;
 		}
 		next();
 	});
@@ -750,7 +770,11 @@ export function createApp(dependencies: AppDependencies): Express {
 	 * signup — the inbox page's "Create Inbox Email" CTA is the recovery path. */
 	const provisionInboxAddressOnSignup = async (userId: UserId): Promise<void> => {
 		try {
-			await deps.inboxAddressStore.createAddress({ userId, domain: deps.inboxAddressDomain });
+			await deps.inboxAddressStore.createAddress({
+				userId,
+				domain: deps.inboxAddressDomain,
+				name: DEFAULT_INBOX_ALIAS,
+			});
 		} catch (error) {
 			deps.logError(
 				"[Inbox] Failed to provision a forwarding address at signup",
@@ -805,6 +829,7 @@ export function createApp(dependencies: AppDependencies): Express {
 		consumeRateLimit: deps.consumeRateLimit,
 		rateLimitRules: {
 			login: deps.rateLimitRules.login,
+			loginAccount: deps.rateLimitRules.loginAccount,
 			signup: deps.rateLimitRules.signup,
 		},
 	});
@@ -1014,6 +1039,11 @@ export function createApp(dependencies: AppDependencies): Express {
 		createCheckoutSession: deps.createCheckoutSession,
 		createSubscriptionOnExistingCustomer: deps.createSubscriptionOnExistingCustomer,
 		reverseScheduledCancellation: deps.reverseScheduledCancellation,
+		listCards: deps.paymentMethods.listCards,
+		beginAddCard: deps.paymentMethods.beginAddCard,
+		removeCard: deps.paymentMethods.removeCard,
+		setPrimaryCard: deps.paymentMethods.setPrimaryCard,
+		stripePublishableKey: deps.stripePublishableKey,
 		createTrialEndSchedule: deps.trialScheduler.createTrialEndSchedule,
 		deleteDeferredCancellationSchedule:
 			deps.trialScheduler.deleteDeferredCancellationSchedule,
@@ -1044,6 +1074,7 @@ export function createApp(dependencies: AppDependencies): Express {
 		destroyUserSessions: deps.destroyUserSessions,
 		consumeRateLimit: deps.consumeRateLimit,
 		registerRateLimitRule: deps.rateLimitRules.oauthRegister,
+		tokenRateLimitRule: deps.rateLimitRules.oauthToken,
 	});
 	app.use("/oauth/token", extensionCors);
 	app.use("/oauth/revoke", extensionCors);

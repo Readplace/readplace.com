@@ -60,6 +60,7 @@ export {
  * session package never depends on this view shell. */
 export { readCookie } from "@packages/web-session";
 export type { ChangelogBanner, ChangelogVersion } from "./changelog-banner";
+export { brandMarkSvg } from "./brand-mark";
 export { GlobalNav, GlobalEmptyNav } from "./nav.component";
 export type { NavProps } from "./nav.component";
 export { initBase } from "./base.component";

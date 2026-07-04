@@ -1,6 +1,9 @@
     <main class="oauth-authorize">
       <div class="oauth-authorize__container">
         <h1 class="oauth-authorize__title">Authorize {{clientName}}</h1>
+        {{#if selfRegistered}}
+        <p class="oauth-authorize__notice"><strong>{{clientName}}</strong> registered itself with Readplace and will send your authorization to <strong>{{redirectHost}}</strong>. Continue only if you recognise it.</p>
+        {{/if}}
         <p class="oauth-authorize__text"><strong>{{clientName}}</strong> wants to access your Readplace account.</p>
         <form method="POST" action="/oauth/authorize">
           <input type="hidden" name="client_id" value="{{clientId}}">

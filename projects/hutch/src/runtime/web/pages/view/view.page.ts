@@ -89,6 +89,17 @@ function pollUrlBuilderFor(articleUrl: string): PollUrlBuilder {
 	};
 }
 
+/** A browser prefetch (`Sec-Purpose: prefetch`, its `prefetch;prerender` form,
+ * or the legacy `Purpose: prefetch`) or a link-unfurler bot is not a reader
+ * deciding to open the article, so it must not spend /view's first-visit crawl
+ * budget. `String(...)` (not `?.`) folds the absent-header case into a plain
+ * `false` without a nullish branch the coverage gate can't reach. */
+function isPrefetchOrBot(req: Request): boolean {
+	if (String(req.get("sec-purpose")).includes("prefetch")) return true;
+	if (String(req.get("purpose")).includes("prefetch")) return true;
+	return isbot(req.get("user-agent"));
+}
+
 function buildArticleReaderDeps(deps: ViewDependencies): ArticleReaderDeps {
 	return {
 		findArticleCrawlStatus: deps.findArticleCrawlStatus,
@@ -148,31 +159,37 @@ function handleViewArticle(deps: ViewDependencies, reader: ReturnType<typeof ini
 		const hostname = articleHostFrom(articleUrl);
 		const stubMetadata: ArticleMetadata = { title: hostname, siteName: hostname, excerpt: "", wordCount: 0 };
 		const stubReadTime = calculateReadTime(0);
-		if (!existing) {
-			// First visit is the request that triggers the whole crawl cascade
-			// (stub save → crawl → summary → possibly OCR), each leg with real
-			// third-party cost — so the per-IP budget is spent here, not on reads
-			// of already-known articles.
-			const decision = await deps.consumeRateLimit({
-				bucket: "view-crawl",
-				key: rateLimitKeyFromRequest(req),
-				rule: deps.viewCrawlRateLimit,
-			});
-			if (!decision.allowed) {
-				sendRateLimited(res, decision.retryAfterSeconds);
-				return;
+		// A prefetch or link-unfurler bot gets the rendered page (stub metadata
+		// below) but triggers none of the paid crawl work: skipping both the
+		// first-visit cascade and the freshness re-check keeps a background fetch
+		// from spending budget a reader hasn't asked to spend.
+		if (!isPrefetchOrBot(req)) {
+			if (!existing) {
+				// First visit is the request that triggers the whole crawl cascade
+				// (stub save → crawl → summary → possibly OCR), each leg with real
+				// third-party cost — so the per-IP budget is spent here, not on reads
+				// of already-known articles.
+				const decision = await deps.consumeRateLimit({
+					bucket: "view-crawl",
+					key: rateLimitKeyFromRequest(req),
+					rule: deps.viewCrawlRateLimit,
+				});
+				if (!decision.allowed) {
+					sendRateLimited(res, decision.retryAfterSeconds);
+					return;
+				}
+				await deps.saveArticleGlobally({
+					url: articleUrl,
+					metadata: stubMetadata,
+					estimatedReadTime: stubReadTime,
+					savedAt: deps.now(),
+				});
+				await deps.markCrawlPending({ url: articleUrl });
+				await deps.markSummaryPending({ url: articleUrl });
+				await deps.publishSaveAnonymousLink({ url: articleUrl });
 			}
-			await deps.saveArticleGlobally({
-				url: articleUrl,
-				metadata: stubMetadata,
-				estimatedReadTime: stubReadTime,
-				savedAt: deps.now(),
-			});
-			await deps.markCrawlPending({ url: articleUrl });
-			await deps.markSummaryPending({ url: articleUrl });
-			await deps.publishSaveAnonymousLink({ url: articleUrl });
+			await deps.publishStaleCheckRequested({ url: articleUrl });
 		}
-		await deps.publishStaleCheckRequested({ url: articleUrl });
 
 		// Re-read metadata after any first-visit save. In production this returns
 		// the stub we just wrote (the worker is async); in tests where the

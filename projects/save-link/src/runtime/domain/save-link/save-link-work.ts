@@ -37,6 +37,37 @@ export type SaveLinkWorkOptions = {
 	recrawl?: boolean;
 };
 
+const CRAWL_FAILED_REASON = "crawl-failed";
+
+class CrawlFailedError extends Error {
+	readonly url: string;
+	constructor(url: string) {
+		super(`crawl failed for ${url}: ${CRAWL_FAILED_REASON}`);
+		this.name = "CrawlFailedError";
+		this.url = url;
+	}
+}
+
+export function logRecordFailure(deps: {
+	logger: HutchLogger;
+	logPrefix: string;
+	record: { messageId: string };
+	error: unknown;
+}): void {
+	const { logger, logPrefix, record, error } = deps;
+	if (error instanceof CrawlFailedError) {
+		logger.warn(`${logPrefix} tier-1 crawl failed`, {
+			url: error.url,
+			messageId: record.messageId,
+		});
+	} else {
+		logger.error(`${logPrefix} record failed`, {
+			messageId: record.messageId,
+			error,
+		});
+	}
+}
+
 /* c8 ignore next -- V8 block coverage phantom on typed-parameter destructuring, see bcoe/c8#319 */
 export function initSaveLinkWork(deps: {
 	crawlAndFinalizeArticle: CrawlAndFinalizeArticle;
@@ -116,19 +147,22 @@ export function initSaveLinkWork(deps: {
 		}
 
 		if (result.status === "failed") {
-			logParseError({ url, reason: result.reason });
-			/* Parse-error reasons are terminal — re-running yields the same failure.
-			 * Flip the crawl state to `failed` immediately so readers and the canary
-			 * see it on the next poll, not after the SQS retry → DLQ delay.
-			 * Network "crawl-failed" reasons let SQS retry and only land at DLQ
-			 * after maxReceiveCount. */
-			if (result.reason !== "crawl-failed") {
+			if (result.reason !== CRAWL_FAILED_REASON) {
+				logParseError({ url, reason: result.reason });
+				/* Parse-error reasons are terminal — re-running yields the same failure.
+				 * Flip the crawl state to `failed` immediately so readers and the canary
+				 * see it on the next poll, not after the SQS retry → DLQ delay.
+				 * Network "crawl-failed" reasons let SQS retry and only land at DLQ
+				 * after maxReceiveCount. */
 				await transitionAndPersist(markCrawlFailed, {
 					url,
 					input: { reason: { kind: "parse-error", detail: result.reason } },
 				});
 			}
 			await emitTier1Failure(url);
+			if (result.reason === CRAWL_FAILED_REASON) {
+				throw new CrawlFailedError(url);
+			}
 			throw new Error(`crawl failed for ${url}: ${result.reason}`);
 		}
 

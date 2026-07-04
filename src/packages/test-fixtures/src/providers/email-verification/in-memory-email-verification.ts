@@ -5,7 +5,7 @@ import type {
 	VerificationToken,
 	VerifyEmailToken,
 } from "@packages/provider-contracts/email-verification";
-import { VerificationTokenSchema } from "./email-verification.schema";
+import { VerificationTokenSchema } from "@packages/provider-contracts/email-verification";
 
 export function initInMemoryEmailVerification(): {
 	createVerificationToken: CreateVerificationToken;

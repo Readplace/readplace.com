@@ -2,6 +2,7 @@ import assert from "node:assert/strict";
 import { ConditionalCheckFailedException } from "@packages/hutch-storage-client";
 import { UserIdSchema } from "@packages/domain/user";
 import {
+	AliasNameSchema,
 	INBOX_ADDRESS_MAX_PER_USER,
 	InboxAddressLimitReachedError,
 	InboxAddressSchema,
@@ -11,6 +12,7 @@ import { initInMemoryInboxAddress } from "./in-memory-inbox-address";
 const owner = UserIdSchema.parse("00000000000000000000000000000001");
 const otherUser = UserIdSchema.parse("00000000000000000000000000000002");
 const DOMAIN = "read.place";
+const NAME = AliasNameSchema.parse("news");
 
 describe("initInMemoryInboxAddress", () => {
 	it("creates an enabled address scoped to the owner", async () => {
@@ -18,19 +20,32 @@ describe("initInMemoryInboxAddress", () => {
 			now: () => new Date("2026-06-23T00:00:00.000Z"),
 		});
 
-		const entry = await store.createAddress({ userId: owner, domain: DOMAIN });
+		const entry = await store.createAddress({ userId: owner, domain: DOMAIN, name: NAME });
 
-		expect(entry.address).toMatch(/^in-[0-9a-z]{6}@read\.place$/);
+		expect(entry.address).toMatch(/^news-[0-9a-z]{6}@read\.place$/);
 		expect(entry.userId).toBe(owner);
+		expect(entry.name).toBe(NAME);
 		expect(entry.createdAt).toBe("2026-06-23T00:00:00.000Z");
 		expect(entry.disabledAt).toBeUndefined();
 	});
 
+	it("persists the chosen name and surfaces it through list and find", async () => {
+		const store = initInMemoryInboxAddress({ now: () => new Date() });
+		const created = await store.createAddress({ userId: owner, domain: DOMAIN, name: NAME });
+
+		const [listed] = await store.listAddressesByUserId(owner);
+		const found = await store.findByAddress(created.address);
+
+		expect(listed.name).toBe(NAME);
+		assert(found, "expected the created address to resolve");
+		expect(found.name).toBe(NAME);
+	});
+
 	it("lists only the requesting user's addresses", async () => {
 		const store = initInMemoryInboxAddress({ now: () => new Date() });
-		await store.createAddress({ userId: owner, domain: DOMAIN });
-		await store.createAddress({ userId: owner, domain: DOMAIN });
-		await store.createAddress({ userId: otherUser, domain: DOMAIN });
+		await store.createAddress({ userId: owner, domain: DOMAIN, name: NAME });
+		await store.createAddress({ userId: owner, domain: DOMAIN, name: NAME });
+		await store.createAddress({ userId: otherUser, domain: DOMAIN, name: NAME });
 
 		const ownerAddresses = await store.listAddressesByUserId(owner);
 		const otherAddresses = await store.listAddressesByUserId(otherUser);
@@ -42,38 +57,38 @@ describe("initInMemoryInboxAddress", () => {
 	it("throws InboxAddressLimitReachedError once the user holds the per-user cap of live addresses", async () => {
 		const store = initInMemoryInboxAddress({ now: () => new Date() });
 		for (let i = 0; i < INBOX_ADDRESS_MAX_PER_USER; i++) {
-			await store.createAddress({ userId: owner, domain: DOMAIN });
+			await store.createAddress({ userId: owner, domain: DOMAIN, name: NAME });
 		}
 
-		await expect(store.createAddress({ userId: owner, domain: DOMAIN })).rejects.toThrow(
+		await expect(store.createAddress({ userId: owner, domain: DOMAIN, name: NAME })).rejects.toThrow(
 			InboxAddressLimitReachedError,
 		);
 		// The cap is per-user: a different user is unaffected.
 		await expect(
-			store.createAddress({ userId: otherUser, domain: DOMAIN }),
+			store.createAddress({ userId: otherUser, domain: DOMAIN, name: NAME }),
 		).resolves.toBeDefined();
 	});
 
 	it("frees a slot when a live address is disabled, since only live addresses count toward the cap", async () => {
 		const store = initInMemoryInboxAddress({ now: () => new Date() });
-		const first = await store.createAddress({ userId: owner, domain: DOMAIN });
+		const first = await store.createAddress({ userId: owner, domain: DOMAIN, name: NAME });
 		for (let i = 1; i < INBOX_ADDRESS_MAX_PER_USER; i++) {
-			await store.createAddress({ userId: owner, domain: DOMAIN });
+			await store.createAddress({ userId: owner, domain: DOMAIN, name: NAME });
 		}
-		await expect(store.createAddress({ userId: owner, domain: DOMAIN })).rejects.toThrow(
+		await expect(store.createAddress({ userId: owner, domain: DOMAIN, name: NAME })).rejects.toThrow(
 			InboxAddressLimitReachedError,
 		);
 
 		await store.disableAddress({ userId: owner, address: first.address });
 
-		await expect(store.createAddress({ userId: owner, domain: DOMAIN })).resolves.toBeDefined();
+		await expect(store.createAddress({ userId: owner, domain: DOMAIN, name: NAME })).resolves.toBeDefined();
 	});
 
 	it("disables an owned address by stamping disabledAt", async () => {
 		const store = initInMemoryInboxAddress({
 			now: () => new Date("2026-06-23T12:00:00.000Z"),
 		});
-		const entry = await store.createAddress({ userId: owner, domain: DOMAIN });
+		const entry = await store.createAddress({ userId: owner, domain: DOMAIN, name: NAME });
 
 		await store.disableAddress({ userId: owner, address: entry.address });
 
@@ -94,7 +109,7 @@ describe("initInMemoryInboxAddress", () => {
 
 	it("rejects a disable requested by a non-owner", async () => {
 		const store = initInMemoryInboxAddress({ now: () => new Date() });
-		const entry = await store.createAddress({ userId: owner, domain: DOMAIN });
+		const entry = await store.createAddress({ userId: owner, domain: DOMAIN, name: NAME });
 
 		await expect(
 			store.disableAddress({ userId: otherUser, address: entry.address }),
@@ -108,7 +123,7 @@ describe("initInMemoryInboxAddress", () => {
 		const store = initInMemoryInboxAddress({
 			now: () => new Date("2026-06-23T00:00:00.000Z"),
 		});
-		const created = await store.createAddress({ userId: owner, domain: DOMAIN });
+		const created = await store.createAddress({ userId: owner, domain: DOMAIN, name: NAME });
 
 		const found = await store.findByAddress(created.address);
 
@@ -128,7 +143,7 @@ describe("initInMemoryInboxAddress", () => {
 		const store = initInMemoryInboxAddress({
 			now: () => new Date("2026-06-23T12:00:00.000Z"),
 		});
-		const created = await store.createAddress({ userId: owner, domain: DOMAIN });
+		const created = await store.createAddress({ userId: owner, domain: DOMAIN, name: NAME });
 		await store.disableAddress({ userId: owner, address: created.address });
 
 		const found = await store.findByAddress(created.address);

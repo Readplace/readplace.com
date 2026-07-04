@@ -504,14 +504,19 @@ describe("Queue routes", () => {
 				.type("form")
 				.send({ email: "test@example.com", password: "password123" });
 
-			const readerResponse = await loggedOutAgent.get(returnPath);
+			const markerResponse = await loggedOutAgent.get(returnPath);
+
+			expect(markerResponse.status).toBe(303);
+			expect(markerResponse.headers.location).toBe(`/queue/${articleId}/view`);
+
+			const readerResponse = await loggedOutAgent.get(`/queue/${articleId}/view`);
 
 			expect(readerResponse.status).toBe(200);
 			const doc = new JSDOM(readerResponse.text).window.document;
 			assert(doc.querySelector("iframe[data-reader-iframe]"), "private reader iframe must be rendered after login");
 		});
 
-		it("renders the private reader for a logged-in owner even when the reader-ready email marker is present", async () => {
+		it("strips the reader-ready email marker for a logged-in owner, redirecting to the clean permalink that renders the private reader", async () => {
 			const articleHtml = `
 			<html><head><title>Email Reader Post</title></head>
 			<body><article>
@@ -555,9 +560,14 @@ describe("Queue routes", () => {
 				?.getAttribute("data-test-article");
 			assert.ok(articleId, "owner must see the saved article in their queue");
 
-			const readerResponse = await agent
+			const markerResponse = await agent
 				.get(`/queue/${articleId}/view`)
 				.query({ from: "reader-ready-email" });
+
+			expect(markerResponse.status).toBe(303);
+			expect(markerResponse.headers.location).toBe(`/queue/${articleId}/view`);
+
+			const readerResponse = await agent.get(`/queue/${articleId}/view`);
 
 			expect(readerResponse.status).toBe(200);
 			const doc = new JSDOM(readerResponse.text).window.document;

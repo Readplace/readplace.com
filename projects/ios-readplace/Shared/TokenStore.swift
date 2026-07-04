@@ -6,28 +6,51 @@ struct OAuthTokens: Equatable {
 	let refreshToken: String
 }
 
-/// Persists OAuth tokens in the shared App Group so the app (which signs in)
-/// and the share extension (which saves) agree on identity. The server they
+/// The two persisted token strings, addressed by a stable account key.
+enum TokenKey: String, CaseIterable {
+	case accessToken = "oauth.accessToken"
+	case refreshToken = "oauth.refreshToken"
+}
+
+/// Backing store for the OAuth token strings. Production is Keychain-backed and
+/// shared across the app and its share extension; tests inject a `UserDefaults`
+/// double via `TokenStore(defaults:)`.
+protocol TokenStorage {
+	func value(for key: TokenKey) -> String?
+	func setValue(_ value: String, for key: TokenKey)
+	func removeValue(for key: TokenKey)
+}
+
+/// Adapts a `UserDefaults` suite to `TokenStorage`. Backs the test seam and reads
+/// tokens left behind by pre-Keychain builds during migration.
+struct UserDefaultsTokenStorage: TokenStorage {
+	let defaults: UserDefaults
+	func value(for key: TokenKey) -> String? { defaults.string(forKey: key.rawValue) }
+	func setValue(_ value: String, for key: TokenKey) { defaults.set(value, forKey: key.rawValue) }
+	func removeValue(for key: TokenKey) { defaults.removeObject(forKey: key.rawValue) }
+}
+
+/// Persists OAuth tokens so the app (which signs in) and the share extension
+/// (which saves) agree on identity. Tokens live in the Keychain — shared between
+/// the two targets through the App Group used as the Keychain access group — so
+/// they are hardware-encrypted and excluded from unencrypted device backups,
+/// unlike the App Group `UserDefaults` earlier builds used. The server they
 /// target is fixed at compile time in `AppConfig.serverBaseURL`, not stored here.
 struct TokenStore {
-	private let defaults: UserDefaults
-
-	private enum Key {
-		static let accessToken = "oauth.accessToken"
-		static let refreshToken = "oauth.refreshToken"
-	}
+	private let storage: TokenStorage
 
 	init() {
 		let group = TokenStore.resolvedAppGroupId
-		guard let defaults = UserDefaults(suiteName: group) else {
-			preconditionFailure("App Group \(group) is required for the token store")
+		let keychain = KeychainTokenStorage(accessGroup: group)
+		if let legacy = UserDefaults(suiteName: group) {
+			TokenStore.migrateLegacyDefaults(from: legacy, into: keychain)
 		}
-		self.defaults = defaults
+		self.storage = keychain
 	}
 
 	/// Injectable backing store for tests.
 	init(defaults: UserDefaults) {
-		self.defaults = defaults
+		self.storage = UserDefaultsTokenStorage(defaults: defaults)
 	}
 
 	/// The App Group id this process is actually entitled to. A sideloader
@@ -55,26 +78,47 @@ struct TokenStore {
 
 	var tokens: OAuthTokens? {
 		guard
-			let access = defaults.string(forKey: Key.accessToken),
-			let refresh = defaults.string(forKey: Key.refreshToken)
+			let access = storage.value(for: .accessToken),
+			let refresh = storage.value(for: .refreshToken)
 		else { return nil }
 		return OAuthTokens(accessToken: access, refreshToken: refresh)
 	}
 
 	func save(_ tokens: OAuthTokens) {
-		defaults.set(tokens.accessToken, forKey: Key.accessToken)
-		defaults.set(tokens.refreshToken, forKey: Key.refreshToken)
+		storage.setValue(tokens.accessToken, for: .accessToken)
+		storage.setValue(tokens.refreshToken, for: .refreshToken)
 	}
 
 	func updateAccessToken(_ accessToken: String, refreshToken: String?) {
-		defaults.set(accessToken, forKey: Key.accessToken)
-		if let refreshToken { defaults.set(refreshToken, forKey: Key.refreshToken) }
+		storage.setValue(accessToken, for: .accessToken)
+		if let refreshToken { storage.setValue(refreshToken, for: .refreshToken) }
 	}
 
 	func clear() {
-		defaults.removeObject(forKey: Key.accessToken)
-		defaults.removeObject(forKey: Key.refreshToken)
+		storage.removeValue(for: .accessToken)
+		storage.removeValue(for: .refreshToken)
 	}
 
 	var isLoggedIn: Bool { tokens != nil }
+
+	/// One-time move of tokens written by pre-Keychain builds out of the App Group
+	/// `UserDefaults` into `storage`. The legacy copy is cleared only once the
+	/// Keychain write reads back, so a misconfigured Keychain can't strand the
+	/// tokens. No-op when `storage` already holds a token.
+	static func migrateLegacyDefaults(from defaults: UserDefaults, into storage: TokenStorage) {
+		guard storage.value(for: .accessToken) == nil else { return }
+		let access = defaults.string(forKey: TokenKey.accessToken.rawValue)
+		let refresh = defaults.string(forKey: TokenKey.refreshToken.rawValue)
+		guard let access, let refresh else {
+			clearLegacy(defaults)
+			return
+		}
+		storage.setValue(access, for: .accessToken)
+		storage.setValue(refresh, for: .refreshToken)
+		if storage.value(for: .accessToken) != nil { clearLegacy(defaults) }
+	}
+
+	private static func clearLegacy(_ defaults: UserDefaults) {
+		for key in TokenKey.allCases { defaults.removeObject(forKey: key.rawValue) }
+	}
 }

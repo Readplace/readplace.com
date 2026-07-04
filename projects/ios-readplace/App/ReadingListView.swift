@@ -3,8 +3,15 @@ import SwiftUI
 struct ReadingListView: View {
 	@ObservedObject var session: AppSession
 	@StateObject private var viewModel: ReadingListViewModel
+	@Environment(\.scenePhase) private var scenePhase
 
 	@State private var showingAddInstructions = false
+	/// Set when the scene actually entered the background, so the refresh on return
+	/// fires only for a real background→active round trip. iOS drives the scene
+	/// through `.inactive` and back to `.active` on transient interruptions that
+	/// never background the app (Control Center, the notification shade, a call or
+	/// permission banner); those must not trigger a re-read.
+	@State private var didEnterBackground = false
 	/// A destructive item action awaiting confirmation, carried with the row it acts
 	/// on. A destructive control (e.g. `delete`) is irreversible, so it routes here
 	/// for an explicit confirm before the invoke fires, rather than acting on the tap.
@@ -47,12 +54,23 @@ struct ReadingListView: View {
 				}
 				.refreshable { await viewModel.refresh() }
 				.task { await viewModel.loadIfNeeded() }
+				.onChange(of: scenePhase) { newPhase in
+					switch newPhase {
+					case .background:
+						didEnterBackground = true
+					case .active where didEnterBackground:
+						didEnterBackground = false
+						Task { await viewModel.handleForeground() }
+					default:
+						break
+					}
+				}
 				.sheet(item: $viewModel.readerPresentation) { presentation in
 					ReaderSheet(
 						presentation: presentation,
 						mintSession: { await viewModel.mintReaderSession() },
 						onMarkedRead: {
-							if let id = presentation.articleId { viewModel.removeArticle(id: id) }
+							if let id = presentation.articleId { Task { await viewModel.readerMarkedRead(id: id) } }
 							viewModel.readerPresentation = nil
 						},
 						onClose: { viewModel.readerPresentation = nil }

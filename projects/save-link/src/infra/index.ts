@@ -925,16 +925,16 @@ eventBus.subscribe(StaleCheckRequestedEvent, staleCheckRequestedLambdaWithSQS);
 // AnonymousLinkSavedEvent (only on canonical change) and
 // CrawlArticleCompletedEvent (every successful selection).
 
-const selectMostCompleteContentQueue = new HutchSQS("select-most-complete-content", {
+const selectMostCompleteContentQueue = new HutchSQS(SAVE_LINK_LAMBDA_NAMES.selectMostCompleteContent, {
 	visibilityTimeoutSeconds: SELECT_CONTENT_TIMEOUTS.sqsVisibilitySeconds,
 });
 
-const selectMostCompleteContentDynamodb = new HutchDynamoDBAccess("select-most-complete-content-dynamodb", {
+const selectMostCompleteContentDynamodb = new HutchDynamoDBAccess(`${SAVE_LINK_LAMBDA_NAMES.selectMostCompleteContent}-dynamodb`, {
 	tables: [{ arn: articlesTableArn, includeIndexes: false }],
 	actions: ["dynamodb:GetItem", "dynamodb:UpdateItem"],
 });
 
-const selectMostCompleteContentLambda = new HutchLambda("select-most-complete-content", {
+const selectMostCompleteContentLambda = new HutchLambda(SAVE_LINK_LAMBDA_NAMES.selectMostCompleteContent, {
 			entryPoint: "./src/runtime/select-most-complete-content.main.ts",
 		outputDir: ".lib/select-most-complete-content",
 		assetDir: "./src",
@@ -955,13 +955,13 @@ const selectMostCompleteContentLambda = new HutchLambda("select-most-complete-co
 		...selectMostCompleteContentDynamodb.policies,
 		...contentBucket.readPolicies("select-most-complete-content-content-read"),
 		...contentBucket.writePolicies("select-most-complete-content-content-write"),
-		...renamePolicies(generateSummaryQueue.policies, "select-most-complete-content"),
+		...renamePolicies(generateSummaryQueue.policies, SAVE_LINK_LAMBDA_NAMES.selectMostCompleteContent),
 	],
 });
 
 eventBus.grantPublish(selectMostCompleteContentLambda);
 
-const selectMostCompleteContentLambdaWithSQS = new HutchSQSBackedLambda("select-most-complete-content", {
+const selectMostCompleteContentLambdaWithSQS = new HutchSQSBackedLambda(SAVE_LINK_LAMBDA_NAMES.selectMostCompleteContent, {
 	lambda: selectMostCompleteContentLambda,
 	queue: selectMostCompleteContentQueue,
 	alertEmailDLQEntry: alertEmail,
@@ -971,7 +971,7 @@ const selectMostCompleteContentLambdaWithSQS = new HutchSQSBackedLambda("select-
 eventBus.subscribe(TierContentExtractedEvent, selectMostCompleteContentLambdaWithSQS);
 
 // --- SelectMostCompleteContent DLQ consumer ---
-	new HutchDLQEventHandler("select-most-complete-content-dlq", {
+	new HutchDLQEventHandler(`${SAVE_LINK_LAMBDA_NAMES.selectMostCompleteContent}-dlq`, {
 	sourceQueue: selectMostCompleteContentQueue,
 	tableArn: articlesTableArn,
 	tableName: articlesTableName,

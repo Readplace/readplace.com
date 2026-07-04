@@ -10,6 +10,8 @@ interface AuthorizePageParams {
 	clientName: string;
 	clientId: string;
 	redirectUri: string;
+	redirectHost: string;
+	selfRegistered: boolean;
 	codeChallenge: string;
 	state?: string;
 }
@@ -34,6 +36,17 @@ const OAUTH_AUTHORIZE_STYLES = `
 .oauth-authorize__text {
   color: var(--muted-foreground);
   margin-bottom: 24px;
+  line-height: 1.6;
+}
+
+.oauth-authorize__notice {
+  background: var(--muted);
+  border: 1px solid var(--border);
+  color: var(--foreground);
+  padding: 12px 16px;
+  border-radius: var(--radius-sm);
+  margin-bottom: 20px;
+  font-size: 0.9375rem;
   line-height: 1.6;
 }
 

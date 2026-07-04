@@ -22,7 +22,7 @@ import { initExtractLinksFromPageUrl } from "@packages/extract-links-from-page";
 import { initCrawlAndFinalizeArticle, initFinalizeArticle } from "@packages/finalize-article";
 import type { PublishStaleCheckRequested } from "@packages/provider-contracts/events";
 import { initReadabilityParser, linkedinSiteRules, mediumSiteRules, theInformationSiteRules } from "@packages/article-parser";
-import { initRefreshArticleIfStale } from "@packages/test-fixtures/providers/article-freshness";
+import { initRefreshArticleIfStale } from "@packages/finalize-article";
 import {
 	createOAuthModel,
 	initInMemoryOAuthClients,
@@ -51,10 +51,12 @@ import { S3Client } from "@aws-sdk/client-s3";
 import { SchedulerClient } from "@aws-sdk/client-scheduler";
 import { initS3ReadContent } from "./providers/article-store/s3-read-content";
 import { initStripeSubscriptions } from "./providers/stripe-subscriptions/stripe-subscriptions";
+import { initStripePaymentMethods } from "./providers/stripe-payment-methods/stripe-payment-methods";
+import { initInMemoryPaymentMethods } from "@packages/test-fixtures/providers/payment-methods";
 import { initAwsTrialScheduler } from "./providers/trial-scheduler/aws-trial-scheduler";
 import { initInMemoryStripeSubscriptions } from "@packages/test-fixtures/providers/stripe-subscriptions";
 import { initInMemoryTrialScheduler } from "@packages/test-fixtures/providers/trial-scheduler";
-import { initReadArticleContent } from "@packages/test-fixtures/providers/article-store";
+import { initReadArticleContent } from "@packages/article-store";
 import { EventBridgeClient, initEventBridgePublisher } from "@packages/hutch-infra-components/runtime";
 import { initEventBridgeLinkSaved } from "./providers/events/eventbridge-link-saved";
 import { initEventBridgeRecrawlLinkInitiated } from "./providers/events/eventbridge-recrawl-link-initiated";
@@ -131,6 +133,10 @@ function createPdfDeferralStub(publishStaleCheckRequested: PublishStaleCheckRequ
 
 function initProviders() {
 	const persistence = requireEnv<"prod" | "development">("PERSISTENCE");
+	assert(
+		persistence === "prod" || persistence === "development",
+		`PERSISTENCE must be "prod" or "development", got "${persistence}"`,
+	);
 	const logger = HutchLogger.from(consoleLogger);
 	const logError = (message: string, error?: Error) => logger.error(JSON.stringify({ level: "ERROR", timestamp: new Date().toISOString(), message, stack: error?.stack }));
 
@@ -152,6 +158,7 @@ function initProviders() {
 		const resendApiKey = requireEnv("RESEND_API_KEY");
 		const stripeApiKey = requireEnv("STRIPE_SECRET_KEY");
 		const stripePriceId = requireEnv("STRIPE_PRICE_ID");
+		const stripePublishableKey = requireEnv("STRIPE_PUBLISHABLE_KEY");
 		const eventBusName = requireEnv("EVENT_BUS_NAME");
 		const contentBucketName = requireEnv("CONTENT_BUCKET_NAME");
 		const pendingHtmlBucketName = requireEnv("PENDING_HTML_BUCKET_NAME");
@@ -254,6 +261,11 @@ function initProviders() {
 			apiKey: stripeApiKey,
 			fetch: globalThis.fetch,
 		});
+		const paymentMethods = initStripePaymentMethods({
+			apiKey: stripeApiKey,
+			fetch: globalThis.fetch,
+			logger,
+		});
 		const pendingSignup = initDynamoDbPendingSignup({ client, tableName: pendingSignupsTable, logger: consoleLogger });
 		const subscriptionProviders = {
 			...initDynamoDbSubscriptionRead({ client, tableName: subscriptionProvidersTable }),
@@ -296,9 +308,11 @@ function initProviders() {
 		const rateLimitRules: RateLimitRules = {
 			viewCrawl: parseRateLimitRule(requireEnv("RATE_LIMIT_VIEW_CRAWL")),
 			login: parseRateLimitRule(requireEnv("RATE_LIMIT_LOGIN")),
+			loginAccount: parseRateLimitRule(requireEnv("RATE_LIMIT_LOGIN_ACCOUNT")),
 			signup: parseRateLimitRule(requireEnv("RATE_LIMIT_SIGNUP")),
 			forgotPassword: parseRateLimitRule(requireEnv("RATE_LIMIT_FORGOT_PASSWORD")),
 			oauthRegister: parseRateLimitRule(requireEnv("RATE_LIMIT_OAUTH_REGISTER")),
+			oauthToken: parseRateLimitRule(requireEnv("RATE_LIMIT_OAUTH_TOKEN")),
 			import: parseRateLimitRule(requireEnv("RATE_LIMIT_IMPORT")),
 			importFromUrl: parseRateLimitRule(requireEnv("RATE_LIMIT_IMPORT_FROM_URL")),
 		};
@@ -318,7 +332,9 @@ function initProviders() {
 			trialScheduler,
 			createSubscriptionOnExistingCustomer: stripeSubscriptions.createSubscriptionOnExistingCustomer,
 			reverseScheduledCancellation: stripeSubscriptions.reverseScheduledCancellation,
+			paymentMethods,
 			stripePriceId,
+			stripePublishableKey,
 
 			...initResendEmail(resendApiKey),
 			...initDynamoDbEmailVerification({ client, tableName: verificationTokensTable }),
@@ -371,6 +387,7 @@ function initProviders() {
 	const devStripeSubscriptions = initInMemoryStripeSubscriptions();
 	const devPendingSignup = initInMemoryPendingSignup();
 	const devSubscriptionProviders = initInMemorySubscriptionProviders({ now: () => new Date() });
+	const devPaymentMethods = initInMemoryPaymentMethods();
 	const devTrialScheduler = initInMemoryTrialScheduler();
 	const devGoogleClientId = getEnv("GOOGLE_LOGIN_CLIENT_ID");
 	const devGoogleClientSecret = getEnv("GOOGLE_LOGIN_CLIENT_SECRET");
@@ -500,9 +517,11 @@ function initProviders() {
 	const rateLimitRules: RateLimitRules = {
 		viewCrawl: parseRateLimitRule(requireEnv("RATE_LIMIT_VIEW_CRAWL")),
 		login: parseRateLimitRule(requireEnv("RATE_LIMIT_LOGIN")),
+		loginAccount: parseRateLimitRule(requireEnv("RATE_LIMIT_LOGIN_ACCOUNT")),
 		signup: parseRateLimitRule(requireEnv("RATE_LIMIT_SIGNUP")),
 		forgotPassword: parseRateLimitRule(requireEnv("RATE_LIMIT_FORGOT_PASSWORD")),
 		oauthRegister: parseRateLimitRule(requireEnv("RATE_LIMIT_OAUTH_REGISTER")),
+		oauthToken: parseRateLimitRule(requireEnv("RATE_LIMIT_OAUTH_TOKEN")),
 		import: parseRateLimitRule(requireEnv("RATE_LIMIT_IMPORT")),
 		importFromUrl: parseRateLimitRule(requireEnv("RATE_LIMIT_IMPORT_FROM_URL")),
 	};
@@ -525,7 +544,9 @@ function initProviders() {
 		trialScheduler: devTrialScheduler,
 		createSubscriptionOnExistingCustomer: devStripeSubscriptions.createSubscriptionOnExistingCustomer,
 		reverseScheduledCancellation: devStripeSubscriptions.reverseScheduledCancellation,
+		paymentMethods: devPaymentMethods,
 		stripePriceId: "price_dev_default",
+		stripePublishableKey: getEnv("STRIPE_PUBLISHABLE_KEY"),
 
 		...initLogEmail({ logger: HutchLogger.from(consoleLogger) }),
 		...initInMemoryEmailVerification(),

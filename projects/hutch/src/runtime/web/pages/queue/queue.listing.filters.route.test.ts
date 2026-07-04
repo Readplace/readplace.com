@@ -7,7 +7,7 @@ import {
 	createDefaultTestAppFixture,
 } from "@packages/test-fixtures";
 
-import type { RefreshArticleIfStale } from "@packages/test-fixtures/providers/article-freshness";
+import type { RefreshArticleIfStale } from "@packages/provider-contracts/article-freshness";
 
 const useApp = useTestServer();
 

@@ -357,6 +357,39 @@ final class ReadingListViewModelTests: XCTestCase {
 		XCTAssertNotNil(viewModel.errorText)
 	}
 
+	func testInvokeCollectionFallsBackToAFreshLoadWhenTheResponseIsNoCollection() async {
+		// A collection action whose 2xx response is not a Siren collection (a 204, or
+		// a redirect to an HTML confirmation) carries no collection to adopt, so the
+		// view model re-lists from the entry point to reflect the new server state.
+		var queueGETs = 0
+		StubURLProtocol.setHandler { request, _ in
+			let path = request.url?.path ?? ""
+			switch path {
+			case "/":
+				return .redirect(to: "/queue")
+			case "/queue/purge":
+				return StubURLProtocol.Stub(status: 204)
+			case "/queue":
+				queueGETs += 1
+				return queueGETs == 1
+					? .json(200, Fixtures.collection(entitiesJSON: [Fixtures.article(id: "a1")]))
+					: .json(200, Fixtures.collection(entitiesJSON: []))
+			default:
+				return .json(404, "{}")
+			}
+		}
+		let viewModel = makeViewModel(store: TestSupport.loggedInStore())
+		await viewModel.refresh()
+		XCTAssertEqual(viewModel.articles.map(\.id), ["a1"])
+
+		let purge = SirenAction(name: "purge-all", href: "/queue/purge", method: "POST", title: "Purge", type: nil, fields: nil)
+		await viewModel.invokeCollection(purge)
+
+		XCTAssertEqual(queueGETs, 2, "with no collection to adopt, the invoke falls back to a fresh first-page load")
+		XCTAssertTrue(viewModel.articles.isEmpty, "the fallback reload reflects the server's post-invoke state")
+		XCTAssertNil(viewModel.errorText)
+	}
+
 	func testOpenLinkPublishesAWebSheetWithNoRowAttached() {
 		let viewModel = makeViewModel(store: TestSupport.loggedInStore())
 
@@ -378,9 +411,14 @@ final class ReadingListViewModelTests: XCTestCase {
 	// MARK: - Mark as read
 
 	/// A two-item queue whose `/queue/{id}/status` POST behaves per `statusStub`.
+	/// The first collection GET serves the two rows; when `laterQueue` is given,
+	/// every subsequent collection GET serves it instead — the post-action truth a
+	/// followed redirect (or a convergence load) returns.
 	private func markReadHandler(
+		laterQueue: String? = nil,
 		statusStub: @escaping (String) -> StubURLProtocol.Stub
 	) -> (URLRequest, Data) -> StubURLProtocol.Stub {
+		var queueGETs = 0
 		return { request, _ in
 			let path = request.url?.path ?? ""
 			if path.hasSuffix("/status") { return statusStub(path) }
@@ -388,6 +426,8 @@ final class ReadingListViewModelTests: XCTestCase {
 			case "/":
 				return .redirect(to: "/queue")
 			case "/queue":
+				queueGETs += 1
+				if queueGETs > 1, let laterQueue { return .json(200, laterQueue) }
 				return .json(200, Fixtures.collection(
 					entitiesJSON: [Fixtures.article(id: "a1"), Fixtures.article(id: "a2")],
 					total: 2
@@ -405,8 +445,14 @@ final class ReadingListViewModelTests: XCTestCase {
 		try XCTUnwrap(article.affordances.first { $0.token == "update-status" }?.action)
 	}
 
-	func testInvokeUpdateStatusOptimisticallyRemovesAndKeepsRemovedOnSuccess() async throws {
-		StubURLProtocol.setHandler(markReadHandler { _ in .redirect(to: "/queue") })
+	func testInvokeUpdateStatusAdoptsTheServersPostActionCollection() async throws {
+		// The status POST redirects back to the collection; that followed body is
+		// the post-action truth and replaces the list — the marked row is gone and
+		// an item marked unread on the website (w1) appears without a refresh.
+		let postAction = Fixtures.collection(
+			entitiesJSON: [Fixtures.article(id: "a2"), Fixtures.article(id: "w1")], total: 2
+		)
+		StubURLProtocol.setHandler(markReadHandler(laterQueue: postAction) { _ in .redirect(to: "/queue") })
 		let viewModel = makeViewModel(store: TestSupport.loggedInStore())
 		await viewModel.refresh()
 		XCTAssertEqual(viewModel.articles.map(\.id), ["a1", "a2"])
@@ -415,15 +461,104 @@ final class ReadingListViewModelTests: XCTestCase {
 		await viewModel.invoke(try updateStatusAction(of: target), on: target)
 
 		XCTAssertEqual(
-			viewModel.articles.map(\.id), ["a2"],
-			"the marked row is removed and the status POST never re-adds it"
+			viewModel.articles.map(\.id), ["a2", "w1"],
+			"the followed collection is adopted: the marked row is gone and a website-side unread item appears"
 		)
 		XCTAssertNil(viewModel.errorText)
 	}
 
+	func testInvokeOnADeepScrolledListDropsTheRowLocallyAndHoldsPosition() async throws {
+		// Acting on a row after paginating must neither collapse the list to page 1
+		// (yanking the reader to the top) nor splice a fresh server head above the
+		// viewport (shifting it). A deep-scrolled list stays exactly where it is: only
+		// the acted row is dropped, and the server's post-action collection — served
+		// here as a sentinel [zzz] the client must NOT adopt — is ignored until the
+		// next pull-to-refresh.
+		let nextLink = """
+			,{ "rel": ["next"], "href": "/queue?page=2" }
+			"""
+		var page1GETs = 0
+		StubURLProtocol.setHandler { request, _ in
+			let url = request.url
+			if url?.path.hasSuffix("/status") == true { return .redirect(to: "/queue") }
+			switch (url?.path, url?.query) {
+			case ("/", _):
+				return .redirect(to: "/queue")
+			case ("/queue", let query) where query?.contains("page=2") == true:
+				return .json(200, Fixtures.collection(
+					entitiesJSON: [Fixtures.article(id: "a3"), Fixtures.article(id: "a4")], page: 2
+				))
+			case ("/queue", _):
+				page1GETs += 1
+				return page1GETs == 1
+					? .json(200, Fixtures.collection(
+						entitiesJSON: [Fixtures.article(id: "a1"), Fixtures.article(id: "a2")],
+						extraLinks: nextLink
+					))
+					: .json(200, Fixtures.collection(entitiesJSON: [Fixtures.article(id: "zzz")]))
+			default:
+				return .json(404, "{}")
+			}
+		}
+		let viewModel = makeViewModel(store: TestSupport.loggedInStore())
+		await viewModel.refresh()
+		await viewModel.loadMore()
+		XCTAssertEqual(viewModel.articles.map(\.id), ["a1", "a2", "a3", "a4"], "precondition: two pages are loaded")
+
+		let target = viewModel.articles[2]
+		await viewModel.invoke(try updateStatusAction(of: target), on: target)
+
+		XCTAssertEqual(
+			viewModel.articles.map(\.id), ["a1", "a2", "a4"],
+			"only the acted row is dropped; the list holds position and does not adopt the server's [zzz] collection while deep-scrolled"
+		)
+		XCTAssertNil(viewModel.errorText)
+	}
+
+	func testHandleForegroundOnADeepScrolledListHoldsPositionWithoutReloading() async throws {
+		// Returning to the foreground while deep-scrolled must not re-read the list —
+		// that would collapse it to page 1 and lose the user's position. The
+		// convergence no-ops (no extra GET), leaving the paginated list intact.
+		let nextLink = """
+			,{ "rel": ["next"], "href": "/queue?page=2" }
+			"""
+		var page1GETs = 0
+		StubURLProtocol.setHandler { request, _ in
+			let url = request.url
+			switch (url?.path, url?.query) {
+			case ("/", _):
+				return .redirect(to: "/queue")
+			case ("/queue", let query) where query?.contains("page=2") == true:
+				return .json(200, Fixtures.collection(
+					entitiesJSON: [Fixtures.article(id: "a3"), Fixtures.article(id: "a4")], page: 2
+				))
+			case ("/queue", _):
+				page1GETs += 1
+				return .json(200, Fixtures.collection(
+					entitiesJSON: [Fixtures.article(id: "a1"), Fixtures.article(id: "a2")], extraLinks: nextLink
+				))
+			default:
+				return .json(404, "{}")
+			}
+		}
+		let viewModel = makeViewModel(store: TestSupport.loggedInStore())
+		await viewModel.refresh()
+		await viewModel.loadMore()
+		XCTAssertEqual(viewModel.articles.map(\.id), ["a1", "a2", "a3", "a4"], "precondition: two pages are loaded")
+
+		await viewModel.handleForeground()
+
+		XCTAssertEqual(page1GETs, 1, "a deep-scrolled foreground does not re-read the first page")
+		XCTAssertEqual(
+			viewModel.articles.map(\.id), ["a1", "a2", "a3", "a4"],
+			"the paginated list is held in place — reconciliation waits for a pull-to-refresh"
+		)
+	}
+
 	func testInvokeUpdateStatusKeepsTheRowWhenItTogglesBackToUnread() async throws {
 		// A read item's update-status toggles to "unread", which stays in the
-		// unread-only list, so the row must not be dropped — the next load reconciles.
+		// unread-only list — and the adopted post-action collection still carries
+		// the row, so it stays in place.
 		let readArticle = """
 			{ "class": ["article"], "rel": ["item"],
 			  "properties": { "id": "a1", "url": "https://example.com/x", "status": "read" },
@@ -473,7 +608,7 @@ final class ReadingListViewModelTests: XCTestCase {
 		)
 	}
 
-	func testInvokeRestoresRowOnServerError() async throws {
+	func testInvokeLeavesTheListInPlaceOnServerError() async throws {
 		StubURLProtocol.setHandler(markReadHandler { _ in
 			.json(500, Fixtures.sirenError(code: "boom", message: "nope", withSaveArticleFallback: false))
 		})
@@ -485,15 +620,55 @@ final class ReadingListViewModelTests: XCTestCase {
 
 		XCTAssertEqual(
 			viewModel.articles.map(\.id), ["a1", "a2"],
-			"a failed invocation rolls the optimistic removal back"
+			"a failed invocation leaves the current list in place — nothing was dropped ahead of the server"
 		)
 		XCTAssertNotNil(viewModel.errorText)
 	}
 
-	func testInvokeDeleteOptimisticallyRemovesTheItem() async throws {
+	func testInvokeDeleteAdoptsTheServersPostActionCollection() async throws {
+		var queueGETs = 0
 		StubURLProtocol.setHandler { request, _ in
 			let path = request.url?.path ?? ""
 			if path.hasSuffix("/delete") { return .redirect(to: "/queue") }
+			switch path {
+			case "/":
+				return .redirect(to: "/queue")
+			case "/queue":
+				queueGETs += 1
+				return queueGETs == 1
+					? .json(200, Fixtures.collection(
+						entitiesJSON: [Fixtures.article(id: "a1"), Fixtures.article(id: "a2")], total: 2
+					))
+					: .json(200, Fixtures.collection(entitiesJSON: [Fixtures.article(id: "a2")]))
+			default:
+				return .json(404, "{}")
+			}
+		}
+		let viewModel = makeViewModel(store: TestSupport.loggedInStore())
+		await viewModel.refresh()
+
+		let target = viewModel.articles[0]
+		let deleteAction = try XCTUnwrap(target.affordances.first { $0.token == "delete" }?.action)
+		await viewModel.invoke(deleteAction, on: target)
+
+		XCTAssertEqual(
+			viewModel.articles.map(\.id), ["a2"],
+			"the deleted item is gone from the adopted post-action collection"
+		)
+	}
+
+	func testInvokeDropsTheActedRowWhenTheResponseIsNoCollection() async throws {
+		// A removing action (delete) whose 2xx response is not a Siren collection —
+		// a 204, or a redirect to an HTML page — carries no re-list direction, so
+		// api.invoke returns nil. The acted row must still drop locally, honouring
+		// the removal the server already confirmed with its 2xx.
+		StubURLProtocol.setHandler { request, _ in
+			let path = request.url?.path ?? ""
+			if path.hasSuffix("/delete") {
+				return StubURLProtocol.Stub(
+					status: 200, headers: ["Content-Type": "text/html"], body: Data("<!doctype html>".utf8)
+				)
+			}
 			switch path {
 			case "/":
 				return .redirect(to: "/queue")
@@ -512,12 +687,16 @@ final class ReadingListViewModelTests: XCTestCase {
 		let deleteAction = try XCTUnwrap(target.affordances.first { $0.token == "delete" }?.action)
 		await viewModel.invoke(deleteAction, on: target)
 
-		XCTAssertEqual(viewModel.articles.map(\.id), ["a2"], "delete removes the item it acts on")
+		XCTAssertEqual(
+			viewModel.articles.map(\.id), ["a2"],
+			"the confirmed removal is applied locally even when the response carries no collection to adopt"
+		)
+		XCTAssertNil(viewModel.errorText)
 	}
 
 	func testInvokeNonRemovingActionLeavesTheListUntouched() async throws {
-		// A non-removing action must not blanket-remove the row; per 'State Lives in
-		// the Network' the list is left for the next load to reconcile.
+		// A response that is no collection carries no re-list direction, so the
+		// list stays as it is for the next load to reconcile.
 		let viewAction = """
 			{ "name": "view-original", "title": "Open original", "href": "/queue/a1/original", "method": "GET" }
 			"""
@@ -532,7 +711,11 @@ final class ReadingListViewModelTests: XCTestCase {
 			case "/queue":
 				return .json(200, Fixtures.collection(entitiesJSON: [articleWithView]))
 			case "/queue/a1/original":
-				return .redirect(to: "/queue")
+				return StubURLProtocol.Stub(
+					status: 200,
+					headers: ["Content-Type": "text/html"],
+					body: Data("<!doctype html>".utf8)
+				)
 			default:
 				return .json(404, "{}")
 			}
@@ -547,20 +730,67 @@ final class ReadingListViewModelTests: XCTestCase {
 
 		XCTAssertEqual(
 			viewModel.articles.map(\.id), ["a1"],
-			"a non-removing action does not drop the row — only delete/update-status do"
+			"a non-removing action whose response is no collection leaves the row in place"
 		)
 		XCTAssertNil(viewModel.errorText)
 	}
 
-	func testRemoveArticleDropsTheRowWithoutANetworkCall() async {
-		StubURLProtocol.setHandler(markReadHandler { _ in .redirect(to: "/queue") })
+	func testReaderMarkedReadDropsTheRowAndConvergesWithTheServer() async {
+		// The reader's own POST already happened inside the webview, so the native
+		// side drops the row immediately and then converges with a fresh load —
+		// which also brings in an item marked unread on the website (w1).
+		let postAction = Fixtures.collection(
+			entitiesJSON: [Fixtures.article(id: "a2"), Fixtures.article(id: "w1")], total: 2
+		)
+		StubURLProtocol.setHandler(markReadHandler(laterQueue: postAction) { _ in .redirect(to: "/queue") })
 		let viewModel = makeViewModel(store: TestSupport.loggedInStore())
 		await viewModel.refresh()
 
-		viewModel.removeArticle(id: "a1")
+		await viewModel.readerMarkedRead(id: "a1")
 
-		XCTAssertEqual(viewModel.articles.map(\.id), ["a2"])
-		XCTAssertTrue(StubURLProtocol.records(path: "/queue/a1/status").isEmpty, "removeArticle is local-only")
+		XCTAssertEqual(
+			viewModel.articles.map(\.id), ["a2", "w1"],
+			"the read row is dropped and the convergence load is adopted"
+		)
+		XCTAssertTrue(
+			StubURLProtocol.records.allSatisfy { $0.request.httpMethod != "POST" },
+			"the reader already posted inside the webview; the app itself issues no POST — only the convergence GET"
+		)
+	}
+
+	// MARK: - Foreground refresh
+
+	func testHandleForegroundConvergesTheLoadedListWithTheServer() async {
+		let postForeground = Fixtures.collection(
+			entitiesJSON: [
+				Fixtures.article(id: "a1"), Fixtures.article(id: "a2"), Fixtures.article(id: "w1"),
+			],
+			total: 3
+		)
+		StubURLProtocol.setHandler(markReadHandler(laterQueue: postForeground) { _ in .redirect(to: "/queue") })
+		let viewModel = makeViewModel(store: TestSupport.loggedInStore())
+		await viewModel.refresh()
+		XCTAssertEqual(viewModel.articles.map(\.id), ["a1", "a2"])
+
+		await viewModel.handleForeground()
+
+		XCTAssertEqual(
+			viewModel.articles.map(\.id), ["a1", "a2", "w1"],
+			"returning to the foreground re-reads the list, so a website-side change appears without pull-to-refresh"
+		)
+	}
+
+	func testHandleForegroundBeforeTheFirstLoadIsANoOp() async {
+		StubURLProtocol.setHandler(markReadHandler { _ in .redirect(to: "/queue") })
+		let viewModel = makeViewModel(store: TestSupport.loggedInStore())
+
+		await viewModel.handleForeground()
+
+		XCTAssertTrue(
+			StubURLProtocol.records.isEmpty,
+			"at launch the initial load owns the fetch — the foreground hook does not race it with a second one"
+		)
+		XCTAssertTrue(viewModel.articles.isEmpty)
 	}
 
 	// MARK: - Reader

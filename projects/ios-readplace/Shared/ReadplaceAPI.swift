@@ -33,10 +33,7 @@ enum APIError: LocalizedError {
 /// and pagination links the server advertised.
 struct QueuePage {
 	let articles: [Article]
-	let selfHref: String?
 	let nextHref: String?
-	let prevHref: String?
-	let total: Int?
 	/// Every collection-level action and navigable link the server advertised, in
 	/// wire order — the complete set, so the share-sheet save journey can still find
 	/// its bespoke action by name (`action(named:)`, below). The toolbar does not
@@ -51,10 +48,7 @@ struct QueuePage {
 	init(collection: SirenCollection) {
 		articles = (collection.entities ?? []).compactMap(Article.init(entity:))
 		let links = collection.links ?? []
-		selfHref = links.first { $0.rel.contains("self") }?.href
 		nextHref = links.first { $0.rel.contains("next") }?.href
-		prevHref = links.first { $0.rel.contains("prev") }?.href
-		total = collection.properties?.total
 		let actionAffordances = (collection.actions ?? []).compactMap(Affordance.init(action:))
 		let linkAffordances = links.compactMap(Affordance.init(link:))
 		affordances = actionAffordances + linkAffordances
@@ -85,12 +79,31 @@ final class ReadplaceAPI {
 	private let store: TokenStore
 	private let oauth: OAuthService
 	private let session: URLSession
+	// Fetches third-party content (e.g. a PDF the user shared) with no delegate
+	// and never via `send()`, so neither the bearer nor the redirect-preserving
+	// re-attachment can leak the Readplace `Authorization` header to that origin.
+	private let externalSession: URLSession
+	/// Conservative ceiling on bytes pulled into the extension for an external
+	/// content fetch. Well under the server's `MAX_PDF_BYTES` OCR ceiling: that is
+	/// an origin-side limit, whereas the share extension holds the fetched bytes
+	/// plus a duplicated multipart body in a tight memory budget. `fetchExternalContent`
+	/// streams the body and stops the moment the running total crosses this ceiling
+	/// (refusing outright when the response announces an oversize length), so an
+	/// oversize resource degrades to a URL-only save without ever being buffered whole.
+	private let maxExternalContentBytes: Int
+
+	static let defaultMaxExternalContentBytes = 25 * 1024 * 1024
 
 	// Defaults to an ephemeral configuration so the session's cookie jar is its
 	// own isolated, in-memory store rather than process-wide `HTTPCookieStorage.shared`:
 	// the `hutch_sid` cookie minted by `bootstrapSession` must not linger in the
 	// shared jar where it would outlive the session and leak across sign-outs.
-	init(baseURL: String, store: TokenStore, sessionConfiguration: URLSessionConfiguration = .ephemeral) {
+	init(
+		baseURL: String,
+		store: TokenStore,
+		sessionConfiguration: URLSessionConfiguration = .ephemeral,
+		maxExternalContentBytes: Int = ReadplaceAPI.defaultMaxExternalContentBytes
+	) {
 		self.baseURL = baseURL
 		self.store = store
 		self.oauth = OAuthService(baseURL: baseURL, store: store, sessionConfiguration: sessionConfiguration)
@@ -101,6 +114,8 @@ final class ReadplaceAPI {
 			delegate: RedirectHeaderPreservingDelegate(),
 			delegateQueue: nil
 		)
+		self.externalSession = URLSession(configuration: sessionConfiguration)
+		self.maxExternalContentBytes = maxExternalContentBytes
 	}
 
 	// MARK: - Reading list
@@ -130,13 +145,14 @@ final class ReadplaceAPI {
 	/// invokable with no new per-operation code. The caller supplies values only
 	/// for the field names whose semantics the protocol fixes (`status`); the
 	/// action's own declared field defaults fill the rest, and a field the caller
-	/// neither supplies nor the server defaults is simply omitted. The body is
-	/// verified at the protocol level only: a successful follow (a 2xx/3xx, after
-	/// the redirect-preserving delegate re-attaches auth across any redirect)
-	/// confirms it; anything else surfaces as a server error. The response body is
-	/// deliberately not consumed, so a caller's optimistic update is never rolled
-	/// back by a 2xx whose shape this method doesn't read.
-	func invoke(action: SirenAction, values: [String: String] = [:]) async throws {
+	/// neither supplies nor the server defaults is simply omitted. A successful
+	/// follow (a 2xx/3xx, after the redirect-preserving delegate re-attaches auth
+	/// across any redirect) confirms the invoke; anything else surfaces as a server
+	/// error. Returns the followed response's collection when the server drove the
+	/// client back to one — the post-action truth the caller adopts, carrying
+	/// whatever changed elsewhere (e.g. an item marked unread on the website) — or
+	/// nil when the response is no collection: the server directed no re-list.
+	func invoke(action: SirenAction, values: [String: String] = [:]) async throws -> QueuePage? {
 		var fields = values
 		for declared in action.fields ?? [] where fields[declared.name] == nil {
 			if let value = declared.value { fields[declared.name] = value }
@@ -146,6 +162,22 @@ final class ReadplaceAPI {
 		guard (200...399).contains(http.statusCode) else {
 			throw apiError(from: data, status: http.statusCode)
 		}
+		return postActionCollection(data: data, response: http)
+	}
+
+	/// The collection the server drove a successful action back to, or nil when
+	/// the response is not one. Decoded leniently on purpose: an action may land
+	/// on any representation (an entity, an empty body, a non-Siren page), and
+	/// none of those is an error — it just means the server issued no re-list
+	/// direction. The `collection` class is the discriminator because every
+	/// `SirenCollection` field is optional, so any JSON object would otherwise
+	/// pass the decode.
+	private func postActionCollection(data: Data, response: HTTPURLResponse) -> QueuePage? {
+		guard isSirenMediaType(response.value(forHTTPHeaderField: "Content-Type")),
+			let collection = try? JSONDecoder().decode(SirenCollection.self, from: data),
+			(collection.`class` ?? []).contains("collection")
+		else { return nil }
+		return QueuePage(collection: collection)
 	}
 
 	// MARK: - Reader session
@@ -189,29 +221,30 @@ final class ReadplaceAPI {
 
 	// MARK: - Saving
 
-	/// The article a save produced, plus whether the captured HTML reached the
+	/// The article a save produced, plus whether the captured content reached the
 	/// server or the request fell back to the URL-only path the server advertised.
 	struct SaveResult {
 		let article: Article
 		let usedFallback: Bool
 	}
 
-	/// Saves a page using its pre-rendered HTML via the supplied action. On an
-	/// error body that carries a fallback action (the server's chosen URL-only
-	/// path, e.g. when the payload exceeds the server's cap), it follows that
-	/// action — dropping `rawHtml` — exactly like the extension client does. The
-	/// client never decides itself whether the HTML is acceptable; it attempts the
-	/// save and follows the server's refusal.
-	func saveHTML(
+	/// Saves a page using its captured bytes via the supplied `save-content`
+	/// action: a multipart upload carrying the absolute URL, the media type
+	/// (`text/html` or `application/pdf`), the optional title and the raw content
+	/// as a file part. On an error body that carries a fallback action (the
+	/// server's chosen URL-only path, e.g. when the payload exceeds the server's
+	/// cap), it follows that action — dropping the content — exactly like the
+	/// extension client does. The client never decides itself whether the content
+	/// is acceptable; it attempts the save and follows the server's refusal.
+	func saveContent(
 		action: SirenAction,
 		url: String,
-		rawHtml: String,
+		content: Data,
+		mediaType: String,
 		title: String?
 	) async throws -> SaveResult {
-		var body: [String: String] = ["url": url, "rawHtml": rawHtml]
-		if let title, !title.isEmpty { body["title"] = title }
-		let request = jsonRequest(try absoluteURL(action.href), method: action.method,
-			contentType: action.type ?? "application/json", body: body)
+		let request = multipartRequest(try absoluteURL(action.href), method: action.method,
+			submittedURL: url, content: content, mediaType: mediaType, title: title)
 		let (data, http) = try await send(request)
 		if http.statusCode == 201 || http.statusCode == 200 {
 			return SaveResult(article: try decodeArticle(data, response: http), usedFallback: false)
@@ -233,6 +266,73 @@ final class ReadplaceAPI {
 			return SaveResult(article: try decodeArticle(fbData, response: fbHTTP), usedFallback: true)
 		}
 		throw apiError(from: data, status: http.statusCode)
+	}
+
+	/// Fetches third-party content the user shared (e.g. a PDF) so the bytes can
+	/// be uploaded via `save-content`. Uses `externalSession` — never `send()` —
+	/// so the Readplace bearer is never attached. Streams the body and aborts the
+	/// moment the running total exceeds `maxExternalContentBytes` (and refuses a
+	/// response whose announced length already exceeds it), so an oversize resource
+	/// — a large scanned PDF, say — never lands in the extension's memory budget
+	/// whole; returns nil on any non-2xx, oversize, or transport failure so the
+	/// caller degrades to a URL-only save.
+	func fetchExternalContent(_ url: URL) async -> Data? {
+		var request = URLRequest(url: url)
+		request.httpMethod = "GET"
+		guard let (stream, response) = try? await externalSession.bytes(for: request),
+			let http = response as? HTTPURLResponse,
+			(200...299).contains(http.statusCode),
+			http.expectedContentLength <= Int64(maxExternalContentBytes)
+		else { return nil }
+		var data = Data()
+		if http.expectedContentLength > 0 { data.reserveCapacity(Int(http.expectedContentLength)) }
+		do {
+			for try await byte in stream {
+				data.append(byte)
+				if data.count > maxExternalContentBytes { return nil }
+			}
+		} catch {
+			return nil
+		}
+		return data
+	}
+
+	/// Builds a `multipart/form-data` request with a UUID boundary for
+	/// `save-content`: the `url`, `mediaType` and (when non-empty) `title` text
+	/// parts, then a `content` file part whose `filename` attribute is what the
+	/// server keys `isFile` off — its per-part Content-Type is ignored.
+	private func multipartRequest(
+		_ url: URL,
+		method: String,
+		submittedURL: String,
+		content: Data,
+		mediaType: String,
+		title: String?
+	) -> URLRequest {
+		let boundary = UUID().uuidString
+		var body = Data()
+		body.append("--\(boundary)\r\n")
+		body.append("Content-Disposition: form-data; name=\"url\"\r\n\r\n")
+		body.append("\(submittedURL)\r\n")
+		body.append("--\(boundary)\r\n")
+		body.append("Content-Disposition: form-data; name=\"mediaType\"\r\n\r\n")
+		body.append("\(mediaType)\r\n")
+		if let title, !title.isEmpty {
+			body.append("--\(boundary)\r\n")
+			body.append("Content-Disposition: form-data; name=\"title\"\r\n\r\n")
+			body.append("\(title)\r\n")
+		}
+		body.append("--\(boundary)\r\n")
+		body.append("Content-Disposition: form-data; name=\"content\"; filename=\"content\"\r\n\r\n")
+		body.append(content)
+		body.append("\r\n")
+		body.append("--\(boundary)--\r\n")
+
+		var request = URLRequest(url: url)
+		request.httpMethod = method
+		request.setValue("multipart/form-data; boundary=\(boundary)", forHTTPHeaderField: "Content-Type")
+		request.httpBody = body
+		return request
 	}
 
 	/// Saves a URL only (no captured HTML) via the `save-article` action.
@@ -383,7 +483,7 @@ final class ReadplaceAPI {
 
 	/// Decodes a message-only refusal (e.g. a locked account), or nil when the
 	/// body isn't one. Detected before the generic server error (and before the
-	/// save-html fallback) so the refusal surfaces as `.refused` rather than a
+	/// save-content fallback) so the refusal surfaces as `.refused` rather than a
 	/// generic save failure. The refusal carries no action — nothing to follow.
 	///
 	/// Messages whose media type the client can't render are dropped (be liberal
@@ -420,5 +520,11 @@ private final class RedirectHeaderPreservingDelegate: NSObject, URLSessionTaskDe
 			}
 		}
 		completionHandler(updated)
+	}
+}
+
+private extension Data {
+	mutating func append(_ string: String) {
+		append(Data(string.utf8))
 	}
 }

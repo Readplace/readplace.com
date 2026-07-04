@@ -11,12 +11,17 @@ const INTERNAL_CLICK_MEDIUM = "internal";
  * `footer`, `queue`, `home-hero`, …) and `utm_content` is the element itself
  * (`save`, `subscribe`, `mark-read`, …). `utm_medium` is fixed to
  * INTERNAL_CLICK_MEDIUM for every in-site link, and `utm_campaign` is
- * deliberately unused — two dimensions are enough to answer "which button do
- * readers click most, and where".
+ * deliberately unused — those two dimensions answer "which button do readers
+ * click most, and where".
+ *
+ * `term` is an optional third dimension mapped to `utm_term`, used where a click
+ * carries a per-request attribute worth slicing by (e.g. the reader's device
+ * class on the queue's reader-view links). Most links omit it.
  */
 interface InternalTracking {
 	source: string;
 	content: string;
+	term?: string;
 }
 
 /**
@@ -39,5 +44,6 @@ export function withInternalTracking(href: string, tracking: InternalTracking): 
 	url.searchParams.set("utm_source", tracking.source);
 	url.searchParams.set("utm_medium", INTERNAL_CLICK_MEDIUM);
 	url.searchParams.set("utm_content", tracking.content);
+	if (tracking.term) url.searchParams.set("utm_term", tracking.term);
 	return `${url.pathname}${url.search}${url.hash}`;
 }

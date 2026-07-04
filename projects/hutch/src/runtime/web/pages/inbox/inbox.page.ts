@@ -9,6 +9,8 @@ import {
 	INBOX_ADDRESS_MAX_PER_USER,
 	InboxAddressLimitReachedError,
 	InboxAddressSchema,
+	isLiveAddress,
+	normalizeAliasName,
 } from "@packages/domain/inbox";
 import type {
 	InboxAddressStore,
@@ -55,6 +57,7 @@ interface InboxDependencies {
 }
 
 const DisableAddressSchema = z.object({ address: InboxAddressSchema });
+const CreateAddressSchema = z.object({ name: z.string() });
 
 export function initInboxRoutes(deps: InboxDependencies): Router {
 	const router = express.Router();
@@ -99,6 +102,8 @@ export function initInboxRoutes(deps: InboxDependencies): Router {
 		assert(req.userId, "userId required - route must be protected by requireAuth");
 		const addresses = await deps.inboxAddressStore.listAddressesByUserId(req.userId);
 		const createFailed = req.query.error === "create";
+		const nameInvalid = req.query.error === "name";
+		const nameTaken = req.query.error === "name-taken";
 		// Banner shows whenever the cap is genuinely reached, not only after a
 		// rejected create. &error=limit stays OR'd in so a just-rejected create
 		// still shows it even when the eventually-consistent live read
@@ -108,7 +113,10 @@ export function initInboxRoutes(deps: InboxDependencies): Router {
 		sendComponent(
 			req,
 			res,
-			Base(InboxPage({ addresses, createFailed, limitReached }), await deps.buildBannerState(req)),
+			Base(
+				InboxPage({ addresses, createFailed, nameInvalid, nameTaken, limitReached }),
+				await deps.buildBannerState(req),
+			),
 		);
 	});
 
@@ -228,10 +236,28 @@ export function initInboxRoutes(deps: InboxDependencies): Router {
 
 	router.post("/create", deps.requireNotLocked, deps.requireWriteAccess, async (req: Request, res: Response) => {
 		assert(req.userId, "userId required - route must be protected by requireAuth");
+		const userId = req.userId;
+		const parsed = CreateAddressSchema.safeParse(req.body);
+		const name = parsed.success ? normalizeAliasName(parsed.data.name) : undefined;
+		if (name === undefined) {
+			res.redirect(303, `${addressesPath}&error=name`);
+			return;
+		}
+		// Soft duplicate guard: reject a name the user already holds on a live
+		// address so two of their newsletters don't share a label. Best-effort like
+		// the per-user cap — the eventually-consistent list read can miss a
+		// just-minted row — so a rare racing pair may both land; harmless, since the
+		// random token still keeps the two addresses distinct.
+		const owned = await deps.inboxAddressStore.listAddressesByUserId(userId);
+		if (owned.some((entry) => isLiveAddress(entry) && entry.name === name)) {
+			res.redirect(303, `${addressesPath}&error=name-taken`);
+			return;
+		}
 		try {
 			await deps.inboxAddressStore.createAddress({
-				userId: req.userId,
+				userId,
 				domain: deps.inboxAddressDomain,
+				name,
 			});
 		} catch (error) {
 			// Hitting the per-user cap is expected user behaviour, not a fault — echo

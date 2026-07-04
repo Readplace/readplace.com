@@ -14,6 +14,18 @@ describe("withInternalTracking", () => {
 		expect(href).not.toContain("utm_campaign");
 	});
 
+	it("stamps utm_term when a term (e.g. the device class) is supplied, so the click can be sliced by that third dimension", () => {
+		const href = withInternalTracking("/queue/abc/view", { source: "queue-card", content: "open-article-title", term: "mobile_ios" });
+		const params = new URL(href, "https://internal.invalid").searchParams;
+		expect(params.get("utm_content")).toBe("open-article-title");
+		expect(params.get("utm_term")).toBe("mobile_ios");
+	});
+
+	it("omits utm_term entirely when no term is supplied — the third dimension is opt-in per link", () => {
+		const href = withInternalTracking("/account", { source: "queue", content: "subscribe" });
+		expect(href).not.toContain("utm_term");
+	});
+
 	it("appends to an href that already has a query string instead of replacing it (filter URLs carry tab/order)", () => {
 		const href = withInternalTracking("/queue?tab=read&order=asc", { source: "queue", content: "filter-read" });
 		const url = new URL(href, "https://internal.invalid");

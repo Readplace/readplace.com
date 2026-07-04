@@ -271,5 +271,8 @@ describe("GET /embed/icon.svg", () => {
 		expect(response.headers["cache-control"]).toBe("public, max-age=31536000, immutable");
 		expect(response.body).toContain("<svg");
 		expect(response.body).toContain('viewBox="0 0 512 512"');
+		expect(response.body).toContain('fill="#2B3A55"');
+		expect(response.body).toContain('stroke="#FFFFFF"');
+		expect(response.body).toContain('stroke-opacity="0.4"');
 	});
 });

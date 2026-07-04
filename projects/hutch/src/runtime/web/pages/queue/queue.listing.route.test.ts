@@ -13,7 +13,7 @@ import {
 } from "@packages/test-fixtures";
 import { initReadabilityParser } from "@packages/article-parser";
 
-import type { RefreshArticleIfStale } from "@packages/test-fixtures/providers/article-freshness";
+import type { RefreshArticleIfStale } from "@packages/provider-contracts/article-freshness";
 
 const useApp = useTestServer();
 

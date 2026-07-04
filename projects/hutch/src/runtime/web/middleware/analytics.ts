@@ -39,7 +39,9 @@ export interface AnalyticsPageview {
  * it — including HTMX-boosted navigations and POST actions (Save / Delete /
  * Mark-read / Logout) that the pageview path drops — so click volume is
  * countable across all surfaces. `utm_source` is the section and `utm_content`
- * the element; `utm_campaign` is intentionally absent.
+ * the element; `utm_campaign` is intentionally absent. `utm_term` is the
+ * optional third dimension a link may carry (e.g. the reader's device class on
+ * the queue's reader-view links), so those clicks can be sliced by it.
  */
 export interface AnalyticsClick {
 	stream: typeof STREAMS.analytics;
@@ -49,6 +51,7 @@ export interface AnalyticsClick {
 	utm_source?: string;
 	utm_medium: typeof INTERNAL_CLICK_MEDIUM;
 	utm_content?: string;
+	utm_term?: string;
 	visitor_hash: string | null;
 	visitor_id: string | null;
 	is_authenticated: 0 | 1;
@@ -356,6 +359,7 @@ export function createAnalyticsMiddleware(deps: {
 					utm_source: extractQueryString(req, "utm_source"),
 					utm_medium: INTERNAL_CLICK_MEDIUM,
 					utm_content: extractQueryString(req, "utm_content"),
+					utm_term: extractQueryString(req, "utm_term"),
 					visitor_hash: hashIp({ ip: req.ip, salt: deps.salt }),
 					visitor_id: req.visitorId ?? null,
 					is_authenticated: req.userId ? 1 : 0,

@@ -83,6 +83,24 @@ describe("stripe-webhook-receiver-handler", () => {
 		assert.equal(result.statusCode, 400);
 	});
 
+	it("returns 400 (not a 5xx that fires the operator alarm) when the body is missing", async () => {
+		const handler = initStripeWebhookReceiverHandler({
+			webhookSecret: TEST_SECRET,
+			logger: HutchLogger.from(noopLogger),
+			now: () => new Date(),
+			eventHandlers: buildEventHandlers(),
+		});
+
+		const result = await handler(
+			buildApiGatewayEvent({ body: "", signatureHeader: "t=1,v1=deadbeef" }),
+			buildLambdaContext(),
+			() => {},
+		);
+
+		assert(result);
+		assert.equal(result.statusCode, 400);
+	});
+
 	it("returns 400 when the signature does not match", async () => {
 		const handler = initStripeWebhookReceiverHandler({
 			webhookSecret: TEST_SECRET,

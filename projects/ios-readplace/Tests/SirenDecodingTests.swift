@@ -242,11 +242,9 @@ final class SirenDecodingTests: XCTestCase {
 		XCTAssertEqual(page.nextHref, "/queue?page=2", "a malformed link is dropped; valid links still resolve")
 	}
 
-	func testCollectionExposesAffordancesAndTotal() throws {
-		let json = Fixtures.collection(entitiesJSON: [Fixtures.article()], total: 7)
+	func testCollectionExposesAffordances() throws {
+		let json = Fixtures.collection(entitiesJSON: [Fixtures.article()])
 		let page = QueuePage(collection: try decodeCollection(json))
-		XCTAssertEqual(page.total, 7)
-		XCTAssertEqual(page.selfHref, "/queue?page=1")
 		// The complete set of advertised collection actions, labelled by the server's
 		// title. The toolbar derives its own presentable subset from this client-side;
 		// the share-sheet save journey resolves its bespoke action from it by name.
@@ -288,17 +286,15 @@ final class SirenDecodingTests: XCTestCase {
 	func testPaginationLinks() throws {
 		let withNext = Fixtures.collection(
 			entitiesJSON: [Fixtures.article()],
-			extraLinks: ", { \"rel\": [\"next\"], \"href\": \"/queue?page=2\" }, { \"rel\": [\"prev\"], \"href\": \"/queue?page=1\" }",
+			extraLinks: ", { \"rel\": [\"next\"], \"href\": \"/queue?page=2\" }",
 			page: 1
 		)
 		let page = QueuePage(collection: try decodeCollection(withNext))
 		XCTAssertEqual(page.nextHref, "/queue?page=2")
-		XCTAssertEqual(page.prevHref, "/queue?page=1")
 
 		let noNext = Fixtures.collection(entitiesJSON: [Fixtures.article()])
 		let lastPage = QueuePage(collection: try decodeCollection(noNext))
 		XCTAssertNil(lastPage.nextHref)
-		XCTAssertNil(lastPage.prevHref)
 	}
 
 	func testEmptyCollection() throws {

@@ -7,7 +7,6 @@ const resolvePinnedAddress: ResolvePinnedAddress = async () => "93.184.216.34";
 
 type ExecCall = {
 	args: readonly string[];
-	options: { timeoutMs: number | undefined };
 };
 
 type FakeExec = {
@@ -22,8 +21,8 @@ function makeFakeExec(opts: { stdout?: Buffer | string; error?: Error; deferCall
 	const kill = jest.fn();
 	let closeListener: (() => void) | undefined;
 	let pendingCallback: (() => void) | undefined;
-	const execCurl: ExecCurl = (args, options, callback) => {
-		calls.push({ args, options });
+	const execCurl: ExecCurl = (args, callback) => {
+		calls.push({ args });
 		const buf = typeof opts.stdout === "string" ? Buffer.from(opts.stdout) : opts.stdout ?? Buffer.alloc(0);
 		const fire = () => {
 			callback(opts.error ?? null, buf);
@@ -125,7 +124,7 @@ describe("fetchCurl argument construction", () => {
 		const args = fake.calls[0].args;
 		expect(args).toContain("--http2");
 		expect(args).toContain("--compressed");
-		expect(args).toContain("--location");
+		expect(args).not.toContain("--location");
 		const sepIdx = args.indexOf("--");
 		expect(sepIdx).toBeGreaterThan(0);
 		expect(args[sepIdx + 1]).toBe("https://example.com/page?q=1");
@@ -213,18 +212,16 @@ describe("fetchCurl argument construction", () => {
 		expect(args).toContain("Accept: text/html");
 	});
 
-	it("uses the default 10s timeout when no signal is provided", async () => {
-		const fake = makeFakeExec({ stdout: "HTTP/1.1 200 OK\r\n\r\n" });
-		const fetchCurl = createCurlFetch({ execCurl: fake.execCurl, resolvePinnedAddress });
-		await fetchCurl("https://example.com");
-		expect(fake.calls[0].options.timeoutMs).toBe(10000);
-	});
-
-	it("disables the internal timeout when a signal is provided so the caller controls timing", async () => {
-		const fake = makeFakeExec({ stdout: "HTTP/1.1 200 OK\r\n\r\n" });
-		const fetchCurl = createCurlFetch({ execCurl: fake.execCurl, resolvePinnedAddress });
-		await fetchCurl("https://example.com", { signal: new AbortController().signal });
-		expect(fake.calls[0].options.timeoutMs).toBeUndefined();
+	it("uses the caller's signal instead of creating a timeout budget when one is provided", async () => {
+		const timeoutSpy = jest.spyOn(AbortSignal, "timeout");
+		try {
+			const fake = makeFakeExec({ stdout: "HTTP/1.1 200 OK\r\n\r\n" });
+			const fetchCurl = createCurlFetch({ execCurl: fake.execCurl, resolvePinnedAddress });
+			await fetchCurl("https://example.com", { signal: new AbortController().signal });
+			expect(timeoutSpy).not.toHaveBeenCalled();
+		} finally {
+			timeoutSpy.mockRestore();
+		}
 	});
 });
 
@@ -235,6 +232,15 @@ describe("fetchCurl error handling", () => {
 		await expect(fetchCurl("https://example.com/path")).rejects.toThrow(
 			/fetchCurl failed for https:\/\/example\.com\/path: spawn ENOENT/,
 		);
+	});
+
+	it("refuses a non-HTTP(S) entry URL before spawning curl", async () => {
+		const fake = makeFakeExec({ stdout: "HTTP/1.1 200 OK\r\n\r\n" });
+		const fetchCurl = createCurlFetch({ execCurl: fake.execCurl, resolvePinnedAddress });
+		await expect(fetchCurl("file:///etc/passwd")).rejects.toThrow(
+			/fetchCurl failed for file:\/\/\/etc\/passwd: refusing to fetch non-HTTP\(S\) scheme "file:"/,
+		);
+		expect(fake.calls).toHaveLength(0);
 	});
 });
 
@@ -268,6 +274,189 @@ describe("fetchCurl abort signal handling", () => {
 		expect(response.status).toBe(200);
 		controller.abort(new Error("late abort"));
 		expect(fake.kill).not.toHaveBeenCalled();
+	});
+});
+
+describe("fetchCurl redirect following (SSRF-guarded per hop)", () => {
+	function makeSequencedExec(stdouts: string[]): { execCurl: ExecCurl; calls: { args: readonly string[] }[] } {
+		const calls: { args: readonly string[] }[] = [];
+		let idx = 0;
+		const execCurl: ExecCurl = (args, callback) => {
+			calls.push({ args });
+			const buf = Buffer.from(stdouts[Math.min(idx, stdouts.length - 1)]);
+			idx++;
+			setImmediate(() => callback(null, buf));
+			return { kill: () => {}, onClose: () => {} };
+		};
+		return { execCurl, calls };
+	}
+
+	it("follows a 301 to the final 200, re-validating each hop's host through the SSRF guard", async () => {
+		const seq = makeSequencedExec([
+			"HTTP/1.1 301 Moved Permanently\r\nlocation: https://example.com/final\r\n\r\n",
+			"HTTP/1.1 200 OK\r\ncontent-type: text/html\r\n\r\n<html>final</html>",
+		]);
+		const resolveSpy = jest.fn(async () => "93.184.216.34");
+		const fetchCurl = createCurlFetch({ execCurl: seq.execCurl, resolvePinnedAddress: resolveSpy });
+
+		const response = await fetchCurl("https://example.com/start");
+
+		expect(response.status).toBe(200);
+		expect(await response.text()).toBe("<html>final</html>");
+		expect(seq.calls).toHaveLength(2);
+		expect(resolveSpy).toHaveBeenCalledTimes(2);
+	});
+
+	it("resolves a relative Location against the current url before following", async () => {
+		const seq = makeSequencedExec([
+			"HTTP/1.1 302 Found\r\nlocation: /moved\r\n\r\n",
+			"HTTP/1.1 200 OK\r\n\r\nok",
+		]);
+		const fetchCurl = createCurlFetch({ execCurl: seq.execCurl, resolvePinnedAddress });
+
+		await fetchCurl("https://example.com/a/b");
+
+		const secondArgs = seq.calls[1].args;
+		const sepIdx = secondArgs.indexOf("--");
+		expect(secondArgs[sepIdx + 1]).toBe("https://example.com/moved");
+	});
+
+	it("re-pins a cross-host redirect target through --resolve for the new host", async () => {
+		const seq = makeSequencedExec([
+			"HTTP/1.1 301 Moved Permanently\r\nlocation: https://other.example/dest\r\n\r\n",
+			"HTTP/1.1 200 OK\r\n\r\nok",
+		]);
+		const resolveSpy = jest.fn(async ({ hostname }: { hostname: string }) =>
+			hostname === "other.example" ? "203.0.113.9" : "93.184.216.34",
+		);
+		const fetchCurl = createCurlFetch({ execCurl: seq.execCurl, resolvePinnedAddress: resolveSpy });
+
+		await fetchCurl("https://example.com/start");
+
+		expect(resolveSpy).toHaveBeenCalledWith({ hostname: "other.example" });
+		const secondArgs = seq.calls[1].args;
+		expect(secondArgs[secondArgs.indexOf("--resolve") + 1]).toBe("other.example:443:203.0.113.9");
+	});
+
+	it("refuses a redirect whose target host is blocked by the SSRF guard (no curl spawned for it)", async () => {
+		const seq = makeSequencedExec([
+			"HTTP/1.1 301 Moved Permanently\r\nlocation: https://169.254.169.254/latest/meta-data\r\n\r\n",
+			"HTTP/1.1 200 OK\r\n\r\nsecrets",
+		]);
+		const resolveSpy = jest.fn(async ({ hostname }: { hostname: string }) => {
+			if (hostname === "169.254.169.254") throw new Error("blocked address 169.254.169.254");
+			return "93.184.216.34";
+		});
+		const fetchCurl = createCurlFetch({ execCurl: seq.execCurl, resolvePinnedAddress: resolveSpy });
+
+		await expect(fetchCurl("https://example.com/start")).rejects.toThrow(/blocked address/);
+		expect(seq.calls).toHaveLength(1);
+	});
+
+	it("refuses to follow a redirect to a non-HTTP(S) scheme (no curl spawned for it)", async () => {
+		const seq = makeSequencedExec([
+			"HTTP/1.1 301 Moved Permanently\r\nlocation: gopher://example.com:70/1payload\r\n\r\n",
+			"HTTP/1.1 200 OK\r\n\r\nshould-not-be-reached",
+		]);
+		const fetchCurl = createCurlFetch({ execCurl: seq.execCurl, resolvePinnedAddress });
+
+		await expect(fetchCurl("https://example.com/start")).rejects.toThrow(
+			/refusing to follow redirect to non-HTTP.*gopher:/,
+		);
+		expect(seq.calls).toHaveLength(1);
+	});
+
+	it("stops and fails after MAX_REDIRECTS consecutive redirects", async () => {
+		const seq = makeSequencedExec([
+			"HTTP/1.1 302 Found\r\nlocation: https://example.com/loop\r\n\r\n",
+		]);
+		const fetchCurl = createCurlFetch({ execCurl: seq.execCurl, resolvePinnedAddress });
+
+		await expect(fetchCurl("https://example.com/start")).rejects.toThrow(/too many redirects/);
+	});
+
+	it("does not follow a non-redirect status even if a Location header is present", async () => {
+		const seq = makeSequencedExec([
+			"HTTP/1.1 200 OK\r\nlocation: https://example.com/elsewhere\r\n\r\nbody",
+		]);
+		const fetchCurl = createCurlFetch({ execCurl: seq.execCurl, resolvePinnedAddress });
+
+		const response = await fetchCurl("https://example.com/start");
+
+		expect(response.status).toBe(200);
+		expect(seq.calls).toHaveLength(1);
+	});
+
+	it("shares a single timeout budget across every hop when no signal is passed", async () => {
+		const timeoutSpy = jest.spyOn(AbortSignal, "timeout");
+		try {
+			const seq = makeSequencedExec([
+				"HTTP/1.1 301 Moved Permanently\r\nlocation: https://example.com/final\r\n\r\n",
+				"HTTP/1.1 200 OK\r\n\r\nok",
+			]);
+			const fetchCurl = createCurlFetch({ execCurl: seq.execCurl, resolvePinnedAddress });
+
+			await fetchCurl("https://example.com/start");
+
+			expect(timeoutSpy).toHaveBeenCalledTimes(1);
+			expect(timeoutSpy).toHaveBeenCalledWith(10000);
+		} finally {
+			timeoutSpy.mockRestore();
+		}
+	});
+
+	it("wraps a malformed redirect Location in the fetchCurl error convention (no second curl spawned)", async () => {
+		const seq = makeSequencedExec([
+			"HTTP/1.1 301 Moved Permanently\r\nlocation: https://exa mple.com/x\r\n\r\n",
+			"HTTP/1.1 200 OK\r\n\r\nshould-not-be-reached",
+		]);
+		const fetchCurl = createCurlFetch({ execCurl: seq.execCurl, resolvePinnedAddress });
+
+		await expect(fetchCurl("https://example.com/start")).rejects.toThrow(
+			/fetchCurl failed for https:\/\/example\.com\/start: invalid redirect Location "https:\/\/exa mple\.com\/x"/,
+		);
+		expect(seq.calls).toHaveLength(1);
+	});
+
+	it("drops cookie/authorization/proxy-authorization when a redirect crosses origins", async () => {
+		const seq = makeSequencedExec([
+			"HTTP/1.1 301 Moved Permanently\r\nlocation: https://other.example/dest\r\n\r\n",
+			"HTTP/1.1 200 OK\r\n\r\nok",
+		]);
+		const fetchCurl = createCurlFetch({ execCurl: seq.execCurl, resolvePinnedAddress });
+
+		await fetchCurl("https://example.com/start", {
+			headers: {
+				cookie: "session=secret",
+				authorization: "Bearer token",
+				"proxy-authorization": "Basic abc",
+				referer: "https://example.com/start",
+				"user-agent": "Persona/1.0",
+			},
+		});
+
+		const secondArgs = seq.calls[1].args;
+		expect(secondArgs).not.toContain("Cookie: session=secret");
+		expect(secondArgs).not.toContain("Authorization: Bearer token");
+		expect(secondArgs).not.toContain("Proxy-Authorization: Basic abc");
+		expect(secondArgs).toContain("Referer: https://example.com/start");
+		expect(secondArgs).toContain("User-Agent: Persona/1.0");
+	});
+
+	it("keeps sensitive headers when a redirect stays on the same origin", async () => {
+		const seq = makeSequencedExec([
+			"HTTP/1.1 301 Moved Permanently\r\nlocation: https://example.com/dest\r\n\r\n",
+			"HTTP/1.1 200 OK\r\n\r\nok",
+		]);
+		const fetchCurl = createCurlFetch({ execCurl: seq.execCurl, resolvePinnedAddress });
+
+		await fetchCurl("https://example.com/start", {
+			headers: { cookie: "session=secret", "user-agent": "Persona/1.0" },
+		});
+
+		const secondArgs = seq.calls[1].args;
+		expect(secondArgs).toContain("Cookie: session=secret");
+		expect(secondArgs).toContain("User-Agent: Persona/1.0");
 	});
 });
 

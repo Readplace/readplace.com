@@ -33,13 +33,33 @@
 		<string>$(PRODUCT_MODULE_NAME).ShareViewController</string>
 		<key>NSExtensionAttributes</key>
 		<dict>
+			<!-- A predicate rather than the dictionary keys: sharing a PDF (Safari's
+			     PDF viewer, Files, mail attachments) offers a com.adobe.pdf /
+			     public.file-url attachment that no dictionary key short of
+			     all-files covers, and the dictionary form hides the extension
+			     unless every attachment class is declared. The URL and text
+			     branches exclude file URLs so arbitrary non-PDF files stay
+			     unmatched, and an item must carry at least one attachment so an
+			     all-attachments-match subquery cannot pass vacuously. -->
 			<key>NSExtensionActivationRule</key>
-			<dict>
-				<key>NSExtensionActivationSupportsWebURLWithMaxCount</key>
-				<integer>1</integer>
-				<key>NSExtensionActivationSupportsText</key>
-				<true/>
-			</dict>
+			<string>SUBQUERY (
+    extensionItems,
+    $extensionItem,
+    $extensionItem.attachments.@count &gt; 0
+    AND SUBQUERY (
+        $extensionItem.attachments,
+        $attachment,
+        (
+            ANY $attachment.registeredTypeIdentifiers UTI-CONFORMS-TO "public.url"
+            AND NOT (ANY $attachment.registeredTypeIdentifiers UTI-CONFORMS-TO "public.file-url")
+        )
+        OR (
+            ANY $attachment.registeredTypeIdentifiers UTI-CONFORMS-TO "public.plain-text"
+            AND NOT (ANY $attachment.registeredTypeIdentifiers UTI-CONFORMS-TO "public.file-url")
+        )
+        OR ANY $attachment.registeredTypeIdentifiers UTI-CONFORMS-TO "com.adobe.pdf"
+    ).@count == $extensionItem.attachments.@count
+).@count &gt;= 1</string>
 		</dict>
 	</dict>
 </dict>

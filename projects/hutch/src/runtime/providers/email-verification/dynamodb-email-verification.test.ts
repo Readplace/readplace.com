@@ -1,7 +1,7 @@
 import { z } from "zod";
 import { ConditionalCheckFailedException, type DynamoDBDocumentClient } from "@packages/hutch-storage-client";
 import { UserIdSchema } from "@packages/domain/user";
-import { VerificationTokenSchema } from "@packages/test-fixtures/providers/email-verification";
+import { VerificationTokenSchema } from "@packages/provider-contracts/email-verification";
 import { initDynamoDbEmailVerification } from "./dynamodb-email-verification";
 
 const USER = UserIdSchema.parse("abc123");

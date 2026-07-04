@@ -24,6 +24,7 @@ import { initInMemoryPendingSignup } from "./providers/pending-signup/in-memory-
 import { initInMemoryStripeCheckout } from "./providers/stripe-checkout/in-memory-stripe-checkout";
 import { initInMemoryStripeSubscriptions } from "./providers/stripe-subscriptions/in-memory-stripe-subscriptions";
 import { initInMemorySubscriptionProviders } from "./providers/subscription-providers/in-memory-subscription-providers";
+import { initInMemoryPaymentMethods } from "./providers/payment-methods/in-memory-payment-methods";
 import { initInMemoryTrialScheduler } from "./providers/trial-scheduler/in-memory-trial-scheduler";
 import { initInMemoryImportSession } from "./providers/import-session/in-memory-import-session";
 import { initInMemoryInboxAddress } from "./providers/inbox-address/in-memory-inbox-address";
@@ -247,9 +248,11 @@ export function createDefaultTestAppFixture(appOrigin: string): TestAppFixture {
 		rules: {
 			viewCrawl: unlimitedRule,
 			login: unlimitedRule,
+			loginAccount: unlimitedRule,
 			signup: unlimitedRule,
 			forgotPassword: unlimitedRule,
 			oauthRegister: unlimitedRule,
+			oauthToken: unlimitedRule,
 			import: unlimitedRule,
 			importFromUrl: unlimitedRule,
 		},
@@ -284,6 +287,7 @@ export function createDefaultTestAppFixture(appOrigin: string): TestAppFixture {
 	const subscriptionProviders = initInMemorySubscriptionProviders({ now: () => new Date() });
 	const trialScheduler = initInMemoryTrialScheduler();
 	const stripeSubscriptions = initInMemoryStripeSubscriptions();
+	const paymentMethods = initInMemoryPaymentMethods();
 
 	const botDefenseEvents: BotDefenseEvent[] = [];
 	/** Shared capture handler for every level — production code only ever calls
@@ -410,7 +414,9 @@ export function createDefaultTestAppFixture(appOrigin: string): TestAppFixture {
 		subscriptionProviders,
 		trialScheduler,
 		stripeSubscriptions,
+		paymentMethods,
 		stripePriceId: "price_test_default",
+		stripePublishableKey: "pk_test_default",
 		botDefense: { logger: botDefenseLogger, events: botDefenseEvents },
 		conversions: { logger: conversionLogger, events: conversionEvents },
 		/** Small enough that founding-allocation seed loops finish in
