@@ -633,35 +633,35 @@ export type ReaderViewLoadingSucceededDetail = z.infer<
 	typeof ReaderViewLoadingSucceeded.detailSchema
 >;
 
-/** Per-user command to (maybe) email one saver that their reader view is ready.
- * Dispatched by the reader-ready fan-out Lambda via direct SQS with
- * `DelaySeconds = 300`, giving a present user's final in-reader poll time to
- * land (so `viewedAt ≥ succeededAt` ⇒ suppressed). The reader-ready notify
- * Lambda consumes it, re-checks every gate against the live row, claims the 6h
- * per-user cooldown, and only then sends. Direct-SQS (not EventBridge) because
- * the fan-out needs the per-message delay. */
-export const NotifyReaderViewReadyCommand = defineCommand({
+/** Per-user command to (maybe) send one reader-ready digest email. Dispatched
+ * by the `digest-scan` Lambda — one command per distinct user with at least one
+ * queued reader-ready article — on each `rate(6 hours)` flush tick, via direct
+ * SQS. The `send-user-digest` Lambda consumes it, re-checks every gate against
+ * the live per-article row, claims the per-user cooldown, and sends a single
+ * digest of every still-eligible article. Carries only `userId`: the reference
+ * instant for each article is that article's own set-once `succeededAt`. */
+export const SendUserDigestCommand = defineCommand({
 	detailSchema: z.object({
 		userId: z.string(),
-		url: z.string(),
-		succeededAt: z.string(),
 	}),
 });
-export type NotifyReaderViewReadyDetail = z.infer<
-	typeof NotifyReaderViewReadyCommand.detailSchema
+export type SendUserDigestDetail = z.infer<
+	typeof SendUserDigestCommand.detailSchema
 >;
 
-/** Irreversible fact: a reader-ready email was sent to a user for a URL.
- * Published by the reader-ready notify Lambda after the email send and the
- * set-once `emailSentAt` stamp. No load-bearing consumer today — wired so
- * future analytics / digest handlers can subscribe without a schema change. */
+/** Irreversible fact: a reader-ready email was sent to a user. The one email
+ * batches every reader-ready URL that came due in the 6-hourly window, so `urls`
+ * carries the whole set (was a single `url`). Published by the `send-user-digest`
+ * Lambda after the email send and the per-article set-once `emailSentAt` stamps.
+ * No load-bearing consumer today — wired so future analytics handlers can
+ * subscribe without a schema change. */
 export const ReaderReadyEmailSentEvent = defineEvent({
 	name: "reader-ready-email-sent",
 	source: "hutch.reader-ready",
 	detailType: "ReaderReadyEmailSent",
 	detailSchema: z.object({
 		userId: z.string(),
-		url: z.string(),
+		urls: z.array(z.string()),
 		sentAt: z.string(),
 	}),
 });

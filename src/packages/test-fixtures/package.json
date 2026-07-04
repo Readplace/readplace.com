@@ -33,6 +33,10 @@
       "types": "./dist/providers/auth/index.d.ts",
       "default": "./dist/providers/auth/index.js"
     },
+    "./providers/digest-queue": {
+      "types": "./dist/providers/digest-queue/index.d.ts",
+      "default": "./dist/providers/digest-queue/index.js"
+    },
     "./providers/email": {
       "types": "./dist/providers/email/index.d.ts",
       "default": "./dist/providers/email/index.js"
@@ -134,6 +138,7 @@
       "providers/article-store": ["./dist/providers/article-store/index.d.ts"],
       "providers/article-summary": ["./dist/providers/article-summary/index.d.ts"],
       "providers/auth": ["./dist/providers/auth/index.d.ts"],
+      "providers/digest-queue": ["./dist/providers/digest-queue/index.d.ts"],
       "providers/email": ["./dist/providers/email/index.d.ts"],
       "providers/email-verification": ["./dist/providers/email-verification/index.d.ts"],
       "providers/password-reset": ["./dist/providers/password-reset/index.d.ts"],

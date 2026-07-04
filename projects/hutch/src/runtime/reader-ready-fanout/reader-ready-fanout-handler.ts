@@ -8,25 +8,25 @@ import { z } from "zod";
 import type { HutchLogger } from "@packages/hutch-logger";
 import { ReaderViewLoadingSucceeded } from "@packages/hutch-infra-components";
 import type {
-	NotifyReaderViewReadyCommand,
-} from "@packages/hutch-infra-components";
-import type { DispatchCommand } from "@packages/hutch-infra-components/runtime";
-import type {
 	FindUserArticlesByUrl,
 	MarkReaderViewSucceeded,
 } from "@packages/provider-contracts/article-store";
+import type { EnqueueDigestItem } from "@packages/provider-contracts/digest-queue";
 
 export interface ReaderReadyUsersNotificationFanoutDeps {
 	findUserArticlesByUrl: FindUserArticlesByUrl;
 	markReaderViewSucceeded: MarkReaderViewSucceeded;
-	dispatchNotifyReaderViewReady: DispatchCommand<typeof NotifyReaderViewReadyCommand>;
+	enqueueDigestItem: EnqueueDigestItem;
+	/** TTL retention applied to each enqueued digest row (safety purge). */
+	digestRetentionMs: number;
+	now: () => Date;
 	logger: HutchLogger;
 }
 
 export function initReaderReadyUsersNotificationFanoutHandler(
 	deps: ReaderReadyUsersNotificationFanoutDeps,
 ): Handler<SQSEvent, SQSBatchResponse> {
-	const { findUserArticlesByUrl, markReaderViewSucceeded, dispatchNotifyReaderViewReady, logger } = deps;
+	const { findUserArticlesByUrl, markReaderViewSucceeded, enqueueDigestItem, digestRetentionMs, now, logger } = deps;
 
 	return async (event): Promise<SQSBatchResponse> => {
 		const batchItemFailures: SQSBatchItemFailure[] = [];
@@ -42,13 +42,14 @@ export function initReaderReadyUsersNotificationFanoutHandler(
 					await markReaderViewSucceeded({ userId: saver.userId, url: detail.url, at: succeededAt });
 					/* Only savers who actually opened the reader while it was loading
 					 * can qualify — never-viewed rows get the succeededAt stamp but no
-					 * command, which is what defuses the import storm. A skipped summary
-					 * still succeeds the reader view but has nothing to announce. */
+					 * digest entry, which is what defuses the import storm. A skipped
+					 * summary still succeeds the reader view but has nothing to announce. */
 					if (detail.hasSummary && saver.viewedAt !== undefined) {
-						await dispatchNotifyReaderViewReady({
+						await enqueueDigestItem({
 							userId: saver.userId,
 							url: detail.url,
-							succeededAt: detail.succeededAt,
+							enqueuedAt: now().toISOString(),
+							retentionMs: digestRetentionMs,
 						});
 						return true;
 					}
@@ -59,7 +60,7 @@ export function initReaderReadyUsersNotificationFanoutHandler(
 					url: detail.url,
 					hasSummary: detail.hasSummary,
 					savers: savers.length,
-					dispatched: results.filter(Boolean).length,
+					enqueued: results.filter(Boolean).length,
 				});
 			} catch (error) {
 				logger.error("[ReaderReadyUsersNotificationFanout] record failed", {

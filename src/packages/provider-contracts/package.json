@@ -29,6 +29,10 @@
       "types": "./dist/auth.d.ts",
       "default": "./dist/auth.js"
     },
+    "./digest-queue": {
+      "types": "./dist/digest-queue.d.ts",
+      "default": "./dist/digest-queue.js"
+    },
     "./email": {
       "types": "./dist/email.d.ts",
       "default": "./dist/email.js"
@@ -109,6 +113,7 @@
       "article-store": ["./dist/article-store.d.ts"],
       "article-summary": ["./dist/article-summary.d.ts"],
       "auth": ["./dist/auth.d.ts"],
+      "digest-queue": ["./dist/digest-queue.d.ts"],
       "email": ["./dist/email.d.ts"],
       "email-verification": ["./dist/email-verification.d.ts"],
       "events": ["./dist/events.d.ts"],
