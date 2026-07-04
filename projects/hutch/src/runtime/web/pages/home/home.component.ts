@@ -23,17 +23,26 @@ const HOME_CLIENT_SCRIPT = `<script src="/client-dist/home.client.js" defer></sc
  * can't redirect into a loop. */
 const HOME_SPLIT_SCRIPT = `<script src="/client-dist/homepage-split.client.js" defer></script>`;
 
-export function HomePage(params: {
+/**
+ * `/` and the A/B landing arms are mutually-exclusive render modes, so the
+ * variant marker and the split-script flag are a union — a caller passes exactly
+ * one, never both or neither:
+ * - the arms (`/landing-a`, `/landing-b`) pass `variant` (noindex, no split
+ *   script — see `HOME_SPLIT_SCRIPT`);
+ * - `/` passes `abSplit` (true for a human guest → emit the split script; false
+ *   for a bot → keep the canonical control `/`).
+ */
+type HomePageParams = {
 	userCount: number;
 	staticBaseUrl: string;
 	browser: InstallBrowser;
 	foundingAllocation: FoundingAllocation;
-	/** Set on the A/B landing arms (`/landing-a`, `/landing-b`); absent on `/`. */
-	variant?: HomepageVariantMarker;
-	/** `/` only: emit the client A/B split redirect script. True for human guests,
-	 * false for bots (so crawlers keep the control `/`). Ignored on the arms. */
-	abSplit?: boolean;
-}): PageBody {
+} & (
+	| { variant: HomepageVariantMarker; abSplit?: never }
+	| { variant?: never; abSplit: boolean }
+);
+
+export function HomePage(params: HomePageParams): PageBody {
 	const { userCount, staticBaseUrl, browser, foundingAllocation, variant, abSplit } = params;
 	const foundingMemberLimit = foundingAllocation.foundingMemberLimit;
 	const foundingProgressHtml = renderFoundingProgress({ userCount, foundingAllocation });
