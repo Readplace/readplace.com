@@ -649,22 +649,24 @@ export type SendUserDigestDetail = z.infer<
 	typeof SendUserDigestCommand.detailSchema
 >;
 
-/** Irreversible fact: a reader-ready digest email was sent to a user. Published
- * by the `send-user-digest` Lambda after the email send and the per-article
- * set-once `emailSentAt` stamps. No load-bearing consumer today — wired so
- * future analytics handlers can subscribe without a schema change. */
-export const DigestEmailSentEvent = defineEvent({
-	name: "digest-email-sent",
+/** Irreversible fact: a reader-ready email was sent to a user. The one email
+ * batches every reader-ready URL that came due in the 6-hourly window, so `urls`
+ * carries the whole set (was a single `url`). Published by the `send-user-digest`
+ * Lambda after the email send and the per-article set-once `emailSentAt` stamps.
+ * No load-bearing consumer today — wired so future analytics handlers can
+ * subscribe without a schema change. */
+export const ReaderReadyEmailSentEvent = defineEvent({
+	name: "reader-ready-email-sent",
 	source: "hutch.reader-ready",
-	detailType: "DigestEmailSent",
+	detailType: "ReaderReadyEmailSent",
 	detailSchema: z.object({
 		userId: z.string(),
-		itemCount: z.number(),
+		urls: z.array(z.string()),
 		sentAt: z.string(),
 	}),
 });
-export type DigestEmailSentDetail = z.infer<
-	typeof DigestEmailSentEvent.detailSchema
+export type ReaderReadyEmailSentDetail = z.infer<
+	typeof ReaderReadyEmailSentEvent.detailSchema
 >;
 
 /** Published once a forwarded email is parsed, sanitized, stored, and a row

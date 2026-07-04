@@ -6,7 +6,7 @@ import type {
 } from "aws-lambda";
 import { z } from "zod";
 import type { HutchLogger } from "@packages/hutch-logger";
-import { DigestEmailSentEvent, SendUserDigestCommand } from "@packages/hutch-infra-components";
+import { ReaderReadyEmailSentEvent, SendUserDigestCommand } from "@packages/hutch-infra-components";
 import type { PublishEvent } from "@packages/hutch-infra-components/runtime";
 import { UserIdSchema } from "@packages/domain/user";
 import type { UserId } from "@packages/domain/user";
@@ -175,9 +175,9 @@ async function processUserDigest(
 	}
 	await deleteKeys([...included.map(({ item }) => item.url), ...staleKeys], userId, deps);
 	try {
-		await deps.publishEvent(DigestEmailSentEvent, {
+		await deps.publishEvent(ReaderReadyEmailSentEvent, {
 			userId: detail.userId,
-			itemCount: included.length,
+			urls: included.map(({ item }) => item.originalUrl),
 			sentAt: now.toISOString(),
 		});
 	} catch (error) {

@@ -2,7 +2,7 @@ import { buildSqsEvent } from "@packages/test-fixtures/sqs";
 import { buildLambdaContext } from "@packages/test-fixtures/lambda-context";
 import { noopLogger } from "@packages/hutch-logger";
 import { ReaderArticleHashId } from "@packages/domain/article";
-import { DigestEmailSentEvent } from "@packages/hutch-infra-components";
+import { ReaderReadyEmailSentEvent } from "@packages/hutch-infra-components";
 import type { UserArticleNotificationState } from "@packages/provider-contracts/article-store";
 import { initSendUserDigestHandler, type SendUserDigestDeps } from "./send-user-digest-handler";
 
@@ -74,7 +74,7 @@ async function run(handler: ReturnType<typeof createHandler>["handler"], userId?
 
 describe("initSendUserDigestHandler", () => {
 	describe("happy path", () => {
-		it("sends one digest of every eligible article, stamps + drains each row, and publishes DigestEmailSent", async () => {
+		it("sends one digest of every eligible article, stamps + drains each row, and publishes ReaderReadyEmailSent", async () => {
 			const { handler, deps } = createHandler({
 				listDigestItemsByUser: jest.fn().mockResolvedValue([
 					digestItem(URL_A, CANON_A),
@@ -99,9 +99,9 @@ describe("initSendUserDigestHandler", () => {
 			expect(deps.markReaderReadyEmailSent).toHaveBeenCalledWith({ userId: USER_ID, url: URL_B, at: NOW });
 			expect(deps.deleteDigestItem).toHaveBeenCalledWith({ userId: USER_ID, url: CANON_A });
 			expect(deps.deleteDigestItem).toHaveBeenCalledWith({ userId: USER_ID, url: CANON_B });
-			expect(deps.publishEvent).toHaveBeenCalledWith(DigestEmailSentEvent, {
+			expect(deps.publishEvent).toHaveBeenCalledWith(ReaderReadyEmailSentEvent, {
 				userId: USER_ID,
-				itemCount: 2,
+				urls: [URL_A, URL_B],
 				sentAt: NOW.toISOString(),
 			});
 		});
@@ -280,7 +280,7 @@ describe("initSendUserDigestHandler", () => {
 			expect(deps.publishEvent).toHaveBeenCalledTimes(1);
 		});
 
-		it("acks the record even if publishing the DigestEmailSent event fails", async () => {
+		it("acks the record even if publishing the ReaderReadyEmailSent event fails", async () => {
 			const { handler, deps } = createHandler({
 				publishEvent: jest.fn().mockRejectedValue(new Error("bus down")),
 			});
