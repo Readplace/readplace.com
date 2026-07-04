@@ -96,6 +96,7 @@ import { initDynamoDbInboxEmailLink } from "./providers/inbox-email/dynamodb-inb
 import { initExchangeGoogleCode } from "./providers/google-auth/google-token";
 import { initExchangeAppleCode } from "./providers/apple-auth/apple-token";
 import { initCreateAppleClientSecret } from "./providers/apple-auth/apple-client-secret";
+import { deriveStateSigningSecret } from "./providers/apple-auth/apple-state-secret";
 import { initInMemoryStripeCheckout } from "@packages/test-fixtures/providers/stripe-checkout";
 import { initStripeCheckout } from "./providers/stripe-checkout/stripe-checkout";
 import { initInMemoryPendingSignup } from "@packages/test-fixtures/providers/pending-signup";
@@ -272,9 +273,7 @@ function initProviders() {
 				fetch: globalThis.fetch,
 			}),
 			clientId: appleClientId,
-			// The decoded .p8 PEM doubles as the HMAC secret for the sign-in state
-			// cookie — same trust class as Apple's client secret, so no fifth env var.
-			stateSigningSecret: applePrivateKeyPem,
+			stateSigningSecret: deriveStateSigningSecret(applePrivateKeyPem),
 		};
 
 		const stripe = initStripeCheckout({
@@ -461,7 +460,7 @@ function initProviders() {
 					fetch: globalThis.fetch,
 				}),
 				clientId: devAppleClientId,
-				stateSigningSecret: devApplePrivateKeyPem,
+				stateSigningSecret: deriveStateSigningSecret(devApplePrivateKeyPem),
 			}
 			: undefined;
 	const crawlStore = initInMemoryArticleCrawl();
