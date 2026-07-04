@@ -1,15 +1,16 @@
 import Foundation
 
-/// Rewrites an `https` authorize URL to Chrome's `googlechromes` scheme so the
-/// OS opens it in Chrome (reusing the user's Chrome session) when Chrome is
-/// installed; otherwise returns the URL unchanged so the default browser opens
-/// it. Host, path and query are preserved either way.
-///
-/// `canOpen` is injected (it wraps `UIApplication.canOpenURL` in the app, a stub
-/// in tests). Chrome documents `googlechrome://` for http and `googlechromes://`
+/// Rewrites an `https` authorize URL to Chrome's `googlechromes` scheme so the OS
+/// opens it in Chrome, which shares one cookie jar across scheme-opened tabs and
+/// so reuses the user's existing Chrome web session. Host, path and query are
+/// preserved. Chrome documents `googlechrome://` for http and `googlechromes://`
 /// for https; the authorize URL is always https, so we use `googlechromes`.
-func chromeURLForHTTPS(_ httpsURL: URL, canOpen: (URL) -> Bool) -> URL {
-	guard canOpen(URL(string: "googlechromes://")!) else { return httpsURL }
+///
+/// The rewrite is unconditional: whether Chrome can actually be opened is left to
+/// the system when the App seam opens the URL (via the open completion handler),
+/// not to a `canOpenURL` pre-check — a false-negative probe must never silently
+/// route login into the default browser (Safari), where the user isn't signed in.
+func chromeURLForHTTPS(_ httpsURL: URL) -> URL {
 	var components = URLComponents(url: httpsURL, resolvingAgainstBaseURL: false)
 	components?.scheme = "googlechromes"
 	return components?.url ?? httpsURL
@@ -17,11 +18,12 @@ func chromeURLForHTTPS(_ httpsURL: URL, canOpen: (URL) -> Bool) -> URL {
 
 /// The seams the UI-free web-auth core needs, injected so tests never launch a
 /// browser or hit the network: where to persist the in-flight secrets, how to
-/// detect/open the browser, and how to exchange the returned code.
+/// open the authorize URL, and how to exchange the returned code. `openAuthorizeURL`
+/// receives the raw https authorize URL; the Chrome-first rewrite and the
+/// open-failure fallback live behind this seam in the App layer.
 struct WebAuthFlowDependencies {
 	let pendingStore: PendingAuthStore
-	let canOpenURL: (URL) -> Bool
-	let openURL: (URL) -> Void
+	let openAuthorizeURL: (URL) -> Void
 	let exchange: (_ callbackURL: URL, _ pending: PendingAuth) async -> Result<Void, Error>
 }
 
@@ -49,7 +51,7 @@ func initWebAuthFlow(deps: WebAuthFlowDependencies) -> WebAuthFlow {
 				state: request.state,
 				redirectURI: request.redirectURI
 			))
-			deps.openURL(chromeURLForHTTPS(request.url, canOpen: deps.canOpenURL))
+			deps.openAuthorizeURL(request.url)
 		},
 		complete: { callbackURL in
 			guard let pending = deps.pendingStore.load() else { return nil }

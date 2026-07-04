@@ -23,7 +23,7 @@ import { bannerStateFromRequest, sendComponent } from "@packages/web-shell";
 
 import { extractReturnUrl, parseReturnUrl } from "./parse-return-url";
 import { baseCookieOptions } from "../cookie-options";
-import { SESSION_COOKIE_NAME } from "@packages/web-session";
+import { SESSION_COOKIE_MAX_AGE_MS, SESSION_COOKIE_NAME } from "@packages/web-session";
 import { LoginPage } from "./auth.component";
 import { initFetchUserCount } from "./fetch-user-count";
 import { readClickAttribution } from "../click-attribution.middleware";
@@ -85,7 +85,7 @@ const verifyState = (signed: string, secret: string): string | null => {
 
 export const initGoogleAuthRoutes = (deps: GoogleAuthDependencies): Router => {
 	const router = express.Router();
-	const sessionCookieOptions = baseCookieOptions(deps.secureCookies);
+	const sessionCookieOptions = { ...baseCookieOptions(deps.secureCookies), maxAge: SESSION_COOKIE_MAX_AGE_MS };
 	const redirectUri = `${deps.appOrigin}/auth/google/callback`;
 	const fetchUserCount = initFetchUserCount({
 		countUsers: deps.countUsers,
@@ -107,7 +107,7 @@ export const initGoogleAuthRoutes = (deps: GoogleAuthDependencies): Router => {
 		const signedState = signState(statePayload, deps.googleClientSecret);
 
 		res.cookie(STATE_COOKIE, signedState, {
-			...sessionCookieOptions,
+			...baseCookieOptions(deps.secureCookies),
 			maxAge: STATE_TTL_MS,
 		});
 
