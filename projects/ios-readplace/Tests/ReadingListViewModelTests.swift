@@ -898,4 +898,34 @@ final class ReadingListViewModelTests: XCTestCase {
 
 		XCTAssertEqual(viewModel.warningText, "Cannot save that link.")
 	}
+
+	func testMintReaderSessionFollowsTheServersCreateSessionAction() async {
+		let queueWithSession = """
+		{
+		  "class": ["collection", "articles"],
+		  "properties": { "total": 1, "page": 1, "pageSize": 20 },
+		  "entities": [\(Fixtures.article(id: "a1"))],
+		  "links": [{ "rel": ["self"], "href": "/queue" }, { "rel": ["root"], "href": "/queue" }],
+		  "actions": [{ "name": "create-session", "href": "/custom/session", "method": "POST" }]
+		}
+		"""
+		StubURLProtocol.setHandler { request, _ in
+			switch request.url?.path {
+			case "/": return .redirect(to: "/queue")
+			case "/queue": return .json(200, queueWithSession)
+			case "/custom/session": return StubURLProtocol.Stub(status: 204, headers: ["Set-Cookie": "sess=v; Path=/"])
+			default: return .json(404, "{}")
+			}
+		}
+		let viewModel = makeViewModel(store: TestSupport.loggedInStore())
+		await viewModel.refresh()
+
+		let cookies = await viewModel.mintReaderSession()
+
+		XCTAssertEqual(cookies?.first?.value, "v")
+		XCTAssertTrue(
+			StubURLProtocol.records.contains { $0.request.url?.path == "/custom/session" },
+			"the reader session mint follows the discovered create-session action, not a hard-coded route"
+		)
+	}
 }

@@ -17,10 +17,11 @@ final class AffordancePresentationTests: XCTestCase {
 		XCTAssertTrue(presentation.isToolbarControl)
 	}
 
-	func testCaptureOnlySavesAreNotToolbarControls() {
-		// iOS can't capture a page from the toolbar, so save-html/save-content render
-		// nowhere in the toolbar — they are reached only through the Share Sheet.
-		for token in ["save-html", "save-content"] {
+	func testMachineOnlyActionsAreNotToolbarControls() {
+		// iOS can't capture a page from the toolbar, so save-html/save-content are
+		// reached only through the Share Sheet; create-session is invoked bespoke to
+		// mint the reader session. None render in the toolbar.
+		for token in ["save-html", "save-content", "create-session"] {
 			let presentation = AffordancePresentation(token: token)
 			XCTAssertFalse(presentation.isToolbarControl, "\(token) must not present as a toolbar control")
 			XCTAssertFalse(presentation.removesItem)
