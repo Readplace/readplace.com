@@ -25,6 +25,7 @@ import {
 import { SESSION_TTL_SECONDS, SessionRow, initGetSessionUserId } from "@packages/web-session";
 import type {
 	CountUsers,
+	CreateAppleUser,
 	CreateGoogleUser,
 	CreateSession,
 	CreateUser,
@@ -81,6 +82,7 @@ export function initDynamoDbAuth(deps: {
 	createUser: CreateUser;
 	createUserWithPasswordHash: CreateUserWithPasswordHash;
 	createGoogleUser: CreateGoogleUser;
+	createAppleUser: CreateAppleUser;
 	findUserByEmail: FindUserByEmail;
 	verifyCredentials: VerifyCredentials;
 	createSession: CreateSession;
@@ -219,7 +221,12 @@ export function initDynamoDbAuth(deps: {
 		return result.ok ? { ok: true, userId } : result;
 	};
 
-	const createGoogleUser: CreateGoogleUser = async ({ email, userId, attribution }) => {
+	/** A user created from a federated identity provider (Google/Apple): verified
+	 * email, no password hash. Both providers share this body because they persist
+	 * an identical row — the provider's `sub` is deliberately never stored, users
+	 * are keyed by normalized email. The Gmail canonical claim still applies, so an
+	 * Apple ID backed by a Gmail address contends for the same uniqueness claim. */
+	const createFederatedUser: CreateGoogleUser = async ({ email, userId, attribution }) => {
 		const normalizedEmail = normalizeEmail(email);
 		assert(!normalizedEmail.startsWith(CLAIM_PK_PREFIX), `Email collides with the claim namespace: ${email}`);
 
@@ -238,6 +245,8 @@ export function initDynamoDbAuth(deps: {
 		});
 		return result.ok ? { ok: true, userId } : result;
 	};
+	const createGoogleUser: CreateGoogleUser = createFederatedUser;
+	const createAppleUser: CreateAppleUser = createFederatedUser;
 
 	const findUserByEmail: FindUserByEmail = async (email) => {
 		const normalizedEmail = normalizeEmail(email);
@@ -409,6 +418,7 @@ export function initDynamoDbAuth(deps: {
 		createUser,
 		createUserWithPasswordHash,
 		createGoogleUser,
+		createAppleUser,
 		findUserByEmail,
 		verifyCredentials,
 		createSession,

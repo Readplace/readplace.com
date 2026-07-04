@@ -6,7 +6,7 @@ export const CLICK_COOKIE_NAME = "hutch_click";
 const CLICK_COOKIE_MAX_AGE_MS = 30 * 24 * 60 * 60 * 1000;
 const MAX_UTM_VALUE_LENGTH = 256;
 
-const ClickAttributionSchema = z.object({
+export const ClickAttributionSchema = z.object({
 	utm_source: z.string().optional(),
 	utm_medium: z.string().optional(),
 	utm_campaign: z.string().optional(),

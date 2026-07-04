@@ -8,6 +8,7 @@ import express from "express";
 import type { LogParseError } from "@packages/hutch-infra-components";
 import type {
 	CountUsers,
+	CreateAppleUser,
 	CreateGoogleUser,
 	CreateSession,
 	CreateUser,
@@ -59,6 +60,7 @@ import type {
 	SetPrimaryCard,
 } from "@packages/provider-contracts/payment-methods";
 import type { ExchangeGoogleCode } from "@packages/provider-contracts/google-auth";
+import type { ExchangeAppleCode } from "@packages/provider-contracts/apple-auth";
 import type { GetIosAppSignals, RecordIosAnyActivity, RecordIosSavedArticle } from "@packages/provider-contracts/ios-onboarding-signal";
 import type {
 	CountArticlesByUser,
@@ -122,6 +124,7 @@ import type { ConversionEvent } from "./conversions";
 import { createClickAttributionMiddleware } from "./web/click-attribution.middleware";
 import { createVisitorIdMiddleware } from "./web/visitor-id.middleware";
 import { initGoogleAuthRoutes } from "./web/auth/google-auth.page";
+import { initAppleAuthRoutes } from "./web/auth/apple-auth.page";
 import { initResolveLogin } from "@packages/web-session";
 import { isHttpsOrigin } from "./web/cookie-options";
 import { initForgotPasswordRoutes } from "./web/auth/forgot-password.page";
@@ -197,6 +200,7 @@ interface AppDependencies {
 	createUser: CreateUser;
 	createUserWithPasswordHash: CreateUserWithPasswordHash;
 	createGoogleUser: CreateGoogleUser;
+	createAppleUser: CreateAppleUser;
 	findUserByEmail: FindUserByEmail;
 	verifyCredentials: VerifyCredentials;
 	createSession: CreateSession;
@@ -211,6 +215,11 @@ interface AppDependencies {
 		exchangeGoogleCode: ExchangeGoogleCode;
 		clientId: string;
 		clientSecret: string;
+	};
+	appleAuth?: {
+		exchangeAppleCode: ExchangeAppleCode;
+		clientId: string;
+		stateSigningSecret: string;
 	};
 	findArticleById: FindArticleById;
 	findArticleByUrl: FindArticleByUrl;
@@ -792,6 +801,11 @@ export function createApp(dependencies: AppDependencies): Express {
 		if (result.ok) await provisionInboxAddressOnSignup(result.userId);
 		return result;
 	};
+	const createAppleUser: CreateAppleUser = async (input) => {
+		const result = await deps.createAppleUser(input);
+		if (result.ok) await provisionInboxAddressOnSignup(result.userId);
+		return result;
+	};
 
 	const authRouter = initAuthRoutes({
 		hashPassword: deps.hashPassword,
@@ -859,6 +873,31 @@ export function createApp(dependencies: AppDependencies): Express {
 			foundingAllocation,
 		});
 		app.use(googleAuthRouter);
+	}
+
+	if (deps.appleAuth) {
+		const appleAuthRouter = initAppleAuthRoutes({
+			appleClientId: deps.appleAuth.clientId,
+			stateSigningSecret: deps.appleAuth.stateSigningSecret,
+			appOrigin,
+			baseUrl: deps.baseUrl,
+			staticBaseUrl,
+			secureCookies,
+			createSession: deps.createSession,
+			createAppleUser,
+			findUserByEmail: deps.findUserByEmail,
+			countUsers,
+			markEmailVerified: deps.markEmailVerified,
+			exchangeAppleCode: deps.appleAuth.exchangeAppleCode,
+			upsertTrialing: deps.subscriptionProviders.upsertTrialing,
+			createTrialEndSchedule: deps.trialScheduler.createTrialEndSchedule,
+			sendEmail: deps.sendEmail,
+			logError: deps.logError,
+			now: deps.now,
+			conversionLogger: deps.conversionLogger,
+			foundingAllocation,
+		});
+		app.use(appleAuthRouter);
 	}
 
 	const forgotPasswordRouter = initForgotPasswordRoutes({
