@@ -481,6 +481,7 @@
 }
 
 .queue-article__action-btn {
+  position: relative;
   display: inline-flex;
   align-items: center;
   justify-content: center;
@@ -538,6 +539,76 @@
   background: var(--error);
   color: var(--error-foreground);
   border-color: var(--error);
+}
+
+/**
+ * Mark-read/unread in-flight loader — mirrors the reader's mark-read control so
+ * the status toggle shows the same three animated dots while htmx re-swaps the
+ * <main> fragment, covering the slight round-trip delay.
+ *
+ * 1. Scoped to the submitting form's own htmx-request, NOT an ambient
+ *    descendant match: the card polls itself (hx-get on the root every 3s),
+ *    which adds htmx-request to the card root. An ancestor-wide selector would
+ *    flash the loader on every poll. The form only carries htmx-request when it
+ *    is the element issuing the request (an actual mark-read/unread submit).
+ * 2. visibility (not display) keeps the label's box so the button width is
+ *    stable while the absolutely-positioned loader overlays it.
+ * 3. During the request the button is disabled by hx-disabled-elt; keep it at
+ *    full opacity with a progress cursor, distinct from the dimmed 0.5
+ *    pre-fetch processing state.
+ */
+.queue-article__action-btn-loader {
+  position: absolute;
+  inset: 0;
+  display: none;
+  align-items: center;
+  justify-content: center;
+  gap: 0.35em;
+}
+
+.queue-article__action-form.htmx-request .queue-article__action-btn-label {
+  visibility: hidden; /* 2 */
+}
+
+.queue-article__action-form.htmx-request .queue-article__action-btn-loader {
+  display: flex; /* 1 */
+}
+
+.queue-article__action-form.htmx-request .queue-article__action-btn--status:disabled {
+  cursor: progress; /* 3 */
+  opacity: 1;
+}
+
+.queue-article__action-btn-loader span {
+  width: 0.4em;
+  height: 0.4em;
+  border-radius: 50%;
+  background: currentColor;
+  animation: queue-mark-read-dot 1.2s ease-in-out infinite both;
+}
+
+.queue-article__action-btn-loader span:nth-child(2) {
+  animation-delay: 0.4s;
+}
+
+.queue-article__action-btn-loader span:nth-child(3) {
+  animation-delay: 0.8s;
+}
+
+@keyframes queue-mark-read-dot {
+  0%,
+  100% {
+    transform: scale(0.5);
+  }
+  50% {
+    transform: scale(1);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .queue-article__action-btn-loader span {
+    animation: none;
+  }
 }
 
 .queue__empty {

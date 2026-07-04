@@ -13,6 +13,11 @@ const TEMPLATE = readFileSync(join(__dirname, "queue-card.template.html"), "utf-
 export interface ActionDisplayModel extends ArticleAction {
 	buttonClass: string;
 	disabled: boolean;
+	/** "with-loader" for the mark-read/unread toggle — it renders the in-flight
+	 * loader affordance and hx-disabled-elt so the button behaves like the
+	 * reader's mark-read control during the htmx <main> swap. "bare" for the
+	 * delete action, a static icon that opts out of the loader treatment. */
+	affordance: "with-loader" | "bare";
 }
 
 export interface QueueCardDisplayModel extends QueueArticleViewModel {
@@ -41,6 +46,7 @@ export function toActionDisplayModel(
 		url: withInternalTracking(action.url, { source: "queue-card", content: action.testAction }),
 		buttonClass,
 		disabled: options.isProcessing && isStatusAction,
+		affordance: isStatusAction ? "with-loader" : "bare",
 	};
 }
 
@@ -69,6 +75,10 @@ export function toQueueCardDisplayModel(
 	};
 }
 
+/** Lets the template branch on the `affordance` string enum
+ * (`{{#if (eq affordance "with-loader")}}`); Handlebars has no built-in equality. */
+const eq = (a: unknown, b: unknown): boolean => a === b;
+
 export function renderQueueCard(displayModel: QueueCardDisplayModel): string {
-	return render(TEMPLATE, displayModel);
+	return render(TEMPLATE, displayModel, { helpers: { eq } });
 }

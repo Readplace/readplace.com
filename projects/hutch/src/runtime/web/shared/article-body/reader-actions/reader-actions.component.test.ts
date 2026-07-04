@@ -56,6 +56,16 @@ describe("RegularReader", () => {
 		expect(form.getAttribute("hx-select")).toBe("main");
 		expect(form.getAttribute("hx-swap")).toBe("outerHTML show:none");
 
+		// In flight the visible label is visibility:hidden (dropped from the a11y
+		// tree) and the loader is aria-hidden, so aria-label keeps the button named
+		// while it is disabled — parity with the queue and toast mark-read controls.
+		expect(topDoc.querySelector("[data-test-mark-read-btn]")?.getAttribute("aria-label")).toBe(
+			"Mark as read",
+		);
+		expect(
+			bottomDoc.querySelector("[data-test-mark-read-bottom-btn]")?.getAttribute("aria-label"),
+		).toBe("Mark as read");
+
 		expect(bottomDoc.querySelector("[data-test-back-bottom-link]")?.getAttribute("href")).toBe(
 			BACK.bottomHref,
 		);

@@ -46,6 +46,37 @@ describe("renderToast", () => {
 		).toBe("unread");
 	});
 
+	it("gives the action button the in-flight loader affordance and disables it during the request", () => {
+		const doc = parse(
+			renderToast({
+				message: "Marked as read",
+				dismissMs: 10000,
+				actions: [
+					{
+						method: "POST",
+						url: "/queue/abc/status",
+						label: "Undo",
+						fields: [{ name: "status", value: "unread" }],
+					},
+				],
+			}),
+		);
+		const button = doc.querySelector("[data-test-toast-action]");
+		assert(button, "action button must render");
+
+		const label = button.querySelector(".toast__action-label");
+		assert(label, "action button must wrap its label in a label span");
+		expect(label.textContent).toBe("Undo");
+		expect(button.querySelectorAll(".toast__action-loader span").length).toBe(3);
+		// Mid-request the label is visibility:hidden (dropped from the a11y tree)
+		// and the loader is aria-hidden, so aria-label carries the button's
+		// accessible name while it is disabled and in flight. aria-label (not
+		// title) avoids a hover tooltip that would merely repeat the visible label.
+		expect(button.getAttribute("aria-label")).toBe("Undo");
+
+		expect(button.closest("form")?.getAttribute("hx-disabled-elt")).toBe("find button");
+	});
+
 	it("renders no action forms when the toast has no actions", () => {
 		const doc = parse(renderToast({ message: "Saved", dismissMs: 4000, actions: [] }));
 		const toast = doc.querySelector("[data-test-toast]");
