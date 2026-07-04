@@ -9,8 +9,7 @@
     "ReaderSheet.swift": "pure SwiftUI layout",
     "ArticleRow.swift": "pure SwiftUI layout",
     "ReadingListView.swift": "pure SwiftUI layout",
-    "ShareViewController.swift": "UIKit share-extension shell (OS boundary)",
-    "ShareURLExtractor.swift": "compiled only into the extension-only target, so no test can reach it yet; PR3 (E2) relocates it to Shared/ and covers it, then it moves to a 100% floor"
+    "ShareViewController.swift": "UIKit share-extension shell (OS boundary)"
   },
   "floors": {
     "AppConfig.swift": 100,
@@ -18,6 +17,8 @@
     "PendingAuthStore.swift": 100,
     "ToolbarRoute.swift": 100,
     "ReaderNavigation.swift": 100,
+    "ShareStatusPresentation.swift": 100,
+    "ShareURLExtractor.swift": 96,
     "SirenModels.swift": 99,
     "WebAuthFlow.swift": 97,
     "PKCE.swift": 95,
