@@ -12,7 +12,7 @@ import WebKit
 /// existing precedent.
 struct ReaderWebView: UIViewControllerRepresentable {
 	let url: URL
-	let cookie: HTTPCookie
+	let cookies: [HTTPCookie]
 	let onMarkedRead: () -> Void
 	let onClose: () -> Void
 	/// Injected so the composition point wires the live browser and tests inject
@@ -51,10 +51,16 @@ struct ReaderWebView: UIViewControllerRepresentable {
 		webView.uiDelegate = context.coordinator
 		controller.view = webView
 
-		// Inject the prefetched session cookie into the web view's own store before
+		// Inject every prefetched session cookie into the web view's own store before
 		// the first navigation, so the reader and its in-reader XHRs are
-		// authenticated from the first request.
-		webView.configuration.websiteDataStore.httpCookieStore.setCookie(cookie) {
+		// authenticated from the first request. The client forwards whatever the
+		// bootstrap set rather than picking one by name, so a server cookie change
+		// needs no app release.
+		Task { @MainActor in
+			let cookieStore = webView.configuration.websiteDataStore.httpCookieStore
+			for cookie in cookies {
+				await cookieStore.setCookie(cookie)
+			}
 			webView.load(URLRequest(url: url))
 		}
 		return controller

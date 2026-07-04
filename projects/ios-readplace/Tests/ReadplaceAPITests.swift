@@ -671,10 +671,10 @@ final class ReadplaceAPITests: XCTestCase {
 			)
 		}
 
-		let cookie = try await makeAPI(store: store).bootstrapSession()
+		let cookies = try await makeAPI(store: store).bootstrapSession()
 
-		XCTAssertEqual(cookie.name, "hutch_sid")
-		XCTAssertEqual(cookie.value, "sess-abc")
+		XCTAssertEqual(cookies.count, 1)
+		XCTAssertEqual(cookies.first?.value, "sess-abc")
 	}
 
 	func testBootstrapSessionRefreshesOnceWhenBearerExpired() async throws {
@@ -693,16 +693,16 @@ final class ReadplaceAPITests: XCTestCase {
 			}
 		}
 
-		let cookie = try await makeAPI(store: store).bootstrapSession()
+		let cookies = try await makeAPI(store: store).bootstrapSession()
 
-		XCTAssertEqual(cookie.value, "fresh-sess")
+		XCTAssertEqual(cookies.first?.value, "fresh-sess")
 		XCTAssertEqual(sessionAttempts, 2, "should retry once after refreshing the bearer")
 		XCTAssertEqual(store.tokens?.accessToken, "fresh-access")
 	}
 
 	func testBootstrapSessionKeepsTheCookieOutOfTheSharedJar() async throws {
 		let host = try XCTUnwrap(URL(string: AppConfig.serverBaseURL)?.host)
-		for stale in HTTPCookieStorage.shared.cookies?.filter({ $0.name == AppConfig.sessionCookieName }) ?? [] {
+		for stale in HTTPCookieStorage.shared.cookies?.filter({ $0.name == "hutch_sid" }) ?? [] {
 			HTTPCookieStorage.shared.deleteCookie(stale)
 		}
 		StubURLProtocol.setHandler { _, _ in
@@ -712,8 +712,8 @@ final class ReadplaceAPITests: XCTestCase {
 		_ = try await makeAPI(store: TestSupport.loggedInStore()).bootstrapSession()
 
 		XCTAssertNil(
-			HTTPCookieStorage.shared.cookies?.first { $0.name == AppConfig.sessionCookieName },
-			"the minted hutch_sid cookie must never land in the process-wide shared jar"
+			HTTPCookieStorage.shared.cookies?.first { $0.name == "hutch_sid" },
+			"the minted session cookie must never land in the process-wide shared jar"
 		)
 	}
 }

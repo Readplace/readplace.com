@@ -738,46 +738,24 @@ final class ReadingListViewModelTests: XCTestCase {
 		XCTAssertNil(viewModel.errorText)
 	}
 
-	func testReaderMarkedReadDropsTheRowInstantlyWithoutItsOwnFetch() async {
-		// The reader's own POST already happened inside the webview, so the native
-		// side drops the row the moment the bridge fires — the unread-only list
-		// never shows it again behind the sheet — and issues no request of its own:
-		// reconciliation belongs to the converge the sheet's dismissal triggers.
-		StubURLProtocol.setHandler(markReadHandler { _ in .redirect(to: "/queue") })
-		let viewModel = makeViewModel(store: TestSupport.loggedInStore())
-		await viewModel.refresh()
-		let requestsAfterLoad = StubURLProtocol.records.count
-
-		viewModel.readerMarkedRead(id: "a1")
-
-		XCTAssertEqual(viewModel.articles.map(\.id), ["a2"], "the read row is gone before the sheet closes")
-		XCTAssertEqual(
-			StubURLProtocol.records.count, requestsAfterLoad,
-			"the reader already posted inside the webview; the drop itself fires nothing — the dismissal converge owns the re-read"
+	func testReaderStatusChangedConvergesWithTheServerWithoutInferringDirection() async {
+		// The reader's own POST already happened inside the webview, but the client
+		// can't see which direction the toggle went, so it does not infer "read" and
+		// drop a row — it re-reads the collection and adopts the server's truth, which
+		// no longer lists the read item (a1) and brings in an item marked unread on
+		// the website (w1).
+		let postAction = Fixtures.collection(
+			entitiesJSON: [Fixtures.article(id: "a2"), Fixtures.article(id: "w1")], total: 2
 		)
-	}
-
-	func testWebSheetDismissalAfterReaderMarkedReadConvergesAndKeepsTheRowDropped() async {
-		// Closing the reader converges with the server: the fresh page brings in an
-		// item marked unread on the website (w1), while the row the reader just
-		// marked read stays dropped even though the eventually-consistent GET still
-		// lists it — the dismissal converge carries the reader's confirmed drop.
-		let staleServerTruth = Fixtures.collection(
-			entitiesJSON: [
-				Fixtures.article(id: "a1"), Fixtures.article(id: "a2"), Fixtures.article(id: "w1"),
-			],
-			total: 3
-		)
-		StubURLProtocol.setHandler(markReadHandler(laterQueue: staleServerTruth) { _ in .redirect(to: "/queue") })
+		StubURLProtocol.setHandler(markReadHandler(laterQueue: postAction) { _ in .redirect(to: "/queue") })
 		let viewModel = makeViewModel(store: TestSupport.loggedInStore())
 		await viewModel.refresh()
 
-		viewModel.readerMarkedRead(id: "a1")
-		await viewModel.handleWebSheetDismissal()
+		await viewModel.readerStatusChanged()
 
 		XCTAssertEqual(
 			viewModel.articles.map(\.id), ["a2", "w1"],
-			"the convergence load is adopted minus the read row, which an eventually-consistent GET must not resurrect"
+			"the server's re-read collection is adopted as truth; no row is dropped by inference"
 		)
 		XCTAssertTrue(
 			StubURLProtocol.records.allSatisfy { $0.request.httpMethod != "POST" },
@@ -957,7 +935,7 @@ final class ReadingListViewModelTests: XCTestCase {
 		Article(
 			id: id, url: "https://example.com/x", title: "X", siteName: nil, excerpt: nil,
 			imageURL: nil, readTimeMinutes: nil, isRead: false, savedAt: nil,
-			actions: [], readHref: readHref
+			actions: [], links: [], readHref: readHref
 		)
 	}
 
@@ -997,10 +975,9 @@ final class ReadingListViewModelTests: XCTestCase {
 		}
 		let viewModel = makeViewModel(store: TestSupport.loggedInStore())
 
-		let cookie = await viewModel.mintReaderSession()
+		let cookies = await viewModel.mintReaderSession()
 
-		XCTAssertEqual(cookie?.name, "hutch_sid")
-		XCTAssertEqual(cookie?.value, "sess-xyz")
+		XCTAssertEqual(cookies?.first?.value, "sess-xyz")
 		XCTAssertNil(viewModel.errorText)
 	}
 
@@ -1010,9 +987,9 @@ final class ReadingListViewModelTests: XCTestCase {
 		}
 		let viewModel = makeViewModel(store: TestSupport.loggedInStore())
 
-		let cookie = await viewModel.mintReaderSession()
+		let cookies = await viewModel.mintReaderSession()
 
-		XCTAssertNil(cookie, "a failed bootstrap mints no session, so the sheet shows its unavailable view")
+		XCTAssertNil(cookies, "a failed bootstrap mints no session, so the sheet shows its unavailable view")
 		XCTAssertNotNil(viewModel.errorText)
 	}
 }

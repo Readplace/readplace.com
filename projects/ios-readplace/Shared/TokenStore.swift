@@ -1,6 +1,6 @@
 import Foundation
 
-/// OAuth tokens issued by the server's `/oauth/token` endpoint.
+/// The OAuth token pair persisted for the app and share extension.
 struct OAuthTokens: Equatable {
 	let accessToken: String
 	let refreshToken: String
