@@ -17,6 +17,8 @@ export interface ReaderReadyUsersNotificationFanoutDeps {
 	findUserArticlesByUrl: FindUserArticlesByUrl;
 	markReaderViewSucceeded: MarkReaderViewSucceeded;
 	enqueueDigestItem: EnqueueDigestItem;
+	/** TTL retention applied to each enqueued digest row (safety purge). */
+	digestRetentionMs: number;
 	now: () => Date;
 	logger: HutchLogger;
 }
@@ -24,7 +26,7 @@ export interface ReaderReadyUsersNotificationFanoutDeps {
 export function initReaderReadyUsersNotificationFanoutHandler(
 	deps: ReaderReadyUsersNotificationFanoutDeps,
 ): Handler<SQSEvent, SQSBatchResponse> {
-	const { findUserArticlesByUrl, markReaderViewSucceeded, enqueueDigestItem, now, logger } = deps;
+	const { findUserArticlesByUrl, markReaderViewSucceeded, enqueueDigestItem, digestRetentionMs, now, logger } = deps;
 
 	return async (event): Promise<SQSBatchResponse> => {
 		const batchItemFailures: SQSBatchItemFailure[] = [];
@@ -47,6 +49,7 @@ export function initReaderReadyUsersNotificationFanoutHandler(
 							userId: saver.userId,
 							url: detail.url,
 							enqueuedAt: now().toISOString(),
+							retentionMs: digestRetentionMs,
 						});
 						return true;
 					}

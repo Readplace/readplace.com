@@ -18,8 +18,10 @@ import { requireEnv } from "@packages/require-env";
  * the next legitimate tick. */
 const DIGEST_EMAIL_COOLDOWN_MS = 5.5 * 60 * 60 * 1000;
 
-/** Kept in sync with the fan-out enqueue path; only the enqueue side consults it. */
-const DIGEST_QUEUE_RETENTION_MS = 30 * 24 * 60 * 60 * 1000;
+/** Cap the articles resolved (and emailed) per digest. Bounds the per-user
+ * live-state reads so a large backlog can't exceed the Lambda timeout after the
+ * cooldown slot is claimed; overflow rows drain on the next 6h tick. */
+const MAX_DIGEST_ITEMS = 25;
 
 const logger = HutchLogger.from(consoleLogger);
 const appOrigin = requireEnv("APP_ORIGIN");
@@ -57,7 +59,6 @@ const readerReadyState = initDynamoDbReaderReadyState({
 const digestQueue = initDynamoDbDigestQueue({
 	client: dynamoClient,
 	tableName: digestQueueTable,
-	retentionMs: DIGEST_QUEUE_RETENTION_MS,
 });
 
 const readArticleContent = initReadArticleContent({
@@ -89,6 +90,7 @@ export const handler = initSendUserDigestHandler({
 	publishEvent,
 	appOrigin,
 	cooldownMs: DIGEST_EMAIL_COOLDOWN_MS,
+	maxDigestItems: MAX_DIGEST_ITEMS,
 	now: () => new Date(),
 	logger,
 });

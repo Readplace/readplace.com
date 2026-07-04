@@ -8,11 +8,6 @@ import { initDynamoDbDigestQueue } from "./providers/digest-queue/dynamodb-diges
 import { initDigestScanHandler } from "./digest-scan/digest-scan-handler";
 import { requireEnv } from "@packages/require-env";
 
-/** Retention is only consulted on enqueue (the fan-out); the scan path never
- * writes. Kept in sync with the fan-out so a single provider construction here
- * has a defined value. */
-const DIGEST_QUEUE_RETENTION_MS = 30 * 24 * 60 * 60 * 1000;
-
 const digestQueueTable = requireEnv("DYNAMODB_DIGEST_QUEUE_TABLE");
 const sendUserDigestQueueUrl = requireEnv("SEND_USER_DIGEST_QUEUE_URL");
 
@@ -22,7 +17,6 @@ const sqsClient = new SQSClient({});
 const { scanPendingDigestUsers } = initDynamoDbDigestQueue({
 	client: dynamoClient,
 	tableName: digestQueueTable,
-	retentionMs: DIGEST_QUEUE_RETENTION_MS,
 });
 
 const { dispatch: dispatchSendUserDigest } = initSqsCommandDispatcher({

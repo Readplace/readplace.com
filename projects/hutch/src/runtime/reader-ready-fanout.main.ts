@@ -28,13 +28,13 @@ const articleStore = initDynamoDbArticleStore({
 const digestQueue = initDynamoDbDigestQueue({
 	client: dynamoClient,
 	tableName: digestQueueTable,
-	retentionMs: DIGEST_QUEUE_RETENTION_MS,
 });
 
 export const handler = initReaderReadyUsersNotificationFanoutHandler({
 	findUserArticlesByUrl: articleStore.findUserArticlesByUrl,
 	markReaderViewSucceeded: articleStore.markReaderViewSucceeded,
 	enqueueDigestItem: digestQueue.enqueueDigestItem,
+	digestRetentionMs: DIGEST_QUEUE_RETENTION_MS,
 	now: () => new Date(),
 	logger,
 });

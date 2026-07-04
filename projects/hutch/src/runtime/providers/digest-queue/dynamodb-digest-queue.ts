@@ -31,7 +31,6 @@ const MS_PER_SECOND = 1000;
 export function initDynamoDbDigestQueue(deps: {
 	client: DynamoDBDocumentClient;
 	tableName: string;
-	retentionMs: number;
 }): {
 	enqueueDigestItem: EnqueueDigestItem;
 	listDigestItemsByUser: ListDigestItemsByUser;
@@ -43,10 +42,10 @@ export function initDynamoDbDigestQueue(deps: {
 		tableName: deps.tableName,
 		schema: DigestQueueRow,
 	});
-	const retentionSeconds = Math.floor(deps.retentionMs / MS_PER_SECOND);
 
-	const enqueueDigestItem: EnqueueDigestItem = async ({ userId, url, enqueuedAt }) => {
+	const enqueueDigestItem: EnqueueDigestItem = async ({ userId, url, enqueuedAt, retentionMs }) => {
 		const canonical = ArticleResourceUniqueId.parse(url);
+		const retentionSeconds = Math.floor(retentionMs / MS_PER_SECOND);
 		const expiresAt = Math.floor(new Date(enqueuedAt).getTime() / MS_PER_SECOND) + retentionSeconds;
 		await table.put({
 			Item: {

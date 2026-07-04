@@ -1,9 +1,9 @@
 import { parseHTML } from "linkedom";
 
-/** Block elements whose text becomes one preview paragraph. Deliberately
- * excludes container blocks (`blockquote`, `div`, `article`) so a wrapper's
- * text is never captured twice — the ones listed never nest inside each other
- * in well-formed reader HTML. */
+/** Block elements whose text becomes one preview paragraph. Excludes container
+ * blocks (`blockquote`, `div`, `article`); when the listed blocks *do* nest
+ * (`<li><p>…</p></li>`, nested lists) the descendant is dropped at capture time
+ * so the shared text is never previewed — or budgeted — twice. */
 const PARAGRAPH_SELECTOR = "p, li, h1, h2, h3, h4, h5, h6";
 
 const DEFAULT_MAX_PARAGRAPHS = 3;
@@ -31,7 +31,14 @@ export function htmlToEmailPreview(
 	}
 
 	const paragraphs: string[] = [];
+	const captured: Element[] = [];
 	for (const el of document.querySelectorAll(PARAGRAPH_SELECTOR)) {
+		// A block nested inside one already captured (e.g. `<li><p>…</p></li>` or
+		// nested lists) has its text in the ancestor's textContent — skip it so the
+		// shared text isn't counted, and budgeted, twice. querySelectorAll yields
+		// document order, so an ancestor is always captured before its descendant.
+		if (captured.some((ancestor) => ancestor.contains(el))) continue;
+		captured.push(el);
 		const text = (el.textContent ?? "").replace(/\s+/g, " ").trim();
 		if (text) paragraphs.push(text);
 		if (paragraphs.length >= maxParagraphs) break;

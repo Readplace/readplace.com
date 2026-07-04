@@ -50,6 +50,30 @@ describe("initDigestScanHandler", () => {
 		expect(deps.dispatchSendUserDigest).not.toHaveBeenCalled();
 	});
 
+	it("acks the tick when a single dispatch fails, so the next tick retries instead of re-fanning-out to everyone", async () => {
+		const dispatchSendUserDigest = jest
+			.fn()
+			.mockResolvedValueOnce(undefined)
+			.mockRejectedValueOnce(new Error("sqs throttled"));
+		const { handler, deps } = createHandler({
+			scanPendingDigestUsers: jest.fn().mockResolvedValue([
+				UserIdSchema.parse("user-1"),
+				UserIdSchema.parse("user-2"),
+			]),
+			dispatchSendUserDigest,
+		});
+
+		const result = await handler(
+			buildSqsEvent([{ messageId: "tick-1", body: TRIGGER }]),
+			buildLambdaContext(),
+			() => {},
+		);
+
+		// The rejected dispatch does not redrive the whole scan.
+		expect(result).toEqual({ batchItemFailures: [] });
+		expect(deps.dispatchSendUserDigest).toHaveBeenCalledTimes(2);
+	});
+
 	it("reports a batch item failure when the scan throws so SQS redrives the tick", async () => {
 		const { handler } = createHandler({
 			scanPendingDigestUsers: jest.fn().mockRejectedValue(new Error("scan down")),

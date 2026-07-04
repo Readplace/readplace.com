@@ -43,4 +43,16 @@ describe("htmlToEmailPreview", () => {
 
 		expect(preview).toEqual(["Title", "Point one"]);
 	});
+
+	it("captures a paragraph nested in a list item once, not once per enclosing block", () => {
+		const preview = htmlToEmailPreview("<ul><li><p>Nested body.</p></li></ul>");
+
+		expect(preview).toEqual(["Nested body."]);
+	});
+
+	it("does not double-count text across nested lists", () => {
+		const preview = htmlToEmailPreview("<ul><li>Outer <ul><li>Inner</li></ul></li></ul>");
+
+		expect(preview).toEqual(["Outer Inner"]);
+	});
 });

@@ -53,6 +53,9 @@ export interface SendUserDigestDeps {
 	publishEvent: PublishEvent;
 	appOrigin: string;
 	cooldownMs: number;
+	/** Upper bound on articles resolved and emailed per digest; overflow rows
+	 * stay queued for the next tick. Guards the Lambda timeout on a large backlog. */
+	maxDigestItems: number;
 	now: () => Date;
 	logger: HutchLogger;
 }
@@ -114,33 +117,22 @@ async function processUserDigest(
 	const queued = await deps.listDigestItemsByUser(userId);
 	if (queued.length === 0) return skip("empty-queue");
 
+	/* Newest first (the queue lists in canonical-url order), then bound the batch:
+	 * each item costs up to three sequential reads, so an unbounded backlog could
+	 * exceed the Lambda timeout *after* the slot is claimed and starve the digest
+	 * until TTL. Overflow rows stay queued and drain on the next tick. Items are
+	 * resolved concurrently — the three reads within one item stay sequential
+	 * (each gates the next), but distinct items don't wait on each other. */
+	const batch = [...queued]
+		.sort((a, b) => Date.parse(b.enqueuedAt) - Date.parse(a.enqueuedAt))
+		.slice(0, deps.maxDigestItems);
+	const resolved = await Promise.all(batch.map((item) => resolveDigestItem(item, userId, deps)));
+
 	const included: IncludedItem[] = [];
 	const staleKeys: string[] = [];
-
-	for (const item of queued) {
-		const state = await deps.findUserArticleNotificationState({ userId, url: item.originalUrl });
-		const stale = staleReason(state);
-		if (stale) {
-			staleKeys.push(item.url);
-			deps.logger.info("[SendUserDigest] item dropped", { userId: detail.userId, url: item.url, reason: stale });
-			continue;
-		}
-		const article = await deps.findArticleByUrl(item.originalUrl);
-		if (!article) {
-			staleKeys.push(item.url);
-			deps.logger.info("[SendUserDigest] item dropped", { userId: detail.userId, url: item.url, reason: "article-missing" });
-			continue;
-		}
-		const content = await deps.readArticleContent(item.originalUrl);
-		included.push({
-			item,
-			email: {
-				title: article.metadata.title,
-				siteName: article.metadata.siteName,
-				continueReadingUrl: `${deps.appOrigin}${buildOwnerReaderPath(article.id)}`,
-				preview: content ? htmlToEmailPreview(content) : [],
-			},
-		});
+	for (const { item, email } of resolved) {
+		if (email) included.push({ item, email });
+		else staleKeys.push(item.url);
 	}
 
 	if (included.length === 0) {
@@ -192,6 +184,39 @@ async function processUserDigest(
 		deps.logger.error("[SendUserDigest] event publish failed", { userId: detail.userId, error });
 	}
 	deps.logger.info("[SendUserDigest] sent digest", { userId: detail.userId, itemCount: included.length });
+}
+
+/** Re-validate one queued article against live state and project it to an email
+ * item. `email` present ⇒ include it; `email` undefined ⇒ drop the (stale) row.
+ * The three reads run sequentially because each gates the next, but the caller
+ * resolves distinct items concurrently. */
+async function resolveDigestItem(
+	item: DigestQueueItem,
+	userId: UserId,
+	deps: SendUserDigestDeps,
+): Promise<{ item: DigestQueueItem; email: DigestEmailItem | undefined }> {
+	const drop = (reason: string) => {
+		deps.logger.info("[SendUserDigest] item dropped", { userId, url: item.url, reason });
+		return { item, email: undefined };
+	};
+
+	const state = await deps.findUserArticleNotificationState({ userId, url: item.originalUrl });
+	const stale = staleReason(state);
+	if (stale) return drop(stale);
+
+	const article = await deps.findArticleByUrl(item.originalUrl);
+	if (!article) return drop("article-missing");
+
+	const content = await deps.readArticleContent(item.originalUrl);
+	return {
+		item,
+		email: {
+			title: article.metadata.title,
+			siteName: article.metadata.siteName,
+			continueReadingUrl: `${deps.appOrigin}${buildOwnerReaderPath(article.id)}`,
+			preview: content ? htmlToEmailPreview(content) : [],
+		},
+	};
 }
 
 /** Best-effort removal of digest-queue rows: TTL is the backstop, so a failed

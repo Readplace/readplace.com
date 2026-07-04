@@ -34,11 +34,11 @@ function initQueue(client: Partial<DynamoDBDocumentClient>) {
 	return initDynamoDbDigestQueue({
 		client: client as DynamoDBDocumentClient,
 		tableName: "digest-queue",
-		retentionMs: 30 * 24 * 60 * 60 * 1000,
 	});
 }
 
 const USER = UserIdSchema.parse("user-1");
+const RETENTION_MS = 30 * 24 * 60 * 60 * 1000;
 
 describe("initDynamoDbDigestQueue", () => {
 	describe("enqueueDigestItem", () => {
@@ -49,6 +49,7 @@ describe("initDynamoDbDigestQueue", () => {
 				userId: USER,
 				url: "https://example.com/article?utm_source=x",
 				enqueuedAt: "2026-06-01T00:00:00.000Z",
+				retentionMs: RETENTION_MS,
 			});
 
 			const put = commands.find((c) => c.name === "PutCommand");

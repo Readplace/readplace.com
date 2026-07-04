@@ -28,8 +28,27 @@ export function initDigestScanHandler(deps: DigestScanDeps): Handler<SQSEvent, S
 		for (const record of event.Records) {
 			try {
 				const users = await scanPendingDigestUsers();
-				await Promise.all(users.map((userId) => dispatchSendUserDigest({ userId })));
-				logger.info("[DigestScan] dispatched user digests", { users: users.length });
+				/* Settle each dispatch independently. A single SendMessage rejection
+				 * must not fail the whole tick: a redrive re-scans and re-fans-out to
+				 * *every* user (wasteful, and can DLQ the scan). A user whose dispatch
+				 * fails keeps their queued rows and is picked up on the next 6h tick. */
+				const settled = await Promise.allSettled(
+					users.map((userId) => dispatchSendUserDigest({ userId })),
+				);
+				const rejected = settled.filter(
+					(result): result is PromiseRejectedResult => result.status === "rejected",
+				);
+				if (rejected.length > 0) {
+					logger.error("[DigestScan] user-digest dispatches failed; next tick will retry", {
+						failed: rejected.length,
+						total: users.length,
+						errors: rejected.map((result) => result.reason),
+					});
+				}
+				logger.info("[DigestScan] dispatched user digests", {
+					users: users.length,
+					failed: rejected.length,
+				});
 			} catch (error) {
 				logger.error("[DigestScan] record failed", { messageId: record.messageId, error });
 				batchItemFailures.push({ itemIdentifier: record.messageId });

@@ -27,8 +27,8 @@ function eligibleState(): UserArticleNotificationState {
 	};
 }
 
-function digestItem(originalUrl: string, url: string) {
-	return { userId: USER_ID, url, originalUrl, enqueuedAt: "2026-06-01T12:03:00.000Z" };
+function digestItem(originalUrl: string, url: string, enqueuedAt = "2026-06-01T12:03:00.000Z") {
+	return { userId: USER_ID, url, originalUrl, enqueuedAt };
 }
 
 function article(url: string, title: string) {
@@ -60,6 +60,7 @@ function createHandler(overrides: Partial<SendUserDigestDeps> = {}) {
 		publishEvent: jest.fn().mockResolvedValue(undefined),
 		appOrigin: "https://readplace.com",
 		cooldownMs: COOLDOWN_MS,
+		maxDigestItems: 25,
 		now: () => NOW,
 		logger: noopLogger,
 		...overrides,
@@ -118,6 +119,48 @@ describe("initSendUserDigestHandler", () => {
 			expect(sent.html).toContain("Alpha");
 			expect(sent.html).not.toContain("Body paragraph.");
 			expect(deps.markReaderReadyEmailSent).toHaveBeenCalledWith({ userId: USER_ID, url: URL_A, at: NOW });
+		});
+	});
+
+	describe("ordering + bounding", () => {
+		it("orders the digest most-recent-first, not by canonical url", async () => {
+			const { handler, deps } = createHandler({
+				listDigestItemsByUser: jest.fn().mockResolvedValue([
+					digestItem("https://example.com/a", "example.com/a", "2026-06-01T12:01:00.000Z"), // older
+					digestItem("https://example.com/z", "example.com/z", "2026-06-01T12:05:00.000Z"), // newer
+				]),
+				findArticleByUrl: jest.fn().mockImplementation(async (url: string) =>
+					article(url, url.endsWith("/z") ? "Zebra" : "Apple"),
+				),
+			});
+
+			await run(handler);
+
+			const sent = (deps.sendEmail as jest.Mock).mock.calls[0][0];
+			// Newer "Zebra" (12:05) precedes older "Apple" (12:01), despite z sorting after a by URL.
+			expect(sent.html.indexOf("Zebra")).toBeGreaterThan(-1);
+			expect(sent.html.indexOf("Zebra")).toBeLessThan(sent.html.indexOf("Apple"));
+		});
+
+		it("bounds the digest to maxDigestItems newest rows, leaving the overflow queued for the next tick", async () => {
+			const items = Array.from({ length: 5 }, (_, i) =>
+				digestItem(`https://example.com/${i}`, `example.com/${i}`, `2026-06-01T12:0${i}:00.000Z`),
+			);
+			const { handler, deps } = createHandler({
+				maxDigestItems: 2,
+				listDigestItemsByUser: jest.fn().mockResolvedValue(items),
+			});
+
+			const result = await run(handler);
+
+			expect(result).toEqual({ batchItemFailures: [] });
+			expect(deps.sendEmail).toHaveBeenCalledTimes(1);
+			// Only the 2 newest (12:04, 12:03) are stamped + drained; the older 3 are untouched.
+			expect(deps.markReaderReadyEmailSent).toHaveBeenCalledTimes(2);
+			expect(deps.deleteDigestItem).toHaveBeenCalledTimes(2);
+			expect(deps.deleteDigestItem).toHaveBeenCalledWith({ userId: USER_ID, url: "example.com/4" });
+			expect(deps.deleteDigestItem).toHaveBeenCalledWith({ userId: USER_ID, url: "example.com/3" });
+			expect(deps.findArticleByUrl).toHaveBeenCalledTimes(2);
 		});
 	});
 
