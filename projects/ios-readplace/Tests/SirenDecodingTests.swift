@@ -73,6 +73,36 @@ final class SirenDecodingTests: XCTestCase {
 		)
 	}
 
+	func testRowControlsSurfaceANonStructuralItemLinkButNeverReadOrStructuralLinks() throws {
+		// The row surfaces every non-structural, non-`read` entity link as a control, so
+		// a future item link (e.g. `share`) renders instead of being discarded. `read`
+		// stays the primary tap target (via `readHref`), never a duplicate control; a
+		// structural link (`item`) and a multi-rel link carrying a structural rel
+		// (`["alternate", "next"]`) are plumbing the client follows itself, never surfaced.
+		let json = """
+		{ "properties": { "id": "x", "url": "https://example.com/x" },
+		  "links": [
+		    { "rel": ["read"], "href": "/queue/x/view" },
+		    { "rel": ["share"], "href": "/queue/x/share", "title": "Share" },
+		    { "rel": ["item"], "href": "/queue/x" },
+		    { "rel": ["alternate", "next"], "href": "/queue?page=2" }
+		  ] }
+		"""
+		let article = try XCTUnwrap(Article(entity: try decodeEntity(json)))
+		XCTAssertEqual(
+			article.rowControls.compactMap(\.link?.rel.first), ["share"],
+			"only the non-structural, non-read item link surfaces as a control"
+		)
+		XCTAssertEqual(
+			article.rowControls.first?.label, "Share",
+			"the surfaced control uses the server's title verbatim"
+		)
+		XCTAssertEqual(
+			article.readHref, "/queue/x/view",
+			"read stays the primary tap target, not a duplicated control"
+		)
+	}
+
 	func testAffordanceLabelFallsBackToHumanizedTokenWhenServerSendsNoTitle() throws {
 		let action = SirenAction(name: "update-status", href: "/x", method: "POST", title: nil, type: nil, fields: nil)
 		let affordance = try XCTUnwrap(Affordance(action: action))
@@ -313,6 +343,36 @@ final class SirenDecodingTests: XCTestCase {
 		let page = QueuePage(collection: try decodeCollection(json))
 		XCTAssertEqual(page.warning?.code, "not-saveable")
 		XCTAssertEqual(page.warning?.message, "Cannot save that link.")
+	}
+
+	func testCollectionWarningMissingCodeStillSurfacesItsMessage() throws {
+		// The client renders only `warning.message`; `code` is a classifier no client
+		// reads. A warning that omits `code` must still surface its message rather than
+		// failing the decode and blanking the page.
+		let json = """
+		{ "class": ["collection", "articles"], "properties": { "total": 0, "page": 1, "pageSize": 20, "warning": { "message": "Cannot save that link." } }, "links": [], "actions": [] }
+		"""
+		let page = QueuePage(collection: try decodeCollection(json))
+		XCTAssertNil(page.warning?.code, "a warning without a code decodes with a nil code, not a failed decode")
+		XCTAssertEqual(page.warning?.message, "Cannot save that link.")
+	}
+
+	func testMalformedCollectionWarningDegradesToNoBannerButKeepsTheCollection() throws {
+		// The warning is a non-fatal channel, so a malformed warning (here missing the
+		// still-required `message`) must degrade to no banner rather than be the one
+		// thing that blanks the page — the article alongside it still decodes.
+		let json = """
+		{ "class": ["collection", "articles"],
+		  "properties": { "total": 1, "page": 1, "pageSize": 20, "warning": { "code": "not-saveable" } },
+		  "entities": [\(Fixtures.article(id: "good"))],
+		  "links": [], "actions": [] }
+		"""
+		let page = QueuePage(collection: try decodeCollection(json))
+		XCTAssertNil(page.warning, "a warning missing the required message degrades to no banner")
+		XCTAssertEqual(
+			page.articles.map(\.id), ["good"],
+			"the rest of the collection still decodes despite the malformed warning"
+		)
 	}
 
 	func testSirenDateParsesWithAndWithoutFractionalSeconds() {
