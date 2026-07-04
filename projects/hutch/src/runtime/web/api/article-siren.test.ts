@@ -51,6 +51,7 @@ describe("toArticleSubEntity", () => {
 				status: "unread",
 				savedAt: "2026-03-04T10:00:00.000Z",
 				readAt: null,
+				isRead: false,
 			},
 			links: [
 				{ rel: ["read"], title: "Read", href: `/queue/${ARTICLE_ID}/view` },
@@ -72,6 +73,15 @@ describe("toArticleSubEntity", () => {
 		const subEntity = toArticleSubEntity(makeArticle());
 		const deleteAction = subEntity.actions?.find((a) => a.name === "delete");
 		expect(deleteAction).toBeUndefined();
+	});
+
+	it("emits isRead as an explicit boolean reflecting the read status", () => {
+		expect(toArticleSubEntity(makeArticle({ status: "unread" })).properties?.isRead).toBe(false);
+		expect(
+			toArticleSubEntity(
+				makeArticle({ status: "read", readAt: new Date("2026-03-04T12:00:00.000Z") }),
+			).properties?.isRead,
+		).toBe(true);
 	});
 
 	it("toggles an unread item to a server-driven Mark as read with the target value", () => {

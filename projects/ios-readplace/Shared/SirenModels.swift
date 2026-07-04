@@ -137,6 +137,10 @@ struct ArticleProperties: Decodable {
 	let status: String?
 	let savedAt: String?
 	let readAt: String?
+	/// The server's explicit presentational read-state. Optional so an older server
+	/// that doesn't emit it still decodes; the client falls back to deriving read
+	/// state from `status`/`readAt` only then.
+	let isRead: Bool?
 }
 
 struct SirenEntity: Decodable {
@@ -387,7 +391,9 @@ extension Article {
 		excerpt = props.excerpt
 		imageURL = props.imageUrl.flatMap(URL.init(string:))
 		readTimeMinutes = props.estimatedReadTimeMinutes
-		isRead = props.status == "read" || props.readAt != nil
+		// Prefer the server's explicit read-state; fall back to deriving it from the
+		// status vocabulary only for an older server that doesn't emit `isRead`.
+		isRead = props.isRead ?? (props.status == "read" || props.readAt != nil)
 		savedAt = props.savedAt.flatMap(SirenDate.parse)
 		actions = entity.actions ?? []
 		links = entity.links ?? []
