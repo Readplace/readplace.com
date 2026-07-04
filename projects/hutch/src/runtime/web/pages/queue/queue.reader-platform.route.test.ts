@@ -162,6 +162,23 @@ describe("Queue reader chromeless switch (GET /queue/:id/view?platform=ios)", ()
 		expect(doc.querySelector(".article-body__actions--bottom")).toBe(null);
 	});
 
+	it("injects the server-owned mark-read bridge for the app, absent from the browser shell", async () => {
+		const harness = buildHarness();
+		const agent = await loginAgent(harness.server, harness.auth);
+		const articleId = await saveAndGetArticleId(agent, "https://example.com/app-bridge");
+
+		// The chromeless (app) render carries the bridge: the server owns the htmx
+		// detail and tells the WKWebView, so the app no longer sniffs htmx itself.
+		const iosText = (await agent.get(`/queue/${articleId}/view?platform=ios`)).text;
+		expect(iosText).toContain("window.webkit");
+		expect(iosText).toContain("readplaceReader");
+		expect(iosText).toContain("htmx:beforeSwap");
+
+		// The full web shell — served to a browser — must not carry the app bridge.
+		const shellText = (await agent.get(`/queue/${articleId}/view`)).text;
+		expect(shellText).not.toContain("readplaceReader");
+	});
+
 	it("marks the body chromeless so the reader CSS can pin the top actions", async () => {
 		const harness = buildHarness();
 		const agent = await loginAgent(harness.server, harness.auth);
