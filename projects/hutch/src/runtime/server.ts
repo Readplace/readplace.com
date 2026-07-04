@@ -5,6 +5,7 @@ import cookieParser from "cookie-parser";
 import cors from "cors";
 import type { Express, NextFunction, Request, Response } from "express";
 import express from "express";
+import { isbot } from "isbot";
 import type { LogParseError } from "@packages/hutch-infra-components";
 import type {
 	CountUsers,
@@ -673,10 +674,13 @@ export function createApp(dependencies: AppDependencies): Express {
 		const browser = detectInstallBrowser(req);
 		const userCount = await countUsers().catch(() => 0);
 		const banner = await buildBannerState(req);
+		// Gate the client A/B split redirect on humans: bots keep the canonical `/`
+		// (control) instead of following a client redirect into a noindex arm.
+		const abSplit = !isbot(req.get("user-agent"));
 		sendComponent(
 			req,
 			res,
-			Base(HomePage({ userCount, staticBaseUrl, browser, foundingAllocation }), banner),
+			Base(HomePage({ userCount, staticBaseUrl, browser, foundingAllocation, abSplit }), banner),
 		);
 	});
 

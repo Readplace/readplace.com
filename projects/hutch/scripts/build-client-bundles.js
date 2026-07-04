@@ -240,9 +240,11 @@ const BUNDLES = [
 		outfile: path.join(OUT_DIR, "homepage-split.client.js"),
 		globalName: "HomepageSplit",
 		footer: [
-			// Runs immediately (defer already waits for parse) so the A/B redirect
-			// fires before paint. randomByte draws one unsigned byte from the CSPRNG
-			// — no Math.random.
+			// Runs after the document parses (defer), then location.replace's to the
+			// assigned arm. It is a client redirect, not a pre-paint one: a bucketed
+			// guest may briefly see `/` before the arm loads, and emits a second
+			// pageview for the arm. randomByte draws one unsigned byte from the CSPRNG
+			// (no Math.random). Bots never receive this script (gated server-side).
 			"HomepageSplit.initHomepageSplit({",
 			"  config: HomepageSplit.HOMEPAGE_SPLIT,",
 			"  location: window.location,",

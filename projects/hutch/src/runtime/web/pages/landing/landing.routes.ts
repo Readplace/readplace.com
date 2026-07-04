@@ -4,7 +4,7 @@ import express from "express";
 import type { Request, Response, Router } from "express";
 import type { BuildBannerState } from "../../banner-state";
 import { Base } from "../../base.component";
-import { HOMEPAGE_SPLIT } from "../../experiments/homepage-split";
+import { HOMEPAGE_SPLIT, type HomepageVariantMarker } from "../../experiments/homepage-split";
 import { detectInstallBrowser } from "../../onboarding/extension-install";
 import type { FoundingAllocation } from "../../shared/founding-progress/founding-allocation";
 import { QUEUE_PATH } from "../queue/queue.url";
@@ -27,7 +27,11 @@ export function initLandingRoutes(deps: {
 	const router = express.Router();
 	const { buildBannerState, countUsers, foundingAllocation, staticBaseUrl } = deps;
 
-	async function renderLanding(req: Request, res: Response, variant: "a" | "b"): Promise<void> {
+	async function renderLanding(
+		req: Request,
+		res: Response,
+		variant: HomepageVariantMarker,
+	): Promise<void> {
 		if (req.userId) {
 			res.redirect(303, QUEUE_PATH);
 			return;
@@ -42,8 +46,12 @@ export function initLandingRoutes(deps: {
 		);
 	}
 
-	router.get(HOMEPAGE_SPLIT.variants[0].path, (req, res) => renderLanding(req, res, "a"));
-	router.get(HOMEPAGE_SPLIT.variants[1].path, (req, res) => renderLanding(req, res, "b"));
+	router.get(HOMEPAGE_SPLIT.variants[0].path, (req, res) =>
+		renderLanding(req, res, HOMEPAGE_SPLIT.variants[0].marker),
+	);
+	router.get(HOMEPAGE_SPLIT.variants[1].path, (req, res) =>
+		renderLanding(req, res, HOMEPAGE_SPLIT.variants[1].marker),
+	);
 
 	return router;
 }

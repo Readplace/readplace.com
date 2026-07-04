@@ -14,6 +14,7 @@ describe("HOMEPAGE_SPLIT config", () => {
 	it("declares two arms mapping variant-a/-b to /landing-a//landing-b", () => {
 		expect(HOMEPAGE_SPLIT.variants.map((v) => v.slug)).toEqual(["variant-a", "variant-b"]);
 		expect(HOMEPAGE_SPLIT.variants.map((v) => v.path)).toEqual(["/landing-a", "/landing-b"]);
+		expect(HOMEPAGE_SPLIT.variants.map((v) => v.marker)).toEqual(["a", "b"]);
 	});
 });
 

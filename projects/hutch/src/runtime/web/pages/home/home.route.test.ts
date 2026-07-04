@@ -74,6 +74,21 @@ describe("GET /", () => {
 		expect(script.hasAttribute("defer")).toBe(true);
 	});
 
+	it("does not load the split script for a crawler, so bots keep the control /", async () => {
+		const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
+		const response = await request(harness.server)
+			.get("/")
+			.set("User-Agent", "Mozilla/5.0 (compatible; Googlebot/2.1; +http://www.google.com/bot.html)");
+		const doc = new JSDOM(response.text).window.document;
+
+		expect(doc.querySelector('script[src="/client-dist/homepage-split.client.js"]')).toBeNull();
+		// The home client bundle still loads so the indexed control / keeps its enhancements.
+		assert(
+			doc.querySelector('script[src="/client-dist/home.client.js"]'),
+			"home.client.js must still load for crawlers on the control /",
+		);
+	});
+
 	it("should render a generic install CTA when browser is unrecognized", async () => {
 		const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
 		const response = await request(harness.server).get("/");

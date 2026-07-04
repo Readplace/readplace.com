@@ -47,9 +47,13 @@ export function createAnonymousViewPageActions(
 				const summarySlot = page.locator('[data-test-reader-summary]')
 				await expect(summarySlot).toHaveAttribute('data-summary-status', 'skipped')
 
-				// Return to home so the main anonymous-visit-view-page action can
-				// pick up from its expected entry state.
-				await page.goto(`${config.baseUrl}/`, { waitUntil: 'domcontentloaded' })
+				// Return to the guest homepage. A guest hitting `/` runs the client-side
+				// A/B split redirect to a landing arm (/landing-a|b) — byte-identical to
+				// `/`, same body.page-home — so `goto` resolves at commit (before the
+				// deferred redirect can interrupt it) and we wait for the arm to settle
+				// before the next action picks up from its home entry state.
+				await page.goto(`${config.baseUrl}/`, { waitUntil: 'commit' })
+				await page.waitForURL(/\/landing-[ab](\?|$)/, { waitUntil: 'domcontentloaded' })
 				progress.visitedCrawlFailure = true
 			},
 		},

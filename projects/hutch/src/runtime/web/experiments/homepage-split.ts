@@ -12,9 +12,16 @@
  * dashboard widget keeps aggregating.
  */
 
+/** Shared marker for an arm — the body-class suffix (`variant-a`) and the render
+ * discriminator threaded through the home component and the landing routes, so
+ * neither re-hardcodes the literal nor couples the arm→marker mapping to array
+ * position. */
+export type HomepageVariantMarker = "a" | "b";
+
 export interface HomepageSplitVariant {
 	readonly slug: string;
 	readonly path: string;
+	readonly marker: HomepageVariantMarker;
 }
 
 export interface HomepageSplitConfig {
@@ -31,8 +38,8 @@ export const HOMEPAGE_SPLIT: HomepageSplitConfig = {
 	epoch: 1,
 	storageKey: "readplace.homepage-split",
 	variants: [
-		{ slug: "variant-a", path: "/landing-a" },
-		{ slug: "variant-b", path: "/landing-b" },
+		{ slug: "variant-a", path: "/landing-a", marker: "a" },
+		{ slug: "variant-b", path: "/landing-b", marker: "b" },
 	],
 };
 
@@ -49,6 +56,11 @@ export function assignVariant(config: HomepageSplitConfig, randomByte: number): 
  * the analytics middleware keeps the pageview instead of dropping it as a click)
  * and `utm_source` omitted (so the landing does not dilute the acquisition pies,
  * which filter on `ispresent(utm_source)`).
+ *
+ * Inbound query params on `/` (e.g. a campaign's `?utm_source=twitter`) are
+ * intentionally not forwarded onto the arm: that would stamp `utm_source` on the
+ * landing pageview and dilute those same pies. The inbound attribution is not
+ * lost — it is already recorded on the pre-redirect `/` pageview.
  */
 export function buildLandingUrl(config: HomepageSplitConfig, variant: HomepageSplitVariant): string {
 	return `${variant.path}?utm_campaign=${config.campaign}&utm_medium=experiment&utm_content=${variant.slug}`;

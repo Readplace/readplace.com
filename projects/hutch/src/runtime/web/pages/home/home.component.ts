@@ -4,6 +4,7 @@ import { MAX_PDF_BYTES } from "@packages/crawl-article";
 import { render } from "@packages/web-shell";
 import type { PageBody } from "@packages/web-shell";
 
+import type { HomepageVariantMarker } from "../../experiments/homepage-split";
 import { switchHelpers } from "../../handlebars-switch";
 import type { InstallBrowser } from "../../onboarding/onboarding.types";
 import { renderFoundingProgress } from "../../shared/founding-progress/founding-progress.component";
@@ -14,10 +15,12 @@ const HOME_TEMPLATE = readFileSync(join(__dirname, "home.template.html"), "utf-8
 
 const HOME_CLIENT_SCRIPT = `<script src="/client-dist/home.client.js" defer></script>`;
 
-/** Only emitted on the bare `/` entry (no `variant`). It reads/assigns the A/B
- * bucket in localStorage and redirects to the matching landing arm. The landing
- * arms render HomePage *with* a `variant`, so they omit this script and can't
- * redirect into a loop. */
+/** Emitted on the bare `/` entry only for a human guest (`abSplit`, no `variant`).
+ * It reads/assigns the A/B bucket in localStorage and redirects to the matching
+ * landing arm. Bots are gated out server-side (`abSplit` false) so crawlers keep
+ * the canonical `/` and never follow a client redirect into a `noindex` arm. The
+ * landing arms render HomePage *with* a `variant`, so they omit this script and
+ * can't redirect into a loop. */
 const HOME_SPLIT_SCRIPT = `<script src="/client-dist/homepage-split.client.js" defer></script>`;
 
 export function HomePage(params: {
@@ -26,9 +29,12 @@ export function HomePage(params: {
 	browser: InstallBrowser;
 	foundingAllocation: FoundingAllocation;
 	/** Set on the A/B landing arms (`/landing-a`, `/landing-b`); absent on `/`. */
-	variant?: "a" | "b";
+	variant?: HomepageVariantMarker;
+	/** `/` only: emit the client A/B split redirect script. True for human guests,
+	 * false for bots (so crawlers keep the control `/`). Ignored on the arms. */
+	abSplit?: boolean;
 }): PageBody {
-	const { userCount, staticBaseUrl, browser, foundingAllocation, variant } = params;
+	const { userCount, staticBaseUrl, browser, foundingAllocation, variant, abSplit } = params;
 	const foundingMemberLimit = foundingAllocation.foundingMemberLimit;
 	const foundingProgressHtml = renderFoundingProgress({ userCount, foundingAllocation });
 	const foundingAllocationAvailable = !foundingAllocation.isFoundingAllocationExhausted(userCount);
@@ -239,7 +245,11 @@ export function HomePage(params: {
 			],
 		},
 		styles: HOME_PAGE_STYLES,
-		scripts: variant ? HOME_CLIENT_SCRIPT : `${HOME_CLIENT_SCRIPT}${HOME_SPLIT_SCRIPT}`,
+		scripts: variant
+			? HOME_CLIENT_SCRIPT
+			: abSplit
+				? `${HOME_CLIENT_SCRIPT}${HOME_SPLIT_SCRIPT}`
+				: HOME_CLIENT_SCRIPT,
 		bodyClass: variant ? `page-home variant-${variant}` : "page-home",
 		content: { html: render(HOME_TEMPLATE, {
 			staticBaseUrl,
