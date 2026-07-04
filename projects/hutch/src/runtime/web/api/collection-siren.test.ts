@@ -95,6 +95,7 @@ describe("toArticleCollectionEntity", () => {
 			"status",
 			"savedAt",
 			"readAt",
+			"isRead",
 		]);
 	});
 

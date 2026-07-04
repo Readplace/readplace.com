@@ -100,14 +100,30 @@ final class SirenDecodingTests: XCTestCase {
 		XCTAssertFalse(article.isRead)
 	}
 
-	func testStatusReadMarksAsRead() throws {
+	// The next two exercise the fallback derivation used only for an older server
+	// that doesn't emit the explicit read-state (the fixture omits `isRead`).
+	func testStatusReadMarksAsReadWhenServerOmitsIsRead() throws {
 		let entity = try decodeEntity(Fixtures.article(status: "read"))
 		let article = try XCTUnwrap(Article(entity: entity))
 		XCTAssertTrue(article.isRead)
 	}
 
-	func testReadAtImpliesReadEvenWhenStatusUnread() throws {
+	func testReadAtImpliesReadWhenServerOmitsIsRead() throws {
 		let entity = try decodeEntity(Fixtures.article(status: "unread", readAt: "2026-05-31T09:00:00.000Z"))
+		let article = try XCTUnwrap(Article(entity: entity))
+		XCTAssertTrue(article.isRead)
+	}
+
+	func testServerIsReadWinsOverTheStatusVocabulary() throws {
+		// The server says not-read even though `status` is "read": the explicit
+		// boolean is the client's read-state, not the status literal.
+		let entity = try decodeEntity(Fixtures.article(status: "read", isRead: false))
+		let article = try XCTUnwrap(Article(entity: entity))
+		XCTAssertFalse(article.isRead)
+	}
+
+	func testServerIsReadTrueMarksReadRegardlessOfStatus() throws {
+		let entity = try decodeEntity(Fixtures.article(status: "unread", readAt: nil, isRead: true))
 		let article = try XCTUnwrap(Article(entity: entity))
 		XCTAssertTrue(article.isRead)
 	}
