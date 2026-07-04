@@ -227,13 +227,12 @@ struct ReadingListView: View {
 	/// rendered item control resolves to an effect — a link-only affordance is opened,
 	/// not silently dropped.
 	private func activate(_ affordance: Affordance, on article: Article) {
-		guard let action = affordance.action else {
-			if let link = affordance.link { viewModel.open(link: link) }
-			return
-		}
-		if affordance.presentation.isDestructive {
+		switch ItemRoute.route(for: affordance) {
+		case let .open(link):
+			viewModel.open(link: link)
+		case .confirmDestructive:
 			pendingDestructive = PendingDestructive(affordance: affordance, article: article)
-		} else {
+		case let .invoke(action):
 			Task { await viewModel.invoke(action, on: article) }
 		}
 	}
