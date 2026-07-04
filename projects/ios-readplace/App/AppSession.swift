@@ -118,7 +118,8 @@ final class AppSession: ObservableObject {
 	private static func removeReaderWebStoreData() async {
 		let store = WKWebsiteDataStore.default()
 		if let host = URL(string: AppConfig.serverBaseURL)?.host {
-			for cookie in await store.httpCookieStore.allCookies() where cookie.domain.contains(host) {
+			for cookie in await store.httpCookieStore.allCookies()
+			where cookie.domain == host || cookie.domain.hasSuffix("." + host) {
 				await store.httpCookieStore.delete(cookie)
 			}
 		}
