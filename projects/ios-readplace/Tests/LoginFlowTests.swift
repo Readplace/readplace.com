@@ -23,7 +23,7 @@ final class LoginFlowTests: XCTestCase {
 		let request = makeService(store: TestSupport.loggedInStore()).makeNativeLoginAuthorizationRequest()
 
 		let components = URLComponents(url: request.url, resolvingAgainstBaseURL: false)!
-		XCTAssertEqual(components.host, "readplace.com")
+		XCTAssertEqual(components.host, URL(string: AppConfig.serverBaseURL)?.host)
 		XCTAssertEqual(components.path, "/oauth/authorize")
 		let items = Dictionary(uniqueKeysWithValues: (components.queryItems ?? []).map { ($0.name, $0.value ?? "") })
 		XCTAssertEqual(items["client_id"], "ios-app")

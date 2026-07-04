@@ -23,11 +23,14 @@ final class PKCETests: XCTestCase {
 		XCTAssertNotEqual(PKCE.makeCodeVerifier(), PKCE.makeCodeVerifier())
 	}
 
-	func testChallengeIsURLSafe() {
+	func testChallengeIsBase64URLAndCorrectLength() {
 		let challenge = PKCE.challenge(for: PKCE.makeCodeVerifier())
-		XCTAssertFalse(challenge.contains("+"))
-		XCTAssertFalse(challenge.contains("/"))
-		XCTAssertFalse(challenge.contains("="))
-		XCTAssertFalse(challenge.isEmpty)
+		XCTAssertEqual(challenge.count, 43, "a SHA-256 digest base64url-encodes to 43 chars")
+		let allowed = CharacterSet(charactersIn:
+			"ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789-_")
+		XCTAssertTrue(
+			challenge.unicodeScalars.allSatisfy(allowed.contains),
+			"every character is in the base64url alphabet (no +, /, or =)"
+		)
 	}
 }
