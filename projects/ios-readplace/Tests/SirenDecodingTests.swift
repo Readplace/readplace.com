@@ -2,6 +2,16 @@ import XCTest
 @testable import Readplace
 
 final class SirenDecodingTests: XCTestCase {
+	/// A fixed UTC instant, for asserting a parsed date equals a known point in
+	/// time rather than merely being non-nil.
+	static func utc(_ year: Int, _ month: Int, _ day: Int, _ hour: Int, _ minute: Int, _ second: Int) -> Date {
+		var calendar = Calendar(identifier: .gregorian)
+		calendar.timeZone = TimeZone(identifier: "UTC")!
+		return calendar.date(from: DateComponents(
+			year: year, month: month, day: day, hour: hour, minute: minute, second: second
+		))!
+	}
+
 	private func decodeCollection(_ json: String) throws -> SirenCollection {
 		try JSONDecoder().decode(SirenCollection.self, from: Data(json.utf8))
 	}
@@ -27,7 +37,8 @@ final class SirenDecodingTests: XCTestCase {
 		XCTAssertEqual(updateStatus.type, "application/x-www-form-urlencoded")
 		XCTAssertEqual(updateStatus.fields?.first?.name, "status")
 		XCTAssertEqual(article.readHref, "/queue/a1/view")
-		XCTAssertNotNil(article.savedAt)
+		XCTAssertEqual(article.savedAt, SirenDecodingTests.utc(2026, 5, 30, 10, 0, 0),
+			"the fixture's savedAt (2026-05-30T10:00:00.000Z) parses to that exact instant")
 	}
 
 	func testArticleAffordancesIterateAdvertisedActionsInWireOrder() throws {
@@ -315,9 +326,12 @@ final class SirenDecodingTests: XCTestCase {
 		XCTAssertEqual(page.warning?.message, "Cannot save that link.")
 	}
 
-	func testSirenDateParsesWithAndWithoutFractionalSeconds() {
-		XCTAssertNotNil(SirenDate.parse("2026-05-30T10:00:00.123Z"))
-		XCTAssertNotNil(SirenDate.parse("2026-05-30T10:00:00Z"))
+	func testSirenDateParsesWithAndWithoutFractionalSeconds() throws {
+		let base = SirenDecodingTests.utc(2026, 5, 30, 10, 0, 0)
+		XCTAssertEqual(try XCTUnwrap(SirenDate.parse("2026-05-30T10:00:00Z")), base)
+		let fractional = try XCTUnwrap(SirenDate.parse("2026-05-30T10:00:00.123Z"))
+		XCTAssertEqual(fractional.timeIntervalSince(base), 0.123, accuracy: 0.0005,
+			"the fractional variant is 123 ms after the whole-second instant")
 		XCTAssertNil(SirenDate.parse("not-a-date"))
 		XCTAssertNil(SirenDate.parse(""))
 	}

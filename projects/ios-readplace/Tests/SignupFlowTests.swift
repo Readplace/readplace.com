@@ -21,7 +21,7 @@ final class SignupFlowTests: XCTestCase {
 		let request = makeService(store: TestSupport.loggedInStore()).makeSignupAuthorizationRequest()
 
 		let components = URLComponents(url: request.url, resolvingAgainstBaseURL: false)!
-		XCTAssertEqual(components.host, "readplace.com")
+		XCTAssertEqual(components.host, URL(string: AppConfig.serverBaseURL)?.host)
 		XCTAssertEqual(components.path, "/oauth/authorize")
 		let items = Dictionary(uniqueKeysWithValues: (components.queryItems ?? []).map { ($0.name, $0.value ?? "") })
 		XCTAssertEqual(items["client_id"], "ios-app")
@@ -83,7 +83,7 @@ final class SignupFlowTests: XCTestCase {
 		XCTAssertEqual(probed?.scheme, "googlechromes", "Chrome availability is probed with the https scheme variant")
 		let components = URLComponents(url: chrome, resolvingAgainstBaseURL: false)!
 		XCTAssertEqual(components.scheme, "googlechromes")
-		XCTAssertEqual(components.host, "readplace.com")
+		XCTAssertEqual(components.host, URL(string: AppConfig.serverBaseURL)?.host)
 		XCTAssertEqual(components.path, "/oauth/authorize")
 		XCTAssertEqual(components.percentEncodedQuery, "client_id=ios-app&state=abc")
 	}
