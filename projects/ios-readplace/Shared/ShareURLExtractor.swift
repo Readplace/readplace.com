@@ -19,7 +19,13 @@ enum ShareURLExtractor {
 
 	static func extract(from context: NSExtensionContext?) async -> Shared? {
 		guard let items = context?.inputItems as? [NSExtensionItem] else { return nil }
+		return await extract(from: items)
+	}
 
+	/// The extraction core, taking the item list directly so a test can drive it
+	/// with fabricated `NSItemProvider`s instead of standing up a live extension
+	/// context (which no test can construct).
+	static func extract(from items: [NSExtensionItem]) async -> Shared? {
 		// Scan every item before deciding: a host can deliver the PDF file and
 		// the web URL as separate extension items, and the first item alone
 		// would look like a URL-less share.
