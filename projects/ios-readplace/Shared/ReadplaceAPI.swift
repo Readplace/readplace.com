@@ -182,18 +182,29 @@ final class ReadplaceAPI {
 
 	// MARK: - Reader session
 
-	/// Mints a browser session from the current bearer token via the
-	/// session-bootstrap endpoint and returns every cookie the response set. The
-	/// in-app reader injects them so the cookie-authenticated reader page (and its
-	/// in-reader XHRs) load without bouncing to a sign-in page. The client never
-	/// selects a cookie by name — it forwards whatever the server set — so a server
-	/// cookie rename needs no app release. Reuses `send()`, so a stale bearer is
-	/// refreshed once before the session is minted; a response that sets no cookie
-	/// is a failed mint.
-	func bootstrapSession() async throws -> [HTTPCookie] {
-		guard let url = URL(string: "\(baseURL)/auth/session") else { throw APIError.decoding }
+	/// Mints a browser session from the current bearer token and returns every
+	/// cookie the response set. The in-app reader injects them so the
+	/// cookie-authenticated reader page (and its in-reader XHRs) load without
+	/// bouncing to a sign-in page. Follows the server-declared `action`'s href and
+	/// method when the collection advertised one (`create-session`), so the endpoint
+	/// can move without an app release; falls back to a fixed path only for a server
+	/// that hasn't advertised the action yet (an older shipped build must keep
+	/// working). The client never selects a cookie by name — it forwards whatever the
+	/// server set. Reuses `send()`, so a stale bearer is refreshed once before the
+	/// session is minted; a response that sets no cookie is a failed mint.
+	func bootstrapSession(action: SirenAction? = nil) async throws -> [HTTPCookie] {
+		let url: URL
+		let method: String
+		if let action {
+			url = try absoluteURL(action.href)
+			method = action.method
+		} else {
+			guard let fallback = URL(string: "\(baseURL)/auth/session") else { throw APIError.decoding }
+			url = fallback
+			method = "POST"
+		}
 		var request = URLRequest(url: url)
-		request.httpMethod = "POST"
+		request.httpMethod = method
 		let (data, http) = try await send(request)
 		guard (200...299).contains(http.statusCode) else {
 			throw apiError(from: data, status: http.statusCode)

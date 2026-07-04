@@ -28,6 +28,10 @@ final class ReadingListViewModel: ObservableObject {
 	@Published private(set) var collectionAffordances: [Affordance] = [ReadingListViewModel.addLinksHelp]
 
 	private var nextHref: String?
+	/// The server-advertised `create-session` action from the loaded collection,
+	/// followed to mint the reader's browser session. Nil against a server that
+	/// hasn't advertised it, in which case the API falls back to a fixed path.
+	private var sessionAction: SirenAction?
 	private var isLoadingMore = false
 	/// Whether rows beyond the first page are loaded. A post-action adoption
 	/// replaces the list outright only while everything on screen came from one
@@ -248,7 +252,7 @@ final class ReadingListViewModel: ObservableObject {
 	/// a blank page.
 	func mintReaderSession() async -> [HTTPCookie]? {
 		do {
-			return try await api.bootstrapSession()
+			return try await api.bootstrapSession(action: sessionAction)
 		} catch {
 			handle(error)
 			return nil
@@ -285,6 +289,7 @@ final class ReadingListViewModel: ObservableObject {
 		// the toolbar for the whole scroll.
 		if replacing {
 			applyToolbar(page)
+			sessionAction = page.action(named: "create-session")
 		}
 		warningText = page.warning?.message
 	}

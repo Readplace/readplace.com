@@ -138,6 +138,17 @@ export function toArticleCollectionEntity(
 					{ name: "url", type: "url" },
 				],
 			},
+			// Mints a browser session cookie from the bearer token so a client's
+			// in-app reader can load the cookie-authenticated reader page. Advertised
+			// (rather than the client hard-coding the route + method) so it can move
+			// without a client release; a client that doesn't open an in-app reader
+			// simply skips it. No fields: the route reads the bearer from the
+			// Authorization header.
+			{
+				name: "create-session",
+				href: "/auth/session",
+				method: "POST",
+			},
 		],
 	};
 }

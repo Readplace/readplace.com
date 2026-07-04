@@ -44,6 +44,15 @@ struct AffordancePresentation {
 			isDestructive = false
 			removesItem = false
 			isToolbarControl = false
+		case "create-session":
+			// Not a user control: the client invokes this bespoke to mint the reader
+			// session cookie (like a capture-only save), so it never renders in the
+			// toolbar even though it is advertised on the collection.
+			systemImage = "key"
+			tint = nil
+			isDestructive = false
+			removesItem = false
+			isToolbarControl = false
 		case "update-status":
 			systemImage = "checkmark.circle"
 			tint = .brandSuccess
