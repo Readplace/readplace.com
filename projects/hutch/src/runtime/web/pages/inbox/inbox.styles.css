@@ -31,13 +31,27 @@
   font-size: 0.95rem;
 }
 
+.inbox__create-section {
+  border-bottom: 1px solid var(--border);
+  padding-bottom: 24px;
+  margin-bottom: 32px;
+}
+
+.inbox__addresses {
+  margin: 0 0 24px;
+}
+
 .inbox__list {
   list-style: none;
-  margin: 0 0 24px;
+  margin: 0;
   padding: 0;
   display: flex;
   flex-direction: column;
   gap: 12px;
+}
+
+.inbox__list--nested {
+  margin-top: 12px;
 }
 
 .inbox__item {
@@ -91,6 +105,13 @@
   opacity: 0.9;
 }
 
+.inbox__controls {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-left: auto;
+}
+
 .inbox__status {
   font-size: 0.85rem;
   font-weight: 600;
@@ -122,13 +143,52 @@
   color: var(--foreground);
 }
 
+.inbox__disabled-group {
+  margin-top: 12px;
+}
+
+.inbox__disabled-group--visible {
+  display: block;
+}
+
+.inbox__disabled-group--hidden {
+  display: none;
+}
+
+.inbox__disabled-summary {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  cursor: pointer;
+  font-size: 0.9rem;
+  font-weight: 600;
+  color: var(--muted-foreground);
+  list-style: none;
+  user-select: none;
+}
+
+.inbox__disabled-summary::-webkit-details-marker {
+  display: none;
+}
+
+.inbox__disabled-summary::after {
+  content: "\25BE";
+  font-size: 1.2em;
+  color: var(--muted-foreground);
+  transition: transform 0.2s ease;
+}
+
+.inbox__disabled-group[open] .inbox__disabled-summary::after {
+  transform: rotate(180deg);
+}
+
 .inbox__empty {
   color: var(--muted-foreground);
   margin: 0 0 24px;
 }
 
 .inbox__create {
-  margin: 0 0 32px;
+  margin: 0;
 }
 
 .inbox__create-label {
@@ -174,8 +234,7 @@
 }
 
 .inbox__instructions {
-  border-top: 1px solid var(--border);
-  padding-top: 24px;
+  margin-bottom: 24px;
 }
 
 .inbox__instructions-title {

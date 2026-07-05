@@ -1,3 +1,4 @@
+import assert from "node:assert";
 import type { InboxEmailEntry, InboxEmailStore } from "@packages/domain/inbox";
 import type { UserId } from "@packages/domain/user";
 
@@ -13,12 +14,23 @@ export function initInMemoryInboxEmail(): InboxEmailStore {
 			rows.set(key, email);
 			return "stored";
 		},
-		listEmailsByUserId: async (userId) =>
-			[...rows.values()]
+		listEmailsByUserId: async ({ userId, page, pageSize }) => {
+			assert(Number.isInteger(page), "page must be an integer");
+			assert(page >= 1, "page must be >= 1");
+			assert(Number.isInteger(pageSize), "pageSize must be an integer");
+			assert(pageSize >= 1, "pageSize must be >= 1");
+			const matching = [...rows.values()]
 				.filter((row) => row.userId === userId)
 				.sort((a, b) =>
 					a.receivedAtMessageId < b.receivedAtMessageId ? 1 : -1,
-				),
+				);
+			return {
+				emails: matching.slice((page - 1) * pageSize, page * pageSize),
+				total: matching.length,
+				page,
+				pageSize,
+			};
+		},
 		getEmail: async ({ userId, receivedAtMessageId }) =>
 			rows.get(keyOf(userId, receivedAtMessageId)),
 		listDeletionReferencesByUserId: async (userId) => {

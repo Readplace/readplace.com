@@ -4,6 +4,7 @@ import { EMAIL_FEATURE, render } from "@packages/web-shell";
 import type { PageBody } from "@packages/web-shell";
 import { INBOX_ADDRESS_MAX_PER_USER, type InboxAddressEntry } from "@packages/domain/inbox";
 import { INBOX_STYLES } from "./inbox.styles";
+import { toInboxAddressesViewModel } from "./inbox.viewmodel";
 
 const INBOX_TEMPLATE = readFileSync(join(__dirname, "inbox.template.html"), "utf-8");
 
@@ -24,12 +25,7 @@ export function InboxPage(params: {
 		createFailed: params.createFailed === true,
 		nameInvalid: params.nameInvalid === true,
 		nameTaken: params.nameTaken === true,
-		hasAddresses: params.addresses.length > 0,
-		addresses: params.addresses.map((entry) => ({
-			address: entry.address,
-			name: entry.name,
-			enabled: entry.disabledAt === undefined,
-		})),
+		...toInboxAddressesViewModel(params.addresses),
 		limitReached: params.limitReached,
 		maxAddresses: INBOX_ADDRESS_MAX_PER_USER,
 		createAction: `/inbox/create${INBOX_QUERY}`,

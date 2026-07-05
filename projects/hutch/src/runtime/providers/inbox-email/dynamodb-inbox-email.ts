@@ -1,3 +1,4 @@
+import assert from "node:assert";
 import {
 	ConditionalCheckFailedException,
 	type DynamoDBDocumentClient,
@@ -8,6 +9,7 @@ import {
 import { z } from "zod";
 import {
 	InboxAddressSchema,
+	type InboxEmailEntry,
 	InboxEmailStatusSchema,
 	type InboxEmailStore,
 	MessageIdSchema,
@@ -55,13 +57,29 @@ export function initDynamoDbInboxEmail(deps: {
 				throw error;
 			}
 		},
-		listEmailsByUserId: async (userId) => {
-			const { items } = await table.query({
-				KeyConditionExpression: "userId = :uid",
-				ExpressionAttributeValues: { ":uid": userId },
-				ScanIndexForward: false,
-			});
-			return items;
+		listEmailsByUserId: async ({ userId, page, pageSize }) => {
+			assert(Number.isInteger(page), "page must be an integer");
+			assert(page >= 1, "page must be >= 1");
+			assert(Number.isInteger(pageSize), "pageSize must be an integer");
+			assert(pageSize >= 1, "pageSize must be >= 1");
+			const all: InboxEmailEntry[] = [];
+			await forEachQueryPage(
+				table,
+				{
+					KeyConditionExpression: "userId = :uid",
+					ExpressionAttributeValues: { ":uid": userId },
+					ScanIndexForward: false,
+				},
+				async (items) => {
+					all.push(...items);
+				},
+			);
+			return {
+				emails: all.slice((page - 1) * pageSize, page * pageSize),
+				total: all.length,
+				page,
+				pageSize,
+			};
 		},
 		getEmail: async ({ userId, receivedAtMessageId }) =>
 			table.get({ userId, receivedAtMessageId }),

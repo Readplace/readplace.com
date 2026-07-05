@@ -92,3 +92,30 @@
   font-size: 0.85rem;
   color: var(--muted-foreground);
 }
+
+.inbox-emails__pagination {
+  display: flex;
+  justify-content: center;
+  gap: 16px;
+  margin-top: 24px;
+}
+
+.inbox-emails__pagination-link {
+  padding: var(--button-padding-sm);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  font-size: 0.875rem;
+  color: var(--foreground);
+  text-decoration: none;
+}
+
+.inbox-emails__pagination-link:hover {
+  background: var(--muted);
+}
+
+.inbox-emails__pagination-info {
+  display: flex;
+  align-items: center;
+  font-size: 0.875rem;
+  color: var(--muted-foreground);
+}

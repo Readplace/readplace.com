@@ -22,15 +22,27 @@ export interface InboxEmailEntry {
 	bodyS3Key: string | undefined;
 }
 
+export interface ListInboxEmailsResult {
+	emails: InboxEmailEntry[];
+	total: number;
+	page: number;
+	pageSize: number;
+}
+
 export interface InboxEmailStore {
 	/** Conditional put on the sort key — an at-least-once redelivery collapses
 	 * to one row. Returns `"duplicate"` when the row already exists so the caller
 	 * can skip re-publishing side effects. */
 	putEmail: (email: InboxEmailEntry) => Promise<"stored" | "duplicate">;
-	/** Every email the user owns, newest first (descending sort key). Answered by
-	 * the base table — no GSI, no scan. Strongly consistent in the in-memory
-	 * fixture; the production adapter reads the base table so it is too. */
-	listEmailsByUserId: (userId: UserId) => Promise<InboxEmailEntry[]>;
+	/** One 1-based page of the user's emails, newest first (descending sort
+	 * key), plus the total across all pages. Answered by the base table — no
+	 * GSI, no scan. Strongly consistent in the in-memory fixture; the
+	 * production adapter reads the base table so it is too. */
+	listEmailsByUserId: (input: {
+		userId: UserId;
+		page: number;
+		pageSize: number;
+	}) => Promise<ListInboxEmailsResult>;
 	getEmail: (input: {
 		userId: UserId;
 		receivedAtMessageId: string;

@@ -1,6 +1,7 @@
 import { EMAIL_FEATURE, type LocalTime, toRelativeOrDate } from "@packages/web-shell";
-import type { InboxEmailEntry, InboxEmailStatus } from "@packages/domain/inbox";
+import type { InboxEmailStatus, ListInboxEmailsResult } from "@packages/domain/inbox";
 import { buildLinkCountLabel } from "./inbox-link-count-label";
+import { buildInboxEmailsUrl } from "./inbox-emails.url";
 
 /** Per-email link tally, derived by the route from a single per-email Query
  * (no parent-row denormalisation). */
@@ -28,6 +29,13 @@ export interface InboxEmailRowViewModel {
 export interface InboxEmailsViewModel {
 	isEmpty: boolean;
 	rows: InboxEmailRowViewModel[];
+	currentPage: number;
+	totalPages: number;
+	showPagination: boolean;
+	hasPrev: boolean;
+	hasNext: boolean;
+	prevUrl: string | undefined;
+	nextUrl: string | undefined;
 }
 
 const STATUS_LABEL: Record<InboxEmailStatus, string> = {
@@ -37,12 +45,24 @@ const STATUS_LABEL: Record<InboxEmailStatus, string> = {
 };
 
 export function toInboxEmailsViewModel(
-	entries: InboxEmailEntry[],
+	result: ListInboxEmailsResult,
 	options: { now: Date; linkSummaries: Map<string, InboxEmailLinkSummary> },
 ): InboxEmailsViewModel {
+	const totalPages = Math.max(1, Math.ceil(result.total / result.pageSize));
 	return {
-		isEmpty: entries.length === 0,
-		rows: entries.map((entry) => {
+		isEmpty: result.total === 0,
+		currentPage: result.page,
+		totalPages,
+		showPagination: totalPages > 1,
+		hasPrev: result.page > 1,
+		hasNext: result.page < totalPages,
+		prevUrl:
+			result.page > 1 ? buildInboxEmailsUrl({ page: result.page - 1 }) : undefined,
+		nextUrl:
+			result.page < totalPages
+				? buildInboxEmailsUrl({ page: result.page + 1 })
+				: undefined,
+		rows: result.emails.map((entry) => {
 			const summary = options.linkSummaries.get(entry.receivedAtMessageId);
 			return {
 				href: `/inbox/${encodeURIComponent(entry.receivedAtMessageId)}?feature=${EMAIL_FEATURE}`,

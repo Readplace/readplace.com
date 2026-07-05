@@ -81,9 +81,57 @@ describe("initInMemoryInboxEmail", () => {
 			}),
 		);
 
-		const ownerEmails = await store.listEmailsByUserId(owner);
+		const ownerEmails = await store.listEmailsByUserId({
+			userId: owner,
+			page: 1,
+			pageSize: 20,
+		});
 
-		expect(ownerEmails.map((e) => e.subject)).toEqual(["Newer", "Older"]);
+		expect(ownerEmails.emails.map((e) => e.subject)).toEqual(["Newer", "Older"]);
+		expect(ownerEmails.total).toBe(2);
+	});
+
+	it("slices pages newest-first while reporting the unpaged total", async () => {
+		const store = initInMemoryInboxEmail();
+		for (const hour of ["08", "09", "10"]) {
+			await store.putEmail(
+				makeEntry({
+					messageId: MessageIdSchema.parse(`<m-${hour}@x>`),
+					receivedAtMessageId: `2026-06-23T${hour}:00:00.000Z#<m-${hour}@x>`,
+					subject: `At ${hour}`,
+				}),
+			);
+		}
+
+		const pageOne = await store.listEmailsByUserId({
+			userId: owner,
+			page: 1,
+			pageSize: 2,
+		});
+		const pageTwo = await store.listEmailsByUserId({
+			userId: owner,
+			page: 2,
+			pageSize: 2,
+		});
+
+		expect(pageOne.emails.map((e) => e.subject)).toEqual(["At 10", "At 09"]);
+		expect(pageOne).toMatchObject({ total: 3, page: 1, pageSize: 2 });
+		expect(pageTwo.emails.map((e) => e.subject)).toEqual(["At 08"]);
+		expect(pageTwo).toMatchObject({ total: 3, page: 2, pageSize: 2 });
+	});
+
+	it("returns no emails but the correct total for a page beyond the data", async () => {
+		const store = initInMemoryInboxEmail();
+		await store.putEmail(makeEntry());
+
+		const result = await store.listEmailsByUserId({
+			userId: owner,
+			page: 3,
+			pageSize: 2,
+		});
+
+		expect(result.emails).toEqual([]);
+		expect(result.total).toBe(1);
 	});
 
 	it("returns undefined for an unknown email", async () => {

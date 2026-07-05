@@ -71,6 +71,7 @@ interface CapturedCommand {
 		ConditionExpression?: string;
 		ScanIndexForward?: boolean;
 		ExpressionAttributeValues?: Record<string, unknown>;
+		ExclusiveStartKey?: Record<string, unknown>;
 	};
 }
 
@@ -95,6 +96,21 @@ function makeEntry(overrides: Partial<InboxEmailEntry> = {}): InboxEmailEntry {
 
 function conditionalCheckFailed(): ConditionalCheckFailedException {
 	return new ConditionalCheckFailedException({ $metadata: {}, message: "exists" });
+}
+
+function rawRow(input: { hour: string; messageId: string }): Record<string, unknown> {
+	return {
+		userId: "user-1",
+		receivedAtMessageId: `2026-06-23T${input.hour}:00:00.000Z#${input.messageId}`,
+		messageId: input.messageId,
+		recipientAddress: "in-3f9a2c@read.place",
+		senderEmail: "news@example.com",
+		subject: `At ${input.hour}`,
+		status: "received",
+		receivedAt: `2026-06-23T${input.hour}:00:00.000Z`,
+		rawEmailS3Key: `inbound/${input.hour}`,
+		bodyS3Key: `content/${input.hour}/content.html`,
+	};
 }
 
 describe("initDynamoDbInboxEmail", () => {
@@ -205,15 +221,82 @@ describe("initDynamoDbInboxEmail", () => {
 				tableName: TABLE,
 			});
 
-			const result = await store.listEmailsByUserId(USER);
+			const result = await store.listEmailsByUserId({ userId: USER, page: 1, pageSize: 20 });
 
 			expect(captured?.input.KeyConditionExpression).toBe("userId = :uid");
 			expect(captured?.input.ExpressionAttributeValues?.[":uid"]).toBe(USER);
 			expect(captured?.input.ScanIndexForward).toBe(false);
-			expect(result).toHaveLength(2);
-			expect(result[0].subject).toBe("Newer");
-			expect(result[0].bodyS3Key).toBe("content/b/content.html");
-			expect(result[1].bodyS3Key).toBeUndefined();
+			expect(result.emails).toHaveLength(2);
+			expect(result.total).toBe(2);
+			expect(result.emails[0].subject).toBe("Newer");
+			expect(result.emails[0].bodyS3Key).toBe("content/b/content.html");
+			expect(result.emails[1].bodyS3Key).toBeUndefined();
+		});
+
+		it("walks LastEvaluatedKey to exhaustion so a partition over 1 MB is not truncated", async () => {
+			const captured: CapturedCommand[] = [];
+			const lastEvaluatedKey = {
+				userId: "user-1",
+				receivedAtMessageId: "2026-06-23T09:00:00.000Z#<b@x>",
+			};
+			const store = initDynamoDbInboxEmail({
+				client: createFakeClient((cmd) => {
+					captured.push(cmd as CapturedCommand);
+					if (captured.length === 1) {
+						return {
+							Items: [
+								rawRow({ hour: "10", messageId: "<c@x>" }),
+								rawRow({ hour: "09", messageId: "<b@x>" }),
+							],
+							Count: 2,
+							LastEvaluatedKey: lastEvaluatedKey,
+						};
+					}
+					return { Items: [rawRow({ hour: "08", messageId: "<a@x>" })], Count: 1 };
+				}) as DynamoDBDocumentClient,
+				tableName: TABLE,
+			});
+
+			const result = await store.listEmailsByUserId({ userId: USER, page: 1, pageSize: 20 });
+
+			expect(captured).toHaveLength(2);
+			expect(captured[1].input.ExclusiveStartKey).toEqual(lastEvaluatedKey);
+			expect(result.emails.map((e) => e.subject)).toEqual(["At 10", "At 09", "At 08"]);
+			expect(result.total).toBe(3);
+		});
+
+		it("slices out the requested page while reporting the unpaged total", async () => {
+			const store = initDynamoDbInboxEmail({
+				client: createFakeClient(() => ({
+					Items: [
+						rawRow({ hour: "10", messageId: "<c@x>" }),
+						rawRow({ hour: "09", messageId: "<b@x>" }),
+						rawRow({ hour: "08", messageId: "<a@x>" }),
+					],
+					Count: 3,
+				})) as DynamoDBDocumentClient,
+				tableName: TABLE,
+			});
+
+			const result = await store.listEmailsByUserId({ userId: USER, page: 2, pageSize: 2 });
+
+			expect(result.emails.map((e) => e.subject)).toEqual(["At 08"]);
+			expect(result).toMatchObject({ total: 3, page: 2, pageSize: 2 });
+		});
+
+		it("returns no emails but the correct total for a page beyond the data", async () => {
+			const store = initDynamoDbInboxEmail({
+				client: createFakeClient(() => ({
+					Items: [rawRow({ hour: "10", messageId: "<c@x>" })],
+					Count: 1,
+				})) as DynamoDBDocumentClient,
+				tableName: TABLE,
+			});
+
+			const result = await store.listEmailsByUserId({ userId: USER, page: 5, pageSize: 2 });
+
+			expect(result.emails).toEqual([]);
+			expect(result.total).toBe(1);
 		});
 	});
 

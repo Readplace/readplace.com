@@ -30,6 +30,11 @@ import { InboxEmailDetailPage } from "./inbox-email-detail.component";
 import { renderInboxLinkCount } from "./inbox-link-count.component";
 import { toInboxEmailDetailViewModel } from "./inbox-email-detail.viewmodel";
 import { InboxEmailsPage } from "./inbox-emails.component";
+import {
+	INBOX_EMAILS_PAGE_SIZE,
+	canonicalInboxEmailsPageRedirect,
+	parseInboxEmailsUrl,
+} from "./inbox-emails.url";
 import { type InboxEmailLinkSummary, toInboxEmailsViewModel } from "./inbox-emails.viewmodel";
 import { computeInboxLinkCardEtag } from "./inbox-link-card.etag";
 import { toInboxLinkCardViewModel } from "./inbox-link-card.viewmodel";
@@ -77,12 +82,26 @@ export function initInboxRoutes(deps: InboxDependencies): Router {
 	router.get("/", async (req: Request, res: Response) => {
 		assert(req.userId, "userId required - route must be protected by requireAuth");
 		const userId = req.userId;
-		const emails = await deps.inboxEmailStore.listEmailsByUserId(userId);
+		const { page } = parseInboxEmailsUrl(req.query);
+		const result = await deps.inboxEmailStore.listEmailsByUserId({
+			userId,
+			page,
+			pageSize: INBOX_EMAILS_PAGE_SIZE,
+		});
+		const pageRedirect = canonicalInboxEmailsPageRedirect({
+			page,
+			total: result.total,
+			pageSize: result.pageSize,
+		});
+		if (pageRedirect) {
+			res.redirect(302, pageRedirect);
+			return;
+		}
 		// One cheap per-email partition Query each (no GSI, no scan) — the accepted
 		// cost of deriving the count instead of denormalising it onto the email row.
 		// Fired concurrently so a heavy-newsletter user pays one round-trip, not N.
 		const summaries = await Promise.all(
-			emails.map(async (email): Promise<[string, InboxEmailLinkSummary]> => {
+			result.emails.map(async (email): Promise<[string, InboxEmailLinkSummary]> => {
 				const { links, meta } = await deps.inboxEmailLinkStore.listLinksByEmail({
 					userId,
 					receivedAtMessageId: email.receivedAtMessageId,
@@ -94,7 +113,7 @@ export function initInboxRoutes(deps: InboxDependencies): Router {
 			}),
 		);
 		const linkSummaries = new Map<string, InboxEmailLinkSummary>(summaries);
-		const vm = toInboxEmailsViewModel(emails, { now: deps.now(), linkSummaries });
+		const vm = toInboxEmailsViewModel(result, { now: deps.now(), linkSummaries });
 		sendComponent(req, res, Base(InboxEmailsPage(vm), await deps.buildBannerState(req)));
 	});
 
