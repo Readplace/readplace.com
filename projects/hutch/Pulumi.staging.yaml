@@ -58,8 +58,10 @@ config:
   # to end before prod. Deploy it in isolation with a --target'd `pulumi up`.
   hutch:googleWorkspaceMail:
     domain: readplace-staging.com
-    # dkimRecord left unset on staging (no Workspace key); only the apex SPF is
-    # created. Fill it in prod once generated in Google Admin.
+    # Prod's readplace.com key: inert for deliverability on this zone (nothing
+    # signs as readplace-staging.com) — published only to exercise the DKIM
+    # record path of this rig.
+    dkimRecord: "v=DKIM1; k=rsa; p=MIIBIjANBgkqhkiG9w0BAQEFAAOCAQ8AMIIBCgKCAQEA4xjtwz2Zg6qhFYQ4YyzPhvLPpe1llWuz6ZqitCnYBbfw2n1cUgmof5nOf37ZxZNQN3QqVK0jBCVwtKTKNFn411CeIKEuOtAVcMrfTQ1oIvz5pNrUHX3BYPo5e6xYRnReEwrGrZ/NFq6RUcR3xObh7vZim6XEl5GyJ5/iXu2CUYs0/4jLvFLn88sfQ2FEpv+IyUN7Mo2Yc1Gxq37OhQEzUCb+BpvfJqdifQcr9H+Gzzqp/XzHNoUIyHYFDDgm8KP6+6SVfT6kepxohPrpkEs3nWr1i/9vHYyyyQq4vuPGC5yIIr5ABjkOIXfAt0oTSA0+uGv+agkTSQE1YLrvQBjDGwIDAQAB"
   hutch:expiryCountdown: enabled
   hutch:foundingMemberLimit: '5'
   hutch:excludedVisitorHashes: []
