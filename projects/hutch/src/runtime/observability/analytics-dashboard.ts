@@ -1,5 +1,6 @@
 import assert from "node:assert";
 import { SAVE_LINK_LOG_GROUPS } from "@packages/hutch-infra-components";
+import { HOMEPAGE_SPLIT } from "../web/experiments/homepage-split";
 import {
 	ANALYTICS_EVENTS,
 	CONVERSION_EVENTS,
@@ -556,6 +557,29 @@ export function buildAnalyticsDashboardBody(deps: BuildAnalyticsDashboardDeps): 
 			].join(" "),
 			x: 0, y: 114, width: 24, height: 8,
 			view: "table",
+		}),
+	);
+
+	// --- Homepage A/B experiment ---
+	// Counts landings on each arm. The client redirect stamps
+	// utm_campaign=<campaign> + utm_content=<variant slug> on the pageview
+	// (utm_medium=experiment, no utm_source), so a plain group-by utm_content
+	// compares the two buckets.
+
+	widgets.push(
+		logWidget({
+			region,
+			title: "Homepage A/B — landings by variant",
+			logGroupNames: [hutchLogGroupName],
+			query: [
+				"fields @timestamp, utm_content",
+				`| filter stream = "${STREAMS.analytics}" and event = "${ANALYTICS_EVENTS.pageview}" and utm_campaign = "${HOMEPAGE_SPLIT.campaign}"`,
+				...exclude,
+				"| stats count(*) as landings by utm_content",
+				"| sort landings desc",
+			].join(" "),
+			x: 0, y: 122, width: 12, height: 8,
+			view: "bar",
 		}),
 	);
 

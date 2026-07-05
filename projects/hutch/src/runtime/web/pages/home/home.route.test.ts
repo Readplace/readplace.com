@@ -64,6 +64,31 @@ describe("GET /", () => {
 		expect(script.hasAttribute("defer")).toBe(true);
 	});
 
+	it("should load the homepage-split A/B redirect bundle on the guest entry", async () => {
+		const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
+		const response = await request(harness.server).get("/");
+		const doc = new JSDOM(response.text).window.document;
+
+		const script = doc.querySelector('script[src="/client-dist/homepage-split.client.js"]');
+		assert(script, "homepage-split.client.js bundle must be loaded on the guest / entry");
+		expect(script.hasAttribute("defer")).toBe(true);
+	});
+
+	it("does not load the split script for a crawler, so bots keep the control /", async () => {
+		const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
+		const response = await request(harness.server)
+			.get("/")
+			.set("User-Agent", "Mozilla/5.0 (compatible; Googlebot/2.1; +http://www.google.com/bot.html)");
+		const doc = new JSDOM(response.text).window.document;
+
+		expect(doc.querySelector('script[src="/client-dist/homepage-split.client.js"]')).toBeNull();
+		// The home client bundle still loads so the indexed control / keeps its enhancements.
+		assert(
+			doc.querySelector('script[src="/client-dist/home.client.js"]'),
+			"home.client.js must still load for crawlers on the control /",
+		);
+	});
+
 	it("should render a generic install CTA when browser is unrecognized", async () => {
 		const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
 		const response = await request(harness.server).get("/");
@@ -113,6 +138,18 @@ describe("GET /", () => {
 
 		const cta = doc.querySelector('[data-test-cta="install-extension"]');
 		expect(cta?.textContent).toBe("Install Chrome Extension");
+	});
+
+	it("should render a generic install CTA for iPhone (no extension CTA on the marketing pages)", async () => {
+		const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
+		const response = await request(harness.server)
+			.get("/")
+			.set("User-Agent", "Mozilla/5.0 (iPhone; CPU iPhone OS 17_0 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/17.0 Mobile/15E148 Safari/604.1");
+		const doc = new JSDOM(response.text).window.document;
+
+		const cta = doc.querySelector('[data-test-cta="install-extension"]');
+		expect(cta?.textContent).toBe("Install Browser Extension");
+		expect(cta?.getAttribute("href")).toBe("/install?utm_source=home-hero&utm_medium=internal&utm_content=install");
 	});
 
 	it("should render generic trust line when browser is unrecognized", async () => {

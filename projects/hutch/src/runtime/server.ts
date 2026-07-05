@@ -5,6 +5,7 @@ import cookieParser from "cookie-parser";
 import cors from "cors";
 import type { Express, NextFunction, Request, Response } from "express";
 import express from "express";
+import { isbot } from "isbot";
 import type { LogParseError } from "@packages/hutch-infra-components";
 import type {
 	CountUsers,
@@ -177,6 +178,8 @@ import { HelpAddLinksPage } from "./web/pages/help";
 import { E2EFixturePage } from "./web/pages/e2e-fixture";
 import { createE2EFixturePdf } from "./web/pages/e2e-fixture-pdf";
 import { initInstallRoutes } from "./web/pages/install";
+import { initLandingRoutes } from "./web/pages/landing";
+import { detectInstallBrowser } from "./web/onboarding/extension-install";
 import { NotFoundPage } from "./web/pages/not-found";
 import { initGetEffectiveAccess } from "./domain/access/effective-access";
 import { initRequireWriteAccess } from "./web/middleware/require-write-access.middleware";
@@ -668,17 +671,16 @@ export function createApp(dependencies: AppDependencies): Express {
 			return;
 		}
 
-		const ua = req.headers["user-agent"] ?? "";
-		const browser: "firefox" | "chrome" | "other" =
-			ua.includes("Firefox/") ? "firefox"
-			: ua.includes("Chrome/") ? "chrome"
-			: "other";
+		const browser = detectInstallBrowser(req);
 		const userCount = await countUsers().catch(() => 0);
 		const banner = await buildBannerState(req);
+		// Gate the client A/B split redirect on humans: bots keep the canonical `/`
+		// (control) instead of following a client redirect into a noindex arm.
+		const abSplit = !isbot(req.get("user-agent"));
 		sendComponent(
 			req,
 			res,
-			Base(HomePage({ userCount, staticBaseUrl, browser, foundingAllocation }), banner),
+			Base(HomePage({ userCount, staticBaseUrl, browser, foundingAllocation, abSplit }), banner),
 		);
 	});
 
@@ -758,6 +760,12 @@ export function createApp(dependencies: AppDependencies): Express {
 	}
 
 	app.use(initInstallRoutes({ buildBannerState }));
+
+	// A/B landing arms for the homepage split (`/landing-a`, `/landing-b`),
+	// reached by the client-side redirect from `/`. Same guest render as `/`.
+	app.use(
+		initLandingRoutes({ buildBannerState, countUsers, foundingAllocation, staticBaseUrl }),
+	);
 
 	/** Same-origin dismissal endpoint for the site-wide changelog banner; served
 	 * here on $default even when the close button is clicked on a /blog page. */

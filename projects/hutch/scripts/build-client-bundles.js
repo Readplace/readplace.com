@@ -235,6 +235,27 @@ const BUNDLES = [
 	{
 		entry: path.join(
 			PROJECT_ROOT,
+			"src/runtime/web/experiments/homepage-split.client.ts",
+		),
+		outfile: path.join(OUT_DIR, "homepage-split.client.js"),
+		globalName: "HomepageSplit",
+		footer: [
+			// Runs after the document parses (defer), then location.replace's to the
+			// assigned arm. It is a client redirect, not a pre-paint one: a bucketed
+			// guest may briefly see `/` before the arm loads, and emits a second
+			// pageview for the arm. randomByte draws one unsigned byte from the CSPRNG
+			// (no Math.random). Bots never receive this script (gated server-side).
+			"HomepageSplit.initHomepageSplit({",
+			"  config: HomepageSplit.HOMEPAGE_SPLIT,",
+			"  location: window.location,",
+			"  storage: window.localStorage,",
+			"  randomByte: function () { return window.crypto.getRandomValues(new Uint8Array(1))[0]; }",
+			"});",
+		].join("\n"),
+	},
+	{
+		entry: path.join(
+			PROJECT_ROOT,
 			"src/runtime/web/trial-countdown.client.ts",
 		),
 		outfile: path.join(OUT_DIR, "trial-countdown.client.js"),

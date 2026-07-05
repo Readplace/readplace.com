@@ -1,5 +1,8 @@
 export type Platform = "firefox" | "chrome" | "iphone" | "other";
 
+/** Marketing install-CTA browser buckets — {@link Platform} with iPhone folded into `other`. */
+export type InstallBrowser = "firefox" | "chrome" | "other";
+
 export interface OnboardingContext {
 	installed: boolean;
 	savedArticle: boolean;

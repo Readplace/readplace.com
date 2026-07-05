@@ -1,12 +1,20 @@
 import type { Request } from "express";
 import { ALIVE_COOKIE_NAME, ALIVE_COOKIE_VALUE, SAVE_COOKIE_NAME, SAVE_COOKIE_VALUE } from "@packages/onboarding-extension-signal";
-import type { Platform } from "./onboarding.types";
+import type { InstallBrowser, Platform } from "./onboarding.types";
 
 const INSTALL_URLS: Record<Platform, string> = {
 	firefox: "/install?client=firefox",
 	chrome: "/install?client=chrome",
 	iphone: "/install?client=iphone",
 	other: "/install",
+};
+
+const INSTALL_BROWSER_BY_PLATFORM: Record<Platform, InstallBrowser> = {
+	firefox: "firefox",
+	chrome: "chrome",
+	// iPhone has no extension-install CTA on the marketing pages → generic button.
+	iphone: "other",
+	other: "other",
 };
 
 /** True when the extension is actively installed (server-only liveness
@@ -28,6 +36,12 @@ export function detectPlatform(req: Request): Platform {
 	if (ua.includes("Firefox/")) return "firefox";
 	if (ua.includes("Chrome/")) return "chrome";
 	return "other";
+}
+
+/** Extension-install CTA browser for a request, projected from the canonical
+ * {@link detectPlatform} so `/` and the A/B landing arms never re-sniff the UA. */
+export function detectInstallBrowser(req: Request): InstallBrowser {
+	return INSTALL_BROWSER_BY_PLATFORM[detectPlatform(req)];
 }
 
 export function buildExtensionInstallUrl(platform: Platform): string {
