@@ -61,7 +61,6 @@ function buildSubject() {
 	const inboxLink = initInMemoryInboxEmailLink();
 	const inboxAddress = initInMemoryInboxAddress({ now: () => SEED_NOW });
 
-	const cancelStripeCalls: Array<{ subscriptionId: string }> = [];
 	const deleteCustomerCalls: Array<{ customerId: string }> = [];
 	const deleteSubscriptionCalls: UserId[] = [];
 	const trialEndCalls: UserId[] = [];
@@ -81,16 +80,22 @@ function buildSubject() {
 	// added here, so a batch can carry one poisoned record beside a healthy one.
 	const articleDeleteThrowIds = new Set<string>();
 
+	// Test-only one-shot failures: each flag makes its step throw exactly once
+	// (self-clearing), so the record fails on the first delivery and its redrive
+	// then runs clean — the interleavings that exercise idempotency on retry.
+	const injectedFailures = { deleteSubscriptionOnce: false, deleteRawEmailOnce: false };
+
 	const handler = initDeleteAccountHandler({
 		findEmailByUserId: auth.findEmailByUserId,
 		findSubscriptionByUserId: subs.findByUserId,
-		cancelStripeSubscription: async ({ subscriptionId }: { subscriptionId: string }) => {
-			cancelStripeCalls.push({ subscriptionId });
-		},
 		deleteStripeCustomer: async ({ customerId }: { customerId: string }) => {
 			deleteCustomerCalls.push({ customerId });
 		},
 		deleteSubscription: async ({ userId }: { userId: UserId }) => {
+			if (injectedFailures.deleteSubscriptionOnce) {
+				injectedFailures.deleteSubscriptionOnce = false;
+				throw new Error("simulated deleteSubscription failure");
+			}
 			deleteSubscriptionCalls.push(userId);
 			await subs.deleteSubscription({ userId });
 		},
@@ -103,10 +108,15 @@ function buildSubject() {
 		deleteTrialFeedbackEmailSchedule: async ({ userId }: { userId: UserId }) => {
 			trialFeedbackCalls.push(userId);
 		},
+		listInboxDeletionReferences: inboxEmail.listDeletionReferencesByUserId,
 		deleteAllInboxEmails: inboxEmail.deleteAllEmailsByUserId,
 		deleteAllInboxLinks: inboxLink.deleteAllLinksByUserId,
 		tombstoneInboxAddresses: inboxAddress.tombstoneUserAddresses,
 		deleteRawEmailObjects: async (keys: string[]) => {
+			if (injectedFailures.deleteRawEmailOnce) {
+				injectedFailures.deleteRawEmailOnce = false;
+				throw new Error("simulated deleteRawEmailObjects failure");
+			}
 			rawEmailDeleteArgs.push(keys);
 		},
 		deleteEmailContentObjects: async (keys: string[]) => {
@@ -149,7 +159,6 @@ function buildSubject() {
 		inboxEmail,
 		inboxLink,
 		inboxAddress,
-		cancelStripeCalls,
 		deleteCustomerCalls,
 		deleteSubscriptionCalls,
 		trialEndCalls,
@@ -162,6 +171,12 @@ function buildSubject() {
 		revokeIdpCalls,
 		failArticleDeleteFor: (userId: UserId): void => {
 			articleDeleteThrowIds.add(userId);
+		},
+		failDeleteSubscriptionOnce: (): void => {
+			injectedFailures.deleteSubscriptionOnce = true;
+		},
+		failRawEmailDeleteOnce: (): void => {
+			injectedFailures.deleteRawEmailOnce = true;
 		},
 	};
 }
@@ -371,8 +386,8 @@ describe("delete-account handler", () => {
 		// Password-reset tokens purged by the email captured before deletion.
 		assert.deepEqual(s.passwordResetCalls, [victim.email]);
 
-		// Billing side effects fired for the active subscription.
-		assert.deepEqual(s.cancelStripeCalls, [{ subscriptionId: "sub_u1" }]);
+		// Billing side effects fired for the active subscription: deleting the
+		// Stripe customer cancels the subscription and detaches the cards.
 		assert.deepEqual(s.deleteCustomerCalls, [{ customerId: "cus_u1" }]);
 		assert.deepEqual(s.deleteSubscriptionCalls, [victim.userId]);
 		assert.deepEqual(s.deleteExportsCalls, [victim.userId]);
@@ -410,7 +425,7 @@ describe("delete-account handler", () => {
 		assert.equal(await s.auth.findEmailByUserId(bystander.userId), bystander.email);
 	});
 
-	it("active subscription branch — cancels Stripe, deletes the customer, and drops the local row", async () => {
+	it("active subscription branch — deletes the Stripe customer (which cancels the sub) and drops the local row", async () => {
 		const s = buildSubject();
 		const account = await seedAccount(s, {
 			label: "active",
@@ -421,7 +436,6 @@ describe("delete-account handler", () => {
 		const result = await run(s, [{ messageId: "msg", body: bodyFor(account.userId) }]);
 
 		assert.deepEqual(result.batchItemFailures, []);
-		assert.deepEqual(s.cancelStripeCalls, [{ subscriptionId: "sub_active" }]);
 		assert.deepEqual(s.deleteCustomerCalls, [{ customerId: "cus_active" }]);
 		assert.deepEqual(s.deleteSubscriptionCalls, [account.userId]);
 		assert.equal(await s.subs.findByUserId(account.userId), undefined);
@@ -438,7 +452,6 @@ describe("delete-account handler", () => {
 		const result = await run(s, [{ messageId: "msg", body: bodyFor(account.userId) }]);
 
 		assert.deepEqual(result.batchItemFailures, []);
-		assert.deepEqual(s.cancelStripeCalls, []);
 		assert.deepEqual(s.deleteCustomerCalls, []);
 		assert.deepEqual(s.deleteSubscriptionCalls, [account.userId]);
 		assert.deepEqual(s.trialEndCalls, [account.userId]);
@@ -457,7 +470,6 @@ describe("delete-account handler", () => {
 		const result = await run(s, [{ messageId: "msg", body: bodyFor(account.userId) }]);
 
 		assert.deepEqual(result.batchItemFailures, []);
-		assert.deepEqual(s.cancelStripeCalls, []);
 		assert.deepEqual(s.deleteCustomerCalls, []);
 		assert.deepEqual(s.deleteSubscriptionCalls, []);
 		assert.deepEqual(s.trialEndCalls, [account.userId]);
@@ -482,7 +494,7 @@ describe("delete-account handler", () => {
 		assert.deepEqual(second.batchItemFailures, []);
 
 		// Billing and password-reset only fired on the first, data-bearing run.
-		assert.deepEqual(s.cancelStripeCalls, [{ subscriptionId: "sub_again" }]);
+		assert.deepEqual(s.deleteCustomerCalls, [{ customerId: "cus_again" }]);
 		assert.deepEqual(s.passwordResetCalls, [account.email]);
 	});
 
@@ -523,5 +535,62 @@ describe("delete-account handler", () => {
 		await run(s, [{ messageId: "msg", body: bodyFor(account.userId) }]);
 
 		assert.deepEqual(s.revokeIdpCalls, [account.userId]);
+	});
+
+	it("redrive after a failed local subscription delete re-runs the Stripe customer delete idempotently and converges", async () => {
+		const s = buildSubject();
+		const account = await seedAccount(s, {
+			label: "redrive",
+			email: "redrive@example.com",
+			subscription: "active",
+		});
+
+		// First delivery: the Stripe customer delete succeeds, but dropping the
+		// local subscription row throws — so the record fails and redrives with the
+		// row still present, re-running the billing branch on the retry.
+		s.failDeleteSubscriptionOnce();
+		const first = await run(s, [{ messageId: "msg-1", body: bodyFor(account.userId) }]);
+		assert.deepEqual(first.batchItemFailures, [{ itemIdentifier: "msg-1" }]);
+
+		const second = await run(s, [{ messageId: "msg-2", body: bodyFor(account.userId) }]);
+		assert.deepEqual(second.batchItemFailures, []);
+
+		// The customer delete ran on both deliveries; deleting an already-deleted
+		// Stripe customer is a 404-idempotent no-op, and there is no separate
+		// re-cancel of the already-cancelled subscription — the interleaving that
+		// used to throw a non-404 and poison the queue into the DLQ.
+		assert.deepEqual(s.deleteCustomerCalls, [
+			{ customerId: "cus_redrive" },
+			{ customerId: "cus_redrive" },
+		]);
+		assert.equal(await s.subs.findByUserId(account.userId), undefined);
+		assert.equal(await s.auth.findEmailByUserId(account.userId), null);
+	});
+
+	it("redrive after a failed raw-email S3 delete re-derives the keys from the surviving rows instead of orphaning them", async () => {
+		const s = buildSubject();
+		const account = await seedAccount(s, {
+			label: "orphan",
+			email: "orphan@example.com",
+			subscription: "none",
+		});
+
+		// First delivery: the raw-email S3 delete throws. The email rows are read
+		// (not deleted) before the S3 delete, so they survive the failed record —
+		// the keys can be re-derived on the redrive rather than being lost.
+		s.failRawEmailDeleteOnce();
+		const first = await run(s, [{ messageId: "msg-1", body: bodyFor(account.userId) }]);
+		assert.deepEqual(first.batchItemFailures, [{ itemIdentifier: "msg-1" }]);
+		assert.deepEqual(s.rawEmailDeleteArgs, []);
+
+		const second = await run(s, [{ messageId: "msg-2", body: bodyFor(account.userId) }]);
+		assert.deepEqual(second.batchItemFailures, []);
+
+		// The redrive re-read the surviving rows and re-derived the raw keys, so the
+		// .eml objects are deleted rather than left orphaned in S3, and only then
+		// were the rows removed.
+		assert.equal(s.rawEmailDeleteArgs.length, 1);
+		assert.deepEqual(sorted(s.rawEmailDeleteArgs[0]), sorted(account.rawKeys));
+		assert.equal((await s.inboxEmail.listEmailsByUserId(account.userId)).length, 0);
 	});
 });

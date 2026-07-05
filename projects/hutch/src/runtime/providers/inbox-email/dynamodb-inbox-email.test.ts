@@ -266,8 +266,8 @@ describe("initDynamoDbInboxEmail", () => {
 		});
 	});
 
-	describe("deleteAllEmailsByUserId", () => {
-		it("drains the user's emails, returning raw and body keys and deleting each row", async () => {
+	describe("listDeletionReferencesByUserId", () => {
+		it("returns raw and body keys and message ids for the user without deleting any row", async () => {
 			const { client, commands } = createPaginatedClient([
 				{
 					rows: [
@@ -289,22 +289,19 @@ describe("initDynamoDbInboxEmail", () => {
 			]);
 			const store = initDynamoDbInboxEmail({ client, tableName: TABLE });
 
-			const result = await store.deleteAllEmailsByUserId(USER);
+			const refs = await store.listDeletionReferencesByUserId(USER);
 
-			expect(result.receivedAtMessageIds).toEqual([
+			expect(refs.receivedAtMessageIds).toEqual([
 				"2026-06-23T09:00:00.000Z#<a@x>",
 				"2026-06-23T08:00:00.000Z#<b@x>",
 			]);
-			expect(result.rawEmailS3Keys).toEqual(["inbound/a", "inbound/b"]);
-			expect(result.bodyS3Keys).toEqual(["content/a/content.html"]);
+			expect(refs.rawEmailS3Keys).toEqual(["inbound/a", "inbound/b"]);
+			expect(refs.bodyS3Keys).toEqual(["content/a/content.html"]);
 			const query = commands.find((c) => c.name === "QueryCommand");
 			expect(query?.input.KeyConditionExpression).toBe("userId = :uid");
 			expect(query?.input.ExpressionAttributeValues).toEqual({ ":uid": USER });
-			const deletes = commands.filter((c) => c.name === "DeleteCommand");
-			expect(deletes.map((c) => c.input.Key)).toEqual([
-				{ userId: USER, receivedAtMessageId: "2026-06-23T09:00:00.000Z#<a@x>" },
-				{ userId: USER, receivedAtMessageId: "2026-06-23T08:00:00.000Z#<b@x>" },
-			]);
+			// Read-only: the rows survive so a redrive can re-derive the keys.
+			expect(commands.some((c) => c.name === "DeleteCommand")).toBe(false);
 		});
 
 		it("paginates the query, feeding each page's key back as ExclusiveStartKey", async () => {
@@ -323,7 +320,7 @@ describe("initDynamoDbInboxEmail", () => {
 			]);
 			const store = initDynamoDbInboxEmail({ client, tableName: TABLE });
 
-			const result = await store.deleteAllEmailsByUserId(USER);
+			const refs = await store.listDeletionReferencesByUserId(USER);
 
 			const queries = commands.filter((c) => c.name === "QueryCommand");
 			expect(queries).toHaveLength(2);
@@ -332,20 +329,81 @@ describe("initDynamoDbInboxEmail", () => {
 				userId: "user-1",
 				receivedAtMessageId: "r1",
 			});
-			expect(result.rawEmailS3Keys).toEqual(["inbound/1", "inbound/2"]);
-			expect(result.bodyS3Keys).toEqual([]);
-			expect(commands.filter((c) => c.name === "DeleteCommand")).toHaveLength(2);
+			expect(refs.rawEmailS3Keys).toEqual(["inbound/1", "inbound/2"]);
+			expect(refs.bodyS3Keys).toEqual([]);
+			expect(commands.some((c) => c.name === "DeleteCommand")).toBe(false);
 		});
 
-		it("returns empty key lists and issues no delete when the user has no emails", async () => {
+		it("returns empty lists and issues no delete when the user has no emails", async () => {
 			const { client, commands } = createPaginatedClient([{ rows: [] }]);
 			const store = initDynamoDbInboxEmail({ client, tableName: TABLE });
 
-			expect(await store.deleteAllEmailsByUserId(USER)).toEqual({
+			expect(await store.listDeletionReferencesByUserId(USER)).toEqual({
 				receivedAtMessageIds: [],
 				rawEmailS3Keys: [],
 				bodyS3Keys: [],
 			});
+			expect(commands.some((c) => c.name === "DeleteCommand")).toBe(false);
+		});
+	});
+
+	describe("deleteAllEmailsByUserId", () => {
+		it("deletes every row the user owns", async () => {
+			const { client, commands } = createPaginatedClient([
+				{
+					rows: [
+						emailRow({ receivedAtMessageId: "2026-06-23T09:00:00.000Z#<a@x>" }),
+						emailRow({ receivedAtMessageId: "2026-06-23T08:00:00.000Z#<b@x>" }),
+					],
+				},
+			]);
+			const store = initDynamoDbInboxEmail({ client, tableName: TABLE });
+
+			await store.deleteAllEmailsByUserId(USER);
+
+			const query = commands.find((c) => c.name === "QueryCommand");
+			expect(query?.input.KeyConditionExpression).toBe("userId = :uid");
+			expect(query?.input.ExpressionAttributeValues).toEqual({ ":uid": USER });
+			const deletes = commands.filter((c) => c.name === "DeleteCommand");
+			expect(deletes.map((c) => c.input.Key)).toEqual([
+				{ userId: USER, receivedAtMessageId: "2026-06-23T09:00:00.000Z#<a@x>" },
+				{ userId: USER, receivedAtMessageId: "2026-06-23T08:00:00.000Z#<b@x>" },
+			]);
+		});
+
+		it("paginates, deleting each page's rows and feeding its key back as ExclusiveStartKey", async () => {
+			const { client, commands } = createPaginatedClient([
+				{
+					rows: [emailRow({ receivedAtMessageId: "r1" })],
+					lastEvaluatedKey: { userId: "user-1", receivedAtMessageId: "r1" },
+				},
+				{
+					rows: [emailRow({ receivedAtMessageId: "r2" })],
+				},
+			]);
+			const store = initDynamoDbInboxEmail({ client, tableName: TABLE });
+
+			await store.deleteAllEmailsByUserId(USER);
+
+			const queries = commands.filter((c) => c.name === "QueryCommand");
+			expect(queries).toHaveLength(2);
+			expect(queries[1]?.input.ExclusiveStartKey).toEqual({
+				userId: "user-1",
+				receivedAtMessageId: "r1",
+			});
+			const deletes = commands.filter((c) => c.name === "DeleteCommand");
+			expect(deletes.map((c) => c.input.Key)).toEqual([
+				{ userId: USER, receivedAtMessageId: "r1" },
+				{ userId: USER, receivedAtMessageId: "r2" },
+			]);
+		});
+
+		it("issues no delete when the user has no emails", async () => {
+			const { client, commands } = createPaginatedClient([{ rows: [] }]);
+			const store = initDynamoDbInboxEmail({ client, tableName: TABLE });
+
+			await store.deleteAllEmailsByUserId(USER);
+
 			expect(commands.some((c) => c.name === "DeleteCommand")).toBe(false);
 		});
 	});

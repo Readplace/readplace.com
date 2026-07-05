@@ -65,7 +65,7 @@ export function initDynamoDbInboxEmail(deps: {
 		},
 		getEmail: async ({ userId, receivedAtMessageId }) =>
 			table.get({ userId, receivedAtMessageId }),
-		deleteAllEmailsByUserId: async (userId) => {
+		listDeletionReferencesByUserId: async (userId) => {
 			const receivedAtMessageIds: string[] = [];
 			const rawEmailS3Keys: string[] = [];
 			const bodyS3Keys: string[] = [];
@@ -81,6 +81,18 @@ export function initDynamoDbInboxEmail(deps: {
 						rawEmailS3Keys.push(row.rawEmailS3Key);
 						if (row.bodyS3Key !== undefined) bodyS3Keys.push(row.bodyS3Key);
 					}
+				},
+			);
+			return { receivedAtMessageIds, rawEmailS3Keys, bodyS3Keys };
+		},
+		deleteAllEmailsByUserId: async (userId) => {
+			await forEachQueryPage(
+				table,
+				{
+					KeyConditionExpression: "userId = :uid",
+					ExpressionAttributeValues: { ":uid": userId },
+				},
+				async (rows) => {
 					await Promise.all(
 						rows.map((row) =>
 							table.delete({
@@ -90,7 +102,6 @@ export function initDynamoDbInboxEmail(deps: {
 					);
 				},
 			);
-			return { receivedAtMessageIds, rawEmailS3Keys, bodyS3Keys };
 		},
 	};
 }

@@ -23,10 +23,7 @@ import type {
 	DeleteSubscription,
 	FindSubscriptionByUserId,
 } from "@packages/provider-contracts/subscription-providers";
-import type {
-	CancelSubscriptionImmediately,
-	DeleteCustomer,
-} from "@packages/provider-contracts/stripe-subscriptions";
+import type { DeleteCustomer } from "@packages/provider-contracts/stripe-subscriptions";
 import type {
 	DeleteDeferredCancellationSchedule,
 	DeleteTrialEndSchedule,
@@ -43,12 +40,12 @@ import type { RevokeExternalIdpTokens } from "./revoke-external-idp-tokens";
 export interface DeleteAccountHandlerDependencies {
 	findEmailByUserId: FindEmailByUserId;
 	findSubscriptionByUserId: FindSubscriptionByUserId;
-	cancelStripeSubscription: CancelSubscriptionImmediately;
 	deleteStripeCustomer: DeleteCustomer;
 	deleteSubscription: DeleteSubscription;
 	deleteTrialEndSchedule: DeleteTrialEndSchedule;
 	deleteDeferredCancellationSchedule: DeleteDeferredCancellationSchedule;
 	deleteTrialFeedbackEmailSchedule: DeleteTrialFeedbackEmailSchedule;
+	listInboxDeletionReferences: InboxEmailStore["listDeletionReferencesByUserId"];
 	deleteAllInboxEmails: InboxEmailStore["deleteAllEmailsByUserId"];
 	deleteAllInboxLinks: InboxEmailLinkStore["deleteAllLinksByUserId"];
 	tombstoneInboxAddresses: InboxAddressStore["tombstoneUserAddresses"];
@@ -80,14 +77,18 @@ async function processCommand(
 	// findEmailByUserId reads.
 	const email = await deps.findEmailByUserId(userId);
 
-	// Billing first: cancel any live subscription and delete the Stripe customer
-	// (which detaches every card) before dropping the local row. Founding members
-	// have no row; trialing users have a row but no subscriptionId/customerId.
+	// Billing first: delete the Stripe customer — which immediately cancels any
+	// live subscription and detaches every card — then drop the local row.
+	// Deleting the customer is the ONLY Stripe write: Stripe cascades the
+	// cancellation and then blocks further operations on the customer, so a
+	// separate immediate-cancel would be redundant and, on an at-least-once
+	// redrive, a non-idempotent re-cancel of an already-cancelled subscription
+	// that throws and poisons the queue into the DLQ. deleteCustomer instead
+	// treats an already-gone customer as success, so a redrive converges.
+	// Founding members have no row; trialing users have a row but no customerId
+	// (a local trial with no Stripe object).
 	const subscription = await deps.findSubscriptionByUserId(userId);
 	if (subscription) {
-		if (subscription.subscriptionId) {
-			await deps.cancelStripeSubscription({ subscriptionId: subscription.subscriptionId });
-		}
 		if (subscription.customerId) {
 			await deps.deleteStripeCustomer({ customerId: subscription.customerId });
 		}
@@ -100,16 +101,21 @@ async function processCommand(
 	await deps.deleteDeferredCancellationSchedule({ userId });
 	await deps.deleteTrialFeedbackEmailSchedule({ userId });
 
-	// Inbox: delete the email rows (returns their ids + S3 keys), then the link
-	// rows keyed off those ids (that table has no userId index), then the S3
-	// objects, then tombstone the forwarding addresses (kept reserved, PII
+	// Inbox: read the pointers the email rows hold (S3 keys + link message-ids)
+	// while the rows still exist, then delete the S3 objects and link rows, and
+	// only then the email rows themselves. The rows are the sole index for those
+	// S3 objects (whose keys carry no userId) and link rows (no userId index), so
+	// deleting the rows last lets an at-least-once redrive re-derive the pointers
+	// from the still-present rows instead of orphaning the raw `.eml`/body objects
+	// in S3. Finally tombstone the forwarding addresses (kept reserved, PII
 	// stripped, so a freed hash can never be re-minted to leak another user's
 	// mail).
 	const { receivedAtMessageIds, rawEmailS3Keys, bodyS3Keys } =
-		await deps.deleteAllInboxEmails(userId);
-	await deps.deleteAllInboxLinks(userId, receivedAtMessageIds);
+		await deps.listInboxDeletionReferences(userId);
 	await deps.deleteRawEmailObjects(rawEmailS3Keys);
 	await deps.deleteEmailContentObjects(bodyS3Keys);
+	await deps.deleteAllInboxLinks(userId, receivedAtMessageIds);
+	await deps.deleteAllInboxEmails(userId);
 	await deps.tombstoneInboxAddresses(userId);
 
 	// Saved articles and the remaining per-user stores.

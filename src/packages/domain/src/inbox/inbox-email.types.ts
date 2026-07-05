@@ -35,15 +35,21 @@ export interface InboxEmailStore {
 		userId: UserId;
 		receivedAtMessageId: string;
 	}) => Promise<InboxEmailEntry | undefined>;
-	/** Account-deletion primitive: drains every email the user owns, deleting each
-	 * row and returning the S3 keys so the caller drives object deletion. The raw
-	 * `.eml` keys (always present) and the rendered-body keys (only on `received`
-	 * rows) are returned separately because they live in different buckets.
-	 * `receivedAtMessageIds` are returned so the caller can purge the matching
-	 * link rows, whose table has no `userId` index to enumerate on its own. */
-	deleteAllEmailsByUserId: (userId: UserId) => Promise<{
+	/** Account-deletion read pass: enumerate every email the user owns WITHOUT
+	 * deleting, returning the pointers those rows hold — the raw `.eml` and
+	 * rendered-body S3 keys (different buckets, so returned apart; the body only on
+	 * `received` rows) and the link message-ids (the links table has no `userId`
+	 * index to enumerate on its own). The email rows are the sole index for all of
+	 * these, so the scrub deletes the S3 objects and link rows first and the email
+	 * rows last: an at-least-once redrive then re-derives the pointers from the
+	 * still-present rows instead of orphaning the raw `.eml`/body objects in S3. */
+	listDeletionReferencesByUserId: (userId: UserId) => Promise<{
 		receivedAtMessageIds: string[];
 		rawEmailS3Keys: string[];
 		bodyS3Keys: string[];
 	}>;
+	/** Account-deletion write pass: delete every email row the user owns, run after
+	 * the S3 objects and link rows those rows point at are gone. Idempotent —
+	 * already-absent rows are a no-op — so a redrive converges, never throws. */
+	deleteAllEmailsByUserId: (userId: UserId) => Promise<void>;
 }

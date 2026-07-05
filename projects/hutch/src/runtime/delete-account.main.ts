@@ -121,12 +121,12 @@ const revokeExternalIdpTokens = initNoopRevokeExternalIdpTokens({ logger });
 export const handler = initDeleteAccountHandler({
 	findEmailByUserId: auth.findEmailByUserId,
 	findSubscriptionByUserId: subscriptionProviders.findByUserId,
-	cancelStripeSubscription: stripeSubscriptions.cancelImmediately,
 	deleteStripeCustomer: stripeSubscriptions.deleteCustomer,
 	deleteSubscription: subscriptionProviders.deleteSubscription,
 	deleteTrialEndSchedule: trialScheduler.deleteTrialEndSchedule,
 	deleteDeferredCancellationSchedule: trialScheduler.deleteDeferredCancellationSchedule,
 	deleteTrialFeedbackEmailSchedule: trialScheduler.deleteTrialFeedbackEmailSchedule,
+	listInboxDeletionReferences: inboxEmail.listDeletionReferencesByUserId,
 	deleteAllInboxEmails: inboxEmail.deleteAllEmailsByUserId,
 	deleteAllInboxLinks: inboxEmailLink.deleteAllLinksByUserId,
 	tombstoneInboxAddresses: inboxAddress.tombstoneUserAddresses,
