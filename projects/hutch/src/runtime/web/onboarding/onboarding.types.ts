@@ -7,6 +7,10 @@ export interface OnboardingContext {
 	installed: boolean;
 	savedArticle: boolean;
 	platform: Platform;
+	/** False on devices with no installable first-party client (Android, desktop
+	 * Safari, iPad, unrecognised UAs), where the completion-gated checklist can
+	 * never finish. Drives the no-client escape card. */
+	hasInstallableClient: boolean;
 }
 
 export interface OnboardingAction {

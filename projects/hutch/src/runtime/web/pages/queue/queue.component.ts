@@ -74,7 +74,7 @@ export function emptyStateTitle(tab: TabId): string {
 	return EMPTY_STATE_TITLES[tab];
 }
 
-function toQueueDisplayModel(vm: QueueViewModel, options: { installed: boolean; savedArticle: boolean; platform: Platform; onboardingDismissed: boolean; deviceClass: DeviceClass }): QueueDisplayModel {
+function toQueueDisplayModel(vm: QueueViewModel, options: { installed: boolean; savedArticle: boolean; platform: Platform; hasInstallableClient: boolean; onboardingDismissed: boolean; deviceClass: DeviceClass }): QueueDisplayModel {
 	const activeTab = vm.filters.tab;
 	const effectiveOrder = vm.filters.order ?? tabQuery(activeTab).defaultOrder;
 	const nextOrder = effectiveOrder === "desc" ? "asc" : "desc";
@@ -89,6 +89,7 @@ function toQueueDisplayModel(vm: QueueViewModel, options: { installed: boolean; 
 			installed: options.installed,
 			savedArticle: options.savedArticle,
 			platform: options.platform,
+			hasInstallableClient: options.hasInstallableClient,
 		},
 		{ dismissed: options.onboardingDismissed },
 	);
@@ -173,9 +174,9 @@ const AUTO_SUBMIT_SCRIPT = `
 </script>
 `;
 
-export function QueuePage(vm: QueueViewModel, options: { deviceClass: DeviceClass; saveUrl?: string; installed?: boolean; savedArticle?: boolean; platform?: Platform; onboardingDismissed?: boolean; statusCode?: number }): PageBody {
+export function QueuePage(vm: QueueViewModel, options: { deviceClass: DeviceClass; saveUrl?: string; installed?: boolean; savedArticle?: boolean; platform?: Platform; hasInstallableClient?: boolean; onboardingDismissed?: boolean; statusCode?: number }): PageBody {
 	const saveUrl = options.saveUrl;
-	const displayModel = toQueueDisplayModel(vm, { installed: options.installed ?? false, savedArticle: options.savedArticle ?? false, platform: options.platform ?? "other", onboardingDismissed: options.onboardingDismissed ?? false, deviceClass: options.deviceClass });
+	const displayModel = toQueueDisplayModel(vm, { installed: options.installed ?? false, savedArticle: options.savedArticle ?? false, platform: options.platform ?? "other", hasInstallableClient: options.hasInstallableClient ?? false, onboardingDismissed: options.onboardingDismissed ?? false, deviceClass: options.deviceClass });
 	const content = render(QUEUE_TEMPLATE, { ...displayModel, saveUrl });
 
 	const scriptParts: string[] = [];

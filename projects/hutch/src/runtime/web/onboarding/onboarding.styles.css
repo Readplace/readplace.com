@@ -150,6 +150,21 @@
   display: none;
 }
 
+.onboarding__dismiss-text {
+  font-size: 0.8125rem;
+  font-weight: 500;
+  color: var(--muted-foreground);
+  background: none;
+  border: none;
+  padding: var(--button-padding-sm);
+  cursor: pointer;
+  text-decoration: underline;
+}
+
+.onboarding__dismiss-text:hover {
+  color: var(--foreground);
+}
+
 .onboarding__success {
   display: flex;
   flex-direction: column;

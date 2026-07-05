@@ -92,6 +92,7 @@ import { ONBOARDING_VERSION } from "../../onboarding/onboarding.steps";
 import {
 	detectPlatform,
 	extensionInstallUrlIfMissing,
+	hasInstallableClient,
 	isExtensionInstalled,
 	isExtensionSavedArticle,
 } from "../../onboarding/extension-install";
@@ -583,19 +584,26 @@ export function initQueueRoutes(deps: QueueDependencies): Router {
 		 * server-side iOS signal (Safari can't see the app's cookies); every other
 		 * platform reads the same-browser extension liveness/save cookies. */
 		const platform = detectPlatform(req);
+		const hasClient = hasInstallableClient(req);
 		const { installed, savedArticle } = platform === "iphone"
 			? await deps.getIosAppSignals({ userId })
 			: { installed: isExtensionInstalled(req), savedArticle: isExtensionSavedArticle(req) };
-		/** Dismissal only counts when the install step is also complete in *this*
-		 * context. The dismiss button only appears once every step is complete, so a
-		 * dismiss without `installed` means the user is in a different context (a
-		 * different browser, or a phone whose app isn't signed in) — show the popup
-		 * again so they can complete onboarding here. */
-		const onboardingDismissed = installed && req.cookies?.[DISMISS_COOKIE_NAME] === ONBOARDING_VERSION;
+		const dismissCookieMatches = req.cookies?.[DISMISS_COOKIE_NAME] === ONBOARDING_VERSION;
+		/** With a client, dismissal only counts when the install step is also
+		 * complete in *this* context: the dismiss button only appears once every
+		 * step is done, so a dismiss without `installed` means a different context (a
+		 * different browser, or a phone whose app isn't signed in) — re-show so the
+		 * user can finish onboarding here. Without a client the steps can never
+		 * complete, so the no-client card's Dismiss simply sticks on this device; if
+		 * that same cookie later reaches a client-having platform it falls back to
+		 * the `installed && …` arm and the checklist re-appears there. */
+		const onboardingDismissed = hasClient
+			? installed && dismissCookieMatches
+			: dismissCookieMatches;
 		sendComponent(
 			req, res,
 			Base(
-				QueuePage(vm, { saveUrl: filterUrl, platform, installed, savedArticle, onboardingDismissed, deviceClass: classifyDeviceClass(req.get("user-agent")) }),
+				QueuePage(vm, { saveUrl: filterUrl, platform, installed, savedArticle, hasInstallableClient: hasClient, onboardingDismissed, deviceClass: classifyDeviceClass(req.get("user-agent")) }),
 				await deps.buildBannerState(req, { preFetchedAccess: effectiveAccess }),
 			),
 		);

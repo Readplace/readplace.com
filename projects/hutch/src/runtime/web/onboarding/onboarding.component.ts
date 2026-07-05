@@ -50,10 +50,25 @@ function allStepsComplete(ctx: OnboardingContext): boolean {
 	return ONBOARDING_STEPS.every((step) => step.isComplete(ctx));
 }
 
+/** Escape card for devices with no installable first-party client. The
+ * completion-gated checklist would nag forever there — its install step can
+ * never tick — so this drops the steps for an honest message, a link to the
+ * install options, and a Dismiss button that sticks on this device. */
+function renderNoClientCard(options: { dismissed?: boolean }): string {
+	const stateClass = options.dismissed ? "onboarding--hidden" : "onboarding--visible";
+	return render(ONBOARDING_TEMPLATE, {
+		noClient: true,
+		stateClass,
+		founderAvatarUrl: FOUNDER_AVATAR_URL,
+		installOptionsUrl: "/install",
+	});
+}
+
 export function OnboardingChecklist(
 	ctx: OnboardingContext,
 	options: { dismissed?: boolean } = {},
 ): string {
+	if (!ctx.hasInstallableClient) return renderNoClientCard(options);
 	const steps = ONBOARDING_STEPS.map((step) => toStepDisplayModel(step, ctx));
 	const allComplete = allStepsComplete(ctx);
 	const activeStateClass = allComplete

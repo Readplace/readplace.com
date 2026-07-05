@@ -1,4 +1,21 @@
 <section class="onboarding {{stateClass}}" data-test-onboarding>
+  {{#if noClient}}
+  <div data-test-onboarding-no-client>
+    <header class="onboarding__intro">
+      <img class="onboarding__avatar" src="{{founderAvatarUrl}}" alt="Fayner Brack" width="72" height="72" loading="lazy">
+      <div class="onboarding__intro-text">
+        <h2 class="onboarding__title">Hi, I'm Fayner Brack!</h2>
+        <p class="onboarding__lede">Readplace doesn't have an app for this device yet. If you use Chrome or Firefox on a computer, or an iPhone, you can install Readplace there.</p>
+      </div>
+    </header>
+    <div class="onboarding__actions">
+      <a href="{{installOptionsUrl}}" class="onboarding__action" data-test-onboarding-action="{{installOptionsUrl}}">See install options</a>
+      <form method="POST" action="/queue/dismiss-onboarding">
+        <button type="submit" class="onboarding__dismiss-text" data-test-onboarding-dismiss>Dismiss</button>
+      </form>
+    </div>
+  </div>
+  {{else}}
   {{#if allComplete}}
   <div class="onboarding__success" data-test-onboarding-success>
     <form method="POST" action="/queue/dismiss-onboarding" class="onboarding__dismiss-form">
@@ -34,5 +51,6 @@
     </li>
     {{/each}}
   </ol>
+  {{/if}}
   {{/if}}
 </section>

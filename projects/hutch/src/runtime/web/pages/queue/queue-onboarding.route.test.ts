@@ -20,13 +20,20 @@ import {
 
 const useApp = useTestServer();
 
+/** Desktop Chrome — a platform with an installable client, so these requests
+ * exercise the completion-gated step checklist. Superagent sends no
+ * User-Agent by default, which resolves to the no-client "other" bucket, so
+ * the client-flow tests must set one explicitly. */
+const CHROME_UA =
+	"Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/125.0.0.0 Safari/537.36";
+
 describe("Queue onboarding", () => {
 	it("shows onboarding visible with both steps incomplete on empty queue", async () => {
 		const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
 		const { auth } = harness;
 		const agent = await loginAgent(harness.server, auth);
 
-		const response = await agent.get("/queue");
+		const response = await agent.get("/queue").set("User-Agent", CHROME_UA);
 
 		const doc = new JSDOM(response.text).window.document;
 		const onboarding = doc.querySelector("[data-test-onboarding]");
@@ -52,7 +59,7 @@ describe("Queue onboarding", () => {
 			.type("form")
 			.send({ url: "https://example.com/article" });
 
-		const response = await agent.get("/queue");
+		const response = await agent.get("/queue").set("User-Agent", CHROME_UA);
 		const doc = new JSDOM(response.text).window.document;
 		const onboarding = doc.querySelector("[data-test-onboarding]");
 		assert(onboarding, "onboarding container must be rendered");
@@ -70,6 +77,7 @@ describe("Queue onboarding", () => {
 
 		const response = await agent
 			.get("/queue")
+			.set("User-Agent", CHROME_UA)
 			.set("Cookie", `${SAVE_COOKIE_NAME}=${SAVE_COOKIE_VALUE}`);
 
 		const doc = new JSDOM(response.text).window.document;
@@ -85,6 +93,7 @@ describe("Queue onboarding", () => {
 
 		const response = await agent
 			.get("/queue")
+			.set("User-Agent", CHROME_UA)
 			.set("Cookie", `${ALIVE_COOKIE_NAME}=${ALIVE_COOKIE_VALUE}`);
 
 		const doc = new JSDOM(response.text).window.document;
@@ -100,6 +109,7 @@ describe("Queue onboarding", () => {
 
 		const response = await agent
 			.get("/queue")
+			.set("User-Agent", CHROME_UA)
 			.set("Cookie", `${ALIVE_COOKIE_NAME}=${ALIVE_COOKIE_VALUE}; ${SAVE_COOKIE_NAME}=${SAVE_COOKIE_VALUE}`);
 
 		const doc = new JSDOM(response.text).window.document;
@@ -142,21 +152,6 @@ describe("Queue onboarding", () => {
 		expect(title.textContent).toBe("Install the Firefox browser extension");
 	});
 
-	it("shows 'Install a browser extension' for unrecognised user-agent", async () => {
-		const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
-		const { auth } = harness;
-		const agent = await loginAgent(harness.server, auth);
-
-		const response = await agent
-			.get("/queue")
-			.set("User-Agent", "curl/8.0");
-
-		const doc = new JSDOM(response.text).window.document;
-		const title = doc.querySelector('[data-test-onboarding-step="install-extension"] .onboarding__step-title');
-		assert(title);
-		expect(title.textContent).toBe("Install a browser extension");
-	});
-
 	it("shows success state even when viewing an empty filter tab", async () => {
 		const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
 		const { auth } = harness;
@@ -164,6 +159,7 @@ describe("Queue onboarding", () => {
 
 		const response = await agent
 			.get("/queue?status=read")
+			.set("User-Agent", CHROME_UA)
 			.set("Cookie", `${ALIVE_COOKIE_NAME}=${ALIVE_COOKIE_VALUE}; ${SAVE_COOKIE_NAME}=${SAVE_COOKIE_VALUE}`);
 
 		const doc = new JSDOM(response.text).window.document;
@@ -182,6 +178,7 @@ describe("Queue onboarding", () => {
 
 		const response = await agent
 			.get("/queue")
+			.set("User-Agent", CHROME_UA)
 			.set("Cookie", `${DISMISS_COOKIE_NAME}=${ONBOARDING_VERSION}; ${ALIVE_COOKIE_NAME}=${ALIVE_COOKIE_VALUE}`);
 
 		const doc = new JSDOM(response.text).window.document;
@@ -197,6 +194,7 @@ describe("Queue onboarding", () => {
 
 		const response = await agent
 			.get("/queue")
+			.set("User-Agent", CHROME_UA)
 			.set("Cookie", `${DISMISS_COOKIE_NAME}=${ONBOARDING_VERSION}`);
 
 		const doc = new JSDOM(response.text).window.document;
@@ -215,6 +213,7 @@ describe("Queue onboarding", () => {
 
 		const response = await agent
 			.get("/queue")
+			.set("User-Agent", CHROME_UA)
 			.set("Cookie", `${DISMISS_COOKIE_NAME}=stale-version; ${ALIVE_COOKIE_NAME}=${ALIVE_COOKIE_VALUE}`);
 
 		const doc = new JSDOM(response.text).window.document;
@@ -408,5 +407,93 @@ describe("Queue onboarding — iPhone", () => {
 
 		expect(response.status).toBe(200);
 		expect(errorArgs).toEqual([["Failed to record iOS onboarding signal", undefined]]);
+	});
+});
+
+/** Desktop Safari reports as Macintosh, so it falls into the "other" bucket
+ * that has no installable client. */
+const DESKTOP_SAFARI_UA =
+	"Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/17.5 Safari/605.1.15";
+/** Android Chrome matches Chrome/ in detectPlatform yet cannot install the
+ * extension — the case the raw-UA Android check exists to catch. */
+const ANDROID_CHROME_UA =
+	"Mozilla/5.0 (Linux; Android 14; Pixel 8) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/125.0.0.0 Mobile Safari/537.36";
+
+describe("Queue onboarding — no installable client", () => {
+	it("renders the no-client card (not the Chrome install step) for desktop Safari", async () => {
+		const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
+		const agent = await loginAgent(harness.server, harness.auth);
+
+		const response = await agent.get("/queue").set("User-Agent", DESKTOP_SAFARI_UA);
+
+		const doc = new JSDOM(response.text).window.document;
+		const noClient = doc.querySelector("[data-test-onboarding-no-client]");
+		assert(noClient, "no-client card must render for desktop Safari");
+		assert.equal(
+			doc.querySelector("[data-test-onboarding-steps]"),
+			null,
+			"the completion-gated step checklist must not render",
+		);
+	});
+
+	it("renders the no-client card (not the Chrome install step) for Android Chrome", async () => {
+		const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
+		const agent = await loginAgent(harness.server, harness.auth);
+
+		const response = await agent.get("/queue").set("User-Agent", ANDROID_CHROME_UA);
+
+		const doc = new JSDOM(response.text).window.document;
+		const noClient = doc.querySelector("[data-test-onboarding-no-client]");
+		assert(noClient, "no-client card must render for Android Chrome");
+		assert.equal(installTitle(response.text), undefined, "no install-extension step is rendered");
+	});
+
+	it("shows a Dismiss button on the no-client card when no dismiss cookie is set", async () => {
+		const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
+		const agent = await loginAgent(harness.server, harness.auth);
+
+		const response = await agent.get("/queue").set("User-Agent", DESKTOP_SAFARI_UA);
+
+		const doc = new JSDOM(response.text).window.document;
+		const onboarding = doc.querySelector("[data-test-onboarding]");
+		assert(onboarding, "onboarding container must be rendered");
+		expect(onboarding.classList.contains("onboarding--visible")).toBe(true);
+
+		const dismiss = doc.querySelector("[data-test-onboarding-no-client] [data-test-onboarding-dismiss]");
+		assert(dismiss, "Dismiss button must be rendered on the no-client card");
+		const form = dismiss.closest("form");
+		assert(form, "Dismiss button must submit a form");
+		expect(form.getAttribute("action")).toBe("/queue/dismiss-onboarding");
+	});
+
+	it("hides the no-client card when the dismiss cookie matches the current version", async () => {
+		const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
+		const agent = await loginAgent(harness.server, harness.auth);
+
+		const response = await agent
+			.get("/queue")
+			.set("User-Agent", DESKTOP_SAFARI_UA)
+			.set("Cookie", `${DISMISS_COOKIE_NAME}=${ONBOARDING_VERSION}`);
+
+		const doc = new JSDOM(response.text).window.document;
+		const onboarding = doc.querySelector("[data-test-onboarding]");
+		assert(onboarding, "onboarding container must still be rendered so visibility is a state class");
+		expect(onboarding.classList.contains("onboarding--hidden")).toBe(true);
+	});
+
+	it("keeps the no-client card dismissed across a POST→GET round-trip", async () => {
+		const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
+		const agent = await loginAgent(harness.server, harness.auth);
+
+		const dismiss = await agent.post("/queue/dismiss-onboarding");
+		expect(dismiss.status).toBe(303);
+
+		// The agent replays the dismiss cookie on the follow-up no-client render.
+		const response = await agent.get("/queue").set("User-Agent", DESKTOP_SAFARI_UA);
+
+		const doc = new JSDOM(response.text).window.document;
+		const onboarding = doc.querySelector("[data-test-onboarding]");
+		assert(onboarding, "onboarding container must still be rendered");
+		expect(onboarding.classList.contains("onboarding--hidden")).toBe(true);
 	});
 });
