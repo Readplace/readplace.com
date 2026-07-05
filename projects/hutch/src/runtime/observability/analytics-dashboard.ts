@@ -648,6 +648,27 @@ export function buildAnalyticsDashboardBody(deps: BuildAnalyticsDashboardDeps): 
 		}),
 	);
 
+	// --- Checkout funnel ---
+	// These events are emitted by the hutch web app (POST /account/subscribe and
+	// GET /auth/checkout/success), not the subscription Lambdas, so the widget
+	// sources the hutch handler log group.
+
+	widgets.push(
+		logWidget({
+			region,
+			title: "Checkout funnel per day",
+			logGroupNames: [hutchLogGroupName],
+			query: [
+				"fields @timestamp, event",
+				`| filter stream = "${STREAMS.subscriptions}"`,
+				`| filter event in ["${SUBSCRIPTION_EVENTS.checkoutStarted}", "${SUBSCRIPTION_EVENTS.checkoutCompleted}", "${SUBSCRIPTION_EVENTS.checkoutReturnFailed}"]`,
+				"| stats count(*) as checkouts by bin(1d), event",
+			].join(" "),
+			x: 0, y: 138, width: 12, height: 8,
+			view: "timeSeries",
+		}),
+	);
+
 	return { widgets };
 }
 

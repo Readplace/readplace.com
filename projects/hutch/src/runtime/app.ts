@@ -110,6 +110,7 @@ import { createApp } from "./server";
 import { initChangelogBannerSource } from "./web/changelog-banner-source";
 import type { BotDefenseEvent } from "./web/auth/auth.page";
 import type { ConversionEvent } from "./conversions";
+import type { SubscriptionLogEvent } from "./observability/subscription-events";
 import type { AnalyticsEvent } from "@packages/web-analytics";
 import { httpErrorMessageMapping } from "./web/pages/queue/queue.error";
 import { initFoundingAllocation } from "./web/shared/founding-progress/founding-allocation";
@@ -729,6 +730,7 @@ export function createHutchApp(deps?: {
 		now: () => new Date(),
 		botDefenseLogger: HutchLogger.fromJSON<BotDefenseEvent>(),
 		conversionLogger: HutchLogger.fromJSON<ConversionEvent>(),
+		subscriptionLogger: HutchLogger.fromJSON<SubscriptionLogEvent>(),
 		analytics: analyticsLogger,
 		salt,
 		foundingAllocation: initFoundingAllocation({ foundingMemberLimit }),

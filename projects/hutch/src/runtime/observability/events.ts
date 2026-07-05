@@ -17,7 +17,28 @@ export const SUBSCRIPTION_EVENTS = {
 	chargeSucceeded: "charge_succeeded",
 	chargeFailed: "charge_failed",
 	cancelled: "cancelled",
+	checkoutStarted: "checkout_started",
+	checkoutCompleted: "checkout_completed",
+	checkoutReturnFailed: "checkout_return_failed",
 } as const;
+
+export const CHECKOUT_VARIANTS = {
+	trialCheckout: "trial_checkout",
+	cancelledResubscribe: "cancelled_resubscribe",
+	cardDeclineFallback: "card_decline_fallback",
+} as const;
+
+export type CheckoutVariant = (typeof CHECKOUT_VARIANTS)[keyof typeof CHECKOUT_VARIANTS];
+
+export const CHECKOUT_RETURN_FAILURE_REASONS = {
+	invalidQuery: "invalid_query",
+	sessionNotFound: "session_not_found",
+	notPaid: "not_paid",
+	replayed: "replayed",
+} as const;
+
+export type CheckoutReturnFailureReason =
+	(typeof CHECKOUT_RETURN_FAILURE_REASONS)[keyof typeof CHECKOUT_RETURN_FAILURE_REASONS];
 
 export const METRICS = {
 	importsCompleted: {

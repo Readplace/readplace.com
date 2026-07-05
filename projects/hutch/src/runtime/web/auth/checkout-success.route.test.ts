@@ -3,6 +3,7 @@ import { JSDOM } from "jsdom";
 import request from "supertest";
 import { useTestServer } from "../../test-app";
 import { TEST_APP_ORIGIN, createDefaultTestAppFixture } from "@packages/test-fixtures";
+import { CHECKOUT_RETURN_FAILURE_REASONS } from "../../observability/events";
 import { completeCheckoutSignup } from "./test-helpers/complete-checkout-signup";
 
 const useApp = useTestServer();
@@ -17,6 +18,13 @@ describe("GET /auth/checkout/success", () => {
 		expect(doc.querySelector("[data-test-global-error]")?.textContent).toContain(
 			"Missing checkout session",
 		);
+
+		expect(harness.subscriptionEvents.events).toHaveLength(1);
+		const evt = harness.subscriptionEvents.events[0];
+		expect(evt.event).toBe("checkout_return_failed");
+		expect(evt.reason).toBe(CHECKOUT_RETURN_FAILURE_REASONS.invalidQuery);
+		expect(evt.user_id).toBeUndefined();
+		expect(evt.checkout_session_id).toBeUndefined();
 	});
 
 	it("renders 404 when Stripe says the session does not exist", async () => {
@@ -26,6 +34,12 @@ describe("GET /auth/checkout/success", () => {
 		expect(response.status).toBe(404);
 		const doc = new JSDOM(response.text).window.document;
 		expect(doc.querySelector("[data-test-global-error]")?.textContent).toContain("not found");
+
+		expect(harness.subscriptionEvents.events).toHaveLength(1);
+		const evt = harness.subscriptionEvents.events[0];
+		expect(evt.event).toBe("checkout_return_failed");
+		expect(evt.reason).toBe(CHECKOUT_RETURN_FAILURE_REASONS.sessionNotFound);
+		expect(evt.checkout_session_id).toBe("cs_test_unknown");
 	});
 
 	it("renders 402 when the checkout has not been paid yet", async () => {
@@ -45,6 +59,12 @@ describe("GET /auth/checkout/success", () => {
 		expect(response.status).toBe(402);
 		const doc = new JSDOM(response.text).window.document;
 		expect(doc.querySelector("[data-test-global-error]")?.textContent).toContain("not completed");
+
+		expect(harness.subscriptionEvents.events).toHaveLength(1);
+		const evt = harness.subscriptionEvents.events[0];
+		expect(evt.event).toBe("checkout_return_failed");
+		expect(evt.reason).toBe(CHECKOUT_RETURN_FAILURE_REASONS.notPaid);
+		expect(evt.checkout_session_id).toBe(checkout.id);
 	});
 
 	it("renders 402 for a still-open session even when Stripe reports no payment is required (trial checkout visited before completion)", async () => {
@@ -93,13 +113,21 @@ describe("GET /auth/checkout/success", () => {
 		expect(replay.status).toBe(409);
 		const doc = new JSDOM(replay.text).window.document;
 		expect(doc.querySelector("[data-test-global-error]")?.textContent).toContain("already been used");
+
+		// First visit emitted checkout_completed; the replay emits checkout_return_failed.
+		const events = harness.subscriptionEvents.events;
+		expect(events).toHaveLength(2);
+		expect(events[0].event).toBe("checkout_completed");
+		expect(events[1].event).toBe("checkout_return_failed");
+		expect(events[1].reason).toBe(CHECKOUT_RETURN_FAILURE_REASONS.replayed);
+		expect(events[1].checkout_session_id).toBe(checkoutSessionId);
 	});
 
 	it("marks the pre-existing user active and redirects to /queue on first paid visit", async () => {
 		const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
 		const { auth, hostedCheckout, subscriptionProviders, pendingSignup } = harness;
 
-		const { successResponse } = await completeCheckoutSignup({
+		const { successResponse, checkoutSessionId } = await completeCheckoutSignup({
 			server: harness.server,
 			auth,
 			hostedCheckout,
@@ -116,6 +144,14 @@ describe("GET /auth/checkout/success", () => {
 		const subRow = await subscriptionProviders.findByUserId(lookup.userId);
 		assert(subRow, "subscription row must exist after paid checkout");
 		expect(subRow.status).toBe("active");
+
+		expect(harness.subscriptionEvents.events).toHaveLength(1);
+		const evt = harness.subscriptionEvents.events[0];
+		expect(evt.event).toBe("checkout_completed");
+		expect(evt.user_id).toBe(lookup.userId);
+		expect(evt.checkout_session_id).toBe(checkoutSessionId);
+		expect(evt.subscription_id).toMatch(/^sub_test_/);
+		expect(typeof evt.timestamp).toBe("string");
 	});
 
 	it("writes an active subscription_providers row with the Stripe ids on first paid visit", async () => {

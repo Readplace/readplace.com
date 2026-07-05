@@ -70,9 +70,9 @@ function collectReferencedEvents(): Set<string> {
 }
 
 describe("buildAnalyticsDashboardBody — drift prevention", () => {
-	it("emits 30 widgets (7 traffic+audience, 3 conversions, 3 imports+medium, 3 subscriptions, 2 view-funnel, 1 internal-clicks, 3 save-funnel, 1 summary-engagement, 2 audience-device, 1 errors, 1 homepage-ab, 1 blog-traffic, 2 signup-form) — adding or dropping one without updating this count is a deliberate signal to review the dashboard's scope", () => {
+	it("emits 31 widgets (7 traffic+audience, 3 conversions, 3 imports+medium, 3 subscriptions, 2 view-funnel, 1 internal-clicks, 3 save-funnel, 1 summary-engagement, 2 audience-device, 1 errors, 1 homepage-ab, 1 blog-traffic, 2 signup-form, 1 checkout-funnel) — adding or dropping one without updating this count is a deliberate signal to review the dashboard's scope", () => {
 		const body = buildBody();
-		expect(body.widgets).toHaveLength(30);
+		expect(body.widgets).toHaveLength(31);
 	});
 
 	it("the homepage A/B widget compares arms by distinct visitors (assignment is sticky per browser, so raw counts pile a returning visitor's landings onto one arm) with raw landings alongside, grouped by variant (utm_content)", () => {
@@ -232,12 +232,24 @@ describe("buildAnalyticsDashboardBody — drift prevention", () => {
 	});
 
 	it("queries spanning subscription Lambda log groups emit one `SOURCE '<name>'` per group joined by `|` — `logGroups(namePrefix: [...])` is a CLI-only form the dashboard renderer rejects", () => {
-		const subscriptionQueries = widgetQueries().filter((q) => q.includes(`"${STREAMS.subscriptions}"`));
+		const hutchPrefix = `SOURCE '${LOG_GROUPS.hutchHandler}' | `;
+		const subscriptionQueries = widgetQueries().filter(
+			(q) => q.includes(`"${STREAMS.subscriptions}"`) && !q.startsWith(hutchPrefix),
+		);
 		const expectedSourcePrefix = `${SUBSCRIPTION_DASHBOARD_LOG_GROUPS.map((name) => `SOURCE '${name}'`).join(" | ")} | `;
 		for (const q of subscriptionQueries) {
 			expect(q.startsWith(expectedSourcePrefix)).toBe(true);
 		}
 		expect(subscriptionQueries.length).toBeGreaterThan(0);
+	});
+
+	it("the checkout-funnel widget sources the hutch handler log group — checkout events are emitted by the web app, not the subscription Lambdas", () => {
+		const q = widgetQueries().find((x) => x.includes(SUBSCRIPTION_EVENTS.checkoutStarted));
+		expect(q).toBeDefined();
+		expect(q?.startsWith(`SOURCE '${LOG_GROUPS.hutchHandler}' | `)).toBe(true);
+		expect(q).toContain(SUBSCRIPTION_EVENTS.checkoutCompleted);
+		expect(q).toContain(SUBSCRIPTION_EVENTS.checkoutReturnFailed);
+		expect(q).toContain("stats count(*) as checkouts by bin(1d), event");
 	});
 
 	it("widget positions do not overlap so every chart is visible side-by-side, not stacked", () => {
