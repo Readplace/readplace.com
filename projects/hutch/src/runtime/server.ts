@@ -868,6 +868,7 @@ export function createApp(dependencies: AppDependencies): Express {
 			loginAccount: deps.rateLimitRules.loginAccount,
 			signup: deps.rateLimitRules.signup,
 		},
+		appleEnabled: Boolean(deps.appleAuth),
 	});
 	app.use("/auth/session", sessionBridgeCors);
 	app.use(authRouter);
