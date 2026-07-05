@@ -1,7 +1,7 @@
 import type { HutchLogger } from "@packages/hutch-logger";
 import { UserIdSchema } from "@packages/domain/user";
 import { type ConversionEvent, emitUserCreated } from "./conversions";
-import type { ClickAttribution } from "./web/click-attribution.middleware";
+import type { ClickAttribution } from "@packages/web-analytics";
 
 function createCapturingLogger(): {
 	logger: HutchLogger.Typed<ConversionEvent>;

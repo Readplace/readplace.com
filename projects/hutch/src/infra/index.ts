@@ -4,6 +4,7 @@ import assert from "node:assert";
 import { resolve } from "node:path";
 import { HutchLambda, HutchAPIGateway, HutchDynamoDBAccess, HutchEventBus, HutchS3ReadWrite, HutchSQS, HutchSQSBackedLambda, HutchStripeWebhookReceiver } from "@packages/hutch-infra-components/infra";
 import {
+	BLOG_SITE_LOG_GROUP,
 	CancelSubscriptionCommand,
 	CrawlEmailLinkPreview,
 	DeleteAccountCommand,
@@ -1552,6 +1553,7 @@ new aws.cloudwatch.Dashboard("readplace-analytics", {
 		JSON.stringify(buildAnalyticsDashboardBody({
 			region,
 			hutchLogGroupName,
+			blogLogGroupName: BLOG_SITE_LOG_GROUP,
 			subscriptionLogGroupNames: SUBSCRIPTION_DASHBOARD_LOG_GROUPS,
 			workerLogGroupNames: WORKER_DASHBOARD_LOG_GROUPS,
 			excludedVisitorHashes,

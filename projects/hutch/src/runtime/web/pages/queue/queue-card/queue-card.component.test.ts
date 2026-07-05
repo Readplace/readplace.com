@@ -5,7 +5,7 @@ import {
 	renderQueueCard,
 	toQueueCardDisplayModel,
 } from "./queue-card.component";
-import type { DeviceClass } from "../../../middleware/analytics";
+import type { DeviceClass } from "@packages/web-analytics";
 import type { QueueArticleViewModel } from "../queue.viewmodel";
 
 function makeViewModel(

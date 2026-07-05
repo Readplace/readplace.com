@@ -24,6 +24,7 @@ interface MockReqOverrides {
 	query?: Record<string, unknown>;
 	headers?: Record<string, string | undefined>;
 	visitorId?: string;
+	userId?: string;
 }
 
 function createReq(overrides: MockReqOverrides = {}): Partial<Request> {
@@ -38,6 +39,7 @@ function createReq(overrides: MockReqOverrides = {}): Partial<Request> {
 		query: overrides.query ?? {},
 		headers,
 		visitorId: overrides.visitorId,
+		userId: overrides.userId,
 		get(name: string): string | undefined { return headers[name.toLowerCase()]; },
 	} as Partial<Request>;
 }
@@ -128,6 +130,14 @@ describe("createAnalyticsMiddleware", () => {
 		expect(runMiddleware(createReq({ path: "/robots.txt" }), createRes(200))).toEqual([]);
 	});
 
+	it("skips logging /blog/sitemap.xml so the blog's machine sitemap does not count as a pageview", () => {
+		expect(runMiddleware(createReq({ path: "/blog/sitemap.xml" }), createRes(200))).toEqual([]);
+	});
+
+	it("skips logging /blog/changelog-banner so hutch's own 5-min server-side banner fetch does not pollute blog pageviews", () => {
+		expect(runMiddleware(createReq({ path: "/blog/changelog-banner" }), createRes(200))).toEqual([]);
+	});
+
 	it("skips logging when isbot flags the user-agent", () => {
 		const req = createReq({ headers: { "user-agent": "Googlebot/2.1 (+http://www.google.com/bot.html)" } });
 		expect(runMiddleware(req, createRes(200))).toEqual([]);
@@ -169,6 +179,11 @@ describe("createAnalyticsMiddleware", () => {
 		const [event] = runMiddleware(createReq({ headers: { "user-agent": iphone } }), createRes(200));
 		expect(event.device_class).toBe("mobile_ios");
 	});
+
+	it("stamps is_authenticated=1 on the pageview when the request carries an authenticated userId (set upstream by a route handler)", () => {
+		const [event] = runMiddleware(createReq({ userId: "user-1" }), createRes(200));
+		expect(event.is_authenticated).toBe(1);
+	});
 });
 
 describe("createAnalyticsMiddleware — internal click events", () => {
@@ -194,6 +209,11 @@ describe("createAnalyticsMiddleware — internal click events", () => {
 	it("never carries utm_campaign on a click — only the section and element dimensions are tracked", () => {
 		const [click] = runMiddlewareClicks(createReq({ query: internalQuery }), createRes(200));
 		expect(JSON.stringify(click)).not.toContain("utm_campaign");
+	});
+
+	it("stamps is_authenticated=1 on the click when the request carries an authenticated userId", () => {
+		const [click] = runMiddlewareClicks(createReq({ query: internalQuery, userId: "user-1" }), createRes(200));
+		expect(click.is_authenticated).toBe(1);
 	});
 
 	it("captures utm_term on a click so device-tagged reader-view links (queue-card) are sliceable by device", () => {

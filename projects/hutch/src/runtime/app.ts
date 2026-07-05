@@ -114,7 +114,7 @@ import { createApp } from "./server";
 import { initChangelogBannerSource } from "./web/changelog-banner-source";
 import type { BotDefenseEvent } from "./web/auth/auth.page";
 import type { ConversionEvent } from "./conversions";
-import type { AnalyticsEvent } from "./web/middleware/analytics";
+import type { AnalyticsEvent } from "@packages/web-analytics";
 import { httpErrorMessageMapping } from "./web/pages/queue/queue.error";
 import { initFoundingAllocation } from "./web/shared/founding-progress/founding-allocation";
 import { initCachedUserCount } from "./web/auth/cached-user-count";

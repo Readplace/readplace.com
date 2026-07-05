@@ -1,0 +1,38 @@
+{
+  "name": "@packages/web-analytics",
+  "version": "1.0.0",
+  "description": "Shared web analytics instrumentation (visitor id, first-touch click attribution, pageview/click event middleware) reused across every Readplace frontend",
+  "main": "dist/index.js",
+  "types": "dist/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "default": "./dist/index.js"
+    }
+  },
+  "private": true,
+  "scripts": {
+    "compile": "rm -rf dist && tsc",
+    "lint": "concurrently --kill-others-on-fail \"tsc --project tsconfig.lint.json\" \"biome lint src\" \"knip\"",
+    "test": "jest --testMatch='**/dist/**/*.test.js' --testTimeout=10000",
+    "test-with-coverage": "c8 pnpm test && node enforce-coverage.config.js",
+    "check": "nx run @packages/web-analytics:check",
+    "check-infra": "echo 'No infrastructure — shared library'"
+  },
+  "dependencies": {
+    "@packages/domain": "workspace:*",
+    "@packages/hutch-infra-components": "workspace:*",
+    "@packages/hutch-logger": "workspace:*",
+    "isbot": "5.1.40",
+    "zod": "4.4.3"
+  },
+  "devDependencies": {
+    "@types/express": "5.0.6",
+    "@types/jest": "30.0.0",
+    "c8": "11.0.0",
+    "concurrently": "10.0.0",
+    "express": "5.2.1",
+    "jest": "30.4.2",
+    "typescript": "6.0.3"
+  }
+}

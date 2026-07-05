@@ -8,7 +8,7 @@ import { Base } from "../../base.component";
 import type { BuildBannerState } from "../../banner-state";
 import { sendComponent } from "@packages/web-shell";
 import { collectUtmParams } from "../../shared/utm";
-import { buildSaveIntentEvent, type AnalyticsEvent } from "../../middleware/analytics";
+import { buildSaveIntentEvent, type AnalyticsEvent } from "@packages/web-analytics";
 import { SAVE_OUTCOMES, SAVE_SURFACES } from "../../../observability/events";
 import { setPendingSaveId } from "../../pending-save";
 import { SaveErrorPage } from "./save-error.component";

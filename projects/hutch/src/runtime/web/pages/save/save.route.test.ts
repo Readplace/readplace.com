@@ -2,7 +2,7 @@ import assert from "node:assert/strict";
 import { JSDOM } from "jsdom";
 import request from "supertest";
 import { useTestServer, loginAgent } from "../../../test-app";
-import type { ViewSaveIntentEvent } from "../../middleware/analytics";
+import type { ViewSaveIntentEvent } from "@packages/web-analytics";
 
 import {
 	TEST_APP_ORIGIN,

@@ -2,7 +2,7 @@ import { createHash } from "node:crypto";
 import type { HutchLogger } from "@packages/hutch-logger";
 import type { UserId } from "@packages/domain/user";
 import type { ConversionEvent } from "@packages/provider-contracts/auth";
-import type { ClickAttribution } from "./web/click-attribution.middleware";
+import type { ClickAttribution } from "@packages/web-analytics";
 import { CONVERSION_EVENTS, STREAMS } from "./observability/events";
 
 export type { ConversionEvent };

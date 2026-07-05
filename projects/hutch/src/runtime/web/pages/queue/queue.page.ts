@@ -13,7 +13,7 @@ import type { LogParseError } from "@packages/hutch-infra-components";
 import type { SaveableUrl, ValidateSaveableUrl } from "@packages/domain/article";
 import type { UserId } from "@packages/domain/user";
 import { SaveArticleInputSchema, BulkSaveManifestSchema, MAX_PAGES_PER_BULK_SAVE, MAX_PAGE_CONTENT_BYTES, MAX_BULK_CONTENT_REQUEST_BYTES, SaveHtmlInputSchema, ArticleStatusSchema, MAX_RAW_HTML_REQUEST_BYTES, RAW_HTML_FIELD, saveableUrlErrorMessage } from "@packages/domain/article";
-import { buildSaveIntentEvent, classifyDeviceClass, hashIp, type AnalyticsEvent } from "../../middleware/analytics";
+import { buildSaveIntentEvent, classifyDeviceClass, hashIp, type AnalyticsEvent } from "@packages/web-analytics";
 import { ANALYTICS_EVENTS, SAVE_OUTCOMES, SAVE_SURFACES, STREAMS, type SaveOutcome, type SaveSurface } from "../../../observability/events";
 import {
 	IMPORT_SKIPPED_COOKIE_NAME,

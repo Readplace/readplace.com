@@ -3,7 +3,7 @@ import { JSDOM } from "jsdom";
 import request from "supertest";
 import { ImportSessionIdSchema } from "@packages/domain/import-session";
 import { useTestServer, loginAgent } from "../../../test-app";
-import type { ImportUploadedEvent, ImportCommittedEvent } from "../../middleware/analytics";
+import type { ImportUploadedEvent, ImportCommittedEvent } from "@packages/web-analytics";
 import {
 	TEST_APP_ORIGIN,
 	createDefaultTestAppFixture,

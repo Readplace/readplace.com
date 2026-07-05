@@ -68,6 +68,7 @@
     "@packages/subscription-access": "workspace:*",
     "@packages/supported-clients": "workspace:*",
     "@packages/time-left": "workspace:*",
+    "@packages/web-analytics": "workspace:*",
     "@packages/web-session": "workspace:*",
     "@packages/web-shell": "workspace:*",
     "browser-extension-core": "workspace:*",

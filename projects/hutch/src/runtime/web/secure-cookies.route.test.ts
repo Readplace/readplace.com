@@ -6,8 +6,7 @@ import {
 	createDefaultTestAppFixture,
 } from "@packages/test-fixtures";
 import { SESSION_COOKIE_NAME } from "@packages/web-session";
-import { CLICK_COOKIE_NAME } from "./click-attribution.middleware";
-import { VISITOR_COOKIE_NAME } from "./visitor-id.middleware";
+import { CLICK_COOKIE_NAME, VISITOR_COOKIE_NAME } from "@packages/web-analytics";
 
 const HTTPS_APP_ORIGIN = "https://readplace.com";
 

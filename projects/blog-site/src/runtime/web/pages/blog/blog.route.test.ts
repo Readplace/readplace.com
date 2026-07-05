@@ -21,7 +21,17 @@ const authedResolver: ResolveLogin = async (cookieHeader) =>
 		? { isAuthenticated: true, userId: authenticatedUserIdFrom("user-1"), emailVerified: true }
 		: { isAuthenticated: false };
 
-const app = createBlogApp({ staticBaseUrl: "", liveReload: false, renderNav: GlobalNav }, { resolveLogin: guestResolver });
+const app = createBlogApp(
+	{ staticBaseUrl: "", liveReload: false, renderNav: GlobalNav },
+	{
+		resolveLogin: guestResolver,
+		analyticsLogger: { info: () => {}, error: () => {}, warn: () => {}, debug: () => {} },
+		salt: "test-salt",
+		now: () => new Date("2026-07-01T00:00:00.000Z"),
+		generateVisitorId: () => "00000000-0000-4000-8000-000000000000",
+		secureCookies: false,
+	},
+);
 const blogPosts = initBlogPosts();
 const firstPost = blogPosts.getAllPosts()[0];
 

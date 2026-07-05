@@ -84,6 +84,7 @@ export {
 } from "./events";
 export { PARSE_ERROR_STREAM, type ParseErrorEvent } from "./logs";
 export { SAVE_LINK_LAMBDA_NAMES, SAVE_LINK_LOG_GROUPS } from "./save-link-lambdas";
+export { BLOG_SITE_LAMBDA_NAME, BLOG_SITE_LOG_GROUP } from "./blog-site-lambda";
 export { initLogParseError, type LogParseError } from "./log-parse-error";
 export {
 	CRAWL_OUTCOME_STREAM,

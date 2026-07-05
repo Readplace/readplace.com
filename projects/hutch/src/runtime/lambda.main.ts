@@ -6,7 +6,7 @@ import compression from "compression";
 import serverless from "serverless-http";
 import { HutchLogger, consoleLogger } from "@packages/hutch-logger";
 import { logger as requestLogger } from "./domain/logger";
-import { createAnalyticsMiddleware, hashIp } from "./web/middleware/analytics";
+import { createAnalyticsMiddleware, hashIp } from "@packages/web-analytics";
 import { createBanMiddleware } from "./web/middleware/ban";
 import { type BotBlockEvent, createBlockNaiveBotMiddleware } from "./web/middleware/naive-bot";
 import { logAndRespondOnError } from "./web/middleware/error-handler";

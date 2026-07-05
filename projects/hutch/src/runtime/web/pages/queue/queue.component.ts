@@ -3,7 +3,7 @@ import { join } from "node:path";
 import { NAV_HIDE_SCRIPT } from "../../shared/reader-nav-script";
 import { OnboardingChecklist, ONBOARDING_STYLES } from "../../onboarding/onboarding.component";
 import type { Platform } from "../../onboarding/onboarding.types";
-import type { DeviceClass } from "../../middleware/analytics";
+import type { DeviceClass } from "@packages/web-analytics";
 import { render, withInternalTracking, SUBSCRIBE_CTA_LABEL } from "@packages/web-shell";
 import type { PageBody } from "@packages/web-shell";
 

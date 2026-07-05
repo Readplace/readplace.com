@@ -1,6 +1,6 @@
 import express, { type Request, type Response, type Router } from "express";
 import { CHANGELOG_DISMISS_COOKIE_NAME, isChangelogVersion } from "@packages/web-shell";
-import { baseCookieOptions } from "../../cookie-options";
+import { baseCookieOptions } from "@packages/web-analytics";
 
 /** The full 23 months is honoured by WebKit/Firefox, which cap only JS-set
  * cookies; Chrome 104+ clamps any server-set Max-Age to 400 days (rfc6265bis),

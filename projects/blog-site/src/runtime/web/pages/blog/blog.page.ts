@@ -23,6 +23,10 @@ const CANONICAL_ORIGIN = "https://readplace.com";
  * behaviour, now driven by the live session rather than a hardcoded guest. */
 async function bannerStateFor(resolveLogin: ResolveLogin, req: Request) {
 	const login = await resolveLogin(req.headers.cookie);
+	/** Stamp the resolved user so the analytics middleware's res-finish hook can
+	 * mark this pageview is_authenticated=1 — no extra session read, it reuses
+	 * the login the banner already resolved. */
+	if (login.isAuthenticated) req.userId = login.userId;
 	return bannerStateFromRequest({
 		userId: login.isAuthenticated ? login.userId : undefined,
 		emailVerified: login.isAuthenticated ? login.emailVerified : undefined,
@@ -32,9 +36,9 @@ async function bannerStateFor(resolveLogin: ResolveLogin, req: Request) {
 }
 
 /** Suppresses the banner when the reader's dismissal cookie matches its version.
- * Read straight off the raw Cookie header — blog-site takes no cookie-parser
- * dependency — and compared byte-for-byte against the version blog-site itself
- * produced, so a dismissal on the app also hides it here (shared cookie). */
+ * Read straight off the raw Cookie header and compared byte-for-byte against the
+ * version blog-site itself produced, so a dismissal on the app also hides it
+ * here (shared cookie). */
 function hideIfDismissed(
 	banner: ChangelogBanner | undefined,
 	req: Request,
