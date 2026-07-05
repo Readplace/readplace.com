@@ -107,14 +107,19 @@ export const CHANGELOG_SEEN_SCRIPT = `(function(){var banner=document.querySelec
  * (so the dismiss route sends the reader back where they were rather than the
  * homepage — it cannot read `Referer`, which helmet's default `no-referrer`
  * policy strips from the POST). */
-const CHANGELOG_SHELL_TEMPLATE = `<div class="changelog-banner {{#if visible}}changelog-banner--visible{{else}}changelog-banner--hidden{{/if}}" role="status" aria-live="polite" data-test-changelog-banner{{#if visible}} data-changelog-version="{{version}}"{{/if}}>{{#if visible}}<div class="changelog-banner__inner"><span class="changelog-banner__chip" aria-hidden="true">NEW</span><span class="changelog-banner__hook">{{hook}}</span><a class="changelog-banner__link" href="{{href}}">Read more <span class="changelog-banner__arrow" aria-hidden="true">&rarr;</span></a><form class="changelog-banner__dismiss" method="POST" action="/banner/changelog/dismiss"><input type="hidden" name="version" value="{{version}}"><input type="hidden" name="returnTo" value="{{returnTo}}"><button type="submit" class="changelog-banner__close" aria-label="Dismiss changelog banner"><span aria-hidden="true">&times;</span></button></form></div><script>${CHANGELOG_SEEN_SCRIPT}</script>{{/if}}</div>`;
+const CHANGELOG_SHELL_TEMPLATE = `<div class="changelog-banner {{#if visible}}changelog-banner--visible{{else}}changelog-banner--hidden{{/if}}" role="status" aria-live="polite" data-test-changelog-banner{{#if visible}} data-changelog-version="{{version}}"{{/if}}>{{#if visible}}<div class="changelog-banner__inner"><span class="changelog-banner__chip" aria-hidden="true">NEW</span><span class="changelog-banner__hook">{{hook}}</span><a class="changelog-banner__link" href="{{href}}">Read more <span class="changelog-banner__arrow" aria-hidden="true">&rarr;</span></a><form class="changelog-banner__dismiss" method="POST" action="/banner/changelog/dismiss"><input type="hidden" name="version" value="{{version}}"><input type="hidden" name="returnTo" value="{{returnTo}}"><button type="submit" class="changelog-banner__close" aria-label="Dismiss changelog banner"><span aria-hidden="true">&times;</span></button></form></div>{{#if seenScript}}<script>${CHANGELOG_SEEN_SCRIPT}</script>{{/if}}{{/if}}</div>`;
 
-export function renderChangelogBannerShell(banner?: ChangelogBanner, returnTo?: string): string {
+export function renderChangelogBannerShell(
+	banner?: ChangelogBanner,
+	returnTo?: string,
+	options?: { suppressSeenScript?: boolean },
+): string {
 	return render(CHANGELOG_SHELL_TEMPLATE, {
 		visible: Boolean(banner),
 		hook: banner?.hook,
 		href: banner?.href,
 		version: banner?.version,
 		returnTo,
+		seenScript: Boolean(banner) && !options?.suppressSeenScript,
 	});
 }

@@ -184,6 +184,7 @@ import { E2EFixturePage } from "./web/pages/e2e-fixture";
 import { createE2EFixturePdf } from "./web/pages/e2e-fixture-pdf";
 import { initInstallRoutes } from "./web/pages/install";
 import { initLandingRoutes } from "./web/pages/landing";
+import { HOMEPAGE_SPLIT } from "./web/experiments/homepage-split";
 import { detectInstallBrowser } from "./web/onboarding/extension-install";
 import { NotFoundPage } from "./web/pages/not-found";
 import { initGetEffectiveAccess } from "./domain/access/effective-access";
@@ -698,10 +699,22 @@ export function createApp(dependencies: AppDependencies): Express {
 		// Gate the client A/B split redirect on humans: bots keep the canonical `/`
 		// (control) instead of following a client redirect into a noindex arm.
 		const abSplit = !isbot(req.get("user-agent"));
+		// Suppress this render's changelog seen-script only when the split script
+		// will actually replace `/` before it paints — a human guest AND the
+		// experiment active. That throwaway frame must not record the banner
+		// version as seen, or the landing arm the reader lands on would hide the
+		// one-shot NEW chip. When the split is off (kill switch) the emitted
+		// script no-ops and the guest stays on `/`, and a bot never runs it at
+		// all: in both cases `/` is the reader's real, persistent page, so it
+		// keeps its seen-script and the chip self-suppresses on the next visit.
+		const suppressChangelogSeenScript = abSplit && HOMEPAGE_SPLIT.active;
 		sendComponent(
 			req,
 			res,
-			Base(HomePage({ userCount, staticBaseUrl, browser, foundingAllocation, abSplit }), banner),
+			Base(HomePage({ userCount, staticBaseUrl, browser, foundingAllocation, abSplit }), {
+				...banner,
+				suppressChangelogSeenScript,
+			}),
 		);
 	});
 
