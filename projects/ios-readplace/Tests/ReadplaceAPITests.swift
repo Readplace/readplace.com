@@ -716,4 +716,20 @@ final class ReadplaceAPITests: XCTestCase {
 			"the minted session cookie must never land in the process-wide shared jar"
 		)
 	}
+
+	func testBootstrapSessionFollowsADiscoveredActionsHrefAndMethod() async throws {
+		let store = TestSupport.loggedInStore()
+		StubURLProtocol.setHandler { request, _ in
+			XCTAssertEqual(request.url?.path, "/custom/session", "follows the action's href, not a hard-coded path")
+			XCTAssertEqual(request.httpMethod, "POST")
+			return StubURLProtocol.Stub(status: 204, headers: ["Set-Cookie": "sess=discovered; Path=/"])
+		}
+		let action = SirenAction(
+			name: "create-session", href: "/custom/session", method: "POST", title: nil, type: nil, fields: nil
+		)
+
+		let cookies = try await makeAPI(store: store).bootstrapSession(action: action)
+
+		XCTAssertEqual(cookies.first?.value, "discovered")
+	}
 }
