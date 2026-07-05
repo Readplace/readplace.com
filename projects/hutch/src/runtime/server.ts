@@ -868,7 +868,6 @@ export function createApp(dependencies: AppDependencies): Express {
 			loginAccount: deps.rateLimitRules.loginAccount,
 			signup: deps.rateLimitRules.signup,
 		},
-		featureToggle,
 	});
 	app.use("/auth/session", sessionBridgeCors);
 	app.use(authRouter);
