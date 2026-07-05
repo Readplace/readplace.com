@@ -594,6 +594,20 @@ export function buildAnalyticsDashboardBody(deps: BuildAnalyticsDashboardDeps): 
 			x: 0, y: 122, width: 12, height: 8,
 			view: "bar",
 		}),
+		logWidget({
+			region,
+			title: "Save errors by surface (view_save_intent outcome=error)",
+			logGroupNames: [hutchLogGroupName],
+			query: [
+				`fields coalesce(surface, "${SAVE_SURFACES.readerView}") as surface`,
+				`| filter stream = "${STREAMS.analytics}" and event = "${ANALYTICS_EVENTS.viewSaveIntent}" and outcome = "${SAVE_OUTCOMES.error}"`,
+				...exclude,
+				"| stats count(*) as save_errors by surface",
+				"| sort save_errors desc",
+			].join(" "),
+			x: 0, y: 130, width: 12, height: 8,
+			view: "bar",
+		}),
 	);
 
 	// --- Blog traffic ---

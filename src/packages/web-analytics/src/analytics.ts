@@ -13,7 +13,7 @@ import {
 	STREAMS,
 } from "./events";
 import {
-	articleHostFrom,
+	articleHostFromSubmitted,
 	classifyContentSource,
 	type ContentClass,
 } from "./content-source";
@@ -245,8 +245,8 @@ export interface ViewSaveIntentEvent {
 	event: typeof ANALYTICS_EVENTS.viewSaveIntent;
 	timestamp: string;
 	path: string;
-	article_host: string;
-	content_class: ContentClass;
+	article_host: string | null;
+	content_class: ContentClass | null;
 	surface: SaveSurface;
 	outcome: SaveOutcome;
 	referrer_host?: string;
@@ -393,7 +393,7 @@ export function buildSaveIntentEvent(
 	},
 ): ViewSaveIntentEvent {
 	assert(params.req.visitorId, "visitor-id middleware must run before a save surface emits view_save_intent");
-	const articleHost = articleHostFrom(params.url);
+	const articleHost = articleHostFromSubmitted(params.url);
 	const referrerHost = extractReferrerHost(params.req);
 	return {
 		stream: STREAMS.analytics,
@@ -401,7 +401,7 @@ export function buildSaveIntentEvent(
 		timestamp: deps.now().toISOString(),
 		path: params.path,
 		article_host: articleHost,
-		content_class: classifyContentSource(articleHost),
+		content_class: articleHost === null ? null : classifyContentSource(articleHost),
 		surface: params.surface,
 		outcome: params.outcome,
 		...(referrerHost ? { referrer_host: referrerHost } : {}),

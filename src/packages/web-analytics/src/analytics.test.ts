@@ -539,6 +539,11 @@ describe("buildSaveIntentEvent", () => {
 		expect(event).toMatchObject({ article_host: "example.com", content_class: "third_party", referrer_host: "readplace.com" });
 	});
 
+	it("leaves article_host and content_class null when the submitted URL does not parse — save surfaces emit view_save_intent even on a URL-validation failure, where the submitted string is not a saveable URL and there is no host to classify", () => {
+		const event = buildIntent({ url: "not a url" });
+		expect(event).toMatchObject({ article_host: null, content_class: null });
+	});
+
 	it("includes pending_save_id when the anonymous prompted-to-sign-up flow threads one, so the later signup joins back to this intent", () => {
 		const event = buildIntent({ pendingSaveId: "pending-abc-123" });
 		expect(event).toMatchObject({ pending_save_id: "pending-abc-123" });

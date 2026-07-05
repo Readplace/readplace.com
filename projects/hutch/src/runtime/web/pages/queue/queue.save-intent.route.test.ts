@@ -96,6 +96,40 @@ describe("view_save_intent — authenticated save surfaces", () => {
 			expect(response.headers.location).toBe("/queue?error_code=save_failed");
 			expect(saveIntents(harness)[0]).toMatchObject({ surface: "queue_save_bar", outcome: "error", is_authenticated: 1 });
 		});
+
+		it("emits queue_save_bar / error with a null host when the URL is malformed (422)", async () => {
+			const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
+			const agent = await loginAgent(harness.server, harness.auth);
+
+			const response = await agent.post("/queue/save").type("form").send({ url: "not-a-url" });
+
+			expect(response.status).toBe(422);
+			const intents = saveIntents(harness);
+			assert.equal(intents.length, 1, "exactly one view_save_intent");
+			expect(intents[0]).toMatchObject({
+				path: "/queue/save",
+				surface: "queue_save_bar",
+				outcome: "error",
+				article_host: null,
+				content_class: null,
+				is_authenticated: 1,
+			});
+		});
+
+		it("emits queue_save_bar / error keeping the parseable host of an unsaveable private-network URL", async () => {
+			const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
+			const agent = await loginAgent(harness.server, harness.auth);
+
+			const response = await agent.post("/queue/save").type("form").send({ url: "http://localhost/x" });
+
+			expect(response.status).toBe(422);
+			expect(saveIntents(harness)[0]).toMatchObject({
+				surface: "queue_save_bar",
+				outcome: "error",
+				article_host: "localhost",
+				content_class: "third_party",
+			});
+		});
 	});
 
 	describe("POST /queue (extension save-article)", () => {
@@ -132,6 +166,22 @@ describe("view_save_intent — authenticated save surfaces", () => {
 			expect(response.status).toBe(500);
 			expect(saveIntents(harness)[0]).toMatchObject({ surface: "extension", outcome: "error" });
 		});
+
+		it("emits extension / error when the URL is malformed (422)", async () => {
+			const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
+			const token = await bearerToken(harness);
+
+			const response = await request(harness.server)
+				.post("/queue")
+				.set("Accept", SIREN_MEDIA_TYPE)
+				.set("Authorization", `Bearer ${token}`)
+				.send({ url: "not-a-url" });
+
+			expect(response.status).toBe(422);
+			const intents = saveIntents(harness);
+			assert.equal(intents.length, 1, "exactly one view_save_intent");
+			expect(intents[0]).toMatchObject({ path: "/queue", surface: "extension", outcome: "error", article_host: null });
+		});
 	});
 
 	describe("POST /queue/save-html (extension)", () => {
@@ -161,6 +211,34 @@ describe("view_save_intent — authenticated save surfaces", () => {
 
 			expect(response.status).toBe(500);
 			expect(saveIntents(harness)[0]).toMatchObject({ path: "/queue/save-html", surface: "extension", outcome: "error" });
+		});
+
+		it("emits extension / error when the request fails schema validation (invalid url, 422)", async () => {
+			const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
+			const token = await bearerToken(harness);
+
+			const response = await request(harness.server)
+				.post("/queue/save-html")
+				.set("Accept", SIREN_MEDIA_TYPE)
+				.set("Authorization", `Bearer ${token}`)
+				.send({ url: "not-a-url", rawHtml: "<html>captured</html>" });
+
+			expect(response.status).toBe(422);
+			expect(saveIntents(harness)[0]).toMatchObject({ path: "/queue/save-html", surface: "extension", outcome: "error", article_host: null });
+		});
+
+		it("emits extension / error when a schema-valid URL is unsaveable (private network, 422)", async () => {
+			const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
+			const token = await bearerToken(harness);
+
+			const response = await request(harness.server)
+				.post("/queue/save-html")
+				.set("Accept", SIREN_MEDIA_TYPE)
+				.set("Authorization", `Bearer ${token}`)
+				.send({ url: "http://localhost/x", rawHtml: "<html>captured</html>" });
+
+			expect(response.status).toBe(422);
+			expect(saveIntents(harness)[0]).toMatchObject({ path: "/queue/save-html", surface: "extension", outcome: "error", article_host: "localhost" });
 		});
 	});
 
@@ -195,6 +273,84 @@ describe("view_save_intent — authenticated save surfaces", () => {
 
 			expect(response.status).toBe(500);
 			expect(saveIntents(harness)[0]).toMatchObject({ surface: "extension", outcome: "error" });
+		});
+
+		it("emits extension / error when the URL is malformed (422)", async () => {
+			const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
+			const token = await bearerToken(harness);
+
+			const response = await request(harness.server)
+				.post("/queue/save-content")
+				.set("Accept", SIREN_MEDIA_TYPE)
+				.set("Authorization", `Bearer ${token}`)
+				.field("url", "not-a-url")
+				.field("mediaType", "text/html")
+				.attach("content", Buffer.from("<html>captured</html>"), "content");
+
+			expect(response.status).toBe(422);
+			expect(saveIntents(harness)[0]).toMatchObject({ path: "/queue/save-content", surface: "extension", outcome: "error", article_host: null });
+		});
+
+		it("emits extension / error when the content field is missing (422)", async () => {
+			const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
+			const token = await bearerToken(harness);
+
+			const response = await request(harness.server)
+				.post("/queue/save-content")
+				.set("Accept", SIREN_MEDIA_TYPE)
+				.set("Authorization", `Bearer ${token}`)
+				.field("url", "https://example.com/article")
+				.field("mediaType", "text/html");
+
+			expect(response.status).toBe(422);
+			expect(saveIntents(harness)[0]).toMatchObject({ path: "/queue/save-content", surface: "extension", outcome: "error", article_host: "example.com" });
+		});
+
+		it("emits extension / error when the mediaType field is missing (422)", async () => {
+			const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
+			const token = await bearerToken(harness);
+
+			const response = await request(harness.server)
+				.post("/queue/save-content")
+				.set("Accept", SIREN_MEDIA_TYPE)
+				.set("Authorization", `Bearer ${token}`)
+				.field("url", "https://example.com/article")
+				.attach("content", Buffer.from("<html>captured</html>"), "content");
+
+			expect(response.status).toBe(422);
+			expect(saveIntents(harness)[0]).toMatchObject({ path: "/queue/save-content", surface: "extension", outcome: "error", article_host: "example.com" });
+		});
+
+		it("emits extension / error on an unsupported media type (422)", async () => {
+			const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
+			const token = await bearerToken(harness);
+
+			const response = await request(harness.server)
+				.post("/queue/save-content")
+				.set("Accept", SIREN_MEDIA_TYPE)
+				.set("Authorization", `Bearer ${token}`)
+				.field("url", "https://example.com/article")
+				.field("mediaType", "application/xml")
+				.attach("content", Buffer.from("<note>hi</note>"), "content");
+
+			expect(response.status).toBe(422);
+			expect(saveIntents(harness)[0]).toMatchObject({ path: "/queue/save-content", surface: "extension", outcome: "error", article_host: "example.com" });
+		});
+
+		it("emits extension / error when the uploaded bytes are not a PDF (422)", async () => {
+			const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
+			const token = await bearerToken(harness);
+
+			const response = await request(harness.server)
+				.post("/queue/save-content")
+				.set("Accept", SIREN_MEDIA_TYPE)
+				.set("Authorization", `Bearer ${token}`)
+				.field("url", "https://example.com/article")
+				.field("mediaType", "application/pdf")
+				.attach("content", Buffer.from("<html>not a pdf</html>"), "content");
+
+			expect(response.status).toBe(422);
+			expect(saveIntents(harness)[0]).toMatchObject({ path: "/queue/save-content", surface: "extension", outcome: "error", article_host: "example.com" });
 		});
 	});
 

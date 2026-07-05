@@ -1,8 +1,31 @@
-import { articleHostFrom, classifyContentSource, OWN_CONTENT_DOMAINS } from "./content-source";
+import {
+	articleHostFrom,
+	articleHostFromSubmitted,
+	classifyContentSource,
+	OWN_CONTENT_DOMAINS,
+} from "./content-source";
 
 describe("articleHostFrom", () => {
 	it("returns the lowercased hostname so view_opened and view_save_intent normalize identically", () => {
 		expect(articleHostFrom("https://EN.Wikipedia.ORG/wiki/Foo?x=1#frag")).toBe("en.wikipedia.org");
+	});
+});
+
+describe("articleHostFromSubmitted", () => {
+	it("returns the lowercased hostname for a valid URL", () => {
+		expect(articleHostFromSubmitted("https://EN.Wikipedia.ORG/wiki/Foo")).toBe("en.wikipedia.org");
+	});
+
+	it("returns null for an unparseable URL", () => {
+		expect(articleHostFromSubmitted("not a url")).toBeNull();
+	});
+
+	it("returns null for an empty string", () => {
+		expect(articleHostFromSubmitted("")).toBeNull();
+	});
+
+	it("returns null when the parsed URL has an empty host", () => {
+		expect(articleHostFromSubmitted("file:///etc/hosts")).toBeNull();
 	});
 });
 
