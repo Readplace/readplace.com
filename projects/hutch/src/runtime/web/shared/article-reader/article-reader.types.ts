@@ -12,14 +12,21 @@ import type {
 } from "@packages/provider-contracts/article-summary";
 import type {
 	FindArticleByUrl,
+	FindArticleFreshness,
 	ReadArticleContent,
 } from "@packages/provider-contracts/article-store";
 import type { ProgressTick } from "@packages/domain/article";
+import type { LocalTime } from "@packages/web-shell/local-time.format";
 
 export interface ArticleReaderDeps {
 	findArticleCrawlStatus: FindArticleCrawlStatus;
 	findGeneratedSummary: FindGeneratedSummary;
 	readArticleContent: ReadArticleContent;
+	/**
+	 * Reuses the existing freshness provider rather than widening the
+	 * ArticleCrawl contract, which is consumed far more widely.
+	 */
+	findArticleFreshness: FindArticleFreshness;
 	/**
 	 * Deployment origin. Poll responses re-render the reader iframe when a crawl
 	 * finishes while the page is open, so the same-host link rewrite must run
@@ -73,6 +80,7 @@ export interface ReaderState {
 	 * percentage that will never advance).
 	 */
 	progress: ProgressTick | undefined;
+	lastCrawledAt: LocalTime | undefined;
 }
 
 export interface ResolveReaderStateParams {

@@ -39,6 +39,7 @@ interface FakeState {
 	summary: GeneratedSummary | undefined;
 	content: string | undefined;
 	article: GlobalArticleData | null;
+	contentFetchedAt: string | undefined;
 }
 
 const FIXED_NOW = new Date("2026-04-25T12:00:00.000Z");
@@ -67,6 +68,7 @@ function initFakeDeps(initial: {
 	/** Defaults to the public-reader behaviour (expanded) so existing assertions
 	 * stay green; the collapse case overrides it to false. */
 	summaryOpen?: boolean;
+	contentFetchedAt?: string;
 } = {}): {
 	state: FakeState;
 	deps: ArticleReaderDeps;
@@ -76,12 +78,17 @@ function initFakeDeps(initial: {
 		summary: initial.summary,
 		content: initial.content,
 		article: initial.article === undefined ? defaultFakeArticle() : initial.article,
+		contentFetchedAt: initial.contentFetchedAt,
 	};
 	const deps: ArticleReaderDeps = {
 		findArticleCrawlStatus: async () => state.crawl,
 		findGeneratedSummary: async () => state.summary,
 		readArticleContent: async () => state.content,
 		findArticleByUrl: async () => state.article,
+		findArticleFreshness: async () =>
+			state.contentFetchedAt === undefined
+				? null
+				: { contentFetchedAt: state.contentFetchedAt },
 		formatDocumentTitle: (title) => `${title} — TestReader`,
 		appOrigin: "https://readplace.com",
 		summaryOpen: initial.summaryOpen ?? true,
@@ -118,6 +125,42 @@ describe("initArticleReader", () => {
 			expect(result.content).toBeUndefined();
 			expect(result.readerPollUrl).toBe("/test/reader?poll=1");
 			expect(result.summaryPollUrl).toBe("/test/summary?poll=1");
+		});
+
+		it("sets lastCrawledAt from contentFetchedAt as a short-datetime LocalTime", async () => {
+			const { deps } = initFakeDeps({
+				crawl: { status: "ready" },
+				summary: { status: "ready", summary: "TL;DR" },
+				content: "<p>body</p>",
+				contentFetchedAt: "2026-03-26T14:32:00.000Z",
+			});
+			const reader = initArticleReader(deps);
+
+			const result = await reader.resolveReaderState({
+				article: makeSnapshot(),
+				pollUrlBuilder: makePollUrlBuilder(),
+			});
+
+			expect(result.lastCrawledAt).toEqual({
+				iso: "2026-03-26T14:32:00.000Z",
+				label: "26 Mar '26, 14:32",
+				mode: "short-datetime",
+			});
+		});
+
+		it("leaves lastCrawledAt undefined before the first crawl records a contentFetchedAt", async () => {
+			const { deps } = initFakeDeps({
+				crawl: { status: "pending" },
+				summary: { status: "pending" },
+			});
+			const reader = initArticleReader(deps);
+
+			const result = await reader.resolveReaderState({
+				article: makeSnapshot(),
+				pollUrlBuilder: makePollUrlBuilder(),
+			});
+
+			expect(result.lastCrawledAt).toBeUndefined();
 		});
 
 		it("emits a unified progress tick driven by the crawl stage while crawl is pending", async () => {

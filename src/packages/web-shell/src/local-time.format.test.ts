@@ -2,6 +2,7 @@ import {
 	formatLocalInstant,
 	toAbsoluteDate,
 	toAbsoluteDateTime,
+	toAbsoluteShortDateTime,
 	toRelativeOrDate,
 } from "./local-time.format";
 
@@ -34,6 +35,18 @@ describe("formatLocalInstant", () => {
 			"Jun 24, 2026",
 		);
 	});
+
+	it("renders the short-datetime form with a 2-digit apostrophe year and no zone suffix", () => {
+		expect(
+			formatLocalInstant({ iso: "2026-03-26T14:32:00.000Z", style: "short-datetime", timeZone: "UTC" }),
+		).toBe("26 Mar '26, 14:32");
+	});
+
+	it("localises the short-datetime form into the given zone", () => {
+		expect(
+			formatLocalInstant({ iso: "2026-03-26T14:32:00.000Z", style: "short-datetime", timeZone: "Australia/Sydney" }),
+		).toBe("27 Mar '26, 01:32");
+	});
 });
 
 describe("toAbsoluteDateTime", () => {
@@ -43,6 +56,22 @@ describe("toAbsoluteDateTime", () => {
 			label: "Jun 24, 2026, 09:00 UTC",
 			mode: "datetime",
 		});
+	});
+});
+
+describe("toAbsoluteShortDateTime", () => {
+	it("carries the iso, short-datetime mode, and UTC baseline label", () => {
+		expect(toAbsoluteShortDateTime({ iso: "2026-03-26T14:32:00.000Z" })).toEqual({
+			iso: "2026-03-26T14:32:00.000Z",
+			label: "26 Mar '26, 14:32",
+			mode: "short-datetime",
+		});
+	});
+
+	it("keeps a single-digit day unpadded while zero-padding the hour", () => {
+		expect(toAbsoluteShortDateTime({ iso: "2026-03-06T04:32:00.000Z" }).label).toBe(
+			"6 Mar '26, 04:32",
+		);
 	});
 });
 

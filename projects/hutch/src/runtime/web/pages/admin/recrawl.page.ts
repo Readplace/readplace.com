@@ -6,7 +6,7 @@ import type {
 	ForceMarkCrawlPending,
 	MarkCrawlPending,
 } from "@packages/provider-contracts/article-crawl";
-import type { FindArticleByUrl } from "@packages/provider-contracts/article-store";
+import type { FindArticleByUrl, FindArticleFreshness } from "@packages/provider-contracts/article-store";
 import type { ReadArticleContent } from "@packages/provider-contracts/article-store";
 import type {
 	FindGeneratedSummary,
@@ -28,6 +28,7 @@ const RecrawlUrlSchema = z.url();
 export interface AdminRecrawlDependencies {
 	appOrigin: string;
 	findArticleByUrl: FindArticleByUrl;
+	findArticleFreshness: FindArticleFreshness;
 	readArticleContent: ReadArticleContent;
 	findGeneratedSummary: FindGeneratedSummary;
 	findArticleCrawlStatus: FindArticleCrawlStatus;
@@ -169,6 +170,7 @@ function handleShowRecrawlPage(
 			contentSourceTier: existing.contentSourceTier,
 			extensionInstallUrl: extensionInstallUrlIfMissing(req),
 			recrawlFormAction,
+			lastCrawledAt: state.lastCrawledAt,
 		}), await deps.buildBannerState(req)).to("text/html");
 		res.status(html.statusCode).type("html").send(html.body);
 	};
@@ -262,6 +264,7 @@ export function initAdminRecrawlRoutes(deps: AdminRecrawlDependencies): Router {
 		findGeneratedSummary: deps.findGeneratedSummary,
 		readArticleContent: deps.readArticleContent,
 		findArticleByUrl: deps.findArticleByUrl,
+		findArticleFreshness: deps.findArticleFreshness,
 		appOrigin: deps.appOrigin,
 		formatDocumentTitle: formatRecrawlDocumentTitle,
 		summaryOpen: false,

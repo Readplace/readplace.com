@@ -69,6 +69,7 @@ import type {
 	DeleteArticle,
 	FindArticleById,
 	FindArticleByUrl,
+	FindArticleFreshness,
 	FindArticleUrlById,
 	FindArticlesByUser,
 	MarkArticleViewed,
@@ -227,6 +228,7 @@ interface AppDependencies {
 	};
 	findArticleById: FindArticleById;
 	findArticleByUrl: FindArticleByUrl;
+	findArticleFreshness: FindArticleFreshness;
 	findArticleUrlById: FindArticleUrlById;
 	findArticlesByUser: FindArticlesByUser;
 	countArticlesByUser: CountArticlesByUser;
@@ -947,6 +949,7 @@ export function createApp(dependencies: AppDependencies): Express {
 		countArticlesByUser: deps.countArticlesByUser,
 		findArticleById: deps.findArticleById,
 		findArticleByUrl: deps.findArticleByUrl,
+		findArticleFreshness: deps.findArticleFreshness,
 		findArticleUrlById: deps.findArticleUrlById,
 		saveArticle: deps.saveArticle,
 		deleteArticle: deps.deleteArticle,
@@ -1025,6 +1028,7 @@ export function createApp(dependencies: AppDependencies): Express {
 		validateSaveableUrl: deps.validateSaveableUrl,
 		appOrigin,
 		findArticleByUrl: deps.findArticleByUrl,
+		findArticleFreshness: deps.findArticleFreshness,
 		readArticleContent: deps.readArticleContent,
 		findGeneratedSummary: deps.findGeneratedSummary,
 		markSummaryPending: deps.markSummaryPending,
@@ -1047,6 +1051,7 @@ export function createApp(dependencies: AppDependencies): Express {
 	const adminRecrawlRouter = initAdminRecrawlRoutes({
 		appOrigin,
 		findArticleByUrl: deps.findArticleByUrl,
+		findArticleFreshness: deps.findArticleFreshness,
 		readArticleContent: deps.readArticleContent,
 		findGeneratedSummary: deps.findGeneratedSummary,
 		findArticleCrawlStatus: deps.findArticleCrawlStatus,
