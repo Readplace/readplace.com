@@ -26,9 +26,13 @@ open: generate
 # someone builds `make ipa-staging` by hand.
 SIM ?= platform=iOS Simulator,name=$(shell xcrun simctl list devices available | grep -m1 -oE 'iPhone [0-9]+')
 SIM_DEVICE = $(shell printf '%s' '$(SIM)' | sed -E 's/.*=//')
+COVERAGE_RESULT = build/TestResults.xcresult
 test: generate
 	xcrun simctl bootstatus '$(SIM_DEVICE)' -b
-	xcodebuild test -project Readplace.xcodeproj -scheme Readplace -destination '$(SIM)'
+	rm -rf $(COVERAGE_RESULT)
+	xcodebuild test -project Readplace.xcodeproj -scheme Readplace -destination '$(SIM)' \
+		-enableCodeCoverage YES -resultBundlePath $(COVERAGE_RESULT)
+	python3 scripts/check-coverage.py $(COVERAGE_RESULT)
 	$(MAKE) test-staging SIM='$(SIM)'
 
 # Compile the STAGING condition and smoke-test it. The full suite can't run under
