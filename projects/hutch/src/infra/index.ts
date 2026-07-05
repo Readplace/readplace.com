@@ -458,12 +458,15 @@ const inboxMail = new InboxMail("inbox-mail", {
 // with Apple `@privaterelay.appleid.com` addresses pass Apple's relay checks.
 // Only stacks whose mail runs on Google Workspace set `googleWorkspaceMail`;
 // staging (SES-only) omits it and skips this entirely.
-const googleWorkspaceMail = config.getObject<{ domain: string; dkimRecord?: string }>(
-	"googleWorkspaceMail",
-);
+const googleWorkspaceMail = config.getObject<{
+	domain: string;
+	apexTxt: string[];
+	dkimRecord?: string;
+}>("googleWorkspaceMail");
 if (googleWorkspaceMail) {
 	new OutboundMailAuth("outbound-mail-auth", {
 		mailDomain: googleWorkspaceMail.domain,
+		apexTxt: googleWorkspaceMail.apexTxt,
 		googleDkimRecord: googleWorkspaceMail.dkimRecord,
 	});
 }

@@ -28,11 +28,19 @@ export class OutboundMailAuth extends pulumi.ComponentResource {
 		args: {
 			mailDomain: string;
 			/**
+			 * The complete apex TXT record set. Route53 permits only one TXT set per
+			 * name, so this one array must list every value the apex should hold — the
+			 * Google Workspace SPF (`v=spf1 include:_spf.google.com ~all`) plus any
+			 * pre-existing token such as `google-site-verification=…`. Add new apex
+			 * TXT here, not in the DNS console, or the next deploy's overwrite drops it.
+			 */
+			apexTxt: string[];
+			/**
 			 * DKIM public-key record value from Google Admin → Apps → Google
 			 * Workspace → Gmail → Authenticate email (host
 			 * `google._domainkey.<mailDomain>`, selector "google"). Left unset until
 			 * generated in the console, so Pulumi never publishes an empty/invalid
-			 * DKIM record — until then only the apex SPF is created.
+			 * DKIM record — until then only the apex TXT is created.
 			 */
 			googleDkimRecord?: string;
 		},
@@ -44,10 +52,13 @@ export class OutboundMailAuth extends pulumi.ComponentResource {
 			.getZone({ name: args.mailDomain }, { parent: this })
 			.then((zone) => zone.zoneId);
 
-		// Apex SPF authorising Google Workspace's outbound servers. The app's
-		// Resend mail is SPF-checked against the separate `send.<domain>` record,
-		// so this apex record governs only mail whose envelope is the apex — i.e.
-		// Google Workspace human mail. Exactly one v=spf1 record is allowed per name.
+		// The apex TXT set (Google Workspace SPF + any pre-existing tokens). Route53
+		// holds one TXT set per name, so every value shares this single record;
+		// `apexTxt` lists them all. `allowOverwrite` lets Pulumi adopt an apex TXT set
+		// created outside Pulumi (UPSERT) instead of failing with "already exists".
+		// The app's Resend mail authenticates on its own `send.<domain>` record and
+		// is untouched by this apex set.
+		assert(args.apexTxt.length > 0, "OutboundMailAuth: apexTxt must contain at least the SPF value");
 		new aws.route53.Record(
 			`${name}-apex-spf`,
 			{
@@ -55,7 +66,8 @@ export class OutboundMailAuth extends pulumi.ComponentResource {
 				name: args.mailDomain,
 				type: "TXT",
 				ttl: 600,
-				records: ["v=spf1 include:_spf.google.com ~all"],
+				records: args.apexTxt,
+				allowOverwrite: true,
 			},
 			{ parent: this },
 		);

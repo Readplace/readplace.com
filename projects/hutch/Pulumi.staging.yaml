@@ -58,6 +58,8 @@ config:
   # to end before prod. Deploy it in isolation with a --target'd `pulumi up`.
   hutch:googleWorkspaceMail:
     domain: readplace-staging.com
+    apexTxt:
+      - v=spf1 include:_spf.google.com ~all
     # Prod's readplace.com key: inert for deliverability on this zone (nothing
     # signs as readplace-staging.com) — published only to exercise the DKIM
     # record path of this rig.
