@@ -21,7 +21,7 @@ interface AuthFormData {
 	returnUrl?: string;
 	userCount: number;
 	foundingAllocation: FoundingAllocation;
-	appleEnabled?: boolean;
+	appleEnabled: boolean;
 }
 
 interface SignupFormData extends AuthFormData {

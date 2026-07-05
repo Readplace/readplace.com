@@ -894,6 +894,7 @@ export function createApp(dependencies: AppDependencies): Express {
 			now: deps.now,
 			conversionLogger: deps.conversionLogger,
 			foundingAllocation,
+			appleEnabled: Boolean(deps.appleAuth),
 		});
 		app.use(googleAuthRouter);
 	}

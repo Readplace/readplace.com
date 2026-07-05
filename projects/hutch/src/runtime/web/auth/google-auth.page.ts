@@ -66,6 +66,7 @@ interface GoogleAuthDependencies {
 	now: () => Date;
 	conversionLogger: HutchLogger.Typed<ConversionEvent>;
 	foundingAllocation: FoundingAllocation;
+	appleEnabled: boolean;
 }
 
 export const initGoogleAuthRoutes = (deps: GoogleAuthDependencies): Router => {
@@ -119,7 +120,7 @@ export const initGoogleAuthRoutes = (deps: GoogleAuthDependencies): Router => {
 				req,
 				res,
 				Base(LoginPage(
-					{ userCount, foundingAllocation: deps.foundingAllocation, errors: [{ message }] },
+					{ userCount, foundingAllocation: deps.foundingAllocation, errors: [{ message }], appleEnabled: deps.appleEnabled },
 					{ statusCode: 400 },
 				), bannerStateFromRequest(req)),
 			);
