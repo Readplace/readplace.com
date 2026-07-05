@@ -12,6 +12,7 @@
     "check": ". ./.envrc && nx run-many --target=check --all",
     "check-infra": "nx run-many --target=check-infra --all",
     "deploy-infra": "nx run-many --target=deploy-infra --all",
+    "clean-disk": "rm -rf projects/extensions/chrome-extension/.cache .nx node_modules projects/save-link/.lib projects/hutch/.lib",
     "prepare": "husky"
   },
   "devDependencies": {
