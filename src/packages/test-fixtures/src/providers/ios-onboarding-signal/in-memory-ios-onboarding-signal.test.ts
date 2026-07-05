@@ -45,4 +45,30 @@ describe("initInMemoryIosOnboardingSignal", () => {
 			savedArticle: false,
 		});
 	});
+
+	it("clears both the installed and saved signals for a user on deleteOnboarding", async () => {
+		const store = initInMemoryIosOnboardingSignal();
+		await store.recordIosSavedArticle({ userId: USER });
+
+		await store.deleteOnboarding({ userId: USER });
+
+		expect(await store.getIosAppSignals({ userId: USER })).toEqual({
+			installed: false,
+			savedArticle: false,
+		});
+	});
+
+	it("leaves another user's signals intact on deleteOnboarding", async () => {
+		const store = initInMemoryIosOnboardingSignal();
+		const other = "user-2" as UserId;
+		await store.recordIosSavedArticle({ userId: USER });
+		await store.recordIosSavedArticle({ userId: other });
+
+		await store.deleteOnboarding({ userId: USER });
+
+		expect(await store.getIosAppSignals({ userId: other })).toEqual({
+			installed: true,
+			savedArticle: true,
+		});
+	});
 });

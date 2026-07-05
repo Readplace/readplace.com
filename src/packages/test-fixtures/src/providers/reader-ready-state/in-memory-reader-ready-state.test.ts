@@ -107,4 +107,30 @@ describe("initInMemoryReaderReadyState", () => {
 			expect(second).toBe(false);
 		});
 	});
+
+	describe("deleteReaderReadyState", () => {
+		it("clears the cooldown row so the user can immediately claim again", async () => {
+			const store = initInMemoryReaderReadyState();
+			await store.claimReaderReadyEmailSlot({
+				userId: USER,
+				now: new Date("2026-05-30T10:00:00.000Z"),
+				cooldownMs: COOLDOWN_MS,
+			});
+
+			await store.deleteReaderReadyState(USER);
+
+			const reclaimed = await store.claimReaderReadyEmailSlot({
+				userId: USER,
+				now: new Date("2026-05-30T10:01:00.000Z"),
+				cooldownMs: COOLDOWN_MS,
+			});
+			expect(reclaimed).toBe(true);
+		});
+
+		it("is a no-op when the user has no cooldown row", async () => {
+			const store = initInMemoryReaderReadyState();
+
+			await expect(store.deleteReaderReadyState(USER)).resolves.toBeUndefined();
+		});
+	});
 });

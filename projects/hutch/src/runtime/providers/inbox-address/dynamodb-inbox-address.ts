@@ -11,6 +11,7 @@ import {
 	AliasNameSchema,
 	buildInboxAddress,
 	countLiveAddresses,
+	DELETED_ACCOUNT_INBOX_OWNER,
 	generateInboxToken,
 	INBOX_ADDRESS_MAX_CREATE_ATTEMPTS,
 	INBOX_ADDRESS_MAX_PER_USER,
@@ -19,6 +20,7 @@ import {
 	InboxAddressSchema,
 	type InboxAddressStore,
 	InboxTokenSchema,
+	type TombstoneUserAddresses,
 } from "@packages/domain/inbox";
 
 const InboxAddressRow = z.object({
@@ -75,6 +77,26 @@ export function initDynamoDbInboxAddress(deps: {
 		return items.map(toEntry);
 	};
 
+	const tombstoneUserAddresses: TombstoneUserAddresses = async (userId) => {
+		const addresses = await listAddressesByUserId(userId);
+		await Promise.all(
+			addresses.map((entry) =>
+				table.update({
+					Key: { address: entry.address },
+					UpdateExpression:
+						"SET userId = :tomb, disabledAt = if_not_exists(disabledAt, :now) REMOVE #name",
+					ConditionExpression: "userId = :uid",
+					ExpressionAttributeNames: { "#name": "name" },
+					ExpressionAttributeValues: {
+						":tomb": DELETED_ACCOUNT_INBOX_OWNER,
+						":uid": userId,
+						":now": deps.now().toISOString(),
+					},
+				}),
+			),
+		);
+	};
+
 	return {
 		createAddress: async ({ userId, domain, name }) => {
 			// Bound the live addresses a user can hold. disabledAt is not a key
@@ -119,5 +141,6 @@ export function initDynamoDbInboxAddress(deps: {
 			const row = await table.get({ address });
 			return row === undefined ? undefined : toEntry(row);
 		},
+		tombstoneUserAddresses,
 	};
 }

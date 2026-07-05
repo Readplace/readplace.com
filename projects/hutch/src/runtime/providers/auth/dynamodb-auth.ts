@@ -24,6 +24,7 @@ import {
 } from "@packages/domain/user";
 import { SESSION_TTL_SECONDS, SessionRow, initGetSessionUserId } from "@packages/web-session";
 import type {
+	CloseUserAccount,
 	CountUsers,
 	CreateAppleUser,
 	CreateGoogleUser,
@@ -89,6 +90,7 @@ export function initDynamoDbAuth(deps: {
 	getSessionUserId: GetSessionUserId;
 	destroySession: DestroySession;
 	destroyUserSessions: DestroyUserSessions;
+	closeUserAccount: CloseUserAccount;
 	countUsers: CountUsers;
 	markEmailVerified: MarkEmailVerified;
 	markSessionEmailVerified: MarkSessionEmailVerified;
@@ -363,6 +365,29 @@ export function initDynamoDbAuth(deps: {
 		return row ? row.email : null;
 	};
 
+	const closeUserAccount: CloseUserAccount = async (userId) => {
+		const email = await findEmailByUserId(userId);
+		if (email === null) return;
+		const claimKey = gmailIdentityKey(email);
+		if (claimKey === null) {
+			await users.delete({ Key: { email } });
+			return;
+		}
+		await deps.client.send(
+			new TransactWriteCommand({
+				TransactItems: [
+					{ Delete: { TableName: deps.usersTableName, Key: { email } } },
+					{
+						Delete: {
+							TableName: deps.usersTableName,
+							Key: { email: `${CLAIM_PK_PREFIX}${claimKey}` },
+						},
+					},
+				],
+			}),
+		);
+	};
+
 	const findUserContactByUserId: FindUserContactByUserId = async (userId) => {
 		const { items } = await users.query({
 			IndexName: "userId-index",
@@ -425,6 +450,7 @@ export function initDynamoDbAuth(deps: {
 		getSessionUserId,
 		destroySession,
 		destroyUserSessions,
+		closeUserAccount,
 		countUsers,
 		markEmailVerified,
 		markSessionEmailVerified,

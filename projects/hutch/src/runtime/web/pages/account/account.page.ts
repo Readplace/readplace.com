@@ -2,7 +2,9 @@ import assert from "node:assert";
 import type { Request, Response, Router } from "express";
 import express from "express";
 import type { HutchLogger } from "@packages/hutch-logger";
-import type { FindEmailByUserId } from "@packages/provider-contracts/auth";
+import { SESSION_COOKIE_NAME } from "@packages/web-session";
+import type { DestroyUserSessions, FindEmailByUserId } from "@packages/provider-contracts/auth";
+import type { RevokeAllUserOAuthTokens } from "@packages/provider-contracts/oauth";
 import type {
 	CreateCheckoutSession,
 	CheckoutSessionId,
@@ -15,6 +17,7 @@ import type {
 } from "@packages/provider-contracts/subscription-providers";
 import type {
 	PublishCancelSubscriptionCommand,
+	PublishDeleteAccountCommand,
 	PublishSubscriptionReactivated,
 } from "@packages/provider-contracts/events";
 import type {
@@ -34,6 +37,9 @@ import type {
 } from "@packages/provider-contracts/trial-scheduler";
 import type { StorePendingSignup } from "@packages/provider-contracts/pending-signup";
 import { Base } from "../../base.component";
+import { wantsSiren } from "../../content-negotiation";
+import { SIREN_MEDIA_TYPE } from "../../api/siren";
+import { toAccountEntity } from "../../api/account-siren";
 import type { BuildBannerState } from "../../banner-state";
 import { HxRedirectPage } from "../../hx-redirect-page";
 import { sendComponent } from "@packages/web-shell";
@@ -62,6 +68,9 @@ interface AccountDependencies {
 	upsertTrialingSubscription: UpsertTrialingSubscription;
 	markActiveSubscription: MarkSubscriptionActive;
 	findEmailByUserId: FindEmailByUserId;
+	destroyUserSessions: DestroyUserSessions;
+	revokeAllUserOAuthTokens: RevokeAllUserOAuthTokens;
+	publishDeleteAccountCommand: PublishDeleteAccountCommand;
 	publishCancelSubscriptionCommand: PublishCancelSubscriptionCommand;
 	publishSubscriptionReactivated: PublishSubscriptionReactivated;
 	createCheckoutSession: CreateCheckoutSession;
@@ -135,6 +144,10 @@ export function initAccountRoutes(deps: AccountDependencies): Router {
 
 	router.get("/", async (req: Request, res: Response) => {
 		assert(req.userId, "userId required - route must be protected by requireAuth");
+		if (wantsSiren(req)) {
+			res.type(SIREN_MEDIA_TYPE).json(toAccountEntity());
+			return;
+		}
 		const access = await deps.getEffectiveAccess(req.userId);
 		const row = await deps.findSubscriptionByUserId(req.userId);
 		const cardSection = await loadCardSection({
@@ -314,6 +327,27 @@ export function initAccountRoutes(deps: AccountDependencies): Router {
 		res.redirect(303, buildAccountUrl({ cancelling: true }));
 	});
 
+	/** Irreversible account deletion. The synchronous work here is the
+	 * security-critical teardown that must take effect the instant the user
+	 * confirms — every session and bearer token dies at once — after which the
+	 * durable, at-least-once scrub of every user-owned store runs asynchronously
+	 * via DeleteAccountCommand. Sessions are destroyed before tokens are revoked
+	 * (mirroring /oauth/revoke) so a failed step leaves the account still usable
+	 * for a safe retry rather than half-torn-down. */
+	router.post("/delete", async (req: Request, res: Response) => {
+		assert(req.userId, "userId required - route must be protected by requireAuth");
+		const userId = req.userId;
+		await deps.destroyUserSessions(userId);
+		await deps.revokeAllUserOAuthTokens(userId);
+		res.clearCookie(SESSION_COOKIE_NAME, { path: "/" });
+		await deps.publishDeleteAccountCommand({ userId });
+		// Deletion logs the user out, so the whole page (nav, banner) must reset to
+		// the guest view. A boosted form would only swap <main> and leave a stale
+		// signed-in chrome, so force a full navigation to the logged-out home —
+		// HX-Redirect for HTMX requests, a plain 303 otherwise.
+		redirectFullPage(req, res, "/");
+	});
+
 	router.post("/reactivate", async (req: Request, res: Response) => {
 		assert(req.userId, "userId required - route must be protected by requireAuth");
 		const userId = req.userId;
@@ -397,13 +431,14 @@ export function initAccountRoutes(deps: AccountDependencies): Router {
 		return checkout;
 	}
 
-	/** HTMX intercepts hx-boost forms via XHR. A 303 Location to an external
-	 * origin (Stripe Checkout) makes HTMX issue a cross-origin XHR and then
-	 * fail to swap the response into <main>, so the browser never leaves
-	 * /account. HxRedirectPage carries HTMX's HX-Redirect header, which
-	 * triggers `window.location.href = url`. Plain (non-HTMX) form posts
-	 * still get the 303 Location, so progressive enhancement is preserved. */
-	function redirectToCheckout(req: Request, res: Response, url: string): void {
+	/** Force the browser to fully navigate to `url` rather than swap <main>.
+	 * HTMX intercepts hx-boost forms via XHR; a 303 Location to an external origin
+	 * (Stripe Checkout) makes HTMX issue a cross-origin XHR and never leave the
+	 * page, and a same-origin 303 only swaps <main> (leaving stale chrome — wrong
+	 * after a logout-like action). HxRedirectPage carries HTMX's HX-Redirect
+	 * header, which triggers `window.location.href = url`. Plain (non-HTMX) form
+	 * posts still get the 303 Location, so progressive enhancement is preserved. */
+	function redirectFullPage(req: Request, res: Response, url: string): void {
 		if (req.get("HX-Request") === "true") {
 			sendComponent(req, res, HxRedirectPage(url));
 			return;
@@ -417,7 +452,7 @@ export function initAccountRoutes(deps: AccountDependencies): Router {
 	> = {
 		trialing: async (req, res) => {
 			const checkout = await startCheckout(req);
-			redirectToCheckout(req, res, checkout.url);
+			redirectFullPage(req, res, checkout.url);
 		},
 		cancelled: async (req, res) => {
 			assert(req.userId, "userId required - route must be protected by requireAuth");
@@ -430,7 +465,7 @@ export function initAccountRoutes(deps: AccountDependencies): Router {
 					{ userId },
 				);
 				const checkout = await startCheckout(req);
-				redirectToCheckout(req, res, checkout.url);
+				redirectFullPage(req, res, checkout.url);
 				return;
 			}
 			try {
@@ -455,7 +490,7 @@ export function initAccountRoutes(deps: AccountDependencies): Router {
 					{ userId, error: err instanceof Error ? err.message : String(err) },
 				);
 				const checkout = await startCheckout(req);
-				redirectToCheckout(req, res, checkout.url);
+				redirectFullPage(req, res, checkout.url);
 			}
 		},
 		noop: async (_req, res) => {

@@ -16,6 +16,13 @@ export interface InboxAddressEntry {
 	disabledAt: string | undefined;
 }
 
+/** Account-deletion primitive: unlinks every address the user owns from them
+ * without deleting any row (a freed hash could be re-minted for another user and
+ * leak their forwarded mail). For each owned address it strips the PII alias,
+ * repoints `userId` at the reserved `DELETED_ACCOUNT_INBOX_OWNER` sentinel, and
+ * stamps `disabledAt` if not already set. Ownership-guarded per row. */
+export type TombstoneUserAddresses = (userId: UserId) => Promise<void>;
+
 export interface InboxAddressStore {
 	/** Mints a fresh address for the user under the chosen alias `name`. A user
 	 * may hold many (one per newsletter) up to `INBOX_ADDRESS_MAX_PER_USER`; at
@@ -46,4 +53,7 @@ export interface InboxAddressStore {
 	 * just-minted address. Returns `undefined` for an unknown address; a returned
 	 * entry with `disabledAt !== undefined` means the caller must reject the mail. */
 	findByAddress: (address: InboxAddress) => Promise<InboxAddressEntry | undefined>;
+	/** Tombstones every address the user owns as part of account deletion. See
+	 * {@link TombstoneUserAddresses}. */
+	tombstoneUserAddresses: TombstoneUserAddresses;
 }

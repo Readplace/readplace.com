@@ -3,6 +3,7 @@ import {
 	defineDynamoTable,
 } from "@packages/hutch-storage-client";
 import type {
+	DeleteSubscription,
 	MarkSubscriptionActive,
 	MarkSubscriptionCancelledByUserId,
 	MarkSubscriptionPendingCancellation,
@@ -26,6 +27,7 @@ export function initDynamoDbSubscriptionWrites(deps: {
 	markCancelledByUserId: MarkSubscriptionCancelledByUserId;
 	markActive: MarkSubscriptionActive;
 	markTrialFeedbackEmailSent: MarkTrialFeedbackEmailSent;
+	deleteSubscription: DeleteSubscription;
 } {
 	const table = defineDynamoTable({
 		client: deps.client,
@@ -126,6 +128,10 @@ export function initDynamoDbSubscriptionWrites(deps: {
 		});
 	};
 
+	const deleteSubscription: DeleteSubscription = async ({ userId }) => {
+		await table.delete({ Key: { userId } });
+	};
+
 	return {
 		upsertTrialing,
 		upsertActive,
@@ -133,5 +139,6 @@ export function initDynamoDbSubscriptionWrites(deps: {
 		markCancelledByUserId,
 		markActive,
 		markTrialFeedbackEmailSent,
+		deleteSubscription,
 	};
 }

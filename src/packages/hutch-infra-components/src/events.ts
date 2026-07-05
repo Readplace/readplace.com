@@ -400,6 +400,16 @@ export const ExportUserDataCommand = defineEvent({
 });
 export type ExportUserDataDetail = z.infer<typeof ExportUserDataCommand.detailSchema>;
 
+export const DeleteAccountCommand = defineEvent({
+	name: "delete-account-command",
+	source: "hutch.api",
+	detailType: "DeleteAccountCommand",
+	detailSchema: z.object({
+		userId: z.string(),
+	}),
+});
+export type DeleteAccountDetail = z.infer<typeof DeleteAccountCommand.detailSchema>;
+
 export const UserDataExportedEvent = defineEvent({
 	name: "user-data-exported",
 	source: "hutch.export-user-data",

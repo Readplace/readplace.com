@@ -28,6 +28,7 @@ import type {
 	CreateUserWithPasswordHash,
 	CreateVerificationToken,
 	DeleteArticle,
+	DeleteAllUserArticles,
 	DeleteDeferredCancellationSchedule,
 	DeleteTrialEndSchedule,
 	DestroySession,
@@ -69,6 +70,7 @@ import type {
 	MarkSubscriptionPendingCancellation,
 	MarkSummaryPending,
 	OAuthModel,
+	RevokeAllUserOAuthTokens,
 	FindOAuthClient,
 	RegisterOAuthClient,
 	ValidateOAuthRedirectUri,
@@ -78,6 +80,7 @@ import type {
 	SavedCard,
 	SetPrimaryCard,
 	PublishCancelSubscriptionCommand,
+	PublishDeleteAccountCommand,
 	PublishExportUserDataCommand,
 	PublishLinkSaved,
 	PublishRecrawlLinkInitiated,
@@ -204,6 +207,7 @@ export interface StripeSubscriptionsBundle {
 }
 
 export interface ArticleStoreBundle {
+	deleteAllUserArticles: DeleteAllUserArticles;
 	findArticleById: FindArticleById;
 	findArticleByUrl: FindArticleByUrl;
 	findArticleUrlById: FindArticleUrlById;
@@ -260,6 +264,7 @@ export interface EventsBundle {
 	publishStaleCheckRequested: PublishStaleCheckRequested;
 	publishUpdateFetchTimestamp: PublishUpdateFetchTimestamp;
 	publishExportUserDataCommand: PublishExportUserDataCommand;
+	publishDeleteAccountCommand: PublishDeleteAccountCommand;
 	publishCancelSubscriptionCommand: PublishCancelSubscriptionCommand;
 	publishSubscriptionReactivated: PublishSubscriptionReactivated;
 }
@@ -285,6 +290,7 @@ export interface FreshnessBundle {
 
 export interface OAuthBundle {
 	oauthModel: OAuthModel;
+	revokeAllUserOAuthTokens: RevokeAllUserOAuthTokens;
 	validateAccessToken: ValidateAccessToken;
 	findClient: FindOAuthClient;
 	validateRedirectUri: ValidateOAuthRedirectUri;

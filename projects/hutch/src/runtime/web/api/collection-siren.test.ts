@@ -110,6 +110,7 @@ describe("toArticleCollectionEntity", () => {
 
 		expect(entity.links).toContainEqual({ rel: ["self"], href: "/queue" });
 		expect(entity.links).toContainEqual({ rel: ["root"], href: "/queue" });
+		expect(entity.links).toContainEqual({ rel: ["account"], title: "Account", href: "/account" });
 	});
 
 	it("advertises a titled add-links-help link so already-installed clients resolve the help URL", () => {
@@ -168,7 +169,7 @@ describe("toArticleCollectionEntity", () => {
 		const entity = toArticleCollectionEntity(result, { page: 2, pageSize: 20 });
 
 		const linkRels = entity.links?.map((l) => l.rel[0]);
-		expect(linkRels).toEqual(["self", "root", "add-links-help", "prev"]);
+		expect(linkRels).toEqual(["self", "root", "account", "add-links-help", "prev"]);
 	});
 
 	it("single page omits both pagination links", () => {
@@ -182,7 +183,7 @@ describe("toArticleCollectionEntity", () => {
 		const entity = toArticleCollectionEntity(result, {});
 
 		const linkRels = entity.links?.map((l) => l.rel[0]);
-		expect(linkRels).toEqual(["self", "root", "add-links-help"]);
+		expect(linkRels).toEqual(["self", "root", "account", "add-links-help"]);
 	});
 
 	it("preserves query params in pagination links", () => {

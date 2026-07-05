@@ -1,4 +1,8 @@
-export type { InboxAddressEntry, InboxAddressStore } from "./inbox-address.types";
+export type {
+	InboxAddressEntry,
+	InboxAddressStore,
+	TombstoneUserAddresses,
+} from "./inbox-address.types";
 export { countLiveAddresses, isLiveAddress } from "./inbox-address.live";
 export {
 	InboxTokenSchema,
@@ -12,6 +16,7 @@ export {
 	INBOX_ADDRESS_MAX_PER_USER,
 	DEFAULT_INBOX_ALIAS,
 	InboxAddressLimitReachedError,
+	DELETED_ACCOUNT_INBOX_OWNER,
 	generateInboxToken,
 	buildInboxAddress,
 	aliasNameFromAddress,

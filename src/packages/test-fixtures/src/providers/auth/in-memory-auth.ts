@@ -9,6 +9,7 @@ import {
 	gmailIdentityKey,
 } from "@packages/domain/user";
 import type {
+	CloseUserAccount,
 	CountUsers,
 	CreateAppleUser,
 	CreateGoogleUser,
@@ -59,6 +60,7 @@ export function initInMemoryAuth(opts: {
 	getSessionUserId: GetSessionUserId;
 	destroySession: DestroySession;
 	destroyUserSessions: DestroyUserSessions;
+	closeUserAccount: CloseUserAccount;
 	countUsers: CountUsers;
 	markEmailVerified: MarkEmailVerified;
 	markSessionEmailVerified: MarkSessionEmailVerified;
@@ -212,6 +214,17 @@ export function initInMemoryAuth(opts: {
 		}
 	};
 
+	const closeUserAccount: CloseUserAccount = async (userId) => {
+		for (const [email, user] of users) {
+			if (user.id === userId) {
+				users.delete(email);
+				const claimKey = gmailIdentityKey(user.email);
+				if (claimKey !== null) gmailClaims.delete(claimKey);
+				return;
+			}
+		}
+	};
+
 	const countUsers: CountUsers = async () => {
 		return users.size;
 	};
@@ -299,6 +312,7 @@ export function initInMemoryAuth(opts: {
 		getSessionUserId,
 		destroySession,
 		destroyUserSessions,
+		closeUserAccount,
 		countUsers,
 		markEmailVerified,
 		markSessionEmailVerified,

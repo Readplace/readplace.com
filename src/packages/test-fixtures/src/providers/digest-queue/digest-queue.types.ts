@@ -1,4 +1,5 @@
 export type {
+	DeleteDigestByUser,
 	DeleteDigestItem,
 	DigestQueueItem,
 	EnqueueDigestItem,

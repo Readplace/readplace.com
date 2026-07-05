@@ -41,6 +41,7 @@ export function toArticleCollectionEntity(
 	const links: SirenLink[] = [
 		{ rel: ["self"], href: `/queue${buildQueryString(queryParams)}` },
 		{ rel: ["root"], href: "/queue" },
+		{ rel: ["account"], title: "Account", href: "/account" },
 	];
 
 	// Older iOS builds resolve the Share-help URL from this rel; the current client

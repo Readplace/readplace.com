@@ -1,6 +1,8 @@
 import { ConditionalCheckFailedException } from "@packages/hutch-storage-client";
 import {
+	aliasNameFromAddress,
 	buildInboxAddress,
+	DELETED_ACCOUNT_INBOX_OWNER,
 	generateInboxToken,
 	INBOX_ADDRESS_MAX_PER_USER,
 	InboxAddressLimitReachedError,
@@ -46,5 +48,18 @@ export function initInMemoryInboxAddress(deps: { now: () => Date }): InboxAddres
 			rows.set(address, { ...row, disabledAt: deps.now().toISOString() });
 		},
 		findByAddress: async (address) => rows.get(address),
+		tombstoneUserAddresses: async (userId) => {
+			for (const [address, entry] of rows) {
+				if (entry.userId !== userId) continue;
+				rows.set(address, {
+					...entry,
+					userId: DELETED_ACCOUNT_INBOX_OWNER,
+					// The dynamo path REMOVEs the PII `name` column and reads backfill the
+					// label from the address; model that resolved post-strip state here.
+					name: aliasNameFromAddress(entry.address),
+					disabledAt: entry.disabledAt ?? deps.now().toISOString(),
+				});
+			}
+		},
 	};
 }

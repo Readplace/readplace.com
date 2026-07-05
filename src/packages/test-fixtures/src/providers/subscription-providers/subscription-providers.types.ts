@@ -1,4 +1,5 @@
 export type {
+	DeleteSubscription,
 	FindSubscriptionBySubscriptionId,
 	FindSubscriptionByUserId,
 	MarkSubscriptionActive,

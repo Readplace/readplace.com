@@ -56,6 +56,15 @@ struct AffordancePresentation {
 			isDestructive = true
 			removesItem = true
 			isToolbarControl = true
+		case "delete-account":
+			// Account-level, irreversible: destructive so the View confirms before
+			// invoking, but `removesItem = false` — there is no reading-list row to
+			// drop; it tears down the whole account.
+			systemImage = "person.crop.circle.badge.xmark"
+			tint = .red
+			isDestructive = true
+			removesItem = false
+			isToolbarControl = true
 		case "search":
 			systemImage = "magnifyingglass"
 			tint = nil
@@ -103,6 +112,14 @@ extension Affordance {
 	static func isAddLinksHelp(_ rel: String) -> Bool {
 		rel == "add-links-help"
 	}
+
+	/// Whether invoking this affordance ends the user's session, so the client must
+	/// tear down local auth (session cookie, tokens, WebKit store) once it succeeds.
+	/// This is inherently specific to account deletion — a purge is also destructive
+	/// yet keeps the session — so unlike the generic `isDestructive` routing it keys
+	/// on the token. The server has already revoked everything server-side; this only
+	/// clears the now-dead local traces so the app returns to the login screen.
+	var endsSession: Bool { token == "delete-account" }
 
 	/// Whether the client can invoke this affordance from a bare toolbar control.
 	/// Per the contract, a field-requiring action whose fields carry no

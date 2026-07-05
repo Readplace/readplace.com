@@ -21,5 +21,18 @@ export function initInMemoryInboxEmail(): InboxEmailStore {
 				),
 		getEmail: async ({ userId, receivedAtMessageId }) =>
 			rows.get(keyOf(userId, receivedAtMessageId)),
+		deleteAllEmailsByUserId: async (userId) => {
+			const receivedAtMessageIds: string[] = [];
+			const rawEmailS3Keys: string[] = [];
+			const bodyS3Keys: string[] = [];
+			for (const [key, row] of rows) {
+				if (row.userId !== userId) continue;
+				receivedAtMessageIds.push(row.receivedAtMessageId);
+				rawEmailS3Keys.push(row.rawEmailS3Key);
+				if (row.bodyS3Key !== undefined) bodyS3Keys.push(row.bodyS3Key);
+				rows.delete(key);
+			}
+			return { receivedAtMessageIds, rawEmailS3Keys, bodyS3Keys };
+		},
 	};
 }

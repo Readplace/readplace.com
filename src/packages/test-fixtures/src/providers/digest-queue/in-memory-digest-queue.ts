@@ -1,6 +1,7 @@
 import { ArticleResourceUniqueId } from "@packages/article-resource-unique-id";
 import type { UserId } from "@packages/domain/user";
 import type {
+	DeleteDigestByUser,
 	DeleteDigestItem,
 	DigestQueueItem,
 	EnqueueDigestItem,
@@ -12,6 +13,7 @@ export function initInMemoryDigestQueue(): {
 	enqueueDigestItem: EnqueueDigestItem;
 	listDigestItemsByUser: ListDigestItemsByUser;
 	deleteDigestItem: DeleteDigestItem;
+	deleteDigestByUser: DeleteDigestByUser;
 	scanPendingDigestUsers: ScanPendingDigestUsers;
 } {
 	const rows = new Map<string, DigestQueueItem>();
@@ -29,9 +31,15 @@ export function initInMemoryDigestQueue(): {
 		rows.delete(keyOf(userId, url));
 	};
 
+	const deleteDigestByUser: DeleteDigestByUser = async (userId) => {
+		for (const [key, row] of rows) {
+			if (row.userId === userId) rows.delete(key);
+		}
+	};
+
 	const scanPendingDigestUsers: ScanPendingDigestUsers = async () => [
 		...new Set([...rows.values()].map((row) => row.userId)),
 	];
 
-	return { enqueueDigestItem, listDigestItemsByUser, deleteDigestItem, scanPendingDigestUsers };
+	return { enqueueDigestItem, listDigestItemsByUser, deleteDigestItem, deleteDigestByUser, scanPendingDigestUsers };
 }

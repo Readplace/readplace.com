@@ -172,6 +172,24 @@ describe("initInMemorySubscriptionProviders", () => {
 		).rejects.toThrow(/No subscription row/);
 	});
 
+	it("deleteSubscription removes the row so the user has no subscription", async () => {
+		const subs = initInMemorySubscriptionProviders({ now: fixedNow("2026-05-22T00:00:00.000Z") });
+		await subs.upsertActive({ userId, subscriptionId: "sub_del", customerId: "cus_del" });
+
+		await subs.deleteSubscription({ userId });
+
+		expect(await subs.findByUserId(userId)).toBeUndefined();
+		expect(await subs.findBySubscriptionId("sub_del")).toBeUndefined();
+	});
+
+	it("deleteSubscription is a no-op for an unknown user", async () => {
+		const subs = initInMemorySubscriptionProviders({ now: fixedNow("2026-05-22T00:00:00.000Z") });
+
+		await subs.deleteSubscription({ userId });
+
+		expect(await subs.findByUserId(userId)).toBeUndefined();
+	});
+
 	it("seedRow lets tests inject hypothetical row shapes (e.g. trialing with customerId)", async () => {
 		const subs = initInMemorySubscriptionProviders({ now: fixedNow("2026-05-22T00:00:00.000Z") });
 

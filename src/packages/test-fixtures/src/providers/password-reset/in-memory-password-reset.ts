@@ -1,6 +1,7 @@
 import { randomBytes } from "node:crypto";
 import type {
 	CreatePasswordResetToken,
+	DeletePasswordResetTokensByEmail,
 	PasswordResetToken,
 	VerifyPasswordResetToken,
 } from "@packages/provider-contracts/password-reset";
@@ -9,6 +10,7 @@ import { PasswordResetTokenSchema } from "./password-reset.schema";
 export function initInMemoryPasswordReset(): {
 	createPasswordResetToken: CreatePasswordResetToken;
 	verifyPasswordResetToken: VerifyPasswordResetToken;
+	deleteTokensByEmail: DeletePasswordResetTokensByEmail;
 } {
 	const tokens = new Map<PasswordResetToken, { email: string }>();
 
@@ -27,5 +29,11 @@ export function initInMemoryPasswordReset(): {
 		return { ok: true, email: entry.email };
 	};
 
-	return { createPasswordResetToken, verifyPasswordResetToken };
+	const deleteTokensByEmail: DeletePasswordResetTokensByEmail = async (email) => {
+		for (const [token, entry] of tokens) {
+			if (entry.email === email) tokens.delete(token);
+		}
+	};
+
+	return { createPasswordResetToken, verifyPasswordResetToken, deleteTokensByEmail };
 }

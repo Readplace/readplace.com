@@ -5,6 +5,7 @@ import {
 } from "@packages/hutch-storage-client";
 import {
 	AliasNameSchema,
+	DELETED_ACCOUNT_INBOX_OWNER,
 	INBOX_ADDRESS_MAX_PER_USER,
 	InboxAddressLimitReachedError,
 	InboxAddressSchema,
@@ -31,6 +32,7 @@ interface CapturedCommand {
 		ConditionExpression?: string;
 		UpdateExpression?: string;
 		ExpressionAttributeValues?: Record<string, unknown>;
+		ExpressionAttributeNames?: Record<string, string>;
 	};
 }
 
@@ -297,6 +299,79 @@ describe("initDynamoDbInboxAddress", () => {
 			const address = InboxAddressSchema.parse("in-zzzzzz@read.place");
 
 			expect(await store.findByAddress(address)).toBeUndefined();
+		});
+	});
+
+	describe("tombstoneUserAddresses", () => {
+		it("reassigns each owned address to the sentinel owner, stripping the alias and stamping disabledAt, keeping every row", async () => {
+			const commands: CapturedCommand[] = [];
+			const store = initDynamoDbInboxAddress({
+				client: createFakeClient((cmd) => {
+					const command = cmd as CapturedCommand;
+					commands.push(command);
+					if (command.input.IndexName) {
+						return {
+							Items: [
+								{
+									address: "news-aaaaaa@read.place",
+									userId: "user-1",
+									name: "news",
+									token: "aaaaaa",
+									createdAt: "2026-06-20T00:00:00.000Z",
+									disabledAt: null,
+								},
+								{
+									address: "news-bbbbbb@read.place",
+									userId: "user-1",
+									name: "news",
+									token: "bbbbbb",
+									createdAt: "2026-06-20T00:00:00.000Z",
+									disabledAt: "2026-06-21T00:00:00.000Z",
+								},
+							],
+							Count: 2,
+						};
+					}
+					return {};
+				}) as DynamoDBDocumentClient,
+				tableName: TABLE,
+				now: () => NOW,
+			});
+
+			await store.tombstoneUserAddresses(USER);
+
+			const updates = commands.filter((c) => c.input.UpdateExpression);
+			expect(updates).toHaveLength(2);
+			for (const update of updates) {
+				expect(update.input.UpdateExpression).toBe(
+					"SET userId = :tomb, disabledAt = if_not_exists(disabledAt, :now) REMOVE #name",
+				);
+				expect(update.input.ConditionExpression).toBe("userId = :uid");
+				expect(update.input.ExpressionAttributeNames).toEqual({ "#name": "name" });
+				expect(update.input.ExpressionAttributeValues?.[":tomb"]).toBe(DELETED_ACCOUNT_INBOX_OWNER);
+				expect(update.input.ExpressionAttributeValues?.[":uid"]).toBe(USER);
+				expect(update.input.ExpressionAttributeValues?.[":now"]).toBe(NOW.toISOString());
+			}
+			expect(updates.map((u) => u.input.Key)).toEqual([
+				{ address: "news-aaaaaa@read.place" },
+				{ address: "news-bbbbbb@read.place" },
+			]);
+		});
+
+		it("issues no update when the user owns no addresses", async () => {
+			const commands: CapturedCommand[] = [];
+			const store = initDynamoDbInboxAddress({
+				client: createFakeClient((cmd) => {
+					commands.push(cmd as CapturedCommand);
+					return { Items: [], Count: 0 };
+				}) as DynamoDBDocumentClient,
+				tableName: TABLE,
+				now: () => NOW,
+			});
+
+			await store.tombstoneUserAddresses(USER);
+
+			expect(commands.some((c) => c.input.UpdateExpression)).toBe(false);
 		});
 	});
 });

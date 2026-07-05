@@ -33,4 +33,27 @@ describe("initInMemoryPasswordReset", () => {
 			await verifyPasswordResetToken(PasswordResetTokenSchema.parse(unknown)),
 		).toEqual({ ok: false, reason: "invalid-token" });
 	});
+
+	it("deletes every token for the given email and leaves other emails' tokens intact", async () => {
+		const { createPasswordResetToken, verifyPasswordResetToken, deleteTokensByEmail } =
+			initInMemoryPasswordReset();
+		const firstForTarget = await createPasswordResetToken({ email: "target@example.com" });
+		const secondForTarget = await createPasswordResetToken({ email: "target@example.com" });
+		const otherToken = await createPasswordResetToken({ email: "other@example.com" });
+
+		await deleteTokensByEmail("target@example.com");
+
+		expect(await verifyPasswordResetToken(firstForTarget)).toEqual({
+			ok: false,
+			reason: "invalid-token",
+		});
+		expect(await verifyPasswordResetToken(secondForTarget)).toEqual({
+			ok: false,
+			reason: "invalid-token",
+		});
+		expect(await verifyPasswordResetToken(otherToken)).toEqual({
+			ok: true,
+			email: "other@example.com",
+		});
+	});
 });

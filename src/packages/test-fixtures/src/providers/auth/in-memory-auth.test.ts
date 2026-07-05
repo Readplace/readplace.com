@@ -133,6 +133,43 @@ describe("initInMemoryAuth", () => {
 		});
 	});
 
+	describe("closeUserAccount", () => {
+		it("removes the user row and releases the Gmail claim", async () => {
+			const auth = makeAuth();
+			const created = await auth.createUser({ email: "john.doe@gmail.com", password: "password123" });
+			assert(created.ok, "User creation failed");
+
+			await auth.closeUserAccount(created.userId);
+
+			expect(await auth.findUserById(created.userId)).toBeNull();
+			// The released claim lets a dotted spelling of the same mailbox register again.
+			const recreated = await auth.createUser({ email: "johndoe@gmail.com", password: "password456" });
+			expect(recreated.ok).toBe(true);
+		});
+
+		it("removes a non-Gmail user row without touching any claim", async () => {
+			const auth = makeAuth();
+			const created = await auth.createUser({ email: "temp@example.com", password: "password123" });
+			assert(created.ok, "User creation failed");
+
+			await auth.closeUserAccount(created.userId);
+
+			expect(await auth.findUserById(created.userId)).toBeNull();
+			const recreated = await auth.createUser({ email: "temp@example.com", password: "password456" });
+			expect(recreated.ok).toBe(true);
+		});
+
+		it("is a no-op for an unknown userId, leaving existing users intact", async () => {
+			const auth = makeAuth();
+			const created = await auth.createUser({ email: "keep@example.com", password: "password123" });
+			assert(created.ok, "User creation failed");
+
+			await auth.closeUserAccount(UserIdSchema.parse("nobody"));
+
+			expect(await auth.findUserById(created.userId)).not.toBeNull();
+		});
+	});
+
 	describe("verifyCredentials", () => {
 		it("should verify correct password", async () => {
 			const auth = makeAuth();

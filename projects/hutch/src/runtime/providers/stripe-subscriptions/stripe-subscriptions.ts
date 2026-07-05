@@ -2,6 +2,7 @@ import { z } from "zod";
 import type {
 	CancelSubscriptionImmediately,
 	CreateSubscriptionOnExistingCustomer,
+	DeleteCustomer,
 	ReverseScheduledCancellation,
 	ScheduleCancellationAtPeriodEnd,
 } from "@packages/provider-contracts/stripe-subscriptions";
@@ -43,6 +44,7 @@ export function initStripeSubscriptions(deps: {
 	createSubscriptionOnExistingCustomer: CreateSubscriptionOnExistingCustomer;
 	scheduleCancellationAtPeriodEnd: ScheduleCancellationAtPeriodEnd;
 	reverseScheduledCancellation: ReverseScheduledCancellation;
+	deleteCustomer: DeleteCustomer;
 } {
 	const stripeHeaders = {
 		Authorization: `Bearer ${deps.apiKey}`,
@@ -176,10 +178,33 @@ export function initStripeSubscriptions(deps: {
 		}
 	};
 
+	const deleteCustomer: DeleteCustomer = async ({ customerId }) => {
+		const response = await deps.fetch(
+			`${STRIPE_API}/customers/${encodeURIComponent(customerId)}`,
+			{
+				method: "DELETE",
+				headers: stripeHeaders,
+			},
+		);
+
+		// 404 means the customer is already gone — the desired end state; succeed
+		// silently so SQS at-least-once retries after a successful delete don't
+		// poison the queue.
+		if (response.status === 404) {
+			return;
+		}
+
+		if (!response.ok) {
+			const message = await readStripeErrorMessage(response);
+			throw new Error(`Stripe deleteCustomer failed (${response.status}): ${message}`);
+		}
+	};
+
 	return {
 		cancelImmediately,
 		createSubscriptionOnExistingCustomer,
 		scheduleCancellationAtPeriodEnd,
 		reverseScheduledCancellation,
+		deleteCustomer,
 	};
 }

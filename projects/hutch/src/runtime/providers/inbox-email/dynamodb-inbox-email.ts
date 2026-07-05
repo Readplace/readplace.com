@@ -3,6 +3,7 @@ import {
 	type DynamoDBDocumentClient,
 	defineDynamoTable,
 	dynamoField,
+	forEachQueryPage,
 } from "@packages/hutch-storage-client";
 import { z } from "zod";
 import {
@@ -64,5 +65,32 @@ export function initDynamoDbInboxEmail(deps: {
 		},
 		getEmail: async ({ userId, receivedAtMessageId }) =>
 			table.get({ userId, receivedAtMessageId }),
+		deleteAllEmailsByUserId: async (userId) => {
+			const receivedAtMessageIds: string[] = [];
+			const rawEmailS3Keys: string[] = [];
+			const bodyS3Keys: string[] = [];
+			await forEachQueryPage(
+				table,
+				{
+					KeyConditionExpression: "userId = :uid",
+					ExpressionAttributeValues: { ":uid": userId },
+				},
+				async (rows) => {
+					for (const row of rows) {
+						receivedAtMessageIds.push(row.receivedAtMessageId);
+						rawEmailS3Keys.push(row.rawEmailS3Key);
+						if (row.bodyS3Key !== undefined) bodyS3Keys.push(row.bodyS3Key);
+					}
+					await Promise.all(
+						rows.map((row) =>
+							table.delete({
+								Key: { userId, receivedAtMessageId: row.receivedAtMessageId },
+							}),
+						),
+					);
+				},
+			);
+			return { receivedAtMessageIds, rawEmailS3Keys, bodyS3Keys };
+		},
 	};
 }

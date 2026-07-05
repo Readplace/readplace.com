@@ -1,5 +1,6 @@
 import type { UserId } from "@packages/domain/user";
 import type {
+	DeleteOnboarding,
 	GetIosAppSignals,
 	RecordIosAnyActivity,
 	RecordIosSavedArticle,
@@ -9,6 +10,7 @@ export function initInMemoryIosOnboardingSignal(): {
 	recordIosAnyActivity: RecordIosAnyActivity;
 	recordIosSavedArticle: RecordIosSavedArticle;
 	getIosAppSignals: GetIosAppSignals;
+	deleteOnboarding: DeleteOnboarding;
 } {
 	const activated = new Set<UserId>();
 	const saved = new Set<UserId>();
@@ -27,5 +29,10 @@ export function initInMemoryIosOnboardingSignal(): {
 		savedArticle: saved.has(userId),
 	});
 
-	return { recordIosAnyActivity, recordIosSavedArticle, getIosAppSignals };
+	const deleteOnboarding: DeleteOnboarding = async ({ userId }) => {
+		activated.delete(userId);
+		saved.delete(userId);
+	};
+
+	return { recordIosAnyActivity, recordIosSavedArticle, getIosAppSignals, deleteOnboarding };
 }

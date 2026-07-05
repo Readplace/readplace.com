@@ -13,3 +13,5 @@ export interface UploadUserDataExportResult {
 export type UploadUserDataExport = (
 	params: UploadUserDataExportParams,
 ) => Promise<UploadUserDataExportResult>;
+
+export type DeleteUserExports = (userId: UserId) => Promise<void>;

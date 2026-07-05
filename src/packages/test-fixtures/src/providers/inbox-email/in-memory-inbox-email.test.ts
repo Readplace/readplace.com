@@ -93,4 +93,58 @@ describe("initInMemoryInboxEmail", () => {
 			await store.getEmail({ userId: owner, receivedAtMessageId: "missing" }),
 		).toBeUndefined();
 	});
+
+	describe("deleteAllEmailsByUserId", () => {
+		it("deletes the owner's emails and returns their raw and body S3 keys", async () => {
+			const store = initInMemoryInboxEmail();
+			await store.putEmail(
+				makeEntry({
+					receivedAtMessageId: "2026-06-23T09:00:00.000Z#<a@x>",
+					rawEmailS3Key: "inbound/a",
+					bodyS3Key: "content/a/content.html",
+				}),
+			);
+			await store.putEmail(
+				makeEntry({
+					receivedAtMessageId: "2026-06-23T08:00:00.000Z#<b@x>",
+					status: "rejected",
+					rawEmailS3Key: "inbound/b",
+					bodyS3Key: undefined,
+				}),
+			);
+
+			const { rawEmailS3Keys, bodyS3Keys } = await store.deleteAllEmailsByUserId(owner);
+
+			expect(rawEmailS3Keys).toEqual(["inbound/a", "inbound/b"]);
+			expect(bodyS3Keys).toEqual(["content/a/content.html"]);
+			expect(await store.listEmailsByUserId(owner)).toHaveLength(0);
+		});
+
+		it("leaves another user's emails intact", async () => {
+			const store = initInMemoryInboxEmail();
+			await store.putEmail(makeEntry({ rawEmailS3Key: "inbound/owner" }));
+			await store.putEmail(
+				makeEntry({
+					userId: otherUser,
+					receivedAtMessageId: "2026-06-23T10:00:00.000Z#<other@x>",
+					rawEmailS3Key: "inbound/other",
+				}),
+			);
+
+			const { rawEmailS3Keys } = await store.deleteAllEmailsByUserId(owner);
+
+			expect(rawEmailS3Keys).toEqual(["inbound/owner"]);
+			expect(await store.listEmailsByUserId(otherUser)).toHaveLength(1);
+		});
+
+		it("returns empty key lists for a user with no emails", async () => {
+			const store = initInMemoryInboxEmail();
+
+			expect(await store.deleteAllEmailsByUserId(owner)).toEqual({
+				receivedAtMessageIds: [],
+				rawEmailS3Keys: [],
+				bodyS3Keys: [],
+			});
+		});
+	});
 });

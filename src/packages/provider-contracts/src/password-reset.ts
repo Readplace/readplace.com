@@ -10,3 +10,5 @@ export type VerifyPasswordResetToken = (token: PasswordResetToken) => Promise<
 	| { ok: true; email: string }
 	| { ok: false; reason: "invalid-token" }
 >;
+
+export type DeletePasswordResetTokensByEmail = (email: string) => Promise<void>;

@@ -8,6 +8,7 @@ import {
 import { z } from "zod";
 import type {
 	CreatePasswordResetToken,
+	DeletePasswordResetTokensByEmail,
 	VerifyPasswordResetToken,
 } from "@packages/provider-contracts/password-reset";
 import { PasswordResetTokenSchema } from "@packages/provider-contracts/password-reset";
@@ -20,17 +21,28 @@ const PasswordResetRow = z.object({
 	expiresAt: z.number(),
 });
 
+const TokenKeyRow = z.object({
+	token: z.string(),
+});
+
 export function initDynamoDbPasswordReset(deps: {
 	client: DynamoDBDocumentClient;
 	tableName: string;
 }): {
 	createPasswordResetToken: CreatePasswordResetToken;
 	verifyPasswordResetToken: VerifyPasswordResetToken;
+	deleteTokensByEmail: DeletePasswordResetTokensByEmail;
 } {
 	const table = defineDynamoTable({
 		client: deps.client,
 		tableName: deps.tableName,
 		schema: PasswordResetRow,
+	});
+
+	const tokenKeyTable = defineDynamoTable({
+		client: deps.client,
+		tableName: deps.tableName,
+		schema: TokenKeyRow,
 	});
 
 	const createPasswordResetToken: CreatePasswordResetToken = async ({ email }) => {
@@ -66,5 +78,22 @@ export function initDynamoDbPasswordReset(deps: {
 		}
 	};
 
-	return { createPasswordResetToken, verifyPasswordResetToken };
+	const deleteTokensByEmail: DeletePasswordResetTokensByEmail = async (email) => {
+		// This table carries no TTL attribute, so an unexpired reset token would
+		// outlive the deleted account unless every row for the email is purged now.
+		let ExclusiveStartKey: Record<string, unknown> | undefined;
+		do {
+			const { items, lastEvaluatedKey } = await tokenKeyTable.scan({
+				FilterExpression: "email = :e",
+				ExpressionAttributeValues: { ":e": email },
+				ProjectionExpression: "#tk",
+				ExpressionAttributeNames: { "#tk": "token" },
+				ExclusiveStartKey,
+			});
+			for (const { token } of items) await table.delete({ Key: { token } });
+			ExclusiveStartKey = lastEvaluatedKey;
+		} while (ExclusiveStartKey);
+	};
+
+	return { createPasswordResetToken, verifyPasswordResetToken, deleteTokensByEmail };
 }

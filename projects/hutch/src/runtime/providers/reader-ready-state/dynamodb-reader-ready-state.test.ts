@@ -133,4 +133,15 @@ describe("initDynamoDbReaderReadyState", () => {
 			).rejects.toThrow("throttled");
 		});
 	});
+
+	describe("deleteReaderReadyState", () => {
+		it("deletes the single cooldown row by the userId PK", async () => {
+			const { client, commands } = createFakeClient({});
+
+			await initStore(client).deleteReaderReadyState(USER);
+
+			const del = commands.find((c) => c.name === "DeleteCommand");
+			expect(del?.input.Key).toEqual({ userId: USER });
+		});
+	});
 });

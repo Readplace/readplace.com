@@ -10,6 +10,10 @@ export type PublishExportUserDataCommand = (params: {
 	requestedAt: string;
 }) => Promise<void>;
 
+export type PublishDeleteAccountCommand = (params: {
+	userId: UserId;
+}) => Promise<void>;
+
 export type PublishLinkSaved = (params: {
 	url: string;
 	userId: UserId;

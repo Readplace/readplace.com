@@ -35,4 +35,15 @@ export interface InboxEmailStore {
 		userId: UserId;
 		receivedAtMessageId: string;
 	}) => Promise<InboxEmailEntry | undefined>;
+	/** Account-deletion primitive: drains every email the user owns, deleting each
+	 * row and returning the S3 keys so the caller drives object deletion. The raw
+	 * `.eml` keys (always present) and the rendered-body keys (only on `received`
+	 * rows) are returned separately because they live in different buckets.
+	 * `receivedAtMessageIds` are returned so the caller can purge the matching
+	 * link rows, whose table has no `userId` index to enumerate on its own. */
+	deleteAllEmailsByUserId: (userId: UserId) => Promise<{
+		receivedAtMessageIds: string[];
+		rawEmailS3Keys: string[];
+		bodyS3Keys: string[];
+	}>;
 }

@@ -6,6 +6,7 @@ import { HutchLambda, HutchAPIGateway, HutchDynamoDBAccess, HutchEventBus, Hutch
 import {
 	CancelSubscriptionCommand,
 	CrawlEmailLinkPreview,
+	DeleteAccountCommand,
 	EmailReceivedEvent,
 	ExportUserDataCommand,
 	SendTrialFeedbackEmailCommand,
@@ -523,6 +524,116 @@ const exportUserDataLambdaWithSQS = new HutchSQSBackedLambda("export-user-data",
 });
 
 eventBus.subscribe(ExportUserDataCommand, exportUserDataLambdaWithSQS);
+
+// --- DeleteAccount worker Lambda ---
+// Durable, DLQ-backed scrub of every user-owned store when an account is
+// deleted. Runs behind SQS at-least-once with an email alert on the DLQ so a
+// stuck erasure is never silent.
+
+const deleteAccountDynamodb = new HutchDynamoDBAccess("delete-account-dynamodb", {
+	tables: [
+		{ arn: storage.usersTable.arn, includeIndexes: true },
+		{ arn: storage.sessionsTable.arn, includeIndexes: true },
+		{ arn: storage.oauthTable.arn, includeIndexes: true },
+		{ arn: storage.userArticlesTable.arn, includeIndexes: true },
+		{ arn: storage.digestQueueTable.arn, includeIndexes: false },
+		{ arn: storage.readerReadyNotificationsTable.arn, includeIndexes: false },
+		{ arn: storage.onboardingTable.arn, includeIndexes: false },
+		{ arn: storage.subscriptionProvidersTable.arn, includeIndexes: false },
+		{ arn: storage.inboxEmailsTable.arn, includeIndexes: false },
+		{ arn: storage.inboxEmailLinksTable.arn, includeIndexes: false },
+		{ arn: storage.inboxAddressesTable.arn, includeIndexes: true },
+		{ arn: storage.passwordResetTokensTable.arn, includeIndexes: false },
+	],
+	actions: [
+		"dynamodb:GetItem",
+		"dynamodb:Query",
+		"dynamodb:Scan",
+		"dynamodb:DeleteItem",
+		"dynamodb:UpdateItem",
+		"dynamodb:TransactWriteItems",
+	],
+});
+
+// The write-policy helpers grant only PutObject, so a delete worker needs an
+// explicit s3:DeleteObject grant (+ ListBucket for the export-prefix listing).
+const deleteAccountS3Policy = {
+	name: "delete-account-s3-delete",
+	policy: JSON.stringify({
+		Version: "2012-10-17",
+		Statement: [
+			{
+				Effect: "Allow",
+				Action: ["s3:DeleteObject"],
+				Resource: [
+					`arn:aws:s3:::${rawEmailBucketName}/*`,
+					`arn:aws:s3:::${contentBucketName}/*`,
+					`arn:aws:s3:::${userExportBucketName}/*`,
+				],
+			},
+			{
+				Effect: "Allow",
+				Action: ["s3:ListBucket"],
+				Resource: [
+					`arn:aws:s3:::${rawEmailBucketName}`,
+					`arn:aws:s3:::${contentBucketName}`,
+					`arn:aws:s3:::${userExportBucketName}`,
+				],
+			},
+		],
+	}),
+};
+
+const deleteAccountQueue = new HutchSQS("delete-account", {
+	// Matches the worker Lambda timeout so a single in-flight scrub cannot be
+	// redelivered while still running.
+	visibilityTimeoutSeconds: 900,
+});
+
+const deleteAccountLambda = new HutchLambda("delete-account", {
+	entryPoint: "./src/runtime/delete-account.main.ts",
+	outputDir: ".lib/delete-account",
+	assetDir: "./src/runtime",
+	memorySize: 1024,
+	timeout: 900,
+	environment: {
+		PERSISTENCE: "prod",
+		DYNAMODB_USERS_TABLE: storage.usersTable.name,
+		DYNAMODB_SESSIONS_TABLE: storage.sessionsTable.name,
+		DYNAMODB_OAUTH_TABLE: storage.oauthTable.name,
+		DYNAMODB_ARTICLES_TABLE: storage.articlesTable.name,
+		DYNAMODB_USER_ARTICLES_TABLE: storage.userArticlesTable.name,
+		DYNAMODB_DIGEST_QUEUE_TABLE: storage.digestQueueTable.name,
+		DYNAMODB_READER_READY_NOTIFICATIONS_TABLE: storage.readerReadyNotificationsTable.name,
+		DYNAMODB_ONBOARDING_TABLE: storage.onboardingTable.name,
+		DYNAMODB_SUBSCRIPTION_PROVIDERS_TABLE: storage.subscriptionProvidersTable.name,
+		DYNAMODB_INBOX_EMAILS_TABLE: storage.inboxEmailsTable.name,
+		DYNAMODB_INBOX_EMAIL_LINKS_TABLE: storage.inboxEmailLinksTable.name,
+		DYNAMODB_INBOX_ADDRESSES_TABLE: storage.inboxAddressesTable.name,
+		DYNAMODB_PASSWORD_RESET_TOKENS_TABLE: storage.passwordResetTokensTable.name,
+		RAW_EMAIL_BUCKET_NAME: rawEmailBucketName,
+		CONTENT_BUCKET_NAME: contentBucketName,
+		USER_EXPORT_BUCKET_NAME: userExportBucketName,
+		STRIPE_SECRET_KEY: requireEnv("STRIPE_SECRET_KEY"),
+		EVENT_BUS_ARN: eventBus.eventBusArn,
+		TRIAL_SCHEDULER_GROUP_NAME: trialSchedulerGroupName,
+		TRIAL_SCHEDULER_ROLE_ARN: trialSchedulerRole.arn,
+	},
+	policies: [
+		...deleteAccountDynamodb.policies,
+		deleteAccountS3Policy,
+		cancelSubscriptionSchedulerManagePolicy,
+	],
+});
+
+const deleteAccountLambdaWithSQS = new HutchSQSBackedLambda("delete-account", {
+	lambda: deleteAccountLambda,
+	queue: deleteAccountQueue,
+	alertEmailDLQEntry: alertEmail,
+	batchSize: 1,
+});
+
+eventBus.subscribe(DeleteAccountCommand, deleteAccountLambdaWithSQS);
 
 // --- Inbound email receive worker Lambda ---
 // Drains the SES→SNS receipt notifications: fetches the raw .eml from the raw

@@ -107,6 +107,48 @@ describe("initDynamoDbDigestQueue", () => {
 		});
 	});
 
+	describe("deleteDigestByUser", () => {
+		it("pages the user partition and deletes every row by its (userId, url) key", async () => {
+			const { client, commands } = createFakeClient({
+				queryPages: [
+					{
+						Items: [
+							{ userId: USER, url: "example.com/a", originalUrl: "https://example.com/a", enqueuedAt: "t1" },
+						],
+						LastEvaluatedKey: { userId: USER, url: "example.com/a" },
+					},
+					{
+						Items: [
+							{ userId: USER, url: "example.com/b", originalUrl: "https://example.com/b", enqueuedAt: "t2" },
+						],
+					},
+				],
+			});
+
+			await initQueue(client).deleteDigestByUser(USER);
+
+			const queries = commands.filter((c) => c.name === "QueryCommand");
+			expect(queries).toHaveLength(2);
+			expect(queries[0]?.input.KeyConditionExpression).toBe("userId = :userId");
+			expect((queries[0]?.input.ExpressionAttributeValues as Record<string, unknown>)[":userId"]).toBe(USER);
+			expect(queries[1]?.input.ExclusiveStartKey).toEqual({ userId: USER, url: "example.com/a" });
+
+			const deletes = commands.filter((c) => c.name === "DeleteCommand");
+			expect(deletes.map((d) => d.input.Key)).toEqual([
+				{ userId: USER, url: "example.com/a" },
+				{ userId: USER, url: "example.com/b" },
+			]);
+		});
+
+		it("issues no deletes when the user has no queued rows", async () => {
+			const { client, commands } = createFakeClient({});
+
+			await initQueue(client).deleteDigestByUser(USER);
+
+			expect(commands.some((c) => c.name === "DeleteCommand")).toBe(false);
+		});
+	});
+
 	describe("scanPendingDigestUsers", () => {
 		it("scans every page and returns each distinct userId once", async () => {
 			const other = UserIdSchema.parse("user-2");
