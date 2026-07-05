@@ -178,6 +178,7 @@ import { QuerystringFeatureToggle } from "./web/feature-toggle";
 import { HomePage } from "./web/pages/home";
 import { McpConnectPage } from "./web/pages/mcp";
 import { PrivacyPage } from "./web/pages/privacy";
+import { SupportPage } from "./web/pages/support";
 import { TermsPage } from "./web/pages/terms";
 import { HelpAddLinksPage } from "./web/pages/help";
 import { E2EFixturePage } from "./web/pages/e2e-fixture";
@@ -539,6 +540,7 @@ export function createApp(dependencies: AppDependencies): Express {
 			{ loc: "/signup", priority: "0.5", changefreq: "yearly", lastmod: "2026-03-01" },
 			{ loc: "/privacy", priority: "0.3", changefreq: "yearly", lastmod: "2026-03-01" },
 			{ loc: "/terms", priority: "0.3", changefreq: "yearly", lastmod: "2026-06-24" },
+			{ loc: "/support", priority: "0.3", changefreq: "yearly", lastmod: "2026-07-05" },
 			{ loc: "/llms.txt", priority: "0.3", changefreq: "monthly", lastmod: "2026-04-08" },
 			{ loc: "/llms-full.txt", priority: "0.3", changefreq: "monthly", lastmod: "2026-04-08" },
 			{ loc: "/auth.md", priority: "0.3", changefreq: "monthly", lastmod: "2026-06-13" },
@@ -720,6 +722,10 @@ export function createApp(dependencies: AppDependencies): Express {
 
 	app.get("/privacy", async (req: Request, res: Response) => {
 		sendComponent(req, res, Base(PrivacyPage(), await buildBannerState(req)));
+	});
+
+	app.get("/support", async (req: Request, res: Response) => {
+		sendComponent(req, res, Base(SupportPage(), await buildBannerState(req)));
 	});
 
 	app.get("/terms", async (req: Request, res: Response) => {
