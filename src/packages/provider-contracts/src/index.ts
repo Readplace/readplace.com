@@ -1,3 +1,4 @@
+export type * from "./apple-auth";
 export type * from "./article-crawl";
 export type * from "./article-freshness";
 export type * from "./article-store";

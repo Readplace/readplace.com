@@ -10,6 +10,7 @@ import {
 } from "@packages/domain/user";
 import type {
 	CountUsers,
+	CreateAppleUser,
 	CreateGoogleUser,
 	CreateSession,
 	CreateUser,
@@ -51,6 +52,7 @@ export function initInMemoryAuth(opts: {
 	createUser: CreateUser;
 	createUserWithPasswordHash: CreateUserWithPasswordHash;
 	createGoogleUser: CreateGoogleUser;
+	createAppleUser: CreateAppleUser;
 	findUserByEmail: FindUserByEmail;
 	verifyCredentials: VerifyCredentials;
 	createSession: CreateSession;
@@ -134,7 +136,10 @@ export function initInMemoryAuth(opts: {
 		return { ok: true, userId };
 	};
 
-	const createGoogleUser: CreateGoogleUser = async ({ email, userId, attribution }) => {
+	/** A user created from a federated identity provider (Google/Apple): verified
+	 * email, no password. Both providers share this body because they differ only
+	 * in which contract type names the seam, not in what is persisted. */
+	const createFederatedUser: CreateGoogleUser = async ({ email, userId, attribution }) => {
 		const normalizedEmail = reserveIdentity(email, userId);
 		if (normalizedEmail === null) {
 			return { ok: false, reason: "email-already-exists" };
@@ -152,6 +157,8 @@ export function initInMemoryAuth(opts: {
 
 		return { ok: true, userId };
 	};
+	const createGoogleUser: CreateGoogleUser = createFederatedUser;
+	const createAppleUser: CreateAppleUser = createFederatedUser;
 
 	const findUserByEmail: FindUserByEmail = async (email) => {
 		const normalizedEmail = normalizeEmail(email);
@@ -285,6 +292,7 @@ export function initInMemoryAuth(opts: {
 		createUser,
 		createUserWithPasswordHash,
 		createGoogleUser,
+		createAppleUser,
 		findUserByEmail,
 		verifyCredentials,
 		createSession,

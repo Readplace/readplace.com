@@ -36,6 +36,14 @@
             <span class="auth-google-button__label">{{googleLabel}}</span>
           </a>
         </div>
+        {{#if appleEnabled}}
+        <div class="auth-apple-section" data-test-apple-section>
+          <a class="auth-apple-button" href="/auth/apple{{#if returnUrl}}?return={{returnUrl}}{{/if}}">
+            <svg class="auth-apple-button__logo" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" width="18" height="18" aria-hidden="true" focusable="false"><path fill="currentColor" d="M17.05 12.04c-.03-2.4 1.96-3.55 2.05-3.61-1.12-1.64-2.86-1.86-3.48-1.89-1.48-.15-2.89.87-3.64.87-.75 0-1.91-.85-3.14-.83-1.62.02-3.11.94-3.94 2.39-1.68 2.92-.43 7.24 1.2 9.61.8 1.16 1.75 2.46 3 2.41 1.2-.05 1.66-.78 3.11-.78 1.45 0 1.86.78 3.14.75 1.29-.02 2.11-1.18 2.9-2.35.91-1.35 1.29-2.65 1.31-2.72-.03-.01-2.51-.97-2.54-3.83zM14.63 5.16c.66-.8 1.11-1.92.99-3.03-.95.04-2.11.63-2.8 1.43-.62.71-1.16 1.85-1.01 2.94 1.06.08 2.15-.54 2.82-1.34z"/></svg>
+            <span class="auth-apple-button__label">{{appleLabel}}</span>
+          </a>
+        </div>
+        {{/if}}
         <p class="auth-card__footer">
           Already have an account? <a href="/login{{#if returnUrl}}?return={{returnUrl}}{{/if}}" data-test-action="sign-in">Sign in</a>
         </p>

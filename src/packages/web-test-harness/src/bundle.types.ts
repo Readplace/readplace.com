@@ -16,6 +16,7 @@ import type {
 	ConversionEvent,
 	CountArticlesByUser,
 	CountUsers,
+	CreateAppleUser,
 	CreateCheckoutSession,
 	CreateDeferredCancellationSchedule,
 	CreateGoogleUser,
@@ -32,6 +33,7 @@ import type {
 	DestroySession,
 	DestroyUserSessions,
 	EmailMessage,
+	ExchangeAppleCode,
 	ExchangeGoogleCode,
 	ExistsUserByIdPrefix,
 	FindArticleById,
@@ -124,6 +126,7 @@ export interface AuthBundle {
 	createUser: CreateUser;
 	createUserWithPasswordHash: CreateUserWithPasswordHash;
 	createGoogleUser: CreateGoogleUser;
+	createAppleUser: CreateAppleUser;
 	findUserByEmail: FindUserByEmail;
 	verifyCredentials: VerifyCredentials;
 	createSession: CreateSession;
@@ -320,6 +323,12 @@ export interface GoogleAuthBundle {
 	clientSecret: string;
 }
 
+export interface AppleAuthBundle {
+	exchangeAppleCode: ExchangeAppleCode;
+	clientId: string;
+	stateSigningSecret: string;
+}
+
 export interface AdminBundle {
 	adminEmails: readonly string[];
 	recrawlServiceToken: string;
@@ -387,6 +396,7 @@ export interface TestAppFixture {
 	rateLimit: RateLimitBundle;
 	iosOnboardingSignal: IosOnboardingSignalBundle;
 	google: GoogleAuthBundle | undefined;
+	apple: AppleAuthBundle | undefined;
 	admin: AdminBundle;
 	importSession: ImportSessionBundle;
 	inboxAddress: InboxAddressBundle;

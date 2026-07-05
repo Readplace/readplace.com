@@ -383,6 +383,7 @@ export function createDefaultTestAppFixture(appOrigin: string): TestAppFixture {
 		rateLimit,
 		iosOnboardingSignal: initInMemoryIosOnboardingSignal(),
 		google: undefined,
+		apple: undefined,
 		admin: {
 			adminEmails: [],
 			recrawlServiceToken: "test-service-token-abcdefghij",

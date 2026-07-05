@@ -6,13 +6,13 @@ import { UserIdSchema } from "@packages/domain/user";
 import type { HutchLogger } from "@packages/hutch-logger";
 import type {
 	CountUsers,
-	CreateGoogleUser,
+	CreateAppleUser,
 	CreateSession,
 	FindUserByEmail,
 	MarkEmailVerified,
 } from "@packages/provider-contracts/auth";
 import type { SendEmail } from "@packages/provider-contracts/email";
-import type { ExchangeGoogleCode } from "@packages/provider-contracts/google-auth";
+import type { ExchangeAppleCode } from "@packages/provider-contracts/apple-auth";
 import type { UpsertTrialingSubscription } from "@packages/provider-contracts/subscription-providers";
 import type { CreateTrialEndSchedule } from "@packages/provider-contracts/trial-scheduler";
 import { STRIPE_TRIAL_PERIOD_DAYS } from "../../domain/stripe/stripe-trial-config";
@@ -23,42 +23,53 @@ import { bannerStateFromRequest, sendComponent } from "@packages/web-shell";
 
 import { extractReturnUrl, parseReturnUrl } from "./parse-return-url";
 import { baseCookieOptions } from "../cookie-options";
-import { SESSION_COOKIE_MAX_AGE_MS, SESSION_COOKIE_NAME } from "@packages/web-session";
+import { SESSION_COOKIE_NAME } from "@packages/web-session";
 import { LoginPage } from "./auth.component";
 import { initFetchUserCount } from "./fetch-user-count";
-import { readClickAttribution } from "../click-attribution.middleware";
-import { consumePendingSaveId } from "../pending-save";
+import { ClickAttributionSchema, readClickAttribution } from "../click-attribution.middleware";
+import { PENDING_SAVE_COOKIE_NAME, readPendingSaveId } from "../pending-save";
 import type { ConversionEvent } from "../../conversions";
 import { emitUserCreated } from "../../conversions";
 import { signState, verifyState } from "./oauth-state";
 
-const CallbackQuerySchema = z.object({
+const CallbackBodySchema = z.object({
 	code: z.string().min(1),
 	state: z.string().min(1),
 });
 
+const CancelBodySchema = z.object({
+	error: z.literal("user_cancelled_authorize"),
+});
+
+/** Apple's cross-site form_post callback carries none of the first-party cookies
+ * (hutch_click / hutch_vid / hutch_psid), so the acquisition context is captured
+ * at GET /auth/apple and tunneled inside this HMAC-signed (tamper-evident) state
+ * rather than re-read on the callback. */
 const StatePayloadSchema = z.object({
 	nonce: z.string(),
 	returnUrl: z.string().optional(),
 	createdAt: z.number(),
+	attribution: ClickAttributionSchema.optional(),
+	visitorId: z.string().optional(),
+	pendingSaveId: z.string().optional(),
 });
 
-const STATE_COOKIE = "hutch_gstate";
+const STATE_COOKIE = "hutch_astate";
 const STATE_TTL_MS = 5 * 60 * 1000;
 
-interface GoogleAuthDependencies {
-	googleClientId: string;
-	googleClientSecret: string;
+interface AppleAuthDependencies {
+	appleClientId: string;
+	stateSigningSecret: string;
 	appOrigin: string;
 	baseUrl: string;
 	staticBaseUrl: string;
 	secureCookies: boolean;
 	createSession: CreateSession;
-	createGoogleUser: CreateGoogleUser;
+	createAppleUser: CreateAppleUser;
 	findUserByEmail: FindUserByEmail;
 	countUsers: CountUsers;
 	markEmailVerified: MarkEmailVerified;
-	exchangeGoogleCode: ExchangeGoogleCode;
+	exchangeAppleCode: ExchangeAppleCode;
 	upsertTrialing: UpsertTrialingSubscription;
 	createTrialEndSchedule: CreateTrialEndSchedule;
 	sendEmail: SendEmail;
@@ -68,14 +79,18 @@ interface GoogleAuthDependencies {
 	foundingAllocation: FoundingAllocation;
 }
 
-export const initGoogleAuthRoutes = (deps: GoogleAuthDependencies): Router => {
+export const initAppleAuthRoutes = (deps: AppleAuthDependencies): Router => {
 	const router = express.Router();
-	const sessionCookieOptions = { ...baseCookieOptions(deps.secureCookies), maxAge: SESSION_COOKIE_MAX_AGE_MS };
-	const redirectUri = `${deps.appOrigin}/auth/google/callback`;
+	const sessionCookieOptions = baseCookieOptions(deps.secureCookies);
+	// The state cookie must survive the cross-site form_post callback, where a
+	// SameSite=Lax cookie would not be sent — so it is SameSite=None (implying
+	// Secure). Clearing it later uses the matching sameSite/secure attributes.
+	const stateCookieOptions = { ...sessionCookieOptions, sameSite: "none" as const };
+	const redirectUri = `${deps.appOrigin}/auth/apple/callback`;
 	const fetchUserCount = initFetchUserCount({
 		countUsers: deps.countUsers,
 		logError: deps.logError,
-		logPrefix: "[Google Auth]",
+		logPrefix: "[Apple Auth]",
 	});
 	const sendWelcomeEmail = initSendWelcomeEmail({
 		sendEmail: deps.sendEmail,
@@ -84,34 +99,56 @@ export const initGoogleAuthRoutes = (deps: GoogleAuthDependencies): Router => {
 		logError: deps.logError,
 	});
 
-	router.get("/auth/google", (req: Request, res: Response) => {
+	router.get("/auth/apple", (req: Request, res: Response) => {
 		const returnUrl = extractReturnUrl(req.query);
 		const nonce = randomBytes(16).toString("hex");
 		const createdAt = Date.now();
-		const statePayload = JSON.stringify({ nonce, returnUrl, createdAt });
-		const signedState = signState({ payload: statePayload, secret: deps.googleClientSecret });
+		/* Read (not consume) — an abandoned flow must leave the pending save
+		 * intact for a later signup. */
+		const attribution = readClickAttribution(req);
+		const visitorId = req.visitorId;
+		const pendingSaveId = readPendingSaveId(req);
+		const statePayload = JSON.stringify({
+			nonce,
+			returnUrl,
+			createdAt,
+			...(attribution ? { attribution } : {}),
+			...(visitorId ? { visitorId } : {}),
+			...(pendingSaveId ? { pendingSaveId } : {}),
+		});
+		const signedState = signState({ payload: statePayload, secret: deps.stateSigningSecret });
 
 		res.cookie(STATE_COOKIE, signedState, {
-			...baseCookieOptions(deps.secureCookies),
+			...stateCookieOptions,
 			maxAge: STATE_TTL_MS,
 		});
 
 		const params = new URLSearchParams({
-			client_id: deps.googleClientId,
+			client_id: deps.appleClientId,
 			redirect_uri: redirectUri,
 			response_type: "code",
-			scope: "openid email",
+			scope: "email",
+			response_mode: "form_post",
 			state: signedState,
 		});
 
-		res.redirect(303, `https://accounts.google.com/o/oauth2/v2/auth?${params.toString()}`);
+		res.redirect(303, `https://appleid.apple.com/auth/authorize?${params.toString()}`);
 	});
 
-	router.get("/auth/google/callback", async (req: Request, res: Response) => {
-		const parsedQuery = CallbackQuerySchema.safeParse(req.query);
-		const stateCookie = req.cookies?.[STATE_COOKIE];
+	router.post("/auth/apple/callback", async (req: Request, res: Response) => {
+		res.clearCookie(STATE_COOKIE, { path: "/", sameSite: "none", secure: deps.secureCookies });
 
-		res.clearCookie(STATE_COOKIE, { path: "/" });
+		/* User backed out of Apple's consent screen. Under form_post this posts
+		 * error=user_cancelled_authorize (with state, no code) straight to us, so
+		 * return quietly to /login — a deliberate cancel is not an error and a 400
+		 * would only pollute monitoring. */
+		if (CancelBodySchema.safeParse(req.body).success) {
+			res.redirect(303, "/login");
+			return;
+		}
+
+		const parsedBody = CallbackBodySchema.safeParse(req.body);
+		const stateCookie = req.cookies?.[STATE_COOKIE];
 
 		const renderError = async (message: string) => {
 			const userCount = await fetchUserCount();
@@ -125,35 +162,35 @@ export const initGoogleAuthRoutes = (deps: GoogleAuthDependencies): Router => {
 			);
 		};
 
-		if (!parsedQuery.success || !stateCookie || parsedQuery.data.state !== stateCookie) {
-			await renderError("Google sign-in failed. Please try again.");
+		if (!parsedBody.success || !stateCookie || parsedBody.data.state !== stateCookie) {
+			await renderError("Apple sign-in failed. Please try again.");
 			return;
 		}
-		const { code, state: stateParam } = parsedQuery.data;
+		const { code, state: stateParam } = parsedBody.data;
 
-		const payload = verifyState({ signed: stateParam, secret: deps.googleClientSecret });
+		const payload = verifyState({ signed: stateParam, secret: deps.stateSigningSecret });
 		if (!payload) {
-			await renderError("Google sign-in failed. Please try again.");
+			await renderError("Apple sign-in failed. Please try again.");
 			return;
 		}
 
 		const stateData = StatePayloadSchema.parse(JSON.parse(payload));
 		if (Date.now() - stateData.createdAt > STATE_TTL_MS) {
-			await renderError("Google sign-in expired. Please try again.");
+			await renderError("Apple sign-in expired. Please try again.");
 			return;
 		}
 
-		let tokenResult: Awaited<ReturnType<ExchangeGoogleCode>>;
+		let tokenResult: Awaited<ReturnType<ExchangeAppleCode>>;
 		try {
-			tokenResult = await deps.exchangeGoogleCode(code);
+			tokenResult = await deps.exchangeAppleCode(code);
 		} catch (error) {
-			deps.logError("[Google Auth] Token exchange failed", error instanceof Error ? error : new Error(String(error)));
-			await renderError("Google sign-in failed. Please try again.");
+			deps.logError("[Apple Auth] Token exchange failed", error instanceof Error ? error : new Error(String(error)));
+			await renderError("Apple sign-in failed. Please try again.");
 			return;
 		}
 
 		if (!tokenResult.emailVerified) {
-			await renderError("Your Google account email is not verified.");
+			await renderError("Your Apple account email is not verified.");
 			return;
 		}
 
@@ -171,12 +208,23 @@ export const initGoogleAuthRoutes = (deps: GoogleAuthDependencies): Router => {
 		const newUserId = UserIdSchema.parse(randomBytes(16).toString("hex"));
 		const safeReturnUrl = extractReturnUrl({ return: stateData.returnUrl });
 
+		/* Tunneled from GET /auth/apple — the cross-site callback carries none of
+		 * the cookies these came from, so reading them off `req` here would record
+		 * an orphan visitor id and lose attribution on every real Apple signup. */
+		const attribution = stateData.attribution;
+		const conversionContext = {
+			attribution,
+			visitorId: stateData.visitorId,
+			pendingSaveId: stateData.pendingSaveId,
+		};
+		/* hutch_psid is same-site so it is not sent on this cross-site POST, but
+		 * the response Set-Cookie still applies to readplace.com — clear it so the
+		 * consumed save cannot re-attach to a later signup. */
+		const clearPendingSave = () => res.clearCookie(PENDING_SAVE_COOKIE_NAME, { path: "/" });
+
 		const userCount = await fetchUserCount();
-		/* Read once, then persisted on the user row (durable) AND emitted on the
-		 * user_created conversion event (30-day retention). */
-		const attribution = readClickAttribution(req);
 		if (!deps.foundingAllocation.isFoundingAllocationExhausted(userCount)) {
-			const created = await deps.createGoogleUser({
+			const created = await deps.createAppleUser({
 				email: tokenResult.email,
 				userId: newUserId,
 				attribution,
@@ -198,24 +246,23 @@ export const initGoogleAuthRoutes = (deps: GoogleAuthDependencies): Router => {
 
 			const sessionId = await deps.createSession({ userId: created.userId, emailVerified: true });
 			res.cookie(SESSION_COOKIE_NAME, sessionId, sessionCookieOptions);
+			clearPendingSave();
 			sendWelcomeEmail(tokenResult.email);
 			emitUserCreated(
 				{ logger: deps.conversionLogger, now: deps.now },
 				{
 					userId: created.userId,
 					email: tokenResult.email,
-					method: "google",
+					method: "apple",
 					tier: "free",
-					attribution,
-					visitorId: req.visitorId,
-					pendingSaveId: consumePendingSaveId({ req, res }),
+					...conversionContext,
 				},
 			);
 			res.redirect(303, parseReturnUrl({ return: safeReturnUrl }));
 			return;
 		}
 
-		const created = await deps.createGoogleUser({
+		const created = await deps.createAppleUser({
 			email: tokenResult.email,
 			userId: newUserId,
 			attribution,
@@ -246,24 +293,23 @@ export const initGoogleAuthRoutes = (deps: GoogleAuthDependencies): Router => {
 			});
 		} catch (err) {
 			deps.logError(
-				"[Google Auth] Trial-end schedule creation failed — continuing without schedule",
+				"[Apple Auth] Trial-end schedule creation failed — continuing without schedule",
 				err instanceof Error ? err : new Error(String(err)),
 			);
 		}
 
 		const sessionId = await deps.createSession({ userId: created.userId, emailVerified: true });
 		res.cookie(SESSION_COOKIE_NAME, sessionId, sessionCookieOptions);
+		clearPendingSave();
 		sendWelcomeEmail(tokenResult.email);
 		emitUserCreated(
 			{ logger: deps.conversionLogger, now: deps.now },
 			{
 				userId: created.userId,
 				email: tokenResult.email,
-				method: "google",
+				method: "apple",
 				tier: "trial",
-				attribution: readClickAttribution(req),
-				visitorId: req.visitorId,
-				pendingSaveId: consumePendingSaveId({ req, res }),
+				...conversionContext,
 			},
 		);
 		res.redirect(303, parseReturnUrl({ return: safeReturnUrl }));

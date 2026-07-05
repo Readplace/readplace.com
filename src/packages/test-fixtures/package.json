@@ -13,6 +13,10 @@
       "types": "./dist/fixture.d.ts",
       "default": "./dist/fixture.js"
     },
+    "./providers/apple-auth": {
+      "types": "./dist/providers/apple-auth/index.d.ts",
+      "default": "./dist/providers/apple-auth/index.js"
+    },
     "./providers/article-aggregate": {
       "types": "./dist/providers/article-aggregate/index.d.ts",
       "default": "./dist/providers/article-aggregate/index.js"
@@ -133,6 +137,7 @@
   "typesVersions": {
     "*": {
       "fixture": ["./dist/fixture.d.ts"],
+      "providers/apple-auth": ["./dist/providers/apple-auth/index.d.ts"],
       "providers/article-aggregate": ["./dist/providers/article-aggregate/index.d.ts"],
       "providers/article-crawl": ["./dist/providers/article-crawl/index.d.ts"],
       "providers/article-store": ["./dist/providers/article-store/index.d.ts"],

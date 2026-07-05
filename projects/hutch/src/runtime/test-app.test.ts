@@ -63,6 +63,7 @@ describe("createTestApp + createDefaultTestAppFixture", () => {
 				clientId: "test-google-client-id",
 				clientSecret: "test-google-client-secret",
 			},
+			apple: fixture.apple,
 			admin: fixture.admin,
 			importSession: fixture.importSession,
 			inboxAddress: fixture.inboxAddress,

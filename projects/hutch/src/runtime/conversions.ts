@@ -23,7 +23,7 @@ export function emitUserCreated(
 	params: {
 		userId: UserId;
 		email: string;
-		method: "email" | "google";
+		method: "email" | "google" | "apple";
 		tier: "free" | "trial";
 		attribution: ClickAttribution | undefined;
 		visitorId?: string;
