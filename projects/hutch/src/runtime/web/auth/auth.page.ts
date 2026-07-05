@@ -66,6 +66,8 @@ import { initValidateSignup } from "./validate-signup";
 import type { FoundingAllocation } from "../shared/founding-progress/founding-allocation";
 import { readClickAttribution } from "@packages/web-analytics";
 import { consumePendingSaveId } from "../pending-save";
+import { consumeLastViewUrl, LAST_VIEW_COOKIE_NAME } from "../last-view";
+import { resolvePostSignupRedirect } from "./post-signup-redirect";
 import type { ConversionEvent } from "../../conversions";
 import { emitUserCreated } from "../../conversions";
 import type { AnalyticsEvent } from "@packages/web-analytics";
@@ -363,7 +365,8 @@ export function initAuthRoutes(deps: AuthDependencies): Router {
 					pendingSaveId: consumePendingSaveId({ req, res }),
 				},
 			);
-			res.redirect(303, parseReturnUrl({ return: returnUrl }));
+			const lastViewUrl = consumeLastViewUrl({ req, res });
+			res.redirect(303, resolvePostSignupRedirect({ returnUrl, lastViewUrl }));
 			return;
 		}
 
@@ -400,7 +403,8 @@ export function initAuthRoutes(deps: AuthDependencies): Router {
 				pendingSaveId: consumePendingSaveId({ req, res }),
 			},
 		);
-		res.redirect(303, parseReturnUrl({ return: returnUrl }));
+		const lastViewUrl = consumeLastViewUrl({ req, res });
+		res.redirect(303, resolvePostSignupRedirect({ returnUrl, lastViewUrl }));
 	});
 
 	router.get("/auth/checkout/success", async (req: Request, res: Response) => {
@@ -586,6 +590,7 @@ export function initAuthRoutes(deps: AuthDependencies): Router {
 			await deps.destroySession(sessionId);
 		}
 		res.clearCookie(SESSION_COOKIE_NAME, { path: "/" });
+		res.clearCookie(LAST_VIEW_COOKIE_NAME, { path: "/" });
 		res.redirect(303, "/");
 	});
 

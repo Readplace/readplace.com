@@ -32,6 +32,8 @@ import { LoginPage } from "./auth.component";
 import { initFetchUserCount } from "./fetch-user-count";
 import { readClickAttribution } from "@packages/web-analytics";
 import { consumePendingSaveId } from "../pending-save";
+import { consumeLastViewUrl } from "../last-view";
+import { resolvePostSignupRedirect } from "./post-signup-redirect";
 import type { ConversionEvent } from "../../conversions";
 import { emitUserCreated } from "../../conversions";
 import { signState, verifyState } from "./oauth-state";
@@ -218,7 +220,8 @@ export const initGoogleAuthRoutes = (deps: GoogleAuthDependencies): Router => {
 					pendingSaveId: consumePendingSaveId({ req, res }),
 				},
 			);
-			res.redirect(303, parseReturnUrl({ return: safeReturnUrl }));
+			const lastViewUrl = consumeLastViewUrl({ req, res });
+			res.redirect(303, resolvePostSignupRedirect({ returnUrl: safeReturnUrl, lastViewUrl }));
 			return;
 		}
 
@@ -267,7 +270,8 @@ export const initGoogleAuthRoutes = (deps: GoogleAuthDependencies): Router => {
 				pendingSaveId: consumePendingSaveId({ req, res }),
 			},
 		);
-		res.redirect(303, parseReturnUrl({ return: safeReturnUrl }));
+		const lastViewUrl = consumeLastViewUrl({ req, res });
+		res.redirect(303, resolvePostSignupRedirect({ returnUrl: safeReturnUrl, lastViewUrl }));
 	});
 
 	return router;

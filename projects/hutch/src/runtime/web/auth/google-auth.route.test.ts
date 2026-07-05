@@ -262,6 +262,63 @@ describe("Google auth routes", () => {
 			expect(consumed).toBeNull();
 		}, 30000);
 
+		describe("first-article autosave", () => {
+			const ARTICLE_URL = "https://example.com/post";
+			const AUTOSAVE_LOCATION = `/queue?url=${encodeURIComponent(ARTICLE_URL)}&utm_source=signup-autosave`;
+
+			function newUserHarness() {
+				const fixture = createDefaultTestAppFixture(TEST_APP_ORIGIN);
+				return useApp({
+					...fixture,
+					google: {
+						exchangeGoogleCode: stubExchange({ email: "autosave-google@example.com" }),
+						clientId: TEST_CLIENT_ID,
+						clientSecret: TEST_CLIENT_SECRET,
+					},
+				});
+			}
+
+			it("auto-saves the last-viewed article for a new Google user with no explicit return", async () => {
+				const harness = newUserHarness();
+				await harness.auth.createUser({ email: "seed1@test.com", password: "password123" });
+				const state = signState(freshState());
+
+				const response = await request(harness.server)
+					.get(`/auth/google/callback?code=test-code&state=${encodeURIComponent(state)}`)
+					.set("Cookie", `hutch_gstate=${encodeURIComponent(state)}; hutch_lastview=${encodeURIComponent(ARTICLE_URL)}`);
+
+				expect(response.status).toBe(303);
+				expect(response.headers.location).toBe(AUTOSAVE_LOCATION);
+				expect(cookiesFrom(response).join(";")).toContain("hutch_lastview=;");
+			}, 30000);
+
+			it("lets an explicit return URL win over the autosave", async () => {
+				const harness = newUserHarness();
+				await harness.auth.createUser({ email: "seed1@test.com", password: "password123" });
+				const state = signState(freshState({ returnUrl: "/oauth/authorize?client_id=test" }));
+
+				const response = await request(harness.server)
+					.get(`/auth/google/callback?code=test-code&state=${encodeURIComponent(state)}`)
+					.set("Cookie", `hutch_gstate=${encodeURIComponent(state)}; hutch_lastview=${encodeURIComponent(ARTICLE_URL)}`);
+
+				expect(response.status).toBe(303);
+				expect(response.headers.location).toBe("/oauth/authorize?client_id=test");
+			}, 30000);
+
+			it("redirects to a plain /queue when no hutch_lastview cookie is present", async () => {
+				const harness = newUserHarness();
+				await harness.auth.createUser({ email: "seed1@test.com", password: "password123" });
+				const state = signState(freshState());
+
+				const response = await request(harness.server)
+					.get(`/auth/google/callback?code=test-code&state=${encodeURIComponent(state)}`)
+					.set("Cookie", `hutch_gstate=${encodeURIComponent(state)}`);
+
+				expect(response.status).toBe(303);
+				expect(response.headers.location).toBe("/queue");
+			}, 30000);
+		});
+
 		it("logs in the existing user when a race condition causes createGoogleUser to fail during free signup", async () => {
 			const fixture = createDefaultTestAppFixture(TEST_APP_ORIGIN);
 			let raceFindCount = 0;

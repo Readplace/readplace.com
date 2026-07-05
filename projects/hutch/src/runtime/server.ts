@@ -1085,6 +1085,7 @@ export function createApp(dependencies: AppDependencies): Express {
 	const viewRouter = initViewRoutes({
 		validateSaveableUrl: deps.validateSaveableUrl,
 		appOrigin,
+		secureCookies,
 		findArticleByUrl: deps.findArticleByUrl,
 		findArticleFreshness: deps.findArticleFreshness,
 		findArticleCrawlVersions: deps.findArticleCrawlVersions,

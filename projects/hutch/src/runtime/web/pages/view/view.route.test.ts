@@ -745,6 +745,52 @@ describe("View routes", () => {
 		});
 	});
 
+	describe("hutch_lastview cookie for first-article autosave", () => {
+		function lastViewCookie(response: request.Response): string | undefined {
+			const setCookie = response.headers["set-cookie"];
+			const cookies = Array.isArray(setCookie) ? setCookie : [];
+			return cookies.find((c) => c.startsWith("hutch_lastview="));
+		}
+
+		it("sets hutch_lastview to the article url on an anonymous, non-bot open", async () => {
+			const harness = buildReaderHarness();
+
+			const response = await request(harness.server).get(`/view/${CANONICAL_PATH}`);
+
+			expect(response.status).toBe(200);
+			const cookie = lastViewCookie(response);
+			assert(cookie, "an anonymous open must set hutch_lastview");
+			expect(decodeURIComponent(cookie.slice("hutch_lastview=".length).split(";")[0])).toBe(ARTICLE_URL);
+			expect(cookie).toContain("HttpOnly");
+			expect(cookie).toContain("SameSite=Lax");
+			expect(cookie).toContain("Max-Age=7200");
+			expect(cookie).toContain("Path=/");
+		});
+
+		it("does not set hutch_lastview when an authenticated viewer opens the reader", async () => {
+			const harness = buildReaderHarness();
+			await harness.auth.createUser({ email: "reader2@example.com", password: "password123" });
+			const agent = request.agent(harness.server);
+			await agent.post("/login").type("form").send({ email: "reader2@example.com", password: "password123" });
+
+			const response = await agent.get(`/view/${CANONICAL_PATH}`);
+
+			expect(response.status).toBe(200);
+			expect(lastViewCookie(response)).toBeUndefined();
+		});
+
+		it("does not set hutch_lastview for a bot user-agent (behind the same gate as view_opened)", async () => {
+			const harness = buildReaderHarness();
+
+			const response = await request(harness.server)
+				.get(`/view/${CANONICAL_PATH}`)
+				.set("User-Agent", GOOGLEBOT);
+
+			expect(response.status).toBe(200);
+			expect(lastViewCookie(response)).toBeUndefined();
+		});
+	});
+
 	describe("prefetch and bot requests do not trigger the paid crawl", () => {
 		it("skips the crawl cascade for a Sec-Purpose: prefetch request", async () => {
 			const harness = buildReaderHarness();

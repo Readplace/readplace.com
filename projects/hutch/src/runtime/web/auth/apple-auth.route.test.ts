@@ -59,6 +59,7 @@ function freshState(overrides?: {
 	attribution?: Record<string, unknown>;
 	visitorId?: string;
 	pendingSaveId?: string;
+	lastViewUrl?: string;
 }) {
 	return {
 		nonce: "test-nonce",
@@ -67,6 +68,7 @@ function freshState(overrides?: {
 		...(overrides?.attribution ? { attribution: overrides.attribution } : {}),
 		...(overrides?.visitorId ? { visitorId: overrides.visitorId } : {}),
 		...(overrides?.pendingSaveId ? { pendingSaveId: overrides.pendingSaveId } : {}),
+		...(overrides?.lastViewUrl ? { lastViewUrl: overrides.lastViewUrl } : {}),
 	};
 }
 
@@ -525,6 +527,72 @@ describe("Apple auth routes", () => {
 
 			const passwordCheck = await auth.verifyCredentials({ email: "unverified@example.com", password: "password123" });
 			expect(passwordCheck.ok).toBe(true);
+		});
+
+		describe("first-article autosave", () => {
+			const ARTICLE_URL = "https://example.com/post";
+			const AUTOSAVE_LOCATION = `/queue?url=${encodeURIComponent(ARTICLE_URL)}&utm_source=signup-autosave`;
+
+			it("tunnels the last-viewed url into the signed state at GET so it survives the cross-site callback", async () => {
+				const fixture = createDefaultTestAppFixture(TEST_APP_ORIGIN);
+				const harness = useApp({ ...fixture, apple: appleWith() });
+
+				const getResponse = await request(harness.server)
+					.get("/auth/apple")
+					.set("Cookie", `hutch_lastview=${encodeURIComponent(ARTICLE_URL)}`);
+
+				expect(getResponse.status).toBe(303);
+				const state = readSetCookie(getResponse, "hutch_astate");
+				assert(state, "GET must set a state cookie carrying the tunneled last-view url");
+				const payload = JSON.parse(state.slice(0, state.lastIndexOf(".")));
+				expect(payload.lastViewUrl).toBe(ARTICLE_URL);
+			});
+
+			it("auto-saves the tunneled article for a new Apple user with no explicit return, and clears the cookie", async () => {
+				const fixture = createDefaultTestAppFixture(TEST_APP_ORIGIN);
+				const harness = useApp({ ...fixture, apple: appleWith(stubExchange({ email: "autosave-apple@example.com" })) });
+				await harness.auth.createUser({ email: "seed1@test.com", password: "password123" });
+				const state = signState(freshState({ lastViewUrl: ARTICLE_URL }));
+
+				const response = await postCallback(harness.server, {
+					state,
+					cookie: `hutch_astate=${encodeURIComponent(state)}`,
+				});
+
+				expect(response.status).toBe(303);
+				expect(response.headers.location).toBe(AUTOSAVE_LOCATION);
+				expect(cookiesFrom(response).join(";")).toContain("hutch_lastview=;");
+			}, 30000);
+
+			it("lets an explicit return URL win over the tunneled autosave", async () => {
+				const fixture = createDefaultTestAppFixture(TEST_APP_ORIGIN);
+				const harness = useApp({ ...fixture, apple: appleWith(stubExchange({ email: "autosave-return-apple@example.com" })) });
+				await harness.auth.createUser({ email: "seed1@test.com", password: "password123" });
+				const state = signState(freshState({ lastViewUrl: ARTICLE_URL, returnUrl: "/oauth/authorize?client_id=test" }));
+
+				const response = await postCallback(harness.server, {
+					state,
+					cookie: `hutch_astate=${encodeURIComponent(state)}`,
+				});
+
+				expect(response.status).toBe(303);
+				expect(response.headers.location).toBe("/oauth/authorize?client_id=test");
+			}, 30000);
+
+			it("redirects to a plain /queue when the state carries no last-view url", async () => {
+				const fixture = createDefaultTestAppFixture(TEST_APP_ORIGIN);
+				const harness = useApp({ ...fixture, apple: appleWith(stubExchange({ email: "autosave-plain-apple@example.com" })) });
+				await harness.auth.createUser({ email: "seed1@test.com", password: "password123" });
+				const state = signState(freshState());
+
+				const response = await postCallback(harness.server, {
+					state,
+					cookie: `hutch_astate=${encodeURIComponent(state)}`,
+				});
+
+				expect(response.status).toBe(303);
+				expect(response.headers.location).toBe("/queue");
+			}, 30000);
 		});
 
 		it("tunnels attribution, visitor id, and pending-save id captured at GET through the cross-site callback", async () => {
