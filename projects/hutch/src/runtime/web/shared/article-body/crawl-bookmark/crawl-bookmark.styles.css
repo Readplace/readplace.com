@@ -14,9 +14,7 @@
   display: flex;
   align-items: center;
   justify-content: center;
-  align-self: flex-start;
   width: 16px;
-  height: 60px;
   cursor: pointer;
   background: var(--color-brand);
   border: 1px solid var(--color-border);
@@ -45,7 +43,7 @@
   flex-direction: column;
   background: var(--color-surface-elevated);
   border: 1px solid var(--color-border);
-  border-radius: var(--radius-lg) 0 0 var(--radius-lg);
+  border-left: none;
   box-shadow: var(--shadow-md);
   overflow: hidden;
 }
