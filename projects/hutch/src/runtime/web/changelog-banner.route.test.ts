@@ -8,6 +8,7 @@ import { TEST_APP_ORIGIN, createDefaultTestAppFixture } from "@packages/test-fix
 import { JSDOM } from "jsdom";
 import request from "supertest";
 import { createTestApp } from "../test-app";
+import { HOMEPAGE_SPLIT } from "./experiments/homepage-split";
 
 const VERSION = "a1b2c3d4";
 assert(isChangelogVersion(VERSION));
@@ -67,6 +68,10 @@ describe("changelog banner on hutch pages", () => {
 		assert(banner, "changelog banner must render on the / launcher");
 		expect(banner.classList.contains("changelog-banner--visible")).toBe(true);
 		expect(banner.getAttribute("data-changelog-version")).toBe(VERSION);
+		assert(
+			HOMEPAGE_SPLIT.active,
+			"the launcher only suppresses the seen-script while the split is active; with the kill switch off, / stays put and keeps its seen-script",
+		);
 		expect(banner.querySelector("script")).toBeNull();
 	});
 
