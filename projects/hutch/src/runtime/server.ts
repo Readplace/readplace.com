@@ -135,6 +135,8 @@ import {
 import { initAuthRoutes } from "./web/auth/auth.page";
 import type { BotDefenseEvent } from "./web/auth/auth.page";
 import type { ConversionEvent } from "./conversions";
+import { CLIENT_DIST_MOUNT_PATH, isStaticAssetRequestPath } from "./web/static-asset-paths";
+import { canonicalizeViewLandingPath } from "./web/pages/view/view-path";
 import { initGoogleAuthRoutes } from "./web/auth/google-auth.page";
 import { initAppleAuthRoutes } from "./web/auth/apple-auth.page";
 import { initResolveLogin } from "@packages/web-session";
@@ -427,13 +429,20 @@ export function createApp(dependencies: AppDependencies): Express {
 	app.use(cookieParser());
 	app.use(changelogDismissMiddleware);
 	app.use(createVisitorIdMiddleware({ generateVisitorId: randomUUID, secure: secureCookies }));
-	app.use(createClickAttributionMiddleware({ now: dependencies.now, secure: secureCookies }));
+	app.use(
+		createClickAttributionMiddleware({
+			now: dependencies.now,
+			secure: secureCookies,
+			isStaticAssetPath: isStaticAssetRequestPath,
+			canonicalizeLandingPath: canonicalizeViewLandingPath,
+		}),
+	);
 
 	// Same-origin client bundles — the Lambda packaging step copies
 	// src/runtime/web/client-dist/ into the bundle, so `__dirname/web/client-dist`
 	// resolves both in dev (tsx → src/runtime/) and in prod (Lambda → /var/task/).
 	app.use(
-		"/client-dist",
+		CLIENT_DIST_MOUNT_PATH,
 		express.static(resolve(__dirname, "web", "client-dist"), {
 			maxAge: "5m",
 			fallthrough: false,

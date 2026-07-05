@@ -44,6 +44,18 @@ export function parseViewPath(input: ParseViewPathInput): ParseViewPathResult {
 	return { kind: "render", articleUrl: `https://${rawPath}` };
 }
 
+/** Canonicalizes a `/view/<scheme>://...` landing path to the same scheme-less
+ * (https) / literal-`http://` form `parseViewPath` redirects to, collapsing the
+ * `https:/` and `https://` variants that pollute click-attribution's
+ * `landing_path`. Used at cookie-set time, where the routing 301 cannot help
+ * because the cookie must be written before headers are sent. Non-`/view`
+ * scheme-bearing paths are returned unchanged. */
+export function canonicalizeViewLandingPath(path: string): string {
+	const match = /^\/view\/(https?):\/{1,2}(.+)$/i.exec(path);
+	if (!match) return path;
+	return match[1].toLowerCase() === "http" ? `/view/http://${match[2]}` : `/view/${match[2]}`;
+}
+
 /** Re-encode `%25` (literal `%`), `?`, and `#` so the canonical survives
  * Express's `decodeURIComponent` on the wildcard param. `%25` is the URL
  * constructor's encoding of a literal percent sign; double-encoding it to

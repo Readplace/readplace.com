@@ -26,6 +26,7 @@ import { useTestServer as useServerForFixture } from "@packages/web-test-harness
 import { createApp } from "./server";
 import type { GetChangelogBanner } from "./web/changelog-banner-source";
 import { initFoundingAllocation } from "./web/shared/founding-progress/founding-allocation";
+import { isStaticAssetRequestPath } from "./web/static-asset-paths";
 import { type AnalyticsEvent, createAnalyticsMiddleware } from "@packages/web-analytics";
 import { DEFAULT_INBOX_ALIAS } from "@packages/domain/inbox";
 import type { UserId } from "@packages/domain/user";
@@ -248,6 +249,7 @@ export function createTestApp(
 			logger: analyticsBundle.logger,
 			salt: "test-analytics-salt",
 			now: fixture.shared.now,
+			isStaticAssetPath: isStaticAssetRequestPath,
 		}))
 		.use(createApp({ ...flattenFixtureToAppDependencies(fixture, analyticsBundle), ...overrides }));
 	return {
