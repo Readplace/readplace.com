@@ -84,6 +84,76 @@ describe("Queue routes", () => {
 			expect(doc.querySelector("[data-test-original-link]")?.getAttribute("href")).toBe("https://example.com/saved-post");
 		});
 
+		it("renders the Last crawled at bookmark only once a crawl timestamp exists", async () => {
+			const articleHtml = `
+			<html><head><title>Crawled Post</title></head>
+			<body><article>
+				<h1>Crawled Post</h1>
+				<p>Archived content with enough words for the readability parser to accept it as an article.</p>
+				<p>A second paragraph so the parser has plenty of text to work with here.</p>
+			</article></body></html>`;
+			const crawlArticle = async () => ({ status: "fetched" as const, html: articleHtml, bodyHash: "a".repeat(64) });
+			const fixture = createDefaultTestAppFixture(TEST_APP_ORIGIN);
+			const { parseArticle } = initReadabilityParser({ crawlArticle, siteRules: [], logError: createNoopLogError() });
+			const applyParseResult = createFakeApplyParseResult({
+				articleStore: fixture.articleStore,
+				articleCrawl: fixture.articleCrawl,
+				parseArticle,
+			});
+			const harness = useApp({
+				...fixture,
+				parser: { parseArticle, crawlArticle },
+				events: {
+					publishLinkSaved: createFakePublishLinkSaved(applyParseResult),
+					publishRecrawlLinkInitiated: createFakePublishRecrawlLinkInitiated(applyParseResult),
+					publishSaveAnonymousLink: createFakePublishSaveAnonymousLink(applyParseResult),
+					publishSaveLinkRawHtmlCommand: fixture.events.publishSaveLinkRawHtmlCommand,
+					publishSaveLinkRawPdfCommand: fixture.events.publishSaveLinkRawPdfCommand,
+					publishStaleCheckRequested: fixture.events.publishStaleCheckRequested,
+					publishUpdateFetchTimestamp: fixture.events.publishUpdateFetchTimestamp,
+					publishExportUserDataCommand: fixture.events.publishExportUserDataCommand,
+					publishCancelSubscriptionCommand: fixture.events.publishCancelSubscriptionCommand,
+					publishSubscriptionReactivated: fixture.events.publishSubscriptionReactivated,
+				},
+			});
+			const { auth } = harness;
+			const agent = await loginAgent(harness.server, auth);
+
+			await agent
+				.post("/queue/save")
+				.type("form")
+				.send({ url: "https://example.com/crawled-post" });
+
+			const queueResponse = await agent.get("/queue");
+			const queueDoc = new JSDOM(queueResponse.text).window.document;
+			const articleId = queueDoc
+				.querySelector("[data-test-article-list] .queue-article")
+				?.getAttribute("data-test-article");
+
+			const before = await agent.get(`/queue/${articleId}/view`);
+			const beforeDoc = new JSDOM(before.text).window.document;
+			assert(
+				beforeDoc.querySelector("[data-test-reader-title]"),
+				"the reader must render so the absence check below is meaningful",
+			);
+			expect(beforeDoc.querySelectorAll("[data-test-crawl-bookmark-tab]").length).toBe(0);
+
+			await fixture.articleStore.setContentFetchedAt({
+				url: "https://example.com/crawled-post",
+				at: "2026-03-26T14:32:00.000Z",
+			});
+
+			const after = await agent.get(`/queue/${articleId}/view`);
+			const afterDoc = new JSDOM(after.text).window.document;
+			const tab = afterDoc.querySelector('[data-test-crawl-bookmark-tab="canonical"]');
+			assert(tab, "the canonical bookmark tab must render once contentFetchedAt exists");
+			const time = tab.querySelector("time");
+			assert(time, "the bookmark tab must carry a <time> for the crawl instant");
+			expect(time.getAttribute("datetime")).toBe("2026-03-26T14:32:00.000Z");
+			expect(time.getAttribute("data-local-time")).toBe("short-datetime");
+			expect(time.textContent).toBe("26 Mar '26, 14:32");
+		});
+
 		it("should leave the article unread when opening the reader (the user must click the explicit Mark-as-read button)", async () => {
 			const articleHtml = `
 			<html><head><title>Stay Unread</title></head>

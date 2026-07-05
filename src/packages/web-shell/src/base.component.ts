@@ -246,7 +246,9 @@ export function initBase(config: BaseConfig): RenderBase {
 			verifyBannerStyles: VERIFY_BANNER_STYLES,
 			trialCountdownStyles: TRIAL_COUNTDOWN_STYLES,
 			extensionSuggestionBannerStyles: EXTENSION_SUGGESTION_BANNER_STYLES,
-			changelogBanner: renderChangelogBannerShell(state.changelogBanner, state.currentPath),
+			changelogBanner: renderChangelogBannerShell(state.changelogBanner, state.currentPath, {
+				suppressSeenScript: state.suppressChangelogSeenScript,
+			}),
 			verifyBanner: renderVerifyBanner(state),
 			extensionSuggestionBanner: renderExtensionSuggestionBanner({
 				show: state.showExtensionSuggestionBanner ?? false,

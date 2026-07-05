@@ -174,4 +174,40 @@ platform :ios do
       UI.error("No App Store Connect app record for #{APP_ID} (My Apps → +)")
     end
   end
+
+  desc "Upload the App Store listing metadata (fastlane/metadata) to App Store Connect as a"
+  desc "DRAFT. Never submits for review and never uploads a binary: the build comes from the"
+  desc "beta lane, and Submit for Review stays a deliberate human step (account deletion —"
+  desc "Guideline 5.1.1(v) — must ship first). Pass `screenshots:true` to also push"
+  desc "fastlane/screenshots. Requires an App Store version in 'Prepare for Submission' and the"
+  desc "same fastlane/.env API key the beta lane uses."
+  lane :release do |options|
+    api_key = app_store_connect_api_key(
+      key_id: ENV.fetch("ASC_KEY_ID"),
+      issuer_id: ENV.fetch("ASC_ISSUER_ID"),
+      key_filepath: asc_key_filepath,
+      duration: 1200,
+      in_house: false,
+    )
+
+    upload_to_app_store(
+      api_key: api_key,
+      app_identifier: APP_ID,
+      # The binary is uploaded by the beta lane; this lane only manages the listing.
+      skip_binary_upload: true,
+      # Screenshots are opt-in so a metadata-only push doesn't require them to exist yet.
+      skip_screenshots: options[:screenshots] != true,
+      overwrite_screenshots: options[:screenshots] == true,
+      # Never auto-submit or run precheck: submitting is a deliberate human action once
+      # the account-deletion flow is in the attached build.
+      submit_for_review: false,
+      run_precheck_before_submit: false,
+      # Non-interactive: skip the HTML preview confirmation prompt.
+      force: true,
+      precheck_include_in_app_purchases: false,
+      # cwd is fastlane/, so anchor the trees to the project root explicitly.
+      metadata_path: File.join(PROJECT_ROOT, "fastlane", "metadata"),
+      screenshots_path: File.join(PROJECT_ROOT, "fastlane", "screenshots"),
+    )
+  end
 end

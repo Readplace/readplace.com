@@ -249,6 +249,7 @@ describe("GET /sitemap.xml", () => {
 			"http://localhost:3000/signup",
 			"http://localhost:3000/privacy",
 			"http://localhost:3000/terms",
+			"http://localhost:3000/support",
 			"http://localhost:3000/llms.txt",
 			"http://localhost:3000/llms-full.txt",
 			"http://localhost:3000/auth.md",

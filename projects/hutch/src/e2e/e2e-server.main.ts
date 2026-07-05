@@ -2,7 +2,7 @@ import assert from 'node:assert'
 import express from 'express'
 import { z } from 'zod'
 import { HutchLogger, consoleLogger, noopLogger } from '@packages/hutch-logger'
-import { validateSaveableUrl, type ValidateSaveableUrl } from '@packages/domain/article'
+import { calculateReadTime, validateSaveableUrl, type ValidateSaveableUrl } from '@packages/domain/article'
 import { createTestApp } from '../runtime/test-app'
 import {
   createDefaultTestAppFixture,
@@ -178,6 +178,39 @@ server.post('/e2e/users', async (req, res) => {
 // Expose sent emails for E2E tests (password reset flow needs the reset token from email)
 server.get('/e2e/sent-emails', (_req, res) => {
   res.json(email.getSentEmails())
+})
+
+// Seed a fully-crawled article with a fixed contentFetchedAt so the
+// crawl-bookmark visual test renders a stable "Last crawled at" label. Because
+// the row already exists, /view short-circuits its first-visit crawl cascade
+// (see handleViewArticle) and never overwrites the timestamp with wall-clock
+// time — keeping the screenshot deterministic across runs.
+const SeedCrawledArticleBody = z.object({
+  url: z.string(),
+  title: z.string(),
+  contentFetchedAt: z.string(),
+})
+server.post('/e2e/seed-crawled-article', async (req, res) => {
+  const parsed = SeedCrawledArticleBody.safeParse(req.body)
+  if (!parsed.success) {
+    res.status(400).json({ error: parsed.error.flatten() })
+    return
+  }
+  const { url, title, contentFetchedAt } = parsed.data
+  const hostname = new URL(url).hostname
+  await fixture.articleStore.saveArticleGlobally({
+    url,
+    metadata: { title, siteName: hostname, excerpt: 'Seeded for the crawl-bookmark visual test.', wordCount: 500 },
+    estimatedReadTime: calculateReadTime(500),
+    savedAt: new Date(contentFetchedAt),
+  })
+  await fixture.articleStore.writeContent({
+    url,
+    content: '<p>Seeded article body for the crawl-bookmark visual regression test.</p>',
+  })
+  await fixture.articleCrawl.markCrawlReady({ url })
+  await fixture.articleStore.setContentFetchedAt({ url, at: contentFetchedAt })
+  res.status(201).json({ ok: true })
 })
 
 // Simulated Stripe Checkout: marks the session as paid and redirects to the

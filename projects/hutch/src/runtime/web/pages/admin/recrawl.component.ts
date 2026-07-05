@@ -7,7 +7,9 @@ import type { GeneratedSummary } from "@packages/provider-contracts/article-summ
 import type { PageBody } from "@packages/web-shell";
 import { renderArticleBody } from "../../shared/article-body/article-body.component";
 import { RegularReader } from "../../shared/article-body/reader-actions/reader-actions.component";
+import { CRAWL_BOOKMARK_SCRIPT } from "../../shared/article-body/crawl-bookmark/crawl-bookmark.component";
 import type { ProgressTick } from "@packages/domain/article";
+import type { LocalTime } from "@packages/web-shell/local-time.format";
 import { RECRAWL_STYLES } from "./recrawl.styles";
 
 const PROGRESS_BAR_SCRIPT = `<script src="/client-dist/progress-bar.client.js" defer></script>`;
@@ -62,6 +64,7 @@ export interface AdminRecrawlPageInput {
 	extensionInstallUrl?: string;
 	appOrigin: string;
 	recrawlFormAction?: string;
+	lastCrawledAt?: LocalTime;
 }
 
 /**
@@ -95,6 +98,7 @@ export function AdminRecrawlPage(input: AdminRecrawlPageInput): PageBody {
 		appOrigin: input.appOrigin,
 		topActionsHtml: actions.top.to("text/html").body,
 		bottomActionsHtml: actions.bottom.to("text/html").body,
+		lastCrawledAt: input.lastCrawledAt,
 	});
 
 	const tierBadge = renderTierBadge(input.contentSourceTier);
@@ -113,7 +117,7 @@ export function AdminRecrawlPage(input: AdminRecrawlPageInput): PageBody {
 		styles: RECRAWL_STYLES,
 		bodyClass: "page-admin-recrawl",
 		content: { html: content },
-		scripts: PROGRESS_BAR_SCRIPT + READER_IFRAME_SCRIPT + triggerScript,
+		scripts: PROGRESS_BAR_SCRIPT + READER_IFRAME_SCRIPT + CRAWL_BOOKMARK_SCRIPT + triggerScript,
 	};
 }
 
