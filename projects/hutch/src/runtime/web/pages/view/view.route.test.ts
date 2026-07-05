@@ -150,6 +150,7 @@ describe("View routes", () => {
 					publishStaleCheckRequested: fixture.events.publishStaleCheckRequested,
 					publishUpdateFetchTimestamp: fixture.events.publishUpdateFetchTimestamp,
 					publishExportUserDataCommand: fixture.events.publishExportUserDataCommand,
+					publishDeleteAccountCommand: fixture.events.publishDeleteAccountCommand,
 					publishCancelSubscriptionCommand: fixture.events.publishCancelSubscriptionCommand,
 					publishSubscriptionReactivated: fixture.events.publishSubscriptionReactivated,
 				},
