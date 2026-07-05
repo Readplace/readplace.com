@@ -1208,7 +1208,7 @@ describe("Auth routes", () => {
 		});
 	});
 
-	describe("Apple sign-in button", () => {
+	describe("Apple sign-in button (gated behind ?feature=apple)", () => {
 		function getAppleButton(html: string) {
 			const doc = new JSDOM(html).window.document;
 			const section = doc.querySelector("[data-test-apple-section]");
@@ -1218,9 +1218,34 @@ describe("Auth routes", () => {
 			return link;
 		}
 
-		it("should render Sign in with Apple on /login with the currentColor Apple logo", async () => {
+		function appleSection(html: string) {
+			return new JSDOM(html).window.document.querySelector("[data-test-apple-section]");
+		}
+
+		it("is hidden on /login without the ?feature=apple toggle", async () => {
 			const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
 			const response = await request(harness.server).get("/login");
+
+			expect(appleSection(response.text)).toBeNull();
+		});
+
+		it("is hidden on /signup without the ?feature=apple toggle", async () => {
+			const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
+			const response = await request(harness.server).get("/signup");
+
+			expect(appleSection(response.text)).toBeNull();
+		});
+
+		it("stays hidden when ?feature names a different feature", async () => {
+			const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
+			const response = await request(harness.server).get("/login?feature=audio");
+
+			expect(appleSection(response.text)).toBeNull();
+		});
+
+		it("should render Sign in with Apple on /login?feature=apple with the currentColor Apple logo", async () => {
+			const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
+			const response = await request(harness.server).get("/login?feature=apple");
 
 			const link = getAppleButton(response.text);
 			expect(link.getAttribute("href")).toBe("/auth/apple");
@@ -1231,17 +1256,17 @@ describe("Auth routes", () => {
 			expect(logo.querySelectorAll('path[fill="currentColor"]').length).toBe(1);
 		});
 
-		it("should pass return URL through to the Apple sign-in link on /login", async () => {
+		it("should pass return URL through to the Apple sign-in link on /login?feature=apple", async () => {
 			const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
-			const response = await request(harness.server).get("/login?return=%2Fsave%3Furl%3Dhttps%253A%252F%252Fexample.com");
+			const response = await request(harness.server).get("/login?feature=apple&return=%2Fsave%3Furl%3Dhttps%253A%252F%252Fexample.com");
 
 			const link = getAppleButton(response.text);
 			expect(link.getAttribute("href")).toContain("/auth/apple?return=");
 		});
 
-		it("should render Sign up with Apple on /signup with the Apple logo", async () => {
+		it("should render Sign up with Apple on /signup?feature=apple with the Apple logo", async () => {
 			const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
-			const response = await request(harness.server).get("/signup");
+			const response = await request(harness.server).get("/signup?feature=apple");
 
 			const link = getAppleButton(response.text);
 			expect(link.getAttribute("href")).toBe("/auth/apple");

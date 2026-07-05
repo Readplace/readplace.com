@@ -807,6 +807,8 @@ export function createApp(dependencies: AppDependencies): Express {
 		return result;
 	};
 
+	const featureToggle = new QuerystringFeatureToggle();
+
 	const authRouter = initAuthRoutes({
 		hashPassword: deps.hashPassword,
 		createUserWithPasswordHash,
@@ -846,6 +848,7 @@ export function createApp(dependencies: AppDependencies): Express {
 			loginAccount: deps.rateLimitRules.loginAccount,
 			signup: deps.rateLimitRules.signup,
 		},
+		featureToggle,
 	});
 	app.use("/auth/session", sessionBridgeCors);
 	app.use(authRouter);
@@ -918,8 +921,6 @@ export function createApp(dependencies: AppDependencies): Express {
 	const dualAuthMiddleware = initDualAuth({
 		validateAccessToken: deps.validateAccessToken,
 	});
-
-	const featureToggle = new QuerystringFeatureToggle();
 
 	const queueRouter = initQueueRoutes({
 		validateSaveableUrl: deps.validateSaveableUrl,

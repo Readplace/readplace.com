@@ -21,6 +21,7 @@ interface AuthFormData {
 	returnUrl?: string;
 	userCount: number;
 	foundingAllocation: FoundingAllocation;
+	appleEnabled?: boolean;
 }
 
 interface SignupFormData extends AuthFormData {
@@ -52,7 +53,8 @@ export function LoginPage(data: AuthFormData, options?: { statusCode?: number })
 		globalError: errors?.find((e) => !e.fieldName)?.message,
 		returnUrl: data.returnUrl ? encodeURIComponent(data.returnUrl) : undefined,
 		emailField: toFieldViewModel(errors, "email"),
-		passwordField: toFieldViewModel(errors, "password")
+		passwordField: toFieldViewModel(errors, "password"),
+		appleEnabled: data.appleEnabled,
 	});
 
 	return {
@@ -114,6 +116,7 @@ export function SignupPage(data: SignupFormData, options?: { statusCode?: number
 		submitLabel: `Join Readplace`,
 		googleLabel: `Sign up with Google`,
 		appleLabel: `Sign up with Apple`,
+		appleEnabled: data.appleEnabled,
 		foundingProgressHtml: renderFoundingProgress({
 			userCount: data.userCount,
 			foundingAllocation: data.foundingAllocation,
