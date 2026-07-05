@@ -60,6 +60,12 @@ config:
   hutch:rawEmailBucketName: hutch-inbox-raw-email-prod
   hutch:inboxMailParentZone: read.place
   hutch:alertEmail: readplace+devops@readplace.com
+  hutch:googleWorkspaceMail:
+    domain: readplace.com
+    # dkimRecord: paste the value from Google Admin → Apps → Google Workspace →
+    #   Gmail → Authenticate email (2048-bit, selector "google"), e.g.
+    #   "v=DKIM1; k=rsa; p=MIIBIjANBg…", then run `pulumi up` to publish
+    #   google._domainkey.readplace.com. Until set, only the apex SPF is created.
   hutch:expiryCountdown: enabled
   hutch:foundingMemberLimit: '50'
   hutch:excludedVisitorHashes: [

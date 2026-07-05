@@ -29,6 +29,7 @@ import { AgentDiscoveryDns } from "./agent-discovery-dns";
 import { HutchStorage } from "./hutch-storage";
 import { HutchStaticAssets } from "./hutch-static-assets";
 import { InboxMail } from "./inbox-mail";
+import { OutboundMailAuth } from "./outbound-mail-auth";
 import { requireEnv } from "@packages/require-env";
 
 const config = new pulumi.Config();
@@ -451,6 +452,21 @@ const inboxMail = new InboxMail("inbox-mail", {
 	inboxMailParentZone,
 	rawEmailBucketName,
 });
+
+// --- Outbound email auth for Google Workspace (Gmail) human mail ---
+// Publishes the apex SPF + Workspace DKIM so replies sent from Gmail to Sign in
+// with Apple `@privaterelay.appleid.com` addresses pass Apple's relay checks.
+// Only stacks whose mail runs on Google Workspace set `googleWorkspaceMail`;
+// staging (SES-only) omits it and skips this entirely.
+const googleWorkspaceMail = config.getObject<{ domain: string; dkimRecord?: string }>(
+	"googleWorkspaceMail",
+);
+if (googleWorkspaceMail) {
+	new OutboundMailAuth("outbound-mail-auth", {
+		mailDomain: googleWorkspaceMail.domain,
+		googleDkimRecord: googleWorkspaceMail.dkimRecord,
+	});
+}
 
 // --- ExportUserData worker Lambda ---
 

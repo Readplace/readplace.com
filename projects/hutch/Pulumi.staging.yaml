@@ -52,6 +52,14 @@ config:
   hutch:rawEmailBucketName: hutch-inbox-raw-email-staging
   hutch:inboxMailParentZone: readplace-staging.com
   hutch:alertEmail: readplace+staging@readplace.com
+  # Test rig for the outbound-mail-auth component on staging's own zone.
+  # readplace-staging.com has no Google Workspace, so the SPF value is inert for
+  # real deliverability here — this exists only to exercise the Pulumi record end
+  # to end before prod. Deploy it in isolation with a --target'd `pulumi up`.
+  hutch:googleWorkspaceMail:
+    domain: readplace-staging.com
+    # dkimRecord left unset on staging (no Workspace key); only the apex SPF is
+    # created. Fill it in prod once generated in Google Admin.
   hutch:expiryCountdown: enabled
   hutch:foundingMemberLimit: '5'
   hutch:excludedVisitorHashes: []
