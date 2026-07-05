@@ -73,9 +73,11 @@ export function HomePage(params: HomePageParams): PageBody {
 				"The read-it-later app and online reader for distraction-free reading — save any article or web page in one click and read it later in a clean reader view. A privacy-first Pocket alternative with real Tesseract OCR for scanned PDFs (no LLM hallucination). Read the Web, not the Slop.",
 			canonicalUrl: "https://readplace.com",
 			ogType: "website",
-			// The A/B arms are noindex so only the canonical `/` competes for SEO;
-			// the canonical above stays on `/` for all three renders.
-			// Defence-in-depth: the isbot gate already keeps crawlers off the arms, so pairing noindex with canonical=`/` here is deliberately redundant — don't remove either half.
+			// The A/B arms render `noindex` with canonical=`/`, so only the canonical `/` competes for
+			// SEO across all three renders. This is defence-in-depth, not redundancy: the isbot gate on
+			// `/` only keeps crawlers off the arms they'd reach via the client redirect. A direct hit to
+			// a `/landing-*` URL is not bot-gated and not disallowed in robots.txt, so on that path the
+			// arm's own noindex + canonical=`/` are the only guard. Don't remove either half.
 			robots: variant ? "noindex, follow" : "index, follow",
 			ogImage: `${staticBaseUrl}/og-image-1200x630.png`,
 			ogImageType: "image/png",
