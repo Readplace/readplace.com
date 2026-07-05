@@ -30,4 +30,8 @@ final class AppConfigTests: XCTestCase {
 		XCTAssertEqual(AppConfig.serverBaseURL, ServerEnvironment.production.baseURL)
 		#endif
 	}
+
+	func testPrivacyPolicyURLIsServedByTheTargetedStack() {
+		XCTAssertEqual(AppConfig.privacyPolicyURL.absoluteString, "\(AppConfig.serverBaseURL)/privacy")
+	}
 }

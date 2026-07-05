@@ -42,6 +42,11 @@ enum AppConfig {
 
 	static let sirenMediaType = "application/vnd.siren+json"
 
+	/// The public privacy policy served by the web app, linked from the sign-in
+	/// screen so the policy is reachable in-app (App Store Review Guideline
+	/// 5.1.1(i)). Force-unwrap is safe: both operands are compile-time constants.
+	static let privacyPolicyURL = URL(string: "\(serverBaseURL)/privacy")!
+
 	/// Path of the server's "add links via Share" help page, opened by the reading
 	/// list's client-side add (+) control. The page is a real server route, but the
 	/// client holds the path itself so the control works without the server

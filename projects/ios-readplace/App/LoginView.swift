@@ -54,6 +54,10 @@ struct LoginView: View {
 				}
 
 				Spacer()
+
+				Link("Privacy Policy", destination: AppConfig.privacyPolicyURL)
+					.font(.footnote)
+					.foregroundStyle(.secondary)
 			}
 			.padding(24)
 		}
