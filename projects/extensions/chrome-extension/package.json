@@ -24,6 +24,7 @@
     "browser-extension-core": "workspace:*",
     "@packages/hutch-logger": "workspace:*",
     "@packages/onboarding-extension-signal": "workspace:*",
+    "@packages/supported-clients": "workspace:*",
     "webextension-polyfill": "0.12.0"
   },
   "devDependencies": {

@@ -1,5 +1,6 @@
 import type { Request } from "express";
 import { ALIVE_COOKIE_NAME, ALIVE_COOKIE_VALUE, SAVE_COOKIE_NAME, SAVE_COOKIE_VALUE } from "@packages/onboarding-extension-signal";
+import { SUPPORTED_CLIENTS } from "@packages/supported-clients";
 import type { InstallBrowser, Platform } from "./onboarding.types";
 
 const INSTALL_URLS: Record<Platform, string> = {
@@ -48,11 +49,15 @@ export function buildExtensionInstallUrl(platform: Platform): string {
 	return INSTALL_URLS[platform];
 }
 
+const NATIVE_APP_PLATFORMS: ReadonlySet<Platform> = new Set(
+	SUPPORTED_CLIENTS.flatMap((client) => (client.group === "nativeApp" ? [client.name] : [])),
+);
+
 export function extensionInstallUrlIfMissing(req: Request): string | undefined {
 	const platform = detectPlatform(req);
-	/* The reader-page suggestion CTA is extension-specific; iPhone has no
-	 * extension, so it must never surface with "extension" wording there. */
-	if (platform === "iphone") return undefined;
+	/* The reader-page suggestion CTA is extension-specific; native-app platforms
+	 * have no extension, so it must never surface with "extension" wording there. */
+	if (NATIVE_APP_PLATFORMS.has(platform)) return undefined;
 	if (isExtensionInstalled(req)) return undefined;
 	return buildExtensionInstallUrl(platform);
 }

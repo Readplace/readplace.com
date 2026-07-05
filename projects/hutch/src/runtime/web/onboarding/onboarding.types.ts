@@ -1,7 +1,9 @@
-export type Platform = "firefox" | "chrome" | "iphone" | "other";
+import type { ClientNameInGroup } from "@packages/supported-clients";
+
+export type Platform = ClientNameInGroup<"browserExtension" | "nativeApp"> | "other";
 
 /** Marketing install-CTA browser buckets — {@link Platform} with iPhone folded into `other`. */
-export type InstallBrowser = "firefox" | "chrome" | "other";
+export type InstallBrowser = ClientNameInGroup<"browserExtension"> | "other";
 
 export interface OnboardingContext {
 	installed: boolean;

@@ -1,6 +1,7 @@
 import { readFileSync } from "node:fs";
 import { join } from "node:path";
 import { render } from "@packages/web-shell";
+import { FULL_PAGE_CAPTURE_PHRASE, SAVE_FALLBACK_PHRASE } from "../../client-surface-phrases";
 
 const TEMPLATE = readFileSync(
 	join(__dirname, "reader-failed.template.html"),
@@ -28,8 +29,7 @@ export interface ReaderFailedInput {
 const EXPLANATIONS: Record<ReaderFailedVariant, string> = {
 	unsupported:
 		"There are some links that are not webpages which we yet don't show in the reader.",
-	failed:
-		"We couldn't pull the article text. The site may be blocking automated fetches. Save it with the browser extension or your iPhone instead.",
+	failed: `We couldn't pull the article text. The site may be blocking automated fetches. Save it with ${SAVE_FALLBACK_PHRASE} instead.`,
 	slow: "Reader view is taking longer than usual.",
 };
 
@@ -40,6 +40,7 @@ export function renderReaderFailed(input: ReaderFailedInput): string {
 		hostname: new URL(input.url).hostname,
 		explanation: EXPLANATIONS[input.variant],
 		extensionInstallUrl: input.extensionInstallUrl,
+		captureSurfaces: FULL_PAGE_CAPTURE_PHRASE,
 		oob: input.oob === true,
 	});
 }

@@ -113,7 +113,7 @@
     <section id="what-works" class="home-features" data-test-section="core-features" aria-label="Current features">
       <div class="home-features__container">
         <h2 class="home-features__heading">What works today.</h2>
-        <p class="home-features__lead">These features are shipped and working right now. Set up Readplace in your browser, on your iPhone, or in your AI assistant and try them.</p>
+        <p class="home-features__lead">These features are shipped and working right now. Set up Readplace {{setupSurfaces}} and try them.</p>
         <hr>
         <div class="home-features__featured">
           {{#each featuredFeatures}}
@@ -230,7 +230,7 @@
             </tr>
             <tr>
               <th scope="row">Platforms</th>
-              <td class="comparison-table__hutch">Web, Extensions: Chrome, Firefox</td>
+              <td class="comparison-table__hutch">{{platformsCell}}</td>
               <td>Web, iOS, Android, Desktop, Extensions: Chrome, Firefox, Safari</td>
               <td>Web, iOS, macOS, Android, Kindle/Kobo, Extensions: Chrome, Firefox</td>
               <td>Web, iOS, Android, Desktop, Extensions: Chrome, Firefox, Safari</td>
@@ -290,7 +290,7 @@
             <p class="pricing-card__description">Be one of the first {{foundingMemberLimit}} users. Get full access free, forever. Help shape the product. $49/year for everyone else &mdash; includes TL;DR summaries.</p>
             <ul class="pricing-card__features">
               <li class="pricing-card__feature">Save unlimited articles</li>
-              <li class="pricing-card__feature">Firefox and Chrome extensions</li>
+              <li class="pricing-card__feature">{{browserExtensionsAnd}} extensions</li>
               <li class="pricing-card__feature">TL;DR summaries included</li>
               <li class="pricing-card__feature">PDF extraction with Tesseract OCR</li>
               <li class="pricing-card__feature">All features as they ship</li>
@@ -305,7 +305,7 @@
           </div>
           <ul class="pricing-card__features home-pricing__fallback-features" data-test-fallback-benefits>
             <li class="pricing-card__feature">Save unlimited articles</li>
-            <li class="pricing-card__feature">Firefox and Chrome extensions</li>
+            <li class="pricing-card__feature">{{browserExtensionsAnd}} extensions</li>
             <li class="pricing-card__feature">TL;DR summaries included</li>
             <li class="pricing-card__feature">PDF extraction with Tesseract OCR</li>
             <li class="pricing-card__feature">All features as they ship</li>

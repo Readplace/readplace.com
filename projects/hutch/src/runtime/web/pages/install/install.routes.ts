@@ -8,6 +8,7 @@ import {
 	type InstallClient,
 	parseClient,
 	fetchFirefoxDownloadUrl,
+	isSelfHostedDownload,
 } from "./install.component";
 
 export function initInstallRoutes(deps: { buildBannerState: BuildBannerState }): Router {
@@ -22,7 +23,7 @@ export function initInstallRoutes(deps: { buildBannerState: BuildBannerState }):
 			res.status(400).type("html").send("");
 			return;
 		}
-		const firefox = client === "firefox" ? await fetchFirefoxDownloadUrl() : null;
+		const firefox = isSelfHostedDownload(client) ? await fetchFirefoxDownloadUrl() : null;
 		sendComponent(req, res, Base(InstallPage({ firefox, client }), await buildBannerState(req)));
 	});
 

@@ -3,6 +3,8 @@ import { join } from "node:path";
 import assert from "node:assert";
 import { render, withInternalTracking } from "@packages/web-shell";
 import type { PageBody } from "@packages/web-shell";
+import { isClientName, SUPPORTED_CLIENTS } from "@packages/supported-clients";
+import type { ClientGroup, ClientName, SupportedClient } from "@packages/supported-clients";
 
 import { switchHelpers } from "../../handlebars-switch";
 import { INSTALL_PAGE_STYLES } from "./install.styles";
@@ -11,14 +13,10 @@ import { firefoxS3Config } from "browser-extension-core/s3-config";
 
 const INSTALL_TEMPLATE = readFileSync(join(__dirname, "install.template.html"), "utf-8");
 const FIREFOX_LATEST_POINTER_URL = firefoxS3Config.getLatestPointerUrl("prod");
-const CHROME_WEB_STORE_URL = "https://chromewebstore.google.com/detail/hutch/klblengmhlfnmjoagchagfcdbpbocgbf";
-const TESTFLIGHT_URL = "https://testflight.apple.com/join/5eng821W";
-const MCP_SERVER_URL = "https://readplace.com/mcp";
-const MCP_GUIDE_URL = "/mcp";
 
 const INSTALL_COPY_SCRIPT = `<script src="/client-dist/install.client.js" defer></script>`;
 
-/** Stable slugs keyed by group; the values are the display labels. The slug is
+/** Stable slugs keyed by bucket; the values are the display labels. The slug is
  * what `data-test-group` and the aria-labelledby id are built from, so renaming
  * a label can't silently break a selector. */
 const TAB_GROUPS = {
@@ -26,39 +24,45 @@ const TAB_GROUPS = {
 	ai: "AI Assistants",
 } as const;
 
-type GroupKey = keyof typeof TAB_GROUPS;
+type BucketKey = keyof typeof TAB_GROUPS;
 
-/** Each tab is its own client, ordered within the labelled group it belongs to.
- * The browser extensions (firefox/chrome) and the AI assistants (claude/chatgpt)
- * share a panel shape each, differing only in data, so the rendered panel is
- * resolved in buildPanel and the template switches on `panel.type`. */
-const TAB_DEFINITIONS = [
-	{ key: "firefox", label: "Firefox", group: "browsers", beta: false },
-	{ key: "chrome", label: "Chrome", group: "browsers", beta: false },
-	{ key: "iphone", label: "iPhone", group: "browsers", beta: true },
-	{ key: "claude", label: "Claude", group: "ai", beta: false },
-	{ key: "chatgpt", label: "ChatGPT", group: "ai", beta: false },
-] as const;
+const TAB_BUCKETS = {
+	browserExtension: "browsers",
+	nativeApp: "browsers",
+	aiAssistant: "ai",
+} as const satisfies Record<ClientGroup, BucketKey>;
 
-export type InstallClient = (typeof TAB_DEFINITIONS)[number]["key"];
+export type InstallClient = ClientName;
 
-/** Inbound links use per-browser/per-assistant values; `ai` is accepted as a
- * convenience entry that lands on the first AI tab. Anything else 400s — the
- * route relies on parseClient throwing for unknown clients. */
-const CLIENT_ALIASES: Record<string, InstallClient> = {
-	firefox: "firefox",
-	chrome: "chrome",
-	iphone: "iphone",
-	claude: "claude",
-	chatgpt: "chatgpt",
+function clientByName(name: ClientName): SupportedClient {
+	const client = SUPPORTED_CLIENTS.find((candidate) => candidate.name === name);
+	assert(client, `Client missing from SUPPORTED_CLIENTS: ${name}`);
+	return client;
+}
+
+const iphone = clientByName("iphone");
+assert(iphone.install.kind === "store", "iPhone install must be a store link");
+const TESTFLIGHT_URL = iphone.install.url;
+
+const claude = clientByName("claude");
+assert(claude.install.kind === "mcpConnector", "Claude install must be the MCP connector");
+const MCP_SERVER_URL = claude.install.serverUrl;
+const MCP_GUIDE_URL = claude.install.guidePath;
+
+/** Inbound links use per-client values; `ai` is accepted as a convenience entry
+ * that lands on the Claude tab. Anything else 400s — the route relies on
+ * parseClient throwing for unknown clients. */
+const CLIENT_ALIASES: Record<string, ClientName | undefined> = {
 	ai: "claude",
 };
 
 export function parseClient(value: unknown): InstallClient {
 	if (value === undefined) return "chrome";
-	const client = CLIENT_ALIASES[String(value)];
-	assert(client, `Unknown install client: ${String(value)}`);
-	return client;
+	const raw = String(value);
+	if (isClientName(raw)) return raw;
+	const aliased = CLIENT_ALIASES[raw];
+	assert(aliased, `Unknown install client: ${raw}`);
+	return aliased;
 }
 
 async function fetchDownloadUrl(latestPointerUrl: string, buildDownloadUrl: (filename: string) => string): Promise<string | null> {
@@ -75,8 +79,12 @@ export async function fetchFirefoxDownloadUrl(): Promise<string | null> {
 	);
 }
 
+export function isSelfHostedDownload(client: InstallClient): boolean {
+	return clientByName(client).install.kind === "selfHostedPointer";
+}
+
 interface InstallTab {
-	key: InstallClient;
+	key: ClientName;
 	label: string;
 	beta: boolean;
 	href: string;
@@ -85,26 +93,27 @@ interface InstallTab {
 }
 
 interface InstallTabGroup {
-	key: GroupKey;
+	key: BucketKey;
 	label: string;
 	labelId: string;
 	tabs: InstallTab[];
 }
 
-function buildTabGroups(active: InstallClient): InstallTabGroup[] {
+function buildTabGroups(active: ClientName): InstallTabGroup[] {
 	const groups: InstallTabGroup[] = [];
-	for (const { key, label, group, beta } of TAB_DEFINITIONS) {
-		let target = groups.find((candidate) => candidate.key === group);
+	for (const client of SUPPORTED_CLIENTS) {
+		const bucket = TAB_BUCKETS[client.group];
+		let target = groups.find((candidate) => candidate.key === bucket);
 		if (!target) {
-			target = { key: group, label: TAB_GROUPS[group], labelId: `install-group-${group}`, tabs: [] };
+			target = { key: bucket, label: TAB_GROUPS[bucket], labelId: `install-group-${bucket}`, tabs: [] };
 			groups.push(target);
 		}
-		const isActive = key === active;
+		const isActive = client.name === active;
 		target.tabs.push({
-			key,
-			label,
-			beta,
-			href: withInternalTracking(`/install?client=${key}`, { source: "install-tabs", content: key }),
+			key: client.name,
+			label: client.displayName,
+			beta: client.name === "iphone",
+			href: withInternalTracking(`/install?client=${client.name}`, { source: "install-tabs", content: client.name }),
 			activeClass: isActive ? " install-page__tab--active" : "",
 			ariaCurrent: isActive ? "page" : undefined,
 		});
@@ -150,30 +159,43 @@ const BETA_SETUP_STEPS: BetaSetupStep[] = [
 const BETA_OUTRO =
 	"Use it for a few days or weeks: save the articles you want to read later, then open readplace.com when you have time to read them. I'll check in soon by email to see how it's going, and any feedback is welcome in-app.";
 
-interface AiAssistant {
-	name: string;
-	intro: string;
-	prompt: string;
-	requirement: string;
-}
+type PanelData =
+	| { variant: "browser"; intro: string; ctaLabel: string; ctaTestId: string }
+	| { variant: "iphone" }
+	| { variant: "ai"; intro: string; prompt: string; requirement: string };
 
-const AI_ASSISTANTS: Record<"claude" | "chatgpt", AiAssistant> = {
+const PANEL_DATA = {
+	firefox: {
+		variant: "browser",
+		intro:
+			"The extension saves the full page you're reading — the rendered article, not just what a link-only fetch would see.",
+		ctaLabel: "Install Readplace for Firefox",
+		ctaTestId: "download-firefox",
+	},
+	chrome: {
+		variant: "browser",
+		intro:
+			'Listed as "Hutch" on the Chrome Web Store. Works in Chrome, Edge, Brave, and other Chromium browsers.',
+		ctaLabel: "Install Readplace for Chrome",
+		ctaTestId: "download-chrome",
+	},
+	iphone: { variant: "iphone" },
 	claude: {
-		name: "Claude",
+		variant: "ai",
 		intro:
 			"Readplace runs an MCP server. Connect it once and Claude can save pages to your queue and read your list back, right inside the conversation.",
 		prompt: "Add readplace.com/mcp as a connector so you can save pages to and read my reading list.",
 		requirement: "Works on Free, Pro, Max, Team, and Enterprise — the Free plan allows one custom connector.",
 	},
 	chatgpt: {
-		name: "ChatGPT",
+		variant: "ai",
 		intro:
 			"The same MCP server connects through ChatGPT's developer mode. Once it's on, ChatGPT can read your list and save links for you.",
 		prompt: "Connect to readplace.com so you can save pages to and read my reading list.",
 		requirement:
 			"Needs a paid plan (Plus, Pro, Business, Enterprise, or Edu) with developer mode turned on from the web.",
 	},
-};
+} satisfies Record<ClientName, PanelData>;
 
 interface BrowserExtension {
 	name: string;
@@ -183,22 +205,12 @@ interface BrowserExtension {
 	ctaTestId: string;
 }
 
-const BROWSER_EXTENSIONS: Record<"firefox" | "chrome", Omit<BrowserExtension, "downloadUrl">> = {
-	firefox: {
-		name: "Firefox",
-		intro:
-			"The extension saves the full page you're reading — the rendered article, not just what a link-only fetch would see.",
-		ctaLabel: "Install Readplace for Firefox",
-		ctaTestId: "download-firefox",
-	},
-	chrome: {
-		name: "Chrome",
-		intro:
-			'Listed as "Hutch" on the Chrome Web Store. Works in Chrome, Edge, Brave, and other Chromium browsers.',
-		ctaLabel: "Install Readplace for Chrome",
-		ctaTestId: "download-chrome",
-	},
-};
+interface AiAssistant {
+	name: string;
+	intro: string;
+	prompt: string;
+	requirement: string;
+}
 
 type PanelView =
 	| { type: "browser"; browser: BrowserExtension }
@@ -206,17 +218,32 @@ type PanelView =
 	| { type: "ai"; assistant: AiAssistant };
 
 function buildPanel(active: InstallClient, firefoxDownloadUrl: string | null): PanelView {
-	switch (active) {
-		case "firefox":
-			return { type: "browser", browser: { ...BROWSER_EXTENSIONS.firefox, downloadUrl: firefoxDownloadUrl } };
-		case "chrome":
-			return { type: "browser", browser: { ...BROWSER_EXTENSIONS.chrome, downloadUrl: CHROME_WEB_STORE_URL } };
+	const client = clientByName(active);
+	const data = PANEL_DATA[active];
+	switch (data.variant) {
+		case "browser":
+			return {
+				type: "browser",
+				browser: {
+					name: client.displayName,
+					intro: data.intro,
+					downloadUrl: client.install.kind === "store" ? client.install.url : firefoxDownloadUrl,
+					ctaLabel: data.ctaLabel,
+					ctaTestId: data.ctaTestId,
+				},
+			};
 		case "iphone":
 			return { type: "iphone" };
-		case "claude":
-			return { type: "ai", assistant: AI_ASSISTANTS.claude };
-		case "chatgpt":
-			return { type: "ai", assistant: AI_ASSISTANTS.chatgpt };
+		case "ai":
+			return {
+				type: "ai",
+				assistant: {
+					name: client.displayName,
+					intro: data.intro,
+					prompt: data.prompt,
+					requirement: data.requirement,
+				},
+			};
 	}
 }
 

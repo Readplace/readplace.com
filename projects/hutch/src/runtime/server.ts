@@ -7,6 +7,7 @@ import type { Express, NextFunction, Request, Response } from "express";
 import express from "express";
 import { isbot } from "isbot";
 import type { LogParseError } from "@packages/hutch-infra-components";
+import type { ClientNameInGroup } from "@packages/supported-clients";
 import type {
 	CountUsers,
 	CreateGoogleUser,
@@ -633,11 +634,20 @@ export function createApp(dependencies: AppDependencies): Express {
 		}),
 	);
 
+	const EXTENSION_ORIGIN_PATTERNS = {
+		firefox: /^moz-extension:\/\//,
+		chrome: /^chrome-extension:\/\//,
+	} satisfies Record<ClientNameInGroup<"browserExtension">, RegExp>;
+	const extensionOriginPattern = new RegExp(
+		Object.values(EXTENSION_ORIGIN_PATTERNS)
+			.map((pattern) => pattern.source)
+			.join("|"),
+	);
 	const isAllowedExtensionOrigin = (origin: string | undefined): boolean =>
 		!origin ||
 		origin === appOrigin ||
 		origin === "https://hutch-app.com" ||
-		/^(moz|chrome)-extension:\/\//.test(origin);
+		extensionOriginPattern.test(origin);
 
 	const extensionCors = cors({
 		origin: (origin, callback) => callback(null, isAllowedExtensionOrigin(origin)),

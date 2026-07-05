@@ -9,6 +9,7 @@ import type { PageBody } from "@packages/web-shell";
 import { QUEUE_STYLES } from "./queue.styles";
 import { renderQueueCard, toQueueCardDisplayModel } from "./queue-card/queue-card.component";
 import { renderToast } from "../../shared/toast/toast.component";
+import { SAVE_SURFACES_SHORT_PHRASE } from "../../shared/client-surface-phrases";
 import type { QueueViewModel, SubscriptionBannerState } from "./queue.viewmodel";
 import { buildQueueUrl } from "./queue.url";
 import { tabQuery, type TabId } from "./queue.tabs";
@@ -29,6 +30,7 @@ interface QueueDisplayModel {
 	importSkippedAndMore?: number;
 	isEmpty: boolean;
 	emptyTitle: string;
+	saveSurfacesShort: string;
 	hasArticles: boolean;
 	onboardingHtml: string;
 	articleHtmls: string[];
@@ -117,6 +119,7 @@ function toQueueDisplayModel(vm: QueueViewModel, options: { installed: boolean; 
 		importSkippedAndMore: vm.importSkipped?.andMore,
 		isEmpty: vm.isEmpty,
 		emptyTitle: emptyStateTitle(activeTab),
+		saveSurfacesShort: SAVE_SURFACES_SHORT_PHRASE,
 		hasArticles: !vm.isEmpty,
 		onboardingHtml,
 		articleHtmls: vm.articles.map((article, index) =>

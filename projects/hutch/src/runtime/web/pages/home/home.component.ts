@@ -7,6 +7,13 @@ import type { PageBody } from "@packages/web-shell";
 import type { HomepageVariantMarker } from "../../experiments/homepage-split";
 import { switchHelpers } from "../../handlebars-switch";
 import type { InstallBrowser } from "../../onboarding/onboarding.types";
+import { SETUP_SURFACES_PHRASE } from "../../shared/client-surface-phrases";
+import {
+	BROWSER_EXTENSION_KEYWORDS,
+	BROWSER_EXTENSIONS_AND,
+	BROWSER_EXTENSIONS_LISTED,
+	BROWSER_EXTENSIONS_OR,
+} from "../../shared/client-enumerations";
 import { renderFoundingProgress } from "../../shared/founding-progress/founding-progress.component";
 import type { FoundingAllocation } from "../../shared/founding-progress/founding-allocation";
 import { HOME_PAGE_STYLES } from "./home.styles";
@@ -76,7 +83,7 @@ export function HomePage(params: HomePageParams): PageBody {
 			twitterImage: `${staticBaseUrl}/twitter-card-1200x600.png`,
 				author: "Fayner Brack",
 			keywords:
-				"read it later, read-it-later app, online reader, online reading app, read the web not the slop, slop-free reading, no LLM hallucination, real OCR, Tesseract OCR, deterministic PDF extraction, save articles, bookmark manager, reading list, Pocket alternative, Omnivore alternative, browser extension, Firefox extension, Chrome extension, article reader, distraction free reading, AI summaries",
+				`read it later, read-it-later app, online reader, online reading app, read the web not the slop, slop-free reading, no LLM hallucination, real OCR, Tesseract OCR, deterministic PDF extraction, save articles, bookmark manager, reading list, Pocket alternative, Omnivore alternative, browser extension, ${BROWSER_EXTENSION_KEYWORDS}, article reader, distraction free reading, AI summaries`,
 			structuredData: [
 				{
 					"@context": "https://schema.org",
@@ -91,7 +98,7 @@ export function HomePage(params: HomePageParams): PageBody {
 					applicationCategory: "ProductivityApplication",
 					applicationSubCategory: "Read-It-Later",
 					operatingSystem: "Web",
-					browserRequirements: "Requires Firefox or Chrome for browser extension",
+					browserRequirements: `Requires ${BROWSER_EXTENSIONS_OR} for browser extension`,
 					softwareVersion: "1.0",
 					datePublished: "2026-03-01",
 					inLanguage: "en",
@@ -123,7 +130,7 @@ export function HomePage(params: HomePageParams): PageBody {
 						url: "https://fagnerbrack.com",
 					},
 					featureList: [
-						"One-click article saving via browser extension for Firefox and Chrome",
+						`One-click article saving via browser extension for ${BROWSER_EXTENSIONS_AND}`,
 						"Distraction-free reader view powered by Readability.js",
 						"AI-generated TL;DR summaries for every saved article",
 						"Concierge import service — email your Pocket, Instapaper, or Omnivore export file to readplace+migrate@readplace.com and Fayner imports it by hand within 24–48 hours",
@@ -197,7 +204,7 @@ export function HomePage(params: HomePageParams): PageBody {
 							name: "What is Readplace?",
 							acceptedAnswer: {
 								"@type": "Answer",
-								text: "Readplace is a read-it-later app built from a 10-year personal reading system. Save articles with one click using the browser extension for Firefox or Chrome, read them in a clean reader view, and get TL;DR summaries for every article.",
+								text: `Readplace is a read-it-later app built from a 10-year personal reading system. Save articles with one click using the browser extension for ${BROWSER_EXTENSIONS_OR}, read them in a clean reader view, and get TL;DR summaries for every article.`,
 							},
 						},
 						{
@@ -221,7 +228,7 @@ export function HomePage(params: HomePageParams): PageBody {
 							name: "What features does Readplace have?",
 							acceptedAnswer: {
 								"@type": "Answer",
-								text: "Readplace offers browser extensions for Firefox and Chrome, a web app for managing saved articles, a distraction-free reader view, TL;DR summaries, dark mode, and secure OAuth with PKCE. Planned features include share-to-save on mobile, a 'what to read next' view that sorts and filters your unread pile, and listening to saved articles as audio.",
+								text: `Readplace offers browser extensions for ${BROWSER_EXTENSIONS_AND}, an iPhone app in beta that saves from the share sheet, a web app for managing saved articles, a distraction-free reader view, TL;DR summaries, dark mode, and secure OAuth with PKCE. Planned features include a 'what to read next' view that sorts and filters your unread pile, and listening to saved articles as audio.`,
 							},
 						},
 						{
@@ -263,6 +270,9 @@ export function HomePage(params: HomePageParams): PageBody {
 		content: { html: render(HOME_TEMPLATE, {
 			staticBaseUrl,
 			browserName: browser,
+			setupSurfaces: SETUP_SURFACES_PHRASE,
+			browserExtensionsAnd: BROWSER_EXTENSIONS_AND,
+			platformsCell: `Web, iPhone (beta), Extensions: ${BROWSER_EXTENSIONS_LISTED}`,
 			maxPdfBytesLabel: MAX_PDF_BYTES.label,
 			founderAvatarUrl: `${staticBaseUrl}/fayner-brack.jpg`,
 			foundingProgressHtml,
@@ -285,7 +295,7 @@ export function HomePage(params: HomePageParams): PageBody {
 				{
 					name: "Browser Extensions",
 					description:
-						"Save any page with one click, Ctrl/Cmd+D, or right-click. The extension captures the full rendered page — picking the most complete version of the content over what a URL-only crawl would see. Available for Firefox and Chrome.",
+						`Save any page with one click, Ctrl/Cmd+D, or right-click. The extension captures the full rendered page — picking the most complete version of the content over what a URL-only crawl would see. Available for ${BROWSER_EXTENSIONS_AND}.`,
 				},
 				{
 					name: "Connect Your AI Assistant",
@@ -309,9 +319,9 @@ export function HomePage(params: HomePageParams): PageBody {
 			],
 			plannedFeatures: [
 				{
-					name: "Share to Save on Mobile",
+					name: "Share to Save on Android",
 					description:
-						"Save to Readplace from any app with one tap from the share sheet — no copy-paste.",
+						"Save to Readplace from any Android app with one tap from the share sheet — the iPhone app already does this today.",
 				},
 				{
 					name: "What to Read Next",

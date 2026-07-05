@@ -19,6 +19,7 @@ export default {
 		"@pulumi/pulumi",
 		// Workspace dependency — knip can't trace through esbuild-bundled entry points
 		"@packages/onboarding-extension-signal",
+		"@packages/supported-clients",
 	],
 	ignoreBinaries: [
 		...(base.ignoreBinaries ?? []),

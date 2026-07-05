@@ -1,3 +1,5 @@
+import { isBuiltInOAuthClientId } from "@packages/supported-clients";
+import type { BuiltInOAuthClientId } from "@packages/supported-clients";
 import type { OAuthClient } from "./oauth.types";
 import { OAuthClientIdSchema } from "./oauth.schema";
 
@@ -18,7 +20,7 @@ export const IOS_NATIVE_OAUTH_CALLBACK_URI = "readplace://oauth-callback";
  * Client Registration, so the authorization server always knows them as
  * constants rather than reading them from the dynamic client store.
  */
-const BUILT_IN_OAUTH_CLIENTS: Record<string, OAuthClient> = {
+const BUILT_IN_OAUTH_CLIENTS: Record<string, OAuthClient | undefined> = {
 	"hutch-firefox-extension": {
 		id: OAuthClientIdSchema.parse("hutch-firefox-extension"),
 		name: "Readplace Firefox Extension",
@@ -50,7 +52,7 @@ const BUILT_IN_OAUTH_CLIENTS: Record<string, OAuthClient> = {
 		redirectUris: [IOS_NATIVE_OAUTH_CALLBACK_URI],
 		grants: ["authorization_code", "refresh_token"],
 	},
-};
+} satisfies Record<BuiltInOAuthClientId, OAuthClient>;
 
 export function getBuiltInClient(clientId: string): OAuthClient | undefined {
 	return BUILT_IN_OAUTH_CLIENTS[clientId];
@@ -61,13 +63,18 @@ export function getBuiltInClient(clientId: string): OAuthClient | undefined {
  * that mints a server session per reader open and keeps none of their ids".
  * The only way to honor that sign-out is to destroy every session the user
  * has; other clients' tokens stay valid so their devices re-mint a session on
- * next use rather than being signed out too. A revoke from any client not
- * listed here touches no sessions at all.
+ * next use rather than being signed out too. A revoke from a client mapped to
+ * false — or from any dynamically-registered client — touches no sessions at all.
  */
-const SESSION_DESTROYING_REVOKE_CLIENT_IDS: ReadonlySet<string> = new Set(["ios-app"]);
+const REVOKE_DESTROYS_ALL_SESSIONS = {
+	"hutch-firefox-extension": false,
+	"hutch-chrome-extension": false,
+	"ios-app": true,
+} satisfies Record<BuiltInOAuthClientId, boolean>;
 
 export function revokeDestroysUserSessions(clientId: string): boolean {
-	return SESSION_DESTROYING_REVOKE_CLIENT_IDS.has(clientId);
+	if (!isBuiltInOAuthClientId(clientId)) return false;
+	return REVOKE_DESTROYS_ALL_SESSIONS[clientId];
 }
 
 /**

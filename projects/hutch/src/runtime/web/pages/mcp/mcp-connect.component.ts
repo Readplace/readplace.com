@@ -1,20 +1,28 @@
 import { readFileSync } from "node:fs";
 import { join } from "node:path";
+import assert from "node:assert";
 import { render } from "@packages/web-shell";
 import type { PageBody } from "@packages/web-shell";
+import { SUPPORTED_CLIENTS } from "@packages/supported-clients";
+import type { ClientNameInGroup } from "@packages/supported-clients";
 
 import { MCP_CONNECT_STYLES } from "./mcp-connect.styles";
 
 const MCP_CONNECT_TEMPLATE = readFileSync(join(__dirname, "mcp-connect.template.html"), "utf-8");
+
+type McpTool = {
+	readonly name: string;
+	readonly requirement: string;
+	readonly steps: readonly string[];
+};
 
 /**
  * Durable, non-version-specific connection steps for each client family. The
  * requirements (paid tier, Developer Mode, OAuth) are the stable parts of each
  * product's setup; we deliberately avoid menu-label minutiae that rots.
  */
-const MCP_TOOLS = [
-	{
-		name: "Claude",
+const MCP_SETUP = {
+	claude: {
 		requirement:
 			"Works on Free, Pro, Max, Team, and Enterprise. The Free plan allows a single custom connector.",
 		steps: [
@@ -24,8 +32,7 @@ const MCP_TOOLS = [
 			"Open the connector and complete the one-time OAuth sign-in to authorize Claude.",
 		],
 	},
-	{
-		name: "ChatGPT",
+	chatgpt: {
 		requirement:
 			"Needs a paid plan (Plus, Pro, Business, Enterprise, or Edu). Custom connectors live behind Developer Mode, which you turn on from ChatGPT on the web.",
 		steps: [
@@ -35,27 +42,42 @@ const MCP_TOOLS = [
 			"Complete the OAuth sign-in to authorize ChatGPT.",
 		],
 	},
-	{
-		name: "Perplexity",
-		requirement: "Needs a Pro, Max, or Enterprise plan.",
-		steps: [
-			"On Perplexity for web, open Settings → Connectors.",
-			"Choose “+ Custom connector”, then “Remote”.",
-			"Enter the Readplace server URL and select OAuth.",
-			"Authorize Readplace when you are redirected to the sign-in screen.",
-		],
-	},
-	{
-		name: "Claude Code, Cursor, VS Code, and other MCP clients",
-		requirement:
-			"No paid plan required. Point the client at the URL over the HTTP (Streamable HTTP) transport — it discovers the OAuth login and registers itself automatically.",
-		steps: [
-			"Claude Code: run “claude mcp add --transport http readplace https://readplace.com/mcp”, then “/mcp” to sign in.",
-			"Cursor or VS Code: add a server with the Readplace URL and transport type “http” to your MCP config; the editor runs the OAuth flow.",
-			"Any MCP client: add a remote HTTP server at the Readplace URL and authorize when prompted.",
-		],
-	},
-] as const;
+} satisfies Record<ClientNameInGroup<"aiAssistant">, Omit<McpTool, "name">>;
+
+const PERPLEXITY_CARD: McpTool = {
+	name: "Perplexity",
+	requirement: "Needs a Pro, Max, or Enterprise plan.",
+	steps: [
+		"On Perplexity for web, open Settings → Connectors.",
+		"Choose “+ Custom connector”, then “Remote”.",
+		"Enter the Readplace server URL and select OAuth.",
+		"Authorize Readplace when you are redirected to the sign-in screen.",
+	],
+};
+
+const OTHER_CLIENTS_CARD: McpTool = {
+	name: "Claude Code, Cursor, VS Code, and other MCP clients",
+	requirement:
+		"No paid plan required. Point the client at the URL over the HTTP (Streamable HTTP) transport — it discovers the OAuth login and registers itself automatically.",
+	steps: [
+		"Claude Code: run “claude mcp add --transport http readplace https://readplace.com/mcp”, then “/mcp” to sign in.",
+		"Cursor or VS Code: add a server with the Readplace URL and transport type “http” to your MCP config; the editor runs the OAuth flow.",
+		"Any MCP client: add a remote HTTP server at the Readplace URL and authorize when prompted.",
+	],
+};
+
+const MCP_TOOLS: readonly McpTool[] = [
+	...SUPPORTED_CLIENTS.flatMap((client) =>
+		client.group === "aiAssistant" ? [{ name: client.displayName, ...MCP_SETUP[client.name] }] : [],
+	),
+	PERPLEXITY_CARD,
+	OTHER_CLIENTS_CARD,
+];
+
+const claude = SUPPORTED_CLIENTS.find((client) => client.name === "claude");
+assert(claude, "Claude missing from SUPPORTED_CLIENTS");
+assert(claude.install.kind === "mcpConnector", "Claude install must be the MCP connector");
+const MCP_SERVER_URL = claude.install.serverUrl;
 
 const GETTING_STARTED_PROMPT = "Connect my reading list to readplace.com/mcp.";
 
@@ -79,7 +101,7 @@ export function McpConnectPage(): PageBody {
 		bodyClass: "page-mcp-connect",
 		content: {
 			html: render(MCP_CONNECT_TEMPLATE, {
-				serverUrl: "https://readplace.com/mcp",
+				serverUrl: MCP_SERVER_URL,
 				gettingStartedPrompt: GETTING_STARTED_PROMPT,
 				tools: MCP_TOOLS,
 				examples: EXAMPLE_PROMPTS,
