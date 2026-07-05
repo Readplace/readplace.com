@@ -1,7 +1,8 @@
 import { EventEmitter } from "node:events";
 import type { NextFunction, Request, Response } from "express";
 import type { HutchLogger } from "@packages/hutch-logger";
-import { type AnalyticsClick, type AnalyticsEvent, type AnalyticsPageview, classifyDeviceClass, createAnalyticsMiddleware, hashIp } from "./analytics";
+import { type AnalyticsClick, type AnalyticsEvent, type AnalyticsPageview, buildSaveIntentEvent, classifyDeviceClass, createAnalyticsMiddleware, hashIp, type ViewSaveIntentEvent } from "./analytics";
+import { SAVE_OUTCOMES, SAVE_SURFACES } from "./events";
 
 function createCapturingLogger(): {
 	logger: HutchLogger.Typed<AnalyticsEvent>;
@@ -345,5 +346,74 @@ describe("classifyDeviceClass", () => {
 				"Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
 			),
 		).toBe("desktop");
+	});
+});
+
+const VALID_VISITOR_ID = "550e8400-e29b-41d4-a716-446655440000";
+
+function buildIntent(overrides: { req?: MockReqOverrides; url?: string; pendingSaveId?: string } = {}): ViewSaveIntentEvent {
+	return buildSaveIntentEvent(
+		{ now: () => new Date("2026-04-21T10:00:00.000Z"), salt: "test-salt" },
+		{
+			req: createReq(overrides.req ?? { visitorId: VALID_VISITOR_ID }) as Request,
+			url: overrides.url ?? "https://example.com/some-article",
+			path: "/save",
+			surface: SAVE_SURFACES.readerView,
+			outcome: SAVE_OUTCOMES.promptedToSignUp,
+			pendingSaveId: overrides.pendingSaveId,
+		},
+	);
+}
+
+describe("buildSaveIntentEvent", () => {
+	it("builds a view_save_intent with the normalized article_host, surface, outcome and visitor identity — and for an anonymous save with no referer or pending id omits referrer_host/pending_save_id and marks is_authenticated=0", () => {
+		const event = buildIntent();
+		expect(event).toEqual({
+			stream: "analytics",
+			event: "view_save_intent",
+			timestamp: "2026-04-21T10:00:00.000Z",
+			path: "/save",
+			article_host: "example.com",
+			content_class: "third_party",
+			surface: "reader_view",
+			outcome: "prompted_to_sign_up",
+			visitor_hash: expect.any(String),
+			visitor_id: VALID_VISITOR_ID,
+			is_authenticated: 0,
+		});
+		const serialized = JSON.stringify(event);
+		expect(serialized).not.toContain("referrer_host");
+		expect(serialized).not.toContain("pending_save_id");
+	});
+
+	it("includes referrer_host when the request carries a parseable referer — the traffic source, captured separately from article_host", () => {
+		const event = buildIntent({
+			req: { visitorId: VALID_VISITOR_ID, headers: { referer: "https://news.ycombinator.com/item?id=1" } },
+		});
+		expect(event).toMatchObject({ referrer_host: "news.ycombinator.com" });
+	});
+
+	it("derives content_class from the saved article's own host, never the referrer — arriving from our own site to save a third-party article is still a third-party save", () => {
+		const event = buildIntent({
+			url: "https://example.com/some-article",
+			req: { visitorId: VALID_VISITOR_ID, headers: { referer: "https://readplace.com/queue" } },
+		});
+		expect(event).toMatchObject({ article_host: "example.com", content_class: "third_party", referrer_host: "readplace.com" });
+	});
+
+	it("includes pending_save_id when the anonymous prompted-to-sign-up flow threads one, so the later signup joins back to this intent", () => {
+		const event = buildIntent({ pendingSaveId: "pending-abc-123" });
+		expect(event).toMatchObject({ pending_save_id: "pending-abc-123" });
+	});
+
+	it("stamps is_authenticated=1 when the request carries an authenticated userId (the queue save bar and extension save an already-signed-in user)", () => {
+		const event = buildIntent({ req: { visitorId: VALID_VISITOR_ID, userId: "user-1" } });
+		expect(event.is_authenticated).toBe(1);
+	});
+
+	it("throws when the visitor-id middleware has not run (req.visitorId unset) — a save surface must never emit view_save_intent without a visitor identity to join the conversion on", () => {
+		expect(() => buildIntent({ req: {} })).toThrow(
+			"visitor-id middleware must run before a save surface emits view_save_intent",
+		);
 	});
 });
