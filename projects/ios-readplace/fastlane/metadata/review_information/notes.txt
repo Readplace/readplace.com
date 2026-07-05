@@ -1,0 +1,15 @@
+Readplace is a read-it-later app. Sign-in is required to use it.
+
+GETTING STARTED
+- On the first screen tap "Log in" or "Sign up". Authentication opens in the EXTERNAL browser (Safari/Chrome) and returns to the app via a readplace:// deep link. This app-switch is intentional (it reuses an existing web session) — please allow it to complete.
+- The demo account below has an active subscription. Sign-up is self-serve, so to test ACCOUNT DELETION please create a throwaway account rather than deleting the demo account.
+
+SAVING ARTICLES
+- In Safari (or any app), open a web page, tap Share, and choose Readplace. The page is captured and appears in the reading list. Pull to refresh.
+
+NOTES FOR REVIEW
+- The app communicates only with https://readplace.com. The NSAllowsArbitraryLoadsInWebContent ATS exception exists solely so the reader and capture web views can load arbitrary user-saved article pages (some are http-only).
+- Readplace is a subscription service purchased on the web, not via In-App Purchase. The app is fully functional during the free trial and sells no digital content in-app.
+- Account deletion: [TO FINALIZE once the feature ships — e.g. "Settings > Delete Account, then confirm"].
+
+Demo account: see the App Review Information fields.
