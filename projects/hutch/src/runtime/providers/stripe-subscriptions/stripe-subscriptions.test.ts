@@ -255,6 +255,131 @@ describe("initStripeSubscriptions", () => {
 		});
 	});
 
+	describe("listAllSubscriptions", () => {
+		it("issues GET /v1/subscriptions with status=all, limit=100, expand data.customer and the pinned Stripe-Version", async () => {
+			let receivedUrl: string | undefined;
+			let receivedInit: RequestInit | undefined;
+			const fakeFetch: typeof globalThis.fetch = async (input, init) => {
+				receivedUrl = typeof input === "string" ? input : input.toString();
+				receivedInit = init;
+				return jsonResponse(200, { has_more: false, data: [] });
+			};
+
+			const stripe = initStripeSubscriptions({ apiKey: "sk_test_abc", fetch: fakeFetch });
+
+			const result = await stripe.listAllSubscriptions();
+
+			assert.deepEqual(result, []);
+			assert.ok(receivedUrl);
+			const url = new URL(receivedUrl);
+			assert.equal(url.origin + url.pathname, "https://api.stripe.com/v1/subscriptions");
+			assert.equal(url.searchParams.get("status"), "all");
+			assert.equal(url.searchParams.get("limit"), "100");
+			assert.equal(url.searchParams.get("expand[]"), "data.customer");
+			const headers = new Headers(receivedInit?.headers);
+			assert.equal(headers.get("Authorization"), "Bearer sk_test_abc");
+			assert.equal(headers.get("Stripe-Version"), "2026-04-22.dahlia");
+		});
+
+		it("paginates via starting_after until has_more is false", async () => {
+			const receivedUrls: string[] = [];
+			let call = 0;
+			const fakeFetch: typeof globalThis.fetch = async (input) => {
+				receivedUrls.push(typeof input === "string" ? input : input.toString());
+				call++;
+				if (call === 1) {
+					return jsonResponse(200, {
+						has_more: true,
+						data: [{ id: "sub_1", status: "active", customer: "cus_1" }],
+					});
+				}
+				return jsonResponse(200, {
+					has_more: false,
+					data: [{ id: "sub_2", status: "active", customer: "cus_2" }],
+				});
+			};
+
+			const stripe = initStripeSubscriptions({ apiKey: "sk_test_abc", fetch: fakeFetch });
+
+			const result = await stripe.listAllSubscriptions();
+
+			assert.equal(result.length, 2);
+			assert.equal(new URL(receivedUrls[0]).searchParams.get("starting_after"), null);
+			assert.equal(new URL(receivedUrls[1]).searchParams.get("starting_after"), "sub_1");
+		});
+
+		it("maps an expanded customer object to customerId + customerEmail", async () => {
+			const fakeFetch: typeof globalThis.fetch = async () =>
+				jsonResponse(200, {
+					has_more: false,
+					data: [
+						{
+							id: "sub_2",
+							status: "canceled",
+							customer: { id: "cus_2", email: "payer@example.com" },
+						},
+					],
+				});
+
+			const stripe = initStripeSubscriptions({ apiKey: "sk_test_abc", fetch: fakeFetch });
+
+			const result = await stripe.listAllSubscriptions();
+
+			assert.deepEqual(result, [
+				{
+					subscriptionId: "sub_2",
+					customerId: "cus_2",
+					status: "canceled",
+					customerEmail: "payer@example.com",
+				},
+			]);
+		});
+
+		it("omits customerEmail for the string-customer form and for an expanded customer without an email", async () => {
+			const fakeFetch: typeof globalThis.fetch = async () =>
+				jsonResponse(200, {
+					has_more: false,
+					data: [
+						{ id: "sub_str", status: "active", customer: "cus_str" },
+						{ id: "sub_noemail", status: "active", customer: { id: "cus_noemail" } },
+					],
+				});
+
+			const stripe = initStripeSubscriptions({ apiKey: "sk_test_abc", fetch: fakeFetch });
+
+			const result = await stripe.listAllSubscriptions();
+
+			assert.equal(result[0].customerEmail, undefined);
+			assert.equal(result[0].customerId, "cus_str");
+			assert.equal(result[1].customerEmail, undefined);
+			assert.equal(result[1].customerId, "cus_noemail");
+		});
+
+		it("throws with the Stripe error message when the list API returns a non-2xx", async () => {
+			const fakeFetch: typeof globalThis.fetch = async () =>
+				jsonResponse(500, { error: { code: "api_error", message: "Stripe is down" } });
+
+			const stripe = initStripeSubscriptions({ apiKey: "sk_test_abc", fetch: fakeFetch });
+
+			await assert.rejects(
+				() => stripe.listAllSubscriptions(),
+				/Stripe listAllSubscriptions failed \(500\): Stripe is down/,
+			);
+		});
+
+		it("rejects when a subscription carries an unknown status", async () => {
+			const fakeFetch: typeof globalThis.fetch = async () =>
+				jsonResponse(200, {
+					has_more: false,
+					data: [{ id: "sub_weird", status: "some_new_status", customer: "cus_weird" }],
+				});
+
+			const stripe = initStripeSubscriptions({ apiKey: "sk_test_abc", fetch: fakeFetch });
+
+			await assert.rejects(() => stripe.listAllSubscriptions());
+		});
+	});
+
 	describe("reverseScheduledCancellation", () => {
 		it("issues POST /v1/subscriptions/<id> with cancel_at_period_end=false", async () => {
 			let receivedUrl: string | undefined;

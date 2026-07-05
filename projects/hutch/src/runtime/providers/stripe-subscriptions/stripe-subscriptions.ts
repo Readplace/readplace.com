@@ -1,10 +1,13 @@
+import assert from "node:assert";
 import { z } from "zod";
-import type {
-	CancelSubscriptionImmediately,
-	CreateSubscriptionOnExistingCustomer,
-	DeleteCustomer,
-	ReverseScheduledCancellation,
-	ScheduleCancellationAtPeriodEnd,
+import {
+	STRIPE_SUBSCRIPTION_STATUSES,
+	type CancelSubscriptionImmediately,
+	type CreateSubscriptionOnExistingCustomer,
+	type DeleteCustomer,
+	type ListAllStripeSubscriptions,
+	type ReverseScheduledCancellation,
+	type ScheduleCancellationAtPeriodEnd,
 } from "@packages/provider-contracts/subscription-billing";
 
 const STRIPE_API = "https://api.stripe.com/v1";
@@ -41,6 +44,20 @@ const StripeReversedSubscriptionResponse = z.object({
 	trial_end: z.number().nullish(),
 });
 
+const StripeSubscriptionListResponse = z.object({
+	has_more: z.boolean(),
+	data: z.array(
+		z.object({
+			id: z.string(),
+			status: z.enum(STRIPE_SUBSCRIPTION_STATUSES),
+			customer: z.union([
+				z.string(),
+				z.object({ id: z.string(), email: z.string().nullish() }),
+			]),
+		}),
+	),
+});
+
 export function initStripeSubscriptions(deps: {
 	apiKey: string;
 	fetch: typeof globalThis.fetch;
@@ -50,6 +67,7 @@ export function initStripeSubscriptions(deps: {
 	scheduleCancellationAtPeriodEnd: ScheduleCancellationAtPeriodEnd;
 	reverseScheduledCancellation: ReverseScheduledCancellation;
 	deleteCustomer: DeleteCustomer;
+	listAllSubscriptions: ListAllStripeSubscriptions;
 } {
 	const stripeHeaders = {
 		Authorization: `Bearer ${deps.apiKey}`,
@@ -211,11 +229,55 @@ export function initStripeSubscriptions(deps: {
 		}
 	};
 
+	const listAllSubscriptions: ListAllStripeSubscriptions = async () => {
+		const summaries: Awaited<ReturnType<ListAllStripeSubscriptions>> = [];
+		let startingAfter: string | undefined;
+		let hasMore = true;
+		while (hasMore) {
+			const params = new URLSearchParams({ status: "all", limit: "100" });
+			params.append("expand[]", "data.customer");
+			if (startingAfter) params.set("starting_after", startingAfter);
+
+			const response = await deps.fetch(`${STRIPE_API}/subscriptions?${params}`, {
+				headers: stripeHeaders,
+			});
+
+			if (!response.ok) {
+				const message = await readStripeErrorMessage(response);
+				throw new Error(`Stripe listAllSubscriptions failed (${response.status}): ${message}`);
+			}
+
+			const json = await response.json();
+			const page = StripeSubscriptionListResponse.parse(json);
+			for (const item of page.data) {
+				const customerId = typeof item.customer === "string" ? item.customer : item.customer.id;
+				const customerEmail =
+					typeof item.customer !== "string" && item.customer.email
+						? item.customer.email
+						: undefined;
+				summaries.push({
+					subscriptionId: item.id,
+					customerId,
+					status: item.status,
+					...(customerEmail ? { customerEmail } : {}),
+				});
+			}
+
+			hasMore = page.has_more;
+			if (hasMore) {
+				assert(page.data.length > 0, "Stripe reported has_more with an empty page");
+				startingAfter = page.data[page.data.length - 1].id;
+			}
+		}
+		return summaries;
+	};
+
 	return {
 		cancelImmediately,
 		createSubscriptionOnExistingCustomer,
 		scheduleCancellationAtPeriodEnd,
 		reverseScheduledCancellation,
 		deleteCustomer,
+		listAllSubscriptions,
 	};
 }

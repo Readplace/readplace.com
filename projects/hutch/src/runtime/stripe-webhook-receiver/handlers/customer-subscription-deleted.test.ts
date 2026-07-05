@@ -125,19 +125,67 @@ describe("initHandleCustomerSubscriptionDeleted", () => {
 		});
 	});
 
-	it("skips emission when the subscriptionId has no matching row (already removed)", async () => {
+	it("logs a structured ERROR (not WARN) with customerId and a reconcile pointer, and skips emission, when no row matches", async () => {
 		const published: unknown[] = [];
+		const errorCalls: unknown[][] = [];
+		const logger = HutchLogger.from({
+			info: () => {},
+			warn: () => {},
+			debug: () => {},
+			error: (...args: unknown[]) => {
+				errorCalls.push(args);
+			},
+		});
 		const handle = initHandleCustomerSubscriptionDeleted({
 			findSubscriptionBySubscriptionId: async () => undefined,
 			publishEvent: async (event, detail) => { published.push({ event, detail }); },
 		});
 
 		await handle({
-			stripeEvent: buildStripeEvent("sub_gone"),
-			logger: HutchLogger.from(noopLogger),
+			stripeEvent: {
+				type: "customer.subscription.deleted",
+				data: { object: { id: "sub_gone", customer: "cus_gone" } },
+			},
+			logger,
 		});
 
 		assert.equal(published.length, 0);
+		assert.equal(errorCalls.length, 1);
+		assert.match(String(errorCalls[0][0]), /no subscription row found/);
+		assert.match(String(errorCalls[0][0]), /stripe-reconcile/);
+		assert.deepStrictEqual(errorCalls[0][1], {
+			subscriptionId: "sub_gone",
+			customerId: "cus_gone",
+			eventType: "customer.subscription.deleted",
+		});
+	});
+
+	it("falls back to customerId 'unknown' when the deleted event carries no customer field", async () => {
+		const errorCalls: unknown[][] = [];
+		const logger = HutchLogger.from({
+			info: () => {},
+			warn: () => {},
+			debug: () => {},
+			error: (...args: unknown[]) => {
+				errorCalls.push(args);
+			},
+		});
+		const handle = initHandleCustomerSubscriptionDeleted({
+			findSubscriptionBySubscriptionId: async () => undefined,
+			publishEvent: async () => {},
+		});
+
+		await handle({
+			stripeEvent: buildStripeEvent("sub_no_customer"),
+			logger,
+		});
+
+		assert.equal(errorCalls.length, 1);
+		assert.deepStrictEqual(errorCalls[0][1], {
+			subscriptionId: "sub_no_customer",
+			customerId: "unknown",
+			eventType: "customer.subscription.deleted",
+		});
 	});
 
 	it("propagates EventBridge failures so the caller bubbles a 5xx and Stripe retries", async () => {

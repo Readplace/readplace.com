@@ -470,6 +470,104 @@ describe("initDynamoDbSubscriptionProviders", () => {
 		});
 	});
 
+	describe("listAllSubscriptionRows", () => {
+		it("returns every row on a single page with optional fields mapped", async () => {
+			const client = createFakeClient(() => ({
+				Items: [
+					{
+						userId: "u-trial",
+						provider: "stripe",
+						status: "trialing",
+						trialEndsAt: "2026-06-05T00:00:00.000Z",
+						createdAt: "2026-05-22T10:00:00.000Z",
+						updatedAt: "2026-05-22T10:00:00.000Z",
+					},
+					{
+						userId: "u-active",
+						provider: "stripe",
+						status: "active",
+						subscriptionId: "sub_1",
+						customerId: "cus_1",
+						createdAt: "2026-05-22T10:00:00.000Z",
+						updatedAt: "2026-05-22T10:00:00.000Z",
+					},
+				],
+				LastEvaluatedKey: undefined,
+			}));
+			const subs = initDynamoDbSubscriptionProviders({
+				client: client as DynamoDBDocumentClient,
+				tableName: TABLE,
+				now: NOW,
+			});
+
+			const rows = await subs.listAllSubscriptionRows();
+
+			assert.equal(rows.length, 2);
+			expect(rows[0].subscriptionId).toBeUndefined();
+			expect(rows[0].trialEndsAt).toBe("2026-06-05T00:00:00.000Z");
+			expect(rows[1].subscriptionId).toBe("sub_1");
+			expect(rows[1].customerId).toBe("cus_1");
+		});
+
+		it("paginates using ExclusiveStartKey until LastEvaluatedKey is absent", async () => {
+			const receivedKeys: unknown[] = [];
+			const client = createFakeClient((input) => {
+				const command = input as { input: { ExclusiveStartKey?: Record<string, unknown> } };
+				receivedKeys.push(command.input.ExclusiveStartKey);
+				if (command.input.ExclusiveStartKey === undefined) {
+					return {
+						Items: [
+							{
+								userId: "u-1",
+								provider: "stripe",
+								status: "active",
+								subscriptionId: "sub_1",
+								customerId: "cus_1",
+								createdAt: "2026-05-22T10:00:00.000Z",
+								updatedAt: "2026-05-22T10:00:00.000Z",
+							},
+						],
+						LastEvaluatedKey: { userId: "u-1" },
+					};
+				}
+				return {
+					Items: [
+						{
+							userId: "u-2",
+							provider: "stripe",
+							status: "cancelled",
+							createdAt: "2026-05-22T10:00:00.000Z",
+							updatedAt: "2026-05-22T10:00:00.000Z",
+						},
+					],
+					LastEvaluatedKey: undefined,
+				};
+			});
+			const subs = initDynamoDbSubscriptionProviders({
+				client: client as DynamoDBDocumentClient,
+				tableName: TABLE,
+				now: NOW,
+			});
+
+			const rows = await subs.listAllSubscriptionRows();
+
+			assert.equal(rows.length, 2);
+			expect(rows.map((r) => r.userId)).toEqual(["u-1", "u-2"]);
+			assert.deepEqual(receivedKeys, [undefined, { userId: "u-1" }]);
+		});
+
+		it("returns an empty array when the table is empty", async () => {
+			const client = createFakeClient(() => ({ Items: [], LastEvaluatedKey: undefined }));
+			const subs = initDynamoDbSubscriptionProviders({
+				client: client as DynamoDBDocumentClient,
+				tableName: TABLE,
+				now: NOW,
+			});
+
+			assert.deepEqual(await subs.listAllSubscriptionRows(), []);
+		});
+	});
+
 	describe("findByUserId with trialFeedbackEmailSentAt", () => {
 		it("parses a cancelled trial row that carries trialFeedbackEmailSentAt", async () => {
 			const client = createFakeClient(() => ({
