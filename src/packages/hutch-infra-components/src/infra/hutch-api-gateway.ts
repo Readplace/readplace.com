@@ -35,11 +35,40 @@ export class HutchAPIGateway extends pulumi.ComponentResource {
 		this.apiGatewayId = args.api.id;
 		this.apiGatewayExecutionArn = args.api.executionArn;
 
+		const accessLogGroup = new aws.cloudwatch.LogGroup(`${name}-api-access-logs`, {
+			name: `/aws/apigateway/${name}-access`,
+			retentionInDays: 30,
+		}, { parent: this });
+
 		const apiStage = new aws.apigatewayv2.Stage(`${name}-api-stage`, {
 			apiId: args.api.id,
 			name: "$default",
 			autoDeploy: true,
 			description: `${args.stage} stage`,
+			/**
+			 * One JSON line per request, capturing the User-Agent (browser/OS/device,
+			 * finer than the app's device_class buckets) plus method/status/latency for
+			 * every request — including the htmx polls, POSTs, and bot hits the pageview
+			 * analytics stream drops. Deliberately omits `$context.identity.sourceIp` and
+			 * `$context.path`: the `/view/<url>` reader route carries the article URL in
+			 * its path (reading history), so logging the raw path — or the raw IP — would
+			 * break the hashed-identity / no-reading-history posture the app keeps. Per-page
+			 * counts already live in the pageview analytics stream. API Gateway provisions
+			 * the CloudWatch Logs delivery permission itself when this stage is applied.
+			 */
+			accessLogSettings: {
+				destinationArn: accessLogGroup.arn,
+				format: JSON.stringify({
+					requestId: "$context.requestId",
+					time: "$context.requestTime",
+					method: "$context.httpMethod",
+					status: "$context.status",
+					protocol: "$context.protocol",
+					responseLength: "$context.responseLength",
+					responseLatency: "$context.responseLatency",
+					userAgent: "$context.identity.userAgent",
+				}),
+			},
 			defaultRouteSettings: {
 				throttlingBurstLimit: args.throttling.burstLimit,
 				throttlingRateLimit: args.throttling.rateLimit,
