@@ -50,6 +50,7 @@ export const handler = initCancelSubscriptionHandler({
 	scheduleCancellationAtPeriodEnd: stripeSubscriptions.scheduleCancellationAtPeriodEnd,
 	createDeferredCancellationSchedule: trialScheduler.createDeferredCancellationSchedule,
 	deleteTrialEndSchedule: trialScheduler.deleteTrialEndSchedule,
+	deleteTrialReminderSchedule: trialScheduler.deleteTrialReminderSchedule,
 	publishSubscriptionCancellationScheduled,
 	publishSubscriptionCancelled,
 	logger: HutchLogger.from(consoleLogger),

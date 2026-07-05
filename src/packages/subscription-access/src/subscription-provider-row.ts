@@ -12,6 +12,7 @@ export const SubscriptionProviderRow = z.object({
 	trialEndsAt: dynamoField(z.string()),
 	cancellationEffectiveAt: dynamoField(z.string()),
 	trialFeedbackEmailSentAt: dynamoField(z.string()),
+	trialReminderEmailSentAt: dynamoField(z.string()),
 	createdAt: z.string(),
 	updatedAt: z.string(),
 });
@@ -29,6 +30,9 @@ export function toRecord(row: z.infer<typeof SubscriptionProviderRow>): Subscrip
 			: {}),
 		...(row.trialFeedbackEmailSentAt !== undefined
 			? { trialFeedbackEmailSentAt: row.trialFeedbackEmailSentAt }
+			: {}),
+		...(row.trialReminderEmailSentAt !== undefined
+			? { trialReminderEmailSentAt: row.trialReminderEmailSentAt }
 			: {}),
 		createdAt: row.createdAt,
 		updatedAt: row.updatedAt,

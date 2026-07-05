@@ -30,9 +30,11 @@ import {
 } from "@packages/provider-contracts/payment-methods";
 import type {
 	CreateTrialEndSchedule,
+	CreateTrialReminderSchedule,
 	DeleteDeferredCancellationSchedule,
 } from "@packages/provider-contracts/trial-scheduler";
 import type { StorePendingSignup } from "@packages/provider-contracts/pending-signup";
+import { trialReminderFiresAt } from "../../../domain/stripe/stripe-trial-config";
 import { Base } from "../../base.component";
 import type { BuildBannerState } from "../../banner-state";
 import { HxRedirectPage } from "../../hx-redirect-page";
@@ -73,6 +75,7 @@ interface AccountDependencies {
 	setPrimaryCard: SetPrimaryCard;
 	stripePublishableKey: string | undefined;
 	createTrialEndSchedule: CreateTrialEndSchedule;
+	createTrialReminderSchedule: CreateTrialReminderSchedule;
 	deleteDeferredCancellationSchedule: DeleteDeferredCancellationSchedule;
 	storePendingSignup: StorePendingSignup;
 	stripePriceId: string;
@@ -357,6 +360,10 @@ export function initAccountRoutes(deps: AccountDependencies): Router {
 				"trial pending_cancellation row must have trialEndsAt",
 			);
 			await deps.createTrialEndSchedule({ userId, firesAt: row.trialEndsAt });
+			const reminderFiresAt = trialReminderFiresAt(row.trialEndsAt);
+			if (Date.parse(reminderFiresAt) > deps.now().getTime()) {
+				await deps.createTrialReminderSchedule({ userId, firesAt: reminderFiresAt });
+			}
 			await deps.upsertTrialingSubscription({ userId, trialEndsAt: row.trialEndsAt });
 			await deps.publishSubscriptionReactivated({ userId });
 			res.redirect(303, buildAccountUrl());

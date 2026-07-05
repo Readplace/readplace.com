@@ -172,6 +172,28 @@ describe("initInMemorySubscriptionProviders", () => {
 		).rejects.toThrow(/No subscription row/);
 	});
 
+	it("markTrialReminderEmailSent records the sentAt timestamp on the row", async () => {
+		const clock = { iso: "2026-05-22T00:00:00.000Z" };
+		const subs = initInMemorySubscriptionProviders({ now: () => new Date(clock.iso) });
+		await subs.upsertTrialing({ userId, trialEndsAt: "2026-06-05T00:00:00.000Z" });
+
+		clock.iso = "2026-06-03T00:00:00.000Z";
+		await subs.markTrialReminderEmailSent({ userId, sentAt: "2026-06-03T00:00:00.000Z" });
+
+		const row = await subs.findByUserId(userId);
+		assert(row, "row must exist");
+		expect(row.trialReminderEmailSentAt).toBe("2026-06-03T00:00:00.000Z");
+		expect(row.status).toBe("trialing");
+		expect(row.updatedAt).toBe("2026-06-03T00:00:00.000Z");
+	});
+
+	it("throws when markTrialReminderEmailSent is called for an unknown user", async () => {
+		const subs = initInMemorySubscriptionProviders({ now: fixedNow("2026-05-22T00:00:00.000Z") });
+		await expect(
+			subs.markTrialReminderEmailSent({ userId, sentAt: "2026-06-03T00:00:00.000Z" }),
+		).rejects.toThrow(/No subscription row/);
+	});
+
 	it("seedRow lets tests inject hypothetical row shapes (e.g. trialing with customerId)", async () => {
 		const subs = initInMemorySubscriptionProviders({ now: fixedNow("2026-05-22T00:00:00.000Z") });
 

@@ -26,3 +26,12 @@ export type CreateTrialFeedbackEmailSchedule = (input: {
 export type DeleteTrialFeedbackEmailSchedule = (input: {
 	userId: UserId;
 }) => Promise<void>;
+
+export type CreateTrialReminderSchedule = (input: {
+	userId: UserId;
+	firesAt: string;
+}) => Promise<void>;
+
+export type DeleteTrialReminderSchedule = (input: {
+	userId: UserId;
+}) => Promise<void>;

@@ -17,6 +17,7 @@ const subscriptionProvidersTable = requireEnv(
 );
 const resendApiKey = requireEnv("RESEND_API_KEY");
 const staticBaseUrl = requireEnv("STATIC_BASE_URL");
+const appOrigin = requireEnv("APP_ORIGIN");
 
 const dynamoClient = createDynamoDocumentClient();
 
@@ -46,8 +47,10 @@ export const handler = initSendTrialFeedbackEmailHandler({
 	findEmailByUserId: auth.findEmailByUserId,
 	findArticlesByUser: articleStore.findArticlesByUser,
 	markTrialFeedbackEmailSent: subscriptionProviders.markTrialFeedbackEmailSent,
+	markTrialReminderEmailSent: subscriptionProviders.markTrialReminderEmailSent,
 	sendEmail,
 	founderAvatarUrl: `${staticBaseUrl}/fayner-brack.jpg`,
+	appOrigin,
 	now: () => new Date(),
 	logger: HutchLogger.from(consoleLogger),
 });
