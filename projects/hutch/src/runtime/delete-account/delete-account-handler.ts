@@ -20,7 +20,7 @@ import type { DeleteReaderReadyState } from "@packages/provider-contracts/reader
 import type { DeleteOnboarding } from "@packages/provider-contracts/ios-onboarding-signal";
 import type { DeletePasswordResetTokensByEmail } from "@packages/provider-contracts/password-reset";
 import type { DeleteVerificationTokensByUserId } from "@packages/provider-contracts/email-verification";
-import type { DeletePendingSignupsByUserId } from "@packages/provider-contracts/pending-signup";
+import type { DeletePendingSignupsByUser } from "@packages/provider-contracts/pending-signup";
 import type {
 	DeleteSubscription,
 	FindSubscriptionByUserId,
@@ -60,7 +60,7 @@ export interface DeleteAccountHandlerDependencies {
 	deleteUserExports: DeleteUserExports;
 	deletePasswordResetTokensByEmail: DeletePasswordResetTokensByEmail;
 	deleteVerificationTokensByUserId: DeleteVerificationTokensByUserId;
-	deletePendingSignupsByUserId: DeletePendingSignupsByUserId;
+	deletePendingSignupsByUser: DeletePendingSignupsByUser;
 	revokeExternalIdpTokens: RevokeExternalIdpTokens;
 	revokeAllUserOAuthTokens: RevokeAllUserOAuthTokens;
 	destroyUserSessions: DestroyUserSessions;
@@ -132,13 +132,16 @@ async function processCommand(
 		await deps.deletePasswordResetTokensByEmail(email);
 	}
 
-	// Signup/verification remnants keyed by userId (both scanned, both no-op when
-	// absent): the email-verification token (a `{userId, email}` row the TTL would
-	// otherwise keep for the verification window) and any abandoned-checkout
-	// pending-signup rows (that table has no TTL, so they'd keep `{email, userId}`
-	// forever).
+	// Signup/verification remnants (all scanned, all no-op when absent): the
+	// email-verification token (a `{userId, email}` row the TTL would otherwise
+	// keep for the verification window, scrubbed by userId) and any abandoned-
+	// checkout pending-signup rows (that table has no TTL, so they'd keep
+	// `{email, userId}` forever — scrubbed by userId OR the captured email, since
+	// legacy pre-userId rows carry only the email). Import sessions are
+	// deliberately NOT scrubbed: their `{userId, urls}` rows self-expire via that
+	// table's 24h TTL, so no scan is spent on them.
 	await deps.deleteVerificationTokensByUserId(userId);
-	await deps.deletePendingSignupsByUserId(userId);
+	await deps.deletePendingSignupsByUser({ userId, email });
 
 	// Credentials last: revoke external IdP tokens, kill OAuth grants and every
 	// session, then delete the identity row (and its Gmail uniqueness claim).

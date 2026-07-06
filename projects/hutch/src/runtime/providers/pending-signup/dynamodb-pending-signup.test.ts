@@ -12,6 +12,7 @@ type CommandInput = {
 	ReturnValues?: string;
 	UpdateExpression?: string;
 	ProjectionExpression?: string;
+	FilterExpression?: string;
 	ExclusiveStartKey?: Record<string, unknown>;
 	ExpressionAttributeValues?: Record<string, unknown>;
 };
@@ -269,14 +270,23 @@ describe("initDynamoDbPendingSignup", () => {
 		});
 	});
 
-	describe("deleteByUserId", () => {
-		it("scans by userId across pages and deletes each abandoned row by its checkoutSessionId", async () => {
+	describe("deleteByUser", () => {
+		const SCRUB_PROJECTION = "checkoutSessionId, email, userId";
+
+		it("scans every page and deletes rows matching the userId or the normalized email", async () => {
 			const pages = [
 				{
-					Items: [{ checkoutSessionId: "cs_1" }, { checkoutSessionId: "cs_2" }],
-					LastEvaluatedKey: { checkoutSessionId: "cs_2" },
+					Items: [
+						{ checkoutSessionId: "cs_by_user", email: "someone@b.com", userId: USER_ID },
+						{ checkoutSessionId: "cs_other", email: "keep@b.com", userId: "user-other" },
+					],
+					LastEvaluatedKey: { checkoutSessionId: "cs_other" },
 				},
-				{ Items: [{ checkoutSessionId: "cs_3" }] },
+				{
+					// Legacy pre-userId row: no userId, raw mixed-case email that
+					// normalizes to the target — reachable only by the email match.
+					Items: [{ checkoutSessionId: "cs_legacy", email: "Target@B.com" }],
+				},
 			];
 			let scanCall = 0;
 			// The impl is invoked for every command; a DeleteCommand carries a Key,
@@ -284,38 +294,66 @@ describe("initDynamoDbPendingSignup", () => {
 			const { client, inputs } = createClient((input) =>
 				input.Key ? {} : pages[scanCall++],
 			);
-			const { deleteByUserId } = initDynamoDbPendingSignup({
+			const { deleteByUser } = initDynamoDbPendingSignup({
 				client,
 				tableName: TABLE,
 				logger: noopLogger,
 			});
 
-			await deleteByUserId(USER_ID);
+			await deleteByUser({ userId: USER_ID, email: "target@b.com" });
 
-			const scans = inputs.filter((i) => i.ProjectionExpression === "checkoutSessionId");
+			const scans = inputs.filter((i) => i.ProjectionExpression === SCRUB_PROJECTION);
 			expect(scans).toHaveLength(2);
-			expect(scans[0]?.ExpressionAttributeValues).toEqual({ ":u": USER_ID });
-			expect(scans[1]?.ExclusiveStartKey).toEqual({ checkoutSessionId: "cs_2" });
+			// No server-side FilterExpression: the full table is scanned and matched
+			// client-side, so legacy rows and raw-cased emails are both reached.
+			expect(scans[0]?.FilterExpression).toBeUndefined();
+			expect(scans[1]?.ExclusiveStartKey).toEqual({ checkoutSessionId: "cs_other" });
 
 			const deletes = inputs.filter((i) => i.Key);
 			expect(deletes.map((d) => d.Key)).toEqual([
-				{ checkoutSessionId: "cs_1" },
-				{ checkoutSessionId: "cs_2" },
-				{ checkoutSessionId: "cs_3" },
+				{ checkoutSessionId: "cs_by_user" },
+				{ checkoutSessionId: "cs_legacy" },
 			]);
 		});
 
-		it("issues no deletes when the user has no pending signups", async () => {
-			const { client, inputs } = createClient(() => ({ Items: [] }));
-			const { deleteByUserId } = initDynamoDbPendingSignup({
+		it("matches only by userId when the email is already gone (null)", async () => {
+			const pages = [
+				{
+					Items: [
+						{ checkoutSessionId: "cs_by_user", email: "a@b.com", userId: USER_ID },
+						// Legacy row with the same email but no userId is NOT deleted when
+						// there is no email to match on.
+						{ checkoutSessionId: "cs_legacy", email: "a@b.com" },
+					],
+				},
+			];
+			let scanCall = 0;
+			const { client, inputs } = createClient((input) =>
+				input.Key ? {} : pages[scanCall++],
+			);
+			const { deleteByUser } = initDynamoDbPendingSignup({
 				client,
 				tableName: TABLE,
 				logger: noopLogger,
 			});
 
-			await deleteByUserId(USER_ID);
+			await deleteByUser({ userId: USER_ID, email: null });
 
-			expect(inputs.filter((i) => i.ProjectionExpression === "checkoutSessionId")).toHaveLength(1);
+			const deletes = inputs.filter((i) => i.Key);
+			expect(deletes.map((d) => d.Key)).toEqual([{ checkoutSessionId: "cs_by_user" }]);
+		});
+
+		it("issues no deletes when nothing matches the user", async () => {
+			const { client, inputs } = createClient(() => ({ Items: [] }));
+			const { deleteByUser } = initDynamoDbPendingSignup({
+				client,
+				tableName: TABLE,
+				logger: noopLogger,
+			});
+
+			await deleteByUser({ userId: USER_ID, email: "nobody@b.com" });
+
+			expect(inputs.filter((i) => i.ProjectionExpression === SCRUB_PROJECTION)).toHaveLength(1);
 			expect(inputs.filter((i) => i.Key)).toHaveLength(0);
 		});
 	});

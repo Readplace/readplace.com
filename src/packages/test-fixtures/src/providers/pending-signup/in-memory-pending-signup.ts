@@ -1,7 +1,8 @@
+import { normalizeEmail } from "@packages/domain/user";
 import type { CheckoutSessionId } from "@packages/provider-contracts/stripe-checkout";
 import type {
 	ConsumePendingSignup,
-	DeletePendingSignupsByUserId,
+	DeletePendingSignupsByUser,
 	ListAllPendingSignups,
 	MarkCheckoutRecoveryEmailSent,
 	PendingSignup,
@@ -19,7 +20,7 @@ export function initInMemoryPendingSignup(): {
 	consumePendingSignup: ConsumePendingSignup;
 	listAllPendingSignups: ListAllPendingSignups;
 	markCheckoutRecoveryEmailSent: MarkCheckoutRecoveryEmailSent;
-	deleteByUserId: DeletePendingSignupsByUserId;
+	deleteByUser: DeletePendingSignupsByUser;
 } {
 	const store = new Map<CheckoutSessionId, StoredEntry>();
 
@@ -53,9 +54,13 @@ export function initInMemoryPendingSignup(): {
 		entry.checkoutRecoveryEmailSentAt = sentAt;
 	};
 
-	const deleteByUserId: DeletePendingSignupsByUserId = async (userId) => {
+	const deleteByUser: DeletePendingSignupsByUser = async ({ userId, email }) => {
+		const normalizedEmail = email === null ? null : normalizeEmail(email);
 		for (const [checkoutSessionId, entry] of store) {
-			if (entry.signup.userId === userId) store.delete(checkoutSessionId);
+			const matchesUser = entry.signup.userId === userId;
+			const matchesEmail =
+				normalizedEmail !== null && normalizeEmail(entry.signup.email) === normalizedEmail;
+			if (matchesUser || matchesEmail) store.delete(checkoutSessionId);
 		}
 	};
 
@@ -64,6 +69,6 @@ export function initInMemoryPendingSignup(): {
 		consumePendingSignup,
 		listAllPendingSignups,
 		markCheckoutRecoveryEmailSent,
-		deleteByUserId,
+		deleteByUser,
 	};
 }

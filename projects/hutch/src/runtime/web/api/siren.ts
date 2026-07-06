@@ -11,10 +11,6 @@ export interface SirenAction {
 	title?: string;
 	type?: string;
 	fields?: SirenField[];
-	/* A reserved semantic-role token the client maps to its own presentation
-	 * (e.g. ["destructive"] → a red, confirm-gated control). The server never
-	 * sends a CSS class; presentation stays entirely client-side. */
-	class?: string[];
 }
 
 export interface SirenLink {

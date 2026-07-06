@@ -152,7 +152,7 @@ export const handler = initDeleteAccountHandler({
 	deleteUserExports,
 	deletePasswordResetTokensByEmail: passwordReset.deleteTokensByEmail,
 	deleteVerificationTokensByUserId: emailVerification.deleteTokensByUserId,
-	deletePendingSignupsByUserId: pendingSignup.deleteByUserId,
+	deletePendingSignupsByUser: pendingSignup.deleteByUser,
 	revokeExternalIdpTokens,
 	revokeAllUserOAuthTokens,
 	destroyUserSessions: auth.destroyUserSessions,
