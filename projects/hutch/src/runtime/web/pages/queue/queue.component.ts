@@ -85,12 +85,14 @@ function toQueueDisplayModel(vm: QueueViewModel, options: { installed: boolean; 
 	});
 
 	const onboardingHtml = OnboardingChecklist(
-		{
-			installed: options.installed,
-			savedArticle: options.savedArticle,
-			platform: options.platform,
-			hasInstallableClient: options.hasInstallableClient,
-		},
+		options.hasInstallableClient
+			? {
+				hasInstallableClient: true,
+				installed: options.installed,
+				savedArticle: options.savedArticle,
+				platform: options.platform,
+			}
+			: { hasInstallableClient: false },
 		{ dismissed: options.onboardingDismissed },
 	);
 

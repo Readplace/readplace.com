@@ -3,7 +3,7 @@ import { join } from "node:path";
 import { render } from "@packages/web-shell";
 import { requireEnv } from "@packages/require-env";
 import { ONBOARDING_STEPS } from "./onboarding.steps";
-import type { OnboardingAction, OnboardingContext, OnboardingStep } from "./onboarding.types";
+import type { InstallableClientOnboarding, OnboardingAction, OnboardingContext, OnboardingStep } from "./onboarding.types";
 
 export { ONBOARDING_STYLES } from "./onboarding.styles";
 
@@ -27,7 +27,7 @@ interface OnboardingStepDisplayModel {
 
 function toStepDisplayModel(
 	step: OnboardingStep,
-	ctx: OnboardingContext,
+	ctx: InstallableClientOnboarding,
 ): OnboardingStepDisplayModel {
 	const isComplete = step.isComplete(ctx);
 	const actions = step.actions(ctx);
@@ -46,7 +46,7 @@ function toStepDisplayModel(
 	};
 }
 
-function allStepsComplete(ctx: OnboardingContext): boolean {
+function allStepsComplete(ctx: InstallableClientOnboarding): boolean {
 	return ONBOARDING_STEPS.every((step) => step.isComplete(ctx));
 }
 

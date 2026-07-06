@@ -99,6 +99,21 @@ import {
 import { isIosClient } from "../../onboarding/ios-client";
 import type { GetIosAppSignals, RecordIosAnyActivity, RecordIosSavedArticle } from "@packages/provider-contracts/ios-onboarding-signal";
 import type { GetEffectiveAccess } from "../../../domain/access/effective-access";
+
+/** The dismiss-cookie value a device of this class writes on dismissal and the
+ * GET read expects back: the step-hash {@link ONBOARDING_VERSION} when the device
+ * has an installable client (so shipping a new onboarding step re-onboards it),
+ * the stable {@link NO_CLIENT_ONBOARDING_VERSION} otherwise (so the no-client
+ * escape card — which such users can never complete away — stays dismissed no
+ * matter how the steps change). The dismiss POST and the GET read derive it from
+ * the same predicate here, so they can't drift; the one runtime coupling left is
+ * that both requests report the same device class, which a same-browser HTML form
+ * submit guarantees by carrying the GET's User-Agent. Preserve that parity if
+ * dismissal ever becomes a background request that could drop or alter the UA. */
+function dismissTokenFor(hasClient: boolean): string {
+	return hasClient ? ONBOARDING_VERSION : NO_CLIENT_ONBOARDING_VERSION;
+}
+
 function readImportSkippedFlash(
 	req: Request,
 	res: Response,
@@ -506,28 +521,22 @@ export function initQueueRoutes(deps: QueueDependencies): Router {
 	 * server-side iOS signal (Safari can't see the app's cookies); every other
 	 * platform reads the same-browser extension liveness/save cookies.
 	 *
-	 * Client devices key dismissal on ONBOARDING_VERSION (the step hash) and
-	 * additionally require the install step to be complete in *this* context: the
-	 * dismiss button only appears once every step is done, so a dismiss without
-	 * `installed` means a different context (a different browser, or a phone whose
-	 * app isn't signed in) — re-show so the user can finish here. No-client devices
-	 * instead key on the stable NO_CLIENT_ONBOARDING_VERSION: the steps can never
-	 * complete there, so the card's Dismiss just sticks on this device, and —
-	 * because that token is decoupled from the step hash — editing the steps (which
-	 * no-client users never see) can't re-surface it. If a client later ships for
-	 * this device, hasClient flips true and the read falls through to the
-	 * `installed && …` arm, where the no-client token no longer matches and the new
-	 * client isn't installed, so onboarding re-appears with its install step. */
+	 * Dismissal compares the cookie against {@link dismissTokenFor} for the device
+	 * class. Client devices additionally require the install step complete in *this*
+	 * context: the dismiss button only appears once every step is done, so a dismiss
+	 * without `installed` means a different context (a different browser, or a phone
+	 * whose app isn't signed in) — re-show so the user can finish here. When a client
+	 * later ships for a currently-clientless device, hasClient flips true and the read
+	 * falls through to this `installed && …` arm, where the no-client token no longer
+	 * matches and the new client isn't installed, so onboarding re-appears. */
 	const resolveOnboardingSignals = async (req: Request, userId: UserId) => {
 		const platform = detectPlatform(req);
 		const hasClient = hasInstallableClient(req);
 		const { installed, savedArticle } = platform === "iphone"
 			? await deps.getIosAppSignals({ userId })
 			: { installed: isExtensionInstalled(req), savedArticle: isExtensionSavedArticle(req) };
-		const dismissCookie = req.cookies?.[DISMISS_COOKIE_NAME];
-		const onboardingDismissed = hasClient
-			? installed && dismissCookie === ONBOARDING_VERSION
-			: dismissCookie === NO_CLIENT_ONBOARDING_VERSION;
+		const dismissTokenMatches = req.cookies?.[DISMISS_COOKIE_NAME] === dismissTokenFor(hasClient);
+		const onboardingDismissed = hasClient ? installed && dismissTokenMatches : dismissTokenMatches;
 		return { platform, installed, savedArticle, hasInstallableClient: hasClient, onboardingDismissed };
 	};
 
@@ -626,10 +635,7 @@ export function initQueueRoutes(deps: QueueDependencies): Router {
 	});
 
 	router.post("/dismiss-onboarding", (req: Request, res: Response) => {
-		/** Persist the token the GET read expects for this device class (see the
-		 * onboardingDismissed read above): the step-hash version for client
-		 * devices, the stable no-client token otherwise. */
-		const version = hasInstallableClient(req) ? ONBOARDING_VERSION : NO_CLIENT_ONBOARDING_VERSION;
+		const version = dismissTokenFor(hasInstallableClient(req));
 		res.cookie(DISMISS_COOKIE_NAME, version, { path: "/", maxAge: 365 * 24 * 60 * 60 * 1000, sameSite: "lax", httpOnly: true });
 		res.redirect(303, QUEUE_PATH);
 	});
