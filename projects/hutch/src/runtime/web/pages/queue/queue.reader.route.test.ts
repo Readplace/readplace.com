@@ -330,6 +330,10 @@ describe("Queue routes", () => {
 			const readerResponse = await agent.get(`/queue/${articleId}/view`);
 			const doc = new JSDOM(readerResponse.text).window.document;
 
+			expect(readerResponse.text).toContain(
+				'<script src="/client-dist/reader-nav.client.js" defer></script>',
+			);
+
 			const topForm = doc.querySelector("[data-test-mark-read-form]");
 			assert(topForm, "the sticky mark-read form must be rendered");
 			assert(
