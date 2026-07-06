@@ -108,7 +108,6 @@ interface AuthDependencies {
 	buildBannerState: BuildBannerState;
 	consumeRateLimit: ConsumeRateLimit;
 	rateLimitRules: Pick<RateLimitRules, "login" | "loginAccount" | "signup">;
-	appleEnabled: boolean;
 }
 
 export function initAuthRoutes(deps: AuthDependencies): Router {
@@ -155,7 +154,7 @@ export function initAuthRoutes(deps: AuthDependencies): Router {
 		}
 		const returnUrl = extractReturnUrl(req.query);
 		const userCount = await fetchUserCount();
-		sendComponent(req, res, Base(LoginPage({ returnUrl, userCount, foundingAllocation: deps.foundingAllocation, appleEnabled: deps.appleEnabled }), bannerStateFromRequest(req)));
+		sendComponent(req, res, Base(LoginPage({ returnUrl, userCount, foundingAllocation: deps.foundingAllocation }), bannerStateFromRequest(req)));
 	});
 
 	const loginRateLimit = createRateLimitMiddleware({
@@ -176,7 +175,6 @@ export function initAuthRoutes(deps: AuthDependencies): Router {
 						returnUrl,
 						userCount,
 						foundingAllocation: deps.foundingAllocation,
-						appleEnabled: deps.appleEnabled,
 						email: req.body?.email,
 						errors: flattenZodErrors(parsed.error.issues),
 					},
@@ -209,7 +207,6 @@ export function initAuthRoutes(deps: AuthDependencies): Router {
 						returnUrl,
 						userCount,
 						foundingAllocation: deps.foundingAllocation,
-						appleEnabled: deps.appleEnabled,
 						email,
 						errors: [{ message: "Invalid email or password" }],
 					},
@@ -233,7 +230,7 @@ export function initAuthRoutes(deps: AuthDependencies): Router {
 		const userCount = await fetchUserCount();
 		const parsed = SignupQuerySchema.safeParse(req.query);
 		const email = parsed.success ? parsed.data.email : undefined;
-		sendComponent(req, res, Base(SignupPage({ returnUrl, userCount, foundingAllocation: deps.foundingAllocation, loadedAt: deps.now().getTime(), email, appleEnabled: deps.appleEnabled }), bannerStateFromRequest(req)));
+		sendComponent(req, res, Base(SignupPage({ returnUrl, userCount, foundingAllocation: deps.foundingAllocation, loadedAt: deps.now().getTime(), email }), bannerStateFromRequest(req)));
 	});
 
 	const signupRateLimit = createRateLimitMiddleware({
@@ -255,7 +252,6 @@ export function initAuthRoutes(deps: AuthDependencies): Router {
 						userCount,
 						foundingAllocation: deps.foundingAllocation,
 						loadedAt: deps.now().getTime(),
-						appleEnabled: deps.appleEnabled,
 						email,
 						errors,
 					},
@@ -375,7 +371,6 @@ export function initAuthRoutes(deps: AuthDependencies): Router {
 						userCount,
 						foundingAllocation: deps.foundingAllocation,
 						loadedAt: deps.now().getTime(),
-						appleEnabled: deps.appleEnabled,
 						errors: [{ message: "Missing checkout session — please start again." }],
 					},
 					{ statusCode: 400 },
@@ -391,7 +386,7 @@ export function initAuthRoutes(deps: AuthDependencies): Router {
 			const userCount = await fetchUserCount();
 			sendComponent(
 				req, res,
-				Base(SignupPage({ userCount, foundingAllocation: deps.foundingAllocation, loadedAt: deps.now().getTime(), appleEnabled: deps.appleEnabled, errors: [{ message }] }, { statusCode }), bannerStateFromRequest(req)),
+				Base(SignupPage({ userCount, foundingAllocation: deps.foundingAllocation, loadedAt: deps.now().getTime(), errors: [{ message }] }, { statusCode }), bannerStateFromRequest(req)),
 			);
 		};
 

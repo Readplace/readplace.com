@@ -463,7 +463,16 @@ function initProviders() {
 				clientId: devAppleClientId,
 				stateSigningSecret: deriveStateSigningSecret(devApplePrivateKeyPem),
 			}
-			: undefined;
+			: {
+				// appleAuth is mandatory (the /auth/apple route always mounts), but local
+				// dev has no Apple key and can't complete Apple's handshake from localhost,
+				// so the exchange is stubbed; the button still redirects to Apple.
+				exchangeAppleCode: async () => {
+					throw new Error("Apple sign-in is not configured for local development");
+				},
+				clientId: "dev.readplace.apple-login",
+				stateSigningSecret: "dev-apple-state-signing-secret",
+			};
 	const crawlStore = initInMemoryArticleCrawl();
 	const summaryStore = initInMemoryGeneratedSummary();
 	const { publishStaleCheckRequested } = initInMemoryStaleCheckRequested({ logger: consoleLogger });

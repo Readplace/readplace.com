@@ -9,8 +9,6 @@ import {
 	createDefaultTestAppFixture,
 } from "@packages/test-fixtures";
 import { initInMemoryRateLimit } from "@packages/test-fixtures/providers/rate-limit";
-import { AppleIdSchema } from "@packages/test-fixtures/providers/apple-auth";
-import type { ExchangeAppleCode } from "@packages/test-fixtures/providers/apple-auth";
 import { completeStripeSignup } from "./test-helpers/complete-stripe-signup";
 import { createAccessToken, saveAccessTokenForUser } from "../test-helpers/oauth-token";
 import { DISPOSABLE_EMAIL_MESSAGE } from "./disposable-email";
@@ -1214,23 +1212,6 @@ describe("Auth routes", () => {
 	});
 
 	describe("Apple sign-in button", () => {
-		const stubExchangeAppleCode: ExchangeAppleCode = async () => ({
-			appleId: AppleIdSchema.parse("apple-sub-123"),
-			email: "apple@example.com",
-			emailVerified: true,
-		});
-
-		function appleConfiguredFixture() {
-			return {
-				...createDefaultTestAppFixture(TEST_APP_ORIGIN),
-				apple: {
-					exchangeAppleCode: stubExchangeAppleCode,
-					clientId: "com.readplace.web",
-					stateSigningSecret: "test-apple-state-secret",
-				},
-			};
-		}
-
 		function appleSection(html: string) {
 			return new JSDOM(html).window.document.querySelector("[data-test-apple-section]");
 		}
@@ -1244,7 +1225,7 @@ describe("Auth routes", () => {
 		}
 
 		it("should render Sign in with Apple on /login with the currentColor Apple logo", async () => {
-			const harness = useApp(appleConfiguredFixture());
+			const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
 			const response = await request(harness.server).get("/login");
 
 			const link = getAppleButton(response.text);
@@ -1257,7 +1238,7 @@ describe("Auth routes", () => {
 		});
 
 		it("should pass return URL through to the Apple sign-in link on /login", async () => {
-			const harness = useApp(appleConfiguredFixture());
+			const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
 			const response = await request(harness.server).get("/login?return=%2Fsave%3Furl%3Dhttps%253A%252F%252Fexample.com");
 
 			const link = getAppleButton(response.text);
@@ -1265,31 +1246,13 @@ describe("Auth routes", () => {
 		});
 
 		it("should render Sign up with Apple on /signup with the Apple logo", async () => {
-			const harness = useApp(appleConfiguredFixture());
+			const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
 			const response = await request(harness.server).get("/signup");
 
 			const link = getAppleButton(response.text);
 			expect(link.getAttribute("href")).toBe("/auth/apple");
 			expect(link.querySelector(".auth-apple-button__label")?.textContent).toBe("Sign up with Apple");
 			assert(link.querySelector("svg.auth-apple-button__logo"), "apple logo must be rendered");
-		});
-
-		it("omits the Apple button on /login when Apple sign-in is not configured", async () => {
-			const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
-			const response = await request(harness.server).get("/login");
-
-			const doc = new JSDOM(response.text).window.document;
-			assert(doc.querySelector("[data-test-google-section]"), "google section proves the auth page rendered");
-			expect(appleSection(response.text)).toBeNull();
-		});
-
-		it("omits the Apple button on /signup when Apple sign-in is not configured", async () => {
-			const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
-			const response = await request(harness.server).get("/signup");
-
-			const doc = new JSDOM(response.text).window.document;
-			assert(doc.querySelector("[data-test-google-section]"), "google section proves the auth page rendered");
-			expect(appleSection(response.text)).toBeNull();
 		});
 	});
 

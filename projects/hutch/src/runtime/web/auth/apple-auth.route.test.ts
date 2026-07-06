@@ -127,19 +127,6 @@ describe("Apple auth routes", () => {
 			expect(doc.querySelector("[data-test-global-error]")?.textContent).toContain("Apple sign-in failed");
 		});
 
-		it("keeps the Apple button on the callback error page so the user can retry", async () => {
-			const fixture = createDefaultTestAppFixture(TEST_APP_ORIGIN);
-			const harness = useApp({ ...fixture, apple: appleWith() });
-			const response = await request(harness.server).post("/auth/apple/callback").type("form").send({});
-
-			expect(response.status).toBe(400);
-			const doc = new JSDOM(response.text).window.document;
-			assert(doc.querySelector("[data-test-global-error]"), "the callback error page must render");
-			const appleButton = doc.querySelector("[data-test-apple-section] .auth-apple-button");
-			assert(appleButton, "the Apple retry button must render on the Apple error page");
-			expect(appleButton.getAttribute("href")).toBe("/auth/apple");
-		});
-
 		it("should 400 when state cookie is missing", async () => {
 			const fixture = createDefaultTestAppFixture(TEST_APP_ORIGIN);
 			const harness = useApp({ ...fixture, apple: appleWith() });

@@ -10,8 +10,6 @@ import {
 
 import { GoogleIdSchema } from "@packages/test-fixtures/providers/google-auth";
 import type { ExchangeGoogleCode } from "@packages/test-fixtures/providers/google-auth";
-import { AppleIdSchema } from "@packages/test-fixtures/providers/apple-auth";
-import type { ExchangeAppleCode } from "@packages/test-fixtures/providers/apple-auth";
 import { CheckoutSessionIdSchema } from "@packages/test-fixtures/providers/stripe-checkout";
 
 const TEST_FOUNDING_MEMBER_LIMIT = 3;
@@ -42,23 +40,6 @@ function stubExchange(overrides?: Partial<Awaited<ReturnType<ExchangeGoogleCode>
 
 function freshState(overrides?: { returnUrl?: string }) {
 	return { nonce: "test-nonce", returnUrl: overrides?.returnUrl, createdAt: Date.now() };
-}
-
-/* Apple's `exchangeAppleCode` is never invoked on the Google callback error
- * path — this config exists only so `deps.appleAuth` is set, which is what makes
- * `appleEnabled` true when the Google error page renders. */
-const stubExchangeApple: ExchangeAppleCode = async () => ({
-	appleId: AppleIdSchema.parse("apple-sub-123"),
-	email: "apple@example.com",
-	emailVerified: true,
-});
-
-function appleConfig() {
-	return {
-		exchangeAppleCode: stubExchangeApple,
-		clientId: "com.readplace.web",
-		stateSigningSecret: "test-apple-state-secret",
-	};
 }
 
 const useApp = useTestServer();
@@ -106,27 +87,6 @@ describe("Google auth routes", () => {
 			expect(response.status).toBe(400);
 			const doc = new JSDOM(response.text).window.document;
 			expect(doc.querySelector("[data-test-global-error]")?.textContent).toContain("Google sign-in failed");
-		});
-
-		it("renders the Apple button on the callback error page when Apple is configured", async () => {
-			const fixture = createDefaultTestAppFixture(TEST_APP_ORIGIN);
-			const harness = useApp({
-				...fixture,
-				google: {
-					exchangeGoogleCode: stubExchange(),
-					clientId: "test-google-client-id",
-					clientSecret: "test-google-client-secret",
-				},
-				apple: appleConfig(),
-			});
-			const response = await request(harness.server).get("/auth/google/callback");
-
-			expect(response.status).toBe(400);
-			const doc = new JSDOM(response.text).window.document;
-			assert(doc.querySelector("[data-test-global-error]"), "the callback error page must render");
-			const appleButton = doc.querySelector("[data-test-apple-section] .auth-apple-button");
-			assert(appleButton, "the Apple button must render on the Google error page when Apple is configured");
-			expect(appleButton.getAttribute("href")).toBe("/auth/apple");
 		});
 
 		it("should 400 when state cookie is missing", async () => {

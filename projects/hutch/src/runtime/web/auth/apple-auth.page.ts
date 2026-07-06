@@ -156,7 +156,7 @@ export const initAppleAuthRoutes = (deps: AppleAuthDependencies): Router => {
 				req,
 				res,
 				Base(LoginPage(
-					{ userCount, foundingAllocation: deps.foundingAllocation, errors: [{ message }], appleEnabled: true },
+					{ userCount, foundingAllocation: deps.foundingAllocation, errors: [{ message }] },
 					{ statusCode: 400 },
 				), bannerStateFromRequest(req)),
 			);
