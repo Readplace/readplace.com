@@ -403,7 +403,7 @@ export interface TestAppFixture {
 	rateLimit: RateLimitBundle;
 	iosOnboardingSignal: IosOnboardingSignalBundle;
 	google: GoogleAuthBundle | undefined;
-	apple: AppleAuthBundle | undefined;
+	apple: AppleAuthBundle;
 	admin: AdminBundle;
 	importSession: ImportSessionBundle;
 	inboxAddress: InboxAddressBundle;

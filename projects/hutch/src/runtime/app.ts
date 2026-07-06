@@ -471,7 +471,16 @@ function initProviders() {
 				clientId: devAppleClientId,
 				stateSigningSecret: deriveStateSigningSecret(devApplePrivateKeyPem),
 			}
-			: undefined;
+			: {
+				// appleAuth is mandatory (the /auth/apple route always mounts), but local
+				// dev has no Apple key and can't complete Apple's handshake from localhost,
+				// so the exchange is stubbed; the button still redirects to Apple.
+				exchangeAppleCode: async () => {
+					throw new Error("Apple sign-in is not configured for local development");
+				},
+				clientId: "dev.readplace.apple-login",
+				stateSigningSecret: "dev-apple-state-signing-secret",
+			};
 	const crawlStore = initInMemoryArticleCrawl();
 	const summaryStore = initInMemoryGeneratedSummary();
 	const { publishStaleCheckRequested } = initInMemoryStaleCheckRequested({ logger: consoleLogger });
@@ -531,6 +540,10 @@ function initProviders() {
 		}
 		if (result.status === "not-modified") return;
 		await articleStore.writeContent({ url, content: result.article.html });
+		// Prod records the crawl instant via the RefreshArticleContent Lambda; dev's
+		// inline crawl must stamp it too, otherwise contentFetchedAt stays unset and
+		// the "Last crawled at" bookmark never renders locally.
+		await articleStore.setContentFetchedAt({ url, at: new Date().toISOString() });
 		await crawlStore.markCrawlReady({ url });
 		await finaliseSummaryFromContent({ url, html: result.article.html });
 	};

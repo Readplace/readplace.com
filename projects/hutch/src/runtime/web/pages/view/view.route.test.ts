@@ -128,6 +128,9 @@ describe("View routes", () => {
 			const iframeDoc = new JSDOM(srcdoc).window.document;
 			assert(iframeDoc.body, "iframe body must exist");
 			expect(iframeDoc.body.innerHTML.trim()).toBe("<p>Body copy.</p>");
+			expect(response.text).toContain(
+				'<script src="/client-dist/reader-nav.client.js" defer></script>',
+			);
 		});
 
 		it("renders the Last crawled at bookmark once a crawl timestamp exists", async () => {

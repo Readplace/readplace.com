@@ -43,6 +43,7 @@ import {
 	initInMemoryOAuthModel,
 } from "./providers/oauth/oauth-model";
 import { initInMemoryOAuthClients } from "./providers/oauth/in-memory-oauth-clients";
+import { AppleIdSchema } from "./providers/apple-auth/apple-auth.schema";
 import { initOAuthClientLookup } from "@packages/domain/oauth";
 import { createValidateAccessToken } from "@packages/web-session";
 import type {
@@ -394,7 +395,18 @@ export function createDefaultTestAppFixture(appOrigin: string): TestAppFixture {
 		rateLimit,
 		iosOnboardingSignal: initInMemoryIosOnboardingSignal(),
 		google: undefined,
-		apple: undefined,
+		/* Apple sign-in is a mandatory dependency — the /auth/apple route is always
+		 * mounted so the button always resolves — so the default fixture wires a
+		 * stub exchange. Apple-flow tests override `apple` with their own bundle. */
+		apple: {
+			exchangeAppleCode: async () => ({
+				appleId: AppleIdSchema.parse("apple-sub-default"),
+				email: "apple-default@example.com",
+				emailVerified: true,
+			}),
+			clientId: "com.readplace.web",
+			stateSigningSecret: "test-apple-state-secret",
+		},
 		admin: {
 			adminEmails: [],
 			recrawlServiceToken: "test-service-token-abcdefghij",

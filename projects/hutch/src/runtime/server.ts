@@ -136,7 +136,7 @@ import { initForgotPasswordRoutes } from "./web/auth/forgot-password.page";
 import { initQueueRoutes } from "./web/pages/queue/queue.page";
 import {
 	ChromelessReader,
-	RegularReader,
+	StickyReader,
 } from "./web/shared/article-body/reader-actions/reader-actions.component";
 import { QUEUE_PATH } from "./web/pages/queue/queue.url";
 import { initImportSessionRoutes } from "./web/pages/import/import.page";
@@ -225,7 +225,7 @@ interface AppDependencies {
 		clientId: string;
 		clientSecret: string;
 	};
-	appleAuth?: {
+	appleAuth: {
 		exchangeAppleCode: ExchangeAppleCode;
 		clientId: string;
 		stateSigningSecret: string;
@@ -891,7 +891,6 @@ export function createApp(dependencies: AppDependencies): Express {
 			loginAccount: deps.rateLimitRules.loginAccount,
 			signup: deps.rateLimitRules.signup,
 		},
-		featureToggle,
 	});
 	app.use("/auth/session", sessionBridgeCors);
 	app.use(authRouter);
@@ -921,30 +920,28 @@ export function createApp(dependencies: AppDependencies): Express {
 		app.use(googleAuthRouter);
 	}
 
-	if (deps.appleAuth) {
-		const appleAuthRouter = initAppleAuthRoutes({
-			appleClientId: deps.appleAuth.clientId,
-			stateSigningSecret: deps.appleAuth.stateSigningSecret,
-			appOrigin,
-			baseUrl: deps.baseUrl,
-			staticBaseUrl,
-			secureCookies,
-			createSession: deps.createSession,
-			createAppleUser,
-			findUserByEmail: deps.findUserByEmail,
-			countUsers,
-			markEmailVerified: deps.markEmailVerified,
-			exchangeAppleCode: deps.appleAuth.exchangeAppleCode,
-			upsertTrialing: deps.subscriptionProviders.upsertTrialing,
-			createTrialEndSchedule: deps.trialScheduler.createTrialEndSchedule,
-			sendEmail: deps.sendEmail,
-			logError: deps.logError,
-			now: deps.now,
-			conversionLogger: deps.conversionLogger,
-			foundingAllocation,
-		});
-		app.use(appleAuthRouter);
-	}
+	const appleAuthRouter = initAppleAuthRoutes({
+		appleClientId: deps.appleAuth.clientId,
+		stateSigningSecret: deps.appleAuth.stateSigningSecret,
+		appOrigin,
+		baseUrl: deps.baseUrl,
+		staticBaseUrl,
+		secureCookies,
+		createSession: deps.createSession,
+		createAppleUser,
+		findUserByEmail: deps.findUserByEmail,
+		countUsers,
+		markEmailVerified: deps.markEmailVerified,
+		exchangeAppleCode: deps.appleAuth.exchangeAppleCode,
+		upsertTrialing: deps.subscriptionProviders.upsertTrialing,
+		createTrialEndSchedule: deps.trialScheduler.createTrialEndSchedule,
+		sendEmail: deps.sendEmail,
+		logError: deps.logError,
+		now: deps.now,
+		conversionLogger: deps.conversionLogger,
+		foundingAllocation,
+	});
+	app.use(appleAuthRouter);
 
 	const forgotPasswordRouter = initForgotPasswordRoutes({
 		sendEmail: deps.sendEmail,
@@ -991,7 +988,7 @@ export function createApp(dependencies: AppDependencies): Express {
 		refreshArticleIfStale: deps.refreshArticleIfStale,
 		publishUpdateFetchTimestamp: deps.publishUpdateFetchTimestamp,
 		readArticleContent: deps.readArticleContent,
-		regularReader: RegularReader,
+		stickyReader: StickyReader,
 		chromelessReader: ChromelessReader,
 		httpErrorMessageMapping: deps.httpErrorMessageMapping,
 		getIosAppSignals: deps.getIosAppSignals,

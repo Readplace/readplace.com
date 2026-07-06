@@ -90,6 +90,9 @@ describe("GET /account (founding member, no subscription row)", () => {
 		assert(countdown, "trial countdown element must always be in the DOM");
 		expect(countdown.classList.contains("trial-countdown--hidden")).toBe(true);
 		expect(countdown.getAttribute("data-trial-state")).toBe("");
+		// The nav-hide bundle is injected per page and carries no page gate, so a
+		// page that doesn't opt in must not serve it or its nav would hide on scroll.
+		expect(response.text).not.toContain("/client-dist/reader-nav.client.js");
 	});
 });
 

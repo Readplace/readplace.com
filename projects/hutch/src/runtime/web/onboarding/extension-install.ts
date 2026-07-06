@@ -40,9 +40,27 @@ export function detectPlatform(req: Request): Platform {
 }
 
 /** Extension-install CTA browser for a request, projected from the canonical
- * {@link detectPlatform} so `/` and the A/B landing arms never re-sniff the UA. */
+ * {@link detectPlatform} so `/` and the A/B landing arms never re-sniff the UA.
+ * Falls back to the generic `other` CTA on any device with no installable client
+ * (Android — whose Chrome/Firefox can't take our extension — and the
+ * unrecognised `other` bucket) so a marketing page never offers a
+ * browser-specific "Install" the device can't honour. */
 export function detectInstallBrowser(req: Request): InstallBrowser {
+	if (!hasInstallableClient(req)) return "other";
 	return INSTALL_BROWSER_BY_PLATFORM[detectPlatform(req)];
+}
+
+/** True when this device has a first-party client the user can actually
+ * install (a browser extension or the iPhone app). False for Android — whose
+ * Chrome/Firefox both still match Chrome//Firefox/ in detectPlatform yet
+ * cannot install our extension — and for the "other" bucket (desktop Safari,
+ * iPad, unrecognised UAs), where the onboarding install step can never
+ * complete. Android is read from the raw UA precisely because detectPlatform
+ * would otherwise mislabel it "chrome"/"firefox". */
+export function hasInstallableClient(req: Request): boolean {
+	const ua = req.headers["user-agent"] ?? "";
+	if (ua.includes("Android")) return false;
+	return detectPlatform(req) !== "other";
 }
 
 export function buildExtensionInstallUrl(platform: Platform): string {

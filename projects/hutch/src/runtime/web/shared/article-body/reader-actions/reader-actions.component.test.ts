@@ -4,6 +4,7 @@ import {
 	type ActionButtons,
 	ChromelessReader,
 	RegularReader,
+	StickyReader,
 } from "./reader-actions.component";
 
 const BACK = {
@@ -101,6 +102,31 @@ describe("RegularReader", () => {
 
 	it("carries the standard page body class (no chromeless offset)", () => {
 		expect(RegularReader({ actionBtns: ACTION_BTNS }).bodyClass).toBe("page-reader");
+	});
+});
+
+describe("StickyReader", () => {
+	it("places the top action buttons inside a sticky container, keeping the mark-read form", () => {
+		const { top } = StickyReader({ actionBtns: ACTION_BTNS });
+		const topDoc = parse(top.to("text/html").body);
+
+		const sticky = topDoc.querySelector(".article-body__actions--sticky");
+		assert(sticky, "sticky container must wrap the top action buttons");
+		assert(
+			sticky.querySelector(".article-body__actions--top"),
+			"the top action bar must live inside the sticky container",
+		);
+		expect(topDoc.querySelector("[data-test-back-link]")?.getAttribute("href")).toBe(BACK.topHref);
+		assert(topDoc.querySelector("[data-test-mark-read-form]"), "the web reader keeps the top mark-read form");
+	});
+
+	it("drops the entire bottom bar — the sticky top bar stays reachable while scrolling", () => {
+		const { bottom } = StickyReader({ actionBtns: ACTION_BTNS });
+		expect(bottom.to("text/html").body).toBe("");
+	});
+
+	it("carries the standard page body class so the toolbar pins below the web header", () => {
+		expect(StickyReader({ actionBtns: ACTION_BTNS }).bodyClass).toBe("page-reader");
 	});
 });
 

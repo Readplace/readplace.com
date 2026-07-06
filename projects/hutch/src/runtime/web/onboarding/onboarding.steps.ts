@@ -82,3 +82,11 @@ export const ONBOARDING_VERSION = createHash("sha256")
 	.update(ONBOARDING_STEPS.map((step) => step.id).sort().join("|"))
 	.digest("hex")
 	.slice(0, 8);
+
+/** Dismiss token for the no-client escape card. Deliberately a fixed string,
+ * NOT hashed from the step list like {@link ONBOARDING_VERSION}: a no-client
+ * device never sees the steps, so editing them must not rotate this token and
+ * re-surface a card the user already dismissed. Never collides with an
+ * ONBOARDING_VERSION value (8 hex chars). Bump by hand only if the no-client
+ * card's own content changes enough to warrant re-notifying dismissers. */
+export const NO_CLIENT_ONBOARDING_VERSION = "no-client";

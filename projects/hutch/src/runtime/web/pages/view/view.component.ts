@@ -1,6 +1,7 @@
 import assert from "node:assert";
 import { readFileSync } from "node:fs";
 import { join } from "node:path";
+import { NAV_HIDE_SCRIPT, readerScripts } from "../../shared/reader-nav-script";
 import type {
 	ArticleMetadata,
 	Minutes,
@@ -222,6 +223,15 @@ export function ViewPage(input: ViewPageInput): PageBody {
 		styles: VIEW_STYLES,
 		bodyClass: "page-view",
 		content: { html: content },
-		scripts: SHARE_BALLOON_SCRIPT + PROGRESS_BAR_SCRIPT + READER_IFRAME_SCRIPT + EXPIRY_COUNTER_SCRIPT + VIEW_PAYWALL_SCRIPT + CRAWL_BOOKMARK_SCRIPT,
+		scripts: readerScripts({
+			navHide: NAV_HIDE_SCRIPT,
+			page:
+				SHARE_BALLOON_SCRIPT +
+				PROGRESS_BAR_SCRIPT +
+				READER_IFRAME_SCRIPT +
+				EXPIRY_COUNTER_SCRIPT +
+				VIEW_PAYWALL_SCRIPT +
+				CRAWL_BOOKMARK_SCRIPT,
+		}),
 	};
 }

@@ -1,16 +1,24 @@
 import assert from "node:assert/strict";
 import { JSDOM } from "jsdom";
 import { OnboardingChecklist } from "./onboarding.component";
-import type { OnboardingContext } from "./onboarding.types";
+import type { InstallableClientOnboarding, OnboardingContext } from "./onboarding.types";
 
-function contextWith(overrides: Partial<OnboardingContext> = {}): OnboardingContext {
+function contextWith(
+	overrides: Partial<Omit<InstallableClientOnboarding, "hasInstallableClient">> = {},
+): InstallableClientOnboarding {
 	return {
+		hasInstallableClient: true,
 		installed: false,
 		savedArticle: false,
 		platform: "chrome",
 		...overrides,
 	};
 }
+
+/** A device with no installable client renders the escape card; its context is
+ * just the discriminant — no platform/installed/savedArticle can exist to
+ * disagree with the no-client state. */
+const NO_CLIENT_CONTEXT: OnboardingContext = { hasInstallableClient: false };
 
 function parse(html: string): Document {
 	return new JSDOM(html).window.document;
@@ -253,5 +261,64 @@ describe("OnboardingChecklist", () => {
 		assert(container, "onboarding container must still be rendered when dismissed");
 		assert(container.classList.contains("onboarding--hidden"));
 		assert(!container.classList.contains("onboarding--visible"));
+	});
+
+	describe("no installable client", () => {
+		it("renders the no-client card instead of the step checklist", () => {
+			const doc = parse(OnboardingChecklist(NO_CLIENT_CONTEXT));
+
+			const noClient = doc.querySelector("[data-test-onboarding-no-client]");
+			assert(noClient, "no-client card must be rendered");
+
+			const steps = doc.querySelector("[data-test-onboarding-steps]");
+			assert.equal(steps, null, "the step checklist must not render on a no-client device");
+
+			const heading = noClient.querySelector(".onboarding__title");
+			assert(heading);
+			assert.match(heading.textContent ?? "", /Fayner Brack/);
+		});
+
+		it("keeps the container visible by default", () => {
+			const doc = parse(OnboardingChecklist(NO_CLIENT_CONTEXT));
+
+			const container = doc.querySelector("[data-test-onboarding]");
+			assert(container, "onboarding container must be rendered");
+			assert(container.classList.contains("onboarding--visible"));
+			assert(!container.classList.contains("onboarding--hidden"));
+		});
+
+		it("offers a 'See install options' action linking to /install", () => {
+			const doc = parse(OnboardingChecklist(NO_CLIENT_CONTEXT));
+
+			const action = doc.querySelector("[data-test-onboarding-no-client] [data-test-onboarding-action]");
+			assert(action, "install-options link must be rendered");
+			assert.equal(action.textContent, "See install options");
+			assert.equal(action.getAttribute("href"), "/install");
+		});
+
+		it("offers a Dismiss button that POSTs to the dismiss route", () => {
+			const doc = parse(OnboardingChecklist(NO_CLIENT_CONTEXT));
+
+			const dismiss = doc.querySelector("[data-test-onboarding-dismiss]");
+			assert(dismiss, "Dismiss button must be rendered");
+			assert.equal(dismiss.textContent, "Dismiss");
+
+			const form = dismiss.closest("form");
+			assert(form, "Dismiss button must live inside a form");
+			assert.equal(form.getAttribute("method"), "POST");
+			assert.equal(form.getAttribute("action"), "/queue/dismiss-onboarding");
+		});
+
+		it("renders the no-client card hidden when dismissed", () => {
+			const doc = parse(OnboardingChecklist(NO_CLIENT_CONTEXT, { dismissed: true }));
+
+			const container = doc.querySelector("[data-test-onboarding]");
+			assert(container, "onboarding container must still be rendered when dismissed");
+			assert(container.classList.contains("onboarding--hidden"));
+			assert(!container.classList.contains("onboarding--visible"));
+
+			const noClient = doc.querySelector("[data-test-onboarding-no-client]");
+			assert(noClient, "no-client card markup must still be present, just hidden via the state class");
+		});
 	});
 });
