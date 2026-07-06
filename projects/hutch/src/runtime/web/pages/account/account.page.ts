@@ -37,9 +37,6 @@ import type {
 } from "@packages/provider-contracts/trial-scheduler";
 import type { StorePendingSignup } from "@packages/provider-contracts/pending-signup";
 import { Base } from "../../base.component";
-import { wantsSiren } from "../../content-negotiation";
-import { SIREN_MEDIA_TYPE } from "../../api/siren";
-import { toAccountEntity } from "../../api/account-siren";
 import type { BuildBannerState } from "../../banner-state";
 import { HxRedirectPage } from "../../hx-redirect-page";
 import { sendComponent } from "@packages/web-shell";
@@ -144,10 +141,6 @@ export function initAccountRoutes(deps: AccountDependencies): Router {
 
 	router.get("/", async (req: Request, res: Response) => {
 		assert(req.userId, "userId required - route must be protected by requireAuth");
-		if (wantsSiren(req)) {
-			res.type(SIREN_MEDIA_TYPE).json(toAccountEntity());
-			return;
-		}
 		const access = await deps.getEffectiveAccess(req.userId);
 		const row = await deps.findSubscriptionByUserId(req.userId);
 		const cardSection = await loadCardSection({

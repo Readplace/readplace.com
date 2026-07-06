@@ -1240,27 +1240,6 @@ describe("POST /account/cards/confirm — post-attach cap reconciliation", () =>
 	});
 });
 
-describe("GET /account (Siren)", () => {
-	it("emits the account entity with a destructive delete-account action for a Siren client", async () => {
-		const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
-		const { agent } = await loginUser(harness, "siren@example.com");
-
-		const response = await agent
-			.get("/account")
-			.set("Accept", "application/vnd.siren+json");
-
-		expect(response.status).toBe(200);
-		expect(response.headers["content-type"]).toContain("application/vnd.siren+json");
-		const deleteAction = response.body.actions.find(
-			(a: { name: string }) => a.name === "delete-account",
-		);
-		assert(deleteAction, "delete-account action must be present");
-		expect(deleteAction.href).toBe("/account/delete");
-		expect(deleteAction.method).toBe("POST");
-		expect(deleteAction.class).toEqual(["destructive"]);
-	});
-});
-
 describe("POST /account/delete", () => {
 	it("destroys the session, clears the cookie, and redirects to the logged-out home", async () => {
 		const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));

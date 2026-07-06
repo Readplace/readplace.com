@@ -1286,10 +1286,12 @@ describe("Auth routes", () => {
 		// The day a normal user can reach SIWA, in-app deletion must also revoke the
 		// Apple grant (persist refresh_token + POST https://appleid.apple.com/auth/revoke),
 		// or Apple leaves the app in the user's "Sign in with Apple" list and rejects
-		// under the exact guideline this PR targets. This test pins BOTH facts so
-		// moving either without the other turns CI red and points here; the only
-		// accepted states are {reachable:false, persisted:false} (today) and
-		// {reachable:true, persisted:true} (SIWA live + revocation wired).
+		// under the exact guideline this PR targets. This test couples the two facts
+		// as an equality — they must move together — so the only accepted states are
+		// {reachable:false, persisted:false} (today) and {reachable:true, persisted:true}
+		// (SIWA live + revocation wired). Un-gating SIWA without wiring revocation
+		// (the dangerous {true, false}) — or, symmetrically, drifting either alone —
+		// turns CI red and points here.
 		it("locks Sign in with Apple to Apple account-deletion revocation (App Store 5.1.1(v))", async () => {
 			const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
 			const loginNoFlag = (await request(harness.server).get("/login")).text;
@@ -1304,10 +1306,7 @@ describe("Auth routes", () => {
 			assert(appleExchange.success, "a well-formed Apple token response must parse");
 			const appleRefreshTokenPersisted = "refresh_token" in appleExchange.data;
 
-			expect({ siwaReachableByDefault, appleRefreshTokenPersisted }).toEqual({
-				siwaReachableByDefault: false,
-				appleRefreshTokenPersisted: false,
-			});
+			expect(siwaReachableByDefault).toBe(appleRefreshTokenPersisted);
 		});
 	});
 

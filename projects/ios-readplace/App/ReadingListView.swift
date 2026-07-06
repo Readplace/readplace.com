@@ -13,10 +13,9 @@ struct ReadingListView: View {
 	/// permission banner); those must not trigger a re-read.
 	@State private var didEnterBackground = false
 	/// A destructive affordance awaiting confirmation. A destructive control (e.g.
-	/// `delete`, `delete-account`) is irreversible, so it routes here for an explicit
-	/// confirm before the invoke fires, rather than acting on the tap. `article` is
-	/// nil for a collection-level control (e.g. account deletion), which acts on no
-	/// row.
+	/// `delete`) is irreversible, so it routes here for an explicit confirm before
+	/// the invoke fires, rather than acting on the tap. `article` is nil for a
+	/// collection-level control, which acts on no row.
 	@State private var pendingDestructive: PendingDestructive?
 
 	private struct PendingDestructive: Identifiable {
@@ -98,10 +97,8 @@ struct ReadingListView: View {
 						confirmDestructive(pending)
 					}
 					Button("Cancel", role: .cancel) { pendingDestructive = nil }
-				} message: { pending in
-					Text(pending.affordance.endsSession
-						? "This permanently deletes your account, every saved article, and your reading history. It can't be undone."
-						: "This can't be undone.")
+				} message: { _ in
+					Text("This can't be undone.")
 				}
 		}
 	}
@@ -117,11 +114,11 @@ struct ReadingListView: View {
 		case let .open(link):
 			viewModel.open(link: link)
 		case let .invoke(action):
-			// A destructive collection control (e.g. account deletion) is
-			// irreversible, so route it through the same confirmation the row
-			// controls use — keyed on `isDestructive`, never on the action name — and
-			// only invoke once the user confirms. The confirm gate lives here rather
-			// than in `ToolbarRoute.route` so routing stays name-agnostic.
+			// A destructive collection control is irreversible, so route it through
+			// the same confirmation the row controls use — keyed on `isDestructive`,
+			// never on the action name — and only invoke once the user confirms. The
+			// confirm gate lives here rather than in `ToolbarRoute.route` so routing
+			// stays name-agnostic.
 			if affordance.presentation.isDestructive {
 				pendingDestructive = PendingDestructive(affordance: affordance, article: nil)
 			} else {
@@ -131,19 +128,12 @@ struct ReadingListView: View {
 	}
 
 	/// Performs a confirmed destructive affordance. A row control invokes on its
-	/// article; a collection control invokes on the collection and, when it ends the
-	/// session (account deletion), tears down local auth so the app returns to the
-	/// login screen with no residual traces.
+	/// article; a collection control invokes on the collection.
 	private func confirmDestructive(_ pending: PendingDestructive) {
 		defer { pendingDestructive = nil }
 		guard let action = pending.affordance.action else { return }
 		if let article = pending.article {
 			Task { await viewModel.invoke(action, on: article) }
-		} else if pending.affordance.endsSession {
-			Task {
-				await viewModel.invokeCollection(action)
-				session.forceLogout()
-			}
 		} else {
 			Task { await viewModel.invokeCollection(action) }
 		}

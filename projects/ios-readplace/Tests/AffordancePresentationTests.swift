@@ -48,28 +48,6 @@ final class AffordancePresentationTests: XCTestCase {
 		XCTAssertTrue(presentation.removesItem)
 	}
 
-	func testDeleteAccountMapsToADestructiveToolbarControlThatRemovesNoRow() {
-		// Account deletion is irreversible (destructive, so the View confirms) and a
-		// toolbar control, but it acts on the whole account, not a reading-list row —
-		// so removesItem is false, unlike `delete`.
-		let presentation = AffordancePresentation(token: "delete-account")
-		XCTAssertEqual(presentation.systemImage, "person.crop.circle.badge.xmark")
-		XCTAssertEqual(presentation.tint, .red)
-		XCTAssertTrue(presentation.isDestructive)
-		XCTAssertFalse(presentation.removesItem, "there is no reading-list row to drop")
-		XCTAssertTrue(presentation.isToolbarControl)
-	}
-
-	func testEndsSessionIsTrueOnlyForAccountDeletion() throws {
-		// The client tears down local auth after a successful invoke only for account
-		// deletion — a purge is destructive too but keeps the session — so this keys
-		// on the token, not on `isDestructive`.
-		let deleteAccount = try XCTUnwrap(Affordance(action: action(name: "delete-account", href: "/account/delete")))
-		XCTAssertTrue(deleteAccount.endsSession)
-		let delete = try XCTUnwrap(Affordance(action: action(name: "delete", href: "/queue/a1/delete")))
-		XCTAssertFalse(delete.endsSession, "a row delete is destructive but keeps the session")
-	}
-
 	func testSearchMapsToANeutralMagnifierControl() {
 		let presentation = AffordancePresentation(token: "search")
 		XCTAssertEqual(presentation.systemImage, "magnifyingglass")
