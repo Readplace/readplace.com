@@ -49,4 +49,20 @@ test.describe("Crawl bookmark visual regression", () => {
 		await openReaderWithBookmark(page);
 		await expect(page.locator(".crawl-bookmark")).toHaveScreenshot("crawl-bookmark-dark.png");
 	});
+
+	// The handle collapses to just its grip when the disclosure closes (mobile /
+	// narrow viewports), so its height must not depend on the open state — a
+	// regression here reintroduces the short-sliver-vs-tall-capsule mismatch that
+	// PR #936 caused by dropping the handle's fixed height. Compared numerically
+	// (not via a screenshot) so it needs no per-platform PNG baseline.
+	test("the handle is the same height whether the capsule is open or collapsed", async ({ page }) => {
+		await seedCrawledArticle(page);
+		await openReaderWithBookmark(page);
+		const handle = page.locator(".crawl-bookmark__handle");
+		const openHeight = (await handle.boundingBox())?.height;
+		await page.locator(".crawl-bookmark").evaluate((el) => el.removeAttribute("open"));
+		const collapsedHeight = (await handle.boundingBox())?.height;
+		assert.ok(openHeight && collapsedHeight, "handle must have a measurable height in both states");
+		assert.equal(collapsedHeight, openHeight, "collapsed handle must match the open capsule height");
+	});
 });

@@ -523,6 +523,10 @@ function initProviders() {
 		}
 		if (result.status === "not-modified") return;
 		await articleStore.writeContent({ url, content: result.article.html });
+		// Prod records the crawl instant via the RefreshArticleContent Lambda; dev's
+		// inline crawl must stamp it too, otherwise contentFetchedAt stays unset and
+		// the "Last crawled at" bookmark never renders locally.
+		await articleStore.setContentFetchedAt({ url, at: new Date().toISOString() });
 		await crawlStore.markCrawlReady({ url });
 		await finaliseSummaryFromContent({ url, html: result.article.html });
 	};

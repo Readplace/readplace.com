@@ -26,6 +26,7 @@ function initWithDom(
 
 const OPEN_BOOKMARK = `<details class="crawl-bookmark" open><summary class="crawl-bookmark__handle"></summary></details>`;
 const CLOSED_BOOKMARK = `<details class="crawl-bookmark"><summary class="crawl-bookmark__handle"></summary></details>`;
+const BOOKMARK_WITH_TABS = `<details class="crawl-bookmark" open><summary class="crawl-bookmark__handle"></summary><ul class="crawl-bookmark__tabs"><li class="crawl-bookmark__tab"><span class="crawl-bookmark__prefix">Last crawled at</span> <time class="crawl-bookmark__time">1 Jan '26</time></li></ul></details>`;
 
 describe("initCrawlBookmark", () => {
 	it("collapses the bookmark on a narrow viewport", () => {
@@ -64,5 +65,29 @@ describe("initCrawlBookmark", () => {
 	it("no-ops when no bookmark is present (article still crawling)", () => {
 		const { document } = initWithDom(`<main></main>`, false);
 		expect(document.querySelector(".crawl-bookmark")).toBeNull();
+	});
+
+	it("toggles the whole capsule when the info panel — not just the handle — is clicked", () => {
+		const { document } = initWithDom(BOOKMARK_WITH_TABS, false);
+		const bookmark = document.querySelector(".crawl-bookmark");
+		assert(bookmark, "the bookmark must be present");
+		const tabs = document.querySelector<HTMLElement>(".crawl-bookmark__tabs");
+		assert(tabs, "the info panel must be present");
+		assert.equal(bookmark.hasAttribute("open"), true, "a wide viewport starts open");
+		tabs.click();
+		assert.equal(bookmark.hasAttribute("open"), false, "clicking the panel closes it");
+		tabs.click();
+		assert.equal(bookmark.hasAttribute("open"), true, "clicking the panel opens it again");
+	});
+
+	it("binds the panel toggle once, so re-syncing the same bookmark can't stack listeners", () => {
+		const { document, triggerSwap } = initWithDom(BOOKMARK_WITH_TABS, false);
+		triggerSwap(document.body);
+		const bookmark = document.querySelector(".crawl-bookmark");
+		assert(bookmark, "the bookmark must be present");
+		const tabs = document.querySelector<HTMLElement>(".crawl-bookmark__tabs");
+		assert(tabs, "the info panel must be present");
+		tabs.click();
+		assert.equal(bookmark.hasAttribute("open"), false, "a single click toggles exactly once");
 	});
 });
