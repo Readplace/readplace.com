@@ -403,6 +403,47 @@ describe("initDynamoDbSubscriptionProviders", () => {
 		});
 	});
 
+	describe("markTrialReminderEmailSent", () => {
+		it("issues a guarded Update that records trialReminderEmailSentAt and bumps updatedAt", async () => {
+			let received: unknown;
+			const client = createFakeClient((input) => {
+				received = input;
+				return {};
+			});
+			const subs = initDynamoDbSubscriptionProviders({
+				client: client as DynamoDBDocumentClient,
+				tableName: TABLE,
+				now: NOW,
+			});
+
+			await subs.markTrialReminderEmailSent({
+				userId: USER_ID,
+				sentAt: "2026-07-17T00:00:00.000Z",
+			});
+
+			const command = received as {
+				input: {
+					Key?: Record<string, unknown>;
+					UpdateExpression?: string;
+					ConditionExpression?: string;
+					ExpressionAttributeValues?: Record<string, unknown>;
+				};
+			};
+			expect(command.input.Key).toEqual({ userId: USER_ID });
+			expect(command.input.UpdateExpression).toContain(
+				"trialReminderEmailSentAt = :sentAt",
+			);
+			expect(command.input.UpdateExpression).toContain("updatedAt = :now");
+			expect(command.input.ConditionExpression).toContain("attribute_exists(userId)");
+			expect(command.input.ExpressionAttributeValues?.[":sentAt"]).toBe(
+				"2026-07-17T00:00:00.000Z",
+			);
+			expect(command.input.ExpressionAttributeValues?.[":now"]).toBe(
+				"2026-05-22T10:00:00.000Z",
+			);
+		});
+	});
+
 	describe("findByUserId with trialFeedbackEmailSentAt", () => {
 		it("parses a cancelled trial row that carries trialFeedbackEmailSentAt", async () => {
 			const client = createFakeClient(() => ({

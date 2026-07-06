@@ -134,5 +134,8 @@ describe("GET /auth/checkout/success", () => {
 		// Schedule delete is idempotent so it's safe to call even when no
 		// schedule exists (first-time-paid signup).
 		expect(trialScheduler.deleteCalls()).toContain(lookup.userId);
+		// The pre-expiry reminder schedule is cleared too — a paid user must
+		// never receive the "your trial ends soon" nudge.
+		expect(trialScheduler.trialReminderDeleteCalls()).toContain(lookup.userId);
 	});
 });

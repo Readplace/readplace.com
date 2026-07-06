@@ -754,6 +754,38 @@ describe("POST /account/reactivate", () => {
 		expect(row.subscriptionId).toBeUndefined();
 		// SubscriptionReactivated emitted without subscriptionId.
 		expect(reactivatedEvents).toEqual([{ userId }]);
+		// Trial-reminder schedule recreated at trialEndsAt minus 2 days (>2d remain).
+		const reminderFiresAt = trialScheduler.getTrialReminderSchedule(userId);
+		assert(reminderFiresAt, "reminder schedule must be recreated when >2d remain");
+		expect(new Date(reminderFiresAt).getTime()).toBe(
+			new Date(trialEndsAt).getTime() - 2 * ONE_DAY_MS,
+		);
+	});
+
+	it("trial reactivate — does NOT recreate the reminder when trialEndsAt is under two days away", async () => {
+		const fixture = createDefaultTestAppFixture(TEST_APP_ORIGIN);
+		fixture.events.publishSubscriptionReactivated = async () => {};
+		const harness = useApp(fixture);
+		const { subscriptionProviders, trialScheduler } = harness;
+		const { agent, userId } = await loginUser(harness, "reactivate-trial-soon@example.com");
+		const trialEndsAt = new Date(Date.now() + ONE_DAY_MS).toISOString();
+		await subscriptionProviders.upsertTrialing({ userId, trialEndsAt });
+		await subscriptionProviders.markPendingCancellation({
+			userId,
+			cancellationEffectiveAt: trialEndsAt,
+		});
+
+		const response = await agent.post("/account/reactivate");
+
+		expect(response.status).toBe(303);
+		expect(response.headers.location).toBe("/account");
+		// Trial-end schedule still recreated, but the reminder would fire in the
+		// past (EventBridge rejects at() in the past) so it is skipped.
+		expect(trialScheduler.getSchedule(userId)).toBe(trialEndsAt);
+		expect(trialScheduler.getTrialReminderSchedule(userId)).toBeUndefined();
+		const row = await subscriptionProviders.findByUserId(userId);
+		assert(row, "row must exist");
+		expect(row.status).toBe("trialing");
 	});
 
 	it("noop for an already-active user (double-click race or stale form) — 303 /account, no Stripe call, no event, no schedule mutation", async () => {

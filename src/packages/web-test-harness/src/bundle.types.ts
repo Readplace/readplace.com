@@ -24,12 +24,14 @@ import type {
 	CreateSession,
 	CreateSubscriptionOnExistingCustomer,
 	CreateTrialEndSchedule,
+	CreateTrialReminderSchedule,
 	CreateUser,
 	CreateUserWithPasswordHash,
 	CreateVerificationToken,
 	DeleteArticle,
 	DeleteDeferredCancellationSchedule,
 	DeleteTrialEndSchedule,
+	DeleteTrialReminderSchedule,
 	DestroySession,
 	DestroyUserSessions,
 	EmailMessage,
@@ -173,12 +175,17 @@ export interface TrialSchedulerBundle {
 	deleteTrialEndSchedule: DeleteTrialEndSchedule;
 	createDeferredCancellationSchedule: CreateDeferredCancellationSchedule;
 	deleteDeferredCancellationSchedule: DeleteDeferredCancellationSchedule;
+	createTrialReminderSchedule: CreateTrialReminderSchedule;
+	deleteTrialReminderSchedule: DeleteTrialReminderSchedule;
 	getSchedule: (userId: UserId) => string | undefined;
 	allSchedules: () => readonly { userId: UserId; firesAt: string }[];
 	deleteCalls: () => readonly UserId[];
 	getDeferredCancellationSchedule: (userId: UserId) => string | undefined;
 	allDeferredCancellationSchedules: () => readonly { userId: UserId; firesAt: string }[];
 	deferredCancellationDeleteCalls: () => readonly UserId[];
+	getTrialReminderSchedule: (userId: UserId) => string | undefined;
+	allTrialReminderSchedules: () => readonly { userId: UserId; firesAt: string }[];
+	trialReminderDeleteCalls: () => readonly UserId[];
 }
 
 export interface PaymentMethodsBundle {

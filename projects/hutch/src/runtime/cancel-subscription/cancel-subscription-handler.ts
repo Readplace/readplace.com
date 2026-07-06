@@ -22,6 +22,7 @@ import type { ScheduleCancellationAtPeriodEnd } from "@packages/provider-contrac
 import type {
 	CreateDeferredCancellationSchedule,
 	DeleteTrialEndSchedule,
+	DeleteTrialReminderSchedule,
 } from "@packages/provider-contracts/trial-scheduler";
 
 type CancelBranch = (row: SubscriptionRecord) => Promise<void>;
@@ -31,6 +32,7 @@ interface HandlerDeps {
 	scheduleCancellationAtPeriodEnd: ScheduleCancellationAtPeriodEnd;
 	createDeferredCancellationSchedule: CreateDeferredCancellationSchedule;
 	deleteTrialEndSchedule: DeleteTrialEndSchedule;
+	deleteTrialReminderSchedule: DeleteTrialReminderSchedule;
 	publishSubscriptionCancellationScheduled: PublishSubscriptionCancellationScheduled;
 	publishSubscriptionCancelled: PublishSubscriptionCancelled;
 	logger: HutchLogger;
@@ -76,6 +78,10 @@ function buildBranches(deps: HandlerDeps): Record<SubscriptionStatus, CancelBran
 			// drives the final cancelled flip — no Stripe webhook fires for
 			// trial users (no Stripe subscription exists).
 			await deps.deleteTrialEndSchedule({ userId: row.userId });
+			// A cancelling trialist must not receive the pre-expiry subscribe
+			// nudge. The handler's status guard would noop anyway; deleting the
+			// schedule is defence-in-depth plus scheduler hygiene.
+			await deps.deleteTrialReminderSchedule({ userId: row.userId });
 			await deps.createDeferredCancellationSchedule({
 				userId: row.userId,
 				firesAt: addOneHour(row.trialEndsAt),
@@ -84,7 +90,7 @@ function buildBranches(deps: HandlerDeps): Record<SubscriptionStatus, CancelBran
 				userId: row.userId,
 				cancellationEffectiveAt: row.trialEndsAt,
 			});
-			deps.logger.info("[cancel-subscription] trialing → trial-end schedule deleted + deferred schedule + SubscriptionCancellationScheduled", {
+			deps.logger.info("[cancel-subscription] trialing → trial-end + trial-reminder schedules deleted + deferred schedule + SubscriptionCancellationScheduled", {
 				userId: row.userId,
 				cancellationEffectiveAt: row.trialEndsAt,
 			});

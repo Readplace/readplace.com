@@ -179,4 +179,62 @@ describe("initInMemoryTrialScheduler", () => {
 		);
 		assert.equal(scheduler.getTrialFeedbackEmailSchedule(userId), undefined);
 	});
+
+	it("records create + delete trial-reminder calls independently of the other schedule kinds", async () => {
+		const userIdA = UserIdSchema.parse("6".repeat(32));
+		const userIdB = UserIdSchema.parse("7".repeat(32));
+		const scheduler = initInMemoryTrialScheduler();
+
+		await scheduler.createTrialReminderSchedule({
+			userId: userIdA,
+			firesAt: "2026-07-17T00:00:00.000Z",
+		});
+		await scheduler.createTrialReminderSchedule({
+			userId: userIdB,
+			firesAt: "2026-07-18T00:00:00.000Z",
+		});
+
+		assert.equal(
+			scheduler.getTrialReminderSchedule(userIdA),
+			"2026-07-17T00:00:00.000Z",
+		);
+		assert.deepEqual(scheduler.allTrialReminderSchedules(), [
+			{ userId: userIdA, firesAt: "2026-07-17T00:00:00.000Z" },
+			{ userId: userIdB, firesAt: "2026-07-18T00:00:00.000Z" },
+		]);
+		// The other schedule kinds remain untouched.
+		assert.deepEqual(scheduler.allSchedules(), []);
+		assert.deepEqual(scheduler.allDeferredCancellationSchedules(), []);
+		assert.deepEqual(scheduler.allTrialFeedbackEmailSchedules(), []);
+
+		await scheduler.deleteTrialReminderSchedule({ userId: userIdA });
+
+		assert.equal(scheduler.getTrialReminderSchedule(userIdA), undefined);
+		assert.deepEqual(scheduler.trialReminderDeleteCalls(), [userIdA]);
+	});
+
+	it("deleteTrialReminderSchedule is idempotent on a missing schedule", async () => {
+		const userId = UserIdSchema.parse("0".repeat(32));
+		const scheduler = initInMemoryTrialScheduler();
+
+		await assert.doesNotReject(scheduler.deleteTrialReminderSchedule({ userId }));
+		assert.deepEqual(scheduler.trialReminderDeleteCalls(), [userId]);
+	});
+
+	it("createTrialReminderSchedule throws when configured to fail", async () => {
+		const userId = UserIdSchema.parse("d".repeat(32));
+		const scheduler = initInMemoryTrialScheduler({
+			createTrialReminderFails: true,
+		});
+
+		await assert.rejects(
+			() =>
+				scheduler.createTrialReminderSchedule({
+					userId,
+					firesAt: "2026-07-17T00:00:00.000Z",
+				}),
+			/In-memory trial-reminder create failure/,
+		);
+		assert.equal(scheduler.getTrialReminderSchedule(userId), undefined);
+	});
 });

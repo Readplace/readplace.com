@@ -354,7 +354,7 @@ describe("Apple auth routes", () => {
 		it("creates the Apple user with a trialing subscription_providers row when the founding allocation is exhausted", async () => {
 			const fixture = createDefaultTestAppFixture(TEST_APP_ORIGIN);
 			const harness = useApp({ ...fixture, apple: appleWith(stubExchange({ email: "brand-new@example.com" })) });
-			const { auth, subscriptionProviders, conversions } = harness;
+			const { auth, subscriptionProviders, conversions, trialScheduler } = harness;
 			for (let i = 0; i < TEST_FOUNDING_MEMBER_LIMIT; i++) {
 				await auth.createUser({ email: `seed${i}@test.com`, password: "password123" });
 			}
@@ -379,6 +379,13 @@ describe("Apple auth routes", () => {
 			const trialMs = new Date(subRow.trialEndsAt).getTime() - Date.now();
 			expect(trialMs).toBeGreaterThan(13 * 86_400_000);
 			expect(trialMs).toBeLessThan(15 * 86_400_000);
+
+			// The pre-expiry reminder schedule fires two days before trialEndsAt.
+			const reminderFiresAt = trialScheduler.getTrialReminderSchedule(lookup.userId);
+			assert(reminderFiresAt, "Apple trial signup must create a trial-reminder schedule");
+			expect(new Date(reminderFiresAt).getTime()).toBe(
+				new Date(subRow.trialEndsAt).getTime() - 2 * 86_400_000,
+			);
 
 			const conversionEvent = conversions.events.find((e) => e.method === "apple" && e.tier === "trial");
 			assert(conversionEvent, "Apple trial signup must emit a user_created conversion event with tier=trial");

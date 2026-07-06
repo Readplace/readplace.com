@@ -15,6 +15,7 @@ describe("toRecord", () => {
 			trialEndsAt: "2026-06-05T00:00:00.000Z",
 			cancellationEffectiveAt: "2026-06-22T00:00:00.000Z",
 			trialFeedbackEmailSentAt: "2026-06-04T00:00:00.000Z",
+			trialReminderEmailSentAt: "2026-06-03T00:00:00.000Z",
 			createdAt: "2026-05-20T10:00:00.000Z",
 			updatedAt: "2026-05-22T10:00:00.000Z",
 		});
@@ -28,6 +29,7 @@ describe("toRecord", () => {
 			trialEndsAt: "2026-06-05T00:00:00.000Z",
 			cancellationEffectiveAt: "2026-06-22T00:00:00.000Z",
 			trialFeedbackEmailSentAt: "2026-06-04T00:00:00.000Z",
+			trialReminderEmailSentAt: "2026-06-03T00:00:00.000Z",
 			createdAt: "2026-05-20T10:00:00.000Z",
 			updatedAt: "2026-05-22T10:00:00.000Z",
 		});
@@ -56,6 +58,7 @@ describe("toRecord", () => {
 		assert.equal("subscriptionId" in record, false);
 		assert.equal("cancellationEffectiveAt" in record, false);
 		assert.equal("trialFeedbackEmailSentAt" in record, false);
+		assert.equal("trialReminderEmailSentAt" in record, false);
 	});
 
 	it("maps an active row with Stripe ids and no trial date", () => {
