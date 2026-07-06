@@ -15,6 +15,7 @@ export interface SubscriptionRecord {
 	trialEndsAt?: string;
 	cancellationEffectiveAt?: string;
 	trialFeedbackEmailSentAt?: string;
+	trialReminderEmailSentAt?: string;
 	createdAt: string;
 	updatedAt: string;
 }
@@ -52,6 +53,11 @@ export type MarkSubscriptionActive = (input: { userId: UserId }) => Promise<void
 export type DeleteSubscription = (input: { userId: UserId }) => Promise<void>;
 
 export type MarkTrialFeedbackEmailSent = (input: {
+	userId: UserId;
+	sentAt: string;
+}) => Promise<void>;
+
+export type MarkTrialReminderEmailSent = (input: {
 	userId: UserId;
 	sentAt: string;
 }) => Promise<void>;

@@ -8,6 +8,7 @@ import type {
 	MarkSubscriptionCancelledByUserId,
 	MarkSubscriptionPendingCancellation,
 	MarkTrialFeedbackEmailSent,
+	MarkTrialReminderEmailSent,
 	SubscriptionRecord,
 	UpsertActiveSubscription,
 	UpsertTrialingSubscription,
@@ -24,6 +25,7 @@ export function initInMemorySubscriptionProviders(opts: {
 	markCancelledByUserId: MarkSubscriptionCancelledByUserId;
 	markActive: MarkSubscriptionActive;
 	markTrialFeedbackEmailSent: MarkTrialFeedbackEmailSent;
+	markTrialReminderEmailSent: MarkTrialReminderEmailSent;
 	deleteSubscription: DeleteSubscription;
 	seedRow: (row: SubscriptionRecord) => void;
 } {
@@ -111,6 +113,19 @@ export function initInMemorySubscriptionProviders(opts: {
 		});
 	};
 
+	const markTrialReminderEmailSent: MarkTrialReminderEmailSent = async ({
+		userId,
+		sentAt,
+	}) => {
+		const existing = rows.get(userId);
+		assert(existing, `No subscription row for user ${userId}`);
+		rows.set(userId, {
+			...existing,
+			trialReminderEmailSentAt: sentAt,
+			updatedAt: opts.now().toISOString(),
+		});
+	};
+
 	const deleteSubscription: DeleteSubscription = async ({ userId }) => {
 		rows.delete(userId);
 	};
@@ -132,6 +147,7 @@ export function initInMemorySubscriptionProviders(opts: {
 		markCancelledByUserId,
 		markActive,
 		markTrialFeedbackEmailSent,
+		markTrialReminderEmailSent,
 		deleteSubscription,
 		seedRow,
 	};

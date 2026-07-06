@@ -599,18 +599,23 @@ export type SubscriptionChargeFailedDetail = z.infer<
 	typeof SubscriptionChargeFailedEvent.detailSchema
 >;
 
-/** Delayed trial-feedback research email request. Published by the EventBridge
- * Scheduler one-shot created by `schedule-trial-feedback-email` when a
- * `SubscriptionCancelledEvent` with `reason='user_initiated_trial'` arrives.
- * Consumed by `send-trial-feedback-email` which re-reads the row to confirm
- * the user is still cancelled (reactivation guard) before sending Fayner's
- * "what was missing?" research email. */
+/** Trial-lifecycle email request carrying two email kinds that share one
+ * Lambda (`send-trial-feedback-email`). `kind` absent or `'feedback'`: the
+ * post-cancellation research email, scheduled by `schedule-trial-feedback-email`
+ * when a `SubscriptionCancelledEvent` with `reason='user_initiated_trial'`
+ * arrives; the handler re-reads the row to confirm the user is still cancelled
+ * (reactivation guard) before sending Fayner's "what was missing?" email.
+ * `kind='reminder'`: the pre-expiry trial reminder, a one-shot created at trial
+ * signup that fires at `trialEndsAt - 2d`; the handler re-checks the user is
+ * still trialing before sending. Absent `kind` means feedback for backward
+ * compatibility with in-flight schedules whose Input is `{userId}` only. */
 export const SendTrialFeedbackEmailCommand = defineEvent({
 	name: "send-trial-feedback-email-command",
 	source: "hutch.subscriptions",
 	detailType: "SendTrialFeedbackEmailCommand",
 	detailSchema: z.object({
 		userId: z.string(),
+		kind: z.enum(["feedback", "reminder"]).optional(),
 	}),
 });
 export type SendTrialFeedbackEmailDetail = z.infer<

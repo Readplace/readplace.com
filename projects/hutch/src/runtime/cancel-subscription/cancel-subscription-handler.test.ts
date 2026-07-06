@@ -57,6 +57,7 @@ function buildSubject(opts?: { scheduleCancellationAtPeriodEndReturns?: string }
 		scheduleCancellationAtPeriodEnd: stripeSubscriptions.scheduleCancellationAtPeriodEnd,
 		createDeferredCancellationSchedule: trialScheduler.createDeferredCancellationSchedule,
 		deleteTrialEndSchedule: trialScheduler.deleteTrialEndSchedule,
+		deleteTrialReminderSchedule: trialScheduler.deleteTrialReminderSchedule,
 		publishSubscriptionCancellationScheduled,
 		publishSubscriptionCancelled,
 		logger: HutchLogger.from(noopLogger),
@@ -130,6 +131,8 @@ describe("cancel-subscription handler", () => {
 		assert.deepEqual(subject.stripeSubscriptions.scheduledCancellations(), []);
 		// Trial-end auto-charge schedule deleted (no charge after cancel).
 		assert.deepEqual(subject.trialScheduler.deleteCalls(), [USER_ID]);
+		// Trial-reminder schedule also deleted (no subscribe nudge after cancel).
+		assert.deepEqual(subject.trialScheduler.trialReminderDeleteCalls(), [USER_ID]);
 		// Deferred-cancellation schedule created at trialEndsAt + 1h.
 		assert.deepEqual(subject.trialScheduler.allDeferredCancellationSchedules(), [
 			{ userId: USER_ID, firesAt: "2026-06-05T01:00:00.000Z" },
@@ -260,6 +263,7 @@ describe("cancel-subscription handler", () => {
 			},
 			createDeferredCancellationSchedule: trialScheduler.createDeferredCancellationSchedule,
 			deleteTrialEndSchedule: trialScheduler.deleteTrialEndSchedule,
+			deleteTrialReminderSchedule: trialScheduler.deleteTrialReminderSchedule,
 			publishSubscriptionCancellationScheduled: async () => {},
 			publishSubscriptionCancelled: async () => {},
 			logger: HutchLogger.from(noopLogger),

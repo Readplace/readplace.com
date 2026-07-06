@@ -6,6 +6,7 @@ export type {
 	MarkSubscriptionCancelledByUserId,
 	MarkSubscriptionPendingCancellation,
 	MarkTrialFeedbackEmailSent,
+	MarkTrialReminderEmailSent,
 	SubscriptionRecord,
 	SubscriptionStatus,
 	UpsertActiveSubscription,

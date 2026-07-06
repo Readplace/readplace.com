@@ -14,23 +14,31 @@ import type { SendEmail } from "@packages/provider-contracts/email";
 import type {
 	FindSubscriptionByUserId,
 	MarkTrialFeedbackEmailSent,
+	MarkTrialReminderEmailSent,
 } from "@packages/provider-contracts/subscription-providers";
 import {
 	TrialFeedbackEmail,
 	TRIAL_FEEDBACK_EMAIL_SUBJECT,
 } from "../web/auth/trial-feedback-email";
+import {
+	TrialReminderEmail,
+	TRIAL_REMINDER_EMAIL_SUBJECT,
+} from "../web/auth/trial-reminder-email";
 
 const EMAIL_FROM = "Fayner from Readplace <fayner@readplace.com>";
 const EMAIL_REPLY_TO = "fayner@readplace.com";
 const EMAIL_BCC = "readplace+trial_feedback@readplace.com";
+const REMINDER_EMAIL_BCC = "readplace+trial_reminder@readplace.com";
 
 export interface SendTrialFeedbackEmailDeps {
 	findSubscriptionByUserId: FindSubscriptionByUserId;
 	findEmailByUserId: FindEmailByUserId;
 	findArticlesByUser: FindArticlesByUser;
 	markTrialFeedbackEmailSent: MarkTrialFeedbackEmailSent;
+	markTrialReminderEmailSent: MarkTrialReminderEmailSent;
 	sendEmail: SendEmail;
 	founderAvatarUrl: string;
+	appOrigin: string;
 	now: () => Date;
 	logger: HutchLogger;
 }
@@ -50,7 +58,11 @@ export function initSendTrialFeedbackEmailHandler(
 					envelope.detail,
 				);
 				const userId = UserIdSchema.parse(detail.userId);
-				await processCommand(userId, deps);
+				if (detail.kind === "reminder") {
+					await processReminder(userId, deps);
+				} else {
+					await processCommand(userId, deps);
+				}
 			} catch (error) {
 				deps.logger.error("[send-trial-feedback-email] record failed", {
 					messageId: record.messageId,
@@ -123,6 +135,79 @@ async function processCommand(
 	const sentAt = deps.now().toISOString();
 	await deps.markTrialFeedbackEmailSent({ userId, sentAt });
 	deps.logger.info("[send-trial-feedback-email] sent", {
+		userId,
+		savedArticlesCount: total,
+		sentAt,
+	});
+}
+
+async function processReminder(
+	userId: ReturnType<typeof UserIdSchema.parse>,
+	deps: SendTrialFeedbackEmailDeps,
+): Promise<void> {
+	const row = await deps.findSubscriptionByUserId(userId);
+	if (!row) {
+		deps.logger.info(
+			"[send-trial-feedback-email] reminder: no subscription row — noop",
+			{ userId },
+		);
+		return;
+	}
+	if (row.status !== "trialing") {
+		deps.logger.info(
+			"[send-trial-feedback-email] reminder: user no longer trialing — noop",
+			{ userId, status: row.status },
+		);
+		return;
+	}
+	if (!row.trialEndsAt || Date.parse(row.trialEndsAt) <= deps.now().getTime()) {
+		deps.logger.info(
+			"[send-trial-feedback-email] reminder: trial already ended — noop",
+			{ userId },
+		);
+		return;
+	}
+	if (row.trialReminderEmailSentAt) {
+		deps.logger.info(
+			"[send-trial-feedback-email] reminder: already sent — noop",
+			{ userId, sentAt: row.trialReminderEmailSentAt },
+		);
+		return;
+	}
+
+	const email = await deps.findEmailByUserId(userId);
+	if (!email) {
+		deps.logger.info(
+			"[send-trial-feedback-email] reminder: no email on file — noop",
+			{ userId },
+		);
+		return;
+	}
+
+	const { total } = await deps.findArticlesByUser({
+		userId,
+		excludeContent: true,
+	});
+
+	const component = TrialReminderEmail({
+		founderAvatarUrl: deps.founderAvatarUrl,
+		savedArticlesCount: total,
+		ctaUrl: `${deps.appOrigin}/account?utm_source=trial-reminder&utm_medium=email&utm_campaign=trial-preexpiry`,
+	});
+
+	await deps.sendEmail({
+		from: EMAIL_FROM,
+		to: email,
+		bcc: REMINDER_EMAIL_BCC,
+		replyTo: EMAIL_REPLY_TO,
+		subject: TRIAL_REMINDER_EMAIL_SUBJECT,
+		html: component.to("text/html"),
+		text: component.to("text/plain"),
+	});
+
+	const sentAt = deps.now().toISOString();
+	await deps.markTrialReminderEmailSent({ userId, sentAt });
+	deps.logger.info("[send-trial-feedback-email] reminder sent", {
 		userId,
 		savedArticlesCount: total,
 		sentAt,

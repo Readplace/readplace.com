@@ -8,12 +8,13 @@ import type {
 	MarkSubscriptionCancelledByUserId,
 	MarkSubscriptionPendingCancellation,
 	MarkTrialFeedbackEmailSent,
+	MarkTrialReminderEmailSent,
 	UpsertActiveSubscription,
 	UpsertTrialingSubscription,
 } from "@packages/provider-contracts/subscription-providers";
 import { SubscriptionProviderRow } from "@packages/subscription-access";
 
-/** The write half of the subscription table — the six mutations, wired
+/** The write half of the subscription table — the eight mutations, wired
  * independently from the read half. The save gate composes write access from
  * the read half alone, so no save path ever depends on a mutation. */
 export function initDynamoDbSubscriptionWrites(deps: {
@@ -27,6 +28,7 @@ export function initDynamoDbSubscriptionWrites(deps: {
 	markCancelledByUserId: MarkSubscriptionCancelledByUserId;
 	markActive: MarkSubscriptionActive;
 	markTrialFeedbackEmailSent: MarkTrialFeedbackEmailSent;
+	markTrialReminderEmailSent: MarkTrialReminderEmailSent;
 	deleteSubscription: DeleteSubscription;
 } {
 	const table = defineDynamoTable({
@@ -128,6 +130,18 @@ export function initDynamoDbSubscriptionWrites(deps: {
 		});
 	};
 
+	const markTrialReminderEmailSent: MarkTrialReminderEmailSent = async ({ userId, sentAt }) => {
+		await table.update({
+			Key: { userId },
+			UpdateExpression: "SET trialReminderEmailSentAt = :sentAt, updatedAt = :now",
+			ConditionExpression: "attribute_exists(userId)",
+			ExpressionAttributeValues: {
+				":sentAt": sentAt,
+				":now": deps.now().toISOString(),
+			},
+		});
+	};
+
 	const deleteSubscription: DeleteSubscription = async ({ userId }) => {
 		await table.delete({ Key: { userId } });
 	};
@@ -139,6 +153,7 @@ export function initDynamoDbSubscriptionWrites(deps: {
 		markCancelledByUserId,
 		markActive,
 		markTrialFeedbackEmailSent,
+		markTrialReminderEmailSent,
 		deleteSubscription,
 	};
 }

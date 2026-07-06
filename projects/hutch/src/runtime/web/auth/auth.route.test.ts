@@ -408,6 +408,13 @@ describe("Auth routes", () => {
 			assert(schedule, "trial signup must create a trial-end schedule");
 			expect(schedule).toBe(subRow.trialEndsAt);
 
+			// Trial-reminder schedule must be created at trialEndsAt minus 2 days.
+			const reminderSchedule = trialScheduler.getTrialReminderSchedule(lookup.userId);
+			assert(reminderSchedule, "trial signup must create a trial-reminder schedule");
+			expect(new Date(reminderSchedule).getTime()).toBe(
+				new Date(subRow.trialEndsAt).getTime() - 2 * 86_400_000,
+			);
+
 			const conversionEvent = conversions.events.find((e) => e.method === "email" && e.tier === "trial");
 			assert(conversionEvent, "trial signup must emit a user_created conversion event with tier=trial");
 
@@ -439,6 +446,31 @@ describe("Auth routes", () => {
 
 			expect(response.status).toBe(303);
 			const lookup = await harness.auth.findUserByEmail("trial-fail@example.com");
+			assert(lookup, "user row must persist");
+			const subRow = await harness.subscriptionProviders.findByUserId(lookup.userId);
+			assert(subRow, "trial subscription row must persist");
+			expect(subRow.status).toBe("trialing");
+		}, 30000);
+
+		it("completes trial signup even when the trial-reminder scheduler fails", async () => {
+			const fixture = createDefaultTestAppFixture(TEST_APP_ORIGIN);
+			fixture.trialScheduler.createTrialReminderSchedule = async () => {
+				throw new Error("Scheduler outage");
+			};
+			const harness = useApp(fixture);
+			for (let i = 0; i < TEST_FOUNDING_MEMBER_LIMIT; i++) {
+				await harness.auth.createUser({ email: `seed${i}@test.com`, password: "password123" });
+			}
+
+			const response = await request(harness.server).post("/signup").type("form").send({
+				email: "reminder-fail@example.com",
+				password: "password123",
+				confirmPassword: "password123",
+				loadedAt: freshLoadedAt(),
+			});
+
+			expect(response.status).toBe(303);
+			const lookup = await harness.auth.findUserByEmail("reminder-fail@example.com");
 			assert(lookup, "user row must persist");
 			const subRow = await harness.subscriptionProviders.findByUserId(lookup.userId);
 			assert(subRow, "trial subscription row must persist");

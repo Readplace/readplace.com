@@ -19,6 +19,10 @@ function buildEventBridgeBody(userId: string): string {
 	return JSON.stringify({ detail: { userId } });
 }
 
+function buildReminderBody(userId: string): string {
+	return JSON.stringify({ detail: { userId, kind: "reminder" } });
+}
+
 function fakeFindArticlesByUser(total: number): FindArticlesByUser {
 	return async () => ({
 		articles: [],
@@ -31,6 +35,7 @@ function fakeFindArticlesByUser(total: number): FindArticlesByUser {
 interface SubjectOverrides {
 	findEmail?: (userId: string) => Promise<string | null>;
 	articlesTotal?: number;
+	now?: Date;
 }
 
 function buildSubject(overrides: SubjectOverrides = {}) {
@@ -39,14 +44,17 @@ function buildSubject(overrides: SubjectOverrides = {}) {
 	});
 	const email = initInMemoryEmail();
 	const findEmailByUserId = overrides.findEmail ?? (async () => "user@example.com");
+	const now = overrides.now ?? SENT_AT;
 	const deps: SendTrialFeedbackEmailDeps = {
 		findSubscriptionByUserId: providers.findByUserId,
 		findEmailByUserId,
 		findArticlesByUser: fakeFindArticlesByUser(overrides.articlesTotal ?? 0),
 		markTrialFeedbackEmailSent: providers.markTrialFeedbackEmailSent,
+		markTrialReminderEmailSent: providers.markTrialReminderEmailSent,
 		sendEmail: email.sendEmail,
 		founderAvatarUrl: FOUNDER_AVATAR_URL,
-		now: () => SENT_AT,
+		appOrigin: "https://readplace.com",
+		now: () => now,
 		logger: HutchLogger.from(noopLogger),
 	};
 	const handler = initSendTrialFeedbackEmailHandler(deps);
@@ -236,10 +244,12 @@ describe("send-trial-feedback-email handler", () => {
 			findEmailByUserId: async () => "user@example.com",
 			findArticlesByUser: fakeFindArticlesByUser(2),
 			markTrialFeedbackEmailSent: providers.markTrialFeedbackEmailSent,
+			markTrialReminderEmailSent: providers.markTrialReminderEmailSent,
 			sendEmail: async () => {
 				throw new Error("Resend rejected");
 			},
 			founderAvatarUrl: FOUNDER_AVATAR_URL,
+			appOrigin: "https://readplace.com",
 			now: () => SENT_AT,
 			logger: HutchLogger.from(noopLogger),
 		});
@@ -285,5 +295,157 @@ describe("send-trial-feedback-email handler", () => {
 
 		assert(result);
 		assert.equal(result.batchItemFailures.length, 1);
+	});
+
+	describe("kind='reminder' — pre-expiry trial reminder", () => {
+		async function seedFutureTrial(
+			providers: ReturnType<typeof initInMemorySubscriptionProviders>,
+		): Promise<void> {
+			await providers.upsertTrialing({
+				userId: USER_ID,
+				trialEndsAt: "2026-06-20T00:00:00.000Z",
+			});
+		}
+
+		it("sends the reminder and marks the reminder flag without touching the feedback flag", async () => {
+			const subject = buildSubject({ articlesTotal: 3 });
+			await seedFutureTrial(subject.providers);
+
+			const result = await subject.handler(
+				buildSqsEvent([{ messageId: "msg-rem", body: buildReminderBody(USER_ID) }]),
+				buildLambdaContext(),
+				() => {},
+			);
+
+			assert(result);
+			assert.equal(result.batchItemFailures.length, 0);
+			assert.equal(subject.email.getSentEmails().length, 1);
+			const sent = subject.email.getSentEmails()[0];
+			assert.equal(sent.to, "user@example.com");
+			assert.equal(sent.from, "Fayner from Readplace <fayner@readplace.com>");
+			assert.equal(sent.replyTo, "fayner@readplace.com");
+			assert.equal(sent.bcc, "readplace+trial_reminder@readplace.com");
+			assert.equal(sent.subject, "your Readplace trial ends in 2 days");
+			assert.ok(sent.text);
+			assert.ok(sent.text.includes("/account?utm_source=trial-reminder"));
+			assert.ok(sent.html.includes("trial-reminder"));
+
+			const row = await subject.providers.findByUserId(USER_ID);
+			assert(row, "row must still exist");
+			assert.equal(row.trialReminderEmailSentAt, SENT_AT.toISOString());
+			assert.equal(row.trialFeedbackEmailSentAt, undefined);
+		});
+
+		it("noops when the user is no longer trialing (cancelled)", async () => {
+			const subject = buildSubject({ articlesTotal: 3 });
+			await seedCancelledTrial(subject.providers);
+
+			await subject.handler(
+				buildSqsEvent([{ messageId: "msg-rem-cancelled", body: buildReminderBody(USER_ID) }]),
+				buildLambdaContext(),
+				() => {},
+			);
+
+			assert.equal(subject.email.getSentEmails().length, 0);
+		});
+
+		it("noops when trialEndsAt is already in the past (clock skew / stale schedule)", async () => {
+			const subject = buildSubject({
+				articlesTotal: 3,
+				now: new Date("2026-06-21T00:00:00.000Z"),
+			});
+			await seedFutureTrial(subject.providers);
+
+			await subject.handler(
+				buildSqsEvent([{ messageId: "msg-rem-past", body: buildReminderBody(USER_ID) }]),
+				buildLambdaContext(),
+				() => {},
+			);
+
+			assert.equal(subject.email.getSentEmails().length, 0);
+			const row = await subject.providers.findByUserId(USER_ID);
+			assert(row);
+			assert.equal(row.trialReminderEmailSentAt, undefined);
+		});
+
+		it("noops when the reminder was already sent — at most one reminder", async () => {
+			const subject = buildSubject({ articlesTotal: 3 });
+			await seedFutureTrial(subject.providers);
+
+			await subject.handler(
+				buildSqsEvent([{ messageId: "msg-rem-1", body: buildReminderBody(USER_ID) }]),
+				buildLambdaContext(),
+				() => {},
+			);
+			await subject.handler(
+				buildSqsEvent([{ messageId: "msg-rem-2", body: buildReminderBody(USER_ID) }]),
+				buildLambdaContext(),
+				() => {},
+			);
+
+			assert.equal(subject.email.getSentEmails().length, 1);
+		});
+
+		it("noops when there is no subscription row at all", async () => {
+			const subject = buildSubject({ articlesTotal: 3 });
+
+			await subject.handler(
+				buildSqsEvent([{ messageId: "msg-rem-missing", body: buildReminderBody(USER_ID) }]),
+				buildLambdaContext(),
+				() => {},
+			);
+
+			assert.equal(subject.email.getSentEmails().length, 0);
+		});
+
+		it("noops when there is no email on file", async () => {
+			const subject = buildSubject({ articlesTotal: 3, findEmail: async () => null });
+			await seedFutureTrial(subject.providers);
+
+			await subject.handler(
+				buildSqsEvent([{ messageId: "msg-rem-no-email", body: buildReminderBody(USER_ID) }]),
+				buildLambdaContext(),
+				() => {},
+			);
+
+			assert.equal(subject.email.getSentEmails().length, 0);
+			const row = await subject.providers.findByUserId(USER_ID);
+			assert(row);
+			assert.equal(row.trialReminderEmailSentAt, undefined);
+		});
+
+		it("omits the saved-articles clause when the user saved zero", async () => {
+			const subject = buildSubject({ articlesTotal: 0 });
+			await seedFutureTrial(subject.providers);
+
+			await subject.handler(
+				buildSqsEvent([{ messageId: "msg-rem-zero", body: buildReminderBody(USER_ID) }]),
+				buildLambdaContext(),
+				() => {},
+			);
+
+			const sent = subject.email.getSentEmails()[0];
+			assert.ok(sent.text);
+			assert.ok(!sent.text.includes("stay readable either way"));
+		});
+
+		it("a body WITHOUT kind still runs the feedback path (backward compatible)", async () => {
+			const subject = buildSubject({ articlesTotal: 4 });
+			await seedCancelledTrial(subject.providers);
+
+			await subject.handler(
+				buildSqsEvent([{ messageId: "msg-nokind", body: buildEventBridgeBody(USER_ID) }]),
+				buildLambdaContext(),
+				() => {},
+			);
+
+			assert.equal(subject.email.getSentEmails().length, 1);
+			const sent = subject.email.getSentEmails()[0];
+			assert.equal(sent.subject, "you tried Readplace — what was missing?");
+			const row = await subject.providers.findByUserId(USER_ID);
+			assert(row);
+			assert.equal(row.trialFeedbackEmailSentAt, SENT_AT.toISOString());
+			assert.equal(row.trialReminderEmailSentAt, undefined);
+		});
 	});
 });

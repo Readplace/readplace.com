@@ -1418,11 +1418,14 @@ eventBus.subscribe(SubscriptionCancelledEvent, scheduleTrialFeedbackEmailWithSQS
 });
 
 // --- Send Trial Feedback Email ---
-// SQS-backed Lambda invoked by the EventBridge Scheduler one-shot created
-// above. Re-reads the subscription row to confirm the user is still cancelled
-// (reactivation guard) and hasn't already received the email (sent-flag),
-// then sends Fayner's "what was missing?" research email with a single
-// personalised clause derived from the count of articles the user saved.
+// SQS-backed Lambda invoked by the EventBridge Scheduler one-shots that target
+// SendTrialFeedbackEmailCommand. It handles two email kinds keyed on the event
+// detail's `kind`: the post-cancellation "what was missing?" feedback email
+// (absent/'feedback' — re-reads the row to confirm the user is still cancelled
+// and hasn't already been emailed), and the pre-expiry trial reminder
+// (kind='reminder' — created at trial signup, re-checks the user is still
+// trialing with a future trialEndsAt before nudging them to subscribe). Both
+// personalise a single clause from the count of articles the user saved.
 
 const sendTrialFeedbackEmailDynamodb = new HutchDynamoDBAccess(
 	"send-trial-feedback-email-dynamodb",
@@ -1463,6 +1466,7 @@ const sendTrialFeedbackEmailLambda = new HutchLambda(
 			DYNAMODB_USER_ARTICLES_TABLE: storage.userArticlesTable.name,
 			RESEND_API_KEY: requireEnv("RESEND_API_KEY"),
 			STATIC_BASE_URL: staticAssets.baseUrl,
+			APP_ORIGIN: appOrigin,
 		},
 		policies: [...sendTrialFeedbackEmailDynamodb.policies],
 	},

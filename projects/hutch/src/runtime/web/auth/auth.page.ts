@@ -29,7 +29,9 @@ import type {
 } from "@packages/provider-contracts/subscription-providers";
 import type {
 	CreateTrialEndSchedule,
+	CreateTrialReminderSchedule,
 	DeleteTrialEndSchedule,
+	DeleteTrialReminderSchedule,
 } from "@packages/provider-contracts/trial-scheduler";
 import {
 	CheckoutSessionIdSchema,
@@ -41,7 +43,10 @@ import type {
 } from "@packages/provider-contracts/rate-limit";
 import { createRateLimitMiddleware, sendRateLimited } from "../middleware/rate-limit";
 import { normalizeEmail } from "@packages/domain/user";
-import { STRIPE_TRIAL_PERIOD_DAYS } from "../../domain/stripe/stripe-trial-config";
+import {
+	STRIPE_TRIAL_PERIOD_DAYS,
+	trialReminderFiresAt,
+} from "../../domain/stripe/stripe-trial-config";
 import { Base } from "../base.component";
 import { bannerStateFromRequest, sendComponent } from "@packages/web-shell";
 import type { BuildBannerState } from "../banner-state";
@@ -96,6 +101,8 @@ interface AuthDependencies {
 	trialScheduler: {
 		createTrialEndSchedule: CreateTrialEndSchedule;
 		deleteTrialEndSchedule: DeleteTrialEndSchedule;
+		createTrialReminderSchedule: CreateTrialReminderSchedule;
+		deleteTrialReminderSchedule: DeleteTrialReminderSchedule;
 	};
 	baseUrl: string;
 	staticBaseUrl: string;
@@ -341,6 +348,17 @@ export function initAuthRoutes(deps: AuthDependencies): Router {
 				err instanceof Error ? err : new Error(String(err)),
 			);
 		}
+		try {
+			await deps.trialScheduler.createTrialReminderSchedule({
+				userId: created.userId,
+				firesAt: trialReminderFiresAt(trialEndsAt),
+			});
+		} catch (err) {
+			deps.logError(
+				"[Auth] Trial-reminder schedule creation failed — continuing without schedule",
+				err instanceof Error ? err : new Error(String(err)),
+			);
+		}
 
 		const sessionId = await deps.createSession({ userId: created.userId, emailVerified: false });
 		res.cookie(SESSION_COOKIE_NAME, sessionId, sessionCookieOptions);
@@ -416,6 +434,7 @@ export function initAuthRoutes(deps: AuthDependencies): Router {
 			customerId,
 		});
 		await deps.trialScheduler.deleteTrialEndSchedule({ userId: pending.userId });
+		await deps.trialScheduler.deleteTrialReminderSchedule({ userId: pending.userId });
 		res.redirect(303, parseReturnUrl({ return: pending.returnUrl }));
 	});
 

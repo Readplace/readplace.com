@@ -45,8 +45,10 @@ import type {
 } from "@packages/provider-contracts/subscription-providers";
 import type {
 	CreateTrialEndSchedule,
+	CreateTrialReminderSchedule,
 	DeleteDeferredCancellationSchedule,
 	DeleteTrialEndSchedule,
+	DeleteTrialReminderSchedule,
 } from "@packages/provider-contracts/trial-scheduler";
 import type {
 	PublishCancelSubscriptionCommand,
@@ -311,6 +313,8 @@ interface AppDependencies {
 		createTrialEndSchedule: CreateTrialEndSchedule;
 		deleteTrialEndSchedule: DeleteTrialEndSchedule;
 		deleteDeferredCancellationSchedule: DeleteDeferredCancellationSchedule;
+		createTrialReminderSchedule: CreateTrialReminderSchedule;
+		deleteTrialReminderSchedule: DeleteTrialReminderSchedule;
 	};
 	createSubscriptionOnExistingCustomer: CreateSubscriptionOnExistingCustomer;
 	reverseScheduledCancellation: ReverseScheduledCancellation;
@@ -877,6 +881,8 @@ export function createApp(dependencies: AppDependencies): Express {
 		trialScheduler: {
 			createTrialEndSchedule: deps.trialScheduler.createTrialEndSchedule,
 			deleteTrialEndSchedule: deps.trialScheduler.deleteTrialEndSchedule,
+			createTrialReminderSchedule: deps.trialScheduler.createTrialReminderSchedule,
+			deleteTrialReminderSchedule: deps.trialScheduler.deleteTrialReminderSchedule,
 		},
 		baseUrl: deps.baseUrl,
 		staticBaseUrl,
@@ -913,6 +919,7 @@ export function createApp(dependencies: AppDependencies): Express {
 			exchangeGoogleCode: deps.googleAuth.exchangeGoogleCode,
 			upsertTrialing: deps.subscriptionProviders.upsertTrialing,
 			createTrialEndSchedule: deps.trialScheduler.createTrialEndSchedule,
+			createTrialReminderSchedule: deps.trialScheduler.createTrialReminderSchedule,
 			sendEmail: deps.sendEmail,
 			logError: deps.logError,
 			now: deps.now,
@@ -938,6 +945,7 @@ export function createApp(dependencies: AppDependencies): Express {
 		exchangeAppleCode: deps.appleAuth.exchangeAppleCode,
 		upsertTrialing: deps.subscriptionProviders.upsertTrialing,
 		createTrialEndSchedule: deps.trialScheduler.createTrialEndSchedule,
+		createTrialReminderSchedule: deps.trialScheduler.createTrialReminderSchedule,
 		sendEmail: deps.sendEmail,
 		logError: deps.logError,
 		now: deps.now,
@@ -1134,6 +1142,7 @@ export function createApp(dependencies: AppDependencies): Express {
 		setPrimaryCard: deps.paymentMethods.setPrimaryCard,
 		stripePublishableKey: deps.stripePublishableKey,
 		createTrialEndSchedule: deps.trialScheduler.createTrialEndSchedule,
+		createTrialReminderSchedule: deps.trialScheduler.createTrialReminderSchedule,
 		deleteDeferredCancellationSchedule:
 			deps.trialScheduler.deleteDeferredCancellationSchedule,
 		storePendingSignup: deps.storePendingSignup,

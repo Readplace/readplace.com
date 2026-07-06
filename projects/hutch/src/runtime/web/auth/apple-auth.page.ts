@@ -15,8 +15,14 @@ import type {
 import type { SendEmail } from "@packages/provider-contracts/email";
 import type { ExchangeAppleCode } from "@packages/provider-contracts/apple-auth";
 import type { UpsertTrialingSubscription } from "@packages/provider-contracts/subscription-providers";
-import type { CreateTrialEndSchedule } from "@packages/provider-contracts/trial-scheduler";
-import { STRIPE_TRIAL_PERIOD_DAYS } from "../../domain/stripe/stripe-trial-config";
+import type {
+	CreateTrialEndSchedule,
+	CreateTrialReminderSchedule,
+} from "@packages/provider-contracts/trial-scheduler";
+import {
+	STRIPE_TRIAL_PERIOD_DAYS,
+	trialReminderFiresAt,
+} from "../../domain/stripe/stripe-trial-config";
 import type { FoundingAllocation } from "../shared/founding-progress/founding-allocation";
 import { initSendWelcomeEmail } from "./send-welcome-email";
 import { Base } from "../base.component";
@@ -74,6 +80,7 @@ interface AppleAuthDependencies {
 	exchangeAppleCode: ExchangeAppleCode;
 	upsertTrialing: UpsertTrialingSubscription;
 	createTrialEndSchedule: CreateTrialEndSchedule;
+	createTrialReminderSchedule: CreateTrialReminderSchedule;
 	sendEmail: SendEmail;
 	logError: (message: string, error?: Error) => void;
 	now: () => Date;
@@ -313,6 +320,17 @@ export const initAppleAuthRoutes = (deps: AppleAuthDependencies): Router => {
 		} catch (err) {
 			deps.logError(
 				"[Apple Auth] Trial-end schedule creation failed — continuing without schedule",
+				err instanceof Error ? err : new Error(String(err)),
+			);
+		}
+		try {
+			await deps.createTrialReminderSchedule({
+				userId: created.userId,
+				firesAt: trialReminderFiresAt(trialEndsAt),
+			});
+		} catch (err) {
+			deps.logError(
+				"[Apple Auth] Trial-reminder schedule creation failed — continuing without schedule",
 				err instanceof Error ? err : new Error(String(err)),
 			);
 		}

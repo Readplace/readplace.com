@@ -9,9 +9,11 @@ import type {
 	CreateDeferredCancellationSchedule,
 	CreateTrialEndSchedule,
 	CreateTrialFeedbackEmailSchedule,
+	CreateTrialReminderSchedule,
 	DeleteDeferredCancellationSchedule,
 	DeleteTrialEndSchedule,
 	DeleteTrialFeedbackEmailSchedule,
+	DeleteTrialReminderSchedule,
 } from "@packages/provider-contracts/trial-scheduler";
 
 /** EventBridge Scheduler's `at(<iso>)` does not accept fractional seconds or a
@@ -40,6 +42,13 @@ function trialFeedbackEmailScheduleName(userId: UserId): string {
 	return `trial-feedback-${userId}`;
 }
 
+/** Deterministic name keyed by userId, distinct from the feedback schedule so
+ * the pre-expiry reminder and post-cancellation feedback one-shots can coexist
+ * for the same user. Both target the same DetailType; `Input.kind` disambiguates. */
+function trialReminderScheduleName(userId: UserId): string {
+	return `trial-reminder-${userId}`;
+}
+
 export function initAwsTrialScheduler(deps: {
 	client: Pick<SchedulerClient, "send">;
 	scheduleGroupName: string;
@@ -52,6 +61,8 @@ export function initAwsTrialScheduler(deps: {
 	deleteDeferredCancellationSchedule: DeleteDeferredCancellationSchedule;
 	createTrialFeedbackEmailSchedule: CreateTrialFeedbackEmailSchedule;
 	deleteTrialFeedbackEmailSchedule: DeleteTrialFeedbackEmailSchedule;
+	createTrialReminderSchedule: CreateTrialReminderSchedule;
+	deleteTrialReminderSchedule: DeleteTrialReminderSchedule;
 } {
 	const createTrialEndSchedule: CreateTrialEndSchedule = async ({ userId, firesAt }) => {
 		assert(deps.eventBusArn, "eventBusArn is required for createTrialEndSchedule");
@@ -192,6 +203,52 @@ export function initAwsTrialScheduler(deps: {
 		}
 	};
 
+	const createTrialReminderSchedule: CreateTrialReminderSchedule = async ({
+		userId,
+		firesAt,
+	}) => {
+		assert(deps.eventBusArn, "eventBusArn is required for createTrialReminderSchedule");
+		assert(
+			deps.schedulerRoleArn,
+			"schedulerRoleArn is required for createTrialReminderSchedule",
+		);
+		await deps.client.send(
+			new CreateScheduleCommand({
+				Name: trialReminderScheduleName(userId),
+				GroupName: deps.scheduleGroupName,
+				ScheduleExpression: `at(${toNaiveSeconds(firesAt)})`,
+				FlexibleTimeWindow: { Mode: "OFF" },
+				ActionAfterCompletion: "DELETE",
+				State: "ENABLED",
+				Target: {
+					Arn: deps.eventBusArn,
+					RoleArn: deps.schedulerRoleArn,
+					EventBridgeParameters: {
+						Source: "hutch.subscriptions",
+						DetailType: "SendTrialFeedbackEmailCommand",
+					},
+					Input: JSON.stringify({ userId, kind: "reminder" }),
+				},
+			}),
+		);
+	};
+
+	const deleteTrialReminderSchedule: DeleteTrialReminderSchedule = async ({ userId }) => {
+		try {
+			await deps.client.send(
+				new DeleteScheduleCommand({
+					Name: trialReminderScheduleName(userId),
+					GroupName: deps.scheduleGroupName,
+				}),
+			);
+		} catch (err) {
+			if (err instanceof Error && err.name === "ResourceNotFoundException") {
+				return;
+			}
+			throw err;
+		}
+	};
+
 	return {
 		createTrialEndSchedule,
 		deleteTrialEndSchedule,
@@ -199,5 +256,7 @@ export function initAwsTrialScheduler(deps: {
 		deleteDeferredCancellationSchedule,
 		createTrialFeedbackEmailSchedule,
 		deleteTrialFeedbackEmailSchedule,
+		createTrialReminderSchedule,
+		deleteTrialReminderSchedule,
 	};
 }
