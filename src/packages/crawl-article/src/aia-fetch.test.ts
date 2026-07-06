@@ -259,6 +259,66 @@ describe("initFetchAia", () => {
 		expect(calls).toBe(2);
 	});
 
+	// The followRedirects edge cases are owned by follow-redirects.test.ts; these
+	// drive the same cross-cutting behaviors through the real fetchAia so a future
+	// change to its wiring of the shared loop (resolving against the origin, handing
+	// headers straight to httpsGet, skipping the scheme allowlist) fails here too.
+	it("resolves a path-relative Location against the current hop's directory, not the origin", async () => {
+		const seen: string[] = [];
+		const deps = makeDeps({
+			httpsGet: jest.fn(async ({ url }) => {
+				seen.push(url.href);
+				if (url.pathname === "/current/path") {
+					return { status: 302, headers: { location: "sub/page" }, body: Buffer.alloc(0) };
+				}
+				return { status: 200, headers: {}, body: Buffer.from("landed") };
+			}),
+		});
+		const fetchAia = initFetchAia(deps);
+
+		const response = await fetchAia("https://example.com/current/path");
+
+		expect(await response.text()).toBe("landed");
+		expect(seen).toEqual(["https://example.com/current/path", "https://example.com/current/sub/page"]);
+	});
+
+	it("drops cookie/authorization but keeps other headers when a redirect crosses origins", async () => {
+		const headersSeen: Array<Record<string, string> | undefined> = [];
+		const deps = makeDeps({
+			httpsGet: jest.fn(async ({ url, headers }) => {
+				headersSeen.push(headers);
+				if (url.origin === "https://example.com") {
+					return { status: 301, headers: { location: "https://other.example/dest" }, body: Buffer.alloc(0) };
+				}
+				return { status: 200, headers: {}, body: Buffer.from("dest") };
+			}),
+		});
+		const fetchAia = initFetchAia(deps);
+
+		await fetchAia("https://example.com/start", {
+			headers: { cookie: "s=secret", authorization: "Bearer t", "user-agent": "Persona/1.0" },
+		});
+
+		expect(headersSeen[0]).toEqual({ cookie: "s=secret", authorization: "Bearer t", "user-agent": "Persona/1.0" });
+		expect(headersSeen[1]).toEqual({ "user-agent": "Persona/1.0" });
+	});
+
+	it("refuses to follow a redirect to a non-HTTP(S) scheme", async () => {
+		const deps = makeDeps({
+			httpsGet: jest.fn(async () => ({
+				status: 301,
+				headers: { location: "gopher://127.0.0.1:70/1payload" },
+				body: Buffer.alloc(0),
+			})),
+		});
+		const fetchAia = initFetchAia(deps);
+
+		await expect(fetchAia("https://example.com/start")).rejects.toThrow(
+			/fetchAia failed for .*: refusing to follow redirect to non-HTTP\(S\) scheme "gopher:"/,
+		);
+		expect(deps.httpsGet).toHaveBeenCalledTimes(1);
+	});
+
 	it("joins multi-value response headers with a comma", async () => {
 		const deps = makeDeps({
 			httpsGet: jest.fn(async () => ({ status: 200, headers: { "set-cookie": ["a=1", "b=2"] }, body: Buffer.alloc(0) })),
