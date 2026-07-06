@@ -51,7 +51,7 @@ export type NavItemKey =
 	| "logout"
 	| "install"
 	| "features"
-	| "signup";
+	| "login";
 
 /** The querystring feature flag that reveals the email-forwarding surface. The
  * single source of truth for the string, shared so the consuming site's route
@@ -198,13 +198,13 @@ const NAV_ACCOUNT = navItem({ key: "account", label: "Account", path: "/account"
 const NAV_LOGOUT = navItem({ key: "logout", label: "Sign out", path: "/logout", method: "POST", icon: "fa-solid fa-right-from-bracket" });
 const NAV_INSTALL = navItem({ key: "install", label: "Install", path: "/install", method: "GET", icon: "fa-solid fa-download" });
 const NAV_FEATURES = navItem({ key: "features", label: "Features", path: "/#what-works", method: "GET", icon: "fa-solid fa-wand-magic-sparkles" });
-const NAV_SIGNUP = navItem({ key: "signup", label: "Sign up", path: "/signup", method: "GET", icon: "fa-solid fa-user-plus" });
+const NAV_LOGIN = navItem({ key: "login", label: "Log in", path: "/login", method: "GET", icon: "fa-solid fa-right-to-bracket" });
 
 /** Guest nav items rendered as a flat list without group structure. Import sits
- * before signup so a logged-out visitor can start a migration from the menu; the
- * import flow defers account creation until they commit their selection. */
+ * before the login entry so a logged-out visitor can start a migration from the
+ * menu; the import flow defers account creation until they commit their selection. */
 export function buildGuestNavItems(): NavItem[] {
-	return [NAV_INSTALL, NAV_FEATURES, NAV_IMPORT, NAV_SIGNUP];
+	return [NAV_INSTALL, NAV_FEATURES, NAV_IMPORT, NAV_LOGIN];
 }
 
 /** Builds the grouped header nav for authenticated users. The template

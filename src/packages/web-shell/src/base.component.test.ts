@@ -207,7 +207,7 @@ describe("Base component", () => {
 		const navItems = Array.from(doc.querySelectorAll("[data-test-nav-item]")).map(
 			(el) => el.getAttribute("data-test-nav-item"),
 		);
-		expect(navItems).toEqual(["install", "features", "import", "signup"]);
+		expect(navItems).toEqual(["install", "features", "import", "login"]);
 	});
 
 	it("renders the full nav (queue + import + export + account + logout) for an authenticated full-access user", () => {
