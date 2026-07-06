@@ -51,9 +51,9 @@ export function initDynamoDbPasswordReset(deps: {
 		const expiresAt = Math.floor(Date.now() / 1000) + TOKEN_TTL_SECONDS;
 
 		// Store the normalized (lowercased) email so a mixed-case reset request
-		// (`John@Example.com`) is still matched by the deletion scrub, which filters
-		// on the normalized users-table PK. Without this the row would never match
-		// and — since this table has no TTL — the address would outlive the account.
+		// (`John@Example.com`) is matched — and erased immediately — by the deletion
+		// scrub, which filters on the normalized users-table PK. An un-normalized row
+		// escapes the synchronous scrub and lingers until the `expiresAt` TTL reaps it.
 		await table.put({ Item: { token, email: normalizeEmail(email), expiresAt } });
 
 		return token;
@@ -84,8 +84,8 @@ export function initDynamoDbPasswordReset(deps: {
 	};
 
 	const deleteTokensByEmail: DeletePasswordResetTokensByEmail = async (email) => {
-		// This table carries no TTL attribute, so an unexpired reset token would
-		// outlive the deleted account unless every row for the email is purged now.
+		// Purge every row for this email now so deletion erases the token immediately;
+		// the `expiresAt` TTL only reaps an unexpired token later, after it lapses.
 		let ExclusiveStartKey: Record<string, unknown> | undefined;
 		do {
 			const { items, lastEvaluatedKey } = await tokenKeyTable.scan({
