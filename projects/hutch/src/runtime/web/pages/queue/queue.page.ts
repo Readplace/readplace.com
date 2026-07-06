@@ -89,16 +89,32 @@ import {
 } from "./queue-card/queue-card.component";
 import { computeQueueCardEtag, etagMatches } from "./queue-card/queue-card.etag";
 import { ReaderPage, formatReaderDocumentTitle } from "../reader/reader.component";
-import { ONBOARDING_VERSION } from "../../onboarding/onboarding.steps";
+import { NO_CLIENT_ONBOARDING_VERSION, ONBOARDING_VERSION } from "../../onboarding/onboarding.steps";
 import {
 	detectPlatform,
 	extensionInstallUrlIfMissing,
+	hasInstallableClient,
 	isExtensionInstalled,
 	isExtensionSavedArticle,
 } from "../../onboarding/extension-install";
 import { isIosClient } from "../../onboarding/ios-client";
 import type { GetIosAppSignals, RecordIosAnyActivity, RecordIosSavedArticle } from "@packages/provider-contracts/ios-onboarding-signal";
 import type { GetEffectiveAccess } from "../../../domain/access/effective-access";
+
+/** The dismiss-cookie value a device of this class writes on dismissal and the
+ * GET read expects back: the step-hash {@link ONBOARDING_VERSION} when the device
+ * has an installable client (so shipping a new onboarding step re-onboards it),
+ * the stable {@link NO_CLIENT_ONBOARDING_VERSION} otherwise (so the no-client
+ * escape card — which such users can never complete away — stays dismissed no
+ * matter how the steps change). The dismiss POST and the GET read derive it from
+ * the same predicate here, so they can't drift; the one runtime coupling left is
+ * that both requests report the same device class, which a same-browser HTML form
+ * submit guarantees by carrying the GET's User-Agent. Preserve that parity if
+ * dismissal ever becomes a background request that could drop or alter the UA. */
+function dismissTokenFor(hasClient: boolean): string {
+	return hasClient ? ONBOARDING_VERSION : NO_CLIENT_ONBOARDING_VERSION;
+}
+
 function readImportSkippedFlash(
 	req: Request,
 	res: Response,
@@ -500,6 +516,35 @@ export function initQueueRoutes(deps: QueueDependencies): Router {
 	router.use(deps.dualAuth);
 	router.use(deps.resolveVerificationStatus);
 
+	/** Resolves the onboarding-checklist signals for an authenticated `/queue`
+	 * HTML render. Shared by the top-of-page GET and the save-bar 422 error
+	 * re-render so both surface the same card for the device — resolving it in one
+	 * place is what stops the 422 path from defaulting `hasInstallableClient` to
+	 * false and rendering the no-client card to devices that do have a client.
+	 *
+	 * Completion source is resolved by platform: iPhone reads the per-user
+	 * server-side iOS signal (Safari can't see the app's cookies); every other
+	 * platform reads the same-browser extension liveness/save cookies.
+	 *
+	 * Dismissal compares the cookie against {@link dismissTokenFor} for the device
+	 * class. Client devices additionally require the install step complete in *this*
+	 * context: the dismiss button only appears once every step is done, so a dismiss
+	 * without `installed` means a different context (a different browser, or a phone
+	 * whose app isn't signed in) — re-show so the user can finish here. When a client
+	 * later ships for a currently-clientless device, hasClient flips true and the read
+	 * falls through to this `installed && …` arm, where the no-client token no longer
+	 * matches and the new client isn't installed, so onboarding re-appears. */
+	const resolveOnboardingSignals = async (req: Request, userId: UserId) => {
+		const platform = detectPlatform(req);
+		const hasClient = hasInstallableClient(req);
+		const { installed, savedArticle } = platform === "iphone"
+			? await deps.getIosAppSignals({ userId })
+			: { installed: isExtensionInstalled(req), savedArticle: isExtensionSavedArticle(req) };
+		const dismissTokenMatches = req.cookies?.[DISMISS_COOKIE_NAME] === dismissTokenFor(hasClient);
+		const onboardingDismissed = hasClient ? installed && dismissTokenMatches : dismissTokenMatches;
+		return { platform, installed, savedArticle, hasInstallableClient: hasClient, onboardingDismissed };
+	};
+
 	router.get("/", async (req: Request, res: Response) => {
 		assert(req.userId, "userId required - route must be protected by requireAuth");
 		const userId = req.userId;
@@ -584,30 +629,19 @@ export function initQueueRoutes(deps: QueueDependencies): Router {
 			effectiveAccess,
 			now: deps.now(),
 		});
-		/* Resolve the completion source by platform: iPhone reads the per-user
-		 * server-side iOS signal (Safari can't see the app's cookies); every other
-		 * platform reads the same-browser extension liveness/save cookies. */
-		const platform = detectPlatform(req);
-		const { installed, savedArticle } = platform === "iphone"
-			? await deps.getIosAppSignals({ userId })
-			: { installed: isExtensionInstalled(req), savedArticle: isExtensionSavedArticle(req) };
-		/** Dismissal only counts when the install step is also complete in *this*
-		 * context. The dismiss button only appears once every step is complete, so a
-		 * dismiss without `installed` means the user is in a different context (a
-		 * different browser, or a phone whose app isn't signed in) — show the popup
-		 * again so they can complete onboarding here. */
-		const onboardingDismissed = installed && req.cookies?.[DISMISS_COOKIE_NAME] === ONBOARDING_VERSION;
+		const onboarding = await resolveOnboardingSignals(req, userId);
 		sendComponent(
 			req, res,
 			Base(
-				QueuePage(vm, { saveUrl: filterUrl, platform, installed, savedArticle, onboardingDismissed, deviceClass: classifyDeviceClass(req.get("user-agent")) }),
+				QueuePage(vm, { ...onboarding, saveUrl: filterUrl, deviceClass: classifyDeviceClass(req.get("user-agent")) }),
 				await deps.buildBannerState(req, { preFetchedAccess: effectiveAccess }),
 			),
 		);
 	});
 
-	router.post("/dismiss-onboarding", (_req: Request, res: Response) => {
-		res.cookie(DISMISS_COOKIE_NAME, ONBOARDING_VERSION, { path: "/", maxAge: 365 * 24 * 60 * 60 * 1000, sameSite: "lax", httpOnly: true });
+	router.post("/dismiss-onboarding", (req: Request, res: Response) => {
+		const version = dismissTokenFor(hasInstallableClient(req));
+		res.cookie(DISMISS_COOKIE_NAME, version, { path: "/", maxAge: 365 * 24 * 60 * 60 * 1000, sameSite: "lax", httpOnly: true });
 		res.redirect(303, QUEUE_PATH);
 	});
 
@@ -1056,7 +1090,8 @@ export function initQueueRoutes(deps: QueueDependencies): Router {
 				summaryByUrl,
 				crawlByUrl,
 			});
-			sendComponent(req, res, Base(QueuePage(vm, { statusCode: 422, deviceClass: classifyDeviceClass(req.get("user-agent")) }), await deps.buildBannerState(req)));
+			const onboarding = await resolveOnboardingSignals(req, userId);
+			sendComponent(req, res, Base(QueuePage(vm, { ...onboarding, statusCode: 422, deviceClass: classifyDeviceClass(req.get("user-agent")) }), await deps.buildBannerState(req)));
 			return;
 		}
 

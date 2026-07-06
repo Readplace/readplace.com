@@ -152,6 +152,18 @@ describe("GET /", () => {
 		expect(cta?.getAttribute("href")).toBe("/install?utm_source=home-hero&utm_medium=internal&utm_content=install");
 	});
 
+	it("should render a generic install CTA for Android Chrome (the extension can't install there)", async () => {
+		const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
+		const response = await request(harness.server)
+			.get("/")
+			.set("User-Agent", "Mozilla/5.0 (Linux; Android 14; Pixel 8) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/125.0.0.0 Mobile Safari/537.36");
+		const doc = new JSDOM(response.text).window.document;
+
+		const cta = doc.querySelector('[data-test-cta="install-extension"]');
+		expect(cta?.textContent).toBe("Install Browser Extension");
+		expect(cta?.getAttribute("href")).toBe("/install?utm_source=home-hero&utm_medium=internal&utm_content=install");
+	});
+
 	it("should render generic trust line when browser is unrecognized", async () => {
 		const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
 		const response = await request(harness.server).get("/");
