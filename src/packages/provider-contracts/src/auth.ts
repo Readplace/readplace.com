@@ -100,8 +100,20 @@ export type CreateGoogleUser = (user: {
 export type CreateAppleUser = (user: {
 	email: string;
 	userId: UserId;
+	appleRefreshToken: string;
 	attribution?: UserAcquisitionAttribution;
 }) => Promise<CreateUserResult>;
+
+/** Upserts the Apple refresh_token onto an existing user's row. Apple mints a
+ * fresh refresh_token on every code exchange, and a returning user may predate
+ * token persistence — so every Apple login stores the newest grant, keeping
+ * account-deletion revocation possible for all Sign in with Apple users. */
+export type SaveAppleRefreshToken = (params: {
+	email: string;
+	appleRefreshToken: string;
+}) => Promise<void>;
+
+export type FindAppleRefreshTokenByUserId = (userId: UserId) => Promise<string | null>;
 
 export type BotDefenseRejectReason =
 	| "honeypot"

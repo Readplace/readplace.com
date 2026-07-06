@@ -7,7 +7,7 @@ import {
 	InboxAddressSchema,
 	MessageIdSchema,
 } from "@packages/domain/inbox";
-import type { UserId } from "@packages/domain/user";
+import { UserIdSchema, type UserId } from "@packages/domain/user";
 import { HutchLogger, noopLogger } from "@packages/hutch-logger";
 import { initInMemoryArticleStore } from "@packages/test-fixtures/providers/article-store";
 import { initInMemoryAuth } from "@packages/test-fixtures/providers/auth";
@@ -29,7 +29,7 @@ import { initInMemorySubscriptionProviders } from "@packages/test-fixtures/provi
 import { buildLambdaContext } from "@packages/test-fixtures/lambda-context";
 import { buildSqsEvent } from "@packages/test-fixtures/sqs";
 import { initDeleteAccountHandler } from "./delete-account-handler";
-import { initNoopRevokeExternalIdpTokens } from "./revoke-external-idp-tokens";
+import { initRevokeExternalIdpTokens } from "./revoke-external-idp-tokens";
 
 const SEED_NOW = new Date("2026-07-05T00:00:00.000Z");
 const COOLDOWN_MS = 1000 * 60 * 60 * 24 * 365;
@@ -74,9 +74,22 @@ function buildSubject() {
 	const pendingSignupDeleteCalls: Array<{ userId: UserId; email: string | null }> = [];
 	const revokeIdpCalls: UserId[] = [];
 
-	// The noop is exercised through this wrapper so its own logging line stays
-	// covered while the spy still records each invocation.
-	const noopRevoke = initNoopRevokeExternalIdpTokens({ logger: HutchLogger.from(noopLogger) });
+	// The real revoker runs against the in-memory auth store and a fake Apple
+	// endpoint, so the scrub tests prove revocation happens while the auth row
+	// (and its stored refresh token) still exists.
+	const appleRevokeCalls: string[] = [];
+	const revokeIdpTokens = initRevokeExternalIdpTokens({
+		findAppleRefreshTokenByUserId: auth.findAppleRefreshTokenByUserId,
+		appleClientId: "com.readplace.web",
+		createAppleClientSecret: () => "minted-client-secret-jwt",
+		fetch: async (_input, init) => {
+			const body = init?.body;
+			assert(typeof body === "string", "Apple revocation must send a form-encoded body");
+			appleRevokeCalls.push(new URLSearchParams(body).get("token") ?? "");
+			return new Response(null, { status: 200 });
+		},
+		logger: HutchLogger.from(noopLogger),
+	});
 
 	// Test-only failure injection: the article-store fake throws for any user id
 	// added here, so a batch can carry one poisoned record beside a healthy one.
@@ -147,7 +160,7 @@ function buildSubject() {
 		},
 		revokeExternalIdpTokens: async (userId: UserId) => {
 			revokeIdpCalls.push(userId);
-			await noopRevoke(userId);
+			await revokeIdpTokens(userId);
 		},
 		revokeAllUserOAuthTokens: createRevokeAllUserOAuthTokens(oauthDeps),
 		destroyUserSessions: auth.destroyUserSessions,
@@ -179,6 +192,7 @@ function buildSubject() {
 		verificationTokenDeleteCalls,
 		pendingSignupDeleteCalls,
 		revokeIdpCalls,
+		appleRevokeCalls,
 		failArticleDeleteFor: (userId: UserId): void => {
 			articleDeleteThrowIds.add(userId);
 		},
@@ -542,7 +556,7 @@ describe("delete-account handler", () => {
 		assert.equal(await s.auth.findEmailByUserId(healthy.userId), null);
 	});
 
-	it("invokes revokeExternalIdpTokens exactly once per deletion", async () => {
+	it("invokes revokeExternalIdpTokens exactly once per deletion, without an Apple call for a password account", async () => {
 		const s = buildSubject();
 		const account = await seedAccount(s, {
 			label: "idp",
@@ -553,6 +567,23 @@ describe("delete-account handler", () => {
 		await run(s, [{ messageId: "msg", body: bodyFor(account.userId) }]);
 
 		assert.deepEqual(s.revokeIdpCalls, [account.userId]);
+		assert.deepEqual(s.appleRevokeCalls, []);
+	});
+
+	it("revokes the Sign in with Apple grant using the refresh token stored on the auth row", async () => {
+		const s = buildSubject();
+		const created = await s.auth.createAppleUser({
+			email: "siwa@example.com",
+			userId: UserIdSchema.parse("siwa-user-1"),
+			appleRefreshToken: "stored-apple-refresh-token",
+		});
+		assert(created.ok, "expected the Apple user to be created");
+
+		const result = await run(s, [{ messageId: "msg-siwa", body: bodyFor(created.userId) }]);
+
+		assert.deepEqual(result.batchItemFailures, []);
+		assert.deepEqual(s.appleRevokeCalls, ["stored-apple-refresh-token"]);
+		assert.equal(await s.auth.findUserByEmail("siwa@example.com"), null);
 	});
 
 	it("redrive after a failed local subscription delete re-runs the Stripe customer delete idempotently and converges", async () => {

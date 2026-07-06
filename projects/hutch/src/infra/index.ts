@@ -590,6 +590,11 @@ const deleteAccountQueue = new HutchSQS("delete-account", {
 	// Matches the worker Lambda timeout so a single in-flight scrub cannot be
 	// redelivered while still running.
 	visibilityTimeoutSeconds: 900,
+	// The scrub converges on partial state by design, and its Apple-revocation
+	// step fails closed on an Apple outage — 12 receives ≈ 3 hours of retries
+	// so a losable deletion only falls to the DLQ (email-alarmed) after riding
+	// out a real outage, not after the default 3 attempts.
+	dlqMaxReceiveCount: 12,
 });
 
 const deleteAccountLambda = new HutchLambda("delete-account", {
@@ -619,6 +624,10 @@ const deleteAccountLambda = new HutchLambda("delete-account", {
 		CONTENT_BUCKET_NAME: contentBucketName,
 		USER_EXPORT_BUCKET_NAME: userExportBucketName,
 		STRIPE_SECRET_KEY: requireEnv("STRIPE_SECRET_KEY"),
+		APPLE_LOGIN_CLIENT_ID: requireEnv("APPLE_LOGIN_CLIENT_ID"),
+		APPLE_LOGIN_TEAM_ID: requireEnv("APPLE_LOGIN_TEAM_ID"),
+		APPLE_LOGIN_KEY_ID: requireEnv("APPLE_LOGIN_KEY_ID"),
+		APPLE_LOGIN_PRIVATE_KEY_BASE64: requireEnv("APPLE_LOGIN_PRIVATE_KEY_BASE64"),
 		EVENT_BUS_ARN: eventBus.eventBusArn,
 		TRIAL_SCHEDULER_GROUP_NAME: trialSchedulerGroupName,
 		TRIAL_SCHEDULER_ROLE_ARN: trialSchedulerRole.arn,

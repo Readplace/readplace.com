@@ -19,6 +19,7 @@ import type {
 	DestroySession,
 	DestroyUserSessions,
 	ExistsUserByIdPrefix,
+	FindAppleRefreshTokenByUserId,
 	FindEmailByUserId,
 	FindUserById,
 	FindUserByEmail,
@@ -26,6 +27,7 @@ import type {
 	GetSessionUserId,
 	MarkEmailVerified,
 	MarkSessionEmailVerified,
+	SaveAppleRefreshToken,
 	UpdatePassword,
 	UserAcquisitionAttribution,
 	UserExistsByEmail,
@@ -36,6 +38,7 @@ interface StoredUser {
 	id: UserId;
 	email: string;
 	passwordHash: string | undefined;
+	appleRefreshToken: string | undefined;
 	emailVerified: boolean;
 	registeredAt: string;
 	attribution?: UserAcquisitionAttribution;
@@ -54,6 +57,8 @@ export function initInMemoryAuth(opts: {
 	createUserWithPasswordHash: CreateUserWithPasswordHash;
 	createGoogleUser: CreateGoogleUser;
 	createAppleUser: CreateAppleUser;
+	saveAppleRefreshToken: SaveAppleRefreshToken;
+	findAppleRefreshTokenByUserId: FindAppleRefreshTokenByUserId;
 	findUserByEmail: FindUserByEmail;
 	verifyCredentials: VerifyCredentials;
 	createSession: CreateSession;
@@ -109,6 +114,7 @@ export function initInMemoryAuth(opts: {
 			id: userId,
 			email: normalizedEmail,
 			passwordHash,
+			appleRefreshToken: undefined,
 			emailVerified: false,
 			registeredAt: new Date().toISOString(),
 			attribution,
@@ -129,6 +135,7 @@ export function initInMemoryAuth(opts: {
 			id: userId,
 			email: normalizedEmail,
 			passwordHash,
+			appleRefreshToken: undefined,
 			emailVerified: false,
 			registeredAt: new Date().toISOString(),
 			attribution,
@@ -139,28 +146,53 @@ export function initInMemoryAuth(opts: {
 	};
 
 	/** A user created from a federated identity provider (Google/Apple): verified
-	 * email, no password. Both providers share this body because they differ only
-	 * in which contract type names the seam, not in what is persisted. */
-	const createFederatedUser: CreateGoogleUser = async ({ email, userId, attribution }) => {
+	 * email, no password. Apple rows additionally carry the refresh token that
+	 * account deletion revokes; Google persists no token. */
+	const createFederatedUser = async ({
+		email,
+		userId,
+		attribution,
+		appleRefreshToken,
+	}: {
+		email: string;
+		userId: UserId;
+		attribution?: UserAcquisitionAttribution;
+		appleRefreshToken?: string;
+	}) => {
 		const normalizedEmail = reserveIdentity(email, userId);
 		if (normalizedEmail === null) {
-			return { ok: false, reason: "email-already-exists" };
+			return { ok: false as const, reason: "email-already-exists" as const };
 		}
 
 		users.set(normalizedEmail, {
 			id: userId,
 			email: normalizedEmail,
 			passwordHash: undefined,
+			appleRefreshToken,
 			emailVerified: true,
 			registeredAt: new Date().toISOString(),
 			attribution,
 		});
 		userIdPrefixes.add(userIdPrefixFrom(userId));
 
-		return { ok: true, userId };
+		return { ok: true as const, userId };
 	};
 	const createGoogleUser: CreateGoogleUser = createFederatedUser;
 	const createAppleUser: CreateAppleUser = createFederatedUser;
+
+	const saveAppleRefreshToken: SaveAppleRefreshToken = async ({ email, appleRefreshToken }) => {
+		const normalizedEmail = normalizeEmail(email);
+		const user = users.get(normalizedEmail);
+		assert(user, `Cannot save Apple refresh token: no user found for ${normalizedEmail}`);
+		user.appleRefreshToken = appleRefreshToken;
+	};
+
+	const findAppleRefreshTokenByUserId: FindAppleRefreshTokenByUserId = async (userId) => {
+		for (const user of users.values()) {
+			if (user.id === userId) return user.appleRefreshToken ?? null;
+		}
+		return null;
+	};
 
 	const findUserByEmail: FindUserByEmail = async (email) => {
 		const normalizedEmail = normalizeEmail(email);
@@ -306,6 +338,8 @@ export function initInMemoryAuth(opts: {
 		createUserWithPasswordHash,
 		createGoogleUser,
 		createAppleUser,
+		saveAppleRefreshToken,
+		findAppleRefreshTokenByUserId,
 		findUserByEmail,
 		verifyCredentials,
 		createSession,

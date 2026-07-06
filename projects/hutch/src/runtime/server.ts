@@ -23,6 +23,7 @@ import type {
 	GetSessionUserId,
 	MarkEmailVerified,
 	MarkSessionEmailVerified,
+	SaveAppleRefreshToken,
 	UpdatePassword,
 	UserExistsByEmail,
 	VerifyCredentials,
@@ -210,6 +211,7 @@ interface AppDependencies {
 	createUserWithPasswordHash: CreateUserWithPasswordHash;
 	createGoogleUser: CreateGoogleUser;
 	createAppleUser: CreateAppleUser;
+	saveAppleRefreshToken: SaveAppleRefreshToken;
 	findUserByEmail: FindUserByEmail;
 	verifyCredentials: VerifyCredentials;
 	createSession: CreateSession;
@@ -929,6 +931,7 @@ export function createApp(dependencies: AppDependencies): Express {
 		secureCookies,
 		createSession: deps.createSession,
 		createAppleUser,
+		saveAppleRefreshToken: deps.saveAppleRefreshToken,
 		findUserByEmail: deps.findUserByEmail,
 		countUsers,
 		markEmailVerified: deps.markEmailVerified,

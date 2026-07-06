@@ -403,6 +403,7 @@ export function createDefaultTestAppFixture(appOrigin: string): TestAppFixture {
 				appleId: AppleIdSchema.parse("apple-sub-default"),
 				email: "apple-default@example.com",
 				emailVerified: true,
+				appleRefreshToken: "apple-refresh-default",
 			}),
 			clientId: "com.readplace.web",
 			stateSigningSecret: "test-apple-state-secret",

@@ -23,6 +23,7 @@ describe("initExchangeAppleCode", () => {
 			receivedInit = init;
 			return jsonResponse({
 				id_token: idToken({ sub: "apple-sub-1", email: "user@example.com", email_verified: true }),
+				refresh_token: "apple-refresh-1",
 			});
 		};
 
@@ -53,6 +54,7 @@ describe("initExchangeAppleCode", () => {
 		const fakeFetch: typeof globalThis.fetch = async () =>
 			jsonResponse({
 				id_token: idToken({ sub: "apple-sub-42", email: "person@example.com", email_verified: true }),
+				refresh_token: "apple-refresh-42",
 			});
 
 		const exchange = initExchangeAppleCode({
@@ -69,10 +71,46 @@ describe("initExchangeAppleCode", () => {
 		assert.equal(result.emailVerified, true);
 	});
 
+	it("returns Apple's refresh_token so the login flow can persist it for deletion-time revocation", async () => {
+		const fakeFetch: typeof globalThis.fetch = async () =>
+			jsonResponse({
+				id_token: idToken({ sub: "apple-sub-42", email: "person@example.com", email_verified: true }),
+				refresh_token: "apple-refresh-42",
+			});
+
+		const exchange = initExchangeAppleCode({
+			clientId: "id",
+			createClientSecret: () => "secret",
+			redirectUri: "https://app.test/cb",
+			fetch: fakeFetch,
+		});
+
+		const result = await exchange("code");
+
+		assert.equal(result.appleRefreshToken, "apple-refresh-42");
+	});
+
+	it("rejects a token response that is missing the refresh_token — the grant would be unrevokable at account deletion", async () => {
+		const fakeFetch: typeof globalThis.fetch = async () =>
+			jsonResponse({
+				id_token: idToken({ sub: "apple-sub", email: "e@example.com", email_verified: true }),
+			});
+
+		const exchange = initExchangeAppleCode({
+			clientId: "id",
+			createClientSecret: () => "secret",
+			redirectUri: "https://app.test/cb",
+			fetch: fakeFetch,
+		});
+
+		await assert.rejects(exchange("code"));
+	});
+
 	it("coerces the documented string email_verified 'true' to boolean true", async () => {
 		const fakeFetch: typeof globalThis.fetch = async () =>
 			jsonResponse({
 				id_token: idToken({ sub: "apple-sub", email: "e@example.com", email_verified: "true" }),
+				refresh_token: "apple-refresh",
 			});
 
 		const exchange = initExchangeAppleCode({
@@ -91,6 +129,7 @@ describe("initExchangeAppleCode", () => {
 		const fakeFetch: typeof globalThis.fetch = async () =>
 			jsonResponse({
 				id_token: idToken({ sub: "apple-sub", email: "e@example.com", email_verified: "false" }),
+				refresh_token: "apple-refresh",
 			});
 
 		const exchange = initExchangeAppleCode({
@@ -109,6 +148,7 @@ describe("initExchangeAppleCode", () => {
 		const fakeFetch: typeof globalThis.fetch = async () =>
 			jsonResponse({
 				id_token: idToken({ sub: "apple-sub", email: "unverified@example.com", email_verified: false }),
+				refresh_token: "apple-refresh",
 			});
 
 		const exchange = initExchangeAppleCode({
@@ -138,7 +178,10 @@ describe("initExchangeAppleCode", () => {
 
 	it("rejects an id_token whose claims are missing email_verified", async () => {
 		const fakeFetch: typeof globalThis.fetch = async () =>
-			jsonResponse({ id_token: idToken({ sub: "apple-sub", email: "x@example.com" }) });
+			jsonResponse({
+				id_token: idToken({ sub: "apple-sub", email: "x@example.com" }),
+				refresh_token: "apple-refresh",
+			});
 
 		const exchange = initExchangeAppleCode({
 			clientId: "id",

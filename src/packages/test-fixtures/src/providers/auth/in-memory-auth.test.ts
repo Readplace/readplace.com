@@ -465,7 +465,11 @@ describe("initInMemoryAuth", () => {
 			const auth = makeAuth();
 			const userId = UserIdSchema.parse("apple-user-123");
 
-			const result = await auth.createAppleUser({ email: "apple@example.com", userId });
+			const result = await auth.createAppleUser({
+				email: "apple@example.com",
+				userId,
+				appleRefreshToken: "apple-refresh-123",
+			});
 
 			expect(result).toEqual({ ok: true, userId });
 			const lookup = await auth.findUserByEmail("apple@example.com");
@@ -483,6 +487,7 @@ describe("initInMemoryAuth", () => {
 			const result = await auth.createAppleUser({
 				email: "test@example.com",
 				userId: UserIdSchema.parse("other-id"),
+				appleRefreshToken: "apple-refresh-dup",
 			});
 
 			expect(result).toEqual({ ok: false, reason: "email-already-exists" });
@@ -493,14 +498,72 @@ describe("initInMemoryAuth", () => {
 			await auth.createAppleUser({
 				email: "Apple@Example.COM",
 				userId: UserIdSchema.parse("apple-user-1"),
+				appleRefreshToken: "apple-refresh-1",
 			});
 
 			const result = await auth.createAppleUser({
 				email: "apple@example.com",
 				userId: UserIdSchema.parse("apple-user-2"),
+				appleRefreshToken: "apple-refresh-2",
 			});
 
 			expect(result).toEqual({ ok: false, reason: "email-already-exists" });
+		});
+	});
+
+	describe("Apple refresh token storage", () => {
+		it("stores the token at Apple signup and resolves it by userId", async () => {
+			const auth = makeAuth();
+			const userId = UserIdSchema.parse("apple-user-123");
+			await auth.createAppleUser({
+				email: "apple@example.com",
+				userId,
+				appleRefreshToken: "apple-refresh-123",
+			});
+
+			expect(await auth.findAppleRefreshTokenByUserId(userId)).toBe("apple-refresh-123");
+		});
+
+		it("returns null for users who never signed in with Apple", async () => {
+			const auth = makeAuth();
+			const created = await auth.createUser({ email: "password@example.com", password: "password123" });
+			assert(created.ok, "User creation failed");
+
+			expect(await auth.findAppleRefreshTokenByUserId(created.userId)).toBe(null);
+		});
+
+		it("returns null for an unknown userId", async () => {
+			const auth = makeAuth();
+
+			expect(await auth.findAppleRefreshTokenByUserId(UserIdSchema.parse("ghost"))).toBe(null);
+		});
+
+		it("saveAppleRefreshToken overwrites the stored token for an existing user", async () => {
+			const auth = makeAuth();
+			const userId = UserIdSchema.parse("apple-user-123");
+			await auth.createAppleUser({
+				email: "apple@example.com",
+				userId,
+				appleRefreshToken: "apple-refresh-old",
+			});
+
+			await auth.saveAppleRefreshToken({
+				email: "Apple@Example.com",
+				appleRefreshToken: "apple-refresh-new",
+			});
+
+			expect(await auth.findAppleRefreshTokenByUserId(userId)).toBe("apple-refresh-new");
+		});
+
+		it("saveAppleRefreshToken rejects for an unknown email, mirroring the conditional Dynamo update", async () => {
+			const auth = makeAuth();
+
+			await expect(
+				auth.saveAppleRefreshToken({
+					email: "ghost@example.com",
+					appleRefreshToken: "apple-refresh-x",
+				}),
+			).rejects.toThrow(/no user found/);
 		});
 	});
 

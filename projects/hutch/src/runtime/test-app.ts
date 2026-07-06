@@ -103,6 +103,7 @@ function flattenFixtureToAppDependencies(
 		createUserWithPasswordHash: fixture.auth.createUserWithPasswordHash,
 		createGoogleUser: fixture.auth.createGoogleUser,
 		createAppleUser: fixture.auth.createAppleUser,
+		saveAppleRefreshToken: fixture.auth.saveAppleRefreshToken,
 		findUserByEmail: fixture.auth.findUserByEmail,
 		verifyCredentials: fixture.auth.verifyCredentials,
 		createSession: fixture.auth.createSession,

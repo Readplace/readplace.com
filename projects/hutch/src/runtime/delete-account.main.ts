@@ -1,9 +1,11 @@
 /* c8 ignore start -- composition root, no logic to test */
+import assert from "node:assert";
 import { S3Client } from "@aws-sdk/client-s3";
 import { SchedulerClient } from "@aws-sdk/client-scheduler";
 import { createDynamoDocumentClient } from "@packages/hutch-storage-client";
 import { HutchLogger, consoleLogger } from "@packages/hutch-logger";
 import { requireEnv } from "@packages/require-env";
+import { initCreateAppleClientSecret } from "./providers/apple-auth/apple-client-secret";
 import { initDynamoDbAuth } from "./providers/auth/dynamodb-auth";
 import { initRevokeAllUserOAuthTokens } from "./providers/oauth/dynamodb-oauth-model";
 import { initDynamoDbArticleStore } from "./providers/article-store/dynamodb-article-store";
@@ -21,7 +23,7 @@ import { initS3UserDataExport } from "./providers/user-data-export/s3-user-data-
 import { initDynamoDbPasswordReset } from "./providers/password-reset/dynamodb-password-reset";
 import { initDynamoDbEmailVerification } from "./providers/email-verification/dynamodb-email-verification";
 import { initDynamoDbPendingSignup } from "./providers/pending-signup/dynamodb-pending-signup";
-import { initNoopRevokeExternalIdpTokens } from "./delete-account/revoke-external-idp-tokens";
+import { initRevokeExternalIdpTokens } from "./delete-account/revoke-external-idp-tokens";
 import { initDeleteAccountHandler } from "./delete-account/delete-account-handler";
 
 const logger = HutchLogger.from(consoleLogger);
@@ -129,7 +131,23 @@ const pendingSignup = initDynamoDbPendingSignup({
 	logger,
 });
 
-const revokeExternalIdpTokens = initNoopRevokeExternalIdpTokens({ logger });
+const appleClientId = requireEnv("APPLE_LOGIN_CLIENT_ID");
+const applePrivateKeyPem = Buffer.from(requireEnv("APPLE_LOGIN_PRIVATE_KEY_BASE64"), "base64").toString("utf8");
+assert(applePrivateKeyPem.includes("BEGIN PRIVATE KEY"), "APPLE_LOGIN_PRIVATE_KEY_BASE64 must decode to a PKCS#8 PEM");
+
+const revokeExternalIdpTokens = initRevokeExternalIdpTokens({
+	findAppleRefreshTokenByUserId: auth.findAppleRefreshTokenByUserId,
+	appleClientId,
+	createAppleClientSecret: initCreateAppleClientSecret({
+		teamId: requireEnv("APPLE_LOGIN_TEAM_ID"),
+		clientId: appleClientId,
+		keyId: requireEnv("APPLE_LOGIN_KEY_ID"),
+		privateKeyPem: applePrivateKeyPem,
+		now,
+	}),
+	fetch: globalThis.fetch,
+	logger,
+});
 
 export const handler = initDeleteAccountHandler({
 	findEmailByUserId: auth.findEmailByUserId,

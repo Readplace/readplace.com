@@ -41,6 +41,7 @@ import type {
 	FindArticleByUrl,
 	FindArticleCrawlStatus,
 	FindArticleFreshness,
+	FindAppleRefreshTokenByUserId,
 	FindArticleUrlById,
 	FindArticlesByUser,
 	FindEmailByUserId,
@@ -99,6 +100,7 @@ import type {
 	RefreshArticleIfStale,
 	RetrieveCheckoutSession,
 	ReverseScheduledCancellation,
+	SaveAppleRefreshToken,
 	SaveArticle,
 	SaveArticleGlobally,
 	ScheduleCancellationAtPeriodEnd,
@@ -130,6 +132,8 @@ export interface AuthBundle {
 	createUserWithPasswordHash: CreateUserWithPasswordHash;
 	createGoogleUser: CreateGoogleUser;
 	createAppleUser: CreateAppleUser;
+	saveAppleRefreshToken: SaveAppleRefreshToken;
+	findAppleRefreshTokenByUserId: FindAppleRefreshTokenByUserId;
 	findUserByEmail: FindUserByEmail;
 	verifyCredentials: VerifyCredentials;
 	createSession: CreateSession;

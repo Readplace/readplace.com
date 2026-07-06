@@ -34,6 +34,7 @@ import type {
 	DestroySession,
 	DestroyUserSessions,
 	ExistsUserByIdPrefix,
+	FindAppleRefreshTokenByUserId,
 	FindEmailByUserId,
 	FindUserById,
 	FindUserByEmail,
@@ -41,7 +42,9 @@ import type {
 	GetSessionUserId,
 	MarkEmailVerified,
 	MarkSessionEmailVerified,
+	SaveAppleRefreshToken,
 	UpdatePassword,
+	UserAcquisitionAttribution,
 	UserExistsByEmail,
 	VerifyCredentials,
 } from "@packages/provider-contracts/auth";
@@ -50,6 +53,9 @@ const UserRow = z.object({
 	email: z.string(),
 	userId: UserIdSchema,
 	passwordHash: dynamoField(z.string()),
+	/* Only on rows that signed in with Apple; revoked and deleted with the
+	 * account (App Store 5.1.1(v)). */
+	appleRefreshToken: dynamoField(z.string()),
 	emailVerified: dynamoField(z.boolean()),
 	/* Optional in the schema so reads of pre-backfill rows don't throw; new writes always set it. */
 	registeredAt: dynamoField(z.string()),
@@ -84,6 +90,8 @@ export function initDynamoDbAuth(deps: {
 	createUserWithPasswordHash: CreateUserWithPasswordHash;
 	createGoogleUser: CreateGoogleUser;
 	createAppleUser: CreateAppleUser;
+	saveAppleRefreshToken: SaveAppleRefreshToken;
+	findAppleRefreshTokenByUserId: FindAppleRefreshTokenByUserId;
 	findUserByEmail: FindUserByEmail;
 	verifyCredentials: VerifyCredentials;
 	createSession: CreateSession;
@@ -224,11 +232,22 @@ export function initDynamoDbAuth(deps: {
 	};
 
 	/** A user created from a federated identity provider (Google/Apple): verified
-	 * email, no password hash. Both providers share this body because they persist
-	 * an identical row — the provider's `sub` is deliberately never stored, users
-	 * are keyed by normalized email. The Gmail canonical claim still applies, so an
-	 * Apple ID backed by a Gmail address contends for the same uniqueness claim. */
-	const createFederatedUser: CreateGoogleUser = async ({ email, userId, attribution }) => {
+	 * email, no password hash. The provider's `sub` is deliberately never stored,
+	 * users are keyed by normalized email. The Gmail canonical claim still applies,
+	 * so an Apple ID backed by a Gmail address contends for the same uniqueness
+	 * claim. Apple rows additionally carry the refresh token that account deletion
+	 * revokes; Google persists no token. */
+	const createFederatedUser = async ({
+		email,
+		userId,
+		attribution,
+		appleRefreshToken,
+	}: {
+		email: string;
+		userId: UserId;
+		attribution?: UserAcquisitionAttribution;
+		appleRefreshToken?: string;
+	}) => {
 		const normalizedEmail = normalizeEmail(email);
 		assert(!normalizedEmail.startsWith(CLAIM_PK_PREFIX), `Email collides with the claim namespace: ${email}`);
 
@@ -240,15 +259,37 @@ export function initDynamoDbAuth(deps: {
 				registeredAt: new Date().toISOString(),
 				userIdPrefix: userIdPrefixFrom(userId),
 				canonicalEmail: canonicalizeEmail(email),
+				...(appleRefreshToken === undefined ? {} : { appleRefreshToken }),
 				...(attribution ?? {}),
 			},
 			userId,
 			gmailClaimKey: gmailIdentityKey(email),
 		});
-		return result.ok ? { ok: true, userId } : result;
+		return result.ok ? { ok: true as const, userId } : result;
 	};
 	const createGoogleUser: CreateGoogleUser = createFederatedUser;
 	const createAppleUser: CreateAppleUser = createFederatedUser;
+
+	const saveAppleRefreshToken: SaveAppleRefreshToken = async ({ email, appleRefreshToken }) => {
+		const normalizedEmail = normalizeEmail(email);
+		await users.update({
+			Key: { email: normalizedEmail },
+			UpdateExpression: "SET appleRefreshToken = :token",
+			ConditionExpression: "attribute_exists(email)",
+			ExpressionAttributeValues: { ":token": appleRefreshToken },
+		});
+	};
+
+	const findAppleRefreshTokenByUserId: FindAppleRefreshTokenByUserId = async (userId) => {
+		const { items } = await users.query({
+			IndexName: "userId-index",
+			KeyConditionExpression: "userId = :userId",
+			ExpressionAttributeValues: { ":userId": userId },
+			Limit: 1,
+		});
+		const row = items[0];
+		return row?.appleRefreshToken ?? null;
+	};
 
 	const findUserByEmail: FindUserByEmail = async (email) => {
 		const normalizedEmail = normalizeEmail(email);
@@ -444,6 +485,8 @@ export function initDynamoDbAuth(deps: {
 		createUserWithPasswordHash,
 		createGoogleUser,
 		createAppleUser,
+		saveAppleRefreshToken,
+		findAppleRefreshTokenByUserId,
 		findUserByEmail,
 		verifyCredentials,
 		createSession,
