@@ -79,7 +79,7 @@ describe("Queue routes", () => {
 			expect(iframeDoc.body.textContent).toContain("archived content");
 			expect(doc.querySelector("[data-test-reader-title]")?.textContent).toBe("Saved Post");
 			expect(doc.querySelector("[data-test-back-link]")?.getAttribute("href")).toBe("/queue?utm_source=reader&utm_medium=internal&utm_content=back-top");
-			expect(doc.querySelector("[data-test-back-bottom-link]")?.getAttribute("href")).toBe("/queue?utm_source=reader&utm_medium=internal&utm_content=back-bottom");
+			expect(doc.querySelector("[data-test-back-bottom-link]")).toBe(null);
 			expect(doc.querySelector("[data-test-original-link]")?.getAttribute("href")).toBe("https://example.com/saved-post");
 		});
 
@@ -279,7 +279,7 @@ describe("Queue routes", () => {
 			expect(afterDoc.querySelectorAll(".queue-article").length).toBe(0);
 		});
 
-		it("renders top- and bottom-slot mark-read forms in the reader page so the user can click them to POST status=read", async () => {
+		it("renders a single sticky mark-read form in the reader page so the user can click it to POST status=read", async () => {
 			const articleHtml = `
 			<html><head><title>Form Render</title></head>
 			<body><article>
@@ -331,21 +331,21 @@ describe("Queue routes", () => {
 			const doc = new JSDOM(readerResponse.text).window.document;
 
 			const topForm = doc.querySelector("[data-test-mark-read-form]");
-			const bottomForm = doc.querySelector("[data-test-mark-read-bottom-form]");
-			assert(topForm, "top mark-read form must be rendered");
-			assert(bottomForm, "bottom mark-read form must be rendered");
+			assert(topForm, "the sticky mark-read form must be rendered");
+			assert(
+				doc.querySelector(".article-body__actions--sticky [data-test-mark-read-form]"),
+				"the mark-read form must live inside the sticky toolbar",
+			);
+			expect(doc.querySelector("[data-test-mark-read-bottom-form]")).toBe(null);
 			expect(topForm.getAttribute("action")).toBe(
 				`/queue/${articleId}/status?utm_source=reader&utm_medium=internal&utm_content=mark-read-top`,
-			);
-			expect(bottomForm.getAttribute("action")).toBe(
-				`/queue/${articleId}/status?utm_source=reader&utm_medium=internal&utm_content=mark-read-bottom`,
 			);
 			expect(
 				topForm.querySelector('input[type="hidden"][name="status"]')?.getAttribute("value"),
 			).toBe("read");
 		});
 
-		it("flips the reader mark-read affordances to 'Mark as unread' (status=unread) when the article is already read", async () => {
+		it("flips the reader mark-read affordance to 'Mark as unread' (status=unread) when the article is already read", async () => {
 			const articleHtml = `
 			<html><head><title>Already Read</title></head>
 			<body><article>
@@ -402,19 +402,13 @@ describe("Queue routes", () => {
 			const doc = new JSDOM(readerResponse.text).window.document;
 
 			const topButton = doc.querySelector("[data-test-mark-read-btn]");
-			const bottomButton = doc.querySelector("[data-test-mark-read-bottom-btn]");
-			assert(topButton, "top mark-read button must be rendered");
-			assert(bottomButton, "bottom mark-read button must be rendered");
+			assert(topButton, "the sticky mark-read button must be rendered");
+			expect(doc.querySelector("[data-test-mark-read-bottom-btn]")).toBe(null);
 			expect(topButton.textContent).toBe("Mark as unread");
-			expect(bottomButton.textContent).toBe("Mark as unread");
 
 			const topForm = doc.querySelector("[data-test-mark-read-form]");
-			const bottomForm = doc.querySelector("[data-test-mark-read-bottom-form]");
 			expect(
 				topForm?.querySelector('input[type="hidden"][name="status"]')?.getAttribute("value"),
-			).toBe("unread");
-			expect(
-				bottomForm?.querySelector('input[type="hidden"][name="status"]')?.getAttribute("value"),
 			).toBe("unread");
 		});
 

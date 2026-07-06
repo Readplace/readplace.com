@@ -59,10 +59,10 @@ export function ReaderPage(
 		audioEnabled?: boolean;
 		extensionInstallUrl?: string;
 		backLink: { topHref: string; bottomHref: string; label: string };
-		/** Injected per variant: the standard (top+bottom) or chromeless (sticky
-		 * top, no bottom — the native sheet handles dismissal) reader action bars.
-		 * The variant also carries the page body class, so the sticky-toolbar markup
-		 * and its content offset are decided by one value and can never drift apart. */
+		/** Injected per variant: the sticky action toolbar (Back + Mark-as-read, no
+		 * bottom bar) for the web reader or the iOS chromeless reader. Both render the
+		 * same toolbar; the variant carries the page body class that decides where it
+		 * pins, so the markup and the CSS that pins it can never drift apart. */
 		renderActions: RenderReaderActions;
 		lastCrawledAt?: LocalTime;
 	},

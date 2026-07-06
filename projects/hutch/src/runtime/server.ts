@@ -134,7 +134,7 @@ import { initForgotPasswordRoutes } from "./web/auth/forgot-password.page";
 import { initQueueRoutes } from "./web/pages/queue/queue.page";
 import {
 	ChromelessReader,
-	RegularReader,
+	StickyReader,
 } from "./web/shared/article-body/reader-actions/reader-actions.component";
 import { QUEUE_PATH } from "./web/pages/queue/queue.url";
 import { initImportSessionRoutes } from "./web/pages/import/import.page";
@@ -987,7 +987,7 @@ export function createApp(dependencies: AppDependencies): Express {
 		refreshArticleIfStale: deps.refreshArticleIfStale,
 		publishUpdateFetchTimestamp: deps.publishUpdateFetchTimestamp,
 		readArticleContent: deps.readArticleContent,
-		regularReader: RegularReader,
+		stickyReader: StickyReader,
 		chromelessReader: ChromelessReader,
 		httpErrorMessageMapping: deps.httpErrorMessageMapping,
 		getIosAppSignals: deps.getIosAppSignals,

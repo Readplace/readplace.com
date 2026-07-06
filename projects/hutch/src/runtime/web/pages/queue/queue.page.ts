@@ -182,9 +182,10 @@ interface QueueDependencies {
 	refreshArticleIfStale: RefreshArticleIfStale;
 	publishUpdateFetchTimestamp: PublishUpdateFetchTimestamp;
 	readArticleContent: ReadArticleContent;
-	/** The reader's Back + Mark-as-read action bars, injected per variant: the
-	 * inline bars for the `/view` reader, the chromeless sticky variant for `/app`. */
-	regularReader: RenderReaderActions;
+	/** The reader's Back + Mark-as-read action bar, injected per variant: the sticky
+	 * toolbar for the web reader, the chromeless sticky variant for the iOS app. Both
+	 * pin the toolbar and drop the bottom bar; they differ only in where it pins. */
+	stickyReader: RenderReaderActions;
 	chromelessReader: RenderReaderActions;
 	httpErrorMessageMapping: HttpErrorMessageMapping;
 	/** Reads the per-user iOS onboarding signals for the Safari `/queue` render
@@ -486,7 +487,7 @@ export function initQueueRoutes(deps: QueueDependencies): Router {
 				audioEnabled,
 				extensionInstallUrl: extensionInstallUrlIfMissing(req),
 				backLink: VIEW_BACK_LINK,
-				renderActions: deps.regularReader,
+				renderActions: deps.stickyReader,
 				lastCrawledAt: state.lastCrawledAt,
 			}), {
 				...(await deps.buildBannerState(req)),
