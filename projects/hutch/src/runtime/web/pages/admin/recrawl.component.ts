@@ -5,6 +5,7 @@ import type {
 import type { ArticleCrawl } from "@packages/provider-contracts/article-crawl";
 import type { GeneratedSummary } from "@packages/provider-contracts/article-summary";
 import type { PageBody } from "@packages/web-shell";
+import { NAV_HIDE_SCRIPT, readerScripts } from "../../shared/reader-nav-script";
 import { renderArticleBody } from "../../shared/article-body/article-body.component";
 import { RegularReader } from "../../shared/article-body/reader-actions/reader-actions.component";
 import { CRAWL_BOOKMARK_SCRIPT } from "../../shared/article-body/crawl-bookmark/crawl-bookmark.component";
@@ -117,7 +118,10 @@ export function AdminRecrawlPage(input: AdminRecrawlPageInput): PageBody {
 		styles: RECRAWL_STYLES,
 		bodyClass: "page-admin-recrawl",
 		content: { html: content },
-		scripts: PROGRESS_BAR_SCRIPT + READER_IFRAME_SCRIPT + CRAWL_BOOKMARK_SCRIPT + triggerScript,
+		scripts: readerScripts({
+			navHide: NAV_HIDE_SCRIPT,
+			page: PROGRESS_BAR_SCRIPT + READER_IFRAME_SCRIPT + CRAWL_BOOKMARK_SCRIPT + triggerScript,
+		}),
 	};
 }
 

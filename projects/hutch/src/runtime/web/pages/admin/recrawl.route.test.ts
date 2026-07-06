@@ -290,8 +290,10 @@ describe("Admin recrawl routes", () => {
 			const recrawlMain = doc.querySelector("[data-test-admin-recrawl]");
 			assert(recrawlMain);
 			assert(recrawlMain.querySelector(".admin-recrawl__body [data-test-reader-slot]"));
-			// The reader body marker activates the scroll-hide nav (reader-nav.client.ts).
 			assert(recrawlMain.querySelector(".admin-recrawl__body[data-article-body]"));
+			expect(response.text).toContain(
+				'<script src="/client-dist/reader-nav.client.js" defer></script>',
+			);
 			expect(doc.querySelector('meta[name="robots"]')?.getAttribute("content")).toBe(
 				"noindex, nofollow",
 			);

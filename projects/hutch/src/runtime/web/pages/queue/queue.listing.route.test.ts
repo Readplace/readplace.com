@@ -43,6 +43,9 @@ describe("Queue routes", () => {
 				"set up one-tap saving from your browser, iPhone, or AI assistant.",
 			);
 			expect(doc.querySelector('[data-test-form="save-article"]')?.getAttribute("action")).toBe("/queue/save?utm_source=queue&utm_medium=internal&utm_content=save");
+			expect(response.text).toContain(
+				'<script src="/client-dist/reader-nav.client.js" defer></script>',
+			);
 		});
 	});
 

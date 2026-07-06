@@ -16,27 +16,24 @@ interface ReaderNavDeps {
 const HIDDEN_CLASS = "nav-hidden";
 const DELTA_PX = 6;
 
-/** Reader views give the article the whole viewport: the global nav slides up
- * out of view on scroll-down and returns on scroll-up (or at the top). The
- * sticky mark-as-read toolbar rises with it to stay pinned at the top — the
- * `.nav-hidden` rules in base.styles.ts / reader.styles.css do the movement;
- * this only toggles the class on `<html>`.
+/** Slides the global nav up out of view on scroll-down and back on scroll-up (or
+ * at the top), so the reader — or the queue's saved cards — gets the whole
+ * viewport. The `.nav-hidden` rules in base.styles.ts / reader.styles.css do the
+ * movement; this only toggles the class on `<html>`. Only the nav moves: the
+ * fixed banner-area stays put, so the changelog and other banners remain visible.
  *
- * Loaded globally (via siteScripts), not through the reader's PageBody.scripts:
- * readers are reached by hx-boost, which swaps only <main> and never runs a
- * page's body scripts, and the nav lives outside <main>. So the one window
- * scroll listener is attached on every Base page and self-gates on the reader
- * body marker — inert everywhere else. */
+ * Injected per page by the readers and the queue, not loaded globally — a page
+ * that omits it keeps a static nav, so there is no gate here. It
+ * stays armed across the in-place hx-boost swaps those pages make (save, filter,
+ * mark-read): those swap <main> but keep the same document, so the one scroll
+ * listener persists; onSwap re-arms on a real <main> swap and ignores the reader's
+ * ~3s progress poll (which leaves <main> intact). */
 export function initReaderNav(deps: ReaderNavDeps): void {
 	const header = deps.document.querySelector<HTMLElement>(".header");
 	if (header === null) return;
 	const root = deps.document.documentElement;
 
-	const isReader = (): boolean =>
-		deps.document.querySelector("[data-article-body]") !== null;
-
 	let currentMain = deps.document.querySelector("main");
-	let active = isReader();
 	let lastY = deps.window.scrollY;
 	let headerHeight = header.offsetHeight;
 
@@ -49,11 +46,9 @@ export function initReaderNav(deps: ReaderNavDeps): void {
 
 	const onScroll = (): void => {
 		const y = deps.window.scrollY;
-		if (active) {
-			if (y <= headerHeight) show();
-			else if (y > lastY + DELTA_PX) hide();
-			else if (y < lastY - DELTA_PX) show();
-		}
+		if (y <= headerHeight) show();
+		else if (y > lastY + DELTA_PX) hide();
+		else if (y < lastY - DELTA_PX) show();
 		lastY = y;
 	};
 
@@ -64,7 +59,6 @@ export function initReaderNav(deps: ReaderNavDeps): void {
 		const main = deps.document.querySelector("main");
 		if (main === currentMain) return;
 		currentMain = main;
-		active = isReader();
 		lastY = deps.window.scrollY;
 		headerHeight = header.offsetHeight;
 		show();

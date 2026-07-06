@@ -1,5 +1,6 @@
 import { readFileSync } from "node:fs";
 import { join } from "node:path";
+import { NAV_HIDE_SCRIPT, readerScripts } from "../../shared/reader-nav-script";
 import type { SavedArticle } from "@packages/domain/article";
 import type { ArticleCrawl } from "@packages/provider-contracts/article-crawl";
 import { pickExcerpt, truncateForSeo } from "../../../providers/article-summary/article-summary.helpers";
@@ -125,11 +126,14 @@ export function ReaderPage(
 		styles: READER_STYLES,
 		bodyClass: actions.bodyClass,
 		content: { html: content },
-		scripts:
-			SHARE_BALLOON_SCRIPT +
-			PROGRESS_BAR_SCRIPT +
-			READER_IFRAME_SCRIPT +
-			SUMMARY_TOGGLE_SCRIPT +
-			CRAWL_BOOKMARK_SCRIPT,
+		scripts: readerScripts({
+			navHide: NAV_HIDE_SCRIPT,
+			page:
+				SHARE_BALLOON_SCRIPT +
+				PROGRESS_BAR_SCRIPT +
+				READER_IFRAME_SCRIPT +
+				SUMMARY_TOGGLE_SCRIPT +
+				CRAWL_BOOKMARK_SCRIPT,
+		}),
 	};
 }

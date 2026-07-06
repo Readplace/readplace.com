@@ -6,12 +6,11 @@ const HIDDEN = "nav-hidden";
 const HEADER_HEIGHT = 64;
 const HEADER = `<header class="header"></header>`;
 
-function readerMain(): string {
-	return `<main class="reader"><div data-article-body></div></main>`;
-}
-
-function plainMain(): string {
-	return `<main class="queue"></main>`;
+// The script hides on scroll wherever it is injected — which pages opt in is
+// the server's concern. A <main> is present so onSwap's identity check has
+// something to track.
+function bodyWithHeader(): string {
+	return `${HEADER}<main class="reader"></main>`;
 }
 
 function makeDocument(bodyHtml: string): Document {
@@ -84,9 +83,18 @@ function isHidden(doc: Document): boolean {
 	return doc.documentElement.classList.contains(HIDDEN);
 }
 
-describe("initReaderNav — gating", () => {
+function startNav() {
+	const doc = makeDocument(bodyWithHeader());
+	const fake = createFakeWindow();
+	const swap = createSwap();
+	setHeaderHeight(doc, HEADER_HEIGHT);
+	start(doc, fake, swap);
+	return { doc, fake, swap };
+}
+
+describe("initReaderNav — attaching", () => {
 	it("is a no-op with no listeners when there is no .header", () => {
-		const doc = makeDocument(readerMain());
+		const doc = makeDocument(`<main class="reader"></main>`);
 		const fake = createFakeWindow();
 		const swap = createSwap();
 
@@ -97,33 +105,11 @@ describe("initReaderNav — gating", () => {
 		assert.equal(swap.hasListener(), false);
 		assert.equal(isHidden(doc), false);
 	});
-
-	it("attaches but never hides the nav on a non-reader page", () => {
-		const doc = makeDocument(HEADER + plainMain());
-		const fake = createFakeWindow();
-		const swap = createSwap();
-		setHeaderHeight(doc, HEADER_HEIGHT);
-
-		start(doc, fake, swap);
-		assert.equal(fake.hasListener(), true);
-		fake.scrollTo(500);
-
-		assert.equal(isHidden(doc), false);
-	});
 });
 
-describe("initReaderNav — scroll direction on a reader page", () => {
-	function startReader() {
-		const doc = makeDocument(HEADER + readerMain());
-		const fake = createFakeWindow();
-		const swap = createSwap();
-		setHeaderHeight(doc, HEADER_HEIGHT);
-		start(doc, fake, swap);
-		return { doc, fake, swap };
-	}
-
+describe("initReaderNav — scroll direction", () => {
 	it("hides the nav when scrolling down past the header", () => {
-		const { doc, fake } = startReader();
+		const { doc, fake } = startNav();
 
 		fake.scrollTo(200);
 
@@ -131,7 +117,7 @@ describe("initReaderNav — scroll direction on a reader page", () => {
 	});
 
 	it("shows the nav again when scrolling up", () => {
-		const { doc, fake } = startReader();
+		const { doc, fake } = startNav();
 
 		fake.scrollTo(200); // hidden
 		fake.scrollTo(100); // scrolled up
@@ -140,7 +126,7 @@ describe("initReaderNav — scroll direction on a reader page", () => {
 	});
 
 	it("always shows the nav near the top of the page", () => {
-		const { doc, fake } = startReader();
+		const { doc, fake } = startNav();
 
 		fake.scrollTo(200); // hidden
 		fake.scrollTo(30); // within header height of the top
@@ -149,7 +135,7 @@ describe("initReaderNav — scroll direction on a reader page", () => {
 	});
 
 	it("ignores jitter smaller than the delta", () => {
-		const { doc, fake } = startReader();
+		const { doc, fake } = startNav();
 
 		fake.scrollTo(200); // hidden
 		fake.scrollTo(203); // +3px, below the delta
@@ -159,17 +145,8 @@ describe("initReaderNav — scroll direction on a reader page", () => {
 });
 
 describe("initReaderNav — hx-boost lifecycle", () => {
-	function readerDoc() {
-		const doc = makeDocument(HEADER + readerMain());
-		const fake = createFakeWindow();
-		const swap = createSwap();
-		setHeaderHeight(doc, HEADER_HEIGHT);
-		start(doc, fake, swap);
-		return { doc, fake, swap };
-	}
-
 	it("keeps the hidden nav hidden across an inner OOB swap (same <main>)", () => {
-		const { doc, fake, swap } = readerDoc();
+		const { doc, fake, swap } = startNav();
 		fake.scrollTo(200); // hidden
 
 		swap.fire(); // <main> unchanged — an OOB progress poll
@@ -177,35 +154,15 @@ describe("initReaderNav — hx-boost lifecycle", () => {
 		assert.equal(isHidden(doc), true);
 	});
 
-	it("restores the nav when a swap navigates out of the reader", () => {
-		const { doc, fake, swap } = readerDoc();
+	it("shows and re-arms the nav on a real <main> swap", () => {
+		const { doc, fake, swap } = startNav();
 		fake.scrollTo(200); // hidden
 
 		const main = doc.querySelector("main");
-		assert(main, "reader fixture must have a <main>");
-		main.outerHTML = plainMain(); // boosted away to a non-reader page
-		swap.fire();
-
-		assert.equal(isHidden(doc), false);
-	});
-
-	it("activates hiding after a swap navigates into the reader", () => {
-		const doc = makeDocument(HEADER + plainMain());
-		const fake = createFakeWindow();
-		const swap = createSwap();
-		setHeaderHeight(doc, HEADER_HEIGHT);
-		start(doc, fake, swap);
-
-		fake.scrollTo(200); // non-reader: nav stays shown
-		assert.equal(isHidden(doc), false);
-
-		const main = doc.querySelector("main");
 		assert(main, "fixture must have a <main>");
-		main.outerHTML = readerMain(); // boosted into a reader
+		main.outerHTML = `<main class="reader"></main>`; // a mark-read / save re-render
 		swap.fire();
 
-		fake.scrollTo(400); // now scrolling down hides the nav
-
-		assert.equal(isHidden(doc), true);
+		assert.equal(isHidden(doc), false);
 	});
 });

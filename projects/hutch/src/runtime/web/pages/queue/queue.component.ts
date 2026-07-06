@@ -1,5 +1,6 @@
 import { readFileSync } from "node:fs";
 import { join } from "node:path";
+import { NAV_HIDE_SCRIPT } from "../../shared/reader-nav-script";
 import { OnboardingChecklist, ONBOARDING_STYLES } from "../../onboarding/onboarding.component";
 import type { Platform } from "../../onboarding/onboarding.types";
 import type { DeviceClass } from "../../middleware/analytics";
@@ -184,7 +185,7 @@ export function QueuePage(vm: QueueViewModel, options: { deviceClass: DeviceClas
 	const displayModel = toQueueDisplayModel(vm, { installed: options.installed ?? false, savedArticle: options.savedArticle ?? false, platform: options.platform ?? "other", hasInstallableClient: options.hasInstallableClient ?? false, onboardingDismissed: options.onboardingDismissed ?? false, deviceClass: options.deviceClass });
 	const content = render(QUEUE_TEMPLATE, { ...displayModel, saveUrl });
 
-	const scriptParts: string[] = [];
+	const scriptParts: string[] = [NAV_HIDE_SCRIPT];
 	if (saveUrl) scriptParts.push(AUTO_SUBMIT_SCRIPT);
 
 	return {
