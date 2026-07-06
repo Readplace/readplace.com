@@ -61,7 +61,6 @@ import { initValidateSignup } from "./validate-signup";
 import type { FoundingAllocation } from "../shared/founding-progress/founding-allocation";
 import { readClickAttribution } from "../click-attribution.middleware";
 import { consumePendingSaveId } from "../pending-save";
-import type { QuerystringFeatureToggle } from "../feature-toggle";
 import type { ConversionEvent } from "../../conversions";
 import { emitUserCreated } from "../../conversions";
 
@@ -109,7 +108,6 @@ interface AuthDependencies {
 	buildBannerState: BuildBannerState;
 	consumeRateLimit: ConsumeRateLimit;
 	rateLimitRules: Pick<RateLimitRules, "login" | "loginAccount" | "signup">;
-	featureToggle: QuerystringFeatureToggle;
 }
 
 export function initAuthRoutes(deps: AuthDependencies): Router {
@@ -156,7 +154,7 @@ export function initAuthRoutes(deps: AuthDependencies): Router {
 		}
 		const returnUrl = extractReturnUrl(req.query);
 		const userCount = await fetchUserCount();
-		sendComponent(req, res, Base(LoginPage({ returnUrl, userCount, foundingAllocation: deps.foundingAllocation, appleEnabled: deps.featureToggle.isEnabled(req, "apple") }), bannerStateFromRequest(req)));
+		sendComponent(req, res, Base(LoginPage({ returnUrl, userCount, foundingAllocation: deps.foundingAllocation }), bannerStateFromRequest(req)));
 	});
 
 	const loginRateLimit = createRateLimitMiddleware({
@@ -232,7 +230,7 @@ export function initAuthRoutes(deps: AuthDependencies): Router {
 		const userCount = await fetchUserCount();
 		const parsed = SignupQuerySchema.safeParse(req.query);
 		const email = parsed.success ? parsed.data.email : undefined;
-		sendComponent(req, res, Base(SignupPage({ returnUrl, userCount, foundingAllocation: deps.foundingAllocation, loadedAt: deps.now().getTime(), email, appleEnabled: deps.featureToggle.isEnabled(req, "apple") }), bannerStateFromRequest(req)));
+		sendComponent(req, res, Base(SignupPage({ returnUrl, userCount, foundingAllocation: deps.foundingAllocation, loadedAt: deps.now().getTime(), email }), bannerStateFromRequest(req)));
 	});
 
 	const signupRateLimit = createRateLimitMiddleware({
