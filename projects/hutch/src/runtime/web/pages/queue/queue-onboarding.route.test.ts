@@ -537,3 +537,57 @@ describe("Queue onboarding — no installable client", () => {
 		expect(onboarding.classList.contains("onboarding--hidden")).toBe(true);
 	});
 });
+
+/** The save-bar 422 re-render (an invalid URL submitted at the top of `/queue`)
+ * goes through the second QueuePage caller, which must resolve the same
+ * onboarding signals as the GET render. If it doesn't, `hasInstallableClient`
+ * defaults to false and the no-client card is shown to every device — including
+ * the client devices it is not meant for. These pin the re-render to the device's
+ * actual client. */
+describe("Queue onboarding — save-bar 422 re-render", () => {
+	it("renders the step checklist (not the no-client card) when a client device submits an invalid URL", async () => {
+		const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
+		const agent = await loginAgent(harness.server, harness.auth);
+
+		const response = await agent
+			.post("/queue/save")
+			.set("User-Agent", CHROME_UA)
+			.type("form")
+			.send({ url: "not-a-url" });
+
+		expect(response.status).toBe(422);
+		const doc = new JSDOM(response.text).window.document;
+		assert(
+			doc.querySelector("[data-test-onboarding-steps]"),
+			"a client device must still get the step checklist on the save-error re-render",
+		);
+		assert.equal(
+			doc.querySelector("[data-test-onboarding-no-client]"),
+			null,
+			"the no-client card must not render for a device that has a client",
+		);
+	});
+
+	it("renders the no-client card when a no-client device submits an invalid URL", async () => {
+		const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
+		const agent = await loginAgent(harness.server, harness.auth);
+
+		const response = await agent
+			.post("/queue/save")
+			.set("User-Agent", DESKTOP_SAFARI_UA)
+			.type("form")
+			.send({ url: "not-a-url" });
+
+		expect(response.status).toBe(422);
+		const doc = new JSDOM(response.text).window.document;
+		assert(
+			doc.querySelector("[data-test-onboarding-no-client]"),
+			"a no-client device must still get the no-client card on the save-error re-render",
+		);
+		assert.equal(
+			doc.querySelector("[data-test-onboarding-steps]"),
+			null,
+			"the completion-gated step checklist must not render on a no-client device",
+		);
+	});
+});

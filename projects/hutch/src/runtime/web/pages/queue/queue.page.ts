@@ -496,6 +496,41 @@ export function initQueueRoutes(deps: QueueDependencies): Router {
 	router.use(deps.dualAuth);
 	router.use(deps.resolveVerificationStatus);
 
+	/** Resolves the onboarding-checklist signals for an authenticated `/queue`
+	 * HTML render. Shared by the top-of-page GET and the save-bar 422 error
+	 * re-render so both surface the same card for the device — resolving it in one
+	 * place is what stops the 422 path from defaulting `hasInstallableClient` to
+	 * false and rendering the no-client card to devices that do have a client.
+	 *
+	 * Completion source is resolved by platform: iPhone reads the per-user
+	 * server-side iOS signal (Safari can't see the app's cookies); every other
+	 * platform reads the same-browser extension liveness/save cookies.
+	 *
+	 * Client devices key dismissal on ONBOARDING_VERSION (the step hash) and
+	 * additionally require the install step to be complete in *this* context: the
+	 * dismiss button only appears once every step is done, so a dismiss without
+	 * `installed` means a different context (a different browser, or a phone whose
+	 * app isn't signed in) — re-show so the user can finish here. No-client devices
+	 * instead key on the stable NO_CLIENT_ONBOARDING_VERSION: the steps can never
+	 * complete there, so the card's Dismiss just sticks on this device, and —
+	 * because that token is decoupled from the step hash — editing the steps (which
+	 * no-client users never see) can't re-surface it. If a client later ships for
+	 * this device, hasClient flips true and the read falls through to the
+	 * `installed && …` arm, where the no-client token no longer matches and the new
+	 * client isn't installed, so onboarding re-appears with its install step. */
+	const resolveOnboardingSignals = async (req: Request, userId: UserId) => {
+		const platform = detectPlatform(req);
+		const hasClient = hasInstallableClient(req);
+		const { installed, savedArticle } = platform === "iphone"
+			? await deps.getIosAppSignals({ userId })
+			: { installed: isExtensionInstalled(req), savedArticle: isExtensionSavedArticle(req) };
+		const dismissCookie = req.cookies?.[DISMISS_COOKIE_NAME];
+		const onboardingDismissed = hasClient
+			? installed && dismissCookie === ONBOARDING_VERSION
+			: dismissCookie === NO_CLIENT_ONBOARDING_VERSION;
+		return { platform, installed, savedArticle, hasInstallableClient: hasClient, onboardingDismissed };
+	};
+
 	router.get("/", async (req: Request, res: Response) => {
 		assert(req.userId, "userId required - route must be protected by requireAuth");
 		const userId = req.userId;
@@ -580,35 +615,11 @@ export function initQueueRoutes(deps: QueueDependencies): Router {
 			effectiveAccess,
 			now: deps.now(),
 		});
-		/* Resolve the completion source by platform: iPhone reads the per-user
-		 * server-side iOS signal (Safari can't see the app's cookies); every other
-		 * platform reads the same-browser extension liveness/save cookies. */
-		const platform = detectPlatform(req);
-		const hasClient = hasInstallableClient(req);
-		const { installed, savedArticle } = platform === "iphone"
-			? await deps.getIosAppSignals({ userId })
-			: { installed: isExtensionInstalled(req), savedArticle: isExtensionSavedArticle(req) };
-		const dismissCookie = req.cookies?.[DISMISS_COOKIE_NAME];
-		/** Client devices key dismissal on ONBOARDING_VERSION (the step hash) and
-		 * additionally require the install step to be complete in *this* context:
-		 * the dismiss button only appears once every step is done, so a dismiss
-		 * without `installed` means a different context (a different browser, or a
-		 * phone whose app isn't signed in) — re-show so the user can finish here.
-		 * No-client devices instead key on the stable NO_CLIENT_ONBOARDING_VERSION:
-		 * the steps can never complete there, so the card's Dismiss just sticks on
-		 * this device, and — because that token is decoupled from the step hash —
-		 * editing the steps (which no-client users never see) can't re-surface it.
-		 * If a client later ships for this device, hasClient flips true and the read
-		 * falls through to the `installed && …` arm, where the no-client token no
-		 * longer matches and the new client isn't installed, so onboarding
-		 * re-appears with its install step. */
-		const onboardingDismissed = hasClient
-			? installed && dismissCookie === ONBOARDING_VERSION
-			: dismissCookie === NO_CLIENT_ONBOARDING_VERSION;
+		const onboarding = await resolveOnboardingSignals(req, userId);
 		sendComponent(
 			req, res,
 			Base(
-				QueuePage(vm, { saveUrl: filterUrl, platform, installed, savedArticle, hasInstallableClient: hasClient, onboardingDismissed, deviceClass: classifyDeviceClass(req.get("user-agent")) }),
+				QueuePage(vm, { ...onboarding, saveUrl: filterUrl, deviceClass: classifyDeviceClass(req.get("user-agent")) }),
 				await deps.buildBannerState(req, { preFetchedAccess: effectiveAccess }),
 			),
 		);
@@ -1068,7 +1079,8 @@ export function initQueueRoutes(deps: QueueDependencies): Router {
 				summaryByUrl,
 				crawlByUrl,
 			});
-			sendComponent(req, res, Base(QueuePage(vm, { statusCode: 422, deviceClass: classifyDeviceClass(req.get("user-agent")) }), await deps.buildBannerState(req)));
+			const onboarding = await resolveOnboardingSignals(req, userId);
+			sendComponent(req, res, Base(QueuePage(vm, { ...onboarding, statusCode: 422, deviceClass: classifyDeviceClass(req.get("user-agent")) }), await deps.buildBannerState(req)));
 			return;
 		}
 
