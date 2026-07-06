@@ -88,19 +88,10 @@ const OFFLINE_INDICATOR_SCRIPT = `
 <script>
 (function() {
   var banner = document.querySelector('.offline-banner');
-  var bannerArea = document.querySelector('.banner-area');
-  if (!banner || !bannerArea) return;
+  if (!banner) return;
 
   var wasOffline = false;
   var hideTimeout = null;
-
-  function updateBannerAreaHeight() {
-    document.documentElement.style.setProperty(
-      '--banner-area-height', bannerArea.offsetHeight + 'px'
-    );
-  }
-
-  banner.addEventListener('transitionend', updateBannerAreaHeight);
 
   function updateOnlineStatus() {
     if (hideTimeout) {
@@ -113,7 +104,6 @@ const OFFLINE_INDICATOR_SCRIPT = `
         banner.textContent = 'Back online';
         banner.classList.add('offline-banner--visible');
         banner.setAttribute('aria-hidden', 'false');
-        updateBannerAreaHeight();
         hideTimeout = setTimeout(function() {
           banner.classList.remove('offline-banner--visible');
           banner.setAttribute('aria-hidden', 'true');
@@ -128,7 +118,6 @@ const OFFLINE_INDICATOR_SCRIPT = `
       banner.textContent = "You're offline. Some features may be unavailable.";
       banner.classList.add('offline-banner--visible');
       banner.setAttribute('aria-hidden', 'false');
-      updateBannerAreaHeight();
     }
   }
 

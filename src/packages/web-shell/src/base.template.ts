@@ -104,7 +104,17 @@ export const BASE_TEMPLATE = `<!DOCTYPE html>
   <script>
     (function() {
       var ba = document.querySelector('.banner-area');
-      if (ba) document.documentElement.style.setProperty('--banner-area-height', ba.offsetHeight + 'px');
+      if (!ba) return;
+      function setBannerAreaHeight() {
+        document.documentElement.style.setProperty('--banner-area-height', ba.offsetHeight + 'px');
+      }
+      setBannerAreaHeight();
+      // The banner grows after this first measure — the web font swaps in, or a
+      // resize rewraps the verify banner to a second line — and the sticky nav's
+      // top offset is this var, so keep it current or the fixed banner overlaps
+      // the nav.
+      if (window.ResizeObserver) new ResizeObserver(setBannerAreaHeight).observe(ba);
+      if (document.fonts && document.fonts.ready) document.fonts.ready.then(setBannerAreaHeight);
     })();
   </script>
   {{{header}}}
