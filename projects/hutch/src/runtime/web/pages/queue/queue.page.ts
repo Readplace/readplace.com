@@ -88,7 +88,7 @@ import {
 } from "./queue-card/queue-card.component";
 import { computeQueueCardEtag, etagMatches } from "./queue-card/queue-card.etag";
 import { ReaderPage, formatReaderDocumentTitle } from "../reader/reader.component";
-import { ONBOARDING_VERSION } from "../../onboarding/onboarding.steps";
+import { NO_CLIENT_ONBOARDING_VERSION, ONBOARDING_VERSION } from "../../onboarding/onboarding.steps";
 import {
 	detectPlatform,
 	extensionInstallUrlIfMissing,
@@ -588,18 +588,23 @@ export function initQueueRoutes(deps: QueueDependencies): Router {
 		const { installed, savedArticle } = platform === "iphone"
 			? await deps.getIosAppSignals({ userId })
 			: { installed: isExtensionInstalled(req), savedArticle: isExtensionSavedArticle(req) };
-		const dismissCookieMatches = req.cookies?.[DISMISS_COOKIE_NAME] === ONBOARDING_VERSION;
-		/** With a client, dismissal only counts when the install step is also
-		 * complete in *this* context: the dismiss button only appears once every
-		 * step is done, so a dismiss without `installed` means a different context (a
-		 * different browser, or a phone whose app isn't signed in) — re-show so the
-		 * user can finish onboarding here. Without a client the steps can never
-		 * complete, so the no-client card's Dismiss simply sticks on this device; if
-		 * that same cookie later reaches a client-having platform it falls back to
-		 * the `installed && …` arm and the checklist re-appears there. */
+		const dismissCookie = req.cookies?.[DISMISS_COOKIE_NAME];
+		/** Client devices key dismissal on ONBOARDING_VERSION (the step hash) and
+		 * additionally require the install step to be complete in *this* context:
+		 * the dismiss button only appears once every step is done, so a dismiss
+		 * without `installed` means a different context (a different browser, or a
+		 * phone whose app isn't signed in) — re-show so the user can finish here.
+		 * No-client devices instead key on the stable NO_CLIENT_ONBOARDING_VERSION:
+		 * the steps can never complete there, so the card's Dismiss just sticks on
+		 * this device, and — because that token is decoupled from the step hash —
+		 * editing the steps (which no-client users never see) can't re-surface it.
+		 * If a client later ships for this device, hasClient flips true and the read
+		 * falls through to the `installed && …` arm, where the no-client token no
+		 * longer matches and the new client isn't installed, so onboarding
+		 * re-appears with its install step. */
 		const onboardingDismissed = hasClient
-			? installed && dismissCookieMatches
-			: dismissCookieMatches;
+			? installed && dismissCookie === ONBOARDING_VERSION
+			: dismissCookie === NO_CLIENT_ONBOARDING_VERSION;
 		sendComponent(
 			req, res,
 			Base(
@@ -609,8 +614,12 @@ export function initQueueRoutes(deps: QueueDependencies): Router {
 		);
 	});
 
-	router.post("/dismiss-onboarding", (_req: Request, res: Response) => {
-		res.cookie(DISMISS_COOKIE_NAME, ONBOARDING_VERSION, { path: "/", maxAge: 365 * 24 * 60 * 60 * 1000, sameSite: "lax", httpOnly: true });
+	router.post("/dismiss-onboarding", (req: Request, res: Response) => {
+		/** Persist the token the GET read expects for this device class (see the
+		 * onboardingDismissed read above): the step-hash version for client
+		 * devices, the stable no-client token otherwise. */
+		const version = hasInstallableClient(req) ? ONBOARDING_VERSION : NO_CLIENT_ONBOARDING_VERSION;
+		res.cookie(DISMISS_COOKIE_NAME, version, { path: "/", maxAge: 365 * 24 * 60 * 60 * 1000, sameSite: "lax", httpOnly: true });
 		res.redirect(303, QUEUE_PATH);
 	});
 

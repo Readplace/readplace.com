@@ -1,13 +1,16 @@
 <section class="onboarding {{stateClass}}" data-test-onboarding>
+  {{#*inline "intro"}}
+  <header class="onboarding__intro">
+    <img class="onboarding__avatar" src="{{founderAvatarUrl}}" alt="Fayner Brack" width="72" height="72" loading="lazy">
+    <div class="onboarding__intro-text">
+      <h2 class="onboarding__title">Hi, I'm Fayner Brack!</h2>
+      <p class="onboarding__lede">{{lede}}</p>
+    </div>
+  </header>
+  {{/inline}}
   {{#if noClient}}
   <div data-test-onboarding-no-client>
-    <header class="onboarding__intro">
-      <img class="onboarding__avatar" src="{{founderAvatarUrl}}" alt="Fayner Brack" width="72" height="72" loading="lazy">
-      <div class="onboarding__intro-text">
-        <h2 class="onboarding__title">Hi, I'm Fayner Brack!</h2>
-        <p class="onboarding__lede">Readplace doesn't have an app for this device yet. If you use Chrome or Firefox on a computer, or an iPhone, you can install Readplace there.</p>
-      </div>
-    </header>
+    {{> intro lede="Readplace doesn't have an app for this device yet. If you use Chrome or Firefox on a computer, or an iPhone, you can install Readplace there."}}
     <div class="onboarding__actions">
       <a href="{{installOptionsUrl}}" class="onboarding__action" data-test-onboarding-action="{{installOptionsUrl}}">See install options</a>
       <form method="POST" action="/queue/dismiss-onboarding">
@@ -26,13 +29,7 @@
     <p class="onboarding__success-message">You're officially one of us. Welcome to Readplace.</p>
   </div>
   {{else}}
-  <header class="onboarding__intro">
-    <img class="onboarding__avatar" src="{{founderAvatarUrl}}" alt="Fayner Brack" width="72" height="72" loading="lazy">
-    <div class="onboarding__intro-text">
-      <h2 class="onboarding__title">Hi, I'm Fayner Brack!</h2>
-      <p class="onboarding__lede">I built Readplace from my reading system so you could also save articles and actually read them later. Here are a few small things to set you up.</p>
-    </div>
-  </header>
+  {{> intro lede="I built Readplace from my reading system so you could also save articles and actually read them later. Here are a few small things to set you up."}}
   <ol class="onboarding__steps" data-test-onboarding-steps>
     {{#each steps}}
     <li class="{{rowClass}}" data-test-onboarding-step="{{id}}" data-test-onboarding-complete="{{completeAttr}}">

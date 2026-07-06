@@ -1,15 +1,14 @@
 import assert from "node:assert/strict";
 import type { Request } from "express";
-import { hasInstallableClient } from "./extension-install";
+import { detectInstallBrowser, hasInstallableClient } from "./extension-install";
 
-/** Minimal request carrying only the header hasInstallableClient reads. A bare
- * `{}` (no key) models a request that sent no User-Agent at all — the branch
- * supertest can't reproduce because it always sends one. */
+/** Minimal request carrying only the header the functions under test read. A
+ * bare `{}` (no key) models a request that sent no User-Agent at all — the
+ * branch supertest can't reproduce because it always sends one. */
 function requestWithUserAgent(userAgent?: string): Request {
 	const headers: Record<string, string | undefined> =
 		userAgent === undefined ? {} : { "user-agent": userAgent };
-	const fake = { headers } as Partial<Request>;
-	return fake as Request;
+	return { headers } as Request;
 }
 
 const ANDROID_CHROME =
@@ -34,5 +33,19 @@ describe("hasInstallableClient", () => {
 
 	it("returns false when the request carries no User-Agent header", () => {
 		assert.equal(hasInstallableClient(requestWithUserAgent()), false);
+	});
+});
+
+describe("detectInstallBrowser", () => {
+	it("falls back to the generic 'other' CTA for Android Chrome (the extension can't install there)", () => {
+		assert.equal(detectInstallBrowser(requestWithUserAgent(ANDROID_CHROME)), "other");
+	});
+
+	it("falls back to the generic 'other' CTA for desktop Safari (the unrecognised bucket)", () => {
+		assert.equal(detectInstallBrowser(requestWithUserAgent(DESKTOP_SAFARI)), "other");
+	});
+
+	it("keeps the browser-specific CTA for desktop Chrome", () => {
+		assert.equal(detectInstallBrowser(requestWithUserAgent(DESKTOP_CHROME)), "chrome");
 	});
 });

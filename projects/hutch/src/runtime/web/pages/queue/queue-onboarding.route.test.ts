@@ -8,7 +8,7 @@ import {
 	SAVE_COOKIE_VALUE,
 } from "@packages/onboarding-extension-signal";
 import request from "supertest";
-import { ONBOARDING_VERSION } from "../../onboarding/onboarding.steps";
+import { NO_CLIENT_ONBOARDING_VERSION, ONBOARDING_VERSION } from "../../onboarding/onboarding.steps";
 import { IOS_CLIENT_HEADER, IOS_CLIENT_VALUE } from "../../onboarding/ios-client";
 import { SIREN_MEDIA_TYPE } from "../../api/siren";
 import { useTestServer, loginAgent, type TestAppHarness } from "../../../test-app";
@@ -222,12 +222,12 @@ describe("Queue onboarding", () => {
 		expect(onboarding.classList.contains("onboarding--visible")).toBe(true);
 	});
 
-	it("POST /queue/dismiss-onboarding sets dismiss cookie to current version and redirects to /queue", async () => {
+	it("POST /queue/dismiss-onboarding from a client device sets the step-hash version and redirects to /queue", async () => {
 		const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
 		const { auth } = harness;
 		const agent = await loginAgent(harness.server, auth);
 
-		const response = await agent.post("/queue/dismiss-onboarding");
+		const response = await agent.post("/queue/dismiss-onboarding").set("User-Agent", CHROME_UA);
 
 		expect(response.status).toBe(303);
 		expect(response.headers.location).toBe("/queue");
@@ -466,7 +466,28 @@ describe("Queue onboarding — no installable client", () => {
 		expect(form.getAttribute("action")).toBe("/queue/dismiss-onboarding");
 	});
 
-	it("hides the no-client card when the dismiss cookie matches the current version", async () => {
+	it("hides the no-client card when the dismiss cookie matches the stable no-client token", async () => {
+		const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
+		const agent = await loginAgent(harness.server, harness.auth);
+
+		const response = await agent
+			.get("/queue")
+			.set("User-Agent", DESKTOP_SAFARI_UA)
+			.set("Cookie", `${DISMISS_COOKIE_NAME}=${NO_CLIENT_ONBOARDING_VERSION}`);
+
+		const doc = new JSDOM(response.text).window.document;
+		const onboarding = doc.querySelector("[data-test-onboarding]");
+		assert(onboarding, "onboarding container must still be rendered so visibility is a state class");
+		expect(onboarding.classList.contains("onboarding--hidden")).toBe(true);
+	});
+
+	/** The no-client dismissal is decoupled from the step hash: a cookie carrying
+	 * ONBOARDING_VERSION (what a client dismissal, or a pre-fix no-client
+	 * dismissal, would leave) must NOT hide the no-client card. This is the guard
+	 * that editing the onboarding steps — which rotates ONBOARDING_VERSION and
+	 * which no-client users never see — can neither dismiss nor re-surface this
+	 * unrelated card. */
+	it("keeps the no-client card visible when the cookie carries the step-hash version", async () => {
 		const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
 		const agent = await loginAgent(harness.server, harness.auth);
 
@@ -477,15 +498,34 @@ describe("Queue onboarding — no installable client", () => {
 
 		const doc = new JSDOM(response.text).window.document;
 		const onboarding = doc.querySelector("[data-test-onboarding]");
-		assert(onboarding, "onboarding container must still be rendered so visibility is a state class");
-		expect(onboarding.classList.contains("onboarding--hidden")).toBe(true);
+		assert(onboarding, "onboarding container must still be rendered");
+		expect(onboarding.classList.contains("onboarding--visible")).toBe(true);
+		assert(
+			doc.querySelector("[data-test-onboarding-no-client]"),
+			"the no-client card must still show — a step-hash cookie is not a no-client dismissal",
+		);
+	});
+
+	it("POST from a no-client device persists the stable no-client token, not the step hash", async () => {
+		const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
+		const agent = await loginAgent(harness.server, harness.auth);
+
+		const response = await agent.post("/queue/dismiss-onboarding").set("User-Agent", DESKTOP_SAFARI_UA);
+
+		expect(response.status).toBe(303);
+		const cookies = response.headers["set-cookie"];
+		assert(cookies, "set-cookie header must be present");
+		const cookieStr = Array.isArray(cookies) ? cookies.join("; ") : cookies;
+		expect(cookieStr).toContain(`${DISMISS_COOKIE_NAME}=${NO_CLIENT_ONBOARDING_VERSION}`);
+		expect(cookieStr).not.toContain(`${DISMISS_COOKIE_NAME}=${ONBOARDING_VERSION}`);
 	});
 
 	it("keeps the no-client card dismissed across a POST→GET round-trip", async () => {
 		const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
 		const agent = await loginAgent(harness.server, harness.auth);
 
-		const dismiss = await agent.post("/queue/dismiss-onboarding");
+		// The POST carries no client UA → the route persists the no-client token.
+		const dismiss = await agent.post("/queue/dismiss-onboarding").set("User-Agent", DESKTOP_SAFARI_UA);
 		expect(dismiss.status).toBe(303);
 
 		// The agent replays the dismiss cookie on the follow-up no-client render.
