@@ -146,6 +146,20 @@ export const HEADER_STYLES = `
     position: sticky;
     top: var(--banner-area-height, 38px);
     z-index: 100;
+    transition: transform 0.25s ease;
+  }
+  /* Reader views slide the nav offscreen on scroll-down (reader-nav.client.ts).
+     -100% is exactly the header's height — the same distance the sticky mark-read
+     toolbar rises — so the two move in lockstep with no content gap. The strip
+     left at the very top is covered by the opaque fixed .banner-area (z-index 200
+     > 100); keep it -100%, not -100% - banner, or a text sliver flashes through. */
+  .nav-hidden .header {
+    transform: translateY(-100%);
+  }
+  @media (prefers-reduced-motion: reduce) {
+    .header {
+      transition: none;
+    }
   }
   .header--transparent {
     background: transparent;

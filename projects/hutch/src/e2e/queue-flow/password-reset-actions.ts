@@ -31,10 +31,7 @@ export function createPasswordResetActions(
         return isOnPage(page, 'page-home')
       },
       execute: async (page) => {
-        await page.locator('[data-test-nav-item="signup"]').click()
-        await page.waitForSelector('[data-test-action="sign-in"]')
-
-        await page.locator('[data-test-action="sign-in"]').click()
+        await page.locator('[data-test-nav-item="login"]').click()
         await page.waitForSelector('body.page-login')
 
         await page.locator('a[href^="/forgot-password"]').click()

@@ -134,7 +134,7 @@ import { initForgotPasswordRoutes } from "./web/auth/forgot-password.page";
 import { initQueueRoutes } from "./web/pages/queue/queue.page";
 import {
 	ChromelessReader,
-	RegularReader,
+	StickyReader,
 } from "./web/shared/article-body/reader-actions/reader-actions.component";
 import { QUEUE_PATH } from "./web/pages/queue/queue.url";
 import { initImportSessionRoutes } from "./web/pages/import/import.page";
@@ -178,12 +178,14 @@ import { QuerystringFeatureToggle } from "./web/feature-toggle";
 import { HomePage } from "./web/pages/home";
 import { McpConnectPage } from "./web/pages/mcp";
 import { PrivacyPage } from "./web/pages/privacy";
+import { SupportPage } from "./web/pages/support";
 import { TermsPage } from "./web/pages/terms";
 import { HelpAddLinksPage } from "./web/pages/help";
 import { E2EFixturePage } from "./web/pages/e2e-fixture";
 import { createE2EFixturePdf } from "./web/pages/e2e-fixture-pdf";
 import { initInstallRoutes } from "./web/pages/install";
 import { initLandingRoutes } from "./web/pages/landing";
+import { HOMEPAGE_SPLIT } from "./web/experiments/homepage-split";
 import { detectInstallBrowser } from "./web/onboarding/extension-install";
 import { NotFoundPage } from "./web/pages/not-found";
 import { initGetEffectiveAccess } from "./domain/access/effective-access";
@@ -538,6 +540,7 @@ export function createApp(dependencies: AppDependencies): Express {
 			{ loc: "/signup", priority: "0.5", changefreq: "yearly", lastmod: "2026-03-01" },
 			{ loc: "/privacy", priority: "0.3", changefreq: "yearly", lastmod: "2026-03-01" },
 			{ loc: "/terms", priority: "0.3", changefreq: "yearly", lastmod: "2026-06-24" },
+			{ loc: "/support", priority: "0.3", changefreq: "yearly", lastmod: "2026-07-05" },
 			{ loc: "/llms.txt", priority: "0.3", changefreq: "monthly", lastmod: "2026-04-08" },
 			{ loc: "/llms-full.txt", priority: "0.3", changefreq: "monthly", lastmod: "2026-04-08" },
 			{ loc: "/auth.md", priority: "0.3", changefreq: "monthly", lastmod: "2026-06-13" },
@@ -698,15 +701,31 @@ export function createApp(dependencies: AppDependencies): Express {
 		// Gate the client A/B split redirect on humans: bots keep the canonical `/`
 		// (control) instead of following a client redirect into a noindex arm.
 		const abSplit = !isbot(req.get("user-agent"));
+		// Suppress this render's changelog seen-script only when the split script
+		// will actually replace `/` before it paints — a human guest AND the
+		// experiment active. That throwaway frame must not record the banner
+		// version as seen, or the landing arm the reader lands on would hide the
+		// one-shot NEW chip. When the split is off (kill switch) the emitted
+		// script no-ops and the guest stays on `/`, and a bot never runs it at
+		// all: in both cases `/` is the reader's real, persistent page, so it
+		// keeps its seen-script and the chip self-suppresses on the next visit.
+		const suppressChangelogSeenScript = abSplit && HOMEPAGE_SPLIT.active;
 		sendComponent(
 			req,
 			res,
-			Base(HomePage({ userCount, staticBaseUrl, browser, foundingAllocation, abSplit }), banner),
+			Base(HomePage({ userCount, staticBaseUrl, browser, foundingAllocation, abSplit }), {
+				...banner,
+				suppressChangelogSeenScript,
+			}),
 		);
 	});
 
 	app.get("/privacy", async (req: Request, res: Response) => {
 		sendComponent(req, res, Base(PrivacyPage(), await buildBannerState(req)));
+	});
+
+	app.get("/support", async (req: Request, res: Response) => {
+		sendComponent(req, res, Base(SupportPage(), await buildBannerState(req)));
 	});
 
 	app.get("/terms", async (req: Request, res: Response) => {
@@ -969,7 +988,7 @@ export function createApp(dependencies: AppDependencies): Express {
 		refreshArticleIfStale: deps.refreshArticleIfStale,
 		publishUpdateFetchTimestamp: deps.publishUpdateFetchTimestamp,
 		readArticleContent: deps.readArticleContent,
-		regularReader: RegularReader,
+		stickyReader: StickyReader,
 		chromelessReader: ChromelessReader,
 		httpErrorMessageMapping: deps.httpErrorMessageMapping,
 		getIosAppSignals: deps.getIosAppSignals,

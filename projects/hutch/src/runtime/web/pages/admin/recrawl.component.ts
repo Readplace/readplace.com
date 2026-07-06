@@ -103,7 +103,7 @@ export function AdminRecrawlPage(input: AdminRecrawlPageInput): PageBody {
 
 	const tierBadge = renderTierBadge(input.contentSourceTier);
 	const recrawlForm = renderRecrawlForm(input.recrawlFormAction);
-	const content = `<main class="admin-recrawl" data-test-admin-recrawl>${tierBadge}${recrawlForm}<article class="admin-recrawl__body">${innerContent}</article></main>`;
+	const content = `<main class="admin-recrawl" data-test-admin-recrawl>${tierBadge}${recrawlForm}<article class="admin-recrawl__body" data-article-body>${innerContent}</article></main>`;
 	const triggerScript =
 		input.recrawlFormAction === undefined ? "" : RECRAWL_TRIGGER_SCRIPT;
 

@@ -21,7 +21,7 @@ export type RenderReaderActions = (params: { actionBtns: ActionButtons }) => {
 	top: Component;
 	bottom: Component;
 	/** The page body class for this variant. Colocated with the action markup so
-	 * the chromeless sticky toolbar and its content offset can never drift apart. */
+	 * the sticky toolbar and the CSS that pins it can never drift apart. */
 	bodyClass: string;
 };
 
@@ -57,8 +57,24 @@ export const RegularReader: RenderReaderActions = ({ actionBtns }) => ({
 	bodyClass: "page-reader",
 });
 
+/** The reader action bar for the reading experience — one sticky toolbar that
+ * keeps Back + Mark-as-read reachable while the article scrolls, with no bottom
+ * bar. Both readers render it identically; `StickyReader` and `ChromelessReader`
+ * differ only in the body class, which decides where the toolbar pins (below the
+ * web header vs. the top of the iOS native sheet). */
+function stickyReaderActions(actionBtns: ActionButtons): { top: Component; bottom: Component } {
+	return {
+		top: HtmlPage(`<div class="article-body__actions--sticky">${topBar(actionBtns)}</div>`),
+		bottom: HtmlPage(""),
+	};
+}
+
+export const StickyReader: RenderReaderActions = ({ actionBtns }) => ({
+	...stickyReaderActions(actionBtns),
+	bodyClass: "page-reader",
+});
+
 export const ChromelessReader: RenderReaderActions = ({ actionBtns }) => ({
-	top: HtmlPage(`<div class="article-body__actions--sticky">${topBar(actionBtns)}</div>`),
-	bottom: HtmlPage(""),
+	...stickyReaderActions(actionBtns),
 	bodyClass: "page-reader page-reader--chromeless",
 });

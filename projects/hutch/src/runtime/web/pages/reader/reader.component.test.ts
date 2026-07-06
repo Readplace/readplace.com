@@ -9,7 +9,7 @@ import type { SavedArticle } from "@packages/domain/article";
 import { UserIdSchema } from "@packages/domain/user";
 import { Base } from "../../base.component";
 import { ReaderPage } from "./reader.component";
-import { RegularReader } from "../../shared/article-body/reader-actions/reader-actions.component";
+import { StickyReader } from "../../shared/article-body/reader-actions/reader-actions.component";
 
 const userId = UserIdSchema.parse("00000000000000000000000000000001");
 const articleId = ReaderArticleHashIdSchema.parse(
@@ -45,7 +45,7 @@ const TEST_BACK_LINK = {
 
 describe("ReaderPage", () => {
 	it("renders the share balloon wrap so client init can attach to it", () => {
-		const html = Base(ReaderPage(makeArticle(), { appOrigin: DEFAULT_APP_ORIGIN, backLink: TEST_BACK_LINK, renderActions: RegularReader }), {
+		const html = Base(ReaderPage(makeArticle(), { appOrigin: DEFAULT_APP_ORIGIN, backLink: TEST_BACK_LINK, renderActions: StickyReader }), {
 			isAuthenticated: true,
 			emailVerified: undefined,
 		}).to("text/html").body;
@@ -55,21 +55,23 @@ describe("ReaderPage", () => {
 		assert(wrap, "share balloon wrap must be rendered");
 	});
 
-	it("points both back links at the supplied backLink hrefs", () => {
+	it("points the sticky back link at the supplied backLink href and renders no bottom bar", () => {
 		const html = Base(
-			ReaderPage(makeArticle(), { appOrigin: DEFAULT_APP_ORIGIN, backLink: TEST_BACK_LINK, renderActions: RegularReader }),
+			ReaderPage(makeArticle(), { appOrigin: DEFAULT_APP_ORIGIN, backLink: TEST_BACK_LINK, renderActions: StickyReader }),
 			{ isAuthenticated: true, emailVerified: undefined },
 		).to("text/html").body;
 		const doc = new JSDOM(html).window.document;
 
+		assert(
+			doc.querySelector(".article-body__actions--sticky [data-test-back-link]"),
+			"the back link must live inside the sticky toolbar",
+		);
 		assert.equal(
 			doc.querySelector("[data-test-back-link]")?.getAttribute("href"),
 			TEST_BACK_LINK.topHref,
 		);
-		assert.equal(
-			doc.querySelector("[data-test-back-bottom-link]")?.getAttribute("href"),
-			TEST_BACK_LINK.bottomHref,
-		);
+		assert.equal(doc.querySelector(".article-body__actions--bottom"), null);
+		assert.equal(doc.querySelector("[data-test-back-bottom-link]"), null);
 	});
 
 	it("renders the TL;DR collapsed by default (internal reader) — an expand is then a deliberate, measurable act", () => {
@@ -79,7 +81,7 @@ describe("ReaderPage", () => {
 				summary: { status: "ready", summary: "Key points." },
 				crawl: { status: "ready" },
 				backLink: TEST_BACK_LINK,
-				renderActions: RegularReader,
+				renderActions: StickyReader,
 			}),
 			{ isAuthenticated: true, emailVerified: undefined },
 		).to("text/html").body;
@@ -97,7 +99,7 @@ describe("ReaderPage", () => {
 				summary: { status: "ready", summary: "Key points." },
 				crawl: { status: "ready" },
 				backLink: TEST_BACK_LINK,
-				renderActions: RegularReader,
+				renderActions: StickyReader,
 			}),
 			{ isAuthenticated: true, emailVerified: undefined },
 		).to("text/html").body;
@@ -115,7 +117,7 @@ describe("ReaderPage", () => {
 		const article = makeArticle({
 			userId: UserIdSchema.parse("abcdef0123456789abcdef0123456789"),
 		});
-		const html = Base(ReaderPage(article, { appOrigin: DEFAULT_APP_ORIGIN, backLink: TEST_BACK_LINK, renderActions: RegularReader }), {
+		const html = Base(ReaderPage(article, { appOrigin: DEFAULT_APP_ORIGIN, backLink: TEST_BACK_LINK, renderActions: StickyReader }), {
 			isAuthenticated: true,
 			emailVerified: undefined,
 		}).to("text/html").body;
@@ -142,7 +144,7 @@ describe("ReaderPage", () => {
 				'<a href="https://readplace.com/queue" target="_blank">my queue</a>' +
 				'<a href="https://example.com/other" target="_blank">elsewhere</a>',
 		});
-		const html = Base(ReaderPage(article, { appOrigin: "https://readplace.com", backLink: TEST_BACK_LINK, renderActions: RegularReader }), {
+		const html = Base(ReaderPage(article, { appOrigin: "https://readplace.com", backLink: TEST_BACK_LINK, renderActions: StickyReader }), {
 			isAuthenticated: true,
 			emailVerified: undefined,
 		}).to("text/html").body;
@@ -169,7 +171,7 @@ describe("ReaderPage", () => {
 
 	it("renders the share-balloon URLs against the supplied appOrigin, not a hardcoded host", () => {
 		const html = Base(
-			ReaderPage(makeArticle(), { appOrigin: "https://staging.readplace.com", backLink: TEST_BACK_LINK, renderActions: RegularReader }),
+			ReaderPage(makeArticle(), { appOrigin: "https://staging.readplace.com", backLink: TEST_BACK_LINK, renderActions: StickyReader }),
 			{ isAuthenticated: true, emailVerified: undefined },
 		).to("text/html").body;
 		const doc = new JSDOM(html).window.document;

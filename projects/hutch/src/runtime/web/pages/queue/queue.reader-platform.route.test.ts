@@ -101,6 +101,22 @@ describe("Queue reader chromeless switch (GET /queue/:id/view?platform=ios)", ()
 		expect(doc.querySelector(".footer")).not.toBe(null);
 	});
 
+	it("pins the web reader's mark-as-read in a sticky toolbar with no bottom bar, same as chromeless", async () => {
+		const harness = buildHarness();
+		const agent = await loginAgent(harness.server, harness.auth);
+		const articleId = await saveAndGetArticleId(agent, "https://example.com/app-web-sticky");
+
+		const doc = new JSDOM((await agent.get(`/queue/${articleId}/view`)).text).window.document;
+
+		const sticky = doc.querySelector(".article-body__actions--sticky");
+		assert(sticky, "the web reader must render the sticky action toolbar");
+		assert(sticky.querySelector("[data-test-mark-read-form]"), "the sticky toolbar keeps the mark-read form");
+		expect(doc.querySelector(".article-body__actions--bottom")).toBe(null);
+		expect(doc.querySelector("[data-test-mark-read-bottom-slot]")).toBe(null);
+		expect(doc.body.classList.contains("page-reader")).toBe(true);
+		expect(doc.body.classList.contains("page-reader--chromeless")).toBe(false);
+	});
+
 	it("renders chromeless for a pre-param app build that sends only the client header", async () => {
 		const harness = buildHarness();
 		const agent = await loginAgent(harness.server, harness.auth);

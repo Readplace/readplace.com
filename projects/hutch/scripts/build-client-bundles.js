@@ -99,6 +99,23 @@ const BUNDLES = [
 		].join("\n"),
 	},
 	{
+		entry: path.join(
+			PROJECT_ROOT,
+			"src/runtime/web/pages/reader/reader-nav.client.ts",
+		),
+		outfile: path.join(OUT_DIR, "reader-nav.client.js"),
+		globalName: "ReaderNav",
+		footer: [
+			"ReaderNav.initReaderNav({",
+			"  document: window.document,",
+			"  window: window,",
+			"  addSwapListener: function (listener) {",
+			"    window.document.body.addEventListener('htmx:afterSwap', listener);",
+			"  }",
+			"});",
+		].join("\n"),
+	},
+	{
 		entry: path.join(PROJECT_ROOT, "src/runtime/web/pages/home/home.client.ts"),
 		outfile: path.join(OUT_DIR, "home.client.js"),
 		globalName: "HomeClient",

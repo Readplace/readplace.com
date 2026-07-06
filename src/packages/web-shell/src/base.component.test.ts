@@ -207,7 +207,7 @@ describe("Base component", () => {
 		const navItems = Array.from(doc.querySelectorAll("[data-test-nav-item]")).map(
 			(el) => el.getAttribute("data-test-nav-item"),
 		);
-		expect(navItems).toEqual(["install", "features", "import", "signup"]);
+		expect(navItems).toEqual(["install", "features", "import", "login"]);
 	});
 
 	it("renders the full nav (queue + import + export + account + logout) for an authenticated full-access user", () => {
@@ -328,6 +328,28 @@ describe("Base component", () => {
 		const seenScript = banner.querySelector("script");
 		assert(seenScript, "the visible banner must carry the inline seen-script");
 		expect(seenScript.textContent).toBe(CHANGELOG_SEEN_SCRIPT);
+	});
+
+	it("omits the changelog seen-script when suppressChangelogSeenScript is set, keeping the banner and NEW chip visible", () => {
+		const page = createTestPageBody();
+		const result = Base(page, {
+			...GUEST_STATE,
+			suppressChangelogSeenScript: true,
+			changelogBanner: {
+				hook: "I added keyboard shortcuts to the reader",
+				href: "/blog/keyboard-shortcuts?utm_source=changelog-banner&utm_medium=internal&utm_content=read-more",
+				version: CHANGELOG_VERSION,
+			},
+		}).to("text/html");
+		const doc = new JSDOM(result.body).window.document;
+
+		const banner = doc.querySelector("[data-test-changelog-banner]");
+		assert(banner, "changelog banner must still render when the seen-script is suppressed");
+		expect(banner.classList.contains("changelog-banner--visible")).toBe(true);
+		expect(banner.getAttribute("data-changelog-version")).toBe(CHANGELOG_VERSION);
+		expect(banner.querySelector(".changelog-banner__chip")?.textContent).toBe("NEW");
+		expect(banner.querySelector("script")).toBeNull();
+		expect(result.body).not.toContain(CHANGELOG_SEEN_SCRIPT);
 	});
 
 	it("threads currentPath into the changelog dismiss form so dismissing stays on the current page", () => {
