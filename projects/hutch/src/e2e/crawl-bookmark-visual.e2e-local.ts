@@ -50,6 +50,20 @@ test.describe("Crawl bookmark visual regression", () => {
 		await expect(page.locator(".crawl-bookmark")).toHaveScreenshot("crawl-bookmark-dark.png");
 	});
 
+	test("the info card's edges align with the handle's edges", async ({ page }) => {
+		await seedCrawledArticle(page);
+		await openReaderWithBookmark(page);
+		const handle = await page.locator(".crawl-bookmark__handle").boundingBox();
+		const tabs = await page.locator(".crawl-bookmark__tabs").boundingBox();
+		assert.ok(handle && tabs, "handle and info card must have measurable boxes");
+		assert.equal(tabs.y, handle.y, "info card top must align with the handle top");
+		assert.equal(
+			tabs.y + tabs.height,
+			handle.y + handle.height,
+			"info card bottom must align with the handle bottom",
+		);
+	});
+
 	// The handle collapses to just its grip when the disclosure closes (mobile /
 	// narrow viewports), so its height must not depend on the open state — a
 	// regression here reintroduces the short-sliver-vs-tall-capsule mismatch that
