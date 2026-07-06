@@ -30,4 +30,22 @@ describe("initInMemoryEmailVerification", () => {
 
 		expect(secondAttempt).toEqual({ ok: false, reason: "invalid-token" });
 	});
+
+	it("deletes every token for a user and leaves other users' tokens intact", async () => {
+		const { createVerificationToken, verifyEmailToken, deleteTokensByUserId } =
+			initInMemoryEmailVerification();
+		const target = "user-1" as UserId;
+		const other = "user-2" as UserId;
+		const targetToken = await createVerificationToken({ userId: target, email: "t@example.com" });
+		const otherToken = await createVerificationToken({ userId: other, email: "o@example.com" });
+
+		await deleteTokensByUserId(target);
+
+		expect(await verifyEmailToken(targetToken)).toEqual({ ok: false, reason: "invalid-token" });
+		expect(await verifyEmailToken(otherToken)).toEqual({
+			ok: true,
+			userId: other,
+			email: "o@example.com",
+		});
+	});
 });

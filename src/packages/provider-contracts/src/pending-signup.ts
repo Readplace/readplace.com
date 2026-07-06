@@ -34,3 +34,8 @@ export type MarkCheckoutRecoveryEmailSent = (params: {
 	checkoutSessionId: CheckoutSessionId;
 	sentAt: number;
 }) => Promise<void>;
+
+/** Erase every abandoned-checkout row a user left behind, as part of account
+ * deletion. This table has no TTL, so an un-consumed pending-signup row keeps the
+ * deleted user's `{email, userId}` forever unless scrubbed. */
+export type DeletePendingSignupsByUserId = (userId: UserId) => Promise<void>;

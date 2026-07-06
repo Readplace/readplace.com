@@ -11,6 +11,7 @@ import {
 import { initInMemoryRateLimit } from "@packages/test-fixtures/providers/rate-limit";
 import { completeStripeSignup } from "./test-helpers/complete-stripe-signup";
 import { createAccessToken, saveAccessTokenForUser } from "../test-helpers/oauth-token";
+import { AppleTokenResponse } from "../../providers/apple-auth/apple-token";
 import { DISPOSABLE_EMAIL_MESSAGE } from "./disposable-email";
 import { SESSION_COOKIE_NAME, SESSION_TTL_SECONDS } from "@packages/web-session";
 
@@ -1275,6 +1276,38 @@ describe("Auth routes", () => {
 			expect(link.getAttribute("href")).toBe("/auth/apple");
 			expect(link.querySelector(".auth-apple-button__label")?.textContent).toBe("Sign up with Apple");
 			assert(link.querySelector("svg.auth-apple-button__logo"), "apple logo must be rendered");
+		});
+
+		// Fail-closed guard for App Store 5.1.1(v): Sign in with Apple and the
+		// delete-account worker's Apple-token revocation MUST ship together.
+		// While SIWA is dark-launched (button gated behind ?feature=apple, never set
+		// in production), `revoke-external-idp-tokens.ts` is a safe no-op and
+		// `apple-token.ts` discards Apple's refresh_token — there is nothing to revoke.
+		// The day a normal user can reach SIWA, in-app deletion must also revoke the
+		// Apple grant (persist refresh_token + POST https://appleid.apple.com/auth/revoke),
+		// or Apple leaves the app in the user's "Sign in with Apple" list and rejects
+		// under the exact guideline this PR targets. This test pins BOTH facts so
+		// moving either without the other turns CI red and points here; the only
+		// accepted states are {reachable:false, persisted:false} (today) and
+		// {reachable:true, persisted:true} (SIWA live + revocation wired).
+		it("locks Sign in with Apple to Apple account-deletion revocation (App Store 5.1.1(v))", async () => {
+			const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
+			const loginNoFlag = (await request(harness.server).get("/login")).text;
+			const signupNoFlag = (await request(harness.server).get("/signup")).text;
+			const siwaReachableByDefault = [loginNoFlag, signupNoFlag].some(
+				(html) => appleSection(html) !== null,
+			);
+
+			// Proxy for "the code exchange persists Apple's refresh_token": the schema
+			// keeps a `refresh_token` field only once someone wires revocation.
+			const appleExchange = AppleTokenResponse.safeParse({ id_token: "x", refresh_token: "y" });
+			assert(appleExchange.success, "a well-formed Apple token response must parse");
+			const appleRefreshTokenPersisted = "refresh_token" in appleExchange.data;
+
+			expect({ siwaReachableByDefault, appleRefreshTokenPersisted }).toEqual({
+				siwaReachableByDefault: false,
+				appleRefreshTokenPersisted: false,
+			});
 		});
 	});
 

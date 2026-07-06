@@ -11,8 +11,11 @@ export type RevokeExternalIdpTokens = (userId: UserId) => Promise<void>;
  * is nothing to revoke yet. This no-op is the injectable seam: when SIWA is
  * extended to persist the refresh token, its runtime implementation replaces
  * this at the composition root and the worker is unchanged. Apple *requires*
- * revocation once both SIWA and account deletion ship, so this must be swapped
- * for the real call in the same change that persists the token. */
+ * revocation once both SIWA and account deletion ship (App Store 5.1.1(v)), so
+ * this must be swapped for the real POST https://appleid.apple.com/auth/revoke in
+ * the same change that persists the token. The "locks Sign in with Apple to Apple
+ * account-deletion revocation" guard in auth.route.test.ts fails CI if SIWA is
+ * ever un-gated without that wiring. */
 export function initNoopRevokeExternalIdpTokens(deps: {
 	logger: HutchLogger;
 }): RevokeExternalIdpTokens {

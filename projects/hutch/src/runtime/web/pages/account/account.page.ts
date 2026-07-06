@@ -327,13 +327,16 @@ export function initAccountRoutes(deps: AccountDependencies): Router {
 		res.redirect(303, buildAccountUrl({ cancelling: true }));
 	});
 
-	/** Irreversible account deletion. The synchronous work here is the
-	 * security-critical teardown that must take effect the instant the user
-	 * confirms — every session and bearer token dies at once — after which the
-	 * durable, at-least-once scrub of every user-owned store runs asynchronously
-	 * via DeleteAccountCommand. Sessions are destroyed before tokens are revoked
-	 * (mirroring /oauth/revoke) so a failed step leaves the account still usable
-	 * for a safe retry rather than half-torn-down. */
+	/** Irreversible account deletion. The synchronous work here revokes every
+	 * *existing* credential the instant the user confirms — all sessions and bearer
+	 * tokens die at once — after which the durable, at-least-once scrub of every
+	 * user-owned store runs asynchronously via DeleteAccountCommand. So existing
+	 * access is cut synchronously, but full erasure is eventual: until the worker
+	 * removes the identity row a brief window remains where the raw credentials
+	 * could still mint a fresh session (self-healing once the row is gone). Sessions
+	 * are destroyed before tokens are revoked (mirroring /oauth/revoke) so a failed
+	 * step leaves the account still usable for a safe retry rather than
+	 * half-torn-down. */
 	router.post("/delete", async (req: Request, res: Response) => {
 		assert(req.userId, "userId required - route must be protected by requireAuth");
 		const userId = req.userId;

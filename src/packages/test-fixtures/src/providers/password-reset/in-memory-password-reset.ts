@@ -1,4 +1,5 @@
 import { randomBytes } from "node:crypto";
+import { normalizeEmail } from "@packages/domain/user";
 import type {
 	CreatePasswordResetToken,
 	DeletePasswordResetTokensByEmail,
@@ -16,7 +17,9 @@ export function initInMemoryPasswordReset(): {
 
 	const createPasswordResetToken: CreatePasswordResetToken = async ({ email }) => {
 		const token = PasswordResetTokenSchema.parse(randomBytes(32).toString("hex"));
-		tokens.set(token, { email });
+		// Mirror the DynamoDB provider: store the normalized email so the deletion
+		// scrub (which filters on the normalized users-table PK) matches it.
+		tokens.set(token, { email: normalizeEmail(email) });
 		return token;
 	};
 
@@ -30,8 +33,9 @@ export function initInMemoryPasswordReset(): {
 	};
 
 	const deleteTokensByEmail: DeletePasswordResetTokensByEmail = async (email) => {
+		const normalized = normalizeEmail(email);
 		for (const [token, entry] of tokens) {
-			if (entry.email === email) tokens.delete(token);
+			if (entry.email === normalized) tokens.delete(token);
 		}
 	};
 

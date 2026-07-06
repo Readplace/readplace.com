@@ -1,6 +1,7 @@
 import type { CheckoutSessionId } from "@packages/provider-contracts/stripe-checkout";
 import type {
 	ConsumePendingSignup,
+	DeletePendingSignupsByUserId,
 	ListAllPendingSignups,
 	MarkCheckoutRecoveryEmailSent,
 	PendingSignup,
@@ -18,6 +19,7 @@ export function initInMemoryPendingSignup(): {
 	consumePendingSignup: ConsumePendingSignup;
 	listAllPendingSignups: ListAllPendingSignups;
 	markCheckoutRecoveryEmailSent: MarkCheckoutRecoveryEmailSent;
+	deleteByUserId: DeletePendingSignupsByUserId;
 } {
 	const store = new Map<CheckoutSessionId, StoredEntry>();
 
@@ -51,10 +53,17 @@ export function initInMemoryPendingSignup(): {
 		entry.checkoutRecoveryEmailSentAt = sentAt;
 	};
 
+	const deleteByUserId: DeletePendingSignupsByUserId = async (userId) => {
+		for (const [checkoutSessionId, entry] of store) {
+			if (entry.signup.userId === userId) store.delete(checkoutSessionId);
+		}
+	};
+
 	return {
 		storePendingSignup,
 		consumePendingSignup,
 		listAllPendingSignups,
 		markCheckoutRecoveryEmailSent,
+		deleteByUserId,
 	};
 }

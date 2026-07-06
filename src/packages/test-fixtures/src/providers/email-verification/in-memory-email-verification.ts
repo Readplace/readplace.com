@@ -2,6 +2,7 @@ import { randomBytes } from "node:crypto";
 import type { UserId } from "@packages/domain/user";
 import type {
 	CreateVerificationToken,
+	DeleteVerificationTokensByUserId,
 	VerificationToken,
 	VerifyEmailToken,
 } from "@packages/provider-contracts/email-verification";
@@ -10,6 +11,7 @@ import { VerificationTokenSchema } from "@packages/provider-contracts/email-veri
 export function initInMemoryEmailVerification(): {
 	createVerificationToken: CreateVerificationToken;
 	verifyEmailToken: VerifyEmailToken;
+	deleteTokensByUserId: DeleteVerificationTokensByUserId;
 } {
 	const tokens = new Map<VerificationToken, { userId: UserId; email: string }>();
 
@@ -28,5 +30,11 @@ export function initInMemoryEmailVerification(): {
 		return { ok: true, userId: entry.userId, email: entry.email };
 	};
 
-	return { createVerificationToken, verifyEmailToken };
+	const deleteTokensByUserId: DeleteVerificationTokensByUserId = async (userId) => {
+		for (const [token, entry] of tokens) {
+			if (entry.userId === userId) tokens.delete(token);
+		}
+	};
+
+	return { createVerificationToken, verifyEmailToken, deleteTokensByUserId };
 }

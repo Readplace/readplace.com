@@ -268,4 +268,55 @@ describe("initDynamoDbPendingSignup", () => {
 			expect(inputs[0]?.ExpressionAttributeValues?.[":sentAt"]).toBe(999);
 		});
 	});
+
+	describe("deleteByUserId", () => {
+		it("scans by userId across pages and deletes each abandoned row by its checkoutSessionId", async () => {
+			const pages = [
+				{
+					Items: [{ checkoutSessionId: "cs_1" }, { checkoutSessionId: "cs_2" }],
+					LastEvaluatedKey: { checkoutSessionId: "cs_2" },
+				},
+				{ Items: [{ checkoutSessionId: "cs_3" }] },
+			];
+			let scanCall = 0;
+			// The impl is invoked for every command; a DeleteCommand carries a Key,
+			// a ScanCommand does not — so return {} for deletes and the next page otherwise.
+			const { client, inputs } = createClient((input) =>
+				input.Key ? {} : pages[scanCall++],
+			);
+			const { deleteByUserId } = initDynamoDbPendingSignup({
+				client,
+				tableName: TABLE,
+				logger: noopLogger,
+			});
+
+			await deleteByUserId(USER_ID);
+
+			const scans = inputs.filter((i) => i.ProjectionExpression === "checkoutSessionId");
+			expect(scans).toHaveLength(2);
+			expect(scans[0]?.ExpressionAttributeValues).toEqual({ ":u": USER_ID });
+			expect(scans[1]?.ExclusiveStartKey).toEqual({ checkoutSessionId: "cs_2" });
+
+			const deletes = inputs.filter((i) => i.Key);
+			expect(deletes.map((d) => d.Key)).toEqual([
+				{ checkoutSessionId: "cs_1" },
+				{ checkoutSessionId: "cs_2" },
+				{ checkoutSessionId: "cs_3" },
+			]);
+		});
+
+		it("issues no deletes when the user has no pending signups", async () => {
+			const { client, inputs } = createClient(() => ({ Items: [] }));
+			const { deleteByUserId } = initDynamoDbPendingSignup({
+				client,
+				tableName: TABLE,
+				logger: noopLogger,
+			});
+
+			await deleteByUserId(USER_ID);
+
+			expect(inputs.filter((i) => i.ProjectionExpression === "checkoutSessionId")).toHaveLength(1);
+			expect(inputs.filter((i) => i.Key)).toHaveLength(0);
+		});
+	});
 });

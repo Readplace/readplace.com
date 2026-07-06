@@ -56,4 +56,19 @@ describe("initInMemoryPasswordReset", () => {
 			email: "other@example.com",
 		});
 	});
+
+	it("normalizes email casing on write and delete so a mixed-case reset is still scrubbed", async () => {
+		const { createPasswordResetToken, verifyPasswordResetToken, deleteTokensByEmail } =
+			initInMemoryPasswordReset();
+		const token = await createPasswordResetToken({ email: "John@Example.com" });
+
+		// The deletion scrub passes the normalized users-table PK; it must match the
+		// row written from the mixed-case request.
+		await deleteTokensByEmail("john@example.com");
+
+		expect(await verifyPasswordResetToken(token)).toEqual({
+			ok: false,
+			reason: "invalid-token",
+		});
+	});
 });

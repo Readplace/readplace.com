@@ -70,6 +70,8 @@ function buildSubject() {
 	const bodyEmailDeleteArgs: string[][] = [];
 	const deleteExportsCalls: UserId[] = [];
 	const passwordResetCalls: string[] = [];
+	const verificationTokenDeleteCalls: UserId[] = [];
+	const pendingSignupDeleteCalls: UserId[] = [];
 	const revokeIdpCalls: UserId[] = [];
 
 	// The noop is exercised through this wrapper so its own logging line stays
@@ -137,6 +139,12 @@ function buildSubject() {
 		deletePasswordResetTokensByEmail: async (email: string) => {
 			passwordResetCalls.push(email);
 		},
+		deleteVerificationTokensByUserId: async (userId: UserId) => {
+			verificationTokenDeleteCalls.push(userId);
+		},
+		deletePendingSignupsByUserId: async (userId: UserId) => {
+			pendingSignupDeleteCalls.push(userId);
+		},
 		revokeExternalIdpTokens: async (userId: UserId) => {
 			revokeIdpCalls.push(userId);
 			await noopRevoke(userId);
@@ -168,6 +176,8 @@ function buildSubject() {
 		bodyEmailDeleteArgs,
 		deleteExportsCalls,
 		passwordResetCalls,
+		verificationTokenDeleteCalls,
+		pendingSignupDeleteCalls,
 		revokeIdpCalls,
 		failArticleDeleteFor: (userId: UserId): void => {
 			articleDeleteThrowIds.add(userId);
@@ -385,6 +395,11 @@ describe("delete-account handler", () => {
 
 		// Password-reset tokens purged by the email captured before deletion.
 		assert.deepEqual(s.passwordResetCalls, [victim.email]);
+
+		// Verification tokens and abandoned-checkout pending-signup rows scrubbed by
+		// userId — the remnant stores this PR closes.
+		assert.deepEqual(s.verificationTokenDeleteCalls, [victim.userId]);
+		assert.deepEqual(s.pendingSignupDeleteCalls, [victim.userId]);
 
 		// Billing side effects fired for the active subscription: deleting the
 		// Stripe customer cancels the subscription and detaches the cards.

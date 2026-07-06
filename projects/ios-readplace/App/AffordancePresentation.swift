@@ -117,8 +117,11 @@ extension Affordance {
 	/// tear down local auth (session cookie, tokens, WebKit store) once it succeeds.
 	/// This is inherently specific to account deletion — a purge is also destructive
 	/// yet keeps the session — so unlike the generic `isDestructive` routing it keys
-	/// on the token. The server has already revoked everything server-side; this only
-	/// clears the now-dead local traces so the app returns to the login screen.
+	/// on the token. The server kills every session and OAuth token server-side (and
+	/// scrubs the remaining stores asynchronously); this clears the now-dead local
+	/// traces so the app returns to the login screen. It does NOT unlink Sign in with
+	/// Apple — Apple IdP-token revocation is still a pending no-op server-side (see
+	/// revoke-external-idp-tokens.ts), which matters once SIWA ships to real users.
 	var endsSession: Bool { token == "delete-account" }
 
 	/// Whether the client can invoke this affordance from a bare toolbar control.

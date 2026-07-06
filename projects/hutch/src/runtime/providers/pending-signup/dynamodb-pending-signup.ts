@@ -9,6 +9,7 @@ import { UserIdSchema } from "@packages/domain/user";
 import { CheckoutSessionIdSchema } from "@packages/provider-contracts/stripe-checkout";
 import type {
 	ConsumePendingSignup,
+	DeletePendingSignupsByUserId,
 	ListAllPendingSignups,
 	MarkCheckoutRecoveryEmailSent,
 	PendingSignup,
@@ -37,6 +38,10 @@ const PendingSignupSummaryRow = z.object({
 	checkoutRecoveryEmailSentAt: dynamoField(z.number()),
 });
 
+const CheckoutKeyRow = z.object({
+	checkoutSessionId: CheckoutSessionIdSchema,
+});
+
 export function initDynamoDbPendingSignup(deps: {
 	client: DynamoDBDocumentClient;
 	tableName: string;
@@ -46,6 +51,7 @@ export function initDynamoDbPendingSignup(deps: {
 	consumePendingSignup: ConsumePendingSignup;
 	listAllPendingSignups: ListAllPendingSignups;
 	markCheckoutRecoveryEmailSent: MarkCheckoutRecoveryEmailSent;
+	deleteByUserId: DeletePendingSignupsByUserId;
 } {
 	const table = defineDynamoTable({
 		client: deps.client,
@@ -57,6 +63,12 @@ export function initDynamoDbPendingSignup(deps: {
 		client: deps.client,
 		tableName: deps.tableName,
 		schema: PendingSignupSummaryRow,
+	});
+
+	const keyTable = defineDynamoTable({
+		client: deps.client,
+		tableName: deps.tableName,
+		schema: CheckoutKeyRow,
 	});
 
 	const storePendingSignup: StorePendingSignup = async ({ checkoutSessionId, signup, createdAt }) => {
@@ -133,10 +145,29 @@ export function initDynamoDbPendingSignup(deps: {
 		});
 	};
 
+	const deleteByUserId: DeletePendingSignupsByUserId = async (userId) => {
+		// No TTL on this table, so an abandoned-checkout row keeps the deleted user's
+		// email + userId forever unless purged. Scan by userId and delete each by PK.
+		let ExclusiveStartKey: Record<string, unknown> | undefined;
+		do {
+			const { items, lastEvaluatedKey } = await keyTable.scan({
+				FilterExpression: "userId = :u",
+				ExpressionAttributeValues: { ":u": userId },
+				ProjectionExpression: "checkoutSessionId",
+				ExclusiveStartKey,
+			});
+			for (const { checkoutSessionId } of items) {
+				await table.delete({ Key: { checkoutSessionId } });
+			}
+			ExclusiveStartKey = lastEvaluatedKey;
+		} while (ExclusiveStartKey);
+	};
+
 	return {
 		storePendingSignup,
 		consumePendingSignup,
 		listAllPendingSignups,
 		markCheckoutRecoveryEmailSent,
+		deleteByUserId,
 	};
 }

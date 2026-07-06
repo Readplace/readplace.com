@@ -2,7 +2,14 @@ import { z } from "zod";
 import { AppleIdSchema } from "@packages/provider-contracts/apple-auth";
 import type { ExchangeAppleCode } from "@packages/provider-contracts/apple-auth";
 
-const AppleTokenResponse = z.object({
+/** Apple's token-exchange response. Today only `id_token` is parsed — Apple's
+ * `refresh_token` is deliberately discarded because nothing consumes it yet. When
+ * Sign in with Apple ships to real users, account deletion MUST revoke the Apple
+ * grant, which means persisting `refresh_token` here (see the
+ * `siwa-deletion-compliance` guard in auth.route.test.ts and
+ * revoke-external-idp-tokens.ts). Exported so that guard can detect when this
+ * schema starts persisting the token. */
+export const AppleTokenResponse = z.object({
 	id_token: z.string(),
 });
 

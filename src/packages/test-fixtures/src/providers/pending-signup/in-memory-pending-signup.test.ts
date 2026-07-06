@@ -87,4 +87,29 @@ describe("initInMemoryPendingSignup", () => {
 			}),
 		).rejects.toThrow(/No pending signup/);
 	});
+
+	it("deletes every abandoned-checkout row for a user and leaves other users' rows intact", async () => {
+		const { storePendingSignup, consumePendingSignup, deleteByUserId } = initInMemoryPendingSignup();
+		const targetUser = UserIdSchema.parse("u-del-target");
+		const otherUser = UserIdSchema.parse("u-del-other");
+		const targetSession = CheckoutSessionIdSchema.parse("cs_test_del_target");
+		const otherSession = CheckoutSessionIdSchema.parse("cs_test_del_other");
+		await storePendingSignup({
+			checkoutSessionId: targetSession,
+			signup: { method: "existing-user-subscribe", email: "t@example.com", userId: targetUser },
+			createdAt: 1,
+		});
+		await storePendingSignup({
+			checkoutSessionId: otherSession,
+			signup: { method: "existing-user-subscribe", email: "o@example.com", userId: otherUser },
+			createdAt: 2,
+		});
+
+		await deleteByUserId(targetUser);
+
+		expect(await consumePendingSignup(targetSession)).toBeNull();
+		const survivor = await consumePendingSignup(otherSession);
+		assert(survivor, "other user's pending signup must survive");
+		expect(survivor.userId).toBe(otherUser);
+	});
 });

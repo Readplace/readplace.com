@@ -19,6 +19,8 @@ import { initS3DeleteObjects } from "./providers/inbox-email/s3-delete-objects";
 import { initDynamoDbInboxAddress } from "./providers/inbox-address/dynamodb-inbox-address";
 import { initS3UserDataExport } from "./providers/user-data-export/s3-user-data-export";
 import { initDynamoDbPasswordReset } from "./providers/password-reset/dynamodb-password-reset";
+import { initDynamoDbEmailVerification } from "./providers/email-verification/dynamodb-email-verification";
+import { initDynamoDbPendingSignup } from "./providers/pending-signup/dynamodb-pending-signup";
 import { initNoopRevokeExternalIdpTokens } from "./delete-account/revoke-external-idp-tokens";
 import { initDeleteAccountHandler } from "./delete-account/delete-account-handler";
 
@@ -116,6 +118,17 @@ const passwordReset = initDynamoDbPasswordReset({
 	tableName: requireEnv("DYNAMODB_PASSWORD_RESET_TOKENS_TABLE"),
 });
 
+const emailVerification = initDynamoDbEmailVerification({
+	client: dynamoClient,
+	tableName: requireEnv("DYNAMODB_VERIFICATION_TOKENS_TABLE"),
+});
+
+const pendingSignup = initDynamoDbPendingSignup({
+	client: dynamoClient,
+	tableName: requireEnv("DYNAMODB_PENDING_SIGNUPS_TABLE"),
+	logger,
+});
+
 const revokeExternalIdpTokens = initNoopRevokeExternalIdpTokens({ logger });
 
 export const handler = initDeleteAccountHandler({
@@ -138,6 +151,8 @@ export const handler = initDeleteAccountHandler({
 	deleteOnboarding: onboarding.deleteOnboarding,
 	deleteUserExports,
 	deletePasswordResetTokensByEmail: passwordReset.deleteTokensByEmail,
+	deleteVerificationTokensByUserId: emailVerification.deleteTokensByUserId,
+	deletePendingSignupsByUserId: pendingSignup.deleteByUserId,
 	revokeExternalIdpTokens,
 	revokeAllUserOAuthTokens,
 	destroyUserSessions: auth.destroyUserSessions,

@@ -80,6 +80,16 @@ describe("initDynamoDbPasswordReset", () => {
 			expect(item.expiresAt).toBeGreaterThanOrEqual(before + 60 * 60);
 			expect(item.expiresAt).toBeLessThanOrEqual(after + 60 * 60);
 		});
+
+		it("normalizes the email on write so a mixed-case reset stays scrubbable at deletion", async () => {
+			const { client, commands } = createFakeClient({});
+
+			await initStore(client).createPasswordResetToken({ email: "John@Example.com" });
+
+			const put = commands.find((c) => c.name === "PutCommand");
+			const item = put?.input.Item as { email: string };
+			expect(item.email).toBe("john@example.com");
+		});
 	});
 
 	describe("verifyPasswordResetToken", () => {
@@ -179,6 +189,16 @@ describe("initDynamoDbPasswordReset", () => {
 
 			expect(commands.filter((c) => c.name === "ScanCommand")).toHaveLength(1);
 			expect(commands.filter((c) => c.name === "DeleteCommand")).toHaveLength(0);
+		});
+
+		it("normalizes a mixed-case filter email so it matches the normalized stored rows", async () => {
+			const { client, commands } = createScanClient([{ Items: [{ token: "aaa" }] }]);
+
+			await initStore(client).deleteTokensByEmail("John@Example.com");
+
+			const scan = commands.find((c) => c.name === "ScanCommand");
+			expect(scan?.input.ExpressionAttributeValues).toEqual({ ":e": "john@example.com" });
+			expect(commands.filter((c) => c.name === "DeleteCommand")).toHaveLength(1);
 		});
 	});
 });

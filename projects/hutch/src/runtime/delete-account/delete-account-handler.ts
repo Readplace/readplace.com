@@ -19,6 +19,8 @@ import type { DeleteDigestByUser } from "@packages/provider-contracts/digest-que
 import type { DeleteReaderReadyState } from "@packages/provider-contracts/reader-ready-state";
 import type { DeleteOnboarding } from "@packages/provider-contracts/ios-onboarding-signal";
 import type { DeletePasswordResetTokensByEmail } from "@packages/provider-contracts/password-reset";
+import type { DeleteVerificationTokensByUserId } from "@packages/provider-contracts/email-verification";
+import type { DeletePendingSignupsByUserId } from "@packages/provider-contracts/pending-signup";
 import type {
 	DeleteSubscription,
 	FindSubscriptionByUserId,
@@ -57,6 +59,8 @@ export interface DeleteAccountHandlerDependencies {
 	deleteOnboarding: DeleteOnboarding;
 	deleteUserExports: DeleteUserExports;
 	deletePasswordResetTokensByEmail: DeletePasswordResetTokensByEmail;
+	deleteVerificationTokensByUserId: DeleteVerificationTokensByUserId;
+	deletePendingSignupsByUserId: DeletePendingSignupsByUserId;
 	revokeExternalIdpTokens: RevokeExternalIdpTokens;
 	revokeAllUserOAuthTokens: RevokeAllUserOAuthTokens;
 	destroyUserSessions: DestroyUserSessions;
@@ -127,6 +131,14 @@ async function processCommand(
 	if (email !== null) {
 		await deps.deletePasswordResetTokensByEmail(email);
 	}
+
+	// Signup/verification remnants keyed by userId (both scanned, both no-op when
+	// absent): the email-verification token (a `{userId, email}` row the TTL would
+	// otherwise keep for the verification window) and any abandoned-checkout
+	// pending-signup rows (that table has no TTL, so they'd keep `{email, userId}`
+	// forever).
+	await deps.deleteVerificationTokensByUserId(userId);
+	await deps.deletePendingSignupsByUserId(userId);
 
 	// Credentials last: revoke external IdP tokens, kill OAuth grants and every
 	// session, then delete the identity row (and its Gmail uniqueness claim).

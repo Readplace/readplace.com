@@ -6,6 +6,7 @@ import {
 	defineDynamoTable,
 } from "@packages/hutch-storage-client";
 import { z } from "zod";
+import { normalizeEmail } from "@packages/domain/user";
 import type {
 	CreatePasswordResetToken,
 	DeletePasswordResetTokensByEmail,
@@ -49,7 +50,11 @@ export function initDynamoDbPasswordReset(deps: {
 		const token = PasswordResetTokenSchema.parse(randomBytes(32).toString("hex"));
 		const expiresAt = Math.floor(Date.now() / 1000) + TOKEN_TTL_SECONDS;
 
-		await table.put({ Item: { token, email, expiresAt } });
+		// Store the normalized (lowercased) email so a mixed-case reset request
+		// (`John@Example.com`) is still matched by the deletion scrub, which filters
+		// on the normalized users-table PK. Without this the row would never match
+		// and — since this table has no TTL — the address would outlive the account.
+		await table.put({ Item: { token, email: normalizeEmail(email), expiresAt } });
 
 		return token;
 	};
@@ -85,7 +90,7 @@ export function initDynamoDbPasswordReset(deps: {
 		do {
 			const { items, lastEvaluatedKey } = await tokenKeyTable.scan({
 				FilterExpression: "email = :e",
-				ExpressionAttributeValues: { ":e": email },
+				ExpressionAttributeValues: { ":e": normalizeEmail(email) },
 				ProjectionExpression: "#tk",
 				ExpressionAttributeNames: { "#tk": "token" },
 				ExclusiveStartKey,
