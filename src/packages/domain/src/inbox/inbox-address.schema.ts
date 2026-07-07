@@ -1,5 +1,6 @@
 import { randomInt } from "node:crypto";
 import { z } from "zod";
+import { UserIdSchema } from "../user";
 
 /** Opaque per-newsletter token in a forwarding address. Six lowercase base36
  * characters (a–z0–9) — short enough to be memorable/typeable, ~2.2B
@@ -111,3 +112,10 @@ export function normalizeAliasName(raw: string): AliasName | undefined {
 /** The alias every account's first forwarding address is minted under at signup,
  * so a brand-new user lands on `inbox-<token>@…` without having to name one. */
 export const DEFAULT_INBOX_ALIAS: AliasName = AliasNameSchema.parse("inbox");
+
+/** The reserved owner an address is reassigned to when its real owner deletes
+ * their account. An address row is never deleted — a freed hash could be
+ * re-minted for another user and leak their forwarded mail — so account deletion
+ * tombstones instead: it strips the PII alias and repoints `userId` at this
+ * sentinel so the row unlinks from the real user while the hash stays reserved. */
+export const DELETED_ACCOUNT_INBOX_OWNER = UserIdSchema.parse("deleted-account");

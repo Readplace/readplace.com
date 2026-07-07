@@ -6,8 +6,10 @@ import {
 	defineDynamoTable,
 } from "@packages/hutch-storage-client";
 import { z } from "zod";
+import { normalizeEmail } from "@packages/domain/user";
 import type {
 	CreatePasswordResetToken,
+	DeletePasswordResetTokensByEmail,
 	VerifyPasswordResetToken,
 } from "@packages/provider-contracts/password-reset";
 import { PasswordResetTokenSchema } from "@packages/provider-contracts/password-reset";
@@ -20,12 +22,17 @@ const PasswordResetRow = z.object({
 	expiresAt: z.number(),
 });
 
+const TokenKeyRow = z.object({
+	token: z.string(),
+});
+
 export function initDynamoDbPasswordReset(deps: {
 	client: DynamoDBDocumentClient;
 	tableName: string;
 }): {
 	createPasswordResetToken: CreatePasswordResetToken;
 	verifyPasswordResetToken: VerifyPasswordResetToken;
+	deleteTokensByEmail: DeletePasswordResetTokensByEmail;
 } {
 	const table = defineDynamoTable({
 		client: deps.client,
@@ -33,11 +40,21 @@ export function initDynamoDbPasswordReset(deps: {
 		schema: PasswordResetRow,
 	});
 
+	const tokenKeyTable = defineDynamoTable({
+		client: deps.client,
+		tableName: deps.tableName,
+		schema: TokenKeyRow,
+	});
+
 	const createPasswordResetToken: CreatePasswordResetToken = async ({ email }) => {
 		const token = PasswordResetTokenSchema.parse(randomBytes(32).toString("hex"));
 		const expiresAt = Math.floor(Date.now() / 1000) + TOKEN_TTL_SECONDS;
 
-		await table.put({ Item: { token, email, expiresAt } });
+		// Store the normalized (lowercased) email so a mixed-case reset request
+		// (`John@Example.com`) is matched — and erased immediately — by the deletion
+		// scrub, which filters on the normalized users-table PK. An un-normalized row
+		// escapes the synchronous scrub and lingers until the `expiresAt` TTL reaps it.
+		await table.put({ Item: { token, email: normalizeEmail(email), expiresAt } });
 
 		return token;
 	};
@@ -66,5 +83,22 @@ export function initDynamoDbPasswordReset(deps: {
 		}
 	};
 
-	return { createPasswordResetToken, verifyPasswordResetToken };
+	const deleteTokensByEmail: DeletePasswordResetTokensByEmail = async (email) => {
+		// Purge every row for this email now so deletion erases the token immediately;
+		// the `expiresAt` TTL only reaps an unexpired token later, after it lapses.
+		let ExclusiveStartKey: Record<string, unknown> | undefined;
+		do {
+			const { items, lastEvaluatedKey } = await tokenKeyTable.scan({
+				FilterExpression: "email = :e",
+				ExpressionAttributeValues: { ":e": normalizeEmail(email) },
+				ProjectionExpression: "#tk",
+				ExpressionAttributeNames: { "#tk": "token" },
+				ExclusiveStartKey,
+			});
+			for (const { token } of items) await table.delete({ Key: { token } });
+			ExclusiveStartKey = lastEvaluatedKey;
+		} while (ExclusiveStartKey);
+	};
+
+	return { createPasswordResetToken, verifyPasswordResetToken, deleteTokensByEmail };
 }

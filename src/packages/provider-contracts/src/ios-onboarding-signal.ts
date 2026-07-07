@@ -22,3 +22,6 @@ export type RecordIosSavedArticle = (params: {
 export type GetIosAppSignals = (params: {
 	userId: UserId;
 }) => Promise<{ installed: boolean; savedArticle: boolean }>;
+
+/** Delete the single iOS onboarding row for a user (account deletion). */
+export type DeleteOnboarding = (params: { userId: UserId }) => Promise<void>;

@@ -121,4 +121,41 @@ describe("initDynamoDbEmailVerification", () => {
 			await expect(initVerification(client).verifyEmailToken(TOKEN)).rejects.toThrow(failure);
 		});
 	});
+
+	describe("deleteTokensByUserId", () => {
+		it("scans by userId across pages and deletes each token by its primary key", async () => {
+			const pages = [
+				{ Items: [{ token: "t1" }, { token: "t2" }], LastEvaluatedKey: { token: "t2" } },
+				{ Items: [{ token: "t3" }] },
+			];
+			let call = 0;
+			const { client, commands } = createFakeClient({ ScanCommand: () => pages[call++] });
+
+			await initVerification(client).deleteTokensByUserId(USER);
+
+			const scans = commands.filter((c) => c.name === "ScanCommand");
+			expect(scans).toHaveLength(2);
+			expect(scans[0]?.input.FilterExpression).toBe("userId = :u");
+			expect(scans[0]?.input.ExpressionAttributeValues).toEqual({ ":u": USER });
+			expect(scans[0]?.input.ProjectionExpression).toBe("#tk");
+			expect(scans[0]?.input.ExpressionAttributeNames).toEqual({ "#tk": "token" });
+			expect(scans[1]?.input.ExclusiveStartKey).toEqual({ token: "t2" });
+
+			const deletes = commands.filter((c) => c.name === "DeleteCommand");
+			expect(deletes.map((d) => d.input.Key)).toEqual([
+				{ token: "t1" },
+				{ token: "t2" },
+				{ token: "t3" },
+			]);
+		});
+
+		it("issues no deletes when the user has no verification tokens", async () => {
+			const { client, commands } = createFakeClient({ ScanCommand: { Items: [] } });
+
+			await initVerification(client).deleteTokensByUserId(USER);
+
+			expect(commands.filter((c) => c.name === "ScanCommand")).toHaveLength(1);
+			expect(commands.filter((c) => c.name === "DeleteCommand")).toHaveLength(0);
+		});
+	});
 });

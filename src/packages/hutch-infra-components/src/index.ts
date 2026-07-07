@@ -47,6 +47,8 @@ export {
 	type UpdateFetchTimestampDetail,
 	ExportUserDataCommand,
 	type ExportUserDataDetail,
+	DeleteAccountCommand,
+	type DeleteAccountDetail,
 	UserDataExportedEvent,
 	type UserDataExportedDetail,
 	UserDataExportFailedEvent,

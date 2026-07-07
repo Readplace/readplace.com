@@ -1,6 +1,7 @@
 import assert from "node:assert";
 import type { UserId } from "@packages/domain/user";
 import type {
+	DeleteSubscription,
 	FindSubscriptionBySubscriptionId,
 	FindSubscriptionByUserId,
 	MarkSubscriptionActive,
@@ -25,6 +26,7 @@ export function initInMemorySubscriptionProviders(opts: {
 	markActive: MarkSubscriptionActive;
 	markTrialFeedbackEmailSent: MarkTrialFeedbackEmailSent;
 	markTrialReminderEmailSent: MarkTrialReminderEmailSent;
+	deleteSubscription: DeleteSubscription;
 	seedRow: (row: SubscriptionRecord) => void;
 } {
 	const rows = new Map<UserId, SubscriptionRecord>();
@@ -124,6 +126,10 @@ export function initInMemorySubscriptionProviders(opts: {
 		});
 	};
 
+	const deleteSubscription: DeleteSubscription = async ({ userId }) => {
+		rows.delete(userId);
+	};
+
 	/** Test-only escape hatch for seeding hypothetical row shapes (e.g. a
 	 * trialing row that also has a customerId — production paths never write
 	 * this combination, but the trial-end charge handler must still cover the
@@ -142,6 +148,7 @@ export function initInMemorySubscriptionProviders(opts: {
 		markActive,
 		markTrialFeedbackEmailSent,
 		markTrialReminderEmailSent,
+		deleteSubscription,
 		seedRow,
 	};
 }

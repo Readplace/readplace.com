@@ -5,6 +5,7 @@ import {
 	batchGetFromTable,
 	defineDynamoTable,
 	dynamoField,
+	forEachQueryPage,
 } from "@packages/hutch-storage-client";
 import { z } from "zod";
 import type { SavedArticle } from "@packages/domain/article";
@@ -17,6 +18,7 @@ import type { UserId } from "@packages/domain/user";
 import type {
 	BumpArticleSavedAt,
 	CountArticlesByUser,
+	DeleteAllUserArticles,
 	DeleteArticle,
 	FindArticleById,
 	FindArticleByUrl,
@@ -129,6 +131,7 @@ export function initDynamoDbArticleStore(deps: {
 	findArticlesByUser: FindArticlesByUser;
 	countArticlesByUser: CountArticlesByUser;
 	deleteArticle: DeleteArticle;
+	deleteAllUserArticles: DeleteAllUserArticles;
 	updateArticleStatus: UpdateArticleStatus;
 	findArticleFreshness: FindArticleFreshness;
 	markArticleViewed: MarkArticleViewed;
@@ -405,6 +408,22 @@ export function initDynamoDbArticleStore(deps: {
 		return true;
 	};
 
+	const deleteAllUserArticles: DeleteAllUserArticles = async (userId) => {
+		await forEachQueryPage(
+			userArticles,
+			{
+				IndexName: "userId-savedAt-index",
+				KeyConditionExpression: "userId = :userId",
+				ExpressionAttributeValues: { ":userId": userId },
+			},
+			async (rows) => {
+				await Promise.all(
+					rows.map((row) => userArticles.delete({ Key: { userId: row.userId, url: row.url } })),
+				);
+			},
+		);
+	};
+
 	const updateArticleStatus: UpdateArticleStatus = async (routeId, userId, status) => {
 		const article = await findArticleByRouteId(routeId);
 		if (!article) return false;
@@ -593,6 +612,7 @@ export function initDynamoDbArticleStore(deps: {
 		findArticlesByUser,
 		countArticlesByUser,
 		deleteArticle,
+		deleteAllUserArticles,
 		updateArticleStatus,
 		findArticleFreshness,
 		markArticleViewed,

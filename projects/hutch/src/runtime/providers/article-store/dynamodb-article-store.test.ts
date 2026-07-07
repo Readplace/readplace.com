@@ -582,6 +582,42 @@ describe("initDynamoDbArticleStore deleteArticle", () => {
 	});
 });
 
+describe("initDynamoDbArticleStore deleteAllUserArticles", () => {
+	it("pages the userId-savedAt-index and deletes every userArticles row by its (userId, url) key across pages", async () => {
+		const { client, commands } = createFakeClient({
+			QueryCommand: {
+				queue: [
+					{ Items: [userArticleItem({ url: "a" })], Count: 1, LastEvaluatedKey: { userId: USER, url: "a" } },
+					{ Items: [userArticleItem({ url: "b" })], Count: 1 },
+				],
+			},
+		});
+
+		await initStore(client).deleteAllUserArticles(USER);
+
+		const queries = commands.filter((c) => c.name === "QueryCommand");
+		expect(queries).toHaveLength(2);
+		expect(queries[0]?.input.IndexName).toBe("userId-savedAt-index");
+		expect(queries[0]?.input.KeyConditionExpression).toBe("userId = :userId");
+		expect((queries[0]?.input.ExpressionAttributeValues as Record<string, unknown>)[":userId"]).toBe(USER);
+		expect(queries[1]?.input.ExclusiveStartKey).toEqual({ userId: USER, url: "a" });
+
+		const deletes = commands.filter((c) => c.name === "DeleteCommand");
+		expect(deletes.map((d) => d.input.Key)).toEqual([
+			{ userId: USER, url: "a" },
+			{ userId: USER, url: "b" },
+		]);
+	});
+
+	it("issues no deletes when the user has no saved rows", async () => {
+		const { client, commands } = createFakeClient({ QueryCommand: { default: { Items: [], Count: 0 } } });
+
+		await initStore(client).deleteAllUserArticles(USER);
+
+		expect(commands.some((c) => c.name === "DeleteCommand")).toBe(false);
+	});
+});
+
 describe("initDynamoDbArticleStore updateArticleStatus", () => {
 	it("stamps readAt when marking an article read", async () => {
 		const { client, commands } = createFakeClient({

@@ -42,3 +42,6 @@ export type DeleteDigestItem = (params: {
  * Scan — sound because the queue is sparse (only users with a pending
  * reader-ready article ever have rows, and rows are drained on send). */
 export type ScanPendingDigestUsers = () => Promise<UserId[]>;
+
+/** Delete every queued article for a user (account deletion). */
+export type DeleteDigestByUser = (userId: UserId) => Promise<void>;

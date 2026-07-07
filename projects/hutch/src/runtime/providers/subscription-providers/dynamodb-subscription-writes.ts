@@ -3,6 +3,7 @@ import {
 	defineDynamoTable,
 } from "@packages/hutch-storage-client";
 import type {
+	DeleteSubscription,
 	MarkSubscriptionActive,
 	MarkSubscriptionCancelledByUserId,
 	MarkSubscriptionPendingCancellation,
@@ -13,7 +14,7 @@ import type {
 } from "@packages/provider-contracts/subscription-providers";
 import { SubscriptionProviderRow } from "@packages/subscription-access";
 
-/** The write half of the subscription table — the seven mutations, wired
+/** The write half of the subscription table — the eight mutations, wired
  * independently from the read half. The save gate composes write access from
  * the read half alone, so no save path ever depends on a mutation. */
 export function initDynamoDbSubscriptionWrites(deps: {
@@ -28,6 +29,7 @@ export function initDynamoDbSubscriptionWrites(deps: {
 	markActive: MarkSubscriptionActive;
 	markTrialFeedbackEmailSent: MarkTrialFeedbackEmailSent;
 	markTrialReminderEmailSent: MarkTrialReminderEmailSent;
+	deleteSubscription: DeleteSubscription;
 } {
 	const table = defineDynamoTable({
 		client: deps.client,
@@ -140,6 +142,10 @@ export function initDynamoDbSubscriptionWrites(deps: {
 		});
 	};
 
+	const deleteSubscription: DeleteSubscription = async ({ userId }) => {
+		await table.delete({ Key: { userId } });
+	};
+
 	return {
 		upsertTrialing,
 		upsertActive,
@@ -148,5 +154,6 @@ export function initDynamoDbSubscriptionWrites(deps: {
 		markActive,
 		markTrialFeedbackEmailSent,
 		markTrialReminderEmailSent,
+		deleteSubscription,
 	};
 }

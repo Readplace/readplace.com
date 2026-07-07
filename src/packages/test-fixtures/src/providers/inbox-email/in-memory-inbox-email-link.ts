@@ -13,6 +13,17 @@ export function initInMemoryInboxEmailLink(): InboxEmailLinkStore {
 		`${input.userId}#${input.receivedAtMessageId}`;
 	const linkKey = (group: string, ordinal: string) => `${group}#${ordinal}`;
 
+	const deleteLinksByEmail: InboxEmailLinkStore["deleteLinksByEmail"] = async ({
+		userId,
+		receivedAtMessageId,
+	}) => {
+		const group = groupKey({ userId, receivedAtMessageId });
+		for (const [key, link] of links) {
+			if (groupKey(link) === group) links.delete(key);
+		}
+		metas.delete(group);
+	};
+
 	return {
 		putLink: async (link) => {
 			const key = linkKey(groupKey(link), link.ordinal);
@@ -59,5 +70,11 @@ export function initInMemoryInboxEmailLink(): InboxEmailLinkStore {
 		},
 		getLink: async ({ userId, receivedAtMessageId, ordinal }) =>
 			links.get(linkKey(groupKey({ userId, receivedAtMessageId }), ordinal)),
+		deleteLinksByEmail,
+		deleteAllLinksByUserId: async (userId, receivedAtMessageIds) => {
+			for (const receivedAtMessageId of receivedAtMessageIds) {
+				await deleteLinksByEmail({ userId, receivedAtMessageId });
+			}
+		},
 	};
 }

@@ -45,6 +45,7 @@ function stubExchange(overrides?: Partial<Awaited<ReturnType<ExchangeAppleCode>>
 		appleId: AppleIdSchema.parse("apple-sub-123"),
 		email: "apple@example.com",
 		emailVerified: true,
+		appleRefreshToken: "apple-refresh-123",
 		...overrides,
 	});
 }
@@ -466,6 +467,42 @@ describe("Apple auth routes", () => {
 
 			const passwordCheck = await auth.verifyCredentials({ email: "existing@example.com", password: "password123" });
 			expect(passwordCheck.ok).toBe(true);
+		});
+
+		it("persists Apple's refresh token at signup so account deletion can revoke the grant", async () => {
+			const fixture = createDefaultTestAppFixture(TEST_APP_ORIGIN);
+			const harness = useApp({ ...fixture, apple: appleWith(stubExchange({ email: "revocable@example.com" })) });
+			const { auth } = harness;
+			const state = signState(freshState());
+
+			const response = await postCallback(harness.server, {
+				state,
+				cookie: `hutch_astate=${encodeURIComponent(state)}`,
+			});
+
+			expect(response.status).toBe(303);
+			const lookup = await auth.findUserByEmail("revocable@example.com");
+			assert(lookup, "Apple signup must create the user");
+			expect(await auth.findAppleRefreshTokenByUserId(lookup.userId)).toBe("apple-refresh-123");
+		});
+
+		it("stores the fresh refresh token when an existing account signs in with Apple", async () => {
+			const fixture = createDefaultTestAppFixture(TEST_APP_ORIGIN);
+			const harness = useApp({ ...fixture, apple: appleWith(stubExchange({ email: "existing@example.com" })) });
+			const { auth } = harness;
+			const createResult = await auth.createUser({ email: "existing@example.com", password: "password123" });
+			assert(createResult.ok, "setup failed");
+			await auth.markEmailVerified("existing@example.com");
+			expect(await auth.findAppleRefreshTokenByUserId(createResult.userId)).toBe(null);
+			const state = signState(freshState());
+
+			const response = await postCallback(harness.server, {
+				state,
+				cookie: `hutch_astate=${encodeURIComponent(state)}`,
+			});
+
+			expect(response.status).toBe(303);
+			expect(await auth.findAppleRefreshTokenByUserId(createResult.userId)).toBe("apple-refresh-123");
 		});
 
 		it("should upgrade an unverified email/password account to verified", async () => {

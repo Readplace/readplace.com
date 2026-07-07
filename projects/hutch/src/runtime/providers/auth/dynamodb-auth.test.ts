@@ -299,6 +299,90 @@ describe("initDynamoDbAuth", () => {
 		});
 	});
 
+	describe("createAppleUser", () => {
+		it("stores the Apple refresh token on the verified user row", async () => {
+			const { client, commands } = createWriteFakeClient();
+
+			const result = await initAuth(client).createAppleUser({
+				email: "User@Example.com",
+				userId: USER,
+				appleRefreshToken: "apple-refresh-1",
+			});
+
+			assert(result.ok, "create should succeed");
+			const put = commands.find((c) => c.name === "PutCommand");
+			expect(put?.input).toMatchObject({
+				Item: {
+					email: "user@example.com",
+					userId: USER,
+					emailVerified: true,
+					appleRefreshToken: "apple-refresh-1",
+				},
+			});
+		});
+
+		it("keeps Google rows free of the appleRefreshToken attribute", async () => {
+			const { client, commands } = createWriteFakeClient();
+
+			const result = await initAuth(client).createGoogleUser({
+				email: "user@example.com",
+				userId: USER,
+			});
+
+			assert(result.ok, "create should succeed");
+			const put = commands.find((c) => c.name === "PutCommand");
+			assert(put, "expected a PutCommand");
+			expect(put.input.Item).not.toHaveProperty("appleRefreshToken");
+		});
+	});
+
+	describe("saveAppleRefreshToken", () => {
+		it("updates the normalized row conditionally so a deleted account cannot be resurrected", async () => {
+			const { client, commands } = createWriteFakeClient();
+
+			await initAuth(client).saveAppleRefreshToken({
+				email: "User@Example.com",
+				appleRefreshToken: "apple-refresh-2",
+			});
+
+			const update = commands.find((c) => c.name === "UpdateCommand");
+			expect(update?.input).toMatchObject({
+				Key: { email: "user@example.com" },
+				UpdateExpression: "SET appleRefreshToken = :token",
+				ConditionExpression: "attribute_exists(email)",
+				ExpressionAttributeValues: { ":token": "apple-refresh-2" },
+			});
+		});
+	});
+
+	describe("findAppleRefreshTokenByUserId", () => {
+		it("returns the stored token via the userId-index", async () => {
+			const { client, commands } = createQueryFakeClient({
+				row: { email: "u@example.com", userId: "abc123", appleRefreshToken: "apple-refresh-3" },
+			});
+
+			const token = await initAuth(client).findAppleRefreshTokenByUserId(USER);
+
+			expect(token).toBe("apple-refresh-3");
+			const query = commands.find((c) => c.name === "QueryCommand");
+			expect(query?.input).toMatchObject({ IndexName: "userId-index" });
+		});
+
+		it("returns null when the user row has no stored token", async () => {
+			const { client } = createQueryFakeClient({
+				row: { email: "u@example.com", userId: "abc123" },
+			});
+
+			expect(await initAuth(client).findAppleRefreshTokenByUserId(USER)).toBe(null);
+		});
+
+		it("returns null when no row exists for the id", async () => {
+			const { client } = createQueryFakeClient({});
+
+			expect(await initAuth(client).findAppleRefreshTokenByUserId(USER)).toBe(null);
+		});
+	});
+
 	describe("destroyUserSessions", () => {
 		it("queries the sessions userId-index and deletes each session by id", async () => {
 			const { client, commands } = createQueryFakeClient({

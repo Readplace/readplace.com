@@ -19,3 +19,6 @@ export type ReleaseReaderReadyEmailSlot = (params: {
 	userId: UserId;
 	claimedAt: Date;
 }) => Promise<void>;
+
+/** Delete the single reader-ready cooldown row for a user (account deletion). */
+export type DeleteReaderReadyState = (userId: UserId) => Promise<void>;

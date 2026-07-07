@@ -8,6 +8,7 @@ import type {
 } from "@node-oauth/oauth2-server";
 import {
 	createOAuthModel,
+	createRevokeAllUserOAuthTokens,
 	initInMemoryOAuthModel,
 } from "./oauth-model";
 
@@ -783,5 +784,93 @@ describe("createOAuthModel", () => {
 
 			expect(marked).toEqual([DYN_ID]);
 		});
+	});
+});
+
+describe("createRevokeAllUserOAuthTokens", () => {
+	const OTHER_USER_ID = "user-other" as UserId;
+
+	it("removes the user's tokens, refresh index entries, auth codes, and userId index entry while sparing other users", async () => {
+		const deps = initInMemoryOAuthModel();
+		const model = createOAuthModel(deps);
+
+		const client = await model.getClient(TEST_CLIENT_ID, "");
+		assert(client, "Test client must exist");
+
+		await model.saveToken(
+			createTestToken({ accessToken: "access-1", refreshToken: "refresh-1" }),
+			client,
+			{ id: TEST_USER_ID },
+		);
+		await model.saveAuthorizationCode(
+			createTestAuthCode({ authorizationCode: "code-1" }),
+			client,
+			{ id: TEST_USER_ID },
+		);
+		await model.saveToken(
+			createTestToken({ accessToken: "other-access", refreshToken: "other-refresh" }),
+			client,
+			{ id: OTHER_USER_ID },
+		);
+		await model.saveAuthorizationCode(
+			createTestAuthCode({ authorizationCode: "other-code" }),
+			client,
+			{ id: OTHER_USER_ID },
+		);
+
+		const revokeAllUserOAuthTokens = createRevokeAllUserOAuthTokens(deps);
+		await revokeAllUserOAuthTokens(TEST_USER_ID);
+
+		expect(deps.tokens.has("access-1")).toBe(false);
+		expect(deps.refreshTokenIndex.has("refresh-1")).toBe(false);
+		expect(deps.userIdIndex.has(TEST_USER_ID)).toBe(false);
+		expect(deps.codes.has("code-1")).toBe(false);
+
+		expect(deps.tokens.has("other-access")).toBe(true);
+		expect(deps.refreshTokenIndex.has("other-refresh")).toBe(true);
+		expect(deps.userIdIndex.has(OTHER_USER_ID)).toBe(true);
+		expect(deps.codes.has("other-code")).toBe(true);
+	});
+
+	it("leaves the refresh index untouched for a token that had no refresh token", async () => {
+		const deps = initInMemoryOAuthModel();
+		const model = createOAuthModel(deps);
+
+		const client = await model.getClient(TEST_CLIENT_ID, "");
+		assert(client, "Test client must exist");
+
+		await model.saveToken(
+			createTestToken({ accessToken: "access-no-refresh", refreshToken: "" }),
+			client,
+			{ id: TEST_USER_ID },
+		);
+
+		const revokeAllUserOAuthTokens = createRevokeAllUserOAuthTokens(deps);
+		await revokeAllUserOAuthTokens(TEST_USER_ID);
+
+		expect(deps.tokens.has("access-no-refresh")).toBe(false);
+		expect(deps.userIdIndex.has(TEST_USER_ID)).toBe(false);
+		expect(deps.refreshTokenIndex.size).toBe(0);
+	});
+
+	it("is a no-op for a user with no tokens or codes", async () => {
+		const deps = initInMemoryOAuthModel();
+
+		const revokeAllUserOAuthTokens = createRevokeAllUserOAuthTokens(deps);
+		await revokeAllUserOAuthTokens(TEST_USER_ID);
+
+		expect(deps.tokens.size).toBe(0);
+		expect(deps.userIdIndex.size).toBe(0);
+		expect(deps.codes.size).toBe(0);
+	});
+
+	it("cleans up a userId index entry that references a missing token without throwing", async () => {
+		const deps = initInMemoryOAuthModel();
+		deps.userIdIndex.set(TEST_USER_ID, new Set(["missing-access"]));
+
+		const revokeAllUserOAuthTokens = createRevokeAllUserOAuthTokens(deps);
+		await revokeAllUserOAuthTokens(TEST_USER_ID);
+
+		expect(deps.userIdIndex.has(TEST_USER_ID)).toBe(false);
 	});
 });

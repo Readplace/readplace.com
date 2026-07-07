@@ -55,6 +55,18 @@ describe("initInMemoryDigestQueue", () => {
 		expect(await queue.listDigestItemsByUser(USER)).toEqual([]);
 	});
 
+	it("deletes every queued item for a user, leaving other users' items intact", async () => {
+		const queue = initInMemoryDigestQueue();
+		await enqueue(queue, { userId: USER, url: "https://example.com/a", enqueuedAt: "t1" });
+		await enqueue(queue, { userId: USER, url: "https://example.com/b", enqueuedAt: "t2" });
+		await enqueue(queue, { userId: OTHER, url: "https://example.com/c", enqueuedAt: "t3" });
+
+		await queue.deleteDigestByUser(USER);
+
+		expect(await queue.listDigestItemsByUser(USER)).toEqual([]);
+		expect(await queue.listDigestItemsByUser(OTHER)).toHaveLength(1);
+	});
+
 	it("returns each distinct pending user once from a scan", async () => {
 		const queue = initInMemoryDigestQueue();
 		await enqueue(queue, { userId: USER, url: "https://example.com/a", enqueuedAt: "t1" });

@@ -12,15 +12,16 @@ struct ReadingListView: View {
 	/// never background the app (Control Center, the notification shade, a call or
 	/// permission banner); those must not trigger a re-read.
 	@State private var didEnterBackground = false
-	/// A destructive item action awaiting confirmation, carried with the row it acts
-	/// on. A destructive control (e.g. `delete`) is irreversible, so it routes here
-	/// for an explicit confirm before the invoke fires, rather than acting on the tap.
+	/// A destructive affordance awaiting confirmation. A destructive control (e.g.
+	/// `delete`) is irreversible, so it routes here for an explicit confirm before
+	/// the invoke fires, rather than acting on the tap. `article` is nil for a
+	/// collection-level control, which acts on no row.
 	@State private var pendingDestructive: PendingDestructive?
 
 	private struct PendingDestructive: Identifiable {
 		let affordance: Affordance
-		let article: Article
-		var id: String { "\(affordance.id):\(article.id)" }
+		let article: Article?
+		var id: String { "\(affordance.id):\(article?.id ?? "collection")" }
 	}
 
 	init(session: AppSession) {
@@ -93,10 +94,7 @@ struct ReadingListView: View {
 					presenting: pendingDestructive
 				) { pending in
 					Button(pending.affordance.label, role: .destructive) {
-						if let action = pending.affordance.action {
-							Task { await viewModel.invoke(action, on: pending.article) }
-						}
-						pendingDestructive = nil
+						confirmDestructive(pending)
 					}
 					Button("Cancel", role: .cancel) { pendingDestructive = nil }
 				} message: { _ in
@@ -116,6 +114,27 @@ struct ReadingListView: View {
 		case let .open(link):
 			viewModel.open(link: link)
 		case let .invoke(action):
+			// A destructive collection control is irreversible, so route it through
+			// the same confirmation the row controls use — keyed on `isDestructive`,
+			// never on the action name — and only invoke once the user confirms. The
+			// confirm gate lives here rather than in `ToolbarRoute.route` so routing
+			// stays name-agnostic.
+			if affordance.presentation.isDestructive {
+				pendingDestructive = PendingDestructive(affordance: affordance, article: nil)
+			} else {
+				Task { await viewModel.invokeCollection(action) }
+			}
+		}
+	}
+
+	/// Performs a confirmed destructive affordance. A row control invokes on its
+	/// article; a collection control invokes on the collection.
+	private func confirmDestructive(_ pending: PendingDestructive) {
+		defer { pendingDestructive = nil }
+		guard let action = pending.affordance.action else { return }
+		if let article = pending.article {
+			Task { await viewModel.invoke(action, on: article) }
+		} else {
 			Task { await viewModel.invokeCollection(action) }
 		}
 	}

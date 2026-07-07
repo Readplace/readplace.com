@@ -8,6 +8,7 @@ import { z } from "zod";
 import { UserIdSchema } from "@packages/domain/user";
 import type {
 	CreateVerificationToken,
+	DeleteVerificationTokensByUserId,
 	VerifyEmailToken,
 } from "@packages/provider-contracts/email-verification";
 import { VerificationTokenSchema } from "@packages/provider-contracts/email-verification";
@@ -24,17 +25,28 @@ const VerificationRow = z.object({
 	expiresAt: z.number(),
 });
 
+const TokenKeyRow = z.object({
+	token: z.string(),
+});
+
 export function initDynamoDbEmailVerification(deps: {
 	client: DynamoDBDocumentClient;
 	tableName: string;
 }): {
 	createVerificationToken: CreateVerificationToken;
 	verifyEmailToken: VerifyEmailToken;
+	deleteTokensByUserId: DeleteVerificationTokensByUserId;
 } {
 	const table = defineDynamoTable({
 		client: deps.client,
 		tableName: deps.tableName,
 		schema: VerificationRow,
+	});
+
+	const tokenKeyTable = defineDynamoTable({
+		client: deps.client,
+		tableName: deps.tableName,
+		schema: TokenKeyRow,
 	});
 
 	const createVerificationToken: CreateVerificationToken = async ({ userId, email }) => {
@@ -76,5 +88,23 @@ export function initDynamoDbEmailVerification(deps: {
 		}
 	};
 
-	return { createVerificationToken, verifyEmailToken };
+	const deleteTokensByUserId: DeleteVerificationTokensByUserId = async (userId) => {
+		// Scan-and-delete by userId. The table's TTL eventually evicts an abandoned
+		// token, but deletion must erase the {userId, email} remnant now rather than
+		// leave it readable for the remainder of the verification window.
+		let ExclusiveStartKey: Record<string, unknown> | undefined;
+		do {
+			const { items, lastEvaluatedKey } = await tokenKeyTable.scan({
+				FilterExpression: "userId = :u",
+				ExpressionAttributeValues: { ":u": userId },
+				ProjectionExpression: "#tk",
+				ExpressionAttributeNames: { "#tk": "token" },
+				ExclusiveStartKey,
+			});
+			for (const { token } of items) await table.delete({ Key: { token } });
+			ExclusiveStartKey = lastEvaluatedKey;
+		} while (ExclusiveStartKey);
+	};
+
+	return { createVerificationToken, verifyEmailToken, deleteTokensByUserId };
 }

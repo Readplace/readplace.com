@@ -119,6 +119,32 @@
   text-decoration: underline;
 }
 
+.account-danger {
+  padding: 20px;
+  border-radius: var(--radius-sm);
+  background: var(--muted);
+  border-left: 3px solid var(--error);
+  margin-bottom: 16px;
+}
+
+.account-danger__heading {
+  font-size: 1.25rem;
+  font-weight: 700;
+  margin: 0 0 12px;
+  color: var(--foreground);
+}
+
+.account-danger__body {
+  font-size: 0.9375rem;
+  margin: 0 0 12px;
+  color: var(--foreground);
+  line-height: 1.45;
+}
+
+.account-danger__action-form {
+  margin: 0;
+}
+
 /* purgecss-ignore-start: account-cards and its state modifiers are interpolated from CardSectionViewModel.stateClass / item.itemClass in account.template.html */
 .account-cards {
   padding: 20px;

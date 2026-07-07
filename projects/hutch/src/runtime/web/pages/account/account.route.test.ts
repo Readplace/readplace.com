@@ -1274,3 +1274,62 @@ describe("POST /account/cards/confirm — post-attach cap reconciliation", () =>
 		expect(response.headers.location).toBe("/login");
 	});
 });
+
+describe("POST /account/delete", () => {
+	it("destroys the session, clears the cookie, and redirects to the logged-out home", async () => {
+		const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
+		const { agent } = await loginUser(harness, "delete-me@example.com");
+
+		const response = await agent.post("/account/delete");
+
+		expect(response.status).toBe(303);
+		expect(response.headers.location).toBe("/");
+		const rawSetCookie = response.headers["set-cookie"];
+		const setCookie = Array.isArray(rawSetCookie) ? rawSetCookie : [];
+		assert(
+			setCookie.some((c) => c.startsWith("hutch_sid=")),
+			"the session cookie must be cleared",
+		);
+
+		// The session was destroyed, so the agent's cookie no longer authenticates.
+		const after = await agent.get("/account");
+		expect(after.status).toBe(303);
+		expect(after.headers.location).toBe("/login");
+	});
+
+	it("returns an HX-Redirect to the logged-out home for a boosted (HTMX) request", async () => {
+		const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
+		const { agent } = await loginUser(harness, "delete-hx@example.com");
+
+		const response = await agent.post("/account/delete").set("HX-Request", "true");
+
+		expect(response.status).toBe(200);
+		expect(response.headers["hx-redirect"]).toBe("/");
+	});
+
+	it("redirects unauthenticated callers to /login", async () => {
+		const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
+		const response = await request(harness.server).post("/account/delete");
+		expect(response.status).toBe(303);
+		expect(response.headers.location).toBe("/login");
+	});
+});
+
+describe("GET /account (danger zone)", () => {
+	it("renders a destructive delete-account form pointing at /account/delete", async () => {
+		const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
+		const agent = await loginAgent(harness.server, harness.auth);
+
+		const response = await agent.get("/account");
+		const doc = new JSDOM(response.text).window.document;
+
+		const danger = doc.querySelector("[data-test-account-danger]");
+		assert(danger, "the danger zone must render");
+		const deleteForm = danger.querySelector('[data-test-danger-action="delete-account"]');
+		assert(deleteForm, "the delete-account form must render");
+		expect(deleteForm.getAttribute("method")).toBe("POST");
+		expect(deleteForm.getAttribute("action")).toBe(
+			"/account/delete?utm_source=account&utm_medium=internal&utm_content=delete-account",
+		);
+	});
+});

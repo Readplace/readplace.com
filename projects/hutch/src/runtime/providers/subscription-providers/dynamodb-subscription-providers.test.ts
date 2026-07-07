@@ -444,6 +444,32 @@ describe("initDynamoDbSubscriptionProviders", () => {
 		});
 	});
 
+	describe("deleteSubscription", () => {
+		it("issues an unconditioned Delete keyed by userId so it is idempotent", async () => {
+			let received: unknown;
+			const client = createFakeClient((input) => {
+				received = input;
+				return {};
+			});
+			const subs = initDynamoDbSubscriptionProviders({
+				client: client as DynamoDBDocumentClient,
+				tableName: TABLE,
+				now: NOW,
+			});
+
+			await subs.deleteSubscription({ userId: USER_ID });
+
+			const command = received as {
+				input: {
+					Key?: Record<string, unknown>;
+					ConditionExpression?: string;
+				};
+			};
+			expect(command.input.Key).toEqual({ userId: USER_ID });
+			expect(command.input.ConditionExpression).toBeUndefined();
+		});
+	});
+
 	describe("findByUserId with trialFeedbackEmailSentAt", () => {
 		it("parses a cancelled trial row that carries trialFeedbackEmailSentAt", async () => {
 			const client = createFakeClient(() => ({

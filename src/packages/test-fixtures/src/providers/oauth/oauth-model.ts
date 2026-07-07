@@ -11,6 +11,7 @@ import type {
 	MarkOAuthClientActive,
 	FindOAuthClient,
 	OAuthModel,
+	RevokeAllUserOAuthTokens,
 } from "@packages/provider-contracts/oauth";
 import type { FindUserById } from "@packages/provider-contracts/auth";
 import type { UserId } from "@packages/domain/user";
@@ -71,6 +72,23 @@ export function initInMemoryOAuthModel(): OAuthModelDeps {
 }
 
 export type { OAuthModel };
+
+export function createRevokeAllUserOAuthTokens(deps: OAuthModelDeps): RevokeAllUserOAuthTokens {
+	return async (userId) => {
+		const accessTokens = deps.userIdIndex.get(userId);
+		if (accessTokens) {
+			for (const accessToken of accessTokens) {
+				const stored = deps.tokens.get(accessToken);
+				if (stored?.refreshToken) deps.refreshTokenIndex.delete(stored.refreshToken);
+				deps.tokens.delete(accessToken);
+			}
+			deps.userIdIndex.delete(userId);
+		}
+		for (const [code, stored] of deps.codes) {
+			if (stored.userId === userId) deps.codes.delete(code);
+		}
+	};
+}
 
 export function createOAuthModel(
 	deps: OAuthModelDeps,

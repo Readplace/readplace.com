@@ -87,4 +87,55 @@ describe("initInMemoryPendingSignup", () => {
 			}),
 		).rejects.toThrow(/No pending signup/);
 	});
+
+	it("deletes every abandoned-checkout row for a user and leaves other users' rows intact", async () => {
+		const { storePendingSignup, consumePendingSignup, deleteByUser } = initInMemoryPendingSignup();
+		const targetUser = UserIdSchema.parse("u-del-target");
+		const otherUser = UserIdSchema.parse("u-del-other");
+		const targetSession = CheckoutSessionIdSchema.parse("cs_test_del_target");
+		const otherSession = CheckoutSessionIdSchema.parse("cs_test_del_other");
+		await storePendingSignup({
+			checkoutSessionId: targetSession,
+			signup: { method: "existing-user-subscribe", email: "t@example.com", userId: targetUser },
+			createdAt: 1,
+		});
+		await storePendingSignup({
+			checkoutSessionId: otherSession,
+			signup: { method: "existing-user-subscribe", email: "o@example.com", userId: otherUser },
+			createdAt: 2,
+		});
+
+		await deleteByUser({ userId: targetUser, email: null });
+
+		expect(await consumePendingSignup(targetSession)).toBeNull();
+		const survivor = await consumePendingSignup(otherSession);
+		assert(survivor, "other user's pending signup must survive");
+		expect(survivor.userId).toBe(otherUser);
+	});
+
+	it("deletes a row whose userId differs but whose email matches, ignoring casing", async () => {
+		const { storePendingSignup, consumePendingSignup, deleteByUser } = initInMemoryPendingSignup();
+		// A pre-userId row is reachable only by email: it was written under a
+		// throwaway id (or none), so the userId scrub alone would miss it.
+		const staleUser = UserIdSchema.parse("u-stale-checkout-id");
+		const targetSession = CheckoutSessionIdSchema.parse("cs_test_del_by_email");
+		const otherSession = CheckoutSessionIdSchema.parse("cs_test_del_keep");
+		await storePendingSignup({
+			checkoutSessionId: targetSession,
+			signup: { method: "existing-user-subscribe", email: "Deleted@Example.com", userId: staleUser },
+			createdAt: 1,
+		});
+		await storePendingSignup({
+			checkoutSessionId: otherSession,
+			signup: { method: "existing-user-subscribe", email: "someone-else@example.com", userId: staleUser },
+			createdAt: 2,
+		});
+
+		await deleteByUser({ userId: UserIdSchema.parse("u-real-deleted"), email: "deleted@example.com" });
+
+		expect(await consumePendingSignup(targetSession)).toBeNull();
+		const survivor = await consumePendingSignup(otherSession);
+		assert(survivor, "an unrelated email must survive");
+		expect(survivor.email).toBe("someone-else@example.com");
+	});
 });

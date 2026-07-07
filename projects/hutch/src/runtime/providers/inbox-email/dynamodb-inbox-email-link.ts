@@ -4,6 +4,7 @@ import {
 	type DynamoDBDocumentClient,
 	defineDynamoTable,
 	dynamoField,
+	forEachQueryPage,
 } from "@packages/hutch-storage-client";
 import { z } from "zod";
 import {
@@ -74,6 +75,27 @@ export function initDynamoDbInboxEmailLink(deps: {
 		tableName: deps.tableName,
 		schema: InboxEmailLinkRow,
 	});
+
+	const deleteLinksByEmail: InboxEmailLinkStore["deleteLinksByEmail"] = async ({
+		userId,
+		receivedAtMessageId,
+	}) => {
+		const group = groupKey({ userId, receivedAtMessageId });
+		await forEachQueryPage(
+			table,
+			{
+				KeyConditionExpression: "userLinkGroup = :g",
+				ExpressionAttributeValues: { ":g": group },
+			},
+			async (rows) => {
+				await Promise.all(
+					rows.map((row) =>
+						table.delete({ Key: { userLinkGroup: row.userLinkGroup, ordinal: row.ordinal } }),
+					),
+				);
+			},
+		);
+	};
 
 	return {
 		putLink: async (link) => {
@@ -183,6 +205,12 @@ export function initDynamoDbInboxEmailLink(deps: {
 			});
 			if (row === undefined) return undefined;
 			return toEntry(row);
+		},
+		deleteLinksByEmail,
+		deleteAllLinksByUserId: async (userId, receivedAtMessageIds) => {
+			for (const receivedAtMessageId of receivedAtMessageIds) {
+				await deleteLinksByEmail({ userId, receivedAtMessageId });
+			}
 		},
 	};
 }

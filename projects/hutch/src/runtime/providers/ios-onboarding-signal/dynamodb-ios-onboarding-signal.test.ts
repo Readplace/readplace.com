@@ -103,4 +103,15 @@ describe("initIosOnboardingSignal", () => {
 			expect(signals).toEqual({ installed: true, savedArticle: true });
 		});
 	});
+
+	describe("deleteOnboarding", () => {
+		it("deletes the single onboarding row by the userId PK", async () => {
+			const { client, commands } = createFakeClient({});
+
+			await initSignal(client).deleteOnboarding({ userId: USER });
+
+			const del = commands.find((c) => c.name === "DeleteCommand");
+			expect(del?.input.Key).toEqual({ userId: "user-1" });
+		});
+	});
 });

@@ -3,6 +3,7 @@ import assert from "node:assert";
 import {
 	type DynamoDBDocumentClient,
 	defineDynamoTable,
+	forEachQueryPage,
 } from "@packages/hutch-storage-client";
 import { z } from "zod";
 import type {
@@ -18,6 +19,7 @@ import type {
 	FindOAuthClient,
 	MarkOAuthClientActive,
 	OAuthModel,
+	RevokeAllUserOAuthTokens,
 } from "@packages/provider-contracts/oauth";
 import type { FindUserById } from "@packages/provider-contracts/auth";
 import { generateToken } from "@packages/domain/oauth";
@@ -55,17 +57,63 @@ const RefreshIndexRow = z.object({
 	accessToken: z.string(),
 });
 
+/** Bulk-revoke every OAuth grant a user holds (account deletion + logout-all).
+ * Needs only the table — the delete worker reuses it without wiring the full
+ * OAuth2 model. The userId-index projects both token# and code# rows, so query
+ * it through a permissive schema and branch on the pk prefix; refresh# rows
+ * carry no userId and are reached via each token row's refreshToken. */
+export function initRevokeAllUserOAuthTokens(deps: {
+	client: DynamoDBDocumentClient;
+	tableName: string;
+}): RevokeAllUserOAuthTokens {
+	const { client, tableName } = deps;
+	const authCodes = defineDynamoTable({ client, tableName, schema: AuthCodeRow });
+	const tokens = defineDynamoTable({ client, tableName, schema: TokenRow });
+	const refreshIndex = defineDynamoTable({ client, tableName, schema: RefreshIndexRow });
+	const byUser = defineDynamoTable({
+		client,
+		tableName,
+		schema: z.object({ pk: z.string(), userId: z.string(), refreshToken: z.string().optional() }),
+	});
+
+	return async (userId) => {
+		await forEachQueryPage(
+			byUser,
+			{
+				IndexName: "userId-index",
+				KeyConditionExpression: "userId = :userId",
+				ExpressionAttributeValues: { ":userId": userId },
+			},
+			async (rows) => {
+				await Promise.all(
+					rows.map(async (row) => {
+						if (row.pk.startsWith("token#")) {
+							await tokens.delete({ Key: { pk: row.pk } });
+							if (row.refreshToken) {
+								await refreshIndex.delete({ Key: { pk: `refresh#${row.refreshToken}` } });
+							}
+						} else if (row.pk.startsWith("code#")) {
+							await authCodes.delete({ Key: { pk: row.pk } });
+						}
+					}),
+				);
+			},
+		);
+	};
+}
+
 export function initDynamoDbOAuthModel(deps: {
 	client: DynamoDBDocumentClient;
 	tableName: string;
 	findUserById: FindUserById;
 	findClient: FindOAuthClient;
 	markClientActive: MarkOAuthClientActive;
-}): OAuthModel {
+}): OAuthModel & { revokeAllUserOAuthTokens: RevokeAllUserOAuthTokens } {
 	const { client, tableName, findUserById, findClient, markClientActive } = deps;
 	const authCodes = defineDynamoTable({ client, tableName, schema: AuthCodeRow });
 	const tokens = defineDynamoTable({ client, tableName, schema: TokenRow });
 	const refreshIndex = defineDynamoTable({ client, tableName, schema: RefreshIndexRow });
+	const revokeAllUserOAuthTokens = initRevokeAllUserOAuthTokens({ client, tableName });
 
 	async function resolveClient(clientId: string): Promise<Client | null> {
 		const found = await findClient(clientId);
@@ -74,6 +122,7 @@ export function initDynamoDbOAuthModel(deps: {
 	}
 
 	return {
+		revokeAllUserOAuthTokens,
 		async getClient(clientId: string, _clientSecret: string): Promise<Client | Falsey> {
 			return resolveClient(clientId);
 		},

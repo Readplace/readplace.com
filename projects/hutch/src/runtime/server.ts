@@ -23,6 +23,7 @@ import type {
 	GetSessionUserId,
 	MarkEmailVerified,
 	MarkSessionEmailVerified,
+	SaveAppleRefreshToken,
 	UpdatePassword,
 	UserExistsByEmail,
 	VerifyCredentials,
@@ -51,6 +52,7 @@ import type {
 } from "@packages/provider-contracts/trial-scheduler";
 import type {
 	PublishCancelSubscriptionCommand,
+	PublishDeleteAccountCommand,
 	PublishSubscriptionReactivated,
 } from "@packages/provider-contracts/events";
 import type {
@@ -118,6 +120,7 @@ import type {
 	FindOAuthClient,
 	OAuthModel,
 	RegisterOAuthClient,
+	RevokeAllUserOAuthTokens,
 	ValidateAccessToken,
 	ValidateOAuthRedirectUri,
 } from "@packages/provider-contracts/oauth";
@@ -210,6 +213,7 @@ interface AppDependencies {
 	createUserWithPasswordHash: CreateUserWithPasswordHash;
 	createGoogleUser: CreateGoogleUser;
 	createAppleUser: CreateAppleUser;
+	saveAppleRefreshToken: SaveAppleRefreshToken;
 	findUserByEmail: FindUserByEmail;
 	verifyCredentials: VerifyCredentials;
 	createSession: CreateSession;
@@ -253,6 +257,7 @@ interface AppDependencies {
 	baseUrl: string;
 	logError: (message: string, error?: Error) => void;
 	oauthModel: OAuthModel;
+	revokeAllUserOAuthTokens: RevokeAllUserOAuthTokens;
 	validateAccessToken: ValidateAccessToken;
 	findOAuthClient: FindOAuthClient;
 	validateOAuthRedirectUri: ValidateOAuthRedirectUri;
@@ -264,6 +269,7 @@ interface AppDependencies {
 	publishSaveLinkRawHtmlCommand: PublishSaveLinkRawHtmlCommand;
 	publishSaveLinkRawPdfCommand: PublishSaveLinkRawPdfCommand;
 	publishExportUserDataCommand: PublishExportUserDataCommand;
+	publishDeleteAccountCommand: PublishDeleteAccountCommand;
 	findEmailByUserId: FindEmailByUserId;
 	putPendingHtml: PutPendingHtml;
 	putPendingPdf: PutPendingPdf;
@@ -932,6 +938,7 @@ export function createApp(dependencies: AppDependencies): Express {
 		secureCookies,
 		createSession: deps.createSession,
 		createAppleUser,
+		saveAppleRefreshToken: deps.saveAppleRefreshToken,
 		findUserByEmail: deps.findUserByEmail,
 		countUsers,
 		markEmailVerified: deps.markEmailVerified,
@@ -1121,6 +1128,9 @@ export function createApp(dependencies: AppDependencies): Express {
 		upsertTrialingSubscription: deps.subscriptionProviders.upsertTrialing,
 		markActiveSubscription: deps.subscriptionProviders.markActive,
 		findEmailByUserId: deps.findEmailByUserId,
+		destroyUserSessions: deps.destroyUserSessions,
+		revokeAllUserOAuthTokens: deps.revokeAllUserOAuthTokens,
+		publishDeleteAccountCommand: deps.publishDeleteAccountCommand,
 		publishCancelSubscriptionCommand: deps.publishCancelSubscriptionCommand,
 		publishSubscriptionReactivated: deps.publishSubscriptionReactivated,
 		createCheckoutSession: deps.createCheckoutSession,

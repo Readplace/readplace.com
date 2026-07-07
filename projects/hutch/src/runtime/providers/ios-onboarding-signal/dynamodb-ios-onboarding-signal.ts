@@ -6,6 +6,7 @@ import {
 import { z } from "zod";
 import { UserIdSchema } from "@packages/domain/user";
 import type {
+	DeleteOnboarding,
 	GetIosAppSignals,
 	RecordIosAnyActivity,
 	RecordIosSavedArticle,
@@ -32,6 +33,7 @@ export function initIosOnboardingSignal(deps: {
 	recordIosAnyActivity: RecordIosAnyActivity;
 	recordIosSavedArticle: RecordIosSavedArticle;
 	getIosAppSignals: GetIosAppSignals;
+	deleteOnboarding: DeleteOnboarding;
 } {
 	const onboarding = defineDynamoTable({
 		client: deps.client,
@@ -61,5 +63,9 @@ export function initIosOnboardingSignal(deps: {
 		return { installed: !!row?.iosAppActivatedAt, savedArticle: !!row?.iosAppSavedAt };
 	};
 
-	return { recordIosAnyActivity, recordIosSavedArticle, getIosAppSignals };
+	const deleteOnboarding: DeleteOnboarding = async ({ userId }) => {
+		await onboarding.delete({ Key: { userId } });
+	};
+
+	return { recordIosAnyActivity, recordIosSavedArticle, getIosAppSignals, deleteOnboarding };
 }

@@ -3,6 +3,7 @@ import { ConditionalCheckFailedException } from "@packages/hutch-storage-client"
 import { UserIdSchema } from "@packages/domain/user";
 import {
 	AliasNameSchema,
+	DELETED_ACCOUNT_INBOX_OWNER,
 	INBOX_ADDRESS_MAX_PER_USER,
 	InboxAddressLimitReachedError,
 	InboxAddressSchema,
@@ -150,5 +151,37 @@ describe("initInMemoryInboxAddress", () => {
 
 		assert(found, "expected the disabled address to resolve");
 		expect(found.disabledAt).toBe("2026-06-23T12:00:00.000Z");
+	});
+
+	describe("tombstoneUserAddresses", () => {
+		it("unlinks the owner's addresses to the reserved owner, keeps every row, and stamps disabledAt only when unset", async () => {
+			let clock = new Date("2026-06-01T00:00:00.000Z");
+			const store = initInMemoryInboxAddress({ now: () => clock });
+			const live = await store.createAddress({ userId: owner, domain: DOMAIN, name: NAME });
+			const alreadyDisabled = await store.createAddress({ userId: owner, domain: DOMAIN, name: NAME });
+			await store.disableAddress({ userId: owner, address: alreadyDisabled.address });
+			const otherOwned = await store.createAddress({ userId: otherUser, domain: DOMAIN, name: NAME });
+			clock = new Date("2026-07-01T00:00:00.000Z");
+
+			await store.tombstoneUserAddresses(owner);
+
+			// The owner no longer resolves any address …
+			expect(await store.listAddressesByUserId(owner)).toHaveLength(0);
+			// … but each hash stays reserved under the sentinel owner, disabled.
+			const liveRow = await store.findByAddress(live.address);
+			assert(liveRow, "expected the tombstoned live address to survive");
+			expect(liveRow.userId).toBe(DELETED_ACCOUNT_INBOX_OWNER);
+			expect(liveRow.disabledAt).toBe("2026-07-01T00:00:00.000Z");
+			// An address disabled before deletion keeps its original disabledAt.
+			const disabledRow = await store.findByAddress(alreadyDisabled.address);
+			assert(disabledRow, "expected the tombstoned disabled address to survive");
+			expect(disabledRow.userId).toBe(DELETED_ACCOUNT_INBOX_OWNER);
+			expect(disabledRow.disabledAt).toBe("2026-06-01T00:00:00.000Z");
+			// Another user's address is untouched.
+			const [otherRow] = await store.listAddressesByUserId(otherUser);
+			expect(otherRow.address).toBe(otherOwned.address);
+			expect(otherRow.userId).toBe(otherUser);
+			expect(otherRow.disabledAt).toBeUndefined();
+		});
 	});
 });

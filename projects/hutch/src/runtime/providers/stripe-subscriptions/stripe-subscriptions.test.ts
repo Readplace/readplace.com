@@ -325,4 +325,76 @@ describe("initStripeSubscriptions", () => {
 			);
 		});
 	});
+
+	describe("deleteCustomer", () => {
+		it("issues DELETE /v1/customers/<id> with the bearer token", async () => {
+			let receivedUrl: string | undefined;
+			let receivedInit: RequestInit | undefined;
+			const fakeFetch: typeof globalThis.fetch = async (input, init) => {
+				receivedUrl = typeof input === "string" ? input : input.toString();
+				receivedInit = init;
+				return jsonResponse(200, { id: "cus_to_delete", deleted: true });
+			};
+
+			const stripe = initStripeSubscriptions({ apiKey: "sk_test_abc", fetch: fakeFetch });
+
+			await stripe.deleteCustomer({ customerId: "cus_to_delete" });
+
+			assert.equal(receivedUrl, "https://api.stripe.com/v1/customers/cus_to_delete");
+			assert.equal(receivedInit?.method, "DELETE");
+			const headers = new Headers(receivedInit?.headers);
+			assert.equal(headers.get("Authorization"), "Bearer sk_test_abc");
+			assert.equal(headers.get("Stripe-Version"), "2026-04-22.dahlia");
+		});
+
+		it("URL-encodes the customer id so unusual characters reach Stripe intact", async () => {
+			let receivedUrl: string | undefined;
+			const fakeFetch: typeof globalThis.fetch = async (input) => {
+				receivedUrl = typeof input === "string" ? input : input.toString();
+				return jsonResponse(200, {});
+			};
+
+			const stripe = initStripeSubscriptions({ apiKey: "sk_test_abc", fetch: fakeFetch });
+
+			await stripe.deleteCustomer({ customerId: "cus with/slash" });
+
+			assert.equal(
+				receivedUrl,
+				"https://api.stripe.com/v1/customers/cus%20with%2Fslash",
+			);
+		});
+
+		it("treats 404 as success — the customer is already gone, which is the goal state", async () => {
+			const fakeFetch: typeof globalThis.fetch = async () =>
+				jsonResponse(404, { error: { code: "resource_missing", message: "No such customer" } });
+
+			const stripe = initStripeSubscriptions({ apiKey: "sk_test_abc", fetch: fakeFetch });
+
+			await stripe.deleteCustomer({ customerId: "cus_gone" });
+		});
+
+		it("throws with the Stripe error message when the API returns a non-2xx other than 404", async () => {
+			const fakeFetch: typeof globalThis.fetch = async () =>
+				jsonResponse(500, { error: { code: "api_error", message: "Stripe is down" } });
+
+			const stripe = initStripeSubscriptions({ apiKey: "sk_test_abc", fetch: fakeFetch });
+
+			await assert.rejects(
+				() => stripe.deleteCustomer({ customerId: "cus_kaboom" }),
+				/Stripe deleteCustomer failed \(500\): Stripe is down/,
+			);
+		});
+
+		it("falls back to a generic error message when the Stripe error shape is unrecognised", async () => {
+			const fakeFetch: typeof globalThis.fetch = async () =>
+				jsonResponse(503, { unexpected: "shape" });
+
+			const stripe = initStripeSubscriptions({ apiKey: "sk_test_abc", fetch: fakeFetch });
+
+			await assert.rejects(
+				() => stripe.deleteCustomer({ customerId: "cus_x" }),
+				/Stripe deleteCustomer failed \(503\): Stripe error/,
+			);
+		});
+	});
 });

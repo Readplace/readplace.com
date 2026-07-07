@@ -8,6 +8,7 @@ import { z } from "zod";
 import { UserIdSchema } from "@packages/domain/user";
 import type {
 	ClaimReaderReadyEmailSlot,
+	DeleteReaderReadyState,
 	ReleaseReaderReadyEmailSlot,
 } from "@packages/provider-contracts/reader-ready-state";
 
@@ -24,6 +25,7 @@ export function initDynamoDbReaderReadyState(deps: {
 }): {
 	claimReaderReadyEmailSlot: ClaimReaderReadyEmailSlot;
 	releaseReaderReadyEmailSlot: ReleaseReaderReadyEmailSlot;
+	deleteReaderReadyState: DeleteReaderReadyState;
 } {
 	const table = defineDynamoTable({
 		client: deps.client,
@@ -65,5 +67,9 @@ export function initDynamoDbReaderReadyState(deps: {
 		}
 	};
 
-	return { claimReaderReadyEmailSlot, releaseReaderReadyEmailSlot };
+	const deleteReaderReadyState: DeleteReaderReadyState = async (userId) => {
+		await table.delete({ Key: { userId } });
+	};
+
+	return { claimReaderReadyEmailSlot, releaseReaderReadyEmailSlot, deleteReaderReadyState };
 }

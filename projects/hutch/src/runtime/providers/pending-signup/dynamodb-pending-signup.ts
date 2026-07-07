@@ -5,10 +5,11 @@ import {
 } from "@packages/hutch-storage-client";
 import type { HutchLogger } from "@packages/hutch-logger";
 import { z } from "zod";
-import { UserIdSchema } from "@packages/domain/user";
+import { UserIdSchema, normalizeEmail } from "@packages/domain/user";
 import { CheckoutSessionIdSchema } from "@packages/provider-contracts/stripe-checkout";
 import type {
 	ConsumePendingSignup,
+	DeletePendingSignupsByUser,
 	ListAllPendingSignups,
 	MarkCheckoutRecoveryEmailSent,
 	PendingSignup,
@@ -37,6 +38,15 @@ const PendingSignupSummaryRow = z.object({
 	checkoutRecoveryEmailSentAt: dynamoField(z.number()),
 });
 
+/** Projection for the deletion scrub: the key to delete by, plus the two handles
+ * a deleted user can be matched on. `userId` is optional because legacy
+ * pre-userId rows carry only `{checkoutSessionId, method, email}`. */
+const ScrubScanRow = z.object({
+	checkoutSessionId: CheckoutSessionIdSchema,
+	email: z.string(),
+	userId: dynamoField(UserIdSchema),
+});
+
 export function initDynamoDbPendingSignup(deps: {
 	client: DynamoDBDocumentClient;
 	tableName: string;
@@ -46,6 +56,7 @@ export function initDynamoDbPendingSignup(deps: {
 	consumePendingSignup: ConsumePendingSignup;
 	listAllPendingSignups: ListAllPendingSignups;
 	markCheckoutRecoveryEmailSent: MarkCheckoutRecoveryEmailSent;
+	deleteByUser: DeletePendingSignupsByUser;
 } {
 	const table = defineDynamoTable({
 		client: deps.client,
@@ -57,6 +68,12 @@ export function initDynamoDbPendingSignup(deps: {
 		client: deps.client,
 		tableName: deps.tableName,
 		schema: PendingSignupSummaryRow,
+	});
+
+	const scrubTable = defineDynamoTable({
+		client: deps.client,
+		tableName: deps.tableName,
+		schema: ScrubScanRow,
 	});
 
 	const storePendingSignup: StorePendingSignup = async ({ checkoutSessionId, signup, createdAt }) => {
@@ -133,10 +150,36 @@ export function initDynamoDbPendingSignup(deps: {
 		});
 	};
 
+	const deleteByUser: DeletePendingSignupsByUser = async ({ userId, email }) => {
+		// No TTL on this table, so an abandoned-checkout row keeps the deleted user's
+		// email + userId forever unless purged. Match on userId OR the normalized
+		// email — a server-side FilterExpression can't reach legacy pre-userId rows
+		// (no userId) nor normalize the raw-cased email they stored, so scan the
+		// full table and compare client-side, deleting each match by its PK.
+		const normalizedEmail = email === null ? null : normalizeEmail(email);
+		let ExclusiveStartKey: Record<string, unknown> | undefined;
+		do {
+			const { items, lastEvaluatedKey } = await scrubTable.scan({
+				ProjectionExpression: "checkoutSessionId, email, userId",
+				ExclusiveStartKey,
+			});
+			for (const row of items) {
+				const matchesUser = row.userId === userId;
+				const matchesEmail =
+					normalizedEmail !== null && normalizeEmail(row.email) === normalizedEmail;
+				if (matchesUser || matchesEmail) {
+					await table.delete({ Key: { checkoutSessionId: row.checkoutSessionId } });
+				}
+			}
+			ExclusiveStartKey = lastEvaluatedKey;
+		} while (ExclusiveStartKey);
+	};
+
 	return {
 		storePendingSignup,
 		consumePendingSignup,
 		listAllPendingSignups,
 		markCheckoutRecoveryEmailSent,
+		deleteByUser,
 	};
 }

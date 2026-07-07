@@ -519,6 +519,34 @@ describe("initInMemoryArticleStore", () => {
 		});
 	});
 
+	describe("deleteAllUserArticles", () => {
+		it("removes every row for the user while leaving the global article and other users' rows intact", async () => {
+			const store = initInMemoryArticleStore();
+			const a1 = await store.saveArticle(makeArticleParams({ userId: USER_A, url: "https://example.com/1" }));
+			await store.saveArticle(makeArticleParams({ userId: USER_A, url: "https://example.com/2" }));
+			const shared = await store.saveArticle(makeArticleParams({ userId: USER_A }));
+			await store.saveArticle(makeArticleParams({ userId: USER_B }));
+
+			await store.deleteAllUserArticles(USER_A);
+
+			expect(await store.countArticlesByUser({ userId: USER_A })).toBe(0);
+			expect(await store.findArticleById(a1.id, USER_A)).toBeNull();
+			// Another user's relationship to the shared article survives.
+			expect((await store.findArticleById(shared.id, USER_B))?.url).toBe("https://example.com/article");
+			// The global article cache is untouched (still resolvable by URL).
+			expect((await store.findArticleByUrl("https://example.com/1"))?.url).toBe("https://example.com/1");
+		});
+
+		it("is a no-op when the user has no saved articles", async () => {
+			const store = initInMemoryArticleStore();
+			await store.saveArticle(makeArticleParams({ userId: USER_B }));
+
+			await store.deleteAllUserArticles(USER_A);
+
+			expect(await store.countArticlesByUser({ userId: USER_B })).toBe(1);
+		});
+	});
+
 	describe("freshness operations", () => {
 		it("findArticleFreshness returns null for unknown URL", async () => {
 			const store = initInMemoryArticleStore();

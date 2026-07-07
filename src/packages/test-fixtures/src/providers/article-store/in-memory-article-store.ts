@@ -11,6 +11,7 @@ import type { UserId } from "@packages/domain/user";
 import type {
 	BumpArticleSavedAt,
 	CountArticlesByUser,
+	DeleteAllUserArticles,
 	DeleteArticle,
 	FindArticleById,
 	FindArticleByUrl,
@@ -85,6 +86,7 @@ export function initInMemoryArticleStore(): {
 	findArticlesByUser: FindArticlesByUser;
 	countArticlesByUser: CountArticlesByUser;
 	deleteArticle: DeleteArticle;
+	deleteAllUserArticles: DeleteAllUserArticles;
 	updateArticleStatus: UpdateArticleStatus;
 	markArticleViewed: MarkArticleViewed;
 	markSummaryToggled: MarkSummaryToggled;
@@ -264,6 +266,12 @@ export function initInMemoryArticleStore(): {
 		return true;
 	};
 
+	const deleteAllUserArticles: DeleteAllUserArticles = async (userId) => {
+		for (const [key, ua] of userArticles) {
+			if (ua.userId === userId) userArticles.delete(key);
+		}
+	};
+
 	const updateArticleStatus: UpdateArticleStatus = async (id, userId, status) => {
 		const article = findArticleByRouteId(id);
 		if (!article) return false;
@@ -403,6 +411,7 @@ export function initInMemoryArticleStore(): {
 		findArticlesByUser,
 		countArticlesByUser,
 		deleteArticle,
+		deleteAllUserArticles,
 		updateArticleStatus,
 		markArticleViewed,
 		markSummaryToggled,

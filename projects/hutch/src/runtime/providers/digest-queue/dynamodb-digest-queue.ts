@@ -2,12 +2,14 @@ import {
 	type DynamoDBDocumentClient,
 	defineDynamoTable,
 	dynamoField,
+	forEachQueryPage,
 } from "@packages/hutch-storage-client";
 import { z } from "zod";
 import { UserIdSchema } from "@packages/domain/user";
 import type { UserId } from "@packages/domain/user";
 import { ArticleResourceUniqueId } from "@packages/article-resource-unique-id";
 import type {
+	DeleteDigestByUser,
 	DeleteDigestItem,
 	DigestQueueItem,
 	EnqueueDigestItem,
@@ -35,6 +37,7 @@ export function initDynamoDbDigestQueue(deps: {
 	enqueueDigestItem: EnqueueDigestItem;
 	listDigestItemsByUser: ListDigestItemsByUser;
 	deleteDigestItem: DeleteDigestItem;
+	deleteDigestByUser: DeleteDigestByUser;
 	scanPendingDigestUsers: ScanPendingDigestUsers;
 } {
 	const table = defineDynamoTable({
@@ -84,6 +87,21 @@ export function initDynamoDbDigestQueue(deps: {
 		await table.delete({ Key: { userId, url } });
 	};
 
+	const deleteDigestByUser: DeleteDigestByUser = async (userId) => {
+		await forEachQueryPage(
+			table,
+			{
+				KeyConditionExpression: "userId = :userId",
+				ExpressionAttributeValues: { ":userId": userId },
+			},
+			async (rows) => {
+				await Promise.all(
+					rows.map((row) => table.delete({ Key: { userId: row.userId, url: row.url } })),
+				);
+			},
+		);
+	};
+
 	const scanPendingDigestUsers: ScanPendingDigestUsers = async () => {
 		const users = new Set<UserId>();
 		let exclusiveStartKey: Record<string, unknown> | undefined;
@@ -99,5 +117,5 @@ export function initDynamoDbDigestQueue(deps: {
 		return [...users];
 	};
 
-	return { enqueueDigestItem, listDigestItemsByUser, deleteDigestItem, scanPendingDigestUsers };
+	return { enqueueDigestItem, listDigestItemsByUser, deleteDigestItem, deleteDigestByUser, scanPendingDigestUsers };
 }

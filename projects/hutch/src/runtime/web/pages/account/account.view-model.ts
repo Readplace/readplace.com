@@ -5,6 +5,7 @@ import { type LocalTime, toAbsoluteDate, withInternalTracking } from "@packages/
 import {
 	ACCOUNT_CANCEL_URL,
 	ACCOUNT_CARDS_NEW_URL,
+	ACCOUNT_DELETE_URL,
 	ACCOUNT_REACTIVATE_URL,
 	ACCOUNT_SUBSCRIBE_URL,
 	buildCardPrimaryUrl,
@@ -23,7 +24,7 @@ export type AccountCardState =
 	| "inactive"
 	| "error-payment-method";
 
-export type AccountActionKey = "subscribe" | "cancel-form" | "reactivate-form";
+export type AccountActionKey = "subscribe" | "cancel-form" | "reactivate-form" | "delete-account";
 
 export type AccountActionVariant = "primary" | "secondary" | "destructive";
 
@@ -48,6 +49,9 @@ export interface AccountViewModel {
 	showCancellingNotice: boolean;
 	stateIsErrorPaymentMethod: boolean;
 	actions: AccountAction[];
+	/** The irreversible "delete account" control. Kept out of the state-dependent
+	 * `actions` array so the danger zone renders in every subscription state. */
+	dangerAction: AccountAction;
 }
 
 function formatTrialDaysLeft(trialEndsAt: string, now: Date): { daysLeft: number; daysLeftWord: "day" | "days" } {
@@ -110,6 +114,14 @@ const REACTIVATE_FORM_ACTION = action({
 	variant: "primary",
 	method: "POST",
 	href: ACCOUNT_REACTIVATE_URL,
+});
+
+const DELETE_ACCOUNT_ACTION = action({
+	key: "delete-account",
+	name: "Delete account",
+	variant: "destructive",
+	method: "POST",
+	href: ACCOUNT_DELETE_URL,
 });
 
 export type CardSectionState = "no-customer" | "loaded" | "provider-error";
@@ -271,6 +283,7 @@ function baseFor(state: AccountCardState, actions: AccountAction[]): {
 	showCancellingNotice: false;
 	stateIsErrorPaymentMethod: false;
 	actions: AccountAction[];
+	dangerAction: AccountAction;
 } {
 	return {
 		state,
@@ -279,6 +292,7 @@ function baseFor(state: AccountCardState, actions: AccountAction[]): {
 		showCancellingNotice: false,
 		stateIsErrorPaymentMethod: false,
 		actions,
+		dangerAction: DELETE_ACCOUNT_ACTION,
 	};
 }
 

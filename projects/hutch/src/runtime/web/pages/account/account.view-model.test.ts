@@ -73,6 +73,21 @@ describe("toAccountViewModel — actions", () => {
 		assert.deepEqual(vm.actions, []);
 	});
 
+	it("exposes the destructive delete-account danger action in every state, separate from the state actions", () => {
+		const vm = toAccountViewModel(
+			{ tier: "founding", access: "full", banner: "none" },
+			baseQuery,
+			now,
+		);
+		assert.equal(vm.dangerAction.key, "delete-account");
+		assert.equal(vm.dangerAction.variant, "destructive");
+		assert.equal(vm.dangerAction.method, "POST");
+		assert.equal(
+			vm.dangerAction.href,
+			"/account/delete?utm_source=account&utm_medium=internal&utm_content=delete-account",
+		);
+	});
+
 	it("active paid users get a destructive cancel form (POST) — no GET confirmation step", () => {
 		const vm = toAccountViewModel(
 			{ tier: "paid", access: "full", banner: "none" },

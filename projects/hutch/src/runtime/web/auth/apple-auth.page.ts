@@ -10,6 +10,7 @@ import type {
 	CreateSession,
 	FindUserByEmail,
 	MarkEmailVerified,
+	SaveAppleRefreshToken,
 } from "@packages/provider-contracts/auth";
 import type { SendEmail } from "@packages/provider-contracts/email";
 import type { ExchangeAppleCode } from "@packages/provider-contracts/apple-auth";
@@ -72,6 +73,7 @@ interface AppleAuthDependencies {
 	secureCookies: boolean;
 	createSession: CreateSession;
 	createAppleUser: CreateAppleUser;
+	saveAppleRefreshToken: SaveAppleRefreshToken;
 	findUserByEmail: FindUserByEmail;
 	countUsers: CountUsers;
 	markEmailVerified: MarkEmailVerified;
@@ -203,6 +205,13 @@ export const initAppleAuthRoutes = (deps: AppleAuthDependencies): Router => {
 
 		const existing = await deps.findUserByEmail(tokenResult.email);
 		if (existing) {
+			/* Every code exchange mints a fresh grant, and a returning user may
+			 * predate token persistence — store it on login too, or account
+			 * deletion could not revoke their Sign in with Apple grant. */
+			await deps.saveAppleRefreshToken({
+				email: tokenResult.email,
+				appleRefreshToken: tokenResult.appleRefreshToken,
+			});
 			if (!existing.emailVerified) {
 				await deps.markEmailVerified(tokenResult.email);
 			}
@@ -234,11 +243,16 @@ export const initAppleAuthRoutes = (deps: AppleAuthDependencies): Router => {
 			const created = await deps.createAppleUser({
 				email: tokenResult.email,
 				userId: newUserId,
+				appleRefreshToken: tokenResult.appleRefreshToken,
 				attribution,
 			});
 			if (!created.ok) {
 				const lookup = await deps.findUserByEmail(tokenResult.email);
 				if (lookup) {
+					await deps.saveAppleRefreshToken({
+						email: tokenResult.email,
+						appleRefreshToken: tokenResult.appleRefreshToken,
+					});
 					if (!lookup.emailVerified) {
 						await deps.markEmailVerified(tokenResult.email);
 					}
@@ -272,11 +286,16 @@ export const initAppleAuthRoutes = (deps: AppleAuthDependencies): Router => {
 		const created = await deps.createAppleUser({
 			email: tokenResult.email,
 			userId: newUserId,
+			appleRefreshToken: tokenResult.appleRefreshToken,
 			attribution,
 		});
 		if (!created.ok) {
 			const lookup = await deps.findUserByEmail(tokenResult.email);
 			if (lookup) {
+				await deps.saveAppleRefreshToken({
+					email: tokenResult.email,
+					appleRefreshToken: tokenResult.appleRefreshToken,
+				});
 				if (!lookup.emailVerified) {
 					await deps.markEmailVerified(tokenResult.email);
 				}

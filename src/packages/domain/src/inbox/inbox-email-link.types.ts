@@ -72,4 +72,15 @@ export interface InboxEmailLinkStore {
 		receivedAtMessageId: string;
 		ordinal: EmailLinkOrdinal;
 	}) => Promise<InboxEmailLinkEntry | undefined>;
+	/** Account-deletion primitive: deletes every link row — and the reserved meta
+	 * row — in one email's partition. There is no userId GSI, so the caller
+	 * supplies the parent email's sort key to name the partition. */
+	deleteLinksByEmail: (input: {
+		userId: UserId;
+		receivedAtMessageId: string;
+	}) => Promise<void>;
+	/** Convenience over {@link deleteLinksByEmail} for the delete worker: loops it
+	 * across every one of the user's emails, whose sort keys the worker gathers
+	 * before deleting the email rows themselves. */
+	deleteAllLinksByUserId: (userId: UserId, receivedAtMessageIds: string[]) => Promise<void>;
 }

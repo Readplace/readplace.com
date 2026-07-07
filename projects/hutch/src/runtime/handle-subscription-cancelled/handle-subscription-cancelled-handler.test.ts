@@ -1,6 +1,7 @@
 import assert from "node:assert/strict";
 import type { SQSEvent } from "aws-lambda";
 import { buildLambdaContext } from "@packages/test-fixtures/lambda-context";
+import { ConditionalCheckFailedException } from "@packages/hutch-storage-client";
 import { UserIdSchema } from "@packages/domain/user";
 import { HutchLogger, noopLogger } from "@packages/hutch-logger";
 import { initHandleSubscriptionCancelledHandler } from "./handle-subscription-cancelled-handler";
@@ -135,6 +136,27 @@ describe("handle-subscription-cancelled-handler", () => {
 		assert(result);
 		assert.equal(result.batchItemFailures.length, 1);
 		assert.equal(result.batchItemFailures[0].itemIdentifier, "msg-fail");
+	});
+
+	it("treats a missing subscription row (account deleted) as an idempotent no-op, not a failure", async () => {
+		const { emit, captured } = makeEmit();
+		const handler = initHandleSubscriptionCancelledHandler({
+			markCancelledByUserId: async () => {
+				throw new ConditionalCheckFailedException({ $metadata: {}, message: "row gone" });
+			},
+			emit,
+			logger: HutchLogger.from(noopLogger),
+		});
+
+		const result = await handler(
+			buildSqsEvent([{ messageId: "msg-gone", body: buildEventBridgeBody({ userId: USER_ID }) }]),
+			buildLambdaContext(),
+			() => {},
+		);
+
+		assert(result);
+		assert.equal(result.batchItemFailures.length, 0);
+		assert.deepStrictEqual(captured, []);
 	});
 
 	it("reports a batch item failure for malformed JSON", async () => {

@@ -34,10 +34,12 @@ import type { ExtractLinksFromPageUrl } from "@packages/extract-links-from-page"
 import { initInMemorySaveLinkRawHtmlCommand } from "./providers/events/in-memory-save-link-raw-html-command";
 import { initInMemorySaveLinkRawPdfCommand } from "./providers/events/in-memory-save-link-raw-pdf-command";
 import { initInMemoryExportUserDataCommand } from "./providers/events/in-memory-export-user-data-command";
+import { initInMemoryDeleteAccountCommand } from "./providers/events/in-memory-delete-account-command";
 import { initInMemoryCancelSubscriptionCommand } from "./providers/events/in-memory-cancel-subscription-command";
 import { initInMemorySubscriptionReactivated } from "./providers/events/in-memory-subscription-reactivated";
 import {
 	createOAuthModel,
+	createRevokeAllUserOAuthTokens,
 	initInMemoryOAuthModel,
 } from "./providers/oauth/oauth-model";
 import { initInMemoryOAuthClients } from "./providers/oauth/in-memory-oauth-clients";
@@ -269,6 +271,9 @@ export function createDefaultTestAppFixture(appOrigin: string): TestAppFixture {
 	const { publishExportUserDataCommand } = initInMemoryExportUserDataCommand({
 		logger: noopLogger,
 	});
+	const { publishDeleteAccountCommand } = initInMemoryDeleteAccountCommand({
+		logger: noopLogger,
+	});
 	const { publishCancelSubscriptionCommand } = initInMemoryCancelSubscriptionCommand({
 		logger: noopLogger,
 	});
@@ -277,12 +282,14 @@ export function createDefaultTestAppFixture(appOrigin: string): TestAppFixture {
 	});
 	const oauthClients = initInMemoryOAuthClients({ now: () => new Date() });
 	const oauthClientLookup = initOAuthClientLookup({ dynamic: oauthClients });
-	const oauthModel = createOAuthModel(initInMemoryOAuthModel(), {
+	const oauthModelDeps = initInMemoryOAuthModel();
+	const oauthModel = createOAuthModel(oauthModelDeps, {
 		appOrigin,
 		findUserById: auth.findUserById,
 		findClient: oauthClientLookup.findClient,
 		markClientActive: oauthClientLookup.markClientActive,
 	});
+	const revokeAllUserOAuthTokens = createRevokeAllUserOAuthTokens(oauthModelDeps);
 	const stripe = initInMemoryStripeCheckout({ checkoutBaseUrl: "https://checkout.stripe.test", now: () => new Date() });
 	const pendingSignup = initInMemoryPendingSignup();
 	const subscriptionProviders = initInMemorySubscriptionProviders({ now: () => new Date() });
@@ -314,6 +321,7 @@ export function createDefaultTestAppFixture(appOrigin: string): TestAppFixture {
 	return {
 		auth: { ...auth, hashPassword: fastHashPassword },
 		articleStore: {
+			deleteAllUserArticles: articleStoreMemory.deleteAllUserArticles,
 			findArticleById: articleStoreMemory.findArticleById,
 			findArticleByUrl: articleStoreMemory.findArticleByUrl,
 			findArticleUrlById: articleStoreMemory.findArticleUrlById,
@@ -359,6 +367,7 @@ export function createDefaultTestAppFixture(appOrigin: string): TestAppFixture {
 			publishStaleCheckRequested: initInMemoryStaleCheckRequested({ logger: noopLogger }).publishStaleCheckRequested,
 			publishUpdateFetchTimestamp: createInMemoryPublishUpdateFetchTimestamp(),
 			publishExportUserDataCommand,
+			publishDeleteAccountCommand,
 			publishCancelSubscriptionCommand,
 			publishSubscriptionReactivated,
 		},
@@ -374,6 +383,7 @@ export function createDefaultTestAppFixture(appOrigin: string): TestAppFixture {
 		freshness: { refreshArticleIfStale: createNoopRefreshArticleIfStale() },
 		oauth: {
 			oauthModel,
+			revokeAllUserOAuthTokens,
 			validateAccessToken: createValidateAccessToken(oauthModel),
 			findClient: oauthClientLookup.findClient,
 			validateRedirectUri: oauthClientLookup.validateRedirectUri,
@@ -393,6 +403,7 @@ export function createDefaultTestAppFixture(appOrigin: string): TestAppFixture {
 				appleId: AppleIdSchema.parse("apple-sub-default"),
 				email: "apple-default@example.com",
 				emailVerified: true,
+				appleRefreshToken: "apple-refresh-default",
 			}),
 			clientId: "com.readplace.web",
 			stateSigningSecret: "test-apple-state-secret",

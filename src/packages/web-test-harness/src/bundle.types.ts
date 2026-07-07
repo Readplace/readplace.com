@@ -29,6 +29,7 @@ import type {
 	CreateUserWithPasswordHash,
 	CreateVerificationToken,
 	DeleteArticle,
+	DeleteAllUserArticles,
 	DeleteDeferredCancellationSchedule,
 	DeleteTrialEndSchedule,
 	DeleteTrialReminderSchedule,
@@ -42,6 +43,7 @@ import type {
 	FindArticleByUrl,
 	FindArticleCrawlStatus,
 	FindArticleFreshness,
+	FindAppleRefreshTokenByUserId,
 	FindArticleUrlById,
 	FindArticlesByUser,
 	FindEmailByUserId,
@@ -71,6 +73,7 @@ import type {
 	MarkSubscriptionPendingCancellation,
 	MarkSummaryPending,
 	OAuthModel,
+	RevokeAllUserOAuthTokens,
 	FindOAuthClient,
 	RegisterOAuthClient,
 	ValidateOAuthRedirectUri,
@@ -80,6 +83,7 @@ import type {
 	SavedCard,
 	SetPrimaryCard,
 	PublishCancelSubscriptionCommand,
+	PublishDeleteAccountCommand,
 	PublishExportUserDataCommand,
 	PublishLinkSaved,
 	PublishRecrawlLinkInitiated,
@@ -98,6 +102,7 @@ import type {
 	RefreshArticleIfStale,
 	RetrieveCheckoutSession,
 	ReverseScheduledCancellation,
+	SaveAppleRefreshToken,
 	SaveArticle,
 	SaveArticleGlobally,
 	ScheduleCancellationAtPeriodEnd,
@@ -129,6 +134,8 @@ export interface AuthBundle {
 	createUserWithPasswordHash: CreateUserWithPasswordHash;
 	createGoogleUser: CreateGoogleUser;
 	createAppleUser: CreateAppleUser;
+	saveAppleRefreshToken: SaveAppleRefreshToken;
+	findAppleRefreshTokenByUserId: FindAppleRefreshTokenByUserId;
 	findUserByEmail: FindUserByEmail;
 	verifyCredentials: VerifyCredentials;
 	createSession: CreateSession;
@@ -211,6 +218,7 @@ export interface StripeSubscriptionsBundle {
 }
 
 export interface ArticleStoreBundle {
+	deleteAllUserArticles: DeleteAllUserArticles;
 	findArticleById: FindArticleById;
 	findArticleByUrl: FindArticleByUrl;
 	findArticleUrlById: FindArticleUrlById;
@@ -268,6 +276,7 @@ export interface EventsBundle {
 	publishStaleCheckRequested: PublishStaleCheckRequested;
 	publishUpdateFetchTimestamp: PublishUpdateFetchTimestamp;
 	publishExportUserDataCommand: PublishExportUserDataCommand;
+	publishDeleteAccountCommand: PublishDeleteAccountCommand;
 	publishCancelSubscriptionCommand: PublishCancelSubscriptionCommand;
 	publishSubscriptionReactivated: PublishSubscriptionReactivated;
 }
@@ -293,6 +302,7 @@ export interface FreshnessBundle {
 
 export interface OAuthBundle {
 	oauthModel: OAuthModel;
+	revokeAllUserOAuthTokens: RevokeAllUserOAuthTokens;
 	validateAccessToken: ValidateAccessToken;
 	findClient: FindOAuthClient;
 	validateRedirectUri: ValidateOAuthRedirectUri;

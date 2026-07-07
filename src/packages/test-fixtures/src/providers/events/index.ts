@@ -1,4 +1,5 @@
 export * from "./publish-cancel-subscription-command.types";
+export * from "./publish-delete-account-command.types";
 export * from "./publish-export-user-data-command.types";
 export * from "./publish-link-saved.types";
 export * from "./publish-recrawl-link-initiated.types";
@@ -15,6 +16,7 @@ export * from "./publish-subscription-reactivated.types";
 export * from "./publish-subscription-start-request-command.types";
 export * from "./publish-update-fetch-timestamp.types";
 export * from "./in-memory-cancel-subscription-command";
+export * from "./in-memory-delete-account-command";
 export * from "./in-memory-export-user-data-command";
 export * from "./in-memory-link-saved";
 export * from "./in-memory-recrawl-link-initiated";

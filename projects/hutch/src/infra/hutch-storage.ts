@@ -191,7 +191,19 @@ export class HutchStorage extends pulumi.ComponentResource {
 			name: args.tableNames.passwordResetTokens,
 			billingMode: "PAY_PER_REQUEST",
 			hashKey: "token",
-			attributes: [{ name: "token", type: "S" }]
+			attributes: [{ name: "token", type: "S" }],
+			/* Expire reset tokens on the same `expiresAt` (epoch seconds) the row
+			 * already carries, like every sibling token table. Beyond token hygiene
+			 * this is the compliance backstop for account deletion: the delete-account
+			 * scrub matches rows by the *normalized* email, so a token written before
+			 * the write-path normalization (a raw `John@Example.com`) can't be matched
+			 * and — without this TTL — would outlive the deleted account forever. TTL
+			 * erases those pre-normalization stragglers within ~48h with no one-off
+			 * backfill; the synchronous scrub still erases every new row immediately. */
+			ttl: {
+				attributeName: "expiresAt",
+				enabled: true,
+			},
 		}, { parent: this, aliases: [{ parent: pulumi.rootStackResource }] });
 
 		this.pendingSignupsTable = new aws.dynamodb.Table(`hutch-pending-signups`, {

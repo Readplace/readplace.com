@@ -50,6 +50,8 @@ export type MarkSubscriptionCancelledByUserId = (input: {
 
 export type MarkSubscriptionActive = (input: { userId: UserId }) => Promise<void>;
 
+export type DeleteSubscription = (input: { userId: UserId }) => Promise<void>;
+
 export type MarkTrialFeedbackEmailSent = (input: {
 	userId: UserId;
 	sentAt: string;

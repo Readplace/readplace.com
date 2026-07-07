@@ -25,6 +25,7 @@ import { initReadabilityParser, linkedinSiteRules, mediumSiteRules, theInformati
 import { initRefreshArticleIfStale } from "@packages/finalize-article";
 import {
 	createOAuthModel,
+	createRevokeAllUserOAuthTokens,
 	initInMemoryOAuthClients,
 	initInMemoryOAuthModel,
 } from "@packages/test-fixtures/providers/oauth";
@@ -67,10 +68,12 @@ import { initEventBridgeSaveLinkRawPdfCommand } from "./providers/events/eventbr
 import { initEventBridgeRefreshArticleContent, initPutRefreshHtml } from "@packages/refresh-article-content";
 import { initEventBridgeUpdateFetchTimestamp } from "./providers/events/eventbridge-update-fetch-timestamp";
 import { initEventBridgeExportUserDataCommand } from "./providers/events/eventbridge-export-user-data-command";
+import { initEventBridgeDeleteAccountCommand } from "./providers/events/eventbridge-delete-account-command";
 import { initEventBridgeCancelSubscriptionCommand } from "./providers/events/eventbridge-cancel-subscription-command";
 import { initEventBridgeSubscriptionReactivated } from "./providers/events/eventbridge-subscription-reactivated";
 import {
 	initInMemoryCancelSubscriptionCommand,
+	initInMemoryDeleteAccountCommand,
 	initInMemoryExportUserDataCommand,
 	initInMemorySubscriptionReactivated,
 } from "@packages/test-fixtures/providers/events";
@@ -221,6 +224,7 @@ function initProviders() {
 		const { publishRefreshArticleContent } = initEventBridgeRefreshArticleContent({ publishEvent, putRefreshHtml });
 		const { publishUpdateFetchTimestamp } = initEventBridgeUpdateFetchTimestamp({ publishEvent });
 		const { publishExportUserDataCommand } = initEventBridgeExportUserDataCommand({ publishEvent });
+		const { publishDeleteAccountCommand } = initEventBridgeDeleteAccountCommand({ publishEvent });
 		const { publishCancelSubscriptionCommand } = initEventBridgeCancelSubscriptionCommand({ publishEvent });
 		const { publishSubscriptionReactivated } = initEventBridgeSubscriptionReactivated({ publishEvent });
 		const { putPendingHtml } = initPutPendingHtml({ client: new S3Client({}), bucketName: pendingHtmlBucketName });
@@ -368,6 +372,7 @@ function initProviders() {
 			googleAuth,
 			appleAuth,
 			oauthModel,
+			revokeAllUserOAuthTokens: oauthModel.revokeAllUserOAuthTokens,
 			validateAccessToken: createValidateAccessToken(oauthModel),
 			findOAuthClient: oauthClientLookup.findClient,
 			validateOAuthRedirectUri: oauthClientLookup.validateRedirectUri,
@@ -380,6 +385,7 @@ function initProviders() {
 			publishSaveLinkRawPdfCommand,
 			publishUpdateFetchTimestamp,
 			publishExportUserDataCommand,
+			publishDeleteAccountCommand,
 			publishCancelSubscriptionCommand,
 			publishSubscriptionReactivated,
 			putPendingHtml,
@@ -404,11 +410,13 @@ function initProviders() {
 	const articleStore = initInMemoryArticleStore();
 	const oauthClients = initInMemoryOAuthClients({ now: () => new Date() });
 	const oauthClientLookup = initOAuthClientLookup({ dynamic: oauthClients });
-	const oauthModel = createOAuthModel(initInMemoryOAuthModel(), {
+	const oauthModelDeps = initInMemoryOAuthModel();
+	const oauthModel = createOAuthModel(oauthModelDeps, {
 		findUserById: auth.findUserById,
 		findClient: oauthClientLookup.findClient,
 		markClientActive: oauthClientLookup.markClientActive,
 	});
+	const revokeAllUserOAuthTokens = createRevokeAllUserOAuthTokens(oauthModelDeps);
 	const devStripe = initInMemoryStripeCheckout({ checkoutBaseUrl: "https://checkout.stripe.test", now: () => new Date() });
 	const devStripeSubscriptions = initInMemoryStripeSubscriptions();
 	const devPendingSignup = initInMemoryPendingSignup();
@@ -559,6 +567,7 @@ function initProviders() {
 	const { publishSaveLinkRawHtmlCommand } = initInMemorySaveLinkRawHtmlCommand({ logger: consoleLogger });
 	const { publishSaveLinkRawPdfCommand } = initInMemorySaveLinkRawPdfCommand({ logger: consoleLogger });
 	const { publishExportUserDataCommand } = initInMemoryExportUserDataCommand({ logger: consoleLogger });
+	const { publishDeleteAccountCommand } = initInMemoryDeleteAccountCommand({ logger: consoleLogger });
 	const { publishCancelSubscriptionCommand } = initInMemoryCancelSubscriptionCommand({ logger: consoleLogger });
 	const { publishSubscriptionReactivated } = initInMemorySubscriptionReactivated({ logger: consoleLogger });
 	const { putPendingHtml } = initInMemoryPendingHtml();
@@ -628,6 +637,7 @@ function initProviders() {
 		googleAuth,
 		appleAuth,
 		oauthModel,
+		revokeAllUserOAuthTokens,
 		validateAccessToken: createValidateAccessToken(oauthModel),
 		findOAuthClient: oauthClientLookup.findClient,
 		validateOAuthRedirectUri: oauthClientLookup.validateRedirectUri,
@@ -640,6 +650,7 @@ function initProviders() {
 		publishSaveLinkRawPdfCommand,
 		publishUpdateFetchTimestamp,
 		publishExportUserDataCommand,
+		publishDeleteAccountCommand,
 		publishCancelSubscriptionCommand,
 		publishSubscriptionReactivated,
 		putPendingHtml,

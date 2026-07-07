@@ -15,6 +15,46 @@ function createFakeClient(impl: (input: unknown) => unknown): Partial<DynamoDBDo
 	};
 }
 
+interface RecordedCommand {
+	name: string;
+	input: Record<string, unknown>;
+}
+
+/** Records commands by SDK class name and replays a sequence of query pages,
+ * each carrying its rows and the LastEvaluatedKey that drives the next page
+ * (omitted on the final page). Queries past the last page replay it. */
+function createPaginatedClient(
+	pages: { rows: Record<string, unknown>[]; lastEvaluatedKey?: Record<string, unknown> }[],
+): { client: DynamoDBDocumentClient; commands: RecordedCommand[] } {
+	const commands: RecordedCommand[] = [];
+	let queryCount = 0;
+	const client = {
+		send: (async (command: { constructor: { name: string }; input: Record<string, unknown> }) => {
+			const name = command.constructor.name;
+			commands.push({ name, input: command.input });
+			if (name === "QueryCommand") {
+				const page = pages[Math.min(queryCount, pages.length - 1)];
+				queryCount += 1;
+				return { Items: page.rows, Count: page.rows.length, LastEvaluatedKey: page.lastEvaluatedKey };
+			}
+			return {};
+		}) as SendFn,
+	};
+	return { client: client as typeof client & DynamoDBDocumentClient, commands };
+}
+
+function linkRow(overrides: Record<string, unknown> = {}): Record<string, unknown> {
+	return {
+		userLinkGroup: GROUP,
+		ordinal: "0000",
+		userId: USER,
+		receivedAtMessageId: RAM,
+		url: "https://a.test",
+		status: "pending",
+		...overrides,
+	};
+}
+
 interface CapturedCommand {
 	input: {
 		Item?: Record<string, unknown>;
@@ -292,6 +332,76 @@ describe("initDynamoDbInboxEmailLink", () => {
 			});
 
 			expect(found).toBeUndefined();
+		});
+	});
+
+	describe("deleteLinksByEmail", () => {
+		it("queries the email's partition and deletes every link row and the meta row", async () => {
+			const { client, commands } = createPaginatedClient([
+				{
+					rows: [
+						linkRow({ ordinal: "0000" }),
+						linkRow({ ordinal: "0001", url: "https://b.test" }),
+						{ userLinkGroup: GROUP, ordinal: "meta", userId: USER, receivedAtMessageId: RAM, truncated: true },
+					],
+				},
+			]);
+			const store = initDynamoDbInboxEmailLink({ client, tableName: TABLE });
+
+			await store.deleteLinksByEmail({ userId: USER, receivedAtMessageId: RAM });
+
+			const query = commands.find((c) => c.name === "QueryCommand");
+			expect(query?.input.KeyConditionExpression).toBe("userLinkGroup = :g");
+			expect(query?.input.ExpressionAttributeValues).toEqual({ ":g": GROUP });
+			const deletes = commands.filter((c) => c.name === "DeleteCommand");
+			expect(deletes.map((c) => c.input.Key)).toEqual([
+				{ userLinkGroup: GROUP, ordinal: "0000" },
+				{ userLinkGroup: GROUP, ordinal: "0001" },
+				{ userLinkGroup: GROUP, ordinal: "meta" },
+			]);
+		});
+
+		it("paginates the partition, feeding each page's key back as ExclusiveStartKey", async () => {
+			const { client, commands } = createPaginatedClient([
+				{ rows: [linkRow({ ordinal: "0000" })], lastEvaluatedKey: { userLinkGroup: GROUP, ordinal: "0000" } },
+				{ rows: [linkRow({ ordinal: "0001" })] },
+			]);
+			const store = initDynamoDbInboxEmailLink({ client, tableName: TABLE });
+
+			await store.deleteLinksByEmail({ userId: USER, receivedAtMessageId: RAM });
+
+			const queries = commands.filter((c) => c.name === "QueryCommand");
+			expect(queries).toHaveLength(2);
+			expect(queries[1]?.input.ExclusiveStartKey).toEqual({ userLinkGroup: GROUP, ordinal: "0000" });
+			expect(commands.filter((c) => c.name === "DeleteCommand")).toHaveLength(2);
+		});
+	});
+
+	describe("deleteAllLinksByUserId", () => {
+		it("loops deleteLinksByEmail across every provided email id", async () => {
+			const ramA = "2026-06-23T00:00:00.000Z#<a@x>";
+			const ramB = "2026-06-24T00:00:00.000Z#<b@x>";
+			const { client, commands } = createPaginatedClient([{ rows: [linkRow({ ordinal: "0000" })] }]);
+			const store = initDynamoDbInboxEmailLink({ client, tableName: TABLE });
+
+			await store.deleteAllLinksByUserId(USER, [ramA, ramB]);
+
+			const queries = commands.filter((c) => c.name === "QueryCommand");
+			expect(queries.map((q) => q.input.ExpressionAttributeValues)).toEqual([
+				{ ":g": `${USER}#${ramA}` },
+				{ ":g": `${USER}#${ramB}` },
+			]);
+			// One page (hence one delete) replayed per email id.
+			expect(commands.filter((c) => c.name === "DeleteCommand")).toHaveLength(2);
+		});
+
+		it("issues no query or delete when the id list is empty", async () => {
+			const { client, commands } = createPaginatedClient([{ rows: [] }]);
+			const store = initDynamoDbInboxEmailLink({ client, tableName: TABLE });
+
+			await store.deleteAllLinksByUserId(USER, []);
+
+			expect(commands).toHaveLength(0);
 		});
 	});
 });
