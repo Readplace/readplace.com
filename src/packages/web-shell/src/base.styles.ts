@@ -677,8 +677,6 @@ export const CHANGELOG_BANNER_STYLES = `
     text-underline-offset: 3px;
   }
 
-  .changelog-banner__arrow { margin-left: 2px; }
-
   .changelog-banner__dismiss {
     flex: 0 0 auto;
     margin: 0;
