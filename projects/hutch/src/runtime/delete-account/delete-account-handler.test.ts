@@ -66,6 +66,7 @@ function buildSubject() {
 	const trialEndCalls: UserId[] = [];
 	const deferredCancelCalls: UserId[] = [];
 	const trialFeedbackCalls: UserId[] = [];
+	const trialReminderCalls: UserId[] = [];
 	const rawEmailDeleteArgs: string[][] = [];
 	const bodyEmailDeleteArgs: string[][] = [];
 	const deleteExportsCalls: UserId[] = [];
@@ -122,6 +123,9 @@ function buildSubject() {
 		},
 		deleteTrialFeedbackEmailSchedule: async ({ userId }: { userId: UserId }) => {
 			trialFeedbackCalls.push(userId);
+		},
+		deleteTrialReminderSchedule: async ({ userId }: { userId: UserId }) => {
+			trialReminderCalls.push(userId);
 		},
 		listInboxDeletionReferences: inboxEmail.listDeletionReferencesByUserId,
 		deleteAllInboxEmails: inboxEmail.deleteAllEmailsByUserId,
@@ -185,6 +189,7 @@ function buildSubject() {
 		trialEndCalls,
 		deferredCancelCalls,
 		trialFeedbackCalls,
+		trialReminderCalls,
 		rawEmailDeleteArgs,
 		bodyEmailDeleteArgs,
 		deleteExportsCalls,
@@ -473,7 +478,7 @@ describe("delete-account handler", () => {
 		assert.equal(await s.subs.findByUserId(account.userId), undefined);
 	});
 
-	it("trialing branch — no Stripe calls, but the row is dropped and all three schedules deleted", async () => {
+	it("trialing branch — no Stripe calls, but the row is dropped and all four schedules deleted", async () => {
 		const s = buildSubject();
 		const account = await seedAccount(s, {
 			label: "trial",
@@ -489,6 +494,7 @@ describe("delete-account handler", () => {
 		assert.deepEqual(s.trialEndCalls, [account.userId]);
 		assert.deepEqual(s.deferredCancelCalls, [account.userId]);
 		assert.deepEqual(s.trialFeedbackCalls, [account.userId]);
+		assert.deepEqual(s.trialReminderCalls, [account.userId]);
 	});
 
 	it("founding-member branch — no subscription row, so no billing calls, but the schedules are still deleted", async () => {
@@ -507,6 +513,7 @@ describe("delete-account handler", () => {
 		assert.deepEqual(s.trialEndCalls, [account.userId]);
 		assert.deepEqual(s.deferredCancelCalls, [account.userId]);
 		assert.deepEqual(s.trialFeedbackCalls, [account.userId]);
+		assert.deepEqual(s.trialReminderCalls, [account.userId]);
 	});
 
 	it("is idempotent — a second run against the now-empty account does not throw and reports no failures", async () => {
@@ -641,5 +648,12 @@ describe("delete-account handler", () => {
 		assert.equal(s.rawEmailDeleteArgs.length, 1);
 		assert.deepEqual(sorted(s.rawEmailDeleteArgs[0]), sorted(account.rawKeys));
 		assert.equal((await s.inboxEmail.listEmailsByUserId(account.userId)).length, 0);
+
+		// The per-user schedule deletes run before the injected S3 failure, so the
+		// pre-expiry trial-reminder schedule delete fired on both the failed first
+		// delivery and the redrive. Being ResourceNotFound-idempotent, the repeat is
+		// a no-op — a trialing account that deletes mid-trial leaves no orphaned
+		// reminder schedule live at AWS after a redrive.
+		assert.deepEqual(s.trialReminderCalls, [account.userId, account.userId]);
 	});
 });

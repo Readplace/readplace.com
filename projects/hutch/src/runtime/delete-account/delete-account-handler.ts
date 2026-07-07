@@ -30,6 +30,7 @@ import type {
 	DeleteDeferredCancellationSchedule,
 	DeleteTrialEndSchedule,
 	DeleteTrialFeedbackEmailSchedule,
+	DeleteTrialReminderSchedule,
 } from "@packages/provider-contracts/trial-scheduler";
 import type {
 	InboxAddressStore,
@@ -47,6 +48,7 @@ export interface DeleteAccountHandlerDependencies {
 	deleteTrialEndSchedule: DeleteTrialEndSchedule;
 	deleteDeferredCancellationSchedule: DeleteDeferredCancellationSchedule;
 	deleteTrialFeedbackEmailSchedule: DeleteTrialFeedbackEmailSchedule;
+	deleteTrialReminderSchedule: DeleteTrialReminderSchedule;
 	listInboxDeletionReferences: InboxEmailStore["listDeletionReferencesByUserId"];
 	deleteAllInboxEmails: InboxEmailStore["deleteAllEmailsByUserId"];
 	deleteAllInboxLinks: InboxEmailLinkStore["deleteAllLinksByUserId"];
@@ -100,10 +102,11 @@ async function processCommand(
 	}
 
 	// Delete every per-user schedule so a later fire can't dispatch a command at
-	// a deleted account. All three are ResourceNotFound-idempotent.
+	// a deleted account. All four are ResourceNotFound-idempotent.
 	await deps.deleteTrialEndSchedule({ userId });
 	await deps.deleteDeferredCancellationSchedule({ userId });
 	await deps.deleteTrialFeedbackEmailSchedule({ userId });
+	await deps.deleteTrialReminderSchedule({ userId });
 
 	// Inbox: read the pointers the email rows hold (S3 keys + link message-ids)
 	// while the rows still exist, then delete the S3 objects and link rows, and
