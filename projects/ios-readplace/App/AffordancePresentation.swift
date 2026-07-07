@@ -62,6 +62,12 @@ struct AffordancePresentation {
 			isDestructive = false
 			removesItem = false
 			isToolbarControl = true
+		case "account":
+			systemImage = "person.crop.circle"
+			tint = nil
+			isDestructive = false
+			removesItem = false
+			isToolbarControl = true
 		case "add-links-help":
 			systemImage = "plus"
 			tint = nil

@@ -37,6 +37,10 @@ final class ReadingListViewModel: ObservableObject {
 	/// Whether a collection has ever been applied. Gates the foreground refresh so
 	/// it never races the initial `.task` load with a second fetch at launch.
 	private var hasLoadedOnce = false
+	/// The row the reader marked read behind the web sheet, awaiting the dismissal
+	/// converge; consumed by `handleWebSheetDismissal` so the drop survives exactly
+	/// one re-read.
+	private var readerDroppedId: String?
 
 	private let api: ReadplaceAPI
 	private let onSessionExpired: () -> Void
@@ -136,25 +140,47 @@ final class ReadingListViewModel: ObservableObject {
 	}
 
 	/// Drops the row the reader just marked read — instantly, so the unread-only
-	/// list never shows it again behind the sheet — then converges with the server.
-	/// The reader's own POST answers inside the webview where no Siren body is
-	/// available, so a shallow list re-reads to bring in whatever changed elsewhere
-	/// (e.g. an item marked unread on the website); a deep-scrolled list keeps only
-	/// the local drop so the viewport never moves (`convergeWithServer`).
-	func readerMarkedRead(id: String) async {
+	/// list never shows it again behind the sheet. The reader's own POST answers
+	/// inside the webview where no Siren body is available, so reconciliation
+	/// belongs to the converge the sheet's dismissal triggers
+	/// (`handleWebSheetDismissal`); the id is remembered so that converge keeps
+	/// the row dropped even if an eventually-consistent server GET still lists it.
+	func readerMarkedRead(id: String) {
 		articles.removeAll { $0.id == id }
-		await convergeWithServer(droppingId: id)
+		readerDroppedId = id
 	}
 
 	/// Re-reads the list when the app returns to the foreground, so changes made
 	/// while backgrounded — a share-sheet save, an item marked unread on the
 	/// website — appear without pull-to-refresh. Gated on a completed first load:
 	/// at launch the `.task` load owns the fetch and this is a no-op. A deep-scrolled
-	/// list is left untouched (`convergeWithServer` no-ops) so returning to the app
-	/// never yanks the user's position; a pull-to-refresh is their explicit re-read.
+	/// list is not re-read at all — reconciliation waits for a pull-to-refresh, the
+	/// user's explicit re-read — so returning to the app never yanks their position.
 	func handleForeground() async {
-		guard hasLoadedOnce else { return }
-		await convergeWithServer(droppingId: nil)
+		guard hasLoadedOnce, !hasPaginated else { return }
+		await reloadAndAdopt(droppingId: nil)
+	}
+
+	/// Probes the server when the in-app web sheet closes, so a session the
+	/// sheet's own page just killed is discovered immediately. The sheet can host
+	/// the account page, whose delete-account flow destroys every session and
+	/// revokes every OAuth token server-side, and nothing else fires promptly
+	/// after that: the scene never leaves `.active` for an in-app sheet, and the
+	/// foreground converge is zero-network once the list has paginated — so
+	/// without this probe the app would keep showing the deleted account's cached
+	/// list until some later call happened to 401. The probe therefore always hits
+	/// the network (no `!hasPaginated` gate, unlike the foreground re-read): against
+	/// a dead session it 401s, the refresh fails on the revoked token, and the
+	/// failure funnels into the existing `onSessionExpired` sign-out — clearing the
+	/// TokenStore and the cached UI. A live session pays one shallow
+	/// re-read, which doubles as the same reconciliation the foreground performs;
+	/// a deep-scrolled list still holds its position (`adopt` discards the page).
+	/// Carries the row the reader marked read behind this sheet, so the adopted
+	/// page never resurrects it (see `readerMarkedRead`).
+	func handleWebSheetDismissal() async {
+		let droppedId = readerDroppedId
+		readerDroppedId = nil
+		await reloadAndAdopt(droppingId: droppedId)
 	}
 
 	/// Reconciles the visible list with the server's post-action collection.
@@ -178,17 +204,13 @@ final class ReadingListViewModel: ObservableObject {
 		apply(page, replacing: true, droppingId: removedId)
 	}
 
-	/// Fetches a fresh first page and adopts it, for the surfaces that have no
-	/// invoke response body of their own (the reader's mark-as-read, the foreground
-	/// refresh). A deep-scrolled list is not re-read at all — it only applies the
-	/// confirmed removal locally and holds its position; reconciliation waits for a
-	/// pull-to-refresh. A shallow list re-reads under an in-flight guard so
-	/// overlapping foregrounds (e.g. rapid app switches) can't interleave.
-	private func convergeWithServer(droppingId removedId: String?) async {
-		guard !hasPaginated else {
-			if let removedId { articles.removeAll { $0.id == removedId } }
-			return
-		}
+	/// Re-reads the first page and reconciles it through `adopt`, under an
+	/// in-flight guard so overlapping triggers (rapid app switches, a sheet
+	/// dismissal racing a foreground re-read) can't interleave. `adopt` still
+	/// holds a deep-scrolled viewport, so for the dismissal probe of a paginated
+	/// list the request serves as a bare authenticated probe whose body is
+	/// discarded.
+	private func reloadAndAdopt(droppingId removedId: String?) async {
 		guard !isLoading else { return }
 		isLoading = true
 		defer { isLoading = false }

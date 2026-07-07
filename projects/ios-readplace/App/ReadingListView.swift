@@ -66,12 +66,18 @@ struct ReadingListView: View {
 						break
 					}
 				}
-				.sheet(item: $viewModel.readerPresentation) { presentation in
+				// `onDismiss` (not the sheet's own close callbacks) carries the probe:
+				// it fires on every dismissal path, including an interactive swipe-down
+				// that never runs `onClose`, so a session killed inside the sheet (the
+				// account page's delete-account flow) is always discovered on close.
+				.sheet(item: $viewModel.readerPresentation, onDismiss: {
+					Task { await viewModel.handleWebSheetDismissal() }
+				}) { presentation in
 					ReaderSheet(
 						presentation: presentation,
 						mintSession: { await viewModel.mintReaderSession() },
 						onMarkedRead: {
-							if let id = presentation.articleId { Task { await viewModel.readerMarkedRead(id: id) } }
+							if let id = presentation.articleId { viewModel.readerMarkedRead(id: id) }
 							viewModel.readerPresentation = nil
 						},
 						onClose: { viewModel.readerPresentation = nil }

@@ -48,6 +48,7 @@ struct ReaderWebView: UIViewControllerRepresentable {
 		webView.customUserAgent = AppConfig.webViewUserAgent
 		webView.allowsBackForwardNavigationGestures = true
 		webView.navigationDelegate = context.coordinator
+		webView.uiDelegate = context.coordinator
 		controller.view = webView
 
 		// Inject the prefetched session cookie into the web view's own store before
@@ -61,7 +62,7 @@ struct ReaderWebView: UIViewControllerRepresentable {
 
 	func updateUIViewController(_ controller: UIViewController, context: Context) {}
 
-	final class Coordinator: NSObject, WKScriptMessageHandler, WKNavigationDelegate {
+	final class Coordinator: NSObject, WKScriptMessageHandler, WKNavigationDelegate, WKUIDelegate {
 		private let onMarkedRead: () -> Void
 		private let onClose: () -> Void
 		private let externalBrowser: ExternalBrowser
@@ -106,6 +107,31 @@ struct ReaderWebView: UIViewControllerRepresentable {
 				decisionHandler(.cancel)
 				externalBrowser.open(target) { _ in }
 			}
+		}
+
+		/// Without a UI delegate WKWebView suppresses JS dialogs and answers
+		/// `false`, so the account page's `hx-confirm`-gated "Delete account"
+		/// silently does nothing in-app. The panel-kind → dialog mapping is the
+		/// pure, unit-tested `WebDialog`; these hand the native answer straight to
+		/// WebKit's completion handler (exactly once on every path — `WebDialog`'s
+		/// contract). `prompt()` is deliberately unimplemented: no server page
+		/// uses it, and the suppressed default (nil) is the correct refusal.
+		func webView(
+			_ webView: WKWebView,
+			runJavaScriptConfirmPanelWithMessage message: String,
+			initiatedByFrame frame: WKFrameInfo,
+			completionHandler: @escaping (Bool) -> Void
+		) {
+			presentWebDialog(.confirm(message: message), over: webView) { completionHandler($0) }
+		}
+
+		func webView(
+			_ webView: WKWebView,
+			runJavaScriptAlertPanelWithMessage message: String,
+			initiatedByFrame frame: WKFrameInfo,
+			completionHandler: @escaping () -> Void
+		) {
+			presentWebDialog(.alert(message: message), over: webView) { _ in completionHandler() }
 		}
 	}
 }

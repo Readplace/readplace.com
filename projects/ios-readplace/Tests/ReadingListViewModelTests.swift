@@ -8,13 +8,16 @@ final class ReadingListViewModelTests: XCTestCase {
 		StubURLProtocol.reset()
 	}
 
-	private func makeViewModel(store: TokenStore) -> ReadingListViewModel {
+	private func makeViewModel(
+		store: TokenStore,
+		onSessionExpired: @escaping () -> Void = {}
+	) -> ReadingListViewModel {
 		let api = ReadplaceAPI(
 			baseURL: AppConfig.serverBaseURL,
 			store: store,
 			sessionConfiguration: TestSupport.stubbedConfiguration()
 		)
-		return ReadingListViewModel(api: api, onSessionExpired: {})
+		return ReadingListViewModel(api: api, onSessionExpired: onSessionExpired)
 	}
 
 	// MARK: - Add-links help (client-side)
@@ -735,22 +738,46 @@ final class ReadingListViewModelTests: XCTestCase {
 		XCTAssertNil(viewModel.errorText)
 	}
 
-	func testReaderMarkedReadDropsTheRowAndConvergesWithTheServer() async {
+	func testReaderMarkedReadDropsTheRowInstantlyWithoutItsOwnFetch() async {
 		// The reader's own POST already happened inside the webview, so the native
-		// side drops the row immediately and then converges with a fresh load —
-		// which also brings in an item marked unread on the website (w1).
-		let postAction = Fixtures.collection(
-			entitiesJSON: [Fixtures.article(id: "a2"), Fixtures.article(id: "w1")], total: 2
+		// side drops the row the moment the bridge fires — the unread-only list
+		// never shows it again behind the sheet — and issues no request of its own:
+		// reconciliation belongs to the converge the sheet's dismissal triggers.
+		StubURLProtocol.setHandler(markReadHandler { _ in .redirect(to: "/queue") })
+		let viewModel = makeViewModel(store: TestSupport.loggedInStore())
+		await viewModel.refresh()
+		let requestsAfterLoad = StubURLProtocol.records.count
+
+		viewModel.readerMarkedRead(id: "a1")
+
+		XCTAssertEqual(viewModel.articles.map(\.id), ["a2"], "the read row is gone before the sheet closes")
+		XCTAssertEqual(
+			StubURLProtocol.records.count, requestsAfterLoad,
+			"the reader already posted inside the webview; the drop itself fires nothing — the dismissal converge owns the re-read"
 		)
-		StubURLProtocol.setHandler(markReadHandler(laterQueue: postAction) { _ in .redirect(to: "/queue") })
+	}
+
+	func testWebSheetDismissalAfterReaderMarkedReadConvergesAndKeepsTheRowDropped() async {
+		// Closing the reader converges with the server: the fresh page brings in an
+		// item marked unread on the website (w1), while the row the reader just
+		// marked read stays dropped even though the eventually-consistent GET still
+		// lists it — the dismissal converge carries the reader's confirmed drop.
+		let staleServerTruth = Fixtures.collection(
+			entitiesJSON: [
+				Fixtures.article(id: "a1"), Fixtures.article(id: "a2"), Fixtures.article(id: "w1"),
+			],
+			total: 3
+		)
+		StubURLProtocol.setHandler(markReadHandler(laterQueue: staleServerTruth) { _ in .redirect(to: "/queue") })
 		let viewModel = makeViewModel(store: TestSupport.loggedInStore())
 		await viewModel.refresh()
 
-		await viewModel.readerMarkedRead(id: "a1")
+		viewModel.readerMarkedRead(id: "a1")
+		await viewModel.handleWebSheetDismissal()
 
 		XCTAssertEqual(
 			viewModel.articles.map(\.id), ["a2", "w1"],
-			"the read row is dropped and the convergence load is adopted"
+			"the convergence load is adopted minus the read row, which an eventually-consistent GET must not resurrect"
 		)
 		XCTAssertTrue(
 			StubURLProtocol.records.allSatisfy { $0.request.httpMethod != "POST" },
@@ -791,6 +818,137 @@ final class ReadingListViewModelTests: XCTestCase {
 			"at launch the initial load owns the fetch — the foreground hook does not race it with a second one"
 		)
 		XCTAssertTrue(viewModel.articles.isEmpty)
+	}
+
+	// MARK: - Web sheet dismissal
+
+	/// A two-page queue behind a flippable "account deleted" switch: once flipped,
+	/// the server behaves as `POST /account/delete` leaves it — every authenticated
+	/// call 401s and the token refresh is rejected (all sessions destroyed, all
+	/// OAuth tokens revoked).
+	private func deletableAccountHandler(
+		accountDeleted: @escaping () -> Bool
+	) -> (URLRequest, Data) -> StubURLProtocol.Stub {
+		let nextLink = """
+			,{ "rel": ["next"], "href": "/queue?page=2" }
+			"""
+		return { request, _ in
+			let url = request.url
+			if accountDeleted() {
+				return url?.path == "/oauth/token" ? .json(400, "{}") : .json(401, "{}")
+			}
+			switch (url?.path, url?.query) {
+			case ("/", _):
+				return .redirect(to: "/queue")
+			case ("/queue", let query) where query?.contains("page=2") == true:
+				return .json(200, Fixtures.collection(
+					entitiesJSON: [Fixtures.article(id: "a3"), Fixtures.article(id: "a4")], page: 2
+				))
+			case ("/queue", _):
+				return .json(200, Fixtures.collection(
+					entitiesJSON: [Fixtures.article(id: "a1"), Fixtures.article(id: "a2")], extraLinks: nextLink
+				))
+			default:
+				return .json(404, "{}")
+			}
+		}
+	}
+
+	func testWebSheetDismissalOnADeletedAccountFunnelsIntoOnSessionExpired() async {
+		// The user confirmed the account deletion inside the web sheet. Closing the
+		// sheet must discover the dead session immediately — even deep-scrolled,
+		// where the foreground converge is zero-network — and funnel into the
+		// existing onSessionExpired sign-out, rather than leaving the deleted
+		// account's cached list looking signed-in for the rest of the process.
+		var accountDeleted = false
+		StubURLProtocol.setHandler(deletableAccountHandler(accountDeleted: { accountDeleted }))
+		var sessionExpired = false
+		let viewModel = makeViewModel(
+			store: TestSupport.loggedInStore(),
+			onSessionExpired: { sessionExpired = true }
+		)
+		await viewModel.refresh()
+		await viewModel.loadMore()
+		XCTAssertEqual(viewModel.articles.map(\.id), ["a1", "a2", "a3", "a4"], "precondition: two pages are loaded")
+
+		accountDeleted = true
+		await viewModel.handleWebSheetDismissal()
+
+		XCTAssertTrue(
+			sessionExpired,
+			"the dismissal probe 401s against the deleted account, the refresh is rejected, and the failure reuses the existing onSessionExpired → forceLogout path"
+		)
+		XCTAssertEqual(
+			StubURLProtocol.records(path: "/oauth/token").count, 1,
+			"the probe went through the normal 401 plumbing: one refresh attempt, rejected because deletion revoked the tokens"
+		)
+	}
+
+	func testWebSheetDismissalOnADeepScrolledListProbesTheServerAndHoldsPosition() async {
+		// Unlike the foreground converge — zero-network once the list has paginated —
+		// the dismissal re-read must actually reach the server: it exists to discover
+		// a session the sheet's own page just killed. A live session's deep-scrolled
+		// list still holds its position: the fetched page (a sentinel [zzz] the
+		// client must not adopt) is discarded, so the probe never yanks the viewport.
+		let nextLink = """
+			,{ "rel": ["next"], "href": "/queue?page=2" }
+			"""
+		var page1GETs = 0
+		StubURLProtocol.setHandler { request, _ in
+			let url = request.url
+			switch (url?.path, url?.query) {
+			case ("/", _):
+				return .redirect(to: "/queue")
+			case ("/queue", let query) where query?.contains("page=2") == true:
+				return .json(200, Fixtures.collection(
+					entitiesJSON: [Fixtures.article(id: "a3"), Fixtures.article(id: "a4")], page: 2
+				))
+			case ("/queue", _):
+				page1GETs += 1
+				return page1GETs == 1
+					? .json(200, Fixtures.collection(
+						entitiesJSON: [Fixtures.article(id: "a1"), Fixtures.article(id: "a2")], extraLinks: nextLink
+					))
+					: .json(200, Fixtures.collection(entitiesJSON: [Fixtures.article(id: "zzz")]))
+			default:
+				return .json(404, "{}")
+			}
+		}
+		let viewModel = makeViewModel(store: TestSupport.loggedInStore())
+		await viewModel.refresh()
+		await viewModel.loadMore()
+		XCTAssertEqual(viewModel.articles.map(\.id), ["a1", "a2", "a3", "a4"], "precondition: two pages are loaded")
+
+		await viewModel.handleWebSheetDismissal()
+
+		XCTAssertEqual(page1GETs, 2, "the dismissal probe hits the network even when deep-scrolled")
+		XCTAssertEqual(
+			viewModel.articles.map(\.id), ["a1", "a2", "a3", "a4"],
+			"a live session's paginated list holds its position — the probe's body is discarded, not adopted"
+		)
+	}
+
+	func testWebSheetDismissalOnAShallowListConvergesWithTheServer() async {
+		// Closing the web sheet near the top adopts the fresh first page, so a
+		// change the sheet's own page made (an item saved via the /save page, s1)
+		// appears immediately — the probe doubles as the foreground reconciliation.
+		let postDismissal = Fixtures.collection(
+			entitiesJSON: [
+				Fixtures.article(id: "a1"), Fixtures.article(id: "a2"), Fixtures.article(id: "s1"),
+			],
+			total: 3
+		)
+		StubURLProtocol.setHandler(markReadHandler(laterQueue: postDismissal) { _ in .redirect(to: "/queue") })
+		let viewModel = makeViewModel(store: TestSupport.loggedInStore())
+		await viewModel.refresh()
+		XCTAssertEqual(viewModel.articles.map(\.id), ["a1", "a2"])
+
+		await viewModel.handleWebSheetDismissal()
+
+		XCTAssertEqual(
+			viewModel.articles.map(\.id), ["a1", "a2", "s1"],
+			"a shallow list adopts the post-dismissal server truth, so a change made inside the sheet shows without pull-to-refresh"
+		)
 	}
 
 	// MARK: - Reader

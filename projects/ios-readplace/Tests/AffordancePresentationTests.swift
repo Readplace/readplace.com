@@ -57,6 +57,18 @@ final class AffordancePresentationTests: XCTestCase {
 		XCTAssertTrue(presentation.isToolbarControl)
 	}
 
+	func testAccountMapsToANeutralPersonControlInTheToolbar() {
+		// The account link opens the server's /account page in the web sheet; a
+		// person glyph, not the generic unknown-token ellipsis, tells the user
+		// where their account (and its deletion, per Guideline 5.1.1(v)) lives.
+		let presentation = AffordancePresentation(token: "account")
+		XCTAssertEqual(presentation.systemImage, "person.crop.circle")
+		XCTAssertNil(presentation.tint)
+		XCTAssertFalse(presentation.isDestructive)
+		XCTAssertFalse(presentation.removesItem)
+		XCTAssertTrue(presentation.isToolbarControl)
+	}
+
 	func testStructuralLinkRelsAreNeverToolbarControls() {
 		// The client follows self/root/prev/next/item itself for pagination, identity,
 		// and item resolution; they are never rendered as user controls. `item` in
