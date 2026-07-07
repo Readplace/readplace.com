@@ -212,18 +212,25 @@ listing and a deliberate human submission. The moving parts:
    Push them with `bundle exec fastlane release screenshots:true` (or tick the
    checkbox on the Actions run) — `overwrite_screenshots` replaces whatever is
    in App Store Connect.
-3. **Manual, in App Store Connect** (the release lane deliberately does none of
+3. **App Review contact + demo account** ride the same push, from `prod`
+   environment secrets (never git — they are PII/credentials):
+   `ASC_REVIEW_FIRST_NAME`, `ASC_REVIEW_LAST_NAME`, `ASC_REVIEW_EMAIL`,
+   `ASC_REVIEW_PHONE` (format `+<country> <number>`), and optionally
+   `ASC_REVIEW_DEMO_USER` / `ASC_REVIEW_DEMO_PASSWORD`. All four contact
+   fields are required by App Store Connect to *create* the review detail;
+   until they exist (as secrets, or entered once by hand in ASC), a push that
+   includes review notes fails with "missing a required attribute
+   contactFirstName".
+4. **Manual, in App Store Connect** (the release lane deliberately does none of
    these): create the version in *Prepare for Submission* — its string must
    equal the attached build's `<major.minor>.<build>`, and every iOS-shipping
    merge mints a new build, so create it right before submitting; attach the
    build; complete the **App Privacy** labels (keep them consistent with
    `Shared/PrivacyInfo.xcprivacy`: email address, user ID, browsing history —
    all linked, none tracking), **age rating**, and **pricing & availability**;
-   enter the **App Review demo account** credentials (kept out of git on
-   purpose); answer the content-rights question (the reader displays
-   user-saved third-party articles); choose the release option; **Submit for
-   Review**.
-4. **After approval**: point the iPhone client's install URL
+   answer the content-rights question (the reader displays user-saved
+   third-party articles); choose the release option; **Submit for Review**.
+5. **After approval**: point the iPhone client's install URL
    (`src/packages/supported-clients/src/supported-clients.ts`) at the App
    Store listing instead of the TestFlight join link, and update the iPhone
    blog post's beta framing.

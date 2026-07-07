@@ -190,6 +190,26 @@ platform :ios do
       in_house: false,
     )
 
+    # Creating the App Review detail requires the four reviewer-contact
+    # attributes (contactFirstName/LastName/Email/Phone, phone in +<country>
+    # format) — with only notes.txt, App Store Connect rejects the create. The
+    # contact (and the optional demo account) is PII/credentials, so it comes
+    # from env (CI environment secrets), never from files in git. When the env
+    # is absent the hash is nil and review info comes from fastlane/metadata
+    # alone — which only works once the review detail already exists in ASC.
+    contact_keys = %w[ASC_REVIEW_FIRST_NAME ASC_REVIEW_LAST_NAME ASC_REVIEW_EMAIL ASC_REVIEW_PHONE]
+    review_information = if contact_keys.all? { |k| ENV[k].to_s.strip != "" }
+      {
+        first_name: ENV.fetch("ASC_REVIEW_FIRST_NAME"),
+        last_name: ENV.fetch("ASC_REVIEW_LAST_NAME"),
+        email_address: ENV.fetch("ASC_REVIEW_EMAIL"),
+        phone_number: ENV.fetch("ASC_REVIEW_PHONE"),
+        demo_user: ENV["ASC_REVIEW_DEMO_USER"],
+        demo_password: ENV["ASC_REVIEW_DEMO_PASSWORD"],
+        notes: File.read(File.join(PROJECT_ROOT, "fastlane", "metadata", "review_information", "notes.txt")),
+      }.compact
+    end
+
     upload_to_app_store(
       api_key: api_key,
       app_identifier: APP_ID,
@@ -208,6 +228,7 @@ platform :ios do
       # cwd is fastlane/, so anchor the trees to the project root explicitly.
       metadata_path: File.join(PROJECT_ROOT, "fastlane", "metadata"),
       screenshots_path: File.join(PROJECT_ROOT, "fastlane", "screenshots"),
+      app_review_information: review_information,
     )
   end
 end

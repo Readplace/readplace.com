@@ -69,3 +69,12 @@ jobs:
           ASC_ISSUER_ID: ${{ secrets.ASC_ISSUER_ID }}
           ASC_KEY_PATH: ./fastlane/secrets/AuthKey.p8
           TEAM_ID: ${{ secrets.ASC_TEAM_ID }}
+          # Reviewer contact (required by ASC to create the App Review detail;
+          # phone in +<country> format) and the optional demo account. PII and
+          # credentials live in environment secrets, never in git.
+          ASC_REVIEW_FIRST_NAME: ${{ secrets.ASC_REVIEW_FIRST_NAME }}
+          ASC_REVIEW_LAST_NAME: ${{ secrets.ASC_REVIEW_LAST_NAME }}
+          ASC_REVIEW_EMAIL: ${{ secrets.ASC_REVIEW_EMAIL }}
+          ASC_REVIEW_PHONE: ${{ secrets.ASC_REVIEW_PHONE }}
+          ASC_REVIEW_DEMO_USER: ${{ secrets.ASC_REVIEW_DEMO_USER }}
+          ASC_REVIEW_DEMO_PASSWORD: ${{ secrets.ASC_REVIEW_DEMO_PASSWORD }}
