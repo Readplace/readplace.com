@@ -47,6 +47,8 @@ import { AccountPage } from "./account.component";
 import {
 	type CardError,
 	type CardSectionViewModel,
+	DELETE_ACCOUNT_CONFIRMATION_FIELD,
+	DELETE_ACCOUNT_CONFIRMATION_PHRASE,
 	MAX_CARDS,
 	buildCardSectionViewModel,
 	parseAccountQuery,
@@ -56,6 +58,7 @@ import {
 	ACCOUNT_ERROR_ADD_CARD_FAILED_URL,
 	ACCOUNT_ERROR_CANNOT_REMOVE_PRIMARY_URL,
 	ACCOUNT_ERROR_CARD_LIMIT_URL,
+	ACCOUNT_ERROR_DELETE_CONFIRMATION_URL,
 	ACCOUNT_ERROR_PAYMENT_METHOD_URL,
 	buildAccountUrl,
 } from "./account.url";
@@ -336,6 +339,10 @@ export function initAccountRoutes(deps: AccountDependencies): Router {
 	router.post("/delete", async (req: Request, res: Response) => {
 		assert(req.userId, "userId required - route must be protected by requireAuth");
 		const userId = req.userId;
+		if (req.body?.[DELETE_ACCOUNT_CONFIRMATION_FIELD] !== DELETE_ACCOUNT_CONFIRMATION_PHRASE) {
+			res.redirect(303, ACCOUNT_ERROR_DELETE_CONFIRMATION_URL);
+			return;
+		}
 		await deps.destroyUserSessions(userId);
 		await deps.revokeAllUserOAuthTokens(userId);
 		res.clearCookie(SESSION_COOKIE_NAME, { path: "/" });

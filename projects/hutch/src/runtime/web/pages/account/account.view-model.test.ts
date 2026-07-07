@@ -30,7 +30,7 @@ describe("toAccountViewModel — state", () => {
 		};
 		const vm = toAccountViewModel(
 			access,
-			{ cancelling: false, errorPaymentMethod: false, cardError: undefined },
+			{ cancelling: false, errorPaymentMethod: false, deleteConfirmationError: false, cardError: undefined },
 			now,
 		);
 		assert.equal(vm.statusLine, "Your free trial ends on ");
@@ -53,7 +53,7 @@ describe("toAccountViewModel — state", () => {
 		};
 		const vm = toAccountViewModel(
 			access,
-			{ cancelling: false, errorPaymentMethod: false, cardError: undefined },
+			{ cancelling: false, errorPaymentMethod: false, deleteConfirmationError: false, cardError: undefined },
 			now,
 		);
 		assert.equal(vm.statusDateTail, " — 1 day left.");
@@ -62,7 +62,7 @@ describe("toAccountViewModel — state", () => {
 
 describe("toAccountViewModel — actions", () => {
 	const now = new Date();
-	const baseQuery = { cancelling: false, errorPaymentMethod: false, cardError: undefined };
+	const baseQuery = { cancelling: false, errorPaymentMethod: false, deleteConfirmationError: false, cardError: undefined };
 
 	it("founding members get no actions", () => {
 		const vm = toAccountViewModel(
@@ -85,6 +85,30 @@ describe("toAccountViewModel — actions", () => {
 		assert.equal(
 			vm.dangerAction.href,
 			"/account/delete?utm_source=account&utm_medium=internal&utm_content=delete-account",
+		);
+	});
+
+	it("exposes the typed-confirmation gate for the danger action", () => {
+		const vm = toAccountViewModel(
+			{ tier: "founding", access: "full", banner: "none" },
+			baseQuery,
+			now,
+		);
+		assert.equal(vm.dangerConfirmation.phrase, "delete my account permanently");
+		assert.equal(vm.dangerConfirmation.field, "confirmation");
+		assert.equal(vm.dangerConfirmation.hasNotice, false);
+	});
+
+	it("shows the confirmation notice after a rejected delete (error=delete_confirmation)", () => {
+		const vm = toAccountViewModel(
+			{ tier: "founding", access: "full", banner: "none" },
+			{ ...baseQuery, deleteConfirmationError: true },
+			now,
+		);
+		assert.equal(vm.dangerConfirmation.hasNotice, true);
+		assert.equal(
+			vm.dangerConfirmation.notice,
+			'Your account was not deleted. Type "delete my account permanently" exactly to confirm.',
 		);
 	});
 
@@ -206,8 +230,15 @@ describe("parseAccountQuery", () => {
 		assert.deepEqual(result, {
 			cancelling: false,
 			errorPaymentMethod: false,
+			deleteConfirmationError: false,
 			cardError: undefined,
 		});
+	});
+
+	it("parses the delete_confirmation error", () => {
+		const result = parseAccountQuery({ error: "delete_confirmation" });
+		assert.equal(result.deleteConfirmationError, true);
+		assert.equal(result.cardError, undefined);
 	});
 
 	it("parses the card_limit error", () => {

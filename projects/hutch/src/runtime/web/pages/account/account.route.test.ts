@@ -1276,11 +1276,14 @@ describe("POST /account/cards/confirm — post-attach cap reconciliation", () =>
 });
 
 describe("POST /account/delete", () => {
-	it("destroys the session, clears the cookie, and redirects to the logged-out home", async () => {
+	it("destroys the session, clears the cookie, and redirects to the logged-out home when the confirmation phrase is typed", async () => {
 		const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
 		const { agent } = await loginUser(harness, "delete-me@example.com");
 
-		const response = await agent.post("/account/delete");
+		const response = await agent
+			.post("/account/delete")
+			.type("form")
+			.send({ confirmation: "delete my account permanently" });
 
 		expect(response.status).toBe(303);
 		expect(response.headers.location).toBe("/");
@@ -1301,10 +1304,50 @@ describe("POST /account/delete", () => {
 		const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
 		const { agent } = await loginUser(harness, "delete-hx@example.com");
 
-		const response = await agent.post("/account/delete").set("HX-Request", "true");
+		const response = await agent
+			.post("/account/delete")
+			.set("HX-Request", "true")
+			.type("form")
+			.send({ confirmation: "delete my account permanently" });
 
 		expect(response.status).toBe(200);
 		expect(response.headers["hx-redirect"]).toBe("/");
+	});
+
+	it("rejects a delete without the confirmation phrase — session survives and the account page shows the notice", async () => {
+		const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
+		const { agent } = await loginUser(harness, "delete-unconfirmed@example.com");
+
+		const response = await agent.post("/account/delete");
+
+		expect(response.status).toBe(303);
+		expect(response.headers.location).toBe("/account?error=delete_confirmation");
+
+		// The session was never destroyed — the agent is still signed in.
+		const after = await agent.get("/account?error=delete_confirmation");
+		expect(after.status).toBe(200);
+		const doc = new JSDOM(after.text).window.document;
+		const notice = doc.querySelector("[data-test-danger-notice]");
+		assert(notice, "the rejected-delete notice must render");
+		expect(notice.textContent).toBe(
+			'Your account was not deleted. Type "delete my account permanently" exactly to confirm.',
+		);
+	});
+
+	it("rejects a delete whose confirmation phrase does not match exactly", async () => {
+		const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
+		const { agent } = await loginUser(harness, "delete-typo@example.com");
+
+		const response = await agent
+			.post("/account/delete")
+			.type("form")
+			.send({ confirmation: "Delete My Account Permanently" });
+
+		expect(response.status).toBe(303);
+		expect(response.headers.location).toBe("/account?error=delete_confirmation");
+
+		const after = await agent.get("/account");
+		expect(after.status).toBe(200);
 	});
 
 	it("redirects unauthenticated callers to /login", async () => {
@@ -1330,6 +1373,37 @@ describe("GET /account (danger zone)", () => {
 		expect(deleteForm.getAttribute("method")).toBe("POST");
 		expect(deleteForm.getAttribute("action")).toBe(
 			"/account/delete?utm_source=account&utm_medium=internal&utm_content=delete-account",
+		);
+	});
+
+	it("warns the deletion is irreversible and loses all data, and requires typing the confirmation phrase", async () => {
+		const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
+		const agent = await loginAgent(harness.server, harness.auth);
+
+		const response = await agent.get("/account");
+		const doc = new JSDOM(response.text).window.document;
+
+		const danger = doc.querySelector("[data-test-account-danger]");
+		assert(danger, "the danger zone must render");
+		expect(danger.textContent).toContain("This can't be undone — you will lose all your data.");
+
+		const input = danger.querySelector("[data-test-danger-confirm-input]");
+		assert(input, "the typed-confirmation input must render");
+		expect(input.getAttribute("name")).toBe("confirmation");
+		expect(input.hasAttribute("required")).toBe(true);
+		expect(input.getAttribute("pattern")).toBe("delete my account permanently");
+
+		const inputId = input.getAttribute("id");
+		assert(inputId, "the confirmation input must have an id for its label");
+		const label = danger.querySelector(`label[for="${inputId}"]`);
+		assert(label, "the confirmation input must be labelled");
+		expect(label.textContent).toContain('Type "delete my account permanently" to confirm');
+
+		const deleteForm = danger.querySelector('[data-test-danger-action="delete-account"]');
+		assert(deleteForm, "the delete-account form must render");
+		assert(
+			deleteForm.contains(input),
+			"the confirmation input must submit with the delete form",
 		);
 	});
 });

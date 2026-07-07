@@ -83,11 +83,18 @@
       </section>
       <section class="account-danger" data-test-account-danger>
         <h2 class="account-danger__heading">Danger zone</h2>
-        <p class="account-danger__body">Permanently delete your account, every saved article, and your reading history. This can't be undone.</p>
+        <p class="account-danger__body">Permanently delete your account, every saved article, and your reading history. This can't be undone — you will lose all your data.</p>
+        {{#if dangerConfirmation.hasNotice}}
+        <p class="account-danger__notice" data-test-danger-notice>{{dangerConfirmation.notice}}</p>
+        {{/if}}
         <form method="{{dangerAction.method}}" action="{{dangerAction.href}}" class="account-danger__action-form"
               hx-boost="true" hx-target="main" hx-select="main" hx-swap="outerHTML show:none"
-              hx-confirm="Delete your account for good? This permanently erases every saved article and your reading history. It can't be undone."
               data-test-danger-action="{{dangerAction.key}}">
+          <label class="account-danger__confirm-label" for="delete-account-confirmation">Type "{{dangerConfirmation.phrase}}" to confirm:</label>
+          <input type="text" id="delete-account-confirmation" class="account-danger__confirm-input"
+                 name="{{dangerConfirmation.field}}" required pattern="{{dangerConfirmation.phrase}}"
+                 title="{{dangerConfirmation.phrase}}" autocomplete="off" autocapitalize="off" spellcheck="false"
+                 data-test-danger-confirm-input>
           <button type="submit" class="account-card__action account-card__action--{{dangerAction.variant}}">{{dangerAction.name}}</button>
         </form>
       </section>

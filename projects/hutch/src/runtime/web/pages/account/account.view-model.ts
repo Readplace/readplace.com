@@ -16,6 +16,11 @@ import {
  * add/remove/promote re-reads the live card set and re-checks these rules. */
 export const MAX_CARDS = 3;
 
+export const DELETE_ACCOUNT_CONFIRMATION_PHRASE = "delete my account permanently";
+export const DELETE_ACCOUNT_CONFIRMATION_FIELD = "confirmation";
+
+const DELETE_CONFIRMATION_NOTICE = `Your account was not deleted. Type "${DELETE_ACCOUNT_CONFIRMATION_PHRASE}" exactly to confirm.`;
+
 export type AccountCardState =
 	| "founding"
 	| "active"
@@ -36,6 +41,13 @@ export interface AccountAction {
 	href: string;
 }
 
+export interface DangerConfirmationViewModel {
+	phrase: string;
+	field: string;
+	hasNotice: boolean;
+	notice: string;
+}
+
 export interface AccountViewModel {
 	state: AccountCardState;
 	stateClass: string;
@@ -52,6 +64,7 @@ export interface AccountViewModel {
 	/** The irreversible "delete account" control. Kept out of the state-dependent
 	 * `actions` array so the danger zone renders in every subscription state. */
 	dangerAction: AccountAction;
+	dangerConfirmation: DangerConfirmationViewModel;
 }
 
 function formatTrialDaysLeft(trialEndsAt: string, now: Date): { daysLeft: number; daysLeftWord: "day" | "days" } {
@@ -67,6 +80,7 @@ export type CardError = "card_limit" | "cannot_remove_primary" | "add_card_faile
 export interface AccountUrlState {
 	cancelling: boolean;
 	errorPaymentMethod: boolean;
+	deleteConfirmationError: boolean;
 	cardError: CardError | undefined;
 }
 
@@ -81,6 +95,7 @@ export function parseAccountQuery(query: Record<string, unknown> | undefined): A
 	return {
 		cancelling: query?.cancelling === "1",
 		errorPaymentMethod: query?.error === "payment_method",
+		deleteConfirmationError: query?.error === "delete_confirmation",
 		cardError: parseCardError(query?.error),
 	};
 }
@@ -301,6 +316,22 @@ export function toAccountViewModel(
 	queryState: AccountUrlState,
 	now: Date,
 ): AccountViewModel {
+	return {
+		...stateViewModel(access, queryState, now),
+		dangerConfirmation: {
+			phrase: DELETE_ACCOUNT_CONFIRMATION_PHRASE,
+			field: DELETE_ACCOUNT_CONFIRMATION_FIELD,
+			hasNotice: queryState.deleteConfirmationError,
+			notice: DELETE_CONFIRMATION_NOTICE,
+		},
+	};
+}
+
+function stateViewModel(
+	access: EffectiveAccess,
+	queryState: AccountUrlState,
+	now: Date,
+): Omit<AccountViewModel, "dangerConfirmation"> {
 	// Payment-method error takes priority over every underlying state — the user
 	// just bounced off Stripe's create-subscription endpoint.
 	if (queryState.errorPaymentMethod) {
