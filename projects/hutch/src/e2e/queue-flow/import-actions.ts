@@ -21,7 +21,7 @@ async function uploadUrlsAndOpenReview(
 	config: ImportActionsConfig,
 	urls: string[],
 ): Promise<void> {
-	await page.goto(`${config.baseUrl}/import`, { waitUntil: 'domcontentloaded' })
+	await page.goto(`${config.baseUrl}/import?mode=upload`, { waitUntil: 'domcontentloaded' })
 	await page.locator('[data-test-import-file-input]').setInputFiles({
 		name: 'links.txt',
 		mimeType: 'text/plain',

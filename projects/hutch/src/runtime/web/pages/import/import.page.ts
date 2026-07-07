@@ -63,17 +63,17 @@ interface ImportRouteDependencies extends SaveArticleFromUrlDependencies {
 }
 
 const UPLOAD_ERROR_REDIRECT = {
-	tooLarge: "/import?error_code=import_too_large",
-	noUrls: "/import?error_code=import_no_urls",
-	sessionNotFound: "/import?error_code=import_session_not_found",
+	tooLarge: "/import?mode=upload&error_code=import_too_large",
+	noUrls: "/import?mode=upload&error_code=import_no_urls",
+	sessionNotFound: "/import?mode=upload&error_code=import_session_not_found",
 } as const;
 
 const FROM_URL_ERROR_REDIRECT = {
-	invalid: "/import?mode=from-url&error_code=import_url_invalid",
-	fetchFailed: "/import?mode=from-url&error_code=import_url_fetch_failed",
-	unsupported: "/import?mode=from-url&error_code=import_url_unsupported",
-	tooLarge: "/import?mode=from-url&error_code=import_url_too_large",
-	noUrls: "/import?mode=from-url&error_code=import_url_no_links",
+	invalid: "/import?error_code=import_url_invalid",
+	fetchFailed: "/import?error_code=import_url_fetch_failed",
+	unsupported: "/import?error_code=import_url_unsupported",
+	tooLarge: "/import?error_code=import_url_too_large",
+	noUrls: "/import?error_code=import_url_no_links",
 } as const;
 
 export function initImportSessionRoutes(deps: ImportRouteDependencies): Router {

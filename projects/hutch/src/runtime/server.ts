@@ -546,6 +546,7 @@ export function createApp(dependencies: AppDependencies): Express {
 		const pages: { loc: string; priority: string; changefreq: string; lastmod: string }[] = [
 			{ loc: "/", priority: "1.0", changefreq: "weekly", lastmod: "2026-04-08" },
 			{ loc: "/install", priority: "0.8", changefreq: "monthly", lastmod: "2026-03-01" },
+			{ loc: "/import", priority: "0.8", changefreq: "monthly", lastmod: "2026-07-07" },
 			{ loc: "/login", priority: "0.5", changefreq: "yearly", lastmod: "2026-03-01" },
 			{ loc: "/signup", priority: "0.5", changefreq: "yearly", lastmod: "2026-03-01" },
 			{ loc: "/privacy", priority: "0.3", changefreq: "yearly", lastmod: "2026-03-01" },
@@ -778,7 +779,7 @@ export function createApp(dependencies: AppDependencies): Express {
 			res.type("application/pdf").send(E2E_FIXTURE_PDF);
 		});
 
-		/** Deterministic newsletter-style page for the /import?mode=from-url
+		/** Deterministic newsletter-style page for the /import paste-a-link
 		 * e2e flow. Same gating as the article fixture: present on staging and
 		 * dev, absent on the production Lambda. The `:label` segment lets tests
 		 * inject per-run-unique links so concurrent CI runs don't collide on

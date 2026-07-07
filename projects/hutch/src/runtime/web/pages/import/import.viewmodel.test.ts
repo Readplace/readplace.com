@@ -162,21 +162,26 @@ describe("toImportViewModel", () => {
 });
 
 describe("toImportAcquireViewModel", () => {
-	it("defaults the mode to upload when no mode is provided", () => {
+	it("defaults the mode to from-url when no mode is provided", () => {
 		const vm = toImportAcquireViewModel({});
-		expect(vm.mode).toBe("upload");
+		expect(vm.mode).toBe("from-url");
 		expect(vm.uploadAction).toBe("/import");
 		expect(vm.fromUrlAction).toBe("/import/from-url");
 	});
 
-	it("sets mode to from-url when mode=from-url", () => {
+	it("sets mode to upload when mode=upload", () => {
+		const vm = toImportAcquireViewModel({ mode: "upload" });
+		expect(vm.mode).toBe("upload");
+	});
+
+	it("keeps the legacy mode=from-url deep link on the from-url tab", () => {
 		const vm = toImportAcquireViewModel({ mode: "from-url" });
 		expect(vm.mode).toBe("from-url");
 	});
 
-	it("falls back to upload for an unrecognised mode value", () => {
+	it("falls back to from-url for an unrecognised mode value", () => {
 		const vm = toImportAcquireViewModel({ mode: "garbage" });
-		expect(vm.mode).toBe("upload");
+		expect(vm.mode).toBe("from-url");
 	});
 
 	it("passes through an error message when provided", () => {
@@ -189,17 +194,17 @@ describe("toImportAcquireViewModel", () => {
 		expect(vm.errors).toBeUndefined();
 	});
 
-	it("emits both tabs with the upload tab active by default", () => {
+	it("emits both tabs with the from-url tab active by default", () => {
 		const vm = toImportAcquireViewModel({});
-		expect(vm.tabs.map((t) => t.key)).toEqual(["upload", "from-url"]);
+		expect(vm.tabs.map((t) => t.key)).toEqual(["from-url", "upload"]);
 		expect(vm.tabs[0].isActive).toBe(true);
 		expect(vm.tabs[0].href).toBe("/import");
 		expect(vm.tabs[1].isActive).toBe(false);
-		expect(vm.tabs[1].href).toBe("/import?mode=from-url");
+		expect(vm.tabs[1].href).toBe("/import?mode=upload");
 	});
 
-	it("marks the from-url tab active when mode=from-url", () => {
-		const vm = toImportAcquireViewModel({ mode: "from-url" });
+	it("marks the upload tab active when mode=upload", () => {
+		const vm = toImportAcquireViewModel({ mode: "upload" });
 		expect(vm.tabs[0].isActive).toBe(false);
 		expect(vm.tabs[1].isActive).toBe(true);
 	});
@@ -212,13 +217,18 @@ describe("toImportAcquireViewModel", () => {
 		expect(vm.prefillUrl).toBe("https://news.ycombinator.com");
 	});
 
+	it("prefills the trimmed url when no mode param is given", () => {
+		const vm = toImportAcquireViewModel({ url: "  https://news.ycombinator.com  " });
+		expect(vm.prefillUrl).toBe("https://news.ycombinator.com");
+	});
+
 	it("leaves the prefill empty on the from-url tab when no url is provided", () => {
 		const vm = toImportAcquireViewModel({ mode: "from-url" });
 		expect(vm.prefillUrl).toBe("");
 	});
 
 	it("ignores a url param on the upload tab", () => {
-		const vm = toImportAcquireViewModel({ url: "https://news.ycombinator.com" });
+		const vm = toImportAcquireViewModel({ mode: "upload", url: "https://news.ycombinator.com" });
 		expect(vm.mode).toBe("upload");
 		expect(vm.prefillUrl).toBe("");
 	});

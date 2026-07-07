@@ -41,7 +41,6 @@ const IMPORT_CLIENT_SCRIPT = `<script src="/client-dist/import.client.js" defer>
 
 interface PanelConfig {
 	readonly template: string;
-	readonly canonicalUrl: string;
 	readonly scripts: string;
 }
 
@@ -140,30 +139,82 @@ export function ImportPage(vm: ImportViewModel): PageBody {
 const PANEL_CONFIG: Record<ImportMode, PanelConfig> = {
 	upload: {
 		template: IMPORT_UPLOAD_TEMPLATE,
-		canonicalUrl: "/import",
 		scripts: `${IMPORT_CLIENT_SCRIPT}${UPLOAD_AUTO_SUBMIT_SCRIPT}`,
 	},
 	"from-url": {
 		template: IMPORT_FROM_URL_PANEL_TEMPLATE,
-		canonicalUrl: "/import?mode=from-url",
 		scripts: `${IMPORT_CLIENT_SCRIPT}${FROM_URL_AUTO_SUBMIT_SCRIPT}`,
 	},
 };
 
+const IMPORT_FAQ: readonly { readonly question: string; readonly answer: string }[] = [
+	{
+		question: "Do I need an account to import?",
+		answer:
+			"No. Paste a link or upload a file and review the results straight away — an account is only asked for when you save the selection to your queue.",
+	},
+	{
+		question: "What file formats work?",
+		answer:
+			"Any text-shaped file: HTML, JSON, CSV, OPML, Markdown, or plain text. Readplace scans for http(s):// URLs, so the exact format doesn't matter.",
+	},
+	{
+		question: "How many links can I import at once?",
+		answer:
+			"Up to 2,000 links per import, from files up to 5 MiB. For anything larger, email the file to readplace+migrate@readplace.com and I import it by hand within 24 to 48 hours.",
+	},
+	{
+		question: "Is there a Pocket import?",
+		answer:
+			"Yes. Upload the HTML export file Pocket produced and every saved URL comes across; tags and read state don't, because Pocket's export never contained them.",
+	},
+	{
+		question: "Can I import links from a newsletter?",
+		answer:
+			"Paste the URL of the issue and Readplace lists every article it links to. The same works for blogrolls and link roundups.",
+	},
+];
+
+const IMPORT_DESCRIPTION =
+	"Paste a link or upload a bookmark, Pocket, or newsletter export and Readplace lists every URL for your reading queue. No account needed to start.";
+
 export function ImportAcquirePage(vm: ImportAcquireViewModel): PageBody {
 	const panel = PANEL_CONFIG[vm.mode];
 	const tabs = vm.tabs.map(renderTab);
-	const data = { ...vm, tabs, errorMessage: vm.errors?.[0]?.message };
+	const data = { ...vm, tabs, faq: IMPORT_FAQ, errorMessage: vm.errors?.[0]?.message };
 	const tabsHtml = render(IMPORT_TABS_TEMPLATE, data);
 	const panelHtml = render(panel.template, data);
 	const content = render(IMPORT_ACQUIRE_TEMPLATE, { ...data, tabsHtml, panelHtml });
 
 	return {
 		seo: {
-			title: "Import Links — Readplace",
-			description: "Upload an export file or paste a URL to import links into your queue.",
-			canonicalUrl: panel.canonicalUrl,
-			robots: "noindex, nofollow",
+			title: "Import Links into Your Reading Queue — Readplace",
+			description: IMPORT_DESCRIPTION,
+			canonicalUrl: "/import",
+			robots: "index, follow",
+			keywords:
+				"import links, import bookmarks, import links into a reading queue, import bookmarks to a read-it-later app, reading queue import, read-it-later import, bookmarks HTML import, newsletter link extractor, Pocket import, import reading list, bulk save links",
+			structuredData: [
+				{
+					"@context": "https://schema.org",
+					"@type": "WebPage",
+					"@id": "https://readplace.com/import",
+					name: "Import Links into Your Reading Queue",
+					url: "https://readplace.com/import",
+					description: IMPORT_DESCRIPTION,
+					isPartOf: { "@type": "WebSite", name: "Readplace", url: "https://readplace.com" },
+					about: { "@id": "https://readplace.com/#app" },
+				},
+				{
+					"@context": "https://schema.org",
+					"@type": "FAQPage",
+					mainEntity: IMPORT_FAQ.map((item) => ({
+						"@type": "Question",
+						name: item.question,
+						acceptedAnswer: { "@type": "Answer", text: item.answer },
+					})),
+				},
+			],
 		},
 		styles: IMPORT_STYLES,
 		bodyClass: "page-import",

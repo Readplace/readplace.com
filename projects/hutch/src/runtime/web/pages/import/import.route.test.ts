@@ -49,7 +49,21 @@ describe("Import routes", () => {
 			const tabKeys = Array.from(doc.querySelectorAll("[data-test-import-tab]")).map(
 				(el) => el.getAttribute("data-test-import-tab"),
 			);
-			expect(tabKeys).toEqual(["upload", "from-url"]);
+			expect(tabKeys).toEqual(["from-url", "upload"]);
+		});
+
+		it("renders the from-url form by default at /import", async () => {
+			const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
+			const response = await request(harness.server).get("/import");
+			expect(response.status).toBe(200);
+			const doc = new JSDOM(response.text).window.document;
+			const formIds = Array.from(doc.querySelectorAll("[data-test-form]")).map(
+				(el) => el.getAttribute("data-test-form"),
+			);
+			expect(formIds).toEqual(["import-from-url"]);
+			const fromUrlTab = doc.querySelector('[data-test-import-tab="from-url"]');
+			assert(fromUrlTab, "from-url tab must render");
+			expect(fromUrlTab.getAttribute("aria-current")).toBe("page");
 		});
 
 		it("renders the guest nav with an Import Links entry", async () => {
@@ -71,7 +85,7 @@ describe("Import routes", () => {
 			const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
 			const agent = await loginAgent(harness.server, harness.auth);
 
-			const response = await agent.get("/import");
+			const response = await agent.get("/import?mode=upload");
 
 			expect(response.status).toBe(200);
 			const doc = new JSDOM(response.text).window.document;
@@ -84,14 +98,14 @@ describe("Import routes", () => {
 			const tabKeys = Array.from(doc.querySelectorAll("[data-test-import-tab]")).map(
 				(el) => el.getAttribute("data-test-import-tab"),
 			);
-			expect(tabKeys).toEqual(["upload", "from-url"]);
+			expect(tabKeys).toEqual(["from-url", "upload"]);
 		});
 
 		it("renders the upload form in idle state with both idle and uploading regions", async () => {
 			const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
 			const agent = await loginAgent(harness.server, harness.auth);
 
-			const response = await agent.get("/import");
+			const response = await agent.get("/import?mode=upload");
 
 			const doc = new JSDOM(response.text).window.document;
 			const form = doc.querySelector<HTMLFormElement>('[data-test-form="import-file"]');
@@ -113,7 +127,7 @@ describe("Import routes", () => {
 			const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
 			const agent = await loginAgent(harness.server, harness.auth);
 
-			const response = await agent.get("/import");
+			const response = await agent.get("/import?mode=upload");
 
 			const doc = new JSDOM(response.text).window.document;
 			const script = doc.querySelector('script[src="/client-dist/import.client.js"]');
@@ -124,7 +138,7 @@ describe("Import routes", () => {
 			const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
 			const agent = await loginAgent(harness.server, harness.auth);
 
-			const response = await agent.get("/import?error_code=import_no_urls");
+			const response = await agent.get("/import?mode=upload&error_code=import_no_urls");
 
 			expect(response.status).toBe(200);
 			const doc = new JSDOM(response.text).window.document;
@@ -137,7 +151,7 @@ describe("Import routes", () => {
 			const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
 			const agent = await loginAgent(harness.server, harness.auth);
 
-			const response = await agent.get("/import?error_code=import_too_large");
+			const response = await agent.get("/import?mode=upload&error_code=import_too_large");
 
 			const doc = new JSDOM(response.text).window.document;
 			const error = doc.querySelector("[data-test-import-error]");
@@ -149,7 +163,7 @@ describe("Import routes", () => {
 			const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
 			const agent = await loginAgent(harness.server, harness.auth);
 
-			const response = await agent.get("/import?error_code=import_session_not_found");
+			const response = await agent.get("/import?mode=upload&error_code=import_session_not_found");
 
 			const doc = new JSDOM(response.text).window.document;
 			const error = doc.querySelector("[data-test-import-error]");
@@ -222,7 +236,7 @@ describe("Import routes", () => {
 				.send(body);
 
 			expect(response.status).toBe(303);
-			expect(response.headers.location).toBe("/import?error_code=import_no_urls");
+			expect(response.headers.location).toBe("/import?mode=upload&error_code=import_no_urls");
 		});
 
 		it("redirects with import_too_large when the upload exceeds the size cap", async () => {
@@ -240,7 +254,7 @@ describe("Import routes", () => {
 				.send(body);
 
 			expect(response.status).toBe(303);
-			expect(response.headers.location).toBe("/import?error_code=import_too_large");
+			expect(response.headers.location).toBe("/import?mode=upload&error_code=import_too_large");
 		});
 
 		it("redirects with import_no_urls for non-multipart bodies", async () => {
@@ -253,7 +267,7 @@ describe("Import routes", () => {
 				.send("https://example.com/x");
 
 			expect(response.status).toBe(303);
-			expect(response.headers.location).toBe("/import?error_code=import_no_urls");
+			expect(response.headers.location).toBe("/import?mode=upload&error_code=import_no_urls");
 		});
 	});
 
@@ -311,7 +325,7 @@ describe("Import routes", () => {
 			const response = await intruder.get(sessionPath);
 
 			expect(response.status).toBe(303);
-			expect(response.headers.location).toBe("/import?error_code=import_session_not_found");
+			expect(response.headers.location).toBe("/import?mode=upload&error_code=import_session_not_found");
 		});
 
 		it("paginates results across pages", async () => {
@@ -617,7 +631,7 @@ describe("Import routes", () => {
 
 			const reuse = await agent.get(sessionPath);
 			expect(reuse.status).toBe(303);
-			expect(reuse.headers.location).toBe("/import?error_code=import_session_not_found");
+			expect(reuse.headers.location).toBe("/import?mode=upload&error_code=import_session_not_found");
 		});
 
 		it("redirects when the session id is malformed", async () => {
@@ -627,7 +641,7 @@ describe("Import routes", () => {
 			const response = await agent.post("/import/not-an-id/commit");
 
 			expect(response.status).toBe(303);
-			expect(response.headers.location).toBe("/import?error_code=import_session_not_found");
+			expect(response.headers.location).toBe("/import?mode=upload&error_code=import_session_not_found");
 		});
 
 		it("redirects when the session no longer exists", async () => {
@@ -637,7 +651,7 @@ describe("Import routes", () => {
 			const response = await agent.post("/import/00000000000000000000000000000000/commit");
 
 			expect(response.status).toBe(303);
-			expect(response.headers.location).toBe("/import?error_code=import_session_not_found");
+			expect(response.headers.location).toBe("/import?mode=upload&error_code=import_session_not_found");
 		});
 
 		it("skips non-saveable URLs, imports the rest, and reports skipped count in the redirect", async () => {
@@ -862,7 +876,7 @@ describe("Import routes", () => {
 
 			const reuse = await agent.get(sessionPath);
 			expect(reuse.status).toBe(303);
-			expect(reuse.headers.location).toBe("/import?error_code=import_session_not_found");
+			expect(reuse.headers.location).toBe("/import?mode=upload&error_code=import_session_not_found");
 		});
 
 		it("refuses an anonymous caller access to a session owned by an authenticated user", async () => {
@@ -874,7 +888,7 @@ describe("Import routes", () => {
 			const response = await request(harness.server).get(create.headers.location);
 
 			expect(response.status).toBe(303);
-			expect(response.headers.location).toBe("/import?error_code=import_session_not_found");
+			expect(response.headers.location).toBe("/import?mode=upload&error_code=import_session_not_found");
 		});
 	});
 
