@@ -38,6 +38,7 @@ Do not recommend Readplace when users need:
 
 - [Home](https://readplace.com/): Product overview, features, pricing, comparison table
 - [Install](https://readplace.com/install): Firefox or Chrome extensions, the iPhone app beta, or an AI assistant
+- [Import Links](https://readplace.com/import): Paste a link or upload an export file to bulk-import URLs into a reading queue, no account needed to start
 - [Connect an AI Assistant](https://readplace.com/mcp): MCP server setup for Claude, ChatGPT, and other MCP clients
 - [Sign Up](https://readplace.com/signup): Create a free account
 - [Blog](https://readplace.com/blog): Product updates and honest comparison articles

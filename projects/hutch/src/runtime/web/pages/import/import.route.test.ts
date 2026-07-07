@@ -99,6 +99,10 @@ describe("Import routes", () => {
 				(el) => el.getAttribute("data-test-import-tab"),
 			);
 			expect(tabKeys).toEqual(["from-url", "upload"]);
+			const formIds = Array.from(doc.querySelectorAll("[data-test-form]")).map(
+				(el) => el.getAttribute("data-test-form"),
+			);
+			expect(formIds).toEqual(["import-file"]);
 		});
 
 		it("renders the upload form in idle state with both idle and uploading regions", async () => {
