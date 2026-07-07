@@ -10,6 +10,6 @@ SAVING ARTICLES
 NOTES FOR REVIEW
 - The app communicates only with https://readplace.com. The NSAllowsArbitraryLoadsInWebContent ATS exception exists solely so the reader and capture web views can load arbitrary user-saved article pages (some are http-only).
 - Readplace is a subscription service purchased on the web, not via In-App Purchase. The app is fully functional during the free trial and sells no digital content in-app.
-- Account deletion: [TO FINALIZE once the feature ships — e.g. "Settings > Delete Account, then confirm"].
+- Account deletion: in the Reading List, tap the person icon (Account) in the top-right toolbar — the account page opens in-app. Under "Danger zone", tap "Delete account" and confirm in the dialog. The account, every saved article, and the reading history are deleted immediately and the app returns to the sign-in screen. (The same flow exists on the web at readplace.com/account.)
 
 Demo account: see the App Review Information fields.

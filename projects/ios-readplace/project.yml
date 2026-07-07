@@ -8,10 +8,10 @@ options:
 
 settings:
   base:
-    # 0.1 is the major.minor source of truth; bump it here to start a new line.
+    # 1.0 is the major.minor source of truth; bump it here to start a new line.
     # In CI the patch is overridden to the build counter, so TestFlight shows
     # <major.minor>.<build>. The literal patch here is only the local `make ipa` default.
-    MARKETING_VERSION: "0.1.0"
+    MARKETING_VERSION: "1.0.0"
     CURRENT_PROJECT_VERSION: "1"
     SWIFT_VERSION: "5.9"
     # Pin the permissive (default) concurrency checking so the app compiles

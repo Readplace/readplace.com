@@ -1,0 +1,71 @@
+name: Publish iOS App Store metadata
+
+# Pushes the App Store listing metadata (fastlane/metadata, optionally
+# fastlane/screenshots) to App Store Connect as a DRAFT via the fastlane
+# `release` lane. Never uploads a binary and never submits for review —
+# submission stays a deliberate human step in App Store Connect. Manual-only:
+# the listing changes rarely and a push should be a deliberate act, unlike the
+# TestFlight beta lane which ships on every iOS code change.
+#
+# Runs on ubuntu: the release lane is pure App Store Connect API (no xcodebuild,
+# no signing), so it needs none of the macOS/Xcode/match setup the beta lane has.
+on:
+  workflow_dispatch:
+    inputs:
+      screenshots:
+        description: "Also push fastlane/screenshots (overwrites the sets in App Store Connect)"
+        type: boolean
+        default: false
+
+concurrency:
+  group: ios-appstore-metadata
+  cancel-in-progress: false
+
+jobs:
+  metadata:
+    runs-on: ubuntu-latest
+    environment: prod
+    permissions:
+      contents: read
+    defaults:
+      run:
+        working-directory: projects/ios-readplace
+    steps:
+      - uses: actions/checkout@v6
+
+      # If the publishing secrets aren't set, skip cleanly instead of red-failing
+      # the run — mirrors the TestFlight publish workflow.
+      - id: preflight
+        env:
+          ASC_KEY_ID: ${{ secrets.ASC_KEY_ID }}
+        run: |
+          if [ -n "$ASC_KEY_ID" ]; then
+            echo "configured=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "configured=false" >> "$GITHUB_OUTPUT"
+            echo "::notice::App Store Connect secrets not configured — skipping metadata push."
+          fi
+
+      - uses: ruby/setup-ruby@v1
+        if: steps.preflight.outputs.configured == 'true'
+        with:
+          ruby-version: '3.3'
+          bundler-cache: true
+          working-directory: projects/ios-readplace
+
+      - name: Write the App Store Connect API key
+        if: steps.preflight.outputs.configured == 'true'
+        env:
+          ASC_KEY_P8_BASE64: ${{ secrets.ASC_KEY_P8_BASE64 }}
+        run: |
+          mkdir -p fastlane/secrets
+          printf '%s' "$ASC_KEY_P8_BASE64" | base64 --decode > fastlane/secrets/AuthKey.p8
+
+      - name: Push listing metadata draft to App Store Connect
+        if: steps.preflight.outputs.configured == 'true'
+        run: bundle exec fastlane release screenshots:${{ inputs.screenshots }}
+        env:
+          ASC_KEY_ID: ${{ secrets.ASC_KEY_ID }}
+          ASC_ISSUER_ID: ${{ secrets.ASC_ISSUER_ID }}
+          ASC_KEY_PATH: ./fastlane/secrets/AuthKey.p8
+          TEAM_ID: ${{ secrets.ASC_TEAM_ID }}

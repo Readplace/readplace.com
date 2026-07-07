@@ -194,3 +194,36 @@ reset would need a different counter design.
 Until these are set the workflow **skips cleanly** (no red run). Once set, every
 push that changes the app's shipping code builds and uploads a new internal
 TestFlight build automatically.
+
+## Releasing to the App Store
+
+TestFlight ships automatically (above); a full App Store release adds the
+listing and a deliberate human submission. The moving parts:
+
+1. **Listing metadata** lives in `fastlane/metadata/` — including the App
+   Review notes (`review_information/notes.txt`) and the primary category. The
+   `release` lane pushes it to App Store Connect as a **draft**: run
+   `bundle exec fastlane release` locally (same `fastlane/.env` as `beta`) or
+   trigger **Publish iOS App Store metadata** from the Actions tab (same `prod`
+   environment secrets; no Mac needed). It requires an App Store version in
+   *Prepare for Submission* and never uploads a binary or submits for review.
+2. **Screenshots** live under `fastlane/screenshots/en-US/` (iPhone 6.9″-slot
+   sizes: 1320×2868 or 1290×2796; the app is iPhone-only so no iPad set).
+   Push them with `bundle exec fastlane release screenshots:true` (or tick the
+   checkbox on the Actions run) — `overwrite_screenshots` replaces whatever is
+   in App Store Connect.
+3. **Manual, in App Store Connect** (the release lane deliberately does none of
+   these): create the version in *Prepare for Submission* — its string must
+   equal the attached build's `<major.minor>.<build>`, and every iOS-shipping
+   merge mints a new build, so create it right before submitting; attach the
+   build; complete the **App Privacy** labels (keep them consistent with
+   `Shared/PrivacyInfo.xcprivacy`: email address, user ID, browsing history —
+   all linked, none tracking), **age rating**, and **pricing & availability**;
+   enter the **App Review demo account** credentials (kept out of git on
+   purpose); answer the content-rights question (the reader displays
+   user-saved third-party articles); choose the release option; **Submit for
+   Review**.
+4. **After approval**: point the iPhone client's install URL
+   (`src/packages/supported-clients/src/supported-clients.ts`) at the App
+   Store listing instead of the TestFlight join link, and update the iPhone
+   blog post's beta framing.
