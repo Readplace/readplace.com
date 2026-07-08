@@ -1,0 +1,44 @@
+name: CI Soak
+
+on:
+  workflow_dispatch:
+
+jobs:
+  soak:
+    strategy:
+      fail-fast: false
+      matrix:
+        run:
+          [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20]
+    runs-on: ubuntu-latest
+    environment: staging
+    env:
+      AWS_ACCESS_KEY_ID: ${{ secrets.AWS_ACCESS_KEY_ID }}
+      AWS_SECRET_ACCESS_KEY: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+      AWS_REGION: ap-southeast-2
+      PULUMI_BACKEND_URL: s3://hutch-pulumi-state-572337278115-ap-southeast-2
+      PULUMI_STACK: staging
+      PULUMI_CONFIG_PASSPHRASE: ''
+      PERSISTENCE: development
+      STATIC_BASE_URL: 'https://static-staging.readplace.com'
+    steps:
+      - uses: actions/checkout@v6
+
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 9.15.0
+
+      - uses: actions/setup-node@v6
+        with:
+          node-version: 22
+          cache: pnpm
+
+      - run: pnpm install --frozen-lockfile --reporter=append-only --loglevel=warn
+
+      - uses: actions/cache@v4
+        with:
+          path: ~/.cache/ms-playwright
+          key: playwright-${{ runner.os }}-${{ hashFiles('pnpm-lock.yaml') }}
+          restore-keys: playwright-${{ runner.os }}-
+
+      - run: pnpm check
