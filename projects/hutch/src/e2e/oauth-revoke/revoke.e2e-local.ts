@@ -1,4 +1,4 @@
-import { test } from '@playwright/test'
+import { test } from '../hermetic-cdn'
 import { requireEnv } from '@packages/require-env'
 import { runOAuthRevokeFlow } from './oauth-revoke-flow'
 

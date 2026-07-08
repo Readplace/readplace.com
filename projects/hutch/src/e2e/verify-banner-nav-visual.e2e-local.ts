@@ -1,5 +1,6 @@
 import assert from "node:assert/strict";
-import { expect, test, type Page } from "@playwright/test";
+import type { Page } from "@playwright/test";
+import { expect, test, waitForBrandFonts } from "./hermetic-cdn";
 
 const E2E_PORT = process.env.E2E_PORT;
 assert(E2E_PORT, "E2E_PORT must be set by the Playwright webServer config");
@@ -62,7 +63,7 @@ async function openReaderAsUnverified(page: Page, email: string): Promise<void> 
 		waitUntil: "domcontentloaded",
 	});
 	await page.waitForSelector("[data-article-body]");
-	await page.evaluate(FONTS_READY);
+	await waitForBrandFonts(page, ["Inter", "Font Awesome 6 Free"]);
 	// Confirms we are authenticated-but-unverified before we measure or capture:
 	// this copy only renders for a counting-down verification state.
 	await expect(page.locator("[data-test-verify-banner]")).toContainText(

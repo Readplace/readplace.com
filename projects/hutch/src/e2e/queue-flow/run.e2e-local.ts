@@ -1,4 +1,4 @@
-import { test } from '@playwright/test'
+import { test } from '../hermetic-cdn'
 import { createBannerOnReaderActions, type BannerOnReaderProgress } from './banner-on-reader-actions'
 import { createCleanupActions, type CleanupProgress } from './cleanup-actions'
 import { createImportActions, type ImportProgress } from './import-actions'
