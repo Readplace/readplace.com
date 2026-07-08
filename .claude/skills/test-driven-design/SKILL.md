@@ -154,6 +154,10 @@ Use TypeScript's type system to prevent invalid states at compile time.
 type SupportedLocale = 'en-US';
 ```
 
+### Deterministic Opt-Outs for Environment-Driven UI
+
+UI that reacts to timers, wall clock, or host state (`navigator.onLine`, network speed, installed fonts) ships with a deterministic suppression hook (a storage flag, a state class) so tests can neutralize it — otherwise every such element is a latent visual-test flake. See [Determinism and Hermeticity in the e2e-testing skill](../e2e-testing/SKILL.md#determinism-and-hermeticity).
+
 ### Internal Contracts Are Not Versioned — Prefer Required Fields
 
 Contracts consumed only inside this monorepo — EventBridge / SQS event and command schemas, function and provider types, DynamoDB row schemas — carry **no** backward-compatibility obligation. Every producer and consumer lives in this repo and deploys together, so make new fields **required** and update all callers in the same change. The compiler then guarantees no producer can drop the field: an omission is a build error, not a silent runtime gap.
