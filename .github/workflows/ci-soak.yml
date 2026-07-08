@@ -20,7 +20,7 @@ jobs:
       PULUMI_STACK: staging
       PULUMI_CONFIG_PASSPHRASE: ''
       PERSISTENCE: development
-      STATIC_BASE_URL: 'https://static-staging.readplace.com'
+      STATIC_BASE_URL: ''
     steps:
       - uses: actions/checkout@v6
 
