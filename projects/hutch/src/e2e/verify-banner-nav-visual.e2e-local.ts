@@ -81,6 +81,7 @@ async function settleNarrow(page: Page): Promise<void> {
 	await page.setViewportSize(NARROW);
 	await page.evaluate(() => {
 		document.querySelector(".trial-countdown")?.remove();
+		document.querySelector(".offline-banner")?.remove();
 	});
 	await page.evaluate(FONTS_READY);
 }
