@@ -509,17 +509,22 @@ export function createQueueActions(
         return isOnPage(page, 'page-queue')
       },
       execute: async (page) => {
-        let count = await page.locator('[data-test-action="delete"]').count()
+        const deleteButtons = page.locator('[data-test-action="delete"]')
+        let count = await deleteButtons.count()
         while (count > 0) {
-          await clickAndWaitForPageReload(page, page.locator('[data-test-action="delete"]').first())
-          count = await page.locator('[data-test-action="delete"]').count()
+          const before = count
+          await clickAndWaitForPageReload(page, deleteButtons.first())
+          await expect.poll(() => deleteButtons.count(), { timeout: 15000 }).toBeLessThan(before)
+          count = await deleteButtons.count()
         }
 
         await page.goto('/queue?tab=done', { waitUntil: 'domcontentloaded' })
-        count = await page.locator('[data-test-action="delete"]').count()
+        count = await deleteButtons.count()
         while (count > 0) {
-          await clickAndWaitForPageReload(page, page.locator('[data-test-action="delete"]').first())
-          count = await page.locator('[data-test-action="delete"]').count()
+          const before = count
+          await clickAndWaitForPageReload(page, deleteButtons.first())
+          await expect.poll(() => deleteButtons.count(), { timeout: 15000 }).toBeLessThan(before)
+          count = await deleteButtons.count()
         }
 
         progress.cleanupDeleted = true
