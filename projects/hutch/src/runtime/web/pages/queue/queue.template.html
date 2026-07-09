@@ -5,15 +5,16 @@
       </div>
       <aside class="queue-banner {{subscriptionBannerStateClass}}" aria-live="polite" data-test-subscription-banner>
         {{#if subscriptionBannerIsTrialCountdown}}
-        <p class="queue-banner__message"><strong data-test-trial-days-left>{{trialDaysLeft}} {{trialDaysLeftWord}} left</strong> in your free trial.</p>
-        <a class="queue-banner__cta" href="{{track '/account' source='queue-banner' content='subscribe'}}">Subscribe — $49/year</a>
+        <p class="queue-banner__message" data-test-banner-message><strong data-test-trial-days-left>{{trialDaysLeft}} {{trialDaysLeftWord}} left</strong> in your free trial.</p>
+        <a class="queue-banner__cta" href="{{track '/account' source='queue-banner' content='subscribe'}}" data-test-action="subscribe">{{subscribeCtaLabel}}</a>
         {{/if}}
         {{#if subscriptionBannerIsCancellationScheduled}}
-        <p class="queue-banner__message"><strong>Subscription ending {{cancellationEffectiveAt}}.</strong> You still have full access until then.</p>
-        <a class="queue-banner__cta" href="{{track '/account' source='queue-banner' content='reactivate'}}">Reactivate</a>
+        <p class="queue-banner__message" data-test-banner-message><strong>Subscription ending {{cancellationEffectiveAt}}.</strong> You still have full access until then.</p>
+        <a class="queue-banner__cta" href="{{track '/account' source='queue-banner' content='reactivate'}}" data-test-action="reactivate">Reactivate</a>
         {{/if}}
         {{#if subscriptionBannerIsInactive}}
-        <p class="queue-banner__message"><strong>Subscription not active.</strong> Your saved articles are still here.</p>
+        <p class="queue-banner__message" data-test-banner-message><strong>Subscription not active.</strong> Your saved articles are still here.</p>
+        <a class="queue-banner__cta" href="{{track '/account' source='queue-banner' content='resubscribe'}}" data-test-action="resubscribe">{{subscribeCtaLabel}}</a>
         {{/if}}
       </aside>
       {{{statusToastHtml}}}

@@ -1,5 +1,5 @@
 export { render } from "./render";
-export { ANNUAL_PRICE_DISPLAY } from "./pricing";
+export { ANNUAL_PRICE_DISPLAY, SUBSCRIBE_CTA_LABEL } from "./pricing";
 export { withInternalTracking } from "./internal-link-tracking";
 export type { Component, ParsedComponent, SupportedMediaType } from "./component.types";
 export type { PageBody, SeoMetadata } from "./page-body.types";

@@ -4,7 +4,7 @@ import { NAV_HIDE_SCRIPT } from "../../shared/reader-nav-script";
 import { OnboardingChecklist, ONBOARDING_STYLES } from "../../onboarding/onboarding.component";
 import type { Platform } from "../../onboarding/onboarding.types";
 import type { DeviceClass } from "../../middleware/analytics";
-import { render, withInternalTracking } from "@packages/web-shell";
+import { render, withInternalTracking, SUBSCRIBE_CTA_LABEL } from "@packages/web-shell";
 import type { PageBody } from "@packages/web-shell";
 
 import { QUEUE_STYLES } from "./queue.styles";
@@ -53,6 +53,7 @@ interface QueueDisplayModel {
 	subscriptionBannerIsTrialCountdown: boolean;
 	subscriptionBannerIsCancellationScheduled: boolean;
 	subscriptionBannerIsInactive: boolean;
+	subscribeCtaLabel: string;
 	trialDaysLeft?: number;
 	trialDaysLeftWord?: string;
 	cancellationEffectiveAt?: string;
@@ -156,6 +157,7 @@ function toQueueDisplayModel(vm: QueueViewModel, options: { installed: boolean; 
 		subscriptionBannerIsTrialCountdown: banner.state === "trial-countdown",
 		subscriptionBannerIsCancellationScheduled: banner.state === "cancellation-scheduled",
 		subscriptionBannerIsInactive: banner.state === "inactive",
+		subscribeCtaLabel: SUBSCRIBE_CTA_LABEL,
 		trialDaysLeft: banner.state === "trial-countdown" ? banner.daysLeft : undefined,
 		trialDaysLeftWord: banner.state === "trial-countdown" ? banner.daysLeftWord : undefined,
 		cancellationEffectiveAt: banner.state === "cancellation-scheduled" ? banner.cancellationEffectiveAt : undefined,
