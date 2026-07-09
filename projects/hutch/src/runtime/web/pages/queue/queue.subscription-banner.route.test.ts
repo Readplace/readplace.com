@@ -140,7 +140,10 @@ describe("Queue page banner state", () => {
 		const cta = banner.querySelector(".queue-banner__cta");
 		assert(cta, "inactive banner must offer a subscribe CTA");
 		expect(cta.textContent).toBe("Subscribe — $49/year");
-		expect(cta.getAttribute("href")).toContain("/account");
+		const ctaHref = cta.getAttribute("href");
+		assert(ctaHref, "inactive banner CTA must have an href");
+		expect(ctaHref).toContain("/account");
+		expect(ctaHref).toContain("utm_content=resubscribe");
 	});
 
 	it("flips the header countdown to 'Subscription not active' for a cancelled user too, with the same wording as trial-expired", async () => {
