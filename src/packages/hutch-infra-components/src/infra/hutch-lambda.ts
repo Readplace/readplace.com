@@ -165,7 +165,6 @@ export class HutchLambda extends pulumi.ComponentResource {
 	public readonly arn: pulumi.Output<string>;
 	public readonly role: aws.iam.Role;
 	public readonly logGroupName: pulumi.Output<string>;
-	public readonly logGroupArn: pulumi.Output<string>;
 
 	constructor(
 		name: string,
@@ -337,7 +336,6 @@ export class HutchLambda extends pulumi.ComponentResource {
 		this.functionName = lambdaFunction.name;
 		this.arn = lambdaFunction.arn;
 		this.logGroupName = logGroup.name;
-		this.logGroupArn = logGroup.arn;
 		this.registerOutputs();
 	}
 }
