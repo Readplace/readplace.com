@@ -1,0 +1,8 @@
+import assert from "node:assert/strict";
+import { <%= propertyName %> } from "./<%= name %>";
+
+describe("<%= propertyName %>", () => {
+	it("returns the package name", () => {
+		assert.equal(<%= propertyName %>(), "<%= packageName %>");
+	});
+});

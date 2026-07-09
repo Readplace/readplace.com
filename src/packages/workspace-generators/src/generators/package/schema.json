@@ -1,0 +1,19 @@
+{
+  "$schema": "https://json-schema.org/schema",
+  "$id": "hutch-workspace-package",
+  "title": "Scaffold a shared package under src/packages from the workspace's standard template",
+  "type": "object",
+  "properties": {
+    "name": {
+      "type": "string",
+      "description": "Package directory name (kebab-case); the package joins the workspace as @packages/<name>",
+      "$default": { "$source": "argv", "index": 0 }
+    },
+    "description": {
+      "type": "string",
+      "description": "One-sentence description recorded in the generated package.json"
+    }
+  },
+  "required": ["name", "description"],
+  "additionalProperties": false
+}

@@ -1,0 +1,17 @@
+{
+  "$schema": "https://json-schema.org/schema",
+  "name": "@packages/workspace-generators",
+  "version": "1.0.0",
+  "generators": {
+    "package": {
+      "factory": "./dist/generators/package/generator.js",
+      "schema": "./dist/generators/package/schema.json",
+      "description": "Scaffold a shared workspace package under src/packages from the workspace's standard template"
+    },
+    "project": {
+      "factory": "./dist/generators/project/generator.js",
+      "schema": "./dist/generators/project/schema.json",
+      "description": "Scaffold a project under projects/ from the workspace's standard template"
+    }
+  }
+}

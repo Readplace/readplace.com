@@ -1,0 +1,25 @@
+{
+  "name": "<%= name %>",
+  "targets": {
+    "install-deps": {
+      "command": "test -d projects/<%= name %>/node_modules || pnpm install --frozen-lockfile",
+      "options": { "cwd": "{workspaceRoot}" },
+      "cache": false
+    },
+    "compile": {
+      "dependsOn": ["install-deps", "^compile"]
+    },
+    "check": {
+      "command": "true",
+      "options": { "cwd": "{projectRoot}" },
+      "dependsOn": ["lint", "test-with-coverage"]
+    },
+    "lint": {
+      "dependsOn": ["compile"]
+    },
+    "test-with-coverage": {
+      "dependsOn": ["compile"]
+    },
+    "test": {}
+  }
+}
