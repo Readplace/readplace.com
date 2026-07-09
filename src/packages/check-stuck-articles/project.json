@@ -2,7 +2,7 @@
   "name": "@packages/check-stuck-articles",
   "targets": {
     "check": {
-      "command": "pnpm check",
+      "command": "pnpm lint && pnpm test",
       "options": { "cwd": "{projectRoot}" },
       "dependsOn": ["compile"]
     },

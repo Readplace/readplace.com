@@ -4,5 +4,6 @@ export default {
 	ignoreBinaries: [
 		"knip",
 		"biome",
+		"nx",
 	],
 } satisfies KnipConfig;

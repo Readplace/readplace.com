@@ -15,7 +15,7 @@
     "compile": "rm -rf dist && tsc",
     "lint": "concurrently --kill-others-on-fail \"tsc --project tsconfig.lint.json\" \"biome lint src\" \"knip\"",
     "test": "echo 'No testable logic — thin wrapper over AWS SDK, tested via consumers'",
-    "check": "pnpm lint",
+    "check": "nx run @packages/hutch-storage-client:check",
     "check-infra": "echo 'No infrastructure — shared library'"
   },
   "dependencies": {

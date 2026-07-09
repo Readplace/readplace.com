@@ -8,6 +8,7 @@ export default {
 	ignoreBinaries: [
 		"knip",
 		"biome",
+		"nx",
 	],
 	jest: {
 		entry: ["src/**/*.test.ts"],

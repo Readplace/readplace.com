@@ -6,5 +6,5 @@ export default {
 		"scripts/collect-failed-rows.ts",
 		"scripts/exclude-patterns.ts",
 	],
-	ignoreBinaries: ["knip", "biome"],
+	ignoreBinaries: ["knip", "biome", "nx"],
 } satisfies KnipConfig;

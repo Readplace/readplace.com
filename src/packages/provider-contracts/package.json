@@ -143,7 +143,7 @@
   "scripts": {
     "compile": "rm -rf dist && tsc",
     "lint": "concurrently --kill-others-on-fail \"tsc --project tsconfig.lint.json\" \"biome lint src\" \"knip\"",
-    "check": "pnpm lint",
+    "check": "nx run @packages/provider-contracts:check",
     "check-infra": "echo 'No infrastructure — shared library'"
   },
   "dependencies": {

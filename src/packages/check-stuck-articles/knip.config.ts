@@ -6,5 +6,5 @@ export default {
 		"scripts/classify-row.ts",
 		"scripts/collect-stuck-rows.ts",
 	],
-	ignoreBinaries: ["knip", "biome"],
+	ignoreBinaries: ["knip", "biome", "nx"],
 } satisfies KnipConfig;
