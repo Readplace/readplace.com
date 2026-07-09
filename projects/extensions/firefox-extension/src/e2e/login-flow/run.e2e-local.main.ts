@@ -6,6 +6,8 @@ import { Builder, By } from "selenium-webdriver";
 import { Options, Driver } from "selenium-webdriver/firefox";
 import { FlowRunner, ExtensionStateHandler } from "browser-extension-core/e2e";
 import {
+	waitForServer,
+	SUITE_FAILSAFE_MS,
 	createSeleniumElementQueries,
 	createSeleniumNavigation,
 	createLoginActions,
@@ -17,6 +19,7 @@ import {
 	type SaveLinkProgress,
 	type FilterProgress,
 	type LogoutProgress,
+	waitForUi,
 } from "browser-extension-core/e2e-actions";
 
 const ADDON_ID = "hutch-extension@hutch-app.com";
@@ -32,17 +35,26 @@ const TEST_PORT = Number(process.env.E2E_PORT);
 const TEST_LINK_URL = "https://example.com/test-article";
 const TEST_LINK_TITLE = "Test Article";
 
-async function waitForServer(port: number, timeoutMs: number): Promise<void> {
-	const deadline = Date.now() + timeoutMs;
-	while (Date.now() < deadline) {
+// The suite must always end: a test cancelled by --test-timeout skips its
+// teardown, and the orphaned e2e-server child then holds this process open
+// forever (observed hanging a 20x soak for 12+ minutes against a 90s test
+// timeout). Reap the server group on any exit, and hard-exit past the
+// failsafe deadline. unref() keeps the timer itself from holding the loop.
+function armSuiteFailsafe(server: ChildProcess): void {
+	const reapServerGroup = () => {
+		if (server.pid === undefined || server.exitCode !== null) return;
 		try {
-			await fetch(`http://127.0.0.1:${port}/`, { redirect: "manual" });
-			return;
+			process.kill(-server.pid, "SIGKILL");
 		} catch {
-			await new Promise((r) => setTimeout(r, 100));
+			server.kill("SIGKILL");
 		}
-	}
-	throw new Error(`e2e server did not start on port ${port} within ${timeoutMs}ms`);
+	};
+	process.on("exit", reapServerGroup);
+	setTimeout(() => {
+		console.error(`suite failsafe: still running after ${SUITE_FAILSAFE_MS}ms, force-exiting`);
+		reapServerGroup();
+		process.exit(1);
+	}, SUITE_FAILSAFE_MS).unref();
 }
 
 async function startTestServer(): Promise<ChildProcess> {
@@ -71,8 +83,7 @@ async function startTestServer(): Promise<ChildProcess> {
 	});
 	child.on("error", () => {}); // waitForServer will throw on its own timeout
 
-	// 30s — covers `pnpm nx` startup + cache check + node bootstrap.
-	await waitForServer(TEST_PORT, 30_000);
+	await waitForServer(`http://127.0.0.1:${TEST_PORT}/`);
 
 	const userRes = await fetch(`http://127.0.0.1:${TEST_PORT}/e2e/users`, {
 		method: "POST",
@@ -117,6 +128,7 @@ async function stopTestServer(child: ChildProcess): Promise<void> {
 
 test("should complete OAuth login flow, save links, and paginate the list", async () => {
 	const server = await startTestServer();
+	armSuiteFailsafe(server);
 	try {
 		const options = new Options();
 		if (process.env.HEADLESS !== "false") {
@@ -138,7 +150,7 @@ test("should complete OAuth login flow, save links, and paginate the list", asyn
 
 			await driver.get(POPUP_URL);
 
-			await driver.wait(async () => {
+			await waitForUi(driver, async () => {
 				try {
 					const el = await driver.findElement(By.id("login-view"));
 					const hidden = await el.getAttribute("hidden");
@@ -146,7 +158,7 @@ test("should complete OAuth login flow, save links, and paginate the list", asyn
 				} catch {
 					return false;
 				}
-			}, 10000);
+			});
 
 			const popupWindowHandle = await driver.getWindowHandle();
 

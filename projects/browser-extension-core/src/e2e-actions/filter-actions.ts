@@ -2,6 +2,7 @@ import assert from "node:assert/strict";
 import { By, Key } from "selenium-webdriver";
 import type { WebDriver } from "selenium-webdriver";
 import { CSS_SELECTORS, ELEMENT_IDS, type FlowAction } from "../e2e";
+import { waitForUi } from "./wait-budget";
 
 export interface FilterProgress {
 	filteredWithMatch: boolean;
@@ -38,7 +39,7 @@ export function createFilterActions(config: {
 			await filterInput.clear();
 			await filterInput.sendKeys("pagination");
 
-			await driver.wait(async () => {
+			await waitForUi(driver, async () => {
 				try {
 					const pagination = await driver.findElement(By.id(ELEMENT_IDS.pagination));
 					const hidden = await pagination.getAttribute("hidden");
@@ -46,7 +47,7 @@ export function createFilterActions(config: {
 				} catch {
 					return false;
 				}
-			}, 15000);
+			});
 
 			config.progress.filteredWithMatch = true;
 		},
@@ -64,7 +65,7 @@ export function createFilterActions(config: {
 			await filterInput.clear();
 			await filterInput.sendKeys("zzz-no-match-zzz");
 
-			await driver.wait(async () => {
+			await waitForUi(driver, async () => {
 				try {
 					const noMatches = await driver.findElement(By.id(ELEMENT_IDS.noMatches));
 					const hidden = await noMatches.getAttribute("hidden");
@@ -72,7 +73,7 @@ export function createFilterActions(config: {
 				} catch {
 					return false;
 				}
-			}, 15000);
+			});
 
 			config.progress.filteredNoMatch = true;
 		},
@@ -91,10 +92,10 @@ export function createFilterActions(config: {
 			await filterInput.sendKeys("x");
 			await filterInput.sendKeys(Key.BACK_SPACE);
 
-			await driver.wait(async () => {
+			await waitForUi(driver, async () => {
 				const items = await driver.findElements(By.css(CSS_SELECTORS.listItem));
 				return items.length > 0;
-			}, 15000);
+			});
 
 			config.progress.filterCleared = true;
 		},

@@ -5,6 +5,7 @@ import {
 	type ElementQueries,
 	type DriverNavigation,
 } from "../e2e";
+import { waitForUi } from "./wait-budget";
 
 export function createSeleniumElementQueries(): ElementQueries<WebDriver> {
 	return {
@@ -48,10 +49,10 @@ export function createSeleniumNavigation(): DriverNavigation<WebDriver> {
 			await driver.get(url);
 		},
 		waitForStateChange: async (driver, previous, detectCurrentState) => {
-			await driver.wait(async () => {
+			await waitForUi(driver, async () => {
 				const newState = await detectCurrentState();
 				return stateChanged(previous, newState);
-			}, 10000);
+			});
 		},
 	};
 }

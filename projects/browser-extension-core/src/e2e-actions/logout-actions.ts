@@ -2,6 +2,7 @@ import assert from "node:assert/strict";
 import { By } from "selenium-webdriver";
 import type { WebDriver } from "selenium-webdriver";
 import { ELEMENT_IDS, type FlowAction } from "../e2e";
+import { waitForUi } from "./wait-budget";
 
 export interface LogoutProgress {
 	loggedOut: boolean;
@@ -30,14 +31,14 @@ export function createLogoutActions(config: {
 			const logoutButton = await driver.findElement(By.id(ELEMENT_IDS.logoutButton));
 			await logoutButton.click();
 
-			await driver.wait(async () => {
+			await waitForUi(driver, async () => {
 				try {
 					const loginView = await driver.findElement(By.id(ELEMENT_IDS.loginButton));
 					return loginView.isDisplayed();
 				} catch {
 					return false;
 				}
-			}, 10000);
+			});
 
 			config.progress.loggedOut = true;
 		},
