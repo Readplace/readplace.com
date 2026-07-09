@@ -1,4 +1,5 @@
-import { extractThumbnailCandidates } from "./extract-thumbnail";
+import type { CrawlFetch } from "./crawl-fetch";
+import { extractThumbnailCandidates, initFetchThumbnailImage } from "./extract-thumbnail";
 
 describe("extractThumbnailCandidates", () => {
 	it("returns the og:image URL first when present", () => {
@@ -99,5 +100,36 @@ describe("extractThumbnailCandidates", () => {
 	it("returns an empty array when no candidates are present", () => {
 		const html = `<html><head></head><body><p>Text only.</p></body></html>`;
 		expect(extractThumbnailCandidates({ html })).toEqual([]);
+	});
+
+	it("drops a relative URL when the baseUrl cannot anchor it (URL resolution throws)", () => {
+		const html = `
+			<html><head>
+				<meta property="og:image" content="/images/hero.png">
+			</head><body></body></html>
+		`;
+		// "not a url" is not a valid base, so new URL("/images/hero.png", baseUrl)
+		// throws; resolveIfRelative returns the raw relative URL, which then fails
+		// the http(s) validity check and is dropped.
+		expect(extractThumbnailCandidates({ html, baseUrl: "not a url" })).toEqual([]);
+	});
+});
+
+describe("initFetchThumbnailImage", () => {
+	it("skips a candidate that returns a non-ok response and logs the status", async () => {
+		const logs: string[] = [];
+		const crawlFetch: CrawlFetch = async () => new Response("not found", { status: 404 });
+		const fetchThumbnail = initFetchThumbnailImage({
+			crawlFetch,
+			logError: (message) => logs.push(message),
+		});
+
+		const result = await fetchThumbnail({
+			candidates: ["https://example.com/missing.png"],
+			referer: "https://example.com/article",
+		});
+
+		expect(result).toBeUndefined();
+		expect(logs.some((message) => message.includes("Thumbnail HTTP 404"))).toBe(true);
 	});
 });

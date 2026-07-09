@@ -105,6 +105,7 @@ function h2Request(
 		req.on("data", (chunk: Buffer) => chunks.push(chunk));
 		req.on("end", () => {
 			assert(status !== undefined, "HTTP/2 stream ended without :status");
+			/* c8 ignore next -- V8 block-coverage phantom: this assert's message string gets a spurious zero-count sub-range even though the guard runs on every response; see bcoe/c8#319 and https://v8.dev/blog/javascript-code-coverage */
 			assert(responseHeaders, "HTTP/2 stream ended without response headers");
 			resolve({ status, headers: responseHeaders, body: Buffer.concat(chunks) });
 		});

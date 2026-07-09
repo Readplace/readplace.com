@@ -2,8 +2,15 @@
   "name": "browser-extension-core",
   "targets": {
     "check": {
-      "command": "pnpm lint && pnpm test-with-coverage",
-      "options": { "cwd": "{projectRoot}" }
+      "command": "true",
+      "options": { "cwd": "{projectRoot}" },
+      "dependsOn": ["lint", "test-with-coverage"]
+    },
+    "lint": {
+      "dependsOn": ["compile"]
+    },
+    "test-with-coverage": {
+      "dependsOn": ["compile"]
     }
   }
 }

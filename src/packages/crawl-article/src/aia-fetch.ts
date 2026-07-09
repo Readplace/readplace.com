@@ -58,6 +58,7 @@ export function initFetchAia(deps: AiaDeps) {
 		const extraCa: string[] = [];
 		for (let i = 0; i <= MAX_REDIRECTS; i++) {
 			const parsed = new URL(currentUrl);
+			/* c8 ignore next -- V8 block-coverage phantom: the optional-call continuation gets a spurious zero-count sub-range even though the retry test invokes assertHostAllowed (and the SSRF-guard threading is asserted there); the statement itself is covered. Restructuring to an explicit `if` only relocates the phantom. See bcoe/c8#319 and https://v8.dev/blog/javascript-code-coverage */
 			deps.assertHostAllowed?.(parsed.hostname);
 			const port = parsed.port ? Number(parsed.port) : 443;
 			const cached = intermediateCache.get(parsed.hostname);
@@ -137,6 +138,7 @@ export function derOrPemToPem(bytes: Buffer): string {
 	const wrapped = b64.match(/.{1,64}/g);
 	assert(wrapped, "base64 of non-empty certificate bytes always matches /.{1,64}/g");
 	return `-----BEGIN CERTIFICATE-----\n${wrapped.join("\n")}\n-----END CERTIFICATE-----\n`;
+	/* c8 ignore start -- thin wrappers over real TLS/HTTP socket I/O (tls.connect, http/https.get, https.request); the AIA-chasing logic is unit-tested with fakes, these default impls are exercised via integration and the crawl source-health canary. The span opens here (before derOrPemToPem's already-covered closing brace) because tsc's source map attributes two socket-listener statements inside initFetchPeerCertificate back onto the lines just above the function. */
 }
 
 function initFetchPeerCertificate(deps: { lookup?: SocketLookup }): AiaDeps["fetchPeerCertificate"] {
@@ -239,6 +241,7 @@ function initHttpsGet(deps: { lookup?: SocketLookup }): AiaDeps["httpsGet"] {
 			req.end();
 		});
 }
+/* c8 ignore stop */
 
 /**
  * Builds the production AIA-chasing fetcher with the SSRF guard threaded into

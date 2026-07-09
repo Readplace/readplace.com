@@ -104,6 +104,7 @@ async function tryFetchImage(args: {
 			referer,
 		});
 		if (!response.ok) {
+			/* c8 ignore next -- V8 block-coverage phantom: the ${url} interpolation gets a spurious zero-count sub-range even though the non-ok-response test logs here; see bcoe/c8#319 and https://v8.dev/blog/javascript-code-coverage */
 			logError(`[CrawlArticle] Thumbnail HTTP ${response.status} for ${url}`);
 			return undefined;
 		}

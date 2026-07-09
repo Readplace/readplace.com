@@ -2,8 +2,9 @@
   "name": "@packages/crawl-article",
   "targets": {
     "check": {
-      "command": "pnpm lint",
-      "options": { "cwd": "{projectRoot}" }
+      "command": "pnpm lint && pnpm test-with-coverage",
+      "options": { "cwd": "{projectRoot}" },
+      "dependsOn": ["compile"]
     },
     "tier-1-plus-pipeline-health": {
       "command": "node --test --test-reporter=spec dist/scripts/tier-1-plus-pipeline-health.js",

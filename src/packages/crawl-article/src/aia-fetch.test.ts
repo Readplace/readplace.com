@@ -333,6 +333,39 @@ describe("initFetchAia", () => {
 		await expect(fetchAia("https://example.com/loop")).rejects.toThrow(/too many redirects/);
 	});
 
+	it("threads init headers/signal and assertHostAllowed through the AIA-retry path", async () => {
+		const assertHostAllowed = jest.fn();
+		let firstCall = true;
+		const deps = makeDeps({
+			assertHostAllowed,
+			httpsGet: jest.fn(async () => {
+				if (firstCall) {
+					firstCall = false;
+					throw Object.assign(new Error("leaf"), { code: "UNABLE_TO_VERIFY_LEAF_SIGNATURE" });
+				}
+				return { status: 200, headers: {}, body: Buffer.from("ok") };
+			}),
+		});
+		const fetchAia = initFetchAia(deps);
+		const signal = AbortSignal.timeout(5000);
+
+		const response = await fetchAia("https://example.com/x", {
+			headers: { "user-agent": "Test/1.0" },
+			signal,
+		});
+
+		expect(response.status).toBe(200);
+		expect(assertHostAllowed).toHaveBeenCalledWith("example.com");
+		// Both the direct and the AIA-retry httpsGet calls carry the caller's init.
+		expect(deps.httpsGet).toHaveBeenCalledWith(
+			expect.objectContaining({ headers: { "user-agent": "Test/1.0" }, signal }),
+		);
+		expect(deps.httpsGet).toHaveBeenCalledTimes(2);
+		// The TLS cert probe and the intermediate download inherit the caller's signal.
+		expect(deps.fetchPeerCertificate).toHaveBeenCalledWith(expect.objectContaining({ signal }));
+		expect(deps.downloadIssuerBytes).toHaveBeenCalledWith("http://ca.example/intermediate.crt", signal);
+	});
+
 	it("reuses a cached intermediate on a subsequent request to the same host", async () => {
 		let firstCall = true;
 		const deps = makeDeps({

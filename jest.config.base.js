@@ -1,7 +1,4 @@
-const os = require('node:os');
 const path = require('node:path');
-
-const cores = os.availableParallelism();
 
 // Pre-compile approach: TypeScript is compiled before running tests
 // This eliminates V8 coverage artifacts on type definitions
@@ -21,15 +18,11 @@ module.exports = {
   // handles keep a worker alive past shutdown, jest SIGKILLs it, and whichever
   // suites that worker ran report 0%, a per-run lottery. In-band leaves no
   // worker to kill; the process exit flushes coverage via V8's exit hooks where
-  // SIGKILL cannot. Parallelism is recovered at the nx level — NX_PARALLEL (80%
-  // of cores on 16+ machines, see .envrc) runs many projects' coverage runs at
-  // once, which the 20x-soak gate verifies stays at 100%. Non-coverage runs on
-  // 16+ core machines still fan out to half the cores for a fast local `jest`.
-  ...(process.env.NODE_V8_COVERAGE
-    ? { maxWorkers: 1 }
-    : cores >= 16
-      ? { maxWorkers: Math.floor(cores * 0.5) }
-      : {}),
+  // SIGKILL cannot. Cross-project parallelism is recovered at the nx level
+  // (NX_PARALLEL). Every automated run goes through `test-with-coverage` (c8),
+  // so a plain non-coverage `jest` only happens on a manual local `pnpm test`,
+  // where jest's default worker pool is fine.
+  ...(process.env.NODE_V8_COVERAGE ? { maxWorkers: 1 } : {}),
   // jest.retryTimes lives in this setup file. Attaching here so every
   // project picks it up without each having to reference it explicitly.
   setupFilesAfterEnv: [path.resolve(__dirname, 'jest.setup.base.js')],

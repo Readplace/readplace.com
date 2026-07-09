@@ -39,6 +39,7 @@ export type CurlFetch = (url: string, init?: CurlFetchInit) => Promise<Response>
  */
 export const CURL_IMPERSONATE_BIN = "curl_chrome131";
 
+/* c8 ignore start -- thin execFile wrapper that spawns the curl-impersonate subprocess; createCurlFetch is unit-tested with a fake execCurl, this default impl is exercised via integration and the crawl source-health canary */
 const defaultExecCurl: ExecCurl = (args, callback) => {
 	const child = execFile(
 		CURL_IMPERSONATE_BIN,
@@ -55,6 +56,7 @@ const defaultExecCurl: ExecCurl = (args, callback) => {
 		},
 	};
 };
+/* c8 ignore stop */
 
 /**
  * Fetch via curl-impersonate subprocess. curl-impersonate patches curl's TLS
@@ -133,6 +135,7 @@ export function createCurlFetch(deps: { execCurl: ExecCurl; resolvePinnedAddress
 			}
 			if (!ALLOWED_PROTOCOLS.has(nextUrl.protocol)) {
 				throw new Error(
+					/* c8 ignore next -- V8 block-coverage phantom: the ${nextUrl.protocol} interpolation gets a spurious zero-count sub-range even though the non-HTTP(S) redirect test throws here; see bcoe/c8#319 and https://v8.dev/blog/javascript-code-coverage */
 					`fetchCurl failed for ${url}: refusing to follow redirect to non-HTTP(S) scheme "${nextUrl.protocol}"`,
 				);
 			}
