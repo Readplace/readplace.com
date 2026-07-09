@@ -158,10 +158,11 @@ export function createAnonymousViewPageActions(
 				await page.waitForTimeout(1500)
 				await expect(shareWrap).not.toHaveClass(/share-balloon__wrap--open/)
 
-				// Click Save as anonymous — /save redirects to /login?return=/save?url=...
-				// so the regular navigate-to-signup action can pick up from page-login.
+				// Click Save as anonymous — /save redirects to /signup?return=/save?url=...
+				// (account creation converts an anonymous saver far better than the
+				// sign-in page), so submit-signup-form picks up directly from page-signup.
 				await clickAndWaitForPageReload(page, saveAction)
-				await expect(page.locator('body.page-login')).toHaveCount(1)
+				await expect(page.locator('body.page-signup')).toHaveCount(1)
 
 				progress.visitedAnonymously = true
 			},
