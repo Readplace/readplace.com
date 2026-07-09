@@ -17,7 +17,7 @@ import {
 	theInformationSiteRules,
 } from "@packages/article-parser";
 import type { ParseHtml } from "@packages/article-parser";
-import type { LogError } from "./observability";
+import type { LogError, LogInfo } from "./observability";
 
 export type ParserDepBundle = {
 	crawlFetch: CrawlFetch;
@@ -37,6 +37,7 @@ export type ParserDepBundle = {
  */
 export function initParserDepBundle(deps: {
 	logError: LogError;
+	logInfo: LogInfo;
 }): ParserDepBundle {
 	const crawlFetch = initCrawlFetch({
 		fetch: globalThis.fetch,
@@ -49,7 +50,7 @@ export function initParserDepBundle(deps: {
 		linkedinSiteRules,
 		initXTwitterSiteRules({ crawlFetch, logError: deps.logError }),
 	];
-	const crawlArticle = initCrawlArticle({ crawlFetch, siteRules, logError: deps.logError });
+	const crawlArticle = initCrawlArticle({ crawlFetch, siteRules, logError: deps.logError, logInfo: deps.logInfo });
 	const { parseHtml } = initReadabilityParser({
 		crawlArticle,
 		siteRules,
@@ -73,6 +74,7 @@ export type ComprehensiveParserDepBundle = {
  */
 export function initComprehensiveParserDepBundle(deps: {
 	logError: LogError;
+	logInfo: LogInfo;
 	extractPdf: ExtractPdf;
 }): ComprehensiveParserDepBundle {
 	const crawlFetch = initCrawlFetch({
@@ -91,6 +93,7 @@ export function initComprehensiveParserDepBundle(deps: {
 		siteRules,
 		extractPdf: deps.extractPdf,
 		logError: deps.logError,
+		logInfo: deps.logInfo,
 	});
 	const { parseHtml } = initReadabilityParser({
 		crawlArticle,

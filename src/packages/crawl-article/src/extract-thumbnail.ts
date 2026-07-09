@@ -2,6 +2,7 @@ import { parseHTML } from "linkedom";
 import type { CrawlFetch } from "./crawl-fetch";
 import { extensionFromContentType } from "./extension-from-content-type";
 import type { ThumbnailImage } from "./crawl-article.types";
+import { initLogFetchFailure, type LogFetchFailure } from "./log-fetch-failure";
 import { BodyTooLargeError, readBodyWithCap } from "./read-capped-body";
 
 const THUMBNAIL_FETCH_TIMEOUT_MS = 5000;
@@ -79,11 +80,13 @@ export type FetchThumbnailImage = (params: {
 export function initFetchThumbnailImage(deps: {
 	crawlFetch: CrawlFetch;
 	logError: (message: string, error?: Error) => void;
+	logInfo: (message: string) => void;
 }): FetchThumbnailImage {
-	const { crawlFetch, logError } = deps;
+	const { crawlFetch, logError, logInfo } = deps;
+	const logFetchFailure = initLogFetchFailure({ logError, logInfo });
 	return async ({ candidates, referer }) => {
 		for (const candidateUrl of candidates) {
-			const result = await tryFetchImage({ crawlFetch, logError, url: candidateUrl, referer });
+			const result = await tryFetchImage({ crawlFetch, logError, logFetchFailure, url: candidateUrl, referer });
 			if (result) return result;
 		}
 		return undefined;
@@ -93,10 +96,11 @@ export function initFetchThumbnailImage(deps: {
 async function tryFetchImage(args: {
 	crawlFetch: CrawlFetch;
 	logError: (message: string, error?: Error) => void;
+	logFetchFailure: LogFetchFailure;
 	url: string;
 	referer: string;
 }): Promise<ThumbnailImage | undefined> {
-	const { crawlFetch, logError, url, referer } = args;
+	const { crawlFetch, logError, logFetchFailure, url, referer } = args;
 	try {
 		const response = await crawlFetch(url, {
 			signal: AbortSignal.timeout(THUMBNAIL_FETCH_TIMEOUT_MS),
@@ -104,8 +108,9 @@ async function tryFetchImage(args: {
 			referer,
 		});
 		if (!response.ok) {
-			/* c8 ignore next -- V8 block-coverage phantom: the ${url} interpolation gets a spurious zero-count sub-range even though the non-ok-response test logs here; see bcoe/c8#319 and https://v8.dev/blog/javascript-code-coverage */
-			logError(`[CrawlArticle] Thumbnail HTTP ${response.status} for ${url}`);
+			/* c8 ignore next 4 -- V8 block-coverage phantom: the tail of `return undefined` gets a spurious zero-count sub-range that spills onto the closing brace even though the non-ok-response tests exercise this block; see bcoe/c8#319 and https://v8.dev/blog/javascript-code-coverage */
+			const message = `[CrawlArticle] Thumbnail HTTP ${response.status} for ${url}`;
+			logFetchFailure({ status: response.status, message });
 			return undefined;
 		}
 		const contentType = response.headers.get("content-type") ?? "";

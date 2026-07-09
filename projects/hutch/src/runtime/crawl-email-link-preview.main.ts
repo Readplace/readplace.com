@@ -37,6 +37,14 @@ const logError = (message: string, error?: Error) =>
 			stack: error?.stack,
 		}),
 	);
+const logInfo = (message: string) =>
+	logger.info(
+		JSON.stringify({
+			level: "INFO",
+			timestamp: new Date().toISOString(),
+			message,
+		}),
+	);
 
 // The same SSRF-guarded crawlFetch the save pipeline uses: every connect and
 // redirect hop runs isBlockedIpAddress, so a link that DNS-rebinds to a private
@@ -52,13 +60,13 @@ const siteRules = [
 	linkedinSiteRules,
 	initXTwitterSiteRules({ crawlFetch, logError }),
 ];
-const crawlArticle = initCrawlArticle({ crawlFetch, siteRules, logError });
+const crawlArticle = initCrawlArticle({ crawlFetch, siteRules, logError, logInfo });
 const { parseHtml } = initReadabilityParser({
 	crawlArticle,
 	siteRules,
 	logError,
 });
-const fetchThumbnailImage = initFetchThumbnailImage({ crawlFetch, logError });
+const fetchThumbnailImage = initFetchThumbnailImage({ crawlFetch, logError, logInfo });
 const { putImageObject } = initS3PutImageObject({ client: s3Client, bucketName: contentBucketName });
 // A preview keeps only the article metadata and discards the body, so media
 // rewriting is a no-op here; the lead-image upload to the content-bucket CDN is

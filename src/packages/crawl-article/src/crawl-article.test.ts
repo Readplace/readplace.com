@@ -22,6 +22,7 @@ const PDF_EXTRACT_FAILURE_REASON = "synthetic extractor failure";
 const PDF_MAGIC_BUFFER = Buffer.concat([Buffer.from("%PDF-1.4\n"), Buffer.alloc(64, 0x20)]);
 
 const noopLogError = () => {};
+const noopLogInfo = () => {};
 
 // Never reached in unit tests: curl/h2 fallback only fires on block-class
 // responses/errors, which these fixtures don't produce. The fallback chain has
@@ -39,6 +40,7 @@ function buildCrawlFetch(overrides: {
 	fetch: typeof fetch;
 	fetchCurl?: CurlFetch;
 	fetchH2?: typeof fetchH2;
+	rateLimitRetryDelaysMs?: readonly number[];
 }): CrawlFetch {
 	return initCrawlFetch({
 		fetch: overrides.fetch,
@@ -46,6 +48,7 @@ function buildCrawlFetch(overrides: {
 		isBlocked: () => false,
 		fetchCurl: overrides.fetchCurl ?? stubFetchCurl,
 		fetchH2: overrides.fetchH2 ?? stubFetchH2,
+		rateLimitRetryDelaysMs: overrides.rateLimitRetryDelaysMs,
 	});
 }
 
@@ -53,10 +56,12 @@ function initCrawl(overrides: {
 	fetch: typeof fetch;
 	extractPdf?: ExtractPdf;
 	logError?: (message: string, error?: Error) => void;
+	logInfo?: (message: string) => void;
 	fetchCurl?: CurlFetch;
 	fetchH2?: typeof fetchH2;
 	siteRules?: readonly SiteRules[];
 	fetchTimeouts?: { headersMs: number; bodyMs: number };
+	rateLimitRetryDelaysMs?: readonly number[];
 }) {
 	const crawlFetch = buildCrawlFetch(overrides);
 	const logError = overrides.logError ?? noopLogError;
@@ -65,6 +70,7 @@ function initCrawl(overrides: {
 		siteRules: overrides.siteRules ?? [initXTwitterSiteRules({ crawlFetch, logError })],
 		extractPdf: overrides.extractPdf,
 		logError,
+		logInfo: overrides.logInfo ?? noopLogInfo,
 		fetchTimeouts: overrides.fetchTimeouts,
 	});
 }
@@ -473,15 +479,69 @@ describe("initCrawlArticle — single-fetch orchestration", () => {
 		);
 	});
 
-	it("returns not-found with the status on an HTTP 404 so callers can terminalise without retries", async () => {
+	it("returns not-found on an HTTP 404 and logs at info because the miss is non-recoverable", async () => {
 		const fakeFetch: typeof fetch = async () => new Response(null, { status: 404 });
 		const logError = jest.fn();
-		const crawlArticle = initCrawl({ fetch: fakeFetch, logError });
+		const logInfo = jest.fn();
+		const crawlArticle = initCrawl({ fetch: fakeFetch, logError, logInfo });
 
 		const result = await crawlArticle({ url: "https://example.com/deleted" });
 
 		expect(result).toEqual({ status: "not-found", httpStatus: 404 });
-		expect(logError).toHaveBeenCalledWith("[CrawlArticle] HTTP 404 for https://example.com/deleted");
+		expect(logInfo).toHaveBeenCalledWith("[CrawlArticle] HTTP 404 for https://example.com/deleted");
+		expect(logError).not.toHaveBeenCalled();
+	});
+
+	it("returns failed on an HTTP 406 and logs at info because content-negotiation refusals are non-recoverable", async () => {
+		const fakeFetch: typeof fetch = async () => new Response(null, { status: 406 });
+		const logError = jest.fn();
+		const logInfo = jest.fn();
+		const crawlArticle = initCrawl({ fetch: fakeFetch, logError, logInfo });
+
+		const result = await crawlArticle({ url: "https://example.com" });
+
+		expect(result).toEqual({ status: "failed" });
+		expect(logInfo).toHaveBeenCalledWith("[CrawlArticle] HTTP 406 for https://example.com");
+		expect(logError).not.toHaveBeenCalled();
+	});
+
+	it("returns failed and logs at info when every TLS-fingerprint fallback stays blocked with 403", async () => {
+		const blocked = async () => new Response(null, { status: 403 });
+		const logError = jest.fn();
+		const logInfo = jest.fn();
+		const crawlArticle = initCrawl({
+			fetch: blocked,
+			fetchH2: blocked,
+			fetchCurl: blocked,
+			logError,
+			logInfo,
+		});
+
+		const result = await crawlArticle({ url: "https://example.com" });
+
+		expect(result).toEqual({ status: "failed" });
+		expect(logInfo).toHaveBeenCalledWith("[CrawlArticle] HTTP 403 for https://example.com");
+		expect(logError).not.toHaveBeenCalled();
+	});
+
+	it("returns failed and logs at info when the origin keeps rate-limiting with 429", async () => {
+		const rateLimited = async () => new Response(null, { status: 429 });
+		const logError = jest.fn();
+		const logInfo = jest.fn();
+		const crawlArticle = initCrawl({
+			fetch: rateLimited,
+			fetchH2: rateLimited,
+			fetchCurl: rateLimited,
+			rateLimitRetryDelaysMs: [],
+			logError,
+			logInfo,
+		});
+
+		const result = await crawlArticle({ url: "https://example.com" });
+
+		expect(result).toEqual({ status: "failed" });
+		expect(logInfo).toHaveBeenCalledWith("[CrawlArticle] HTTP 429 for https://example.com");
+		expect(logError).not.toHaveBeenCalled();
 	});
 
 	it("returns not-found with the status on an HTTP 410 Gone", async () => {
@@ -713,6 +773,7 @@ describe("parseHtmlFromBuffer — thumbnailUrl extraction", () => {
 			url,
 			crawlFetch: throwingCrawlFetch,
 			logError: noopLogError,
+			logInfo: noopLogInfo,
 		});
 	}
 
@@ -767,6 +828,7 @@ describe("parseHtmlFromBuffer — thumbnailUrl extraction", () => {
 			url: "https://example.com",
 			crawlFetch: throwingCrawlFetch,
 			logError: noopLogError,
+			logInfo: noopLogInfo,
 		});
 		expect(result).toEqual({
 			status: "fetched",
@@ -788,6 +850,7 @@ describe("parseHtmlFromBuffer — thumbnailUrl extraction", () => {
 			url: "https://example.com/requested",
 			crawlFetch: throwingCrawlFetch,
 			logError: noopLogError,
+			logInfo: noopLogInfo,
 		});
 		assertFetched(result);
 		expect(result.finalUrl).toBe("https://example.com/final");
@@ -803,6 +866,7 @@ describe("parseHtmlFromBuffer — thumbnail prefetch (fetchThumbnail opt-in)", (
 		fetchThumbnail?: boolean;
 		crawlFetch: CrawlFetch;
 		logError?: (message: string, error?: Error) => void;
+		logInfo?: (message: string) => void;
 	}): Promise<CrawlArticleResult> {
 		const buffer = Buffer.from(input.html ?? articleHtml);
 		return parseHtmlFromBuffer({
@@ -813,6 +877,7 @@ describe("parseHtmlFromBuffer — thumbnail prefetch (fetchThumbnail opt-in)", (
 			fetchThumbnail: input.fetchThumbnail ?? true,
 			crawlFetch: input.crawlFetch,
 			logError: input.logError ?? noopLogError,
+			logInfo: input.logInfo ?? noopLogInfo,
 		});
 	}
 
@@ -877,14 +942,16 @@ describe("parseHtmlFromBuffer — thumbnail prefetch (fetchThumbnail opt-in)", (
 		expect(result.thumbnailImage).toBeUndefined();
 	});
 
-	it("logs and returns undefined when the thumbnail request fails", async () => {
+	it("logs at info and returns undefined when the thumbnail request fails with a non-recoverable 403", async () => {
 		const crawlFetch = imageCrawlFetch(() => new Response(null, { status: 403 }));
 		const logError = jest.fn();
-		const result = await parseWithImage({ crawlFetch, logError });
+		const logInfo = jest.fn();
+		const result = await parseWithImage({ crawlFetch, logError, logInfo });
 
 		assertFetched(result);
 		expect(result.thumbnailImage).toBeUndefined();
-		expect(logError).toHaveBeenCalledWith("[CrawlArticle] Thumbnail HTTP 403 for https://cdn.example.com/thumb.jpg");
+		expect(logInfo).toHaveBeenCalledWith("[CrawlArticle] Thumbnail HTTP 403 for https://cdn.example.com/thumb.jpg");
+		expect(logError).not.toHaveBeenCalled();
 	});
 
 	it("logs and returns undefined when the thumbnail content-type is not an image", async () => {

@@ -32,6 +32,7 @@ const origin = `http://127.0.0.1:${PORT}`
 const logger = HutchLogger.from(consoleLogger)
 
 const logError = (message: string, error?: Error) => logger.error(message, error)
+const logInfo = (message: string) => logger.info(message)
 /** The e2e harness crawls its own fixtures, all served from the loopback server
  * below, so block nothing — otherwise the SSRF guard refuses every loopback
  * address, matching the relaxed string-level private-network check applied
@@ -61,7 +62,7 @@ const extractPdf: ExtractPdf = async () => ({
   html: `<!DOCTYPE html><html><head><title>${E2E_PDF_TITLE}</title></head><body><article><h1>${E2E_PDF_TITLE}</h1>${E2E_PDF_BODY_PARAGRAPHS}</article></body></html>`,
 })
 const siteRules = [theInformationSiteRules, mediumSiteRules, linkedinSiteRules, initXTwitterSiteRules({ crawlFetch, logError })]
-const crawlArticle = initCrawlArticle({ crawlFetch, siteRules, extractPdf, logError })
+const crawlArticle = initCrawlArticle({ crawlFetch, siteRules, extractPdf, logError, logInfo })
 const { parseArticle, parseHtml } = initReadabilityParser({ crawlArticle, siteRules, logError })
 
 /** E2E tests use localhost URLs because the test server IS localhost.

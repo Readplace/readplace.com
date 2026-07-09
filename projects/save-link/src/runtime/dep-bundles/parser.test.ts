@@ -7,6 +7,7 @@ describe("initParserDepBundle", () => {
 	it("returns a bundle with crawlFetch, crawlArticle, and parseHtml fields", () => {
 		const bundle = initParserDepBundle({
 			logError: () => {},
+			logInfo: () => {},
 		});
 
 		expect(typeof bundle.crawlFetch).toBe("function");
@@ -19,6 +20,7 @@ describe("initComprehensiveParserDepBundle", () => {
 	it("returns a bundle with crawlFetch, crawlArticle, and parseHtml fields", () => {
 		const bundle = initComprehensiveParserDepBundle({
 			logError: () => {},
+			logInfo: () => {},
 			extractPdf: async () => ({ kind: "failed", reason: "stub" }),
 		});
 

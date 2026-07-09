@@ -2,7 +2,7 @@ import { noopLogger } from "@packages/hutch-logger";
 import { initObservabilityDepBundle } from "./observability";
 
 describe("initObservabilityDepBundle", () => {
-	it("returns a bundle with logger, logParseError, logCrawlOutcome, and logError fields", () => {
+	it("returns a bundle with logger, logParseError, logCrawlOutcome, logError, and logInfo fields", () => {
 		const bundle = initObservabilityDepBundle({
 			logger: noopLogger,
 			source: "save-link",
@@ -13,6 +13,7 @@ describe("initObservabilityDepBundle", () => {
 		expect(typeof bundle.logParseError).toBe("function");
 		expect(typeof bundle.logCrawlOutcome).toBe("function");
 		expect(typeof bundle.logError).toBe("function");
+		expect(typeof bundle.logInfo).toBe("function");
 	});
 
 	it("forwards logError calls to the injected logger so the production console logger captures bundle-internal errors", () => {
@@ -28,5 +29,19 @@ describe("initObservabilityDepBundle", () => {
 		bundle.logError("widget exploded", cause);
 
 		expect(error).toHaveBeenCalledWith("widget exploded", { error: cause });
+	});
+
+	it("forwards logInfo calls to the injected logger so non-recoverable crawl outcomes stay out of the error stream", () => {
+		const info = jest.fn();
+		const logger = { ...noopLogger, info };
+		const bundle = initObservabilityDepBundle({
+			logger,
+			source: "save-link",
+			now: () => new Date(),
+		});
+
+		bundle.logInfo("origin returned HTTP 404");
+
+		expect(info).toHaveBeenCalledWith("origin returned HTTP 404");
 	});
 });

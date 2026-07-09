@@ -7,6 +7,7 @@ import type {
 import type { CrawlFetch } from "./crawl-fetch";
 import { extractThumbnailCandidates, initFetchThumbnailImage } from "./extract-thumbnail";
 import { headerOrUndefined } from "./header-utils";
+import { initLogFetchFailure } from "./log-fetch-failure";
 import { classifyMediaType } from "./media-type";
 import { parseImageFromBuffer } from "./parse-image";
 import { parsePlainTextFromBuffer } from "./parse-plain-text";
@@ -127,6 +128,7 @@ export const CRAWL_PERSONAS = [
 function initConditionalGet(deps: {
 	crawlFetch: CrawlFetch;
 	logError: (message: string, error?: Error) => void;
+	logInfo: (message: string) => void;
 	fetchTimeouts: FetchTimeouts;
 }): (params: {
 	url: string;
@@ -138,7 +140,8 @@ function initConditionalGet(deps: {
 	| { status: "failed" }
 	| { status: "not-found"; httpStatus: 404 | 410 }
 > {
-	const { crawlFetch, logError, fetchTimeouts } = deps;
+	const { crawlFetch, logError, logInfo, fetchTimeouts } = deps;
+	const logFetchFailure = initLogFetchFailure({ logError, logInfo });
 	return async (params) => {
 		/* One AbortController spans both phases because undici ties the request
 		 * signal to the response body stream — aborting it is the only way to
@@ -162,11 +165,17 @@ function initConditionalGet(deps: {
 				return { status: "not-modified" };
 			}
 			if (response.status === 404 || response.status === 410) {
-				logError(`[CrawlArticle] HTTP ${response.status} for ${params.url}${describeEdgeHeaders(response.headers)}`);
+				logFetchFailure({
+					status: response.status,
+					message: `[CrawlArticle] HTTP ${response.status} for ${params.url}${describeEdgeHeaders(response.headers)}`,
+				});
 				return { status: "not-found", httpStatus: response.status };
 			}
 			if (!response.ok) {
-				logError(`[CrawlArticle] HTTP ${response.status} for ${params.url}${describeEdgeHeaders(response.headers)}`);
+				logFetchFailure({
+					status: response.status,
+					message: `[CrawlArticle] HTTP ${response.status} for ${params.url}${describeEdgeHeaders(response.headers)}`,
+				});
 				return { status: "failed" };
 			}
 			budgetTimer = setTimeout(() => {
@@ -199,12 +208,13 @@ export async function parseHtmlFromBuffer(input: {
 	fetchThumbnail?: boolean;
 	crawlFetch: CrawlFetch;
 	logError: (message: string, error?: Error) => void;
+	logInfo: (message: string) => void;
 }): Promise<CrawlArticleResult> {
-	const { buffer, bodyHash, response, url, fetchThumbnail, crawlFetch, logError } = input;
+	const { buffer, bodyHash, response, url, fetchThumbnail, crawlFetch, logError, logInfo } = input;
 	const html = new TextDecoder().decode(buffer);
 	const candidates = extractThumbnailCandidates({ html, baseUrl: url });
 	const thumbnailUrl = candidates[0];
-	const fetchThumbnailImage = initFetchThumbnailImage({ crawlFetch, logError });
+	const fetchThumbnailImage = initFetchThumbnailImage({ crawlFetch, logError, logInfo });
 	const thumbnailImage = fetchThumbnail
 		? await fetchThumbnailImage({ candidates, referer: url })
 		: undefined;
@@ -292,13 +302,14 @@ export function initCrawlArticle(deps: {
 	siteRules: readonly SiteRules[];
 	extractPdf?: ExtractPdf;
 	logError: (message: string, error?: Error) => void;
+	logInfo: (message: string) => void;
 	/** Test seam: production callers take the defaults; tests inject
 	 * millisecond-scale budgets so the timer-abort paths run for real. */
 	fetchTimeouts?: FetchTimeouts;
 }): CrawlArticle {
-	const { crawlFetch, siteRules, extractPdf, logError } = deps;
+	const { crawlFetch, siteRules, extractPdf, logError, logInfo } = deps;
 	const fetchTimeouts = deps.fetchTimeouts ?? DEFAULT_FETCH_TIMEOUTS;
-	const conditionalGet = initConditionalGet({ crawlFetch, logError, fetchTimeouts });
+	const conditionalGet = initConditionalGet({ crawlFetch, logError, logInfo, fetchTimeouts });
 	return async (params) => {
 		let hostname: string;
 		try {
@@ -369,6 +380,7 @@ export function initCrawlArticle(deps: {
 					fetchThumbnail: params.fetchThumbnail,
 					crawlFetch,
 					logError,
+					logInfo,
 				});
 			case "pdf":
 				if (!extractPdf) {

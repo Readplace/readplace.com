@@ -5,7 +5,7 @@ import {
 	initCrawlAndFinalizeArticle,
 	initFinalizeArticle,
 } from "@packages/finalize-article";
-import type { LogError } from "./observability";
+import type { LogError, LogInfo } from "./observability";
 import type { ArticleStoreDepBundle } from "./article-store";
 import type { MediaDepBundle } from "./media";
 import type { ParserDepBundle } from "./parser";
@@ -27,10 +27,12 @@ export function initCrawlAndFinalizeDepBundle(deps: {
 	articleStore: ArticleStoreDepBundle;
 	imagesCdnBaseUrl: string;
 	logError: LogError;
+	logInfo: LogInfo;
 }): CrawlAndFinalizeDepBundle {
 	const fetchThumbnailImage = initFetchThumbnailImage({
 		crawlFetch: deps.parser.crawlFetch,
 		logError: deps.logError,
+		logInfo: deps.logInfo,
 	});
 	const finalizeArticle = initFinalizeArticle({
 		parseHtml: deps.parser.parseHtml,

@@ -145,6 +145,7 @@ function initProviders() {
 	);
 	const logger = HutchLogger.from(consoleLogger);
 	const logError = (message: string, error?: Error) => logger.error(JSON.stringify({ level: "ERROR", timestamp: new Date().toISOString(), message, stack: error?.stack }));
+	const logInfo = (message: string) => logger.info(JSON.stringify({ level: "INFO", timestamp: new Date().toISOString(), message }));
 
 	const crawlFetch = initCrawlFetch({ fetch: globalThis.fetch, personas: CRAWL_PERSONAS, isBlocked: isBlockedIpAddress });
 	const staleTtlMs = 86400000;
@@ -236,7 +237,7 @@ function initProviders() {
 			linkedinSiteRules,
 			initXTwitterSiteRules({ crawlFetch, logError }),
 		];
-		const crawlArticle = initCrawlArticle({ crawlFetch, siteRules, extractPdf, logError });
+		const crawlArticle = initCrawlArticle({ crawlFetch, siteRules, extractPdf, logError, logInfo });
 		const extractLinksFromPageUrl = initExtractLinksFromPageUrl({ crawlFetch, validateUrl: validateSaveableUrl });
 		const { parseHtml } = initReadabilityParser({
 			crawlArticle,
@@ -491,14 +492,14 @@ function initProviders() {
 		linkedinSiteRules,
 		initXTwitterSiteRules({ crawlFetch, logError }),
 	];
-	const crawlArticle = initCrawlArticle({ crawlFetch, siteRules, extractPdf, logError });
+	const crawlArticle = initCrawlArticle({ crawlFetch, siteRules, extractPdf, logError, logInfo });
 	const extractLinksFromPageUrl = initExtractLinksFromPageUrl({ crawlFetch, validateUrl: validateSaveableUrl });
 	const { parseHtml } = initReadabilityParser({
 		crawlArticle,
 		siteRules,
 		logError,
 	});
-	const fetchThumbnailImage = initFetchThumbnailImage({ crawlFetch, logError });
+	const fetchThumbnailImage = initFetchThumbnailImage({ crawlFetch, logError, logInfo });
 	/* Dev composition: no S3, no CDN. Stub the media + image-upload deps so the
 	 * in-memory app still routes through the same `finalizeArticle` pipeline
 	 * every prod Lambda uses — identical algorithm, identical metadata shape,

@@ -8,7 +8,7 @@ import { initParserDepBundle } from "./parser";
 
 describe("initCrawlAndFinalizeDepBundle", () => {
 	it("returns a bundle with finalizeArticle and crawlAndFinalizeArticle fields", () => {
-		const parser = initParserDepBundle({ logError: () => {} });
+		const parser = initParserDepBundle({ logError: () => {}, logInfo: () => {} });
 		const articleStore = initArticleStoreDepBundle({
 			s3Client: new S3Client({ region: "us-east-1" }),
 			dynamoClient: createDynamoDocumentClient({ region: "us-east-1" }),
@@ -28,6 +28,7 @@ describe("initCrawlAndFinalizeDepBundle", () => {
 			articleStore,
 			imagesCdnBaseUrl: "https://cdn.example",
 			logError: () => {},
+			logInfo: () => {},
 		});
 
 		expect(typeof bundle.finalizeArticle).toBe("function");

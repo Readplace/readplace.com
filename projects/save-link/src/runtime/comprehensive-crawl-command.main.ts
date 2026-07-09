@@ -74,7 +74,7 @@ const extractPdf = initSaveLinkPdfExtract({
 });
 
 const observability = initObservabilityDepBundle({ logger: consoleLogger, source: "save-link", now });
-const parser = initComprehensiveParserDepBundle({ logError: observability.logError, extractPdf });
+const parser = initComprehensiveParserDepBundle({ logError: observability.logError, logInfo: observability.logInfo, extractPdf });
 const articleStore = initArticleStoreDepBundle({ s3Client, dynamoClient, contentBucketName, articlesTable });
 const media = initMediaDepBundle({ parser, articleStore, logger: consoleLogger, imagesCdnBaseUrl });
 const crawlAndFinalize = initCrawlAndFinalizeDepBundle({
@@ -83,6 +83,7 @@ const crawlAndFinalize = initCrawlAndFinalizeDepBundle({
 	articleStore,
 	imagesCdnBaseUrl,
 	logError: observability.logError,
+	logInfo: observability.logInfo,
 });
 const events = initEventsDepBundle({ eventBridgeClient, eventBusName, sqsClient, generateSummaryQueueUrl });
 const articleAggregate = initArticleAggregateDepBundle({ dynamoClient, articlesTable, events });

@@ -116,20 +116,46 @@ describe("extractThumbnailCandidates", () => {
 });
 
 describe("initFetchThumbnailImage", () => {
-	it("skips a candidate that returns a non-ok response and logs the status", async () => {
-		const logs: string[] = [];
-		const crawlFetch: CrawlFetch = async () => new Response("not found", { status: 404 });
+	it.each([403, 404, 406, 429])(
+		"skips a candidate that returns a non-recoverable %i and logs the status at info",
+		async (status) => {
+			const infoLogs: string[] = [];
+			const errorLogs: string[] = [];
+			const crawlFetch: CrawlFetch = async () => new Response("blocked", { status });
+			const fetchThumbnail = initFetchThumbnailImage({
+				crawlFetch,
+				logError: (message) => errorLogs.push(message),
+				logInfo: (message) => infoLogs.push(message),
+			});
+
+			const result = await fetchThumbnail({
+				candidates: ["https://example.com/missing.png"],
+				referer: "https://example.com/article",
+			});
+
+			expect(result).toBeUndefined();
+			expect(infoLogs).toContain(`[CrawlArticle] Thumbnail HTTP ${status} for https://example.com/missing.png`);
+			expect(errorLogs).toEqual([]);
+		},
+	);
+
+	it("skips a candidate that returns a non-ok status outside the non-recoverable set and logs it at error", async () => {
+		const infoLogs: string[] = [];
+		const errorLogs: string[] = [];
+		const crawlFetch: CrawlFetch = async () => new Response(null, { status: 500 });
 		const fetchThumbnail = initFetchThumbnailImage({
 			crawlFetch,
-			logError: (message) => logs.push(message),
+			logError: (message) => errorLogs.push(message),
+			logInfo: (message) => infoLogs.push(message),
 		});
 
 		const result = await fetchThumbnail({
-			candidates: ["https://example.com/missing.png"],
+			candidates: ["https://example.com/broken.png"],
 			referer: "https://example.com/article",
 		});
 
 		expect(result).toBeUndefined();
-		expect(logs.some((message) => message.includes("Thumbnail HTTP 404"))).toBe(true);
+		expect(errorLogs).toContain("[CrawlArticle] Thumbnail HTTP 500 for https://example.com/broken.png");
+		expect(infoLogs).toEqual([]);
 	});
 });

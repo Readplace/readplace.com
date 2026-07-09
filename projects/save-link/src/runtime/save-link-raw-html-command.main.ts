@@ -33,7 +33,7 @@ const now = () => new Date();
 // the CDN with the same algorithm every other path uses — no per-trigger
 // drift on what lands in the metadata.
 const observability = initObservabilityDepBundle({ logger: consoleLogger, source: "save-link-raw-html", now });
-const parser = initParserDepBundle({ logError: observability.logError });
+const parser = initParserDepBundle({ logError: observability.logError, logInfo: observability.logInfo });
 const articleStore = initArticleStoreDepBundle({ s3Client, dynamoClient, contentBucketName, articlesTable });
 const media = initMediaDepBundle({ parser, articleStore, logger: consoleLogger, imagesCdnBaseUrl });
 const crawlAndFinalize = initCrawlAndFinalizeDepBundle({
@@ -42,6 +42,7 @@ const crawlAndFinalize = initCrawlAndFinalizeDepBundle({
 	articleStore,
 	imagesCdnBaseUrl,
 	logError: observability.logError,
+	logInfo: observability.logInfo,
 });
 const events = initEventsDepBundle({ eventBridgeClient, eventBusName, sqsClient, generateSummaryQueueUrl });
 const articleAggregate = initArticleAggregateDepBundle({ dynamoClient, articlesTable, events });

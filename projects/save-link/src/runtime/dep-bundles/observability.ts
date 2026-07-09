@@ -10,6 +10,8 @@ import {
 
 export type LogError = (message: string, error?: Error) => void;
 
+export type LogInfo = (message: string) => void;
+
 export type ParseErrorSource = ParseErrorEvent["source"];
 
 export type ObservabilityDepBundle = {
@@ -17,6 +19,7 @@ export type ObservabilityDepBundle = {
 	logParseError: LogParseError;
 	logCrawlOutcome: LogCrawlOutcome;
 	logError: LogError;
+	logInfo: LogInfo;
 };
 
 export function initObservabilityDepBundle(deps: {
@@ -25,6 +28,7 @@ export function initObservabilityDepBundle(deps: {
 	now: () => Date;
 }): ObservabilityDepBundle {
 	const logError: LogError = (message, error) => deps.logger.error(message, { error });
+	const logInfo: LogInfo = (message) => deps.logger.info(message);
 	const { logParseError } = initLogParseError({
 		logger: HutchLogger.fromJSON<ParseErrorEvent>(),
 		now: deps.now,
@@ -34,5 +38,5 @@ export function initObservabilityDepBundle(deps: {
 		logger: HutchLogger.fromJSON<CrawlOutcomeEvent>(),
 		now: deps.now,
 	});
-	return { logger: deps.logger, logParseError, logCrawlOutcome, logError };
+	return { logger: deps.logger, logParseError, logCrawlOutcome, logError, logInfo };
 }
