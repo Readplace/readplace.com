@@ -127,6 +127,71 @@ describe("GET /account (active paid subscription)", () => {
 	});
 });
 
+describe("GET /account?platform=ios (iOS app surface — Guideline 3.1.1)", () => {
+	it("hides the Subscribe CTA and the payment-methods section for a trialing user, keeping status + danger zone", async () => {
+		const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
+		const { subscriptionProviders } = harness;
+		const { agent, userId } = await loginUser(harness, "ios-trial@example.com");
+		const trialEndsAt = new Date(Date.now() + 7 * ONE_DAY_MS).toISOString();
+		await subscriptionProviders.upsertTrialing({ userId, trialEndsAt });
+
+		const response = await agent.get("/account?platform=ios");
+
+		expect(response.status).toBe(200);
+		const doc = new JSDOM(response.text).window.document;
+		// The subscription state still renders — the reviewer sees where they stand.
+		expect(doc.querySelector("[data-test-account-status]")?.textContent).toContain("free trial");
+		// No in-app purchase path: no Subscribe form, no card management section.
+		expect(actionKeys(doc)).toEqual([]);
+		expect(doc.querySelector("[data-test-cards-section]")).toBeNull();
+		// Apple requires in-app account deletion to stay reachable.
+		assert(
+			doc.querySelector("[data-test-account-danger]"),
+			"danger zone must remain on the iOS surface",
+		);
+	});
+
+	it("keeps the Cancel control routed through ?platform=ios and hides card management for an active subscriber", async () => {
+		const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
+		const { subscriptionProviders } = harness;
+		const { agent, userId } = await loginUser(harness, "ios-active@example.com");
+		await subscriptionProviders.upsertActive({
+			userId,
+			subscriptionId: "sub_ios",
+			customerId: "cus_ios",
+		});
+
+		const response = await agent.get("/account?platform=ios");
+
+		expect(response.status).toBe(200);
+		const doc = new JSDOM(response.text).window.document;
+		expect(actionKeys(doc)).toEqual(["cancel-form"]);
+		const cancelForm = findAction(doc, "cancel-form");
+		expect(cancelForm.getAttribute("action")).toBe(
+			"/account/cancel?utm_source=account&utm_medium=internal&utm_content=cancel-form&platform=ios",
+		);
+		expect(doc.querySelector("[data-test-cards-section]")).toBeNull();
+	});
+});
+
+describe("POST /account/cancel?platform=ios", () => {
+	it("preserves the iOS surface across the post-redirect so the re-render stays commerce-free", async () => {
+		const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
+		const { subscriptionProviders } = harness;
+		const { agent, userId } = await loginUser(harness, "ios-cancel@example.com");
+		await subscriptionProviders.upsertActive({
+			userId,
+			subscriptionId: "sub_cancel",
+			customerId: "cus_cancel",
+		});
+
+		const response = await agent.post("/account/cancel?platform=ios");
+
+		expect(response.status).toBe(303);
+		expect(response.headers.location).toBe("/account?cancelling=1&platform=ios");
+	});
+});
+
 describe("GET /account?error=payment_method", () => {
 	it("renders the payment-method error card with a support email link — export lives in the nav menu", async () => {
 		const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));

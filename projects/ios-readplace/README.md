@@ -202,7 +202,7 @@ You need a Mac with **Xcode 15+** and an Apple ID (a free personal team is fine)
    ```
 
 2. **Set a unique bundle id + your team** (both targets). Bundle ids are globally
-   unique on Apple's side, so the placeholder `com.example.readplace` will
+   unique on Apple's side, so the project's `com.readplace` bundle id will
    likely need changing:
    - Select the **Readplace** target → **Signing & Capabilities** → set
      **Team** to your Apple ID and change the **Bundle Identifier** to something
@@ -212,7 +212,7 @@ You need a Mac with **Xcode 15+** and an Apple ID (a free personal team is fine)
 
 3. **Confirm the App Group** (both targets share one). Under **Signing &
    Capabilities** both targets list an **App Groups** entry
-   `group.com.example.readplace`. Keep them identical on both targets. If
+   `group.com.readplace`. Keep them identical on both targets. If
    Xcode flags it, click to register it (App Groups work with a free personal
    team). If you change the id, also update `AppConfig.appGroupId` in
    `Shared/AppConfig.swift` to match.

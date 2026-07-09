@@ -52,6 +52,9 @@ export interface AccountViewModel {
 	/** The irreversible "delete account" control. Kept out of the state-dependent
 	 * `actions` array so the danger zone renders in every subscription state. */
 	dangerAction: AccountAction;
+	/** Whether the payment-methods section renders. False on the iOS app surface,
+	 * where card management is hidden for App Store review Guideline 3.1.1. */
+	showCardSection: boolean;
 }
 
 function formatTrialDaysLeft(trialEndsAt: string, now: Date): { daysLeft: number; daysLeftWord: "day" | "days" } {
@@ -284,6 +287,7 @@ function baseFor(state: AccountCardState, actions: AccountAction[]): {
 	stateIsErrorPaymentMethod: false;
 	actions: AccountAction[];
 	dangerAction: AccountAction;
+	showCardSection: true;
 } {
 	return {
 		state,
@@ -293,6 +297,7 @@ function baseFor(state: AccountCardState, actions: AccountAction[]): {
 		stateIsErrorPaymentMethod: false,
 		actions,
 		dangerAction: DELETE_ACCOUNT_ACTION,
+		showCardSection: true,
 	};
 }
 
@@ -351,4 +356,32 @@ export function toAccountViewModel(
 				statusLine: "Subscription not active.",
 			};
 	}
+}
+
+/** Origin for parsing root-relative action hrefs; `.invalid` is reserved by RFC
+ * 2606 so it can never resolve, and only `pathname`/`search` are read back. */
+const IOS_HREF_PARSE_ORIGIN = "https://internal.invalid";
+
+function carryIosPlatform(action: AccountAction): AccountAction {
+	const url = new URL(action.href, IOS_HREF_PARSE_ORIGIN);
+	url.searchParams.set("platform", "ios");
+	return { ...action, href: `${url.pathname}${url.search}` };
+}
+
+/** Rewrites the account view model for the iOS app's in-app web surface: strips
+ * every in-app purchase path — the subscribe and reactivate CTAs and the whole
+ * payment-methods section — so the build satisfies App Store review Guideline
+ * 3.1.1. Kept: the subscription status line, the cancel control, and the
+ * delete-account danger zone (Apple requires in-app account deletion; cancelling
+ * buys nothing). Surviving actions carry `?platform=ios` on their href so a POST
+ * lands on e.g. /account/cancel?platform=ios and its post-redirect GET re-renders
+ * this same surface — the WKWebView form post sends no client header. */
+export function withoutCommerce(vm: AccountViewModel): AccountViewModel {
+	return {
+		...vm,
+		actions: vm.actions
+			.filter((a) => a.key !== "subscribe" && a.key !== "reactivate-form")
+			.map(carryIosPlatform),
+		showCardSection: false,
+	};
 }

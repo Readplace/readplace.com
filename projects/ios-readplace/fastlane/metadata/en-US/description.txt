@@ -11,4 +11,4 @@ Readplace grew out of a personal reading system refined over ten years. It does 
 
 Read the web, not the slop.
 
-Readplace is a subscription service with a free trial — no credit card required to start. Your subscription works across the Readplace web app and this app.
+A Readplace subscription is required after the free trial.

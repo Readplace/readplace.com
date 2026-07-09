@@ -13,3 +13,13 @@ export const IOS_CLIENT_VALUE = "ios";
 export function isIosClient(req: Request): boolean {
 	return req.get(IOS_CLIENT_HEADER) === IOS_CLIENT_VALUE;
 }
+
+/** True when a request should render the iOS app surface. The app's WKWebView
+ * follows server-advertised hrefs but — unlike the native Siren URLSession —
+ * cannot attach the client header to those page loads or their form posts, so a
+ * `?platform=ios` query param carried on the href is the only marker an in-app
+ * web page sees. The header is honoured alongside it for native Siren requests
+ * (e.g. the queue collection that publishes the account href). */
+export function isIosSurface(req: Request): boolean {
+	return req.query.platform === IOS_CLIENT_VALUE || isIosClient(req);
+}

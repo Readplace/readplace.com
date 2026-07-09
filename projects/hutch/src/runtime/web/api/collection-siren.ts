@@ -33,15 +33,21 @@ function buildQueryString(params: CollectionQueryParams): string {
 export function toArticleCollectionEntity(
 	result: FindArticlesResult,
 	queryParams: CollectionQueryParams,
-	options: { warning?: CollectionWarning } = {},
+	options: { warning?: CollectionWarning; iosSurface?: boolean } = {},
 ): SirenEntity {
 	const { articles, total, page, pageSize } = result;
 	const totalPages = Math.ceil(total / pageSize);
 
+	// The iOS app opens this account href in its WKWebView. `?platform=ios` tells
+	// the account page to render the in-app surface — no subscribe/reactivate CTA
+	// or card management (App Store review Guideline 3.1.1). Advertised on the
+	// href so already-shipped builds inherit it: they follow the contract's link
+	// rather than holding the URL themselves.
+	const accountHref = options.iosSurface ? "/account?platform=ios" : "/account";
 	const links: SirenLink[] = [
 		{ rel: ["self"], href: `/queue${buildQueryString(queryParams)}` },
 		{ rel: ["root"], href: "/queue" },
-		{ rel: ["account"], title: "Account", href: "/account" },
+		{ rel: ["account"], title: "Account", href: accountHref },
 	];
 
 	// Older iOS builds resolve the Share-help URL from this rel; the current client
