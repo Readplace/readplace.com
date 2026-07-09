@@ -21,8 +21,7 @@ import { Base } from "../../base.component";
 import type { BuildBannerState } from "../../banner-state";
 import { sendComponent } from "@packages/web-shell";
 import { initSaveArticleFromUrl, type SaveArticleFromUrlDependencies } from "../../shared/save-article/save-article-from-url";
-import type { AnalyticsEvent } from "../../middleware/analytics";
-import { hashIp } from "../../middleware/analytics";
+import { type AnalyticsEvent, hashIp } from "@packages/web-analytics";
 import { ANALYTICS_EVENTS, STREAMS } from "../../../observability/events";
 import {
 	IMPORT_SKIPPED_COOKIE_NAME,

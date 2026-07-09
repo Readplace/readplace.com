@@ -1,3 +1,4 @@
+import { randomUUID } from "node:crypto";
 import type { Handler } from "aws-lambda";
 import type { Request, Response } from "express";
 import express from "express";
@@ -7,6 +8,7 @@ import { HutchLogger, consoleLogger } from "@packages/hutch-logger";
 import { createDynamoDocumentClient } from "@packages/hutch-storage-client";
 import { GlobalNav } from "@packages/web-shell";
 import { initGetSessionUserId, initResolveLogin } from "@packages/web-session";
+import { type AnalyticsEvent, isHttpsOrigin } from "@packages/web-analytics";
 import serverless from "serverless-http";
 import { createBlogApp, PORT } from "./app";
 import { getEnv, requireEnv } from "@packages/require-env";
@@ -37,7 +39,16 @@ const application = express()
 				liveReload: Boolean(getEnv("LIVERELOAD")),
 				renderNav: GlobalNav,
 			},
-			{ resolveLogin },
+			{
+				resolveLogin,
+				analyticsLogger: HutchLogger.fromJSON<AnalyticsEvent>(),
+				salt: requireEnv("ANALYTICS_SALT"),
+				now: () => new Date(),
+				generateVisitorId: randomUUID,
+				// APP_ORIGIN carries the scheme the blog is served on; only that scheme
+				// is consumed (isHttpsOrigin) to decide Secure cookies.
+				secureCookies: isHttpsOrigin(requireEnv("APP_ORIGIN")),
+			},
 		),
 	);
 

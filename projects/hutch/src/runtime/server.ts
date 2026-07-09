@@ -125,16 +125,18 @@ import type {
 	ValidateOAuthRedirectUri,
 } from "@packages/provider-contracts/oauth";
 import { HutchLogger } from "@packages/hutch-logger";
-import type { AnalyticsEvent } from "./web/middleware/analytics";
+import {
+	type AnalyticsEvent,
+	createClickAttributionMiddleware,
+	createVisitorIdMiddleware,
+	isHttpsOrigin,
+} from "@packages/web-analytics";
 import { initAuthRoutes } from "./web/auth/auth.page";
 import type { BotDefenseEvent } from "./web/auth/auth.page";
 import type { ConversionEvent } from "./conversions";
-import { createClickAttributionMiddleware } from "./web/click-attribution.middleware";
-import { createVisitorIdMiddleware } from "./web/visitor-id.middleware";
 import { initGoogleAuthRoutes } from "./web/auth/google-auth.page";
 import { initAppleAuthRoutes } from "./web/auth/apple-auth.page";
 import { initResolveLogin } from "@packages/web-session";
-import { isHttpsOrigin } from "./web/cookie-options";
 import { initForgotPasswordRoutes } from "./web/auth/forgot-password.page";
 import { initQueueRoutes } from "./web/pages/queue/queue.page";
 import {

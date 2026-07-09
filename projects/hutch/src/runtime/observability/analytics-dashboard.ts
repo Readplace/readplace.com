@@ -28,6 +28,7 @@ export interface DashboardBody {
 export interface BuildAnalyticsDashboardDeps {
 	region: string;
 	hutchLogGroupName: string;
+	blogLogGroupName: string;
 	subscriptionLogGroupNames: readonly string[];
 	workerLogGroupNames: readonly string[];
 	excludedVisitorHashes: readonly string[];
@@ -77,9 +78,13 @@ function logWidget(params: {
 }
 
 export function buildAnalyticsDashboardBody(deps: BuildAnalyticsDashboardDeps): DashboardBody {
-	const { region, hutchLogGroupName, subscriptionLogGroupNames, workerLogGroupNames, excludedVisitorHashes } = deps;
+	const { region, hutchLogGroupName, blogLogGroupName, subscriptionLogGroupNames, workerLogGroupNames, excludedVisitorHashes } = deps;
 	const exclude = excludeVisitorHashesClause(excludedVisitorHashes);
 	const widgets: DashboardWidget[] = [];
+
+	/** Audience widgets read pageview/click events from both the app (hutch) and
+	 * the blog Lambda so the acquisition/audience picture spans every frontend. */
+	const pageviewLogGroups = [hutchLogGroupName, blogLogGroupName];
 
 	// --- Traffic + Audience ---
 
@@ -87,7 +92,7 @@ export function buildAnalyticsDashboardBody(deps: BuildAnalyticsDashboardDeps): 
 		logWidget({
 			region,
 			title: "Pageviews by utm_source (%)",
-			logGroupNames: [hutchLogGroupName],
+			logGroupNames: pageviewLogGroups,
 			query: [
 				"fields @timestamp, utm_source",
 				`| filter stream = "${STREAMS.analytics}" and event = "${ANALYTICS_EVENTS.pageview}"`,
@@ -103,7 +108,7 @@ export function buildAnalyticsDashboardBody(deps: BuildAnalyticsDashboardDeps): 
 		logWidget({
 			region,
 			title: "Top Referrers",
-			logGroupNames: [hutchLogGroupName],
+			logGroupNames: pageviewLogGroups,
 			query: [
 				"fields @timestamp, referrer_host",
 				`| filter stream = "${STREAMS.analytics}" and event = "${ANALYTICS_EVENTS.pageview}"`,
@@ -119,7 +124,7 @@ export function buildAnalyticsDashboardBody(deps: BuildAnalyticsDashboardDeps): 
 		logWidget({
 			region,
 			title: "Pageviews by Source / Medium / Content (%)",
-			logGroupNames: [hutchLogGroupName],
+			logGroupNames: pageviewLogGroups,
 			query: [
 				"fields @timestamp, utm_source, utm_medium, utm_content, concat(utm_source, \" / \", coalesce(utm_medium, \"-\"), \" / \", coalesce(utm_content, \"-\")) as utm_path",
 				`| filter stream = "${STREAMS.analytics}" and event = "${ANALYTICS_EVENTS.pageview}"`,
@@ -135,7 +140,7 @@ export function buildAnalyticsDashboardBody(deps: BuildAnalyticsDashboardDeps): 
 		logWidget({
 			region,
 			title: "Distinct Visitors per Day",
-			logGroupNames: [hutchLogGroupName],
+			logGroupNames: pageviewLogGroups,
 			query: [
 				"fields @timestamp, visitor_hash",
 				`| filter stream = "${STREAMS.analytics}" and event = "${ANALYTICS_EVENTS.pageview}"`,
@@ -178,7 +183,7 @@ export function buildAnalyticsDashboardBody(deps: BuildAnalyticsDashboardDeps): 
 		logWidget({
 			region,
 			title: "Pageviews — UTM detail (all params)",
-			logGroupNames: [hutchLogGroupName],
+			logGroupNames: pageviewLogGroups,
 			query: [
 				"fields coalesce(utm_source, \"(none)\") as source, coalesce(utm_medium, \"(none)\") as medium, coalesce(utm_campaign, \"(none)\") as campaign, coalesce(utm_content, \"(none)\") as content",
 				`| filter stream = "${STREAMS.analytics}" and event = "${ANALYTICS_EVENTS.pageview}"`,
@@ -396,7 +401,7 @@ export function buildAnalyticsDashboardBody(deps: BuildAnalyticsDashboardDeps): 
 		logWidget({
 			region,
 			title: "Internal clicks by section / element",
-			logGroupNames: [hutchLogGroupName],
+			logGroupNames: pageviewLogGroups,
 			query: [
 				"fields @timestamp, coalesce(utm_source, \"-\") as section, coalesce(utm_content, \"-\") as element",
 				`| filter stream = "${STREAMS.analytics}" and event = "${ANALYTICS_EVENTS.click}"`,
@@ -503,7 +508,7 @@ export function buildAnalyticsDashboardBody(deps: BuildAnalyticsDashboardDeps): 
 		logWidget({
 			region,
 			title: "Pageviews by device class (%)",
-			logGroupNames: [hutchLogGroupName],
+			logGroupNames: pageviewLogGroups,
 			query: [
 				"fields @timestamp, device_class",
 				`| filter stream = "${STREAMS.analytics}" and event = "${ANALYTICS_EVENTS.pageview}"`,
@@ -518,7 +523,7 @@ export function buildAnalyticsDashboardBody(deps: BuildAnalyticsDashboardDeps): 
 		logWidget({
 			region,
 			title: "Distinct visitors by device class per day",
-			logGroupNames: [hutchLogGroupName],
+			logGroupNames: pageviewLogGroups,
 			query: [
 				"fields @timestamp, visitor_hash, device_class",
 				`| filter stream = "${STREAMS.analytics}" and event = "${ANALYTICS_EVENTS.pageview}"`,
@@ -580,6 +585,28 @@ export function buildAnalyticsDashboardBody(deps: BuildAnalyticsDashboardDeps): 
 			].join(" "),
 			x: 0, y: 122, width: 12, height: 8,
 			view: "bar",
+		}),
+	);
+
+	// --- Blog traffic ---
+	// The blog Lambda emits its own pageview stream; this table ranks the most
+	// visited blog paths, reading the blog log group only.
+
+	widgets.push(
+		logWidget({
+			region,
+			title: "Blog pageviews by path",
+			logGroupNames: [blogLogGroupName],
+			query: [
+				"fields @timestamp, path",
+				`| filter stream = "${STREAMS.analytics}" and event = "${ANALYTICS_EVENTS.pageview}"`,
+				...exclude,
+				"| stats count(*) as pageviews by path",
+				"| sort pageviews desc",
+				"| limit 25",
+			].join(" "),
+			x: 12, y: 122, width: 12, height: 8,
+			view: "table",
 		}),
 	);
 

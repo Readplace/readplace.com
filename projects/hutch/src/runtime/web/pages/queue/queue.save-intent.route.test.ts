@@ -3,7 +3,7 @@ import request from "supertest";
 import type { Token, Client } from "@node-oauth/oauth2-server";
 import type { UserId } from "@packages/domain/user";
 import { useTestServer, loginAgent, type TestAppHarness, type TestAppResult } from "../../../test-app";
-import type { ViewSaveIntentEvent } from "../../middleware/analytics";
+import type { ViewSaveIntentEvent } from "@packages/web-analytics";
 import {
 	TEST_APP_ORIGIN,
 	createDefaultTestAppFixture,

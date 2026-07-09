@@ -3,19 +3,28 @@ import { createHash } from "node:crypto";
 import type { NextFunction, Request, RequestHandler, Response } from "express";
 import { isbot } from "isbot";
 import type { HutchLogger } from "@packages/hutch-logger";
-import type { UserId } from "@packages/domain/user";
+import type { AuthenticatedUserId, UserId } from "@packages/domain/user";
 import {
 	ANALYTICS_EVENTS,
 	INTERNAL_CLICK_MEDIUM,
 	type SaveOutcome,
 	type SaveSurface,
 	STREAMS,
-} from "../../observability/events";
+} from "./events";
 import {
 	articleHostFrom,
 	classifyContentSource,
 	type ContentClass,
-} from "../../observability/content-source";
+} from "./content-source";
+import { SKIP_PATHS } from "./skip-paths";
+
+declare global {
+	namespace Express {
+		interface Request {
+			userId?: AuthenticatedUserId;
+		}
+	}
+}
 
 export interface AnalyticsPageview {
 	stream: typeof STREAMS.analytics;
@@ -218,19 +227,12 @@ export type AnalyticsEvent =
 	| ViewOpenedEvent
 	| ViewSaveIntentEvent;
 
-const SKIP_PATHS = new Set([
-	"/robots.txt",
-	"/sitemap.xml",
-	"/llms.txt",
-	"/favicon.ico",
-]);
-
-function shouldLog(req: Request, statusCode: number): boolean {
-	if (req.method !== "GET") return false;
-	if (SKIP_PATHS.has(req.path)) return false;
-	if (statusCode >= 400) return false;
-	if (isbot(req.get("user-agent"))) return false;
-	if (req.get("hx-request") === "true") return false;
+function shouldLog(params: { req: Request; path: string; statusCode: number }): boolean {
+	if (params.req.method !== "GET") return false;
+	if (SKIP_PATHS.has(params.path)) return false;
+	if (params.statusCode >= 400) return false;
+	if (isbot(params.req.get("user-agent"))) return false;
+	if (params.req.get("hx-request") === "true") return false;
 	return true;
 }
 
@@ -355,13 +357,18 @@ export function createAnalyticsMiddleware(deps: {
 	now: () => Date;
 }): RequestHandler {
 	return (req: Request, res: Response, next: NextFunction) => {
+		/** Capture the request path up front. A sub-router mount (e.g. blog-site's
+		 * `/blog`) trims its prefix from req.url before the deferred `finish`
+		 * handler runs, so reading req.path there would drop the mount prefix and
+		 * misclassify the pageview (and defeat the `/blog/...` SKIP_PATHS). */
+		const path = req.path;
 		res.on("finish", () => {
 			if (isInternalClick(req) && shouldCountClick(req, res.statusCode)) {
 				deps.logger.info({
 					stream: STREAMS.analytics,
 					event: ANALYTICS_EVENTS.click,
 					timestamp: deps.now().toISOString(),
-					path: req.path,
+					path,
 					utm_source: extractQueryString(req, "utm_source"),
 					utm_medium: INTERNAL_CLICK_MEDIUM,
 					utm_content: extractQueryString(req, "utm_content"),
@@ -371,12 +378,12 @@ export function createAnalyticsMiddleware(deps: {
 					is_authenticated: req.userId ? 1 : 0,
 				});
 			}
-			if (!shouldLog(req, res.statusCode)) return;
+			if (!shouldLog({ req, path, statusCode: res.statusCode })) return;
 			deps.logger.info({
 				stream: STREAMS.analytics,
 				event: ANALYTICS_EVENTS.pageview,
 				timestamp: deps.now().toISOString(),
-				path: req.path,
+				path,
 				...extractPageviewUtm(req),
 				referrer_host: extractReferrerHost(req),
 				medium_post_id: extractMediumPostId(req),

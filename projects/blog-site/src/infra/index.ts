@@ -5,6 +5,8 @@ import {
 	HutchDynamoDBAccess,
 	HutchLambda,
 } from "@packages/hutch-infra-components/infra";
+import { BLOG_SITE_LAMBDA_NAME } from "@packages/hutch-infra-components";
+import { requireEnv } from "@packages/require-env";
 
 /**
  * blog-site is deployed as its own Lambda behind hutch's existing API Gateway:
@@ -43,7 +45,7 @@ const sessionsRead = new HutchDynamoDBAccess("blog-site-sessions-read", {
 	actions: ["dynamodb:GetItem"],
 });
 
-const lambda = new HutchLambda("blog-site", {
+const lambda = new HutchLambda(BLOG_SITE_LAMBDA_NAME, {
 	entryPoint: "./src/runtime/lambda.main.ts",
 	outputDir: ".lib/blog-site",
 	assetDir: "./src/runtime",
@@ -53,6 +55,12 @@ const lambda = new HutchLambda("blog-site", {
 		NODE_ENV: nodeEnv,
 		STATIC_BASE_URL: staticBaseUrl,
 		DYNAMODB_SESSIONS_TABLE: sessionsTableName,
+		// Same deploy-env secret hutch's infra reads: visitor_hash must match
+		// across blog + app so the dashboard's owner-exclusion list applies to both.
+		ANALYTICS_SALT: requireEnv("ANALYTICS_SALT"),
+		// The blog is served same-origin under hutch (readplace.com/blog), so
+		// hutch's origin is the origin the blog is served on.
+		APP_ORIGIN: hutchApiUrl,
 	},
 	policies: [...sessionsRead.policies],
 });

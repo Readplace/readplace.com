@@ -29,11 +29,11 @@ import { Base } from "../base.component";
 import { bannerStateFromRequest, sendComponent } from "@packages/web-shell";
 
 import { extractReturnUrl, parseReturnUrl } from "./parse-return-url";
-import { baseCookieOptions } from "../cookie-options";
+import { baseCookieOptions } from "@packages/web-analytics";
 import { SESSION_COOKIE_NAME } from "@packages/web-session";
 import { LoginPage } from "./auth.component";
 import { initFetchUserCount } from "./fetch-user-count";
-import { ClickAttributionSchema, readClickAttribution } from "../click-attribution.middleware";
+import { ClickAttributionSchema, readClickAttribution } from "@packages/web-analytics";
 import { PENDING_SAVE_COOKIE_NAME, readPendingSaveId } from "../pending-save";
 import type { ConversionEvent } from "../../conversions";
 import { emitUserCreated } from "../../conversions";

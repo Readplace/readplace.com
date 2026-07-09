@@ -26,7 +26,7 @@ import { useTestServer as useServerForFixture } from "@packages/web-test-harness
 import { createApp } from "./server";
 import type { GetChangelogBanner } from "./web/changelog-banner-source";
 import { initFoundingAllocation } from "./web/shared/founding-progress/founding-allocation";
-import type { AnalyticsEvent } from "./web/middleware/analytics";
+import type { AnalyticsEvent } from "@packages/web-analytics";
 
 export type {
 	AdminBundle,

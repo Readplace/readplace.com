@@ -1,7 +1,9 @@
+import { randomUUID } from "node:crypto";
 import { hashPassword, verifyPassword } from "@packages/domain/user";
 import { HutchLogger, consoleLogger } from "@packages/hutch-logger";
 import { GlobalNav } from "@packages/web-shell";
 import { initResolveLogin } from "@packages/web-session";
+import { type AnalyticsEvent, isHttpsOrigin } from "@packages/web-analytics";
 import { initInMemoryAuth } from "@packages/test-fixtures/providers/auth";
 import { createBlogApp, PORT } from "./app";
 import { getEnv, requireEnv } from "@packages/require-env";
@@ -20,7 +22,14 @@ const app = createBlogApp(
 		liveReload: Boolean(getEnv("LIVERELOAD")),
 		renderNav: GlobalNav,
 	},
-	{ resolveLogin },
+	{
+		resolveLogin,
+		analyticsLogger: HutchLogger.fromJSON<AnalyticsEvent>(),
+		salt: requireEnv("ANALYTICS_SALT"),
+		now: () => new Date(),
+		generateVisitorId: randomUUID,
+		secureCookies: isHttpsOrigin(requireEnv("APP_ORIGIN")),
+	},
 );
 
 app.listen(PORT, () => {

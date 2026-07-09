@@ -13,6 +13,14 @@ const VISITOR_COOKIE_MAX_AGE_MS = 365 * 24 * 60 * 60 * 1000;
 const VisitorIdSchema = z.string().uuid().brand<"VisitorId">();
 export type VisitorId = z.infer<typeof VisitorIdSchema>;
 
+declare global {
+	namespace Express {
+		interface Request {
+			visitorId?: VisitorId;
+		}
+	}
+}
+
 /**
  * A cookie that fails validation is treated as absent so the middleware mints a
  * fresh id rather than propagating a tampered value into analytics.

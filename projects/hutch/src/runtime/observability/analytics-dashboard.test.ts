@@ -1,4 +1,4 @@
-import { SAVE_LINK_LOG_GROUPS } from "@packages/hutch-infra-components";
+import { BLOG_SITE_LOG_GROUP, SAVE_LINK_LOG_GROUPS } from "@packages/hutch-infra-components";
 import { HOMEPAGE_SPLIT } from "../web/experiments/homepage-split";
 import {
 	ANALYTICS_EVENTS,
@@ -23,6 +23,7 @@ function buildBody() {
 	return buildAnalyticsDashboardBody({
 		region: "ap-southeast-2",
 		hutchLogGroupName: LOG_GROUPS.hutchHandler,
+		blogLogGroupName: BLOG_SITE_LOG_GROUP,
 		subscriptionLogGroupNames: SUBSCRIPTION_DASHBOARD_LOG_GROUPS,
 		workerLogGroupNames: WORKER_DASHBOARD_LOG_GROUPS,
 		excludedVisitorHashes: ["deadbeefcafef00d"],
@@ -69,9 +70,9 @@ function collectReferencedEvents(): Set<string> {
 }
 
 describe("buildAnalyticsDashboardBody — drift prevention", () => {
-	it("emits 27 widgets (7 traffic+audience, 3 conversions, 3 imports+medium, 3 subscriptions, 2 view-funnel, 1 internal-clicks, 3 save-funnel, 1 summary-engagement, 2 audience-device, 1 errors, 1 homepage-ab) — adding or dropping one without updating this count is a deliberate signal to review the dashboard's scope", () => {
+	it("emits 28 widgets (7 traffic+audience, 3 conversions, 3 imports+medium, 3 subscriptions, 2 view-funnel, 1 internal-clicks, 3 save-funnel, 1 summary-engagement, 2 audience-device, 1 errors, 1 homepage-ab, 1 blog-traffic) — adding or dropping one without updating this count is a deliberate signal to review the dashboard's scope", () => {
 		const body = buildBody();
-		expect(body.widgets).toHaveLength(27);
+		expect(body.widgets).toHaveLength(28);
 	});
 
 	it("the homepage A/B widget counts pageviews on the experiment campaign, grouped by variant (utm_content)", () => {
@@ -80,6 +81,21 @@ describe("buildAnalyticsDashboardBody — drift prevention", () => {
 		expect(ab).toBeDefined();
 		expect(ab).toContain(`event = "${ANALYTICS_EVENTS.pageview}"`);
 		expect(ab).toContain("stats count(*) as landings by utm_content");
+	});
+
+	it("audience pageview widgets read both the hutch and blog log groups so acquisition spans app + blog", () => {
+		const queries = widgetQueries();
+		const distinctVisitors = queries.find((q) => q.includes("count_distinct(visitor_hash) as visitors by bin(1d)"));
+		expect(distinctVisitors).toBeDefined();
+		expect(distinctVisitors?.startsWith(`SOURCE '${LOG_GROUPS.hutchHandler}' | SOURCE '${BLOG_SITE_LOG_GROUP}' | `)).toBe(true);
+	});
+
+	it("the blog-traffic widget counts pageviews by path from the blog log group only", () => {
+		const queries = widgetQueries();
+		const blog = queries.find((q) => q.includes("stats count(*) as pageviews by path"));
+		expect(blog).toBeDefined();
+		expect(blog?.startsWith(`SOURCE '${BLOG_SITE_LOG_GROUP}' | `)).toBe(true);
+		expect(blog).toContain(`event = "${ANALYTICS_EVENTS.pageview}"`);
 	});
 
 	it("the readers widget counts distinct user_ids from article_read events (not pageviews) — distinguishes opening the reader from explicitly marking-as-read", () => {
@@ -264,6 +280,7 @@ describe("buildAnalyticsDashboardBody — drift prevention", () => {
 		const withoutExclusion = buildAnalyticsDashboardBody({
 			region: "ap-southeast-2",
 			hutchLogGroupName: LOG_GROUPS.hutchHandler,
+			blogLogGroupName: BLOG_SITE_LOG_GROUP,
 			subscriptionLogGroupNames: SUBSCRIPTION_DASHBOARD_LOG_GROUPS,
 			workerLogGroupNames: WORKER_DASHBOARD_LOG_GROUPS,
 			excludedVisitorHashes: [],

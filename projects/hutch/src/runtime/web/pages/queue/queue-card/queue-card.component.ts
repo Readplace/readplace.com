@@ -2,7 +2,7 @@ import { readFileSync } from "node:fs";
 import { join } from "node:path";
 import { render, withInternalTracking } from "@packages/web-shell";
 
-import type { DeviceClass } from "../../../middleware/analytics";
+import type { DeviceClass } from "@packages/web-analytics";
 import type {
 	ArticleAction,
 	QueueArticleViewModel,

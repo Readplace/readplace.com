@@ -1,8 +1,8 @@
 /**
  * `utm_medium` value stamped on every in-site link and action button. Inlined
- * here (rather than imported from hutch's observability events) so the shell
- * carries no hutch dependency; hutch's analytics middleware reads the same
- * literal when it counts internal clicks.
+ * rather than imported so this shell package takes on no analytics dependency;
+ * the analytics middleware that counts internal clicks matches on this same
+ * literal, so the two must stay in sync.
  */
 const INTERNAL_CLICK_MEDIUM = "internal";
 

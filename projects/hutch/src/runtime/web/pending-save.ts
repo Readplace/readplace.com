@@ -1,6 +1,6 @@
 import type { Response } from "express";
 import { z } from "zod";
-import { baseCookieOptions } from "./cookie-options";
+import { baseCookieOptions } from "@packages/web-analytics";
 
 export const PENDING_SAVE_COOKIE_NAME = "hutch_psid";
 

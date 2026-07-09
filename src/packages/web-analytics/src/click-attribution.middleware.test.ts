@@ -69,10 +69,10 @@ function parseCookieValue(value: string): ClickAttribution {
 }
 
 describe("createClickAttributionMiddleware", () => {
-	it("captures utm params and writes the click cookie on first hit", () => {
+	it("captures utm params (source/medium/campaign/content) and writes the click cookie on first hit", () => {
 		const req = createReq({
 			path: "/blog/launch",
-			query: { utm_source: "twitter", utm_medium: "social", utm_campaign: "spring" },
+			query: { utm_source: "twitter", utm_medium: "social", utm_campaign: "spring", utm_content: "hero-cta" },
 		});
 		const { cookies, nextCalled } = runMiddleware(req);
 
@@ -91,6 +91,7 @@ describe("createClickAttributionMiddleware", () => {
 			utm_source: "twitter",
 			utm_medium: "social",
 			utm_campaign: "spring",
+			utm_content: "hero-cta",
 			first_seen_at: "2026-05-13T10:00:00.000Z",
 			landing_path: "/blog/launch",
 		});
@@ -168,6 +169,14 @@ describe("createClickAttributionMiddleware", () => {
 		});
 		const { cookies } = runMiddleware(req);
 
+		expect(cookies).toEqual([]);
+	});
+
+	it("skips machine/utility endpoints so a direct hit on a sitemap never becomes the first-touch landing_path", () => {
+		const req = createReq({ path: "/blog/sitemap.xml", query: { utm_source: "twitter" } });
+		const { cookies, nextCalled } = runMiddleware(req);
+
+		expect(nextCalled).toBe(true);
 		expect(cookies).toEqual([]);
 	});
 

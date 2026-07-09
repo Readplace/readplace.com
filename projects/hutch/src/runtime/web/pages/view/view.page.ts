@@ -30,10 +30,9 @@ import type { RateLimitRule } from "@packages/domain/rate-limit";
 import { isbot } from "isbot";
 import { decomposeTimeLeft } from "@packages/time-left";
 import type { HutchLogger } from "@packages/hutch-logger";
-import { hashIp, type AnalyticsEvent } from "../../middleware/analytics";
+import { articleHostFrom, hashIp, type AnalyticsEvent } from "@packages/web-analytics";
 import { rateLimitKeyFromRequest, sendRateLimited } from "../../middleware/rate-limit";
 import { ANALYTICS_EVENTS, STREAMS } from "../../../observability/events";
-import { articleHostFrom } from "../../../observability/content-source";
 import { wantsMarkdown, htmlToMarkdown, buildMarkdownFrontmatter, MarkdownPage, sendComponent } from "@packages/web-shell";
 import { CacheableComponent } from "../../conditional-get";
 

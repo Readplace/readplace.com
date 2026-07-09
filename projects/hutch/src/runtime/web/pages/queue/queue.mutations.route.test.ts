@@ -2,7 +2,7 @@ import assert from "node:assert/strict";
 import { JSDOM } from "jsdom";
 import { MinutesSchema } from "@packages/domain/article";
 import { useTestServer, loginAgent } from "../../../test-app";
-import type { ArticleReadEvent } from "../../middleware/analytics";
+import type { ArticleReadEvent } from "@packages/web-analytics";
 import {
 	TEST_APP_ORIGIN,
 	createDefaultTestAppFixture,

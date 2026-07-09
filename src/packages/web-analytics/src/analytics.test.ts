@@ -1,7 +1,8 @@
 import { EventEmitter } from "node:events";
 import type { NextFunction, Request, Response } from "express";
 import type { HutchLogger } from "@packages/hutch-logger";
-import { type AnalyticsClick, type AnalyticsEvent, type AnalyticsPageview, classifyDeviceClass, createAnalyticsMiddleware, hashIp } from "./analytics";
+import { type AnalyticsClick, type AnalyticsEvent, type AnalyticsPageview, buildSaveIntentEvent, classifyDeviceClass, createAnalyticsMiddleware, hashIp, type ViewSaveIntentEvent } from "./analytics";
+import { SAVE_OUTCOMES, SAVE_SURFACES } from "./events";
 
 function createCapturingLogger(): {
 	logger: HutchLogger.Typed<AnalyticsEvent>;
@@ -24,6 +25,7 @@ interface MockReqOverrides {
 	query?: Record<string, unknown>;
 	headers?: Record<string, string | undefined>;
 	visitorId?: string;
+	userId?: string;
 }
 
 function createReq(overrides: MockReqOverrides = {}): Partial<Request> {
@@ -38,6 +40,7 @@ function createReq(overrides: MockReqOverrides = {}): Partial<Request> {
 		query: overrides.query ?? {},
 		headers,
 		visitorId: overrides.visitorId,
+		userId: overrides.userId,
 		get(name: string): string | undefined { return headers[name.toLowerCase()]; },
 	} as Partial<Request>;
 }
@@ -128,6 +131,14 @@ describe("createAnalyticsMiddleware", () => {
 		expect(runMiddleware(createReq({ path: "/robots.txt" }), createRes(200))).toEqual([]);
 	});
 
+	it("skips logging /blog/sitemap.xml so the blog's machine sitemap does not count as a pageview", () => {
+		expect(runMiddleware(createReq({ path: "/blog/sitemap.xml" }), createRes(200))).toEqual([]);
+	});
+
+	it("skips logging /blog/changelog-banner so hutch's own 5-min server-side banner fetch does not pollute blog pageviews", () => {
+		expect(runMiddleware(createReq({ path: "/blog/changelog-banner" }), createRes(200))).toEqual([]);
+	});
+
 	it("skips logging when isbot flags the user-agent", () => {
 		const req = createReq({ headers: { "user-agent": "Googlebot/2.1 (+http://www.google.com/bot.html)" } });
 		expect(runMiddleware(req, createRes(200))).toEqual([]);
@@ -169,6 +180,11 @@ describe("createAnalyticsMiddleware", () => {
 		const [event] = runMiddleware(createReq({ headers: { "user-agent": iphone } }), createRes(200));
 		expect(event.device_class).toBe("mobile_ios");
 	});
+
+	it("stamps is_authenticated=1 on the pageview when the request carries an authenticated userId (set upstream by a route handler)", () => {
+		const [event] = runMiddleware(createReq({ userId: "user-1" }), createRes(200));
+		expect(event.is_authenticated).toBe(1);
+	});
 });
 
 describe("createAnalyticsMiddleware — internal click events", () => {
@@ -194,6 +210,11 @@ describe("createAnalyticsMiddleware — internal click events", () => {
 	it("never carries utm_campaign on a click — only the section and element dimensions are tracked", () => {
 		const [click] = runMiddlewareClicks(createReq({ query: internalQuery }), createRes(200));
 		expect(JSON.stringify(click)).not.toContain("utm_campaign");
+	});
+
+	it("stamps is_authenticated=1 on the click when the request carries an authenticated userId", () => {
+		const [click] = runMiddlewareClicks(createReq({ query: internalQuery, userId: "user-1" }), createRes(200));
+		expect(click.is_authenticated).toBe(1);
 	});
 
 	it("captures utm_term on a click so device-tagged reader-view links (queue-card) are sliceable by device", () => {
@@ -325,5 +346,74 @@ describe("classifyDeviceClass", () => {
 				"Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
 			),
 		).toBe("desktop");
+	});
+});
+
+const VALID_VISITOR_ID = "550e8400-e29b-41d4-a716-446655440000";
+
+function buildIntent(overrides: { req?: MockReqOverrides; url?: string; pendingSaveId?: string } = {}): ViewSaveIntentEvent {
+	return buildSaveIntentEvent(
+		{ now: () => new Date("2026-04-21T10:00:00.000Z"), salt: "test-salt" },
+		{
+			req: createReq(overrides.req ?? { visitorId: VALID_VISITOR_ID }) as Request,
+			url: overrides.url ?? "https://example.com/some-article",
+			path: "/save",
+			surface: SAVE_SURFACES.readerView,
+			outcome: SAVE_OUTCOMES.promptedToSignUp,
+			pendingSaveId: overrides.pendingSaveId,
+		},
+	);
+}
+
+describe("buildSaveIntentEvent", () => {
+	it("builds a view_save_intent with the normalized article_host, surface, outcome and visitor identity — and for an anonymous save with no referer or pending id omits referrer_host/pending_save_id and marks is_authenticated=0", () => {
+		const event = buildIntent();
+		expect(event).toEqual({
+			stream: "analytics",
+			event: "view_save_intent",
+			timestamp: "2026-04-21T10:00:00.000Z",
+			path: "/save",
+			article_host: "example.com",
+			content_class: "third_party",
+			surface: "reader_view",
+			outcome: "prompted_to_sign_up",
+			visitor_hash: expect.any(String),
+			visitor_id: VALID_VISITOR_ID,
+			is_authenticated: 0,
+		});
+		const serialized = JSON.stringify(event);
+		expect(serialized).not.toContain("referrer_host");
+		expect(serialized).not.toContain("pending_save_id");
+	});
+
+	it("includes referrer_host when the request carries a parseable referer — the traffic source, captured separately from article_host", () => {
+		const event = buildIntent({
+			req: { visitorId: VALID_VISITOR_ID, headers: { referer: "https://news.ycombinator.com/item?id=1" } },
+		});
+		expect(event).toMatchObject({ referrer_host: "news.ycombinator.com" });
+	});
+
+	it("derives content_class from the saved article's own host, never the referrer — arriving from our own site to save a third-party article is still a third-party save", () => {
+		const event = buildIntent({
+			url: "https://example.com/some-article",
+			req: { visitorId: VALID_VISITOR_ID, headers: { referer: "https://readplace.com/queue" } },
+		});
+		expect(event).toMatchObject({ article_host: "example.com", content_class: "third_party", referrer_host: "readplace.com" });
+	});
+
+	it("includes pending_save_id when the anonymous prompted-to-sign-up flow threads one, so the later signup joins back to this intent", () => {
+		const event = buildIntent({ pendingSaveId: "pending-abc-123" });
+		expect(event).toMatchObject({ pending_save_id: "pending-abc-123" });
+	});
+
+	it("stamps is_authenticated=1 when the request carries an authenticated userId (the queue save bar and extension save an already-signed-in user)", () => {
+		const event = buildIntent({ req: { visitorId: VALID_VISITOR_ID, userId: "user-1" } });
+		expect(event.is_authenticated).toBe(1);
+	});
+
+	it("throws when the visitor-id middleware has not run (req.visitorId unset) — a save surface must never emit view_save_intent without a visitor identity to join the conversion on", () => {
+		expect(() => buildIntent({ req: {} })).toThrow(
+			"visitor-id middleware must run before a save surface emits view_save_intent",
+		);
 	});
 });
