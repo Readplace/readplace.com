@@ -106,12 +106,14 @@ type ExecSyncFn = (command: string, options: ExecSyncOptions) => Buffer | string
 type GlobSyncFn = (pattern: string) => string[];
 type LogFn = (message: string) => void;
 type ShouldSkipE2EFn = () => boolean;
+type SleepFn = (ms: number) => void;
 
 export interface TestPhaseRunnerDeps {
 	execSync: ExecSyncFn;
 	globSync: GlobSyncFn;
 	log: LogFn;
 	shouldSkipE2E: ShouldSkipE2EFn;
+	sleep: SleepFn;
 }
 
 function resolveJestPhase(phase: JestPhase): ResolvedJestPhase {
@@ -158,11 +160,24 @@ function resolvePlaywrightPhase(phase: PlaywrightPhase): ResolvedPlaywrightPhase
 	};
 }
 
+// `playwright install --with-deps` shells out to apt-get, whose dpkg frontend
+// lock is held for the entire duration of any other apt process on the runner
+// (the image's unattended-upgrades, or a sibling project installing its own
+// browsers under a parallel nx target). An immediate retry just races the same
+// still-held lock, so wait between attempts to let it clear. Four attempts with
+// a 10s wait absorbs ~30s of contention — long enough to outlast a sibling
+// browser install, short enough to still fail loudly on a genuinely stuck apt.
+export const BROWSER_INSTALL_MAX_ATTEMPTS = 4;
+export const BROWSER_INSTALL_RETRY_DELAY_MS = 10_000;
+
 export const defaultDeps: TestPhaseRunnerDeps = {
 	execSync: defaultExecSync as ExecSyncFn,
 	globSync: defaultGlobSync,
 	log: console.log,
 	shouldSkipE2E: () => getEnv("CLAUDE_CODE_REMOTE") === "true",
+	sleep: (ms: number) => {
+		Atomics.wait(new Int32Array(new SharedArrayBuffer(4)), 0, 0, ms);
+	},
 };
 
 export function initTestPhaseRunner(deps: TestPhaseRunnerDeps) {
@@ -193,6 +208,24 @@ export function initTestPhaseRunner(deps: TestPhaseRunnerDeps) {
 		}
 	}
 
+	function installBrowsers(
+		displayName: string,
+		phase: ResolvedPlaywrightPhase,
+		options: { cwd: string; stdio: ExecSyncOptions["stdio"] },
+		attempt = 1,
+	): void {
+		try {
+			deps.execSync(phase.browserInstallCommand, { cwd: options.cwd, stdio: options.stdio });
+		} catch (error) {
+			if (attempt >= BROWSER_INSTALL_MAX_ATTEMPTS) throw error;
+			deps.log(
+				`\n=== ${displayName} - browser install failed (attempt ${attempt}/${BROWSER_INSTALL_MAX_ATTEMPTS}), retrying after ${BROWSER_INSTALL_RETRY_DELAY_MS}ms ===\n`,
+			);
+			deps.sleep(BROWSER_INSTALL_RETRY_DELAY_MS);
+			installBrowsers(displayName, phase, options, attempt + 1);
+		}
+	}
+
 	function runPlaywrightPhase(displayName: string, phase: ResolvedPlaywrightPhase, projectRoot: string) {
 		deps.log(`\n=== ${displayName} ===\n`);
 
@@ -201,17 +234,7 @@ export function initTestPhaseRunner(deps: TestPhaseRunnerDeps) {
 			deps.log("Installing browsers (output suppressed in CI; errors still shown)...");
 		}
 		const installStdio: ExecSyncOptions["stdio"] = isCI ? ["inherit", "ignore", "inherit"] : "inherit";
-		try {
-			deps.execSync(phase.browserInstallCommand, { cwd: projectRoot, stdio: installStdio });
-		} catch {
-			// `--with-deps` shells out to apt-get, which races the runner's dpkg
-			// frontend lock against other background apt processes (e.g. a sibling
-			// project's concurrent browser install). One clean retry absorbs that
-			// transient lock contention, matching the single-retry cushion the e2e
-			// command phases already get.
-			deps.log(`\n=== ${displayName} - retrying browser install once after failure ===\n`);
-			deps.execSync(phase.browserInstallCommand, { cwd: projectRoot, stdio: installStdio });
-		}
+		installBrowsers(displayName, phase, { cwd: projectRoot, stdio: installStdio });
 
 		deps.execSync(phase.testCommand, {
 			cwd: projectRoot,
