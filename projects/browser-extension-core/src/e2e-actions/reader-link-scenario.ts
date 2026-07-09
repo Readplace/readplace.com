@@ -2,6 +2,7 @@ import assert from "node:assert/strict";
 import { By, until } from "selenium-webdriver";
 import type { WebDriver } from "selenium-webdriver";
 import { CSS_SELECTORS, READER_PERMALINK_PATTERN } from "../e2e";
+import { waitForUi } from "./wait-budget";
 
 /** hutch's session cookie.
  * The reader at /queue/:id/view resolves its owner from this cookie, never from
@@ -44,9 +45,9 @@ export async function assertReaderLinkOpensPrivateReader(
 ): Promise<void> {
 	const popupWindowHandle = await driver.getWindowHandle();
 
-	const anchor = await driver.wait(
+	const anchor = await waitForUi(
+		driver,
 		until.elementLocated(By.css(CSS_SELECTORS.listItem)),
-		15_000,
 	);
 	const readerHref = await anchor.getAttribute("href");
 	assert.ok(
@@ -64,21 +65,21 @@ export async function assertReaderLinkOpensPrivateReader(
 	const handlesBeforeClick = await driver.getAllWindowHandles();
 	await driver.findElement(By.css(CSS_SELECTORS.listItem)).click();
 	let readerWindowHandle: string | undefined;
-	await driver.wait(async () => {
+	await waitForUi(driver, async () => {
 		const opened = (await driver.getAllWindowHandles()).filter(
 			(handle) => !handlesBeforeClick.includes(handle),
 		);
 		readerWindowHandle = opened[0];
 		return readerWindowHandle !== undefined;
-	}, 10_000, "clicking the reading-list link should open the reader in a new tab");
+	}, "clicking the reading-list link should open the reader in a new tab");
 	assert.ok(readerWindowHandle, "reader tab window handle was not captured");
 	await driver.switchTo().window(readerWindowHandle);
 
-	await driver.wait(
+	await waitForUi(
+		driver,
 		until.elementLocated(
 			By.css(`body.${PRIVATE_READER_BODY_CLASS}, body.${PUBLIC_VIEW_BODY_CLASS}`),
 		),
-		15_000,
 		"reader tab never rendered a reader or view page",
 	);
 	const bodyClass = await driver
@@ -104,10 +105,10 @@ async function assertSessionCookieMinted(
 	const handlesBefore = await driver.getAllWindowHandles();
 	await driver.switchTo().newWindow("tab");
 	await driver.get(serverOrigin);
-	await driver.wait(async () => {
+	await waitForUi(driver, async () => {
 		const cookies = await driver.manage().getCookies();
 		return cookies.some((cookie) => cookie.name === SESSION_COOKIE_NAME);
-	}, 10_000, `extension must mint the ${SESSION_COOKIE_NAME} cookie via POST /auth/session`);
+	}, `extension must mint the ${SESSION_COOKIE_NAME} cookie via POST /auth/session`);
 	await driver.close();
 	const remaining = (await driver.getAllWindowHandles()).filter((handle) =>
 		handlesBefore.includes(handle),

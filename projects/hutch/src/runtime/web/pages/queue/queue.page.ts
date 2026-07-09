@@ -97,7 +97,7 @@ import {
 	isExtensionInstalled,
 	isExtensionSavedArticle,
 } from "../../onboarding/extension-install";
-import { isIosClient } from "../../onboarding/ios-client";
+import { isIosClient, isIosSurface } from "../../onboarding/ios-client";
 import type { GetIosAppSignals, RecordIosAnyActivity, RecordIosSavedArticle } from "@packages/provider-contracts/ios-onboarding-signal";
 import type { GetEffectiveAccess } from "../../../domain/access/effective-access";
 
@@ -303,8 +303,7 @@ const APP_BACK_LINK = {
  * `x-readplace-client` header is honoured alongside it so a store-reviewed build
  * predating the query param — which cannot deploy in lockstep with the server —
  * still resolves to its chromeless reader. */
-const isIosPlatform = (req: Request): boolean =>
-	req.query.platform === "ios" || isIosClient(req);
+const isIosPlatform = (req: Request): boolean => isIosSurface(req);
 
 export function initQueueRoutes(deps: QueueDependencies): Router {
 	const router = express.Router();
@@ -578,13 +577,17 @@ export function initQueueRoutes(deps: QueueDependencies): Router {
 				: result;
 
 			res.type(SIREN_MEDIA_TYPE).json(
-				toArticleCollectionEntity(filtered, {
-					status: tab.status,
-					order: urlState.order,
-					page: urlState.page,
-					pageSize: result.pageSize,
-					url: filterUrl,
-				}),
+				toArticleCollectionEntity(
+					filtered,
+					{
+						status: tab.status,
+						order: urlState.order,
+						page: urlState.page,
+						pageSize: result.pageSize,
+						url: filterUrl,
+					},
+					{ iosSurface: isIosPlatform(req) },
+				),
 			);
 			return;
 		}
@@ -674,7 +677,10 @@ export function initQueueRoutes(deps: QueueDependencies): Router {
 				toArticleCollectionEntity(
 					collection,
 					{ page: collection.page, pageSize: collection.pageSize },
-					{ warning: { code: validation.error.code, message: validation.error.message } },
+					{
+						warning: { code: validation.error.code, message: validation.error.message },
+						iosSurface: isIosPlatform(req),
+					},
 				),
 			);
 			return;

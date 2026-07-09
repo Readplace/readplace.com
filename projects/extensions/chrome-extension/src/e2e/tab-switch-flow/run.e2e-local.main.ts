@@ -21,6 +21,9 @@ import {
 	createSeleniumElementQueries,
 	createSeleniumNavigation,
 	createLoginActions,
+	waitForUi,
+	waitForServer,
+	SUITE_FAILSAFE_MS,
 } from "browser-extension-core/e2e-actions";
 import { initSirenReadingList } from "browser-extension-core";
 import { HutchLogger, consoleLogger } from "@packages/hutch-logger";
@@ -46,17 +49,26 @@ const MARKER_B = `tabswitchb${RUN_ID}`;
 const PAGE_A = `${ORIGIN}/e2e/fixtures/links-page/${MARKER_A}`;
 const PAGE_B = `${ORIGIN}/e2e/fixtures/links-page/${MARKER_B}`;
 
-async function waitForServer(port: number, timeoutMs: number): Promise<void> {
-	const deadline = Date.now() + timeoutMs;
-	while (Date.now() < deadline) {
+// The suite must always end: a test cancelled by --test-timeout skips its
+// teardown, and the orphaned e2e-server child then holds this process open
+// forever (observed hanging a 20x soak for 12+ minutes against a 90s test
+// timeout). Reap the server group on any exit, and hard-exit past the
+// failsafe deadline. unref() keeps the timer itself from holding the loop.
+function armSuiteFailsafe(server: ChildProcess): void {
+	const reapServerGroup = () => {
+		if (server.pid === undefined || server.exitCode !== null) return;
 		try {
-			await fetch(`http://127.0.0.1:${port}/`, { redirect: "manual" });
-			return;
+			process.kill(-server.pid, "SIGKILL");
 		} catch {
-			await new Promise((r) => setTimeout(r, 100));
+			server.kill("SIGKILL");
 		}
-	}
-	throw new Error(`e2e server did not start on port ${port} within ${timeoutMs}ms`);
+	};
+	process.on("exit", reapServerGroup);
+	setTimeout(() => {
+		console.error(`suite failsafe: still running after ${SUITE_FAILSAFE_MS}ms, force-exiting`);
+		reapServerGroup();
+		process.exit(1);
+	}, SUITE_FAILSAFE_MS).unref();
 }
 
 async function startTestServer(): Promise<ChildProcess> {
@@ -73,7 +85,7 @@ async function startTestServer(): Promise<ChildProcess> {
 		detached: true,
 	});
 	child.on("error", () => {}); // waitForServer will throw on its own timeout
-	await waitForServer(TEST_PORT, 30_000);
+	await waitForServer(`http://127.0.0.1:${TEST_PORT}/`);
 	const userRes = await fetch(`${ORIGIN}/e2e/users`, {
 		method: "POST",
 		headers: { "content-type": "application/json" },
@@ -110,43 +122,40 @@ async function stopTestServer(child: ChildProcess): Promise<void> {
 }
 
 async function discoverExtensionId(driver: ChromeDriver): Promise<string> {
-	const timeout = 15_000;
-	const interval = 500;
-	const deadline = Date.now() + timeout;
+	const extensionId = await waitForUi(
+		driver,
+		async () => {
+			const targets = (await (driver as unknown as {
+				sendAndGetDevToolsCommand(cmd: string, params: Record<string, unknown>): Promise<unknown>;
+			}).sendAndGetDevToolsCommand(
+				"Target.getTargets",
+				{},
+			)) as { targetInfos: Array<{ type: string; url: string }> };
 
-	while (Date.now() < deadline) {
-		const targets = (await (driver as unknown as {
-			sendAndGetDevToolsCommand(cmd: string, params: Record<string, unknown>): Promise<unknown>;
-		}).sendAndGetDevToolsCommand(
-			"Target.getTargets",
-			{},
-		)) as { targetInfos: Array<{ type: string; url: string }> };
+			const swTarget = targets.targetInfos.find(
+				(t) =>
+					t.type === "service_worker" &&
+					t.url.startsWith("chrome-extension://"),
+			);
+			if (!swTarget) return null;
 
-		const swTarget = targets.targetInfos.find(
-			(t) =>
-				t.type === "service_worker" &&
-				t.url.startsWith("chrome-extension://"),
-		);
-
-		if (swTarget) {
 			const match = swTarget.url.match(/chrome-extension:\/\/([a-z]+)\//);
 			assert.ok(match, "Could not extract extension ID from service worker URL");
 			return match[1];
-		}
-
-		await new Promise((r) => setTimeout(r, interval));
-	}
-
-	throw new Error("Could not find extension service worker target within 15s");
+		},
+		"Could not find extension service worker target",
+	);
+	assert.ok(extensionId, "extension service worker discovery resolved without an id");
+	return extensionId;
 }
 
 async function logIn(driver: WebDriver, popupUrl: string): Promise<string> {
 	const elementQueries = createSeleniumElementQueries();
 
 	await driver.get(popupUrl);
-	await driver.wait(
+	await waitForUi(
+		driver,
 		() => elementQueries.findVisibleViewById(driver, "login-view"),
-		10_000,
 	);
 
 	const popupWindowHandle = await driver.getWindowHandle();
@@ -281,6 +290,7 @@ async function assertSavedContentIsPageA(): Promise<void> {
 const MAX_ATTEMPTS = 3;
 test("save targets the invoking tab even after the active tab switches", async () => {
 	const server = await startTestServer();
+	armSuiteFailsafe(server);
 	try {
 		for (let attempt = 1; attempt <= MAX_ATTEMPTS; attempt++) {
 			try {

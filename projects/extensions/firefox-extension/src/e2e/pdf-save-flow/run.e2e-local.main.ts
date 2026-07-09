@@ -2,6 +2,7 @@ import { test } from "node:test";
 import assert from "node:assert/strict";
 import { spawn, type ChildProcess } from "node:child_process";
 import { runPdfSaveScenario } from "browser-extension-core/e2e";
+import { waitForServer, SUITE_FAILSAFE_MS } from "browser-extension-core/e2e-actions";
 
 const TEST_EMAIL = "pdf-e2e-test@example.com";
 const TEST_PASSWORD = "testpassword123";
@@ -9,17 +10,26 @@ assert(process.env.E2E_PORT, "E2E_PORT is required");
 const TEST_PORT = Number(process.env.E2E_PORT);
 const ORIGIN = `http://127.0.0.1:${TEST_PORT}`;
 
-async function waitForServer(port: number, timeoutMs: number): Promise<void> {
-	const deadline = Date.now() + timeoutMs;
-	while (Date.now() < deadline) {
+// The suite must always end: a test cancelled by --test-timeout skips its
+// teardown, and the orphaned e2e-server child then holds this process open
+// forever (observed hanging a 20x soak for 12+ minutes against a 90s test
+// timeout). Reap the server group on any exit, and hard-exit past the
+// failsafe deadline. unref() keeps the timer itself from holding the loop.
+function armSuiteFailsafe(server: ChildProcess): void {
+	const reapServerGroup = () => {
+		if (server.pid === undefined || server.exitCode !== null) return;
 		try {
-			await fetch(`http://127.0.0.1:${port}/`, { redirect: "manual" });
-			return;
+			process.kill(-server.pid, "SIGKILL");
 		} catch {
-			await new Promise((r) => setTimeout(r, 100));
+			server.kill("SIGKILL");
 		}
-	}
-	throw new Error(`e2e server did not start on port ${port} within ${timeoutMs}ms`);
+	};
+	process.on("exit", reapServerGroup);
+	setTimeout(() => {
+		console.error(`suite failsafe: still running after ${SUITE_FAILSAFE_MS}ms, force-exiting`);
+		reapServerGroup();
+		process.exit(1);
+	}, SUITE_FAILSAFE_MS).unref();
 }
 
 async function startTestServer(): Promise<ChildProcess> {
@@ -38,7 +48,7 @@ async function startTestServer(): Promise<ChildProcess> {
 		detached: true,
 	});
 	child.on("error", () => {}); // waitForServer will throw on its own timeout
-	await waitForServer(TEST_PORT, 30_000);
+	await waitForServer(`http://127.0.0.1:${TEST_PORT}/`);
 	const userRes = await fetch(`${ORIGIN}/e2e/users`, {
 		method: "POST",
 		headers: { "content-type": "application/json" },
@@ -76,6 +86,7 @@ async function stopTestServer(child: ChildProcess): Promise<void> {
 
 test("extension should save a PDF URL end-to-end via the Siren walker", async () => {
 	const server = await startTestServer();
+	armSuiteFailsafe(server);
 	try {
 		await runPdfSaveScenario({
 			serverUrl: ORIGIN,
@@ -83,7 +94,6 @@ test("extension should save a PDF URL end-to-end via the Siren walker", async ()
 			password: TEST_PASSWORD,
 			pdfUrl: `${ORIGIN}/e2e/fixtures/sample.pdf`,
 			expectedTitleSubstring: "READPLACE_E2E_PDF_FIXTURE",
-			pollTimeoutMs: 30_000,
 		});
 	} finally {
 		await stopTestServer(server);

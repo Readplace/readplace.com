@@ -113,6 +113,23 @@ describe("toArticleCollectionEntity", () => {
 		expect(entity.links).toContainEqual({ rel: ["account"], title: "Account", href: "/account" });
 	});
 
+	it("tags the account link with ?platform=ios for the iOS app surface so its WKWebView renders no in-app purchase paths (Guideline 3.1.1)", () => {
+		const result: FindArticlesResult = {
+			articles: [],
+			total: 0,
+			page: 1,
+			pageSize: 20,
+		};
+
+		const entity = toArticleCollectionEntity(result, {}, { iosSurface: true });
+
+		expect(entity.links).toContainEqual({
+			rel: ["account"],
+			title: "Account",
+			href: "/account?platform=ios",
+		});
+	});
+
 	it("advertises a titled add-links-help link so already-installed clients resolve the help URL", () => {
 		const result: FindArticlesResult = {
 			articles: [],

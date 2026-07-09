@@ -26,6 +26,7 @@
           {{/each}}
         </div>
       </section>
+      {{#if showCardSection}}
       <section class="{{cardSection.stateClass}}" data-test-cards-section data-test-cards-state="{{cardSection.state}}">
         <h2 class="account-cards__heading">{{cardSection.heading}}</h2>
         {{#if cardSection.isLoaded}}
@@ -81,6 +82,7 @@
         <p class="account-cards__body" data-test-cards-message>{{cardSection.message}}</p>
         {{/if}}
       </section>
+      {{/if}}
       <section class="account-danger" data-test-account-danger>
         <h2 class="account-danger__heading">Danger zone</h2>
         <p class="account-danger__body">Permanently delete your account, every saved article, and your reading history. This can't be undone — you will lose all your data.</p>

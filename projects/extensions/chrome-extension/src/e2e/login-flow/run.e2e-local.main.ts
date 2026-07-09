@@ -7,6 +7,8 @@ import { Builder, By } from "selenium-webdriver";
 import { Options, ServiceBuilder, type Driver as ChromeDriver } from "selenium-webdriver/chrome";
 import { FlowRunner, ExtensionStateHandler } from "browser-extension-core/e2e";
 import {
+	waitForServer,
+	SUITE_FAILSAFE_MS,
 	createSeleniumElementQueries,
 	createSeleniumNavigation,
 	createLoginActions,
@@ -18,6 +20,7 @@ import {
 	type SaveLinkProgress,
 	type FilterProgress,
 	type LogoutProgress,
+	waitForUi,
 } from "browser-extension-core/e2e-actions";
 
 const EXTENSION_DIR = path.resolve(__dirname, "../../../dist-extension-compiled");
@@ -32,17 +35,26 @@ const TEST_PORT = Number(process.env.E2E_PORT);
 const TEST_LINK_URL = "https://example.com/test-article";
 const TEST_LINK_TITLE = "Test Article";
 
-async function waitForServer(port: number, timeoutMs: number): Promise<void> {
-	const deadline = Date.now() + timeoutMs;
-	while (Date.now() < deadline) {
+// The suite must always end: a test cancelled by --test-timeout skips its
+// teardown, and the orphaned e2e-server child then holds this process open
+// forever (observed hanging a 20x soak for 12+ minutes against a 90s test
+// timeout). Reap the server group on any exit, and hard-exit past the
+// failsafe deadline. unref() keeps the timer itself from holding the loop.
+function armSuiteFailsafe(server: ChildProcess): void {
+	const reapServerGroup = () => {
+		if (server.pid === undefined || server.exitCode !== null) return;
 		try {
-			await fetch(`http://127.0.0.1:${port}/`, { redirect: "manual" });
-			return;
+			process.kill(-server.pid, "SIGKILL");
 		} catch {
-			await new Promise((r) => setTimeout(r, 100));
+			server.kill("SIGKILL");
 		}
-	}
-	throw new Error(`e2e server did not start on port ${port} within ${timeoutMs}ms`);
+	};
+	process.on("exit", reapServerGroup);
+	setTimeout(() => {
+		console.error(`suite failsafe: still running after ${SUITE_FAILSAFE_MS}ms, force-exiting`);
+		reapServerGroup();
+		process.exit(1);
+	}, SUITE_FAILSAFE_MS).unref();
 }
 
 async function startTestServer(): Promise<ChildProcess> {
@@ -71,8 +83,7 @@ async function startTestServer(): Promise<ChildProcess> {
 	});
 	child.on("error", () => {}); // waitForServer will throw on its own timeout
 
-	// 30s — covers `pnpm nx` startup + cache check + node bootstrap.
-	await waitForServer(TEST_PORT, 30_000);
+	await waitForServer(`http://127.0.0.1:${TEST_PORT}/`);
 
 	const userRes = await fetch(`http://127.0.0.1:${TEST_PORT}/e2e/users`, {
 		method: "POST",
@@ -117,34 +128,31 @@ async function stopTestServer(child: ChildProcess): Promise<void> {
 
 async function discoverExtensionId(driver: ChromeDriver): Promise<string> {
 	// Service worker may take time to register in headless mode
-	const timeout = 15_000;
-	const interval = 500;
-	const deadline = Date.now() + timeout;
+	const extensionId = await waitForUi(
+		driver,
+		async () => {
+			const targets = (await (driver as unknown as {
+				sendAndGetDevToolsCommand(cmd: string, params: Record<string, unknown>): Promise<unknown>;
+			}).sendAndGetDevToolsCommand(
+				"Target.getTargets",
+				{},
+			)) as { targetInfos: Array<{ type: string; url: string }> };
 
-	while (Date.now() < deadline) {
-		const targets = (await (driver as unknown as {
-			sendAndGetDevToolsCommand(cmd: string, params: Record<string, unknown>): Promise<unknown>;
-		}).sendAndGetDevToolsCommand(
-			"Target.getTargets",
-			{},
-		)) as { targetInfos: Array<{ type: string; url: string }> };
+			const swTarget = targets.targetInfos.find(
+				(t) =>
+					t.type === "service_worker" &&
+					t.url.startsWith("chrome-extension://"),
+			);
+			if (!swTarget) return null;
 
-		const swTarget = targets.targetInfos.find(
-			(t) =>
-				t.type === "service_worker" &&
-				t.url.startsWith("chrome-extension://"),
-		);
-
-		if (swTarget) {
 			const match = swTarget.url.match(/chrome-extension:\/\/([a-z]+)\//);
 			assert.ok(match, "Could not extract extension ID from service worker URL");
 			return match[1];
-		}
-
-		await new Promise((r) => setTimeout(r, interval));
-	}
-
-	throw new Error("Could not find extension service worker target within 15s");
+		},
+		"Could not find extension service worker target",
+	);
+	assert.ok(extensionId, "extension service worker discovery resolved without an id");
+	return extensionId;
 }
 
 // CI resource contention (parallel NX tasks) crashes Chrome or causes Selenium
@@ -152,6 +160,7 @@ async function discoverExtensionId(driver: ChromeDriver): Promise<string> {
 const MAX_ATTEMPTS = 3;
 test("should complete OAuth login flow, save links, and paginate the list", async () => {
 	const server = await startTestServer();
+	armSuiteFailsafe(server);
 	try {
 		for (let attempt = 1; attempt <= MAX_ATTEMPTS; attempt++) {
 			try {
@@ -205,7 +214,7 @@ async function runTest() {
 
 		await driver.get(POPUP_URL);
 
-		await driver.wait(async () => {
+		await waitForUi(driver, async () => {
 			try {
 				const el = await driver.findElement(By.id("login-view"));
 				const hidden = await el.getAttribute("hidden");
@@ -213,7 +222,7 @@ async function runTest() {
 			} catch {
 				return false;
 			}
-		}, 10000);
+		});
 
 		const popupWindowHandle = await driver.getWindowHandle();
 

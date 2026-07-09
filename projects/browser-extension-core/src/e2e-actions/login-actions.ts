@@ -1,6 +1,7 @@
 import { By, until } from "selenium-webdriver";
 import type { WebDriver } from "selenium-webdriver";
 import { ELEMENT_IDS, CSS_SELECTORS, type FlowAction } from "../e2e";
+import { waitForUi } from "./wait-budget";
 
 export function createLoginActions(config: {
 	testEmail: string;
@@ -38,10 +39,10 @@ export function createLoginActions(config: {
 			// load because its initial navigation stalls. Reload once before the full
 			// wait so a transient stalled load self-heals instead of failing the flow.
 			try {
-				await driver.wait(until.elementLocated(By.id(ELEMENT_IDS.emailInput)), 20000);
+				await waitForUi(driver, until.elementLocated(By.id(ELEMENT_IDS.emailInput)));
 			} catch {
 				await driver.navigate().refresh();
-				await driver.wait(until.elementLocated(By.id(ELEMENT_IDS.emailInput)), 30000);
+				await waitForUi(driver, until.elementLocated(By.id(ELEMENT_IDS.emailInput)));
 			}
 		},
 	});

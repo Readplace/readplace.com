@@ -3,6 +3,7 @@ import { By, until } from "selenium-webdriver";
 import type { WebDriver } from "selenium-webdriver";
 import { CSS_SELECTORS, READER_PERMALINK_PATTERN, type FlowAction } from "../e2e";
 import { initSaveProgress } from "../popup/save-progress";
+import { waitForUi } from "./wait-budget";
 
 export interface SaveLinkProgress {
 	linkSaved: boolean;
@@ -41,7 +42,8 @@ export function createSaveLinkActions(config: {
 			// so a sub-frame capturing→uploading transition still paints
 			// "Reading page…" long enough for the poll below to observe it.
 			const capturingLabel = initSaveProgress().labelFor("capturing");
-			await driver.wait(
+			await waitForUi(
+				driver,
 				async () => {
 					try {
 						const title = await driver.findElement(
@@ -52,10 +54,9 @@ export function createSaveLinkActions(config: {
 						return false;
 					}
 				},
-				10000,
 				`saving-view should show "${capturingLabel}" while the save is in progress`,
 			);
-			await driver.wait(async () => {
+			await waitForUi(driver, async () => {
 				try {
 					const savedView = await driver.findElement(By.id("saved-view"));
 					const savedHidden = await savedView.getAttribute("hidden");
@@ -66,7 +67,7 @@ export function createSaveLinkActions(config: {
 				} catch {
 					return false;
 				}
-			}, 15000);
+			});
 			config.progress.linkSaved = true;
 		},
 	});
@@ -86,7 +87,7 @@ export function createSaveLinkActions(config: {
 		},
 		async execute(driver: WebDriver): Promise<void> {
 			await driver.get(config.popupUrl);
-			await driver.wait(async () => {
+			await waitForUi(driver, async () => {
 				try {
 					const listView = await driver.findElement(By.id("list-view"));
 					const hidden = await listView.getAttribute("hidden");
@@ -94,7 +95,7 @@ export function createSaveLinkActions(config: {
 				} catch {
 					return false;
 				}
-			}, 15000);
+			});
 		},
 	});
 
@@ -112,9 +113,9 @@ export function createSaveLinkActions(config: {
 			}
 		},
 		async execute(driver: WebDriver): Promise<void> {
-			await driver.wait(
+			await waitForUi(
+				driver,
 				until.elementLocated(By.css(CSS_SELECTORS.listItem)),
-				15000,
 			);
 			const items = await driver.findElements(By.css(CSS_SELECTORS.listItem));
 			const hrefs = await Promise.all(items.map(el => el.getAttribute("href")));
@@ -145,7 +146,7 @@ export function createSaveLinkActions(config: {
 		async execute(driver: WebDriver): Promise<void> {
 			const saveUrl = `${config.popupUrl}?url=${encodeURIComponent(EXTRA_LINK_URL)}&title=${encodeURIComponent(EXTRA_LINK_TITLE)}`;
 			await driver.get(saveUrl);
-			await driver.wait(async () => {
+			await waitForUi(driver, async () => {
 				try {
 					const savedView = await driver.findElement(By.id("saved-view"));
 					const savedHidden = await savedView.getAttribute("hidden");
@@ -156,9 +157,9 @@ export function createSaveLinkActions(config: {
 				} catch {
 					return false;
 				}
-			}, 15000);
+			});
 			await driver.get(config.popupUrl);
-			await driver.wait(async () => {
+			await waitForUi(driver, async () => {
 				try {
 					const listView = await driver.findElement(By.id("list-view"));
 					const hidden = await listView.getAttribute("hidden");
@@ -166,7 +167,7 @@ export function createSaveLinkActions(config: {
 				} catch {
 					return false;
 				}
-			}, 15000);
+			});
 			config.progress.extraLinkSaved = true;
 		},
 	});

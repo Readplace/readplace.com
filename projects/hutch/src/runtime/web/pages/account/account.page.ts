@@ -53,7 +53,9 @@ import {
 	buildCardSectionViewModel,
 	parseAccountQuery,
 	toAccountViewModel,
+	withoutCommerce,
 } from "./account.view-model";
+import { isIosSurface } from "../../onboarding/ios-client";
 import {
 	ACCOUNT_ERROR_ADD_CARD_FAILED_URL,
 	ACCOUNT_ERROR_CANNOT_REMOVE_PRIMARY_URL,
@@ -140,7 +142,8 @@ export function initAccountRoutes(deps: AccountDependencies): Router {
 			cardSection: CardSectionViewModel;
 		},
 	): Promise<void> {
-		const vm = toAccountViewModel(input.access, parseAccountQuery(req.query), deps.now());
+		const webVm = toAccountViewModel(input.access, parseAccountQuery(req.query), deps.now());
+		const vm = isIosSurface(req) ? withoutCommerce(webVm) : webVm;
 		const bannerState = await deps.buildBannerState(req, { preFetchedAccess: input.access });
 		sendComponent(req, res, Base(AccountPage(vm, input.cardSection), bannerState));
 	}
@@ -148,6 +151,15 @@ export function initAccountRoutes(deps: AccountDependencies): Router {
 	router.get("/", async (req: Request, res: Response) => {
 		assert(req.userId, "userId required - route must be protected by requireAuth");
 		const access = await deps.getEffectiveAccess(req.userId);
+		if (isIosSurface(req)) {
+			// The iOS surface hides the payment-methods section, so skip the live
+			// provider read whose result would only be discarded.
+			await renderAccount(req, res, {
+				access,
+				cardSection: buildCardSectionViewModel({ kind: "no-customer" }),
+			});
+			return;
+		}
 		const row = await deps.findSubscriptionByUserId(req.userId);
 		const cardSection = await loadCardSection({
 			customerId: row?.customerId,
@@ -323,7 +335,7 @@ export function initAccountRoutes(deps: AccountDependencies): Router {
 	router.post("/cancel", async (req: Request, res: Response) => {
 		assert(req.userId, "userId required - route must be protected by requireAuth");
 		await deps.publishCancelSubscriptionCommand({ userId: req.userId });
-		res.redirect(303, buildAccountUrl({ cancelling: true }));
+		res.redirect(303, buildAccountUrl({ cancelling: true, iosSurface: isIosSurface(req) }));
 	});
 
 	/** Irreversible account deletion. The synchronous work here revokes every

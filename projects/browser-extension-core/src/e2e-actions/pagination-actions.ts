@@ -2,6 +2,7 @@ import assert from "node:assert/strict";
 import { By } from "selenium-webdriver";
 import type { WebDriver } from "selenium-webdriver";
 import { CSS_SELECTORS, ELEMENT_IDS, type FlowAction } from "../e2e";
+import { waitForUi } from "./wait-budget";
 
 export interface PaginationProgress {
 	paginationLinksAdded: boolean;
@@ -33,7 +34,7 @@ async function isListViewVisible(driver: WebDriver): Promise<boolean> {
 }
 
 async function waitForSavedOrListView(driver: WebDriver): Promise<void> {
-	await driver.wait(async () => {
+	await waitForUi(driver, async () => {
 		try {
 			const savedView = await driver.findElement(By.id("saved-view"));
 			const savedHidden = await savedView.getAttribute("hidden");
@@ -44,11 +45,11 @@ async function waitForSavedOrListView(driver: WebDriver): Promise<void> {
 		} catch {
 			return false;
 		}
-	}, 15000);
+	});
 }
 
 async function waitForListView(driver: WebDriver): Promise<void> {
-	await driver.wait(async () => {
+	await waitForUi(driver, async () => {
 		try {
 			const listView = await driver.findElement(By.id("list-view"));
 			const hidden = await listView.getAttribute("hidden");
@@ -56,7 +57,7 @@ async function waitForListView(driver: WebDriver): Promise<void> {
 		} catch {
 			return false;
 		}
-	}, 15000);
+	});
 }
 
 export function createPaginationActions(config: {
@@ -121,7 +122,7 @@ export function createPaginationActions(config: {
 		async execute(driver: WebDriver): Promise<void> {
 			const nextButton = await driver.findElement(By.css(NEXT_PAGE_SELECTOR));
 			await nextButton.click();
-			await driver.wait(async () => {
+			await waitForUi(driver, async () => {
 				try {
 					const active = await driver.findElement(By.css(ACTIVE_PAGE_SELECTOR));
 					const text = await active.getText();
@@ -129,7 +130,7 @@ export function createPaginationActions(config: {
 				} catch {
 					return false;
 				}
-			}, 5000);
+			});
 			config.progress.navigatedToPage2 = true;
 		},
 	});
@@ -161,7 +162,7 @@ export function createPaginationActions(config: {
 		async execute(driver: WebDriver): Promise<void> {
 			const prevButton = await driver.findElement(By.css(PREV_PAGE_SELECTOR));
 			await prevButton.click();
-			await driver.wait(async () => {
+			await waitForUi(driver, async () => {
 				try {
 					const active = await driver.findElement(By.css(ACTIVE_PAGE_SELECTOR));
 					const text = await active.getText();
@@ -169,7 +170,7 @@ export function createPaginationActions(config: {
 				} catch {
 					return false;
 				}
-			}, 5000);
+			});
 			config.progress.navigatedBackToPage1 = true;
 		},
 	});

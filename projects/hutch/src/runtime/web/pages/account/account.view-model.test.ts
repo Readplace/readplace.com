@@ -1,7 +1,12 @@
 import assert from "node:assert/strict";
 import { PaymentMethodIdSchema } from "@packages/provider-contracts/payment-methods";
 import type { SavedCard } from "@packages/provider-contracts/payment-methods";
-import { buildCardSectionViewModel, toAccountViewModel, parseAccountQuery } from "./account.view-model";
+import {
+	buildCardSectionViewModel,
+	toAccountViewModel,
+	parseAccountQuery,
+	withoutCommerce,
+} from "./account.view-model";
 import type { EffectiveAccess } from "../../../domain/access/effective-access";
 
 function savedCard(id: string, isPrimary: boolean, overrides?: Partial<SavedCard>): SavedCard {
@@ -221,6 +226,71 @@ describe("toAccountViewModel — actions", () => {
 		assert.equal(vm.statusDateTail, ".");
 		const keys = vm.actions.map((a) => a.key);
 		assert.deepEqual(keys, ["reactivate-form"]);
+	});
+});
+
+describe("withoutCommerce — iOS app surface (Guideline 3.1.1)", () => {
+	const now = new Date();
+	const baseQuery = { cancelling: false, errorPaymentMethod: false, deleteConfirmationError: false, cardError: undefined };
+
+	it("hides the payment-methods section", () => {
+		const web = toAccountViewModel({ tier: "paid", access: "full", banner: "none" }, baseQuery, now);
+		assert.equal(web.showCardSection, true);
+		assert.equal(withoutCommerce(web).showCardSection, false);
+	});
+
+	it("keeps the cancel control but routes it through ?platform=ios so its post-redirect keeps the surface", () => {
+		const vm = withoutCommerce(
+			toAccountViewModel({ tier: "paid", access: "full", banner: "none" }, baseQuery, now),
+		);
+		assert.deepEqual(
+			vm.actions.map((a) => a.key),
+			["cancel-form"],
+		);
+		assert.equal(
+			vm.actions[0].href,
+			"/account/cancel?utm_source=account&utm_medium=internal&utm_content=cancel-form&platform=ios",
+		);
+	});
+
+	it("strips the subscribe CTA on trial — no in-app purchase path", () => {
+		const trialEndsAt = new Date(now.getTime() + 5 * ONE_DAY_MS).toISOString();
+		const vm = withoutCommerce(
+			toAccountViewModel(
+				{ tier: "trial", access: "full", banner: "trial-countdown", trialEndsAt },
+				baseQuery,
+				now,
+			),
+		);
+		assert.deepEqual(vm.actions, []);
+	});
+
+	it("strips the reactivate CTA in the cancellation-scheduled state", () => {
+		const vm = withoutCommerce(
+			toAccountViewModel(
+				{
+					tier: "paid",
+					access: "full",
+					banner: "cancellation-scheduled",
+					cancellationEffectiveAt: "2026-06-22T10:00:00.000Z",
+				},
+				baseQuery,
+				now,
+			),
+		);
+		assert.deepEqual(vm.actions, []);
+	});
+
+	it("keeps the delete-account danger zone (Apple requires in-app account deletion)", () => {
+		const vm = withoutCommerce(
+			toAccountViewModel(
+				{ tier: "inactive", access: "read-only", banner: "inactive", reason: "trial-expired" },
+				baseQuery,
+				now,
+			),
+		);
+		assert.equal(vm.dangerAction.key, "delete-account");
+		assert.deepEqual(vm.actions, []);
 	});
 });
 

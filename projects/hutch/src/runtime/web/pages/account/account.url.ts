@@ -1,8 +1,12 @@
-export function buildAccountUrl(params?: { cancelling?: boolean }): string {
-	if (params?.cancelling) {
-		return "/account?cancelling=1";
-	}
-	return "/account";
+export function buildAccountUrl(params?: { cancelling?: boolean; iosSurface?: boolean }): string {
+	const search = new URLSearchParams();
+	if (params?.cancelling) search.set("cancelling", "1");
+	// Preserved across a POST-Redirect-GET so the re-rendered account page keeps
+	// the iOS in-app surface — the WKWebView form post carries no client header,
+	// only whatever query the redirect target names.
+	if (params?.iosSurface) search.set("platform", "ios");
+	const qs = search.toString();
+	return qs ? `/account?${qs}` : "/account";
 }
 
 export const ACCOUNT_CANCEL_URL = "/account/cancel";
