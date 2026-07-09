@@ -3,7 +3,8 @@
   "targets": {
     "check": {
       "command": "pnpm lint",
-      "options": { "cwd": "{projectRoot}" }
+      "options": { "cwd": "{projectRoot}" },
+      "dependsOn": ["compile"]
     }
   }
 }
