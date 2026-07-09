@@ -4,7 +4,7 @@ import { NAV_HIDE_SCRIPT } from "../../shared/reader-nav-script";
 import { OnboardingChecklist, ONBOARDING_STYLES } from "../../onboarding/onboarding.component";
 import type { Platform } from "../../onboarding/onboarding.types";
 import type { DeviceClass } from "../../middleware/analytics";
-import { render, withInternalTracking, ANNUAL_PRICE_DISPLAY } from "@packages/web-shell";
+import { render, withInternalTracking, SUBSCRIBE_CTA_LABEL } from "@packages/web-shell";
 import type { PageBody } from "@packages/web-shell";
 
 import { QUEUE_STYLES } from "./queue.styles";
@@ -16,8 +16,6 @@ import { buildQueueUrl } from "./queue.url";
 import { tabQuery, type TabId } from "./queue.tabs";
 
 const QUEUE_TEMPLATE = readFileSync(join(__dirname, "queue.template.html"), "utf-8");
-
-const SUBSCRIBE_CTA_LABEL = `Subscribe — ${ANNUAL_PRICE_DISPLAY}/year`;
 
 /** Long enough to read the message and reach for Undo, short enough not to
  * linger; the global toast.client script removes it after this delay. */

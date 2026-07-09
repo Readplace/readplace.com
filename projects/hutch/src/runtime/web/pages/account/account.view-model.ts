@@ -1,7 +1,7 @@
 import { decomposeTimeLeft } from "@packages/time-left";
 import type { SavedCard } from "@packages/provider-contracts/payment-methods";
 import type { EffectiveAccess } from "../../../domain/access/effective-access";
-import { type LocalTime, toAbsoluteDate, withInternalTracking } from "@packages/web-shell";
+import { type LocalTime, SUBSCRIBE_CTA_LABEL, toAbsoluteDate, withInternalTracking } from "@packages/web-shell";
 import {
 	ACCOUNT_CANCEL_URL,
 	ACCOUNT_CARDS_NEW_URL,
@@ -94,7 +94,7 @@ function action(input: AccountAction): AccountAction {
 
 const SUBSCRIBE_ACTION = action({
 	key: "subscribe",
-	name: "Subscribe — $49/year",
+	name: SUBSCRIBE_CTA_LABEL,
 	variant: "primary",
 	method: "POST",
 	href: ACCOUNT_SUBSCRIBE_URL,
