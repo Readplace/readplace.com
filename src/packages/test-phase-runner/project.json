@@ -2,8 +2,9 @@
   "name": "@packages/test-phase-runner",
   "targets": {
     "check": {
-      "command": "pnpm lint && pnpm test",
-      "options": { "cwd": "{projectRoot}" }
+      "command": "pnpm lint && pnpm test-with-coverage",
+      "options": { "cwd": "{projectRoot}" },
+      "dependsOn": ["compile"]
     }
   }
 }

@@ -192,6 +192,36 @@ describe("node-test phase resolution", () => {
 		const phase = plan.phases[0] as Extract<ResolvedPhase, { type: "node-test" }>;
 		expect(phase.env).toEqual({ HEADLESS: "true" });
 	});
+
+	it("includes --test-timeout when a node-test phase sets a timeout", () => {
+		const runner = createRunner();
+		const plan = runner.createTestPlan({
+			config: {
+				projectName: "My Project",
+				phases: [{ type: "node-test", name: "E2E tests", files: ["test.e2e.js"], timeout: 45000 }],
+			},
+			projectRoot: "/projects/test",
+		});
+
+		const phase = plan.phases[0] as Extract<ResolvedPhase, { type: "node-test" }>;
+		expect(phase.command).toBe("node --test --test-timeout=45000 test.e2e.js");
+	});
+
+	it("marks a node-test phase with neither glob nor files as skip", () => {
+		const runner = createRunner();
+		const plan = runner.createTestPlan({
+			config: {
+				projectName: "My Project",
+				phases: [{ type: "node-test", name: "E2E tests" }],
+			},
+			projectRoot: "/projects/test",
+		});
+
+		const phase = plan.phases[0] as Extract<ResolvedPhase, { type: "node-test" }>;
+		expect(phase.files).toEqual([]);
+		expect(phase.skip).toBe(true);
+		expect(phase.command).toBe("");
+	});
 });
 
 describe("script phase resolution", () => {
@@ -549,6 +579,54 @@ describe("playwright browser install retry", () => {
 
 		await expect(plan.runAllPhases()).rejects.toThrow("persistent dpkg lock contention");
 		expect(installCalls).toBe(2);
+	});
+});
+
+describe("playwright browser install stdio", () => {
+	const originalCI = process.env.CI;
+	afterEach(() => {
+		if (originalCI === undefined) {
+			delete process.env.CI;
+		} else {
+			process.env.CI = originalCI;
+		}
+	});
+
+	function captureInstallStdio() {
+		const installStdio: Array<ExecSyncOptions["stdio"]> = [];
+		const { deps } = createInMemoryDeps({
+			execSync: (command: string, options: ExecSyncOptions) => {
+				if (command.includes("playwright install")) installStdio.push(options.stdio);
+				return Buffer.from("");
+			},
+		});
+		const runner = createRunner(deps);
+		const plan = runner.createTestPlan({
+			config: {
+				projectName: "Readplace",
+				phases: [{ type: "playwright", name: "E2E tests", config: "playwright.config.local-dev.ts", browsers: ["chromium"] }],
+			},
+			projectRoot: "/projects/hutch",
+		});
+		return { plan, installStdio };
+	}
+
+	it("suppresses browser-install stdout when CI=true", async () => {
+		process.env.CI = "true";
+		const { plan, installStdio } = captureInstallStdio();
+
+		await plan.runAllPhases();
+
+		expect(installStdio[0]).toEqual(["inherit", "ignore", "inherit"]);
+	});
+
+	it("inherits browser-install stdio when CI is unset", async () => {
+		delete process.env.CI;
+		const { plan, installStdio } = captureInstallStdio();
+
+		await plan.runAllPhases();
+
+		expect(installStdio[0]).toBe("inherit");
 	});
 });
 

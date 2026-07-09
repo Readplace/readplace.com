@@ -1,4 +1,4 @@
-import { retriable } from './index'
+import { retriable } from './retriable'
 
 describe('retriable', () => {
   describe('constructor validation', () => {

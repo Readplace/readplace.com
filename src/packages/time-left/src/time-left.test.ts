@@ -1,5 +1,5 @@
 import assert from "node:assert/strict";
-import { decomposeTimeLeft, formatCounter } from "./index";
+import { decomposeTimeLeft, formatCounter } from "./time-left";
 
 describe("decomposeTimeLeft", () => {
 	it("splits 1d 10h 5m 33s into components", () => {

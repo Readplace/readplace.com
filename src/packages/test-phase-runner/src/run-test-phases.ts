@@ -226,20 +226,10 @@ export function initTestPhaseRunner(deps: TestPhaseRunnerDeps) {
 			assert(input.config.phases.length > 0, "At least one test phase is required");
 
 			const resolvedPhases = input.config.phases.map((phase): ResolvedPhase => {
-				switch (phase.type) {
-					case "jest":
-						return resolveJestPhase(phase);
-					case "node-test":
-						return resolveNodeTestPhase(phase, deps.globSync);
-					case "script":
-						return resolveScriptPhase(phase);
-					case "playwright":
-						return resolvePlaywrightPhase(phase);
-					default: {
-						const _exhaustive: never = phase;
-						return _exhaustive;
-					}
-				}
+				if (phase.type === "jest") return resolveJestPhase(phase);
+				if (phase.type === "node-test") return resolveNodeTestPhase(phase, deps.globSync);
+				if (phase.type === "script") return resolveScriptPhase(phase);
+				return resolvePlaywrightPhase(phase);
 			});
 
 			return {
