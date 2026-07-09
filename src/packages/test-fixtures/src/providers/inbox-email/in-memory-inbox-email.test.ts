@@ -170,7 +170,12 @@ describe("initInMemoryInboxEmail", () => {
 			expect(refs.rawEmailS3Keys).toEqual(["inbound/a", "inbound/b"]);
 			expect(refs.bodyS3Keys).toEqual(["content/a/content.html"]);
 			// The read pass leaves every row in place so a redrive re-derives the keys.
-			expect(await store.listEmailsByUserId(owner)).toHaveLength(2);
+			const remaining = await store.listEmailsByUserId({
+				userId: owner,
+				page: 1,
+				pageSize: 20,
+			});
+			expect(remaining.total).toBe(2);
 		});
 
 		it("scopes the references to the owner, ignoring another user's emails", async () => {
@@ -212,7 +217,12 @@ describe("initInMemoryInboxEmail", () => {
 
 			await store.deleteAllEmailsByUserId(owner);
 
-			expect(await store.listEmailsByUserId(owner)).toHaveLength(0);
+			const remaining = await store.listEmailsByUserId({
+				userId: owner,
+				page: 1,
+				pageSize: 20,
+			});
+			expect(remaining.total).toBe(0);
 		});
 
 		it("leaves another user's emails intact", async () => {
@@ -227,8 +237,18 @@ describe("initInMemoryInboxEmail", () => {
 
 			await store.deleteAllEmailsByUserId(owner);
 
-			expect(await store.listEmailsByUserId(owner)).toHaveLength(0);
-			expect(await store.listEmailsByUserId(otherUser)).toHaveLength(1);
+			const ownerRemaining = await store.listEmailsByUserId({
+				userId: owner,
+				page: 1,
+				pageSize: 20,
+			});
+			const otherRemaining = await store.listEmailsByUserId({
+				userId: otherUser,
+				page: 1,
+				pageSize: 20,
+			});
+			expect(ownerRemaining.total).toBe(0);
+			expect(otherRemaining.total).toBe(1);
 		});
 
 		it("is a no-op for a user with no emails", async () => {
@@ -236,7 +256,12 @@ describe("initInMemoryInboxEmail", () => {
 
 			await store.deleteAllEmailsByUserId(owner);
 
-			expect(await store.listEmailsByUserId(owner)).toHaveLength(0);
+			const remaining = await store.listEmailsByUserId({
+				userId: owner,
+				page: 1,
+				pageSize: 20,
+			});
+			expect(remaining.total).toBe(0);
 		});
 	});
 });
