@@ -45,8 +45,7 @@ const application = express()
 				salt: requireEnv("ANALYTICS_SALT"),
 				now: () => new Date(),
 				generateVisitorId: randomUUID,
-				// The blog is served same-origin under hutch's origin (readplace.com/blog),
-				// so APP_ORIGIN carries the scheme the blog is served on; only that scheme
+				// APP_ORIGIN carries the scheme the blog is served on; only that scheme
 				// is consumed (isHttpsOrigin) to decide Secure cookies.
 				secureCookies: isHttpsOrigin(requireEnv("APP_ORIGIN")),
 			},
