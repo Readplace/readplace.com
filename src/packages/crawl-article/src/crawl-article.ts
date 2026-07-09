@@ -384,7 +384,7 @@ export function initCrawlArticle(deps: {
 				});
 			case "pdf":
 				if (!extractPdf) {
-					logError(`[CrawlArticle] Unsupported content-type "${contentType}" for ${params.url}`);
+					logInfo(`[CrawlArticle] PDF deferred to comprehensive crawl (no extractPdf in this runtime) for ${params.url}`);
 					return { status: "unsupported", reason: `unsupported content type: ${contentType}` };
 				}
 				return parsePdfFromBuffer({

@@ -377,16 +377,18 @@ describe("initCrawlArticle — single-fetch orchestration", () => {
 		expect(extractPdf).toHaveBeenCalledTimes(1);
 	});
 
-	it("returns unsupported for a PDF body when constructed without an extractPdf dep (simple-only path)", async () => {
+	it("returns unsupported for a PDF body when constructed without an extractPdf dep (simple-only path) and logs the deferral at info", async () => {
 		const fakeFetch: typeof fetch = async () =>
 			new Response(PDF_MAGIC_BUFFER, { status: 200, headers: { "content-type": "application/pdf" } });
 		const logError = jest.fn();
-		const crawlArticle = initCrawl({ fetch: fakeFetch, logError });
+		const logInfo = jest.fn();
+		const crawlArticle = initCrawl({ fetch: fakeFetch, logError, logInfo });
 
 		const result = await crawlArticle({ url: "https://example.com/doc.pdf" });
 
 		expect(result).toEqual({ status: "unsupported", reason: "unsupported content type: application/pdf" });
-		expect(logError).toHaveBeenCalledWith('[CrawlArticle] Unsupported content-type "application/pdf" for https://example.com/doc.pdf');
+		expect(logInfo).toHaveBeenCalledWith("[CrawlArticle] PDF deferred to comprehensive crawl (no extractPdf in this runtime) for https://example.com/doc.pdf");
+		expect(logError).not.toHaveBeenCalled();
 	});
 
 	it("returns unsupported and never invokes the extractor for a non-HTML non-PDF content type", async () => {
