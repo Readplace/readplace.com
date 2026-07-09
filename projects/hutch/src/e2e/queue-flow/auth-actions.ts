@@ -20,17 +20,6 @@ export function createAuthActions(
   passwordResetProgress: PasswordResetProgress,
 ): Record<AuthActionKey, PageAction> {
   return {
-    'navigate-to-signup': {
-      isAvailable: async (page) => {
-        if (progress.accountCreated) return false
-        if (await isOnPage(page, 'page-home')) return true
-        return isOnPage(page, 'page-login')
-      },
-      execute: async (page) => {
-        await page.locator('a[href^="/signup"]').first().click()
-      },
-    },
-
     'submit-signup-form': {
       isAvailable: async (page) => {
         if (progress.accountCreated) return false

@@ -123,13 +123,13 @@ describe("Save routes", () => {
 	});
 
 	describe("GET /save?url=https://example.com (unauthenticated)", () => {
-		it("should redirect to login with return URL", async () => {
+		it("should redirect to signup with return URL — an anonymous saver is almost always a new visitor, so the account-creation page converts the intent far better than the sign-in page", async () => {
 			const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
 			const response = await request(harness.server).get("/save?url=https://example.com/article");
 
 			expect(response.status).toBe(303);
 			const location = response.headers.location;
-			expect(location).toContain("/login");
+			expect(location.startsWith("/signup")).toBe(true);
 			expect(location).toContain("return=");
 			const returnUrl = decodeURIComponent(location.split("return=")[1]);
 			expect(returnUrl).toBe("/save?url=https://example.com/article");
@@ -148,8 +148,8 @@ describe("Save routes", () => {
 		});
 	});
 
-	describe("login round-trip", () => {
-		it("should carry URL through login and redirect to queue with url", async () => {
+	describe("returning-user round-trip via login", () => {
+		it("still carries the URL back to the queue for an existing user who reaches sign-in from the signup page (the return param round-trips through login unchanged)", async () => {
 			const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
 			const { auth } = harness;
 			await auth.createUser({ email: "test@example.com", password: "password123" });
@@ -157,11 +157,13 @@ describe("Save routes", () => {
 
 			const saveResponse = await agent.get("/save?url=https://example.com/article");
 			expect(saveResponse.status).toBe(303);
-			const loginRedirect = saveResponse.headers.location;
-			expect(loginRedirect).toContain("/login");
-			expect(loginRedirect).toContain("return=");
+			const signupRedirect = saveResponse.headers.location;
+			expect(signupRedirect.startsWith("/signup")).toBe(true);
+			expect(signupRedirect).toContain("return=");
 
-			const returnParam = decodeURIComponent(loginRedirect.split("return=")[1]);
+			// An existing user follows the "Already have an account? Sign in" link,
+			// which preserves the return param, then logs in.
+			const returnParam = decodeURIComponent(signupRedirect.split("return=")[1]);
 			await agent
 				.post(`/login?return=${encodeURIComponent(returnParam)}`)
 				.type("form")
@@ -200,21 +202,21 @@ describe("Save routes", () => {
 			expect(parsed.searchParams.get("utm_source")).toBe("twitter");
 		});
 
-		it("preserves the full originalUrl (utm included) in the /login return param", async () => {
+		it("preserves the full originalUrl (utm included) in the /signup return param", async () => {
 			const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
 
 			const response = await request(harness.server).get("/save?url=https://example.com/article&utm_source=medium");
 
 			expect(response.status).toBe(303);
 			const location = response.headers.location;
-			expect(location.startsWith("/login")).toBe(true);
+			expect(location.startsWith("/signup")).toBe(true);
 			const returnParam = new URL(`http://localhost${location}`).searchParams.get("return");
 			expect(returnParam).toBe("/save?url=https://example.com/article&utm_source=medium");
 		});
 	});
 
 	describe("view_save_intent analytics emission", () => {
-		it("emits one view_save_intent for an anonymous save click before redirecting to /login — the warmest funnel moment that otherwise vanishes into the sign-in page", async () => {
+		it("emits one view_save_intent for an anonymous save click before redirecting to /signup — the warmest funnel moment, now routed to account creation instead of the sign-in page", async () => {
 			const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
 
 			const response = await request(harness.server).get("/save?url=https://example.com/article");

@@ -60,7 +60,7 @@ export function initSaveRoutes(deps: {
 					),
 				);
 			}
-			res.redirect(303, `/login?return=${encodeURIComponent(req.originalUrl)}`);
+			res.redirect(303, `/signup?return=${encodeURIComponent(req.originalUrl)}`);
 			return;
 		}
 

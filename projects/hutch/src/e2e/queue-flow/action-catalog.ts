@@ -3,7 +3,6 @@ export type ViewPageActionKey =
 	| 'anonymous-visit-view-page-crawl-fails'
 
 export type AuthActionKey =
-	| 'navigate-to-signup'
 	| 'submit-signup-form'
 	| 'click-logout'
 	| 'navigate-to-login'
