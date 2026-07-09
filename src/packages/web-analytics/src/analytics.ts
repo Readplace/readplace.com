@@ -16,6 +16,7 @@ import {
 	classifyContentSource,
 	type ContentClass,
 } from "./content-source";
+import { SKIP_PATHS } from "./skip-paths";
 
 declare global {
 	namespace Express {
@@ -225,15 +226,6 @@ export type AnalyticsEvent =
 	| SummaryToggledEvent
 	| ViewOpenedEvent
 	| ViewSaveIntentEvent;
-
-const SKIP_PATHS = new Set([
-	"/robots.txt",
-	"/sitemap.xml",
-	"/llms.txt",
-	"/favicon.ico",
-	"/blog/sitemap.xml",
-	"/blog/changelog-banner",
-]);
 
 function shouldLog(params: { req: Request; path: string; statusCode: number }): boolean {
 	if (params.req.method !== "GET") return false;

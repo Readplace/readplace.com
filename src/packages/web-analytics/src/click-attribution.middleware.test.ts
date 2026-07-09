@@ -172,6 +172,14 @@ describe("createClickAttributionMiddleware", () => {
 		expect(cookies).toEqual([]);
 	});
 
+	it("skips machine/utility endpoints so a direct hit on a sitemap never becomes the first-touch landing_path", () => {
+		const req = createReq({ path: "/blog/sitemap.xml", query: { utm_source: "twitter" } });
+		const { cookies, nextCalled } = runMiddleware(req);
+
+		expect(nextCalled).toBe(true);
+		expect(cookies).toEqual([]);
+	});
+
 	it("preserves the existing cookie when a valid attribution is already set (first-touch wins)", () => {
 		const existing: ClickAttribution = {
 			utm_source: "hn",
