@@ -1206,6 +1206,7 @@ describe("POST /account/cards/new", () => {
 		const doc = new JSDOM(response.text).window.document;
 		const notice = doc.querySelector("[data-test-cards-notice]");
 		assert(notice, "card-section notice must render for add_card_failed");
+		expect(notice.getAttribute("role")).toBe("alert");
 		expect(notice.textContent).toContain("couldn't start adding a card");
 		// The subscription card must NOT show the resubscribe / email-support error.
 		expect(doc.querySelector("[data-test-account-error-heading]")).toBeNull();
@@ -1394,6 +1395,7 @@ describe("POST /account/delete", () => {
 		const doc = new JSDOM(after.text).window.document;
 		const notice = doc.querySelector("[data-test-danger-notice]");
 		assert(notice, "the rejected-delete notice must render");
+		expect(notice.getAttribute("role")).toBe("alert");
 		expect(notice.textContent).toBe(
 			'Your account was not deleted. Type "delete my account permanently" exactly to confirm.',
 		);
@@ -1457,6 +1459,7 @@ describe("GET /account (danger zone)", () => {
 		expect(input.getAttribute("name")).toBe("confirmation");
 		expect(input.hasAttribute("required")).toBe(true);
 		expect(input.getAttribute("pattern")).toBe("delete my account permanently");
+		expect(input.getAttribute("title")).toBe("Type the phrase exactly: delete my account permanently");
 
 		const inputId = input.getAttribute("id");
 		assert(inputId, "the confirmation input must have an id for its label");

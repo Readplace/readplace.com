@@ -100,6 +100,11 @@ describe("toAccountViewModel — actions", () => {
 			now,
 		);
 		assert.equal(vm.dangerConfirmation.phrase, "delete my account permanently");
+		assert.equal(vm.dangerConfirmation.pattern, "delete my account permanently");
+		assert.equal(
+			vm.dangerConfirmation.title,
+			"Type the phrase exactly: delete my account permanently",
+		);
 		assert.equal(vm.dangerConfirmation.field, "confirmation");
 		assert.equal(vm.dangerConfirmation.hasNotice, false);
 	});

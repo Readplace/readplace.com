@@ -20,6 +20,13 @@ export const DELETE_ACCOUNT_CONFIRMATION_PHRASE = "delete my account permanently
 export const DELETE_ACCOUNT_CONFIRMATION_FIELD = "confirmation";
 
 const DELETE_CONFIRMATION_NOTICE = `Your account was not deleted. Type "${DELETE_ACCOUNT_CONFIRMATION_PHRASE}" exactly to confirm.`;
+const DELETE_CONFIRMATION_TITLE = `Type the phrase exactly: ${DELETE_ACCOUNT_CONFIRMATION_PHRASE}`;
+
+function escapeRegExp(value: string): string {
+	return value.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+}
+
+const DELETE_CONFIRMATION_PATTERN = escapeRegExp(DELETE_ACCOUNT_CONFIRMATION_PHRASE);
 
 export type AccountCardState =
 	| "founding"
@@ -43,6 +50,8 @@ export interface AccountAction {
 
 export interface DangerConfirmationViewModel {
 	phrase: string;
+	pattern: string;
+	title: string;
 	field: string;
 	hasNotice: boolean;
 	notice: string;
@@ -325,6 +334,8 @@ export function toAccountViewModel(
 		...stateViewModel(access, queryState, now),
 		dangerConfirmation: {
 			phrase: DELETE_ACCOUNT_CONFIRMATION_PHRASE,
+			pattern: DELETE_CONFIRMATION_PATTERN,
+			title: DELETE_CONFIRMATION_TITLE,
 			field: DELETE_ACCOUNT_CONFIRMATION_FIELD,
 			hasNotice: queryState.deleteConfirmationError,
 			notice: DELETE_CONFIRMATION_NOTICE,
