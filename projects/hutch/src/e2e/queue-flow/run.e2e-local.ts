@@ -122,8 +122,12 @@ test.describe('Queue management flow (local)', () => {
         bannerOnReader: createBannerOnReaderActions(
           {
             baseUrl: BASE_URL,
-            publicViewTestUrl: `${BASE_URL}/privacy?banner-on-public-view=${Date.now()}`,
-            privateReaderTestUrl: `${BASE_URL}/privacy?banner-on-private-reader=${Date.now()}`,
+            // /e2e/unfetchable fails the crawl synchronously and terminally, so
+            // "latest article not fully parsed" (the banner's show condition) is
+            // a stable state, not a race against the in-memory parse pipeline
+            // finishing before the page renders.
+            publicViewTestUrl: `${BASE_URL}/e2e/unfetchable?banner-on-public-view=${Date.now()}`,
+            privateReaderTestUrl: `${BASE_URL}/e2e/unfetchable?banner-on-private-reader=${Date.now()}`,
           },
           cleanupProgress,
           bannerOnReaderProgress,
