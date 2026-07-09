@@ -1,4 +1,5 @@
 import { decomposeTimeLeft } from "@packages/time-left";
+import { escapeRegExp } from "@packages/escape-regexp";
 import type { SavedCard } from "@packages/provider-contracts/payment-methods";
 import type { EffectiveAccess } from "../../../domain/access/effective-access";
 import { type LocalTime, SUBSCRIBE_CTA_LABEL, toAbsoluteDate, withInternalTracking } from "@packages/web-shell";
@@ -15,6 +16,14 @@ import {
 /** Server-authoritative card cap. The web layer never trusts the client: every
  * add/remove/promote re-reads the live card set and re-checks these rules. */
 export const MAX_CARDS = 3;
+
+export const DELETE_ACCOUNT_CONFIRMATION_PHRASE = "delete my account permanently";
+export const DELETE_ACCOUNT_CONFIRMATION_FIELD = "confirmation";
+
+const DELETE_CONFIRMATION_NOTICE = `Your account was not deleted. Type "${DELETE_ACCOUNT_CONFIRMATION_PHRASE}" exactly to confirm.`;
+const DELETE_CONFIRMATION_TITLE = `Type the phrase exactly: ${DELETE_ACCOUNT_CONFIRMATION_PHRASE}`;
+
+const DELETE_CONFIRMATION_PATTERN = escapeRegExp(DELETE_ACCOUNT_CONFIRMATION_PHRASE);
 
 export type AccountCardState =
 	| "founding"
@@ -36,6 +45,15 @@ export interface AccountAction {
 	href: string;
 }
 
+export interface DangerConfirmationViewModel {
+	phrase: string;
+	pattern: string;
+	title: string;
+	field: string;
+	hasNotice: boolean;
+	notice: string;
+}
+
 export interface AccountViewModel {
 	state: AccountCardState;
 	stateClass: string;
@@ -52,6 +70,7 @@ export interface AccountViewModel {
 	/** The irreversible "delete account" control. Kept out of the state-dependent
 	 * `actions` array so the danger zone renders in every subscription state. */
 	dangerAction: AccountAction;
+	dangerConfirmation: DangerConfirmationViewModel;
 	/** Whether the payment-methods section renders. False on the iOS app surface,
 	 * where card management is hidden for App Store review Guideline 3.1.1. */
 	showCardSection: boolean;
@@ -70,6 +89,7 @@ export type CardError = "card_limit" | "cannot_remove_primary" | "add_card_faile
 export interface AccountUrlState {
 	cancelling: boolean;
 	errorPaymentMethod: boolean;
+	deleteConfirmationError: boolean;
 	cardError: CardError | undefined;
 }
 
@@ -84,6 +104,7 @@ export function parseAccountQuery(query: Record<string, unknown> | undefined): A
 	return {
 		cancelling: query?.cancelling === "1",
 		errorPaymentMethod: query?.error === "payment_method",
+		deleteConfirmationError: query?.error === "delete_confirmation",
 		cardError: parseCardError(query?.error),
 	};
 }
@@ -306,6 +327,24 @@ export function toAccountViewModel(
 	queryState: AccountUrlState,
 	now: Date,
 ): AccountViewModel {
+	return {
+		...stateViewModel(access, queryState, now),
+		dangerConfirmation: {
+			phrase: DELETE_ACCOUNT_CONFIRMATION_PHRASE,
+			pattern: DELETE_CONFIRMATION_PATTERN,
+			title: DELETE_CONFIRMATION_TITLE,
+			field: DELETE_ACCOUNT_CONFIRMATION_FIELD,
+			hasNotice: queryState.deleteConfirmationError,
+			notice: DELETE_CONFIRMATION_NOTICE,
+		},
+	};
+}
+
+function stateViewModel(
+	access: EffectiveAccess,
+	queryState: AccountUrlState,
+	now: Date,
+): Omit<AccountViewModel, "dangerConfirmation"> {
 	// Payment-method error takes priority over every underlying state — the user
 	// just bounced off Stripe's create-subscription endpoint.
 	if (queryState.errorPaymentMethod) {
@@ -373,15 +412,19 @@ function carryIosPlatform(action: AccountAction): AccountAction {
  * payment-methods section — so the build satisfies App Store review Guideline
  * 3.1.1. Kept: the subscription status line, the cancel control, and the
  * delete-account danger zone (Apple requires in-app account deletion; cancelling
- * buys nothing). Surviving actions carry `?platform=ios` on their href so a POST
- * lands on e.g. /account/cancel?platform=ios and its post-redirect GET re-renders
- * this same surface — the WKWebView form post sends no client header. */
+ * buys nothing). Every surviving control — the cancel control and the
+ * delete-account danger action — carries `?platform=ios` on its href so a POST
+ * lands on e.g. /account/cancel?platform=ios (or /account/delete?platform=ios) and
+ * its post-redirect GET re-renders this same surface — the WKWebView form post
+ * sends no client header, so a server-rejected delete confirmation stays
+ * commerce-free instead of bouncing to the web surface. */
 export function withoutCommerce(vm: AccountViewModel): AccountViewModel {
 	return {
 		...vm,
 		actions: vm.actions
 			.filter((a) => a.key !== "subscribe" && a.key !== "reactivate-form")
 			.map(carryIosPlatform),
+		dangerAction: carryIosPlatform(vm.dangerAction),
 		showCardSection: false,
 	};
 }

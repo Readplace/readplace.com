@@ -141,8 +141,42 @@
   line-height: 1.45;
 }
 
+.account-danger__notice {
+  font-size: 0.875rem;
+  margin: 0 0 12px;
+  color: var(--error);
+}
+
 .account-danger__action-form {
   margin: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  align-items: flex-start;
+}
+
+.account-danger__confirm-label {
+  font-size: 0.875rem;
+  color: var(--foreground);
+}
+
+.account-danger__confirm-input {
+  width: 100%;
+  max-width: 360px;
+  height: var(--input-height);
+  padding: var(--input-padding);
+  font-size: var(--input-font-size);
+  font-family: inherit;
+  border: 1px solid var(--input);
+  border-radius: var(--radius-sm);
+  background: var(--background);
+  color: var(--foreground);
+}
+
+.account-danger__confirm-input:focus {
+  outline: none;
+  border-color: var(--ring);
+  box-shadow: 0 0 0 3px var(--ring-shadow);
 }
 
 /* purgecss-ignore-start: account-cards and its state modifiers are interpolated from CardSectionViewModel.stateClass / item.itemClass in account.template.html */

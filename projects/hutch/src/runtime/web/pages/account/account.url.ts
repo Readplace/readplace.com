@@ -1,6 +1,11 @@
-export function buildAccountUrl(params?: { cancelling?: boolean; iosSurface?: boolean }): string {
+export function buildAccountUrl(params?: {
+	cancelling?: boolean;
+	deleteConfirmationError?: boolean;
+	iosSurface?: boolean;
+}): string {
 	const search = new URLSearchParams();
 	if (params?.cancelling) search.set("cancelling", "1");
+	if (params?.deleteConfirmationError) search.set("error", "delete_confirmation");
 	// Preserved across a POST-Redirect-GET so the re-rendered account page keeps
 	// the iOS in-app surface — the WKWebView form post carries no client header,
 	// only whatever query the redirect target names.

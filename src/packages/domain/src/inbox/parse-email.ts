@@ -1,5 +1,6 @@
 import assert from "node:assert";
 import { createHash } from "node:crypto";
+import { escapeRegExp } from "@packages/escape-regexp";
 import PostalMime from "postal-mime";
 import { type MessageId, MessageIdSchema } from "./inbox-email.schema";
 
@@ -30,10 +31,6 @@ export interface ParsedEmail {
 export type ParseEmailResult =
 	| { ok: true; email: ParsedEmail }
 	| { ok: false; reason: "unparseable" };
-
-function escapeRegExp(value: string): string {
-	return value.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
-}
 
 /** Drop the angle brackets a MIME `Content-ID` header carries (`<logo@x>`) so it
  * matches the bare token an HTML `cid:` URI uses (`cid:logo@x`). */
