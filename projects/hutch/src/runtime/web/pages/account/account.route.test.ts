@@ -149,6 +149,13 @@ describe("GET /account?platform=ios (iOS app surface — Guideline 3.1.1)", () =
 			doc.querySelector("[data-test-account-danger]"),
 			"danger zone must remain on the iOS surface",
 		);
+		// The delete form carries ?platform=ios too, so a server-rejected confirmation
+		// re-renders commerce-free (mirrors the cancel control above).
+		const deleteForm = doc.querySelector('[data-test-danger-action="delete-account"]');
+		assert(deleteForm, "the delete form must render on the iOS surface");
+		expect(deleteForm.getAttribute("action")).toBe(
+			"/account/delete?utm_source=account&utm_medium=internal&utm_content=delete-account&platform=ios",
+		);
 	});
 
 	it("keeps the Cancel control routed through ?platform=ios and hides card management for an active subscriber", async () => {
@@ -1415,6 +1422,19 @@ describe("POST /account/delete", () => {
 
 		const after = await agent.get("/account");
 		expect(after.status).toBe(200);
+	});
+
+	it("preserves the iOS surface across a rejected delete so the notice re-renders commerce-free (Guideline 3.1.1)", async () => {
+		const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
+		const { agent } = await loginUser(harness, "ios-delete-reject@example.com");
+
+		// The in-app delete form posts with ?platform=ios, so the rejection redirect
+		// must carry it forward — a bare /account?error=… would bounce the WKWebView
+		// to the web surface with its subscribe CTAs.
+		const response = await agent.post("/account/delete?platform=ios");
+
+		expect(response.status).toBe(303);
+		expect(response.headers.location).toBe("/account?error=delete_confirmation&platform=ios");
 	});
 
 	it("redirects unauthenticated callers to /login", async () => {

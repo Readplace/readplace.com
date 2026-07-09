@@ -60,7 +60,6 @@ import {
 	ACCOUNT_ERROR_ADD_CARD_FAILED_URL,
 	ACCOUNT_ERROR_CANNOT_REMOVE_PRIMARY_URL,
 	ACCOUNT_ERROR_CARD_LIMIT_URL,
-	ACCOUNT_ERROR_DELETE_CONFIRMATION_URL,
 	ACCOUNT_ERROR_PAYMENT_METHOD_URL,
 	buildAccountUrl,
 } from "./account.url";
@@ -352,7 +351,10 @@ export function initAccountRoutes(deps: AccountDependencies): Router {
 		assert(req.userId, "userId required - route must be protected by requireAuth");
 		const userId = req.userId;
 		if (req.body?.[DELETE_ACCOUNT_CONFIRMATION_FIELD] !== DELETE_ACCOUNT_CONFIRMATION_PHRASE) {
-			res.redirect(303, ACCOUNT_ERROR_DELETE_CONFIRMATION_URL);
+			// Thread the surface through the POST-Redirect-GET like /cancel does, so a
+			// rejected delete on the iOS in-app surface re-renders commerce-free rather
+			// than bouncing to the web surface with its subscribe CTAs (Guideline 3.1.1).
+			res.redirect(303, buildAccountUrl({ deleteConfirmationError: true, iosSurface: isIosSurface(req) }));
 			return;
 		}
 		await deps.destroyUserSessions(userId);

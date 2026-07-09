@@ -54,6 +54,7 @@
     "@packages/article-store": "workspace:*",
     "@packages/crawl-article": "workspace:*",
     "@packages/domain": "workspace:*",
+    "@packages/escape-regexp": "workspace:*",
     "@packages/extract-links-from-page": "workspace:*",
     "@packages/finalize-article": "workspace:*",
     "@packages/hutch-infra-components": "workspace:*",

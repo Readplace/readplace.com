@@ -286,7 +286,7 @@ describe("withoutCommerce — iOS app surface (Guideline 3.1.1)", () => {
 		assert.deepEqual(vm.actions, []);
 	});
 
-	it("keeps the delete-account danger zone (Apple requires in-app account deletion)", () => {
+	it("keeps the delete-account danger zone and routes it through ?platform=ios so a rejected delete re-renders commerce-free", () => {
 		const vm = withoutCommerce(
 			toAccountViewModel(
 				{ tier: "inactive", access: "read-only", banner: "inactive", reason: "trial-expired" },
@@ -295,6 +295,10 @@ describe("withoutCommerce — iOS app surface (Guideline 3.1.1)", () => {
 			),
 		);
 		assert.equal(vm.dangerAction.key, "delete-account");
+		assert.equal(
+			vm.dangerAction.href,
+			"/account/delete?utm_source=account&utm_medium=internal&utm_content=delete-account&platform=ios",
+		);
 		assert.deepEqual(vm.actions, []);
 	});
 });

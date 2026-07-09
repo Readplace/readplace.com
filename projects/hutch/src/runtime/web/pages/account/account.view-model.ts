@@ -1,4 +1,5 @@
 import { decomposeTimeLeft } from "@packages/time-left";
+import { escapeRegExp } from "@packages/escape-regexp";
 import type { SavedCard } from "@packages/provider-contracts/payment-methods";
 import type { EffectiveAccess } from "../../../domain/access/effective-access";
 import { type LocalTime, toAbsoluteDate, withInternalTracking } from "@packages/web-shell";
@@ -21,10 +22,6 @@ export const DELETE_ACCOUNT_CONFIRMATION_FIELD = "confirmation";
 
 const DELETE_CONFIRMATION_NOTICE = `Your account was not deleted. Type "${DELETE_ACCOUNT_CONFIRMATION_PHRASE}" exactly to confirm.`;
 const DELETE_CONFIRMATION_TITLE = `Type the phrase exactly: ${DELETE_ACCOUNT_CONFIRMATION_PHRASE}`;
-
-function escapeRegExp(value: string): string {
-	return value.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
-}
 
 const DELETE_CONFIRMATION_PATTERN = escapeRegExp(DELETE_ACCOUNT_CONFIRMATION_PHRASE);
 
@@ -415,15 +412,19 @@ function carryIosPlatform(action: AccountAction): AccountAction {
  * payment-methods section — so the build satisfies App Store review Guideline
  * 3.1.1. Kept: the subscription status line, the cancel control, and the
  * delete-account danger zone (Apple requires in-app account deletion; cancelling
- * buys nothing). Surviving actions carry `?platform=ios` on their href so a POST
- * lands on e.g. /account/cancel?platform=ios and its post-redirect GET re-renders
- * this same surface — the WKWebView form post sends no client header. */
+ * buys nothing). Every surviving control — the cancel control and the
+ * delete-account danger action — carries `?platform=ios` on its href so a POST
+ * lands on e.g. /account/cancel?platform=ios (or /account/delete?platform=ios) and
+ * its post-redirect GET re-renders this same surface — the WKWebView form post
+ * sends no client header, so a server-rejected delete confirmation stays
+ * commerce-free instead of bouncing to the web surface. */
 export function withoutCommerce(vm: AccountViewModel): AccountViewModel {
 	return {
 		...vm,
 		actions: vm.actions
 			.filter((a) => a.key !== "subscribe" && a.key !== "reactivate-form")
 			.map(carryIosPlatform),
+		dangerAction: carryIosPlatform(vm.dangerAction),
 		showCardSection: false,
 	};
 }
