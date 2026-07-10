@@ -43,6 +43,7 @@ export interface AnalyticsPageview {
 	 * signal for the audience's device mix, not just article_read's reader cohort.
 	 */
 	device_class: DeviceClass;
+	browser: BrowserFamily;
 	visitor_hash: string | null;
 	visitor_id: string | null;
 	is_authenticated: 0 | 1;
@@ -142,6 +143,44 @@ export function classifyDeviceClass(userAgent: string | undefined): DeviceClass 
 	if (userAgent.includes("iPhone") || userAgent.includes("iPod")) return "mobile_ios";
 	if (isAndroid) return "mobile_android";
 	return "desktop";
+}
+
+/**
+ * Browser families for the audience device-mix pie. `other` folds an absent UA,
+ * a bot UA, and any browser outside this set into one low-cardinality slice, and
+ * preserves the no-raw-UA posture — only the family is logged, never the version
+ * or the raw UA.
+ */
+export type BrowserFamily =
+	| "chrome"
+	| "safari"
+	| "firefox"
+	| "edge"
+	| "samsung_internet"
+	| "opera"
+	| "other";
+
+/**
+ * Derives a `BrowserFamily` from the User-Agent. Order is the correctness crux:
+ * every Chromium UA carries a `Safari/` token and every Chromium *derivative*
+ * (Edge, Opera, Samsung) also carries `Chrome/`, so the derivatives match first,
+ * then Chrome, then Safari last — otherwise Edge/Opera/Samsung would read as
+ * Chrome and every Chromium browser as Safari. iOS wrappers (CriOS/FxiOS/EdgiOS/
+ * OPiOS) map to their family, not Safari. The `isbot` guard mirrors
+ * classifyDeviceClass: a bot never reaches the pageview log, but Googlebot's
+ * smartphone UA embeds a real `Chrome/` token, so the guard stops any future
+ * caller from miscounting it.
+ */
+export function classifyBrowser(userAgent: string | undefined): BrowserFamily {
+	if (!userAgent) return "other";
+	if (isbot(userAgent)) return "other";
+	if (userAgent.includes("Edg/") || userAgent.includes("EdgA/") || userAgent.includes("EdgiOS/")) return "edge";
+	if (userAgent.includes("OPR/") || userAgent.includes("OPiOS/")) return "opera";
+	if (userAgent.includes("SamsungBrowser/")) return "samsung_internet";
+	if (userAgent.includes("FxiOS/") || userAgent.includes("Firefox/")) return "firefox";
+	if (userAgent.includes("CriOS/") || userAgent.includes("Chrome/")) return "chrome";
+	if (userAgent.includes("Safari/")) return "safari";
+	return "other";
 }
 
 export interface ArticleReadEvent {
@@ -379,6 +418,7 @@ export function createAnalyticsMiddleware(deps: {
 				});
 			}
 			if (!shouldLog({ req, path, statusCode: res.statusCode })) return;
+			const userAgent = req.get("user-agent");
 			deps.logger.info({
 				stream: STREAMS.analytics,
 				event: ANALYTICS_EVENTS.pageview,
@@ -387,7 +427,8 @@ export function createAnalyticsMiddleware(deps: {
 				...extractPageviewUtm(req),
 				referrer_host: extractReferrerHost(req),
 				medium_post_id: extractMediumPostId(req),
-				device_class: classifyDeviceClass(req.get("user-agent")),
+				device_class: classifyDeviceClass(userAgent),
+				browser: classifyBrowser(userAgent),
 				visitor_hash: hashIp({ ip: req.ip, salt: deps.salt }),
 				visitor_id: req.visitorId ?? null,
 				is_authenticated: req.userId ? 1 : 0,

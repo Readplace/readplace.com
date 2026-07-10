@@ -114,12 +114,14 @@ describe("buildAnalyticsDashboardBody — drift prevention", () => {
 		expect(opens).toContain("\\/view$");
 	});
 
-	it("the device-mix widget slices pageviews by device_class so the audience's device usage is visible at pageview scale (not just the authenticated-reader cohort), excluding pageviews logged before the field shipped and the no-signal \"other\" (no-User-Agent) bucket so the pie reads as real devices", () => {
+	it("the device-mix widget slices pageviews by the composite device_class / browser key so the audience's device+browser usage is visible at pageview scale (not just the authenticated-reader cohort), excluding pageviews logged before the field shipped and the no-signal \"other\" (no-User-Agent) bucket so the pie reads as real devices", () => {
 		const queries = widgetQueries();
-		const device = queries.find((q) => q.includes("stats count(*) as pageviews by device_class"));
+		const device = queries.find((q) => q.includes("stats count(*) as pageviews by device_browser"));
 		expect(device).toBeDefined();
 		expect(device).toContain(`event = "${ANALYTICS_EVENTS.pageview}"`);
+		expect(device).toContain('concat(device_class, " / ", coalesce(browser, "-")) as device_browser');
 		expect(device).toContain('| filter ispresent(device_class) and device_class != "other"');
+		expect(device).toContain("| limit 10");
 	});
 
 	it("the device-trend widget counts distinct visitors per device_class per day (excluding the no-signal \"other\" bucket) so the device mix is trackable over time", () => {

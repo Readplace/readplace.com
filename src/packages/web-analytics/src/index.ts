@@ -32,6 +32,7 @@ export {
 	createAnalyticsMiddleware,
 	hashIp,
 	classifyDeviceClass,
+	classifyBrowser,
 	buildSaveIntentEvent,
 	type AnalyticsEvent,
 	type AnalyticsPageview,
@@ -44,4 +45,5 @@ export {
 	type ViewOpenedEvent,
 	type ViewSaveIntentEvent,
 	type DeviceClass,
+	type BrowserFamily,
 } from "./analytics";

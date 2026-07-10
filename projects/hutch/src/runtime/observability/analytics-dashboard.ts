@@ -503,19 +503,25 @@ export function buildAnalyticsDashboardBody(deps: BuildAnalyticsDashboardDeps): 
 	// phantom "other" slice. Caveat: an iPad in Safari's default desktop mode
 	// sends a Mac User-Agent and counts as desktop — a UA-only limitation that
 	// undercounts tablets.
+	// The pie's slices are the composite device_class / browser key (mirroring the
+	// Source / Medium / Content pie): coalesce(browser, "-") folds pageviews logged
+	// before the browser field shipped into a visible "<device> / -" slice rather
+	// than dropping them, and | limit 10 caps the raised cardinality (devices ×
+	// browsers) to the top slices, matching the UTM-path pie.
 
 	widgets.push(
 		logWidget({
 			region,
-			title: "Pageviews by device class (%)",
+			title: "Pageviews by device class / browser (%)",
 			logGroupNames: pageviewLogGroups,
 			query: [
-				"fields @timestamp, device_class",
+				"fields @timestamp, device_class, browser, concat(device_class, \" / \", coalesce(browser, \"-\")) as device_browser",
 				`| filter stream = "${STREAMS.analytics}" and event = "${ANALYTICS_EVENTS.pageview}"`,
 				...exclude,
 				"| filter ispresent(device_class) and device_class != \"other\"",
-				"| stats count(*) as pageviews by device_class",
+				"| stats count(*) as pageviews by device_browser",
 				"| sort pageviews desc",
+				"| limit 10",
 			].join(" "),
 			x: 0, y: 106, width: 12, height: 8,
 			view: "pie",

@@ -1,7 +1,7 @@
 import { EventEmitter } from "node:events";
 import type { NextFunction, Request, Response } from "express";
 import type { HutchLogger } from "@packages/hutch-logger";
-import { type AnalyticsClick, type AnalyticsEvent, type AnalyticsPageview, buildSaveIntentEvent, classifyDeviceClass, createAnalyticsMiddleware, hashIp, type ViewSaveIntentEvent } from "./analytics";
+import { type AnalyticsClick, type AnalyticsEvent, type AnalyticsPageview, buildSaveIntentEvent, classifyBrowser, classifyDeviceClass, createAnalyticsMiddleware, hashIp, type ViewSaveIntentEvent } from "./analytics";
 import { SAVE_OUTCOMES, SAVE_SURFACES } from "./events";
 
 function createCapturingLogger(): {
@@ -88,6 +88,7 @@ describe("createAnalyticsMiddleware", () => {
 			timestamp: "2026-04-21T10:00:00.000Z",
 			path: "/queue",
 			device_class: "desktop",
+			browser: "chrome",
 			visitor_hash: expect.any(String),
 			visitor_id: null,
 			is_authenticated: 0,
@@ -181,6 +182,13 @@ describe("createAnalyticsMiddleware", () => {
 		expect(event.device_class).toBe("mobile_ios");
 	});
 
+	it("stamps browser derived from the same User-Agent as device_class (both read one hoisted userAgent local) so the device-mix pie can slice by browser family", () => {
+		const iphone = "Mozilla/5.0 (iPhone; CPU iPhone OS 17_0 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/17.0 Mobile/15E148 Safari/604.1";
+		const [event] = runMiddleware(createReq({ headers: { "user-agent": iphone } }), createRes(200));
+		expect(event.device_class).toBe("mobile_ios");
+		expect(event.browser).toBe("safari");
+	});
+
 	it("stamps is_authenticated=1 on the pageview when the request carries an authenticated userId (set upstream by a route handler)", () => {
 		const [event] = runMiddleware(createReq({ userId: "user-1" }), createRes(200));
 		expect(event.is_authenticated).toBe(1);
@@ -268,6 +276,7 @@ describe("createAnalyticsMiddleware — internal click events", () => {
 			timestamp: "2026-04-21T10:00:00.000Z",
 			path: "/signup",
 			device_class: "desktop",
+			browser: "chrome",
 			visitor_hash: expect.any(String),
 			visitor_id: null,
 			is_authenticated: 0,
@@ -346,6 +355,123 @@ describe("classifyDeviceClass", () => {
 				"Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
 			),
 		).toBe("desktop");
+	});
+});
+
+describe("classifyBrowser", () => {
+	it("returns 'other' for an absent or empty User-Agent (no signal)", () => {
+		expect(classifyBrowser(undefined)).toBe("other");
+		expect(classifyBrowser("")).toBe("other");
+	});
+
+	it("returns 'other' for a bot User-Agent even though Googlebot's smartphone UA embeds a real Chrome/ token — the isbot guard keeps a crawler from counting as Chrome", () => {
+		expect(
+			classifyBrowser(
+				"Mozilla/5.0 (Linux; Android 6.0.1; Nexus 5X Build/MMB29P) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/119.0.0.0 Mobile Safari/537.36 (compatible; Googlebot/2.1; +http://www.google.com/bot.html)",
+			),
+		).toBe("other");
+	});
+
+	it("returns 'edge' for desktop Edge (Edg/ token on a UA that also carries Chrome/ and Safari/)", () => {
+		expect(
+			classifyBrowser(
+				"Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36 Edg/120.0.0.0",
+			),
+		).toBe("edge");
+	});
+
+	it("returns 'edge' for Edge on Android (EdgA/ token, distinct from the desktop Edg/ token)", () => {
+		expect(
+			classifyBrowser(
+				"Mozilla/5.0 (Linux; Android 13; Pixel 7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Mobile Safari/537.36 EdgA/120.0.0.0",
+			),
+		).toBe("edge");
+	});
+
+	it("returns 'edge' for Edge on iOS (EdgiOS/ token, which also carries a Safari/ token)", () => {
+		expect(
+			classifyBrowser(
+				"Mozilla/5.0 (iPhone; CPU iPhone OS 17_0 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/17.0 EdgiOS/120.0.0.0 Mobile/15E148 Safari/604.1",
+			),
+		).toBe("edge");
+	});
+
+	it("returns 'opera' for desktop Opera (OPR/ token on a Chromium UA)", () => {
+		expect(
+			classifyBrowser(
+				"Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36 OPR/106.0.0.0",
+			),
+		).toBe("opera");
+	});
+
+	it("returns 'opera' for Opera on iOS (OPiOS/ token, distinct from the desktop OPR/ token)", () => {
+		expect(
+			classifyBrowser(
+				"Mozilla/5.0 (iPhone; CPU iPhone OS 17_0 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) OPiOS/16.0.0.0 Mobile/15E148 Safari/9537.53",
+			),
+		).toBe("opera");
+	});
+
+	it("returns 'samsung_internet' for the Samsung Internet browser (SamsungBrowser/ token on a Chromium UA)", () => {
+		expect(
+			classifyBrowser(
+				"Mozilla/5.0 (Linux; Android 13; SM-S918B) AppleWebKit/537.36 (KHTML, like Gecko) SamsungBrowser/23.0 Chrome/115.0.0.0 Mobile Safari/537.36",
+			),
+		).toBe("samsung_internet");
+	});
+
+	it("returns 'firefox' for desktop Firefox (Firefox/ token, no Chrome/ or Safari/)", () => {
+		expect(classifyBrowser("Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:120.0) Gecko/20100101 Firefox/120.0")).toBe(
+			"firefox",
+		);
+	});
+
+	it("returns 'firefox' for Firefox on iOS (FxiOS/ token, which carries a Safari/ token — matched before Safari)", () => {
+		expect(
+			classifyBrowser(
+				"Mozilla/5.0 (iPhone; CPU iPhone OS 17_0 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) FxiOS/121.0 Mobile/15E148 Safari/605.1.15",
+			),
+		).toBe("firefox");
+	});
+
+	it("returns 'chrome' for desktop Chrome (Chrome/ token, which also carries Safari/)", () => {
+		expect(
+			classifyBrowser(
+				"Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
+			),
+		).toBe("chrome");
+	});
+
+	it("returns 'chrome' for Chrome on iOS (CriOS/ token, which carries a Safari/ token — matched before Safari)", () => {
+		expect(
+			classifyBrowser(
+				"Mozilla/5.0 (iPhone; CPU iPhone OS 17_0 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) CriOS/120.0.0.0 Mobile/15E148 Safari/604.1",
+			),
+		).toBe("chrome");
+	});
+
+	it("returns 'safari' for desktop Safari (Safari/ token, matched last because every Chromium UA also carries it)", () => {
+		expect(
+			classifyBrowser(
+				"Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/17.0 Safari/605.1.15",
+			),
+		).toBe("safari");
+	});
+
+	it("returns 'safari' for mobile Safari on an iPhone", () => {
+		expect(
+			classifyBrowser(
+				"Mozilla/5.0 (iPhone; CPU iPhone OS 17_0 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/17.0 Mobile/15E148 Safari/604.1",
+			),
+		).toBe("safari");
+	});
+
+	it("returns 'other' for an in-app webview with no browser token (an iOS Facebook webview omits the Safari/ token)", () => {
+		expect(
+			classifyBrowser(
+				"Mozilla/5.0 (iPhone; CPU iPhone OS 16_6 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Mobile/15E148 [FBAN/FBIOS;FBAV/430.0.0.32.107;FBBV/517973715;FBDV/iPhone14,2;FBMD/iPhone;FBSN/iOS;FBSV/16.6;FBSS/3;FBID/phone;FBLC/en_US;FBOP/5]",
+			),
+		).toBe("other");
 	});
 });
 
