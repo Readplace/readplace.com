@@ -164,6 +164,7 @@ export class HutchLambda extends pulumi.ComponentResource {
 	public readonly functionName: pulumi.Output<string>;
 	public readonly arn: pulumi.Output<string>;
 	public readonly role: aws.iam.Role;
+	public readonly logGroupName: pulumi.Output<string>;
 
 	constructor(
 		name: string,
@@ -201,6 +202,15 @@ export class HutchLambda extends pulumi.ComponentResource {
 			 * `outputDir`, and `assetDir` are ignored when this is set.
 			 */
 			containerImage?: { imageUri: pulumi.Input<string> };
+			/**
+			 * Logical name of the top-level `aws.cloudwatch.LogGroup` this call
+			 * site previously managed for the Lambda. Set only when migrating such
+			 * a site: the component now owns the group, and this drives an alias so
+			 * Pulumi re-parents the existing state resource instead of deleting the
+			 * live group and creating a new one. Omit for Lambdas whose group AWS
+			 * auto-created — those are adopted out-of-band via `pulumi import`.
+			 */
+			priorLogGroupLogicalName?: string;
 		},
 		opts?: pulumi.ComponentResourceOptions,
 	) {
@@ -242,6 +252,25 @@ export class HutchLambda extends pulumi.ComponentResource {
 			});
 		}
 
+		// Own the log group rather than letting the Lambda service auto-create it on
+		// first invocation. An auto-created group lives outside Pulumi state, so any
+		// later attempt to manage it by its fixed name collides with
+		// ResourceAlreadyExistsException. Creating it here — before the Function, via
+		// dependsOn — makes a group's existence imply Pulumi made it, so that
+		// collision is unrepresentable. `priorLogGroupLogicalName` aliases a group a
+		// call site previously managed as a top-level resource, so the migration
+		// re-parents the live group instead of deleting and recreating it.
+		const logGroup = new aws.cloudwatch.LogGroup(`${lambdaName}-log-group`, {
+			name: `/aws/lambda/${lambdaName}`,
+			retentionInDays: 30,
+		}, {
+			parent: this,
+			retainOnDelete: true,
+			aliases: args.priorLogGroupLogicalName
+				? [{ name: args.priorLogGroupLogicalName, parent: pulumi.rootStackResource }]
+				: [],
+		});
+
 		const hasEnvironment = Object.keys(args.environment).length > 0;
 		const environmentArg = hasEnvironment ? { environment: { variables: args.environment } } : {};
 
@@ -256,7 +285,7 @@ export class HutchLambda extends pulumi.ComponentResource {
 				memorySize: args.memorySize,
 				timeout: args.timeout,
 				...environmentArg,
-			}, { parent: this, aliases: [{ parent: pulumi.rootStackResource }] });
+			}, { parent: this, dependsOn: [logGroup], aliases: [{ parent: pulumi.rootStackResource }] });
 		} else {
 			assert(args.entryPoint, "HutchLambda zip packaging requires 'entryPoint'");
 			assert(args.outputDir, "HutchLambda zip packaging requires 'outputDir'");
@@ -301,11 +330,12 @@ export class HutchLambda extends pulumi.ComponentResource {
 				timeout: args.timeout,
 				...environmentArg,
 				...layersArg,
-			}, { parent: this, aliases: [{ parent: pulumi.rootStackResource }] });
+			}, { parent: this, dependsOn: [logGroup], aliases: [{ parent: pulumi.rootStackResource }] });
 		}
 
 		this.functionName = lambdaFunction.name;
 		this.arn = lambdaFunction.arn;
+		this.logGroupName = logGroup.name;
 		this.registerOutputs();
 	}
 }

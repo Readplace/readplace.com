@@ -19,7 +19,7 @@ import {
 	SubscriptionStartRequestCommand,
 } from "@packages/hutch-infra-components";
 import { EXPORT_DOWNLOAD_TTL_DAYS, EXPORT_S3_KEY_PREFIX } from "../runtime/web/pages/export/export-ttl";
-import { ANALYTICS_EVENTS, LAMBDA_NAMES, LOG_GROUPS, METRICS, STREAMS } from "../runtime/observability/events";
+import { ANALYTICS_EVENTS, LAMBDA_NAMES, METRICS, STREAMS } from "../runtime/observability/events";
 import {
 	buildAnalyticsDashboardBody,
 	SUBSCRIPTION_DASHBOARD_LOG_GROUPS,
@@ -203,11 +203,6 @@ const dynamodb = new HutchDynamoDBAccess("hutch-dynamodb-access", {
 	],
 });
 
-const logGroup = new aws.cloudwatch.LogGroup("hutch-log-analytics", {
-	name: LOG_GROUPS.hutchHandler,
-	retentionInDays: 30,
-}, { import: LOG_GROUPS.hutchHandler });
-
 const api = new aws.apigatewayv2.Api("hutch-api-gateway", {
 	name: "hutch-api-gateway",
 	protocolType: "HTTP",
@@ -300,6 +295,7 @@ const scheduleTrialFeedbackEmailSchedulerManagePolicy = {
 };
 
 const lambda = new HutchLambda(LAMBDA_NAMES.hutchHandler, {
+	priorLogGroupLogicalName: "hutch-log-analytics",
 	entryPoint: "./src/runtime/lambda.main.ts",
 	outputDir: ".lib/hutch-api",
 	assetDir: "./src/runtime",
@@ -1130,6 +1126,7 @@ const handleSubscriptionCancelledQueue = new HutchSQS("handle-subscription-cance
 });
 
 const handleSubscriptionCancelledLambda = new HutchLambda(LAMBDA_NAMES.handleSubscriptionCancelled, {
+	priorLogGroupLogicalName: "handle-subscription-cancelled-log-group",
 	entryPoint: "./src/runtime/handle-subscription-cancelled.main.ts",
 	outputDir: ".lib/handle-subscription-cancelled",
 	assetDir: "./src/runtime",
@@ -1179,6 +1176,7 @@ const cancelSubscriptionQueue = new HutchSQS("cancel-subscription", {
 });
 
 const cancelSubscriptionLambda = new HutchLambda(LAMBDA_NAMES.cancelSubscription, {
+	priorLogGroupLogicalName: "cancel-subscription-log-group",
 	entryPoint: "./src/runtime/cancel-subscription.main.ts",
 	outputDir: ".lib/cancel-subscription",
 	assetDir: "./src/runtime",
@@ -1284,6 +1282,7 @@ const subscriptionStartRequestQueue = new HutchSQS("subscription-start-request",
 });
 
 const subscriptionStartRequestLambda = new HutchLambda(LAMBDA_NAMES.subscriptionStartRequest, {
+	priorLogGroupLogicalName: "subscription-start-request-log-group",
 	entryPoint: "./src/runtime/subscription-start-request.main.ts",
 	outputDir: ".lib/subscription-start-request",
 	assetDir: "./src/runtime",
@@ -1322,6 +1321,7 @@ const subscriptionChargeSucceededQueue = new HutchSQS("subscription-charge-succe
 });
 
 const subscriptionChargeSucceededLambda = new HutchLambda(LAMBDA_NAMES.subscriptionChargeSucceeded, {
+	priorLogGroupLogicalName: "subscription-charge-succeeded-log-group",
 	entryPoint: "./src/runtime/subscription-charge-succeeded.main.ts",
 	outputDir: ".lib/subscription-charge-succeeded",
 	assetDir: "./src/runtime",
@@ -1350,6 +1350,7 @@ const subscriptionChargeFailedQueue = new HutchSQS("subscription-charge-failed",
 });
 
 const subscriptionChargeFailedLambda = new HutchLambda(LAMBDA_NAMES.subscriptionChargeFailed, {
+	priorLogGroupLogicalName: "subscription-charge-failed-log-group",
 	entryPoint: "./src/runtime/subscription-charge-failed.main.ts",
 	outputDir: ".lib/subscription-charge-failed",
 	assetDir: "./src/runtime",
@@ -1389,6 +1390,7 @@ const scheduleTrialFeedbackEmailQueue = new HutchSQS("schedule-trial-feedback-em
 const scheduleTrialFeedbackEmailLambda = new HutchLambda(
 	LAMBDA_NAMES.scheduleTrialFeedbackEmail,
 	{
+		priorLogGroupLogicalName: "schedule-trial-feedback-email-log-group",
 		entryPoint: "./src/runtime/schedule-trial-feedback-email.main.ts",
 		outputDir: ".lib/schedule-trial-feedback-email",
 		assetDir: "./src/runtime",
@@ -1453,6 +1455,7 @@ const sendTrialFeedbackEmailQueue = new HutchSQS("send-trial-feedback-email", {
 const sendTrialFeedbackEmailLambda = new HutchLambda(
 	LAMBDA_NAMES.sendTrialFeedbackEmail,
 	{
+		priorLogGroupLogicalName: "send-trial-feedback-email-log-group",
 		entryPoint: "./src/runtime/send-trial-feedback-email.main.ts",
 		outputDir: ".lib/send-trial-feedback-email",
 		assetDir: "./src/runtime",
@@ -1499,7 +1502,7 @@ for (const hash of excludedVisitorHashes) {
 
 new aws.cloudwatch.LogMetricFilter("imports-completed-filter", {
 	name: "imports-completed",
-	logGroupName: logGroup.name,
+	logGroupName: lambda.logGroupName,
 	pattern: `{ $.stream = "${STREAMS.analytics}" && $.event = "${ANALYTICS_EVENTS.importCommitted}" }`,
 	metricTransformation: {
 		name: METRICS.importsCompleted.name,
@@ -1510,46 +1513,15 @@ new aws.cloudwatch.LogMetricFilter("imports-completed-filter", {
 	},
 });
 
-// AWS auto-creates Lambda log groups on first invocation, but the subscription
+// Each subscription Lambda now owns its log group (HutchLambda), but those
 // Lambdas only run after a trial ends — so until the first trial-end charge
-// fires in a stack, none of these log groups exist and the analytics dashboard's
-// Logs Insights queries against them fail with `ResourceNotFoundException`.
-// Create them explicitly so the dashboard renders an empty result set instead
-// of erroring.
-const subscriptionLogGroups = [
-	new aws.cloudwatch.LogGroup("subscription-start-request-log-group", {
-		name: LOG_GROUPS.subscriptionStartRequest,
-		retentionInDays: 30,
-	}),
-	new aws.cloudwatch.LogGroup("subscription-charge-succeeded-log-group", {
-		name: LOG_GROUPS.subscriptionChargeSucceeded,
-		retentionInDays: 30,
-	}),
-	new aws.cloudwatch.LogGroup("subscription-charge-failed-log-group", {
-		name: LOG_GROUPS.subscriptionChargeFailed,
-		retentionInDays: 30,
-	}),
-	new aws.cloudwatch.LogGroup("cancel-subscription-log-group", {
-		name: LOG_GROUPS.cancelSubscription,
-		retentionInDays: 30,
-	}),
-	new aws.cloudwatch.LogGroup("handle-subscription-cancelled-log-group", {
-		name: LOG_GROUPS.handleSubscriptionCancelled,
-		retentionInDays: 30,
-	}),
-	new aws.cloudwatch.LogGroup("schedule-trial-feedback-email-log-group", {
-		name: LOG_GROUPS.scheduleTrialFeedbackEmail,
-		retentionInDays: 30,
-	}),
-	new aws.cloudwatch.LogGroup("send-trial-feedback-email-log-group", {
-		name: LOG_GROUPS.sendTrialFeedbackEmail,
-		retentionInDays: 30,
-	}),
-];
-
+// fires in a stack, AWS has never written to those groups. Depending on the
+// Lambdas orders their managed groups ahead of this dashboard, so its Logs
+// Insights queries render an empty result set instead of failing with
+// `ResourceNotFoundException`.
 new aws.cloudwatch.Dashboard("readplace-analytics", {
 	dashboardName: "readplace-analytics",
-	dashboardBody: pulumi.output(logGroup.name).apply((hutchLogGroupName) =>
+	dashboardBody: pulumi.output(lambda.logGroupName).apply((hutchLogGroupName) =>
 		JSON.stringify(buildAnalyticsDashboardBody({
 			region,
 			hutchLogGroupName,
@@ -1559,7 +1531,17 @@ new aws.cloudwatch.Dashboard("readplace-analytics", {
 			excludedVisitorHashes,
 		})),
 	),
-}, { dependsOn: subscriptionLogGroups });
+}, {
+	dependsOn: [
+		subscriptionStartRequestLambda,
+		subscriptionChargeSucceededLambda,
+		subscriptionChargeFailedLambda,
+		cancelSubscriptionLambda,
+		handleSubscriptionCancelledLambda,
+		scheduleTrialFeedbackEmailLambda,
+		sendTrialFeedbackEmailLambda,
+	],
+});
 
 
 // --- Exports ---
