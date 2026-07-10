@@ -48,7 +48,7 @@ import type {
 import { isFullyParsed } from "../../shared/article-state/is-fully-parsed";
 import { collectUtmParams } from "../../shared/utm";
 import { SaveErrorPage } from "../save/save-error.component";
-import { ViewLandingPage } from "./view-landing.component";
+import { NotFoundPage } from "../not-found";
 import type { ExistsUserByIdPrefix } from "@packages/provider-contracts/auth";
 import { PERMANENT_ARTICLE_DOMAINS, computePublicViewExpiry, formatSaveUtmContent, sharedUserIdFrom, sharedUserIdFromQueryParams, type ExpiryCountdown } from "./view-expiry";
 import { parseViewPath, viewPathFor } from "./view-path";
@@ -115,12 +115,15 @@ function buildArticleReaderDeps(deps: ViewDependencies): ArticleReaderDeps {
 	};
 }
 
-function handleViewLanding(deps: ViewDependencies) {
+/** `/view` normalises `?url=` (the homepage form and the backstory link) to the
+ * canonical `/view/<url>` permalink. A bare hit is a 404: the paste-a-link
+ * surface lives on the homepage now, so `/view` on its own names no page. */
+function handleViewRoot(deps: ViewDependencies) {
 	return async (req: Request, res: Response) => {
 		const submittedUrl =
 			typeof req.query.url === "string" ? req.query.url : undefined;
 		if (submittedUrl === undefined) {
-			sendComponent(req, res, Base(ViewLandingPage(), await deps.buildBannerState(req)));
+			sendComponent(req, res, Base(NotFoundPage(), await deps.buildBannerState(req)));
 			return;
 		}
 		const validation = deps.validateSaveableUrl(submittedUrl);
@@ -269,7 +272,7 @@ function handleViewArticle(deps: ViewDependencies, reader: ReturnType<typeof ini
 			},
 			{
 				name: "Paste another link",
-				href: "/view?utm_source=view-article&utm_medium=internal&utm_content=paste-another-link",
+				href: "/?utm_source=view-article&utm_medium=internal&utm_content=paste-another-link",
 				variant: "secondary",
 			},
 		];
@@ -353,7 +356,7 @@ export function initViewRoutes(deps: ViewDependencies): Router {
 	const router = express.Router();
 	const reader = initArticleReader(buildArticleReaderDeps(deps));
 
-	router.get("/", handleViewLanding(deps));
+	router.get("/", handleViewRoot(deps));
 	router.get("/summary", handleViewSummary(deps, reader));
 	router.get("/reader", handleViewReader(deps, reader));
 	router.get<string, { splat: string[] }>("/*splat", handleViewArticle(deps, reader));

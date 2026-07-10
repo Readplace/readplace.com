@@ -13,7 +13,7 @@ export interface MarkReadAction {
 }
 
 export interface ActionButtons {
-	backLink?: { topHref: string; bottomHref: string; label: string };
+	backLink?: { topHref: string; bottomHref?: string; label: string };
 	markReadActions?: ReadonlyArray<MarkReadAction>;
 }
 

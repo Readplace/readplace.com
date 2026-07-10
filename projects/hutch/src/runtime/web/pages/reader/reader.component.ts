@@ -39,11 +39,11 @@ export function formatReaderDocumentTitle(articleTitle: string): string {
 	return `${articleTitle} — Readplace Reader`;
 }
 
-function markReadPostUrl(articleId: string, slot: "top" | "bottom"): string {
+function markReadPostUrl(articleId: string): string {
 	const params = new URLSearchParams([
 		["utm_source", "reader"],
 		["utm_medium", "internal"],
-		["utm_content", `mark-read-${slot}`],
+		["utm_content", "mark-read-top"],
 	]);
 	return `/queue/${articleId}/status?${params.toString()}`;
 }
@@ -59,7 +59,7 @@ export function ReaderPage(
 		progress?: ProgressTick;
 		audioEnabled?: boolean;
 		extensionInstallUrl?: string;
-		backLink: { topHref: string; bottomHref: string; label: string };
+		backLink: { topHref: string; label: string };
 		/** Injected per variant: the sticky action toolbar (Back + Mark-as-read, no
 		 * bottom bar) for the web reader or the iOS chromeless reader. Both render the
 		 * same toolbar; the variant carries the page body class that decides where it
@@ -75,13 +75,7 @@ export function ReaderPage(
 	const markReadActions: MarkReadAction[] = [
 		{
 			position: "top",
-			postUrl: markReadPostUrl(articleId, "top"),
-			label: markReadLabel,
-			fields: [{ name: "status", value: markReadStatus }],
-		},
-		{
-			position: "bottom",
-			postUrl: markReadPostUrl(articleId, "bottom"),
+			postUrl: markReadPostUrl(articleId),
 			label: markReadLabel,
 			fields: [{ name: "status", value: markReadStatus }],
 		},

@@ -605,7 +605,7 @@ describe("View routes", () => {
 			const href = second.getAttribute("href");
 			assert(href, "paste-another-link href must be set");
 			const parsed = new URL(href, "http://localhost");
-			expect(parsed.pathname).toBe("/view");
+			expect(parsed.pathname).toBe("/");
 			expect(parsed.searchParams.get("utm_source")).toBe("view-article");
 			expect(parsed.searchParams.get("utm_medium")).toBe("internal");
 			expect(parsed.searchParams.get("utm_content")).toBe("paste-another-link");
@@ -1034,22 +1034,6 @@ describe("View routes", () => {
 			const btn = doc.querySelector("[data-test-share-balloon]");
 			assert(btn, "share button must be rendered");
 			expect(btn.getAttribute("data-share-title")).toBe(`Ampersand & "Quotes"`);
-		});
-
-		it("is not rendered on the /view landing page", async () => {
-			const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
-
-			const response = await request(harness.server).get("/view");
-
-			const doc = new JSDOM(response.text).window.document;
-			const form = doc.querySelector("[data-test-view-landing-form]");
-			assert(form, "landing page must render its paste-a-link form");
-			const input = doc.querySelector("[data-test-view-landing-input]");
-			assert(input, "landing page must render its URL input");
-			expect(input.getAttribute("name")).toBe("url");
-			const submit = doc.querySelector("[data-test-view-landing-submit]");
-			assert(submit, "landing page must render its submit button");
-			expect(submit.textContent?.trim()).toBe("Open in reader view");
 		});
 
 		it("includes the founder avatar inside the balloon", async () => {

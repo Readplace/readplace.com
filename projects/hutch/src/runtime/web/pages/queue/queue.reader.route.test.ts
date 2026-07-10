@@ -268,14 +268,14 @@ describe("Queue routes", () => {
 				.query({
 					utm_source: "reader",
 					utm_medium: "internal",
-					utm_content: "mark-read-bottom",
+					utm_content: "mark-read-top",
 				})
 				.type("form")
 				.send({ status: "read" });
 
 			expect(statusResponse.status).toBe(303);
 			expect(statusResponse.headers.location).toBe(
-				`/queue?utm_source=reader&utm_medium=internal&utm_content=mark-read-bottom&status_changed=read&status_article=${articleId}`,
+				`/queue?utm_source=reader&utm_medium=internal&utm_content=mark-read-top&status_changed=read&status_article=${articleId}`,
 			);
 
 			const afterResponse = await agent.get("/queue");

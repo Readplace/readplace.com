@@ -285,44 +285,14 @@ describe("View routes", () => {
 			expect(link?.textContent).toContain("Go to your queue");
 		});
 
-		it("renders the landing form for GET /view without a path param", async () => {
+		it("returns a 404 for a bare GET /view — the paste-a-link form now lives on the homepage", async () => {
 			const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
 
 			const response = await request(harness.server).get("/view");
 
-			expect(response.status).toBe(200);
+			expect(response.status).toBe(404);
 			const doc = new JSDOM(response.text).window.document;
-			const form = doc.querySelector("[data-test-view-landing-form]");
-			assert(form, "landing form must be rendered");
-			expect(form.getAttribute("method")?.toLowerCase()).toBe("get");
-			expect(form.getAttribute("action")).toBe("/view");
-			const input = form.querySelector(
-				'input[name="url"][data-test-view-landing-input]',
-			);
-			assert(input, "url input must be rendered");
-			expect(input.getAttribute("type")).toBe("url");
-			expect(input.hasAttribute("required")).toBe(true);
-		});
-
-		it("renders the landing form with UTM hidden inputs identifying the 'Open in reader view' click", async () => {
-			const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
-
-			const response = await request(harness.server).get("/view");
-			const doc = new JSDOM(response.text).window.document;
-			const form = doc.querySelector("[data-test-view-landing-form]");
-			assert(form, "landing form must be rendered");
-			expect(
-				form.querySelector("input[name='utm_source']")?.getAttribute("value"),
-			).toBe("view-landing");
-			expect(
-				form.querySelector("input[name='utm_medium']")?.getAttribute("value"),
-			).toBe("internal");
-			expect(
-				form.querySelector("input[name='utm_content']")?.getAttribute("value"),
-			).toBe("open-in-reader-view");
-			expect(
-				form.querySelector("[data-test-view-landing-submit]")?.textContent,
-			).toBe("Open in reader view");
+			expect(doc.querySelector("body.page-not-found")).not.toBe(null);
 		});
 
 		it("redirects GET /view?url=<valid> to /view/<canonical-url>", async () => {
@@ -958,18 +928,6 @@ describe("View routes", () => {
 			expect(response.headers["content-type"]).toBe("text/markdown; charset=utf-8");
 			expect(response.text).toContain(`Canonical: ${ARTICLE_URL}`);
 			expect(response.text).not.toContain("<p>");
-		});
-
-		it("renders the landing page as markdown when /view is requested without a URL", async () => {
-			const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
-
-			const response = await request(harness.server)
-				.get("/view")
-				.set("Accept", "text/markdown");
-
-			expect(response.status).toBe(200);
-			expect(response.headers["content-type"]).toBe("text/markdown; charset=utf-8");
-			expect(response.text).toMatch(/^# /);
 		});
 	});
 });

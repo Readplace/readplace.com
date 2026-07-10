@@ -68,19 +68,15 @@ export function createAnonymousViewPageActions(
 				return isOnPage(page, 'page-home')
 			},
 			execute: async (page) => {
-				await page.goto(`${config.baseUrl}/view`, { waitUntil: 'domcontentloaded' })
-				await expect(page.locator('body.page-view-landing')).toHaveCount(1)
-
 				// Force a URL the staging DB hasn't seen before, so the crawl + summary
 				// actually go through pending → ready. Reusing a cached URL would miss
 				// the specific regression this flow guards against (summary slot never
 				// reaching the DOM until a full page refresh).
 				const separator = config.testUrl.includes('?') ? '&' : '?'
 				const freshTestUrl = `${config.testUrl}${separator}e2e=${Date.now()}`
-				await page.locator('[data-test-view-landing-input]').fill(freshTestUrl)
-				await clickAndWaitForPageReload(
-					page,
-					page.locator('[data-test-view-landing-form] button[type="submit"]'),
+				await page.goto(
+					`${config.baseUrl}/view/${encodeURIComponent(freshTestUrl)}`,
+					{ waitUntil: 'domcontentloaded' },
 				)
 
 				const saveAction = page.getByRole('link', { name: 'Save to My Queue' })

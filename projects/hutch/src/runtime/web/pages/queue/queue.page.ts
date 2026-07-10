@@ -283,17 +283,15 @@ const SAVE_INTENT_PATH = {
 
 const VIEW_BACK_LINK = {
 	topHref: "/queue?utm_source=reader&utm_medium=internal&utm_content=back-top",
-	bottomHref: "/queue?utm_source=reader&utm_medium=internal&utm_content=back-bottom",
 	label: "← Back to queue",
 } as const;
 
 /** Deep link the iOS WKWebView delegate intercepts (and cancels) to close the
  * reader sheet, returning the user to the native reading list. The chromeless
- * reader's "← Back to queue" points here for both top and bottom slots. */
+ * reader's "← Back to queue" points here. */
 const READER_CLOSE_HREF = "readplace://reader/close";
 const APP_BACK_LINK = {
 	topHref: READER_CLOSE_HREF,
-	bottomHref: READER_CLOSE_HREF,
 	label: "← Back to queue",
 } as const;
 
