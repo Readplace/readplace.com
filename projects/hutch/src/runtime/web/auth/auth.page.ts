@@ -55,6 +55,7 @@ import type { ComponentError } from "../shared/component-error.types";
 import { LoginSchema } from "./auth.schema";
 import { LoginPage, SignupPage, VerifyEmailPage } from "./auth.component";
 import { extractReturnUrl, parseReturnUrl } from "./parse-return-url";
+import { pendingSaveHostFrom } from "./pending-save-host";
 import { baseCookieOptions } from "@packages/web-analytics";
 import { SESSION_COOKIE_MAX_AGE_MS, SESSION_COOKIE_NAME } from "@packages/web-session";
 import { buildVerificationEmailHtml } from "./verification-email";
@@ -161,7 +162,7 @@ export function initAuthRoutes(deps: AuthDependencies): Router {
 		}
 		const returnUrl = extractReturnUrl(req.query);
 		const userCount = await fetchUserCount();
-		sendComponent(req, res, Base(LoginPage({ returnUrl, userCount, foundingAllocation: deps.foundingAllocation }), bannerStateFromRequest(req)));
+		sendComponent(req, res, Base(LoginPage({ returnUrl, pendingSaveHost: pendingSaveHostFrom(returnUrl), userCount, foundingAllocation: deps.foundingAllocation }), bannerStateFromRequest(req)));
 	});
 
 	const loginRateLimit = createRateLimitMiddleware({
@@ -171,6 +172,7 @@ export function initAuthRoutes(deps: AuthDependencies): Router {
 	});
 	router.post("/login", loginRateLimit, async (req: Request, res: Response) => {
 		const returnUrl = extractReturnUrl(req.query);
+		const pendingSaveHost = pendingSaveHostFrom(returnUrl);
 		const parsed = LoginSchema.safeParse(req.body);
 
 		if (!parsed.success) {
@@ -180,6 +182,7 @@ export function initAuthRoutes(deps: AuthDependencies): Router {
 				Base(LoginPage(
 					{
 						returnUrl,
+						pendingSaveHost,
 						userCount,
 						foundingAllocation: deps.foundingAllocation,
 						email: req.body?.email,
@@ -212,6 +215,7 @@ export function initAuthRoutes(deps: AuthDependencies): Router {
 				Base(LoginPage(
 					{
 						returnUrl,
+						pendingSaveHost,
 						userCount,
 						foundingAllocation: deps.foundingAllocation,
 						email,
@@ -237,7 +241,7 @@ export function initAuthRoutes(deps: AuthDependencies): Router {
 		const userCount = await fetchUserCount();
 		const parsed = SignupQuerySchema.safeParse(req.query);
 		const email = parsed.success ? parsed.data.email : undefined;
-		sendComponent(req, res, Base(SignupPage({ returnUrl, userCount, foundingAllocation: deps.foundingAllocation, loadedAt: deps.now().getTime(), email }), bannerStateFromRequest(req)));
+		sendComponent(req, res, Base(SignupPage({ returnUrl, pendingSaveHost: pendingSaveHostFrom(returnUrl), userCount, foundingAllocation: deps.foundingAllocation, loadedAt: deps.now().getTime(), email }), bannerStateFromRequest(req)));
 	});
 
 	const signupRateLimit = createRateLimitMiddleware({
@@ -247,6 +251,7 @@ export function initAuthRoutes(deps: AuthDependencies): Router {
 	});
 	router.post("/signup", signupRateLimit, async (req: Request, res: Response) => {
 		const returnUrl = extractReturnUrl(req.query);
+		const pendingSaveHost = pendingSaveHostFrom(returnUrl);
 		const body = (req.body ?? {}) as Record<string, unknown>;
 
 		const renderFailure = async (email: string | undefined, errors: ComponentError[]) => {
@@ -256,6 +261,7 @@ export function initAuthRoutes(deps: AuthDependencies): Router {
 				Base(SignupPage(
 					{
 						returnUrl,
+						pendingSaveHost,
 						userCount,
 						foundingAllocation: deps.foundingAllocation,
 						loadedAt: deps.now().getTime(),

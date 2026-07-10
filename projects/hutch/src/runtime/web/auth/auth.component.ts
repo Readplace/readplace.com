@@ -19,6 +19,7 @@ interface AuthFormData {
 	email?: string;
 	errors?: ComponentError[];
 	returnUrl?: string;
+	pendingSaveHost?: string;
 	userCount: number;
 	foundingAllocation: FoundingAllocation;
 }
@@ -51,6 +52,10 @@ export function LoginPage(data: AuthFormData, options?: { statusCode?: number })
 		email,
 		globalError: errors?.find((e) => !e.fieldName)?.message,
 		returnUrl: data.returnUrl ? encodeURIComponent(data.returnUrl) : undefined,
+		pendingSaveHost: data.pendingSaveHost,
+		subtitle: data.pendingSaveHost
+			? "Sign in and this article is saved to your queue"
+			: "Sign in to your Readplace account",
 		emailField: toFieldViewModel(errors, "email"),
 		passwordField: toFieldViewModel(errors, "password"),
 	});
@@ -107,6 +112,10 @@ export function SignupPage(data: SignupFormData, options?: { statusCode?: number
 		email,
 		globalError: errors?.find((e) => !e.fieldName)?.message,
 		returnUrl: data.returnUrl ? encodeURIComponent(data.returnUrl) : undefined,
+		pendingSaveHost: data.pendingSaveHost,
+		subtitle: data.pendingSaveHost
+			? "Sign up and this article is saved to your queue"
+			: "Start saving articles to read later",
 		loadedAt: data.loadedAt,
 		emailField: toFieldViewModel(errors, "email"),
 		passwordField: toFieldViewModel(errors, "password"),

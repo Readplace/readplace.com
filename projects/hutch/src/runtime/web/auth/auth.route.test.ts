@@ -1408,4 +1408,90 @@ describe("Auth routes", () => {
 			expect(submit?.textContent).toBe("Join Readplace");
 		}, 30000);
 	});
+
+	describe("Pending save context", () => {
+		const savedArticleReturn = encodeURIComponent(`/save?url=${encodeURIComponent("https://example.com/how-to-read")}`);
+
+		it("shows the pending article host with a save-aware subtitle on the signup page a blocked /save redirects to", async () => {
+			const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
+
+			const blocked = await request(harness.server).get("/save?url=https%3A%2F%2Fexample.com%2Fhow-to-read");
+			expect(blocked.status).toBe(303);
+			const response = await request(harness.server).get(blocked.headers.location);
+
+			expect(response.status).toBe(200);
+			const doc = new JSDOM(response.text).window.document;
+			const pending = doc.querySelector("[data-test-pending-save]");
+			assert(pending, "pending-save line must be rendered");
+			expect(pending.textContent).toBe("Saving: example.com");
+			expect(doc.querySelector(".auth-card__subtitle")?.textContent).toBe("Sign up and this article is saved to your queue");
+		});
+
+		it("shows the pending article host with a save-aware subtitle on GET /login", async () => {
+			const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
+			const response = await request(harness.server).get(`/login?return=${savedArticleReturn}`);
+
+			expect(response.status).toBe(200);
+			const doc = new JSDOM(response.text).window.document;
+			const pending = doc.querySelector("[data-test-pending-save]");
+			assert(pending, "pending-save line must be rendered");
+			expect(pending.textContent).toBe("Saving: example.com");
+			expect(doc.querySelector(".auth-card__subtitle")?.textContent).toBe("Sign in and this article is saved to your queue");
+		});
+
+		it("keeps the pending article host on the 422 re-render when the signup submit fails validation", async () => {
+			const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
+			const response = await request(harness.server)
+				.post(`/signup?return=${savedArticleReturn}`)
+				.type("form")
+				.send({ email: "new@example.com", password: "short", confirmPassword: "short", loadedAt: freshLoadedAt() });
+
+			expect(response.status).toBe(422);
+			const doc = new JSDOM(response.text).window.document;
+			const pending = doc.querySelector("[data-test-pending-save]");
+			assert(pending, "pending-save line must be rendered");
+			expect(pending.textContent).toBe("Saving: example.com");
+		});
+
+		it("keeps the pending article host on the 422 re-render when login credentials are invalid", async () => {
+			const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
+			const response = await request(harness.server)
+				.post(`/login?return=${savedArticleReturn}`)
+				.type("form")
+				.send({ email: "nobody@example.com", password: "wrongpassword" });
+
+			expect(response.status).toBe(422);
+			const doc = new JSDOM(response.text).window.document;
+			const pending = doc.querySelector("[data-test-pending-save]");
+			assert(pending, "pending-save line must be rendered");
+			expect(pending.textContent).toBe("Saving: example.com");
+		});
+
+		it("renders the generic signup subtitle when the return URL is not a save URL", async () => {
+			const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
+			const response = await request(harness.server).get("/signup?return=%2Fqueue");
+
+			expect(response.status).toBe(200);
+			const doc = new JSDOM(response.text).window.document;
+			expect(doc.querySelector(".auth-card__subtitle")?.textContent).toBe("Start saving articles to read later");
+		});
+
+		it("renders the generic signup subtitle when the save return URL carries an unparseable article URL", async () => {
+			const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
+			const response = await request(harness.server).get(`/signup?return=${encodeURIComponent("/save?url=not-a-url")}`);
+
+			expect(response.status).toBe(200);
+			const doc = new JSDOM(response.text).window.document;
+			expect(doc.querySelector(".auth-card__subtitle")?.textContent).toBe("Start saving articles to read later");
+		});
+
+		it("renders the generic login subtitle when there is no return URL", async () => {
+			const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
+			const response = await request(harness.server).get("/login");
+
+			expect(response.status).toBe(200);
+			const doc = new JSDOM(response.text).window.document;
+			expect(doc.querySelector(".auth-card__subtitle")?.textContent).toBe("Sign in to your Readplace account");
+		});
+	});
 });

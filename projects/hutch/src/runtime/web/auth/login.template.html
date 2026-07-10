@@ -1,7 +1,8 @@
     <main class="auth-page">
+      {{#if pendingSaveHost}}<p class="auth-page__pending-save" data-test-pending-save>Saving: <strong>{{pendingSaveHost}}</strong></p>{{/if}}
       <div class="auth-card">
         <h1 class="auth-card__title">Welcome back</h1>
-        <p class="auth-card__subtitle">Sign in to your Readplace account</p>
+        <p class="auth-card__subtitle">{{subtitle}}</p>
         {{{foundingProgressHtml}}}
         {{#if globalError}}<div class="auth-form__global-error" data-test-global-error>{{globalError}}</div>{{/if}}
         <form class="auth-form" method="POST" action="/login?utm_source=auth-page&utm_medium=internal&utm_content=login-btn{{#if returnUrl}}&return={{returnUrl}}{{/if}}" data-test-form="login">
