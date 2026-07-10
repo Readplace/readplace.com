@@ -246,7 +246,7 @@ describe("Auth routes", () => {
 
 			expect(response.status).toBe(200);
 			const doc = new JSDOM(response.text).window.document;
-			expect(doc.querySelector('[data-test-form="signup"]')?.getAttribute("action")).toBe("/signup");
+			expect(doc.querySelector('[data-test-form="signup"]')?.getAttribute("action")).toBe("/signup?utm_source=auth-page&utm_medium=internal&utm_content=signup-submit-btn");
 			expect(doc.querySelector('input[name="confirmPassword"]')?.getAttribute("type")).toBe("password");
 		});
 
@@ -1239,7 +1239,7 @@ describe("Auth routes", () => {
 			const response = await request(harness.server).get("/signup");
 
 			const link = getGoogleButton(response.text);
-			expect(link.getAttribute("href")).toBe("/auth/google");
+			expect(link.getAttribute("href")).toBe("/auth/google?utm_source=auth-page&utm_medium=internal&utm_content=google-signup-btn");
 			assert(link.querySelector("svg.auth-google-button__logo"), "google logo must be rendered");
 		});
 	});
@@ -1283,7 +1283,7 @@ describe("Auth routes", () => {
 			const response = await request(harness.server).get("/signup");
 
 			const link = getAppleButton(response.text);
-			expect(link.getAttribute("href")).toBe("/auth/apple");
+			expect(link.getAttribute("href")).toBe("/auth/apple?utm_source=auth-page&utm_medium=internal&utm_content=apple-signup-btn");
 			expect(link.querySelector(".auth-apple-button__label")?.textContent).toBe("Sign up with Apple");
 			assert(link.querySelector("svg.auth-apple-button__logo"), "apple logo must be rendered");
 		});
