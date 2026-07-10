@@ -83,7 +83,7 @@ import type {
 	UpdateArticleStatus,
 } from "@packages/provider-contracts/article-store";
 import type { PublishUpdateFetchTimestamp } from "@packages/provider-contracts/events";
-import type { ContentProvider, ReadArticleContent } from "@packages/provider-contracts/article-store";
+import type { ReadArticleContent } from "@packages/provider-contracts/article-store";
 import type { RefreshArticleIfStale } from "@packages/provider-contracts/article-freshness";
 import type {
 	FindArticleCrawlStatus,
@@ -146,8 +146,6 @@ import {
 import { QUEUE_PATH } from "./web/pages/queue/queue.url";
 import { initImportSessionRoutes } from "./web/pages/import/import.page";
 import type { ImportSessionStore } from "@packages/domain/import-session";
-import { DEFAULT_INBOX_ALIAS } from "@packages/domain/inbox";
-import type { InboxAddressStore, InboxEmailLinkStore, InboxEmailStore } from "@packages/domain/inbox";
 import type { UserId } from "@packages/domain/user";
 import type { ExtractLinksFromPageUrl } from "@packages/extract-links-from-page";
 import type { HttpErrorMessageMapping } from "./web/pages/queue/queue.error";
@@ -157,7 +155,6 @@ import { initViewRoutes } from "./web/pages/view/view.page";
 import type { ExpiryCountdown } from "./web/pages/view/view-expiry";
 import { initAdminRecrawlRoutes } from "./web/pages/admin/recrawl.page";
 import { initExportRoutes } from "./web/pages/export/export.page";
-import { initInboxRoutes } from "./web/pages/inbox/inbox.page";
 import { initAccountRoutes } from "./web/pages/account/account.page";
 import { initAgentSkills } from "./web/agent-skills/agent-skills";
 import { initMcpServer } from "./web/mcp/mcp-server";
@@ -292,11 +289,7 @@ interface AppDependencies {
 	logParseError: LogParseError;
 	importSessionStore: ImportSessionStore;
 	extractLinksFromPageUrl: ExtractLinksFromPageUrl;
-	inboxAddressStore: InboxAddressStore;
-	inboxEmailStore: InboxEmailStore;
-	inboxEmailLinkStore: InboxEmailLinkStore;
-	readEmailContent: ContentProvider;
-	inboxAddressDomain: string;
+	provisionInboxAddress: (userId: UserId) => Promise<void>;
 	getChangelogBanner: GetChangelogBanner;
 	now: () => Date;
 	retrieveCheckoutSession: RetrieveCheckoutSession;
@@ -831,11 +824,7 @@ export function createApp(dependencies: AppDependencies): Express {
 	 * signup — the inbox page's "Create Inbox Email" CTA is the recovery path. */
 	const provisionInboxAddressOnSignup = async (userId: UserId): Promise<void> => {
 		try {
-			await deps.inboxAddressStore.createAddress({
-				userId,
-				domain: deps.inboxAddressDomain,
-				name: DEFAULT_INBOX_ALIAS,
-			});
+			await deps.provisionInboxAddress(userId);
 		} catch (error) {
 			deps.logError(
 				"[Inbox] Failed to provision a forwarding address at signup",
@@ -1108,21 +1097,6 @@ export function createApp(dependencies: AppDependencies): Express {
 		buildBannerState,
 	});
 	app.use("/export", requireAuth, exportRouter);
-
-	const inboxRouter = initInboxRoutes({
-		featureToggle,
-		inboxAddressStore: deps.inboxAddressStore,
-		inboxEmailStore: deps.inboxEmailStore,
-		inboxEmailLinkStore: deps.inboxEmailLinkStore,
-		readEmailContent: deps.readEmailContent,
-		inboxAddressDomain: deps.inboxAddressDomain,
-		logError: deps.logError,
-		buildBannerState,
-		requireNotLocked,
-		requireWriteAccess,
-		now: deps.now,
-	});
-	app.use("/inbox", requireAuth, inboxRouter);
 
 	const accountRouter = initAccountRoutes({
 		getEffectiveAccess,
