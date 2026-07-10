@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import { UserIdSchema } from "@packages/domain/user";
-import { CheckoutSessionIdSchema } from "../stripe-checkout/stripe-checkout.schema";
+import { CheckoutSessionIdSchema } from "../hosted-checkout/hosted-checkout.schema";
 import { initInMemoryPendingSignup } from "./in-memory-pending-signup";
 
 describe("initInMemoryPendingSignup", () => {

@@ -1,12 +1,12 @@
 import assert from "node:assert/strict";
-import { initInMemoryStripeCheckout } from "./in-memory-stripe-checkout";
-import { CheckoutSessionIdSchema } from "./stripe-checkout.schema";
+import { initInMemoryHostedCheckout } from "./in-memory-hosted-checkout";
+import { CheckoutSessionIdSchema } from "./hosted-checkout.schema";
 
 const DEFAULT_OPTS = { checkoutBaseUrl: "https://checkout.stripe.test", now: () => new Date() };
 
-describe("initInMemoryStripeCheckout", () => {
+describe("initInMemoryHostedCheckout", () => {
 	it("returns a checkout URL containing the success URL", async () => {
-		const stripe = initInMemoryStripeCheckout(DEFAULT_OPTS);
+		const stripe = initInMemoryHostedCheckout(DEFAULT_OPTS);
 
 		const session = await stripe.createCheckoutSession({
 			customerEmail: "test@example.com",
@@ -21,7 +21,7 @@ describe("initInMemoryStripeCheckout", () => {
 	});
 
 	it("uses custom checkoutBaseUrl when provided", async () => {
-		const stripe = initInMemoryStripeCheckout({ checkoutBaseUrl: "http://localhost:9999/e2e/stripe-checkout", now: () => new Date() });
+		const stripe = initInMemoryHostedCheckout({ checkoutBaseUrl: "http://localhost:9999/e2e/stripe-checkout", now: () => new Date() });
 
 		const session = await stripe.createCheckoutSession({
 			customerEmail: "test@example.com",
@@ -34,7 +34,7 @@ describe("initInMemoryStripeCheckout", () => {
 	});
 
 	it("returns unpaid open status until markPaid is called", async () => {
-		const stripe = initInMemoryStripeCheckout({ checkoutBaseUrl: "https://checkout.stripe.test", now: () => new Date("2026-01-01T00:00:00Z") });
+		const stripe = initInMemoryHostedCheckout({ checkoutBaseUrl: "https://checkout.stripe.test", now: () => new Date("2026-01-01T00:00:00Z") });
 		const session = await stripe.createCheckoutSession({
 			customerEmail: "buyer@example.com",
 			successUrl: "https://app.test/ok",
@@ -61,7 +61,7 @@ describe("initInMemoryStripeCheckout", () => {
 	});
 
 	it("returns generated subscriptionId and customerId for a created session", async () => {
-		const stripe = initInMemoryStripeCheckout(DEFAULT_OPTS);
+		const stripe = initInMemoryHostedCheckout(DEFAULT_OPTS);
 		const session = await stripe.createCheckoutSession({
 			customerEmail: "buyer@example.com",
 			successUrl: "https://app.test/ok",
@@ -78,7 +78,7 @@ describe("initInMemoryStripeCheckout", () => {
 
 	it("uses the injected clock for created timestamp", async () => {
 		const fixedDate = new Date("2026-06-15T10:00:00Z");
-		const stripe = initInMemoryStripeCheckout({ checkoutBaseUrl: "https://checkout.stripe.test", now: () => fixedDate });
+		const stripe = initInMemoryHostedCheckout({ checkoutBaseUrl: "https://checkout.stripe.test", now: () => fixedDate });
 		const session = await stripe.createCheckoutSession({
 			customerEmail: "buyer@example.com",
 			successUrl: "https://app.test/ok",
@@ -93,7 +93,7 @@ describe("initInMemoryStripeCheckout", () => {
 	});
 
 	it("marks a session expired", async () => {
-		const stripe = initInMemoryStripeCheckout(DEFAULT_OPTS);
+		const stripe = initInMemoryHostedCheckout(DEFAULT_OPTS);
 		const session = await stripe.createCheckoutSession({
 			customerEmail: "buyer@example.com",
 			successUrl: "https://app.test/ok",
@@ -108,7 +108,7 @@ describe("initInMemoryStripeCheckout", () => {
 	});
 
 	it("returns not-found when retrieving an unknown session", async () => {
-		const stripe = initInMemoryStripeCheckout(DEFAULT_OPTS);
+		const stripe = initInMemoryHostedCheckout(DEFAULT_OPTS);
 		const result = await stripe.retrieveCheckoutSession(
 			CheckoutSessionIdSchema.parse("cs_test_unknown"),
 		);
@@ -116,21 +116,21 @@ describe("initInMemoryStripeCheckout", () => {
 	});
 
 	it("throws when marking an unknown session as paid", () => {
-		const stripe = initInMemoryStripeCheckout(DEFAULT_OPTS);
+		const stripe = initInMemoryHostedCheckout(DEFAULT_OPTS);
 		expect(() => stripe.markPaid(CheckoutSessionIdSchema.parse("cs_test_missing"))).toThrow(
 			/No checkout session/,
 		);
 	});
 
 	it("throws when marking an unknown session as expired", () => {
-		const stripe = initInMemoryStripeCheckout(DEFAULT_OPTS);
+		const stripe = initInMemoryHostedCheckout(DEFAULT_OPTS);
 		expect(() => stripe.markExpired(CheckoutSessionIdSchema.parse("cs_test_missing"))).toThrow(
 			/No checkout session/,
 		);
 	});
 
 	it("throws when looking up the URL of an unknown session", () => {
-		const stripe = initInMemoryStripeCheckout(DEFAULT_OPTS);
+		const stripe = initInMemoryHostedCheckout(DEFAULT_OPTS);
 		expect(() => stripe.getCheckoutUrl(CheckoutSessionIdSchema.parse("cs_test_missing"))).toThrow(
 			/No checkout URL/,
 		);

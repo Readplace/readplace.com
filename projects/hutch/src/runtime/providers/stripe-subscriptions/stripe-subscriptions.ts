@@ -5,7 +5,7 @@ import type {
 	DeleteCustomer,
 	ReverseScheduledCancellation,
 	ScheduleCancellationAtPeriodEnd,
-} from "@packages/provider-contracts/stripe-subscriptions";
+} from "@packages/provider-contracts/subscription-billing";
 
 const STRIPE_API = "https://api.stripe.com/v1";
 

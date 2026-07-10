@@ -4,4 +4,4 @@ export type {
 	CheckoutSessionStatus,
 	CreateCheckoutSession,
 	RetrieveCheckoutSession,
-} from "@packages/provider-contracts/stripe-checkout";
+} from "@packages/provider-contracts/hosted-checkout";

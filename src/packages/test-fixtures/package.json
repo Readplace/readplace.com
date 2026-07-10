@@ -81,13 +81,13 @@
       "types": "./dist/providers/pending-signup/index.d.ts",
       "default": "./dist/providers/pending-signup/index.js"
     },
-    "./providers/stripe-checkout": {
-      "types": "./dist/providers/stripe-checkout/index.d.ts",
-      "default": "./dist/providers/stripe-checkout/index.js"
+    "./providers/hosted-checkout": {
+      "types": "./dist/providers/hosted-checkout/index.d.ts",
+      "default": "./dist/providers/hosted-checkout/index.js"
     },
-    "./providers/stripe-subscriptions": {
-      "types": "./dist/providers/stripe-subscriptions/index.d.ts",
-      "default": "./dist/providers/stripe-subscriptions/index.js"
+    "./providers/subscription-billing": {
+      "types": "./dist/providers/subscription-billing/index.d.ts",
+      "default": "./dist/providers/subscription-billing/index.js"
     },
     "./providers/subscription-providers": {
       "types": "./dist/providers/subscription-providers/index.d.ts",
@@ -154,8 +154,8 @@
       "providers/pending-pdf": ["./dist/providers/pending-pdf/index.d.ts"],
       "providers/refresh-html": ["./dist/providers/refresh-html/index.d.ts"],
       "providers/pending-signup": ["./dist/providers/pending-signup/index.d.ts"],
-      "providers/stripe-checkout": ["./dist/providers/stripe-checkout/index.d.ts"],
-      "providers/stripe-subscriptions": ["./dist/providers/stripe-subscriptions/index.d.ts"],
+      "providers/hosted-checkout": ["./dist/providers/hosted-checkout/index.d.ts"],
+      "providers/subscription-billing": ["./dist/providers/subscription-billing/index.d.ts"],
       "providers/subscription-providers": ["./dist/providers/subscription-providers/index.d.ts"],
       "providers/trial-scheduler": ["./dist/providers/trial-scheduler/index.d.ts"],
       "providers/import-session": ["./dist/providers/import-session/index.d.ts"],

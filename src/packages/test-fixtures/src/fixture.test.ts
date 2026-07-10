@@ -95,7 +95,7 @@ describe("createDefaultTestAppFixture", () => {
 		expect(fixture.admin.recrawlServiceToken).toMatch(/.+/);
 		expect(fixture.shared.appOrigin).toBe(TEST_APP_ORIGIN);
 		expect(fixture.shared.now()).toBeInstanceOf(Date);
-		expect(typeof fixture.stripe.createCheckoutSession).toBe("function");
+		expect(typeof fixture.hostedCheckout.createCheckoutSession).toBe("function");
 		expect(typeof fixture.pendingSignup.storePendingSignup).toBe("function");
 		expect(fixture.botDefense.events).toEqual([]);
 	});

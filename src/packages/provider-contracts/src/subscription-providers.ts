@@ -1,4 +1,8 @@
+import { z } from "zod";
 import type { UserId } from "@packages/domain/user";
+
+export const SubscriptionProviderSchema = z.enum(["stripe"]);
+export type SubscriptionProvider = z.infer<typeof SubscriptionProviderSchema>;
 
 export type SubscriptionStatus =
 	| "trialing"
@@ -8,7 +12,7 @@ export type SubscriptionStatus =
 
 export interface SubscriptionRecord {
 	userId: UserId;
-	provider: "stripe";
+	provider: SubscriptionProvider;
 	subscriptionId?: string;
 	customerId?: string;
 	status: SubscriptionStatus;

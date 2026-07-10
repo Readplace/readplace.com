@@ -104,7 +104,7 @@ function buildSubject() {
 	const handler = initDeleteAccountHandler({
 		findEmailByUserId: auth.findEmailByUserId,
 		findSubscriptionByUserId: subs.findByUserId,
-		deleteStripeCustomer: async ({ customerId }: { customerId: string }) => {
+		deleteBillingCustomer: async ({ customerId }: { customerId: string }) => {
 			deleteCustomerCalls.push({ customerId });
 		},
 		deleteSubscription: async ({ userId }: { userId: UserId }) => {

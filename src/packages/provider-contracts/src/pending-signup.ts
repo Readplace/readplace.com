@@ -1,5 +1,5 @@
 import type { UserId } from "@packages/domain/user";
-import type { CheckoutSessionId } from "./stripe-checkout";
+import type { CheckoutSessionId } from "./hosted-checkout";
 
 /** An already-signed-in user clicked Subscribe on /account. There is no
  * account to create — just upsertActive on the existing userId once the

@@ -1,12 +1,12 @@
 import assert from "node:assert/strict";
 import { UserIdSchema } from "@packages/domain/user";
-import { initInMemoryStripeSubscriptions } from "./in-memory-stripe-subscriptions";
+import { initInMemorySubscriptionBilling } from "./in-memory-subscription-billing";
 
 const USER_ID = UserIdSchema.parse("usr_inmem_test");
 
-describe("initInMemoryStripeSubscriptions", () => {
+describe("initInMemorySubscriptionBilling", () => {
 	it("records each cancelImmediately call for assertion", async () => {
-		const stripe = initInMemoryStripeSubscriptions();
+		const stripe = initInMemorySubscriptionBilling();
 
 		await stripe.cancelImmediately({ subscriptionId: "sub_one" });
 		await stripe.cancelImmediately({ subscriptionId: "sub_two" });
@@ -15,12 +15,12 @@ describe("initInMemoryStripeSubscriptions", () => {
 	});
 
 	it("returns an empty list before any cancellations", () => {
-		const stripe = initInMemoryStripeSubscriptions();
+		const stripe = initInMemorySubscriptionBilling();
 		assert.deepEqual(stripe.cancelledSubscriptionIds(), []);
 	});
 
 	it("returns a fresh snapshot on each call so successive cancellations show up", async () => {
-		const stripe = initInMemoryStripeSubscriptions();
+		const stripe = initInMemorySubscriptionBilling();
 		await stripe.cancelImmediately({ subscriptionId: "sub_x" });
 		const first = stripe.cancelledSubscriptionIds();
 
@@ -32,7 +32,7 @@ describe("initInMemoryStripeSubscriptions", () => {
 	});
 
 	it("createSubscriptionOnExistingCustomer returns synthetic subscription ids and records params", async () => {
-		const stripe = initInMemoryStripeSubscriptions();
+		const stripe = initInMemorySubscriptionBilling();
 
 		const first = await stripe.createSubscriptionOnExistingCustomer({
 			customerId: "cus_existing",
@@ -63,7 +63,7 @@ describe("initInMemoryStripeSubscriptions", () => {
 	});
 
 	it("createSubscriptionOnExistingCustomer throws when configured to fail", async () => {
-		const stripe = initInMemoryStripeSubscriptions({ createSubscriptionFails: true });
+		const stripe = initInMemorySubscriptionBilling({ createSubscriptionFails: true });
 
 		await assert.rejects(
 			() =>
@@ -72,13 +72,13 @@ describe("initInMemoryStripeSubscriptions", () => {
 					priceId: "price_y",
 					userId: USER_ID,
 				}),
-			/In-memory Stripe createSubscription failure/,
+			/In-memory billing createSubscription failure/,
 		);
 		assert.deepEqual(stripe.createdSubscriptions(), []);
 	});
 
 	it("scheduleCancellationAtPeriodEnd returns the configured cancellationEffectiveAt and records calls", async () => {
-		const stripe = initInMemoryStripeSubscriptions({
+		const stripe = initInMemorySubscriptionBilling({
 			scheduleCancellationAtPeriodEndReturns: "2026-07-01T00:00:00.000Z",
 		});
 
@@ -91,7 +91,7 @@ describe("initInMemoryStripeSubscriptions", () => {
 	});
 
 	it("scheduleCancellationAtPeriodEnd returns a default cancellationEffectiveAt when none is configured", async () => {
-		const stripe = initInMemoryStripeSubscriptions();
+		const stripe = initInMemorySubscriptionBilling();
 
 		const result = await stripe.scheduleCancellationAtPeriodEnd({ subscriptionId: "sub_paid" });
 
@@ -100,17 +100,17 @@ describe("initInMemoryStripeSubscriptions", () => {
 	});
 
 	it("scheduleCancellationAtPeriodEnd throws when configured to fail and does not record the call", async () => {
-		const stripe = initInMemoryStripeSubscriptions({ scheduleCancellationFails: true });
+		const stripe = initInMemorySubscriptionBilling({ scheduleCancellationFails: true });
 
 		await assert.rejects(
 			() => stripe.scheduleCancellationAtPeriodEnd({ subscriptionId: "sub_paid" }),
-			/In-memory Stripe scheduleCancellationAtPeriodEnd failure/,
+			/In-memory billing scheduleCancellationAtPeriodEnd failure/,
 		);
 		assert.deepEqual(stripe.scheduledCancellations(), []);
 	});
 
 	it("reverseScheduledCancellation records each call so tests can assert the un-cancel path ran", async () => {
-		const stripe = initInMemoryStripeSubscriptions();
+		const stripe = initInMemorySubscriptionBilling();
 
 		await stripe.reverseScheduledCancellation({ subscriptionId: "sub_paid" });
 		await stripe.reverseScheduledCancellation({ subscriptionId: "sub_other" });
@@ -119,11 +119,11 @@ describe("initInMemoryStripeSubscriptions", () => {
 	});
 
 	it("reverseScheduledCancellation throws when configured to fail and does not record the call", async () => {
-		const stripe = initInMemoryStripeSubscriptions({ reverseScheduledCancellationFails: true });
+		const stripe = initInMemorySubscriptionBilling({ reverseScheduledCancellationFails: true });
 
 		await assert.rejects(
 			() => stripe.reverseScheduledCancellation({ subscriptionId: "sub_paid" }),
-			/In-memory Stripe reverseScheduledCancellation failure/,
+			/In-memory billing reverseScheduledCancellation failure/,
 		);
 		assert.deepEqual(stripe.reversedCancellations(), []);
 	});

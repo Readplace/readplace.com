@@ -4,7 +4,7 @@ import {
 	CheckoutSessionIdSchema,
 	type CreateCheckoutSession,
 	type RetrieveCheckoutSession,
-} from "@packages/provider-contracts/stripe-checkout";
+} from "@packages/provider-contracts/hosted-checkout";
 
 const STRIPE_API = "https://api.stripe.com/v1";
 

@@ -18,7 +18,7 @@ import type {
 	PublishSubscriptionCancellationScheduled,
 	PublishSubscriptionCancelled,
 } from "@packages/provider-contracts/events";
-import type { ScheduleCancellationAtPeriodEnd } from "@packages/provider-contracts/stripe-subscriptions";
+import type { ScheduleCancellationAtPeriodEnd } from "@packages/provider-contracts/subscription-billing";
 import type {
 	CreateDeferredCancellationSchedule,
 	DeleteTrialEndSchedule,

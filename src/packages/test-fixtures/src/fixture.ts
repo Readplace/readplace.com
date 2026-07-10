@@ -21,8 +21,8 @@ import { initInMemoryIosOnboardingSignal } from "./providers/ios-onboarding-sign
 import { initInMemoryPendingHtml } from "./providers/pending-html/in-memory-pending-html";
 import { initInMemoryPendingPdf } from "./providers/pending-pdf/in-memory-pending-pdf";
 import { initInMemoryPendingSignup } from "./providers/pending-signup/in-memory-pending-signup";
-import { initInMemoryStripeCheckout } from "./providers/stripe-checkout/in-memory-stripe-checkout";
-import { initInMemoryStripeSubscriptions } from "./providers/stripe-subscriptions/in-memory-stripe-subscriptions";
+import { initInMemoryHostedCheckout } from "./providers/hosted-checkout/in-memory-hosted-checkout";
+import { initInMemorySubscriptionBilling } from "./providers/subscription-billing/in-memory-subscription-billing";
 import { initInMemorySubscriptionProviders } from "./providers/subscription-providers/in-memory-subscription-providers";
 import { initInMemoryPaymentMethods } from "./providers/payment-methods/in-memory-payment-methods";
 import { initInMemoryTrialScheduler } from "./providers/trial-scheduler/in-memory-trial-scheduler";
@@ -290,11 +290,11 @@ export function createDefaultTestAppFixture(appOrigin: string): TestAppFixture {
 		markClientActive: oauthClientLookup.markClientActive,
 	});
 	const revokeAllUserOAuthTokens = createRevokeAllUserOAuthTokens(oauthModelDeps);
-	const stripe = initInMemoryStripeCheckout({ checkoutBaseUrl: "https://checkout.stripe.test", now: () => new Date() });
+	const hostedCheckout = initInMemoryHostedCheckout({ checkoutBaseUrl: "https://checkout.stripe.test", now: () => new Date() });
 	const pendingSignup = initInMemoryPendingSignup();
 	const subscriptionProviders = initInMemorySubscriptionProviders({ now: () => new Date() });
 	const trialScheduler = initInMemoryTrialScheduler();
-	const stripeSubscriptions = initInMemoryStripeSubscriptions();
+	const subscriptionBilling = initInMemorySubscriptionBilling();
 	const paymentMethods = initInMemoryPaymentMethods();
 
 	const botDefenseEvents: BotDefenseEvent[] = [];
@@ -434,11 +434,11 @@ export function createDefaultTestAppFixture(appOrigin: string): TestAppFixture {
 			logParseError: () => {},
 			now: () => new Date(),
 		},
-		stripe,
+		hostedCheckout,
 		pendingSignup,
 		subscriptionProviders,
 		trialScheduler,
-		stripeSubscriptions,
+		subscriptionBilling,
 		paymentMethods,
 		stripePriceId: "price_test_default",
 		stripePublishableKey: "pk_test_default",

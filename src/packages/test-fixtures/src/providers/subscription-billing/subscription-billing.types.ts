@@ -3,4 +3,4 @@ export type {
 	CreateSubscriptionOnExistingCustomer,
 	ReverseScheduledCancellation,
 	ScheduleCancellationAtPeriodEnd,
-} from "@packages/provider-contracts/stripe-subscriptions";
+} from "@packages/provider-contracts/subscription-billing";

@@ -2,7 +2,7 @@ import assert from "node:assert/strict";
 import { UserIdSchema } from "@packages/domain/user";
 import { HutchLogger, noopLogger } from "@packages/hutch-logger";
 import { initInMemorySubscriptionProviders } from "@packages/test-fixtures/providers/subscription-providers";
-import { initInMemoryStripeSubscriptions } from "@packages/test-fixtures/providers/stripe-subscriptions";
+import { initInMemorySubscriptionBilling } from "@packages/test-fixtures/providers/subscription-billing";
 import { initInMemoryTrialScheduler } from "@packages/test-fixtures/providers/trial-scheduler";
 import type {
 	PublishSubscriptionCancellationScheduled,
@@ -23,7 +23,7 @@ interface Subject {
 	handler: ReturnType<typeof initCancelSubscriptionHandler>;
 	providers: ReturnType<typeof initInMemorySubscriptionProviders>;
 	trialScheduler: ReturnType<typeof initInMemoryTrialScheduler>;
-	stripeSubscriptions: ReturnType<typeof initInMemoryStripeSubscriptions>;
+	stripeSubscriptions: ReturnType<typeof initInMemorySubscriptionBilling>;
 	scheduledEvents: Array<{
 		userId: string;
 		subscriptionId?: string;
@@ -38,7 +38,7 @@ interface Subject {
 
 function buildSubject(opts?: { scheduleCancellationAtPeriodEndReturns?: string }): Subject {
 	const providers = initInMemorySubscriptionProviders({ now: () => new Date("2026-05-23T10:00:00.000Z") });
-	const stripeSubscriptions = initInMemoryStripeSubscriptions({
+	const stripeSubscriptions = initInMemorySubscriptionBilling({
 		scheduleCancellationAtPeriodEndReturns:
 			opts?.scheduleCancellationAtPeriodEndReturns ?? STRIPE_PERIOD_END,
 	});

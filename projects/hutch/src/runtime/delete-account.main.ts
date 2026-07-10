@@ -152,7 +152,7 @@ const revokeExternalIdpTokens = initRevokeExternalIdpTokens({
 export const handler = initDeleteAccountHandler({
 	findEmailByUserId: auth.findEmailByUserId,
 	findSubscriptionByUserId: subscriptionProviders.findByUserId,
-	deleteStripeCustomer: stripeSubscriptions.deleteCustomer,
+	deleteBillingCustomer: stripeSubscriptions.deleteCustomer,
 	deleteSubscription: subscriptionProviders.deleteSubscription,
 	deleteTrialEndSchedule: trialScheduler.deleteTrialEndSchedule,
 	deleteDeferredCancellationSchedule: trialScheduler.deleteDeferredCancellationSchedule,

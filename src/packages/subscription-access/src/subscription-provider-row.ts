@@ -1,11 +1,14 @@
 import { dynamoField } from "@packages/hutch-storage-client";
 import { z } from "zod";
 import { UserIdSchema } from "@packages/domain/user";
-import type { SubscriptionRecord } from "@packages/provider-contracts/subscription-providers";
+import {
+	type SubscriptionRecord,
+	SubscriptionProviderSchema,
+} from "@packages/provider-contracts/subscription-providers";
 
 export const SubscriptionProviderRow = z.object({
 	userId: UserIdSchema,
-	provider: z.literal("stripe"),
+	provider: SubscriptionProviderSchema,
 	subscriptionId: dynamoField(z.string()),
 	customerId: dynamoField(z.string()),
 	status: z.enum(["trialing", "active", "pending_cancellation", "cancelled"]),

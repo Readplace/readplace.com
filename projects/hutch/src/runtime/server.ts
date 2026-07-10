@@ -32,7 +32,7 @@ import type {
 import type {
 	CreateCheckoutSession,
 	RetrieveCheckoutSession,
-} from "@packages/provider-contracts/stripe-checkout";
+} from "@packages/provider-contracts/hosted-checkout";
 import type {
 	ConsumePendingSignup,
 	StorePendingSignup,
@@ -58,7 +58,7 @@ import type {
 import type {
 	CreateSubscriptionOnExistingCustomer,
 	ReverseScheduledCancellation,
-} from "@packages/provider-contracts/stripe-subscriptions";
+} from "@packages/provider-contracts/subscription-billing";
 import type {
 	BeginAddCard,
 	ListCards,

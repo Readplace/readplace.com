@@ -2,10 +2,10 @@ import assert from "node:assert/strict";
 import type { Server } from "node:http";
 import type { SuperTest, Test } from "supertest";
 import request from "supertest";
-import type { CheckoutSessionId } from "@packages/provider-contracts/stripe-checkout";
+import type { CheckoutSessionId } from "@packages/provider-contracts/hosted-checkout";
 import type { AuthBundle, PendingSignupBundle } from "../../../test-app";
 
-interface StripeBundle {
+interface HostedCheckoutLike {
 	createCheckoutSession: (input: {
 		customerEmail: string;
 		successUrl: string;
@@ -23,10 +23,10 @@ interface StripeBundle {
  * stores the pending signup; `/auth/checkout/success` then upserts an active
  * subscription on the pre-existing account (no account creation, no session
  * cookie, no verification email — those belong to `POST /signup`). */
-export async function completeStripeSignup(params: {
+export async function completeCheckoutSignup(params: {
 	server: Server;
 	auth: AuthBundle;
-	stripe: StripeBundle;
+	hostedCheckout: HostedCheckoutLike;
 	pendingSignup: PendingSignupBundle;
 	email: string;
 	password: string;
@@ -42,7 +42,7 @@ export async function completeStripeSignup(params: {
 	});
 	assert(created.ok, "user must be created before driving Stripe success");
 
-	const checkout = await params.stripe.createCheckoutSession({
+	const checkout = await params.hostedCheckout.createCheckoutSession({
 		customerEmail: params.email,
 		successUrl: "http://localhost:3000/auth/checkout/success?session_id={CHECKOUT_SESSION_ID}",
 		cancelUrl: "http://localhost:3000/signup",
@@ -57,7 +57,7 @@ export async function completeStripeSignup(params: {
 		},
 		createdAt: 1735000000,
 	});
-	params.stripe.markPaid(checkout.id);
+	params.hostedCheckout.markPaid(checkout.id);
 
 	const agent = params.agent ?? request.agent(params.server);
 	const successResponse = await agent.get(

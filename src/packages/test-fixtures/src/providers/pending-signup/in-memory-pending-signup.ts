@@ -1,5 +1,5 @@
 import { normalizeEmail } from "@packages/domain/user";
-import type { CheckoutSessionId } from "@packages/provider-contracts/stripe-checkout";
+import type { CheckoutSessionId } from "@packages/provider-contracts/hosted-checkout";
 import type {
 	ConsumePendingSignup,
 	DeletePendingSignupsByUser,

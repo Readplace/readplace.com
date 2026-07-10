@@ -2,7 +2,7 @@ import assert from "node:assert/strict";
 import { UserIdSchema } from "@packages/domain/user";
 import { HutchLogger, noopLogger } from "@packages/hutch-logger";
 import { initInMemorySubscriptionProviders } from "@packages/test-fixtures/providers/subscription-providers";
-import { initInMemoryStripeSubscriptions } from "@packages/test-fixtures/providers/stripe-subscriptions";
+import { initInMemorySubscriptionBilling } from "@packages/test-fixtures/providers/subscription-billing";
 import type {
 	PublishSubscriptionChargeFailed,
 	PublishSubscriptionChargeSucceeded,
@@ -21,7 +21,7 @@ function buildEventBridgeBody(userId: string): string {
 interface Subject {
 	handler: ReturnType<typeof initSubscriptionStartRequestHandler>;
 	providers: ReturnType<typeof initInMemorySubscriptionProviders>;
-	stripe: ReturnType<typeof initInMemoryStripeSubscriptions>;
+	stripe: ReturnType<typeof initInMemorySubscriptionBilling>;
 	succeededEvents: Array<{ userId: string; subscriptionId: string; customerId: string }>;
 	failedEvents: Array<{ userId: string; reason: string }>;
 }
@@ -30,7 +30,7 @@ function buildSubject(opts?: { stripeFails?: boolean }): Subject {
 	const providers = initInMemorySubscriptionProviders({
 		now: () => new Date("2026-06-06T00:00:00.000Z"),
 	});
-	const stripe = initInMemoryStripeSubscriptions({
+	const stripe = initInMemorySubscriptionBilling({
 		createSubscriptionFails: opts?.stripeFails,
 	});
 	const succeededEvents: Subject["succeededEvents"] = [];

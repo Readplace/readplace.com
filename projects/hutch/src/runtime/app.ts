@@ -55,7 +55,7 @@ import { initStripeSubscriptions } from "./providers/stripe-subscriptions/stripe
 import { initStripePaymentMethods } from "./providers/stripe-payment-methods/stripe-payment-methods";
 import { initInMemoryPaymentMethods } from "@packages/test-fixtures/providers/payment-methods";
 import { initAwsTrialScheduler } from "./providers/trial-scheduler/aws-trial-scheduler";
-import { initInMemoryStripeSubscriptions } from "@packages/test-fixtures/providers/stripe-subscriptions";
+import { initInMemorySubscriptionBilling } from "@packages/test-fixtures/providers/subscription-billing";
 import { initInMemoryTrialScheduler } from "@packages/test-fixtures/providers/trial-scheduler";
 import { initReadArticleContent } from "@packages/article-store";
 import { EventBridgeClient, initEventBridgePublisher } from "@packages/hutch-infra-components/runtime";
@@ -100,7 +100,7 @@ import { initExchangeGoogleCode } from "./providers/google-auth/google-token";
 import { initExchangeAppleCode } from "./providers/apple-auth/apple-token";
 import { initCreateAppleClientSecret } from "./providers/apple-auth/apple-client-secret";
 import { deriveStateSigningSecret } from "./providers/apple-auth/apple-state-secret";
-import { initInMemoryStripeCheckout } from "@packages/test-fixtures/providers/stripe-checkout";
+import { initInMemoryHostedCheckout } from "@packages/test-fixtures/providers/hosted-checkout";
 import { initStripeCheckout } from "./providers/stripe-checkout/stripe-checkout";
 import { initInMemoryPendingSignup } from "@packages/test-fixtures/providers/pending-signup";
 import { initDynamoDbPendingSignup } from "./providers/pending-signup/dynamodb-pending-signup";
@@ -418,8 +418,8 @@ function initProviders() {
 		markClientActive: oauthClientLookup.markClientActive,
 	});
 	const revokeAllUserOAuthTokens = createRevokeAllUserOAuthTokens(oauthModelDeps);
-	const devStripe = initInMemoryStripeCheckout({ checkoutBaseUrl: "https://checkout.stripe.test", now: () => new Date() });
-	const devStripeSubscriptions = initInMemoryStripeSubscriptions();
+	const devStripe = initInMemoryHostedCheckout({ checkoutBaseUrl: "https://checkout.stripe.test", now: () => new Date() });
+	const devStripeSubscriptions = initInMemorySubscriptionBilling();
 	const devPendingSignup = initInMemoryPendingSignup();
 	const devSubscriptionProviders = initInMemorySubscriptionProviders({ now: () => new Date() });
 	const devPaymentMethods = initInMemoryPaymentMethods();

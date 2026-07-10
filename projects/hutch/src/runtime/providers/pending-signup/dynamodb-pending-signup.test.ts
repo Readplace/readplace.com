@@ -1,4 +1,4 @@
-import { CheckoutSessionIdSchema } from "@packages/provider-contracts/stripe-checkout";
+import { CheckoutSessionIdSchema } from "@packages/provider-contracts/hosted-checkout";
 import type { DynamoDBDocumentClient } from "@packages/hutch-storage-client";
 import { UserIdSchema } from "@packages/domain/user";
 import { type HutchLogger, noopLogger } from "@packages/hutch-logger";

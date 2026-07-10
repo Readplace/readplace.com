@@ -1,5 +1,5 @@
 import assert from "node:assert/strict";
-import { CheckoutSessionIdSchema } from "@packages/test-fixtures/providers/stripe-checkout";
+import { CheckoutSessionIdSchema } from "@packages/test-fixtures/providers/hosted-checkout";
 import { initStripeCheckout } from "./stripe-checkout";
 
 function jsonResponse(status: number, body: object): Response {

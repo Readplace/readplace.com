@@ -16,8 +16,8 @@ import type {
 	PendingPdfBundle,
 	PendingSignupBundle,
 	RunningServer,
-	StripeCheckoutBundle,
-	StripeSubscriptionsBundle,
+	HostedCheckoutBundle,
+	SubscriptionBillingBundle,
 	SubscriptionProvidersBundle,
 	TestAppFixture,
 	TrialSchedulerBundle,
@@ -50,8 +50,8 @@ export type {
 	PendingPdfBundle,
 	PendingSignupBundle,
 	SharedBundle,
-	StripeCheckoutBundle,
-	StripeSubscriptionsBundle,
+	HostedCheckoutBundle,
+	SubscriptionBillingBundle,
 	SubscriptionProvidersBundle,
 	SummaryBundle,
 	TestAppFixture,
@@ -75,11 +75,11 @@ export interface TestAppResult {
 	email: EmailBundle;
 	emailVerification: EmailVerificationBundle;
 	passwordReset: PasswordResetBundle;
-	stripe: StripeCheckoutBundle;
+	hostedCheckout: HostedCheckoutBundle;
 	pendingSignup: PendingSignupBundle;
 	subscriptionProviders: SubscriptionProvidersBundle;
 	trialScheduler: TrialSchedulerBundle;
-	stripeSubscriptions: StripeSubscriptionsBundle;
+	subscriptionBilling: SubscriptionBillingBundle;
 	paymentMethods: PaymentMethodsBundle;
 	botDefense: BotDefenseBundle;
 	conversions: ConversionsBundle;
@@ -179,8 +179,8 @@ function flattenFixtureToAppDependencies(
 		readEmailContent: fixture.inboxEmail.readEmailContent,
 		getChangelogBanner: async () => undefined,
 		now: fixture.shared.now,
-		retrieveCheckoutSession: fixture.stripe.retrieveCheckoutSession,
-		createCheckoutSession: fixture.stripe.createCheckoutSession,
+		retrieveCheckoutSession: fixture.hostedCheckout.retrieveCheckoutSession,
+		createCheckoutSession: fixture.hostedCheckout.createCheckoutSession,
 		consumePendingSignup: fixture.pendingSignup.consumePendingSignup,
 		storePendingSignup: fixture.pendingSignup.storePendingSignup,
 		subscriptionProviders: {
@@ -198,9 +198,9 @@ function flattenFixtureToAppDependencies(
 			deleteTrialReminderSchedule: fixture.trialScheduler.deleteTrialReminderSchedule,
 		},
 		createSubscriptionOnExistingCustomer:
-			fixture.stripeSubscriptions.createSubscriptionOnExistingCustomer,
+			fixture.subscriptionBilling.createSubscriptionOnExistingCustomer,
 		reverseScheduledCancellation:
-			fixture.stripeSubscriptions.reverseScheduledCancellation,
+			fixture.subscriptionBilling.reverseScheduledCancellation,
 		paymentMethods: {
 			listCards: fixture.paymentMethods.listCards,
 			beginAddCard: fixture.paymentMethods.beginAddCard,
@@ -249,11 +249,11 @@ export function createTestApp(
 		email: fixture.email,
 		emailVerification: fixture.emailVerification,
 		passwordReset: fixture.passwordReset,
-		stripe: fixture.stripe,
+		hostedCheckout: fixture.hostedCheckout,
 		pendingSignup: fixture.pendingSignup,
 		subscriptionProviders: fixture.subscriptionProviders,
 		trialScheduler: fixture.trialScheduler,
-		stripeSubscriptions: fixture.stripeSubscriptions,
+		subscriptionBilling: fixture.subscriptionBilling,
 		paymentMethods: fixture.paymentMethods,
 		botDefense: fixture.botDefense,
 		conversions: fixture.conversions,

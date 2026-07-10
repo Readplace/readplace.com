@@ -25,7 +25,7 @@ import type {
 	DeleteSubscription,
 	FindSubscriptionByUserId,
 } from "@packages/provider-contracts/subscription-providers";
-import type { DeleteCustomer } from "@packages/provider-contracts/stripe-subscriptions";
+import type { DeleteCustomer } from "@packages/provider-contracts/subscription-billing";
 import type {
 	DeleteDeferredCancellationSchedule,
 	DeleteTrialEndSchedule,
@@ -43,7 +43,7 @@ import type { RevokeExternalIdpTokens } from "./revoke-external-idp-tokens";
 export interface DeleteAccountHandlerDependencies {
 	findEmailByUserId: FindEmailByUserId;
 	findSubscriptionByUserId: FindSubscriptionByUserId;
-	deleteStripeCustomer: DeleteCustomer;
+	deleteBillingCustomer: DeleteCustomer;
 	deleteSubscription: DeleteSubscription;
 	deleteTrialEndSchedule: DeleteTrialEndSchedule;
 	deleteDeferredCancellationSchedule: DeleteDeferredCancellationSchedule;
@@ -96,7 +96,7 @@ async function processCommand(
 	const subscription = await deps.findSubscriptionByUserId(userId);
 	if (subscription) {
 		if (subscription.customerId) {
-			await deps.deleteStripeCustomer({ customerId: subscription.customerId });
+			await deps.deleteBillingCustomer({ customerId: subscription.customerId });
 		}
 		await deps.deleteSubscription({ userId });
 	}

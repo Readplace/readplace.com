@@ -10,7 +10,7 @@ import {
 
 import { GoogleIdSchema } from "@packages/test-fixtures/providers/google-auth";
 import type { ExchangeGoogleCode } from "@packages/test-fixtures/providers/google-auth";
-import { CheckoutSessionIdSchema } from "@packages/test-fixtures/providers/stripe-checkout";
+import { CheckoutSessionIdSchema } from "@packages/test-fixtures/providers/hosted-checkout";
 
 const TEST_FOUNDING_MEMBER_LIMIT = 3;
 

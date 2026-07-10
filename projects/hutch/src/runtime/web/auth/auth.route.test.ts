@@ -3,13 +3,13 @@ import { JSDOM } from "jsdom";
 import request from "supertest";
 import { useTestServer } from "../../test-app";
 
-import { CheckoutSessionIdSchema } from "@packages/test-fixtures/providers/stripe-checkout";
+import { CheckoutSessionIdSchema } from "@packages/test-fixtures/providers/hosted-checkout";
 import {
 	TEST_APP_ORIGIN,
 	createDefaultTestAppFixture,
 } from "@packages/test-fixtures";
 import { initInMemoryRateLimit } from "@packages/test-fixtures/providers/rate-limit";
-import { completeStripeSignup } from "./test-helpers/complete-stripe-signup";
+import { completeCheckoutSignup } from "./test-helpers/complete-checkout-signup";
 import { createAccessToken, saveAccessTokenForUser } from "../test-helpers/oauth-token";
 import { AppleTokenResponse } from "../../providers/apple-auth/apple-token";
 import { DISPOSABLE_EMAIL_MESSAGE } from "./disposable-email";
@@ -373,7 +373,7 @@ describe("Auth routes", () => {
 
 		it("creates a trialing subscription_providers row and redirects to /queue when the founding allocation is exhausted", async () => {
 			const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
-			const { auth, subscriptionProviders, conversions, stripe, pendingSignup, trialScheduler } = harness;
+			const { auth, subscriptionProviders, conversions, hostedCheckout, pendingSignup, trialScheduler } = harness;
 			for (let i = 0; i < TEST_FOUNDING_MEMBER_LIMIT; i++) {
 				await auth.createUser({ email: `seed${i}@test.com`, password: "password123" });
 			}
@@ -423,8 +423,8 @@ describe("Auth routes", () => {
 				CheckoutSessionIdSchema.parse("cs_test_never_created"),
 			);
 			expect(consumed).toBeNull();
-			// stripe.markPaid stays accessible for callers — confirming the bundle is unaffected.
-			expect(typeof stripe.markPaid).toBe("function");
+			// hostedCheckout.markPaid stays accessible for callers — confirming the bundle is unaffected.
+			expect(typeof hostedCheckout.markPaid).toBe("function");
 		}, 30000);
 
 		it("completes trial signup even when the trial-end scheduler fails", async () => {
@@ -637,12 +637,12 @@ describe("Auth routes", () => {
 
 		it("should activate the subscription on successful Stripe checkout and redirect to /queue", async () => {
 			const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
-			const { auth, stripe, pendingSignup } = harness;
+			const { auth, hostedCheckout, pendingSignup } = harness;
 
-			const { successResponse } = await completeStripeSignup({
+			const { successResponse } = await completeCheckoutSignup({
 				server: harness.server,
 				auth,
-				stripe,
+				hostedCheckout,
 				pendingSignup,
 				email: "new@example.com",
 				password: "password123",
@@ -654,12 +654,12 @@ describe("Auth routes", () => {
 
 		it("should redirect to return URL after successful Stripe checkout", async () => {
 			const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
-			const { auth, stripe, pendingSignup } = harness;
+			const { auth, hostedCheckout, pendingSignup } = harness;
 
-			const { successResponse } = await completeStripeSignup({
+			const { successResponse } = await completeCheckoutSignup({
 				server: harness.server,
 				auth,
-				stripe,
+				hostedCheckout,
 				pendingSignup,
 				email: "new@example.com",
 				password: "password123",
@@ -672,12 +672,12 @@ describe("Auth routes", () => {
 
 		it("should ignore protocol-relative return URLs on signup", async () => {
 			const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
-			const { auth, stripe, pendingSignup } = harness;
+			const { auth, hostedCheckout, pendingSignup } = harness;
 
-			const { successResponse } = await completeStripeSignup({
+			const { successResponse } = await completeCheckoutSignup({
 				server: harness.server,
 				auth,
-				stripe,
+				hostedCheckout,
 				pendingSignup,
 				email: "new@example.com",
 				password: "password123",
@@ -690,12 +690,12 @@ describe("Auth routes", () => {
 
 		it("should ignore non-relative return URLs on signup", async () => {
 			const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
-			const { auth, stripe, pendingSignup } = harness;
+			const { auth, hostedCheckout, pendingSignup } = harness;
 
-			const { successResponse } = await completeStripeSignup({
+			const { successResponse } = await completeCheckoutSignup({
 				server: harness.server,
 				auth,
-				stripe,
+				hostedCheckout,
 				pendingSignup,
 				email: "new@example.com",
 				password: "password123",

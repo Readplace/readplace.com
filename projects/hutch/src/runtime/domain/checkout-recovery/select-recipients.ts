@@ -1,7 +1,7 @@
 import type {
 	CheckoutSessionId,
 	RetrieveCheckoutSession,
-} from "@packages/provider-contracts/stripe-checkout";
+} from "@packages/provider-contracts/hosted-checkout";
 import type { PendingSignupSummary } from "@packages/provider-contracts/pending-signup";
 
 const ONE_HOUR_SECONDS = 60 * 60;

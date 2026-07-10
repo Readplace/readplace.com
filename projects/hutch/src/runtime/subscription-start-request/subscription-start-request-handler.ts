@@ -9,7 +9,7 @@ import { UserIdSchema } from "@packages/domain/user";
 import { SubscriptionStartRequestCommand } from "@packages/hutch-infra-components";
 import type { HutchLogger } from "@packages/hutch-logger";
 import type { FindSubscriptionByUserId } from "@packages/provider-contracts/subscription-providers";
-import type { CreateSubscriptionOnExistingCustomer } from "@packages/provider-contracts/stripe-subscriptions";
+import type { CreateSubscriptionOnExistingCustomer } from "@packages/provider-contracts/subscription-billing";
 import type {
 	PublishSubscriptionChargeFailed,
 	PublishSubscriptionChargeSucceeded,

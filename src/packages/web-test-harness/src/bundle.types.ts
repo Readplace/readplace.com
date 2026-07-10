@@ -154,7 +154,7 @@ export interface AuthBundle {
 	getAcquisitionAttribution: (email: string) => Promise<UserAcquisitionAttribution | undefined>;
 }
 
-export interface StripeCheckoutBundle {
+export interface HostedCheckoutBundle {
 	createCheckoutSession: CreateCheckoutSession;
 	retrieveCheckoutSession: RetrieveCheckoutSession;
 	markPaid: (id: CheckoutSessionId) => void;
@@ -203,7 +203,7 @@ export interface PaymentMethodsBundle {
 	seedCards: (input: { customerId: string; cards: SavedCard[] }) => void;
 }
 
-export interface StripeSubscriptionsBundle {
+export interface SubscriptionBillingBundle {
 	createSubscriptionOnExistingCustomer: CreateSubscriptionOnExistingCustomer;
 	scheduleCancellationAtPeriodEnd: ScheduleCancellationAtPeriodEnd;
 	reverseScheduledCancellation: ReverseScheduledCancellation;
@@ -420,11 +420,11 @@ export interface TestAppFixture {
 	inboxAddress: InboxAddressBundle;
 	inboxEmail: InboxEmailBundle;
 	shared: SharedBundle;
-	stripe: StripeCheckoutBundle;
+	hostedCheckout: HostedCheckoutBundle;
 	pendingSignup: PendingSignupBundle;
 	subscriptionProviders: SubscriptionProvidersBundle;
 	trialScheduler: TrialSchedulerBundle;
-	stripeSubscriptions: StripeSubscriptionsBundle;
+	subscriptionBilling: SubscriptionBillingBundle;
 	paymentMethods: PaymentMethodsBundle;
 	stripePriceId: string;
 	/** Public Stripe publishable key embedded in the card-add Elements form.

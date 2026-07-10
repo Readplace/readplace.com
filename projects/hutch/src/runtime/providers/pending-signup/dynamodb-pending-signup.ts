@@ -6,7 +6,7 @@ import {
 import type { HutchLogger } from "@packages/hutch-logger";
 import { z } from "zod";
 import { UserIdSchema, normalizeEmail } from "@packages/domain/user";
-import { CheckoutSessionIdSchema } from "@packages/provider-contracts/stripe-checkout";
+import { CheckoutSessionIdSchema } from "@packages/provider-contracts/hosted-checkout";
 import type {
 	ConsumePendingSignup,
 	DeletePendingSignupsByUser,

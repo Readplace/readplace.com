@@ -477,7 +477,7 @@ describe("POST /account/subscribe", () => {
 
 	it("Phase 3: cancelled user with customerId resubscribes in ONE click via Stripe subscriptions.create (NO checkout UI)", async () => {
 		const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
-		const { subscriptionProviders, stripeSubscriptions } = harness;
+		const { subscriptionProviders, subscriptionBilling } = harness;
 		const { agent, userId } = await loginUser(harness, "one-click@example.com");
 		await subscriptionProviders.upsertActive({
 			userId,
@@ -491,7 +491,7 @@ describe("POST /account/subscribe", () => {
 		expect(response.status).toBe(303);
 		expect(response.headers.location).toBe("/account");
 		// The one-click path calls Stripe subscriptions.create with the saved customer.
-		const created = stripeSubscriptions.createdSubscriptions();
+		const created = subscriptionBilling.createdSubscriptions();
 		expect(created).toHaveLength(1);
 		expect(created[0].customerId).toBe("cus_was_paid");
 		expect(created[0].priceId).toBe("price_test_default");
@@ -510,7 +510,7 @@ describe("POST /account/subscribe", () => {
 		const fixture = createDefaultTestAppFixture(TEST_APP_ORIGIN);
 		// Replace the stripe subscriptions wrapper with one that throws —
 		// simulates a declined/expired saved card.
-		fixture.stripeSubscriptions.createSubscriptionOnExistingCustomer = async () => {
+		fixture.subscriptionBilling.createSubscriptionOnExistingCustomer = async () => {
 			throw new Error("card_declined");
 		};
 		const harness = useApp(fixture);
@@ -580,7 +580,7 @@ describe("POST /account/subscribe", () => {
 
 	it("trialing user — Stripe Checkout throws → 303 to /account?error=payment_method (no 500)", async () => {
 		const fixture = createDefaultTestAppFixture(TEST_APP_ORIGIN);
-		fixture.stripe.createCheckoutSession = async () => {
+		fixture.hostedCheckout.createCheckoutSession = async () => {
 			throw new Error("Stripe createCheckoutSession failed (400): something bad");
 		};
 		const harness = useApp(fixture);
@@ -599,7 +599,7 @@ describe("POST /account/subscribe", () => {
 
 	it("cancelled user without customerId — Stripe Checkout fallback throws → 303 to /account?error=payment_method (no 500)", async () => {
 		const fixture = createDefaultTestAppFixture(TEST_APP_ORIGIN);
-		fixture.stripe.createCheckoutSession = async () => {
+		fixture.hostedCheckout.createCheckoutSession = async () => {
 			throw new Error("Stripe createCheckoutSession failed (400): something bad");
 		};
 		const harness = useApp(fixture);
@@ -672,7 +672,7 @@ describe("POST /account/subscribe", () => {
 
 	it("treats pending_cancellation as noop on /subscribe — the Reactivate route owns un-cancel, /subscribe must NOT create a second Stripe subscription", async () => {
 		const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
-		const { subscriptionProviders, stripeSubscriptions } = harness;
+		const { subscriptionProviders, subscriptionBilling } = harness;
 		const { agent, userId } = await loginUser(harness, "pending-cancel-subscribe@example.com");
 		await subscriptionProviders.upsertActive({
 			userId,
@@ -690,7 +690,7 @@ describe("POST /account/subscribe", () => {
 		expect(response.headers.location).toBe("/account");
 		// No NEW subscription created — the user still has the existing one
 		// with cancel-at-period-end set; Reactivate is the only un-cancel path.
-		expect(stripeSubscriptions.createdSubscriptions()).toHaveLength(0);
+		expect(subscriptionBilling.createdSubscriptions()).toHaveLength(0);
 	});
 });
 
@@ -760,7 +760,7 @@ describe("POST /account/reactivate", () => {
 			reactivatedEvents.push(params);
 		};
 		const harness = useApp(fixture);
-		const { subscriptionProviders, trialScheduler, stripeSubscriptions } = harness;
+		const { subscriptionProviders, trialScheduler, subscriptionBilling } = harness;
 		const { agent, userId } = await loginUser(harness, "reactivate-paid@example.com");
 		await subscriptionProviders.upsertActive({
 			userId,
@@ -777,7 +777,7 @@ describe("POST /account/reactivate", () => {
 		expect(response.status).toBe(303);
 		expect(response.headers.location).toBe("/account");
 		// Stripe was told to undo the scheduled cancel.
-		expect(stripeSubscriptions.reversedCancellations()).toEqual(["sub_to_reactivate"]);
+		expect(subscriptionBilling.reversedCancellations()).toEqual(["sub_to_reactivate"]);
 		// Deferred-cancellation schedule deleted so it doesn't fire later.
 		expect(trialScheduler.deferredCancellationDeleteCalls()).toEqual([userId]);
 		// Row back to active.
@@ -799,7 +799,7 @@ describe("POST /account/reactivate", () => {
 			reactivatedEvents.push(params);
 		};
 		const harness = useApp(fixture);
-		const { subscriptionProviders, trialScheduler, stripeSubscriptions } = harness;
+		const { subscriptionProviders, trialScheduler, subscriptionBilling } = harness;
 		const { agent, userId } = await loginUser(harness, "reactivate-trial@example.com");
 		const trialEndsAt = new Date(Date.now() + 5 * ONE_DAY_MS).toISOString();
 		await subscriptionProviders.upsertTrialing({ userId, trialEndsAt });
@@ -813,7 +813,7 @@ describe("POST /account/reactivate", () => {
 		expect(response.status).toBe(303);
 		expect(response.headers.location).toBe("/account");
 		// No Stripe call for the trial path.
-		expect(stripeSubscriptions.reversedCancellations()).toEqual([]);
+		expect(subscriptionBilling.reversedCancellations()).toEqual([]);
 		// Deferred-cancellation schedule deleted.
 		expect(trialScheduler.deferredCancellationDeleteCalls()).toEqual([userId]);
 		// Trial-end auto-charge schedule recreated.
@@ -867,7 +867,7 @@ describe("POST /account/reactivate", () => {
 			reactivatedEvents.push(params);
 		};
 		const harness = useApp(fixture);
-		const { subscriptionProviders, trialScheduler, stripeSubscriptions } = harness;
+		const { subscriptionProviders, trialScheduler, subscriptionBilling } = harness;
 		const { agent, userId } = await loginUser(harness, "reactivate-already-active@example.com");
 		await subscriptionProviders.upsertActive({
 			userId,
@@ -879,7 +879,7 @@ describe("POST /account/reactivate", () => {
 
 		expect(response.status).toBe(303);
 		expect(response.headers.location).toBe("/account");
-		expect(stripeSubscriptions.reversedCancellations()).toEqual([]);
+		expect(subscriptionBilling.reversedCancellations()).toEqual([]);
 		expect(trialScheduler.deferredCancellationDeleteCalls()).toEqual([]);
 		expect(reactivatedEvents).toEqual([]);
 	});
@@ -896,7 +896,7 @@ describe("POST /account/reactivate", () => {
 
 	it("Stripe reverseScheduledCancellation failure — 303 /account?error=payment_method, row stays pending_cancellation", async () => {
 		const fixture = createDefaultTestAppFixture(TEST_APP_ORIGIN);
-		fixture.stripeSubscriptions.reverseScheduledCancellation = async () => {
+		fixture.subscriptionBilling.reverseScheduledCancellation = async () => {
 			throw new Error("Stripe is down");
 		};
 		const harness = useApp(fixture);

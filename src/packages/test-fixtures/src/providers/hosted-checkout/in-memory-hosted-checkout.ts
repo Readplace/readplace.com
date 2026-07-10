@@ -1,11 +1,11 @@
 import { randomBytes } from "node:crypto";
-import { CheckoutSessionIdSchema } from "./stripe-checkout.schema";
+import { CheckoutSessionIdSchema } from "./hosted-checkout.schema";
 import type {
 	CheckoutSessionId,
 	CheckoutSessionStatus,
 	CreateCheckoutSession,
 	RetrieveCheckoutSession,
-} from "@packages/provider-contracts/stripe-checkout";
+} from "@packages/provider-contracts/hosted-checkout";
 
 interface StoredSession {
 	customerEmail: string;
@@ -16,7 +16,7 @@ interface StoredSession {
 	customerId: string;
 }
 
-export function initInMemoryStripeCheckout(opts: {
+export function initInMemoryHostedCheckout(opts: {
 	checkoutBaseUrl: string;
 	now: () => Date;
 }): {

@@ -3,7 +3,7 @@ import { JSDOM } from "jsdom";
 import request from "supertest";
 import { useTestServer } from "../../test-app";
 import { TEST_APP_ORIGIN, createDefaultTestAppFixture } from "@packages/test-fixtures";
-import { completeStripeSignup } from "./test-helpers/complete-stripe-signup";
+import { completeCheckoutSignup } from "./test-helpers/complete-checkout-signup";
 
 const useApp = useTestServer();
 
@@ -30,9 +30,9 @@ describe("GET /auth/checkout/success", () => {
 
 	it("renders 402 when the checkout has not been paid yet", async () => {
 		const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
-		const { stripe } = harness;
+		const { hostedCheckout } = harness;
 
-		const checkout = await stripe.createCheckoutSession({
+		const checkout = await hostedCheckout.createCheckoutSession({
 			customerEmail: "unpaid@example.com",
 			successUrl: "http://localhost:3000/auth/checkout/success?session_id={CHECKOUT_SESSION_ID}",
 			cancelUrl: "http://localhost:3000/signup",
@@ -49,12 +49,12 @@ describe("GET /auth/checkout/success", () => {
 
 	it("renders 409 when the checkout has been paid but the pending signup was already consumed", async () => {
 		const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
-		const { auth, stripe, pendingSignup } = harness;
+		const { auth, hostedCheckout, pendingSignup } = harness;
 
-		const { checkoutSessionId } = await completeStripeSignup({
+		const { checkoutSessionId } = await completeCheckoutSignup({
 			server: harness.server,
 			auth,
-			stripe,
+			hostedCheckout,
 			pendingSignup,
 			email: "double@example.com",
 			password: "password123",
@@ -71,12 +71,12 @@ describe("GET /auth/checkout/success", () => {
 
 	it("marks the pre-existing user active and redirects to /queue on first paid visit", async () => {
 		const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
-		const { auth, stripe, subscriptionProviders, pendingSignup } = harness;
+		const { auth, hostedCheckout, subscriptionProviders, pendingSignup } = harness;
 
-		const { successResponse } = await completeStripeSignup({
+		const { successResponse } = await completeCheckoutSignup({
 			server: harness.server,
 			auth,
-			stripe,
+			hostedCheckout,
 			pendingSignup,
 			email: "buyer@example.com",
 			password: "password123",
@@ -94,12 +94,12 @@ describe("GET /auth/checkout/success", () => {
 
 	it("writes an active subscription_providers row with the Stripe ids on first paid visit", async () => {
 		const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
-		const { auth, stripe, subscriptionProviders, pendingSignup } = harness;
+		const { auth, hostedCheckout, subscriptionProviders, pendingSignup } = harness;
 
-		await completeStripeSignup({
+		await completeCheckoutSignup({
 			server: harness.server,
 			auth,
-			stripe,
+			hostedCheckout,
 			pendingSignup,
 			email: "sub-active@example.com",
 			password: "password123",
@@ -118,12 +118,12 @@ describe("GET /auth/checkout/success", () => {
 
 	it("calls deleteTrialEndSchedule on first paid visit so any prior trial scheduler is cleared", async () => {
 		const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
-		const { auth, stripe, pendingSignup, trialScheduler } = harness;
+		const { auth, hostedCheckout, pendingSignup, trialScheduler } = harness;
 
-		await completeStripeSignup({
+		await completeCheckoutSignup({
 			server: harness.server,
 			auth,
-			stripe,
+			hostedCheckout,
 			pendingSignup,
 			email: "sub-clear-schedule@example.com",
 			password: "password123",

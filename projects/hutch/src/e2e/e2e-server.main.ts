@@ -20,8 +20,8 @@ import { initExtractLinksFromPageUrl } from '@packages/extract-links-from-page'
 import { initReadabilityParser, linkedinSiteRules, mediumSiteRules, theInformationSiteRules } from '@packages/article-parser'
 import { initInMemoryRefreshArticleContent } from '@packages/test-fixtures/providers/events'
 import { initInMemoryUpdateFetchTimestamp } from '@packages/test-fixtures/providers/events'
-import { initInMemoryStripeCheckout } from '@packages/test-fixtures/providers/stripe-checkout'
-import { CheckoutSessionIdSchema } from '@packages/test-fixtures/providers/stripe-checkout'
+import { initInMemoryHostedCheckout } from '@packages/test-fixtures/providers/hosted-checkout'
+import { CheckoutSessionIdSchema } from '@packages/test-fixtures/providers/hosted-checkout'
 
 const PORT = Number(requireEnv('E2E_PORT'))
 // Use 127.0.0.1 (not localhost) so the appOrigin passed into the test fixture
@@ -115,11 +115,11 @@ const applyParseResult = createFakeApplyParseResult({
 // E2E-specific Stripe checkout: generates local URLs so the browser can follow
 // the redirect chain (POST /signup → local checkout → /auth/checkout/success)
 // instead of hitting the unreachable https://checkout.stripe.test domain.
-const e2eStripe = initInMemoryStripeCheckout({ checkoutBaseUrl: `${origin}/e2e/stripe-checkout`, now: () => new Date() })
+const e2eStripe = initInMemoryHostedCheckout({ checkoutBaseUrl: `${origin}/e2e/stripe-checkout`, now: () => new Date() })
 
 const { app: hutchApp, auth, email } = createTestApp({
   ...fixture,
-  stripe: e2eStripe,
+  hostedCheckout: e2eStripe,
   parser: { parseArticle, crawlArticle },
   events: {
     publishLinkSaved: createFakePublishLinkSaved(applyParseResult),

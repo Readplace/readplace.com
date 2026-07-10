@@ -36,7 +36,7 @@ import type {
 import {
 	CheckoutSessionIdSchema,
 	type RetrieveCheckoutSession,
-} from "@packages/provider-contracts/stripe-checkout";
+} from "@packages/provider-contracts/hosted-checkout";
 import type {
 	ConsumeRateLimit,
 	RateLimitRules,
