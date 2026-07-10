@@ -18,8 +18,7 @@ enum ShareURLExtractor {
 	}
 
 	static func extract(from context: NSExtensionContext?) async -> Shared? {
-		guard let items = context?.inputItems as? [NSExtensionItem] else { return nil }
-		return await extract(from: items)
+		await extract(from: context?.inputItems as? [NSExtensionItem] ?? [])
 	}
 
 	/// The extraction core, taking the item list directly so a test can drive it
@@ -60,17 +59,19 @@ enum ShareURLExtractor {
 	private static func loadURL(_ provider: NSItemProvider) async -> URL? {
 		await withCheckedContinuation { continuation in
 			provider.loadItem(forTypeIdentifier: UTType.url.identifier, options: nil) { item, _ in
-				if let url = item as? URL {
-					continuation.resume(returning: url)
-				} else if let data = item as? Data, let url = URL(dataRepresentation: data, relativeTo: nil) {
-					continuation.resume(returning: url)
-				} else if let string = item as? String, let url = URL(string: string) {
-					continuation.resume(returning: url)
-				} else {
-					continuation.resume(returning: nil)
-				}
+				continuation.resume(returning: coerceURL(from: item))
 			}
 		}
+	}
+
+	/// Which concrete type `loadItem` hands back for a URL — `URL`, `Data`, or
+	/// `String` — varies by host app and OS release, so the coercion lives in a
+	/// synchronous seam a test can pin shape-by-shape, deterministically.
+	nonisolated static func coerceURL(from item: (any NSSecureCoding)?) -> URL? {
+		if let url = item as? URL { return url }
+		if let data = item as? Data, let url = URL(dataRepresentation: data, relativeTo: nil) { return url }
+		if let string = item as? String, let url = URL(string: string) { return url }
+		return nil
 	}
 
 	private static func loadText(_ provider: NSItemProvider) async -> String? {

@@ -99,6 +99,28 @@ final class ShareURLExtractorTests: XCTestCase {
 		XCTAssertNil(shared)
 	}
 
+	func testReturnsNilForANilExtensionContext() async {
+		let shared = await ShareURLExtractor.extract(from: nil)
+		XCTAssertNil(shared)
+	}
+
+	func testReturnsNilForAnItemWithNoAttachments() async {
+		let shared = await ShareURLExtractor.extract(from: [NSExtensionItem()])
+		XCTAssertNil(shared, "an item with no attachments carries no URL and no PDF")
+	}
+
+	func testCoercesEachItemShapeAHostMayDeliver() {
+		XCTAssertEqual(ShareURLExtractor.coerceURL(from: URL(string: "https://example.com/u")! as NSURL)?.absoluteString, "https://example.com/u")
+		let data = URL(string: "https://example.com/d")!.dataRepresentation
+		XCTAssertEqual(ShareURLExtractor.coerceURL(from: data as NSData)?.absoluteString, "https://example.com/d")
+		XCTAssertEqual(ShareURLExtractor.coerceURL(from: "https://example.com/s" as NSString)?.absoluteString, "https://example.com/s")
+	}
+
+	func testCoercionRejectsAnItemThatIsNotURLShaped() {
+		XCTAssertNil(ShareURLExtractor.coerceURL(from: NSNumber(value: 42)))
+		XCTAssertNil(ShareURLExtractor.coerceURL(from: nil))
+	}
+
 	func testLoadsPdfDataUnderTheCeiling() async throws {
 		let data = await ShareURLExtractor.loadPDFData(try pdfProvider(logicalSize: 256))
 		XCTAssertEqual(data?.starts(with: Data("%PDF-".utf8)), true)

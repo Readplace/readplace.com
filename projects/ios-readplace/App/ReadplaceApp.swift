@@ -21,7 +21,7 @@ struct RootView: View {
 			if session.isLoggedIn {
 				ReadingListView(session: session)
 			} else {
-				LoginView(authErrorText: $authErrorText)
+				LoginView(session: session, authErrorText: $authErrorText, makeFlow: makeWebAuthFlow(session:))
 			}
 		}
 		.tint(.brandAmber)

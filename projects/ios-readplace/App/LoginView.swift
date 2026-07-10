@@ -1,10 +1,13 @@
 import SwiftUI
 
 struct LoginView: View {
-	@EnvironmentObject private var session: AppSession
+	let session: AppSession
 	/// Owned by `RootView` (which handles the OAuth deep link) so a failed Login or
 	/// Sign up can surface here while this view is still on screen.
 	@Binding var authErrorText: String?
+	/// Injected so the composition point wires the live browser-opening flow and
+	/// tests capture the started request; there is deliberately no internal default.
+	let makeFlow: @MainActor (AppSession) -> WebAuthFlow
 
 	var body: some View {
 		NavigationStack {
@@ -66,17 +69,17 @@ struct LoginView: View {
 	/// Opens `/oauth/authorize` for login in the external browser (Chrome if
 	/// installed, to reuse its session); the result returns via the deep link.
 	@MainActor
-	private func startLogin() {
+	func startLogin() {
 		authErrorText = nil
-		makeWebAuthFlow(session: session).start(session.makeOAuth().makeNativeLoginAuthorizationRequest())
+		makeFlow(session).start(session.makeOAuth().makeNativeLoginAuthorizationRequest())
 	}
 
 	/// Opens `/oauth/authorize` for sign up in the external browser. A fresh
 	/// `start` overwrites any prior pending record so an abandoned attempt can't
 	/// strand stale secrets.
 	@MainActor
-	private func startSignup() {
+	func startSignup() {
 		authErrorText = nil
-		makeWebAuthFlow(session: session).start(session.makeOAuth().makeSignupAuthorizationRequest())
+		makeFlow(session).start(session.makeOAuth().makeSignupAuthorizationRequest())
 	}
 }

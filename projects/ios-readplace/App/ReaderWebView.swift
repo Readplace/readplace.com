@@ -1,4 +1,5 @@
 import SwiftUI
+import UIKit
 import WebKit
 
 /// Presents the server's authenticated reader in a WKWebView — the app acting as
@@ -138,6 +139,30 @@ struct ReaderWebView: UIViewControllerRepresentable {
 			presentWebDialog(.alert(message: message), over: webView) { _ in completionHandler() }
 		}
 	}
+}
+
+/// Presents a dialog as a native alert over the web view, answering exactly
+/// once on every path. The web view lives inside a SwiftUI sheet, so the
+/// presenter is the window's topmost presented controller (the sheet's hosting
+/// controller), not the root — the root is already presenting, so presenting
+/// from it would silently fail and leave the page's script hanging on an
+/// unanswered handler. A web view with no window (mid-dismissal) answers
+/// `unpresentedAnswer` instead of presenting nowhere or crashing.
+func presentWebDialog(_ dialog: WebDialog, over webView: WKWebView, answer: @escaping (Bool) -> Void) {
+	guard var presenter = webView.window?.rootViewController else {
+		answer(dialog.unpresentedAnswer)
+		return
+	}
+	while let presented = presenter.presentedViewController {
+		presenter = presented
+	}
+	let alert = UIAlertController(title: nil, message: dialog.message, preferredStyle: .alert)
+	for choice in dialog.choices {
+		alert.addAction(UIAlertAction(title: choice.title, style: choice.style) { _ in
+			answer(choice.answer)
+		})
+	}
+	presenter.present(alert, animated: true)
 }
 
 /// The native side of the reader's mark-read bridge. The reader's mark-read is an
