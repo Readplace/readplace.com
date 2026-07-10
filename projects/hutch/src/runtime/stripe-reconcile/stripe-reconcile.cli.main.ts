@@ -1,9 +1,9 @@
 import { HutchLogger, consoleLogger } from "@packages/hutch-logger";
 import { createDynamoDocumentClient } from "@packages/hutch-storage-client";
 import { requireEnv } from "@packages/require-env";
+import { initDynamoDbSubscriptionRead } from "@packages/subscription-access";
 import { formatReconcileReport, reconcile } from "../domain/stripe-reconcile/reconcile";
 import { initStripeSubscriptions } from "../providers/stripe-subscriptions/stripe-subscriptions";
-import { initDynamoDbSubscriptionRead } from "../providers/subscription-providers/dynamodb-subscription-read";
 
 const logger = HutchLogger.from(consoleLogger);
 
