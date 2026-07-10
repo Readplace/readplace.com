@@ -24,6 +24,8 @@ export const ACCOUNT_CARDS_NEW_URL = "/account/cards/new";
 export const ACCOUNT_ERROR_CARD_LIMIT_URL = "/account?error=card_limit";
 export const ACCOUNT_ERROR_CANNOT_REMOVE_PRIMARY_URL = "/account?error=cannot_remove_primary";
 export const ACCOUNT_ERROR_ADD_CARD_FAILED_URL = "/account?error=add_card_failed";
+export const ACCOUNT_ERROR_CARD_SETUP_FAILED_URL = "/account?error=card_setup_failed";
+export const ACCOUNT_ERROR_CARD_SETUP_UNVERIFIED_URL = "/account?error=card_setup_unverified";
 
 export function buildCardPrimaryUrl(cardId: string): string {
 	return `/account/cards/${encodeURIComponent(cardId)}/primary`;

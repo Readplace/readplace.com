@@ -26,6 +26,8 @@ import type {
 } from "@packages/provider-contracts/subscription-billing";
 import {
 	type BeginAddCard,
+	CardSetupIdSchema,
+	type GetCardSetupResult,
 	type ListCards,
 	PaymentMethodIdSchema,
 	type RemoveCard,
@@ -60,6 +62,8 @@ import {
 	ACCOUNT_ERROR_ADD_CARD_FAILED_URL,
 	ACCOUNT_ERROR_CANNOT_REMOVE_PRIMARY_URL,
 	ACCOUNT_ERROR_CARD_LIMIT_URL,
+	ACCOUNT_ERROR_CARD_SETUP_FAILED_URL,
+	ACCOUNT_ERROR_CARD_SETUP_UNVERIFIED_URL,
 	ACCOUNT_ERROR_PAYMENT_METHOD_URL,
 	buildAccountUrl,
 } from "./account.url";
@@ -81,6 +85,7 @@ interface AccountDependencies {
 	reverseScheduledCancellation: ReverseScheduledCancellation;
 	listCards: ListCards;
 	beginAddCard: BeginAddCard;
+	getCardSetupResult: GetCardSetupResult;
 	removeCard: RemoveCard;
 	setPrimaryCard: SetPrimaryCard;
 	stripePublishableKey: string | undefined;
@@ -108,7 +113,7 @@ export function initAccountRoutes(deps: AccountDependencies): Router {
 		subscriptionId: string | undefined;
 		access: EffectiveAccess;
 		cardError: CardError | undefined;
-		adding: { clientSecret: string } | undefined;
+		adding: { clientSecret: string; setupId: string } | undefined;
 	}): Promise<CardSectionViewModel> {
 		if (!input.customerId || input.access.access !== "full") {
 			return buildCardSectionViewModel({ kind: "no-customer" });
@@ -270,13 +275,13 @@ export function initAccountRoutes(deps: AccountDependencies): Router {
 				res.redirect(303, ACCOUNT_ERROR_CARD_LIMIT_URL);
 				return;
 			}
-			const { clientSecret } = await deps.beginAddCard({ customerId: row.customerId });
+			const { clientSecret, setupId } = await deps.beginAddCard({ customerId: row.customerId });
 			const cardSection = buildCardSectionViewModel({
 				kind: "loaded",
 				cards,
 				publishableKey,
 				cardError: undefined,
-				adding: { clientSecret },
+				adding: { clientSecret, setupId },
 			});
 			await renderAccount(req, res, { access, cardSection });
 		} catch (err) {
@@ -288,12 +293,10 @@ export function initAccountRoutes(deps: AccountDependencies): Router {
 		}
 	});
 
-	/** Post-attach reconciliation. The card is attached to the customer
-	 * client-side when Stripe.js confirms the SetupIntent, so the begin-time cap
-	 * check in /cards/new can be out-raced by a second add opened in another tab.
-	 * The client posts the just-added payment method here; we re-read the live
-	 * set and, if it now exceeds MAX_CARDS, detach that card so the cap stays
-	 * server-authoritative. The funding (primary) card is never detached. */
+	/** The card is attached client-side when Stripe.js confirms the SetupIntent,
+	 * out of the server's sight — so the posted setup id is re-verified against
+	 * the provider before the card is accepted, and the cap is re-checked
+	 * because a second tab can out-race the begin-time check in /cards/new. */
 	router.post("/cards/confirm", async (req: Request, res: Response) => {
 		assert(req.userId, "userId required - route must be protected by requireAuth");
 		const userId = req.userId;
@@ -304,30 +307,55 @@ export function initAccountRoutes(deps: AccountDependencies): Router {
 				res.redirect(303, buildAccountUrl());
 				return;
 			}
+			const customerId = row.customerId;
+			const parsed = CardSetupIdSchema.safeParse(req.body?.setupId);
+			if (!parsed.success) {
+				res.redirect(303, buildAccountUrl());
+				return;
+			}
+			const setup = await deps.getCardSetupResult({ setupId: parsed.data });
+			const ownCardId = setup.customerId === customerId ? setup.cardId : undefined;
+			if (setup.status !== "succeeded" || ownCardId === undefined) {
+				deps.logger.warn("[account/cards/confirm] card setup verification failed", {
+					userId,
+					status: setup.status,
+					customerMatched: setup.customerId === customerId,
+					failureReason: setup.failureReason,
+				});
+				if (ownCardId !== undefined) {
+					const cards = await deps.listCards({
+						customerId,
+						subscriptionId: row.subscriptionId,
+					});
+					const attached = cards.find((card) => card.id === ownCardId && !card.isPrimary);
+					if (attached) {
+						await deps.removeCard({ customerId, cardId: attached.id });
+					}
+				}
+				res.redirect(303, ACCOUNT_ERROR_CARD_SETUP_FAILED_URL);
+				return;
+			}
 			const cards = await deps.listCards({
-				customerId: row.customerId,
+				customerId,
 				subscriptionId: row.subscriptionId,
 			});
 			if (cards.length <= MAX_CARDS) {
 				res.redirect(303, buildAccountUrl());
 				return;
 			}
-			const parsed = PaymentMethodIdSchema.safeParse(req.body?.paymentMethodId);
-			const surplus = parsed.success
-				? cards.find((card) => card.id === parsed.data && !card.isPrimary)
-				: undefined;
+			const surplus = cards.find((card) => card.id === ownCardId && !card.isPrimary);
 			if (!surplus) {
 				res.redirect(303, buildAccountUrl());
 				return;
 			}
-			await deps.removeCard({ customerId: row.customerId, cardId: surplus.id });
+			await deps.removeCard({ customerId, cardId: surplus.id });
 			res.redirect(303, ACCOUNT_ERROR_CARD_LIMIT_URL);
 		} catch (err) {
 			deps.logger.error("[account/cards/confirm] failed", {
 				userId,
 				error: err instanceof Error ? err.message : String(err),
 			});
-			res.redirect(303, buildAccountUrl());
+			res.redirect(303, ACCOUNT_ERROR_CARD_SETUP_UNVERIFIED_URL);
 		}
 	});
 

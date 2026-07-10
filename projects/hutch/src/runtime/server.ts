@@ -61,6 +61,7 @@ import type {
 } from "@packages/provider-contracts/subscription-billing";
 import type {
 	BeginAddCard,
+	GetCardSetupResult,
 	ListCards,
 	RemoveCard,
 	SetPrimaryCard,
@@ -323,6 +324,7 @@ interface AppDependencies {
 	paymentMethods: {
 		listCards: ListCards;
 		beginAddCard: BeginAddCard;
+		getCardSetupResult: GetCardSetupResult;
 		removeCard: RemoveCard;
 		setPrimaryCard: SetPrimaryCard;
 	};
@@ -1141,6 +1143,7 @@ export function createApp(dependencies: AppDependencies): Express {
 		reverseScheduledCancellation: deps.reverseScheduledCancellation,
 		listCards: deps.paymentMethods.listCards,
 		beginAddCard: deps.paymentMethods.beginAddCard,
+		getCardSetupResult: deps.paymentMethods.getCardSetupResult,
 		removeCard: deps.paymentMethods.removeCard,
 		setPrimaryCard: deps.paymentMethods.setPrimaryCard,
 		stripePublishableKey: deps.stripePublishableKey,

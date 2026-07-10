@@ -1,6 +1,9 @@
 import assert from "node:assert/strict";
 import { type HutchLogger, noopLogger } from "@packages/hutch-logger";
-import { PaymentMethodIdSchema } from "@packages/provider-contracts/payment-methods";
+import {
+	CardSetupIdSchema,
+	PaymentMethodIdSchema,
+} from "@packages/provider-contracts/payment-methods";
 import { initStripePaymentMethods } from "./stripe-payment-methods";
 
 const CARD_ID = PaymentMethodIdSchema.parse("pm_card_123");
@@ -279,19 +282,20 @@ describe("initStripePaymentMethods", () => {
 	});
 
 	describe("beginAddCard", () => {
-		it("issues POST /v1/setup_intents with customer + card type + off_session and returns the client secret", async () => {
+		it("issues POST /v1/setup_intents with customer + card type + off_session and returns the client secret and setup id", async () => {
 			let receivedUrl: string | undefined;
 			let receivedInit: RequestInit | undefined;
 			const fakeFetch: typeof globalThis.fetch = async (input, init) => {
 				receivedUrl = typeof input === "string" ? input : input.toString();
 				receivedInit = init;
-				return jsonResponse(200, { client_secret: "seti_123_secret_abc" });
+				return jsonResponse(200, { id: "seti_123", client_secret: "seti_123_secret_abc" });
 			};
 
 			const stripe = initStripePaymentMethods({ apiKey: "sk_test_abc", fetch: fakeFetch, logger: noopLogger });
 			const result = await stripe.beginAddCard({ customerId: "cus_abc" });
 
 			assert.equal(result.clientSecret, "seti_123_secret_abc");
+			assert.equal(result.setupId, "seti_123");
 			assert.equal(receivedUrl, "https://api.stripe.com/v1/setup_intents");
 			assert.equal(receivedInit?.method, "POST");
 			const headers = new Headers(receivedInit?.headers);
@@ -311,6 +315,147 @@ describe("initStripePaymentMethods", () => {
 			await assert.rejects(
 				() => stripe.beginAddCard({ customerId: "cus_abc" }),
 				/Stripe beginAddCard failed \(400\): Stripe error/,
+			);
+		});
+	});
+
+	describe("getCardSetupResult", () => {
+		function setupIntentPayload(overrides?: Partial<{
+			status: string;
+			customer: string | null;
+			payment_method: string | null;
+			last_setup_error: { message?: string } | null;
+		}>) {
+			return {
+				id: "seti_123",
+				status: overrides?.status ?? "succeeded",
+				customer: overrides?.customer === undefined ? "cus_abc" : overrides.customer,
+				payment_method:
+					overrides?.payment_method === undefined ? "pm_card_123" : overrides.payment_method,
+				last_setup_error:
+					overrides?.last_setup_error === undefined ? null : overrides.last_setup_error,
+			};
+		}
+
+		it("issues GET /v1/setup_intents/<id> with auth + pinned version and maps a succeeded intent", async () => {
+			let receivedUrl: string | undefined;
+			let receivedInit: RequestInit | undefined;
+			const fakeFetch: typeof globalThis.fetch = async (input, init) => {
+				receivedUrl = typeof input === "string" ? input : input.toString();
+				receivedInit = init;
+				return jsonResponse(200, setupIntentPayload());
+			};
+
+			const stripe = initStripePaymentMethods({ apiKey: "sk_test_abc", fetch: fakeFetch, logger: noopLogger });
+			const result = await stripe.getCardSetupResult({
+				setupId: CardSetupIdSchema.parse("seti_123"),
+			});
+
+			assert.equal(receivedUrl, "https://api.stripe.com/v1/setup_intents/seti_123");
+			assert.equal(receivedInit?.method, undefined);
+			const headers = new Headers(receivedInit?.headers);
+			assert.equal(headers.get("Authorization"), "Bearer sk_test_abc");
+			assert.equal(headers.get("Stripe-Version"), "2026-04-22.dahlia");
+			assert.deepEqual(result, {
+				status: "succeeded",
+				customerId: "cus_abc",
+				cardId: CARD_ID,
+				failureReason: undefined,
+			});
+		});
+
+		it("URL-encodes the setup id", async () => {
+			let receivedUrl: string | undefined;
+			const fakeFetch: typeof globalThis.fetch = async (input) => {
+				receivedUrl = typeof input === "string" ? input : input.toString();
+				return jsonResponse(200, setupIntentPayload());
+			};
+
+			const stripe = initStripePaymentMethods({ apiKey: "sk_test_abc", fetch: fakeFetch, logger: noopLogger });
+			await stripe.getCardSetupResult({ setupId: CardSetupIdSchema.parse("seti with/slash") });
+
+			assert.equal(receivedUrl, "https://api.stripe.com/v1/setup_intents/seti%20with%2Fslash");
+		});
+
+		it.each(["requires_payment_method", "requires_confirmation", "requires_action", "canceled"])(
+			"maps a %s intent to a failed result carrying the last setup error message",
+			async (status) => {
+				const fakeFetch: typeof globalThis.fetch = async () =>
+					jsonResponse(200, setupIntentPayload({
+						status,
+						payment_method: null,
+						last_setup_error: { message: "Your card was declined." },
+					}));
+
+				const stripe = initStripePaymentMethods({ apiKey: "sk_test_abc", fetch: fakeFetch, logger: noopLogger });
+				const result = await stripe.getCardSetupResult({
+					setupId: CardSetupIdSchema.parse("seti_123"),
+				});
+
+				assert.deepEqual(result, {
+					status: "failed",
+					customerId: "cus_abc",
+					cardId: undefined,
+					failureReason: "Your card was declined.",
+				});
+			},
+		);
+
+		it("maps a processing intent to a processing result", async () => {
+			const fakeFetch: typeof globalThis.fetch = async () =>
+				jsonResponse(200, setupIntentPayload({ status: "processing" }));
+
+			const stripe = initStripePaymentMethods({ apiKey: "sk_test_abc", fetch: fakeFetch, logger: noopLogger });
+			const result = await stripe.getCardSetupResult({
+				setupId: CardSetupIdSchema.parse("seti_123"),
+			});
+
+			assert.equal(result.status, "processing");
+		});
+
+		it("maps null customer and payment_method to undefined fields", async () => {
+			const fakeFetch: typeof globalThis.fetch = async () =>
+				jsonResponse(200, setupIntentPayload({ customer: null, payment_method: null }));
+
+			const stripe = initStripePaymentMethods({ apiKey: "sk_test_abc", fetch: fakeFetch, logger: noopLogger });
+			const result = await stripe.getCardSetupResult({
+				setupId: CardSetupIdSchema.parse("seti_123"),
+			});
+
+			assert.deepEqual(result, {
+				status: "succeeded",
+				customerId: undefined,
+				cardId: undefined,
+				failureReason: undefined,
+			});
+		});
+
+		it("returns a failed result instead of throwing when the setup intent does not exist", async () => {
+			const fakeFetch: typeof globalThis.fetch = async () =>
+				jsonResponse(404, { error: { message: "No such setup intent" } });
+
+			const stripe = initStripePaymentMethods({ apiKey: "sk_test_abc", fetch: fakeFetch, logger: noopLogger });
+			const result = await stripe.getCardSetupResult({
+				setupId: CardSetupIdSchema.parse("seti_missing"),
+			});
+
+			assert.deepEqual(result, {
+				status: "failed",
+				customerId: undefined,
+				cardId: undefined,
+				failureReason: "No such setup intent",
+			});
+		});
+
+		it("throws with the Stripe error message when the API returns a non-404 error", async () => {
+			const fakeFetch: typeof globalThis.fetch = async () =>
+				jsonResponse(500, { error: { message: "Something went wrong" } });
+
+			const stripe = initStripePaymentMethods({ apiKey: "sk_test_abc", fetch: fakeFetch, logger: noopLogger });
+
+			await assert.rejects(
+				() => stripe.getCardSetupResult({ setupId: CardSetupIdSchema.parse("seti_123") }),
+				/Stripe getCardSetupResult failed \(500\): Something went wrong/,
 			);
 		});
 	});

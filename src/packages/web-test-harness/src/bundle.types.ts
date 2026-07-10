@@ -78,6 +78,8 @@ import type {
 	RegisterOAuthClient,
 	ValidateOAuthRedirectUri,
 	BeginAddCard,
+	CardSetupId,
+	GetCardSetupResult,
 	ListCards,
 	RemoveCard,
 	SavedCard,
@@ -198,9 +200,12 @@ export interface TrialSchedulerBundle {
 export interface PaymentMethodsBundle {
 	listCards: ListCards;
 	beginAddCard: BeginAddCard;
+	getCardSetupResult: GetCardSetupResult;
 	removeCard: RemoveCard;
 	setPrimaryCard: SetPrimaryCard;
 	seedCards: (input: { customerId: string; cards: SavedCard[] }) => void;
+	completeCardSetup: (input: { setupId: CardSetupId; card: SavedCard }) => void;
+	failCardSetup: (input: { setupId: CardSetupId; reason?: string }) => void;
 }
 
 export interface SubscriptionBillingBundle {

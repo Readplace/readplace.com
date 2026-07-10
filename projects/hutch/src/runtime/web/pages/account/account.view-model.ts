@@ -84,7 +84,12 @@ function formatTrialDaysLeft(trialEndsAt: string, now: Date): { daysLeft: number
 	return { daysLeft, daysLeftWord: daysLeft === 1 ? "day" : "days" };
 }
 
-export type CardError = "card_limit" | "cannot_remove_primary" | "add_card_failed";
+export type CardError =
+	| "card_limit"
+	| "cannot_remove_primary"
+	| "add_card_failed"
+	| "card_setup_failed"
+	| "card_setup_unverified";
 
 export interface AccountUrlState {
 	cancelling: boolean;
@@ -97,6 +102,8 @@ function parseCardError(error: unknown): CardError | undefined {
 	if (error === "card_limit") return "card_limit";
 	if (error === "cannot_remove_primary") return "cannot_remove_primary";
 	if (error === "add_card_failed") return "add_card_failed";
+	if (error === "card_setup_failed") return "card_setup_failed";
+	if (error === "card_setup_unverified") return "card_setup_unverified";
 	return undefined;
 }
 
@@ -185,7 +192,7 @@ export interface CardSectionViewModel {
 	showLimitHint: boolean;
 	limitHint: string;
 	isAdding: boolean;
-	adding: { publishableKey: string; clientSecret: string } | undefined;
+	adding: { publishableKey: string; clientSecret: string; setupId: string } | undefined;
 }
 
 export type CardSectionInput =
@@ -196,7 +203,7 @@ export type CardSectionInput =
 			cards: SavedCard[];
 			publishableKey: string | undefined;
 			cardError: CardError | undefined;
-			adding: { clientSecret: string } | undefined;
+			adding: { clientSecret: string; setupId: string } | undefined;
 	  };
 
 const CARD_NOTICES: Record<CardError, string> = {
@@ -204,6 +211,10 @@ const CARD_NOTICES: Record<CardError, string> = {
 	cannot_remove_primary:
 		"Your primary card can't be removed. Promote a backup to primary first, then remove it.",
 	add_card_failed: "We couldn't start adding a card just now. Please try again.",
+	card_setup_failed:
+		"We couldn't verify your new card, so it wasn't saved. Please try adding it again.",
+	card_setup_unverified:
+		"We couldn't verify your new card just now. Refresh to check your saved cards, then try again.",
 };
 
 const NO_CUSTOMER_MESSAGE = "Add a payment method once you start your subscription.";
@@ -295,7 +306,11 @@ export function buildCardSectionViewModel(input: CardSectionInput): CardSectionV
 		isAdding,
 		adding:
 			isAdding && input.adding !== undefined && input.publishableKey !== undefined
-				? { publishableKey: input.publishableKey, clientSecret: input.adding.clientSecret }
+				? {
+						publishableKey: input.publishableKey,
+						clientSecret: input.adding.clientSecret,
+						setupId: input.adding.setupId,
+					}
 				: undefined,
 	};
 }

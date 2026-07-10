@@ -337,6 +337,20 @@ describe("parseAccountQuery", () => {
 			"add_card_failed",
 		);
 	});
+
+	it("parses the card_setup_failed error", () => {
+		assert.equal(
+			parseAccountQuery({ error: "card_setup_failed" }).cardError,
+			"card_setup_failed",
+		);
+	});
+
+	it("parses the card_setup_unverified error", () => {
+		assert.equal(
+			parseAccountQuery({ error: "card_setup_unverified" }).cardError,
+			"card_setup_unverified",
+		);
+	});
 });
 
 describe("buildCardSectionViewModel", () => {
@@ -447,16 +461,44 @@ describe("buildCardSectionViewModel", () => {
 		assert.match(vm.notice, /couldn't start adding a card/);
 	});
 
-	it("enters the adding state with the publishable key and client secret", () => {
+	it("surfaces the card_setup_failed notice", () => {
+		const vm = buildCardSectionViewModel({
+			kind: "loaded",
+			cards: [savedCard("pm_a", true)],
+			publishableKey: "pk_test",
+			cardError: "card_setup_failed",
+			adding: undefined,
+		});
+		assert.equal(vm.hasNotice, true);
+		assert.match(vm.notice, /couldn't verify your new card, so it wasn't saved/);
+	});
+
+	it("surfaces the card_setup_unverified notice", () => {
+		const vm = buildCardSectionViewModel({
+			kind: "loaded",
+			cards: [savedCard("pm_a", true)],
+			publishableKey: "pk_test",
+			cardError: "card_setup_unverified",
+			adding: undefined,
+		});
+		assert.equal(vm.hasNotice, true);
+		assert.match(vm.notice, /couldn't verify your new card just now/);
+	});
+
+	it("enters the adding state with the publishable key, client secret, and setup id", () => {
 		const vm = buildCardSectionViewModel({
 			kind: "loaded",
 			cards: [savedCard("pm_a", true)],
 			publishableKey: "pk_test",
 			cardError: undefined,
-			adding: { clientSecret: "seti_secret" },
+			adding: { clientSecret: "seti_secret", setupId: "seti_x" },
 		});
 		assert.equal(vm.isAdding, true);
-		assert.deepEqual(vm.adding, { publishableKey: "pk_test", clientSecret: "seti_secret" });
+		assert.deepEqual(vm.adding, {
+			publishableKey: "pk_test",
+			clientSecret: "seti_secret",
+			setupId: "seti_x",
+		});
 		assert.equal(vm.showAddButton, false);
 	});
 
@@ -466,7 +508,7 @@ describe("buildCardSectionViewModel", () => {
 			cards: [savedCard("pm_a", true)],
 			publishableKey: undefined,
 			cardError: undefined,
-			adding: { clientSecret: "seti_secret" },
+			adding: { clientSecret: "seti_secret", setupId: "seti_x" },
 		});
 		assert.equal(vm.isAdding, false);
 		assert.equal(vm.adding, undefined);

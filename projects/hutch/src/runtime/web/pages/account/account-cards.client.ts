@@ -1,11 +1,7 @@
 /**
- * Glue for the inline "add a card" flow. Stripe.js itself must be served from
- * js.stripe.com for PCI SAQ-A (the raw PAN never touches our origin); this
- * same-origin bundle only reads the SetupIntent config the server rendered into
- * the Elements container's data-* attributes, mounts the Card Element, and
- * confirms the SetupIntent. On success it posts the attached payment method back
- * to the server, which reconciles the card cap against the live set before
- * redirecting to /account, where the live read shows the new card as a backup.
+ * Stripe.js must be served from js.stripe.com for PCI SAQ-A — the raw PAN
+ * never touches our origin, so this same-origin bundle only handles the config
+ * the server rendered into the Elements container's data-* attributes.
  */
 
 interface StripeElement {
@@ -17,7 +13,6 @@ interface StripeElements {
 }
 
 interface StripeConfirmResult {
-	setupIntent?: { payment_method?: string | null };
 	error?: { message?: string };
 }
 
@@ -34,6 +29,7 @@ export type LoadStripe = (publishableKey: string) => Promise<StripeLike>;
 export interface ElementsConfig {
 	publishableKey: string;
 	clientSecret: string;
+	setupId: string;
 }
 
 const GENERIC_ERROR = "We couldn't save your card. Please try again.";
@@ -41,22 +37,24 @@ const STRIPE_LOAD_ERROR =
 	"We couldn't load the secure card form. Check your connection or ad blocker, then reload to try again.";
 
 /** Read the SetupIntent config straight from the DOM the server rendered —
- * never hardcode keys in the bundle. Returns undefined when either attribute is
+ * never hardcode keys in the bundle. Returns undefined when any attribute is
  * missing so the caller can no-op on list/manage renders. */
 export function readElementsConfig(container: Element): ElementsConfig | undefined {
 	const publishableKey = container.getAttribute("data-publishable-key");
 	const clientSecret = container.getAttribute("data-client-secret");
-	if (!publishableKey || !clientSecret) return undefined;
-	return { publishableKey, clientSecret };
+	const setupId = container.getAttribute("data-setup-id");
+	if (!publishableKey || !clientSecret || !setupId) return undefined;
+	return { publishableKey, clientSecret, setupId };
 }
 
 interface SubmitDeps {
 	stripe: StripeLike;
 	card: StripeElement;
 	clientSecret: string;
+	setupId: string;
 	errorEl: Element;
 	submitButton: HTMLButtonElement;
-	confirmAdd: (paymentMethodId: string | undefined) => void;
+	confirmAdd: (input: { setupId: string }) => void;
 }
 
 export async function confirmSetup(deps: SubmitDeps): Promise<void> {
@@ -70,18 +68,13 @@ export async function confirmSetup(deps: SubmitDeps): Promise<void> {
 		deps.submitButton.disabled = false;
 		return;
 	}
-	// The card is now attached to the customer, but that happened client-side,
-	// out of the server's sight. Hand the just-added payment method back so the
-	// server can re-check the cap against the live set before landing us on
-	// /account — the begin-time check can be out-raced by a second tab.
-	const paymentMethod = result.setupIntent?.payment_method;
-	deps.confirmAdd(typeof paymentMethod === "string" ? paymentMethod : undefined);
+	deps.confirmAdd({ setupId: deps.setupId });
 }
 
 export interface AccountCardsDeps {
 	document: Document;
 	loadStripe: LoadStripe;
-	confirmAdd: (paymentMethodId: string | undefined) => void;
+	confirmAdd: (input: { setupId: string }) => void;
 	addSettleListener: (listener: () => void) => void;
 }
 
@@ -120,6 +113,7 @@ export async function mountElements(deps: AccountCardsDeps): Promise<void> {
 			stripe,
 			card,
 			clientSecret: config.clientSecret,
+			setupId: config.setupId,
 			errorEl,
 			submitButton,
 			confirmAdd: deps.confirmAdd,

@@ -1169,6 +1169,8 @@ describe("POST /account/cards/new", () => {
 		expect(elements.getAttribute("data-publishable-key")).toBe("pk_test_default");
 		const secret = elements.getAttribute("data-client-secret") ?? "";
 		assert(secret.length > 0, "client secret must be embedded for Stripe.js");
+		const setupId = elements.getAttribute("data-setup-id") ?? "";
+		expect(setupId).toMatch(/^seti_inmem_/);
 	});
 
 	it("redirects to the card-limit error when already at 3 cards", async () => {
@@ -1228,10 +1230,179 @@ describe("POST /account/cards/new", () => {
 	});
 });
 
-describe("POST /account/cards/confirm — post-attach cap reconciliation", () => {
-	it("detaches the just-added card and surfaces the limit error when a concurrent add pushed past the cap", async () => {
+describe("POST /account/cards/confirm — server-side setup verification and cap reconciliation", () => {
+	it("keeps a verified card within the cap and redirects to /account", async () => {
+		const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
+		const { agent, customerId } = await activeUserWithCards(harness, "confirm-ok@example.com", [
+			card("pm_a", true, "4242"),
+			card("pm_b", false, "1111"),
+		]);
+		const { setupId } = await harness.paymentMethods.beginAddCard({ customerId });
+		harness.paymentMethods.completeCardSetup({ setupId, card: card("pm_new", false, "9999") });
+
+		const response = await agent
+			.post("/account/cards/confirm")
+			.type("form")
+			.send({ setupId });
+
+		expect(response.status).toBe(303);
+		expect(response.headers.location).toBe("/account");
+		const cards = await harness.paymentMethods.listCards({ customerId });
+		expect(cards.map((c) => c.id)).toEqual(["pm_a", "pm_b", "pm_new"]);
+	});
+
+	it("surfaces the setup-failed error when the provider declined the setup and no card was attached", async () => {
+		const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
+		const { agent, customerId } = await activeUserWithCards(harness, "confirm-declined@example.com", [
+			card("pm_a", true, "4242"),
+		]);
+		const { setupId } = await harness.paymentMethods.beginAddCard({ customerId });
+		harness.paymentMethods.failCardSetup({ setupId, reason: "card_declined" });
+
+		const response = await agent
+			.post("/account/cards/confirm")
+			.type("form")
+			.send({ setupId });
+
+		expect(response.status).toBe(303);
+		expect(response.headers.location).toBe("/account?error=card_setup_failed");
+		const cards = await harness.paymentMethods.listCards({ customerId });
+		expect(cards.map((c) => c.id)).toEqual(["pm_a"]);
+	});
+
+	it("detaches an attached card when its setup did not verify", async () => {
+		const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
+		const { agent, customerId } = await activeUserWithCards(harness, "confirm-revoked@example.com", [
+			card("pm_a", true, "4242"),
+		]);
+		const { setupId } = await harness.paymentMethods.beginAddCard({ customerId });
+		harness.paymentMethods.completeCardSetup({ setupId, card: card("pm_sneak", false, "6666") });
+		harness.paymentMethods.failCardSetup({ setupId, reason: "verification_revoked" });
+
+		const response = await agent
+			.post("/account/cards/confirm")
+			.type("form")
+			.send({ setupId });
+
+		expect(response.status).toBe(303);
+		expect(response.headers.location).toBe("/account?error=card_setup_failed");
+		const cards = await harness.paymentMethods.listCards({ customerId });
+		expect(cards.map((c) => c.id)).toEqual(["pm_a"]);
+	});
+
+	it("rejects a setup that belongs to another customer without touching that customer's cards", async () => {
+		const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
+		const { agent, customerId } = await activeUserWithCards(harness, "confirm-foreign@example.com", [
+			card("pm_a", true, "4242"),
+		]);
+		harness.paymentMethods.seedCards({
+			customerId: "cus_other",
+			cards: [card("pm_other", true, "7777")],
+		});
+		const { setupId } = await harness.paymentMethods.beginAddCard({ customerId: "cus_other" });
+		harness.paymentMethods.completeCardSetup({ setupId, card: card("pm_other_new", false, "8888") });
+
+		const response = await agent
+			.post("/account/cards/confirm")
+			.type("form")
+			.send({ setupId });
+
+		expect(response.status).toBe(303);
+		expect(response.headers.location).toBe("/account?error=card_setup_failed");
+		const otherCards = await harness.paymentMethods.listCards({ customerId: "cus_other" });
+		expect(otherCards.map((c) => c.id)).toEqual(["pm_other", "pm_other_new"]);
+		const ownCards = await harness.paymentMethods.listCards({ customerId });
+		expect(ownCards.map((c) => c.id)).toEqual(["pm_a"]);
+	});
+
+	it("rejects a setup that was begun but never confirmed", async () => {
+		const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
+		const { agent, customerId } = await activeUserWithCards(harness, "confirm-pending@example.com", [
+			card("pm_a", true, "4242"),
+		]);
+		const { setupId } = await harness.paymentMethods.beginAddCard({ customerId });
+
+		const response = await agent
+			.post("/account/cards/confirm")
+			.type("form")
+			.send({ setupId });
+
+		expect(response.status).toBe(303);
+		expect(response.headers.location).toBe("/account?error=card_setup_failed");
+		const cards = await harness.paymentMethods.listCards({ customerId });
+		expect(cards.map((c) => c.id)).toEqual(["pm_a"]);
+	});
+
+	it("rejects a setup id the provider has never seen", async () => {
+		const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
+		const { agent, customerId } = await activeUserWithCards(harness, "confirm-unknown@example.com", [
+			card("pm_a", true, "4242"),
+		]);
+
+		const response = await agent
+			.post("/account/cards/confirm")
+			.type("form")
+			.send({ setupId: "seti_never_created" });
+
+		expect(response.status).toBe(303);
+		expect(response.headers.location).toBe("/account?error=card_setup_failed");
+		const cards = await harness.paymentMethods.listCards({ customerId });
+		expect(cards.map((c) => c.id)).toEqual(["pm_a"]);
+	});
+
+	it("detaches the just-verified card and surfaces the limit error when a concurrent add pushed past the cap", async () => {
 		const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
 		const { agent, customerId } = await activeUserWithCards(harness, "confirm-over@example.com", [
+			card("pm_a", true, "4242"),
+			card("pm_b", false, "1111"),
+			card("pm_c", false, "2222"),
+		]);
+		const { setupId } = await harness.paymentMethods.beginAddCard({ customerId });
+		harness.paymentMethods.completeCardSetup({ setupId, card: card("pm_d", false, "3333") });
+
+		const response = await agent
+			.post("/account/cards/confirm")
+			.type("form")
+			.send({ setupId });
+
+		expect(response.status).toBe(303);
+		expect(response.headers.location).toBe("/account?error=card_limit");
+		const cards = await harness.paymentMethods.listCards({ customerId });
+		expect(cards.map((c) => c.id)).toEqual(["pm_a", "pm_b", "pm_c"]);
+	});
+
+	it("is idempotent on a double POST after the over-cap detach", async () => {
+		const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
+		const { agent, customerId } = await activeUserWithCards(harness, "confirm-double@example.com", [
+			card("pm_a", true, "4242"),
+			card("pm_b", false, "1111"),
+			card("pm_c", false, "2222"),
+		]);
+		const { setupId } = await harness.paymentMethods.beginAddCard({ customerId });
+		harness.paymentMethods.completeCardSetup({ setupId, card: card("pm_d", false, "3333") });
+		await agent.post("/account/cards/confirm").type("form").send({ setupId });
+
+		const response = await agent
+			.post("/account/cards/confirm")
+			.type("form")
+			.send({ setupId });
+
+		expect(response.status).toBe(303);
+		expect(response.headers.location).toBe("/account");
+		const cards = await harness.paymentMethods.listCards({ customerId });
+		expect(cards.map((c) => c.id)).toEqual(["pm_a", "pm_b", "pm_c"]);
+	});
+
+	it("never detaches the funding (primary) card even when the verified setup names it over the cap", async () => {
+		const fixture = createDefaultTestAppFixture(TEST_APP_ORIGIN);
+		fixture.paymentMethods.getCardSetupResult = async () => ({
+			status: "succeeded",
+			customerId: "cus_cards",
+			cardId: PaymentMethodIdSchema.parse("pm_a"),
+			failureReason: undefined,
+		});
+		const harness = useApp(fixture);
+		const { agent, customerId } = await activeUserWithCards(harness, "confirm-primary@example.com", [
 			card("pm_a", true, "4242"),
 			card("pm_b", false, "1111"),
 			card("pm_c", false, "2222"),
@@ -1241,34 +1412,63 @@ describe("POST /account/cards/confirm — post-attach cap reconciliation", () =>
 		const response = await agent
 			.post("/account/cards/confirm")
 			.type("form")
-			.send({ paymentMethodId: "pm_d" });
+			.send({ setupId: "seti_stub" });
 
 		expect(response.status).toBe(303);
-		expect(response.headers.location).toBe("/account?error=card_limit");
+		expect(response.headers.location).toBe("/account");
 		const cards = await harness.paymentMethods.listCards({ customerId });
-		expect(cards.map((c) => c.id)).toEqual(["pm_a", "pm_b", "pm_c"]);
+		expect(cards.map((c) => c.id)).toEqual(["pm_a", "pm_b", "pm_c", "pm_d"]);
 	});
 
-	it("redirects to /account without detaching when the live set is within the cap", async () => {
-		const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
-		const { agent, customerId } = await activeUserWithCards(harness, "confirm-within@example.com", [
+	it("never detaches the primary card when a failed setup names it", async () => {
+		const fixture = createDefaultTestAppFixture(TEST_APP_ORIGIN);
+		fixture.paymentMethods.getCardSetupResult = async () => ({
+			status: "failed",
+			customerId: "cus_cards",
+			cardId: PaymentMethodIdSchema.parse("pm_a"),
+			failureReason: "issuer_revoked",
+		});
+		const harness = useApp(fixture);
+		const { agent, customerId } = await activeUserWithCards(harness, "confirm-primary-failed@example.com", [
 			card("pm_a", true, "4242"),
-			card("pm_b", false, "1111"),
-			card("pm_c", false, "2222"),
 		]);
 
 		const response = await agent
 			.post("/account/cards/confirm")
 			.type("form")
-			.send({ paymentMethodId: "pm_c" });
+			.send({ setupId: "seti_stub" });
 
 		expect(response.status).toBe(303);
-		expect(response.headers.location).toBe("/account");
+		expect(response.headers.location).toBe("/account?error=card_setup_failed");
 		const cards = await harness.paymentMethods.listCards({ customerId });
-		expect(cards.map((c) => c.id)).toEqual(["pm_a", "pm_b", "pm_c"]);
+		expect(cards.map((c) => c.id)).toEqual(["pm_a"]);
 	});
 
-	it("redirects to /account without detaching when no payment method id is posted", async () => {
+	it("rejects a setup still processing at the provider", async () => {
+		const fixture = createDefaultTestAppFixture(TEST_APP_ORIGIN);
+		fixture.paymentMethods.getCardSetupResult = async () => ({
+			status: "processing",
+			customerId: "cus_cards",
+			cardId: undefined,
+			failureReason: undefined,
+		});
+		const harness = useApp(fixture);
+		const { agent, customerId } = await activeUserWithCards(harness, "confirm-processing@example.com", [
+			card("pm_a", true, "4242"),
+		]);
+
+		const response = await agent
+			.post("/account/cards/confirm")
+			.type("form")
+			.send({ setupId: "seti_stub" });
+
+		expect(response.status).toBe(303);
+		expect(response.headers.location).toBe("/account?error=card_setup_failed");
+		const cards = await harness.paymentMethods.listCards({ customerId });
+		expect(cards.map((c) => c.id)).toEqual(["pm_a"]);
+	});
+
+	it("redirects to /account without detaching when no setup id is posted", async () => {
 		const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
 		const { agent, customerId } = await activeUserWithCards(harness, "confirm-nobody@example.com", [
 			card("pm_a", true, "4242"),
@@ -1285,26 +1485,6 @@ describe("POST /account/cards/confirm — post-attach cap reconciliation", () =>
 		expect(cards.map((c) => c.id)).toEqual(["pm_a", "pm_b", "pm_c", "pm_d"]);
 	});
 
-	it("never detaches the funding (primary) card even if its id is posted over the cap", async () => {
-		const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
-		const { agent, customerId } = await activeUserWithCards(harness, "confirm-primary@example.com", [
-			card("pm_a", true, "4242"),
-			card("pm_b", false, "1111"),
-			card("pm_c", false, "2222"),
-			card("pm_d", false, "3333"),
-		]);
-
-		const response = await agent
-			.post("/account/cards/confirm")
-			.type("form")
-			.send({ paymentMethodId: "pm_a" });
-
-		expect(response.status).toBe(303);
-		expect(response.headers.location).toBe("/account");
-		const cards = await harness.paymentMethods.listCards({ customerId });
-		expect(cards.map((c) => c.id)).toEqual(["pm_a", "pm_b", "pm_c", "pm_d"]);
-	});
-
 	it("redirects a member with no Stripe customer back to /account", async () => {
 		const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
 		const agent = await loginAgent(harness.server, harness.auth);
@@ -1312,32 +1492,94 @@ describe("POST /account/cards/confirm — post-attach cap reconciliation", () =>
 		const response = await agent
 			.post("/account/cards/confirm")
 			.type("form")
-			.send({ paymentMethodId: "pm_x" });
+			.send({ setupId: "seti_x" });
 
 		expect(response.status).toBe(303);
 		expect(response.headers.location).toBe("/account");
 	});
 
-	it("redirects to /account when the live read fails (no crash)", async () => {
+	it("surfaces the unverified notice when the setup outcome read fails (no crash)", async () => {
+		const fixture = createDefaultTestAppFixture(TEST_APP_ORIGIN);
+		fixture.paymentMethods.getCardSetupResult = async () => {
+			throw new Error("Stripe is down");
+		};
+		const harness = useApp(fixture);
+		const { agent } = await activeUserWithCards(harness, "confirm-error@example.com", [
+			card("pm_a", true, "4242"),
+		]);
+
+		const response = await agent
+			.post("/account/cards/confirm")
+			.type("form")
+			.send({ setupId: "seti_x" });
+
+		expect(response.status).toBe(303);
+		expect(response.headers.location).toBe("/account?error=card_setup_unverified");
+	});
+
+	it("surfaces the unverified notice when the live read fails after a verified setup (no crash)", async () => {
 		const fixture = createDefaultTestAppFixture(TEST_APP_ORIGIN);
 		fixture.paymentMethods.listCards = async () => {
 			throw new Error("Stripe is down");
 		};
 		const harness = useApp(fixture);
-		const { agent, userId } = await loginUser(harness, "confirm-error@example.com");
+		const { agent, userId } = await loginUser(harness, "confirm-read-error@example.com");
 		await harness.subscriptionProviders.upsertActive({
 			userId,
 			subscriptionId: "sub_confirm_err",
 			customerId: "cus_confirm_err",
 		});
+		const { setupId } = await harness.paymentMethods.beginAddCard({
+			customerId: "cus_confirm_err",
+		});
+		harness.paymentMethods.completeCardSetup({ setupId, card: card("pm_new", false, "9999") });
 
 		const response = await agent
 			.post("/account/cards/confirm")
 			.type("form")
-			.send({ paymentMethodId: "pm_x" });
+			.send({ setupId });
 
 		expect(response.status).toBe(303);
-		expect(response.headers.location).toBe("/account");
+		expect(response.headers.location).toBe("/account?error=card_setup_unverified");
+	});
+
+	it("surfaces the unverified notice when the detach of a failed setup's card fails (no crash)", async () => {
+		const fixture = createDefaultTestAppFixture(TEST_APP_ORIGIN);
+		fixture.paymentMethods.removeCard = async () => {
+			throw new Error("detach failed");
+		};
+		const harness = useApp(fixture);
+		const { agent, customerId } = await activeUserWithCards(harness, "confirm-detach-error@example.com", [
+			card("pm_a", true, "4242"),
+		]);
+		const { setupId } = await harness.paymentMethods.beginAddCard({ customerId });
+		harness.paymentMethods.completeCardSetup({ setupId, card: card("pm_sneak", false, "6666") });
+		harness.paymentMethods.failCardSetup({ setupId });
+
+		const response = await agent
+			.post("/account/cards/confirm")
+			.type("form")
+			.send({ setupId });
+
+		expect(response.status).toBe(303);
+		expect(response.headers.location).toBe("/account?error=card_setup_unverified");
+	});
+
+	it("renders the setup-failed notice scoped to the card section, leaving the subscription card untouched", async () => {
+		const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
+		const { agent } = await activeUserWithCards(harness, "confirm-failed-render@example.com", [
+			card("pm_a", true, "4242"),
+		]);
+
+		const response = await agent.get("/account?error=card_setup_failed");
+
+		expect(response.status).toBe(200);
+		const doc = new JSDOM(response.text).window.document;
+		const notice = doc.querySelector("[data-test-cards-notice]");
+		assert(notice, "card-section notice must render for card_setup_failed");
+		expect(notice.getAttribute("role")).toBe("alert");
+		expect(notice.textContent).toContain("couldn't verify your new card");
+		expect(findCard(doc).getAttribute("data-test-account-state")).toBe("active");
 	});
 
 	it("redirects unauthenticated callers to /login", async () => {

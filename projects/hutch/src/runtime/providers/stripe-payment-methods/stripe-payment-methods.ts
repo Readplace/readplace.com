@@ -2,6 +2,9 @@ import { z } from "zod";
 import type { HutchLogger } from "@packages/hutch-logger";
 import {
 	type BeginAddCard,
+	CardSetupIdSchema,
+	type CardSetupStatus,
+	type GetCardSetupResult,
 	type ListCards,
 	PaymentMethodIdSchema,
 	type RemoveCard,
@@ -48,8 +51,33 @@ const StripeSubscription = z.object({
 });
 
 const StripeSetupIntentResponse = z.object({
+	id: z.string(),
 	client_secret: z.string(),
 });
+
+const StripeSetupIntent = z.object({
+	id: z.string(),
+	status: z.enum([
+		"succeeded",
+		"processing",
+		"requires_payment_method",
+		"requires_confirmation",
+		"requires_action",
+		"canceled",
+	]),
+	customer: z.string().nullable(),
+	payment_method: z.string().nullable(),
+	last_setup_error: z.object({ message: z.string().optional() }).nullish(),
+});
+
+const CARD_SETUP_STATUS: Record<z.infer<typeof StripeSetupIntent>["status"], CardSetupStatus> = {
+	succeeded: "succeeded",
+	processing: "processing",
+	requires_payment_method: "failed",
+	requires_confirmation: "failed",
+	requires_action: "failed",
+	canceled: "failed",
+};
 
 export function initStripePaymentMethods(deps: {
 	apiKey: string;
@@ -58,6 +86,7 @@ export function initStripePaymentMethods(deps: {
 }): {
 	listCards: ListCards;
 	beginAddCard: BeginAddCard;
+	getCardSetupResult: GetCardSetupResult;
 	removeCard: RemoveCard;
 	setPrimaryCard: SetPrimaryCard;
 } {
@@ -174,7 +203,41 @@ export function initStripePaymentMethods(deps: {
 			throw await failed("beginAddCard", response);
 		}
 		const setupIntent = StripeSetupIntentResponse.parse(await response.json());
-		return { clientSecret: setupIntent.client_secret };
+		return {
+			clientSecret: setupIntent.client_secret,
+			setupId: CardSetupIdSchema.parse(setupIntent.id),
+		};
+	};
+
+	const getCardSetupResult: GetCardSetupResult = async ({ setupId }) => {
+		const response = await deps.fetch(
+			`${STRIPE_API}/setup_intents/${encodeURIComponent(setupId)}`,
+			{ headers: stripeHeaders },
+		);
+
+		// An unknown setup id is a verification outcome (bad client input), not a
+		// provider outage.
+		if (response.status === 404) {
+			return {
+				status: "failed",
+				customerId: undefined,
+				cardId: undefined,
+				failureReason: await readStripeErrorMessage(response),
+			};
+		}
+		if (!response.ok) {
+			throw await failed("getCardSetupResult", response);
+		}
+		const setupIntent = StripeSetupIntent.parse(await response.json());
+		return {
+			status: CARD_SETUP_STATUS[setupIntent.status],
+			customerId: setupIntent.customer ?? undefined,
+			cardId:
+				setupIntent.payment_method === null
+					? undefined
+					: PaymentMethodIdSchema.parse(setupIntent.payment_method),
+			failureReason: setupIntent.last_setup_error?.message,
+		};
 	};
 
 	const removeCard: RemoveCard = async ({ cardId }) => {
@@ -221,5 +284,5 @@ export function initStripePaymentMethods(deps: {
 		}
 	};
 
-	return { listCards, beginAddCard, removeCard, setPrimaryCard };
+	return { listCards, beginAddCard, getCardSetupResult, removeCard, setPrimaryCard };
 }

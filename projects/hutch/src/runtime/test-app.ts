@@ -204,6 +204,7 @@ function flattenFixtureToAppDependencies(
 		paymentMethods: {
 			listCards: fixture.paymentMethods.listCards,
 			beginAddCard: fixture.paymentMethods.beginAddCard,
+			getCardSetupResult: fixture.paymentMethods.getCardSetupResult,
 			removeCard: fixture.paymentMethods.removeCard,
 			setPrimaryCard: fixture.paymentMethods.setPrimaryCard,
 		},

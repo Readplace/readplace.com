@@ -1,3 +1,4 @@
+import assert from "node:assert/strict";
 import { JSDOM } from "jsdom";
 import {
 	type AccountCardsDeps,
@@ -8,7 +9,7 @@ import {
 } from "./account-cards.client";
 
 const CONTAINER_HTML = `
-<div data-card-elements data-publishable-key="pk_test_123" data-client-secret="seti_123_secret">
+<div data-card-elements data-publishable-key="pk_test_123" data-client-secret="seti_123_secret" data-setup-id="seti_123">
   <div data-card-element></div>
   <p data-card-error></p>
   <button type="button" data-card-submit>Save card</button>
@@ -16,7 +17,6 @@ const CONTAINER_HTML = `
 `;
 
 type ConfirmResult = {
-	setupIntent?: { payment_method?: string | null };
 	error?: { message?: string };
 };
 
@@ -38,28 +38,37 @@ function fakeStripe(confirmResult: ConfirmResult) {
 const flush = (): Promise<void> => new Promise((resolve) => setTimeout(resolve, 0));
 
 describe("readElementsConfig", () => {
-	it("reads the publishable key and client secret from the container", () => {
+	it("reads the publishable key, client secret, and setup id from the container", () => {
 		const container = makeDoc(CONTAINER_HTML).querySelector("[data-card-elements]");
-		if (!container) throw new Error("container must exist");
+		assert(container, "container must exist");
 		expect(readElementsConfig(container)).toEqual({
 			publishableKey: "pk_test_123",
 			clientSecret: "seti_123_secret",
+			setupId: "seti_123",
 		});
 	});
 
 	it("returns undefined when the publishable key is missing", () => {
-		const container = makeDoc('<div data-card-elements data-client-secret="seti_x"></div>').querySelector(
-			"[data-card-elements]",
-		);
-		if (!container) throw new Error("container must exist");
+		const container = makeDoc(
+			'<div data-card-elements data-client-secret="seti_x" data-setup-id="seti_1"></div>',
+		).querySelector("[data-card-elements]");
+		assert(container, "container must exist");
 		expect(readElementsConfig(container)).toBeUndefined();
 	});
 
 	it("returns undefined when the client secret is missing", () => {
-		const container = makeDoc('<div data-card-elements data-publishable-key="pk_x"></div>').querySelector(
-			"[data-card-elements]",
-		);
-		if (!container) throw new Error("container must exist");
+		const container = makeDoc(
+			'<div data-card-elements data-publishable-key="pk_x" data-setup-id="seti_1"></div>',
+		).querySelector("[data-card-elements]");
+		assert(container, "container must exist");
+		expect(readElementsConfig(container)).toBeUndefined();
+	});
+
+	it("returns undefined when the setup id is missing", () => {
+		const container = makeDoc(
+			'<div data-card-elements data-publishable-key="pk_x" data-client-secret="seti_x"></div>',
+		).querySelector("[data-card-elements]");
+		assert(container, "container must exist");
 		expect(readElementsConfig(container)).toBeUndefined();
 	});
 });
@@ -69,8 +78,8 @@ describe("confirmSetup", () => {
 		const doc = makeDoc(CONTAINER_HTML);
 		const errorEl = doc.querySelector("[data-card-error]");
 		const submitButton = doc.querySelector<HTMLButtonElement>("[data-card-submit]");
-		if (!errorEl || !submitButton) throw new Error("fixture must contain error + submit");
-		const confirmedAdds: (string | undefined)[] = [];
+		assert(errorEl && submitButton, "fixture must contain error + submit");
+		const confirmedAdds: string[] = [];
 		const { stripe } = fakeStripe(confirmResult);
 		return {
 			errorEl,
@@ -80,24 +89,19 @@ describe("confirmSetup", () => {
 				stripe,
 				card: { mount: () => undefined },
 				clientSecret: "seti_123_secret",
+				setupId: "seti_123",
 				errorEl,
 				submitButton,
-				confirmAdd: (paymentMethodId: string | undefined) => confirmedAdds.push(paymentMethodId),
+				confirmAdd: (input: { setupId: string }) => confirmedAdds.push(input.setupId),
 			},
 		};
 	}
 
-	it("hands the attached payment method id to the server on success", async () => {
-		const d = deps({ setupIntent: { payment_method: "pm_new" } });
-		await confirmSetup(d.args);
-		expect(d.confirmedAdds).toEqual(["pm_new"]);
-		expect(d.errorEl.textContent).toBe("");
-	});
-
-	it("hands undefined to the server when Stripe omits the payment method", async () => {
+	it("hands the server-minted setup id back to the server on success", async () => {
 		const d = deps({});
 		await confirmSetup(d.args);
-		expect(d.confirmedAdds).toEqual([undefined]);
+		expect(d.confirmedAdds).toEqual(["seti_123"]);
+		expect(d.errorEl.textContent).toBe("");
 	});
 
 	it("shows the Stripe error message and re-enables the button on failure", async () => {
@@ -122,7 +126,7 @@ describe("mountElements", () => {
 		options: { confirmResult?: ConfirmResult; loadStripeFails?: boolean } = {},
 	) {
 		const loadCalls: string[] = [];
-		const confirmedAdds: (string | undefined)[] = [];
+		const confirmedAdds: string[] = [];
 		const { stripe, mounted } = fakeStripe(options.confirmResult ?? {});
 		const accountDeps: AccountCardsDeps = {
 			document: doc,
@@ -131,7 +135,7 @@ describe("mountElements", () => {
 				if (options.loadStripeFails) throw new Error("Failed to load Stripe.js");
 				return stripe;
 			},
-			confirmAdd: (paymentMethodId) => confirmedAdds.push(paymentMethodId),
+			confirmAdd: (input) => confirmedAdds.push(input.setupId),
 			addSettleListener: () => undefined,
 		};
 		return { accountDeps, loadCalls, confirmedAdds, mounted };
@@ -159,7 +163,7 @@ describe("mountElements", () => {
 
 	it("is a no-op when the submit button is missing", async () => {
 		const doc = makeDoc(
-			'<div data-card-elements data-publishable-key="pk_x" data-client-secret="seti_x"><div data-card-element></div><p data-card-error></p></div>',
+			'<div data-card-elements data-publishable-key="pk_x" data-client-secret="seti_x" data-setup-id="seti_1"><div data-card-element></div><p data-card-error></p></div>',
 		);
 		const d = deps(doc);
 		await mountElements(d.accountDeps);
@@ -168,7 +172,7 @@ describe("mountElements", () => {
 
 	it("loads Stripe, mounts the card element, and confirms on submit click", async () => {
 		const doc = makeDoc(CONTAINER_HTML);
-		const d = deps(doc, { confirmResult: { setupIntent: { payment_method: "pm_new" } } });
+		const d = deps(doc, { confirmResult: {} });
 		await mountElements(d.accountDeps);
 
 		expect(d.loadCalls).toEqual(["pk_test_123"]);
@@ -182,7 +186,7 @@ describe("mountElements", () => {
 		submit.dispatchEvent(new (doc.defaultView ?? globalThis).Event("click"));
 		await flush();
 
-		expect(d.confirmedAdds).toEqual(["pm_new"]);
+		expect(d.confirmedAdds).toEqual(["seti_123"]);
 	});
 
 	it("surfaces a retryable error and stays unmounted when Stripe.js fails to load", async () => {
