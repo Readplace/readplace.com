@@ -1,5 +1,10 @@
 import type { ExecSyncOptions } from "node:child_process";
-import { defaultDeps, initTestPhaseRunner } from "./run-test-phases";
+import {
+	BROWSER_INSTALL_MAX_ATTEMPTS,
+	BROWSER_INSTALL_RETRY_DELAY_MS,
+	defaultDeps,
+	initTestPhaseRunner,
+} from "./run-test-phases";
 import type { ResolvedPhase, TestPhaseRunnerDeps } from "./run-test-phases";
 
 function createInMemoryDeps(overrides: Partial<TestPhaseRunnerDeps> = {}) {
@@ -16,6 +21,7 @@ function createInMemoryDeps(overrides: Partial<TestPhaseRunnerDeps> = {}) {
 		},
 		log: () => {},
 		shouldSkipE2E: () => false,
+		sleep: () => {},
 		...overrides,
 	};
 
@@ -538,7 +544,7 @@ describe("playwright browser install retry", () => {
 		browsers: ["chromium"],
 	};
 
-	it("retries the browser install once when it fails then succeeds", async () => {
+	it("retries the browser install when it fails then succeeds", async () => {
 		let installCalls = 0;
 		const { deps } = createInMemoryDeps({
 			execSync: (command: string) => {
@@ -560,7 +566,34 @@ describe("playwright browser install retry", () => {
 		expect(installCalls).toBe(2);
 	});
 
-	it("re-throws when the browser install fails on both attempts", async () => {
+	it("waits before retrying so it does not hammer the still-held dpkg lock", async () => {
+		const sleeps: number[] = [];
+		let installCalls = 0;
+		const { deps } = createInMemoryDeps({
+			execSync: (command: string) => {
+				if (command.includes("playwright install")) {
+					installCalls += 1;
+					if (installCalls === 1) throw new Error("dpkg lock contention");
+				}
+				return Buffer.from("");
+			},
+			sleep: (ms: number) => {
+				sleeps.push(ms);
+			},
+		});
+		const runner = createRunner(deps);
+		const plan = runner.createTestPlan({
+			config: { projectName: "Readplace", phases: [playwrightPhase] },
+			projectRoot: "/projects/hutch",
+		});
+
+		await plan.runAllPhases();
+
+		expect(sleeps).toEqual([BROWSER_INSTALL_RETRY_DELAY_MS]);
+	});
+
+	it("re-throws after exhausting every attempt, waiting between each", async () => {
+		const sleeps: number[] = [];
 		let installCalls = 0;
 		const { deps } = createInMemoryDeps({
 			execSync: (command: string) => {
@@ -570,6 +603,9 @@ describe("playwright browser install retry", () => {
 				}
 				return Buffer.from("");
 			},
+			sleep: (ms: number) => {
+				sleeps.push(ms);
+			},
 		});
 		const runner = createRunner(deps);
 		const plan = runner.createTestPlan({
@@ -578,7 +614,8 @@ describe("playwright browser install retry", () => {
 		});
 
 		await expect(plan.runAllPhases()).rejects.toThrow("persistent dpkg lock contention");
-		expect(installCalls).toBe(2);
+		expect(installCalls).toBe(BROWSER_INSTALL_MAX_ATTEMPTS);
+		expect(sleeps).toEqual(Array(BROWSER_INSTALL_MAX_ATTEMPTS - 1).fill(BROWSER_INSTALL_RETRY_DELAY_MS));
 	});
 });
 
@@ -749,6 +786,16 @@ describe("defaultDeps.shouldSkipE2E", () => {
 	it("returns false when CLAUDE_CODE_REMOTE has a different value", () => {
 		process.env.CLAUDE_CODE_REMOTE = "1";
 		expect(defaultDeps.shouldSkipE2E()).toBe(false);
+	});
+});
+
+describe("defaultDeps.sleep", () => {
+	it("blocks synchronously for the requested duration and returns", () => {
+		const before = process.hrtime.bigint();
+		defaultDeps.sleep(20);
+		const elapsedMs = Number(process.hrtime.bigint() - before) / 1e6;
+
+		expect(elapsedMs).toBeGreaterThanOrEqual(15);
 	});
 });
 

@@ -117,6 +117,75 @@ describe("fetchH2 — against a local HTTP/2 server", () => {
 	});
 });
 
+/**
+ * Integration cover for the followRedirects behaviors that are transport-agnostic
+ * in principle but only take effect if fetchH2 wires the shared loop correctly.
+ * follow-redirects.test.ts owns the exhaustive edge cases against a fake hop; these
+ * exercise the same behaviors end-to-end through the real HTTP/2 client so a future
+ * change to fetchH2's wiring (e.g. resolving against the origin again, or handing
+ * headers straight to the transport) fails here, not just in the shared unit.
+ */
+describe("fetchH2 — shared followRedirects behaviors through the real client", () => {
+	it("resolves a path-relative Location against the current hop's directory, not the origin", async () => {
+		let landedPath: string | undefined;
+		const server = await startH2Server((stream, headers) => {
+			if (headers[":path"] === "/current/path") {
+				stream.respond({ ":status": 302, location: "sub/page" });
+				stream.end();
+				return;
+			}
+			landedPath = typeof headers[":path"] === "string" ? headers[":path"] : undefined;
+			stream.respond({ ":status": 200, "content-type": "text/html" });
+			stream.end("<html>landed</html>");
+		});
+		try {
+			const response = await fetchH2(`${server.origin}/current/path`);
+			expect(response.status).toBe(200);
+			expect(landedPath).toBe("/current/sub/page");
+		} finally {
+			await server.close();
+		}
+	});
+
+	it("drops cookie/authorization but keeps other headers when a redirect crosses origins", async () => {
+		let destHeaders: http2.IncomingHttpHeaders | undefined;
+		const dest = await startH2Server((stream, headers) => {
+			destHeaders = headers;
+			stream.respond({ ":status": 200, "content-type": "text/html" });
+			stream.end("<html>dest</html>");
+		});
+		const start = await startH2Server((stream) => {
+			stream.respond({ ":status": 301, location: `${dest.origin}/dest` });
+			stream.end();
+		});
+		try {
+			await fetchH2(`${start.origin}/start`, {
+				headers: { cookie: "s=secret", authorization: "Bearer t", "user-agent": "Persona/1.0" },
+			});
+			expect(destHeaders?.cookie).toBeUndefined();
+			expect(destHeaders?.authorization).toBeUndefined();
+			expect(destHeaders?.["user-agent"]).toBe("Persona/1.0");
+		} finally {
+			await start.close();
+			await dest.close();
+		}
+	});
+
+	it("refuses to follow a redirect to a non-HTTP(S) scheme", async () => {
+		const server = await startH2Server((stream) => {
+			stream.respond({ ":status": 301, location: "gopher://127.0.0.1:70/1payload" });
+			stream.end();
+		});
+		try {
+			await expect(fetchH2(`${server.origin}/start`)).rejects.toThrow(
+				/fetchH2 failed for .*: refusing to follow redirect to non-HTTP\(S\) scheme "gopher:"/,
+			);
+		} finally {
+			await server.close();
+		}
+	});
+});
+
 describe("withH2Fallback", () => {
 	it("passes through non-403 responses unchanged", async () => {
 		const baseFetch: typeof fetch = async () =>

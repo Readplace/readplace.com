@@ -3,9 +3,8 @@ import http from "node:http";
 import https from "node:https";
 import tls from "node:tls";
 import type { AssertHostAllowed, SocketLookup } from "./blocked-address-lookup";
+import { followRedirects } from "./follow-redirects";
 
-const MAX_REDIRECTS = 5;
-const REDIRECT_STATUS_CODES = new Set([301, 302, 303, 307, 308]);
 const TLS_CHAIN_ERROR_CODES = new Set([
 	"UNABLE_TO_VERIFY_LEAF_SIGNATURE",
 	"UNABLE_TO_GET_ISSUER_CERT",
@@ -53,42 +52,39 @@ type HttpsGetResult = {
  */
 export function initFetchAia(deps: AiaDeps) {
 	const intermediateCache = new Map<string, string>();
-	return async function fetchAia(url: string, init?: AiaFetchInit): Promise<Response> {
-		let currentUrl = url;
+	return function fetchAia(url: string, init?: AiaFetchInit): Promise<Response> {
 		const extraCa: string[] = [];
-		for (let i = 0; i <= MAX_REDIRECTS; i++) {
-			const parsed = new URL(currentUrl);
-			/* c8 ignore next -- V8 block-coverage phantom: the optional-call continuation gets a spurious zero-count sub-range even though the retry test invokes assertHostAllowed (and the SSRF-guard threading is asserted there); the statement itself is covered. Restructuring to an explicit `if` only relocates the phantom. See bcoe/c8#319 and https://v8.dev/blog/javascript-code-coverage */
-			deps.assertHostAllowed?.(parsed.hostname);
-			const port = parsed.port ? Number(parsed.port) : 443;
-			const cached = intermediateCache.get(parsed.hostname);
-			const effectiveCa = cached && !extraCa.includes(cached) ? [...extraCa, cached] : extraCa;
-			let result: HttpsGetResult;
-			try {
-				result = await deps.httpsGet({ url: parsed, headers: init?.headers, signal: init?.signal, ca: effectiveCa });
-			} catch (error) {
-				if (!isTlsChainError(error)) throw error;
-				const cert = await deps.fetchPeerCertificate({ hostname: parsed.hostname, port, signal: init?.signal });
-				const aiaUrl = aiaUrlFromCert(cert);
-				assert(aiaUrl, `TLS chain error for ${currentUrl} but leaf cert has no AIA URL`);
-				const bytes = await deps.downloadIssuerBytes(aiaUrl, init?.signal);
-				const pem = derOrPemToPem(bytes);
-				intermediateCache.set(parsed.hostname, pem);
-				extraCa.push(pem);
-				result = await deps.httpsGet({ url: parsed, headers: init?.headers, signal: init?.signal, ca: extraCa });
-			}
-			if (REDIRECT_STATUS_CODES.has(result.status)) {
-				const location = result.headers.location;
-				assert(typeof location === "string" && location.length > 0, `HTTP ${result.status} from ${currentUrl} missing location header`);
-				currentUrl = new URL(location, currentUrl).href;
-				continue;
-			}
-			return new Response(result.body, {
-				status: result.status,
-				headers: toFetchHeaders(result.headers),
-			});
-		}
-		throw new Error(`fetchAia: too many redirects for ${url}`);
+		return followRedirects({
+			label: "fetchAia",
+			url,
+			headers: init?.headers,
+			requestHop: async ({ url: hopUrl, headers }) => {
+				const parsed = new URL(hopUrl);
+				/* c8 ignore next -- V8 block-coverage phantom: the optional-call continuation gets a spurious zero-count sub-range even though the retry test invokes assertHostAllowed (and the SSRF-guard threading is asserted there); the statement itself is covered. Restructuring to an explicit `if` only relocates the phantom. See bcoe/c8#319 and https://v8.dev/blog/javascript-code-coverage */
+				deps.assertHostAllowed?.(parsed.hostname);
+				const port = parsed.port ? Number(parsed.port) : 443;
+				const cached = intermediateCache.get(parsed.hostname);
+				const effectiveCa = cached && !extraCa.includes(cached) ? [...extraCa, cached] : extraCa;
+				let result: HttpsGetResult;
+				try {
+					result = await deps.httpsGet({ url: parsed, headers, signal: init?.signal, ca: effectiveCa });
+				} catch (error) {
+					if (!isTlsChainError(error)) throw error;
+					const cert = await deps.fetchPeerCertificate({ hostname: parsed.hostname, port, signal: init?.signal });
+					const aiaUrl = aiaUrlFromCert(cert);
+					assert(aiaUrl, `TLS chain error for ${hopUrl} but leaf cert has no AIA URL`);
+					const bytes = await deps.downloadIssuerBytes(aiaUrl, init?.signal);
+					const pem = derOrPemToPem(bytes);
+					intermediateCache.set(parsed.hostname, pem);
+					extraCa.push(pem);
+					result = await deps.httpsGet({ url: parsed, headers, signal: init?.signal, ca: extraCa });
+				}
+				return new Response(result.body, {
+					status: result.status,
+					headers: toFetchHeaders(result.headers),
+				});
+			},
+		});
 	};
 }
 

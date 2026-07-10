@@ -6,14 +6,10 @@ import {
 	type ResolveAll,
 	type ResolvePinnedAddress,
 } from "./blocked-address-lookup";
+import { followRedirects } from "./follow-redirects";
 import { MAX_PDF_BYTES } from "./pdf-page-limits";
 
 const DEFAULT_TIMEOUT_MS = 10000;
-
-const REDIRECT_STATUS_CODES = new Set([301, 302, 303, 307, 308]);
-const MAX_REDIRECTS = 5;
-const ALLOWED_PROTOCOLS = new Set(["http:", "https:"]);
-const CROSS_ORIGIN_SENSITIVE_HEADERS = new Set(["cookie", "authorization", "proxy-authorization"]);
 
 type CurlFetchInit = {
 	headers?: Record<string, string>;
@@ -105,45 +101,18 @@ export function createCurlFetch(deps: { execCurl: ExecCurl; resolvePinnedAddress
 	}
 
 	return async function fetchCurl(url, init) {
-		const entryUrl = new URL(url);
-		if (!ALLOWED_PROTOCOLS.has(entryUrl.protocol)) {
-			throw new Error(
-				`fetchCurl failed for ${url}: refusing to fetch non-HTTP(S) scheme "${entryUrl.protocol}"`,
-			);
-		}
+		/* One budget spans the whole redirect chain — a fresh timeout per hop
+		 * would let a slow 5-hop origin consume 6x the intended ceiling. */
 		const signal = init?.signal ?? AbortSignal.timeout(DEFAULT_TIMEOUT_MS);
-		let currentUrl = url;
-		let headers = init?.headers;
-		for (let redirects = 0; ; redirects++) {
-			const response = await fetchOnce(currentUrl, { headers, signal });
-			const location = response.headers.get("location");
-			if (location === null || !REDIRECT_STATUS_CODES.has(response.status)) {
-				return response;
-			}
-			if (redirects >= MAX_REDIRECTS) {
-				throw new Error(`fetchCurl failed for ${url}: too many redirects (>${MAX_REDIRECTS})`);
-			}
-			// Resolve against the current hop so a relative Location works, then the
-			// next fetchOnce re-runs resolvePinnedAddress on the target host — the
-			// per-hop SSRF re-validation that lets us follow a redirect curl itself
-			// (kept at --max-redirs 0) is not allowed to chase.
-			let nextUrl: URL;
-			try {
-				nextUrl = new URL(location, currentUrl);
-			} catch {
-				throw new Error(`fetchCurl failed for ${url}: invalid redirect Location "${location}"`);
-			}
-			if (!ALLOWED_PROTOCOLS.has(nextUrl.protocol)) {
-				throw new Error(
-					/* c8 ignore next -- V8 block-coverage phantom: the ${nextUrl.protocol} interpolation gets a spurious zero-count sub-range even though the non-HTTP(S) redirect test throws here; see bcoe/c8#319 and https://v8.dev/blog/javascript-code-coverage */
-					`fetchCurl failed for ${url}: refusing to follow redirect to non-HTTP(S) scheme "${nextUrl.protocol}"`,
-				);
-			}
-			if (headers && nextUrl.origin !== new URL(currentUrl).origin) {
-				headers = stripCrossOriginSensitiveHeaders(headers);
-			}
-			currentUrl = nextUrl.href;
-		}
+		return followRedirects({
+			label: "fetchCurl",
+			url,
+			headers: init?.headers,
+			// Each hop re-runs resolvePinnedAddress on its target host — the
+			// per-hop SSRF re-validation that lets us follow a redirect curl
+			// itself (kept at --max-redirs 0) is not allowed to chase.
+			requestHop: ({ url: hopUrl, headers }) => fetchOnce(hopUrl, { headers, signal }),
+		});
 	};
 }
 
@@ -218,16 +187,6 @@ function buildCurlArgs(params: {
  */
 function toTitleCase(header: string): string {
 	return header.replace(/\b\w/g, (c) => c.toUpperCase());
-}
-
-function stripCrossOriginSensitiveHeaders(headers: Record<string, string>): Record<string, string> {
-	const out: Record<string, string> = {};
-	for (const [key, value] of Object.entries(headers)) {
-		if (!CROSS_ORIGIN_SENSITIVE_HEADERS.has(key.toLowerCase())) {
-			out[key] = value;
-		}
-	}
-	return out;
 }
 
 type ParsedCurlOutput = {
