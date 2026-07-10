@@ -1,0 +1,3 @@
+# Local-only runner secrets — a real GitHub PAT lives in .env here. Never commit.
+.env
+*.env

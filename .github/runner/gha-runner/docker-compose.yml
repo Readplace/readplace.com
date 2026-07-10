@@ -1,0 +1,44 @@
+# docker-compose.yml: ephemeral self-hosted runner on OrbStack.
+#
+# Setup:
+#   1. Fine-grained PAT scoped to Readplace/readplace.com with
+#      "Administration: Read and write". The entrypoint uses it to mint
+#      registration tokens, which is what makes ephemeral restarts work
+#      (plain registration tokens die after 1 hour).
+#   2. echo 'GH_PAT=github_pat_...' > .env
+#   3. docker compose up -d --build
+#   4. Verify: repo Settings -> Actions -> Runners shows the runner Idle.
+#
+# EPHEMERAL=true: runner takes exactly one job, exits, container restarts
+# clean and re-registers. Fresh filesystem per job. This is the config
+# that actually mitigates PR code persisting anything on your machine.
+services:
+  gha-runner:
+    build: .
+    restart: unless-stopped
+    environment:
+      REPO_URL: https://github.com/Readplace/readplace.com
+      ACCESS_TOKEN: ${GH_PAT:?put GH_PAT in .env}
+      RUNNER_NAME_PREFIX: orb-m5
+      LABELS: orbstack,docker
+      EPHEMERAL: "true"
+      DISABLE_AUTO_UPDATE: "true"
+    volumes:
+      # Content-addressable caches: survive the ephemeral wipe, cheap to
+      # keep, expensive to redownload over starlink.
+      - playwright-browsers:/ms-playwright
+      - pnpm-store:/root/.local/share/pnpm
+      # Uncomment ONLY if a job needs docker (container:, services:,
+      # testcontainers). ci.yml currently uses none. Socket access is
+      # root-equivalent on the docker host and job containers become
+      # siblings with host-path volume semantics:
+      # - /var/run/docker.sock:/var/run/docker.sock
+      #
+      # Optional speed-over-purity: persist the setup-node toolcache so
+      # each ephemeral container skips the ~30s node download:
+      # - toolcache:/opt/hostedtoolcache
+
+volumes:
+  playwright-browsers:
+  pnpm-store:
+  # toolcache:
