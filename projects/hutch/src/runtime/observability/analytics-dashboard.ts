@@ -572,22 +572,24 @@ export function buildAnalyticsDashboardBody(deps: BuildAnalyticsDashboardDeps): 
 	);
 
 	// --- Homepage A/B experiment ---
-	// Counts landings on each arm. The client redirect stamps
-	// utm_campaign=<campaign> + utm_content=<variant slug> on the pageview
-	// (utm_medium=experiment, no utm_source), so a plain group-by utm_content
-	// compares the two buckets.
+	// The client redirect stamps utm_campaign=<campaign> + utm_content=<variant
+	// slug> on the pageview (utm_medium=experiment, no utm_source), so a group-by
+	// utm_content compares the two buckets. Distinct visitors is the headline
+	// metric: assignment is sticky per browser (localStorage), so a returning
+	// visitor piles repeat landings onto one arm and raw counts distort the
+	// split; count(*) landings stays alongside as volume context.
 
 	widgets.push(
 		logWidget({
 			region,
-			title: "Homepage A/B — landings by variant",
+			title: "Homepage A/B — distinct visitors and landings by variant",
 			logGroupNames: [hutchLogGroupName],
 			query: [
-				"fields @timestamp, utm_content",
+				"fields @timestamp, visitor_hash, utm_content",
 				`| filter stream = "${STREAMS.analytics}" and event = "${ANALYTICS_EVENTS.pageview}" and utm_campaign = "${HOMEPAGE_SPLIT.campaign}"`,
 				...exclude,
-				"| stats count(*) as landings by utm_content",
-				"| sort landings desc",
+				"| stats count_distinct(visitor_hash) as visitors, count(*) as landings by utm_content",
+				"| sort visitors desc",
 			].join(" "),
 			x: 0, y: 122, width: 12, height: 8,
 			view: "bar",

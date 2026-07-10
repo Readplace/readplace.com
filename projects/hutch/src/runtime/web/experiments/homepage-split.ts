@@ -4,7 +4,7 @@
  * Browser-safe on purpose (zero node/express imports) so the same constants and
  * pure helpers are shared by the client bundle that assigns + redirects, the
  * landing routes that render each arm, and the analytics dashboard that counts
- * landings by variant — a value change here propagates to all three.
+ * visitors and landings by variant — a value change here propagates to all three.
  *
  * Kill switches: flip `active` to false to no-op the client (everyone stays on
  * `/`); bump `epoch` to re-bucket everyone (stored assignments stop matching, so

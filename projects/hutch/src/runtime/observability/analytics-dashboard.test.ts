@@ -75,12 +75,14 @@ describe("buildAnalyticsDashboardBody — drift prevention", () => {
 		expect(body.widgets).toHaveLength(28);
 	});
 
-	it("the homepage A/B widget counts pageviews on the experiment campaign, grouped by variant (utm_content)", () => {
+	it("the homepage A/B widget compares arms by distinct visitors (assignment is sticky per browser, so raw counts pile a returning visitor's landings onto one arm) with raw landings alongside, grouped by variant (utm_content)", () => {
 		const queries = widgetQueries();
 		const ab = queries.find((q) => q.includes(`utm_campaign = "${HOMEPAGE_SPLIT.campaign}"`));
 		expect(ab).toBeDefined();
 		expect(ab).toContain(`event = "${ANALYTICS_EVENTS.pageview}"`);
-		expect(ab).toContain("stats count(*) as landings by utm_content");
+		expect(ab).toContain("stats count_distinct(visitor_hash) as visitors, count(*) as landings by utm_content");
+		expect(ab).toContain("| sort visitors desc");
+		expect(ab).not.toContain("| filter ispresent(visitor_hash)");
 	});
 
 	it("audience pageview widgets read both the hutch and blog log groups so acquisition spans app + blog", () => {
