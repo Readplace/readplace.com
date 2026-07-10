@@ -4,7 +4,7 @@ import {
 	deriveTrialEscalation,
 	formatTrialRemaining,
 } from "@packages/web-shell";
-import type { GetEffectiveAccess } from "../../domain/access/effective-access";
+import type { GetEffectiveAccess } from "@packages/subscription-access";
 
 /**
  * Whether the MCP surface is open to an authenticated caller, and how

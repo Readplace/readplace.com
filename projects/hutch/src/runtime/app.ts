@@ -50,7 +50,7 @@ import { initInMemoryArticleCrawl } from "@packages/test-fixtures/providers/arti
 import { initInMemoryGeneratedSummary } from "@packages/test-fixtures/providers/article-summary";
 import { S3Client } from "@aws-sdk/client-s3";
 import { SchedulerClient } from "@aws-sdk/client-scheduler";
-import { initS3ReadContent } from "./providers/article-store/s3-read-content";
+import { initS3ReadContent } from "@packages/article-store";
 import { initStripeSubscriptions } from "./providers/stripe-subscriptions/stripe-subscriptions";
 import { initStripePaymentMethods } from "./providers/stripe-payment-methods/stripe-payment-methods";
 import { initInMemoryPaymentMethods } from "@packages/test-fixtures/providers/payment-methods";
@@ -93,9 +93,6 @@ import { initInMemoryImportSession } from "@packages/test-fixtures/providers/imp
 import { initDynamoDbImportSession } from "./providers/import-session/dynamodb-import-session";
 import { initInMemoryInboxAddress } from "@packages/test-fixtures/providers/inbox-address";
 import { initInMemoryInboxEmail, initInMemoryInboxEmailLink } from "@packages/test-fixtures/providers/inbox-email";
-import { initDynamoDbInboxAddress } from "./providers/inbox-address/dynamodb-inbox-address";
-import { initDynamoDbInboxEmail } from "./providers/inbox-email/dynamodb-inbox-email";
-import { initDynamoDbInboxEmailLink } from "./providers/inbox-email/dynamodb-inbox-email-link";
 import { initExchangeGoogleCode } from "./providers/google-auth/google-token";
 import { initExchangeAppleCode } from "./providers/apple-auth/apple-token";
 import { initCreateAppleClientSecret } from "./providers/apple-auth/apple-client-secret";
@@ -105,7 +102,7 @@ import { initStripeCheckout } from "./providers/stripe-checkout/stripe-checkout"
 import { initInMemoryPendingSignup } from "@packages/test-fixtures/providers/pending-signup";
 import { initDynamoDbPendingSignup } from "./providers/pending-signup/dynamodb-pending-signup";
 import { initInMemorySubscriptionProviders } from "@packages/test-fixtures/providers/subscription-providers";
-import { initDynamoDbSubscriptionRead } from "./providers/subscription-providers/dynamodb-subscription-read";
+import { initDynamoDbSubscriptionRead } from "@packages/subscription-access";
 import { initDynamoDbSubscriptionWrites } from "./providers/subscription-providers/dynamodb-subscription-writes";
 import { HutchLogger, consoleLogger } from "@packages/hutch-logger";
 import { initLogParseError, type ParseErrorEvent } from "@packages/hutch-infra-components";
@@ -119,6 +116,7 @@ import { httpErrorMessageMapping } from "./web/pages/queue/queue.error";
 import { initFoundingAllocation } from "./web/shared/founding-progress/founding-allocation";
 import { initCachedUserCount } from "./web/auth/cached-user-count";
 import { getEnv, requireEnv } from "@packages/require-env";
+import { initDynamoDbInboxAddress, initDynamoDbInboxEmail, initDynamoDbInboxEmailLink } from "@packages/inbox-store";
 
 /**
  * Hutch SSR does not run PDF extraction in-process — the

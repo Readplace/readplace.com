@@ -8,9 +8,7 @@ import { HutchLogger, consoleLogger } from "@packages/hutch-logger";
 import { createDynamoDocumentClient } from "@packages/hutch-storage-client";
 import { requireEnv } from "@packages/require-env";
 import { initExtractEmailLinksHandler } from "./domain/inbox/extract-email-links-handler";
-import { initDynamoDbInboxEmail } from "./providers/inbox-email/dynamodb-inbox-email";
-import { initDynamoDbInboxEmailLink } from "./providers/inbox-email/dynamodb-inbox-email-link";
-import { initS3ReadRawEmail } from "./providers/inbox-email/s3-read-raw-email";
+import { initDynamoDbInboxEmail, initDynamoDbInboxEmailLink, initS3ReadRawEmail } from "@packages/inbox-store";
 
 const inboxEmailsTable = requireEnv("DYNAMODB_INBOX_EMAILS_TABLE");
 const inboxEmailLinksTable = requireEnv("DYNAMODB_INBOX_EMAIL_LINKS_TABLE");

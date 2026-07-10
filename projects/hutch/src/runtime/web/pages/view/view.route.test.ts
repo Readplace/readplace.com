@@ -18,7 +18,7 @@ import {
 } from "@packages/test-fixtures";
 import { initInMemoryRateLimit } from "@packages/test-fixtures/providers/rate-limit";
 import { calculateReadTime } from "@packages/domain/article";
-import { MAX_POLLS } from "../../shared/article-reader/article-reader";
+import { MAX_POLLS } from "@packages/web-shell";
 import type { ViewOpenedEvent } from "@packages/web-analytics";
 
 const GOOGLEBOT = "Googlebot/2.1 (+http://www.google.com/bot.html)";

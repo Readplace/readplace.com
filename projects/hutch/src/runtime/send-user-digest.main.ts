@@ -8,7 +8,7 @@ import { initDynamoDbArticleStore } from "./providers/article-store/dynamodb-art
 import { initDynamoDbAuth } from "./providers/auth/dynamodb-auth";
 import { initDynamoDbReaderReadyState } from "./providers/reader-ready-state/dynamodb-reader-ready-state";
 import { initDynamoDbDigestQueue } from "./providers/digest-queue/dynamodb-digest-queue";
-import { initS3ReadContent } from "./providers/article-store/s3-read-content";
+import { initS3ReadContent } from "@packages/article-store";
 import { initResendEmail } from "./providers/email/resend-email";
 import { initSendUserDigestHandler } from "./send-user-digest/send-user-digest-handler";
 import { requireEnv } from "@packages/require-env";

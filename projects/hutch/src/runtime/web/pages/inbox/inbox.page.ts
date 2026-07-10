@@ -21,9 +21,9 @@ import type { ContentProvider } from "@packages/provider-contracts/article-store
 import { emailContentResourceId } from "../../../domain/inbox/email-content-id";
 import { Base } from "../../base.component";
 import type { BuildBannerState } from "../../banner-state";
-import type { QuerystringFeatureToggle } from "../../feature-toggle";
-import { MAX_POLLS } from "../../shared/article-reader/article-reader";
-import { etagMatches } from "../queue/queue-card/queue-card.etag";
+import type { QuerystringFeatureToggle } from "@packages/web-shell";
+import { MAX_POLLS } from "@packages/web-shell";
+import { etagMatches } from "@packages/web-shell";
 import { renderInboxArticleCard } from "./inbox-article-card.component";
 import { renderInboxArticlesPanel } from "./inbox-articles-panel.component";
 import { InboxEmailDetailPage } from "./inbox-email-detail.component";
@@ -38,7 +38,7 @@ import {
 import { type InboxEmailLinkSummary, toInboxEmailsViewModel } from "./inbox-emails.viewmodel";
 import { computeInboxLinkCardEtag } from "./inbox-link-card.etag";
 import { toInboxLinkCardViewModel } from "./inbox-link-card.viewmodel";
-import { parsePollParam } from "../../shared/article-reader/poll-param";
+import { parsePollParam } from "@packages/web-shell";
 import { InboxPage } from "./inbox.component";
 
 interface InboxDependencies {

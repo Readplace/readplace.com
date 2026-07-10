@@ -41,7 +41,7 @@ async function seedArticle(page: Page): Promise<void> {
 
 // Sign up a fresh user through the real form. New accounts are unverified, so
 // the shell renders the "N days left" countdown banner on every page — and a
-// just-registered user is deterministically 7 days out (verification-deadline.ts).
+// just-registered user is deterministically 7 days out.
 async function signUpUnverified(page: Page, email: string): Promise<void> {
 	await page.goto(`${BASE_URL}/signup`, { waitUntil: "domcontentloaded" });
 	await page.locator("#email").fill(email);

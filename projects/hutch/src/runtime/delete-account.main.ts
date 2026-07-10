@@ -15,16 +15,13 @@ import { initIosOnboardingSignal } from "./providers/ios-onboarding-signal/dynam
 import { initDynamoDbSubscriptionProviders } from "./providers/subscription-providers/dynamodb-subscription-providers";
 import { initStripeSubscriptions } from "./providers/stripe-subscriptions/stripe-subscriptions";
 import { initAwsTrialScheduler } from "./providers/trial-scheduler/aws-trial-scheduler";
-import { initDynamoDbInboxEmail } from "./providers/inbox-email/dynamodb-inbox-email";
-import { initDynamoDbInboxEmailLink } from "./providers/inbox-email/dynamodb-inbox-email-link";
-import { initS3DeleteObjects } from "./providers/inbox-email/s3-delete-objects";
-import { initDynamoDbInboxAddress } from "./providers/inbox-address/dynamodb-inbox-address";
 import { initS3UserDataExport } from "./providers/user-data-export/s3-user-data-export";
 import { initDynamoDbPasswordReset } from "./providers/password-reset/dynamodb-password-reset";
 import { initDynamoDbEmailVerification } from "./providers/email-verification/dynamodb-email-verification";
 import { initDynamoDbPendingSignup } from "./providers/pending-signup/dynamodb-pending-signup";
 import { initRevokeExternalIdpTokens } from "./delete-account/revoke-external-idp-tokens";
 import { initDeleteAccountHandler } from "./delete-account/delete-account-handler";
+import { initDynamoDbInboxEmail, initDynamoDbInboxEmailLink, initDynamoDbInboxAddress, initS3DeleteObjects } from "@packages/inbox-store";
 
 const logger = HutchLogger.from(consoleLogger);
 const now = () => new Date();

@@ -11,9 +11,10 @@
     "test": "jest --testMatch='**/dist/**/*.test.js' --testTimeout=10000",
     "test-with-coverage": "c8 pnpm test && node enforce-coverage.config.js",
     "check": "nx run @packages/article-store:check",
-    "check-infra": "echo 'No infrastructure — shared library'"
+    "check-infra": "echo 'No infrastructure \u2014 shared library'"
   },
   "dependencies": {
+    "@aws-sdk/client-s3": "3.1057.0",
     "@packages/article-resource-unique-id": "workspace:*",
     "@packages/article-state-types": "workspace:*",
     "@packages/domain": "workspace:*",

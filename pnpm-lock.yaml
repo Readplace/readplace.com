@@ -360,6 +360,9 @@ importers:
       '@packages/hutch-storage-client':
         specifier: workspace:*
         version: link:../../src/packages/hutch-storage-client
+      '@packages/inbox-store':
+        specifier: workspace:*
+        version: link:../../src/packages/inbox-store
       '@packages/onboarding-extension-signal':
         specifier: workspace:*
         version: link:../../src/packages/onboarding-extension-signal
@@ -871,6 +874,9 @@ importers:
 
   src/packages/article-store:
     dependencies:
+      '@aws-sdk/client-s3':
+        specifier: 3.1057.0
+        version: 3.1057.0
       '@packages/article-resource-unique-id':
         specifier: workspace:*
         version: link:../article-resource-unique-id
@@ -1193,6 +1199,37 @@ importers:
         specifier: 6.0.3
         version: 6.0.3
 
+  src/packages/inbox-store:
+    dependencies:
+      '@aws-sdk/client-s3':
+        specifier: 3.1057.0
+        version: 3.1057.0
+      '@packages/domain':
+        specifier: workspace:*
+        version: link:../domain
+      '@packages/hutch-storage-client':
+        specifier: workspace:*
+        version: link:../hutch-storage-client
+      zod:
+        specifier: 4.4.3
+        version: 4.4.3
+    devDependencies:
+      '@types/jest':
+        specifier: 30.0.0
+        version: 30.0.0
+      c8:
+        specifier: 11.0.0
+        version: 11.0.0
+      concurrently:
+        specifier: 10.0.0
+        version: 10.0.0
+      jest:
+        specifier: 30.4.2
+        version: 30.4.2(@types/node@22.19.19)(node-notifier@10.0.1)(ts-node@10.9.2(@types/node@22.19.19)(typescript@6.0.3))
+      typescript:
+        specifier: 6.0.3
+        version: 6.0.3
+
   src/packages/onboarding-extension-signal:
     devDependencies:
       concurrently:
@@ -1330,6 +1367,9 @@ importers:
         specifier: 4.4.3
         version: 4.4.3
     devDependencies:
+      '@packages/test-fixtures':
+        specifier: workspace:*
+        version: link:../test-fixtures
       '@types/jest':
         specifier: 30.0.0
         version: 30.0.0
@@ -1540,6 +1580,9 @@ importers:
       node-html-markdown:
         specifier: 2.0.0
         version: 2.0.0
+      zod:
+        specifier: 4.4.3
+        version: 4.4.3
     devDependencies:
       '@types/jest':
         specifier: 30.0.0
@@ -2618,25 +2661,21 @@ packages:
     resolution: {integrity: sha512-QLnkJl3HkHsPfpLiNiAiMfpfAeFpic0U1diAxF8RqChOkCpQ7ulvyBVgE1UrQxvhd+gFQ3ed5RNDxtCRw8nTiw==}
     cpu: [arm64]
     os: [linux]
-    libc: [glibc]
 
   '@nx/nx-linux-arm64-musl@22.7.5':
     resolution: {integrity: sha512-cEP6KmwBgnb38+jTTaibWCjwXcHmigqhTfy0tN1be7WZr6bHxbqNLsXqKRN70PSNA3HouZcxw1cdRL8tqbPBBA==}
     cpu: [arm64]
     os: [linux]
-    libc: [musl]
 
   '@nx/nx-linux-x64-gnu@22.7.5':
     resolution: {integrity: sha512-tbaX1tZCSpGifDNBfDdEZAMxVF3Yg4bhFP/bm1needc0diqb+Zflc0u5tM5/6BWDMITQDwenJVsNiQ8ZdtJURA==}
     cpu: [x64]
     os: [linux]
-    libc: [glibc]
 
   '@nx/nx-linux-x64-musl@22.7.5':
     resolution: {integrity: sha512-H0M7csOZIgPT822LqjxSXzf4MXRND15vIkAQe3F3Jlr3Si8LC3tzbL52aVcRfgb8MF/xOB5U47mSwxWt1M2bPQ==}
     cpu: [x64]
     os: [linux]
-    libc: [musl]
 
   '@nx/nx-win32-arm64-msvc@22.7.5':
     resolution: {integrity: sha512-JTcZch9YAnDL1gbhqePz3DZ4x7iYemLn1yJzrjbbXAmXju2eiiJiZvJJHbV06+SP9HKXDT8RjTKuAWTdVxnHug==}

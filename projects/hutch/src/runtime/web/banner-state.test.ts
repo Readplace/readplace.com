@@ -3,7 +3,7 @@ import { type ChangelogBanner, isChangelogVersion } from "@packages/web-shell";
 import { UserIdSchema } from "@packages/domain/user";
 import { initBuildBannerState } from "./banner-state";
 import type { GetChangelogBanner } from "./changelog-banner-source";
-import type { EffectiveAccess } from "../domain/access/effective-access";
+import type { EffectiveAccess } from "@packages/subscription-access";
 
 const USER_ID = UserIdSchema.parse("user-1");
 const ONE_DAY_MS = 86_400_000;

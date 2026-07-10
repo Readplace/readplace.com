@@ -1,6 +1,6 @@
 import { deriveTrialEscalation, formatTrialRemaining } from "@packages/web-shell";
 import type { TrialDisplay } from "@packages/web-shell";
-import type { EffectiveAccess } from "../domain/access/effective-access";
+import type { EffectiveAccess } from "@packages/subscription-access";
 
 export function toTrialDisplay(
 	access: EffectiveAccess,

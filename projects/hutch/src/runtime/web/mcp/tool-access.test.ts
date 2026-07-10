@@ -4,7 +4,7 @@ import type {
 	SubscriptionRecord,
 	SubscriptionStatus,
 } from "@packages/provider-contracts/subscription-providers";
-import { initGetEffectiveAccess } from "../../domain/access/effective-access";
+import { initGetEffectiveAccess } from "@packages/subscription-access";
 import { initResolveToolAccess } from "./tool-access";
 
 const userId = authenticatedUserIdFrom("00000000000000000000000000000001");

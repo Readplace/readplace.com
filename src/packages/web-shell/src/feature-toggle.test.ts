@@ -1,8 +1,7 @@
-import type { Request } from "express";
-import { QuerystringFeatureToggle } from "./feature-toggle";
+import { QuerystringFeatureToggle, type FeatureToggleSource } from "./feature-toggle";
 
-function requestWithQuery(query: Record<string, unknown>): Request {
-	return { query } as unknown as Request;
+function requestWithQuery(query: Record<string, unknown>): FeatureToggleSource {
+	return { query };
 }
 
 describe("QuerystringFeatureToggle", () => {

@@ -1,5 +1,5 @@
 import { toTrialDisplay } from "./trial-display";
-import type { EffectiveAccess } from "../domain/access/effective-access";
+import type { EffectiveAccess } from "@packages/subscription-access";
 
 const ONE_SECOND_MS = 1000;
 const ONE_MINUTE_MS = 60 * ONE_SECOND_MS;

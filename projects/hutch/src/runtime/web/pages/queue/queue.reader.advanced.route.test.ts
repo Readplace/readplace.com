@@ -11,7 +11,7 @@ import {
 	createNoopLogError,
 } from "@packages/test-fixtures";
 import { initReadabilityParser } from "@packages/article-parser";
-import { MAX_POLLS } from "../../shared/article-reader/article-reader";
+import { MAX_POLLS } from "@packages/web-shell";
 
 const useApp = useTestServer();
 

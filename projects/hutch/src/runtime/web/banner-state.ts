@@ -4,7 +4,7 @@ import type { BannerState, BannerStateSource } from "@packages/web-shell";
 import type {
 	EffectiveAccess,
 	GetEffectiveAccess,
-} from "../domain/access/effective-access";
+} from "@packages/subscription-access";
 import type { GetChangelogBanner } from "./changelog-banner-source";
 import { toTrialDisplay } from "./trial-display";
 

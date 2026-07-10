@@ -1,4 +1,4 @@
-import type { VerificationStatus } from "../domain/access/verification-deadline";
+import type { VerificationStatus } from "@packages/domain/user";
 
 declare global {
 	namespace Express {

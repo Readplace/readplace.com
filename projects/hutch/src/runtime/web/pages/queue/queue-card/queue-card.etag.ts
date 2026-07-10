@@ -46,14 +46,3 @@ export function computeQueueCardEtag(input: QueueCardEtagInput): string {
 	]);
 	return `W/"${article.id.value}:${article.status}:${crawlStatus}:${summaryStatus}:${article.metadata.wordCount}:${contentHash}:${hashFields([crawlReason, summaryReason])}"`;
 }
-
-export function etagMatches(
-	ifNoneMatchHeader: string | undefined,
-	etag: string,
-): boolean {
-	if (!ifNoneMatchHeader) return false;
-	return ifNoneMatchHeader
-		.split(",")
-		.map((part) => part.trim())
-		.includes(etag);
-}

@@ -3,7 +3,7 @@ import type {
 	FindUserById,
 	MarkSessionEmailVerified,
 } from "@packages/provider-contracts/auth";
-import { computeVerificationStatus } from "../../domain/access/verification-deadline";
+import { computeVerificationStatus } from "@packages/domain/user";
 import { SESSION_COOKIE_NAME } from "@packages/web-session";
 
 /**

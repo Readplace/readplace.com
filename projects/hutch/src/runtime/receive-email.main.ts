@@ -6,10 +6,7 @@ import { createDynamoDocumentClient } from "@packages/hutch-storage-client";
 import { requireEnv } from "@packages/require-env";
 import { initReceiveEmailHandler } from "./domain/inbox/receive-email-handler";
 import { initStoreEmailBody } from "./domain/inbox/store-email-body";
-import { initDynamoDbInboxAddress } from "./providers/inbox-address/dynamodb-inbox-address";
-import { initDynamoDbInboxEmail } from "./providers/inbox-email/dynamodb-inbox-email";
-import { initS3ReadRawEmail } from "./providers/inbox-email/s3-read-raw-email";
-import { initS3WriteEmailContent } from "./providers/inbox-email/s3-write-email-content";
+import { initDynamoDbInboxAddress, initDynamoDbInboxEmail, initS3ReadRawEmail, initS3WriteEmailContent } from "@packages/inbox-store";
 
 const inboxEmailsTable = requireEnv("DYNAMODB_INBOX_EMAILS_TABLE");
 const inboxAddressesTable = requireEnv("DYNAMODB_INBOX_ADDRESSES_TABLE");

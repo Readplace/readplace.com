@@ -6,11 +6,12 @@ import type {
 	FindSubscriptionBySubscriptionId,
 	FindSubscriptionByUserId,
 } from "@packages/provider-contracts/subscription-providers";
-import { SubscriptionProviderRow, toRecord } from "@packages/subscription-access";
+import { SubscriptionProviderRow, toRecord } from "./subscription-provider-row";
 
-/** The read half of the subscription table. It stays in hutch because the save
- * gate composes the write-access decision locally from this lookup — the gate
- * must never depend on the subscription service over HTTP. */
+/** The read half of the subscription table. Every deployable that gates on
+ * access (hutch's save gate, the inbox app's write gate) composes the decision
+ * locally from this lookup — a gate must never depend on the subscription
+ * service over HTTP. */
 export function initDynamoDbSubscriptionRead(deps: {
 	client: DynamoDBDocumentClient;
 	tableName: string;

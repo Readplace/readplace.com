@@ -1,6 +1,14 @@
 import { z } from "zod";
 
 /**
+ * Hard cap on how many `every 3s` poll ticks an article slot or card emits
+ * before the client stops. 300 × 3s = 900s, matching the comprehensive-crawl
+ * orchestrator Lambda timeout. Past that, the orchestrator has given up —
+ * polling further can't reveal new state.
+ */
+export const MAX_POLLS = 300;
+
+/**
  * The htmx poll cursor arrives as an untrusted query string, so a non-numeric
  * `?poll=` (e.g. `?poll=abc`) coerces to NaN. Left as NaN it defeats the
  * `pollCount > maxPolls` budget check (every comparison with NaN is false), so
