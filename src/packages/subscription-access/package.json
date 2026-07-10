@@ -1,7 +1,7 @@
 {
   "name": "@packages/subscription-access",
   "version": "1.0.0",
-  "description": "The subscription domain layer shared by hutch and the subscription service: the row schema (with its mapping to a SubscriptionRecord) and the write-access decision (subscription status → full | read-only) that drives hutch's save gates",
+  "description": "The subscription domain layer shared by hutch and the subscription service: the row schema (with its mapping to a SubscriptionRecord) and the write-access decision (subscription status \u2192 full | read-only) that drives hutch's save gates",
   "main": "dist/index.js",
   "types": "dist/index.d.ts",
   "private": true,
@@ -11,7 +11,7 @@
     "test": "jest --testMatch='**/dist/**/*.test.js'",
     "test-with-coverage": "c8 pnpm test && node enforce-coverage.config.js",
     "check": "nx run @packages/subscription-access:check",
-    "check-infra": "echo 'No infrastructure — shared library'"
+    "check-infra": "echo 'No infrastructure \u2014 shared library'"
   },
   "dependencies": {
     "@packages/domain": "workspace:*",
@@ -20,6 +20,7 @@
     "zod": "4.4.3"
   },
   "devDependencies": {
+    "@packages/test-fixtures": "workspace:*",
     "@types/jest": "30.0.0",
     "c8": "11.0.0",
     "concurrently": "10.0.0",

@@ -1,0 +1,5 @@
+name: inbox
+runtime:
+  name: nodejs
+  options:
+    typescript: true

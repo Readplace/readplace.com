@@ -44,7 +44,7 @@ import { Base } from "../../base.component";
 import type { BuildBannerState } from "../../banner-state";
 import { HxRedirectPage } from "../../hx-redirect-page";
 import { sendComponent } from "@packages/web-shell";
-import type { EffectiveAccess, GetEffectiveAccess } from "../../../domain/access/effective-access";
+import type { EffectiveAccess, GetEffectiveAccess } from "@packages/subscription-access";
 import { AccountPage } from "./account.component";
 import {
 	type CardError,

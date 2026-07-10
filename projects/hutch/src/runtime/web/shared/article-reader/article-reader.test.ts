@@ -5,7 +5,8 @@ import { ReaderArticleHashId } from "@packages/domain/article";
 import type { ArticleCrawl } from "@packages/test-fixtures/providers/article-crawl";
 import type { GeneratedSummary } from "@packages/test-fixtures/providers/article-summary";
 import type { GlobalArticleData } from "@packages/test-fixtures/providers/article-store";
-import { MAX_POLLS, initArticleReader } from "./article-reader";
+import { MAX_POLLS } from "@packages/web-shell";
+import { initArticleReader } from "./article-reader";
 import type {
 	ArticleReaderDeps,
 	ArticleSnapshot,

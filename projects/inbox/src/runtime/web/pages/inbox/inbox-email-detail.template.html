@@ -1,0 +1,41 @@
+<main class="inbox-email-detail" data-test-inbox-email-detail>
+	<header class="inbox-email-detail__header">
+		<a class="inbox-email-detail__back" href="{{backHref}}" data-test-inbox-back>← Inbox</a>
+		<h1 class="inbox-email-detail__subject" data-test-inbox-detail-subject>{{subject}}</h1>
+		<p class="inbox-email-detail__meta">
+			<span data-test-inbox-detail-sender>{{sender}}</span>
+			<time class="inbox-email-detail__received" datetime="{{received.iso}}" data-local-time="{{received.mode}}">{{received.label}}</time>
+			{{{linkCountHtml}}}
+		</p>
+	</header>
+
+	<nav class="inbox-email-detail__tabs" data-test-inbox-tabs>
+		{{#each tabs}}
+		<span
+			class="inbox-email-detail__tab"
+			data-test-inbox-tab="{{key}}"
+			{{#if ariaCurrent}}aria-current="{{ariaCurrent}}"{{/if}}
+			>{{label}}</span
+		>
+		{{/each}}
+	</nav>
+
+	<section class="inbox-email-detail__panel" data-test-tab-panel="view">
+		{{#if canRenderBody}}
+		<iframe
+			class="inbox-email-detail__iframe"
+			data-test-inbox-email-iframe
+			sandbox="allow-popups allow-popups-to-escape-sandbox"
+			srcdoc="{{viewSrcdoc}}"
+			loading="eager"
+			title="Email content"
+		></iframe>
+		{{else}}
+		<div class="inbox-email-detail__unavailable" data-test-inbox-email-unavailable>
+			<p>{{unavailableMessage}}</p>
+		</div>
+		{{/if}}
+	</section>
+
+	{{{articlesPanelHtml}}}
+</main>

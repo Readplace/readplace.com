@@ -1,7 +1,7 @@
 import type { UserId } from "@packages/domain/user";
 import type { FindUserById } from "@packages/provider-contracts/auth";
 import { VERIFICATION_CONTACT_EMAIL } from "@packages/web-shell";
-import { computeVerificationStatus } from "../../domain/access/verification-deadline";
+import { computeVerificationStatus } from "@packages/domain/user";
 
 /**
  * Whether an authenticated agent's account is unlocked enough to save a new

@@ -5,13 +5,13 @@ import { pickExcerpt } from "../../../providers/article-summary/article-summary.
 import type { ArticleCrawl } from "@packages/provider-contracts/article-crawl";
 import type { GeneratedSummary } from "@packages/provider-contracts/article-summary";
 import type { ComponentError } from "../../shared/component-error.types";
-import { MAX_POLLS } from "../../shared/article-reader/article-reader";
+import { MAX_POLLS } from "@packages/web-shell";
 import { buildCardPollUrl } from "./queue-card/queue-card-poll-url";
 import { isCardTerminal } from "./queue-card/is-card-terminal";
 import type { QueueUrlState } from "./queue.url";
 import { buildQueueUrl } from "./queue.url";
 import type { StatusFlash } from "./queue.error";
-import type { EffectiveAccess } from "../../../domain/access/effective-access";
+import type { EffectiveAccess } from "@packages/subscription-access";
 
 export type SubscriptionBannerState =
 	| { state: "none" }

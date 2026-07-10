@@ -1,0 +1,137 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<bpmn:definitions xmlns:bpmn="http://www.omg.org/spec/BPMN/20100524/MODEL" xmlns:bpmndi="http://www.omg.org/spec/BPMN/20100524/DI" xmlns:dc="http://www.omg.org/spec/DD/20100524/DC" xmlns:di="http://www.omg.org/spec/DD/20100524/DI" id="Definitions_web_routes" targetNamespace="http://readplace.com/architecture/bpmn">
+  <bpmn:process id="Process_web_routes" name="web-routes" isExecutable="false">
+    <bpmn:sendTask id="n_req" name="GET /inbox — reader opens the received list">
+      <bpmn:outgoing>f_0</bpmn:outgoing>
+    </bpmn:sendTask>
+    <bpmn:serviceTask id="n_gw" name="hutch API Gateway (owned by hutch)">
+      <bpmn:incoming>f_0</bpmn:incoming>
+      <bpmn:outgoing>f_1</bpmn:outgoing>
+      <bpmn:outgoing>f_3</bpmn:outgoing>
+    </bpmn:serviceTask>
+    <bpmn:task id="n_routes" name="route keys GET /inbox + ANY /inbox/proxy attached by the inbox stack — more-specific beats $default">
+      <bpmn:incoming>f_1</bpmn:incoming>
+      <bpmn:outgoing>f_2</bpmn:outgoing>
+    </bpmn:task>
+    <bpmn:serviceTask id="n_webL" name="inbox-web Lambda express app, requireAuth on /inbox">
+      <bpmn:incoming>f_2</bpmn:incoming>
+      <bpmn:outgoing>f_9</bpmn:outgoing>
+    </bpmn:serviceTask>
+    <bpmn:serviceTask id="n_ssr" name="hutch SSR Lambda on $default /inbox router still mounted — shadowed, removed in follow-up cleanup">
+      <bpmn:incoming>f_3</bpmn:incoming>
+    </bpmn:serviceTask>
+    <bpmn:dataStoreReference id="n_sessions" name="sessions table GetItem each request; UpdateItem on markSessionEmailVerified"></bpmn:dataStoreReference>
+    <bpmn:dataStoreReference id="n_users" name="users table Query userId-index"></bpmn:dataStoreReference>
+    <bpmn:dataStoreReference id="n_subs" name="subscription-providers GetItem trial / access display"></bpmn:dataStoreReference>
+    <bpmn:dataStoreReference id="n_tables" name="hutch-inbox-addresses / -emails / -email-links lists, detail, link cards + polling"></bpmn:dataStoreReference>
+    <bpmn:dataStoreReference id="n_content" name="shared content bucket sanitized email body for the iframe"></bpmn:dataStoreReference>
+    <bpmn:serviceTask id="n_banner" name="changelog banner fragment same-origin /blog route, fail-open">
+      <bpmn:incoming>f_9</bpmn:incoming>
+    </bpmn:serviceTask>
+    <bpmn:sequenceFlow id="f_0" name="" sourceRef="n_req" targetRef="n_gw" />
+    <bpmn:sequenceFlow id="f_1" name="route precedence" sourceRef="n_gw" targetRef="n_routes" />
+    <bpmn:sequenceFlow id="f_2" name="" sourceRef="n_routes" targetRef="n_webL" />
+    <bpmn:sequenceFlow id="f_3" name="$default — every other path" sourceRef="n_gw" targetRef="n_ssr" />
+    <bpmn:sequenceFlow id="f_9" name="cached, decorative" sourceRef="n_webL" targetRef="n_banner" />
+    <bpmn:association id="f_4" sourceRef="n_webL" targetRef="n_sessions" associationDirection="One" />
+    <bpmn:association id="f_5" sourceRef="n_webL" targetRef="n_users" associationDirection="One" />
+    <bpmn:association id="f_6" sourceRef="n_webL" targetRef="n_subs" associationDirection="One" />
+    <bpmn:association id="f_7" sourceRef="n_webL" targetRef="n_tables" associationDirection="One" />
+    <bpmn:association id="f_8" sourceRef="n_webL" targetRef="n_content" associationDirection="One" />
+  </bpmn:process>
+  <bpmndi:BPMNDiagram id="Diagram_web_routes">
+    <bpmndi:BPMNPlane id="Plane_web_routes" bpmnElement="Process_web_routes">
+      <bpmndi:BPMNShape id="n_req_di" bpmnElement="n_req">
+        <dc:Bounds x="515.21" y="28" width="191.75" height="52" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="n_gw_di" bpmnElement="n_gw">
+        <dc:Bounds x="510.71" y="138" width="200.75" height="52" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="n_routes_di" bpmnElement="n_routes">
+        <dc:Bounds x="392.33" y="248" width="201.25" height="116" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="n_webL_di" bpmnElement="n_webL">
+        <dc:Bounds x="509.71" y="422" width="202.75" height="68" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="n_ssr_di" bpmnElement="n_ssr">
+        <dc:Bounds x="629.58" y="248" width="200.25" height="116" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="n_sessions_di" bpmnElement="n_sessions">
+        <dc:Bounds x="28" y="548" width="169.62" height="48" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="n_users_di" bpmnElement="n_users">
+        <dc:Bounds x="233.62" y="561.5" width="130.68" height="48" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="n_subs_di" bpmnElement="n_subs">
+        <dc:Bounds x="400.3" y="554.75" width="150.26" height="48" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="n_tables_di" bpmnElement="n_tables">
+        <dc:Bounds x="586.56" y="548" width="159.28" height="48" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="n_content_di" bpmnElement="n_content">
+        <dc:Bounds x="781.84" y="554.75" width="179.08" height="48" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="n_banner_di" bpmnElement="n_banner">
+        <dc:Bounds x="996.92" y="567" width="197.25" height="68" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNEdge id="f_0_di" bpmnElement="f_0">
+        <di:waypoint x="611.08" y="80" />
+        <di:waypoint x="611.08" y="138" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="f_1_di" bpmnElement="f_1">
+        <di:waypoint x="611.08" y="190" />
+        <di:waypoint x="611.08" y="219" />
+        <di:waypoint x="492.96" y="219" />
+        <di:waypoint x="492.96" y="248" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="f_2_di" bpmnElement="f_2">
+        <di:waypoint x="492.96" y="364" />
+        <di:waypoint x="492.96" y="393" />
+        <di:waypoint x="611.08" y="393" />
+        <di:waypoint x="611.08" y="422" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="f_3_di" bpmnElement="f_3">
+        <di:waypoint x="611.08" y="190" />
+        <di:waypoint x="611.08" y="219" />
+        <di:waypoint x="729.71" y="219" />
+        <di:waypoint x="729.71" y="248" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="f_9_di" bpmnElement="f_9">
+        <di:waypoint x="611.08" y="490" />
+        <di:waypoint x="611.08" y="528.5" />
+        <di:waypoint x="1095.54" y="528.5" />
+        <di:waypoint x="1095.54" y="567" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="f_4_di" bpmnElement="f_4">
+        <di:waypoint x="611.08" y="490" />
+        <di:waypoint x="611.08" y="519" />
+        <di:waypoint x="112.81" y="519" />
+        <di:waypoint x="112.81" y="548" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="f_5_di" bpmnElement="f_5">
+        <di:waypoint x="611.08" y="490" />
+        <di:waypoint x="611.08" y="525.75" />
+        <di:waypoint x="298.96" y="525.75" />
+        <di:waypoint x="298.96" y="561.5" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="f_6_di" bpmnElement="f_6">
+        <di:waypoint x="611.08" y="490" />
+        <di:waypoint x="611.08" y="522.38" />
+        <di:waypoint x="475.43" y="522.38" />
+        <di:waypoint x="475.43" y="554.75" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="f_7_di" bpmnElement="f_7">
+        <di:waypoint x="611.08" y="490" />
+        <di:waypoint x="611.08" y="519" />
+        <di:waypoint x="666.2" y="519" />
+        <di:waypoint x="666.2" y="548" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="f_8_di" bpmnElement="f_8">
+        <di:waypoint x="611.08" y="490" />
+        <di:waypoint x="611.08" y="522.38" />
+        <di:waypoint x="871.38" y="522.38" />
+        <di:waypoint x="871.38" y="554.75" />
+      </bpmndi:BPMNEdge>
+    </bpmndi:BPMNPlane>
+  </bpmndi:BPMNDiagram>
+</bpmn:definitions>

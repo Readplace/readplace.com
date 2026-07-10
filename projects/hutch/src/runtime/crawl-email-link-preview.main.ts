@@ -19,7 +19,7 @@ import { createDynamoDocumentClient } from "@packages/hutch-storage-client";
 import { requireEnv } from "@packages/require-env";
 import { initCrawlEmailLinkPreviewHandler } from "./domain/inbox/crawl-email-link-preview-handler";
 import { initS3PutImageObject } from "./providers/article-store/s3-put-image-object";
-import { initDynamoDbInboxEmailLink } from "./providers/inbox-email/dynamodb-inbox-email-link";
+import { initDynamoDbInboxEmailLink } from "@packages/inbox-store";
 
 const inboxEmailLinksTable = requireEnv("DYNAMODB_INBOX_EMAIL_LINKS_TABLE");
 const contentBucketName = requireEnv("CONTENT_BUCKET_NAME");

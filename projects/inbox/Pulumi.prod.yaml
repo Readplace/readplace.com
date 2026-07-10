@@ -1,0 +1,20 @@
+config:
+  aws:region: ap-southeast-2
+  aws:allowedAccountIds:
+    - '278728209435'
+  inbox:nodeEnv: production
+  inbox:staticBaseUrl: https://static.readplace.com
+  inbox:hutchStack: organization/hutch/prod
+  inbox:platformStack: organization/platform/prod
+  inbox:alertEmail: readplace+devops@readplace.com
+  inbox:inboxAddressDomain: read.place
+  inbox:dynamodbInboxAddressesTable: hutch-inbox-addresses-prod
+  inbox:dynamodbInboxEmailsTable: hutch-inbox-emails-prod
+  inbox:dynamodbInboxEmailLinksTable: hutch-inbox-email-links-prod
+  inbox:dynamodbSessionsTable: hutch-sessions-d17dbb3
+  inbox:dynamodbUsersTable: hutch-users-f90c09e
+  inbox:dynamodbSubscriptionProvidersTable: hutch-subscription-providers-prod
+  inbox:rawEmailBucketName: hutch-inbox-raw-email-prod
+  inbox:contentBucketName: hutch-article-content-prod
+  inbox:contentMediaCdnDomain: cdn.readplace.com
+encryptionsalt: v1:VhoYTtA178g=:v1:vHKe/jtCrEAyN4Vl:rhxUykf2Suj3UgBBcVYk/W2gMO8gOA==

@@ -1,5 +1,5 @@
 import type { DynamoDBDocumentClient } from "@packages/hutch-storage-client";
-import { initDynamoDbSubscriptionRead } from "./dynamodb-subscription-read";
+import { initDynamoDbSubscriptionRead } from "@packages/subscription-access";
 import { initDynamoDbSubscriptionWrites } from "./dynamodb-subscription-writes";
 
 /** The full subscription table (read + write), for entry points that need both

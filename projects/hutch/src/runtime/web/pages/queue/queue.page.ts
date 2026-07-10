@@ -69,7 +69,7 @@ import { CacheableComponent } from "../../conditional-get";
 import { isFullyParsed } from "../../shared/article-state/is-fully-parsed";
 import { initReaderPermalink } from "./reader-permalink";
 import { wantsSiren } from "../../content-negotiation";
-import type { QuerystringFeatureToggle } from "../../feature-toggle";
+import type { QuerystringFeatureToggle } from "@packages/web-shell";
 import { SIREN_MEDIA_TYPE, sirenError } from "../../api/siren";
 import { toArticleCollectionEntity } from "../../api/collection-siren";
 import { toBulkSaveResultEntity } from "../../api/bulk-save-siren";
@@ -79,15 +79,16 @@ import { collectUtmParams } from "../../shared/utm";
 import { tabQuery } from "./queue.tabs";
 import type { HttpErrorMessageMapping } from "./queue.error";
 import { collectStatusFlashParams, importFlashMapping, statusFlashMapping } from "./queue.error";
-import { MAX_POLLS } from "../../shared/article-reader/article-reader";
-import { parsePollParam } from "../../shared/article-reader/poll-param";
+import { MAX_POLLS } from "@packages/web-shell";
+import { parsePollParam } from "@packages/web-shell";
 import { toQueueArticleViewModel, toQueueViewModel } from "./queue.viewmodel";
 import { QueuePage } from "./queue.component";
 import {
 	renderQueueCard,
 	toQueueCardDisplayModel,
 } from "./queue-card/queue-card.component";
-import { computeQueueCardEtag, etagMatches } from "./queue-card/queue-card.etag";
+import { computeQueueCardEtag } from "./queue-card/queue-card.etag";
+import { etagMatches } from "@packages/web-shell";
 import { ReaderPage, formatReaderDocumentTitle } from "../reader/reader.component";
 import { NO_CLIENT_ONBOARDING_VERSION, ONBOARDING_VERSION } from "../../onboarding/onboarding.steps";
 import {
@@ -99,7 +100,7 @@ import {
 } from "../../onboarding/extension-install";
 import { isIosClient, isIosSurface } from "../../onboarding/ios-client";
 import type { GetIosAppSignals, RecordIosAnyActivity, RecordIosSavedArticle } from "@packages/provider-contracts/ios-onboarding-signal";
-import type { GetEffectiveAccess } from "../../../domain/access/effective-access";
+import type { GetEffectiveAccess } from "@packages/subscription-access";
 
 /** The dismiss-cookie value a device of this class writes on dismissal and the
  * GET read expects back: the step-hash {@link ONBOARDING_VERSION} when the device

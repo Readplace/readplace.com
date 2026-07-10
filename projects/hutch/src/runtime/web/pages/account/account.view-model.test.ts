@@ -7,7 +7,7 @@ import {
 	parseAccountQuery,
 	withoutCommerce,
 } from "./account.view-model";
-import type { EffectiveAccess } from "../../../domain/access/effective-access";
+import type { EffectiveAccess } from "@packages/subscription-access";
 
 function savedCard(id: string, isPrimary: boolean, overrides?: Partial<SavedCard>): SavedCard {
 	return {

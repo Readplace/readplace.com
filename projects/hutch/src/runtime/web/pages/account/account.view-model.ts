@@ -1,7 +1,7 @@
 import { decomposeTimeLeft } from "@packages/time-left";
 import { escapeRegExp } from "@packages/escape-regexp";
 import type { SavedCard } from "@packages/provider-contracts/payment-methods";
-import type { EffectiveAccess } from "../../../domain/access/effective-access";
+import type { EffectiveAccess } from "@packages/subscription-access";
 import { type LocalTime, SUBSCRIBE_CTA_LABEL, toAbsoluteDate, withInternalTracking } from "@packages/web-shell";
 import {
 	ACCOUNT_CANCEL_URL,

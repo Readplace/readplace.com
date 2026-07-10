@@ -360,6 +360,9 @@ importers:
       '@packages/hutch-storage-client':
         specifier: workspace:*
         version: link:../../src/packages/hutch-storage-client
+      '@packages/inbox-store':
+        specifier: workspace:*
+        version: link:../../src/packages/inbox-store
       '@packages/onboarding-extension-signal':
         specifier: workspace:*
         version: link:../../src/packages/onboarding-extension-signal
@@ -505,6 +508,136 @@ importers:
       livereload:
         specifier: 0.10.3
         version: 0.10.3
+      supertest:
+        specifier: 7.2.2
+        version: 7.2.2
+      tsx:
+        specifier: 4.22.3
+        version: 4.22.3
+      typescript:
+        specifier: 6.0.3
+        version: 6.0.3
+
+  projects/inbox:
+    dependencies:
+      '@aws-sdk/client-s3':
+        specifier: 3.1057.0
+        version: 3.1057.0
+      '@aws-sdk/client-sqs':
+        specifier: 3.1057.0
+        version: 3.1057.0
+      '@packages/article-parser':
+        specifier: workspace:*
+        version: link:../../src/packages/article-parser
+      '@packages/article-resource-unique-id':
+        specifier: workspace:*
+        version: link:../../src/packages/article-resource-unique-id
+      '@packages/article-store':
+        specifier: workspace:*
+        version: link:../../src/packages/article-store
+      '@packages/crawl-article':
+        specifier: workspace:*
+        version: link:../../src/packages/crawl-article
+      '@packages/domain':
+        specifier: workspace:*
+        version: link:../../src/packages/domain
+      '@packages/finalize-article':
+        specifier: workspace:*
+        version: link:../../src/packages/finalize-article
+      '@packages/hutch-infra-components':
+        specifier: workspace:*
+        version: link:../../src/packages/hutch-infra-components
+      '@packages/hutch-logger':
+        specifier: workspace:*
+        version: link:../../src/packages/hutch-logger
+      '@packages/hutch-storage-client':
+        specifier: workspace:*
+        version: link:../../src/packages/hutch-storage-client
+      '@packages/inbox-store':
+        specifier: workspace:*
+        version: link:../../src/packages/inbox-store
+      '@packages/provider-contracts':
+        specifier: workspace:*
+        version: link:../../src/packages/provider-contracts
+      '@packages/require-env':
+        specifier: workspace:*
+        version: link:../../src/packages/require-env
+      '@packages/subscription-access':
+        specifier: workspace:*
+        version: link:../../src/packages/subscription-access
+      '@packages/web-session':
+        specifier: workspace:*
+        version: link:../../src/packages/web-session
+      '@packages/web-shell':
+        specifier: workspace:*
+        version: link:../../src/packages/web-shell
+      compression:
+        specifier: 1.8.1
+        version: 1.8.1
+      cookie-parser:
+        specifier: 1.4.7
+        version: 1.4.7
+      express:
+        specifier: 5.2.1
+        version: 5.2.1
+      helmet:
+        specifier: 8.2.0
+        version: 8.2.0
+      serverless-http:
+        specifier: 4.0.0
+        version: 4.0.0
+      zod:
+        specifier: 4.4.3
+        version: 4.4.3
+    devDependencies:
+      '@packages/test-fixtures':
+        specifier: workspace:*
+        version: link:../../src/packages/test-fixtures
+      '@packages/web-test-harness':
+        specifier: workspace:*
+        version: link:../../src/packages/web-test-harness
+      '@pulumi/aws':
+        specifier: 7.32.0
+        version: 7.32.0(ts-node@10.9.2(@types/node@22.19.19)(typescript@6.0.3))(typescript@6.0.3)
+      '@pulumi/pulumi':
+        specifier: 3.244.0
+        version: 3.244.0(ts-node@10.9.2(@types/node@22.19.19)(typescript@6.0.3))(typescript@6.0.3)
+      '@types/aws-lambda':
+        specifier: 8.10.161
+        version: 8.10.161
+      '@types/compression':
+        specifier: 1.8.1
+        version: 1.8.1
+      '@types/cookie-parser':
+        specifier: 1.4.10
+        version: 1.4.10(@types/express@5.0.6)
+      '@types/express':
+        specifier: 5.0.6
+        version: 5.0.6
+      '@types/jest':
+        specifier: 30.0.0
+        version: 30.0.0
+      '@types/jsdom':
+        specifier: 21.1.7
+        version: 21.1.7
+      '@types/node':
+        specifier: 22.19.19
+        version: 22.19.19
+      '@types/supertest':
+        specifier: 7.2.0
+        version: 7.2.0
+      c8:
+        specifier: 11.0.0
+        version: 11.0.0
+      concurrently:
+        specifier: 10.0.0
+        version: 10.0.0
+      jest:
+        specifier: 30.4.2
+        version: 30.4.2(@types/node@22.19.19)(node-notifier@10.0.1)(ts-node@10.9.2(@types/node@22.19.19)(typescript@6.0.3))
+      jsdom:
+        specifier: 26.1.0
+        version: 26.1.0
       supertest:
         specifier: 7.2.2
         version: 7.2.2
@@ -871,6 +1004,9 @@ importers:
 
   src/packages/article-store:
     dependencies:
+      '@aws-sdk/client-s3':
+        specifier: 3.1057.0
+        version: 3.1057.0
       '@packages/article-resource-unique-id':
         specifier: workspace:*
         version: link:../article-resource-unique-id
@@ -1193,6 +1329,37 @@ importers:
         specifier: 6.0.3
         version: 6.0.3
 
+  src/packages/inbox-store:
+    dependencies:
+      '@aws-sdk/client-s3':
+        specifier: 3.1057.0
+        version: 3.1057.0
+      '@packages/domain':
+        specifier: workspace:*
+        version: link:../domain
+      '@packages/hutch-storage-client':
+        specifier: workspace:*
+        version: link:../hutch-storage-client
+      zod:
+        specifier: 4.4.3
+        version: 4.4.3
+    devDependencies:
+      '@types/jest':
+        specifier: 30.0.0
+        version: 30.0.0
+      c8:
+        specifier: 11.0.0
+        version: 11.0.0
+      concurrently:
+        specifier: 10.0.0
+        version: 10.0.0
+      jest:
+        specifier: 30.4.2
+        version: 30.4.2(@types/node@22.19.19)(node-notifier@10.0.1)(ts-node@10.9.2(@types/node@22.19.19)(typescript@6.0.3))
+      typescript:
+        specifier: 6.0.3
+        version: 6.0.3
+
   src/packages/onboarding-extension-signal:
     devDependencies:
       concurrently:
@@ -1330,6 +1497,9 @@ importers:
         specifier: 4.4.3
         version: 4.4.3
     devDependencies:
+      '@packages/test-fixtures':
+        specifier: workspace:*
+        version: link:../test-fixtures
       '@types/jest':
         specifier: 30.0.0
         version: 30.0.0
@@ -1540,6 +1710,9 @@ importers:
       node-html-markdown:
         specifier: 2.0.0
         version: 2.0.0
+      zod:
+        specifier: 4.4.3
+        version: 4.4.3
     devDependencies:
       '@types/jest':
         specifier: 30.0.0
@@ -2618,25 +2791,21 @@ packages:
     resolution: {integrity: sha512-QLnkJl3HkHsPfpLiNiAiMfpfAeFpic0U1diAxF8RqChOkCpQ7ulvyBVgE1UrQxvhd+gFQ3ed5RNDxtCRw8nTiw==}
     cpu: [arm64]
     os: [linux]
-    libc: [glibc]
 
   '@nx/nx-linux-arm64-musl@22.7.5':
     resolution: {integrity: sha512-cEP6KmwBgnb38+jTTaibWCjwXcHmigqhTfy0tN1be7WZr6bHxbqNLsXqKRN70PSNA3HouZcxw1cdRL8tqbPBBA==}
     cpu: [arm64]
     os: [linux]
-    libc: [musl]
 
   '@nx/nx-linux-x64-gnu@22.7.5':
     resolution: {integrity: sha512-tbaX1tZCSpGifDNBfDdEZAMxVF3Yg4bhFP/bm1needc0diqb+Zflc0u5tM5/6BWDMITQDwenJVsNiQ8ZdtJURA==}
     cpu: [x64]
     os: [linux]
-    libc: [glibc]
 
   '@nx/nx-linux-x64-musl@22.7.5':
     resolution: {integrity: sha512-H0M7csOZIgPT822LqjxSXzf4MXRND15vIkAQe3F3Jlr3Si8LC3tzbL52aVcRfgb8MF/xOB5U47mSwxWt1M2bPQ==}
     cpu: [x64]
     os: [linux]
-    libc: [musl]
 
   '@nx/nx-win32-arm64-msvc@22.7.5':
     resolution: {integrity: sha512-JTcZch9YAnDL1gbhqePz3DZ4x7iYemLn1yJzrjbbXAmXju2eiiJiZvJJHbV06+SP9HKXDT8RjTKuAWTdVxnHug==}
