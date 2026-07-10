@@ -5,3 +5,4 @@ config:
   web-embed:nodeEnv: production
   web-embed:hutchStack: organization/hutch/prod
   web-embed:dynamodbSessionsTable: hutch-sessions-d17dbb3
+encryptionsalt: v1:SZ0+FHU6BvI=:v1:V0O342lM2XFjkJPw:3RgmfxjoRO3KXbliQ9Ir/cUDX/tkmg==
