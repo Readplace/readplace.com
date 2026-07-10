@@ -467,31 +467,41 @@ export function initDynamoDbArticleStore(deps: {
 		};
 	};
 
+	async function stampUserArticleIfStillSaved(stamp: {
+		userId: UserId;
+		url: string;
+		updateExpression: string;
+		at: Date;
+	}): Promise<void> {
+		const articleResourceUniqueId = ArticleResourceUniqueId.parse(stamp.url);
+		try {
+			await userArticles.update({
+				Key: { userId: stamp.userId, url: articleResourceUniqueId.value },
+				UpdateExpression: stamp.updateExpression,
+				ConditionExpression: "attribute_exists(savedAt)",
+				ExpressionAttributeValues: { ":at": stamp.at.toISOString() },
+			});
+		} catch (error) {
+			if (error instanceof ConditionalCheckFailedException) return;
+			throw error;
+		}
+	}
+
 	const markArticleViewed: MarkArticleViewed = async ({ userId, url, at }) => {
-		const articleResourceUniqueId = ArticleResourceUniqueId.parse(url);
-		await userArticles.update({
-			Key: { userId, url: articleResourceUniqueId.value },
-			UpdateExpression: "SET viewedAt = :at",
-			ExpressionAttributeValues: { ":at": at.toISOString() },
-		});
+		await stampUserArticleIfStillSaved({ userId, url, at, updateExpression: "SET viewedAt = :at" });
 	};
 
 	const markSummaryToggled: MarkSummaryToggled = async ({ userId, url, state, at }) => {
-		const articleResourceUniqueId = ArticleResourceUniqueId.parse(url);
 		const attribute = state === "open" ? "lastSummaryOpenedAt" : "lastSummaryClosedAt";
-		await userArticles.update({
-			Key: { userId, url: articleResourceUniqueId.value },
-			UpdateExpression: `SET ${attribute} = :at`,
-			ExpressionAttributeValues: { ":at": at.toISOString() },
-		});
+		await stampUserArticleIfStillSaved({ userId, url, at, updateExpression: `SET ${attribute} = :at` });
 	};
 
 	const markReaderViewSucceeded: MarkReaderViewSucceeded = async ({ userId, url, at }) => {
-		const articleResourceUniqueId = ArticleResourceUniqueId.parse(url);
-		await userArticles.update({
-			Key: { userId, url: articleResourceUniqueId.value },
-			UpdateExpression: "SET succeededAt = if_not_exists(succeededAt, :at)",
-			ExpressionAttributeValues: { ":at": at.toISOString() },
+		await stampUserArticleIfStillSaved({
+			userId,
+			url,
+			at,
+			updateExpression: "SET succeededAt = if_not_exists(succeededAt, :at)",
 		});
 	};
 
@@ -523,7 +533,7 @@ export function initDynamoDbArticleStore(deps: {
 			await userArticles.update({
 				Key: { userId, url: articleResourceUniqueId.value },
 				UpdateExpression: "SET emailSentAt = :at",
-				ConditionExpression: "attribute_not_exists(emailSentAt)",
+				ConditionExpression: "attribute_exists(savedAt) AND attribute_not_exists(emailSentAt)",
 				ExpressionAttributeValues: { ":at": at.toISOString() },
 			});
 		} catch (error) {

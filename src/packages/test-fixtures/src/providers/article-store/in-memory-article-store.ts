@@ -293,14 +293,14 @@ export function initInMemoryArticleStore(): {
 	const markArticleViewed: MarkArticleViewed = async ({ userId, url, at }) => {
 		const articleResourceUniqueId = ArticleResourceUniqueId.parse(url);
 		const ua = userArticles.get(userArticleKey(userId, articleResourceUniqueId.value));
-		assert(ua, `User article must exist to mark viewed: ${articleResourceUniqueId.value}`);
+		if (!ua) return;
 		ua.viewedAt = at;
 	};
 
 	const markSummaryToggled: MarkSummaryToggled = async ({ userId, url, state, at }) => {
 		const articleResourceUniqueId = ArticleResourceUniqueId.parse(url);
 		const ua = userArticles.get(userArticleKey(userId, articleResourceUniqueId.value));
-		assert(ua, `User article must exist to mark summary toggled: ${articleResourceUniqueId.value}`);
+		if (!ua) return;
 		if (state === "open") ua.lastSummaryOpenedAt = at;
 		else ua.lastSummaryClosedAt = at;
 	};
@@ -308,7 +308,7 @@ export function initInMemoryArticleStore(): {
 	const markReaderViewSucceeded: MarkReaderViewSucceeded = async ({ userId, url, at }) => {
 		const articleResourceUniqueId = ArticleResourceUniqueId.parse(url);
 		const ua = userArticles.get(userArticleKey(userId, articleResourceUniqueId.value));
-		assert(ua, `User article must exist to mark reader-view succeeded: ${articleResourceUniqueId.value}`);
+		if (!ua) return;
 		if (ua.succeededAt === undefined) ua.succeededAt = at;
 	};
 
@@ -326,7 +326,7 @@ export function initInMemoryArticleStore(): {
 	const markReaderReadyEmailSent: MarkReaderReadyEmailSent = async ({ userId, url, at }) => {
 		const articleResourceUniqueId = ArticleResourceUniqueId.parse(url);
 		const ua = userArticles.get(userArticleKey(userId, articleResourceUniqueId.value));
-		assert(ua, `User article must exist to mark email sent: ${articleResourceUniqueId.value}`);
+		if (!ua) return;
 		if (ua.emailSentAt === undefined) ua.emailSentAt = at;
 	};
 

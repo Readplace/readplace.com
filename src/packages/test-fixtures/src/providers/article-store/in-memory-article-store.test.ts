@@ -617,6 +617,18 @@ describe("initInMemoryArticleStore", () => {
 			expect(state?.viewedAt).toEqual(at);
 		});
 
+		it("mark stamps on a missing row are no-ops so a delete race cannot resurrect the row", async () => {
+			const store = initInMemoryArticleStore();
+
+			await store.markArticleViewed({ userId: USER_A, url: URL, at: new Date("2026-05-30T10:00:00.000Z") });
+			await store.markSummaryToggled({ userId: USER_A, url: URL, state: "open", at: new Date("2026-05-30T10:00:00.000Z") });
+			await store.markReaderViewSucceeded({ userId: USER_A, url: URL, at: new Date("2026-05-30T10:00:00.000Z") });
+			await store.markReaderReadyEmailSent({ userId: USER_A, url: URL, at: new Date("2026-05-30T10:00:00.000Z") });
+
+			expect(await store.findUserArticlesByUrl(URL)).toEqual([]);
+			expect(await store.findUserArticleNotificationState({ userId: USER_A, url: URL })).toBeNull();
+		});
+
 		it("markReaderViewSucceeded is set-once: a later call does not overwrite the first success", async () => {
 			const store = initInMemoryArticleStore();
 			await store.saveArticle(makeArticleParams());

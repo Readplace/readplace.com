@@ -84,25 +84,25 @@ function userArticleItem(overrides: Record<string, unknown> = {}): Record<string
 }
 
 describe("initDynamoDbArticleStore reader-ready columns", () => {
-	it("markArticleViewed sets viewedAt unconditionally so a tracking write never errors the reader", async () => {
+	it("markArticleViewed stamps viewedAt only on a row that still exists so a delete race cannot resurrect it", async () => {
 		const { client, commands } = createFakeClient();
 		await initStore(client).markArticleViewed({ userId: USER, url: URL, at: new Date("2026-05-30T10:00:00.000Z") });
 
 		const update = commands.find((c) => c.name === "UpdateCommand");
 		expect(update?.input.UpdateExpression).toContain("SET viewedAt = :at");
-		expect(update?.input.ConditionExpression).toBeUndefined();
+		expect(update?.input.ConditionExpression).toBe("attribute_exists(savedAt)");
 		expect((update?.input.ExpressionAttributeValues as Record<string, unknown>)[":at"]).toBe(
 			"2026-05-30T10:00:00.000Z",
 		);
 	});
 
-	it("markSummaryToggled with state=open overwrites lastSummaryOpenedAt (last-write-wins, no if_not_exists)", async () => {
+	it("markSummaryToggled with state=open overwrites lastSummaryOpenedAt (last-write-wins) on a still-saved row", async () => {
 		const { client, commands } = createFakeClient();
 		await initStore(client).markSummaryToggled({ userId: USER, url: URL, state: "open", at: new Date("2026-05-30T10:00:00.000Z") });
 
 		const update = commands.find((c) => c.name === "UpdateCommand");
 		expect(update?.input.UpdateExpression).toBe("SET lastSummaryOpenedAt = :at");
-		expect(update?.input.ConditionExpression).toBeUndefined();
+		expect(update?.input.ConditionExpression).toBe("attribute_exists(savedAt)");
 		expect((update?.input.ExpressionAttributeValues as Record<string, unknown>)[":at"]).toBe(
 			"2026-05-30T10:00:00.000Z",
 		);
@@ -116,20 +116,49 @@ describe("initDynamoDbArticleStore reader-ready columns", () => {
 		expect(update?.input.UpdateExpression).toBe("SET lastSummaryClosedAt = :at");
 	});
 
-	it("markReaderViewSucceeded writes succeededAt set-once via if_not_exists", async () => {
+	it("markReaderViewSucceeded writes succeededAt set-once via if_not_exists, only on a still-saved row", async () => {
 		const { client, commands } = createFakeClient();
 		await initStore(client).markReaderViewSucceeded({ userId: USER, url: URL, at: new Date("2026-05-30T10:00:00.000Z") });
 
 		const update = commands.find((c) => c.name === "UpdateCommand");
 		expect(update?.input.UpdateExpression).toContain("if_not_exists(succeededAt, :at)");
+		expect(update?.input.ConditionExpression).toBe("attribute_exists(savedAt)");
 	});
 
-	it("markReaderReadyEmailSent guards on attribute_not_exists(emailSentAt) so it is set-once", async () => {
+	it("mark stamps swallow ConditionalCheckFailedException so a concurrent delete makes the stamp a no-op", async () => {
+		const { client } = createFakeClient({
+			UpdateCommand: {
+				default: () => {
+					throw new ConditionalCheckFailedException({ $metadata: {}, message: "row deleted" });
+				},
+			},
+		});
+
+		await expect(
+			initStore(client).markArticleViewed({ userId: USER, url: URL, at: new Date() }),
+		).resolves.toBeUndefined();
+	});
+
+	it("mark stamps rethrow non-conditional errors", async () => {
+		const { client } = createFakeClient({
+			UpdateCommand: {
+				default: () => {
+					throw new Error("throttled");
+				},
+			},
+		});
+
+		await expect(
+			initStore(client).markArticleViewed({ userId: USER, url: URL, at: new Date() }),
+		).rejects.toThrow("throttled");
+	});
+
+	it("markReaderReadyEmailSent guards on row existence and attribute_not_exists(emailSentAt) so it is set-once and cannot resurrect a deleted row", async () => {
 		const { client, commands } = createFakeClient();
 		await initStore(client).markReaderReadyEmailSent({ userId: USER, url: URL, at: new Date("2026-05-30T10:05:00.000Z") });
 
 		const update = commands.find((c) => c.name === "UpdateCommand");
-		expect(update?.input.ConditionExpression).toBe("attribute_not_exists(emailSentAt)");
+		expect(update?.input.ConditionExpression).toBe("attribute_exists(savedAt) AND attribute_not_exists(emailSentAt)");
 	});
 
 	it("markReaderReadyEmailSent swallows ConditionalCheckFailedException so a duplicate stamp is a no-op", async () => {
