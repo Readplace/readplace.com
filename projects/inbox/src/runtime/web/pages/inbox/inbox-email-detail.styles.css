@@ -1,0 +1,155 @@
+.inbox-email-detail {
+  max-width: 760px;
+  margin: 0 auto;
+  padding: 24px 20px;
+}
+
+.inbox-email-detail__header {
+  margin-bottom: 16px;
+}
+
+.inbox-email-detail__back {
+  display: inline-block;
+  margin-bottom: 12px;
+  font-size: 0.9rem;
+  color: var(--muted-foreground);
+}
+
+.inbox-email-detail__subject {
+  font-size: 1.5rem;
+  font-weight: 700;
+  color: var(--foreground);
+  margin: 0 0 4px;
+}
+
+.inbox-email-detail__meta {
+  display: flex;
+  gap: 12px;
+  font-size: 0.9rem;
+  color: var(--muted-foreground);
+  margin: 0;
+}
+
+.inbox-email-detail__received {
+  color: var(--muted-foreground);
+}
+
+.inbox-email-detail__link-count {
+  color: var(--muted-foreground);
+}
+
+/* Withheld during extraction: the badge is an always-present OOB swap anchor, so
+   keep the empty placeholder out of the meta row's flex flow until it has a count. */
+.inbox-email-detail__link-count:empty {
+  display: none;
+}
+
+.inbox-email-detail__tabs {
+  display: flex;
+  gap: 4px;
+  border-bottom: 1px solid var(--border);
+  margin-bottom: 16px;
+}
+
+.inbox-email-detail__tab {
+  padding: 8px 16px;
+  font-size: 0.95rem;
+  font-weight: 600;
+  color: var(--muted-foreground);
+  border-bottom: 2px solid transparent;
+}
+
+.inbox-email-detail__tab[aria-current="page"] {
+  color: var(--foreground);
+  border-bottom-color: var(--primary);
+}
+
+.inbox-email-detail__panel {
+  margin-bottom: 16px;
+}
+
+.inbox-email-detail__panel--articles {
+  border-top: 1px solid var(--border);
+  padding-top: 16px;
+}
+
+.inbox-email-detail__iframe {
+  width: 100%;
+  min-height: 70vh;
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  background: #ffffff;
+}
+
+.inbox-email-detail__unavailable {
+  padding: 24px;
+  color: var(--muted-foreground);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+}
+
+.inbox-email-detail__articles-empty,
+.inbox-email-detail__articles-truncated,
+.inbox-email-detail__articles-stale,
+.inbox-email-detail__articles-pending {
+  color: var(--muted-foreground);
+  font-size: 0.9rem;
+}
+
+.inbox-email-detail__articles {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.inbox-article-card {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  padding: 12px 16px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+}
+
+.inbox-article-card__image {
+  width: 100%;
+  max-height: 180px;
+  object-fit: cover;
+  border-radius: var(--radius);
+  margin-bottom: 4px;
+}
+
+.inbox-article-card__title {
+  font-weight: 600;
+  color: var(--foreground);
+}
+
+.inbox-article-card__title--bare {
+  font-weight: 400;
+  word-break: break-all;
+  color: var(--muted-foreground);
+}
+
+.inbox-article-card__excerpt {
+  margin: 0;
+  font-size: 0.9rem;
+  color: var(--muted-foreground);
+}
+
+.inbox-article-card__site {
+  font-size: 0.8rem;
+  color: var(--muted-foreground);
+}
+
+.inbox-article-card__pending,
+.inbox-article-card__failed,
+.inbox-article-card__stale-pending {
+  margin: 0;
+  font-size: 0.85rem;
+  color: var(--muted-foreground);
+}
+
+.inbox-article-card__stale-pending a {
+  color: var(--color-brand);
+  text-decoration: underline;
+}

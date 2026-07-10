@@ -518,6 +518,136 @@ importers:
         specifier: 6.0.3
         version: 6.0.3
 
+  projects/inbox:
+    dependencies:
+      '@aws-sdk/client-s3':
+        specifier: 3.1057.0
+        version: 3.1057.0
+      '@aws-sdk/client-sqs':
+        specifier: 3.1057.0
+        version: 3.1057.0
+      '@packages/article-parser':
+        specifier: workspace:*
+        version: link:../../src/packages/article-parser
+      '@packages/article-resource-unique-id':
+        specifier: workspace:*
+        version: link:../../src/packages/article-resource-unique-id
+      '@packages/article-store':
+        specifier: workspace:*
+        version: link:../../src/packages/article-store
+      '@packages/crawl-article':
+        specifier: workspace:*
+        version: link:../../src/packages/crawl-article
+      '@packages/domain':
+        specifier: workspace:*
+        version: link:../../src/packages/domain
+      '@packages/finalize-article':
+        specifier: workspace:*
+        version: link:../../src/packages/finalize-article
+      '@packages/hutch-infra-components':
+        specifier: workspace:*
+        version: link:../../src/packages/hutch-infra-components
+      '@packages/hutch-logger':
+        specifier: workspace:*
+        version: link:../../src/packages/hutch-logger
+      '@packages/hutch-storage-client':
+        specifier: workspace:*
+        version: link:../../src/packages/hutch-storage-client
+      '@packages/inbox-store':
+        specifier: workspace:*
+        version: link:../../src/packages/inbox-store
+      '@packages/provider-contracts':
+        specifier: workspace:*
+        version: link:../../src/packages/provider-contracts
+      '@packages/require-env':
+        specifier: workspace:*
+        version: link:../../src/packages/require-env
+      '@packages/subscription-access':
+        specifier: workspace:*
+        version: link:../../src/packages/subscription-access
+      '@packages/web-session':
+        specifier: workspace:*
+        version: link:../../src/packages/web-session
+      '@packages/web-shell':
+        specifier: workspace:*
+        version: link:../../src/packages/web-shell
+      compression:
+        specifier: 1.8.1
+        version: 1.8.1
+      cookie-parser:
+        specifier: 1.4.7
+        version: 1.4.7
+      express:
+        specifier: 5.2.1
+        version: 5.2.1
+      helmet:
+        specifier: 8.2.0
+        version: 8.2.0
+      serverless-http:
+        specifier: 4.0.0
+        version: 4.0.0
+      zod:
+        specifier: 4.4.3
+        version: 4.4.3
+    devDependencies:
+      '@packages/test-fixtures':
+        specifier: workspace:*
+        version: link:../../src/packages/test-fixtures
+      '@packages/web-test-harness':
+        specifier: workspace:*
+        version: link:../../src/packages/web-test-harness
+      '@pulumi/aws':
+        specifier: 7.32.0
+        version: 7.32.0(ts-node@10.9.2(@types/node@22.19.19)(typescript@6.0.3))(typescript@6.0.3)
+      '@pulumi/pulumi':
+        specifier: 3.244.0
+        version: 3.244.0(ts-node@10.9.2(@types/node@22.19.19)(typescript@6.0.3))(typescript@6.0.3)
+      '@types/aws-lambda':
+        specifier: 8.10.161
+        version: 8.10.161
+      '@types/compression':
+        specifier: 1.8.1
+        version: 1.8.1
+      '@types/cookie-parser':
+        specifier: 1.4.10
+        version: 1.4.10(@types/express@5.0.6)
+      '@types/express':
+        specifier: 5.0.6
+        version: 5.0.6
+      '@types/jest':
+        specifier: 30.0.0
+        version: 30.0.0
+      '@types/jsdom':
+        specifier: 21.1.7
+        version: 21.1.7
+      '@types/node':
+        specifier: 22.19.19
+        version: 22.19.19
+      '@types/supertest':
+        specifier: 7.2.0
+        version: 7.2.0
+      c8:
+        specifier: 11.0.0
+        version: 11.0.0
+      concurrently:
+        specifier: 10.0.0
+        version: 10.0.0
+      jest:
+        specifier: 30.4.2
+        version: 30.4.2(@types/node@22.19.19)(node-notifier@10.0.1)(ts-node@10.9.2(@types/node@22.19.19)(typescript@6.0.3))
+      jsdom:
+        specifier: 26.1.0
+        version: 26.1.0
+      supertest:
+        specifier: 7.2.2
+        version: 7.2.2
+      tsx:
+        specifier: 4.22.3
+        version: 4.22.3
+      typescript:
+        specifier: 6.0.3
+        version: 6.0.3
+
   projects/platform:
     dependencies:
       '@packages/hutch-infra-components':

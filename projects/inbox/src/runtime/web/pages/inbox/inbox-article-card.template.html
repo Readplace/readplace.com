@@ -1,0 +1,16 @@
+<article class="inbox-article-card" data-test-inbox-article-card="{{ordinal}}"{{#if cardPollUrl}} hx-get="{{cardPollUrl}}" hx-trigger="every 3s" hx-target="this" hx-swap="outerHTML"{{/if}} data-card-status="{{cardStatus}}">
+	{{#if isCrawled}}
+	{{#if imageUrl}}<img class="inbox-article-card__image" src="{{imageUrl}}" alt="" loading="lazy">{{/if}}
+	<a class="inbox-article-card__title" href="{{url}}" target="_blank" rel="noopener noreferrer" data-test-inbox-article-title>{{title}}</a>
+	{{#if excerpt}}<p class="inbox-article-card__excerpt">{{excerpt}}</p>{{/if}}
+	{{#if siteName}}<span class="inbox-article-card__site" data-test-inbox-article-site>{{siteName}}</span>{{/if}}
+	{{else}}
+	{{#if isFailed}}
+	<a class="inbox-article-card__title inbox-article-card__title--bare" href="{{url}}" target="_blank" rel="noopener noreferrer">{{url}}</a>
+	<p class="inbox-article-card__failed" data-test-inbox-article-failed>Couldn’t preview this link</p>
+	{{else}}
+	<a class="inbox-article-card__title inbox-article-card__title--bare" href="{{url}}" target="_blank" rel="noopener noreferrer">{{url}}</a>
+	{{#if isStalePending}}<p class="inbox-article-card__stale-pending" data-test-inbox-article-stale-pending>Taking a while — <a href="{{url}}" target="_blank" rel="noopener noreferrer">open on {{#if siteName}}{{siteName}}{{else}}the source{{/if}}</a></p>{{else}}<p class="inbox-article-card__pending" data-test-inbox-article-pending>Loading preview…</p>{{/if}}
+	{{/if}}
+	{{/if}}
+</article>
