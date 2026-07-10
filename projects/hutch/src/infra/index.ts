@@ -6,9 +6,7 @@ import { HutchLambda, HutchAPIGateway, HutchDynamoDBAccess, HutchEventBus, Hutch
 import {
 	BLOG_SITE_LOG_GROUP,
 	CancelSubscriptionCommand,
-	CrawlEmailLinkPreview,
 	DeleteAccountCommand,
-	EmailReceivedEvent,
 	ExportUserDataCommand,
 	SendTrialFeedbackEmailCommand,
 	ReaderViewLoadingSucceeded,
@@ -51,12 +49,6 @@ const alertEmail = config.require("alertEmail");
 const rawEmailBucketName = config.require("rawEmailBucketName");
 const inboxMailParentZone = config.require("inboxMailParentZone");
 
-// The content-media CDN over the shared article-content bucket is owned by save-link;
-// the link-preview crawler uploads lead images there and needs the CDN base URL. That
-// URL is the CDN's custom domain (a config constant), so derive it here the way save-link
-// does instead of a cross-stack requireOutput, which would couple deploy order (see the
-// infrastructure-design skill).
-const imagesCdnBaseUrl = `https://${config.require("contentMediaCdnDomain")}`;
 const tableNames = {
 	articles: config.require("dynamodbArticlesTable"),
 	userArticles: config.require("dynamodbUserArticlesTable"),
@@ -186,8 +178,6 @@ const dynamodb = new HutchDynamoDBAccess("hutch-dynamodb-access", {
 		{ arn: storage.pendingSignupsTable.arn, includeIndexes: false },
 		{ arn: storage.importSessionsTable.arn, includeIndexes: false },
 		{ arn: storage.inboxAddressesTable.arn, includeIndexes: true },
-		{ arn: storage.inboxEmailsTable.arn, includeIndexes: false },
-		{ arn: storage.inboxEmailLinksTable.arn, includeIndexes: false },
 		{ arn: storage.subscriptionProvidersTable.arn, includeIndexes: true },
 		{ arn: storage.onboardingTable.arn, includeIndexes: false },
 		{ arn: storage.rateLimitsTable.arn, includeIndexes: false },
@@ -322,8 +312,6 @@ const lambda = new HutchLambda(LAMBDA_NAMES.hutchHandler, {
 		DYNAMODB_PENDING_SIGNUPS_TABLE: storage.pendingSignupsTable.name,
 		DYNAMODB_IMPORT_SESSIONS_TABLE: storage.importSessionsTable.name,
 		DYNAMODB_INBOX_ADDRESSES_TABLE: storage.inboxAddressesTable.name,
-		DYNAMODB_INBOX_EMAILS_TABLE: storage.inboxEmailsTable.name,
-		DYNAMODB_INBOX_EMAIL_LINKS_TABLE: storage.inboxEmailLinksTable.name,
 		INBOX_ADDRESS_DOMAIN: inboxAddressDomain,
 		DYNAMODB_SUBSCRIPTION_PROVIDERS_TABLE: storage.subscriptionProvidersTable.name,
 		DYNAMODB_ONBOARDING_TABLE: storage.onboardingTable.name,
@@ -644,257 +632,6 @@ const deleteAccountLambdaWithSQS = new HutchSQSBackedLambda("delete-account", {
 });
 
 eventBus.subscribe(DeleteAccountCommand, deleteAccountLambdaWithSQS);
-
-// --- Inbound email receive worker Lambda ---
-// Drains the SES→SNS receipt notifications: fetches the raw .eml from the raw
-// bucket, resolves each recipient, parses + sanitizes the body into the content
-// bucket, writes a row per recipient, and publishes EmailReceivedEvent. Expected
-// catch-all-MX conditions (unknown or disabled recipient) record an audit row and
-// ACK — never paging. Oversize / unparseable mail also records an audit row, but
-// only pages (fails to the DLQ so the HutchSQSBackedLambda alarm fires) when a
-// real, enabled recipient is affected; junk to guessed addresses just ACKs. The
-// immutable raw .eml is kept forever as the audit trail (★15 degrade-with-alert).
-const receiveEmailDynamodb = new HutchDynamoDBAccess("receive-email-dynamodb", {
-	tables: [
-		{ arn: storage.inboxEmailsTable.arn, includeIndexes: false },
-		{ arn: storage.inboxAddressesTable.arn, includeIndexes: false },
-	],
-	// findByAddress is a GetItem and putEmail a (conditional) PutItem — no Query.
-	actions: ["dynamodb:GetItem", "dynamodb:PutItem"],
-});
-
-const receiveEmailQueue = new HutchSQS("receive-email", {
-	// Matches the worker timeout so an in-flight parse cannot be redelivered.
-	visibilityTimeoutSeconds: 120,
-});
-
-const receiveEmailLambda = new HutchLambda("receive-email", {
-	entryPoint: "./src/runtime/receive-email.main.ts",
-	outputDir: ".lib/receive-email",
-	assetDir: "./src/runtime",
-	memorySize: 1024,
-	timeout: 120,
-	environment: {
-		DYNAMODB_INBOX_EMAILS_TABLE: storage.inboxEmailsTable.name,
-		DYNAMODB_INBOX_ADDRESSES_TABLE: storage.inboxAddressesTable.name,
-		RAW_EMAIL_BUCKET_NAME: rawEmailBucketName,
-		CONTENT_BUCKET_NAME: contentBucketName,
-		EVENT_BUS_NAME: eventBus.eventBusName,
-		// 20 MiB — half SES's ~40 MB hard inbound cap; bounds parse memory.
-		INBOX_MAX_EMAIL_BYTES: String(20 * 1024 * 1024),
-	},
-	policies: [
-		...receiveEmailDynamodb.policies,
-		// Reads the raw bucket (the .eml) and only writes the content bucket (the
-		// sanitized body) — no content-bucket read.
-		...HutchS3ReadWrite.readPoliciesForBucket("receive-email-raw-read", rawEmailBucketName),
-		...HutchS3ReadWrite.writePoliciesForBucket("receive-email-content-write", contentBucketName),
-	],
-});
-
-eventBus.grantPublish(receiveEmailLambda);
-
-new HutchSQSBackedLambda("receive-email", {
-	lambda: receiveEmailLambda,
-	queue: receiveEmailQueue,
-	alertEmailDLQEntry: alertEmail,
-	batchSize: 1,
-});
-
-// SES → SNS → SQS bridge: SES cannot target SQS directly, so the receipt rule
-// publishes to inboxMail's topic and the receive queue subscribes here with raw
-// message delivery, so the SQS body is the SES notification JSON the handler
-// parses. The queue policy lets only this topic enqueue.
-const receiveEmailQueuePolicy = new aws.sqs.QueuePolicy("receive-email-sns-policy", {
-	queueUrl: receiveEmailQueue.queueUrl,
-	policy: pulumi
-		.all([receiveEmailQueue.queueArn, inboxMail.notificationTopicArn])
-		.apply(([queueArn, topicArn]) =>
-			JSON.stringify({
-				Version: "2012-10-17",
-				Statement: [
-					{
-						Effect: "Allow",
-						Principal: { Service: "sns.amazonaws.com" },
-						Action: "sqs:SendMessage",
-						Resource: queueArn,
-						Condition: { ArnEquals: { "aws:SourceArn": topicArn } },
-					},
-				],
-			}),
-		),
-});
-
-new aws.sns.TopicSubscription(
-	"receive-email-subscription",
-	{
-		topic: inboxMail.notificationTopicArn,
-		protocol: "sqs",
-		endpoint: receiveEmailQueue.queueArn,
-		rawMessageDelivery: true,
-	},
-	{ dependsOn: [receiveEmailQueuePolicy] },
-);
-
-// --- Inbox link previews (extract → crawl, M3) ---
-// EmailReceivedEvent → extract-email-links re-derives the body from the raw .eml,
-// extracts links, writes pending rows, and fans out one CrawlEmailLinkPreview per
-// link (★14 cap + truncate-degrade-with-dedicated-alert-queue). Each CrawlEmailLinkPreview →
-// crawl-email-link-preview crawls a preview WITHOUT saving to /queue (★16 SSRF
-// guard inherited from crawlAndFinalize). Neither Lambda is granted the
-// articles/user-articles tables — the "nothing saved to the queue" invariant is
-// enforced at the IAM boundary.
-const extractEmailLinksDynamodb = new HutchDynamoDBAccess("extract-email-links-dynamodb", {
-	tables: [
-		{ arn: storage.inboxEmailsTable.arn, includeIndexes: false },
-		{ arn: storage.inboxEmailLinksTable.arn, includeIndexes: false },
-	],
-	// getEmail (GetItem); putLink/putLinksMeta (PutItem); the conditional put needs
-	// no Query, and listing is the web layer's job.
-	actions: ["dynamodb:GetItem", "dynamodb:PutItem"],
-});
-
-const extractEmailLinksQueue = new HutchSQS("extract-email-links", {
-	visibilityTimeoutSeconds: 120,
-});
-
-// Truncation is a successful degradation (the first N previews still shipped), not
-// a processing failure — so it must NOT land in the consumer's own failure DLQ.
-// There it would (a) make the DLQ depth alarm ambiguous between a genuine "email
-// never extracted" and a benign "email truncated", and (b) re-enter the source
-// queue on redrive and bounce straight back (the synthetic body has no `.detail`).
-// It gets a dedicated sink whose send-rate alarm → SNS email instead, so the
-// failure DLQ's "messages awaiting redrive" contract stays unambiguous.
-const truncationAlertQueue = new aws.sqs.Queue("extract-email-links-truncated-alert", {
-	name: "extract-email-links-truncated-alert",
-	// Nothing consumes this queue — it is an audit trail of truncated emails. The
-	// alarm below fires on send RATE, not depth, so these retained messages no
-	// longer pin it in ALARM; 14 days is just how long the audit trail survives.
-	messageRetentionSeconds: 1209600,
-});
-
-const truncationAlertTopic = new aws.sns.Topic("extract-email-links-truncated-alert-topic", {
-	name: "extract-email-links-truncated-alert-topic",
-});
-
-new aws.sns.TopicSubscription("extract-email-links-truncated-alert-email", {
-	topic: truncationAlertTopic.arn,
-	protocol: "email",
-	endpoint: alertEmail,
-});
-
-// Alarm on the SEND RATE (a count metric), not queue DEPTH (a gauge). Nothing
-// consumes this queue, so an ApproximateNumberOfMessagesVisible>=1 depth alarm
-// would stay in ALARM until the message expires 14 days later (or an operator
-// purges it), and a second truncation while already in ALARM would never
-// re-notify. NumberOfMessagesSent has a datapoint only in the period a message is
-// enqueued, so with treatMissingData "notBreaching" the alarm fires on each
-// truncation burst and auto-resets the next empty period — re-firing for the next.
-new aws.cloudwatch.MetricAlarm("extract-email-links-truncated-alarm", {
-	name: "extract-email-links-truncated-alarm",
-	comparisonOperator: "GreaterThanOrEqualToThreshold",
-	evaluationPeriods: 1,
-	metricName: "NumberOfMessagesSent",
-	namespace: "AWS/SQS",
-	period: 300,
-	statistic: "Sum",
-	threshold: 1,
-	treatMissingData: "notBreaching",
-	alarmDescription:
-		"extract-email-links hit the per-email link cap and truncated an email (the first N previews still shipped)",
-	dimensions: { QueueName: truncationAlertQueue.name },
-	alarmActions: [truncationAlertTopic.arn],
-});
-
-const extractEmailLinksLambda = new HutchLambda("extract-email-links", {
-	entryPoint: "./src/runtime/extract-email-links.main.ts",
-	outputDir: ".lib/extract-email-links",
-	assetDir: "./src/runtime",
-	memorySize: 1024,
-	timeout: 120,
-	environment: {
-		DYNAMODB_INBOX_EMAILS_TABLE: storage.inboxEmailsTable.name,
-		DYNAMODB_INBOX_EMAIL_LINKS_TABLE: storage.inboxEmailLinksTable.name,
-		RAW_EMAIL_BUCKET_NAME: rawEmailBucketName,
-		EVENT_BUS_NAME: eventBus.eventBusName,
-		// A typical newsletter has < 30 links; 200 is generous headroom before the
-		// per-email cap truncates and the working path still ships the first 200.
-		INBOX_MAX_LINKS_PER_EMAIL: String(200),
-		EXTRACT_LINKS_TRUNCATION_ALERT_QUEUE_URL: truncationAlertQueue.url,
-	},
-	policies: [
-		...extractEmailLinksDynamodb.policies,
-		// Reads the raw .eml to re-derive the body; never writes any bucket.
-		...HutchS3ReadWrite.readPoliciesForBucket("extract-email-links-raw-read", rawEmailBucketName),
-		// The truncated-degrade alert is an explicit SendMessage to the dedicated
-		// alert queue (NOT the failure DLQ), whose own send-rate alarm pages the operator.
-		{
-			name: "extract-email-links-truncated-alert-send-pol",
-			policy: pulumi.output(truncationAlertQueue.arn).apply((arn) =>
-				JSON.stringify({
-					Version: "2012-10-17",
-					Statement: [{ Effect: "Allow", Action: ["sqs:SendMessage"], Resource: [arn] }],
-				}),
-			),
-		},
-	],
-});
-
-eventBus.grantPublish(extractEmailLinksLambda);
-
-const extractEmailLinksWithSQS = new HutchSQSBackedLambda("extract-email-links", {
-	lambda: extractEmailLinksLambda,
-	queue: extractEmailLinksQueue,
-	alertEmailDLQEntry: alertEmail,
-	batchSize: 1,
-});
-
-eventBus.subscribe(EmailReceivedEvent, extractEmailLinksWithSQS);
-
-const crawlEmailLinkPreviewDynamodb = new HutchDynamoDBAccess("crawl-email-link-preview-dynamodb", {
-	tables: [{ arn: storage.inboxEmailLinksTable.arn, includeIndexes: false }],
-	// setLinkOutcome is an UpdateItem; getLink is not used by the worker.
-	actions: ["dynamodb:UpdateItem"],
-});
-
-const crawlEmailLinkPreviewQueue = new HutchSQS("crawl-email-link-preview", {
-	// A single dead/slow origin retries and DLQs in isolation; matches the worker
-	// timeout so an in-flight crawl cannot be redelivered.
-	visibilityTimeoutSeconds: 120,
-});
-
-const crawlEmailLinkPreviewLambda = new HutchLambda("crawl-email-link-preview", {
-	entryPoint: "./src/runtime/crawl-email-link-preview.main.ts",
-	outputDir: ".lib/crawl-email-link-preview",
-	assetDir: "./src/runtime",
-	memorySize: 1024,
-	timeout: 120,
-	environment: {
-		DYNAMODB_INBOX_EMAIL_LINKS_TABLE: storage.inboxEmailLinksTable.name,
-		// Uploads each lead image to the shared content bucket, fronted by the
-		// save-link content-media CDN (read cross-stack above).
-		CONTENT_BUCKET_NAME: contentBucketName,
-		IMAGES_CDN_BASE_URL: imagesCdnBaseUrl,
-	},
-	policies: [
-		...crawlEmailLinkPreviewDynamodb.policies,
-		// Only writes the content bucket (the lead-image thumbnail) — no read, and
-		// no access to the articles/user-articles tables (nothing saved to /queue).
-		...HutchS3ReadWrite.writePoliciesForBucket(
-			"crawl-email-link-preview-content-write",
-			contentBucketName,
-		),
-	],
-});
-
-const crawlEmailLinkPreviewWithSQS = new HutchSQSBackedLambda("crawl-email-link-preview", {
-	lambda: crawlEmailLinkPreviewLambda,
-	queue: crawlEmailLinkPreviewQueue,
-	alertEmailDLQEntry: alertEmail,
-	batchSize: 1,
-});
-
-eventBus.subscribe(CrawlEmailLinkPreview, crawlEmailLinkPreviewWithSQS);
 
 // --- Reader-ready digest (fan-out + 6h flush + send) ---
 // When an article's clean reader view reaches the successful terminal state,

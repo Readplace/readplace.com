@@ -92,7 +92,6 @@ import { initInMemoryPendingPdf } from "@packages/test-fixtures/providers/pendin
 import { initInMemoryImportSession } from "@packages/test-fixtures/providers/import-session";
 import { initDynamoDbImportSession } from "./providers/import-session/dynamodb-import-session";
 import { initInMemoryInboxAddress } from "@packages/test-fixtures/providers/inbox-address";
-import { initInMemoryInboxEmail, initInMemoryInboxEmailLink } from "@packages/test-fixtures/providers/inbox-email";
 import { initExchangeGoogleCode } from "./providers/google-auth/google-token";
 import { initExchangeAppleCode } from "./providers/apple-auth/apple-token";
 import { initCreateAppleClientSecret } from "./providers/apple-auth/apple-client-secret";
@@ -116,7 +115,9 @@ import { httpErrorMessageMapping } from "./web/pages/queue/queue.error";
 import { initFoundingAllocation } from "./web/shared/founding-progress/founding-allocation";
 import { initCachedUserCount } from "./web/auth/cached-user-count";
 import { getEnv, requireEnv } from "@packages/require-env";
-import { initDynamoDbInboxAddress, initDynamoDbInboxEmail, initDynamoDbInboxEmailLink } from "@packages/inbox-store";
+import { initDynamoDbInboxAddress } from "@packages/inbox-store";
+import { DEFAULT_INBOX_ALIAS } from "@packages/domain/inbox";
+import type { UserId } from "@packages/domain/user";
 
 /**
  * Hutch SSR does not run PDF extraction in-process — the
@@ -175,8 +176,6 @@ function initProviders() {
 		const pendingPdfBucketName = requireEnv("PENDING_PDF_BUCKET_NAME");
 		const importSessionsTable = requireEnv("DYNAMODB_IMPORT_SESSIONS_TABLE");
 		const inboxAddressesTable = requireEnv("DYNAMODB_INBOX_ADDRESSES_TABLE");
-		const inboxEmailsTable = requireEnv("DYNAMODB_INBOX_EMAILS_TABLE");
-		const inboxEmailLinksTable = requireEnv("DYNAMODB_INBOX_EMAIL_LINKS_TABLE");
 		const inboxAddressDomain = requireEnv("INBOX_ADDRESS_DOMAIN");
 		const subscriptionProvidersTable = requireEnv("DYNAMODB_SUBSCRIPTION_PROVIDERS_TABLE");
 		const onboardingTable = requireEnv("DYNAMODB_ONBOARDING_TABLE");
@@ -318,12 +317,6 @@ function initProviders() {
 			tableName: inboxAddressesTable,
 			now: () => new Date(),
 		});
-		const inboxEmailStore = initDynamoDbInboxEmail({ client, tableName: inboxEmailsTable });
-		const inboxEmailLinkStore = initDynamoDbInboxEmailLink({ client, tableName: inboxEmailLinksTable });
-		const readEmailContent = initS3ReadContent({
-			send: (cmd) => s3Client.send(cmd),
-			bucketName: contentBucketName,
-		});
 		const { consumeRateLimit } = initDynamoDbRateLimit({
 			client,
 			tableName: rateLimitsTable,
@@ -350,11 +343,13 @@ function initProviders() {
 			readArticleContent,
 			importSessionStore,
 			extractLinksFromPageUrl,
-			inboxAddressStore,
-			inboxEmailStore,
-			inboxEmailLinkStore,
-			readEmailContent,
-			inboxAddressDomain,
+			provisionInboxAddress: async (userId: UserId) => {
+				await inboxAddressStore.createAddress({
+					userId,
+					domain: inboxAddressDomain,
+					name: DEFAULT_INBOX_ALIAS,
+				});
+			},
 			subscriptionProviders,
 			trialScheduler,
 			createSubscriptionOnExistingCustomer: stripeSubscriptions.createSubscriptionOnExistingCustomer,
@@ -584,8 +579,6 @@ function initProviders() {
 
 	const importSessionStore = initInMemoryImportSession({ now: () => new Date() });
 	const inboxAddressStore = initInMemoryInboxAddress({ now: () => new Date() });
-	const inboxEmailStore = initInMemoryInboxEmail();
-	const inboxEmailLinkStore = initInMemoryInboxEmailLink();
 	const inboxAddressDomain = requireEnv("INBOX_ADDRESS_DOMAIN");
 
 	// In-process counters are valid here because dev runs a single long-lived
@@ -613,11 +606,13 @@ function initProviders() {
 		}),
 		importSessionStore,
 		extractLinksFromPageUrl,
-		inboxAddressStore,
-		inboxEmailStore,
-		inboxEmailLinkStore,
-		readEmailContent: articleStore.readContent,
-		inboxAddressDomain,
+		provisionInboxAddress: async (userId: UserId) => {
+			await inboxAddressStore.createAddress({
+				userId,
+				domain: inboxAddressDomain,
+				name: DEFAULT_INBOX_ALIAS,
+			});
+		},
 		subscriptionProviders: devSubscriptionProviders,
 		trialScheduler: devTrialScheduler,
 		createSubscriptionOnExistingCustomer: devStripeSubscriptions.createSubscriptionOnExistingCustomer,
