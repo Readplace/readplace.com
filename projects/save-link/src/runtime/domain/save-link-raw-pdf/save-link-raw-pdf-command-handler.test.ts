@@ -75,6 +75,7 @@ function createHandler(overrides: Partial<HandlerDeps> = {}) {
 		putTierSource: jest.fn().mockResolvedValue(undefined),
 		publishEvent: jest.fn().mockResolvedValue(undefined),
 		transitionAndPersist: jest.fn().mockResolvedValue(undefined),
+		now: () => new Date("2026-04-18T12:00:00.000Z"),
 		logger: noopLogger,
 		logParseError: jest.fn(),
 		logCrawlOutcome: jest.fn(),
@@ -116,6 +117,7 @@ describe("initSaveLinkRawPdfCommandHandler", () => {
 			url: "https://example.com/x.pdf",
 			tier: "tier-0",
 			userId: "user-1",
+			extractedAt: "2026-04-18T12:00:00.000Z",
 		});
 	});
 

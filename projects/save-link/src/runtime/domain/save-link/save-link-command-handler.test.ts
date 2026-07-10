@@ -98,6 +98,7 @@ describe("initSaveLinkCommandHandler", () => {
 			url: "https://example.com/article",
 			tier: "tier-1",
 			userId: "user-1",
+			extractedAt: "2026-04-18T12:00:00.000Z",
 		});
 	});
 

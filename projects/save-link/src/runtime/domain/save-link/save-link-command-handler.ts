@@ -73,6 +73,7 @@ export function initSaveLinkCommandHandler(deps: {
 					url: detail.url,
 					tier: "tier-1",
 					userId: detail.userId,
+					extractedAt: deps.now().toISOString(),
 				});
 				logger.info("[SaveLinkCommand] emitted TierContentExtractedEvent", {
 					url: detail.url,

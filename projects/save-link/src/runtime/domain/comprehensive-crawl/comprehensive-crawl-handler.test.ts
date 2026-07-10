@@ -113,6 +113,7 @@ describe("initComprehensiveCrawlHandler", () => {
 			url: "https://example.com/doc.pdf",
 			tier: "tier-1",
 			userId: "user-1",
+			extractedAt: "2026-04-18T12:00:00.000Z",
 		});
 	});
 
@@ -153,6 +154,7 @@ describe("initComprehensiveCrawlHandler", () => {
 			url: "https://example.com/doc.pdf",
 			tier: "tier-1",
 			userId: undefined,
+			extractedAt: "2026-04-18T12:00:00.000Z",
 		});
 	});
 
@@ -166,6 +168,7 @@ describe("initComprehensiveCrawlHandler", () => {
 		expect(publishEvent).toHaveBeenCalledTimes(1);
 		expect(publishEvent).toHaveBeenCalledWith(RecrawlContentExtractedEvent, {
 			url: "https://example.com/doc.pdf",
+			extractedAt: "2026-04-18T12:00:00.000Z",
 		});
 	});
 
@@ -716,6 +719,7 @@ describe("initComprehensiveCrawlHandler", () => {
 				url: "https://example.com/doc.pdf",
 				tier: "tier-1",
 				userId: undefined,
+				extractedAt: "2026-04-18T12:00:00.000Z",
 			});
 		});
 
@@ -743,6 +747,7 @@ describe("initComprehensiveCrawlHandler", () => {
 				url: "https://example.com/doc.pdf",
 				tier: "tier-1",
 				userId: undefined,
+				extractedAt: "2026-04-18T12:00:00.000Z",
 			});
 		});
 

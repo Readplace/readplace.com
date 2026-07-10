@@ -127,7 +127,15 @@ export function initRecrawlContentExtractedHandler(deps: {
 					await writeCanonicalContent({ url: detail.url, tier: winnerTier });
 
 					if (contentChanged || currentTier !== winnerTier) {
-						await recordCrawlVersion({ url: detail.url, tier: winnerTier, crawledAt });
+						/* Anchor the version's minute-id to the emitter's extraction instant,
+						 * not this handler's now(): a redelivery after a downstream failure
+						 * then re-copies to the same key and dedupes to a no-op instead of
+						 * recording a duplicate version in a later minute. */
+						await recordCrawlVersion({
+							url: detail.url,
+							tier: winnerTier,
+							crawledAt: detail.extractedAt ?? crawledAt,
+						});
 					}
 
 					await transitionAndPersist(recrawlPromoteTier, {

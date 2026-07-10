@@ -25,6 +25,7 @@ export function initSaveLinkRawHtmlCommandHandler(deps: {
 	putTierSource: PutTierSource;
 	publishEvent: PublishEvent;
 	transitionAndPersist: TransitionAndPersist;
+	now: () => Date;
 	logger: HutchLogger;
 	logParseError: LogParseError;
 	logCrawlOutcome: LogCrawlOutcome;
@@ -36,6 +37,7 @@ export function initSaveLinkRawHtmlCommandHandler(deps: {
 		putTierSource,
 		publishEvent,
 		transitionAndPersist,
+		now,
 		logger,
 		logParseError,
 		logCrawlOutcome,
@@ -109,6 +111,7 @@ export function initSaveLinkRawHtmlCommandHandler(deps: {
 					url: detail.url,
 					tier: TIER,
 					userId: detail.userId,
+					extractedAt: now().toISOString(),
 				});
 			} catch (error) {
 				logger.error("[SaveLinkRawHtmlCommand] record failed", {

@@ -253,10 +253,10 @@ export function initComprehensiveCrawlHandler(deps: {
 					// Recrawl chain runs a clone of the selector that ALWAYS dispatches
 					// generate-summary regardless of canonical change. Emit the recrawl-
 					// specific event so admin recrawls of PDFs preserve that semantics.
-					await publishEvent(RecrawlContentExtractedEvent, { url });
+					await publishEvent(RecrawlContentExtractedEvent, { url, extractedAt: contentFetchedAt });
 					logger.info(`${logPrefix} emitted RecrawlContentExtractedEvent`, { url });
 				} else {
-					await publishEvent(TierContentExtractedEvent, { url, tier: "tier-1", userId });
+					await publishEvent(TierContentExtractedEvent, { url, tier: "tier-1", userId, extractedAt: contentFetchedAt });
 					logger.info(`${logPrefix} emitted TierContentExtractedEvent`, { url, tier: "tier-1" });
 				}
 				return { via: "deferred-to-event" };

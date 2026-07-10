@@ -41,7 +41,7 @@ function tierSource(tier: TierSource["tier"], overrides: Partial<TierSource> = {
 	};
 }
 
-function createSqsEvent(detail: { url: string; tier: "tier-0" | "tier-1"; userId?: string }): SQSEvent {
+function createSqsEvent(detail: { url: string; tier: "tier-0" | "tier-1"; userId?: string; extractedAt?: string }): SQSEvent {
 	return {
 		Records: [{
 			messageId: "msg-1",
@@ -513,7 +513,7 @@ describe("initSelectMostCompleteContentHandler", () => {
 		);
 	});
 
-	it("records a crawl version (snapshot + minute id) after writing canonical when the content changed", async () => {
+	it("records a crawl version (snapshot + minute id) after writing canonical when the content changed — falling back to now() for events that predate extractedAt", async () => {
 		const tier1 = tierSource("tier-1");
 		const recordCrawlVersion = jest.fn().mockResolvedValue(undefined);
 
@@ -524,6 +524,7 @@ describe("initSelectMostCompleteContentHandler", () => {
 			recordCrawlVersion,
 		});
 
+		// No extractedAt on the event → the handler falls back to its own now().
 		await handler(createSqsEvent({ url: "https://example.com/a", tier: "tier-1", userId: "user-1" }), buildLambdaContext(), () => {});
 
 		expect(recordCrawlVersion).toHaveBeenCalledWith({
@@ -531,6 +532,31 @@ describe("initSelectMostCompleteContentHandler", () => {
 			tier: "tier-1",
 			crawledAt: FIXED_NOW.toISOString(),
 		});
+	});
+
+	it("keys the crawl version off the event's extractedAt (not now()), so a redelivery in a later minute records the same version instead of a duplicate", async () => {
+		const tier1 = tierSource("tier-1");
+		const recordCrawlVersion = jest.fn().mockResolvedValue(undefined);
+		// Distinct minute from FIXED_NOW (10:00) so an accidental now() shows up.
+		const extractedAt = "2026-05-12T09:41:30.000Z";
+		// now() advances across the redelivery — the pre-fix code keyed the minute id off it.
+		const base = new Date("2026-05-12T10:00:00.000Z").getTime();
+		let tick = 0;
+
+		const { handler } = createHandler({
+			listAvailableTierSources: jest.fn().mockResolvedValue([tier1]),
+			findContentSourceTier: jest.fn().mockResolvedValue(undefined),
+			findCanonicalContentHash: jest.fn().mockResolvedValue(undefined),
+			recordCrawlVersion,
+			now: () => new Date(base + tick++ * 7 * 60_000),
+		});
+
+		const event = createSqsEvent({ url: "https://example.com/a", tier: "tier-1", userId: "user-1", extractedAt });
+		await handler(event, buildLambdaContext(), () => {});
+		await handler(event, buildLambdaContext(), () => {});
+
+		const crawledAts = recordCrawlVersion.mock.calls.map((call: [{ crawledAt: string }]) => call[0].crawledAt);
+		expect(crawledAts).toEqual([extractedAt, extractedAt]);
 	});
 
 	it("records the version between writing canonical and persisting the aggregate transition", async () => {

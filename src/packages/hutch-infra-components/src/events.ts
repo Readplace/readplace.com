@@ -238,6 +238,14 @@ export const TierContentExtractedEvent = defineEvent({
 		url: z.string(),
 		tier: z.enum(["tier-0", "tier-1"]),
 		userId: z.string().optional(),
+		/* Extraction instant, stamped once by the emitter. The selector uses it as
+		 * the crawl-version minute-id, so an SQS redelivery (e.g. a persist failure
+		 * after the version was already recorded) re-copies to the same key and
+		 * dedupes to a no-op instead of minting a duplicate version off a fresh
+		 * now(). Optional so messages in flight across the deploy that added it —
+		 * and the DLQ handler, which needs only url to terminalize — still parse;
+		 * the selector falls back to now() when it is absent. */
+		extractedAt: z.string().optional(),
 	}),
 });
 export type TierContentExtractedDetail = z.infer<
@@ -309,6 +317,10 @@ export const RecrawlContentExtractedEvent = defineEvent({
 	detailType: "RecrawlContentExtracted",
 	detailSchema: z.object({
 		url: z.string(),
+		/* See TierContentExtractedEvent.extractedAt — the same stable minute-id
+		 * anchor, here keeping crawl-version recording idempotent across recrawl
+		 * redeliveries. */
+		extractedAt: z.string().optional(),
 	}),
 });
 export type RecrawlContentExtractedDetail = z.infer<
