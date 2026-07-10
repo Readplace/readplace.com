@@ -431,6 +431,85 @@ describe("GET /install", () => {
 		expect(panels).toEqual(["ai"]);
 	});
 
+	it("should render the browser screenshots with captions on the chrome panel", async () => {
+		const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
+		const response = await request(harness.server).get("/install?client=chrome");
+		const doc = load(response.text);
+
+		const shots = Array.from(doc.querySelectorAll("[data-test-screenshot]"));
+		expect(shots).toHaveLength(3);
+
+		const images = shots.map((shot) => shot.querySelector("img"));
+		expect(images.map((img) => img?.getAttribute("src"))).toEqual([
+			"https://static.test/screenshots/save-from-extension.png",
+			"https://static.test/screenshots/queue.png",
+			"https://static.test/screenshots/reader-tldr.png",
+		]);
+		for (const img of images) {
+			assert(img, "each screenshot figure must contain an image");
+			expect(img.getAttribute("loading")).toBe("lazy");
+			expect(img.getAttribute("width")).toBe("1440");
+			expect(img.getAttribute("height")).toBe("900");
+			assert(img.getAttribute("alt"), "each screenshot must carry alt text");
+		}
+
+		const captions = shots.map((shot) => shot.querySelector("figcaption")?.textContent);
+		expect(captions[0]).toBe("One click saves the full page you're reading — not just the link.");
+		expect(captions[2]).toBe("Read without the clutter — with a TL;DR before you commit.");
+
+		for (const shot of shots) {
+			expect(shot.classList.contains("install-page__screenshot--wide")).toBe(true);
+		}
+	});
+
+	it("should render the same screenshots on the firefox panel", async () => {
+		const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
+		const response = await request(harness.server).get("/install?client=firefox");
+		const doc = load(response.text);
+
+		expect(doc.querySelectorAll("[data-test-screenshot]")).toHaveLength(3);
+	});
+
+	it("should render the iPhone screenshots as portrait shots sharing a row", async () => {
+		const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
+		const response = await request(harness.server).get("/install?client=iphone");
+		const doc = load(response.text);
+
+		const shots = Array.from(doc.querySelectorAll("[data-test-screenshot]"));
+		expect(shots).toHaveLength(3);
+		expect(
+			shots.map((shot) => shot.querySelector("img")?.getAttribute("src")),
+		).toEqual([
+			"https://static.test/screenshots/ios-share-sheet.png",
+			"https://static.test/screenshots/ios-reading-list.png",
+			"https://static.test/screenshots/ios-reader.png",
+		]);
+		for (const shot of shots) {
+			expect(shot.classList.contains("install-page__screenshot--tall")).toBe(true);
+		}
+	});
+
+	it("should not render screenshots on AI panels", async () => {
+		const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
+
+		for (const client of ["claude", "chatgpt"]) {
+			const response = await request(harness.server).get(`/install?client=${client}`);
+			const doc = load(response.text);
+			expect(doc.querySelectorAll("[data-test-screenshot]")).toHaveLength(0);
+		}
+	});
+
+	it("should point og:image at the install social card", async () => {
+		const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
+		const response = await request(harness.server).get("/install");
+		const doc = load(response.text);
+
+		const ogImage = doc.querySelector('meta[property="og:image"]');
+		expect(ogImage?.getAttribute("content")).toBe(
+			"https://static.test/screenshots/og-install-1200x630.png",
+		);
+	});
+
 	it("should set appropriate SEO metadata", async () => {
 		const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
 		const response = await request(harness.server).get("/install");

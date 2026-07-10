@@ -812,7 +812,7 @@ export function createApp(dependencies: AppDependencies): Express {
 		});
 	}
 
-	app.use(initInstallRoutes({ buildBannerState }));
+	app.use(initInstallRoutes({ buildBannerState, staticBaseUrl }));
 
 	// A/B landing arms for the homepage split (`/landing-a`, `/landing-b`),
 	// reached by the client-side redirect from `/`. Same guest render as `/`.

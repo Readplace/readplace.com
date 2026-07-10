@@ -11,9 +11,9 @@ import {
 	isSelfHostedDownload,
 } from "./install.component";
 
-export function initInstallRoutes(deps: { buildBannerState: BuildBannerState }): Router {
+export function initInstallRoutes(deps: { buildBannerState: BuildBannerState; staticBaseUrl: string }): Router {
 	const router = express.Router();
-	const { buildBannerState } = deps;
+	const { buildBannerState, staticBaseUrl } = deps;
 
 	router.get("/install", async (req: Request, res: Response) => {
 		let client: InstallClient;
@@ -24,7 +24,7 @@ export function initInstallRoutes(deps: { buildBannerState: BuildBannerState }):
 			return;
 		}
 		const firefox = isSelfHostedDownload(client) ? await fetchFirefoxDownloadUrl() : null;
-		sendComponent(req, res, Base(InstallPage({ firefox, client }), await buildBannerState(req)));
+		sendComponent(req, res, Base(InstallPage({ firefox, client, staticBaseUrl }), await buildBannerState(req)));
 	});
 
 	return router;

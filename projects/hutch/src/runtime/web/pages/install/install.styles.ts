@@ -321,4 +321,44 @@ export const INSTALL_PAGE_STYLES = `
   line-height: 1.6;
   color: var(--muted-foreground);
 }
+
+/**
+ * 1. Wide (landscape) shots span the whole strip; tall (portrait phone) shots
+ *    share a row via auto-fit — no media query, mirrors the tab groups above.
+ * 2. Same theme-adaptive frame as the homepage demo videos: the raster inside
+ *    is one light-theme asset, but the border/caption chrome follows the theme.
+ */
+.install-page__screenshots {
+  display: grid; /* 1 */
+  grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+  gap: 24px;
+  margin-top: 48px;
+  padding-top: 32px;
+  border-top: 1px solid var(--border);
+}
+
+.install-page__screenshot {
+  margin: 0;
+  min-width: 0;
+}
+
+.install-page__screenshot--wide {
+  grid-column: 1 / -1;
+}
+
+.install-page__screenshot-img {
+  display: block;
+  width: 100%;
+  height: auto;
+  border: 1px solid var(--border); /* 2 */
+  border-radius: var(--radius-lg);
+  box-shadow: var(--shadow-sm);
+}
+
+.install-page__screenshot-caption {
+  padding-top: 10px;
+  font-size: 0.875rem;
+  line-height: 1.6;
+  color: var(--muted-foreground);
+}
 `;

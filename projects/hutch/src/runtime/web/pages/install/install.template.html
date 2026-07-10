@@ -85,5 +85,16 @@
       {{/default}}
       {{/switch}}
 
+      {{#if screenshots.length}}
+      <section class="install-page__screenshots" aria-label="Screenshots" data-test-section="screenshots">
+        {{#each screenshots}}
+        <figure class="install-page__screenshot{{orientationClass}}" data-test-screenshot>
+          <img src="{{src}}" alt="{{alt}}" width="{{width}}" height="{{height}}" loading="lazy" class="install-page__screenshot-img">
+          <figcaption class="install-page__screenshot-caption">{{caption}}</figcaption>
+        </figure>
+        {{/each}}
+      </section>
+      {{/if}}
+
     </div>
   </main>

@@ -159,6 +159,91 @@ const BETA_SETUP_STEPS: BetaSetupStep[] = [
 const BETA_OUTRO =
 	"Use it for a few days or weeks: save the articles you want to read later, then open readplace.com when you have time to read them. I'll check in soon by email to see how it's going, and any feedback is welcome in-app.";
 
+interface InstallScreenshot {
+	pathUnderStaticBase: string;
+	alt: string;
+	caption: string;
+	width: number;
+	height: number;
+}
+
+const SAVE_FROM_EXTENSION_SHOT: InstallScreenshot = {
+	pathUnderStaticBase: "/screenshots/save-from-extension.png",
+	alt: "The Readplace extension popup confirming an article was saved, over a Quanta Magazine article",
+	caption: "One click saves the full page you're reading — not just the link.",
+	width: 1440,
+	height: 900,
+};
+
+const QUEUE_SHOT: InstallScreenshot = {
+	pathUnderStaticBase: "/screenshots/queue.png",
+	alt: "The Readplace queue listing saved articles with thumbnails and short previews",
+	caption: "Everything waits in one queue, with a short preview so you know what's worth your time.",
+	width: 1440,
+	height: 900,
+};
+
+const READER_SHOT: InstallScreenshot = {
+	pathUnderStaticBase: "/screenshots/reader-tldr.png",
+	alt: "The Readplace reader showing an article with its AI summary expanded",
+	caption: "Read without the clutter — with a TL;DR before you commit.",
+	width: 1440,
+	height: 900,
+};
+
+const CLIENT_SCREENSHOTS = {
+	firefox: [SAVE_FROM_EXTENSION_SHOT, QUEUE_SHOT, READER_SHOT],
+	chrome: [SAVE_FROM_EXTENSION_SHOT, QUEUE_SHOT, READER_SHOT],
+	iphone: [
+		{
+			pathUnderStaticBase: "/screenshots/ios-share-sheet.png",
+			alt: "The iOS share sheet with Readplace as a share target over a Safari article",
+			caption: "Save from any browser with the share sheet.",
+			width: 520,
+			height: 1127,
+		},
+		{
+			pathUnderStaticBase: "/screenshots/ios-reading-list.png",
+			alt: "The Readplace reading list in the iPhone app",
+			caption: "Your queue, in your pocket.",
+			width: 520,
+			height: 1127,
+		},
+		{
+			pathUnderStaticBase: "/screenshots/ios-reader.png",
+			alt: "The Readplace reader on iPhone showing an article with its AI summary",
+			caption: "The reader and TL;DR work the same on iPhone.",
+			width: 520,
+			height: 1127,
+		},
+	],
+	claude: [],
+	chatgpt: [],
+} satisfies Record<ClientName, readonly InstallScreenshot[]>;
+
+interface InstallScreenshotView {
+	src: string;
+	alt: string;
+	caption: string;
+	width: number;
+	height: number;
+	orientationClass: " install-page__screenshot--wide" | " install-page__screenshot--tall";
+}
+
+function buildScreenshots(client: ClientName, staticBaseUrl: string): InstallScreenshotView[] {
+	return CLIENT_SCREENSHOTS[client].map((shot) => ({
+		src: `${staticBaseUrl}${shot.pathUnderStaticBase}`,
+		alt: shot.alt,
+		caption: shot.caption,
+		width: shot.width,
+		height: shot.height,
+		orientationClass:
+			shot.width > shot.height
+				? " install-page__screenshot--wide"
+				: " install-page__screenshot--tall",
+	}));
+}
+
 type PanelData =
 	| { variant: "browser"; intro: string; ctaLabel: string; ctaTestId: string }
 	| { variant: "iphone" }
@@ -247,7 +332,7 @@ function buildPanel(active: InstallClient, firefoxDownloadUrl: string | null): P
 	}
 }
 
-export function InstallPage(params: { firefox: string | null; client: InstallClient }): PageBody {
+export function InstallPage(params: { firefox: string | null; client: InstallClient; staticBaseUrl: string }): PageBody {
 	const panel = buildPanel(params.client, params.firefox);
 	return {
 		seo: {
@@ -255,6 +340,8 @@ export function InstallPage(params: { firefox: string | null; client: InstallCli
 			description:
 				"Read the Web, not the Slop. Install the Readplace browser extension for Firefox or Chrome, save from your iPhone, or connect your AI assistant to save and read your reading list.",
 			canonicalUrl: "https://readplace.com/install",
+			ogImage: `${params.staticBaseUrl}/screenshots/og-install-1200x630.png`,
+			ogImageAlt: "The Readplace queue listing saved articles with thumbnails and short previews",
 			structuredData: [
 				{
 					"@context": "https://schema.org",
@@ -305,6 +392,7 @@ export function InstallPage(params: { firefox: string | null; client: InstallCli
 				{
 					groups: buildTabGroups(params.client),
 					panel,
+					screenshots: buildScreenshots(params.client, params.staticBaseUrl),
 					browserSteps: BROWSER_STEPS,
 					testflightUrl: TESTFLIGHT_URL,
 					betaSteps: BETA_SETUP_STEPS,
