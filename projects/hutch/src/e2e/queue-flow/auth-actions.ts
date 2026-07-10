@@ -28,7 +28,6 @@ export function createAuthActions(
       execute: async (page) => {
         await page.locator('#email').fill(data.email)
         await page.locator('#password').fill(data.password)
-        await page.locator('#confirmPassword').fill(data.password)
         await page.locator('input[name="loadedAt"]').evaluate(
           (el: HTMLInputElement) => { el.value = String(Date.now() - 5000) },
         )

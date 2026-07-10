@@ -445,9 +445,7 @@ describe("Inbox address routes", () => {
 
 			const response = await request(harness.server).post("/signup").type("form").send({
 				email: "new@example.com",
-				password: "password123",
-				confirmPassword: "password123",
-				loadedAt: freshLoadedAt(),
+				password: "password123",				loadedAt: freshLoadedAt(),
 			});
 			expect(response.status).toBe(303);
 
@@ -472,9 +470,7 @@ describe("Inbox address routes", () => {
 
 			const response = await request(harness.server).post("/signup").type("form").send({
 				email: "resilient@example.com",
-				password: "password123",
-				confirmPassword: "password123",
-				loadedAt: freshLoadedAt(),
+				password: "password123",				loadedAt: freshLoadedAt(),
 			});
 
 			expect(response.status).toBe(303);

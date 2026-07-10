@@ -15,7 +15,6 @@ function signup(server: Server, email: string): Test {
 	return request(server).post("/signup").type("form").send({
 		email,
 		password: "password123",
-		confirmPassword: "password123",
 		loadedAt: String(Date.now() - 5000),
 	});
 }

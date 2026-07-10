@@ -28,11 +28,10 @@ describe("LoginSchema", () => {
 });
 
 describe("SignupSchema", () => {
-	it("accepts matching passwords of 8+ characters", () => {
+	it("accepts a valid email with a password of 8+ characters", () => {
 		const result = SignupSchema.safeParse({
 			email: "user@example.com",
 			password: "longpassword",
-			confirmPassword: "longpassword",
 		});
 
 		expect(result.success).toBe(true);
@@ -42,17 +41,6 @@ describe("SignupSchema", () => {
 		const result = SignupSchema.safeParse({
 			email: "user@example.com",
 			password: "short",
-			confirmPassword: "short",
-		});
-
-		expect(result.success).toBe(false);
-	});
-
-	it("rejects mismatched passwords", () => {
-		const result = SignupSchema.safeParse({
-			email: "user@example.com",
-			password: "longpassword",
-			confirmPassword: "different-password",
 		});
 
 		expect(result.success).toBe(false);
@@ -62,17 +50,6 @@ describe("SignupSchema", () => {
 		const result = SignupSchema.safeParse({
 			email: "bad-email",
 			password: "longpassword",
-			confirmPassword: "longpassword",
-		});
-
-		expect(result.success).toBe(false);
-	});
-
-	it("rejects an empty confirmPassword", () => {
-		const result = SignupSchema.safeParse({
-			email: "user@example.com",
-			password: "longpassword",
-			confirmPassword: "",
 		});
 
 		expect(result.success).toBe(false);
@@ -82,7 +59,6 @@ describe("SignupSchema", () => {
 		const result = SignupSchema.safeParse({
 			email: "user@slmail.me",
 			password: "longpassword",
-			confirmPassword: "longpassword",
 		});
 
 		expect(result.success).toBe(false);

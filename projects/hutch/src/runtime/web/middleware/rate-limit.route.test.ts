@@ -95,7 +95,6 @@ describe("Per-IP rate limiting", () => {
 					.send({
 						email,
 						password: "password123",
-						confirmPassword: "password123",
 						loadedAt: freshLoadedAt(),
 					});
 

@@ -25,7 +25,6 @@ export async function runOAuthRevokeFlow(options: {
 				loadedAt: String(Date.now() - 8000),
 				email,
 				password,
-				confirmPassword: password,
 			},
 			maxRedirects: 0,
 		})

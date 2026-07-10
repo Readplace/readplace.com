@@ -8,7 +8,6 @@ const FRESH_LOADED_AT = String(NOW_MS - SIGNUP_MIN_SUBMIT_MS);
 const validBody = {
 	email: "new@example.com",
 	password: "password123",
-	confirmPassword: "password123",
 	loadedAt: FRESH_LOADED_AT,
 };
 
@@ -116,7 +115,7 @@ describe("initValidateSignup", () => {
 			const validateSignup = initValidateSignup({ findUserByEmail: noUser });
 
 			const result = await validateSignup({
-				body: { ...validBody, password: "short", confirmPassword: "short" },
+				body: { ...validBody, password: "short" },
 				nowMs: NOW_MS,
 			});
 
@@ -124,21 +123,6 @@ describe("initValidateSignup", () => {
 			expect(result.errors).toContainEqual({
 				fieldName: "password",
 				message: "Password must be at least 8 characters",
-			});
-		});
-
-		it("returns a field-errors result with a fieldName='confirmPassword' entry when the passwords do not match", async () => {
-			const validateSignup = initValidateSignup({ findUserByEmail: noUser });
-
-			const result = await validateSignup({
-				body: { ...validBody, confirmPassword: "different1" },
-				nowMs: NOW_MS,
-			});
-
-			if (result.ok || result.kind !== "field-errors") throw new Error("expected field-errors");
-			expect(result.errors).toContainEqual({
-				fieldName: "confirmPassword",
-				message: "Passwords do not match",
 			});
 		});
 

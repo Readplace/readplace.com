@@ -119,7 +119,6 @@ export function SignupPage(data: SignupFormData, options?: { statusCode?: number
 		loadedAt: data.loadedAt,
 		emailField: toFieldViewModel(errors, "email"),
 		passwordField: toFieldViewModel(errors, "password"),
-		confirmPasswordField: toFieldViewModel(errors, "confirmPassword"),
 		submitLabel: `Join Readplace`,
 		googleLabel: `Sign up with Google`,
 		appleLabel: `Sign up with Apple`,

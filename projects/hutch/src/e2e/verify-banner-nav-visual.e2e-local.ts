@@ -46,7 +46,6 @@ async function signUpUnverified(page: Page, email: string): Promise<void> {
 	await page.goto(`${BASE_URL}/signup`, { waitUntil: "domcontentloaded" });
 	await page.locator("#email").fill(email);
 	await page.locator("#password").fill(PASSWORD);
-	await page.locator("#confirmPassword").fill(PASSWORD);
 	// The bot gate rejects forms submitted implausibly fast; stamp it as loaded
 	// a few seconds ago, exactly like the queue-flow auth helper does.
 	await page.locator('input[name="loadedAt"]').evaluate((el: HTMLInputElement) => {
