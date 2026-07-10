@@ -307,7 +307,8 @@ describe("Save routes", () => {
 
 			const signup = await agent.post("/signup").type("form").send({
 				email: "blocked-then-signed-up@example.com",
-				password: "password123",				loadedAt: String(Date.now() - 5000),
+				password: "password123",
+				loadedAt: String(Date.now() - 5000),
 			});
 			expect(signup.status).toBe(303);
 
@@ -324,7 +325,8 @@ describe("Save routes", () => {
 
 			const signup = await agent.post("/signup").type("form").send({
 				email: "clears-pending-save@example.com",
-				password: "password123",				loadedAt: String(Date.now() - 5000),
+				password: "password123",
+				loadedAt: String(Date.now() - 5000),
 			});
 			expect(signup.status).toBe(303);
 

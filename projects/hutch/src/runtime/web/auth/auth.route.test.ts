@@ -308,8 +308,17 @@ describe("Auth routes", () => {
 			expect(response.status).toBe(200);
 			const doc = new JSDOM(response.text).window.document;
 			const action = doc.querySelector('[data-test-form="signup"]')?.getAttribute("action");
-			expect(action).toContain("/signup");
-			expect(action).toContain("return=");
+			expect(action).toBe("/signup?utm_source=auth-page&utm_medium=internal&utm_content=signup-submit-btn&return=%2Foauth%2Fauthorize%3Fclient_id%3Dtest");
+		});
+
+		it("appends the return URL after the UTM params on the signup OAuth links", async () => {
+			const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
+			const response = await request(harness.server).get("/signup?return=%2Fqueue");
+
+			expect(response.status).toBe(200);
+			const doc = new JSDOM(response.text).window.document;
+			expect(doc.querySelector("[data-test-google-section] .auth-google-button")?.getAttribute("href")).toBe("/auth/google?utm_source=auth-page&utm_medium=internal&utm_content=google-signup-btn&return=%2Fqueue");
+			expect(doc.querySelector("[data-test-apple-section] .auth-apple-button")?.getAttribute("href")).toBe("/auth/apple?utm_source=auth-page&utm_medium=internal&utm_content=apple-signup-btn&return=%2Fqueue");
 		});
 
 		it("should pass return URL to login link", async () => {
@@ -357,7 +366,8 @@ describe("Auth routes", () => {
 
 			const response = await request(harness.server).post("/signup").type("form").send({
 				email: "free@example.com",
-				password: "password123",				loadedAt: freshLoadedAt(),
+				password: "password123",
+				loadedAt: freshLoadedAt(),
 			});
 
 			expect(response.status).toBe(303);
@@ -384,7 +394,8 @@ describe("Auth routes", () => {
 			const before = Date.now();
 			const response = await request(harness.server).post("/signup").type("form").send({
 				email: "trial@example.com",
-				password: "password123",				loadedAt: freshLoadedAt(),
+				password: "password123",
+				loadedAt: freshLoadedAt(),
 			});
 
 			expect(response.status).toBe(303);
@@ -440,7 +451,8 @@ describe("Auth routes", () => {
 
 			const response = await request(harness.server).post("/signup").type("form").send({
 				email: "trial-fail@example.com",
-				password: "password123",				loadedAt: freshLoadedAt(),
+				password: "password123",
+				loadedAt: freshLoadedAt(),
 			});
 
 			expect(response.status).toBe(303);
@@ -463,7 +475,8 @@ describe("Auth routes", () => {
 
 			const response = await request(harness.server).post("/signup").type("form").send({
 				email: "reminder-fail@example.com",
-				password: "password123",				loadedAt: freshLoadedAt(),
+				password: "password123",
+				loadedAt: freshLoadedAt(),
 			});
 
 			expect(response.status).toBe(303);
@@ -485,7 +498,8 @@ describe("Auth routes", () => {
 
 			const response = await request(harness.server).post("/signup").type("form").send({
 				email: "after-delete@example.com",
-				password: "password123",				loadedAt: freshLoadedAt(),
+				password: "password123",
+				loadedAt: freshLoadedAt(),
 			});
 
 			expect(response.status).toBe(303);
@@ -498,7 +512,8 @@ describe("Auth routes", () => {
 
 			const response = await request(harness.server).post("/signup").type("form").send({
 				email: "verify-free@example.com",
-				password: "password123",				loadedAt: freshLoadedAt(),
+				password: "password123",
+				loadedAt: freshLoadedAt(),
 			});
 
 			expect(response.status).toBe(303);
@@ -514,7 +529,8 @@ describe("Auth routes", () => {
 
 			const response = await request(harness.server).post("/signup").type("form").send({
 				email: "convert-free@example.com",
-				password: "password123",				loadedAt: freshLoadedAt(),
+				password: "password123",
+				loadedAt: freshLoadedAt(),
 			});
 
 			expect(response.status).toBe(303);
@@ -548,7 +564,8 @@ describe("Auth routes", () => {
 				.type("form")
 				.send({
 					email: "attributed@example.com",
-					password: "password123",					loadedAt: freshLoadedAt(),
+					password: "password123",
+					loadedAt: freshLoadedAt(),
 				});
 
 			expect(response.status).toBe(303);
@@ -564,7 +581,8 @@ describe("Auth routes", () => {
 
 			await request(harness.server).post("/signup").type("form").send({
 				email: "organic@example.com",
-				password: "password123",				loadedAt: freshLoadedAt(),
+				password: "password123",
+				loadedAt: freshLoadedAt(),
 			});
 
 			expect(await auth.getAcquisitionAttribution("organic@example.com")).toBeUndefined();
@@ -590,7 +608,8 @@ describe("Auth routes", () => {
 
 			const response = await request(harness.server).post("/signup").type("form").send({
 				email: "race@example.com",
-				password: "password123",				loadedAt: freshLoadedAt(),
+				password: "password123",
+				loadedAt: freshLoadedAt(),
 			});
 
 			expect(response.status).toBe(422);
@@ -607,7 +626,8 @@ describe("Auth routes", () => {
 
 			const response = await request(harness.server).post("/signup").type("form").send({
 				email: "verify-trial@example.com",
-				password: "password123",				loadedAt: freshLoadedAt(),
+				password: "password123",
+				loadedAt: freshLoadedAt(),
 			});
 
 			expect(response.status).toBe(303);
@@ -696,7 +716,8 @@ describe("Auth routes", () => {
 
 			const response = await request(harness.server).post("/signup").type("form").send({
 				email: "existing@example.com",
-				password: "password123",				loadedAt: freshLoadedAt(),
+				password: "password123",
+				loadedAt: freshLoadedAt(),
 			});
 
 			expect(response.status).toBe(422);
@@ -735,7 +756,8 @@ describe("Auth routes", () => {
 				.type("form")
 				.send({
 					email: "existing@example.com",
-					password: "password123",					loadedAt: freshLoadedAt(),
+					password: "password123",
+					loadedAt: freshLoadedAt(),
 				});
 
 			expect(response.status).toBe(422);
@@ -764,7 +786,8 @@ describe("Auth routes", () => {
 
 			const response = await request(harness.server).post("/signup").type("form").send({
 				email: "user@slmail.me",
-				password: "password123",				loadedAt: freshLoadedAt(),
+				password: "password123",
+				loadedAt: freshLoadedAt(),
 			});
 
 			expect(response.status).toBe(422);
@@ -777,7 +800,8 @@ describe("Auth routes", () => {
 
 			const response = await request(harness.server).post("/signup").type("form").send({
 				email: "real-person@gmail.com",
-				password: "password123",				loadedAt: freshLoadedAt(),
+				password: "password123",
+				loadedAt: freshLoadedAt(),
 			});
 
 			expect(response.status).toBe(303);
@@ -793,7 +817,8 @@ describe("Auth routes", () => {
 
 			const response = await request(harness.server).post("/signup").type("form").send({
 				email: "bot@example.com",
-				password: "password123",				loadedAt: freshLoadedAt(),
+				password: "password123",
+				loadedAt: freshLoadedAt(),
 				website: "https://spam.example",
 			});
 
@@ -814,7 +839,8 @@ describe("Auth routes", () => {
 
 			const response = await request(harness.server).post("/signup").type("form").send({
 				email: "bot@example.com",
-				password: "password123",			});
+				password: "password123",
+			});
 
 			expect(response.status).toBe(303);
 			expect(response.headers.location).toBe("/?signup=pending");
@@ -828,7 +854,8 @@ describe("Auth routes", () => {
 
 			const response = await request(harness.server).post("/signup").type("form").send({
 				email: "bot@example.com",
-				password: "password123",				loadedAt: "",
+				password: "password123",
+				loadedAt: "",
 			});
 
 			expect(response.status).toBe(303);
@@ -842,7 +869,8 @@ describe("Auth routes", () => {
 			const { botDefense } = harness;
 
 			const response = await request(harness.server).post("/signup").type("form").send({
-				password: "password123",				loadedAt: freshLoadedAt(),
+				password: "password123",
+				loadedAt: freshLoadedAt(),
 				website: "https://spam.example",
 			});
 
@@ -857,7 +885,8 @@ describe("Auth routes", () => {
 
 			const response = await request(harness.server).post("/signup").type("form").send({
 				email: "no-at-sign",
-				password: "password123",				loadedAt: freshLoadedAt(),
+				password: "password123",
+				loadedAt: freshLoadedAt(),
 				website: "https://spam.example",
 			});
 
@@ -872,7 +901,8 @@ describe("Auth routes", () => {
 
 			const response = await request(harness.server).post("/signup").type("form").send({
 				email: "bot@example.com",
-				password: "password123",				loadedAt: "not-a-number",
+				password: "password123",
+				loadedAt: "not-a-number",
 			});
 
 			expect(response.status).toBe(303);
@@ -887,7 +917,8 @@ describe("Auth routes", () => {
 
 			const response = await request(harness.server).post("/signup").type("form").send({
 				email: "bot@example.com",
-				password: "password123",				loadedAt: "123.45",
+				password: "password123",
+				loadedAt: "123.45",
 			});
 
 			expect(response.status).toBe(303);
@@ -903,7 +934,8 @@ describe("Auth routes", () => {
 
 			const response = await request(harness.server).post("/signup").type("form").send({
 				email: "autofill@example.com",
-				password: "password123",				loadedAt: String(Date.now() - 1000),
+				password: "password123",
+				loadedAt: String(Date.now() - 1000),
 			});
 
 			expect(response.status).toBe(422);
@@ -929,7 +961,8 @@ describe("Auth routes", () => {
 			const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
 
 			const response = await request(harness.server).post("/signup").type("form").send({
-				password: "password123",				loadedAt: String(Date.now() - 1000),
+				password: "password123",
+				loadedAt: String(Date.now() - 1000),
 			});
 
 			expect(response.status).toBe(422);
@@ -945,7 +978,8 @@ describe("Auth routes", () => {
 
 			const rejected = await request(harness.server).post("/signup").type("form").send({
 				email: "recovered@example.com",
-				password: "password123",				loadedAt: String(Date.now() - 1000),
+				password: "password123",
+				loadedAt: String(Date.now() - 1000),
 			});
 			expect(rejected.status).toBe(422);
 
@@ -955,7 +989,8 @@ describe("Auth routes", () => {
 
 			const retried = await request(harness.server).post("/signup").type("form").send({
 				email: "recovered@example.com",
-				password: "password123",				loadedAt: String(Number.parseInt(reRenderedLoadedAt, 10) - SIGNUP_MIN_SUBMIT_MS),
+				password: "password123",
+				loadedAt: String(Number.parseInt(reRenderedLoadedAt, 10) - SIGNUP_MIN_SUBMIT_MS),
 			});
 
 			expect(retried.status).toBe(303);
@@ -970,7 +1005,8 @@ describe("Auth routes", () => {
 
 			const response = await request(harness.server).post("/signup").type("form").send({
 				email: "bot@example.com",
-				password: "password123",				loadedAt: freshLoadedAt(),
+				password: "password123",
+				loadedAt: freshLoadedAt(),
 				website: "https://spam.example",
 			});
 
@@ -995,7 +1031,8 @@ describe("Auth routes", () => {
 
 			const response = await request(harness.server).post("/signup").type("form").send({
 				email: "real@example.com",
-				password: "password123",				loadedAt: String(Date.now() - 5000),
+				password: "password123",
+				loadedAt: String(Date.now() - 5000),
 				website: "",
 			});
 
@@ -1468,6 +1505,27 @@ describe("Auth routes", () => {
 			expect(response.status).toBe(200);
 			const doc = new JSDOM(response.text).window.document;
 			expect(doc.querySelector(".auth-card__subtitle")?.textContent).toBe("Start saving articles to read later");
+		});
+
+		it("renders the signup page when the return URL is itself unparseable instead of 500ing", async () => {
+			const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
+			const response = await request(harness.server).get("/signup?return=%2F%5C%5B");
+
+			expect(response.status).toBe(200);
+			const doc = new JSDOM(response.text).window.document;
+			expect(doc.querySelector(".auth-card__subtitle")?.textContent).toBe("Start saving articles to read later");
+		});
+
+		it("re-renders the login failure page when the return URL is itself unparseable instead of 500ing", async () => {
+			const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
+			const response = await request(harness.server)
+				.post("/login?return=%2F%5C%5B")
+				.type("form")
+				.send({ email: "nobody@example.com", password: "wrongpassword" });
+
+			expect(response.status).toBe(422);
+			const doc = new JSDOM(response.text).window.document;
+			expect(doc.querySelector("[data-test-global-error]")?.textContent).toContain("Invalid email or password");
 		});
 
 		it("renders the generic login subtitle when there is no return URL", async () => {

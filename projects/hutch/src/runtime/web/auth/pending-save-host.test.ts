@@ -24,4 +24,12 @@ describe("pendingSaveHostFrom", () => {
 	it("returns undefined when the article URL does not parse", () => {
 		expect(pendingSaveHostFrom("/save?url=not-a-url")).toBeUndefined();
 	});
+
+	it("returns undefined instead of throwing when the return URL itself is unparseable (backslash forces an invalid authority)", () => {
+		expect(pendingSaveHostFrom("/\\[")).toBeUndefined();
+	});
+
+	it("returns undefined for a hostless article URL such as mailto:", () => {
+		expect(pendingSaveHostFrom("/save?url=mailto%3Aa%40b.com")).toBeUndefined();
+	});
 });
