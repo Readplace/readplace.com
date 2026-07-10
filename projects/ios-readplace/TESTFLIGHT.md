@@ -211,7 +211,12 @@ listing and a deliberate human submission. The moving parts:
    sizes: 1320×2868 or 1290×2796; the app is iPhone-only so no iPad set).
    Push them with `bundle exec fastlane release screenshots:true` (or tick the
    checkbox on the Actions run) — `overwrite_screenshots` replaces whatever is
-   in App Store Connect.
+   in App Store Connect. PNGs must be **opaque RGB — no alpha channel**.
+   `simctl` captures RGBA, and App Store Connect's media pipeline never
+   finishes processing a PNG that carries alpha: the upload succeeds,
+   processing hangs, and deliver loops on "screenshots missing" until its
+   retries run out. Flatten before committing, e.g.
+   `python3 -c "from PIL import Image; im = Image.open('shot.png').convert('RGB'); im.save('shot.png')"`.
 3. **App Review contact + demo account** ride the same push, from `prod`
    environment secrets (never git — they are PII/credentials):
    `ASC_REVIEW_FIRST_NAME`, `ASC_REVIEW_LAST_NAME`, `ASC_REVIEW_EMAIL`,
