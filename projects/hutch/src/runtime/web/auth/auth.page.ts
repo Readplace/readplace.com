@@ -285,6 +285,13 @@ export function initAuthRoutes(deps: AuthDependencies): Router {
 						body,
 						now: deps.now(),
 					}));
+					if (result.reason === "submit_too_fast") {
+						await renderFailure(
+							typeof body.email === "string" ? body.email : undefined,
+							[{ message: "Please try again" }],
+						);
+						break;
+					}
 					res.redirect(303, "/?signup=pending");
 					break;
 				case "field-errors":

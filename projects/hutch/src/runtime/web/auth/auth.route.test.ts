@@ -13,6 +13,7 @@ import { completeCheckoutSignup } from "./test-helpers/complete-checkout-signup"
 import { createAccessToken, saveAccessTokenForUser } from "../test-helpers/oauth-token";
 import { AppleTokenResponse } from "../../providers/apple-auth/apple-token";
 import { DISPOSABLE_EMAIL_MESSAGE } from "./disposable-email";
+import { SIGNUP_MIN_SUBMIT_MS } from "./validate-signup";
 import { SESSION_COOKIE_NAME, SESSION_TTL_SECONDS } from "@packages/web-session";
 
 const TEST_FOUNDING_MEMBER_LIMIT = 3;
@@ -954,25 +955,80 @@ describe("Auth routes", () => {
 			expect(botDefense.events[0]).toMatchObject({ reason: "invalid_timestamp" });
 		});
 
-		it("logs 'submit_too_fast' with the elapsed time when the form is submitted within the 2.5s window", async () => {
+		it("re-renders the form with a fresh loadedAt, the email preserved, and a neutral message when the submit is too fast, still logging 'submit_too_fast' with the elapsed time", async () => {
 			const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
 			const { botDefense } = harness;
+			const before = Date.now();
 
 			const response = await request(harness.server).post("/signup").type("form").send({
-				email: "bot@example.com",
+				email: "autofill@example.com",
 				password: "password123",
 				confirmPassword: "password123",
 				loadedAt: String(Date.now() - 1000),
 			});
 
-			expect(response.status).toBe(303);
-			expect(response.headers.location).toBe("/?signup=pending");
+			expect(response.status).toBe(422);
+			const doc = new JSDOM(response.text).window.document;
+			expect(doc.querySelector("[data-test-global-error]")?.textContent).toBe("Please try again");
+			const emailInput = doc.querySelector('input[name="email"]');
+			assert(emailInput, "email input must be rendered");
+			expect(emailInput.getAttribute("value")).toBe("autofill@example.com");
+			const loadedAtInput = doc.querySelector('input[name="loadedAt"]');
+			assert(loadedAtInput, "loadedAt input must be rendered");
+			const loadedAt = Number.parseInt(loadedAtInput.getAttribute("value") ?? "", 10);
+			expect(loadedAt).toBeGreaterThanOrEqual(before);
+			expect(loadedAt).toBeLessThanOrEqual(Date.now());
 			expect(botDefense.events).toHaveLength(1);
 			const event = botDefense.events[0];
 			assert(event, "expected a captured bot-defense event");
 			expect(event.reason).toBe("submit_too_fast");
 			expect(event.time_to_submit_ms).toBeGreaterThanOrEqual(1000);
 			expect(event.time_to_submit_ms).toBeLessThan(2500);
+		});
+
+		it("re-renders the form with an empty email when a too-fast submit carries none", async () => {
+			const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
+
+			const response = await request(harness.server).post("/signup").type("form").send({
+				password: "password123",
+				confirmPassword: "password123",
+				loadedAt: String(Date.now() - 1000),
+			});
+
+			expect(response.status).toBe(422);
+			const doc = new JSDOM(response.text).window.document;
+			expect(doc.querySelector("[data-test-global-error]")?.textContent).toBe("Please try again");
+			const emailInput = doc.querySelector('input[name="email"]');
+			assert(emailInput, "email input must be rendered");
+			expect(emailInput.getAttribute("value")).toBe("");
+		});
+
+		it("lets a too-fast rejection recover: resubmitting the re-rendered form after the window creates the account", async () => {
+			const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
+
+			const rejected = await request(harness.server).post("/signup").type("form").send({
+				email: "recovered@example.com",
+				password: "password123",
+				confirmPassword: "password123",
+				loadedAt: String(Date.now() - 1000),
+			});
+			expect(rejected.status).toBe(422);
+
+			const doc = new JSDOM(rejected.text).window.document;
+			const reRenderedLoadedAt = doc.querySelector('input[name="loadedAt"]')?.getAttribute("value");
+			assert(reRenderedLoadedAt, "re-rendered form must carry a loadedAt");
+
+			const retried = await request(harness.server).post("/signup").type("form").send({
+				email: "recovered@example.com",
+				password: "password123",
+				confirmPassword: "password123",
+				loadedAt: String(Number.parseInt(reRenderedLoadedAt, 10) - SIGNUP_MIN_SUBMIT_MS),
+			});
+
+			expect(retried.status).toBe(303);
+			expect(retried.headers.location).toBe("/queue");
+			const created = await harness.auth.findUserByEmail("recovered@example.com");
+			assert(created, "the retried signup must persist a user");
 		});
 
 		it("does not create a Stripe checkout session or store a pending signup when the honeypot is tripped", async () => {
