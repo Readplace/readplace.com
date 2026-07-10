@@ -1563,4 +1563,8 @@ export const sessionsTableArn = storage.sessionsTable.arn;
 export const exportUserDataQueueUrl = exportUserDataQueue.queueUrl;
 export const exportUserDataDlqUrl = exportUserDataQueue.dlqUrl;
 export const userExportBucketOutputName = userExportBucket.bucket;
+// Consumed by the inbox deployable via StackReference: the SES receipt topic
+// is auto-named, so its ARN is genuinely deploy-time. hutch must deploy first
+// so this output exists before inbox's first deploy.
+export const inboxNotificationTopicArn = inboxMail.notificationTopicArn;
 export const _dependencies = [gateway.defaultRoute];
