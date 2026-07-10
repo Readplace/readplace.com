@@ -190,6 +190,7 @@ const SeedCrawledArticleBody = z.object({
   url: z.string(),
   title: z.string(),
   contentFetchedAt: z.string(),
+  crawlVersions: z.array(z.string()).default([]),
 })
 server.post('/e2e/seed-crawled-article', async (req, res) => {
   const parsed = SeedCrawledArticleBody.safeParse(req.body)
@@ -197,7 +198,7 @@ server.post('/e2e/seed-crawled-article', async (req, res) => {
     res.status(400).json({ error: parsed.error.flatten() })
     return
   }
-  const { url, title, contentFetchedAt } = parsed.data
+  const { url, title, contentFetchedAt, crawlVersions } = parsed.data
   const hostname = new URL(url).hostname
   await fixture.articleStore.saveArticleGlobally({
     url,
@@ -211,6 +212,7 @@ server.post('/e2e/seed-crawled-article', async (req, res) => {
   })
   await fixture.articleCrawl.markCrawlReady({ url })
   await fixture.articleStore.setContentFetchedAt({ url, at: contentFetchedAt })
+  await fixture.articleStore.setCrawlVersions({ url, versions: crawlVersions })
   res.status(201).json({ ok: true })
 })
 

@@ -9,6 +9,7 @@ import type { ValidateSaveableUrl } from "@packages/domain/article";
 import { calculateReadTime } from "@packages/domain/article";
 import type {
 	FindArticleByUrl,
+	FindArticleCrawlVersions,
 	FindArticleFreshness,
 	SaveArticleGlobally,
 } from "@packages/provider-contracts/article-store";
@@ -59,6 +60,7 @@ interface ViewDependencies {
 	appOrigin: string;
 	findArticleByUrl: FindArticleByUrl;
 	findArticleFreshness: FindArticleFreshness;
+	findArticleCrawlVersions: FindArticleCrawlVersions;
 	readArticleContent: ReadArticleContent;
 	findGeneratedSummary: FindGeneratedSummary;
 	markSummaryPending: MarkSummaryPending;
@@ -108,6 +110,7 @@ function buildArticleReaderDeps(deps: ViewDependencies): ArticleReaderDeps {
 		readArticleContent: deps.readArticleContent,
 		findArticleByUrl: deps.findArticleByUrl,
 		findArticleFreshness: deps.findArticleFreshness,
+		findArticleCrawlVersions: deps.findArticleCrawlVersions,
 		appOrigin: deps.appOrigin,
 		formatDocumentTitle: formatViewDocumentTitle,
 		summaryOpen: true,
@@ -303,7 +306,7 @@ function handleViewArticle(deps: ViewDependencies, reader: ReturnType<typeof ini
 					expiresAt,
 					now,
 					sharerUserIdPrefix,
-					lastCrawledAt: state.lastCrawledAt,
+					crawlVersions: state.crawlVersions,
 				}),
 				{ ...(await deps.buildBannerState(req)), showExtensionSuggestionBanner, extensionInstalled: isExtensionInstalled(req) },
 			),

@@ -123,6 +123,7 @@ function flattenFixtureToAppDependencies(
 		findArticleById: fixture.articleStore.findArticleById,
 		findArticleByUrl: fixture.articleStore.findArticleByUrl,
 		findArticleFreshness: fixture.articleStore.findArticleFreshness,
+		findArticleCrawlVersions: fixture.articleStore.findArticleCrawlVersions,
 		findArticleUrlById: fixture.articleStore.findArticleUrlById,
 		findArticlesByUser: fixture.articleStore.findArticlesByUser,
 		countArticlesByUser: fixture.articleStore.countArticlesByUser,

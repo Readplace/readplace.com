@@ -6,7 +6,7 @@ import type {
 	ForceMarkCrawlPending,
 	MarkCrawlPending,
 } from "@packages/provider-contracts/article-crawl";
-import type { FindArticleByUrl, FindArticleFreshness } from "@packages/provider-contracts/article-store";
+import type { FindArticleByUrl, FindArticleCrawlVersions, FindArticleFreshness } from "@packages/provider-contracts/article-store";
 import type { ReadArticleContent } from "@packages/provider-contracts/article-store";
 import type {
 	FindGeneratedSummary,
@@ -29,6 +29,7 @@ export interface AdminRecrawlDependencies {
 	appOrigin: string;
 	findArticleByUrl: FindArticleByUrl;
 	findArticleFreshness: FindArticleFreshness;
+	findArticleCrawlVersions: FindArticleCrawlVersions;
 	readArticleContent: ReadArticleContent;
 	findGeneratedSummary: FindGeneratedSummary;
 	findArticleCrawlStatus: FindArticleCrawlStatus;
@@ -170,7 +171,7 @@ function handleShowRecrawlPage(
 			contentSourceTier: existing.contentSourceTier,
 			extensionInstallUrl: extensionInstallUrlIfMissing(req),
 			recrawlFormAction,
-			lastCrawledAt: state.lastCrawledAt,
+			crawlVersions: state.crawlVersions,
 		}), await deps.buildBannerState(req)).to("text/html");
 		res.status(html.statusCode).type("html").send(html.body);
 	};
@@ -265,6 +266,7 @@ export function initAdminRecrawlRoutes(deps: AdminRecrawlDependencies): Router {
 		readArticleContent: deps.readArticleContent,
 		findArticleByUrl: deps.findArticleByUrl,
 		findArticleFreshness: deps.findArticleFreshness,
+		findArticleCrawlVersions: deps.findArticleCrawlVersions,
 		appOrigin: deps.appOrigin,
 		formatDocumentTitle: formatRecrawlDocumentTitle,
 		summaryOpen: false,

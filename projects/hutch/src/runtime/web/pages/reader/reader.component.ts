@@ -65,7 +65,7 @@ export function ReaderPage(
 		 * same toolbar; the variant carries the page body class that decides where it
 		 * pins, so the markup and the CSS that pins it can never drift apart. */
 		renderActions: RenderReaderActions;
-		lastCrawledAt?: LocalTime;
+		crawlVersions?: LocalTime[];
 	},
 ): PageBody {
 	const articleId = article.id.value;
@@ -98,7 +98,7 @@ export function ReaderPage(
 		appOrigin: options.appOrigin,
 		topActionsHtml: actions.top.to("text/html").body,
 		bottomActionsHtml: actions.bottom.to("text/html").body,
-		lastCrawledAt: options.lastCrawledAt,
+		crawlVersions: options.crawlVersions,
 		extensionInstallUrl: options.extensionInstallUrl,
 	});
 	const shareBalloon = renderShareBalloon({

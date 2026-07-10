@@ -1,6 +1,9 @@
 import type { ArticleCrawl } from "@packages/provider-contracts/article-crawl";
 import type { GeneratedSummary } from "@packages/provider-contracts/article-summary";
-import type { GlobalArticleData } from "@packages/provider-contracts/article-store";
+import type {
+	ArticleCrawlVersion,
+	GlobalArticleData,
+} from "@packages/provider-contracts/article-store";
 import { HtmlPage } from "@packages/web-shell";
 import type { Component } from "@packages/web-shell";
 
@@ -20,7 +23,7 @@ import {
 } from "@packages/domain/article";
 import { renderReaderSlot } from "../article-body/reader-slot/reader-slot.component";
 import { renderSummarySlot } from "../article-body/summary-slot/summary-slot.component";
-import { toAbsoluteShortDateTime } from "@packages/web-shell/local-time.format";
+import { toAbsoluteShortDateTime, type LocalTime } from "@packages/web-shell/local-time.format";
 import type {
 	ArticleReaderDeps,
 	HandlePollParams,
@@ -188,6 +191,24 @@ function buildUnifiedProgress(
 	};
 }
 
+/**
+ * Merge the crawl-version log with the legacy `contentFetchedAt` fallback into
+ * the bookmark's newest-first tab list. Pre-feature articles have no versions
+ * but do have a `contentFetchedAt`, so they still surface a single current tab.
+ */
+function resolveCrawlVersions(
+	versions: ArticleCrawlVersion[],
+	contentFetchedAt: string | undefined,
+): LocalTime[] {
+	if (versions.length > 0) {
+		return versions.map((version) => toAbsoluteShortDateTime({ iso: version.crawledAtMinute }));
+	}
+	if (contentFetchedAt !== undefined) {
+		return [toAbsoluteShortDateTime({ iso: contentFetchedAt })];
+	}
+	return [];
+}
+
 export function initArticleReader(deps: ArticleReaderDeps): {
 	resolveReaderState: (params: ResolveReaderStateParams) => Promise<ReaderState>;
 	handleSummaryPoll: (params: HandlePollParams) => Promise<Component>;
@@ -200,6 +221,7 @@ export function initArticleReader(deps: ArticleReaderDeps): {
 		const crawl = await deps.findArticleCrawlStatus(article.url);
 		const summary = await deps.findGeneratedSummary(article.url);
 		const freshness = await deps.findArticleFreshness(article.url);
+		const versions = await deps.findArticleCrawlVersions(article.url);
 
 		const content = await deps.readArticleContent(article.url);
 		const summaryStatus = summary?.status ?? "pending";
@@ -217,9 +239,7 @@ export function initArticleReader(deps: ArticleReaderDeps): {
 			readerPollUrl,
 			summaryPollUrl,
 			progress: buildUnifiedProgress(crawl, summary, deps.now()),
-			lastCrawledAt: freshness?.contentFetchedAt
-				? toAbsoluteShortDateTime({ iso: freshness.contentFetchedAt })
-				: undefined,
+			crawlVersions: resolveCrawlVersions(versions, freshness?.contentFetchedAt),
 		};
 	}
 

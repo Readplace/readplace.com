@@ -79,6 +79,8 @@ function createHandler(overrides: Partial<HandlerDeps> = {}) {
 		selectMostCompleteContent: jest.fn<ReturnType<SelectMostCompleteContent>, Parameters<SelectMostCompleteContent>>().mockResolvedValue({ winner: "tie", reason: "" }),
 		writeCanonicalContent: jest.fn<ReturnType<WriteCanonicalContent>, Parameters<WriteCanonicalContent>>().mockResolvedValue(undefined),
 		findContentSourceTier: jest.fn<ReturnType<FindContentSourceTier>, Parameters<FindContentSourceTier>>().mockResolvedValue(undefined),
+		findCanonicalContentHash: jest.fn().mockResolvedValue(undefined),
+		recordCrawlVersion: jest.fn().mockResolvedValue(undefined),
 		loadArticle: jest.fn().mockResolvedValue(undefined),
 		transitionAndPersist,
 		now: () => FIXED_NOW,
@@ -326,6 +328,7 @@ describe("initRecrawlContentExtractedHandler", () => {
 			html: '<p>same body</p><img src="https://cdn.example.cloudfront.net/a.png">',
 		});
 		const writeCanonicalContent = jest.fn().mockResolvedValue(undefined);
+		const recordCrawlVersion = jest.fn().mockResolvedValue(undefined);
 		const findContentSourceTier = jest.fn().mockResolvedValue("tier-0");
 
 		const { handler } = createHandler({
@@ -333,14 +336,21 @@ describe("initRecrawlContentExtractedHandler", () => {
 			selectMostCompleteContent: jest.fn().mockResolvedValue({ winner: "tie", reason: "only image URLs differ" }),
 			findContentSourceTier,
 			writeCanonicalContent,
+			recordCrawlVersion,
 		});
 
 		await handler(createSqsEvent({ url: "https://example.com/a" }), buildLambdaContext(), () => {});
 
-		expect(findContentSourceTier).not.toHaveBeenCalled();
 		expect(writeCanonicalContent).toHaveBeenCalledWith({
 			url: "https://example.com/a",
 			tier: "tier-1",
+		});
+		// The tier flipped from tier-0 to the freshly media-corrected tier-1, so a
+		// new crawl version is snapshotted even though the readable text is a tie.
+		expect(recordCrawlVersion).toHaveBeenCalledWith({
+			url: "https://example.com/a",
+			tier: "tier-1",
+			crawledAt: FIXED_NOW.toISOString(),
 		});
 	});
 
@@ -449,5 +459,62 @@ describe("initRecrawlContentExtractedHandler", () => {
 				}),
 			}),
 		);
+	});
+
+	it("records a crawl version when a recrawl promotes a winning tier", async () => {
+		const tier0 = tierSource("tier-0");
+		const tier1 = tierSource("tier-1");
+		const recordCrawlVersion = jest.fn().mockResolvedValue(undefined);
+
+		const { handler } = createHandler({
+			listAvailableTierSources: jest.fn().mockResolvedValue([tier0, tier1]),
+			selectMostCompleteContent: jest.fn().mockResolvedValue({ winner: "tier-1", reason: "more complete" }),
+			findContentSourceTier: jest.fn().mockResolvedValue("tier-0"),
+			recordCrawlVersion,
+		});
+
+		await handler(createSqsEvent({ url: "https://example.com/a" }), buildLambdaContext(), () => {});
+
+		expect(recordCrawlVersion).toHaveBeenCalledWith({
+			url: "https://example.com/a",
+			tier: "tier-1",
+			crawledAt: FIXED_NOW.toISOString(),
+		});
+	});
+
+	it("skips recording when the recrawl re-promotes the same tier with identical readable text", async () => {
+		const tier1 = tierSource("tier-1");
+		const recordCrawlVersion = jest.fn().mockResolvedValue(undefined);
+
+		const { handler } = createHandler({
+			listAvailableTierSources: jest.fn().mockResolvedValue([tier1]),
+			findContentSourceTier: jest.fn().mockResolvedValue("tier-1"),
+			findCanonicalContentHash: jest.fn().mockResolvedValue(computeCanonicalContentHash(tier1.html)),
+			recordCrawlVersion,
+		});
+
+		await handler(createSqsEvent({ url: "https://example.com/a" }), buildLambdaContext(), () => {});
+
+		expect(recordCrawlVersion).not.toHaveBeenCalled();
+	});
+
+	it("records nothing when a tie keeps the existing canonical", async () => {
+		const tier0 = tierSource("tier-0");
+		const tier1 = tierSource("tier-1");
+		const recordCrawlVersion = jest.fn().mockResolvedValue(undefined);
+
+		const { handler } = createHandler({
+			listAvailableTierSources: jest.fn().mockResolvedValue([tier0, tier1]),
+			selectMostCompleteContent: jest.fn().mockResolvedValue({ winner: "tie", reason: "equally complete" }),
+			findContentSourceTier: jest.fn().mockResolvedValue("tier-1"),
+			loadArticle: jest.fn().mockResolvedValue(
+				articleWithSummary("https://example.com/a", { kind: "ready", summary: "ok" }),
+			),
+			recordCrawlVersion,
+		});
+
+		await handler(createSqsEvent({ url: "https://example.com/a" }), buildLambdaContext(), () => {});
+
+		expect(recordCrawlVersion).not.toHaveBeenCalled();
 	});
 });

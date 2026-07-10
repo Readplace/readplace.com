@@ -22,6 +22,14 @@ import {
 	initFindContentSourceTier,
 	type FindContentSourceTier,
 } from "../providers/article-store/find-content-source-tier";
+import {
+	initFindCanonicalContentHash,
+	type FindCanonicalContentHash,
+} from "../providers/article-store/find-canonical-content-hash";
+import {
+	initRecordCrawlVersion,
+	type RecordCrawlVersion,
+} from "../providers/article-store/record-crawl-version";
 
 export type SelectContentDepBundle = {
 	readTierSource: ReadTierSource;
@@ -29,6 +37,8 @@ export type SelectContentDepBundle = {
 	selectMostCompleteContent: SelectMostCompleteContent;
 	writeCanonicalContent: WriteCanonicalContent;
 	findContentSourceTier: FindContentSourceTier;
+	findCanonicalContentHash: FindCanonicalContentHash;
+	recordCrawlVersion: RecordCrawlVersion;
 };
 
 export function initSelectContentDepBundle(deps: {
@@ -59,11 +69,23 @@ export function initSelectContentDepBundle(deps: {
 		dynamoClient: deps.dynamoClient,
 		tableName: deps.articlesTable,
 	});
+	const { findCanonicalContentHash } = initFindCanonicalContentHash({
+		dynamoClient: deps.dynamoClient,
+		tableName: deps.articlesTable,
+	});
+	const { recordCrawlVersion } = initRecordCrawlVersion({
+		dynamoClient: deps.dynamoClient,
+		s3Client: deps.s3Client,
+		tableName: deps.articlesTable,
+		bucketName: deps.contentBucketName,
+	});
 	return {
 		readTierSource,
 		listAvailableTierSources,
 		selectMostCompleteContent,
 		writeCanonicalContent,
 		findContentSourceTier,
+		findCanonicalContentHash,
+		recordCrawlVersion,
 	};
 }

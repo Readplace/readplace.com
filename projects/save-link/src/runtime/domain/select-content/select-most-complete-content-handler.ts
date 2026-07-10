@@ -15,6 +15,8 @@ import type { ListAvailableTierSources } from "./list-available-tier-sources";
 import type { SelectMostCompleteContent } from "./select-content";
 import type { WriteCanonicalContent } from "../../providers/article-store/promote-tier-to-canonical";
 import type { FindContentSourceTier } from "../../providers/article-store/find-content-source-tier";
+import type { FindCanonicalContentHash } from "../../providers/article-store/find-canonical-content-hash";
+import type { RecordCrawlVersion } from "../../providers/article-store/record-crawl-version";
 import { computeCanonicalContentHash } from "../../providers/article-store/compute-canonical-content-hash";
 import { resolveCanonicalImageUrl } from "./resolve-canonical-image-url";
 import { initResolveTie } from "./resolve-tie";
@@ -26,6 +28,8 @@ export function initSelectMostCompleteContentHandler(deps: {
 	selectMostCompleteContent: SelectMostCompleteContent;
 	writeCanonicalContent: WriteCanonicalContent;
 	findContentSourceTier: FindContentSourceTier;
+	findCanonicalContentHash: FindCanonicalContentHash;
+	recordCrawlVersion: RecordCrawlVersion;
 	loadArticle: LoadArticle;
 	transitionAndPersist: TransitionAndPersist;
 	publishEvent: PublishEvent;
@@ -37,6 +41,8 @@ export function initSelectMostCompleteContentHandler(deps: {
 		selectMostCompleteContent,
 		writeCanonicalContent,
 		findContentSourceTier,
+		findCanonicalContentHash,
+		recordCrawlVersion,
 		loadArticle,
 		transitionAndPersist,
 		publishEvent,
@@ -120,8 +126,16 @@ export function initSelectMostCompleteContentHandler(deps: {
 				const currentTier = resolvedExistingTier ?? await findContentSourceTier(detail.url);
 				const canonicalChanged = currentTier !== winnerTier;
 				const canonicalContentHash = computeCanonicalContentHash(winnerSource.html);
+				const previousHash = await findCanonicalContentHash(detail.url);
+				const contentChanged =
+					previousHash === undefined || previousHash !== canonicalContentHash;
+				const crawledAt = now().toISOString();
 
 				await writeCanonicalContent({ url: detail.url, tier: winnerTier });
+
+				if (canonicalChanged || contentChanged) {
+					await recordCrawlVersion({ url: detail.url, tier: winnerTier, crawledAt });
+				}
 
 				await transitionAndPersist(promoteTier, {
 					url: detail.url,
@@ -132,8 +146,8 @@ export function initSelectMostCompleteContentHandler(deps: {
 							imageUrl: resolveCanonicalImageUrl({ winner: winnerSource, candidates: sources }),
 						},
 						estimatedReadTime: winnerSource.metadata.estimatedReadTime,
-						contentFetchedAt: now().toISOString(),
-						now: now().toISOString(),
+						contentFetchedAt: crawledAt,
+						now: crawledAt,
 						canonicalChanged,
 						canonicalContentHash,
 						userId: detail.userId,

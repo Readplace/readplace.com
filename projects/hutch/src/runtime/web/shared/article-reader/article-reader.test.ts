@@ -2,6 +2,7 @@ import assert from "node:assert/strict";
 import { JSDOM } from "jsdom";
 import type { Minutes } from "@packages/domain/article";
 import { ReaderArticleHashId } from "@packages/domain/article";
+import type { ArticleCrawlVersion } from "@packages/provider-contracts/article-store";
 import type { ArticleCrawl } from "@packages/test-fixtures/providers/article-crawl";
 import type { GeneratedSummary } from "@packages/test-fixtures/providers/article-summary";
 import type { GlobalArticleData } from "@packages/test-fixtures/providers/article-store";
@@ -41,6 +42,7 @@ interface FakeState {
 	content: string | undefined;
 	article: GlobalArticleData | null;
 	contentFetchedAt: string | undefined;
+	crawlVersions: ArticleCrawlVersion[];
 }
 
 const FIXED_NOW = new Date("2026-04-25T12:00:00.000Z");
@@ -70,6 +72,7 @@ function initFakeDeps(initial: {
 	 * stay green; the collapse case overrides it to false. */
 	summaryOpen?: boolean;
 	contentFetchedAt?: string;
+	crawlVersions?: ArticleCrawlVersion[];
 } = {}): {
 	state: FakeState;
 	deps: ArticleReaderDeps;
@@ -80,12 +83,14 @@ function initFakeDeps(initial: {
 		content: initial.content,
 		article: initial.article === undefined ? defaultFakeArticle() : initial.article,
 		contentFetchedAt: initial.contentFetchedAt,
+		crawlVersions: initial.crawlVersions ?? [],
 	};
 	const deps: ArticleReaderDeps = {
 		findArticleCrawlStatus: async () => state.crawl,
 		findGeneratedSummary: async () => state.summary,
 		readArticleContent: async () => state.content,
 		findArticleByUrl: async () => state.article,
+		findArticleCrawlVersions: async () => state.crawlVersions,
 		findArticleFreshness: async () =>
 			state.contentFetchedAt === undefined
 				? null
@@ -128,7 +133,32 @@ describe("initArticleReader", () => {
 			expect(result.summaryPollUrl).toBe("/test/summary?poll=1");
 		});
 
-		it("sets lastCrawledAt from contentFetchedAt as a short-datetime LocalTime", async () => {
+		it("maps the crawl-version log to newest-first short-datetime LocalTimes", async () => {
+			const { deps } = initFakeDeps({
+				crawl: { status: "ready" },
+				summary: { status: "ready", summary: "TL;DR" },
+				content: "<p>body</p>",
+				contentFetchedAt: "2026-03-26T14:32:00.000Z",
+				crawlVersions: [
+					{ crawledAtMinute: "2026-07-10T09:14Z" },
+					{ crawledAtMinute: "2026-06-28T22:01Z" },
+				],
+			});
+			const reader = initArticleReader(deps);
+
+			const result = await reader.resolveReaderState({
+				article: makeSnapshot(),
+				pollUrlBuilder: makePollUrlBuilder(),
+			});
+
+			// Provider versions win over the contentFetchedAt fallback.
+			expect(result.crawlVersions).toEqual([
+				{ iso: "2026-07-10T09:14Z", label: "10 Jul '26, 09:14", mode: "short-datetime" },
+				{ iso: "2026-06-28T22:01Z", label: "28 Jun '26, 22:01", mode: "short-datetime" },
+			]);
+		});
+
+		it("falls back to a single crawlVersions element from contentFetchedAt when the version log is empty", async () => {
 			const { deps } = initFakeDeps({
 				crawl: { status: "ready" },
 				summary: { status: "ready", summary: "TL;DR" },
@@ -142,14 +172,12 @@ describe("initArticleReader", () => {
 				pollUrlBuilder: makePollUrlBuilder(),
 			});
 
-			expect(result.lastCrawledAt).toEqual({
-				iso: "2026-03-26T14:32:00.000Z",
-				label: "26 Mar '26, 14:32",
-				mode: "short-datetime",
-			});
+			expect(result.crawlVersions).toEqual([
+				{ iso: "2026-03-26T14:32:00.000Z", label: "26 Mar '26, 14:32", mode: "short-datetime" },
+			]);
 		});
 
-		it("leaves lastCrawledAt undefined before the first crawl records a contentFetchedAt", async () => {
+		it("leaves crawlVersions empty before the first crawl records a contentFetchedAt", async () => {
 			const { deps } = initFakeDeps({
 				crawl: { status: "pending" },
 				summary: { status: "pending" },
@@ -161,7 +189,7 @@ describe("initArticleReader", () => {
 				pollUrlBuilder: makePollUrlBuilder(),
 			});
 
-			expect(result.lastCrawledAt).toBeUndefined();
+			expect(result.crawlVersions).toEqual([]);
 		});
 
 		it("emits a unified progress tick driven by the crawl stage while crawl is pending", async () => {

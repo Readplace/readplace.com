@@ -176,11 +176,35 @@ describe("View routes", () => {
 			const afterDoc = new JSDOM(after.text).window.document;
 			const tab = afterDoc.querySelector('[data-test-crawl-bookmark-tab="canonical"]');
 			assert(tab, "the canonical bookmark tab must render once contentFetchedAt exists");
+			expect(tab.classList.contains("crawl-bookmark__tab--current")).toBe(true);
+			expect(tab.getAttribute("aria-disabled")).toBe("false");
+			expect(tab.querySelector(".crawl-bookmark__badge")?.textContent).toBe("current");
 			const time = tab.querySelector("time");
 			assert(time, "the bookmark tab must carry a <time> for the crawl instant");
 			expect(time.getAttribute("datetime")).toBe("2026-03-26T14:32:00.000Z");
 			expect(time.getAttribute("data-local-time")).toBe("short-datetime");
 			expect(time.textContent).toBe("26 Mar '26, 14:32");
+
+			// With a real dated version log, the newest is current and the rest are
+			// rendered but disabled (aria-disabled), not yet selectable.
+			await fixture.articleStore.setCrawlVersions({
+				url: ARTICLE_URL,
+				versions: ["2026-07-10T09:14Z", "2026-06-28T22:01Z", "2026-03-26T14:32Z"],
+			});
+
+			const versioned = await request(harness.server).get(`/view/${CANONICAL_PATH}`);
+			const versionedDoc = new JSDOM(versioned.text).window.document;
+			const keys = Array.from(
+				versionedDoc.querySelectorAll("[data-test-crawl-bookmark-tab]"),
+			).map((el) => el.getAttribute("data-test-crawl-bookmark-tab"));
+			expect(keys).toEqual(["canonical", "2026-06-28T22:01Z", "2026-03-26T14:32Z"]);
+			expect(versionedDoc.querySelectorAll(".crawl-bookmark__badge").length).toBe(1);
+			for (const key of ["2026-06-28T22:01Z", "2026-03-26T14:32Z"]) {
+				const disabled = versionedDoc.querySelector(`[data-test-crawl-bookmark-tab="${key}"]`);
+				assert(disabled, `version tab ${key} must render`);
+				expect(disabled.getAttribute("aria-disabled")).toBe("true");
+				expect(disabled.classList.contains("crawl-bookmark__tab--disabled")).toBe(true);
+			}
 		});
 
 		it("301-redirects the legacy percent-encoded format to the scheme-less canonical", async () => {

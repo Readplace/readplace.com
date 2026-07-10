@@ -8,37 +8,75 @@ function parse(html: string): Document {
 }
 
 describe("renderCrawlBookmark", () => {
-	it("renders a single selected canonical tab carrying the crawl instant", () => {
-		const lastCrawledAt = toAbsoluteShortDateTime({ iso: "2026-03-26T14:32:00.000Z" });
+	it("renders the newest version as the current tab and older ones as disabled, newest first", () => {
+		const versions = [
+			toAbsoluteShortDateTime({ iso: "2026-07-10T09:14Z" }),
+			toAbsoluteShortDateTime({ iso: "2026-06-28T22:01Z" }),
+			toAbsoluteShortDateTime({ iso: "2026-03-26T14:32Z" }),
+		];
 
-		const doc = parse(renderCrawlBookmark({ lastCrawledAt }));
+		const doc = parse(renderCrawlBookmark({ versions }));
 
-		const tab = doc.querySelector('[data-test-crawl-bookmark-tab="canonical"]');
-		assert(tab, "the canonical tab must render");
-		expect(tab.classList.contains("crawl-bookmark__tab--selected")).toBe(true);
-		expect(tab.textContent).toContain("Last crawled at");
+		const keys = Array.from(doc.querySelectorAll("[data-test-crawl-bookmark-tab]")).map((el) =>
+			el.getAttribute("data-test-crawl-bookmark-tab"),
+		);
+		expect(keys).toEqual(["canonical", "2026-06-28T22:01Z", "2026-03-26T14:32Z"]);
 
-		const time = tab.querySelector("time");
-		assert(time, "the tab must carry a <time> for the crawl instant");
-		expect(time.getAttribute("datetime")).toBe("2026-03-26T14:32:00.000Z");
-		expect(time.getAttribute("data-local-time")).toBe("short-datetime");
-		expect(time.textContent).toBe("26 Mar '26, 14:32");
+		// Exactly one "current" badge across the whole list, and it sits on the newest tab.
+		expect(doc.querySelectorAll(".crawl-bookmark__badge").length).toBe(1);
+
+		const current = doc.querySelector('[data-test-crawl-bookmark-tab="canonical"]');
+		assert(current, "the current tab must render");
+		expect(current.classList.contains("crawl-bookmark__tab--current")).toBe(true);
+		expect(current.getAttribute("aria-disabled")).toBe("false");
+		const badge = current.querySelector(".crawl-bookmark__badge");
+		assert(badge, "the current tab must carry the badge");
+		expect(badge.textContent).toBe("current");
+		const currentTime = current.querySelector("time");
+		assert(currentTime, "the current tab must carry a <time>");
+		expect(currentTime.getAttribute("datetime")).toBe("2026-07-10T09:14Z");
+		expect(currentTime.getAttribute("data-local-time")).toBe("short-datetime");
+		expect(currentTime.textContent).toBe("10 Jul '26, 09:14");
+
+		const older = doc.querySelector('[data-test-crawl-bookmark-tab="2026-06-28T22:01Z"]');
+		assert(older, "an older version tab must render");
+		expect(older.classList.contains("crawl-bookmark__tab--disabled")).toBe(true);
+		expect(older.getAttribute("aria-disabled")).toBe("true");
+		expect(older.querySelector("time")?.textContent).toBe("28 Jun '26, 22:01");
 	});
 
-	it("renders exactly one tab inside an open <details> bookmark", () => {
+	it("renders a single version as the current tab with a badge and no disabled tabs", () => {
+		const doc = parse(
+			renderCrawlBookmark({ versions: [toAbsoluteShortDateTime({ iso: "2026-03-26T14:32Z" })] }),
+		);
+
+		const tabs = doc.querySelectorAll("[data-test-crawl-bookmark-tab]");
+		expect(tabs.length).toBe(1);
+		const tab = tabs[0];
+		expect(tab.getAttribute("data-test-crawl-bookmark-tab")).toBe("canonical");
+		expect(tab.classList.contains("crawl-bookmark__tab--current")).toBe(true);
+		expect(tab.querySelector(".crawl-bookmark__badge")?.textContent).toBe("current");
+		expect(tab.querySelector("time")?.textContent).toBe("26 Mar '26, 14:32");
+		expect(doc.querySelectorAll(".crawl-bookmark__tab--disabled").length).toBe(0);
+	});
+
+	it("renders every version inside an open <details> bookmark capsule", () => {
 		const doc = parse(
 			renderCrawlBookmark({
-				lastCrawledAt: toAbsoluteShortDateTime({ iso: "2026-03-26T14:32:00.000Z" }),
+				versions: [
+					toAbsoluteShortDateTime({ iso: "2026-03-26T14:32Z" }),
+					toAbsoluteShortDateTime({ iso: "2026-01-01T00:00Z" }),
+				],
 			}),
 		);
 
 		const bookmark = doc.querySelector("details.crawl-bookmark");
 		assert(bookmark, "the bookmark must be a <details>");
 		expect(bookmark.hasAttribute("open")).toBe(true);
-		expect(doc.querySelectorAll(".crawl-bookmark__tab").length).toBe(1);
+		expect(doc.querySelectorAll(".crawl-bookmark__tab").length).toBe(2);
 	});
 
-	it("renders nothing before the first crawl records a contentFetchedAt", () => {
-		expect(renderCrawlBookmark({ lastCrawledAt: undefined })).toBe("");
+	it("renders nothing before any crawl version exists", () => {
+		expect(renderCrawlBookmark({ versions: [] })).toBe("");
 	});
 });

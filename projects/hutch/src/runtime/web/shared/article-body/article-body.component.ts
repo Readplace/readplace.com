@@ -46,7 +46,7 @@ export interface ArticleBodyInput {
 	 */
 	progress?: ProgressTick;
 	appOrigin: string;
-	lastCrawledAt?: LocalTime;
+	crawlVersions?: LocalTime[];
 }
 
 export function renderArticleBody(input: ArticleBodyInput): string {
@@ -70,7 +70,7 @@ export function renderArticleBody(input: ArticleBodyInput): string {
 
 	const progressBarHtml = renderProgressBar({ progress: input.progress });
 
-	const crawlBookmarkHtml = renderCrawlBookmark({ lastCrawledAt: input.lastCrawledAt });
+	const crawlBookmarkHtml = renderCrawlBookmark({ versions: input.crawlVersions ?? [] });
 
 	const headerHtml = renderArticleHeader({
 		title: input.title,

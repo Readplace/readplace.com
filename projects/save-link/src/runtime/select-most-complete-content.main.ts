@@ -19,6 +19,8 @@ import { initSelectMostCompleteContent } from "./domain/select-content/select-co
 import { SELECT_CONTENT_TIMEOUTS } from "./domain/select-content/timeouts";
 import { initWriteCanonicalContent } from "./providers/article-store/promote-tier-to-canonical";
 import { initFindContentSourceTier } from "./providers/article-store/find-content-source-tier";
+import { initFindCanonicalContentHash } from "./providers/article-store/find-canonical-content-hash";
+import { initRecordCrawlVersion } from "./providers/article-store/record-crawl-version";
 import { initSelectMostCompleteContentHandler } from "./domain/select-content/select-most-complete-content-handler";
 
 const articlesTable = requireEnv("DYNAMODB_ARTICLES_TABLE");
@@ -61,6 +63,18 @@ const { findContentSourceTier } = initFindContentSourceTier({
 	tableName: articlesTable,
 });
 
+const { findCanonicalContentHash } = initFindCanonicalContentHash({
+	dynamoClient,
+	tableName: articlesTable,
+});
+
+const { recordCrawlVersion } = initRecordCrawlVersion({
+	dynamoClient,
+	s3Client,
+	tableName: articlesTable,
+	bucketName: contentBucketName,
+});
+
 const { store } = initDynamoDbArticleStore({
 	client: dynamoClient,
 	tableName: articlesTable,
@@ -92,6 +106,8 @@ export const handler = initSelectMostCompleteContentHandler({
 	selectMostCompleteContent,
 	writeCanonicalContent,
 	findContentSourceTier,
+	findCanonicalContentHash,
+	recordCrawlVersion,
 	loadArticle: store.load,
 	transitionAndPersist,
 	publishEvent,

@@ -78,6 +78,8 @@ function createHandler(overrides: Partial<HandlerDeps> = {}) {
 		selectMostCompleteContent: jest.fn<ReturnType<SelectMostCompleteContent>, Parameters<SelectMostCompleteContent>>().mockResolvedValue({ winner: "tie", reason: "" }),
 		writeCanonicalContent: jest.fn<ReturnType<WriteCanonicalContent>, Parameters<WriteCanonicalContent>>().mockResolvedValue(undefined),
 		findContentSourceTier: jest.fn<ReturnType<FindContentSourceTier>, Parameters<FindContentSourceTier>>().mockResolvedValue(undefined),
+		findCanonicalContentHash: jest.fn().mockResolvedValue(undefined),
+		recordCrawlVersion: jest.fn().mockResolvedValue(undefined),
 		loadArticle: jest.fn().mockResolvedValue(undefined),
 		transitionAndPersist,
 		publishEvent: jest.fn().mockResolvedValue(undefined),
@@ -509,6 +511,69 @@ describe("initSelectMostCompleteContentHandler", () => {
 				input: expect.objectContaining({ tier: "tier-1" }),
 			}),
 		);
+	});
+
+	it("records a crawl version (snapshot + minute id) after writing canonical when the content changed", async () => {
+		const tier1 = tierSource("tier-1");
+		const recordCrawlVersion = jest.fn().mockResolvedValue(undefined);
+
+		const { handler } = createHandler({
+			listAvailableTierSources: jest.fn().mockResolvedValue([tier1]),
+			findContentSourceTier: jest.fn().mockResolvedValue(undefined),
+			findCanonicalContentHash: jest.fn().mockResolvedValue(undefined),
+			recordCrawlVersion,
+		});
+
+		await handler(createSqsEvent({ url: "https://example.com/a", tier: "tier-1", userId: "user-1" }), buildLambdaContext(), () => {});
+
+		expect(recordCrawlVersion).toHaveBeenCalledWith({
+			url: "https://example.com/a",
+			tier: "tier-1",
+			crawledAt: FIXED_NOW.toISOString(),
+		});
+	});
+
+	it("records the version between writing canonical and persisting the aggregate transition", async () => {
+		const tier1 = tierSource("tier-1");
+		const callOrder: string[] = [];
+
+		const { handler } = createHandler({
+			listAvailableTierSources: jest.fn().mockResolvedValue([tier1]),
+			findContentSourceTier: jest.fn().mockResolvedValue(undefined),
+			writeCanonicalContent: jest.fn(async () => {
+				callOrder.push("writeCanonicalContent");
+			}),
+			recordCrawlVersion: jest.fn(async () => {
+				callOrder.push("recordCrawlVersion");
+			}),
+			transitionAndPersist: jest.fn(async () => {
+				callOrder.push("transitionAndPersist");
+			}),
+		});
+
+		await handler(createSqsEvent({ url: "https://example.com/a", tier: "tier-1" }), buildLambdaContext(), () => {});
+
+		expect(callOrder).toEqual([
+			"writeCanonicalContent",
+			"recordCrawlVersion",
+			"transitionAndPersist",
+		]);
+	});
+
+	it("skips recording when neither the canonical tier nor the readable-text hash changed", async () => {
+		const tier0 = tierSource("tier-0");
+		const recordCrawlVersion = jest.fn().mockResolvedValue(undefined);
+
+		const { handler } = createHandler({
+			listAvailableTierSources: jest.fn().mockResolvedValue([tier0]),
+			findContentSourceTier: jest.fn().mockResolvedValue("tier-0"),
+			findCanonicalContentHash: jest.fn().mockResolvedValue(computeCanonicalContentHash(tier0.html)),
+			recordCrawlVersion,
+		});
+
+		await handler(createSqsEvent({ url: "https://example.com/a", tier: "tier-0", userId: "user-1" }), buildLambdaContext(), () => {});
+
+		expect(recordCrawlVersion).not.toHaveBeenCalled();
 	});
 
 	it("reports the record as a batch failure on invalid event detail (Zod failure surfaces before processing)", async () => {
