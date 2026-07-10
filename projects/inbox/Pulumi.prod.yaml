@@ -17,3 +17,4 @@ config:
   inbox:rawEmailBucketName: hutch-inbox-raw-email-prod
   inbox:contentBucketName: hutch-article-content-prod
   inbox:contentMediaCdnDomain: cdn.readplace.com
+encryptionsalt: v1:VhoYTtA178g=:v1:vHKe/jtCrEAyN4Vl:rhxUykf2Suj3UgBBcVYk/W2gMO8gOA==
