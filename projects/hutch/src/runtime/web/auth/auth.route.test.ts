@@ -1045,6 +1045,48 @@ describe("Auth routes", () => {
 			const subRow = await subscriptionProviders.findByUserId(lookup.userId);
 			expect(subRow?.status).toBe("trialing");
 		}, 30000);
+
+		it("does not count the fake-success redirect as an internal click even though the scraped form action carries the click UTM params", async () => {
+			const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
+			const { botDefense } = harness;
+
+			const response = await request(harness.server)
+				.post("/signup?utm_source=auth-page&utm_medium=internal&utm_content=signup-submit-btn")
+				.type("form")
+				.send({
+					email: "bot@example.com",
+					password: "password123",
+					loadedAt: freshLoadedAt(),
+					website: "https://spam.example",
+				});
+
+			expect(response.status).toBe(303);
+			expect(botDefense.events).toHaveLength(1);
+			expect(harness.analytics.events.filter((e) => e.event === "click")).toEqual([]);
+		});
+
+		it("counts a human's signup submit as a signup-submit-btn click", async () => {
+			const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
+
+			const response = await request(harness.server)
+				.post("/signup?utm_source=auth-page&utm_medium=internal&utm_content=signup-submit-btn")
+				.type("form")
+				.send({
+					email: "human@example.com",
+					password: "password123",
+					loadedAt: freshLoadedAt(),
+				});
+
+			expect(response.status).toBe(303);
+			const clicks = harness.analytics.events.filter((e) => e.event === "click");
+			expect(clicks).toHaveLength(1);
+			expect(clicks[0]).toMatchObject({
+				utm_source: "auth-page",
+				utm_medium: "internal",
+				utm_content: "signup-submit-btn",
+				path: "/signup",
+			});
+		});
 	});
 
 	describe("GET /verify-email", () => {

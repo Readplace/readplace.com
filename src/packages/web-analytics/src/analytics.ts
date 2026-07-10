@@ -313,14 +313,23 @@ function isInternalClick(req: Request): boolean {
 	return extractQueryString(req, "utm_medium") === INTERNAL_CLICK_MEDIUM;
 }
 
+const suppressedClickResponses = new WeakSet<Response>();
+
+export function suppressClickCount(res: Response): void {
+	suppressedClickResponses.add(res);
+}
+
 /**
  * Clicks are counted regardless of method or `hx-request` (HTMX-boosted links
- * and POST actions are clicks too); only bots and error responses are dropped.
- * The precise `utm_medium=internal` marker already excludes background polls,
- * which never carry it.
+ * and POST actions are clicks too); only bots, error responses, and responses
+ * a route suppressed via suppressClickCount (the `isbot` UA sniff misses a
+ * spoofed User-Agent, but a route that tripped its own bot defense knows
+ * better) are dropped. The precise `utm_medium=internal` marker already
+ * excludes background polls, which never carry it.
  */
-function shouldCountClick(req: Request, statusCode: number): boolean {
-	if (statusCode >= 400) return false;
+function shouldCountClick(req: Request, res: Response): boolean {
+	if (suppressedClickResponses.has(res)) return false;
+	if (res.statusCode >= 400) return false;
 	if (isbot(req.get("user-agent"))) return false;
 	return true;
 }
@@ -402,7 +411,7 @@ export function createAnalyticsMiddleware(deps: {
 		 * misclassify the pageview (and defeat the `/blog/...` SKIP_PATHS). */
 		const path = req.path;
 		res.on("finish", () => {
-			if (isInternalClick(req) && shouldCountClick(req, res.statusCode)) {
+			if (isInternalClick(req) && shouldCountClick(req, res)) {
 				deps.logger.info({
 					stream: STREAMS.analytics,
 					event: ANALYTICS_EVENTS.click,

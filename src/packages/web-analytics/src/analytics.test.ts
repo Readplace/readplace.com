@@ -1,7 +1,7 @@
 import { EventEmitter } from "node:events";
 import type { NextFunction, Request, Response } from "express";
 import type { HutchLogger } from "@packages/hutch-logger";
-import { type AnalyticsClick, type AnalyticsEvent, type AnalyticsPageview, buildSaveIntentEvent, classifyBrowser, classifyDeviceClass, createAnalyticsMiddleware, hashIp, type ViewSaveIntentEvent } from "./analytics";
+import { type AnalyticsClick, type AnalyticsEvent, type AnalyticsPageview, buildSaveIntentEvent, classifyBrowser, classifyDeviceClass, createAnalyticsMiddleware, hashIp, suppressClickCount, type ViewSaveIntentEvent } from "./analytics";
 import { SAVE_OUTCOMES, SAVE_SURFACES } from "./events";
 
 function createCapturingLogger(): {
@@ -255,6 +255,18 @@ describe("createAnalyticsMiddleware — internal click events", () => {
 	it("does not count a click when isbot flags the user-agent", () => {
 		const req = createReq({ query: internalQuery, headers: { "user-agent": "Googlebot/2.1 (+http://www.google.com/bot.html)" } });
 		expect(runMiddlewareClicks(req, createRes(200))).toEqual([]);
+	});
+
+	it("does not count a click when the route suppressed the response — a confirmed-bot fake-success 303 passes the status and UA gates but must not inflate the click stream", () => {
+		const req = createReq({ method: "POST", path: "/signup", query: internalQuery });
+		const res = createRes(303);
+		suppressClickCount(res);
+		expect(runMiddlewareClicks(req, res)).toEqual([]);
+	});
+
+	it("counts a click on an unsuppressed 303 with the same shape, so suppression is what drops the bot's press, not the redirect status", () => {
+		const req = createReq({ method: "POST", path: "/signup", query: internalQuery });
+		expect(runMiddlewareClicks(req, createRes(303))).toHaveLength(1);
 	});
 
 	it("keeps utm_medium=internal out of the pageview so acquisition dashboards are not diluted by in-site navigation, while still emitting the click", () => {

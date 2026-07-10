@@ -56,7 +56,7 @@ import { LoginSchema } from "./auth.schema";
 import { LoginPage, SignupPage, VerifyEmailPage } from "./auth.component";
 import { extractReturnUrl, parseReturnUrl } from "./parse-return-url";
 import { pendingSaveHostFrom } from "./pending-save-host";
-import { baseCookieOptions } from "@packages/web-analytics";
+import { baseCookieOptions, suppressClickCount } from "@packages/web-analytics";
 import { SESSION_COOKIE_MAX_AGE_MS, SESSION_COOKIE_NAME } from "@packages/web-session";
 import { buildVerificationEmailHtml } from "./verification-email";
 import { flattenZodErrors } from "./flatten-zod-errors";
@@ -292,6 +292,7 @@ export function initAuthRoutes(deps: AuthDependencies): Router {
 						);
 						break;
 					}
+					suppressClickCount(res);
 					res.redirect(303, "/?signup=pending");
 					break;
 				case "field-errors":

@@ -1,4 +1,4 @@
-import type { Express } from "express";
+import express, { type Express } from "express";
 import type { HutchLogger } from "@packages/hutch-logger";
 import type { GetSessionUserId } from "@packages/provider-contracts/auth";
 import type { OAuthModel } from "@packages/provider-contracts/oauth";
@@ -26,7 +26,7 @@ import { useTestServer as useServerForFixture } from "@packages/web-test-harness
 import { createApp } from "./server";
 import type { GetChangelogBanner } from "./web/changelog-banner-source";
 import { initFoundingAllocation } from "./web/shared/founding-progress/founding-allocation";
-import type { AnalyticsEvent } from "@packages/web-analytics";
+import { type AnalyticsEvent, createAnalyticsMiddleware } from "@packages/web-analytics";
 
 export type {
 	AdminBundle,
@@ -238,7 +238,13 @@ export function createTestApp(
 		logger: { info: captureAnalytics, error: captureAnalytics, warn: captureAnalytics, debug: captureAnalytics },
 		events: analyticsEvents,
 	};
-	const app = createApp({ ...flattenFixtureToAppDependencies(fixture, analyticsBundle), ...overrides });
+	const app = express()
+		.use(createAnalyticsMiddleware({
+			logger: analyticsBundle.logger,
+			salt: "test-analytics-salt",
+			now: fixture.shared.now,
+		}))
+		.use(createApp({ ...flattenFixtureToAppDependencies(fixture, analyticsBundle), ...overrides }));
 	return {
 		app,
 		auth: fixture.auth,
