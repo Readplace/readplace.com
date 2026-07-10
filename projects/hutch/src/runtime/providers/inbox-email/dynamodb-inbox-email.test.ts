@@ -70,8 +70,25 @@ interface CapturedCommand {
 		KeyConditionExpression?: string;
 		ConditionExpression?: string;
 		ScanIndexForward?: boolean;
+		Select?: string;
+		Limit?: number;
 		ExpressionAttributeValues?: Record<string, unknown>;
+		ExclusiveStartKey?: Record<string, unknown>;
 	};
+}
+
+function createOrderedClient(responses: Record<string, unknown>[]): {
+	client: DynamoDBDocumentClient;
+	captured: CapturedCommand[];
+} {
+	const captured: CapturedCommand[] = [];
+	let index = 0;
+	const client = createFakeClient((cmd) => {
+		captured.push(cmd as CapturedCommand);
+		assert(index < responses.length, "ordered client received an unexpected extra query");
+		return responses[index++];
+	}) as DynamoDBDocumentClient;
+	return { client, captured };
 }
 
 const TABLE = "test-inbox-emails";
@@ -95,6 +112,21 @@ function makeEntry(overrides: Partial<InboxEmailEntry> = {}): InboxEmailEntry {
 
 function conditionalCheckFailed(): ConditionalCheckFailedException {
 	return new ConditionalCheckFailedException({ $metadata: {}, message: "exists" });
+}
+
+function rawRow(input: { hour: string; messageId: string }): Record<string, unknown> {
+	return {
+		userId: "user-1",
+		receivedAtMessageId: `2026-06-23T${input.hour}:00:00.000Z#${input.messageId}`,
+		messageId: input.messageId,
+		recipientAddress: "in-3f9a2c@read.place",
+		senderEmail: "news@example.com",
+		subject: `At ${input.hour}`,
+		status: "received",
+		receivedAt: `2026-06-23T${input.hour}:00:00.000Z`,
+		rawEmailS3Key: `inbound/${input.hour}`,
+		bodyS3Key: `content/${input.hour}/content.html`,
+	};
 }
 
 describe("initDynamoDbInboxEmail", () => {
@@ -167,53 +199,146 @@ describe("initDynamoDbInboxEmail", () => {
 	});
 
 	describe("listEmailsByUserId", () => {
-		it("queries the base table newest-first, normalizing a missing body pointer", async () => {
-			let captured: CapturedCommand | undefined;
-			const store = initDynamoDbInboxEmail({
-				client: createFakeClient((cmd) => {
-					captured = cmd as CapturedCommand;
-					return {
-						Items: [
-							{
-								userId: "user-1",
-								receivedAtMessageId: "2026-06-23T09:00:00.000Z#<b@x>",
-								messageId: "<b@x>",
-								recipientAddress: "in-3f9a2c@read.place",
-								senderEmail: "b@x",
-								subject: "Newer",
-								status: "received",
-								receivedAt: "2026-06-23T09:00:00.000Z",
-								rawEmailS3Key: "inbound/b",
-								bodyS3Key: "content/b/content.html",
-							},
-							{
-								userId: "user-1",
-								receivedAtMessageId: "2026-06-23T08:00:00.000Z#<a@x>",
-								messageId: "<a@x>",
-								recipientAddress: "in-3f9a2c@read.place",
-								senderEmail: "a@x",
-								subject: "",
-								status: "rejected",
-								receivedAt: "2026-06-23T08:00:00.000Z",
-								rawEmailS3Key: "inbound/a",
-								bodyS3Key: null,
-							},
-						],
-						Count: 2,
-					};
-				}) as DynamoDBDocumentClient,
-				tableName: TABLE,
-			});
+		it("counts the mailbox, then fetches only the first page newest-first, normalizing a missing body pointer", async () => {
+			const { client, captured } = createOrderedClient([
+				{ Count: 2 },
+				{
+					Items: [
+						{
+							userId: "user-1",
+							receivedAtMessageId: "2026-06-23T09:00:00.000Z#<b@x>",
+							messageId: "<b@x>",
+							recipientAddress: "in-3f9a2c@read.place",
+							senderEmail: "b@x",
+							subject: "Newer",
+							status: "received",
+							receivedAt: "2026-06-23T09:00:00.000Z",
+							rawEmailS3Key: "inbound/b",
+							bodyS3Key: "content/b/content.html",
+						},
+						{
+							userId: "user-1",
+							receivedAtMessageId: "2026-06-23T08:00:00.000Z#<a@x>",
+							messageId: "<a@x>",
+							recipientAddress: "in-3f9a2c@read.place",
+							senderEmail: "a@x",
+							subject: "",
+							status: "rejected",
+							receivedAt: "2026-06-23T08:00:00.000Z",
+							rawEmailS3Key: "inbound/a",
+							bodyS3Key: null,
+						},
+					],
+				},
+			]);
+			const store = initDynamoDbInboxEmail({ client, tableName: TABLE });
 
-			const result = await store.listEmailsByUserId(USER);
+			const result = await store.listEmailsByUserId({ userId: USER, page: 1, pageSize: 20 });
 
-			expect(captured?.input.KeyConditionExpression).toBe("userId = :uid");
-			expect(captured?.input.ExpressionAttributeValues?.[":uid"]).toBe(USER);
-			expect(captured?.input.ScanIndexForward).toBe(false);
-			expect(result).toHaveLength(2);
-			expect(result[0].subject).toBe("Newer");
-			expect(result[0].bodyS3Key).toBe("content/b/content.html");
-			expect(result[1].bodyS3Key).toBeUndefined();
+			expect(captured[0].input.Select).toBe("COUNT");
+			expect(captured[1].input.KeyConditionExpression).toBe("userId = :uid");
+			expect(captured[1].input.ExpressionAttributeValues?.[":uid"]).toBe(USER);
+			expect(captured[1].input.ScanIndexForward).toBe(false);
+			expect(captured[1].input.Limit).toBe(20);
+			expect(captured[1].input.Select).toBeUndefined();
+			expect(result.emails).toHaveLength(2);
+			expect(result.total).toBe(2);
+			expect(result.emails[0].subject).toBe("Newer");
+			expect(result.emails[0].bodyS3Key).toBe("content/b/content.html");
+			expect(result.emails[1].bodyS3Key).toBeUndefined();
+		});
+
+		it("sums COUNT pages so a total spanning more than 1 MB is not truncated", async () => {
+			const countStartKey = {
+				userId: "user-1",
+				receivedAtMessageId: "2026-06-23T09:00:00.000Z#<b@x>",
+			};
+			const { client, captured } = createOrderedClient([
+				{ Count: 2, LastEvaluatedKey: countStartKey },
+				{ Count: 1 },
+				{ Items: [rawRow({ hour: "10", messageId: "<c@x>" })] },
+			]);
+			const store = initDynamoDbInboxEmail({ client, tableName: TABLE });
+
+			const result = await store.listEmailsByUserId({ userId: USER, page: 1, pageSize: 20 });
+
+			expect(captured[0].input.Select).toBe("COUNT");
+			expect(captured[1].input.Select).toBe("COUNT");
+			expect(captured[1].input.ExclusiveStartKey).toEqual(countStartKey);
+			expect(captured[2].input.Select).toBeUndefined();
+			expect(result.total).toBe(3);
+			expect(result.emails.map((e) => e.subject)).toEqual(["At 10"]);
+		});
+
+		it("stops after filling the page even when earlier pages and more rows remain", async () => {
+			const firstItemKey = {
+				userId: "user-1",
+				receivedAtMessageId: "2026-06-23T10:00:00.000Z#<c@x>",
+			};
+			const secondItemKey = {
+				userId: "user-1",
+				receivedAtMessageId: "2026-06-23T09:00:00.000Z#<b@x>",
+			};
+			const { client, captured } = createOrderedClient([
+				{ Count: 3 },
+				{ Items: [rawRow({ hour: "10", messageId: "<c@x>" })], LastEvaluatedKey: firstItemKey },
+				{ Items: [rawRow({ hour: "09", messageId: "<b@x>" })], LastEvaluatedKey: secondItemKey },
+			]);
+			const store = initDynamoDbInboxEmail({ client, tableName: TABLE });
+
+			const result = await store.listEmailsByUserId({ userId: USER, page: 2, pageSize: 1 });
+
+			expect(captured).toHaveLength(3);
+			expect(captured[2].input.ExclusiveStartKey).toEqual(firstItemKey);
+			expect(result.emails.map((e) => e.subject)).toEqual(["At 09"]);
+			expect(result).toMatchObject({ total: 3, page: 2, pageSize: 1 });
+		});
+
+		it("returns no emails but the correct total for a page beyond the data", async () => {
+			const { client } = createOrderedClient([
+				{ Count: 1 },
+				{ Items: [rawRow({ hour: "10", messageId: "<c@x>" })] },
+			]);
+			const store = initDynamoDbInboxEmail({ client, tableName: TABLE });
+
+			const result = await store.listEmailsByUserId({ userId: USER, page: 5, pageSize: 2 });
+
+			expect(result.emails).toEqual([]);
+			expect(result.total).toBe(1);
+		});
+
+		it("drops overflow rows when a 1 MB split misaligns the page boundary", async () => {
+			const firstItemKey = {
+				userId: "user-1",
+				receivedAtMessageId: "2026-06-23T05:00:00.000Z#<e@x>",
+			};
+			const secondItemKey = {
+				userId: "user-1",
+				receivedAtMessageId: "2026-06-23T03:00:00.000Z#<c@x>",
+			};
+			const { client } = createOrderedClient([
+				{ Count: 5 },
+				{ Items: [rawRow({ hour: "05", messageId: "<e@x>" })], LastEvaluatedKey: firstItemKey },
+				{
+					Items: [
+						rawRow({ hour: "04", messageId: "<d@x>" }),
+						rawRow({ hour: "03", messageId: "<c@x>" }),
+					],
+					LastEvaluatedKey: secondItemKey,
+				},
+				{
+					Items: [
+						rawRow({ hour: "02", messageId: "<b@x>" }),
+						rawRow({ hour: "01", messageId: "<a@x>" }),
+					],
+				},
+			]);
+			const store = initDynamoDbInboxEmail({ client, tableName: TABLE });
+
+			const result = await store.listEmailsByUserId({ userId: USER, page: 2, pageSize: 2 });
+
+			expect(result.emails.map((e) => e.subject)).toEqual(["At 03", "At 02"]);
+			expect(result.total).toBe(5);
 		});
 	});
 

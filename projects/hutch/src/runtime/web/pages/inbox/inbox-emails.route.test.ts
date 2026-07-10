@@ -212,4 +212,118 @@ describe("Inbox emails list route", () => {
 		expect(rows[0].querySelector("[data-test-inbox-email-link-count]")?.textContent).toBe("2 links");
 		expect(rows[1].querySelector("[data-test-inbox-email-link-count]")).toBeNull();
 	});
+
+	describe("Pagination", () => {
+		function ascendingEmails(userId: UserId, count: number): InboxEmailEntry[] {
+			return Array.from({ length: count }, (_, i) =>
+				emailEntry(userId, {
+					messageId: `<m-${i}@x>`,
+					receivedAt: new Date(Date.UTC(2026, 5, 24, 0, i)).toISOString(),
+					senderEmail: `sender-${i}@example.com`,
+				}),
+			);
+		}
+
+		it("renders page 1 of 2 with a boosted nav and only a next link", async () => {
+			const fixture = createDefaultTestAppFixture(TEST_APP_ORIGIN);
+			const harness = useApp(fixture);
+			const agent = await loginAgent(harness.server, harness.auth);
+			await seedEmails(fixture, (userId) => ascendingEmails(userId, 21));
+
+			const response = await agent.get("/inbox?feature=email");
+
+			expect(response.status).toBe(200);
+			const doc = new JSDOM(response.text).window.document;
+			expect(doc.querySelectorAll("[data-test-inbox-emails-row]")).toHaveLength(20);
+			const pagination = doc.querySelector("[data-test-pagination]");
+			assert(pagination, "pagination nav must render");
+			expect(pagination.getAttribute("hx-boost")).toBe("true");
+			expect(pagination.getAttribute("hx-target")).toBe("main");
+			expect(pagination.getAttribute("hx-select")).toBe("main");
+			expect(pagination.getAttribute("hx-swap")).toBe("outerHTML show:none");
+			const links = Array.from(pagination.querySelectorAll(".inbox-emails__pagination-link"));
+			expect(links.map((link) => link.getAttribute("href"))).toEqual([
+				"/inbox?feature=email&page=2",
+			]);
+			const next = pagination.querySelector("[data-test-pagination-next]");
+			assert(next, "next link must render on page 1 of 2");
+			expect(next.getAttribute("href")).toBe("/inbox?feature=email&page=2");
+			expect(
+				pagination.querySelector("[data-test-pagination-info]")?.textContent,
+			).toBe("Page 1 of 2");
+		});
+
+		it("renders the oldest email alone on page 2 with only a previous link", async () => {
+			const fixture = createDefaultTestAppFixture(TEST_APP_ORIGIN);
+			const harness = useApp(fixture);
+			const agent = await loginAgent(harness.server, harness.auth);
+			await seedEmails(fixture, (userId) => ascendingEmails(userId, 21));
+
+			const response = await agent.get("/inbox?feature=email&page=2");
+
+			expect(response.status).toBe(200);
+			const doc = new JSDOM(response.text).window.document;
+			const rows = Array.from(doc.querySelectorAll("[data-test-inbox-emails-row]"));
+			expect(rows).toHaveLength(1);
+			expect(rows[0].querySelector("[data-test-inbox-email-sender]")?.textContent).toBe(
+				"sender-0@example.com",
+			);
+			const pagination = doc.querySelector("[data-test-pagination]");
+			assert(pagination, "pagination nav must render");
+			const links = Array.from(pagination.querySelectorAll(".inbox-emails__pagination-link"));
+			expect(links.map((link) => link.getAttribute("href"))).toEqual([
+				"/inbox?feature=email",
+			]);
+			const prev = pagination.querySelector("[data-test-pagination-prev]");
+			assert(prev, "previous link must render on the last page");
+			expect(prev.getAttribute("href")).toBe("/inbox?feature=email");
+			expect(
+				pagination.querySelector("[data-test-pagination-info]")?.textContent,
+			).toBe("Page 2 of 2");
+		});
+
+		it("redirects an out-of-bounds page (stale bookmark / manual URL) to the last valid page", async () => {
+			const fixture = createDefaultTestAppFixture(TEST_APP_ORIGIN);
+			const harness = useApp(fixture);
+			const agent = await loginAgent(harness.server, harness.auth);
+			await seedEmails(fixture, (userId) => ascendingEmails(userId, 21));
+
+			const response = await agent.get("/inbox?feature=email&page=99");
+
+			expect(response.status).toBe(302);
+			expect(response.headers.location).toBe("/inbox?feature=email&page=2");
+			const followed = await agent.get(response.headers.location);
+			expect(followed.status).toBe(200);
+		});
+
+		it("renders a full single page without a pagination nav", async () => {
+			const fixture = createDefaultTestAppFixture(TEST_APP_ORIGIN);
+			const harness = useApp(fixture);
+			const agent = await loginAgent(harness.server, harness.auth);
+			await seedEmails(fixture, (userId) => ascendingEmails(userId, 20));
+
+			const response = await agent.get("/inbox?feature=email");
+
+			expect(response.status).toBe(200);
+			const doc = new JSDOM(response.text).window.document;
+			expect(doc.querySelectorAll("[data-test-inbox-emails-row]")).toHaveLength(20);
+			expect(doc.querySelector("[data-test-pagination]")).toBeNull();
+		});
+
+		it("clamps a paged URL on an empty inbox back to the empty state", async () => {
+			const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
+			const agent = await loginAgent(harness.server, harness.auth);
+
+			const response = await agent.get("/inbox?feature=email&page=2");
+
+			expect(response.status).toBe(302);
+			expect(response.headers.location).toBe("/inbox?feature=email");
+			const followed = await agent.get(response.headers.location);
+			expect(followed.status).toBe(200);
+			const doc = new JSDOM(followed.text).window.document;
+			const empty = doc.querySelector("[data-test-inbox-emails-empty]");
+			assert(empty, "empty state must render after the clamp");
+			expect(empty.textContent).toContain("No forwarded emails yet");
+		});
+	});
 });

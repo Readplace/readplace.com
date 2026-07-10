@@ -34,10 +34,20 @@ function build(
 	entries: InboxEmailEntry[],
 	summaries: Record<string, InboxEmailLinkSummary> = {},
 ) {
-	return toInboxEmailsViewModel(entries, {
-		now: NOW,
-		linkSummaries: new Map(Object.entries(summaries)),
-	});
+	return toInboxEmailsViewModel(
+		{ emails: entries, total: entries.length, page: 1, pageSize: 20 },
+		{
+			now: NOW,
+			linkSummaries: new Map(Object.entries(summaries)),
+		},
+	);
+}
+
+function buildPage(input: { page: number; total: number; pageSize: number }) {
+	return toInboxEmailsViewModel(
+		{ emails: [entry()], ...input },
+		{ now: NOW, linkSummaries: new Map() },
+	);
 }
 
 function ago(ms: number): string {
@@ -116,6 +126,39 @@ describe("toInboxEmailsViewModel", () => {
 			"2d ago",
 		]);
 		expect(rows.every((row) => row.received.mode === "relative")).toBe(true);
+	});
+
+	it("hides pagination when everything fits on one page", () => {
+		const vm = buildPage({ page: 1, total: 20, pageSize: 20 });
+
+		expect(vm.showPagination).toBe(false);
+		expect(vm.totalPages).toBe(1);
+		expect(vm.currentPage).toBe(1);
+		expect(vm.hasPrev).toBe(false);
+		expect(vm.hasNext).toBe(false);
+		expect(vm.prevUrl).toBeUndefined();
+		expect(vm.nextUrl).toBeUndefined();
+	});
+
+	it("links forward from page 1 of 2", () => {
+		const vm = buildPage({ page: 1, total: 21, pageSize: 20 });
+
+		expect(vm.showPagination).toBe(true);
+		expect(vm.totalPages).toBe(2);
+		expect(vm.hasPrev).toBe(false);
+		expect(vm.hasNext).toBe(true);
+		expect(vm.prevUrl).toBeUndefined();
+		expect(vm.nextUrl).toBe("/inbox?feature=email&page=2");
+	});
+
+	it("links back from the last page", () => {
+		const vm = buildPage({ page: 2, total: 21, pageSize: 20 });
+
+		expect(vm.currentPage).toBe(2);
+		expect(vm.hasPrev).toBe(true);
+		expect(vm.hasNext).toBe(false);
+		expect(vm.prevUrl).toBe("/inbox?feature=email");
+		expect(vm.nextUrl).toBeUndefined();
 	});
 
 	it("falls back to a UTC-baselined absolute date past the 30-day cutoff", () => {

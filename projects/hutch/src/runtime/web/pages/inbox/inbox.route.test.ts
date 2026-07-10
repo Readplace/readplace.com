@@ -365,8 +365,42 @@ describe("Inbox address routes", () => {
 			const after = new JSDOM(
 				(await agent.get("/inbox/addresses?feature=email")).text,
 			).window.document;
-			expect(after.querySelector('[data-test-inbox-status="disabled"]')).not.toBeNull();
-			expect(after.querySelector("[data-test-inbox-disable]")).toBeNull();
+			const statuses = Array.from(after.querySelectorAll("[data-test-inbox-status]")).map(
+				(el) => el.getAttribute("data-test-inbox-status"),
+			);
+			expect(statuses).toEqual(["disabled"]);
+			expect(after.querySelector(".inbox__disabled-summary")?.textContent).toBe(
+				"Disabled addresses (1)",
+			);
+		});
+
+		it("moves a disabled address into the collapsed group behind the remaining active ones", async () => {
+			const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
+			const agent = await loginAgent(harness.server, harness.auth);
+			await agent.post("/inbox/create?feature=email").type("form").send({ name: "netflix" });
+			await agent.post("/inbox/create?feature=email").type("form").send({ name: "gmail" });
+			const netflixAddress = addressFieldValue(
+				(await agent.get("/inbox/addresses?feature=email")).text,
+			);
+			assert(netflixAddress, "the created netflix address must render");
+			expect(netflixAddress).toMatch(/^netflix-/);
+
+			await agent
+				.post("/inbox/disable?feature=email")
+				.type("form")
+				.send({ address: netflixAddress });
+
+			const after = new JSDOM(
+				(await agent.get("/inbox/addresses?feature=email")).text,
+			).window.document;
+			const names = Array.from(after.querySelectorAll("[data-test-inbox-name]")).map(
+				(el) => el.textContent,
+			);
+			expect(names).toEqual(["gmail", "netflix"]);
+			expect(
+				after.querySelector("[data-test-inbox-disabled-group] [data-test-inbox-name]")
+					?.textContent,
+			).toBe("netflix");
 		});
 
 		it("ignores a request whose body is not a valid address", async () => {

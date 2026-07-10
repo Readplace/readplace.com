@@ -22,7 +22,11 @@ export {
 	aliasNameFromAddress,
 	normalizeAliasName,
 } from "./inbox-address.schema";
-export type { InboxEmailEntry, InboxEmailStore } from "./inbox-email.types";
+export type {
+	InboxEmailEntry,
+	InboxEmailStore,
+	ListInboxEmailsResult,
+} from "./inbox-email.types";
 export {
 	MessageIdSchema,
 	type MessageId,

@@ -2,10 +2,11 @@ import assert from "node:assert/strict";
 import { HutchLogger, noopLogger } from "@packages/hutch-logger";
 import {
 	DEFAULT_INBOX_ALIAS,
+	type InboxEmailStore,
 	MessageIdSchema,
 	type ParseEmailResult,
 } from "@packages/domain/inbox";
-import { UserIdSchema } from "@packages/domain/user";
+import { type UserId, UserIdSchema } from "@packages/domain/user";
 import { buildLambdaContext } from "@packages/test-fixtures/lambda-context";
 import { initInMemoryInboxAddress } from "@packages/test-fixtures/providers/inbox-address";
 import { initInMemoryInboxEmail } from "@packages/test-fixtures/providers/inbox-email";
@@ -79,6 +80,11 @@ function makeHarness(opts?: {
 	return { addressStore, emailStore, rawMap, published, handler, run, runMany };
 }
 
+async function listEmails(emailStore: InboxEmailStore, userId: UserId) {
+	const { emails } = await emailStore.listEmailsByUserId({ userId, page: 1, pageSize: 100 });
+	return emails;
+}
+
 async function mintAddress(addressStore: ReturnType<typeof initInMemoryInboxAddress>) {
 	const entry = await addressStore.createAddress({
 		userId: OWNER,
@@ -100,7 +106,7 @@ describe("initReceiveEmailHandler", () => {
 
 		assert(result);
 		expect(result.batchItemFailures).toHaveLength(1);
-		expect(await emailStore.listEmailsByUserId(OWNER)).toHaveLength(0);
+		expect(await listEmails(emailStore, OWNER)).toHaveLength(0);
 		expect(published).toHaveLength(0);
 	});
 
@@ -112,7 +118,7 @@ describe("initReceiveEmailHandler", () => {
 
 		assert(result);
 		expect(result.batchItemFailures).toHaveLength(1);
-		expect(await emailStore.listEmailsByUserId(OWNER)).toHaveLength(0);
+		expect(await listEmails(emailStore, OWNER)).toHaveLength(0);
 		expect(published).toHaveLength(0);
 	});
 
@@ -125,7 +131,7 @@ describe("initReceiveEmailHandler", () => {
 		assert(result);
 		// Expected on a public catch-all MX — ACK rather than page the operator.
 		expect(result.batchItemFailures).toHaveLength(0);
-		expect(await emailStore.listEmailsByUserId(OWNER)).toHaveLength(0);
+		expect(await listEmails(emailStore, OWNER)).toHaveLength(0);
 		expect(published).toHaveLength(0);
 	});
 
@@ -138,7 +144,7 @@ describe("initReceiveEmailHandler", () => {
 
 		assert(result);
 		expect(result.batchItemFailures).toHaveLength(1);
-		const [row] = await emailStore.listEmailsByUserId(OWNER);
+		const [row] = await listEmails(emailStore, OWNER);
 		expect(row.status).toBe("rejected");
 		expect(row.bodyS3Key).toBeUndefined();
 		expect(published).toHaveLength(0);
@@ -154,7 +160,7 @@ describe("initReceiveEmailHandler", () => {
 		// Oversize spam to a guessed address on the public MX has no victim — audit
 		// under the unrouted partition and ACK rather than page the operator.
 		expect(result.batchItemFailures).toHaveLength(0);
-		const [row] = await emailStore.listEmailsByUserId(UNROUTED);
+		const [row] = await listEmails(emailStore, UNROUTED);
 		expect(row.status).toBe("rejected");
 		expect(published).toHaveLength(0);
 	});
@@ -168,8 +174,8 @@ describe("initReceiveEmailHandler", () => {
 		assert(result);
 		// A guessed/mistyped address is expected on a public MX — audit, don't page.
 		expect(result.batchItemFailures).toHaveLength(0);
-		expect(await emailStore.listEmailsByUserId(OWNER)).toHaveLength(0);
-		const [row] = await emailStore.listEmailsByUserId(UNROUTED);
+		expect(await listEmails(emailStore, OWNER)).toHaveLength(0);
+		const [row] = await listEmails(emailStore, UNROUTED);
 		expect(row.status).toBe("rejected");
 		expect(published).toHaveLength(0);
 	});
@@ -187,8 +193,8 @@ describe("initReceiveEmailHandler", () => {
 		// don't page. The owner opted out, so the row lands under the unrouted
 		// partition rather than cluttering their list with "Rejected" rows.
 		expect(result.batchItemFailures).toHaveLength(0);
-		expect(await emailStore.listEmailsByUserId(OWNER)).toHaveLength(0);
-		const [row] = await emailStore.listEmailsByUserId(UNROUTED);
+		expect(await listEmails(emailStore, OWNER)).toHaveLength(0);
+		const [row] = await listEmails(emailStore, UNROUTED);
 		expect(row.status).toBe("rejected");
 		expect(row.recipientAddress).toBe(address);
 		expect(published).toHaveLength(0);
@@ -205,7 +211,7 @@ describe("initReceiveEmailHandler", () => {
 
 		assert(result);
 		expect(result.batchItemFailures).toHaveLength(1);
-		const [row] = await emailStore.listEmailsByUserId(OWNER);
+		const [row] = await listEmails(emailStore, OWNER);
 		expect(row.status).toBe("unparsed");
 		expect(row.bodyS3Key).toBeUndefined();
 		expect(published).toHaveLength(0);
@@ -223,7 +229,7 @@ describe("initReceiveEmailHandler", () => {
 		// Malformed spam to a guessed address is not a parser gap worth paging on —
 		// audit under the unrouted partition and ACK.
 		expect(result.batchItemFailures).toHaveLength(0);
-		const [row] = await emailStore.listEmailsByUserId(UNROUTED);
+		const [row] = await listEmails(emailStore, UNROUTED);
 		expect(row.status).toBe("unparsed");
 		expect(published).toHaveLength(0);
 	});
@@ -239,7 +245,7 @@ describe("initReceiveEmailHandler", () => {
 
 		assert(result);
 		expect(result.batchItemFailures).toHaveLength(0);
-		const [row] = await emailStore.listEmailsByUserId(OWNER);
+		const [row] = await listEmails(emailStore, OWNER);
 		expect(row.status).toBe("received");
 		expect(row.bodyS3Key).toBe("content/email/content.html");
 		expect(row.senderEmail).toBe("news@example.com");
@@ -259,7 +265,7 @@ describe("initReceiveEmailHandler", () => {
 
 		assert(result);
 		expect(result.batchItemFailures).toHaveLength(0);
-		const [row] = await emailStore.listEmailsByUserId(OWNER);
+		const [row] = await listEmails(emailStore, OWNER);
 		expect(row.status).toBe("received");
 		expect(published).toHaveLength(1);
 	});
@@ -279,7 +285,7 @@ describe("initReceiveEmailHandler", () => {
 		// The sanitizer did its job (nothing renderable survived) — not a fault, so
 		// ACK rather than page; the immutable raw .eml stays the record.
 		expect(result.batchItemFailures).toHaveLength(0);
-		const [row] = await emailStore.listEmailsByUserId(OWNER);
+		const [row] = await listEmails(emailStore, OWNER);
 		// `unparsed` (not `received`) so the list shows the "Couldn't render" badge and
 		// the detail page shows the unavailable panel, never a blank iframe.
 		expect(row.status).toBe("unparsed");
@@ -307,8 +313,8 @@ describe("initReceiveEmailHandler", () => {
 		expect(result.batchItemFailures).toHaveLength(0);
 		// Both addressees get their own row under their own partition — neither is
 		// silently dropped, and each gets its own delivered event.
-		const [ownerRow] = await emailStore.listEmailsByUserId(OWNER);
-		const [secondRow] = await emailStore.listEmailsByUserId(SECOND);
+		const [ownerRow] = await listEmails(emailStore, OWNER);
+		const [secondRow] = await listEmails(emailStore, SECOND);
 		expect(ownerRow.status).toBe("received");
 		expect(secondRow.status).toBe("received");
 		expect(published).toHaveLength(2);
@@ -331,7 +337,7 @@ describe("initReceiveEmailHandler", () => {
 		// One physical email = one row: the sort key is the (recipient-independent)
 		// message id, so the second address's put is a no-op duplicate under the same
 		// partition. The event is re-published, which the consumer absorbs idempotently.
-		expect(await emailStore.listEmailsByUserId(OWNER)).toHaveLength(1);
+		expect(await listEmails(emailStore, OWNER)).toHaveLength(1);
 		expect(published).toHaveLength(2);
 	});
 
@@ -344,9 +350,9 @@ describe("initReceiveEmailHandler", () => {
 
 		assert(result);
 		expect(result.batchItemFailures).toHaveLength(0);
-		const [ownerRow] = await emailStore.listEmailsByUserId(OWNER);
+		const [ownerRow] = await listEmails(emailStore, OWNER);
 		expect(ownerRow.status).toBe("received");
-		const [unrouted] = await emailStore.listEmailsByUserId(UNROUTED);
+		const [unrouted] = await listEmails(emailStore, UNROUTED);
 		expect(unrouted.status).toBe("rejected");
 		// Only the deliverable recipient produces an event.
 		expect(published).toHaveLength(1);
@@ -362,7 +368,7 @@ describe("initReceiveEmailHandler", () => {
 
 		assert(second);
 		expect(second.batchItemFailures).toHaveLength(0);
-		expect(await emailStore.listEmailsByUserId(OWNER)).toHaveLength(1);
+		expect(await listEmails(emailStore, OWNER)).toHaveLength(1);
 		expect(published).toHaveLength(2);
 	});
 

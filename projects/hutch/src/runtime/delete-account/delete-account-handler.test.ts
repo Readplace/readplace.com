@@ -386,7 +386,11 @@ describe("delete-account handler", () => {
 			savedArticle: false,
 		});
 		assert.equal(await s.subs.findByUserId(victim.userId), undefined);
-		assert.equal((await s.inboxEmail.listEmailsByUserId(victim.userId)).length, 0);
+		assert.equal(
+			(await s.inboxEmail.listEmailsByUserId({ userId: victim.userId, page: 1, pageSize: 20 }))
+				.total,
+			0,
+		);
 		const victimLinks = await s.inboxLink.listLinksByEmail({
 			userId: victim.userId,
 			receivedAtMessageId: victim.ramA,
@@ -441,7 +445,16 @@ describe("delete-account handler", () => {
 		const bystanderSub = await s.subs.findByUserId(bystander.userId);
 		assert(bystanderSub, "expected the bystander subscription to survive");
 		assert.equal(bystanderSub.status, "active");
-		assert.equal((await s.inboxEmail.listEmailsByUserId(bystander.userId)).length, 2);
+		assert.equal(
+			(
+				await s.inboxEmail.listEmailsByUserId({
+					userId: bystander.userId,
+					page: 1,
+					pageSize: 20,
+				})
+			).total,
+			2,
+		);
 		assert.equal(
 			(
 				await s.inboxLink.listLinksByEmail({
@@ -647,7 +660,11 @@ describe("delete-account handler", () => {
 		// were the rows removed.
 		assert.equal(s.rawEmailDeleteArgs.length, 1);
 		assert.deepEqual(sorted(s.rawEmailDeleteArgs[0]), sorted(account.rawKeys));
-		assert.equal((await s.inboxEmail.listEmailsByUserId(account.userId)).length, 0);
+		assert.equal(
+			(await s.inboxEmail.listEmailsByUserId({ userId: account.userId, page: 1, pageSize: 20 }))
+				.total,
+			0,
+		);
 
 		// The per-user schedule deletes run before the injected S3 failure, so the
 		// pre-expiry trial-reminder schedule delete fired on both the failed first

@@ -1,3 +1,4 @@
+import assert from "node:assert";
 import {
 	ConditionalCheckFailedException,
 	type DynamoDBDocumentClient,
@@ -8,6 +9,7 @@ import {
 import { z } from "zod";
 import {
 	InboxAddressSchema,
+	type InboxEmailEntry,
 	InboxEmailStatusSchema,
 	type InboxEmailStore,
 	MessageIdSchema,
@@ -55,13 +57,51 @@ export function initDynamoDbInboxEmail(deps: {
 				throw error;
 			}
 		},
-		listEmailsByUserId: async (userId) => {
-			const { items } = await table.query({
-				KeyConditionExpression: "userId = :uid",
-				ExpressionAttributeValues: { ":uid": userId },
-				ScanIndexForward: false,
-			});
-			return items;
+		listEmailsByUserId: async ({ userId, page, pageSize }) => {
+			assert(Number.isInteger(page), "page must be an integer");
+			assert(page >= 1, "page must be >= 1");
+			assert(Number.isInteger(pageSize), "pageSize must be an integer");
+			assert(pageSize >= 1, "pageSize must be >= 1");
+
+			let total = 0;
+			let countStartKey: Record<string, unknown> | undefined;
+			do {
+				const { count, lastEvaluatedKey } = await table.query({
+					KeyConditionExpression: "userId = :uid",
+					ExpressionAttributeValues: { ":uid": userId },
+					Select: "COUNT",
+					ExclusiveStartKey: countStartKey,
+				});
+				total += count;
+				countStartKey = lastEvaluatedKey;
+			} while (countStartKey);
+
+			const itemsToSkip = (page - 1) * pageSize;
+			const emails: InboxEmailEntry[] = [];
+			let skippedCount = 0;
+			let exclusiveStartKey: Record<string, unknown> | undefined;
+			do {
+				const { items, lastEvaluatedKey } = await table.query({
+					KeyConditionExpression: "userId = :uid",
+					ExpressionAttributeValues: { ":uid": userId },
+					ScanIndexForward: false,
+					Limit: pageSize,
+					ExclusiveStartKey: exclusiveStartKey,
+				});
+				for (const item of items) {
+					if (skippedCount < itemsToSkip) {
+						skippedCount++;
+					} else if (emails.length < pageSize) {
+						emails.push(item);
+					}
+				}
+				exclusiveStartKey = lastEvaluatedKey;
+			} while (
+				exclusiveStartKey &&
+				(skippedCount < itemsToSkip || emails.length < pageSize)
+			);
+
+			return { emails, total, page, pageSize };
 		},
 		getEmail: async ({ userId, receivedAtMessageId }) =>
 			table.get({ userId, receivedAtMessageId }),

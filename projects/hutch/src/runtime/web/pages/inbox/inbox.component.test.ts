@@ -177,4 +177,145 @@ describe("InboxPage", () => {
 		assert.ok(message, "limit message must render when the cap is reached");
 		assert.match(message.textContent ?? "", new RegExp(String(INBOX_ADDRESS_MAX_PER_USER)));
 	});
+
+	it("orders active addresses before disabled ones regardless of creation order", () => {
+		const doc = parse(
+			InboxPage({
+				addresses: [
+					entry({
+						name: AliasNameSchema.parse("gmail"),
+						address: InboxAddressSchema.parse("gmail-abc123@read.place"),
+						token: InboxTokenSchema.parse("abc123"),
+						disabledAt: "2026-06-22T00:00:00.000Z",
+					}),
+					entry({
+						name: AliasNameSchema.parse("netflix"),
+						address: InboxAddressSchema.parse("netflix-def456@read.place"),
+						token: InboxTokenSchema.parse("def456"),
+					}),
+				],
+				limitReached: false,
+			}).content.html,
+		);
+
+		const statuses = Array.from(doc.querySelectorAll("[data-test-inbox-status]")).map((el) =>
+			el.getAttribute("data-test-inbox-status"),
+		);
+		assert.deepEqual(statuses, ["enabled", "disabled"]);
+		const names = Array.from(doc.querySelectorAll("[data-test-inbox-name]")).map(
+			(el) => el.textContent,
+		);
+		assert.deepEqual(names, ["netflix", "gmail"]);
+	});
+
+	it("collapses every disabled address into a closed details group holding the disabled rows", () => {
+		const doc = parse(
+			InboxPage({
+				addresses: [
+					entry(),
+					entry({
+						name: AliasNameSchema.parse("gmail"),
+						address: InboxAddressSchema.parse("gmail-abc123@read.place"),
+						token: InboxTokenSchema.parse("abc123"),
+						disabledAt: "2026-06-21T00:00:00.000Z",
+					}),
+					entry({
+						name: AliasNameSchema.parse("substack"),
+						address: InboxAddressSchema.parse("substack-def456@read.place"),
+						token: InboxTokenSchema.parse("def456"),
+						disabledAt: "2026-06-22T00:00:00.000Z",
+					}),
+				],
+				limitReached: false,
+			}).content.html,
+		);
+
+		const group = doc.querySelector("[data-test-inbox-disabled-group]");
+		assert.ok(group, "disabled group must render");
+		assert.equal(group.tagName, "DETAILS");
+		assert.equal(group.hasAttribute("open"), false);
+		assert.equal(
+			group.querySelector(".inbox__disabled-summary")?.textContent,
+			"Disabled addresses (2)",
+		);
+		const namesInside = Array.from(group.querySelectorAll("[data-test-inbox-name]")).map(
+			(el) => el.textContent,
+		);
+		assert.deepEqual(namesInside, ["gmail", "substack"]);
+	});
+
+	it("keeps the details group rendered but hidden when no address is disabled", () => {
+		const doc = parse(InboxPage({ addresses: [entry()], limitReached: false }).content.html);
+
+		const group = doc.querySelector("[data-test-inbox-disabled-group]");
+		assert.ok(group, "disabled group must render");
+		assert.equal(group.classList.contains("inbox__disabled-group--hidden"), true);
+		assert.equal(
+			group.querySelector(".inbox__disabled-summary")?.textContent,
+			"Disabled addresses (0)",
+		);
+	});
+
+	it("marks the details group visible when a disabled address exists", () => {
+		const doc = parse(
+			InboxPage({
+				addresses: [
+					entry({
+						address: InboxAddressSchema.parse("in-abc123@read.place"),
+						token: InboxTokenSchema.parse("abc123"),
+						disabledAt: "2026-06-22T00:00:00.000Z",
+					}),
+				],
+				limitReached: false,
+			}).content.html,
+		);
+
+		const group = doc.querySelector("[data-test-inbox-disabled-group]");
+		assert.ok(group, "disabled group must render");
+		assert.equal(group.classList.contains("inbox__disabled-group--visible"), true);
+	});
+
+	it("lays out the page as create, then active, then disabled sections", () => {
+		const doc = parse(InboxPage({ addresses: [entry()], limitReached: false }).content.html);
+
+		const sections = Array.from(doc.querySelectorAll("[data-test-inbox-section]")).map((el) =>
+			el.getAttribute("data-test-inbox-section"),
+		);
+		assert.deepEqual(sections, ["create", "active", "disabled"]);
+	});
+
+	it("orders an active row as name, copy button, address field, then right-edge controls", () => {
+		const doc = parse(InboxPage({ addresses: [entry()], limitReached: false }).content.html);
+
+		const row = doc.querySelector('[data-test-inbox-section="active"] [data-test-inbox-item]');
+		assert.ok(row, "active row must render");
+		const childClasses = Array.from(row.children).map((el) => el.classList[0]);
+		assert.deepEqual(childClasses, [
+			"inbox__name",
+			"inbox__copy-btn",
+			"inbox__address-field",
+			"inbox__controls",
+		]);
+	});
+
+	it("keeps the explainer first and the create form last in the create section, with the limit error between them", () => {
+		const shape = (el: Element) => `${el.tagName.toLowerCase()}.${el.classList[0]}`;
+
+		const withoutErrors = parse(InboxPage({ addresses: [], limitReached: false }).content.html);
+		const section = withoutErrors.querySelector('[data-test-inbox-section="create"]');
+		assert.ok(section, "create section must render");
+		assert.deepEqual(Array.from(section.children).map(shape), [
+			"section.inbox__instructions",
+			"form.inbox__create",
+		]);
+
+		const withLimit = parse(InboxPage({ addresses: [], limitReached: true }).content.html);
+		const limitedSection = withLimit.querySelector('[data-test-inbox-section="create"]');
+		assert.ok(limitedSection, "create section must render");
+		assert.deepEqual(Array.from(limitedSection.children).map(shape), [
+			"section.inbox__instructions",
+			"p.inbox__error",
+			"form.inbox__create",
+		]);
+	});
 });

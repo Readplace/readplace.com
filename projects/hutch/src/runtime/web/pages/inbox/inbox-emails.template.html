@@ -35,5 +35,12 @@
 		</li>
 		{{/each}}
 	</ul>
+	{{#if showPagination}}
+	<nav class="inbox-emails__pagination" hx-boost="true" hx-target="main" hx-select="main" hx-swap="outerHTML show:none" data-test-pagination>
+		{{#if hasPrev}}<a class="inbox-emails__pagination-link" href="{{prevUrl}}" data-test-pagination-prev>← Previous</a>{{/if}}
+		<span class="inbox-emails__pagination-info" data-test-pagination-info>Page {{currentPage}} of {{totalPages}}</span>
+		{{#if hasNext}}<a class="inbox-emails__pagination-link" href="{{nextUrl}}" data-test-pagination-next>Next →</a>{{/if}}
+	</nav>
+	{{/if}}
 	{{/if}}
 </main>
