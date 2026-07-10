@@ -30,6 +30,7 @@
   },
   "devDependencies": {
     "@packages/test-phase-runner": "workspace:*",
+    "@packages/web-shell": "workspace:*",
     "@pulumi/aws": "7.32.0",
     "@pulumi/pulumi": "3.244.0",
     "@types/jest": "30.0.0",

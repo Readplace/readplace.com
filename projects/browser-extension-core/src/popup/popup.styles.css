@@ -15,9 +15,6 @@
   --popup-delete-hover-bg: #FFE4E4;
   --popup-delete-hover-text: #D70022;
   --popup-disabled: #C0C4CC;
-  --popup-icon-bg: #2B3A55;
-  --popup-icon-text: #C8923C;
-  --popup-icon-ring: rgba(255, 255, 255, 0.4);
   --popup-brand-text: #1A202C;
   --popup-active-bg: #2B3A55;
   --popup-active-text: #FFFFFF;
@@ -46,8 +43,6 @@
     --popup-delete-hover-bg: #3D1F1F;
     --popup-delete-hover-text: #FF4466;
     --popup-disabled: #3A4050;
-    --popup-icon-bg: #2B3A55;
-    --popup-icon-text: #D4A04A;
     --popup-brand-text: #1E1208;
     --popup-active-bg: #3D4F6F;
     --popup-active-hover: #4A5F80;
@@ -100,23 +95,10 @@ body {
   gap: 12px;
 }
 
-/**
- * 1. Simplified H-mark referencing the Readplace icon
- */
 .login__icon {
   width: 48px;
   height: 48px;
-  background: var(--popup-icon-bg);
-  color: var(--popup-icon-text);
-  border-radius: 10px;
-  box-shadow: 0 0 0 1px var(--popup-icon-ring);
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  font-family: Georgia, "Times New Roman", serif; /* 1 */
-  font-size: 28px;
-  font-weight: 700;
-  line-height: 1;
+  display: block;
 }
 
 .login__logo-link {
@@ -295,23 +277,9 @@ body {
   color: inherit;
 }
 
-/**
- * 1. Small icon matching the header context
- */
 .list-view__brand-icon {
   width: 28px;
   height: 28px;
-  background: var(--popup-icon-bg);
-  color: var(--popup-icon-text);
-  border-radius: 6px;
-  box-shadow: 0 0 0 1px var(--popup-icon-ring);
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  font-family: Georgia, "Times New Roman", serif; /* 1 */
-  font-size: 16px;
-  font-weight: 700;
-  line-height: 1;
   flex-shrink: 0;
 }
 

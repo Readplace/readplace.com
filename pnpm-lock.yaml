@@ -218,6 +218,9 @@ importers:
       '@packages/test-phase-runner':
         specifier: workspace:*
         version: link:../../../src/packages/test-phase-runner
+      '@packages/web-shell':
+        specifier: workspace:*
+        version: link:../../../src/packages/web-shell
       '@pulumi/aws':
         specifier: 7.32.0
         version: 7.32.0(ts-node@10.9.2(@types/node@22.19.19)(typescript@6.0.3))(typescript@6.0.3)
@@ -273,6 +276,9 @@ importers:
       '@packages/test-phase-runner':
         specifier: workspace:*
         version: link:../../../src/packages/test-phase-runner
+      '@packages/web-shell':
+        specifier: workspace:*
+        version: link:../../../src/packages/web-shell
       '@pulumi/aws':
         specifier: 7.32.0
         version: 7.32.0(ts-node@10.9.2(@types/node@22.19.19)(typescript@6.0.3))(typescript@6.0.3)

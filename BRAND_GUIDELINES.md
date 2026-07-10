@@ -122,9 +122,6 @@ The Firefox extension uses a slightly different palette tuned for small popup co
 | Role | Light | Dark | CSS variable |
 |---|---|---|---|
 | Brand | `#c8923c` | `#d4a04a` | `--popup-brand` |
-| Icon background | `#2b3a55` | `#2b3a55` | `--popup-icon-bg` |
-| Icon text | `#c8923c` | `#d4a04a` | `--popup-icon-text` |
-| Icon keyline | `rgba(255,255,255,0.4)` | `rgba(255,255,255,0.4)` | `--popup-icon-ring` |
 | Active background | `#2b3a55` | `#3d4f6f` | `--popup-active-bg` |
 
 ---
