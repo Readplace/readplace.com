@@ -205,27 +205,58 @@ final class ReadplaceAPI {
 		}
 		var request = URLRequest(url: url)
 		request.httpMethod = method
+		// Snapshot the jar before the request so `sessionCookies` can tell a cookie
+		// this mint sets apart from one an earlier request already left behind.
+		let priorCookies = Set(
+			(session.configuration.httpCookieStorage?.cookies(for: url) ?? []).map(CookieIdentity.init)
+		)
 		let (data, http) = try await send(request)
 		guard (200...299).contains(http.statusCode) else {
 			throw apiError(from: data, status: http.statusCode)
 		}
-		let cookies = sessionCookies(from: http, url: url)
+		let cookies = sessionCookies(from: http, url: url, excluding: priorCookies)
 		guard !cookies.isEmpty else { throw APIError.decoding }
 		return cookies
 	}
 
-	/// Reads every cookie the bootstrap response set from the session's own cookie
+	/// Identity of a jar cookie for the before/after comparison in `sessionCookies`.
+	/// Re-reading the jar hands back fresh `HTTPCookie` instances for the same
+	/// cookie, so object identity can't decide whether a cookie is one this mint
+	/// set — name, domain, path, and value can. Value is part of the key so a
+	/// re-issued cookie (same name, new value) still reads as freshly set.
+	private struct CookieIdentity: Hashable {
+		let name: String
+		let domain: String
+		let path: String
+		let value: String
+		init(_ cookie: HTTPCookie) {
+			name = cookie.name
+			domain = cookie.domain
+			path = cookie.path
+			value = cookie.value
+		}
+	}
+
+	/// Reads the cookies this bootstrap response set from the session's own cookie
 	/// jar, which the configuration isolates (an ephemeral store, not
 	/// `HTTPCookieStorage.shared`) so the cookies URLSession just parsed never touch
 	/// the process-wide jar. The cookie spec forbids folding repeated `Set-Cookie`
 	/// headers into one comma-joined value, so re-splitting `allHeaderFields` is
 	/// unsafe once a response sets more than one cookie; reading the already-parsed
-	/// cookies back from the store sidesteps that. Falls back to parsing the
-	/// response's own `Set-Cookie` header for environments that don't populate the
-	/// store.
-	private func sessionCookies(from response: HTTPURLResponse, url: URL) -> [HTTPCookie] {
-		if let stored = session.configuration.httpCookieStorage?.cookies(for: url), !stored.isEmpty {
-			return stored
+	/// cookies back from the store sidesteps that. But the store also holds any
+	/// cookie an earlier request left in the jar, so `prior` — the pre-request
+	/// snapshot — is excluded: returning only what this response set is what the doc
+	/// promises and what keeps the caller's no-cookie-means-failed-mint check honest.
+	/// Falls back to parsing the response's own `Set-Cookie` header for environments
+	/// that don't populate the store.
+	private func sessionCookies(
+		from response: HTTPURLResponse,
+		url: URL,
+		excluding prior: Set<CookieIdentity>
+	) -> [HTTPCookie] {
+		if let stored = session.configuration.httpCookieStorage?.cookies(for: url) {
+			let fresh = stored.filter { !prior.contains(CookieIdentity($0)) }
+			if !fresh.isEmpty { return fresh }
 		}
 		guard let headers = response.allHeaderFields as? [String: String] else { return [] }
 		return HTTPCookie.cookies(withResponseHeaderFields: headers, for: url)
