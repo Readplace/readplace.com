@@ -620,14 +620,16 @@ export function buildAnalyticsDashboardBody(deps: BuildAnalyticsDashboardDeps): 
 
 	// --- Signup form funnel ---
 	// Driven by the signup_attempted event the POST /signup handler emits at each
-	// terminal outcome. Makes the signup form's own conversion (submissions →
+	// terminal outcome. Makes the email signup form's own conversion (submissions →
 	// accounts) measurable and separates the share lost to each rejection gate —
 	// notably disposable_email, a deliberate friction whose cost was invisible.
+	// Only the email form is counted (Google sign-in is a separate path), so this
+	// is the form's conversion, not total account creation.
 
 	widgets.push(
 		logWidget({
 			region,
-			title: "Signup form outcomes",
+			title: "Email signup form outcomes",
 			logGroupNames: [hutchLogGroupName],
 			query: [
 				"fields @timestamp, outcome",
@@ -641,7 +643,7 @@ export function buildAnalyticsDashboardBody(deps: BuildAnalyticsDashboardDeps): 
 		}),
 		logWidget({
 			region,
-			title: "Signup form outcomes per day",
+			title: "Email signup form outcomes per day",
 			logGroupNames: [hutchLogGroupName],
 			query: [
 				"fields @timestamp, outcome",

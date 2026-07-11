@@ -29,14 +29,16 @@ export const ANALYTICS_EVENTS = {
 } as const;
 
 /**
- * Terminal outcomes of a POST /signup submission, emitted so the signup form's
- * own conversion (submissions → accounts) is measurable and the cost of each
- * rejection gate is separable. `disposable_email` is split out from generic
- * `invalid_input` because rejecting disposable-email domains is a deliberate
- * product friction whose signup cost was previously invisible. Bot-defense
- * trips are NOT counted here — they have their own bot-defense stream. The
- * per-IP rate-limit (429) short-circuits in middleware before the handler, so
- * it is likewise out of scope for this event.
+ * Terminal outcomes of a POST /signup submission, emitted so the email signup
+ * form's own conversion (submissions → accounts) is measurable and the cost of
+ * each rejection gate is separable. Only the email form is counted — Google
+ * sign-in creates accounts through a separate path — so this is the form's
+ * conversion, not total account creation. `disposable_email` is split out from
+ * generic `invalid_input` because rejecting disposable-email domains is a
+ * deliberate product friction whose signup cost was previously invisible.
+ * Bot-defense trips are NOT counted here — they have their own bot-defense
+ * stream. The per-IP rate-limit (429) short-circuits in middleware before the
+ * handler, so it is likewise out of scope for this event.
  */
 export const SIGNUP_OUTCOMES = {
 	created: "created",
