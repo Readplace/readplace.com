@@ -256,6 +256,34 @@ describe("Auth routes", () => {
 			expect(action).toContain("/login");
 			expect(action).toContain("return=");
 		});
+
+		it("round-trips a return URL with multiple query params through the rendered login form (trailing params survive the POST)", async () => {
+			const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
+			const { auth } = harness;
+			await auth.createUser({ email: "login-round-trip@example.com", password: "password123" });
+
+			// The login action already carries `&`-joined UTM params, so the return
+			// URL's own `&` must be encoded to keep its trailing params from merging
+			// into the action's query string and being lost on POST.
+			const returnUrl = "/import/abc123?source=pocket&page=2";
+
+			const rendered = await request(harness.server).get(
+				`/login?return=${encodeURIComponent(returnUrl)}`,
+			);
+			expect(rendered.status).toBe(200);
+			const doc = new JSDOM(rendered.text).window.document;
+			const action = doc.querySelector('[data-test-form="login"]')?.getAttribute("action");
+			assert(action, "login form must render an action");
+			expect(action).toContain(`return=${encodeURIComponent(returnUrl)}`);
+
+			const submitted = await request(harness.server)
+				.post(action)
+				.type("form")
+				.send({ email: "login-round-trip@example.com", password: "password123" });
+
+			expect(submitted.status).toBe(303);
+			expect(submitted.headers.location).toBe(returnUrl);
+		});
 	});
 
 	describe("GET /signup", () => {
@@ -783,6 +811,40 @@ describe("Auth routes", () => {
 			const action = doc.querySelector('[data-test-form="signup"]')?.getAttribute("action");
 			expect(action).toContain("/signup");
 			expect(action).toContain("return=");
+		});
+
+		it("round-trips a return URL with multiple query params through the rendered signup form (trailing params survive the POST)", async () => {
+			const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
+
+			// The `&` between this return URL's own query params is exactly what a
+			// raw interpolation into the form action would swallow, dropping every
+			// param after the first once the browser POSTs the form.
+			const returnUrl = "/import/abc123?source=pocket&page=2";
+
+			const rendered = await request(harness.server).get(
+				`/signup?return=${encodeURIComponent(returnUrl)}`,
+			);
+			expect(rendered.status).toBe(200);
+			const doc = new JSDOM(rendered.text).window.document;
+			const action = doc.querySelector('[data-test-form="signup"]')?.getAttribute("action");
+			assert(action, "signup form must render an action");
+			expect(action).toBe(`/signup?return=${encodeURIComponent(returnUrl)}`);
+
+			// Replay exactly what the browser submits: POST to the action parsed off
+			// the rendered form, then assert the full return URL — trailing params
+			// included — reaches the redirect.
+			const submitted = await request(harness.server)
+				.post(action)
+				.type("form")
+				.send({
+					email: "signup-round-trip@example.com",
+					password: "password123",
+					confirmPassword: "password123",
+					loadedAt: freshLoadedAt(),
+				});
+
+			expect(submitted.status).toBe(303);
+			expect(submitted.headers.location).toBe(returnUrl);
 		});
 
 		it("should show error for short password", async () => {
