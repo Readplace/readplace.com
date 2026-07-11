@@ -49,12 +49,18 @@ function createRes(): { res: Partial<Response>; cookies: CapturedCookie[] } {
 
 function runMiddleware(
 	req: Partial<Request>,
-	options: { secure: boolean } = { secure: false },
+	options: {
+		secure?: boolean;
+		isStaticAssetPath?: (path: string) => boolean;
+		canonicalizeLandingPath?: (path: string) => string;
+	} = {},
 ): { cookies: CapturedCookie[]; nextCalled: boolean } {
 	const { res, cookies } = createRes();
 	const middleware = createClickAttributionMiddleware({
 		now: () => new Date("2026-05-13T10:00:00.000Z"),
-		secure: options.secure,
+		secure: options.secure ?? false,
+		isStaticAssetPath: options.isStaticAssetPath ?? (() => false),
+		canonicalizeLandingPath: options.canonicalizeLandingPath ?? ((path) => path),
 	});
 	let nextCalled = false;
 	const next: NextFunction = () => {
@@ -160,6 +166,37 @@ describe("createClickAttributionMiddleware", () => {
 			first_seen_at: "2026-05-13T10:00:00.000Z",
 			landing_path: "/queue",
 		});
+	});
+
+	it("does not mint a cookie when the injected isStaticAssetPath flags the path, so asset fetches never steal first-touch attribution", () => {
+		const req = createReq({ path: "/client-dist/toast.client.js" });
+		const { cookies, nextCalled } = runMiddleware(req, {
+			isStaticAssetPath: (path) => path.startsWith("/client-dist/"),
+		});
+
+		expect(nextCalled).toBe(true);
+		expect(cookies).toEqual([]);
+	});
+
+	it("lets the next non-asset page win first-touch after a flagged asset request minted no cookie", () => {
+		const isStaticAssetPath = (path: string) => path.startsWith("/client-dist/");
+		expect(runMiddleware(createReq({ path: "/client-dist/toast.client.js" }), { isStaticAssetPath }).cookies).toEqual(
+			[],
+		);
+		const { cookies } = runMiddleware(createReq({ path: "/view/fagnerbrack.com/learn-sql" }), { isStaticAssetPath });
+
+		expect(cookies).toHaveLength(1);
+		expect(parseCookieValue(cookies[0].value).landing_path).toBe("/view/fagnerbrack.com/learn-sql");
+	});
+
+	it("stores the injected canonicalizeLandingPath's output as landing_path so scheme variants of the same article no longer split attribution", () => {
+		const req = createReq({ path: "/view/https:/fagnerbrack.com/learn-sql" });
+		const { cookies } = runMiddleware(req, {
+			canonicalizeLandingPath: (path) => path.replace("/view/https:/", "/view/"),
+		});
+
+		expect(cookies).toHaveLength(1);
+		expect(parseCookieValue(cookies[0].value).landing_path).toBe("/view/fagnerbrack.com/learn-sql");
 	});
 
 	it("skips non-GET requests so form posts can never reset the first-touch cookie", () => {

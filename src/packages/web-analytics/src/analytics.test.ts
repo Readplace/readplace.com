@@ -51,21 +51,34 @@ function createRes(statusCode = 200): Response & EventEmitter {
 	return emitter;
 }
 
-function captureEvents(req: Partial<Request>, res: Response & EventEmitter): AnalyticsEvent[] {
+function captureEvents(
+	req: Partial<Request>,
+	res: Response & EventEmitter,
+	beforeFinish?: () => void,
+	isStaticAssetPath: (path: string) => boolean = () => false,
+): AnalyticsEvent[] {
 	const { captured, logger } = createCapturingLogger();
 	const middleware = createAnalyticsMiddleware({
 		logger,
 		salt: "test-salt",
 		now: () => new Date("2026-04-21T10:00:00.000Z"),
+		isStaticAssetPath,
 	});
 	const next: NextFunction = () => {};
 	middleware(req as Request, res, next);
+	beforeFinish?.();
 	res.emit("finish");
 	return captured;
 }
 
-function runMiddleware(req: Partial<Request>, res: Response & EventEmitter): AnalyticsPageview[] {
-	return captureEvents(req, res).filter((e): e is AnalyticsPageview => e.event === "pageview");
+function runMiddleware(
+	req: Partial<Request>,
+	res: Response & EventEmitter,
+	isStaticAssetPath?: (path: string) => boolean,
+): AnalyticsPageview[] {
+	return captureEvents(req, res, undefined, isStaticAssetPath).filter(
+		(e): e is AnalyticsPageview => e.event === "pageview",
+	);
 }
 
 function runMiddlewareClicks(req: Partial<Request>, res: Response & EventEmitter): AnalyticsClick[] {
@@ -195,6 +208,44 @@ describe("createAnalyticsMiddleware", () => {
 	});
 });
 
+describe("createAnalyticsMiddleware — asset & path hygiene", () => {
+	it("drops a request the injected isStaticAssetPath flags — asset classification is supplied by the host app (hutch's static routes), not built into the shared middleware", () => {
+		const events = runMiddleware(
+			createReq({ path: "/client-dist/toast.client.js" }),
+			createRes(200),
+			(path) => path.startsWith("/client-dist/"),
+		);
+		expect(events).toEqual([]);
+	});
+
+	it("logs a path the injected isStaticAssetPath does not flag, even one ending in a file extension — extension alone never drops a pageview", () => {
+		const [event] = runMiddleware(createReq({ path: "/view/fagnerbrack.com/photo.png" }), createRes(200));
+		expect(event.path).toBe("/view/fagnerbrack.com/photo.png");
+	});
+
+	it("does not count a 301 redirect leg as a pageview — the destination logs its own", () => {
+		expect(runMiddleware(createReq({ path: "/view/https:/example.com/post" }), createRes(301))).toEqual([]);
+	});
+
+	it("does not count a 302 redirect leg as a pageview", () => {
+		expect(runMiddleware(createReq({ path: "/view" }), createRes(302))).toEqual([]);
+	});
+
+	it("does not count an informational 1xx response as a pageview", () => {
+		expect(runMiddleware(createReq({ path: "/queue" }), createRes(199))).toEqual([]);
+	});
+
+	it("snapshots req.path at middleware entry so a finish-time mount-trim mutation cannot corrupt the logged pageview path", () => {
+		const req = createReq({ path: "/view/fagnerbrack.com/learn-sql" });
+		const res = createRes(200);
+		const pageviews = captureEvents(req, res, () => {
+			Object.defineProperty(req, "path", { value: "/fagnerbrack.com/learn-sql", configurable: true });
+		}).filter((e): e is AnalyticsPageview => e.event === "pageview");
+		expect(pageviews).toHaveLength(1);
+		expect(pageviews[0].path).toBe("/view/fagnerbrack.com/learn-sql");
+	});
+});
+
 describe("createAnalyticsMiddleware — internal click events", () => {
 	const internalQuery = { utm_source: "queue", utm_medium: "internal", utm_content: "subscribe" };
 
@@ -246,6 +297,12 @@ describe("createAnalyticsMiddleware — internal click events", () => {
 		const req = createReq({ method: "POST", path: "/queue/save", query: internalQuery });
 		expect(runMiddlewareClicks(req, createRes(200))).toHaveLength(1);
 		expect(runMiddleware(req, createRes(200))).toEqual([]);
+	});
+
+	it("still counts a click on a 303 redirect (POST-action → See Other) even though 3xx is no longer a pageview", () => {
+		const req = createReq({ method: "POST", path: "/queue/save", query: internalQuery });
+		expect(runMiddlewareClicks(req, createRes(303))).toHaveLength(1);
+		expect(runMiddleware(req, createRes(303))).toEqual([]);
 	});
 
 	it("does not count a click when the response is a 4xx/5xx error", () => {

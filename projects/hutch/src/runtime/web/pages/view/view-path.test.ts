@@ -1,4 +1,9 @@
-import { originalUrlFromViewPath, parseViewPath, viewPathFor } from "./view-path";
+import {
+	canonicalizeViewLandingPath,
+	originalUrlFromViewPath,
+	parseViewPath,
+	viewPathFor,
+} from "./view-path";
 
 function parse(decodedAndEncoded: string): ReturnType<typeof parseViewPath>;
 function parse(args: { rawPath: string; encodedPath: string }): ReturnType<typeof parseViewPath>;
@@ -64,6 +69,40 @@ describe("viewPathFor", () => {
 		expect(viewPathFor("https://example.com/path%C3%A9")).toBe(
 			"/view/example.com/path%C3%A9",
 		);
+	});
+});
+
+describe("canonicalizeViewLandingPath", () => {
+	it("collapses a /view/https:/ landing path to the scheme-less canonical", () => {
+		expect(canonicalizeViewLandingPath("/view/https:/fagnerbrack.com/learn-sql")).toBe(
+			"/view/fagnerbrack.com/learn-sql",
+		);
+	});
+
+	it("collapses a /view/https:// landing path to the scheme-less canonical", () => {
+		expect(canonicalizeViewLandingPath("/view/https://fagnerbrack.com/learn-sql")).toBe(
+			"/view/fagnerbrack.com/learn-sql",
+		);
+	});
+
+	it("keeps the explicit http:// scheme for a /view/http:/ landing path", () => {
+		expect(canonicalizeViewLandingPath("/view/http:/example.com/post")).toBe(
+			"/view/http://example.com/post",
+		);
+	});
+
+	it("leaves an already-canonical /view path unchanged", () => {
+		expect(canonicalizeViewLandingPath("/view/fagnerbrack.com/learn-sql")).toBe(
+			"/view/fagnerbrack.com/learn-sql",
+		);
+	});
+
+	it("leaves a non-/view path unchanged", () => {
+		expect(canonicalizeViewLandingPath("/queue")).toBe("/queue");
+	});
+
+	it("leaves the root path unchanged", () => {
+		expect(canonicalizeViewLandingPath("/")).toBe("/");
 	});
 });
 
