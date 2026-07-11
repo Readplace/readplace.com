@@ -65,3 +65,14 @@ RUN apt-get update && apt-get install -y wget bzip2 libdbus-glib-1-2 \
  && wget -qO /tmp/gd.tar.gz "https://github.com/mozilla/geckodriver/releases/download/v0.35.0/geckodriver-v0.35.0-linux-aarch64.tar.gz" \
  && tar -xzf /tmp/gd.tar.gz -C /usr/local/bin \
  && rm -f /tmp/ff.tar.xz /tmp/gd.tar.gz && rm -rf /var/lib/apt/lists/*
+
+# Pre-bake Chrome-for-Testing + a matching chromedriver so the chrome-extension
+# E2E skips the ~150 MB per-job download. install-chrome-for-testing.js reuses
+# these via CFT_BAKED_DIR; it downloads normally when the env is unset.
+RUN mkdir -p /opt/cft \
+ && CHROME_OUT=$(npx -y @puppeteer/browsers install chrome@stable --path /opt/cft) \
+ && echo "$CHROME_OUT" | tail -1 | sed -E 's/^chrome@[^ ]+ //' > /opt/cft/binary-path \
+ && CHROME_VER=$(echo "$CHROME_OUT" | tail -1 | sed -E 's/^chrome@([^ ]+).*/\1/') \
+ && DRIVER_OUT=$(npx -y @puppeteer/browsers install "chromedriver@${CHROME_VER}" --path /opt/cft) \
+ && echo "$DRIVER_OUT" | tail -1 | sed -E 's/^chromedriver@[^ ]+ //' > /opt/cft/driver-path
+ENV CFT_BAKED_DIR=/opt/cft

@@ -6,12 +6,28 @@
 
 const assert = require("node:assert");
 const { execSync } = require("node:child_process");
-const { writeFileSync, mkdirSync } = require("node:fs");
+const { writeFileSync, mkdirSync, existsSync, copyFileSync } = require("node:fs");
 const { join } = require("node:path");
 
 const projectRoot = join(__dirname, "..");
 const cacheDir = join(projectRoot, ".cache", "chrome");
 mkdirSync(cacheDir, { recursive: true });
+
+// The self-hosted runner image bakes Chrome-for-Testing + chromedriver (see the
+// .github/runner Dockerfile) so jobs skip the ~150 MB download. When that bake
+// is present, reuse it by copying the recorded paths into the workspace cache;
+// otherwise fall through to the normal download (hosted runners, local dev).
+const bakedDir = process.env.CFT_BAKED_DIR;
+if (
+	bakedDir &&
+	existsSync(join(bakedDir, "binary-path")) &&
+	existsSync(join(bakedDir, "driver-path"))
+) {
+	copyFileSync(join(bakedDir, "binary-path"), join(cacheDir, "binary-path"));
+	copyFileSync(join(bakedDir, "driver-path"), join(cacheDir, "driver-path"));
+	console.log(`Chrome for Testing: reused from baked image cache (${bakedDir})`);
+	process.exit(0);
+}
 
 const chromeOutput = execSync(
 	`npx @puppeteer/browsers install chrome@stable --path "${cacheDir}"`,
