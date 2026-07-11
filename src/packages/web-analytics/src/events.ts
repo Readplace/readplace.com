@@ -26,6 +26,7 @@ export const ANALYTICS_EVENTS = {
 	viewOpened: "view_opened",
 	viewSaveIntent: "view_save_intent",
 	signupAttempted: "signup_attempted",
+	firstArticleAutosaved: "first_article_autosaved",
 } as const;
 
 export const SIGNUP_OUTCOMES = {

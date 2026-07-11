@@ -723,6 +723,29 @@ export function buildAnalyticsDashboardBody(deps: BuildAnalyticsDashboardDeps): 
 		}),
 	);
 
+	// --- First-article autosave (activation) ---
+	// Emitted server-side exactly once when a new signup's first article is
+	// auto-saved into their otherwise-empty queue. A discrete 1:1 activation
+	// count that does not depend on the utm_source=signup-autosave marker
+	// surviving on the post-signup /queue pageview (a reload or share of that URL
+	// would recount the marker). No exclude clause: the event carries no
+	// visitor_hash, like the conversion widgets.
+
+	widgets.push(
+		logWidget({
+			region,
+			title: "First-article autosaves per day",
+			logGroupNames: [hutchLogGroupName],
+			query: [
+				"fields @timestamp, user_id, visitor_id",
+				`| filter stream = "${STREAMS.analytics}" and event = "${ANALYTICS_EVENTS.firstArticleAutosaved}"`,
+				"| stats count(*) as autosaves by bin(1d)",
+			].join(" "),
+			x: 0, y: 154, width: 12, height: 8,
+			view: "timeSeries",
+		}),
+	);
+
 	return { widgets };
 }
 

@@ -950,6 +950,7 @@ export function createApp(dependencies: AppDependencies): Express {
 			logError: deps.logError,
 			now: deps.now,
 			conversionLogger: deps.conversionLogger,
+			analytics: deps.analytics,
 			foundingAllocation,
 		});
 		app.use(googleAuthRouter);
@@ -975,6 +976,7 @@ export function createApp(dependencies: AppDependencies): Express {
 		logError: deps.logError,
 		now: deps.now,
 		conversionLogger: deps.conversionLogger,
+		analytics: deps.analytics,
 		foundingAllocation,
 	});
 	app.use(appleAuthRouter);

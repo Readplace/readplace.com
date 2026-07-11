@@ -267,6 +267,24 @@ export interface SignupAttemptedEvent {
 	is_authenticated: 0;
 }
 
+/**
+ * Emitted server-side the instant a new signup's first article is auto-saved
+ * into their otherwise-empty queue, exactly once per trigger. A discrete 1:1
+ * activation signal that does not lean on the `utm_source=signup-autosave`
+ * marker surviving on the post-signup `/queue` pageview — a reload, share, or
+ * bookmark of that URL would recount the marker, but this event fires only at
+ * the signup redirect decision. `user_id` joins to the resulting `article_read`;
+ * `visitor_id` joins to the follow-on `view_save_intent` that persists the save.
+ */
+export interface FirstArticleAutosavedEvent {
+	stream: typeof STREAMS.analytics;
+	event: typeof ANALYTICS_EVENTS.firstArticleAutosaved;
+	timestamp: string;
+	user_id: UserId;
+	article_host: string;
+	visitor_id?: string;
+}
+
 export type AnalyticsEvent =
 	| AnalyticsPageview
 	| AnalyticsClick
@@ -277,7 +295,8 @@ export type AnalyticsEvent =
 	| SummaryToggledEvent
 	| ViewOpenedEvent
 	| ViewSaveIntentEvent
-	| SignupAttemptedEvent;
+	| SignupAttemptedEvent
+	| FirstArticleAutosavedEvent;
 
 function shouldLog(params: { req: Request; path: string; statusCode: number }): boolean {
 	if (params.req.method !== "GET") return false;

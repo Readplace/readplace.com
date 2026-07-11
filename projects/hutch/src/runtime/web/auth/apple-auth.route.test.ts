@@ -10,6 +10,8 @@ import {
 
 import { AppleIdSchema } from "@packages/test-fixtures/providers/apple-auth";
 import type { ExchangeAppleCode } from "@packages/test-fixtures/providers/apple-auth";
+import { ANALYTICS_EVENTS } from "@packages/web-analytics";
+import { MAX_APPLE_STATE_COOKIE_BYTES } from "./apple-state";
 
 const TEST_FOUNDING_MEMBER_LIMIT = 3;
 
@@ -562,7 +564,37 @@ describe("Apple auth routes", () => {
 				expect(response.status).toBe(303);
 				expect(response.headers.location).toBe(AUTOSAVE_LOCATION);
 				expect(cookiesFrom(response).join(";")).toContain("hutch_lastview=;");
+
+				const autosaves = harness.analytics.events.filter(
+					(e) => e.event === ANALYTICS_EVENTS.firstArticleAutosaved,
+				);
+				expect(autosaves).toHaveLength(1);
+				expect(autosaves[0]).toMatchObject({
+					event: ANALYTICS_EVENTS.firstArticleAutosaved,
+					article_host: "example.com",
+					user_id: expect.any(String),
+				});
+				// No visitor id was tunneled in this state, so the event omits it.
+				expect(autosaves[0]).not.toHaveProperty("visitor_id");
 			}, 30000);
+
+			it("does not tunnel a pathologically long last-view url that would overflow the state cookie", async () => {
+				const fixture = createDefaultTestAppFixture(TEST_APP_ORIGIN);
+				const harness = useApp({ ...fixture, apple: appleWith() });
+				const hugeUrl = `https://example.com/${"a".repeat(MAX_APPLE_STATE_COOKIE_BYTES + 200)}`;
+
+				const getResponse = await request(harness.server)
+					.get("/auth/apple")
+					.set("Cookie", `hutch_lastview=${encodeURIComponent(hugeUrl)}`);
+
+				expect(getResponse.status).toBe(303);
+				const state = readSetCookie(getResponse, "hutch_astate");
+				assert(state, "GET must still set a state cookie with the oversized url dropped");
+				const payload = JSON.parse(state.slice(0, state.lastIndexOf(".")));
+				expect(payload.lastViewUrl).toBeUndefined();
+				// The nonce (and the rest of the load-bearing state) survives.
+				expect(payload.nonce).toBeDefined();
+			});
 
 			it("lets an explicit return URL win over the tunneled autosave", async () => {
 				const fixture = createDefaultTestAppFixture(TEST_APP_ORIGIN);

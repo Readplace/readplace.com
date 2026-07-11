@@ -15,6 +15,7 @@ import { AppleTokenResponse } from "../../providers/apple-auth/apple-token";
 import { DISPOSABLE_EMAIL_MESSAGE } from "./disposable-email";
 import { SIGNUP_MIN_SUBMIT_MS } from "./validate-signup";
 import { SESSION_COOKIE_NAME, SESSION_TTL_SECONDS } from "@packages/web-session";
+import { ANALYTICS_EVENTS } from "@packages/web-analytics";
 
 const TEST_FOUNDING_MEMBER_LIMIT = 3;
 
@@ -1156,6 +1157,31 @@ describe("Auth routes", () => {
 			expect(cleared.startsWith("hutch_lastview=;")).toBe(true);
 		}, 30000);
 
+		it("emits a single discrete first_article_autosaved event carrying the new user and article host", async () => {
+			const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
+			const agent = request.agent(harness.server);
+			await agent.get(VIEW_PATH);
+
+			await agent.post("/signup").type("form").send({
+				email: "autosave-event@example.com",
+				password: "password123",
+				confirmPassword: "password123",
+				loadedAt: freshLoadedAt(),
+			});
+
+			const autosaves = harness.analytics.events.filter(
+				(e) => e.event === ANALYTICS_EVENTS.firstArticleAutosaved,
+			);
+			expect(autosaves).toHaveLength(1);
+			expect(autosaves[0]).toMatchObject({
+				stream: "analytics",
+				event: ANALYTICS_EVENTS.firstArticleAutosaved,
+				article_host: "example.com",
+				user_id: expect.any(String),
+				visitor_id: expect.any(String),
+			});
+		}, 30000);
+
 		it("lets an explicit ?return= win over the autosave even when the cookie is present", async () => {
 			const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
 			const agent = request.agent(harness.server);
@@ -1170,6 +1196,9 @@ describe("Auth routes", () => {
 
 			expect(response.status).toBe(303);
 			expect(response.headers.location).toBe("/oauth/authorize");
+			expect(
+				harness.analytics.events.filter((e) => e.event === ANALYTICS_EVENTS.firstArticleAutosaved),
+			).toHaveLength(0);
 		}, 30000);
 
 		it("redirects a free signup to a plain /queue when no hutch_lastview cookie is present", async () => {

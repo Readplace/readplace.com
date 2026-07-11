@@ -11,6 +11,7 @@ import {
 import { GoogleIdSchema } from "@packages/test-fixtures/providers/google-auth";
 import type { ExchangeGoogleCode } from "@packages/test-fixtures/providers/google-auth";
 import { CheckoutSessionIdSchema } from "@packages/test-fixtures/providers/hosted-checkout";
+import { ANALYTICS_EVENTS } from "@packages/web-analytics";
 
 const TEST_FOUNDING_MEMBER_LIMIT = 3;
 
@@ -290,6 +291,17 @@ describe("Google auth routes", () => {
 				expect(response.status).toBe(303);
 				expect(response.headers.location).toBe(AUTOSAVE_LOCATION);
 				expect(cookiesFrom(response).join(";")).toContain("hutch_lastview=;");
+
+				const autosaves = harness.analytics.events.filter(
+					(e) => e.event === ANALYTICS_EVENTS.firstArticleAutosaved,
+				);
+				expect(autosaves).toHaveLength(1);
+				expect(autosaves[0]).toMatchObject({
+					event: ANALYTICS_EVENTS.firstArticleAutosaved,
+					article_host: "example.com",
+					user_id: expect.any(String),
+					visitor_id: expect.any(String),
+				});
 			}, 30000);
 
 			it("lets an explicit return URL win over the autosave", async () => {

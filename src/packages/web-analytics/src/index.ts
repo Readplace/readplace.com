@@ -50,6 +50,7 @@ export {
 	type SummaryToggledEvent,
 	type ViewOpenedEvent,
 	type ViewSaveIntentEvent,
+	type FirstArticleAutosavedEvent,
 	type DeviceClass,
 	type BrowserFamily,
 } from "./analytics";

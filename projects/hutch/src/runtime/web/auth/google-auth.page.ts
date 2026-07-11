@@ -31,9 +31,11 @@ import { persistentSessionCookieOptions } from "./session-cookie-options";
 import { LoginPage } from "./auth.component";
 import { initFetchUserCount } from "./fetch-user-count";
 import { readClickAttribution } from "@packages/web-analytics";
+import type { AnalyticsEvent } from "@packages/web-analytics";
 import { consumePendingSaveId } from "../pending-save";
 import { consumeLastViewUrl } from "../last-view";
 import { resolvePostSignupRedirect } from "./post-signup-redirect";
+import { emitFirstArticleAutosaved } from "./first-article-autosaved";
 import type { ConversionEvent } from "../../conversions";
 import { emitUserCreated } from "../../conversions";
 import { signState, verifyState } from "./oauth-state";
@@ -71,6 +73,7 @@ interface GoogleAuthDependencies {
 	logError: (message: string, error?: Error) => void;
 	now: () => Date;
 	conversionLogger: HutchLogger.Typed<ConversionEvent>;
+	analytics: HutchLogger.Typed<AnalyticsEvent>;
 	foundingAllocation: FoundingAllocation;
 }
 
@@ -221,7 +224,12 @@ export const initGoogleAuthRoutes = (deps: GoogleAuthDependencies): Router => {
 				},
 			);
 			const lastViewUrl = consumeLastViewUrl({ req, res });
-			res.redirect(303, resolvePostSignupRedirect({ returnUrl: safeReturnUrl, lastViewUrl }));
+			const redirect = resolvePostSignupRedirect({ returnUrl: safeReturnUrl, lastViewUrl });
+			emitFirstArticleAutosaved(
+				{ logger: deps.analytics, now: deps.now },
+				{ autosavedUrl: redirect.autosavedUrl, userId: created.userId, visitorId: req.visitorId },
+			);
+			res.redirect(303, redirect.location);
 			return;
 		}
 
@@ -271,7 +279,12 @@ export const initGoogleAuthRoutes = (deps: GoogleAuthDependencies): Router => {
 			},
 		);
 		const lastViewUrl = consumeLastViewUrl({ req, res });
-		res.redirect(303, resolvePostSignupRedirect({ returnUrl: safeReturnUrl, lastViewUrl }));
+		const redirect = resolvePostSignupRedirect({ returnUrl: safeReturnUrl, lastViewUrl });
+		emitFirstArticleAutosaved(
+			{ logger: deps.analytics, now: deps.now },
+			{ autosavedUrl: redirect.autosavedUrl, userId: created.userId, visitorId: req.visitorId },
+		);
+		res.redirect(303, redirect.location);
 	});
 
 	return router;

@@ -3,6 +3,17 @@ import { parseReturnUrl } from "./parse-return-url";
 
 const AUTOSAVE_MARKER: [string, string] = ["utm_source", "signup-autosave"];
 
+export interface PostSignupRedirect {
+	/** The 303 target. Always internal — either the parsed `?return=` path or the
+	 * `/queue?url=…` autosave URL. */
+	location: string;
+	/** The validated article URL being auto-saved, present only when this signup
+	 * triggers a first-article autosave. Lets the caller emit the discrete
+	 * `first_article_autosaved` event 1:1 with the trigger without re-deriving the
+	 * decision. `undefined` for every non-autosave landing. */
+	autosavedUrl?: string;
+}
+
 /** Where a fresh signup lands. An explicit `?return=` always wins (the /save
  * round-trip already carries and saves the held article in that case, so
  * auto-saving too would double-save). Otherwise, when the anonymous visitor was
@@ -13,12 +24,12 @@ const AUTOSAVE_MARKER: [string, string] = ["utm_source", "signup-autosave"];
 export function resolvePostSignupRedirect(params: {
 	returnUrl: string | undefined;
 	lastViewUrl: string | undefined;
-}): string {
+}): PostSignupRedirect {
 	const fallback = parseReturnUrl({ return: params.returnUrl });
-	if (params.returnUrl !== undefined) return fallback;
-	if (params.lastViewUrl === undefined) return fallback;
+	if (params.returnUrl !== undefined) return { location: fallback };
+	if (params.lastViewUrl === undefined) return { location: fallback };
 	const validation = validateSaveableUrl(params.lastViewUrl);
-	if (validation.status === "ERROR") return fallback;
+	if (validation.status === "ERROR") return { location: fallback };
 	const qs = new URLSearchParams([["url", validation.url], AUTOSAVE_MARKER]);
-	return `/queue?${qs.toString()}`;
+	return { location: `/queue?${qs.toString()}`, autosavedUrl: validation.url };
 }
