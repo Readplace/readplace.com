@@ -297,6 +297,7 @@ export function initAuthRoutes(deps: AuthDependencies): Router {
 						now: deps.now(),
 					}));
 					if (result.reason === "submit_too_fast") {
+						logSignupAttempt(SIGNUP_OUTCOMES.tooFast);
 						await renderFailure(
 							typeof body.email === "string" ? body.email : undefined,
 							[{ message: "Please try again" }],
@@ -307,11 +308,6 @@ export function initAuthRoutes(deps: AuthDependencies): Router {
 					res.redirect(303, "/?signup=pending");
 					break;
 				case "field-errors":
-					/* A submission that is both disposable and otherwise invalid is
-					 * bucketed as disposable_email, not invalid_input: the disposable
-					 * gate takes precedence so its cost is measured in full rather than
-					 * hidden behind a co-occurring error. The outcome buckets are
-					 * therefore not mutually exclusive by input. */
 					logSignupAttempt(
 						result.errors.some((e) => e.message === DISPOSABLE_EMAIL_MESSAGE)
 							? SIGNUP_OUTCOMES.disposableEmail

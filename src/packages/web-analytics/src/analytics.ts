@@ -256,17 +256,6 @@ export interface ViewSaveIntentEvent {
 	is_authenticated: 0 | 1;
 }
 
-/**
- * Emitted at each terminal branch of the POST /signup handler so the email
- * signup form's own conversion — submissions vs accounts created — is countable,
- * and so the share lost to each rejection gate (disposable email, duplicate,
- * generic validation) is separable. Only the email form is measured here; Google
- * sign-in creates accounts through a separate path, so this is the form's
- * conversion, not total account creation. Carries `visitor_id` to join to
- * `user_created` and to the anonymous reader funnel. Always `is_authenticated:
- * 0` — the signup form is only ever shown to anonymous visitors, so a submission
- * is never authenticated.
- */
 export interface SignupAttemptedEvent {
 	stream: typeof STREAMS.analytics;
 	event: typeof ANALYTICS_EVENTS.signupAttempted;
@@ -423,12 +412,6 @@ export function buildSaveIntentEvent(
 	};
 }
 
-/**
- * Builds a `signup_attempted` event for a terminal outcome of the POST /signup
- * handler. Centralizes the `visitor_hash`/`visitor_id` derivation so signup
- * attempts carry the same join and dashboard-exclusion identifiers as the rest
- * of the analytics stream.
- */
 export function buildSignupAttemptedEvent(
 	deps: { now: () => Date; salt: string },
 	params: { req: Request; outcome: SignupOutcome },

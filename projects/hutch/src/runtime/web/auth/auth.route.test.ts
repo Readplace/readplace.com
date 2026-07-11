@@ -955,7 +955,34 @@ describe("Auth routes", () => {
 			expect(signupAttempts(harness)).toMatchObject([{ outcome: "duplicate_email" }]);
 		}, 30000);
 
-		it("does not emit signup_attempted for a bot-rejected submission — those are counted on the bot-defense stream", async () => {
+		it("emits outcome=too_fast when a submit inside the bot window is rejected — the visitor is shown the form again, so the rejection belongs in the signup funnel and not only on the bot-defense stream", async () => {
+			const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
+
+			const response = await request(harness.server).post("/signup").type("form").send({
+				email: "autofill@gmail.com",
+				password: "password123",
+				confirmPassword: "password123",
+				loadedAt: String(Date.now() - 1000),
+			});
+
+			expect(response.status).toBe(422);
+			expect(signupAttempts(harness)).toMatchObject([{ outcome: "too_fast" }]);
+		});
+
+		it("emits outcome=disposable_email when the submission is both disposable and otherwise invalid — the disposable gate takes precedence, so the outcome buckets are not mutually exclusive by input", async () => {
+			const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
+
+			await request(harness.server).post("/signup").type("form").send({
+				email: "user@slmail.me",
+				password: "short",
+				confirmPassword: "short",
+				loadedAt: freshLoadedAt(),
+			});
+
+			expect(signupAttempts(harness)).toMatchObject([{ outcome: "disposable_email" }]);
+		});
+
+		it("does not emit signup_attempted for a honeypot trip — the visitor is silently fake-succeeded rather than shown a rejection, so it is counted on the bot-defense stream only", async () => {
 			const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
 
 			await request(harness.server).post("/signup").type("form").send({
@@ -966,7 +993,19 @@ describe("Auth routes", () => {
 				loadedAt: freshLoadedAt(),
 			});
 
-			assert.equal(signupAttempts(harness).length, 0, "bot trips are not signup_attempted events");
+			assert.equal(signupAttempts(harness).length, 0, "honeypot trips are not signup_attempted events");
+		});
+
+		it("does not emit signup_attempted for a missing-timestamp trip — likewise fake-succeeded, so only the human-visible too-fast rejection reaches the signup funnel", async () => {
+			const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
+
+			await request(harness.server).post("/signup").type("form").send({
+				email: "bot@gmail.com",
+				password: "password123",
+				confirmPassword: "password123",
+			});
+
+			assert.equal(signupAttempts(harness).length, 0, "missing-timestamp trips are not signup_attempted events");
 		});
 	});
 
