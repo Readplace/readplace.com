@@ -8,6 +8,7 @@ import {
 	createAnalyticsMiddleware,
 	createClickAttributionMiddleware,
 	createVisitorIdMiddleware,
+	utmValidationMiddleware,
 } from "@packages/web-analytics";
 import { contentSignalMiddleware } from "./web/content-signal.middleware";
 import { initBlogPosts } from "./web/pages/blog/blog.posts";
@@ -38,6 +39,7 @@ export function createBlogApp(
 	const app = express();
 	app.disable("x-powered-by");
 
+	app.use(utmValidationMiddleware);
 	app.use(cookieParser());
 	app.use(createVisitorIdMiddleware({ generateVisitorId: deps.generateVisitorId, secure: deps.secureCookies }));
 	app.use(createClickAttributionMiddleware({ now: deps.now, secure: deps.secureCookies }));

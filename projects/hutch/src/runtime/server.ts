@@ -132,6 +132,7 @@ import {
 	createClickAttributionMiddleware,
 	createVisitorIdMiddleware,
 	isHttpsOrigin,
+	utmValidationMiddleware,
 } from "@packages/web-analytics";
 import { initAuthRoutes } from "./web/auth/auth.page";
 import type { BotDefenseEvent } from "./web/auth/auth.page";
@@ -350,6 +351,8 @@ const INDEXNOW_KEY = getEnv("INDEXNOW_KEY");
 export function createApp(dependencies: AppDependencies): Express {
 	const { appOrigin, staticBaseUrl, getSessionUserId, countUsers, foundingAllocation, ...deps } = dependencies;
 	const app: Express = express();
+
+	app.use(utmValidationMiddleware);
 
 	app.use((req: Request, res: Response, next: NextFunction) => {
 		if (req.headers.host === "hutch-app.com") {

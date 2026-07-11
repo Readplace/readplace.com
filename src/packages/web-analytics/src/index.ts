@@ -28,6 +28,7 @@ export {
 	readClickAttribution,
 	createClickAttributionMiddleware,
 } from "./click-attribution.middleware";
+export { utmValidationMiddleware } from "./utm-validation.middleware";
 export {
 	createAnalyticsMiddleware,
 	hashIp,

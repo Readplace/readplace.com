@@ -135,6 +135,14 @@ describe("blog analytics instrumentation", () => {
 		expect(events).toHaveLength(0);
 	});
 
+	it("400s a utm value carrying an apostrophe and records nothing — neither a pageview nor the hutch_click cookie", async () => {
+		const res = await request(makeApp(guestResolver)).get("/blog?utm_source='");
+
+		expect(res.status).toBe(400);
+		expect(events).toHaveLength(0);
+		expect(cookieNames(setCookieHeaders(res))).not.toContain("hutch_click");
+	});
+
 	it("captures an external referrer in hutch_click but drops a same-host referrer", async () => {
 		const external = await request(makeApp(guestResolver)).get("/blog").set("Referer", "https://www.google.com/");
 		expect(parseClickCookie(setCookieHeaders(external)).referrer_host).toBe("www.google.com");
