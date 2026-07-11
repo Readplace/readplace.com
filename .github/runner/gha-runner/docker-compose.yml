@@ -28,17 +28,16 @@ services:
       # keep, expensive to redownload over starlink.
       - playwright-browsers:/ms-playwright
       - pnpm-store:/root/.local/share/pnpm
+      # setup-node re-downloads Node into the toolcache on every ephemeral
+      # container otherwise (~39s measured). Persisting it survives the wipe.
+      - toolcache:/opt/hostedtoolcache
       # Uncomment ONLY if a job needs docker (container:, services:,
       # testcontainers). ci.yml currently uses none. Socket access is
       # root-equivalent on the docker host and job containers become
       # siblings with host-path volume semantics:
       # - /var/run/docker.sock:/var/run/docker.sock
-      #
-      # Optional speed-over-purity: persist the setup-node toolcache so
-      # each ephemeral container skips the ~30s node download:
-      # - toolcache:/opt/hostedtoolcache
 
 volumes:
   playwright-browsers:
   pnpm-store:
-  # toolcache:
+  toolcache:
