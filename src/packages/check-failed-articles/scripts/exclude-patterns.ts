@@ -211,6 +211,13 @@ export const EXCLUDE_PATTERNS: readonly RegExp[] = [
 	// egress path can reproduce the page. `https?` covers the stored `http`
 	// row and any future `https` re-save of the same path.
 	/^https?:\/\/www\.todayonline\.com\/singapore\/channel-newsasia-opens-bureau-myanmar$/i,
+	// Zhihu removed this answer — a browser gets 404 at origin — but Baidu's
+	// BLB edge 403s datacenter egress before the origin can answer, so a
+	// recrawl can never land the `not-found` classification that would drain
+	// the row on its own. Anchored to the exact saved answer URL; other zhihu
+	// rows (including the extension-saved `question/undefined` duplicate of
+	// this same answer) must still surface.
+	/^https:\/\/www\.zhihu\.com\/question\/2058516301257994660\/answer\/2058890698460509303$/i,
 	// (i) web.archive.org captures — archive.org throttles datacenter egress
 	// (tarpits/429s AWS-range IPs), so saved captures intermittently exhaust
 	// retries with nothing the operator can act on. Anchored per capture

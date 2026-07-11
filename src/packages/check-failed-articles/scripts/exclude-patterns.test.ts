@@ -568,6 +568,23 @@ describe("EXCLUDE_PATTERNS — permanently-unreachable saves", () => {
 			excluded: false,
 			label: "different todayonline article — must NOT be hidden",
 		},
+		// (h) Zhihu deleted answer — origin 404s a browser, but Baidu's BLB
+		// edge 403s datacenter egress before the 404 can land.
+		{
+			url: "https://www.zhihu.com/question/2058516301257994660/answer/2058890698460509303",
+			excluded: true,
+			label: "zhihu deleted answer exact (origin 404 behind edge 403)",
+		},
+		{
+			url: "https://www.zhihu.com/question/undefined/answer/2058890698460509303",
+			excluded: false,
+			label: "extension-saved question/undefined duplicate of the same answer — must NOT be hidden",
+		},
+		{
+			url: "https://www.zhihu.com/question/2058516301257994660",
+			excluded: false,
+			label: "parent zhihu question page — must NOT be hidden",
+		},
 		// (i) web.archive.org captures behind datacenter throttling.
 		{
 			url: "https://web.archive.org/web/20180322015406/http://www.todayonline.com/singapore/channel-newsasia-opens-bureau-myanmar",
