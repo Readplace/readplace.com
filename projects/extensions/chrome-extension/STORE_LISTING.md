@@ -23,6 +23,21 @@ Upload in that order: dashboard → the item → **Store listing** → *Graphic 
 → Screenshots. The dashboard has no caption field; captions belong in the
 listing description text if used.
 
+## Promotional images
+
+Same *Graphic assets* section, separate slots below the screenshots:
+
+| File | Dashboard slot |
+|---|---|
+| `promo-tile-440x280.png` | Small promo tile (440×280) |
+| `promo-marquee-1400x560.png` | Marquee promo tile (1400×560) |
+
+Chrome uses these on discovery surfaces (category pages, the homepage
+carousel), so a listing without them is rarely featured. Both are built from
+the brand lockup in `og-image-1200x630.png` (navy `#2B3A55`, white serif
+ampersand with the `#C8923C` dot, Georgia wordmark); the marquee adds the real
+queue capture in a framed card. Same specs as screenshots: opaque RGB PNG.
+
 **Specs (checked into this set):** exactly 1280×800, opaque RGB PNG — no alpha
 channel. Apple's media pipeline hangs forever on PNGs with alpha (see
 `projects/ios-readplace/TESTFLIGHT.md`); Chrome is more forgiving, but flat sRGB
