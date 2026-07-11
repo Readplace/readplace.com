@@ -45,6 +45,24 @@ describe("Auth routes", () => {
 			expect(doc.querySelector('input[name="password"]')?.getAttribute("type")).toBe("password");
 		});
 
+		it("should render the Google and Apple buttons above the login form, matching /signup", async () => {
+			const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
+			const response = await request(harness.server).get("/login");
+
+			const doc = new JSDOM(response.text).window.document;
+			const card = doc.querySelector(".auth-card");
+			assert(card, "auth card must be rendered");
+			const children = Array.from(card.children);
+			const googleIndex = children.findIndex((el) => el.matches("[data-test-google-section]"));
+			const appleIndex = children.findIndex((el) => el.matches("[data-test-apple-section]"));
+			const dividerIndex = children.findIndex((el) => el.matches(".auth-divider"));
+			const formIndex = children.findIndex((el) => el.matches('[data-test-form="login"]'));
+			expect(googleIndex).toBeGreaterThanOrEqual(0);
+			expect(appleIndex).toBeGreaterThan(googleIndex);
+			expect(dividerIndex).toBeGreaterThan(appleIndex);
+			expect(formIndex).toBeGreaterThan(dividerIndex);
+		});
+
 		it("should redirect authenticated user to /queue", async () => {
 			const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
 			const { auth } = harness;
