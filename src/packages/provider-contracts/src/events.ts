@@ -72,6 +72,7 @@ export type PublishSubscriptionCancellationScheduled = (params: {
 
 export type SubscriptionCancelledReason =
 	| "stripe_webhook"
+	| "stripe_payment_failure"
 	| "user_initiated_trial"
 	| "user_initiated_paid_confirmed"
 	| CancelSubscriptionReason;

@@ -15,6 +15,7 @@ export function initInMemorySubscriptionBilling(opts?: {
 	scheduleCancellationFails?: boolean;
 	reverseScheduledCancellationFails?: boolean;
 	scheduleCancellationAtPeriodEndReturns?: string;
+	reverseScheduledCancellationReturns?: { trialEndsAt?: string };
 }): {
 	cancelImmediately: CancelSubscriptionImmediately;
 	createSubscriptionOnExistingCustomer: CreateSubscriptionOnExistingCustomer;
@@ -73,6 +74,7 @@ export function initInMemorySubscriptionBilling(opts?: {
 			throw new Error("In-memory billing reverseScheduledCancellation failure");
 		}
 		reversed.push(subscriptionId);
+		return opts?.reverseScheduledCancellationReturns ?? {};
 	};
 
 	return {

@@ -35,6 +35,7 @@ import {
 	type SetPrimaryCard,
 } from "@packages/provider-contracts/payment-methods";
 import type {
+	CreateChargeReminderSchedule,
 	CreateTrialEndSchedule,
 	CreateTrialReminderSchedule,
 	DeleteDeferredCancellationSchedule,
@@ -95,6 +96,7 @@ interface AccountDependencies {
 	stripePublishableKey: string | undefined;
 	createTrialEndSchedule: CreateTrialEndSchedule;
 	createTrialReminderSchedule: CreateTrialReminderSchedule;
+	createChargeReminderSchedule: CreateChargeReminderSchedule;
 	deleteDeferredCancellationSchedule: DeleteDeferredCancellationSchedule;
 	storePendingSignup: StorePendingSignup;
 	stripePriceId: string;
@@ -421,12 +423,31 @@ export function initAccountRoutes(deps: AccountDependencies): Router {
 			if (row.subscriptionId) {
 				// Paid path — Stripe still owns the subscription; tell it to stop
 				// the scheduled cancel, then flip the row back to active.
-				await deps.reverseScheduledCancellation({ subscriptionId: row.subscriptionId });
+				const reversed = await deps.reverseScheduledCancellation({
+					subscriptionId: row.subscriptionId,
+				});
 				await deps.markActiveSubscription({ userId });
 				await deps.publishSubscriptionReactivated({
 					userId,
 					subscriptionId: row.subscriptionId,
 				});
+				if (reversed.trialEndsAt) {
+					const reminderFiresAt = trialReminderFiresAt(reversed.trialEndsAt);
+					if (Date.parse(reminderFiresAt) > deps.now().getTime()) {
+						try {
+							await deps.createChargeReminderSchedule({
+								userId,
+								firesAt: reminderFiresAt,
+								chargeAt: reversed.trialEndsAt,
+							});
+						} catch (err) {
+							deps.logger.error(
+								"[reactivate] Charge-reminder schedule creation failed — continuing without the pre-charge email",
+								{ userId, error: err instanceof Error ? err.message : String(err) },
+							);
+						}
+					}
+				}
 				res.redirect(303, buildAccountUrl());
 				return;
 			}
@@ -482,6 +503,7 @@ export function initAccountRoutes(deps: AccountDependencies): Router {
 				email,
 				userId,
 				returnUrl: "/queue",
+				trialEndsAt: opts.trialEndsAt,
 			},
 			createdAt: deps.now().getTime(),
 		});

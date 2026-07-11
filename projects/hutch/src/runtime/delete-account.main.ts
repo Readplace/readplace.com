@@ -155,6 +155,7 @@ export const handler = initDeleteAccountHandler({
 	deleteDeferredCancellationSchedule: trialScheduler.deleteDeferredCancellationSchedule,
 	deleteTrialFeedbackEmailSchedule: trialScheduler.deleteTrialFeedbackEmailSchedule,
 	deleteTrialReminderSchedule: trialScheduler.deleteTrialReminderSchedule,
+	deleteChargeReminderSchedule: trialScheduler.deleteChargeReminderSchedule,
 	listInboxDeletionReferences: inboxEmail.listDeletionReferencesByUserId,
 	deleteAllInboxEmails: inboxEmail.deleteAllEmailsByUserId,
 	deleteAllInboxLinks: inboxEmailLink.deleteAllLinksByUserId,

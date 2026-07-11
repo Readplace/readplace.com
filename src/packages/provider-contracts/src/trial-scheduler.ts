@@ -16,6 +16,16 @@ export type CreateDeferredCancellationSchedule = (input: {
 	reason?: CancelSubscriptionReason;
 }) => Promise<void>;
 
+export type CreateChargeReminderSchedule = (input: {
+	userId: UserId;
+	firesAt: string;
+	chargeAt: string;
+}) => Promise<void>;
+
+export type DeleteChargeReminderSchedule = (input: {
+	userId: UserId;
+}) => Promise<void>;
+
 export type DeleteDeferredCancellationSchedule = (input: {
 	userId: UserId;
 }) => Promise<void>;

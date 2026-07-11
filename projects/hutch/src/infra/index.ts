@@ -842,7 +842,7 @@ new HutchStripeWebhookReceiver("stripe-webhook-receiver", {
 		name: storage.subscriptionProvidersTable.name,
 	},
 	webhookSecret: requireEnv("STRIPE_WEBHOOK_SECRET"),
-	events: ["customer.subscription.deleted"],
+	events: ["customer.subscription.deleted", "invoice.payment_failed"],
 	alertEmail,
 });
 
@@ -1158,14 +1158,18 @@ eventBus.subscribe(SubscriptionCancelledEvent, scheduleTrialFeedbackEmailWithSQS
 });
 
 // --- Send Trial Feedback Email ---
-// SQS-backed Lambda invoked by the EventBridge Scheduler one-shots that target
-// SendTrialFeedbackEmailCommand. It handles two email kinds keyed on the event
-// detail's `kind`: the post-cancellation "what was missing?" feedback email
-// (absent/'feedback' — re-reads the row to confirm the user is still cancelled
-// and hasn't already been emailed), and the pre-expiry trial reminder
-// (kind='reminder' — created at trial signup, re-checks the user is still
-// trialing with a future trialEndsAt before nudging them to subscribe). Both
-// personalise a single clause from the count of articles the user saved.
+// SQS-backed Lambda invoked by the EventBridge Scheduler one-shots and the
+// stripe-webhook-receiver, all targeting SendTrialFeedbackEmailCommand. It
+// handles the email kinds keyed on the event detail's `kind`: the
+// post-cancellation "what was missing?" feedback email (absent/'feedback' —
+// re-reads the row to confirm the user is still cancelled and hasn't already
+// been emailed), the pre-expiry trial reminder (kind='reminder' — created at
+// trial signup, re-checks the user is still trialing with a future
+// trialEndsAt), the pre-charge notice for trial-preserving checkouts
+// (kind='charge_reminder' — created at checkout success, re-checks the user
+// is still active with the chargeAt still ahead), and the fix-your-card
+// dunning email (kind='payment_failed' — published per failed Stripe dunning
+// attempt, re-checks the user is still active).
 
 const sendTrialFeedbackEmailDynamodb = new HutchDynamoDBAccess(
 	"send-trial-feedback-email-dynamodb",

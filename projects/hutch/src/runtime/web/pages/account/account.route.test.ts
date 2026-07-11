@@ -475,16 +475,21 @@ describe("POST /account/subscribe", () => {
 		assert(typeof location === "string" && location.includes("checkout.stripe.test"));
 	});
 
-	it("threads trialEndsAt into the checkout session when ≥48h of trial remains, so Stripe attaches the card without forfeiting the trial", async () => {
+	it("threads trialEndsAt into the checkout session AND the pending signup when ≥48h of trial remains, so Stripe attaches the card without forfeiting the trial", async () => {
 		const fixture = createDefaultTestAppFixture(TEST_APP_ORIGIN);
 		const realCreateCheckoutSession = fixture.hostedCheckout.createCheckoutSession;
 		const checkoutCalls: { trialEndsAt?: string }[] = [];
+		const createdSessionIds: Parameters<
+			typeof fixture.pendingSignup.consumePendingSignup
+		>[0][] = [];
 		fixture.hostedCheckout.createCheckoutSession = async (params) => {
 			checkoutCalls.push(params);
-			return realCreateCheckoutSession(params);
+			const session = await realCreateCheckoutSession(params);
+			createdSessionIds.push(session.id);
+			return session;
 		};
 		const harness = useApp(fixture);
-		const { subscriptionProviders } = harness;
+		const { subscriptionProviders, pendingSignup } = harness;
 		const { agent, userId } = await loginUser(harness, "trial-keeps-trial@example.com");
 		const trialEndsAt = new Date(Date.now() + 5 * ONE_DAY_MS).toISOString();
 		await subscriptionProviders.upsertTrialing({ userId, trialEndsAt });
@@ -494,6 +499,10 @@ describe("POST /account/subscribe", () => {
 		expect(response.status).toBe(303);
 		expect(checkoutCalls).toHaveLength(1);
 		expect(checkoutCalls[0].trialEndsAt).toBe(trialEndsAt);
+		expect(createdSessionIds).toHaveLength(1);
+		const pending = await pendingSignup.consumePendingSignup(createdSessionIds[0]);
+		assert(pending, "pending signup must be stored for the checkout session");
+		expect(pending.trialEndsAt).toBe(trialEndsAt);
 	});
 
 	it("omits trialEndsAt when under 48h of trial remains — Stripe rejects a trial_end that close, so the checkout charges immediately", async () => {
@@ -863,6 +872,86 @@ describe("POST /account/reactivate", () => {
 		expect(reactivatedEvents).toEqual([
 			{ userId, subscriptionId: "sub_to_reactivate" },
 		]);
+		// A subscription Stripe already charges has no upcoming first charge.
+		expect(trialScheduler.allChargeReminderSchedules()).toEqual([]);
+	});
+
+	it("paid reactivation of a still-trialing Stripe subscription re-arms the pre-charge reminder — the cancel path deleted it, but Stripe will still charge at trial end", async () => {
+		const trialEndsAt = new Date(Date.now() + 5 * ONE_DAY_MS).toISOString();
+		const fixture = createDefaultTestAppFixture(TEST_APP_ORIGIN);
+		fixture.subscriptionBilling = {
+			...fixture.subscriptionBilling,
+			reverseScheduledCancellation: async () => ({ trialEndsAt }),
+		};
+		const harness = useApp(fixture);
+		const { subscriptionProviders, trialScheduler } = harness;
+		const { agent, userId } = await loginUser(harness, "reactivate-trialing@example.com");
+		await subscriptionProviders.upsertActive({
+			userId,
+			subscriptionId: "sub_still_trialing",
+			customerId: "cus_still_trialing",
+		});
+		await subscriptionProviders.markPendingCancellation({ userId, cancellationEffectiveAt: trialEndsAt });
+
+		const response = await agent.post("/account/reactivate");
+
+		expect(response.status).toBe(303);
+		expect(trialScheduler.getChargeReminderSchedule(userId)).toEqual({
+			firesAt: new Date(Date.parse(trialEndsAt) - 2 * ONE_DAY_MS).toISOString(),
+			chargeAt: trialEndsAt,
+		});
+	});
+
+	it("paid reactivation inside the final 2 days of the trial does not re-arm the reminder — its fire instant has already passed", async () => {
+		const trialEndsAt = new Date(Date.now() + ONE_DAY_MS).toISOString();
+		const fixture = createDefaultTestAppFixture(TEST_APP_ORIGIN);
+		fixture.subscriptionBilling = {
+			...fixture.subscriptionBilling,
+			reverseScheduledCancellation: async () => ({ trialEndsAt }),
+		};
+		const harness = useApp(fixture);
+		const { subscriptionProviders, trialScheduler } = harness;
+		const { agent, userId } = await loginUser(harness, "reactivate-late@example.com");
+		await subscriptionProviders.upsertActive({
+			userId,
+			subscriptionId: "sub_late_trial",
+			customerId: "cus_late_trial",
+		});
+		await subscriptionProviders.markPendingCancellation({ userId, cancellationEffectiveAt: trialEndsAt });
+
+		const response = await agent.post("/account/reactivate");
+
+		expect(response.status).toBe(303);
+		expect(trialScheduler.allChargeReminderSchedules()).toEqual([]);
+	});
+
+	it("paid reactivation still succeeds when re-arming the pre-charge reminder fails — the subscription is already restored", async () => {
+		const trialEndsAt = new Date(Date.now() + 5 * ONE_DAY_MS).toISOString();
+		const fixture = createDefaultTestAppFixture(TEST_APP_ORIGIN);
+		fixture.subscriptionBilling = {
+			...fixture.subscriptionBilling,
+			reverseScheduledCancellation: async () => ({ trialEndsAt }),
+		};
+		fixture.trialScheduler.createChargeReminderSchedule = async () => {
+			throw new Error("EventBridge Scheduler unavailable");
+		};
+		const harness = useApp(fixture);
+		const { subscriptionProviders } = harness;
+		const { agent, userId } = await loginUser(harness, "reactivate-schedule-down@example.com");
+		await subscriptionProviders.upsertActive({
+			userId,
+			subscriptionId: "sub_schedule_down",
+			customerId: "cus_schedule_down",
+		});
+		await subscriptionProviders.markPendingCancellation({ userId, cancellationEffectiveAt: trialEndsAt });
+
+		const response = await agent.post("/account/reactivate");
+
+		expect(response.status).toBe(303);
+		expect(response.headers.location).toBe("/account");
+		const row = await subscriptionProviders.findByUserId(userId);
+		assert(row, "row must exist");
+		expect(row.status).toBe("active");
 	});
 
 	it("trial happy path — recreates trial-end schedule, deletes deferred-cancellation schedule, row flipped back to trialing with original trialEndsAt, SubscriptionReactivated emitted (no subscriptionId)", async () => {

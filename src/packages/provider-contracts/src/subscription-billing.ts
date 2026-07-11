@@ -16,6 +16,6 @@ export type ScheduleCancellationAtPeriodEnd = (input: {
 
 export type ReverseScheduledCancellation = (input: {
 	subscriptionId: string;
-}) => Promise<void>;
+}) => Promise<{ trialEndsAt?: string }>;
 
 export type DeleteCustomer = (input: { customerId: string }) => Promise<void>;

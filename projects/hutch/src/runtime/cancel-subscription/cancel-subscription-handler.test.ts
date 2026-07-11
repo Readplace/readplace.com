@@ -58,6 +58,7 @@ function buildSubject(opts?: { scheduleCancellationAtPeriodEndReturns?: string }
 		createDeferredCancellationSchedule: trialScheduler.createDeferredCancellationSchedule,
 		deleteTrialEndSchedule: trialScheduler.deleteTrialEndSchedule,
 		deleteTrialReminderSchedule: trialScheduler.deleteTrialReminderSchedule,
+		deleteChargeReminderSchedule: trialScheduler.deleteChargeReminderSchedule,
 		publishSubscriptionCancellationScheduled,
 		publishSubscriptionCancelled,
 		logger: HutchLogger.from(noopLogger),
@@ -111,6 +112,9 @@ describe("cancel-subscription handler", () => {
 		assert.equal(subject.cancelledEvents.length, 0);
 		// Trial-end schedule untouched on the active branch (paid users never had one).
 		assert.deepEqual(subject.trialScheduler.deleteCalls(), []);
+		// A trial-preserving subscriber's pre-charge reminder must not fire once
+		// the cancel is scheduled — Stripe will no longer charge them.
+		assert.deepEqual(subject.trialScheduler.chargeReminderDeleteCalls(), [USER_ID]);
 	});
 
 	it("trialing branch — deletes trial-end schedule, creates deferred-cancellation schedule at trialEndsAt + 1h, emits SubscriptionCancellationScheduled with cancellationEffectiveAt=trialEndsAt (no Stripe call)", async () => {
@@ -335,6 +339,7 @@ describe("cancel-subscription handler", () => {
 			createDeferredCancellationSchedule: trialScheduler.createDeferredCancellationSchedule,
 			deleteTrialEndSchedule: trialScheduler.deleteTrialEndSchedule,
 			deleteTrialReminderSchedule: trialScheduler.deleteTrialReminderSchedule,
+			deleteChargeReminderSchedule: trialScheduler.deleteChargeReminderSchedule,
 			publishSubscriptionCancellationScheduled: async () => {},
 			publishSubscriptionCancelled: async () => {},
 			logger: HutchLogger.from(noopLogger),

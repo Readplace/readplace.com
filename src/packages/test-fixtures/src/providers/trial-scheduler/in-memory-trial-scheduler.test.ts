@@ -206,6 +206,65 @@ describe("initInMemoryTrialScheduler", () => {
 		assert.equal(scheduler.getTrialFeedbackEmailSchedule(userId), undefined);
 	});
 
+	it("records charge-reminder schedules with their firesAt and chargeAt independently of the other kinds", async () => {
+		const userIdA = UserIdSchema.parse("c3".repeat(16));
+		const userIdB = UserIdSchema.parse("d4".repeat(16));
+		const scheduler = initInMemoryTrialScheduler();
+
+		await scheduler.createChargeReminderSchedule({
+			userId: userIdA,
+			firesAt: "2026-07-22T00:00:00.000Z",
+			chargeAt: "2026-07-24T00:00:00.000Z",
+		});
+
+		assert.deepEqual(scheduler.getChargeReminderSchedule(userIdA), {
+			firesAt: "2026-07-22T00:00:00.000Z",
+			chargeAt: "2026-07-24T00:00:00.000Z",
+		});
+		assert.equal(scheduler.getChargeReminderSchedule(userIdB), undefined);
+		assert.deepEqual(scheduler.allChargeReminderSchedules(), [
+			{
+				userId: userIdA,
+				firesAt: "2026-07-22T00:00:00.000Z",
+				chargeAt: "2026-07-24T00:00:00.000Z",
+			},
+		]);
+		assert.deepEqual(scheduler.allSchedules(), []);
+		assert.deepEqual(scheduler.allTrialReminderSchedules(), []);
+	});
+
+	it("deleteChargeReminderSchedule removes the schedule and records the call, idempotently", async () => {
+		const userId = UserIdSchema.parse("f6".repeat(16));
+		const scheduler = initInMemoryTrialScheduler();
+
+		await scheduler.createChargeReminderSchedule({
+			userId,
+			firesAt: "2026-07-22T00:00:00.000Z",
+			chargeAt: "2026-07-24T00:00:00.000Z",
+		});
+		await scheduler.deleteChargeReminderSchedule({ userId });
+		await assert.doesNotReject(scheduler.deleteChargeReminderSchedule({ userId }));
+
+		assert.equal(scheduler.getChargeReminderSchedule(userId), undefined);
+		assert.deepEqual(scheduler.chargeReminderDeleteCalls(), [userId, userId]);
+	});
+
+	it("createChargeReminderSchedule throws when configured to fail", async () => {
+		const userId = UserIdSchema.parse("e5".repeat(16));
+		const scheduler = initInMemoryTrialScheduler({ createChargeReminderFails: true });
+
+		await assert.rejects(
+			() =>
+				scheduler.createChargeReminderSchedule({
+					userId,
+					firesAt: "2026-07-22T00:00:00.000Z",
+					chargeAt: "2026-07-24T00:00:00.000Z",
+				}),
+			/In-memory charge-reminder create failure/,
+		);
+		assert.equal(scheduler.getChargeReminderSchedule(userId), undefined);
+	});
+
 	it("records create + delete trial-reminder calls independently of the other schedule kinds", async () => {
 		const userIdA = UserIdSchema.parse("6".repeat(32));
 		const userIdB = UserIdSchema.parse("7".repeat(32));

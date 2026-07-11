@@ -67,6 +67,7 @@ function buildSubject() {
 	const deferredCancelCalls: UserId[] = [];
 	const trialFeedbackCalls: UserId[] = [];
 	const trialReminderCalls: UserId[] = [];
+	const chargeReminderCalls: UserId[] = [];
 	const rawEmailDeleteArgs: string[][] = [];
 	const bodyEmailDeleteArgs: string[][] = [];
 	const deleteExportsCalls: UserId[] = [];
@@ -126,6 +127,9 @@ function buildSubject() {
 		},
 		deleteTrialReminderSchedule: async ({ userId }: { userId: UserId }) => {
 			trialReminderCalls.push(userId);
+		},
+		deleteChargeReminderSchedule: async ({ userId }: { userId: UserId }) => {
+			chargeReminderCalls.push(userId);
 		},
 		listInboxDeletionReferences: inboxEmail.listDeletionReferencesByUserId,
 		deleteAllInboxEmails: inboxEmail.deleteAllEmailsByUserId,
@@ -190,6 +194,7 @@ function buildSubject() {
 		deferredCancelCalls,
 		trialFeedbackCalls,
 		trialReminderCalls,
+		chargeReminderCalls,
 		rawEmailDeleteArgs,
 		bodyEmailDeleteArgs,
 		deleteExportsCalls,
@@ -508,6 +513,7 @@ describe("delete-account handler", () => {
 		assert.deepEqual(s.deferredCancelCalls, [account.userId]);
 		assert.deepEqual(s.trialFeedbackCalls, [account.userId]);
 		assert.deepEqual(s.trialReminderCalls, [account.userId]);
+		assert.deepEqual(s.chargeReminderCalls, [account.userId]);
 	});
 
 	it("founding-member branch — no subscription row, so no billing calls, but the schedules are still deleted", async () => {
@@ -527,6 +533,7 @@ describe("delete-account handler", () => {
 		assert.deepEqual(s.deferredCancelCalls, [account.userId]);
 		assert.deepEqual(s.trialFeedbackCalls, [account.userId]);
 		assert.deepEqual(s.trialReminderCalls, [account.userId]);
+		assert.deepEqual(s.chargeReminderCalls, [account.userId]);
 	});
 
 	it("is idempotent — a second run against the now-empty account does not throw and reports no failures", async () => {
@@ -672,5 +679,6 @@ describe("delete-account handler", () => {
 		// a no-op — a trialing account that deletes mid-trial leaves no orphaned
 		// reminder schedule live at AWS after a redrive.
 		assert.deepEqual(s.trialReminderCalls, [account.userId, account.userId]);
+		assert.deepEqual(s.chargeReminderCalls, [account.userId, account.userId]);
 	});
 });

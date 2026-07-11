@@ -27,6 +27,7 @@ import type {
 } from "@packages/provider-contracts/subscription-providers";
 import type { DeleteCustomer } from "@packages/provider-contracts/subscription-billing";
 import type {
+	DeleteChargeReminderSchedule,
 	DeleteDeferredCancellationSchedule,
 	DeleteTrialEndSchedule,
 	DeleteTrialFeedbackEmailSchedule,
@@ -49,6 +50,7 @@ export interface DeleteAccountHandlerDependencies {
 	deleteDeferredCancellationSchedule: DeleteDeferredCancellationSchedule;
 	deleteTrialFeedbackEmailSchedule: DeleteTrialFeedbackEmailSchedule;
 	deleteTrialReminderSchedule: DeleteTrialReminderSchedule;
+	deleteChargeReminderSchedule: DeleteChargeReminderSchedule;
 	listInboxDeletionReferences: InboxEmailStore["listDeletionReferencesByUserId"];
 	deleteAllInboxEmails: InboxEmailStore["deleteAllEmailsByUserId"];
 	deleteAllInboxLinks: InboxEmailLinkStore["deleteAllLinksByUserId"];
@@ -102,11 +104,12 @@ async function processCommand(
 	}
 
 	// Delete every per-user schedule so a later fire can't dispatch a command at
-	// a deleted account. All four are ResourceNotFound-idempotent.
+	// a deleted account. All five are ResourceNotFound-idempotent.
 	await deps.deleteTrialEndSchedule({ userId });
 	await deps.deleteDeferredCancellationSchedule({ userId });
 	await deps.deleteTrialFeedbackEmailSchedule({ userId });
 	await deps.deleteTrialReminderSchedule({ userId });
+	await deps.deleteChargeReminderSchedule({ userId });
 
 	// Inbox: read the pointers the email rows hold (S3 keys + link message-ids)
 	// while the rows still exist, then delete the S3 objects and link rows, and

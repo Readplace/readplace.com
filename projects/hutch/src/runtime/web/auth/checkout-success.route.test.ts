@@ -163,5 +163,76 @@ describe("GET /auth/checkout/success", () => {
 		// The pre-expiry reminder schedule is cleared too — a paid user must
 		// never receive the "your trial ends soon" nudge.
 		expect(trialScheduler.trialReminderDeleteCalls()).toContain(lookup.userId);
+		expect(trialScheduler.allChargeReminderSchedules()).toEqual([]);
+	});
+
+	it("schedules the pre-charge reminder for a trial-preserving checkout, firing 2 days before the charge", async () => {
+		const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
+		const { auth, hostedCheckout, pendingSignup, trialScheduler } = harness;
+		const trialEndsAt = new Date(Date.now() + 5 * 86_400_000).toISOString();
+
+		await completeCheckoutSignup({
+			server: harness.server,
+			auth,
+			hostedCheckout,
+			pendingSignup,
+			email: "trial-preserving@example.com",
+			password: "password123",
+			trialEndsAt,
+		});
+
+		const lookup = await auth.findUserByEmail("trial-preserving@example.com");
+		assert(lookup, "user must exist after paid signup");
+		expect(trialScheduler.getChargeReminderSchedule(lookup.userId)).toEqual({
+			firesAt: new Date(Date.parse(trialEndsAt) - 2 * 86_400_000).toISOString(),
+			chargeAt: trialEndsAt,
+		});
+	});
+
+	it("skips the pre-charge reminder when under 2 days of trial remain — the reminder instant is already in the past", async () => {
+		const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
+		const { auth, hostedCheckout, pendingSignup, trialScheduler } = harness;
+		const trialEndsAt = new Date(Date.now() + 86_400_000).toISOString();
+
+		const { successResponse } = await completeCheckoutSignup({
+			server: harness.server,
+			auth,
+			hostedCheckout,
+			pendingSignup,
+			email: "trial-almost-gone@example.com",
+			password: "password123",
+			trialEndsAt,
+		});
+
+		expect(successResponse.status).toBe(303);
+		expect(trialScheduler.allChargeReminderSchedules()).toEqual([]);
+	});
+
+	it("still completes the checkout when the charge-reminder schedule creation fails — a paid customer never sees an error page for a missing email", async () => {
+		const fixture = createDefaultTestAppFixture(TEST_APP_ORIGIN);
+		fixture.trialScheduler.createChargeReminderSchedule = async () => {
+			throw new Error("EventBridge Scheduler unavailable");
+		};
+		const harness = useApp(fixture);
+		const { auth, hostedCheckout, pendingSignup, subscriptionProviders } = harness;
+		const trialEndsAt = new Date(Date.now() + 5 * 86_400_000).toISOString();
+
+		const { successResponse } = await completeCheckoutSignup({
+			server: harness.server,
+			auth,
+			hostedCheckout,
+			pendingSignup,
+			email: "schedule-down@example.com",
+			password: "password123",
+			trialEndsAt,
+		});
+
+		expect(successResponse.status).toBe(303);
+		expect(successResponse.headers.location).toBe("/queue");
+		const lookup = await auth.findUserByEmail("schedule-down@example.com");
+		assert(lookup, "user must exist after paid signup");
+		const row = await subscriptionProviders.findByUserId(lookup.userId);
+		assert(row, "subscription row must exist");
+		expect(row.status).toBe("active");
 	});
 });

@@ -22,6 +22,7 @@ import type {
 import type { ScheduleCancellationAtPeriodEnd } from "@packages/provider-contracts/subscription-billing";
 import type {
 	CreateDeferredCancellationSchedule,
+	DeleteChargeReminderSchedule,
 	DeleteTrialEndSchedule,
 	DeleteTrialReminderSchedule,
 } from "@packages/provider-contracts/trial-scheduler";
@@ -37,6 +38,7 @@ interface HandlerDeps {
 	createDeferredCancellationSchedule: CreateDeferredCancellationSchedule;
 	deleteTrialEndSchedule: DeleteTrialEndSchedule;
 	deleteTrialReminderSchedule: DeleteTrialReminderSchedule;
+	deleteChargeReminderSchedule: DeleteChargeReminderSchedule;
 	publishSubscriptionCancellationScheduled: PublishSubscriptionCancellationScheduled;
 	publishSubscriptionCancelled: PublishSubscriptionCancelled;
 	logger: HutchLogger;
@@ -60,6 +62,10 @@ function buildBranches(deps: HandlerDeps): Record<SubscriptionStatus, CancelBran
 			const { cancellationEffectiveAt } = await deps.scheduleCancellationAtPeriodEnd({
 				subscriptionId: row.subscriptionId,
 			});
+			// A trial-preserving subscriber may hold a pre-charge reminder one-shot;
+			// once the cancel is scheduled Stripe will not charge, so the reminder
+			// must not fire. Reactivation recreates it from Stripe's trial state.
+			await deps.deleteChargeReminderSchedule({ userId: row.userId });
 			await deps.createDeferredCancellationSchedule({
 				userId: row.userId,
 				firesAt: addOneHour(cancellationEffectiveAt),

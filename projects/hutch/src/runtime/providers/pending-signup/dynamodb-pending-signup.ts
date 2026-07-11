@@ -27,6 +27,7 @@ const PendingSignupRow = z.object({
 	email: z.string(),
 	userId: dynamoField(UserIdSchema),
 	returnUrl: dynamoField(z.string()),
+	trialEndsAt: dynamoField(z.string()),
 	createdAt: dynamoField(z.number()),
 	checkoutRecoveryEmailSentAt: dynamoField(z.number()),
 });
@@ -84,7 +85,8 @@ export function initDynamoDbPendingSignup(deps: {
 				email: signup.email,
 				createdAt,
 				userId: signup.userId,
-				...(signup.returnUrl ? { returnUrl: signup.returnUrl } : {})
+				...(signup.returnUrl ? { returnUrl: signup.returnUrl } : {}),
+				...(signup.trialEndsAt ? { trialEndsAt: signup.trialEndsAt } : {})
 			},
 		});
 	};
@@ -106,11 +108,13 @@ export function initDynamoDbPendingSignup(deps: {
 		const userId = Attributes.userId;
 		if (!userId) return null;
 		const returnUrl = Attributes.returnUrl ?? undefined;
+		const trialEndsAt = Attributes.trialEndsAt ?? undefined;
 		const signup: PendingSignup = {
 			method: "existing-user-subscribe",
 			email: Attributes.email,
 			userId,
 			...(returnUrl ? { returnUrl } : {}),
+			...(trialEndsAt ? { trialEndsAt } : {}),
 		};
 		return signup;
 	};

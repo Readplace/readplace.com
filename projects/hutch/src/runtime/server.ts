@@ -44,6 +44,7 @@ import type {
 	UpsertTrialingSubscription,
 } from "@packages/provider-contracts/subscription-providers";
 import type {
+	CreateChargeReminderSchedule,
 	CreateTrialEndSchedule,
 	CreateTrialReminderSchedule,
 	DeleteDeferredCancellationSchedule,
@@ -311,6 +312,7 @@ interface AppDependencies {
 		deleteDeferredCancellationSchedule: DeleteDeferredCancellationSchedule;
 		createTrialReminderSchedule: CreateTrialReminderSchedule;
 		deleteTrialReminderSchedule: DeleteTrialReminderSchedule;
+		createChargeReminderSchedule: CreateChargeReminderSchedule;
 	};
 	createSubscriptionOnExistingCustomer: CreateSubscriptionOnExistingCustomer;
 	reverseScheduledCancellation: ReverseScheduledCancellation;
@@ -877,6 +879,7 @@ export function createApp(dependencies: AppDependencies): Express {
 			deleteTrialEndSchedule: deps.trialScheduler.deleteTrialEndSchedule,
 			createTrialReminderSchedule: deps.trialScheduler.createTrialReminderSchedule,
 			deleteTrialReminderSchedule: deps.trialScheduler.deleteTrialReminderSchedule,
+			createChargeReminderSchedule: deps.trialScheduler.createChargeReminderSchedule,
 		},
 		baseUrl: deps.baseUrl,
 		staticBaseUrl,
@@ -1123,6 +1126,7 @@ export function createApp(dependencies: AppDependencies): Express {
 		stripePublishableKey: deps.stripePublishableKey,
 		createTrialEndSchedule: deps.trialScheduler.createTrialEndSchedule,
 		createTrialReminderSchedule: deps.trialScheduler.createTrialReminderSchedule,
+		createChargeReminderSchedule: deps.trialScheduler.createChargeReminderSchedule,
 		deleteDeferredCancellationSchedule:
 			deps.trialScheduler.deleteDeferredCancellationSchedule,
 		storePendingSignup: deps.storePendingSignup,

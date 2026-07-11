@@ -210,6 +210,91 @@ describe("initAwsTrialScheduler", () => {
 		});
 	});
 
+	describe("createChargeReminderSchedule", () => {
+		it("issues a CreateScheduleCommand named charge-reminder-<userId> whose Input carries kind=charge_reminder and the chargeAt instant", async () => {
+			const { client, captured } = buildFakeClient();
+			const scheduler = initAwsTrialScheduler({
+				client,
+				scheduleGroupName: GROUP_NAME,
+				schedulerRoleArn: ROLE_ARN,
+				eventBusArn: EVENT_BUS_ARN,
+			});
+
+			await scheduler.createChargeReminderSchedule({
+				userId: USER_ID,
+				firesAt: "2026-07-22T00:00:00.000Z",
+				chargeAt: "2026-07-24T00:00:00.000Z",
+			});
+
+			assert.equal(captured.commands.length, 1);
+			const cmd = captured.commands[0];
+			assert.ok(cmd instanceof CreateScheduleCommand);
+			const input = cmd.input;
+			assert.equal(input.Name, `charge-reminder-${USER_ID}`);
+			assert.equal(input.GroupName, GROUP_NAME);
+			assert.equal(input.ScheduleExpression, "at(2026-07-22T00:00:00)");
+			assert.equal(input.FlexibleTimeWindow?.Mode, "OFF");
+			assert.equal(input.ActionAfterCompletion, "DELETE");
+			assert.equal(input.State, "ENABLED");
+			assert.equal(input.Target?.Arn, EVENT_BUS_ARN);
+			assert.equal(input.Target?.RoleArn, ROLE_ARN);
+			assert.equal(input.Target?.EventBridgeParameters?.Source, "hutch.subscriptions");
+			assert.equal(
+				input.Target?.EventBridgeParameters?.DetailType,
+				"SendTrialFeedbackEmailCommand",
+			);
+			const payload = JSON.parse(input.Target?.Input ?? "{}");
+			assert.equal(payload.userId, USER_ID);
+			assert.equal(payload.kind, "charge_reminder");
+			assert.equal(payload.chargeAt, "2026-07-24T00:00:00.000Z");
+		});
+	});
+
+	describe("deleteChargeReminderSchedule", () => {
+		it("issues a DeleteScheduleCommand with name=charge-reminder-<userId> + group", async () => {
+			const { client, captured } = buildFakeClient();
+			const scheduler = initAwsTrialScheduler({
+				client,
+				scheduleGroupName: GROUP_NAME,
+			});
+
+			await scheduler.deleteChargeReminderSchedule({ userId: USER_ID });
+
+			assert.equal(captured.commands.length, 1);
+			const cmd = captured.commands[0];
+			assert.ok(cmd instanceof DeleteScheduleCommand);
+			assert.equal(cmd.input.Name, `charge-reminder-${USER_ID}`);
+			assert.equal(cmd.input.GroupName, GROUP_NAME);
+		});
+
+		it("swallows ResourceNotFoundException — delete is idempotent", async () => {
+			const notFound = new Error("Schedule not found");
+			notFound.name = "ResourceNotFoundException";
+			const { client } = buildFakeClient({ deleteThrows: notFound });
+			const scheduler = initAwsTrialScheduler({
+				client,
+				scheduleGroupName: GROUP_NAME,
+			});
+
+			await assert.doesNotReject(scheduler.deleteChargeReminderSchedule({ userId: USER_ID }));
+		});
+
+		it("re-throws any other error", async () => {
+			const wrenchInGears = new Error("Internal failure");
+			wrenchInGears.name = "InternalServerException";
+			const { client } = buildFakeClient({ deleteThrows: wrenchInGears });
+			const scheduler = initAwsTrialScheduler({
+				client,
+				scheduleGroupName: GROUP_NAME,
+			});
+
+			await assert.rejects(
+				scheduler.deleteChargeReminderSchedule({ userId: USER_ID }),
+				/Internal failure/,
+			);
+		});
+	});
+
 	describe("deleteDeferredCancellationSchedule", () => {
 		it("issues a DeleteScheduleCommand with name=cancel-<userId> + group", async () => {
 			const { client, captured } = buildFakeClient();

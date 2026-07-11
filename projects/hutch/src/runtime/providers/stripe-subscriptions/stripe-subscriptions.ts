@@ -36,6 +36,11 @@ const StripeScheduledCancellationResponse = z.object({
 	cancel_at: z.number(),
 });
 
+const StripeReversedSubscriptionResponse = z.object({
+	status: z.string(),
+	trial_end: z.number().nullish(),
+});
+
 export function initStripeSubscriptions(deps: {
 	apiKey: string;
 	fetch: typeof globalThis.fetch;
@@ -167,7 +172,7 @@ export function initStripeSubscriptions(deps: {
 		// 404 means the subscription is already gone — treat as success for
 		// the same idempotency reason cancelImmediately handles 404.
 		if (response.status === 404) {
-			return;
+			return {};
 		}
 
 		if (!response.ok) {
@@ -176,6 +181,12 @@ export function initStripeSubscriptions(deps: {
 				`Stripe reverseScheduledCancellation failed (${response.status}): ${message}`,
 			);
 		}
+
+		const parsed = StripeReversedSubscriptionResponse.safeParse(await response.json());
+		if (parsed.success && parsed.data.status === "trialing" && parsed.data.trial_end) {
+			return { trialEndsAt: new Date(parsed.data.trial_end * 1000).toISOString() };
+		}
+		return {};
 	};
 
 	const deleteCustomer: DeleteCustomer = async ({ customerId }) => {

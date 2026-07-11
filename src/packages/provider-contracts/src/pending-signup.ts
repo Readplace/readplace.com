@@ -9,6 +9,7 @@ export type PendingSignup = {
 	email: string;
 	userId: UserId;
 	returnUrl?: string;
+	trialEndsAt?: string;
 };
 
 export interface PendingSignupSummary {

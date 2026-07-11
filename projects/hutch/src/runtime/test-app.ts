@@ -201,6 +201,7 @@ function flattenFixtureToAppDependencies(
 				fixture.trialScheduler.deleteDeferredCancellationSchedule,
 			createTrialReminderSchedule: fixture.trialScheduler.createTrialReminderSchedule,
 			deleteTrialReminderSchedule: fixture.trialScheduler.deleteTrialReminderSchedule,
+			createChargeReminderSchedule: fixture.trialScheduler.createChargeReminderSchedule,
 		},
 		createSubscriptionOnExistingCustomer:
 			fixture.subscriptionBilling.createSubscriptionOnExistingCustomer,

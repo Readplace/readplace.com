@@ -66,6 +66,37 @@ describe("initDynamoDbPendingSignup", () => {
 			});
 		});
 
+		it("persists trialEndsAt for a trial-preserving checkout", async () => {
+			const { client, inputs } = createClient(() => ({}));
+			const { storePendingSignup } = initDynamoDbPendingSignup({
+				client,
+				tableName: TABLE,
+				logger: noopLogger,
+			});
+
+			await storePendingSignup({
+				checkoutSessionId: SESSION_ID,
+				signup: {
+					method: "existing-user-subscribe",
+					email: "e@b.com",
+					userId: USER_ID,
+					returnUrl: "/queue",
+					trialEndsAt: "2026-07-24T00:00:00.000Z",
+				},
+				createdAt: 300,
+			});
+
+			expect(inputs[0]?.Item).toEqual({
+				checkoutSessionId: SESSION_ID,
+				method: "existing-user-subscribe",
+				email: "e@b.com",
+				createdAt: 300,
+				userId: USER_ID,
+				returnUrl: "/queue",
+				trialEndsAt: "2026-07-24T00:00:00.000Z",
+			});
+		});
+
 		it("omits returnUrl when absent", async () => {
 			const { client, inputs } = createClient(() => ({}));
 			const { storePendingSignup } = initDynamoDbPendingSignup({
@@ -155,6 +186,32 @@ describe("initDynamoDbPendingSignup", () => {
 				method: "existing-user-subscribe",
 				email: "e@b.com",
 				userId: USER_ID,
+			});
+		});
+
+		it("reconstructs the trialEndsAt of a trial-preserving checkout row", async () => {
+			const { client } = createClient(() => ({
+				Attributes: {
+					checkoutSessionId: SESSION_ID,
+					method: "existing-user-subscribe",
+					email: "e@b.com",
+					userId: USER_ID,
+					trialEndsAt: "2026-07-24T00:00:00.000Z",
+				},
+			}));
+			const { consumePendingSignup } = initDynamoDbPendingSignup({
+				client,
+				tableName: TABLE,
+				logger: noopLogger,
+			});
+
+			const result = await consumePendingSignup(SESSION_ID);
+
+			expect(result).toEqual({
+				method: "existing-user-subscribe",
+				email: "e@b.com",
+				userId: USER_ID,
+				trialEndsAt: "2026-07-24T00:00:00.000Z",
 			});
 		});
 

@@ -28,6 +28,7 @@ import type {
 	UpsertTrialingSubscription,
 } from "@packages/provider-contracts/subscription-providers";
 import type {
+	CreateChargeReminderSchedule,
 	CreateTrialEndSchedule,
 	CreateTrialReminderSchedule,
 	DeleteTrialEndSchedule,
@@ -104,6 +105,7 @@ interface AuthDependencies {
 		deleteTrialEndSchedule: DeleteTrialEndSchedule;
 		createTrialReminderSchedule: CreateTrialReminderSchedule;
 		deleteTrialReminderSchedule: DeleteTrialReminderSchedule;
+		createChargeReminderSchedule: CreateChargeReminderSchedule;
 	};
 	baseUrl: string;
 	staticBaseUrl: string;
@@ -449,6 +451,23 @@ export function initAuthRoutes(deps: AuthDependencies): Router {
 		});
 		await deps.trialScheduler.deleteTrialEndSchedule({ userId: pending.userId });
 		await deps.trialScheduler.deleteTrialReminderSchedule({ userId: pending.userId });
+		if (pending.trialEndsAt) {
+			const reminderFiresAt = trialReminderFiresAt(pending.trialEndsAt);
+			if (Date.parse(reminderFiresAt) > deps.now().getTime()) {
+				try {
+					await deps.trialScheduler.createChargeReminderSchedule({
+						userId: pending.userId,
+						firesAt: reminderFiresAt,
+						chargeAt: pending.trialEndsAt,
+					});
+				} catch (err) {
+					deps.logError(
+						"[checkout/success] Charge-reminder schedule creation failed — continuing without the pre-charge email",
+						err instanceof Error ? err : new Error(String(err)),
+					);
+				}
+			}
+		}
 		res.redirect(303, parseReturnUrl({ return: pending.returnUrl }));
 	});
 

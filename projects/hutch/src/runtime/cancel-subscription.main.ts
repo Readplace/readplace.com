@@ -51,6 +51,7 @@ export const handler = initCancelSubscriptionHandler({
 	createDeferredCancellationSchedule: trialScheduler.createDeferredCancellationSchedule,
 	deleteTrialEndSchedule: trialScheduler.deleteTrialEndSchedule,
 	deleteTrialReminderSchedule: trialScheduler.deleteTrialReminderSchedule,
+	deleteChargeReminderSchedule: trialScheduler.deleteChargeReminderSchedule,
 	publishSubscriptionCancellationScheduled,
 	publishSubscriptionCancelled,
 	logger: HutchLogger.from(consoleLogger),

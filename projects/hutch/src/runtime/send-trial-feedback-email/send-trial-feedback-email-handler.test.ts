@@ -23,6 +23,16 @@ function buildReminderBody(userId: string): string {
 	return JSON.stringify({ detail: { userId, kind: "reminder" } });
 }
 
+function buildChargeReminderBody(userId: string, chargeAt?: string): string {
+	return JSON.stringify({
+		detail: { userId, kind: "charge_reminder", ...(chargeAt ? { chargeAt } : {}) },
+	});
+}
+
+function buildPaymentFailedBody(userId: string): string {
+	return JSON.stringify({ detail: { userId, kind: "payment_failed" } });
+}
+
 function fakeFindArticlesByUser(total: number): FindArticlesByUser {
 	return async () => ({
 		articles: [],
@@ -446,6 +456,227 @@ describe("send-trial-feedback-email handler", () => {
 			assert(row);
 			assert.equal(row.trialFeedbackEmailSentAt, SENT_AT.toISOString());
 			assert.equal(row.trialReminderEmailSentAt, undefined);
+		});
+	});
+
+	describe("kind='charge_reminder' — pre-charge notice for a trial-preserving checkout", () => {
+		const CHARGE_AT = "2026-06-06T00:00:00.000Z";
+
+		async function seedActiveSubscriber(
+			providers: ReturnType<typeof initInMemorySubscriptionProviders>,
+		): Promise<void> {
+			await providers.upsertActive({
+				userId: USER_ID,
+				subscriptionId: "sub_trial_preserving",
+				customerId: "cus_trial_preserving",
+			});
+		}
+
+		it("sends the charge reminder with the price + charge date and marks the reminder flag", async () => {
+			const subject = buildSubject();
+			await seedActiveSubscriber(subject.providers);
+
+			const result = await subject.handler(
+				buildSqsEvent([
+					{ messageId: "msg-cr", body: buildChargeReminderBody(USER_ID, CHARGE_AT) },
+				]),
+				buildLambdaContext(),
+				() => {},
+			);
+
+			assert(result);
+			assert.equal(result.batchItemFailures.length, 0);
+			assert.equal(subject.email.getSentEmails().length, 1);
+			const sent = subject.email.getSentEmails()[0];
+			assert.equal(sent.to, "user@example.com");
+			assert.equal(sent.from, "Fayner from Readplace <fayner@readplace.com>");
+			assert.equal(sent.replyTo, "fayner@readplace.com");
+			assert.equal(sent.bcc, "readplace+charge_reminder@readplace.com");
+			assert.equal(sent.subject, "your Readplace membership starts on Jun 6, 2026");
+			assert.ok(sent.text);
+			assert.ok(sent.text.includes("$49 for the year"));
+			assert.ok(sent.text.includes("charged to the card on file on Jun 6, 2026"));
+			assert.ok(sent.text.includes("/account?utm_source=charge-reminder"));
+			assert.ok(sent.html.includes("charge-reminder"));
+
+			const row = await subject.providers.findByUserId(USER_ID);
+			assert(row, "row must still exist");
+			assert.equal(row.trialReminderEmailSentAt, SENT_AT.toISOString());
+		});
+
+		it("noops with a warn when the command carries no chargeAt", async () => {
+			const subject = buildSubject();
+			await seedActiveSubscriber(subject.providers);
+
+			const result = await subject.handler(
+				buildSqsEvent([{ messageId: "msg-cr-nocharge", body: buildChargeReminderBody(USER_ID) }]),
+				buildLambdaContext(),
+				() => {},
+			);
+
+			assert(result);
+			assert.equal(result.batchItemFailures.length, 0);
+			assert.equal(subject.email.getSentEmails().length, 0);
+		});
+
+		it("noops when there is no subscription row at all", async () => {
+			const subject = buildSubject();
+
+			await subject.handler(
+				buildSqsEvent([
+					{ messageId: "msg-cr-missing", body: buildChargeReminderBody(USER_ID, CHARGE_AT) },
+				]),
+				buildLambdaContext(),
+				() => {},
+			);
+
+			assert.equal(subject.email.getSentEmails().length, 0);
+		});
+
+		it("noops when the user is no longer active (cancelled before the reminder fired)", async () => {
+			const subject = buildSubject();
+			await seedCancelledTrial(subject.providers);
+
+			await subject.handler(
+				buildSqsEvent([
+					{ messageId: "msg-cr-cancelled", body: buildChargeReminderBody(USER_ID, CHARGE_AT) },
+				]),
+				buildLambdaContext(),
+				() => {},
+			);
+
+			assert.equal(subject.email.getSentEmails().length, 0);
+		});
+
+		it("noops when the charge instant has already passed (stale schedule)", async () => {
+			const subject = buildSubject({ now: new Date("2026-06-07T00:00:00.000Z") });
+			await seedActiveSubscriber(subject.providers);
+
+			await subject.handler(
+				buildSqsEvent([
+					{ messageId: "msg-cr-past", body: buildChargeReminderBody(USER_ID, CHARGE_AT) },
+				]),
+				buildLambdaContext(),
+				() => {},
+			);
+
+			assert.equal(subject.email.getSentEmails().length, 0);
+			const row = await subject.providers.findByUserId(USER_ID);
+			assert(row);
+			assert.equal(row.trialReminderEmailSentAt, undefined);
+		});
+
+		it("noops when a pre-trial-end reminder was already sent — at most one reminder per user", async () => {
+			const subject = buildSubject();
+			await seedActiveSubscriber(subject.providers);
+			await subject.providers.markTrialReminderEmailSent({
+				userId: USER_ID,
+				sentAt: "2026-06-03T00:00:00.000Z",
+			});
+
+			await subject.handler(
+				buildSqsEvent([
+					{ messageId: "msg-cr-dup", body: buildChargeReminderBody(USER_ID, CHARGE_AT) },
+				]),
+				buildLambdaContext(),
+				() => {},
+			);
+
+			assert.equal(subject.email.getSentEmails().length, 0);
+		});
+
+		it("noops when there is no email on file", async () => {
+			const subject = buildSubject({ findEmail: async () => null });
+			await seedActiveSubscriber(subject.providers);
+
+			await subject.handler(
+				buildSqsEvent([
+					{ messageId: "msg-cr-noemail", body: buildChargeReminderBody(USER_ID, CHARGE_AT) },
+				]),
+				buildLambdaContext(),
+				() => {},
+			);
+
+			assert.equal(subject.email.getSentEmails().length, 0);
+			const row = await subject.providers.findByUserId(USER_ID);
+			assert(row);
+			assert.equal(row.trialReminderEmailSentAt, undefined);
+		});
+	});
+
+	describe("kind='payment_failed' — fix-your-card dunning email", () => {
+		async function seedActiveSubscriber(
+			providers: ReturnType<typeof initInMemorySubscriptionProviders>,
+		): Promise<void> {
+			await providers.upsertActive({
+				userId: USER_ID,
+				subscriptionId: "sub_dunning",
+				customerId: "cus_dunning",
+			});
+		}
+
+		it("sends the payment-failed email to an active subscriber without stamping any sent flag — each dunning attempt is a distinct failure worth an email", async () => {
+			const subject = buildSubject();
+			await seedActiveSubscriber(subject.providers);
+
+			const result = await subject.handler(
+				buildSqsEvent([{ messageId: "msg-pf", body: buildPaymentFailedBody(USER_ID) }]),
+				buildLambdaContext(),
+				() => {},
+			);
+
+			assert(result);
+			assert.equal(result.batchItemFailures.length, 0);
+			assert.equal(subject.email.getSentEmails().length, 1);
+			const sent = subject.email.getSentEmails()[0];
+			assert.equal(sent.to, "user@example.com");
+			assert.equal(sent.bcc, "readplace+payment_failed@readplace.com");
+			assert.equal(sent.subject, "your Readplace payment didn't go through");
+			assert.ok(sent.text);
+			assert.ok(sent.text.includes("/account?utm_source=payment-failed"));
+
+			const row = await subject.providers.findByUserId(USER_ID);
+			assert(row);
+			assert.equal(row.trialReminderEmailSentAt, undefined);
+			assert.equal(row.trialFeedbackEmailSentAt, undefined);
+		});
+
+		it("noops when there is no subscription row at all", async () => {
+			const subject = buildSubject();
+
+			await subject.handler(
+				buildSqsEvent([{ messageId: "msg-pf-missing", body: buildPaymentFailedBody(USER_ID) }]),
+				buildLambdaContext(),
+				() => {},
+			);
+
+			assert.equal(subject.email.getSentEmails().length, 0);
+		});
+
+		it("noops when the user is no longer active", async () => {
+			const subject = buildSubject();
+			await seedCancelledTrial(subject.providers);
+
+			await subject.handler(
+				buildSqsEvent([{ messageId: "msg-pf-cancelled", body: buildPaymentFailedBody(USER_ID) }]),
+				buildLambdaContext(),
+				() => {},
+			);
+
+			assert.equal(subject.email.getSentEmails().length, 0);
+		});
+
+		it("noops when there is no email on file", async () => {
+			const subject = buildSubject({ findEmail: async () => null });
+			await seedActiveSubscriber(subject.providers);
+
+			await subject.handler(
+				buildSqsEvent([{ messageId: "msg-pf-noemail", body: buildPaymentFailedBody(USER_ID) }]),
+				buildLambdaContext(),
+				() => {},
+			);
+
+			assert.equal(subject.email.getSentEmails().length, 0);
 		});
 	});
 });

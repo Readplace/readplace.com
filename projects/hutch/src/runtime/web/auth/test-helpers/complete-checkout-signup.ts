@@ -31,6 +31,7 @@ export async function completeCheckoutSignup(params: {
 	email: string;
 	password: string;
 	returnUrl?: string;
+	trialEndsAt?: string;
 	agent?: SuperTest<Test>;
 }): Promise<{
 	successResponse: import("supertest").Response;
@@ -54,6 +55,7 @@ export async function completeCheckoutSignup(params: {
 			email: params.email,
 			userId: created.userId,
 			...(params.returnUrl ? { returnUrl: params.returnUrl } : {}),
+			...(params.trialEndsAt ? { trialEndsAt: params.trialEndsAt } : {}),
 		},
 		createdAt: 1735000000,
 	});

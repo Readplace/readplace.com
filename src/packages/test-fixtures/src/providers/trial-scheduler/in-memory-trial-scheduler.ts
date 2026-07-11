@@ -1,10 +1,12 @@
 import type { UserId } from "@packages/domain/user";
 import type { CancelSubscriptionReason } from "@packages/provider-contracts/events";
 import type {
+	CreateChargeReminderSchedule,
 	CreateDeferredCancellationSchedule,
 	CreateTrialEndSchedule,
 	CreateTrialFeedbackEmailSchedule,
 	CreateTrialReminderSchedule,
+	DeleteChargeReminderSchedule,
 	DeleteDeferredCancellationSchedule,
 	DeleteTrialEndSchedule,
 	DeleteTrialFeedbackEmailSchedule,
@@ -16,6 +18,7 @@ export function initInMemoryTrialScheduler(opts?: {
 	createDeferredCancellationFails?: boolean;
 	createTrialFeedbackEmailFails?: boolean;
 	createTrialReminderFails?: boolean;
+	createChargeReminderFails?: boolean;
 }): {
 	createTrialEndSchedule: CreateTrialEndSchedule;
 	deleteTrialEndSchedule: DeleteTrialEndSchedule;
@@ -38,6 +41,17 @@ export function initInMemoryTrialScheduler(opts?: {
 	getTrialReminderSchedule: (userId: UserId) => string | undefined;
 	allTrialReminderSchedules: () => readonly { userId: UserId; firesAt: string }[];
 	trialReminderDeleteCalls: () => readonly UserId[];
+	createChargeReminderSchedule: CreateChargeReminderSchedule;
+	deleteChargeReminderSchedule: DeleteChargeReminderSchedule;
+	getChargeReminderSchedule: (
+		userId: UserId,
+	) => { firesAt: string; chargeAt: string } | undefined;
+	allChargeReminderSchedules: () => readonly {
+		userId: UserId;
+		firesAt: string;
+		chargeAt: string;
+	}[];
+	chargeReminderDeleteCalls: () => readonly UserId[];
 } {
 	const trialEndSchedules = new Map<UserId, string>();
 	const trialEndDeletes: UserId[] = [];
@@ -48,6 +62,8 @@ export function initInMemoryTrialScheduler(opts?: {
 	const trialFeedbackEmailDeletes: UserId[] = [];
 	const trialReminderSchedules = new Map<UserId, string>();
 	const trialReminderDeletes: UserId[] = [];
+	const chargeReminderSchedules = new Map<UserId, { firesAt: string; chargeAt: string }>();
+	const chargeReminderDeletes: UserId[] = [];
 
 	const createTrialEndSchedule: CreateTrialEndSchedule = async ({ userId, firesAt }) => {
 		if (opts?.createFails) {
@@ -113,6 +129,22 @@ export function initInMemoryTrialScheduler(opts?: {
 		trialReminderSchedules.delete(userId);
 	};
 
+	const createChargeReminderSchedule: CreateChargeReminderSchedule = async ({
+		userId,
+		firesAt,
+		chargeAt,
+	}) => {
+		if (opts?.createChargeReminderFails) {
+			throw new Error("In-memory charge-reminder create failure");
+		}
+		chargeReminderSchedules.set(userId, { firesAt, chargeAt });
+	};
+
+	const deleteChargeReminderSchedule: DeleteChargeReminderSchedule = async ({ userId }) => {
+		chargeReminderDeletes.push(userId);
+		chargeReminderSchedules.delete(userId);
+	};
+
 	return {
 		createTrialEndSchedule,
 		deleteTrialEndSchedule,
@@ -138,5 +170,14 @@ export function initInMemoryTrialScheduler(opts?: {
 		allTrialReminderSchedules: () =>
 			Array.from(trialReminderSchedules.entries()).map(([userId, firesAt]) => ({ userId, firesAt })),
 		trialReminderDeleteCalls: () => [...trialReminderDeletes],
+		createChargeReminderSchedule,
+		deleteChargeReminderSchedule,
+		getChargeReminderSchedule: (userId) => chargeReminderSchedules.get(userId),
+		allChargeReminderSchedules: () =>
+			Array.from(chargeReminderSchedules.entries()).map(([userId, schedule]) => ({
+				userId,
+				...schedule,
+			})),
+		chargeReminderDeleteCalls: () => [...chargeReminderDeletes],
 	};
 }

@@ -292,6 +292,49 @@ describe("initStripeSubscriptions", () => {
 			);
 		});
 
+		it("returns the trial end when the un-cancelled subscription is still trialing — the caller re-arms the pre-charge reminder from it", async () => {
+			const fakeFetch: typeof globalThis.fetch = async () =>
+				jsonResponse(200, {
+					id: "sub_trialing",
+					status: "trialing",
+					trial_end: 1782208800,
+				});
+
+			const stripe = initStripeSubscriptions({ apiKey: "sk_test_abc", fetch: fakeFetch });
+
+			const result = await stripe.reverseScheduledCancellation({
+				subscriptionId: "sub_trialing",
+			});
+
+			assert.deepEqual(result, {
+				trialEndsAt: new Date(1782208800 * 1000).toISOString(),
+			});
+		});
+
+		it("returns no trial end for an already-charging subscription — there is no upcoming first charge to warn about", async () => {
+			const fakeFetch: typeof globalThis.fetch = async () =>
+				jsonResponse(200, { id: "sub_active", status: "active", trial_end: null });
+
+			const stripe = initStripeSubscriptions({ apiKey: "sk_test_abc", fetch: fakeFetch });
+
+			const result = await stripe.reverseScheduledCancellation({
+				subscriptionId: "sub_active",
+			});
+
+			assert.deepEqual(result, {});
+		});
+
+		it("returns no trial end when the subscription is already gone (404)", async () => {
+			const fakeFetch: typeof globalThis.fetch = async () =>
+				jsonResponse(404, { error: { code: "resource_missing", message: "No such subscription" } });
+
+			const stripe = initStripeSubscriptions({ apiKey: "sk_test_abc", fetch: fakeFetch });
+
+			const result = await stripe.reverseScheduledCancellation({ subscriptionId: "sub_gone" });
+
+			assert.deepEqual(result, {});
+		});
+
 		it("treats 404 as success — the sub is already gone, which is the goal state", async () => {
 			const fakeFetch: typeof globalThis.fetch = async () =>
 				jsonResponse(404, { error: { code: "resource_missing", message: "No such subscription" } });

@@ -8,6 +8,7 @@ import {
 } from "@packages/hutch-infra-components/runtime";
 import { initDynamoDbSubscriptionProviders } from "./providers/subscription-providers/dynamodb-subscription-providers";
 import { initHandleCustomerSubscriptionDeleted } from "./stripe-webhook-receiver/handlers/customer-subscription-deleted";
+import { initHandleInvoicePaymentFailed } from "./stripe-webhook-receiver/handlers/invoice-payment-failed";
 import {
 	type StripeEventHandler,
 	initStripeWebhookReceiverHandler,
@@ -31,6 +32,10 @@ const subscriptionProviders = initDynamoDbSubscriptionProviders({
 
 const eventHandlers: Record<StripeEventType, StripeEventHandler> = {
 	"customer.subscription.deleted": initHandleCustomerSubscriptionDeleted({
+		findSubscriptionBySubscriptionId: subscriptionProviders.findBySubscriptionId,
+		publishEvent,
+	}),
+	"invoice.payment_failed": initHandleInvoicePaymentFailed({
 		findSubscriptionBySubscriptionId: subscriptionProviders.findBySubscriptionId,
 		publishEvent,
 	}),

@@ -63,6 +63,7 @@ function buildEventHandlers(
 ): Record<StripeEventType, StripeEventHandler> {
 	return {
 		"customer.subscription.deleted": async () => {},
+		"invoice.payment_failed": async () => {},
 		...overrides,
 	};
 }

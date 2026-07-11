@@ -17,6 +17,7 @@ import type {
 	CountArticlesByUser,
 	CountUsers,
 	CreateAppleUser,
+	CreateChargeReminderSchedule,
 	CreateCheckoutSession,
 	CreateDeferredCancellationSchedule,
 	CreateGoogleUser,
@@ -30,6 +31,7 @@ import type {
 	CreateVerificationToken,
 	DeleteArticle,
 	DeleteAllUserArticles,
+	DeleteChargeReminderSchedule,
 	DeleteDeferredCancellationSchedule,
 	DeleteTrialEndSchedule,
 	DeleteTrialReminderSchedule,
@@ -195,6 +197,17 @@ export interface TrialSchedulerBundle {
 	getTrialReminderSchedule: (userId: UserId) => string | undefined;
 	allTrialReminderSchedules: () => readonly { userId: UserId; firesAt: string }[];
 	trialReminderDeleteCalls: () => readonly UserId[];
+	createChargeReminderSchedule: CreateChargeReminderSchedule;
+	deleteChargeReminderSchedule: DeleteChargeReminderSchedule;
+	getChargeReminderSchedule: (
+		userId: UserId,
+	) => { firesAt: string; chargeAt: string } | undefined;
+	allChargeReminderSchedules: () => readonly {
+		userId: UserId;
+		firesAt: string;
+		chargeAt: string;
+	}[];
+	chargeReminderDeleteCalls: () => readonly UserId[];
 }
 
 export interface PaymentMethodsBundle {

@@ -6,10 +6,13 @@ import { initInMemorySubscriptionProviders } from "@packages/test-fixtures/provi
 import type { StripeEvent } from "../verify-stripe-signature";
 import { initHandleCustomerSubscriptionDeleted } from "./customer-subscription-deleted";
 
-function buildStripeEvent(subscriptionId: string): StripeEvent {
+function buildStripeEvent(
+	subscriptionId: string,
+	objectExtras: Record<string, unknown> = {},
+): StripeEvent {
 	return {
 		type: "customer.subscription.deleted",
-		data: { object: { id: subscriptionId } },
+		data: { object: { id: subscriptionId, ...objectExtras } },
 	};
 }
 
@@ -47,6 +50,77 @@ describe("initHandleCustomerSubscriptionDeleted", () => {
 		assert.deepStrictEqual(published[0].detail, {
 			userId: "user-cancel-me",
 			subscriptionId: "sub_cancel_me",
+			reason: "stripe_webhook",
+		});
+	});
+
+	it("attributes a dunning cancel: cancellation_details.reason='payment_failure' emits reason=stripe_payment_failure", async () => {
+		const findSubscriptionBySubscriptionId = await buildSubscriptionLookup([
+			{ userId: "user-dunned", subscriptionId: "sub_dunned" },
+		]);
+		const published: Array<{ detail: unknown }> = [];
+		const handle = initHandleCustomerSubscriptionDeleted({
+			findSubscriptionBySubscriptionId,
+			publishEvent: async (_event, detail) => { published.push({ detail }); },
+		});
+
+		await handle({
+			stripeEvent: buildStripeEvent("sub_dunned", {
+				cancellation_details: { reason: "payment_failure" },
+			}),
+			logger: HutchLogger.from(noopLogger),
+		});
+
+		assert.equal(published.length, 1);
+		assert.deepStrictEqual(published[0].detail, {
+			userId: "user-dunned",
+			subscriptionId: "sub_dunned",
+			reason: "stripe_payment_failure",
+		});
+	});
+
+	it("keeps reason=stripe_webhook for a user-requested Stripe-side cancel (cancellation_details.reason='cancellation_requested')", async () => {
+		const findSubscriptionBySubscriptionId = await buildSubscriptionLookup([
+			{ userId: "user-requested", subscriptionId: "sub_requested" },
+		]);
+		const published: Array<{ detail: unknown }> = [];
+		const handle = initHandleCustomerSubscriptionDeleted({
+			findSubscriptionBySubscriptionId,
+			publishEvent: async (_event, detail) => { published.push({ detail }); },
+		});
+
+		await handle({
+			stripeEvent: buildStripeEvent("sub_requested", {
+				cancellation_details: { reason: "cancellation_requested" },
+			}),
+			logger: HutchLogger.from(noopLogger),
+		});
+
+		assert.deepStrictEqual(published[0].detail, {
+			userId: "user-requested",
+			subscriptionId: "sub_requested",
+			reason: "stripe_webhook",
+		});
+	});
+
+	it("keeps reason=stripe_webhook when cancellation_details is malformed instead of throwing", async () => {
+		const findSubscriptionBySubscriptionId = await buildSubscriptionLookup([
+			{ userId: "user-odd", subscriptionId: "sub_odd" },
+		]);
+		const published: Array<{ detail: unknown }> = [];
+		const handle = initHandleCustomerSubscriptionDeleted({
+			findSubscriptionBySubscriptionId,
+			publishEvent: async (_event, detail) => { published.push({ detail }); },
+		});
+
+		await handle({
+			stripeEvent: buildStripeEvent("sub_odd", { cancellation_details: "not-an-object" }),
+			logger: HutchLogger.from(noopLogger),
+		});
+
+		assert.deepStrictEqual(published[0].detail, {
+			userId: "user-odd",
+			subscriptionId: "sub_odd",
 			reason: "stripe_webhook",
 		});
 	});
