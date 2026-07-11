@@ -46,6 +46,7 @@ import { createRateLimitMiddleware, sendRateLimited } from "../middleware/rate-l
 import { normalizeEmail } from "@packages/domain/user";
 import {
 	STRIPE_TRIAL_PERIOD_DAYS,
+	chargeReminderFiresAt,
 	trialReminderFiresAt,
 } from "../../domain/stripe/stripe-trial-config";
 import { Base } from "../base.component";
@@ -452,20 +453,20 @@ export function initAuthRoutes(deps: AuthDependencies): Router {
 		await deps.trialScheduler.deleteTrialEndSchedule({ userId: pending.userId });
 		await deps.trialScheduler.deleteTrialReminderSchedule({ userId: pending.userId });
 		if (pending.trialEndsAt) {
-			const reminderFiresAt = trialReminderFiresAt(pending.trialEndsAt);
-			if (Date.parse(reminderFiresAt) > deps.now().getTime()) {
-				try {
-					await deps.trialScheduler.createChargeReminderSchedule({
-						userId: pending.userId,
-						firesAt: reminderFiresAt,
+			try {
+				await deps.trialScheduler.createChargeReminderSchedule({
+					userId: pending.userId,
+					firesAt: chargeReminderFiresAt({
 						chargeAt: pending.trialEndsAt,
-					});
-				} catch (err) {
-					deps.logError(
-						"[checkout/success] Charge-reminder schedule creation failed — continuing without the pre-charge email",
-						err instanceof Error ? err : new Error(String(err)),
-					);
-				}
+						now: deps.now(),
+					}),
+					chargeAt: pending.trialEndsAt,
+				});
+			} catch (err) {
+				deps.logError(
+					"[checkout/success] Charge-reminder schedule creation failed — continuing without the pre-charge email",
+					err instanceof Error ? err : new Error(String(err)),
+				);
 			}
 		}
 		res.redirect(303, parseReturnUrl({ return: pending.returnUrl }));

@@ -2,7 +2,6 @@ import { readFileSync } from "node:fs";
 import { join } from "node:path";
 import { EMAIL_COLORS } from "../email-colors";
 import { ANNUAL_PRICE_DISPLAY, formatLocalInstant, render } from "@packages/web-shell";
-import { TRIAL_REMINDER_LEAD_DAYS } from "../../domain/stripe/stripe-trial-config";
 
 const TEMPLATE = readFileSync(
 	join(__dirname, "charge-reminder-email.template.html"),
@@ -28,8 +27,8 @@ function chargeDateLabel(chargeAt: string): string {
 
 function bodyParagraphs(chargeDate: string): string[] {
 	return [
-		`Your free trial ends in ${TRIAL_REMINDER_LEAD_DAYS} days. You added a card when you subscribed, so your membership starts on its own — ${ANNUAL_PRICE_DISPLAY} for the year, charged to the card on file on ${chargeDate}.`,
-		"Changed your mind? Cancel from your account page before then and nothing is charged.",
+		`Your free trial ends on ${chargeDate}. You added a card when you subscribed, so your membership starts on its own — ${ANNUAL_PRICE_DISPLAY} for the year, charged to the card on file on ${chargeDate}, then once a year after that.`,
+		`Changed your mind? Cancel any time before ${chargeDate} from your account page — the button below takes you there — and nothing is charged.`,
 		"Questions about the charge or the timing — just reply. I answer everything personally.",
 	];
 }

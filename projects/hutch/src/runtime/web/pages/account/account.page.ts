@@ -43,6 +43,7 @@ import type {
 import type { StorePendingSignup } from "@packages/provider-contracts/pending-signup";
 import {
 	STRIPE_CHECKOUT_MIN_TRIAL_END_LEAD_MS,
+	chargeReminderFiresAt,
 	trialReminderFiresAt,
 } from "../../../domain/stripe/stripe-trial-config";
 import { Base } from "../../base.component";
@@ -432,20 +433,20 @@ export function initAccountRoutes(deps: AccountDependencies): Router {
 					subscriptionId: row.subscriptionId,
 				});
 				if (reversed.trialEndsAt) {
-					const reminderFiresAt = trialReminderFiresAt(reversed.trialEndsAt);
-					if (Date.parse(reminderFiresAt) > deps.now().getTime()) {
-						try {
-							await deps.createChargeReminderSchedule({
-								userId,
-								firesAt: reminderFiresAt,
+					try {
+						await deps.createChargeReminderSchedule({
+							userId,
+							firesAt: chargeReminderFiresAt({
 								chargeAt: reversed.trialEndsAt,
-							});
-						} catch (err) {
-							deps.logger.error(
-								"[reactivate] Charge-reminder schedule creation failed — continuing without the pre-charge email",
-								{ userId, error: err instanceof Error ? err.message : String(err) },
-							);
-						}
+								now: deps.now(),
+							}),
+							chargeAt: reversed.trialEndsAt,
+						});
+					} catch (err) {
+						deps.logger.error(
+							"[reactivate] Charge-reminder schedule creation failed — continuing without the pre-charge email",
+							{ userId, error: err instanceof Error ? err.message : String(err) },
+						);
 					}
 				}
 				res.redirect(303, buildAccountUrl());

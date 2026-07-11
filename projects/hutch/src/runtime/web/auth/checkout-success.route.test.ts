@@ -166,10 +166,10 @@ describe("GET /auth/checkout/success", () => {
 		expect(trialScheduler.allChargeReminderSchedules()).toEqual([]);
 	});
 
-	it("schedules the pre-charge reminder for a trial-preserving checkout, firing 2 days before the charge", async () => {
+	it("schedules the pre-charge reminder for a trial-preserving checkout, firing 7 days before the charge (the only lead that satisfies both Visa and Mastercard)", async () => {
 		const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
 		const { auth, hostedCheckout, pendingSignup, trialScheduler } = harness;
-		const trialEndsAt = new Date(Date.now() + 5 * 86_400_000).toISOString();
+		const trialEndsAt = new Date(Date.now() + 12 * 86_400_000).toISOString();
 
 		await completeCheckoutSignup({
 			server: harness.server,
@@ -184,15 +184,15 @@ describe("GET /auth/checkout/success", () => {
 		const lookup = await auth.findUserByEmail("trial-preserving@example.com");
 		assert(lookup, "user must exist after paid signup");
 		expect(trialScheduler.getChargeReminderSchedule(lookup.userId)).toEqual({
-			firesAt: new Date(Date.parse(trialEndsAt) - 2 * 86_400_000).toISOString(),
+			firesAt: new Date(Date.parse(trialEndsAt) - 7 * 86_400_000).toISOString(),
 			chargeAt: trialEndsAt,
 		});
 	});
 
-	it("skips the pre-charge reminder when under 2 days of trial remain — the reminder instant is already in the past", async () => {
+	it("sends the pre-charge reminder right away when the card is attached inside the final 7 days — 7 days' notice is impossible, so the reader still gets the date and the cancel link", async () => {
 		const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
 		const { auth, hostedCheckout, pendingSignup, trialScheduler } = harness;
-		const trialEndsAt = new Date(Date.now() + 86_400_000).toISOString();
+		const trialEndsAt = new Date(Date.now() + 3 * 86_400_000).toISOString();
 
 		const { successResponse } = await completeCheckoutSignup({
 			server: harness.server,
@@ -205,7 +205,14 @@ describe("GET /auth/checkout/success", () => {
 		});
 
 		expect(successResponse.status).toBe(303);
-		expect(trialScheduler.allChargeReminderSchedules()).toEqual([]);
+		const lookup = await auth.findUserByEmail("trial-almost-gone@example.com");
+		assert(lookup, "user must exist after paid signup");
+		const schedule = trialScheduler.getChargeReminderSchedule(lookup.userId);
+		assert(schedule, "the reminder must still be scheduled");
+		expect(schedule.chargeAt).toBe(trialEndsAt);
+		// Fires within minutes, and always before the charge.
+		expect(Date.parse(schedule.firesAt)).toBeLessThan(Date.now() + 10 * 60 * 1000);
+		expect(Date.parse(schedule.firesAt)).toBeLessThan(Date.parse(trialEndsAt));
 	});
 
 	it("still completes the checkout when the charge-reminder schedule creation fails — a paid customer never sees an error page for a missing email", async () => {

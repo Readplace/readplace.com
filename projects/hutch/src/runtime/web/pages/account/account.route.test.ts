@@ -877,7 +877,7 @@ describe("POST /account/reactivate", () => {
 	});
 
 	it("paid reactivation of a still-trialing Stripe subscription re-arms the pre-charge reminder — the cancel path deleted it, but Stripe will still charge at trial end", async () => {
-		const trialEndsAt = new Date(Date.now() + 5 * ONE_DAY_MS).toISOString();
+		const trialEndsAt = new Date(Date.now() + 12 * ONE_DAY_MS).toISOString();
 		const fixture = createDefaultTestAppFixture(TEST_APP_ORIGIN);
 		fixture.subscriptionBilling = {
 			...fixture.subscriptionBilling,
@@ -897,12 +897,12 @@ describe("POST /account/reactivate", () => {
 
 		expect(response.status).toBe(303);
 		expect(trialScheduler.getChargeReminderSchedule(userId)).toEqual({
-			firesAt: new Date(Date.parse(trialEndsAt) - 2 * ONE_DAY_MS).toISOString(),
+			firesAt: new Date(Date.parse(trialEndsAt) - 7 * ONE_DAY_MS).toISOString(),
 			chargeAt: trialEndsAt,
 		});
 	});
 
-	it("paid reactivation inside the final 2 days of the trial does not re-arm the reminder — its fire instant has already passed", async () => {
+	it("paid reactivation inside the final 7 days re-arms the reminder to fire right away — the charge is still coming and the reader has not been told", async () => {
 		const trialEndsAt = new Date(Date.now() + ONE_DAY_MS).toISOString();
 		const fixture = createDefaultTestAppFixture(TEST_APP_ORIGIN);
 		fixture.subscriptionBilling = {
@@ -922,7 +922,11 @@ describe("POST /account/reactivate", () => {
 		const response = await agent.post("/account/reactivate");
 
 		expect(response.status).toBe(303);
-		expect(trialScheduler.allChargeReminderSchedules()).toEqual([]);
+		const schedule = trialScheduler.getChargeReminderSchedule(userId);
+		assert(schedule, "the reminder must be re-armed");
+		expect(schedule.chargeAt).toBe(trialEndsAt);
+		expect(Date.parse(schedule.firesAt)).toBeLessThan(Date.now() + 10 * 60 * 1000);
+		expect(Date.parse(schedule.firesAt)).toBeLessThan(Date.parse(trialEndsAt));
 	});
 
 	it("paid reactivation still succeeds when re-arming the pre-charge reminder fails — the subscription is already restored", async () => {

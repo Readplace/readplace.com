@@ -26,16 +26,19 @@ describe("ChargeReminderEmail", () => {
 			expect(text).not.toMatch(/\bwe\b/i);
 		});
 
-		it("states the price, the charge date, and the two-day lead", () => {
+		it("states the price, the charge date, and the recurring frequency", () => {
 			const text = ChargeReminderEmail(baseParams).to("text/plain");
 			expect(text).toContain("$49 for the year");
 			expect(text).toContain("charged to the card on file on Jul 24, 2026");
-			expect(text).toContain("Your free trial ends in 2 days");
+			expect(text).toContain("Your free trial ends on Jul 24, 2026");
+			expect(text).toContain("once a year after that");
 		});
 
-		it("tells the reader how to cancel before the charge", () => {
+		it("carries the cancellation path the card networks require — how to cancel, by when, and a link to do it", () => {
 			const text = ChargeReminderEmail(baseParams).to("text/plain");
-			expect(text).toContain("Cancel from your account page before then and nothing is charged");
+			expect(text).toContain("Cancel any time before Jul 24, 2026 from your account page");
+			expect(text).toContain("nothing is charged");
+			expect(text).toContain(CTA_URL);
 		});
 
 		it("includes the manage-subscription CTA URL with the utm attribution", () => {
