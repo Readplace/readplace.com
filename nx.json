@@ -14,7 +14,9 @@
       "sharedGlobals"
     ],
     "sharedGlobals": [
-      "{workspaceRoot}/*.config.base.*"
+      "{workspaceRoot}/*.config.base.*",
+      "{workspaceRoot}/jest.setup.base.js",
+      "{workspaceRoot}/pnpm-workspace.yaml"
     ],
     "production": [
       "default",

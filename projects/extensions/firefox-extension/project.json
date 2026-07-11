@@ -22,7 +22,8 @@
     "check": {
       "command": "pnpm lint && pnpm test-with-coverage",
       "options": { "cwd": "{projectRoot}" },
-      "dependsOn": ["compile", "^compile", "hutch:compile"]
+      "dependsOn": ["compile", "^compile", "hutch:compile"],
+      "inputs": ["default", "^production", { "projects": ["hutch"], "input": "production" }]
     }
   }
 }
