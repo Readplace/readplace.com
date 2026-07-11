@@ -29,7 +29,7 @@ describe("GET / with exhausted founding allocation", () => {
 		expect(progressSlot.classList.contains("home-pricing__progress--hidden")).toBe(true);
 	}, 30000);
 
-	it("should hide the founding pricing card and show the fallback benefits + CTA when over the limit", async () => {
+	it("renders the standard plan card as the ONLY plan when over the limit — price, trial, benefits + CTA, with no CSS-hidden founding card leaking into the markdown/crawler view", async () => {
 		const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
 		const { auth } = harness;
 
@@ -40,9 +40,12 @@ describe("GET / with exhausted founding allocation", () => {
 		const response = await request(harness.server).get("/");
 		const doc = new JSDOM(response.text).window.document;
 
-		const founding = doc.querySelector('[data-test-plan="founding"]');
-		assert(founding, "founding pricing card must be rendered");
-		const grid = founding.closest(".pricing-grid");
+		const plans = Array.from(doc.querySelectorAll("[data-test-plan]")).map((el) =>
+			el.getAttribute("data-test-plan"),
+		);
+		expect(plans).toEqual(["standard"]);
+
+		const grid = doc.querySelector(".pricing-grid");
 		assert(grid, "pricing-grid wrapper must be rendered");
 		expect(grid.classList.contains("pricing-grid--hidden")).toBe(true);
 
@@ -50,10 +53,23 @@ describe("GET / with exhausted founding allocation", () => {
 		assert(fallback, "fallback wrapper must be rendered");
 		expect(fallback.classList.contains("home-pricing__fallback--visible")).toBe(true);
 
-		const benefits = fallback.querySelector("[data-test-fallback-benefits]");
+		const standardCard = fallback.querySelector('[data-test-plan="standard"]');
+		assert(standardCard, "standard plan card must be rendered in the fallback");
+		expect(standardCard.querySelector(".pricing-card__name")?.textContent).toBe(
+			"Readplace Membership",
+		);
+		expect(standardCard.querySelector(".pricing-card__price")?.textContent).toBe("$49/year");
+		expect(standardCard.querySelector(".pricing-card__badge")?.textContent).toBe(
+			"14-day free trial",
+		);
+		expect(standardCard.querySelector(".pricing-card__description")?.textContent).toBe(
+			"Try everything free for 14 days. No credit card required to start.",
+		);
+
+		const benefits = standardCard.querySelector("[data-test-fallback-benefits]");
 		assert(benefits, "fallback benefits list must be rendered");
 		expect(benefits.querySelectorAll(".pricing-card__feature").length).toBe(6);
-		const becomeMemberCta = fallback.querySelector('[data-test-cta="become-member"]');
+		const becomeMemberCta = standardCard.querySelector('[data-test-cta="become-member"]');
 		assert(becomeMemberCta, "become-member CTA must be rendered");
 		expect(becomeMemberCta.getAttribute("href")).toBe(
 			"/signup?utm_source=homepage&utm_medium=internal&utm_content=signup-body",

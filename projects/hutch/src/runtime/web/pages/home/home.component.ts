@@ -1,8 +1,10 @@
 import { readFileSync } from "node:fs";
 import { join } from "node:path";
 import { MAX_PDF_BYTES } from "@packages/crawl-article";
-import { render } from "@packages/web-shell";
+import { ANNUAL_PRICE_DISPLAY, render } from "@packages/web-shell";
 import type { PageBody } from "@packages/web-shell";
+
+import { STRIPE_TRIAL_PERIOD_DAYS } from "../../../domain/stripe/stripe-trial-config";
 
 import type { HomepageVariantMarker } from "../../experiments/homepage-split";
 import { switchHelpers } from "../../handlebars-switch";
@@ -277,6 +279,9 @@ export function HomePage(params: HomePageParams): PageBody {
 			founderAvatarUrl: `${staticBaseUrl}/fayner-brack.jpg`,
 			foundingProgressHtml,
 			foundingMemberLimit,
+			foundingAvailable: foundingAllocationAvailable,
+			trialPeriodDays: STRIPE_TRIAL_PERIOD_DAYS,
+			annualPriceDisplay: ANNUAL_PRICE_DISPLAY,
 			pricingTitleStateClass,
 			progressStateClass,
 			pricingGridStateClass,

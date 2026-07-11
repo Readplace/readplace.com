@@ -279,10 +279,11 @@
     <section id="pricing" class="home-pricing" data-test-section="pricing" aria-label="Pricing">
       <div class="home-pricing__container">
         <div class="section-header home-pricing__title {{pricingTitleStateClass}}" data-test-pricing-title>
-          <h2 class="section-header__title">Free for the first {{foundingMemberLimit}} members.</h2>
+          {{#if foundingAvailable}}<h2 class="section-header__title">Free for the first {{foundingMemberLimit}} members.</h2>{{/if}}
         </div>
         <div class="home-pricing__progress {{progressStateClass}}" data-test-founding-progress-slot>{{{foundingProgressHtml}}}</div>
         <div class="pricing-grid {{pricingGridStateClass}}">
+          {{#if foundingAvailable}}
           <div class="pricing-card pricing-card--featured" data-test-plan="founding">
             <span class="pricing-card__badge">First {{foundingMemberLimit}} Users</span>
             <h3 class="pricing-card__name">Founding Member</h3>
@@ -298,20 +299,29 @@
             </ul>
             <a href="/signup?utm_source=homepage&utm_medium=internal&utm_content=founding-card" class="btn btn--brand pricing-card__cta" data-test-cta="founding">Signup</a>
           </div>
+          {{/if}}
         </div>
         <div class="home-pricing__fallback {{fallbackStateClass}}">
+          {{#unless foundingAvailable}}
           <div class="section-header home-pricing__fallback-header" data-test-fallback-title>
             <h2 class="section-header__title">Don&rsquo;t miss out!</h2>
           </div>
-          <ul class="pricing-card__features home-pricing__fallback-features" data-test-fallback-benefits>
-            <li class="pricing-card__feature">Save unlimited articles</li>
-            <li class="pricing-card__feature">{{browserExtensionsAnd}} extensions</li>
-            <li class="pricing-card__feature">TL;DR summaries included</li>
-            <li class="pricing-card__feature">PDF extraction with Tesseract OCR</li>
-            <li class="pricing-card__feature">All features as they ship</li>
-            <li class="pricing-card__feature">Direct access to the developer</li>
-          </ul>
-          <a href="/signup?utm_source=homepage&utm_medium=internal&utm_content=signup-body" class="btn btn--brand pricing-card__cta" data-test-cta="become-member">Become a Member</a>
+          <div class="pricing-card pricing-card--featured" data-test-plan="standard">
+            <span class="pricing-card__badge">{{trialPeriodDays}}-day free trial</span>
+            <h3 class="pricing-card__name">Readplace Membership</h3>
+            <p class="pricing-card__price">{{annualPriceDisplay}}<span class="pricing-card__price-suffix">/year</span></p>
+            <p class="pricing-card__description">Try everything free for {{trialPeriodDays}} days. No credit card required to start.</p>
+            <ul class="pricing-card__features home-pricing__fallback-features" data-test-fallback-benefits>
+              <li class="pricing-card__feature">Save unlimited articles</li>
+              <li class="pricing-card__feature">{{browserExtensionsAnd}} extensions</li>
+              <li class="pricing-card__feature">TL;DR summaries included</li>
+              <li class="pricing-card__feature">PDF extraction with Tesseract OCR</li>
+              <li class="pricing-card__feature">All features as they ship</li>
+              <li class="pricing-card__feature">Direct access to the developer</li>
+            </ul>
+            <a href="/signup?utm_source=homepage&utm_medium=internal&utm_content=signup-body" class="btn btn--brand pricing-card__cta" data-test-cta="become-member">Become a Member</a>
+          </div>
+          {{/unless}}
         </div>
       </div>
     </section>

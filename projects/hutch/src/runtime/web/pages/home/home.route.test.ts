@@ -296,10 +296,15 @@ describe("GET /", () => {
 		).toBeTruthy();
 	});
 
-	it("should render the founding pricing card and hide the fallback when under the limit", async () => {
+	it("renders the founding card as the ONLY plan in the DOM when under the limit — a CSS-hidden $49 card would leak into the markdown/crawler view", async () => {
 		const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
 		const response = await request(harness.server).get("/");
 		const doc = new JSDOM(response.text).window.document;
+
+		const plans = Array.from(doc.querySelectorAll("[data-test-plan]")).map((el) =>
+			el.getAttribute("data-test-plan"),
+		);
+		expect(plans).toEqual(["founding"]);
 
 		const founding = doc.querySelector('[data-test-plan="founding"]');
 		assert(founding, "founding pricing card must be rendered");
