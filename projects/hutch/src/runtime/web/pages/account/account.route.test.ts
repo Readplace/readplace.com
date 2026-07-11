@@ -634,6 +634,41 @@ describe("POST /account/subscribe", () => {
 		expect(started[0].user_id).toBe(userId);
 	});
 
+	it("cancelled user — saved-card charge SUCCEEDS but the active-row upsert throws → 303 /account?error=payment_method, and NOT a card_decline_fallback checkout (the card was already charged, so it is not a decline)", async () => {
+		const fixture = createDefaultTestAppFixture(TEST_APP_ORIGIN);
+		// Fail only the post-charge DB write. createSubscriptionOnExistingCustomer
+		// still succeeds, so this is NOT a decline: the funnel must not record
+		// card_decline_fallback, and the user must not be sent to a second checkout
+		// on an already-charged customer.
+		fixture.subscriptionProviders.upsertActive = async () => {
+			throw new Error("dynamo down");
+		};
+		const harness = useApp(fixture);
+		const { subscriptionProviders, subscriptionBilling } = harness;
+		const { agent, userId } = await loginUser(harness, "resub-upsert-fails@example.com");
+		// Seed the cancelled-after-paid row directly — upsertActive is rigged to throw.
+		subscriptionProviders.seedRow({
+			userId,
+			provider: "stripe",
+			status: "cancelled",
+			subscriptionId: "sub_was_paid",
+			customerId: "cus_was_paid",
+			createdAt: new Date().toISOString(),
+			updatedAt: new Date().toISOString(),
+		});
+
+		const response = await agent.post("/account/subscribe");
+
+		expect(response.status).toBe(303);
+		expect(response.headers.location).toBe("/account?error=payment_method");
+		// The saved-card charge went through...
+		expect(subscriptionBilling.createdSubscriptions()).toHaveLength(1);
+		// ...so no checkout is started at all — in particular no card_decline_fallback.
+		expect(
+			harness.subscriptionEvents.events.filter((e) => e.event === "checkout_started"),
+		).toHaveLength(0);
+	});
+
 	it("trialing user via HTMX (hx-boost) — 200 with HX-Redirect to Stripe, not 303 Location (HTMX would XHR-follow cross-origin and fail to navigate)", async () => {
 		const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
 		const { subscriptionProviders } = harness;

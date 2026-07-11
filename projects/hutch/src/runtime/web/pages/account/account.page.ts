@@ -569,25 +569,24 @@ export function initAccountRoutes(deps: AccountDependencies): Router {
 				redirectFullPage(req, res, checkout.url);
 				return;
 			}
+			let subscriptionId: string;
 			try {
-				const { subscriptionId } = await deps.createSubscriptionOnExistingCustomer({
+				({ subscriptionId } = await deps.createSubscriptionOnExistingCustomer({
 					customerId: row.customerId,
 					priceId: deps.stripePriceId,
 					userId,
-				});
-				await deps.upsertActiveSubscription({
-					userId,
-					subscriptionId,
-					customerId: row.customerId,
-				});
-				res.redirect(303, buildAccountUrl());
+				}));
 			} catch (err) {
-									/** Stripe rejected the saved card (declined, expired, fingerprint
-					 * mismatch, etc.). Rather than parking the user on a dead-end
-					 * error page, fall through to Stripe Checkout so they can enter
-					 * a new card. */
+				/** Only a *charge* failure reaches this catch — the upsert below is
+				 * deliberately outside the try. Stripe rejected the saved card
+				 * (declined, expired, fingerprint mismatch, etc.), so fall through to
+				 * Checkout for a new card and label the funnel event
+				 * `card_decline_fallback`, which now means what it says. A post-charge
+				 * upsert failure is NOT a decline — the card was already charged — so it
+				 * must not start a second checkout on an already-charged customer; it
+				 * propagates to the route-level catch (payment-method error) instead. */
 				deps.logger.warn(
-					"[subscribe/cancelled] one-click resub failed — falling back to checkout",
+					"[subscribe/cancelled] saved-card charge failed — falling back to checkout",
 					{ userId, error: err instanceof Error ? err.message : String(err) },
 				);
 				const checkout = await startCheckout(req, {
@@ -595,7 +594,14 @@ export function initAccountRoutes(deps: AccountDependencies): Router {
 					variant: CHECKOUT_VARIANTS.cardDeclineFallback,
 				});
 				redirectFullPage(req, res, checkout.url);
+				return;
 			}
+			await deps.upsertActiveSubscription({
+				userId,
+				subscriptionId,
+				customerId: row.customerId,
+			});
+			res.redirect(303, buildAccountUrl());
 		},
 		noop: async (_req, res) => {
 			res.redirect(303, buildAccountUrl());
