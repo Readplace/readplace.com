@@ -24,12 +24,12 @@ function makeEmit(): { emit: ReturnType<typeof initEmitSubscriptionEvent>; captu
 }
 
 describe("subscription-charge-failed handler", () => {
-	it("emits charge_failed and publishes CancelSubscriptionCommand with the failed-event userId", async () => {
-		const published: Array<{ userId: string }> = [];
+	it("emits charge_failed and publishes CancelSubscriptionCommand with reason=trial_expired_no_card so the cancellation is not attributed to the user", async () => {
+		const published: Array<{ userId: string; reason?: string }> = [];
 		const publishCancelSubscriptionCommand: PublishCancelSubscriptionCommand = async (
 			params,
 		) => {
-			published.push({ userId: params.userId });
+			published.push({ userId: params.userId, reason: params.reason });
 		};
 		const { emit, captured } = makeEmit();
 		const handler = initSubscriptionChargeFailedHandler({
@@ -55,6 +55,7 @@ describe("subscription-charge-failed handler", () => {
 		assert.equal(result.batchItemFailures.length, 0);
 		assert.equal(published.length, 1);
 		assert.equal(published[0].userId, USER_ID);
+		assert.equal(published[0].reason, "trial_expired_no_card");
 		assert.deepEqual(captured, [{
 			stream: "subscriptions",
 			event: "charge_failed",
@@ -64,12 +65,12 @@ describe("subscription-charge-failed handler", () => {
 		}]);
 	});
 
-	it("emits charge_failed with reason=stripe_error so the dashboard can split the two failure modes", async () => {
-		const published: Array<{ userId: string }> = [];
+	it("emits charge_failed with reason=stripe_error and cancels with reason=trial_expired_charge_failed so the dashboard can split the two failure modes", async () => {
+		const published: Array<{ userId: string; reason?: string }> = [];
 		const { emit, captured } = makeEmit();
 		const handler = initSubscriptionChargeFailedHandler({
 			publishCancelSubscriptionCommand: async (params) => {
-				published.push({ userId: params.userId });
+				published.push({ userId: params.userId, reason: params.reason });
 			},
 			emit,
 			logger: HutchLogger.from(noopLogger),
@@ -91,6 +92,7 @@ describe("subscription-charge-failed handler", () => {
 		assert(result);
 		assert.equal(result.batchItemFailures.length, 0);
 		assert.equal(published.length, 1);
+		assert.equal(published[0].reason, "trial_expired_charge_failed");
 		assert.equal(captured[0].reason, "stripe_error");
 	});
 

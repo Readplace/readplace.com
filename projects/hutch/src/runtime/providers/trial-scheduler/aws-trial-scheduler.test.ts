@@ -165,6 +165,29 @@ describe("initAwsTrialScheduler", () => {
 			);
 			const payload = JSON.parse(input.Target?.Input ?? "{}");
 			assert.equal(payload.userId, USER_ID);
+			assert.ok(!("reason" in payload), "no reason key when the cancel is user-initiated");
+		});
+
+		it("carries the cancel reason in the schedule Input so it survives the deferred hop back into CancelSubscriptionCommand", async () => {
+			const { client, captured } = buildFakeClient();
+			const scheduler = initAwsTrialScheduler({
+				client,
+				scheduleGroupName: GROUP_NAME,
+				schedulerRoleArn: ROLE_ARN,
+				eventBusArn: EVENT_BUS_ARN,
+			});
+
+			await scheduler.createDeferredCancellationSchedule({
+				userId: USER_ID,
+				firesAt: "2026-06-22T11:00:00.000Z",
+				reason: "trial_expired_no_card",
+			});
+
+			const cmd = captured.commands[0];
+			assert.ok(cmd instanceof CreateScheduleCommand);
+			const payload = JSON.parse(cmd.input.Target?.Input ?? "{}");
+			assert.equal(payload.userId, USER_ID);
+			assert.equal(payload.reason, "trial_expired_no_card");
 		});
 
 		it("strips fractional seconds and the trailing Z from firesAt", async () => {

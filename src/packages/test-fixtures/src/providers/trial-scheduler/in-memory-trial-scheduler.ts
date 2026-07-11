@@ -1,4 +1,5 @@
 import type { UserId } from "@packages/domain/user";
+import type { CancelSubscriptionReason } from "@packages/provider-contracts/events";
 import type {
 	CreateDeferredCancellationSchedule,
 	CreateTrialEndSchedule,
@@ -28,6 +29,7 @@ export function initInMemoryTrialScheduler(opts?: {
 	allSchedules: () => readonly { userId: UserId; firesAt: string }[];
 	deleteCalls: () => readonly UserId[];
 	getDeferredCancellationSchedule: (userId: UserId) => string | undefined;
+	getDeferredCancellationReason: (userId: UserId) => CancelSubscriptionReason | undefined;
 	allDeferredCancellationSchedules: () => readonly { userId: UserId; firesAt: string }[];
 	deferredCancellationDeleteCalls: () => readonly UserId[];
 	getTrialFeedbackEmailSchedule: (userId: UserId) => string | undefined;
@@ -40,6 +42,7 @@ export function initInMemoryTrialScheduler(opts?: {
 	const trialEndSchedules = new Map<UserId, string>();
 	const trialEndDeletes: UserId[] = [];
 	const deferredCancellationSchedules = new Map<UserId, string>();
+	const deferredCancellationReasons = new Map<UserId, CancelSubscriptionReason | undefined>();
 	const deferredCancellationDeletes: UserId[] = [];
 	const trialFeedbackEmailSchedules = new Map<UserId, string>();
 	const trialFeedbackEmailDeletes: UserId[] = [];
@@ -61,11 +64,13 @@ export function initInMemoryTrialScheduler(opts?: {
 	const createDeferredCancellationSchedule: CreateDeferredCancellationSchedule = async ({
 		userId,
 		firesAt,
+		reason,
 	}) => {
 		if (opts?.createDeferredCancellationFails) {
 			throw new Error("In-memory deferred-cancellation create failure");
 		}
 		deferredCancellationSchedules.set(userId, firesAt);
+		deferredCancellationReasons.set(userId, reason);
 	};
 
 	const deleteDeferredCancellationSchedule: DeleteDeferredCancellationSchedule = async ({
@@ -73,6 +78,7 @@ export function initInMemoryTrialScheduler(opts?: {
 	}) => {
 		deferredCancellationDeletes.push(userId);
 		deferredCancellationSchedules.delete(userId);
+		deferredCancellationReasons.delete(userId);
 	};
 
 	const createTrialFeedbackEmailSchedule: CreateTrialFeedbackEmailSchedule = async ({
@@ -120,6 +126,7 @@ export function initInMemoryTrialScheduler(opts?: {
 		allSchedules: () => Array.from(trialEndSchedules.entries()).map(([userId, firesAt]) => ({ userId, firesAt })),
 		deleteCalls: () => [...trialEndDeletes],
 		getDeferredCancellationSchedule: (userId) => deferredCancellationSchedules.get(userId),
+		getDeferredCancellationReason: (userId) => deferredCancellationReasons.get(userId),
 		allDeferredCancellationSchedules: () =>
 			Array.from(deferredCancellationSchedules.entries()).map(([userId, firesAt]) => ({ userId, firesAt })),
 		deferredCancellationDeleteCalls: () => [...deferredCancellationDeletes],

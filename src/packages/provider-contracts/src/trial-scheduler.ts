@@ -1,4 +1,5 @@
 import type { UserId } from "@packages/domain/user";
+import type { CancelSubscriptionReason } from "./events";
 
 export type CreateTrialEndSchedule = (input: {
 	userId: UserId;
@@ -12,6 +13,7 @@ export type DeleteTrialEndSchedule = (input: {
 export type CreateDeferredCancellationSchedule = (input: {
 	userId: UserId;
 	firesAt: string;
+	reason?: CancelSubscriptionReason;
 }) => Promise<void>;
 
 export type DeleteDeferredCancellationSchedule = (input: {

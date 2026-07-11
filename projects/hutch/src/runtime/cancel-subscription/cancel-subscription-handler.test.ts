@@ -15,8 +15,8 @@ import { initCancelSubscriptionHandler } from "./cancel-subscription-handler";
 const USER_ID = UserIdSchema.parse("4".repeat(32));
 const STRIPE_PERIOD_END = "2026-06-22T10:00:00.000Z";
 
-function buildEventBridgeBody(userId: string): string {
-	return JSON.stringify({ detail: { userId } });
+function buildEventBridgeBody(userId: string, reason?: string): string {
+	return JSON.stringify({ detail: reason ? { userId, reason } : { userId } });
 }
 
 interface Subject {
@@ -179,6 +179,77 @@ describe("cancel-subscription handler", () => {
 		assert.equal(subject.cancelledEvents[0].userId, USER_ID);
 		assert.equal(subject.cancelledEvents[0].subscriptionId, "sub_pending_xyz");
 		assert.equal(subject.cancelledEvents[0].reason, "user_initiated_paid_confirmed");
+	});
+
+	it("trialing branch — threads the command's trial-expiry reason onto the deferred-cancellation schedule so the final conversion can attribute it", async () => {
+		const subject = buildSubject();
+		const trialEndsAt = "2026-06-05T00:00:00.000Z";
+		await subject.providers.upsertTrialing({ userId: USER_ID, trialEndsAt });
+
+		const result = await subject.handler(
+			buildSqsEvent([
+				{
+					messageId: "msg-trial-expired",
+					body: buildEventBridgeBody(USER_ID, "trial_expired_no_card"),
+				},
+			]),
+			buildLambdaContext(),
+			() => {},
+		);
+
+		assert(result);
+		assert.equal(result.batchItemFailures.length, 0);
+		assert.deepEqual(subject.trialScheduler.allDeferredCancellationSchedules(), [
+			{ userId: USER_ID, firesAt: "2026-06-05T01:00:00.000Z" },
+		]);
+		assert.equal(
+			subject.trialScheduler.getDeferredCancellationReason(USER_ID),
+			"trial_expired_no_card",
+		);
+	});
+
+	it("trialing branch — a user-initiated cancel (no reason on the command) leaves the deferred schedule without a reason", async () => {
+		const subject = buildSubject();
+		await subject.providers.upsertTrialing({
+			userId: USER_ID,
+			trialEndsAt: "2026-06-05T00:00:00.000Z",
+		});
+
+		await subject.handler(
+			buildSqsEvent([{ messageId: "msg-user-cancel", body: buildEventBridgeBody(USER_ID) }]),
+			buildLambdaContext(),
+			() => {},
+		);
+
+		assert.equal(subject.trialScheduler.getDeferredCancellationReason(USER_ID), undefined);
+	});
+
+	it("pending_cancellation branch — a command carrying a trial-expiry reason emits SubscriptionCancelled with that reason instead of the user-initiated derivation", async () => {
+		const subject = buildSubject();
+		await subject.providers.upsertTrialing({
+			userId: USER_ID,
+			trialEndsAt: "2026-06-05T00:00:00.000Z",
+		});
+		await subject.providers.markPendingCancellation({
+			userId: USER_ID,
+			cancellationEffectiveAt: "2026-06-05T00:00:00.000Z",
+		});
+
+		const result = await subject.handler(
+			buildSqsEvent([
+				{
+					messageId: "msg-pc-expired",
+					body: buildEventBridgeBody(USER_ID, "trial_expired_no_card"),
+				},
+			]),
+			buildLambdaContext(),
+			() => {},
+		);
+
+		assert(result);
+		assert.equal(result.batchItemFailures.length, 0);
+		assert.equal(subject.cancelledEvents.length, 1);
+		assert.equal(subject.cancelledEvents[0].reason, "trial_expired_no_card");
 	});
 
 	it("pending_cancellation branch — reason=user_initiated_trial when row has no subscriptionId (trial path via deferred scheduler firing post-trialEnd)", async () => {

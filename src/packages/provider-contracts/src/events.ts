@@ -1,7 +1,12 @@
 import type { UserId } from "@packages/domain/user";
 
+export type CancelSubscriptionReason =
+	| "trial_expired_no_card"
+	| "trial_expired_charge_failed";
+
 export type PublishCancelSubscriptionCommand = (params: {
 	userId: UserId;
+	reason?: CancelSubscriptionReason;
 }) => Promise<void>;
 
 export type PublishExportUserDataCommand = (params: {
@@ -68,7 +73,8 @@ export type PublishSubscriptionCancellationScheduled = (params: {
 export type SubscriptionCancelledReason =
 	| "stripe_webhook"
 	| "user_initiated_trial"
-	| "user_initiated_paid_confirmed";
+	| "user_initiated_paid_confirmed"
+	| CancelSubscriptionReason;
 
 export type PublishSubscriptionCancelled = (params: {
 	userId: UserId;

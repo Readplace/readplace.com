@@ -21,7 +21,9 @@ function buildEventBridgeBody(detail: {
 	reason?:
 		| "stripe_webhook"
 		| "user_initiated_trial"
-		| "user_initiated_paid_confirmed";
+		| "user_initiated_paid_confirmed"
+		| "trial_expired_no_card"
+		| "trial_expired_charge_failed";
 }): string {
 	return JSON.stringify({
 		detail: {
@@ -68,6 +70,30 @@ describe("schedule-trial-feedback-email handler", () => {
 			{ userId: USER_ID, firesAt: EXPECTED_FIRES_AT },
 		]);
 	});
+
+	it.each(["trial_expired_no_card", "trial_expired_charge_failed"] as const)(
+		"schedules the feedback email for auto-expired trials (reason='%s') — the trial still ended, the why is still worth asking",
+		async (reason) => {
+			const subject = buildSubject();
+
+			const result = await subject.handler(
+				buildSqsEvent([
+					{
+						messageId: `msg-${reason}`,
+						body: buildEventBridgeBody({ userId: USER_ID, reason }),
+					},
+				]),
+				buildLambdaContext(),
+				() => {},
+			);
+
+			assert(result);
+			assert.equal(result.batchItemFailures.length, 0);
+			assert.deepEqual(subject.trialScheduler.allTrialFeedbackEmailSchedules(), [
+				{ userId: USER_ID, firesAt: EXPECTED_FIRES_AT },
+			]);
+		},
+	);
 
 	it("ignores cancels with reason='user_initiated_paid_confirmed' — paid churn is out of scope", async () => {
 		const subject = buildSubject();

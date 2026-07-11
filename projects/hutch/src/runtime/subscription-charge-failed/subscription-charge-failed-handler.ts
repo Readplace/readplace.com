@@ -8,8 +8,20 @@ import { z } from "zod";
 import { UserIdSchema } from "@packages/domain/user";
 import { SubscriptionChargeFailedEvent } from "@packages/hutch-infra-components";
 import type { HutchLogger } from "@packages/hutch-logger";
-import type { PublishCancelSubscriptionCommand } from "@packages/provider-contracts/events";
+import type {
+	CancelSubscriptionReason,
+	PublishCancelSubscriptionCommand,
+	SubscriptionChargeFailedReason,
+} from "@packages/provider-contracts/events";
 import type { EmitSubscriptionEvent } from "../observability/subscription-events";
+
+const cancelReasonByChargeFailure: Record<
+	SubscriptionChargeFailedReason,
+	CancelSubscriptionReason
+> = {
+	no_card_on_file: "trial_expired_no_card",
+	stripe_error: "trial_expired_charge_failed",
+};
 
 export function initSubscriptionChargeFailedHandler(deps: {
 	publishCancelSubscriptionCommand: PublishCancelSubscriptionCommand;
@@ -28,7 +40,10 @@ export function initSubscriptionChargeFailedHandler(deps: {
 					userId,
 					reason: detail.reason,
 				});
-				await deps.publishCancelSubscriptionCommand({ userId });
+				await deps.publishCancelSubscriptionCommand({
+					userId,
+					reason: cancelReasonByChargeFailure[detail.reason],
+				});
 				deps.emit.chargeFailed({ userId, reason: detail.reason });
 			} catch (error) {
 				deps.logger.error("[charge-failed] record failed", {

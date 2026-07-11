@@ -78,6 +78,32 @@ describe("initInMemoryTrialScheduler", () => {
 		assert.deepEqual(scheduler.deferredCancellationDeleteCalls(), [userIdA]);
 	});
 
+	it("records the deferred-cancellation reason when given, and none when omitted", async () => {
+		const withReason = UserIdSchema.parse("a1".repeat(16));
+		const withoutReason = UserIdSchema.parse("b2".repeat(16));
+		const scheduler = initInMemoryTrialScheduler();
+
+		await scheduler.createDeferredCancellationSchedule({
+			userId: withReason,
+			firesAt: "2026-06-22T11:00:00.000Z",
+			reason: "trial_expired_no_card",
+		});
+		await scheduler.createDeferredCancellationSchedule({
+			userId: withoutReason,
+			firesAt: "2026-06-23T11:00:00.000Z",
+		});
+
+		assert.equal(
+			scheduler.getDeferredCancellationReason(withReason),
+			"trial_expired_no_card",
+		);
+		assert.equal(scheduler.getDeferredCancellationReason(withoutReason), undefined);
+
+		await scheduler.deleteDeferredCancellationSchedule({ userId: withReason });
+
+		assert.equal(scheduler.getDeferredCancellationReason(withReason), undefined);
+	});
+
 	it("deleteDeferredCancellationSchedule is idempotent on a missing schedule", async () => {
 		const userId = UserIdSchema.parse("9".repeat(32));
 		const scheduler = initInMemoryTrialScheduler();

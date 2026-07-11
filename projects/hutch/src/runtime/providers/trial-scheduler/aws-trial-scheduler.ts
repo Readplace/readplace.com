@@ -107,6 +107,7 @@ export function initAwsTrialScheduler(deps: {
 	const createDeferredCancellationSchedule: CreateDeferredCancellationSchedule = async ({
 		userId,
 		firesAt,
+		reason,
 	}) => {
 		assert(deps.eventBusArn, "eventBusArn is required for createDeferredCancellationSchedule");
 		assert(
@@ -128,7 +129,7 @@ export function initAwsTrialScheduler(deps: {
 						Source: "hutch.subscriptions",
 						DetailType: "CancelSubscriptionCommand",
 					},
-					Input: JSON.stringify({ userId }),
+					Input: JSON.stringify(reason ? { userId, reason } : { userId }),
 				},
 			}),
 		);

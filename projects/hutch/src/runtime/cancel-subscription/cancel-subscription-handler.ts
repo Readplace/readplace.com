@@ -15,6 +15,7 @@ import type {
 	SubscriptionStatus,
 } from "@packages/provider-contracts/subscription-providers";
 import type {
+	CancelSubscriptionReason,
 	PublishSubscriptionCancellationScheduled,
 	PublishSubscriptionCancelled,
 } from "@packages/provider-contracts/events";
@@ -25,7 +26,10 @@ import type {
 	DeleteTrialReminderSchedule,
 } from "@packages/provider-contracts/trial-scheduler";
 
-type CancelBranch = (row: SubscriptionRecord) => Promise<void>;
+type CancelBranch = (
+	row: SubscriptionRecord,
+	reason: CancelSubscriptionReason | undefined,
+) => Promise<void>;
 
 interface HandlerDeps {
 	findSubscriptionByUserId: FindSubscriptionByUserId;
@@ -71,7 +75,7 @@ function buildBranches(deps: HandlerDeps): Record<SubscriptionStatus, CancelBran
 				cancellationEffectiveAt,
 			});
 		},
-		trialing: async (row) => {
+		trialing: async (row, reason) => {
 			assert(row.trialEndsAt, "trialing row must have trialEndsAt");
 			// Delete the trial-end auto-charge schedule so the user is not charged
 			// after they cancelled. The deferred-cancellation schedule below
@@ -85,6 +89,7 @@ function buildBranches(deps: HandlerDeps): Record<SubscriptionStatus, CancelBran
 			await deps.createDeferredCancellationSchedule({
 				userId: row.userId,
 				firesAt: addOneHour(row.trialEndsAt),
+				reason,
 			});
 			await deps.publishSubscriptionCancellationScheduled({
 				userId: row.userId,
@@ -95,7 +100,7 @@ function buildBranches(deps: HandlerDeps): Record<SubscriptionStatus, CancelBran
 				cancellationEffectiveAt: row.trialEndsAt,
 			});
 		},
-		pending_cancellation: async (row) => {
+		pending_cancellation: async (row, reason) => {
 			// Final conversion. Reached either by the deferred-cancellation
 			// scheduler firing at cancellationEffectiveAt + 1h, or by an
 			// explicit second user cancel inside the cancellation window.
@@ -104,9 +109,11 @@ function buildBranches(deps: HandlerDeps): Record<SubscriptionStatus, CancelBran
 			await deps.publishSubscriptionCancelled({
 				userId: row.userId,
 				subscriptionId: row.subscriptionId,
-				reason: row.subscriptionId
-					? "user_initiated_paid_confirmed"
-					: "user_initiated_trial",
+				reason:
+					reason ??
+					(row.subscriptionId
+						? "user_initiated_paid_confirmed"
+						: "user_initiated_trial"),
 			});
 			deps.logger.info("[cancel-subscription] pending_cancellation → SubscriptionCancelled emitted (final conversion)", {
 				userId: row.userId,
@@ -135,7 +142,7 @@ export function initCancelSubscriptionHandler(
 			deps.logger.warn("[cancel-subscription] no row for user — noop", { userId });
 			return;
 		}
-		await branches[row.status](row);
+		await branches[row.status](row, detail.reason);
 	}
 
 	return async (event) => {

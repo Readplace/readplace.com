@@ -15,6 +15,12 @@ import type { CreateTrialFeedbackEmailSchedule } from "@packages/provider-contra
  * the reason is still fresh in the recipient's mind. */
 export const TRIAL_FEEDBACK_EMAIL_DELAY_MS = 3 * 24 * 60 * 60 * 1000;
 
+const TRIAL_END_CANCEL_REASONS: ReadonlySet<string> = new Set([
+	"user_initiated_trial",
+	"trial_expired_no_card",
+	"trial_expired_charge_failed",
+]);
+
 export function initScheduleTrialFeedbackEmailHandler(deps: {
 	createTrialFeedbackEmailSchedule: CreateTrialFeedbackEmailSchedule;
 	now: () => Date;
@@ -31,7 +37,7 @@ export function initScheduleTrialFeedbackEmailHandler(deps: {
 				const detail = SubscriptionCancelledEvent.detailSchema.parse(
 					envelope.detail,
 				);
-				if (detail.reason !== "user_initiated_trial") {
+				if (!TRIAL_END_CANCEL_REASONS.has(detail.reason)) {
 					deps.logger.info(
 						"[schedule-trial-feedback-email] non-trial cancel — noop",
 						{ userId: detail.userId, reason: detail.reason },

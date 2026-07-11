@@ -468,14 +468,19 @@ export const SubscriptionCancelledEvent = defineEvent({
 			"stripe_webhook",
 			"user_initiated_trial",
 			"user_initiated_paid_confirmed",
+			"trial_expired_no_card",
+			"trial_expired_charge_failed",
 		]),
 	}),
 });
 export type SubscriptionCancelledDetail = z.infer<typeof SubscriptionCancelledEvent.detailSchema>;
 
-/** User-initiated cancel request. Published by `POST /account/cancel` and
- * by the deferred-cancellation EventBridge Scheduler when the
- * cancellation-effective-at instant arrives. Consumed by the
+/** Cancel request. Published by `POST /account/cancel` (no `reason` — the
+ * cancel-subscription Lambda derives the user-initiated variant), by the
+ * `subscription-charge-failed` Lambda with a trial-expiry `reason`, and by
+ * the deferred-cancellation EventBridge Scheduler when the
+ * cancellation-effective-at instant arrives (echoing the `reason` its
+ * creating branch carried, if any). Consumed by the
  * `cancel-subscription` Lambda which branches on the row's current status:
  *   - active     → Stripe PATCH cancel_at_period_end=true, create the
  *                  deferred-cancellation schedule, emit
@@ -493,6 +498,9 @@ export const CancelSubscriptionCommand = defineEvent({
 	detailType: "CancelSubscriptionCommand",
 	detailSchema: z.object({
 		userId: z.string(),
+		reason: z
+			.enum(["trial_expired_no_card", "trial_expired_charge_failed"])
+			.optional(),
 	}),
 });
 export type CancelSubscriptionDetail = z.infer<typeof CancelSubscriptionCommand.detailSchema>;
