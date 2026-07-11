@@ -48,6 +48,39 @@ describe("initStripeCheckout", () => {
 			assert.ok(body.includes("line_items%5B0%5D%5Bprice%5D=price_pro"));
 			assert.ok(body.includes("customer_email=buyer%40example.com"));
 			assert.ok(body.includes("allow_promotion_codes=true"));
+			assert.ok(!body.includes("subscription_data"), "no trial_end without trialEndsAt");
+		});
+
+		it("sends subscription_data[trial_end] as epoch seconds when trialEndsAt is provided, so Stripe attaches the card now and charges at trial end", async () => {
+			let receivedInit: RequestInit | undefined;
+			const fakeFetch: typeof globalThis.fetch = async (_input, init) => {
+				receivedInit = init;
+				return jsonResponse(200, {
+					id: "cs_test_trial",
+					url: "https://checkout.stripe.com/c/pay/cs_test_trial",
+				});
+			};
+
+			const stripe = initStripeCheckout({
+				apiKey: "sk_test_abc",
+				priceId: "price_pro",
+				fetch: fakeFetch,
+			});
+
+			const trialEndsAt = "2026-07-20T00:00:00.000Z";
+			await stripe.createCheckoutSession({
+				customerEmail: "trialist@example.com",
+				successUrl: "https://readplace.com/ok",
+				cancelUrl: "https://readplace.com/cancel",
+				trialEndsAt,
+			});
+
+			const body = String(receivedInit?.body ?? "");
+			const trialEndSeconds = Math.floor(Date.parse(trialEndsAt) / 1000);
+			assert.ok(
+				body.includes(`subscription_data%5Btrial_end%5D=${trialEndSeconds}`),
+				`body must carry trial_end in epoch seconds, got: ${body}`,
+			);
 		});
 
 		it("throws with the Stripe error message when the API returns a non-2xx", async () => {

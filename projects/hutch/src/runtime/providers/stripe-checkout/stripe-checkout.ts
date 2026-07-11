@@ -52,6 +52,7 @@ export function initStripeCheckout(deps: {
 		customerEmail,
 		successUrl,
 		cancelUrl,
+		trialEndsAt,
 	}) => {
 		const body = new URLSearchParams({
 			mode: "subscription",
@@ -63,6 +64,12 @@ export function initStripeCheckout(deps: {
 			"payment_method_types[0]": "card",
 			allow_promotion_codes: "true",
 		});
+		if (trialEndsAt) {
+			body.set(
+				"subscription_data[trial_end]",
+				String(Math.floor(Date.parse(trialEndsAt) / 1000)),
+			);
+		}
 
 		const response = await deps.fetch(`${STRIPE_API}/checkout/sessions`, {
 			method: "POST",

@@ -427,7 +427,7 @@ export function initAuthRoutes(deps: AuthDependencies): Router {
 			return;
 		}
 
-		if (!session.paid) {
+		if (!session.paid || session.status !== "complete") {
 			await renderFailure(402, "Payment was not completed. Please try again.");
 			return;
 		}

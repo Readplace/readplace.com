@@ -47,6 +47,32 @@ describe("GET /auth/checkout/success", () => {
 		expect(doc.querySelector("[data-test-global-error]")?.textContent).toContain("not completed");
 	});
 
+	it("renders 402 for a still-open session even when Stripe reports no payment is required (trial checkout visited before completion)", async () => {
+		const fixture = createDefaultTestAppFixture(TEST_APP_ORIGIN);
+		const realRetrieveCheckoutSession = fixture.hostedCheckout.retrieveCheckoutSession;
+		fixture.hostedCheckout.retrieveCheckoutSession = async (id) => {
+			const session = await realRetrieveCheckoutSession(id);
+			assert(session.ok, "session must exist for this test");
+			return { ...session, paid: true, status: "open" };
+		};
+		const harness = useApp(fixture);
+		const { hostedCheckout } = harness;
+
+		const checkout = await hostedCheckout.createCheckoutSession({
+			customerEmail: "trial-peeker@example.com",
+			successUrl: "http://localhost:3000/auth/checkout/success?session_id={CHECKOUT_SESSION_ID}",
+			cancelUrl: "http://localhost:3000/signup",
+		});
+
+		const response = await request(harness.server).get(
+			`/auth/checkout/success?session_id=${encodeURIComponent(checkout.id)}`,
+		);
+
+		expect(response.status).toBe(402);
+		const doc = new JSDOM(response.text).window.document;
+		expect(doc.querySelector("[data-test-global-error]")?.textContent).toContain("not completed");
+	});
+
 	it("renders 409 when the checkout has been paid but the pending signup was already consumed", async () => {
 		const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
 		const { auth, hostedCheckout, pendingSignup } = harness;

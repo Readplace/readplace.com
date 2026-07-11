@@ -13,6 +13,7 @@ export type CreateCheckoutSession = (params: {
 	customerEmail: string;
 	successUrl: string;
 	cancelUrl: string;
+	trialEndsAt?: string;
 }) => Promise<CheckoutSession>;
 
 export type CheckoutSessionStatus = "open" | "complete" | "expired";

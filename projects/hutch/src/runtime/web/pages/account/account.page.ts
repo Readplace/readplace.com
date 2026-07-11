@@ -12,6 +12,7 @@ import type {
 import type {
 	FindSubscriptionByUserId,
 	MarkSubscriptionActive,
+	SubscriptionRecord,
 	UpsertActiveSubscription,
 	UpsertTrialingSubscription,
 } from "@packages/provider-contracts/subscription-providers";
@@ -39,7 +40,10 @@ import type {
 	DeleteDeferredCancellationSchedule,
 } from "@packages/provider-contracts/trial-scheduler";
 import type { StorePendingSignup } from "@packages/provider-contracts/pending-signup";
-import { trialReminderFiresAt } from "../../../domain/stripe/stripe-trial-config";
+import {
+	STRIPE_CHECKOUT_MIN_TRIAL_END_LEAD_MS,
+	trialReminderFiresAt,
+} from "../../../domain/stripe/stripe-trial-config";
 import { Base } from "../../base.component";
 import type { BuildBannerState } from "../../banner-state";
 import { HxRedirectPage } from "../../hx-redirect-page";
@@ -457,6 +461,7 @@ export function initAccountRoutes(deps: AccountDependencies): Router {
 
 	async function startCheckout(
 		req: Request,
+		opts: { trialEndsAt: string | undefined },
 	): Promise<{ id: CheckoutSessionId; url: string }> {
 		assert(req.userId, "userId required - route must be protected by requireAuth");
 		const userId = req.userId;
@@ -467,6 +472,7 @@ export function initAccountRoutes(deps: AccountDependencies): Router {
 			customerEmail: email,
 			successUrl: deps.buildCheckoutSuccessUrl("{CHECKOUT_SESSION_ID}"),
 			cancelUrl: `${deps.appOrigin}${buildAccountUrl()}`,
+			trialEndsAt: opts.trialEndsAt,
 		});
 
 		await deps.storePendingSignup({
@@ -500,23 +506,30 @@ export function initAccountRoutes(deps: AccountDependencies): Router {
 
 	const subscribeBranches: Record<
 		SubscribeBranchKey,
-		(req: Request, res: Response) => Promise<void>
+		(req: Request, res: Response, row: SubscriptionRecord | undefined) => Promise<void>
 	> = {
-		trialing: async (req, res) => {
-			const checkout = await startCheckout(req);
+		trialing: async (req, res, row) => {
+			assert(row, "trialing branch requires a row");
+			assert(row.trialEndsAt, "trialing row must have trialEndsAt");
+			const trialRemainingMs = Date.parse(row.trialEndsAt) - deps.now().getTime();
+			const checkout = await startCheckout(req, {
+				trialEndsAt:
+					trialRemainingMs >= STRIPE_CHECKOUT_MIN_TRIAL_END_LEAD_MS
+						? row.trialEndsAt
+						: undefined,
+			});
 			redirectFullPage(req, res, checkout.url);
 		},
-		cancelled: async (req, res) => {
+		cancelled: async (req, res, row) => {
 			assert(req.userId, "userId required - route must be protected by requireAuth");
 			const userId = req.userId;
-			const row = await deps.findSubscriptionByUserId(userId);
 			assert(row, "cancelled branch requires a row");
 			if (!row.customerId) {
 				deps.logger.warn(
 					"[subscribe] cancelled row without customerId — falling back to checkout",
 					{ userId },
 				);
-				const checkout = await startCheckout(req);
+				const checkout = await startCheckout(req, { trialEndsAt: undefined });
 				redirectFullPage(req, res, checkout.url);
 				return;
 			}
@@ -541,7 +554,7 @@ export function initAccountRoutes(deps: AccountDependencies): Router {
 					"[subscribe/cancelled] one-click resub failed — falling back to checkout",
 					{ userId, error: err instanceof Error ? err.message : String(err) },
 				);
-				const checkout = await startCheckout(req);
+				const checkout = await startCheckout(req, { trialEndsAt: undefined });
 				redirectFullPage(req, res, checkout.url);
 			}
 		},
@@ -558,7 +571,7 @@ export function initAccountRoutes(deps: AccountDependencies): Router {
 		const row = await deps.findSubscriptionByUserId(req.userId);
 		const branch = pickSubscribeBranch(row?.status);
 		try {
-			await subscribeBranches[branch](req, res);
+			await subscribeBranches[branch](req, res, row);
 		} catch (err) {
 			/** Single route-level catch keeps every branch resilient: Stripe
 			 * (checkout create, subscriptions.create), DynamoDB (pending-signup

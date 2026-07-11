@@ -475,6 +475,77 @@ describe("POST /account/subscribe", () => {
 		assert(typeof location === "string" && location.includes("checkout.stripe.test"));
 	});
 
+	it("threads trialEndsAt into the checkout session when ≥48h of trial remains, so Stripe attaches the card without forfeiting the trial", async () => {
+		const fixture = createDefaultTestAppFixture(TEST_APP_ORIGIN);
+		const realCreateCheckoutSession = fixture.hostedCheckout.createCheckoutSession;
+		const checkoutCalls: { trialEndsAt?: string }[] = [];
+		fixture.hostedCheckout.createCheckoutSession = async (params) => {
+			checkoutCalls.push(params);
+			return realCreateCheckoutSession(params);
+		};
+		const harness = useApp(fixture);
+		const { subscriptionProviders } = harness;
+		const { agent, userId } = await loginUser(harness, "trial-keeps-trial@example.com");
+		const trialEndsAt = new Date(Date.now() + 5 * ONE_DAY_MS).toISOString();
+		await subscriptionProviders.upsertTrialing({ userId, trialEndsAt });
+
+		const response = await agent.post("/account/subscribe");
+
+		expect(response.status).toBe(303);
+		expect(checkoutCalls).toHaveLength(1);
+		expect(checkoutCalls[0].trialEndsAt).toBe(trialEndsAt);
+	});
+
+	it("omits trialEndsAt when under 48h of trial remains — Stripe rejects a trial_end that close, so the checkout charges immediately", async () => {
+		const fixture = createDefaultTestAppFixture(TEST_APP_ORIGIN);
+		const realCreateCheckoutSession = fixture.hostedCheckout.createCheckoutSession;
+		const checkoutCalls: { trialEndsAt?: string }[] = [];
+		fixture.hostedCheckout.createCheckoutSession = async (params) => {
+			checkoutCalls.push(params);
+			return realCreateCheckoutSession(params);
+		};
+		const harness = useApp(fixture);
+		const { subscriptionProviders } = harness;
+		const { agent, userId } = await loginUser(harness, "trial-almost-over@example.com");
+		await subscriptionProviders.upsertTrialing({
+			userId,
+			trialEndsAt: new Date(Date.now() + ONE_DAY_MS).toISOString(),
+		});
+
+		const response = await agent.post("/account/subscribe");
+
+		expect(response.status).toBe(303);
+		expect(checkoutCalls).toHaveLength(1);
+		expect(checkoutCalls[0].trialEndsAt).toBeUndefined();
+	});
+
+	it("never threads a trialEndsAt through the cancelled-user checkout fallback, even when the row carries a stale one", async () => {
+		const fixture = createDefaultTestAppFixture(TEST_APP_ORIGIN);
+		const realCreateCheckoutSession = fixture.hostedCheckout.createCheckoutSession;
+		const checkoutCalls: { trialEndsAt?: string }[] = [];
+		fixture.hostedCheckout.createCheckoutSession = async (params) => {
+			checkoutCalls.push(params);
+			return realCreateCheckoutSession(params);
+		};
+		const harness = useApp(fixture);
+		const { subscriptionProviders } = harness;
+		const { agent, userId } = await loginUser(harness, "cancelled-stale-trial@example.com");
+		subscriptionProviders.seedRow({
+			userId,
+			provider: "stripe",
+			status: "cancelled",
+			trialEndsAt: new Date(Date.now() + 5 * ONE_DAY_MS).toISOString(),
+			createdAt: new Date().toISOString(),
+			updatedAt: new Date().toISOString(),
+		});
+
+		const response = await agent.post("/account/subscribe");
+
+		expect(response.status).toBe(303);
+		expect(checkoutCalls).toHaveLength(1);
+		expect(checkoutCalls[0].trialEndsAt).toBeUndefined();
+	});
+
 	it("Phase 3: cancelled user with customerId resubscribes in ONE click via Stripe subscriptions.create (NO checkout UI)", async () => {
 		const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
 		const { subscriptionProviders, subscriptionBilling } = harness;
