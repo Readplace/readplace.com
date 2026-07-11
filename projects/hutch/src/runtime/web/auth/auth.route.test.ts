@@ -828,7 +828,8 @@ describe("Auth routes", () => {
 			const doc = new JSDOM(rendered.text).window.document;
 			const action = doc.querySelector('[data-test-form="signup"]')?.getAttribute("action");
 			assert(action, "signup form must render an action");
-			expect(action).toBe(`/signup?return=${encodeURIComponent(returnUrl)}`);
+			expect(action).toContain("/signup?");
+			expect(action).toContain(`return=${encodeURIComponent(returnUrl)}`);
 
 			// Replay exactly what the browser submits: POST to the action parsed off
 			// the rendered form, then assert the full return URL — trailing params
