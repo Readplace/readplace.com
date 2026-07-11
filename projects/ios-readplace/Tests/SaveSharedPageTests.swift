@@ -401,4 +401,29 @@ final class SaveSharedPageTests: XCTestCase {
 		let posts = StubURLProtocol.records.filter { $0.request.httpMethod == "POST" }
 		XCTAssertTrue(posts.isEmpty, "no save must be attempted when the server offers no save action")
 	}
+
+	func testFailsWhenQueueResponseIsUndecodable() async throws {
+		// The queue replied 200 with the negotiated Siren media type but a body
+		// that is not a Siren collection (a JSON array), so the journey surfaces
+		// the API's own decode message as .failed — and attempts no save.
+		let store = TestSupport.loggedInStore()
+		let captor = FakeHTMLCaptor(page: CapturedPage(rawHtml: "<html><body>hi</body></html>", title: "Captured", mediaType: nil))
+		StubURLProtocol.setHandler { request, _ in
+			switch request.url?.path {
+			case "/":
+				return .redirect(to: "/queue")
+			case "/queue":
+				return .json(200, "[]")
+			default:
+				return .json(404, "{}")
+			}
+		}
+
+		let saver = SaveSharedPage(store: store, api: makeAPI(store: store), captor: captor)
+		let outcome = await saver.run(url: URL(string: "https://example.com/post")!, fallbackTitle: nil, sharedPdf: nil)
+
+		XCTAssertEqual(outcome, .failed("Could not read the server response."))
+		let posts = StubURLProtocol.records.filter { $0.request.httpMethod == "POST" }
+		XCTAssertTrue(posts.isEmpty, "no save must be attempted when the queue cannot be decoded")
+	}
 }

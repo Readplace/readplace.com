@@ -44,6 +44,15 @@ struct AffordancePresentation {
 			isDestructive = false
 			removesItem = false
 			isToolbarControl = false
+		case "create-session":
+			// Not a user control: the client invokes this bespoke to mint the reader
+			// session cookie (like a capture-only save), so it never renders in the
+			// toolbar even though it is advertised on the collection.
+			systemImage = "key"
+			tint = nil
+			isDestructive = false
+			removesItem = false
+			isToolbarControl = false
 		case "update-status":
 			systemImage = "checkmark.circle"
 			tint = .brandSuccess
@@ -127,13 +136,34 @@ extension Affordance {
 		return fields.allSatisfy { $0.value != nil }
 	}
 
+	/// Whether this affordance is a link carrying any structural navigation rel
+	/// (`self`/`root`/`prev`/`next`/`item`) — client plumbing the client follows for
+	/// its own pagination/identity/item resolution, never a user control. Tests every
+	/// rel, not just the presentation token, so a multi-rel link like
+	/// `["alternate", "next"]` can't slip through as a tappable control while the
+	/// client also follows it for paging.
+	var isStructuralLink: Bool {
+		guard case let .link(link) = invocation else { return false }
+		return link.rel.contains { Affordance.structuralRels.contains($0) }
+	}
+
+	/// Whether the row surfaces this link as a discrete control: a semantic link that
+	/// is neither structural plumbing nor the `read` rel (already the row's primary
+	/// tap target). Keeps a future item link (e.g. `share`) rendering as a control
+	/// instead of being discarded, without double-rendering `read`.
+	var isSemanticControlLink: Bool {
+		guard case let .link(link) = invocation else { return false }
+		return !link.rel.contains { Affordance.structuralRels.contains($0) || $0 == "read" }
+	}
+
 	/// Whether the toolbar should surface this affordance as a control: it must be
-	/// both presentable in the toolbar (a structural navigation link or a
-	/// capture-only save is excluded by its presentation) and actually invokable
+	/// presentable in the toolbar (a structural navigation link or a capture-only
+	/// save is excluded), not carry any structural rel, and be actually invokable
 	/// from a bare control (a field-requiring action with no server value is
 	/// excluded).
 	var isToolbarControl: Bool {
-		presentation.isToolbarControl && isInvokableByBareControl
+		guard !isStructuralLink else { return false }
+		return presentation.isToolbarControl && isInvokableByBareControl
 	}
 
 	/// Whether invoking this affordance removes the item it acts on from the
@@ -154,12 +184,17 @@ extension Affordance {
 
 extension Article {
 	/// The advertised item affordances a row surfaces as swipe and accessibility
-	/// controls, filtered to those a bare control can actually invoke. Like the
+	/// controls: every action a bare control can actually invoke, plus every semantic
+	/// link that is neither structural plumbing nor the `read` tap target — so a
+	/// future item link (e.g. `share`) renders instead of being discarded. Like the
 	/// toolbar, the row drops a field-requiring action with no server value so a
 	/// future such item action is never rendered as a swipe that errors on tap. The
 	/// selection lives here, beside the symmetric toolbar rule
-	/// (`Affordance.isToolbarControl`) and the shared predicate it reuses
-	/// (`isInvokableByBareControl`), so the row's choice of controls is unit-testable
-	/// without standing up a view.
-	var rowControls: [Affordance] { affordances.filter(\.isInvokableByBareControl) }
+	/// (`Affordance.isToolbarControl`) and the shared predicates it reuses
+	/// (`isInvokableByBareControl`, `isSemanticControlLink`), so the row's choice of
+	/// controls is unit-testable without standing up a view.
+	var rowControls: [Affordance] {
+		affordances.filter(\.isInvokableByBareControl)
+			+ links.compactMap(Affordance.init(link:)).filter(\.isSemanticControlLink)
+	}
 }

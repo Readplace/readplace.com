@@ -50,12 +50,14 @@ struct WebPageView: UIViewControllerRepresentable {
 			decidePolicyFor navigationResponse: WKNavigationResponse,
 			decisionHandler: @escaping (WKNavigationResponsePolicy) -> Void
 		) {
-			if let http = navigationResponse.response as? HTTPURLResponse, http.statusCode >= 400 {
+			let statusCode = (navigationResponse.response as? HTTPURLResponse)?.statusCode
+			switch WebResponsePolicy.decide(statusCode: statusCode) {
+			case .allow:
+				decisionHandler(.allow)
+			case .fail:
 				decisionHandler(.cancel)
 				onFail()
-				return
 			}
-			decisionHandler(.allow)
 		}
 
 		func webView(_ webView: WKWebView, didFinish navigation: WKNavigation!) {

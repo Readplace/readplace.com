@@ -1,6 +1,6 @@
 import Foundation
 
-/// OAuth tokens issued by the server's `/oauth/token` endpoint.
+/// The OAuth token pair persisted for the app and share extension.
 struct OAuthTokens: Equatable {
 	let accessToken: String
 	let refreshToken: String
@@ -61,10 +61,23 @@ struct TokenStore {
 		guard
 			let url = Bundle.main.url(forResource: "embedded", withExtension: "mobileprovision"),
 			let data = try? Data(contentsOf: url),
+			let group = parseAppGroupId(fromProvisioningProfile: data)
+		else { return AppConfig.appGroupId }
+		return group
+	}()
+
+	/// Extracts the first application-group entitlement from an embedded
+	/// `.mobileprovision` blob, or nil when it can't be read. The profile is a
+	/// CMS-signed container with a plist inside; the signature isn't verified here
+	/// (the OS already did at install), so this just scans out the `<?xml…</plist>`
+	/// slice and reads the entitlement. Pulled out of `resolvedAppGroupId` so the
+	/// parsing is unit-testable without a real `Bundle.main`.
+	static func parseAppGroupId(fromProvisioningProfile data: Data) -> String? {
+		guard
 			let raw = String(data: data, encoding: .isoLatin1),
 			let start = raw.range(of: "<?xml"),
 			let end = raw.range(of: "</plist>")
-		else { return AppConfig.appGroupId }
+		else { return nil }
 		let plistString = String(raw[start.lowerBound..<end.upperBound])
 		guard
 			let plistData = plistString.data(using: .isoLatin1),
@@ -72,9 +85,9 @@ struct TokenStore {
 			let entitlements = plist["Entitlements"] as? [String: Any],
 			let groups = entitlements["com.apple.security.application-groups"] as? [String],
 			let group = groups.first
-		else { return AppConfig.appGroupId }
+		else { return nil }
 		return group
-	}()
+	}
 
 	var tokens: OAuthTokens? {
 		guard

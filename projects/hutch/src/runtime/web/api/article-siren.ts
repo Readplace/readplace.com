@@ -25,6 +25,10 @@ export function toArticleSubEntity(article: SavedArticle): SirenSubEntity {
 			status: article.status,
 			savedAt: article.savedAt.toISOString(),
 			readAt: article.readAt?.toISOString() ?? null,
+			// An explicit presentational read-state so a client renders the read
+			// indicator from one server-authored boolean rather than re-deriving it
+			// from the `status` vocabulary it would otherwise have to hard-code.
+			isRead,
 		},
 		links,
 		actions: [

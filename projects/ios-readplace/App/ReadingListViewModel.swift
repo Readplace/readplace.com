@@ -28,6 +28,10 @@ final class ReadingListViewModel: ObservableObject {
 	@Published private(set) var collectionAffordances: [Affordance] = [ReadingListViewModel.addLinksHelp]
 
 	private var nextHref: String?
+	/// The server-advertised `create-session` action from the loaded collection,
+	/// followed to mint the reader's browser session. Nil against a server that
+	/// hasn't advertised it, in which case the API falls back to a fixed path.
+	private var sessionAction: SirenAction?
 	private var isLoadingMore = false
 	/// Whether rows beyond the first page are loaded. A post-action adoption
 	/// replaces the list outright only while everything on screen came from one
@@ -37,10 +41,6 @@ final class ReadingListViewModel: ObservableObject {
 	/// Whether a collection has ever been applied. Gates the foreground refresh so
 	/// it never races the initial `.task` load with a second fetch at launch.
 	private var hasLoadedOnce = false
-	/// The row the reader marked read behind the web sheet, awaiting the dismissal
-	/// converge; consumed by `handleWebSheetDismissal` so the drop survives exactly
-	/// one re-read.
-	private var readerDroppedId: String?
 
 	private let api: ReadplaceAPI
 	private let onSessionExpired: () -> Void
@@ -139,15 +139,15 @@ final class ReadingListViewModel: ObservableObject {
 		}
 	}
 
-	/// Drops the row the reader just marked read — instantly, so the unread-only
-	/// list never shows it again behind the sheet. The reader's own POST answers
-	/// inside the webview where no Siren body is available, so reconciliation
-	/// belongs to the converge the sheet's dismissal triggers
-	/// (`handleWebSheetDismissal`); the id is remembered so that converge keeps
-	/// the row dropped even if an eventually-consistent server GET still lists it.
-	func readerMarkedRead(id: String) {
-		articles.removeAll { $0.id == id }
-		readerDroppedId = id
+	/// Reconciles the list after the reader reports a status change from inside the
+	/// webview. The reader's own POST answers where no Siren body is available and
+	/// the client cannot see which direction the toggle went, so it does not infer
+	/// "read" and drop a row — it re-reads the collection and adopts the server's
+	/// truth (a shallow list), which also brings in whatever changed elsewhere (e.g.
+	/// an item marked unread on the website). A deep-scrolled list holds its position
+	/// and reconciles on the next pull-to-refresh (`reloadAndAdopt`).
+	func readerStatusChanged() async {
+		await reloadAndAdopt(droppingId: nil)
 	}
 
 	/// Re-reads the list when the app returns to the foreground, so changes made
@@ -175,12 +175,8 @@ final class ReadingListViewModel: ObservableObject {
 	/// TokenStore and the cached UI. A live session pays one shallow
 	/// re-read, which doubles as the same reconciliation the foreground performs;
 	/// a deep-scrolled list still holds its position (`adopt` discards the page).
-	/// Carries the row the reader marked read behind this sheet, so the adopted
-	/// page never resurrects it (see `readerMarkedRead`).
 	func handleWebSheetDismissal() async {
-		let droppedId = readerDroppedId
-		readerDroppedId = nil
-		await reloadAndAdopt(droppingId: droppedId)
+		await reloadAndAdopt(droppingId: nil)
 	}
 
 	/// Reconciles the visible list with the server's post-action collection.
@@ -251,11 +247,12 @@ final class ReadingListViewModel: ObservableObject {
 	}
 
 	/// Mints the cookie session the reader webview needs from the current bearer.
-	/// Returns nil and surfaces the error when the bootstrap fails, so the reader
-	/// sheet can show its unavailable view instead of a blank page.
-	func mintReaderSession() async -> HTTPCookie? {
+	/// Returns the cookies the server set, or nil (surfacing the error) when the
+	/// bootstrap fails, so the reader sheet can show its unavailable view instead of
+	/// a blank page.
+	func mintReaderSession() async -> [HTTPCookie]? {
 		do {
-			return try await api.bootstrapSession()
+			return try await api.bootstrapSession(action: sessionAction)
 		} catch {
 			handle(error)
 			return nil
@@ -292,6 +289,7 @@ final class ReadingListViewModel: ObservableObject {
 		// the toolbar for the whole scroll.
 		if replacing {
 			applyToolbar(page)
+			sessionAction = page.action(named: "create-session")
 		}
 		warningText = page.warning?.message
 	}

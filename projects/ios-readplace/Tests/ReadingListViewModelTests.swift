@@ -738,46 +738,24 @@ final class ReadingListViewModelTests: XCTestCase {
 		XCTAssertNil(viewModel.errorText)
 	}
 
-	func testReaderMarkedReadDropsTheRowInstantlyWithoutItsOwnFetch() async {
-		// The reader's own POST already happened inside the webview, so the native
-		// side drops the row the moment the bridge fires — the unread-only list
-		// never shows it again behind the sheet — and issues no request of its own:
-		// reconciliation belongs to the converge the sheet's dismissal triggers.
-		StubURLProtocol.setHandler(markReadHandler { _ in .redirect(to: "/queue") })
-		let viewModel = makeViewModel(store: TestSupport.loggedInStore())
-		await viewModel.refresh()
-		let requestsAfterLoad = StubURLProtocol.records.count
-
-		viewModel.readerMarkedRead(id: "a1")
-
-		XCTAssertEqual(viewModel.articles.map(\.id), ["a2"], "the read row is gone before the sheet closes")
-		XCTAssertEqual(
-			StubURLProtocol.records.count, requestsAfterLoad,
-			"the reader already posted inside the webview; the drop itself fires nothing — the dismissal converge owns the re-read"
+	func testReaderStatusChangedConvergesWithTheServerWithoutInferringDirection() async {
+		// The reader's own POST already happened inside the webview, but the client
+		// can't see which direction the toggle went, so it does not infer "read" and
+		// drop a row — it re-reads the collection and adopts the server's truth, which
+		// no longer lists the read item (a1) and brings in an item marked unread on
+		// the website (w1).
+		let postAction = Fixtures.collection(
+			entitiesJSON: [Fixtures.article(id: "a2"), Fixtures.article(id: "w1")], total: 2
 		)
-	}
-
-	func testWebSheetDismissalAfterReaderMarkedReadConvergesAndKeepsTheRowDropped() async {
-		// Closing the reader converges with the server: the fresh page brings in an
-		// item marked unread on the website (w1), while the row the reader just
-		// marked read stays dropped even though the eventually-consistent GET still
-		// lists it — the dismissal converge carries the reader's confirmed drop.
-		let staleServerTruth = Fixtures.collection(
-			entitiesJSON: [
-				Fixtures.article(id: "a1"), Fixtures.article(id: "a2"), Fixtures.article(id: "w1"),
-			],
-			total: 3
-		)
-		StubURLProtocol.setHandler(markReadHandler(laterQueue: staleServerTruth) { _ in .redirect(to: "/queue") })
+		StubURLProtocol.setHandler(markReadHandler(laterQueue: postAction) { _ in .redirect(to: "/queue") })
 		let viewModel = makeViewModel(store: TestSupport.loggedInStore())
 		await viewModel.refresh()
 
-		viewModel.readerMarkedRead(id: "a1")
-		await viewModel.handleWebSheetDismissal()
+		await viewModel.readerStatusChanged()
 
 		XCTAssertEqual(
 			viewModel.articles.map(\.id), ["a2", "w1"],
-			"the convergence load is adopted minus the read row, which an eventually-consistent GET must not resurrect"
+			"the server's re-read collection is adopted as truth; no row is dropped by inference"
 		)
 		XCTAssertTrue(
 			StubURLProtocol.records.allSatisfy { $0.request.httpMethod != "POST" },
@@ -957,7 +935,7 @@ final class ReadingListViewModelTests: XCTestCase {
 		Article(
 			id: id, url: "https://example.com/x", title: "X", siteName: nil, excerpt: nil,
 			imageURL: nil, readTimeMinutes: nil, isRead: false, savedAt: nil,
-			actions: [], readHref: readHref
+			actions: [], links: [], readHref: readHref
 		)
 	}
 
@@ -997,10 +975,9 @@ final class ReadingListViewModelTests: XCTestCase {
 		}
 		let viewModel = makeViewModel(store: TestSupport.loggedInStore())
 
-		let cookie = await viewModel.mintReaderSession()
+		let cookies = await viewModel.mintReaderSession()
 
-		XCTAssertEqual(cookie?.name, "hutch_sid")
-		XCTAssertEqual(cookie?.value, "sess-xyz")
+		XCTAssertEqual(cookies?.first?.value, "sess-xyz")
 		XCTAssertNil(viewModel.errorText)
 	}
 
@@ -1010,9 +987,79 @@ final class ReadingListViewModelTests: XCTestCase {
 		}
 		let viewModel = makeViewModel(store: TestSupport.loggedInStore())
 
-		let cookie = await viewModel.mintReaderSession()
+		let cookies = await viewModel.mintReaderSession()
 
-		XCTAssertNil(cookie, "a failed bootstrap mints no session, so the sheet shows its unavailable view")
+		XCTAssertNil(cookies, "a failed bootstrap mints no session, so the sheet shows its unavailable view")
 		XCTAssertNotNil(viewModel.errorText)
+	}
+
+	// MARK: - Session expiry & warnings
+
+	func testUnauthorizedLoadLogsOutWithoutAnErrorBanner() async {
+		let api = ReadplaceAPI(
+			baseURL: AppConfig.serverBaseURL,
+			store: TestSupport.loggedInStore(),
+			sessionConfiguration: TestSupport.stubbedConfiguration()
+		)
+		var expired = false
+		let viewModel = ReadingListViewModel(api: api, onSessionExpired: { expired = true })
+		// 401 everywhere: the entry-point load 401s, the single refresh 401s, and
+		// the load surfaces .unauthorized.
+		StubURLProtocol.setHandler { _, _ in .json(401, "{}") }
+
+		await viewModel.refresh()
+
+		XCTAssertTrue(expired, "a 401 whose refresh also fails logs the user out")
+		XCTAssertNil(viewModel.errorText, "a session-expiry logout is not shown as an error banner")
+	}
+
+	func testCollectionWarningPopulatesWarningText() async {
+		let warnedQueue = """
+		{
+		  "class": ["collection", "articles"],
+		  "properties": { "total": 1, "page": 1, "pageSize": 20, "warning": { "code": "not-saveable", "message": "Cannot save that link." } },
+		  "entities": [\(Fixtures.article(id: "a1"))],
+		  "links": [{ "rel": ["self"], "href": "/queue" }, { "rel": ["root"], "href": "/queue" }],
+		  "actions": []
+		}
+		"""
+		StubURLProtocol.setHandler { request, _ in
+			request.url?.path == "/" ? .redirect(to: "/queue") : .json(200, warnedQueue)
+		}
+		let viewModel = makeViewModel(store: TestSupport.loggedInStore())
+
+		await viewModel.refresh()
+
+		XCTAssertEqual(viewModel.warningText, "Cannot save that link.")
+	}
+
+	func testMintReaderSessionFollowsTheServersCreateSessionAction() async {
+		let queueWithSession = """
+		{
+		  "class": ["collection", "articles"],
+		  "properties": { "total": 1, "page": 1, "pageSize": 20 },
+		  "entities": [\(Fixtures.article(id: "a1"))],
+		  "links": [{ "rel": ["self"], "href": "/queue" }, { "rel": ["root"], "href": "/queue" }],
+		  "actions": [{ "name": "create-session", "href": "/custom/session", "method": "POST" }]
+		}
+		"""
+		StubURLProtocol.setHandler { request, _ in
+			switch request.url?.path {
+			case "/": return .redirect(to: "/queue")
+			case "/queue": return .json(200, queueWithSession)
+			case "/custom/session": return StubURLProtocol.Stub(status: 204, headers: ["Set-Cookie": "sess=v; Path=/"])
+			default: return .json(404, "{}")
+			}
+		}
+		let viewModel = makeViewModel(store: TestSupport.loggedInStore())
+		await viewModel.refresh()
+
+		let cookies = await viewModel.mintReaderSession()
+
+		XCTAssertEqual(cookies?.first?.value, "v")
+		XCTAssertTrue(
+			StubURLProtocol.records.contains { $0.request.url?.path == "/custom/session" },
+			"the reader session mint follows the discovered create-session action, not a hard-coded route"
+		)
 	}
 }

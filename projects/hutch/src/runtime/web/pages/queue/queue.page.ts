@@ -296,6 +296,37 @@ const APP_BACK_LINK = {
 	label: "← Back to queue",
 } as const;
 
+/** Server-authored bridge for the iOS in-app reader: when the reader's mark-read
+ * htmx request completes, tell the WKWebView so the native app closes the sheet
+ * and reconciles its list. Guarded on the WKWebView message handler, so it is inert
+ * in a normal browser that renders this same reader. Keeping the htmx detail here —
+ * rather than injected by the app — keeps the htmx coupling on the server that owns
+ * htmx; the app only registers the `readplaceReader` handler and reacts to the
+ * `markedRead` message, with no knowledge of the front-end's event shape. */
+const READER_MARK_READ_BRIDGE_SCRIPT = `<script>
+(function () {
+	var handlers = window.webkit && window.webkit.messageHandlers;
+	if (!handlers || !handlers.readplaceReader) { return; }
+	function hasStatusField(params) {
+		if (!params) { return false; }
+		if (typeof params.has === "function") { return params.has("status"); }
+		if (typeof params.get === "function") { return params.get("status") != null; }
+		return Object.prototype.hasOwnProperty.call(params, "status");
+	}
+	function isStatusChange(detail) {
+		var cfg = (detail && detail.requestConfig) || {};
+		var verb = (cfg.verb || "").toString().toUpperCase();
+		var xhr = (detail && detail.xhr) || {};
+		return verb === "POST" && hasStatusField(cfg.parameters) && xhr.status >= 200 && xhr.status < 400;
+	}
+	document.body.addEventListener("htmx:beforeSwap", function (event) {
+		if (!isStatusChange(event.detail)) { return; }
+		event.detail.shouldSwap = false;
+		handlers.readplaceReader.postMessage({ type: "markedRead" });
+	});
+})();
+</script>`;
+
 /** True when the client wants the app's chromeless reader rather than the full web
  * shell — chosen by an explicit client signal, never a user-agent sniff. The app
  * appends `?platform=ios` to the `read` link it loads in its WKWebView; the
@@ -466,20 +497,25 @@ export function initQueueRoutes(deps: QueueDependencies): Router {
 		const { article: ownedArticle, state, audioEnabled } = resolved;
 
 		if (isIosPlatform(req)) {
+			const readerBody = ReaderPage({ ...ownedArticle, content: state.content }, {
+				appOrigin: deps.appOrigin,
+				summary: state.summary,
+				summaryPollUrl: state.summaryPollUrl,
+				crawl: state.crawl,
+				readerPollUrl: state.readerPollUrl,
+				progress: state.progress,
+				audioEnabled,
+				extensionInstallUrl: undefined,
+				backLink: APP_BACK_LINK,
+				renderActions: deps.chromelessReader,
+			});
+			assert(readerBody.scripts, "the reader page always sets its scripts");
 			sendComponent(
 				req, res,
-				ChromelessPage(ReaderPage({ ...ownedArticle, content: state.content }, {
-					appOrigin: deps.appOrigin,
-					summary: state.summary,
-					summaryPollUrl: state.summaryPollUrl,
-					crawl: state.crawl,
-					readerPollUrl: state.readerPollUrl,
-					progress: state.progress,
-					audioEnabled,
-					extensionInstallUrl: undefined,
-					backLink: APP_BACK_LINK,
-					renderActions: deps.chromelessReader,
-				})),
+				ChromelessPage({
+					...readerBody,
+					scripts: readerBody.scripts + READER_MARK_READ_BRIDGE_SCRIPT,
+				}),
 			);
 			return;
 		}

@@ -96,8 +96,8 @@ final class ReadplaceAPI {
 
 	// Defaults to an ephemeral configuration so the session's cookie jar is its
 	// own isolated, in-memory store rather than process-wide `HTTPCookieStorage.shared`:
-	// the `hutch_sid` cookie minted by `bootstrapSession` must not linger in the
-	// shared jar where it would outlive the session and leak across sign-outs.
+	// the session cookie minted by `bootstrapSession` must not linger in the shared
+	// jar where it would outlive the session and leak across sign-outs.
 	init(
 		baseURL: String,
 		store: TokenStore,
@@ -182,41 +182,53 @@ final class ReadplaceAPI {
 
 	// MARK: - Reader session
 
-	/// Mints a browser session cookie from the current bearer token via the
-	/// session-bootstrap endpoint and returns it. The in-app reader injects the
-	/// cookie so the cookie-authenticated reader page (and its in-reader XHRs)
-	/// load without bouncing to a sign-in page. Reuses `send()`, so a stale bearer
-	/// is refreshed once before the cookie is minted.
-	func bootstrapSession() async throws -> HTTPCookie {
-		guard let url = URL(string: "\(baseURL)/auth/session") else { throw APIError.decoding }
+	/// Mints a browser session from the current bearer token and returns every
+	/// cookie the response set. The in-app reader injects them so the
+	/// cookie-authenticated reader page (and its in-reader XHRs) load without
+	/// bouncing to a sign-in page. Follows the server-declared `action`'s href and
+	/// method when the collection advertised one (`create-session`), so the endpoint
+	/// can move without an app release; falls back to a fixed path only for a server
+	/// that hasn't advertised the action yet (an older shipped build must keep
+	/// working). The client never selects a cookie by name — it forwards whatever the
+	/// server set. Reuses `send()`, so a stale bearer is refreshed once before the
+	/// session is minted; a response that sets no cookie is a failed mint.
+	func bootstrapSession(action: SirenAction? = nil) async throws -> [HTTPCookie] {
+		let url: URL
+		let method: String
+		if let action {
+			url = try absoluteURL(action.href)
+			method = action.method
+		} else {
+			guard let fallback = URL(string: "\(baseURL)/auth/session") else { throw APIError.decoding }
+			url = fallback
+			method = "POST"
+		}
 		var request = URLRequest(url: url)
-		request.httpMethod = "POST"
+		request.httpMethod = method
 		let (data, http) = try await send(request)
 		guard (200...299).contains(http.statusCode) else {
 			throw apiError(from: data, status: http.statusCode)
 		}
-		guard let cookie = sessionCookie(from: http, url: url) else { throw APIError.decoding }
-		return cookie
+		let cookies = sessionCookies(from: http, url: url)
+		guard !cookies.isEmpty else { throw APIError.decoding }
+		return cookies
 	}
 
-	/// Reads the session cookie by name from the session's own cookie jar, which
-	/// the configuration isolates (an ephemeral store, not `HTTPCookieStorage.shared`)
-	/// so the cookie URLSession just parsed never touches the process-wide jar.
-	/// The cookie spec forbids folding repeated `Set-Cookie` headers into one
-	/// comma-joined value, so re-splitting `allHeaderFields` is unsafe once a
-	/// response sets more than one cookie; reading the already-parsed cookie back
-	/// by name sidesteps that. Falls back to the response's own `Set-Cookie`
-	/// header (reliable for a single cookie) for environments that don't populate
-	/// the store.
-	private func sessionCookie(from response: HTTPURLResponse, url: URL) -> HTTPCookie? {
-		if let stored = session.configuration.httpCookieStorage?
-			.cookies(for: url)?
-			.first(where: { $0.name == AppConfig.sessionCookieName }) {
+	/// Reads every cookie the bootstrap response set from the session's own cookie
+	/// jar, which the configuration isolates (an ephemeral store, not
+	/// `HTTPCookieStorage.shared`) so the cookies URLSession just parsed never touch
+	/// the process-wide jar. The cookie spec forbids folding repeated `Set-Cookie`
+	/// headers into one comma-joined value, so re-splitting `allHeaderFields` is
+	/// unsafe once a response sets more than one cookie; reading the already-parsed
+	/// cookies back from the store sidesteps that. Falls back to parsing the
+	/// response's own `Set-Cookie` header for environments that don't populate the
+	/// store.
+	private func sessionCookies(from response: HTTPURLResponse, url: URL) -> [HTTPCookie] {
+		if let stored = session.configuration.httpCookieStorage?.cookies(for: url), !stored.isEmpty {
 			return stored
 		}
-		guard let headers = response.allHeaderFields as? [String: String] else { return nil }
+		guard let headers = response.allHeaderFields as? [String: String] else { return [] }
 		return HTTPCookie.cookies(withResponseHeaderFields: headers, for: url)
-			.first { $0.name == AppConfig.sessionCookieName }
 	}
 
 	// MARK: - Saving
@@ -299,8 +311,8 @@ final class ReadplaceAPI {
 
 	/// Builds a `multipart/form-data` request with a UUID boundary for
 	/// `save-content`: the `url`, `mediaType` and (when non-empty) `title` text
-	/// parts, then a `content` file part whose `filename` attribute is what the
-	/// server keys `isFile` off — its per-part Content-Type is ignored.
+	/// parts, then a `content` file part. The content part carries a `filename`
+	/// attribute so the server treats it as a file rather than a text field.
 	private func multipartRequest(
 		_ url: URL,
 		method: String,
@@ -501,10 +513,9 @@ final class ReadplaceAPI {
 
 /// Re-attaches `Authorization`, `Accept` and `X-Readplace-Client` to redirected
 /// requests. URLSession strips `Authorization` on cross-origin redirects and may
-/// drop custom headers generally; the server bounces the client from the entry
+/// drop custom headers generally; the server redirects the client from the entry
 /// point to the collection, so the followed redirect must keep them to stay
-/// authenticated and keep negotiating Siren (the client header so onboarding
-/// step 1 is recorded on the post-redirect `/queue` load).
+/// authenticated and keep negotiating Siren.
 private final class RedirectHeaderPreservingDelegate: NSObject, URLSessionTaskDelegate {
 	func urlSession(
 		_ session: URLSession,

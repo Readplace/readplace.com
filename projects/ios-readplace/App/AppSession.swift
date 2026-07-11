@@ -28,8 +28,8 @@ final class AppSession: ObservableObject {
 
 	// Defaults to an ephemeral configuration so the API/OAuth sessions keep their
 	// cookie jar in an isolated, in-memory store rather than process-wide
-	// `HTTPCookieStorage.shared` — the minted `hutch_sid` reader cookie must not
-	// linger in the shared jar where it would outlive a sign-out.
+	// `HTTPCookieStorage.shared` — the minted reader session cookie must not linger
+	// in the shared jar where it would outlive a sign-out.
 	//
 	// `wipeReaderWebStore` defaults to the real WebKit deletion; it's the
 	// OS-boundary seam tests replace with a spy.
@@ -97,32 +97,30 @@ final class AppSession: ObservableObject {
 		return readerWipe
 	}
 
-	private static func isSessionCookie(_ cookie: HTTPCookie) -> Bool {
-		cookie.name == AppConfig.sessionCookieName
-	}
-
-	/// Drops the minted browser session cookie (`hutch_sid`) on sign-out so it
-	/// doesn't linger in the API session's cookie jar for the next sign-in in the
-	/// same process. The jar is the configuration's own isolated store (never
-	/// `HTTPCookieStorage.shared`), so this clears only this app's copy.
+	/// Clears the API session's isolated cookie jar on sign-out so the minted
+	/// browser session cookie doesn't linger for the next sign-in in the same
+	/// process. The jar is the configuration's own isolated store (never
+	/// `HTTPCookieStorage.shared`), so clearing it wholesale touches only this app's
+	/// copy and needs no knowledge of the server's cookie name.
 	private func clearSessionCookie() {
 		let storage = sessionConfiguration.httpCookieStorage
-		for cookie in storage?.cookies ?? [] where Self.isSessionCookie(cookie) {
+		for cookie in storage?.cookies ?? [] {
 			storage?.deleteCookie(cookie)
 		}
 	}
 
 	/// Removes the reader's authenticated traces from the process-wide WebKit
-	/// default store on sign-out. The session cookie is deleted by name — a
-	/// blanket cookie wipe would also drop server-set cookies a full-shell page
-	/// may have put in this store (e.g. a changelog dismissal set after a
-	/// session-expiry redirect) — while every non-cookie data type is cleared so
-	/// the signed-out account's reading history doesn't stay on disk, accepting
-	/// that the share hint's localStorage dismissal resets with it.
+	/// default store on sign-out: every cookie scoped to the app's own server host
+	/// (whatever the server named the session cookie), so a server cookie rename
+	/// needs no app release, plus every non-cookie data type so the signed-out
+	/// account's reading history doesn't stay on disk. Scoping the cookie wipe to the
+	/// server host leaves cookies for other origins untouched.
 	private static func removeReaderWebStoreData() async {
 		let store = WKWebsiteDataStore.default()
-		for cookie in await store.httpCookieStore.allCookies() where isSessionCookie(cookie) {
-			await store.httpCookieStore.delete(cookie)
+		if let host = URL(string: AppConfig.serverBaseURL)?.host {
+			for cookie in await store.httpCookieStore.allCookies() where cookie.domain.contains(host) {
+				await store.httpCookieStore.delete(cookie)
+			}
 		}
 		let nonCookieTypes = WKWebsiteDataStore.allWebsiteDataTypes().subtracting([WKWebsiteDataTypeCookies])
 		await store.removeData(ofTypes: nonCookieTypes, modifiedSince: .distantPast)

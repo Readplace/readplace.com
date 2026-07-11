@@ -1,4 +1,5 @@
 import SwiftUI
+import UIKit
 import WebKit
 
 /// Presents the server's authenticated reader in a WKWebView — the app acting as
@@ -12,7 +13,7 @@ import WebKit
 /// existing precedent.
 struct ReaderWebView: UIViewControllerRepresentable {
 	let url: URL
-	let cookie: HTTPCookie
+	let cookies: [HTTPCookie]
 	let onMarkedRead: () -> Void
 	let onClose: () -> Void
 	/// Injected so the composition point wires the live browser and tests inject
@@ -27,12 +28,10 @@ struct ReaderWebView: UIViewControllerRepresentable {
 		let controller = UIViewController()
 
 		let userContent = WKUserContentController()
+		// The server's chromeless reader posts the mark-read message itself; the app
+		// only registers the handler and reacts. It injects no script, so it holds no
+		// knowledge of the reader front-end's htmx internals.
 		userContent.add(context.coordinator, name: ReaderBridge.messageName)
-		userContent.addUserScript(WKUserScript(
-			source: ReaderBridge.script,
-			injectionTime: .atDocumentEnd,
-			forMainFrameOnly: true
-		))
 
 		let configuration = WKWebViewConfiguration()
 		configuration.userContentController = userContent
@@ -51,10 +50,16 @@ struct ReaderWebView: UIViewControllerRepresentable {
 		webView.uiDelegate = context.coordinator
 		controller.view = webView
 
-		// Inject the prefetched session cookie into the web view's own store before
+		// Inject every prefetched session cookie into the web view's own store before
 		// the first navigation, so the reader and its in-reader XHRs are
-		// authenticated from the first request.
-		webView.configuration.websiteDataStore.httpCookieStore.setCookie(cookie) {
+		// authenticated from the first request. The client forwards whatever the
+		// bootstrap set rather than picking one by name, so a server cookie change
+		// needs no app release.
+		Task { @MainActor in
+			let cookieStore = webView.configuration.websiteDataStore.httpCookieStore
+			for cookie in cookies {
+				await cookieStore.setCookie(cookie)
+			}
 			webView.load(URLRequest(url: url))
 		}
 		return controller
@@ -136,40 +141,40 @@ struct ReaderWebView: UIViewControllerRepresentable {
 	}
 }
 
-/// The JS↔native bridge for the reader. The reader's mark-read control is an
+/// Presents a dialog as a native alert over the web view, answering exactly
+/// once on every path. The web view lives inside a SwiftUI sheet, so the
+/// presenter is the window's topmost presented controller (the sheet's hosting
+/// controller), not the root — the root is already presenting, so presenting
+/// from it would silently fail and leave the page's script hanging on an
+/// unanswered handler. A web view with no window (mid-dismissal) answers
+/// `unpresentedAnswer` instead of presenting nowhere or crashing.
+func presentWebDialog(_ dialog: WebDialog, over webView: WKWebView, answer: @escaping (Bool) -> Void) {
+	guard var presenter = webView.window?.rootViewController else {
+		answer(dialog.unpresentedAnswer)
+		return
+	}
+	while let presented = presenter.presentedViewController {
+		presenter = presented
+	}
+	let alert = UIAlertController(title: nil, message: dialog.message, preferredStyle: .alert)
+	for choice in dialog.choices {
+		alert.addAction(UIAlertAction(title: choice.title, style: choice.style) { _ in
+			answer(choice.answer)
+		})
+	}
+	presenter.present(alert, animated: true)
+}
+
+/// The native side of the reader's mark-read bridge. The reader's mark-read is an
 /// htmx form whose XHR never triggers a navigation, so a `WKNavigationDelegate`
-/// can't observe it — the script listens for htmx's swap event instead. The pure
-/// message parser is unit-tested; the WKWebView glue that registers and receives
-/// the message is left untested (OS boundary), like `AuthWebView` before it.
+/// can't observe it. Rather than the app injecting a script that sniffs the
+/// front-end's htmx events, the server's chromeless reader posts the message
+/// itself (the htmx coupling stays on the server that owns htmx); the app only
+/// registers this handler and interprets the message. The pure message parser is
+/// unit-tested; the WKWebView glue that registers and receives it is left untested
+/// (OS boundary), like `AuthWebView` before it.
 enum ReaderBridge {
 	static let messageName = "readplaceReader"
-
-	/// Cancels the htmx swap for a successful status-change POST (so the page it
-	/// redirects to never flashes into the sheet) and signals the native side,
-	/// which closes the sheet and drops the row. The detector keys on the protocol
-	/// vocabulary — a successful POST carrying the `status` field — not on the
-	/// request URL, so the server can move the endpoint without breaking the app.
-	static let script = """
-	(function () {
-	  function hasStatusField(params) {
-	    if (!params) { return false; }
-	    if (typeof params.has === 'function') { return params.has('status'); }
-	    if (typeof params.get === 'function') { return params.get('status') != null; }
-	    return Object.prototype.hasOwnProperty.call(params, 'status');
-	  }
-	  function isStatusChange(detail) {
-	    var cfg = (detail && detail.requestConfig) || {};
-	    var verb = (cfg.verb || '').toString().toUpperCase();
-	    var xhr = (detail && detail.xhr) || {};
-	    return verb === 'POST' && hasStatusField(cfg.parameters) && xhr.status >= 200 && xhr.status < 400;
-	  }
-	  document.body.addEventListener('htmx:beforeSwap', function (event) {
-	    if (!isStatusChange(event.detail)) { return; }
-	    event.detail.shouldSwap = false;
-	    window.webkit.messageHandlers.readplaceReader.postMessage({ type: 'markedRead' });
-	  });
-	})();
-	"""
 
 	/// Whether a received bridge message reports a completed mark-read. Pure and
 	/// unit-tested.

@@ -95,6 +95,7 @@ describe("toArticleCollectionEntity", () => {
 			"status",
 			"savedAt",
 			"readAt",
+			"isRead",
 		]);
 	});
 
@@ -274,6 +275,21 @@ describe("toArticleCollectionEntity", () => {
 		expect(saveArticlesAction?.method).toBe("POST");
 		expect(saveArticlesAction?.type).toBe("multipart/form-data");
 		expect(saveArticlesAction?.fields?.map((f) => f.name)).toEqual(["manifest", "content"]);
+	});
+
+	it("advertises a create-session action so a client discovers the reader session mint", () => {
+		const result: FindArticlesResult = {
+			articles: [],
+			total: 0,
+			page: 1,
+			pageSize: 20,
+		};
+
+		const entity = toArticleCollectionEntity(result, {});
+
+		const sessionAction = entity.actions?.find((a) => a.name === "create-session");
+		expect(sessionAction?.href).toBe("/auth/session");
+		expect(sessionAction?.method).toBe("POST");
 	});
 
 	it("includes search action with filter fields", () => {

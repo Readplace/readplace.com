@@ -30,6 +30,17 @@ private extension KeyedDecodingContainer {
 		}
 		return elements
 	}
+
+	/// Decodes a single value under `key` leniently: a missing, null, or malformed
+	/// value yields `nil` instead of failing the surrounding decode. Used for a
+	/// property whose absence or evolution must degrade the one thing it feeds, not
+	/// blank the whole response.
+	func decodeLossyIfPresent<Value: Decodable>(
+		_ type: Value.Type,
+		forKey key: Key
+	) throws -> Value? {
+		(try decodeIfPresent(FailableDecodable<Value>.self, forKey: key))?.wrapped
+	}
 }
 
 // MARK: - Wire format (Siren)
@@ -126,6 +137,10 @@ struct ArticleProperties: Decodable {
 	let status: String?
 	let savedAt: String?
 	let readAt: String?
+	/// The server's explicit presentational read-state. Optional so an older server
+	/// that doesn't emit it still decodes; the client falls back to deriving read
+	/// state from `status`/`readAt` only then.
+	let isRead: Bool?
 }
 
 struct SirenEntity: Decodable {
@@ -158,10 +173,24 @@ struct CollectionProperties: Decodable {
 	let warning: SirenWarning?
 }
 
+extension CollectionProperties {
+	private enum CodingKeys: String, CodingKey { case warning }
+
+	/// Decodes the warning leniently so an evolving or malformed warning degrades to
+	/// no banner rather than failing the whole collection decode: the warning is a
+	/// non-fatal channel, so a change to it must never be the one thing that blanks
+	/// the page.
+	init(from decoder: Decoder) throws {
+		let container = try decoder.container(keyedBy: CodingKeys.self)
+		warning = try container.decodeLossyIfPresent(SirenWarning.self, forKey: .warning)
+	}
+}
+
 /// A non-fatal reason the server attaches to a collection (e.g. a URL that
-/// couldn't be saved).
+/// couldn't be saved). `code` is optional: the client renders only `message`, so a
+/// warning whose classifier the client doesn't read still surfaces its text.
 struct SirenWarning: Decodable {
-	let code: String
+	let code: String?
 	let message: String
 }
 
@@ -208,9 +237,8 @@ struct ServerMessage: Decodable, Equatable {
 extension ServerMessage {
 	/// How a client should present a message. The wire `type` stays a `String` so
 	/// an unknown future value still decodes; `kind` maps it for the UI and treats
-	/// any unrecognized value as `.warning` (the neutral default) — mirroring the
-	/// server's current `"warning" | "error"` union without hard-failing on a value
-	/// a newer server might add.
+	/// any unrecognized value as `.warning` (the neutral default), so a value a
+	/// newer server adds never hard-fails.
 	enum Kind {
 		case warning
 		case error
@@ -324,6 +352,11 @@ struct Article: Identifiable, Hashable {
 	/// per actionable entry by iterating this — it never cherry-picks an action by
 	/// name — so a newly-advertised item action renders with no client change.
 	let actions: [SirenAction]
+	/// Every navigable link the server advertised on this item, in wire order. The
+	/// `read` link (the row's primary tap target) is surfaced through `readHref`;
+	/// every other non-structural semantic link becomes a discrete control, so a
+	/// future item link (e.g. `share`) renders instead of being discarded.
+	let links: [SirenLink]
 	/// The href of the server-declared link for reading this item, followed when
 	/// the row is tapped. Absent ⇒ the row is not openable. This follows the
 	/// navigable `read` link (the row's primary tap target), distinct from the
@@ -337,7 +370,10 @@ struct Article: Identifiable, Hashable {
 extension Article {
 	/// The item's action controls, one per advertised action the client can
 	/// invoke (an action with a usable href). Built by iterating — not by matching
-	/// a known name — so the loop renders whatever the server offered.
+	/// a known name — so the loop renders whatever the server offered. The row also
+	/// surfaces the item's semantic links (see `rowControls`), which is derived in
+	/// the presentation layer because a link's control-worthiness is a client
+	/// presentation concern.
 	var affordances: [Affordance] { actions.compactMap(Affordance.init(action:)) }
 
 	/// Builds a display model from a Siren entity, or returns nil when the
@@ -355,10 +391,13 @@ extension Article {
 		excerpt = props.excerpt
 		imageURL = props.imageUrl.flatMap(URL.init(string:))
 		readTimeMinutes = props.estimatedReadTimeMinutes
-		isRead = props.status == "read" || props.readAt != nil
+		// Prefer the server's explicit read-state; fall back to deriving it from the
+		// status vocabulary only for an older server that doesn't emit `isRead`.
+		isRead = props.isRead ?? (props.status == "read" || props.readAt != nil)
 		savedAt = props.savedAt.flatMap(SirenDate.parse)
 		actions = entity.actions ?? []
-		readHref = entity.links?.first { $0.rel.contains("read") }?.href
+		links = entity.links ?? []
+		readHref = links.first { $0.rel.contains("read") }?.href
 	}
 }
 

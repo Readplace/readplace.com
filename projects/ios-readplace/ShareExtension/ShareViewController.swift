@@ -29,24 +29,16 @@ final class ShareViewController: UIViewController {
 		let sharedPdf: (() async -> Data?)? = shared?.pdfProvider.map { provider in
 			{ await ShareURLExtractor.loadPDFData(provider) }
 		}
-		switch await saver.run(url: shared?.url, fallbackTitle: shared?.title, sharedPdf: sharedPdf) {
-		case .savedWithContent:
-			finish(message: "Saved with content", symbol: "checkmark.circle.fill", tint: .brandSuccess)
-		case .savedLinkOnly:
-			finish(message: "Saved (link only)", symbol: "checkmark.circle.fill", tint: .brandSuccess)
-		case .notLoggedIn:
-			finish(message: "Open Readplace and sign in first.",
-				symbol: "person.crop.circle.badge.exclamationmark", tint: .brandWarning)
-		case .noLink:
-			finish(message: "No link found to save.", symbol: "link", tint: .brandWarning)
-		case .noSaveAction:
-			finish(message: "The server offered no save action.",
-				symbol: "exclamationmark.triangle.fill", tint: .brandError)
-		case .refused(let messages):
-			finish(message: messages.map(\.plainText).joined(separator: "\n"), symbol: "lock.fill",
-				tint: messages.contains { $0.kind == .error } ? .brandError : .brandWarning)
-		case .failed(let message):
-			finish(message: message, symbol: "exclamationmark.triangle.fill", tint: .brandError)
+		let outcome = await saver.run(url: shared?.url, fallbackTitle: shared?.title, sharedPdf: sharedPdf)
+		let status = ShareStatusPresentation(outcome: outcome)
+		finish(message: status.message, symbol: status.symbol, tint: uiColor(for: status.tone))
+	}
+
+	private func uiColor(for tone: ShareStatusTone) -> UIColor {
+		switch tone {
+		case .success: return .brandSuccess
+		case .warning: return .brandWarning
+		case .error: return .brandError
 		}
 	}
 

@@ -23,7 +23,7 @@ final class LoginFlowTests: XCTestCase {
 		let request = makeService(store: TestSupport.loggedInStore()).makeNativeLoginAuthorizationRequest()
 
 		let components = URLComponents(url: request.url, resolvingAgainstBaseURL: false)!
-		XCTAssertEqual(components.host, "readplace.com")
+		XCTAssertEqual(components.host, URL(string: AppConfig.serverBaseURL)?.host)
 		XCTAssertEqual(components.path, "/oauth/authorize")
 		let items = Dictionary(uniqueKeysWithValues: (components.queryItems ?? []).map { ($0.name, $0.value ?? "") })
 		XCTAssertEqual(items["client_id"], "ios-app")
@@ -98,8 +98,8 @@ final class LoginFlowTests: XCTestCase {
 
 		XCTAssertFalse(session.isLoggedIn)
 		XCTAssertNil(
-			config.httpCookieStorage?.cookies?.first { $0.name == AppConfig.sessionCookieName },
-			"the minted hutch_sid cookie must not survive a forced sign-out"
+			config.httpCookieStorage?.cookies?.first { $0.name == "hutch_sid" },
+			"the minted session cookie must not survive a forced sign-out"
 		)
 		await readerWipe.value
 		XCTAssertTrue(
@@ -123,8 +123,8 @@ final class LoginFlowTests: XCTestCase {
 
 		XCTAssertFalse(session.isLoggedIn)
 		XCTAssertNil(
-			config.httpCookieStorage?.cookies?.first { $0.name == AppConfig.sessionCookieName },
-			"the minted hutch_sid cookie must not survive sign-out"
+			config.httpCookieStorage?.cookies?.first { $0.name == "hutch_sid" },
+			"the minted session cookie must not survive sign-out"
 		)
 		XCTAssertTrue(
 			readerWipeInvoked,
@@ -160,5 +160,52 @@ final class LoginFlowTests: XCTestCase {
 		let queueRequest = try XCTUnwrap(StubURLProtocol.records(path: "/queue").first?.request)
 		XCTAssertEqual(queueRequest.value(forHTTPHeaderField: "Authorization"), "Bearer access-1")
 		XCTAssertEqual(queueRequest.value(forHTTPHeaderField: "Accept"), "application/vnd.siren+json")
+	}
+
+	func testCallbackCarryingAnErrorParamIsDeniedWithoutExchanging() async {
+		let store = TokenStore(defaults: TestSupport.ephemeralDefaults())
+		let session = AppSession(store: store, sessionConfiguration: TestSupport.stubbedConfiguration())
+
+		let result = await session.completeSignIn(
+			callbackURL: URL(string: "\(AppConfig.nativeCallbackURL)?error=access_denied&state=S")!,
+			verifier: "v", expectedState: "S", redirectURI: AppConfig.nativeCallbackURL
+		)
+
+		guard case .failure(let error) = result else { return XCTFail("expected .failure, got \(result)") }
+		XCTAssertEqual((error as? AuthFlowError)?.errorDescription, AuthFlowError.denied("access_denied").errorDescription)
+		XCTAssertFalse(session.isLoggedIn)
+		XCTAssertTrue(StubURLProtocol.records(path: "/oauth/token").isEmpty, "a denied authorization exchanges no code")
+	}
+
+	func testCallbackWithoutACodeIsMissingCodeWithoutExchanging() async {
+		let store = TokenStore(defaults: TestSupport.ephemeralDefaults())
+		let session = AppSession(store: store, sessionConfiguration: TestSupport.stubbedConfiguration())
+
+		let result = await session.completeSignIn(
+			callbackURL: URL(string: "\(AppConfig.nativeCallbackURL)?state=S")!,
+			verifier: "v", expectedState: "S", redirectURI: AppConfig.nativeCallbackURL
+		)
+
+		guard case .failure(let error) = result else { return XCTFail("expected .failure, got \(result)") }
+		XCTAssertEqual((error as? AuthFlowError)?.errorDescription, AuthFlowError.missingCode.errorDescription)
+		XCTAssertTrue(StubURLProtocol.records(path: "/oauth/token").isEmpty)
+	}
+
+	func testExchangeFailureDuringSignInSurfacesAsFailureAndStaysLoggedOut() async {
+		let store = TokenStore(defaults: TestSupport.ephemeralDefaults())
+		let session = AppSession(store: store, sessionConfiguration: TestSupport.stubbedConfiguration())
+		StubURLProtocol.setHandler { _, _ in .json(400, "{\"error\":\"invalid_grant\"}") }
+
+		let result = await session.completeSignIn(
+			callbackURL: URL(string: "\(AppConfig.nativeCallbackURL)?code=abc&state=S")!,
+			verifier: "v", expectedState: "S", redirectURI: AppConfig.nativeCallbackURL
+		)
+
+		guard case .failure(let error) = result else { return XCTFail("expected .failure, got \(result)") }
+		XCTAssertEqual(
+			(error as? OAuthError)?.errorDescription,
+			OAuthError.tokenExchangeFailed(status: 400).errorDescription
+		)
+		XCTAssertFalse(session.isLoggedIn)
 	}
 }

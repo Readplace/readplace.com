@@ -1,0 +1,37 @@
+{
+  "_comment": "Per-file line-coverage floors for the iOS app, enforced by check-coverage.py after `make test`. `excluded` lists files that are pure SwiftUI layout, UIKit shells, or WebKit/OS-boundary glue — unit-uncoverable without UI tests (the Swift analog of the repo's whole-file OS-boundary coverage exclusion). Every other source file must stay at or above its floor; a source file with no floor must be 100%, so a new logic file cannot land untested. Floors are a RATCHET: raise them as coverage improves (the E-series PRs walk the logic files toward 100% and move ShareURLExtractor out of `excluded`), never lower them without approval.",
+  "excluded": {
+    "WebAuthOpeners.swift": "UIApplication URL-opening glue (OS boundary)",
+    "WebPageView.swift": "WKWebView SwiftUI wrapper (OS boundary)",
+    "ReaderWebView.swift": "WKWebView + JS-bridge SwiftUI wrapper (OS boundary); the pure bridge parser is covered by ReaderBridgeTests",
+    "HTMLCaptor.swift": "WKWebView navigation/capture state machine (OS boundary); the pure navigationResponseDecision is covered by HTMLCaptorTests",
+    "AddLinkInstructionsView.swift": "pure SwiftUI layout",
+    "ReaderSheet.swift": "pure SwiftUI layout",
+    "ArticleRow.swift": "pure SwiftUI layout",
+    "ReadingListView.swift": "pure SwiftUI layout",
+    "ShareViewController.swift": "UIKit share-extension shell (OS boundary)"
+  },
+  "floors": {
+    "AppConfig.swift": 100,
+    "BrandColor.swift": 100,
+    "PendingAuthStore.swift": 100,
+    "ToolbarRoute.swift": 100,
+    "ReaderNavigation.swift": 100,
+    "ShareStatusPresentation.swift": 100,
+    "ShareURLExtractor.swift": 96,
+    "SirenModels.swift": 99,
+    "WebAuthFlow.swift": 97,
+    "PKCE.swift": 95,
+    "ReadplaceAPI.swift": 94,
+    "URLDetection.swift": 94,
+    "ReadingListViewModel.swift": 94,
+    "SaveSharedPage.swift": 93,
+    "LoginView.swift": 91,
+    "AffordancePresentation.swift": 91,
+    "TokenStore.swift": 98,
+    "OAuthService.swift": 97,
+    "KeychainTokenStorage.swift": 97,
+    "AppSession.swift": 82,
+    "ReadplaceApp.swift": 64
+  }
+}
