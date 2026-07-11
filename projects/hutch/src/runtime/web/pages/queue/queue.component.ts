@@ -5,7 +5,7 @@ import { OnboardingChecklist, ONBOARDING_STYLES } from "../../onboarding/onboard
 import type { Platform } from "../../onboarding/onboarding.types";
 import type { DeviceClass } from "@packages/web-analytics";
 import { render, withInternalTracking, SUBSCRIBE_CTA_LABEL } from "@packages/web-shell";
-import type { PageBody } from "@packages/web-shell";
+import type { LocalTime, PageBody } from "@packages/web-shell";
 
 import { QUEUE_STYLES } from "./queue.styles";
 import { renderQueueCard, toQueueCardDisplayModel } from "./queue-card/queue-card.component";
@@ -56,7 +56,7 @@ interface QueueDisplayModel {
 	subscribeCtaLabel: string;
 	trialDaysLeft?: number;
 	trialDaysLeftWord?: string;
-	cancellationEffectiveAt?: string;
+	cancellationEffectiveAt?: LocalTime;
 	accessIsReadOnly: boolean;
 	saveFormClass: string;
 }

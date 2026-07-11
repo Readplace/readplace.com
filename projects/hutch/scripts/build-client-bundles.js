@@ -293,6 +293,7 @@ const BUNDLES = [
 			"  TrialCountdown.initTrialCountdown({",
 			"    document: window.document,",
 			"    now: function () { return Date.now(); },",
+			"    timeZone: function () { return Intl.DateTimeFormat().resolvedOptions().timeZone; },",
 			"    setIntervalFn: function (cb, ms) { return window.setInterval(cb, ms); },",
 			"    clearIntervalFn: function (id) { window.clearInterval(id); },",
 			"    addSwapListener: function (cb) { document.body.addEventListener('htmx:afterSwap', cb); }",

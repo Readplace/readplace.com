@@ -9,7 +9,7 @@
         <a class="queue-banner__cta" href="{{track '/account' source='queue-banner' content='subscribe'}}" data-test-action="subscribe">{{subscribeCtaLabel}}</a>
         {{/if}}
         {{#if subscriptionBannerIsCancellationScheduled}}
-        <p class="queue-banner__message" data-test-banner-message><strong>Subscription ending {{cancellationEffectiveAt}}.</strong> You still have full access until then.</p>
+        <p class="queue-banner__message" data-test-banner-message><strong>Subscription ending <time datetime="{{cancellationEffectiveAt.iso}}" data-local-time="{{cancellationEffectiveAt.mode}}">{{cancellationEffectiveAt.label}}</time>.</strong> You still have full access until then.</p>
         <a class="queue-banner__cta" href="{{track '/account' source='queue-banner' content='reactivate'}}" data-test-action="reactivate">Reactivate</a>
         {{/if}}
         {{#if subscriptionBannerIsInactive}}

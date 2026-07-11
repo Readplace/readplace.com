@@ -17,7 +17,9 @@ export interface LocalTime {
 
 export type LocalTimeStyle = "datetime" | "date" | "short-datetime";
 
-export const LOCALE = "en-US";
+const LOCALE = "en-US";
+
+export const SERVER_TIME_ZONE = "UTC";
 
 /** Explicit component options rather than dateStyle/timeStyle, which cannot be
  * combined with timeZoneName. hour12:false yields a 24-hour clock (09:00, not
@@ -68,7 +70,11 @@ export function formatLocalInstant(input: {
 export function toAbsoluteDateTime(input: { iso: string }): LocalTime {
 	return {
 		iso: input.iso,
-		label: formatLocalInstant({ iso: input.iso, style: "datetime", timeZone: "UTC" }),
+		label: formatLocalInstant({
+			iso: input.iso,
+			style: "datetime",
+			timeZone: SERVER_TIME_ZONE,
+		}),
 		mode: "datetime",
 	};
 }
@@ -76,7 +82,11 @@ export function toAbsoluteDateTime(input: { iso: string }): LocalTime {
 export function toAbsoluteDate(input: { iso: string }): LocalTime {
 	return {
 		iso: input.iso,
-		label: formatLocalInstant({ iso: input.iso, style: "date", timeZone: "UTC" }),
+		label: formatLocalInstant({
+			iso: input.iso,
+			style: "date",
+			timeZone: SERVER_TIME_ZONE,
+		}),
 		mode: "date",
 	};
 }
@@ -84,7 +94,11 @@ export function toAbsoluteDate(input: { iso: string }): LocalTime {
 export function toAbsoluteShortDateTime(input: { iso: string }): LocalTime {
 	return {
 		iso: input.iso,
-		label: formatLocalInstant({ iso: input.iso, style: "short-datetime", timeZone: "UTC" }),
+		label: formatLocalInstant({
+			iso: input.iso,
+			style: "short-datetime",
+			timeZone: SERVER_TIME_ZONE,
+		}),
 		mode: "short-datetime",
 	};
 }

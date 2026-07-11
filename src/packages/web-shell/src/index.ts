@@ -22,6 +22,7 @@ export type {
 } from "./trial-countdown.format";
 export {
 	formatLocalInstant,
+	SERVER_TIME_ZONE,
 	toAbsoluteDate,
 	toAbsoluteDateTime,
 	toRelativeOrDate,

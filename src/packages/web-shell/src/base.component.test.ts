@@ -777,7 +777,7 @@ describe("Base component", () => {
 		expect(scripts).not.toContain("/client-dist/trial-countdown.client.js");
 	});
 
-	it("renders the quiet cancellation chip and skips the client script when trial.state='cancellation-scheduled'", () => {
+	it("renders the quiet cancellation chip and loads the client script when trial.state='cancellation-scheduled' — the script is what re-renders the UTC baseline date into the viewer's timezone", () => {
 		const page = createTestPageBody();
 		const result = Base(page, {
 			isAuthenticated: true,
@@ -796,10 +796,11 @@ describe("Base component", () => {
 		expect(countdown.getAttribute("data-trial-state")).toBe("cancellation-scheduled");
 		expect(countdown.classList.contains("trial-countdown--cancellation-scheduled")).toBe(true);
 		expect(countdown.classList.contains("trial-countdown--visible")).toBe(true);
+		expect(countdown.getAttribute("data-trial-ends-at-iso")).toBe("2027-07-10T00:00:00.000Z");
 
 		const scripts = loadedClientScripts(doc);
 		expect(scripts).toContain("/client-dist/toast.client.js");
-		expect(scripts).not.toContain("/client-dist/trial-countdown.client.js");
+		expect(scripts).toContain("/client-dist/trial-countdown.client.js");
 	});
 
 	it("renders the trial countdown as an anchor to /account so the user can fix the subscription state from any page", () => {

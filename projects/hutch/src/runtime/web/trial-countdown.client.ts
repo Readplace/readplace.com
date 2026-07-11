@@ -1,9 +1,15 @@
-import { deriveTrialEscalation, formatTrialDisplay, formatTrialRemaining } from "@packages/web-shell/trial-countdown.format";
+import {
+	deriveTrialEscalation,
+	formatCancellationEndsLabel,
+	formatTrialDisplay,
+	formatTrialRemaining,
+} from "@packages/web-shell/trial-countdown.format";
 import type { TrialDisplay, TrialEscalation } from "@packages/web-shell/trial-countdown.format";
 
 interface TrialCountdownDeps {
 	document: Document;
 	now: () => number;
+	timeZone: () => string;
 	setIntervalFn: (cb: () => void, ms: number) => number;
 	clearIntervalFn: (id: number) => void;
 	addSwapListener: (cb: () => void) => void;
@@ -56,10 +62,10 @@ export function initTrialCountdown(
 
 	let intervalId: number | undefined;
 	let expired = el.getAttribute("data-trial-state") === "expired";
-	/** The cancellation-scheduled banner is a static "Subscription ends on <date>"
-	 * label — the user inside their paid period or trial keeps full access until
-	 * the date arrives, after which a fresh server render flips them to
-	 * inactive/expired. No per-second tick is meaningful, so freeze ticking. */
+	/** The cancellation-scheduled chip is a static "Ends <date>" label — the user
+	 * inside their paid period or trial keeps full access until the date arrives,
+	 * after which a fresh server render flips them to inactive/expired. No
+	 * per-second tick is meaningful, so it renders once and never ticks. */
 	const cancellationScheduled =
 		el.getAttribute("data-trial-state") === "cancellation-scheduled";
 
@@ -69,7 +75,7 @@ export function initTrialCountdown(
 		if (remaining.totalMs <= 0) {
 			if (!expired) {
 				const display: TrialDisplay = { state: "expired" };
-				el.textContent = formatTrialDisplay(display);
+				el.textContent = formatTrialDisplay(display, deps.timeZone());
 				el.setAttribute("data-trial-state", "expired");
 				el.setAttribute("aria-live", "polite");
 				setEscalationClass(el, "expired");
@@ -89,8 +95,24 @@ export function initTrialCountdown(
 			remaining,
 			escalation,
 		};
-		el.textContent = formatTrialDisplay(display);
+		el.textContent = formatTrialDisplay(display, deps.timeZone());
 		setEscalationClass(el, escalation);
+	}
+
+	function renderCancellationScheduled(): void {
+		const timeZone = deps.timeZone();
+		const display: TrialDisplay = {
+			state: "cancellation-scheduled",
+			endsAtIso: endsAtIso ?? "",
+			serverNowIso: new Date(deps.now() + skewMs).toISOString(),
+		};
+		el.textContent = formatTrialDisplay(display, timeZone);
+		const label = formatCancellationEndsLabel({
+			endsAtIso: endsAtIso ?? "",
+			timeZone,
+		});
+		el.setAttribute("aria-label", label);
+		el.setAttribute("title", label);
 	}
 
 	function startInterval(): void {
@@ -106,6 +128,14 @@ export function initTrialCountdown(
 		intervalId = undefined;
 	}
 
+	function render(): void {
+		if (cancellationScheduled) {
+			renderCancellationScheduled();
+			return;
+		}
+		tick();
+	}
+
 	function onVisibilityChange(): void {
 		if (deps.document.hidden) {
 			stopInterval();
@@ -117,15 +147,10 @@ export function initTrialCountdown(
 	}
 
 	function attach(): void {
-		if (!cancellationScheduled) {
-			tick();
-		}
+		render();
 		startInterval();
 		deps.document.addEventListener("visibilitychange", onVisibilityChange);
-		deps.addSwapListener(() => {
-			if (cancellationScheduled) return;
-			tick();
-		});
+		deps.addSwapListener(render);
 	}
 
 	function stop(): void {

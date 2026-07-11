@@ -114,6 +114,14 @@ describe("Queue page banner state", () => {
 		const banner = doc.querySelector("[data-test-subscription-banner]");
 		assert(banner, "queue banner must always be rendered");
 		expect(banner.classList.contains("queue-banner--cancellation-scheduled")).toBe(true);
+		const message = banner.querySelector("[data-test-banner-message]");
+		assert(message, "cancellation-scheduled banner must render its message");
+		const time = message.querySelector("time[data-local-time='date']");
+		assert(time, "cancellation-scheduled banner must render the end date as a <time> element");
+		expect(time.getAttribute("datetime")).toBe(effectiveAt);
+		expect(message.textContent?.replace(/\s+/g, " ").trim()).toMatch(
+			/^Subscription ending [A-Z][a-z]{2} \d{1,2}, \d{4}\. You still have full access until then\.$/,
+		);
 		const saveForm = doc.querySelector('[data-test-form="save-article"]');
 		assert(saveForm, "save form must be rendered with full access");
 		expect(saveForm.classList.contains("queue__save-form--disabled")).toBe(false);

@@ -1,4 +1,4 @@
-import { LOCALE } from "./local-time.format";
+import { formatLocalInstant } from "./local-time.format";
 
 export interface TrialRemaining {
 	days: number;
@@ -53,16 +53,18 @@ export function deriveTrialEscalation(
 	return "critical";
 }
 
-function formatEndDate(endsAtIso: string): string {
-	return new Date(endsAtIso).toLocaleDateString(LOCALE, {
-		day: "numeric",
-		month: "short",
-		year: "numeric",
-		timeZone: "UTC",
+function formatEndDate(input: { endsAtIso: string; timeZone: string }): string {
+	return formatLocalInstant({
+		iso: input.endsAtIso,
+		style: "date",
+		timeZone: input.timeZone,
 	});
 }
 
-export function formatTrialDisplay(trial: TrialDisplay): string {
+export function formatTrialDisplay(
+	trial: TrialDisplay,
+	timeZone: string,
+): string {
 	switch (trial.state) {
 		/** Same copy for trial-expired and post-cancellation: both land users in
 		 * the same read-only state, so a unified "Subscription not active"
@@ -71,7 +73,7 @@ export function formatTrialDisplay(trial: TrialDisplay): string {
 		case "expired":
 			return "Subscription not active";
 		case "cancellation-scheduled":
-			return `Ends ${formatEndDate(trial.endsAtIso)}`;
+			return `Ends ${formatEndDate({ endsAtIso: trial.endsAtIso, timeZone })}`;
 		case "active":
 			return `${formatTrialUnits(trial.remaining)} left in your free trial`;
 	}
@@ -82,8 +84,9 @@ export function formatTrialDisplay(trial: TrialDisplay): string {
  * still get the unabbreviated meaning. */
 export function formatCancellationEndsLabel(trial: {
 	endsAtIso: string;
+	timeZone: string;
 }): string {
-	return `Subscription ends on ${formatEndDate(trial.endsAtIso)}`;
+	return `Subscription ends on ${formatEndDate(trial)}`;
 }
 
 function formatTrialUnits(remaining: TrialRemaining): string {

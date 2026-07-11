@@ -24,6 +24,7 @@ import { htmlToMarkdown } from "./html-to-markdown";
 import { MarkdownPage } from "./markdown-page";
 import { buildMarkdownFrontmatter } from "./markdown-frontmatter";
 import type { NavProps } from "./nav.component";
+import type { TrialDisplay } from "./trial-countdown.format";
 import type { PageBody, SeoMetadata } from "./page-body.types";
 import { render } from "./render";
 import {
@@ -79,6 +80,10 @@ function externalCanonicalUrl(canonicalUrl: string): string {
 }
 
 const TRIAL_COUNTDOWN_SCRIPT = `<script src="/client-dist/trial-countdown.client.js" defer></script>`;
+
+function trialChipCarriesInstant(trial: TrialDisplay | undefined): boolean {
+	return trial !== undefined && trial.state !== "expired";
+}
 
 /** Global so any page's toast auto-dismisses — including one that arrives
  * inside an htmx-swapped <main>, which a page-scoped script would never see. */
@@ -259,7 +264,7 @@ export function initBase(config: BaseConfig): RenderBase {
 				HTMX_SCRIPTS +
 				EXTENSION_SUGGESTION_BANNER_SCRIPT +
 				TOAST_SCRIPT +
-				(state.trial?.state === "active" ? TRIAL_COUNTDOWN_SCRIPT : "") +
+				(trialChipCarriesInstant(state.trial) ? TRIAL_COUNTDOWN_SCRIPT : "") +
 				(body.scripts ?? "") +
 				siteScripts +
 				liveReloadScript,

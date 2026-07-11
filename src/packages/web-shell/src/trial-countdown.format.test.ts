@@ -1,8 +1,10 @@
+import { SERVER_TIME_ZONE } from "./local-time.format";
 import {
 	deriveTrialEscalation,
 	formatCancellationEndsLabel,
 	formatTrialDisplay,
 	formatTrialRemaining,
+	type TrialDisplay,
 } from "./trial-countdown.format";
 
 const ONE_SECOND_MS = 1000;
@@ -88,13 +90,16 @@ describe("formatTrialDisplay", () => {
 		minutes: number;
 		seconds: number;
 	}) {
-		return formatTrialDisplay({
-			state: "active",
-			endsAtIso: "2026-01-15T00:00:00.000Z",
-			serverNowIso: "2026-01-01T00:00:00.000Z",
-			remaining: { ...remaining, totalMs: 1 },
-			escalation: "soft",
-		});
+		return formatTrialDisplay(
+			{
+				state: "active",
+				endsAtIso: "2026-01-15T00:00:00.000Z",
+				serverNowIso: "2026-01-01T00:00:00.000Z",
+				remaining: { ...remaining, totalMs: 1 },
+				escalation: "soft",
+			},
+			SERVER_TIME_ZONE,
+		);
 	}
 
 	it("drops minutes and seconds when at least one day remains so multi-day trials show a stable `Xd Yh`", () => {
@@ -122,24 +127,51 @@ describe("formatTrialDisplay", () => {
 	});
 
 	it("renders the expired state as the standalone 'Subscription not active' message — unified for trial-expired and post-cancellation", () => {
-		expect(formatTrialDisplay({ state: "expired" })).toBe("Subscription not active");
+		expect(formatTrialDisplay({ state: "expired" }, SERVER_TIME_ZONE)).toBe(
+			"Subscription not active",
+		);
 	});
 
 	it("renders cancellation-scheduled as the compact 'Ends <date>' so the chip stays one line in the crowded header", () => {
 		expect(
-			formatTrialDisplay({
-				state: "cancellation-scheduled",
-				endsAtIso: "2026-06-22T10:00:00.000Z",
-				serverNowIso: "2026-05-23T12:00:00.000Z",
-			}),
+			formatTrialDisplay(
+				{
+					state: "cancellation-scheduled",
+					endsAtIso: "2026-06-22T10:00:00.000Z",
+					serverNowIso: "2026-05-23T12:00:00.000Z",
+				},
+				SERVER_TIME_ZONE,
+			),
 		).toBe("Ends Jun 22, 2026");
+	});
+
+	it("renders the end date in the viewer's zone, rolling to the next calendar day for a zone that is already past midnight when the UTC baseline is not", () => {
+		const display: TrialDisplay = {
+			state: "cancellation-scheduled",
+			endsAtIso: "2026-06-22T23:30:00.000Z",
+			serverNowIso: "2026-05-23T12:00:00.000Z",
+		};
+		expect(formatTrialDisplay(display, SERVER_TIME_ZONE)).toBe("Ends Jun 22, 2026");
+		expect(formatTrialDisplay(display, "Australia/Brisbane")).toBe("Ends Jun 23, 2026");
 	});
 });
 
 describe("formatCancellationEndsLabel", () => {
 	it("spells out the full 'Subscription ends on <date>' sentence for the chip's aria-label and tooltip", () => {
 		expect(
-			formatCancellationEndsLabel({ endsAtIso: "2026-06-22T10:00:00.000Z" }),
+			formatCancellationEndsLabel({
+				endsAtIso: "2026-06-22T10:00:00.000Z",
+				timeZone: SERVER_TIME_ZONE,
+			}),
 		).toBe("Subscription ends on Jun 22, 2026");
+	});
+
+	it("localises the aria-label date too, so assistive tech and the hover tooltip agree with the chip's visible text", () => {
+		expect(
+			formatCancellationEndsLabel({
+				endsAtIso: "2026-06-22T23:30:00.000Z",
+				timeZone: "Australia/Brisbane",
+			}),
+		).toBe("Subscription ends on Jun 23, 2026");
 	});
 });

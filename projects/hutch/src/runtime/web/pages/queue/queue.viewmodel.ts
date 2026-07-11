@@ -1,5 +1,5 @@
 import type { SavedArticle, SaveableUrlErrorCode } from "@packages/domain/article";
-import { type LocalTime, toRelativeOrDate } from "@packages/web-shell";
+import { type LocalTime, toAbsoluteDate, toRelativeOrDate } from "@packages/web-shell";
 import type { FindArticlesResult } from "@packages/provider-contracts/article-store";
 import { pickExcerpt } from "../../../providers/article-summary/article-summary.helpers";
 import type { ArticleCrawl } from "@packages/provider-contracts/article-crawl";
@@ -16,7 +16,7 @@ import type { EffectiveAccess } from "@packages/subscription-access";
 export type SubscriptionBannerState =
 	| { state: "none" }
 	| { state: "trial-countdown"; daysLeft: number; daysLeftWord: "day" | "days" }
-	| { state: "cancellation-scheduled"; cancellationEffectiveAt: string }
+	| { state: "cancellation-scheduled"; cancellationEffectiveAt: LocalTime }
 	| { state: "inactive" };
 
 export interface ArticleActionField {
@@ -111,7 +111,10 @@ function toSubscriptionBannerState(access: EffectiveAccess, now: Date): Subscrip
 			return { state: "trial-countdown", daysLeft, daysLeftWord };
 		}
 		case "cancellation-scheduled":
-			return { state: "cancellation-scheduled", cancellationEffectiveAt: access.cancellationEffectiveAt };
+			return {
+				state: "cancellation-scheduled",
+				cancellationEffectiveAt: toAbsoluteDate({ iso: access.cancellationEffectiveAt }),
+			};
 		case "inactive":
 			return { state: "inactive" };
 	}

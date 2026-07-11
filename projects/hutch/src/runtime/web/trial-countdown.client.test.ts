@@ -1,5 +1,6 @@
 import assert from "node:assert/strict";
 import { JSDOM } from "jsdom";
+import { SERVER_TIME_ZONE } from "@packages/web-shell/local-time.format";
 import { initTrialCountdown } from "./trial-countdown.client";
 
 const ONE_SECOND_MS = 1000;
@@ -62,6 +63,7 @@ interface FakeClock {
 	deps: {
 		document: Document;
 		now: () => number;
+		timeZone: () => string;
 		setIntervalFn: (cb: () => void, ms: number) => number;
 		clearIntervalFn: (id: number) => void;
 		addSwapListener: (cb: () => void) => void;
@@ -69,7 +71,11 @@ interface FakeClock {
 	swapListener: (() => void) | undefined;
 }
 
-function createFakeClock(doc: Document, initialNowMs: number): FakeClock {
+function createFakeClock(
+	doc: Document,
+	initialNowMs: number,
+	timeZoneName: string = SERVER_TIME_ZONE,
+): FakeClock {
 	const state: FakeClock = {
 		now: initialNowMs,
 		timers: new Map(),
@@ -78,6 +84,7 @@ function createFakeClock(doc: Document, initialNowMs: number): FakeClock {
 		deps: {
 			document: doc,
 			now: () => state.now,
+			timeZone: () => timeZoneName,
 			setIntervalFn: (cb) => {
 				const id = state.nextId++;
 				state.timers.set(id, { id, cb });
@@ -408,8 +415,8 @@ describe("initTrialCountdown — idempotent state transitions", () => {
 	});
 });
 
-describe("initTrialCountdown — cancellation-scheduled state stays static", () => {
-	it("does not start the interval and does not rewrite the SSR text — the date label is fixed until the period ends", () => {
+describe("initTrialCountdown — cancellation-scheduled state never ticks", () => {
+	it("renders once without arming an interval — the date label is fixed until the period ends, so a per-second tick is meaningless", () => {
 		const serverNow = "2026-01-01T00:00:00.000Z";
 		const endsAt = new Date(Date.parse(serverNow) + 5 * ONE_DAY_MS).toISOString();
 		const { document } = createDom(
@@ -431,9 +438,9 @@ describe("initTrialCountdown — cancellation-scheduled state stays static", () 
 		expect(el.getAttribute("data-trial-state")).toBe("cancellation-scheduled");
 	});
 
-	it("ignores swap listener callbacks for cancellation-scheduled (no tick on htmx swap)", () => {
+	it("re-renders the chip text and its aria-label/title in the viewer's zone, so the header chip agrees with the queue banner and account card instead of staying on the UTC baseline", () => {
 		const serverNow = "2026-01-01T00:00:00.000Z";
-		const endsAt = new Date(Date.parse(serverNow) + 5 * ONE_DAY_MS).toISOString();
+		const endsAt = "2026-01-06T23:30:00.000Z";
 		const { document } = createDom(
 			buildFixture({
 				endsAtIso: endsAt,
@@ -444,17 +451,40 @@ describe("initTrialCountdown — cancellation-scheduled state stays static", () 
 			}),
 		);
 
-		const clock = createFakeClock(document, Date.parse(serverNow));
+		const clock = createFakeClock(document, Date.parse(serverNow), "Australia/Brisbane");
+		initTrialCountdown(clock.deps).attach();
+
+		const el = getCountdownElement(document);
+		expect(el.textContent).toBe("Ends Jan 7, 2026");
+		expect(el.getAttribute("aria-label")).toBe("Subscription ends on Jan 7, 2026");
+		expect(el.getAttribute("title")).toBe("Subscription ends on Jan 7, 2026");
+		expect(clock.timers.size).toBe(0);
+	});
+
+	it("re-renders on htmx swap so a boosted navigation restores the localised date instead of leaving the UTC baseline in place", () => {
+		const serverNow = "2026-01-01T00:00:00.000Z";
+		const endsAt = "2026-01-06T23:30:00.000Z";
+		const { document } = createDom(
+			buildFixture({
+				endsAtIso: endsAt,
+				serverNowIso: serverNow,
+				state: "cancellation-scheduled",
+				escalation: "cancellation-imminent",
+				text: "Ends Jan 6, 2026",
+			}),
+		);
+
+		const clock = createFakeClock(document, Date.parse(serverNow), "Australia/Brisbane");
 		initTrialCountdown(clock.deps).attach();
 		assert(clock.swapListener, "swap listener must be registered");
 
 		const el = getCountdownElement(document);
-		el.textContent = "stale text";
+		el.textContent = "Ends Jan 6, 2026";
 
 		clock.swapListener();
 
-		// Text stays as the test set it — no tick rewrites it.
-		expect(el.textContent).toBe("stale text");
+		expect(el.textContent).toBe("Ends Jan 7, 2026");
+		expect(clock.timers.size).toBe(0);
 	});
 
 	it("ignores visibilitychange while cancellation-scheduled — no interval armed when the tab becomes visible", () => {

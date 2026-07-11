@@ -1,6 +1,7 @@
 import { render } from "./render";
 import { buildNavGroups, buildGuestNavItems } from "./banner-state";
 import { NAV_TEMPLATE } from "./nav.template";
+import { SERVER_TIME_ZONE } from "./local-time.format";
 import {
 	deriveTrialEscalation,
 	formatCancellationEndsLabel,
@@ -63,11 +64,14 @@ export function GlobalNav(props: NavProps): string {
 	return render(NAV_TEMPLATE, {
 		transparent: props.variant === "transparent",
 		trialVisibility: trial ? "visible" : "hidden",
-		trialDisplayText: trial ? formatTrialDisplay(trial) : "",
+		trialDisplayText: trial ? formatTrialDisplay(trial, SERVER_TIME_ZONE) : "",
 		trialState: trial?.state ?? "",
 		trialAriaLabel:
 			trial?.state === "cancellation-scheduled"
-				? formatCancellationEndsLabel(trial)
+				? formatCancellationEndsLabel({
+						endsAtIso: trial.endsAtIso,
+						timeZone: SERVER_TIME_ZONE,
+					})
 				: "",
 		trialEscalationClass: escalationClassFor(trial),
 		trialEndsAtIso: endsAtIsoFor(trial),
