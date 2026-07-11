@@ -37,9 +37,16 @@ def measured_files(report: dict) -> dict[str, float]:
     """Best line coverage per source basename across all non-test targets.
 
     A Shared file compiles into both the app and the extension target, so it
-    appears twice with identical coverage; keep the higher of the two.
+    appears twice at the SAME path with identical coverage; keep the higher of
+    the two. Two DIFFERENT files that share a basename (e.g. App/Foo.swift and
+    Shared/Foo.swift) cannot coexist under one basename key: the config
+    (floors/excluded) is basename-keyed, so max()-merging them would silently
+    hide the lower-coverage file behind its higher-coverage namesake. Assert the
+    basename maps to a single path so such a collision fails the gate loudly
+    instead of passing on the wrong number.
     """
     best: dict[str, float] = {}
+    path_of: dict[str, str] = {}
     for target in report.get("targets", []):
         if "Tests" in target.get("name", ""):
             continue
@@ -47,6 +54,13 @@ def measured_files(report: dict) -> dict[str, float]:
             name = f.get("name", "")
             if not name.endswith(".swift"):
                 continue
+            path = f.get("path", name)
+            seen = path_of.setdefault(name, path)
+            assert path == seen, (
+                f"basename {name!r} measured at two paths ({seen} and {path}); "
+                "the basename-keyed coverage config cannot represent both — "
+                "rename one file or key this gate by path"
+            )
             cov = float(f.get("lineCoverage", 0.0))
             best[name] = max(best.get(name, 0.0), cov)
     return best
