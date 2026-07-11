@@ -71,10 +71,19 @@ export function formatTrialDisplay(trial: TrialDisplay): string {
 		case "expired":
 			return "Subscription not active";
 		case "cancellation-scheduled":
-			return `Subscription ends on ${formatEndDate(trial.endsAtIso)}`;
+			return `Ends ${formatEndDate(trial.endsAtIso)}`;
 		case "active":
 			return `${formatTrialUnits(trial.remaining)} left in your free trial`;
 	}
+}
+
+/** The header chip shows the compact "Ends <date>" copy; this full sentence is
+ * exposed on the same element as aria-label/title so assistive tech and hover
+ * still get the unabbreviated meaning. */
+export function formatCancellationEndsLabel(trial: {
+	endsAtIso: string;
+}): string {
+	return `Subscription ends on ${formatEndDate(trial.endsAtIso)}`;
 }
 
 function formatTrialUnits(remaining: TrialRemaining): string {

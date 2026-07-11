@@ -41,6 +41,7 @@ const LIGHT_THEME_VARIABLES: Record<string, string> = {
 	"--error": "hsl(0 43% 56%)",
 	"--error-foreground": "hsl(0 0% 100%)",
 	"--error-bg": "hsl(0 43% 56% / 0.1)",
+	"--warning-bg": "hsl(37 56% 51% / 0.12)",
 	"--input-height": "48px",
 	"--input-padding": "12px 16px",
 	"--input-font-size": "16px",
@@ -84,6 +85,7 @@ const DARK_THEME_VARIABLES: Record<string, string> = {
 	"--ring": "hsl(27 65% 52%)",
 	"--ring-shadow": "hsl(27 65% 52% / 0.25)",
 	"--error-bg": "hsl(0 43% 56% / 0.15)",
+	"--warning-bg": "hsl(37 62% 56% / 0.18)",
 	"--header-brand-stem": "var(--color-text-primary)",
 	"--header-brand-tail": "var(--color-highlight)",
 	"--footer-bg": "#0D0D0D",
@@ -494,7 +496,7 @@ export const TRIAL_COUNTDOWN_STYLES = `
     text-underline-offset: 3px;
   }
 
-  /* purgecss-ignore-start: modifier suffix is interpolated from BannerState.trial.escalation and the visibility state in nav.template.ts */
+  /* purgecss-ignore-start: modifier suffix is interpolated from BannerState.trial.escalation, the cancellation branch of escalationClassFor in nav.component.ts, and the visibility state in nav.template.ts */
   .trial-countdown--visible {
     display: inline-block;
   }
@@ -536,6 +538,25 @@ export const TRIAL_COUNTDOWN_STYLES = `
     border-radius: var(--radius-sm);
     animation: trial-countdown-shake 0.5s ease-in-out 1;
   }
+
+  .trial-countdown--cancellation-scheduled,
+  .trial-countdown--cancellation-imminent {
+    font-weight: 500;
+    padding: 2px 10px;
+    background: var(--warning-bg);
+    color: var(--foreground);
+    border-radius: var(--radius-sm);
+    white-space: nowrap;
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+
+  .trial-countdown--cancellation-imminent {
+    font-weight: 700;
+    background: var(--error-bg);
+    color: var(--color-error);
+  }
   /* purgecss-ignore-end */
 
   @keyframes trial-countdown-pulse {
@@ -556,6 +577,25 @@ export const TRIAL_COUNTDOWN_STYLES = `
     }
   }
 
+  /** Below 960px the inline header row (brand + horizontal nav) leaves the chip
+   * less than its ~150px minimum, so it moves to its own full-width row. The
+   * wrap is scoped with :has() to the cancellation state so every other trial
+   * state keeps today's single-row layout; browsers without :has() fall back
+   * to the ellipsized inline chip, whose title still carries the full text. */
+  @media (max-width: 959px) {
+    .header__content:has(.trial-countdown--cancellation-scheduled),
+    .header__content:has(.trial-countdown--cancellation-imminent) {
+      flex-wrap: wrap;
+    }
+
+    .trial-countdown--cancellation-scheduled,
+    .trial-countdown--cancellation-imminent {
+      flex-basis: 100%;
+      order: 99;
+      padding: 4px 10px;
+    }
+  }
+
   @media (max-width: 480px) {
     .header__content {
       flex-wrap: wrap;
@@ -565,6 +605,11 @@ export const TRIAL_COUNTDOWN_STYLES = `
       flex-basis: 100%;
       padding: 4px 0 0;
       order: 99;
+    }
+
+    .trial-countdown--cancellation-scheduled,
+    .trial-countdown--cancellation-imminent {
+      padding: 4px 10px;
     }
   }
 `;

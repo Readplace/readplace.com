@@ -417,8 +417,8 @@ describe("initTrialCountdown — cancellation-scheduled state stays static", () 
 				endsAtIso: endsAt,
 				serverNowIso: serverNow,
 				state: "cancellation-scheduled",
-				escalation: "expired",
-				text: "Subscription ends on Jan 6, 2026",
+				escalation: "cancellation-imminent",
+				text: "Ends Jan 6, 2026",
 			}),
 		);
 
@@ -427,7 +427,7 @@ describe("initTrialCountdown — cancellation-scheduled state stays static", () 
 
 		expect(clock.timers.size).toBe(0);
 		const el = getCountdownElement(document);
-		expect(el.textContent).toBe("Subscription ends on Jan 6, 2026");
+		expect(el.textContent).toBe("Ends Jan 6, 2026");
 		expect(el.getAttribute("data-trial-state")).toBe("cancellation-scheduled");
 	});
 
@@ -439,8 +439,8 @@ describe("initTrialCountdown — cancellation-scheduled state stays static", () 
 				endsAtIso: endsAt,
 				serverNowIso: serverNow,
 				state: "cancellation-scheduled",
-				escalation: "expired",
-				text: "Subscription ends on Jan 6, 2026",
+				escalation: "cancellation-imminent",
+				text: "Ends Jan 6, 2026",
 			}),
 		);
 
@@ -465,8 +465,8 @@ describe("initTrialCountdown — cancellation-scheduled state stays static", () 
 				endsAtIso: endsAt,
 				serverNowIso: serverNow,
 				state: "cancellation-scheduled",
-				escalation: "expired",
-				text: "Subscription ends on Jan 6, 2026",
+				escalation: "cancellation-imminent",
+				text: "Ends Jan 6, 2026",
 			}),
 		);
 

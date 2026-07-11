@@ -726,7 +726,7 @@ describe("GET /account (cancellation-scheduled state)", () => {
 		expect(reactivate.getAttribute("action")).toBe("/account/reactivate?utm_source=account&utm_medium=internal&utm_content=reactivate-form");
 	});
 
-	it("renders the cancellation-scheduled pill in the header (paid + trial) so the user sees the cutoff date globally", async () => {
+	it("renders the header cancellation chip escalated to imminent when the cutoff is 3 days away (inside the 7-day window)", async () => {
 		const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
 		const { subscriptionProviders } = harness;
 		const { agent, userId } = await loginUser(harness, "scheduled-cancel-nav@example.com");
@@ -749,6 +749,8 @@ describe("GET /account (cancellation-scheduled state)", () => {
 		assert(countdown, "header pill must render for cancellation-scheduled users");
 		expect(countdown.getAttribute("data-trial-state")).toBe("cancellation-scheduled");
 		expect(countdown.getAttribute("data-trial-ends-at-iso")).toBe(cancellationEffectiveAt);
+		expect(countdown.classList.contains("trial-countdown--cancellation-imminent")).toBe(true);
+		expect(countdown.classList.contains("trial-countdown--expired")).toBe(false);
 	});
 });
 

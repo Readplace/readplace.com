@@ -8,6 +8,7 @@ export const NAV_TEMPLATE = `  <header class="header{{#if transparent}} header--
          data-trial-ends-at-iso="{{trialEndsAtIso}}"
          data-server-now-iso="{{serverNowIso}}"
          data-trial-state="{{trialState}}"
+         {{#if trialAriaLabel}}aria-label="{{trialAriaLabel}}" title="{{trialAriaLabel}}"{{/if}}
          role="timer"
          aria-live="off"
          aria-atomic="true"

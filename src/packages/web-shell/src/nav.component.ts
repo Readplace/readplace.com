@@ -1,7 +1,13 @@
 import { render } from "./render";
 import { buildNavGroups, buildGuestNavItems } from "./banner-state";
 import { NAV_TEMPLATE } from "./nav.template";
-import { formatTrialDisplay, type TrialDisplay } from "./trial-countdown.format";
+import {
+	deriveTrialEscalation,
+	formatCancellationEndsLabel,
+	formatTrialDisplay,
+	formatTrialRemaining,
+	type TrialDisplay,
+} from "./trial-countdown.format";
 
 export interface NavProps {
 	variant: "default" | "transparent";
@@ -33,6 +39,15 @@ function serverNowIsoFor(trial: TrialDisplay | undefined): string {
 function escalationClassFor(trial: TrialDisplay | undefined): string {
 	if (!trial) return "expired";
 	if (trial.state === "active") return trial.escalation;
+	if (trial.state === "cancellation-scheduled") {
+		const remaining = formatTrialRemaining(
+			trial.endsAtIso,
+			new Date(trial.serverNowIso),
+		);
+		return deriveTrialEscalation(remaining) === "soft"
+			? "cancellation-scheduled"
+			: "cancellation-imminent";
+	}
 	return "expired";
 }
 
@@ -50,6 +65,10 @@ export function GlobalNav(props: NavProps): string {
 		trialVisibility: trial ? "visible" : "hidden",
 		trialDisplayText: trial ? formatTrialDisplay(trial) : "",
 		trialState: trial?.state ?? "",
+		trialAriaLabel:
+			trial?.state === "cancellation-scheduled"
+				? formatCancellationEndsLabel(trial)
+				: "",
 		trialEscalationClass: escalationClassFor(trial),
 		trialEndsAtIso: endsAtIsoFor(trial),
 		serverNowIso: serverNowIsoFor(trial),

@@ -1,5 +1,6 @@
 import {
 	deriveTrialEscalation,
+	formatCancellationEndsLabel,
 	formatTrialDisplay,
 	formatTrialRemaining,
 } from "./trial-countdown.format";
@@ -124,13 +125,21 @@ describe("formatTrialDisplay", () => {
 		expect(formatTrialDisplay({ state: "expired" })).toBe("Subscription not active");
 	});
 
-	it("renders cancellation-scheduled as 'Subscription ends on <date>' so the user sees the cutoff date in the header", () => {
+	it("renders cancellation-scheduled as the compact 'Ends <date>' so the chip stays one line in the crowded header", () => {
 		expect(
 			formatTrialDisplay({
 				state: "cancellation-scheduled",
 				endsAtIso: "2026-06-22T10:00:00.000Z",
 				serverNowIso: "2026-05-23T12:00:00.000Z",
 			}),
+		).toBe("Ends Jun 22, 2026");
+	});
+});
+
+describe("formatCancellationEndsLabel", () => {
+	it("spells out the full 'Subscription ends on <date>' sentence for the chip's aria-label and tooltip", () => {
+		expect(
+			formatCancellationEndsLabel({ endsAtIso: "2026-06-22T10:00:00.000Z" }),
 		).toBe("Subscription ends on Jun 22, 2026");
 	});
 });

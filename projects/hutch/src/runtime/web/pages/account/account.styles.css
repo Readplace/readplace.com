@@ -35,6 +35,10 @@
   border-left-color: var(--primary);
 }
 
+.account-card--cancellation-scheduled {
+  border-left-color: var(--color-warning);
+}
+
 .account-card--inactive {
   border-left-color: var(--error);
 }

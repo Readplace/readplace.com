@@ -75,6 +75,106 @@ describe("GlobalNav component", () => {
 		expect(countdown.getAttribute("data-server-now-iso")).toBe("");
 	});
 
+	it("renders a quiet cancellation-scheduled chip (not the expired alarm) while the cutoff is more than 7 days away", () => {
+		const doc = parse(
+			GlobalNav({
+				variant: "default",
+				isAuthenticated: true,
+				accessIsReadOnly: false,
+				emailFeatureEnabled: false,
+				trialCounter: {
+					state: "cancellation-scheduled",
+					endsAtIso: "2027-07-10T00:00:00.000Z",
+					serverNowIso: "2026-07-10T00:00:00.000Z",
+				},
+			}),
+		);
+
+		const countdown = doc.querySelector("[data-test-trial-countdown]");
+		assert(countdown, "trial countdown must be present for a scheduled cancellation");
+		expect(countdown.textContent).toBe("Ends Jul 10, 2027");
+		expect(countdown.classList.contains("trial-countdown--cancellation-scheduled")).toBe(true);
+		expect(countdown.classList.contains("trial-countdown--visible")).toBe(true);
+		expect(countdown.classList.contains("trial-countdown--expired")).toBe(false);
+		expect(countdown.getAttribute("data-trial-state")).toBe("cancellation-scheduled");
+		expect(countdown.getAttribute("data-trial-ends-at-iso")).toBe("2027-07-10T00:00:00.000Z");
+		expect(countdown.getAttribute("data-server-now-iso")).toBe("2026-07-10T00:00:00.000Z");
+		expect(countdown.getAttribute("aria-label")).toBe("Subscription ends on Jul 10, 2027");
+		expect(countdown.getAttribute("title")).toBe("Subscription ends on Jul 10, 2027");
+	});
+
+	it("escalates the cancellation chip to the imminent variant once the cutoff is 7 days away or closer", () => {
+		const doc = parse(
+			GlobalNav({
+				variant: "default",
+				isAuthenticated: true,
+				accessIsReadOnly: false,
+				emailFeatureEnabled: false,
+				trialCounter: {
+					state: "cancellation-scheduled",
+					endsAtIso: "2026-07-17T00:00:00.000Z",
+					serverNowIso: "2026-07-10T00:00:00.000Z",
+				},
+			}),
+		);
+
+		const countdown = doc.querySelector("[data-test-trial-countdown]");
+		assert(countdown, "trial countdown must be present for an imminent cancellation");
+		expect(countdown.classList.contains("trial-countdown--cancellation-imminent")).toBe(true);
+		expect(countdown.classList.contains("trial-countdown--cancellation-scheduled")).toBe(false);
+		expect(countdown.getAttribute("data-trial-state")).toBe("cancellation-scheduled");
+	});
+
+	it("keeps the quiet cancellation chip just past the 7-day boundary so escalation flips only inside the final week", () => {
+		const doc = parse(
+			GlobalNav({
+				variant: "default",
+				isAuthenticated: true,
+				accessIsReadOnly: false,
+				emailFeatureEnabled: false,
+				trialCounter: {
+					state: "cancellation-scheduled",
+					endsAtIso: "2026-07-17T00:00:00.001Z",
+					serverNowIso: "2026-07-10T00:00:00.000Z",
+				},
+			}),
+		);
+
+		const countdown = doc.querySelector("[data-test-trial-countdown]");
+		assert(countdown, "trial countdown must be present for a scheduled cancellation");
+		expect(countdown.classList.contains("trial-countdown--cancellation-scheduled")).toBe(true);
+	});
+
+	it("omits aria-label and title for active and expired states so only the abbreviated chip carries an override", () => {
+		const activeDoc = parse(
+			GlobalNav({
+				variant: "default",
+				isAuthenticated: true,
+				accessIsReadOnly: false,
+				emailFeatureEnabled: false,
+				trialCounter: ACTIVE_TRIAL,
+			}),
+		);
+		const activeCountdown = activeDoc.querySelector("[data-test-trial-countdown]");
+		assert(activeCountdown, "trial countdown must be present for an active trial");
+		expect(activeCountdown.hasAttribute("aria-label")).toBe(false);
+		expect(activeCountdown.hasAttribute("title")).toBe(false);
+
+		const expiredDoc = parse(
+			GlobalNav({
+				variant: "default",
+				isAuthenticated: true,
+				accessIsReadOnly: false,
+				emailFeatureEnabled: false,
+				trialCounter: { state: "expired" },
+			}),
+		);
+		const expiredCountdown = expiredDoc.querySelector("[data-test-trial-countdown]");
+		assert(expiredCountdown, "trial countdown must be present for an expired trial");
+		expect(expiredCountdown.hasAttribute("aria-label")).toBe(false);
+		expect(expiredCountdown.hasAttribute("title")).toBe(false);
+	});
+
 	it("renders authenticated nav items (queue, import, export, account, sign out) for an authenticated full-access user", () => {
 		const doc = parse(
 			GlobalNav({
