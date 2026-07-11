@@ -60,6 +60,13 @@ function crawlUnsupportedArticle(url: string): Article {
 	};
 }
 
+function crawlPendingArticle(url: string): Article {
+	return {
+		...pendingArticle(url),
+		crawl: { kind: "pending", pendingSince: "2026-01-01T00:00:00.000Z" },
+	};
+}
+
 type HandlerDeps = Parameters<typeof initGenerateSummaryHandler>[0];
 
 const NOW = new Date("2026-05-30T12:00:00.000Z");
@@ -272,6 +279,20 @@ describe("initGenerateSummaryHandler", () => {
 			url: URL,
 			input: { reason: "crawl-unsupported", now: NOW.toISOString() },
 		});
+		expect(deps.summarizeArticle).not.toHaveBeenCalled();
+	});
+
+	it("keeps the assert → DLQ path when content is absent and the crawl is still pending (genuine race — content may still land, not a terminal crawl)", async () => {
+		const URL = "https://example.com/crawl-pending";
+		const { handler, deps } = createHandler({
+			findArticleContent: jest.fn<ReturnType<FindArticleContent>, Parameters<FindArticleContent>>().mockResolvedValue(undefined),
+			loadArticle: jest.fn().mockResolvedValue(crawlPendingArticle(URL)),
+		});
+
+		const result = await handler(createSqsEvent({ url: URL }), buildLambdaContext(), () => {});
+
+		expect(result).toEqual({ batchItemFailures: [{ itemIdentifier: "msg-1" }] });
+		expect(deps.transitionAndPersist).not.toHaveBeenCalled();
 		expect(deps.summarizeArticle).not.toHaveBeenCalled();
 	});
 

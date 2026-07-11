@@ -467,6 +467,24 @@ export function buildAnalyticsDashboardBody(deps: BuildAnalyticsDashboardDeps): 
 			x: 0, y: 98, width: 12, height: 8,
 			view: "bar",
 		}),
+		/** Save failures the user actually hit, by surface — a save-funnel signal.
+		 * Placed at x:12 y:146 (next free 12-wide slot, beside the checkout
+		 * conversions widget) because the y:122–146 rows below the funnel are taken
+		 * by the Homepage A/B, blog-pageviews, signup-form, and checkout-funnel widgets. */
+		logWidget({
+			region,
+			title: "Save errors by surface (view_save_intent outcome=error)",
+			logGroupNames: [hutchLogGroupName],
+			query: [
+				`fields coalesce(surface, "${SAVE_SURFACES.readerView}") as surface`,
+				`| filter stream = "${STREAMS.analytics}" and event = "${ANALYTICS_EVENTS.viewSaveIntent}" and outcome = "${SAVE_OUTCOMES.error}"`,
+				...exclude,
+				"| stats count(*) as save_errors by surface",
+				"| sort save_errors desc",
+			].join(" "),
+			x: 12, y: 146, width: 12, height: 8,
+			view: "bar",
+		}),
 	);
 
 	// --- Summary (TL;DR) engagement ---
@@ -592,20 +610,6 @@ export function buildAnalyticsDashboardBody(deps: BuildAnalyticsDashboardDeps): 
 				"| sort visitors desc",
 			].join(" "),
 			x: 0, y: 122, width: 12, height: 8,
-			view: "bar",
-		}),
-		logWidget({
-			region,
-			title: "Save errors by surface (view_save_intent outcome=error)",
-			logGroupNames: [hutchLogGroupName],
-			query: [
-				`fields coalesce(surface, "${SAVE_SURFACES.readerView}") as surface`,
-				`| filter stream = "${STREAMS.analytics}" and event = "${ANALYTICS_EVENTS.viewSaveIntent}" and outcome = "${SAVE_OUTCOMES.error}"`,
-				...exclude,
-				"| stats count(*) as save_errors by surface",
-				"| sort save_errors desc",
-			].join(" "),
-			x: 0, y: 130, width: 12, height: 8,
 			view: "bar",
 		}),
 	);
