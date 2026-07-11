@@ -125,7 +125,7 @@ describe("initHandleCustomerSubscriptionDeleted", () => {
 		});
 	});
 
-	it("logs a structured ERROR (not WARN) with customerId and a reconcile pointer, and skips emission, when no row matches", async () => {
+	it("logs a structured ERROR (not WARN) with customerId and a no-retry warning, and skips emission, when no row matches", async () => {
 		const published: unknown[] = [];
 		const errorCalls: unknown[][] = [];
 		const logger = HutchLogger.from({
@@ -152,7 +152,7 @@ describe("initHandleCustomerSubscriptionDeleted", () => {
 		assert.equal(published.length, 0);
 		assert.equal(errorCalls.length, 1);
 		assert.match(String(errorCalls[0][0]), /no subscription row found/);
-		assert.match(String(errorCalls[0][0]), /stripe-reconcile/);
+		assert.match(String(errorCalls[0][0]), /will NOT retry/);
 		assert.deepStrictEqual(errorCalls[0][1], {
 			subscriptionId: "sub_gone",
 			customerId: "cus_gone",

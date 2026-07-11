@@ -65,5 +65,3 @@ export type MarkTrialReminderEmailSent = (input: {
 	userId: UserId;
 	sentAt: string;
 }) => Promise<void>;
-
-export type ListAllSubscriptionRows = () => Promise<SubscriptionRecord[]>;

@@ -5,7 +5,6 @@ import {
 import type {
 	FindSubscriptionBySubscriptionId,
 	FindSubscriptionByUserId,
-	ListAllSubscriptionRows,
 } from "@packages/provider-contracts/subscription-providers";
 import { SubscriptionProviderRow, toRecord } from "./subscription-provider-row";
 
@@ -19,7 +18,6 @@ export function initDynamoDbSubscriptionRead(deps: {
 }): {
 	findByUserId: FindSubscriptionByUserId;
 	findBySubscriptionId: FindSubscriptionBySubscriptionId;
-	listAllSubscriptionRows: ListAllSubscriptionRows;
 } {
 	const table = defineDynamoTable({
 		client: deps.client,
@@ -43,16 +41,5 @@ export function initDynamoDbSubscriptionRead(deps: {
 		return row ? toRecord(row) : undefined;
 	};
 
-	const listAllSubscriptionRows: ListAllSubscriptionRows = async () => {
-		const records = [];
-		let lastEvaluatedKey: Record<string, unknown> | undefined;
-		do {
-			const page = await table.scan({ ExclusiveStartKey: lastEvaluatedKey });
-			for (const row of page.items) records.push(toRecord(row));
-			lastEvaluatedKey = page.lastEvaluatedKey;
-		} while (lastEvaluatedKey !== undefined);
-		return records;
-	};
-
-	return { findByUserId, findBySubscriptionId, listAllSubscriptionRows };
+	return { findByUserId, findBySubscriptionId };
 }

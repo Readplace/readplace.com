@@ -35,7 +35,7 @@ export function initHandleCustomerSubscriptionDeleted(
 		if (!row) {
 			const customerField = StripeCustomerField.safeParse(stripeEvent.data.object);
 			logger.error(
-				"[stripe-webhook] no subscription row found for entitlement-affecting event — returning 200 so Stripe will NOT retry; run 'pnpm --dir projects/hutch stripe-reconcile' to diff app rows against Stripe",
+				"[stripe-webhook] no subscription row found for entitlement-affecting event — returning 200 so Stripe will NOT retry; this dropped event needs manual investigation in Stripe",
 				{
 					subscriptionId,
 					customerId: customerField.success ? customerField.data.customer : "unknown",
