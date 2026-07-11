@@ -20,6 +20,11 @@ services:
   gha-runner:
     build: .
     restart: unless-stopped
+    # NET_ADMIN lets entrypoint-secure.sh block job egress to the OrbStack host
+    # (the Mac) before any job runs. It is dropped from the job's own privileges
+    # by RUN_AS_ROOT=false; the rule persists in the netns regardless.
+    cap_add:
+      - NET_ADMIN
     entrypoint: ["/usr/local/bin/entrypoint-secure.sh"]
     # Overriding entrypoint clears the image's CMD, so restate it: the stock
     # entrypoint execs this (via gosu, as the runner user) and exits without it.

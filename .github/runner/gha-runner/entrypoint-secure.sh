@@ -31,5 +31,18 @@ unset pat
 # The caches are named volumes created root-owned; non-root jobs need them.
 chown -R runner:runner /ms-playwright /opt/hostedtoolcache /home/runner 2>/dev/null || true
 
+# Block a job from reaching the OrbStack HOST (the Mac) — the one pivot class
+# with no ubuntu-latest analogue. Verified reachable from a job:
+# host.docker.internal (0.250.250.254) exposes e.g. postgres:5432. OrbStack maps
+# the host into the fixed 0.250.0.0/16 range. Public internet (github, npm) is
+# unaffected. Requires NET_ADMIN (granted in compose); skip gracefully if absent
+# so the runner still comes up rather than failing closed.
+if iptables -C OUTPUT -d 0.250.0.0/16 -j REJECT 2>/dev/null; then :
+elif iptables -A OUTPUT -d 0.250.0.0/16 -j REJECT 2>/dev/null; then
+  echo "entrypoint-secure: blocked job egress to OrbStack host range 0.250.0.0/16"
+else
+  echo "entrypoint-secure: WARNING could not add host-egress block (NET_ADMIN missing?)" >&2
+fi
+
 export RUNNER_TOKEN
 exec env -u ACCESS_TOKEN -u GH_PAT /entrypoint.sh "$@"
