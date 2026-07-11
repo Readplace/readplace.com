@@ -2,21 +2,38 @@ import assert from "node:assert/strict";
 import { JSDOM } from "jsdom";
 import { initCrawlBookmark } from "./crawl-bookmark.client";
 
+const STORAGE_KEY = "readplace.crawl-bookmark-dismissed";
+
+type BookmarkStorage = {
+	getItem(key: string): string | null;
+	setItem(key: string, value: string): void;
+};
+
 function initWithDom(
 	bodyHtml: string,
 	isNarrow: boolean,
-): { document: Document; triggerSwap: (swapTarget: ParentNode) => void } {
-	const dom = new JSDOM(`<!DOCTYPE html><html><body>${bodyHtml}</body></html>`);
+	storage?: BookmarkStorage,
+): {
+	document: Document;
+	storage: BookmarkStorage;
+	triggerSwap: (swapTarget: ParentNode) => void;
+} {
+	const dom = new JSDOM(`<!DOCTYPE html><html><body>${bodyHtml}</body></html>`, {
+		url: "https://readplace.com/view",
+	});
+	const bookmarkStorage = storage ?? dom.window.localStorage;
 	let swapListener: ((swapTarget: ParentNode) => void) | undefined;
 	initCrawlBookmark({
 		document: dom.window.document,
 		isNarrow: () => isNarrow,
+		storage: bookmarkStorage,
 		addSwapListener: (listener) => {
 			swapListener = listener;
 		},
 	}).attach();
 	return {
 		document: dom.window.document,
+		storage: bookmarkStorage,
 		triggerSwap: (swapTarget) => {
 			assert(swapListener, "a swap listener must be registered");
 			swapListener(swapTarget);
@@ -26,7 +43,20 @@ function initWithDom(
 
 const OPEN_BOOKMARK = `<details class="crawl-bookmark" open><summary class="crawl-bookmark__handle"></summary></details>`;
 const CLOSED_BOOKMARK = `<details class="crawl-bookmark"><summary class="crawl-bookmark__handle"></summary></details>`;
+const HANDLELESS_BOOKMARK = `<details class="crawl-bookmark" open></details>`;
 const BOOKMARK_WITH_TABS = `<details class="crawl-bookmark" open><summary class="crawl-bookmark__handle"></summary><ul class="crawl-bookmark__tabs"><li class="crawl-bookmark__tab"><span class="crawl-bookmark__prefix">Last crawled at</span> <time class="crawl-bookmark__time">1 Jan '26</time></li></ul></details>`;
+
+function pickTabs(document: Document): HTMLElement {
+	const tabs = document.querySelector<HTMLElement>(".crawl-bookmark__tabs");
+	assert(tabs, "the info panel must be present");
+	return tabs;
+}
+
+function pickHandle(document: Document): HTMLElement {
+	const handle = document.querySelector<HTMLElement>(".crawl-bookmark__handle");
+	assert(handle, "the handle must be present");
+	return handle;
+}
 
 describe("initCrawlBookmark", () => {
 	it("collapses the bookmark on a narrow viewport", () => {
@@ -71,8 +101,7 @@ describe("initCrawlBookmark", () => {
 		const { document } = initWithDom(BOOKMARK_WITH_TABS, false);
 		const bookmark = document.querySelector(".crawl-bookmark");
 		assert(bookmark, "the bookmark must be present");
-		const tabs = document.querySelector<HTMLElement>(".crawl-bookmark__tabs");
-		assert(tabs, "the info panel must be present");
+		const tabs = pickTabs(document);
 		assert.equal(bookmark.hasAttribute("open"), true, "a wide viewport starts open");
 		tabs.click();
 		assert.equal(bookmark.hasAttribute("open"), false, "clicking the panel closes it");
@@ -85,9 +114,75 @@ describe("initCrawlBookmark", () => {
 		triggerSwap(document.body);
 		const bookmark = document.querySelector(".crawl-bookmark");
 		assert(bookmark, "the bookmark must be present");
-		const tabs = document.querySelector<HTMLElement>(".crawl-bookmark__tabs");
-		assert(tabs, "the info panel must be present");
+		const tabs = pickTabs(document);
 		tabs.click();
 		assert.equal(bookmark.hasAttribute("open"), false, "a single click toggles exactly once");
+	});
+
+	it("applies the viewport default to a bookmark without a handle", () => {
+		const { document } = initWithDom(HANDLELESS_BOOKMARK, true);
+		expect(document.querySelector(".crawl-bookmark")?.hasAttribute("open")).toBe(false);
+	});
+});
+
+describe("initCrawlBookmark — dismissal persistence", () => {
+	it("persists the dismissal when the info panel closes the capsule", () => {
+		const { document, storage } = initWithDom(BOOKMARK_WITH_TABS, false);
+		pickTabs(document).click();
+		expect(storage.getItem(STORAGE_KEY)).toBe("1");
+	});
+
+	it("persists the dismissal when the handle collapses the open capsule", () => {
+		const { document, storage } = initWithDom(OPEN_BOOKMARK, false);
+		pickHandle(document).click();
+		expect(storage.getItem(STORAGE_KEY)).toBe("1");
+	});
+
+	it("does not persist a dismissal when the handle opens a collapsed capsule", () => {
+		const { document, storage } = initWithDom(CLOSED_BOOKMARK, true);
+		pickHandle(document).click();
+		expect(storage.getItem(STORAGE_KEY)).toBe(null);
+	});
+
+	it("starts collapsed on a wide viewport once the user closed it on an earlier page", () => {
+		const firstPage = initWithDom(BOOKMARK_WITH_TABS, false);
+		pickTabs(firstPage.document).click();
+		const secondPage = initWithDom(OPEN_BOOKMARK, false, firstPage.storage);
+		expect(secondPage.document.querySelector(".crawl-bookmark")?.hasAttribute("open")).toBe(
+			false,
+		);
+	});
+
+	it("keeps a swapped-in bookmark collapsed once dismissed", () => {
+		const { document, triggerSwap } = initWithDom(BOOKMARK_WITH_TABS, false);
+		pickTabs(document).click();
+		document.body.innerHTML = OPEN_BOOKMARK;
+		triggerSwap(document.body);
+		expect(document.querySelector(".crawl-bookmark")?.hasAttribute("open")).toBe(false);
+	});
+
+	it("treats a throwing storage read as not dismissed and applies the viewport default", () => {
+		const throwingRead: BookmarkStorage = {
+			getItem: () => {
+				throw new Error("access denied");
+			},
+			setItem: () => {},
+		};
+		const { document } = initWithDom(CLOSED_BOOKMARK, false, throwingRead);
+		expect(document.querySelector(".crawl-bookmark")?.hasAttribute("open")).toBe(true);
+	});
+
+	it("swallows a throwing storage write and still collapses the capsule", () => {
+		const throwingWrite: BookmarkStorage = {
+			getItem: () => null,
+			setItem: () => {
+				throw new Error("quota");
+			},
+		};
+		const { document } = initWithDom(BOOKMARK_WITH_TABS, false, throwingWrite);
+		const bookmark = document.querySelector(".crawl-bookmark");
+		assert(bookmark, "the bookmark must be present");
+		expect(() => pickTabs(document).click()).not.toThrow();
+		expect(bookmark.hasAttribute("open")).toBe(false);
 	});
 });

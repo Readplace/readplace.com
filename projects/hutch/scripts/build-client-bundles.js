@@ -239,6 +239,7 @@ const BUNDLES = [
 			"CrawlBookmark.initCrawlBookmark({",
 			"  document: window.document,",
 			"  isNarrow: function () { return window.matchMedia('(max-width: 767px)').matches; },",
+			"  storage: window.localStorage,",
 			"  addSwapListener: function (cb) { window.document.body.addEventListener('htmx:afterSwap', function (e) { cb(e.target); }); }",
 			"}).attach();",
 		].join("\n"),

@@ -1,10 +1,32 @@
+interface CrawlBookmarkStorage {
+	getItem(key: string): string | null;
+	setItem(key: string, value: string): void;
+}
+
 export interface CrawlBookmarkDeps {
 	document: Document;
 	isNarrow: () => boolean;
+	storage: CrawlBookmarkStorage;
 	addSwapListener: (cb: (swapTarget: ParentNode) => void) => void;
 }
 
+const STORAGE_KEY = "readplace.crawl-bookmark-dismissed";
+
 export function initCrawlBookmark(deps: CrawlBookmarkDeps): { attach(): void } {
+	function readDismissed(): boolean {
+		try {
+			return deps.storage.getItem(STORAGE_KEY) === "1";
+		} catch {
+			return false;
+		}
+	}
+
+	function writeDismissed(): void {
+		try {
+			deps.storage.setItem(STORAGE_KEY, "1");
+		} catch {}
+	}
+
 	function syncFrom(root: ParentNode): void {
 		const bookmark = root.querySelector(".crawl-bookmark");
 		if (bookmark === null) return;
@@ -15,9 +37,14 @@ export function initCrawlBookmark(deps: CrawlBookmarkDeps): { attach(): void } {
 			// once per element (guarded above) so a re-sync can't stack listeners.
 			bookmark.querySelector(".crawl-bookmark__tabs")?.addEventListener("click", () => {
 				bookmark.toggleAttribute("open");
+				if (!bookmark.hasAttribute("open")) writeDismissed();
+			});
+			bookmark.querySelector(".crawl-bookmark__handle")?.addEventListener("click", () => {
+				const wasOpenBeforeNativeToggle = bookmark.hasAttribute("open");
+				if (wasOpenBeforeNativeToggle) writeDismissed();
 			});
 		}
-		if (deps.isNarrow()) {
+		if (readDismissed() || deps.isNarrow()) {
 			bookmark.removeAttribute("open");
 		} else {
 			bookmark.setAttribute("open", "");
