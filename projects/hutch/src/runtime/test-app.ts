@@ -27,6 +27,8 @@ import { createApp } from "./server";
 import type { GetChangelogBanner } from "./web/changelog-banner-source";
 import { initFoundingAllocation } from "./web/shared/founding-progress/founding-allocation";
 import { type AnalyticsEvent, createAnalyticsMiddleware } from "@packages/web-analytics";
+import { DEFAULT_INBOX_ALIAS } from "@packages/domain/inbox";
+import type { UserId } from "@packages/domain/user";
 
 export type {
 	AdminBundle,
@@ -172,11 +174,14 @@ function flattenFixtureToAppDependencies(
 		recrawlServiceToken: fixture.admin.recrawlServiceToken,
 		importSessionStore: fixture.importSession.importSessionStore,
 		extractLinksFromPageUrl: fixture.importSession.extractLinksFromPageUrl,
-		inboxAddressStore: fixture.inboxAddress.inboxAddressStore,
-		inboxAddressDomain: fixture.inboxAddress.inboxAddressDomain,
-		inboxEmailStore: fixture.inboxEmail.inboxEmailStore,
-		inboxEmailLinkStore: fixture.inboxEmail.inboxEmailLinkStore,
-		readEmailContent: fixture.inboxEmail.readEmailContent,
+		provisionInboxAddress: (userId: UserId) =>
+			fixture.inboxAddress.inboxAddressStore
+				.createAddress({
+					userId,
+					domain: fixture.inboxAddress.inboxAddressDomain,
+					name: DEFAULT_INBOX_ALIAS,
+				})
+				.then(() => undefined),
 		getChangelogBanner: async () => undefined,
 		now: fixture.shared.now,
 		retrieveCheckoutSession: fixture.hostedCheckout.retrieveCheckoutSession,
