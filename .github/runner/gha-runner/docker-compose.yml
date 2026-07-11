@@ -2,32 +2,45 @@
 #
 # Setup:
 #   1. Fine-grained PAT scoped to Readplace/readplace.com with
-#      "Administration: Read and write". The entrypoint uses it to mint
-#      registration tokens, which is what makes ephemeral restarts work
-#      (plain registration tokens die after 1 hour).
-#   2. echo 'GH_PAT=github_pat_...' > .env
+#      "Administration: Read and write" (all the registration-token endpoint
+#      needs). entrypoint-secure.sh uses it to mint registration tokens, which
+#      is what makes ephemeral restarts work (registration tokens die after 1h).
+#   2. Write the token ALONE (no KEY= prefix) to gh-pat.env — it is mounted as a
+#      root-only docker secret, never as an env var, so it never reaches a job
+#      (the container's initial env is readable from /proc/1/environ).
 #   3. docker compose up -d --build
 #   4. Verify: repo Settings -> Actions -> Runners shows the runner Idle.
 #
-# EPHEMERAL=true: runner takes exactly one job, exits, container restarts
-# clean and re-registers. Fresh filesystem per job. This is the config
-# that actually mitigates PR code persisting anything on your machine.
+# EPHEMERAL=true: runner takes exactly one job, exits, container restarts clean
+# and re-registers. Note this wipes the WORKSPACE, not the named volumes below —
+# those survive by design, so treat them as job-writable state, not as isolation.
+# Jobs run as the unprivileged `runner` user (RUN_AS_ROOT=false) so they can read
+# neither /proc/1/environ nor the PAT secret file.
 services:
   gha-runner:
     build: .
     restart: unless-stopped
+    entrypoint: ["/usr/local/bin/entrypoint-secure.sh"]
+    # Overriding entrypoint clears the image's CMD, so restate it: the stock
+    # entrypoint execs this (via gosu, as the runner user) and exits without it.
+    command: ["./bin/Runner.Listener", "run", "--startuptype", "service"]
     environment:
       REPO_URL: https://github.com/Readplace/readplace.com
-      ACCESS_TOKEN: ${GH_PAT:?put GH_PAT in .env}
       RUNNER_NAME_PREFIX: orb-m5
       LABELS: orbstack,docker
       EPHEMERAL: "true"
       DISABLE_AUTO_UPDATE: "true"
+      RUN_AS_ROOT: "false"
     volumes:
+      # The PAT lives behind /root (0700, root-owned). A docker secret lands in
+      # /run/secrets, which the runner user could still read even at 0400 root:root
+      # (verified) — non-root jobs cannot traverse /root, so this is the boundary.
+      - ./gh-pat.env:/root/gh-pat.env:ro
       # Content-addressable caches: survive the ephemeral wipe, cheap to
       # keep, expensive to redownload over starlink.
       - playwright-browsers:/ms-playwright
-      - pnpm-store:/root/.local/share/pnpm
+      # Under the runner user's home: non-root jobs cannot reach /root.
+      - pnpm-store:/home/runner/.local/share/pnpm
       # setup-node re-downloads Node into the toolcache on every ephemeral
       # container otherwise (~39s measured). Persisting it survives the wipe.
       - toolcache:/opt/hostedtoolcache

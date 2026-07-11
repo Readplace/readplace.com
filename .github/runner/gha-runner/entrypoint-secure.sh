@@ -1,0 +1,35 @@
+#!/usr/bin/env bash
+# Keeps the repo-admin PAT out of anything a job can reach.
+#
+# The stock entrypoint takes the PAT as ACCESS_TOKEN in the container's
+# environment. It un-exports it, so it never lands in a job's own env — but the
+# container's initial environment is still readable from /proc/1/environ, and
+# jobs run as root, so any job could recover the raw PAT with one command.
+#
+# Instead the PAT arrives as a root-only file (a docker secret). It lives only
+# in this shell, only long enough to mint a short-lived (1h) registration token,
+# and is never exported. The runner is then handed that registration token —
+# which can only register a runner, not administer the repo — and jobs are run
+# as the unprivileged `runner` user, which can read neither /proc/1/environ nor
+# the secret file.
+set -euo pipefail
+
+PAT_FILE=${PAT_FILE:-/root/gh-pat.env}
+[[ -r ${PAT_FILE} ]] || { echo "entrypoint-secure: ${PAT_FILE} not readable" >&2; exit 1; }
+
+pat=$(<"${PAT_FILE}")
+repo=${REPO_URL#https://github.com/}
+
+RUNNER_TOKEN=$(curl -fsSL -X POST \
+  -H "Authorization: Bearer ${pat}" \
+  -H "Accept: application/vnd.github+json" \
+  -H "X-GitHub-Api-Version: 2022-11-28" \
+  "https://api.github.com/repos/${repo}/actions/runners/registration-token" \
+  | jq -er .token)
+unset pat
+
+# The caches are named volumes created root-owned; non-root jobs need them.
+chown -R runner:runner /ms-playwright /opt/hostedtoolcache /home/runner 2>/dev/null || true
+
+export RUNNER_TOKEN
+exec env -u ACCESS_TOKEN -u GH_PAT /entrypoint.sh "$@"

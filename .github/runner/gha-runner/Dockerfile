@@ -76,3 +76,12 @@ RUN mkdir -p /opt/cft \
  && DRIVER_OUT=$(npx -y @puppeteer/browsers install "chromedriver@${CHROME_VER}" --path /opt/cft) \
  && echo "$DRIVER_OUT" | tail -1 | sed -E 's/^chromedriver@[^ ]+ //' > /opt/cft/driver-path
 ENV CFT_BAKED_DIR=/opt/cft
+
+# The PAT reaches the runner as a root-only file, never as an env var, so it is
+# absent from the container environment (and thus from /proc/1/environ, which a
+# root job could otherwise read). Jobs run as the unprivileged `runner` user, so
+# the caches must be writable by it.
+COPY entrypoint-secure.sh /usr/local/bin/entrypoint-secure.sh
+RUN chmod 0755 /usr/local/bin/entrypoint-secure.sh \
+ && mkdir -p /home/runner/.local/share/pnpm /ms-playwright /opt/hostedtoolcache \
+ && chown -R runner:runner /home/runner /ms-playwright /opt/hostedtoolcache
