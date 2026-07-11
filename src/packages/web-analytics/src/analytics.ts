@@ -279,6 +279,10 @@ export type AnalyticsEvent =
 	| ViewSaveIntentEvent
 	| SignupAttemptedEvent;
 
+function isRenderedPageStatus(statusCode: number): boolean {
+	return (statusCode >= 200 && statusCode < 300) || statusCode === 304;
+}
+
 function shouldLog(params: {
 	req: Request;
 	path: string;
@@ -288,7 +292,7 @@ function shouldLog(params: {
 	if (params.req.method !== "GET") return false;
 	if (SKIP_PATHS.has(params.path)) return false;
 	if (params.isStaticAssetPath(params.path)) return false;
-	if (params.statusCode < 200 || params.statusCode >= 300) return false;
+	if (!isRenderedPageStatus(params.statusCode)) return false;
 	if (isbot(params.req.get("user-agent"))) return false;
 	if (params.req.get("hx-request") === "true") return false;
 	return true;

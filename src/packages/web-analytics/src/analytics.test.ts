@@ -235,6 +235,17 @@ describe("createAnalyticsMiddleware — asset & path hygiene", () => {
 		expect(runMiddleware(createReq({ path: "/queue" }), createRes(199))).toEqual([]);
 	});
 
+	it("counts a 304 Not Modified as a pageview — a conditional revalidation re-displays the reader's cached copy of the page (a real revisit), so unlike a 3xx redirect leg it is a human page render", () => {
+		const pageviews = runMiddleware(createReq({ path: "/view/fagnerbrack.com/learn-sql" }), createRes(304));
+		expect(pageviews).toHaveLength(1);
+		expect(pageviews[0].path).toBe("/view/fagnerbrack.com/learn-sql");
+	});
+
+	it("still drops a 304 that carries hx-request — a reader/summary poll revalidation is excluded by the htmx guard, not the status, so keeping 304 loggable does not readmit poll traffic", () => {
+		const req = createReq({ path: "/view/fagnerbrack.com/learn-sql", headers: { "hx-request": "true" } });
+		expect(runMiddleware(req, createRes(304))).toEqual([]);
+	});
+
 	it("snapshots req.path at middleware entry so a finish-time mount-trim mutation cannot corrupt the logged pageview path", () => {
 		const req = createReq({ path: "/view/fagnerbrack.com/learn-sql" });
 		const res = createRes(200);
