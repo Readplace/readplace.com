@@ -19,7 +19,8 @@ const CrawlVersionsRow = z.object({
 
 /**
  * Snapshots the winning tier source into a per-minute S3 folder and appends the
- * minute id to the row's capped `crawlVersions` log. Callers gate this on
+ * minute id to the row's append-only `crawlVersions` log (unbounded — every
+ * version is kept forever, matching the never-pruned snapshots). Callers gate this on
  * "canonical content actually changed", so the copy always writes fresh bytes;
  * a second content-changing crawl in the same minute re-copies to the same key
  * (idempotent overwrite) and the log append dedupes to a no-op. The CAS on the

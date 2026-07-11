@@ -158,6 +158,40 @@ describe("initArticleReader", () => {
 			]);
 		});
 
+		it("caps the reader bookmark at the newest 10 versions even though the stored log is unbounded", async () => {
+			// 12 newest-first stored versions; the bookmark shows only the newest 10.
+			const stored: ArticleCrawlVersion[] = Array.from({ length: 12 }, (_v, i) => ({
+				crawledAtMinute: `2026-07-${String(12 - i).padStart(2, "0")}T09:14Z`,
+			}));
+			const { deps } = initFakeDeps({
+				crawl: { status: "ready" },
+				summary: { status: "ready", summary: "TL;DR" },
+				content: "<p>body</p>",
+				contentFetchedAt: "2026-03-26T14:32:00.000Z",
+				crawlVersions: stored,
+			});
+			const reader = initArticleReader(deps);
+
+			const result = await reader.resolveReaderState({
+				article: makeSnapshot(),
+				pollUrlBuilder: makePollUrlBuilder(),
+			});
+
+			expect(result.crawlVersions).toHaveLength(10);
+			expect(result.crawlVersions.map((version) => version.iso)).toEqual([
+				"2026-07-12T09:14Z",
+				"2026-07-11T09:14Z",
+				"2026-07-10T09:14Z",
+				"2026-07-09T09:14Z",
+				"2026-07-08T09:14Z",
+				"2026-07-07T09:14Z",
+				"2026-07-06T09:14Z",
+				"2026-07-05T09:14Z",
+				"2026-07-04T09:14Z",
+				"2026-07-03T09:14Z",
+			]);
+		});
+
 		it("falls back to a single crawlVersions element from contentFetchedAt when the version log is empty", async () => {
 			const { deps } = initFakeDeps({
 				crawl: { status: "ready" },

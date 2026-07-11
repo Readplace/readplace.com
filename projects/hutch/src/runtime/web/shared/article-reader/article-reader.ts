@@ -192,16 +192,27 @@ function buildUnifiedProgress(
 }
 
 /**
+ * The reader bookmark surfaces only the newest few dated versions. The stored
+ * log is intentionally unbounded (see `appendCrawlVersion`), so raising this
+ * limit — or building a dedicated all-versions view — needs no backfill.
+ */
+const MAX_BOOKMARK_CRAWL_VERSIONS = 10;
+
+/**
  * Merge the crawl-version log with the legacy `contentFetchedAt` fallback into
- * the bookmark's newest-first tab list. Pre-feature articles have no versions
- * but do have a `contentFetchedAt`, so they still surface a single current tab.
+ * the bookmark's newest-first tab list, capped at the newest
+ * `MAX_BOOKMARK_CRAWL_VERSIONS` for display. Pre-feature articles have no
+ * versions but do have a `contentFetchedAt`, so they still surface a single
+ * current tab.
  */
 function resolveCrawlVersions(
 	versions: ArticleCrawlVersion[],
 	contentFetchedAt: string | undefined,
 ): LocalTime[] {
 	if (versions.length > 0) {
-		return versions.map((version) => toAbsoluteShortDateTime({ iso: version.crawledAtMinute }));
+		return versions
+			.slice(0, MAX_BOOKMARK_CRAWL_VERSIONS)
+			.map((version) => toAbsoluteShortDateTime({ iso: version.crawledAtMinute }));
 	}
 	if (contentFetchedAt !== undefined) {
 		return [toAbsoluteShortDateTime({ iso: contentFetchedAt })];
