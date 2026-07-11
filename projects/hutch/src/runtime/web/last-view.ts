@@ -1,5 +1,5 @@
 import type { Response } from "express";
-import { baseCookieOptions } from "./cookie-options";
+import { baseCookieOptions } from "@packages/web-analytics";
 
 export const LAST_VIEW_COOKIE_NAME = "hutch_lastview";
 
