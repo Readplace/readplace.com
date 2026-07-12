@@ -62,7 +62,7 @@ Renaming an action is a breaking change — both sides must ship together. Renam
 
 | Change | Breaking? | Notes |
 |---|---|---|
-| Add a new `action` | No | Clients without a handler skip it |
+| Add a new `action` | No | A *titled* action renders as a generic control; a *title-less* one the client doesn't recognise is a machine capability it skips (see **Label**) |
 | Add a new `field` to an existing action | Potentially | Safe if optional server-side; breaking if required |
 | Add a new `link` `rel` | No | Clients only follow `rel`s they understand |
 | Add a new property to `entities[].properties` | No | Extra properties are ignored |
@@ -139,7 +139,9 @@ A client loops over the current response's `actions` and renders **one control p
 
 **Structural vs control affordances.** Not every link is a user control. **Structural** navigation link rels (`self`, `root`, `prev`, `next`, `item`) are followed by the client for its **own** navigation — pagination, identity, item resolution — and MUST NOT be rendered as tappable controls. Render controls for **actions** and for **semantic** (non-structural) links the client understands (e.g. `read`). An unrecognised link rel is neither structural nor a known control, so it produces no control.
 
-**Label** — comes from the affordance's Siren `title` (present on actions *and* links). The same string doubles as the control's `aria-label`/tooltip; the client never invents copy per action name. When an affordance carries no `title`, the client derives the label by humanizing the token (action `name` / link `rel`) consistently, so a title-less affordance renders the same human label across clients.
+**Label** — comes from the affordance's Siren `title` (present on actions *and* links). The same string doubles as the control's `aria-label`/tooltip; the client never invents copy per action name. When a *recognised* affordance carries no `title`, the client humanizes the token (action `name` / link `rel`) consistently, so it renders the same human label across clients.
+
+**A `title` is also the server's signal that an affordance is a user control.** A title-less affordance the client does **not** recognise is a **machine capability** — advertised for the client to invoke bespoke (e.g. `create-session`, which mints a reader session cookie), never surfaced as a control. So an unrecognised affordance is rendered as a control **only when the server titled it**; a title-less unrecognised one is skipped. This is what reconciles "clients skip an action they don't handle" (Evolvability) with "an unknown name/rel still renders with a default presentation" (below): the default presentation is for an *unrecognised but titled* affordance. Without this rule, every machine capability the server adds later surfaces as a mystery control on already-shipped clients — which is exactly what a field-less, title-less `create-session` did until clients special-cased it, then generalised to this rule.
 
 **Presentation is one client-side mapping.** The server sends no style, class, icon, or placement. The client derives **both** style **and** icon/glyph from a single mapping of the action `name` (or a semantic link `rel`) to its **own** design tokens, with a default for any unknown name/rel. An inline `name === "delete"` branch chosen for presentation is the same smell as the gated booleans — forbidden; route every presentation decision through the one mapping. A server string is never used as a CSS class verbatim — that would couple styling to wire vocabulary and break on a rename.
 

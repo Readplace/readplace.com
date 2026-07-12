@@ -92,9 +92,14 @@ That produces `build/Readplace-unsigned.ipa` (the app + its share extension).
   source site. The sheet opens immediately on a skeleton while the app mints a
   browser session cookie from its bearer token and injects it into the web view;
   the reader and its in-reader XHRs are then authenticated. Pressing the reader's
-  own **Mark as read** closes the sheet and drops the row; **View original** stays
-  reachable from inside the reader. The reader's mark-read is detected by the
-  `status` field on its request, not its URL, so the endpoint can move freely.
+  own **Mark as read** closes the sheet and re-reads the list to adopt the server's
+  truth — it does not infer the new state and drop the row locally, so a toggle back
+  to unread reconciles correctly (a deep-scrolled list keeps its scroll position and
+  reconciles on the next pull-to-refresh); **View original** stays reachable from
+  inside the reader. The mark-read signal is owned by the server: its chromeless
+  reader posts a `markedRead` message to the app's `readplaceReader` WebKit handler,
+  and the app injects no script and reads none of the reader's htmx internals — so
+  the reader's request shape and endpoint can change without an app release.
 - **Save by sharing**: a **Share Extension** appears in the iOS share sheet for
   URLs/web pages, plain text, and PDF documents — via a SUBQUERY
   `NSExtensionActivationRule` predicate ([`ShareExtension/Info.plist`](./ShareExtension/Info.plist)
@@ -329,11 +334,21 @@ exercised on every run, not only when someone builds `make ipa-staging` by hand.
   session cookie from its bearer token and injects it into the web view before the
   first navigation, so the reader and its in-reader XHRs are authenticated.
   **This needs the server change deployed first** — see "Server dependency" below.
-- **Server dependency / deploy ordering.** The swipe-to-mark-read and in-app
-  reader both rely on two additive server surfaces — the entity-level
-  `update-status` action and `POST /auth/session` — that must be **deployed
-  before** this build ships to TestFlight. They are additive and non-breaking, so
-  the server can deploy independently; an older app simply wouldn't see them.
+- **Server dependency / deploy ordering.** The reader and reading list rely on
+  additive server surfaces that must be **deployed before** this build ships to
+  TestFlight: the entity-level `update-status` action; the `create-session`
+  collection action the app discovers to mint its reader session (with a fixed
+  `POST /auth/session` fallback for an older server); the `isRead` property the row
+  reads (falling back to the `status`/`readAt` derivation when it is absent); and
+  the server-authored reader bridge (`READER_MARK_READ_BRIDGE_SCRIPT`, which posts
+  `markedRead` to the app's `readplaceReader` handler). All are additive and
+  non-breaking for an older app, which simply doesn't see them. The one directional
+  constraint runs the other way: because this build injects no mark-read script of
+  its own, it depends on the server emitting the bridge — so a hutch rollback below
+  that change while this build is in the field leaves the reader's **Mark as read**
+  without its auto-close/reconcile (the mark still records server-side; the list
+  reconciles on the next pull-to-refresh). Keep the server at or above the bridge
+  change for as long as this build is live.
 - **Both Login and Sign up authenticate as the app's own `ios-app` client.** The
   external-browser flow can't observe an HTTPS redirect in another app's tab, so
   it returns via a native `readplace://oauth-callback` deep link, registered on
