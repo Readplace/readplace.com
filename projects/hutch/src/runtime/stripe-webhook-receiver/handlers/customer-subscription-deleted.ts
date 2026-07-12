@@ -1,7 +1,7 @@
-import { z } from "zod";
 import { SubscriptionCancelledEvent } from "@packages/hutch-infra-components";
 import type { PublishEvent } from "@packages/hutch-infra-components/runtime";
 import type { FindSubscriptionBySubscriptionId } from "@packages/provider-contracts/subscription-providers";
+import { z } from "zod";
 import type { StripeEventHandler } from "../stripe-webhook-receiver-handler";
 
 const CancellationDetails = z.object({
@@ -19,6 +19,8 @@ function cancelReason(
 		: "stripe_webhook";
 }
 
+const StripeCustomerField = z.object({ customer: z.string() });
+
 export type CustomerSubscriptionDeletedDeps = {
 	findSubscriptionBySubscriptionId: FindSubscriptionBySubscriptionId;
 	publishEvent: PublishEvent;
@@ -31,9 +33,15 @@ export function initHandleCustomerSubscriptionDeleted(
 		const subscriptionId = stripeEvent.data.object.id;
 		const row = await deps.findSubscriptionBySubscriptionId(subscriptionId);
 		if (!row) {
-			logger.warn("[stripe-webhook] no subscription row found — skipping event emission", {
-				subscriptionId,
-			});
+			const customerField = StripeCustomerField.safeParse(stripeEvent.data.object);
+			logger.error(
+				"[stripe-webhook] no subscription row found for entitlement-affecting event — returning 200 so Stripe will NOT retry; this dropped event needs manual investigation in Stripe",
+				{
+					subscriptionId,
+					customerId: customerField.success ? customerField.data.customer : "unknown",
+					eventType: stripeEvent.type,
+				},
+			);
 			return;
 		}
 		const reason = cancelReason(stripeEvent.data.object);
