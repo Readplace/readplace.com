@@ -142,7 +142,7 @@ const { app: hutchApp, auth, email } = createTestApp({
   },
   shared: {
     /** Raw on purpose: createTestApp decorates shared.validateSaveableUrl with
-     * withReadplacePreparse itself — wrapping here too would preparse twice and
+     * withUnwrapPreprocessing itself — wrapping here too would unwrap twice and
      * diverge the e2e server from the production composition. */
     validateSaveableUrl: e2eValidateSaveableUrl,
     appOrigin: fixture.shared.appOrigin,

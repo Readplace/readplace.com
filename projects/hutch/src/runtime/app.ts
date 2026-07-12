@@ -108,7 +108,8 @@ import { initLogParseError, type ParseErrorEvent } from "@packages/hutch-infra-c
 import { isBlockedIpAddress, validateSaveableUrl } from "@packages/domain/article";
 import { createApp } from "./server";
 import { initChangelogBannerSource } from "./web/changelog-banner-source";
-import { withReadplacePreparse } from "./web/pages/view/preparse-readplace-url";
+import { readplaceUnwrapPreprocessor } from "./web/pages/view/readplace-unwrap-preprocessor";
+import { unwrappedPreProcessors, withUnwrapPreprocessing } from "./web/unwrap-preprocessors";
 import type { BotDefenseEvent } from "./web/auth/auth.page";
 import type { ConversionEvent } from "./conversions";
 import type { AnalyticsEvent } from "@packages/web-analytics";
@@ -709,9 +710,11 @@ export function createHutchApp(deps?: {
 	});
 
 	const app = createApp({
-		validateSaveableUrl: withReadplacePreparse(validateSaveableUrl, {
-			selfHost: new URL(appOrigin).host,
-		}),
+		validateSaveableUrl: withUnwrapPreprocessing(
+			validateSaveableUrl,
+			unwrappedPreProcessors(readplaceUnwrapPreprocessor),
+			{ selfHost: new URL(appOrigin).host },
+		),
 		appOrigin,
 		staticBaseUrl,
 		hashPassword,

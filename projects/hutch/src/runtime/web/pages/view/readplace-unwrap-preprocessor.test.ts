@@ -1,32 +1,14 @@
-import {
-	MAX_SAVEABLE_URL_LENGTH,
-	type SaveableUrlResult,
-	type ValidateSaveableUrl,
-} from "@packages/domain/article";
-import { withReadplacePreparse } from "./preparse-readplace-url";
+import { readplaceUnwrapPreprocessor } from "./readplace-unwrap-preprocessor";
 
 const SELF_HOST = "readplace.com";
 
-function captureValidator(): { validate: ValidateSaveableUrl; seen: () => unknown } {
-	let received: unknown;
-	const validate: ValidateSaveableUrl = (value) => {
-		received = value;
-		return { status: "ERROR", error: { code: "malformed_url", message: "stub" } };
-	};
-	return { validate, seen: () => received };
+function unwrap(selfHost: string): (rawUrl: string) => string {
+	return (rawUrl) => readplaceUnwrapPreprocessor(rawUrl, { selfHost });
 }
 
-function initUnwrap(selfHost: string): (rawUrl: string) => unknown {
-	return (rawUrl) => {
-		const { validate, seen } = captureValidator();
-		withReadplacePreparse(validate, { selfHost })(rawUrl);
-		return seen();
-	};
-}
+const preparse = unwrap(SELF_HOST);
 
-const preparse = initUnwrap(SELF_HOST);
-
-describe("withReadplacePreparse — self-URL unwrapping", () => {
+describe("readplaceUnwrapPreprocessor — self-URL unwrapping", () => {
 	it("unwraps a /view/<host>/<path> self-URL to the original article", () => {
 		expect(preparse("https://readplace.com/view/fagnerbrack.com/business-success")).toBe(
 			"https://fagnerbrack.com/business-success",
@@ -119,6 +101,15 @@ describe("withReadplacePreparse — self-URL unwrapping", () => {
 		expect(preparse("https://readplace.com/queue")).toBe("https://readplace.com/queue");
 	});
 
+	/** Documents the current limit: the `/queue/:id/view` permalink (the link every
+	 * queue card emits) carries only an opaque hash id, so this synchronous
+	 * preprocessor cannot resolve it and leaves it untouched. Unwrapping it needs an
+	 * async store lookup, added later as a separate preprocessor. */
+	it("leaves a /queue/:id/view permalink unchanged (opaque hash id, needs async lookup)", () => {
+		const permalink = "https://readplace.com/queue/9909df2208c6e55dfb5801ed39305052/view";
+		expect(preparse(permalink)).toBe(permalink);
+	});
+
 	it("leaves the self homepage unchanged", () => {
 		expect(preparse("https://readplace.com/")).toBe("https://readplace.com/");
 	});
@@ -138,7 +129,7 @@ describe("withReadplacePreparse — self-URL unwrapping", () => {
 	});
 
 	describe("self-host is matched including port", () => {
-		const portPreparse = initUnwrap("localhost:3000");
+		const portPreparse = unwrap("localhost:3000");
 
 		it("unwraps when the host and port match", () => {
 			expect(portPreparse("https://localhost:3000/view/example.com/x")).toBe(
@@ -151,32 +142,5 @@ describe("withReadplacePreparse — self-URL unwrapping", () => {
 				"https://localhost:4000/view/example.com/x",
 			);
 		});
-	});
-});
-
-describe("withReadplacePreparse — decorator contract", () => {
-	it("passes non-string input straight through to the wrapped validator", () => {
-		const { validate, seen } = captureValidator();
-		const decorated = withReadplacePreparse(validate, { selfHost: SELF_HOST });
-		decorated(42);
-		expect(seen()).toBe(42);
-	});
-
-	it("passes an over-length string through unrewritten so validation rejects it", () => {
-		const { validate, seen } = captureValidator();
-		const decorated = withReadplacePreparse(validate, { selfHost: SELF_HOST });
-		const oversized = `https://readplace.com/view/fagnerbrack.com/${"a".repeat(MAX_SAVEABLE_URL_LENGTH)}`;
-		decorated(oversized);
-		expect(seen()).toBe(oversized);
-	});
-
-	it("returns the wrapped validator's result", () => {
-		const result: SaveableUrlResult = {
-			status: "ERROR",
-			error: { code: "private_network", message: "sentinel" },
-		};
-		const validate: ValidateSaveableUrl = () => result;
-		const decorated = withReadplacePreparse(validate, { selfHost: SELF_HOST });
-		expect(decorated("https://example.com/x")).toBe(result);
 	});
 });
