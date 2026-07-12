@@ -37,11 +37,11 @@ Why 303 over the entry point: the server decides where the collection lives; ren
 
 | Must know (client code) | Must discover (from server response) |
 |---|---|
-| Entry point URL (`/`) | Resource URLs (`/queue`, `/queue/:id/delete`) |
+| Entry point URL (`/`) | Resource URLs (`/queue`, `/queue/:id/status`) |
 | Siren media type | HTTP methods |
-| Action names it supports (`save-article`, `delete`, `search`) | Field names and types per action |
+| Action names it supports (`save-article`, `update-status`, `search`) | Field names and types per action |
 | Field semantics for those names (`url`, `status`) | Pagination / sort / filter links (`next`, `prev`, `self`) |
-| Link `rel`s it supports (`self`, `read`) | Entity URLs for reading or deletion |
+| Link `rel`s it supports (`self`, `read`) | Entity URLs for reading or status changes |
 
 Anything in the right column that the client hard-codes is a future breaking change waiting to happen.
 
@@ -77,7 +77,7 @@ When a breaking change is necessary, add the new capability alongside the old on
 
 ## State Lives in the Network
 
-HTTP caching (`ETag` + `If-None-Match`) is the authoritative cache layer. Do not build a parallel in-client cache of "what articles exist" as the source of truth. A client may keep a short-lived cache of *bound actions* (items the server returned with their `delete` action attached) as a performance optimisation, but the canonical state is always whatever the server returns next.
+HTTP caching (`ETag` + `If-None-Match`) is the authoritative cache layer. Do not build a parallel in-client cache of "what articles exist" as the source of truth. A client may keep a short-lived cache of *bound actions* (items the server returned with their `update-status` action attached) as a performance optimisation, but the canonical state is always whatever the server returns next.
 
 - Cache wrapper: `httpCacheable(understanding)` in the browser extension's `siren-reading-list.ts`
 - Short-lived action cache: `knownItems` in `initSirenReadingList` (cleared on every mutation)
@@ -127,9 +127,9 @@ The client-side render decisions (per-`type` variant class, the `role` politenes
 | Action scope | Where it lives | Example |
 |---|---|---|
 | Collection-level | `entity.actions` on the collection | `save-article`, `search` |
-| Entity-level | `entities[].actions` | `delete` |
+| Entity-level | `entities[].actions` | `update-status` |
 
-A client binds both levels: collection-level actions (e.g. `save-article`, `search`) and the per-entity actions on each item (e.g. `delete`). Put an action at the level where it makes sense — "delete this article" belongs on the article entity, not the collection.
+A client binds both levels: collection-level actions (e.g. `save-article`, `search`) and the per-entity actions on each item (e.g. `update-status`). Put an action at the level where it makes sense — "mark this article read" belongs on the article entity, not the collection.
 
 ## Rendering & Invoking Affordances
 
