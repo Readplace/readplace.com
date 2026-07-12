@@ -1,3 +1,4 @@
+import Security
 import XCTest
 @testable import Readplace
 
@@ -47,6 +48,42 @@ final class TokenStoreTests: XCTestCase {
 		defaults.set("only-access", forKey: "oauth.accessToken")
 		let store = TokenStore(defaults: defaults)
 		XCTAssertNil(store.tokens, "a missing refresh token should not count as logged in")
+	}
+
+	// MARK: - loadTokens (distinguishing signed-out from an unreadable Keychain)
+
+	func testLoadTokensReturnsThePairWhenBothPresent() {
+		let store = TokenStore(defaults: TestSupport.ephemeralDefaults())
+		store.save(OAuthTokens(accessToken: "a", refreshToken: "r"))
+		XCTAssertEqual(store.loadTokens(), .success(OAuthTokens(accessToken: "a", refreshToken: "r")))
+	}
+
+	func testLoadTokensIsSignedOutWhenEmpty() {
+		let store = TokenStore(defaults: TestSupport.ephemeralDefaults())
+		XCTAssertEqual(store.loadTokens(), .success(nil))
+	}
+
+	func testLoadTokensIsSignedOutWhenOnlyAccessPresent() {
+		let defaults = TestSupport.ephemeralDefaults()
+		defaults.set("only-access", forKey: TokenKey.accessToken.rawValue)
+		let store = TokenStore(defaults: defaults)
+		XCTAssertEqual(store.loadTokens(), .success(nil))
+	}
+
+	func testLoadTokensSurfacesAnAccessReadFailure() {
+		let store = TokenStore(storage: FailingTokenStorage(failing: [.accessToken]))
+		XCTAssertEqual(store.loadTokens(), .failure(.read(status: errSecMissingEntitlement)))
+	}
+
+	func testLoadTokensSurfacesARefreshReadFailure() {
+		let store = TokenStore(storage: FailingTokenStorage(values: [.accessToken: "a"], failing: [.refreshToken]))
+		XCTAssertEqual(store.loadTokens(), .failure(.read(status: errSecMissingEntitlement)))
+	}
+
+	func testTokensCollapseToSignedOutWhenTheStorageReadFails() {
+		let store = TokenStore(storage: FailingTokenStorage(failing: Set(TokenKey.allCases)))
+		XCTAssertNil(store.tokens, "the app's own gating treats an unreadable store as signed out")
+		XCTAssertFalse(store.isLoggedIn)
 	}
 
 	func testMigratesLegacyDefaultsIntoStorage() {

@@ -1,6 +1,22 @@
 import Foundation
+import Security
 import XCTest
 @testable import Readplace
+
+/// A `TokenStorage` whose reads fail with a chosen Keychain `OSStatus` for the
+/// selected keys — the device condition (an unreadable shared Keychain) the
+/// Simulator cannot reproduce. Non-failing keys read back from `values`.
+struct FailingTokenStorage: TokenStorage {
+	var values: [TokenKey: String] = [:]
+	var failing: Set<TokenKey>
+	var status: OSStatus = errSecMissingEntitlement
+
+	func readValue(for key: TokenKey) -> Result<String?, KeychainError> {
+		failing.contains(key) ? .failure(.read(status: status)) : .success(values[key])
+	}
+	func setValue(_ value: String, for key: TokenKey) {}
+	func removeValue(for key: TokenKey) {}
+}
 
 enum TestSupport {
 	static func ephemeralDefaults() -> UserDefaults {

@@ -7,6 +7,10 @@ enum SaveSharedOutcome: Equatable {
 	case savedWithContent
 	case savedLinkOnly
 	case notLoggedIn
+	/// The token store could not be READ (not merely empty) — the shared Keychain
+	/// returned a hard failure. Carries the `OSStatus` so the shell can name it,
+	/// rather than telling a signed-in user they are signed out.
+	case storageUnavailable(OSStatus)
 	case noLink
 	case noSaveAction
 	case refused([ServerMessage])
@@ -33,7 +37,14 @@ struct SaveSharedPage {
 	/// file (nil when the payload carried none) — a closure rather than the bytes
 	/// so a share that fails the guards above never pays for the load.
 	func run(url: URL?, fallbackTitle: String?, sharedPdf: (() async -> Data?)?) async -> SaveSharedOutcome {
-		guard store.isLoggedIn else { return .notLoggedIn }
+		switch store.loadTokens() {
+		case .failure(let error):
+			return .storageUnavailable(error.status)
+		case .success(nil):
+			return .notLoggedIn
+		case .success:
+			break
+		}
 		guard let url else { return .noLink }
 
 		var providedPdf: Data?
