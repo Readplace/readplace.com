@@ -33,6 +33,7 @@ export {
 	ArticleStatusSchema,
 } from "./article.schema";
 export {
+	MAX_SAVEABLE_URL_LENGTH,
 	SaveableUrlSchema,
 	validateSaveableUrl,
 	saveableUrlCodeFromIssues,

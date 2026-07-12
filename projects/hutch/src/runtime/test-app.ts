@@ -24,6 +24,7 @@ import type {
 } from "@packages/web-test-harness";
 import { useTestServer as useServerForFixture } from "@packages/web-test-harness";
 import { createApp } from "./server";
+import { withReadplacePreparse } from "./web/pages/view/preparse-readplace-url";
 import type { GetChangelogBanner } from "./web/changelog-banner-source";
 import { initFoundingAllocation } from "./web/shared/founding-progress/founding-allocation";
 import { type AnalyticsEvent, createAnalyticsMiddleware } from "@packages/web-analytics";
@@ -93,7 +94,9 @@ function flattenFixtureToAppDependencies(
 	analyticsBundle: AnalyticsBundle,
 ): Parameters<typeof createApp>[0] {
 	return {
-		validateSaveableUrl: fixture.shared.validateSaveableUrl,
+		validateSaveableUrl: withReadplacePreparse(fixture.shared.validateSaveableUrl, {
+			selfHost: new URL(fixture.shared.appOrigin).host,
+		}),
 		appOrigin: fixture.shared.appOrigin,
 		staticBaseUrl: fixture.shared.staticBaseUrl,
 		baseUrl: fixture.shared.appOrigin,
