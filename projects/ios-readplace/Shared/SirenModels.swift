@@ -353,8 +353,8 @@ struct Article: Identifiable, Hashable {
 	let readTimeMinutes: Int?
 	let isRead: Bool
 	let savedAt: Date?
-	/// Every action the server advertised on this item (e.g. `update-status`,
-	/// `delete`), in the order the server listed them. The row renders one control
+	/// Every action the server advertised on this item (e.g. `update-status`),
+	/// in the order the server listed them. The row renders one control
 	/// per actionable entry by iterating this — it never cherry-picks an action by
 	/// name — so a newly-advertised item action renders with no client change.
 	let actions: [SirenAction]

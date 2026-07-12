@@ -148,7 +148,6 @@ enum Fixtures {
 		siteName: String? = "Example",
 		excerpt: String? = "An excerpt.",
 		imageUrl: String? = "https://example.com/img.png",
-		wordCount: Int? = 1200,
 		readTime: Int? = 6,
 		status: String = "unread",
 		savedAt: String = "2026-05-30T10:00:00.000Z",
@@ -176,7 +175,6 @@ enum Fixtures {
 		    \(field("title", title)),
 		    \(field("siteName", siteName)),
 		    \(field("excerpt", excerpt)),
-		    \(numField("wordCount", wordCount)),
 		    \(field("imageUrl", imageUrl)),
 		    \(numField("estimatedReadTimeMinutes", readTime)),
 		    "status": "\(status)",
@@ -200,7 +198,7 @@ enum Fixtures {
 		{ "name": "save-article", "title": "Save a link", "href": "/queue", "method": "POST", "type": "application/json", "fields": [{ "name": "url", "type": "url" }] },
 		{ "name": "save-html", "title": "Save a page", "href": "/queue/save-html", "method": "POST", "type": "application/json", "fields": [{ "name": "url", "type": "url" }, { "name": "rawHtml", "type": "text" }, { "name": "title", "type": "text" }] },
 		{ "name": "save-content", "title": "Save a file", "href": "/queue/save-content", "method": "POST", "type": "multipart/form-data", "fields": [{ "name": "url", "type": "url" }, { "name": "content", "type": "file" }, { "name": "mediaType", "type": "text" }, { "name": "title", "type": "text" }] },
-		{ "name": "search", "title": "Search", "href": "/queue", "method": "GET", "fields": [{ "name": "status", "type": "text" }, { "name": "order", "type": "text" }, { "name": "page", "type": "number" }, { "name": "pageSize", "type": "number" }, { "name": "url", "type": "url" }] }
+		{ "name": "search", "title": "Search", "href": "/queue", "method": "GET", "fields": [{ "name": "status", "type": "text" }, { "name": "order", "type": "text" }, { "name": "page", "type": "number" }, { "name": "url", "type": "url" }] }
 		"""
 
 	static func collection(

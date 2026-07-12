@@ -149,7 +149,7 @@ final class ReadplaceAPI {
 
 	/// Invokes a simple entity action via its own server-declared href, method and
 	/// type — the single generic path for actions whose body is a flat field set
-	/// (e.g. `update-status`, `delete`), so a newly-advertised entity action is
+	/// (e.g. `update-status`), so a newly-advertised entity action is
 	/// invokable with no new per-operation code. The caller supplies values only
 	/// for the field names whose semantics the protocol fixes (`status`); the
 	/// action's own declared field defaults fill the rest, and a field the caller
