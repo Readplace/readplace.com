@@ -226,6 +226,11 @@ export const EXCLUDE_PATTERNS: readonly RegExp[] = [
 	// rows (including the extension-saved `question/undefined` duplicate of
 	// this same answer) must still surface.
 	/^https:\/\/www\.zhihu\.com\/question\/2058516301257994660\/answer\/2058890698460509303$/i,
+	// Malformed extension save under the same host: the question ID never
+	// resolved (`question/undefined`) and a truncated text fragment (`...This`)
+	// leaked into the path, so no real page exists behind it (issue #962).
+	// Anchored exact; the `question/undefined/answer/<id>` duplicate still surfaces.
+	/^https:\/\/www\.zhihu\.com\/question\/undefined\/\.\.\.This$/i,
 	// (i) web.archive.org captures — archive.org throttles datacenter egress
 	// (tarpits/429s AWS-range IPs), so saved captures intermittently exhaust
 	// retries with nothing the operator can act on. Anchored per capture

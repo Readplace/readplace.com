@@ -591,6 +591,11 @@ describe("EXCLUDE_PATTERNS — permanently-unreachable saves", () => {
 			label: "zhihu deleted answer exact (origin 404 behind edge 403)",
 		},
 		{
+			url: "https://www.zhihu.com/question/undefined/...This",
+			excluded: true,
+			label: "zhihu malformed extension save (question/undefined + truncated fragment, issue #962)",
+		},
+		{
 			url: "https://www.zhihu.com/question/undefined/answer/2058890698460509303",
 			excluded: false,
 			label: "extension-saved question/undefined duplicate of the same answer — must NOT be hidden",
