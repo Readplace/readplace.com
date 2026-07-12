@@ -180,6 +180,61 @@ final class AffordancePresentationTests: XCTestCase {
 		XCTAssertTrue(link.isInvokableByBareControl, "a navigable link carries no fields, so a bare control can open it")
 	}
 
+	// MARK: - Machine-capability gate (title-less unknown ⇒ not a toolbar control)
+
+	func testAnUnrecognizedTitlelessActionIsAMachineCapabilityNotAToolbarControl() throws {
+		// A future field-less action the client doesn't recognise and the server didn't
+		// title — exactly how `create-session` is advertised today — is a machine
+		// capability the client invokes bespoke, so it must never surface as a mystery
+		// toolbar button on a shipped build.
+		let machine = SirenAction(name: "mint-token", href: "/mint", method: "POST", title: nil, type: nil, fields: nil)
+		let affordance = try XCTUnwrap(Affordance(action: machine))
+		XCTAssertTrue(affordance.isInvokableByBareControl, "it is field-less, so the bare-control check alone would admit it")
+		XCTAssertFalse(
+			affordance.isToolbarControl,
+			"an unrecognised, title-less action is a machine capability and must not render as a toolbar control"
+		)
+	}
+
+	func testAnUnrecognizedButTitledActionStillRendersAsAToolbarControl() throws {
+		// The server signals "this is a user control" by giving the affordance a
+		// `title`; a titled unknown action still renders (with the generic look), so a
+		// genuinely new user affordance is never dropped.
+		let titled = SirenAction(name: "purge-all", href: "/queue/purge", method: "POST", title: "Purge", type: nil, fields: nil)
+		let affordance = try XCTUnwrap(Affordance(action: titled))
+		XCTAssertTrue(affordance.isToolbarControl, "a titled unknown action is a user control the toolbar surfaces")
+	}
+
+	func testAnUnrecognizedTitlelessLinkIsNotAToolbarControl() throws {
+		// The same machine-capability rule applies to a link the client doesn't
+		// recognise: without a server title it is not surfaced as a control.
+		let link = try XCTUnwrap(Affordance(link: SirenLink(rel: ["share"], href: "/share", title: nil)))
+		XCTAssertFalse(link.isToolbarControl, "an unrecognised, title-less link is not surfaced as a toolbar control")
+	}
+
+	func testAnUnrecognizedTitledLinkRendersAsAToolbarControl() throws {
+		let link = try XCTUnwrap(Affordance(link: SirenLink(rel: ["share"], href: "/share", title: "Share")))
+		XCTAssertTrue(link.isToolbarControl, "a titled unknown link is surfaced as a toolbar control")
+	}
+
+	// MARK: - Structural-rel safety across every rel, not just the first
+
+	func testALinkIsExcludedWhenAnyOfItsRelsIsStructuralNotJustTheFirst() throws {
+		// A multi-rel link whose first rel is presentational but which also carries a
+		// structural rel (`["alternate", "next"]`) must not render as a control while
+		// the client is also following it for pagination — every rel is checked, not
+		// just the presentation token.
+		let multiRel = try XCTUnwrap(Affordance(link: SirenLink(rel: ["alternate", "next"], href: "/queue?page=2", title: "More")))
+		XCTAssertTrue(multiRel.isStructuralLink, "a structural rel anywhere in the list makes the link structural")
+		XCTAssertFalse(multiRel.isToolbarControl, "so it is never surfaced as a user control, even with a title")
+	}
+
+	func testALinkWithNoStructuralRelStaysACandidateControl() throws {
+		let semantic = try XCTUnwrap(Affordance(link: SirenLink(rel: ["alternate", "share"], href: "/share", title: "Share")))
+		XCTAssertFalse(semantic.isStructuralLink, "no rel is structural, so the link stays a candidate control")
+		XCTAssertTrue(semantic.isToolbarControl, "a titled, non-structural link surfaces as a control")
+	}
+
 	// MARK: - Label humanization
 
 	func testLabelHumanizesTheTokenWhenTheServerSentNoTitle() throws {
