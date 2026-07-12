@@ -891,6 +891,8 @@ export function createApp(dependencies: AppDependencies): Express {
 		now: deps.now,
 		botDefenseLogger: deps.botDefenseLogger,
 		conversionLogger: deps.conversionLogger,
+		analytics: deps.analytics,
+		salt: deps.salt,
 		foundingAllocation,
 		buildBannerState,
 		consumeRateLimit: deps.consumeRateLimit,

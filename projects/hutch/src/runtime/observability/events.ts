@@ -3,8 +3,10 @@ export {
 	ANALYTICS_EVENTS,
 	SAVE_SURFACES,
 	SAVE_OUTCOMES,
+	SIGNUP_OUTCOMES,
 	type SaveSurface,
 	type SaveOutcome,
+	type SignupOutcome,
 } from "@packages/web-analytics";
 
 export const CONVERSION_EVENTS = {

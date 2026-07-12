@@ -1,8 +1,8 @@
 import { EventEmitter } from "node:events";
 import type { NextFunction, Request, Response } from "express";
 import type { HutchLogger } from "@packages/hutch-logger";
-import { type AnalyticsClick, type AnalyticsEvent, type AnalyticsPageview, buildSaveIntentEvent, classifyBrowser, classifyDeviceClass, createAnalyticsMiddleware, hashIp, suppressClickCount, type ViewSaveIntentEvent } from "./analytics";
-import { SAVE_OUTCOMES, SAVE_SURFACES } from "./events";
+import { type AnalyticsClick, type AnalyticsEvent, type AnalyticsPageview, buildSaveIntentEvent, buildSignupAttemptedEvent, classifyBrowser, classifyDeviceClass, createAnalyticsMiddleware, hashIp, type SignupAttemptedEvent, suppressClickCount, type ViewSaveIntentEvent } from "./analytics";
+import { SAVE_OUTCOMES, SAVE_SURFACES, SIGNUP_OUTCOMES } from "./events";
 
 function createCapturingLogger(): {
 	logger: HutchLogger.Typed<AnalyticsEvent>;
@@ -552,6 +552,43 @@ describe("buildSaveIntentEvent", () => {
 	it("throws when the visitor-id middleware has not run (req.visitorId unset) — a save surface must never emit view_save_intent without a visitor identity to join the conversion on", () => {
 		expect(() => buildIntent({ req: {} })).toThrow(
 			"visitor-id middleware must run before a save surface emits view_save_intent",
+		);
+	});
+});
+
+function buildSignup(overrides: { req?: MockReqOverrides; outcome?: SignupAttemptedEvent["outcome"] } = {}): SignupAttemptedEvent {
+	return buildSignupAttemptedEvent(
+		{ now: () => new Date("2026-04-21T10:00:00.000Z"), salt: "test-salt" },
+		{
+			req: createReq(overrides.req ?? { visitorId: VALID_VISITOR_ID }) as Request,
+			outcome: overrides.outcome ?? SIGNUP_OUTCOMES.created,
+		},
+	);
+}
+
+describe("buildSignupAttemptedEvent", () => {
+	it("builds a signup_attempted event carrying the terminal outcome, the visitor identity (hash + id) that joins to user_created, and is_authenticated=0 because the signup form is only shown to anonymous visitors", () => {
+		const event = buildSignup({ outcome: SIGNUP_OUTCOMES.disposableEmail });
+		expect(event).toEqual({
+			stream: "analytics",
+			event: "signup_attempted",
+			timestamp: "2026-04-21T10:00:00.000Z",
+			method: "email",
+			outcome: "disposable_email",
+			visitor_hash: expect.any(String),
+			visitor_id: VALID_VISITOR_ID,
+			is_authenticated: 0,
+		});
+	});
+
+	it("stamps visitor_hash as the salted hash of the request ip so the dashboard owner-exclusion filter can drop the maintainer's own attempts", () => {
+		const event = buildSignup({ req: { visitorId: VALID_VISITOR_ID, ip: "9.9.9.9" } });
+		expect(event.visitor_hash).toBe(hashIp({ ip: "9.9.9.9", salt: "test-salt" }));
+	});
+
+	it("throws when the visitor-id middleware has not run (req.visitorId unset) — POST /signup must never emit signup_attempted without a visitor identity to join user_created on", () => {
+		expect(() => buildSignup({ req: {} })).toThrow(
+			"visitor-id middleware must run before POST /signup emits signup_attempted",
 		);
 	});
 });

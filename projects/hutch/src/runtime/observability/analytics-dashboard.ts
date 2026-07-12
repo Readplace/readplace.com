@@ -618,6 +618,36 @@ export function buildAnalyticsDashboardBody(deps: BuildAnalyticsDashboardDeps): 
 		}),
 	);
 
+	widgets.push(
+		logWidget({
+			region,
+			title: "Email signup form outcomes",
+			logGroupNames: [hutchLogGroupName],
+			query: [
+				"fields @timestamp, outcome",
+				`| filter stream = "${STREAMS.analytics}" and event = "${ANALYTICS_EVENTS.signupAttempted}"`,
+				...exclude,
+				"| stats count(*) as attempts by outcome",
+				"| sort attempts desc",
+			].join(" "),
+			x: 0, y: 130, width: 12, height: 8,
+			view: "bar",
+		}),
+		logWidget({
+			region,
+			title: "Email signup form outcomes per day",
+			logGroupNames: [hutchLogGroupName],
+			query: [
+				"fields @timestamp, outcome",
+				`| filter stream = "${STREAMS.analytics}" and event = "${ANALYTICS_EVENTS.signupAttempted}"`,
+				...exclude,
+				"| stats count(*) as attempts by bin(1d), outcome",
+			].join(" "),
+			x: 12, y: 130, width: 12, height: 8,
+			view: "timeSeries",
+		}),
+	);
+
 	return { widgets };
 }
 

@@ -3,10 +3,12 @@ export {
 	ANALYTICS_EVENTS,
 	SAVE_SURFACES,
 	SAVE_OUTCOMES,
+	SIGNUP_OUTCOMES,
 	CONTENT_CLASSES,
 	INTERNAL_CLICK_MEDIUM,
 	type SaveSurface,
 	type SaveOutcome,
+	type SignupOutcome,
 } from "./events";
 export {
 	OWN_CONTENT_DOMAINS,
@@ -36,7 +38,9 @@ export {
 	classifyDeviceClass,
 	classifyBrowser,
 	buildSaveIntentEvent,
+	buildSignupAttemptedEvent,
 	type AnalyticsEvent,
+	type SignupAttemptedEvent,
 	type AnalyticsPageview,
 	type AnalyticsClick,
 	type ImportUploadedEvent,

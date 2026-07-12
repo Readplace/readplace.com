@@ -70,9 +70,9 @@ function collectReferencedEvents(): Set<string> {
 }
 
 describe("buildAnalyticsDashboardBody — drift prevention", () => {
-	it("emits 28 widgets (7 traffic+audience, 3 conversions, 3 imports+medium, 3 subscriptions, 2 view-funnel, 1 internal-clicks, 3 save-funnel, 1 summary-engagement, 2 audience-device, 1 errors, 1 homepage-ab, 1 blog-traffic) — adding or dropping one without updating this count is a deliberate signal to review the dashboard's scope", () => {
+	it("emits 30 widgets (7 traffic+audience, 3 conversions, 3 imports+medium, 3 subscriptions, 2 view-funnel, 1 internal-clicks, 3 save-funnel, 1 summary-engagement, 2 audience-device, 1 errors, 1 homepage-ab, 1 blog-traffic, 2 signup-form) — adding or dropping one without updating this count is a deliberate signal to review the dashboard's scope", () => {
 		const body = buildBody();
-		expect(body.widgets).toHaveLength(28);
+		expect(body.widgets).toHaveLength(30);
 	});
 
 	it("the homepage A/B widget compares arms by distinct visitors (assignment is sticky per browser, so raw counts pile a returning visitor's landings onto one arm) with raw landings alongside, grouped by variant (utm_content)", () => {

@@ -25,7 +25,18 @@ export const ANALYTICS_EVENTS = {
 	summaryToggled: "summary_toggled",
 	viewOpened: "view_opened",
 	viewSaveIntent: "view_save_intent",
+	signupAttempted: "signup_attempted",
 } as const;
+
+export const SIGNUP_OUTCOMES = {
+	created: "created",
+	disposableEmail: "disposable_email",
+	invalidInput: "invalid_input",
+	duplicateEmail: "duplicate_email",
+	tooFast: "too_fast",
+} as const;
+
+export type SignupOutcome = (typeof SIGNUP_OUTCOMES)[keyof typeof SIGNUP_OUTCOMES];
 
 /**
  * Dimensions of the `view_save_intent` event. Each is the single source of
