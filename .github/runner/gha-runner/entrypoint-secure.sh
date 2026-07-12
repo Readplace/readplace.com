@@ -29,7 +29,7 @@ RUNNER_TOKEN=$(curl -fsSL -X POST \
 unset pat
 
 # The caches are named volumes created root-owned; non-root jobs need them.
-chown -R runner:runner /ms-playwright /opt/hostedtoolcache /home/runner 2>/dev/null || true
+chown -R runner:runner /ms-playwright /opt/hostedtoolcache /home/runner /nx 2>/dev/null || true
 
 # Block a job from reaching the OrbStack HOST (the Mac) — the one pivot class
 # with no ubuntu-latest analogue. Verified reachable from a job:
