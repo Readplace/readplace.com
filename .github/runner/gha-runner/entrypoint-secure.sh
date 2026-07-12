@@ -31,6 +31,16 @@ unset pat
 # The caches are named volumes created root-owned; non-root jobs need them.
 chown -R runner:runner /ms-playwright /opt/hostedtoolcache /home/runner /nx 2>/dev/null || true
 
+# /persist (the fixed RUNNER_WORKDIR volume, plus the pnpm store once plan 2
+# lands) must be runner-owned so the non-root job can own the checkout tree and
+# create sibling dirs. Deliberately NOT on the recursive line above: this
+# entrypoint runs at every container start (once per ephemeral job) and /persist
+# grows to 100k+ files (workspace + store), so a per-job `chown -R` would cost
+# seconds each run. Guard it to the first start of a fresh volume — the mount
+# point is still root-owned then; a bare stat is a no-op thereafter. Same reason
+# the stock /entrypoint.sh chowns the workdir non-recursively.
+[ "$(stat -c %U /persist)" = runner ] || chown -R runner:runner /persist
+
 # Block a job from reaching the OrbStack HOST (the Mac) — the one pivot class
 # with no ubuntu-latest analogue. Verified reachable from a job:
 # host.docker.internal (0.250.250.254) exposes e.g. postgres:5432. OrbStack maps

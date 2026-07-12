@@ -47,6 +47,12 @@ services:
       # Runner-scoped bound; developer machines keep nx's defaults (10% of disk,
       # capped at 10 GB, LRU-evicted).
       NX_MAX_CACHE_SIZE: 5GB
+      # Pin the work directory onto the persistent volume (mounted below).
+      # Without this the base image derives it from the random ephemeral runner
+      # name (/_work/orb-m5-<random>) — a dir nothing ever deletes, leaking
+      # ~1.4 GB per job into the container's writable layer and forcing a full
+      # re-clone every job. A fixed path lets each job incrementally fetch.
+      RUNNER_WORKDIR: /persist/work
     volumes:
       # The PAT lives behind /root (0700, root-owned). A docker secret lands in
       # /run/secrets, which the runner user could still read even at 0400 root:root
@@ -73,6 +79,16 @@ services:
       # (--force-recreate alone never does). Caveat: a flaky pass recorded once
       # replays green for identical inputs (inherent to nx caching).
       - nx:/nx
+      # Persistent workspace pinned by RUNNER_WORKDIR above: the checkout lives
+      # at /persist/work/readplace.com/readplace.com and survives the ephemeral
+      # re-register, so jobs incrementally fetch instead of re-cloning and the
+      # per-job /_work/orb-m5-* leak is gone. Plan 2 also parks the pnpm store
+      # under /persist so store and workspace share one filesystem (btrfs
+      # reflink/hardlink instead of a 735 MB EXDEV copy per install).
+      # Single writer only: a fixed workdir is unsafe under
+      # `docker compose --scale gha-runner=N` — each replica would need its own
+      # persist volume. Today there is exactly one runner.
+      - persist:/persist
       # Uncomment ONLY if a job needs docker (container:, services:,
       # testcontainers). ci.yml currently uses none. Socket access is
       # root-equivalent on the docker host and job containers become
@@ -84,3 +100,4 @@ volumes:
   pnpm-store:
   toolcache:
   nx:
+  persist:
