@@ -77,6 +77,28 @@ RUN mkdir -p /opt/cft \
  && echo "$DRIVER_OUT" | tail -1 | sed -E 's/^chromedriver@[^ ]+ //' > /opt/cft/driver-path
 ENV CFT_BAKED_DIR=/opt/cft
 
+# docker CLI + buildx plugin: detect-projects builds the save-link OCR image via
+# `docker buildx build --push` (projects/save-link/tools/build-image.mjs) against
+# the HOST OrbStack daemon (socket bind-mounted in docker-compose.yml). Only the
+# client + buildx are needed here — the daemon and its persistent buildkit layer
+# cache live on the host, which is what makes the rebuild fast across jobs. arm64.
+RUN install -m 0755 -d /etc/apt/keyrings \
+ && curl -fsSL https://download.docker.com/linux/ubuntu/gpg -o /etc/apt/keyrings/docker.asc \
+ && chmod a+r /etc/apt/keyrings/docker.asc \
+ && echo "deb [arch=arm64 signed-by=/etc/apt/keyrings/docker.asc] https://download.docker.com/linux/ubuntu noble stable" \
+      > /etc/apt/sources.list.d/docker.list \
+ && apt-get update && apt-get install -y docker-ce-cli docker-buildx-plugin \
+ && rm -rf /var/lib/apt/lists/*
+
+# AWS CLI v2: build-image.mjs calls `aws ecr get-login-password` /
+# `describe-repositories`. The myoung34 base image already ships it; install only
+# if a future base drops it (the installer errors out on a preexisting install).
+RUN [ -d /usr/local/aws-cli ] || command -v aws >/dev/null 2>&1 || ( \
+      curl -fsSL "https://awscli.amazonaws.com/awscli-exe-linux-aarch64.zip" -o /tmp/awscliv2.zip \
+   && unzip -q /tmp/awscliv2.zip -d /tmp \
+   && /tmp/aws/install \
+   && rm -rf /tmp/aws /tmp/awscliv2.zip )
+
 # The PAT reaches the runner as a root-only file, never as an env var, so it is
 # absent from the container environment (and thus from /proc/1/environ, which a
 # root job could otherwise read). Jobs run as the unprivileged `runner` user, so

@@ -75,5 +75,28 @@ else
   echo "entrypoint-secure: WARNING could not add host-egress block (NET_ADMIN missing?)" >&2
 fi
 
+# Grant the non-root `runner` user access to the docker socket, if mounted (the
+# detect-projects job builds the save-link OCR image against the host OrbStack
+# daemon). OrbStack presents the bind-mounted socket as root:root mode 0660, so a
+# group member gets rw — the socket's group must therefore be one `runner` joins.
+# We do NOT chmod/chown the socket: it is a host bind mount (same inode), so that
+# would mutate the host's own docker socket. Instead we add `runner` to the
+# socket's group. When that group is gid 0 (OrbStack's case) it is `root`; joining
+# the root *group* does not expose the PAT — /root stays 0700 and the file 0400,
+# unreadable by group. The stock entrypoint's own `_DOCKER_SOCK_GID` path can't
+# handle gid 0 (it would groupmod a second group onto gid 0 and fail), which is
+# why this is explicit. No-op when the socket is absent.
+sock=/var/run/docker.sock
+if [ -S "${sock}" ]; then
+  sock_gid=$(stat -c %g "${sock}")
+  grp=$(getent group "${sock_gid}" | cut -d: -f1 || true)
+  if [ -z "${grp}" ]; then
+    grp=docker
+    if getent group "${grp}" >/dev/null; then groupmod -g "${sock_gid}" "${grp}"; else groupadd -g "${sock_gid}" "${grp}"; fi
+  fi
+  id -nG runner | tr ' ' '\n' | grep -qx "${grp}" || usermod -aG "${grp}" runner
+  echo "entrypoint-secure: runner joined group '${grp}' (gid ${sock_gid}) for docker socket access"
+fi
+
 export RUNNER_TOKEN
 exec env -u ACCESS_TOKEN -u GH_PAT /entrypoint.sh "$@"

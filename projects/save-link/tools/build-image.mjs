@@ -10,19 +10,22 @@
  *   3. docker buildx build with HANDLER_DIR=.lib/<name> + push to ECR
  *
  * All handlers share the same base image (poppler-utils for pdftoppm + pdfinfo).
- * Image tag: <gitSha>-<contentHash>-<name>, where contentHash covers the
- * bundled handler code, the Dockerfile, and the curl-impersonate build-arg.
- * ECR repo URL is resolved from the platform stack via
+ * Image tag: <contentHash>-<name>, where contentHash covers the whole handler
+ * output dir (bundle + copied assets, incl. the runtime-loaded prompt files),
+ * the Dockerfile, and the curl-impersonate build-arg — content-addressed so an
+ * unchanged handler keeps its tag and does NOT force a redeploy. The commit SHA
+ * is pushed as a second, forensic-only tag (gitsha-<sha>-<name>) that Pulumi
+ * never references. ECR repo URL is resolved from the platform stack via
  * `aws ecr describe-repositories` — the platform stack must already be
  * deployed before this runs.
  */
 import assert from "node:assert";
 import { spawnSync } from "node:child_process";
-import { createHash } from "node:crypto";
 import { mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import { dirname, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import { build } from "esbuild";
+import { computeImageTag } from "@packages/hutch-infra-components/infra/compute-image-tag";
 import { copyAssetFiles } from "@packages/hutch-infra-components/infra/copy-asset-files";
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
@@ -98,10 +101,14 @@ async function bundleHandler(handler) {
 	return outputDir;
 }
 
-function buildAndPushImage(handler, repositoryUrl, tag) {
+function buildAndPushImage(handler, repositoryUrl, tag, gitSha) {
 	const imageUri = `${repositoryUrl}:${tag}`;
+	// A second tag on the same image, carrying the commit SHA purely for
+	// forensics (image → commit). Pulumi references only `imageUri` (the content
+	// tag) via ocr-image-tags.json, so this never affects the drift decision.
+	const forensicUri = `${repositoryUrl}:gitsha-${gitSha}-${handler.name}`;
 	const handlerDirRelative = `.lib/${handler.name}`;
-	console.log(`[build-image] building ${imageUri}`);
+	console.log(`[build-image] building ${imageUri} (+${forensicUri})`);
 	run("docker", [
 		"buildx", "build",
 		"--platform", "linux/amd64",
@@ -111,6 +118,7 @@ function buildAndPushImage(handler, repositoryUrl, tag) {
 		"--build-arg", `HANDLER_DIR=${handlerDirRelative}`,
 		"--build-arg", `CURL_IMPERSONATE_VERSION=${CURL_IMPERSONATE_VERSION}`,
 		"--tag", imageUri,
+		"--tag", forensicUri,
 		"--file", "Dockerfile",
 		"--push",
 		".",
@@ -135,21 +143,19 @@ async function main() {
 
 	const tags = {};
 	for (const handler of HANDLERS) {
-		/* The tag combines a hash of every input that can change the image so
-		 * Pulumi sees a different imageUri and triggers a Lambda redeploy. ECR
-		 * tags are mutable, so without this Pulumi would skip the update even
-		 * when the underlying image content changed. Inputs hashed:
-		 *   - the bundled handler code (per-handler)
-		 *   - the Dockerfile (shared across handlers)
-		 *   - the curl-impersonate version build-arg (shared across handlers) */
-		const bundlePath = resolve(PROJECT_ROOT, ".lib", handler.name, "index.js");
-		const contentHash = createHash("sha256")
-			.update(readFileSync(bundlePath))
-			.update(dockerfileContents)
-			.update(CURL_IMPERSONATE_VERSION)
-			.digest("hex").slice(0, 12);
-		const tag = `${gitSha}-${contentHash}-${handler.name}`;
-		tags[handler.name] = buildAndPushImage(handler, repositoryUrl, tag);
+		/* Content-address the tag over every input that can change the image so
+		 * Pulumi sees a different imageUri and redeploys the Lambda only when the
+		 * content actually changed — ECR tags are mutable, so the tag string is
+		 * the sole thing Pulumi diffs. Hashing covers the whole handler output
+		 * dir (bundle + copied assets, incl. runtime-loaded prompts), the
+		 * Dockerfile, and the curl-impersonate build-arg. */
+		const tag = computeImageTag({
+			handlerName: handler.name,
+			handlerOutputDir: resolve(PROJECT_ROOT, ".lib", handler.name),
+			dockerfileContents,
+			curlImpersonateVersion: CURL_IMPERSONATE_VERSION,
+		});
+		tags[handler.name] = buildAndPushImage(handler, repositoryUrl, tag, gitSha);
 	}
 
 	const tagsFile = resolve(PROJECT_ROOT, ".lib", "ocr-image-tags.json");
