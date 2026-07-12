@@ -390,6 +390,48 @@ final class SirenDecodingTests: XCTestCase {
 		XCTAssertEqual(page.articles.map(\.id), ["a1"], "and the rest of the collection still decodes")
 	}
 
+	func testCollectionNoticeMessagesKeepOnlyTheRenderableOnes() throws {
+		// The server may attach generic notices to the collection (e.g. the Share
+		// Extension's "don't close this" caption). The client surfaces only the ones
+		// it can render — a message in a media type it doesn't understand is dropped
+		// rather than shown as raw text, so the caller renders whatever survives.
+		let renderable = "{ \"type\": \"warning\", \"content\": { \"type\": \"text/html\", \"body\": \"Don't close this — it's still saving.\" } }"
+		let nonRenderable = "{ \"type\": \"warning\", \"content\": { \"type\": \"text/plain\", \"body\": \"a media type this client can't present\" } }"
+		let json = Fixtures.collection(
+			entitiesJSON: [Fixtures.article()],
+			messagesJSON: "\(renderable), \(nonRenderable)"
+		)
+		let page = QueuePage(collection: try decodeCollection(json))
+		XCTAssertEqual(
+			page.noticeMessages.map(\.content.body), ["Don't close this — it's still saving."],
+			"only the text/html message is kept; the non-renderable one is dropped"
+		)
+	}
+
+	func testCollectionWithoutMessagesExposesNoNotices() throws {
+		let page = QueuePage(collection: try decodeCollection(Fixtures.collection(entitiesJSON: [Fixtures.article()])))
+		XCTAssertTrue(page.noticeMessages.isEmpty, "a collection that carries no messages surfaces no notices")
+	}
+
+	func testCollectionDropsAMalformedNoticeMessageButKeepsTheValidOneAndThePage() throws {
+		// A message missing its required `content` is dropped per-element rather than
+		// failing the whole collection decode — the messages channel is non-fatal, like
+		// actions/links/entities above. The valid notice and the rest of the page still
+		// decode, so one evolving/malformed notice can never blank the queue.
+		let malformed = "{ \"type\": \"warning\" }"
+		let valid = "{ \"type\": \"warning\", \"content\": { \"type\": \"text/html\", \"body\": \"Don't close this — it's still saving.\" } }"
+		let json = Fixtures.collection(
+			entitiesJSON: [Fixtures.article(id: "a1")],
+			messagesJSON: "\(malformed), \(valid)"
+		)
+		let page = QueuePage(collection: try decodeCollection(json))
+		XCTAssertEqual(
+			page.noticeMessages.map(\.content.body), ["Don't close this — it's still saving."],
+			"the malformed message is dropped; the valid notice still surfaces"
+		)
+		XCTAssertEqual(page.articles.map(\.id), ["a1"], "and the rest of the collection still decodes")
+	}
+
 	func testSirenDateParsesWithAndWithoutFractionalSeconds() throws {
 		let base = SirenDecodingTests.utc(2026, 5, 30, 10, 0, 0)
 		XCTAssertEqual(try XCTUnwrap(SirenDate.parse("2026-05-30T10:00:00Z")), base)

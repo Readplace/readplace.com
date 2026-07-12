@@ -44,6 +44,13 @@ struct QueuePage {
 	/// save iOS can only reach through the Share Sheet.
 	let affordances: [Affordance]
 	let warning: SirenWarning?
+	/// Server-authored notices the client may surface generically (e.g. the Share
+	/// Extension's "don't close this" caption during a save). Only the renderable
+	/// ones are kept — a message in a media type this client can't present is
+	/// dropped rather than shown as raw text (be liberal in what you accept,
+	/// conservative in what you render), so the caller renders whatever survives
+	/// without re-checking. Empty when the server offered none.
+	let noticeMessages: [ServerMessage]
 
 	init(collection: SirenCollection) {
 		articles = (collection.entities ?? []).compactMap(Article.init(entity:))
@@ -53,6 +60,7 @@ struct QueuePage {
 		let linkAffordances = links.compactMap(Affordance.init(link:))
 		affordances = actionAffordances + linkAffordances
 		warning = collection.properties?.warning
+		noticeMessages = (collection.properties?.messages ?? []).filter(\.isRenderable)
 	}
 
 	/// The advertised action with this name, when present and invokable. The

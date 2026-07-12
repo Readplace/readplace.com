@@ -171,18 +171,24 @@ extension SirenEntity {
 
 struct CollectionProperties: Decodable {
 	let warning: SirenWarning?
+	/// Server-authored notices the client may render generically (e.g. the iOS
+	/// Share Extension's "don't close this" caption). Optional because it is a
+	/// forward-added channel: an older server never emits it, and iOS is a shipped
+	/// client, so its absence must decode cleanly rather than fail the collection.
+	let messages: [ServerMessage]?
 }
 
 extension CollectionProperties {
-	private enum CodingKeys: String, CodingKey { case warning }
+	private enum CodingKeys: String, CodingKey { case warning, messages }
 
-	/// Decodes the warning leniently so an evolving or malformed warning degrades to
-	/// no banner rather than failing the whole collection decode: the warning is a
-	/// non-fatal channel, so a change to it must never be the one thing that blanks
-	/// the page.
+	/// Decodes the warning and messages leniently so an evolving or malformed value
+	/// degrades to no banner rather than failing the whole collection decode: both
+	/// are non-fatal channels, so a change to either must never be the one thing that
+	/// blanks the page. A single malformed message is dropped, not page-blanking.
 	init(from decoder: Decoder) throws {
 		let container = try decoder.container(keyedBy: CodingKeys.self)
 		warning = try container.decodeLossyIfPresent(SirenWarning.self, forKey: .warning)
+		messages = try container.decodeLossyArrayIfPresent(ServerMessage.self, forKey: .messages)
 	}
 }
 

@@ -5,6 +5,7 @@ import type {
 import type { ArticleStatus } from "@packages/domain/article";
 import type { SirenEntity, SirenLink } from "./siren";
 import { toArticleSubEntity } from "./article-siren";
+import { saveInProgressNotice } from "./save-notice-siren";
 
 interface CollectionQueryParams {
 	status?: ArticleStatus;
@@ -33,7 +34,7 @@ function buildQueryString(params: CollectionQueryParams): string {
 export function toArticleCollectionEntity(
 	result: FindArticlesResult,
 	queryParams: CollectionQueryParams,
-	options: { warning?: CollectionWarning; iosSurface?: boolean } = {},
+	options: { warning?: CollectionWarning; iosSurface?: boolean; iosClient?: boolean } = {},
 ): SirenEntity {
 	const { articles, total, page, pageSize } = result;
 	const totalPages = Math.ceil(total / pageSize);
@@ -76,6 +77,11 @@ export function toArticleCollectionEntity(
 
 	const properties: Record<string, unknown> = { total, page, pageSize };
 	if (options.warning) properties.warning = options.warning;
+	// Offered only to the native iOS app (header-gated, never `?platform=ios`), so
+	// the Share Extension can render "don't close this" beneath its spinner. Every
+	// other client — including the iOS app's own in-app web surface — simply never
+	// receives it.
+	if (options.iosClient) properties.messages = saveInProgressNotice();
 
 	return {
 		class: ["collection", "articles"],

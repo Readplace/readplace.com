@@ -366,4 +366,37 @@ describe("toArticleCollectionEntity", () => {
 		expect(entity.properties).not.toHaveProperty("warning");
 	});
 
+	it("attaches the iOS save-in-progress notice to properties for a native-app request", () => {
+		const result: FindArticlesResult = {
+			articles: [],
+			total: 0,
+			page: 1,
+			pageSize: 20,
+		};
+
+		const entity = toArticleCollectionEntity(result, {}, { iosClient: true });
+
+		expect(entity.properties).toMatchObject({
+			messages: [
+				{
+					type: "warning",
+					content: { type: "text/html", body: "Don't close this — it's still saving." },
+				},
+			],
+		});
+	});
+
+	it("omits the save-in-progress notice when the request is not the native iOS app", () => {
+		const result: FindArticlesResult = {
+			articles: [],
+			total: 0,
+			page: 1,
+			pageSize: 20,
+		};
+
+		const entity = toArticleCollectionEntity(result, {});
+
+		expect(entity.properties).not.toHaveProperty("messages");
+	});
+
 });
