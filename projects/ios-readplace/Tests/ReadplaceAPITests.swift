@@ -333,6 +333,37 @@ final class ReadplaceAPITests: XCTestCase {
 		XCTAssertEqual(StubURLProtocol.records(path: "/queue").count, 0, "must not attempt a fallback save")
 	}
 
+	func testSaveContentSurfacesRefusalOnPaymentRequiredStatus() async {
+		// An inactive subscription refuses the save with a 402 carrying a server-authored
+		// message. The share extension must render that message (a `.refused`), not fall
+		// through to the cryptic "Server error 402" — the client reads messages[] on any
+		// non-2xx status, so the fix is purely the server attaching the message body.
+		let store = TestSupport.loggedInStore()
+		StubURLProtocol.setHandler { request, _ in
+			switch request.url?.path {
+			case "/queue/save-content":
+				return .json(402, Fixtures.messageRefusal([
+					(type: "warning", mediaType: "text/html", body: "Couldn't save — your subscription isn't active."),
+				]))
+			default:
+				// A message-only refusal must never trigger a fallback save.
+				return .json(201, Fixtures.article(id: "should-not-happen"))
+			}
+		}
+		do {
+			_ = try await makeAPI(store: store).saveContent(
+				action: saveContentAction(), url: "https://example.com/x",
+				content: Data("<html></html>".utf8), mediaType: "text/html", title: nil
+			)
+			XCTFail("Expected a message-only refusal")
+		} catch let APIError.refused(messages) {
+			XCTAssertTrue(messages.first?.content.body.contains("subscription isn't active") ?? false)
+		} catch {
+			XCTFail("Expected APIError.refused, got \(error)")
+		}
+		XCTAssertEqual(StubURLProtocol.records(path: "/queue").count, 0, "must not attempt a fallback save")
+	}
+
 	func testFetchExternalContentSendsNoAuthorization() async throws {
 		let store = TestSupport.loggedInStore(access: "secret-access")
 		let pdfBytes = Data("%PDF-1.7 body".utf8)
