@@ -15,7 +15,7 @@ interface CollectionQueryParams {
 	url?: string;
 }
 
-export interface CollectionWarning {
+interface CollectionWarning {
 	readonly code: string;
 	readonly message: string;
 }

@@ -1,6 +1,6 @@
 import type { SirenEntity } from "./siren";
 
-export interface BulkSaveSummary {
+interface BulkSaveSummary {
 	saved: number;
 	skipped: number;
 	failed: number;
