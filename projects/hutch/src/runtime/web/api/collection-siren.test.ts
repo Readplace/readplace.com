@@ -52,8 +52,6 @@ describe("toArticleCollectionEntity", () => {
 		const entity = toArticleCollectionEntity(result, { page: 2, pageSize: 20 });
 
 		expect(entity.properties).toMatchObject({
-			total: 42,
-			page: 2,
 			pageSize: 20,
 		});
 	});
@@ -89,7 +87,6 @@ describe("toArticleCollectionEntity", () => {
 			"title",
 			"siteName",
 			"excerpt",
-			"wordCount",
 			"imageUrl",
 			"estimatedReadTimeMinutes",
 			"status",
@@ -310,7 +307,6 @@ describe("toArticleCollectionEntity", () => {
 			"status",
 			"order",
 			"page",
-			"pageSize",
 			"url",
 		]);
 	});

@@ -19,7 +19,6 @@ export function toArticleSubEntity(article: SavedArticle): SirenSubEntity {
 			title: article.metadata.title,
 			siteName: article.metadata.siteName,
 			excerpt: article.metadata.excerpt,
-			wordCount: article.metadata.wordCount,
 			imageUrl: article.metadata.imageUrl ?? null,
 			estimatedReadTimeMinutes: article.estimatedReadTime,
 			status: article.status,

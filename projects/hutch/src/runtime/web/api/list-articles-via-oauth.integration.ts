@@ -75,7 +75,6 @@ describe("List articles via OAuth flow", () => {
 		expect(response.type).toContain("application/vnd.siren+json");
 		expect(response.body.class).toContain("collection");
 		expect(response.body.class).toContain("articles");
-		expect(response.body.properties.total).toBe(0);
 		expect(response.body.entities).toEqual([]);
 	});
 });

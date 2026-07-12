@@ -43,7 +43,6 @@ describe("GET /queue (Siren content negotiation)", () => {
 		expect(response.type).toContain("application/vnd.siren+json");
 		expect(response.body.class).toContain("collection");
 		expect(response.body.class).toContain("articles");
-		expect(response.body.properties.total).toBe(0);
 		expect(response.body.entities).toEqual([]);
 	});
 
@@ -73,7 +72,6 @@ describe("GET /queue (Siren content negotiation)", () => {
 			.set("Authorization", `Bearer ${accessToken}`);
 
 		expect(response.status).toBe(200);
-		expect(response.body.properties.total).toBe(1);
 		expect(response.body.entities).toHaveLength(1);
 		expect(response.body.entities[0].rel).toContain("item");
 		expect(response.body.entities[0].properties.url).toBe("https://example.com/article");
@@ -127,7 +125,10 @@ describe("GET /queue (Siren content negotiation)", () => {
 			.set("Authorization", `Bearer ${accessToken}`);
 
 		expect(response.status).toBe(200);
-		expect(response.body.properties.page).toBe(2);
+		const selfLink = response.body.links?.find(
+			(l: { rel: string[] }) => l.rel.includes("self"),
+		);
+		expect(selfLink?.href).toContain("page=2");
 	});
 
 	it("includes search action", async () => {
@@ -148,7 +149,6 @@ describe("GET /queue (Siren content negotiation)", () => {
 			"status",
 			"order",
 			"page",
-			"pageSize",
 			"url",
 		]);
 	});
@@ -471,7 +471,7 @@ describe("POST /queue/:id/delete (Siren)", () => {
 
 		expect(collectionResponse.status).toBe(200);
 		expect(collectionResponse.body.class).toContain("collection");
-		expect(collectionResponse.body.properties.total).toBe(0);
+		expect(collectionResponse.body.entities).toEqual([]);
 	});
 });
 

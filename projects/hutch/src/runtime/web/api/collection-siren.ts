@@ -75,7 +75,7 @@ export function toArticleCollectionEntity(
 		});
 	}
 
-	const properties: Record<string, unknown> = { total, page, pageSize };
+	const properties: Record<string, unknown> = { pageSize };
 	if (options.warning) properties.warning = options.warning;
 	// Offered only to the native iOS app (header-gated, never `?platform=ios`), so
 	// the Share Extension can render "don't close this" beneath its spinner. Every
@@ -146,7 +146,6 @@ export function toArticleCollectionEntity(
 					{ name: "status", type: "text" },
 					{ name: "order", type: "text" },
 					{ name: "page", type: "number" },
-					{ name: "pageSize", type: "number" },
 					{ name: "url", type: "url" },
 				],
 			},
