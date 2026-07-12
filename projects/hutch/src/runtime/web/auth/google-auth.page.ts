@@ -29,7 +29,8 @@ import { bannerStateFromRequest, sendComponent } from "@packages/web-shell";
 
 import { extractReturnUrl, parseReturnUrl } from "./parse-return-url";
 import { baseCookieOptions } from "@packages/web-analytics";
-import { SESSION_COOKIE_MAX_AGE_MS, SESSION_COOKIE_NAME } from "@packages/web-session";
+import { SESSION_COOKIE_NAME } from "@packages/web-session";
+import { persistentSessionCookieOptions } from "./session-cookie-options";
 import { LoginPage } from "./auth.component";
 import { initFetchUserCount } from "./fetch-user-count";
 import { readClickAttribution } from "@packages/web-analytics";
@@ -77,7 +78,7 @@ interface GoogleAuthDependencies {
 
 export const initGoogleAuthRoutes = (deps: GoogleAuthDependencies): Router => {
 	const router = express.Router();
-	const sessionCookieOptions = { ...baseCookieOptions(deps.secureCookies), maxAge: SESSION_COOKIE_MAX_AGE_MS };
+	const sessionCookieOptions = persistentSessionCookieOptions(deps.secureCookies);
 	const redirectUri = `${deps.appOrigin}/auth/google/callback`;
 	const fetchUserCount = initFetchUserCount({
 		countUsers: deps.countUsers,

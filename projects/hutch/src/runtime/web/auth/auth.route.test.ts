@@ -139,7 +139,7 @@ describe("Auth routes", () => {
 			expect(response.headers["set-cookie"].length).toBeGreaterThan(0);
 			// Persistent (not a bare session cookie) so an already-signed-in browser —
 			// e.g. iOS Chrome-first login — still carries it after the browser closes.
-			expect(sessionCookie(response)).toContain(`Max-Age=${SESSION_TTL_SECONDS}`);
+			expect(sessionCookie(response)).toContain(`Max-Age=${SESSION_TTL_SECONDS};`);
 		});
 
 		it("should show error on invalid credentials", async () => {

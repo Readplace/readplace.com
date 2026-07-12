@@ -31,6 +31,7 @@ import { bannerStateFromRequest, sendComponent } from "@packages/web-shell";
 import { extractReturnUrl, parseReturnUrl } from "./parse-return-url";
 import { baseCookieOptions } from "@packages/web-analytics";
 import { SESSION_COOKIE_NAME } from "@packages/web-session";
+import { persistentSessionCookieOptions } from "./session-cookie-options";
 import { LoginPage } from "./auth.component";
 import { initFetchUserCount } from "./fetch-user-count";
 import { ClickAttributionSchema, readClickAttribution } from "@packages/web-analytics";
@@ -90,11 +91,14 @@ interface AppleAuthDependencies {
 
 export const initAppleAuthRoutes = (deps: AppleAuthDependencies): Router => {
 	const router = express.Router();
-	const sessionCookieOptions = baseCookieOptions(deps.secureCookies);
+	const sessionCookieOptions = persistentSessionCookieOptions(deps.secureCookies);
 	// The state cookie must survive the cross-site form_post callback, where a
 	// SameSite=Lax cookie would not be sent — so it is SameSite=None (implying
 	// Secure). Clearing it later uses the matching sameSite/secure attributes.
-	const stateCookieOptions = { ...sessionCookieOptions, sameSite: "none" as const };
+	const stateCookieOptions = {
+		...baseCookieOptions(deps.secureCookies),
+		sameSite: "none" as const,
+	};
 	const redirectUri = `${deps.appOrigin}/auth/apple/callback`;
 	const fetchUserCount = initFetchUserCount({
 		countUsers: deps.countUsers,
