@@ -191,7 +191,7 @@ function articleEntity(title: string) {
 		rel: ["item"],
 		properties: { id: SAVED_ID, url: PDF_URL, title, savedAt: "2026-05-19T00:00:00.000Z" },
 		links: [{ rel: ["read"], href: `/queue/${SAVED_ID}/read` }],
-		actions: [{ name: "delete", href: `/queue/${SAVED_ID}/delete`, method: "POST" }],
+		actions: [{ name: "update-status", href: `/queue/${SAVED_ID}/status`, method: "POST" }],
 	};
 }
 

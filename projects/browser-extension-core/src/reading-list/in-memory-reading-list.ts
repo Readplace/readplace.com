@@ -27,27 +27,20 @@ export function initInMemoryReadingList(): {
 		}
 
 		const id = crypto.randomUUID() as ReadingListItemId;
-		/** Advertise both a removing action (`delete`) and a non-removing one
-		 * (`update-status`) so the fake exercises an action-aware invoke — only a
-		 * removing action deletes — instead of deleting on any advertised action,
-		 * which would mask a bug in the action walker. */
+		/** Advertise a single per-item action (`update-status`): invoking an
+		 * advertised action returns the current list, matching the real contract
+		 * where no per-item action reaching the extension removes an article. */
 		const item: ReadingListItem = {
 			id,
 			url,
 			title,
 			savedAt: new Date(),
-			actions: [{ name: "delete" }, { name: "update-status" }],
+			actions: [{ name: "update-status" }],
 			links: [],
 		};
 		items.set(id, item);
 		return { ok: true, item };
 	};
-
-	/** Action names this fake treats as removing the item from the list. Keeping
-	 * the set explicit makes the fake action-aware: only a removing action deletes,
-	 * so a non-removing advertised action (e.g. `update-status`) returns the list
-	 * unchanged rather than masking a bug by deleting on any advertised action. */
-	const REMOVING_ACTIONS = new Set(["delete"]);
 
 	const invokeAction: InvokeAction = async ({ id, name }) => {
 		const item = items.get(id);
@@ -56,7 +49,6 @@ export function initInMemoryReadingList(): {
 		if (!item?.actions.some((action) => action.name === name)) {
 			return { ok: false, reason: "not-found" };
 		}
-		if (REMOVING_ACTIONS.has(name)) items.delete(id);
 		return { ok: true, items: Array.from(items.values()) };
 	};
 

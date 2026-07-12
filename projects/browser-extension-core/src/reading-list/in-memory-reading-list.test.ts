@@ -43,35 +43,18 @@ describe("initInMemoryReadingList", () => {
 	});
 
 	describe("invokeAction", () => {
-		it("invokes the advertised delete action and returns remaining items", async () => {
-			const list = initInMemoryReadingList();
-			const saveResult = await list.saveUrl({
-				url: "https://example.com/article",
-				title: "Example",
-			});
-			if (!saveResult.ok) throw new Error("Save failed");
-
-			const result = await list.invokeAction({
-				id: saveResult.item.id,
-				name: "delete",
-			});
-
-			expect(result.ok).toBe(true);
-			if (result.ok) expect(result.items).toEqual([]);
-		});
-
 		it("returns not-found for an unknown item id", async () => {
 			const list = initInMemoryReadingList();
 
 			const result = await list.invokeAction({
 				id: "nonexistent-id" as ReadingListItemId,
-				name: "delete",
+				name: "update-status",
 			});
 
 			expect(result).toEqual({ ok: false, reason: "not-found" });
 		});
 
-		it("leaves the item in the list when a non-removing advertised action is invoked", async () => {
+		it("returns the current list with the item when an advertised action is invoked", async () => {
 			const list = initInMemoryReadingList();
 			const saveResult = await list.saveUrl({
 				url: "https://example.com/article",
