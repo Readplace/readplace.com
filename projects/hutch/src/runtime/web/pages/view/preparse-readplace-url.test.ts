@@ -1,11 +1,32 @@
-import type { SaveableUrlResult, ValidateSaveableUrl } from "@packages/domain/article";
-import { initPreparseReadplaceUrl, withReadplacePreparse } from "./preparse-readplace-url";
-import { MAX_VIEW_UNWRAP_DEPTH } from "./view-path";
+import {
+	MAX_SAVEABLE_URL_LENGTH,
+	type SaveableUrlResult,
+	type ValidateSaveableUrl,
+} from "@packages/domain/article";
+import { withReadplacePreparse } from "./preparse-readplace-url";
 
 const SELF_HOST = "readplace.com";
-const preparse = initPreparseReadplaceUrl({ selfHost: SELF_HOST });
 
-describe("initPreparseReadplaceUrl", () => {
+function captureValidator(): { validate: ValidateSaveableUrl; seen: () => unknown } {
+	let received: unknown;
+	const validate: ValidateSaveableUrl = (value) => {
+		received = value;
+		return { status: "ERROR", error: { code: "malformed_url", message: "stub" } };
+	};
+	return { validate, seen: () => received };
+}
+
+function initUnwrap(selfHost: string): (rawUrl: string) => unknown {
+	return (rawUrl) => {
+		const { validate, seen } = captureValidator();
+		withReadplacePreparse(validate, { selfHost })(rawUrl);
+		return seen();
+	};
+}
+
+const preparse = initUnwrap(SELF_HOST);
+
+describe("withReadplacePreparse — self-URL unwrapping", () => {
 	it("unwraps a /view/<host>/<path> self-URL to the original article", () => {
 		expect(preparse("https://readplace.com/view/fagnerbrack.com/business-success")).toBe(
 			"https://fagnerbrack.com/business-success",
@@ -16,6 +37,11 @@ describe("initPreparseReadplaceUrl", () => {
 		expect(
 			preparse("https://readplace.com/view/readplace.com/view/fagnerbrack.com/x"),
 		).toBe("https://fagnerbrack.com/x");
+	});
+
+	it("fully unwraps nesting far deeper than any real link", () => {
+		const nested = `https://readplace.com/view/${"readplace.com/view/".repeat(40)}fagnerbrack.com/x`;
+		expect(preparse(nested)).toBe("https://fagnerbrack.com/x");
 	});
 
 	it("collapses an explicit https:// scheme nested in the /view path", () => {
@@ -73,6 +99,12 @@ describe("initPreparseReadplaceUrl", () => {
 		expect(preparse(`https://readplace.com/view?url=${inner}`)).toBe("https://fagnerbrack.com/x");
 	});
 
+	it("unwraps a self-host written with a trailing FQDN dot", () => {
+		expect(preparse("https://readplace.com./view/fagnerbrack.com/x")).toBe(
+			"https://fagnerbrack.com/x",
+		);
+	});
+
 	it("leaves the bare /view landing path (no url param) unchanged", () => {
 		expect(preparse("https://readplace.com/view")).toBe("https://readplace.com/view");
 	});
@@ -105,13 +137,8 @@ describe("initPreparseReadplaceUrl", () => {
 		);
 	});
 
-	it("stops unwrapping past the depth cap, leaving the residual wrapper intact", () => {
-		const nested = `https://readplace.com/view/${"readplace.com/view/".repeat(MAX_VIEW_UNWRAP_DEPTH)}fagnerbrack.com/x`;
-		expect(preparse(nested)).toBe("https://readplace.com/view/fagnerbrack.com/x");
-	});
-
 	describe("self-host is matched including port", () => {
-		const portPreparse = initPreparseReadplaceUrl({ selfHost: "localhost:3000" });
+		const portPreparse = initUnwrap("localhost:3000");
 
 		it("unwraps when the host and port match", () => {
 			expect(portPreparse("https://localhost:3000/view/example.com/x")).toBe(
@@ -127,28 +154,20 @@ describe("initPreparseReadplaceUrl", () => {
 	});
 });
 
-describe("withReadplacePreparse", () => {
-	function captureValidator(): { validate: ValidateSaveableUrl; seen: () => unknown } {
-		let received: unknown;
-		const validate: ValidateSaveableUrl = (value) => {
-			received = value;
-			return { status: "ERROR", error: { code: "malformed_url", message: "stub" } };
-		};
-		return { validate, seen: () => received };
-	}
-
-	it("hands the unwrapped original to the wrapped validator for string input", () => {
-		const { validate, seen } = captureValidator();
-		const decorated = withReadplacePreparse(validate, { selfHost: SELF_HOST });
-		decorated("https://readplace.com/view/fagnerbrack.com/x");
-		expect(seen()).toBe("https://fagnerbrack.com/x");
-	});
-
+describe("withReadplacePreparse — decorator contract", () => {
 	it("passes non-string input straight through to the wrapped validator", () => {
 		const { validate, seen } = captureValidator();
 		const decorated = withReadplacePreparse(validate, { selfHost: SELF_HOST });
 		decorated(42);
 		expect(seen()).toBe(42);
+	});
+
+	it("passes an over-length string through unrewritten so validation rejects it", () => {
+		const { validate, seen } = captureValidator();
+		const decorated = withReadplacePreparse(validate, { selfHost: SELF_HOST });
+		const oversized = `https://readplace.com/view/fagnerbrack.com/${"a".repeat(MAX_SAVEABLE_URL_LENGTH)}`;
+		decorated(oversized);
+		expect(seen()).toBe(oversized);
 	});
 
 	it("returns the wrapped validator's result", () => {

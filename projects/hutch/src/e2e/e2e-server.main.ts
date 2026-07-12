@@ -4,7 +4,6 @@ import { z } from 'zod'
 import { HutchLogger, consoleLogger, noopLogger } from '@packages/hutch-logger'
 import { calculateReadTime, validateSaveableUrl, type ValidateSaveableUrl } from '@packages/domain/article'
 import { createTestApp } from '../runtime/test-app'
-import { withReadplacePreparse } from '../runtime/web/pages/view/preparse-readplace-url'
 import {
   createDefaultTestAppFixture,
   createFakeApplyParseResult,
@@ -142,7 +141,10 @@ const { app: hutchApp, auth, email } = createTestApp({
     extractLinksFromPageUrl: initExtractLinksFromPageUrl({ crawlFetch, validateUrl: e2eValidateSaveableUrl }),
   },
   shared: {
-    validateSaveableUrl: withReadplacePreparse(e2eValidateSaveableUrl, { selfHost: new URL(origin).host }),
+    /** Raw on purpose: createTestApp decorates shared.validateSaveableUrl with
+     * withReadplacePreparse itself — wrapping here too would preparse twice and
+     * diverge the e2e server from the production composition. */
+    validateSaveableUrl: e2eValidateSaveableUrl,
     appOrigin: fixture.shared.appOrigin,
     staticBaseUrl: fixture.shared.staticBaseUrl,
     httpErrorMessageMapping: fixture.shared.httpErrorMessageMapping,

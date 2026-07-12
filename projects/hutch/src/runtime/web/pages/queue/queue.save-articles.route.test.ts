@@ -115,7 +115,7 @@ describe("POST /queue/save-articles", () => {
 			.set("Accept", SIREN_MEDIA_TYPE)
 			.set("Authorization", `Bearer ${accessToken}`)
 			.field("manifest", manifest([
-				{ url: "http://localhost:3000/view/fagnerbrack.com/business-success" },
+				{ url: `${TEST_APP_ORIGIN}/view/fagnerbrack.com/business-success` },
 			]));
 
 		expect(response.status).toBe(200);

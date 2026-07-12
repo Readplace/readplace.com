@@ -1,4 +1,4 @@
-import { MAX_VIEW_UNWRAP_DEPTH, originalUrlFromViewPath, parseViewPath, viewPathFor } from "./view-path";
+import { originalUrlFromViewPath, parseViewPath, viewPathFor } from "./view-path";
 
 function parse(decodedAndEncoded: string): ReturnType<typeof parseViewPath>;
 function parse(args: { rawPath: string; encodedPath: string }): ReturnType<typeof parseViewPath>;
@@ -222,8 +222,8 @@ describe("originalUrlFromViewPath", () => {
 		expect(originalUrlFromViewPath("example.com/path%foo")).toBeUndefined();
 	});
 
-	it("returns undefined when scheme-redirect resolution exceeds the depth cap", () => {
-		const nested = `${"https://".repeat(MAX_VIEW_UNWRAP_DEPTH + 1)}example.com/x`;
-		expect(originalUrlFromViewPath(nested)).toBeUndefined();
+	it("resolves a deeply scheme-stacked tail instead of capping out", () => {
+		const nested = `${"https://".repeat(40)}example.com/x`;
+		expect(originalUrlFromViewPath(nested)).toBe("https://example.com/x");
 	});
 });
