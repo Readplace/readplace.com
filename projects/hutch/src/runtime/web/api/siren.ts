@@ -38,7 +38,7 @@ export const SIREN_MEDIA_TYPE = "application/vnd.siren+json";
  * the user can move past vs a hard error); `content` is an HTML fragment the
  * client injects into a generic message view. The same shape is used for every
  * message the server asks a client to surface. */
-interface SirenMessage {
+export interface SirenMessage {
 	type: "warning" | "error";
 	content: { type: "text/html"; body: string };
 }
