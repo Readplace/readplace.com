@@ -171,8 +171,12 @@ export function initAuthRoutes(deps: AuthDependencies): Router {
 			return;
 		}
 		const returnUrl = extractReturnUrl(req.query);
+		// Set only when arriving from the OAuth "use a different account" switch,
+		// which always carries a return — so the appended param stays well-formed on
+		// the Google button's href (it forces Google's own account chooser).
+		const chooseAccount = req.query.prompt === "select_account" && returnUrl !== undefined;
 		const userCount = await fetchUserCount();
-		sendComponent(req, res, Base(LoginPage({ returnUrl, pendingSaveHost: pendingSaveHostFrom(returnUrl), userCount, foundingAllocation: deps.foundingAllocation }), bannerStateFromRequest(req)));
+		sendComponent(req, res, Base(LoginPage({ returnUrl, chooseAccount, pendingSaveHost: pendingSaveHostFrom(returnUrl), userCount, foundingAllocation: deps.foundingAllocation }), bannerStateFromRequest(req)));
 	});
 
 	const loginRateLimit = createRateLimitMiddleware({

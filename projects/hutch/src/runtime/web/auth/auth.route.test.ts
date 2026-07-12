@@ -98,6 +98,42 @@ describe("Auth routes", () => {
 			expect(signupLink).toContain("/signup");
 			expect(signupLink).toContain("return=");
 		});
+
+		it("forces Google's account chooser when arriving from the account switch (prompt=select_account + return)", async () => {
+			const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
+			const response = await request(harness.server).get(
+				"/login?return=%2Foauth%2Fauthorize%3Fclient_id%3Dtest&prompt=select_account",
+			);
+
+			expect(response.status).toBe(200);
+			const doc = new JSDOM(response.text).window.document;
+			const googleHref = doc.querySelector(".auth-google-button")?.getAttribute("href");
+			expect(googleHref).toContain("return=");
+			expect(googleHref).toContain("prompt=select_account");
+			// Apple already shows its own switcher, so it is not tagged.
+			const appleHref = doc.querySelector(".auth-apple-button")?.getAttribute("href");
+			expect(appleHref).not.toContain("prompt=select_account");
+		});
+
+		it("does not tag the Google button on a normal login", async () => {
+			const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
+			const response = await request(harness.server).get("/login");
+
+			expect(response.status).toBe(200);
+			const doc = new JSDOM(response.text).window.document;
+			const googleHref = doc.querySelector(".auth-google-button")?.getAttribute("href");
+			expect(googleHref).not.toContain("prompt=select_account");
+		});
+
+		it("ignores prompt=select_account without a return (nothing to switch back to)", async () => {
+			const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
+			const response = await request(harness.server).get("/login?prompt=select_account");
+
+			expect(response.status).toBe(200);
+			const doc = new JSDOM(response.text).window.document;
+			const googleHref = doc.querySelector(".auth-google-button")?.getAttribute("href");
+			expect(googleHref).not.toContain("prompt=select_account");
+		});
 	});
 
 	describe("POST /login", () => {

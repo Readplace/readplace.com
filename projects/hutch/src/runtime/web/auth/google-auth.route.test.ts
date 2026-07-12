@@ -67,6 +67,25 @@ describe("Google auth routes", () => {
 			expect(location.searchParams.get("scope")).toBe("openid email");
 			expect(location.searchParams.get("redirect_uri")).toBe("http://localhost:3000/auth/google/callback");
 			expect(cookiesFrom(response).join(";")).toContain("hutch_gstate=");
+			// A normal login lets Google auto-select its single signed-in account.
+			expect(location.searchParams.get("prompt")).toBeNull();
+		});
+
+		it("forwards prompt=select_account so Google shows its own account chooser when switching", async () => {
+			const fixture = createDefaultTestAppFixture(TEST_APP_ORIGIN);
+			const harness = useApp({
+				...fixture,
+				google: {
+					exchangeGoogleCode: stubExchange(),
+					clientId: "test-google-client-id",
+					clientSecret: "test-google-client-secret",
+				},
+			});
+			const response = await request(harness.server).get("/auth/google?prompt=select_account");
+
+			expect(response.status).toBe(303);
+			const location = new URL(response.headers.location);
+			expect(location.searchParams.get("prompt")).toBe("select_account");
 		});
 
 	});

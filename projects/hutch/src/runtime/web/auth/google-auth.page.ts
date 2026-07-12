@@ -111,6 +111,9 @@ export const initGoogleAuthRoutes = (deps: GoogleAuthDependencies): Router => {
 			scope: "openid email",
 			state: signedState,
 		});
+		// Forwarded only from the "use a different account" switch, so Google shows
+		// its own account chooser instead of auto-selecting its single signed-in one.
+		if (req.query.prompt === "select_account") params.set("prompt", "select_account");
 
 		res.redirect(303, `https://accounts.google.com/o/oauth2/v2/auth?${params.toString()}`);
 	});

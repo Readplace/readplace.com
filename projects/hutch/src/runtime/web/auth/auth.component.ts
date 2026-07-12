@@ -20,6 +20,7 @@ interface AuthFormData {
 	email?: string;
 	errors?: ComponentError[];
 	returnUrl?: string;
+	chooseAccount?: boolean;
 	pendingSaveHost?: string;
 	userCount: number;
 	foundingAllocation: FoundingAllocation;
@@ -53,6 +54,7 @@ export function LoginPage(data: AuthFormData, options?: { statusCode?: number })
 		email,
 		globalError: errors?.find((e) => !e.fieldName)?.message,
 		returnUrl: data.returnUrl ? encodeURIComponent(data.returnUrl) : undefined,
+		chooseAccount: data.chooseAccount,
 		pendingSaveHost: data.pendingSaveHost,
 		subtitle: data.pendingSaveHost
 			? "Sign in and this article is saved to your queue"
