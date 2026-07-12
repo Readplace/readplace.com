@@ -53,6 +53,19 @@ services:
       # ~1.4 GB per job into the container's writable layer and forcing a full
       # re-clone every job. A fixed path lets each job incrementally fetch.
       RUNNER_WORKDIR: /persist/work
+      # Park the pnpm content-addressable store on the SAME /persist volume as
+      # the workspace (RUNNER_WORKDIR above): a store on its own volume is a
+      # different btrfs filesystem from the checkout, so every package link hits
+      # EXDEV and pnpm silently falls back to a 735 MB copy per install; sharing
+      # one filesystem lets it reflink/hardlink instead. This container env also
+      # fixes the store *path*: pnpm/action-setup exports PNPM_HOME and pnpm
+      # otherwise resolves the store to $PNPM_HOME/store/v3 — a dir action-setup
+      # wipes on every job's self-install, which is why the old pnpm-store volume
+      # never filled. npm_config_store_dir beats both PNPM_HOME and a project
+      # .npmrc (verified against pnpm 9.15.0 in this container). Cosmetic only:
+      # npm/npx print `npm warn Unknown env config "store-dir"` on every job
+      # invocation — harmless, it is a pnpm setting npm itself doesn't recognise.
+      npm_config_store_dir: /persist/pnpm-store
     volumes:
       # The PAT lives behind /root (0700, root-owned). A docker secret lands in
       # /run/secrets, which the runner user could still read even at 0400 root:root
@@ -61,8 +74,6 @@ services:
       # Content-addressable caches: survive the ephemeral wipe, cheap to
       # keep, expensive to redownload over starlink.
       - playwright-browsers:/ms-playwright
-      # Under the runner user's home: non-root jobs cannot reach /root.
-      - pnpm-store:/home/runner/.local/share/pnpm
       # setup-node re-downloads Node into the toolcache on every ephemeral
       # container otherwise (~39s measured). Persisting it survives the wipe.
       - toolcache:/opt/hostedtoolcache
@@ -82,9 +93,10 @@ services:
       # Persistent workspace pinned by RUNNER_WORKDIR above: the checkout lives
       # at /persist/work/readplace.com/readplace.com and survives the ephemeral
       # re-register, so jobs incrementally fetch instead of re-cloning and the
-      # per-job /_work/orb-m5-* leak is gone. Plan 2 also parks the pnpm store
-      # under /persist so store and workspace share one filesystem (btrfs
-      # reflink/hardlink instead of a 735 MB EXDEV copy per install).
+      # per-job /_work/orb-m5-* leak is gone. The pnpm store also lives here at
+      # /persist/pnpm-store (npm_config_store_dir above) so store and workspace
+      # share one filesystem — btrfs reflink/hardlink instead of a 735 MB EXDEV
+      # copy per install.
       # Single writer only: a fixed workdir is unsafe under
       # `docker compose --scale gha-runner=N` — each replica would need its own
       # persist volume. Today there is exactly one runner.
@@ -97,7 +109,6 @@ services:
 
 volumes:
   playwright-browsers:
-  pnpm-store:
   toolcache:
   nx:
   persist:

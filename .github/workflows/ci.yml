@@ -42,7 +42,8 @@ jobs:
       - uses: actions/setup-node@v6
         with:
           node-version: 22
-          # self-hosted keeps the pnpm store on a volume; skip GitHub's cache service there
+          # self-hosted parks the pnpm store on its persistent /persist volume
+          # (npm_config_store_dir, set in the runner container); skip GitHub's cache there
           cache: ${{ runner.environment == 'github-hosted' && 'pnpm' || '' }}
 
       - run: pnpm install --frozen-lockfile --reporter=append-only --loglevel=warn

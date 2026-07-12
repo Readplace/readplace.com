@@ -83,5 +83,5 @@ ENV CFT_BAKED_DIR=/opt/cft
 # the caches must be writable by it.
 COPY entrypoint-secure.sh /usr/local/bin/entrypoint-secure.sh
 RUN chmod 0755 /usr/local/bin/entrypoint-secure.sh \
- && mkdir -p /home/runner/.local/share/pnpm /ms-playwright /opt/hostedtoolcache \
- && chown -R runner:runner /home/runner /ms-playwright /opt/hostedtoolcache
+ && mkdir -p /ms-playwright /opt/hostedtoolcache \
+ && chown -R runner:runner /ms-playwright /opt/hostedtoolcache

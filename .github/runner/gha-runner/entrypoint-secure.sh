@@ -31,15 +31,36 @@ unset pat
 # The caches are named volumes created root-owned; non-root jobs need them.
 chown -R runner:runner /ms-playwright /opt/hostedtoolcache /home/runner /nx 2>/dev/null || true
 
-# /persist (the fixed RUNNER_WORKDIR volume, plus the pnpm store once plan 2
-# lands) must be runner-owned so the non-root job can own the checkout tree and
-# create sibling dirs. Deliberately NOT on the recursive line above: this
-# entrypoint runs at every container start (once per ephemeral job) and /persist
-# grows to 100k+ files (workspace + store), so a per-job `chown -R` would cost
-# seconds each run. Guard it to the first start of a fresh volume — the mount
-# point is still root-owned then; a bare stat is a no-op thereafter. Same reason
-# the stock /entrypoint.sh chowns the workdir non-recursively.
+# /persist (the fixed RUNNER_WORKDIR volume, plus the pnpm store at
+# /persist/pnpm-store) must be runner-owned so the non-root job can own the
+# checkout tree and create sibling dirs. Deliberately NOT on the recursive line
+# above: this entrypoint runs at every container start (once per ephemeral job)
+# and /persist grows to 100k+ files (workspace + store), so a per-job `chown -R`
+# would cost seconds each run. Guard it to the first start of a fresh volume —
+# the mount point is still root-owned then; a bare stat is a no-op thereafter.
+# Same reason the stock /entrypoint.sh chowns the workdir non-recursively.
 [ "$(stat -c %U /persist)" = runner ] || chown -R runner:runner /persist
+
+# Prune the pnpm store weekly. It lives on /persist (runner-owned, above), grows
+# a few MB per lockfile change, and never shrinks on its own. `pnpm store prune`
+# drops packages no persisted checkout references; run it as the store's owner
+# (runner) and gate on a marker file's age so it runs at most once a week, not on
+# every ephemeral restart. npm_config_store_dir (set in compose) is in this env,
+# so gosu passes it through and prune targets the right store. Never fatal — a
+# failed prune or marker write must not stop the runner coming up (set -e is
+# active and this runs before exec). Touch the marker as root, this script's
+# user: root can always update the mtime, so a marker left mis-owned by manual
+# operator poking can neither wedge startup nor jam the gate into re-pruning
+# every boot; the `|| true` covers the only-if-/persist-is-broken remainder.
+prune_marker=/persist/.pnpm-store-pruned
+if [ ! -e "${prune_marker}" ] || [ -n "$(find "${prune_marker}" -mtime +7 2>/dev/null)" ]; then
+  if gosu runner pnpm store prune >/dev/null 2>&1; then
+    touch "${prune_marker}" || true
+    echo "entrypoint-secure: pruned the pnpm store (weekly)"
+  else
+    echo "entrypoint-secure: WARNING pnpm store prune failed (non-fatal)" >&2
+  fi
+fi
 
 # Block a job from reaching the OrbStack HOST (the Mac) — the one pivot class
 # with no ubuntu-latest analogue. Verified reachable from a job:
