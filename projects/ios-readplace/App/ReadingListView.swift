@@ -93,10 +93,13 @@ struct ReadingListView: View {
 					.ignoresSafeArea()
 				}
 				.sheet(isPresented: $showingAddInstructions) {
+					// Edge-to-edge like the reader/account sheet: the help page is now
+					// chromeless and renders its own back link, so it owns the full sheet.
 					AddLinkInstructionsView(
 						helpURL: viewModel.addLinksHelpURL,
 						onClose: { showingAddInstructions = false }
 					)
+					.ignoresSafeArea()
 				}
 				.confirmationDialog(
 					pendingDestructive?.affordance.label ?? "Are you sure?",

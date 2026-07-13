@@ -195,6 +195,8 @@ import { PrivacyPage } from "./web/pages/privacy";
 import { SupportPage } from "./web/pages/support";
 import { TermsPage } from "./web/pages/terms";
 import { HelpAddLinksPage } from "./web/pages/help";
+import { isAppShell } from "./web/onboarding/ios-client";
+import { APP_BACK_LINK } from "./web/shared/ios-app-links";
 import { E2EFixturePage } from "./web/pages/e2e-fixture";
 import { createE2EFixturePdf } from "./web/pages/e2e-fixture-pdf";
 import { initInstallRoutes } from "./web/pages/install";
@@ -760,8 +762,17 @@ export function createApp(dependencies: AppDependencies): Express {
 	// holds this path client-side; the /queue collection still advertises it via the
 	// add-links-help rel so older installed clients resolve the help URL from there.
 	// Either way the copy ships via a hutch deploy rather than an App Store review.
+	//
+	// The app sheet appends ?shell=app, which earns the same chromeless "← Back to
+	// queue" deep link the account page renders — so both surfaces the sheet hosts
+	// return to the native list identically. A browser visitor (no marker) keeps the
+	// bare page, and an older store build that never sends the marker keeps the
+	// native toolbar it already ships.
 	app.get("/help/add-links", (req: Request, res: Response) => {
-		sendComponent(req, res, HelpAddLinksPage({ staticBaseUrl }));
+		const backLink = isAppShell(req)
+			? { href: APP_BACK_LINK.topHref, label: APP_BACK_LINK.label }
+			: undefined;
+		sendComponent(req, res, HelpAddLinksPage({ staticBaseUrl, backLink }));
 	});
 
 	// Path-uniqued article fixture for staging e2e tests. The :id segment is
