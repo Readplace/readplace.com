@@ -21,6 +21,7 @@ function createInMemoryDeps(overrides: Partial<TestPhaseRunnerDeps> = {}) {
 		},
 		log: () => {},
 		shouldSkipE2E: () => false,
+		shouldInstallBrowserSystemDeps: () => false,
 		sleep: () => {},
 		...overrides,
 	};
@@ -259,9 +260,9 @@ describe("script phase resolution", () => {
 });
 
 describe("playwright phase resolution", () => {
-	it("resolves browser install command", () => {
-		const runner = createRunner();
-		const plan = runner.createTestPlan({
+	function resolveInstallCommand(shouldInstallBrowserSystemDeps: boolean, browsers: string[] = ["chromium"]) {
+		const { deps } = createInMemoryDeps({ shouldInstallBrowserSystemDeps: () => shouldInstallBrowserSystemDeps });
+		const plan = createRunner(deps).createTestPlan({
 			config: {
 				projectName: "Readplace",
 				phases: [
@@ -269,15 +270,38 @@ describe("playwright phase resolution", () => {
 						type: "playwright",
 						name: "E2E tests",
 						config: "playwright.config.local-dev.ts",
-						browsers: ["chromium"],
+						browsers,
 					},
 				],
 			},
 			projectRoot: "/projects/hutch",
 		});
+		return (plan.phases[0] as Extract<ResolvedPhase, { type: "playwright" }>).browserInstallCommand;
+	}
 
-		const phase = plan.phases[0] as Extract<ResolvedPhase, { type: "playwright" }>;
-		expect(phase.browserInstallCommand).toBe("node_modules/.bin/playwright install --with-deps chromium");
+	it("asks playwright to apt-get the OS libs when the runner can install them", () => {
+		expect(resolveInstallCommand(true)).toBe("node_modules/.bin/playwright install --with-deps chromium");
+	});
+
+	it("omits --with-deps when the runner cannot install OS libs, so the install does not shell out to sudo", () => {
+		expect(resolveInstallCommand(false)).toBe("node_modules/.bin/playwright install chromium");
+	});
+
+	it("reads the runner environment to decide whether the OS libs can be installed", () => {
+		const runnerEnvironment = process.env.RUNNER_ENVIRONMENT;
+		try {
+			process.env.RUNNER_ENVIRONMENT = "github-hosted";
+			expect(defaultDeps.shouldInstallBrowserSystemDeps()).toBe(true);
+
+			process.env.RUNNER_ENVIRONMENT = "self-hosted";
+			expect(defaultDeps.shouldInstallBrowserSystemDeps()).toBe(false);
+
+			delete process.env.RUNNER_ENVIRONMENT;
+			expect(defaultDeps.shouldInstallBrowserSystemDeps()).toBe(false);
+		} finally {
+			if (runnerEnvironment === undefined) delete process.env.RUNNER_ENVIRONMENT;
+			else process.env.RUNNER_ENVIRONMENT = runnerEnvironment;
+		}
 	});
 
 	it("resolves test command with config", () => {
@@ -302,24 +326,12 @@ describe("playwright phase resolution", () => {
 	});
 
 	it("supports multiple browsers", () => {
-		const runner = createRunner();
-		const plan = runner.createTestPlan({
-			config: {
-				projectName: "Readplace",
-				phases: [
-					{
-						type: "playwright",
-						name: "E2E tests",
-						config: "playwright.config.local-dev.ts",
-						browsers: ["chromium", "firefox"],
-					},
-				],
-			},
-			projectRoot: "/projects/hutch",
-		});
-
-		const phase = plan.phases[0] as Extract<ResolvedPhase, { type: "playwright" }>;
-		expect(phase.browserInstallCommand).toBe("node_modules/.bin/playwright install --with-deps chromium firefox");
+		expect(resolveInstallCommand(true, ["chromium", "firefox"])).toBe(
+			"node_modules/.bin/playwright install --with-deps chromium firefox",
+		);
+		expect(resolveInstallCommand(false, ["chromium", "firefox"])).toBe(
+			"node_modules/.bin/playwright install chromium firefox",
+		);
 	});
 
 	it("preserves env vars for the test command", () => {
