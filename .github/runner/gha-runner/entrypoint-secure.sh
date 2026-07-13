@@ -38,15 +38,19 @@ chown -R runner:runner /ms-playwright /opt/hostedtoolcache /home/runner 2>/dev/n
 # seconds each run. The mount point is only root-owned on a fresh volume.
 [ "$(stat -c %U /nx)" = runner ] || chown -R runner:runner /nx
 
-# nx's DbCache names its metadata db <machine-id>-v2.db, so when /etc/machine-id
-# changes (a base-image re-pull regenerates it; a layer-cached rebuild does not)
-# the fresh db tracks none of the artifacts already on the volume: every task
-# misses, and the stranded content dirs are reclaimed by neither nx's GC nor
-# NX_MAX_CACHE_SIZE, which only evict entries the current db knows about. Self-heal
-# rather than leave ~500 MB to rot until an operator spots it and runs
-# `docker volume rm`.
+# Backstop for the machine-id pin (see the Dockerfile). nx names its DbCache
+# metadata db "<machine-id>-v2.db" and resolves the id exactly the way the line
+# below does — /var/lib/dbus/machine-id FIRST, then /etc/machine-id. Those are two
+# independent regular files, not a symlink, so reading only /etc would silently
+# watch the wrong one. The Dockerfile pins both, so this should never fire; it
+# catches a silently-broken pin (a reordered Dockerfile, a base image that
+# reshuffles the id). Drift is otherwise invisible: the fresh db tracks none of the
+# artifacts on the volume, so every task misses with NO error (DbCache has no "not
+# generated on this machine" check — that lives in the legacy Cache class) and the
+# strays are reclaimed by neither nx's GC nor NX_MAX_CACHE_SIZE, which only evict
+# entries the current db knows about.
 nx_id_marker=/nx/.machine-id
-machine_id=$(cat /etc/machine-id)
+machine_id=$( ( cat /var/lib/dbus/machine-id /etc/machine-id 2>/dev/null || hostname ) | head -n 1 )
 if [ -r "${nx_id_marker}" ] && [ "$(cat "${nx_id_marker}")" != "${machine_id}" ]; then
   rm -rf /nx/cache /nx/workspace-data
   echo "entrypoint-secure: machine-id changed — wiped the now-orphaned nx cache"

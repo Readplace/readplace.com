@@ -117,3 +117,26 @@ COPY entrypoint-secure.sh /usr/local/bin/entrypoint-secure.sh
 RUN chmod 0755 /usr/local/bin/entrypoint-secure.sh \
  && mkdir -p /ms-playwright /opt/hostedtoolcache \
  && chown -R runner:runner /ms-playwright /opt/hostedtoolcache
+
+# Pin the machine-id so the nx cache survives an image rebuild. nx names its
+# DbCache metadata db "<machine-id>-v2.db" under NX_WORKSPACE_DATA_DIRECTORY (the
+# /nx volume) and resolves the id as
+#   ( cat /var/lib/dbus/machine-id /etc/machine-id ) | head -n 1
+# — dbus FIRST, and the two are independent regular files here, NOT a symlink, so
+# pinning only /etc/machine-id is a no-op. Neither ships in the base image (its
+# /etc/machine-id is empty): systemd's postinst mints a RANDOM one when
+# `playwright install-deps` pulls in dbus/systemd. The id is therefore
+# non-deterministic layer output — any rebuild that re-executes that layer (a base
+# re-pull, a BuildKit cache eviction) mints a new one, and the fresh db then tracks
+# none of the artifacts already on /nx: every task misses SILENTLY (DbCache has no
+# "not generated on this machine" error — that check lives in the legacy Cache
+# class) and the strays are reclaimed by neither nx's GC nor NX_MAX_CACHE_SIZE.
+# Keep this LAST: the postinsts above only generate an id into an absent/empty
+# file, so a pin written after them is never overwritten (verified against a
+# subsequent `apt-get install --reinstall dbus systemd`). Value is the id the
+# current /nx db is already named after, so shipping this costs no cold run.
+# Because the pin removes the accidental cache-busting the id churn used to give
+# the floating chrome@stable / firefox-latest browsers above, the two extension
+# projects declare those browser versions as an explicit nx `runtime` input.
+RUN mkdir -p /var/lib/dbus \
+ && printf '%s\n' d8afc387deb149a1bdbfa08f1d8ff78e | tee /etc/machine-id > /var/lib/dbus/machine-id

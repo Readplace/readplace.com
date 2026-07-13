@@ -81,14 +81,17 @@ services:
       # paths above): replays check/lint/test/compile across jobs instead of
       # rebuilding ~155 MB every run. Content-addressed by input hash, so a
       # PR-built entry correctly replays for a main push with identical inputs.
-      # On an image REBUILD, compare `docker exec gha-runner-gha-runner-1 cat
-      # /etc/machine-id` against its pre-rebuild value and `docker volume rm`
-      # this volume ONLY if it changed — nx stamps every artifact with the
-      # machine-id and hard-errors ("Invalid Cache Directory … not generated on
-      # this machine", pointing at `nx reset`) on a mismatch. A layer-cached
-      # rebuild keeps the id; only a base-image re-pull regenerates it
-      # (--force-recreate alone never does). Caveat: a flaky pass recorded once
-      # replays green for identical inputs (inherent to nx caching).
+      # nx names the db "<machine-id>-v2.db", and the Dockerfile PINS the
+      # machine-id (BOTH /var/lib/dbus/machine-id and /etc/machine-id) so this
+      # cache survives an image rebuild. Without that pin the id is random postinst
+      # output that re-rolls whenever the dbus layer re-executes, and the fresh db
+      # then tracks none of the artifacts here: every task misses SILENTLY — there
+      # is no "not generated on this machine" error on this path, that check lives
+      # in nx's legacy Cache class, not DbCache — and the strays are reclaimed by
+      # neither nx's GC nor NX_MAX_CACHE_SIZE. entrypoint-secure.sh keeps a marker
+      # as the backstop and wipes the volume if the id ever drifts anyway, so no
+      # manual `docker volume rm` ritual is needed. Caveat: a flaky pass recorded
+      # once replays green for identical inputs (inherent to nx caching).
       - nx:/nx
       # Persistent workspace pinned by RUNNER_WORKDIR above: the checkout lives
       # at /persist/work/readplace.com/readplace.com and survives the ephemeral
