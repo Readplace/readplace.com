@@ -79,7 +79,7 @@ describe("initResolveToolAccess", () => {
 		);
 		expect(access).toMatchObject({
 			state: "trial-ending",
-			nudge: expect.stringContaining("$49/year"),
+			nudge: expect.stringContaining("$4.08/month"),
 		});
 		expect(access).toMatchObject({
 			nudge: expect.stringContaining("https://readplace.com/account"),
@@ -95,7 +95,7 @@ describe("initResolveToolAccess", () => {
 			message: expect.stringContaining("isn't active"),
 		});
 		expect(access).toMatchObject({
-			message: expect.stringContaining("$49/year"),
+			message: expect.stringContaining("$4.08/month"),
 		});
 		expect(access).toMatchObject({
 			message: expect.stringContaining("https://readplace.com/account"),

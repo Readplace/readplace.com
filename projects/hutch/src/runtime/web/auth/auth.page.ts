@@ -36,6 +36,7 @@ import type {
 } from "@packages/provider-contracts/trial-scheduler";
 import {
 	CheckoutSessionIdSchema,
+	type CheckoutSessionId,
 	type RetrieveCheckoutSession,
 } from "@packages/provider-contracts/hosted-checkout";
 import type {
@@ -58,8 +59,9 @@ import { LoginSchema } from "./auth.schema";
 import { LoginPage, SignupPage, VerifyEmailPage } from "./auth.component";
 import { extractReturnUrl, parseReturnUrl } from "./parse-return-url";
 import { pendingSaveHostFrom } from "./pending-save-host";
-import { baseCookieOptions, suppressClickCount } from "@packages/web-analytics";
-import { SESSION_COOKIE_MAX_AGE_MS, SESSION_COOKIE_NAME } from "@packages/web-session";
+import { suppressClickCount } from "@packages/web-analytics";
+import { SESSION_COOKIE_NAME } from "@packages/web-session";
+import { persistentSessionCookieOptions } from "./session-cookie-options";
 import { buildVerificationEmailHtml } from "./verification-email";
 import { flattenZodErrors } from "./flatten-zod-errors";
 import { initFetchUserCount } from "./fetch-user-count";
@@ -71,6 +73,15 @@ import { readClickAttribution } from "@packages/web-analytics";
 import { consumePendingSaveId } from "../pending-save";
 import type { ConversionEvent } from "../../conversions";
 import { emitUserCreated } from "../../conversions";
+import type { AnalyticsEvent } from "@packages/web-analytics";
+import { buildSignupAttemptedEvent } from "@packages/web-analytics";
+import { SIGNUP_OUTCOMES, type SignupOutcome } from "../../observability/events";
+import {
+	CHECKOUT_RETURN_FAILURE_REASONS,
+	type CheckoutReturnFailureReason,
+} from "../../observability/events";
+import type { EmitSubscriptionEvent } from "../../observability/subscription-events";
+import { DISPOSABLE_EMAIL_MESSAGE } from "./disposable-email";
 
 const TokenQuerySchema = z.object({ token: z.string().optional() }).passthrough();
 const CheckoutSuccessQuerySchema = z.object({ session_id: z.string().min(1) }).passthrough();
@@ -115,6 +126,12 @@ interface AuthDependencies {
 	now: () => Date;
 	botDefenseLogger: HutchLogger.Typed<BotDefenseEvent>;
 	conversionLogger: HutchLogger.Typed<ConversionEvent>;
+	analytics: HutchLogger.Typed<AnalyticsEvent>;
+	salt: string;
+	emitSubscriptionEvent: Pick<
+		EmitSubscriptionEvent,
+		"checkoutCompleted" | "checkoutReturnFailed"
+	>;
 	foundingAllocation: FoundingAllocation;
 	buildBannerState: BuildBannerState;
 	consumeRateLimit: ConsumeRateLimit;
@@ -123,7 +140,7 @@ interface AuthDependencies {
 
 export function initAuthRoutes(deps: AuthDependencies): Router {
 	const router = express.Router();
-	const sessionCookieOptions = { ...baseCookieOptions(deps.secureCookies), maxAge: SESSION_COOKIE_MAX_AGE_MS };
+	const sessionCookieOptions = persistentSessionCookieOptions(deps.secureCookies);
 
 	const fetchUserCount = initFetchUserCount({
 		countUsers: deps.countUsers,
@@ -164,8 +181,12 @@ export function initAuthRoutes(deps: AuthDependencies): Router {
 			return;
 		}
 		const returnUrl = extractReturnUrl(req.query);
+		// Set only when arriving from the OAuth "use a different account" switch,
+		// which always carries a return — so the appended param stays well-formed on
+		// the Google button's href (it forces Google's own account chooser).
+		const chooseAccount = req.query.prompt === "select_account" && returnUrl !== undefined;
 		const userCount = await fetchUserCount();
-		sendComponent(req, res, Base(LoginPage({ returnUrl, pendingSaveHost: pendingSaveHostFrom(returnUrl), userCount, foundingAllocation: deps.foundingAllocation }), bannerStateFromRequest(req)));
+		sendComponent(req, res, Base(LoginPage({ returnUrl, chooseAccount, pendingSaveHost: pendingSaveHostFrom(returnUrl), userCount, foundingAllocation: deps.foundingAllocation }), bannerStateFromRequest(req)));
 	});
 
 	const loginRateLimit = createRateLimitMiddleware({
@@ -257,6 +278,11 @@ export function initAuthRoutes(deps: AuthDependencies): Router {
 		const pendingSaveHost = pendingSaveHostFrom(returnUrl);
 		const body = (req.body ?? {}) as Record<string, unknown>;
 
+		const logSignupAttempt = (outcome: SignupOutcome) =>
+			deps.analytics.info(
+				buildSignupAttemptedEvent({ now: deps.now, salt: deps.salt }, { req, outcome }),
+			);
+
 		const renderFailure = async (email: string | undefined, errors: ComponentError[]) => {
 			const userCount = await fetchUserCount();
 			sendComponent(
@@ -289,6 +315,7 @@ export function initAuthRoutes(deps: AuthDependencies): Router {
 						now: deps.now(),
 					}));
 					if (result.reason === "submit_too_fast") {
+						logSignupAttempt(SIGNUP_OUTCOMES.tooFast);
 						await renderFailure(
 							typeof body.email === "string" ? body.email : undefined,
 							[{ message: "Please try again" }],
@@ -299,9 +326,15 @@ export function initAuthRoutes(deps: AuthDependencies): Router {
 					res.redirect(303, "/?signup=pending");
 					break;
 				case "field-errors":
+					logSignupAttempt(
+						result.errors.some((e) => e.message === DISPOSABLE_EMAIL_MESSAGE)
+							? SIGNUP_OUTCOMES.disposableEmail
+							: SIGNUP_OUTCOMES.invalidInput,
+					);
 					await renderFailure(result.email, result.errors);
 					break;
 				case "duplicate-email":
+					logSignupAttempt(SIGNUP_OUTCOMES.duplicateEmail);
 					await renderFailure(result.email, [{ message: "An account with this email already exists" }]);
 					break;
 			}
@@ -318,6 +351,7 @@ export function initAuthRoutes(deps: AuthDependencies): Router {
 		if (!deps.foundingAllocation.isFoundingAllocationExhausted(userCount)) {
 			const created = await deps.createUserWithPasswordHash({ email, passwordHash, attribution });
 			if (!created.ok) {
+				logSignupAttempt(SIGNUP_OUTCOMES.duplicateEmail);
 				await renderFailure(email, [{ message: "An account with this email already exists" }]);
 				return;
 			}
@@ -325,6 +359,7 @@ export function initAuthRoutes(deps: AuthDependencies): Router {
 			const sessionId = await deps.createSession({ userId: created.userId, emailVerified: false });
 			res.cookie(SESSION_COOKIE_NAME, sessionId, sessionCookieOptions);
 			sendVerificationEmail(created.userId, email);
+			logSignupAttempt(SIGNUP_OUTCOMES.created);
 			emitUserCreated(
 				{ logger: deps.conversionLogger, now: deps.now },
 				{
@@ -343,6 +378,7 @@ export function initAuthRoutes(deps: AuthDependencies): Router {
 
 		const created = await deps.createUserWithPasswordHash({ email, passwordHash });
 		if (!created.ok) {
+			logSignupAttempt(SIGNUP_OUTCOMES.duplicateEmail);
 			await renderFailure(email, [{ message: "An account with this email already exists" }]);
 			return;
 		}
@@ -380,6 +416,7 @@ export function initAuthRoutes(deps: AuthDependencies): Router {
 		const sessionId = await deps.createSession({ userId: created.userId, emailVerified: false });
 		res.cookie(SESSION_COOKIE_NAME, sessionId, sessionCookieOptions);
 		sendVerificationEmail(created.userId, email);
+		logSignupAttempt(SIGNUP_OUTCOMES.created);
 		emitUserCreated(
 			{ logger: deps.conversionLogger, now: deps.now },
 			{
@@ -396,42 +433,54 @@ export function initAuthRoutes(deps: AuthDependencies): Router {
 	});
 
 	router.get("/auth/checkout/success", async (req: Request, res: Response) => {
-		const parsedQuery = CheckoutSuccessQuerySchema.safeParse(req.query);
-		if (!parsedQuery.success) {
+		const renderFailure = async (params: {
+			statusCode: number;
+			message: string;
+			reason: CheckoutReturnFailureReason;
+			checkoutSessionId?: CheckoutSessionId;
+		}) => {
+			deps.emitSubscriptionEvent.checkoutReturnFailed({
+				reason: params.reason,
+				userId: req.userId,
+				checkoutSessionId: params.checkoutSessionId,
+			});
 			const userCount = await fetchUserCount();
 			sendComponent(
 				req, res,
-				Base(SignupPage(
-					{
-						userCount,
-						foundingAllocation: deps.foundingAllocation,
-						loadedAt: deps.now().getTime(),
-						errors: [{ message: "Missing checkout session — please start again." }],
-					},
-					{ statusCode: 400 },
-				), bannerStateFromRequest(req)),
+				Base(SignupPage({ userCount, foundingAllocation: deps.foundingAllocation, loadedAt: deps.now().getTime(), errors: [{ message: params.message }] }, { statusCode: params.statusCode }), bannerStateFromRequest(req)),
 			);
+		};
+
+		const parsedQuery = CheckoutSuccessQuerySchema.safeParse(req.query);
+		if (!parsedQuery.success) {
+			await renderFailure({
+				statusCode: 400,
+				message: "Missing checkout session — please start again.",
+				reason: CHECKOUT_RETURN_FAILURE_REASONS.invalidQuery,
+			});
 			return;
 		}
 
 		const checkoutSessionId = CheckoutSessionIdSchema.parse(parsedQuery.data.session_id);
 		const session = await deps.retrieveCheckoutSession(checkoutSessionId);
 
-		const renderFailure = async (statusCode: number, message: string) => {
-			const userCount = await fetchUserCount();
-			sendComponent(
-				req, res,
-				Base(SignupPage({ userCount, foundingAllocation: deps.foundingAllocation, loadedAt: deps.now().getTime(), errors: [{ message }] }, { statusCode }), bannerStateFromRequest(req)),
-			);
-		};
-
 		if (!session.ok) {
-			await renderFailure(404, "Checkout session not found — please start again.");
+			await renderFailure({
+				statusCode: 404,
+				message: "Checkout session not found — please start again.",
+				reason: CHECKOUT_RETURN_FAILURE_REASONS.sessionNotFound,
+				checkoutSessionId,
+			});
 			return;
 		}
 
 		if (!session.paid || session.status !== "complete") {
-			await renderFailure(402, "Payment was not completed. Please try again.");
+			await renderFailure({
+				statusCode: 402,
+				message: "Payment was not completed. Please try again.",
+				reason: CHECKOUT_RETURN_FAILURE_REASONS.notPaid,
+				checkoutSessionId,
+			});
 			return;
 		}
 
@@ -441,7 +490,12 @@ export function initAuthRoutes(deps: AuthDependencies): Router {
 
 		const pending = await deps.consumePendingSignup(checkoutSessionId);
 		if (!pending) {
-			await renderFailure(409, "This checkout link has already been used.");
+			await renderFailure({
+				statusCode: 409,
+				message: "This checkout link has already been used.",
+				reason: CHECKOUT_RETURN_FAILURE_REASONS.replayed,
+				checkoutSessionId,
+			});
 			return;
 		}
 
@@ -450,8 +504,25 @@ export function initAuthRoutes(deps: AuthDependencies): Router {
 			subscriptionId,
 			customerId,
 		});
-		await deps.trialScheduler.deleteTrialEndSchedule({ userId: pending.userId });
-		await deps.trialScheduler.deleteTrialReminderSchedule({ userId: pending.userId });
+		// paid_now separates a real charge from a $0 trial capture: Stripe reports
+		// no_payment_required for a trial-preserving checkout, which still counts as
+		// a completed checkout but not revenue.
+		deps.emitSubscriptionEvent.checkoutCompleted({
+			userId: pending.userId,
+			subscriptionId,
+			checkoutSessionId,
+			paidNow: session.paymentStatus === "paid",
+			variant: pending.variant,
+		});
+		try {
+			await deps.trialScheduler.deleteTrialEndSchedule({ userId: pending.userId });
+			await deps.trialScheduler.deleteTrialReminderSchedule({ userId: pending.userId });
+		} catch (err) {
+			deps.logError(
+				"[checkout/success] Clearing the trial schedules failed — continuing; the user has already paid and is active",
+				err instanceof Error ? err : new Error(String(err)),
+			);
+		}
 		if (pending.trialEndsAt) {
 			try {
 				await deps.trialScheduler.createChargeReminderSchedule({

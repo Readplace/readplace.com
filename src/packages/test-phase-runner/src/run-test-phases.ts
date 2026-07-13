@@ -106,6 +106,7 @@ type ExecSyncFn = (command: string, options: ExecSyncOptions) => Buffer | string
 type GlobSyncFn = (pattern: string) => string[];
 type LogFn = (message: string) => void;
 type ShouldSkipE2EFn = () => boolean;
+type ShouldInstallBrowserSystemDepsFn = () => boolean;
 type SleepFn = (ms: number) => void;
 
 export interface TestPhaseRunnerDeps {
@@ -113,6 +114,7 @@ export interface TestPhaseRunnerDeps {
 	globSync: GlobSyncFn;
 	log: LogFn;
 	shouldSkipE2E: ShouldSkipE2EFn;
+	shouldInstallBrowserSystemDeps: ShouldInstallBrowserSystemDepsFn;
 	sleep: SleepFn;
 }
 
@@ -148,12 +150,16 @@ function resolveScriptPhase(phase: ScriptPhase): ResolvedScriptPhase {
 	return { type: "script", name: phase.name, command: phase.command, env: phase.env ?? {}, e2e: phase.e2e === true };
 }
 
-function resolvePlaywrightPhase(phase: PlaywrightPhase): ResolvedPlaywrightPhase {
+function resolvePlaywrightPhase(
+	phase: PlaywrightPhase,
+	installBrowserSystemDeps: boolean,
+): ResolvedPlaywrightPhase {
 	const browsers = phase.browsers.join(" ");
+	const withDeps = installBrowserSystemDeps ? " --with-deps" : "";
 	return {
 		type: "playwright",
 		name: phase.name,
-		browserInstallCommand: `node_modules/.bin/playwright install --with-deps ${browsers}`,
+		browserInstallCommand: `node_modules/.bin/playwright install${withDeps} ${browsers}`,
 		testCommand: `node_modules/.bin/playwright test --config ${phase.config}`,
 		env: phase.env ?? {},
 		e2e: phase.e2e === true,
@@ -175,6 +181,7 @@ export const defaultDeps: TestPhaseRunnerDeps = {
 	globSync: defaultGlobSync,
 	log: console.log,
 	shouldSkipE2E: () => getEnv("CLAUDE_CODE_REMOTE") === "true",
+	shouldInstallBrowserSystemDeps: () => getEnv("RUNNER_ENVIRONMENT") === "github-hosted",
 	sleep: (ms: number) => {
 		Atomics.wait(new Int32Array(new SharedArrayBuffer(4)), 0, 0, ms);
 	},
@@ -252,7 +259,7 @@ export function initTestPhaseRunner(deps: TestPhaseRunnerDeps) {
 				if (phase.type === "jest") return resolveJestPhase(phase);
 				if (phase.type === "node-test") return resolveNodeTestPhase(phase, deps.globSync);
 				if (phase.type === "script") return resolveScriptPhase(phase);
-				return resolvePlaywrightPhase(phase);
+				return resolvePlaywrightPhase(phase, deps.shouldInstallBrowserSystemDeps());
 			});
 
 			return {

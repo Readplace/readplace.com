@@ -7,6 +7,10 @@ enum SaveSharedOutcome: Equatable {
 	case savedWithContent
 	case savedLinkOnly
 	case notLoggedIn
+	/// The token store could not be READ (not merely empty) — the shared Keychain
+	/// returned a hard failure. Carries the `OSStatus` so the shell can name it,
+	/// rather than telling a signed-in user they are signed out.
+	case storageUnavailable(OSStatus)
 	case noLink
 	case noSaveAction
 	case refused([ServerMessage])
@@ -31,20 +35,41 @@ struct SaveSharedPage {
 
 	/// `sharedPdf` lazily loads the bytes of a PDF the share sheet delivered as a
 	/// file (nil when the payload carried none) — a closure rather than the bytes
-	/// so a share that fails the guards above never pays for the load.
-	func run(url: URL?, fallbackTitle: String?, sharedPdf: (() async -> Data?)?) async -> SaveSharedOutcome {
-		guard store.isLoggedIn else { return .notLoggedIn }
+	/// so a share that fails the guards above never pays for the load. `onNotice`
+	/// receives any server-authored save notice (the queue collection's
+	/// `noticeMessages`) as soon as the list loads — before the slow capture and
+	/// upload — so the shell can surface it for the whole phase the user must not
+	/// interrupt. Defaults to a no-op so the outcome-only callers stay untouched.
+	func run(
+		url: URL?,
+		fallbackTitle: String?,
+		sharedPdf: (() async -> Data?)?,
+		onNotice: @escaping ([ServerMessage]) -> Void = { _ in }
+	) async -> SaveSharedOutcome {
+		switch store.loadTokens() {
+		case .failure(let error):
+			return .storageUnavailable(error.status)
+		case .success(nil):
+			return .notLoggedIn
+		case .success:
+			break
+		}
 		guard let url else { return .noLink }
 
-		var providedPdf: Data?
-		if let sharedPdf {
-			providedPdf = await sharedPdf().flatMap { $0.starts(with: Self.pdfMagic) ? $0 : nil }
-		}
-		let captured = providedPdf == nil ? await captor.capture(url: url) : nil
-		let title = (captured?.title?.isEmpty == false) ? captured?.title : fallbackTitle
-
 		do {
+			// Load the list first, then hand the server's save notice to the shell,
+			// so the caption is on screen before the capture and upload below — the
+			// phase during which swiping the extension away would kill the save.
 			let page = try await api.loadQueue()
+			onNotice(page.noticeMessages)
+
+			var providedPdf: Data?
+			if let sharedPdf {
+				providedPdf = await sharedPdf().flatMap { $0.starts(with: Self.pdfMagic) ? $0 : nil }
+			}
+			let captured = providedPdf == nil ? await captor.capture(url: url) : nil
+			let title = (captured?.title?.isEmpty == false) ? captured?.title : fallbackTitle
+
 			let urlString = url.absoluteString
 
 			if let action = page.action(named: "save-content"),

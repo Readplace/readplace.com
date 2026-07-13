@@ -1,8 +1,8 @@
 import type { AuthenticatedUserId } from "@packages/domain/user";
 import {
-	ANNUAL_PRICE_DISPLAY,
 	deriveTrialEscalation,
 	formatTrialRemaining,
+	MONTHLY_EQUIVALENT_DISPLAY,
 } from "@packages/web-shell";
 import type { GetEffectiveAccess } from "@packages/subscription-access";
 
@@ -29,14 +29,14 @@ const APP_ACCOUNT_URL = "https://readplace.com/account";
  * stay open, so the copy pauses only saving. */
 const INACTIVE_UPSELL =
 	"Your Readplace subscription isn't active, so saving new links is paused — you can still read and export everything already in your queue. " +
-	`Readplace is ${ANNUAL_PRICE_DISPLAY}/year — about a coffee a month — and it's what pays for the computing and features usage on every link you save. ` +
+	`Readplace is ${MONTHLY_EQUIVALENT_DISPLAY}/month — about the price of a coffee — and it's what pays for the computing and features usage on every link you save. ` +
 	"There's no investor money behind it; each subscription keeps Readplace running another year. " +
 	`Reactivate in a minute at ${APP_ACCOUNT_URL} — your queue is right where you left it.`;
 
 /** Appended to a successful result while a trial is in its final week (the
  * escalation buckets past "soft", i.e. seven days or fewer remaining). */
 const TRIAL_ENDING_NUDGE =
-	`PS — your Readplace free trial ends soon. Keep your queue and AI summaries going for ${ANNUAL_PRICE_DISPLAY}/year (about a coffee a month) at ${APP_ACCOUNT_URL}.`;
+	`PS — your Readplace free trial ends soon. Keep your queue and AI summaries going for ${MONTHLY_EQUIVALENT_DISPLAY}/month (about the price of a coffee) at ${APP_ACCOUNT_URL}.`;
 
 export type ToolAccess =
 	| { readonly state: "ok" }

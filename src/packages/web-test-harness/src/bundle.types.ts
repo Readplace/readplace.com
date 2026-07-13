@@ -9,6 +9,7 @@ import type { ParseArticle } from "@packages/article-parser";
 import type {
 	BotDefenseEvent,
 	BumpArticleSavedAt,
+	CheckoutPaymentStatus,
 	CheckoutSessionId,
 	ConsumePendingSignup,
 	ConsumeRateLimit,
@@ -162,7 +163,7 @@ export interface AuthBundle {
 export interface HostedCheckoutBundle {
 	createCheckoutSession: CreateCheckoutSession;
 	retrieveCheckoutSession: RetrieveCheckoutSession;
-	markPaid: (id: CheckoutSessionId) => void;
+	markPaid: (id: CheckoutSessionId, opts?: { paymentStatus?: CheckoutPaymentStatus }) => void;
 	getCheckoutUrl: (id: CheckoutSessionId) => string;
 }
 

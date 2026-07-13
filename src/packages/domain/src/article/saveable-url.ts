@@ -23,6 +23,13 @@ export type SaveableUrl = z.infer<typeof SaveableUrlBrand>;
 
 const ALLOWED_SCHEMES: ReadonlySet<string> = new Set(["http:", "https:"]);
 
+/** Above any legitimate article URL and the ~2k-8k ceilings browsers, proxies,
+ * and CDNs enforce. Every save path funnels through this validator, so this one
+ * rule bounds stored URLs, dedup keys, and crawler fetches — and any
+ * URL-rewriting decorator composed in front must gate on it BEFORE rewriting,
+ * because decorators run before this check. */
+export const MAX_SAVEABLE_URL_LENGTH = 8192;
+
 const LOCAL_HOSTNAME_SUFFIXES: readonly string[] = [
 	".local",
 	".home.arpa",
@@ -87,6 +94,7 @@ export function validateSaveableUrl(value: unknown): SaveableUrlResult {
 	if (typeof value !== "string") return errorResult("malformed_url");
 	const trimmed = value.trim();
 	if (trimmed.length === 0) return errorResult("malformed_url"); /* c8 ignore next -- V8 block coverage phantom: zero-count sub-range at bytecode boundary (bcoe/c8#319, v8.dev/blog/javascript-code-coverage) */
+	if (trimmed.length > MAX_SAVEABLE_URL_LENGTH) return errorResult("malformed_url");
 	const parsed = tryParseUrl(trimmed);
 	if (!parsed) return errorResult("malformed_url");
 	if (!ALLOWED_SCHEMES.has(parsed.protocol)) return errorResult("unsupported_scheme"); /* c8 ignore next -- V8 block coverage phantom: zero-count sub-range at bytecode boundary (bcoe/c8#319, v8.dev/blog/javascript-code-coverage) */

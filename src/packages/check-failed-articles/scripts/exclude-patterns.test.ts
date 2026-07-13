@@ -427,6 +427,21 @@ describe("EXCLUDE_PATTERNS — permanently-unreachable saves", () => {
 			label: "microservices.com talk (503 to datacenter IPs)",
 		},
 		{ url: "https://www.microservices.com/", excluded: false, label: "microservices.com root — should NOT match" },
+		{
+			url: "https://thcsdaoduytu.edu.vn/gv-ngu-van-truong-thcs-dao-duy-tu-goi-y-mot-dan-chung-thuong-dung-trong-van-nghi-luan-xa-hoi-phan_",
+			excluded: true,
+			label: "thcsdaoduytu Vietnamese-school article (Cloudflare challenge, issue #961)",
+		},
+		{
+			url: "https://thcsdaoduytu.edu.vn/gv-ngu-van-truong-thcs-dao-duy-tu-goi-y-mot-dan-chung-thuong-dung-trong-van-nghi-luan-xa-hoi-phan_?zarsrc=30&utm_source=zalo&utm_medium=zalo&utm_campaign=zalo&gidzl=gzlKVx88OtQZnDnxknLbUQF4sNIj4pPtwCJRAVuHRIg_mz8d_XWuAUVFW2Ab6pSfuypVAp8WueuwkWfYV0",
+			excluded: false,
+			label: "thcsdaoduytu query-string variant (extension-saved, ready) — must NOT be hidden",
+		},
+		{
+			url: "https://thcsdaoduytu.edu.vn/some-other-article",
+			excluded: false,
+			label: "different thcsdaoduytu article — must NOT be hidden",
+		},
 		// (f) Login/subscription wall.
 		{
 			url: "https://www.academia.edu/4749776/Personal_experience_and_the_construction_of_knowledge_in_science",
@@ -574,6 +589,11 @@ describe("EXCLUDE_PATTERNS — permanently-unreachable saves", () => {
 			url: "https://www.zhihu.com/question/2058516301257994660/answer/2058890698460509303",
 			excluded: true,
 			label: "zhihu deleted answer exact (origin 404 behind edge 403)",
+		},
+		{
+			url: "https://www.zhihu.com/question/undefined/...This",
+			excluded: true,
+			label: "zhihu malformed extension save (question/undefined + truncated fragment, issue #962)",
 		},
 		{
 			url: "https://www.zhihu.com/question/undefined/answer/2058890698460509303",

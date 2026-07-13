@@ -34,7 +34,6 @@ export {
 	initSaveArticlesUnderstanding,
 	initSaveHtmlUnderstanding,
 	initSaveContentUnderstanding,
-	initDeleteArticleUnderstanding,
 	initListArticlesUnderstanding,
 	genericEntityAction,
 	groupOf,

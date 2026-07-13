@@ -29,7 +29,8 @@ import { bannerStateFromRequest, sendComponent } from "@packages/web-shell";
 
 import { extractReturnUrl, parseReturnUrl } from "./parse-return-url";
 import { baseCookieOptions } from "@packages/web-analytics";
-import { SESSION_COOKIE_MAX_AGE_MS, SESSION_COOKIE_NAME } from "@packages/web-session";
+import { SESSION_COOKIE_NAME } from "@packages/web-session";
+import { persistentSessionCookieOptions } from "./session-cookie-options";
 import { LoginPage } from "./auth.component";
 import { initFetchUserCount } from "./fetch-user-count";
 import { readClickAttribution } from "@packages/web-analytics";
@@ -77,7 +78,7 @@ interface GoogleAuthDependencies {
 
 export const initGoogleAuthRoutes = (deps: GoogleAuthDependencies): Router => {
 	const router = express.Router();
-	const sessionCookieOptions = { ...baseCookieOptions(deps.secureCookies), maxAge: SESSION_COOKIE_MAX_AGE_MS };
+	const sessionCookieOptions = persistentSessionCookieOptions(deps.secureCookies);
 	const redirectUri = `${deps.appOrigin}/auth/google/callback`;
 	const fetchUserCount = initFetchUserCount({
 		countUsers: deps.countUsers,
@@ -110,6 +111,9 @@ export const initGoogleAuthRoutes = (deps: GoogleAuthDependencies): Router => {
 			scope: "openid email",
 			state: signedState,
 		});
+		// Forwarded only from the "use a different account" switch, so Google shows
+		// its own account chooser instead of auto-selecting its single signed-in one.
+		if (req.query.prompt === "select_account") params.set("prompt", "select_account");
 
 		res.redirect(303, `https://accounts.google.com/o/oauth2/v2/auth?${params.toString()}`);
 	});

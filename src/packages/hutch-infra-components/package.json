@@ -17,6 +17,10 @@
       "types": "./dist/infra/copy-asset-files.d.ts",
       "default": "./dist/infra/copy-asset-files.js"
     },
+    "./infra/compute-image-tag": {
+      "types": "./dist/infra/compute-image-tag.d.ts",
+      "default": "./dist/infra/compute-image-tag.js"
+    },
     "./runtime": {
       "types": "./dist/runtime/index.d.ts",
       "default": "./dist/runtime/index.js"
@@ -26,6 +30,7 @@
     "*": {
       "infra": ["./dist/infra/index.d.ts"],
       "infra/copy-asset-files": ["./dist/infra/copy-asset-files.d.ts"],
+      "infra/compute-image-tag": ["./dist/infra/compute-image-tag.d.ts"],
       "runtime": ["./dist/runtime/index.d.ts"]
     }
   },

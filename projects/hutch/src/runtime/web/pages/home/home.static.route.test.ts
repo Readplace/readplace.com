@@ -58,7 +58,7 @@ describe("GET / with exhausted founding allocation", () => {
 		expect(standardCard.querySelector(".pricing-card__name")?.textContent).toBe(
 			"Readplace Membership",
 		);
-		expect(standardCard.querySelector(".pricing-card__price")?.textContent).toBe("$49/year");
+		expect(standardCard.querySelector(".pricing-card__price")?.textContent).toBe("$4.08/month");
 		expect(standardCard.querySelector(".pricing-card__badge")?.textContent).toBe(
 			"14-day free trial",
 		);

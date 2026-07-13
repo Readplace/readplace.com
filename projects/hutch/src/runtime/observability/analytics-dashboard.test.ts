@@ -70,9 +70,9 @@ function collectReferencedEvents(): Set<string> {
 }
 
 describe("buildAnalyticsDashboardBody — drift prevention", () => {
-	it("emits 28 widgets (7 traffic+audience, 3 conversions, 3 imports+medium, 3 subscriptions, 2 view-funnel, 1 internal-clicks, 3 save-funnel, 1 summary-engagement, 2 audience-device, 1 errors, 1 homepage-ab, 1 blog-traffic) — adding or dropping one without updating this count is a deliberate signal to review the dashboard's scope", () => {
+	it("emits 33 widgets (7 traffic+audience, 3 conversions, 3 imports+medium, 3 subscriptions, 2 view-funnel, 1 internal-clicks, 3 save-funnel, 1 summary-engagement, 2 audience-device, 1 errors, 1 homepage-ab, 1 blog-traffic, 2 signup-form, 2 checkout-funnel, 1 paid-conversions) — adding or dropping one without updating this count is a deliberate signal to review the dashboard's scope", () => {
 		const body = buildBody();
-		expect(body.widgets).toHaveLength(28);
+		expect(body.widgets).toHaveLength(33);
 	});
 
 	it("the homepage A/B widget compares arms by distinct visitors (assignment is sticky per browser, so raw counts pile a returning visitor's landings onto one arm) with raw landings alongside, grouped by variant (utm_content)", () => {
@@ -232,12 +232,51 @@ describe("buildAnalyticsDashboardBody — drift prevention", () => {
 	});
 
 	it("queries spanning subscription Lambda log groups emit one `SOURCE '<name>'` per group joined by `|` — `logGroups(namePrefix: [...])` is a CLI-only form the dashboard renderer rejects", () => {
-		const subscriptionQueries = widgetQueries().filter((q) => q.includes(`"${STREAMS.subscriptions}"`));
+		// Exempt the web-app-emitted events by name, not by log-group prefix: these
+		// are the only subscriptions-stream events the hutch handler writes, so any
+		// OTHER subscriptions query must still fan out across the Lambda log groups.
+		const webAppEvents = [
+			SUBSCRIPTION_EVENTS.checkoutStarted,
+			SUBSCRIPTION_EVENTS.checkoutCompleted,
+			SUBSCRIPTION_EVENTS.checkoutReturnFailed,
+			SUBSCRIPTION_EVENTS.resubscribeCompleted,
+		];
+		const isWebAppQuery = (q: string) => webAppEvents.some((e) => q.includes(e));
+		const subscriptionQueries = widgetQueries().filter(
+			(q) => q.includes(`"${STREAMS.subscriptions}"`) && !isWebAppQuery(q),
+		);
 		const expectedSourcePrefix = `${SUBSCRIPTION_DASHBOARD_LOG_GROUPS.map((name) => `SOURCE '${name}'`).join(" | ")} | `;
 		for (const q of subscriptionQueries) {
 			expect(q.startsWith(expectedSourcePrefix)).toBe(true);
 		}
 		expect(subscriptionQueries.length).toBeGreaterThan(0);
+	});
+
+	it("both checkout-funnel widgets source the hutch handler log group — checkout events are emitted by the web app, not the subscription Lambdas", () => {
+		const checkoutQueries = widgetQueries().filter((x) =>
+			x.includes(SUBSCRIPTION_EVENTS.checkoutStarted),
+		);
+		expect(checkoutQueries).toHaveLength(2);
+		for (const q of checkoutQueries) {
+			expect(q.startsWith(`SOURCE '${LOG_GROUPS.hutchHandler}' | `)).toBe(true);
+			expect(q).toContain(SUBSCRIPTION_EVENTS.checkoutCompleted);
+			expect(q).toContain(SUBSCRIPTION_EVENTS.checkoutReturnFailed);
+		}
+		const perDay = checkoutQueries.find((q) => q.includes("bin(1d)"));
+		expect(perDay).toContain(
+			"stats count_distinct(user_id) as users, count(*) as events by bin(1d), event",
+		);
+		const detail = checkoutQueries.find((q) => q.includes("as detail"));
+		expect(detail).toContain(`stats count(*) as n by event, coalesce(variant, reason, "-") as detail`);
+	});
+
+	it("the conversions widget splits completed checkouts by paid_now (a $0 trial capture is not revenue) and counts saved-card resubscribes, which never pass through Checkout", () => {
+		const q = widgetQueries().find((x) => x.includes(SUBSCRIPTION_EVENTS.resubscribeCompleted));
+		expect(q).toBeDefined();
+		expect(q?.startsWith(`SOURCE '${LOG_GROUPS.hutchHandler}' | `)).toBe(true);
+		expect(q).toContain(SUBSCRIPTION_EVENTS.checkoutCompleted);
+		expect(q).toContain("stats count_distinct(user_id) as users by bin(1d), event, paid_now");
+		expect(q).not.toContain(SUBSCRIPTION_EVENTS.checkoutStarted);
 	});
 
 	it("widget positions do not overlap so every chart is visible side-by-side, not stacked", () => {

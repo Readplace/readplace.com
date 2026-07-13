@@ -22,7 +22,13 @@
     "check": {
       "command": "pnpm lint && pnpm test-with-coverage",
       "options": { "cwd": "{projectRoot}" },
-      "dependsOn": ["compile", "^compile", "hutch:compile"]
+      "dependsOn": ["compile", "^compile", "hutch:compile"],
+      "inputs": [
+        "default",
+        "^production",
+        { "projects": ["hutch"], "input": "production" },
+        { "runtime": "cat /opt/cft/binary-path /opt/cft/driver-path 2>/dev/null; true" }
+      ]
     }
   }
 }

@@ -9,6 +9,13 @@
  * Output goes under `src/runtime/web/client-dist/` so the Lambda `copyAssetFiles`
  * step (everything in src/runtime that isn't .ts) ships it alongside the
  * handler, and it is also copied into the build output for test runs.
+ *
+ * client-dist is declared as an nx output of hutch:compile (project.json): it
+ * lives outside dist/, so without that declaration a cache-replayed compile
+ * skips recreating it and the Lambda zips build without the client bundles —
+ * which made `pulumi preview` report code drift on every Lambda whenever the
+ * preview ran on a warm nx cache while deploys built fresh. Renaming OUT_DIR
+ * requires updating that outputs entry.
  */
 const esbuild = require("esbuild");
 const fs = require("node:fs");

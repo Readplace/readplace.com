@@ -1,3 +1,4 @@
+import Security
 import XCTest
 @testable import Readplace
 
@@ -28,6 +29,16 @@ final class ShareStatusPresentationTests: XCTestCase {
 		XCTAssertEqual(status.message, "Open Readplace and sign in first.")
 		XCTAssertEqual(status.symbol, "person.crop.circle.badge.exclamationmark")
 		XCTAssertEqual(status.tone, .warning)
+	}
+
+	func testStorageUnavailableIsErrorAndNamesTheStatus() {
+		let status = present(.storageUnavailable(errSecMissingEntitlement))
+		XCTAssertTrue(
+			status.message.contains("\(errSecMissingEntitlement)"),
+			"the message must name the OSStatus so the user can report it"
+		)
+		XCTAssertEqual(status.symbol, "exclamationmark.triangle.fill")
+		XCTAssertEqual(status.tone, .error)
 	}
 
 	func testNoLinkIsWarning() {

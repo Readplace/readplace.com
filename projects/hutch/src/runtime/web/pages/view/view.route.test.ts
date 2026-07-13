@@ -207,6 +207,22 @@ describe("View routes", () => {
 			}
 		});
 
+		it("unwraps a nested Readplace self-URL and renders the underlying article", async () => {
+			const harness = buildReaderHarness();
+			const selfHost = new URL(TEST_APP_ORIGIN).host;
+
+			const response = await request(harness.server).get(
+				`/view/${selfHost}/view/${CANONICAL_PATH}`,
+			);
+
+			expect(response.status).toBe(200);
+			const doc = new JSDOM(response.text).window.document;
+			const href = ctaAction(doc).getAttribute("href");
+			assert(href, "cta action must have an href");
+			const parsed = new URL(href, "http://localhost");
+			expect(parsed.searchParams.get("url")).toBe(ARTICLE_URL);
+		});
+
 		it("301-redirects the legacy percent-encoded format to the scheme-less canonical", async () => {
 			const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
 

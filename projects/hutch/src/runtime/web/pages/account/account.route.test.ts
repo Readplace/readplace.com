@@ -8,6 +8,7 @@ import {
 	TEST_APP_ORIGIN,
 	createDefaultTestAppFixture,
 } from "@packages/test-fixtures";
+import { CHECKOUT_VARIANTS } from "../../../observability/events";
 
 function card(id: string, isPrimary: boolean, last4: string): SavedCard {
 	return {
@@ -457,6 +458,12 @@ describe("POST /account/subscribe", () => {
 		expect(response.status).toBe(303);
 		const location = response.headers.location;
 		assert(typeof location === "string" && location.includes("checkout.stripe.test"));
+
+		const started = harness.subscriptionEvents.events.filter((e) => e.event === "checkout_started");
+		expect(started).toHaveLength(1);
+		expect(started[0].variant).toBe(CHECKOUT_VARIANTS.trialCheckout);
+		expect(started[0].user_id).toBe(userId);
+		expect(started[0].checkout_session_id).toMatch(/^cs_test_/);
 	});
 
 	it("creates a Stripe checkout session for a trial-expired user (no second free trial)", async () => {
@@ -584,6 +591,16 @@ describe("POST /account/subscribe", () => {
 		expect(row.status).toBe("active");
 		expect(row.subscriptionId).toBe(created[0].subscriptionId);
 		expect(row.customerId).toBe("cus_was_paid");
+
+		expect(harness.subscriptionEvents.events.filter((e) => e.event === "checkout_started")).toHaveLength(0);
+
+		const resubscribed = harness.subscriptionEvents.events.filter(
+			(e) => e.event === "resubscribe_completed",
+		);
+		expect(resubscribed).toHaveLength(1);
+		expect(resubscribed[0].user_id).toBe(userId);
+		expect(resubscribed[0].subscription_id).toBe(created[0].subscriptionId);
+		expect(resubscribed[0].paid_now).toBe(true);
 	});
 
 	it("cancelled user with customerId — saved-card Stripe call throws → fall back to Stripe Checkout (not the dead-end error page), row stays cancelled until the new checkout completes", async () => {
@@ -617,6 +634,43 @@ describe("POST /account/subscribe", () => {
 		const row = await subscriptionProviders.findByUserId(userId);
 		assert(row, "row must still exist");
 		expect(row.status).toBe("cancelled");
+
+		const started = harness.subscriptionEvents.events.filter((e) => e.event === "checkout_started");
+		expect(started).toHaveLength(1);
+		expect(started[0].variant).toBe(CHECKOUT_VARIANTS.cardDeclineFallback);
+		expect(started[0].user_id).toBe(userId);
+	});
+
+	it("cancelled user — saved-card charge SUCCEEDS but the active-row upsert throws → 303 /account?error=payment_method, and NOT a card_decline_fallback checkout (the card was already charged, so it is not a decline)", async () => {
+		const fixture = createDefaultTestAppFixture(TEST_APP_ORIGIN);
+		fixture.subscriptionProviders.upsertActive = async () => {
+			throw new Error("dynamo down");
+		};
+		const harness = useApp(fixture);
+		const { subscriptionProviders, subscriptionBilling } = harness;
+		const { agent, userId } = await loginUser(harness, "resub-upsert-fails@example.com");
+		// Seed the cancelled-after-paid row directly — upsertActive is rigged to throw.
+		subscriptionProviders.seedRow({
+			userId,
+			provider: "stripe",
+			status: "cancelled",
+			subscriptionId: "sub_was_paid",
+			customerId: "cus_was_paid",
+			createdAt: new Date().toISOString(),
+			updatedAt: new Date().toISOString(),
+		});
+
+		const response = await agent.post("/account/subscribe");
+
+		expect(response.status).toBe(303);
+		expect(response.headers.location).toBe("/account?error=payment_method");
+		expect(subscriptionBilling.createdSubscriptions()).toHaveLength(1);
+		expect(
+			harness.subscriptionEvents.events.filter((e) => e.event === "checkout_started"),
+		).toHaveLength(0);
+		expect(
+			harness.subscriptionEvents.events.filter((e) => e.event === "resubscribe_completed"),
+		).toHaveLength(0);
 	});
 
 	it("trialing user via HTMX (hx-boost) — 200 with HX-Redirect to Stripe, not 303 Location (HTMX would XHR-follow cross-origin and fail to navigate)", async () => {
@@ -675,6 +729,8 @@ describe("POST /account/subscribe", () => {
 
 		expect(response.status).toBe(303);
 		expect(response.headers.location).toBe("/account?error=payment_method");
+
+		expect(harness.subscriptionEvents.events.filter((e) => e.event === "checkout_started")).toHaveLength(0);
 	});
 
 	it("cancelled user without customerId — Stripe Checkout fallback throws → 303 to /account?error=payment_method (no 500)", async () => {
@@ -716,6 +772,11 @@ describe("POST /account/subscribe", () => {
 		expect(response.status).toBe(303);
 		const location = response.headers.location;
 		assert(typeof location === "string" && location.includes("checkout.stripe.test"));
+
+		const started = harness.subscriptionEvents.events.filter((e) => e.event === "checkout_started");
+		expect(started).toHaveLength(1);
+		expect(started[0].variant).toBe(CHECKOUT_VARIANTS.cancelledResubscribe);
+		expect(started[0].user_id).toBe(userId);
 	});
 
 	it("redirects active users back to /account instead of creating a Stripe checkout session", async () => {
@@ -732,6 +793,8 @@ describe("POST /account/subscribe", () => {
 
 		expect(response.status).toBe(303);
 		expect(response.headers.location).toBe("/account");
+
+		expect(harness.subscriptionEvents.events).toHaveLength(0);
 	});
 
 	it("returns 400 for a founding member (no row) trying to subscribe", async () => {
@@ -741,6 +804,8 @@ describe("POST /account/subscribe", () => {
 		const response = await agent.post("/account/subscribe");
 
 		expect(response.status).toBe(400);
+
+		expect(harness.subscriptionEvents.events).toHaveLength(0);
 	});
 
 	it("redirects unauthenticated POST /account/subscribe to /login", async () => {

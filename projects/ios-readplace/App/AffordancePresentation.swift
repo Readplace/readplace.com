@@ -32,6 +32,15 @@ struct AffordancePresentation {
 	/// (a field-requiring action with no server value) cannot be decided from the
 	/// token alone and lives in `Affordance.isToolbarControl`.
 	let isToolbarControl: Bool
+	/// Whether the client recognises this wire token as one of its own mapped
+	/// affordances (an explicit case below) rather than the neutral default an
+	/// unknown token falls to. `Affordance.isToolbarControl` surfaces an
+	/// *unrecognised* affordance as a control only when the server also gave it a
+	/// human `title`: a title-less token the client doesn't recognise is a machine
+	/// capability the client invokes bespoke (like `create-session`), advertised on
+	/// the collection but never a toolbar button — so a machine action the server
+	/// adds later can't phantom-render on an already-shipped build.
+	let isRecognizedToken: Bool
 
 	/// Derives the presentation for a wire token. The mapping is the client's own;
 	/// the token is never used as a style string verbatim. A token with no mapping
@@ -44,6 +53,7 @@ struct AffordancePresentation {
 			isDestructive = false
 			removesItem = false
 			isToolbarControl = false
+			isRecognizedToken = true
 		case "create-session":
 			// Not a user control: the client invokes this bespoke to mint the reader
 			// session cookie (like a capture-only save), so it never renders in the
@@ -53,48 +63,56 @@ struct AffordancePresentation {
 			isDestructive = false
 			removesItem = false
 			isToolbarControl = false
+			isRecognizedToken = true
 		case "update-status":
 			systemImage = "checkmark.circle"
 			tint = .brandSuccess
 			isDestructive = false
 			removesItem = false
 			isToolbarControl = true
+			isRecognizedToken = true
 		case "delete":
 			systemImage = "trash"
 			tint = .red
 			isDestructive = true
 			removesItem = true
 			isToolbarControl = true
+			isRecognizedToken = true
 		case "search":
 			systemImage = "magnifyingglass"
 			tint = nil
 			isDestructive = false
 			removesItem = false
 			isToolbarControl = true
+			isRecognizedToken = true
 		case "account":
 			systemImage = "person.crop.circle"
 			tint = nil
 			isDestructive = false
 			removesItem = false
 			isToolbarControl = true
+			isRecognizedToken = true
 		case "add-links-help":
 			systemImage = "plus"
 			tint = nil
 			isDestructive = false
 			removesItem = false
 			isToolbarControl = true
+			isRecognizedToken = true
 		case let rel where Affordance.structuralRels.contains(rel):
 			systemImage = "ellipsis.circle"
 			tint = nil
 			isDestructive = false
 			removesItem = false
 			isToolbarControl = false
+			isRecognizedToken = true
 		default:
 			systemImage = "ellipsis.circle"
 			tint = nil
 			isDestructive = false
 			removesItem = false
 			isToolbarControl = true
+			isRecognizedToken = false
 		}
 	}
 }
@@ -158,12 +176,27 @@ extension Affordance {
 
 	/// Whether the toolbar should surface this affordance as a control: it must be
 	/// presentable in the toolbar (a structural navigation link or a capture-only
-	/// save is excluded), not carry any structural rel, and be actually invokable
-	/// from a bare control (a field-requiring action with no server value is
-	/// excluded).
+	/// save is excluded), not carry any structural rel, be actually invokable from a
+	/// bare control (a field-requiring action with no server value is excluded), and
+	/// either be a token the client recognises or carry a server `title`. The last
+	/// rule keeps a machine capability the client doesn't recognise and the server
+	/// didn't title (e.g. a future `create-session`-like action minting a session)
+	/// from phantom-rendering as a mystery button on an already-shipped build — the
+	/// server signals "render this" by giving the affordance a human `title`.
 	var isToolbarControl: Bool {
 		guard !isStructuralLink else { return false }
-		return presentation.isToolbarControl && isInvokableByBareControl
+		guard presentation.isToolbarControl, isInvokableByBareControl else { return false }
+		return presentation.isRecognizedToken || hasServerTitle
+	}
+
+	/// Whether the server gave this affordance a human `title` — its signal that the
+	/// affordance is a user control to render, not a machine capability the client
+	/// invokes bespoke. An empty title counts as none.
+	private var hasServerTitle: Bool {
+		switch invocation {
+		case let .action(action): return action.title?.isEmpty == false
+		case let .link(link): return link.title?.isEmpty == false
+		}
 	}
 
 	/// Whether invoking this affordance removes the item it acts on from the

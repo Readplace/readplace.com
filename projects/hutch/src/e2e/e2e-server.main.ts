@@ -141,6 +141,9 @@ const { app: hutchApp, auth, email } = createTestApp({
     extractLinksFromPageUrl: initExtractLinksFromPageUrl({ crawlFetch, validateUrl: e2eValidateSaveableUrl }),
   },
   shared: {
+    /** Raw on purpose: createTestApp decorates shared.validateSaveableUrl with
+     * withUnwrapPreprocessing itself — wrapping here too would unwrap twice and
+     * diverge the e2e server from the production composition. */
     validateSaveableUrl: e2eValidateSaveableUrl,
     appOrigin: fixture.shared.appOrigin,
     staticBaseUrl: fixture.shared.staticBaseUrl,

@@ -138,6 +138,10 @@ import {
 import { initAuthRoutes } from "./web/auth/auth.page";
 import type { BotDefenseEvent } from "./web/auth/auth.page";
 import type { ConversionEvent } from "./conversions";
+import {
+	initEmitSubscriptionEvent,
+	type SubscriptionLogEvent,
+} from "./observability/subscription-events";
 import { initGoogleAuthRoutes } from "./web/auth/google-auth.page";
 import { initAppleAuthRoutes } from "./web/auth/apple-auth.page";
 import { initResolveLogin } from "@packages/web-session";
@@ -330,6 +334,7 @@ interface AppDependencies {
 	stripePublishableKey: string | undefined;
 	botDefenseLogger: HutchLogger.Typed<BotDefenseEvent>;
 	conversionLogger: HutchLogger.Typed<ConversionEvent>;
+	subscriptionLogger: HutchLogger.Typed<SubscriptionLogEvent>;
 	analytics: HutchLogger.Typed<AnalyticsEvent>;
 	salt: string;
 	foundingAllocation: FoundingAllocation;
@@ -859,6 +864,11 @@ export function createApp(dependencies: AppDependencies): Express {
 
 	const featureToggle = new QuerystringFeatureToggle();
 
+	const emitSubscriptionEvent = initEmitSubscriptionEvent({
+		logger: deps.subscriptionLogger,
+		now: deps.now,
+	});
+
 	const authRouter = initAuthRoutes({
 		hashPassword: deps.hashPassword,
 		createUserWithPasswordHash,
@@ -893,6 +903,9 @@ export function createApp(dependencies: AppDependencies): Express {
 		now: deps.now,
 		botDefenseLogger: deps.botDefenseLogger,
 		conversionLogger: deps.conversionLogger,
+		analytics: deps.analytics,
+		salt: deps.salt,
+		emitSubscriptionEvent,
 		foundingAllocation,
 		buildBannerState,
 		consumeRateLimit: deps.consumeRateLimit,
@@ -1152,6 +1165,7 @@ export function createApp(dependencies: AppDependencies): Express {
 		}),
 		now: deps.now,
 		buildBannerState,
+		emitSubscriptionEvent,
 	});
 	app.use("/account", requireAuth, accountRouter);
 
@@ -1161,7 +1175,9 @@ export function createApp(dependencies: AppDependencies): Express {
 		findClient: deps.findOAuthClient,
 		validateRedirectUri: deps.validateOAuthRedirectUri,
 		registerClient: deps.registerOAuthClient,
+		destroySession: deps.destroySession,
 		destroyUserSessions: deps.destroyUserSessions,
+		findEmailByUserId: deps.findEmailByUserId,
 		consumeRateLimit: deps.consumeRateLimit,
 		registerRateLimitRule: deps.rateLimitRules.oauthRegister,
 		tokenRateLimitRule: deps.rateLimitRules.oauthToken,

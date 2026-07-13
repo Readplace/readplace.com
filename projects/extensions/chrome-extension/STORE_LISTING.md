@@ -4,7 +4,7 @@ The publish pipeline (`.github/workflows/publish-chrome-extension.yml`) automate
 only the extension **package** (the zip). Everything on the store **listing** —
 screenshots, description, promo tile — is managed by hand in the
 [Chrome Web Store dashboard](https://chrome.google.com/webstore/devconsole)
-(item `klblengmhlfnmjoagchagfcdbpbocgbf`, listed as "Hutch"; the store URL is a
+(item `klblengmhlfnmjoagchagfcdbpbocgbf`; the store URL is a
 shipped wire contract pinned in `src/packages/supported-clients`).
 
 ## Screenshots

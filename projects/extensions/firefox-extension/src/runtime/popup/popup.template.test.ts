@@ -7,16 +7,12 @@ const template = readFileSync(
 	"utf-8",
 );
 
-const FONT = "Georgia, 'Times New Roman', serif";
-
 describe("popup brand mark", () => {
 	it("login view carries the exact brandMarkSvg output", () => {
-		expect(template).toContain(brandMarkSvg({ fontFamily: FONT, className: "login__icon" }));
+		expect(template).toContain(brandMarkSvg({ className: "login__icon" }));
 	});
 
 	it("list-view header carries the exact brandMarkSvg output", () => {
-		expect(template).toContain(
-			brandMarkSvg({ fontFamily: FONT, className: "list-view__brand-icon" }),
-		);
+		expect(template).toContain(brandMarkSvg({ className: "list-view__brand-icon" }));
 	});
 });

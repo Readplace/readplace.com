@@ -1,5 +1,6 @@
 import assert from "node:assert/strict";
 import {
+	MAX_SAVEABLE_URL_LENGTH,
 	SaveableUrlSchema,
 	saveableUrlCodeFromIssues,
 	saveableUrlErrorMessage,
@@ -115,6 +116,19 @@ describe("validateSaveableUrl", () => {
 			assertErrorCode(undefined, "malformed_url");
 			assertErrorCode(null, "malformed_url");
 			assertErrorCode({}, "malformed_url");
+		});
+
+		it("rejects a URL longer than MAX_SAVEABLE_URL_LENGTH", () => {
+			const prefix = "https://example.com/";
+			assertErrorCode(
+				`${prefix}${"a".repeat(MAX_SAVEABLE_URL_LENGTH - prefix.length + 1)}`,
+				"malformed_url",
+			);
+		});
+
+		it("accepts a URL exactly at MAX_SAVEABLE_URL_LENGTH", () => {
+			const prefix = "https://example.com/";
+			assertSuccess(`${prefix}${"a".repeat(MAX_SAVEABLE_URL_LENGTH - prefix.length)}`);
 		});
 	});
 

@@ -6,7 +6,10 @@ import {
 import type { HutchLogger } from "@packages/hutch-logger";
 import { z } from "zod";
 import { UserIdSchema, normalizeEmail } from "@packages/domain/user";
-import { CheckoutSessionIdSchema } from "@packages/provider-contracts/hosted-checkout";
+import {
+	CheckoutSessionIdSchema,
+	CheckoutVariantSchema,
+} from "@packages/provider-contracts/hosted-checkout";
 import type {
 	ConsumePendingSignup,
 	DeletePendingSignupsByUser,
@@ -28,6 +31,9 @@ const PendingSignupRow = z.object({
 	userId: dynamoField(UserIdSchema),
 	returnUrl: dynamoField(z.string()),
 	trialEndsAt: dynamoField(z.string()),
+	/** z.string() for the same reason as `method`: an unrecognised variant on a
+	 * leftover row must not throw during the post-delete parse. Narrowed on read. */
+	variant: dynamoField(z.string()),
 	createdAt: dynamoField(z.number()),
 	checkoutRecoveryEmailSentAt: dynamoField(z.number()),
 });
@@ -86,7 +92,8 @@ export function initDynamoDbPendingSignup(deps: {
 				createdAt,
 				userId: signup.userId,
 				...(signup.returnUrl ? { returnUrl: signup.returnUrl } : {}),
-				...(signup.trialEndsAt ? { trialEndsAt: signup.trialEndsAt } : {})
+				...(signup.trialEndsAt ? { trialEndsAt: signup.trialEndsAt } : {}),
+				...(signup.variant ? { variant: signup.variant } : {})
 			},
 		});
 	};
@@ -109,12 +116,14 @@ export function initDynamoDbPendingSignup(deps: {
 		if (!userId) return null;
 		const returnUrl = Attributes.returnUrl ?? undefined;
 		const trialEndsAt = Attributes.trialEndsAt ?? undefined;
+		const variant = CheckoutVariantSchema.safeParse(Attributes.variant);
 		const signup: PendingSignup = {
 			method: "existing-user-subscribe",
 			email: Attributes.email,
 			userId,
 			...(returnUrl ? { returnUrl } : {}),
 			...(trialEndsAt ? { trialEndsAt } : {}),
+			...(variant.success ? { variant: variant.data } : {}),
 		};
 		return signup;
 	};

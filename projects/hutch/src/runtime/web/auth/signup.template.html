@@ -36,7 +36,7 @@
             {{#if passwordField.error}}<p class="auth-form__error" data-test-error="password">{{passwordField.error}}</p>{{/if}}
           </div>
           <button class="auth-form__submit" type="submit" data-test-action="signup">{{submitLabel}}</button>
-          {{#unless foundingAvailable}}<p class="auth-form__hint" data-test-trial-hint>{{trialPeriodDays}}-day free trial, then {{annualPriceDisplay}}/year. No credit card required.</p>{{/unless}}
+          {{#unless foundingAvailable}}<p class="auth-form__hint" data-test-trial-hint>{{trialPeriodDays}}-day free trial, then {{monthlyPriceDisplay}}/month. No credit card required.</p>{{/unless}}
         </form>
         <p class="auth-card__footer">
           Already have an account? <a href="/login{{#if returnUrl}}?return={{returnUrl}}{{/if}}" data-test-action="sign-in">Sign in</a>

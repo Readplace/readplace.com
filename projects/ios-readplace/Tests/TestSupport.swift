@@ -1,6 +1,22 @@
 import Foundation
+import Security
 import XCTest
 @testable import Readplace
+
+/// A `TokenStorage` whose reads fail with a chosen Keychain `OSStatus` for the
+/// selected keys — the device condition (an unreadable shared Keychain) the
+/// Simulator cannot reproduce. Non-failing keys read back from `values`.
+struct FailingTokenStorage: TokenStorage {
+	var values: [TokenKey: String] = [:]
+	var failing: Set<TokenKey>
+	var status: OSStatus = errSecMissingEntitlement
+
+	func readValue(for key: TokenKey) -> Result<String?, KeychainError> {
+		failing.contains(key) ? .failure(.read(status: status)) : .success(values[key])
+	}
+	func setValue(_ value: String, for key: TokenKey) {}
+	func removeValue(for key: TokenKey) {}
+}
 
 enum TestSupport {
 	static func ephemeralDefaults() -> UserDefaults {
@@ -132,7 +148,6 @@ enum Fixtures {
 		siteName: String? = "Example",
 		excerpt: String? = "An excerpt.",
 		imageUrl: String? = "https://example.com/img.png",
-		wordCount: Int? = 1200,
 		readTime: Int? = 6,
 		status: String = "unread",
 		savedAt: String = "2026-05-30T10:00:00.000Z",
@@ -160,7 +175,6 @@ enum Fixtures {
 		    \(field("title", title)),
 		    \(field("siteName", siteName)),
 		    \(field("excerpt", excerpt)),
-		    \(numField("wordCount", wordCount)),
 		    \(field("imageUrl", imageUrl)),
 		    \(numField("estimatedReadTimeMinutes", readTime)),
 		    "status": "\(status)",
@@ -184,7 +198,7 @@ enum Fixtures {
 		{ "name": "save-article", "title": "Save a link", "href": "/queue", "method": "POST", "type": "application/json", "fields": [{ "name": "url", "type": "url" }] },
 		{ "name": "save-html", "title": "Save a page", "href": "/queue/save-html", "method": "POST", "type": "application/json", "fields": [{ "name": "url", "type": "url" }, { "name": "rawHtml", "type": "text" }, { "name": "title", "type": "text" }] },
 		{ "name": "save-content", "title": "Save a file", "href": "/queue/save-content", "method": "POST", "type": "multipart/form-data", "fields": [{ "name": "url", "type": "url" }, { "name": "content", "type": "file" }, { "name": "mediaType", "type": "text" }, { "name": "title", "type": "text" }] },
-		{ "name": "search", "title": "Search", "href": "/queue", "method": "GET", "fields": [{ "name": "status", "type": "text" }, { "name": "order", "type": "text" }, { "name": "page", "type": "number" }, { "name": "pageSize", "type": "number" }, { "name": "url", "type": "url" }] }
+		{ "name": "search", "title": "Search", "href": "/queue", "method": "GET", "fields": [{ "name": "status", "type": "text" }, { "name": "order", "type": "text" }, { "name": "page", "type": "number" }, { "name": "url", "type": "url" }] }
 		"""
 
 	static func collection(
@@ -192,12 +206,16 @@ enum Fixtures {
 		extraLinks: String = "",
 		page: Int = 1,
 		total: Int = 1,
-		actionsJSON: String = collectionActions
+		actionsJSON: String = collectionActions,
+		messagesJSON: String? = nil
 	) -> String {
-		"""
+		// Injected into `properties` only when set, so a caller that doesn't opt in
+		// models a server that emits no collection-level notices.
+		let messages = messagesJSON.map { ", \"messages\": [\($0)]" } ?? ""
+		return """
 		{
 		  "class": ["collection", "articles"],
-		  "properties": { "total": \(total), "page": \(page), "pageSize": 20 },
+		  "properties": { "total": \(total), "page": \(page), "pageSize": 20\(messages) },
 		  "entities": [\(entitiesJSON.joined(separator: ",\n"))],
 		  "links": [
 		    { "rel": ["self"], "href": "/queue?page=\(page)" },

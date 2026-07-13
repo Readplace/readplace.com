@@ -13,6 +13,7 @@ final class ShareViewController: UIViewController {
 	private let iconView = UIImageView()
 	private let spinner = UIActivityIndicatorView(style: .large)
 	private let statusLabel = UILabel()
+	private let noticeLabel = UILabel()
 
 	override func viewDidLoad() {
 		super.viewDidLoad()
@@ -29,7 +30,16 @@ final class ShareViewController: UIViewController {
 		let sharedPdf: (() async -> Data?)? = shared?.pdfProvider.map { provider in
 			{ await ShareURLExtractor.loadPDFData(provider) }
 		}
-		let outcome = await saver.run(url: shared?.url, fallbackTitle: shared?.title, sharedPdf: sharedPdf)
+		let outcome = await saver.run(
+			url: shared?.url,
+			fallbackTitle: shared?.title,
+			sharedPdf: sharedPdf,
+			onNotice: { [weak self] messages in
+				guard let self, !messages.isEmpty else { return }
+				self.noticeLabel.text = messages.map(\.plainText).joined(separator: "\n")
+				self.noticeLabel.isHidden = false
+			}
+		)
 		let status = ShareStatusPresentation(outcome: outcome)
 		finish(message: status.message, symbol: status.symbol, tint: uiColor(for: status.tone))
 	}
@@ -67,7 +77,24 @@ final class ShareViewController: UIViewController {
 		statusLabel.numberOfLines = 0
 		statusLabel.textAlignment = .center
 
-		let stack = UIStackView(arrangedSubviews: [iconView, spinner, statusLabel])
+		// A secondary caption below the title, in the app's .footnote/.secondary
+		// house style. Hidden until the server hands down a save notice to render.
+		noticeLabel.translatesAutoresizingMaskIntoConstraints = false
+		noticeLabel.font = .preferredFont(forTextStyle: .footnote)
+		noticeLabel.textColor = .secondaryLabel
+		noticeLabel.numberOfLines = 0
+		noticeLabel.textAlignment = .center
+		noticeLabel.isHidden = true
+
+		// The title and its caption sit as a tight pair (a 4pt gap), set apart from
+		// the icon and spinner by the main stack's larger spacing.
+		let titleGroup = UIStackView(arrangedSubviews: [statusLabel, noticeLabel])
+		titleGroup.translatesAutoresizingMaskIntoConstraints = false
+		titleGroup.axis = .vertical
+		titleGroup.alignment = .center
+		titleGroup.spacing = 4
+
+		let stack = UIStackView(arrangedSubviews: [iconView, spinner, titleGroup])
 		stack.translatesAutoresizingMaskIntoConstraints = false
 		stack.axis = .vertical
 		stack.alignment = .center
@@ -110,6 +137,9 @@ final class ShareViewController: UIViewController {
 		iconView.tintColor = tint
 		iconView.isHidden = false
 		statusLabel.text = message
+		// The terminal state ("Saved with content" / an error) replaces the spinner,
+		// so the "don't close this" caption must go with it — it no longer applies.
+		noticeLabel.isHidden = true
 
 		DispatchQueue.main.asyncAfter(deadline: .now() + 1.4) { [weak self] in
 			self?.extensionContext?.completeRequest(returningItems: [], completionHandler: nil)

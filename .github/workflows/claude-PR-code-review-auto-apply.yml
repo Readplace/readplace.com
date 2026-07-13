@@ -49,9 +49,23 @@ jobs:
             }
 
   request-fix:
+    # The marker + priority-count clauses below are all attacker-suppliable comment
+    # BODY text, and issue_comment runs privileged (default-branch workflow, full
+    # secrets, no fork-approval gate) for ANY commenter on a public repo. Without an
+    # identity check, an outsider's crafted comment would run this job, which posts an
+    # @claude comment via PAT_TOKEN (trusted identity) that passes claude-listener's
+    # author gate and launches a prod-privileged agent on the attacker's text. Gate on
+    # the COMMENTER's association, matching claude-listener. The legitimate trigger —
+    # the review comment posted by post-review-comment via PAT_TOKEN — is authored by
+    # the PAT owner (OWNER), so it still passes.
     if: |
       github.event_name == 'issue_comment' &&
       github.event.issue.pull_request &&
+      (
+        github.event.comment.author_association == 'OWNER' ||
+        github.event.comment.author_association == 'MEMBER' ||
+        github.event.comment.author_association == 'COLLABORATOR'
+      ) &&
       contains(github.event.comment.body, '<!-- CLAUDE_REVIEW_START -->') &&
       (
         !contains(github.event.comment.body, '<!-- HIGH_PRIORITY_COUNT: 0 -->') ||

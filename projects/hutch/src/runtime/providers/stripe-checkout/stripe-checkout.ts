@@ -118,6 +118,7 @@ export function initStripeCheckout(deps: {
 		return {
 			ok: true,
 			paid: parsed.payment_status === "paid" || parsed.payment_status === "no_payment_required",
+			paymentStatus: parsed.payment_status,
 			customerEmail,
 			status: parsed.status,
 			created: parsed.created,

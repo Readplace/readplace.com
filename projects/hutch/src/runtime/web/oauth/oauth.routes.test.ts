@@ -108,6 +108,40 @@ describe("OAuth routes", () => {
 			// A built-in first-party client shows no self-registered disclosure.
 			expect(response.text).toContain("wants to access your Readplace account");
 			expect(response.text).not.toContain("registered itself");
+			// The consent screen names the account it is bound to and offers a switch.
+			expect(response.text).toContain("Signed in as");
+			expect(response.text).toContain("test@example.com");
+			expect(response.text).toContain("Use a different account");
+		});
+
+		it("still offers the switch but omits the signed-in line when the email lookup misses", async () => {
+			const fixture = createDefaultTestAppFixture(TEST_APP_ORIGIN);
+			const harness = useApp({
+				...fixture,
+				auth: { ...fixture.auth, findEmailByUserId: async () => null },
+			});
+			await harness.auth.createUser({
+				email: "test@example.com",
+				password: "password123",
+			});
+
+			const agent = request.agent(harness.server);
+			await agent.post("/login").type("form").send({
+				email: "test@example.com",
+				password: "password123",
+			});
+
+			const response = await agent.get("/oauth/authorize").query({
+				client_id: TEST_CLIENT_ID,
+				redirect_uri: TEST_REDIRECT_URI,
+				response_type: "code",
+				code_challenge: "E9Melhoa2OwvFrEMTJguCHaoeK1t8URWbuGJSstw-cM",
+				code_challenge_method: "S256",
+			});
+
+			expect(response.status).toBe(200);
+			expect(response.text).not.toContain("Signed in as");
+			expect(response.text).toContain("Use a different account");
 		});
 
 		it("shows a self-registered client's redirect destination host with a recognise-it notice", async () => {
@@ -349,6 +383,126 @@ describe("OAuth routes", () => {
 					client_id: TEST_CLIENT_ID,
 					redirect_uri: "https://evil.com/callback",
 					action: "deny",
+				});
+
+			expect(response.status).toBe(400);
+			expect(response.body.error).toBe("invalid_request");
+		});
+
+		it("switches account: clears the session and returns to login with the authorize request preserved", async () => {
+			const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
+			await harness.auth.createUser({
+				email: "test@example.com",
+				password: "password123",
+			});
+
+			const agent = request.agent(harness.server);
+			await agent.post("/login").type("form").send({
+				email: "test@example.com",
+				password: "password123",
+			});
+
+			const response = await agent
+				.post("/oauth/authorize")
+				.type("form")
+				.send({
+					client_id: TEST_CLIENT_ID,
+					redirect_uri: TEST_REDIRECT_URI,
+					response_type: "code",
+					code_challenge: "E9Melhoa2OwvFrEMTJguCHaoeK1t8URWbuGJSstw-cM",
+					code_challenge_method: "S256",
+					state: "test-state",
+					screen_hint: "login",
+					action: "switch",
+				});
+
+			expect(response.status).toBe(303);
+			const location = response.headers.location;
+			expect(location.startsWith("/login?return=")).toBe(true);
+
+			const params = new URLSearchParams(location.split("?")[1]);
+			expect(params.get("prompt")).toBe("select_account");
+			const returnUrl = params.get("return");
+			assert(returnUrl, "switch redirect must carry a return param");
+			expect(returnUrl.startsWith("/oauth/authorize")).toBe(true);
+			expect(returnUrl).toContain(`client_id=${TEST_CLIENT_ID}`);
+			expect(returnUrl).toContain("state=test-state");
+			expect(returnUrl).toContain("screen_hint=login");
+
+			// The session cookie is cleared…
+			const rawSetCookie = response.headers["set-cookie"];
+			const setCookie = Array.isArray(rawSetCookie) ? rawSetCookie : [];
+			expect(setCookie.some((c) => c.startsWith("hutch_sid=;"))).toBe(true);
+			// …and the destroyed session no longer authenticates a follow-up request.
+			const followUp = await agent.get("/oauth/authorize").query({
+				client_id: TEST_CLIENT_ID,
+				redirect_uri: TEST_REDIRECT_URI,
+				response_type: "code",
+				code_challenge: "E9Melhoa2OwvFrEMTJguCHaoeK1t8URWbuGJSstw-cM",
+				code_challenge_method: "S256",
+			});
+			expect(followUp.status).toBe(303);
+			expect(followUp.headers.location).toContain("/login");
+		});
+
+		it("returns 400 for switch with invalid redirect_uri and keeps the session (no grief-logout)", async () => {
+			const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
+			await harness.auth.createUser({
+				email: "test@example.com",
+				password: "password123",
+			});
+
+			const agent = request.agent(harness.server);
+			await agent.post("/login").type("form").send({
+				email: "test@example.com",
+				password: "password123",
+			});
+
+			const response = await agent
+				.post("/oauth/authorize")
+				.type("form")
+				.send({
+					client_id: TEST_CLIENT_ID,
+					redirect_uri: "https://evil.com/callback",
+					response_type: "code",
+					code_challenge: "E9Melhoa2OwvFrEMTJguCHaoeK1t8URWbuGJSstw-cM",
+					code_challenge_method: "S256",
+					action: "switch",
+				});
+
+			expect(response.status).toBe(400);
+			expect(response.body.error).toBe("invalid_request");
+
+			// The session survived the rejected switch — the user is still authenticated.
+			const stillAuthed = await agent.get("/oauth/authorize").query({
+				client_id: TEST_CLIENT_ID,
+				redirect_uri: TEST_REDIRECT_URI,
+				response_type: "code",
+				code_challenge: "E9Melhoa2OwvFrEMTJguCHaoeK1t8URWbuGJSstw-cM",
+				code_challenge_method: "S256",
+			});
+			expect(stillAuthed.status).toBe(200);
+			expect(stillAuthed.text).toContain("Use a different account");
+		});
+
+		it("returns 400 for switch with missing required fields", async () => {
+			const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
+			await harness.auth.createUser({
+				email: "test@example.com",
+				password: "password123",
+			});
+
+			const agent = request.agent(harness.server);
+			await agent.post("/login").type("form").send({
+				email: "test@example.com",
+				password: "password123",
+			});
+
+			const response = await agent
+				.post("/oauth/authorize")
+				.type("form")
+				.send({
+					action: "switch",
 				});
 
 			expect(response.status).toBe(400);

@@ -1,6 +1,6 @@
 import { readFileSync } from "node:fs";
 import { join } from "node:path";
-import { ANNUAL_PRICE_DISPLAY, render, VERIFICATION_CONTACT_EMAIL } from "@packages/web-shell";
+import { MONTHLY_EQUIVALENT_DISPLAY, render, VERIFICATION_CONTACT_EMAIL } from "@packages/web-shell";
 import type { PageBody } from "@packages/web-shell";
 
 import { STRIPE_TRIAL_PERIOD_DAYS } from "../../domain/stripe/stripe-trial-config";
@@ -20,6 +20,7 @@ interface AuthFormData {
 	email?: string;
 	errors?: ComponentError[];
 	returnUrl?: string;
+	chooseAccount?: boolean;
 	pendingSaveHost?: string;
 	userCount: number;
 	foundingAllocation: FoundingAllocation;
@@ -53,6 +54,7 @@ export function LoginPage(data: AuthFormData, options?: { statusCode?: number })
 		email,
 		globalError: errors?.find((e) => !e.fieldName)?.message,
 		returnUrl: data.returnUrl ? encodeURIComponent(data.returnUrl) : undefined,
+		chooseAccount: data.chooseAccount,
 		pendingSaveHost: data.pendingSaveHost,
 		subtitle: data.pendingSaveHost
 			? "Sign in and this article is saved to your queue"
@@ -130,7 +132,7 @@ export function SignupPage(data: SignupFormData, options?: { statusCode?: number
 		foundingMemberLimit: data.foundingAllocation.foundingMemberLimit,
 		foundingAvailable: !data.foundingAllocation.isFoundingAllocationExhausted(data.userCount),
 		trialPeriodDays: STRIPE_TRIAL_PERIOD_DAYS,
-		annualPriceDisplay: ANNUAL_PRICE_DISPLAY,
+		monthlyPriceDisplay: MONTHLY_EQUIVALENT_DISPLAY,
 	});
 
 	return {

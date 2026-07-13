@@ -2,42 +2,129 @@
 #
 # Setup:
 #   1. Fine-grained PAT scoped to Readplace/readplace.com with
-#      "Administration: Read and write". The entrypoint uses it to mint
-#      registration tokens, which is what makes ephemeral restarts work
-#      (plain registration tokens die after 1 hour).
-#   2. echo 'GH_PAT=github_pat_...' > .env
+#      "Administration: Read and write" (all the registration-token endpoint
+#      needs). entrypoint-secure.sh uses it to mint registration tokens, which
+#      is what makes ephemeral restarts work (registration tokens die after 1h).
+#   2. Write the token ALONE (no KEY= prefix) to gh-pat.env — it is mounted as a
+#      root-only docker secret, never as an env var, so it never reaches a job
+#      (the container's initial env is readable from /proc/1/environ).
 #   3. docker compose up -d --build
 #   4. Verify: repo Settings -> Actions -> Runners shows the runner Idle.
 #
-# EPHEMERAL=true: runner takes exactly one job, exits, container restarts
-# clean and re-registers. Fresh filesystem per job. This is the config
-# that actually mitigates PR code persisting anything on your machine.
+# EPHEMERAL=true: runner takes exactly one job, exits, container restarts clean
+# and re-registers. Note this wipes the WORKSPACE, not the named volumes below —
+# those survive by design, so treat them as job-writable state, not as isolation.
+# Jobs run as the unprivileged `runner` user (RUN_AS_ROOT=false) so they can read
+# neither /proc/1/environ nor the PAT secret file.
 services:
   gha-runner:
     build: .
     restart: unless-stopped
+    # NET_ADMIN lets entrypoint-secure.sh block job egress to the OrbStack host
+    # (the Mac) before any job runs. It is dropped from the job's own privileges
+    # by RUN_AS_ROOT=false; the rule persists in the netns regardless.
+    cap_add:
+      - NET_ADMIN
+    entrypoint: ["/usr/local/bin/entrypoint-secure.sh"]
+    # Overriding entrypoint clears the image's CMD, so restate it: the stock
+    # entrypoint execs this (via gosu, as the runner user) and exits without it.
+    command: ["./bin/Runner.Listener", "run", "--startuptype", "service"]
     environment:
       REPO_URL: https://github.com/Readplace/readplace.com
-      ACCESS_TOKEN: ${GH_PAT:?put GH_PAT in .env}
       RUNNER_NAME_PREFIX: orb-m5
       LABELS: orbstack,docker
       EPHEMERAL: "true"
       DISABLE_AUTO_UPDATE: "true"
+      RUN_AS_ROOT: "false"
+      # Persist the nx local cache on the /nx volume across the ephemeral
+      # WORKSPACE wipe. nx 22 splits its cache in two and BOTH must move together
+      # or every task misses with an "Unrecognized Cache Artifacts" warning:
+      # content-addressed artifacts (NX_CACHE_DIRECTORY) and the sqlite metadata
+      # db (NX_WORKSPACE_DATA_DIRECTORY). This container env reaches job steps;
+      # .envrc sets neither, so nothing overrides them.
+      NX_CACHE_DIRECTORY: /nx/cache
+      NX_WORKSPACE_DATA_DIRECTORY: /nx/workspace-data
+      # Runner-scoped bound; developer machines keep nx's defaults (10% of disk,
+      # capped at 10 GB, LRU-evicted).
+      NX_MAX_CACHE_SIZE: 5GB
+      # Pin the work directory onto the persistent volume (mounted below).
+      # Without this the base image derives it from the random ephemeral runner
+      # name (/_work/orb-m5-<random>) — a dir nothing ever deletes, leaking
+      # ~1.4 GB per job into the container's writable layer and forcing a full
+      # re-clone every job. A fixed path lets each job incrementally fetch.
+      RUNNER_WORKDIR: /persist/work
+      # Park the pnpm content-addressable store on the SAME /persist volume as
+      # the workspace (RUNNER_WORKDIR above): a store on its own volume is a
+      # different btrfs filesystem from the checkout, so every package link hits
+      # EXDEV and pnpm silently falls back to a 735 MB copy per install; sharing
+      # one filesystem lets it reflink/hardlink instead. This container env also
+      # fixes the store *path*: pnpm/action-setup exports PNPM_HOME and pnpm
+      # otherwise resolves the store to $PNPM_HOME/store/v3 — a dir action-setup
+      # wipes on every job's self-install, which is why the old pnpm-store volume
+      # never filled. npm_config_store_dir beats both PNPM_HOME and a project
+      # .npmrc (verified against pnpm 9.15.0 in this container). Cosmetic only:
+      # npm/npx print `npm warn Unknown env config "store-dir"` on every job
+      # invocation — harmless, it is a pnpm setting npm itself doesn't recognise.
+      npm_config_store_dir: /persist/pnpm-store
     volumes:
+      # The PAT lives behind /root (0700, root-owned). A docker secret lands in
+      # /run/secrets, which the runner user could still read even at 0400 root:root
+      # (verified) — non-root jobs cannot traverse /root, so this is the boundary.
+      - ./gh-pat.env:/root/gh-pat.env:ro
       # Content-addressable caches: survive the ephemeral wipe, cheap to
       # keep, expensive to redownload over starlink.
       - playwright-browsers:/ms-playwright
-      - pnpm-store:/root/.local/share/pnpm
       # setup-node re-downloads Node into the toolcache on every ephemeral
       # container otherwise (~39s measured). Persisting it survives the wipe.
       - toolcache:/opt/hostedtoolcache
-      # Uncomment ONLY if a job needs docker (container:, services:,
-      # testcontainers). ci.yml currently uses none. Socket access is
-      # root-equivalent on the docker host and job containers become
-      # siblings with host-path volume semantics:
-      # - /var/run/docker.sock:/var/run/docker.sock
+      # nx local cache (artifacts + sqlite metadata db, at the NX_*_DIRECTORY
+      # paths above): replays check/lint/test/compile across jobs instead of
+      # rebuilding ~155 MB every run. Content-addressed by input hash, so a
+      # PR-built entry correctly replays for a main push with identical inputs.
+      # nx names the db "<machine-id>-v2.db", and the Dockerfile PINS the
+      # machine-id (BOTH /var/lib/dbus/machine-id and /etc/machine-id) so this
+      # cache survives an image rebuild. Without that pin the id is random postinst
+      # output that re-rolls whenever the dbus layer re-executes, and the fresh db
+      # then tracks none of the artifacts here: every task misses SILENTLY — there
+      # is no "not generated on this machine" error on this path, that check lives
+      # in nx's legacy Cache class, not DbCache — and the strays are reclaimed by
+      # neither nx's GC nor NX_MAX_CACHE_SIZE. entrypoint-secure.sh keeps a marker
+      # as the backstop and wipes the volume if the id ever drifts anyway, so no
+      # manual `docker volume rm` ritual is needed. Caveat: a flaky pass recorded
+      # once replays green for identical inputs (inherent to nx caching).
+      - nx:/nx
+      # Persistent workspace pinned by RUNNER_WORKDIR above: the checkout lives
+      # at /persist/work/readplace.com/readplace.com and survives the ephemeral
+      # re-register, so jobs incrementally fetch instead of re-cloning and the
+      # per-job /_work/orb-m5-* leak is gone. The pnpm store also lives here at
+      # /persist/pnpm-store (npm_config_store_dir above) so store and workspace
+      # share one filesystem — btrfs reflink/hardlink instead of a 735 MB EXDEV
+      # copy per install.
+      # Single writer only: a fixed workdir is unsafe under
+      # `docker compose --scale gha-runner=N` — each replica would need its own
+      # persist volume. Today there is exactly one runner.
+      - persist:/persist
+      # Required by the detect-projects CI job: save-link's check-infra builds
+      # the OCR image with `docker buildx build --push` against the host OrbStack
+      # daemon. Reusing the host daemon gives a persistent buildkit layer cache
+      # (fast rebuilds across ephemeral jobs). SECURITY: this socket is
+      # root-equivalent on the host Mac — a job with access can `docker run -v
+      # /:/host` and escape BOTH the /root PAT seal and the host-egress iptables
+      # block (a sibling container runs in the host netns, not this one).
+      # detect-projects is the only job that USES it, but the mount and the
+      # docker-group join are container-wide, so EVERY job here can reach it —
+      # including web-tests, which runs on main pushes AND on every non-fork PR.
+      # The containment is therefore ci.yml's runs-on gate alone: fork PRs fall
+      # back to ubuntu-latest, so untrusted code never executes here. The trust
+      # boundary is "collaborator-authored", NOT "detect-projects only".
+      # entrypoint-secure.sh grants the non-root `runner` user socket access
+      # (docker group GID match); runner-secret-audit.yml records the boundary. Job
+      # containers become host-daemon siblings (host-path volume semantics), so
+      # never mount job-relative paths into `docker run`.
+      - /var/run/docker.sock:/var/run/docker.sock
 
 volumes:
   playwright-browsers:
-  pnpm-store:
   toolcache:
+  nx:
+  persist:

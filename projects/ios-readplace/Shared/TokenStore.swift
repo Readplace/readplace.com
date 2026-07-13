@@ -12,20 +12,54 @@ enum TokenKey: String, CaseIterable {
 	case refreshToken = "oauth.refreshToken"
 }
 
+/// Why a Keychain read failed, carrying the raw `OSStatus`. A read that finds no
+/// item is NOT an error — it is a legitimately signed-out state (`.success(nil)`);
+/// only a hard failure (e.g. `errSecMissingEntitlement`, `errSecInteractionNotAllowed`)
+/// becomes a `.read`, so the share extension can report the real reason instead of
+/// a misleading "not signed in".
+enum KeychainError: Error, Equatable {
+	case read(status: OSStatus)
+
+	var status: OSStatus {
+		switch self {
+		case .read(let status): return status
+		}
+	}
+}
+
 /// Backing store for the OAuth token strings. Production is Keychain-backed and
 /// shared across the app and its share extension; tests inject a `UserDefaults`
 /// double via `TokenStore(defaults:)`.
+///
+/// `readValue` distinguishes "no token stored" (`.success(nil)`) from "the store
+/// could not be read" (`.failure`) — the distinction the share extension needs so
+/// an unreadable Keychain is never silently reported as a signed-out account.
 protocol TokenStorage {
-	func value(for key: TokenKey) -> String?
+	func readValue(for key: TokenKey) -> Result<String?, KeychainError>
 	func setValue(_ value: String, for key: TokenKey)
 	func removeValue(for key: TokenKey)
 }
 
+extension TokenStorage {
+	/// The token string, or nil when it is absent OR unreadable. The app's own
+	/// session gating collapses both to "signed out" (it will re-authenticate); the
+	/// share extension reads through `readValue` to tell the two apart.
+	func value(for key: TokenKey) -> String? {
+		switch readValue(for: key) {
+		case .success(let stored): return stored
+		case .failure: return nil
+		}
+	}
+}
+
 /// Adapts a `UserDefaults` suite to `TokenStorage`. Backs the test seam and reads
-/// tokens left behind by pre-Keychain builds during migration.
+/// tokens left behind by pre-Keychain builds during migration; a `UserDefaults`
+/// read cannot fail, so it never yields a `.failure`.
 struct UserDefaultsTokenStorage: TokenStorage {
 	let defaults: UserDefaults
-	func value(for key: TokenKey) -> String? { defaults.string(forKey: key.rawValue) }
+	func readValue(for key: TokenKey) -> Result<String?, KeychainError> {
+		.success(defaults.string(forKey: key.rawValue))
+	}
 	func setValue(_ value: String, for key: TokenKey) { defaults.set(value, forKey: key.rawValue) }
 	func removeValue(for key: TokenKey) { defaults.removeObject(forKey: key.rawValue) }
 }
@@ -50,7 +84,13 @@ struct TokenStore {
 
 	/// Injectable backing store for tests.
 	init(defaults: UserDefaults) {
-		self.storage = UserDefaultsTokenStorage(defaults: defaults)
+		self.init(storage: UserDefaultsTokenStorage(defaults: defaults))
+	}
+
+	/// Injectable backing store — the seam a composition root or a test uses to
+	/// supply its own `TokenStorage` (e.g. one that models an unreadable Keychain).
+	init(storage: TokenStorage) {
+		self.storage = storage
 	}
 
 	/// The App Group id this process is actually entitled to. A sideloader
@@ -95,6 +135,28 @@ struct TokenStore {
 			let refresh = storage.value(for: .refreshToken)
 		else { return nil }
 		return OAuthTokens(accessToken: access, refreshToken: refresh)
+	}
+
+	/// Reads the token pair, distinguishing a genuinely signed-out store
+	/// (`.success(nil)`) from one that could not be READ (`.failure`, carrying the
+	/// Keychain `OSStatus`). The share extension needs the distinction so an
+	/// unreadable shared Keychain surfaces as a real error rather than a false
+	/// "not signed in"; the app's `tokens`/`isLoggedIn` collapse a failure to
+	/// "signed out" and re-authenticate.
+	func loadTokens() -> Result<OAuthTokens?, KeychainError> {
+		switch storage.readValue(for: .accessToken) {
+		case .failure(let error):
+			return .failure(error)
+		case .success(let access):
+			guard let access else { return .success(nil) }
+			switch storage.readValue(for: .refreshToken) {
+			case .failure(let error):
+				return .failure(error)
+			case .success(let refresh):
+				guard let refresh else { return .success(nil) }
+				return .success(OAuthTokens(accessToken: access, refreshToken: refresh))
+			}
+		}
 	}
 
 	func save(_ tokens: OAuthTokens) {

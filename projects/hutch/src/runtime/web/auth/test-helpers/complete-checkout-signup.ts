@@ -2,7 +2,10 @@ import assert from "node:assert/strict";
 import type { Server } from "node:http";
 import type { SuperTest, Test } from "supertest";
 import request from "supertest";
-import type { CheckoutSessionId } from "@packages/provider-contracts/hosted-checkout";
+import type {
+	CheckoutSessionId,
+	CheckoutVariant,
+} from "@packages/provider-contracts/hosted-checkout";
 import type { AuthBundle, PendingSignupBundle } from "../../../test-app";
 
 interface HostedCheckoutLike {
@@ -32,6 +35,7 @@ export async function completeCheckoutSignup(params: {
 	password: string;
 	returnUrl?: string;
 	trialEndsAt?: string;
+	variant?: CheckoutVariant;
 	agent?: SuperTest<Test>;
 }): Promise<{
 	successResponse: import("supertest").Response;
@@ -56,6 +60,7 @@ export async function completeCheckoutSignup(params: {
 			userId: created.userId,
 			...(params.returnUrl ? { returnUrl: params.returnUrl } : {}),
 			...(params.trialEndsAt ? { trialEndsAt: params.trialEndsAt } : {}),
+			...(params.variant ? { variant: params.variant } : {}),
 		},
 		createdAt: 1735000000,
 	});

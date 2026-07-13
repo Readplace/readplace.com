@@ -1,10 +1,14 @@
+import type { CheckoutVariant } from "@packages/provider-contracts/hosted-checkout";
+
 export {
 	STREAMS,
 	ANALYTICS_EVENTS,
 	SAVE_SURFACES,
 	SAVE_OUTCOMES,
+	SIGNUP_OUTCOMES,
 	type SaveSurface,
 	type SaveOutcome,
+	type SignupOutcome,
 } from "@packages/web-analytics";
 
 export const CONVERSION_EVENTS = {
@@ -15,7 +19,31 @@ export const SUBSCRIPTION_EVENTS = {
 	chargeSucceeded: "charge_succeeded",
 	chargeFailed: "charge_failed",
 	cancelled: "cancelled",
+	checkoutStarted: "checkout_started",
+	checkoutCompleted: "checkout_completed",
+	checkoutReturnFailed: "checkout_return_failed",
+	resubscribeCompleted: "resubscribe_completed",
 } as const;
+
+// The variant union lives in provider-contracts because it is persisted on the
+// pending signup; `satisfies` keeps this lookup table from drifting off it.
+export const CHECKOUT_VARIANTS = {
+	trialCheckout: "trial_checkout",
+	cancelledResubscribe: "cancelled_resubscribe",
+	cardDeclineFallback: "card_decline_fallback",
+} as const satisfies Record<string, CheckoutVariant>;
+
+export type { CheckoutVariant };
+
+export const CHECKOUT_RETURN_FAILURE_REASONS = {
+	invalidQuery: "invalid_query",
+	sessionNotFound: "session_not_found",
+	notPaid: "not_paid",
+	replayed: "replayed",
+} as const;
+
+export type CheckoutReturnFailureReason =
+	(typeof CHECKOUT_RETURN_FAILURE_REASONS)[keyof typeof CHECKOUT_RETURN_FAILURE_REASONS];
 
 export const METRICS = {
 	importsCompleted: {

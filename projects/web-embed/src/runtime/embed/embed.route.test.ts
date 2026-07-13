@@ -176,7 +176,7 @@ describe("GET /embed", () => {
 		const doc = new JSDOM(response.text).window.document;
 		const previewImg = doc.querySelector('[data-test="preview-a"] img');
 		assert(previewImg, "preview-a img must be rendered");
-		expect(previewImg.getAttribute("src")).toBe("http://localhost:3700/embed/icon.svg");
+		expect(previewImg.getAttribute("src")).toBe("http://localhost:3700/embed/icon.svg?v=2");
 	});
 
 	it("should keep the canonical readplace.com URLs and PAGE_URL placeholder inside the copy-paste source blocks regardless of config", async () => {

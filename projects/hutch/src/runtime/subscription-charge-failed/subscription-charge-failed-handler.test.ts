@@ -5,12 +5,15 @@ import { HutchLogger, noopLogger } from "@packages/hutch-logger";
 import type { PublishCancelSubscriptionCommand } from "@packages/test-fixtures/providers/events";
 import { buildSqsEvent } from "@packages/test-fixtures/sqs";
 import { initSubscriptionChargeFailedHandler } from "./subscription-charge-failed-handler";
-import { initEmitSubscriptionEvent, type SubscriptionLogEvent } from "../observability/subscription-events";
+import {
+	initEmitSubscriptionEvent,
+	type SubscriptionLogEventView,
+} from "../observability/subscription-events";
 
 const USER_ID = UserIdSchema.parse("3".repeat(32));
 
-function makeEmit(): { emit: ReturnType<typeof initEmitSubscriptionEvent>; captured: SubscriptionLogEvent[] } {
-	const captured: SubscriptionLogEvent[] = [];
+function makeEmit(): { emit: ReturnType<typeof initEmitSubscriptionEvent>; captured: SubscriptionLogEventView[] } {
+	const captured: SubscriptionLogEventView[] = [];
 	const emit = initEmitSubscriptionEvent({
 		logger: {
 			info: (data) => { captured.push(data); },

@@ -14,6 +14,8 @@ interface AuthorizePageParams {
 	selfRegistered: boolean;
 	codeChallenge: string;
 	state?: string;
+	userEmail?: string;
+	screenHint?: "login" | "signup";
 }
 
 const OAUTH_AUTHORIZE_STYLES = `
@@ -72,6 +74,23 @@ const OAUTH_AUTHORIZE_STYLES = `
   background: var(--background);
   border: 1px solid var(--border);
   color: var(--foreground);
+}
+
+.oauth-authorize__account {
+  color: var(--muted-foreground);
+  margin-bottom: 20px;
+  font-size: 0.9375rem;
+}
+
+.oauth-authorize__btn--switch {
+  display: block;
+  width: 100%;
+  margin-top: 1rem;
+  background: transparent;
+  border: none;
+  color: var(--primary);
+  text-align: center;
+  text-decoration: underline;
 }
 `;
 

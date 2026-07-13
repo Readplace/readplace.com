@@ -178,6 +178,7 @@ describe("initStripeCheckout", () => {
 			assert.deepEqual(result, {
 				ok: true,
 				paid: true,
+				paymentStatus: "paid",
 				customerEmail: "paid@example.com",
 				status: "complete",
 				created: 1735000000,
@@ -241,6 +242,7 @@ describe("initStripeCheckout", () => {
 			assert.deepEqual(result, {
 				ok: true,
 				paid: true,
+				paymentStatus: "no_payment_required",
 				customerEmail: "fallback@example.com",
 				status: "complete",
 				created: 1735000001,
@@ -269,6 +271,7 @@ describe("initStripeCheckout", () => {
 			assert.deepEqual(result, {
 				ok: true,
 				paid: false,
+				paymentStatus: "unpaid",
 				customerEmail: "open@example.com",
 				status: "open",
 				created: 1735000002,

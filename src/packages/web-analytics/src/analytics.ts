@@ -9,6 +9,7 @@ import {
 	INTERNAL_CLICK_MEDIUM,
 	type SaveOutcome,
 	type SaveSurface,
+	type SignupOutcome,
 	STREAMS,
 } from "./events";
 import {
@@ -255,6 +256,17 @@ export interface ViewSaveIntentEvent {
 	is_authenticated: 0 | 1;
 }
 
+export interface SignupAttemptedEvent {
+	stream: typeof STREAMS.analytics;
+	event: typeof ANALYTICS_EVENTS.signupAttempted;
+	timestamp: string;
+	method: "email";
+	outcome: SignupOutcome;
+	visitor_hash: string | null;
+	visitor_id: string;
+	is_authenticated: 0;
+}
+
 export type AnalyticsEvent =
 	| AnalyticsPageview
 	| AnalyticsClick
@@ -264,7 +276,8 @@ export type AnalyticsEvent =
 	| ArticleReadEvent
 	| SummaryToggledEvent
 	| ViewOpenedEvent
-	| ViewSaveIntentEvent;
+	| ViewSaveIntentEvent
+	| SignupAttemptedEvent;
 
 function shouldLog(params: { req: Request; path: string; statusCode: number }): boolean {
 	if (params.req.method !== "GET") return false;
@@ -396,6 +409,23 @@ export function buildSaveIntentEvent(
 		visitor_hash: hashIp({ ip: params.req.ip, salt: deps.salt }),
 		visitor_id: params.req.visitorId,
 		is_authenticated: params.req.userId ? 1 : 0,
+	};
+}
+
+export function buildSignupAttemptedEvent(
+	deps: { now: () => Date; salt: string },
+	params: { req: Request; outcome: SignupOutcome },
+): SignupAttemptedEvent {
+	assert(params.req.visitorId, "visitor-id middleware must run before POST /signup emits signup_attempted");
+	return {
+		stream: STREAMS.analytics,
+		event: ANALYTICS_EVENTS.signupAttempted,
+		timestamp: deps.now().toISOString(),
+		method: "email",
+		outcome: params.outcome,
+		visitor_hash: hashIp({ ip: params.req.ip, salt: deps.salt }),
+		visitor_id: params.req.visitorId,
+		is_authenticated: 0,
 	};
 }
 

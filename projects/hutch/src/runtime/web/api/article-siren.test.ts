@@ -45,7 +45,6 @@ describe("toArticleSubEntity", () => {
 				title: "Test Article",
 				siteName: "Example",
 				excerpt: "First paragraph...",
-				wordCount: 1200,
 				imageUrl: "https://example.com/image.jpg",
 				estimatedReadTimeMinutes: 5,
 				status: "unread",

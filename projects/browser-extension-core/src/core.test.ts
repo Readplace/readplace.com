@@ -590,11 +590,11 @@ describe("BrowserExtensionCore invoke/fetch/check", () => {
 		const results: unknown[] = [];
 		core.on("invoked-item-action", { success: (v) => results.push(v), failure: () => {} });
 
-		core.invoke("item-action", { id, name: "delete" });
+		core.invoke("item-action", { id, name: "update-status" });
 		await flush();
 
 		expect(results).toHaveLength(1);
-		expect(cap.showDefaultCalls).toEqual([3]);
+		expect(cap.showSavedCalls).toEqual([3]);
 	});
 
 	it("emits a failure and skips the icon refresh when invoking while logged out", async () => {
@@ -611,7 +611,7 @@ describe("BrowserExtensionCore invoke/fetch/check", () => {
 
 		core.invoke("item-action", {
 			id: "any-id" as ReadingListItemId,
-			name: "delete",
+			name: "update-status",
 		});
 		await flush();
 

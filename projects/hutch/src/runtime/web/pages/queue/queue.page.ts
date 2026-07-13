@@ -624,7 +624,7 @@ export function initQueueRoutes(deps: QueueDependencies): Router {
 						pageSize: result.pageSize,
 						url: filterUrl,
 					},
-					{ iosSurface: isIosPlatform(req) },
+					{ iosSurface: isIosPlatform(req), iosClient: isIosClient(req) },
 				),
 			);
 			return;
