@@ -758,7 +758,7 @@ export function createApp(dependencies: AppDependencies): Express {
 	// add-links-help rel so older installed clients resolve the help URL from there.
 	// Either way the copy ships via a hutch deploy rather than an App Store review.
 	app.get("/help/add-links", (req: Request, res: Response) => {
-		sendComponent(req, res, HelpAddLinksPage());
+		sendComponent(req, res, HelpAddLinksPage({ staticBaseUrl }));
 	});
 
 	// Path-uniqued article fixture for staging e2e tests. The :id segment is

@@ -96,6 +96,183 @@
         color: var(--help-text-secondary);
         font-size: 0.9375rem;
       }
+
+      .help__carousel {
+        margin: 0 0 1.5rem;
+      }
+
+      .help__controls {
+        display: none;
+        align-items: center;
+        justify-content: space-between;
+        margin-bottom: 0.75rem;
+      }
+
+      .help__pause {
+        display: inline-flex;
+        align-items: center;
+        min-height: 2.75rem;
+        padding: 0 1rem;
+        border: 1px solid var(--help-border);
+        border-radius: 999px;
+        color: var(--help-text-secondary);
+        font-size: 0.875rem;
+        cursor: pointer;
+      }
+
+      .help__pause:focus-within {
+        outline: 2px solid var(--help-brand);
+        outline-offset: 2px;
+      }
+
+      .help__pause-input {
+        position: absolute;
+        width: 1px;
+        height: 1px;
+        opacity: 0;
+      }
+
+      .help__pause-input:checked ~ .help__pause-text--pause,
+      .help__pause-text--play {
+        display: none;
+      }
+
+      .help__pause-input:checked ~ .help__pause-text--play {
+        display: inline;
+      }
+
+      .help__dots {
+        display: inline-flex;
+        gap: 0.5rem;
+      }
+
+      .help__dot {
+        width: 0.5rem;
+        height: 0.5rem;
+        border-radius: 50%;
+        background: var(--help-text-secondary);
+        opacity: 0.3;
+      }
+
+      .help__track {
+        display: grid;
+        gap: 1.5rem;
+        justify-items: center;
+        margin: 0;
+        padding: 0;
+        list-style: none;
+      }
+
+      .help__slide--loop {
+        display: none;
+      }
+
+      .help__shot {
+        margin: 0;
+        text-align: center;
+      }
+
+      /**
+       * 1. Sized so a 3x device renders the 520px source at roughly 1:1 — wider
+       *    and the share-sheet UI inside the screenshot goes soft.
+       * 2. The raster is a light-theme capture on every surface; only the frame
+       *    and the caption follow the theme. Same treatment as /install.
+       */
+      .help__shot-img {
+        display: block;
+        width: min(60%, 176px); /* 1 */
+        height: auto;
+        margin: 0 auto;
+        border: 1px solid var(--help-border); /* 2 */
+        border-radius: 10px;
+      }
+
+      .help__shot-caption {
+        padding-top: 0.5rem;
+        color: var(--help-text-secondary);
+        font-size: 0.875rem;
+      }
+
+      /**
+       * 1. `hidden` alone makes this a programmatically scrollable box whose
+       *    scrollWidth is four slides wide, so VoiceOver scrolling a slide into
+       *    view — or find-on-page matching the clone's caption — sets scrollLeft,
+       *    which then composes with the track's translateX and desyncs the
+       *    carousel for the life of the page. `clip` never becomes a scroll
+       *    container. It ships in Safari 16, which is the iOS app's floor; the
+       *    `hidden` above it is the cascade fallback for older desktop Safari.
+       * 2. Deliberately no `transition` on the track: transition declarations
+       *    outrank animation declarations, so one here fights the keyframes and
+       *    sweeps the track backwards.
+       */
+      @media (prefers-reduced-motion: no-preference) {
+        @supports selector(:has(*)) {
+          .help__controls {
+            display: flex;
+          }
+
+          .help__viewport {
+            overflow: hidden; /* 1 */
+            overflow: clip; /* 1 */
+          }
+
+          .help__track {
+            display: flex;
+            gap: 0;
+            animation: help-carousel-track 18s infinite; /* 2 */
+            animation-timing-function: ease-in-out;
+          }
+
+          .help__slide {
+            flex: 0 0 100%;
+          }
+
+          .help__slide--loop {
+            display: block;
+          }
+
+          .help__dot {
+            animation: help-carousel-dot 18s infinite;
+          }
+
+          .help__dot--2 {
+            animation-delay: 6s;
+          }
+
+          .help__dot--3 {
+            animation-delay: 12s;
+          }
+
+          .help__carousel:has(.help__pause-input:checked) .help__track,
+          .help__carousel:has(.help__pause-input:checked) .help__dot {
+            animation-play-state: paused;
+          }
+        }
+      }
+
+      @keyframes help-carousel-track {
+        0%, 26.667% {
+          transform: translateX(0);
+        }
+        33.333%, 60% {
+          transform: translateX(-100%);
+        }
+        66.667%, 93.333% {
+          transform: translateX(-200%);
+        }
+        100% {
+          transform: translateX(-300%);
+        }
+      }
+
+      @keyframes help-carousel-dot {
+        0%, 27% {
+          opacity: 1;
+        }
+        33%, 100% {
+          opacity: 0.3;
+        }
+      }
     </style>
   </head>
   <body>
@@ -106,6 +283,33 @@
         <li class="help__step" data-test-help-step>Tap Share.</li>
         <li class="help__step" data-test-help-step>Choose Readplace.</li>
       </ol>
+
+      <section class="help__carousel" aria-roledescription="carousel" aria-label="Readplace on iPhone" data-test-help-carousel>
+        <div class="help__controls">
+          <label class="help__pause">
+            <input type="checkbox" class="help__pause-input" data-test-help-pause>
+            <span class="help__pause-text help__pause-text--pause">Pause the screenshots</span>
+            <span class="help__pause-text help__pause-text--play">Play the screenshots</span>
+          </label>
+          <span class="help__dots" aria-hidden="true">
+            {{#each dots}}<span class="help__dot {{positionClass}}"></span>{{/each}}
+          </span>
+        </div>
+
+        <div class="help__viewport">
+          <ul class="help__track" role="list">
+            {{#each trackSlides}}
+            <li class="help__slide{{loopClass}}"{{#if ariaHidden}} aria-hidden="{{ariaHidden}}"{{/if}} data-test-help-slide>
+              <figure class="help__shot">
+                <img class="help__shot-img" src="{{src}}" alt="{{alt}}" width="{{width}}" height="{{height}}" decoding="async">
+                <figcaption class="help__shot-caption">{{caption}}</figcaption>
+              </figure>
+            </li>
+            {{/each}}
+          </ul>
+        </div>
+      </section>
+
       <p class="help__note" data-test-help-note>Sharing captures the full page — even on sites that block crawlers.</p>
     </main>
   </body>
