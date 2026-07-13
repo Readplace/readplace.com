@@ -27,13 +27,12 @@ import type {
 	UpsertActiveSubscription,
 	UpsertTrialingSubscription,
 } from "@packages/provider-contracts/subscription-providers";
-import type {
-	CreateChargeReminderSchedule,
-	CreateTrialEndSchedule,
-	CreateTrialReminderSchedule,
-	DeleteTrialEndSchedule,
-	DeleteTrialReminderSchedule,
-} from "@packages/provider-contracts/trial-scheduler";
+import type { CreateChargeReminderSchedule } from "@packages/provider-contracts/trial-scheduler";
+import {
+	type TrialSchedulerPort,
+	startTrial,
+	trialEndsAtFromNow,
+} from "../../domain/trial/start-trial";
 import {
 	CheckoutSessionIdSchema,
 	type CheckoutSessionId,
@@ -45,11 +44,7 @@ import type {
 } from "@packages/provider-contracts/rate-limit";
 import { createRateLimitMiddleware, sendRateLimited } from "../middleware/rate-limit";
 import { normalizeEmail } from "@packages/domain/user";
-import {
-	STRIPE_TRIAL_PERIOD_DAYS,
-	chargeReminderFiresAt,
-	trialReminderFiresAt,
-} from "../../domain/stripe/stripe-trial-config";
+import { chargeReminderFiresAt } from "../../domain/stripe/stripe-trial-config";
 import { Base } from "../base.component";
 import { bannerStateFromRequest, sendComponent } from "@packages/web-shell";
 import type { BuildBannerState } from "../banner-state";
@@ -112,11 +107,7 @@ interface AuthDependencies {
 		upsertActive: UpsertActiveSubscription;
 		upsertTrialing: UpsertTrialingSubscription;
 	};
-	trialScheduler: {
-		createTrialEndSchedule: CreateTrialEndSchedule;
-		deleteTrialEndSchedule: DeleteTrialEndSchedule;
-		createTrialReminderSchedule: CreateTrialReminderSchedule;
-		deleteTrialReminderSchedule: DeleteTrialReminderSchedule;
+	trialScheduler: TrialSchedulerPort & {
 		createChargeReminderSchedule: CreateChargeReminderSchedule;
 	};
 	baseUrl: string;
@@ -383,35 +374,15 @@ export function initAuthRoutes(deps: AuthDependencies): Router {
 			return;
 		}
 
-		const trialEndsAt = new Date(
-			deps.now().getTime() + STRIPE_TRIAL_PERIOD_DAYS * 86_400_000,
-		).toISOString();
-		await deps.subscriptionProviders.upsertTrialing({
+		await startTrial({
+			mode: "signup",
 			userId: created.userId,
-			trialEndsAt,
+			trialEndsAt: trialEndsAtFromNow(deps.now()),
+			now: deps.now(),
+			upsertTrialing: deps.subscriptionProviders.upsertTrialing,
+			trialScheduler: deps.trialScheduler,
+			logError: deps.logError,
 		});
-		try {
-			await deps.trialScheduler.createTrialEndSchedule({
-				userId: created.userId,
-				firesAt: trialEndsAt,
-			});
-		} catch (err) {
-			deps.logError(
-				"[Auth] Trial-end schedule creation failed — continuing without schedule",
-				err instanceof Error ? err : new Error(String(err)),
-			);
-		}
-		try {
-			await deps.trialScheduler.createTrialReminderSchedule({
-				userId: created.userId,
-				firesAt: trialReminderFiresAt(trialEndsAt),
-			});
-		} catch (err) {
-			deps.logError(
-				"[Auth] Trial-reminder schedule creation failed — continuing without schedule",
-				err instanceof Error ? err : new Error(String(err)),
-			);
-		}
 
 		const sessionId = await deps.createSession({ userId: created.userId, emailVerified: false });
 		res.cookie(SESSION_COOKIE_NAME, sessionId, sessionCookieOptions);

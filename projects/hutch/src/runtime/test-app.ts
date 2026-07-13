@@ -217,6 +217,8 @@ function flattenFixtureToAppDependencies(
 			deleteTrialEndSchedule: fixture.trialScheduler.deleteTrialEndSchedule,
 			deleteDeferredCancellationSchedule:
 				fixture.trialScheduler.deleteDeferredCancellationSchedule,
+			deleteTrialFeedbackEmailSchedule:
+				fixture.trialScheduler.deleteTrialFeedbackEmailSchedule,
 			createTrialReminderSchedule: fixture.trialScheduler.createTrialReminderSchedule,
 			deleteTrialReminderSchedule: fixture.trialScheduler.deleteTrialReminderSchedule,
 			createChargeReminderSchedule: fixture.trialScheduler.createChargeReminderSchedule,

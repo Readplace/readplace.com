@@ -36,16 +36,14 @@ import {
 } from "@packages/provider-contracts/payment-methods";
 import type {
 	CreateChargeReminderSchedule,
-	CreateTrialEndSchedule,
-	CreateTrialReminderSchedule,
 	DeleteDeferredCancellationSchedule,
 } from "@packages/provider-contracts/trial-scheduler";
 import type { StorePendingSignup } from "@packages/provider-contracts/pending-signup";
 import {
 	STRIPE_CHECKOUT_MIN_TRIAL_END_LEAD_MS,
 	chargeReminderFiresAt,
-	trialReminderFiresAt,
 } from "../../../domain/stripe/stripe-trial-config";
+import { type TrialSchedulerPort, startTrial } from "../../../domain/trial/start-trial";
 import { CHECKOUT_VARIANTS, type CheckoutVariant } from "../../../observability/events";
 import type { EmitSubscriptionEvent } from "../../../observability/subscription-events";
 import { Base } from "../../base.component";
@@ -97,8 +95,7 @@ interface AccountDependencies {
 	removeCard: RemoveCard;
 	setPrimaryCard: SetPrimaryCard;
 	stripePublishableKey: string | undefined;
-	createTrialEndSchedule: CreateTrialEndSchedule;
-	createTrialReminderSchedule: CreateTrialReminderSchedule;
+	trialScheduler: TrialSchedulerPort;
 	createChargeReminderSchedule: CreateChargeReminderSchedule;
 	deleteDeferredCancellationSchedule: DeleteDeferredCancellationSchedule;
 	storePendingSignup: StorePendingSignup;
@@ -419,14 +416,14 @@ export function initAccountRoutes(deps: AccountDependencies): Router {
 				return;
 			}
 
-			// Delete the deferred-cancellation schedule first. Without this, the
-			// schedule fires later, dispatches CancelSubscriptionCommand against
-			// the now-active/trialing row, and re-cancels the user.
-			await deps.deleteDeferredCancellationSchedule({ userId });
-
 			if (row.subscriptionId) {
 				// Paid path — Stripe still owns the subscription; tell it to stop
-				// the scheduled cancel, then flip the row back to active.
+				// the scheduled cancel, then flip the row back to active. The
+				// deferred-cancellation schedule has to go first or it fires later,
+				// dispatches CancelSubscriptionCommand against the now-active row and
+				// re-cancels the user. (The trial path below deletes it via
+				// startTrial, so each branch owns its own schedule hygiene.)
+				await deps.deleteDeferredCancellationSchedule({ userId });
 				const reversed = await deps.reverseScheduledCancellation({
 					subscriptionId: row.subscriptionId,
 				});
@@ -456,23 +453,21 @@ export function initAccountRoutes(deps: AccountDependencies): Router {
 				return;
 			}
 
-			// Trial path — no Stripe subscription exists. Recreate the trial-end
-			// auto-charge schedule first; if that fails the row stays
-			// pending_cancellation and the user can retry. Order matters: a
-			// dangling trial-end schedule is harmless (fires
-			// SubscriptionStartRequestCommand against a still-pending_cancellation
-			// row, which the start-request handler noops because status !==
-			// "trialing"), but a row update with no schedule means free-forever.
+			// Trial path — no Stripe subscription exists, so the original window is
+			// simply re-opened. A create failure throws out to the catch below,
+			// leaving the row pending_cancellation for the user to retry.
 			assert(
 				row.trialEndsAt,
 				"trial pending_cancellation row must have trialEndsAt",
 			);
-			await deps.createTrialEndSchedule({ userId, firesAt: row.trialEndsAt });
-			const reminderFiresAt = trialReminderFiresAt(row.trialEndsAt);
-			if (Date.parse(reminderFiresAt) > deps.now().getTime()) {
-				await deps.createTrialReminderSchedule({ userId, firesAt: reminderFiresAt });
-			}
-			await deps.upsertTrialingSubscription({ userId, trialEndsAt: row.trialEndsAt });
+			await startTrial({
+				mode: "reset",
+				userId,
+				trialEndsAt: row.trialEndsAt,
+				now: deps.now(),
+				upsertTrialing: deps.upsertTrialingSubscription,
+				trialScheduler: deps.trialScheduler,
+			});
 			await deps.publishSubscriptionReactivated({ userId });
 			res.redirect(303, buildAccountUrl());
 		} catch (err) {

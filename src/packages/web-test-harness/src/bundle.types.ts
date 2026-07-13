@@ -26,6 +26,7 @@ import type {
 	CreateSession,
 	CreateSubscriptionOnExistingCustomer,
 	CreateTrialEndSchedule,
+	CreateTrialFeedbackEmailSchedule,
 	CreateTrialReminderSchedule,
 	CreateUser,
 	CreateUserWithPasswordHash,
@@ -35,6 +36,7 @@ import type {
 	DeleteChargeReminderSchedule,
 	DeleteDeferredCancellationSchedule,
 	DeleteTrialEndSchedule,
+	DeleteTrialFeedbackEmailSchedule,
 	DeleteTrialReminderSchedule,
 	DestroySession,
 	DestroyUserSessions,
@@ -188,6 +190,10 @@ export interface TrialSchedulerBundle {
 	deleteTrialEndSchedule: DeleteTrialEndSchedule;
 	createDeferredCancellationSchedule: CreateDeferredCancellationSchedule;
 	deleteDeferredCancellationSchedule: DeleteDeferredCancellationSchedule;
+	createTrialFeedbackEmailSchedule: CreateTrialFeedbackEmailSchedule;
+	deleteTrialFeedbackEmailSchedule: DeleteTrialFeedbackEmailSchedule;
+	getTrialFeedbackEmailSchedule: (userId: UserId) => string | undefined;
+	trialFeedbackEmailDeleteCalls: () => readonly UserId[];
 	createTrialReminderSchedule: CreateTrialReminderSchedule;
 	deleteTrialReminderSchedule: DeleteTrialReminderSchedule;
 	getSchedule: (userId: UserId) => string | undefined;

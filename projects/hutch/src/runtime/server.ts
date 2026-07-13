@@ -49,6 +49,7 @@ import type {
 	CreateTrialReminderSchedule,
 	DeleteDeferredCancellationSchedule,
 	DeleteTrialEndSchedule,
+	DeleteTrialFeedbackEmailSchedule,
 	DeleteTrialReminderSchedule,
 } from "@packages/provider-contracts/trial-scheduler";
 import type {
@@ -161,6 +162,7 @@ import { initSaveRoutes } from "./web/pages/save/save.page";
 import type { ValidateSaveableUrl } from "@packages/domain/article";
 import { initViewRoutes } from "./web/pages/view/view.page";
 import type { ExpiryCountdown } from "./web/pages/view/view-expiry";
+import { initAdminExtendTrialRoutes } from "./web/pages/admin/extend-trial.page";
 import { initAdminRecrawlRoutes } from "./web/pages/admin/recrawl.page";
 import { initExportRoutes } from "./web/pages/export/export.page";
 import { initAccountRoutes } from "./web/pages/account/account.page";
@@ -317,6 +319,7 @@ interface AppDependencies {
 		createTrialEndSchedule: CreateTrialEndSchedule;
 		deleteTrialEndSchedule: DeleteTrialEndSchedule;
 		deleteDeferredCancellationSchedule: DeleteDeferredCancellationSchedule;
+		deleteTrialFeedbackEmailSchedule: DeleteTrialFeedbackEmailSchedule;
 		createTrialReminderSchedule: CreateTrialReminderSchedule;
 		deleteTrialReminderSchedule: DeleteTrialReminderSchedule;
 		createChargeReminderSchedule: CreateChargeReminderSchedule;
@@ -889,13 +892,7 @@ export function createApp(dependencies: AppDependencies): Express {
 			upsertActive: deps.subscriptionProviders.upsertActive,
 			upsertTrialing: deps.subscriptionProviders.upsertTrialing,
 		},
-		trialScheduler: {
-			createTrialEndSchedule: deps.trialScheduler.createTrialEndSchedule,
-			deleteTrialEndSchedule: deps.trialScheduler.deleteTrialEndSchedule,
-			createTrialReminderSchedule: deps.trialScheduler.createTrialReminderSchedule,
-			deleteTrialReminderSchedule: deps.trialScheduler.deleteTrialReminderSchedule,
-			createChargeReminderSchedule: deps.trialScheduler.createChargeReminderSchedule,
-		},
+		trialScheduler: deps.trialScheduler,
 		baseUrl: deps.baseUrl,
 		staticBaseUrl,
 		secureCookies,
@@ -933,8 +930,7 @@ export function createApp(dependencies: AppDependencies): Express {
 			markEmailVerified: deps.markEmailVerified,
 			exchangeGoogleCode: deps.googleAuth.exchangeGoogleCode,
 			upsertTrialing: deps.subscriptionProviders.upsertTrialing,
-			createTrialEndSchedule: deps.trialScheduler.createTrialEndSchedule,
-			createTrialReminderSchedule: deps.trialScheduler.createTrialReminderSchedule,
+			trialScheduler: deps.trialScheduler,
 			sendEmail: deps.sendEmail,
 			logError: deps.logError,
 			now: deps.now,
@@ -959,8 +955,7 @@ export function createApp(dependencies: AppDependencies): Express {
 		markEmailVerified: deps.markEmailVerified,
 		exchangeAppleCode: deps.appleAuth.exchangeAppleCode,
 		upsertTrialing: deps.subscriptionProviders.upsertTrialing,
-		createTrialEndSchedule: deps.trialScheduler.createTrialEndSchedule,
-		createTrialReminderSchedule: deps.trialScheduler.createTrialReminderSchedule,
+		trialScheduler: deps.trialScheduler,
 		sendEmail: deps.sendEmail,
 		logError: deps.logError,
 		now: deps.now,
@@ -1115,6 +1110,19 @@ export function createApp(dependencies: AppDependencies): Express {
 	});
 	app.use("/admin/recrawl", adminRecrawlRouter);
 
+	const adminExtendTrialRouter = initAdminExtendTrialRoutes({
+		findUserByEmail: deps.findUserByEmail,
+		findSubscriptionByUserId: deps.subscriptionProviders.findByUserId,
+		upsertTrialing: deps.subscriptionProviders.upsertTrialing,
+		trialScheduler: deps.trialScheduler,
+		adminEmails: deps.adminEmails,
+		serviceToken: deps.recrawlServiceToken,
+		logError: deps.logError,
+		now: deps.now,
+		buildBannerState,
+	});
+	app.use("/admin/extend-trial", adminExtendTrialRouter);
+
 	const exportRouter = initExportRoutes({
 		publishExportUserDataCommand: deps.publishExportUserDataCommand,
 		findEmailByUserId: deps.findEmailByUserId,
@@ -1145,8 +1153,7 @@ export function createApp(dependencies: AppDependencies): Express {
 		removeCard: deps.paymentMethods.removeCard,
 		setPrimaryCard: deps.paymentMethods.setPrimaryCard,
 		stripePublishableKey: deps.stripePublishableKey,
-		createTrialEndSchedule: deps.trialScheduler.createTrialEndSchedule,
-		createTrialReminderSchedule: deps.trialScheduler.createTrialReminderSchedule,
+		trialScheduler: deps.trialScheduler,
 		createChargeReminderSchedule: deps.trialScheduler.createChargeReminderSchedule,
 		deleteDeferredCancellationSchedule:
 			deps.trialScheduler.deleteDeferredCancellationSchedule,

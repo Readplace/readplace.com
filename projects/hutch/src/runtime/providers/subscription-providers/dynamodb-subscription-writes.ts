@@ -37,12 +37,15 @@ export function initDynamoDbSubscriptionWrites(deps: {
 		schema: SubscriptionProviderRow,
 	});
 
+	/* The email markers are scoped to one trial window: the reminder and feedback
+	 * senders no-op when they are set, so a re-opened window would go out silent
+	 * unless opening it clears them. */
 	const upsertTrialing: UpsertTrialingSubscription = async ({ userId, trialEndsAt }) => {
 		const nowIso = deps.now().toISOString();
 		await table.update({
 			Key: { userId },
 			UpdateExpression:
-				"SET #provider = :provider, #status = :status, trialEndsAt = :trialEndsAt, createdAt = if_not_exists(createdAt, :now), updatedAt = :now REMOVE subscriptionId, customerId, cancellationEffectiveAt",
+				"SET #provider = :provider, #status = :status, trialEndsAt = :trialEndsAt, createdAt = if_not_exists(createdAt, :now), updatedAt = :now REMOVE subscriptionId, customerId, cancellationEffectiveAt, trialReminderEmailSentAt, trialFeedbackEmailSentAt",
 			ExpressionAttributeNames: {
 				"#provider": "provider",
 				"#status": "status",

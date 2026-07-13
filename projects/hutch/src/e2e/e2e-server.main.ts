@@ -22,6 +22,7 @@ import { initInMemoryRefreshArticleContent } from '@packages/test-fixtures/provi
 import { initInMemoryUpdateFetchTimestamp } from '@packages/test-fixtures/providers/events'
 import { initInMemoryHostedCheckout } from '@packages/test-fixtures/providers/hosted-checkout'
 import { CheckoutSessionIdSchema } from '@packages/test-fixtures/providers/hosted-checkout'
+import { E2E_ADMIN_EMAIL } from './admin-extend-trial/admin-e2e-user'
 
 const PORT = Number(requireEnv('E2E_PORT'))
 // Use 127.0.0.1 (not localhost) so the appOrigin passed into the test fixture
@@ -119,6 +120,12 @@ const e2eStripe = initInMemoryHostedCheckout({ checkoutBaseUrl: `${origin}/e2e/s
 
 const { app: hutchApp, auth, email } = createTestApp({
   ...fixture,
+  // The default fixture allowlist is empty (fail-closed); the admin
+  // extend-trial flow signs in as this address to pass the /admin gate.
+  admin: {
+    adminEmails: [E2E_ADMIN_EMAIL],
+    recrawlServiceToken: fixture.admin.recrawlServiceToken,
+  },
   hostedCheckout: e2eStripe,
   parser: { parseArticle, crawlArticle },
   events: {
