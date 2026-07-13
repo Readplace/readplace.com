@@ -99,6 +99,16 @@ RUN [ -d /usr/local/aws-cli ] || command -v aws >/dev/null 2>&1 || ( \
    && /tmp/aws/install \
    && rm -rf /tmp/aws /tmp/awscliv2.zip )
 
+# Drop the runner user's passwordless sudo. The base image puts `runner` in the
+# sudo group (`%sudo ALL=(ALL) NOPASSWD: ALL`), which silently defeats the PAT
+# isolation this image is built around: a job could `sudo cat /root/gh-pat.env`
+# and recover the repo-admin token without ever touching the docker socket.
+# Nothing needs it — the stock /entrypoint.sh drops privileges with gosu, not sudo
+# (its `_PREFIX=sudo` is only for `service docker start`, which we never run: the
+# daemon socket is bind-mounted from the host instead) — and no workflow step on
+# this runner uses sudo. runner-secret-audit.yml check 8 asserts it stays closed.
+RUN if id -nG runner | tr ' ' '\n' | grep -qx sudo; then gpasswd -d runner sudo; fi
+
 # The PAT reaches the runner as a root-only file, never as an env var, so it is
 # absent from the container environment (and thus from /proc/1/environ, which a
 # root job could otherwise read). Jobs run as the unprivileged `runner` user, so

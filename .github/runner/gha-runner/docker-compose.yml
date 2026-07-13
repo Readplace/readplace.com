@@ -106,13 +106,18 @@ services:
       # daemon. Reusing the host daemon gives a persistent buildkit layer cache
       # (fast rebuilds across ephemeral jobs). SECURITY: this socket is
       # root-equivalent on the host Mac — a job with access can `docker run -v
-      # /:/host` and escape the RUN_AS_ROOT=false + /root PAT isolation. The
-      # containment is that detect-projects is the only job that reaches it and it
-      # runs on main pushes ONLY (ci.yml `if:`), so no fork/untrusted code ever
-      # executes here. entrypoint-secure.sh grants the non-root `runner` user
-      # socket access (docker group GID match); runner-secret-audit.yml records
-      # the boundary. Job containers become host-daemon siblings (host-path volume
-      # semantics), so never mount job-relative paths into `docker run`.
+      # /:/host` and escape BOTH the /root PAT seal and the host-egress iptables
+      # block (a sibling container runs in the host netns, not this one).
+      # detect-projects is the only job that USES it, but the mount and the
+      # docker-group join are container-wide, so EVERY job here can reach it —
+      # including web-tests, which runs on main pushes AND on every non-fork PR.
+      # The containment is therefore ci.yml's runs-on gate alone: fork PRs fall
+      # back to ubuntu-latest, so untrusted code never executes here. The trust
+      # boundary is "collaborator-authored", NOT "detect-projects only".
+      # entrypoint-secure.sh grants the non-root `runner` user socket access
+      # (docker group GID match); runner-secret-audit.yml records the boundary. Job
+      # containers become host-daemon siblings (host-path volume semantics), so
+      # never mount job-relative paths into `docker run`.
       - /var/run/docker.sock:/var/run/docker.sock
 
 volumes:
