@@ -163,7 +163,7 @@ export function HomePage(params: HomePageParams): PageBody {
 					logo: `${staticBaseUrl}/android-chrome-512x512.png`,
 					sameAs: [
 						"https://github.com/Readplace/readplace.com",
-						"https://chromewebstore.google.com/detail/hutch/klblengmhlfnmjoagchagfcdbpbocgbf",
+						"https://chromewebstore.google.com/detail/readplace-%E2%80%94-save-articles/klblengmhlfnmjoagchagfcdbpbocgbf",
 					],
 					founder: {
 						"@type": "Person",
