@@ -77,22 +77,17 @@ RUN mkdir -p /opt/cft \
  && echo "$DRIVER_OUT" | tail -1 | sed -E 's/^chromedriver@[^ ]+ //' > /opt/cft/driver-path
 ENV CFT_BAKED_DIR=/opt/cft
 
-# docker CLI + buildx plugin: detect-projects builds the save-link OCR image via
-# `docker buildx build --push` (projects/save-link/tools/build-image.mjs) against
-# the HOST OrbStack daemon (socket bind-mounted in docker-compose.yml). Only the
-# client + buildx are needed here — the daemon and its persistent buildkit layer
-# cache live on the host, which is what makes the rebuild fast across jobs. arm64.
-RUN install -m 0755 -d /etc/apt/keyrings \
- && curl -fsSL https://download.docker.com/linux/ubuntu/gpg -o /etc/apt/keyrings/docker.asc \
- && chmod a+r /etc/apt/keyrings/docker.asc \
- && echo "deb [arch=arm64 signed-by=/etc/apt/keyrings/docker.asc] https://download.docker.com/linux/ubuntu noble stable" \
-      > /etc/apt/sources.list.d/docker.list \
- && apt-get update && apt-get install -y docker-ce-cli docker-buildx-plugin \
- && rm -rf /var/lib/apt/lists/*
+# No docker CLI/buildx here on purpose. detect-projects' `save-link:check-infra`
+# used to `docker buildx build --push` against the host OrbStack daemon just to
+# compute the OCR image tag; it now runs `--tag-only` (esbuild + hash, no docker),
+# so the runner needs neither the docker client nor the root-equivalent host
+# socket. The real build+push stays in `save-link:deploy-infra`, which runs on a
+# github-hosted runner.
 
-# AWS CLI v2: build-image.mjs calls `aws ecr get-login-password` /
-# `describe-repositories`. The myoung34 base image already ships it; install only
-# if a future base drops it (the installer errors out on a preexisting install).
+# AWS CLI v2: build-image.mjs --tag-only calls `aws ecr describe-repositories` to
+# resolve the ECR repo URL (read-only; `get-login-password` only runs on the
+# github-hosted build+push path). The myoung34 base image already ships it;
+# install only if a future base drops it (the installer errors on a preexisting one).
 RUN [ -d /usr/local/aws-cli ] || command -v aws >/dev/null 2>&1 || ( \
       curl -fsSL "https://awscli.amazonaws.com/awscli-exe-linux-aarch64.zip" -o /tmp/awscliv2.zip \
    && unzip -q /tmp/awscliv2.zip -d /tmp \
@@ -108,10 +103,9 @@ RUN [ -d /usr/local/aws-cli ] || command -v aws >/dev/null 2>&1 || ( \
 # libs are already baked by `install-deps` above (run-test-phases.ts gates it on
 # RUNNER_ENVIRONMENT). Verified: a real E2E run executed all four suites on the
 # sudo-less image with zero apt/sudo errors. runner-secret-audit.yml check 8
-# asserts this stays closed. NOTE this shuts only the DIRECT read path — the
-# container-wide docker.sock mount is still a root-equivalent host escape that can
-# reach the PAT on the host fs regardless of sudo; sealing that (host-minted
-# registration token, no PAT in the container) is the tracked next step.
+# asserts this stays closed. With the docker socket now also removed (the OCR
+# build no longer runs here — see the docker note above), there is no known
+# escape from a job to the PAT: non-root, no sudo, no socket, /root sealed.
 RUN if id -nG runner | tr ' ' '\n' | grep -qx sudo; then gpasswd -d runner sudo; fi
 
 # The PAT reaches the runner as a root-only file, never as an env var, so it is

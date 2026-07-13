@@ -104,24 +104,13 @@ services:
       # `docker compose --scale gha-runner=N` — each replica would need its own
       # persist volume. Today there is exactly one runner.
       - persist:/persist
-      # Required by the detect-projects CI job: save-link's check-infra builds
-      # the OCR image with `docker buildx build --push` against the host OrbStack
-      # daemon. Reusing the host daemon gives a persistent buildkit layer cache
-      # (fast rebuilds across ephemeral jobs). SECURITY: this socket is
-      # root-equivalent on the host Mac — a job with access can `docker run -v
-      # /:/host` and escape BOTH the /root PAT seal and the host-egress iptables
-      # block (a sibling container runs in the host netns, not this one).
-      # detect-projects is the only job that USES it, but the mount and the
-      # docker-group join are container-wide, so EVERY job here can reach it —
-      # including web-tests, which runs on main pushes AND on every non-fork PR.
-      # The containment is therefore ci.yml's runs-on gate alone: fork PRs fall
-      # back to ubuntu-latest, so untrusted code never executes here. The trust
-      # boundary is "collaborator-authored", NOT "detect-projects only".
-      # entrypoint-secure.sh grants the non-root `runner` user socket access
-      # (docker group GID match); runner-secret-audit.yml records the boundary. Job
-      # containers become host-daemon siblings (host-path volume semantics), so
-      # never mount job-relative paths into `docker run`.
-      - /var/run/docker.sock:/var/run/docker.sock
+      # NO docker socket. It used to be mounted so detect-projects' save-link
+      # check-infra could `docker buildx build --push`, but that was a
+      # root-equivalent host escape (`docker run -v /:/host` reaches the PAT on the
+      # host fs regardless of the /root seal). check-infra now computes the OCR
+      # image tag with `--tag-only` (no docker); the real build+push stays in
+      # deploy-infra on a github-hosted runner. runner-secret-audit.yml check 7
+      # asserts this socket stays unmounted — re-adding it reopens the escape.
 
 volumes:
   playwright-browsers:
