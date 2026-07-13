@@ -499,6 +499,15 @@ export function initAuthRoutes(deps: AuthDependencies): Router {
 			subscriptionId,
 			customerId,
 		});
+		// paid_now separates a real charge from a $0 trial capture: Stripe reports
+		// no_payment_required for a trial-preserving checkout, which still counts as
+		// a completed checkout but not revenue.
+		deps.emitSubscriptionEvent.checkoutCompleted({
+			userId: pending.userId,
+			subscriptionId,
+			checkoutSessionId,
+			paidNow: session.paymentStatus === "paid",
+		});
 		await deps.trialScheduler.deleteTrialEndSchedule({ userId: pending.userId });
 		await deps.trialScheduler.deleteTrialReminderSchedule({ userId: pending.userId });
 		if (pending.trialEndsAt) {
@@ -518,11 +527,6 @@ export function initAuthRoutes(deps: AuthDependencies): Router {
 				);
 			}
 		}
-		deps.emitSubscriptionEvent.checkoutCompleted({
-			userId: pending.userId,
-			subscriptionId,
-			checkoutSessionId,
-		});
 		res.redirect(303, parseReturnUrl({ return: pending.returnUrl }));
 	});
 

@@ -29,7 +29,10 @@ import { initFoundingAllocation } from "./web/shared/founding-progress/founding-
 import { type AnalyticsEvent, createAnalyticsMiddleware } from "@packages/web-analytics";
 import { DEFAULT_INBOX_ALIAS } from "@packages/domain/inbox";
 import type { UserId } from "@packages/domain/user";
-import type { SubscriptionLogEvent } from "./observability/subscription-events";
+import type {
+	SubscriptionLogEvent,
+	SubscriptionLogEventView,
+} from "./observability/subscription-events";
 
 export type {
 	AdminBundle,
@@ -69,7 +72,7 @@ export interface AnalyticsBundle {
 
 export interface SubscriptionEventsBundle {
 	logger: HutchLogger.Typed<SubscriptionLogEvent>;
-	events: SubscriptionLogEvent[];
+	events: SubscriptionLogEventView[];
 }
 
 export interface TestAppResult {
@@ -253,7 +256,7 @@ export function createTestApp(
 		logger: { info: captureAnalytics, error: captureAnalytics, warn: captureAnalytics, debug: captureAnalytics },
 		events: analyticsEvents,
 	};
-	const subscriptionLogEvents: SubscriptionLogEvent[] = [];
+	const subscriptionLogEvents: SubscriptionLogEventView[] = [];
 	const captureSubscription = (data: SubscriptionLogEvent) => { subscriptionLogEvents.push(data); };
 	const subscriptionBundle: SubscriptionEventsBundle = {
 		logger: { info: captureSubscription, error: captureSubscription, warn: captureSubscription, debug: captureSubscription },

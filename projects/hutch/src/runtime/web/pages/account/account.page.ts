@@ -577,14 +577,6 @@ export function initAccountRoutes(deps: AccountDependencies): Router {
 					userId,
 				}));
 			} catch (err) {
-				/** Only a *charge* failure reaches this catch — the upsert below is
-				 * deliberately outside the try. Stripe rejected the saved card
-				 * (declined, expired, fingerprint mismatch, etc.), so fall through to
-				 * Checkout for a new card and label the funnel event
-				 * `card_decline_fallback`, which now means what it says. A post-charge
-				 * upsert failure is NOT a decline — the card was already charged — so it
-				 * must not start a second checkout on an already-charged customer; it
-				 * propagates to the route-level catch (payment-method error) instead. */
 				deps.logger.warn(
 					"[subscribe/cancelled] saved-card charge failed — falling back to checkout",
 					{ userId, error: err instanceof Error ? err.message : String(err) },

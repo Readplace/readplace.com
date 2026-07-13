@@ -592,7 +592,6 @@ describe("POST /account/subscribe", () => {
 		expect(row.subscriptionId).toBe(created[0].subscriptionId);
 		expect(row.customerId).toBe("cus_was_paid");
 
-		// One-click resub bypasses Stripe Checkout, so no checkout_started fires.
 		expect(harness.subscriptionEvents.events.filter((e) => e.event === "checkout_started")).toHaveLength(0);
 	});
 
@@ -636,10 +635,6 @@ describe("POST /account/subscribe", () => {
 
 	it("cancelled user — saved-card charge SUCCEEDS but the active-row upsert throws → 303 /account?error=payment_method, and NOT a card_decline_fallback checkout (the card was already charged, so it is not a decline)", async () => {
 		const fixture = createDefaultTestAppFixture(TEST_APP_ORIGIN);
-		// Fail only the post-charge DB write. createSubscriptionOnExistingCustomer
-		// still succeeds, so this is NOT a decline: the funnel must not record
-		// card_decline_fallback, and the user must not be sent to a second checkout
-		// on an already-charged customer.
 		fixture.subscriptionProviders.upsertActive = async () => {
 			throw new Error("dynamo down");
 		};
@@ -661,9 +656,7 @@ describe("POST /account/subscribe", () => {
 
 		expect(response.status).toBe(303);
 		expect(response.headers.location).toBe("/account?error=payment_method");
-		// The saved-card charge went through...
 		expect(subscriptionBilling.createdSubscriptions()).toHaveLength(1);
-		// ...so no checkout is started at all — in particular no card_decline_fallback.
 		expect(
 			harness.subscriptionEvents.events.filter((e) => e.event === "checkout_started"),
 		).toHaveLength(0);
@@ -726,7 +719,6 @@ describe("POST /account/subscribe", () => {
 		expect(response.status).toBe(303);
 		expect(response.headers.location).toBe("/account?error=payment_method");
 
-		// The throw happens before the pending-signup write and the emit.
 		expect(harness.subscriptionEvents.events.filter((e) => e.event === "checkout_started")).toHaveLength(0);
 	});
 

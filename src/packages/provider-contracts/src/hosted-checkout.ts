@@ -18,10 +18,13 @@ export type CreateCheckoutSession = (params: {
 
 export type CheckoutSessionStatus = "open" | "complete" | "expired";
 
+export type CheckoutPaymentStatus = "paid" | "unpaid" | "no_payment_required";
+
 export type RetrieveCheckoutSession = (id: CheckoutSessionId) => Promise<
 	| {
 			ok: true;
 			paid: boolean;
+			paymentStatus: CheckoutPaymentStatus;
 			customerEmail: string;
 			status: CheckoutSessionStatus;
 			created: number;

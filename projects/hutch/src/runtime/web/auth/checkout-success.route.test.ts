@@ -114,7 +114,6 @@ describe("GET /auth/checkout/success", () => {
 		const doc = new JSDOM(replay.text).window.document;
 		expect(doc.querySelector("[data-test-global-error]")?.textContent).toContain("already been used");
 
-		// First visit emitted checkout_completed; the replay emits checkout_return_failed.
 		const events = harness.subscriptionEvents.events;
 		expect(events).toHaveLength(2);
 		expect(events[0].event).toBe("checkout_completed");
@@ -151,7 +150,45 @@ describe("GET /auth/checkout/success", () => {
 		expect(evt.user_id).toBe(lookup.userId);
 		expect(evt.checkout_session_id).toBe(checkoutSessionId);
 		expect(evt.subscription_id).toMatch(/^sub_test_/);
+		expect(evt.paid_now).toBe(true);
 		expect(typeof evt.timestamp).toBe("string");
+	});
+
+	it("records paid_now:false on checkout_completed when Stripe collected nothing now (a $0 trial-preserving checkout returns no_payment_required)", async () => {
+		const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
+		const { auth, hostedCheckout, pendingSignup } = harness;
+
+		const created = await auth.createUser({
+			email: "trial-capture@example.com",
+			password: "password123",
+		});
+		assert(created.ok, "user must be created before driving Stripe success");
+		const checkout = await hostedCheckout.createCheckoutSession({
+			customerEmail: "trial-capture@example.com",
+			successUrl: "http://localhost:3000/auth/checkout/success?session_id={CHECKOUT_SESSION_ID}",
+			cancelUrl: "http://localhost:3000/signup",
+		});
+		await pendingSignup.storePendingSignup({
+			checkoutSessionId: checkout.id,
+			signup: {
+				method: "existing-user-subscribe",
+				email: "trial-capture@example.com",
+				userId: created.userId,
+				trialEndsAt: new Date(Date.now() + 10 * 86_400_000).toISOString(),
+			},
+			createdAt: 1735000000,
+		});
+		hostedCheckout.markPaid(checkout.id, { paymentStatus: "no_payment_required" });
+
+		const response = await request
+			.agent(harness.server)
+			.get(`/auth/checkout/success?session_id=${encodeURIComponent(checkout.id)}`);
+
+		expect(response.status).toBe(303);
+		expect(harness.subscriptionEvents.events).toHaveLength(1);
+		const evt = harness.subscriptionEvents.events[0];
+		expect(evt.event).toBe("checkout_completed");
+		expect(evt.paid_now).toBe(false);
 	});
 
 	it("writes an active subscription_providers row with the Stripe ids on first paid visit", async () => {

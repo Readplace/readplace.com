@@ -3,7 +3,52 @@ import type { HutchLogger } from "@packages/hutch-logger";
 import { STREAMS, SUBSCRIPTION_EVENTS } from "./events";
 import type { CheckoutReturnFailureReason, CheckoutVariant } from "./events";
 
-export interface SubscriptionLogEvent {
+interface SubscriptionEventBase {
+	stream: typeof STREAMS.subscriptions;
+	timestamp: string;
+}
+
+export type SubscriptionLogEvent =
+	| (SubscriptionEventBase & {
+			event: typeof SUBSCRIPTION_EVENTS.chargeSucceeded;
+			user_id: UserId;
+			subscription_id: string;
+	  })
+	| (SubscriptionEventBase & {
+			event: typeof SUBSCRIPTION_EVENTS.chargeFailed;
+			user_id: UserId;
+			reason: string;
+	  })
+	| (SubscriptionEventBase & {
+			event: typeof SUBSCRIPTION_EVENTS.cancelled;
+			user_id: UserId;
+			reason: string;
+			subscription_id?: string;
+	  })
+	| (SubscriptionEventBase & {
+			event: typeof SUBSCRIPTION_EVENTS.checkoutStarted;
+			user_id: UserId;
+			variant: CheckoutVariant;
+			checkout_session_id: string;
+	  })
+	| (SubscriptionEventBase & {
+			event: typeof SUBSCRIPTION_EVENTS.checkoutCompleted;
+			user_id: UserId;
+			subscription_id: string;
+			checkout_session_id: string;
+			paid_now: boolean;
+	  })
+	| (SubscriptionEventBase & {
+			event: typeof SUBSCRIPTION_EVENTS.checkoutReturnFailed;
+			reason: CheckoutReturnFailureReason;
+			user_id?: UserId;
+			checkout_session_id?: string;
+	  });
+
+// Emitters build the strict union above so user_id is omissible only on
+// checkout_return_failed (the pre-auth return). Consumers that read a captured
+// event without narrowing on `event` see this widened superset instead.
+export interface SubscriptionLogEventView {
 	stream: typeof STREAMS.subscriptions;
 	event: (typeof SUBSCRIPTION_EVENTS)[keyof typeof SUBSCRIPTION_EVENTS];
 	timestamp: string;
@@ -12,6 +57,7 @@ export interface SubscriptionLogEvent {
 	reason?: string;
 	variant?: CheckoutVariant;
 	checkout_session_id?: string;
+	paid_now?: boolean;
 }
 
 export interface EmitSubscriptionEvent {
@@ -27,6 +73,7 @@ export interface EmitSubscriptionEvent {
 		userId: UserId;
 		subscriptionId: string;
 		checkoutSessionId: string;
+		paidNow: boolean;
 	}) => void;
 	checkoutReturnFailed: (params: {
 		reason: CheckoutReturnFailureReason;
@@ -78,7 +125,7 @@ export function initEmitSubscriptionEvent(deps: {
 				checkout_session_id: checkoutSessionId,
 			});
 		},
-		checkoutCompleted: ({ userId, subscriptionId, checkoutSessionId }) => {
+		checkoutCompleted: ({ userId, subscriptionId, checkoutSessionId, paidNow }) => {
 			deps.logger.info({
 				stream: STREAMS.subscriptions,
 				event: SUBSCRIPTION_EVENTS.checkoutCompleted,
@@ -86,6 +133,7 @@ export function initEmitSubscriptionEvent(deps: {
 				user_id: userId,
 				subscription_id: subscriptionId,
 				checkout_session_id: checkoutSessionId,
+				paid_now: paidNow,
 			});
 		},
 		checkoutReturnFailed: ({ reason, userId, checkoutSessionId }) => {

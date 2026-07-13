@@ -653,19 +653,38 @@ export function buildAnalyticsDashboardBody(deps: BuildAnalyticsDashboardDeps): 
 	// GET /auth/checkout/success), not the subscription Lambdas, so the widget
 	// sources the hutch handler log group.
 
+	const checkoutFunnelFilter = [
+		`| filter stream = "${STREAMS.subscriptions}"`,
+		`| filter event in ["${SUBSCRIPTION_EVENTS.checkoutStarted}", "${SUBSCRIPTION_EVENTS.checkoutCompleted}", "${SUBSCRIPTION_EVENTS.checkoutReturnFailed}"]`,
+	];
+
 	widgets.push(
 		logWidget({
 			region,
 			title: "Checkout funnel per day",
 			logGroupNames: [hutchLogGroupName],
+			// Distinct users, not raw counts: checkout_started fires once per Subscribe
+			// click, so abandon-and-retry would inflate the conversion denominator.
 			query: [
 				"fields @timestamp, event",
-				`| filter stream = "${STREAMS.subscriptions}"`,
-				`| filter event in ["${SUBSCRIPTION_EVENTS.checkoutStarted}", "${SUBSCRIPTION_EVENTS.checkoutCompleted}", "${SUBSCRIPTION_EVENTS.checkoutReturnFailed}"]`,
-				"| stats count(*) as checkouts by bin(1d), event",
+				...checkoutFunnelFilter,
+				"| stats count_distinct(user_id) as users, count(*) as events by bin(1d), event",
 			].join(" "),
 			x: 0, y: 138, width: 12, height: 8,
 			view: "timeSeries",
+		}),
+		logWidget({
+			region,
+			title: "Checkout funnel detail (variant / reason)",
+			logGroupNames: [hutchLogGroupName],
+			query: [
+				"fields @timestamp, event, variant, reason",
+				...checkoutFunnelFilter,
+				`| stats count(*) as n by event, coalesce(variant, reason, "-") as detail`,
+				"| sort n desc",
+			].join(" "),
+			x: 12, y: 138, width: 12, height: 8,
+			view: "bar",
 		}),
 	);
 

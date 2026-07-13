@@ -106,7 +106,7 @@ describe("initEmitSubscriptionEvent", () => {
 		}]);
 	});
 
-	it("emits a checkout_completed event with the subscription and checkout session ids — the missing paid-conversion signal", () => {
+	it("emits a checkout_completed event carrying paid_now:true when Stripe collected a real charge", () => {
 		const { logger, captured } = createCapturingLogger();
 		const emit = initEmitSubscriptionEvent({ logger, now: NOW });
 
@@ -114,6 +114,7 @@ describe("initEmitSubscriptionEvent", () => {
 			userId: USER_ID,
 			subscriptionId: "sub_123",
 			checkoutSessionId: "cs_test_1",
+			paidNow: true,
 		});
 
 		expect(captured).toEqual([{
@@ -123,6 +124,29 @@ describe("initEmitSubscriptionEvent", () => {
 			user_id: USER_ID,
 			subscription_id: "sub_123",
 			checkout_session_id: "cs_test_1",
+			paid_now: true,
+		}]);
+	});
+
+	it("emits a checkout_completed event carrying paid_now:false for a $0 trial-preserving checkout (card captured, no charge)", () => {
+		const { logger, captured } = createCapturingLogger();
+		const emit = initEmitSubscriptionEvent({ logger, now: NOW });
+
+		emit.checkoutCompleted({
+			userId: USER_ID,
+			subscriptionId: "sub_123",
+			checkoutSessionId: "cs_test_1",
+			paidNow: false,
+		});
+
+		expect(captured).toEqual([{
+			stream: "subscriptions",
+			event: "checkout_completed",
+			timestamp: "2026-05-25T10:00:00.000Z",
+			user_id: USER_ID,
+			subscription_id: "sub_123",
+			checkout_session_id: "cs_test_1",
+			paid_now: false,
 		}]);
 	});
 
