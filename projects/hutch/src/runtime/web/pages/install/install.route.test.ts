@@ -192,7 +192,7 @@ describe("GET /install", () => {
 
 		const cta = doc.querySelector('[data-test-cta="download-chrome"]');
 		expect(cta?.getAttribute("href")).toBe(
-			"https://chromewebstore.google.com/detail/hutch/klblengmhlfnmjoagchagfcdbpbocgbf",
+			"https://chromewebstore.google.com/detail/readplace-%E2%80%94-save-articles/klblengmhlfnmjoagchagfcdbpbocgbf",
 		);
 	});
 
