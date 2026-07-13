@@ -495,13 +495,16 @@ describe("GET /install", () => {
 		const doc = load(response.text);
 
 		const shots = Array.from(doc.querySelectorAll("[data-test-screenshot]"));
-		expect(shots).toHaveLength(3);
+		expect(shots).toHaveLength(6);
 		expect(
 			shots.map((shot) => shot.querySelector("img")?.getAttribute("src")),
 		).toEqual([
 			"https://static.test/screenshots/ios-share-sheet.png",
 			"https://static.test/screenshots/ios-reading-list.png",
 			"https://static.test/screenshots/ios-reader.png",
+			"https://static.test/screenshots/ios-share-more.png",
+			"https://static.test/screenshots/ios-share-favourite.png",
+			"https://static.test/screenshots/ios-share-pinned.png",
 		]);
 		for (const shot of shots) {
 			expect(shot.classList.contains("install-page__screenshot--tall")).toBe(true);

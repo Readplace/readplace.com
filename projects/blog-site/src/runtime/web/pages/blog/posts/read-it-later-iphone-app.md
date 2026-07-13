@@ -50,7 +50,7 @@ Install TestFlight from the App Store, join the Readplace beta, then install and
 
 That first launch matters, because iOS only adds the share option after the app has run at least once.
 
-If Readplace does not show up in the share row the first time, close the sheet and tap Share again, or tap More to switch it on. You can favourite it so it sits near the top next time.
+If Readplace does not show up in the share row, scroll the row to the right and tap More, then Edit, and add Readplace to your Favourites. It sits first in the row from then on, so you never have to hunt for it.
 
 ## Try it
 

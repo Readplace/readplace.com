@@ -152,7 +152,7 @@ const BETA_SETUP_STEPS: BetaSetupStep[] = [
 	{
 		title:
 			"Save a page — this is the main thing to test. Open any page in Safari, Chrome, or Firefox, tap Share, and choose Readplace, just like sharing to WhatsApp. It renders and saves the page in the background; head back to readplace.com to see it land.",
-		note: "If Readplace is not in the share row the first time, close the sheet and tap Share again, or tap More or Edit to switch it on. You can favourite it so it appears straight away.",
+		note: "If Readplace is not in the share row, scroll the row to the right and tap More, then Edit, and add Readplace to your Favourites — it sits first in the row from then on, so you never have to hunt for it. The screenshots below walk through it.",
 	},
 ];
 
@@ -213,6 +213,27 @@ const CLIENT_SCREENSHOTS = {
 			pathUnderStaticBase: "/screenshots/ios-reader.png",
 			alt: "The Readplace reader on iPhone showing an article with its AI summary",
 			caption: "The reader and TL;DR work the same on iPhone.",
+			width: 520,
+			height: 1127,
+		},
+		{
+			pathUnderStaticBase: "/screenshots/ios-share-more.png",
+			alt: "The iOS share sheet with the app row scrolled right to reveal the More button",
+			caption: "Tap Share, scroll the row right, then tap More.",
+			width: 520,
+			height: 1127,
+		},
+		{
+			pathUnderStaticBase: "/screenshots/ios-share-favourite.png",
+			alt: "The iOS Apps screen with Readplace listed under Favourites",
+			caption: "Tap Edit, then add Readplace to your Favourites.",
+			width: 520,
+			height: 1127,
+		},
+		{
+			pathUnderStaticBase: "/screenshots/ios-share-pinned.png",
+			alt: "The iOS share sheet with Readplace first in the app row",
+			caption: "Readplace now sits first — no scrolling, no hunting.",
 			width: 520,
 			height: 1127,
 		},

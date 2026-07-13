@@ -97,6 +97,57 @@
         font-size: 0.9375rem;
       }
 
+      .help__pin {
+        margin: 0 0 1.5rem;
+        padding-top: 1.5rem;
+        border-top: 1px solid var(--help-border);
+      }
+
+      .help__pin-title {
+        margin: 0 0 0.5rem;
+        font-size: 1.125rem;
+        font-weight: 700;
+      }
+
+      .help__pin-lead {
+        margin: 0 0 1.25rem;
+        color: var(--help-text-secondary);
+        font-size: 0.9375rem;
+      }
+
+      .help__pin-steps {
+        margin: 0;
+        padding: 0;
+        list-style: none;
+        counter-reset: help-pin-step;
+      }
+
+      .help__pin-step {
+        counter-increment: help-pin-step;
+        position: relative;
+        padding: 0 0 1.5rem 3rem;
+      }
+
+      .help__pin-step:last-child {
+        padding-bottom: 0;
+      }
+
+      .help__pin-step::before {
+        content: counter(help-pin-step);
+        position: absolute;
+        left: 0;
+        top: 0;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        width: 2rem;
+        height: 2rem;
+        background: var(--help-surface);
+        color: var(--help-brand);
+        border-radius: 6px;
+        font-weight: 600;
+      }
+
       .help__carousel {
         margin: 0 0 1.5rem;
       }
@@ -317,6 +368,21 @@
         </div>
 
         <p class="help__hint" data-test-help-hint>Hold a screenshot to pause.</p>
+      </section>
+
+      <section class="help__pin" data-test-help-pin>
+        <h2 class="help__pin-title" data-test-help-pin-title>Pin Readplace to the share row</h2>
+        <p class="help__pin-lead">iOS buries new apps at the end of the share row. Favourite Readplace once and it moves to the front.</p>
+        <ol class="help__pin-steps">
+          {{#each pinSteps}}
+          <li class="help__pin-step" data-test-help-pin-step>
+            <figure class="help__shot">
+              <img class="help__shot-img" src="{{src}}" alt="{{alt}}" width="{{width}}" height="{{height}}" loading="lazy" decoding="async">
+              <figcaption class="help__shot-caption">{{caption}}</figcaption>
+            </figure>
+          </li>
+          {{/each}}
+        </ol>
       </section>
 
       <p class="help__note" data-test-help-note>Sharing captures the full page — even on sites that block crawlers.</p>

@@ -112,6 +112,31 @@ describe("GET /help/add-links", () => {
 		);
 	});
 
+	it("walks through pinning Readplace to the share row, in order", async () => {
+		const { server } = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
+
+		const response = await request(server).get("/help/add-links");
+
+		const doc = new JSDOM(response.text).window.document;
+		expect(doc.querySelector("[data-test-help-pin-title]")?.textContent).toBe(
+			"Pin Readplace to the share row",
+		);
+
+		const steps = Array.from(doc.querySelectorAll("[data-test-help-pin-step]"));
+		expect(steps.map((el) => el.querySelector("img")?.getAttribute("src"))).toEqual([
+			"https://static.test/screenshots/ios-share-more.png",
+			"https://static.test/screenshots/ios-share-favourite.png",
+			"https://static.test/screenshots/ios-share-pinned.png",
+		]);
+		expect(
+			steps.map((el) => el.querySelector("figcaption")?.textContent?.trim()),
+		).toEqual([
+			"Tap Share, scroll the row right, then tap More.",
+			"Tap Edit, then add Readplace to your Favourites.",
+			"Readplace now sits first — no scrolling, no hunting.",
+		]);
+	});
+
 	it("falls through to HTML when text/markdown is requested", async () => {
 		const { server } = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
 

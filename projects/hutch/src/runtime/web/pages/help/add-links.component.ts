@@ -89,9 +89,49 @@ function buildDots(): CarouselDot[] {
 	}));
 }
 
+/** Ordered, static and never animated, unlike the carousel above them: these are
+ * a procedure, and a slide that moves on while someone is still following it is
+ * the readability problem the pause gesture exists to solve. */
+const PIN_STEPS: readonly IosScreenshot[] = [
+	{
+		path: "/screenshots/ios-share-more.png",
+		alt: "The iOS share sheet with the app row scrolled right to reveal the More button",
+		caption: "Tap Share, scroll the row right, then tap More.",
+	},
+	{
+		path: "/screenshots/ios-share-favourite.png",
+		alt: "The iOS Apps screen with Readplace listed under Favourites",
+		caption: "Tap Edit, then add Readplace to your Favourites.",
+	},
+	{
+		path: "/screenshots/ios-share-pinned.png",
+		alt: "The iOS share sheet with Readplace first in the app row",
+		caption: "Readplace now sits first — no scrolling, no hunting.",
+	},
+];
+
+interface PinStep {
+	src: string;
+	alt: string;
+	caption: string;
+	width: number;
+	height: number;
+}
+
+function buildPinSteps(staticBaseUrl: string): PinStep[] {
+	return PIN_STEPS.map((shot) => ({
+		src: `${staticBaseUrl}${shot.path}`,
+		alt: shot.alt,
+		caption: shot.caption,
+		width: SHOT_WIDTH,
+		height: SHOT_HEIGHT,
+	}));
+}
+
 export function HelpAddLinksPage(params: { staticBaseUrl: string }): Component {
 	return HtmlPage(
 		render(HELP_ADD_LINKS_TEMPLATE, {
+			pinSteps: buildPinSteps(params.staticBaseUrl),
 			trackSlides: buildTrackSlides(params.staticBaseUrl),
 			dots: buildDots(),
 		}),
