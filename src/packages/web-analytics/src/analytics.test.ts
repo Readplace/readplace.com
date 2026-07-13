@@ -145,6 +145,14 @@ describe("createAnalyticsMiddleware", () => {
 		expect(runMiddleware(createReq({ path: "/robots.txt" }), createRes(200))).toEqual([]);
 	});
 
+	it("skips logging /llms-full.txt so the agent-facing full text dump does not count as a pageview or mint a landing_path", () => {
+		expect(runMiddleware(createReq({ path: "/llms-full.txt" }), createRes(200))).toEqual([]);
+	});
+
+	it("skips logging /auth.md so the machine-readable auth doc does not count as a pageview or mint a landing_path", () => {
+		expect(runMiddleware(createReq({ path: "/auth.md" }), createRes(200))).toEqual([]);
+	});
+
 	it("skips logging /blog/sitemap.xml so the blog's machine sitemap does not count as a pageview", () => {
 		expect(runMiddleware(createReq({ path: "/blog/sitemap.xml" }), createRes(200))).toEqual([]);
 	});
