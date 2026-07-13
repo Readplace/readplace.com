@@ -323,11 +323,29 @@ exercised on every run, not only when someone builds `make ipa-staging` by hand.
   the asset catalog. It has light (navy ampersand) and dark (white ampersand)
   variants so it stays legible on both login backgrounds, rendered from the brand
   geometry by `scripts/make-brandmark.sh`.
-- **Builds from the repo's devbox shell.** `build-unsigned-ipa.sh` scrubs the
-  nix toolchain env (`CC`/`CXX`/`LD`/`SDKROOT`/…) and points at the real Xcode,
-  and builds the app target with `-target` (not `-scheme`) so it links against
-  the `iphoneos` SDK without needing the iOS *platform* registered for a
-  destination. Verified building against Xcode 15.4 (iOS 17.5 SDK).
+- **Builds from the repo's devbox shell.** Every Xcode entry point — `make test`,
+  `make test-staging`, and `build-unsigned-ipa.sh` (so `nx run ios-readplace:compile`
+  too) — runs through [`scripts/xc.sh`](./scripts/xc.sh), which scrubs the nix
+  toolchain out of the environment and points at the real Xcode. This is
+  load-bearing, not tidiness: `xcodebuild` treats environment variables as
+  build-setting overrides, and the devbox/nix shell exports `CC`/`CXX`/`LD`/`AR`/…
+  plus a `DEVELOPER_DIR`/`SDKROOT` aimed at a nix macOS-only SDK. `LD=ld` swaps
+  Xcode's link *driver* (clang) for the bare linker, which then cannot parse the
+  driver flags Xcode still passes, and every link dies with
+  `ld: -objc_abi_version '-Xlinker' not supported`; the nix `DEVELOPER_DIR` also
+  makes xcodebuild resolve the wrong simulator set (hence the UDID-matched `SIM`
+  default, which also takes the *newest* installed runtime). **Route any new
+  `xcodebuild`/`xcrun` invocation through `xc.sh`** — it runs system tools out of
+  `/usr/bin`, and it picks the newest installed Xcode, the same rule
+  `scripts/fastlane.sh` uses, so the tested and shipped toolchains can't diverge.
+  (`xcodegen` needs no scrub: it neither compiles nor links.) CI's runner has no
+  devbox, so it never hits any of this — **a green CI says nothing about a local
+  build**, and that drift is exactly how `make test` became unbuildable in this
+  repo's own shell while `make ipa` kept working. `scripts/fastlane.sh` keeps its
+  own scrub deliberately (it must also put Homebrew Ruby ahead of `/usr/bin` for
+  `fastlane match`). `build-unsigned-ipa.sh` additionally builds the app target
+  with `-target` (not `-scheme`) so it links against the `iphoneos` SDK without
+  needing the iOS *platform* registered for a destination.
 
 - **Tapping an item** opens the server's authenticated reader in an in-app
   `WKWebView`. The sheet opens immediately on a skeleton; the app mints a browser
