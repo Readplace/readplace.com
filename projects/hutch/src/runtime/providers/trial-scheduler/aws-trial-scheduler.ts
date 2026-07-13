@@ -37,9 +37,11 @@ function deferredCancellationScheduleName(userId: UserId): string {
 	return `cancel-${userId}`;
 }
 
-/** Deterministic name keyed by userId. Duplicate SubscriptionCancelledEvent
+/** Deterministic name keyed by userId, so duplicate SubscriptionCancelledEvent
  * deliveries (at-least-once + dual-publisher: cancel-subscription and
- * stripe-webhook-receiver) overwrite the same schedule instead of stacking. */
+ * stripe-webhook-receiver) target one schedule instead of stacking. The name
+ * alone does not make a re-delivery safe — CreateSchedule REJECTS a name that
+ * already exists — so callers must delete before they create. */
 function trialFeedbackEmailScheduleName(userId: UserId): string {
 	return `trial-feedback-${userId}`;
 }

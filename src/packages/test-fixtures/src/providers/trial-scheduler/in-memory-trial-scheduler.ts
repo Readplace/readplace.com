@@ -65,10 +65,22 @@ export function initInMemoryTrialScheduler(opts?: {
 	const chargeReminderSchedules = new Map<UserId, { firesAt: string; chargeAt: string }>();
 	const chargeReminderDeletes: UserId[] = [];
 
+	/** EventBridge Scheduler has no upsert: CreateSchedule rejects a name that
+	 * already exists, and IAM grants no UpdateSchedule. A fake that silently
+	 * overwrote would let a missing delete-before-create pass green here and
+	 * 409 in production, so it must reject the duplicate the same way. */
+	function assertNoConflict(name: string, exists: boolean): void {
+		if (!exists) return;
+		const error = new Error(`Schedule ${name} already exists`);
+		error.name = "ConflictException";
+		throw error;
+	}
+
 	const createTrialEndSchedule: CreateTrialEndSchedule = async ({ userId, firesAt }) => {
 		if (opts?.createFails) {
 			throw new Error("In-memory trial-scheduler create failure");
 		}
+		assertNoConflict(`trial-end-${userId}`, trialEndSchedules.has(userId));
 		trialEndSchedules.set(userId, firesAt);
 	};
 
@@ -85,6 +97,7 @@ export function initInMemoryTrialScheduler(opts?: {
 		if (opts?.createDeferredCancellationFails) {
 			throw new Error("In-memory deferred-cancellation create failure");
 		}
+		assertNoConflict(`cancel-${userId}`, deferredCancellationSchedules.has(userId));
 		deferredCancellationSchedules.set(userId, firesAt);
 		deferredCancellationReasons.set(userId, reason);
 	};
@@ -104,6 +117,7 @@ export function initInMemoryTrialScheduler(opts?: {
 		if (opts?.createTrialFeedbackEmailFails) {
 			throw new Error("In-memory trial-feedback-email create failure");
 		}
+		assertNoConflict(`trial-feedback-${userId}`, trialFeedbackEmailSchedules.has(userId));
 		trialFeedbackEmailSchedules.set(userId, firesAt);
 	};
 
@@ -121,6 +135,7 @@ export function initInMemoryTrialScheduler(opts?: {
 		if (opts?.createTrialReminderFails) {
 			throw new Error("In-memory trial-reminder create failure");
 		}
+		assertNoConflict(`trial-reminder-${userId}`, trialReminderSchedules.has(userId));
 		trialReminderSchedules.set(userId, firesAt);
 	};
 
@@ -137,6 +152,7 @@ export function initInMemoryTrialScheduler(opts?: {
 		if (opts?.createChargeReminderFails) {
 			throw new Error("In-memory charge-reminder create failure");
 		}
+		assertNoConflict(`charge-reminder-${userId}`, chargeReminderSchedules.has(userId));
 		chargeReminderSchedules.set(userId, { firesAt, chargeAt });
 	};
 
