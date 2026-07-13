@@ -96,6 +96,10 @@ Every flake root-caused in the hutch 20x-soak investigation was an uncontrolled 
 
 E2E test support files (`src/e2e/**`) are **not excluded** from coverage enforcement. They run under c8 during `pnpm check` and must meet the same thresholds as production code.
 
+The single exception is `CLAUDE_CODE_REMOTE=true`, which makes `shouldSkipE2E` skip every `e2e: true` phase (see `defaultDeps` in [run-test-phases.ts](../../../src/packages/test-phase-runner/src/run-test-phases.ts)) and, because those files then never execute, also excludes `src/e2e/**` from the thresholds (see [enforce-coverage.config.base.js](../../../enforce-coverage.config.base.js)). Set it only where a browser genuinely cannot run — it buys a green that verifies strictly less, and the coverage gate cannot backstop it, because the same flag removes `src/e2e/**` from the threshold set and a skipped run still reports 100%.
+
+The variable is an nx hash input on `test`, `test-with-coverage` and `check` (in [nx.json](../../../nx.json), and repeated in each extension's `project.json`, whose `inputs` array shadows the target default rather than merging with it). That keeps the skipped run and the full run in separate cache entries, so a green produced with E2E skipped can never replay as a green for a run that needs them.
+
 For `c8 ignore` rules, allowed cases, and V8 coverage quirks, see the [Code Coverage section in CLAUDE.md](../../../CLAUDE.md#code-coverage).
 
 ## Running E2E Tests

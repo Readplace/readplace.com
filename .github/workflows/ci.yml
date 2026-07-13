@@ -198,10 +198,14 @@ jobs:
           echo "Final deploy list: $PROJECTS"
           echo "Non-platform: $NON_PLATFORM"
 
-          # Extension publish gates only fire when the compile target is affected,
-          # so test-only changes in dependencies (e.g. hutch *.test.ts) don't bump
-          # the Web Store / AMO version. compile inputs use `^production`, which
-          # excludes test files via the namedInputs in nx.json.
+          # Extension publish gates fire on compile-affected, which does NOT consult
+          # compile's ^production inputs -- it is project-graph reachability plus the
+          # workspace-global files in nx.json namedInputs.sharedGlobals (.envrc, the
+          # Pulumi stack configs, *.config.base.*, pnpm-workspace.yaml), which nx
+          # treats as an implicit dependency of EVERY project. So a commit touching
+          # only one of those cuts a Chrome Web Store / AMO release containing no
+          # extension change. That is accepted: republishing an unchanged extension is
+          # harmless, and hashing those files is what keeps a cached green honest.
           COMPILE_AFFECTED=$(pnpm nx show projects --affected --target=compile --json)
 
           # Set outputs for downstream jobs to use in their `if:` conditions

@@ -6,8 +6,12 @@
       "options": { "cwd": "{projectRoot}" }
     },
     "check": {
-      "command": "echo 'Infra-only project - No check step'",
-      "options": { "cwd": "{projectRoot}" }
+      "command": "true",
+      "options": { "cwd": "{projectRoot}" },
+      "dependsOn": ["lint"]
+    },
+    "lint": {
+      "dependsOn": ["^compile"]
     }
   }
 }
