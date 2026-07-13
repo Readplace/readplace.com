@@ -100,6 +100,7 @@ import {
 	isExtensionSavedArticle,
 } from "../../onboarding/extension-install";
 import { isIosClient, isIosSurface } from "../../onboarding/ios-client";
+import { APP_BACK_LINK } from "../../shared/ios-app-links";
 import type { GetIosAppSignals, RecordIosAnyActivity, RecordIosSavedArticle } from "@packages/provider-contracts/ios-onboarding-signal";
 import type { GetEffectiveAccess } from "@packages/subscription-access";
 
@@ -286,15 +287,6 @@ const SAVE_INTENT_PATH = {
 
 const VIEW_BACK_LINK = {
 	topHref: "/queue?utm_source=reader&utm_medium=internal&utm_content=back-top",
-	label: "← Back to queue",
-} as const;
-
-/** Deep link the iOS WKWebView delegate intercepts (and cancels) to close the
- * reader sheet, returning the user to the native reading list. The chromeless
- * reader's "← Back to queue" points here. */
-const READER_CLOSE_HREF = "readplace://reader/close";
-const APP_BACK_LINK = {
-	topHref: READER_CLOSE_HREF,
 	label: "← Back to queue",
 } as const;
 

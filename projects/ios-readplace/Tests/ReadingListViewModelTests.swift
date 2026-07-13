@@ -399,8 +399,22 @@ final class ReadingListViewModelTests: XCTestCase {
 		viewModel.open(link: SirenLink(rel: ["save"], href: "/save", title: "Save a link"))
 
 		let presentation = viewModel.readerPresentation
-		XCTAssertEqual(presentation?.readerURL.absoluteString, "\(AppConfig.serverBaseURL)/save")
+		XCTAssertEqual(presentation?.readerURL.absoluteString, "\(AppConfig.serverBaseURL)/save?shell=app")
 		XCTAssertNil(presentation?.articleId, "a navigable collection link is not tied to a row")
+	}
+
+	/// The server publishes the account href already carrying `?platform=ios`; the
+	/// app adds its own capability marker on top, so the page comes back chromeless
+	/// with a deep link the sheet can execute. Both markers must survive.
+	func testOpenLinkKeepsTheServersOwnQueryAndAddsTheAppShellMarker() {
+		let viewModel = makeViewModel(store: TestSupport.loggedInStore())
+
+		viewModel.open(link: SirenLink(rel: ["account"], href: "/account?platform=ios", title: "Account"))
+
+		XCTAssertEqual(
+			viewModel.readerPresentation?.readerURL.absoluteString,
+			"\(AppConfig.serverBaseURL)/account?platform=ios&shell=app"
+		)
 	}
 
 	func testOpenLinkIsANoOpForAForeignSchemeHref() {

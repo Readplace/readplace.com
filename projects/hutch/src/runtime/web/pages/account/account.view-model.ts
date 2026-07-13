@@ -4,6 +4,12 @@ import type { SavedCard } from "@packages/provider-contracts/payment-methods";
 import type { EffectiveAccess } from "@packages/subscription-access";
 import { type LocalTime, SUBSCRIBE_CTA_LABEL, toAbsoluteDate, withInternalTracking } from "@packages/web-shell";
 import {
+	APP_SHELL_QUERY,
+	APP_SHELL_VALUE,
+	IOS_CLIENT_VALUE,
+	IOS_PLATFORM_QUERY,
+} from "../../onboarding/ios-client";
+import {
 	ACCOUNT_CANCEL_URL,
 	ACCOUNT_CARDS_NEW_URL,
 	ACCOUNT_DELETE_URL,
@@ -416,9 +422,10 @@ function stateViewModel(
  * 2606 so it can never resolve, and only `pathname`/`search` are read back. */
 const IOS_HREF_PARSE_ORIGIN = "https://internal.invalid";
 
-function carryIosPlatform(action: AccountAction): AccountAction {
+function carryAppSurface(action: AccountAction, options: { appShell: boolean }): AccountAction {
 	const url = new URL(action.href, IOS_HREF_PARSE_ORIGIN);
-	url.searchParams.set("platform", "ios");
+	url.searchParams.set(IOS_PLATFORM_QUERY, IOS_CLIENT_VALUE);
+	if (options.appShell) url.searchParams.set(APP_SHELL_QUERY, APP_SHELL_VALUE);
 	return { ...action, href: `${url.pathname}${url.search}` };
 }
 
@@ -428,18 +435,24 @@ function carryIosPlatform(action: AccountAction): AccountAction {
  * 3.1.1. Kept: the subscription status line, the cancel control, and the
  * delete-account danger zone (Apple requires in-app account deletion; cancelling
  * buys nothing). Every surviving control — the cancel control and the
- * delete-account danger action — carries `?platform=ios` on its href so a POST
- * lands on e.g. /account/cancel?platform=ios (or /account/delete?platform=ios) and
- * its post-redirect GET re-renders this same surface — the WKWebView form post
- * sends no client header, so a server-rejected delete confirmation stays
- * commerce-free instead of bouncing to the web surface. */
-export function withoutCommerce(vm: AccountViewModel): AccountViewModel {
+ * delete-account danger action — carries the request's own surface markers on its
+ * href so a POST lands on e.g. /account/cancel?platform=ios (or
+ * /account/delete?platform=ios&shell=app) and its post-redirect GET re-renders this
+ * same surface — the WKWebView form post sends no client header, so a
+ * server-rejected delete confirmation stays commerce-free (and, in the app shell,
+ * chromeless) instead of bouncing to the web surface. Commerce-stripping itself is
+ * keyed on the iOS surface, not the app shell: a store build predating the shell
+ * marker must keep satisfying Guideline 3.1.1. */
+export function withoutCommerce(
+	vm: AccountViewModel,
+	options: { appShell: boolean },
+): AccountViewModel {
 	return {
 		...vm,
 		actions: vm.actions
 			.filter((a) => a.key !== "subscribe" && a.key !== "reactivate-form")
-			.map(carryIosPlatform),
-		dangerAction: carryIosPlatform(vm.dangerAction),
+			.map((a) => carryAppSurface(a, options)),
+		dangerAction: carryAppSurface(vm.dangerAction, options),
 		showCardSection: false,
 	};
 }

@@ -10,6 +10,7 @@ struct ReaderSheet: View {
 	let mintSession: () async -> [HTTPCookie]?
 	let onMarkedRead: () -> Void
 	let onClose: () -> Void
+	let onLogout: () -> Void
 
 	@State private var cookies: [HTTPCookie]?
 	@State private var bootstrapFailed = false
@@ -22,6 +23,7 @@ struct ReaderSheet: View {
 					cookies: cookies,
 					onMarkedRead: onMarkedRead,
 					onClose: onClose,
+					onLogout: onLogout,
 					externalBrowser: .system
 				)
 			} else if bootstrapFailed {

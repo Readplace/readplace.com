@@ -5,6 +5,7 @@ import WebKit
 enum ReaderNavigationDecision: Equatable {
 	case allow
 	case close
+	case logout
 	case openExternally(URL)
 }
 
@@ -15,15 +16,17 @@ enum ReaderNavigation {
 	/// A footnote tap is a scroll, not a navigation, so it must not open a
 	/// browser. No host allowlist — readplace.com article links open in the
 	/// browser too.
+	///
+	/// The `readplace://` deep links are matched ahead of the `.linkActivated`
+	/// branch, and regardless of navigation type: the account page reaches the
+	/// logout link through htmx's `HX-Redirect` (a `.other` navigation), not a tap.
 	static func decide(
 		url: URL,
 		navigationType: WKNavigationType,
 		currentURL: URL?
 	) -> ReaderNavigationDecision {
-		if url.scheme?.lowercased() == "readplace",
-		   url.host?.lowercased() == "reader",
-		   url.path == "/close" {
-			return .close
+		if let deepLink = deepLinkDecision(url) {
+			return deepLink
 		}
 
 		if let currentURL, isSameDocumentFragment(url, of: currentURL) {
@@ -35,6 +38,18 @@ enum ReaderNavigation {
 		}
 
 		return .allow
+	}
+
+	private static func deepLinkDecision(_ url: URL) -> ReaderNavigationDecision? {
+		guard url.scheme?.lowercased() == AppConfig.callbackURLScheme else { return nil }
+		switch (url.host?.lowercased(), url.path) {
+		case ("reader", "/close"):
+			return .close
+		case ("account", "/logout"):
+			return .logout
+		default:
+			return nil
+		}
 	}
 
 	private static func isSameDocumentFragment(_ url: URL, of currentURL: URL) -> Bool {

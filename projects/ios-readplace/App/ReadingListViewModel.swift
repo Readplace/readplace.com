@@ -234,16 +234,22 @@ final class ReadingListViewModel: ObservableObject {
 		readerPresentation = ReaderPresentation(readerURL: readerURL, articleId: article.id)
 	}
 
-	/// Follows a navigable collection-level link (e.g. a `save` link) by opening
+	/// Follows a navigable collection-level link (e.g. the `account` link) by opening
 	/// its resolved href in the same in-app web view the reader uses. A link the
 	/// client can't resolve (missing or foreign-scheme href) is a no-op, so an
 	/// unactionable link advertised by the server never opens a blank sheet. No
 	/// row is associated, so the web sheet drops nothing when it closes.
+	///
+	/// The href is the server's own; the app appends its app-shell marker so the
+	/// server knows the page is hosted in the deep-link-intercepting sheet and may
+	/// answer with a `readplace://` control. An href that can't be re-encoded with
+	/// the marker is treated as absent, exactly like one that can't be resolved.
 	func open(link: SirenLink) {
 		guard let href = link.href,
-			let url = Href.resolve(href, baseURL: api.baseURL)
+			let url = Href.resolve(href, baseURL: api.baseURL),
+			let shellURL = Href.appending(AppConfig.appShellQueryItem, to: url)
 		else { return }
-		readerPresentation = ReaderPresentation(readerURL: url, articleId: nil)
+		readerPresentation = ReaderPresentation(readerURL: shellURL, articleId: nil)
 	}
 
 	/// Mints the cookie session the reader webview needs from the current bearer.

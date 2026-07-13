@@ -80,7 +80,15 @@ struct ReadingListView: View {
 							Task { await viewModel.readerStatusChanged() }
 							viewModel.readerPresentation = nil
 						},
-						onClose: { viewModel.readerPresentation = nil }
+						onClose: { viewModel.readerPresentation = nil },
+						// The account is gone, so the server-side revoke `logout()` performs
+						// would only 401: drop the local credentials instead. The dismissal
+						// probe above may still fire and is idempotent — it 401s on the dead
+						// session and funnels into this same sign-out.
+						onLogout: {
+							viewModel.readerPresentation = nil
+							session.forceLogout()
+						}
 					)
 					.ignoresSafeArea()
 				}

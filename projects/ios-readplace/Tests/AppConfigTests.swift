@@ -34,4 +34,13 @@ final class AppConfigTests: XCTestCase {
 	func testPrivacyPolicyURLIsServedByTheTargetedStack() {
 		XCTAssertEqual(AppConfig.privacyPolicyURL.absoluteString, "\(AppConfig.serverBaseURL)/privacy")
 	}
+
+	/// The server reads this marker to decide it may answer with a `readplace://`
+	/// control the web sheet can execute. Renaming either half silently drops the
+	/// chromeless account page (and its sign-out) back to the full web shell, so the
+	/// value is pinned here rather than left to a passing integration.
+	func testAppShellQueryItemIsTheMarkerTheServerGatesOn() {
+		XCTAssertEqual(AppConfig.appShellQueryItem.name, "shell")
+		XCTAssertEqual(AppConfig.appShellQueryItem.value, "app")
+	}
 }

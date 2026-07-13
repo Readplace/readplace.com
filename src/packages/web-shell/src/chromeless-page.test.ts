@@ -63,4 +63,25 @@ describe("ChromelessPage", () => {
 		const doc = new JSDOM(live(createTestPageBody()).to("text/html").body).window.document;
 		expect(doc.querySelector('script[src*="livereload.js"]')).not.toBeNull();
 	});
+
+	it("appends the site's own scripts after the page's, so a chromeless page still gets what the whole site relies on", () => {
+		const withSite = initChromelessPage({
+			staticBaseUrl: "https://static.example",
+			liveReload: true,
+			siteScripts: `<script src="/client-dist/local-time.client.js" defer></script>`,
+		});
+
+		const body = withSite(createTestPageBody()).to("text/html").body;
+		const doc = new JSDOM(body).window.document;
+		expect(doc.querySelector('script[src*="/client-dist/local-time.client.js"]')).not.toBeNull();
+
+		const order = Array.from(doc.querySelectorAll("script"))
+			.map((script) => script.getAttribute("src") ?? "")
+			.filter((src) => src.length > 0);
+		const page = order.findIndex((src) => src.includes("progress-bar.client.js"));
+		const site = order.findIndex((src) => src.includes("local-time.client.js"));
+		const liveReload = order.findIndex((src) => src.includes("livereload.js"));
+		expect(page).toBeLessThan(site);
+		expect(site).toBeLessThan(liveReload);
+	});
 });

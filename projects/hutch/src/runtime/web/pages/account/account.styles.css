@@ -8,10 +8,34 @@
   margin-bottom: 24px;
 }
 
+/* The app shell's only way back to the native list. The reader's equivalent
+ * (.article-body__back) is bundled into READER_STYLES alone, so it cannot be
+ * reused here without pulling the whole reader stylesheet onto this page. */
+.account__back {
+  display: inline-block;
+  margin-bottom: 12px;
+  font-size: 0.9375rem;
+  font-weight: 600;
+  color: var(--foreground);
+  text-decoration: none;
+}
+
+.account__back:hover {
+  text-decoration: underline;
+}
+
 .account__title {
   font-size: 1.5rem;
   font-weight: 700;
   color: var(--foreground);
+}
+
+/* The sheet is presented with .ignoresSafeArea() and the chromeless <head> sets no
+ * viewport-fit=cover, so env(safe-area-inset-bottom) resolves to 0 inside this
+ * WKWebView — the pad has to be hard-coded to clear the home indicator, the same
+ * reason the chromeless reader hard-codes its own. */
+.page-account--chromeless .account {
+  padding-bottom: 4rem;
 }
 
 /* purgecss-ignore-start: account-card and its modifiers are interpolated dynamically from a state class in the template */

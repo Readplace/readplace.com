@@ -58,6 +58,15 @@ enum AppConfig {
 	/// its chrome. An explicit client-sent signal, never a user-agent sniff.
 	static let readerPlatformQueryItem = URLQueryItem(name: "platform", value: "ios")
 
+	/// Capability marker the app appends to any href it opens in its web sheet: it
+	/// tells the server this build hosts the page in a WKWebView whose navigation
+	/// delegate intercepts `readplace://` deep links, so the server may answer with
+	/// one (the account page's chromeless back link and its post-delete sign-out).
+	/// The server never advertises it — an older build, which cannot deploy in
+	/// lockstep with the server, simply never sends it and keeps the ordinary web
+	/// shell it can already drive.
+	static let appShellQueryItem = URLQueryItem(name: "shell", value: "app")
+
 	/// Shared container so the app (which signs in) and the share extension
 	/// (which saves) can both read the OAuth tokens.
 	///

@@ -16,12 +16,21 @@ struct ReaderWebView: UIViewControllerRepresentable {
 	let cookies: [HTTPCookie]
 	let onMarkedRead: () -> Void
 	let onClose: () -> Void
+	/// The account page deleted the account, so the server destroyed every session
+	/// and redirected here rather than to the logged-out home — the sheet dismisses
+	/// and the app signs itself out instead of rendering marketing chrome in-sheet.
+	let onLogout: () -> Void
 	/// Injected so the composition point wires the live browser and tests inject
 	/// their own; there is deliberately no internal default.
 	let externalBrowser: ExternalBrowser
 
 	func makeCoordinator() -> Coordinator {
-		Coordinator(onMarkedRead: onMarkedRead, onClose: onClose, externalBrowser: externalBrowser)
+		Coordinator(
+			onMarkedRead: onMarkedRead,
+			onClose: onClose,
+			onLogout: onLogout,
+			externalBrowser: externalBrowser
+		)
 	}
 
 	func makeUIViewController(context: Context) -> UIViewController {
@@ -70,16 +79,19 @@ struct ReaderWebView: UIViewControllerRepresentable {
 	final class Coordinator: NSObject, WKScriptMessageHandler, WKNavigationDelegate, WKUIDelegate {
 		private let onMarkedRead: () -> Void
 		private let onClose: () -> Void
+		private let onLogout: () -> Void
 		private let externalBrowser: ExternalBrowser
 		private var handled = false
 
 		init(
 			onMarkedRead: @escaping () -> Void,
 			onClose: @escaping () -> Void,
+			onLogout: @escaping () -> Void,
 			externalBrowser: ExternalBrowser
 		) {
 			self.onMarkedRead = onMarkedRead
 			self.onClose = onClose
+			self.onLogout = onLogout
 			self.externalBrowser = externalBrowser
 		}
 
@@ -108,6 +120,10 @@ struct ReaderWebView: UIViewControllerRepresentable {
 			case .close:
 				decisionHandler(.cancel)
 				onClose()
+			case .logout:
+				// Cancelled, so WebKit never tries to resolve the custom scheme.
+				decisionHandler(.cancel)
+				onLogout()
 			case let .openExternally(target):
 				decisionHandler(.cancel)
 				externalBrowser.open(target) { _ in }
@@ -115,8 +131,8 @@ struct ReaderWebView: UIViewControllerRepresentable {
 		}
 
 		/// Without a UI delegate WKWebView suppresses JS dialogs and answers
-		/// `false`, so the account page's `hx-confirm`-gated "Delete account"
-		/// silently does nothing in-app. The panel-kind → dialog mapping is the
+		/// `false`, so a server page that gates an action behind `window.confirm()`
+		/// would silently do nothing in-app. The panel-kind → dialog mapping is the
 		/// pure, unit-tested `WebDialog`; these hand the native answer straight to
 		/// WebKit's completion handler (exactly once on every path — `WebDialog`'s
 		/// contract). `prompt()` is deliberately unimplemented: no server page

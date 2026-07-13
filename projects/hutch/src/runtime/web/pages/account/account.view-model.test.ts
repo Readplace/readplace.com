@@ -241,12 +241,13 @@ describe("withoutCommerce — iOS app surface (Guideline 3.1.1)", () => {
 	it("hides the payment-methods section", () => {
 		const web = toAccountViewModel({ tier: "paid", access: "full", banner: "none" }, baseQuery, now);
 		assert.equal(web.showCardSection, true);
-		assert.equal(withoutCommerce(web).showCardSection, false);
+		assert.equal(withoutCommerce(web, { appShell: false }).showCardSection, false);
 	});
 
 	it("keeps the cancel control but routes it through ?platform=ios so its post-redirect keeps the surface", () => {
 		const vm = withoutCommerce(
 			toAccountViewModel({ tier: "paid", access: "full", banner: "none" }, baseQuery, now),
+			{ appShell: false },
 		);
 		assert.deepEqual(
 			vm.actions.map((a) => a.key),
@@ -266,6 +267,7 @@ describe("withoutCommerce — iOS app surface (Guideline 3.1.1)", () => {
 				baseQuery,
 				now,
 			),
+			{ appShell: false },
 		);
 		assert.deepEqual(vm.actions, []);
 	});
@@ -282,6 +284,7 @@ describe("withoutCommerce — iOS app surface (Guideline 3.1.1)", () => {
 				baseQuery,
 				now,
 			),
+			{ appShell: false },
 		);
 		assert.deepEqual(vm.actions, []);
 	});
@@ -293,6 +296,7 @@ describe("withoutCommerce — iOS app surface (Guideline 3.1.1)", () => {
 				baseQuery,
 				now,
 			),
+			{ appShell: false },
 		);
 		assert.equal(vm.dangerAction.key, "delete-account");
 		assert.equal(
@@ -300,6 +304,21 @@ describe("withoutCommerce — iOS app surface (Guideline 3.1.1)", () => {
 			"/account/delete?utm_source=account&utm_medium=internal&utm_content=delete-account&platform=ios",
 		);
 		assert.deepEqual(vm.actions, []);
+	});
+
+	it("stamps the app-shell marker alongside platform=ios on every surviving control, so a boosted POST comes back chromeless", () => {
+		const vm = withoutCommerce(
+			toAccountViewModel({ tier: "paid", access: "full", banner: "none" }, baseQuery, now),
+			{ appShell: true },
+		);
+		assert.equal(
+			vm.actions[0].href,
+			"/account/cancel?utm_source=account&utm_medium=internal&utm_content=cancel-form&platform=ios&shell=app",
+		);
+		assert.equal(
+			vm.dangerAction.href,
+			"/account/delete?utm_source=account&utm_medium=internal&utm_content=delete-account&platform=ios&shell=app",
+		);
 	});
 });
 

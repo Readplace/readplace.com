@@ -1,5 +1,8 @@
     <main class="account">
       <div class="account__header">
+        {{#if backLink}}
+        <a class="account__back" href="{{backLink.href}}" data-test-account-back-link>{{backLink.label}}</a>
+        {{/if}}
         <h1 class="account__title">{{heading}}</h1>
       </div>
       <section class="{{stateClass}}" data-test-account-card data-test-account-state="{{state}}">

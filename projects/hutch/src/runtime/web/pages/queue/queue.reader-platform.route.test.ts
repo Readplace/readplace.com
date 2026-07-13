@@ -189,6 +189,17 @@ describe("Queue reader chromeless switch (GET /queue/:id/view?platform=ios)", ()
 		expect(doc.body.classList.contains("page-reader--chromeless")).toBe(true);
 	});
 
+	it("serves the site's local-time rewrite so in-app dates aren't stuck on the server's timezone, but not WebMCP — there is no in-page AI agent in a WKWebView", async () => {
+		const harness = buildHarness();
+		const agent = await loginAgent(harness.server, harness.auth);
+		const articleId = await saveAndGetArticleId(agent, "https://example.com/app-local-time");
+
+		const doc = new JSDOM((await agent.get(`/queue/${articleId}/view?platform=ios`)).text).window.document;
+
+		expect(doc.querySelector('script[src*="/client-dist/local-time.client.js"]')).not.toBe(null);
+		expect(doc.querySelector('script[src*="/client-dist/webmcp.client.js"]')).toBe(null);
+	});
+
 	it("keeps the reader extras: AI summary, progress bar, share balloon, and View original", async () => {
 		const harness = buildHarness();
 		const agent = await loginAgent(harness.server, harness.auth);

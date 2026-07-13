@@ -46,8 +46,9 @@ import {
 import { type TrialSchedulerPort, startTrial } from "../../../domain/trial/start-trial";
 import { CHECKOUT_VARIANTS, type CheckoutVariant } from "../../../observability/events";
 import type { EmitSubscriptionEvent } from "../../../observability/subscription-events";
-import { Base } from "../../base.component";
+import { Base, ChromelessPage } from "../../base.component";
 import type { BuildBannerState } from "../../banner-state";
+import { ACCOUNT_LOGOUT_HREF, APP_BACK_LINK } from "../../shared/ios-app-links";
 import { HxRedirectPage } from "../../hx-redirect-page";
 import { sendComponent } from "@packages/web-shell";
 import type { EffectiveAccess, GetEffectiveAccess } from "@packages/subscription-access";
@@ -63,7 +64,7 @@ import {
 	toAccountViewModel,
 	withoutCommerce,
 } from "./account.view-model";
-import { isIosSurface } from "../../onboarding/ios-client";
+import { isAppShell, isIosSurface } from "../../onboarding/ios-client";
 import {
 	ACCOUNT_ERROR_ADD_CARD_FAILED_URL,
 	ACCOUNT_ERROR_CANNOT_REMOVE_PRIMARY_URL,
@@ -154,7 +155,22 @@ export function initAccountRoutes(deps: AccountDependencies): Router {
 		},
 	): Promise<void> {
 		const webVm = toAccountViewModel(input.access, parseAccountQuery(req.query), deps.now());
-		const vm = isIosSurface(req) ? withoutCommerce(webVm) : webVm;
+		// Inside the app's web sheet every nav and footer link would yank the user out
+		// into their OS default browser, where they are not signed in — so the app
+		// shell gets the same chromeless page the reader does, with a deep link back
+		// to the native list as its only navigation.
+		if (isAppShell(req)) {
+			sendComponent(
+				req, res,
+				ChromelessPage(
+					AccountPage(withoutCommerce(webVm, { appShell: true }), input.cardSection, {
+						backLink: { href: APP_BACK_LINK.topHref, label: APP_BACK_LINK.label },
+					}),
+				),
+			);
+			return;
+		}
+		const vm = isIosSurface(req) ? withoutCommerce(webVm, { appShell: false }) : webVm;
 		const bannerState = await deps.buildBannerState(req, { preFetchedAccess: input.access });
 		sendComponent(req, res, Base(AccountPage(vm, input.cardSection), bannerState));
 	}
@@ -369,7 +385,14 @@ export function initAccountRoutes(deps: AccountDependencies): Router {
 	router.post("/cancel", async (req: Request, res: Response) => {
 		assert(req.userId, "userId required - route must be protected by requireAuth");
 		await deps.publishCancelSubscriptionCommand({ userId: req.userId });
-		res.redirect(303, buildAccountUrl({ cancelling: true, iosSurface: isIosSurface(req) }));
+		res.redirect(
+			303,
+			buildAccountUrl({
+				cancelling: true,
+				iosSurface: isIosSurface(req),
+				appShell: isAppShell(req),
+			}),
+		);
 	});
 
 	/** Irreversible account deletion. The synchronous work here revokes every
@@ -389,7 +412,14 @@ export function initAccountRoutes(deps: AccountDependencies): Router {
 			// Thread the surface through the POST-Redirect-GET like /cancel does, so a
 			// rejected delete on the iOS in-app surface re-renders commerce-free rather
 			// than bouncing to the web surface with its subscribe CTAs (Guideline 3.1.1).
-			res.redirect(303, buildAccountUrl({ deleteConfirmationError: true, iosSurface: isIosSurface(req) }));
+			res.redirect(
+				303,
+				buildAccountUrl({
+					deleteConfirmationError: true,
+					iosSurface: isIosSurface(req),
+					appShell: isAppShell(req),
+				}),
+			);
 			return;
 		}
 		await deps.destroyUserSessions(userId);
@@ -399,8 +429,11 @@ export function initAccountRoutes(deps: AccountDependencies): Router {
 		// Deletion logs the user out, so the whole page (nav, banner) must reset to
 		// the guest view. A boosted form would only swap <main> and leave a stale
 		// signed-in chrome, so force a full navigation to the logged-out home —
-		// HX-Redirect for HTMX requests, a plain 303 otherwise.
-		redirectFullPage(req, res, "/");
+		// HX-Redirect for HTMX requests, a plain 303 otherwise. Inside the app's web
+		// sheet there is no chrome to reset and the logged-out marketing home would be
+		// nonsense, so the app shell is sent a deep link its navigation delegate
+		// intercepts: it dismisses the sheet and signs the app out locally.
+		redirectFullPage(req, res, isAppShell(req) ? ACCOUNT_LOGOUT_HREF : "/");
 	});
 
 	router.post("/reactivate", async (req: Request, res: Response) => {

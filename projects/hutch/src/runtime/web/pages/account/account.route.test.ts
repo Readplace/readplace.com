@@ -198,6 +198,163 @@ describe("POST /account/cancel?platform=ios", () => {
 		expect(response.status).toBe(303);
 		expect(response.headers.location).toBe("/account?cancelling=1&platform=ios");
 	});
+
+	it("preserves the app shell too, so the re-render stays chromeless instead of dropping the web shell back in", async () => {
+		const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
+		const { subscriptionProviders } = harness;
+		const { agent, userId } = await loginUser(harness, "shell-cancel@example.com");
+		await subscriptionProviders.upsertActive({
+			userId,
+			subscriptionId: "sub_shell_cancel",
+			customerId: "cus_shell_cancel",
+		});
+
+		const response = await agent.post("/account/cancel?platform=ios&shell=app");
+
+		expect(response.status).toBe(303);
+		expect(response.headers.location).toBe("/account?cancelling=1&platform=ios&shell=app");
+	});
+});
+
+describe("GET /account?platform=ios&shell=app (the app's in-app web sheet)", () => {
+	it("renders chromeless — no header, nav, footer or banner area, so no link can yank the user into a logged-out browser", async () => {
+		const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
+		const agent = await loginAgent(harness.server, harness.auth);
+
+		const response = await agent.get("/account?platform=ios&shell=app");
+
+		expect(response.status).toBe(200);
+		const doc = new JSDOM(response.text).window.document;
+		assert(doc.querySelector("[data-test-account-card]"), "the account page itself must render");
+		expect(doc.querySelector(".header")).toBeNull();
+		expect(doc.querySelector(".nav")).toBeNull();
+		expect(doc.querySelector(".footer")).toBeNull();
+		expect(doc.querySelector(".banner-area")).toBeNull();
+		expect(doc.body.classList.contains("page-account--chromeless")).toBe(true);
+	});
+
+	it("gives the sheet its only way back: the close deep link, inside <main> so a boosted swap can't destroy it", async () => {
+		const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
+		const agent = await loginAgent(harness.server, harness.auth);
+
+		const doc = new JSDOM((await agent.get("/account?platform=ios&shell=app")).text).window.document;
+
+		const back = doc.querySelector("[data-test-account-back-link]");
+		assert(back, "the chromeless account page must render a back link");
+		expect(back.getAttribute("href")).toBe("readplace://reader/close");
+		// Every form on the page is hx-target="main" hx-swap="outerHTML", so anything
+		// outside <main> is destroyed on the first boosted POST.
+		const main = doc.querySelector("main.account");
+		assert(main, "the account page must render its <main>");
+		expect(main.contains(back)).toBe(true);
+		// A boosted link would XHR the deep link and fail silently; the delegate only
+		// sees a real navigation.
+		expect(back.hasAttribute("hx-boost")).toBe(false);
+	});
+
+	it("carries the page styles inside <main> so a boosted swap brings its own CSS", async () => {
+		const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
+		const agent = await loginAgent(harness.server, harness.auth);
+
+		const doc = new JSDOM((await agent.get("/account?platform=ios&shell=app")).text).window.document;
+
+		const style = doc.querySelector("main.account style");
+		assert(style, "the page styles must be injected into <main>");
+		expect(style.textContent).toContain(".account__back");
+	});
+
+	it("serves local-time (the trial cutoff would otherwise freeze at the server's UTC baseline) but neither WebMCP nor the Stripe card glue", async () => {
+		const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
+		const { subscriptionProviders } = harness;
+		const { agent, userId } = await loginUser(harness, "shell-scripts@example.com");
+		await subscriptionProviders.upsertTrialing({
+			userId,
+			trialEndsAt: new Date(Date.now() + 7 * ONE_DAY_MS).toISOString(),
+		});
+
+		const response = await agent.get("/account?platform=ios&shell=app");
+		const doc = new JSDOM(response.text).window.document;
+
+		assert(
+			doc.querySelector("[data-test-account-status] time[data-local-time]"),
+			"the trial cutoff renders as a localisable <time>",
+		);
+		expect(doc.querySelector('script[src*="/client-dist/local-time.client.js"]')).not.toBeNull();
+		// No in-page AI agent inside a WKWebView, and withoutCommerce guarantees the
+		// Stripe Elements container can never render here.
+		expect(doc.querySelector('script[src*="/client-dist/webmcp.client.js"]')).toBeNull();
+		expect(doc.querySelector('script[src*="/client-dist/account-cards.client.js"]')).toBeNull();
+	});
+
+	it("still hides commerce, and stamps both markers on the surviving controls so a boosted POST returns chromeless", async () => {
+		const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
+		const { subscriptionProviders } = harness;
+		const { agent, userId } = await loginUser(harness, "shell-commerce@example.com");
+		await subscriptionProviders.upsertActive({
+			userId,
+			subscriptionId: "sub_shell",
+			customerId: "cus_shell",
+		});
+
+		const doc = new JSDOM((await agent.get("/account?platform=ios&shell=app")).text).window.document;
+
+		expect(doc.querySelector("[data-test-cards-section]")).toBeNull();
+		expect(actionKeys(doc)).toEqual(["cancel-form"]);
+		expect(findAction(doc, "cancel-form").getAttribute("action")).toBe(
+			"/account/cancel?utm_source=account&utm_medium=internal&utm_content=cancel-form&platform=ios&shell=app",
+		);
+		const deleteForm = doc.querySelector('[data-test-danger-action="delete-account"]');
+		assert(deleteForm, "the delete form must render on the app surface");
+		expect(deleteForm.getAttribute("action")).toBe(
+			"/account/delete?utm_source=account&utm_medium=internal&utm_content=delete-account&platform=ios&shell=app",
+		);
+	});
+
+	it("treats the app shell as an iOS surface on its own — the app never has to carry both markers for commerce to stay hidden", async () => {
+		const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
+		const { subscriptionProviders } = harness;
+		const { agent, userId } = await loginUser(harness, "shell-only@example.com");
+		await subscriptionProviders.upsertTrialing({
+			userId,
+			trialEndsAt: new Date(Date.now() + 7 * ONE_DAY_MS).toISOString(),
+		});
+
+		const doc = new JSDOM((await agent.get("/account?shell=app")).text).window.document;
+
+		expect(doc.body.classList.contains("page-account--chromeless")).toBe(true);
+		// Guideline 3.1.1 holds off the shell marker alone: no Subscribe CTA, no cards.
+		expect(actionKeys(doc)).toEqual([]);
+		expect(doc.querySelector("[data-test-cards-section]")).toBeNull();
+	});
+
+	it("keeps the full web shell for a store build that predates the marker — it sends platform=ios alone and cannot drive a deep link", async () => {
+		const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
+		const agent = await loginAgent(harness.server, harness.auth);
+
+		const doc = new JSDOM((await agent.get("/account?platform=ios")).text).window.document;
+
+		expect(doc.querySelector(".header")).not.toBeNull();
+		expect(doc.querySelector(".footer")).not.toBeNull();
+		expect(doc.querySelector("[data-test-account-back-link]")).toBeNull();
+		expect(doc.body.classList.contains("page-account--chromeless")).toBe(false);
+		// The old surface still satisfies Guideline 3.1.1.
+		expect(doc.querySelector("[data-test-cards-section]")).toBeNull();
+	});
+
+	it("leaves the plain web account page untouched — shell, cards script and no back link", async () => {
+		const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
+		const agent = await loginAgent(harness.server, harness.auth);
+
+		const response = await agent.get("/account");
+		const doc = new JSDOM(response.text).window.document;
+
+		expect(doc.querySelector(".header")).not.toBeNull();
+		expect(doc.querySelector(".footer")).not.toBeNull();
+		expect(doc.querySelector("[data-test-account-back-link]")).toBeNull();
+		expect(doc.body.classList.contains("page-account")).toBe(true);
+		expect(doc.body.classList.contains("page-account--chromeless")).toBe(false);
+		expect(doc.querySelector('script[src*="/client-dist/account-cards.client.js"]')).not.toBeNull();
+	});
 });
 
 describe("GET /account?error=payment_method", () => {
@@ -1908,6 +2065,65 @@ describe("POST /account/delete", () => {
 
 		expect(response.status).toBe(303);
 		expect(response.headers.location).toBe("/account?error=delete_confirmation&platform=ios");
+	});
+
+	it("preserves the app shell across a rejected delete so the notice re-renders chromeless", async () => {
+		const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
+		const { agent } = await loginUser(harness, "shell-delete-reject@example.com");
+
+		const response = await agent.post("/account/delete?platform=ios&shell=app");
+
+		expect(response.status).toBe(303);
+		expect(response.headers.location).toBe(
+			"/account?error=delete_confirmation&platform=ios&shell=app",
+		);
+	});
+
+	it("sends the app shell to the sign-out deep link instead of the logged-out home, which would be marketing chrome inside the sheet", async () => {
+		const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
+		const { agent } = await loginUser(harness, "shell-delete@example.com");
+
+		// The in-app form is hx-boosted, so the app's WKWebView reaches the deep link
+		// through HX-Redirect — the delegate sees a navigation and cancels it.
+		const response = await agent
+			.post("/account/delete?platform=ios&shell=app")
+			.set("HX-Request", "true")
+			.type("form")
+			.send({ confirmation: "delete my account permanently" });
+
+		expect(response.status).toBe(200);
+		expect(response.headers["hx-redirect"]).toBe("readplace://account/logout");
+	});
+
+	it("sends the same sign-out deep link on the plain 303 path, for an app shell whose htmx failed to load", async () => {
+		const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
+		const { agent } = await loginUser(harness, "shell-delete-303@example.com");
+
+		const response = await agent
+			.post("/account/delete?platform=ios&shell=app")
+			.type("form")
+			.send({ confirmation: "delete my account permanently" });
+
+		expect(response.status).toBe(303);
+		expect(response.headers.location).toBe("readplace://account/logout");
+
+		// The account is still deleted — the session no longer authenticates.
+		const after = await agent.get("/account");
+		expect(after.status).toBe(303);
+		expect(after.headers.location).toBe("/login");
+	});
+
+	it("keeps sending a pre-marker app build to the logged-out home — it cannot execute a deep link", async () => {
+		const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
+		const { agent } = await loginUser(harness, "ios-delete-oldbuild@example.com");
+
+		const response = await agent
+			.post("/account/delete?platform=ios")
+			.type("form")
+			.send({ confirmation: "delete my account permanently" });
+
+		expect(response.status).toBe(303);
+		expect(response.headers.location).toBe("/");
 	});
 
 	it("redirects unauthenticated callers to /login", async () => {
