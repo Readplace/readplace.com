@@ -80,6 +80,17 @@ describe("withUnwrapPreprocessing — validator decorator", () => {
 		expect(seen()).toBe(oversized);
 	});
 
+	it("trims before measuring length, so a whitespace-padded over-length self-URL is still unwrapped", () => {
+		const { validate, seen } = captureValidator();
+		const selfUrl = "https://readplace.com/view/example.com/article";
+		const padded = `${selfUrl}${" ".repeat(MAX_SAVEABLE_URL_LENGTH)}`;
+		expect(padded.length).toBeGreaterThan(MAX_SAVEABLE_URL_LENGTH);
+		const unwrapSelfUrl: UnwrapPreprocessor = (url) =>
+			url === selfUrl ? "https://example.com/article" : url;
+		withUnwrapPreprocessing(validate, unwrapSelfUrl, CONTEXT)(padded);
+		expect(seen()).toBe("https://example.com/article");
+	});
+
 	it("returns the wrapped validator's result", () => {
 		const result: SaveableUrlResult = {
 			status: "ERROR",

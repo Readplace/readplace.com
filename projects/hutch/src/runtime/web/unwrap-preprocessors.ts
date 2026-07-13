@@ -43,10 +43,11 @@ export function withUnwrapPreprocessing(
 	preprocess: UnwrapPreprocessor,
 	context: UnwrapContext,
 ): ValidateSaveableUrl {
-	return (value) =>
-		validate(
-			typeof value === "string" && value.length <= MAX_SAVEABLE_URL_LENGTH
-				? preprocess(value, context)
-				: value,
+	return (value) => {
+		if (typeof value !== "string") return validate(value);
+		const trimmed = value.trim();
+		return validate(
+			trimmed.length <= MAX_SAVEABLE_URL_LENGTH ? preprocess(trimmed, context) : trimmed,
 		);
+	};
 }
