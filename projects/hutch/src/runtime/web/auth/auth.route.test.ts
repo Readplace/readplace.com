@@ -1765,7 +1765,7 @@ describe("Auth routes", () => {
 			expect(signupDoc.querySelector("[data-test-founding-blurb]")).toBeNull();
 		}, 30000);
 
-		it("states the trial length and yearly price in the /signup hint when the founding allocation is exhausted", async () => {
+		it("states the trial length and monthly price in the /signup hint when the founding allocation is exhausted", async () => {
 			const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
 			const { auth } = harness;
 			for (let i = 0; i < TEST_FOUNDING_MEMBER_LIMIT; i++) {
@@ -1774,7 +1774,7 @@ describe("Auth routes", () => {
 
 			const doc = new JSDOM((await request(harness.server).get("/signup")).text).window.document;
 			expect(doc.querySelector("[data-test-trial-hint]")?.textContent).toBe(
-				"14-day free trial, then $49/year. No credit card required.",
+				"14-day free trial, then $4.08/month. No credit card required.",
 			);
 		}, 30000);
 

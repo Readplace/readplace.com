@@ -296,7 +296,7 @@ describe("GET /", () => {
 		).toBeTruthy();
 	});
 
-	it("renders the founding card as the ONLY plan in the DOM when under the limit — a CSS-hidden $49 card would leak into the markdown/crawler view", async () => {
+	it("renders the founding card as the ONLY plan in the DOM when under the limit — a CSS-hidden paid card would leak into the markdown/crawler view", async () => {
 		const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
 		const response = await request(harness.server).get("/");
 		const doc = new JSDOM(response.text).window.document;
@@ -397,7 +397,7 @@ describe("GET /", () => {
 
 		const section = doc.querySelector('[data-test-section="cost-transparency"]');
 		assert(section, "cost transparency section must be rendered");
-		expect(section.querySelector(".home-cost__heading")?.textContent).toContain("$49");
+		expect(section.querySelector(".home-cost__heading")?.textContent).toContain("$4.08");
 		const items = section.querySelectorAll("[data-test-cost-list] .home-cost__item");
 		expect(items.length).toBe(3);
 		const providerNames = Array.from(
@@ -538,7 +538,7 @@ describe("GET /", () => {
 
 		expect(faq.mainEntity.length).toBe(6);
 		expect(faq.mainEntity[0].name).toBe("What is Readplace?");
-		expect(faq.mainEntity[4].name).toBe("What does the $49/year subscription pay for?");
+		expect(faq.mainEntity[4].name).toBe("What does the $4.08/month subscription pay for?");
 		expect(faq.mainEntity[5].name).toBe("Does Readplace hallucinate text when extracting PDFs?");
 	});
 

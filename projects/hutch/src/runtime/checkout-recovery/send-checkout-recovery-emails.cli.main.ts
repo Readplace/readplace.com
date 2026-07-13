@@ -1,6 +1,6 @@
 import { createDynamoDocumentClient } from "@packages/hutch-storage-client";
 import { HutchLogger, consoleLogger } from "@packages/hutch-logger";
-import { ANNUAL_PRICE_DISPLAY } from "@packages/web-shell";
+import { MONTHLY_EQUIVALENT_DISPLAY } from "@packages/web-shell";
 import { initDynamoDbPendingSignup } from "../providers/pending-signup/dynamodb-pending-signup";
 import { initResendEmail } from "../providers/email/resend-email";
 import { initStripeCheckout } from "../providers/stripe-checkout/stripe-checkout";
@@ -57,7 +57,7 @@ async function main(): Promise<void> {
 		const email = CheckoutRecoveryEmail({
 			founderAvatarUrl,
 			resumeUrl,
-			annualPrice: ANNUAL_PRICE_DISPLAY,
+			monthlyPrice: MONTHLY_EQUIVALENT_DISPLAY,
 		});
 		const message = {
 			from,

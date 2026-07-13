@@ -1,6 +1,7 @@
-/** The annual price as shown to people — in the checkout-recovery email and the
- * MCP renewal upsell. Display-only: the amount actually charged is Stripe's
- * STRIPE_PRICE_ID. Centralised so the two surfaces can't quote different prices. */
-export const ANNUAL_PRICE_DISPLAY = "$49";
+const ANNUAL_PRICE_USD = 49;
 
-export const SUBSCRIBE_CTA_LABEL = `Subscribe — ${ANNUAL_PRICE_DISPLAY}/year`;
+export const ANNUAL_PRICE_DISPLAY = `$${ANNUAL_PRICE_USD}`;
+
+export const MONTHLY_EQUIVALENT_DISPLAY = `$${(ANNUAL_PRICE_USD / 12).toFixed(2)}`;
+
+export const SUBSCRIBE_CTA_LABEL = `Subscribe — ${MONTHLY_EQUIVALENT_DISPLAY}/month`;
