@@ -259,8 +259,7 @@ const PANEL_DATA = {
 	},
 	chrome: {
 		variant: "browser",
-		intro:
-			'Listed as "Hutch" on the Chrome Web Store. Works in Chrome, Edge, Brave, and other Chromium browsers.',
+		intro: "Works in Chrome, Edge, Brave, and other Chromium browsers.",
 		ctaLabel: "Install Readplace for Chrome",
 		ctaTestId: "download-chrome",
 	},
