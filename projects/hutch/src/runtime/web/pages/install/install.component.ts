@@ -217,8 +217,9 @@ const CLIENT_SCREENSHOTS = {
 			height: 1127,
 		},
 	],
-	claude: [],
 	chatgpt: [],
+	gemini: [],
+	claude: [],
 } satisfies Record<ClientName, readonly InstallScreenshot[]>;
 
 interface InstallScreenshotView {
@@ -247,7 +248,7 @@ function buildScreenshots(client: ClientName, staticBaseUrl: string): InstallScr
 type PanelData =
 	| { variant: "browser"; intro: string; ctaLabel: string; ctaTestId: string }
 	| { variant: "iphone" }
-	| { variant: "ai"; intro: string; prompt: string; requirement: string };
+	| { variant: "ai"; intro: string; promptLabel: string; prompt: string; requirement: string };
 
 const PANEL_DATA = {
 	firefox: {
@@ -264,20 +265,31 @@ const PANEL_DATA = {
 		ctaTestId: "download-chrome",
 	},
 	iphone: { variant: "iphone" },
-	claude: {
-		variant: "ai",
-		intro:
-			"Readplace runs an MCP server. Connect it once and Claude can save pages to your queue and read your list back, right inside the conversation.",
-		prompt: "Add readplace.com/mcp as a connector so you can save pages to and read my reading list.",
-		requirement: "Works on Free, Pro, Max, Team, and Enterprise — the Free plan allows one custom connector.",
-	},
 	chatgpt: {
 		variant: "ai",
 		intro:
 			"The same MCP server connects through ChatGPT's developer mode. Once it's on, ChatGPT can read your list and save links for you.",
+		promptLabel: "Or just ask ChatGPT",
 		prompt: "Connect to readplace.com so you can save pages to and read my reading list.",
 		requirement:
 			"Needs a paid plan (Plus, Pro, Business, Enterprise, or Edu) with developer mode turned on from the web.",
+	},
+	gemini: {
+		variant: "ai",
+		intro:
+			"The same MCP server connects from the Gemini CLI. Add it once and Gemini can save pages to your queue and read your list back, right inside the conversation.",
+		promptLabel: "Run this once",
+		prompt: "gemini mcp add --transport http readplace https://readplace.com/mcp",
+		requirement:
+			"Free from the Gemini CLI — no paid plan. Connecting inside the Gemini app instead needs Google AI Ultra, where custom connectors live in Gemini Spark.",
+	},
+	claude: {
+		variant: "ai",
+		intro:
+			"Readplace runs an MCP server. Connect it once and Claude can save pages to your queue and read your list back, right inside the conversation.",
+		promptLabel: "Or just ask Claude",
+		prompt: "Add readplace.com/mcp as a connector so you can save pages to and read my reading list.",
+		requirement: "Works on Free, Pro, Max, Team, and Enterprise — the Free plan allows one custom connector.",
 	},
 } satisfies Record<ClientName, PanelData>;
 
@@ -292,6 +304,7 @@ interface BrowserExtension {
 interface AiAssistant {
 	name: string;
 	intro: string;
+	promptLabel: string;
 	prompt: string;
 	requirement: string;
 }
@@ -324,6 +337,7 @@ function buildPanel(active: InstallClient, firefoxDownloadUrl: string | null): P
 				assistant: {
 					name: client.displayName,
 					intro: data.intro,
+					promptLabel: data.promptLabel,
 					prompt: data.prompt,
 					requirement: data.requirement,
 				},

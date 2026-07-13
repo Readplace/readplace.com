@@ -63,7 +63,7 @@ describe("GET /install", () => {
 		const tabs = Array.from(doc.querySelectorAll("[data-test-tab]")).map(
 			(el) => el.getAttribute("data-test-tab"),
 		);
-		expect(tabs).toEqual(["firefox", "chrome", "iphone", "claude", "chatgpt"]);
+		expect(tabs).toEqual(["firefox", "chrome", "iphone", "chatgpt", "gemini", "claude"]);
 	});
 
 	it("should split tabs into a Browsers & Devices group and an AI Assistants group", async () => {
@@ -88,7 +88,7 @@ describe("GET /install", () => {
 		const aiTabs = Array.from(ai.querySelectorAll("[data-test-tab]")).map(
 			(el) => el.getAttribute("data-test-tab"),
 		);
-		expect(aiTabs).toEqual(["claude", "chatgpt"]);
+		expect(aiTabs).toEqual(["chatgpt", "gemini", "claude"]);
 	});
 
 	it("should render the group labels visibly", async () => {
@@ -417,6 +417,25 @@ describe("GET /install", () => {
 		).toBe("Connect to readplace.com so you can save pages to and read my reading list.");
 	});
 
+	it("should show the Gemini CLI command on the Gemini AI panel", async () => {
+		const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
+		const response = await request(harness.server).get("/install?client=gemini");
+		const doc = load(response.text);
+
+		const geminiTab = doc.querySelector('[data-test-tab="gemini"]');
+		expect(geminiTab?.classList.contains("install-page__tab--active")).toBe(true);
+
+		expect(doc.querySelector('[data-test-panel="ai"] .install-page__panel-title')?.textContent).toBe(
+			"Connect Readplace to Gemini",
+		);
+		expect(
+			doc.querySelector('[data-test-section="ai-prompt"] .install-page__prompt-label')?.textContent,
+		).toBe("Run this once");
+		expect(
+			doc.querySelector('[data-test-section="ai-prompt"] .install-page__prompt-text')?.textContent,
+		).toBe("gemini mcp add --transport http readplace https://readplace.com/mcp");
+	});
+
 	it("should land client=ai on the Claude tab as a convenience alias", async () => {
 		const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
 		const response = await request(harness.server).get("/install?client=ai");
@@ -492,7 +511,7 @@ describe("GET /install", () => {
 	it("should not render screenshots on AI panels", async () => {
 		const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
 
-		for (const client of ["claude", "chatgpt"]) {
+		for (const client of ["chatgpt", "gemini", "claude"]) {
 			const response = await request(harness.server).get(`/install?client=${client}`);
 			const doc = load(response.text);
 			expect(doc.querySelectorAll("[data-test-screenshot]")).toHaveLength(0);
