@@ -99,17 +99,20 @@ RUN [ -d /usr/local/aws-cli ] || command -v aws >/dev/null 2>&1 || ( \
    && /tmp/aws/install \
    && rm -rf /tmp/aws /tmp/awscliv2.zip )
 
-# NOTE: `runner` deliberately KEEPS the base image's passwordless sudo for now.
-# Dropping it (gpasswd -d runner sudo) is tempting — it would close a real hole,
-# since a job can `sudo cat /root/gh-pat.env` and recover the repo-admin PAT
-# without touching the docker socket — but it BREAKS the E2E suites: the browser
-# install in @packages/test-phase-runner shells out to `playwright install
-# --with-deps`, which apt-gets the OS libs via sudo and fails with "a password is
-# required". Closing the hole therefore requires first making the browser install
-# sudo-free (the libs are already baked into this image by `install-deps` above,
-# so --with-deps is redundant here). Until then the PAT is reachable by any job,
-# and runner-secret-audit.yml check 8 records that rather than pretending
-# otherwise. Do not re-drop sudo without fixing the install path first.
+# Drop the runner user's passwordless sudo. The base image puts `runner` in the
+# sudo group (`%sudo ALL=(ALL) NOPASSWD: ALL`), which defeats the /root PAT seal:
+# a job could `sudo cat /root/gh-pat.env` and take the repo-admin token. Nothing
+# on this runner needs it — /entrypoint.sh drops privileges with gosu, not sudo,
+# and the sole sudo caller (the `playwright install --with-deps` in
+# @packages/test-phase-runner) now skips --with-deps on self-hosted, where the OS
+# libs are already baked by `install-deps` above (run-test-phases.ts gates it on
+# RUNNER_ENVIRONMENT). Verified: a real E2E run executed all four suites on the
+# sudo-less image with zero apt/sudo errors. runner-secret-audit.yml check 8
+# asserts this stays closed. NOTE this shuts only the DIRECT read path — the
+# container-wide docker.sock mount is still a root-equivalent host escape that can
+# reach the PAT on the host fs regardless of sudo; sealing that (host-minted
+# registration token, no PAT in the container) is the tracked next step.
+RUN if id -nG runner | tr ' ' '\n' | grep -qx sudo; then gpasswd -d runner sudo; fi
 
 # The PAT reaches the runner as a root-only file, never as an env var, so it is
 # absent from the container environment (and thus from /proc/1/environ, which a

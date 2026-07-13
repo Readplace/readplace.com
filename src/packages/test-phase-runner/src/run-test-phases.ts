@@ -166,13 +166,15 @@ function resolvePlaywrightPhase(
 	};
 }
 
-// `playwright install --with-deps` shells out to apt-get, whose dpkg frontend
-// lock is held for the entire duration of any other apt process on the runner
-// (the image's unattended-upgrades, or a sibling project installing its own
-// browsers under a parallel nx target). An immediate retry just races the same
-// still-held lock, so wait between attempts to let it clear. Four attempts with
-// a 10s wait absorbs ~30s of contention — long enough to outlast a sibling
-// browser install, short enough to still fail loudly on a genuinely stuck apt.
+// The retry exists for the --with-deps path (github-hosted runners, incl. fork
+// PRs): `playwright install --with-deps` shells out to apt-get, whose dpkg
+// frontend lock is held for the entire duration of any other apt process (the
+// image's unattended-upgrades, or a sibling project's parallel browser install).
+// An immediate retry just races the still-held lock, so wait between attempts to
+// let it clear — four attempts with a 10s wait outlasts a sibling install while
+// still failing loudly on a genuinely stuck apt. On self-hosted the OS libs are
+// baked into the image, so --with-deps is omitted and no apt runs; the retry is
+// then a harmless no-op cushion (a bare `playwright install` rarely fails twice).
 export const BROWSER_INSTALL_MAX_ATTEMPTS = 4;
 export const BROWSER_INSTALL_RETRY_DELAY_MS = 10_000;
 
