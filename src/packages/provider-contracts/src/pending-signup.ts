@@ -1,5 +1,5 @@
 import type { UserId } from "@packages/domain/user";
-import type { CheckoutSessionId } from "./hosted-checkout";
+import type { CheckoutSessionId, CheckoutVariant } from "./hosted-checkout";
 
 /** An already-signed-in user clicked Subscribe on /account. There is no
  * account to create — just upsertActive on the existing userId once the
@@ -10,6 +10,8 @@ export type PendingSignup = {
 	userId: UserId;
 	returnUrl?: string;
 	trialEndsAt?: string;
+	/** Optional: rows written before the funnel was instrumented carry no variant. */
+	variant?: CheckoutVariant;
 };
 
 export interface PendingSignupSummary {

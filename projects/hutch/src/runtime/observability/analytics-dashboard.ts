@@ -686,6 +686,23 @@ export function buildAnalyticsDashboardBody(deps: BuildAnalyticsDashboardDeps): 
 			x: 12, y: 138, width: 12, height: 8,
 			view: "bar",
 		}),
+		logWidget({
+			region,
+			title: "Conversions per day — real charges vs $0 trial captures",
+			logGroupNames: [hutchLogGroupName],
+			// A completed checkout is not necessarily revenue: a trial-preserving
+			// checkout captures a card for $0 (paid_now:false). A saved-card
+			// resubscribe charges immediately and never touches Stripe Checkout, so it
+			// has no checkout_started/completed pair and is counted on its own event.
+			query: [
+				"fields @timestamp, event, paid_now",
+				`| filter stream = "${STREAMS.subscriptions}"`,
+				`| filter event in ["${SUBSCRIPTION_EVENTS.checkoutCompleted}", "${SUBSCRIPTION_EVENTS.resubscribeCompleted}"]`,
+				"| stats count_distinct(user_id) as users by bin(1d), event, paid_now",
+			].join(" "),
+			x: 0, y: 146, width: 12, height: 8,
+			view: "timeSeries",
+		}),
 	);
 
 	return { widgets };

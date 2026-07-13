@@ -150,6 +150,46 @@ describe("initEmitSubscriptionEvent", () => {
 		}]);
 	});
 
+	it("carries the originating variant on checkout_completed so completions split by entry path without a self-join back to checkout_started", () => {
+		const { logger, captured } = createCapturingLogger();
+		const emit = initEmitSubscriptionEvent({ logger, now: NOW });
+
+		emit.checkoutCompleted({
+			userId: USER_ID,
+			subscriptionId: "sub_123",
+			checkoutSessionId: "cs_test_1",
+			paidNow: true,
+			variant: CHECKOUT_VARIANTS.cancelledResubscribe,
+		});
+
+		expect(captured).toEqual([{
+			stream: "subscriptions",
+			event: "checkout_completed",
+			timestamp: "2026-05-25T10:00:00.000Z",
+			user_id: USER_ID,
+			subscription_id: "sub_123",
+			checkout_session_id: "cs_test_1",
+			paid_now: true,
+			variant: "cancelled_resubscribe",
+		}]);
+	});
+
+	it("emits resubscribe_completed with paid_now:true — a saved-card resubscribe charges immediately and never passes through Stripe Checkout", () => {
+		const { logger, captured } = createCapturingLogger();
+		const emit = initEmitSubscriptionEvent({ logger, now: NOW });
+
+		emit.resubscribeCompleted({ userId: USER_ID, subscriptionId: "sub_resub" });
+
+		expect(captured).toEqual([{
+			stream: "subscriptions",
+			event: "resubscribe_completed",
+			timestamp: "2026-05-25T10:00:00.000Z",
+			user_id: USER_ID,
+			subscription_id: "sub_resub",
+			paid_now: true,
+		}]);
+	});
+
 	it("emits a checkout_return_failed event with user_id and checkout_session_id when both are known", () => {
 		const { logger, captured } = createCapturingLogger();
 		const emit = initEmitSubscriptionEvent({ logger, now: NOW });

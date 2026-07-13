@@ -593,6 +593,14 @@ describe("POST /account/subscribe", () => {
 		expect(row.customerId).toBe("cus_was_paid");
 
 		expect(harness.subscriptionEvents.events.filter((e) => e.event === "checkout_started")).toHaveLength(0);
+
+		const resubscribed = harness.subscriptionEvents.events.filter(
+			(e) => e.event === "resubscribe_completed",
+		);
+		expect(resubscribed).toHaveLength(1);
+		expect(resubscribed[0].user_id).toBe(userId);
+		expect(resubscribed[0].subscription_id).toBe(created[0].subscriptionId);
+		expect(resubscribed[0].paid_now).toBe(true);
 	});
 
 	it("cancelled user with customerId — saved-card Stripe call throws → fall back to Stripe Checkout (not the dead-end error page), row stays cancelled until the new checkout completes", async () => {
@@ -659,6 +667,9 @@ describe("POST /account/subscribe", () => {
 		expect(subscriptionBilling.createdSubscriptions()).toHaveLength(1);
 		expect(
 			harness.subscriptionEvents.events.filter((e) => e.event === "checkout_started"),
+		).toHaveLength(0);
+		expect(
+			harness.subscriptionEvents.events.filter((e) => e.event === "resubscribe_completed"),
 		).toHaveLength(0);
 	});
 

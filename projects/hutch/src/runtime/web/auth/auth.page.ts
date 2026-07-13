@@ -507,9 +507,17 @@ export function initAuthRoutes(deps: AuthDependencies): Router {
 			subscriptionId,
 			checkoutSessionId,
 			paidNow: session.paymentStatus === "paid",
+			variant: pending.variant,
 		});
-		await deps.trialScheduler.deleteTrialEndSchedule({ userId: pending.userId });
-		await deps.trialScheduler.deleteTrialReminderSchedule({ userId: pending.userId });
+		try {
+			await deps.trialScheduler.deleteTrialEndSchedule({ userId: pending.userId });
+			await deps.trialScheduler.deleteTrialReminderSchedule({ userId: pending.userId });
+		} catch (err) {
+			deps.logError(
+				"[checkout/success] Clearing the trial schedules failed — continuing; the user has already paid and is active",
+				err instanceof Error ? err : new Error(String(err)),
+			);
+		}
 		if (pending.trialEndsAt) {
 			try {
 				await deps.trialScheduler.createChargeReminderSchedule({

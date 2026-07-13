@@ -20,6 +20,17 @@ export type CheckoutSessionStatus = "open" | "complete" | "expired";
 
 export type CheckoutPaymentStatus = "paid" | "unpaid" | "no_payment_required";
 
+/** Which entry path sent the user to Stripe Checkout. Persisted on the pending
+ * signup because the subscription row it was derived from has moved on by the
+ * time the user returns from Stripe. */
+export const CheckoutVariantSchema = z.enum([
+	"trial_checkout",
+	"cancelled_resubscribe",
+	"card_decline_fallback",
+]);
+
+export type CheckoutVariant = z.infer<typeof CheckoutVariantSchema>;
+
 export type RetrieveCheckoutSession = (id: CheckoutSessionId) => Promise<
 	| {
 			ok: true;

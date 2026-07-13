@@ -154,6 +154,77 @@ describe("GET /auth/checkout/success", () => {
 		expect(typeof evt.timestamp).toBe("string");
 	});
 
+	it("carries the originating variant on checkout_completed, so a completion attributes to its entry path without a self-join", async () => {
+		const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
+		const { auth, hostedCheckout, pendingSignup } = harness;
+
+		await completeCheckoutSignup({
+			server: harness.server,
+			auth,
+			hostedCheckout,
+			pendingSignup,
+			email: "variant-carried@example.com",
+			password: "password123",
+			variant: "card_decline_fallback",
+		});
+
+		expect(harness.subscriptionEvents.events).toHaveLength(1);
+		const evt = harness.subscriptionEvents.events[0];
+		expect(evt.event).toBe("checkout_completed");
+		expect(evt.variant).toBe("card_decline_fallback");
+	});
+
+	it("still completes the checkout when clearing the trial schedules throws — the user has already paid, so a scheduler fault must not 500 them or lose the conversion", async () => {
+		const fixture = createDefaultTestAppFixture(TEST_APP_ORIGIN);
+		fixture.trialScheduler.deleteTrialEndSchedule = async () => {
+			throw new Error("EventBridge Scheduler unavailable");
+		};
+		const harness = useApp(fixture);
+		const { auth, hostedCheckout, pendingSignup, subscriptionProviders } = harness;
+
+		const { successResponse } = await completeCheckoutSignup({
+			server: harness.server,
+			auth,
+			hostedCheckout,
+			pendingSignup,
+			email: "schedule-delete-down@example.com",
+			password: "password123",
+		});
+
+		expect(successResponse.status).toBe(303);
+		expect(successResponse.headers.location).toBe("/queue");
+		const lookup = await auth.findUserByEmail("schedule-delete-down@example.com");
+		assert(lookup, "user must exist after paid signup");
+		const row = await subscriptionProviders.findByUserId(lookup.userId);
+		assert(row, "subscription row must exist");
+		expect(row.status).toBe("active");
+
+		expect(harness.subscriptionEvents.events).toHaveLength(1);
+		expect(harness.subscriptionEvents.events[0].event).toBe("checkout_completed");
+	});
+
+	it("still completes the checkout when the trial-schedule cleanup rejects with a non-Error value", async () => {
+		const fixture = createDefaultTestAppFixture(TEST_APP_ORIGIN);
+		fixture.trialScheduler.deleteTrialReminderSchedule = async () => {
+			throw "scheduler exploded";
+		};
+		const harness = useApp(fixture);
+		const { auth, hostedCheckout, pendingSignup } = harness;
+
+		const { successResponse } = await completeCheckoutSignup({
+			server: harness.server,
+			auth,
+			hostedCheckout,
+			pendingSignup,
+			email: "schedule-delete-non-error@example.com",
+			password: "password123",
+		});
+
+		expect(successResponse.status).toBe(303);
+		expect(successResponse.headers.location).toBe("/queue");
+		expect(harness.subscriptionEvents.events[0].event).toBe("checkout_completed");
+	});
+
 	it("records paid_now:false on checkout_completed when Stripe collected nothing now (a $0 trial-preserving checkout returns no_payment_required)", async () => {
 		const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
 		const { auth, hostedCheckout, pendingSignup } = harness;

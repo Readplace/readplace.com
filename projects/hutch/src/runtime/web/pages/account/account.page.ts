@@ -108,7 +108,7 @@ interface AccountDependencies {
 	logger: HutchLogger;
 	now: () => Date;
 	buildBannerState: BuildBannerState;
-	emitSubscriptionEvent: Pick<EmitSubscriptionEvent, "checkoutStarted">;
+	emitSubscriptionEvent: Pick<EmitSubscriptionEvent, "checkoutStarted" | "resubscribeCompleted">;
 }
 
 type SubscribeBranchKey = "trialing" | "cancelled" | "noop" | "forbidden";
@@ -508,6 +508,7 @@ export function initAccountRoutes(deps: AccountDependencies): Router {
 				userId,
 				returnUrl: "/queue",
 				trialEndsAt: params.trialEndsAt,
+				variant: params.variant,
 			},
 			createdAt: deps.now().getTime(),
 		});
@@ -593,6 +594,7 @@ export function initAccountRoutes(deps: AccountDependencies): Router {
 				subscriptionId,
 				customerId: row.customerId,
 			});
+			deps.emitSubscriptionEvent.resubscribeCompleted({ userId, subscriptionId });
 			res.redirect(303, buildAccountUrl());
 		},
 		noop: async (_req, res) => {
