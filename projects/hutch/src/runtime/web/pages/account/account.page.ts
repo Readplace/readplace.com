@@ -46,6 +46,8 @@ import {
 	chargeReminderFiresAt,
 	trialReminderFiresAt,
 } from "../../../domain/stripe/stripe-trial-config";
+import { CHECKOUT_VARIANTS, type CheckoutVariant } from "../../../observability/events";
+import type { EmitSubscriptionEvent } from "../../../observability/subscription-events";
 import { Base } from "../../base.component";
 import type { BuildBannerState } from "../../banner-state";
 import { HxRedirectPage } from "../../hx-redirect-page";
@@ -106,6 +108,7 @@ interface AccountDependencies {
 	logger: HutchLogger;
 	now: () => Date;
 	buildBannerState: BuildBannerState;
+	emitSubscriptionEvent: Pick<EmitSubscriptionEvent, "checkoutStarted" | "resubscribeCompleted">;
 }
 
 type SubscribeBranchKey = "trialing" | "cancelled" | "noop" | "forbidden";
@@ -483,7 +486,7 @@ export function initAccountRoutes(deps: AccountDependencies): Router {
 
 	async function startCheckout(
 		req: Request,
-		opts: { trialEndsAt: string | undefined },
+		params: { trialEndsAt: string | undefined; variant: CheckoutVariant },
 	): Promise<{ id: CheckoutSessionId; url: string }> {
 		assert(req.userId, "userId required - route must be protected by requireAuth");
 		const userId = req.userId;
@@ -494,7 +497,7 @@ export function initAccountRoutes(deps: AccountDependencies): Router {
 			customerEmail: email,
 			successUrl: deps.buildCheckoutSuccessUrl("{CHECKOUT_SESSION_ID}"),
 			cancelUrl: `${deps.appOrigin}${buildAccountUrl()}`,
-			trialEndsAt: opts.trialEndsAt,
+			trialEndsAt: params.trialEndsAt,
 		});
 
 		await deps.storePendingSignup({
@@ -504,9 +507,16 @@ export function initAccountRoutes(deps: AccountDependencies): Router {
 				email,
 				userId,
 				returnUrl: "/queue",
-				trialEndsAt: opts.trialEndsAt,
+				trialEndsAt: params.trialEndsAt,
+				variant: params.variant,
 			},
 			createdAt: deps.now().getTime(),
+		});
+
+		deps.emitSubscriptionEvent.checkoutStarted({
+			userId,
+			variant: params.variant,
+			checkoutSessionId: checkout.id,
 		});
 
 		return checkout;
@@ -540,6 +550,7 @@ export function initAccountRoutes(deps: AccountDependencies): Router {
 					trialRemainingMs >= STRIPE_CHECKOUT_MIN_TRIAL_END_LEAD_MS
 						? row.trialEndsAt
 						: undefined,
+				variant: CHECKOUT_VARIANTS.trialCheckout,
 			});
 			redirectFullPage(req, res, checkout.url);
 		},
@@ -552,34 +563,39 @@ export function initAccountRoutes(deps: AccountDependencies): Router {
 					"[subscribe] cancelled row without customerId — falling back to checkout",
 					{ userId },
 				);
-				const checkout = await startCheckout(req, { trialEndsAt: undefined });
+				const checkout = await startCheckout(req, {
+					trialEndsAt: undefined,
+					variant: CHECKOUT_VARIANTS.cancelledResubscribe,
+				});
 				redirectFullPage(req, res, checkout.url);
 				return;
 			}
+			let subscriptionId: string;
 			try {
-				const { subscriptionId } = await deps.createSubscriptionOnExistingCustomer({
+				({ subscriptionId } = await deps.createSubscriptionOnExistingCustomer({
 					customerId: row.customerId,
 					priceId: deps.stripePriceId,
 					userId,
-				});
-				await deps.upsertActiveSubscription({
-					userId,
-					subscriptionId,
-					customerId: row.customerId,
-				});
-				res.redirect(303, buildAccountUrl());
+				}));
 			} catch (err) {
-									/** Stripe rejected the saved card (declined, expired, fingerprint
-					 * mismatch, etc.). Rather than parking the user on a dead-end
-					 * error page, fall through to Stripe Checkout so they can enter
-					 * a new card. */
 				deps.logger.warn(
-					"[subscribe/cancelled] one-click resub failed — falling back to checkout",
+					"[subscribe/cancelled] saved-card charge failed — falling back to checkout",
 					{ userId, error: err instanceof Error ? err.message : String(err) },
 				);
-				const checkout = await startCheckout(req, { trialEndsAt: undefined });
+				const checkout = await startCheckout(req, {
+					trialEndsAt: undefined,
+					variant: CHECKOUT_VARIANTS.cardDeclineFallback,
+				});
 				redirectFullPage(req, res, checkout.url);
+				return;
 			}
+			await deps.upsertActiveSubscription({
+				userId,
+				subscriptionId,
+				customerId: row.customerId,
+			});
+			deps.emitSubscriptionEvent.resubscribeCompleted({ userId, subscriptionId });
+			res.redirect(303, buildAccountUrl());
 		},
 		noop: async (_req, res) => {
 			res.redirect(303, buildAccountUrl());

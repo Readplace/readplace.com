@@ -36,6 +36,7 @@ import type {
 } from "@packages/provider-contracts/trial-scheduler";
 import {
 	CheckoutSessionIdSchema,
+	type CheckoutSessionId,
 	type RetrieveCheckoutSession,
 } from "@packages/provider-contracts/hosted-checkout";
 import type {
@@ -75,6 +76,11 @@ import { emitUserCreated } from "../../conversions";
 import type { AnalyticsEvent } from "@packages/web-analytics";
 import { buildSignupAttemptedEvent } from "@packages/web-analytics";
 import { SIGNUP_OUTCOMES, type SignupOutcome } from "../../observability/events";
+import {
+	CHECKOUT_RETURN_FAILURE_REASONS,
+	type CheckoutReturnFailureReason,
+} from "../../observability/events";
+import type { EmitSubscriptionEvent } from "../../observability/subscription-events";
 import { DISPOSABLE_EMAIL_MESSAGE } from "./disposable-email";
 
 const TokenQuerySchema = z.object({ token: z.string().optional() }).passthrough();
@@ -122,6 +128,10 @@ interface AuthDependencies {
 	conversionLogger: HutchLogger.Typed<ConversionEvent>;
 	analytics: HutchLogger.Typed<AnalyticsEvent>;
 	salt: string;
+	emitSubscriptionEvent: Pick<
+		EmitSubscriptionEvent,
+		"checkoutCompleted" | "checkoutReturnFailed"
+	>;
 	foundingAllocation: FoundingAllocation;
 	buildBannerState: BuildBannerState;
 	consumeRateLimit: ConsumeRateLimit;
@@ -423,42 +433,54 @@ export function initAuthRoutes(deps: AuthDependencies): Router {
 	});
 
 	router.get("/auth/checkout/success", async (req: Request, res: Response) => {
-		const parsedQuery = CheckoutSuccessQuerySchema.safeParse(req.query);
-		if (!parsedQuery.success) {
+		const renderFailure = async (params: {
+			statusCode: number;
+			message: string;
+			reason: CheckoutReturnFailureReason;
+			checkoutSessionId?: CheckoutSessionId;
+		}) => {
+			deps.emitSubscriptionEvent.checkoutReturnFailed({
+				reason: params.reason,
+				userId: req.userId,
+				checkoutSessionId: params.checkoutSessionId,
+			});
 			const userCount = await fetchUserCount();
 			sendComponent(
 				req, res,
-				Base(SignupPage(
-					{
-						userCount,
-						foundingAllocation: deps.foundingAllocation,
-						loadedAt: deps.now().getTime(),
-						errors: [{ message: "Missing checkout session — please start again." }],
-					},
-					{ statusCode: 400 },
-				), bannerStateFromRequest(req)),
+				Base(SignupPage({ userCount, foundingAllocation: deps.foundingAllocation, loadedAt: deps.now().getTime(), errors: [{ message: params.message }] }, { statusCode: params.statusCode }), bannerStateFromRequest(req)),
 			);
+		};
+
+		const parsedQuery = CheckoutSuccessQuerySchema.safeParse(req.query);
+		if (!parsedQuery.success) {
+			await renderFailure({
+				statusCode: 400,
+				message: "Missing checkout session — please start again.",
+				reason: CHECKOUT_RETURN_FAILURE_REASONS.invalidQuery,
+			});
 			return;
 		}
 
 		const checkoutSessionId = CheckoutSessionIdSchema.parse(parsedQuery.data.session_id);
 		const session = await deps.retrieveCheckoutSession(checkoutSessionId);
 
-		const renderFailure = async (statusCode: number, message: string) => {
-			const userCount = await fetchUserCount();
-			sendComponent(
-				req, res,
-				Base(SignupPage({ userCount, foundingAllocation: deps.foundingAllocation, loadedAt: deps.now().getTime(), errors: [{ message }] }, { statusCode }), bannerStateFromRequest(req)),
-			);
-		};
-
 		if (!session.ok) {
-			await renderFailure(404, "Checkout session not found — please start again.");
+			await renderFailure({
+				statusCode: 404,
+				message: "Checkout session not found — please start again.",
+				reason: CHECKOUT_RETURN_FAILURE_REASONS.sessionNotFound,
+				checkoutSessionId,
+			});
 			return;
 		}
 
 		if (!session.paid || session.status !== "complete") {
-			await renderFailure(402, "Payment was not completed. Please try again.");
+			await renderFailure({
+				statusCode: 402,
+				message: "Payment was not completed. Please try again.",
+				reason: CHECKOUT_RETURN_FAILURE_REASONS.notPaid,
+				checkoutSessionId,
+			});
 			return;
 		}
 
@@ -468,7 +490,12 @@ export function initAuthRoutes(deps: AuthDependencies): Router {
 
 		const pending = await deps.consumePendingSignup(checkoutSessionId);
 		if (!pending) {
-			await renderFailure(409, "This checkout link has already been used.");
+			await renderFailure({
+				statusCode: 409,
+				message: "This checkout link has already been used.",
+				reason: CHECKOUT_RETURN_FAILURE_REASONS.replayed,
+				checkoutSessionId,
+			});
 			return;
 		}
 
@@ -477,8 +504,25 @@ export function initAuthRoutes(deps: AuthDependencies): Router {
 			subscriptionId,
 			customerId,
 		});
-		await deps.trialScheduler.deleteTrialEndSchedule({ userId: pending.userId });
-		await deps.trialScheduler.deleteTrialReminderSchedule({ userId: pending.userId });
+		// paid_now separates a real charge from a $0 trial capture: Stripe reports
+		// no_payment_required for a trial-preserving checkout, which still counts as
+		// a completed checkout but not revenue.
+		deps.emitSubscriptionEvent.checkoutCompleted({
+			userId: pending.userId,
+			subscriptionId,
+			checkoutSessionId,
+			paidNow: session.paymentStatus === "paid",
+			variant: pending.variant,
+		});
+		try {
+			await deps.trialScheduler.deleteTrialEndSchedule({ userId: pending.userId });
+			await deps.trialScheduler.deleteTrialReminderSchedule({ userId: pending.userId });
+		} catch (err) {
+			deps.logError(
+				"[checkout/success] Clearing the trial schedules failed — continuing; the user has already paid and is active",
+				err instanceof Error ? err : new Error(String(err)),
+			);
+		}
 		if (pending.trialEndsAt) {
 			try {
 				await deps.trialScheduler.createChargeReminderSchedule({

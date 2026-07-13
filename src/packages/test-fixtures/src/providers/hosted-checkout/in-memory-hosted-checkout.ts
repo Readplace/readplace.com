@@ -1,6 +1,7 @@
 import { randomBytes } from "node:crypto";
 import { CheckoutSessionIdSchema } from "./hosted-checkout.schema";
 import type {
+	CheckoutPaymentStatus,
 	CheckoutSessionId,
 	CheckoutSessionStatus,
 	CreateCheckoutSession,
@@ -10,6 +11,7 @@ import type {
 interface StoredSession {
 	customerEmail: string;
 	paid: boolean;
+	paymentStatus: CheckoutPaymentStatus;
 	status: CheckoutSessionStatus;
 	created: number;
 	subscriptionId: string;
@@ -22,7 +24,7 @@ export function initInMemoryHostedCheckout(opts: {
 }): {
 	createCheckoutSession: CreateCheckoutSession;
 	retrieveCheckoutSession: RetrieveCheckoutSession;
-	markPaid: (id: CheckoutSessionId) => void;
+	markPaid: (id: CheckoutSessionId, opts?: { paymentStatus?: CheckoutPaymentStatus }) => void;
 	markExpired: (id: CheckoutSessionId) => void;
 	getCheckoutUrl: (id: CheckoutSessionId) => string;
 } {
@@ -35,6 +37,7 @@ export function initInMemoryHostedCheckout(opts: {
 		sessions.set(id, {
 			customerEmail,
 			paid: false,
+			paymentStatus: "unpaid",
 			status: "open",
 			created: Math.floor(opts.now().getTime() / 1000),
 			subscriptionId: `sub_test_${sessionSuffix}`,
@@ -51,6 +54,7 @@ export function initInMemoryHostedCheckout(opts: {
 		return {
 			ok: true,
 			paid: session.paid,
+			paymentStatus: session.paymentStatus,
 			customerEmail: session.customerEmail,
 			status: session.status,
 			created: session.created,
@@ -59,10 +63,11 @@ export function initInMemoryHostedCheckout(opts: {
 		};
 	};
 
-	const markPaid = (id: CheckoutSessionId) => {
+	const markPaid = (id: CheckoutSessionId, markOpts?: { paymentStatus?: CheckoutPaymentStatus }) => {
 		const session = sessions.get(id);
 		if (!session) throw new Error(`No checkout session: ${id}`);
 		session.paid = true;
+		session.paymentStatus = markOpts?.paymentStatus ?? "paid";
 		session.status = "complete";
 	};
 

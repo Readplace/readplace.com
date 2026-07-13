@@ -31,6 +31,10 @@ import { initFoundingAllocation } from "./web/shared/founding-progress/founding-
 import { type AnalyticsEvent, createAnalyticsMiddleware } from "@packages/web-analytics";
 import { DEFAULT_INBOX_ALIAS } from "@packages/domain/inbox";
 import type { UserId } from "@packages/domain/user";
+import type {
+	SubscriptionLogEvent,
+	SubscriptionLogEventView,
+} from "./observability/subscription-events";
 
 export type {
 	AdminBundle,
@@ -68,6 +72,11 @@ export interface AnalyticsBundle {
 	events: AnalyticsEvent[];
 }
 
+export interface SubscriptionEventsBundle {
+	logger: HutchLogger.Typed<SubscriptionLogEvent>;
+	events: SubscriptionLogEventView[];
+}
+
 export interface TestAppResult {
 	app: Express;
 	auth: AuthBundle;
@@ -88,11 +97,13 @@ export interface TestAppResult {
 	botDefense: BotDefenseBundle;
 	conversions: ConversionsBundle;
 	analytics: AnalyticsBundle;
+	subscriptionEvents: SubscriptionEventsBundle;
 }
 
 function flattenFixtureToAppDependencies(
 	fixture: TestAppFixture,
 	analyticsBundle: AnalyticsBundle,
+	subscriptionBundle: SubscriptionEventsBundle,
 ): Parameters<typeof createApp>[0] {
 	return {
 		validateSaveableUrl: withUnwrapPreprocessing(
@@ -224,6 +235,7 @@ function flattenFixtureToAppDependencies(
 		stripePublishableKey: fixture.stripePublishableKey,
 		botDefenseLogger: fixture.botDefense.logger,
 		conversionLogger: fixture.conversions.logger,
+		subscriptionLogger: subscriptionBundle.logger,
 		analytics: analyticsBundle.logger,
 		salt: "test-analytics-salt",
 		foundingAllocation: initFoundingAllocation({
@@ -250,13 +262,19 @@ export function createTestApp(
 		logger: { info: captureAnalytics, error: captureAnalytics, warn: captureAnalytics, debug: captureAnalytics },
 		events: analyticsEvents,
 	};
+	const subscriptionLogEvents: SubscriptionLogEventView[] = [];
+	const captureSubscription = (data: SubscriptionLogEvent) => { subscriptionLogEvents.push(data); };
+	const subscriptionBundle: SubscriptionEventsBundle = {
+		logger: { info: captureSubscription, error: captureSubscription, warn: captureSubscription, debug: captureSubscription },
+		events: subscriptionLogEvents,
+	};
 	const app = express()
 		.use(createAnalyticsMiddleware({
 			logger: analyticsBundle.logger,
 			salt: "test-analytics-salt",
 			now: fixture.shared.now,
 		}))
-		.use(createApp({ ...flattenFixtureToAppDependencies(fixture, analyticsBundle), ...overrides }));
+		.use(createApp({ ...flattenFixtureToAppDependencies(fixture, analyticsBundle, subscriptionBundle), ...overrides }));
 	return {
 		app,
 		auth: fixture.auth,
@@ -277,6 +295,7 @@ export function createTestApp(
 		botDefense: fixture.botDefense,
 		conversions: fixture.conversions,
 		analytics: analyticsBundle,
+		subscriptionEvents: subscriptionBundle,
 	};
 }
 
