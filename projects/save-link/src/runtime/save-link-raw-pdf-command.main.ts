@@ -82,6 +82,7 @@ export const handler = initSaveLinkRawPdfCommandHandler({
 	putTierSource: articleStore.putTierSource,
 	publishEvent: events.publishEvent,
 	transitionAndPersist: articleAggregate.transitionAndPersist,
+	now,
 	logger: consoleLogger,
 	logParseError: observability.logParseError,
 	logCrawlOutcome: observability.logCrawlOutcome,

@@ -75,6 +75,7 @@ import type {
 	DeleteArticle,
 	FindArticleById,
 	FindArticleByUrl,
+	FindArticleCrawlVersions,
 	FindArticleFreshness,
 	FindArticleUrlById,
 	FindArticlesByUser,
@@ -243,6 +244,7 @@ interface AppDependencies {
 	findArticleById: FindArticleById;
 	findArticleByUrl: FindArticleByUrl;
 	findArticleFreshness: FindArticleFreshness;
+	findArticleCrawlVersions: FindArticleCrawlVersions;
 	findArticleUrlById: FindArticleUrlById;
 	findArticlesByUser: FindArticlesByUser;
 	countArticlesByUser: CountArticlesByUser;
@@ -994,6 +996,7 @@ export function createApp(dependencies: AppDependencies): Express {
 		findArticleById: deps.findArticleById,
 		findArticleByUrl: deps.findArticleByUrl,
 		findArticleFreshness: deps.findArticleFreshness,
+		findArticleCrawlVersions: deps.findArticleCrawlVersions,
 		findArticleUrlById: deps.findArticleUrlById,
 		saveArticle: deps.saveArticle,
 		deleteArticle: deps.deleteArticle,
@@ -1073,6 +1076,7 @@ export function createApp(dependencies: AppDependencies): Express {
 		appOrigin,
 		findArticleByUrl: deps.findArticleByUrl,
 		findArticleFreshness: deps.findArticleFreshness,
+		findArticleCrawlVersions: deps.findArticleCrawlVersions,
 		readArticleContent: deps.readArticleContent,
 		findGeneratedSummary: deps.findGeneratedSummary,
 		markSummaryPending: deps.markSummaryPending,
@@ -1096,6 +1100,7 @@ export function createApp(dependencies: AppDependencies): Express {
 		appOrigin,
 		findArticleByUrl: deps.findArticleByUrl,
 		findArticleFreshness: deps.findArticleFreshness,
+		findArticleCrawlVersions: deps.findArticleCrawlVersions,
 		readArticleContent: deps.readArticleContent,
 		findGeneratedSummary: deps.findGeneratedSummary,
 		findArticleCrawlStatus: deps.findArticleCrawlStatus,

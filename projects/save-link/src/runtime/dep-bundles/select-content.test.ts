@@ -4,7 +4,7 @@ import { createDynamoDocumentClient } from "@packages/hutch-storage-client";
 import { initSelectContentDepBundle } from "./select-content";
 
 describe("initSelectContentDepBundle", () => {
-	it("returns a bundle with readTierSource, listAvailableTierSources, selectMostCompleteContent, writeCanonicalContent, and findContentSourceTier fields", () => {
+	it("returns a bundle with readTierSource, listAvailableTierSources, selectMostCompleteContent, writeCanonicalContent, findContentSourceTier, findCanonicalContentHash, and recordCrawlVersion fields", () => {
 		const bundle = initSelectContentDepBundle({
 			s3Client: new S3Client({ region: "us-east-1" }),
 			dynamoClient: createDynamoDocumentClient({ region: "us-east-1" }),
@@ -21,5 +21,7 @@ describe("initSelectContentDepBundle", () => {
 		expect(typeof bundle.selectMostCompleteContent).toBe("function");
 		expect(typeof bundle.writeCanonicalContent).toBe("function");
 		expect(typeof bundle.findContentSourceTier).toBe("function");
+		expect(typeof bundle.findCanonicalContentHash).toBe("function");
+		expect(typeof bundle.recordCrawlVersion).toBe("function");
 	});
 });

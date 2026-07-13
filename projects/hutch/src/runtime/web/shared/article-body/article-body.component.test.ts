@@ -1,6 +1,7 @@
 import assert from "node:assert/strict";
 import { JSDOM } from "jsdom";
 import type { Minutes } from "@packages/domain/article";
+import { toAbsoluteShortDateTime } from "@packages/web-shell/local-time.format";
 import { renderArticleBody } from "./article-body.component";
 
 const baseInput = {
@@ -170,6 +171,29 @@ describe("renderArticleBody", () => {
 		expect(slot.getAttribute("hx-get")).toBe("/queue/abc/reader?poll=1");
 		expect(slot.getAttribute("hx-trigger")).toBe("every 3s");
 		expect(slot.getAttribute("hx-swap")).toBe("outerHTML");
+	});
+
+	it("renders the crawl bookmark tabs when versions are supplied", () => {
+		const html = renderArticleBody({
+			...baseInput,
+			content: "<p>Body</p>",
+			crawlVersions: [
+				toAbsoluteShortDateTime({ iso: "2026-07-10T09:14Z" }),
+				toAbsoluteShortDateTime({ iso: "2026-06-28T22:01Z" }),
+			],
+		});
+		const doc = parse(html);
+
+		const keys = Array.from(doc.querySelectorAll("[data-test-crawl-bookmark-tab]")).map((el) =>
+			el.getAttribute("data-test-crawl-bookmark-tab"),
+		);
+		expect(keys).toEqual(["canonical", "2026-06-28T22:01Z"]);
+	});
+
+	it("omits the crawl bookmark when no versions are supplied", () => {
+		const html = renderArticleBody({ ...baseInput, content: "<p>Body</p>" });
+		const doc = parse(html);
+		expect(doc.querySelectorAll("[data-test-crawl-bookmark-tab]").length).toBe(0);
 	});
 
 	it("renders the reader-failed slot when crawl status is failed", () => {

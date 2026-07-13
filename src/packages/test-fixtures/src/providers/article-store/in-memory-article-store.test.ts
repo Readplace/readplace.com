@@ -558,6 +558,33 @@ describe("initInMemoryArticleStore", () => {
 
 	});
 
+	describe("crawl versions", () => {
+		it("findArticleCrawlVersions returns an empty list before any versions are recorded", async () => {
+			const store = initInMemoryArticleStore();
+			await store.saveArticle(makeArticleParams());
+
+			const versions = await store.findArticleCrawlVersions("https://example.com/article");
+
+			expect(versions).toEqual([]);
+		});
+
+		it("setCrawlVersions seeds the newest-first log surfaced by findArticleCrawlVersions", async () => {
+			const store = initInMemoryArticleStore();
+			await store.saveArticle(makeArticleParams());
+
+			await store.setCrawlVersions({
+				url: "https://example.com/article",
+				versions: ["2026-07-10T09:41Z", "2026-06-28T22:01Z"],
+			});
+			const versions = await store.findArticleCrawlVersions("https://example.com/article");
+
+			expect(versions).toEqual([
+				{ crawledAtMinute: "2026-07-10T09:41Z" },
+				{ crawledAtMinute: "2026-06-28T22:01Z" },
+			]);
+		});
+	});
+
 	describe("updateArticleStatus", () => {
 		it("should update status and set readAt for read", async () => {
 			const store = initInMemoryArticleStore();

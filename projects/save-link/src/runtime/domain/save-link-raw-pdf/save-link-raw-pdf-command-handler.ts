@@ -35,6 +35,7 @@ export function initSaveLinkRawPdfCommandHandler(deps: {
 	putTierSource: PutTierSource;
 	publishEvent: PublishEvent;
 	transitionAndPersist: TransitionAndPersist;
+	now: () => Date;
 	logger: HutchLogger;
 	logParseError: LogParseError;
 	logCrawlOutcome: LogCrawlOutcome;
@@ -49,6 +50,7 @@ export function initSaveLinkRawPdfCommandHandler(deps: {
 		putTierSource,
 		publishEvent,
 		transitionAndPersist,
+		now,
 		logger,
 		logParseError,
 		logCrawlOutcome,
@@ -169,6 +171,7 @@ export function initSaveLinkRawPdfCommandHandler(deps: {
 					url: detail.url,
 					tier: TIER,
 					userId: detail.userId,
+					extractedAt: now().toISOString(),
 				});
 
 				logger.info(`${logPrefix} tier-0 source written`, { url: detail.url });

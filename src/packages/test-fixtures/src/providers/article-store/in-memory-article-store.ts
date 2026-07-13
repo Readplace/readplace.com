@@ -15,6 +15,7 @@ import type {
 	DeleteArticle,
 	FindArticleById,
 	FindArticleByUrl,
+	FindArticleCrawlVersions,
 	FindArticleFreshness,
 	FindArticleUrlById,
 	FindArticlesByUser,
@@ -45,6 +46,7 @@ interface GlobalArticle {
 	contentFetchedAt?: string;
 	bodyHash?: string;
 	contentSourceTier?: "tier-0" | "tier-1";
+	crawlVersions?: string[];
 }
 
 interface UserArticle {
@@ -83,6 +85,7 @@ export function initInMemoryArticleStore(): {
 	findArticleByUrl: FindArticleByUrl;
 	findArticleUrlById: FindArticleUrlById;
 	findArticleFreshness: FindArticleFreshness;
+	findArticleCrawlVersions: FindArticleCrawlVersions;
 	findArticlesByUser: FindArticlesByUser;
 	countArticlesByUser: CountArticlesByUser;
 	deleteArticle: DeleteArticle;
@@ -105,6 +108,7 @@ export function initInMemoryArticleStore(): {
 	writeMetadata: (params: { url: string; metadata: ArticleMetadata; estimatedReadTime: Minutes }) => Promise<void>;
 	setContentSourceTier: (params: { url: string; tier: "tier-0" | "tier-1" }) => Promise<void>;
 	setContentFetchedAt: (params: { url: string; at: string }) => Promise<void>;
+	setCrawlVersions: (params: { url: string; versions: string[] }) => Promise<void>;
 } {
 	const articles = new Map<string, GlobalArticle>();
 	const userArticles = new Map<string, UserArticle>();
@@ -365,6 +369,12 @@ export function initInMemoryArticleStore(): {
 		};
 	};
 
+	const findArticleCrawlVersions: FindArticleCrawlVersions = async (url) => {
+		const articleResourceUniqueId = ArticleResourceUniqueId.parse(url);
+		const article = articles.get(articleResourceUniqueId.value);
+		return (article?.crawlVersions ?? []).map((crawledAtMinute) => ({ crawledAtMinute }));
+	};
+
 	const readContent: ContentProvider = async (articleResourceUniqueId) => {
 		const article = articles.get(articleResourceUniqueId.value);
 		if (!article) return undefined;
@@ -400,6 +410,13 @@ export function initInMemoryArticleStore(): {
 		article.contentFetchedAt = params.at;
 	};
 
+	const setCrawlVersions = async (params: { url: string; versions: string[] }) => {
+		const articleResourceUniqueId = ArticleResourceUniqueId.parse(params.url);
+		const article = articles.get(articleResourceUniqueId.value);
+		assert(article, `Article not found for URL: ${articleResourceUniqueId.value}`);
+		article.crawlVersions = params.versions;
+	};
+
 	return {
 		saveArticle,
 		saveArticleGlobally,
@@ -408,6 +425,7 @@ export function initInMemoryArticleStore(): {
 		findArticleByUrl,
 		findArticleUrlById,
 		findArticleFreshness,
+		findArticleCrawlVersions,
 		findArticlesByUser,
 		countArticlesByUser,
 		deleteArticle,
@@ -425,5 +443,6 @@ export function initInMemoryArticleStore(): {
 		writeMetadata,
 		setContentSourceTier,
 		setContentFetchedAt,
+		setCrawlVersions,
 	};
 }

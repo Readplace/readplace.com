@@ -12,6 +12,7 @@ import type {
 } from "@packages/provider-contracts/article-summary";
 import type {
 	FindArticleByUrl,
+	FindArticleCrawlVersions,
 	FindArticleFreshness,
 	ReadArticleContent,
 } from "@packages/provider-contracts/article-store";
@@ -27,6 +28,11 @@ export interface ArticleReaderDeps {
 	 * ArticleCrawl contract, which is consumed far more widely.
 	 */
 	findArticleFreshness: FindArticleFreshness;
+	/**
+	 * Per-article dated crawl-version log. Empty for pre-feature articles, where
+	 * the reader falls back to the single `contentFetchedAt` instant.
+	 */
+	findArticleCrawlVersions: FindArticleCrawlVersions;
 	/**
 	 * Deployment origin. Poll responses re-render the reader iframe when a crawl
 	 * finishes while the page is open, so the same-host link rewrite must run
@@ -80,7 +86,12 @@ export interface ReaderState {
 	 * percentage that will never advance).
 	 */
 	progress: ProgressTick | undefined;
-	lastCrawledAt: LocalTime | undefined;
+	/**
+	 * Dated crawl versions for the reader bookmark, newest first; the first entry
+	 * is the canonical/current version. `[]` hides the bookmark (article not yet
+	 * crawled).
+	 */
+	crawlVersions: LocalTime[];
 }
 
 export interface ResolveReaderStateParams {

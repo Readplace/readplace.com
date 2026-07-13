@@ -44,7 +44,7 @@ function initWithDom(
 const OPEN_BOOKMARK = `<details class="crawl-bookmark" open><summary class="crawl-bookmark__handle"></summary></details>`;
 const CLOSED_BOOKMARK = `<details class="crawl-bookmark"><summary class="crawl-bookmark__handle"></summary></details>`;
 const HANDLELESS_BOOKMARK = `<details class="crawl-bookmark" open></details>`;
-const BOOKMARK_WITH_TABS = `<details class="crawl-bookmark" open><summary class="crawl-bookmark__handle"></summary><ul class="crawl-bookmark__tabs"><li class="crawl-bookmark__tab"><span class="crawl-bookmark__prefix">Last crawled at</span> <time class="crawl-bookmark__time">1 Jan '26</time></li></ul></details>`;
+const BOOKMARK_WITH_TABS = `<details class="crawl-bookmark" open><summary class="crawl-bookmark__handle"></summary><ul class="crawl-bookmark__tabs"><li class="crawl-bookmark__tab crawl-bookmark__tab--current" aria-disabled="false"><time class="crawl-bookmark__time">10 Jul '26, 09:14</time><span class="crawl-bookmark__badge">current</span></li><li class="crawl-bookmark__tab crawl-bookmark__tab--disabled" aria-disabled="true"><time class="crawl-bookmark__time">28 Jun '26, 22:01</time></li></ul></details>`;
 
 function pickTabs(document: Document): HTMLElement {
 	const tabs = document.querySelector<HTMLElement>(".crawl-bookmark__tabs");
@@ -107,6 +107,17 @@ describe("initCrawlBookmark", () => {
 		assert.equal(bookmark.hasAttribute("open"), false, "clicking the panel closes it");
 		tabs.click();
 		assert.equal(bookmark.hasAttribute("open"), true, "clicking the panel opens it again");
+	});
+
+	it("toggles the whole capsule even when a disabled version tab is clicked", () => {
+		const { document } = initWithDom(BOOKMARK_WITH_TABS, false);
+		const bookmark = document.querySelector(".crawl-bookmark");
+		assert(bookmark, "the bookmark must be present");
+		const disabledTab = document.querySelector<HTMLElement>(".crawl-bookmark__tab--disabled");
+		assert(disabledTab, "a disabled version tab must be present");
+		assert.equal(bookmark.hasAttribute("open"), true, "a wide viewport starts open");
+		disabledTab.click();
+		assert.equal(bookmark.hasAttribute("open"), false, "clicking a disabled tab closes the capsule");
 	});
 
 	it("binds the panel toggle once, so re-syncing the same bookmark can't stack listeners", () => {

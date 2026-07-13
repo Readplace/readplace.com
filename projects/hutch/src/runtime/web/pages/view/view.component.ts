@@ -120,7 +120,7 @@ export interface ViewPageInput {
 	expiresAt: Date | null;
 	now: Date;
 	sharerUserIdPrefix?: SharedUserId;
-	lastCrawledAt?: LocalTime;
+	crawlVersions?: LocalTime[];
 }
 
 export function ViewPage(input: ViewPageInput): PageBody {
@@ -141,7 +141,7 @@ export function ViewPage(input: ViewPageInput): PageBody {
 		appOrigin: input.appOrigin,
 		topActionsHtml: actions.top.to("text/html").body,
 		bottomActionsHtml: actions.bottom.to("text/html").body,
-		lastCrawledAt: input.lastCrawledAt,
+		crawlVersions: input.crawlVersions,
 	});
 
 	const viewPath = viewPathFor(input.articleUrl);

@@ -69,6 +69,8 @@ function createHandler(overrides: Partial<HandlerDeps> = {}) {
 		selectMostCompleteContent: jest.fn().mockResolvedValue({ winner: "tie", reason: "" }),
 		writeCanonicalContent: jest.fn().mockResolvedValue(undefined),
 		findContentSourceTier: jest.fn().mockResolvedValue(undefined),
+		findCanonicalContentHash: jest.fn().mockResolvedValue(undefined),
+		recordCrawlVersion: jest.fn().mockResolvedValue(undefined),
 		transitionAndPersist,
 		now: () => FIXED_NOW,
 		logger: noopLogger,
@@ -192,6 +194,8 @@ describe("initRefreshContentExtractedHandler", () => {
 			listAvailableTierSources: jest.fn().mockResolvedValue([tier0, tier1]),
 			selectMostCompleteContent: jest.fn().mockResolvedValue({ winner: "tie", reason: "tied" }),
 			findContentSourceTier: jest.fn().mockResolvedValue("tier-0"),
+			// Same tier kept AND the readable text is unchanged, so canonical is not rewritten.
+			findCanonicalContentHash: jest.fn().mockResolvedValue(computeCanonicalContentHash(tier0.html)),
 			writeCanonicalContent,
 			transitionAndPersist,
 		});
@@ -279,6 +283,51 @@ describe("initRefreshContentExtractedHandler", () => {
 				}),
 			}),
 		);
+	});
+
+	it("rewrites canonical and records a version when the readable text changed even though the winner tier is unchanged (stale-canonical fix)", async () => {
+		const tier1 = tierSource("tier-1", { html: "<article><p>Freshly changed body.</p></article>" });
+		const writeCanonicalContent = jest.fn().mockResolvedValue(undefined);
+		const recordCrawlVersion = jest.fn().mockResolvedValue(undefined);
+
+		const { handler } = createHandler({
+			listAvailableTierSources: jest.fn().mockResolvedValue([tier1]),
+			findContentSourceTier: jest.fn().mockResolvedValue("tier-1"),
+			findCanonicalContentHash: jest.fn().mockResolvedValue("stale".padEnd(64, "0")),
+			writeCanonicalContent,
+			recordCrawlVersion,
+		});
+
+		await handler(createSqsEvent({ url: "https://example.com/a" }), buildLambdaContext(), () => {});
+
+		expect(writeCanonicalContent).toHaveBeenCalledWith({
+			url: "https://example.com/a",
+			tier: "tier-1",
+		});
+		expect(recordCrawlVersion).toHaveBeenCalledWith({
+			url: "https://example.com/a",
+			tier: "tier-1",
+			crawledAt: FRESHNESS.contentFetchedAt,
+		});
+	});
+
+	it("skips the canonical rewrite and recording when the tier and readable text are both unchanged", async () => {
+		const tier1 = tierSource("tier-1");
+		const writeCanonicalContent = jest.fn().mockResolvedValue(undefined);
+		const recordCrawlVersion = jest.fn().mockResolvedValue(undefined);
+
+		const { handler } = createHandler({
+			listAvailableTierSources: jest.fn().mockResolvedValue([tier1]),
+			findContentSourceTier: jest.fn().mockResolvedValue("tier-1"),
+			findCanonicalContentHash: jest.fn().mockResolvedValue(computeCanonicalContentHash(tier1.html)),
+			writeCanonicalContent,
+			recordCrawlVersion,
+		});
+
+		await handler(createSqsEvent({ url: "https://example.com/a" }), buildLambdaContext(), () => {});
+
+		expect(writeCanonicalContent).not.toHaveBeenCalled();
+		expect(recordCrawlVersion).not.toHaveBeenCalled();
 	});
 
 	it("reports the record as a batch failure when transitionAndPersist throws so SQS replays the whole transition once DDB is healthy again", async () => {

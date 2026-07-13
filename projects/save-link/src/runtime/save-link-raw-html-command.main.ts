@@ -56,4 +56,5 @@ export const handler = initSaveLinkRawHtmlCommandHandler({
 	...observability,
 	finalizeArticle: crawlAndFinalize.finalizeArticle,
 	readPendingHtml,
+	now,
 });

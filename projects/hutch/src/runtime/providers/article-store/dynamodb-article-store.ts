@@ -22,6 +22,7 @@ import type {
 	DeleteArticle,
 	FindArticleById,
 	FindArticleByUrl,
+	FindArticleCrawlVersions,
 	FindArticleFreshness,
 	FindArticleUrlById,
 	FindArticlesByUser,
@@ -45,6 +46,10 @@ const ArticleFreshnessRow = z.object({
 	etag: dynamoField(z.string()),
 	lastModified: dynamoField(z.string()),
 	contentFetchedAt: dynamoField(z.string()),
+});
+
+const ArticleCrawlVersionsRow = z.object({
+	crawlVersions: dynamoField(z.array(z.string())),
 });
 
 /** `routeId` column holds the `ReaderArticleHashId.value` (32-char hex). The Zod schema rehydrates it into a `ReaderArticleHashId` instance on read.
@@ -134,6 +139,7 @@ export function initDynamoDbArticleStore(deps: {
 	deleteAllUserArticles: DeleteAllUserArticles;
 	updateArticleStatus: UpdateArticleStatus;
 	findArticleFreshness: FindArticleFreshness;
+	findArticleCrawlVersions: FindArticleCrawlVersions;
 	markArticleViewed: MarkArticleViewed;
 	markSummaryToggled: MarkSummaryToggled;
 	markReaderViewSucceeded: MarkReaderViewSucceeded;
@@ -148,6 +154,7 @@ export function initDynamoDbArticleStore(deps: {
 	const unverifiedArticles = defineDynamoTable({ client, tableName, schema: UnverifiedArticleRow });
 	const articleContent = defineDynamoTable({ client, tableName, schema: ArticleContentRow });
 	const articleFreshness = defineDynamoTable({ client, tableName, schema: ArticleFreshnessRow });
+	const articleCrawlVersions = defineDynamoTable({ client, tableName, schema: ArticleCrawlVersionsRow });
 	const userArticles = defineDynamoTable({
 		client,
 		tableName: userArticlesTableName,
@@ -487,6 +494,15 @@ export function initDynamoDbArticleStore(deps: {
 		}
 	}
 
+	const findArticleCrawlVersions: FindArticleCrawlVersions = async (url) => {
+		const articleResourceUniqueId = ArticleResourceUniqueId.parse(url);
+		const row = await articleCrawlVersions.get(
+			{ url: articleResourceUniqueId.value },
+			{ projection: ["crawlVersions"] },
+		);
+		return (row?.crawlVersions ?? []).map((crawledAtMinute) => ({ crawledAtMinute }));
+	};
+
 	const markArticleViewed: MarkArticleViewed = async ({ userId, url, at }) => {
 		await stampUserArticleIfStillSaved({ userId, url, at, updateExpression: "SET viewedAt = :at" });
 	};
@@ -625,6 +641,7 @@ export function initDynamoDbArticleStore(deps: {
 		deleteAllUserArticles,
 		updateArticleStatus,
 		findArticleFreshness,
+		findArticleCrawlVersions,
 		markArticleViewed,
 		markSummaryToggled,
 		markReaderViewSucceeded,

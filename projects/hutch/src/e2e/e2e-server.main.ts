@@ -184,15 +184,17 @@ server.get('/e2e/sent-emails', (_req, res) => {
   res.json(email.getSentEmails())
 })
 
-// Seed a fully-crawled article with a fixed contentFetchedAt so the
-// crawl-bookmark visual test renders a stable "Last crawled at" label. Because
-// the row already exists, /view short-circuits its first-visit crawl cascade
-// (see handleViewArticle) and never overwrites the timestamp with wall-clock
-// time — keeping the screenshot deterministic across runs.
+// Seed a fully-crawled article with a fixed contentFetchedAt (and optional
+// dated crawlVersions) so the crawl-bookmark visual test renders stable,
+// deterministic date-time tab labels. Because the row already exists, /view
+// short-circuits its first-visit crawl cascade (see handleViewArticle) and
+// never overwrites the timestamp with wall-clock time — keeping the screenshot
+// deterministic across runs.
 const SeedCrawledArticleBody = z.object({
   url: z.string(),
   title: z.string(),
   contentFetchedAt: z.string(),
+  crawlVersions: z.array(z.string()).default([]),
 })
 server.post('/e2e/seed-crawled-article', async (req, res) => {
   const parsed = SeedCrawledArticleBody.safeParse(req.body)
@@ -200,7 +202,7 @@ server.post('/e2e/seed-crawled-article', async (req, res) => {
     res.status(400).json({ error: parsed.error.flatten() })
     return
   }
-  const { url, title, contentFetchedAt } = parsed.data
+  const { url, title, contentFetchedAt, crawlVersions } = parsed.data
   const hostname = new URL(url).hostname
   await fixture.articleStore.saveArticleGlobally({
     url,
@@ -214,6 +216,7 @@ server.post('/e2e/seed-crawled-article', async (req, res) => {
   })
   await fixture.articleCrawl.markCrawlReady({ url })
   await fixture.articleStore.setContentFetchedAt({ url, at: contentFetchedAt })
+  await fixture.articleStore.setCrawlVersions({ url, versions: crawlVersions })
   res.status(201).json({ ok: true })
 })
 

@@ -17,6 +17,8 @@ import type { ListAvailableTierSources } from "./list-available-tier-sources";
 import type { SelectMostCompleteContent } from "./select-content";
 import type { WriteCanonicalContent } from "../../providers/article-store/promote-tier-to-canonical";
 import type { FindContentSourceTier } from "../../providers/article-store/find-content-source-tier";
+import type { FindCanonicalContentHash } from "../../providers/article-store/find-canonical-content-hash";
+import type { RecordCrawlVersion } from "../../providers/article-store/record-crawl-version";
 import { computeCanonicalContentHash } from "../../providers/article-store/compute-canonical-content-hash";
 import { resolveCanonicalImageUrl } from "./resolve-canonical-image-url";
 import { initResolveTie } from "./resolve-tie";
@@ -27,6 +29,8 @@ export function initRecrawlContentExtractedHandler(deps: {
 	selectMostCompleteContent: SelectMostCompleteContent;
 	writeCanonicalContent: WriteCanonicalContent;
 	findContentSourceTier: FindContentSourceTier;
+	findCanonicalContentHash: FindCanonicalContentHash;
+	recordCrawlVersion: RecordCrawlVersion;
 	loadArticle: LoadArticle;
 	transitionAndPersist: TransitionAndPersist;
 	now: () => Date;
@@ -37,6 +41,8 @@ export function initRecrawlContentExtractedHandler(deps: {
 		selectMostCompleteContent,
 		writeCanonicalContent,
 		findContentSourceTier,
+		findCanonicalContentHash,
+		recordCrawlVersion,
 		loadArticle,
 		transitionAndPersist,
 		now,
@@ -112,8 +118,25 @@ export function initRecrawlContentExtractedHandler(deps: {
 					const winnerSource = sources.find((source) => source.tier === winnerTier);
 					assert(winnerSource, `winner tier ${winnerTier} missing from candidate set`);
 					const canonicalContentHash = computeCanonicalContentHash(winnerSource.html);
+					const currentTier = await findContentSourceTier(detail.url);
+					const previousHash = await findCanonicalContentHash(detail.url);
+					const contentChanged =
+						previousHash === undefined || previousHash !== canonicalContentHash;
+					const crawledAt = now().toISOString();
 
 					await writeCanonicalContent({ url: detail.url, tier: winnerTier });
+
+					if (contentChanged || currentTier !== winnerTier) {
+						/* Anchor the version's minute-id to the emitter's extraction instant,
+						 * not this handler's now(): a redelivery after a downstream failure
+						 * then re-copies to the same key and dedupes to a no-op instead of
+						 * recording a duplicate version in a later minute. */
+						await recordCrawlVersion({
+							url: detail.url,
+							tier: winnerTier,
+							crawledAt: detail.extractedAt ?? crawledAt,
+						});
+					}
 
 					await transitionAndPersist(recrawlPromoteTier, {
 						url: detail.url,
@@ -124,8 +147,8 @@ export function initRecrawlContentExtractedHandler(deps: {
 								imageUrl: resolveCanonicalImageUrl({ winner: winnerSource, candidates: sources }),
 							},
 							estimatedReadTime: winnerSource.metadata.estimatedReadTime,
-							contentFetchedAt: now().toISOString(),
-							now: now().toISOString(),
+							contentFetchedAt: crawledAt,
+							now: crawledAt,
 							canonicalContentHash,
 						},
 					});

@@ -74,6 +74,7 @@ export function initSaveAnonymousLinkCommandHandler(deps: {
 				await publishEvent(TierContentExtractedEvent, {
 					url: detail.url,
 					tier: "tier-1",
+					extractedAt: deps.now().toISOString(),
 				});
 				logger.info("[SaveAnonymousLinkCommand] emitted TierContentExtractedEvent", {
 					url: detail.url,

@@ -45,6 +45,7 @@ import type {
 	FindArticleById,
 	FindArticleByUrl,
 	FindArticleCrawlStatus,
+	FindArticleCrawlVersions,
 	FindArticleFreshness,
 	FindAppleRefreshTokenByUserId,
 	FindArticleUrlById,
@@ -242,6 +243,7 @@ export interface ArticleStoreBundle {
 	findArticleByUrl: FindArticleByUrl;
 	findArticleUrlById: FindArticleUrlById;
 	findArticleFreshness: FindArticleFreshness;
+	findArticleCrawlVersions: FindArticleCrawlVersions;
 	findArticlesByUser: FindArticlesByUser;
 	countArticlesByUser: CountArticlesByUser;
 	saveArticle: SaveArticle;
@@ -269,6 +271,7 @@ export interface ArticleStoreBundle {
 	}) => Promise<void>;
 	setContentSourceTier: (params: { url: string; tier: "tier-0" | "tier-1" }) => Promise<void>;
 	setContentFetchedAt: (params: { url: string; at: string }) => Promise<void>;
+	setCrawlVersions: (params: { url: string; versions: string[] }) => Promise<void>;
 }
 
 export interface ArticleCrawlBundle {

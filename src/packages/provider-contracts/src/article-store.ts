@@ -122,6 +122,17 @@ export type FindArticleFreshness = (
 	url: string,
 ) => Promise<ArticleFreshnessData | null>;
 
+/** Minute-precision UTC ISO-8601, e.g. "2026-07-10T09:41Z" — version identity and display value. */
+export interface ArticleCrawlVersion {
+	crawledAtMinute: string;
+}
+
+/** Newest first, minute-deduped at write time; the full log is retained (unbounded,
+ * kept forever) and [] for pre-feature articles. The reader bookmark shows only the newest few. */
+export type FindArticleCrawlVersions = (
+	url: string,
+) => Promise<ArticleCrawlVersion[]>;
+
 /** Stamp the per-user reader-view presence signal: the owner opened or polled
  * the reader for this article. Set server-side on every reader open/poll; the
  * reader-ready notifier emails only when `viewedAt` is set AND `viewedAt <

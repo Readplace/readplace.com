@@ -148,11 +148,33 @@ describe("Queue routes", () => {
 			const afterDoc = new JSDOM(after.text).window.document;
 			const tab = afterDoc.querySelector('[data-test-crawl-bookmark-tab="canonical"]');
 			assert(tab, "the canonical bookmark tab must render once contentFetchedAt exists");
+			expect(tab.classList.contains("crawl-bookmark__tab--current")).toBe(true);
+			expect(tab.getAttribute("aria-disabled")).toBe("false");
+			expect(tab.querySelector(".crawl-bookmark__badge")?.textContent).toBe("current");
 			const time = tab.querySelector("time");
 			assert(time, "the bookmark tab must carry a <time> for the crawl instant");
 			expect(time.getAttribute("datetime")).toBe("2026-03-26T14:32:00.000Z");
 			expect(time.getAttribute("data-local-time")).toBe("short-datetime");
 			expect(time.textContent).toBe("26 Mar '26, 14:32");
+
+			await fixture.articleStore.setCrawlVersions({
+				url: "https://example.com/crawled-post",
+				versions: ["2026-07-10T09:14Z", "2026-06-28T22:01Z", "2026-03-26T14:32Z"],
+			});
+
+			const versioned = await agent.get(`/queue/${articleId}/view`);
+			const versionedDoc = new JSDOM(versioned.text).window.document;
+			const keys = Array.from(
+				versionedDoc.querySelectorAll("[data-test-crawl-bookmark-tab]"),
+			).map((el) => el.getAttribute("data-test-crawl-bookmark-tab"));
+			expect(keys).toEqual(["canonical", "2026-06-28T22:01Z", "2026-03-26T14:32Z"]);
+			expect(versionedDoc.querySelectorAll(".crawl-bookmark__badge").length).toBe(1);
+			for (const key of ["2026-06-28T22:01Z", "2026-03-26T14:32Z"]) {
+				const disabled = versionedDoc.querySelector(`[data-test-crawl-bookmark-tab="${key}"]`);
+				assert(disabled, `version tab ${key} must render`);
+				expect(disabled.getAttribute("aria-disabled")).toBe("true");
+				expect(disabled.classList.contains("crawl-bookmark__tab--disabled")).toBe(true);
+			}
 		});
 
 		it("should leave the article unread when opening the reader (the user must click the explicit Mark-as-read button)", async () => {
