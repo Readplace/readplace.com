@@ -2,7 +2,7 @@ import { brandMarkSvg } from "./brand-mark";
 
 export const NAV_TEMPLATE = `  <header class="header{{#if transparent}} header--transparent{{/if}}">
     <div class="header__content">
-      <a href="{{track '/' source='header' content='brand'}}" class="header__brand">${brandMarkSvg({ className: "header__brand-icon", fontFamily: "Georgia, 'Times New Roman', serif" })}<span class="header__brand-text">Read<span class="header__brand-mark">place</span></span></a>
+      <a href="{{track '/' source='header' content='brand'}}" class="header__brand">${brandMarkSvg({ className: "header__brand-icon" })}<span class="header__brand-text">Read<span class="header__brand-mark">place</span></span></a>
       <a class="trial-countdown trial-countdown--{{trialEscalationClass}} trial-countdown--{{trialVisibility}}"
          href="{{track '/account' source='header' content='trial-countdown'}}"
          data-trial-ends-at-iso="{{trialEndsAtIso}}"
