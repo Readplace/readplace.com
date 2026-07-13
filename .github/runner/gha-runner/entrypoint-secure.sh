@@ -28,8 +28,30 @@ RUNNER_TOKEN=$(curl -fsSL -X POST \
   | jq -er .token)
 unset pat
 
-# The caches are named volumes created root-owned; non-root jobs need them.
-chown -R runner:runner /ms-playwright /opt/hostedtoolcache /home/runner /nx 2>/dev/null || true
+# The caches are named volumes created root-owned; non-root jobs need them. These
+# stay on the eager line: they are small enough to walk on every container start.
+chown -R runner:runner /ms-playwright /opt/hostedtoolcache /home/runner 2>/dev/null || true
+
+# /nx (the nx cache volume) gets the same stat-guard as /persist below, for the
+# same reason: it is bounded at NX_MAX_CACHE_SIZE (5 GB) and already holds tens of
+# thousands of files, so a recursive chown on every ephemeral job start would cost
+# seconds each run. The mount point is only root-owned on a fresh volume.
+[ "$(stat -c %U /nx)" = runner ] || chown -R runner:runner /nx
+
+# nx's DbCache names its metadata db <machine-id>-v2.db, so when /etc/machine-id
+# changes (a base-image re-pull regenerates it; a layer-cached rebuild does not)
+# the fresh db tracks none of the artifacts already on the volume: every task
+# misses, and the stranded content dirs are reclaimed by neither nx's GC nor
+# NX_MAX_CACHE_SIZE, which only evict entries the current db knows about. Self-heal
+# rather than leave ~500 MB to rot until an operator spots it and runs
+# `docker volume rm`.
+nx_id_marker=/nx/.machine-id
+machine_id=$(cat /etc/machine-id)
+if [ -r "${nx_id_marker}" ] && [ "$(cat "${nx_id_marker}")" != "${machine_id}" ]; then
+  rm -rf /nx/cache /nx/workspace-data
+  echo "entrypoint-secure: machine-id changed — wiped the now-orphaned nx cache"
+fi
+printf '%s' "${machine_id}" > "${nx_id_marker}"
 
 # /persist (the fixed RUNNER_WORKDIR volume, plus the pnpm store at
 # /persist/pnpm-store) must be runner-owned so the non-root job can own the
