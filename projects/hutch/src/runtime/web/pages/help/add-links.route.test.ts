@@ -90,16 +90,25 @@ describe("GET /help/add-links", () => {
 		expect(clone?.querySelector(".help__shot-img")?.getAttribute("alt")).toBe("");
 	});
 
-	it("offers a labelled control to stop the moving screenshots", async () => {
+	it("lets keyboard and assistive tech reach the carousel to stop it moving", async () => {
 		const { server } = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
 
 		const response = await request(server).get("/help/add-links");
 
 		const doc = new JSDOM(response.text).window.document;
-		const pause = doc.querySelector("[data-test-help-pause]");
-		expect(pause?.getAttribute("type")).toBe("checkbox");
-		expect(pause?.closest("label")?.textContent).toContain(
-			"Pause the screenshots",
+		const viewport = doc.querySelector("[data-test-help-viewport]");
+		expect(viewport?.getAttribute("tabindex")).toBe("0");
+		expect(viewport?.getAttribute("aria-label")).toBe("Readplace screenshots");
+	});
+
+	it("tells the reader the screenshots pause on hold", async () => {
+		const { server } = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
+
+		const response = await request(server).get("/help/add-links");
+
+		const doc = new JSDOM(response.text).window.document;
+		expect(doc.querySelector("[data-test-help-hint]")?.textContent).toBe(
+			"Hold a screenshot to pause.",
 		);
 	});
 
