@@ -76,3 +76,69 @@ RUN mkdir -p /opt/cft \
  && DRIVER_OUT=$(npx -y @puppeteer/browsers install "chromedriver@${CHROME_VER}" --path /opt/cft) \
  && echo "$DRIVER_OUT" | tail -1 | sed -E 's/^chromedriver@[^ ]+ //' > /opt/cft/driver-path
 ENV CFT_BAKED_DIR=/opt/cft
+
+# docker CLI + buildx plugin: detect-projects builds the save-link OCR image via
+# `docker buildx build --push` (projects/save-link/tools/build-image.mjs) against
+# the HOST OrbStack daemon (socket bind-mounted in docker-compose.yml). Only the
+# client + buildx are needed here — the daemon and its persistent buildkit layer
+# cache live on the host, which is what makes the rebuild fast across jobs. arm64.
+RUN install -m 0755 -d /etc/apt/keyrings \
+ && curl -fsSL https://download.docker.com/linux/ubuntu/gpg -o /etc/apt/keyrings/docker.asc \
+ && chmod a+r /etc/apt/keyrings/docker.asc \
+ && echo "deb [arch=arm64 signed-by=/etc/apt/keyrings/docker.asc] https://download.docker.com/linux/ubuntu noble stable" \
+      > /etc/apt/sources.list.d/docker.list \
+ && apt-get update && apt-get install -y docker-ce-cli docker-buildx-plugin \
+ && rm -rf /var/lib/apt/lists/*
+
+# AWS CLI v2: build-image.mjs calls `aws ecr get-login-password` /
+# `describe-repositories`. The myoung34 base image already ships it; install only
+# if a future base drops it (the installer errors out on a preexisting install).
+RUN [ -d /usr/local/aws-cli ] || command -v aws >/dev/null 2>&1 || ( \
+      curl -fsSL "https://awscli.amazonaws.com/awscli-exe-linux-aarch64.zip" -o /tmp/awscliv2.zip \
+   && unzip -q /tmp/awscliv2.zip -d /tmp \
+   && /tmp/aws/install \
+   && rm -rf /tmp/aws /tmp/awscliv2.zip )
+
+# NOTE: `runner` deliberately KEEPS the base image's passwordless sudo for now.
+# Dropping it (gpasswd -d runner sudo) is tempting — it would close a real hole,
+# since a job can `sudo cat /root/gh-pat.env` and recover the repo-admin PAT
+# without touching the docker socket — but it BREAKS the E2E suites: the browser
+# install in @packages/test-phase-runner shells out to `playwright install
+# --with-deps`, which apt-gets the OS libs via sudo and fails with "a password is
+# required". Closing the hole therefore requires first making the browser install
+# sudo-free (the libs are already baked into this image by `install-deps` above,
+# so --with-deps is redundant here). Until then the PAT is reachable by any job,
+# and runner-secret-audit.yml check 8 records that rather than pretending
+# otherwise. Do not re-drop sudo without fixing the install path first.
+
+# The PAT reaches the runner as a root-only file, never as an env var, so it is
+# absent from the container environment (and thus from /proc/1/environ, which a
+# root job could otherwise read). Jobs run as the unprivileged `runner` user, so
+# the caches must be writable by it.
+COPY entrypoint-secure.sh /usr/local/bin/entrypoint-secure.sh
+RUN chmod 0755 /usr/local/bin/entrypoint-secure.sh \
+ && mkdir -p /ms-playwright /opt/hostedtoolcache \
+ && chown -R runner:runner /ms-playwright /opt/hostedtoolcache
+
+# Pin the machine-id so the nx cache survives an image rebuild. nx names its
+# DbCache metadata db "<machine-id>-v2.db" under NX_WORKSPACE_DATA_DIRECTORY (the
+# /nx volume) and resolves the id as
+#   ( cat /var/lib/dbus/machine-id /etc/machine-id ) | head -n 1
+# — dbus FIRST, and the two are independent regular files here, NOT a symlink, so
+# pinning only /etc/machine-id is a no-op. Neither ships in the base image (its
+# /etc/machine-id is empty): systemd's postinst mints a RANDOM one when
+# `playwright install-deps` pulls in dbus/systemd. The id is therefore
+# non-deterministic layer output — any rebuild that re-executes that layer (a base
+# re-pull, a BuildKit cache eviction) mints a new one, and the fresh db then tracks
+# none of the artifacts already on /nx: every task misses SILENTLY (DbCache has no
+# "not generated on this machine" error — that check lives in the legacy Cache
+# class) and the strays are reclaimed by neither nx's GC nor NX_MAX_CACHE_SIZE.
+# Keep this LAST: the postinsts above only generate an id into an absent/empty
+# file, so a pin written after them is never overwritten (verified against a
+# subsequent `apt-get install --reinstall dbus systemd`). Value is the id the
+# current /nx db is already named after, so shipping this costs no cold run.
+# Because the pin removes the accidental cache-busting the id churn used to give
+# the floating chrome@stable / firefox-latest browsers above, the two extension
+# projects declare those browser versions as an explicit nx `runtime` input.
+RUN mkdir -p /var/lib/dbus \
+ && printf '%s\n' d8afc387deb149a1bdbfa08f1d8ff78e | tee /etc/machine-id > /var/lib/dbus/machine-id

@@ -142,6 +142,14 @@ export const EXCLUDE_PATTERNS: readonly RegExp[] = [
 	/^https:\/\/blogs\.oracle\.com\/ravello\/beware-http-requests-automatic-retries$/i,
 	/^https:\/\/kernel-recipes\.org\/en\/2016\/talks\/patches-carved-into-stone-tablets\/$/i,
 	/^https:\/\/www\.microservices\.com\/talks\/dont-build-a-distributed-monolith\/$/i,
+	// thcsdaoduytu.edu.vn (Vietnamese school site) sits behind a Cloudflare
+	// managed challenge: datacenter egress gets a 403 `cf-mitigated=challenge`
+	// that survives the h2 + curl-impersonate fallback, so the AWS crawler can
+	// never land the page (issue #961). The readable content is already saved
+	// via the tier-0 extension path under the `?gidzl=…&zarsrc=30` URL variant,
+	// making this bare-URL row a residential-egress-only duplicate. Anchored to
+	// the bare form so the query-string variant still surfaces if it ever fails.
+	/^https:\/\/thcsdaoduytu\.edu\.vn\/gv-ngu-van-truong-thcs-dao-duy-tu-goi-y-mot-dan-chung-thuong-dung-trong-van-nghi-luan-xa-hoi-phan_$/i,
 	// (f) Login/subscription wall — the origin serves a registration/login page
 	// instead of the article body to anonymous datacenter fetches, so the crawler
 	// exhausts retries without ever reaching content. academia.edu requires a free
@@ -218,6 +226,11 @@ export const EXCLUDE_PATTERNS: readonly RegExp[] = [
 	// rows (including the extension-saved `question/undefined` duplicate of
 	// this same answer) must still surface.
 	/^https:\/\/www\.zhihu\.com\/question\/2058516301257994660\/answer\/2058890698460509303$/i,
+	// Malformed extension save under the same host: the question ID never
+	// resolved (`question/undefined`) and a truncated text fragment (`...This`)
+	// leaked into the path, so no real page exists behind it (issue #962).
+	// Anchored exact; the `question/undefined/answer/<id>` duplicate still surfaces.
+	/^https:\/\/www\.zhihu\.com\/question\/undefined\/\.\.\.This$/i,
 	// (i) web.archive.org captures — archive.org throttles datacenter egress
 	// (tarpits/429s AWS-range IPs), so saved captures intermittently exhaust
 	// retries with nothing the operator can act on. Anchored per capture

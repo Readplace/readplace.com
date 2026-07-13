@@ -132,6 +132,29 @@ final class LoginFlowTests: XCTestCase {
 		)
 	}
 
+	func testSignOutWipesTheSessionCookieRegardlessOfItsName() async {
+		// A4: sign-out scrubs the API session by clearing every cookie in the app's
+		// isolated jar, not one matched by a hard-coded `hutch_sid`. Seed the cookie
+		// under a DIFFERENT name than today's and assert it is gone too — a name-based
+		// scrub (the implementation this replaced) would leave it behind, so this is the
+		// assertion that fails if the wholesale wipe regresses to matching a fixed name.
+		let config = TestSupport.stubbedConfiguration()
+		config.httpCookieStorage?.setCookie(TestSupport.sessionCookie(value: "sess-abc", name: "hutch_session_renamed"))
+		let session = AppSession(
+			store: TestSupport.loggedInStore(),
+			sessionConfiguration: config,
+			wipeReaderWebStore: {}
+		)
+
+		let readerWipe = session.forceLogout()
+
+		XCTAssertEqual(
+			config.httpCookieStorage?.cookies?.count, 0,
+			"sign-out clears every cookie in the app's jar, not only one matched by the known session-cookie name"
+		)
+		await readerWipe.value
+	}
+
 	func testLoggedInThenLoadQueueRendersArticles() async throws {
 		let store = TestSupport.loggedInStore(access: "access-1")
 		let session = AppSession(store: store, sessionConfiguration: TestSupport.stubbedConfiguration())

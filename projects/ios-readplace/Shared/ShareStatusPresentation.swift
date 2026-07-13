@@ -33,6 +33,10 @@ struct ShareStatusPresentation: Equatable {
 			message = "Open Readplace and sign in first."
 			symbol = "person.crop.circle.badge.exclamationmark"
 			tone = .warning
+		case .storageUnavailable(let status):
+			message = "Couldn't read your saved sign-in (Keychain error \(status)). Reopen Readplace, then try sharing again."
+			symbol = "exclamationmark.triangle.fill"
+			tone = .error
 		case .noLink:
 			message = "No link found to save."
 			symbol = "link"

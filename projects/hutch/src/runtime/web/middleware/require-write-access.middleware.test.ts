@@ -125,7 +125,7 @@ describe("requireWriteAccess middleware", () => {
 		expect(response.headers.location).toBe("/queue?inactive=1");
 	});
 
-	it("returns 402 JSON to API clients that did not request html so the extension surfaces a structured error", async () => {
+	it("returns a 402 Siren warning message to API clients so the share extension shows a proper reason", async () => {
 		const { app, providers } = buildApp(TEST_USER_ID);
 		await providers.upsertActive({
 			userId: TEST_USER_ID,
@@ -139,7 +139,14 @@ describe("requireWriteAccess middleware", () => {
 			.set("Accept", "application/vnd.siren+json");
 
 		expect(response.status).toBe(402);
-		expect(response.body).toEqual({ error: "subscription_inactive" });
+		expect(response.headers["content-type"]).toContain("application/vnd.siren+json");
+		expect(response.body.class).toEqual(["error"]);
+		expect(response.body.properties.messages).toEqual([
+			{
+				type: "warning",
+				content: { type: "text/html", body: expect.stringContaining("subscription") },
+			},
+		]);
 	});
 
 });

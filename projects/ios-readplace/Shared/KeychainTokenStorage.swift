@@ -25,17 +25,31 @@ struct KeychainTokenStorage: TokenStorage {
 		]
 	}
 
-	func value(for key: TokenKey) -> String? {
+	func readValue(for key: TokenKey) -> Result<String?, KeychainError> {
 		var query = baseQuery(for: key)
 		query[kSecReturnData as String] = true
 		query[kSecMatchLimit as String] = kSecMatchLimitOne
 		var result: CFTypeRef?
-		guard
-			SecItemCopyMatching(query as CFDictionary, &result) == errSecSuccess,
-			let data = result as? Data,
-			let string = String(data: data, encoding: .utf8)
-		else { return nil }
-		return string
+		let status = SecItemCopyMatching(query as CFDictionary, &result)
+		return Self.readResult(status: status, data: result as? Data)
+	}
+
+	/// Maps a `SecItemCopyMatching` outcome to a token value: a decodable item →
+	/// its string; `errSecItemNotFound` → `.success(nil)` (a legitimately empty
+	/// slot); any other status → `.failure` carrying the `OSStatus`. Pure and
+	/// static so the failure path is unit-testable without a device — the Simulator
+	/// Keychain ignores access groups and never returns `errSecMissingEntitlement`,
+	/// so the on-device failure this exists to surface can only be exercised here.
+	static func readResult(status: OSStatus, data: Data?) -> Result<String?, KeychainError> {
+		switch status {
+		case errSecSuccess:
+			guard let data, let string = String(data: data, encoding: .utf8) else { return .success(nil) }
+			return .success(string)
+		case errSecItemNotFound:
+			return .success(nil)
+		default:
+			return .failure(.read(status: status))
+		}
 	}
 
 	func setValue(_ value: String, for key: TokenKey) {

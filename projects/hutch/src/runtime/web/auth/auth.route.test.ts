@@ -98,6 +98,42 @@ describe("Auth routes", () => {
 			expect(signupLink).toContain("/signup");
 			expect(signupLink).toContain("return=");
 		});
+
+		it("forces Google's account chooser when arriving from the account switch (prompt=select_account + return)", async () => {
+			const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
+			const response = await request(harness.server).get(
+				"/login?return=%2Foauth%2Fauthorize%3Fclient_id%3Dtest&prompt=select_account",
+			);
+
+			expect(response.status).toBe(200);
+			const doc = new JSDOM(response.text).window.document;
+			const googleHref = doc.querySelector(".auth-google-button")?.getAttribute("href");
+			expect(googleHref).toContain("return=");
+			expect(googleHref).toContain("prompt=select_account");
+			// Apple already shows its own switcher, so it is not tagged.
+			const appleHref = doc.querySelector(".auth-apple-button")?.getAttribute("href");
+			expect(appleHref).not.toContain("prompt=select_account");
+		});
+
+		it("does not tag the Google button on a normal login", async () => {
+			const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
+			const response = await request(harness.server).get("/login");
+
+			expect(response.status).toBe(200);
+			const doc = new JSDOM(response.text).window.document;
+			const googleHref = doc.querySelector(".auth-google-button")?.getAttribute("href");
+			expect(googleHref).not.toContain("prompt=select_account");
+		});
+
+		it("ignores prompt=select_account without a return (nothing to switch back to)", async () => {
+			const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
+			const response = await request(harness.server).get("/login?prompt=select_account");
+
+			expect(response.status).toBe(200);
+			const doc = new JSDOM(response.text).window.document;
+			const googleHref = doc.querySelector(".auth-google-button")?.getAttribute("href");
+			expect(googleHref).not.toContain("prompt=select_account");
+		});
 	});
 
 	describe("POST /login", () => {
@@ -139,7 +175,7 @@ describe("Auth routes", () => {
 			expect(response.headers["set-cookie"].length).toBeGreaterThan(0);
 			// Persistent (not a bare session cookie) so an already-signed-in browser —
 			// e.g. iOS Chrome-first login — still carries it after the browser closes.
-			expect(sessionCookie(response)).toContain(`Max-Age=${SESSION_TTL_SECONDS}`);
+			expect(sessionCookie(response)).toContain(`Max-Age=${SESSION_TTL_SECONDS};`);
 		});
 
 		it("should show error on invalid credentials", async () => {
@@ -891,6 +927,205 @@ describe("Auth routes", () => {
 
 	});
 
+	describe("POST /signup — signup_attempted analytics", () => {
+		function signupAttempts(harness: { analytics: { events: Array<{ event: string }> } }) {
+			return harness.analytics.events.filter((e) => e.event === "signup_attempted");
+		}
+
+		it("emits a single outcome=created event on a successful free signup", async () => {
+			const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
+
+			await request(harness.server).post("/signup").type("form").send({
+				email: "attempt-free@gmail.com",
+				password: "password123",
+				confirmPassword: "password123",
+				loadedAt: freshLoadedAt(),
+			});
+
+			const attempts = signupAttempts(harness);
+			assert.equal(attempts.length, 1, "exactly one signup_attempted");
+			expect(attempts[0]).toMatchObject({
+				stream: "analytics",
+				event: "signup_attempted",
+				method: "email",
+				outcome: "created",
+				is_authenticated: 0,
+			});
+		});
+
+		it("emits outcome=created on a trial signup once the founding allocation is exhausted", async () => {
+			const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
+			for (let i = 0; i < TEST_FOUNDING_MEMBER_LIMIT; i++) {
+				await harness.auth.createUser({ email: `seed${i}@test.com`, password: "password123" });
+			}
+
+			await request(harness.server).post("/signup").type("form").send({
+				email: "attempt-trial@gmail.com",
+				password: "password123",
+				confirmPassword: "password123",
+				loadedAt: freshLoadedAt(),
+			});
+
+			const attempts = signupAttempts(harness);
+			assert.equal(attempts.length, 1, "exactly one signup_attempted");
+			expect(attempts[0]).toMatchObject({ outcome: "created" });
+		}, 30000);
+
+		it("emits outcome=disposable_email when a disposable domain is rejected — the deliberate friction whose signup cost was previously invisible", async () => {
+			const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
+
+			await request(harness.server).post("/signup").type("form").send({
+				email: "user@slmail.me",
+				password: "password123",
+				confirmPassword: "password123",
+				loadedAt: freshLoadedAt(),
+			});
+
+			expect(signupAttempts(harness)).toMatchObject([{ outcome: "disposable_email" }]);
+		});
+
+		it("emits outcome=invalid_input for a generic validation failure (password too short)", async () => {
+			const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
+
+			await request(harness.server).post("/signup").type("form").send({
+				email: "shortpw@gmail.com",
+				password: "short",
+				confirmPassword: "short",
+				loadedAt: freshLoadedAt(),
+			});
+
+			expect(signupAttempts(harness)).toMatchObject([{ outcome: "invalid_input" }]);
+		});
+
+		it("emits outcome=duplicate_email when the address already has an account", async () => {
+			const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
+			await harness.auth.createUser({ email: "dupe@gmail.com", password: "password123" });
+
+			await request(harness.server).post("/signup").type("form").send({
+				email: "dupe@gmail.com",
+				password: "password123",
+				confirmPassword: "password123",
+				loadedAt: freshLoadedAt(),
+			});
+
+			expect(signupAttempts(harness)).toMatchObject([{ outcome: "duplicate_email" }]);
+		});
+
+		it("emits outcome=duplicate_email on the free path when the duplicate is caught at insert time (createUserWithPasswordHash race), not by validation", async () => {
+			const fixture = createDefaultTestAppFixture(TEST_APP_ORIGIN);
+			let raceFindCount = 0;
+			const harness = useApp({
+				...fixture,
+				auth: {
+					...fixture.auth,
+					findUserByEmail: async (email) => {
+						if (email === "race-free@gmail.com") {
+							raceFindCount++;
+							if (raceFindCount === 1) return null;
+						}
+						return fixture.auth.findUserByEmail(email);
+					},
+				},
+			});
+			await fixture.auth.createUser({ email: "race-free@gmail.com", password: "existing" });
+
+			const response = await request(harness.server).post("/signup").type("form").send({
+				email: "race-free@gmail.com",
+				password: "password123",
+				confirmPassword: "password123",
+				loadedAt: freshLoadedAt(),
+			});
+
+			expect(response.status).toBe(422);
+			expect(signupAttempts(harness)).toMatchObject([{ outcome: "duplicate_email" }]);
+		});
+
+		it("emits outcome=duplicate_email on the trial path insert-time race once the founding allocation is exhausted", async () => {
+			const fixture = createDefaultTestAppFixture(TEST_APP_ORIGIN);
+			let raceFindCount = 0;
+			const harness = useApp({
+				...fixture,
+				auth: {
+					...fixture.auth,
+					findUserByEmail: async (email) => {
+						if (email === "race-trial@gmail.com") {
+							raceFindCount++;
+							if (raceFindCount === 1) return null;
+						}
+						return fixture.auth.findUserByEmail(email);
+					},
+				},
+			});
+			for (let i = 0; i < TEST_FOUNDING_MEMBER_LIMIT; i++) {
+				await fixture.auth.createUser({ email: `seed${i}@test.com`, password: "password123" });
+			}
+			await fixture.auth.createUser({ email: "race-trial@gmail.com", password: "existing" });
+
+			const response = await request(harness.server).post("/signup").type("form").send({
+				email: "race-trial@gmail.com",
+				password: "password123",
+				confirmPassword: "password123",
+				loadedAt: freshLoadedAt(),
+			});
+
+			expect(response.status).toBe(422);
+			expect(signupAttempts(harness)).toMatchObject([{ outcome: "duplicate_email" }]);
+		}, 30000);
+
+		it("emits outcome=too_fast when a submit inside the bot window is rejected — the visitor is shown the form again, so the rejection belongs in the signup funnel and not only on the bot-defense stream", async () => {
+			const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
+
+			const response = await request(harness.server).post("/signup").type("form").send({
+				email: "autofill@gmail.com",
+				password: "password123",
+				confirmPassword: "password123",
+				loadedAt: String(Date.now() - 1000),
+			});
+
+			expect(response.status).toBe(422);
+			expect(signupAttempts(harness)).toMatchObject([{ outcome: "too_fast" }]);
+		});
+
+		it("emits outcome=disposable_email when the submission is both disposable and otherwise invalid — the disposable gate takes precedence, so the outcome buckets are not mutually exclusive by input", async () => {
+			const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
+
+			await request(harness.server).post("/signup").type("form").send({
+				email: "user@slmail.me",
+				password: "short",
+				confirmPassword: "short",
+				loadedAt: freshLoadedAt(),
+			});
+
+			expect(signupAttempts(harness)).toMatchObject([{ outcome: "disposable_email" }]);
+		});
+
+		it("does not emit signup_attempted for a honeypot trip — the visitor is silently fake-succeeded rather than shown a rejection, so it is counted on the bot-defense stream only", async () => {
+			const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
+
+			await request(harness.server).post("/signup").type("form").send({
+				email: "bot@gmail.com",
+				password: "password123",
+				confirmPassword: "password123",
+				website: "http://spam.example",
+				loadedAt: freshLoadedAt(),
+			});
+
+			assert.equal(signupAttempts(harness).length, 0, "honeypot trips are not signup_attempted events");
+		});
+
+		it("does not emit signup_attempted for a missing-timestamp trip — likewise fake-succeeded, so only the human-visible too-fast rejection reaches the signup funnel", async () => {
+			const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
+
+			await request(harness.server).post("/signup").type("form").send({
+				email: "bot@gmail.com",
+				password: "password123",
+				confirmPassword: "password123",
+			});
+
+			assert.equal(signupAttempts(harness).length, 0, "missing-timestamp trips are not signup_attempted events");
+		});
+	});
+
 	describe("POST /signup — bot defense", () => {
 		it("returns a fake-success 303 to /?signup=pending and logs a 'honeypot' rejection when the hidden website field is filled", async () => {
 			const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
@@ -1530,7 +1765,7 @@ describe("Auth routes", () => {
 			expect(signupDoc.querySelector("[data-test-founding-blurb]")).toBeNull();
 		}, 30000);
 
-		it("states the trial length and yearly price in the /signup hint when the founding allocation is exhausted", async () => {
+		it("states the trial length and monthly price in the /signup hint when the founding allocation is exhausted", async () => {
 			const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
 			const { auth } = harness;
 			for (let i = 0; i < TEST_FOUNDING_MEMBER_LIMIT; i++) {
@@ -1539,7 +1774,7 @@ describe("Auth routes", () => {
 
 			const doc = new JSDOM((await request(harness.server).get("/signup")).text).window.document;
 			expect(doc.querySelector("[data-test-trial-hint]")?.textContent).toBe(
-				"14-day free trial, then $49/year. No credit card required.",
+				"14-day free trial, then $4.08/month. No credit card required.",
 			);
 		}, 30000);
 

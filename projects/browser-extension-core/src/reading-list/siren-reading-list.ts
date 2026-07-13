@@ -543,29 +543,6 @@ export function initSaveContentUnderstanding(deps: {
 	return handlers;
 }
 
-export function initDeleteArticleUnderstanding(): Map<string, ActionHandler> {
-	const handlers = new Map<string, ActionHandler>();
-	handlers.set("delete", (sirenAction, context) => {
-		return async () => {
-			const actionUrl = resolveHref({ base: context.serverUrl, href: sirenAction.href });
-			assert(actionUrl, "delete action href is not actionable");
-			/** Signal that the client will process a representation in the
-			 * response (RFC 7240). */
-			const response = await context.doFetch(
-				actionUrl,
-				{
-					method: sirenAction.method,
-					headers: { Prefer: "return=representation" },
-				},
-			);
-			assertMutationOk({ response, actionName: "delete" });
-			const body = SirenCollectionResponseSchema.parse(await readSirenBody(response));
-			return await context.parseCollection(body);
-		};
-	});
-	return handlers;
-}
-
 /** The fallback understanding for any simple entity action the client has no
  * bespoke handler for: invoke the action by ITS OWN declared href/method/fields
  * and follow the collection the server returns. One generic path means a
@@ -573,8 +550,9 @@ export function initDeleteArticleUnderstanding(): Map<string, ActionHandler> {
  * no new client code — the contract's "bind a response's actions through one
  * generic path" rule. Only the fields the server declared for the action are
  * sent (never a client-invented name); a fieldless action posts an empty body.
- * Bespoke handlers (e.g. `delete`) still take precedence where they are
- * registered — this is the default for everything else.
+ * A bespoke handler still takes precedence for any action that registers one;
+ * this generic path is the default for every entity action, none of which
+ * currently needs a bespoke handler.
  *
  * The body comes from each DECLARED field's own server-supplied `value`, not
  * from caller-supplied fields: the (id, name) popup path re-invokes by name with
@@ -807,7 +785,7 @@ export function initExtension(
 		const boundActions: Record<string, BoundAction> = {};
 		const context = createActionContext(doFetch);
 		/** Every advertised entity action is bound, not just the ones with a
-		 * bespoke handler: a registered handler wins where present (e.g. `delete`),
+		 * bespoke handler: a registered handler wins where present,
 		 * otherwise the generic invoker handles it, so any newly-advertised simple
 		 * entity action is invokable with no new client code. */
 		for (const sirenAction of entity.actions) {
@@ -904,7 +882,6 @@ export function initSirenReadingList(deps: SirenReadingListDeps): {
 			},
 			logger: deps.logger,
 		}),
-		initDeleteArticleUnderstanding(),
 		/** search carries its own `httpCacheable` ETag layer so the understanding is
 		 * cacheable on its own terms, not by silently relying on the walker's
 		 * navigation cache also seeing the GET. Both layers share one If-None-Match

@@ -17,34 +17,23 @@
 /* purgecss-ignore-start: account-card and its modifiers are interpolated dynamically from a state class in the template */
 .account-card {
   padding: 20px;
-  border-radius: var(--radius-sm);
+  border-radius: var(--radius);
   background: var(--muted);
-  border-left: 3px solid var(--primary);
+  border: 1px solid var(--border);
   margin-bottom: 16px;
 }
 
-.account-card--founding {
-  border-left-color: var(--primary);
-}
-
-.account-card--active {
-  border-left-color: var(--primary);
-}
-
-.account-card--trial {
-  border-left-color: var(--primary);
-}
-
+/* Founding, active and trial are healthy states — they stay on the neutral chassis.
+ * Tints match the queue banner and the header chip, which render the same states. */
 .account-card--cancellation-scheduled {
-  border-left-color: var(--color-warning);
+  background: var(--warning-bg);
+  border-color: var(--color-warning);
 }
 
-.account-card--inactive {
-  border-left-color: var(--error);
-}
-
+.account-card--inactive,
 .account-card--error-payment-method {
-  border-left-color: var(--error);
+  background: var(--error-bg);
+  border-color: var(--color-error);
 }
 /* purgecss-ignore-end */
 
@@ -123,11 +112,13 @@
   text-decoration: underline;
 }
 
+/* Rim, not fill: a permanently red-washed delete box shouts at a user who is not
+ * deleting anything. The rim marks the boundary without raising the volume. */
 .account-danger {
   padding: 20px;
-  border-radius: var(--radius-sm);
+  border-radius: var(--radius);
   background: var(--muted);
-  border-left: 3px solid var(--error);
+  border: 1px solid var(--color-error);
   margin-bottom: 16px;
 }
 
@@ -148,7 +139,7 @@
 .account-danger__notice {
   font-size: 0.875rem;
   margin: 0 0 12px;
-  color: var(--error);
+  color: var(--color-error);
 }
 
 .account-danger__action-form {
@@ -186,22 +177,15 @@
 /* purgecss-ignore-start: account-cards and its state modifiers are interpolated from CardSectionViewModel.stateClass / item.itemClass in account.template.html */
 .account-cards {
   padding: 20px;
-  border-radius: var(--radius-sm);
+  border-radius: var(--radius);
   background: var(--muted);
-  border-left: 3px solid var(--primary);
+  border: 1px solid var(--border);
   margin-bottom: 16px;
 }
 
-.account-cards--loaded {
-  border-left-color: var(--primary);
-}
-
-.account-cards--no-customer {
-  border-left-color: var(--border);
-}
-
 .account-cards--provider-error {
-  border-left-color: var(--error);
+  background: var(--error-bg);
+  border-color: var(--color-error);
 }
 
 .account-cards__item {

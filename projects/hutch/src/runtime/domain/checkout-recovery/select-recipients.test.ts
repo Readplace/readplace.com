@@ -17,6 +17,7 @@ function createRetrieve(
 	return async () => ({
 		ok: true,
 		paid: overrides.paid ?? false,
+		paymentStatus: "unpaid",
 		customerEmail: overrides.customerEmail ?? "buyer@example.com",
 		status: overrides.status ?? "open",
 		created: NOW_SECONDS - ageSeconds,
@@ -128,6 +129,7 @@ describe("selectRecipients", () => {
 			return {
 				ok: true,
 				paid: state.paid,
+				paymentStatus: "unpaid",
 				customerEmail: "x@example.com",
 				status: "open",
 				created: NOW_SECONDS - state.ageSeconds,

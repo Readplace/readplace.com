@@ -42,28 +42,13 @@ case "$READPLACE_ENV" in
 		;;
 esac
 
-# --- Locate the real Xcode toolchain -----------------------------------------
-# This repo's devbox/nix shell points DEVELOPER_DIR at a macOS-only SDK and
-# exports CC/CXX/LD/SDKROOT/MACOSX_DEPLOYMENT_TARGET that hijack xcodebuild's
-# linker. We must run xcodebuild against the real Xcode in a sanitized env.
-XCODE_DEV_DIR=""
-for app in /Applications/Xcode.app /Applications/Xcode-*.app; do
-	if [ -d "$app/Contents/Developer" ]; then XCODE_DEV_DIR="$app/Contents/Developer"; break; fi
-done
-if [ -z "$XCODE_DEV_DIR" ]; then
-	XCODE_DEV_DIR="$(env -u DEVELOPER_DIR /usr/bin/xcode-select -p 2>/dev/null || true)"
-fi
-
-# Run an Xcode tool with the nix toolchain scrubbed out of the environment.
-xc() {
-	local tool="$1"; shift
-	env -u CC -u CXX -u CPP -u LD -u SDKROOT -u MACOSX_DEPLOYMENT_TARGET \
-		-u CFLAGS -u CXXFLAGS -u CPPFLAGS -u LDFLAGS \
-		-u CPATH -u LIBRARY_PATH -u C_INCLUDE_PATH -u CPLUS_INCLUDE_PATH -u OBJC_INCLUDE_PATH \
-		DEVELOPER_DIR="$XCODE_DEV_DIR" \
-		PATH="/usr/bin:/bin:/usr/sbin:/sbin" \
-		"/usr/bin/$tool" "$@"
-}
+# --- Run Xcode tools with the devbox/nix toolchain scrubbed out ---------------
+# One shared helper (scripts/xc.sh) sanitises the environment for every Xcode
+# entry point. Keeping it in a single place is the point: this script used to
+# carry its own copy while `make test` carried none, so the test target was
+# unbuildable inside the repo's own shell until the two were unified.
+# `cd` above put us at the project root, so this relative path resolves.
+xc() { scripts/xc.sh "$@"; }
 
 # --- Preflight: the iOS SDK ships only inside the full Xcode app --------------
 if ! xc xcrun --sdk iphoneos --show-sdk-path >/dev/null 2>&1; then

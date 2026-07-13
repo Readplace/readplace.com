@@ -15,14 +15,19 @@
   color: var(--foreground);
 }
 
+/* Layout lives on the base class, not the state modifiers: a state whose modifier
+ * is missing must still lay out rather than collapse to display:block. */
 .queue-banner {
+  display: flex;
+  flex-wrap: wrap;
   align-items: center;
-  gap: 16px;
-  padding: 12px 16px;
-  border-radius: var(--radius-sm);
-  margin-bottom: 16px;
+  column-gap: 16px;
+  row-gap: 12px;
+  padding: 16px;
+  margin-bottom: clamp(16px, 4vw, 24px);
   background: var(--muted);
-  border-left: 3px solid var(--primary);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
 }
 
 /* purgecss-ignore-start: modifier suffix is interpolated from runtime view state, so static analysis cannot detect these classes as used */
@@ -30,22 +35,38 @@
   display: none;
 }
 
-.queue-banner--trial-countdown,
+/* Tints match the header's trial-countdown chip, which renders the same states. */
+.queue-banner--cancellation-scheduled {
+  background: var(--warning-bg);
+  border-color: var(--color-warning);
+}
+
 .queue-banner--inactive {
-  display: flex;
+  background: var(--error-bg);
+  border-color: var(--color-error);
 }
 /* purgecss-ignore-end */
 
 .queue-banner__message {
-  flex: 1;
+  flex: 1 1 240px;
+  min-width: 0;
   margin: 0;
   font-size: 0.875rem;
+  line-height: 1.5;
+  color: var(--muted-foreground);
+}
+
+.queue-banner__message strong {
+  font-weight: 600;
   color: var(--foreground);
 }
 
 .queue-banner__cta {
   display: inline-flex;
+  align-items: center;
+  justify-content: center;
   flex: 0 0 auto;
+  min-height: 44px;
   padding: var(--button-padding-sm);
   background: var(--primary);
   color: var(--primary-foreground);
@@ -134,19 +155,18 @@
 }
 
 .queue__import-skipped {
-  border: 1px solid var(--border);
-  border-left: 3px solid var(--error);
+  border: 1px solid var(--color-error);
   border-radius: var(--radius);
   padding: 12px 16px;
   margin-bottom: 16px;
-  background: var(--muted);
+  background: var(--error-bg);
 }
 
 .queue__import-skipped-title {
   margin: 0 0 8px 0;
   font-weight: 600;
   font-size: 0.875rem;
-  color: var(--error);
+  color: var(--color-error);
 }
 
 .queue__import-skipped-list {

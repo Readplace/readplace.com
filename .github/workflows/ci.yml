@@ -42,7 +42,8 @@ jobs:
       - uses: actions/setup-node@v6
         with:
           node-version: 22
-          # self-hosted keeps the pnpm store on a volume; skip GitHub's cache service there
+          # self-hosted parks the pnpm store on its persistent /persist volume
+          # (npm_config_store_dir, set in the runner container); skip GitHub's cache there
           cache: ${{ runner.environment == 'github-hosted' && 'pnpm' || '' }}
 
       - run: pnpm install --frozen-lockfile --reporter=append-only --loglevel=warn
@@ -60,7 +61,14 @@ jobs:
   # Only detect and deploy on pushes to main (not on PRs)
   detect-projects:
     if: github.ref == 'refs/heads/main' && github.event_name == 'push'
-    runs-on: ubuntu-latest
+    # Self-hosted: the nx cache makes the dependency compile a hit instead of 77s
+    # cold, and OrbStack's persistent buildkit layer cache makes save-link's
+    # in-loop OCR image build reuse layers instead of rebuilding from scratch. No
+    # fork fallback like web-tests needs — the `if:` above already restricts this
+    # to main pushes, so only trusted (merged) code ever runs here. Requires the
+    # runner image to ship docker+buildx+aws and the compose to mount the docker
+    # socket (see .github/runner/gha-runner/).
+    runs-on: [self-hosted, orbstack]
     environment: staging
     env:
       AWS_ACCESS_KEY_ID: ${{ secrets.AWS_ACCESS_KEY_ID }}
@@ -112,7 +120,8 @@ jobs:
       - uses: actions/setup-node@v6
         with:
           node-version: 22
-          cache: pnpm
+          # self-hosted keeps the pnpm store on a volume; skip GitHub's cache service there
+          cache: ${{ runner.environment == 'github-hosted' && 'pnpm' || '' }}
 
       - run: pnpm install --frozen-lockfile --reporter=append-only --loglevel=warn
 
@@ -139,24 +148,40 @@ jobs:
             pnpm nx run-many --target=compile --projects="$UNCHECKED_CSV" 2>&1 || true
           fi
 
-          # Run check-infra for each unchecked project, detect drift from pulumi output.
-          # A non-zero exit from `nx run check-infra` means the Pulumi program crashed
-          # before the resource graph was built (e.g. missing env var), so drift is
-          # unknown — force a redeploy rather than silently reporting "no drift".
+          # Run check-infra for each unchecked project to detect drift from pulumi
+          # output. A non-zero exit from `nx run check-infra` means the Pulumi
+          # program crashed before the resource graph was built (e.g. missing env
+          # var), so drift is unknown — force a redeploy rather than silently
+          # reporting "no drift".
+          #
+          # Run them CONCURRENTLY: each is an independent Pulumi project (distinct
+          # Pulumi.yaml `name`), so previews never contend on state or locks, and
+          # concurrent plugin installs serialize on Pulumi's own per-plugin lock.
+          # Capture each project to its own file — both streams, since Pulumi's
+          # resource summary and crash traces split across stdout/stderr — plus its
+          # exit code, then classify serially after `wait`. This is deliberately
+          # NOT `nx run-many`: that collapses to one aggregate exit code and
+          # interleaves output, which would destroy the per-project crash-vs-drift
+          # decision below.
           DRIFTED='[]'
+          tmp=$(mktemp -d)
+          declare -A pid_of
           for project in $(echo "$UNCHECKED" | jq -r '.[]'); do
+            # `set +e` inside the subshell so a failing check-infra does not abort
+            # it before its exit code is recorded (the step runs under `bash -e`).
+            ( set +e; pnpm nx run "$project:check-infra" >"$tmp/$project.log" 2>&1; echo $? >"$tmp/$project.exit" ) &
+            pid_of[$project]=$!
+          done
+          for project in $(echo "$UNCHECKED" | jq -r '.[]'); do
+            wait "${pid_of[$project]}" || true
+            # Missing exit file (job killed) → treat as a crash → forced redeploy.
+            INFRA_EXIT=$(cat "$tmp/$project.exit" 2>/dev/null || echo 1)
             echo "::group::check-infra $project"
-            # GH Actions runs steps with `bash -e`. A bare `var=$(failing_cmd)`
-            # triggers errexit and exits the script before $? can be captured,
-            # so use `|| INFRA_EXIT=$?` to put the assignment in errexit's
-            # exception list while preserving the inner command's exit code.
-            INFRA_EXIT=0
-            INFRA_OUTPUT=$(pnpm nx run "$project:check-infra" 2>&1) || INFRA_EXIT=$?
-            echo "$INFRA_OUTPUT"
-            if [ $INFRA_EXIT -ne 0 ]; then
+            cat "$tmp/$project.log" 2>/dev/null || true
+            if [ "$INFRA_EXIT" -ne 0 ]; then
               echo "::error::check-infra crashed for $project (exit $INFRA_EXIT) — drift unknown, forcing redeploy"
               DRIFTED=$(echo "$DRIFTED" | jq --arg p "$project" '. + [$p]')
-            elif echo "$INFRA_OUTPUT" | grep -qE 'to (update|create|delete|replace)'; then
+            elif grep -qE 'to (update|create|delete|replace)' "$tmp/$project.log"; then
               echo "Drift detected in: $project"
               DRIFTED=$(echo "$DRIFTED" | jq --arg p "$project" '. + [$p]')
             else
@@ -164,6 +189,7 @@ jobs:
             fi
             echo "::endgroup::"
           done
+          rm -rf "$tmp"
           echo "Drifted projects: $DRIFTED"
 
           # Final deploy list: code-affected + infra-drifted

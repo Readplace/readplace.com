@@ -9,7 +9,6 @@ import {
 	initSaveArticlesUnderstanding,
 	initSaveHtmlUnderstanding,
 	initSaveContentUnderstanding,
-	initDeleteArticleUnderstanding,
 	initListArticlesUnderstanding,
 	groupOf,
 	httpCacheable,
@@ -110,8 +109,8 @@ function articleEntity(overrides: {
 		],
 		actions: overrides.actions ?? [
 			{
-				name: "delete",
-				href: `/queue/${overrides.id}/delete`,
+				name: "update-status",
+				href: `/queue/${overrides.id}/status`,
 				method: "POST",
 			},
 		],
@@ -185,7 +184,6 @@ function createDeps(
 function createUnderstandings() {
 	return groupOf(
 		initSaveArticleUnderstanding(),
-		initDeleteArticleUnderstanding(),
 		httpCacheable(initListArticlesUnderstanding()),
 	);
 }
@@ -215,7 +213,7 @@ describe("initExtension", () => {
 			expect(result.items[0].title).toBe("A");
 			expect(result.items[0].id).toBe("1");
 			expect(result.items[0].savedAt).toEqual(new Date("2026-01-15T10:00:00.000Z"));
-			expect(result.items[0].boundActions.delete).toBeDefined();
+			expect(result.items[0].boundActions["update-status"]).toBeDefined();
 		});
 
 		it("should bind collection-level actions", async () => {
@@ -619,8 +617,8 @@ describe("initExtension", () => {
 							},
 							actions: [
 								{
-									name: "delete",
-									href: "/queue/article-1/delete",
+									name: "update-status",
+									href: "/queue/article-1/status",
 									method: "POST",
 								},
 							],
@@ -637,7 +635,7 @@ describe("initExtension", () => {
 			expect(result.items[0].title).toBe("Article");
 			expect(result.items[0].id).toBe("article-1");
 			expect(result.items[0].savedAt).toEqual(new Date(savedAt));
-			expect(result.items[0].boundActions.delete).toBeDefined();
+			expect(result.items[0].boundActions["update-status"]).toBeDefined();
 			expect(calls).toContain("POST http://localhost:3000/queue");
 		});
 
@@ -663,8 +661,8 @@ describe("initExtension", () => {
 							],
 							actions: [
 								{
-									name: "delete",
-									href: "/queue/article-1/delete",
+									name: "update-status",
+									href: "/queue/article-1/status",
 									method: "POST",
 								},
 							],
@@ -779,8 +777,8 @@ describe("initExtension", () => {
 							},
 							actions: [
 								{
-									name: "delete",
-									href: "/queue/article-1/delete",
+									name: "update-status",
+									href: "/queue/article-1/status",
 									method: "POST",
 								},
 							],
@@ -794,128 +792,6 @@ describe("initExtension", () => {
 				url: "https://example.com/a",
 			});
 			assert.equal(result.items[0].id, "article-1");
-		});
-	});
-
-	describe("delete action", () => {
-		it("should POST to delete href and return refreshed collection", async () => {
-			const { fetchFn, calls } = createRoutingFetch(
-				withEntryPoint({
-					"GET http://localhost:3000/queue": {
-						status: 200,
-						body: collectionResponse([
-							articleEntity({
-								id: "article-1",
-								url: "https://example.com/a",
-								title: "A",
-								savedAt: "2026-01-15T10:00:00.000Z",
-							}),
-						]),
-					},
-					"POST http://localhost:3000/queue/article-1/delete": {
-						status: 200,
-						body: collectionResponse(),
-					},
-				}),
-			);
-			const start = initExtension(createUnderstandings(), createDeps(fetchFn));
-			const collection = await start();
-			const result = await collection.items[0].boundActions.delete();
-			expect(result.items).toEqual([]);
-			expect(result.actions["save-article"]).toBeDefined();
-			expect(result.actions.search).toBeDefined();
-			expect(calls).toContain(
-				"POST http://localhost:3000/queue/article-1/delete",
-			);
-		});
-
-		it("should return items from server after delete", async () => {
-			const remaining = articleEntity({
-				id: "article-2",
-				url: "https://example.com/b",
-				title: "B",
-				savedAt: "2026-01-15T11:00:00.000Z",
-			});
-			const { fetchFn } = createRoutingFetch(
-				withEntryPoint({
-					"GET http://localhost:3000/queue": {
-						status: 200,
-						body: collectionResponse([
-							articleEntity({
-								id: "article-1",
-								url: "https://example.com/a",
-								title: "A",
-								savedAt: "2026-01-15T10:00:00.000Z",
-							}),
-							remaining,
-						]),
-					},
-					"POST http://localhost:3000/queue/article-1/delete": {
-						status: 200,
-						body: collectionResponse([remaining]),
-					},
-				}),
-			);
-			const start = initExtension(createUnderstandings(), createDeps(fetchFn));
-			const collection = await start();
-			const result = await collection.items[0].boundActions.delete();
-			expect(result.items).toHaveLength(1);
-			expect(result.items[0].url).toBe("https://example.com/b");
-			expect(result.items[0].boundActions.delete).toBeDefined();
-		});
-
-		it("should throw when delete fails", async () => {
-			const { fetchFn } = createRoutingFetch(
-				withEntryPoint({
-					"GET http://localhost:3000/queue": {
-						status: 200,
-						body: collectionResponse([
-							articleEntity({
-								id: "article-1",
-								url: "https://example.com/a",
-								title: "A",
-								savedAt: "2026-01-15T10:00:00.000Z",
-							}),
-						]),
-					},
-					"POST http://localhost:3000/queue/article-1/delete": {
-						status: 404,
-					},
-				}),
-			);
-			const start = initExtension(createUnderstandings(), createDeps(fetchFn));
-			const collection = await start();
-			await expect(
-				collection.items[0].boundActions.delete(),
-			).rejects.toThrow("delete target not found");
-		});
-
-		it("sends Prefer: return=representation on delete (RFC 7240)", async () => {
-			let observedPrefer: string | null = null;
-			const { fetchFn } = createRoutingFetch(
-				withEntryPoint({
-					"GET http://localhost:3000/queue": {
-						status: 200,
-						body: collectionResponse([
-							articleEntity({
-								id: "article-1",
-								url: "https://example.com/a",
-								title: "A",
-								savedAt: "2026-01-15T10:00:00.000Z",
-							}),
-						]),
-					},
-					"POST http://localhost:3000/queue/article-1/delete": (init) => {
-						const headers = (init?.headers ?? {}) as Record<string, string>;
-						observedPrefer = headers.Prefer ?? null;
-						return { status: 200, body: collectionResponse() };
-					},
-				}),
-			);
-			const start = initExtension(createUnderstandings(), createDeps(fetchFn));
-			const collection = await start();
-			await collection.items[0].boundActions.delete();
-			expect(observedPrefer).toBe("return=representation");
 		});
 	});
 
@@ -1129,7 +1005,7 @@ describe("initExtension", () => {
 				url: "https://example.com/article",
 			});
 			expect(result.items[0].url).toBe("https://example.com/article");
-			expect(result.items[0].boundActions.delete).toBeDefined();
+			expect(result.items[0].boundActions["update-status"]).toBeDefined();
 			expect(calls).toContain(
 				"GET http://localhost:3000/queue?url=https%3A%2F%2Fexample.com%2Farticle",
 			);
@@ -1271,7 +1147,6 @@ describe("save-html action", () => {
 		return groupOf(
 			initSaveArticleUnderstanding(),
 			initSaveHtmlUnderstanding({ logger: noopLogger }),
-			initDeleteArticleUnderstanding(),
 			httpCacheable(initListArticlesUnderstanding()),
 		);
 	}
@@ -1287,8 +1162,8 @@ describe("save-html action", () => {
 			},
 			actions: [
 				{
-					name: "delete",
-					href: "/queue/article-1/delete",
+					name: "update-status",
+					href: "/queue/article-1/status",
 					method: "POST",
 				},
 			],
@@ -1680,8 +1555,8 @@ describe("save-content action", () => {
 			},
 			actions: [
 				{
-					name: "delete",
-					href: "/queue/article-1/delete",
+					name: "update-status",
+					href: "/queue/article-1/status",
 					method: "POST",
 				},
 			],
@@ -1692,7 +1567,6 @@ describe("save-content action", () => {
 		return groupOf(
 			initSaveArticleUnderstanding(),
 			initSaveContentUnderstanding({ parsers: { "application/pdf": pdfContentBody, "text/html": htmlContentBody }, logger: noopLogger }),
-			initDeleteArticleUnderstanding(),
 			httpCacheable(initListArticlesUnderstanding()),
 		);
 	}
@@ -2073,7 +1947,6 @@ describe("save-articles action", () => {
 		return groupOf(
 			initSaveArticleUnderstanding(),
 			initSaveArticlesUnderstanding(),
-			initDeleteArticleUnderstanding(),
 			httpCacheable(initListArticlesUnderstanding()),
 		);
 	}
@@ -2237,8 +2110,8 @@ describe("initSirenReadingList capability negotiation", () => {
 			links: [{ rel: ["self"], href }],
 			actions: [
 				{
-					name: "delete",
-					href: "/queue/article-1/delete",
+					name: "update-status",
+					href: "/queue/article-1/status",
 					method: "POST",
 				},
 			],
@@ -2463,10 +2336,10 @@ describe("groupOf", () => {
 	it("should merge multiple understanding maps", () => {
 		const combined = groupOf(
 			initSaveArticleUnderstanding(),
-			initDeleteArticleUnderstanding(),
+			initListArticlesUnderstanding(),
 		);
 		expect(combined.has("save-article")).toBe(true);
-		expect(combined.has("delete")).toBe(true);
+		expect(combined.has("search")).toBe(true);
 	});
 
 	it("should throw on duplicate action names", () => {
@@ -2539,8 +2412,8 @@ describe("httpCacheable", () => {
 						},
 						actions: [
 							{
-								name: "delete",
-								href: "/queue/article-1/delete",
+								name: "update-status",
+								href: "/queue/article-1/status",
 								method: "POST",
 							},
 						],
@@ -2657,8 +2530,8 @@ describe("initSirenReadingList", () => {
 							},
 							actions: [
 								{
-									name: "delete",
-									href: "/queue/article-1/delete",
+									name: "update-status",
+									href: "/queue/article-1/status",
 									method: "POST",
 								},
 							],
@@ -2702,8 +2575,8 @@ describe("initSirenReadingList", () => {
 							],
 							actions: [
 								{
-									name: "delete",
-									href: "/queue/article-1/delete",
+									name: "update-status",
+									href: "/queue/article-1/status",
 									method: "POST",
 								},
 							],
@@ -2939,7 +2812,7 @@ describe("initSirenReadingList", () => {
 			).rejects.toThrow("Navigation failed: 500");
 		});
 
-		it("should track delete action from save response for later removal", async () => {
+		it("should track a per-item action from a save response for later invocation", async () => {
 			const { fetchFn } = createRoutingFetch(
 				withEntryPoint({
 					"GET http://localhost:3000/queue": {
@@ -2958,14 +2831,14 @@ describe("initSirenReadingList", () => {
 							},
 							actions: [
 								{
-									name: "delete",
-									href: "/queue/article-1/delete",
+									name: "update-status",
+									href: "/queue/article-1/status",
 									method: "POST",
 								},
 							],
 						}),
 					},
-					"POST http://localhost:3000/queue/article-1/delete": {
+					"POST http://localhost:3000/queue/article-1/status": {
 						status: 200,
 						body: collectionResponse(),
 					},
@@ -2975,7 +2848,7 @@ describe("initSirenReadingList", () => {
 			await list.saveUrl({ url: "https://example.com/a", title: "A" });
 			const result = await list.invokeAction({
 				id: "article-1" as ReadingListItemId,
-				name: "delete",
+				name: "update-status",
 			});
 			assert.equal(result.ok, true);
 			assert.deepEqual(
@@ -3010,8 +2883,8 @@ describe("initSirenReadingList", () => {
 							},
 							actions: [
 								{
-									name: "delete",
-									href: "/queue/article-1/delete",
+									name: "update-status",
+									href: "/queue/article-1/status",
 									method: "POST",
 								},
 							],
@@ -3028,8 +2901,8 @@ describe("initSirenReadingList", () => {
 		});
 	});
 
-	describe("invokeAction delete path", () => {
-		it("should return fresh items from server after delete", async () => {
+	describe("invokeAction per-item action path", () => {
+		it("should return fresh items from server after invoking the action", async () => {
 			const remaining = articleEntity({
 				id: "article-2",
 				url: "https://example.com/b",
@@ -3050,7 +2923,7 @@ describe("initSirenReadingList", () => {
 							remaining,
 						]),
 					},
-					"POST http://localhost:3000/queue/article-1/delete": {
+					"POST http://localhost:3000/queue/article-1/status": {
 						status: 200,
 						body: collectionResponse([remaining]),
 					},
@@ -3060,18 +2933,18 @@ describe("initSirenReadingList", () => {
 			await list.getAllItems();
 			const result = await list.invokeAction({
 				id: "article-1" as ReadingListItemId,
-				name: "delete",
+				name: "update-status",
 			});
 			assert.equal(result.ok, true);
 			const items = (result as Extract<typeof result, { ok: true }>).items;
 			expect(items).toHaveLength(1);
 			expect(items[0].url).toBe("https://example.com/b");
 			expect(calls).toContain(
-				"POST http://localhost:3000/queue/article-1/delete",
+				"POST http://localhost:3000/queue/article-1/status",
 			);
 		});
 
-		it("should fall back to fetching collection when delete action not tracked", async () => {
+		it("should fall back to fetching collection when the action is not tracked", async () => {
 			const { fetchFn, calls } = createRoutingFetch(
 				withEntryPoint({
 					"GET http://localhost:3000/queue": {
@@ -3085,7 +2958,7 @@ describe("initSirenReadingList", () => {
 							}),
 						]),
 					},
-					"POST http://localhost:3000/queue/article-1/delete": {
+					"POST http://localhost:3000/queue/article-1/status": {
 						status: 200,
 						body: collectionResponse(),
 					},
@@ -3094,11 +2967,11 @@ describe("initSirenReadingList", () => {
 			const list = initSirenReadingList(createAdapterDeps(fetchFn));
 			const result = await list.invokeAction({
 				id: "article-1" as ReadingListItemId,
-				name: "delete",
+				name: "update-status",
 			});
 			assert.equal(result.ok, true);
 			expect(calls).toContain(
-				"POST http://localhost:3000/queue/article-1/delete",
+				"POST http://localhost:3000/queue/article-1/status",
 			);
 		});
 
@@ -3116,7 +2989,7 @@ describe("initSirenReadingList", () => {
 							}),
 						]),
 					},
-					"POST http://localhost:3000/queue/article-1/delete": {
+					"POST http://localhost:3000/queue/article-1/status": {
 						status: 404,
 					},
 				}),
@@ -3124,7 +2997,7 @@ describe("initSirenReadingList", () => {
 			const list = initSirenReadingList(createAdapterDeps(fetchFn));
 			const result = await list.invokeAction({
 				id: "article-1" as ReadingListItemId,
-				name: "delete",
+				name: "update-status",
 			});
 			expect(result).toEqual({ ok: false, reason: "not-found" });
 		});
@@ -3143,25 +3016,25 @@ describe("initSirenReadingList", () => {
 							}),
 						]),
 					},
-					"POST http://localhost:3000/queue/article-1/delete": {
+					"POST http://localhost:3000/queue/article-1/status": {
 						status: 500,
 					},
 				}),
 			);
 			const list = initSirenReadingList(createAdapterDeps(fetchFn));
 			await expect(
-				list.invokeAction({ id: "article-1" as ReadingListItemId, name: "delete" }),
-			).rejects.toThrow("delete failed: 500");
+				list.invokeAction({ id: "article-1" as ReadingListItemId, name: "update-status" }),
+			).rejects.toThrow("update-status failed: 500");
 		});
 
-		it("should propagate network errors from delete", async () => {
+		it("should propagate network errors from the action", async () => {
 			const networkError = new Error("Network unreachable");
 			const fetchFn: ExtensionDeps["fetchFn"] = async (input, init) => {
 				const url = requestInfoToUrl(input);
 				const method = init?.method ?? "GET";
 				if (
 					method === "POST" &&
-					url === "http://localhost:3000/queue/article-1/delete"
+					url === "http://localhost:3000/queue/article-1/status"
 				) {
 					throw networkError;
 				}
@@ -3182,11 +3055,11 @@ describe("initSirenReadingList", () => {
 			};
 			const list = initSirenReadingList(createAdapterDeps(fetchFn));
 			await expect(
-				list.invokeAction({ id: "article-1" as ReadingListItemId, name: "delete" }),
+				list.invokeAction({ id: "article-1" as ReadingListItemId, name: "update-status" }),
 			).rejects.toThrow("Network unreachable");
 		});
 
-		it("returns not-found when the entity advertises no delete action", async () => {
+		it("returns not-found when the entity advertises no per-item action", async () => {
 			const { fetchFn } = createRoutingFetch(
 				withEntryPoint({
 					"GET http://localhost:3000/queue": {
@@ -3204,7 +3077,7 @@ describe("initSirenReadingList", () => {
 				}),
 			);
 			const list = initSirenReadingList(createAdapterDeps(fetchFn));
-			const result = await list.invokeAction({ id: "article-1" as ReadingListItemId, name: "delete" });
+			const result = await list.invokeAction({ id: "article-1" as ReadingListItemId, name: "update-status" });
 			expect(result).toEqual({ ok: false, reason: "not-found" });
 		});
 
@@ -3216,7 +3089,7 @@ describe("initSirenReadingList", () => {
 			);
 			const list = initSirenReadingList(createAdapterDeps(fetchFn));
 			await expect(
-				list.invokeAction({ id: "article-1" as ReadingListItemId, name: "delete" }),
+				list.invokeAction({ id: "article-1" as ReadingListItemId, name: "update-status" }),
 			).rejects.toThrow("Navigation failed: 500");
 		});
 
@@ -3233,7 +3106,7 @@ describe("initSirenReadingList", () => {
 				}),
 			);
 			const list = initSirenReadingList(createAdapterDeps(fetchFn));
-			const result = await list.invokeAction({ id: "article-1" as ReadingListItemId, name: "delete" });
+			const result = await list.invokeAction({ id: "article-1" as ReadingListItemId, name: "update-status" });
 			expect(result).toEqual({ ok: false, reason: "not-found" });
 		});
 
@@ -3782,9 +3655,9 @@ describe("hypermedia conformance", () => {
 							savedAt: "2026-01-15T10:00:00.000Z",
 							actions: [
 								{
-									name: "delete",
-									title: "Remove from list",
-									href: "/queue/1/delete",
+									name: "update-status",
+									title: "Mark as read",
+									href: "/queue/1/status",
 									method: "POST",
 								},
 								{ name: "mark-read", href: "/queue/1/read", method: "POST" },
@@ -3797,7 +3670,7 @@ describe("hypermedia conformance", () => {
 		const start = initExtension(createUnderstandings(), createDeps(fetchFn));
 		const result = await start();
 		expect(result.items[0].actions).toEqual([
-			{ name: "delete", title: "Remove from list" },
+			{ name: "update-status", title: "Mark as read" },
 			{ name: "mark-read" },
 		]);
 	});
@@ -3815,7 +3688,7 @@ describe("hypermedia conformance", () => {
 							savedAt: "2026-01-15T10:00:00.000Z",
 							actions: [
 								{ name: "broken", method: "POST" },
-								{ name: "delete", href: "/queue/1/delete", method: "POST" },
+								{ name: "update-status", href: "/queue/1/status", method: "POST" },
 							],
 						}),
 					]),
@@ -3824,7 +3697,7 @@ describe("hypermedia conformance", () => {
 		);
 		const start = initExtension(createUnderstandings(), createDeps(fetchFn));
 		const result = await start();
-		expect(result.items[0].actions.map((a) => a.name)).toEqual(["delete"]);
+		expect(result.items[0].actions.map((a) => a.name)).toEqual(["update-status"]);
 	});
 
 	it("follows the collection's next link so items past the first page are reachable", async () => {

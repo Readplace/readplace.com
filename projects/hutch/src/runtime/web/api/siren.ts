@@ -4,7 +4,7 @@ interface SirenField {
 	value?: string | number;
 }
 
-export interface SirenAction {
+interface SirenAction {
 	name: string;
 	href: string;
 	method: string;

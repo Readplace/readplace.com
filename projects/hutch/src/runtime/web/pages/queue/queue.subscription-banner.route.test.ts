@@ -87,7 +87,7 @@ describe("Queue page banner state", () => {
 		// state, so the re-subscribe CTA must be present on this path too.
 		const cta = banner.querySelector('[data-test-action="resubscribe"]');
 		assert(cta, "expired-trial inactive banner must offer a resubscribe CTA");
-		expect(cta.textContent).toBe("Subscribe — $49/year");
+		expect(cta.textContent).toBe("Subscribe — $4.08/month");
 		const ctaHref = cta.getAttribute("href");
 		assert(ctaHref, "resubscribe CTA must have an href");
 		expect(ctaHref).toContain("/account");
@@ -156,7 +156,7 @@ describe("Queue page banner state", () => {
 		// itself, not be dead-ended into hunting for /account.
 		const cta = banner.querySelector('[data-test-action="resubscribe"]');
 		assert(cta, "inactive banner must offer a subscribe CTA");
-		expect(cta.textContent).toBe("Subscribe — $49/year");
+		expect(cta.textContent).toBe("Subscribe — $4.08/month");
 		const ctaHref = cta.getAttribute("href");
 		assert(ctaHref, "inactive banner CTA must have an href");
 		expect(ctaHref).toContain("/account");

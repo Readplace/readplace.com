@@ -25,10 +25,10 @@ type ClientDefinition = {
  *    adding or removing a client here is a compile error at every place
  *    that must know about the roster.
  * 2. oauthClientId values and store URLs are shipped wire contracts: the ids
- *    are baked into released extension and app builds, and the Chrome Web
- *    Store listing keeps the legacy "hutch" slug. They are data, never
- *    derived from `name` (the iPhone client's id is "ios-app") — renaming
- *    any of them breaks the OAuth token exchange for clients already shipped.
+ *    are baked into released extension and app builds. They are data, never
+ *    derived from `name` (the iPhone client's id is "ios-app", and the OAuth
+ *    ids keep the legacy "hutch" prefix) — renaming any of them breaks the
+ *    OAuth token exchange for clients already shipped.
  */
 export const SUPPORTED_CLIENTS = [
 	{
@@ -46,7 +46,7 @@ export const SUPPORTED_CLIENTS = [
 		description: "Saves from Chrome, Edge, Brave, and other Chromium browsers.",
 		install: {
 			kind: "store",
-			url: "https://chromewebstore.google.com/detail/hutch/klblengmhlfnmjoagchagfcdbpbocgbf", /* 2 */
+			url: "https://chromewebstore.google.com/detail/readplace-%E2%80%94-save-articles/klblengmhlfnmjoagchagfcdbpbocgbf", /* 2 */
 		},
 		auth: { kind: "builtIn", oauthClientId: "hutch-chrome-extension" }, /* 2 */
 	},

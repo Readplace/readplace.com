@@ -1,3 +1,4 @@
+import Security
 import XCTest
 @testable import Readplace
 
@@ -41,5 +42,30 @@ final class KeychainTokenStorageTests: XCTestCase {
 		keychain.removeValue(for: .accessToken)
 		XCTAssertNil(keychain.value(for: .accessToken))
 		XCTAssertEqual(keychain.value(for: .refreshToken), "ref", "removing one key leaves the other")
+	}
+
+	// MARK: - readResult (the Simulator can't produce a failing OSStatus, so the
+	// status→value mapping is unit-tested directly)
+
+	func testReadResultDecodesAStoredValue() {
+		XCTAssertEqual(
+			KeychainTokenStorage.readResult(status: errSecSuccess, data: Data("tok".utf8)),
+			.success("tok")
+		)
+	}
+
+	func testReadResultTreatsAMissingItemAsSignedOut() {
+		XCTAssertEqual(KeychainTokenStorage.readResult(status: errSecItemNotFound, data: nil), .success(nil))
+	}
+
+	func testReadResultTreatsSuccessWithoutDataAsSignedOut() {
+		XCTAssertEqual(KeychainTokenStorage.readResult(status: errSecSuccess, data: nil), .success(nil))
+	}
+
+	func testReadResultSurfacesAHardFailureStatus() {
+		XCTAssertEqual(
+			KeychainTokenStorage.readResult(status: errSecMissingEntitlement, data: nil),
+			.failure(.read(status: errSecMissingEntitlement))
+		)
 	}
 }

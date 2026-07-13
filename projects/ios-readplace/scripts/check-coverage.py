@@ -78,6 +78,21 @@ def main() -> int:
     report = load_report(sys.argv[1])
     measured = measured_files(report)
 
+    # A report that measured no source file is never a pass: it means the xcresult
+    # was produced without coverage instrumentation, or xccov's JSON schema drifted
+    # (a renamed `targets`/`files`/`name` key) so nothing parsed. Either way the gate
+    # would otherwise collect zero failures and exit 0 — a silently disabled gate
+    # reads as green CI. Fail loudly instead, so "measured nothing" can never mean
+    # "everything passed".
+    if not measured:
+        print(
+            "iOS coverage gate FAILED — the coverage report measured no source "
+            "files. The xcresult is empty or xccov's schema changed; the gate "
+            "refuses to pass without measuring anything.",
+            file=sys.stderr,
+        )
+        return 1
+
     failures: list[str] = []
     slack: list[str] = []
     for name, cov in sorted(measured.items()):

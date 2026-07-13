@@ -426,4 +426,93 @@ final class SaveSharedPageTests: XCTestCase {
 		let posts = StubURLProtocol.records.filter { $0.request.httpMethod == "POST" }
 		XCTAssertTrue(posts.isEmpty, "no save must be attempted when the queue cannot be decoded")
 	}
+
+	func testSurfacesTheServerSaveNoticeBeforeTheUploadBegins() async throws {
+		// The queue collection carries the server's "don't close this" notice. The
+		// journey must hand it to the shell as soon as the list loads — before the
+		// capture and upload — so the caption is on screen for the whole phase the
+		// user must not interrupt, not only once the bytes are already in flight.
+		let store = TestSupport.loggedInStore()
+		let captor = FakeHTMLCaptor(page: CapturedPage(rawHtml: "<html><body>hi</body></html>", title: "Captured", mediaType: nil))
+		let notice = "{ \"type\": \"warning\", \"content\": { \"type\": \"text/html\", \"body\": \"Don't close this — it's still saving.\" } }"
+		StubURLProtocol.setHandler { request, _ in
+			switch request.url?.path {
+			case "/":
+				return .redirect(to: "/queue")
+			case "/queue":
+				return .json(200, Fixtures.collection(entitiesJSON: [Fixtures.article(id: "a1")], messagesJSON: notice))
+			case "/queue/save-content":
+				return .json(201, Fixtures.article(id: "saved", url: "https://example.com/post"))
+			default:
+				return .json(404, "{}")
+			}
+		}
+
+		var noticed: [ServerMessage] = []
+		var capturedCountWhenNoticed = -1
+		var saveCountWhenNoticed = -1
+		let saver = SaveSharedPage(store: store, api: makeAPI(store: store), captor: captor)
+		let outcome = await saver.run(
+			url: URL(string: "https://example.com/post")!,
+			fallbackTitle: nil,
+			sharedPdf: nil,
+			onNotice: { messages in
+				noticed = messages
+				capturedCountWhenNoticed = captor.capturedURLs.count
+				saveCountWhenNoticed = StubURLProtocol.records(path: "/queue/save-content").count
+			}
+		)
+
+		XCTAssertEqual(outcome, .savedWithContent)
+		XCTAssertEqual(
+			noticed.map(\.plainText), ["Don't close this — it's still saving."],
+			"the server's save notice reaches the shell verbatim"
+		)
+		XCTAssertEqual(
+			capturedCountWhenNoticed, 0,
+			"the notice fires before the WKWebView capture, so the caption covers the slow capture phase too"
+		)
+		XCTAssertEqual(
+			saveCountWhenNoticed, 0,
+			"the notice fires before the upload, so the caption is up for the whole slow phase"
+		)
+		XCTAssertEqual(captor.capturedURLs.count, 1, "the capture still runs after the notice")
+		XCTAssertEqual(StubURLProtocol.records(path: "/queue/save-content").count, 1)
+	}
+
+	func testFiresTheNoticeCallbackEmptyWhenTheServerOffersNone() async throws {
+		// A server that emits no collection notice still drives the callback once — with
+		// no messages — so the shell can leave the caption hidden rather than assume it.
+		let store = TestSupport.loggedInStore()
+		let captor = FakeHTMLCaptor(page: CapturedPage(rawHtml: "<html><body>hi</body></html>", title: "Captured", mediaType: nil))
+		StubURLProtocol.setHandler { request, _ in
+			switch request.url?.path {
+			case "/":
+				return .redirect(to: "/queue")
+			case "/queue":
+				return .json(200, Fixtures.collection(entitiesJSON: [Fixtures.article(id: "a1")]))
+			case "/queue/save-content":
+				return .json(201, Fixtures.article(id: "saved", url: "https://example.com/post"))
+			default:
+				return .json(404, "{}")
+			}
+		}
+
+		var callbackCount = 0
+		var lastMessages: [ServerMessage] = []
+		let saver = SaveSharedPage(store: store, api: makeAPI(store: store), captor: captor)
+		let outcome = await saver.run(
+			url: URL(string: "https://example.com/post")!,
+			fallbackTitle: nil,
+			sharedPdf: nil,
+			onNotice: { messages in
+				callbackCount += 1
+				lastMessages = messages
+			}
+		)
+
+		XCTAssertEqual(outcome, .savedWithContent)
+		XCTAssertEqual(callbackCount, 1, "the callback fires exactly once per save")
+		XCTAssertTrue(lastMessages.isEmpty, "with no server notice, the callback carries no messages")
+	}
 }

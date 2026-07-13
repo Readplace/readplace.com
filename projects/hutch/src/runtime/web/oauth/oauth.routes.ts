@@ -12,9 +12,15 @@ import type {
 	ValidateOAuthRedirectUri,
 } from "@packages/provider-contracts/oauth";
 import type { ConsumeRateLimit } from "@packages/provider-contracts/rate-limit";
-import type { DestroyUserSessions } from "@packages/provider-contracts/auth";
+import type {
+	DestroySession,
+	DestroyUserSessions,
+	FindEmailByUserId,
+} from "@packages/provider-contracts/auth";
 import { getBuiltInClient, revokeDestroysUserSessions } from "@packages/domain/oauth";
 import { UserIdSchema } from "@packages/domain/user";
+import assert from "node:assert";
+import { SESSION_COOKIE_NAME } from "@packages/web-session";
 import { Base } from "../base.component";
 import type { BuildBannerState } from "../banner-state";
 import { createRateLimitMiddleware } from "../middleware/rate-limit";
@@ -35,6 +41,16 @@ const denyBodySchema = z.object({
 	client_id: z.string(),
 	redirect_uri: z.string().url(),
 	state: z.string().optional(),
+});
+
+const switchBodySchema = z.object({
+	client_id: z.string(),
+	redirect_uri: z.string().url(),
+	response_type: z.literal("code"),
+	code_challenge: z.string().min(43).max(128),
+	code_challenge_method: z.literal("S256"),
+	state: z.string().optional(),
+	screen_hint: z.enum(["login", "signup"]).optional(),
 });
 
 const revokeBodySchema = z.object({
@@ -129,7 +145,9 @@ interface OAuthRouteDeps {
 	findClient: FindOAuthClient;
 	validateRedirectUri: ValidateOAuthRedirectUri;
 	registerClient: RegisterOAuthClient;
+	destroySession: DestroySession;
 	destroyUserSessions: DestroyUserSessions;
+	findEmailByUserId: FindEmailByUserId;
 	consumeRateLimit: ConsumeRateLimit;
 	registerRateLimitRule: RateLimitRule;
 	tokenRateLimitRule: RateLimitRule;
@@ -228,6 +246,8 @@ export function initOAuthRoutes(deps: OAuthRouteDeps): Router {
 			return;
 		}
 
+		const userEmail = await deps.findEmailByUserId(req.userId);
+
 		sendComponent(
 			req, res,
 			Base(OAuthAuthorizePage({
@@ -238,6 +258,8 @@ export function initOAuthRoutes(deps: OAuthRouteDeps): Router {
 				selfRegistered: getBuiltInClient(client_id) === undefined,
 				codeChallenge: parsed.data.code_challenge,
 				state,
+				userEmail: userEmail ?? undefined,
+				screenHint: parsed.data.screen_hint,
 			}), await deps.buildBannerState(req)),
 		);
 	});
@@ -280,6 +302,52 @@ export function initOAuthRoutes(deps: OAuthRouteDeps): Router {
 				denyUrl.searchParams.set("error", "access_denied");
 				if (state) denyUrl.searchParams.set("state", state);
 				res.redirect(302, denyUrl.toString());
+				return;
+			}
+
+			if (req.body.action === "switch") {
+				const switchParsed = switchBodySchema.safeParse(req.body);
+				if (!switchParsed.success) {
+					res.status(400).json({
+						error: "invalid_request",
+						error_description: "Missing or invalid parameters",
+					});
+					return;
+				}
+
+				const { client_id, redirect_uri, state, screen_hint } = switchParsed.data;
+
+				// Validate the redirect_uri before touching the session so a malformed
+				// or hostile request can't grief the user into a logout.
+				if (!(await deps.validateRedirectUri({ clientId: client_id, redirectUri: redirect_uri }))) {
+					res.status(400).json({
+						error: "invalid_request",
+						error_description: "Invalid redirect_uri",
+					});
+					return;
+				}
+
+				// The `!req.userId` guard above already ran, so the session cookie that
+				// resolved to it is an invariant here.
+				const sessionId = req.cookies?.[SESSION_COOKIE_NAME];
+				assert(sessionId, "an authenticated switch must carry the session cookie");
+
+				// This session only — "use a different account" means "stop using this
+				// browser session", not "sign this user out of every device".
+				await deps.destroySession(sessionId);
+				res.clearCookie(SESSION_COOKIE_NAME, { path: "/" });
+
+				const authorizeParams = new URLSearchParams({
+					client_id,
+					redirect_uri,
+					response_type: switchParsed.data.response_type,
+					code_challenge: switchParsed.data.code_challenge,
+					code_challenge_method: switchParsed.data.code_challenge_method,
+				});
+				if (state) authorizeParams.set("state", state);
+				if (screen_hint) authorizeParams.set("screen_hint", screen_hint);
+				const authorizeUrl = `/oauth/authorize?${authorizeParams.toString()}`;
+				res.redirect(303, `/login?return=${encodeURIComponent(authorizeUrl)}&prompt=select_account`);
 				return;
 			}
 
