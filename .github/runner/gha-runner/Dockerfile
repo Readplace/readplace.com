@@ -77,12 +77,14 @@ RUN mkdir -p /opt/cft \
  && echo "$DRIVER_OUT" | tail -1 | sed -E 's/^chromedriver@[^ ]+ //' > /opt/cft/driver-path
 ENV CFT_BAKED_DIR=/opt/cft
 
-# No docker CLI/buildx here on purpose. detect-projects' `save-link:check-infra`
-# used to `docker buildx build --push` against the host OrbStack daemon just to
-# compute the OCR image tag; it now runs `--tag-only` (esbuild + hash, no docker),
-# so the runner needs neither the docker client nor the root-equivalent host
-# socket. The real build+push stays in `save-link:deploy-infra`, which runs on a
-# github-hosted runner.
+# We do NOT install docker-cli/buildx here (the base image already ships both).
+# detect-projects' `save-link:check-infra` used to `docker buildx build --push`
+# against the host OrbStack daemon just to compute the OCR image tag; it now runs
+# `--tag-only` (esbuild + hash, no docker). The docker binary from the base image
+# stays but is inert: docker-compose.yml no longer mounts /var/run/docker.sock, so
+# it can reach no daemon — the escape it enabled is gone (verified: `docker ps`
+# fails with "no such file or directory"). The real build+push stays in
+# `save-link:deploy-infra`, which runs on a github-hosted runner.
 
 # AWS CLI v2: build-image.mjs --tag-only calls `aws ecr describe-repositories` to
 # resolve the ECR repo URL (read-only; `get-login-password` only runs on the
