@@ -44,10 +44,10 @@ describe("GET /help/add-links", () => {
 			doc.querySelectorAll("[data-test-help-slide] .help__shot-img"),
 		);
 		expect(shots.map((el) => el.getAttribute("src"))).toEqual([
-			"https://static.test/screenshots/ios-share-sheet.png",
-			"https://static.test/screenshots/ios-reading-list.png",
-			"https://static.test/screenshots/ios-reader.png",
-			"https://static.test/screenshots/ios-share-sheet.png",
+			"https://static.test/screenshots/ios-share-sheet.webp",
+			"https://static.test/screenshots/ios-reading-list.webp",
+			"https://static.test/screenshots/ios-reader.webp",
+			"https://static.test/screenshots/ios-share-sheet.webp",
 		]);
 		expect(shots.map((el) => el.getAttribute("width"))).toEqual([
 			"520",
@@ -124,9 +124,9 @@ describe("GET /help/add-links", () => {
 
 		const steps = Array.from(doc.querySelectorAll("[data-test-help-pin-step]"));
 		expect(steps.map((el) => el.querySelector("img")?.getAttribute("src"))).toEqual([
-			"https://static.test/screenshots/ios-share-more.png",
-			"https://static.test/screenshots/ios-share-favourite.png",
-			"https://static.test/screenshots/ios-share-pinned.png",
+			"https://static.test/screenshots/ios-share-more.webp",
+			"https://static.test/screenshots/ios-share-favourite.webp",
+			"https://static.test/screenshots/ios-share-pinned.webp",
 		]);
 		expect(
 			steps.map((el) => el.querySelector("figcaption")?.textContent?.trim()),

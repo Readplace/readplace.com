@@ -168,7 +168,7 @@ interface InstallScreenshot {
 }
 
 const SAVE_FROM_EXTENSION_SHOT: InstallScreenshot = {
-	pathUnderStaticBase: "/screenshots/save-from-extension.png",
+	pathUnderStaticBase: "/screenshots/save-from-extension.webp",
 	alt: "The Readplace extension popup confirming an article was saved, over a Quanta Magazine article",
 	caption: "One click saves the full page you're reading — not just the link.",
 	width: 1440,
@@ -176,7 +176,7 @@ const SAVE_FROM_EXTENSION_SHOT: InstallScreenshot = {
 };
 
 const QUEUE_SHOT: InstallScreenshot = {
-	pathUnderStaticBase: "/screenshots/queue.png",
+	pathUnderStaticBase: "/screenshots/queue.webp",
 	alt: "The Readplace queue listing saved articles with thumbnails and short previews",
 	caption: "Everything waits in one queue, with a short preview so you know what's worth your time.",
 	width: 1440,
@@ -184,7 +184,7 @@ const QUEUE_SHOT: InstallScreenshot = {
 };
 
 const READER_SHOT: InstallScreenshot = {
-	pathUnderStaticBase: "/screenshots/reader-tldr.png",
+	pathUnderStaticBase: "/screenshots/reader-tldr.webp",
 	alt: "The Readplace reader showing an article with its AI summary expanded",
 	caption: "Read without the clutter — with a TL;DR before you commit.",
 	width: 1440,
@@ -196,42 +196,42 @@ const CLIENT_SCREENSHOTS = {
 	chrome: [SAVE_FROM_EXTENSION_SHOT, QUEUE_SHOT, READER_SHOT],
 	iphone: [
 		{
-			pathUnderStaticBase: "/screenshots/ios-share-sheet.png",
+			pathUnderStaticBase: "/screenshots/ios-share-sheet.webp",
 			alt: "The iOS share sheet with Readplace as a share target over a Safari article",
 			caption: "Save from any browser with the share sheet.",
 			width: 520,
 			height: 1127,
 		},
 		{
-			pathUnderStaticBase: "/screenshots/ios-reading-list.png",
+			pathUnderStaticBase: "/screenshots/ios-reading-list.webp",
 			alt: "The Readplace reading list in the iPhone app",
 			caption: "Your queue, in your pocket.",
 			width: 520,
 			height: 1127,
 		},
 		{
-			pathUnderStaticBase: "/screenshots/ios-reader.png",
+			pathUnderStaticBase: "/screenshots/ios-reader.webp",
 			alt: "The Readplace reader on iPhone showing an article with its AI summary",
 			caption: "The reader and TL;DR work the same on iPhone.",
 			width: 520,
 			height: 1127,
 		},
 		{
-			pathUnderStaticBase: "/screenshots/ios-share-more.png",
+			pathUnderStaticBase: "/screenshots/ios-share-more.webp",
 			alt: "The iOS share sheet with the app row scrolled right to reveal the More button",
 			caption: "Tap Share, scroll the row right, then tap More.",
 			width: 520,
 			height: 1127,
 		},
 		{
-			pathUnderStaticBase: "/screenshots/ios-share-favourite.png",
+			pathUnderStaticBase: "/screenshots/ios-share-favourite.webp",
 			alt: "The iOS Apps screen with Readplace listed under Favourites",
 			caption: "Tap Edit, then add Readplace to your Favourites.",
 			width: 520,
 			height: 1127,
 		},
 		{
-			pathUnderStaticBase: "/screenshots/ios-share-pinned.png",
+			pathUnderStaticBase: "/screenshots/ios-share-pinned.webp",
 			alt: "The iOS share sheet with Readplace first in the app row",
 			caption: "Readplace now sits first — no scrolling, no hunting.",
 			width: 520,

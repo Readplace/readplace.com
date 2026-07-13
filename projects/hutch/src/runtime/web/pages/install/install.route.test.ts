@@ -460,9 +460,9 @@ describe("GET /install", () => {
 
 		const images = shots.map((shot) => shot.querySelector("img"));
 		expect(images.map((img) => img?.getAttribute("src"))).toEqual([
-			"https://static.test/screenshots/save-from-extension.png",
-			"https://static.test/screenshots/queue.png",
-			"https://static.test/screenshots/reader-tldr.png",
+			"https://static.test/screenshots/save-from-extension.webp",
+			"https://static.test/screenshots/queue.webp",
+			"https://static.test/screenshots/reader-tldr.webp",
 		]);
 		for (const img of images) {
 			assert(img, "each screenshot figure must contain an image");
@@ -499,12 +499,12 @@ describe("GET /install", () => {
 		expect(
 			shots.map((shot) => shot.querySelector("img")?.getAttribute("src")),
 		).toEqual([
-			"https://static.test/screenshots/ios-share-sheet.png",
-			"https://static.test/screenshots/ios-reading-list.png",
-			"https://static.test/screenshots/ios-reader.png",
-			"https://static.test/screenshots/ios-share-more.png",
-			"https://static.test/screenshots/ios-share-favourite.png",
-			"https://static.test/screenshots/ios-share-pinned.png",
+			"https://static.test/screenshots/ios-share-sheet.webp",
+			"https://static.test/screenshots/ios-reading-list.webp",
+			"https://static.test/screenshots/ios-reader.webp",
+			"https://static.test/screenshots/ios-share-more.webp",
+			"https://static.test/screenshots/ios-share-favourite.webp",
+			"https://static.test/screenshots/ios-share-pinned.webp",
 		]);
 		for (const shot of shots) {
 			expect(shot.classList.contains("install-page__screenshot--tall")).toBe(true);
