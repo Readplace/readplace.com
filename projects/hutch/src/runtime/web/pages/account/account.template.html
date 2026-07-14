@@ -5,30 +5,7 @@
         {{/if}}
         <h1 class="account__title">{{heading}}</h1>
       </div>
-      <section class="{{stateClass}}" data-test-account-card data-test-account-state="{{state}}">
-        {{#if stateIsErrorPaymentMethod}}
-        <h2 class="account-card__heading" data-test-account-error-heading>We couldn't restart your subscription</h2>
-        <p class="account-card__body">
-          The card we have on file is no longer valid. Email
-          <a class="account-card__support-link" href="mailto:support@readplace.com" data-test-account-support-link>support@readplace.com</a>
-          and we'll get you back up and running.
-        </p>
-        {{else}}
-        {{#if showCancellingNotice}}
-        <p class="account-card__notice" data-test-cancelling-notice>Cancellation in progress — refresh in a few seconds to see the update.</p>
-        {{/if}}
-        <p class="account-card__status" data-test-account-status>{{statusLine}}{{#if statusDate}}<time class="account-card__status-date" datetime="{{statusDate.iso}}" data-local-time="{{statusDate.mode}}">{{statusDate.label}}</time>{{statusDateTail}}{{/if}}</p>
-        {{/if}}
-        <div class="account-card__actions">
-          {{#each actions}}
-          <form method="{{method}}" action="{{href}}" class="account-card__action-form"
-                hx-boost="true" hx-target="main" hx-select="main" hx-swap="outerHTML show:none"
-                data-test-account-action="{{key}}">
-            <button type="submit" class="account-card__action account-card__action--{{variant}}">{{name}}</button>
-          </form>
-          {{/each}}
-        </div>
-      </section>
+      {{{cardHtml}}}
       {{#if showCardSection}}
       <section class="{{cardSection.stateClass}}" data-test-cards-section data-test-cards-state="{{cardSection.state}}">
         <h2 class="account-cards__heading">{{cardSection.heading}}</h2>

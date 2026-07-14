@@ -2,6 +2,7 @@ import assert from "node:assert/strict";
 import { PaymentMethodIdSchema } from "@packages/provider-contracts/payment-methods";
 import type { SavedCard } from "@packages/provider-contracts/payment-methods";
 import {
+	ACCOUNT_CANCEL_MAX_POLLS,
 	buildCardSectionViewModel,
 	toAccountViewModel,
 	parseAccountQuery,
@@ -35,7 +36,7 @@ describe("toAccountViewModel — state", () => {
 		};
 		const vm = toAccountViewModel(
 			access,
-			{ cancelling: false, errorPaymentMethod: false, deleteConfirmationError: false, cardError: undefined },
+			{ cancelling: false, pollCount: 0, errorPaymentMethod: false, deleteConfirmationError: false, cardError: undefined },
 			now,
 		);
 		assert.equal(vm.statusLine, "Your free trial ends on ");
@@ -58,7 +59,7 @@ describe("toAccountViewModel — state", () => {
 		};
 		const vm = toAccountViewModel(
 			access,
-			{ cancelling: false, errorPaymentMethod: false, deleteConfirmationError: false, cardError: undefined },
+			{ cancelling: false, pollCount: 0, errorPaymentMethod: false, deleteConfirmationError: false, cardError: undefined },
 			now,
 		);
 		assert.equal(vm.statusDateTail, " — 1 day left.");
@@ -67,7 +68,7 @@ describe("toAccountViewModel — state", () => {
 
 describe("toAccountViewModel — actions", () => {
 	const now = new Date();
-	const baseQuery = { cancelling: false, errorPaymentMethod: false, deleteConfirmationError: false, cardError: undefined };
+	const baseQuery = { cancelling: false, pollCount: 0, errorPaymentMethod: false, deleteConfirmationError: false, cardError: undefined };
 
 	it("founding members get no actions", () => {
 		const vm = toAccountViewModel(
@@ -132,17 +133,69 @@ describe("toAccountViewModel — actions", () => {
 		assert.equal(vm.actions[0].key, "cancel-form");
 		assert.equal(vm.actions[0].variant, "destructive");
 		assert.equal(vm.actions[0].method, "POST");
+		assert.equal(vm.actions[0].isPending, false);
 		assert.equal(vm.actions[0].href, "/account/cancel?utm_source=account&utm_medium=internal&utm_content=cancel-form");
+		assert.equal(vm.pollState, "idle");
+		assert.equal(vm.pollUrl, undefined);
 	});
 
-	it("active paid users with cancelling=1 get no actions — the Cancel command is already in flight", () => {
+	it("active paid users with cancelling=1 keep the cancel control, disabled — the command is already in flight", () => {
 		const vm = toAccountViewModel(
 			{ tier: "paid", access: "full", banner: "none" },
 			{ ...baseQuery, cancelling: true },
 			now,
 		);
-		assert.deepEqual(vm.actions, []);
+		assert.equal(vm.actions.length, 1);
+		assert.equal(vm.actions[0].key, "cancel-form");
+		assert.equal(vm.actions[0].name, "Cancelling…");
+		assert.equal(vm.actions[0].isPending, true);
 		assert.equal(vm.showCancellingNotice, true);
+		assert.equal(vm.cancellingNotice, "Cancellation in progress.");
+	});
+
+	it("polls itself while cancelling, advancing the budget cursor each tick", () => {
+		const vm = toAccountViewModel(
+			{ tier: "paid", access: "full", banner: "none" },
+			{ ...baseQuery, cancelling: true, pollCount: 4 },
+			now,
+		);
+		assert.equal(vm.pollState, "polling");
+		assert.equal(vm.pollUrl, "/account/status?cancelling=1&poll=5");
+	});
+
+	it("stops polling and says so once the budget is spent — a wedged async chain must not leave a disabled button forever", () => {
+		const vm = toAccountViewModel(
+			{ tier: "paid", access: "full", banner: "none" },
+			{ ...baseQuery, cancelling: true, pollCount: ACCOUNT_CANCEL_MAX_POLLS },
+			now,
+		);
+		assert.equal(vm.pollState, "idle");
+		assert.equal(vm.pollUrl, undefined);
+		assert.equal(vm.actions[0].isPending, true);
+		assert.equal(
+			vm.cancellingNotice,
+			"Cancellation is taking longer than usual. Refresh to check.",
+		);
+	});
+
+	it("stops polling once the cancellation has landed — the card now offers reactivate instead", () => {
+		const vm = toAccountViewModel(
+			{
+				tier: "paid",
+				access: "full",
+				banner: "cancellation-scheduled",
+				cancellationEffectiveAt: new Date(now.getTime() + 5 * ONE_DAY_MS).toISOString(),
+			},
+			{ ...baseQuery, cancelling: true, pollCount: 3 },
+			now,
+		);
+		assert.deepEqual(
+			vm.actions.map((a) => a.key),
+			["reactivate-form"],
+		);
+		assert.equal(vm.pollState, "idle");
+		assert.equal(vm.pollUrl, undefined);
+		assert.equal(vm.showCancellingNotice, false);
 	});
 
 	it("trial users get a primary subscribe action only — no cancel button while on trial", () => {
@@ -236,7 +289,7 @@ describe("toAccountViewModel — actions", () => {
 
 describe("withoutCommerce — iOS app surface (Guideline 3.1.1)", () => {
 	const now = new Date();
-	const baseQuery = { cancelling: false, errorPaymentMethod: false, deleteConfirmationError: false, cardError: undefined };
+	const baseQuery = { cancelling: false, pollCount: 0, errorPaymentMethod: false, deleteConfirmationError: false, cardError: undefined };
 
 	it("hides the payment-methods section", () => {
 		const web = toAccountViewModel({ tier: "paid", access: "full", banner: "none" }, baseQuery, now);
@@ -257,6 +310,31 @@ describe("withoutCommerce — iOS app surface (Guideline 3.1.1)", () => {
 			vm.actions[0].href,
 			"/account/cancel?utm_source=account&utm_medium=internal&utm_content=cancel-form&platform=ios",
 		);
+	});
+
+	it("carries ?platform=ios on the cancelling card's poll URL so the card can't poll its way back onto the web surface", () => {
+		const vm = withoutCommerce(
+			toAccountViewModel(
+				{ tier: "paid", access: "full", banner: "none" },
+				{ ...baseQuery, cancelling: true, pollCount: 1 },
+				now,
+			),
+			{ appShell: false },
+		);
+		assert.equal(vm.pollState, "polling");
+		assert.equal(vm.pollUrl, "/account/status?cancelling=1&poll=2&platform=ios");
+	});
+
+	it("stamps the app-shell marker on the poll URL too, so the polled fragment stays chromeless", () => {
+		const vm = withoutCommerce(
+			toAccountViewModel(
+				{ tier: "paid", access: "full", banner: "none" },
+				{ ...baseQuery, cancelling: true, pollCount: 1 },
+				now,
+			),
+			{ appShell: true },
+		);
+		assert.equal(vm.pollUrl, "/account/status?cancelling=1&poll=2&platform=ios&shell=app");
 	});
 
 	it("strips the subscribe CTA on trial — no in-app purchase path", () => {
@@ -327,10 +405,18 @@ describe("parseAccountQuery", () => {
 		const result = parseAccountQuery(undefined);
 		assert.deepEqual(result, {
 			cancelling: false,
+			pollCount: 0,
 			errorPaymentMethod: false,
 			deleteConfirmationError: false,
 			cardError: undefined,
 		});
+	});
+
+	it("clamps a poll cursor past the budget so a client can't buy itself extra ticks", () => {
+		assert.equal(
+			parseAccountQuery({ poll: String(ACCOUNT_CANCEL_MAX_POLLS + 50) }).pollCount,
+			ACCOUNT_CANCEL_MAX_POLLS,
+		);
 	});
 
 	it("parses the delete_confirmation error", () => {

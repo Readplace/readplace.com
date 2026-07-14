@@ -129,6 +129,11 @@
 .account-card__action--destructive:hover {
   opacity: 0.9;
 }
+
+.account-card__action:disabled {
+  cursor: progress;
+  opacity: 1;
+}
 /* purgecss-ignore-end */
 
 .account-card__support-link {

@@ -52,7 +52,7 @@ import { ACCOUNT_LOGOUT_HREF, APP_BACK_LINK } from "../../shared/ios-app-links";
 import { HxRedirectPage } from "../../hx-redirect-page";
 import { sendComponent } from "@packages/web-shell";
 import type { EffectiveAccess, GetEffectiveAccess } from "@packages/subscription-access";
-import { AccountPage } from "./account.component";
+import { AccountPage, renderAccountCard } from "./account.component";
 import {
 	type CardError,
 	type CardSectionViewModel,
@@ -196,6 +196,18 @@ export function initAccountRoutes(deps: AccountDependencies): Router {
 			adding: undefined,
 		});
 		await renderAccount(req, res, { access, cardSection });
+	});
+
+	router.get("/status", async (req: Request, res: Response) => {
+		assert(req.userId, "userId required - route must be protected by requireAuth");
+		const access = await deps.getEffectiveAccess(req.userId);
+		const webVm = toAccountViewModel(access, parseAccountQuery(req.query), deps.now());
+		const vm = isIosSurface(req)
+			? withoutCommerce(webVm, { appShell: isAppShell(req) })
+			: webVm;
+		res.set("Cache-Control", "private, no-cache");
+		res.set("Vary", "Cookie");
+		res.status(200).type("html").send(renderAccountCard(vm));
 	});
 
 	router.post("/cards/:id/primary", async (req: Request, res: Response) => {

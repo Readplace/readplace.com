@@ -9,6 +9,7 @@ import {
 	createDefaultTestAppFixture,
 } from "@packages/test-fixtures";
 import { CHECKOUT_VARIANTS } from "../../../observability/events";
+import { ACCOUNT_CANCEL_MAX_POLLS } from "./account.view-model";
 
 function card(id: string, isPrimary: boolean, last4: string): SavedCard {
 	return {
@@ -491,8 +492,14 @@ describe("GET /account (inactive — trial expired vs cancelled render identical
 	});
 });
 
+function cancelButton(doc: Document): HTMLButtonElement {
+	const button = findAction(doc, "cancel-form").querySelector("button");
+	assert(button, "the cancel form must contain a submit button");
+	return button;
+}
+
 describe("GET /account?cancelling=1 (the pending page after POST /account/cancel)", () => {
-	it("renders a cancellation-in-progress notice and hides the Cancel button — clicking again would enqueue a duplicate command", async () => {
+	it("keeps the Cancel button but renders it disabled, and polls itself — clicking again would enqueue a duplicate command", async () => {
 		const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
 		const { subscriptionProviders } = harness;
 		const { agent, userId } = await loginUser(harness, "cancelling@example.com");
@@ -509,10 +516,33 @@ describe("GET /account?cancelling=1 (the pending page after POST /account/cancel
 		const notice = doc.querySelector("[data-test-cancelling-notice]");
 		assert(notice, "cancelling notice must render");
 		expect(notice.textContent).toContain("Cancellation in progress");
-		expect(actionKeys(doc)).toEqual([]);
+		expect(actionKeys(doc)).toEqual(["cancel-form"]);
+		expect(cancelButton(doc).disabled).toBe(true);
+		expect(cancelButton(doc).textContent).toBe("Cancelling…");
+		expect(findCard(doc).getAttribute("data-test-account-poll")).toBe("polling");
+		expect(findCard(doc).getAttribute("hx-get")).toBe("/account/status?cancelling=1&poll=1");
 	});
 
-	it("does not render the cancellation-in-progress notice when ?cancelling=1 is absent", async () => {
+	it("disables the Cancel button for the duration of its own POST, so a double-click can't submit twice", async () => {
+		const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
+		const { subscriptionProviders } = harness;
+		const { agent, userId } = await loginUser(harness, "double-click@example.com");
+		await subscriptionProviders.upsertActive({
+			userId,
+			subscriptionId: "sub_dbl",
+			customerId: "cus_dbl",
+		});
+
+		const response = await agent.get("/account");
+
+		const doc = new JSDOM(response.text).window.document;
+		const form = findAction(doc, "cancel-form");
+		expect(form.getAttribute("hx-disabled-elt")).toBe("find button");
+		expect(cancelButton(doc).disabled).toBe(false);
+		expect(findCard(doc).getAttribute("data-test-account-poll")).toBe("idle");
+	});
+
+	it("renders an enabled Cancel button, no polling, and no in-progress notice when ?cancelling=1 is absent", async () => {
 		const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
 		const { subscriptionProviders } = harness;
 		const { agent, userId } = await loginUser(harness, "no-notice@example.com");
@@ -526,7 +556,83 @@ describe("GET /account?cancelling=1 (the pending page after POST /account/cancel
 
 		expect(response.status).toBe(200);
 		const doc = new JSDOM(response.text).window.document;
-		expect(doc.querySelector("[data-test-cancelling-notice]")).toBeNull();
+		expect(findCard(doc).getAttribute("data-test-account-poll")).toBe("idle");
+		expect(cancelButton(doc).textContent).toBe("Cancel subscription");
+		expect(cancelButton(doc).disabled).toBe(false);
+	});
+});
+
+describe("GET /account/status — the poll fragment the cancelling card swaps itself with", () => {
+	it("keeps polling while the row is still active, without touching Stripe — the async chain has not landed yet", async () => {
+		const fixture = createDefaultTestAppFixture(TEST_APP_ORIGIN);
+		let cardReads = 0;
+		const listCards = fixture.paymentMethods.listCards;
+		fixture.paymentMethods.listCards = async (input) => {
+			cardReads += 1;
+			return listCards(input);
+		};
+		const harness = useApp(fixture);
+		const { subscriptionProviders } = harness;
+		const { agent, userId } = await loginUser(harness, "poll-active@example.com");
+		await subscriptionProviders.upsertActive({
+			userId,
+			subscriptionId: "sub_poll",
+			customerId: "cus_poll",
+		});
+
+		const response = await agent.get("/account/status?cancelling=1&poll=1");
+
+		expect(response.status).toBe(200);
+		const doc = new JSDOM(response.text).window.document;
+		expect(findCard(doc).getAttribute("data-test-account-poll")).toBe("polling");
+		expect(findCard(doc).getAttribute("hx-get")).toBe("/account/status?cancelling=1&poll=2");
+		expect(cancelButton(doc).disabled).toBe(true);
+		expect(cardReads).toBe(0);
+	});
+
+	it("stops polling and offers reactivation once the cancellation has landed", async () => {
+		const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
+		const { subscriptionProviders } = harness;
+		const { agent, userId } = await loginUser(harness, "poll-landed@example.com");
+		await subscriptionProviders.upsertActive({
+			userId,
+			subscriptionId: "sub_landed",
+			customerId: "cus_landed",
+		});
+		await subscriptionProviders.markPendingCancellation({
+			userId,
+			cancellationEffectiveAt: new Date(Date.now() + 5 * 86_400_000).toISOString(),
+		});
+
+		const response = await agent.get("/account/status?cancelling=1&poll=2");
+
+		expect(response.status).toBe(200);
+		const doc = new JSDOM(response.text).window.document;
+		expect(actionKeys(doc)).toEqual(["reactivate-form"]);
+		expect(findCard(doc).getAttribute("data-test-account-poll")).toBe("idle");
+		expect(findCard(doc).getAttribute("hx-get")).toBeNull();
+	});
+
+	it("gives up rather than polling forever when the async chain never lands", async () => {
+		const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
+		const { subscriptionProviders } = harness;
+		const { agent, userId } = await loginUser(harness, "poll-wedged@example.com");
+		await subscriptionProviders.upsertActive({
+			userId,
+			subscriptionId: "sub_wedged",
+			customerId: "cus_wedged",
+		});
+
+		const response = await agent.get(
+			`/account/status?cancelling=1&poll=${ACCOUNT_CANCEL_MAX_POLLS}`,
+		);
+
+		expect(response.status).toBe(200);
+		const doc = new JSDOM(response.text).window.document;
+		expect(findCard(doc).getAttribute("data-test-account-poll")).toBe("idle");
+		const notice = doc.querySelector("[data-test-cancelling-notice]");
+		assert(notice, "the stalled notice must render");
+		expect(notice.textContent).toContain("taking longer than usual");
 	});
 });
 

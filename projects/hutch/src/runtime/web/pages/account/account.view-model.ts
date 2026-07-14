@@ -2,7 +2,13 @@ import { decomposeTimeLeft } from "@packages/time-left";
 import { escapeRegExp } from "@packages/escape-regexp";
 import type { SavedCard } from "@packages/provider-contracts/payment-methods";
 import type { EffectiveAccess } from "@packages/subscription-access";
-import { type LocalTime, SUBSCRIBE_CTA_LABEL, toAbsoluteDate, withInternalTracking } from "@packages/web-shell";
+import {
+	type LocalTime,
+	SUBSCRIBE_CTA_LABEL,
+	parsePollParam,
+	toAbsoluteDate,
+	withInternalTracking,
+} from "@packages/web-shell";
 import {
 	APP_SHELL_QUERY,
 	APP_SHELL_VALUE,
@@ -15,9 +21,12 @@ import {
 	ACCOUNT_DELETE_URL,
 	ACCOUNT_REACTIVATE_URL,
 	ACCOUNT_SUBSCRIBE_URL,
+	buildAccountStatusPollUrl,
 	buildCardPrimaryUrl,
 	buildCardRemoveUrl,
 } from "./account.url";
+
+export const ACCOUNT_CANCEL_MAX_POLLS = 20;
 
 /** Server-authoritative card cap. The web layer never trusts the client: every
  * add/remove/promote re-reads the live card set and re-checks these rules. */
@@ -43,12 +52,15 @@ export type AccountActionKey = "subscribe" | "cancel-form" | "reactivate-form" |
 
 export type AccountActionVariant = "primary" | "secondary" | "destructive";
 
+export type AccountPollState = "polling" | "idle";
+
 export interface AccountAction {
 	key: AccountActionKey;
 	name: string;
 	variant: AccountActionVariant;
 	method: "POST";
 	href: string;
+	isPending: boolean;
 }
 
 export interface DangerConfirmationViewModel {
@@ -71,6 +83,9 @@ export interface AccountViewModel {
 	statusDate?: LocalTime;
 	statusDateTail?: string;
 	showCancellingNotice: boolean;
+	cancellingNotice: string;
+	pollState: AccountPollState;
+	pollUrl?: string;
 	stateIsErrorPaymentMethod: boolean;
 	actions: AccountAction[];
 	/** The irreversible "delete account" control. Kept out of the state-dependent
@@ -99,6 +114,7 @@ export type CardError =
 
 export interface AccountUrlState {
 	cancelling: boolean;
+	pollCount: number;
 	errorPaymentMethod: boolean;
 	deleteConfirmationError: boolean;
 	cardError: CardError | undefined;
@@ -116,15 +132,17 @@ function parseCardError(error: unknown): CardError | undefined {
 export function parseAccountQuery(query: Record<string, unknown> | undefined): AccountUrlState {
 	return {
 		cancelling: query?.cancelling === "1",
+		pollCount: parsePollParam(query?.poll, ACCOUNT_CANCEL_MAX_POLLS),
 		errorPaymentMethod: query?.error === "payment_method",
 		deleteConfirmationError: query?.error === "delete_confirmation",
 		cardError: parseCardError(query?.error),
 	};
 }
 
-function action(input: AccountAction): AccountAction {
+function action(input: Omit<AccountAction, "isPending">): AccountAction {
 	return {
 		...input,
+		isPending: false,
 		href: withInternalTracking(input.href, { source: "account", content: input.key }),
 	};
 }
@@ -144,6 +162,12 @@ const CANCEL_FORM_ACTION = action({
 	method: "POST",
 	href: ACCOUNT_CANCEL_URL,
 });
+
+const CANCEL_PENDING_ACTION: AccountAction = {
+	...CANCEL_FORM_ACTION,
+	name: "Cancelling…",
+	isPending: true,
+};
 
 const REACTIVATE_FORM_ACTION = action({
 	key: "reactivate-form",
@@ -321,21 +345,19 @@ export function buildCardSectionViewModel(input: CardSectionInput): CardSectionV
 	};
 }
 
-function baseFor(state: AccountCardState, actions: AccountAction[]): {
-	state: AccountCardState;
-	stateClass: string;
-	heading: string;
-	showCancellingNotice: false;
-	stateIsErrorPaymentMethod: false;
-	actions: AccountAction[];
-	dangerAction: AccountAction;
-	showCardSection: true;
-} {
+type AccountCardBase = Omit<
+	AccountViewModel,
+	"dangerConfirmation" | "statusLine" | "statusDate" | "statusDateTail"
+>;
+
+function baseFor(state: AccountCardState, actions: AccountAction[]): AccountCardBase {
 	return {
 		state,
 		stateClass: `account-card account-card--${state}`,
 		heading: "Account",
 		showCancellingNotice: false,
+		cancellingNotice: "",
+		pollState: "idle",
 		stateIsErrorPaymentMethod: false,
 		actions,
 		dangerAction: DELETE_ACCOUNT_ACTION,
@@ -358,6 +380,21 @@ export function toAccountViewModel(
 			hasNotice: queryState.deleteConfirmationError,
 			notice: DELETE_CONFIRMATION_NOTICE,
 		},
+	};
+}
+
+const CANCELLING_NOTICE = "Cancellation in progress.";
+const CANCELLING_STALLED_NOTICE = "Cancellation is taking longer than usual. Refresh to check.";
+
+function cancellingViewModel(queryState: AccountUrlState): AccountCardBase & { statusLine: string } {
+	const canPoll = queryState.pollCount < ACCOUNT_CANCEL_MAX_POLLS;
+	return {
+		...baseFor("active", [CANCEL_PENDING_ACTION]),
+		statusLine: "Subscription: Active.",
+		showCancellingNotice: true,
+		cancellingNotice: canPoll ? CANCELLING_NOTICE : CANCELLING_STALLED_NOTICE,
+		pollState: canPoll ? "polling" : "idle",
+		pollUrl: canPoll ? buildAccountStatusPollUrl(queryState.pollCount + 1) : undefined,
 	};
 }
 
@@ -384,14 +421,10 @@ function stateViewModel(
 					statusLine: "You're a founding member — free for life.",
 				};
 			}
+			if (queryState.cancelling) return cancellingViewModel(queryState);
 			return {
-				/** Hide the Cancel button while a cancellation is in flight: the
-				 * command has already been published and clicking again would
-				 * just enqueue a duplicate. The "Cancellation in progress"
-				 * notice tells the user what's happening. */
-				...baseFor("active", queryState.cancelling ? [] : [CANCEL_FORM_ACTION]),
+				...baseFor("active", [CANCEL_FORM_ACTION]),
 				statusLine: "Subscription: Active.",
-				showCancellingNotice: queryState.cancelling,
 			};
 		case "trial-countdown": {
 			const trialEndsAt = access.trialEndsAt;
@@ -422,11 +455,15 @@ function stateViewModel(
  * 2606 so it can never resolve, and only `pathname`/`search` are read back. */
 const IOS_HREF_PARSE_ORIGIN = "https://internal.invalid";
 
-function carryAppSurface(action: AccountAction, options: { appShell: boolean }): AccountAction {
-	const url = new URL(action.href, IOS_HREF_PARSE_ORIGIN);
+function carryAppSurfaceHref(href: string, options: { appShell: boolean }): string {
+	const url = new URL(href, IOS_HREF_PARSE_ORIGIN);
 	url.searchParams.set(IOS_PLATFORM_QUERY, IOS_CLIENT_VALUE);
 	if (options.appShell) url.searchParams.set(APP_SHELL_QUERY, APP_SHELL_VALUE);
-	return { ...action, href: `${url.pathname}${url.search}` };
+	return `${url.pathname}${url.search}`;
+}
+
+function carryAppSurface(action: AccountAction, options: { appShell: boolean }): AccountAction {
+	return { ...action, href: carryAppSurfaceHref(action.href, options) };
 }
 
 /** Rewrites the account view model for the iOS app's in-app web surface: strips
@@ -453,6 +490,7 @@ export function withoutCommerce(
 			.filter((a) => a.key !== "subscribe" && a.key !== "reactivate-form")
 			.map((a) => carryAppSurface(a, options)),
 		dangerAction: carryAppSurface(vm.dangerAction, options),
+		pollUrl: vm.pollUrl === undefined ? undefined : carryAppSurfaceHref(vm.pollUrl, options),
 		showCardSection: false,
 	};
 }
