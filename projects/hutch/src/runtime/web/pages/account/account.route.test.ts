@@ -801,6 +801,77 @@ describe("GET /account/status — the poll fragment the cancelling card swaps it
 		assert(notice, "the stalled notice must render");
 		expect(notice.textContent).toContain("taking longer than usual");
 	});
+
+	it("carries ?platform=ios onto the next poll, so an in-app cancelling card cannot poll its way back onto the web surface", async () => {
+		const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
+		const { subscriptionProviders } = harness;
+		const { agent, userId } = await loginUser(harness, "poll-ios@example.com");
+		await subscriptionProviders.upsertActive({
+			userId,
+			subscriptionId: "sub_poll_ios",
+			customerId: "cus_poll_ios",
+		});
+
+		const response = await agent.get("/account/status?cancelling=1&poll=1&platform=ios");
+
+		expect(response.status).toBe(200);
+		const doc = new JSDOM(response.text).window.document;
+		expect(findCard(doc).getAttribute("hx-get")).toBe(
+			"/account/status?cancelling=1&poll=2&platform=ios",
+		);
+		expect(actionKeys(doc)).toEqual(["cancel-form"]);
+		expect(findAction(doc, "cancel-form").getAttribute("action")).toBe(
+			"/account/cancel?utm_source=account&utm_medium=internal&utm_content=cancel-form&platform=ios",
+		);
+		expect(cancelButton(doc).disabled).toBe(true);
+	});
+
+	it("stamps the shell marker alongside it, so the app sheet's poll keeps both markers on every hop", async () => {
+		const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
+		const { subscriptionProviders } = harness;
+		const { agent, userId } = await loginUser(harness, "poll-shell@example.com");
+		await subscriptionProviders.upsertActive({
+			userId,
+			subscriptionId: "sub_poll_shell",
+			customerId: "cus_poll_shell",
+		});
+
+		const response = await agent.get(
+			"/account/status?cancelling=1&poll=1&platform=ios&shell=app",
+		);
+
+		expect(response.status).toBe(200);
+		const doc = new JSDOM(response.text).window.document;
+		expect(findCard(doc).getAttribute("hx-get")).toBe(
+			"/account/status?cancelling=1&poll=2&platform=ios&shell=app",
+		);
+		expect(findAction(doc, "cancel-form").getAttribute("action")).toBe(
+			"/account/cancel?utm_source=account&utm_medium=internal&utm_content=cancel-form&platform=ios&shell=app",
+		);
+	});
+
+	it("strips the Reactivate CTA when the cancellation lands mid-poll — an in-app poll must not surface a purchase path (Guideline 3.1.1)", async () => {
+		const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
+		const { subscriptionProviders } = harness;
+		const { agent, userId } = await loginUser(harness, "poll-ios-landed@example.com");
+		await subscriptionProviders.upsertActive({
+			userId,
+			subscriptionId: "sub_ios_landed",
+			customerId: "cus_ios_landed",
+		});
+		await subscriptionProviders.markPendingCancellation({
+			userId,
+			cancellationEffectiveAt: new Date(Date.now() + 5 * ONE_DAY_MS).toISOString(),
+		});
+
+		const response = await agent.get("/account/status?cancelling=1&poll=2&platform=ios");
+
+		expect(response.status).toBe(200);
+		const doc = new JSDOM(response.text).window.document;
+		expect(actionKeys(doc)).toEqual([]);
+		expect(findCard(doc).getAttribute("data-test-account-poll")).toBe("idle");
+		expect(findCard(doc).getAttribute("hx-get")).toBeNull();
+	});
 });
 
 describe("POST /account/cancel — single entrypoint, redirects to the pending page", () => {
