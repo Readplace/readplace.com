@@ -304,6 +304,9 @@ export function createTestApp(
 
 export interface TestAppHarness extends TestAppResult, RunningServer {}
 
-export function useTestServer(): (fixture: TestAppFixture) => TestAppHarness {
-	return useServerForFixture(createTestApp);
+export function useTestServer(overrides?: {
+	getChangelogBanner?: GetChangelogBanner;
+	getSessionUserId?: GetSessionUserId;
+}): (fixture: TestAppFixture) => TestAppHarness {
+	return useServerForFixture((fixture) => createTestApp(fixture, overrides));
 }

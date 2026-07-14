@@ -26,9 +26,12 @@ export const CHROMELESS_TEMPLATE = `<!DOCTYPE html>
     {{{baseStyles}}}
     {{{resetStyles}}}
     {{{utilityStyles}}}
+    {{{bannerAreaStyles}}}
+    {{{changelogBannerStyles}}}
   </style>
 </head>
 <body{{#if bodyClass}} class="{{bodyClass}}"{{/if}}>
+  {{{changelogBanner}}}
   {{{content}}}
   {{{scripts}}}
 </body>

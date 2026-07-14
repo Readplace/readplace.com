@@ -1032,6 +1032,7 @@ export function createApp(dependencies: AppDependencies): Express {
 		requireWriteAccess,
 		getEffectiveAccess,
 		buildBannerState,
+		getChangelogBanner: deps.getChangelogBanner,
 		logError: deps.logError,
 		logParseError: deps.logParseError,
 		analytics: deps.analytics,

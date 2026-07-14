@@ -166,6 +166,7 @@ export function initAccountRoutes(deps: AccountDependencies): Router {
 					AccountPage(withoutCommerce(webVm, { appShell: true }), input.cardSection, {
 						backLink: { href: APP_BACK_LINK.topHref, label: APP_BACK_LINK.label },
 					}),
+					{},
 				),
 			);
 			return;

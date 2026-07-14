@@ -36,6 +36,10 @@ enum AppConfig {
 	#endif
 	static let serverBaseURL = serverEnvironment.baseURL
 
+	/// The one host whose links are opened Chrome-first (see `chromeURLFor`).
+	/// Force-unwrap is safe: both operands are compile-time constants.
+	static let serverHost = URL(string: serverBaseURL)!.host!
+
 	/// A registered public PKCE client whose allow-listed redirect URIs include the
 	/// native `readplace://oauth-callback` deep link the auth flow returns through.
 	static let clientId = "ios-app"

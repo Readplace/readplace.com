@@ -652,6 +652,19 @@ export const BANNER_AREA_STYLES = `
   }
 `;
 
+/**
+ * `--banner-area-height` reserves vertical space for the *fixed* `.banner-area`
+ * — `body` pads by it so content clears the bar. The chromeless shell has no
+ * fixed bar (its announcement rides in normal flow), so nothing needs reserving
+ * and the correct height is zero. Without this the 38px fallback strands a dead
+ * strip above the announcement, and above the article when there is none.
+ */
+export const CHROMELESS_BANNER_AREA_STYLES = `
+  :root {
+    --banner-area-height: 0px;
+  }
+`;
+
 export const CHANGELOG_BANNER_STYLES = `
   .changelog-banner {
     background: var(--color-surface-elevated);

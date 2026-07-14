@@ -24,9 +24,13 @@ Workflow for a canary failure:
 3. Re-run the canary locally until the failing source passes — never commit until it does.
 4. Only then push and watch CI.
 
-### iOS login is Chrome-first
+### iOS opens *our own* links Chrome-first
 
-When the iOS app opens the browser to log in, it must reuse the user's existing **Chrome** web session — most users browse in Chrome but never change the iOS default-browser setting, so their OS default stays **Safari**, where they are not signed in. The app therefore opens the authorize URL via Chrome's `googlechromes://` scheme ([`openAuthorizeURLChromeFirst`](./projects/ios-readplace/App/WebAuthOpeners.swift)) and must **not** fall back to the OS default browser when Chrome is installed — the fallback fires only when the system reports Chrome can't be opened (not installed). Do not reintroduce a `canOpenURL` pre-check to decide the browser (a false-negative probe silently routes login into Safari and regresses session reuse); let the actual open result decide. Reuse also depends on the `hutch_sid` session cookie being **persistent** — it carries `maxAge: SESSION_COOKIE_MAX_AGE_MS` (bounded by the server session TTL) so a Chrome login survives Chrome fully closing; do not downgrade it back to a bare session cookie.
+When the iOS app opens a **readplace.com** URL in a browser — the login authorize URL, the changelog banner's "Read more" — it must reuse the user's existing **Chrome** web session: most users browse in Chrome but never change the iOS default-browser setting, so their OS default stays **Safari**, where they are not signed in. The app therefore rewrites such a URL to Chrome's `googlechrome(s)://` scheme ([`chromeURLFor`](./projects/ios-readplace/Shared/WebAuthFlow.swift), opened by [`openURLChromeFirst`](./projects/ios-readplace/App/WebAuthOpeners.swift)) and must **not** fall back to the OS default browser when Chrome is installed — the fallback fires only when the system reports Chrome can't be opened (not installed). Do not reintroduce a `canOpenURL` pre-check to decide the browser (a false-negative probe silently routes login into Safari and regresses session reuse); let the actual open result decide.
+
+The rewrite is **scoped to our own host** (`AppConfig.serverHost`), and must stay that way. A link to someone else's site — the bulk of what an article body links to — is handed to the system untouched, because a custom scheme can never be claimed by a **Universal Link**: rewriting it would stop `apps.apple.com`, `youtube.com`, or `x.com` handing off to their native apps, and would override a default browser the user deliberately chose, all to reuse a Readplace session that does not exist on those hosts.
+
+Reuse also depends on the `hutch_sid` session cookie being **persistent** — it carries `maxAge: SESSION_COOKIE_MAX_AGE_MS` (bounded by the server session TTL) so a Chrome login survives Chrome fully closing; do not downgrade it back to a bare session cookie.
 
 ## Architecture Guidelines
 
