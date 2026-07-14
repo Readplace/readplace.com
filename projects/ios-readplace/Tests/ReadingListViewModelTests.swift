@@ -22,15 +22,17 @@ final class ReadingListViewModelTests: XCTestCase {
 
 	// MARK: - Add-links help (client-side)
 
-	func testAddLinksHelpURLIsTheClientHeldHelpPath() {
+	func testAddLinksHelpURLIsTheClientHeldHelpPathWithTheAppShellMarker() {
 		// The + control opens the help page at a path the client holds, resolved
 		// against the API base — not a link discovered from the server — so it is
-		// available before (and regardless of) any queue load.
+		// available before (and regardless of) any queue load. It carries the
+		// app-shell marker so the server serves it chromeless, with the deep-link
+		// back to the native list this sheet intercepts.
 		let viewModel = makeViewModel(store: TestSupport.loggedInStore())
 
 		XCTAssertEqual(
 			viewModel.addLinksHelpURL?.absoluteString,
-			"\(AppConfig.serverBaseURL)/help/add-links"
+			"\(AppConfig.serverBaseURL)/help/add-links?shell=app"
 		)
 	}
 
