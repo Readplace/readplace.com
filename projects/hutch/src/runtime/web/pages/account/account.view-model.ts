@@ -1,6 +1,7 @@
 import { decomposeTimeLeft } from "@packages/time-left";
 import { escapeRegExp } from "@packages/escape-regexp";
 import type { SavedCard } from "@packages/provider-contracts/payment-methods";
+import type { SubscriptionNextCharge } from "@packages/provider-contracts/subscription-billing";
 import type { EffectiveAccess } from "@packages/subscription-access";
 import {
 	type LocalTime,
@@ -25,6 +26,11 @@ import {
 	buildCardPrimaryUrl,
 	buildCardRemoveUrl,
 } from "./account.url";
+import {
+	HIDDEN_NEXT_CHARGE,
+	type NextChargeViewModel,
+	buildNextChargeViewModel,
+} from "./next-charge.view-model";
 
 export const ACCOUNT_CANCEL_MAX_POLLS = 20;
 
@@ -82,6 +88,9 @@ export interface AccountViewModel {
 	statusLine: string;
 	statusDate?: LocalTime;
 	statusDateTail?: string;
+	/** Only the active state overrides this; every other state keeps the hidden value
+	 * from `baseFor`, so a state cannot start announcing a charge by accident. */
+	nextCharge: NextChargeViewModel;
 	showCancellingNotice: boolean;
 	cancellingNotice: string;
 	pollState: AccountPollState;
@@ -355,6 +364,7 @@ function baseFor(state: AccountCardState, actions: AccountAction[]): AccountCard
 		state,
 		stateClass: `account-card account-card--${state}`,
 		heading: "Account",
+		nextCharge: HIDDEN_NEXT_CHARGE,
 		showCancellingNotice: false,
 		cancellingNotice: "",
 		pollState: "idle",
@@ -369,9 +379,10 @@ export function toAccountViewModel(
 	access: EffectiveAccess,
 	queryState: AccountUrlState,
 	now: Date,
+	nextCharge?: SubscriptionNextCharge,
 ): AccountViewModel {
 	return {
-		...stateViewModel(access, queryState, now),
+		...stateViewModel(access, queryState, now, nextCharge),
 		dangerConfirmation: {
 			phrase: DELETE_ACCOUNT_CONFIRMATION_PHRASE,
 			pattern: DELETE_CONFIRMATION_PATTERN,
@@ -402,6 +413,7 @@ function stateViewModel(
 	access: EffectiveAccess,
 	queryState: AccountUrlState,
 	now: Date,
+	nextCharge: SubscriptionNextCharge | undefined,
 ): Omit<AccountViewModel, "dangerConfirmation"> {
 	// Payment-method error takes priority over every underlying state — the user
 	// just bounced off Stripe's create-subscription endpoint.
@@ -425,6 +437,7 @@ function stateViewModel(
 			return {
 				...baseFor("active", [CANCEL_FORM_ACTION]),
 				statusLine: "Subscription: Active.",
+				nextCharge: buildNextChargeViewModel({ nextCharge, now }),
 			};
 		case "trial-countdown": {
 			const trialEndsAt = access.trialEndsAt;
@@ -491,6 +504,10 @@ export function withoutCommerce(
 			.map((a) => carryAppSurface(a, options)),
 		dangerAction: carryAppSurface(vm.dangerAction, options),
 		pollUrl: vm.pollUrl === undefined ? undefined : carryAppSurfaceHref(vm.pollUrl, options),
+		/** Naming a price is the part of this page Guideline 3.1.1 objects to, so the
+		 * renewal line is stripped here rather than relying on the route happening not
+		 * to load one. */
+		nextCharge: HIDDEN_NEXT_CHARGE,
 		showCardSection: false,
 	};
 }

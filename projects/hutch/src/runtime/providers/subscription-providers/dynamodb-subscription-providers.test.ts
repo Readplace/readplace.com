@@ -199,6 +199,7 @@ describe("initDynamoDbSubscriptionProviders", () => {
 			expect(command.input.UpdateExpression).toContain("subscriptionId");
 			expect(command.input.UpdateExpression).toContain("customerId");
 			expect(command.input.UpdateExpression).toContain("cancellationEffectiveAt");
+			expect(command.input.UpdateExpression).toContain("nextCharge");
 			expect(command.input.ExpressionAttributeNames?.["#status"]).toBe("status");
 			expect(command.input.ExpressionAttributeNames?.["#provider"]).toBe("provider");
 			expect(command.input.ExpressionAttributeValues?.[":status"]).toBe("trialing");
@@ -246,6 +247,7 @@ describe("initDynamoDbSubscriptionProviders", () => {
 			expect(command.input.UpdateExpression).toContain("REMOVE");
 			expect(command.input.UpdateExpression).toContain("trialEndsAt");
 			expect(command.input.UpdateExpression).toContain("cancellationEffectiveAt");
+			expect(command.input.UpdateExpression).toContain("nextCharge");
 			expect(command.input.ExpressionAttributeValues?.[":status"]).toBe("active");
 			expect(command.input.ExpressionAttributeValues?.[":subscriptionId"]).toBe("sub_abc");
 			expect(command.input.ExpressionAttributeValues?.[":customerId"]).toBe("cus_abc");
@@ -284,6 +286,7 @@ describe("initDynamoDbSubscriptionProviders", () => {
 				"cancellationEffectiveAt = :effectiveAt",
 			);
 			expect(command.input.UpdateExpression).toContain("updatedAt = :now");
+			expect(command.input.UpdateExpression).toContain("REMOVE nextCharge");
 			expect(command.input.ConditionExpression).toContain("attribute_exists(userId)");
 			expect(command.input.ExpressionAttributeValues?.[":status"]).toBe(
 				"pending_cancellation",
@@ -295,7 +298,7 @@ describe("initDynamoDbSubscriptionProviders", () => {
 	});
 
 	describe("markCancelledByUserId", () => {
-		it("issues a guarded Update that sets cancelled and removes trialEndsAt + cancellationEffectiveAt", async () => {
+		it("issues a guarded Update that sets cancelled and removes trialEndsAt + cancellationEffectiveAt + nextCharge", async () => {
 			let received: unknown;
 			const client = createFakeClient((input) => {
 				received = input;
@@ -321,7 +324,7 @@ describe("initDynamoDbSubscriptionProviders", () => {
 			expect(command.input.UpdateExpression).toContain("SET #status = :cancelled");
 			expect(command.input.UpdateExpression).toContain("updatedAt = :now");
 			expect(command.input.UpdateExpression).toContain(
-				"REMOVE trialEndsAt, cancellationEffectiveAt",
+				"REMOVE trialEndsAt, cancellationEffectiveAt, nextCharge",
 			);
 			expect(command.input.ConditionExpression).toContain("attribute_exists(userId)");
 			expect(command.input.ExpressionAttributeValues?.[":cancelled"]).toBe("cancelled");
@@ -441,6 +444,81 @@ describe("initDynamoDbSubscriptionProviders", () => {
 			expect(command.input.ExpressionAttributeValues?.[":now"]).toBe(
 				"2026-05-22T10:00:00.000Z",
 			);
+		});
+	});
+
+	describe("setNextCharge", () => {
+		it("issues a guarded Update that only writes when the row is still the active subscription it was read from", async () => {
+			let received: unknown;
+			const client = createFakeClient((input) => {
+				received = input;
+				return {};
+			});
+			const subs = initDynamoDbSubscriptionProviders({
+				client: client as DynamoDBDocumentClient,
+				tableName: TABLE,
+				now: NOW,
+			});
+
+			const nextCharge = {
+				at: "2026-08-12T10:00:00.000Z",
+				amountMinor: 4900,
+				currency: "usd",
+			};
+			await subs.setNextCharge({ userId: USER_ID, subscriptionId: "sub_abc", nextCharge });
+
+			const command = received as {
+				input: {
+					Key?: Record<string, unknown>;
+					UpdateExpression?: string;
+					ConditionExpression?: string;
+					ExpressionAttributeNames?: Record<string, string>;
+					ExpressionAttributeValues?: Record<string, unknown>;
+				};
+			};
+			expect(command.input.Key).toEqual({ userId: USER_ID });
+			expect(command.input.UpdateExpression).toContain("nextCharge = :nextCharge");
+			expect(command.input.UpdateExpression).toContain("updatedAt = :now");
+			expect(command.input.ConditionExpression).toContain("attribute_exists(userId)");
+			expect(command.input.ConditionExpression).toContain("#status = :active");
+			expect(command.input.ConditionExpression).toContain(
+				"subscriptionId = :subscriptionId",
+			);
+			expect(command.input.ExpressionAttributeNames?.["#status"]).toBe("status");
+			expect(command.input.ExpressionAttributeValues?.[":nextCharge"]).toEqual(nextCharge);
+			expect(command.input.ExpressionAttributeValues?.[":active"]).toBe("active");
+			expect(command.input.ExpressionAttributeValues?.[":subscriptionId"]).toBe("sub_abc");
+		});
+	});
+
+	describe("findByUserId with nextCharge", () => {
+		it("parses an active row that carries a stored renewal", async () => {
+			const nextCharge = {
+				at: "2026-08-12T10:00:00.000Z",
+				amountMinor: 4900,
+				currency: "usd",
+			};
+			const client = createFakeClient(() => ({
+				Item: {
+					userId: USER_ID,
+					provider: "stripe",
+					status: "active",
+					subscriptionId: "sub_abc",
+					customerId: "cus_abc",
+					nextCharge,
+					createdAt: "2026-05-20T10:00:00.000Z",
+					updatedAt: "2026-05-22T10:00:00.000Z",
+				},
+			}));
+			const subs = initDynamoDbSubscriptionProviders({
+				client: client as DynamoDBDocumentClient,
+				tableName: TABLE,
+				now: NOW,
+			});
+
+			const row = await subs.findByUserId(USER_ID);
+			assert(row, "row must be returned");
+			expect(row.nextCharge).toEqual(nextCharge);
 		});
 	});
 

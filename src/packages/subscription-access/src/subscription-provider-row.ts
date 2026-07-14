@@ -1,6 +1,7 @@
 import { dynamoField } from "@packages/hutch-storage-client";
 import { z } from "zod";
 import { UserIdSchema } from "@packages/domain/user";
+import { SubscriptionNextChargeSchema } from "@packages/provider-contracts/subscription-billing";
 import {
 	type SubscriptionRecord,
 	SubscriptionProviderSchema,
@@ -16,6 +17,11 @@ export const SubscriptionProviderRow = z.object({
 	cancellationEffectiveAt: dynamoField(z.string()),
 	trialFeedbackEmailSentAt: dynamoField(z.string()),
 	trialReminderEmailSentAt: dynamoField(z.string()),
+	/* `.catch` degrades a malformed map to `undefined` rather than throwing. Every
+	 * read of this row runs through `schema.parse`, and that read feeds the save
+	 * gate and the header banner — a strict parse here would turn one bad attribute
+	 * into a total account outage for the sake of a cosmetic line. */
+	nextCharge: dynamoField(SubscriptionNextChargeSchema.optional().catch(undefined)),
 	createdAt: z.string(),
 	updatedAt: z.string(),
 });
@@ -37,6 +43,7 @@ export function toRecord(row: z.infer<typeof SubscriptionProviderRow>): Subscrip
 		...(row.trialReminderEmailSentAt !== undefined
 			? { trialReminderEmailSentAt: row.trialReminderEmailSentAt }
 			: {}),
+		...(row.nextCharge !== undefined ? { nextCharge: row.nextCharge } : {}),
 		createdAt: row.createdAt,
 		updatedAt: row.updatedAt,
 	};

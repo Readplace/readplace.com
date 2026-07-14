@@ -40,6 +40,7 @@ import type {
 import type {
 	FindSubscriptionByUserId,
 	MarkSubscriptionActive,
+	SetSubscriptionNextCharge,
 	UpsertActiveSubscription,
 	UpsertTrialingSubscription,
 } from "@packages/provider-contracts/subscription-providers";
@@ -59,6 +60,7 @@ import type {
 } from "@packages/provider-contracts/events";
 import type {
 	CreateSubscriptionOnExistingCustomer,
+	FindSubscriptionNextCharge,
 	ReverseScheduledCancellation,
 } from "@packages/provider-contracts/subscription-billing";
 import type {
@@ -316,6 +318,7 @@ interface AppDependencies {
 		upsertTrialing: UpsertTrialingSubscription;
 		findByUserId: FindSubscriptionByUserId;
 		markActive: MarkSubscriptionActive;
+		setNextCharge: SetSubscriptionNextCharge;
 	};
 	trialScheduler: {
 		createTrialEndSchedule: CreateTrialEndSchedule;
@@ -327,6 +330,7 @@ interface AppDependencies {
 		createChargeReminderSchedule: CreateChargeReminderSchedule;
 	};
 	createSubscriptionOnExistingCustomer: CreateSubscriptionOnExistingCustomer;
+	findSubscriptionNextCharge: FindSubscriptionNextCharge;
 	reverseScheduledCancellation: ReverseScheduledCancellation;
 	paymentMethods: {
 		listCards: ListCards;
@@ -1158,6 +1162,8 @@ export function createApp(dependencies: AppDependencies): Express {
 		publishSubscriptionReactivated: deps.publishSubscriptionReactivated,
 		createCheckoutSession: deps.createCheckoutSession,
 		createSubscriptionOnExistingCustomer: deps.createSubscriptionOnExistingCustomer,
+		findSubscriptionNextCharge: deps.findSubscriptionNextCharge,
+		setSubscriptionNextCharge: deps.subscriptionProviders.setNextCharge,
 		reverseScheduledCancellation: deps.reverseScheduledCancellation,
 		listCards: deps.paymentMethods.listCards,
 		beginAddCard: deps.paymentMethods.beginAddCard,

@@ -66,6 +66,85 @@ describe("toAccountViewModel — state", () => {
 	});
 });
 
+describe("toAccountViewModel — next charge", () => {
+	const now = new Date("2026-07-14T12:00:00.000Z");
+	const baseQuery = {
+		cancelling: false,
+		pollCount: 0,
+		errorPaymentMethod: false,
+		deleteConfirmationError: false,
+		cardError: undefined,
+	} as const;
+	const chargeSoon = {
+		at: new Date(now.getTime() + 10 * ONE_DAY_MS).toISOString(),
+		amountMinor: 4900,
+		currency: "usd",
+	};
+
+	it("shows the renewal on an active subscription", () => {
+		const vm = toAccountViewModel(
+			{ tier: "paid", access: "full", banner: "none" },
+			baseQuery,
+			now,
+			chargeSoon,
+		);
+		assert.equal(vm.nextCharge.state, "visible");
+		assert.equal(vm.nextCharge.tail, " — $49.00.");
+	});
+
+	it("hides the renewal when no charge is passed — the path every existing caller takes", () => {
+		const vm = toAccountViewModel(
+			{ tier: "paid", access: "full", banner: "none" },
+			baseQuery,
+			now,
+		);
+		assert.equal(vm.nextCharge.state, "hidden");
+	});
+
+	it("hides the renewal while a cancellation is in flight", () => {
+		const vm = toAccountViewModel(
+			{ tier: "paid", access: "full", banner: "none" },
+			{ ...baseQuery, cancelling: true },
+			now,
+			chargeSoon,
+		);
+		assert.equal(vm.nextCharge.state, "hidden");
+	});
+
+	it("ignores a charge handed to any non-active state — only the active arm renders it", () => {
+		const states: EffectiveAccess[] = [
+			{ tier: "founding", access: "full", banner: "none" },
+			{
+				tier: "trial",
+				access: "full",
+				banner: "trial-countdown",
+				trialEndsAt: new Date(now.getTime() + 5 * ONE_DAY_MS).toISOString(),
+			},
+			{
+				tier: "paid",
+				access: "full",
+				banner: "cancellation-scheduled",
+				cancellationEffectiveAt: new Date(now.getTime() + 5 * ONE_DAY_MS).toISOString(),
+			},
+			{ tier: "inactive", access: "read-only", banner: "inactive", reason: "trial-expired" },
+		];
+		for (const access of states) {
+			const vm = toAccountViewModel(access, baseQuery, now, chargeSoon);
+			assert.equal(vm.nextCharge.state, "hidden", `${access.banner}/${access.tier} must not render a charge`);
+		}
+	});
+
+	it("hides the renewal in the payment-method error state", () => {
+		const vm = toAccountViewModel(
+			{ tier: "paid", access: "full", banner: "none" },
+			{ ...baseQuery, errorPaymentMethod: true },
+			now,
+			chargeSoon,
+		);
+		assert.equal(vm.nextCharge.state, "hidden");
+	});
+});
+
 describe("toAccountViewModel — actions", () => {
 	const now = new Date();
 	const baseQuery = { cancelling: false, pollCount: 0, errorPaymentMethod: false, deleteConfirmationError: false, cardError: undefined };
@@ -295,6 +374,22 @@ describe("withoutCommerce — iOS app surface (Guideline 3.1.1)", () => {
 		const web = toAccountViewModel({ tier: "paid", access: "full", banner: "none" }, baseQuery, now);
 		assert.equal(web.showCardSection, true);
 		assert.equal(withoutCommerce(web, { appShell: false }).showCardSection, false);
+	});
+
+	it("strips a visible renewal line — naming a price in-app is the part Guideline 3.1.1 objects to", () => {
+		const chargeSoon = {
+			at: new Date(now.getTime() + 10 * ONE_DAY_MS).toISOString(),
+			amountMinor: 4900,
+			currency: "usd",
+		};
+		const web = toAccountViewModel(
+			{ tier: "paid", access: "full", banner: "none" },
+			baseQuery,
+			now,
+			chargeSoon,
+		);
+		assert.equal(web.nextCharge.state, "visible");
+		assert.equal(withoutCommerce(web, { appShell: false }).nextCharge.state, "hidden");
 	});
 
 	it("keeps the cancel control but routes it through ?platform=ios so its post-redirect keeps the surface", () => {

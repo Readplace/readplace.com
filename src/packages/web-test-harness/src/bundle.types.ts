@@ -56,6 +56,7 @@ import type {
 	FindGeneratedSummary,
 	FindSubscriptionBySubscriptionId,
 	FindSubscriptionByUserId,
+	FindSubscriptionNextCharge,
 	FindUserArticleNotificationState,
 	FindUserArticlesByUrl,
 	FindUserByEmail,
@@ -114,6 +115,8 @@ import type {
 	SaveArticle,
 	SaveArticleGlobally,
 	ScheduleCancellationAtPeriodEnd,
+	SetSubscriptionNextCharge,
+	SubscriptionNextCharge,
 	SendEmail,
 	StorePendingSignup,
 	SubscriptionRecord,
@@ -182,6 +185,7 @@ export interface SubscriptionProvidersBundle {
 	markPendingCancellation: MarkSubscriptionPendingCancellation;
 	markCancelledByUserId: MarkSubscriptionCancelledByUserId;
 	markActive: MarkSubscriptionActive;
+	setNextCharge: SetSubscriptionNextCharge;
 	seedRow: (row: SubscriptionRecord) => void;
 }
 
@@ -231,6 +235,7 @@ export interface PaymentMethodsBundle {
 
 export interface SubscriptionBillingBundle {
 	createSubscriptionOnExistingCustomer: CreateSubscriptionOnExistingCustomer;
+	findSubscriptionNextCharge: FindSubscriptionNextCharge;
 	scheduleCancellationAtPeriodEnd: ScheduleCancellationAtPeriodEnd;
 	reverseScheduledCancellation: ReverseScheduledCancellation;
 	createdSubscriptions: () => readonly {
@@ -241,6 +246,9 @@ export interface SubscriptionBillingBundle {
 	}[];
 	scheduledCancellations: () => readonly { subscriptionId: string; cancellationEffectiveAt: string }[];
 	reversedCancellations: () => readonly string[];
+	seedNextCharge: (input: { subscriptionId: string; nextCharge: SubscriptionNextCharge }) => void;
+	failNextChargeLookup: () => void;
+	nextChargeLookups: () => readonly string[];
 }
 
 export interface ArticleStoreBundle {

@@ -12,6 +12,7 @@ import type {
 import type {
 	FindSubscriptionByUserId,
 	MarkSubscriptionActive,
+	SetSubscriptionNextCharge,
 	SubscriptionRecord,
 	UpsertActiveSubscription,
 	UpsertTrialingSubscription,
@@ -23,7 +24,9 @@ import type {
 } from "@packages/provider-contracts/events";
 import type {
 	CreateSubscriptionOnExistingCustomer,
+	FindSubscriptionNextCharge,
 	ReverseScheduledCancellation,
+	SubscriptionNextCharge,
 } from "@packages/provider-contracts/subscription-billing";
 import {
 	type BeginAddCard,
@@ -44,6 +47,7 @@ import {
 	chargeReminderFiresAt,
 } from "../../../domain/stripe/stripe-trial-config";
 import { type TrialSchedulerPort, startTrial } from "../../../domain/trial/start-trial";
+import { initLoadNextCharge } from "../../../domain/subscription/next-charge";
 import { CHECKOUT_VARIANTS, type CheckoutVariant } from "../../../observability/events";
 import type { EmitSubscriptionEvent } from "../../../observability/subscription-events";
 import { Base, ChromelessPage } from "../../base.component";
@@ -78,6 +82,8 @@ import {
 interface AccountDependencies {
 	getEffectiveAccess: GetEffectiveAccess;
 	findSubscriptionByUserId: FindSubscriptionByUserId;
+	findSubscriptionNextCharge: FindSubscriptionNextCharge;
+	setSubscriptionNextCharge: SetSubscriptionNextCharge;
 	upsertActiveSubscription: UpsertActiveSubscription;
 	upsertTrialingSubscription: UpsertTrialingSubscription;
 	markActiveSubscription: MarkSubscriptionActive;
@@ -113,6 +119,13 @@ type SubscribeBranchKey = "trialing" | "cancelled" | "noop" | "forbidden";
 
 export function initAccountRoutes(deps: AccountDependencies): Router {
 	const router = express.Router();
+
+	const loadNextCharge = initLoadNextCharge({
+		findSubscriptionNextCharge: deps.findSubscriptionNextCharge,
+		setSubscriptionNextCharge: deps.setSubscriptionNextCharge,
+		logger: deps.logger,
+		now: deps.now,
+	});
 
 	/** Server-authoritative card section. The live card set is re-read from the
 	 * provider on every render and every mutation — the UI is never trusted. */
@@ -152,9 +165,15 @@ export function initAccountRoutes(deps: AccountDependencies): Router {
 		input: {
 			access: EffectiveAccess;
 			cardSection: CardSectionViewModel;
+			nextCharge: SubscriptionNextCharge | undefined;
 		},
 	): Promise<void> {
-		const webVm = toAccountViewModel(input.access, parseAccountQuery(req.query), deps.now());
+		const webVm = toAccountViewModel(
+			input.access,
+			parseAccountQuery(req.query),
+			deps.now(),
+			input.nextCharge,
+		);
 		// Inside the app's web sheet every nav and footer link would yank the user out
 		// into their OS default browser, where they are not signed in — so the app
 		// shell gets the same chromeless page the reader does, with a deep link back
@@ -180,23 +199,30 @@ export function initAccountRoutes(deps: AccountDependencies): Router {
 		assert(req.userId, "userId required - route must be protected by requireAuth");
 		const access = await deps.getEffectiveAccess(req.userId);
 		if (isIosSurface(req)) {
-			// The iOS surface hides the payment-methods section, so skip the live
-			// provider read whose result would only be discarded.
+			// The iOS surface hides the payment-methods section and the renewal line, so
+			// skip the live provider reads whose results would only be discarded.
 			await renderAccount(req, res, {
 				access,
 				cardSection: buildCardSectionViewModel({ kind: "no-customer" }),
+				nextCharge: undefined,
 			});
 			return;
 		}
+		const query = parseAccountQuery(req.query);
 		const row = await deps.findSubscriptionByUserId(req.userId);
 		const cardSection = await loadCardSection({
 			customerId: row?.customerId,
 			subscriptionId: row?.subscriptionId,
 			access,
-			cardError: parseAccountQuery(req.query).cardError,
+			cardError: query.cardError,
 			adding: undefined,
 		});
-		await renderAccount(req, res, { access, cardSection });
+		const nextCharge = await loadNextCharge({
+			userId: req.userId,
+			row,
+			suppressed: query.cancelling || query.errorPaymentMethod,
+		});
+		await renderAccount(req, res, { access, cardSection, nextCharge });
 	});
 
 	router.get("/status", async (req: Request, res: Response) => {
@@ -319,7 +345,10 @@ export function initAccountRoutes(deps: AccountDependencies): Router {
 				cardError: undefined,
 				adding: { clientSecret, setupId },
 			});
-			await renderAccount(req, res, { access, cardSection });
+			/* Whatever the row already knows, so the renewal line does not blink out
+			 * while a card is being added. Adding a card is not a reason to re-ask the
+			 * provider for a price. */
+			await renderAccount(req, res, { access, cardSection, nextCharge: row.nextCharge });
 		} catch (err) {
 			deps.logger.error("[account/cards/new] failed", {
 				userId,

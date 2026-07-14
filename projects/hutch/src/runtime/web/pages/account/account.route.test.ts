@@ -129,6 +129,146 @@ describe("GET /account (active paid subscription)", () => {
 	});
 });
 
+describe("GET /account (next-charge line)", () => {
+	function nextChargeLine(doc: Document): Element {
+		const line = doc.querySelector("[data-test-next-charge]");
+		assert(line, "next-charge element must always be in the DOM");
+		return line;
+	}
+
+	async function activeSubscriber(email: string) {
+		const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
+		const { agent, userId } = await loginUser(harness, email);
+		await harness.subscriptionProviders.upsertActive({
+			userId,
+			subscriptionId: "sub_active",
+			customerId: "cus_active",
+		});
+		return { harness, agent, userId };
+	}
+
+	it("renders the date and amount as a localisable <time> when the renewal is within 30 days", async () => {
+		const { harness, agent } = await activeSubscriber("charge-soon@example.com");
+		const at = new Date(Date.now() + 12 * ONE_DAY_MS).toISOString();
+		harness.subscriptionBilling.seedNextCharge({
+			subscriptionId: "sub_active",
+			nextCharge: { at, amountMinor: 4900, currency: "usd" },
+		});
+
+		const response = await agent.get("/account");
+
+		expect(response.status).toBe(200);
+		const doc = new JSDOM(response.text).window.document;
+		const line = nextChargeLine(doc);
+		expect(line.getAttribute("data-next-charge-state")).toBe("visible");
+		const time = line.querySelector("time[data-local-time='date']");
+		assert(time, "the renewal date must render as a <time> element for client localisation");
+		expect(time.getAttribute("datetime")).toBe(at);
+		expect(line.textContent).toContain("Next charge on ");
+		expect(line.textContent).toContain("$49.00");
+	});
+
+	it("keeps the element but hides it when the renewal is more than 30 days out", async () => {
+		const { harness, agent } = await activeSubscriber("charge-far@example.com");
+		harness.subscriptionBilling.seedNextCharge({
+			subscriptionId: "sub_active",
+			nextCharge: {
+				at: new Date(Date.now() + 60 * ONE_DAY_MS).toISOString(),
+				amountMinor: 4900,
+				currency: "usd",
+			},
+		});
+
+		const response = await agent.get("/account");
+
+		const doc = new JSDOM(response.text).window.document;
+		const line = nextChargeLine(doc);
+		expect(line.getAttribute("data-next-charge-state")).toBe("hidden");
+		expect(line.textContent).toBe("");
+	});
+
+	it("persists the fetched charge — a second visit does not ask Stripe again", async () => {
+		const { harness, agent } = await activeSubscriber("charge-persist@example.com");
+		harness.subscriptionBilling.seedNextCharge({
+			subscriptionId: "sub_active",
+			nextCharge: {
+				at: new Date(Date.now() + 12 * ONE_DAY_MS).toISOString(),
+				amountMinor: 4900,
+				currency: "usd",
+			},
+		});
+
+		await agent.get("/account");
+		await agent.get("/account");
+
+		expect(harness.subscriptionBilling.nextChargeLookups()).toEqual(["sub_active"]);
+	});
+
+	it("still returns 200 with the plain active card when the provider read fails", async () => {
+		const { harness, agent } = await activeSubscriber("charge-fail@example.com");
+		harness.subscriptionBilling.failNextChargeLookup();
+
+		const response = await agent.get("/account");
+
+		expect(response.status).toBe(200);
+		const doc = new JSDOM(response.text).window.document;
+		expect(doc.querySelector("[data-test-account-status]")?.textContent).toBe(
+			"Subscription: Active.",
+		);
+		expect(nextChargeLine(doc).getAttribute("data-next-charge-state")).toBe("hidden");
+	});
+
+	it("does not ask Stripe for a price for a trialing user", async () => {
+		const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
+		const { agent, userId } = await loginUser(harness, "trial-noprice@example.com");
+		await harness.subscriptionProviders.upsertTrialing({
+			userId,
+			trialEndsAt: new Date(Date.now() + 7 * ONE_DAY_MS).toISOString(),
+		});
+
+		await agent.get("/account");
+
+		expect(harness.subscriptionBilling.nextChargeLookups()).toEqual([]);
+	});
+
+	it("hides the line and asks nothing of Stripe while a cancellation is in flight", async () => {
+		const { harness, agent } = await activeSubscriber("charge-cancelling@example.com");
+		harness.subscriptionBilling.seedNextCharge({
+			subscriptionId: "sub_active",
+			nextCharge: {
+				at: new Date(Date.now() + 12 * ONE_DAY_MS).toISOString(),
+				amountMinor: 4900,
+				currency: "usd",
+			},
+		});
+
+		const response = await agent.get("/account?cancelling=1");
+
+		const doc = new JSDOM(response.text).window.document;
+		expect(nextChargeLine(doc).getAttribute("data-next-charge-state")).toBe("hidden");
+		expect(harness.subscriptionBilling.nextChargeLookups()).toEqual([]);
+	});
+
+	it("clears the stored renewal when the subscription is cancelled", async () => {
+		const { harness, agent, userId } = await activeSubscriber("charge-cancel@example.com");
+		harness.subscriptionBilling.seedNextCharge({
+			subscriptionId: "sub_active",
+			nextCharge: {
+				at: new Date(Date.now() + 12 * ONE_DAY_MS).toISOString(),
+				amountMinor: 4900,
+				currency: "usd",
+			},
+		});
+		await agent.get("/account");
+
+		await harness.subscriptionProviders.markCancelledByUserId({ userId });
+
+		const row = await harness.subscriptionProviders.findByUserId(userId);
+		assert(row, "row must exist");
+		expect(row.nextCharge).toBeUndefined();
+	});
+});
+
 describe("GET /account?platform=ios (iOS app surface — Guideline 3.1.1)", () => {
 	it("hides the Subscribe CTA and the payment-methods section for a trialing user, keeping status + danger zone", async () => {
 		const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
@@ -180,6 +320,33 @@ describe("GET /account?platform=ios (iOS app surface — Guideline 3.1.1)", () =
 			"/account/cancel?utm_source=account&utm_medium=internal&utm_content=cancel-form&platform=ios",
 		);
 		expect(doc.querySelector("[data-test-cards-section]")).toBeNull();
+	});
+
+	it("hides the renewal line and never asks Stripe for a price on the iOS surface", async () => {
+		const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
+		const { subscriptionProviders } = harness;
+		const { agent, userId } = await loginUser(harness, "ios-price@example.com");
+		await subscriptionProviders.upsertActive({
+			userId,
+			subscriptionId: "sub_ios",
+			customerId: "cus_ios",
+		});
+		harness.subscriptionBilling.seedNextCharge({
+			subscriptionId: "sub_ios",
+			nextCharge: {
+				at: new Date(Date.now() + 12 * ONE_DAY_MS).toISOString(),
+				amountMinor: 4900,
+				currency: "usd",
+			},
+		});
+
+		const response = await agent.get("/account?platform=ios");
+
+		const doc = new JSDOM(response.text).window.document;
+		const line = doc.querySelector("[data-test-next-charge]");
+		assert(line, "the renewal element still renders, just hidden");
+		expect(line.getAttribute("data-next-charge-state")).toBe("hidden");
+		expect(harness.subscriptionBilling.nextChargeLookups()).toEqual([]);
 	});
 });
 

@@ -13,6 +13,7 @@
         {{/if}}
         <p class="account-card__status" data-test-account-status>{{statusLine}}{{#if statusDate}}<time class="account-card__status-date" datetime="{{statusDate.iso}}" data-local-time="{{statusDate.mode}}">{{statusDate.label}}</time>{{statusDateTail}}{{/if}}</p>
         {{/if}}
+        <p class="{{nextCharge.stateClass}}" data-test-next-charge data-next-charge-state="{{nextCharge.state}}">{{nextCharge.leadIn}}{{#if nextCharge.date}}<time class="account-card__next-charge-date" datetime="{{nextCharge.date.iso}}" data-local-time="{{nextCharge.date.mode}}">{{nextCharge.date.label}}</time>{{/if}}{{nextCharge.tail}}</p>
         <div class="account-card__actions">
           {{#each actions}}
           <form method="{{method}}" action="{{href}}" class="account-card__action-form"

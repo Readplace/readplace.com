@@ -67,6 +67,28 @@
   color: var(--foreground);
 }
 
+/* purgecss-ignore-start: the next-charge modifiers are interpolated from the view model's stateClass */
+
+/**
+ * 1. Pulls the renewal up under the status line it belongs to, which carries a
+ *    16px bottom margin of its own.
+ */
+.account-card__next-charge--visible {
+  display: block;
+  font-size: 0.9375rem;
+  margin: -8px 0 16px; /* 1 */
+  color: var(--muted-foreground);
+}
+
+.account-card__next-charge--hidden {
+  display: none;
+}
+/* purgecss-ignore-end */
+
+.account-card__next-charge-date {
+  font-variant-numeric: tabular-nums;
+}
+
 .account-card__heading {
   font-size: 1.25rem;
   font-weight: 700;

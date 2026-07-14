@@ -440,4 +440,228 @@ describe("initStripeSubscriptions", () => {
 			);
 		});
 	});
+
+	describe("findSubscriptionNextCharge", () => {
+		/** Mirrors the live Stripe shape on the pinned API version, so the discounted
+		 * amount from the preview — not the list price — is what a test asserts. */
+		function stubStripe(input: {
+			subscription?: { status: number; body: object };
+			preview?: { status: number; body: object };
+			record?: (url: string) => void;
+		}): typeof globalThis.fetch {
+			return async (target) => {
+				const url = typeof target === "string" ? target : target.toString();
+				input.record?.(url);
+				if (url.includes("/invoices/create_preview")) {
+					const preview = input.preview ?? {
+						status: 200,
+						body: { amount_due: 4900, currency: "usd" },
+					};
+					return jsonResponse(preview.status, preview.body);
+				}
+				const subscription = input.subscription ?? {
+					status: 200,
+					body: {
+						status: "active",
+						cancel_at_period_end: false,
+						items: { data: [{ current_period_end: 1813322393 }] },
+					},
+				};
+				return jsonResponse(subscription.status, subscription.body);
+			};
+		}
+
+		it("reads the period end off the line item and the amount off the invoice preview", async () => {
+			const urls: string[] = [];
+			const stripe = initStripeSubscriptions({
+				apiKey: "sk_test_abc",
+				fetch: stubStripe({ record: (url) => urls.push(url) }),
+			});
+
+			const charge = await stripe.findSubscriptionNextCharge({ subscriptionId: "sub_live" });
+
+			assert.deepEqual(charge, {
+				at: new Date(1813322393 * 1000).toISOString(),
+				amountMinor: 4900,
+				currency: "usd",
+			});
+			assert.deepEqual(urls, [
+				"https://api.stripe.com/v1/subscriptions/sub_live",
+				"https://api.stripe.com/v1/invoices/create_preview",
+			]);
+		});
+
+		it("ignores a top-level current_period_end — Basil moved it onto the line items", async () => {
+			const stripe = initStripeSubscriptions({
+				apiKey: "sk_test_abc",
+				fetch: stubStripe({
+					subscription: {
+						status: 200,
+						body: {
+							status: "active",
+							cancel_at_period_end: false,
+							current_period_end: 1813322393,
+							items: { data: [] },
+						},
+					},
+				}),
+			});
+
+			const charge = await stripe.findSubscriptionNextCharge({ subscriptionId: "sub_pre_basil" });
+
+			assert.equal(charge, undefined);
+		});
+
+		it("quotes the discounted amount, not the list price", async () => {
+			const stripe = initStripeSubscriptions({
+				apiKey: "sk_test_abc",
+				fetch: stubStripe({
+					preview: { status: 200, body: { amount_due: 2900, currency: "usd" } },
+				}),
+			});
+
+			const charge = await stripe.findSubscriptionNextCharge({ subscriptionId: "sub_coupon" });
+
+			assert.equal(charge?.amountMinor, 2900);
+		});
+
+		it("reports a charge for a subscription Stripe still calls trialing — the reader converted mid-trial", async () => {
+			const stripe = initStripeSubscriptions({
+				apiKey: "sk_test_abc",
+				fetch: stubStripe({
+					subscription: {
+						status: 200,
+						body: {
+							status: "trialing",
+							cancel_at_period_end: false,
+							items: { data: [{ current_period_end: 1813322393 }] },
+						},
+					},
+				}),
+			});
+
+			const charge = await stripe.findSubscriptionNextCharge({ subscriptionId: "sub_converting" });
+
+			assert.equal(charge?.amountMinor, 4900);
+		});
+
+		it("reports no charge for a subscription already set to cancel", async () => {
+			const stripe = initStripeSubscriptions({
+				apiKey: "sk_test_abc",
+				fetch: stubStripe({
+					subscription: {
+						status: 200,
+						body: {
+							status: "active",
+							cancel_at_period_end: true,
+							items: { data: [{ current_period_end: 1813322393 }] },
+						},
+					},
+				}),
+			});
+
+			const charge = await stripe.findSubscriptionNextCharge({ subscriptionId: "sub_ending" });
+
+			assert.equal(charge, undefined);
+		});
+
+		it("reports no charge while the card is failing — an unpaid period never advances", async () => {
+			const stripe = initStripeSubscriptions({
+				apiKey: "sk_test_abc",
+				fetch: stubStripe({
+					subscription: {
+						status: 200,
+						body: {
+							status: "past_due",
+							cancel_at_period_end: false,
+							items: { data: [{ current_period_end: 1813322393 }] },
+						},
+					},
+				}),
+			});
+
+			const charge = await stripe.findSubscriptionNextCharge({ subscriptionId: "sub_dunning" });
+
+			assert.equal(charge, undefined);
+		});
+
+		it("reports no charge when nothing is owed", async () => {
+			const stripe = initStripeSubscriptions({
+				apiKey: "sk_test_abc",
+				fetch: stubStripe({
+					preview: { status: 200, body: { amount_due: 0, currency: "usd" } },
+				}),
+			});
+
+			const charge = await stripe.findSubscriptionNextCharge({ subscriptionId: "sub_comped" });
+
+			assert.equal(charge, undefined);
+		});
+
+		it("reports no charge for a subscription Stripe no longer has", async () => {
+			const stripe = initStripeSubscriptions({
+				apiKey: "sk_test_abc",
+				fetch: stubStripe({
+					subscription: { status: 404, body: { error: { message: "No such subscription" } } },
+				}),
+			});
+
+			const charge = await stripe.findSubscriptionNextCharge({ subscriptionId: "sub_gone" });
+
+			assert.equal(charge, undefined);
+		});
+
+		it("reports no charge when the preview is gone", async () => {
+			const stripe = initStripeSubscriptions({
+				apiKey: "sk_test_abc",
+				fetch: stubStripe({
+					preview: { status: 404, body: { error: { message: "No such invoice" } } },
+				}),
+			});
+
+			const charge = await stripe.findSubscriptionNextCharge({ subscriptionId: "sub_x" });
+
+			assert.equal(charge, undefined);
+		});
+
+		it("throws when the subscription read fails, so the caller can tell it apart from 'no charge'", async () => {
+			const stripe = initStripeSubscriptions({
+				apiKey: "sk_test_abc",
+				fetch: stubStripe({
+					subscription: { status: 503, body: { error: { message: "Service unavailable" } } },
+				}),
+			});
+
+			await assert.rejects(
+				() => stripe.findSubscriptionNextCharge({ subscriptionId: "sub_x" }),
+				/Stripe findSubscriptionNextCharge failed \(503\): Service unavailable/,
+			);
+		});
+
+		it("throws when the preview read fails", async () => {
+			const stripe = initStripeSubscriptions({
+				apiKey: "sk_test_abc",
+				fetch: stubStripe({
+					preview: { status: 500, body: { error: { message: "Boom" } } },
+				}),
+			});
+
+			await assert.rejects(
+				() => stripe.findSubscriptionNextCharge({ subscriptionId: "sub_x" }),
+				/Stripe findSubscriptionNextCharge preview failed \(500\): Boom/,
+			);
+		});
+
+		it("URL-encodes the subscription id", async () => {
+			const urls: string[] = [];
+			const stripe = initStripeSubscriptions({
+				apiKey: "sk_test_abc",
+				fetch: stubStripe({ record: (url) => urls.push(url) }),
+			});
+
+			await stripe.findSubscriptionNextCharge({ subscriptionId: "sub with/slash" });
+
+			assert.equal(urls[0], "https://api.stripe.com/v1/subscriptions/sub%20with%2Fslash");
+		});
+	});
 });

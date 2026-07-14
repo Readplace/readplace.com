@@ -127,4 +127,36 @@ describe("initInMemorySubscriptionBilling", () => {
 		);
 		assert.deepEqual(stripe.reversedCancellations(), []);
 	});
+
+	it("returns nothing for a subscription no test has seeded a charge for", async () => {
+		const stripe = initInMemorySubscriptionBilling();
+
+		assert.equal(
+			await stripe.findSubscriptionNextCharge({ subscriptionId: "sub_unseeded" }),
+			undefined,
+		);
+		assert.deepEqual(stripe.nextChargeLookups(), ["sub_unseeded"]);
+	});
+
+	it("returns the seeded charge for its subscription and records each lookup", async () => {
+		const stripe = initInMemorySubscriptionBilling();
+		const nextCharge = { at: "2026-08-12T10:00:00.000Z", amountMinor: 4900, currency: "usd" };
+		stripe.seedNextCharge({ subscriptionId: "sub_paid", nextCharge });
+
+		assert.deepEqual(
+			await stripe.findSubscriptionNextCharge({ subscriptionId: "sub_paid" }),
+			nextCharge,
+		);
+		assert.deepEqual(stripe.nextChargeLookups(), ["sub_paid"]);
+	});
+
+	it("throws on lookup once configured to fail, standing in for a provider outage", async () => {
+		const stripe = initInMemorySubscriptionBilling();
+		stripe.failNextChargeLookup();
+
+		await assert.rejects(
+			() => stripe.findSubscriptionNextCharge({ subscriptionId: "sub_paid" }),
+			/In-memory billing findSubscriptionNextCharge failure/,
+		);
+	});
 });

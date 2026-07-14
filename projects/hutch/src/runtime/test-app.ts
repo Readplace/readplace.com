@@ -211,6 +211,7 @@ function flattenFixtureToAppDependencies(
 			upsertTrialing: fixture.subscriptionProviders.upsertTrialing,
 			findByUserId: fixture.subscriptionProviders.findByUserId,
 			markActive: fixture.subscriptionProviders.markActive,
+			setNextCharge: fixture.subscriptionProviders.setNextCharge,
 		},
 		trialScheduler: {
 			createTrialEndSchedule: fixture.trialScheduler.createTrialEndSchedule,
@@ -225,6 +226,8 @@ function flattenFixtureToAppDependencies(
 		},
 		createSubscriptionOnExistingCustomer:
 			fixture.subscriptionBilling.createSubscriptionOnExistingCustomer,
+		findSubscriptionNextCharge:
+			fixture.subscriptionBilling.findSubscriptionNextCharge,
 		reverseScheduledCancellation:
 			fixture.subscriptionBilling.reverseScheduledCancellation,
 		paymentMethods: {
