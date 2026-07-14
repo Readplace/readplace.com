@@ -56,7 +56,13 @@
   font-size: 0.95rem;
   font-weight: 600;
   color: var(--muted-foreground);
+  text-decoration: none;
   border-bottom: 2px solid transparent;
+  transition: color 0.15s ease, border-color 0.15s ease;
+}
+
+.inbox-email-detail__tab:hover {
+  color: var(--foreground);
 }
 
 .inbox-email-detail__tab[aria-current="page"] {
@@ -66,11 +72,6 @@
 
 .inbox-email-detail__panel {
   margin-bottom: 16px;
-}
-
-.inbox-email-detail__panel--articles {
-  border-top: 1px solid var(--border);
-  padding-top: 16px;
 }
 
 .inbox-email-detail__iframe {

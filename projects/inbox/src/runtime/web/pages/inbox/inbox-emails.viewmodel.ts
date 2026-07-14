@@ -1,5 +1,6 @@
-import { EMAIL_FEATURE, type LocalTime, toRelativeOrDate } from "@packages/web-shell";
+import { type LocalTime, toRelativeOrDate } from "@packages/web-shell";
 import type { InboxEmailStatus, ListInboxEmailsResult } from "@packages/domain/inbox";
+import { buildInboxEmailDetailUrl } from "./inbox-email-detail.url";
 import { buildLinkCountLabel } from "./inbox-link-count-label";
 import { buildInboxEmailsUrl } from "./inbox-emails.url";
 
@@ -65,7 +66,7 @@ export function toInboxEmailsViewModel(
 		rows: result.emails.map((entry) => {
 			const summary = options.linkSummaries.get(entry.receivedAtMessageId);
 			return {
-				href: `/inbox/${encodeURIComponent(entry.receivedAtMessageId)}?feature=${EMAIL_FEATURE}`,
+				href: buildInboxEmailDetailUrl({ emailId: entry.receivedAtMessageId, tab: "view" }),
 				sender: entry.senderEmail === "" ? "(unknown sender)" : entry.senderEmail,
 				subject: entry.subject === "" ? "(no subject)" : entry.subject,
 				received: toRelativeOrDate({ iso: entry.receivedAt, now: options.now }),

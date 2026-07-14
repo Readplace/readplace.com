@@ -7,6 +7,7 @@ import {
 	MessageIdSchema,
 } from "@packages/domain/inbox";
 import { UserIdSchema } from "@packages/domain/user";
+import type { MailTabKey } from "./inbox-email-detail.url";
 import { toInboxEmailDetailViewModel } from "./inbox-email-detail.viewmodel";
 
 const SK = "2026-06-24T09:00:00.000Z#<m@x>";
@@ -45,6 +46,7 @@ function link(overrides: Partial<InboxEmailLinkEntry> = {}): InboxEmailLinkEntry
 
 function build(input: {
 	entry?: InboxEmailEntry;
+	activeTab?: MailTabKey;
 	bodyHtml?: string | undefined;
 	links?: InboxEmailLinkEntry[];
 	linksMeta?: { truncated: boolean } | undefined;
@@ -52,6 +54,7 @@ function build(input: {
 }) {
 	return toInboxEmailDetailViewModel({
 		entry: input.entry ?? entry(),
+		activeTab: input.activeTab ?? "view",
 		bodyHtml: input.bodyHtml,
 		links: input.links ?? [],
 		linksMeta: input.linksMeta,
@@ -66,7 +69,15 @@ describe("toInboxEmailDetailViewModel", () => {
 
 		expect(vm.canRenderBody).toBe(true);
 		expect(vm.bodyHtml).toBe("<p>hi</p>");
+		expect(vm.activeTab).toBe("view");
 		expect(vm.tabs[0].ariaCurrent).toBe("page");
+	});
+
+	it("hands the Articles tab to the page as the active one", () => {
+		const vm = build({ activeTab: "articles", linksMeta: { truncated: false } });
+
+		expect(vm.activeTab).toBe("articles");
+		expect(vm.tabs[1].ariaCurrent).toBe("page");
 	});
 
 	it("exposes the received instant as a UTC-baselined datetime LocalTime", () => {

@@ -3,6 +3,7 @@ import { join } from "node:path";
 import { render } from "@packages/web-shell";
 import type { PageBody } from "@packages/web-shell";
 import { renderInboxArticlesPanel } from "./inbox-articles-panel.component";
+import type { MailTabKey } from "./inbox-email-detail.url";
 import { buildInboxEmailIframeSrcdoc } from "./inbox-email-iframe-srcdoc";
 import { renderInboxLinkCount } from "./inbox-link-count.component";
 import { INBOX_EMAIL_DETAIL_STYLES } from "./inbox-email-detail.styles";
@@ -13,11 +14,26 @@ const INBOX_EMAIL_DETAIL_TEMPLATE = readFileSync(
 	"utf-8",
 );
 
+const INBOX_EMAIL_VIEW_PANEL_TEMPLATE = readFileSync(
+	join(__dirname, "inbox-email-view-panel.template.html"),
+	"utf-8",
+);
+
+function renderViewPanel(vm: InboxEmailDetailViewModel): string {
+	return render(INBOX_EMAIL_VIEW_PANEL_TEMPLATE, {
+		canRenderBody: vm.canRenderBody,
+		unavailableMessage: vm.unavailableMessage,
+		viewSrcdoc: vm.canRenderBody ? buildInboxEmailIframeSrcdoc({ bodyHtml: vm.bodyHtml }) : "",
+	});
+}
+
+const PANEL_RENDERERS: Record<MailTabKey, (vm: InboxEmailDetailViewModel) => string> = {
+	view: renderViewPanel,
+	articles: (vm) => renderInboxArticlesPanel(vm.articles),
+};
+
 export function InboxEmailDetailPage(vm: InboxEmailDetailViewModel): PageBody {
-	const viewSrcdoc = vm.canRenderBody
-		? buildInboxEmailIframeSrcdoc({ bodyHtml: vm.bodyHtml })
-		: "";
-	const articlesPanelHtml = renderInboxArticlesPanel(vm.articles);
+	const panelHtml = PANEL_RENDERERS[vm.activeTab](vm);
 	const linkCountHtml = renderInboxLinkCount({ label: vm.linkCountLabel, oob: false });
 	return {
 		seo: {
@@ -30,7 +46,7 @@ export function InboxEmailDetailPage(vm: InboxEmailDetailViewModel): PageBody {
 		styles: INBOX_EMAIL_DETAIL_STYLES,
 		bodyClass: "page-inbox",
 		content: {
-			html: render(INBOX_EMAIL_DETAIL_TEMPLATE, { ...vm, viewSrcdoc, articlesPanelHtml, linkCountHtml }),
+			html: render(INBOX_EMAIL_DETAIL_TEMPLATE, { ...vm, panelHtml, linkCountHtml }),
 		},
 	};
 }
