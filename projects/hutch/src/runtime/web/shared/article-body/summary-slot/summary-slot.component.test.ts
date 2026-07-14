@@ -34,6 +34,19 @@ describe("renderSummarySlot", () => {
 		expect(details.hasAttribute("open")).toBe(true);
 	});
 
+	it("forwards a ready summary's excerpt into the collapsed preview", () => {
+		const doc = parse(
+			renderSummarySlot({
+				summary: { status: "ready", summary: "The full summary.", excerpt: "The teaser." },
+				summaryOpen: false,
+			}),
+		);
+
+		expect(doc.querySelector(".article-body__summary-preview")?.textContent).toBe(
+			"The teaser. … view more",
+		);
+	});
+
 	it("routes status=pending to the pending component with the poll URL once the reader view is ready", () => {
 		const doc = parse(
 			renderSummarySlot({

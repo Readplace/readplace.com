@@ -73,6 +73,7 @@ export function renderSummarySlot(input: SummarySlotInput): string {
 		case "ready":
 			return renderSummaryReady({
 				summary: summary.summary,
+				excerpt: summary.excerpt,
 				open: input.summaryOpen === true,
 				summaryToggleUrl: input.summaryToggleUrl,
 				oob,
