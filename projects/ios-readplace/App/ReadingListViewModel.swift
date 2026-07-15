@@ -260,17 +260,14 @@ final class ReadingListViewModel: ObservableObject {
 	}
 
 	/// Mints the cookie session the reader webview needs from the current bearer.
-	/// Returns the cookies the server set, or nil (surfacing the error) when the
-	/// bootstrap fails, so the reader sheet can show its unavailable view instead of
-	/// a blank page.
-	func mintReaderSession() async -> [HTTPCookie]? {
+	func mintReaderSession() async -> ReaderSessionMint {
 		do {
-			return try await api.bootstrapSession(action: sessionAction)
+			return .minted(try await api.bootstrapSession(action: sessionAction))
 		} catch where Task.isCancelled {
-			return nil
+			return .superseded
 		} catch {
 			handle(error)
-			return nil
+			return .failed
 		}
 	}
 
