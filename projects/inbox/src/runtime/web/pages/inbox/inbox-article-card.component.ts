@@ -9,16 +9,12 @@ const INBOX_ARTICLE_CARD_TEMPLATE = readFileSync(
 );
 
 interface InboxArticleCardDisplayModel extends InboxLinkCardViewModel {
-	isCrawled: boolean;
-	isFailed: boolean;
 	cardStatus: "pending" | "terminal";
 }
 
 function toDisplayModel(vm: InboxLinkCardViewModel): InboxArticleCardDisplayModel {
 	return {
 		...vm,
-		isCrawled: vm.status === "crawled",
-		isFailed: vm.status === "failed",
 		cardStatus: vm.cardPollUrl === undefined ? "terminal" : "pending",
 	};
 }

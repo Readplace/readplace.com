@@ -100,24 +100,17 @@
 .inbox-email-detail__articles {
   display: flex;
   flex-direction: column;
-  gap: 12px;
 }
 
 .inbox-article-card {
   display: flex;
   flex-direction: column;
-  gap: 4px;
-  padding: 12px 16px;
-  border: 1px solid var(--border);
-  border-radius: var(--radius);
+  gap: 2px;
+  padding: 12px 0;
 }
 
-.inbox-article-card__image {
-  width: 100%;
-  max-height: 180px;
-  object-fit: cover;
-  border-radius: var(--radius);
-  margin-bottom: 4px;
+.inbox-article-card:not(:last-child) {
+  border-bottom: 1px solid var(--border);
 }
 
 .inbox-article-card__title {
@@ -131,26 +124,8 @@
   color: var(--muted-foreground);
 }
 
-.inbox-article-card__excerpt {
-  margin: 0;
-  font-size: 0.9rem;
-  color: var(--muted-foreground);
-}
-
-.inbox-article-card__site {
+.inbox-article-card__url {
   font-size: 0.8rem;
   color: var(--muted-foreground);
-}
-
-.inbox-article-card__pending,
-.inbox-article-card__failed,
-.inbox-article-card__stale-pending {
-  margin: 0;
-  font-size: 0.85rem;
-  color: var(--muted-foreground);
-}
-
-.inbox-article-card__stale-pending a {
-  color: var(--color-brand);
-  text-decoration: underline;
+  word-break: break-all;
 }

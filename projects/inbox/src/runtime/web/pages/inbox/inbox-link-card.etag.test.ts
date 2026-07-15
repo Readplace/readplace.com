@@ -35,4 +35,22 @@ describe("computeInboxLinkCardEtag", () => {
 	it("is stable for an unchanged link", () => {
 		expect(computeInboxLinkCardEtag(link())).toBe(computeInboxLinkCardEtag(link()));
 	});
+
+	it("ignores stored fields the row no longer renders", () => {
+		const withPreview = computeInboxLinkCardEtag(
+			link({ status: "crawled", title: "T", excerpt: "E", siteName: "S", imageUrl: "i" }),
+		);
+		const bare = computeInboxLinkCardEtag(link({ status: "crawled", title: "T" }));
+		expect(withPreview).toBe(bare);
+
+		const failedA = computeInboxLinkCardEtag(link({ status: "failed", failureReason: "crawl-failed" }));
+		const failedB = computeInboxLinkCardEtag(link({ status: "failed", failureReason: "blocked" }));
+		expect(failedA).toBe(failedB);
+	});
+
+	it("changes when the title changes", () => {
+		const t = computeInboxLinkCardEtag(link({ status: "crawled", title: "T" }));
+		const u = computeInboxLinkCardEtag(link({ status: "crawled", title: "U" }));
+		expect(t).not.toBe(u);
+	});
 });

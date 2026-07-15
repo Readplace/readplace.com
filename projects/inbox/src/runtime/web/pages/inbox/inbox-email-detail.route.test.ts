@@ -279,7 +279,7 @@ describe("Inbox email detail Articles tab", () => {
 		expect(response.status).toBe(404);
 	});
 
-	it("renders one preview card per extracted link, with per-state markup and no email body", async () => {
+	it("renders one link row per extracted link, with per-state markup and no email body", async () => {
 		const fixture = createDefaultTestAppFixture(TEST_APP_ORIGIN);
 		let bodyReads = 0;
 		fixture.inboxEmail.readEmailContent = async () => {
@@ -320,7 +320,13 @@ describe("Inbox email detail Articles tab", () => {
 		assert(pendingCard, "pending card must render");
 		expect(pendingCard.getAttribute("data-card-status")).toBe("pending");
 		expect(pendingCard.getAttribute("hx-get")).toContain("/links/0001/card");
-		expect(doc.querySelector("[data-test-inbox-article-failed]")).not.toBeNull();
+		const failedCard = doc.querySelector('[data-test-inbox-article-card="0002"]');
+		assert(failedCard, "failed card must render");
+		expect(failedCard.getAttribute("data-card-status")).toBe("terminal");
+		const failedUrl = failedCard.querySelector("[data-test-inbox-article-url]");
+		assert(failedUrl, "failed card renders its bare URL");
+		expect(failedUrl.tagName).toBe("A");
+		expect(failedUrl.getAttribute("href")).toBe("https://example.com/post");
 
 		expect(bodyReads).toBe(0);
 		expect(doc.querySelector("[data-test-inbox-email-iframe]")).toBeNull();

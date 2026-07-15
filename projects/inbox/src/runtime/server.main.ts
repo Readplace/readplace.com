@@ -81,7 +81,7 @@ async function main(): Promise<void> {
 		url: "https://example.com/first-post",
 		status: "crawled",
 		title: "An example crawled article",
-		excerpt: "A short excerpt so the preview card has something to show.",
+		excerpt: "A short excerpt stored with the crawl outcome.",
 		siteName: "Example",
 		imageUrl: undefined,
 		failureReason: undefined,

@@ -8,7 +8,7 @@ describe("buildMailTabs", () => {
 		const tabs = buildMailTabs({ emailId: EMAIL_ID, active: "view" });
 
 		expect(tabs.map((tab) => tab.key)).toEqual(["view", "articles"]);
-		expect(tabs.map((tab) => tab.label)).toEqual(["View", "Articles"]);
+		expect(tabs.map((tab) => tab.label)).toEqual(["View", "Extracted Articles"]);
 		expect(tabs[0].ariaCurrent).toBe("page");
 		expect(tabs[1].ariaCurrent).toBeUndefined();
 	});

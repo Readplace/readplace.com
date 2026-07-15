@@ -218,8 +218,7 @@ export function initInboxRoutes(deps: InboxDependencies): Router {
 	});
 
 	// The literal `links/:ordinal/card` suffix means `/:id` (single segment)
-	// never captures it. Renders one link-preview card fragment for the htmx
-	// poll; 304s when the link hasn't changed during the wait window.
+	// never captures it.
 	router.get(
 		"/:id/links/:ordinal/card",
 		async (req: Request<{ id: string; ordinal: string }>, res: Response) => {
