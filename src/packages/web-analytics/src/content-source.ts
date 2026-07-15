@@ -23,6 +23,22 @@ export function articleHostFrom(url: string): string {
 	return new URL(url).hostname;
 }
 
+/**
+ * The article's own host, tolerant of unparseable input. Save surfaces emit
+ * `view_save_intent` even for URL-validation failures, where the submitted
+ * string may not parse as a URL — this returns `null` for those so the event
+ * can still record the failure with `article_host`/`content_class` unset,
+ * rather than throwing and losing the emission.
+ */
+export function articleHostFromSubmitted(url: string): string | null {
+	try {
+		const host = new URL(url).hostname;
+		return host.length > 0 ? host : null;
+	} catch {
+		return null;
+	}
+}
+
 export function classifyContentSource(articleHost: string): ContentClass {
 	const host = articleHost.toLowerCase();
 	const owned = OWN_CONTENT_DOMAINS.some((domain) => host === domain || host.endsWith(`.${domain}`));

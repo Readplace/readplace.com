@@ -50,6 +50,30 @@ export function initGenerateSummaryHandler(deps: GenerateSummaryHandlerDeps): Ha
 				}
 
 				const article = await findArticleContent(command.url);
+				/* Terminal crawl without canonical content is not a race — the crawl
+				 * gave up, so no content will ever arrive. Collapse the summary to
+				 * skipped (the same terminal outcome markCrawlBlocked/markCrawlNotFound
+				 * write) so the auto-heal loop stops repriming this row forever. A
+				 * pending crawl (content still landing) or a ready crawl (content
+				 * genuinely missing) keeps the assert → retry → DLQ path below. */
+				if (
+					!article &&
+					existing &&
+					(existing.crawl.kind === "failed" || existing.crawl.kind === "unsupported")
+				) {
+					await transitionAndPersist(markSummarySkipped, {
+						url: command.url,
+						input: {
+							reason: existing.crawl.kind === "failed" ? "crawl-failed" : "crawl-unsupported",
+							now: now().toISOString(),
+						},
+					});
+					logger.info("[GenerateSummary] crawl terminal without canonical content — marking summary skipped", {
+						url: command.url,
+						crawl: existing.crawl.kind,
+					});
+					continue;
+				}
 				assert(article, `Article content not found: ${command.url}`);
 
 				const result = await summarizeArticle({

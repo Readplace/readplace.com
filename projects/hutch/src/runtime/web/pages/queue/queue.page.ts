@@ -709,6 +709,7 @@ export function initQueueRoutes(deps: QueueDependencies): Router {
 		const validation = deps.validateSaveableUrl(submittedUrl);
 
 		if (validation.status === "ERROR") {
+			emitSaveIntent({ req, url: submittedUrl, path: SAVE_INTENT_PATH.saveArticle, surface: SAVE_SURFACES.extension, outcome: SAVE_OUTCOMES.error });
 			if (validation.error.code === "malformed_url") {
 				res.status(422).type(SIREN_MEDIA_TYPE).json(
 					sirenError({ code: "invalid-url", message: validation.error.message }),
@@ -953,6 +954,7 @@ export function initQueueRoutes(deps: QueueDependencies): Router {
 					res.status(201).type(SIREN_MEDIA_TYPE).json(toArticleEntity(result.saved));
 					return;
 				}
+				emitSaveIntent({ req, url: typeof req.body?.url === "string" ? req.body.url : "", path: SAVE_INTENT_PATH.saveHtml, surface: SAVE_SURFACES.extension, outcome: SAVE_OUTCOMES.error });
 				res.status(422).type(SIREN_MEDIA_TYPE).json(
 					sirenError({ code: "invalid-save-html", message: "Invalid save-html request" }),
 				);
@@ -961,6 +963,7 @@ export function initQueueRoutes(deps: QueueDependencies): Router {
 
 			const urlValidation = deps.validateSaveableUrl(parsed.data.url);
 			if (urlValidation.status === "ERROR") {
+				emitSaveIntent({ req, url: parsed.data.url, path: SAVE_INTENT_PATH.saveHtml, surface: SAVE_SURFACES.extension, outcome: SAVE_OUTCOMES.error });
 				res.status(422).type(SIREN_MEDIA_TYPE).json(
 					sirenError({ code: "invalid-save-html", message: urlValidation.error.message }),
 				);
@@ -1048,6 +1051,7 @@ export function initQueueRoutes(deps: QueueDependencies): Router {
 			const title = titlePart ? titlePart.content.toString("utf8") : undefined;
 
 			if (!contentBytes || contentBytes.length === 0) {
+				emitSaveIntent({ req, url: submittedUrl, path: SAVE_INTENT_PATH.saveContent, surface: SAVE_SURFACES.extension, outcome: SAVE_OUTCOMES.error });
 				res.status(422).type(SIREN_MEDIA_TYPE).json(
 					sirenError({
 						code: "invalid-save-content",
@@ -1059,6 +1063,7 @@ export function initQueueRoutes(deps: QueueDependencies): Router {
 			}
 
 			if (!mediaType) {
+				emitSaveIntent({ req, url: submittedUrl, path: SAVE_INTENT_PATH.saveContent, surface: SAVE_SURFACES.extension, outcome: SAVE_OUTCOMES.error });
 				res.status(422).type(SIREN_MEDIA_TYPE).json(
 					sirenError({
 						code: "invalid-save-content",
@@ -1071,6 +1076,7 @@ export function initQueueRoutes(deps: QueueDependencies): Router {
 
 			const validation = deps.validateSaveableUrl(submittedUrl);
 			if (validation.status === "ERROR") {
+				emitSaveIntent({ req, url: submittedUrl, path: SAVE_INTENT_PATH.saveContent, surface: SAVE_SURFACES.extension, outcome: SAVE_OUTCOMES.error });
 				res.status(422).type(SIREN_MEDIA_TYPE).json(
 					sirenError({
 						code: "invalid-save-content",
@@ -1088,6 +1094,7 @@ export function initQueueRoutes(deps: QueueDependencies): Router {
 				const handler = saveContentHandlers[normalized];
 
 				if (!handler) {
+					emitSaveIntent({ req, url: articleUrl, path: SAVE_INTENT_PATH.saveContent, surface: SAVE_SURFACES.extension, outcome: SAVE_OUTCOMES.error });
 					res.status(422).type(SIREN_MEDIA_TYPE).json(
 						sirenError({
 							code: "unsupported-media-type",
@@ -1100,6 +1107,7 @@ export function initQueueRoutes(deps: QueueDependencies): Router {
 
 				const handlerResult = await handler({ url: articleUrl, bytes: contentBytes, title, userId });
 				if (!handlerResult.ok) {
+					emitSaveIntent({ req, url: articleUrl, path: SAVE_INTENT_PATH.saveContent, surface: SAVE_SURFACES.extension, outcome: SAVE_OUTCOMES.error });
 					res.status(422).type(SIREN_MEDIA_TYPE).json(
 						sirenError({
 							code: handlerResult.code,
@@ -1131,6 +1139,7 @@ export function initQueueRoutes(deps: QueueDependencies): Router {
 		const validation = deps.validateSaveableUrl(submittedUrl);
 
 		if (validation.status === "ERROR") {
+			emitSaveIntent({ req, url: submittedUrl, path: SAVE_INTENT_PATH.save, surface: SAVE_SURFACES.queueSaveBar, outcome: SAVE_OUTCOMES.error });
 			const urlState = parseQueueUrl({});
 			const result = await deps.findArticlesByUser({ userId });
 			const unreadCount = await deps.countArticlesByUser({ userId, status: "unread" });
