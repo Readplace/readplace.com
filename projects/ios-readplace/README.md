@@ -274,9 +274,11 @@ boundaries and edge cases:
   the status action posting the urlencoded `status` field, following the `303`
   back to the collection and verifying the status at the protocol level only (any
   non-2xx/3xx surfaces a generic server error — no per-code special-casing),
-  `bootstrapSession` reading the session cookie from the store URLSession parsed
-  (refreshing the bearer once if expired) while keeping the minted `hutch_sid`
-  out of the process-wide shared cookie jar, and missing-token handling.
+  `bootstrapSession` reading back only the cookies this mint changed in the store
+  URLSession parsed — the freshly-set `hutch_sid`, not a stale cookie an earlier
+  request left in the jar (refreshing the bearer once if expired) — while keeping
+  the minted `hutch_sid` out of the process-wide shared cookie jar, and
+  missing-token handling.
 - **TokenStore / URL detection**: persistence and partial-token edge cases;
   http(s)-only link extraction that ignores `mailto:`/`tel:`.
 - **Login & share-save journeys**: the two orchestration seams end-to-end through

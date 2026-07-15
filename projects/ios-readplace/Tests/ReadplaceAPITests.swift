@@ -763,4 +763,72 @@ final class ReadplaceAPITests: XCTestCase {
 
 		XCTAssertEqual(cookies.first?.value, "discovered")
 	}
+
+	func testBootstrapSessionReturnsOnlyTheCookiesThisResponseSet() async throws {
+		let config = TestSupport.stubbedConfiguration()
+		// A cookie an earlier request left in the jar must not be handed back as one
+		// this mint set — the store holds every cookie for the host, not just the
+		// response's.
+		config.httpCookieStorage?.setCookie(TestSupport.sessionCookie(value: "old", name: "leftover"))
+		StubURLProtocol.setHandler { _, _ in
+			StubURLProtocol.Stub(status: 204, headers: ["Set-Cookie": "hutch_sid=minted; Path=/"])
+		}
+		let api = ReadplaceAPI(
+			baseURL: AppConfig.serverBaseURL, store: TestSupport.loggedInStore(),
+			sessionConfiguration: config
+		)
+
+		let cookies = try await api.bootstrapSession()
+
+		XCTAssertEqual(cookies.map(\.name), ["hutch_sid"], "the stale jar cookie is excluded")
+		XCTAssertEqual(cookies.first?.value, "minted")
+	}
+
+	func testBootstrapSessionReadsAReMintedSessionCookieBackFromTheJarDiff() async throws {
+		let config = TestSupport.stubbedConfiguration()
+		// A prior mint left hutch_sid in the jar and an earlier request left hutch_vid;
+		// this mint rotates the session id and leaves hutch_vid untouched.
+		config.httpCookieStorage?.setCookie(TestSupport.sessionCookie(value: "old"))
+		config.httpCookieStorage?.setCookie(TestSupport.sessionCookie(value: "v1", name: "hutch_vid"))
+		StubURLProtocol.setHandler { _, _ in
+			// A stubbed URLProtocol response never lands its `Set-Cookie` in the session
+			// jar — cookie acceptance lives in the native HTTP protocol this stub replaces —
+			// so plant the rotated id the way URLSession would: mid-request, after
+			// bootstrapSession's snapshot and before sessionCookies re-reads the jar. That
+			// is what exercises the jar-diff path instead of the Set-Cookie header fallback.
+			config.httpCookieStorage?.setCookie(TestSupport.sessionCookie(value: "new"))
+			return StubURLProtocol.Stub(status: 204)
+		}
+		let api = ReadplaceAPI(
+			baseURL: AppConfig.serverBaseURL, store: TestSupport.loggedInStore(),
+			sessionConfiguration: config
+		)
+
+		let cookies = try await api.bootstrapSession()
+
+		XCTAssertEqual(cookies.map(\.name), ["hutch_sid"], "the unchanged hutch_vid is excluded as prior")
+		XCTAssertEqual(cookies.first?.value, "new", "the rotated hutch_sid is read from the jar diff, not a header")
+	}
+
+	func testBootstrapSessionTreatsAResponseThatSetsNoNewCookieAsAFailedMint() async {
+		let config = TestSupport.stubbedConfiguration()
+		// A stale jar cookie must not disguise a mint that set nothing as a success.
+		config.httpCookieStorage?.setCookie(TestSupport.sessionCookie(value: "old"))
+		StubURLProtocol.setHandler { _, _ in StubURLProtocol.Stub(status: 204) }
+		let api = ReadplaceAPI(
+			baseURL: AppConfig.serverBaseURL, store: TestSupport.loggedInStore(),
+			sessionConfiguration: config
+		)
+
+		do {
+			_ = try await api.bootstrapSession()
+			XCTFail("a response that sets no new cookie is a failed mint")
+		} catch let error as APIError {
+			guard case .decoding = error else {
+				return XCTFail("Expected .decoding, got \(error)")
+			}
+		} catch {
+			XCTFail("Expected APIError.decoding, got \(error)")
+		}
+	}
 }
