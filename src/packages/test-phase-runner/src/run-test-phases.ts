@@ -19,6 +19,14 @@ interface JestPhase {
 	testPathIgnorePatterns?: string;
 	passWithNoTests?: boolean;
 	e2e?: boolean;
+	/** Split the matched test files across N jest processes run in parallel.
+	 * Under coverage jest is pinned to one worker (a worker force-killed before
+	 * flushing its V8 profile drops coverage), which serialises the whole suite
+	 * onto one core; sharding reclaims the idle cores by running N single-worker
+	 * processes instead. Every shard inherits the same c8 NODE_V8_COVERAGE dir, so
+	 * their per-file profiles merge into the identical coverage a single run
+	 * produces. Omitted or ≤1 means one process, exactly as before. */
+	shards?: number;
 }
 
 interface NodeTestPhase {
@@ -118,6 +126,34 @@ export interface TestPhaseRunnerDeps {
 	sleep: SleepFn;
 }
 
+/** Launches each shard in the background and fails if ANY shard fails. A bare
+ * POSIX `wait` returns 0 regardless of the jobs' exit codes, so every pid is
+ * waited on individually and its non-zero status folded into `rc`. jest's
+ * `--shard=k/N` partitions the matched files deterministically, so the shards
+ * together run exactly the same test set as the un-sharded command.
+ *
+ * `--forceExit` is required on the shards but NOT on the un-sharded command: a
+ * test that leaks an async handle (a timer, an unclosed socket) keeps jest's
+ * process alive past the run, and here `wait` would then block forever with no
+ * timeout — an unbounded hang. A single big run masks the leak (a later file
+ * incidentally clears it, or the handle drains before the long run ends); a small
+ * shard exposes it, and CPU starvation from the parallel shards makes it far more
+ * likely. Forcing exit after the reporters finish is safe for coverage: the V8
+ * profile is flushed on `process.exit()`, verified to produce byte-identical
+ * merged coverage to the un-sharded run. */
+function shardedJestCommand(base: string, shards: number): string {
+	const lines: string[] = [];
+	for (let i = 1; i <= shards; i++) {
+		lines.push(`${base} --shard=${i}/${shards} --forceExit & p${i}=$!`);
+	}
+	lines.push("rc=0");
+	for (let i = 1; i <= shards; i++) {
+		lines.push(`wait $p${i} || rc=1`);
+	}
+	lines.push("exit $rc");
+	return lines.join("\n");
+}
+
 function resolveJestPhase(phase: JestPhase): ResolvedJestPhase {
 	const parts = [
 		"node_modules/.bin/jest",
@@ -130,7 +166,9 @@ function resolveJestPhase(phase: JestPhase): ResolvedJestPhase {
 	if (phase.passWithNoTests) {
 		parts.push("--passWithNoTests");
 	}
-	return { type: "jest", name: phase.name, command: parts.join(" "), skip: false, e2e: phase.e2e === true };
+	const base = parts.join(" ");
+	const command = phase.shards && phase.shards > 1 ? shardedJestCommand(base, phase.shards) : base;
+	return { type: "jest", name: phase.name, command, skip: false, e2e: phase.e2e === true };
 }
 
 function resolveNodeTestPhase(phase: NodeTestPhase, globSync: GlobSyncFn): ResolvedNodeTestPhase {

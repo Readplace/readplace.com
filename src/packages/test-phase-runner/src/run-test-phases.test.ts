@@ -123,6 +123,54 @@ describe("jest phase resolution", () => {
 		expect(phase.command).toContain("--passWithNoTests");
 	});
 
+	it("runs a single un-sharded process when shards is 1 or omitted", () => {
+		const runner = createRunner();
+		const plan = runner.createTestPlan({
+			config: {
+				projectName: "My Project",
+				phases: [
+					{ type: "jest", name: "unit tests", testMatch: "**/dist/**/*.test.js", timeout: 10000, shards: 1 },
+				],
+			},
+			projectRoot,
+		});
+
+		const phase = plan.phases[0] as Extract<ResolvedPhase, { type: "jest" }>;
+		expect(phase.command).toBe(`node_modules/.bin/jest --testMatch="**/dist/**/*.test.js" --testTimeout=10000`);
+		expect(phase.command).not.toContain("--shard");
+		// The un-sharded command must not force-exit: a leaked handle is surfaced,
+		// not masked, when the whole suite runs in one process.
+		expect(phase.command).not.toContain("--forceExit");
+	});
+
+	it("splits the matched files across N parallel jest processes and fails if any shard fails", () => {
+		const runner = createRunner();
+		const plan = runner.createTestPlan({
+			config: {
+				projectName: "My Project",
+				phases: [
+					{ type: "jest", name: "unit tests", testMatch: "**/dist/**/*.test.js", timeout: 10000, shards: 3 },
+				],
+			},
+			projectRoot,
+		});
+
+		const phase = plan.phases[0] as Extract<ResolvedPhase, { type: "jest" }>;
+		// One backgrounded jest per shard, each carrying jest's deterministic
+		// --shard=k/N partition of the same testMatch, and --forceExit so a shard
+		// whose test leaks an async handle can't hang the blocking `wait` forever.
+		expect(phase.command).toContain("--shard=1/3 --forceExit & p1=$!");
+		expect(phase.command).toContain("--shard=2/3 --forceExit & p2=$!");
+		expect(phase.command).toContain("--shard=3/3 --forceExit & p3=$!");
+		expect(phase.command).toContain('--testMatch="**/dist/**/*.test.js"');
+		// Every pid is waited on individually so a failing shard flips rc — a bare
+		// POSIX `wait` would return 0 and hide the failure.
+		expect(phase.command).toContain("rc=0");
+		expect(phase.command).toContain("wait $p1 || rc=1");
+		expect(phase.command).toContain("wait $p3 || rc=1");
+		expect(phase.command).toContain("exit $rc");
+	});
+
 	it("uses different timeout for integration tests", () => {
 		const runner = createRunner();
 		const plan = runner.createTestPlan({
