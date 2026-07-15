@@ -90,6 +90,7 @@ struct ReadingListView: View {
 							session.forceLogout()
 						}
 					)
+					.id(presentation.id)
 					.ignoresSafeArea()
 				}
 				.sheet(isPresented: $showingAddInstructions) {

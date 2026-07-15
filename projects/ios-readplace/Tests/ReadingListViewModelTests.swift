@@ -1009,6 +1009,26 @@ final class ReadingListViewModelTests: XCTestCase {
 		XCTAssertNotNil(viewModel.errorText)
 	}
 
+	func testMintReaderSessionSwallowsCancellationWhenTheOpenWasSuperseded() async {
+		StubURLProtocol.setHandler { _, _ in
+			.json(500, Fixtures.sirenError(code: "boom", message: "nope", withSaveArticleFallback: false))
+		}
+		let viewModel = makeViewModel(store: TestSupport.loggedInStore())
+
+		// Switching articles cancels the superseded open's mint task; the mint only
+		// runs once cancellation is already observed, so whatever the bootstrap throws
+		// belongs to an open nobody is watching.
+		let supersededMint = Task { () -> [HTTPCookie]? in
+			while !Task.isCancelled { await Task.yield() }
+			return await viewModel.mintReaderSession()
+		}
+		supersededMint.cancel()
+		let cookies = await supersededMint.value
+
+		XCTAssertNil(cookies, "a superseded open's mint yields no session")
+		XCTAssertNil(viewModel.errorText, "a cancelled mint is a superseded open, not a failure to surface")
+	}
+
 	// MARK: - Session expiry & warnings
 
 	func testUnauthorizedLoadLogsOutWithoutAnErrorBanner() async {

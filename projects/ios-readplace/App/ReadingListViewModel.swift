@@ -266,6 +266,8 @@ final class ReadingListViewModel: ObservableObject {
 	func mintReaderSession() async -> [HTTPCookie]? {
 		do {
 			return try await api.bootstrapSession(action: sessionAction)
+		} catch where Task.isCancelled {
+			return nil
 		} catch {
 			handle(error)
 			return nil
