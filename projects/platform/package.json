@@ -6,7 +6,7 @@
   "private": true,
   "scripts": {
     "compile": "echo 'Infra-only project — no compile step'",
-    "lint": "echo 'Infra-only project — no lint step'",
+    "lint": "tsc --project tsconfig.lint.json && biome lint src",
     "test": "echo 'Infra-only project — no tests'",
     "check-infra": "PULUMI_CONFIG_PASSPHRASE='' pulumi preview --stack \"${PULUMI_STACK:?PULUMI_STACK is not set}\"",
     "deploy-infra": "PULUMI_CONFIG_PASSPHRASE='' pulumi up --stack \"${PULUMI_STACK:?PULUMI_STACK is not set}\"",

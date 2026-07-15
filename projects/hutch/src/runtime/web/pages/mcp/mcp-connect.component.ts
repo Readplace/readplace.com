@@ -22,16 +22,6 @@ type McpTool = {
  * product's setup; we deliberately avoid menu-label minutiae that rots.
  */
 const MCP_SETUP = {
-	claude: {
-		requirement:
-			"Works on Free, Pro, Max, Team, and Enterprise. The Free plan allows a single custom connector.",
-		steps: [
-			"Open Settings and go to Connectors.",
-			"Choose “Add custom connector”.",
-			"Paste the Readplace server URL and save.",
-			"Open the connector and complete the one-time OAuth sign-in to authorize Claude.",
-		],
-	},
 	chatgpt: {
 		requirement:
 			"Needs a paid plan (Plus, Pro, Business, Enterprise, or Edu). Custom connectors live behind Developer Mode, which you turn on from ChatGPT on the web.",
@@ -40,6 +30,26 @@ const MCP_SETUP = {
 			"Add a custom connector and enter the Readplace server URL.",
 			"Choose OAuth as the authentication method.",
 			"Complete the OAuth sign-in to authorize ChatGPT.",
+		],
+	},
+	gemini: {
+		requirement:
+			"No paid plan required — the Gemini CLI connects for free. The Gemini app only takes custom connectors inside Gemini Spark, which needs a Google AI Ultra subscription.",
+		steps: [
+			"Install the Gemini CLI and sign in with your Google account.",
+			"Run “gemini mcp add --transport http --scope user readplace https://readplace.com/mcp”.",
+			"Start Gemini and run “/mcp auth readplace”. The CLI discovers the OAuth login and registers itself, so there is no client ID or secret to configure.",
+			"Complete the browser sign-in to authorize Gemini, then run “/mcp list” to confirm Readplace is connected.",
+		],
+	},
+	claude: {
+		requirement:
+			"Works on Free, Pro, Max, Team, and Enterprise. The Free plan allows a single custom connector.",
+		steps: [
+			"Open Settings and go to Connectors.",
+			"Choose “Add custom connector”.",
+			"Paste the Readplace server URL and save.",
+			"Open the connector and complete the one-time OAuth sign-in to authorize Claude.",
 		],
 	},
 } satisfies Record<ClientNameInGroup<"aiAssistant">, Omit<McpTool, "name">>;
@@ -93,7 +103,7 @@ export function McpConnectPage(): PageBody {
 		seo: {
 			title: "Connect Readplace to your AI assistant (MCP) — Readplace",
 			description:
-				"Readplace runs an MCP server. Connect Claude, ChatGPT, Perplexity, or any MCP client and your assistant can save pages to your reading queue and list back what you have saved.",
+				"Readplace runs an MCP server. Connect ChatGPT, Gemini, Claude, Perplexity, or any MCP client and your assistant can save pages to your reading queue and list back what you have saved.",
 			canonicalUrl: "https://readplace.com/mcp",
 			robots: "index, follow",
 		},

@@ -1,4 +1,4 @@
-import { ArticleResourceUniqueId } from "./index";
+import { ArticleResourceUniqueId, toCrawlVersionMinuteId } from "./index";
 
 describe("ArticleResourceUniqueId.parse", () => {
 	it("strips https scheme", () => {
@@ -130,6 +130,50 @@ describe("ArticleResourceUniqueId.toS3PendingHtmlKey", () => {
 		const write = ArticleResourceUniqueId.parse("https://example.com/article").toS3PendingHtmlKey();
 		const read = ArticleResourceUniqueId.parse("http://example.com/article").toS3PendingHtmlKey();
 		expect(write).toBe(read);
+	});
+});
+
+describe("ArticleResourceUniqueId.toS3ContentVersionKey", () => {
+	it("nests the version snapshot under a minute-id folder with the colon replaced by a hyphen", () => {
+		expect(
+			ArticleResourceUniqueId.parse("https://example.com/blog/post").toS3ContentVersionKey({
+				minuteId: "2026-07-10T09:41Z",
+			}),
+		).toBe("content-versions/example.com%2Fblog%2Fpost/2026-07-10T09-41Z/content.html");
+	});
+
+	it("encodes the id but keeps the minute-id folder legible", () => {
+		expect(
+			ArticleResourceUniqueId.parse("https://example.com:8080/path").toS3ContentVersionKey({
+				minuteId: "2026-03-26T14:32Z",
+			}),
+		).toBe("content-versions/example.com%3A8080%2Fpath/2026-03-26T14-32Z/content.html");
+	});
+
+	it("matches between write and read sides for the same URL regardless of scheme", () => {
+		const write = ArticleResourceUniqueId.parse("https://example.com/article").toS3ContentVersionKey({
+			minuteId: "2026-07-10T09:41Z",
+		});
+		const read = ArticleResourceUniqueId.parse("http://example.com/article").toS3ContentVersionKey({
+			minuteId: "2026-07-10T09:41Z",
+		});
+		expect(write).toBe(read);
+	});
+});
+
+describe("toCrawlVersionMinuteId", () => {
+	it("truncates a full-precision instant to minute precision in UTC", () => {
+		expect(toCrawlVersionMinuteId("2026-07-10T09:41:32.123Z")).toBe("2026-07-10T09:41Z");
+	});
+
+	it("normalises a non-UTC offset to UTC before truncating", () => {
+		expect(toCrawlVersionMinuteId("2026-07-10T11:41:00+02:00")).toBe("2026-07-10T09:41Z");
+	});
+
+	it("collapses two same-minute instants to one identity", () => {
+		expect(toCrawlVersionMinuteId("2026-07-10T09:41:05.000Z")).toBe(
+			toCrawlVersionMinuteId("2026-07-10T09:41:59.999Z"),
+		);
 	});
 });
 

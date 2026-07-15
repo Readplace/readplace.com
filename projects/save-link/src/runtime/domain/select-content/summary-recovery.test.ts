@@ -137,6 +137,8 @@ describe("summary recovery on canonical content change", () => {
 			/* Current canonical is tier-0; the winner is tier-1 → the tier flips
 			 * (canonicalChanged=true) even though the readable text is identical. */
 			findContentSourceTier: jest.fn().mockResolvedValue("tier-0"),
+			findCanonicalContentHash: jest.fn().mockResolvedValue(undefined),
+			recordCrawlVersion: jest.fn().mockResolvedValue(undefined),
 			loadArticle: store.load,
 			transitionAndPersist,
 			publishEvent: jest.fn().mockResolvedValue(undefined),

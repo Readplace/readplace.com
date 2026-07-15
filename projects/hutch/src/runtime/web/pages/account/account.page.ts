@@ -12,6 +12,7 @@ import type {
 import type {
 	FindSubscriptionByUserId,
 	MarkSubscriptionActive,
+	SetSubscriptionNextCharge,
 	SubscriptionRecord,
 	UpsertActiveSubscription,
 	UpsertTrialingSubscription,
@@ -23,7 +24,9 @@ import type {
 } from "@packages/provider-contracts/events";
 import type {
 	CreateSubscriptionOnExistingCustomer,
+	FindSubscriptionNextCharge,
 	ReverseScheduledCancellation,
+	SubscriptionNextCharge,
 } from "@packages/provider-contracts/subscription-billing";
 import {
 	type BeginAddCard,
@@ -36,24 +39,24 @@ import {
 } from "@packages/provider-contracts/payment-methods";
 import type {
 	CreateChargeReminderSchedule,
-	CreateTrialEndSchedule,
-	CreateTrialReminderSchedule,
 	DeleteDeferredCancellationSchedule,
 } from "@packages/provider-contracts/trial-scheduler";
 import type { StorePendingSignup } from "@packages/provider-contracts/pending-signup";
 import {
 	STRIPE_CHECKOUT_MIN_TRIAL_END_LEAD_MS,
 	chargeReminderFiresAt,
-	trialReminderFiresAt,
 } from "../../../domain/stripe/stripe-trial-config";
+import { type TrialSchedulerPort, startTrial } from "../../../domain/trial/start-trial";
+import { initLoadNextCharge } from "../../../domain/subscription/next-charge";
 import { CHECKOUT_VARIANTS, type CheckoutVariant } from "../../../observability/events";
 import type { EmitSubscriptionEvent } from "../../../observability/subscription-events";
-import { Base } from "../../base.component";
+import { Base, ChromelessPage } from "../../base.component";
 import type { BuildBannerState } from "../../banner-state";
+import { ACCOUNT_LOGOUT_HREF, APP_BACK_LINK } from "../../shared/ios-app-links";
 import { HxRedirectPage } from "../../hx-redirect-page";
 import { sendComponent } from "@packages/web-shell";
 import type { EffectiveAccess, GetEffectiveAccess } from "@packages/subscription-access";
-import { AccountPage } from "./account.component";
+import { AccountPage, renderAccountCard } from "./account.component";
 import {
 	type CardError,
 	type CardSectionViewModel,
@@ -65,7 +68,7 @@ import {
 	toAccountViewModel,
 	withoutCommerce,
 } from "./account.view-model";
-import { isIosSurface } from "../../onboarding/ios-client";
+import { isAppShell, isIosSurface } from "../../onboarding/ios-client";
 import {
 	ACCOUNT_ERROR_ADD_CARD_FAILED_URL,
 	ACCOUNT_ERROR_CANNOT_REMOVE_PRIMARY_URL,
@@ -79,6 +82,8 @@ import {
 interface AccountDependencies {
 	getEffectiveAccess: GetEffectiveAccess;
 	findSubscriptionByUserId: FindSubscriptionByUserId;
+	findSubscriptionNextCharge: FindSubscriptionNextCharge;
+	setSubscriptionNextCharge: SetSubscriptionNextCharge;
 	upsertActiveSubscription: UpsertActiveSubscription;
 	upsertTrialingSubscription: UpsertTrialingSubscription;
 	markActiveSubscription: MarkSubscriptionActive;
@@ -97,8 +102,7 @@ interface AccountDependencies {
 	removeCard: RemoveCard;
 	setPrimaryCard: SetPrimaryCard;
 	stripePublishableKey: string | undefined;
-	createTrialEndSchedule: CreateTrialEndSchedule;
-	createTrialReminderSchedule: CreateTrialReminderSchedule;
+	trialScheduler: TrialSchedulerPort;
 	createChargeReminderSchedule: CreateChargeReminderSchedule;
 	deleteDeferredCancellationSchedule: DeleteDeferredCancellationSchedule;
 	storePendingSignup: StorePendingSignup;
@@ -115,6 +119,13 @@ type SubscribeBranchKey = "trialing" | "cancelled" | "noop" | "forbidden";
 
 export function initAccountRoutes(deps: AccountDependencies): Router {
 	const router = express.Router();
+
+	const loadNextCharge = initLoadNextCharge({
+		findSubscriptionNextCharge: deps.findSubscriptionNextCharge,
+		setSubscriptionNextCharge: deps.setSubscriptionNextCharge,
+		logger: deps.logger,
+		now: deps.now,
+	});
 
 	/** Server-authoritative card section. The live card set is re-read from the
 	 * provider on every render and every mutation — the UI is never trusted. */
@@ -154,10 +165,32 @@ export function initAccountRoutes(deps: AccountDependencies): Router {
 		input: {
 			access: EffectiveAccess;
 			cardSection: CardSectionViewModel;
+			nextCharge: SubscriptionNextCharge | undefined;
 		},
 	): Promise<void> {
-		const webVm = toAccountViewModel(input.access, parseAccountQuery(req.query), deps.now());
-		const vm = isIosSurface(req) ? withoutCommerce(webVm) : webVm;
+		const webVm = toAccountViewModel(
+			input.access,
+			parseAccountQuery(req.query),
+			deps.now(),
+			input.nextCharge,
+		);
+		// Inside the app's web sheet every nav and footer link would yank the user out
+		// into their OS default browser, where they are not signed in — so the app
+		// shell gets the same chromeless page the reader does, with a deep link back
+		// to the native list as its only navigation.
+		if (isAppShell(req)) {
+			sendComponent(
+				req, res,
+				ChromelessPage(
+					AccountPage(withoutCommerce(webVm, { appShell: true }), input.cardSection, {
+						backLink: { href: APP_BACK_LINK.topHref, label: APP_BACK_LINK.label },
+					}),
+					{},
+				),
+			);
+			return;
+		}
+		const vm = isIosSurface(req) ? withoutCommerce(webVm, { appShell: false }) : webVm;
 		const bannerState = await deps.buildBannerState(req, { preFetchedAccess: input.access });
 		sendComponent(req, res, Base(AccountPage(vm, input.cardSection), bannerState));
 	}
@@ -166,23 +199,42 @@ export function initAccountRoutes(deps: AccountDependencies): Router {
 		assert(req.userId, "userId required - route must be protected by requireAuth");
 		const access = await deps.getEffectiveAccess(req.userId);
 		if (isIosSurface(req)) {
-			// The iOS surface hides the payment-methods section, so skip the live
-			// provider read whose result would only be discarded.
+			// The iOS surface hides the payment-methods section and the renewal line, so
+			// skip the live provider reads whose results would only be discarded.
 			await renderAccount(req, res, {
 				access,
 				cardSection: buildCardSectionViewModel({ kind: "no-customer" }),
+				nextCharge: undefined,
 			});
 			return;
 		}
+		const query = parseAccountQuery(req.query);
 		const row = await deps.findSubscriptionByUserId(req.userId);
 		const cardSection = await loadCardSection({
 			customerId: row?.customerId,
 			subscriptionId: row?.subscriptionId,
 			access,
-			cardError: parseAccountQuery(req.query).cardError,
+			cardError: query.cardError,
 			adding: undefined,
 		});
-		await renderAccount(req, res, { access, cardSection });
+		const nextCharge = await loadNextCharge({
+			userId: req.userId,
+			row,
+			suppressed: query.cancelling || query.errorPaymentMethod,
+		});
+		await renderAccount(req, res, { access, cardSection, nextCharge });
+	});
+
+	router.get("/status", async (req: Request, res: Response) => {
+		assert(req.userId, "userId required - route must be protected by requireAuth");
+		const access = await deps.getEffectiveAccess(req.userId);
+		const webVm = toAccountViewModel(access, parseAccountQuery(req.query), deps.now());
+		const vm = isIosSurface(req)
+			? withoutCommerce(webVm, { appShell: isAppShell(req) })
+			: webVm;
+		res.set("Cache-Control", "private, no-cache");
+		res.set("Vary", "Cookie");
+		res.status(200).type("html").send(renderAccountCard(vm));
 	});
 
 	router.post("/cards/:id/primary", async (req: Request, res: Response) => {
@@ -293,7 +345,10 @@ export function initAccountRoutes(deps: AccountDependencies): Router {
 				cardError: undefined,
 				adding: { clientSecret, setupId },
 			});
-			await renderAccount(req, res, { access, cardSection });
+			/* Whatever the row already knows, so the renewal line does not blink out
+			 * while a card is being added. Adding a card is not a reason to re-ask the
+			 * provider for a price. */
+			await renderAccount(req, res, { access, cardSection, nextCharge: row.nextCharge });
 		} catch (err) {
 			deps.logger.error("[account/cards/new] failed", {
 				userId,
@@ -372,7 +427,14 @@ export function initAccountRoutes(deps: AccountDependencies): Router {
 	router.post("/cancel", async (req: Request, res: Response) => {
 		assert(req.userId, "userId required - route must be protected by requireAuth");
 		await deps.publishCancelSubscriptionCommand({ userId: req.userId });
-		res.redirect(303, buildAccountUrl({ cancelling: true, iosSurface: isIosSurface(req) }));
+		res.redirect(
+			303,
+			buildAccountUrl({
+				cancelling: true,
+				iosSurface: isIosSurface(req),
+				appShell: isAppShell(req),
+			}),
+		);
 	});
 
 	/** Irreversible account deletion. The synchronous work here revokes every
@@ -392,7 +454,14 @@ export function initAccountRoutes(deps: AccountDependencies): Router {
 			// Thread the surface through the POST-Redirect-GET like /cancel does, so a
 			// rejected delete on the iOS in-app surface re-renders commerce-free rather
 			// than bouncing to the web surface with its subscribe CTAs (Guideline 3.1.1).
-			res.redirect(303, buildAccountUrl({ deleteConfirmationError: true, iosSurface: isIosSurface(req) }));
+			res.redirect(
+				303,
+				buildAccountUrl({
+					deleteConfirmationError: true,
+					iosSurface: isIosSurface(req),
+					appShell: isAppShell(req),
+				}),
+			);
 			return;
 		}
 		await deps.destroyUserSessions(userId);
@@ -402,8 +471,11 @@ export function initAccountRoutes(deps: AccountDependencies): Router {
 		// Deletion logs the user out, so the whole page (nav, banner) must reset to
 		// the guest view. A boosted form would only swap <main> and leave a stale
 		// signed-in chrome, so force a full navigation to the logged-out home —
-		// HX-Redirect for HTMX requests, a plain 303 otherwise.
-		redirectFullPage(req, res, "/");
+		// HX-Redirect for HTMX requests, a plain 303 otherwise. Inside the app's web
+		// sheet there is no chrome to reset and the logged-out marketing home would be
+		// nonsense, so the app shell is sent a deep link its navigation delegate
+		// intercepts: it dismisses the sheet and signs the app out locally.
+		redirectFullPage(req, res, isAppShell(req) ? ACCOUNT_LOGOUT_HREF : "/");
 	});
 
 	router.post("/reactivate", async (req: Request, res: Response) => {
@@ -419,14 +491,14 @@ export function initAccountRoutes(deps: AccountDependencies): Router {
 				return;
 			}
 
-			// Delete the deferred-cancellation schedule first. Without this, the
-			// schedule fires later, dispatches CancelSubscriptionCommand against
-			// the now-active/trialing row, and re-cancels the user.
-			await deps.deleteDeferredCancellationSchedule({ userId });
-
 			if (row.subscriptionId) {
 				// Paid path — Stripe still owns the subscription; tell it to stop
-				// the scheduled cancel, then flip the row back to active.
+				// the scheduled cancel, then flip the row back to active. The
+				// deferred-cancellation schedule has to go first or it fires later,
+				// dispatches CancelSubscriptionCommand against the now-active row and
+				// re-cancels the user. (The trial path below deletes it via
+				// startTrial, so each branch owns its own schedule hygiene.)
+				await deps.deleteDeferredCancellationSchedule({ userId });
 				const reversed = await deps.reverseScheduledCancellation({
 					subscriptionId: row.subscriptionId,
 				});
@@ -456,23 +528,21 @@ export function initAccountRoutes(deps: AccountDependencies): Router {
 				return;
 			}
 
-			// Trial path — no Stripe subscription exists. Recreate the trial-end
-			// auto-charge schedule first; if that fails the row stays
-			// pending_cancellation and the user can retry. Order matters: a
-			// dangling trial-end schedule is harmless (fires
-			// SubscriptionStartRequestCommand against a still-pending_cancellation
-			// row, which the start-request handler noops because status !==
-			// "trialing"), but a row update with no schedule means free-forever.
+			// Trial path — no Stripe subscription exists, so the original window is
+			// simply re-opened. A create failure throws out to the catch below,
+			// leaving the row pending_cancellation for the user to retry.
 			assert(
 				row.trialEndsAt,
 				"trial pending_cancellation row must have trialEndsAt",
 			);
-			await deps.createTrialEndSchedule({ userId, firesAt: row.trialEndsAt });
-			const reminderFiresAt = trialReminderFiresAt(row.trialEndsAt);
-			if (Date.parse(reminderFiresAt) > deps.now().getTime()) {
-				await deps.createTrialReminderSchedule({ userId, firesAt: reminderFiresAt });
-			}
-			await deps.upsertTrialingSubscription({ userId, trialEndsAt: row.trialEndsAt });
+			await startTrial({
+				mode: "reset",
+				userId,
+				trialEndsAt: row.trialEndsAt,
+				now: deps.now(),
+				upsertTrialing: deps.upsertTrialingSubscription,
+				trialScheduler: deps.trialScheduler,
+			});
 			await deps.publishSubscriptionReactivated({ userId });
 			res.redirect(303, buildAccountUrl());
 		} catch (err) {

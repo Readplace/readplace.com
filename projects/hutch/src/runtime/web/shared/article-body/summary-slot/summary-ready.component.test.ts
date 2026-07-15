@@ -7,6 +7,9 @@ function parse(html: string) {
 		.document;
 }
 
+const LONG_SUMMARY =
+	"The article walks through the reasoning step by step, covering the setup, the core argument, the counterexamples, and finally a synthesis that ties every strand together into one conclusion.";
+
 describe("renderSummaryReady", () => {
 	it("renders a visible slot with status=ready and the summary text", () => {
 		const doc = parse(renderSummaryReady({ summary: "Key points.", open: false }));
@@ -17,7 +20,7 @@ describe("renderSummaryReady", () => {
 		expect(slot.classList.contains("article-body__summary-slot--visible")).toBe(
 			true,
 		);
-		expect(doc.querySelector(".article-body__summary-toggle")?.textContent).toBe(
+		expect(doc.querySelector(".article-body__summary-heading")?.textContent).toBe(
 			"Summary (TL;DR)",
 		);
 		expect(doc.querySelector(".article-body__summary-text")?.textContent).toBe(
@@ -71,5 +74,95 @@ describe("renderSummaryReady", () => {
 		assert(text, "summary text must be rendered");
 		expect(text.textContent).toBe("<script>alert('x')</script>");
 		expect(text.innerHTML).not.toContain("<script>");
+	});
+
+	it("shows the excerpt as the collapsed preview with a view-more affordance", () => {
+		const doc = parse(
+			renderSummaryReady({
+				summary: LONG_SUMMARY,
+				excerpt: "A one-sentence teaser of the piece.",
+				open: false,
+			}),
+		);
+
+		const preview = doc.querySelector(".article-body__summary-preview");
+		assert(preview, "preview must be rendered");
+		expect(preview.textContent).toBe("A one-sentence teaser of the piece. … view more");
+		expect(doc.querySelector(".article-body__summary-more")?.textContent).toBe("… view more");
+	});
+
+	it("keeps the preview inside the <summary> so it shows while the <details> is closed", () => {
+		const doc = parse(
+			renderSummaryReady({ summary: LONG_SUMMARY, excerpt: "Teaser.", open: false }),
+		);
+
+		const preview = doc.querySelector(".article-body__summary-preview");
+		assert(preview, "preview must be rendered");
+		assert(preview.closest("summary"), "preview must live inside the <summary>");
+	});
+
+	it("marks the preview aria-hidden so it does not pollute the disclosure's accessible name", () => {
+		const doc = parse(
+			renderSummaryReady({ summary: LONG_SUMMARY, excerpt: "Teaser.", open: false }),
+		);
+
+		expect(
+			doc.querySelector(".article-body__summary-preview")?.getAttribute("aria-hidden"),
+		).toBe("true");
+	});
+
+	it("falls back to a word-boundary slice of the summary when no excerpt is stored", () => {
+		const doc = parse(renderSummaryReady({ summary: LONG_SUMMARY, open: false }));
+
+		const preview = doc.querySelector(".article-body__summary-preview");
+		assert(preview, "preview must be rendered");
+		expect(preview.textContent?.endsWith(" … view more")).toBe(true);
+		expect(preview.textContent?.startsWith("The article walks through")).toBe(true);
+		// The fallback is capped well under the full summary length.
+		expect((preview.textContent ?? "").length).toBeLessThan(LONG_SUMMARY.length);
+	});
+
+	it("flattens whitespace in the fallback preview while the full text keeps it", () => {
+		const doc = parse(
+			renderSummaryReady({ summary: "First point.\n\nSecond point.", open: false }),
+		);
+
+		expect(doc.querySelector(".article-body__summary-preview")?.textContent).toBe(
+			"First point. Second point. … view more",
+		);
+		expect(doc.querySelector(".article-body__summary-text")?.textContent).toBe(
+			"First point.\n\nSecond point.",
+		);
+	});
+
+	it("strips a trailing ellipsis from the excerpt so it does not double up", () => {
+		const doc = parse(
+			renderSummaryReady({ summary: LONG_SUMMARY, excerpt: "Cut short…", open: false }),
+		);
+
+		expect(doc.querySelector(".article-body__summary-preview")?.textContent).toBe(
+			"Cut short … view more",
+		);
+	});
+
+	it("HTML-escapes the preview", () => {
+		const doc = parse(
+			renderSummaryReady({
+				summary: LONG_SUMMARY,
+				excerpt: "<script>alert('x')</script>",
+				open: false,
+			}),
+		);
+
+		const preview = doc.querySelector(".article-body__summary-preview");
+		assert(preview, "preview must be rendered");
+		expect(preview.querySelector("script")).toBe(null);
+		expect(preview.textContent).toContain("<script>");
+	});
+
+	it("still renders the full summary in the <pre> when expanded", () => {
+		const doc = parse(renderSummaryReady({ summary: LONG_SUMMARY, excerpt: "Teaser.", open: true }));
+
+		expect(doc.querySelector(".article-body__summary-text")?.textContent).toBe(LONG_SUMMARY);
 	});
 });

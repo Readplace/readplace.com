@@ -5,6 +5,7 @@ import type {
 	InboxEmailLinksMeta,
 } from "@packages/domain/inbox";
 import { buildInboxArticlesPollUrl } from "./inbox-articles-poll-url";
+import type { MailTabKey } from "./inbox-email-detail.url";
 import { buildLinkCountLabel } from "./inbox-link-count-label";
 import { type InboxLinkCardViewModel, toInboxLinkCardViewModel } from "./inbox-link-card.viewmodel";
 import { type MailTab, buildMailTabs } from "./mail-tabs";
@@ -37,6 +38,7 @@ export interface InboxEmailDetailViewModel {
 	sender: string;
 	received: LocalTime;
 	backHref: string;
+	activeTab: MailTabKey;
 	tabs: MailTab[];
 	/** A `received` email with its body present renders in the iframe; every
 	 * other case (rejected, unparsed, or a body not yet readable from S3) shows
@@ -50,6 +52,7 @@ export interface InboxEmailDetailViewModel {
 
 export function toInboxEmailDetailViewModel(input: {
 	entry: InboxEmailEntry;
+	activeTab: MailTabKey;
 	bodyHtml: string | undefined;
 	links: InboxEmailLinkEntry[];
 	linksMeta: InboxEmailLinksMeta | undefined;
@@ -90,7 +93,8 @@ export function toInboxEmailDetailViewModel(input: {
 		sender: input.entry.senderEmail === "" ? "(unknown sender)" : input.entry.senderEmail,
 		received: toAbsoluteDateTime({ iso: input.entry.receivedAt }),
 		backHref: `/inbox?feature=${EMAIL_FEATURE}`,
-		tabs: buildMailTabs("view"),
+		activeTab: input.activeTab,
+		tabs: buildMailTabs({ emailId: input.entry.receivedAtMessageId, active: input.activeTab }),
 		canRenderBody,
 		bodyHtml: input.bodyHtml ?? "",
 		unavailableMessage:

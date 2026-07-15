@@ -161,7 +161,7 @@ describe("initInMemoryTrialScheduler", () => {
 		assert.deepEqual(scheduler.trialFeedbackEmailDeleteCalls(), [userIdA]);
 	});
 
-	it("createTrialFeedbackEmailSchedule overwrites an existing schedule for the same user (idempotent on duplicate events)", async () => {
+	it("createTrialFeedbackEmailSchedule rejects a duplicate name, as EventBridge does", async () => {
 		const userId = UserIdSchema.parse("3".repeat(32));
 		const scheduler = initInMemoryTrialScheduler();
 
@@ -169,6 +169,28 @@ describe("initInMemoryTrialScheduler", () => {
 			userId,
 			firesAt: "2026-06-08T00:00:00.000Z",
 		});
+
+		// A deterministic name does NOT make a re-delivery idempotent: EventBridge
+		// Scheduler has no upsert, so the caller has to delete before it creates.
+		await assert.rejects(
+			() =>
+				scheduler.createTrialFeedbackEmailSchedule({
+					userId,
+					firesAt: "2026-06-10T00:00:00.000Z",
+				}),
+			{ name: "ConflictException" },
+		);
+	});
+
+	it("delete-then-create replaces the schedule for a re-delivered event", async () => {
+		const userId = UserIdSchema.parse("7".repeat(32));
+		const scheduler = initInMemoryTrialScheduler();
+
+		await scheduler.createTrialFeedbackEmailSchedule({
+			userId,
+			firesAt: "2026-06-08T00:00:00.000Z",
+		});
+		await scheduler.deleteTrialFeedbackEmailSchedule({ userId });
 		await scheduler.createTrialFeedbackEmailSchedule({
 			userId,
 			firesAt: "2026-06-10T00:00:00.000Z",

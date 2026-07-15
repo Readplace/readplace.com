@@ -231,4 +231,64 @@ describe("initInMemorySubscriptionProviders", () => {
 		expect(row.customerId).toBe("cus_seeded");
 		expect(row.trialEndsAt).toBe("2026-06-05T00:00:00.000Z");
 	});
+
+	const nextCharge = { at: "2026-08-12T10:00:00.000Z", amountMinor: 4900, currency: "usd" };
+
+	it("setNextCharge stores the renewal on the active row it was read from", async () => {
+		const subs = initInMemorySubscriptionProviders({ now: fixedNow("2026-05-22T00:00:00.000Z") });
+		await subs.upsertActive({ userId, subscriptionId: "sub_1", customerId: "cus_1" });
+
+		await subs.setNextCharge({ userId, subscriptionId: "sub_1", nextCharge });
+
+		const row = await subs.findByUserId(userId);
+		assert(row, "row must exist");
+		expect(row.nextCharge).toEqual(nextCharge);
+	});
+
+	it("setNextCharge refuses a subscription id that no longer matches the row — a resubscribe raced it", async () => {
+		const subs = initInMemorySubscriptionProviders({ now: fixedNow("2026-05-22T00:00:00.000Z") });
+		await subs.upsertActive({ userId, subscriptionId: "sub_new", customerId: "cus_1" });
+
+		await assert.rejects(
+			() => subs.setNextCharge({ userId, subscriptionId: "sub_old", nextCharge }),
+			/No active subscription sub_old/,
+		);
+	});
+
+	it("setNextCharge refuses a row that is no longer active", async () => {
+		const subs = initInMemorySubscriptionProviders({ now: fixedNow("2026-05-22T00:00:00.000Z") });
+		await subs.upsertTrialing({ userId, trialEndsAt: "2026-06-05T00:00:00.000Z" });
+
+		await assert.rejects(
+			() => subs.setNextCharge({ userId, subscriptionId: "sub_1", nextCharge }),
+			/No active subscription sub_1/,
+		);
+	});
+
+	it("clears a stored renewal when the subscription is cancelled", async () => {
+		const subs = initInMemorySubscriptionProviders({ now: fixedNow("2026-05-22T00:00:00.000Z") });
+		await subs.upsertActive({ userId, subscriptionId: "sub_1", customerId: "cus_1" });
+		await subs.setNextCharge({ userId, subscriptionId: "sub_1", nextCharge });
+
+		await subs.markCancelledByUserId({ userId });
+
+		const row = await subs.findByUserId(userId);
+		assert(row, "row must exist");
+		expect(row.nextCharge).toBeUndefined();
+	});
+
+	it("clears a stored renewal when a cancellation is scheduled", async () => {
+		const subs = initInMemorySubscriptionProviders({ now: fixedNow("2026-05-22T00:00:00.000Z") });
+		await subs.upsertActive({ userId, subscriptionId: "sub_1", customerId: "cus_1" });
+		await subs.setNextCharge({ userId, subscriptionId: "sub_1", nextCharge });
+
+		await subs.markPendingCancellation({
+			userId,
+			cancellationEffectiveAt: "2026-08-12T10:00:00.000Z",
+		});
+
+		const row = await subs.findByUserId(userId);
+		assert(row, "row must exist");
+		expect(row.nextCharge).toBeUndefined();
+	});
 });

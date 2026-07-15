@@ -17,7 +17,9 @@ final class ReadingListViewModel: ObservableObject {
 	/// The "add links via Share" help page the reading list's + control opens in a
 	/// webview. A client-owned path resolved against the API base — the client holds
 	/// it itself rather than reading it from the server's add-links-help link — so the
-	/// + control works before (and regardless of) a queue load.
+	/// + control works before (and regardless of) a queue load. It carries the
+	/// app-shell marker so the server renders the page chromeless with a "← Back to
+	/// queue" deep link, the same way the account page does inside this sheet.
 	let addLinksHelpURL: URL?
 
 	/// The collection-level controls the toolbar renders. The server's own collection
@@ -62,7 +64,12 @@ final class ReadingListViewModel: ObservableObject {
 	init(api: ReadplaceAPI, onSessionExpired: @escaping () -> Void) {
 		self.api = api
 		self.onSessionExpired = onSessionExpired
+		// Append the same app-shell marker `open(link:)` puts on the account href, so
+		// the help page is served chromeless with a deep-link back to the native list.
+		// A URL that can't take the marker resolves to nil — the + control then shows
+		// its native fallback rather than opening a marker-less page.
 		addLinksHelpURL = Href.resolve(AppConfig.addLinksHelpPath, baseURL: api.baseURL)
+			.flatMap { Href.appending(AppConfig.appShellQueryItem, to: $0) }
 	}
 
 	func loadIfNeeded() async {
@@ -234,16 +241,22 @@ final class ReadingListViewModel: ObservableObject {
 		readerPresentation = ReaderPresentation(readerURL: readerURL, articleId: article.id)
 	}
 
-	/// Follows a navigable collection-level link (e.g. a `save` link) by opening
+	/// Follows a navigable collection-level link (e.g. the `account` link) by opening
 	/// its resolved href in the same in-app web view the reader uses. A link the
 	/// client can't resolve (missing or foreign-scheme href) is a no-op, so an
 	/// unactionable link advertised by the server never opens a blank sheet. No
 	/// row is associated, so the web sheet drops nothing when it closes.
+	///
+	/// The href is the server's own; the app appends its app-shell marker so the
+	/// server knows the page is hosted in the deep-link-intercepting sheet and may
+	/// answer with a `readplace://` control. An href that can't be re-encoded with
+	/// the marker is treated as absent, exactly like one that can't be resolved.
 	func open(link: SirenLink) {
 		guard let href = link.href,
-			let url = Href.resolve(href, baseURL: api.baseURL)
+			let url = Href.resolve(href, baseURL: api.baseURL),
+			let shellURL = Href.appending(AppConfig.appShellQueryItem, to: url)
 		else { return }
-		readerPresentation = ReaderPresentation(readerURL: url, articleId: nil)
+		readerPresentation = ReaderPresentation(readerURL: shellURL, articleId: nil)
 	}
 
 	/// Mints the cookie session the reader webview needs from the current bearer.

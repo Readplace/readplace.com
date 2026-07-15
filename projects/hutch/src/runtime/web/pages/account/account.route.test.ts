@@ -9,6 +9,7 @@ import {
 	createDefaultTestAppFixture,
 } from "@packages/test-fixtures";
 import { CHECKOUT_VARIANTS } from "../../../observability/events";
+import { ACCOUNT_CANCEL_MAX_POLLS } from "./account.view-model";
 
 function card(id: string, isPrimary: boolean, last4: string): SavedCard {
 	return {
@@ -128,6 +129,146 @@ describe("GET /account (active paid subscription)", () => {
 	});
 });
 
+describe("GET /account (next-charge line)", () => {
+	function nextChargeLine(doc: Document): Element {
+		const line = doc.querySelector("[data-test-next-charge]");
+		assert(line, "next-charge element must always be in the DOM");
+		return line;
+	}
+
+	async function activeSubscriber(email: string) {
+		const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
+		const { agent, userId } = await loginUser(harness, email);
+		await harness.subscriptionProviders.upsertActive({
+			userId,
+			subscriptionId: "sub_active",
+			customerId: "cus_active",
+		});
+		return { harness, agent, userId };
+	}
+
+	it("renders the date and amount as a localisable <time> when the renewal is within 30 days", async () => {
+		const { harness, agent } = await activeSubscriber("charge-soon@example.com");
+		const at = new Date(Date.now() + 12 * ONE_DAY_MS).toISOString();
+		harness.subscriptionBilling.seedNextCharge({
+			subscriptionId: "sub_active",
+			nextCharge: { at, amountMinor: 4900, currency: "usd" },
+		});
+
+		const response = await agent.get("/account");
+
+		expect(response.status).toBe(200);
+		const doc = new JSDOM(response.text).window.document;
+		const line = nextChargeLine(doc);
+		expect(line.getAttribute("data-next-charge-state")).toBe("visible");
+		const time = line.querySelector("time[data-local-time='date']");
+		assert(time, "the renewal date must render as a <time> element for client localisation");
+		expect(time.getAttribute("datetime")).toBe(at);
+		expect(line.textContent).toContain("Next charge on ");
+		expect(line.textContent).toContain("$49.00");
+	});
+
+	it("keeps the element but hides it when the renewal is more than 30 days out", async () => {
+		const { harness, agent } = await activeSubscriber("charge-far@example.com");
+		harness.subscriptionBilling.seedNextCharge({
+			subscriptionId: "sub_active",
+			nextCharge: {
+				at: new Date(Date.now() + 60 * ONE_DAY_MS).toISOString(),
+				amountMinor: 4900,
+				currency: "usd",
+			},
+		});
+
+		const response = await agent.get("/account");
+
+		const doc = new JSDOM(response.text).window.document;
+		const line = nextChargeLine(doc);
+		expect(line.getAttribute("data-next-charge-state")).toBe("hidden");
+		expect(line.textContent).toBe("");
+	});
+
+	it("persists the fetched charge — a second visit does not ask Stripe again", async () => {
+		const { harness, agent } = await activeSubscriber("charge-persist@example.com");
+		harness.subscriptionBilling.seedNextCharge({
+			subscriptionId: "sub_active",
+			nextCharge: {
+				at: new Date(Date.now() + 12 * ONE_DAY_MS).toISOString(),
+				amountMinor: 4900,
+				currency: "usd",
+			},
+		});
+
+		await agent.get("/account");
+		await agent.get("/account");
+
+		expect(harness.subscriptionBilling.nextChargeLookups()).toEqual(["sub_active"]);
+	});
+
+	it("still returns 200 with the plain active card when the provider read fails", async () => {
+		const { harness, agent } = await activeSubscriber("charge-fail@example.com");
+		harness.subscriptionBilling.failNextChargeLookup();
+
+		const response = await agent.get("/account");
+
+		expect(response.status).toBe(200);
+		const doc = new JSDOM(response.text).window.document;
+		expect(doc.querySelector("[data-test-account-status]")?.textContent).toBe(
+			"Subscription: Active.",
+		);
+		expect(nextChargeLine(doc).getAttribute("data-next-charge-state")).toBe("hidden");
+	});
+
+	it("does not ask Stripe for a price for a trialing user", async () => {
+		const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
+		const { agent, userId } = await loginUser(harness, "trial-noprice@example.com");
+		await harness.subscriptionProviders.upsertTrialing({
+			userId,
+			trialEndsAt: new Date(Date.now() + 7 * ONE_DAY_MS).toISOString(),
+		});
+
+		await agent.get("/account");
+
+		expect(harness.subscriptionBilling.nextChargeLookups()).toEqual([]);
+	});
+
+	it("hides the line and asks nothing of Stripe while a cancellation is in flight", async () => {
+		const { harness, agent } = await activeSubscriber("charge-cancelling@example.com");
+		harness.subscriptionBilling.seedNextCharge({
+			subscriptionId: "sub_active",
+			nextCharge: {
+				at: new Date(Date.now() + 12 * ONE_DAY_MS).toISOString(),
+				amountMinor: 4900,
+				currency: "usd",
+			},
+		});
+
+		const response = await agent.get("/account?cancelling=1");
+
+		const doc = new JSDOM(response.text).window.document;
+		expect(nextChargeLine(doc).getAttribute("data-next-charge-state")).toBe("hidden");
+		expect(harness.subscriptionBilling.nextChargeLookups()).toEqual([]);
+	});
+
+	it("clears the stored renewal when the subscription is cancelled", async () => {
+		const { harness, agent, userId } = await activeSubscriber("charge-cancel@example.com");
+		harness.subscriptionBilling.seedNextCharge({
+			subscriptionId: "sub_active",
+			nextCharge: {
+				at: new Date(Date.now() + 12 * ONE_DAY_MS).toISOString(),
+				amountMinor: 4900,
+				currency: "usd",
+			},
+		});
+		await agent.get("/account");
+
+		await harness.subscriptionProviders.markCancelledByUserId({ userId });
+
+		const row = await harness.subscriptionProviders.findByUserId(userId);
+		assert(row, "row must exist");
+		expect(row.nextCharge).toBeUndefined();
+	});
+});
+
 describe("GET /account?platform=ios (iOS app surface — Guideline 3.1.1)", () => {
 	it("hides the Subscribe CTA and the payment-methods section for a trialing user, keeping status + danger zone", async () => {
 		const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
@@ -180,6 +321,33 @@ describe("GET /account?platform=ios (iOS app surface — Guideline 3.1.1)", () =
 		);
 		expect(doc.querySelector("[data-test-cards-section]")).toBeNull();
 	});
+
+	it("hides the renewal line and never asks Stripe for a price on the iOS surface", async () => {
+		const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
+		const { subscriptionProviders } = harness;
+		const { agent, userId } = await loginUser(harness, "ios-price@example.com");
+		await subscriptionProviders.upsertActive({
+			userId,
+			subscriptionId: "sub_ios",
+			customerId: "cus_ios",
+		});
+		harness.subscriptionBilling.seedNextCharge({
+			subscriptionId: "sub_ios",
+			nextCharge: {
+				at: new Date(Date.now() + 12 * ONE_DAY_MS).toISOString(),
+				amountMinor: 4900,
+				currency: "usd",
+			},
+		});
+
+		const response = await agent.get("/account?platform=ios");
+
+		const doc = new JSDOM(response.text).window.document;
+		const line = doc.querySelector("[data-test-next-charge]");
+		assert(line, "the renewal element still renders, just hidden");
+		expect(line.getAttribute("data-next-charge-state")).toBe("hidden");
+		expect(harness.subscriptionBilling.nextChargeLookups()).toEqual([]);
+	});
 });
 
 describe("POST /account/cancel?platform=ios", () => {
@@ -197,6 +365,163 @@ describe("POST /account/cancel?platform=ios", () => {
 
 		expect(response.status).toBe(303);
 		expect(response.headers.location).toBe("/account?cancelling=1&platform=ios");
+	});
+
+	it("preserves the app shell too, so the re-render stays chromeless instead of dropping the web shell back in", async () => {
+		const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
+		const { subscriptionProviders } = harness;
+		const { agent, userId } = await loginUser(harness, "shell-cancel@example.com");
+		await subscriptionProviders.upsertActive({
+			userId,
+			subscriptionId: "sub_shell_cancel",
+			customerId: "cus_shell_cancel",
+		});
+
+		const response = await agent.post("/account/cancel?platform=ios&shell=app");
+
+		expect(response.status).toBe(303);
+		expect(response.headers.location).toBe("/account?cancelling=1&platform=ios&shell=app");
+	});
+});
+
+describe("GET /account?platform=ios&shell=app (the app's in-app web sheet)", () => {
+	it("renders chromeless — no header, nav, footer or banner area, so no link can yank the user into a logged-out browser", async () => {
+		const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
+		const agent = await loginAgent(harness.server, harness.auth);
+
+		const response = await agent.get("/account?platform=ios&shell=app");
+
+		expect(response.status).toBe(200);
+		const doc = new JSDOM(response.text).window.document;
+		assert(doc.querySelector("[data-test-account-card]"), "the account page itself must render");
+		expect(doc.querySelector(".header")).toBeNull();
+		expect(doc.querySelector(".nav")).toBeNull();
+		expect(doc.querySelector(".footer")).toBeNull();
+		expect(doc.querySelector(".banner-area")).toBeNull();
+		expect(doc.body.classList.contains("page-account--chromeless")).toBe(true);
+	});
+
+	it("gives the sheet its only way back: the close deep link, inside <main> so a boosted swap can't destroy it", async () => {
+		const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
+		const agent = await loginAgent(harness.server, harness.auth);
+
+		const doc = new JSDOM((await agent.get("/account?platform=ios&shell=app")).text).window.document;
+
+		const back = doc.querySelector("[data-test-account-back-link]");
+		assert(back, "the chromeless account page must render a back link");
+		expect(back.getAttribute("href")).toBe("readplace://reader/close");
+		// Every form on the page is hx-target="main" hx-swap="outerHTML", so anything
+		// outside <main> is destroyed on the first boosted POST.
+		const main = doc.querySelector("main.account");
+		assert(main, "the account page must render its <main>");
+		expect(main.contains(back)).toBe(true);
+		// A boosted link would XHR the deep link and fail silently; the delegate only
+		// sees a real navigation.
+		expect(back.hasAttribute("hx-boost")).toBe(false);
+	});
+
+	it("carries the page styles inside <main> so a boosted swap brings its own CSS", async () => {
+		const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
+		const agent = await loginAgent(harness.server, harness.auth);
+
+		const doc = new JSDOM((await agent.get("/account?platform=ios&shell=app")).text).window.document;
+
+		const style = doc.querySelector("main.account style");
+		assert(style, "the page styles must be injected into <main>");
+		expect(style.textContent).toContain(".account__back");
+	});
+
+	it("serves local-time (the trial cutoff would otherwise freeze at the server's UTC baseline) but neither WebMCP nor the Stripe card glue", async () => {
+		const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
+		const { subscriptionProviders } = harness;
+		const { agent, userId } = await loginUser(harness, "shell-scripts@example.com");
+		await subscriptionProviders.upsertTrialing({
+			userId,
+			trialEndsAt: new Date(Date.now() + 7 * ONE_DAY_MS).toISOString(),
+		});
+
+		const response = await agent.get("/account?platform=ios&shell=app");
+		const doc = new JSDOM(response.text).window.document;
+
+		assert(
+			doc.querySelector("[data-test-account-status] time[data-local-time]"),
+			"the trial cutoff renders as a localisable <time>",
+		);
+		expect(doc.querySelector('script[src*="/client-dist/local-time.client.js"]')).not.toBeNull();
+		// No in-page AI agent inside a WKWebView, and withoutCommerce guarantees the
+		// Stripe Elements container can never render here.
+		expect(doc.querySelector('script[src*="/client-dist/webmcp.client.js"]')).toBeNull();
+		expect(doc.querySelector('script[src*="/client-dist/account-cards.client.js"]')).toBeNull();
+	});
+
+	it("still hides commerce, and stamps both markers on the surviving controls so a boosted POST returns chromeless", async () => {
+		const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
+		const { subscriptionProviders } = harness;
+		const { agent, userId } = await loginUser(harness, "shell-commerce@example.com");
+		await subscriptionProviders.upsertActive({
+			userId,
+			subscriptionId: "sub_shell",
+			customerId: "cus_shell",
+		});
+
+		const doc = new JSDOM((await agent.get("/account?platform=ios&shell=app")).text).window.document;
+
+		expect(doc.querySelector("[data-test-cards-section]")).toBeNull();
+		expect(actionKeys(doc)).toEqual(["cancel-form"]);
+		expect(findAction(doc, "cancel-form").getAttribute("action")).toBe(
+			"/account/cancel?utm_source=account&utm_medium=internal&utm_content=cancel-form&platform=ios&shell=app",
+		);
+		const deleteForm = doc.querySelector('[data-test-danger-action="delete-account"]');
+		assert(deleteForm, "the delete form must render on the app surface");
+		expect(deleteForm.getAttribute("action")).toBe(
+			"/account/delete?utm_source=account&utm_medium=internal&utm_content=delete-account&platform=ios&shell=app",
+		);
+	});
+
+	it("treats the app shell as an iOS surface on its own — the app never has to carry both markers for commerce to stay hidden", async () => {
+		const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
+		const { subscriptionProviders } = harness;
+		const { agent, userId } = await loginUser(harness, "shell-only@example.com");
+		await subscriptionProviders.upsertTrialing({
+			userId,
+			trialEndsAt: new Date(Date.now() + 7 * ONE_DAY_MS).toISOString(),
+		});
+
+		const doc = new JSDOM((await agent.get("/account?shell=app")).text).window.document;
+
+		expect(doc.body.classList.contains("page-account--chromeless")).toBe(true);
+		// Guideline 3.1.1 holds off the shell marker alone: no Subscribe CTA, no cards.
+		expect(actionKeys(doc)).toEqual([]);
+		expect(doc.querySelector("[data-test-cards-section]")).toBeNull();
+	});
+
+	it("keeps the full web shell for a store build that predates the marker — it sends platform=ios alone and cannot drive a deep link", async () => {
+		const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
+		const agent = await loginAgent(harness.server, harness.auth);
+
+		const doc = new JSDOM((await agent.get("/account?platform=ios")).text).window.document;
+
+		expect(doc.querySelector(".header")).not.toBeNull();
+		expect(doc.querySelector(".footer")).not.toBeNull();
+		expect(doc.querySelector("[data-test-account-back-link]")).toBeNull();
+		expect(doc.body.classList.contains("page-account--chromeless")).toBe(false);
+		// The old surface still satisfies Guideline 3.1.1.
+		expect(doc.querySelector("[data-test-cards-section]")).toBeNull();
+	});
+
+	it("leaves the plain web account page untouched — shell, cards script and no back link", async () => {
+		const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
+		const agent = await loginAgent(harness.server, harness.auth);
+
+		const response = await agent.get("/account");
+		const doc = new JSDOM(response.text).window.document;
+
+		expect(doc.querySelector(".header")).not.toBeNull();
+		expect(doc.querySelector(".footer")).not.toBeNull();
+		expect(doc.querySelector("[data-test-account-back-link]")).toBeNull();
+		expect(doc.body.classList.contains("page-account")).toBe(true);
+		expect(doc.body.classList.contains("page-account--chromeless")).toBe(false);
+		expect(doc.querySelector('script[src*="/client-dist/account-cards.client.js"]')).not.toBeNull();
 	});
 });
 
@@ -334,8 +659,14 @@ describe("GET /account (inactive — trial expired vs cancelled render identical
 	});
 });
 
+function cancelButton(doc: Document): HTMLButtonElement {
+	const button = findAction(doc, "cancel-form").querySelector("button");
+	assert(button, "the cancel form must contain a submit button");
+	return button;
+}
+
 describe("GET /account?cancelling=1 (the pending page after POST /account/cancel)", () => {
-	it("renders a cancellation-in-progress notice and hides the Cancel button — clicking again would enqueue a duplicate command", async () => {
+	it("keeps the Cancel button but renders it disabled, and polls itself — clicking again would enqueue a duplicate command", async () => {
 		const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
 		const { subscriptionProviders } = harness;
 		const { agent, userId } = await loginUser(harness, "cancelling@example.com");
@@ -352,10 +683,33 @@ describe("GET /account?cancelling=1 (the pending page after POST /account/cancel
 		const notice = doc.querySelector("[data-test-cancelling-notice]");
 		assert(notice, "cancelling notice must render");
 		expect(notice.textContent).toContain("Cancellation in progress");
-		expect(actionKeys(doc)).toEqual([]);
+		expect(actionKeys(doc)).toEqual(["cancel-form"]);
+		expect(cancelButton(doc).disabled).toBe(true);
+		expect(cancelButton(doc).textContent).toBe("Cancelling…");
+		expect(findCard(doc).getAttribute("data-test-account-poll")).toBe("polling");
+		expect(findCard(doc).getAttribute("hx-get")).toBe("/account/status?cancelling=1&poll=1");
 	});
 
-	it("does not render the cancellation-in-progress notice when ?cancelling=1 is absent", async () => {
+	it("disables the Cancel button for the duration of its own POST, so a double-click can't submit twice", async () => {
+		const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
+		const { subscriptionProviders } = harness;
+		const { agent, userId } = await loginUser(harness, "double-click@example.com");
+		await subscriptionProviders.upsertActive({
+			userId,
+			subscriptionId: "sub_dbl",
+			customerId: "cus_dbl",
+		});
+
+		const response = await agent.get("/account");
+
+		const doc = new JSDOM(response.text).window.document;
+		const form = findAction(doc, "cancel-form");
+		expect(form.getAttribute("hx-disabled-elt")).toBe("find button");
+		expect(cancelButton(doc).disabled).toBe(false);
+		expect(findCard(doc).getAttribute("data-test-account-poll")).toBe("idle");
+	});
+
+	it("renders an enabled Cancel button, no polling, and no in-progress notice when ?cancelling=1 is absent", async () => {
 		const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
 		const { subscriptionProviders } = harness;
 		const { agent, userId } = await loginUser(harness, "no-notice@example.com");
@@ -369,7 +723,154 @@ describe("GET /account?cancelling=1 (the pending page after POST /account/cancel
 
 		expect(response.status).toBe(200);
 		const doc = new JSDOM(response.text).window.document;
-		expect(doc.querySelector("[data-test-cancelling-notice]")).toBeNull();
+		expect(findCard(doc).getAttribute("data-test-account-poll")).toBe("idle");
+		expect(cancelButton(doc).textContent).toBe("Cancel subscription");
+		expect(cancelButton(doc).disabled).toBe(false);
+	});
+});
+
+describe("GET /account/status — the poll fragment the cancelling card swaps itself with", () => {
+	it("keeps polling while the row is still active, without touching Stripe — the async chain has not landed yet", async () => {
+		const fixture = createDefaultTestAppFixture(TEST_APP_ORIGIN);
+		let cardReads = 0;
+		const listCards = fixture.paymentMethods.listCards;
+		fixture.paymentMethods.listCards = async (input) => {
+			cardReads += 1;
+			return listCards(input);
+		};
+		const harness = useApp(fixture);
+		const { subscriptionProviders } = harness;
+		const { agent, userId } = await loginUser(harness, "poll-active@example.com");
+		await subscriptionProviders.upsertActive({
+			userId,
+			subscriptionId: "sub_poll",
+			customerId: "cus_poll",
+		});
+
+		const response = await agent.get("/account/status?cancelling=1&poll=1");
+
+		expect(response.status).toBe(200);
+		const doc = new JSDOM(response.text).window.document;
+		expect(findCard(doc).getAttribute("data-test-account-poll")).toBe("polling");
+		expect(findCard(doc).getAttribute("hx-get")).toBe("/account/status?cancelling=1&poll=2");
+		expect(cancelButton(doc).disabled).toBe(true);
+		expect(cardReads).toBe(0);
+	});
+
+	it("stops polling and offers reactivation once the cancellation has landed", async () => {
+		const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
+		const { subscriptionProviders } = harness;
+		const { agent, userId } = await loginUser(harness, "poll-landed@example.com");
+		await subscriptionProviders.upsertActive({
+			userId,
+			subscriptionId: "sub_landed",
+			customerId: "cus_landed",
+		});
+		await subscriptionProviders.markPendingCancellation({
+			userId,
+			cancellationEffectiveAt: new Date(Date.now() + 5 * 86_400_000).toISOString(),
+		});
+
+		const response = await agent.get("/account/status?cancelling=1&poll=2");
+
+		expect(response.status).toBe(200);
+		const doc = new JSDOM(response.text).window.document;
+		expect(actionKeys(doc)).toEqual(["reactivate-form"]);
+		expect(findCard(doc).getAttribute("data-test-account-poll")).toBe("idle");
+		expect(findCard(doc).getAttribute("hx-get")).toBeNull();
+	});
+
+	it("gives up rather than polling forever when the async chain never lands", async () => {
+		const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
+		const { subscriptionProviders } = harness;
+		const { agent, userId } = await loginUser(harness, "poll-wedged@example.com");
+		await subscriptionProviders.upsertActive({
+			userId,
+			subscriptionId: "sub_wedged",
+			customerId: "cus_wedged",
+		});
+
+		const response = await agent.get(
+			`/account/status?cancelling=1&poll=${ACCOUNT_CANCEL_MAX_POLLS}`,
+		);
+
+		expect(response.status).toBe(200);
+		const doc = new JSDOM(response.text).window.document;
+		expect(findCard(doc).getAttribute("data-test-account-poll")).toBe("idle");
+		const notice = doc.querySelector("[data-test-cancelling-notice]");
+		assert(notice, "the stalled notice must render");
+		expect(notice.textContent).toContain("taking longer than usual");
+	});
+
+	it("carries ?platform=ios onto the next poll, so an in-app cancelling card cannot poll its way back onto the web surface", async () => {
+		const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
+		const { subscriptionProviders } = harness;
+		const { agent, userId } = await loginUser(harness, "poll-ios@example.com");
+		await subscriptionProviders.upsertActive({
+			userId,
+			subscriptionId: "sub_poll_ios",
+			customerId: "cus_poll_ios",
+		});
+
+		const response = await agent.get("/account/status?cancelling=1&poll=1&platform=ios");
+
+		expect(response.status).toBe(200);
+		const doc = new JSDOM(response.text).window.document;
+		expect(findCard(doc).getAttribute("hx-get")).toBe(
+			"/account/status?cancelling=1&poll=2&platform=ios",
+		);
+		expect(actionKeys(doc)).toEqual(["cancel-form"]);
+		expect(findAction(doc, "cancel-form").getAttribute("action")).toBe(
+			"/account/cancel?utm_source=account&utm_medium=internal&utm_content=cancel-form&platform=ios",
+		);
+		expect(cancelButton(doc).disabled).toBe(true);
+	});
+
+	it("stamps the shell marker alongside it, so the app sheet's poll keeps both markers on every hop", async () => {
+		const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
+		const { subscriptionProviders } = harness;
+		const { agent, userId } = await loginUser(harness, "poll-shell@example.com");
+		await subscriptionProviders.upsertActive({
+			userId,
+			subscriptionId: "sub_poll_shell",
+			customerId: "cus_poll_shell",
+		});
+
+		const response = await agent.get(
+			"/account/status?cancelling=1&poll=1&platform=ios&shell=app",
+		);
+
+		expect(response.status).toBe(200);
+		const doc = new JSDOM(response.text).window.document;
+		expect(findCard(doc).getAttribute("hx-get")).toBe(
+			"/account/status?cancelling=1&poll=2&platform=ios&shell=app",
+		);
+		expect(findAction(doc, "cancel-form").getAttribute("action")).toBe(
+			"/account/cancel?utm_source=account&utm_medium=internal&utm_content=cancel-form&platform=ios&shell=app",
+		);
+	});
+
+	it("strips the Reactivate CTA when the cancellation lands mid-poll — an in-app poll must not surface a purchase path (Guideline 3.1.1)", async () => {
+		const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
+		const { subscriptionProviders } = harness;
+		const { agent, userId } = await loginUser(harness, "poll-ios-landed@example.com");
+		await subscriptionProviders.upsertActive({
+			userId,
+			subscriptionId: "sub_ios_landed",
+			customerId: "cus_ios_landed",
+		});
+		await subscriptionProviders.markPendingCancellation({
+			userId,
+			cancellationEffectiveAt: new Date(Date.now() + 5 * ONE_DAY_MS).toISOString(),
+		});
+
+		const response = await agent.get("/account/status?cancelling=1&poll=2&platform=ios");
+
+		expect(response.status).toBe(200);
+		const doc = new JSDOM(response.text).window.document;
+		expect(actionKeys(doc)).toEqual([]);
+		expect(findCard(doc).getAttribute("data-test-account-poll")).toBe("idle");
+		expect(findCard(doc).getAttribute("hx-get")).toBeNull();
 	});
 });
 
@@ -1908,6 +2409,65 @@ describe("POST /account/delete", () => {
 
 		expect(response.status).toBe(303);
 		expect(response.headers.location).toBe("/account?error=delete_confirmation&platform=ios");
+	});
+
+	it("preserves the app shell across a rejected delete so the notice re-renders chromeless", async () => {
+		const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
+		const { agent } = await loginUser(harness, "shell-delete-reject@example.com");
+
+		const response = await agent.post("/account/delete?platform=ios&shell=app");
+
+		expect(response.status).toBe(303);
+		expect(response.headers.location).toBe(
+			"/account?error=delete_confirmation&platform=ios&shell=app",
+		);
+	});
+
+	it("sends the app shell to the sign-out deep link instead of the logged-out home, which would be marketing chrome inside the sheet", async () => {
+		const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
+		const { agent } = await loginUser(harness, "shell-delete@example.com");
+
+		// The in-app form is hx-boosted, so the app's WKWebView reaches the deep link
+		// through HX-Redirect — the delegate sees a navigation and cancels it.
+		const response = await agent
+			.post("/account/delete?platform=ios&shell=app")
+			.set("HX-Request", "true")
+			.type("form")
+			.send({ confirmation: "delete my account permanently" });
+
+		expect(response.status).toBe(200);
+		expect(response.headers["hx-redirect"]).toBe("readplace://account/logout");
+	});
+
+	it("sends the same sign-out deep link on the plain 303 path, for an app shell whose htmx failed to load", async () => {
+		const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
+		const { agent } = await loginUser(harness, "shell-delete-303@example.com");
+
+		const response = await agent
+			.post("/account/delete?platform=ios&shell=app")
+			.type("form")
+			.send({ confirmation: "delete my account permanently" });
+
+		expect(response.status).toBe(303);
+		expect(response.headers.location).toBe("readplace://account/logout");
+
+		// The account is still deleted — the session no longer authenticates.
+		const after = await agent.get("/account");
+		expect(after.status).toBe(303);
+		expect(after.headers.location).toBe("/login");
+	});
+
+	it("keeps sending a pre-marker app build to the logged-out home — it cannot execute a deep link", async () => {
+		const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
+		const { agent } = await loginUser(harness, "ios-delete-oldbuild@example.com");
+
+		const response = await agent
+			.post("/account/delete?platform=ios")
+			.type("form")
+			.send({ confirmation: "delete my account permanently" });
+
+		expect(response.status).toBe(303);
+		expect(response.headers.location).toBe("/");
 	});
 
 	it("redirects unauthenticated callers to /login", async () => {

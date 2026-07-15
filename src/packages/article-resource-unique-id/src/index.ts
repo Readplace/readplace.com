@@ -29,6 +29,9 @@ export class ArticleResourceUniqueId {
 	toS3SourceKey({ tier }: { tier: string }): string {
 		return `articles/${encodeURIComponent(this.value)}/sources/${tier}.html`;
 	}
+	toS3ContentVersionKey({ minuteId }: { minuteId: string }): string {
+		return `content-versions/${encodeURIComponent(this.value)}/${minuteId.replaceAll(":", "-")}/content.html`;
+	}
 	toS3SourceMetadataKey({ tier }: { tier: string }): string {
 		return `articles/${encodeURIComponent(this.value)}/sources/${tier}.metadata.json`;
 	}
@@ -39,6 +42,10 @@ export class ArticleResourceUniqueId {
 	toString(): string {
 		return this.value;
 	}
+}
+
+export function toCrawlVersionMinuteId(iso: string): string {
+	return `${new Date(iso).toISOString().slice(0, 16)}Z`;
 }
 
 export { resolveCanonicalUrl, type CanonicalSignals } from "./resolve-canonical-url";

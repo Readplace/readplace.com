@@ -326,6 +326,7 @@ export function createDefaultTestAppFixture(appOrigin: string): TestAppFixture {
 			findArticleByUrl: articleStoreMemory.findArticleByUrl,
 			findArticleUrlById: articleStoreMemory.findArticleUrlById,
 			findArticleFreshness: articleStoreMemory.findArticleFreshness,
+			findArticleCrawlVersions: articleStoreMemory.findArticleCrawlVersions,
 			findArticlesByUser: articleStoreMemory.findArticlesByUser,
 			countArticlesByUser: articleStoreMemory.countArticlesByUser,
 			saveArticle: articleStoreMemory.saveArticle,
@@ -347,6 +348,7 @@ export function createDefaultTestAppFixture(appOrigin: string): TestAppFixture {
 			writeMetadata: articleStoreMemory.writeMetadata,
 			setContentSourceTier: articleStoreMemory.setContentSourceTier,
 			setContentFetchedAt: articleStoreMemory.setContentFetchedAt,
+			setCrawlVersions: articleStoreMemory.setCrawlVersions,
 		},
 		articleCrawl: {
 			findArticleCrawlStatus: articleCrawl.findArticleCrawlStatus,

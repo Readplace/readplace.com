@@ -6,6 +6,11 @@ const USER_ID = UserIdSchema.parse("aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa");
 
 describe("toRecord", () => {
 	it("maps a full row to a record, preserving every optional field", () => {
+		const nextCharge = {
+			at: "2026-08-12T10:00:00.000Z",
+			amountMinor: 4900,
+			currency: "usd",
+		};
 		const row = SubscriptionProviderRow.parse({
 			userId: USER_ID,
 			provider: "stripe",
@@ -16,6 +21,7 @@ describe("toRecord", () => {
 			cancellationEffectiveAt: "2026-06-22T00:00:00.000Z",
 			trialFeedbackEmailSentAt: "2026-06-04T00:00:00.000Z",
 			trialReminderEmailSentAt: "2026-06-03T00:00:00.000Z",
+			nextCharge,
 			createdAt: "2026-05-20T10:00:00.000Z",
 			updatedAt: "2026-05-22T10:00:00.000Z",
 		});
@@ -30,9 +36,28 @@ describe("toRecord", () => {
 			cancellationEffectiveAt: "2026-06-22T00:00:00.000Z",
 			trialFeedbackEmailSentAt: "2026-06-04T00:00:00.000Z",
 			trialReminderEmailSentAt: "2026-06-03T00:00:00.000Z",
+			nextCharge,
 			createdAt: "2026-05-20T10:00:00.000Z",
 			updatedAt: "2026-05-22T10:00:00.000Z",
 		});
+	});
+
+	it("degrades a corrupt stored nextCharge to undefined rather than throwing out of the save gate", () => {
+		const row = SubscriptionProviderRow.parse({
+			userId: USER_ID,
+			provider: "stripe",
+			status: "active",
+			subscriptionId: "sub_1",
+			customerId: "cus_1",
+			nextCharge: { at: "2026-08-12T10:00:00.000Z", amountMinor: "not-a-number" },
+			createdAt: "2026-05-20T10:00:00.000Z",
+			updatedAt: "2026-05-22T10:00:00.000Z",
+		});
+
+		const record = toRecord(row);
+
+		assert.equal(record.nextCharge, undefined);
+		assert.equal("nextCharge" in record, false);
 	});
 
 	it("omits absent optional fields rather than emitting undefined", () => {

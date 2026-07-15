@@ -719,6 +719,32 @@ describe("initDynamoDbArticleStore freshness, notification state, content and ur
 		expect(freshness).toBeNull();
 	});
 
+	it("findArticleCrawlVersions maps the stored minute-id log to crawl versions, newest first", async () => {
+		const { client } = createFakeClient({
+			GetCommand: {
+				default: {
+					Item: { crawlVersions: ["2026-07-10T09:41Z", "2026-06-28T22:01Z", "2026-03-26T14:32Z"] },
+				},
+			},
+		});
+
+		const versions = await initStore(client).findArticleCrawlVersions(URL);
+
+		expect(versions).toEqual([
+			{ crawledAtMinute: "2026-07-10T09:41Z" },
+			{ crawledAtMinute: "2026-06-28T22:01Z" },
+			{ crawledAtMinute: "2026-03-26T14:32Z" },
+		]);
+	});
+
+	it("findArticleCrawlVersions returns an empty list for a pre-feature row with no log", async () => {
+		const { client } = createFakeClient({ GetCommand: { default: { Item: undefined } } });
+
+		const versions = await initStore(client).findArticleCrawlVersions(URL);
+
+		expect(versions).toEqual([]);
+	});
+
 	it("findUserArticleNotificationState hydrates every timestamp the gate reads", async () => {
 		const { client } = createFakeClient({
 			GetCommand: {

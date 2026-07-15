@@ -94,6 +94,7 @@ describe("initSaveAnonymousLinkCommandHandler", () => {
 		expect(publishEvent).toHaveBeenCalledWith(TierContentExtractedEvent, {
 			url: "https://example.com/article",
 			tier: "tier-1",
+			extractedAt: "2026-04-30T12:00:00.000Z",
 		});
 	});
 

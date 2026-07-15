@@ -13,6 +13,7 @@ export interface StaticDomainEntry {
 
 const CONTENT_TYPES: Record<string, string> = {
 	".png": "image/png",
+	".webp": "image/webp",
 	".ico": "image/x-icon",
 	".jpg": "image/jpeg",
 	".jpeg": "image/jpeg",

@@ -65,7 +65,7 @@ export interface AdminRecrawlPageInput {
 	extensionInstallUrl?: string;
 	appOrigin: string;
 	recrawlFormAction?: string;
-	lastCrawledAt?: LocalTime;
+	crawlVersions?: LocalTime[];
 }
 
 /**
@@ -99,7 +99,7 @@ export function AdminRecrawlPage(input: AdminRecrawlPageInput): PageBody {
 		appOrigin: input.appOrigin,
 		topActionsHtml: actions.top.to("text/html").body,
 		bottomActionsHtml: actions.bottom.to("text/html").body,
-		lastCrawledAt: input.lastCrawledAt,
+		crawlVersions: input.crawlVersions,
 	});
 
 	const tierBadge = renderTierBadge(input.contentSourceTier);

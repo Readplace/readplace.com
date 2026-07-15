@@ -1,15 +1,25 @@
+import {
+	APP_SHELL_QUERY,
+	APP_SHELL_VALUE,
+	IOS_CLIENT_VALUE,
+	IOS_PLATFORM_QUERY,
+} from "../../onboarding/ios-client";
+
 export function buildAccountUrl(params?: {
 	cancelling?: boolean;
 	deleteConfirmationError?: boolean;
 	iosSurface?: boolean;
+	appShell?: boolean;
 }): string {
 	const search = new URLSearchParams();
 	if (params?.cancelling) search.set("cancelling", "1");
 	if (params?.deleteConfirmationError) search.set("error", "delete_confirmation");
-	// Preserved across a POST-Redirect-GET so the re-rendered account page keeps
-	// the iOS in-app surface — the WKWebView form post carries no client header,
-	// only whatever query the redirect target names.
-	if (params?.iosSurface) search.set("platform", "ios");
+	// Both markers are preserved across a POST-Redirect-GET so the re-rendered
+	// account page keeps the iOS in-app surface and its chromeless shell — the
+	// WKWebView form post carries no client header, only whatever query the
+	// redirect target names.
+	if (params?.iosSurface) search.set(IOS_PLATFORM_QUERY, IOS_CLIENT_VALUE);
+	if (params?.appShell) search.set(APP_SHELL_QUERY, APP_SHELL_VALUE);
 	const qs = search.toString();
 	return qs ? `/account?${qs}` : "/account";
 }
@@ -17,8 +27,13 @@ export function buildAccountUrl(params?: {
 export const ACCOUNT_CANCEL_URL = "/account/cancel";
 export const ACCOUNT_DELETE_URL = "/account/delete";
 export const ACCOUNT_REACTIVATE_URL = "/account/reactivate";
+export const ACCOUNT_STATUS_URL = "/account/status";
 export const ACCOUNT_SUBSCRIBE_URL = "/account/subscribe";
 export const ACCOUNT_ERROR_PAYMENT_METHOD_URL = "/account?error=payment_method";
+
+export function buildAccountStatusPollUrl(pollCount: number): string {
+	return `${ACCOUNT_STATUS_URL}?cancelling=1&poll=${pollCount}`;
+}
 
 export const ACCOUNT_CARDS_NEW_URL = "/account/cards/new";
 export const ACCOUNT_ERROR_CARD_LIMIT_URL = "/account?error=card_limit";

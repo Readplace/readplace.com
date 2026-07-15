@@ -5,7 +5,7 @@ import UIKit
 /// tests inject their own closure. `open` mirrors
 /// `UIApplication.open(_:options:completionHandler:)` — its `Bool` reports whether
 /// the system accepted the URL, which the Chrome-first flow needs to decide
-/// whether to fall back; the reader's plain "open externally" ignores it.
+/// whether to fall back.
 struct ExternalBrowser {
 	let open: (_ url: URL, _ completion: @escaping (Bool) -> Void) -> Void
 
@@ -14,16 +14,26 @@ struct ExternalBrowser {
 	)
 }
 
-/// Opens the OAuth authorize URL Chrome-first: it rewrites the https URL to
-/// `googlechromes://` and opens Chrome, so login lands in the browser where the
-/// user already has a Readplace web session. Only when the system reports Chrome
-/// could not be opened (Chrome not installed) does it fall back to the original
-/// https URL in the default browser — never as the default path, because most
-/// users keep Safari as the iOS default yet are signed in only in Chrome.
-func openAuthorizeURLChromeFirst(_ httpsURL: URL, browser: ExternalBrowser) {
-	browser.open(chromeURLForHTTPS(httpsURL)) { openedInChrome in
+/// Opens a URL Chrome-first *when it is one of ours*: `chromeURLFor` rewrites a
+/// readplace.com URL to Chrome's scheme so it lands in the browser where the user
+/// already has a Readplace web session. Only when the system reports Chrome could
+/// not be opened (Chrome not installed) does it fall back to the original URL in
+/// the default browser — never as the default path, because most users keep Safari
+/// as the iOS default yet are signed in only in Chrome.
+///
+/// Every external open goes through here, so the rule lives in one place: the OAuth
+/// authorize URL and the changelog banner's "Read more" are ours and get Chrome;
+/// a link to someone else's site is handed to the system untouched, which keeps
+/// Universal Links resolving to native apps and respects the user's default
+/// browser. `chromeURLFor` owns that distinction — see it for why.
+func openURLChromeFirst(_ url: URL, browser: ExternalBrowser) {
+	guard let chromeURL = chromeURLFor(url) else {
+		browser.open(url) { _ in }
+		return
+	}
+	browser.open(chromeURL) { openedInChrome in
 		guard !openedInChrome else { return }
-		browser.open(httpsURL) { _ in }
+		browser.open(url) { _ in }
 	}
 }
 
@@ -42,7 +52,7 @@ func makeWebAuthFlow(session: AppSession) -> WebAuthFlow {
 	let browser = ExternalBrowser.system
 	return initWebAuthFlow(deps: WebAuthFlowDependencies(
 		pendingStore: store,
-		openAuthorizeURL: { httpsURL in openAuthorizeURLChromeFirst(httpsURL, browser: browser) },
+		openAuthorizeURL: { httpsURL in openURLChromeFirst(httpsURL, browser: browser) },
 		exchange: { callbackURL, pending in
 			await session.completeSignIn(
 				callbackURL: callbackURL,

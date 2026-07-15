@@ -27,6 +27,7 @@ import type {
 	DeleteArticle,
 	FindArticleById,
 	FindArticleByUrl,
+	FindArticleCrawlVersions,
 	FindArticleFreshness,
 	FindArticleUrlById,
 	FindArticlesByUser,
@@ -62,6 +63,8 @@ import type { PutPendingHtml } from "@packages/provider-contracts/pending-html";
 import { initSaveArticleFromUrl } from "../../shared/save-article/save-article-from-url";
 import { Base, ChromelessPage } from "../../base.component";
 import type { BuildBannerState } from "../../banner-state";
+import { selectChangelogBanner } from "../../banner-state";
+import type { GetChangelogBanner } from "../../changelog-banner-source";
 import { sendComponent } from "@packages/web-shell";
 import { requireNotLocked } from "../../middleware/require-not-locked.middleware";
 import { RedirectComponent, type Redirect } from "../../redirect.component";
@@ -99,6 +102,7 @@ import {
 	isExtensionSavedArticle,
 } from "../../onboarding/extension-install";
 import { isIosClient, isIosSurface } from "../../onboarding/ios-client";
+import { APP_BACK_LINK } from "../../shared/ios-app-links";
 import type { GetIosAppSignals, RecordIosAnyActivity, RecordIosSavedArticle } from "@packages/provider-contracts/ios-onboarding-signal";
 import type { GetEffectiveAccess } from "@packages/subscription-access";
 
@@ -181,6 +185,7 @@ interface QueueDependencies {
 	findArticleById: FindArticleById;
 	findArticleByUrl: FindArticleByUrl;
 	findArticleFreshness: FindArticleFreshness;
+	findArticleCrawlVersions: FindArticleCrawlVersions;
 	findArticleUrlById: FindArticleUrlById;
 	saveArticle: SaveArticle;
 	deleteArticle: DeleteArticle;
@@ -230,6 +235,11 @@ interface QueueDependencies {
 	requireWriteAccess: RequestHandler;
 	getEffectiveAccess: GetEffectiveAccess;
 	buildBannerState: BuildBannerState;
+	/** The site-wide announcement, for the chromeless reader only. The full shell
+	 * reaches it through `buildBannerState`; the chromeless branch takes it directly
+	 * so an in-app article open doesn't pay for the trial/access lookup that
+	 * `buildBannerState` also performs and this shell has nowhere to render. */
+	getChangelogBanner: GetChangelogBanner;
 	logError: (message: string, error?: Error) => void;
 	logParseError: LogParseError;
 	analytics: HutchLogger.Typed<AnalyticsEvent>;
@@ -284,15 +294,6 @@ const SAVE_INTENT_PATH = {
 
 const VIEW_BACK_LINK = {
 	topHref: "/queue?utm_source=reader&utm_medium=internal&utm_content=back-top",
-	label: "← Back to queue",
-} as const;
-
-/** Deep link the iOS WKWebView delegate intercepts (and cancels) to close the
- * reader sheet, returning the user to the native reading list. The chromeless
- * reader's "← Back to queue" points here. */
-const READER_CLOSE_HREF = "readplace://reader/close";
-const APP_BACK_LINK = {
-	topHref: READER_CLOSE_HREF,
 	label: "← Back to queue",
 } as const;
 
@@ -407,6 +408,7 @@ export function initQueueRoutes(deps: QueueDependencies): Router {
 		readArticleContent: deps.readArticleContent,
 		findArticleByUrl: deps.findArticleByUrl,
 		findArticleFreshness: deps.findArticleFreshness,
+		findArticleCrawlVersions: deps.findArticleCrawlVersions,
 		appOrigin: deps.appOrigin,
 		formatDocumentTitle: formatReaderDocumentTitle,
 		summaryOpen: false,
@@ -512,10 +514,22 @@ export function initQueueRoutes(deps: QueueDependencies): Router {
 			assert(readerBody.scripts, "the reader page always sets its scripts");
 			sendComponent(
 				req, res,
-				ChromelessPage({
-					...readerBody,
-					scripts: readerBody.scripts + READER_MARK_READ_BRIDGE_SCRIPT,
-				}),
+				ChromelessPage(
+					{
+						...readerBody,
+						scripts: readerBody.scripts + READER_MARK_READ_BRIDGE_SCRIPT,
+					},
+					{
+						changelogBanner: selectChangelogBanner(
+							await deps.getChangelogBanner(),
+							req.dismissedChangelogVersion,
+						),
+						// The dismiss form posts this back so the 303 lands on the same
+						// article, still carrying `platform=ios` — so the reader returns to
+						// the chromeless shell rather than the full web one.
+						currentPath: req.originalUrl,
+					},
+				),
 			);
 			return;
 		}
@@ -538,7 +552,7 @@ export function initQueueRoutes(deps: QueueDependencies): Router {
 				extensionInstallUrl: extensionInstallUrlIfMissing(req),
 				backLink: VIEW_BACK_LINK,
 				renderActions: deps.stickyReader,
-				lastCrawledAt: state.lastCrawledAt,
+				crawlVersions: state.crawlVersions,
 			}), {
 				...(await deps.buildBannerState(req)),
 				showExtensionSuggestionBanner,

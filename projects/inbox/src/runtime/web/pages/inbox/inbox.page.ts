@@ -27,6 +27,7 @@ import { etagMatches } from "@packages/web-shell";
 import { renderInboxArticleCard } from "./inbox-article-card.component";
 import { renderInboxArticlesPanel } from "./inbox-articles-panel.component";
 import { InboxEmailDetailPage } from "./inbox-email-detail.component";
+import { parseMailTab } from "./inbox-email-detail.url";
 import { renderInboxLinkCount } from "./inbox-link-count.component";
 import { toInboxEmailDetailViewModel } from "./inbox-email-detail.viewmodel";
 import { InboxEmailsPage } from "./inbox-emails.component";
@@ -152,8 +153,9 @@ export function initInboxRoutes(deps: InboxDependencies): Router {
 			res.status(404).type("html").send("");
 			return;
 		}
+		const activeTab = parseMailTab(req.query.tab);
 		const bodyHtml =
-			entry.status === "received"
+			activeTab === "view" && entry.status === "received"
 				? await deps.readEmailContent(
 						emailContentResourceId({ userId: req.userId, receivedAtMessageId }),
 					)
@@ -164,6 +166,7 @@ export function initInboxRoutes(deps: InboxDependencies): Router {
 		});
 		const vm = toInboxEmailDetailViewModel({
 			entry,
+			activeTab,
 			bodyHtml,
 			links,
 			linksMeta: meta,
@@ -193,6 +196,7 @@ export function initInboxRoutes(deps: InboxDependencies): Router {
 		const requestedPoll = parsePollParam(req.query.poll, MAX_POLLS);
 		const vm = toInboxEmailDetailViewModel({
 			entry,
+			activeTab: "articles",
 			bodyHtml: undefined,
 			links,
 			linksMeta: meta,

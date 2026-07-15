@@ -1,8 +1,32 @@
+import assert from "node:assert/strict";
 import { JSDOM } from "jsdom";
 import { initChromelessPage } from "./chromeless-page";
+import type { ChromelessBannerState } from "./chromeless-page";
+import { isChangelogVersion } from "./changelog-banner";
 import type { PageBody } from "./page-body.types";
 
 const ChromelessPage = initChromelessPage({ staticBaseUrl: "https://static.example", liveReload: false });
+
+const CHANGELOG_VERSION = "a1b2c3d4";
+assert(isChangelogVersion(CHANGELOG_VERSION));
+
+const NO_BANNER: ChromelessBannerState = {};
+
+const WITH_BANNER: ChromelessBannerState = {
+	changelogBanner: {
+		hook: "Highlights just landed.",
+		href: "/blog/highlights",
+		version: CHANGELOG_VERSION,
+	},
+	currentPath: "/queue/abc/view?platform=ios",
+};
+
+function shellCss(state: ChromelessBannerState): string {
+	const doc = new JSDOM(ChromelessPage(createTestPageBody(), state).to("text/html").body).window.document;
+	return Array.from(doc.head.querySelectorAll("style"))
+		.map((style) => style.textContent ?? "")
+		.join("");
+}
 
 function createTestPageBody(overrides: Partial<PageBody> = {}): PageBody {
 	return {
@@ -21,7 +45,7 @@ function createTestPageBody(overrides: Partial<PageBody> = {}): PageBody {
 
 describe("ChromelessPage", () => {
 	it("renders the page <main>, its styles, and htmx — with none of the web shell chrome", () => {
-		const result = ChromelessPage(createTestPageBody()).to("text/html");
+		const result = ChromelessPage(createTestPageBody(), NO_BANNER).to("text/html");
 
 		expect(result.statusCode).toBe(200);
 		const doc = new JSDOM(result.body).window.document;
@@ -35,24 +59,23 @@ describe("ChromelessPage", () => {
 		expect(doc.querySelector(".header")).toBeNull();
 		expect(doc.querySelector(".nav")).toBeNull();
 		expect(doc.querySelector(".footer")).toBeNull();
-		expect(doc.querySelector(".banner-area")).toBeNull();
 	});
 
 	it("carries the page's seo title, description, and robots into <head>", () => {
-		const doc = new JSDOM(ChromelessPage(createTestPageBody()).to("text/html").body).window.document;
+		const doc = new JSDOM(ChromelessPage(createTestPageBody(), NO_BANNER).to("text/html").body).window.document;
 		expect(doc.title).toBe("Reader");
 		expect(doc.querySelector('meta[name="robots"]')?.getAttribute("content")).toBe("noindex, nofollow");
 		expect(doc.querySelector('meta[name="description"]')?.getAttribute("content")).toBe("An article");
 	});
 
 	it("honours the PageBody status code", () => {
-		const result = ChromelessPage(createTestPageBody({ statusCode: 404 })).to("text/html");
+		const result = ChromelessPage(createTestPageBody({ statusCode: 404 }), NO_BANNER).to("text/html");
 		expect(result.statusCode).toBe(404);
 	});
 
 	it("renders without scripts when the page declares none", () => {
 		const doc = new JSDOM(
-			ChromelessPage(createTestPageBody({ scripts: undefined })).to("text/html").body,
+			ChromelessPage(createTestPageBody({ scripts: undefined }), NO_BANNER).to("text/html").body,
 		).window.document;
 		expect(doc.querySelector('script[src*="htmx.org"]')).not.toBeNull();
 		expect(doc.querySelector('script[src*="/client-dist/"]')).toBeNull();
@@ -60,7 +83,75 @@ describe("ChromelessPage", () => {
 
 	it("injects the dev livereload script only when liveReload is enabled", () => {
 		const live = initChromelessPage({ staticBaseUrl: "https://static.example", liveReload: true });
-		const doc = new JSDOM(live(createTestPageBody()).to("text/html").body).window.document;
+		const doc = new JSDOM(live(createTestPageBody(), NO_BANNER).to("text/html").body).window.document;
 		expect(doc.querySelector('script[src*="livereload.js"]')).not.toBeNull();
+	});
+
+	it("appends the site's own scripts after the page's, so a chromeless page still gets what the whole site relies on", () => {
+		const withSite = initChromelessPage({
+			staticBaseUrl: "https://static.example",
+			liveReload: true,
+			siteScripts: `<script src="/client-dist/local-time.client.js" defer></script>`,
+		});
+
+		const body = withSite(createTestPageBody(), NO_BANNER).to("text/html").body;
+		const doc = new JSDOM(body).window.document;
+		expect(doc.querySelector('script[src*="/client-dist/local-time.client.js"]')).not.toBeNull();
+
+		const order = Array.from(doc.querySelectorAll("script"))
+			.map((script) => script.getAttribute("src") ?? "")
+			.filter((src) => src.length > 0);
+		const page = order.findIndex((src) => src.includes("progress-bar.client.js"));
+		const site = order.findIndex((src) => src.includes("local-time.client.js"));
+		const liveReload = order.findIndex((src) => src.includes("livereload.js"));
+		expect(page).toBeLessThan(site);
+		expect(site).toBeLessThan(liveReload);
+	});
+
+	it("hides the changelog banner when there is no announcement", () => {
+		const doc = new JSDOM(ChromelessPage(createTestPageBody(), NO_BANNER).to("text/html").body).window.document;
+
+		const banner = doc.querySelector(".changelog-banner");
+		assert(banner, "the shell always emits the banner element so visibility is a class, not a presence check");
+		expect(banner.classList.contains("changelog-banner--hidden")).toBe(true);
+	});
+
+	it("renders the announcement above <main> so it scrolls away instead of covering the article", () => {
+		const doc = new JSDOM(ChromelessPage(createTestPageBody(), WITH_BANNER).to("text/html").body).window.document;
+
+		const banner = doc.querySelector(".changelog-banner");
+		assert(banner, "the announcement must render");
+		expect(banner.classList.contains("changelog-banner--visible")).toBe(true);
+		expect(banner.querySelector(".changelog-banner__hook")?.textContent).toBe("Highlights just landed.");
+		expect(banner.querySelector(".changelog-banner__link")?.getAttribute("href")).toBe("/blog/highlights");
+
+		expect(doc.querySelector(".banner-area")).toBeNull();
+		const main = doc.querySelector("main.reader");
+		assert(main, "the article must render");
+		expect(banner.compareDocumentPosition(main) & banner.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+	});
+
+	it("dismisses through the same no-JS form the web shell uses, returning to the article it was shown on", () => {
+		const doc = new JSDOM(ChromelessPage(createTestPageBody(), WITH_BANNER).to("text/html").body).window.document;
+
+		const form = doc.querySelector("form.changelog-banner__dismiss");
+		assert(form, "the close control must be a real form so it works with no JS and stays inside the app sheet");
+		expect(form.getAttribute("method")).toBe("POST");
+		expect(form.getAttribute("action")).toBe("/banner/changelog/dismiss");
+		expect(form.querySelector('input[name="version"]')?.getAttribute("value")).toBe(CHANGELOG_VERSION);
+		expect(form.querySelector('input[name="returnTo"]')?.getAttribute("value")).toBe(
+			"/queue/abc/view?platform=ios",
+		);
+	});
+
+	it("styles the announcement without pulling in the full shell's fixed banner-area positioning", () => {
+		const css = shellCss(WITH_BANNER);
+
+		expect(css).toContain(".changelog-banner--hidden");
+		expect(css).not.toContain(".banner-area {");
+	});
+
+	it("reserves no space for a fixed banner bar, since this shell has none", () => {
+		expect(shellCss(NO_BANNER)).toContain("--banner-area-height: 0px");
 	});
 });

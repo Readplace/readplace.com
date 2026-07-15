@@ -5,7 +5,7 @@ describe("SUPPORTED_CLIENTS", () => {
 	it("pins the exact roster so changing it is a conscious edit", () => {
 		assert.deepEqual(
 			SUPPORTED_CLIENTS.map((client) => client.name),
-			["firefox", "chrome", "iphone", "claude", "chatgpt"],
+			["firefox", "chrome", "iphone", "chatgpt", "gemini", "claude"],
 		);
 	});
 

@@ -46,6 +46,29 @@
         padding: 2.5rem 1.5rem;
       }
 
+      /* The app sheet is presented ignoring the safe area and this WKWebView's
+       * viewport sets no viewport-fit=cover, so env(safe-area-inset-bottom)
+       * resolves to 0 — the pad clearing the home indicator has to be hard-coded,
+       * the same reason the chromeless reader and account page hard-code theirs. */
+      .help--app {
+        padding-bottom: 4rem;
+      }
+
+      /* The app sheet's only way back to the native list, matching the account
+       * page's back affordance so the two chromeless surfaces read identically. */
+      .help__back {
+        display: inline-block;
+        margin: 0 0 1rem;
+        font-size: 0.9375rem;
+        font-weight: 600;
+        color: var(--help-text);
+        text-decoration: none;
+      }
+
+      .help__back:hover {
+        text-decoration: underline;
+      }
+
       .help__title {
         margin: 0 0 1.5rem;
         font-size: 1.5rem;
@@ -96,16 +119,298 @@
         color: var(--help-text-secondary);
         font-size: 0.9375rem;
       }
+
+      .help__pin {
+        margin: 0 0 1.5rem;
+        padding-top: 1.5rem;
+        border-top: 1px solid var(--help-border);
+      }
+
+      .help__pin-title {
+        margin: 0 0 0.5rem;
+        font-size: 1.125rem;
+        font-weight: 700;
+      }
+
+      .help__pin-lead {
+        margin: 0 0 1.25rem;
+        color: var(--help-text-secondary);
+        font-size: 0.9375rem;
+      }
+
+      .help__pin-steps {
+        margin: 0;
+        padding: 0;
+        list-style: none;
+        counter-reset: help-pin-step;
+      }
+
+      .help__pin-step {
+        counter-increment: help-pin-step;
+        position: relative;
+        padding: 0 0 1.5rem 3rem;
+      }
+
+      .help__pin-step:last-child {
+        padding-bottom: 0;
+      }
+
+      .help__pin-step::before {
+        content: counter(help-pin-step);
+        position: absolute;
+        left: 0;
+        top: 0;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        width: 2rem;
+        height: 2rem;
+        background: var(--help-surface);
+        color: var(--help-brand);
+        border-radius: 6px;
+        font-weight: 600;
+      }
+
+      .help__carousel {
+        margin: 0 0 1.5rem;
+      }
+
+      .help__controls {
+        display: none;
+        align-items: center;
+        justify-content: center;
+        margin-top: 0.75rem;
+      }
+
+      .help__hint {
+        display: none;
+        margin: 0.5rem 0 0;
+        color: var(--help-text-secondary);
+        font-size: 0.8125rem;
+        text-align: center;
+      }
+
+      .help__dots {
+        display: inline-flex;
+        gap: 0.5rem;
+      }
+
+      .help__dot {
+        width: 0.5rem;
+        height: 0.5rem;
+        border-radius: 50%;
+        background: var(--help-text-secondary);
+        opacity: 0.3;
+      }
+
+      .help__track {
+        display: grid;
+        gap: 1.5rem;
+        justify-items: center;
+        margin: 0;
+        padding: 0;
+        list-style: none;
+      }
+
+      .help__slide--loop {
+        display: none;
+      }
+
+      .help__shot {
+        margin: 0;
+        text-align: center;
+      }
+
+      /**
+       * 1. Sized so a 3x device renders the 520px source at roughly 1:1 — wider
+       *    and the share-sheet UI inside the screenshot goes soft.
+       * 2. The raster is a light-theme capture on every surface; only the frame
+       *    and the caption follow the theme. Same treatment as /install.
+       * 3. Holding a finger on an image is how the carousel is paused, but that
+       *    same gesture is what raises iOS Safari's "Copy / Save Image" callout,
+       *    which would swallow it. Suppressing the callout, the selection and the
+       *    drag leaves the hold to settle as :active on the viewport.
+       */
+      .help__shot-img {
+        display: block;
+        width: min(60%, 176px); /* 1 */
+        height: auto;
+        margin: 0 auto;
+        border: 1px solid var(--help-border); /* 2 */
+        border-radius: 10px;
+        -webkit-touch-callout: none; /* 3 */
+        -webkit-user-select: none; /* 3 */
+        user-select: none; /* 3 */
+        -webkit-user-drag: none; /* 3 */
+      }
+
+      .help__shot-caption {
+        padding-top: 0.5rem;
+        color: var(--help-text-secondary);
+        font-size: 0.875rem;
+      }
+
+      /**
+       * 1. `hidden` alone makes this a programmatically scrollable box whose
+       *    scrollWidth is four slides wide, so VoiceOver scrolling a slide into
+       *    view — or find-on-page matching the clone's caption — sets scrollLeft,
+       *    which then composes with the track's translateX and desyncs the
+       *    carousel for the life of the page. `clip` never becomes a scroll
+       *    container. It ships in Safari 16, which is the iOS app's floor; the
+       *    `hidden` above it is the cascade fallback for older desktop Safari.
+       * 2. Deliberately no `transition` on the track: transition declarations
+       *    outrank animation declarations, so one here fights the keyframes and
+       *    sweeps the track backwards.
+       */
+      /**
+       * 3. WebKit only resolves :active on touch for elements it treats as
+       *    interactive, so without this a held finger never pauses anything on
+       *    the one platform the gesture exists for.
+       * 4. :hover latches on touch — one tap would leave it hovered, and so
+       *    paused, for good. Gating on a real pointer keeps hover a desktop
+       *    affordance and leaves touch to :active.
+       * 5. The pause mechanism WCAG 2.2.2 asks for, now that there is no button:
+       *    tabbing to the viewport stops the motion for keyboard and VoiceOver.
+       *    :focus-visible, not :focus-within — a tap also focuses the viewport,
+       *    and :focus-within would strand the carousel paused for good after one.
+       */
+      @media (prefers-reduced-motion: no-preference) {
+        .help__controls {
+          display: flex;
+        }
+
+        .help__hint {
+          display: block;
+        }
+
+        .help__viewport {
+          overflow: hidden; /* 1 */
+          overflow: clip; /* 1 */
+          cursor: pointer; /* 3 */
+        }
+
+        .help__viewport:focus-visible {
+          outline: 2px solid var(--help-brand);
+          outline-offset: 2px;
+        }
+
+        .help__track {
+          display: flex;
+          gap: 0;
+          animation: help-carousel-track 18s infinite; /* 2 */
+          animation-timing-function: ease-in-out;
+        }
+
+        .help__slide {
+          flex: 0 0 100%;
+        }
+
+        .help__slide--loop {
+          display: block;
+        }
+
+        .help__dot {
+          animation: help-carousel-dot 18s infinite;
+        }
+
+        .help__dot--2 {
+          animation-delay: 6s;
+        }
+
+        .help__dot--3 {
+          animation-delay: 12s;
+        }
+
+        @media (hover: hover) {
+          .help__viewport:hover .help__track,
+          .help__viewport:hover .help__dot {
+            animation-play-state: paused; /* 4 */
+          }
+        }
+
+        .help__viewport:active .help__track,
+        .help__viewport:active .help__dot,
+        .help__viewport:focus-visible .help__track,
+        .help__viewport:focus-visible .help__dot {
+          animation-play-state: paused; /* 5 */
+        }
+      }
+
+      @keyframes help-carousel-track {
+        0%, 26.667% {
+          transform: translateX(0);
+        }
+        33.333%, 60% {
+          transform: translateX(-100%);
+        }
+        66.667%, 93.333% {
+          transform: translateX(-200%);
+        }
+        100% {
+          transform: translateX(-300%);
+        }
+      }
+
+      @keyframes help-carousel-dot {
+        0%, 27% {
+          opacity: 1;
+        }
+        33%, 100% {
+          opacity: 0.3;
+        }
+      }
     </style>
   </head>
   <body>
-    <main class="help">
+    <main class="{{mainClass}}">
+      {{#if backLink}}
+      <a class="help__back" href="{{backLink.href}}" data-test-help-back-link>{{backLink.label}}</a>
+      {{/if}}
       <h1 class="help__title" data-test-help-title>Add links with Share</h1>
       <ol class="help__steps">
         <li class="help__step" data-test-help-step>Open a link in any app.</li>
         <li class="help__step" data-test-help-step>Tap Share.</li>
         <li class="help__step" data-test-help-step>Choose Readplace.</li>
       </ol>
+
+      <section class="help__carousel" aria-roledescription="carousel" aria-label="Readplace on iPhone" data-test-help-carousel>
+        <div class="help__viewport" tabindex="0" role="group" aria-label="Readplace screenshots" data-test-help-viewport>
+          <ul class="help__track" role="list">
+            {{#each trackSlides}}
+            <li class="help__slide{{loopClass}}"{{#if ariaHidden}} aria-hidden="{{ariaHidden}}"{{/if}} data-test-help-slide>
+              <figure class="help__shot">
+                <img class="help__shot-img" src="{{src}}" alt="{{alt}}" width="{{width}}" height="{{height}}" decoding="async">
+                <figcaption class="help__shot-caption">{{caption}}</figcaption>
+              </figure>
+            </li>
+            {{/each}}
+          </ul>
+        </div>
+
+        <div class="help__controls">
+          <span class="help__dots" aria-hidden="true">
+            {{#each dots}}<span class="help__dot {{positionClass}}"></span>{{/each}}
+          </span>
+        </div>
+
+        <p class="help__hint" data-test-help-hint>Hold a screenshot to pause.</p>
+      </section>
+
+      <section class="help__pin" data-test-help-pin>
+        <h2 class="help__pin-title" data-test-help-pin-title>Pin Readplace to the share row</h2>
+        <p class="help__pin-lead">iOS buries new apps at the end of the share row. Favourite Readplace once and it moves to the front.</p>
+        <ol class="help__pin-steps">
+          {{#each pinSteps}}
+          <li class="help__pin-step" data-test-help-pin-step>
+            <figure class="help__shot">
+              <img class="help__shot-img" src="{{src}}" alt="{{alt}}" width="{{width}}" height="{{height}}" loading="lazy" decoding="async">
+              <figcaption class="help__shot-caption">{{caption}}</figcaption>
+            </figure>
+          </li>
+          {{/each}}
+        </ol>
+      </section>
+
       <p class="help__note" data-test-help-note>Sharing captures the full page — even on sites that block crawlers.</p>
     </main>
   </body>

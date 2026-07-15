@@ -152,7 +152,7 @@ const BETA_SETUP_STEPS: BetaSetupStep[] = [
 	{
 		title:
 			"Save a page — this is the main thing to test. Open any page in Safari, Chrome, or Firefox, tap Share, and choose Readplace, just like sharing to WhatsApp. It renders and saves the page in the background; head back to readplace.com to see it land.",
-		note: "If Readplace is not in the share row the first time, close the sheet and tap Share again, or tap More or Edit to switch it on. You can favourite it so it appears straight away.",
+		note: "If Readplace is not in the share row, scroll the row to the right and tap More, then Edit, and add Readplace to your Favourites — it sits first in the row from then on, so you never have to hunt for it. The screenshots below walk through it.",
 	},
 ];
 
@@ -168,7 +168,7 @@ interface InstallScreenshot {
 }
 
 const SAVE_FROM_EXTENSION_SHOT: InstallScreenshot = {
-	pathUnderStaticBase: "/screenshots/save-from-extension.png",
+	pathUnderStaticBase: "/screenshots/save-from-extension.webp",
 	alt: "The Readplace extension popup confirming an article was saved, over a Quanta Magazine article",
 	caption: "One click saves the full page you're reading — not just the link.",
 	width: 1440,
@@ -176,7 +176,7 @@ const SAVE_FROM_EXTENSION_SHOT: InstallScreenshot = {
 };
 
 const QUEUE_SHOT: InstallScreenshot = {
-	pathUnderStaticBase: "/screenshots/queue.png",
+	pathUnderStaticBase: "/screenshots/queue.webp",
 	alt: "The Readplace queue listing saved articles with thumbnails and short previews",
 	caption: "Everything waits in one queue, with a short preview so you know what's worth your time.",
 	width: 1440,
@@ -184,7 +184,7 @@ const QUEUE_SHOT: InstallScreenshot = {
 };
 
 const READER_SHOT: InstallScreenshot = {
-	pathUnderStaticBase: "/screenshots/reader-tldr.png",
+	pathUnderStaticBase: "/screenshots/reader-tldr.webp",
 	alt: "The Readplace reader showing an article with its AI summary expanded",
 	caption: "Read without the clutter — with a TL;DR before you commit.",
 	width: 1440,
@@ -196,29 +196,51 @@ const CLIENT_SCREENSHOTS = {
 	chrome: [SAVE_FROM_EXTENSION_SHOT, QUEUE_SHOT, READER_SHOT],
 	iphone: [
 		{
-			pathUnderStaticBase: "/screenshots/ios-share-sheet.png",
+			pathUnderStaticBase: "/screenshots/ios-share-sheet.webp",
 			alt: "The iOS share sheet with Readplace as a share target over a Safari article",
 			caption: "Save from any browser with the share sheet.",
 			width: 520,
 			height: 1127,
 		},
 		{
-			pathUnderStaticBase: "/screenshots/ios-reading-list.png",
+			pathUnderStaticBase: "/screenshots/ios-reading-list.webp",
 			alt: "The Readplace reading list in the iPhone app",
 			caption: "Your queue, in your pocket.",
 			width: 520,
 			height: 1127,
 		},
 		{
-			pathUnderStaticBase: "/screenshots/ios-reader.png",
+			pathUnderStaticBase: "/screenshots/ios-reader.webp",
 			alt: "The Readplace reader on iPhone showing an article with its AI summary",
 			caption: "The reader and TL;DR work the same on iPhone.",
 			width: 520,
 			height: 1127,
 		},
+		{
+			pathUnderStaticBase: "/screenshots/ios-share-more.webp",
+			alt: "The iOS share sheet with the app row scrolled right to reveal the More button",
+			caption: "Tap Share, scroll the row right, then tap More.",
+			width: 520,
+			height: 1127,
+		},
+		{
+			pathUnderStaticBase: "/screenshots/ios-share-favourite.webp",
+			alt: "The iOS Apps screen with Readplace listed under Favourites",
+			caption: "Tap Edit, then add Readplace to your Favourites.",
+			width: 520,
+			height: 1127,
+		},
+		{
+			pathUnderStaticBase: "/screenshots/ios-share-pinned.webp",
+			alt: "The iOS share sheet with Readplace first in the app row",
+			caption: "Readplace now sits first — no scrolling, no hunting.",
+			width: 520,
+			height: 1127,
+		},
 	],
-	claude: [],
 	chatgpt: [],
+	gemini: [],
+	claude: [],
 } satisfies Record<ClientName, readonly InstallScreenshot[]>;
 
 interface InstallScreenshotView {
@@ -247,7 +269,7 @@ function buildScreenshots(client: ClientName, staticBaseUrl: string): InstallScr
 type PanelData =
 	| { variant: "browser"; intro: string; ctaLabel: string; ctaTestId: string }
 	| { variant: "iphone" }
-	| { variant: "ai"; intro: string; prompt: string; requirement: string };
+	| { variant: "ai"; intro: string; promptLabel: string; prompt: string; requirement: string };
 
 const PANEL_DATA = {
 	firefox: {
@@ -264,20 +286,31 @@ const PANEL_DATA = {
 		ctaTestId: "download-chrome",
 	},
 	iphone: { variant: "iphone" },
-	claude: {
-		variant: "ai",
-		intro:
-			"Readplace runs an MCP server. Connect it once and Claude can save pages to your queue and read your list back, right inside the conversation.",
-		prompt: "Add readplace.com/mcp as a connector so you can save pages to and read my reading list.",
-		requirement: "Works on Free, Pro, Max, Team, and Enterprise — the Free plan allows one custom connector.",
-	},
 	chatgpt: {
 		variant: "ai",
 		intro:
 			"The same MCP server connects through ChatGPT's developer mode. Once it's on, ChatGPT can read your list and save links for you.",
+		promptLabel: "Or just ask ChatGPT",
 		prompt: "Connect to readplace.com so you can save pages to and read my reading list.",
 		requirement:
 			"Needs a paid plan (Plus, Pro, Business, Enterprise, or Edu) with developer mode turned on from the web.",
+	},
+	gemini: {
+		variant: "ai",
+		intro:
+			"The same MCP server connects from the Gemini CLI. Add it once and Gemini can save pages to your queue and read your list back, right inside the conversation.",
+		promptLabel: "Run this once",
+		prompt: "gemini mcp add --transport http readplace https://readplace.com/mcp",
+		requirement:
+			"Free from the Gemini CLI — no paid plan. Connecting inside the Gemini app instead needs Google AI Ultra, where custom connectors live in Gemini Spark.",
+	},
+	claude: {
+		variant: "ai",
+		intro:
+			"Readplace runs an MCP server. Connect it once and Claude can save pages to your queue and read your list back, right inside the conversation.",
+		promptLabel: "Or just ask Claude",
+		prompt: "Add readplace.com/mcp as a connector so you can save pages to and read my reading list.",
+		requirement: "Works on Free, Pro, Max, Team, and Enterprise — the Free plan allows one custom connector.",
 	},
 } satisfies Record<ClientName, PanelData>;
 
@@ -292,6 +325,7 @@ interface BrowserExtension {
 interface AiAssistant {
 	name: string;
 	intro: string;
+	promptLabel: string;
 	prompt: string;
 	requirement: string;
 }
@@ -324,6 +358,7 @@ function buildPanel(active: InstallClient, firefoxDownloadUrl: string | null): P
 				assistant: {
 					name: client.displayName,
 					intro: data.intro,
+					promptLabel: data.promptLabel,
 					prompt: data.prompt,
 					requirement: data.requirement,
 				},

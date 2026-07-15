@@ -18,6 +18,7 @@ const trialScheduler = initAwsTrialScheduler({
 
 export const handler = initScheduleTrialFeedbackEmailHandler({
 	createTrialFeedbackEmailSchedule: trialScheduler.createTrialFeedbackEmailSchedule,
+	deleteTrialFeedbackEmailSchedule: trialScheduler.deleteTrialFeedbackEmailSchedule,
 	now: () => new Date(),
 	logger: HutchLogger.from(consoleLogger),
 });

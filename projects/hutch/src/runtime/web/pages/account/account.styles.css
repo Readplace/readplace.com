@@ -8,10 +8,34 @@
   margin-bottom: 24px;
 }
 
+/* The app shell's only way back to the native list. The reader's equivalent
+ * (.article-body__back) is bundled into READER_STYLES alone, so it cannot be
+ * reused here without pulling the whole reader stylesheet onto this page. */
+.account__back {
+  display: inline-block;
+  margin-bottom: 12px;
+  font-size: 0.9375rem;
+  font-weight: 600;
+  color: var(--foreground);
+  text-decoration: none;
+}
+
+.account__back:hover {
+  text-decoration: underline;
+}
+
 .account__title {
   font-size: 1.5rem;
   font-weight: 700;
   color: var(--foreground);
+}
+
+/* The sheet is presented with .ignoresSafeArea() and the chromeless <head> sets no
+ * viewport-fit=cover, so env(safe-area-inset-bottom) resolves to 0 inside this
+ * WKWebView — the pad has to be hard-coded to clear the home indicator, the same
+ * reason the chromeless reader hard-codes its own. */
+.page-account--chromeless .account {
+  padding-bottom: 4rem;
 }
 
 /* purgecss-ignore-start: account-card and its modifiers are interpolated dynamically from a state class in the template */
@@ -41,6 +65,28 @@
   font-size: 1rem;
   margin: 0 0 16px;
   color: var(--foreground);
+}
+
+/* purgecss-ignore-start: the next-charge modifiers are interpolated from the view model's stateClass */
+
+/**
+ * 1. Pulls the renewal up under the status line it belongs to, which carries a
+ *    16px bottom margin of its own.
+ */
+.account-card__next-charge--visible {
+  display: block;
+  font-size: 0.9375rem;
+  margin: -8px 0 16px; /* 1 */
+  color: var(--muted-foreground);
+}
+
+.account-card__next-charge--hidden {
+  display: none;
+}
+/* purgecss-ignore-end */
+
+.account-card__next-charge-date {
+  font-variant-numeric: tabular-nums;
 }
 
 .account-card__heading {
@@ -104,6 +150,11 @@
 .account-card__action--primary:hover,
 .account-card__action--destructive:hover {
   opacity: 0.9;
+}
+
+.account-card__action:disabled {
+  cursor: progress;
+  opacity: 1;
 }
 /* purgecss-ignore-end */
 

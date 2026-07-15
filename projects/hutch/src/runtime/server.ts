@@ -40,6 +40,7 @@ import type {
 import type {
 	FindSubscriptionByUserId,
 	MarkSubscriptionActive,
+	SetSubscriptionNextCharge,
 	UpsertActiveSubscription,
 	UpsertTrialingSubscription,
 } from "@packages/provider-contracts/subscription-providers";
@@ -49,6 +50,7 @@ import type {
 	CreateTrialReminderSchedule,
 	DeleteDeferredCancellationSchedule,
 	DeleteTrialEndSchedule,
+	DeleteTrialFeedbackEmailSchedule,
 	DeleteTrialReminderSchedule,
 } from "@packages/provider-contracts/trial-scheduler";
 import type {
@@ -58,6 +60,7 @@ import type {
 } from "@packages/provider-contracts/events";
 import type {
 	CreateSubscriptionOnExistingCustomer,
+	FindSubscriptionNextCharge,
 	ReverseScheduledCancellation,
 } from "@packages/provider-contracts/subscription-billing";
 import type {
@@ -75,6 +78,7 @@ import type {
 	DeleteArticle,
 	FindArticleById,
 	FindArticleByUrl,
+	FindArticleCrawlVersions,
 	FindArticleFreshness,
 	FindArticleUrlById,
 	FindArticlesByUser,
@@ -160,6 +164,7 @@ import { initSaveRoutes } from "./web/pages/save/save.page";
 import type { ValidateSaveableUrl } from "@packages/domain/article";
 import { initViewRoutes } from "./web/pages/view/view.page";
 import type { ExpiryCountdown } from "./web/pages/view/view-expiry";
+import { initAdminExtendTrialRoutes } from "./web/pages/admin/extend-trial.page";
 import { initAdminRecrawlRoutes } from "./web/pages/admin/recrawl.page";
 import { initExportRoutes } from "./web/pages/export/export.page";
 import { initAccountRoutes } from "./web/pages/account/account.page";
@@ -192,6 +197,8 @@ import { PrivacyPage } from "./web/pages/privacy";
 import { SupportPage } from "./web/pages/support";
 import { TermsPage } from "./web/pages/terms";
 import { HelpAddLinksPage } from "./web/pages/help";
+import { isAppShell } from "./web/onboarding/ios-client";
+import { APP_BACK_LINK } from "./web/shared/ios-app-links";
 import { E2EFixturePage } from "./web/pages/e2e-fixture";
 import { createE2EFixturePdf } from "./web/pages/e2e-fixture-pdf";
 import { initInstallRoutes } from "./web/pages/install";
@@ -243,6 +250,7 @@ interface AppDependencies {
 	findArticleById: FindArticleById;
 	findArticleByUrl: FindArticleByUrl;
 	findArticleFreshness: FindArticleFreshness;
+	findArticleCrawlVersions: FindArticleCrawlVersions;
 	findArticleUrlById: FindArticleUrlById;
 	findArticlesByUser: FindArticlesByUser;
 	countArticlesByUser: CountArticlesByUser;
@@ -310,16 +318,19 @@ interface AppDependencies {
 		upsertTrialing: UpsertTrialingSubscription;
 		findByUserId: FindSubscriptionByUserId;
 		markActive: MarkSubscriptionActive;
+		setNextCharge: SetSubscriptionNextCharge;
 	};
 	trialScheduler: {
 		createTrialEndSchedule: CreateTrialEndSchedule;
 		deleteTrialEndSchedule: DeleteTrialEndSchedule;
 		deleteDeferredCancellationSchedule: DeleteDeferredCancellationSchedule;
+		deleteTrialFeedbackEmailSchedule: DeleteTrialFeedbackEmailSchedule;
 		createTrialReminderSchedule: CreateTrialReminderSchedule;
 		deleteTrialReminderSchedule: DeleteTrialReminderSchedule;
 		createChargeReminderSchedule: CreateChargeReminderSchedule;
 	};
 	createSubscriptionOnExistingCustomer: CreateSubscriptionOnExistingCustomer;
+	findSubscriptionNextCharge: FindSubscriptionNextCharge;
 	reverseScheduledCancellation: ReverseScheduledCancellation;
 	paymentMethods: {
 		listCards: ListCards;
@@ -755,8 +766,17 @@ export function createApp(dependencies: AppDependencies): Express {
 	// holds this path client-side; the /queue collection still advertises it via the
 	// add-links-help rel so older installed clients resolve the help URL from there.
 	// Either way the copy ships via a hutch deploy rather than an App Store review.
+	//
+	// The app sheet appends ?shell=app, which earns the same chromeless "← Back to
+	// queue" deep link the account page renders — so both surfaces the sheet hosts
+	// return to the native list identically. A browser visitor (no marker) keeps the
+	// bare page, and an older store build that never sends the marker keeps the
+	// native toolbar it already ships.
 	app.get("/help/add-links", (req: Request, res: Response) => {
-		sendComponent(req, res, HelpAddLinksPage());
+		const backLink = isAppShell(req)
+			? { href: APP_BACK_LINK.topHref, label: APP_BACK_LINK.label }
+			: undefined;
+		sendComponent(req, res, HelpAddLinksPage({ staticBaseUrl, backLink }));
 	});
 
 	// Path-uniqued article fixture for staging e2e tests. The :id segment is
@@ -887,13 +907,7 @@ export function createApp(dependencies: AppDependencies): Express {
 			upsertActive: deps.subscriptionProviders.upsertActive,
 			upsertTrialing: deps.subscriptionProviders.upsertTrialing,
 		},
-		trialScheduler: {
-			createTrialEndSchedule: deps.trialScheduler.createTrialEndSchedule,
-			deleteTrialEndSchedule: deps.trialScheduler.deleteTrialEndSchedule,
-			createTrialReminderSchedule: deps.trialScheduler.createTrialReminderSchedule,
-			deleteTrialReminderSchedule: deps.trialScheduler.deleteTrialReminderSchedule,
-			createChargeReminderSchedule: deps.trialScheduler.createChargeReminderSchedule,
-		},
+		trialScheduler: deps.trialScheduler,
 		baseUrl: deps.baseUrl,
 		staticBaseUrl,
 		secureCookies,
@@ -931,8 +945,7 @@ export function createApp(dependencies: AppDependencies): Express {
 			markEmailVerified: deps.markEmailVerified,
 			exchangeGoogleCode: deps.googleAuth.exchangeGoogleCode,
 			upsertTrialing: deps.subscriptionProviders.upsertTrialing,
-			createTrialEndSchedule: deps.trialScheduler.createTrialEndSchedule,
-			createTrialReminderSchedule: deps.trialScheduler.createTrialReminderSchedule,
+			trialScheduler: deps.trialScheduler,
 			sendEmail: deps.sendEmail,
 			logError: deps.logError,
 			now: deps.now,
@@ -957,8 +970,7 @@ export function createApp(dependencies: AppDependencies): Express {
 		markEmailVerified: deps.markEmailVerified,
 		exchangeAppleCode: deps.appleAuth.exchangeAppleCode,
 		upsertTrialing: deps.subscriptionProviders.upsertTrialing,
-		createTrialEndSchedule: deps.trialScheduler.createTrialEndSchedule,
-		createTrialReminderSchedule: deps.trialScheduler.createTrialReminderSchedule,
+		trialScheduler: deps.trialScheduler,
 		sendEmail: deps.sendEmail,
 		logError: deps.logError,
 		now: deps.now,
@@ -994,6 +1006,7 @@ export function createApp(dependencies: AppDependencies): Express {
 		findArticleById: deps.findArticleById,
 		findArticleByUrl: deps.findArticleByUrl,
 		findArticleFreshness: deps.findArticleFreshness,
+		findArticleCrawlVersions: deps.findArticleCrawlVersions,
 		findArticleUrlById: deps.findArticleUrlById,
 		saveArticle: deps.saveArticle,
 		deleteArticle: deps.deleteArticle,
@@ -1023,6 +1036,7 @@ export function createApp(dependencies: AppDependencies): Express {
 		requireWriteAccess,
 		getEffectiveAccess,
 		buildBannerState,
+		getChangelogBanner: deps.getChangelogBanner,
 		logError: deps.logError,
 		logParseError: deps.logParseError,
 		analytics: deps.analytics,
@@ -1073,6 +1087,7 @@ export function createApp(dependencies: AppDependencies): Express {
 		appOrigin,
 		findArticleByUrl: deps.findArticleByUrl,
 		findArticleFreshness: deps.findArticleFreshness,
+		findArticleCrawlVersions: deps.findArticleCrawlVersions,
 		readArticleContent: deps.readArticleContent,
 		findGeneratedSummary: deps.findGeneratedSummary,
 		markSummaryPending: deps.markSummaryPending,
@@ -1096,6 +1111,7 @@ export function createApp(dependencies: AppDependencies): Express {
 		appOrigin,
 		findArticleByUrl: deps.findArticleByUrl,
 		findArticleFreshness: deps.findArticleFreshness,
+		findArticleCrawlVersions: deps.findArticleCrawlVersions,
 		readArticleContent: deps.readArticleContent,
 		findGeneratedSummary: deps.findGeneratedSummary,
 		findArticleCrawlStatus: deps.findArticleCrawlStatus,
@@ -1109,6 +1125,19 @@ export function createApp(dependencies: AppDependencies): Express {
 		buildBannerState,
 	});
 	app.use("/admin/recrawl", adminRecrawlRouter);
+
+	const adminExtendTrialRouter = initAdminExtendTrialRoutes({
+		findUserByEmail: deps.findUserByEmail,
+		findSubscriptionByUserId: deps.subscriptionProviders.findByUserId,
+		upsertTrialing: deps.subscriptionProviders.upsertTrialing,
+		trialScheduler: deps.trialScheduler,
+		adminEmails: deps.adminEmails,
+		serviceToken: deps.recrawlServiceToken,
+		logError: deps.logError,
+		now: deps.now,
+		buildBannerState,
+	});
+	app.use("/admin/extend-trial", adminExtendTrialRouter);
 
 	const exportRouter = initExportRoutes({
 		publishExportUserDataCommand: deps.publishExportUserDataCommand,
@@ -1133,6 +1162,8 @@ export function createApp(dependencies: AppDependencies): Express {
 		publishSubscriptionReactivated: deps.publishSubscriptionReactivated,
 		createCheckoutSession: deps.createCheckoutSession,
 		createSubscriptionOnExistingCustomer: deps.createSubscriptionOnExistingCustomer,
+		findSubscriptionNextCharge: deps.findSubscriptionNextCharge,
+		setSubscriptionNextCharge: deps.subscriptionProviders.setNextCharge,
 		reverseScheduledCancellation: deps.reverseScheduledCancellation,
 		listCards: deps.paymentMethods.listCards,
 		beginAddCard: deps.paymentMethods.beginAddCard,
@@ -1140,8 +1171,7 @@ export function createApp(dependencies: AppDependencies): Express {
 		removeCard: deps.paymentMethods.removeCard,
 		setPrimaryCard: deps.paymentMethods.setPrimaryCard,
 		stripePublishableKey: deps.stripePublishableKey,
-		createTrialEndSchedule: deps.trialScheduler.createTrialEndSchedule,
-		createTrialReminderSchedule: deps.trialScheduler.createTrialReminderSchedule,
+		trialScheduler: deps.trialScheduler,
 		createChargeReminderSchedule: deps.trialScheduler.createChargeReminderSchedule,
 		deleteDeferredCancellationSchedule:
 			deps.trialScheduler.deleteDeferredCancellationSchedule,

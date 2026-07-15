@@ -9,8 +9,8 @@ import XCTest
 final class WebDialogTests: XCTestCase {
 	func testConfirmMapsToACancelAndADestructiveOK() {
 		// window.confirm() keeps the browser's two-button semantics; the affirmative
-		// choice is destructive-styled because hx-confirm gates irreversible actions
-		// (the account page's delete).
+		// choice is destructive-styled because a page only reaches for a confirm to
+		// gate something it can't take back.
 		let dialog = WebDialog.confirm(message: "Delete your account? This cannot be undone.")
 		XCTAssertEqual(dialog.message, "Delete your account? This cannot be undone.")
 		XCTAssertEqual(dialog.choices, [

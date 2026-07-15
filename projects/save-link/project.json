@@ -17,6 +17,12 @@
       "options": { "cwd": "{projectRoot}" },
       "dependsOn": ["compile"],
       "cache": false
+    },
+    "compute-image-tags": {
+      "command": "pnpm compute-image-tags",
+      "options": { "cwd": "{projectRoot}" },
+      "dependsOn": ["compile"],
+      "cache": false
     }
   }
 }

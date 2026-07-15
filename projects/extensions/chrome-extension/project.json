@@ -27,6 +27,8 @@
         "default",
         "^production",
         { "projects": ["hutch"], "input": "production" },
+        { "dependentTasksOutputFiles": "**/dist/**/!(.tsbuildinfo)", "transitive": true },
+        { "env": "CLAUDE_CODE_REMOTE" },
         { "runtime": "cat /opt/cft/binary-path /opt/cft/driver-path 2>/dev/null; true" }
       ]
     }

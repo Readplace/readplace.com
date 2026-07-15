@@ -80,15 +80,26 @@ struct ReadingListView: View {
 							Task { await viewModel.readerStatusChanged() }
 							viewModel.readerPresentation = nil
 						},
-						onClose: { viewModel.readerPresentation = nil }
+						onClose: { viewModel.readerPresentation = nil },
+						// The account is gone, so the server-side revoke `logout()` performs
+						// would only 401: drop the local credentials instead. The dismissal
+						// probe above may still fire and is idempotent — it 401s on the dead
+						// session and funnels into this same sign-out.
+						onLogout: {
+							viewModel.readerPresentation = nil
+							session.forceLogout()
+						}
 					)
 					.ignoresSafeArea()
 				}
 				.sheet(isPresented: $showingAddInstructions) {
+					// Edge-to-edge like the reader/account sheet: the help page is now
+					// chromeless and renders its own back link, so it owns the full sheet.
 					AddLinkInstructionsView(
 						helpURL: viewModel.addLinksHelpURL,
 						onClose: { showingAddInstructions = false }
 					)
+					.ignoresSafeArea()
 				}
 				.confirmationDialog(
 					pendingDestructive?.affordance.label ?? "Are you sure?",

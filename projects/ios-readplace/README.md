@@ -122,10 +122,14 @@ That produces `build/Readplace-unsigned.ipa` (the app + its share extension).
   ignoring (deduping) any the server also advertises. It opens a sheet whose
   `WKWebView` renders the server's help page at a client-held path
   (`AppConfig.addLinksHelpPath`), so the instructions ship via a hutch deploy
-  rather than an App Store release. A **Back to Queue** button
-  dismisses it. There is no in-app paste box; capturing a page is the Share
-  Extension's job, and the server's `save-article` URL-only action is reached only
-  through that Share flow, never the toolbar.
+  rather than an App Store release. The sheet is chromeless like the reader and
+  account: it carries the `?shell=app` marker, so the page renders its own
+  **← Back to queue** deep link, which the webview intercepts to dismiss — all
+  three in-app sheets return to the list identically, instead of this one wearing
+  a native nav bar. If the page can't load, a native fallback still teaches Share
+  and carries its own back button. There is no in-app paste box; capturing a page
+  is the Share Extension's job, and the server's `save-article` URL-only action is
+  reached only through that Share flow, never the toolbar.
 
 It speaks `application/vnd.siren+json`, sends `Authorization: Bearer <token>` on
 every request, and refreshes the token once on a `401` — the same contract the

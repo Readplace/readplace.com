@@ -26,6 +26,7 @@ import type {
 	CreateSession,
 	CreateSubscriptionOnExistingCustomer,
 	CreateTrialEndSchedule,
+	CreateTrialFeedbackEmailSchedule,
 	CreateTrialReminderSchedule,
 	CreateUser,
 	CreateUserWithPasswordHash,
@@ -35,6 +36,7 @@ import type {
 	DeleteChargeReminderSchedule,
 	DeleteDeferredCancellationSchedule,
 	DeleteTrialEndSchedule,
+	DeleteTrialFeedbackEmailSchedule,
 	DeleteTrialReminderSchedule,
 	DestroySession,
 	DestroyUserSessions,
@@ -45,6 +47,7 @@ import type {
 	FindArticleById,
 	FindArticleByUrl,
 	FindArticleCrawlStatus,
+	FindArticleCrawlVersions,
 	FindArticleFreshness,
 	FindAppleRefreshTokenByUserId,
 	FindArticleUrlById,
@@ -53,6 +56,7 @@ import type {
 	FindGeneratedSummary,
 	FindSubscriptionBySubscriptionId,
 	FindSubscriptionByUserId,
+	FindSubscriptionNextCharge,
 	FindUserArticleNotificationState,
 	FindUserArticlesByUrl,
 	FindUserByEmail,
@@ -111,6 +115,8 @@ import type {
 	SaveArticle,
 	SaveArticleGlobally,
 	ScheduleCancellationAtPeriodEnd,
+	SetSubscriptionNextCharge,
+	SubscriptionNextCharge,
 	SendEmail,
 	StorePendingSignup,
 	SubscriptionRecord,
@@ -179,6 +185,7 @@ export interface SubscriptionProvidersBundle {
 	markPendingCancellation: MarkSubscriptionPendingCancellation;
 	markCancelledByUserId: MarkSubscriptionCancelledByUserId;
 	markActive: MarkSubscriptionActive;
+	setNextCharge: SetSubscriptionNextCharge;
 	seedRow: (row: SubscriptionRecord) => void;
 }
 
@@ -187,6 +194,10 @@ export interface TrialSchedulerBundle {
 	deleteTrialEndSchedule: DeleteTrialEndSchedule;
 	createDeferredCancellationSchedule: CreateDeferredCancellationSchedule;
 	deleteDeferredCancellationSchedule: DeleteDeferredCancellationSchedule;
+	createTrialFeedbackEmailSchedule: CreateTrialFeedbackEmailSchedule;
+	deleteTrialFeedbackEmailSchedule: DeleteTrialFeedbackEmailSchedule;
+	getTrialFeedbackEmailSchedule: (userId: UserId) => string | undefined;
+	trialFeedbackEmailDeleteCalls: () => readonly UserId[];
 	createTrialReminderSchedule: CreateTrialReminderSchedule;
 	deleteTrialReminderSchedule: DeleteTrialReminderSchedule;
 	getSchedule: (userId: UserId) => string | undefined;
@@ -224,6 +235,7 @@ export interface PaymentMethodsBundle {
 
 export interface SubscriptionBillingBundle {
 	createSubscriptionOnExistingCustomer: CreateSubscriptionOnExistingCustomer;
+	findSubscriptionNextCharge: FindSubscriptionNextCharge;
 	scheduleCancellationAtPeriodEnd: ScheduleCancellationAtPeriodEnd;
 	reverseScheduledCancellation: ReverseScheduledCancellation;
 	createdSubscriptions: () => readonly {
@@ -234,6 +246,9 @@ export interface SubscriptionBillingBundle {
 	}[];
 	scheduledCancellations: () => readonly { subscriptionId: string; cancellationEffectiveAt: string }[];
 	reversedCancellations: () => readonly string[];
+	seedNextCharge: (input: { subscriptionId: string; nextCharge: SubscriptionNextCharge }) => void;
+	failNextChargeLookup: () => void;
+	nextChargeLookups: () => readonly string[];
 }
 
 export interface ArticleStoreBundle {
@@ -242,6 +257,7 @@ export interface ArticleStoreBundle {
 	findArticleByUrl: FindArticleByUrl;
 	findArticleUrlById: FindArticleUrlById;
 	findArticleFreshness: FindArticleFreshness;
+	findArticleCrawlVersions: FindArticleCrawlVersions;
 	findArticlesByUser: FindArticlesByUser;
 	countArticlesByUser: CountArticlesByUser;
 	saveArticle: SaveArticle;
@@ -269,6 +285,7 @@ export interface ArticleStoreBundle {
 	}) => Promise<void>;
 	setContentSourceTier: (params: { url: string; tier: "tier-0" | "tier-1" }) => Promise<void>;
 	setContentFetchedAt: (params: { url: string; at: string }) => Promise<void>;
+	setCrawlVersions: (params: { url: string; versions: string[] }) => Promise<void>;
 }
 
 export interface ArticleCrawlBundle {

@@ -9,12 +9,13 @@ import type {
 	MarkSubscriptionPendingCancellation,
 	MarkTrialFeedbackEmailSent,
 	MarkTrialReminderEmailSent,
+	SetSubscriptionNextCharge,
 	UpsertActiveSubscription,
 	UpsertTrialingSubscription,
 } from "@packages/provider-contracts/subscription-providers";
 import { SubscriptionProviderRow } from "@packages/subscription-access";
 
-/** The write half of the subscription table — the eight mutations, wired
+/** The write half of the subscription table — the nine mutations, wired
  * independently from the read half. The save gate composes write access from
  * the read half alone, so no save path ever depends on a mutation. */
 export function initDynamoDbSubscriptionWrites(deps: {
@@ -29,6 +30,7 @@ export function initDynamoDbSubscriptionWrites(deps: {
 	markActive: MarkSubscriptionActive;
 	markTrialFeedbackEmailSent: MarkTrialFeedbackEmailSent;
 	markTrialReminderEmailSent: MarkTrialReminderEmailSent;
+	setNextCharge: SetSubscriptionNextCharge;
 	deleteSubscription: DeleteSubscription;
 } {
 	const table = defineDynamoTable({
@@ -37,12 +39,15 @@ export function initDynamoDbSubscriptionWrites(deps: {
 		schema: SubscriptionProviderRow,
 	});
 
+	/* The email markers are scoped to one trial window: the reminder and feedback
+	 * senders no-op when they are set, so a re-opened window would go out silent
+	 * unless opening it clears them. */
 	const upsertTrialing: UpsertTrialingSubscription = async ({ userId, trialEndsAt }) => {
 		const nowIso = deps.now().toISOString();
 		await table.update({
 			Key: { userId },
 			UpdateExpression:
-				"SET #provider = :provider, #status = :status, trialEndsAt = :trialEndsAt, createdAt = if_not_exists(createdAt, :now), updatedAt = :now REMOVE subscriptionId, customerId, cancellationEffectiveAt",
+				"SET #provider = :provider, #status = :status, trialEndsAt = :trialEndsAt, createdAt = if_not_exists(createdAt, :now), updatedAt = :now REMOVE subscriptionId, customerId, cancellationEffectiveAt, trialReminderEmailSentAt, trialFeedbackEmailSentAt, nextCharge",
 			ExpressionAttributeNames: {
 				"#provider": "provider",
 				"#status": "status",
@@ -61,7 +66,7 @@ export function initDynamoDbSubscriptionWrites(deps: {
 		await table.update({
 			Key: { userId },
 			UpdateExpression:
-				"SET #provider = :provider, #status = :status, subscriptionId = :subscriptionId, customerId = :customerId, createdAt = if_not_exists(createdAt, :now), updatedAt = :now REMOVE trialEndsAt, cancellationEffectiveAt",
+				"SET #provider = :provider, #status = :status, subscriptionId = :subscriptionId, customerId = :customerId, createdAt = if_not_exists(createdAt, :now), updatedAt = :now REMOVE trialEndsAt, cancellationEffectiveAt, nextCharge",
 			ExpressionAttributeNames: {
 				"#provider": "provider",
 				"#status": "status",
@@ -80,7 +85,7 @@ export function initDynamoDbSubscriptionWrites(deps: {
 		await table.update({
 			Key: { userId },
 			UpdateExpression:
-				"SET #status = :status, cancellationEffectiveAt = :effectiveAt, updatedAt = :now",
+				"SET #status = :status, cancellationEffectiveAt = :effectiveAt, updatedAt = :now REMOVE nextCharge",
 			ConditionExpression: "attribute_exists(userId)",
 			ExpressionAttributeNames: { "#status": "status" },
 			ExpressionAttributeValues: {
@@ -95,7 +100,7 @@ export function initDynamoDbSubscriptionWrites(deps: {
 		await table.update({
 			Key: { userId },
 			UpdateExpression:
-				"SET #status = :cancelled, updatedAt = :now REMOVE trialEndsAt, cancellationEffectiveAt",
+				"SET #status = :cancelled, updatedAt = :now REMOVE trialEndsAt, cancellationEffectiveAt, nextCharge",
 			ConditionExpression: "attribute_exists(userId)",
 			ExpressionAttributeNames: { "#status": "status" },
 			ExpressionAttributeValues: {
@@ -142,6 +147,33 @@ export function initDynamoDbSubscriptionWrites(deps: {
 		});
 	};
 
+	const setNextCharge: SetSubscriptionNextCharge = async ({
+		userId,
+		subscriptionId,
+		nextCharge,
+	}) => {
+		await table.update({
+			Key: { userId },
+			UpdateExpression: "SET nextCharge = :nextCharge, updatedAt = :now",
+			/* An UpdateItem SET creates the row when the key is absent, so a render that
+			 * outlives an account deletion would resurrect a partial row with no status
+			 * and fail every later read. The charge was also read from the provider
+			 * before this write, so a cancellation or a resubscribe can land in between —
+			 * pinning the status and the subscription it was read from makes those a
+			 * rejected write rather than a charge attached to a subscription that no
+			 * longer exists. */
+			ConditionExpression:
+				"attribute_exists(userId) AND #status = :active AND subscriptionId = :subscriptionId",
+			ExpressionAttributeNames: { "#status": "status" },
+			ExpressionAttributeValues: {
+				":nextCharge": nextCharge,
+				":active": "active",
+				":subscriptionId": subscriptionId,
+				":now": deps.now().toISOString(),
+			},
+		});
+	};
+
 	const deleteSubscription: DeleteSubscription = async ({ userId }) => {
 		await table.delete({ Key: { userId } });
 	};
@@ -154,6 +186,7 @@ export function initDynamoDbSubscriptionWrites(deps: {
 		markActive,
 		markTrialFeedbackEmailSent,
 		markTrialReminderEmailSent,
+		setNextCharge,
 		deleteSubscription,
 	};
 }

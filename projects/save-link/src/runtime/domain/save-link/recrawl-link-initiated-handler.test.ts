@@ -88,6 +88,7 @@ describe("initRecrawlLinkInitiatedHandler", () => {
 		expect(publishEvent).toHaveBeenCalledTimes(1);
 		expect(publishEvent).toHaveBeenCalledWith(RecrawlContentExtractedEvent, {
 			url: "https://example.com/article",
+			extractedAt: "2026-04-30T12:00:00.000Z",
 		});
 	});
 

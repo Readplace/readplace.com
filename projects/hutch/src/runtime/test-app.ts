@@ -140,6 +140,7 @@ function flattenFixtureToAppDependencies(
 		findArticleById: fixture.articleStore.findArticleById,
 		findArticleByUrl: fixture.articleStore.findArticleByUrl,
 		findArticleFreshness: fixture.articleStore.findArticleFreshness,
+		findArticleCrawlVersions: fixture.articleStore.findArticleCrawlVersions,
 		findArticleUrlById: fixture.articleStore.findArticleUrlById,
 		findArticlesByUser: fixture.articleStore.findArticlesByUser,
 		countArticlesByUser: fixture.articleStore.countArticlesByUser,
@@ -210,18 +211,23 @@ function flattenFixtureToAppDependencies(
 			upsertTrialing: fixture.subscriptionProviders.upsertTrialing,
 			findByUserId: fixture.subscriptionProviders.findByUserId,
 			markActive: fixture.subscriptionProviders.markActive,
+			setNextCharge: fixture.subscriptionProviders.setNextCharge,
 		},
 		trialScheduler: {
 			createTrialEndSchedule: fixture.trialScheduler.createTrialEndSchedule,
 			deleteTrialEndSchedule: fixture.trialScheduler.deleteTrialEndSchedule,
 			deleteDeferredCancellationSchedule:
 				fixture.trialScheduler.deleteDeferredCancellationSchedule,
+			deleteTrialFeedbackEmailSchedule:
+				fixture.trialScheduler.deleteTrialFeedbackEmailSchedule,
 			createTrialReminderSchedule: fixture.trialScheduler.createTrialReminderSchedule,
 			deleteTrialReminderSchedule: fixture.trialScheduler.deleteTrialReminderSchedule,
 			createChargeReminderSchedule: fixture.trialScheduler.createChargeReminderSchedule,
 		},
 		createSubscriptionOnExistingCustomer:
 			fixture.subscriptionBilling.createSubscriptionOnExistingCustomer,
+		findSubscriptionNextCharge:
+			fixture.subscriptionBilling.findSubscriptionNextCharge,
 		reverseScheduledCancellation:
 			fixture.subscriptionBilling.reverseScheduledCancellation,
 		paymentMethods: {
@@ -301,6 +307,9 @@ export function createTestApp(
 
 export interface TestAppHarness extends TestAppResult, RunningServer {}
 
-export function useTestServer(): (fixture: TestAppFixture) => TestAppHarness {
-	return useServerForFixture(createTestApp);
+export function useTestServer(overrides?: {
+	getChangelogBanner?: GetChangelogBanner;
+	getSessionUserId?: GetSessionUserId;
+}): (fixture: TestAppFixture) => TestAppHarness {
+	return useServerForFixture((fixture) => createTestApp(fixture, overrides));
 }

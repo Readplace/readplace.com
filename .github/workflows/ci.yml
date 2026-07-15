@@ -61,13 +61,12 @@ jobs:
   # Only detect and deploy on pushes to main (not on PRs)
   detect-projects:
     if: github.ref == 'refs/heads/main' && github.event_name == 'push'
-    # Self-hosted: the nx cache makes the dependency compile a hit instead of 77s
-    # cold, and OrbStack's persistent buildkit layer cache makes save-link's
-    # in-loop OCR image build reuse layers instead of rebuilding from scratch. No
-    # fork fallback like web-tests needs — the `if:` above already restricts this
-    # to main pushes, so only trusted (merged) code ever runs here. Requires the
-    # runner image to ship docker+buildx+aws and the compose to mount the docker
-    # socket (see .github/runner/gha-runner/).
+    # Self-hosted for the nx cache: the dependency compile is a hit instead of 77s
+    # cold. save-link's check-infra computes the OCR image tag with --tag-only (no
+    # docker); the real build+push happens in deploy-infra on a github-hosted
+    # runner, so this runner ships no docker and mounts no docker socket. No fork
+    # fallback like web-tests needs — the `if:` above already restricts this to
+    # main pushes, so only trusted (merged) code ever runs here.
     runs-on: [self-hosted, orbstack]
     environment: staging
     env:
@@ -199,10 +198,14 @@ jobs:
           echo "Final deploy list: $PROJECTS"
           echo "Non-platform: $NON_PLATFORM"
 
-          # Extension publish gates only fire when the compile target is affected,
-          # so test-only changes in dependencies (e.g. hutch *.test.ts) don't bump
-          # the Web Store / AMO version. compile inputs use `^production`, which
-          # excludes test files via the namedInputs in nx.json.
+          # Extension publish gates fire on compile-affected, which does NOT consult
+          # compile's ^production inputs -- it is project-graph reachability plus the
+          # workspace-global files in nx.json namedInputs.sharedGlobals (.envrc, the
+          # Pulumi stack configs, *.config.base.*, pnpm-workspace.yaml), which nx
+          # treats as an implicit dependency of EVERY project. So a commit touching
+          # only one of those cuts a Chrome Web Store / AMO release containing no
+          # extension change. That is accepted: republishing an unchanged extension is
+          # harmless, and hashing those files is what keeps a cached green honest.
           COMPILE_AFFECTED=$(pnpm nx show projects --affected --target=compile --json)
 
           # Set outputs for downstream jobs to use in their `if:` conditions

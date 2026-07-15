@@ -40,6 +40,7 @@ function buildSubject() {
 	const trialScheduler = initInMemoryTrialScheduler();
 	const handler = initScheduleTrialFeedbackEmailHandler({
 		createTrialFeedbackEmailSchedule: trialScheduler.createTrialFeedbackEmailSchedule,
+		deleteTrialFeedbackEmailSchedule: trialScheduler.deleteTrialFeedbackEmailSchedule,
 		now: () => NOW,
 		logger: HutchLogger.from(noopLogger),
 	});
@@ -63,6 +64,31 @@ describe("schedule-trial-feedback-email handler", () => {
 			buildLambdaContext(),
 			() => {},
 		);
+
+		assert(result);
+		assert.equal(result.batchItemFailures.length, 0);
+		assert.deepEqual(subject.trialScheduler.allTrialFeedbackEmailSchedules(), [
+			{ userId: USER_ID, firesAt: EXPECTED_FIRES_AT },
+		]);
+	});
+
+	it("survives a re-delivered cancellation event instead of conflicting on the schedule name", async () => {
+		const subject = buildSubject();
+		const event = buildSqsEvent([
+			{
+				messageId: "msg-trial",
+				body: buildEventBridgeBody({
+					userId: USER_ID,
+					reason: "user_initiated_trial",
+				}),
+			},
+		]);
+
+		await subject.handler(event, buildLambdaContext(), () => {});
+		// SubscriptionCancelledEvent is at-least-once and has two publishers, so the
+		// same event really does arrive twice. CreateSchedule rejects an existing
+		// name, so without a delete-first this second delivery would DLQ.
+		const result = await subject.handler(event, buildLambdaContext(), () => {});
 
 		assert(result);
 		assert.equal(result.batchItemFailures.length, 0);
@@ -189,6 +215,8 @@ describe("schedule-trial-feedback-email handler", () => {
 		const handler = initScheduleTrialFeedbackEmailHandler({
 			createTrialFeedbackEmailSchedule:
 				trialScheduler.createTrialFeedbackEmailSchedule,
+			deleteTrialFeedbackEmailSchedule:
+				trialScheduler.deleteTrialFeedbackEmailSchedule,
 			now: () => NOW,
 			logger: HutchLogger.from(noopLogger),
 		});

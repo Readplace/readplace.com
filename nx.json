@@ -16,7 +16,10 @@
     "sharedGlobals": [
       "{workspaceRoot}/*.config.base.*",
       "{workspaceRoot}/jest.setup.base.js",
-      "{workspaceRoot}/pnpm-workspace.yaml"
+      "{workspaceRoot}/pnpm-workspace.yaml",
+      "{workspaceRoot}/.envrc",
+      "{workspaceRoot}/projects/hutch/Pulumi.prod.yaml",
+      "{workspaceRoot}/projects/save-link/Pulumi.prod.yaml"
     ],
     "production": [
       "default",
@@ -28,14 +31,20 @@
     "test": {
       "inputs": [
         "default",
-        "^production"
+        "^production",
+        {
+          "env": "CLAUDE_CODE_REMOTE"
+        }
       ],
       "cache": true
     },
     "test-with-coverage": {
       "inputs": [
         "default",
-        "^production"
+        "^production",
+        {
+          "env": "CLAUDE_CODE_REMOTE"
+        }
       ],
       "outputs": [
         "{projectRoot}/coverage"
@@ -57,14 +66,18 @@
     },
     "lint": {
       "inputs": [
-        "default"
+        "default",
+        "^production"
       ],
       "cache": true
     },
     "check": {
       "inputs": [
         "default",
-        "^production"
+        "^production",
+        {
+          "env": "CLAUDE_CODE_REMOTE"
+        }
       ],
       "dependsOn": [
         "compile",

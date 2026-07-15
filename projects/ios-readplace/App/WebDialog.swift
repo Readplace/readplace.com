@@ -2,12 +2,12 @@ import UIKit
 
 /// The native dialog a page's JS dialog call maps to. WKWebView suppresses
 /// `window.confirm()`/`window.alert()` unless the host implements
-/// `WKUIDelegate` — and the account page's "Delete account" form is gated by
-/// htmx's `hx-confirm`, which calls `window.confirm()`, so a suppressed dialog
-/// silently answers false and the button does nothing in-app. Pure and
-/// `Equatable` so the panel-kind → dialog mapping is unit-tested without a web
-/// view, like `ReaderNavigation` before it; the `UIAlertController` glue that
-/// presents it is `presentWebDialog` in `ReaderWebView.swift` (OS boundary).
+/// `WKUIDelegate`, so a suppressed dialog silently answers false and whatever it
+/// gated does nothing in-app — the app hosts the server's pages, so it must
+/// answer the dialogs those pages raise. Pure and `Equatable` so the panel-kind →
+/// dialog mapping is unit-tested without a web view, like `ReaderNavigation`
+/// before it; the `UIAlertController` glue that presents it is `presentWebDialog`
+/// in `ReaderWebView.swift` (OS boundary).
 struct WebDialog: Equatable {
 	/// One tappable choice, carrying the boolean it answers the page's
 	/// `confirm()` with. An alert's single OK carries one too — the alert
@@ -27,10 +27,10 @@ struct WebDialog: Equatable {
 	let unpresentedAnswer: Bool
 
 	/// `window.confirm()`: Cancel/OK, matching the browser's two-button
-	/// semantics. The affirmative choice renders destructive because the server
-	/// uses `hx-confirm` to gate irreversible actions (the account page's
-	/// delete): over-warning a benign confirm is safer than under-warning a
-	/// destructive one, and the message itself is the page's to write.
+	/// semantics. The affirmative choice renders destructive because a page only
+	/// reaches for a confirm to gate something it can't take back: over-warning a
+	/// benign confirm is safer than under-warning a destructive one, and the
+	/// message itself is the page's to write.
 	static func confirm(message: String) -> WebDialog {
 		WebDialog(
 			message: message,

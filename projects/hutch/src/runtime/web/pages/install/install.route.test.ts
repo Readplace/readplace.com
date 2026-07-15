@@ -63,7 +63,7 @@ describe("GET /install", () => {
 		const tabs = Array.from(doc.querySelectorAll("[data-test-tab]")).map(
 			(el) => el.getAttribute("data-test-tab"),
 		);
-		expect(tabs).toEqual(["firefox", "chrome", "iphone", "claude", "chatgpt"]);
+		expect(tabs).toEqual(["firefox", "chrome", "iphone", "chatgpt", "gemini", "claude"]);
 	});
 
 	it("should split tabs into a Browsers & Devices group and an AI Assistants group", async () => {
@@ -88,7 +88,7 @@ describe("GET /install", () => {
 		const aiTabs = Array.from(ai.querySelectorAll("[data-test-tab]")).map(
 			(el) => el.getAttribute("data-test-tab"),
 		);
-		expect(aiTabs).toEqual(["claude", "chatgpt"]);
+		expect(aiTabs).toEqual(["chatgpt", "gemini", "claude"]);
 	});
 
 	it("should render the group labels visibly", async () => {
@@ -417,6 +417,25 @@ describe("GET /install", () => {
 		).toBe("Connect to readplace.com so you can save pages to and read my reading list.");
 	});
 
+	it("should show the Gemini CLI command on the Gemini AI panel", async () => {
+		const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
+		const response = await request(harness.server).get("/install?client=gemini");
+		const doc = load(response.text);
+
+		const geminiTab = doc.querySelector('[data-test-tab="gemini"]');
+		expect(geminiTab?.classList.contains("install-page__tab--active")).toBe(true);
+
+		expect(doc.querySelector('[data-test-panel="ai"] .install-page__panel-title')?.textContent).toBe(
+			"Connect Readplace to Gemini",
+		);
+		expect(
+			doc.querySelector('[data-test-section="ai-prompt"] .install-page__prompt-label')?.textContent,
+		).toBe("Run this once");
+		expect(
+			doc.querySelector('[data-test-section="ai-prompt"] .install-page__prompt-text')?.textContent,
+		).toBe("gemini mcp add --transport http readplace https://readplace.com/mcp");
+	});
+
 	it("should land client=ai on the Claude tab as a convenience alias", async () => {
 		const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
 		const response = await request(harness.server).get("/install?client=ai");
@@ -441,9 +460,9 @@ describe("GET /install", () => {
 
 		const images = shots.map((shot) => shot.querySelector("img"));
 		expect(images.map((img) => img?.getAttribute("src"))).toEqual([
-			"https://static.test/screenshots/save-from-extension.png",
-			"https://static.test/screenshots/queue.png",
-			"https://static.test/screenshots/reader-tldr.png",
+			"https://static.test/screenshots/save-from-extension.webp",
+			"https://static.test/screenshots/queue.webp",
+			"https://static.test/screenshots/reader-tldr.webp",
 		]);
 		for (const img of images) {
 			assert(img, "each screenshot figure must contain an image");
@@ -476,13 +495,16 @@ describe("GET /install", () => {
 		const doc = load(response.text);
 
 		const shots = Array.from(doc.querySelectorAll("[data-test-screenshot]"));
-		expect(shots).toHaveLength(3);
+		expect(shots).toHaveLength(6);
 		expect(
 			shots.map((shot) => shot.querySelector("img")?.getAttribute("src")),
 		).toEqual([
-			"https://static.test/screenshots/ios-share-sheet.png",
-			"https://static.test/screenshots/ios-reading-list.png",
-			"https://static.test/screenshots/ios-reader.png",
+			"https://static.test/screenshots/ios-share-sheet.webp",
+			"https://static.test/screenshots/ios-reading-list.webp",
+			"https://static.test/screenshots/ios-reader.webp",
+			"https://static.test/screenshots/ios-share-more.webp",
+			"https://static.test/screenshots/ios-share-favourite.webp",
+			"https://static.test/screenshots/ios-share-pinned.webp",
 		]);
 		for (const shot of shots) {
 			expect(shot.classList.contains("install-page__screenshot--tall")).toBe(true);
@@ -492,7 +514,7 @@ describe("GET /install", () => {
 	it("should not render screenshots on AI panels", async () => {
 		const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
 
-		for (const client of ["claude", "chatgpt"]) {
+		for (const client of ["chatgpt", "gemini", "claude"]) {
 			const response = await request(harness.server).get(`/install?client=${client}`);
 			const doc = load(response.text);
 			expect(doc.querySelectorAll("[data-test-screenshot]")).toHaveLength(0);

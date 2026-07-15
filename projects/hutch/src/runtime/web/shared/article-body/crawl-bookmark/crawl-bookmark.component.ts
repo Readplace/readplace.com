@@ -12,24 +12,36 @@ export const CRAWL_BOOKMARK_SCRIPT = `<script src="/client-dist/crawl-bookmark.c
 
 interface CrawlBookmarkTab {
 	key: string;
-	state: "selected";
-	prefix: string;
+	state: "current" | "disabled";
 	iso: string;
 	mode: LocalTimeMode;
 	label: string;
+	badgeLabel: "current" | "";
+	ariaDisabled: "true" | "false";
 }
 
-export function renderCrawlBookmark(input: { lastCrawledAt?: LocalTime }): string {
-	if (!input.lastCrawledAt) return "";
-	const tabs: CrawlBookmarkTab[] = [
-		{
-			key: "canonical",
-			state: "selected",
-			prefix: "Last crawled at",
-			iso: input.lastCrawledAt.iso,
-			mode: input.lastCrawledAt.mode,
-			label: input.lastCrawledAt.label,
-		},
-	];
+export function renderCrawlBookmark(input: { versions: LocalTime[] }): string {
+	if (input.versions.length === 0) return "";
+	const tabs: CrawlBookmarkTab[] = input.versions.map((version, index) =>
+		index === 0
+			? {
+					key: "canonical",
+					state: "current",
+					iso: version.iso,
+					mode: version.mode,
+					label: version.label,
+					badgeLabel: "current",
+					ariaDisabled: "false",
+				}
+			: {
+					key: version.iso,
+					state: "disabled",
+					iso: version.iso,
+					mode: version.mode,
+					label: version.label,
+					badgeLabel: "",
+					ariaDisabled: "true",
+				},
+	);
 	return render(CRAWL_BOOKMARK_TEMPLATE, { tabs });
 }

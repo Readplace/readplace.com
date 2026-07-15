@@ -7,6 +7,8 @@ import { RefreshContentExtractedEvent } from "@packages/hutch-infra-components";
 import type { HutchLogger } from "@packages/hutch-logger";
 import type { Handler, SQSBatchItemFailure, SQSBatchResponse, SQSEvent } from "aws-lambda";
 import type { FindContentSourceTier } from "../../providers/article-store/find-content-source-tier";
+import type { FindCanonicalContentHash } from "../../providers/article-store/find-canonical-content-hash";
+import type { RecordCrawlVersion } from "../../providers/article-store/record-crawl-version";
 import type { ListAvailableTierSources } from "./list-available-tier-sources";
 import type { WriteCanonicalContent } from "../../providers/article-store/promote-tier-to-canonical";
 import { computeCanonicalContentHash } from "../../providers/article-store/compute-canonical-content-hash";
@@ -24,6 +26,8 @@ export function initRefreshContentExtractedHandler(deps: {
 	selectMostCompleteContent: SelectMostCompleteContent;
 	writeCanonicalContent: WriteCanonicalContent;
 	findContentSourceTier: FindContentSourceTier;
+	findCanonicalContentHash: FindCanonicalContentHash;
+	recordCrawlVersion: RecordCrawlVersion;
 	transitionAndPersist: TransitionAndPersist;
 	now: () => Date;
 	logger: HutchLogger;
@@ -33,6 +37,8 @@ export function initRefreshContentExtractedHandler(deps: {
 		selectMostCompleteContent,
 		writeCanonicalContent,
 		findContentSourceTier,
+		findCanonicalContentHash,
+		recordCrawlVersion,
 		transitionAndPersist,
 		now,
 		logger,
@@ -96,8 +102,16 @@ export function initRefreshContentExtractedHandler(deps: {
 				const canonicalContentHash = computeCanonicalContentHash(winnerSource.html);
 
 				const existingTier = await findContentSourceTier(detail.url);
-				if (existingTier !== winnerTier) {
+				const previousHash = await findCanonicalContentHash(detail.url);
+				const contentChanged =
+					previousHash === undefined || previousHash !== canonicalContentHash;
+				if (existingTier !== winnerTier || contentChanged) {
 					await writeCanonicalContent({ url: detail.url, tier: winnerTier });
+					await recordCrawlVersion({
+						url: detail.url,
+						tier: winnerTier,
+						crawledAt: detail.contentFetchedAt,
+					});
 				}
 
 				await transitionAndPersist(refreshContent, {

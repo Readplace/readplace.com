@@ -15,14 +15,11 @@ import type {
 import type { SendEmail } from "@packages/provider-contracts/email";
 import type { ExchangeAppleCode } from "@packages/provider-contracts/apple-auth";
 import type { UpsertTrialingSubscription } from "@packages/provider-contracts/subscription-providers";
-import type {
-	CreateTrialEndSchedule,
-	CreateTrialReminderSchedule,
-} from "@packages/provider-contracts/trial-scheduler";
 import {
-	STRIPE_TRIAL_PERIOD_DAYS,
-	trialReminderFiresAt,
-} from "../../domain/stripe/stripe-trial-config";
+	type TrialSchedulerPort,
+	startTrial,
+	trialEndsAtFromNow,
+} from "../../domain/trial/start-trial";
 import type { FoundingAllocation } from "../shared/founding-progress/founding-allocation";
 import { initSendWelcomeEmail } from "./send-welcome-email";
 import { Base } from "../base.component";
@@ -80,8 +77,7 @@ interface AppleAuthDependencies {
 	markEmailVerified: MarkEmailVerified;
 	exchangeAppleCode: ExchangeAppleCode;
 	upsertTrialing: UpsertTrialingSubscription;
-	createTrialEndSchedule: CreateTrialEndSchedule;
-	createTrialReminderSchedule: CreateTrialReminderSchedule;
+	trialScheduler: TrialSchedulerPort;
 	sendEmail: SendEmail;
 	logError: (message: string, error?: Error) => void;
 	now: () => Date;
@@ -312,32 +308,15 @@ export const initAppleAuthRoutes = (deps: AppleAuthDependencies): Router => {
 			return;
 		}
 
-		const trialEndsAt = new Date(
-			deps.now().getTime() + STRIPE_TRIAL_PERIOD_DAYS * 86_400_000,
-		).toISOString();
-		await deps.upsertTrialing({ userId: created.userId, trialEndsAt });
-		try {
-			await deps.createTrialEndSchedule({
-				userId: created.userId,
-				firesAt: trialEndsAt,
-			});
-		} catch (err) {
-			deps.logError(
-				"[Apple Auth] Trial-end schedule creation failed — continuing without schedule",
-				err instanceof Error ? err : new Error(String(err)),
-			);
-		}
-		try {
-			await deps.createTrialReminderSchedule({
-				userId: created.userId,
-				firesAt: trialReminderFiresAt(trialEndsAt),
-			});
-		} catch (err) {
-			deps.logError(
-				"[Apple Auth] Trial-reminder schedule creation failed — continuing without schedule",
-				err instanceof Error ? err : new Error(String(err)),
-			);
-		}
+		await startTrial({
+			mode: "signup",
+			userId: created.userId,
+			trialEndsAt: trialEndsAtFromNow(deps.now()),
+			now: deps.now(),
+			upsertTrialing: deps.upsertTrialing,
+			trialScheduler: deps.trialScheduler,
+			logError: deps.logError,
+		});
 
 		const sessionId = await deps.createSession({ userId: created.userId, emailVerified: true });
 		res.cookie(SESSION_COOKIE_NAME, sessionId, sessionCookieOptions);

@@ -308,7 +308,7 @@ export function HomePage(params: HomePageParams): PageBody {
 				{
 					name: "Connect Your AI Assistant",
 					description:
-						"Readplace runs an MCP server, so Claude, ChatGPT, Perplexity, and other AI assistants can save links to your queue and read your list back — right inside the conversation. One OAuth login and your assistant does the rest.",
+						"Readplace runs an MCP server, so ChatGPT, Gemini, Claude, Perplexity, and other AI assistants can save links to your queue and read your list back — right inside the conversation. One OAuth login and your assistant does the rest.",
 					linkHref: "/mcp",
 					linkLabel: "How to connect",
 				},

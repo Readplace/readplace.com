@@ -9,33 +9,17 @@
 		</p>
 	</header>
 
-	<nav class="inbox-email-detail__tabs" data-test-inbox-tabs>
+	<nav class="inbox-email-detail__tabs" aria-label="Email views" data-test-inbox-tabs>
 		{{#each tabs}}
-		<span
+		<a
 			class="inbox-email-detail__tab"
+			href="{{href}}"
 			data-test-inbox-tab="{{key}}"
 			{{#if ariaCurrent}}aria-current="{{ariaCurrent}}"{{/if}}
-			>{{label}}</span
+			>{{label}}</a
 		>
 		{{/each}}
 	</nav>
 
-	<section class="inbox-email-detail__panel" data-test-tab-panel="view">
-		{{#if canRenderBody}}
-		<iframe
-			class="inbox-email-detail__iframe"
-			data-test-inbox-email-iframe
-			sandbox="allow-popups allow-popups-to-escape-sandbox"
-			srcdoc="{{viewSrcdoc}}"
-			loading="eager"
-			title="Email content"
-		></iframe>
-		{{else}}
-		<div class="inbox-email-detail__unavailable" data-test-inbox-email-unavailable>
-			<p>{{unavailableMessage}}</p>
-		</div>
-		{{/if}}
-	</section>
-
-	{{{articlesPanelHtml}}}
+	{{{panelHtml}}}
 </main>

@@ -1,0 +1,86 @@
+<main class="admin-extend-trial" data-test-admin-extend-trial>
+  <h1>Extend a trial</h1>
+  <p class="admin-extend-trial__intro">
+    Re-opens a trial window for a user: sets the row to <code>trialing</code>, re-arms the
+    trial-end and reminder schedules, and clears the sent-email markers. Re-submitting simply
+    overrides whatever is there.
+  </p>
+
+  {{#if extended}}
+  <p class="admin-extend-trial__notice" role="status" data-test-extend-trial-extended>
+    Trial extended. The state below is re-read from the database.
+  </p>
+  {{/if}}
+
+  {{#if globalError}}
+  <p class="admin-extend-trial__error" role="alert" data-test-global-error>{{globalError}}</p>
+  {{/if}}
+
+  <form class="admin-extend-trial__lookup" method="GET" action="/admin/extend-trial" data-test-extend-trial-lookup-form>
+    <label for="extend-trial-email">User email (exact)</label>
+    <input
+      id="extend-trial-email"
+      type="email"
+      name="email"
+      value="{{email}}"
+      required
+      autocomplete="off"
+      placeholder="user@example.com"
+      data-test-extend-trial-email>
+    <button type="submit" data-test-extend-trial-lookup>Look up</button>
+    {{#if emailError}}
+    <p class="admin-extend-trial__error" data-test-error="email">{{emailError}}</p>
+    {{/if}}
+  </form>
+
+  {{#if notFound}}
+  <p class="admin-extend-trial__error" role="alert" data-test-extend-trial-not-found>
+    No account with that email.
+  </p>
+  {{/if}}
+
+  {{#if refused}}
+  <section class="admin-extend-trial__panel admin-extend-trial__panel--refused" data-test-extend-trial-refused>
+    <h2>Refused</h2>
+    <dl class="admin-extend-trial__facts">
+      <dt>Current status</dt>
+      <dd data-test-extend-trial-status>{{status}}</dd>
+    </dl>
+    <p class="admin-extend-trial__error" role="alert" data-test-extend-trial-refusal>{{refusalMessage}}</p>
+  </section>
+  {{/if}}
+
+  {{#if ready}}
+  <section class="admin-extend-trial__panel" data-test-extend-trial-panel>
+    <h2>{{email}}</h2>
+    <dl class="admin-extend-trial__facts">
+      <dt>Current status</dt>
+      <dd data-test-extend-trial-status>{{status}}</dd>
+      <dt>Current trial ends at</dt>
+      <dd data-test-extend-trial-current>
+        {{#if hasCurrentTrialEndsAt}}{{currentTrialEndsAt}}{{else}}— none —{{/if}}
+      </dd>
+    </dl>
+
+    <form
+      class="admin-extend-trial__extend"
+      method="POST"
+      action="/admin/extend-trial"
+      data-test-extend-trial-form>
+      <input type="hidden" name="email" value="{{email}}">
+      <label for="extend-trial-ends-at">New trial end (UTC)</label>
+      <input
+        id="extend-trial-ends-at"
+        type="datetime-local"
+        name="trialEndsAt"
+        value="{{trialEndsAtInput}}"
+        required
+        data-test-extend-trial-date>
+      {{#if trialEndsAtError}}
+      <p class="admin-extend-trial__error" data-test-error="trialEndsAt">{{trialEndsAtError}}</p>
+      {{/if}}
+      <button type="submit" data-test-extend-trial-submit>Extend trial</button>
+    </form>
+  </section>
+  {{/if}}
+</main>

@@ -9,6 +9,14 @@
  *   2. copyAssetFiles copies non-TS assets from src/ → .lib/<name>/
  *   3. docker buildx build with HANDLER_DIR=.lib/<name> + push to ECR
  *
+ * With `--tag-only` it stops after computing the content-addressed tags and
+ * writing ocr-image-tags.json — no docker login, build, or push. `check-infra`
+ * (drift detection) runs it this way: `pulumi preview` diffs only the imageUri
+ * STRING, and the tag is a hash of the bundle + Dockerfile + curl-impersonate
+ * version, so it is identical whether or not the image is built. The real
+ * build+push stays in `deploy-infra`, which runs on a github-hosted runner. This
+ * is what lets the self-hosted runner ship with no docker and no docker socket.
+ *
  * All handlers share the same base image (poppler-utils for pdftoppm + pdfinfo).
  * Image tag: <contentHash>-<name>, where contentHash covers the whole handler
  * output dir (bundle + copied assets, incl. the runtime-loaded prompt files),
@@ -126,12 +134,16 @@ function buildAndPushImage(handler, repositoryUrl, tag, gitSha) {
 	return imageUri;
 }
 
-async function main() {
-	const gitSha = run("git", ["rev-parse", "--short=12", "HEAD"]);
-	const repositoryUrl = resolveRepositoryUrl();
-	console.log(`[build-image] git=${gitSha} repo=${repositoryUrl}`);
+const TAG_ONLY = process.argv.includes("--tag-only");
 
-	loginToEcr(repositoryUrl);
+async function main() {
+	const repositoryUrl = resolveRepositoryUrl();
+	// The forensic gitsha tag and the ECR login are only needed for an actual
+	// build+push; --tag-only skips both (no docker involved).
+	const gitSha = TAG_ONLY ? null : run("git", ["rev-parse", "--short=12", "HEAD"]);
+	console.log(`[build-image] ${TAG_ONLY ? "tag-only " : ""}git=${gitSha ?? "-"} repo=${repositoryUrl}`);
+
+	if (!TAG_ONLY) loginToEcr(repositoryUrl);
 
 	console.log(`[build-image] bundling ${HANDLERS.length} handlers in parallel`);
 	await Promise.all(HANDLERS.map((handler) => bundleHandler(handler)));
@@ -155,7 +167,11 @@ async function main() {
 			dockerfileContents,
 			curlImpersonateVersion: CURL_IMPERSONATE_VERSION,
 		});
-		tags[handler.name] = buildAndPushImage(handler, repositoryUrl, tag, gitSha);
+		// buildAndPushImage returns exactly `${repositoryUrl}:${tag}`, so the
+		// tag-only path writes the identical imageUri Pulumi would otherwise diff.
+		tags[handler.name] = TAG_ONLY
+			? `${repositoryUrl}:${tag}`
+			: buildAndPushImage(handler, repositoryUrl, tag, gitSha);
 	}
 
 	const tagsFile = resolve(PROJECT_ROOT, ".lib", "ocr-image-tags.json");

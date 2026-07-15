@@ -1,17 +1,38 @@
 import { decomposeTimeLeft } from "@packages/time-left";
 import { escapeRegExp } from "@packages/escape-regexp";
 import type { SavedCard } from "@packages/provider-contracts/payment-methods";
+import type { SubscriptionNextCharge } from "@packages/provider-contracts/subscription-billing";
 import type { EffectiveAccess } from "@packages/subscription-access";
-import { type LocalTime, SUBSCRIBE_CTA_LABEL, toAbsoluteDate, withInternalTracking } from "@packages/web-shell";
+import {
+	type LocalTime,
+	SUBSCRIBE_CTA_LABEL,
+	parsePollParam,
+	toAbsoluteDate,
+	withInternalTracking,
+} from "@packages/web-shell";
+import {
+	APP_SHELL_QUERY,
+	APP_SHELL_VALUE,
+	IOS_CLIENT_VALUE,
+	IOS_PLATFORM_QUERY,
+} from "../../onboarding/ios-client";
 import {
 	ACCOUNT_CANCEL_URL,
 	ACCOUNT_CARDS_NEW_URL,
 	ACCOUNT_DELETE_URL,
 	ACCOUNT_REACTIVATE_URL,
 	ACCOUNT_SUBSCRIBE_URL,
+	buildAccountStatusPollUrl,
 	buildCardPrimaryUrl,
 	buildCardRemoveUrl,
 } from "./account.url";
+import {
+	HIDDEN_NEXT_CHARGE,
+	type NextChargeViewModel,
+	buildNextChargeViewModel,
+} from "./next-charge.view-model";
+
+export const ACCOUNT_CANCEL_MAX_POLLS = 20;
 
 /** Server-authoritative card cap. The web layer never trusts the client: every
  * add/remove/promote re-reads the live card set and re-checks these rules. */
@@ -37,12 +58,15 @@ export type AccountActionKey = "subscribe" | "cancel-form" | "reactivate-form" |
 
 export type AccountActionVariant = "primary" | "secondary" | "destructive";
 
+export type AccountPollState = "polling" | "idle";
+
 export interface AccountAction {
 	key: AccountActionKey;
 	name: string;
 	variant: AccountActionVariant;
 	method: "POST";
 	href: string;
+	isPending: boolean;
 }
 
 export interface DangerConfirmationViewModel {
@@ -64,7 +88,13 @@ export interface AccountViewModel {
 	statusLine: string;
 	statusDate?: LocalTime;
 	statusDateTail?: string;
+	/** Only the active state overrides this; every other state keeps the hidden value
+	 * from `baseFor`, so a state cannot start announcing a charge by accident. */
+	nextCharge: NextChargeViewModel;
 	showCancellingNotice: boolean;
+	cancellingNotice: string;
+	pollState: AccountPollState;
+	pollUrl?: string;
 	stateIsErrorPaymentMethod: boolean;
 	actions: AccountAction[];
 	/** The irreversible "delete account" control. Kept out of the state-dependent
@@ -93,6 +123,7 @@ export type CardError =
 
 export interface AccountUrlState {
 	cancelling: boolean;
+	pollCount: number;
 	errorPaymentMethod: boolean;
 	deleteConfirmationError: boolean;
 	cardError: CardError | undefined;
@@ -110,15 +141,17 @@ function parseCardError(error: unknown): CardError | undefined {
 export function parseAccountQuery(query: Record<string, unknown> | undefined): AccountUrlState {
 	return {
 		cancelling: query?.cancelling === "1",
+		pollCount: parsePollParam(query?.poll, ACCOUNT_CANCEL_MAX_POLLS),
 		errorPaymentMethod: query?.error === "payment_method",
 		deleteConfirmationError: query?.error === "delete_confirmation",
 		cardError: parseCardError(query?.error),
 	};
 }
 
-function action(input: AccountAction): AccountAction {
+function action(input: Omit<AccountAction, "isPending">): AccountAction {
 	return {
 		...input,
+		isPending: false,
 		href: withInternalTracking(input.href, { source: "account", content: input.key }),
 	};
 }
@@ -138,6 +171,12 @@ const CANCEL_FORM_ACTION = action({
 	method: "POST",
 	href: ACCOUNT_CANCEL_URL,
 });
+
+const CANCEL_PENDING_ACTION: AccountAction = {
+	...CANCEL_FORM_ACTION,
+	name: "Cancelling…",
+	isPending: true,
+};
 
 const REACTIVATE_FORM_ACTION = action({
 	key: "reactivate-form",
@@ -315,21 +354,20 @@ export function buildCardSectionViewModel(input: CardSectionInput): CardSectionV
 	};
 }
 
-function baseFor(state: AccountCardState, actions: AccountAction[]): {
-	state: AccountCardState;
-	stateClass: string;
-	heading: string;
-	showCancellingNotice: false;
-	stateIsErrorPaymentMethod: false;
-	actions: AccountAction[];
-	dangerAction: AccountAction;
-	showCardSection: true;
-} {
+type AccountCardBase = Omit<
+	AccountViewModel,
+	"dangerConfirmation" | "statusLine" | "statusDate" | "statusDateTail"
+>;
+
+function baseFor(state: AccountCardState, actions: AccountAction[]): AccountCardBase {
 	return {
 		state,
 		stateClass: `account-card account-card--${state}`,
 		heading: "Account",
+		nextCharge: HIDDEN_NEXT_CHARGE,
 		showCancellingNotice: false,
+		cancellingNotice: "",
+		pollState: "idle",
 		stateIsErrorPaymentMethod: false,
 		actions,
 		dangerAction: DELETE_ACCOUNT_ACTION,
@@ -341,9 +379,10 @@ export function toAccountViewModel(
 	access: EffectiveAccess,
 	queryState: AccountUrlState,
 	now: Date,
+	nextCharge?: SubscriptionNextCharge,
 ): AccountViewModel {
 	return {
-		...stateViewModel(access, queryState, now),
+		...stateViewModel(access, queryState, now, nextCharge),
 		dangerConfirmation: {
 			phrase: DELETE_ACCOUNT_CONFIRMATION_PHRASE,
 			pattern: DELETE_CONFIRMATION_PATTERN,
@@ -355,10 +394,26 @@ export function toAccountViewModel(
 	};
 }
 
+const CANCELLING_NOTICE = "Cancellation in progress.";
+const CANCELLING_STALLED_NOTICE = "Cancellation is taking longer than usual. Refresh to check.";
+
+function cancellingViewModel(queryState: AccountUrlState): AccountCardBase & { statusLine: string } {
+	const canPoll = queryState.pollCount < ACCOUNT_CANCEL_MAX_POLLS;
+	return {
+		...baseFor("active", [CANCEL_PENDING_ACTION]),
+		statusLine: "Subscription: Active.",
+		showCancellingNotice: true,
+		cancellingNotice: canPoll ? CANCELLING_NOTICE : CANCELLING_STALLED_NOTICE,
+		pollState: canPoll ? "polling" : "idle",
+		pollUrl: canPoll ? buildAccountStatusPollUrl(queryState.pollCount + 1) : undefined,
+	};
+}
+
 function stateViewModel(
 	access: EffectiveAccess,
 	queryState: AccountUrlState,
 	now: Date,
+	nextCharge: SubscriptionNextCharge | undefined,
 ): Omit<AccountViewModel, "dangerConfirmation"> {
 	// Payment-method error takes priority over every underlying state — the user
 	// just bounced off Stripe's create-subscription endpoint.
@@ -378,14 +433,11 @@ function stateViewModel(
 					statusLine: "You're a founding member — free for life.",
 				};
 			}
+			if (queryState.cancelling) return cancellingViewModel(queryState);
 			return {
-				/** Hide the Cancel button while a cancellation is in flight: the
-				 * command has already been published and clicking again would
-				 * just enqueue a duplicate. The "Cancellation in progress"
-				 * notice tells the user what's happening. */
-				...baseFor("active", queryState.cancelling ? [] : [CANCEL_FORM_ACTION]),
+				...baseFor("active", [CANCEL_FORM_ACTION]),
 				statusLine: "Subscription: Active.",
-				showCancellingNotice: queryState.cancelling,
+				nextCharge: buildNextChargeViewModel({ nextCharge, now }),
 			};
 		case "trial-countdown": {
 			const trialEndsAt = access.trialEndsAt;
@@ -416,10 +468,15 @@ function stateViewModel(
  * 2606 so it can never resolve, and only `pathname`/`search` are read back. */
 const IOS_HREF_PARSE_ORIGIN = "https://internal.invalid";
 
-function carryIosPlatform(action: AccountAction): AccountAction {
-	const url = new URL(action.href, IOS_HREF_PARSE_ORIGIN);
-	url.searchParams.set("platform", "ios");
-	return { ...action, href: `${url.pathname}${url.search}` };
+function carryAppSurfaceHref(href: string, options: { appShell: boolean }): string {
+	const url = new URL(href, IOS_HREF_PARSE_ORIGIN);
+	url.searchParams.set(IOS_PLATFORM_QUERY, IOS_CLIENT_VALUE);
+	if (options.appShell) url.searchParams.set(APP_SHELL_QUERY, APP_SHELL_VALUE);
+	return `${url.pathname}${url.search}`;
+}
+
+function carryAppSurface(action: AccountAction, options: { appShell: boolean }): AccountAction {
+	return { ...action, href: carryAppSurfaceHref(action.href, options) };
 }
 
 /** Rewrites the account view model for the iOS app's in-app web surface: strips
@@ -428,18 +485,29 @@ function carryIosPlatform(action: AccountAction): AccountAction {
  * 3.1.1. Kept: the subscription status line, the cancel control, and the
  * delete-account danger zone (Apple requires in-app account deletion; cancelling
  * buys nothing). Every surviving control — the cancel control and the
- * delete-account danger action — carries `?platform=ios` on its href so a POST
- * lands on e.g. /account/cancel?platform=ios (or /account/delete?platform=ios) and
- * its post-redirect GET re-renders this same surface — the WKWebView form post
- * sends no client header, so a server-rejected delete confirmation stays
- * commerce-free instead of bouncing to the web surface. */
-export function withoutCommerce(vm: AccountViewModel): AccountViewModel {
+ * delete-account danger action — carries the request's own surface markers on its
+ * href so a POST lands on e.g. /account/cancel?platform=ios (or
+ * /account/delete?platform=ios&shell=app) and its post-redirect GET re-renders this
+ * same surface — the WKWebView form post sends no client header, so a
+ * server-rejected delete confirmation stays commerce-free (and, in the app shell,
+ * chromeless) instead of bouncing to the web surface. Commerce-stripping itself is
+ * keyed on the iOS surface, not the app shell: a store build predating the shell
+ * marker must keep satisfying Guideline 3.1.1. */
+export function withoutCommerce(
+	vm: AccountViewModel,
+	options: { appShell: boolean },
+): AccountViewModel {
 	return {
 		...vm,
 		actions: vm.actions
 			.filter((a) => a.key !== "subscribe" && a.key !== "reactivate-form")
-			.map(carryIosPlatform),
-		dangerAction: carryIosPlatform(vm.dangerAction),
+			.map((a) => carryAppSurface(a, options)),
+		dangerAction: carryAppSurface(vm.dangerAction, options),
+		pollUrl: vm.pollUrl === undefined ? undefined : carryAppSurfaceHref(vm.pollUrl, options),
+		/** Naming a price is the part of this page Guideline 3.1.1 objects to, so the
+		 * renewal line is stripped here rather than relying on the route happening not
+		 * to load one. */
+		nextCharge: HIDDEN_NEXT_CHARGE,
 		showCardSection: false,
 	};
 }

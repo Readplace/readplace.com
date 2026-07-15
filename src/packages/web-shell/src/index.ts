@@ -67,7 +67,11 @@ export type { NavProps } from "./nav.component";
 export { initBase } from "./base.component";
 export type { BaseConfig, RenderBase, RenderSiteNav } from "./base.component";
 export { initChromelessPage } from "./chromeless-page";
-export type { ChromelessPageConfig, RenderChromelessPage } from "./chromeless-page";
+export type {
+	ChromelessBannerState,
+	ChromelessPageConfig,
+	RenderChromelessPage,
+} from "./chromeless-page";
 export { VERIFICATION_CONTACT_EMAIL } from "./shared/verify-banner/verify-banner.component";
 export { etagMatches } from "./etag";
 export { MAX_POLLS, parsePollParam } from "./poll-protocol";

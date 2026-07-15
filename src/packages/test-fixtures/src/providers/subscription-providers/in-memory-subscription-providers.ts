@@ -9,6 +9,7 @@ import type {
 	MarkSubscriptionPendingCancellation,
 	MarkTrialFeedbackEmailSent,
 	MarkTrialReminderEmailSent,
+	SetSubscriptionNextCharge,
 	SubscriptionRecord,
 	UpsertActiveSubscription,
 	UpsertTrialingSubscription,
@@ -26,6 +27,7 @@ export function initInMemorySubscriptionProviders(opts: {
 	markActive: MarkSubscriptionActive;
 	markTrialFeedbackEmailSent: MarkTrialFeedbackEmailSent;
 	markTrialReminderEmailSent: MarkTrialReminderEmailSent;
+	setNextCharge: SetSubscriptionNextCharge;
 	deleteSubscription: DeleteSubscription;
 	seedRow: (row: SubscriptionRecord) => void;
 } {
@@ -70,8 +72,9 @@ export function initInMemorySubscriptionProviders(opts: {
 	const markPendingCancellation: MarkSubscriptionPendingCancellation = async ({ userId, cancellationEffectiveAt }) => {
 		const existing = rows.get(userId);
 		assert(existing, `No subscription row for user ${userId}`);
+		const { nextCharge: _nc, ...rest } = existing;
 		rows.set(userId, {
-			...existing,
+			...rest,
 			status: "pending_cancellation",
 			cancellationEffectiveAt,
 			updatedAt: opts.now().toISOString(),
@@ -81,7 +84,7 @@ export function initInMemorySubscriptionProviders(opts: {
 	const markCancelledByUserId: MarkSubscriptionCancelledByUserId = async ({ userId }) => {
 		const existing = rows.get(userId);
 		assert(existing, `No subscription row for user ${userId}`);
-		const { trialEndsAt: _t, cancellationEffectiveAt: _ca, ...rest } = existing;
+		const { trialEndsAt: _t, cancellationEffectiveAt: _ca, nextCharge: _nc, ...rest } = existing;
 		rows.set(userId, {
 			...rest,
 			status: "cancelled",
@@ -126,6 +129,27 @@ export function initInMemorySubscriptionProviders(opts: {
 		});
 	};
 
+	/* Mirrors the condition the real table enforces — the row must still exist, still
+	 * be active, and still hold the subscription the charge was read from. Accepting
+	 * writes the production store would reject would let tests pass against a world
+	 * that cannot happen. */
+	const setNextCharge: SetSubscriptionNextCharge = async ({
+		userId,
+		subscriptionId,
+		nextCharge,
+	}) => {
+		const existing = rows.get(userId);
+		assert(
+			existing?.status === "active" && existing.subscriptionId === subscriptionId,
+			`No active subscription ${subscriptionId} for user ${userId}`,
+		);
+		rows.set(userId, {
+			...existing,
+			nextCharge,
+			updatedAt: opts.now().toISOString(),
+		});
+	};
+
 	const deleteSubscription: DeleteSubscription = async ({ userId }) => {
 		rows.delete(userId);
 	};
@@ -148,6 +172,7 @@ export function initInMemorySubscriptionProviders(opts: {
 		markActive,
 		markTrialFeedbackEmailSent,
 		markTrialReminderEmailSent,
+		setNextCharge,
 		deleteSubscription,
 		seedRow,
 	};

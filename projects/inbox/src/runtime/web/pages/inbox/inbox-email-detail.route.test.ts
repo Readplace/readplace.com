@@ -95,8 +95,19 @@ async function seedExtractionMeta(
 }
 
 const detailPath = `/inbox/${encodeURIComponent(SK)}?feature=email`;
+const articlesTabPath = `${detailPath}&tab=articles`;
 
-describe("Inbox email detail route", () => {
+function parseDoc(html: string) {
+	return new JSDOM(html).window.document;
+}
+
+function renderedPanels(doc: ReturnType<typeof parseDoc>): (string | null)[] {
+	return Array.from(doc.querySelectorAll("[data-test-tab-panel]")).map((panel) =>
+		panel.getAttribute("data-test-tab-panel"),
+	);
+}
+
+describe("Inbox email detail View tab", () => {
 	it("returns 404 without the email feature flag", async () => {
 		const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
 		const agent = await loginAgent(harness.server, harness.auth);
@@ -125,19 +136,18 @@ describe("Inbox email detail route", () => {
 		const response = await agent.get(detailPath);
 
 		expect(response.status).toBe(200);
-		const doc = new JSDOM(response.text).window.document;
+		const doc = parseDoc(response.text);
 
-		// Both tabs render; View is the active one. Extraction is async, so before
-		// its meta barrier lands the Articles panel shows the polling "looking for
-		// links" state — never a terminal "no links found".
 		const viewTab = doc.querySelector('[data-test-inbox-tab="view"]');
 		const articlesTab = doc.querySelector('[data-test-inbox-tab="articles"]');
 		assert(viewTab, "View tab must render");
 		assert(articlesTab, "Articles tab must render");
 		expect(viewTab.getAttribute("aria-current")).toBe("page");
 		expect(articlesTab.getAttribute("aria-current")).toBeNull();
-		expect(doc.querySelector("[data-test-articles-extracting]")).not.toBeNull();
-		expect(doc.querySelector("[data-test-articles-empty]")).toBeNull();
+		expect(articlesTab.getAttribute("href")).toBe(
+			`/inbox/${encodeURIComponent(SK)}?feature=email&tab=articles`,
+		);
+		expect(renderedPanels(doc)).toEqual(["view"]);
 
 		// The iframe sandbox is EXACTLY the safe set — no allow-scripts, no
 		// allow-same-origin — so the email document is inert and opaque.
@@ -169,6 +179,42 @@ describe("Inbox email detail route", () => {
 		expect(received.textContent).toBe("Jun 24, 2026, 09:00 UTC");
 	});
 
+	it("keeps the header link count on the View tab, where the cards are not rendered", async () => {
+		const fixture = createDefaultTestAppFixture(TEST_APP_ORIGIN);
+		fixture.inboxEmail.readEmailContent = async () => "<p>body</p>";
+		const harness = useApp(fixture);
+		const agent = await loginAgent(harness.server, harness.auth);
+		await seed(fixture, "received");
+		await seedLinks(fixture, [
+			{ ordinal: EmailLinkOrdinalSchema.parse("0000"), status: "crawled", title: "One" },
+			{ ordinal: EmailLinkOrdinalSchema.parse("0001"), status: "pending" },
+		]);
+
+		const response = await agent.get(detailPath);
+
+		const doc = parseDoc(response.text);
+		expect(doc.querySelector("[data-test-inbox-detail-link-count]")?.textContent).toBe("2 links");
+		expect(renderedPanels(doc)).toEqual(["view"]);
+		expect(doc.querySelectorAll("[data-test-inbox-article-card]")).toHaveLength(0);
+	});
+
+	it("falls back to the View tab for a tab that does not exist", async () => {
+		const fixture = createDefaultTestAppFixture(TEST_APP_ORIGIN);
+		fixture.inboxEmail.readEmailContent = async () => "<p>body</p>";
+		const harness = useApp(fixture);
+		const agent = await loginAgent(harness.server, harness.auth);
+		await seed(fixture, "received");
+
+		const response = await agent.get(`${detailPath}&tab=nope`);
+
+		expect(response.status).toBe(200);
+		const doc = parseDoc(response.text);
+		expect(renderedPanels(doc)).toEqual(["view"]);
+		expect(doc.querySelector('[data-test-inbox-tab="view"]')?.getAttribute("aria-current")).toBe(
+			"page",
+		);
+	});
+
 	it("renders a text-only received email's plain text in the View tab, not a blank frame", async () => {
 		const fixture = createDefaultTestAppFixture(TEST_APP_ORIGIN);
 		const parsed = await parseEmail({
@@ -197,7 +243,7 @@ describe("Inbox email detail route", () => {
 		const response = await agent.get(detailPath);
 
 		expect(response.status).toBe(200);
-		const doc = new JSDOM(response.text).window.document;
+		const doc = parseDoc(response.text);
 		const iframe = doc.querySelector("[data-test-inbox-email-iframe]");
 		assert(iframe, "a text-only received email must still render the View-tab iframe");
 		const srcdoc = iframe.getAttribute("srcdoc");
@@ -216,15 +262,30 @@ describe("Inbox email detail route", () => {
 		const response = await agent.get(detailPath);
 
 		expect(response.status).toBe(200);
-		const doc = new JSDOM(response.text).window.document;
+		const doc = parseDoc(response.text);
 		expect(doc.querySelector("[data-test-inbox-email-unavailable]")).not.toBeNull();
 		expect(doc.querySelector("[data-test-inbox-email-iframe]")).toBeNull();
-		expect(doc.querySelector("[data-test-articles-empty]")).not.toBeNull();
+		expect(renderedPanels(doc)).toEqual(["view"]);
+	});
+});
+
+describe("Inbox email detail Articles tab", () => {
+	it("returns 404 without the email feature flag", async () => {
+		const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
+		const agent = await loginAgent(harness.server, harness.auth);
+
+		const response = await agent.get(`/inbox/${encodeURIComponent(SK)}?tab=articles`);
+
+		expect(response.status).toBe(404);
 	});
 
-	it("renders one preview card per extracted link, with per-state markup", async () => {
+	it("renders one preview card per extracted link, with per-state markup and no email body", async () => {
 		const fixture = createDefaultTestAppFixture(TEST_APP_ORIGIN);
-		fixture.inboxEmail.readEmailContent = async () => "<p>body</p>";
+		let bodyReads = 0;
+		fixture.inboxEmail.readEmailContent = async () => {
+			bodyReads += 1;
+			return "<p>body</p>";
+		};
 		const harness = useApp(fixture);
 		const agent = await loginAgent(harness.server, harness.auth);
 		await seed(fixture, "received");
@@ -245,13 +306,12 @@ describe("Inbox email detail route", () => {
 			},
 		]);
 
-		const response = await agent.get(detailPath);
+		const response = await agent.get(articlesTabPath);
 
 		expect(response.status).toBe(200);
-		const doc = new JSDOM(response.text).window.document;
-		const cards = doc.querySelectorAll("[data-test-inbox-article-card]");
-		expect(cards).toHaveLength(3);
-		expect(doc.querySelector("[data-test-articles-empty]")).toBeNull();
+		const doc = parseDoc(response.text);
+		expect(renderedPanels(doc)).toEqual(["articles"]);
+		expect(doc.querySelectorAll("[data-test-inbox-article-card]")).toHaveLength(3);
 		expect(doc.querySelector("[data-test-inbox-detail-link-count]")?.textContent).toBe("3 links");
 		expect(doc.querySelector("[data-test-inbox-article-title]")?.textContent).toBe(
 			"Crawled headline",
@@ -262,15 +322,20 @@ describe("Inbox email detail route", () => {
 		expect(pendingCard.getAttribute("hx-get")).toContain("/links/0001/card");
 		expect(doc.querySelector("[data-test-inbox-article-failed]")).not.toBeNull();
 
-		// The View tab and its sandboxed iframe are unchanged by the Articles panel.
-		const iframe = doc.querySelector("[data-test-inbox-email-iframe]");
-		assert(iframe, "the View-tab iframe must still render");
-		expect(iframe.getAttribute("sandbox")).toBe("allow-popups allow-popups-to-escape-sandbox");
+		expect(bodyReads).toBe(0);
+		expect(doc.querySelector("[data-test-inbox-email-iframe]")).toBeNull();
+
+		const articlesTab = doc.querySelector('[data-test-inbox-tab="articles"]');
+		const viewTab = doc.querySelector('[data-test-inbox-tab="view"]');
+		assert(articlesTab, "Articles tab must render");
+		assert(viewTab, "View tab must render");
+		expect(articlesTab.getAttribute("aria-current")).toBe("page");
+		expect(viewTab.getAttribute("aria-current")).toBeNull();
+		expect(viewTab.getAttribute("href")).toBe(`/inbox/${encodeURIComponent(SK)}?feature=email`);
 	});
 
 	it("surfaces a truncated notice when the per-email link cap was hit", async () => {
 		const fixture = createDefaultTestAppFixture(TEST_APP_ORIGIN);
-		fixture.inboxEmail.readEmailContent = async () => "<p>body</p>";
 		const harness = useApp(fixture);
 		const agent = await loginAgent(harness.server, harness.auth);
 		await seed(fixture, "received");
@@ -278,22 +343,21 @@ describe("Inbox email detail route", () => {
 			truncated: true,
 		});
 
-		const response = await agent.get(detailPath);
+		const response = await agent.get(articlesTabPath);
 
-		const doc = new JSDOM(response.text).window.document;
+		const doc = parseDoc(response.text);
 		expect(doc.querySelector("[data-test-articles-truncated]")).not.toBeNull();
 	});
 
 	it("polls the Articles panel while extraction has not yet written its meta barrier", async () => {
 		const fixture = createDefaultTestAppFixture(TEST_APP_ORIGIN);
-		fixture.inboxEmail.readEmailContent = async () => "<p>body</p>";
 		const harness = useApp(fixture);
 		const agent = await loginAgent(harness.server, harness.auth);
 		await seed(fixture, "received");
 
-		const response = await agent.get(detailPath);
+		const response = await agent.get(articlesTabPath);
 
-		const doc = new JSDOM(response.text).window.document;
+		const doc = parseDoc(response.text);
 		const panel = doc.querySelector('[data-test-tab-panel="articles"]');
 		assert(panel, "the Articles panel must render");
 		expect(panel.getAttribute("data-articles-status")).toBe("extracting");
@@ -308,21 +372,37 @@ describe("Inbox email detail route", () => {
 
 	it("shows the terminal no-links state once extraction wrote its meta with zero links", async () => {
 		const fixture = createDefaultTestAppFixture(TEST_APP_ORIGIN);
-		fixture.inboxEmail.readEmailContent = async () => "<p>body</p>";
 		const harness = useApp(fixture);
 		const agent = await loginAgent(harness.server, harness.auth);
 		await seed(fixture, "received");
 		await seedExtractionMeta(fixture);
 
-		const response = await agent.get(detailPath);
+		const response = await agent.get(articlesTabPath);
 
-		const doc = new JSDOM(response.text).window.document;
+		const doc = parseDoc(response.text);
 		const panel = doc.querySelector('[data-test-tab-panel="articles"]');
 		assert(panel, "the Articles panel must render");
 		expect(panel.getAttribute("data-articles-status")).toBe("terminal");
 		expect(panel.getAttribute("hx-get")).toBeNull();
 		expect(doc.querySelector("[data-test-articles-empty]")).not.toBeNull();
 		expect(doc.querySelector("[data-test-articles-extracting]")).toBeNull();
+	});
+
+	it("is terminally empty for an unparsed email, which never runs extraction", async () => {
+		const fixture = createDefaultTestAppFixture(TEST_APP_ORIGIN);
+		const harness = useApp(fixture);
+		const agent = await loginAgent(harness.server, harness.auth);
+		await seed(fixture, "unparsed");
+
+		const response = await agent.get(articlesTabPath);
+
+		expect(response.status).toBe(200);
+		const doc = parseDoc(response.text);
+		expect(renderedPanels(doc)).toEqual(["articles"]);
+		const panel = doc.querySelector('[data-test-tab-panel="articles"]');
+		assert(panel, "the Articles panel must render");
+		expect(panel.getAttribute("data-articles-status")).toBe("terminal");
+		expect(doc.querySelector("[data-test-articles-empty]")).not.toBeNull();
 	});
 });
 

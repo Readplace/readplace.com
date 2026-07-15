@@ -71,7 +71,10 @@ export function initRecrawlLinkInitiatedHandler(deps: {
 					continue;
 				}
 
-				await publishEvent(RecrawlContentExtractedEvent, { url: detail.url });
+				await publishEvent(RecrawlContentExtractedEvent, {
+					url: detail.url,
+					extractedAt: deps.now().toISOString(),
+				});
 				logger.info("[RecrawlLinkInitiated] emitted RecrawlContentExtractedEvent", {
 					url: detail.url,
 				});

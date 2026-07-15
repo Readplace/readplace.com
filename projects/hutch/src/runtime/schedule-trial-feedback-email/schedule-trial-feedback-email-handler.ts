@@ -8,7 +8,10 @@ import { z } from "zod";
 import { UserIdSchema } from "@packages/domain/user";
 import { SubscriptionCancelledEvent } from "@packages/hutch-infra-components";
 import type { HutchLogger } from "@packages/hutch-logger";
-import type { CreateTrialFeedbackEmailSchedule } from "@packages/provider-contracts/trial-scheduler";
+import type {
+	CreateTrialFeedbackEmailSchedule,
+	DeleteTrialFeedbackEmailSchedule,
+} from "@packages/provider-contracts/trial-scheduler";
 
 /** Three days after the trial-cancel arrives. Long enough that the email
  * doesn't read as automated reaction to the cancel click, short enough that
@@ -23,6 +26,7 @@ const TRIAL_END_CANCEL_REASONS: ReadonlySet<string> = new Set([
 
 export function initScheduleTrialFeedbackEmailHandler(deps: {
 	createTrialFeedbackEmailSchedule: CreateTrialFeedbackEmailSchedule;
+	deleteTrialFeedbackEmailSchedule: DeleteTrialFeedbackEmailSchedule;
 	now: () => Date;
 	logger: HutchLogger;
 }): Handler<SQSEvent, SQSBatchResponse> {
@@ -48,6 +52,11 @@ export function initScheduleTrialFeedbackEmailHandler(deps: {
 				const firesAt = new Date(
 					deps.now().getTime() + TRIAL_FEEDBACK_EMAIL_DELAY_MS,
 				).toISOString();
+				/* SubscriptionCancelledEvent is at-least-once and has two publishers,
+				 * so this handler must tolerate a re-delivery. The schedule name is
+				 * deterministic but CreateSchedule rejects an existing name, so the
+				 * stale one is removed first (a no-op when there is none). */
+				await deps.deleteTrialFeedbackEmailSchedule({ userId });
 				await deps.createTrialFeedbackEmailSchedule({ userId, firesAt });
 				deps.logger.info(
 					"[schedule-trial-feedback-email] schedule created",

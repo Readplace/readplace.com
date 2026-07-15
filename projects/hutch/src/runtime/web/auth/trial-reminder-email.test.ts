@@ -62,6 +62,33 @@ describe("TrialReminderEmail", () => {
 			expect(text).not.toContain("stay readable either way");
 			expect(text).toContain("your account goes read-only.");
 		});
+
+		it("says what a subscription funds: the cloud bills, Readplace, and the blog", () => {
+			const text = TrialReminderEmail(baseParams).to("text/plain");
+			expect(text).toContain(
+				"There's no company behind Readplace — no investors, no team, just me.",
+			);
+			expect(text).toContain(
+				"A subscription covers the cloud bills and pays for the hours that go into building Readplace and writing the posts on the blog, which stay free to read.",
+			);
+		});
+
+		it("still says what a subscription funds when the user saved nothing", () => {
+			const text = TrialReminderEmail({ ...baseParams, savedArticlesCount: 0 }).to(
+				"text/plain",
+			);
+			expect(text).toContain("There's no company behind Readplace");
+		});
+
+		it("makes the funding paragraph precede the subscribe ask, keeping 'if it hasn't' next to its antecedent", () => {
+			const text = TrialReminderEmail(baseParams).to("text/plain");
+			const funding = text.indexOf("There's no company behind Readplace");
+			const earned = text.indexOf("If Readplace has earned a place");
+			const hasnt = text.indexOf("If it hasn't, no action needed");
+			expect(funding).toBeGreaterThanOrEqual(0);
+			expect(funding).toBeLessThan(earned);
+			expect(earned).toBeLessThan(hasnt);
+		});
 	});
 
 	describe("text/html body", () => {
@@ -93,6 +120,20 @@ describe("TrialReminderEmail", () => {
 				"text/html",
 			);
 			expect(html).not.toContain("stay readable either way");
+		});
+
+		it("renders the funding paragraph as its own <p>", () => {
+			const html = TrialReminderEmail(baseParams).to("text/html");
+			expect(html).toMatch(
+				/<p[^>]*>There's no company behind Readplace — no investors, no team, just me\. A subscription covers the cloud bills and pays for the hours that go into building Readplace and writing the posts on the blog, which stay free to read\.<\/p>/,
+			);
+		});
+
+		it("still renders the funding paragraph when the user saved nothing", () => {
+			const html = TrialReminderEmail({ ...baseParams, savedArticlesCount: 0 }).to(
+				"text/html",
+			);
+			expect(html).toContain("There's no company behind Readplace");
 		});
 	});
 });
