@@ -190,16 +190,18 @@ final class ReadplaceAPI {
 
 	// MARK: - Reader session
 
-	/// Mints a browser session from the current bearer token and returns every
-	/// cookie the response set. The in-app reader injects them so the
-	/// cookie-authenticated reader page (and its in-reader XHRs) load without
-	/// bouncing to a sign-in page. Follows the server-declared `action`'s href and
-	/// method when the collection advertised one (`create-session`), so the endpoint
-	/// can move without an app release; falls back to a fixed path only for a server
-	/// that hasn't advertised the action yet (an older shipped build must keep
-	/// working). The client never selects a cookie by name — it forwards whatever the
-	/// server set. Reuses `send()`, so a stale bearer is refreshed once before the
-	/// session is minted; a response that sets no cookie is a failed mint.
+	/// Mints a browser session from the current bearer token and returns the cookies
+	/// this mint added to or changed in the session jar — the freshly-set session id,
+	/// not the cookies an earlier request already left there (`sessionCookies` has the
+	/// exact rule). The in-app reader injects them so the cookie-authenticated reader
+	/// page (and its in-reader XHRs) load without bouncing to a sign-in page. Follows
+	/// the server-declared `action`'s href and method when the collection advertised one
+	/// (`create-session`), so the endpoint can move without an app release; falls back to
+	/// a fixed path only for a server that hasn't advertised the action yet (an older
+	/// shipped build must keep working). The client never selects a cookie by name — it
+	/// forwards whatever this exchange changed. Reuses `send()`, so a stale bearer is
+	/// refreshed once before the session is minted; a mint that changes no jar cookie and
+	/// sets no `Set-Cookie` header is a failed mint.
 	func bootstrapSession(action: SirenAction? = nil) async throws -> [HTTPCookie] {
 		let url: URL
 		let method: String
@@ -245,18 +247,24 @@ final class ReadplaceAPI {
 		}
 	}
 
-	/// Reads the cookies this bootstrap response set from the session's own cookie
-	/// jar, which the configuration isolates (an ephemeral store, not
-	/// `HTTPCookieStorage.shared`) so the cookies URLSession just parsed never touch
-	/// the process-wide jar. The cookie spec forbids folding repeated `Set-Cookie`
-	/// headers into one comma-joined value, so re-splitting `allHeaderFields` is
-	/// unsafe once a response sets more than one cookie; reading the already-parsed
-	/// cookies back from the store sidesteps that. But the store also holds any
-	/// cookie an earlier request left in the jar, so `prior` — the pre-request
-	/// snapshot — is excluded: returning only what this response set is what the doc
-	/// promises and what keeps the caller's no-cookie-means-failed-mint check honest.
-	/// Falls back to parsing the response's own `Set-Cookie` header for environments
-	/// that don't populate the store.
+	/// Returns the session jar's `prior`-to-now delta — the cookies this exchange added
+	/// or changed, keyed by `CookieIdentity` — read from the session's own cookie jar.
+	/// The configuration isolates that jar (an ephemeral store, not
+	/// `HTTPCookieStorage.shared`) so the cookies URLSession just parsed never touch the
+	/// process-wide jar. Reading the already-parsed cookies back from the store, rather
+	/// than re-splitting `allHeaderFields`, sidesteps a spec hazard: repeated `Set-Cookie`
+	/// headers must not be folded into one comma-joined value, so header re-splitting is
+	/// unsafe once a response sets more than one cookie. Excluding `prior` drops the
+	/// cookies an earlier request left in the jar — keeping the caller's
+	/// empty-means-failed-mint check honest, and deliberately dropping a signal the server
+	/// re-sets on every Siren response (e.g. `hutch_ext_alive`) with an unchanged value:
+	/// already in `prior` from the queue load that precedes a mint, re-set unchanged it
+	/// never enters the delta, and injecting it into the reader would fake
+	/// extension-installed onboarding from the app. The delta is why this is not literally
+	/// "every cookie the response set": a cookie re-set with an unchanged value is
+	/// recovered only by the `Set-Cookie` header fallback below, and only when the whole
+	/// delta is empty — which is also how environments that don't populate the store (a
+	/// stubbed `URLProtocol` under test) are served.
 	private func sessionCookies(
 		from response: HTTPURLResponse,
 		url: URL,
