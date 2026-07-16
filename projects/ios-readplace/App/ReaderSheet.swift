@@ -13,19 +13,13 @@ struct ReaderSheet: View {
 	let onLogout: () -> Void
 
 	@State private var bootstrap = ReaderBootstrap.loading
+	@State private var loadPhase: ReaderLoadPhase = .loading
 
 	var body: some View {
 		Group {
 			switch bootstrap {
 			case .ready(let cookies):
-				ReaderWebView(
-					url: presentation.readerURL,
-					cookies: cookies,
-					onMarkedRead: onMarkedRead,
-					onClose: onClose,
-					onLogout: onLogout,
-					externalBrowser: .system
-				)
+				reader(cookies: cookies)
 			case .unavailable:
 				ReaderUnavailableView(onClose: onClose)
 			case .loading:
@@ -38,12 +32,73 @@ struct ReaderSheet: View {
 			bootstrap = ReaderBootstrap(after: await mintSession())
 		}
 	}
+
+	/// The web view with its loading chrome layered over it: the skeleton keeps
+	/// covering the page from the tap through the real page load (not just the
+	/// session mint), lifting the moment content paints, while a thin progress bar
+	/// tracks the web view's actual `estimatedProgress`. The web view alone ignores
+	/// the safe area so the article paints edge-to-edge while the bar stays clear of
+	/// the status bar.
+	@ViewBuilder
+	private func reader(cookies: [HTTPCookie]) -> some View {
+		let overlay = ReaderLoad.overlay(for: loadPhase)
+		ZStack(alignment: .top) {
+			ReaderWebView(
+				url: presentation.readerURL,
+				cookies: cookies,
+				onMarkedRead: onMarkedRead,
+				onClose: onClose,
+				onLogout: onLogout,
+				externalBrowser: .system,
+				onLoadPhaseChange: { loadPhase = $0 }
+			)
+			.ignoresSafeArea()
+
+			if loadPhase == .failed {
+				ReaderUnavailableView(onClose: onClose)
+					.transition(.opacity)
+			}
+			if overlay.showsSkeleton {
+				ReaderSkeletonView()
+					.transition(.opacity)
+			}
+			if overlay.showsProgressBar {
+				ReaderLoadingBar(progress: overlay.progress)
+					.transition(.opacity)
+			}
+		}
+		.animation(.easeOut(duration: 0.3), value: overlay.showsSkeleton)
+		.animation(.easeOut(duration: 0.35), value: overlay.showsProgressBar)
+		.animation(.easeOut(duration: 0.3), value: loadPhase == .failed)
+	}
 }
 
-/// A static placeholder that previews the reader's shape (title, byline, body
-/// lines) while it loads. Skeletons keep a tapped row feeling responsive without
-/// the content-free spin of a `ProgressView`, mirroring the web's loading skeleton.
+/// A slim determinate bar pinned to the top of the reader, filled to the web
+/// view's real `estimatedProgress` so a slow article shows measurable movement
+/// instead of a blank wait. The native linear `ProgressView` owns its own fill, so
+/// it starts empty and grows from the left — no first-frame flash to full width
+/// that a custom `GeometryReader` fill inherits from the sheet's present animation.
+/// Amber (via the sheet tint) because it is chrome; the reading surface stays
+/// neutral. Hidden from accessibility — the skeleton already announces the load.
+private struct ReaderLoadingBar: View {
+	let progress: Double
+
+	var body: some View {
+		ProgressView(value: min(max(progress, 0), 1))
+			.progressViewStyle(.linear)
+			.accessibilityHidden(true)
+	}
+}
+
+/// A placeholder that previews the reader's shape (title, byline, body lines)
+/// while it loads. A gradient sweep signals ongoing work without the content-free
+/// spin of a `ProgressView`, mirroring the web's loading skeleton; the sweep is
+/// dropped under Reduce Motion, leaving the static gray shape. The neutral fill
+/// keeps the reading surface free of brand colour — the amber lives in the bar.
 private struct ReaderSkeletonView: View {
+	@Environment(\.accessibilityReduceMotion) private var reduceMotion
+	@State private var sweep = false
+
 	var body: some View {
 		VStack(alignment: .leading, spacing: 14) {
 			bar(nil, 30)
@@ -57,6 +112,8 @@ private struct ReaderSkeletonView: View {
 		}
 		.padding(24)
 		.frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
+		.background(Color(.systemBackground))
+		.onAppear { sweep = true }
 		.accessibilityElement()
 		.accessibilityLabel("Opening reader")
 	}
@@ -66,6 +123,27 @@ private struct ReaderSkeletonView: View {
 			.fill(Color(.secondarySystemBackground))
 			.frame(maxWidth: width ?? .infinity, alignment: .leading)
 			.frame(height: height)
+			.overlay(shimmer)
+			.clipShape(RoundedRectangle(cornerRadius: 6))
+	}
+
+	/// A translucent highlight band swept left-to-right across each bar. Removed
+	/// entirely (not just paused) under Reduce Motion so no animation is scheduled.
+	@ViewBuilder
+	private var shimmer: some View {
+		if !reduceMotion {
+			GeometryReader { geometry in
+				let width = geometry.size.width
+				LinearGradient(
+					colors: [.clear, Color.white.opacity(0.35), .clear],
+					startPoint: .leading,
+					endPoint: .trailing
+				)
+				.frame(width: width)
+				.offset(x: sweep ? width : -width)
+				.animation(.linear(duration: 1.3).repeatForever(autoreverses: false), value: sweep)
+			}
+		}
 	}
 }
 
@@ -92,5 +170,8 @@ private struct ReaderUnavailableView: View {
 		}
 		.padding(40)
 		.frame(maxWidth: .infinity, maxHeight: .infinity)
+		// Opaque so that, layered over a failed page load, the broken page does not
+		// show through; a no-op against the sheet's own background when shown alone.
+		.background(Color(.systemBackground))
 	}
 }
