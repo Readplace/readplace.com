@@ -44,7 +44,7 @@ function initWithDom(
 const OPEN_BOOKMARK = `<details class="crawl-bookmark" open><summary class="crawl-bookmark__handle"></summary></details>`;
 const CLOSED_BOOKMARK = `<details class="crawl-bookmark"><summary class="crawl-bookmark__handle"></summary></details>`;
 const HANDLELESS_BOOKMARK = `<details class="crawl-bookmark" open></details>`;
-const BOOKMARK_WITH_TABS = `<details class="crawl-bookmark" open><summary class="crawl-bookmark__handle"></summary><ul class="crawl-bookmark__tabs"><li class="crawl-bookmark__tab crawl-bookmark__tab--current" aria-disabled="false"><time class="crawl-bookmark__time">10 Jul '26, 09:14</time><span class="crawl-bookmark__badge">current</span></li><li class="crawl-bookmark__tab crawl-bookmark__tab--disabled" aria-disabled="true"><time class="crawl-bookmark__time">28 Jun '26, 22:01</time></li></ul></details>`;
+const BOOKMARK_WITH_TABS = `<details class="crawl-bookmark" open><summary class="crawl-bookmark__handle"></summary><ul class="crawl-bookmark__tabs"><li class="crawl-bookmark__tab crawl-bookmark__tab--current" aria-disabled="false"><time class="crawl-bookmark__time">10 Jul '26, 09:14</time><span class="crawl-bookmark__badge">best</span></li><li class="crawl-bookmark__tab crawl-bookmark__tab--disabled" aria-disabled="true"><time class="crawl-bookmark__time">28 Jun '26, 22:01</time></li></ul></details>`;
 
 function pickTabs(document: Document): HTMLElement {
 	const tabs = document.querySelector<HTMLElement>(".crawl-bookmark__tabs");
