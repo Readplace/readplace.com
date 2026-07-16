@@ -78,6 +78,7 @@ function rowToArticleCrawl(
 export function initDynamoDbArticleCrawl(deps: {
 	client: DynamoDBDocumentClient;
 	tableName: string;
+	now: () => Date;
 }): {
 	findArticleCrawlStatus: FindArticleCrawlStatus;
 	markCrawlPending: MarkCrawlPending;
@@ -100,11 +101,13 @@ export function initDynamoDbArticleCrawl(deps: {
 		try {
 			await table.update({
 				Key: { url: articleResourceUniqueId.value },
-				UpdateExpression: "SET crawlStatus = :pending",
+				UpdateExpression:
+					"SET crawlStatus = :pending, crawlPendingSince = :pendingSince",
 				ConditionExpression:
 					"attribute_not_exists(crawlStatus) OR crawlStatus <> :ready",
 				ExpressionAttributeValues: {
 					":pending": "pending",
+					":pendingSince": deps.now().toISOString(),
 					":ready": "ready",
 				},
 			});
@@ -118,9 +121,10 @@ export function initDynamoDbArticleCrawl(deps: {
 		await table.update({
 			Key: { url: articleResourceUniqueId.value },
 			UpdateExpression:
-				"SET crawlStatus = :pending REMOVE crawlFailureReason, crawlUnsupportedReason",
+				"SET crawlStatus = :pending, crawlPendingSince = :pendingSince REMOVE crawlFailureReason, crawlUnsupportedReason",
 			ExpressionAttributeValues: {
 				":pending": "pending",
+				":pendingSince": deps.now().toISOString(),
 			},
 		});
 	};

@@ -218,7 +218,11 @@ function initProviders() {
 			markClientActive: oauthClientLookup.markClientActive,
 		});
 		const summaryStore = initDynamoDbGeneratedSummary({ client, tableName: articlesTable });
-		const crawlStore = initDynamoDbArticleCrawl({ client, tableName: articlesTable });
+		const crawlStore = initDynamoDbArticleCrawl({
+			client,
+			tableName: articlesTable,
+			now: () => new Date(),
+		});
 		const { publishEvent } = initEventBridgePublisher({
 			client: new EventBridgeClient({}),
 			eventBusName,
