@@ -130,6 +130,13 @@ describe("toArticleSubEntity", () => {
 		});
 	});
 
+	it("advertises the redirect destination as the url for a merged article", () => {
+		const subEntity = toArticleSubEntity(
+			makeArticle({ url: "https://example.com/article.html", displayUrl: "https://example.com/article" }),
+		);
+		expect(subEntity.properties?.url).toBe("https://example.com/article");
+	});
+
 	it("maps readAt when present", () => {
 		const article = makeArticle({
 			status: "read",

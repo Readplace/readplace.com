@@ -55,6 +55,16 @@ describe("toQueueViewModel", () => {
 		expect(vm.articles[0].url).toBe("https://example.com/post");
 	});
 
+	it("shows the redirect destination as the card url for a merged article", () => {
+		const vm = toQueueViewModel(
+			makeResult([makeArticle({ url: "https://example.com/post.html", displayUrl: "https://example.com/post" })]),
+			DEFAULT_FILTERS,
+			{ now: NOW },
+		);
+
+		expect(vm.articles[0].url).toBe("https://example.com/post");
+	});
+
 	it("should format relative date as hours ago", () => {
 		const vm = toQueueViewModel(makeResult([makeArticle()]), DEFAULT_FILTERS, {
 			now: NOW,

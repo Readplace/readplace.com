@@ -1,5 +1,5 @@
 import { noopLogger } from "@packages/hutch-logger";
-import type { ClaimCanonicalAlias } from "@packages/article-store";
+import type { ClaimCanonicalAlias, SetArticleDisplayUrl } from "@packages/article-store";
 import { noExtract, noTransform, skipCrawl, type SiteRules } from "@packages/site-rules";
 import { adoptableTerminal, initAdoptCanonicalIdentity, initIsSiteRuleUrl } from "./adopt-canonical-identity";
 
@@ -45,14 +45,26 @@ describe("adoptableTerminal", () => {
 });
 
 describe("initAdoptCanonicalIdentity", () => {
-	function build(claimAlias: ClaimCanonicalAlias, isSiteRuleUrl = never) {
+	const noopSetDisplayUrl: SetArticleDisplayUrl = async () => {};
+
+	function build(
+		claimAlias: ClaimCanonicalAlias,
+		opts: { isSiteRuleUrl?: (url: string) => boolean; setDisplayUrl?: SetArticleDisplayUrl } = {},
+	) {
 		const now = () => new Date("2026-07-15T10:00:00.000Z");
-		return initAdoptCanonicalIdentity({ claimAlias, isSiteRuleUrl, now, logger: noopLogger });
+		return initAdoptCanonicalIdentity({
+			claimAlias,
+			setDisplayUrl: opts.setDisplayUrl ?? noopSetDisplayUrl,
+			isSiteRuleUrl: opts.isSiteRuleUrl ?? never,
+			now,
+			logger: noopLogger,
+		});
 	}
 
-	it("claims id(terminal) → url when the gates pass", async () => {
+	it("claims id(terminal) → url and records the destination as the display URL when the gates pass", async () => {
 		const claimAlias = jest.fn<ReturnType<ClaimCanonicalAlias>, Parameters<ClaimCanonicalAlias>>(async () => "claimed");
-		const adopt = build(claimAlias);
+		const setDisplayUrl = jest.fn<ReturnType<SetArticleDisplayUrl>, Parameters<SetArticleDisplayUrl>>(async () => {});
+		const adopt = build(claimAlias, { setDisplayUrl });
 
 		await adopt({ url: "https://site.com/page.html", finalUrl: "https://site.com/page", wordCount: 300 });
 
@@ -61,25 +73,36 @@ describe("initAdoptCanonicalIdentity", () => {
 			targetOriginalUrl: "https://site.com/page.html",
 			now: new Date("2026-07-15T10:00:00.000Z"),
 		});
+		expect(setDisplayUrl).toHaveBeenCalledWith({
+			articleUrl: "https://site.com/page.html",
+			displayUrl: "https://site.com/page",
+		});
 	});
 
-	it("does not claim when a gate rejects the terminal", async () => {
+	it("does not claim or record a display URL when a gate rejects the terminal", async () => {
 		const claimAlias = jest.fn<ReturnType<ClaimCanonicalAlias>, Parameters<ClaimCanonicalAlias>>(async () => "claimed");
-		const adopt = build(claimAlias);
+		const setDisplayUrl = jest.fn<ReturnType<SetArticleDisplayUrl>, Parameters<SetArticleDisplayUrl>>(async () => {});
+		const adopt = build(claimAlias, { setDisplayUrl });
 
 		await adopt({ url: "https://site.com/page.html", finalUrl: "https://site.com/page", wordCount: 0 });
 
 		expect(claimAlias).not.toHaveBeenCalled();
+		expect(setDisplayUrl).not.toHaveBeenCalled();
 	});
 
-	it("tolerates an already-occupied identity (first-writer-wins) without throwing", async () => {
+	it("still records the display URL when the alias is already occupied (fan-in origin)", async () => {
 		const claimAlias = jest.fn<ReturnType<ClaimCanonicalAlias>, Parameters<ClaimCanonicalAlias>>(async () => "occupied");
-		const adopt = build(claimAlias);
+		const setDisplayUrl = jest.fn<ReturnType<SetArticleDisplayUrl>, Parameters<SetArticleDisplayUrl>>(async () => {});
+		const adopt = build(claimAlias, { setDisplayUrl });
 
 		await expect(
 			adopt({ url: "https://site.com/page.html", finalUrl: "https://site.com/page", wordCount: 300 }),
 		).resolves.toBeUndefined();
 		expect(claimAlias).toHaveBeenCalled();
+		expect(setDisplayUrl).toHaveBeenCalledWith({
+			articleUrl: "https://site.com/page.html",
+			displayUrl: "https://site.com/page",
+		});
 	});
 
 	it("never throws when the alias write fails (crawl must not be stranded)", async () => {

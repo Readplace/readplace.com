@@ -184,7 +184,9 @@ export function toQueueArticleViewModel(params: {
 		title: article.metadata.title,
 		siteName: article.metadata.siteName,
 		excerpt: pickExcerpt(summary, article.metadata.excerpt),
-		url: article.url,
+		// The card's source link shows the redirect destination once merged; the
+		// title/excerpt still open the reader by `id`, so identity is untouched.
+		url: article.displayUrl ?? article.url,
 		status: article.status,
 		isUnread: article.status === "unread",
 		saved: toRelativeOrDate({ iso: article.savedAt.toISOString(), now }),

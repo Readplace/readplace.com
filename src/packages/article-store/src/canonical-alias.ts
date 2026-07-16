@@ -47,10 +47,23 @@ export type ResolveCanonicalAlias = (url: string) => Promise<string | undefined>
  * another alias, so one lookup is total. */
 export type ResolveCanonicalIdentity = (url: string) => Promise<string>;
 
+/** Stamp the redirect destination onto the origin article at `id(articleUrl)` so
+ * the reader / queue / API can show where it lives while `url` stays the lookup
+ * identity. Best-effort and idempotent; a no-op when the target is not a real
+ * article row. */
+export type SetArticleDisplayUrl = (params: {
+	articleUrl: string;
+	displayUrl: string;
+}) => Promise<void>;
+
 export function initCanonicalAliasStore(deps: {
 	client: DynamoDBDocumentClient;
 	tableName: string;
-}): { claimAlias: ClaimCanonicalAlias; resolveAlias: ResolveCanonicalAlias } {
+}): {
+	claimAlias: ClaimCanonicalAlias;
+	resolveAlias: ResolveCanonicalAlias;
+	setDisplayUrl: SetArticleDisplayUrl;
+} {
 	const table = defineDynamoTable({
 		client: deps.client,
 		tableName: deps.tableName,
@@ -83,7 +96,24 @@ export function initCanonicalAliasStore(deps: {
 		return row.aliasTargetUrl;
 	};
 
-	return { claimAlias, resolveAlias };
+	const setDisplayUrl: SetArticleDisplayUrl = async ({ articleUrl, displayUrl }) => {
+		try {
+			await table.update({
+				Key: { url: ArticleResourceUniqueId.parse(articleUrl).value },
+				UpdateExpression: "SET displayUrl = :displayUrl",
+				// Only annotate an existing real article (a `routeId` row): a missing
+				// or alias row is left untouched so this never forges a partial row
+				// that a strict `ArticleRow` read would 500 on.
+				ConditionExpression: "attribute_exists(routeId)",
+				ExpressionAttributeValues: { ":displayUrl": displayUrl },
+			});
+		} catch (error) {
+			if (error instanceof ConditionalCheckFailedException) return;
+			throw error;
+		}
+	};
+
+	return { claimAlias, resolveAlias, setDisplayUrl };
 }
 
 export function initResolveCanonicalIdentity(deps: {

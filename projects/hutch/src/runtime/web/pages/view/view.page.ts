@@ -297,6 +297,7 @@ function handleViewArticle(deps: ViewDependencies, reader: ReturnType<typeof ini
 			Base(
 				ViewPage({
 					articleUrl,
+					displayUrl: articleSnapshot?.displayUrl,
 					appOrigin: deps.appOrigin,
 					metadata,
 					estimatedReadTime,

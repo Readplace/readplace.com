@@ -15,7 +15,9 @@ export function toArticleSubEntity(article: SavedArticle): SirenSubEntity {
 		rel: ["item"],
 		properties: {
 			id,
-			url: article.url,
+			// Display: the redirect destination when this article was merged onto one,
+			// else the saved URL. Navigation/mutation use `id`, so this is safe.
+			url: article.displayUrl ?? article.url,
 			title: article.metadata.title,
 			siteName: article.metadata.siteName,
 			excerpt: article.metadata.excerpt,

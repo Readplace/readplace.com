@@ -63,6 +63,10 @@ const ArticleRow = z.object({
 	url: z.string(),
 	routeId: ReaderArticleHashIdSchema,
 	originalUrl: z.string(),
+	/** The redirect destination this article was adopted onto, stamped by the
+	 * adopt hook. Optional: only redirect-merged articles carry it. Read-only
+	 * here — it drives display, never identity. */
+	displayUrl: dynamoField(z.string()),
 	title: z.string(),
 	siteName: z.string(),
 	excerpt: z.string(),
@@ -106,6 +110,7 @@ function toSavedArticle(
 		id: article.routeId,
 		userId: userArticle.userId,
 		url: article.originalUrl,
+		displayUrl: article.displayUrl,
 		metadata: {
 			title: article.title,
 			siteName: article.siteName,
@@ -585,6 +590,7 @@ export function initDynamoDbArticleStore(deps: {
 					"url",
 					"routeId",
 					"originalUrl",
+					"displayUrl",
 					"title",
 					"siteName",
 					"excerpt",
@@ -606,6 +612,7 @@ export function initDynamoDbArticleStore(deps: {
 		return {
 			id: row.routeId,
 			url: row.originalUrl,
+			displayUrl: row.displayUrl,
 			metadata: {
 				title: row.title,
 				siteName: row.siteName,

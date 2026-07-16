@@ -82,6 +82,50 @@ describe("initCanonicalAliasStore", () => {
 		});
 	});
 
+	describe("setDisplayUrl", () => {
+		it("stamps the destination on the origin article, gated on it being a real row", async () => {
+			let captured: unknown;
+			const client = createFakeClient((input) => {
+				captured = input;
+				return {};
+			});
+			const { setDisplayUrl } = initCanonicalAliasStore({ client, tableName: TABLE });
+
+			await setDisplayUrl({
+				articleUrl: "https://site.com/page.html",
+				displayUrl: "https://site.com/page",
+			});
+
+			const { input } = CapturedCommand.parse(captured);
+			expect(input.Key).toEqual({ url: "site.com/page.html" });
+			expect(input.UpdateExpression).toBe("SET displayUrl = :displayUrl");
+			expect(input.ConditionExpression).toBe("attribute_exists(routeId)");
+			expect(input.ExpressionAttributeValues).toEqual({ ":displayUrl": "https://site.com/page" });
+		});
+
+		it("is a no-op when the target is not a real article (conditional check fails)", async () => {
+			const client = createFakeClient(() => {
+				throw conditionalCheckFailed();
+			});
+			const { setDisplayUrl } = initCanonicalAliasStore({ client, tableName: TABLE });
+
+			await expect(
+				setDisplayUrl({ articleUrl: "https://site.com/page.html", displayUrl: "https://site.com/page" }),
+			).resolves.toBeUndefined();
+		});
+
+		it("propagates non-conditional write errors", async () => {
+			const client = createFakeClient(() => {
+				throw new Error("DDB unavailable");
+			});
+			const { setDisplayUrl } = initCanonicalAliasStore({ client, tableName: TABLE });
+
+			await expect(
+				setDisplayUrl({ articleUrl: "https://site.com/page.html", displayUrl: "https://site.com/page" }),
+			).rejects.toThrow("DDB unavailable");
+		});
+	});
+
 	describe("resolveAlias", () => {
 		it("returns the target URL for an alias row", async () => {
 			const client = createFakeClient(() => ({

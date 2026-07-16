@@ -18,7 +18,13 @@ export interface ArticleMetadata {
 export interface SavedArticle {
 	id: ReaderArticleHashId;
 	userId: UserId;
+	/** Identity: the URL every lookup keys on (crawl status, content, freshness).
+	 * Never swap this for the destination — `resolveReaderState` reads it. */
 	url: string;
+	/** The redirect destination this article was adopted onto, when it was reached
+	 * by following a redirect from `url`. Purely for display ("View original", the
+	 * Siren/API `url`, the queue card link); absent on a normal, non-adopted save. */
+	displayUrl?: string;
 	metadata: ArticleMetadata;
 	content?: string;
 	estimatedReadTime: Minutes;

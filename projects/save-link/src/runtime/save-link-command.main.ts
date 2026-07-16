@@ -46,8 +46,10 @@ const articleCrawl = initArticleCrawlDepBundle({ dynamoClient, articlesTable });
 const emitSimpleCrawlUnsupported = initEmitSimpleCrawlUnsupported({
 	publishEvent: events.publishEvent,
 });
+const canonicalAliasStore = initCanonicalAliasStore({ client: dynamoClient, tableName: articlesTable });
 const adoptCanonicalIdentity = initAdoptCanonicalIdentity({
-	claimAlias: initCanonicalAliasStore({ client: dynamoClient, tableName: articlesTable }).claimAlias,
+	claimAlias: canonicalAliasStore.claimAlias,
+	setDisplayUrl: canonicalAliasStore.setDisplayUrl,
 	isSiteRuleUrl: parser.isSiteRuleUrl,
 	now,
 	logger: consoleLogger,

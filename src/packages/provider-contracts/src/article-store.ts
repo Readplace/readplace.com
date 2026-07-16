@@ -77,6 +77,8 @@ export type FindArticleUrlById = (
 export interface GlobalArticleData {
 	id: ReaderArticleHashId;
 	url: string;
+	/** Redirect destination for a merged article; drives display only. */
+	displayUrl?: string;
 	metadata: SavedArticle["metadata"];
 	estimatedReadTime: SavedArticle["estimatedReadTime"];
 	savedAt: Date;

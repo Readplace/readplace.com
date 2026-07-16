@@ -54,6 +54,22 @@ describe("ReaderPage", () => {
 		assert(wrap, "share balloon wrap must be rendered");
 	});
 
+	it("points the header 'View original' at the redirect destination for a merged article", () => {
+		const article = makeArticle({
+			url: SaveableUrlSchema.parse("https://example.com/post.html"),
+			displayUrl: "https://example.com/post",
+		});
+		const html = Base(
+			ReaderPage(article, { appOrigin: DEFAULT_APP_ORIGIN, backLink: TEST_BACK_LINK, renderActions: StickyReader }),
+			{ isAuthenticated: true, emailVerified: undefined },
+		).to("text/html").body;
+		const doc = new JSDOM(html).window.document;
+
+		const link = doc.querySelector("[data-test-original-link]");
+		assert(link, "header must render a 'View original' link");
+		assert.equal(link.getAttribute("href"), "https://example.com/post");
+	});
+
 	it("points the sticky back link at the supplied backLink href and renders no bottom bar", () => {
 		const html = Base(
 			ReaderPage(makeArticle(), { appOrigin: DEFAULT_APP_ORIGIN, backLink: TEST_BACK_LINK, renderActions: StickyReader }),

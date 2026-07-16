@@ -489,7 +489,7 @@ describe("initDynamoDbArticleStore findArticlesByUser", () => {
 		const batch = commands.find((c) => c.name === "BatchGetCommand");
 		const requestItems = batch?.input.RequestItems as Record<string, { ProjectionExpression?: string }>;
 		expect(requestItems.articles.ProjectionExpression).toBe(
-			"#url, #routeId, #originalUrl, #title, #siteName, #excerpt, #wordCount, #imageUrl, #estimatedReadTime, #savedAt, #contentSourceTier",
+			"#url, #routeId, #originalUrl, #displayUrl, #title, #siteName, #excerpt, #wordCount, #imageUrl, #estimatedReadTime, #savedAt, #contentSourceTier",
 		);
 	});
 
@@ -803,6 +803,16 @@ describe("initDynamoDbArticleStore freshness, notification state, content and ur
 		expect(data?.url).toBe(URL);
 		expect(data?.savedAt).toEqual(new Date("2026-05-30T09:00:00.000Z"));
 		expect(data?.contentSourceTier).toBe("tier-1");
+	});
+
+	it("findArticleByUrl surfaces the redirect destination for a merged row", async () => {
+		const { client } = createFakeClient({
+			GetCommand: { default: { Item: articleItem({ displayUrl: "https://example.com/dest", content: undefined }) } },
+		});
+
+		const data = await initStore(client).findArticleByUrl(URL);
+
+		expect(data?.displayUrl).toBe("https://example.com/dest");
 	});
 
 	it("findArticleByUrl falls back to the epoch savedAt for legacy rows missing the column", async () => {

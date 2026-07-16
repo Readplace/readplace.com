@@ -1,5 +1,5 @@
 import { ArticleResourceUniqueId } from "@packages/article-resource-unique-id";
-import type { ClaimCanonicalAlias } from "@packages/article-store";
+import type { ClaimCanonicalAlias, SetArticleDisplayUrl } from "@packages/article-store";
 import type { HutchLogger } from "@packages/hutch-logger";
 import type { SiteRules } from "@packages/site-rules";
 
@@ -59,16 +59,21 @@ export function adoptableTerminal(params: {
 
 export function initAdoptCanonicalIdentity(deps: {
 	claimAlias: ClaimCanonicalAlias;
+	setDisplayUrl: SetArticleDisplayUrl;
 	isSiteRuleUrl: (url: string) => boolean;
 	now: () => Date;
 	logger: HutchLogger;
 }): AdoptCanonicalIdentity {
-	const { claimAlias, isSiteRuleUrl, now, logger } = deps;
+	const { claimAlias, setDisplayUrl, isSiteRuleUrl, now, logger } = deps;
 	return async (params) => {
 		try {
 			const terminal = adoptableTerminal({ ...params, isSiteRuleUrl });
 			if (terminal === undefined) return;
 			const outcome = await claimAlias({ aliasUrl: terminal, targetOriginalUrl: params.url, now: now() });
+			// Independent of the claim outcome: the origin genuinely redirects to
+			// `terminal`, so record it as this article's display URL either way
+			// (idempotent SET, so a fan-in second origin re-stamps the same value).
+			await setDisplayUrl({ articleUrl: params.url, displayUrl: terminal });
 			logger.info(`[adopt-canonical-identity] alias ${outcome}`, { url: params.url, terminalUrl: terminal });
 		} catch (error) {
 			logger.warn("[adopt-canonical-identity] adoption failed", {
