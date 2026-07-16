@@ -174,6 +174,29 @@ describe("ArticleResourceUniqueId.toS3ContentVersionKey", () => {
 	});
 });
 
+describe("ArticleResourceUniqueId key-family prefixes", () => {
+	it("toS3ImagePrefix covers every key toS3ImageKey can produce", () => {
+		const id = ArticleResourceUniqueId.parse("https://example.com/blog/post");
+		expect(id.toS3ImagePrefix()).toBe("content/example.com%2Fblog%2Fpost/images/");
+		expect(id.toS3ImageKey("abc123.png").startsWith(id.toS3ImagePrefix())).toBe(true);
+	});
+
+	it("toS3SourcesPrefix covers the tier source and its metadata sidecar", () => {
+		const id = ArticleResourceUniqueId.parse("https://example.com/blog/post");
+		expect(id.toS3SourcesPrefix()).toBe("articles/example.com%2Fblog%2Fpost/sources/");
+		expect(id.toS3SourceKey({ tier: "tier-0" }).startsWith(id.toS3SourcesPrefix())).toBe(true);
+		expect(id.toS3SourceMetadataKey({ tier: "tier-1" }).startsWith(id.toS3SourcesPrefix())).toBe(true);
+	});
+
+	it("toS3ContentVersionsPrefix covers every dated snapshot", () => {
+		const id = ArticleResourceUniqueId.parse("https://example.com/blog/post");
+		expect(id.toS3ContentVersionsPrefix()).toBe("content-versions/example.com%2Fblog%2Fpost/");
+		expect(
+			id.toS3ContentVersionKey({ minuteId: "2026-07-10T09:41Z" }).startsWith(id.toS3ContentVersionsPrefix()),
+		).toBe(true);
+	});
+});
+
 describe("toCrawlVersionMinuteId", () => {
 	it("truncates a full-precision instant to minute precision in UTC", () => {
 		expect(toCrawlVersionMinuteId("2026-07-10T09:41:32.123Z")).toBe("2026-07-10T09:41Z");

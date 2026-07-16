@@ -28,6 +28,15 @@ export type PublishRecrawlLinkInitiated = (params: {
 	url: string;
 }) => Promise<void>;
 
+/** With `versionMinuteId`: remove one authored crawl-version snapshot. Without
+ * it: remove the user's whole authored copy (tier-0 capture + snapshots) and
+ * let the pipeline re-select, re-crawl, or purge. */
+export type PublishRemoveMyContent = (params: {
+	url: string;
+	userId: UserId;
+	versionMinuteId?: string;
+}) => Promise<void>;
+
 export type PublishRefreshArticleContent = (params: {
 	url: string;
 	html: string;

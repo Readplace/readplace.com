@@ -34,6 +34,8 @@ import {
 	RecrawlLinkInitiatedEvent,
 	RecrawlContentExtractedEvent,
 	RefreshContentExtractedEvent,
+	RemoveMyContentCommand,
+	ReselectAfterRemovalEvent,
 	SAVE_LINK_LAMBDA_NAMES,
 } from "@packages/hutch-infra-components";
 import { requireEnv } from "@packages/require-env";
@@ -57,6 +59,10 @@ const config = new pulumi.Config();
 const alertEmail = config.require("alertEmail");
 const articlesTableName = config.require("articlesTableName");
 const articlesTableArn = config.require("articlesTableArn");
+// Per-user queue rows, owned by the hutch stack. The removal Lambda reads the
+// url-index GSI to count other savers before deciding to purge a URL.
+const userArticlesTableName = config.require("userArticlesTableName");
+const userArticlesTableArn = config.require("userArticlesTableArn");
 // Owned by the hutch stack (same convention as the articles table): counters
 // for per-IP throttles and the global paid-crawl budget share one TTL'd table.
 const rateLimitsTableName = config.require("rateLimitsTableName");
@@ -283,6 +289,14 @@ const staleCheckRequestedQueue = new HutchSQS("stale-check-requested", {
 });
 
 const recrawlContentExtractedQueue = new HutchSQS("recrawl-content-extracted", {
+	visibilityTimeoutSeconds: SELECT_CONTENT_TIMEOUTS.sqsVisibilitySeconds,
+});
+
+const removeMyContentCommandQueue = new HutchSQS("remove-my-content-command", {
+	visibilityTimeoutSeconds: 60,
+});
+
+const reselectAfterRemovalQueue = new HutchSQS("reselect-after-removal", {
 	visibilityTimeoutSeconds: SELECT_CONTENT_TIMEOUTS.sqsVisibilitySeconds,
 });
 
@@ -1018,6 +1032,110 @@ eventBus.subscribe(TierContentExtractedEvent, selectMostCompleteContentLambdaWit
 	additionalPolicies: renamePolicies(generateSummaryQueue.policies, "select-most-complete-content-dlq"),
 });
 
+// --- RemoveMyContentCommand handler ---
+// Content-removal orchestrator. Deletes the S3 objects the removing user
+// authored (their tier-0 capture + attributed snapshots), prunes the pruned
+// minute-ids from the crawlVersions log, then branches: re-select the canonical
+// from surviving sources, re-crawl for co-savers left with no source, or — when
+// nothing and nobody remains — purge every stored object and tombstone the row.
+// Idempotent throughout so an at-least-once redelivery converges.
+
+const removeMyContentCommandDynamodb = new HutchDynamoDBAccess("remove-my-content-command-dynamodb", {
+	tables: [
+		{ arn: articlesTableArn, includeIndexes: false },
+		// url-index GSI: countOtherSaversByUrl reads it to decide purge vs re-crawl.
+		{ arn: userArticlesTableArn, includeIndexes: true },
+	],
+	actions: ["dynamodb:GetItem", "dynamodb:UpdateItem", "dynamodb:Query"],
+});
+
+const removeMyContentCommandLambda = new HutchLambda(SAVE_LINK_LAMBDA_NAMES.removeMyContentCommand, {
+	entryPoint: "./src/runtime/remove-my-content-command.main.ts",
+	outputDir: ".lib/remove-my-content-command",
+	assetDir: "./src",
+	memorySize: 256,
+	timeout: 60,
+	environment: {
+		DYNAMODB_ARTICLES_TABLE: articlesTableName,
+		DYNAMODB_USER_ARTICLES_TABLE: userArticlesTableName,
+		CONTENT_BUCKET_NAME: contentBucketName,
+		EVENT_BUS_NAME: eventBus.eventBusName,
+	},
+	policies: [
+		...removeMyContentCommandDynamodb.policies,
+		...contentBucket.readPolicies("remove-my-content-command-content-read"),
+		...contentBucket.deletePolicies("remove-my-content-command-content-delete"),
+	],
+});
+
+eventBus.grantPublish(removeMyContentCommandLambda);
+
+const removeMyContentCommandLambdaWithSQS = new HutchSQSBackedLambda("remove-my-content-command", {
+	lambda: removeMyContentCommandLambda,
+	queue: removeMyContentCommandQueue,
+	alertEmailDLQEntry: alertEmail,
+	batchSize: 1,
+});
+
+eventBus.subscribe(RemoveMyContentCommand, removeMyContentCommandLambdaWithSQS);
+
+// --- ReselectAfterRemoval handler ---
+// Re-runs the tier-selection core over the sources that survive a removal,
+// with no userId so a canonical flip never fires a "saved!" notification at the
+// remover. Same shape as select-most-complete-content (3008 MB to hold full
+// tier-source HTML from S3).
+
+const reselectAfterRemovalDynamodb = new HutchDynamoDBAccess("reselect-after-removal-dynamodb", {
+	tables: [{ arn: articlesTableArn, includeIndexes: false }],
+	actions: ["dynamodb:GetItem", "dynamodb:UpdateItem"],
+});
+
+const reselectAfterRemovalLambda = new HutchLambda(SAVE_LINK_LAMBDA_NAMES.reselectAfterRemoval, {
+	entryPoint: "./src/runtime/reselect-after-removal.main.ts",
+	outputDir: ".lib/reselect-after-removal",
+	assetDir: "./src",
+	memorySize: 3008,
+	timeout: SELECT_CONTENT_TIMEOUTS.lambdaSeconds,
+	environment: {
+		DYNAMODB_ARTICLES_TABLE: articlesTableName,
+		CONTENT_BUCKET_NAME: contentBucketName,
+		EVENT_BUS_NAME: eventBus.eventBusName,
+		DEEPSEEK_API_KEY: deepseekApiKey,
+		GENERATE_SUMMARY_QUEUE_URL: generateSummaryQueue.queueUrl,
+	},
+	policies: [
+		...reselectAfterRemovalDynamodb.policies,
+		...contentBucket.readPolicies("reselect-after-removal-content-read"),
+		...contentBucket.writePolicies("reselect-after-removal-content-write"),
+		...renamePolicies(generateSummaryQueue.policies, "reselect-after-removal"),
+	],
+});
+
+eventBus.grantPublish(reselectAfterRemovalLambda);
+
+const reselectAfterRemovalLambdaWithSQS = new HutchSQSBackedLambda("reselect-after-removal", {
+	lambda: reselectAfterRemovalLambda,
+	queue: reselectAfterRemovalQueue,
+	alertEmailDLQEntry: alertEmail,
+	batchSize: 1,
+});
+
+eventBus.subscribe(ReselectAfterRemovalEvent, reselectAfterRemovalLambdaWithSQS);
+
+// --- ReselectAfterRemoval DLQ consumer ---
+new HutchDLQEventHandler("reselect-after-removal-dlq", {
+	sourceQueue: reselectAfterRemovalQueue,
+	tableArn: articlesTableArn,
+	tableName: articlesTableName,
+	eventBus,
+	batchSize: 1,
+	additionalDynamoActions: ["dynamodb:GetItem"],
+	additionalEnvironment: {
+		GENERATE_SUMMARY_QUEUE_URL: generateSummaryQueue.queueUrl,
+	},
+	additionalPolicies: renamePolicies(generateSummaryQueue.policies, "reselect-after-removal-dlq"),
+});
+
 // --- GenerateSummary handler ---
 
 const generateSummaryDynamodb = new HutchDynamoDBAccess("generate-summary-dynamodb", {
@@ -1508,6 +1626,10 @@ export const recrawlLinkInitiatedQueueUrl = recrawlLinkInitiatedQueue.queueUrl;
 export const recrawlLinkInitiatedDlqUrl = recrawlLinkInitiatedQueue.dlqUrl;
 export const recrawlContentExtractedQueueUrl = recrawlContentExtractedQueue.queueUrl;
 export const recrawlContentExtractedDlqUrl = recrawlContentExtractedQueue.dlqUrl;
+export const removeMyContentCommandQueueUrl = removeMyContentCommandQueue.queueUrl;
+export const removeMyContentCommandDlqUrl = removeMyContentCommandQueue.dlqUrl;
+export const reselectAfterRemovalQueueUrl = reselectAfterRemovalQueue.queueUrl;
+export const reselectAfterRemovalDlqUrl = reselectAfterRemovalQueue.dlqUrl;
 export const staleCheckRequestedQueueUrl = staleCheckRequestedQueue.queueUrl;
 export const staleCheckRequestedDlqUrl = staleCheckRequestedQueue.dlqUrl;
 export const contentBucketOutputName = contentBucket.bucket;

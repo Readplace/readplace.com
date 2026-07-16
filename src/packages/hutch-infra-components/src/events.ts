@@ -312,6 +312,44 @@ export type RecrawlLinkInitiatedDetail = z.infer<
 	typeof RecrawlLinkInitiatedEvent.detailSchema
 >;
 
+/** A user asked for their authored content on a URL to be removed. With
+ * `versionMinuteId`: delete that one crawl-version snapshot (iff they authored
+ * it) and prune it from the log — the canonical copy is untouched. Without it:
+ * delete their tier-0 capture plus every snapshot they authored, then either
+ * re-select the canonical from what remains, re-crawl for the co-savers left
+ * with no source, or — when nothing and nobody remains — purge every stored
+ * object and tombstone the row. The publisher (hutch) has already dropped the
+ * remover's queue row for the whole-copy scope. */
+export const RemoveMyContentCommand = defineEvent({
+	name: "remove-my-content-command",
+	source: "hutch.api",
+	detailType: "RemoveMyContentCommand",
+	detailSchema: z.object({
+		url: z.string(),
+		userId: z.string(),
+		versionMinuteId: z.string().optional(),
+	}),
+});
+export type RemoveMyContentDetail = z.infer<typeof RemoveMyContentCommand.detailSchema>;
+
+/** Re-establish the canonical content from whatever tier sources remain after
+ * a removal. Deliberately NOT a TierContentExtractedEvent: that event's
+ * `userId` means "who saved" and would fire the saved!-notification chain at
+ * the remover, and its consumer treats zero remaining sources as a retryable
+ * race — which, mid-removal, it genuinely is (the publisher checked
+ * remaining > 0 before emitting). */
+export const ReselectAfterRemovalEvent = defineEvent({
+	name: "reselect-after-removal",
+	source: "hutch.save-link",
+	detailType: "ReselectAfterRemoval",
+	detailSchema: z.object({
+		url: z.string(),
+	}),
+});
+export type ReselectAfterRemovalDetail = z.infer<
+	typeof ReselectAfterRemovalEvent.detailSchema
+>;
+
 export const RecrawlContentExtractedEvent = defineEvent({
 	name: "recrawl-content-extracted",
 	source: "hutch.save-link",

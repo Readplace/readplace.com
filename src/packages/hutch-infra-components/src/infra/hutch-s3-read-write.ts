@@ -16,6 +16,7 @@ export class HutchS3ReadWrite extends pulumi.ComponentResource {
 
 	private readonly readPolicyDocument: pulumi.Output<string>;
 	private readonly writePolicyDocument: pulumi.Output<string>;
+	private readonly deletePolicyDocument: pulumi.Output<string>;
 
 	constructor(
 		name: string,
@@ -87,6 +88,16 @@ export class HutchS3ReadWrite extends pulumi.ComponentResource {
 			}),
 		);
 
+		// Distinct from writePolicies so the delete grant lands only on the Lambdas
+		// that erase content (removal / account deletion), never widening every
+		// writer's blast radius to include object deletion.
+		this.deletePolicyDocument = bucket.arn.apply((arn) =>
+			JSON.stringify({
+				Version: "2012-10-17",
+				Statement: [{ Effect: "Allow", Action: ["s3:DeleteObject"], Resource: `${arn}/*` }],
+			}),
+		);
+
 		this.registerOutputs();
 	}
 
@@ -96,6 +107,10 @@ export class HutchS3ReadWrite extends pulumi.ComponentResource {
 
 	writePolicies(name: string): LambdaPolicy[] {
 		return [{ name: `${name}-write-pol`, policy: this.writePolicyDocument }];
+	}
+
+	deletePolicies(name: string): LambdaPolicy[] {
+		return [{ name: `${name}-delete-pol`, policy: this.deletePolicyDocument }];
 	}
 
 	static readPoliciesForBucket(name: string, bucketName: string): LambdaPolicy[] {
