@@ -16,7 +16,7 @@ const stubFinalizedArticle: FinalizedArticle = {
 	},
 };
 
-const okFinalize: FinalizeArticle = async (input) => ({ ok: true, canonicalUrl: input.url, article: stubFinalizedArticle });
+const okFinalize: FinalizeArticle = async () => ({ ok: true, article: stubFinalizedArticle });
 
 describe("initCrawlAndFinalizeArticle", () => {
 	it("calls crawlArticle with fetchThumbnail:true on every invocation (no opt-in flag per caller)", async () => {
@@ -220,7 +220,6 @@ describe("initCrawlAndFinalizeArticle", () => {
 		expect(result).toEqual({
 			status: "fetched",
 			article: stubFinalizedArticle,
-			canonicalUrl: URL_UNDER_TEST,
 			etag: '"v1"',
 			lastModified: "Wed, 01 Apr 2026 00:00:00 GMT",
 			bodyHash: "deadbeef".repeat(8),
