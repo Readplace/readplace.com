@@ -327,7 +327,7 @@ function handleViewSummary(deps: ViewDependencies, reader: ReturnType<typeof ini
 			res.status(400).type("html").send("");
 			return;
 		}
-		const articleUrl = validation.url;
+		const articleUrl = await deps.resolveCanonicalIdentity(validation.url);
 		const pollCount = Number(req.query.poll ?? "0");
 		const component = await reader.handleSummaryPoll({
 			articleUrl,
@@ -347,8 +347,7 @@ function handleViewReader(deps: ViewDependencies, reader: ReturnType<typeof init
 			res.status(400).type("html").send("");
 			return;
 		}
-		/* c8 ignore next -- V8 block coverage phantom: async continuation after if/return creates zero-count sub-range (bcoe/c8#319, v8.dev/blog/javascript-code-coverage) */
-		const articleUrl = validation.url;
+		const articleUrl = await deps.resolveCanonicalIdentity(validation.url);
 		const pollCount = Number(req.query.poll ?? "0");
 		const component = await reader.handleReaderPoll({
 			articleUrl,

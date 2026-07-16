@@ -241,8 +241,9 @@ export function initComprehensiveCrawlHandler(deps: {
 				});
 
 				/* Best-effort and never throws: a redirecting PDF/comprehensive URL
-				 * claims its (same-host) terminal identity here too. Refresh and
-				 * recrawl are re-crawls of an existing article, so neither adopts. */
+				 * claims its terminal identity here too. Refresh and recrawl are both
+				 * re-crawls of an existing article, so folding either flag into
+				 * `recrawl` suppresses re-adoption on every stale re-fetch. */
 				await adoptCanonicalIdentity({
 					url,
 					finalUrl: crawlResult.finalUrl,

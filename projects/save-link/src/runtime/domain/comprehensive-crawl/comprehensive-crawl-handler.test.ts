@@ -118,6 +118,27 @@ describe("initComprehensiveCrawlHandler", () => {
 		});
 	});
 
+	it("folds recrawl and refresh into the adopt re-adopt guard (false on a first crawl, true on either flag)", async () => {
+		const cases: Array<{ detail: { url: string; recrawl?: boolean; refresh?: boolean }; expected: boolean }> = [
+			{ detail: { url: "https://example.com/doc.pdf" }, expected: false },
+			{ detail: { url: "https://example.com/doc.pdf", refresh: true }, expected: true },
+			{ detail: { url: "https://example.com/doc.pdf", recrawl: true }, expected: true },
+		];
+		for (const { detail, expected } of cases) {
+			const adoptCanonicalIdentity = jest.fn().mockResolvedValue(undefined);
+			const handler = createHandler({ adoptCanonicalIdentity });
+
+			await handler(createSqsEvent(detail), buildLambdaContext(), () => {});
+
+			expect(adoptCanonicalIdentity).toHaveBeenCalledWith({
+				url: "https://example.com/doc.pdf",
+				finalUrl: undefined,
+				wordCount: 10,
+				recrawl: expected,
+			});
+		}
+	});
+
 	it("threads the crawler's html + pre-fetched thumbnail into finalizeArticle (same algorithm every path uses)", async () => {
 		const preFetchedThumbnail = {
 			body: Buffer.from([0xff]),
