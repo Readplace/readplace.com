@@ -1,12 +1,4 @@
-function parseHttpUrl(value: string): URL | undefined {
-	try {
-		const url = new URL(value);
-		if (url.protocol !== "http:" && url.protocol !== "https:") return undefined;
-		return url;
-	} catch {
-		return undefined;
-	}
-}
+import { parseHttpUrl } from "./parse-http-url";
 
 /** Trailing-slash- and case-insensitive: senders emit the same endpoint with
  * cosmetic variations between the header and the body footer. */

@@ -1,5 +1,6 @@
 import type { EmailLinkSkipReason } from "./inbox-email-link.schema";
 import { isListUnsubscribeTarget } from "./list-unsubscribe";
+import { isKnownNewsletterActionLink } from "./newsletter-action-links";
 
 export interface EmailLinkContext {
 	url: string;
@@ -13,7 +14,10 @@ export type EmailLinkClassification =
 const EXCLUSION_RULES: ReadonlyArray<{
 	reason: EmailLinkSkipReason;
 	matches: (link: EmailLinkContext) => boolean;
-}> = [{ reason: "list-unsubscribe", matches: isListUnsubscribeTarget }];
+}> = [
+	{ reason: "list-unsubscribe", matches: isListUnsubscribeTarget },
+	{ reason: "action-link-pattern", matches: isKnownNewsletterActionLink },
+];
 
 /** Decides whether one extracted email link is safe to preview-crawl. A `skip`
  * verdict means a GET may act on the reader's behalf (unsubscribe, confirm), so

@@ -25,5 +25,5 @@ export const formatEmailLinkOrdinal = (index: number): EmailLinkOrdinal =>
 export const EmailLinkStatusSchema = z.enum(["pending", "crawled", "failed", "skipped"]);
 export type EmailLinkStatus = z.infer<typeof EmailLinkStatusSchema>;
 
-export const EmailLinkSkipReasonSchema = z.enum(["list-unsubscribe"]);
+export const EmailLinkSkipReasonSchema = z.enum(["list-unsubscribe", "action-link-pattern"]);
 export type EmailLinkSkipReason = z.infer<typeof EmailLinkSkipReasonSchema>;
