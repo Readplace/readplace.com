@@ -19,6 +19,7 @@ export type {
 	ThumbnailImage,
 } from "./crawl-article.types";
 export { initCrawlFetch } from "./crawl-fetch";
+export { initFetchPinnedCrawl } from "./fetch-pinned-crawl";
 export type { CrawlFetch, CrawlFetchInit } from "./crawl-fetch";
 export { readBodyWithCap, BodyTooLargeError } from "./read-capped-body";
 export type { IsBlockedAddress, ResolveAll } from "./blocked-address-lookup";

@@ -35,8 +35,8 @@ describe("adoptableTerminal", () => {
 		).toBeUndefined();
 	});
 
-	it("rejects a cross-host redirect (only same-host is adopted in this slice)", () => {
-		expect(adoptableTerminal({ ...base, finalUrl: "https://other.com/page" })).toBeUndefined();
+	it("adopts a cross-host redirect (the fetch + display pins protect it)", () => {
+		expect(adoptableTerminal({ ...base, finalUrl: "https://other.com/page" })).toBe("https://other.com/page");
 	});
 
 	it("rejects when the terminal is itself a site-rule URL (keeps its oembed treatment)", () => {

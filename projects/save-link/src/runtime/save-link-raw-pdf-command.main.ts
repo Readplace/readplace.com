@@ -17,6 +17,7 @@ import { initInvokePdfPageLlmCleanup } from "./domain/article-parser/init-invoke
 import { initInvokePdfDocumentDiffReview } from "./domain/article-parser/init-invoke-pdf-document-diff-review";
 import { initInvokePdfPageHtmlConvert } from "./domain/article-parser/init-invoke-pdf-page-html-convert";
 import { initObservabilityDepBundle } from "./dep-bundles/observability";
+import { initCanonicalAliasStore } from "@packages/article-store";
 import { initParserDepBundle } from "./dep-bundles/parser";
 import { initArticleStoreDepBundle } from "./dep-bundles/article-store";
 import { initMediaDepBundle } from "./dep-bundles/media";
@@ -65,7 +66,12 @@ const extractPdf = initSaveLinkPdfExtract({
 // there is no second HTTP crawl. Reuse the simple-only parser bundle for the
 // readability pipeline; only `parseHtml` is exercised by the handler.
 const observability = initObservabilityDepBundle({ logger: consoleLogger, source: "save-link-raw-pdf", now });
-const parser = initParserDepBundle({ logError: observability.logError, logInfo: observability.logInfo });
+const canonicalAliasStore = initCanonicalAliasStore({ client: dynamoClient, tableName: articlesTable });
+const parser = initParserDepBundle({
+	logError: observability.logError,
+	logInfo: observability.logInfo,
+	findAdoptedFetchUrl: canonicalAliasStore.findAdoptedFetchUrl,
+});
 const articleStore = initArticleStoreDepBundle({ s3Client, dynamoClient, contentBucketName, articlesTable });
 const media = initMediaDepBundle({ parser, articleStore, logger: consoleLogger, imagesCdnBaseUrl });
 const events = initEventsDepBundle({ eventBridgeClient, eventBusName, sqsClient, generateSummaryQueueUrl });

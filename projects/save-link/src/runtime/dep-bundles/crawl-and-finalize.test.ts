@@ -8,7 +8,7 @@ import { initParserDepBundle } from "./parser";
 
 describe("initCrawlAndFinalizeDepBundle", () => {
 	it("returns a bundle with finalizeArticle and crawlAndFinalizeArticle fields", () => {
-		const parser = initParserDepBundle({ logError: () => {}, logInfo: () => {} });
+		const parser = initParserDepBundle({ logError: () => {}, logInfo: () => {}, findAdoptedFetchUrl: async () => undefined });
 		const articleStore = initArticleStoreDepBundle({
 			s3Client: new S3Client({ region: "us-east-1" }),
 			dynamoClient: createDynamoDocumentClient({ region: "us-east-1" }),

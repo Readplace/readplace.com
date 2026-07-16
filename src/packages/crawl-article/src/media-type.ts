@@ -40,7 +40,7 @@ const MEDIA_TYPE_MATCHERS = [
 	{ kind: "image", matches: ({ contentType }) => isSupportedImageContentType(contentType) },
 ] as const satisfies readonly MediaTypeMatcher[];
 
-type SupportedMediaType = (typeof MEDIA_TYPE_MATCHERS)[number]["kind"];
+export type SupportedMediaType = (typeof MEDIA_TYPE_MATCHERS)[number]["kind"];
 
 /**
  * Classify a fetched body as the media type the crawler will parse it as, or

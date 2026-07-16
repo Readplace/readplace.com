@@ -14,6 +14,7 @@ import type { ExtractPdf } from "@packages/crawl-article";
 import {
 	CRAWL_PERSONAS,
 	initCrawlArticle,
+	initFetchPinnedCrawl,
 	initCrawlFetch,
 	initFetchThumbnailImage,
 	initXTwitterSiteRules,
@@ -194,9 +195,8 @@ function initProviders() {
 		const auth = initDynamoDbAuth({ client, usersTableName: usersTable, sessionsTableName: sessionsTable });
 		const iosOnboardingSignal = initIosOnboardingSignal({ client, onboardingTableName: onboardingTable, now: () => new Date() });
 		const articleStore = initDynamoDbArticleStore({ client, tableName: articlesTable, userArticlesTableName: userArticlesTable, logger });
-		const resolveCanonicalIdentity = initResolveCanonicalIdentity({
-			resolveAlias: initCanonicalAliasStore({ client, tableName: articlesTable }).resolveAlias,
-		});
+		const canonicalAlias = initCanonicalAliasStore({ client, tableName: articlesTable });
+		const resolveCanonicalIdentity = initResolveCanonicalIdentity({ resolveAlias: canonicalAlias.resolveAlias });
 		const readArticleContent = initReadArticleContent({
 			storageProviderQueryOrder: [
 				initS3ReadContent({ send: (cmd) => s3Client.send(cmd), bucketName: contentBucketName }),
@@ -241,7 +241,10 @@ function initProviders() {
 			linkedinSiteRules,
 			initXTwitterSiteRules({ crawlFetch, logError }),
 		];
-		const crawlArticle = initCrawlArticle({ crawlFetch, siteRules, extractPdf, logError, logInfo });
+		const crawlArticle = initFetchPinnedCrawl({
+			crawlArticle: initCrawlArticle({ crawlFetch, siteRules, extractPdf, logError, logInfo }),
+			findAdoptedFetchUrl: canonicalAlias.findAdoptedFetchUrl,
+		});
 		const extractLinksFromPageUrl = initExtractLinksFromPageUrl({ crawlFetch, validateUrl: validateSaveableUrl });
 		const { parseHtml } = initReadabilityParser({
 			crawlArticle,
@@ -496,7 +499,10 @@ function initProviders() {
 		linkedinSiteRules,
 		initXTwitterSiteRules({ crawlFetch, logError }),
 	];
-	const crawlArticle = initCrawlArticle({ crawlFetch, siteRules, extractPdf, logError, logInfo });
+	const crawlArticle = initFetchPinnedCrawl({
+		crawlArticle: initCrawlArticle({ crawlFetch, siteRules, extractPdf, logError, logInfo }),
+		findAdoptedFetchUrl: async () => undefined,
+	});
 	const extractLinksFromPageUrl = initExtractLinksFromPageUrl({ crawlFetch, validateUrl: validateSaveableUrl });
 	const { parseHtml } = initReadabilityParser({
 		crawlArticle,

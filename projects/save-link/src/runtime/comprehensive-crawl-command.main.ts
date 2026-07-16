@@ -76,7 +76,13 @@ const extractPdf = initSaveLinkPdfExtract({
 });
 
 const observability = initObservabilityDepBundle({ logger: consoleLogger, source: "save-link", now });
-const parser = initComprehensiveParserDepBundle({ logError: observability.logError, logInfo: observability.logInfo, extractPdf });
+const canonicalAliasStore = initCanonicalAliasStore({ client: dynamoClient, tableName: articlesTable });
+const parser = initComprehensiveParserDepBundle({
+	logError: observability.logError,
+	logInfo: observability.logInfo,
+	extractPdf,
+	findAdoptedFetchUrl: canonicalAliasStore.findAdoptedFetchUrl,
+});
 const articleStore = initArticleStoreDepBundle({ s3Client, dynamoClient, contentBucketName, articlesTable });
 const media = initMediaDepBundle({ parser, articleStore, logger: consoleLogger, imagesCdnBaseUrl });
 const crawlAndFinalize = initCrawlAndFinalizeDepBundle({
@@ -96,7 +102,6 @@ const { consumePaidCrawlBudget, refundPaidCrawlBudget } = initDynamoDbPaidCrawlB
 	rule: paidCrawlBudget,
 	now,
 });
-const canonicalAliasStore = initCanonicalAliasStore({ client: dynamoClient, tableName: articlesTable });
 const adoptCanonicalIdentity = initAdoptCanonicalIdentity({
 	claimAlias: canonicalAliasStore.claimAlias,
 	setDisplayUrl: canonicalAliasStore.setDisplayUrl,

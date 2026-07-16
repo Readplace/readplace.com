@@ -6,6 +6,7 @@ import type {
 import {
 	initCrawlArticle,
 	initCrawlFetch,
+	initFetchPinnedCrawl,
 	initXTwitterSiteRules,
 	CRAWL_PERSONAS,
 } from "@packages/crawl-article";
@@ -42,6 +43,7 @@ export type ParserDepBundle = {
 export function initParserDepBundle(deps: {
 	logError: LogError;
 	logInfo: LogInfo;
+	findAdoptedFetchUrl: (url: string) => Promise<string | undefined>;
 }): ParserDepBundle {
 	const crawlFetch = initCrawlFetch({
 		fetch: globalThis.fetch,
@@ -54,7 +56,10 @@ export function initParserDepBundle(deps: {
 		linkedinSiteRules,
 		initXTwitterSiteRules({ crawlFetch, logError: deps.logError }),
 	];
-	const crawlArticle = initCrawlArticle({ crawlFetch, siteRules, logError: deps.logError, logInfo: deps.logInfo });
+	const crawlArticle = initFetchPinnedCrawl({
+		crawlArticle: initCrawlArticle({ crawlFetch, siteRules, logError: deps.logError, logInfo: deps.logInfo }),
+		findAdoptedFetchUrl: deps.findAdoptedFetchUrl,
+	});
 	const { parseHtml } = initReadabilityParser({
 		crawlArticle,
 		siteRules,
@@ -81,6 +86,7 @@ export function initComprehensiveParserDepBundle(deps: {
 	logError: LogError;
 	logInfo: LogInfo;
 	extractPdf: ExtractPdf;
+	findAdoptedFetchUrl: (url: string) => Promise<string | undefined>;
 }): ComprehensiveParserDepBundle {
 	const crawlFetch = initCrawlFetch({
 		fetch: globalThis.fetch,
@@ -93,12 +99,15 @@ export function initComprehensiveParserDepBundle(deps: {
 		linkedinSiteRules,
 		initXTwitterSiteRules({ crawlFetch, logError: deps.logError }),
 	];
-	const crawlArticle = initCrawlArticle({
-		crawlFetch,
-		siteRules,
-		extractPdf: deps.extractPdf,
-		logError: deps.logError,
-		logInfo: deps.logInfo,
+	const crawlArticle = initFetchPinnedCrawl({
+		crawlArticle: initCrawlArticle({
+			crawlFetch,
+			siteRules,
+			extractPdf: deps.extractPdf,
+			logError: deps.logError,
+			logInfo: deps.logInfo,
+		}),
+		findAdoptedFetchUrl: deps.findAdoptedFetchUrl,
 	});
 	const { parseHtml } = initReadabilityParser({
 		crawlArticle,

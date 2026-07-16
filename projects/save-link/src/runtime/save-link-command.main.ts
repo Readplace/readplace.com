@@ -29,7 +29,12 @@ const eventBridgeClient = new EventBridgeClient({});
 const now = () => new Date();
 
 const observability = initObservabilityDepBundle({ logger: consoleLogger, source: "save-link", now });
-const parser = initParserDepBundle({ logError: observability.logError, logInfo: observability.logInfo });
+const canonicalAliasStore = initCanonicalAliasStore({ client: dynamoClient, tableName: articlesTable });
+const parser = initParserDepBundle({
+	logError: observability.logError,
+	logInfo: observability.logInfo,
+	findAdoptedFetchUrl: canonicalAliasStore.findAdoptedFetchUrl,
+});
 const articleStore = initArticleStoreDepBundle({ s3Client, dynamoClient, contentBucketName, articlesTable });
 const media = initMediaDepBundle({ parser, articleStore, logger: consoleLogger, imagesCdnBaseUrl });
 const crawlAndFinalize = initCrawlAndFinalizeDepBundle({
@@ -46,7 +51,6 @@ const articleCrawl = initArticleCrawlDepBundle({ dynamoClient, articlesTable });
 const emitSimpleCrawlUnsupported = initEmitSimpleCrawlUnsupported({
 	publishEvent: events.publishEvent,
 });
-const canonicalAliasStore = initCanonicalAliasStore({ client: dynamoClient, tableName: articlesTable });
 const adoptCanonicalIdentity = initAdoptCanonicalIdentity({
 	claimAlias: canonicalAliasStore.claimAlias,
 	setDisplayUrl: canonicalAliasStore.setDisplayUrl,

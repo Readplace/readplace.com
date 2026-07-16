@@ -7,6 +7,7 @@ import { requireEnv } from "@packages/require-env";
 import { initReadPendingHtml } from "./providers/article-store/read-pending-html";
 import { initSaveLinkRawHtmlCommandHandler } from "./domain/save-link-raw-html/save-link-raw-html-command-handler";
 import { initObservabilityDepBundle } from "./dep-bundles/observability";
+import { initCanonicalAliasStore } from "@packages/article-store";
 import { initParserDepBundle } from "./dep-bundles/parser";
 import { initArticleStoreDepBundle } from "./dep-bundles/article-store";
 import { initMediaDepBundle } from "./dep-bundles/media";
@@ -33,7 +34,12 @@ const now = () => new Date();
 // the CDN with the same algorithm every other path uses — no per-trigger
 // drift on what lands in the metadata.
 const observability = initObservabilityDepBundle({ logger: consoleLogger, source: "save-link-raw-html", now });
-const parser = initParserDepBundle({ logError: observability.logError, logInfo: observability.logInfo });
+const canonicalAliasStore = initCanonicalAliasStore({ client: dynamoClient, tableName: articlesTable });
+const parser = initParserDepBundle({
+	logError: observability.logError,
+	logInfo: observability.logInfo,
+	findAdoptedFetchUrl: canonicalAliasStore.findAdoptedFetchUrl,
+});
 const articleStore = initArticleStoreDepBundle({ s3Client, dynamoClient, contentBucketName, articlesTable });
 const media = initMediaDepBundle({ parser, articleStore, logger: consoleLogger, imagesCdnBaseUrl });
 const crawlAndFinalize = initCrawlAndFinalizeDepBundle({

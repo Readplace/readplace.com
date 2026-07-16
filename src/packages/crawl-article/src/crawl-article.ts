@@ -8,7 +8,7 @@ import type { CrawlFetch } from "./crawl-fetch";
 import { extractThumbnailCandidates, initFetchThumbnailImage } from "./extract-thumbnail";
 import { headerOrUndefined } from "./header-utils";
 import { initLogFetchFailure } from "./log-fetch-failure";
-import { classifyMediaType } from "./media-type";
+import { classifyMediaType, type SupportedMediaType } from "./media-type";
 import { parseImageFromBuffer } from "./parse-image";
 import { parsePlainTextFromBuffer } from "./parse-plain-text";
 import { MAX_PDF_BYTES } from "./pdf-page-limits";
@@ -225,7 +225,6 @@ export async function parseHtmlFromBuffer(input: {
 		lastModified: headerOrUndefined(response.headers, "last-modified"),
 		bodyHash,
 	};
-	if (response.url) result.finalUrl = response.url;
 	if (thumbnailUrl) result.thumbnailUrl = thumbnailUrl;
 	if (thumbnailImage) result.thumbnailImage = thumbnailImage;
 	return result;
@@ -370,44 +369,87 @@ export function initCrawlArticle(deps: {
 			logError(`[CrawlArticle] Unsupported content-type "${contentType}" for ${params.url}`);
 			return { status: "unsupported", reason: `unsupported content type: ${contentType}` };
 		}
-		switch (mediaType) {
-			case "html":
-				return parseHtmlFromBuffer({
-					buffer,
-					bodyHash,
-					response,
-					url: params.url,
-					fetchThumbnail: params.fetchThumbnail,
-					crawlFetch,
-					logError,
-					logInfo,
-				});
-			case "pdf":
-				if (!extractPdf) {
-					logInfo(`[CrawlArticle] PDF deferred to comprehensive crawl (no extractPdf in this runtime) for ${params.url}`);
-					return { status: "unsupported", reason: `unsupported content type: ${contentType}` };
-				}
-				return parsePdfFromBuffer({
-					buffer,
-					bodyHash,
-					response,
-					url: params.url,
-					maxPdfBytes: MAX_PDF_BYTES.bytes,
-					extractPdf,
-					onProgress: params.onProgress,
-					logError,
-				});
-			case "plain-text":
-				return parsePlainTextFromBuffer({ buffer, bodyHash, response, url: params.url });
-			case "image":
-				return parseImageFromBuffer({
-					buffer,
-					bodyHash,
-					response,
-					url: params.url,
-					contentType,
-					logError,
-				});
-		}
+		const result = await dispatchSupportedMedia({
+			mediaType,
+			buffer,
+			bodyHash,
+			response,
+			contentType,
+			url: params.url,
+			fetchThumbnail: params.fetchThumbnail,
+			onProgress: params.onProgress,
+			extractPdf,
+			crawlFetch,
+			logError,
+			logInfo,
+		});
+		/* Stamp the post-redirect terminal URL onto every fetched result at the one
+		 * dispatch point, so a 3xx resolves the article's identity uniformly across
+		 * HTML/PDF/text/image. `response.url` is the real terminal on every
+		 * transport — undici populates it on the primary path, and `redirectable`
+		 * stamps it on the h2/curl/aia fallbacks (see follow-redirects.ts). */
+		if (result.status === "fetched" && response.url) result.finalUrl = response.url;
+		return result;
 	};
+}
+
+/**
+ * Content-type dispatch for a successfully fetched body. Kept as one exhaustive
+ * switch so adding a `MEDIA_TYPE_MATCHERS` member fails to compile until handled
+ * here; the caller stamps `finalUrl` onto the returned `fetched` result.
+ */
+async function dispatchSupportedMedia(input: {
+	mediaType: SupportedMediaType;
+	buffer: Buffer;
+	bodyHash: string;
+	response: Response;
+	contentType: string;
+	url: string;
+	fetchThumbnail?: boolean;
+	onProgress?: ComprehensiveCrawlProgress;
+	extractPdf?: ExtractPdf;
+	crawlFetch: CrawlFetch;
+	logError: (message: string, error?: Error) => void;
+	logInfo: (message: string) => void;
+}): Promise<CrawlArticleResult> {
+	const { mediaType, buffer, bodyHash, response, contentType, url, crawlFetch, logError, logInfo } = input;
+	switch (mediaType) {
+		case "html":
+			return parseHtmlFromBuffer({
+				buffer,
+				bodyHash,
+				response,
+				url,
+				fetchThumbnail: input.fetchThumbnail,
+				crawlFetch,
+				logError,
+				logInfo,
+			});
+		case "pdf":
+			if (!input.extractPdf) {
+				logInfo(`[CrawlArticle] PDF deferred to comprehensive crawl (no extractPdf in this runtime) for ${url}`);
+				return { status: "unsupported", reason: `unsupported content type: ${contentType}` };
+			}
+			return parsePdfFromBuffer({
+				buffer,
+				bodyHash,
+				response,
+				url,
+				maxPdfBytes: MAX_PDF_BYTES.bytes,
+				extractPdf: input.extractPdf,
+				onProgress: input.onProgress,
+				logError,
+			});
+		case "plain-text":
+			return parsePlainTextFromBuffer({ buffer, bodyHash, response, url });
+		case "image":
+			return parseImageFromBuffer({
+				buffer,
+				bodyHash,
+				response,
+				url,
+				contentType,
+				logError,
+			});
+	}
 }

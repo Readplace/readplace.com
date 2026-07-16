@@ -8,6 +8,7 @@ describe("initParserDepBundle", () => {
 		const bundle = initParserDepBundle({
 			logError: () => {},
 			logInfo: () => {},
+			findAdoptedFetchUrl: async () => undefined,
 		});
 
 		expect(typeof bundle.crawlFetch).toBe("function");
@@ -23,6 +24,7 @@ describe("initComprehensiveParserDepBundle", () => {
 			logError: () => {},
 			logInfo: () => {},
 			extractPdf: async () => ({ kind: "failed", reason: "stub" }),
+			findAdoptedFetchUrl: async () => undefined,
 		});
 
 		expect(typeof bundle.crawlFetch).toBe("function");

@@ -126,6 +126,26 @@ describe("initCanonicalAliasStore", () => {
 		});
 	});
 
+	describe("findAdoptedFetchUrl", () => {
+		it("returns the pinned destination for an adopted article", async () => {
+			const client = createFakeClient(() => ({
+				Item: { url: "evil.com/x", routeId: "a".repeat(32), originalUrl: "https://evil.com/x", displayUrl: "https://victim.com/article" },
+			}));
+			const { findAdoptedFetchUrl } = initCanonicalAliasStore({ client, tableName: TABLE });
+
+			expect(await findAdoptedFetchUrl("https://evil.com/x")).toBe("https://victim.com/article");
+		});
+
+		it("returns undefined for a normal (un-adopted) article or a missing row", async () => {
+			const client = createFakeClient(() => ({
+				Item: { url: "site.com/page", routeId: "a".repeat(32), originalUrl: "https://site.com/page" },
+			}));
+			const { findAdoptedFetchUrl } = initCanonicalAliasStore({ client, tableName: TABLE });
+
+			expect(await findAdoptedFetchUrl("https://site.com/page")).toBeUndefined();
+		});
+	});
+
 	describe("resolveAlias", () => {
 		it("returns the target URL for an alias row", async () => {
 			const client = createFakeClient(() => ({

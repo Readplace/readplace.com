@@ -13,6 +13,7 @@ import type {
 } from "@packages/provider-contracts/events";
 import { initStaleCheckHandler } from "./domain/stale-check/stale-check-handler";
 import { initObservabilityDepBundle } from "./dep-bundles/observability";
+import { initCanonicalAliasStore } from "@packages/article-store";
 import { initParserDepBundle } from "./dep-bundles/parser";
 import { initArticleStoreDepBundle } from "./dep-bundles/article-store";
 import { initMediaDepBundle } from "./dep-bundles/media";
@@ -43,7 +44,12 @@ const s3Client = new S3Client({});
 const now = () => new Date();
 
 const observability = initObservabilityDepBundle({ logger: consoleLogger, source: "save-link", now });
-const parser = initParserDepBundle({ logError: observability.logError, logInfo: observability.logInfo });
+const canonicalAliasStore = initCanonicalAliasStore({ client: dynamoClient, tableName: articlesTable });
+const parser = initParserDepBundle({
+	logError: observability.logError,
+	logInfo: observability.logInfo,
+	findAdoptedFetchUrl: canonicalAliasStore.findAdoptedFetchUrl,
+});
 const articleStore = initArticleStoreDepBundle({ s3Client, dynamoClient, contentBucketName, articlesTable });
 const media = initMediaDepBundle({ parser, articleStore, logger: consoleLogger, imagesCdnBaseUrl });
 const crawlAndFinalize = initCrawlAndFinalizeDepBundle({

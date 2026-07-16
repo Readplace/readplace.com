@@ -25,9 +25,11 @@ export type CrawlArticleResult =
 			 * can pass it back as `previousBodyHash` and short-circuit when the
 			 * origin returns the same bytes under a 200 OK. */
 			bodyHash: string;
-			/* Post-redirect URL (undici `Response.url`) so a 3xx redirect resolves
-			 * the article's canonical identity. Absent when the fetch fell back to
-			 * h2/curl, which build a synthetic Response whose `.url` is empty. */
+			/* Post-redirect URL so a 3xx redirect resolves the article's canonical
+			 * identity. Read straight off `response.url`, which is the real terminal
+			 * on every transport — undici on the primary path, and `redirectable`
+			 * stamps it on the h2/curl/aia fallbacks. Absent only for the
+			 * site-rule/oembed path, which never issues an HTTP fetch. */
 			finalUrl?: string;
 	  }
 	| { status: "not-modified" }

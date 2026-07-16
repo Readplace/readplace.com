@@ -6,6 +6,7 @@ export {
 	type ResolveCanonicalAlias,
 	type ResolveCanonicalIdentity,
 	type SetArticleDisplayUrl,
+	type FindAdoptedFetchUrl,
 } from "./canonical-alias";
 export type { ArticleStore } from "@packages/domain/article-aggregate";
 export { initReadArticleContent } from "./read-article-content";

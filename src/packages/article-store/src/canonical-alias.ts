@@ -23,6 +23,9 @@ const CanonicalAliasRow = z.object({
 	rowKind: dynamoField(z.literal("alias")),
 	aliasTargetUrl: dynamoField(z.string()),
 	aliasCreatedAt: dynamoField(z.string()),
+	// A real article's redirect destination, read back through this same table
+	// handle so a re-crawl can pin its fetch to the terminal (see findAdoptedFetchUrl).
+	displayUrl: dynamoField(z.string()),
 });
 
 /**
@@ -56,6 +59,12 @@ export type SetArticleDisplayUrl = (params: {
 	displayUrl: string;
 }) => Promise<void>;
 
+/** The URL a re-crawl of `url` must actually fetch: the redirect terminal an
+ * adopted article was pinned to (its `displayUrl`), or `undefined` for a normal
+ * article, so the crawl fetches `url` itself. Closes the content-poisoning
+ * vector — a re-crawl never re-fetches the origin that redirected here. */
+export type FindAdoptedFetchUrl = (url: string) => Promise<string | undefined>;
+
 export function initCanonicalAliasStore(deps: {
 	client: DynamoDBDocumentClient;
 	tableName: string;
@@ -63,6 +72,7 @@ export function initCanonicalAliasStore(deps: {
 	claimAlias: ClaimCanonicalAlias;
 	resolveAlias: ResolveCanonicalAlias;
 	setDisplayUrl: SetArticleDisplayUrl;
+	findAdoptedFetchUrl: FindAdoptedFetchUrl;
 } {
 	const table = defineDynamoTable({
 		client: deps.client,
@@ -113,7 +123,14 @@ export function initCanonicalAliasStore(deps: {
 		}
 	};
 
-	return { claimAlias, resolveAlias, setDisplayUrl };
+	const findAdoptedFetchUrl: FindAdoptedFetchUrl = async (url) => {
+		const row = await table.get({ url: ArticleResourceUniqueId.parse(url).value });
+		// Only an adopted real article carries displayUrl; a normal article and an
+		// alias row both lack it, so the crawl falls back to fetching `url` as-is.
+		return row?.displayUrl;
+	};
+
+	return { claimAlias, resolveAlias, setDisplayUrl, findAdoptedFetchUrl };
 }
 
 export function initResolveCanonicalIdentity(deps: {

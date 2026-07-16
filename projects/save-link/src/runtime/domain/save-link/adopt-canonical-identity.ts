@@ -33,12 +33,13 @@ export type AdoptCanonicalIdentity = (params: {
  *   - never on an admin recrawl (first-crawl-of-a-new-article only);
  *   - only when the finalize produced real content (`wordCount > 0`);
  *   - only when a redirect actually moved identity (`id(terminal) ≠ id(url)`);
- *   - **same host only** — a redirect that stays on the origin's own host cannot
- *     be used to capture a different site's identity, so it needs none of the
- *     re-fetch/display protection cross-host adoption does (added in a later
- *     slice). A cross-host redirect is left alone for now;
  *   - never when the terminal is itself a site-rule URL (those get bespoke
  *     oembed treatment and must mint their own article on a direct save).
+ *
+ * Cross-host redirects are adopted: the fetch pin re-crawls the terminal (never
+ * the origin that redirected here) and the display pin shows the terminal, so an
+ * attacker who redirects their origin to a victim article and later flips it to
+ * malware can neither poison the shared article nor launder their URL behind it.
  */
 export function adoptableTerminal(params: {
 	url: string;
@@ -52,7 +53,6 @@ export function adoptableTerminal(params: {
 	if (wordCount <= 0) return undefined;
 	if (finalUrl === undefined) return undefined;
 	if (ArticleResourceUniqueId.parse(finalUrl).value === ArticleResourceUniqueId.parse(url).value) return undefined;
-	if (new URL(finalUrl).hostname !== new URL(url).hostname) return undefined;
 	if (isSiteRuleUrl(finalUrl)) return undefined;
 	return finalUrl;
 }
