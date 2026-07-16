@@ -9,6 +9,7 @@ import {
 import { z } from "zod";
 import {
 	EmailLinkOrdinalSchema,
+	EmailLinkSkipReasonSchema,
 	EmailLinkStatusSchema,
 	type InboxEmailLinkEntry,
 	type InboxEmailLinkStore,
@@ -44,6 +45,7 @@ const InboxEmailLinkRow = z.object({
 	siteName: dynamoField(z.string()),
 	imageUrl: dynamoField(z.string()),
 	failureReason: dynamoField(z.string()),
+	skipReason: dynamoField(EmailLinkSkipReasonSchema),
 	truncated: dynamoField(z.boolean()),
 });
 
@@ -63,6 +65,7 @@ function toEntry(row: InboxEmailLinkRowType): InboxEmailLinkEntry {
 		siteName: row.siteName,
 		imageUrl: row.imageUrl,
 		failureReason: row.failureReason,
+		skipReason: row.skipReason,
 	};
 }
 
@@ -109,6 +112,7 @@ export function initDynamoDbInboxEmailLink(deps: {
 				url: link.url,
 				status: link.status,
 			};
+			if (link.skipReason !== undefined) Item.skipReason = link.skipReason;
 			try {
 				await table.put({ Item, ConditionExpression: "attribute_not_exists(ordinal)" });
 				return "stored";
@@ -128,6 +132,7 @@ export function initDynamoDbInboxEmailLink(deps: {
 					"#siteName": "siteName",
 					"#imageUrl": "imageUrl",
 					"#failureReason": "failureReason",
+					"#skipReason": "skipReason",
 				};
 				const values: Record<string, unknown> = {
 					":status": "crawled",
@@ -135,7 +140,7 @@ export function initDynamoDbInboxEmailLink(deps: {
 					":excerpt": outcome.excerpt,
 					":siteName": outcome.siteName,
 				};
-				const removes = ["#failureReason"];
+				const removes = ["#failureReason", "#skipReason"];
 				if (outcome.imageUrl !== undefined) {
 					sets.push("#imageUrl = :imageUrl");
 					values[":imageUrl"] = outcome.imageUrl;
@@ -158,7 +163,7 @@ export function initDynamoDbInboxEmailLink(deps: {
 				Key,
 				ConditionExpression: "attribute_exists(ordinal)",
 				UpdateExpression:
-					"SET #status = :status, #failureReason = :failureReason REMOVE #title, #excerpt, #siteName, #imageUrl",
+					"SET #status = :status, #failureReason = :failureReason REMOVE #title, #excerpt, #siteName, #imageUrl, #skipReason",
 				ExpressionAttributeNames: {
 					"#status": "status",
 					"#failureReason": "failureReason",
@@ -166,6 +171,7 @@ export function initDynamoDbInboxEmailLink(deps: {
 					"#excerpt": "excerpt",
 					"#siteName": "siteName",
 					"#imageUrl": "imageUrl",
+					"#skipReason": "skipReason",
 				},
 				ExpressionAttributeValues: { ":status": "failed", ":failureReason": outcome.failureReason },
 			});

@@ -49,7 +49,10 @@ export {
 	EMAIL_LINK_ORDINAL_CAPACITY,
 	EmailLinkStatusSchema,
 	type EmailLinkStatus,
+	EmailLinkSkipReasonSchema,
+	type EmailLinkSkipReason,
 } from "./inbox-email-link.schema";
+export { classifyEmailLink } from "./classify-email-link";
 export type {
 	InboxEmailLinkEntry,
 	InboxEmailLinksMeta,

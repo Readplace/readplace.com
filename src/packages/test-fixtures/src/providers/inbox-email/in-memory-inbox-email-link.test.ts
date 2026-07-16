@@ -22,6 +22,7 @@ function makeLink(overrides: Partial<InboxEmailLinkEntry> = {}): InboxEmailLinkE
 		siteName: undefined,
 		imageUrl: undefined,
 		failureReason: undefined,
+		skipReason: undefined,
 		...overrides,
 	};
 }
@@ -111,6 +112,27 @@ describe("initInMemoryInboxEmailLink", () => {
 		expect(found.title).toBe("A title");
 		expect(found.imageUrl).toBe("https://cdn.test/x.jpg");
 		expect(found.failureReason).toBeUndefined();
+	});
+
+	it("clears the skip reason when an outcome lands on a skipped row", async () => {
+		const store = initInMemoryInboxEmailLink();
+		await store.putLink(makeLink({ status: "skipped", skipReason: "list-unsubscribe" }));
+
+		await store.setLinkOutcome({
+			userId: owner,
+			receivedAtMessageId: RAM,
+			ordinal: EmailLinkOrdinalSchema.parse("0000"),
+			outcome: { status: "crawled", title: "T", excerpt: "E", siteName: "S", imageUrl: undefined },
+		});
+
+		const found = await store.getLink({
+			userId: owner,
+			receivedAtMessageId: RAM,
+			ordinal: EmailLinkOrdinalSchema.parse("0000"),
+		});
+		assert(found);
+		expect(found.status).toBe("crawled");
+		expect(found.skipReason).toBeUndefined();
 	});
 
 	it("stamps a failed outcome and clears any preview fields", async () => {

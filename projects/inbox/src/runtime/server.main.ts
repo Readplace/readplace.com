@@ -85,6 +85,7 @@ async function main(): Promise<void> {
 		siteName: "Example",
 		imageUrl: undefined,
 		failureReason: undefined,
+		skipReason: undefined,
 	});
 	await fixture.inboxEmail.inboxEmailLinkStore.putLink({
 		userId,
@@ -97,6 +98,7 @@ async function main(): Promise<void> {
 		siteName: undefined,
 		imageUrl: undefined,
 		failureReason: undefined,
+		skipReason: undefined,
 	});
 	await fixture.inboxEmail.inboxEmailLinkStore.putLinksMeta({
 		userId,

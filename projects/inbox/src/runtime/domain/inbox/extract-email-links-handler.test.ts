@@ -34,7 +34,7 @@ function makeEmail(overrides: Partial<InboxEmailEntry> = {}): InboxEmailEntry {
 	};
 }
 
-function parsedOk(html: string): ParseEmailResult {
+function parsedOk(html: string, listUnsubscribeUrls: string[] = []): ParseEmailResult {
 	return {
 		ok: true,
 		email: {
@@ -45,6 +45,7 @@ function parsedOk(html: string): ParseEmailResult {
 			messageId: MessageIdSchema.parse("<m@x>"),
 			receivedAt: RECEIVED_AT,
 			inlineImages: [],
+			listUnsubscribeUrls,
 		},
 	};
 }
@@ -121,6 +122,28 @@ describe("initExtractEmailLinksHandler", () => {
 			{ ordinal: "0002", url: "https://c.test/z" },
 		]);
 		expect(harness.alerts).toHaveLength(0);
+	});
+
+	it("writes a List-Unsubscribe match as a terminal skipped row and does not fan it out", async () => {
+		const harness = makeHarness({
+			parseEmail: async () => parsedOk("<p>body</p>", ["https://news.example.com/unsub"]),
+			derivedHtml: "https://a.test/x https://news.example.com/unsub?token=send-1",
+		});
+
+		const result = await harness.run(eventBody());
+
+		assert(result);
+		expect(result.batchItemFailures).toHaveLength(0);
+		const { links, meta } = await harness.linkStore.listLinksByEmail({
+			userId: USER,
+			receivedAtMessageId: RAM,
+		});
+		expect(links.map((l) => [l.ordinal, l.url, l.status, l.skipReason])).toEqual([
+			["0000", "https://a.test/x", "pending", undefined],
+			["0001", "https://news.example.com/unsub?token=send-1", "skipped", "list-unsubscribe"],
+		]);
+		expect(meta).toEqual({ truncated: false });
+		expect(harness.published).toEqual([{ ordinal: "0000", url: "https://a.test/x" }]);
 	});
 
 	it("caps the fan-out, writes a truncated meta item, and raises one alert", async () => {
@@ -209,6 +232,29 @@ describe("initExtractEmailLinksHandler", () => {
 		assert(result);
 		expect(result.batchItemFailures).toEqual([{ itemIdentifier: "rec-1" }]);
 		expect(harness.published).toHaveLength(0);
+	});
+
+	it("keeps a skipped link terminal and unpublished across re-delivery", async () => {
+		const harness = makeHarness({
+			parseEmail: async () => parsedOk("<p>body</p>", ["https://news.example.com/unsub"]),
+			derivedHtml: "https://a.test/x https://news.example.com/unsub",
+		});
+
+		await harness.run(eventBody());
+		await harness.run(eventBody());
+
+		const { links } = await harness.linkStore.listLinksByEmail({
+			userId: USER,
+			receivedAtMessageId: RAM,
+		});
+		expect(links.map((l) => [l.status, l.skipReason])).toEqual([
+			["pending", undefined],
+			["skipped", "list-unsubscribe"],
+		]);
+		expect(harness.published).toEqual([
+			{ ordinal: "0000", url: "https://a.test/x" },
+			{ ordinal: "0000", url: "https://a.test/x" },
+		]);
 	});
 
 	it("is idempotent under re-delivery: no duplicate rows, re-publishes the fan-out", async () => {

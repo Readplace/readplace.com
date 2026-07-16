@@ -8,6 +8,7 @@ import { EmailReceivedEvent } from "@packages/hutch-infra-components";
 import type { HutchLogger } from "@packages/hutch-logger";
 import {
 	capEmailLinks,
+	classifyEmailLink,
 	type EmailLinkOrdinal,
 	formatEmailLinkOrdinal,
 	type InboxEmailLinkStore,
@@ -22,6 +23,8 @@ import { type UserId, UserIdSchema } from "@packages/domain/user";
  * Consumes `EmailReceivedEvent` and turns the links found inside the email into
  * `pending` preview rows, then fans out one `CrawlEmailLinkPreview` command per
  * link (mirroring how /queue fans each import URL into its own SaveLinkCommand).
+ * Links classified as action links (a GET could unsubscribe or confirm on the
+ * reader's behalf) are written as terminal `skipped` rows and never fanned out.
  *
  * The body is RE-DERIVED from the immutable raw `.eml` on every run — read raw →
  * re-parse → re-sanitize — so a future parse/sanitize change applies to
@@ -113,23 +116,35 @@ export function initExtractEmailLinksHandler(deps: {
 				const extracted = extractUrls(Buffer.from(sanitizedHtml, "utf8"));
 				const { urls, truncated } = capEmailLinks(extracted, { maxLinks });
 
+				let skipped = 0;
 				for (const [index, url] of urls.entries()) {
 					const ordinal = formatEmailLinkOrdinal(index);
-					// Put the pending row BEFORE publishing so the Articles tab shows N
-					// pending cards immediately; a re-delivery hits the conditional put as
-					// a no-op duplicate, then re-publishes (the crawl consumer is idempotent).
-					await putLink({
+					const link = {
 						userId,
 						receivedAtMessageId,
 						ordinal,
 						url,
-						status: "pending",
 						title: undefined,
 						excerpt: undefined,
 						siteName: undefined,
 						imageUrl: undefined,
 						failureReason: undefined,
+					};
+					const classification = classifyEmailLink({
+						url,
+						listUnsubscribeUrls: parsedEmail.email.listUnsubscribeUrls,
 					});
+					if (classification.action === "skip") {
+						// Terminal at birth: a skipped link is never crawled, so no
+						// CrawlEmailLinkPreview is published for it and its card never polls.
+						await putLink({ ...link, status: "skipped", skipReason: classification.reason });
+						skipped += 1;
+						continue;
+					}
+					// Put the pending row BEFORE publishing so the Articles tab shows N
+					// pending cards immediately; a re-delivery hits the conditional put as
+					// a no-op duplicate, then re-publishes (the crawl consumer is idempotent).
+					await putLink({ ...link, status: "pending", skipReason: undefined });
 					await publishCrawlPreview({ userId, receivedAtMessageId, ordinal, url });
 				}
 
@@ -150,6 +165,7 @@ export function initExtractEmailLinksHandler(deps: {
 				logger.info("[extract-email-links] extracted", {
 					receivedAtMessageId,
 					links: urls.length,
+					skipped,
 				});
 			} catch (error) {
 				logger.error("[extract-email-links] record failed", {

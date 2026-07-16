@@ -42,6 +42,7 @@ function parsedOk(): ParseEmailResult {
 			messageId: MessageIdSchema.parse("<real@x>"),
 			receivedAt: RECEIVED_AT,
 			inlineImages: [],
+			listUnsubscribeUrls: [],
 		},
 	};
 }

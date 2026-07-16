@@ -16,6 +16,7 @@ function link(overrides: Partial<InboxEmailLinkEntry> = {}): InboxEmailLinkEntry
 		siteName: undefined,
 		imageUrl: undefined,
 		failureReason: undefined,
+		skipReason: undefined,
 		...overrides,
 	};
 }
@@ -58,6 +59,18 @@ describe("toInboxLinkCardViewModel", () => {
 
 		expect(crawled.cardPollUrl).toBeUndefined();
 		expect(crawled.hasTitle).toBe(false);
+	});
+
+	it("treats a skipped link as terminal so its card never polls", () => {
+		const skipped = toInboxLinkCardViewModel({
+			link: link({ status: "skipped", skipReason: "list-unsubscribe" }),
+			emailId: EMAIL_ID,
+			pollCount: 1,
+			maxPolls: 300,
+		});
+
+		expect(skipped.cardPollUrl).toBeUndefined();
+		expect(skipped.hasTitle).toBe(false);
 	});
 
 	it("stops polling a still-pending link once the poll budget is spent", () => {

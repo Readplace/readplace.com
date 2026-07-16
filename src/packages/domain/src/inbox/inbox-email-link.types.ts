@@ -1,12 +1,16 @@
 import type { UserId } from "../user";
-import type { EmailLinkOrdinal, EmailLinkStatus } from "./inbox-email-link.schema";
+import type {
+	EmailLinkOrdinal,
+	EmailLinkSkipReason,
+	EmailLinkStatus,
+} from "./inbox-email-link.schema";
 
 /** One extracted link from a received email, with its crawled preview. Lives in
  * its own table (not inlined on the email row): each link transitions and is
  * polled independently, and a link-bomb email would otherwise blow the parent
  * row's 400 KB item ceiling. Preview fields are populated only once `crawled`;
- * `failureReason` only once `failed`, so the status and the populated fields
- * stay consistent. */
+ * `failureReason` only once `failed`; `skipReason` only once `skipped`, so the
+ * status and the populated fields stay consistent. */
 export interface InboxEmailLinkEntry {
 	userId: UserId;
 	/** The parent email's sort key: `${receivedAt}#${messageId}`. The grouping key. */
@@ -19,6 +23,7 @@ export interface InboxEmailLinkEntry {
 	siteName: string | undefined;
 	imageUrl: string | undefined;
 	failureReason: string | undefined;
+	skipReason: EmailLinkSkipReason | undefined;
 }
 
 /** A small per-email summary co-located in the links partition under a reserved

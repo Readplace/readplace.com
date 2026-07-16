@@ -57,6 +57,7 @@ async function seedPending(store: InboxEmailLinkStore, ordinal = "0000") {
 		siteName: undefined,
 		imageUrl: undefined,
 		failureReason: undefined,
+		skipReason: undefined,
 	});
 }
 

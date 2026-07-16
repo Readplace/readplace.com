@@ -197,6 +197,7 @@ describe("Inbox emails list route", () => {
 				siteName: undefined,
 				imageUrl: undefined,
 				failureReason: undefined,
+				skipReason: undefined,
 			});
 		}
 		// The finished-extraction barrier: rows plus meta is the state the list
