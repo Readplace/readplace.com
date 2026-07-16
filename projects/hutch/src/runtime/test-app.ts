@@ -157,6 +157,7 @@ function flattenFixtureToAppDependencies(
 		forceMarkCrawlPending: fixture.articleCrawl.forceMarkCrawlPending,
 		publishLinkSaved: fixture.events.publishLinkSaved,
 		publishRecrawlLinkInitiated: fixture.events.publishRecrawlLinkInitiated,
+		publishRemoveMyContent: fixture.events.publishRemoveMyContent,
 		publishSaveAnonymousLink: fixture.events.publishSaveAnonymousLink,
 		publishStaleCheckRequested: fixture.events.publishStaleCheckRequested,
 		publishSaveLinkRawHtmlCommand: fixture.events.publishSaveLinkRawHtmlCommand,

@@ -101,6 +101,7 @@ import type {
 } from "@packages/provider-contracts/article-summary";
 import type { PublishLinkSaved } from "@packages/provider-contracts/events";
 import type { PublishRecrawlLinkInitiated } from "@packages/provider-contracts/events";
+import type { PublishRemoveMyContent } from "@packages/provider-contracts/events";
 import type { PublishSaveAnonymousLink } from "@packages/provider-contracts/events";
 import type { PublishStaleCheckRequested } from "@packages/provider-contracts/events";
 import type { PublishSaveLinkRawHtmlCommand } from "@packages/provider-contracts/events";
@@ -283,6 +284,7 @@ interface AppDependencies {
 	registerOAuthClient: RegisterOAuthClient;
 	publishLinkSaved: PublishLinkSaved;
 	publishRecrawlLinkInitiated: PublishRecrawlLinkInitiated;
+	publishRemoveMyContent: PublishRemoveMyContent;
 	publishSaveAnonymousLink: PublishSaveAnonymousLink;
 	publishStaleCheckRequested: PublishStaleCheckRequested;
 	publishSaveLinkRawHtmlCommand: PublishSaveLinkRawHtmlCommand;
@@ -995,6 +997,7 @@ export function createApp(dependencies: AppDependencies): Express {
 		markArticleViewed: deps.markArticleViewed,
 		markSummaryToggled: deps.markSummaryToggled,
 		publishLinkSaved: deps.publishLinkSaved,
+		publishRemoveMyContent: deps.publishRemoveMyContent,
 		publishSaveLinkRawHtmlCommand: deps.publishSaveLinkRawHtmlCommand,
 		publishSaveLinkRawPdfCommand: deps.publishSaveLinkRawPdfCommand,
 		putPendingHtml: deps.putPendingHtml,

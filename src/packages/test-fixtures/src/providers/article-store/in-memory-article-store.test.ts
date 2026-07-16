@@ -547,6 +547,25 @@ describe("initInMemoryArticleStore", () => {
 		});
 	});
 
+	describe("listUserArticleUrls", () => {
+		it("returns the user's original URLs and excludes other users' saves", async () => {
+			const store = initInMemoryArticleStore();
+			await store.saveArticle(makeArticleParams({ userId: USER_A, url: "https://example.com/one" }));
+			await store.saveArticle(makeArticleParams({ userId: USER_A, url: "https://example.com/two" }));
+			await store.saveArticle(makeArticleParams({ userId: USER_B, url: "https://example.com/three" }));
+
+			const urls = await store.listUserArticleUrls(USER_A);
+
+			expect(urls.sort()).toEqual(["https://example.com/one", "https://example.com/two"]);
+		});
+
+		it("returns an empty list for a user with no saves", async () => {
+			const store = initInMemoryArticleStore();
+
+			expect(await store.listUserArticleUrls(USER_A)).toEqual([]);
+		});
+	});
+
 	describe("freshness operations", () => {
 		it("findArticleFreshness returns null for unknown URL", async () => {
 			const store = initInMemoryArticleStore();

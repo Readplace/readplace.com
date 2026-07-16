@@ -97,6 +97,12 @@ function buildSubject() {
 	// added here, so a batch can carry one poisoned record beside a healthy one.
 	const articleDeleteThrowIds = new Set<string>();
 
+	// Content-purge captures. `otherSaversByUrl` lets a test declare a URL still
+	// saved by someone else, so the purge is skipped for it.
+	const purgeContentCalls: string[] = [];
+	const tombstoneCalls: Array<{ url: string; at: Date }> = [];
+	const otherSaversByUrl = new Map<string, number>();
+
 	// Test-only one-shot failures: each flag makes its step throw exactly once
 	// (self-clearing), so the record fails on the first delivery and its redrive
 	// then runs clean — the interleavings that exercise idempotency on retry.
@@ -151,6 +157,16 @@ function buildSubject() {
 			}
 			await articleStore.deleteAllUserArticles(userId);
 		},
+		listUserArticleUrls: articleStore.listUserArticleUrls,
+		countOtherSaversByUrl: async ({ url }: { url: string; excludeUserId: string }) =>
+			otherSaversByUrl.get(url) ?? 0,
+		purgeArticleContent: async (url: string) => {
+			purgeContentCalls.push(url);
+		},
+		tombstoneArticle: async ({ url, at }: { url: string; at: Date }) => {
+			tombstoneCalls.push({ url, at });
+		},
+		now: () => SEED_NOW,
 		deleteDigestByUser: digest.deleteDigestByUser,
 		deleteReaderReadyState: readerReady.deleteReaderReadyState,
 		deleteOnboarding: onboarding.deleteOnboarding,
@@ -203,6 +219,11 @@ function buildSubject() {
 		pendingSignupDeleteCalls,
 		revokeIdpCalls,
 		appleRevokeCalls,
+		purgeContentCalls,
+		tombstoneCalls,
+		setOtherSavers: (url: string, count: number): void => {
+			otherSaversByUrl.set(url, count);
+		},
 		failArticleDeleteFor: (userId: UserId): void => {
 			articleDeleteThrowIds.add(userId);
 		},
@@ -440,6 +461,13 @@ describe("delete-account handler", () => {
 		assert.deepEqual(s.deleteExportsCalls, [victim.userId]);
 		assert.deepEqual(s.revokeIdpCalls, [victim.userId]);
 
+		// The victim was the only saver of their article, so its global content is
+		// purged and the row tombstoned — not just delisted.
+		assert.deepEqual(s.purgeContentCalls, ["https://example.com/u1/article"]);
+		assert.deepEqual(s.tombstoneCalls, [
+			{ url: "https://example.com/u1/article", at: SEED_NOW },
+		]);
+
 		// Bystander: everything intact.
 		assert.equal((await s.articleStore.findArticlesByUser({ userId: bystander.userId })).total, 1);
 		assert.equal((await s.digest.listDigestItemsByUser(bystander.userId)).length, 1);
@@ -479,6 +507,24 @@ describe("delete-account handler", () => {
 		assert.equal(s.oauthDeps.userIdIndex.has(bystander.userId), true);
 		assert(await s.auth.getSessionUserId(bystander.sessionId));
 		assert.equal(await s.auth.findEmailByUserId(bystander.userId), bystander.email);
+	});
+
+	it("leaves content another user still saves in place — delists the account but never purges a co-saved URL", async () => {
+		const s = buildSubject();
+		const account = await seedAccount(s, {
+			label: "shared",
+			email: "shared@example.com",
+			subscription: "none",
+		});
+		// Someone else still has this URL saved.
+		s.setOtherSavers("https://example.com/shared/article", 1);
+
+		const result = await run(s, [{ messageId: "msg", body: bodyFor(account.userId) }]);
+
+		assert.deepEqual(result.batchItemFailures, []);
+		assert.equal((await s.articleStore.findArticlesByUser({ userId: account.userId })).total, 0);
+		assert.deepEqual(s.purgeContentCalls, []);
+		assert.deepEqual(s.tombstoneCalls, []);
 	});
 
 	it("active subscription branch — deletes the Stripe customer (which cancels the sub) and drops the local row", async () => {

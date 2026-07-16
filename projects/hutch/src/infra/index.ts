@@ -524,6 +524,9 @@ const deleteAccountDynamodb = new HutchDynamoDBAccess("delete-account-dynamodb",
 		{ arn: storage.usersTable.arn, includeIndexes: true },
 		{ arn: storage.sessionsTable.arn, includeIndexes: true },
 		{ arn: storage.oauthTable.arn, includeIndexes: true },
+		// Global article rows: read original URLs, count other savers, tombstone
+		// a single-saver URL after purging its content.
+		{ arn: storage.articlesTable.arn, includeIndexes: false },
 		{ arn: storage.userArticlesTable.arn, includeIndexes: true },
 		{ arn: storage.digestQueueTable.arn, includeIndexes: false },
 		{ arn: storage.readerReadyNotificationsTable.arn, includeIndexes: false },
@@ -538,6 +541,7 @@ const deleteAccountDynamodb = new HutchDynamoDBAccess("delete-account-dynamodb",
 	],
 	actions: [
 		"dynamodb:GetItem",
+		"dynamodb:BatchGetItem",
 		"dynamodb:Query",
 		"dynamodb:Scan",
 		"dynamodb:DeleteItem",

@@ -83,6 +83,10 @@ export interface GlobalArticleData {
 	estimatedReadTime: SavedArticle["estimatedReadTime"];
 	savedAt: Date;
 	contentSourceTier?: "tier-0" | "tier-1";
+	/** Set once the URL's content was purged and the row tombstoned. Serving
+	 * surfaces treat a purged row as gone (404) even though the row survives so
+	 * in-flight transitions still load it and its id still resolves. */
+	purgedAt?: Date;
 }
 
 export type FindArticleByUrl = (
@@ -213,3 +217,9 @@ export type ReadArticleContent = (url: string) => Promise<string | undefined>;
  * per-user gateway rows are removed; the URL-keyed global article cache is
  * shared across users and left untouched. */
 export type DeleteAllUserArticles = (userId: UserId) => Promise<void>;
+
+/** Every original (un-normalized) URL a user has saved. Used at account deletion
+ * to decide, per URL, whether the user was its only saver — in which case the
+ * global content is purged. Returns the original URLs (not the normalized
+ * partition-key form) so they can be fed back into the URL-keyed content ops. */
+export type ListUserArticleUrls = (userId: UserId) => Promise<string[]>;

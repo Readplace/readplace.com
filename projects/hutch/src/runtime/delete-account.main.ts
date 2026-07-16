@@ -22,6 +22,13 @@ import { initDynamoDbPendingSignup } from "./providers/pending-signup/dynamodb-p
 import { initRevokeExternalIdpTokens } from "./delete-account/revoke-external-idp-tokens";
 import { initDeleteAccountHandler } from "./delete-account/delete-account-handler";
 import { initDynamoDbInboxEmail, initDynamoDbInboxEmailLink, initDynamoDbInboxAddress, initS3DeleteObjects } from "@packages/inbox-store";
+import {
+	initCountOtherSaversByUrl,
+	initPurgeArticleContent,
+	initS3DeleteContentObjects,
+	initS3ListContentKeys,
+	initTombstoneArticle,
+} from "@packages/article-store";
 
 const logger = HutchLogger.from(consoleLogger);
 const now = () => new Date();
@@ -132,6 +139,24 @@ const appleClientId = requireEnv("APPLE_LOGIN_CLIENT_ID");
 const applePrivateKeyPem = Buffer.from(requireEnv("APPLE_LOGIN_PRIVATE_KEY_BASE64"), "base64").toString("utf8");
 assert(applePrivateKeyPem.includes("BEGIN PRIVATE KEY"), "APPLE_LOGIN_PRIVATE_KEY_BASE64 must decode to a PKCS#8 PEM");
 
+const articlesTableName = requireEnv("DYNAMODB_ARTICLES_TABLE");
+const contentBucketName = requireEnv("CONTENT_BUCKET_NAME");
+
+const { countOtherSaversByUrl } = initCountOtherSaversByUrl({
+	client: dynamoClient,
+	userArticlesTableName: requireEnv("DYNAMODB_USER_ARTICLES_TABLE"),
+});
+
+const { purgeArticleContent } = initPurgeArticleContent({
+	listContentKeys: initS3ListContentKeys({ client: s3Client, bucketName: contentBucketName }).listContentKeys,
+	deleteContentObjects: initS3DeleteContentObjects({ client: s3Client, bucketName: contentBucketName }).deleteContentObjects,
+});
+
+const { tombstoneArticle } = initTombstoneArticle({
+	client: dynamoClient,
+	tableName: articlesTableName,
+});
+
 const revokeExternalIdpTokens = initRevokeExternalIdpTokens({
 	findAppleRefreshTokenByUserId: auth.findAppleRefreshTokenByUserId,
 	appleClientId,
@@ -163,6 +188,11 @@ export const handler = initDeleteAccountHandler({
 	deleteRawEmailObjects,
 	deleteEmailContentObjects,
 	deleteAllUserArticles: articleStore.deleteAllUserArticles,
+	listUserArticleUrls: articleStore.listUserArticleUrls,
+	countOtherSaversByUrl,
+	purgeArticleContent,
+	tombstoneArticle,
+	now,
 	deleteDigestByUser: digestQueue.deleteDigestByUser,
 	deleteReaderReadyState: readerReadyState.deleteReaderReadyState,
 	deleteOnboarding: onboarding.deleteOnboarding,

@@ -14,7 +14,15 @@ import type {
 	FindEmailByUserId,
 } from "@packages/provider-contracts/auth";
 import type { RevokeAllUserOAuthTokens } from "@packages/provider-contracts/oauth";
-import type { DeleteAllUserArticles } from "@packages/provider-contracts/article-store";
+import type {
+	DeleteAllUserArticles,
+	ListUserArticleUrls,
+} from "@packages/provider-contracts/article-store";
+import type {
+	CountOtherSaversByUrl,
+	PurgeArticleContent,
+	TombstoneArticle,
+} from "@packages/article-store";
 import type { DeleteDigestByUser } from "@packages/provider-contracts/digest-queue";
 import type { DeleteReaderReadyState } from "@packages/provider-contracts/reader-ready-state";
 import type { DeleteOnboarding } from "@packages/provider-contracts/ios-onboarding-signal";
@@ -58,6 +66,11 @@ export interface DeleteAccountHandlerDependencies {
 	deleteRawEmailObjects: (keys: string[]) => Promise<void>;
 	deleteEmailContentObjects: (keys: string[]) => Promise<void>;
 	deleteAllUserArticles: DeleteAllUserArticles;
+	listUserArticleUrls: ListUserArticleUrls;
+	countOtherSaversByUrl: CountOtherSaversByUrl;
+	purgeArticleContent: PurgeArticleContent;
+	tombstoneArticle: TombstoneArticle;
+	now: () => Date;
 	deleteDigestByUser: DeleteDigestByUser;
 	deleteReaderReadyState: DeleteReaderReadyState;
 	deleteOnboarding: DeleteOnboarding;
@@ -128,8 +141,21 @@ async function processCommand(
 	await deps.deleteAllInboxEmails(userId);
 	await deps.tombstoneInboxAddresses(userId);
 
-	// Saved articles and the remaining per-user stores.
+	// Saved articles: capture the URLs first, drop the per-user rows, then for
+	// each URL the user was the last saver of, purge the global content and
+	// tombstone the row — so a genuinely private single-saver page is fully
+	// erased, not just delisted. Content still saved by another user is left
+	// untouched. Idempotent: a redriven delete re-lists nothing (rows gone) and
+	// re-purges against already-absent objects.
+	const savedUrls = await deps.listUserArticleUrls(userId);
 	await deps.deleteAllUserArticles(userId);
+	for (const url of savedUrls) {
+		const otherSavers = await deps.countOtherSaversByUrl({ url, excludeUserId: userId });
+		if (otherSavers === 0) {
+			await deps.purgeArticleContent(url);
+			await deps.tombstoneArticle({ url, at: deps.now() });
+		}
+	}
 	await deps.deleteDigestByUser(userId);
 	await deps.deleteReaderReadyState(userId);
 	await deps.deleteOnboarding({ userId });

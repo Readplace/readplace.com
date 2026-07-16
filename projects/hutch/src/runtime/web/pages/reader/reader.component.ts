@@ -13,7 +13,7 @@ import type {
 	MarkReadAction,
 	RenderReaderActions,
 } from "../../shared/article-body/reader-actions/reader-actions.component";
-import { CRAWL_BOOKMARK_SCRIPT } from "../../shared/article-body/crawl-bookmark/crawl-bookmark.component";
+import { CRAWL_BOOKMARK_SCRIPT, type CrawlBookmarkRemoval } from "../../shared/article-body/crawl-bookmark/crawl-bookmark.component";
 import type { ProgressTick } from "@packages/domain/article";
 import type { LocalTime } from "@packages/web-shell/local-time.format";
 import {
@@ -66,6 +66,7 @@ export function ReaderPage(
 		 * pins, so the markup and the CSS that pins it can never drift apart. */
 		renderActions: RenderReaderActions;
 		crawlVersions?: LocalTime[];
+		crawlBookmarkRemoval?: CrawlBookmarkRemoval;
 	},
 ): PageBody {
 	const articleId = article.id.value;
@@ -101,6 +102,7 @@ export function ReaderPage(
 		topActionsHtml: actions.top.to("text/html").body,
 		bottomActionsHtml: actions.bottom.to("text/html").body,
 		crawlVersions: options.crawlVersions,
+		crawlBookmarkRemoval: options.crawlBookmarkRemoval,
 		extensionInstallUrl: options.extensionInstallUrl,
 	});
 	const shareBalloon = renderShareBalloon({

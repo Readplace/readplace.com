@@ -63,6 +63,7 @@ import { initCanonicalAliasStore, initResolveCanonicalIdentity } from "@packages
 import { EventBridgeClient, initEventBridgePublisher } from "@packages/hutch-infra-components/runtime";
 import { initEventBridgeLinkSaved } from "./providers/events/eventbridge-link-saved";
 import { initEventBridgeRecrawlLinkInitiated } from "./providers/events/eventbridge-recrawl-link-initiated";
+import { initEventBridgeRemoveMyContent } from "./providers/events/eventbridge-remove-my-content";
 import { initEventBridgeSaveAnonymousLink } from "./providers/events/eventbridge-save-anonymous-link";
 import { initEventBridgeStaleCheckRequested } from "./providers/events/eventbridge-stale-check-requested";
 import { initEventBridgeSaveLinkRawHtmlCommand } from "./providers/events/eventbridge-save-link-raw-html-command";
@@ -86,6 +87,7 @@ import { initInMemoryStaleCheckRequested } from "@packages/test-fixtures/provide
 import { initInMemorySaveLinkRawHtmlCommand } from "@packages/test-fixtures/providers/events";
 import { initInMemorySaveLinkRawPdfCommand } from "@packages/test-fixtures/providers/events";
 import { initInMemoryRefreshArticleContent } from "@packages/test-fixtures/providers/events";
+import { initInMemoryRemoveMyContent } from "@packages/test-fixtures/providers/events";
 import { initInMemoryUpdateFetchTimestamp } from "@packages/test-fixtures/providers/events";
 import { initPutPendingHtml } from "./providers/pending-html/put-pending-html";
 import { initPutPendingPdf } from "./providers/pending-pdf/put-pending-pdf";
@@ -228,6 +230,7 @@ function initProviders() {
 		});
 		const { publishLinkSaved } = initEventBridgeLinkSaved({ publishEvent });
 		const { publishRecrawlLinkInitiated } = initEventBridgeRecrawlLinkInitiated({ publishEvent });
+		const { publishRemoveMyContent } = initEventBridgeRemoveMyContent({ publishEvent });
 		const { publishSaveAnonymousLink } = initEventBridgeSaveAnonymousLink({ publishEvent });
 		const { publishStaleCheckRequested } = initEventBridgeStaleCheckRequested({ publishEvent });
 		const { publishSaveLinkRawHtmlCommand } = initEventBridgeSaveLinkRawHtmlCommand({ publishEvent });
@@ -400,6 +403,7 @@ function initProviders() {
 			registerOAuthClient: oauthClients.registerClient,
 			publishLinkSaved,
 			publishRecrawlLinkInitiated,
+			publishRemoveMyContent,
 			publishSaveAnonymousLink,
 			publishStaleCheckRequested,
 			publishSaveLinkRawHtmlCommand,
@@ -592,6 +596,7 @@ function initProviders() {
 		await runCrawlAndSummariseInline(params.url);
 	};
 	const { publishRefreshArticleContent } = initInMemoryRefreshArticleContent({ logger: consoleLogger });
+	const { publishRemoveMyContent } = initInMemoryRemoveMyContent({ logger: consoleLogger });
 	const { publishUpdateFetchTimestamp } = initInMemoryUpdateFetchTimestamp({ logger: consoleLogger });
 	const { publishSaveLinkRawHtmlCommand } = initInMemorySaveLinkRawHtmlCommand({ logger: consoleLogger });
 	const { publishSaveLinkRawPdfCommand } = initInMemorySaveLinkRawPdfCommand({ logger: consoleLogger });
@@ -683,6 +688,7 @@ function initProviders() {
 		registerOAuthClient: oauthClients.registerClient,
 		publishLinkSaved,
 		publishRecrawlLinkInitiated,
+		publishRemoveMyContent,
 		publishSaveAnonymousLink,
 		publishStaleCheckRequested,
 		publishSaveLinkRawHtmlCommand,

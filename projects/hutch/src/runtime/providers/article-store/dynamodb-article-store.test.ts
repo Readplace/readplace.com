@@ -489,7 +489,7 @@ describe("initDynamoDbArticleStore findArticlesByUser", () => {
 		const batch = commands.find((c) => c.name === "BatchGetCommand");
 		const requestItems = batch?.input.RequestItems as Record<string, { ProjectionExpression?: string }>;
 		expect(requestItems.articles.ProjectionExpression).toBe(
-			"#url, #routeId, #originalUrl, #displayUrl, #title, #siteName, #excerpt, #wordCount, #imageUrl, #estimatedReadTime, #savedAt, #contentSourceTier",
+			"#url, #routeId, #originalUrl, #displayUrl, #title, #siteName, #excerpt, #wordCount, #imageUrl, #estimatedReadTime, #savedAt, #contentSourceTier, #purgedAt",
 		);
 	});
 
@@ -644,6 +644,55 @@ describe("initDynamoDbArticleStore deleteAllUserArticles", () => {
 		await initStore(client).deleteAllUserArticles(USER);
 
 		expect(commands.some((c) => c.name === "DeleteCommand")).toBe(false);
+	});
+});
+
+describe("initDynamoDbArticleStore listUserArticleUrls", () => {
+	it("pages the user's rows and resolves each to its global original URL via a batch get", async () => {
+		const { client, commands } = createFakeClient({
+			QueryCommand: {
+				queue: [
+					{ Items: [userArticleItem({ url: "example.com/one" })], Count: 1, LastEvaluatedKey: { userId: USER, url: "example.com/one" } },
+					{ Items: [userArticleItem({ url: "example.com/two" })], Count: 1 },
+				],
+			},
+			BatchGetCommand: {
+				default: {
+					Responses: {
+						articles: [
+							{ originalUrl: "https://example.com/one" },
+							{ originalUrl: "https://example.com/two" },
+						],
+					},
+				},
+			},
+		});
+
+		const urls = await initStore(client).listUserArticleUrls(USER);
+
+		expect(urls.sort()).toEqual(["https://example.com/one", "https://example.com/two"]);
+		const query = commands.find((c) => c.name === "QueryCommand");
+		expect(query?.input.IndexName).toBe("userId-savedAt-index");
+		const batchGet = commands.find((c) => c.name === "BatchGetCommand");
+		const requested = (batchGet?.input.RequestItems as Record<string, { Keys: { url: string }[] }>)
+			.articles.Keys;
+		expect(requested).toEqual([{ url: "example.com/one" }, { url: "example.com/two" }]);
+	});
+
+	it("returns an empty list (and issues no batch get) when the user has no saved rows", async () => {
+		const { client, commands } = createFakeClient({ QueryCommand: { default: { Items: [], Count: 0 } } });
+
+		expect(await initStore(client).listUserArticleUrls(USER)).toEqual([]);
+		expect(commands.some((c) => c.name === "BatchGetCommand")).toBe(false);
+	});
+
+	it("skips a normalized row whose global original URL is missing (legacy row)", async () => {
+		const { client } = createFakeClient({
+			QueryCommand: { default: { Items: [userArticleItem({ url: "example.com/legacy" })], Count: 1 } },
+			BatchGetCommand: { default: { Responses: { articles: [{}] } } },
+		});
+
+		expect(await initStore(client).listUserArticleUrls(USER)).toEqual([]);
 	});
 });
 

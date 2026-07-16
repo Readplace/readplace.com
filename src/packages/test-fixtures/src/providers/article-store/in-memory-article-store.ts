@@ -14,6 +14,7 @@ import type {
 	CountArticlesByUser,
 	DeleteAllUserArticles,
 	DeleteArticle,
+	ListUserArticleUrls,
 	FindArticleById,
 	FindArticleByUrl,
 	FindArticleCrawlVersions,
@@ -48,6 +49,7 @@ interface GlobalArticle {
 	bodyHash?: string;
 	contentSourceTier?: "tier-0" | "tier-1";
 	crawlVersions?: ArticleCrawlVersion[];
+	purgedAt?: Date;
 }
 
 interface UserArticle {
@@ -91,6 +93,7 @@ export function initInMemoryArticleStore(): {
 	countArticlesByUser: CountArticlesByUser;
 	deleteArticle: DeleteArticle;
 	deleteAllUserArticles: DeleteAllUserArticles;
+	listUserArticleUrls: ListUserArticleUrls;
 	updateArticleStatus: UpdateArticleStatus;
 	markArticleViewed: MarkArticleViewed;
 	markSummaryToggled: MarkSummaryToggled;
@@ -110,6 +113,7 @@ export function initInMemoryArticleStore(): {
 	setContentSourceTier: (params: { url: string; tier: "tier-0" | "tier-1" }) => Promise<void>;
 	setContentFetchedAt: (params: { url: string; at: string }) => Promise<void>;
 	setCrawlVersions: (params: { url: string; versions: ArticleCrawlVersion[] }) => Promise<void>;
+	setPurgedAt: (params: { url: string; at: Date }) => Promise<void>;
 } {
 	const articles = new Map<string, GlobalArticle>();
 	const userArticles = new Map<string, UserArticle>();
@@ -209,6 +213,7 @@ export function initInMemoryArticleStore(): {
 			estimatedReadTime: article.estimatedReadTime,
 			savedAt: article.savedAt,
 			contentSourceTier: article.contentSourceTier,
+			purgedAt: article.purgedAt,
 		};
 	};
 
@@ -275,6 +280,16 @@ export function initInMemoryArticleStore(): {
 		for (const [key, ua] of userArticles) {
 			if (ua.userId === userId) userArticles.delete(key);
 		}
+	};
+
+	const listUserArticleUrls: ListUserArticleUrls = async (userId) => {
+		const urls: string[] = [];
+		for (const ua of userArticles.values()) {
+			if (ua.userId !== userId) continue;
+			const article = articles.get(ua.url);
+			if (article) urls.push(article.originalUrl);
+		}
+		return urls;
 	};
 
 	const updateArticleStatus: UpdateArticleStatus = async (id, userId, status) => {
@@ -418,6 +433,13 @@ export function initInMemoryArticleStore(): {
 		article.crawlVersions = params.versions;
 	};
 
+	const setPurgedAt = async (params: { url: string; at: Date }) => {
+		const articleResourceUniqueId = ArticleResourceUniqueId.parse(params.url);
+		const article = articles.get(articleResourceUniqueId.value);
+		assert(article, `Article not found for URL: ${articleResourceUniqueId.value}`);
+		article.purgedAt = params.at;
+	};
+
 	return {
 		saveArticle,
 		saveArticleGlobally,
@@ -431,6 +453,7 @@ export function initInMemoryArticleStore(): {
 		countArticlesByUser,
 		deleteArticle,
 		deleteAllUserArticles,
+		listUserArticleUrls,
 		updateArticleStatus,
 		markArticleViewed,
 		markSummaryToggled,
@@ -445,5 +468,6 @@ export function initInMemoryArticleStore(): {
 		setContentSourceTier,
 		setContentFetchedAt,
 		setCrawlVersions,
+		setPurgedAt,
 	};
 }

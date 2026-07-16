@@ -170,6 +170,13 @@ function handleViewArticle(deps: ViewDependencies, reader: ReturnType<typeof ini
 		// 5-30s). On first visit we still write a stub synchronously so the page
 		// has metadata to render and the existing summary/reader pollers see a row.
 		const existing = await deps.findArticleByUrl(articleUrl);
+		// A purged (tombstoned) URL is gone: 404 above the first-visit save cascade
+		// (so a visit can't re-stub it) and above the wantsMarkdown branch (so the
+		// markdown surface 404s too). Metadata/OG never render because we return here.
+		if (existing?.purgedAt) {
+			sendComponent(req, res, Base(NotFoundPage(), await deps.buildBannerState(req)));
+			return;
+		}
 		const hostname = articleHostFrom(articleUrl);
 		const stubMetadata: ArticleMetadata = { title: hostname, siteName: hostname, excerpt: "", wordCount: 0 };
 		const stubReadTime = calculateReadTime(0);
@@ -321,6 +328,11 @@ function handleViewArticle(deps: ViewDependencies, reader: ReturnType<typeof ini
 	};
 }
 
+async function isPurged(deps: ViewDependencies, articleUrl: string): Promise<boolean> {
+	const article = await deps.findArticleByUrl(articleUrl);
+	return article?.purgedAt !== undefined;
+}
+
 function handleViewSummary(deps: ViewDependencies, reader: ReturnType<typeof initArticleReader>) {
 	return async (req: Request, res: Response): Promise<void> => {
 		const validation = deps.validateSaveableUrl(req.query.url);
@@ -329,6 +341,11 @@ function handleViewSummary(deps: ViewDependencies, reader: ReturnType<typeof ini
 			return;
 		}
 		const articleUrl = await deps.resolveCanonicalIdentity(validation.url);
+		// Stop the htmx summary poll chain once the URL is purged.
+		if (await isPurged(deps, articleUrl)) {
+			res.status(404).type("html").send("");
+			return;
+		}
 		const pollCount = Number(req.query.poll ?? "0");
 		const component = await reader.handleSummaryPoll({
 			articleUrl,
@@ -349,6 +366,11 @@ function handleViewReader(deps: ViewDependencies, reader: ReturnType<typeof init
 			return;
 		}
 		const articleUrl = await deps.resolveCanonicalIdentity(validation.url);
+		// Stop the htmx reader poll chain once the URL is purged.
+		if (await isPurged(deps, articleUrl)) {
+			res.status(404).type("html").send("");
+			return;
+		}
 		const pollCount = Number(req.query.poll ?? "0");
 		const component = await reader.handleReaderPoll({
 			articleUrl,

@@ -36,6 +36,7 @@ import type {
 	UpdateArticleStatus,
 } from "@packages/provider-contracts/article-store";
 import type { PublishUpdateFetchTimestamp } from "@packages/provider-contracts/events";
+import type { PublishRemoveMyContent } from "@packages/provider-contracts/events";
 import type { PublishSaveLinkRawPdfCommand } from "@packages/provider-contracts/events";
 import type { PutPendingPdf } from "@packages/provider-contracts/pending-pdf";
 import type {
@@ -67,6 +68,7 @@ import type { PublishSaveLinkRawHtmlCommand } from "@packages/provider-contracts
 import type { PutPendingHtml } from "@packages/provider-contracts/pending-html";
 import { initSaveArticleFromUrl } from "../../shared/save-article/save-article-from-url";
 import { Base, ChromelessPage } from "../../base.component";
+import { NotFoundPage } from "../not-found";
 import type { BuildBannerState } from "../../banner-state";
 import { selectChangelogBanner } from "../../banner-state";
 import type { GetChangelogBanner } from "../../changelog-banner-source";
@@ -184,6 +186,12 @@ function bytesToMb(bytes: number): number {
 	return Math.round((bytes / (1024 * 1024)) * 10) / 10;
 }
 
+/** Minute-precision UTC id as recorded in the crawl-version log, e.g.
+ * "2026-07-10T09:41Z" — the value the reader's remove-version form submits. */
+const CrawlVersionMinuteIdSchema = z
+	.string()
+	.regex(/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}Z$/);
+
 interface QueueDependencies {
 	validateSaveableUrl: ValidateSaveableUrl;
 	appOrigin: string;
@@ -200,6 +208,7 @@ interface QueueDependencies {
 	markArticleViewed: MarkArticleViewed;
 	markSummaryToggled: MarkSummaryToggled;
 	publishLinkSaved: PublishLinkSaved;
+	publishRemoveMyContent: PublishRemoveMyContent;
 	publishSaveLinkRawHtmlCommand: PublishSaveLinkRawHtmlCommand;
 	publishSaveLinkRawPdfCommand: PublishSaveLinkRawPdfCommand;
 	putPendingHtml: PutPendingHtml;
@@ -430,6 +439,7 @@ export function initQueueRoutes(deps: QueueDependencies): Router {
 	const resolveReaderPermalink = initReaderPermalink({
 		findArticleById: deps.findArticleById,
 		findArticleUrlById: deps.findArticleUrlById,
+		findArticleByUrl: deps.findArticleByUrl,
 	});
 
 	function pollUrlBuilderForId(articleId: string): PollUrlBuilder {
@@ -461,6 +471,7 @@ export function initQueueRoutes(deps: QueueDependencies): Router {
 	type ResolvedReaderState = Awaited<ReturnType<typeof reader.resolveReaderState>>;
 	type OwnerReaderResolution =
 		| { kind: "redirect"; redirect: Redirect }
+		| { kind: "not-found" }
 		| { kind: "ready"; article: SavedArticle; state: ResolvedReaderState; audioEnabled: boolean };
 
 	/** Ownership/access (owner → reader; non-owner or anonymous → permalink
@@ -479,6 +490,10 @@ export function initQueueRoutes(deps: QueueDependencies): Router {
 
 		if (result.kind === "redirect") {
 			return { kind: "redirect", redirect: result.redirect };
+		}
+
+		if (result.kind === "not-found") {
+			return { kind: "not-found" };
 		}
 
 		const ownedArticle = result.article;
@@ -506,6 +521,11 @@ export function initQueueRoutes(deps: QueueDependencies): Router {
 		const resolved = await resolveOwnerReader(req);
 		if (resolved.kind === "redirect") {
 			sendComponent(req, res, RedirectComponent(resolved.redirect));
+			return;
+		}
+
+		if (resolved.kind === "not-found") {
+			sendComponent(req, res, Base(NotFoundPage(), await deps.buildBannerState(req)));
 			return;
 		}
 
@@ -552,6 +572,20 @@ export function initQueueRoutes(deps: QueueDependencies): Router {
 			summaryStatus: state.summary?.status,
 		});
 
+		// Owner-only removal controls: which snapshots this owner authored, so the
+		// bookmark can offer to remove their versions and their whole saved copy.
+		// Only the full-shell owner reader below gets it — never the public /view
+		// or the iOS chromeless branch above.
+		const authoredVersions = await deps.findArticleCrawlVersions(ownedArticle.url);
+		const authoredMinuteIds = authoredVersions
+			.filter((version) => version.authorUserId === ownedArticle.userId)
+			.map((version) => version.crawledAtMinute);
+		const crawlBookmarkRemoval = {
+			authoredMinuteIds,
+			removeVersionUrl: `${QUEUE_PATH}/${ownedArticle.id.value}/remove-my-version`,
+			removeCopyUrl: `${QUEUE_PATH}/${ownedArticle.id.value}/remove-my-copy`,
+		};
+
 		sendComponent(
 			req, res,
 			Base(ReaderPage({ ...ownedArticle, content: state.content }, {
@@ -566,6 +600,7 @@ export function initQueueRoutes(deps: QueueDependencies): Router {
 				backLink: VIEW_BACK_LINK,
 				renderActions: deps.stickyReader,
 				crawlVersions: state.crawlVersions,
+				crawlBookmarkRemoval,
 			}), {
 				...(await deps.buildBannerState(req)),
 				showExtensionSuggestionBanner,
@@ -1290,6 +1325,53 @@ export function initQueueRoutes(deps: QueueDependencies): Router {
 		}
 
 		res.redirect(303, buildQueueUrl(parseQueueUrl(req.query)));
+	});
+
+	/** Remove one crawl-version snapshot the viewer authored. Guardless (only
+	 * dualAuth + resolveVerificationStatus, matching `/delete`): removing content
+	 * you authored is a deletion right, reachable for read-only/locked users. The
+	 * publisher only ever deletes objects whose sidecar/log entry credits this
+	 * userId, so a forged id/version resolves to nothing server-side. */
+	router.post("/:id/remove-my-version", async (req: Request<{ id: string }>, res: Response) => {
+		assert(req.userId, "userId required - route must be protected by requireAuth");
+		const userId = req.userId;
+		const parsedId = ReaderArticleHashIdSchema.safeParse(req.params.id);
+		const parsedVersion = CrawlVersionMinuteIdSchema.safeParse(req.body?.versionMinuteId);
+		const article = parsedId.success
+			? await deps.findArticleById(parsedId.data, userId)
+			: null;
+
+		if (article && parsedVersion.success) {
+			await deps.publishRemoveMyContent({
+				url: article.url,
+				userId,
+				versionMinuteId: parsedVersion.data,
+			});
+			res.redirect(303, `${QUEUE_PATH}/${article.id.value}/view`);
+			return;
+		}
+
+		res.redirect(303, `${QUEUE_PATH}/${req.params.id}/view`);
+	});
+
+	/** Remove the viewer's whole saved copy: drop their per-user queue row here
+	 * (hutch owns it), then hand the content erasure — their tier-0 capture, their
+	 * authored snapshots, and a re-select / re-crawl / purge — to save-link.
+	 * Guardless for the same reason as `/delete`. */
+	router.post("/:id/remove-my-copy", async (req: Request<{ id: string }>, res: Response) => {
+		assert(req.userId, "userId required - route must be protected by requireAuth");
+		const userId = req.userId;
+		const parsedId = ReaderArticleHashIdSchema.safeParse(req.params.id);
+		const article = parsedId.success
+			? await deps.findArticleById(parsedId.data, userId)
+			: null;
+
+		if (article) {
+			await deps.deleteArticle(article.id, userId);
+			await deps.publishRemoveMyContent({ url: article.url, userId });
+		}
+
+		res.redirect(303, QUEUE_PATH);
 	});
 
 	return router;

@@ -21,6 +21,7 @@ import type {
 	CountArticlesByUser,
 	DeleteAllUserArticles,
 	DeleteArticle,
+	ListUserArticleUrls,
 	FindArticleById,
 	FindArticleByUrl,
 	FindArticleCrawlVersions,
@@ -77,6 +78,7 @@ const ArticleRow = z.object({
 	estimatedReadTime: MinutesSchema,
 	savedAt: dynamoField(z.string()),
 	contentSourceTier: dynamoField(z.enum(["tier-0", "tier-1"])),
+	purgedAt: dynamoField(z.string()),
 });
 /** Every ArticleRow attribute except `content`, derived so the list stays in sync with the schema. */
 const ArticleMetadataFields = ArticleRow.omit({ content: true }).keyof().options;
@@ -143,6 +145,7 @@ export function initDynamoDbArticleStore(deps: {
 	countArticlesByUser: CountArticlesByUser;
 	deleteArticle: DeleteArticle;
 	deleteAllUserArticles: DeleteAllUserArticles;
+	listUserArticleUrls: ListUserArticleUrls;
 	updateArticleStatus: UpdateArticleStatus;
 	findArticleFreshness: FindArticleFreshness;
 	findArticleCrawlVersions: FindArticleCrawlVersions;
@@ -437,6 +440,35 @@ export function initDynamoDbArticleStore(deps: {
 		);
 	};
 
+	const listUserArticleUrls: ListUserArticleUrls = async (userId) => {
+		const normalizedUrls: string[] = [];
+		await forEachQueryPage(
+			userArticles,
+			{
+				IndexName: "userId-savedAt-index",
+				KeyConditionExpression: "userId = :userId",
+				ExpressionAttributeValues: { ":userId": userId },
+			},
+			async (rows) => {
+				for (const row of rows) normalizedUrls.push(row.url);
+			},
+		);
+		if (normalizedUrls.length === 0) return [];
+		// The user-articles row keys the article by its normalized value, which
+		// cannot be re-parsed as an absolute URL — resolve each to its stored
+		// original via the global row so downstream content ops get a real URL.
+		const globals = await batchGetFromTable({
+			client,
+			tableName,
+			schema: z.object({ originalUrl: dynamoField(z.string()) }),
+			keys: normalizedUrls.map((url) => ({ url })),
+			projection: ["originalUrl"],
+		});
+		return globals
+			.map((row) => row.originalUrl)
+			.filter((url): url is string => url !== undefined);
+	};
+
 	const updateArticleStatus: UpdateArticleStatus = async (routeId, userId, status) => {
 		const article = await findArticleByRouteId(routeId);
 		if (!article) return false;
@@ -605,6 +637,7 @@ export function initDynamoDbArticleStore(deps: {
 					"estimatedReadTime",
 					"savedAt",
 					"contentSourceTier",
+					"purgedAt",
 				],
 			},
 		);
@@ -629,6 +662,7 @@ export function initDynamoDbArticleStore(deps: {
 			estimatedReadTime: row.estimatedReadTime,
 			savedAt: row.savedAt ? new Date(row.savedAt) : new Date(0),
 			contentSourceTier: row.contentSourceTier,
+			purgedAt: row.purgedAt ? new Date(row.purgedAt) : undefined,
 		};
 	};
 
@@ -652,6 +686,7 @@ export function initDynamoDbArticleStore(deps: {
 		countArticlesByUser,
 		deleteArticle,
 		deleteAllUserArticles,
+		listUserArticleUrls,
 		updateArticleStatus,
 		findArticleFreshness,
 		findArticleCrawlVersions,

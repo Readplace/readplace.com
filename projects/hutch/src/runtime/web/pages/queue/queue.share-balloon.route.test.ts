@@ -48,6 +48,7 @@ async function saveAndOpenReader(appOrigin: string): Promise<Document> {
 			publishSaveLinkRawHtmlCommand: fixture.events.publishSaveLinkRawHtmlCommand,
 			publishSaveLinkRawPdfCommand: fixture.events.publishSaveLinkRawPdfCommand,
 			publishStaleCheckRequested: fixture.events.publishStaleCheckRequested,
+			publishRemoveMyContent: fixture.events.publishRemoveMyContent,
 			publishUpdateFetchTimestamp: fixture.events.publishUpdateFetchTimestamp,
 			publishExportUserDataCommand: fixture.events.publishExportUserDataCommand,
 			publishDeleteAccountCommand: fixture.events.publishDeleteAccountCommand,

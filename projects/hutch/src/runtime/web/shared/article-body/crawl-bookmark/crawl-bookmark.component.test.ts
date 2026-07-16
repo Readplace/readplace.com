@@ -79,4 +79,102 @@ describe("renderCrawlBookmark", () => {
 	it("renders nothing before any crawl version exists", () => {
 		expect(renderCrawlBookmark({ versions: [] })).toBe("");
 	});
+
+	it("renders no removal controls when no removal context is supplied (public /view, iOS)", () => {
+		const doc = parse(
+			renderCrawlBookmark({
+				versions: [
+					toAbsoluteShortDateTime({ iso: "2026-07-10T09:14Z" }),
+					toAbsoluteShortDateTime({ iso: "2026-06-28T22:01Z" }),
+				],
+			}),
+		);
+
+		expect(doc.querySelectorAll(".crawl-bookmark__badge--me").length).toBe(0);
+		expect(doc.querySelectorAll(".crawl-bookmark__remove").length).toBe(0);
+		expect(doc.querySelector(".crawl-bookmark__remove-copy")).toBeNull();
+	});
+
+	it("marks the viewer's authored snapshots with a 'me' badge and a per-version remove form", () => {
+		const doc = parse(
+			renderCrawlBookmark({
+				versions: [
+					toAbsoluteShortDateTime({ iso: "2026-07-10T09:14Z" }),
+					toAbsoluteShortDateTime({ iso: "2026-06-28T22:01Z" }),
+					toAbsoluteShortDateTime({ iso: "2026-03-26T14:32Z" }),
+				],
+				removal: {
+					authoredMinuteIds: ["2026-06-28T22:01Z"],
+					removeVersionUrl: "/queue/abc/remove-my-version",
+					removeCopyUrl: "/queue/abc/remove-my-copy",
+				},
+			}),
+		);
+
+		// The authored (older) tab carries a 'me' badge; the current tab, authored
+		// by nobody the viewer is, does not.
+		const authoredTab = doc.querySelector('[data-test-crawl-bookmark-tab="2026-06-28T22:01Z"]');
+		assert(authoredTab, "the authored version tab must render");
+		expect(authoredTab.querySelector(".crawl-bookmark__badge--me")?.textContent).toBe("me");
+		const currentTab = doc.querySelector('[data-test-crawl-bookmark-tab="canonical"]');
+		assert(currentTab, "the current tab must render");
+		expect(currentTab.querySelector(".crawl-bookmark__badge--me")).toBeNull();
+
+		// The authored tab's remove form POSTs the exact minute id.
+		const removeForm = authoredTab.querySelector("form.crawl-bookmark__remove");
+		assert(removeForm, "the authored tab must carry a remove-version form");
+		expect(removeForm.getAttribute("method")).toBe("POST");
+		expect(removeForm.getAttribute("action")).toBe("/queue/abc/remove-my-version");
+		expect(removeForm.querySelector('input[name="versionMinuteId"]')?.getAttribute("value")).toBe(
+			"2026-06-28T22:01Z",
+		);
+
+		// Exactly one remove-my-copy form for the whole capsule.
+		const removeCopyForms = doc.querySelectorAll("form.crawl-bookmark__remove-copy");
+		expect(removeCopyForms.length).toBe(1);
+		expect(removeCopyForms[0].getAttribute("action")).toBe("/queue/abc/remove-my-copy");
+	});
+
+	it("marks the newest (index-0) tab with both its state badge and 'me' when the viewer authored the canonical", () => {
+		const doc = parse(
+			renderCrawlBookmark({
+				versions: [
+					toAbsoluteShortDateTime({ iso: "2026-07-10T09:14Z" }),
+					toAbsoluteShortDateTime({ iso: "2026-06-28T22:01Z" }),
+				],
+				removal: {
+					authoredMinuteIds: ["2026-07-10T09:14Z"],
+					removeVersionUrl: "/queue/abc/remove-my-version",
+					removeCopyUrl: "/queue/abc/remove-my-copy",
+				},
+			}),
+		);
+
+		const currentTab = doc.querySelector('[data-test-crawl-bookmark-tab="canonical"]');
+		assert(currentTab, "the current tab must render");
+		const badges = Array.from(currentTab.querySelectorAll(".crawl-bookmark__badge")).map(
+			(badge) => badge.textContent,
+		);
+		// Two versions → the newest tab's state badge reads "best" (not "current").
+		expect(badges).toEqual(["best", "me"]);
+		expect(currentTab.querySelector("form.crawl-bookmark__remove")?.getAttribute("action")).toBe(
+			"/queue/abc/remove-my-version",
+		);
+	});
+
+	it("offers no remove-my-copy form when the viewer authored none of the visible versions", () => {
+		const doc = parse(
+			renderCrawlBookmark({
+				versions: [toAbsoluteShortDateTime({ iso: "2026-07-10T09:14Z" })],
+				removal: {
+					authoredMinuteIds: ["2026-01-01T00:00Z"],
+					removeVersionUrl: "/queue/abc/remove-my-version",
+					removeCopyUrl: "/queue/abc/remove-my-copy",
+				},
+			}),
+		);
+
+		expect(doc.querySelector(".crawl-bookmark__remove-copy")).toBeNull();
+		expect(doc.querySelectorAll(".crawl-bookmark__badge--me").length).toBe(0);
+	});
 });

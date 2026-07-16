@@ -39,6 +39,11 @@ export function initCrawlBookmark(deps: CrawlBookmarkDeps): { attach(): void } {
 				bookmark.toggleAttribute("open");
 				if (!bookmark.hasAttribute("open")) writeDismissed();
 			});
+			// A click on a remove form (its button submits) must not bubble to the
+			// tabs toggle above and collapse the capsule out from under the user.
+			for (const form of bookmark.querySelectorAll(".crawl-bookmark__remove")) {
+				form.addEventListener("click", (event) => event.stopPropagation());
+			}
 			bookmark.querySelector(".crawl-bookmark__handle")?.addEventListener("click", () => {
 				const wasOpenBeforeNativeToggle = bookmark.hasAttribute("open");
 				if (wasOpenBeforeNativeToggle) writeDismissed();

@@ -56,6 +56,7 @@ import { initInMemoryLinkSaved } from "./providers/events/in-memory-link-saved";
 import { initInMemoryRecrawlLinkInitiated } from "./providers/events/in-memory-recrawl-link-initiated";
 import { initInMemorySaveAnonymousLink } from "./providers/events/in-memory-save-anonymous-link";
 import { initInMemoryStaleCheckRequested } from "./providers/events/in-memory-stale-check-requested";
+import { initInMemoryRemoveMyContent } from "./providers/events/in-memory-remove-my-content";
 import { initInMemoryUpdateFetchTimestamp } from "./providers/events/in-memory-update-fetch-timestamp";
 import type {
 	PublishLinkSaved,
@@ -328,6 +329,7 @@ export function createDefaultTestAppFixture(appOrigin: string): TestAppFixture {
 		auth: { ...auth, hashPassword: fastHashPassword },
 		articleStore: {
 			deleteAllUserArticles: articleStoreMemory.deleteAllUserArticles,
+			listUserArticleUrls: articleStoreMemory.listUserArticleUrls,
 			findArticleById: articleStoreMemory.findArticleById,
 			findArticleByUrl: articleStoreMemory.findArticleByUrl,
 			findArticleUrlById: articleStoreMemory.findArticleUrlById,
@@ -355,6 +357,7 @@ export function createDefaultTestAppFixture(appOrigin: string): TestAppFixture {
 			setContentSourceTier: articleStoreMemory.setContentSourceTier,
 			setContentFetchedAt: articleStoreMemory.setContentFetchedAt,
 			setCrawlVersions: articleStoreMemory.setCrawlVersions,
+			setPurgedAt: articleStoreMemory.setPurgedAt,
 		},
 		articleCrawl: {
 			findArticleCrawlStatus: articleCrawl.findArticleCrawlStatus,
@@ -373,6 +376,7 @@ export function createDefaultTestAppFixture(appOrigin: string): TestAppFixture {
 			publishSaveLinkRawHtmlCommand,
 			publishSaveLinkRawPdfCommand,
 			publishStaleCheckRequested: initInMemoryStaleCheckRequested({ logger: noopLogger }).publishStaleCheckRequested,
+			publishRemoveMyContent: initInMemoryRemoveMyContent({ logger: noopLogger }).publishRemoveMyContent,
 			publishUpdateFetchTimestamp: createInMemoryPublishUpdateFetchTimestamp(),
 			publishExportUserDataCommand,
 			publishDeleteAccountCommand,

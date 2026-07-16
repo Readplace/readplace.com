@@ -137,6 +137,7 @@ const { app: hutchApp, auth, email } = createTestApp({
     publishSaveLinkRawHtmlCommand: fixture.events.publishSaveLinkRawHtmlCommand,
     publishSaveLinkRawPdfCommand: fixture.events.publishSaveLinkRawPdfCommand,
     publishStaleCheckRequested: fixture.events.publishStaleCheckRequested,
+    publishRemoveMyContent: fixture.events.publishRemoveMyContent,
     publishUpdateFetchTimestamp,
     publishExportUserDataCommand: fixture.events.publishExportUserDataCommand,
     publishDeleteAccountCommand: fixture.events.publishDeleteAccountCommand,

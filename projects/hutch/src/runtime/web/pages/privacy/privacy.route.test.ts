@@ -25,4 +25,11 @@ describe("GET /privacy", () => {
 		expect(response.headers["content-type"]).toBe("text/markdown; charset=utf-8");
 		expect(response.text).toMatch(/^# /);
 	});
+
+	it("scopes the account-deletion claim to the saved list and reading history, not 'every saved article'", async () => {
+		const { server } = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
+		const response = await request(server).get("/privacy");
+
+		expect(response.text).toContain("along with your saved list and your reading history");
+	});
 });

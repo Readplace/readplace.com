@@ -74,6 +74,7 @@ function buildReaderHarness() {
 			publishSaveLinkRawHtmlCommand: fixture.events.publishSaveLinkRawHtmlCommand,
 			publishSaveLinkRawPdfCommand: fixture.events.publishSaveLinkRawPdfCommand,
 			publishStaleCheckRequested: fixture.events.publishStaleCheckRequested,
+			publishRemoveMyContent: fixture.events.publishRemoveMyContent,
 			publishUpdateFetchTimestamp: fixture.events.publishUpdateFetchTimestamp,
 			publishExportUserDataCommand: fixture.events.publishExportUserDataCommand,
 			publishDeleteAccountCommand: fixture.events.publishDeleteAccountCommand,
@@ -106,6 +107,7 @@ describe("View routes", () => {
 					publishSaveLinkRawHtmlCommand: fixture.events.publishSaveLinkRawHtmlCommand,
 					publishSaveLinkRawPdfCommand: fixture.events.publishSaveLinkRawPdfCommand,
 					publishStaleCheckRequested: fixture.events.publishStaleCheckRequested,
+					publishRemoveMyContent: fixture.events.publishRemoveMyContent,
 					publishUpdateFetchTimestamp: fixture.events.publishUpdateFetchTimestamp,
 					publishExportUserDataCommand: fixture.events.publishExportUserDataCommand,
 					publishDeleteAccountCommand: fixture.events.publishDeleteAccountCommand,
@@ -151,6 +153,7 @@ describe("View routes", () => {
 					publishSaveLinkRawHtmlCommand: fixture.events.publishSaveLinkRawHtmlCommand,
 					publishSaveLinkRawPdfCommand: fixture.events.publishSaveLinkRawPdfCommand,
 					publishStaleCheckRequested: fixture.events.publishStaleCheckRequested,
+					publishRemoveMyContent: fixture.events.publishRemoveMyContent,
 					publishUpdateFetchTimestamp: fixture.events.publishUpdateFetchTimestamp,
 					publishExportUserDataCommand: fixture.events.publishExportUserDataCommand,
 					publishDeleteAccountCommand: fixture.events.publishDeleteAccountCommand,
@@ -292,6 +295,7 @@ describe("View routes", () => {
 					publishSaveLinkRawHtmlCommand: fixture.events.publishSaveLinkRawHtmlCommand,
 					publishSaveLinkRawPdfCommand: fixture.events.publishSaveLinkRawPdfCommand,
 					publishStaleCheckRequested: fixture.events.publishStaleCheckRequested,
+					publishRemoveMyContent: fixture.events.publishRemoveMyContent,
 					publishUpdateFetchTimestamp: fixture.events.publishUpdateFetchTimestamp,
 					publishExportUserDataCommand: fixture.events.publishExportUserDataCommand,
 					publishDeleteAccountCommand: fixture.events.publishDeleteAccountCommand,
@@ -363,6 +367,7 @@ describe("View routes", () => {
 					publishSaveLinkRawHtmlCommand: fixture.events.publishSaveLinkRawHtmlCommand,
 					publishSaveLinkRawPdfCommand: fixture.events.publishSaveLinkRawPdfCommand,
 					publishStaleCheckRequested: fixture.events.publishStaleCheckRequested,
+					publishRemoveMyContent: fixture.events.publishRemoveMyContent,
 					publishUpdateFetchTimestamp: fixture.events.publishUpdateFetchTimestamp,
 					publishExportUserDataCommand: fixture.events.publishExportUserDataCommand,
 					publishDeleteAccountCommand: fixture.events.publishDeleteAccountCommand,
@@ -405,6 +410,7 @@ describe("View routes", () => {
 					publishSaveLinkRawHtmlCommand: fixture.events.publishSaveLinkRawHtmlCommand,
 					publishSaveLinkRawPdfCommand: fixture.events.publishSaveLinkRawPdfCommand,
 					publishStaleCheckRequested: fixture.events.publishStaleCheckRequested,
+					publishRemoveMyContent: fixture.events.publishRemoveMyContent,
 					publishUpdateFetchTimestamp: fixture.events.publishUpdateFetchTimestamp,
 					publishExportUserDataCommand: fixture.events.publishExportUserDataCommand,
 					publishDeleteAccountCommand: fixture.events.publishDeleteAccountCommand,
@@ -446,6 +452,7 @@ describe("View routes", () => {
 					publishSaveLinkRawHtmlCommand: fixture.events.publishSaveLinkRawHtmlCommand,
 					publishSaveLinkRawPdfCommand: fixture.events.publishSaveLinkRawPdfCommand,
 					publishStaleCheckRequested: fixture.events.publishStaleCheckRequested,
+					publishRemoveMyContent: fixture.events.publishRemoveMyContent,
 					publishUpdateFetchTimestamp: fixture.events.publishUpdateFetchTimestamp,
 					publishExportUserDataCommand: fixture.events.publishExportUserDataCommand,
 					publishDeleteAccountCommand: fixture.events.publishDeleteAccountCommand,
@@ -489,6 +496,7 @@ describe("View routes", () => {
 					publishSaveLinkRawHtmlCommand: fixture.events.publishSaveLinkRawHtmlCommand,
 					publishSaveLinkRawPdfCommand: fixture.events.publishSaveLinkRawPdfCommand,
 					publishStaleCheckRequested: fixture.events.publishStaleCheckRequested,
+					publishRemoveMyContent: fixture.events.publishRemoveMyContent,
 					publishUpdateFetchTimestamp: fixture.events.publishUpdateFetchTimestamp,
 					publishExportUserDataCommand: fixture.events.publishExportUserDataCommand,
 					publishDeleteAccountCommand: fixture.events.publishDeleteAccountCommand,
@@ -536,6 +544,7 @@ describe("View routes", () => {
 					publishSaveLinkRawHtmlCommand: fixture.events.publishSaveLinkRawHtmlCommand,
 					publishSaveLinkRawPdfCommand: fixture.events.publishSaveLinkRawPdfCommand,
 					publishStaleCheckRequested: fixture.events.publishStaleCheckRequested,
+					publishRemoveMyContent: fixture.events.publishRemoveMyContent,
 					publishUpdateFetchTimestamp: fixture.events.publishUpdateFetchTimestamp,
 					publishExportUserDataCommand: fixture.events.publishExportUserDataCommand,
 					publishDeleteAccountCommand: fixture.events.publishDeleteAccountCommand,
@@ -584,6 +593,7 @@ describe("View routes", () => {
 					publishSaveLinkRawHtmlCommand: fixture.events.publishSaveLinkRawHtmlCommand,
 					publishSaveLinkRawPdfCommand: fixture.events.publishSaveLinkRawPdfCommand,
 					publishStaleCheckRequested: fixture.events.publishStaleCheckRequested,
+					publishRemoveMyContent: fixture.events.publishRemoveMyContent,
 					publishUpdateFetchTimestamp: fixture.events.publishUpdateFetchTimestamp,
 					publishExportUserDataCommand: fixture.events.publishExportUserDataCommand,
 					publishDeleteAccountCommand: fixture.events.publishDeleteAccountCommand,
@@ -635,6 +645,7 @@ describe("View routes", () => {
 					publishSaveLinkRawHtmlCommand: fixture.events.publishSaveLinkRawHtmlCommand,
 					publishSaveLinkRawPdfCommand: fixture.events.publishSaveLinkRawPdfCommand,
 					publishStaleCheckRequested: fixture.events.publishStaleCheckRequested,
+					publishRemoveMyContent: fixture.events.publishRemoveMyContent,
 					publishUpdateFetchTimestamp: fixture.events.publishUpdateFetchTimestamp,
 					publishExportUserDataCommand: fixture.events.publishExportUserDataCommand,
 					publishDeleteAccountCommand: fixture.events.publishDeleteAccountCommand,
@@ -687,6 +698,7 @@ describe("View routes", () => {
 					publishSaveLinkRawHtmlCommand: fixture.events.publishSaveLinkRawHtmlCommand,
 					publishSaveLinkRawPdfCommand: fixture.events.publishSaveLinkRawPdfCommand,
 					publishStaleCheckRequested: fixture.events.publishStaleCheckRequested,
+					publishRemoveMyContent: fixture.events.publishRemoveMyContent,
 					publishUpdateFetchTimestamp: fixture.events.publishUpdateFetchTimestamp,
 					publishExportUserDataCommand: fixture.events.publishExportUserDataCommand,
 					publishDeleteAccountCommand: fixture.events.publishDeleteAccountCommand,
@@ -814,6 +826,7 @@ describe("View routes", () => {
 					publishSaveLinkRawHtmlCommand: fixture.events.publishSaveLinkRawHtmlCommand,
 					publishSaveLinkRawPdfCommand: fixture.events.publishSaveLinkRawPdfCommand,
 					publishStaleCheckRequested: fixture.events.publishStaleCheckRequested,
+					publishRemoveMyContent: fixture.events.publishRemoveMyContent,
 					publishUpdateFetchTimestamp: fixture.events.publishUpdateFetchTimestamp,
 					publishExportUserDataCommand: fixture.events.publishExportUserDataCommand,
 					publishDeleteAccountCommand: fixture.events.publishDeleteAccountCommand,
@@ -869,6 +882,7 @@ describe("View routes", () => {
 					publishSaveLinkRawHtmlCommand: fixture.events.publishSaveLinkRawHtmlCommand,
 					publishSaveLinkRawPdfCommand: fixture.events.publishSaveLinkRawPdfCommand,
 					publishStaleCheckRequested: fixture.events.publishStaleCheckRequested,
+					publishRemoveMyContent: fixture.events.publishRemoveMyContent,
 					publishUpdateFetchTimestamp: fixture.events.publishUpdateFetchTimestamp,
 					publishExportUserDataCommand: fixture.events.publishExportUserDataCommand,
 					publishDeleteAccountCommand: fixture.events.publishDeleteAccountCommand,
@@ -917,6 +931,7 @@ describe("View routes", () => {
 					publishSaveLinkRawHtmlCommand: fixture.events.publishSaveLinkRawHtmlCommand,
 					publishSaveLinkRawPdfCommand: fixture.events.publishSaveLinkRawPdfCommand,
 					publishStaleCheckRequested: fixture.events.publishStaleCheckRequested,
+					publishRemoveMyContent: fixture.events.publishRemoveMyContent,
 					publishUpdateFetchTimestamp: fixture.events.publishUpdateFetchTimestamp,
 					publishExportUserDataCommand: fixture.events.publishExportUserDataCommand,
 					publishDeleteAccountCommand: fixture.events.publishDeleteAccountCommand,
@@ -954,6 +969,7 @@ describe("View routes", () => {
 					publishSaveLinkRawHtmlCommand: fixture.events.publishSaveLinkRawHtmlCommand,
 					publishSaveLinkRawPdfCommand: fixture.events.publishSaveLinkRawPdfCommand,
 					publishStaleCheckRequested: fixture.events.publishStaleCheckRequested,
+					publishRemoveMyContent: fixture.events.publishRemoveMyContent,
 					publishUpdateFetchTimestamp: fixture.events.publishUpdateFetchTimestamp,
 					publishExportUserDataCommand: fixture.events.publishExportUserDataCommand,
 					publishDeleteAccountCommand: fixture.events.publishDeleteAccountCommand,
@@ -993,6 +1009,7 @@ describe("View routes", () => {
 					publishSaveLinkRawHtmlCommand: fixture.events.publishSaveLinkRawHtmlCommand,
 					publishSaveLinkRawPdfCommand: fixture.events.publishSaveLinkRawPdfCommand,
 					publishStaleCheckRequested: fixture.events.publishStaleCheckRequested,
+					publishRemoveMyContent: fixture.events.publishRemoveMyContent,
 					publishUpdateFetchTimestamp: fixture.events.publishUpdateFetchTimestamp,
 					publishExportUserDataCommand: fixture.events.publishExportUserDataCommand,
 					publishDeleteAccountCommand: fixture.events.publishDeleteAccountCommand,
@@ -1031,6 +1048,7 @@ describe("View routes", () => {
 					publishSaveLinkRawHtmlCommand: fixture.events.publishSaveLinkRawHtmlCommand,
 					publishSaveLinkRawPdfCommand: fixture.events.publishSaveLinkRawPdfCommand,
 					publishStaleCheckRequested: fixture.events.publishStaleCheckRequested,
+					publishRemoveMyContent: fixture.events.publishRemoveMyContent,
 					publishUpdateFetchTimestamp: fixture.events.publishUpdateFetchTimestamp,
 					publishExportUserDataCommand: fixture.events.publishExportUserDataCommand,
 					publishDeleteAccountCommand: fixture.events.publishDeleteAccountCommand,
@@ -1069,6 +1087,7 @@ describe("View routes", () => {
 					publishSaveLinkRawHtmlCommand: fixture.events.publishSaveLinkRawHtmlCommand,
 					publishSaveLinkRawPdfCommand: fixture.events.publishSaveLinkRawPdfCommand,
 					publishStaleCheckRequested: fixture.events.publishStaleCheckRequested,
+					publishRemoveMyContent: fixture.events.publishRemoveMyContent,
 					publishUpdateFetchTimestamp: fixture.events.publishUpdateFetchTimestamp,
 					publishExportUserDataCommand: fixture.events.publishExportUserDataCommand,
 					publishDeleteAccountCommand: fixture.events.publishDeleteAccountCommand,
@@ -1106,6 +1125,7 @@ describe("View routes", () => {
 					publishSaveLinkRawHtmlCommand: fixture.events.publishSaveLinkRawHtmlCommand,
 					publishSaveLinkRawPdfCommand: fixture.events.publishSaveLinkRawPdfCommand,
 					publishStaleCheckRequested: fixture.events.publishStaleCheckRequested,
+					publishRemoveMyContent: fixture.events.publishRemoveMyContent,
 					publishUpdateFetchTimestamp: fixture.events.publishUpdateFetchTimestamp,
 					publishExportUserDataCommand: fixture.events.publishExportUserDataCommand,
 					publishDeleteAccountCommand: fixture.events.publishDeleteAccountCommand,
@@ -1143,6 +1163,7 @@ describe("View routes", () => {
 					publishSaveLinkRawHtmlCommand: fixture.events.publishSaveLinkRawHtmlCommand,
 					publishSaveLinkRawPdfCommand: fixture.events.publishSaveLinkRawPdfCommand,
 					publishStaleCheckRequested: fixture.events.publishStaleCheckRequested,
+					publishRemoveMyContent: fixture.events.publishRemoveMyContent,
 					publishUpdateFetchTimestamp: fixture.events.publishUpdateFetchTimestamp,
 					publishExportUserDataCommand: fixture.events.publishExportUserDataCommand,
 					publishDeleteAccountCommand: fixture.events.publishDeleteAccountCommand,
@@ -1192,6 +1213,7 @@ describe("View routes", () => {
 					publishSaveLinkRawHtmlCommand: fixture.events.publishSaveLinkRawHtmlCommand,
 					publishSaveLinkRawPdfCommand: fixture.events.publishSaveLinkRawPdfCommand,
 					publishStaleCheckRequested: fixture.events.publishStaleCheckRequested,
+					publishRemoveMyContent: fixture.events.publishRemoveMyContent,
 					publishUpdateFetchTimestamp: fixture.events.publishUpdateFetchTimestamp,
 					publishExportUserDataCommand: fixture.events.publishExportUserDataCommand,
 					publishDeleteAccountCommand: fixture.events.publishDeleteAccountCommand,
@@ -1241,6 +1263,7 @@ describe("View routes", () => {
 					publishSaveLinkRawHtmlCommand: fixture.events.publishSaveLinkRawHtmlCommand,
 					publishSaveLinkRawPdfCommand: fixture.events.publishSaveLinkRawPdfCommand,
 					publishStaleCheckRequested: fixture.events.publishStaleCheckRequested,
+					publishRemoveMyContent: fixture.events.publishRemoveMyContent,
 					publishUpdateFetchTimestamp: fixture.events.publishUpdateFetchTimestamp,
 					publishExportUserDataCommand: fixture.events.publishExportUserDataCommand,
 					publishDeleteAccountCommand: fixture.events.publishDeleteAccountCommand,
@@ -1290,6 +1313,7 @@ describe("View routes", () => {
 					publishSaveLinkRawHtmlCommand: fixture.events.publishSaveLinkRawHtmlCommand,
 					publishSaveLinkRawPdfCommand: fixture.events.publishSaveLinkRawPdfCommand,
 					publishStaleCheckRequested: fixture.events.publishStaleCheckRequested,
+					publishRemoveMyContent: fixture.events.publishRemoveMyContent,
 					publishUpdateFetchTimestamp: fixture.events.publishUpdateFetchTimestamp,
 					publishExportUserDataCommand: fixture.events.publishExportUserDataCommand,
 					publishDeleteAccountCommand: fixture.events.publishDeleteAccountCommand,
@@ -1343,6 +1367,7 @@ describe("View routes", () => {
 					publishSaveLinkRawHtmlCommand: fixture.events.publishSaveLinkRawHtmlCommand,
 					publishSaveLinkRawPdfCommand: fixture.events.publishSaveLinkRawPdfCommand,
 					publishStaleCheckRequested: fixture.events.publishStaleCheckRequested,
+					publishRemoveMyContent: fixture.events.publishRemoveMyContent,
 					publishUpdateFetchTimestamp: fixture.events.publishUpdateFetchTimestamp,
 					publishExportUserDataCommand: fixture.events.publishExportUserDataCommand,
 					publishDeleteAccountCommand: fixture.events.publishDeleteAccountCommand,
@@ -1396,6 +1421,7 @@ describe("View routes", () => {
 					publishSaveLinkRawHtmlCommand: fixture.events.publishSaveLinkRawHtmlCommand,
 					publishSaveLinkRawPdfCommand: fixture.events.publishSaveLinkRawPdfCommand,
 					publishStaleCheckRequested: fixture.events.publishStaleCheckRequested,
+					publishRemoveMyContent: fixture.events.publishRemoveMyContent,
 					publishUpdateFetchTimestamp: fixture.events.publishUpdateFetchTimestamp,
 					publishExportUserDataCommand: fixture.events.publishExportUserDataCommand,
 					publishDeleteAccountCommand: fixture.events.publishDeleteAccountCommand,
@@ -1576,6 +1602,7 @@ describe("View routes", () => {
 					publishSaveLinkRawHtmlCommand: fixture.events.publishSaveLinkRawHtmlCommand,
 					publishSaveLinkRawPdfCommand: fixture.events.publishSaveLinkRawPdfCommand,
 					publishStaleCheckRequested: fixture.events.publishStaleCheckRequested,
+					publishRemoveMyContent: fixture.events.publishRemoveMyContent,
 					publishUpdateFetchTimestamp: fixture.events.publishUpdateFetchTimestamp,
 					publishExportUserDataCommand: fixture.events.publishExportUserDataCommand,
 					publishDeleteAccountCommand: fixture.events.publishDeleteAccountCommand,
@@ -1640,6 +1667,7 @@ describe("View routes", () => {
 						publishSaveLinkRawHtmlCommand: fixture.events.publishSaveLinkRawHtmlCommand,
 						publishSaveLinkRawPdfCommand: fixture.events.publishSaveLinkRawPdfCommand,
 						publishStaleCheckRequested: fixture.events.publishStaleCheckRequested,
+						publishRemoveMyContent: fixture.events.publishRemoveMyContent,
 						publishUpdateFetchTimestamp: fixture.events.publishUpdateFetchTimestamp,
 						publishExportUserDataCommand: fixture.events.publishExportUserDataCommand,
 						publishDeleteAccountCommand: fixture.events.publishDeleteAccountCommand,
@@ -2042,6 +2070,69 @@ describe("View routes", () => {
 				"https://example.com/first",
 				"https://example.com/second",
 			]);
+		});
+	});
+
+	describe("purged (tombstoned) URL serving gates", () => {
+		async function seedTombstoned() {
+			const fixture = createDefaultTestAppFixture(TEST_APP_ORIGIN);
+			await fixture.articleStore.saveArticleGlobally({
+				url: ARTICLE_URL,
+				metadata: { title: "example.com", siteName: "example.com", excerpt: "", wordCount: 0 },
+				estimatedReadTime: calculateReadTime(0),
+				savedAt: new Date("2026-01-01T00:00:00.000Z"),
+			});
+			await fixture.articleStore.setPurgedAt({
+				url: ARTICLE_URL,
+				at: new Date("2026-07-16T10:00:00.000Z"),
+			});
+			let saveGloballyCalls = 0;
+			const originalSaveGlobally = fixture.articleStore.saveArticleGlobally;
+			const spiedStore = {
+				...fixture.articleStore,
+				saveArticleGlobally: async (params: Parameters<typeof originalSaveGlobally>[0]) => {
+					saveGloballyCalls += 1;
+					return originalSaveGlobally(params);
+				},
+			};
+			const harness = useApp({ ...fixture, articleStore: spiedStore });
+			return { harness, saveGloballyCallCount: () => saveGloballyCalls };
+		}
+
+		it("404s the HTML view and never re-stubs the row via the first-visit save cascade", async () => {
+			const { harness, saveGloballyCallCount } = await seedTombstoned();
+
+			const response = await request(harness.server).get(`/view/${CANONICAL_PATH}`);
+
+			expect(response.status).toBe(404);
+			expect(new JSDOM(response.text).window.document.querySelector("body.page-not-found")).not.toBeNull();
+			expect(saveGloballyCallCount()).toBe(0);
+		});
+
+		it("404s the markdown surface (Accept: text/markdown) before rendering any body", async () => {
+			const { harness } = await seedTombstoned();
+
+			const response = await request(harness.server)
+				.get(`/view/${CANONICAL_PATH}`)
+				.set("Accept", "text/markdown");
+
+			expect(response.status).toBe(404);
+		});
+
+		it("404s the summary poll fragment to stop the htmx poll chain", async () => {
+			const { harness } = await seedTombstoned();
+
+			const response = await request(harness.server).get(`/view/summary?url=${ENCODED}`);
+
+			expect(response.status).toBe(404);
+		});
+
+		it("404s the reader poll fragment to stop the htmx poll chain", async () => {
+			const { harness } = await seedTombstoned();
+
+			const response = await request(harness.server).get(`/view/reader?url=${ENCODED}`);
+
+			expect(response.status).toBe(404);
 		});
 	});
 });

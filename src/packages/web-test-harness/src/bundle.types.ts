@@ -68,6 +68,7 @@ import type {
 	InMemoryMarkCrawlReady,
 	InMemoryMarkCrawlStage,
 	InMemoryMarkCrawlUnsupported,
+	ListUserArticleUrls,
 	MarkArticleViewed,
 	MarkCrawlPending,
 	MarkEmailVerified,
@@ -96,6 +97,7 @@ import type {
 	PublishExportUserDataCommand,
 	PublishLinkSaved,
 	PublishRecrawlLinkInitiated,
+	PublishRemoveMyContent,
 	PublishSaveAnonymousLink,
 	PublishSaveLinkRawHtmlCommand,
 	PublishSaveLinkRawPdfCommand,
@@ -256,6 +258,7 @@ export interface SubscriptionBillingBundle {
 
 export interface ArticleStoreBundle {
 	deleteAllUserArticles: DeleteAllUserArticles;
+	listUserArticleUrls: ListUserArticleUrls;
 	findArticleById: FindArticleById;
 	findArticleByUrl: FindArticleByUrl;
 	findArticleUrlById: FindArticleUrlById;
@@ -289,6 +292,7 @@ export interface ArticleStoreBundle {
 	setContentSourceTier: (params: { url: string; tier: "tier-0" | "tier-1" }) => Promise<void>;
 	setContentFetchedAt: (params: { url: string; at: string }) => Promise<void>;
 	setCrawlVersions: (params: { url: string; versions: ArticleCrawlVersion[] }) => Promise<void>;
+	setPurgedAt: (params: { url: string; at: Date }) => Promise<void>;
 }
 
 export interface ArticleCrawlBundle {
@@ -309,6 +313,7 @@ export interface ParserBundle {
 export interface EventsBundle {
 	publishLinkSaved: PublishLinkSaved;
 	publishRecrawlLinkInitiated: PublishRecrawlLinkInitiated;
+	publishRemoveMyContent: PublishRemoveMyContent;
 	publishSaveAnonymousLink: PublishSaveAnonymousLink;
 	publishSaveLinkRawHtmlCommand: PublishSaveLinkRawHtmlCommand;
 	publishSaveLinkRawPdfCommand: PublishSaveLinkRawPdfCommand;
