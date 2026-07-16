@@ -234,6 +234,26 @@ describe("initExtractEmailLinksHandler", () => {
 		expect(harness.published).toHaveLength(0);
 	});
 
+	it("decodes entity-encoded hrefs before storing, classifying, and publishing", async () => {
+		const harness = makeHarness({
+			parseEmail: async () => parsedOk("<p>body</p>", ["https://news.example.com/unsub&go"]),
+			derivedHtml:
+				'<a href="https://a.test/x?a=1&amp;b=2">A</a> <a href="https://news.example.com/unsub&amp;go">Unsub</a>',
+		});
+
+		await harness.run(eventBody());
+
+		const { links } = await harness.linkStore.listLinksByEmail({
+			userId: USER,
+			receivedAtMessageId: RAM,
+		});
+		expect(links.map((l) => [l.url, l.status])).toEqual([
+			["https://a.test/x?a=1&b=2", "pending"],
+			["https://news.example.com/unsub&go", "skipped"],
+		]);
+		expect(harness.published).toEqual([{ ordinal: "0000", url: "https://a.test/x?a=1&b=2" }]);
+	});
+
 	it("keeps a skipped link terminal and unpublished across re-delivery", async () => {
 		const harness = makeHarness({
 			parseEmail: async () => parsedOk("<p>body</p>", ["https://news.example.com/unsub"]),

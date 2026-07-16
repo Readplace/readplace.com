@@ -18,12 +18,4 @@ describe("classifyEmailLink", () => {
 		).toEqual({ action: "skip", reason: "list-unsubscribe" });
 	});
 
-	it("skips an entity-encoded extraction of the List-Unsubscribe endpoint", () => {
-		expect(
-			classifyEmailLink({
-				url: "https://news.example.com/unsub&amp;go",
-				listUnsubscribeUrls: ["https://news.example.com/unsub&go"],
-			}),
-		).toEqual({ action: "skip", reason: "list-unsubscribe" });
-	});
 });

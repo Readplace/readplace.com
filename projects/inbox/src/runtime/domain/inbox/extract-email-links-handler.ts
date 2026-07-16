@@ -4,6 +4,7 @@ import type {
 	SQSBatchResponse,
 	SQSEvent,
 } from "aws-lambda";
+import { decodeHtmlEntities } from "@packages/crawl-article";
 import { EmailReceivedEvent } from "@packages/hutch-infra-components";
 import type { HutchLogger } from "@packages/hutch-logger";
 import {
@@ -113,7 +114,9 @@ export function initExtractEmailLinksHandler(deps: {
 					html: parsedEmail.email.html,
 					inlineImages: parsedEmail.email.inlineImages,
 				});
-				const extracted = extractUrls(Buffer.from(sanitizedHtml, "utf8"));
+				// Decode before extracting so the stored, classified, and crawled URL is
+				// the href as parsed, not its serialized form (`?a=1&amp;b=2`).
+				const extracted = extractUrls(Buffer.from(decodeHtmlEntities(sanitizedHtml), "utf8"));
 				const { urls, truncated } = capEmailLinks(extracted, { maxLinks });
 
 				let skipped = 0;
