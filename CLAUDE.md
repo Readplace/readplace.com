@@ -299,6 +299,7 @@ function createFakeResponse(): Partial<Response> {
 |-----------|--------|
 | `as const` | Not a type assertion — narrows literal types |
 | Isolated Node.js API wrappers (e.g., `promisify(scrypt)` returning `Buffer`, `requireEnv` generic) | The `as` is already contained in a single wrapper function with no better alternative from the type definitions |
+| A test fake bound to an existing signature (e.g. a `fetch` fake that must satisfy `typeof fetch` → `Promise<Response>`, as in [Tests Simulate Explicit HTTP Statuses](#tests-simulate-explicit-http-statuses)) | `Partial<T>` is not assignable where the full type is required, so the cast is forced. Still prefer `Partial<T>` whenever you control the return type, as in the `createFakeResponse` example above |
 
 **Swift:** the analog of `as` is force-cast `as!`, force-try `try!`, force-unwrap `!`, and `fatalError` — all bypass the compiler. Use `guard let … else { throw }` / `as?` for anything from external input (user-typed URLs, network bodies). Allowed, mirroring `as const` / isolated-wrapper above: force-unwrapping a compile-time-constant literal, and Apple's implicitly-unwrapped delegate parameters (e.g. `WKNavigation!`), which are framework-defined, not your assertions.
 
