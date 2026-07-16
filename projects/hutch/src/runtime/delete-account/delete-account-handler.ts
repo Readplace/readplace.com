@@ -141,14 +141,13 @@ async function processCommand(
 	await deps.deleteAllInboxEmails(userId);
 	await deps.tombstoneInboxAddresses(userId);
 
-	// Saved articles: capture the URLs first, drop the per-user rows, then for
-	// each URL the user was the last saver of, purge the global content and
-	// tombstone the row — so a genuinely private single-saver page is fully
-	// erased, not just delisted. Content still saved by another user is left
-	// untouched. Idempotent: a redriven delete re-lists nothing (rows gone) and
-	// re-purges against already-absent objects.
+	// Saved articles: purge every URL the user was the last saver of BEFORE
+	// dropping the per-user rows, so a crash mid-purge re-lists the same URLs on
+	// redrive and converges instead of stranding un-purged single-saver content
+	// (the rows are the sole index those URLs are re-derived from). countOther-
+	// SaversByUrl already excludes this user, so the still-present own rows don't
+	// inflate the count. Content another user still saves is left untouched.
 	const savedUrls = await deps.listUserArticleUrls(userId);
-	await deps.deleteAllUserArticles(userId);
 	for (const url of savedUrls) {
 		const otherSavers = await deps.countOtherSaversByUrl({ url, excludeUserId: userId });
 		if (otherSavers === 0) {
@@ -156,6 +155,7 @@ async function processCommand(
 			await deps.tombstoneArticle({ url, at: deps.now() });
 		}
 	}
+	await deps.deleteAllUserArticles(userId);
 	await deps.deleteDigestByUser(userId);
 	await deps.deleteReaderReadyState(userId);
 	await deps.deleteOnboarding({ userId });

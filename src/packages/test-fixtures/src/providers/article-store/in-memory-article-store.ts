@@ -131,7 +131,10 @@ export function initInMemoryArticleStore(): {
 
 	const saveArticleGlobally: SaveArticleGlobally = async (params) => {
 		const articleResourceUniqueId = ArticleResourceUniqueId.parse(params.url);
-		if (articles.has(articleResourceUniqueId.value)) {
+		const existing = articles.get(articleResourceUniqueId.value);
+		// A live (non-purged) row is a no-op upsert; a tombstoned row is revived
+		// clean, mirroring the store's conditional put that clears purgedAt.
+		if (existing && existing.purgedAt === undefined) {
 			return { created: false };
 		}
 		const routeId = ReaderArticleHashId.from(params.url);

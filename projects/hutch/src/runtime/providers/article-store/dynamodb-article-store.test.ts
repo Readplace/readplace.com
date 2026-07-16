@@ -244,7 +244,10 @@ describe("initDynamoDbArticleStore global writes", () => {
 		});
 
 		const put = commands.find((c) => c.name === "PutCommand");
-		expect(put?.input.ConditionExpression).toBe("attribute_not_exists(#url)");
+		// The put succeeds on an absent row OR a tombstoned one, so re-saving a
+		// purged URL revives it (the full put drops purgedAt); a live row still
+		// fails the condition and stays a no-op upsert.
+		expect(put?.input.ConditionExpression).toBe("attribute_not_exists(#url) OR attribute_exists(purgedAt)");
 		expect(result).toEqual({ created: true });
 	});
 

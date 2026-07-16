@@ -106,6 +106,24 @@ describe("initInMemoryArticleStore", () => {
 			expect(second).toEqual({ created: false });
 		});
 
+		it("revives a tombstoned row on re-save: reports created=true and clears purgedAt so the tombstone gate reopens", async () => {
+			const store = initInMemoryArticleStore();
+			const url = "https://example.com/article";
+			const metadata = { title: "T", siteName: "example.com", excerpt: "", wordCount: 0 };
+			await store.saveArticleGlobally({ url, metadata, estimatedReadTime: 0 as Minutes, savedAt: new Date("2026-04-01T12:00:00.000Z") });
+			await store.setPurgedAt({ url, at: new Date("2026-07-16T10:00:00.000Z") });
+
+			const revived = await store.saveArticleGlobally({
+				url,
+				metadata,
+				estimatedReadTime: 0 as Minutes,
+				savedAt: new Date("2026-07-20T12:00:00.000Z"),
+			});
+
+			expect(revived).toEqual({ created: true });
+			expect((await store.findArticleByUrl(url))?.purgedAt).toBeUndefined();
+		});
+
 		it("does not clobber real parsed metadata when a stub re-save lands on an existing row", async () => {
 			// Simulates the /view fallback path landing on a row that already
 			// holds parsed metadata: title/excerpt/wordCount must stay intact;

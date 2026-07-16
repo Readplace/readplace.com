@@ -190,6 +190,10 @@ export function initDynamoDbArticleStore(deps: {
 		const routeId = ReaderArticleHashId.from(params.url);
 
 		try {
+			// A full put replaces the item, so a tombstoned row is revived clean —
+			// purgedAt and every content column drop away. Allowed when the row is
+			// absent OR tombstoned; a live (non-purged) row still fails the
+			// condition so an ordinary re-save stays a no-op upsert (savedAt bump).
 			await articles.put({
 				Item: {
 					url: articleResourceUniqueId.value,
@@ -203,7 +207,7 @@ export function initDynamoDbArticleStore(deps: {
 					estimatedReadTime: params.estimatedReadTime,
 					savedAt: params.savedAt.toISOString(),
 				},
-				ConditionExpression: "attribute_not_exists(#url)",
+				ConditionExpression: "attribute_not_exists(#url) OR attribute_exists(purgedAt)",
 				ExpressionAttributeNames: { "#url": "url" },
 			});
 			return { created: true };

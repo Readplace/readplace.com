@@ -102,15 +102,53 @@ describe("initReselectAfterRemovalHandler", () => {
 		expect(effects.map((effect) => effect.kind)).not.toContain("publish-link-saved");
 	});
 
-	it("passes the reselect through even when only the anonymous crawler copy remains (tie keeps a valid candidate)", async () => {
+	it("promotes the single surviving source directly when only the anonymous crawler copy remains (length-1 short-circuit)", async () => {
 		const { handler, selectDeps } = createHandler({
 			listAvailableTierSources: jest.fn().mockResolvedValue([tierSource("tier-1")]),
-			selectMostCompleteContent: jest.fn().mockResolvedValue({ winner: "tier-1", reason: "only" }),
+			// A single source takes the length-1 short-circuit, so the selector is
+			// never consulted; this mock would only matter if it were.
+			selectMostCompleteContent: jest.fn().mockResolvedValue({ winner: "tier-1", reason: "unused" }),
 		});
 
 		await handler(createSqsEvent({ url: URL }), buildLambdaContext(), () => {});
 
+		expect(selectDeps.selectMostCompleteContent).not.toHaveBeenCalled();
 		expect(selectDeps.writeCanonicalContent).toHaveBeenCalledWith({ url: URL, tier: "tier-1" });
+	});
+
+	it("resolves a genuine 2-source post-removal tie by promoting the tier-1 fresh tier the normalization supplies, with no userId", async () => {
+		// A co-saver's tier-0 capture and the crawler's tier-1 both survive the
+		// removal — the case the `tier: "tier-1"` normalization exists for. Give
+		// them different media so the selector's tie resolves via the media-changed
+		// branch, which asserts the fresh tier (tier-1) is in the candidate set.
+		const tier0WithImage: TierSource = {
+			tier: "tier-0",
+			html: '<p>body</p><img src="https://cdn.example.com/old.png">',
+			metadata: { title: "T", siteName: "example.com", excerpt: "e", wordCount: 100, estimatedReadTime: 1 },
+		};
+		const tier1WithImage: TierSource = {
+			tier: "tier-1",
+			html: '<p>body</p><img src="https://cdn.example.com/new.png">',
+			metadata: { title: "T", siteName: "example.com", excerpt: "e", wordCount: 100, estimatedReadTime: 1 },
+		};
+		const { handler, selectDeps } = createHandler({
+			listAvailableTierSources: jest.fn().mockResolvedValue([tier0WithImage, tier1WithImage]),
+			selectMostCompleteContent: jest.fn().mockResolvedValue({ winner: "tie", reason: "identical prose" }),
+			findContentSourceTier: jest.fn().mockResolvedValue(undefined),
+			findCanonicalContentHash: jest.fn().mockResolvedValue(undefined),
+		});
+
+		const result = await handler(createSqsEvent({ url: URL }), buildLambdaContext(), () => {});
+
+		expect(result).toEqual({ batchItemFailures: [] });
+		expect(selectDeps.selectMostCompleteContent).toHaveBeenCalled();
+		expect(selectDeps.writeCanonicalContent).toHaveBeenCalledWith({ url: URL, tier: "tier-1" });
+		expect(selectDeps.transitionAndPersist).toHaveBeenCalledWith(
+			promoteTier,
+			expect.objectContaining({
+				input: expect.objectContaining({ tier: "tier-1", userId: undefined }),
+			}),
+		);
 	});
 
 	it("surfaces the core's per-record batch failure (no sources → retry)", async () => {

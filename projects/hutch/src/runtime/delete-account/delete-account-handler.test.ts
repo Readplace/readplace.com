@@ -106,7 +106,7 @@ function buildSubject() {
 	// Test-only one-shot failures: each flag makes its step throw exactly once
 	// (self-clearing), so the record fails on the first delivery and its redrive
 	// then runs clean — the interleavings that exercise idempotency on retry.
-	const injectedFailures = { deleteSubscriptionOnce: false, deleteRawEmailOnce: false };
+	const injectedFailures = { deleteSubscriptionOnce: false, deleteRawEmailOnce: false, purgeContentOnce: false };
 
 	const handler = initDeleteAccountHandler({
 		findEmailByUserId: auth.findEmailByUserId,
@@ -161,6 +161,10 @@ function buildSubject() {
 		countOtherSaversByUrl: async ({ url }: { url: string; excludeUserId: string }) =>
 			otherSaversByUrl.get(url) ?? 0,
 		purgeArticleContent: async (url: string) => {
+			if (injectedFailures.purgeContentOnce) {
+				injectedFailures.purgeContentOnce = false;
+				throw new Error("simulated purgeArticleContent failure");
+			}
 			purgeContentCalls.push(url);
 		},
 		tombstoneArticle: async ({ url, at }: { url: string; at: Date }) => {
@@ -232,6 +236,9 @@ function buildSubject() {
 		},
 		failRawEmailDeleteOnce: (): void => {
 			injectedFailures.deleteRawEmailOnce = true;
+		},
+		failPurgeContentOnce: (): void => {
+			injectedFailures.purgeContentOnce = true;
 		},
 	};
 }
@@ -507,6 +514,33 @@ describe("delete-account handler", () => {
 		assert.equal(s.oauthDeps.userIdIndex.has(bystander.userId), true);
 		assert(await s.auth.getSessionUserId(bystander.sessionId));
 		assert.equal(await s.auth.findEmailByUserId(bystander.userId), bystander.email);
+	});
+
+	it("converges on redrive when a purge throws mid-loop: the per-user rows are not dropped until every single-saver URL is purged", async () => {
+		const s = buildSubject();
+		const account = await seedAccount(s, {
+			label: "retry",
+			email: "retry@example.com",
+			subscription: "none",
+		});
+		s.failPurgeContentOnce();
+
+		// First delivery: purge throws before the rows are deleted, so the record
+		// fails and the rows survive for the redrive to re-list.
+		const first = await run(s, [{ messageId: "msg", body: bodyFor(account.userId) }]);
+		assert.deepEqual(first.batchItemFailures, [{ itemIdentifier: "msg" }]);
+		assert.equal((await s.articleStore.findArticlesByUser({ userId: account.userId })).total, 1);
+		assert.deepEqual(s.purgeContentCalls, []);
+
+		// Redrive: the URL is still listable, so the purge converges and only then
+		// are the per-user rows dropped.
+		const second = await run(s, [{ messageId: "msg", body: bodyFor(account.userId) }]);
+		assert.deepEqual(second.batchItemFailures, []);
+		assert.deepEqual(s.purgeContentCalls, ["https://example.com/retry/article"]);
+		assert.deepEqual(s.tombstoneCalls, [
+			{ url: "https://example.com/retry/article", at: SEED_NOW },
+		]);
+		assert.equal((await s.articleStore.findArticlesByUser({ userId: account.userId })).total, 0);
 	});
 
 	it("leaves content another user still saves in place — delists the account but never purges a co-saved URL", async () => {

@@ -665,6 +665,35 @@ describe("Queue routes", () => {
 		});
 	});
 
+	describe("re-saving a purged URL", () => {
+		it("revives a tombstoned URL: an authenticated save clears purgedAt and the article returns to the queue", async () => {
+			const url = "https://example.com/purged-then-resaved";
+			const fixture = createDefaultTestAppFixture(TEST_APP_ORIGIN);
+			const harness = useApp(fixture);
+			const agent = await loginAgent(harness.server, harness.auth);
+
+			// Simulate a prior purge: a tombstoned global row survives with purgedAt.
+			await fixture.articleStore.saveArticleGlobally({
+				url,
+				metadata: { title: "example.com", siteName: "example.com", excerpt: "", wordCount: 0 },
+				estimatedReadTime: MinutesSchema.parse(0),
+				savedAt: new Date("2026-01-01T00:00:00.000Z"),
+			});
+			await fixture.articleStore.setPurgedAt({ url, at: new Date("2026-07-16T10:00:00.000Z") });
+
+			const saveResponse = await agent.post("/queue/save").type("form").send({ url });
+
+			expect(saveResponse.status).toBe(303);
+			// The revived row no longer carries the tombstone, so it serves again.
+			const revived = await fixture.articleStore.findArticleByUrl(url);
+			assert(revived, "the revived global row must exist");
+			expect(revived.purgedAt).toBeUndefined();
+			// And it is back in the user's queue.
+			const queueDoc = new JSDOM((await agent.get("/queue")).text).window.document;
+			expect(queueDoc.querySelectorAll("[data-test-article-list] .queue-article").length).toBe(1);
+		});
+	});
+
 	describe("POST /queue/:id/remove-my-copy", () => {
 		async function saveAndGetId(agent: Awaited<ReturnType<typeof loginAgent>>) {
 			await agent.post("/queue/save").type("form").send({ url: "https://example.com/article" });
