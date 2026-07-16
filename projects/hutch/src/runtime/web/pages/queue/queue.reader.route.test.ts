@@ -173,7 +173,7 @@ describe("Queue routes", () => {
 				versionedDoc
 					.querySelector('[data-test-crawl-bookmark-tab="canonical"] .crawl-bookmark__badge')
 					?.textContent,
-			).toBe("best");
+			).toBe("latest");
 			for (const key of ["2026-06-28T22:01Z", "2026-03-26T14:32Z"]) {
 				const disabled = versionedDoc.querySelector(`[data-test-crawl-bookmark-tab="${key}"]`);
 				assert(disabled, `version tab ${key} must render`);
