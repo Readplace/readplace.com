@@ -6,6 +6,10 @@ export type CrawlAndFinalizeResult =
 	| {
 			status: "fetched";
 			article: FinalizedArticle;
+			/** The post-redirect terminal URL (`response.url`). Identity adoption
+			 * keys on this. Absent when no HTTP fetch resolved a terminal
+			 * (site-rule/oembed) or the fetch did not redirect. */
+			finalUrl?: string;
 			etag?: string;
 			lastModified?: string;
 			bodyHash: string;
@@ -76,6 +80,7 @@ export function initCrawlAndFinalizeArticle(deps: {
 		return {
 			status: "fetched",
 			article: finalized.article,
+			finalUrl: crawlResult.finalUrl,
 			etag: crawlResult.etag,
 			lastModified: crawlResult.lastModified,
 			bodyHash: crawlResult.bodyHash,

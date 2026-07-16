@@ -17,12 +17,16 @@ import {
 	theInformationSiteRules,
 } from "@packages/article-parser";
 import type { ParseHtml } from "@packages/article-parser";
+import { initIsSiteRuleUrl } from "../domain/save-link/adopt-canonical-identity";
 import type { LogError, LogInfo } from "./observability";
 
 export type ParserDepBundle = {
 	crawlFetch: CrawlFetch;
 	crawlArticle: CrawlArticle;
 	parseHtml: ParseHtml;
+	/** Predicate over the same site-rule set the crawler uses, so identity
+	 * adoption can refuse to alias a terminal that gets bespoke oembed treatment. */
+	isSiteRuleUrl: (url: string) => boolean;
 };
 
 /**
@@ -56,13 +60,14 @@ export function initParserDepBundle(deps: {
 		siteRules,
 		logError: deps.logError,
 	});
-	return { crawlFetch, crawlArticle, parseHtml };
+	return { crawlFetch, crawlArticle, parseHtml, isSiteRuleUrl: initIsSiteRuleUrl(siteRules) };
 }
 
 export type ComprehensiveParserDepBundle = {
 	crawlFetch: CrawlFetch;
 	crawlArticle: CrawlArticle;
 	parseHtml: ParseHtml;
+	isSiteRuleUrl: (url: string) => boolean;
 };
 
 /**
@@ -100,5 +105,5 @@ export function initComprehensiveParserDepBundle(deps: {
 		siteRules,
 		logError: deps.logError,
 	});
-	return { crawlFetch, crawlArticle, parseHtml };
+	return { crawlFetch, crawlArticle, parseHtml, isSiteRuleUrl: initIsSiteRuleUrl(siteRules) };
 }

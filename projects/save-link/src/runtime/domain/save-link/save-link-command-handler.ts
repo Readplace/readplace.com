@@ -11,6 +11,7 @@ import type { UpdateFetchTimestamp } from "./update-fetch-timestamp-handler";
 import type { LogCrawlOutcome, LogParseError } from "@packages/hutch-infra-components";
 import type { ReadTierSnapshot } from "../crawl-article-state/read-tier-snapshot";
 import { initSaveLinkWork, logRecordFailure } from "./save-link-work";
+import type { AdoptCanonicalIdentity } from "./adopt-canonical-identity";
 import type { CrawlAndFinalizeArticle } from "@packages/finalize-article";
 import type { PutTierSource } from "../../providers/article-store/put-tier-source";
 import type { EmitSimpleCrawlUnsupported } from "../../dep-bundles/events";
@@ -22,6 +23,7 @@ export function initSaveLinkCommandHandler(deps: {
 	updateFetchTimestamp: UpdateFetchTimestamp;
 	transitionAndPersist: TransitionAndPersist;
 	markCrawlStage: MarkCrawlStage;
+	adoptCanonicalIdentity: AdoptCanonicalIdentity;
 	publishEvent: PublishEvent;
 	now: () => Date;
 	logger: HutchLogger;
@@ -39,6 +41,7 @@ export function initSaveLinkCommandHandler(deps: {
 		updateFetchTimestamp: deps.updateFetchTimestamp,
 		transitionAndPersist: deps.transitionAndPersist,
 		markCrawlStage: deps.markCrawlStage,
+		adoptCanonicalIdentity: deps.adoptCanonicalIdentity,
 		now: deps.now,
 		logger,
 		logParseError: deps.logParseError,

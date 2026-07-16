@@ -4,6 +4,7 @@ import { consoleLogger } from "@packages/hutch-logger";
 import { EventBridgeClient } from "@packages/hutch-infra-components/runtime";
 import { createDynamoDocumentClient } from "@packages/hutch-storage-client";
 import { requireEnv } from "@packages/require-env";
+import { initCanonicalAliasStore } from "@packages/article-store";
 import { initSaveLinkCommandHandler } from "./domain/save-link/save-link-command-handler";
 import { initObservabilityDepBundle } from "./dep-bundles/observability";
 import { initParserDepBundle } from "./dep-bundles/parser";
@@ -13,6 +14,7 @@ import { initCrawlAndFinalizeDepBundle } from "./dep-bundles/crawl-and-finalize"
 import { initEmitSimpleCrawlUnsupported, initEventsDepBundle } from "./dep-bundles/events";
 import { initArticleAggregateDepBundle } from "./dep-bundles/article-aggregate";
 import { initArticleCrawlDepBundle } from "./dep-bundles/article-crawl";
+import { initAdoptCanonicalIdentity } from "./domain/save-link/adopt-canonical-identity";
 
 const articlesTable = requireEnv("DYNAMODB_ARTICLES_TABLE");
 const contentBucketName = requireEnv("CONTENT_BUCKET_NAME");
@@ -44,6 +46,12 @@ const articleCrawl = initArticleCrawlDepBundle({ dynamoClient, articlesTable });
 const emitSimpleCrawlUnsupported = initEmitSimpleCrawlUnsupported({
 	publishEvent: events.publishEvent,
 });
+const adoptCanonicalIdentity = initAdoptCanonicalIdentity({
+	claimAlias: initCanonicalAliasStore({ client: dynamoClient, tableName: articlesTable }).claimAlias,
+	isSiteRuleUrl: parser.isSiteRuleUrl,
+	now,
+	logger: consoleLogger,
+});
 
 export const handler = initSaveLinkCommandHandler({
 	...articleStore,
@@ -53,5 +61,6 @@ export const handler = initSaveLinkCommandHandler({
 	...observability,
 	crawlAndFinalizeArticle: crawlAndFinalize.crawlAndFinalizeArticle,
 	emitSimpleCrawlUnsupported,
+	adoptCanonicalIdentity,
 	now,
 });

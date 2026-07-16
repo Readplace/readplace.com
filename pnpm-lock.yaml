@@ -726,6 +726,9 @@ importers:
       '@packages/retriable':
         specifier: workspace:*
         version: link:../../src/packages/retriable
+      '@packages/site-rules':
+        specifier: workspace:*
+        version: link:../../src/packages/site-rules
       '@packages/test-fixtures':
         specifier: workspace:*
         version: link:../../src/packages/test-fixtures

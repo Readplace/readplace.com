@@ -27,6 +27,7 @@ import type { UpdateFetchTimestamp } from "../save-link/update-fetch-timestamp-h
 import type { LogCrawlOutcome, LogParseError } from "@packages/hutch-infra-components";
 import type { ReadTierSnapshot } from "../crawl-article-state/read-tier-snapshot";
 import type { FinalizeArticle } from "@packages/finalize-article";
+import type { AdoptCanonicalIdentity } from "../save-link/adopt-canonical-identity";
 
 /* Every comprehensive-crawl record must account for the row's crawl axis being
  * in a terminal state: committed in-process here (unsupported), deferred to a
@@ -50,6 +51,7 @@ export function initComprehensiveCrawlHandler(deps: {
 	markCrawlProgress: MarkCrawlProgress;
 	consumePaidCrawlBudget: ConsumePaidCrawlBudget;
 	refundPaidCrawlBudget: RefundPaidCrawlBudget;
+	adoptCanonicalIdentity: AdoptCanonicalIdentity;
 	publishEvent: PublishEvent;
 	now: () => Date;
 	logger: HutchLogger;
@@ -68,6 +70,7 @@ export function initComprehensiveCrawlHandler(deps: {
 		markCrawlProgress,
 		consumePaidCrawlBudget,
 		refundPaidCrawlBudget,
+		adoptCanonicalIdentity,
 		publishEvent,
 		now,
 		logger,
@@ -235,6 +238,16 @@ export function initComprehensiveCrawlHandler(deps: {
 					thisTierStatus: "success",
 					otherTierStatus: successSnapshot.tier0Status,
 					pickedTier: successSnapshot.pickedTier,
+				});
+
+				/* Best-effort and never throws: a redirecting PDF/comprehensive URL
+				 * claims its (same-host) terminal identity here too. Refresh and
+				 * recrawl are re-crawls of an existing article, so neither adopts. */
+				await adoptCanonicalIdentity({
+					url,
+					finalUrl: crawlResult.finalUrl,
+					wordCount: finalized.article.metadata.wordCount,
+					recrawl: Boolean(recrawl || refresh),
 				});
 
 				if (refresh) {

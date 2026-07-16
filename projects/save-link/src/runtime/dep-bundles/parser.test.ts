@@ -13,6 +13,7 @@ describe("initParserDepBundle", () => {
 		expect(typeof bundle.crawlFetch).toBe("function");
 		expect(typeof bundle.crawlArticle).toBe("function");
 		expect(typeof bundle.parseHtml).toBe("function");
+		expect(typeof bundle.isSiteRuleUrl).toBe("function");
 	});
 });
 
@@ -27,5 +28,6 @@ describe("initComprehensiveParserDepBundle", () => {
 		expect(typeof bundle.crawlFetch).toBe("function");
 		expect(typeof bundle.crawlArticle).toBe("function");
 		expect(typeof bundle.parseHtml).toBe("function");
+		expect(typeof bundle.isSiteRuleUrl).toBe("function");
 	});
 });

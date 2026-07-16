@@ -11,6 +11,7 @@ import type { ReadTierSnapshot } from "../crawl-article-state/read-tier-snapshot
 import type { PutTierSource } from "../../providers/article-store/put-tier-source";
 import type { EmitSimpleCrawlUnsupported } from "../../dep-bundles/events";
 import type { CrawlAndFinalizeArticle } from "@packages/finalize-article";
+import type { AdoptCanonicalIdentity } from "./adopt-canonical-identity";
 
 /**
  * `"tier-1-written"` — the worker fetched, parsed, and wrote a tier-1 source.
@@ -76,6 +77,7 @@ export function initSaveLinkWork(deps: {
 	updateFetchTimestamp: UpdateFetchTimestamp;
 	transitionAndPersist: TransitionAndPersist;
 	markCrawlStage: MarkCrawlStage;
+	adoptCanonicalIdentity: AdoptCanonicalIdentity;
 	now: () => Date;
 	logger: HutchLogger;
 	logParseError: LogParseError;
@@ -90,6 +92,7 @@ export function initSaveLinkWork(deps: {
 		updateFetchTimestamp,
 		transitionAndPersist,
 		markCrawlStage,
+		adoptCanonicalIdentity,
 		now,
 		logger,
 		logParseError,
@@ -197,6 +200,16 @@ export function initSaveLinkWork(deps: {
 			thisTierStatus: "success",
 			otherTierStatus: successSnapshot.tier0Status,
 			pickedTier: successSnapshot.pickedTier,
+		});
+
+		/* Best-effort and never throws (queues are maxReceiveCount=1): if the
+		 * crawl followed a same-host redirect to a different terminal, claim that
+		 * identity so a later save of the terminal collapses onto this article. */
+		await adoptCanonicalIdentity({
+			url,
+			finalUrl: result.finalUrl,
+			wordCount: result.article.metadata.wordCount,
+			recrawl: options?.recrawl,
 		});
 
 		logger.info(`${logPrefix} tier-1 source written`, {

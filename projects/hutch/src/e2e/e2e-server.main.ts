@@ -96,6 +96,7 @@ const summary = createFakeSummaryProvider({ readyAfterReads: 3 })
 const eventLogger = getEnv('CI') === 'true' ? noopLogger : logger
 const { publishRefreshArticleContent } = initInMemoryRefreshArticleContent({ logger: eventLogger })
 const { publishUpdateFetchTimestamp } = initInMemoryUpdateFetchTimestamp({ logger: eventLogger })
+const resolveCanonicalIdentity = async (url: string) => url
 const { refreshArticleIfStale } = initRefreshArticleIfStale({
   findArticleFreshness: fixture.articleStore.findArticleFreshness,
   findArticleCrawlStatus: fixture.articleCrawl.findArticleCrawlStatus,
@@ -103,6 +104,7 @@ const { refreshArticleIfStale } = initRefreshArticleIfStale({
   parseHtml,
   publishRefreshArticleContent,
   publishUpdateFetchTimestamp,
+  resolveCanonicalIdentity,
   now: () => new Date(),
   staleTtlMs: 0,
 })

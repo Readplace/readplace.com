@@ -202,6 +202,7 @@ interface QueueDependencies {
 	findArticleCrawlStatus: FindArticleCrawlStatus;
 	markCrawlPending: MarkCrawlPending;
 	refreshArticleIfStale: RefreshArticleIfStale;
+	resolveCanonicalIdentity: (url: string) => Promise<string>;
 	publishUpdateFetchTimestamp: PublishUpdateFetchTimestamp;
 	readArticleContent: ReadArticleContent;
 	/** The reader's Back + Mark-as-read action bar, injected per variant: the sticky

@@ -23,6 +23,7 @@ function createWork(overrides: Partial<WorkDeps> = {}) {
 		updateFetchTimestamp: jest.fn().mockResolvedValue(undefined),
 		transitionAndPersist: jest.fn().mockResolvedValue(undefined),
 		markCrawlStage: jest.fn().mockResolvedValue(undefined),
+		adoptCanonicalIdentity: jest.fn().mockResolvedValue(undefined),
 		now: fixedNow,
 		logger: noopLogger,
 		logParseError: jest.fn(),
@@ -114,4 +115,28 @@ describe("initSaveLinkWork", () => {
 		expect(emitSimpleCrawlUnsupported).not.toHaveBeenCalled();
 	});
 
+	it("hands the redirect terminal + word count to adoptCanonicalIdentity after a successful tier-1 write", async () => {
+		const adoptCanonicalIdentity = jest.fn().mockResolvedValue(undefined);
+		const fetchedCrawl: CrawlAndFinalizeArticle = async () => ({
+			status: "fetched",
+			article: {
+				html: "<p>body</p>",
+				metadata: { title: "T", siteName: "S", excerpt: "E", wordCount: 321, estimatedReadTime: 2 },
+			},
+			finalUrl: "https://site.com/page",
+			bodyHash: "b".repeat(64),
+		});
+
+		const { saveLinkWork } = createWork({ crawlAndFinalizeArticle: fetchedCrawl, adoptCanonicalIdentity });
+
+		const result = await saveLinkWork("https://site.com/page.html", { userId: "u1" });
+
+		expect(result).toBe("tier-1-written");
+		expect(adoptCanonicalIdentity).toHaveBeenCalledWith({
+			url: "https://site.com/page.html",
+			finalUrl: "https://site.com/page",
+			wordCount: 321,
+			recrawl: undefined,
+		});
+	});
 });

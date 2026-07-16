@@ -58,6 +58,7 @@ import { initAwsTrialScheduler } from "./providers/trial-scheduler/aws-trial-sch
 import { initInMemorySubscriptionBilling } from "@packages/test-fixtures/providers/subscription-billing";
 import { initInMemoryTrialScheduler } from "@packages/test-fixtures/providers/trial-scheduler";
 import { initReadArticleContent } from "@packages/article-store";
+import { initCanonicalAliasStore, initResolveCanonicalIdentity } from "@packages/article-store";
 import { EventBridgeClient, initEventBridgePublisher } from "@packages/hutch-infra-components/runtime";
 import { initEventBridgeLinkSaved } from "./providers/events/eventbridge-link-saved";
 import { initEventBridgeRecrawlLinkInitiated } from "./providers/events/eventbridge-recrawl-link-initiated";
@@ -193,6 +194,9 @@ function initProviders() {
 		const auth = initDynamoDbAuth({ client, usersTableName: usersTable, sessionsTableName: sessionsTable });
 		const iosOnboardingSignal = initIosOnboardingSignal({ client, onboardingTableName: onboardingTable, now: () => new Date() });
 		const articleStore = initDynamoDbArticleStore({ client, tableName: articlesTable, userArticlesTableName: userArticlesTable, logger });
+		const resolveCanonicalIdentity = initResolveCanonicalIdentity({
+			resolveAlias: initCanonicalAliasStore({ client, tableName: articlesTable }).resolveAlias,
+		});
 		const readArticleContent = initReadArticleContent({
 			storageProviderQueryOrder: [
 				initS3ReadContent({ send: (cmd) => s3Client.send(cmd), bucketName: contentBucketName }),
@@ -251,6 +255,7 @@ function initProviders() {
 			parseHtml,
 			publishRefreshArticleContent,
 			publishUpdateFetchTimestamp,
+			resolveCanonicalIdentity,
 			now: () => new Date(),
 			staleTtlMs,
 		});
@@ -396,6 +401,7 @@ function initProviders() {
 			markCrawlPending: crawlStore.markCrawlPending,
 			forceMarkCrawlPending: crawlStore.forceMarkCrawlPending,
 			refreshArticleIfStale,
+			resolveCanonicalIdentity,
 			getIosAppSignals: iosOnboardingSignal.getIosAppSignals,
 			recordIosAnyActivity: iosOnboardingSignal.recordIosAnyActivity,
 			recordIosSavedArticle: iosOnboardingSignal.recordIosSavedArticle,
@@ -571,6 +577,9 @@ function initProviders() {
 	const { publishSubscriptionReactivated } = initInMemorySubscriptionReactivated({ logger: consoleLogger });
 	const { putPendingHtml } = initInMemoryPendingHtml();
 	const { putPendingPdf } = initInMemoryPendingPdf();
+	/* The in-memory composition has no alias store, so identity resolution is a
+	 * no-op — dedup-by-redirect is a production DynamoDB behaviour only. */
+	const resolveCanonicalIdentity = async (url: string) => url;
 	const { refreshArticleIfStale } = initRefreshArticleIfStale({
 		findArticleFreshness: articleStore.findArticleFreshness,
 		findArticleCrawlStatus: crawlStore.findArticleCrawlStatus,
@@ -578,6 +587,7 @@ function initProviders() {
 		parseHtml,
 		publishRefreshArticleContent,
 		publishUpdateFetchTimestamp,
+		resolveCanonicalIdentity,
 		now: () => new Date(),
 		staleTtlMs,
 	});
@@ -663,6 +673,7 @@ function initProviders() {
 		markCrawlPending: crawlStore.markCrawlPending,
 		forceMarkCrawlPending: crawlStore.forceMarkCrawlPending,
 		refreshArticleIfStale,
+		resolveCanonicalIdentity,
 		getIosAppSignals: iosOnboardingSignal.getIosAppSignals,
 		recordIosAnyActivity: iosOnboardingSignal.recordIosAnyActivity,
 		recordIosSavedArticle: iosOnboardingSignal.recordIosSavedArticle,

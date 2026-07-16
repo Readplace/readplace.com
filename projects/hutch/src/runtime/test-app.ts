@@ -170,6 +170,7 @@ function flattenFixtureToAppDependencies(
 		findGeneratedSummary: fixture.summary.findGeneratedSummary,
 		markSummaryPending: fixture.summary.markSummaryPending,
 		refreshArticleIfStale: fixture.freshness.refreshArticleIfStale,
+		resolveCanonicalIdentity: async (url: string) => url,
 		oauthModel: fixture.oauth.oauthModel,
 		revokeAllUserOAuthTokens: fixture.oauth.revokeAllUserOAuthTokens,
 		validateAccessToken: fixture.oauth.validateAccessToken,

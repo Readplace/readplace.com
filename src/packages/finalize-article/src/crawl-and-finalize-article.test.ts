@@ -203,11 +203,12 @@ describe("initCrawlAndFinalizeArticle", () => {
 		expect(result).toEqual({ status: "failed", reason: "readability crashed" });
 	});
 
-	it("returns the finalized article + freshness headers and bodyHash on success so callers persist them", async () => {
+	it("returns the finalized article + redirect terminal + freshness headers and bodyHash on success so callers persist them", async () => {
 		const crawlAndFinalize = initCrawlAndFinalizeArticle({
 			crawlArticle: async () => ({
 				status: "fetched",
 				html: "<html></html>",
+				finalUrl: "https://example.com/final",
 				etag: '"v1"',
 				lastModified: "Wed, 01 Apr 2026 00:00:00 GMT",
 				bodyHash: "deadbeef".repeat(8),
@@ -220,6 +221,7 @@ describe("initCrawlAndFinalizeArticle", () => {
 		expect(result).toEqual({
 			status: "fetched",
 			article: stubFinalizedArticle,
+			finalUrl: "https://example.com/final",
 			etag: '"v1"',
 			lastModified: "Wed, 01 Apr 2026 00:00:00 GMT",
 			bodyHash: "deadbeef".repeat(8),

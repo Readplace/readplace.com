@@ -67,6 +67,7 @@ interface ViewDependencies {
 	findArticleCrawlStatus: FindArticleCrawlStatus;
 	markCrawlPending: MarkCrawlPending;
 	saveArticleGlobally: SaveArticleGlobally;
+	resolveCanonicalIdentity: (url: string) => Promise<string>;
 	publishSaveAnonymousLink: PublishSaveAnonymousLink;
 	publishStaleCheckRequested: PublishStaleCheckRequested;
 	consumeRateLimit: ConsumeRateLimit;
@@ -157,7 +158,11 @@ function handleViewArticle(deps: ViewDependencies, reader: ReturnType<typeof ini
 			await renderError(deps, req, res);
 			return;
 		}
-		const articleUrl = validation.url;
+		// Collapse an adopted terminal URL onto the article it aliases before any
+		// read/write, so viewing the terminal shows the deduped article and never
+		// mints a real row on top of the inert alias marker. The poll links below
+		// are built from this resolved URL, so the poll handlers need no resolve.
+		const articleUrl = await deps.resolveCanonicalIdentity(validation.url);
 
 		// Freshness/conditional-GET is delegated to the stale-check Lambda so
 		// /view never blocks on a remote crawl (Medium-hosted articles can take

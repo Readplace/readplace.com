@@ -41,6 +41,7 @@ describe("Queue freshness integration", () => {
 			}),
 			publishRefreshArticleContent: async (p) => { refreshPublished.push(p); },
 			publishUpdateFetchTimestamp: async (p) => { timestampPublished.push(p); },
+			resolveCanonicalIdentity: async (url) => url,
 			now: () => new Date(),
 			staleTtlMs: 0,
 		});

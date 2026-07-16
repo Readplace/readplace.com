@@ -84,6 +84,7 @@ function createHandler(overrides: Partial<HandlerDeps> = {}) {
 		markCrawlProgress: jest.fn().mockResolvedValue(undefined),
 		consumePaidCrawlBudget: jest.fn().mockResolvedValue({ allowed: true, consumed: true }),
 		refundPaidCrawlBudget: jest.fn().mockResolvedValue(undefined),
+		adoptCanonicalIdentity: jest.fn().mockResolvedValue(undefined),
 		publishEvent: jest.fn().mockResolvedValue(undefined),
 		now: fixedNow,
 		logger: noopLogger,

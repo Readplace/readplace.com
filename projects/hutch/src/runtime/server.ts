@@ -293,6 +293,7 @@ interface AppDependencies {
 	markCrawlPending: MarkCrawlPending;
 	forceMarkCrawlPending: ForceMarkCrawlPending;
 	refreshArticleIfStale: RefreshArticleIfStale;
+	resolveCanonicalIdentity: (url: string) => Promise<string>;
 	getIosAppSignals: GetIosAppSignals;
 	recordIosAnyActivity: RecordIosAnyActivity;
 	recordIosSavedArticle: RecordIosSavedArticle;
@@ -1023,6 +1024,7 @@ export function createApp(dependencies: AppDependencies): Express {
 		findArticleCrawlStatus: deps.findArticleCrawlStatus,
 		markCrawlPending: deps.markCrawlPending,
 		refreshArticleIfStale: deps.refreshArticleIfStale,
+		resolveCanonicalIdentity: deps.resolveCanonicalIdentity,
 		publishUpdateFetchTimestamp: deps.publishUpdateFetchTimestamp,
 		readArticleContent: deps.readArticleContent,
 		stickyReader: StickyReader,
@@ -1062,6 +1064,7 @@ export function createApp(dependencies: AppDependencies): Express {
 		publishUpdateFetchTimestamp: deps.publishUpdateFetchTimestamp,
 		publishLinkSaved: deps.publishLinkSaved,
 		refreshArticleIfStale: deps.refreshArticleIfStale,
+		resolveCanonicalIdentity: deps.resolveCanonicalIdentity,
 		logError: deps.logError,
 		analytics: deps.analytics,
 		salt: deps.salt,
@@ -1094,6 +1097,7 @@ export function createApp(dependencies: AppDependencies): Express {
 		findArticleCrawlStatus: deps.findArticleCrawlStatus,
 		markCrawlPending: deps.markCrawlPending,
 		saveArticleGlobally: deps.saveArticleGlobally,
+		resolveCanonicalIdentity: deps.resolveCanonicalIdentity,
 		publishSaveAnonymousLink: deps.publishSaveAnonymousLink,
 		publishStaleCheckRequested: deps.publishStaleCheckRequested,
 		consumeRateLimit: deps.consumeRateLimit,
