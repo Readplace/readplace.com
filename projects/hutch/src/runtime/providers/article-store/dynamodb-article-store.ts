@@ -11,6 +11,7 @@ import { z } from "zod";
 import type { SavedArticle } from "@packages/domain/article";
 import { MinutesSchema, ArticleStatusSchema } from "@packages/domain/article";
 import { ArticleResourceUniqueId } from "@packages/article-resource-unique-id";
+import { StoredCrawlVersionSchema, normalizeCrawlVersion } from "@packages/article-store";
 import { ReaderArticleHashId, ReaderArticleHashIdSchema } from "@packages/domain/article";
 import type { HutchLogger } from "@packages/hutch-logger";
 import { UserIdSchema } from "@packages/domain/user";
@@ -49,7 +50,7 @@ const ArticleFreshnessRow = z.object({
 });
 
 const ArticleCrawlVersionsRow = z.object({
-	crawlVersions: dynamoField(z.array(z.string())),
+	crawlVersions: dynamoField(z.array(StoredCrawlVersionSchema)),
 });
 
 /** `routeId` column holds the `ReaderArticleHashId.value` (32-char hex). The Zod schema rehydrates it into a `ReaderArticleHashId` instance on read.
@@ -505,7 +506,12 @@ export function initDynamoDbArticleStore(deps: {
 			{ url: articleResourceUniqueId.value },
 			{ projection: ["crawlVersions"] },
 		);
-		return (row?.crawlVersions ?? []).map((crawledAtMinute) => ({ crawledAtMinute }));
+		return (row?.crawlVersions ?? []).map(normalizeCrawlVersion).map((entry) => ({
+			crawledAtMinute: entry.minuteId,
+			...(entry.authorUserId === undefined
+				? {}
+				: { authorUserId: UserIdSchema.parse(entry.authorUserId) }),
+		}));
 	};
 
 	const markArticleViewed: MarkArticleViewed = async ({ userId, url, at }) => {

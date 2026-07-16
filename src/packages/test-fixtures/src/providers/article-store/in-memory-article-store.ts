@@ -9,6 +9,7 @@ import { ArticleResourceUniqueId } from "@packages/article-resource-unique-id";
 import { ReaderArticleHashId } from "@packages/domain/article";
 import type { UserId } from "@packages/domain/user";
 import type {
+	ArticleCrawlVersion,
 	BumpArticleSavedAt,
 	CountArticlesByUser,
 	DeleteAllUserArticles,
@@ -46,7 +47,7 @@ interface GlobalArticle {
 	contentFetchedAt?: string;
 	bodyHash?: string;
 	contentSourceTier?: "tier-0" | "tier-1";
-	crawlVersions?: string[];
+	crawlVersions?: ArticleCrawlVersion[];
 }
 
 interface UserArticle {
@@ -108,7 +109,7 @@ export function initInMemoryArticleStore(): {
 	writeMetadata: (params: { url: string; metadata: ArticleMetadata; estimatedReadTime: Minutes }) => Promise<void>;
 	setContentSourceTier: (params: { url: string; tier: "tier-0" | "tier-1" }) => Promise<void>;
 	setContentFetchedAt: (params: { url: string; at: string }) => Promise<void>;
-	setCrawlVersions: (params: { url: string; versions: string[] }) => Promise<void>;
+	setCrawlVersions: (params: { url: string; versions: ArticleCrawlVersion[] }) => Promise<void>;
 } {
 	const articles = new Map<string, GlobalArticle>();
 	const userArticles = new Map<string, UserArticle>();
@@ -372,7 +373,7 @@ export function initInMemoryArticleStore(): {
 	const findArticleCrawlVersions: FindArticleCrawlVersions = async (url) => {
 		const articleResourceUniqueId = ArticleResourceUniqueId.parse(url);
 		const article = articles.get(articleResourceUniqueId.value);
-		return (article?.crawlVersions ?? []).map((crawledAtMinute) => ({ crawledAtMinute }));
+		return (article?.crawlVersions ?? []).map((version) => ({ ...version }));
 	};
 
 	const readContent: ContentProvider = async (articleResourceUniqueId) => {
@@ -410,7 +411,7 @@ export function initInMemoryArticleStore(): {
 		article.contentFetchedAt = params.at;
 	};
 
-	const setCrawlVersions = async (params: { url: string; versions: string[] }) => {
+	const setCrawlVersions = async (params: { url: string; versions: ArticleCrawlVersion[] }) => {
 		const articleResourceUniqueId = ArticleResourceUniqueId.parse(params.url);
 		const article = articles.get(articleResourceUniqueId.value);
 		assert(article, `Article not found for URL: ${articleResourceUniqueId.value}`);

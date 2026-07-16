@@ -189,7 +189,11 @@ describe("View routes", () => {
 			// rendered but disabled (aria-disabled), not yet selectable.
 			await fixture.articleStore.setCrawlVersions({
 				url: ARTICLE_URL,
-				versions: ["2026-07-10T09:14Z", "2026-06-28T22:01Z", "2026-03-26T14:32Z"],
+				versions: [
+					{ crawledAtMinute: "2026-07-10T09:14Z" },
+					{ crawledAtMinute: "2026-06-28T22:01Z" },
+					{ crawledAtMinute: "2026-03-26T14:32Z" },
+				],
 			});
 
 			const versioned = await request(harness.server).get(`/view/${CANONICAL_PATH}`);

@@ -224,7 +224,10 @@ server.post('/e2e/seed-crawled-article', async (req, res) => {
   })
   await fixture.articleCrawl.markCrawlReady({ url })
   await fixture.articleStore.setContentFetchedAt({ url, at: contentFetchedAt })
-  await fixture.articleStore.setCrawlVersions({ url, versions: crawlVersions })
+  await fixture.articleStore.setCrawlVersions({
+    url,
+    versions: crawlVersions.map((crawledAtMinute) => ({ crawledAtMinute })),
+  })
   res.status(201).json({ ok: true })
 })
 

@@ -9,6 +9,12 @@ export {
 	type FindAdoptedFetchUrl,
 } from "./canonical-alias";
 export type { ArticleStore } from "@packages/domain/article-aggregate";
+export {
+	CrawlVersionEntrySchema,
+	StoredCrawlVersionSchema,
+	normalizeCrawlVersion,
+} from "./crawl-version-log";
+export type { CrawlVersionEntry, StoredCrawlVersion } from "./crawl-version-log";
 export { initReadArticleContent } from "./read-article-content";
 export type { ContentProvider, ReadArticleContent } from "./read-article-content";
 export { initS3ReadContent } from "./s3-read-content";

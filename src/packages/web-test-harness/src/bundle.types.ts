@@ -6,6 +6,7 @@ import type { InboxAddressStore, InboxEmailLinkStore, InboxEmailStore } from "@p
 import type { ExtractLinksFromPageUrl } from "@packages/extract-links-from-page";
 import type { ParseArticle } from "@packages/article-parser";
 import type {
+	ArticleCrawlVersion,
 	BotDefenseEvent,
 	BumpArticleSavedAt,
 	CheckoutPaymentStatus,
@@ -287,7 +288,7 @@ export interface ArticleStoreBundle {
 	}) => Promise<void>;
 	setContentSourceTier: (params: { url: string; tier: "tier-0" | "tier-1" }) => Promise<void>;
 	setContentFetchedAt: (params: { url: string; at: string }) => Promise<void>;
-	setCrawlVersions: (params: { url: string; versions: string[] }) => Promise<void>;
+	setCrawlVersions: (params: { url: string; versions: ArticleCrawlVersion[] }) => Promise<void>;
 }
 
 export interface ArticleCrawlBundle {

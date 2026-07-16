@@ -534,6 +534,52 @@ describe("initSelectMostCompleteContentHandler", () => {
 		});
 	});
 
+	it("attributes the version to the winning source's capture author (its sidecar), not the triggering event's user", async () => {
+		const tier0 = tierSource("tier-0", { metadata: stubMetadata({ authorUserId: "author-1" }) });
+		const recordCrawlVersion = jest.fn().mockResolvedValue(undefined);
+
+		const { handler } = createHandler({
+			listAvailableTierSources: jest.fn().mockResolvedValue([tier0]),
+			findContentSourceTier: jest.fn().mockResolvedValue(undefined),
+			findCanonicalContentHash: jest.fn().mockResolvedValue(undefined),
+			recordCrawlVersion,
+		});
+
+		// A co-saver's event (user-2) can promote another user's tier-0 capture;
+		// the snapshot must credit the capture's author, never the event's user.
+		await handler(
+			createSqsEvent({ url: "https://example.com/a", tier: "tier-1", userId: "user-2" }),
+			buildLambdaContext(),
+			() => {},
+		);
+
+		expect(recordCrawlVersion).toHaveBeenCalledWith(
+			expect.objectContaining({ tier: "tier-0", authorUserId: "author-1" }),
+		);
+	});
+
+	it("records an authorless version when the winner is anonymous tier-1 content", async () => {
+		const tier1 = tierSource("tier-1");
+		const recordCrawlVersion = jest.fn().mockResolvedValue(undefined);
+
+		const { handler } = createHandler({
+			listAvailableTierSources: jest.fn().mockResolvedValue([tier1]),
+			findContentSourceTier: jest.fn().mockResolvedValue(undefined),
+			findCanonicalContentHash: jest.fn().mockResolvedValue(undefined),
+			recordCrawlVersion,
+		});
+
+		await handler(
+			createSqsEvent({ url: "https://example.com/a", tier: "tier-1", userId: "user-1" }),
+			buildLambdaContext(),
+			() => {},
+		);
+
+		expect(recordCrawlVersion).toHaveBeenCalledWith(
+			expect.objectContaining({ tier: "tier-1", authorUserId: undefined }),
+		);
+	});
+
 	it("keys the crawl version off the event's extractedAt (not now()), so a redelivery in a later minute records the same version instead of a duplicate", async () => {
 		const tier1 = tierSource("tier-1");
 		const recordCrawlVersion = jest.fn().mockResolvedValue(undefined);

@@ -155,6 +155,7 @@ export function initSaveLinkRawPdfCommandHandler(deps: {
 						wordCount: parseResult.article.wordCount,
 						estimatedReadTime: estimatedReadTimeFromWordCount(parseResult.article.wordCount),
 						imageUrl: parseResult.article.imageUrl,
+						authorUserId: detail.userId,
 					},
 				});
 

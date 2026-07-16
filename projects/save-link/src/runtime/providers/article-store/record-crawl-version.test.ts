@@ -63,7 +63,7 @@ describe("initRecordCrawlVersion", () => {
 		expect(copy.MetadataDirective).toBe("REPLACE");
 	});
 
-	it("prepends the new minute id to an existing log with a compare-and-swap update", async () => {
+	it("prepends the new entry to a legacy string log with a compare-and-swap on the raw stored value", async () => {
 		let update: Record<string, unknown> | undefined;
 		const { recordCrawlVersion } = initRecordCrawlVersion({
 			s3Client: createFakeS3(() => {}) as S3Client,
@@ -84,8 +84,38 @@ describe("initRecordCrawlVersion", () => {
 		expect(update.ConditionExpression).toContain("attribute_not_exists(crawlVersions)");
 		expect(update.ConditionExpression).toContain("crawlVersions = :old");
 		const values = update.ExpressionAttributeValues as Record<string, unknown>;
-		expect(values[":next"]).toEqual([MINUTE_ID, "2026-07-09T08:00Z"]);
+		expect(values[":next"]).toEqual([{ minuteId: MINUTE_ID }, "2026-07-09T08:00Z"]);
 		expect(values[":old"]).toEqual(["2026-07-09T08:00Z"]);
+	});
+
+	it("stamps the capture author onto the new log entry", async () => {
+		let update: Record<string, unknown> | undefined;
+		const { recordCrawlVersion } = initRecordCrawlVersion({
+			s3Client: createFakeS3(() => {}) as S3Client,
+			dynamoClient: createFakeDynamo({
+				getItem: { crawlVersions: [{ minuteId: "2026-07-09T08:00Z", authorUserId: "user-2" }] },
+				captureUpdate: (input) => {
+					update = input;
+				},
+			}) as DynamoDBDocumentClient,
+			tableName: TABLE,
+			bucketName: BUCKET,
+		});
+
+		await recordCrawlVersion({
+			url: URL,
+			tier: "tier-0",
+			crawledAt: CRAWLED_AT,
+			authorUserId: "user-1",
+		});
+
+		assert(update, "the CAS update must be issued");
+		const values = update.ExpressionAttributeValues as Record<string, unknown>;
+		expect(values[":next"]).toEqual([
+			{ minuteId: MINUTE_ID, authorUserId: "user-1" },
+			{ minuteId: "2026-07-09T08:00Z", authorUserId: "user-2" },
+		]);
+		expect(values[":old"]).toEqual([{ minuteId: "2026-07-09T08:00Z", authorUserId: "user-2" }]);
 	});
 
 	it("records the first version on a row whose log attribute is absent", async () => {
@@ -106,7 +136,7 @@ describe("initRecordCrawlVersion", () => {
 
 		assert(update, "the CAS update must be issued");
 		const values = update.ExpressionAttributeValues as Record<string, unknown>;
-		expect(values[":next"]).toEqual([MINUTE_ID]);
+		expect(values[":next"]).toEqual([{ minuteId: MINUTE_ID }]);
 		expect(values[":old"]).toEqual([]);
 	});
 
@@ -128,7 +158,7 @@ describe("initRecordCrawlVersion", () => {
 
 		assert(update, "the CAS update must be issued for a brand-new row");
 		const values = update.ExpressionAttributeValues as Record<string, unknown>;
-		expect(values[":next"]).toEqual([MINUTE_ID]);
+		expect(values[":next"]).toEqual([{ minuteId: MINUTE_ID }]);
 	});
 
 	it("still snapshots but skips the log update when the minute is already recorded", async () => {

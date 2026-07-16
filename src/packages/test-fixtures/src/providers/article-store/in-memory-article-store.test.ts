@@ -574,12 +574,15 @@ describe("initInMemoryArticleStore", () => {
 
 			await store.setCrawlVersions({
 				url: "https://example.com/article",
-				versions: ["2026-07-10T09:41Z", "2026-06-28T22:01Z"],
+				versions: [
+					{ crawledAtMinute: "2026-07-10T09:41Z", authorUserId: USER_A },
+					{ crawledAtMinute: "2026-06-28T22:01Z" },
+				],
 			});
 			const versions = await store.findArticleCrawlVersions("https://example.com/article");
 
 			expect(versions).toEqual([
-				{ crawledAtMinute: "2026-07-10T09:41Z" },
+				{ crawledAtMinute: "2026-07-10T09:41Z", authorUserId: USER_A },
 				{ crawledAtMinute: "2026-06-28T22:01Z" },
 			]);
 		});

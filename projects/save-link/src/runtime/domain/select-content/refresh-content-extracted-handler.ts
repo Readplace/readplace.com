@@ -111,6 +111,7 @@ export function initRefreshContentExtractedHandler(deps: {
 						url: detail.url,
 						tier: winnerTier,
 						crawledAt: detail.contentFetchedAt,
+						authorUserId: winnerSource.metadata.authorUserId,
 					});
 				}
 

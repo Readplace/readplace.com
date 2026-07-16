@@ -127,6 +127,9 @@ export type FindArticleFreshness = (
 /** Minute-precision UTC ISO-8601, e.g. "2026-07-10T09:41Z" — version identity and display value. */
 export interface ArticleCrawlVersion {
 	crawledAtMinute: string;
+	/** The saver whose capture this snapshot preserves. Absent for anonymous
+	 * tier-1 content and for snapshots recorded before attribution shipped. */
+	authorUserId?: UserId;
 }
 
 /** Newest first, minute-deduped at write time; the full log is retained (unbounded,

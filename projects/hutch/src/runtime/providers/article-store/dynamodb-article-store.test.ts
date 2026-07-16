@@ -737,6 +737,30 @@ describe("initDynamoDbArticleStore freshness, notification state, content and ur
 		]);
 	});
 
+	it("findArticleCrawlVersions carries each attributed entry's author through a mixed legacy/attributed log", async () => {
+		const { client } = createFakeClient({
+			GetCommand: {
+				default: {
+					Item: {
+						crawlVersions: [
+							{ minuteId: "2026-07-10T09:41Z", authorUserId: "user-1" },
+							{ minuteId: "2026-06-28T22:01Z" },
+							"2026-03-26T14:32Z",
+						],
+					},
+				},
+			},
+		});
+
+		const versions = await initStore(client).findArticleCrawlVersions(URL);
+
+		expect(versions).toEqual([
+			{ crawledAtMinute: "2026-07-10T09:41Z", authorUserId: "user-1" },
+			{ crawledAtMinute: "2026-06-28T22:01Z" },
+			{ crawledAtMinute: "2026-03-26T14:32Z" },
+		]);
+	});
+
 	it("findArticleCrawlVersions returns an empty list for a pre-feature row with no log", async () => {
 		const { client } = createFakeClient({ GetCommand: { default: { Item: undefined } } });
 
