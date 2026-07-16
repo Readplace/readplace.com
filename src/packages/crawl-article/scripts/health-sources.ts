@@ -30,7 +30,7 @@ export const HEALTH_SOURCES: readonly HealthSource[] = [
 		// UNABLE_TO_VERIFY_LEAF_SIGNATURE. AIA chasing recovers
 		// by fetching the intermediate from the leaf cert's AIA URL.
 		label: "Medium (itnext publication)",
-		url: "https://fagnerbrack.com/youre-not-praised-for-the-bugs-you-didn-t-create-ef3df6894d5c",
+		url: "https://itnext.io/youre-not-praised-for-the-bugs-you-didn-t-create-ef3df6894d5c",
 		expectedContent: "developers were creating more and more bugs, only to fix them and get the prize",
 		expectsThumbnail: true,
 	},
