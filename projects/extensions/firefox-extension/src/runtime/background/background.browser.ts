@@ -243,7 +243,7 @@ async function captureTabHtml(
 async function captureTabContent(tab: { url: string; tabId?: number }): Promise<{ bytes: ArrayBuffer; mediaType: string } | undefined> {
 	const captured = await captureTabHtml(tab.tabId, tab.url);
 	if (captured) return { bytes: new TextEncoder().encode(captured.rawHtml).buffer, mediaType: "text/html" };
-	return captureActiveTabBytes(tab.url, fetch);
+	return captureActiveTabBytes({ tabUrl: tab.url, fetchFn: fetch, logger });
 }
 
 /** Captures every saveable tab into a bulk page; a tab that can't be captured
@@ -330,7 +330,7 @@ browser.runtime.onMessage.addListener((raw, _sender, sendResponse) => {
 							broadcastSaveProgress("uploading");
 							const content = captured
 								? { bytes: new TextEncoder().encode(captured.rawHtml).buffer, mediaType: "text/html" }
-								: await captureActiveTabBytes(message.url, fetch);
+								: await captureActiveTabBytes({ tabUrl: message.url, fetchFn: fetch, logger });
 							core.save("current-tab", {
 								url: captured?.canonicalUrl ?? message.url,
 								title: message.title,

@@ -1,5 +1,7 @@
-const MAX_BYTES = 500 * 1024 * 1024;
-const FETCH_TIMEOUT_MS = 30000;
+import type { HutchLogger } from "@packages/hutch-logger";
+
+const MAX_BYTES = 512 * 1024 * 1024;
+const FETCH_TIMEOUT_MS = 300_000;
 
 export type CapturedContent = { bytes: ArrayBuffer; mediaType: string };
 
@@ -14,24 +16,43 @@ export type CapturedContent = { bytes: ArrayBuffer; mediaType: string };
  * oversize) returns undefined and the caller falls back to the URL-only
  * save-article path.
  */
-export async function captureActiveTabBytes(
-	tabUrl: string,
-	fetchFn: typeof fetch,
-): Promise<CapturedContent | undefined> {
+export async function captureActiveTabBytes(deps: {
+	tabUrl: string;
+	fetchFn: typeof fetch;
+	logger: HutchLogger;
+}): Promise<CapturedContent | undefined> {
+	const { tabUrl, fetchFn, logger } = deps;
 	try {
-		if (!tabUrl.startsWith("http://") && !tabUrl.startsWith("https://")) return undefined;
+		if (!tabUrl.startsWith("http://") && !tabUrl.startsWith("https://")) {
+			logger.debug("Capture skipped: not an http(s) tab");
+			return undefined;
+		}
 		const response = await fetchFn(tabUrl, {
 			credentials: "include",
 			signal: AbortSignal.timeout(FETCH_TIMEOUT_MS),
 		});
-		if (!response.ok) return undefined;
+		if (!response.ok) {
+			logger.warn(`Capture failed: origin answered ${response.status}`);
+			return undefined;
+		}
 		const rawContentType = response.headers.get("content-type") ?? "";
 		const mediaType = rawContentType.split(";")[0].trim();
-		if (!mediaType) return undefined;
+		if (!mediaType) {
+			logger.warn("Capture failed: response carries no Content-Type");
+			return undefined;
+		}
 		const buffer = await response.arrayBuffer();
-		if (buffer.byteLength === 0 || buffer.byteLength > MAX_BYTES) return undefined;
+		if (buffer.byteLength === 0) {
+			logger.warn(`Capture failed: origin returned an empty ${mediaType} body`);
+			return undefined;
+		}
+		if (buffer.byteLength > MAX_BYTES) {
+			logger.warn(`Capture failed: ${mediaType} body of ${buffer.byteLength} bytes is too large to buffer`);
+			return undefined;
+		}
 		return { bytes: buffer, mediaType };
-	} catch {
+	} catch (error) {
+		logger.warn(`Capture failed: ${error instanceof Error ? error.message : String(error)}`);
 		return undefined;
 	}
 }

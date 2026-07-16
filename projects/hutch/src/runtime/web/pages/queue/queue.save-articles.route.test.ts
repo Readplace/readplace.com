@@ -12,7 +12,7 @@ import {
 	createDefaultTestAppFixture,
 } from "@packages/test-fixtures";
 import { SIREN_MEDIA_TYPE } from "../../api/siren";
-import { MAX_PAGES_PER_BULK_SAVE, MAX_PAGE_CONTENT_BYTES } from "@packages/domain/article";
+import { MAX_PAGES_PER_BULK_SAVE, MAX_UPLOAD_CONTENT_BYTES } from "@packages/domain/article";
 
 const TEST_USER_ID = "test-user-bulk" as UserId;
 
@@ -169,27 +169,28 @@ describe("POST /queue/save-articles", () => {
 		expect(stored.articles.map((a) => a.url)).toContain("https://example.com/img");
 	});
 
-	it("reports a page whose content exceeds MAX_PAGE_CONTENT_BYTES as too big and saves it url-only", async () => {
+	it("stages a page's capture above the single-save direct budget — only the parser cap bounds a part", async () => {
 		const { testApp, publishedSaveHtml } = setup();
 		const accessToken = await createAccessToken(testApp);
 
-		const oversize = Buffer.alloc(MAX_PAGE_CONTENT_BYTES + 1, 0x61);
+		const overDirectBudget = Buffer.alloc(MAX_UPLOAD_CONTENT_BYTES + 1, 0x61);
 		const response = await request(testApp.server)
 			.post("/queue/save-articles")
 			.set("Accept", SIREN_MEDIA_TYPE)
 			.set("Authorization", `Bearer ${accessToken}`)
 			.field("manifest", manifest([{ url: "https://example.com/big", mediaType: "text/html" }]))
-			.attach("content-0", oversize, "content-0");
+			.attach("content-0", overDirectBudget, "content-0");
 
 		expect(response.status).toBe(200);
 		expect(response.body.properties).toEqual(
-			expect.objectContaining({ saved: 1, skipped: 0, failed: 0 }),
+			expect.objectContaining({ saved: 1, skipped: 0, failed: 0, tooBig: [] }),
 		);
-		expect(response.body.properties.tooBig).toEqual([
-			{ url: "https://example.com/big", mb: 20 },
+		expect(publishedSaveHtml).toEqual([
+			expect.objectContaining({ url: "https://example.com/big" }),
 		]);
-		// Oversize content is never staged — only the URL is saved.
-		expect(publishedSaveHtml).toHaveLength(0);
+		expect(testApp.pendingHtml.readPendingHtml("https://example.com/big")).toBe(
+			overDirectBudget.toString("utf8"),
+		);
 		const stored = await testApp.articleStore.findArticlesByUser({ userId: TEST_USER_ID });
 		expect(stored.articles.map((a) => a.url)).toContain("https://example.com/big");
 	});

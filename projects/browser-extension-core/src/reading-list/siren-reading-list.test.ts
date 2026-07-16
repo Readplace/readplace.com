@@ -486,7 +486,7 @@ describe("initExtension", () => {
 							savedAt: "2026-01-01T00:00:00.000Z",
 						},
 					};
-					return { items: [context.resolveItem(sub)], actions: {} };
+					return { items: [context.resolveItem(sub)], actions: {}, descriptors: {} };
 				};
 			});
 			const handlers = groupOf(expandHandler);
@@ -2142,7 +2142,7 @@ describe("initSirenReadingList capability negotiation", () => {
 		expect(calls).not.toContain("POST http://localhost:3000/queue");
 	});
 
-	it("falls back to save-article when content is text/html but save-html is not advertised", async () => {
+	it("falls back to save-article when the server advertises no save-content", async () => {
 		const { fetchFn, calls } = createRoutingFetch(
 			withEntryPoint({
 				"GET http://localhost:3000/queue": {
@@ -2163,7 +2163,6 @@ describe("initSirenReadingList capability negotiation", () => {
 		});
 		assert.equal(result.ok, true);
 		expect(calls).toContain("POST http://localhost:3000/queue");
-		expect(calls).not.toContain("POST http://localhost:3000/queue/save-html");
 	});
 
 	it("uses save-article when content is missing even if save-html is advertised", async () => {
@@ -2252,7 +2251,7 @@ describe("initSirenReadingList capability negotiation", () => {
 					{ name: "title", type: "text" },
 				],
 			},
-			COLLECTION_ACTIONS_WITH_SAVE_HTML[1],
+			COLLECTION_ACTIONS[1],
 			COLLECTION_ACTIONS[1],
 		];
 		let capturedBody: FormData | undefined;
@@ -2281,7 +2280,6 @@ describe("initSirenReadingList capability negotiation", () => {
 		});
 		assert.equal(result.ok, true);
 		expect(calls).toContain("POST http://localhost:3000/queue/save-content");
-		expect(calls).not.toContain("POST http://localhost:3000/queue/save-html");
 		assert(capturedBody, "save-content request must carry a FormData body");
 		expect(capturedBody.get("mediaType")).toBe("text/html");
 		expect(capturedBody.get("title")).toBe("Test Title");
@@ -3511,6 +3509,563 @@ describe("initSirenReadingList", () => {
 			await expect(
 				list.savePages({ pages: [{ url: "https://example.com/a" }] }),
 			).rejects.toThrow('Expected Siren action "save-articles" not found in response');
+		});
+
+		it("returns a zero summary without touching the network when the window is empty", async () => {
+			const { fetchFn, calls } = createRoutingFetch(
+				withEntryPoint({
+					"GET http://localhost:3000/queue": {
+						status: 200,
+						body: collectionWithSaveArticles(),
+					},
+				}),
+			);
+			const list = initSirenReadingList(createAdapterDeps(fetchFn));
+
+			const result = await list.savePages({ pages: [] });
+
+			expect(result).toEqual({ saved: 0, skipped: 0, failed: 0, tooBig: [], skippedUrls: [] });
+			expect(calls).toEqual([]);
+		});
+	});
+
+	describe("savePages against server-advertised limits", () => {
+		function collectionAdvertising(limits: { maxItems?: number; maxBytes?: number }) {
+			const manifestField: Record<string, unknown> = { name: "manifest", type: "text" };
+			if (limits.maxItems !== undefined) manifestField.maxItems = limits.maxItems;
+			const contentField: Record<string, unknown> = { name: "content", type: "file" };
+			if (limits.maxBytes !== undefined) contentField.maxBytes = limits.maxBytes;
+			return JSON.stringify({
+				class: ["collection", "articles"],
+				entities: [],
+				links: [{ rel: ["self"], href: "/queue" }],
+				actions: [
+					COLLECTION_ACTIONS[0],
+					{
+						name: "save-articles",
+						href: "/queue/save-articles",
+						method: "POST",
+						type: "multipart/form-data",
+						fields: [manifestField, contentField],
+					},
+					COLLECTION_ACTIONS[1],
+				],
+			});
+		}
+
+		function bulkRoutes(collection: string, onRequest: (body: FormData) => void) {
+			return withEntryPoint({
+				"GET http://localhost:3000/queue": { status: 200, body: collection },
+				"POST http://localhost:3000/queue/save-articles": (init?: RequestInit) => {
+					const body = init?.body;
+					assert(body instanceof FormData, "save-articles must POST FormData");
+					onRequest(body);
+					const manifest = JSON.parse(String(body.get("manifest")));
+					return {
+						status: 200,
+						body: JSON.stringify({
+							class: ["save-articles-result"],
+							properties: {
+								saved: manifest.length,
+								skipped: 0,
+								failed: 0,
+								tooBig: [],
+								skippedUrls: [],
+							},
+						}),
+					};
+				},
+			});
+		}
+
+		function manifestsOf(requests: FormData[]): unknown[][] {
+			return requests.map((body) => JSON.parse(String(body.get("manifest"))));
+		}
+
+		it("splits a window into requests of at most the advertised maxItems", async () => {
+			const requests: FormData[] = [];
+			const { fetchFn } = createRoutingFetch(
+				bulkRoutes(collectionAdvertising({ maxItems: 2 }), (b) => requests.push(b)),
+			);
+			const list = initSirenReadingList(createAdapterDeps(fetchFn));
+
+			const result = await list.savePages({
+				pages: Array.from({ length: 5 }, (_v, i) => ({ url: `https://example.com/${i}` })),
+			});
+
+			expect(manifestsOf(requests).map((m) => m.length)).toEqual([2, 2, 1]);
+			expect(result.saved).toBe(5);
+		});
+
+		it("splits a window so each request's captured content fits the advertised maxBytes", async () => {
+			const requests: FormData[] = [];
+			const { fetchFn } = createRoutingFetch(
+				bulkRoutes(collectionAdvertising({ maxBytes: 100 }), (b) => requests.push(b)),
+			);
+			const list = initSirenReadingList(createAdapterDeps(fetchFn));
+
+			const result = await list.savePages({
+				pages: Array.from({ length: 4 }, (_v, i) => ({
+					url: `https://example.com/${i}`,
+					content: { bytes: new ArrayBuffer(60), mediaType: "text/html" },
+				})),
+			});
+
+			expect(manifestsOf(requests).map((m) => m.length)).toEqual([1, 1, 1, 1]);
+			expect(result.saved).toBe(4);
+		});
+
+		it("sends a page whose capture alone exceeds maxBytes url-only, reports it as too big, and warns", async () => {
+			const requests: FormData[] = [];
+			const { fetchFn } = createRoutingFetch(
+				bulkRoutes(collectionAdvertising({ maxBytes: 3 * 1024 * 1024 }), (b) => requests.push(b)),
+			);
+			const warnings: string[] = [];
+			const list = initSirenReadingList({
+				...createAdapterDeps(fetchFn),
+				logger: { ...noopLogger, warn: (m: unknown) => warnings.push(String(m)) },
+			});
+
+			const result = await list.savePages({
+				pages: [
+					{
+						url: "https://oversize.example",
+						content: { bytes: new ArrayBuffer(4 * 1024 * 1024), mediaType: "text/html" },
+					},
+				],
+			});
+
+			expect(result.tooBig).toEqual([{ url: "https://oversize.example", mb: 4 }]);
+			expect(result.saved).toBe(1);
+			expect(manifestsOf(requests)).toEqual([[{ url: "https://oversize.example" }]]);
+			const request = requests[0];
+			assert(request, "the stripped page still rides in one bulk request");
+			expect([...request.keys()]).toEqual(["manifest"]);
+			expect(warnings).toEqual([
+				`Captured page of ${4 * 1024 * 1024} bytes exceeds the ${3 * 1024 * 1024}-byte bulk upload limit — saving URL-only`,
+			]);
+		});
+
+		it("keeps the capture of a page sized exactly at the advertised maxBytes", async () => {
+			const requests: FormData[] = [];
+			const { fetchFn } = createRoutingFetch(
+				bulkRoutes(collectionAdvertising({ maxBytes: 64 }), (b) => requests.push(b)),
+			);
+			const list = initSirenReadingList(createAdapterDeps(fetchFn));
+
+			const result = await list.savePages({
+				pages: [
+					{
+						url: "https://atcap.example",
+						content: { bytes: new ArrayBuffer(64), mediaType: "text/html" },
+					},
+				],
+			});
+
+			expect(result.tooBig).toEqual([]);
+			expect(requests[0]?.get("content-0")).toBeInstanceOf(Blob);
+		});
+
+		it("charges manifest bytes against the budget so a huge title cannot sink a full-content sibling", async () => {
+			const requests: FormData[] = [];
+			const { fetchFn } = createRoutingFetch(
+				bulkRoutes(collectionAdvertising({ maxBytes: 1024 }), (b) => requests.push(b)),
+			);
+			const list = initSirenReadingList(createAdapterDeps(fetchFn));
+
+			const result = await list.savePages({
+				pages: [
+					{
+						url: "https://capture.example",
+						content: { bytes: new ArrayBuffer(1000), mediaType: "text/html" },
+					},
+					{ url: "https://big-title.example", title: "t".repeat(2048) },
+				],
+			});
+
+			expect(manifestsOf(requests).map((m) => m.length)).toEqual([1, 1]);
+			expect(result.saved).toBe(2);
+		});
+
+		it("never emits an empty request even for a degenerate advertised maxItems of 0", async () => {
+			const requests: FormData[] = [];
+			const { fetchFn } = createRoutingFetch(
+				bulkRoutes(collectionAdvertising({ maxItems: 0 }), (b) => requests.push(b)),
+			);
+			const list = initSirenReadingList(createAdapterDeps(fetchFn));
+
+			const result = await list.savePages({
+				pages: [{ url: "https://example.com/a" }, { url: "https://example.com/b" }],
+			});
+
+			expect(manifestsOf(requests).map((m) => m.length)).toEqual([1, 1]);
+			expect(result.saved).toBe(2);
+		});
+
+		it("chunks a window at the legacy 20-page limit when the server advertises no maxItems", async () => {
+			const requests: FormData[] = [];
+			const { fetchFn } = createRoutingFetch(
+				bulkRoutes(collectionAdvertising({}), (b) => requests.push(b)),
+			);
+			const list = initSirenReadingList(createAdapterDeps(fetchFn));
+
+			const result = await list.savePages({
+				pages: Array.from({ length: 30 }, (_v, i) => ({
+					url: `https://example.com/${i}`,
+					content: { bytes: new ArrayBuffer(1024), mediaType: "text/html" },
+				})),
+			});
+
+			expect(manifestsOf(requests).map((m) => m.length)).toEqual([20, 10]);
+			expect(result.saved).toBe(30);
+		});
+
+		it("strips a capture over the legacy 20 MiB budget when the server advertises no maxBytes", async () => {
+			const requests: FormData[] = [];
+			const { fetchFn } = createRoutingFetch(
+				bulkRoutes(collectionAdvertising({}), (b) => requests.push(b)),
+			);
+			const warnings: string[] = [];
+			const list = initSirenReadingList({
+				...createAdapterDeps(fetchFn),
+				logger: { ...noopLogger, warn: (m: unknown) => warnings.push(String(m)) },
+			});
+
+			const result = await list.savePages({
+				pages: [
+					{
+						url: "https://legacy-oversize.example",
+						content: { bytes: new ArrayBuffer(20 * 1024 * 1024 + 1), mediaType: "text/html" },
+					},
+				],
+			});
+
+			expect(result.tooBig).toEqual([{ url: "https://legacy-oversize.example", mb: 20 }]);
+			expect(result.saved).toBe(1);
+			const request = requests[0];
+			assert(request, "the stripped page still rides in one bulk request");
+			expect([...request.keys()]).toEqual(["manifest"]);
+			expect(warnings).toEqual([
+				`Captured page of ${20 * 1024 * 1024 + 1} bytes exceeds the ${20 * 1024 * 1024}-byte bulk upload limit — saving URL-only`,
+			]);
+		});
+
+		it("folds a failing request into the failed count and keeps saving the rest", async () => {
+			let call = 0;
+			const { fetchFn } = createRoutingFetch(
+				withEntryPoint({
+					"GET http://localhost:3000/queue": {
+						status: 200,
+						body: collectionAdvertising({ maxItems: 2 }),
+					},
+					"POST http://localhost:3000/queue/save-articles": () => {
+						call += 1;
+						if (call === 2) return { status: 500, body: "boom" };
+						return {
+							status: 200,
+							body: JSON.stringify({
+								class: ["save-articles-result"],
+								properties: { saved: 2, skipped: 0, failed: 0, tooBig: [], skippedUrls: [] },
+							}),
+						};
+					},
+				}),
+			);
+			const list = initSirenReadingList(createAdapterDeps(fetchFn));
+
+			const result = await list.savePages({
+				pages: Array.from({ length: 4 }, (_v, i) => ({ url: `https://example.com/${i}` })),
+			});
+
+			expect(result.saved).toBe(2);
+			expect(result.failed).toBe(2);
+		});
+
+		it("propagates a 401 rather than folding it into the failed count", async () => {
+			const { fetchFn } = createRoutingFetch(
+				withEntryPoint({
+					"GET http://localhost:3000/queue": {
+						status: 200,
+						body: collectionAdvertising({ maxItems: 2 }),
+					},
+					"POST http://localhost:3000/queue/save-articles": { status: 401 },
+				}),
+			);
+			const list = initSirenReadingList(createAdapterDeps(fetchFn));
+
+			await expect(
+				list.savePages({ pages: [{ url: "https://example.com/a" }] }),
+			).rejects.toBeInstanceOf(UnauthorizedError);
+		});
+	});
+
+	describe("saveUrl against the advertised save-content limit", () => {
+		function savedArticleResponse() {
+			return JSON.stringify({
+				class: ["article"],
+				properties: {
+					id: "article-1",
+					url: "https://example.com/doc.pdf",
+					title: "Doc",
+					savedAt: "2026-01-15T10:00:00.000Z",
+				},
+				links: [{ rel: ["self"], href: "/queue/article-1" }],
+				actions: [],
+			});
+		}
+
+		function collectionAdvertising(maxBytes?: number) {
+			const contentField: Record<string, unknown> = { name: "content", type: "file" };
+			if (maxBytes !== undefined) contentField.maxBytes = maxBytes;
+			return JSON.stringify({
+				class: ["collection", "articles"],
+				entities: [],
+				links: [{ rel: ["self"], href: "/queue" }],
+				actions: [
+					COLLECTION_ACTIONS[0],
+					{
+						name: "save-content",
+						href: "/queue/save-content",
+						method: "POST",
+						type: "multipart/form-data",
+						fields: [
+							{ name: "url", type: "url" },
+							contentField,
+							{ name: "mediaType", type: "text" },
+							{ name: "title", type: "text" },
+						],
+					},
+					COLLECTION_ACTIONS[1],
+				],
+			});
+		}
+
+		function routes(collection: string) {
+			return withEntryPoint({
+				"GET http://localhost:3000/queue": { status: 200, body: collection },
+				"POST http://localhost:3000/queue/save-content": {
+					status: 201,
+					body: savedArticleResponse(),
+				},
+				"POST http://localhost:3000/queue": {
+					status: 201,
+					body: savedArticleResponse(),
+				},
+			});
+		}
+
+		it("uploads a capture that fits the advertised ceiling", async () => {
+			const { fetchFn, calls } = createRoutingFetch(routes(collectionAdvertising(1024)));
+			const list = initSirenReadingList(createAdapterDeps(fetchFn));
+
+			const result = await list.saveUrl({
+				url: "https://example.com/doc.pdf",
+				title: "Doc",
+				content: { bytes: new ArrayBuffer(1024), mediaType: "application/pdf" },
+			});
+
+			assert.equal(result.ok, true);
+			expect(calls).toContain("POST http://localhost:3000/queue/save-content");
+		});
+
+		it("saves url-only and warns when the capture exceeds the advertised ceiling", async () => {
+			const { fetchFn, calls } = createRoutingFetch(routes(collectionAdvertising(1024)));
+			const warnings: string[] = [];
+			const list = initSirenReadingList({
+				...createAdapterDeps(fetchFn),
+				logger: { ...noopLogger, warn: (m: unknown) => warnings.push(String(m)) },
+			});
+
+			const result = await list.saveUrl({
+				url: "https://example.com/doc.pdf",
+				title: "Doc",
+				content: { bytes: new ArrayBuffer(1025), mediaType: "application/pdf" },
+			});
+
+			assert.equal(result.ok, true);
+			expect(calls.filter((c) => c.startsWith("POST "))).toEqual([
+				"POST http://localhost:3000/queue",
+			]);
+			expect(warnings).toEqual([
+				"Captured content of 1025 bytes exceeds the advertised 1024-byte upload limit — saving URL-only",
+			]);
+		});
+
+		it("uploads whatever it captured when the server advertises no ceiling", async () => {
+			const { fetchFn, calls } = createRoutingFetch(routes(collectionAdvertising()));
+			const list = initSirenReadingList(createAdapterDeps(fetchFn));
+
+			const result = await list.saveUrl({
+				url: "https://example.com/doc.pdf",
+				title: "Doc",
+				content: { bytes: new ArrayBuffer(9_999), mediaType: "application/pdf" },
+			});
+
+			assert.equal(result.ok, true);
+			expect(calls).toContain("POST http://localhost:3000/queue/save-content");
+		});
+	});
+
+	describe("saveUrl direct-to-S3 upload slot", () => {
+		const UPLOAD_URL = "https://s3.example.test/pending-pdf/doc.pdf?sig=abc";
+
+		function collectionAdvertisingSlot() {
+			return JSON.stringify({
+				class: ["collection", "articles"],
+				entities: [],
+				links: [{ rel: ["self"], href: "/queue" }],
+				actions: [
+					COLLECTION_ACTIONS[0],
+					{
+						name: "save-content",
+						href: "/queue/save-content",
+						method: "POST",
+						type: "multipart/form-data",
+						fields: [
+							{ name: "url", type: "url" },
+							{ name: "content", type: "file", maxBytes: 1024 },
+							{ name: "mediaType", type: "text" },
+							{ name: "title", type: "text" },
+							{ name: "size", type: "number" },
+						],
+					},
+					COLLECTION_ACTIONS[1],
+				],
+			});
+		}
+
+		function uploadSlotResponse() {
+			return JSON.stringify({
+				class: ["upload-slot"],
+				properties: { expiresAt: "2026-01-15T10:15:00.000Z" },
+				actions: [
+					{ name: "upload-content", href: UPLOAD_URL, method: "PUT", type: "application/pdf" },
+					{
+						name: "save-uploaded-content",
+						href: "/queue/save-content",
+						method: "POST",
+						type: "multipart/form-data",
+						fields: [
+							{ name: "url", type: "url", value: "https://example.com/doc.pdf" },
+							{ name: "mediaType", type: "text", value: "application/pdf" },
+							{ name: "title", type: "text", value: "Doc" },
+							{ name: "uploaded", type: "hidden", value: "true" },
+						],
+					},
+				],
+			});
+		}
+
+		function savedArticleResponse() {
+			return JSON.stringify({
+				class: ["article"],
+				properties: { id: "article-1", url: "https://example.com/doc.pdf", title: "Doc", savedAt: "2026-01-15T10:00:00.000Z" },
+				links: [{ rel: ["self"], href: "/queue/article-1" }],
+				actions: [],
+			});
+		}
+
+		function slotRoutes(overrides: { put?: Route; completion?: Route; slot?: Route } = {}) {
+			const captured: { putInit?: RequestInit; slotInit?: RequestInit; completionInit?: RequestInit } = {};
+			const routes = withEntryPoint({
+				"GET http://localhost:3000/queue": { status: 200, body: collectionAdvertisingSlot() },
+				"POST http://localhost:3000/queue/save-content": (init) => {
+					const body = init?.body;
+					if (body instanceof FormData && body.has("uploaded")) {
+						captured.completionInit = init;
+						return overrides.completion ?? { status: 201, body: savedArticleResponse() };
+					}
+					captured.slotInit = init;
+					return overrides.slot ?? { status: 200, body: uploadSlotResponse() };
+				},
+				[`PUT ${UPLOAD_URL}`]: (init) => {
+					captured.putInit = init;
+					return overrides.put ?? { status: 200 };
+				},
+				"POST http://localhost:3000/queue": { status: 201, body: savedArticleResponse() },
+			});
+			return { routes, captured };
+		}
+
+		it("requests a slot, PUTs the raw bytes to S3 without auth, and completes the save", async () => {
+			const { routes, captured } = slotRoutes();
+			const { fetchFn, calls } = createRoutingFetch(routes);
+			const list = initSirenReadingList(createAdapterDeps(fetchFn));
+
+			const result = await list.saveUrl({
+				url: "https://example.com/doc.pdf",
+				title: "Doc",
+				content: { bytes: new ArrayBuffer(2048), mediaType: "application/pdf" },
+			});
+
+			assert.equal(result.ok, true);
+			expect(calls).toEqual([
+				"GET http://localhost:3000/",
+				"POST http://localhost:3000/queue/save-content",
+				`PUT ${UPLOAD_URL}`,
+				"POST http://localhost:3000/queue/save-content",
+			]);
+			const putHeaders = new Headers(captured.putInit?.headers);
+			expect(putHeaders.get("authorization")).toBeNull();
+			expect(putHeaders.get("content-type")).toBe("application/pdf");
+			expect(captured.putInit?.body).toBeInstanceOf(ArrayBuffer);
+			const slotHeaders = new Headers(captured.slotInit?.headers);
+			expect(slotHeaders.get("authorization")).toBe("Bearer test-token");
+		});
+
+		it("falls back to a URL-only save when the presigned PUT fails", async () => {
+			const { routes } = slotRoutes({ put: { status: 500 } });
+			const warnings: string[] = [];
+			const { fetchFn, calls } = createRoutingFetch(routes);
+			const list = initSirenReadingList({
+				...createAdapterDeps(fetchFn),
+				logger: { ...noopLogger, warn: (m: unknown) => warnings.push(String(m)) },
+			});
+
+			const result = await list.saveUrl({
+				url: "https://example.com/doc.pdf",
+				title: "Doc",
+				content: { bytes: new ArrayBuffer(2048), mediaType: "application/pdf" },
+			});
+
+			assert.equal(result.ok, true);
+			expect(calls).toContain("POST http://localhost:3000/queue");
+			expect(warnings.some((w) => w.includes("Upload-slot save failed"))).toBe(true);
+		});
+
+		it("falls back to a URL-only save when the completion fails", async () => {
+			const { routes } = slotRoutes({ completion: { status: 500, body: JSON.stringify({ properties: { code: "x", message: "y" } }) } });
+			const warnings: string[] = [];
+			const { fetchFn, calls } = createRoutingFetch(routes);
+			const list = initSirenReadingList({
+				...createAdapterDeps(fetchFn),
+				logger: { ...noopLogger, warn: (m: unknown) => warnings.push(String(m)) },
+			});
+
+			const result = await list.saveUrl({
+				url: "https://example.com/doc.pdf",
+				title: "Doc",
+				content: { bytes: new ArrayBuffer(2048), mediaType: "application/pdf" },
+			});
+
+			assert.equal(result.ok, true);
+			expect(calls).toContain("POST http://localhost:3000/queue");
+			expect(warnings.some((w) => w.includes("Upload-slot save failed"))).toBe(true);
+		});
+
+		it("falls back to a URL-only save when the slot request is refused", async () => {
+			const { routes } = slotRoutes({ slot: { status: 422, body: JSON.stringify({ properties: { code: "content-too-large", message: "too big" } }) } });
+			const { fetchFn, calls } = createRoutingFetch(routes);
+			const list = initSirenReadingList(createAdapterDeps(fetchFn));
+
+			const result = await list.saveUrl({
+				url: "https://example.com/doc.pdf",
+				title: "Doc",
+				content: { bytes: new ArrayBuffer(2048), mediaType: "application/pdf" },
+			});
+
+			assert.equal(result.ok, true);
+			expect(calls).toContain("POST http://localhost:3000/queue");
 		});
 	});
 

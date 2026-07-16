@@ -13,7 +13,7 @@ export function initSaveContentLimitHandler(deps: {
 	maxBytes: number;
 }): ErrorRequestHandler {
 	const { maxBytes } = deps;
-	const label = `${Math.round(maxBytes / (1024 * 1024))} MB`;
+	const label = `${Math.round((maxBytes / (1024 * 1024)) * 10) / 10} MB`;
 	return (err, req, res, next) => {
 		if (
 			typeof err === "object" &&

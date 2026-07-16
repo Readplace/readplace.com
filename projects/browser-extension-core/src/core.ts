@@ -18,30 +18,6 @@ export interface ReadingList {
 	savePages: SavePages;
 }
 
-/** A single save-articles request is capped server-side at
- * MAX_PAGES_PER_BULK_SAVE (20). saveAll batches at the cap so a window with more
- * saveable tabs than the cap saves across several requests instead of one the
- * server rejects, an empty window makes zero requests and folds to a `Saved 0`
- * summary, and the worst-case request body stays bounded. Must stay ≤ the server
- * cap (the two packages share no dependency edge, so the value can't be imported
- * directly). */
-export const BULK_SAVE_BATCH_SIZE = 20;
-
-/** Per-page captured-content ceiling, mirroring the server's
- * MAX_PAGE_CONTENT_BYTES (the two packages share no dependency edge, so the
- * value can't be imported directly). A page whose captured bytes exceed this is
- * sent URL-only and reported in the result's `tooBig` list — the same outcome
- * the server produces for an oversize upload — so the client never uploads
- * content the server would only reject, and a 20-page batch of such pages stays
- * under MAX_BULK_CONTENT_REQUEST_BYTES and degrades per-page instead of failing
- * wholesale. Must stay ≤ the server cap. */
-export const MAX_BULK_SAVE_PAGE_CONTENT_BYTES = 20 * 1024 * 1024;
-
-/** Round bytes→MB so a page dropped by the client shows the same size in the
- * popup's too-big line as one dropped server-side. */
-function bytesToMb(bytes: number): number {
-	return Math.round((bytes / (1024 * 1024)) * 10) / 10;
-}
 
 export type ResultCallbacks<T> = {
 	success: (value: T) => void;
@@ -141,33 +117,6 @@ export function BrowserExtensionCore(shell: BrowserShell, deps: { auth: Auth; lo
 		auth
 			.ensureWebSession()
 			.catch((error) => logger.warn("Failed to mint web session for reader links", error));
-	}
-
-	async function savePagesInBatches(pages: BulkSavePage[]): Promise<BulkSaveResult> {
-		const summary: BulkSaveResult = { saved: 0, skipped: 0, failed: 0, tooBig: [], skippedUrls: [] };
-		const capped = pages.map((page) => {
-			if (page.content && page.content.bytes.byteLength > MAX_BULK_SAVE_PAGE_CONTENT_BYTES) {
-				summary.tooBig.push({ url: page.url, mb: bytesToMb(page.content.bytes.byteLength) });
-				const { content: _content, ...urlOnly } = page;
-				return urlOnly;
-			}
-			return page;
-		});
-		for (let i = 0; i < capped.length; i += BULK_SAVE_BATCH_SIZE) {
-			const batch = capped.slice(i, i + BULK_SAVE_BATCH_SIZE);
-			try {
-				const result = await readingList.savePages({ pages: batch });
-				summary.saved += result.saved;
-				summary.skipped += result.skipped;
-				summary.failed += result.failed;
-				summary.tooBig.push(...result.tooBig);
-				summary.skippedUrls.push(...result.skippedUrls);
-			} catch (err) {
-				if (err instanceof UnauthorizedError) throw err;
-				summary.failed += batch.length;
-			}
-		}
-		return summary;
 	}
 
 	return {
@@ -271,7 +220,7 @@ export function BrowserExtensionCore(shell: BrowserShell, deps: { auth: Auth; lo
 		},
 
 		saveAll(_resource, data) {
-			const guarded = auth.whenLoggedIn(() => savePagesInBatches(data.pages));
+			const guarded = auth.whenLoggedIn(() => readingList.savePages({ pages: data.pages }));
 			emitResult("saved-all-tabs", guarded);
 		},
 

@@ -2,6 +2,10 @@ import {
 	SaveArticleInputSchema,
 	BulkSaveManifestSchema,
 	SaveHtmlInputSchema,
+	LAMBDA_SYNC_INVOKE_PAYLOAD_BYTES,
+	MAX_UPLOAD_REQUEST_BYTES,
+	MAX_UPLOAD_CONTENT_BYTES,
+	MAX_BULK_PAGE_CONTENT_BYTES,
 	ArticleStatusSchema,
 	MinutesSchema,
 } from "./article.schema";
@@ -84,6 +88,28 @@ describe("SaveHtmlInputSchema", () => {
 		});
 
 		expect(result.success).toBe(false);
+	});
+});
+
+describe("upload limits", () => {
+	const BASE64_INFLATION = 4 / 3;
+
+	it("keeps a full request body within the Lambda sync-invoke payload quota once base64-inflated", () => {
+		expect(MAX_UPLOAD_REQUEST_BYTES * BASE64_INFLATION).toBeLessThanOrEqual(
+			LAMBDA_SYNC_INVOKE_PAYLOAD_BYTES,
+		);
+	});
+
+	it("leaves the multipart envelope room under the request limit", () => {
+		expect(MAX_UPLOAD_CONTENT_BYTES).toBeLessThan(MAX_UPLOAD_REQUEST_BYTES);
+	});
+
+	it("leaves a bulk page's advertised budget manifest headroom under the request limit", () => {
+		expect(MAX_BULK_PAGE_CONTENT_BYTES).toBeLessThan(MAX_UPLOAD_REQUEST_BYTES);
+	});
+
+	it("advertises a bulk page budget above the single-save direct budget, restoring the 3-4.4 MiB band", () => {
+		expect(MAX_BULK_PAGE_CONTENT_BYTES).toBeGreaterThan(MAX_UPLOAD_CONTENT_BYTES);
 	});
 });
 

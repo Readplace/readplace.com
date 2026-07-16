@@ -36,7 +36,7 @@ Being listed is the floor. A blank page that ranks is still a blank page. So the
 
 The questions are the ones a reader types, or puts to an assistant, right when they are about to move a list.
 
-Do I need an account to import? No, not until you save the selection. What files work? Any text-shaped file, because it scans for `http` addresses and the format around them does not matter. Is there a Pocket import? Yes, the HTML file Pocket handed you on the way out. How many links at once? Up to 2,000, from a file up to 5 MiB, and anything larger goes to a slower path by email.
+Do I need an account to import? No, not until you save the selection. What files work? Any text-shaped file, because it scans for `http` addresses and the format around them does not matter. Is there a Pocket import? Yes, the HTML file Pocket handed you on the way out. How many links at once? Up to 2,000, from a file up to 4.5 MB, and anything larger goes to a slower path by email.
 
 Those answers sit on the page as text a reader can see. They also sit in the markup as [FAQPage structured data](/view/schema.org/FAQPage), the format a search engine reads to show a question and its answer inside the results.
 

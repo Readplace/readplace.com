@@ -62,6 +62,7 @@ export const SaveLinkRawPdfCommand = defineEvent({
 	detailSchema: z.object({
 		url: z.string(),
 		userId: z.string(),
+		title: z.string().optional(),
 	}),
 });
 export type SaveLinkRawPdfDetail = z.infer<typeof SaveLinkRawPdfCommand.detailSchema>;

@@ -133,6 +133,19 @@ describe("ArticleResourceUniqueId.toS3PendingHtmlKey", () => {
 	});
 });
 
+describe("ArticleResourceUniqueId.toS3PendingPdfKey", () => {
+	it("produces the canonical S3 pending-pdf key", () => {
+		expect(ArticleResourceUniqueId.parse("https://example.com/doc.pdf").toS3PendingPdfKey())
+			.toBe("pending-pdf/example.com%2Fdoc.pdf.pdf");
+	});
+
+	it("matches between write and read sides for the same URL regardless of scheme", () => {
+		const write = ArticleResourceUniqueId.parse("https://example.com/doc.pdf").toS3PendingPdfKey();
+		const read = ArticleResourceUniqueId.parse("http://example.com/doc.pdf").toS3PendingPdfKey();
+		expect(write).toBe(read);
+	});
+});
+
 describe("ArticleResourceUniqueId.toS3ContentVersionKey", () => {
 	it("nests the version snapshot under a minute-id folder with the colon replaced by a hyphen", () => {
 		expect(

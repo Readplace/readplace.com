@@ -14,6 +14,7 @@ import type {
 	PaymentMethodsBundle,
 	PendingHtmlBundle,
 	PendingPdfBundle,
+	PendingUploadBundle,
 	PendingSignupBundle,
 	RunningServer,
 	HostedCheckoutBundle,
@@ -84,6 +85,7 @@ export interface TestAppResult {
 	articleCrawl: ArticleCrawlBundle;
 	pendingHtml: PendingHtmlBundle;
 	pendingPdf: PendingPdfBundle;
+	pendingUpload: PendingUploadBundle;
 	oauthModel: OAuthModel;
 	email: EmailBundle;
 	emailVerification: EmailVerificationBundle;
@@ -167,6 +169,9 @@ function flattenFixtureToAppDependencies(
 		publishSubscriptionReactivated: fixture.events.publishSubscriptionReactivated,
 		putPendingHtml: fixture.pendingHtml.putPendingHtml,
 		putPendingPdf: fixture.pendingPdf.putPendingPdf,
+		createUploadSlot: fixture.pendingUpload.createUploadSlot,
+		statPendingUpload: fixture.pendingUpload.statPendingUpload,
+		readPendingUploadPrefix: fixture.pendingUpload.readPendingUploadPrefix,
 		findGeneratedSummary: fixture.summary.findGeneratedSummary,
 		markSummaryPending: fixture.summary.markSummaryPending,
 		refreshArticleIfStale: fixture.freshness.refreshArticleIfStale,
@@ -289,6 +294,7 @@ export function createTestApp(
 		articleCrawl: fixture.articleCrawl,
 		pendingHtml: fixture.pendingHtml,
 		pendingPdf: fixture.pendingPdf,
+		pendingUpload: fixture.pendingUpload,
 		oauthModel: fixture.oauth.oauthModel,
 		email: fixture.email,
 		emailVerification: fixture.emailVerification,

@@ -25,6 +25,13 @@ import { createBrowserSetIcon } from "./tinted-icon.browser";
 
 const logger = HutchLogger.from(consoleLogger);
 
+function withServiceWorkerKeepalive<T>(work: Promise<T>): Promise<T> {
+	const timer = setInterval(() => {
+		browser.storage.local.get(STORAGE_KEY).catch(() => {});
+	}, 20_000);
+	return work.finally(() => clearInterval(timer));
+}
+
 const STORAGE_KEY = "hutch_oauth_tokens";
 declare const __SERVER_URL__: string;
 const SERVER_URL = __SERVER_URL__;
@@ -217,7 +224,7 @@ async function captureTabHtml(
 async function captureTabContent(tab: { url: string; tabId?: number }): Promise<{ bytes: ArrayBuffer; mediaType: string } | undefined> {
 	const captured = await captureTabHtml(tab.tabId, tab.url);
 	if (captured) return { bytes: new TextEncoder().encode(captured.rawHtml).buffer, mediaType: "text/html" };
-	return captureActiveTabBytes(tab.url, fetch);
+	return captureActiveTabBytes({ tabUrl: tab.url, fetchFn: fetch, logger });
 }
 
 /** Captures every saveable tab into a bulk page; a tab that can't be captured
@@ -283,7 +290,7 @@ browser.runtime.onMessage.addListener((raw, _sender, sendResponse) => {
 							broadcastSaveProgress("uploading");
 							const content = captured
 								? { bytes: new TextEncoder().encode(captured.rawHtml).buffer, mediaType: "text/html" }
-								: await captureActiveTabBytes(message.url, fetch);
+								: await captureActiveTabBytes({ tabUrl: message.url, fetchFn: fetch, logger });
 							core.save("current-tab", {
 								url: captured?.canonicalUrl ?? message.url,
 								title: message.title,
@@ -299,7 +306,7 @@ browser.runtime.onMessage.addListener((raw, _sender, sendResponse) => {
 								tabId: message.tabId,
 							});
 						});
-					pending.then(sendResponse);
+					withServiceWorkerKeepalive(pending).then(sendResponse);
 					break;
 				}
 				case "invoke-action": {

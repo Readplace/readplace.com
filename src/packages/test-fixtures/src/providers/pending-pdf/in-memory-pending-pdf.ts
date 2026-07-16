@@ -10,8 +10,7 @@ export interface InMemoryPendingPdf {
 export function initInMemoryPendingPdf(): InMemoryPendingPdf {
 	const store = new Map<string, Buffer>();
 
-	const keyFor = (url: string) =>
-		`pending-pdf/${encodeURIComponent(ArticleResourceUniqueId.parse(url).value)}.pdf`;
+	const keyFor = (url: string) => ArticleResourceUniqueId.parse(url).toS3PendingPdfKey();
 
 	const putPendingPdf: PutPendingPdf = async (params) => {
 		store.set(keyFor(params.url), params.bytes);

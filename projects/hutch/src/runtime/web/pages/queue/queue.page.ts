@@ -12,7 +12,7 @@ import type { HutchLogger } from "@packages/hutch-logger";
 import type { LogParseError } from "@packages/hutch-infra-components";
 import type { SaveableUrl, ValidateSaveableUrl } from "@packages/domain/article";
 import type { UserId } from "@packages/domain/user";
-import { SaveArticleInputSchema, BulkSaveManifestSchema, MAX_PAGES_PER_BULK_SAVE, MAX_PAGE_CONTENT_BYTES, MAX_BULK_CONTENT_REQUEST_BYTES, SaveHtmlInputSchema, ArticleStatusSchema, MAX_RAW_HTML_REQUEST_BYTES, RAW_HTML_FIELD, saveableUrlErrorMessage } from "@packages/domain/article";
+import { SaveArticleInputSchema, BulkSaveManifestSchema, MAX_PAGES_PER_BULK_SAVE, MAX_UPLOAD_REQUEST_BYTES, MAX_UPLOAD_HTML_BYTES, SaveHtmlInputSchema, ArticleStatusSchema, MAX_RAW_HTML_REQUEST_BYTES, RAW_HTML_FIELD, saveableUrlErrorMessage } from "@packages/domain/article";
 import { buildSaveIntentEvent, classifyDeviceClass, hashIp, type AnalyticsEvent } from "@packages/web-analytics";
 import { ANALYTICS_EVENTS, SAVE_OUTCOMES, SAVE_SURFACES, STREAMS, type SaveOutcome, type SaveSurface } from "../../../observability/events";
 import {
@@ -39,8 +39,14 @@ import type {
 import type { PublishUpdateFetchTimestamp } from "@packages/provider-contracts/events";
 import type { PublishSaveLinkRawPdfCommand } from "@packages/provider-contracts/events";
 import type { PutPendingPdf } from "@packages/provider-contracts/pending-pdf";
-import { MAX_PDF_BYTES, isPDF } from "@packages/crawl-article";
+import type {
+	CreateUploadSlot,
+	StatPendingUpload,
+	ReadPendingUploadPrefix,
+} from "@packages/provider-contracts/pending-upload";
+import { isPDF, MAX_PDF_BYTES } from "@packages/crawl-article";
 import { initMultipartUpload } from "../import/multipart-upload";
+import { UPLOAD_COMPLETION_MAX_AGE_SECONDS } from "./upload-slot-ttl";
 import { initSaveContentLimitHandler } from "./save-content-limit-handler";
 import { initSaveArticlesLimitHandler } from "./save-articles-limit-handler";
 import type { ReadArticleContent } from "@packages/provider-contracts/article-store";
@@ -77,6 +83,7 @@ import { SIREN_MEDIA_TYPE, sirenError } from "../../api/siren";
 import { toArticleCollectionEntity } from "../../api/collection-siren";
 import { toBulkSaveResultEntity } from "../../api/bulk-save-siren";
 import { toArticleEntity } from "../../api/article-siren";
+import { toUploadSlotEntity } from "../../api/upload-slot-siren";
 import { parseQueueUrl, buildQueueUrl, QUEUE_PATH, canonicalQueuePageRedirect } from "./queue.url";
 import { collectUtmParams } from "../../shared/utm";
 import { tabQuery } from "./queue.tabs";
@@ -197,6 +204,9 @@ interface QueueDependencies {
 	publishSaveLinkRawPdfCommand: PublishSaveLinkRawPdfCommand;
 	putPendingHtml: PutPendingHtml;
 	putPendingPdf: PutPendingPdf;
+	createUploadSlot: CreateUploadSlot;
+	statPendingUpload: StatPendingUpload;
+	readPendingUploadPrefix: ReadPendingUploadPrefix;
 	findGeneratedSummary: FindGeneratedSummary;
 	markSummaryPending: MarkSummaryPending;
 	findArticleCrawlStatus: FindArticleCrawlStatus;
@@ -280,6 +290,11 @@ const SAVE_ROUTE = {
 	saveHtml: "/save-html",
 	saveContent: "/save-content",
 } as const;
+
+const UPLOAD_CEILINGS: Record<string, number> = {
+	"application/pdf": MAX_PDF_BYTES.bytes,
+	"text/html": MAX_UPLOAD_HTML_BYTES,
+};
 
 /** Root ("/") maps to QUEUE_PATH alone; appending it would record a spurious "/queue/" trailing slash. */
 const saveIntentPath = (route: string): string =>
@@ -387,12 +402,12 @@ export function initQueueRoutes(deps: QueueDependencies): Router {
 	 * the matching save-link command, keyed by normalised media type. Shared by
 	 * the single-page save-content route and the bulk save-articles route. */
 	const saveContentHandlers: Record<string, SaveContentMediaHandler> = {
-		"application/pdf": async ({ url, bytes, userId }) => {
+		"application/pdf": async ({ url, bytes, title, userId }) => {
 			if (!isPDF({ bodyBytes: bytes })) {
 				return { ok: false, code: "not-a-pdf", message: "Uploaded bytes do not look like a PDF (missing %PDF- magic header)" };
 			}
 			await deps.putPendingPdf({ url, bytes });
-			await deps.publishSaveLinkRawPdfCommand({ url, userId });
+			await deps.publishSaveLinkRawPdfCommand({ url, userId, title });
 			return { ok: true };
 		},
 		"text/html": async ({ url, bytes, title, userId }) => {
@@ -758,19 +773,19 @@ export function initQueueRoutes(deps: QueueDependencies): Router {
 	 * the captured bytes of every page whose entry declares a `mediaType`. Each
 	 * page is classified and saved best-effort:
 	 *   - unsaveable scheme (chrome://, file:, private host) → skipped;
-	 *   - captured content within MAX_PAGE_CONTENT_BYTES → staged via the shared
-	 *     save-content handlers, then stub-saved so the crawl enriches it;
-	 *   - captured content over the per-page cap → reported in `tooBig` and saved
-	 *     URL-only, the same degrade-to-URL-only path save-content takes for an
-	 *     oversize upload, so the link is kept;
+	 *   - captured content → staged via the shared save-content handlers, then
+	 *     stub-saved so the crawl enriches it (the sized parser limit already
+	 *     bounds every content part, so there is no per-page refusal — `tooBig`
+	 *     is always empty but stays in the response because deployed extensions'
+	 *     response schema requires the field);
 	 *   - no captured content (unscriptable or discarded tab) → saved URL-only.
 	 * The window is chunked client-side to MAX_PAGES_PER_BULK_SAVE; a request over
 	 * that count is rejected early, and saveArticlesLimitHandler turns a body over
 	 * the sized parser limit into a Siren 422 rather than an unhandled 413. */
-	const saveArticlesUpload = initMultipartUpload({ maxBytes: MAX_BULK_CONTENT_REQUEST_BYTES });
+	const saveArticlesUpload = initMultipartUpload({ maxBytes: MAX_UPLOAD_REQUEST_BYTES });
 	const saveArticlesLimitHandler = initSaveArticlesLimitHandler({
 		logError: deps.logError,
-		maxBytes: MAX_BULK_CONTENT_REQUEST_BYTES,
+		maxBytes: MAX_UPLOAD_REQUEST_BYTES,
 	});
 	router.post(SAVE_ROUTE.saveArticles, requireNotLocked, deps.requireWriteAccess, saveArticlesUpload.rawBodyParser, saveArticlesLimitHandler, async (req: Request, res: Response) => {
 		if (!wantsSiren(req)) {
@@ -812,7 +827,6 @@ export function initQueueRoutes(deps: QueueDependencies): Router {
 			| { kind: "url-only"; url: SaveableUrl; title?: string };
 		const jobs: PageJob[] = [];
 		const skipped: { url: string; code: string }[] = [];
-		const tooBig: { url: string; mb: number }[] = [];
 
 		manifest.data.forEach((entry, index) => {
 			const validation = deps.validateSaveableUrl(entry.url);
@@ -829,12 +843,7 @@ export function initQueueRoutes(deps: QueueDependencies): Router {
 				? parsed.parts.find((p) => p.name === `content-${index}` && p.isFile)
 				: undefined;
 			if (mediaType && contentPart) {
-				if (contentPart.content.length > MAX_PAGE_CONTENT_BYTES) {
-					tooBig.push({ url, mb: bytesToMb(contentPart.content.length) });
-					jobs.push({ kind: "url-only", url, title: entry.title });
-				} else {
-					jobs.push({ kind: "content", url, title: entry.title, mediaType, bytes: contentPart.content });
-				}
+				jobs.push({ kind: "content", url, title: entry.title, mediaType, bytes: contentPart.content });
 			} else {
 				jobs.push({ kind: "url-only", url, title: entry.title });
 			}
@@ -870,7 +879,7 @@ export function initQueueRoutes(deps: QueueDependencies): Router {
 				saved,
 				skipped: skipped.length,
 				failed,
-				tooBig,
+				tooBig: [],
 				skippedUrls: skipped,
 			}),
 		);
@@ -999,10 +1008,10 @@ export function initQueueRoutes(deps: QueueDependencies): Router {
 	/** Unified content entry point. The extension sends captured bytes (HTML or
 	 * PDF) together with a `mediaType` hint; the server validates and dispatches
 	 * to the existing HTML or PDF pipeline. */
-	const contentUpload = initMultipartUpload({ maxBytes: MAX_PDF_BYTES.bytes });
+	const contentUpload = initMultipartUpload({ maxBytes: MAX_UPLOAD_REQUEST_BYTES });
 	const saveContentLimitHandler = initSaveContentLimitHandler({
 		logError: deps.logError,
-		maxBytes: MAX_PDF_BYTES.bytes,
+		maxBytes: MAX_UPLOAD_REQUEST_BYTES,
 	});
 
 	router.post(
@@ -1028,7 +1037,6 @@ export function initQueueRoutes(deps: QueueDependencies): Router {
 				type: "application/json",
 				fields: [{ name: "url", type: "url" }],
 			});
-
 			const parsed = contentUpload.parseAllParts(req);
 			if (!parsed.ok) {
 				res.status(422).type(SIREN_MEDIA_TYPE).json(
@@ -1041,91 +1049,137 @@ export function initQueueRoutes(deps: QueueDependencies): Router {
 				return;
 			}
 
-			const urlPart = parsed.parts.find((p) => p.name === "url" && !p.isFile);
-			const contentPart = parsed.parts.find((p) => p.name === "content" && p.isFile);
-			const mediaTypePart = parsed.parts.find((p) => p.name === "mediaType" && !p.isFile);
-			const titlePart = parsed.parts.find((p) => p.name === "title" && !p.isFile);
+			const textPart = (name: string): string | undefined => {
+				const part = parsed.parts.find((p) => p.name === name && !p.isFile);
+				return part ? part.content.toString("utf8") : undefined;
+			};
+			const contentBytes = parsed.parts.find((p) => p.name === "content" && p.isFile)?.content;
+			const submittedUrl = textPart("url") ?? "";
+			const mediaType = textPart("mediaType") ?? "";
+			const title = textPart("title");
+			const uploaded = textPart("uploaded");
+			const sizeRaw = textPart("size");
+			const size = sizeRaw !== undefined ? Number(sizeRaw) : Number.NaN;
 
-			const submittedUrl = urlPart ? urlPart.content.toString("utf8") : "";
-			const mediaType = mediaTypePart ? mediaTypePart.content.toString("utf8") : "";
-			const contentBytes = contentPart?.content;
-			const title = titlePart ? titlePart.content.toString("utf8") : undefined;
-
-			if (!contentBytes || contentBytes.length === 0) {
+			const refuse = (message: string, code = "invalid-save-content") => {
 				emitSaveIntent({ req, url: submittedUrl, path: SAVE_INTENT_PATH.saveContent, surface: SAVE_SURFACES.extension, outcome: SAVE_OUTCOMES.error });
 				res.status(422).type(SIREN_MEDIA_TYPE).json(
-					sirenError({
-						code: "invalid-save-content",
-						message: "save-content requires a content field with data",
-						actions: [buildFallbackAction()],
-					}),
+					sirenError({ code, message, actions: [buildFallbackAction()] }),
 				);
-				return;
-			}
+			};
 
-			if (!mediaType) {
-				emitSaveIntent({ req, url: submittedUrl, path: SAVE_INTENT_PATH.saveContent, surface: SAVE_SURFACES.extension, outcome: SAVE_OUTCOMES.error });
-				res.status(422).type(SIREN_MEDIA_TYPE).json(
-					sirenError({
-						code: "invalid-save-content",
-						message: "save-content requires a mediaType field",
-						actions: [buildFallbackAction()],
-					}),
-				);
-				return;
-			}
-
-			const validation = deps.validateSaveableUrl(submittedUrl);
-			if (validation.status === "ERROR") {
-				emitSaveIntent({ req, url: submittedUrl, path: SAVE_INTENT_PATH.saveContent, surface: SAVE_SURFACES.extension, outcome: SAVE_OUTCOMES.error });
-				res.status(422).type(SIREN_MEDIA_TYPE).json(
-					sirenError({
-						code: "invalid-save-content",
-						message: validation.error.message,
-						actions: [buildFallbackAction()],
-					}),
-				);
-				return;
-			}
-
-			try {
-				const articleUrl = validation.url;
-				const freshness = await deps.refreshArticleIfStale({ url: articleUrl });
+			const resolveTarget = (): { articleUrl: SaveableUrl; normalized: string; ceiling: number } | undefined => {
+				if (!mediaType) {
+					refuse("save-content requires a mediaType field");
+					return undefined;
+				}
+				const validation = deps.validateSaveableUrl(submittedUrl);
+				if (validation.status === "ERROR") {
+					refuse(validation.error.message);
+					return undefined;
+				}
 				const normalized = normalizeMediaType(mediaType);
-				const handler = saveContentHandlers[normalized];
-
-				if (!handler) {
-					emitSaveIntent({ req, url: articleUrl, path: SAVE_INTENT_PATH.saveContent, surface: SAVE_SURFACES.extension, outcome: SAVE_OUTCOMES.error });
-					res.status(422).type(SIREN_MEDIA_TYPE).json(
-						sirenError({
-							code: "unsupported-media-type",
-							message: `Unsupported media type: ${mediaType}`,
-							actions: [buildFallbackAction()],
-						}),
-					);
-					return;
+				const ceiling = UPLOAD_CEILINGS[normalized];
+				if (ceiling === undefined) {
+					refuse(`Unsupported media type: ${mediaType}`, "unsupported-media-type");
+					return undefined;
 				}
+				return { articleUrl: validation.url, normalized, ceiling };
+			};
 
-				const handlerResult = await handler({ url: articleUrl, bytes: contentBytes, title, userId });
-				if (!handlerResult.ok) {
-					emitSaveIntent({ req, url: articleUrl, path: SAVE_INTENT_PATH.saveContent, surface: SAVE_SURFACES.extension, outcome: SAVE_OUTCOMES.error });
-					res.status(422).type(SIREN_MEDIA_TYPE).json(
-						sirenError({
-							code: handlerResult.code,
-							message: handlerResult.message,
-							actions: [buildFallbackAction()],
-						}),
-					);
-					return;
-				}
-
+			const finishSave = async (articleUrl: SaveableUrl): Promise<void> => {
+				const freshness = await deps.refreshArticleIfStale({ url: articleUrl });
 				const result = await saveArticleFromUrl({ userId, url: articleUrl, freshness });
 				await recordSaveSignal(req, res, userId);
 				emitSaveIntent({ req, url: articleUrl, path: SAVE_INTENT_PATH.saveContent, surface: SAVE_SURFACES.extension, outcome: SAVE_OUTCOMES.saved });
 				res.status(201).type(SIREN_MEDIA_TYPE).json(toArticleEntity(result.saved));
+			};
+
+			try {
+				if (contentBytes && contentBytes.length > 0) {
+					if (!mediaType) {
+						refuse("save-content requires a mediaType field");
+						return;
+					}
+					const validation = deps.validateSaveableUrl(submittedUrl);
+					if (validation.status === "ERROR") {
+						refuse(validation.error.message);
+						return;
+					}
+					const normalized = normalizeMediaType(mediaType);
+					const handler = saveContentHandlers[normalized];
+					if (!handler) {
+						refuse(`Unsupported media type: ${mediaType}`, "unsupported-media-type");
+						return;
+					}
+					const handlerResult = await handler({ url: validation.url, bytes: contentBytes, title, userId });
+					if (!handlerResult.ok) {
+						refuse(handlerResult.message, handlerResult.code);
+						return;
+					}
+					await finishSave(validation.url);
+					return;
+				}
+
+				if (uploaded === "true") {
+					const target = resolveTarget();
+					if (!target) return;
+					const stat = await deps.statPendingUpload({ url: target.articleUrl, mediaType: target.normalized });
+					if (!stat) {
+						refuse("No uploaded content found for this URL", "upload-not-found");
+						return;
+					}
+					if (stat.byteLength > target.ceiling) {
+						refuse(`Content upload exceeded ${bytesToMb(target.ceiling)} MB`, "content-too-large");
+						return;
+					}
+					const ageSeconds = (deps.now().getTime() - stat.lastModified.getTime()) / 1000;
+					if (ageSeconds > UPLOAD_COMPLETION_MAX_AGE_SECONDS) {
+						refuse("The uploaded content has expired; please re-upload", "upload-not-found");
+						return;
+					}
+					if (target.normalized === "application/pdf") {
+						const prefix = await deps.readPendingUploadPrefix({ url: target.articleUrl, mediaType: target.normalized, bytes: 8 });
+						if (!isPDF({ bodyBytes: prefix })) {
+							refuse("Uploaded bytes do not look like a PDF (missing %PDF- magic header)", "not-a-pdf");
+							return;
+						}
+						await deps.publishSaveLinkRawPdfCommand({ url: target.articleUrl, userId, title });
+					} else {
+						await deps.publishSaveLinkRawHtmlCommand({ url: target.articleUrl, userId, title });
+					}
+					await finishSave(target.articleUrl);
+					return;
+				}
+
+				if (Number.isInteger(size) && size > 0) {
+					const target = resolveTarget();
+					if (!target) return;
+					if (size > target.ceiling) {
+						refuse(`Content upload exceeded ${bytesToMb(target.ceiling)} MB`, "content-too-large");
+						return;
+					}
+					const slot = await deps.createUploadSlot({ url: target.articleUrl, mediaType: target.normalized, byteLength: size });
+					res.status(200).type(SIREN_MEDIA_TYPE).json(
+						toUploadSlotEntity({
+							uploadUrl: slot.uploadUrl,
+							expiresAt: slot.expiresAt,
+							url: target.articleUrl,
+							mediaType: target.normalized,
+							title,
+							completionHref: `${QUEUE_PATH}${SAVE_ROUTE.saveContent}`,
+						}),
+					);
+					return;
+				}
+
+				refuse("save-content requires a content field, a size to request an upload slot, or uploaded=true to complete an upload");
 			} catch (error) {
 				deps.logError("Failed to save article from content", error instanceof Error ? error : undefined);
-				emitSaveIntent({ req, url: validation.url, path: SAVE_INTENT_PATH.saveContent, surface: SAVE_SURFACES.extension, outcome: SAVE_OUTCOMES.error });
+				const intent = deps.validateSaveableUrl(submittedUrl);
+				if (intent.status === "SUCCESS") {
+					emitSaveIntent({ req, url: intent.url, path: SAVE_INTENT_PATH.saveContent, surface: SAVE_SURFACES.extension, outcome: SAVE_OUTCOMES.error });
+				}
 				res.status(500).type(SIREN_MEDIA_TYPE).json(
 					sirenError({ code: "save-failed", message: "Could not save article" }),
 				);

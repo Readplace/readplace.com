@@ -44,7 +44,7 @@ On commit, the links you kept save under your account at once, showing just the 
 
 ## Where the self-serve path stops
 
-Two limits sit on the edge of this. A file over 5 MiB, or an import past 2,000 links, hands off to a slower path: you email the export to readplace+migrate@readplace.com and it gets brought in by hand. Under those bounds, the whole thing runs start to finish without anyone else touching it.
+Two limits sit on the edge of this. A file over 4.5 MB, or an import past 2,000 links, hands off to a slower path: you email the export to readplace+migrate@readplace.com and it gets brought in by hand. Under those bounds, the whole thing runs start to finish without anyone else touching it.
 
 ## Ask for trust too early and people leave
 

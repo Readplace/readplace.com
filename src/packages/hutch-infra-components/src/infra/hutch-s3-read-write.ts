@@ -22,6 +22,7 @@ export class HutchS3ReadWrite extends pulumi.ComponentResource {
 		args: {
 			bucketName: pulumi.Input<string>;
 			expirationRules?: BucketExpirationRule[];
+			corsRules?: aws.types.input.s3.BucketCorsConfigurationV2CorsRule[];
 		},
 		opts?: pulumi.ComponentResourceOptions,
 	) {
@@ -39,6 +40,13 @@ export class HutchS3ReadWrite extends pulumi.ComponentResource {
 			ignorePublicAcls: true,
 			restrictPublicBuckets: true,
 		}, { parent: this, aliases: [{ parent: pulumi.rootStackResource }] });
+
+		if (args.corsRules && args.corsRules.length > 0) {
+			new aws.s3.BucketCorsConfigurationV2(`${name}-cors`, {
+				bucket: bucket.id,
+				corsRules: args.corsRules,
+			}, { parent: this });
+		}
 
 		if (args.expirationRules && args.expirationRules.length > 0) {
 			new aws.s3.BucketLifecycleConfigurationV2(`${name}-lifecycle`, {

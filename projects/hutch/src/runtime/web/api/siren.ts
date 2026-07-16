@@ -2,6 +2,8 @@ interface SirenField {
 	name: string;
 	type: string;
 	value?: string | number;
+	maxBytes?: number;
+	maxItems?: number;
 }
 
 interface SirenAction {

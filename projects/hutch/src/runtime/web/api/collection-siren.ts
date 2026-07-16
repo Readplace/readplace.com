@@ -3,6 +3,7 @@ import type {
 	SortOrder,
 } from "@packages/provider-contracts/article-store";
 import type { ArticleStatus } from "@packages/domain/article";
+import { MAX_PAGES_PER_BULK_SAVE, MAX_UPLOAD_CONTENT_BYTES, MAX_BULK_PAGE_CONTENT_BYTES } from "@packages/domain/article";
 import type { SirenEntity, SirenLink } from "./siren";
 import { toArticleSubEntity } from "./article-siren";
 import { saveInProgressNotice } from "./save-notice-siren";
@@ -108,8 +109,8 @@ export function toArticleCollectionEntity(
 				 * whose entry declares a `mediaType` has its captured bytes in a
 				 * sibling `content-<index>` file part. */
 				fields: [
-					{ name: "manifest", type: "text" },
-					{ name: "content", type: "file" },
+					{ name: "manifest", type: "text", maxItems: MAX_PAGES_PER_BULK_SAVE },
+					{ name: "content", type: "file", maxBytes: MAX_BULK_PAGE_CONTENT_BYTES },
 				],
 			},
 			{
@@ -132,9 +133,10 @@ export function toArticleCollectionEntity(
 				type: "multipart/form-data",
 				fields: [
 					{ name: "url", type: "url" },
-					{ name: "content", type: "file" },
+					{ name: "content", type: "file", maxBytes: MAX_UPLOAD_CONTENT_BYTES },
 					{ name: "mediaType", type: "text" },
 					{ name: "title", type: "text" },
+					{ name: "size", type: "number" },
 				],
 			},
 			{

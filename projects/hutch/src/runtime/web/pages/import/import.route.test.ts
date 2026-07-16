@@ -246,7 +246,7 @@ describe("Import routes", () => {
 		it("redirects with import_too_large when the upload exceeds the size cap", async () => {
 			const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
 			const agent = await loginAgent(harness.server, harness.auth);
-			// 6 MiB body — overshoots the 5 MiB cap so express.raw aborts with
+			// 6 MiB body — overshoots the upload cap so express.raw aborts with
 			// `entity.too.large`, which the size-limit error handler maps to the
 			// import_too_large flash.
 			const oversize = Buffer.alloc(6 * 1024 * 1024, 0x41);

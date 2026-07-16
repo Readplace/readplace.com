@@ -23,6 +23,9 @@ export class ArticleResourceUniqueId {
 	toS3PendingHtmlKey(): string {
 		return `pending-html/${encodeURIComponent(this.value)}.html`;
 	}
+	toS3PendingPdfKey(): string {
+		return `pending-pdf/${encodeURIComponent(this.value)}.pdf`;
+	}
 	toS3RefreshHtmlKey(): string {
 		return `refresh-html/${encodeURIComponent(this.value)}.html`;
 	}

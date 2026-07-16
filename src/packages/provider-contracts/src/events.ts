@@ -58,6 +58,7 @@ export type PublishSaveLinkRawHtmlCommand = (params: {
 export type PublishSaveLinkRawPdfCommand = (params: {
 	url: string;
 	userId: UserId;
+	title?: string;
 }) => Promise<void>;
 
 export type PublishStaleCheckRequested = (params: {

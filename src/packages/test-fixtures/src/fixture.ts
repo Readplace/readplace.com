@@ -20,6 +20,7 @@ import { initInMemoryRateLimit } from "./providers/rate-limit/in-memory-rate-lim
 import { initInMemoryIosOnboardingSignal } from "./providers/ios-onboarding-signal/in-memory-ios-onboarding-signal";
 import { initInMemoryPendingHtml } from "./providers/pending-html/in-memory-pending-html";
 import { initInMemoryPendingPdf } from "./providers/pending-pdf/in-memory-pending-pdf";
+import { initInMemoryPendingUpload } from "./providers/pending-upload/in-memory-pending-upload";
 import { initInMemoryPendingSignup } from "./providers/pending-signup/in-memory-pending-signup";
 import { initInMemoryHostedCheckout } from "./providers/hosted-checkout/in-memory-hosted-checkout";
 import { initInMemorySubscriptionBilling } from "./providers/subscription-billing/in-memory-subscription-billing";
@@ -74,7 +75,7 @@ import type {
 const SAVE_ERROR_MESSAGES: Record<string, string> = {
 	save_failed: "Could not save article. Please try again.",
 	import_too_large:
-		"That file is too large. The limit is 5 MiB — please email it to readplace+migrate@readplace.com instead.",
+		"That file is too large. The limit is 4.5 MB — please get in touch at readplace+migrate@readplace.com to increase the limit.",
 	import_no_urls: "We couldn't find any links in that file.",
 	import_session_not_found:
 		"That import session has expired. Please upload the file again.",
@@ -262,6 +263,11 @@ export function createDefaultTestAppFixture(appOrigin: string): TestAppFixture {
 	};
 	const pendingHtml = initInMemoryPendingHtml();
 	const pendingPdf = initInMemoryPendingPdf();
+	const pendingUpload = initInMemoryPendingUpload({
+		uploadBaseUrl: `${appOrigin}/e2e/s3`,
+		now: () => new Date(),
+		ttlSeconds: 15 * 60,
+	});
 	const { publishSaveLinkRawHtmlCommand } = initInMemorySaveLinkRawHtmlCommand({
 		logger: noopLogger,
 	});
@@ -381,6 +387,7 @@ export function createDefaultTestAppFixture(appOrigin: string): TestAppFixture {
 			putPendingPdf: pendingPdf.putPendingPdf,
 			readPendingPdfSync: pendingPdf.readPendingPdfSync,
 		},
+		pendingUpload,
 		summary,
 		freshness: { refreshArticleIfStale: createNoopRefreshArticleIfStale() },
 		oauth: {

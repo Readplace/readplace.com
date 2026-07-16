@@ -1,6 +1,6 @@
 import type { CrawlArticle } from "@packages/crawl-article";
-import type { HutchLogger } from "@packages/hutch-logger";
 import type { LogParseError } from "@packages/hutch-infra-components";
+import type { HutchLogger } from "@packages/hutch-logger";
 import type { ArticleMetadata, Minutes, ValidateSaveableUrl } from "@packages/domain/article";
 import type { ImportSessionStore } from "@packages/domain/import-session";
 import type { InboxAddressStore, InboxEmailLinkStore, InboxEmailStore } from "@packages/domain/inbox";
@@ -104,6 +104,9 @@ import type {
 	PublishUpdateFetchTimestamp,
 	PutPendingHtml,
 	PutPendingPdf,
+	CreateUploadSlot,
+	StatPendingUpload,
+	ReadPendingUploadPrefix,
 	RateLimitRules,
 	ReadArticleContent,
 	RecordIosAnyActivity,
@@ -327,6 +330,14 @@ export interface PendingPdfBundle {
 	readPendingPdfSync: (url: string) => Buffer | undefined;
 }
 
+export interface PendingUploadBundle {
+	createUploadSlot: CreateUploadSlot;
+	statPendingUpload: StatPendingUpload;
+	readPendingUploadPrefix: ReadPendingUploadPrefix;
+	stageUploaded: (params: { url: string; mediaType: string; bytes: Buffer; stagedAt?: Date }) => void;
+	receiveUpload: (key: string, bytes: Buffer) => void;
+}
+
 export interface SummaryBundle {
 	findGeneratedSummary: FindGeneratedSummary;
 	markSummaryPending: MarkSummaryPending;
@@ -441,6 +452,7 @@ export interface TestAppFixture {
 	events: EventsBundle;
 	pendingHtml: PendingHtmlBundle;
 	pendingPdf: PendingPdfBundle;
+	pendingUpload: PendingUploadBundle;
 	summary: SummaryBundle;
 	freshness: FreshnessBundle;
 	oauth: OAuthBundle;

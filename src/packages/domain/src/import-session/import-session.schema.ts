@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { LAMBDA_SYNC_INVOKE_PAYLOAD_BYTES } from "../article/article.schema";
 
 export const ImportSessionIdSchema = z
 	.string()
@@ -16,7 +17,9 @@ export const ImportToggleAllSchema = z.object({
 	checked: z.enum(["true", "false"]),
 });
 
-export const MAX_IMPORT_FILE_BYTES = 5 * 1024 * 1024;
+const IMPORT_UPLOAD_HEADROOM_BYTES = 128 * 1024;
+
+export const MAX_IMPORT_FILE_BYTES = (LAMBDA_SYNC_INVOKE_PAYLOAD_BYTES * 3) / 4 - IMPORT_UPLOAD_HEADROOM_BYTES;
 export const MAX_URLS_PER_IMPORT = 2_000;
 export const IMPORT_SESSION_TTL_SECONDS = 24 * 60 * 60;
 export const IMPORT_PAGE_SIZE = 50;

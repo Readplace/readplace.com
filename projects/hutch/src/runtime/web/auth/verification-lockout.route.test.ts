@@ -253,6 +253,25 @@ describe("Email verification lockout (Siren API)", () => {
 		);
 	});
 
+	it("refuses a locked account's Siren save-content write too", async () => {
+		const harness = useApp(fixtureClockedDaysAhead(8));
+		const userId = await createUnverifiedUser(harness, "locked-content@example.com");
+		const token = await mintAccessToken(harness, userId);
+
+		const response = await request(harness.server)
+			.post("/queue/save-content")
+			.set("Accept", SIREN_MEDIA_TYPE)
+			.set("Authorization", `Bearer ${token}`)
+			.field("url", "https://example.com/article")
+			.field("mediaType", "text/html")
+			.attach("content", Buffer.from("<p>hi</p>"), "content.html");
+
+		expect(response.status).toBe(403);
+		expect(response.body.properties.messages[0].content.body).toContain(
+			"readplace+verification@readplace.com",
+		);
+	});
+
 	it("keeps a locked account's Siren reads working (the lock gates saves, not reads)", async () => {
 		const harness = useApp(fixtureClockedDaysAhead(8));
 		const userId = await createUnverifiedUser(harness, "locked-read@example.com");

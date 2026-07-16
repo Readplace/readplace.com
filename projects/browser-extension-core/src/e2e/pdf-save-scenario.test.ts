@@ -1,3 +1,4 @@
+import assert from "node:assert/strict";
 import { obtainAccessToken, runPdfSaveScenario } from "./pdf-save-scenario";
 
 type Route = { status: number; body?: string; headers?: Record<string, string> };
@@ -218,6 +219,41 @@ function collectionResponse(items: unknown[]) {
 	});
 }
 
+function collectionResponseWithSaveContent(items: unknown[]) {
+	return JSON.stringify({
+		class: ["collection", "articles"],
+		entities: items,
+		links: [{ rel: ["self"], href: "/queue" }],
+		actions: [
+			{
+				name: "save-article",
+				href: "/queue",
+				method: "POST",
+				type: "application/json",
+				fields: [{ name: "url", type: "url" }],
+			},
+			{
+				name: "save-content",
+				href: "/queue/save-content",
+				method: "POST",
+				type: "multipart/form-data",
+				fields: [
+					{ name: "url", type: "url" },
+					{ name: "content", type: "file" },
+					{ name: "mediaType", type: "text" },
+					{ name: "title", type: "text" },
+				],
+			},
+			{
+				name: "search",
+				href: "/queue",
+				method: "GET",
+				fields: [{ name: "url", type: "url" }],
+			},
+		],
+	});
+}
+
 function sirenWalkerRoutes(opts: {
 	collectionResponses: string[];
 }): Record<string, RouteHandler> {
@@ -261,6 +297,52 @@ describe("runPdfSaveScenario", () => {
 			pollIntervalMs: 1,
 			pollTimeoutMs: 5_000,
 		});
+	});
+
+	it("uploads the captured bytes over save-content when uploadBytes is supplied", async () => {
+		const collections = [
+			collectionResponseWithSaveContent([]),
+			collectionResponseWithSaveContent([articleEntity(STUB_TITLE)]),
+			collectionResponseWithSaveContent([articleEntity(READY_TITLE)]),
+		];
+		let uploaded: FormData | undefined;
+		const routes = {
+			...authRoutes(),
+			...sirenWalkerRoutes({ collectionResponses: collections }),
+			[`POST ${SERVER}/queue/save-content`]: (init?: RequestInit) => {
+				uploaded = init?.body instanceof FormData ? init.body : undefined;
+				return {
+					status: 201,
+					body: JSON.stringify(articleEntity(STUB_TITLE)),
+					headers: { "content-type": SIREN },
+				};
+			},
+		};
+		const { fetchFn, calls } = createRoutingFetch(routes);
+		const pdfBytes = new TextEncoder().encode("%PDF-1.4 captured").buffer;
+
+		await runPdfSaveScenario({
+			serverUrl: SERVER,
+			email: "e",
+			password: "p",
+			pdfUrl: PDF_URL,
+			uploadBytes: pdfBytes,
+			expectedTitleSubstring: "READPLACE_E2E_PDF",
+			fetchFn,
+			pollIntervalMs: 1,
+			pollTimeoutMs: 5_000,
+		});
+
+		expect(calls.filter((c) => c.startsWith("POST "))).toEqual([
+			`POST ${SERVER}/login`,
+			`POST ${SERVER}/oauth/authorize`,
+			`POST ${SERVER}/oauth/token`,
+			`POST ${SERVER}/queue/save-content`,
+		]);
+		assert(uploaded, "save-content must carry a multipart body");
+		expect(uploaded.get("url")).toBe(PDF_URL);
+		expect(uploaded.get("mediaType")).toBe("application/pdf");
+		expect(uploaded.get("content")).toBeInstanceOf(Blob);
 	});
 
 	it("times out when the title never converges to the expected substring", async () => {

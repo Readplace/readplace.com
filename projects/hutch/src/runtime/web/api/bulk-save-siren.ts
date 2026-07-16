@@ -4,7 +4,7 @@ interface BulkSaveSummary {
 	saved: number;
 	skipped: number;
 	failed: number;
-	/** Pages whose uploaded content exceeded MAX_PAGE_CONTENT_BYTES: saved
+	/** Pages whose uploaded content exceeded the per-page budget: saved
 	 * URL-only (so the link is kept) but reported here with their size in MB so
 	 * the client can tell the user their full capture was too big. */
 	tooBig: { url: string; mb: number }[];

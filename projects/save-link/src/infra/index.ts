@@ -124,6 +124,19 @@ new aws.s3.BucketLifecycleConfigurationV2("content-bucket-pdf-staging-lifecycle"
 // content-bucket so the aggressive 1-day expiration applies only to staging
 // objects, never canonical content.
 
+// Browser extensions upload large captures straight to these buckets via a
+// presigned PUT (bypassing the API Gateway 6 MB payload limit), so the buckets
+// must allow the cross-origin PUT. The presigned signature is the authorisation
+// — see HutchS3ReadWrite.corsRules for why `["*"]` origins are safe.
+const UPLOAD_CORS_RULES = [
+	{
+		allowedMethods: ["PUT"],
+		allowedOrigins: ["*"],
+		allowedHeaders: ["*"],
+		maxAgeSeconds: 3600,
+	},
+];
+
 const pendingHtmlBucket = new HutchS3ReadWrite("pending-html-bucket", {
 	bucketName: pendingHtmlBucketName,
 	expirationRules: [
@@ -133,6 +146,7 @@ const pendingHtmlBucket = new HutchS3ReadWrite("pending-html-bucket", {
 			prefixes: ["pending-html/", "refresh-html/"],
 		},
 	],
+	corsRules: UPLOAD_CORS_RULES,
 });
 
 // --- Pending-PDF S3 Bucket ---
@@ -149,6 +163,7 @@ const pendingPdfBucket = new HutchS3ReadWrite("pending-pdf-bucket", {
 			prefixes: ["pending-pdf/"],
 		},
 	],
+	corsRules: UPLOAD_CORS_RULES,
 });
 
 // --- Content Images CDN ---
@@ -526,6 +541,10 @@ const pdfPageOcrLambda = new HutchLambda("pdf-page-ocr", {
 	// execution time so the headroom is free and absorbs any future
 	// regression on dense-text pages.
 	memorySize: 1769,
+	// Each page invocation downloads the full staged PDF and writes it to /tmp
+	// before pdftoppm rasterises its one page, so /tmp must hold the largest
+	// supported PDF (plus the rendered PNG) — 2 GiB, up from the 512 MiB default.
+	ephemeralStorageSize: 2048,
 	timeout: 900,
 	containerImage: { imageUri: ocrImageTags["pdf-page-ocr"] },
 	environment: {
@@ -689,12 +708,12 @@ const comprehensiveCrawlCommandStagingDelete: LambdaPolicy = {
 
 const comprehensiveCrawlCommandLambda = new HutchLambda(SAVE_LINK_LAMBDA_NAMES.comprehensiveCrawlCommand, {
 	priorLogGroupLogicalName: "comprehensiveCrawlCommand-log-group",
-	// Post-fan-out the orchestrator only runs pdfinfo, one S3 PutObject, up to
-	// 32 concurrent JSON Lambda responses, HTML join + sanitisation, and one
-	// tier-write — same workload shape as the simple-only save-link Lambdas at
-	// 512 MB. Timeout stays at the Lambda 900 s ceiling so a 200-page PDF with
-	// concurrency=32 still fits its worst-case ⌈pages/concurrency⌉ batches.
-	memorySize: 512,
+	// The orchestrator buffers the whole PDF (the AWS SDK stream collector alone
+	// peaks ~3× the file transiently) and writes it to /tmp for pdfinfo + S3
+	// staging, so a 500 MB upload needs headroom well above the post-fan-out
+	// workload: 3008 MB matches the select-content ceiling, /tmp at 2 GiB.
+	memorySize: 3008,
+	ephemeralStorageSize: 2048,
 	timeout: 900,
 	containerImage: { imageUri: ocrImageTags["comprehensive-crawl-command"] },
 	environment: {
@@ -807,10 +826,11 @@ const saveLinkRawPdfCommandStagingDelete: LambdaPolicy = {
 
 const saveLinkRawPdfCommandLambda = new HutchLambda(SAVE_LINK_LAMBDA_NAMES.saveLinkRawPdfCommand, {
 	priorLogGroupLogicalName: "saveLinkRawPdfCommand-log-group",
-	// pdfinfo + one S3 PutObject + fan-out
-	// JSON Lambda invokes + HTML join + tier-write. 900s is the Lambda ceiling for
-	// a worst-case many-page document.
-	memorySize: 512,
+	// Reads the whole staged PDF into memory (SDK stream collector peaks ~3× the
+	// file) and writes it to /tmp for pdfinfo + S3 staging before per-page fan-out.
+	// A 500 MB client upload needs 3008 MB + a 2 GiB /tmp, matching the OCR path.
+	memorySize: 3008,
+	ephemeralStorageSize: 2048,
 	timeout: 900,
 	containerImage: { imageUri: ocrImageTags["save-link-raw-pdf-command"] },
 	environment: {
@@ -1001,7 +1021,10 @@ const generateSummaryLambda = new HutchLambda("generate-summary", {
 	entryPoint: "./src/runtime/generate-summary.main.ts",
 	outputDir: ".lib/generate-summary",
 	assetDir: "./src",
-	memorySize: 512,
+	// Loads the full canonical content from S3 and strips it via linkedom before
+	// summarising; a 40 MB HTML upload needs headroom above the old 512 MB (the
+	// input is also char-capped in link-summariser so the model call can't overflow).
+	memorySize: 1769,
 	timeout: GENERATE_SUMMARY_TIMEOUTS.lambdaSeconds,
 	environment: {
 		DYNAMODB_ARTICLES_TABLE: articlesTableName,

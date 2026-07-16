@@ -4,26 +4,7 @@ export const SaveArticleInputSchema = z.object({
 	url: z.url({ message: "Please enter a valid URL" }),
 });
 
-/** Bulk "Save All Tabs" sends one captured page per open tab. The window is
- * chunked into requests of at most this many pages so a window with more tabs
- * saves across several requests instead of one the server rejects, and so the
- * worst-case request body stays bounded (see MAX_BULK_CONTENT_REQUEST_BYTES). */
 export const MAX_PAGES_PER_BULK_SAVE = 20;
-
-/** Per-page captured-content ceiling. A page whose uploaded content exceeds this
- * is reported in the result's `tooBig` list and falls back to a URL-only save —
- * the same degrade-to-URL-only path save-content takes for an oversize upload —
- * so the link is never lost, only its inline capture. */
-export const MAX_PAGE_CONTENT_BYTES = 20 * 1024 * 1024;
-
-/** Body-parser limit for the multipart POST /queue/save-articles. Sized to a
- * full MAX_PAGES_PER_BULK_SAVE batch of MAX_PAGE_CONTENT_BYTES pages, plus
- * headroom for the JSON manifest part and multipart boundaries, so a legitimate
- * cap-sized batch is never rejected by the parser before the route runs. The
- * per-page check still flags individual oversize pages; only a whole batch above
- * this ceiling trips saveArticlesLimitHandler. */
-export const MAX_BULK_CONTENT_REQUEST_BYTES =
-	MAX_PAGES_PER_BULK_SAVE * MAX_PAGE_CONTENT_BYTES + 5 * 1024 * 1024;
 
 /** One entry in the bulk-save `manifest` multipart part. `url` is a plain string
  * (not `z.url()`) so an unsaveable scheme is classified per-entry in the route
@@ -54,6 +35,18 @@ export const SaveHtmlInputSchema = z.object({
 });
 
 export const RAW_HTML_FIELD = "rawHtml" satisfies keyof z.infer<typeof SaveHtmlInputSchema>;
+
+export const LAMBDA_SYNC_INVOKE_PAYLOAD_BYTES = 6 * 1024 * 1024;
+
+export const MAX_UPLOAD_REQUEST_BYTES = (LAMBDA_SYNC_INVOKE_PAYLOAD_BYTES * 3) / 4;
+
+export const MAX_UPLOAD_CONTENT_BYTES = 3 * 1024 * 1024;
+
+export const MAX_UPLOAD_HTML_BYTES = 40 * 1024 * 1024;
+
+const BULK_MANIFEST_HEADROOM_BYTES = 128 * 1024;
+
+export const MAX_BULK_PAGE_CONTENT_BYTES = MAX_UPLOAD_REQUEST_BYTES - BULK_MANIFEST_HEADROOM_BYTES;
 
 export const MinutesSchema = z.number().brand<"Minutes">();
 

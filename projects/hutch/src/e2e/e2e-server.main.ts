@@ -260,6 +260,20 @@ server.get('/e2e/fixtures/sample.pdf', (_req, res) => {
   res.type('application/pdf').send(E2E_SAMPLE_PDF)
 })
 
+const E2E_LARGE_PDF = Buffer.concat([E2E_SAMPLE_PDF, Buffer.alloc(4 * 1024 * 1024, 0x20)])
+server.get('/e2e/fixtures/large.pdf', (_req, res) => {
+  res.type('application/pdf').send(E2E_LARGE_PDF)
+})
+
+server.put(
+  '/e2e/s3/:key',
+  express.raw({ type: () => true, limit: 512 * 1024 * 1024 }),
+  (req, res) => {
+    fixture.pendingUpload.receiveUpload(req.params.key, req.body)
+    res.status(200).end()
+  },
+)
+
 server.use(hutchApp)
 
 // Graceful shutdown so V8 writes coverage data to NODE_V8_COVERAGE directory

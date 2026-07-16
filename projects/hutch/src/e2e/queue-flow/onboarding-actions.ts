@@ -37,9 +37,9 @@ export function createOnboardingActions(
         await page.reload({ waitUntil: 'domcontentloaded' })
 
         // After reload, install-extension is complete; save-first-article is
-        // independently gated on a save through the extension's Siren endpoint
-        // (POST /queue or /queue/save-html), so the success view never appears
-        // on this reload alone — that's simulated by onboarding-save-first-article.
+        // independently gated on a save through the extension's Siren endpoint,
+        // so the success view never appears on this reload alone — that's
+        // simulated by onboarding-save-first-article.
         const stillIncomplete = await page.locator(
           '[data-test-onboarding-step="install-extension"][data-test-onboarding-complete="false"]',
         ).count()

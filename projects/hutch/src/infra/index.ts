@@ -354,6 +354,10 @@ const lambda = new HutchLambda(LAMBDA_NAMES.hutchHandler, {
 		...HutchS3ReadWrite.readPoliciesForBucket("hutch-content-s3", contentBucketName),
 		...HutchS3ReadWrite.writePoliciesForBucket("hutch-pending-html", pendingHtmlBucketName),
 		...HutchS3ReadWrite.writePoliciesForBucket("hutch-pending-pdf", pendingPdfBucketName),
+		// Read access so the save-content completion step can HeadObject (size +
+		// mtime) and GetObject the %PDF- magic prefix of a client-uploaded object.
+		...HutchS3ReadWrite.readPoliciesForBucket("hutch-pending-html-read", pendingHtmlBucketName),
+		...HutchS3ReadWrite.readPoliciesForBucket("hutch-pending-pdf-read", pendingPdfBucketName),
 		trialSchedulerManagePolicy,
 	],
 });

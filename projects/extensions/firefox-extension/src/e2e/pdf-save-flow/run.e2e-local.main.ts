@@ -99,3 +99,99 @@ test("extension should save a PDF URL end-to-end via the Siren walker", async ()
 		await stopTestServer(server);
 	}
 });
+
+test("extension should save a PDF's captured bytes end-to-end via save-content", async () => {
+	const server = await startTestServer();
+	armSuiteFailsafe(server);
+	try {
+		const pdfUrl = `${ORIGIN}/e2e/fixtures/sample.pdf`;
+		const fixture = await fetch(pdfUrl);
+		assert.equal(fixture.status, 200, `PDF fixture must be served from ${pdfUrl}`);
+		const uploadBytes = await fixture.arrayBuffer();
+
+		let multipartPosts = 0;
+		let jsonPosts = 0;
+		const spyFetch: typeof fetch = async (input, init) => {
+			if ((init?.method ?? "GET") === "POST") {
+				if (init?.body instanceof FormData) multipartPosts += 1;
+				const contentType = new Headers(init?.headers).get("content-type");
+				if (contentType?.includes("application/json")) jsonPosts += 1;
+			}
+			return fetch(input, init);
+		};
+
+		await runPdfSaveScenario({
+			serverUrl: ORIGIN,
+			email: TEST_EMAIL,
+			password: TEST_PASSWORD,
+			pdfUrl,
+			uploadBytes,
+			expectedTitleSubstring: "READPLACE_E2E_PDF_FIXTURE",
+			fetchFn: spyFetch,
+		});
+
+		assert.equal(
+			multipartPosts,
+			1,
+			"the byte-upload rung must POST one multipart body — the title poll alone cannot distinguish an upload from a URL-only fallback, because the server crawls the same fixture to the same title",
+		);
+		assert.equal(
+			jsonPosts,
+			0,
+			"no JSON save may fire — one would mean the upload was refused and the walker degraded onto the URL-only fallback",
+		);
+	} finally {
+		await stopTestServer(server);
+	}
+});
+
+test("extension should save a large PDF end-to-end via the presigned upload slot", async () => {
+	const server = await startTestServer();
+	armSuiteFailsafe(server);
+	try {
+		const pdfUrl = `${ORIGIN}/e2e/fixtures/large.pdf`;
+		const fixture = await fetch(pdfUrl);
+		assert.equal(fixture.status, 200, `large PDF fixture must be served from ${pdfUrl}`);
+		const uploadBytes = await fixture.arrayBuffer();
+		assert.ok(uploadBytes.byteLength > 3 * 1024 * 1024, "fixture must exceed the direct-upload budget");
+
+		let slotPosts = 0;
+		let completionPosts = 0;
+		let s3Puts = 0;
+		let jsonPosts = 0;
+		let putCarriedAuth = false;
+		const spyFetch: typeof fetch = async (input, init) => {
+			const method = init?.method ?? "GET";
+			const url = typeof input === "string" ? input : input instanceof URL ? input.href : input.url;
+			const headers = new Headers(init?.headers);
+			if (method === "POST" && init?.body instanceof FormData) {
+				if (init.body.has("uploaded")) completionPosts += 1;
+				else if (init.body.has("size")) slotPosts += 1;
+			}
+			if (method === "POST" && headers.get("content-type")?.includes("application/json")) jsonPosts += 1;
+			if (method === "PUT" && url.includes("/e2e/s3/")) {
+				s3Puts += 1;
+				if (headers.get("authorization")) putCarriedAuth = true;
+			}
+			return fetch(input, init);
+		};
+
+		await runPdfSaveScenario({
+			serverUrl: ORIGIN,
+			email: TEST_EMAIL,
+			password: TEST_PASSWORD,
+			pdfUrl,
+			uploadBytes,
+			expectedTitleSubstring: "READPLACE_E2E_PDF_FIXTURE",
+			fetchFn: spyFetch,
+		});
+
+		assert.equal(slotPosts, 1, "exactly one upload-slot request must fire");
+		assert.equal(s3Puts, 1, "the bytes must be PUT once to the presigned S3 URL");
+		assert.equal(completionPosts, 1, "exactly one completion must fire");
+		assert.equal(jsonPosts, 0, "no URL-only fallback may fire — that would mean the slot flow failed");
+		assert.equal(putCarriedAuth, false, "the S3 PUT must not carry a bearer token");
+	} finally {
+		await stopTestServer(server);
+	}
+});

@@ -174,7 +174,10 @@ export function initSaveLinkRawPdfCommandHandler(deps: {
 					extractedAt: now().toISOString(),
 				});
 
-				logger.info(`${logPrefix} tier-0 source written`, { url: detail.url });
+				logger.info(`${logPrefix} tier-0 source written`, {
+					url: detail.url,
+					capturedTitle: detail.title,
+				});
 			} catch (error) {
 				logger.error(`${logPrefix} record failed`, {
 					messageId: record.messageId,

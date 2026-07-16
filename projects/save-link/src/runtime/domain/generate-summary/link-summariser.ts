@@ -6,6 +6,12 @@ import type { HutchLogger } from "@packages/hutch-logger";
 import type { CreateAiMessage } from "./create-ai-message.types";
 import type { MarkSummaryStage } from "../../providers/article-crawl/mark-summary-stage";
 import { MAX_EXCERPT_LENGTH, MAX_SUMMARY_LENGTH } from "@packages/provider-contracts/article-summary";
+import { DEEPSEEK_CONTEXT_TOKENS } from "../select-content/deepseek-limits";
+
+const SUMMARY_MAX_OUTPUT_TOKENS = 10240;
+export const MAX_SUMMARY_INPUT_CHARS = Math.floor(
+	(DEEPSEEK_CONTEXT_TOKENS - SUMMARY_MAX_OUTPUT_TOKENS) * 3 * 0.85,
+);
 
 const SUMMARIZE_PROMPT = readFileSync(
 	join(__dirname, "summarize-prompt.md"),
@@ -73,7 +79,7 @@ export function initLinkSummariser(deps: {
 				role: "user",
 				content: [{
 					type: "document",
-					source: { type: "text", media_type: "text/plain", data: cleanedContent },
+					source: { type: "text", media_type: "text/plain", data: cleanedContent.slice(0, MAX_SUMMARY_INPUT_CHARS) },
 					title: "Article to summarize",
 					citations: { enabled: true },
 				}],

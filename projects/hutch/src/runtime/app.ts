@@ -89,8 +89,12 @@ import { initInMemoryRefreshArticleContent } from "@packages/test-fixtures/provi
 import { initInMemoryUpdateFetchTimestamp } from "@packages/test-fixtures/providers/events";
 import { initPutPendingHtml } from "./providers/pending-html/put-pending-html";
 import { initPutPendingPdf } from "./providers/pending-pdf/put-pending-pdf";
+import { initS3PendingUpload } from "./providers/pending-upload/s3-pending-upload";
+import { createPresignerClient } from "./providers/pending-upload/mint-upload-url";
+import { UPLOAD_SLOT_TTL_SECONDS } from "./web/pages/queue/upload-slot-ttl";
 import { initInMemoryPendingHtml } from "@packages/test-fixtures/providers/pending-html";
 import { initInMemoryPendingPdf } from "@packages/test-fixtures/providers/pending-pdf";
+import { initInMemoryPendingUpload } from "@packages/test-fixtures/providers/pending-upload";
 import { initInMemoryImportSession } from "@packages/test-fixtures/providers/import-session";
 import { initDynamoDbImportSession } from "./providers/import-session/dynamodb-import-session";
 import { initInMemoryInboxAddress } from "@packages/test-fixtures/providers/inbox-address";
@@ -234,6 +238,14 @@ function initProviders() {
 		const { publishSubscriptionReactivated } = initEventBridgeSubscriptionReactivated({ publishEvent });
 		const { putPendingHtml } = initPutPendingHtml({ client: new S3Client({}), bucketName: pendingHtmlBucketName });
 		const { putPendingPdf } = initPutPendingPdf({ client: new S3Client({}), bucketName: pendingPdfBucketName });
+		const { createUploadSlot, statPendingUpload, readPendingUploadPrefix } = initS3PendingUpload({
+			presignerClient: createPresignerClient(),
+			client: new S3Client({}),
+			pdfBucketName: pendingPdfBucketName,
+			htmlBucketName: pendingHtmlBucketName,
+			ttlSeconds: UPLOAD_SLOT_TTL_SECONDS,
+			now: () => new Date(),
+		});
 		const extractPdf = createPdfDeferralStub(publishStaleCheckRequested);
 		const siteRules = [
 			theInformationSiteRules,
@@ -396,6 +408,9 @@ function initProviders() {
 			publishSubscriptionReactivated,
 			putPendingHtml,
 			putPendingPdf,
+			createUploadSlot,
+			statPendingUpload,
+			readPendingUploadPrefix,
 			findGeneratedSummary: summaryStore.findGeneratedSummary,
 			markSummaryPending: summaryStore.markSummaryPending,
 			findArticleCrawlStatus: crawlStore.findArticleCrawlStatus,
@@ -586,6 +601,11 @@ function initProviders() {
 	/* The in-memory composition has no alias store, so identity resolution is a
 	 * no-op — dedup-by-redirect is a production DynamoDB behaviour only. */
 	const resolveCanonicalIdentity = async (url: string) => url;
+	const { createUploadSlot, statPendingUpload, readPendingUploadPrefix } = initInMemoryPendingUpload({
+		uploadBaseUrl: `${requireEnv("APP_ORIGIN")}/e2e/s3`,
+		now: () => new Date(),
+		ttlSeconds: UPLOAD_SLOT_TTL_SECONDS,
+	});
 	const { refreshArticleIfStale } = initRefreshArticleIfStale({
 		findArticleFreshness: articleStore.findArticleFreshness,
 		findArticleCrawlStatus: crawlStore.findArticleCrawlStatus,
@@ -671,6 +691,9 @@ function initProviders() {
 		publishSubscriptionReactivated,
 		putPendingHtml,
 		putPendingPdf,
+		createUploadSlot,
+		statPendingUpload,
+		readPendingUploadPrefix,
 		findGeneratedSummary: summaryStore.findGeneratedSummary,
 		markSummaryPending: summaryStore.markSummaryPending,
 		findArticleCrawlStatus: crawlStore.findArticleCrawlStatus,

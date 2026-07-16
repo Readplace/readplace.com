@@ -109,6 +109,11 @@ import type { PublishSaveLinkRawPdfCommand } from "@packages/provider-contracts/
 import type { PublishExportUserDataCommand } from "@packages/provider-contracts/events";
 import type { PutPendingHtml } from "@packages/provider-contracts/pending-html";
 import type { PutPendingPdf } from "@packages/provider-contracts/pending-pdf";
+import type {
+	CreateUploadSlot,
+	StatPendingUpload,
+	ReadPendingUploadPrefix,
+} from "@packages/provider-contracts/pending-upload";
 import type { SendEmail } from "@packages/provider-contracts/email";
 import type {
 	CreateVerificationToken,
@@ -287,6 +292,9 @@ interface AppDependencies {
 	findEmailByUserId: FindEmailByUserId;
 	putPendingHtml: PutPendingHtml;
 	putPendingPdf: PutPendingPdf;
+	createUploadSlot: CreateUploadSlot;
+	statPendingUpload: StatPendingUpload;
+	readPendingUploadPrefix: ReadPendingUploadPrefix;
 	findGeneratedSummary: FindGeneratedSummary;
 	markSummaryPending: MarkSummaryPending;
 	findArticleCrawlStatus: FindArticleCrawlStatus;
@@ -1019,6 +1027,9 @@ export function createApp(dependencies: AppDependencies): Express {
 		publishSaveLinkRawPdfCommand: deps.publishSaveLinkRawPdfCommand,
 		putPendingHtml: deps.putPendingHtml,
 		putPendingPdf: deps.putPendingPdf,
+		createUploadSlot: deps.createUploadSlot,
+		statPendingUpload: deps.statPendingUpload,
+		readPendingUploadPrefix: deps.readPendingUploadPrefix,
 		findGeneratedSummary: deps.findGeneratedSummary,
 		markSummaryPending: deps.markSummaryPending,
 		findArticleCrawlStatus: deps.findArticleCrawlStatus,

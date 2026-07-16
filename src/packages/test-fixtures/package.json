@@ -73,6 +73,10 @@
       "types": "./dist/providers/pending-pdf/index.d.ts",
       "default": "./dist/providers/pending-pdf/index.js"
     },
+    "./providers/pending-upload": {
+      "types": "./dist/providers/pending-upload/index.d.ts",
+      "default": "./dist/providers/pending-upload/index.js"
+    },
     "./providers/refresh-html": {
       "types": "./dist/providers/refresh-html/index.d.ts",
       "default": "./dist/providers/refresh-html/index.js"
@@ -152,6 +156,7 @@
       "providers/payment-methods": ["./dist/providers/payment-methods/index.d.ts"],
       "providers/pending-html": ["./dist/providers/pending-html/index.d.ts"],
       "providers/pending-pdf": ["./dist/providers/pending-pdf/index.d.ts"],
+      "providers/pending-upload": ["./dist/providers/pending-upload/index.d.ts"],
       "providers/refresh-html": ["./dist/providers/refresh-html/index.d.ts"],
       "providers/pending-signup": ["./dist/providers/pending-signup/index.d.ts"],
       "providers/hosted-checkout": ["./dist/providers/hosted-checkout/index.d.ts"],

@@ -9,6 +9,7 @@ import type {
 import { ReadingListItemIdSchema } from "../domain/reading-list-item-id";
 import { UnauthorizedError } from "../auth/unauthorized-error";
 import type {
+	BulkSavePage,
 	BulkSaveResult,
 	FindByUrl,
 	GetAllItems,
@@ -131,6 +132,8 @@ const SirenActionSchema = z.object({
 				 * rather than failing the whole-affordance parse and dropping the
 				 * control. */
 				value: z.union([z.string(), z.number()]).optional(),
+				maxBytes: z.number().optional(),
+				maxItems: z.number().optional(),
 			}),
 		)
 		.optional(),
@@ -234,6 +237,10 @@ const SirenCollectionResponseSchema = z.object({
 	actions: lenientArray(SirenActionSchema),
 });
 
+const UploadSlotResponseSchema = z.object({
+	actions: lenientArray(SirenActionSchema),
+});
+
 function extractCollectionWarning(
 	body: SirenCollectionResponse,
 ): SaveWarning | undefined {
@@ -250,6 +257,28 @@ type DoFetchInit = Omit<RequestInit, "headers"> & {
 };
 
 type DoFetch = (url: string, init?: DoFetchInit) => Promise<Response>;
+
+function createAuthorizedFetch(deps: {
+	getAccessToken: () => Promise<string | null>;
+	fetchFn: typeof fetch;
+	onUnauthorized: () => Promise<void>;
+}): DoFetch {
+	return async (url, init) => {
+		const token = await deps.getAccessToken();
+		assert(token, "No access token available");
+		const headers: Record<string, string> = {
+			Authorization: `Bearer ${token}`,
+			Accept: SIREN_MEDIA_TYPE,
+			...init?.headers,
+		};
+		const response = await deps.fetchFn(url, { ...init, headers });
+		if (response.status === 401) {
+			await deps.onUnauthorized();
+			throw new UnauthorizedError();
+		}
+		return response;
+	};
+}
 
 type ActionContext = {
 	serverUrl: string;
@@ -270,10 +299,29 @@ export type BoundAction = (
 export type NavigationResult = {
 	items: ArticleItem[];
 	actions: Record<string, BoundAction>;
+	descriptors: Record<string, SirenAction>;
 	/** Set only by the save-articles understanding; carries the bulk-save
 	 * summary so `savePages` can surface it. Other actions leave it undefined. */
 	bulk?: BulkSaveResult;
 };
+
+function bytesToMb(bytes: number): number {
+	return Math.round((bytes / (1024 * 1024)) * 10) / 10;
+}
+
+function advertisedLimit(
+	descriptor: SirenAction | undefined,
+	fieldName: string,
+	limit: "maxBytes" | "maxItems",
+): number | undefined {
+	return descriptor?.fields?.find((field) => field.name === fieldName)?.[limit];
+}
+
+/** Bulk limits enforced by servers that predate limit advertisement: a 20-page
+ * manifest cap and a 20 MiB per-page budget. Assumed whenever save-articles
+ * advertises no maxItems/maxBytes, so a request never exceeds what an old
+ * server accepts (an unsplit window would be refused wholesale). */
+const LEGACY_SERVER_BULK_LIMITS = { maxItems: 20, maxBytes: 20 * 1024 * 1024 };
 
 /** The walker's in-memory item. It keeps the cross-boundary `ReadingListItem`
  * intact — including its serializable `actions` descriptors, which DO survive
@@ -368,7 +416,7 @@ export function initSaveArticleUnderstanding(): Map<string, ActionHandler> {
 			}
 			const body = SirenSubEntitySchema.parse(await readSirenBody(response));
 			const item = context.resolveItem(body);
-			return { items: [item], actions: {} };
+			return { items: [item], actions: {}, descriptors: {} };
 		};
 	});
 	return handlers;
@@ -414,7 +462,7 @@ export function initSaveArticlesUnderstanding(): Map<string, ActionHandler> {
 			);
 			assert(response.ok, `Bulk save failed: ${response.status}`);
 			const body = SaveArticlesResultSchema.parse(await response.json());
-			return { items: [], actions: {}, bulk: body.properties };
+			return { items: [], actions: {}, descriptors: {}, bulk: body.properties };
 		};
 	});
 	return handlers;
@@ -457,7 +505,7 @@ export function initSaveHtmlUnderstanding(deps: {
 			}
 			const responseBody = SirenSubEntitySchema.parse(await readSirenBody(response));
 			const item = context.resolveItem(responseBody);
-			return { items: [item], actions: {} };
+			return { items: [item], actions: {}, descriptors: {} };
 		};
 	});
 	return handlers;
@@ -496,7 +544,7 @@ async function followSaveFallback(args: {
 		await readSirenBody(fallbackResponse),
 	);
 	const fallbackItem = context.resolveItem(fallbackResponseBody);
-	return { items: [fallbackItem], actions: {} };
+	return { items: [fallbackItem], actions: {}, descriptors: {} };
 }
 
 export function initSaveContentUnderstanding(deps: {
@@ -537,7 +585,7 @@ export function initSaveContentUnderstanding(deps: {
 			}
 			const responseBody = SirenSubEntitySchema.parse(await readSirenBody(response));
 			const item = context.resolveItem(responseBody);
-			return { items: [item], actions: {} };
+			return { items: [item], actions: {}, descriptors: {} };
 		};
 	});
 	return handlers;
@@ -614,7 +662,7 @@ export function initListArticlesUnderstanding(): Map<string, ActionHandler> {
 				method: sirenAction.method,
 				context,
 			});
-			return { items, actions: {} };
+			return { items, actions: {}, descriptors: {} };
 		};
 	});
 	return handlers;
@@ -750,21 +798,7 @@ export function initExtension(
 	>();
 
 	function createDoFetch(): DoFetch {
-		return async (url, init) => {
-			const token = await deps.getAccessToken();
-			assert(token, "No access token available");
-			const headers: Record<string, string> = {
-				Authorization: `Bearer ${token}`,
-				Accept: SIREN_MEDIA_TYPE,
-				...init?.headers,
-			};
-			const response = await deps.fetchFn(url, { ...init, headers });
-			if (response.status === 401) {
-				await deps.onUnauthorized();
-				throw new UnauthorizedError();
-			}
-			return response;
-		};
+		return createAuthorizedFetch(deps);
 	}
 
 	function createActionContext(doFetch: DoFetch): ActionContext {
@@ -800,16 +834,18 @@ export function initExtension(
 	function bindCollectionActions(
 		sirenActions: SirenAction[],
 		doFetch: DoFetch,
-	): Record<string, BoundAction> {
-		const bound: Record<string, BoundAction> = {};
+	): { actions: Record<string, BoundAction>; descriptors: Record<string, SirenAction> } {
+		const actions: Record<string, BoundAction> = {};
+		const descriptors: Record<string, SirenAction> = {};
 		const context = createActionContext(doFetch);
 		for (const sirenAction of sirenActions) {
+			descriptors[sirenAction.name] = sirenAction;
 			const handler = handlers.get(sirenAction.name);
 			if (handler) {
-				bound[sirenAction.name] = handler(sirenAction, context);
+				actions[sirenAction.name] = handler(sirenAction, context);
 			}
 		}
-		return bound;
+		return { actions, descriptors };
 	}
 
 	async function parseResponse(
@@ -826,8 +862,8 @@ export function initExtension(
 			firstUrl: resolvedUrl,
 			firstBody: body,
 		});
-		const actions = bindCollectionActions(body.actions, doFetch);
-		return { items, actions };
+		const { actions, descriptors } = bindCollectionActions(body.actions, doFetch);
+		return { items, actions, descriptors };
 	}
 
 	return async () => {
@@ -909,12 +945,76 @@ export function initSirenReadingList(deps: SirenReadingListDeps): {
 		return btoa(binaryString);
 	}
 
+	async function saveViaUploadSlot(params: {
+		descriptor: SirenAction;
+		url: string;
+		title?: string;
+		content: { bytes: ArrayBuffer; mediaType: string };
+	}): Promise<ReadingListItem> {
+		const authFetch = createAuthorizedFetch(deps);
+
+		const slotHref = resolveHref({ base: deps.serverUrl, href: params.descriptor.href });
+		assert(slotHref, "save-content action href is not actionable");
+		const slotForm = new FormData();
+		slotForm.append("url", params.url);
+		slotForm.append("mediaType", params.content.mediaType);
+		slotForm.append("size", String(params.content.bytes.byteLength));
+		if (params.title) slotForm.append("title", params.title);
+		const slotResponse = await authFetch(slotHref, { method: params.descriptor.method, body: slotForm });
+		assert(slotResponse.ok, `upload-slot request failed: ${slotResponse.status}`);
+		const slot = UploadSlotResponseSchema.parse(await readSirenBody(slotResponse));
+		const uploadAction = slot.actions.find((a) => a.name === "upload-content");
+		const completeAction = slot.actions.find((a) => a.name === "save-uploaded-content");
+		assert(uploadAction && completeAction, "upload-slot response missing its actions");
+
+		const uploadHref = resolveHref({ base: deps.serverUrl, href: uploadAction.href });
+		assert(uploadHref, "upload-content action href is not actionable");
+		const putResponse = await deps.fetchFn(uploadHref, {
+			method: uploadAction.method,
+			headers: { "Content-Type": params.content.mediaType },
+			body: params.content.bytes,
+		});
+		assert(
+			putResponse.ok,
+			`content upload failed: ${putResponse.status} ${await putResponse.text().catch(() => "")}`,
+		);
+
+		const completeHref = resolveHref({ base: deps.serverUrl, href: completeAction.href });
+		assert(completeHref, "save-uploaded-content action href is not actionable");
+		assert(completeAction.fields, "completion action must declare fields");
+		const completeForm = new FormData();
+		for (const field of completeAction.fields) {
+			if (field.value !== undefined) completeForm.append(field.name, String(field.value));
+		}
+		const completeResponse = await authFetch(completeHref, { method: completeAction.method, body: completeForm });
+		assert(completeResponse.ok, `save-uploaded-content failed: ${completeResponse.status}`);
+		return toReadingListItem(SirenSubEntitySchema.parse(await readSirenBody(completeResponse)), deps.serverUrl);
+	}
+
 	const saveUrl: SaveUrl = async ({ url, title, content }) => {
 		const collection = await start();
 		trackItems(collection.items);
 		try {
 			const saveContentAction = collection.actions["save-content"];
-			if (saveContentAction && content) {
+			const descriptor = collection.descriptors["save-content"];
+			const maxBytes = advertisedLimit(descriptor, "content", "maxBytes");
+			if (content && maxBytes !== undefined && content.bytes.byteLength > maxBytes) {
+				assert(descriptor?.fields, "over-budget path implies a save-content descriptor with fields");
+				const slotSupported = descriptor.fields.some((f) => f.name === "size");
+				if (slotSupported) {
+					try {
+						const item = await saveViaUploadSlot({ descriptor, url, title, content });
+						trackItems([{ ...item, boundActions: {} }]);
+						return { ok: true, item };
+					} catch (slotError) {
+						deps.logger.warn(`Upload-slot save failed (${String(slotError)}) — saving URL-only`);
+					}
+				} else {
+					deps.logger.warn(
+						`Captured content of ${content.bytes.byteLength} bytes exceeds the advertised ${maxBytes}-byte upload limit — saving URL-only`,
+					);
+				}
+			} else if (saveContentAction && content) {
 				const fields: Record<string, string> = {
 					url,
 					mediaType: content.mediaType,
@@ -1008,33 +1108,97 @@ export function initSirenReadingList(deps: SirenReadingListDeps): {
 		return collection.items;
 	};
 
+	function manifestEntryFor(page: BulkSavePage): { url: string; title?: string; mediaType?: string } {
+		const entry: { url: string; title?: string; mediaType?: string } = { url: page.url };
+		if (page.title !== undefined) entry.title = page.title;
+		if (page.content) entry.mediaType = page.content.mediaType;
+		return entry;
+	}
+
+	function requestFor(pages: BulkSavePage[]): Record<string, string> {
+		/** The bound action takes only string fields, so the manifest is JSON and
+		 * each captured page's bytes ride along base64-encoded under a
+		 * `contentBase64-<index>` field; the understanding rebuilds the multipart
+		 * body from them. */
+		const fields: Record<string, string> = {
+			manifest: JSON.stringify(pages.map(manifestEntryFor)),
+		};
+		pages.forEach((page, index) => {
+			if (page.content) fields[`contentBase64-${index}`] = arrayBufferToBase64(page.content.bytes);
+		});
+		return fields;
+	}
+
+	function packRequests(
+		pages: BulkSavePage[],
+		limits: { maxItems: number; maxBytes: number },
+	): BulkSavePage[][] {
+		const requests: BulkSavePage[][] = [];
+		let current: BulkSavePage[] = [];
+		let currentBytes = 0;
+		for (const page of pages) {
+			/** A page's request cost is its captured bytes plus its manifest entry —
+			 * a long URL or tab title spends the same budget as content, so a packed
+			 * request never outgrows the server's parser cap by manifest weight. */
+			const bytes =
+				(page.content?.bytes.byteLength ?? 0) +
+				new TextEncoder().encode(JSON.stringify(manifestEntryFor(page))).length;
+			const overCount = current.length > 0 && current.length >= limits.maxItems;
+			const overBytes = current.length > 0 && currentBytes + bytes > limits.maxBytes;
+			if (overCount || overBytes) {
+				requests.push(current);
+				current = [];
+				currentBytes = 0;
+			}
+			current.push(page);
+			currentBytes += bytes;
+		}
+		if (current.length > 0) requests.push(current);
+		return requests;
+	}
+
 	const savePages: SavePages = async ({ pages }) => {
+		const summary: BulkSaveResult = { saved: 0, skipped: 0, failed: 0, tooBig: [], skippedUrls: [] };
+		if (pages.length === 0) return summary;
+
 		const collection = await start();
 		const action = collection.actions["save-articles"];
 		assert(
 			action,
 			'Expected Siren action "save-articles" not found in response',
 		);
-		/** The bound action takes only string fields, so the manifest is JSON and
-		 * each captured page's bytes ride along base64-encoded under a
-		 * `contentBase64-<index>` field; the understanding rebuilds the multipart
-		 * body from them. */
-		const fields: Record<string, string> = {
-			manifest: JSON.stringify(
-				pages.map((page) => {
-					const entry: { url: string; title?: string; mediaType?: string } = { url: page.url };
-					if (page.title !== undefined) entry.title = page.title;
-					if (page.content) entry.mediaType = page.content.mediaType;
-					return entry;
-				}),
-			),
-		};
-		pages.forEach((page, index) => {
-			if (page.content) fields[`contentBase64-${index}`] = arrayBufferToBase64(page.content.bytes);
+		const descriptor = collection.descriptors["save-articles"];
+		const maxBytes = advertisedLimit(descriptor, "content", "maxBytes") ?? LEGACY_SERVER_BULK_LIMITS.maxBytes;
+		const maxItems = advertisedLimit(descriptor, "manifest", "maxItems") ?? LEGACY_SERVER_BULK_LIMITS.maxItems;
+
+		const sendable = pages.map((page) => {
+			const bytes = page.content?.bytes.byteLength ?? 0;
+			if (bytes > maxBytes) {
+				deps.logger.warn(
+					`Captured page of ${bytes} bytes exceeds the ${maxBytes}-byte bulk upload limit — saving URL-only`,
+				);
+				summary.tooBig.push({ url: page.url, mb: bytesToMb(bytes) });
+				const { content: _content, ...urlOnly } = page;
+				return urlOnly;
+			}
+			return page;
 		});
-		const result = await action(fields);
-		assert(result.bulk, "save-articles response missing bulk summary");
-		return result.bulk;
+
+		for (const request of packRequests(sendable, { maxItems, maxBytes })) {
+			try {
+				const result = await action(requestFor(request));
+				assert(result.bulk, "save-articles response missing bulk summary");
+				summary.saved += result.bulk.saved;
+				summary.skipped += result.bulk.skipped;
+				summary.failed += result.bulk.failed;
+				summary.tooBig.push(...result.bulk.tooBig);
+				summary.skippedUrls.push(...result.bulk.skippedUrls);
+			} catch (err) {
+				if (err instanceof UnauthorizedError) throw err;
+				summary.failed += request.length;
+			}
+		}
+		return summary;
 	};
 
 	return { saveUrl, invokeAction, findByUrl, getAllItems, savePages };
