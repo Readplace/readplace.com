@@ -5,10 +5,15 @@ import {
 	type InboxEmailStatus,
 	InboxAddressSchema,
 	MessageIdSchema,
+	formatEmailLinkOrdinal,
 } from "@packages/domain/inbox";
 import { UserIdSchema } from "@packages/domain/user";
+import { ARTICLES_PAGE_SIZE } from "./inbox-articles-more.url";
 import type { MailTabKey } from "./inbox-email-detail.url";
-import { toInboxEmailDetailViewModel } from "./inbox-email-detail.viewmodel";
+import {
+	toInboxArticlesMoreViewModel,
+	toInboxEmailDetailViewModel,
+} from "./inbox-email-detail.viewmodel";
 
 const SK = "2026-06-24T09:00:00.000Z#<m@x>";
 
@@ -51,6 +56,7 @@ function build(input: {
 	bodyHtml?: string | undefined;
 	links?: InboxEmailLinkEntry[];
 	linksMeta?: { truncated: boolean } | undefined;
+	shown?: number;
 	panelPollCount?: number;
 }) {
 	return toInboxEmailDetailViewModel({
@@ -60,8 +66,22 @@ function build(input: {
 		links: input.links ?? [],
 		linksMeta: input.linksMeta,
 		maxPolls: 300,
+		shown: input.shown,
 		panelPollCount: input.panelPollCount,
 	});
+}
+
+function crawledLinks(count: number, startIndex = 0): InboxEmailLinkEntry[] {
+	return Array.from({ length: count }, (_unused, index) =>
+		link({
+			ordinal: formatEmailLinkOrdinal(startIndex + index),
+			url: `https://example.com/post-${startIndex + index}`,
+			status: "crawled",
+			title: `Post ${startIndex + index}`,
+			excerpt: "An excerpt",
+			siteName: "Example",
+		}),
+	);
 }
 
 describe("toInboxEmailDetailViewModel", () => {
@@ -277,5 +297,114 @@ describe("toInboxEmailDetailViewModel", () => {
 		});
 
 		expect(vm.articles.excluded.map((entry) => entry.reasonLabel)).toEqual(["Not an article"]);
+	});
+
+	it("reveals only the first page of cards and offers the rest behind a Show more control", () => {
+		const vm = build({ links: crawledLinks(25), linksMeta: { truncated: false } });
+
+		expect(vm.articles.cards).toHaveLength(ARTICLES_PAGE_SIZE);
+		expect(vm.articles.cards.map((card) => card.ordinal)).toEqual(
+			crawledLinks(ARTICLES_PAGE_SIZE).map((entry) => entry.ordinal),
+		);
+		expect(vm.articles.showMore).toEqual({
+			detailHref: `/inbox/${encodeURIComponent(SK)}?feature=email&tab=articles&shown=40`,
+			moreUrl: `/inbox/${encodeURIComponent(SK)}/articles/more?feature=email&shown=40`,
+			count: 5,
+		});
+	});
+
+	it("counts every kept link in the header badge, not just the revealed page", () => {
+		const vm = build({ links: crawledLinks(25), linksMeta: { truncated: false } });
+
+		expect(vm.linkCountLabel).toBe("25 links");
+		expect(vm.articles.isEmpty).toBe(false);
+	});
+
+	it("offers no control when the kept links exactly fill the first page", () => {
+		const vm = build({ links: crawledLinks(ARTICLES_PAGE_SIZE), linksMeta: { truncated: false } });
+
+		expect(vm.articles.cards).toHaveLength(ARTICLES_PAGE_SIZE);
+		expect(vm.articles.showMore).toBeUndefined();
+	});
+
+	it("renders the cumulative reveal a no-JS Show more navigation asks for", () => {
+		const vm = build({ links: crawledLinks(25), linksMeta: { truncated: false }, shown: 40 });
+
+		expect(vm.articles.cards).toHaveLength(25);
+		expect(vm.articles.showMore).toBeUndefined();
+	});
+
+	it("pages over the kept links only, leaving excluded ones out of the page budget", () => {
+		const vm = build({
+			links: [
+				link({
+					ordinal: formatEmailLinkOrdinal(0),
+					status: "skipped",
+					skipReason: "list-unsubscribe",
+				}),
+				...crawledLinks(21, 1),
+			],
+			linksMeta: { truncated: false },
+		});
+
+		expect(vm.articles.cards).toHaveLength(ARTICLES_PAGE_SIZE);
+		expect(vm.articles.cards[0].ordinal).toBe("0001");
+		expect(vm.articles.excluded).toHaveLength(1);
+		expect(vm.articles.showMore?.count).toBe(1);
+		expect(vm.linkCountLabel).toBe("21 links");
+	});
+});
+
+describe("toInboxArticlesMoreViewModel", () => {
+	function buildMore(input: { links: InboxEmailLinkEntry[]; shown: number }) {
+		return toInboxArticlesMoreViewModel({
+			links: input.links,
+			emailId: SK,
+			shown: input.shown,
+			maxPolls: 300,
+		});
+	}
+
+	it("returns only the newly revealed delta, not the cards already on the page", () => {
+		const vm = buildMore({ links: crawledLinks(45), shown: 40 });
+
+		expect(vm.cards.map((card) => card.ordinal)).toEqual(
+			crawledLinks(ARTICLES_PAGE_SIZE, ARTICLES_PAGE_SIZE).map((entry) => entry.ordinal),
+		);
+		expect(vm.showMore).toEqual({
+			detailHref: `/inbox/${encodeURIComponent(SK)}?feature=email&tab=articles&shown=60`,
+			moreUrl: `/inbox/${encodeURIComponent(SK)}/articles/more?feature=email&shown=60`,
+			count: 5,
+		});
+	});
+
+	it("drops the control once the delta lands on the last card", () => {
+		const vm = buildMore({ links: crawledLinks(25), shown: 40 });
+
+		expect(vm.cards.map((card) => card.ordinal)).toEqual(["0020", "0021", "0022", "0023", "0024"]);
+		expect(vm.showMore).toBeUndefined();
+	});
+
+	it("keeps a still-pending revealed card polling for its preview", () => {
+		const vm = buildMore({
+			links: [...crawledLinks(ARTICLES_PAGE_SIZE), link({ ordinal: formatEmailLinkOrdinal(20) })],
+			shown: 40,
+		});
+
+		expect(vm.cards).toHaveLength(1);
+		expect(vm.cards[0].cardPollUrl).toContain("/links/0020/card");
+	});
+
+	it("never reveals an excluded link as a card", () => {
+		const vm = buildMore({
+			links: [
+				...crawledLinks(ARTICLES_PAGE_SIZE),
+				link({ ordinal: formatEmailLinkOrdinal(20), status: "skipped", skipReason: "llm-ad" }),
+				...crawledLinks(1, 21),
+			],
+			shown: 40,
+		});
+
+		expect(vm.cards.map((card) => card.ordinal)).toEqual(["0021"]);
 	});
 });

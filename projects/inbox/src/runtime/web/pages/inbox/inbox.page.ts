@@ -25,11 +25,16 @@ import type { QuerystringFeatureToggle } from "@packages/web-shell";
 import { MAX_POLLS } from "@packages/web-shell";
 import { etagMatches } from "@packages/web-shell";
 import { renderInboxArticleCard } from "./inbox-article-card.component";
+import { renderInboxArticlesMore } from "./inbox-articles-more.component";
+import { parseArticlesShown } from "./inbox-articles-more.url";
 import { renderInboxArticlesPanel } from "./inbox-articles-panel.component";
 import { InboxEmailDetailPage } from "./inbox-email-detail.component";
 import { buildInboxEmailDetailUrl, parseMailTab } from "./inbox-email-detail.url";
 import { renderInboxLinkCount } from "./inbox-link-count.component";
-import { toInboxEmailDetailViewModel } from "./inbox-email-detail.viewmodel";
+import {
+	toInboxArticlesMoreViewModel,
+	toInboxEmailDetailViewModel,
+} from "./inbox-email-detail.viewmodel";
 import { InboxEmailsPage } from "./inbox-emails.component";
 import {
 	INBOX_EMAILS_PAGE_SIZE,
@@ -177,6 +182,7 @@ export function initInboxRoutes(deps: InboxDependencies): Router {
 			links,
 			linksMeta: meta,
 			maxPolls: MAX_POLLS,
+			shown: parseArticlesShown(req.query),
 			feedbackConfirmed: req.query.feedback === "sent",
 		});
 		sendComponent(req, res, Base(InboxEmailDetailPage(vm), await deps.buildBannerState(req)));
@@ -222,6 +228,28 @@ export function initInboxRoutes(deps: InboxDependencies): Router {
 				renderInboxArticlesPanel(vm.articles) +
 					renderInboxLinkCount({ label: vm.linkCountLabel, oob: true }),
 			);
+	});
+
+	router.get("/:id/articles/more", async (req: Request<{ id: string }>, res: Response) => {
+		assert(req.userId, "userId required - route must be protected by requireAuth");
+		const userId = req.userId;
+		const receivedAtMessageId = req.params.id;
+		const entry = await deps.inboxEmailStore.getEmail({ userId, receivedAtMessageId });
+		if (entry === undefined) {
+			res.status(404).type("html").send("");
+			return;
+		}
+		const { links } = await deps.inboxEmailLinkStore.listLinksByEmail({
+			userId,
+			receivedAtMessageId,
+		});
+		const vm = toInboxArticlesMoreViewModel({
+			links,
+			emailId: receivedAtMessageId,
+			shown: parseArticlesShown(req.query),
+			maxPolls: MAX_POLLS,
+		});
+		res.status(200).type("html").send(renderInboxArticlesMore(vm));
 	});
 
 	// The literal `links/:ordinal/card` suffix means `/:id` (single segment)

@@ -5,8 +5,9 @@ import type {
 	InboxEmailLinkEntry,
 	InboxEmailLinksMeta,
 } from "@packages/domain/inbox";
+import { ARTICLES_PAGE_SIZE, buildInboxArticlesMoreUrl } from "./inbox-articles-more.url";
 import { buildInboxArticlesPollUrl } from "./inbox-articles-poll-url";
-import type { MailTabKey } from "./inbox-email-detail.url";
+import { type MailTabKey, buildInboxEmailDetailUrl } from "./inbox-email-detail.url";
 import { buildInboxLinkFeedbackUrl } from "./inbox-link-feedback-url";
 import { buildLinkCountLabel } from "./inbox-link-count-label";
 import { type InboxLinkCardViewModel, toInboxLinkCardViewModel } from "./inbox-link-card.viewmodel";
@@ -34,8 +35,20 @@ export interface ExcludedLinkViewModel {
 	feedbackAction: string;
 }
 
+export interface ArticleShowMore {
+	detailHref: string;
+	moreUrl: string;
+	count: number;
+}
+
+export interface ArticleCardsPage {
+	cards: InboxLinkCardViewModel[];
+	showMore: ArticleShowMore | undefined;
+}
+
 export interface ArticlesPanelViewModel {
 	cards: InboxLinkCardViewModel[];
+	showMore: ArticleShowMore | undefined;
 	excluded: ExcludedLinkViewModel[];
 	isEmpty: boolean;
 	/** True while extraction has not yet written its meta barrier (a just-received
@@ -72,6 +85,54 @@ export interface InboxEmailDetailViewModel {
 	articles: ArticlesPanelViewModel;
 }
 
+function buildArticleCardsPage(input: {
+	allCards: InboxEmailLinkEntry[];
+	emailId: string;
+	from: number;
+	to: number;
+	maxPolls: number;
+}): ArticleCardsPage {
+	const cards = input.allCards.slice(input.from, input.to).map((link) =>
+		toInboxLinkCardViewModel({
+			link,
+			emailId: input.emailId,
+			pollCount: INITIAL_POLL_COUNT,
+			maxPolls: input.maxPolls,
+		}),
+	);
+	const shown = Math.min(input.to, input.allCards.length);
+	const remaining = input.allCards.length - shown;
+	if (remaining <= 0) return { cards, showMore: undefined };
+	const next = shown + ARTICLES_PAGE_SIZE;
+	return {
+		cards,
+		showMore: {
+			detailHref: buildInboxEmailDetailUrl({
+				emailId: input.emailId,
+				tab: "articles",
+				shown: next,
+			}),
+			moreUrl: buildInboxArticlesMoreUrl({ emailId: input.emailId, shown: next }),
+			count: Math.min(ARTICLES_PAGE_SIZE, remaining),
+		},
+	};
+}
+
+export function toInboxArticlesMoreViewModel(input: {
+	links: InboxEmailLinkEntry[];
+	emailId: string;
+	shown: number;
+	maxPolls: number;
+}): ArticleCardsPage {
+	return buildArticleCardsPage({
+		allCards: input.links.filter((link) => link.status !== "skipped"),
+		emailId: input.emailId,
+		from: input.shown - ARTICLES_PAGE_SIZE,
+		to: input.shown,
+		maxPolls: input.maxPolls,
+	});
+}
+
 export function toInboxEmailDetailViewModel(input: {
 	entry: InboxEmailEntry;
 	activeTab: MailTabKey;
@@ -79,22 +140,22 @@ export function toInboxEmailDetailViewModel(input: {
 	links: InboxEmailLinkEntry[];
 	linksMeta: InboxEmailLinksMeta | undefined;
 	maxPolls: number;
+	shown?: number;
 	/** The page-level poll tick: the full render starts at the initial count; the
 	 * `/inbox/:id/articles` fragment route passes the incremented count back. */
 	panelPollCount?: number;
 	feedbackConfirmed?: boolean;
 }): InboxEmailDetailViewModel {
 	const canRenderBody = input.entry.status === "received" && input.bodyHtml !== undefined;
-	const cards = input.links
-		.filter((link) => link.status !== "skipped")
-		.map((link) =>
-			toInboxLinkCardViewModel({
-				link,
-				emailId: input.entry.receivedAtMessageId,
-				pollCount: INITIAL_POLL_COUNT,
-				maxPolls: input.maxPolls,
-			}),
-		);
+	const allCards = input.links.filter((link) => link.status !== "skipped");
+	const totalCards = allCards.length;
+	const cardsPage = buildArticleCardsPage({
+		allCards,
+		emailId: input.entry.receivedAtMessageId,
+		from: 0,
+		to: input.shown ?? ARTICLES_PAGE_SIZE,
+		maxPolls: input.maxPolls,
+	});
 	const excluded = input.links
 		.filter((link) => link.status === "skipped")
 		.map(
@@ -145,11 +206,12 @@ export function toInboxEmailDetailViewModel(input: {
 		// terminal give-up, neither of which has a trustworthy count.
 		linkCountLabel: awaitingMeta
 			? undefined
-			: buildLinkCountLabel({ count: cards.length, truncated }),
+			: buildLinkCountLabel({ count: totalCards, truncated }),
 		articles: {
-			cards,
+			cards: cardsPage.cards,
+			showMore: cardsPage.showMore,
 			excluded,
-			isEmpty: cards.length === 0 && excluded.length === 0,
+			isEmpty: totalCards === 0 && excluded.length === 0,
 			isExtracting,
 			isStalePending,
 			panelPollUrl,

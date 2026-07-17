@@ -7,6 +7,7 @@ import {
 	type InboxEmailStatus,
 	InboxAddressSchema,
 	MessageIdSchema,
+	formatEmailLinkOrdinal,
 	parseEmail,
 	sanitizeEmailHtml,
 } from "@packages/domain/inbox";
@@ -93,6 +94,15 @@ async function seedExtractionMeta(
 		receivedAtMessageId: SK,
 		meta: { truncated: false },
 	});
+}
+
+function manyCrawledLinks(count: number): Partial<InboxEmailLinkEntry>[] {
+	return Array.from({ length: count }, (_unused, index) => ({
+		ordinal: formatEmailLinkOrdinal(index),
+		url: `https://example.com/post-${index}`,
+		status: "crawled" as const,
+		title: `Post ${index}`,
+	}));
 }
 
 const detailPath = `/inbox/${encodeURIComponent(SK)}?feature=email`;
@@ -409,6 +419,41 @@ describe("Inbox email detail Articles tab", () => {
 
 		const doc = parseDoc(response.text);
 		expect(doc.querySelector("[data-test-articles-truncated]")).not.toBeNull();
+	});
+
+	it("reveals only the first page of cards, with the control inside the appendable container", async () => {
+		const fixture = createDefaultTestAppFixture(TEST_APP_ORIGIN);
+		const harness = useApp(fixture);
+		const agent = await loginAgent(harness.server, harness.auth);
+		await seed(fixture, "received");
+		await seedLinks(fixture, manyCrawledLinks(25));
+
+		const response = await agent.get(articlesTabPath);
+
+		expect(response.status).toBe(200);
+		const doc = parseDoc(response.text);
+		expect(Array.from(doc.querySelectorAll("[data-test-inbox-article-card]"))).toHaveLength(20);
+		const control = doc.querySelector("[data-test-articles-show-more]");
+		assert(control, "the Show more control must offer the remaining cards");
+		expect(control.textContent).toBe("Show 5 more");
+		expect(control.getAttribute("href")).toBe(`${detailPath}&tab=articles&shown=40`);
+		expect(control.closest("[data-test-inbox-articles]")).not.toBeNull();
+		expect(doc.querySelector("[data-test-inbox-detail-link-count]")?.textContent).toBe("25 links");
+	});
+
+	it("renders the cumulative reveal a no-JS Show more navigation asks for", async () => {
+		const fixture = createDefaultTestAppFixture(TEST_APP_ORIGIN);
+		const harness = useApp(fixture);
+		const agent = await loginAgent(harness.server, harness.auth);
+		await seed(fixture, "received");
+		await seedLinks(fixture, manyCrawledLinks(25));
+
+		const response = await agent.get(`${articlesTabPath}&shown=40`);
+
+		expect(response.status).toBe(200);
+		const doc = parseDoc(response.text);
+		expect(Array.from(doc.querySelectorAll("[data-test-inbox-article-card]"))).toHaveLength(25);
+		expect(doc.querySelector("[data-test-articles-show-more]")).toBeNull();
 	});
 
 	it("polls the Articles panel while extraction has not yet written its meta barrier", async () => {
