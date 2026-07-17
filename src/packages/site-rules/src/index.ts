@@ -19,6 +19,13 @@ export type SiteArticleContent = {
  *   - `content` REPLACES the network fetch with site-supplied HTML (e.g. an
  *     oembed embed for a JS-only page); the crawler keys content off it like
  *     any fetched body.
+ *   - `redirect` RESTARTS the crawl at `url` — for interstitial hosts whose
+ *     response is a client-side redirect shell (e.g. apple.news) where only
+ *     the site knows how to resolve the real document URL. The target then
+ *     runs the full cascade and becomes the redirect terminal for identity
+ *     adoption, exactly as an HTTP 3xx terminal would. The site must return a
+ *     validated absolute http(s) URL — the value originates in remote HTML,
+ *     so the extracting site owns that boundary check.
  *   - `failed` fails the crawl closed — the site claimed the URL and could not
  *     produce content, so do NOT fall through to a normal fetch that would
  *     only capture the JS shell.
@@ -26,6 +33,7 @@ export type SiteArticleContent = {
  *     the normal fetch cascade runs. */
 export type SiteCrawlOutcome =
 	| { kind: "content"; html: string }
+	| { kind: "redirect"; url: string }
 	| { kind: "failed" }
 	| { kind: "skip" };
 

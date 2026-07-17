@@ -4,6 +4,7 @@ import type {
 	ExtractPdf,
 } from "@packages/crawl-article";
 import {
+	initAppleNewsSiteRules,
 	initCrawlArticle,
 	initCrawlFetch,
 	initFetchPinnedCrawl,
@@ -25,8 +26,10 @@ export type ParserDepBundle = {
 	crawlFetch: CrawlFetch;
 	crawlArticle: CrawlArticle;
 	parseHtml: ParseHtml;
-	/** Predicate over the same site-rule set the crawler uses, so identity
-	 * adoption can refuse to alias a terminal that gets bespoke oembed treatment. */
+	/** Predicate over the crawl-claiming site rules only (oembed replacement,
+	 * shell redirect) — NOT the parse-time rules, because `mediumSiteRules.matches`
+	 * is deliberately true for every hostname (custom-domain sniffing) and would
+	 * make identity adoption refuse every terminal. */
 	isSiteRuleUrl: (url: string) => boolean;
 };
 
@@ -50,12 +53,11 @@ export function initParserDepBundle(deps: {
 		personas: CRAWL_PERSONAS,
 		isBlocked: isBlockedIpAddress,
 	});
-	const siteRules = [
-		theInformationSiteRules,
-		mediumSiteRules,
-		linkedinSiteRules,
+	const crawlClaimingSiteRules = [
 		initXTwitterSiteRules({ crawlFetch, logError: deps.logError }),
+		initAppleNewsSiteRules({ crawlFetch, logError: deps.logError }),
 	];
+	const siteRules = [theInformationSiteRules, mediumSiteRules, linkedinSiteRules, ...crawlClaimingSiteRules];
 	const crawlArticle = initFetchPinnedCrawl({
 		crawlArticle: initCrawlArticle({ crawlFetch, siteRules, logError: deps.logError, logInfo: deps.logInfo }),
 		findAdoptedFetchUrl: deps.findAdoptedFetchUrl,
@@ -65,7 +67,7 @@ export function initParserDepBundle(deps: {
 		siteRules,
 		logError: deps.logError,
 	});
-	return { crawlFetch, crawlArticle, parseHtml, isSiteRuleUrl: initIsSiteRuleUrl(siteRules) };
+	return { crawlFetch, crawlArticle, parseHtml, isSiteRuleUrl: initIsSiteRuleUrl(crawlClaimingSiteRules) };
 }
 
 export type ComprehensiveParserDepBundle = {
@@ -93,12 +95,11 @@ export function initComprehensiveParserDepBundle(deps: {
 		personas: CRAWL_PERSONAS,
 		isBlocked: isBlockedIpAddress,
 	});
-	const siteRules = [
-		theInformationSiteRules,
-		mediumSiteRules,
-		linkedinSiteRules,
+	const crawlClaimingSiteRules = [
 		initXTwitterSiteRules({ crawlFetch, logError: deps.logError }),
+		initAppleNewsSiteRules({ crawlFetch, logError: deps.logError }),
 	];
+	const siteRules = [theInformationSiteRules, mediumSiteRules, linkedinSiteRules, ...crawlClaimingSiteRules];
 	const crawlArticle = initFetchPinnedCrawl({
 		crawlArticle: initCrawlArticle({
 			crawlFetch,
@@ -114,5 +115,5 @@ export function initComprehensiveParserDepBundle(deps: {
 		siteRules,
 		logError: deps.logError,
 	});
-	return { crawlFetch, crawlArticle, parseHtml, isSiteRuleUrl: initIsSiteRuleUrl(siteRules) };
+	return { crawlFetch, crawlArticle, parseHtml, isSiteRuleUrl: initIsSiteRuleUrl(crawlClaimingSiteRules) };
 }

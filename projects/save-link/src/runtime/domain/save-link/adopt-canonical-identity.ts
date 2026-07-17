@@ -85,8 +85,10 @@ export function initAdoptCanonicalIdentity(deps: {
 }
 
 /**
- * Predicate over the same site-rule set the crawler uses: does `url` get bespoke
- * site-rule crawl treatment (e.g. X/Twitter oembed)? A malformed URL or a
+ * Predicate over the crawl-claiming site rules (oembed replacement, shell
+ * redirect): does `url` get bespoke site-rule crawl treatment? Parse-time-only
+ * rules must NOT be passed in — `mediumSiteRules.matches` is deliberately true
+ * for every hostname, which would refuse every adoption. A malformed URL or a
  * throwing `matches` is treated as "no" so adoption fails open, never closed.
  */
 export function initIsSiteRuleUrl(siteRules: readonly SiteRules[]): (url: string) => boolean {
