@@ -5,10 +5,6 @@ import * as pulumi from "@pulumi/pulumi";
  * ECR repository for Lambda container images, scoped to image-based Lambdas
  * that ship native dependencies the standard zip path can't carry (e.g. the
  * `poppler-utils` binaries used by the OCR rasterizer).
- *
- * The lifecycle policy keeps the last 20 image tags so historical deploys can
- * be rolled back; older tags expire automatically rather than accumulating
- * unbounded storage cost.
  */
 export class HutchEcrRepository {
 	public readonly repositoryUrl: pulumi.Output<string>;

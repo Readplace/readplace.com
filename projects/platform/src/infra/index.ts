@@ -9,6 +9,7 @@ const eventBus = HutchEventBus.create("hutch", { eventBusName });
 
 const ocrLambdaRepository = HutchEcrRepository.create("hutch-ocr-lambda", {
 	repositoryName: ocrLambdaRepositoryName,
+	keepLastNImages: 200,
 });
 
 export const hutchEventBusName = eventBus.eventBusName;
