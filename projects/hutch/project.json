@@ -11,7 +11,7 @@
       "outputs": ["{projectRoot}/dist", "{projectRoot}/src/runtime/web/client-dist"]
     },
     "deploy-infra": {
-      "command": "PULUMI_CONFIG_PASSPHRASE='' pulumi up --stack \"${PULUMI_STACK:?PULUMI_STACK is not set}\" $([ \"$CI\" = true ] && echo --yes)",
+      "command": "PULUMI_CONFIG_PASSPHRASE='' pulumi up --stack \"${PULUMI_STACK:?PULUMI_STACK is not set}\" $([ \"$CI\" = true ] && echo --yes) $([ \"$CI\" = true ] && [ \"$PULUMI_STACK\" = staging ] && echo --skip-preview)",
       "options": { "cwd": "{projectRoot}" },
       "dependsOn": ["compile"]
     },
