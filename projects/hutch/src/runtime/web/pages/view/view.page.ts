@@ -1,5 +1,5 @@
 import assert from "node:assert";
-import type { Request, Response, Router } from "express";
+import type { NextFunction, Request, Response, Router } from "express";
 import express from "express";
 import type {
 	ArticleMetadata,
@@ -32,6 +32,7 @@ import { isbot } from "isbot";
 import { decomposeTimeLeft } from "@packages/time-left";
 import type { HutchLogger } from "@packages/hutch-logger";
 import { articleHostFrom, hashIp, type AnalyticsEvent } from "@packages/web-analytics";
+import { noindexMiddleware } from "../../middleware/noindex.middleware";
 import { rateLimitKeyFromRequest, sendRateLimited } from "../../middleware/rate-limit";
 import { ANALYTICS_EVENTS, STREAMS } from "../../../observability/events";
 import { wantsMarkdown, htmlToMarkdown, buildMarkdownFrontmatter, MarkdownPage, sendComponent } from "@packages/web-shell";
@@ -360,9 +361,21 @@ function handleViewReader(deps: ViewDependencies, reader: ReturnType<typeof init
 	};
 }
 
+function redirectMixedCaseMount(req: Request, res: Response, next: NextFunction): void {
+	const lowercaseMount = req.baseUrl.toLowerCase();
+	if (req.baseUrl === lowercaseMount) {
+		next();
+		return;
+	}
+	res.redirect(301, `${lowercaseMount}${req.url}`);
+}
+
 export function initViewRoutes(deps: ViewDependencies): Router {
 	const router = express.Router();
 	const reader = initArticleReader(buildArticleReaderDeps(deps));
+
+	router.use(noindexMiddleware);
+	router.use(redirectMixedCaseMount);
 
 	router.get("/", handleViewRoot(deps));
 	router.get("/summary", handleViewSummary(deps, reader));

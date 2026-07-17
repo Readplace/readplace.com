@@ -281,7 +281,7 @@ describe("GET /blog with Accept: text/markdown", () => {
 
 	it("emits the Content-Signal policy and Vary: Accept", async () => {
 		const response = await request(app).get("/blog").set("Accept", "text/markdown");
-		expect(response.headers["content-signal"]).toBe("search=yes, ai-input=yes, ai-train=no");
+		expect(response.headers["content-signal"]).toBe("search=yes, ai-input=yes, ai-train=yes");
 		expect(response.headers.vary).toMatch(/\bAccept\b/);
 	});
 
@@ -422,10 +422,28 @@ describe("changelog banner on /blog pages", () => {
 	});
 });
 
+describe("robots directives", () => {
+	it("pins the blog index to index, follow so the blog is always indexable", async () => {
+		const response = await request(app).get("/blog");
+		const doc = new JSDOM(response.text).window.document;
+		expect(doc.querySelector('meta[name="robots"]')?.getAttribute("content")).toBe(
+			"index, follow",
+		);
+	});
+
+	it("pins every post to index, follow so the blog is always indexable", async () => {
+		const response = await request(app).get(`/blog/${firstPost.slug}`);
+		const doc = new JSDOM(response.text).window.document;
+		expect(doc.querySelector('meta[name="robots"]')?.getAttribute("content")).toBe(
+			"index, follow",
+		);
+	});
+});
+
 describe("HTML responses carry the Content-Signal header", () => {
 	it("sets Content-Signal and Vary: Accept on a plain HTML GET", async () => {
 		const response = await request(app).get(`/blog/${firstPost.slug}`);
-		expect(response.headers["content-signal"]).toBe("search=yes, ai-input=yes, ai-train=no");
+		expect(response.headers["content-signal"]).toBe("search=yes, ai-input=yes, ai-train=yes");
 		expect(response.headers.vary).toMatch(/\bAccept\b/);
 	});
 });

@@ -58,21 +58,21 @@ describe("createBlockNaiveBotMiddleware", () => {
 		expect(result.status).toBeUndefined();
 	});
 
-	it("allows GPTBot — robots.txt at projects/hutch/src/runtime/server.ts:258-259 explicitly allows it", () => {
+	it("allows GPTBot — UA-level blocking is not this policy's job; robots.txt scopes what it may crawl", () => {
 		const result = run({
 			ua: "Mozilla/5.0 AppleWebKit/537.36 (KHTML, like Gecko); compatible; GPTBot/1.2; +https://openai.com/gptbot",
 		});
 		expect(result.nextCalled).toBe(true);
 	});
 
-	it("allows ClaudeBot — robots.txt at projects/hutch/src/runtime/server.ts:264-265 explicitly allows it", () => {
+	it("allows ClaudeBot — UA-level blocking is not this policy's job; robots.txt scopes what it may crawl", () => {
 		const result = run({
 			ua: "Mozilla/5.0 (compatible; ClaudeBot/1.0; +claudebot@anthropic.com)",
 		});
 		expect(result.nextCalled).toBe(true);
 	});
 
-	it("allows PerplexityBot — robots.txt at projects/hutch/src/runtime/server.ts:261-262 explicitly allows it", () => {
+	it("allows PerplexityBot — UA-level blocking is not this policy's job; robots.txt scopes what it may crawl", () => {
 		const result = run({
 			ua: "Mozilla/5.0 (compatible; PerplexityBot/1.0; +https://perplexity.ai/perplexitybot)",
 		});

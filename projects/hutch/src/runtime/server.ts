@@ -192,7 +192,8 @@ import { changelogDismissMiddleware } from "./web/changelog-dismiss.middleware";
 import { initChangelogDismissRoute } from "./web/pages/banner/changelog-dismiss.route";
 import { sendComponent, wantsMarkdown } from "@packages/web-shell";
 import { wantsSiren } from "./web/content-negotiation";
-import { CONTENT_SIGNAL_VALUE, contentSignalMiddleware } from "./web/content-signal.middleware";
+import { contentSignalMiddleware } from "./web/content-signal.middleware";
+import { buildRobotsTxt } from "./web/robots-txt";
 import { linkHeaderMiddleware } from "./web/link-header.middleware";
 import { AGENT_SCOPES_SUPPORTED, buildAgentAuthMetadata, renderAuthMarkdown } from "./web/agent-auth";
 import { QuerystringFeatureToggle } from "@packages/web-shell";
@@ -521,32 +522,7 @@ export function createApp(dependencies: AppDependencies): Express {
 	});
 
 	app.get("/robots.txt", (_req: Request, res: Response) => {
-		res.type("text/plain").send(
-			[
-				"User-agent: *",
-				`Content-Signal: ${CONTENT_SIGNAL_VALUE}`,
-				"Allow: /",
-				`Disallow: ${QUEUE_PATH}`,
-				"Disallow: /export",
-				"Disallow: /oauth",
-				"Disallow: /forgot-password",
-				"",
-				"User-agent: GPTBot",
-				"Allow: /",
-				"",
-				"User-agent: PerplexityBot",
-				"Allow: /",
-				"",
-				"User-agent: ClaudeBot",
-				"Allow: /",
-				"",
-				"User-agent: Googlebot",
-				"Allow: /",
-				"",
-				`Sitemap: ${dependencies.baseUrl}/sitemap.xml`,
-				`Sitemap: ${dependencies.baseUrl}/blog/sitemap.xml`,
-			].join("\n"),
-		);
+		res.type("text/plain").send(buildRobotsTxt(dependencies.baseUrl));
 	});
 
 	app.get("/llms.txt", (_req: Request, res: Response) => {
@@ -574,11 +550,9 @@ export function createApp(dependencies: AppDependencies): Express {
 			{ loc: "/", priority: "1.0", changefreq: "weekly", lastmod: "2026-04-08" },
 			{ loc: "/install", priority: "0.8", changefreq: "monthly", lastmod: "2026-03-01" },
 			{ loc: "/import", priority: "0.8", changefreq: "monthly", lastmod: "2026-07-07" },
+			{ loc: "/embed", priority: "0.5", changefreq: "monthly", lastmod: "2026-07-17" },
 			{ loc: "/login", priority: "0.5", changefreq: "yearly", lastmod: "2026-03-01" },
 			{ loc: "/signup", priority: "0.5", changefreq: "yearly", lastmod: "2026-03-01" },
-			{ loc: "/privacy", priority: "0.3", changefreq: "yearly", lastmod: "2026-03-01" },
-			{ loc: "/terms", priority: "0.3", changefreq: "yearly", lastmod: "2026-06-24" },
-			{ loc: "/support", priority: "0.3", changefreq: "yearly", lastmod: "2026-07-05" },
 			{ loc: "/llms.txt", priority: "0.3", changefreq: "monthly", lastmod: "2026-04-08" },
 			{ loc: "/llms-full.txt", priority: "0.3", changefreq: "monthly", lastmod: "2026-04-08" },
 			{ loc: "/auth.md", priority: "0.3", changefreq: "monthly", lastmod: "2026-06-13" },

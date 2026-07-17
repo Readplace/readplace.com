@@ -1,10 +1,8 @@
 import type { NextFunction, Request, Response } from "express";
 
-export const CONTENT_SIGNAL_VALUE = "search=yes, ai-input=yes, ai-train=yes";
+export const CONTENT_SIGNAL_VALUE = "search=yes, ai-input=yes, ai-train=no";
 
-/** The sitemap is machine metadata, not a reader-facing page, so it carries no
- * Content-Signal policy and no Accept negotiation. */
-const NON_PAGE_PATHS = ["/blog/sitemap.xml"];
+const NON_PAGE_PATHS = ["/icon.svg", "/embed.client.js"];
 
 export function contentSignalMiddleware(
 	req: Request,

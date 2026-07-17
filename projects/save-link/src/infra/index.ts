@@ -3,6 +3,7 @@ import * as pulumi from "@pulumi/pulumi";
 import * as aws from "@pulumi/aws";
 import assert from "node:assert";
 import { z } from "zod";
+import { buildMediaRobotsTxt } from "@packages/domain/crawler-policy";
 import {
 	HutchEventBus,
 	HutchLambda,
@@ -181,6 +182,13 @@ const contentMediaCustomDomain = contentMediaCdnDomain
 const contentMediaCdn = new HutchS3ContentMediaCDN("content-media", {
 	contentBucket,
 	customDomain: contentMediaCustomDomain,
+});
+
+new aws.s3.BucketObject("content-media-robots-txt", {
+	bucket: contentBucket.bucket,
+	key: "robots.txt",
+	content: buildMediaRobotsTxt(),
+	contentType: "text/plain",
 });
 
 const deepseekApiKey = pulumi.secret(requireEnv("DEEPSEEK_API_KEY"));

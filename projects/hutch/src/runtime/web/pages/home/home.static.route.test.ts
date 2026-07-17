@@ -140,10 +140,49 @@ describe("GET /robots.txt", () => {
 		expect(response.text).toContain("Sitemap: http://localhost:3000/blog/sitemap.xml");
 	});
 
-	it("declares the same Content-Signal policy as the HTTP header", async () => {
+	it("declares only the origin-wide Content-Signal values, leaving ai-train to per-path headers", async () => {
 		const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
 		const response = await request(harness.server).get("/robots.txt");
-		expect(response.text).toContain("Content-Signal: search=yes, ai-input=yes, ai-train=no");
+		expect(response.text).toContain("Content-Signal: search=yes, ai-input=yes");
+		expect(response.text).not.toContain("ai-train");
+	});
+
+	it("keeps /view crawlable for search engines but disallows it for AI crawlers", async () => {
+		const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
+		const response = await request(harness.server).get("/robots.txt");
+
+		const groups = response.text.split("\n\n").map((group: string) => group.split("\n"));
+		const defaultGroup = groups.find((lines: string[]) => lines[0] === "User-agent: *");
+		assert.ok(defaultGroup, "robots.txt must have a default group");
+		expect(defaultGroup).not.toContain("Disallow: /view");
+
+		for (const agent of ["GPTBot", "ClaudeBot", "PerplexityBot", "CCBot"]) {
+			const group = groups.find((lines: string[]) => lines[0] === `User-agent: ${agent}`);
+			assert.ok(group, `robots.txt must have a group for ${agent}`);
+			expect(group).toContain("Disallow: /view");
+			expect(group).toContain("Disallow: /queue");
+		}
+	});
+
+	it("opens the shared queue permalinks so crawlers can follow the redirect to /view's noindex", async () => {
+		const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
+		const response = await request(harness.server).get("/robots.txt");
+		expect(response.text).toContain("Allow: /queue/*/view$");
+		expect(response.text).toContain("Allow: /queue/*/view?");
+		expect(response.text).toContain("Allow: /queue/*/read$");
+		expect(response.text).toContain("Allow: /queue/*/read?");
+	});
+
+	it("never disallows the blog", async () => {
+		const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
+		const response = await request(harness.server).get("/robots.txt");
+		expect(response.text).not.toContain("Disallow: /blog");
+	});
+
+	it("has no Googlebot group so Googlebot falls back to the default rules", async () => {
+		const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
+		const response = await request(harness.server).get("/robots.txt");
+		expect(response.text).not.toContain("User-agent: Googlebot");
 	});
 });
 
@@ -262,11 +301,9 @@ describe("GET /sitemap.xml", () => {
 			"http://localhost:3000/",
 			"http://localhost:3000/install",
 			"http://localhost:3000/import",
+			"http://localhost:3000/embed",
 			"http://localhost:3000/login",
 			"http://localhost:3000/signup",
-			"http://localhost:3000/privacy",
-			"http://localhost:3000/terms",
-			"http://localhost:3000/support",
 			"http://localhost:3000/llms.txt",
 			"http://localhost:3000/llms-full.txt",
 			"http://localhost:3000/auth.md",

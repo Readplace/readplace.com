@@ -455,6 +455,7 @@ describe("Queue routes", () => {
 			expect(response.headers.location).toBe(
 				`/queue/${articleHash}/view?utm_source=twitter&utm_medium=social`,
 			);
+			expect(response.headers["x-robots-tag"]).toBe("noindex");
 		});
 
 		it("should redirect to queue for non-existent article", async () => {
@@ -503,6 +504,7 @@ describe("Queue routes", () => {
 			const response = await request(harness.server).get(`/queue/${articleId}/view`);
 
 			expect(response.status).toBe(302);
+			expect(response.headers["x-robots-tag"]).toBe("noindex");
 			const location = new URL(response.headers.location, TEST_APP_ORIGIN);
 			expect(location.pathname).toBe(`/view/${new URL(articleUrl).host}${new URL(articleUrl).pathname}`);
 			expect(location.searchParams.get("utm_source")).toBe("read");
@@ -534,11 +536,33 @@ describe("Queue routes", () => {
 			const response = await guestAgent.get(`/queue/${articleId}/view`);
 
 			expect(response.status).toBe(302);
+			expect(response.headers["x-robots-tag"]).toBe("noindex");
 			const location = new URL(response.headers.location, TEST_APP_ORIGIN);
 			expect(location.pathname).toBe(`/view/${new URL(articleUrl).host}${new URL(articleUrl).pathname}`);
 			expect(location.searchParams.get("utm_source")).toBe("read");
 			expect(location.searchParams.get("utm_medium")).toBe("share");
 			expect(location.searchParams.get("utm_campaign")).toBe("read-permalink");
+		});
+
+		it("marks the owner-rendered reader page noindex via header to match its meta tag", async () => {
+			const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
+			const { auth } = harness;
+			const ownerAgent = await loginAgent(harness.server, auth);
+
+			const articleUrl = "https://example.com/owner-reader-headers";
+			await ownerAgent.post("/queue/save").type("form").send({ url: articleUrl });
+
+			const queueResponse = await ownerAgent.get("/queue");
+			const articleId = new JSDOM(queueResponse.text).window.document
+				.querySelector("[data-test-article-list] .queue-article")
+				?.getAttribute("data-test-article");
+			assert.ok(articleId, "owner must see the saved article in their queue");
+
+			const response = await ownerAgent.get(`/queue/${articleId}/view`);
+
+			expect(response.status).toBe(200);
+			expect(response.headers["x-robots-tag"]).toBe("noindex");
+			expect(response.headers["content-signal"]).toBe("search=no, ai-input=no, ai-train=no");
 		});
 
 		it("redirects a logged-out owner arriving via the reader-ready email marker to /login, returning to the private reader after login", async () => {

@@ -72,6 +72,7 @@ import type { BuildBannerState } from "../../banner-state";
 import { selectChangelogBanner } from "../../banner-state";
 import type { GetChangelogBanner } from "../../changelog-banner-source";
 import { sendComponent } from "@packages/web-shell";
+import { noindexMiddleware } from "../../middleware/noindex.middleware";
 import { requireNotLocked } from "../../middleware/require-not-locked.middleware";
 import { RedirectComponent, type Redirect } from "../../redirect.component";
 import { CacheableComponent } from "../../conditional-get";
@@ -455,7 +456,7 @@ export function initQueueRoutes(deps: QueueDependencies): Router {
 	 * The `/queue/:id/read` URL 301-redirects to `/queue/:id/view` so
 	 * existing bookmarks, share links, search-engine indexes and Siren
 	 * `rel="read"` hrefs keep resolving. */
-	router.get("/:id/read", (req: Request, res: Response) => {
+	router.get("/:id/read", noindexMiddleware, (req: Request, res: Response) => {
 		const queryIndex = req.originalUrl.indexOf("?");
 		const queryString = queryIndex !== -1 ? req.originalUrl.slice(queryIndex) : "";
 		res.redirect(301, `${QUEUE_PATH}/${req.params.id}/view${queryString}`);
@@ -505,7 +506,7 @@ export function initQueueRoutes(deps: QueueDependencies): Router {
 		return { kind: "ready", article: ownedArticle, state, audioEnabled };
 	};
 
-	router.get("/:id/view", async (req: Request<{ id: string }>, res: Response) => {
+	router.get("/:id/view", noindexMiddleware, async (req: Request<{ id: string }>, res: Response) => {
 		const resolved = await resolveOwnerReader(req);
 		if (resolved.kind === "redirect") {
 			sendComponent(req, res, RedirectComponent(resolved.redirect));

@@ -17,6 +17,7 @@ export function BlogPostPage(params: { post: BlogPost }): PageBody {
 			description: post.description,
 			canonicalUrl: `https://readplace.com/blog/${post.slug}`,
 			ogType: "article",
+			robots: "index, follow",
 			author: post.author,
 			keywords: post.keywords,
 			structuredData: [
