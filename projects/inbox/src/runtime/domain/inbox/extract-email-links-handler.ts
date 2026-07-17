@@ -1,3 +1,4 @@
+import assert from "node:assert";
 import type {
 	Handler,
 	SQSBatchItemFailure,
@@ -19,6 +20,8 @@ import {
 } from "@packages/domain/inbox";
 import { extractUrls } from "@packages/domain/import-session";
 import { type UserId, UserIdSchema } from "@packages/domain/user";
+import { collectEmailAnchors } from "./collect-email-anchors";
+import { LLM_SKIP_REASONS, type TriageEmailLinks } from "./triage-email-links";
 
 /**
  * Consumes `EmailReceivedEvent` and turns the links found inside the email into
@@ -39,6 +42,7 @@ export function initExtractEmailLinksHandler(deps: {
 	parseEmail: (input: { raw: Buffer; receivedAt: string }) => Promise<ParseEmailResult>;
 	deriveSanitizedBody: (input: { html: string; inlineImages: ParsedEmailInlineImage[] }) => string;
 	putLink: InboxEmailLinkStore["putLink"];
+	getLink: InboxEmailLinkStore["getLink"];
 	putLinksMeta: InboxEmailLinkStore["putLinksMeta"];
 	publishCrawlPreview: (input: {
 		userId: UserId;
@@ -51,6 +55,7 @@ export function initExtractEmailLinksHandler(deps: {
 		receivedAtMessageId: string;
 		found: number;
 	}) => Promise<void>;
+	triageEmailLinks: TriageEmailLinks;
 	logger: HutchLogger;
 	maxLinks: number;
 }): Handler<SQSEvent, SQSBatchResponse> {
@@ -60,9 +65,11 @@ export function initExtractEmailLinksHandler(deps: {
 		parseEmail,
 		deriveSanitizedBody,
 		putLink,
+		getLink,
 		putLinksMeta,
 		publishCrawlPreview,
 		alertTruncated,
+		triageEmailLinks,
 		logger,
 		maxLinks,
 	} = deps;
@@ -119,9 +126,33 @@ export function initExtractEmailLinksHandler(deps: {
 				const extracted = extractUrls(Buffer.from(decodeHtmlEntities(sanitizedHtml), "utf8"));
 				const { urls, truncated } = capEmailLinks(extracted, { maxLinks });
 
+				const links = urls.map((url, index) => ({
+					url,
+					ordinal: formatEmailLinkOrdinal(index),
+					classification: classifyEmailLink({
+						url,
+						listUnsubscribeUrls: parsedEmail.email.listUnsubscribeUrls,
+					}),
+				}));
+				const crawlCandidates = links.filter((link) => link.classification.action === "crawl");
+				// One batched triage call per email; `unavailable` fails open so previews
+				// never depend on the model being up.
+				let triage: Awaited<ReturnType<TriageEmailLinks>> | undefined;
+				if (crawlCandidates.length > 0) {
+					const anchors = collectEmailAnchors(sanitizedHtml);
+					triage = await triageEmailLinks({
+						subject: email.subject,
+						from: email.senderEmail,
+						links: crawlCandidates.map((link) => ({
+							ordinal: link.ordinal,
+							url: link.url,
+							anchorText: anchors.get(link.url) ?? "",
+						})),
+					});
+				}
+
 				let skipped = 0;
-				for (const [index, url] of urls.entries()) {
-					const ordinal = formatEmailLinkOrdinal(index);
+				for (const { url, ordinal, classification } of links) {
 					const link = {
 						userId,
 						receivedAtMessageId,
@@ -133,10 +164,6 @@ export function initExtractEmailLinksHandler(deps: {
 						imageUrl: undefined,
 						failureReason: undefined,
 					};
-					const classification = classifyEmailLink({
-						url,
-						listUnsubscribeUrls: parsedEmail.email.listUnsubscribeUrls,
-					});
 					if (classification.action === "skip") {
 						// Terminal at birth: a skipped link is never crawled, so no
 						// CrawlEmailLinkPreview is published for it and its card never polls.
@@ -144,10 +171,26 @@ export function initExtractEmailLinksHandler(deps: {
 						skipped += 1;
 						continue;
 					}
+					const category =
+						triage?.status === "triaged" ? triage.categories.get(ordinal) : undefined;
+					if (category !== undefined && category !== "article") {
+						await putLink({ ...link, status: "skipped", skipReason: LLM_SKIP_REASONS[category] });
+						skipped += 1;
+						continue;
+					}
 					// Put the pending row BEFORE publishing so the Articles tab shows N
 					// pending cards immediately; a re-delivery hits the conditional put as
-					// a no-op duplicate, then re-publishes (the crawl consumer is idempotent).
-					await putLink({ ...link, status: "pending", skipReason: undefined });
+					// a no-op duplicate, then re-publishes while the row is still pending
+					// (the crawl consumer is idempotent).
+					const putResult = await putLink({ ...link, status: "pending", skipReason: undefined });
+					if (putResult === "duplicate") {
+						const existing = await getLink({ userId, receivedAtMessageId, ordinal });
+						assert(existing, "conditional put reported a duplicate but the row is missing");
+						// Triage verdicts are not deterministic across re-deliveries: a row a
+						// previous delivery terminally skipped must never be crawled by a
+						// later delivery that judged the same URL an article.
+						if (existing.status !== "pending") continue;
+					}
 					await publishCrawlPreview({ userId, receivedAtMessageId, ordinal, url });
 				}
 

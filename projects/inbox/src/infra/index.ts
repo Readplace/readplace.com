@@ -13,6 +13,7 @@ import {
 	CrawlEmailLinkPreview,
 	EmailReceivedEvent,
 } from "@packages/hutch-infra-components";
+import { requireEnv } from "@packages/require-env";
 
 /**
  * inbox is deployed as its own Lambda behind hutch's existing API Gateway:
@@ -27,6 +28,7 @@ import {
  * would steal hutch's live rule/queue instead of standing up beside it.
  */
 const config = new pulumi.Config();
+const deepseekApiKey = pulumi.secret(requireEnv("DEEPSEEK_API_KEY"));
 const nodeEnv = config.require("nodeEnv");
 const staticBaseUrl = config.require("staticBaseUrl");
 const alertEmail = config.require("alertEmail");
@@ -278,8 +280,14 @@ const extractEmailLinksDynamodb = new HutchDynamoDBAccess("inbox-extract-email-l
 	actions: ["dynamodb:GetItem", "dynamodb:PutItem"],
 });
 
+const EXTRACT_EMAIL_LINKS_TIMEOUT_SECONDS = 180;
+/** SQS starts the visibility clock at receive, before the Lambda invocation
+ * begins, so visibility must outlive the worker timeout by the receive-to-invoke
+ * gap or a still-running extraction gets redelivered in its final seconds. */
+const RECEIVE_TO_INVOKE_GUARD_SECONDS = 60;
+
 const extractEmailLinksQueue = new HutchSQS("inbox-extract-email-links", {
-	visibilityTimeoutSeconds: 120,
+	visibilityTimeoutSeconds: EXTRACT_EMAIL_LINKS_TIMEOUT_SECONDS + RECEIVE_TO_INVOKE_GUARD_SECONDS,
 });
 
 // Truncation is a successful degradation (the first N previews still shipped), not
@@ -335,12 +343,15 @@ const extractEmailLinksLambda = new HutchLambda("inbox-extract-email-links", {
 	outputDir: ".lib/inbox-extract-email-links",
 	assetDir: "./src/runtime",
 	memorySize: 1024,
-	timeout: 120,
+	// Headroom for the bounded LLM triage attempts on top of the parse and the
+	// per-link write fan-out.
+	timeout: EXTRACT_EMAIL_LINKS_TIMEOUT_SECONDS,
 	environment: {
 		DYNAMODB_INBOX_EMAILS_TABLE: tableNames.inboxEmails,
 		DYNAMODB_INBOX_EMAIL_LINKS_TABLE: tableNames.inboxEmailLinks,
 		RAW_EMAIL_BUCKET_NAME: rawEmailBucketName,
 		EVENT_BUS_NAME: eventBus.eventBusName,
+		DEEPSEEK_API_KEY: deepseekApiKey,
 		// A typical newsletter has < 30 links; 200 is generous headroom before the
 		// per-email cap truncates and the working path still ships the first 200.
 		INBOX_MAX_LINKS_PER_EMAIL: String(200),

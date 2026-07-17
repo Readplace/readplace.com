@@ -532,6 +532,9 @@ importers:
       '@aws-sdk/client-sqs':
         specifier: 3.1057.0
         version: 3.1057.0
+      '@packages/ai-message':
+        specifier: workspace:*
+        version: link:../../src/packages/ai-message
       '@packages/article-parser':
         specifier: workspace:*
         version: link:../../src/packages/article-parser
@@ -589,6 +592,12 @@ importers:
       helmet:
         specifier: 8.2.0
         version: 8.2.0
+      linkedom:
+        specifier: 0.18.12
+        version: 0.18.12
+      openai:
+        specifier: 6.39.1
+        version: 6.39.1(ws@8.21.0)(zod@4.4.3)
       serverless-http:
         specifier: 4.0.0
         version: 4.0.0
@@ -684,6 +693,9 @@ importers:
       '@aws-sdk/client-sqs':
         specifier: 3.1057.0
         version: 3.1057.0
+      '@packages/ai-message':
+        specifier: workspace:*
+        version: link:../../src/packages/ai-message
       '@packages/article-parser':
         specifier: workspace:*
         version: link:../../src/packages/article-parser
@@ -924,6 +936,24 @@ importers:
       supertest:
         specifier: 7.2.2
         version: 7.2.2
+      typescript:
+        specifier: 6.0.3
+        version: 6.0.3
+
+  src/packages/ai-message:
+    devDependencies:
+      '@types/jest':
+        specifier: 30.0.0
+        version: 30.0.0
+      c8:
+        specifier: 11.0.0
+        version: 11.0.0
+      concurrently:
+        specifier: 10.0.0
+        version: 10.0.0
+      jest:
+        specifier: 30.4.2
+        version: 30.4.2(@types/node@22.19.19)(node-notifier@10.0.1)(ts-node@10.9.2(@types/node@22.19.19)(typescript@6.0.3))
       typescript:
         specifier: 6.0.3
         version: 6.0.3

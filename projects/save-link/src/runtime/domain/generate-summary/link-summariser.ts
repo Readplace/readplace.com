@@ -3,7 +3,7 @@ import { join } from "node:path";
 import { z } from "zod";
 import type { SummarySkipReason } from "@packages/article-state-types";
 import type { HutchLogger } from "@packages/hutch-logger";
-import type { CreateAiMessage } from "./create-ai-message.types";
+import type { CreateAiMessage } from "@packages/ai-message";
 import type { MarkSummaryStage } from "../../providers/article-crawl/mark-summary-stage";
 import { MAX_EXCERPT_LENGTH, MAX_SUMMARY_LENGTH } from "@packages/provider-contracts/article-summary";
 import { DEEPSEEK_CONTEXT_TOKENS } from "../select-content/deepseek-limits";

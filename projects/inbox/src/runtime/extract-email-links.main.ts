@@ -1,13 +1,16 @@
 import assert from "node:assert";
 import { S3Client } from "@aws-sdk/client-s3";
 import { SendMessageCommand, SQSClient } from "@aws-sdk/client-sqs";
+import { initCreateDeepseekMessage } from "@packages/ai-message";
 import { deriveSanitizedBody, EMAIL_LINK_ORDINAL_CAPACITY, parseEmail } from "@packages/domain/inbox";
 import { CrawlEmailLinkPreview } from "@packages/hutch-infra-components";
 import { EventBridgeClient, initEventBridgePublisher } from "@packages/hutch-infra-components/runtime";
 import { HutchLogger, consoleLogger } from "@packages/hutch-logger";
 import { createDynamoDocumentClient } from "@packages/hutch-storage-client";
 import { requireEnv } from "@packages/require-env";
+import OpenAI from "openai";
 import { initExtractEmailLinksHandler } from "./domain/inbox/extract-email-links-handler";
+import { initTriageEmailLinks } from "./domain/inbox/triage-email-links";
 import { initDynamoDbInboxEmail, initDynamoDbInboxEmailLink, initS3ReadRawEmail } from "@packages/inbox-store";
 
 const inboxEmailsTable = requireEnv("DYNAMODB_INBOX_EMAILS_TABLE");
@@ -15,6 +18,7 @@ const inboxEmailLinksTable = requireEnv("DYNAMODB_INBOX_EMAIL_LINKS_TABLE");
 const rawEmailBucketName = requireEnv("RAW_EMAIL_BUCKET_NAME");
 const eventBusName = requireEnv("EVENT_BUS_NAME");
 const truncationAlertQueueUrl = requireEnv("EXTRACT_LINKS_TRUNCATION_ALERT_QUEUE_URL");
+const deepseekApiKey = requireEnv("DEEPSEEK_API_KEY");
 const maxLinks = Number.parseInt(requireEnv("INBOX_MAX_LINKS_PER_EMAIL"), 10);
 assert(
 	maxLinks <= EMAIL_LINK_ORDINAL_CAPACITY,
@@ -26,6 +30,19 @@ const sqsClient = new SQSClient({});
 const dynamoClient = createDynamoDocumentClient();
 const eventBridgeClient = new EventBridgeClient({});
 const logger = HutchLogger.from(consoleLogger);
+const TRIAGE_DEEPSEEK_TIMEOUT_MS = 60_000;
+const deepseekClient = new OpenAI({
+	apiKey: deepseekApiKey,
+	baseURL: "https://api.deepseek.com",
+	timeout: TRIAGE_DEEPSEEK_TIMEOUT_MS,
+	// The SDK would retry timeouts invisibly and stack attempts past the Lambda
+	// budget; retrying is the triage loop's bounded, logged decision instead.
+	maxRetries: 0,
+});
+const createAiMessage = initCreateDeepseekMessage({
+	createChatCompletion: (params) => deepseekClient.chat.completions.create(params),
+});
+const { triageEmailLinks } = initTriageEmailLinks({ createAiMessage, logger });
 
 const inboxEmailStore = initDynamoDbInboxEmail({ client: dynamoClient, tableName: inboxEmailsTable });
 const inboxEmailLinkStore = initDynamoDbInboxEmailLink({
@@ -40,6 +57,7 @@ export const handler = initExtractEmailLinksHandler({
 	parseEmail,
 	deriveSanitizedBody,
 	putLink: inboxEmailLinkStore.putLink,
+	getLink: inboxEmailLinkStore.getLink,
 	putLinksMeta: inboxEmailLinkStore.putLinksMeta,
 	publishCrawlPreview: (input) => publishEvent(CrawlEmailLinkPreview, input),
 	alertTruncated: async (input) => {
@@ -52,6 +70,7 @@ export const handler = initExtractEmailLinksHandler({
 			}),
 		);
 	},
+	triageEmailLinks,
 	logger,
 	maxLinks,
 });

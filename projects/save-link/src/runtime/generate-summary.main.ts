@@ -10,9 +10,9 @@ import {
 import { consoleLogger } from "@packages/hutch-logger";
 import { createDynamoDocumentClient } from "@packages/hutch-storage-client";
 import OpenAI from "openai";
+import { initCreateDeepseekMessage } from "@packages/ai-message";
 import { initDynamoDbArticleStore } from "@packages/article-store";
 import { initLambdaEffectDispatcher } from "./domain/article-aggregate/lambda-effect-dispatcher";
-import { initCreateDeepseekMessage } from "./domain/generate-summary/create-deepseek-message";
 import { initDynamoDbMarkSummaryStage } from "./providers/article-crawl/mark-summary-stage";
 import { initGenerateSummaryHandler } from "./domain/generate-summary/generate-summary-handler";
 import { initLinkSummariser } from "./domain/generate-summary/link-summariser";
