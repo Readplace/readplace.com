@@ -23,7 +23,7 @@ import {
 import { initExtractLinksFromPageUrl } from "@packages/extract-links-from-page";
 import { initCrawlAndFinalizeArticle, initFinalizeArticle } from "@packages/finalize-article";
 import type { PublishStaleCheckRequested } from "@packages/provider-contracts/events";
-import { initReadabilityParser, linkedinSiteRules, mediumSiteRules, theInformationSiteRules } from "@packages/article-parser";
+import { initReadabilityParser, linkedinSiteRules, mediaWikiSiteRules, mediumSiteRules, theInformationSiteRules } from "@packages/article-parser";
 import { initRefreshArticleIfStale } from "@packages/finalize-article";
 import {
 	createOAuthModel,
@@ -258,6 +258,7 @@ function initProviders() {
 			theInformationSiteRules,
 			mediumSiteRules,
 			linkedinSiteRules,
+			mediaWikiSiteRules,
 			initXTwitterSiteRules({ crawlFetch, logError }),
 			initAppleNewsSiteRules({ crawlFetch, logError }),
 		];
@@ -521,6 +522,7 @@ function initProviders() {
 		theInformationSiteRules,
 		mediumSiteRules,
 		linkedinSiteRules,
+		mediaWikiSiteRules,
 		initXTwitterSiteRules({ crawlFetch, logError }),
 		initAppleNewsSiteRules({ crawlFetch, logError }),
 	];

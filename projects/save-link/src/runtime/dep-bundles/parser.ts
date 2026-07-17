@@ -15,6 +15,7 @@ import { isBlockedIpAddress } from "@packages/domain/article";
 import {
 	initReadabilityParser,
 	linkedinSiteRules,
+	mediaWikiSiteRules,
 	mediumSiteRules,
 	theInformationSiteRules,
 } from "@packages/article-parser";
@@ -57,7 +58,7 @@ export function initParserDepBundle(deps: {
 		initXTwitterSiteRules({ crawlFetch, logError: deps.logError }),
 		initAppleNewsSiteRules({ crawlFetch, logError: deps.logError }),
 	];
-	const siteRules = [theInformationSiteRules, mediumSiteRules, linkedinSiteRules, ...crawlClaimingSiteRules];
+	const siteRules = [theInformationSiteRules, mediumSiteRules, linkedinSiteRules, mediaWikiSiteRules, ...crawlClaimingSiteRules];
 	const crawlArticle = initFetchPinnedCrawl({
 		crawlArticle: initCrawlArticle({ crawlFetch, siteRules, logError: deps.logError, logInfo: deps.logInfo }),
 		findAdoptedFetchUrl: deps.findAdoptedFetchUrl,
@@ -99,7 +100,7 @@ export function initComprehensiveParserDepBundle(deps: {
 		initXTwitterSiteRules({ crawlFetch, logError: deps.logError }),
 		initAppleNewsSiteRules({ crawlFetch, logError: deps.logError }),
 	];
-	const siteRules = [theInformationSiteRules, mediumSiteRules, linkedinSiteRules, ...crawlClaimingSiteRules];
+	const siteRules = [theInformationSiteRules, mediumSiteRules, linkedinSiteRules, mediaWikiSiteRules, ...crawlClaimingSiteRules];
 	const crawlArticle = initFetchPinnedCrawl({
 		crawlArticle: initCrawlArticle({
 			crawlFetch,

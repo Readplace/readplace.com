@@ -2,6 +2,7 @@ import { S3Client } from "@aws-sdk/client-s3";
 import {
 	initReadabilityParser,
 	linkedinSiteRules,
+	mediaWikiSiteRules,
 	mediumSiteRules,
 	theInformationSiteRules,
 } from "@packages/article-parser";
@@ -59,6 +60,7 @@ const siteRules = [
 	theInformationSiteRules,
 	mediumSiteRules,
 	linkedinSiteRules,
+	mediaWikiSiteRules,
 	initXTwitterSiteRules({ crawlFetch, logError }),
 	initAppleNewsSiteRules({ crawlFetch, logError }),
 ];

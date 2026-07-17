@@ -35,9 +35,15 @@ export const HEALTH_SOURCES: readonly HealthSource[] = [
 		expectsThumbnail: true,
 	},
 	{
+		// `forbiddenContent` guards the MediaWiki heading defect: each section
+		// heading ships with an "[edit]" link whose `>edit<` text leaks into the
+		// reader (and whose link density makes Readability drop the whole
+		// heading) unless `mediaWikiSiteRules` strips `.mw-editsection` first.
+		// `>edit<` appears 67× on this page when the rule regresses, 0× when it holds.
 		label: "Wikipedia (baseline)",
 		url: "https://en.wikipedia.org/wiki/Reading",
 		expectedContent: "children and adults read because it is enjoyable",
+		forbiddenContent: [">edit<"],
 		expectsThumbnail: true,
 	},
 	{
