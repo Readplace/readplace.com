@@ -125,6 +125,22 @@ export const HEALTH_SOURCES: readonly HealthSource[] = [
 		expectedContent: "he had had to carry the ice and glassware",
 		expectsThumbnail: false,
 	},
+	{
+		// apple.news answers 200 with a static shell that client-side-redirects
+		// to the publisher (here: a 2024 Guardian article), so this entry guards
+		// the shell-extraction fingerprint (the `redirectToUrl*("…")` script
+		// literal) end-to-end. The row was seeded un-adopted and recrawls never
+		// adopt, so every run re-fetches apple.news and re-exercises the
+		// extraction instead of a pinned publisher terminal.
+		// expectedContent avoids passages containing the Guardian's auto-linked
+		// tags ("South Carolina", "Republicans"): an inline <a> splits the text,
+		// so a substring crossing it never matches the reader output.
+		label: "Apple News (client-side redirect shell)",
+		url: "https://apple.news/A-KY3k0aRSK27SNKVtrWiDg",
+		expectedContent:
+			"Without an alternative map, it is difficult for plaintiffs to defeat our starting presumption that the legislature acted in good faith",
+		expectsThumbnail: true,
+	},
 	// PDF sources run last and are ordered cheapest-first: each one fans out
 	// per-page OCR (rasterisation + DeepInfra vision) and burns real tokens, so
 	// the tier-1-plus canary's fail-fast gate skips every remaining PDF once any
