@@ -17,7 +17,10 @@
 export interface HealthSource {
 	label: string;
 	url: string;
-	expectedContent: string;
+	/** Substrings that must ALL appear in the parsed HTML. A single string is
+	 * shorthand for one required substring; an array asserts each independently
+	 * (e.g. a body sentence AND a section heading). */
+	expectedContent: string | readonly string[];
 	/** Substrings that MUST NOT appear in the parsed HTML — surfaces parser regressions where site chrome leaks into the article body (e.g. Medium byline, read-time, publish-date, "Press enter…" tooltip). */
 	forbiddenContent?: readonly string[];
 	expectsThumbnail: boolean;
@@ -35,15 +38,22 @@ export const HEALTH_SOURCES: readonly HealthSource[] = [
 		expectsThumbnail: true,
 	},
 	{
-		// `forbiddenContent` guards the MediaWiki heading defect: each section
-		// heading ships with an "[edit]" link whose `>edit<` text leaks into the
-		// reader (and whose link density makes Readability drop the whole
-		// heading) unless `mediaWikiSiteRules` strips `.mw-editsection` first.
-		// `>edit<` appears 67× on this page when the rule regresses, 0× when it holds.
-		label: "Wikipedia (baseline)",
-		url: "https://en.wikipedia.org/wiki/Reading",
-		expectedContent: "children and adults read because it is enjoyable",
-		forbiddenContent: [">edit<"],
+		// Guards the MediaWiki heading defect: each section heading ships with an
+		// "[edit]" link (.mw-editsection) whose link density makes Readability drop
+		// the whole heading wrapper unless `mediaWikiSiteRules` strips it first, so
+		// the reader loses every section heading. "Chemical mechanism" is a heading
+		// that vanishes when the rule regresses and returns when it holds — a
+		// positive signal (the reader view escapes tag characters, so the leaked
+		// edit markup never appears literally to assert against). Bioluminescence,
+		// not e.g. the Reading article: Reading's canonical is a pre-fix tier-0
+		// upload that /admin/recrawl never re-parses, so the fix isn't observable
+		// there; this URL's canonical is the tier-1 crawl the recrawl refreshes.
+		label: "Wikipedia (section headings)",
+		url: "https://en.wikipedia.org/wiki/Bioluminescence",
+		expectedContent: [
+			"It occurs in a wide variety of organisms",
+			"Chemical mechanism",
+		],
 		expectsThumbnail: true,
 	},
 	{

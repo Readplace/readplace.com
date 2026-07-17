@@ -112,10 +112,16 @@ async function checkSource(source: HealthSource): Promise<void> {
 		"ready",
 		`${source.label}: crawl ended in '${status}' for ${source.url} — the Lambda could not parse the URL (likely an origin-side block of the Lambda egress IP, or a parser regression).`,
 	);
-	assert(
-		html.includes(source.expectedContent),
-		`${source.label}: expected content "${source.expectedContent}" not found in parsed output for ${source.url}`,
-	);
+	const expected =
+		typeof source.expectedContent === "string"
+			? [source.expectedContent]
+			: source.expectedContent;
+	for (const needle of expected) {
+		assert(
+			html.includes(needle),
+			`${source.label}: expected content "${needle}" not found in parsed output for ${source.url}`,
+		);
+	}
 	for (const forbidden of source.forbiddenContent ?? []) {
 		assert(
 			!html.includes(forbidden),
