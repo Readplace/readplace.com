@@ -34,6 +34,9 @@ describe("toInboxLinkCardViewModel", () => {
 		expect(vm.cardPollUrl).toContain("poll=1");
 		expect(vm.title).toBe("");
 		expect(vm.hasTitle).toBe(false);
+		expect(vm.feedbackAction).toBe(
+			`/inbox/${encodeURIComponent(EMAIL_ID)}/links/0002/feedback?feature=email`,
+		);
 	});
 
 	it("stops polling once a link reaches a terminal state", () => {

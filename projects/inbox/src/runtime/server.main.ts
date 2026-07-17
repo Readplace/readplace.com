@@ -100,6 +100,19 @@ async function main(): Promise<void> {
 		failureReason: undefined,
 		skipReason: undefined,
 	});
+	await fixture.inboxEmail.inboxEmailLinkStore.putLink({
+		userId,
+		receivedAtMessageId: withLinks.receivedAtMessageId,
+		ordinal: EmailLinkOrdinalSchema.parse("0002"),
+		url: "https://example.com/unsubscribe?token=dev",
+		status: "skipped",
+		title: undefined,
+		excerpt: undefined,
+		siteName: undefined,
+		imageUrl: undefined,
+		failureReason: undefined,
+		skipReason: "list-unsubscribe",
+	});
 	await fixture.inboxEmail.inboxEmailLinkStore.putLinksMeta({
 		userId,
 		receivedAtMessageId: withLinks.receivedAtMessageId,

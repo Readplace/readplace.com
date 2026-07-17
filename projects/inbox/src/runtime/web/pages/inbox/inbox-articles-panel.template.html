@@ -4,6 +4,11 @@
 	data-articles-status="{{panelStatus}}"
 	{{#if panelPollUrl}} hx-get="{{panelPollUrl}}" hx-trigger="every 3s" hx-target="this" hx-swap="outerHTML"{{/if}}
 >
+	{{#if feedbackNotice}}
+	<p class="inbox-email-detail__feedback-notice" data-test-inbox-feedback-notice>
+		Thanks — your report was logged.
+	</p>
+	{{/if}}
 	{{#if isExtracting}}
 	<p class="inbox-email-detail__articles-pending" data-test-articles-extracting>
 		Looking for links…
@@ -23,9 +28,21 @@
 		class="inbox-email-detail__articles-truncated"
 		data-test-articles-truncated
 	>{{truncatedNotice}}</p>{{/if}}
+	{{#if hasCards}}
 	<div class="inbox-email-detail__articles" data-test-inbox-articles>
 		{{#each articleHtmls}}{{{this}}}{{/each}}
 	</div>
+	{{/if}}
+	{{#if hasExcluded}}
+	<section class="inbox-email-detail__excluded" data-test-inbox-excluded>
+		<h2 class="inbox-email-detail__excluded-heading">Left out of your links</h2>
+		<p class="inbox-email-detail__excluded-note">
+			These looked like unsubscribe, ad, or menu links — not articles — so they weren’t fetched
+			or added.
+		</p>
+		{{#each excludedHtmls}}{{{this}}}{{/each}}
+	</section>
+	{{/if}}
 	{{/if}}
 	{{/if}}
 	{{/if}}

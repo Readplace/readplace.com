@@ -5,4 +5,8 @@
 	{{else}}
 	<a class="inbox-article-card__title inbox-article-card__title--bare" href="{{url}}" target="_blank" rel="noopener noreferrer" data-test-inbox-article-url>{{url}}</a>
 	{{/if}}
+	<form class="inbox-article-card__feedback" method="POST" action="{{feedbackAction}}">
+		<input type="hidden" name="verdict" value="should-be-excluded">
+		<button type="submit" class="inbox-article-card__feedback-button" aria-label="Not an article? {{url}}" data-test-inbox-feedback-exclude>Not an article?</button>
+	</form>
 </article>

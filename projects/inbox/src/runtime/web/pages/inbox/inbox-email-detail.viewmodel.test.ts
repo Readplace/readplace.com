@@ -202,4 +202,80 @@ describe("toInboxEmailDetailViewModel", () => {
 		expect(vm.articles.truncatedNotice).toBe("Showing the first 1 links found in this email.");
 		expect(vm.linkCountLabel).toBe("1+ links");
 	});
+
+	it("routes skipped links to the excluded list and counts only the kept ones", () => {
+		const vm = build({
+			links: [
+				link({ status: "pending" }),
+				link({
+					ordinal: EmailLinkOrdinalSchema.parse("0001"),
+					url: "https://news.example.com/unsub",
+					status: "skipped",
+					skipReason: "list-unsubscribe",
+				}),
+				link({
+					ordinal: EmailLinkOrdinalSchema.parse("0002"),
+					url: "https://sponsor.example.com/deal",
+					status: "skipped",
+					skipReason: "llm-ad",
+				}),
+			],
+			linksMeta: { truncated: false },
+		});
+
+		expect(vm.articles.cards.map((card) => card.ordinal)).toEqual(["0000"]);
+		expect(vm.articles.excluded).toEqual([
+			{
+				ordinal: "0001",
+				url: "https://news.example.com/unsub",
+				reasonLabel: "Unsubscribe link",
+				feedbackAction: `/inbox/${encodeURIComponent(SK)}/links/0001/feedback?feature=email`,
+			},
+			{
+				ordinal: "0002",
+				url: "https://sponsor.example.com/deal",
+				reasonLabel: "Advertisement",
+				feedbackAction: `/inbox/${encodeURIComponent(SK)}/links/0002/feedback?feature=email`,
+			},
+		]);
+		expect(vm.linkCountLabel).toBe("1 link");
+		expect(vm.articles.isEmpty).toBe(false);
+	});
+
+	it("keeps the panel non-empty when every link was excluded", () => {
+		const vm = build({
+			links: [link({ status: "skipped", skipReason: "llm-menu" })],
+			linksMeta: { truncated: false },
+		});
+
+		expect(vm.articles.isEmpty).toBe(false);
+		expect(vm.articles.cards).toHaveLength(0);
+		expect(vm.articles.excluded.map((entry) => entry.reasonLabel)).toEqual(["Site navigation"]);
+		expect(vm.linkCountLabel).toBeUndefined();
+	});
+
+	it("surfaces the feedback confirmation only on the redirect that carries it", () => {
+		const confirmed = build({ links: [link()], linksMeta: { truncated: false } });
+		expect(confirmed.articles.feedbackNotice).toBe(false);
+
+		const vm = toInboxEmailDetailViewModel({
+			entry: entry(),
+			activeTab: "articles",
+			bodyHtml: undefined,
+			links: [link()],
+			linksMeta: { truncated: false },
+			maxPolls: 300,
+			feedbackConfirmed: true,
+		});
+		expect(vm.articles.feedbackNotice).toBe(true);
+	});
+
+	it("labels an excluded link without a recorded reason generically", () => {
+		const vm = build({
+			links: [link({ status: "skipped", skipReason: undefined })],
+			linksMeta: { truncated: false },
+		});
+
+		expect(vm.articles.excluded.map((entry) => entry.reasonLabel)).toEqual(["Not an article"]);
+	});
 });

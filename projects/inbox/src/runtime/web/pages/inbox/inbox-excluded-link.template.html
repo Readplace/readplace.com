@@ -1,0 +1,10 @@
+<div class="inbox-excluded-link" data-test-inbox-excluded-link="{{ordinal}}">
+	<div class="inbox-excluded-link__info">
+		<span class="inbox-excluded-link__url" data-test-inbox-excluded-url>{{url}}</span>
+		<span class="inbox-excluded-link__reason" data-test-inbox-excluded-reason>{{reasonLabel}}</span>
+	</div>
+	<form class="inbox-excluded-link__feedback" method="POST" action="{{feedbackAction}}">
+		<input type="hidden" name="verdict" value="should-be-included">
+		<button type="submit" class="inbox-excluded-link__feedback-button" aria-label="This is an article: {{url}}" data-test-inbox-feedback-include>This is an article</button>
+	</form>
+</div>

@@ -27,7 +27,7 @@ import { etagMatches } from "@packages/web-shell";
 import { renderInboxArticleCard } from "./inbox-article-card.component";
 import { renderInboxArticlesPanel } from "./inbox-articles-panel.component";
 import { InboxEmailDetailPage } from "./inbox-email-detail.component";
-import { parseMailTab } from "./inbox-email-detail.url";
+import { buildInboxEmailDetailUrl, parseMailTab } from "./inbox-email-detail.url";
 import { renderInboxLinkCount } from "./inbox-link-count.component";
 import { toInboxEmailDetailViewModel } from "./inbox-email-detail.viewmodel";
 import { InboxEmailsPage } from "./inbox-emails.component";
@@ -64,6 +64,9 @@ interface InboxDependencies {
 
 const DisableAddressSchema = z.object({ address: InboxAddressSchema });
 const CreateAddressSchema = z.object({ name: z.string() });
+const LinkFeedbackSchema = z.object({
+	verdict: z.enum(["should-be-included", "should-be-excluded"]),
+});
 
 export function initInboxRoutes(deps: InboxDependencies): Router {
 	const router = express.Router();
@@ -109,7 +112,10 @@ export function initInboxRoutes(deps: InboxDependencies): Router {
 				});
 				return [
 					email.receivedAtMessageId,
-					{ count: links.length, truncated: meta?.truncated === true },
+					{
+						count: links.filter((link) => link.status !== "skipped").length,
+						truncated: meta?.truncated === true,
+					},
 				];
 			}),
 		);
@@ -171,6 +177,7 @@ export function initInboxRoutes(deps: InboxDependencies): Router {
 			links,
 			linksMeta: meta,
 			maxPolls: MAX_POLLS,
+			feedbackConfirmed: req.query.feedback === "sent",
 		});
 		sendComponent(req, res, Base(InboxEmailDetailPage(vm), await deps.buildBannerState(req)));
 	});
@@ -233,7 +240,9 @@ export function initInboxRoutes(deps: InboxDependencies): Router {
 						ordinal: parsedOrdinal.data,
 					})
 				: undefined;
-			if (link === undefined) {
+			// A skipped link renders only as the inert excluded row — never as a live
+			// card — so the fragment route refuses it like a missing link.
+			if (link === undefined || link.status === "skipped") {
 				res.status(404).type("html").send("");
 				return;
 			}
@@ -253,6 +262,47 @@ export function initInboxRoutes(deps: InboxDependencies): Router {
 				maxPolls: MAX_POLLS,
 			});
 			res.status(200).type("html").send(renderInboxArticleCard(cardVm));
+		},
+	);
+
+	// The ERROR level is the point: link-classification feedback must surface in
+	// the operator's CloudWatch error widget, not sit in an unwatched info stream.
+	router.post(
+		"/:id/links/:ordinal/feedback",
+		async (req: Request<{ id: string; ordinal: string }>, res: Response) => {
+			assert(req.userId, "userId required - route must be protected by requireAuth");
+			const userId = req.userId;
+			const receivedAtMessageId = req.params.id;
+			const parsedOrdinal = EmailLinkOrdinalSchema.safeParse(req.params.ordinal);
+			const link = parsedOrdinal.success
+				? await deps.inboxEmailLinkStore.getLink({
+						userId,
+						receivedAtMessageId,
+						ordinal: parsedOrdinal.data,
+					})
+				: undefined;
+			if (link === undefined) {
+				res.status(404).type("html").send("");
+				return;
+			}
+			const parsedBody = LinkFeedbackSchema.safeParse(req.body);
+			if (parsedBody.success) {
+				deps.logError(
+					`[inbox-link-feedback] ${JSON.stringify({
+						verdict: parsedBody.data.verdict,
+						userId,
+						receivedAtMessageId,
+						ordinal: link.ordinal,
+						url: link.url,
+						status: link.status,
+						skipReason: link.skipReason,
+					})}`,
+				);
+			}
+			res.redirect(
+				303,
+				`${buildInboxEmailDetailUrl({ emailId: receivedAtMessageId, tab: "articles" })}&feedback=sent`,
+			);
 		},
 	);
 

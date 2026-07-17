@@ -1,4 +1,5 @@
 import type { InboxEmailLinkEntry } from "@packages/domain/inbox";
+import { buildInboxLinkFeedbackUrl } from "./inbox-link-feedback-url";
 import { buildInboxLinkPollUrl } from "./inbox-link-poll-url";
 
 export interface InboxLinkCardViewModel {
@@ -10,6 +11,7 @@ export interface InboxLinkCardViewModel {
 	 * reaches a terminal state (`crawled`/`failed`) or the poll budget is spent,
 	 * which is what stops the htmx `every 3s` trigger. */
 	cardPollUrl: string | undefined;
+	feedbackAction: string;
 }
 
 export function toInboxLinkCardViewModel(input: {
@@ -31,5 +33,6 @@ export function toInboxLinkCardViewModel(input: {
 		title,
 		hasTitle: link.status === "crawled" && title !== "",
 		cardPollUrl,
+		feedbackAction: buildInboxLinkFeedbackUrl({ emailId, ordinal: link.ordinal }),
 	};
 }

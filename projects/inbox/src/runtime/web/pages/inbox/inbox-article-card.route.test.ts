@@ -40,7 +40,7 @@ async function seed(
 const cardPath = `/inbox/${encodeURIComponent(SK)}/links/0000/card?feature=email`;
 
 function expectBareUrlRow(card: Element): void {
-	expect(Array.from(card.children).map((child) => child.tagName)).toEqual(["A"]);
+	expect(Array.from(card.children).map((child) => child.tagName)).toEqual(["A", "FORM"]);
 	const bare = card.querySelector("[data-test-inbox-article-url]");
 	assert(bare, "the bare URL anchor must render");
 	expect(bare.getAttribute("href")).toBe("https://example.com/post");
@@ -60,6 +60,17 @@ describe("Inbox link card route", () => {
 	it("returns 404 for an unknown link", async () => {
 		const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
 		const agent = await loginAgent(harness.server, harness.auth);
+
+		const response = await agent.get(cardPath);
+
+		expect(response.status).toBe(404);
+	});
+
+	it("returns 404 for a skipped link, which renders only as an excluded row", async () => {
+		const fixture = createDefaultTestAppFixture(TEST_APP_ORIGIN);
+		const harness = useApp(fixture);
+		const agent = await loginAgent(harness.server, harness.auth);
+		await seed(fixture, { status: "skipped", skipReason: "list-unsubscribe" });
 
 		const response = await agent.get(cardPath);
 
@@ -153,7 +164,7 @@ describe("Inbox link card route", () => {
 		assert(card, "the card fragment must render");
 		expect(card.getAttribute("data-card-status")).toBe("terminal");
 		expect(card.getAttribute("hx-get")).toBeNull();
-		expect(Array.from(card.children).map((child) => child.tagName)).toEqual(["A", "SPAN"]);
+		expect(Array.from(card.children).map((child) => child.tagName)).toEqual(["A", "SPAN", "FORM"]);
 		const title = card.querySelector("[data-test-inbox-article-title]");
 		assert(title, "the crawled row must render its title as a link");
 		expect(title.tagName).toBe("A");

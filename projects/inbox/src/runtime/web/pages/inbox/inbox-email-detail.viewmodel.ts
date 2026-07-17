@@ -1,11 +1,13 @@
 import { EMAIL_FEATURE, type LocalTime, toAbsoluteDateTime } from "@packages/web-shell";
 import type {
+	EmailLinkSkipReason,
 	InboxEmailEntry,
 	InboxEmailLinkEntry,
 	InboxEmailLinksMeta,
 } from "@packages/domain/inbox";
 import { buildInboxArticlesPollUrl } from "./inbox-articles-poll-url";
 import type { MailTabKey } from "./inbox-email-detail.url";
+import { buildInboxLinkFeedbackUrl } from "./inbox-link-feedback-url";
 import { buildLinkCountLabel } from "./inbox-link-count-label";
 import { type InboxLinkCardViewModel, toInboxLinkCardViewModel } from "./inbox-link-card.viewmodel";
 import { type MailTab, buildMailTabs } from "./mail-tabs";
@@ -14,8 +16,27 @@ import { type MailTab, buildMailTabs } from "./mail-tabs";
  * requests `?poll=1` and the poll route increments from there. */
 const INITIAL_POLL_COUNT = 1;
 
+const SKIP_REASON_LABELS: Record<EmailLinkSkipReason, string> = {
+	"list-unsubscribe": "Unsubscribe link",
+	"action-link-pattern": "Unsubscribe or account link",
+	"llm-noise": "Not an article",
+	"llm-ad": "Advertisement",
+	"llm-menu": "Site navigation",
+	"llm-subscription": "Subscription management",
+};
+
+const GENERIC_EXCLUDED_LABEL = "Not an article";
+
+export interface ExcludedLinkViewModel {
+	ordinal: string;
+	url: string;
+	reasonLabel: string;
+	feedbackAction: string;
+}
+
 export interface ArticlesPanelViewModel {
 	cards: InboxLinkCardViewModel[];
+	excluded: ExcludedLinkViewModel[];
 	isEmpty: boolean;
 	/** True while extraction has not yet written its meta barrier (a just-received
 	 * email) and the poll budget is unspent: the panel shows a polling "Looking for
@@ -31,6 +52,7 @@ export interface ArticlesPanelViewModel {
 	 * page-level htmx poll that swaps the finished card set in on completion. */
 	panelPollUrl: string | undefined;
 	truncatedNotice: string | undefined;
+	feedbackNotice: boolean;
 }
 
 export interface InboxEmailDetailViewModel {
@@ -60,16 +82,35 @@ export function toInboxEmailDetailViewModel(input: {
 	/** The page-level poll tick: the full render starts at the initial count; the
 	 * `/inbox/:id/articles` fragment route passes the incremented count back. */
 	panelPollCount?: number;
+	feedbackConfirmed?: boolean;
 }): InboxEmailDetailViewModel {
 	const canRenderBody = input.entry.status === "received" && input.bodyHtml !== undefined;
-	const cards = input.links.map((link) =>
-		toInboxLinkCardViewModel({
-			link,
-			emailId: input.entry.receivedAtMessageId,
-			pollCount: INITIAL_POLL_COUNT,
-			maxPolls: input.maxPolls,
-		}),
-	);
+	const cards = input.links
+		.filter((link) => link.status !== "skipped")
+		.map((link) =>
+			toInboxLinkCardViewModel({
+				link,
+				emailId: input.entry.receivedAtMessageId,
+				pollCount: INITIAL_POLL_COUNT,
+				maxPolls: input.maxPolls,
+			}),
+		);
+	const excluded = input.links
+		.filter((link) => link.status === "skipped")
+		.map(
+			(link): ExcludedLinkViewModel => ({
+				ordinal: link.ordinal,
+				url: link.url,
+				reasonLabel:
+					link.skipReason === undefined
+						? GENERIC_EXCLUDED_LABEL
+						: SKIP_REASON_LABELS[link.skipReason],
+				feedbackAction: buildInboxLinkFeedbackUrl({
+					emailId: input.entry.receivedAtMessageId,
+					ordinal: link.ordinal,
+				}),
+			}),
+		);
 	const truncated = input.linksMeta?.truncated === true;
 	// No meta row yet means the async extractor has not finished for this received
 	// email — keep polling rather than asserting it has zero links. Non-received
@@ -107,13 +148,15 @@ export function toInboxEmailDetailViewModel(input: {
 			: buildLinkCountLabel({ count: cards.length, truncated }),
 		articles: {
 			cards,
-			isEmpty: cards.length === 0,
+			excluded,
+			isEmpty: cards.length === 0 && excluded.length === 0,
 			isExtracting,
 			isStalePending,
 			panelPollUrl,
 			truncatedNotice: truncated
-				? `Showing the first ${cards.length} links found in this email.`
+				? `Showing the first ${input.links.length} links found in this email.`
 				: undefined,
+			feedbackNotice: input.feedbackConfirmed === true,
 		},
 	};
 }

@@ -341,6 +341,61 @@ describe("Inbox email detail Articles tab", () => {
 		expect(viewTab.getAttribute("href")).toBe(`/inbox/${encodeURIComponent(SK)}?feature=email`);
 	});
 
+	it("separates excluded links into a no-hyperlink list with an include-feedback form", async () => {
+		const fixture = createDefaultTestAppFixture(TEST_APP_ORIGIN);
+		const harness = useApp(fixture);
+		const agent = await loginAgent(harness.server, harness.auth);
+		await seed(fixture, "received");
+		await seedLinks(fixture, [
+			{ ordinal: EmailLinkOrdinalSchema.parse("0000"), status: "crawled", title: "Kept article" },
+			{
+				ordinal: EmailLinkOrdinalSchema.parse("0001"),
+				url: "https://news.example.com/unsub",
+				status: "skipped",
+				skipReason: "list-unsubscribe",
+			},
+		]);
+
+		const response = await agent.get(articlesTabPath);
+
+		expect(response.status).toBe(200);
+		const doc = parseDoc(response.text);
+		const cardOrdinals = Array.from(
+			doc.querySelectorAll("[data-test-inbox-article-card]"),
+		).map((el) => el.getAttribute("data-test-inbox-article-card"));
+		expect(cardOrdinals).toEqual(["0000"]);
+		expect(doc.querySelector("[data-test-inbox-detail-link-count]")?.textContent).toBe("1 link");
+
+		const excludedRow = doc.querySelector('[data-test-inbox-excluded-link="0001"]');
+		assert(excludedRow, "excluded row must render");
+		const excludedUrl = excludedRow.querySelector("[data-test-inbox-excluded-url]");
+		assert(excludedUrl, "excluded row must show its URL");
+		expect(excludedUrl.tagName).toBe("SPAN");
+		expect(excludedUrl.textContent).toBe("https://news.example.com/unsub");
+		expect(excludedRow.querySelector("[data-test-inbox-excluded-reason]")?.textContent).toBe(
+			"Unsubscribe link",
+		);
+		const includeButton = excludedRow.querySelector("[data-test-inbox-feedback-include]");
+		assert(includeButton, "excluded row must offer include feedback");
+		const includeForm = includeButton.closest("form");
+		assert(includeForm, "include feedback must submit as a form");
+		expect(includeForm.getAttribute("method")).toBe("POST");
+		expect(includeForm.getAttribute("action")).toBe(
+			`/inbox/${encodeURIComponent(SK)}/links/0001/feedback?feature=email`,
+		);
+		expect(includeForm.querySelector('input[name="verdict"]')?.getAttribute("value")).toBe(
+			"should-be-included",
+		);
+
+		const keptCard = doc.querySelector('[data-test-inbox-article-card="0000"]');
+		assert(keptCard, "kept card must render");
+		const excludeButton = keptCard.querySelector("[data-test-inbox-feedback-exclude]");
+		assert(excludeButton, "kept card must offer exclude feedback");
+		expect(
+			excludeButton.closest("form")?.querySelector('input[name="verdict"]')?.getAttribute("value"),
+		).toBe("should-be-excluded");
+	});
+
 	it("surfaces a truncated notice when the per-email link cap was hit", async () => {
 		const fixture = createDefaultTestAppFixture(TEST_APP_ORIGIN);
 		const harness = useApp(fixture);
@@ -508,5 +563,116 @@ describe("Inbox Articles panel poll route", () => {
 		assert(linkCount, "the terminal poll fragment must carry the OOB link-count update");
 		expect(linkCount.getAttribute("hx-swap-oob")).toBe("outerHTML");
 		expect(linkCount.textContent).toBe("1 link");
+	});
+});
+
+describe("Inbox link feedback route", () => {
+	const feedbackPath = `/inbox/${encodeURIComponent(SK)}/links/0000/feedback`;
+
+	it("returns 404 without the email feature flag", async () => {
+		const fixture = createDefaultTestAppFixture(TEST_APP_ORIGIN);
+		const harness = useApp(fixture);
+		const agent = await loginAgent(harness.server, harness.auth);
+
+		const response = await agent.post(feedbackPath).type("form").send({
+			verdict: "should-be-included",
+		});
+
+		expect(response.status).toBe(404);
+	});
+
+	it("logs the feedback as an error and redirects back to the Articles tab", async () => {
+		const fixture = createDefaultTestAppFixture(TEST_APP_ORIGIN);
+		const errors: string[] = [];
+		fixture.shared.logError = (message) => {
+			errors.push(message);
+		};
+		const harness = useApp(fixture);
+		const agent = await loginAgent(harness.server, harness.auth);
+		await seed(fixture, "received");
+		await seedLinks(fixture, [
+			{
+				url: "https://news.example.com/unsub",
+				status: "skipped",
+				skipReason: "list-unsubscribe",
+			},
+		]);
+
+		const response = await agent.post(`${feedbackPath}?feature=email`).type("form").send({
+			verdict: "should-be-included",
+		});
+
+		expect(response.status).toBe(303);
+		expect(response.headers.location).toBe(
+			`/inbox/${encodeURIComponent(SK)}?feature=email&tab=articles&feedback=sent`,
+		);
+		const confirmation = await agent.get(response.headers.location);
+		const notice = parseDoc(confirmation.text).querySelector(
+			"[data-test-inbox-feedback-notice]",
+		);
+		assert(notice, "the followed redirect must confirm the report");
+		expect(notice.textContent?.trim()).toBe("Thanks — your report was logged.");
+		expect(errors).toHaveLength(1);
+		assert(errors[0].startsWith("[inbox-link-feedback] "));
+		expect(JSON.parse(errors[0].slice("[inbox-link-feedback] ".length))).toMatchObject({
+			verdict: "should-be-included",
+			receivedAtMessageId: SK,
+			ordinal: "0000",
+			url: "https://news.example.com/unsub",
+			status: "skipped",
+			skipReason: "list-unsubscribe",
+		});
+	});
+
+	it("returns 404 for a link that does not exist", async () => {
+		const fixture = createDefaultTestAppFixture(TEST_APP_ORIGIN);
+		const errors: string[] = [];
+		fixture.shared.logError = (message) => {
+			errors.push(message);
+		};
+		const harness = useApp(fixture);
+		const agent = await loginAgent(harness.server, harness.auth);
+		await seed(fixture, "received");
+
+		const response = await agent
+			.post(`/inbox/${encodeURIComponent(SK)}/links/0009/feedback?feature=email`)
+			.type("form")
+			.send({ verdict: "should-be-included" });
+
+		expect(response.status).toBe(404);
+		expect(errors).toHaveLength(0);
+	});
+
+	it("returns 404 for an ordinal that is not four digits", async () => {
+		const fixture = createDefaultTestAppFixture(TEST_APP_ORIGIN);
+		const harness = useApp(fixture);
+		const agent = await loginAgent(harness.server, harness.auth);
+		await seed(fixture, "received");
+
+		const response = await agent
+			.post(`/inbox/${encodeURIComponent(SK)}/links/not-an-ordinal/feedback?feature=email`)
+			.type("form")
+			.send({ verdict: "should-be-included" });
+
+		expect(response.status).toBe(404);
+	});
+
+	it("redirects without logging when the verdict is malformed", async () => {
+		const fixture = createDefaultTestAppFixture(TEST_APP_ORIGIN);
+		const errors: string[] = [];
+		fixture.shared.logError = (message) => {
+			errors.push(message);
+		};
+		const harness = useApp(fixture);
+		const agent = await loginAgent(harness.server, harness.auth);
+		await seed(fixture, "received");
+		await seedLinks(fixture, [{ status: "pending" }]);
+
+		const response = await agent.post(`${feedbackPath}?feature=email`).type("form").send({
+			verdict: "not-a-verdict",
+		});
+
+		expect(response.status).toBe(303);
+		expect(errors).toHaveLength(0);
 	});
 });

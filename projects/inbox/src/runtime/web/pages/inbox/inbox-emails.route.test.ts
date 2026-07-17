@@ -200,6 +200,19 @@ describe("Inbox emails list route", () => {
 				skipReason: undefined,
 			});
 		}
+		await fixture.inboxEmail.inboxEmailLinkStore.putLink({
+			userId: user.userId,
+			receivedAtMessageId: withLinks,
+			ordinal: EmailLinkOrdinalSchema.parse("0002"),
+			url: "https://news.example.com/unsub",
+			status: "skipped",
+			title: undefined,
+			excerpt: undefined,
+			siteName: undefined,
+			imageUrl: undefined,
+			failureReason: undefined,
+			skipReason: "list-unsubscribe",
+		});
 		// The finished-extraction barrier: rows plus meta is the state the list
 		// normally renders once the extractor is done.
 		await fixture.inboxEmail.inboxEmailLinkStore.putLinksMeta({
