@@ -7,6 +7,7 @@ import type {
 } from "@packages/domain/inbox";
 import { ARTICLES_PAGE_SIZE, buildInboxArticlesMoreUrl } from "./inbox-articles-more.url";
 import { buildInboxArticlesPollUrl } from "./inbox-articles-poll-url";
+import { buildInboxExcludedPollUrl } from "./inbox-excluded-poll-url";
 import { type MailTabKey, buildInboxEmailDetailUrl } from "./inbox-email-detail.url";
 import { buildInboxLinkFeedbackUrl } from "./inbox-link-feedback-url";
 import { buildLinkCountLabel } from "./inbox-link-count-label";
@@ -28,6 +29,17 @@ const SKIP_REASON_LABELS: Record<EmailLinkSkipReason, string> = {
 
 const GENERIC_EXCLUDED_LABEL = "Not an article";
 
+const NO_LINKS_MESSAGE = "No links found in this email.";
+const ALL_SKIPPED_MESSAGE = "Every link in this email was skipped — see the Skipped Links tab.";
+const NOTHING_SKIPPED_MESSAGE = "Nothing was skipped in this email.";
+
+// Both panels report the same extractor run, so they say these in one voice from
+// one place — two copies would drift, and each is a claim about the run rather
+// than about the panel showing it.
+const EXTRACTING_MESSAGE = "Looking for links…";
+const STALE_MESSAGE =
+	"We couldn’t scan this email for links. The original message is still available on the View tab.";
+
 export interface ExcludedLinkViewModel {
 	ordinal: string;
 	url: string;
@@ -46,15 +58,25 @@ export interface ArticleCardsPage {
 	showMore: ArticleShowMore | undefined;
 }
 
-export interface ArticlesPanelViewModel {
-	cards: InboxLinkCardViewModel[];
-	showMore: ArticleShowMore | undefined;
-	excluded: ExcludedLinkViewModel[];
+/** The extraction-driven state every tab panel shares: both panels describe the
+ * same one extractor run, so neither may claim a terminal answer before it has
+ * written its meta barrier. */
+interface ExtractionPanelViewModel {
 	isEmpty: boolean;
+	/** Terminal copy for an empty panel. Each panel picks it from what the *other*
+	 * panel holds: "No links found" is a lie for an email whose every link was
+	 * skipped, and "Nothing was skipped" is a lie for an email with no links at all. */
+	emptyMessage: string;
+	extractingMessage: string;
+	staleMessage: string;
+	/** The per-email extraction cap, so it belongs to every panel and shows even
+	 * when this one is empty: an email capped at N links whose every link was
+	 * skipped would otherwise disclose the cap on no tab at all. */
+	truncatedNotice: string | undefined;
 	/** True while extraction has not yet written its meta barrier (a just-received
 	 * email) and the poll budget is unspent: the panel shows a polling "Looking for
-	 * links…" state instead of the terminal "No links found", so a non-terminal
-	 * state is never shown as terminal. Goes false once `isStalePending` takes over. */
+	 * links…" state instead of a terminal answer, so a non-terminal state is never
+	 * shown as terminal. Goes false once `isStalePending` takes over. */
 	isExtracting: boolean;
 	/** True when the poll budget is spent but extraction never wrote its meta
 	 * barrier — a permanent extract-DLQ failure or a pre-feature email that predates
@@ -62,10 +84,22 @@ export interface ArticlesPanelViewModel {
 	 * notice instead of polling forever. */
 	isStalePending: boolean;
 	/** Present only while `isExtracting` and within the poll budget — drives the
-	 * page-level htmx poll that swaps the finished card set in on completion. */
+	 * page-level htmx poll that swaps the finished panel in on completion. Each panel
+	 * polls its own fragment route: a shared URL would swap the other panel's markup
+	 * in over this one. */
 	panelPollUrl: string | undefined;
-	truncatedNotice: string | undefined;
 	feedbackNotice: boolean;
+}
+
+export interface ArticlesPanelViewModel extends ExtractionPanelViewModel {
+	/** Only the cards shown so far — the panel reveals them a page at a time, so
+	 * this is a slice of the email's kept links, not all of them. */
+	cards: InboxLinkCardViewModel[];
+	showMore: ArticleShowMore | undefined;
+}
+
+export interface ExcludedPanelViewModel extends ExtractionPanelViewModel {
+	links: ExcludedLinkViewModel[];
 }
 
 export interface InboxEmailDetailViewModel {
@@ -83,6 +117,7 @@ export interface InboxEmailDetailViewModel {
 	unavailableMessage: string;
 	linkCountLabel: string | undefined;
 	articles: ArticlesPanelViewModel;
+	excluded: ExcludedPanelViewModel;
 }
 
 function buildArticleCardsPage(input: {
@@ -142,21 +177,22 @@ export function toInboxEmailDetailViewModel(input: {
 	maxPolls: number;
 	shown?: number;
 	/** The page-level poll tick: the full render starts at the initial count; the
-	 * `/inbox/:id/articles` fragment route passes the incremented count back. */
+	 * panel fragment routes pass the incremented count back. */
 	panelPollCount?: number;
 	feedbackConfirmed?: boolean;
 }): InboxEmailDetailViewModel {
+	const emailId = input.entry.receivedAtMessageId;
 	const canRenderBody = input.entry.status === "received" && input.bodyHtml !== undefined;
 	const allCards = input.links.filter((link) => link.status !== "skipped");
 	const totalCards = allCards.length;
 	const cardsPage = buildArticleCardsPage({
 		allCards,
-		emailId: input.entry.receivedAtMessageId,
+		emailId,
 		from: 0,
 		to: input.shown ?? ARTICLES_PAGE_SIZE,
 		maxPolls: input.maxPolls,
 	});
-	const excluded = input.links
+	const excludedLinks = input.links
 		.filter((link) => link.status === "skipped")
 		.map(
 			(link): ExcludedLinkViewModel => ({
@@ -167,7 +203,7 @@ export function toInboxEmailDetailViewModel(input: {
 						? GENERIC_EXCLUDED_LABEL
 						: SKIP_REASON_LABELS[link.skipReason],
 				feedbackAction: buildInboxLinkFeedbackUrl({
-					emailId: input.entry.receivedAtMessageId,
+					emailId,
 					ordinal: link.ordinal,
 				}),
 			}),
@@ -184,19 +220,24 @@ export function toInboxEmailDetailViewModel(input: {
 	// so we give up on the spinner and show a terminal notice instead of polling on.
 	const isStalePending = awaitingMeta && !withinPollBudget;
 	const isExtracting = awaitingMeta && withinPollBudget;
-	const panelPollUrl = isExtracting
-		? buildInboxArticlesPollUrl({
-				emailId: input.entry.receivedAtMessageId,
-				pollCount: panelPollCount,
-			})
-		: undefined;
+	const feedbackNotice = input.feedbackConfirmed === true;
+	const shared = {
+		extractingMessage: EXTRACTING_MESSAGE,
+		staleMessage: STALE_MESSAGE,
+		isExtracting,
+		isStalePending,
+		truncatedNotice: truncated
+			? `Showing the first ${input.links.length} links found in this email.`
+			: undefined,
+		feedbackNotice,
+	};
 	return {
 		subject: input.entry.subject === "" ? "(no subject)" : input.entry.subject,
 		sender: input.entry.senderEmail === "" ? "(unknown sender)" : input.entry.senderEmail,
 		received: toAbsoluteDateTime({ iso: input.entry.receivedAt }),
 		backHref: `/inbox?feature=${EMAIL_FEATURE}`,
 		activeTab: input.activeTab,
-		tabs: buildMailTabs({ emailId: input.entry.receivedAtMessageId, active: input.activeTab }),
+		tabs: buildMailTabs({ emailId, active: input.activeTab }),
 		canRenderBody,
 		bodyHtml: input.bodyHtml ?? "",
 		unavailableMessage:
@@ -208,17 +249,25 @@ export function toInboxEmailDetailViewModel(input: {
 			? undefined
 			: buildLinkCountLabel({ count: totalCards, truncated }),
 		articles: {
+			...shared,
 			cards: cardsPage.cards,
 			showMore: cardsPage.showMore,
-			excluded,
-			isEmpty: totalCards === 0 && excluded.length === 0,
-			isExtracting,
-			isStalePending,
-			panelPollUrl,
-			truncatedNotice: truncated
-				? `Showing the first ${input.links.length} links found in this email.`
+			// Every kept link, not the page of them on screen: a first page that is
+			// merely unfilled is not an empty panel.
+			isEmpty: totalCards === 0,
+			emptyMessage: excludedLinks.length === 0 ? NO_LINKS_MESSAGE : ALL_SKIPPED_MESSAGE,
+			panelPollUrl: isExtracting
+				? buildInboxArticlesPollUrl({ emailId, pollCount: panelPollCount })
 				: undefined,
-			feedbackNotice: input.feedbackConfirmed === true,
+		},
+		excluded: {
+			...shared,
+			links: excludedLinks,
+			isEmpty: excludedLinks.length === 0,
+			emptyMessage: totalCards === 0 ? NO_LINKS_MESSAGE : NOTHING_SKIPPED_MESSAGE,
+			panelPollUrl: isExtracting
+				? buildInboxExcludedPollUrl({ emailId, pollCount: panelPollCount })
+				: undefined,
 		},
 	};
 }

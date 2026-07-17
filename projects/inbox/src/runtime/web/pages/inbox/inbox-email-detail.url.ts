@@ -3,7 +3,7 @@ import { EMAIL_FEATURE } from "@packages/web-shell";
 import { ARTICLES_PAGE_SIZE } from "./inbox-articles-more.url";
 import { INBOX_PATH } from "./inbox-emails.url";
 
-export const MAIL_TAB_KEYS = ["view", "articles"] as const;
+export const MAIL_TAB_KEYS = ["view", "articles", "excluded"] as const;
 
 export type MailTabKey = (typeof MAIL_TAB_KEYS)[number];
 

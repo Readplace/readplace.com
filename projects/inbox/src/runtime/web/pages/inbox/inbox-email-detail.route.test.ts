@@ -108,6 +108,7 @@ function manyCrawledLinks(count: number): Partial<InboxEmailLinkEntry>[] {
 
 const detailPath = `/inbox/${encodeURIComponent(SK)}?feature=email`;
 const articlesTabPath = `${detailPath}&tab=articles`;
+const excludedTabPath = `${detailPath}&tab=excluded`;
 
 function parseDoc(html: string) {
 	return new JSDOM(html).window.document;
@@ -152,12 +153,18 @@ describe("Inbox email detail View tab", () => {
 
 		const viewTab = doc.querySelector('[data-test-inbox-tab="view"]');
 		const articlesTab = doc.querySelector('[data-test-inbox-tab="articles"]');
+		const excludedTab = doc.querySelector('[data-test-inbox-tab="excluded"]');
 		assert(viewTab, "View tab must render");
 		assert(articlesTab, "Articles tab must render");
+		assert(excludedTab, "Skipped Links tab must render");
 		expect(viewTab.getAttribute("aria-current")).toBe("page");
 		expect(articlesTab.getAttribute("aria-current")).toBeNull();
+		expect(excludedTab.getAttribute("aria-current")).toBeNull();
 		expect(articlesTab.getAttribute("href")).toBe(
 			`/inbox/${encodeURIComponent(SK)}?feature=email&tab=articles`,
+		);
+		expect(excludedTab.getAttribute("href")).toBe(
+			`/inbox/${encodeURIComponent(SK)}?feature=email&tab=excluded`,
 		);
 		expect(renderedPanels(doc)).toEqual(["view"]);
 
@@ -352,7 +359,7 @@ describe("Inbox email detail Articles tab", () => {
 		expect(viewTab.getAttribute("href")).toBe(`/inbox/${encodeURIComponent(SK)}?feature=email`);
 	});
 
-	it("separates excluded links into a no-hyperlink list with an include-feedback form", async () => {
+	it("keeps only the kept links on the Articles tab, with an exclude-feedback form", async () => {
 		const fixture = createDefaultTestAppFixture(TEST_APP_ORIGIN);
 		const harness = useApp(fixture);
 		const agent = await loginAgent(harness.server, harness.auth);
@@ -377,26 +384,10 @@ describe("Inbox email detail Articles tab", () => {
 		expect(cardOrdinals).toEqual(["0000"]);
 		expect(doc.querySelector("[data-test-inbox-detail-link-count]")?.textContent).toBe("1 link");
 
-		const excludedRow = doc.querySelector('[data-test-inbox-excluded-link="0001"]');
-		assert(excludedRow, "excluded row must render");
-		const excludedUrl = excludedRow.querySelector("[data-test-inbox-excluded-url]");
-		assert(excludedUrl, "excluded row must show its URL");
-		expect(excludedUrl.tagName).toBe("SPAN");
-		expect(excludedUrl.textContent).toBe("https://news.example.com/unsub");
-		expect(excludedRow.querySelector("[data-test-inbox-excluded-reason]")?.textContent).toBe(
-			"Unsubscribe link",
-		);
-		const includeButton = excludedRow.querySelector("[data-test-inbox-feedback-include]");
-		assert(includeButton, "excluded row must offer include feedback");
-		const includeForm = includeButton.closest("form");
-		assert(includeForm, "include feedback must submit as a form");
-		expect(includeForm.getAttribute("method")).toBe("POST");
-		expect(includeForm.getAttribute("action")).toBe(
-			`/inbox/${encodeURIComponent(SK)}/links/0001/feedback?feature=email`,
-		);
-		expect(includeForm.querySelector('input[name="verdict"]')?.getAttribute("value")).toBe(
-			"should-be-included",
-		);
+		// A skipped link belongs to the Skipped Links tab alone; rendering it here too
+		// would show the same row on two tabs.
+		expect(doc.querySelector("[data-test-inbox-excluded]")).toBeNull();
+		expect(doc.querySelector('[data-test-inbox-excluded-link="0001"]')).toBeNull();
 
 		const keptCard = doc.querySelector('[data-test-inbox-article-card="0000"]');
 		assert(keptCard, "kept card must render");
@@ -405,6 +396,58 @@ describe("Inbox email detail Articles tab", () => {
 		expect(
 			excludeButton.closest("form")?.querySelector('input[name="verdict"]')?.getAttribute("value"),
 		).toBe("should-be-excluded");
+	});
+
+	it("still discloses the extraction cap when every link was skipped", async () => {
+		const fixture = createDefaultTestAppFixture(TEST_APP_ORIGIN);
+		const harness = useApp(fixture);
+		const agent = await loginAgent(harness.server, harness.auth);
+		await seed(fixture, "received");
+		await seedLinks(
+			fixture,
+			[
+				{
+					ordinal: EmailLinkOrdinalSchema.parse("0000"),
+					url: "https://news.example.com/unsub",
+					status: "skipped",
+					skipReason: "list-unsubscribe",
+				},
+			],
+			{ truncated: true },
+		);
+
+		const articles = await agent.get(articlesTabPath);
+		const excluded = await agent.get(excludedTabPath);
+
+		// The cap is an email-level fact. This email renders an EMPTY Articles panel, so
+		// a notice confined to the non-empty branch would vanish from every tab.
+		expect(parseDoc(articles.text).querySelector("[data-test-articles-truncated]")).not.toBeNull();
+		expect(parseDoc(excluded.text).querySelector("[data-test-excluded-truncated]")).not.toBeNull();
+	});
+
+	it("says where the links went when every one of them was skipped", async () => {
+		const fixture = createDefaultTestAppFixture(TEST_APP_ORIGIN);
+		const harness = useApp(fixture);
+		const agent = await loginAgent(harness.server, harness.auth);
+		await seed(fixture, "received");
+		await seedLinks(fixture, [
+			{
+				ordinal: EmailLinkOrdinalSchema.parse("0000"),
+				url: "https://news.example.com/unsub",
+				status: "skipped",
+				skipReason: "list-unsubscribe",
+			},
+		]);
+
+		const response = await agent.get(articlesTabPath);
+
+		const doc = parseDoc(response.text);
+		const empty = doc.querySelector("[data-test-articles-empty]");
+		assert(empty, "an all-skipped email must render the empty Articles panel");
+		// "No links found in this email." would be false — one was found, then skipped.
+		expect(empty.textContent?.trim()).toBe(
+			"Every link in this email was skipped — see the Skipped Links tab.",
+		);
 	});
 
 	it("surfaces a truncated notice when the per-email link cap was hit", async () => {
@@ -514,6 +557,146 @@ describe("Inbox email detail Articles tab", () => {
 	});
 });
 
+describe("Inbox email detail Skipped Links tab", () => {
+	it("returns 404 without the email feature flag", async () => {
+		const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
+		const agent = await loginAgent(harness.server, harness.auth);
+
+		const response = await agent.get(`/inbox/${encodeURIComponent(SK)}?tab=excluded`);
+
+		expect(response.status).toBe(404);
+	});
+
+	it("lists every skipped link with its reason and an include-feedback form, no email body", async () => {
+		const fixture = createDefaultTestAppFixture(TEST_APP_ORIGIN);
+		let bodyReads = 0;
+		fixture.inboxEmail.readEmailContent = async () => {
+			bodyReads += 1;
+			return "<p>body</p>";
+		};
+		const harness = useApp(fixture);
+		const agent = await loginAgent(harness.server, harness.auth);
+		await seed(fixture, "received");
+		await seedLinks(fixture, [
+			{ ordinal: EmailLinkOrdinalSchema.parse("0000"), status: "crawled", title: "Kept article" },
+			{
+				ordinal: EmailLinkOrdinalSchema.parse("0001"),
+				url: "https://news.example.com/unsub",
+				status: "skipped",
+				skipReason: "list-unsubscribe",
+			},
+			{
+				ordinal: EmailLinkOrdinalSchema.parse("0002"),
+				url: "https://sponsor.example.com/deal",
+				status: "skipped",
+				skipReason: "llm-ad",
+			},
+		]);
+
+		const response = await agent.get(excludedTabPath);
+
+		expect(response.status).toBe(200);
+		const doc = parseDoc(response.text);
+		expect(renderedPanels(doc)).toEqual(["excluded"]);
+		const excludedTab = doc.querySelector('[data-test-inbox-tab="excluded"]');
+		assert(excludedTab, "Skipped Links tab must render");
+		expect(excludedTab.getAttribute("aria-current")).toBe("page");
+
+		// The kept card belongs to the Articles tab and must not leak onto this one.
+		expect(doc.querySelectorAll("[data-test-inbox-article-card]")).toHaveLength(0);
+		// The header count still reports kept links, on every tab.
+		expect(doc.querySelector("[data-test-inbox-detail-link-count]")?.textContent).toBe("1 link");
+
+		const excludedRow = doc.querySelector('[data-test-inbox-excluded-link="0001"]');
+		assert(excludedRow, "excluded row must render");
+		const excludedUrl = excludedRow.querySelector("[data-test-inbox-excluded-url]");
+		assert(excludedUrl, "excluded row must show its URL");
+		// Never a hyperlink: a skipped link was never fetched, so the reader is not
+		// invited to click it.
+		expect(excludedUrl.tagName).toBe("SPAN");
+		expect(excludedUrl.textContent).toBe("https://news.example.com/unsub");
+		expect(excludedRow.querySelector("[data-test-inbox-excluded-reason]")?.textContent).toBe(
+			"Unsubscribe link",
+		);
+		expect(
+			doc
+				.querySelector('[data-test-inbox-excluded-link="0002"]')
+				?.querySelector("[data-test-inbox-excluded-reason]")?.textContent,
+		).toBe("Advertisement");
+
+		const includeButton = excludedRow.querySelector("[data-test-inbox-feedback-include]");
+		assert(includeButton, "excluded row must offer include feedback");
+		const includeForm = includeButton.closest("form");
+		assert(includeForm, "include feedback must submit as a form");
+		expect(includeForm.getAttribute("method")).toBe("POST");
+		expect(includeForm.getAttribute("action")).toBe(
+			`/inbox/${encodeURIComponent(SK)}/links/0001/feedback?feature=email`,
+		);
+		expect(includeForm.querySelector('input[name="verdict"]')?.getAttribute("value")).toBe(
+			"should-be-included",
+		);
+
+		expect(bodyReads).toBe(0);
+		expect(doc.querySelector("[data-test-inbox-email-iframe]")).toBeNull();
+	});
+
+	it("says nothing was skipped when every link was kept", async () => {
+		const fixture = createDefaultTestAppFixture(TEST_APP_ORIGIN);
+		const harness = useApp(fixture);
+		const agent = await loginAgent(harness.server, harness.auth);
+		await seed(fixture, "received");
+		await seedLinks(fixture, [
+			{ ordinal: EmailLinkOrdinalSchema.parse("0000"), status: "crawled", title: "Kept article" },
+		]);
+
+		const response = await agent.get(excludedTabPath);
+
+		const doc = parseDoc(response.text);
+		const panel = doc.querySelector('[data-test-tab-panel="excluded"]');
+		assert(panel, "the Skipped Links panel must render");
+		expect(panel.getAttribute("data-excluded-status")).toBe("terminal");
+		const empty = doc.querySelector("[data-test-excluded-empty]");
+		assert(empty, "a nothing-skipped email must render the empty Skipped panel");
+		expect(empty.textContent?.trim()).toBe("Nothing was skipped in this email.");
+	});
+
+	it("polls the Skipped panel rather than claiming nothing was skipped mid-extraction", async () => {
+		const fixture = createDefaultTestAppFixture(TEST_APP_ORIGIN);
+		const harness = useApp(fixture);
+		const agent = await loginAgent(harness.server, harness.auth);
+		await seed(fixture, "received");
+
+		const response = await agent.get(excludedTabPath);
+
+		const doc = parseDoc(response.text);
+		const panel = doc.querySelector('[data-test-tab-panel="excluded"]');
+		assert(panel, "the Skipped Links panel must render");
+		expect(panel.getAttribute("data-excluded-status")).toBe("extracting");
+		// Its own fragment: polling /articles would swap the Articles panel in here.
+		expect(panel.getAttribute("hx-get")).toContain("/excluded");
+		expect(doc.querySelector("[data-test-excluded-extracting]")).not.toBeNull();
+		expect(doc.querySelector("[data-test-excluded-empty]")).toBeNull();
+	});
+
+	it("is terminally empty for an unparsed email, which never runs extraction", async () => {
+		const fixture = createDefaultTestAppFixture(TEST_APP_ORIGIN);
+		const harness = useApp(fixture);
+		const agent = await loginAgent(harness.server, harness.auth);
+		await seed(fixture, "unparsed");
+
+		const response = await agent.get(excludedTabPath);
+
+		expect(response.status).toBe(200);
+		const doc = parseDoc(response.text);
+		const panel = doc.querySelector('[data-test-tab-panel="excluded"]');
+		assert(panel, "the Skipped Links panel must render");
+		expect(panel.getAttribute("data-excluded-status")).toBe("terminal");
+		expect(doc.querySelector("[data-test-excluded-empty]")?.textContent?.trim()).toBe(
+			"No links found in this email.",
+		);
+	});
+});
+
 const articlesPath = `/inbox/${encodeURIComponent(SK)}/articles?feature=email`;
 
 describe("Inbox Articles panel poll route", () => {
@@ -612,6 +795,101 @@ describe("Inbox Articles panel poll route", () => {
 	});
 });
 
+const excludedPath = `/inbox/${encodeURIComponent(SK)}/excluded?feature=email`;
+
+describe("Inbox Skipped panel poll route", () => {
+	it("returns 404 without the email feature flag", async () => {
+		const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
+		const agent = await loginAgent(harness.server, harness.auth);
+
+		const response = await agent.get(`/inbox/${encodeURIComponent(SK)}/excluded`);
+
+		expect(response.status).toBe(404);
+	});
+
+	it("returns 404 for an email the user does not have", async () => {
+		const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
+		const agent = await loginAgent(harness.server, harness.auth);
+
+		const response = await agent.get(excludedPath);
+
+		expect(response.status).toBe(404);
+	});
+
+	it("keeps polling, with an incremented count, while extraction is pending", async () => {
+		const fixture = createDefaultTestAppFixture(TEST_APP_ORIGIN);
+		const harness = useApp(fixture);
+		const agent = await loginAgent(harness.server, harness.auth);
+		await seed(fixture, "received");
+
+		const response = await agent.get(`${excludedPath}&poll=1`);
+
+		expect(response.status).toBe(200);
+		const doc = new JSDOM(response.text).window.document;
+		const panel = doc.querySelector('[data-test-tab-panel="excluded"]');
+		assert(panel, "the panel fragment must render");
+		expect(panel.getAttribute("data-excluded-status")).toBe("extracting");
+		expect(panel.getAttribute("hx-get")).toContain("poll=2");
+		// It must keep polling its OWN fragment: a shared URL would swap the Articles
+		// panel in over this one on the first tick.
+		expect(panel.getAttribute("hx-get")).toContain("/excluded");
+		const linkCount = doc.querySelector("[data-test-inbox-detail-link-count]");
+		assert(linkCount, "the poll fragment must carry the OOB link-count anchor");
+		expect(linkCount.getAttribute("hx-swap-oob")).toBe("outerHTML");
+		expect(linkCount.textContent).toBe("");
+	});
+
+	it("gives up to a terminal stale notice once the poll budget is spent without a meta barrier", async () => {
+		const fixture = createDefaultTestAppFixture(TEST_APP_ORIGIN);
+		const harness = useApp(fixture);
+		const agent = await loginAgent(harness.server, harness.auth);
+		await seed(fixture, "received");
+
+		const response = await agent.get(`${excludedPath}&poll=301`);
+
+		expect(response.status).toBe(200);
+		const doc = new JSDOM(response.text).window.document;
+		const panel = doc.querySelector('[data-test-tab-panel="excluded"]');
+		assert(panel, "the panel fragment must render");
+		expect(panel.getAttribute("data-excluded-status")).toBe("stale");
+		expect(panel.getAttribute("hx-get")).toBeNull();
+		expect(doc.querySelector("[data-test-excluded-stale]")).not.toBeNull();
+		expect(doc.querySelector("[data-test-excluded-extracting]")).toBeNull();
+	});
+
+	it("swaps in the finished skipped set once extraction wrote its meta", async () => {
+		const fixture = createDefaultTestAppFixture(TEST_APP_ORIGIN);
+		const harness = useApp(fixture);
+		const agent = await loginAgent(harness.server, harness.auth);
+		await seed(fixture, "received");
+		await seedLinks(fixture, [
+			{ ordinal: EmailLinkOrdinalSchema.parse("0000"), status: "crawled", title: "Kept article" },
+			{
+				ordinal: EmailLinkOrdinalSchema.parse("0001"),
+				url: "https://news.example.com/unsub",
+				status: "skipped",
+				skipReason: "list-unsubscribe",
+			},
+		]);
+
+		const response = await agent.get(excludedPath);
+
+		expect(response.status).toBe(200);
+		const doc = new JSDOM(response.text).window.document;
+		const panel = doc.querySelector('[data-test-tab-panel="excluded"]');
+		assert(panel, "the panel fragment must render");
+		expect(panel.getAttribute("data-excluded-status")).toBe("terminal");
+		expect(panel.getAttribute("hx-get")).toBeNull();
+		expect(doc.querySelectorAll("[data-test-inbox-excluded-link]")).toHaveLength(1);
+		// The header badge counts kept links and has to catch up here too — this poll
+		// is the only request in flight while the reader sits on this tab.
+		const linkCount = doc.querySelector("[data-test-inbox-detail-link-count]");
+		assert(linkCount, "the terminal poll fragment must carry the OOB link-count update");
+		expect(linkCount.getAttribute("hx-swap-oob")).toBe("outerHTML");
+		expect(linkCount.textContent).toBe("1 link");
+	});
+});
+
 describe("Inbox link feedback route", () => {
 	const feedbackPath = `/inbox/${encodeURIComponent(SK)}/links/0000/feedback`;
 
@@ -627,7 +905,7 @@ describe("Inbox link feedback route", () => {
 		expect(response.status).toBe(404);
 	});
 
-	it("logs the feedback as an error and redirects back to the Articles tab", async () => {
+	it("logs the feedback as an error and redirects back to the Skipped Links tab", async () => {
 		const fixture = createDefaultTestAppFixture(TEST_APP_ORIGIN);
 		const errors: string[] = [];
 		fixture.shared.logError = (message) => {
@@ -649,8 +927,11 @@ describe("Inbox link feedback route", () => {
 		});
 
 		expect(response.status).toBe(303);
+		// Back to the tab the reported row lives on — a skipped link is on Skipped
+		// Links, so a fixed &tab=articles would land the reader on a panel that
+		// doesn't hold it.
 		expect(response.headers.location).toBe(
-			`/inbox/${encodeURIComponent(SK)}?feature=email&tab=articles&feedback=sent`,
+			`/inbox/${encodeURIComponent(SK)}?feature=email&tab=excluded&feedback=sent`,
 		);
 		const confirmation = await agent.get(response.headers.location);
 		const notice = parseDoc(confirmation.text).querySelector(
@@ -668,6 +949,54 @@ describe("Inbox link feedback route", () => {
 			status: "skipped",
 			skipReason: "list-unsubscribe",
 		});
+	});
+
+	it("redirects an exclude verdict on a kept link back to the Articles tab", async () => {
+		const fixture = createDefaultTestAppFixture(TEST_APP_ORIGIN);
+		const errors: string[] = [];
+		fixture.shared.logError = (message) => {
+			errors.push(message);
+		};
+		const harness = useApp(fixture);
+		const agent = await loginAgent(harness.server, harness.auth);
+		await seed(fixture, "received");
+		await seedLinks(fixture, [{ status: "crawled", title: "Kept article" }]);
+
+		const response = await agent.post(`${feedbackPath}?feature=email`).type("form").send({
+			verdict: "should-be-excluded",
+		});
+
+		expect(response.status).toBe(303);
+		expect(response.headers.location).toBe(
+			`/inbox/${encodeURIComponent(SK)}?feature=email&tab=articles&feedback=sent`,
+		);
+		const confirmation = await agent.get(response.headers.location);
+		const notice = parseDoc(confirmation.text).querySelector("[data-test-inbox-feedback-notice]");
+		assert(notice, "the followed redirect must confirm the report on the Articles tab");
+		expect(errors).toHaveLength(1);
+	});
+
+	it("picks the tab from the link's status, not from the verdict", async () => {
+		const fixture = createDefaultTestAppFixture(TEST_APP_ORIGIN);
+		fixture.shared.logError = () => {};
+		const harness = useApp(fixture);
+		const agent = await loginAgent(harness.server, harness.auth);
+		await seed(fixture, "received");
+		await seedLinks(fixture, [
+			{ url: "https://news.example.com/unsub", status: "skipped", skipReason: "list-unsubscribe" },
+		]);
+
+		// Crossed on purpose: every other case pairs a skipped link with an include
+		// verdict, so keying the redirect off the verdict would pass them all. The row
+		// is skipped, so it is on the Skipped Links tab whatever the reader claims.
+		const response = await agent.post(`${feedbackPath}?feature=email`).type("form").send({
+			verdict: "should-be-excluded",
+		});
+
+		expect(response.status).toBe(303);
+		expect(response.headers.location).toBe(
+			`/inbox/${encodeURIComponent(SK)}?feature=email&tab=excluded&feedback=sent`,
+		);
 	});
 
 	it("returns 404 for a link that does not exist", async () => {

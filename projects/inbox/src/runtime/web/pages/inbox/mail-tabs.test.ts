@@ -7,10 +7,11 @@ describe("buildMailTabs", () => {
 	it("marks the active tab with aria-current and leaves the others unset", () => {
 		const tabs = buildMailTabs({ emailId: EMAIL_ID, active: "view" });
 
-		expect(tabs.map((tab) => tab.key)).toEqual(["view", "articles"]);
-		expect(tabs.map((tab) => tab.label)).toEqual(["View", "Extracted Articles"]);
+		expect(tabs.map((tab) => tab.key)).toEqual(["view", "articles", "excluded"]);
+		expect(tabs.map((tab) => tab.label)).toEqual(["View", "Extracted Articles", "Skipped Links"]);
 		expect(tabs[0].ariaCurrent).toBe("page");
 		expect(tabs[1].ariaCurrent).toBeUndefined();
+		expect(tabs[2].ariaCurrent).toBeUndefined();
 	});
 
 	it("moves aria-current to the Articles tab when it is the active one", () => {
@@ -18,6 +19,15 @@ describe("buildMailTabs", () => {
 
 		expect(tabs[0].ariaCurrent).toBeUndefined();
 		expect(tabs[1].ariaCurrent).toBe("page");
+		expect(tabs[2].ariaCurrent).toBeUndefined();
+	});
+
+	it("moves aria-current to the Skipped Links tab when it is the active one", () => {
+		const tabs = buildMailTabs({ emailId: EMAIL_ID, active: "excluded" });
+
+		expect(tabs[0].ariaCurrent).toBeUndefined();
+		expect(tabs[1].ariaCurrent).toBeUndefined();
+		expect(tabs[2].ariaCurrent).toBe("page");
 	});
 
 	it("links every tab to its own URL, carrying the feature flag the surface needs", () => {
@@ -26,6 +36,7 @@ describe("buildMailTabs", () => {
 		expect(tabs.map((tab) => tab.href)).toEqual([
 			`/inbox/${ENCODED_EMAIL_ID}?feature=email`,
 			`/inbox/${ENCODED_EMAIL_ID}?feature=email&tab=articles`,
+			`/inbox/${ENCODED_EMAIL_ID}?feature=email&tab=excluded`,
 		]);
 	});
 });

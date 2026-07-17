@@ -10,40 +10,22 @@
 	</p>
 	{{/if}}
 	{{#if isExtracting}}
-	<p class="inbox-email-detail__articles-pending" data-test-articles-extracting>
-		Looking for links…
-	</p>
+	<p class="inbox-email-detail__notice" data-test-articles-extracting>{{extractingMessage}}</p>
 	{{else}}
 	{{#if isStalePending}}
-	<p class="inbox-email-detail__articles-stale" data-test-articles-stale>
-		We couldn’t scan this email for links. The original message is still available on the View tab.
-	</p>
-	{{else}}
-	{{#if isEmpty}}
-	<p class="inbox-email-detail__articles-empty" data-test-articles-empty>
-		No links found in this email.
-	</p>
+	<p class="inbox-email-detail__notice" data-test-articles-stale>{{staleMessage}}</p>
 	{{else}}
 	{{#if truncatedNotice}}<p
-		class="inbox-email-detail__articles-truncated"
+		class="inbox-email-detail__notice"
 		data-test-articles-truncated
 	>{{truncatedNotice}}</p>{{/if}}
-	{{#if hasCards}}
+	{{#if isEmpty}}
+	<p class="inbox-email-detail__notice" data-test-articles-empty>{{emptyMessage}}</p>
+	{{else}}
 	<div class="inbox-email-detail__articles" data-test-inbox-articles>
 		{{#each articleHtmls}}{{{this}}}{{/each}}
 		{{{showMoreHtml}}}
 	</div>
-	{{/if}}
-	{{#if hasExcluded}}
-	<section class="inbox-email-detail__excluded" data-test-inbox-excluded>
-		<h2 class="inbox-email-detail__excluded-heading">Left out of your links</h2>
-		<p class="inbox-email-detail__excluded-note">
-			These looked like unsubscribe, ad, or menu links — not articles — so they weren’t fetched
-			or added.
-		</p>
-		{{#each excludedHtmls}}{{{this}}}{{/each}}
-	</section>
-	{{/if}}
 	{{/if}}
 	{{/if}}
 	{{/if}}

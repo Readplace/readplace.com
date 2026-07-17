@@ -111,10 +111,7 @@
   border-radius: var(--radius);
 }
 
-.inbox-email-detail__articles-empty,
-.inbox-email-detail__articles-truncated,
-.inbox-email-detail__articles-stale,
-.inbox-email-detail__articles-pending {
+.inbox-email-detail__notice {
   color: var(--muted-foreground);
   font-size: 0.9rem;
 }
@@ -191,16 +188,8 @@
 }
 
 .inbox-email-detail__excluded {
-  margin-top: 24px;
-  padding-top: 16px;
-  border-top: 1px solid var(--border);
-}
-
-.inbox-email-detail__excluded-heading {
-  font-size: 1rem;
-  font-weight: 600;
-  color: var(--foreground);
-  margin: 0 0 4px;
+  display: flex;
+  flex-direction: column;
 }
 
 .inbox-email-detail__excluded-note {

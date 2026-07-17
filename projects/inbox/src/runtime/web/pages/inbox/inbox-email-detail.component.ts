@@ -3,6 +3,7 @@ import { join } from "node:path";
 import { render } from "@packages/web-shell";
 import type { PageBody } from "@packages/web-shell";
 import { renderInboxArticlesPanel } from "./inbox-articles-panel.component";
+import { renderInboxExcludedPanel } from "./inbox-excluded-panel.component";
 import type { MailTabKey } from "./inbox-email-detail.url";
 import { buildInboxEmailIframeSrcdoc } from "./inbox-email-iframe-srcdoc";
 import { renderInboxLinkCount } from "./inbox-link-count.component";
@@ -30,6 +31,7 @@ function renderViewPanel(vm: InboxEmailDetailViewModel): string {
 const PANEL_RENDERERS: Record<MailTabKey, (vm: InboxEmailDetailViewModel) => string> = {
 	view: renderViewPanel,
 	articles: (vm) => renderInboxArticlesPanel(vm.articles),
+	excluded: (vm) => renderInboxExcludedPanel(vm.excluded),
 };
 
 export function InboxEmailDetailPage(vm: InboxEmailDetailViewModel): PageBody {

@@ -1,0 +1,35 @@
+<section
+	class="inbox-email-detail__panel"
+	data-test-tab-panel="excluded"
+	data-excluded-status="{{panelStatus}}"
+	{{#if panelPollUrl}} hx-get="{{panelPollUrl}}" hx-trigger="every 3s" hx-target="this" hx-swap="outerHTML"{{/if}}
+>
+	{{#if feedbackNotice}}
+	<p class="inbox-email-detail__feedback-notice" data-test-inbox-feedback-notice>
+		Thanks — your report was logged.
+	</p>
+	{{/if}}
+	{{#if isExtracting}}
+	<p class="inbox-email-detail__notice" data-test-excluded-extracting>{{extractingMessage}}</p>
+	{{else}}
+	{{#if isStalePending}}
+	<p class="inbox-email-detail__notice" data-test-excluded-stale>{{staleMessage}}</p>
+	{{else}}
+	{{#if truncatedNotice}}<p
+		class="inbox-email-detail__notice"
+		data-test-excluded-truncated
+	>{{truncatedNotice}}</p>{{/if}}
+	{{#if isEmpty}}
+	<p class="inbox-email-detail__notice" data-test-excluded-empty>{{emptyMessage}}</p>
+	{{else}}
+	<div class="inbox-email-detail__excluded" data-test-inbox-excluded>
+		<p class="inbox-email-detail__excluded-note">
+			These looked like unsubscribe, ad, or menu links — not articles — so they weren’t fetched
+			or added.
+		</p>
+		{{#each excludedHtmls}}{{{this}}}{{/each}}
+	</div>
+	{{/if}}
+	{{/if}}
+	{{/if}}
+</section>

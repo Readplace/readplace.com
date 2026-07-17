@@ -3,6 +3,7 @@ import { type MailTabKey, buildInboxEmailDetailUrl } from "./inbox-email-detail.
 const MAIL_TAB_DEFINITIONS: readonly { readonly key: MailTabKey; readonly label: string }[] = [
 	{ key: "view", label: "View" },
 	{ key: "articles", label: "Extracted Articles" },
+	{ key: "excluded", label: "Skipped Links" },
 ];
 
 export interface MailTab {

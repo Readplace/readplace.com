@@ -102,6 +102,13 @@ describe("toInboxEmailDetailViewModel", () => {
 		expect(vm.tabs[1].ariaCurrent).toBe("page");
 	});
 
+	it("hands the Skipped Links tab to the page as the active one", () => {
+		const vm = build({ activeTab: "excluded", linksMeta: { truncated: false } });
+
+		expect(vm.activeTab).toBe("excluded");
+		expect(vm.tabs[2].ariaCurrent).toBe("page");
+	});
+
 	it("exposes the received instant as a UTC-baselined datetime LocalTime", () => {
 		const vm = build({
 			entry: entry({ receivedAt: "2026-06-24T09:00:00.000Z" }),
@@ -147,6 +154,17 @@ describe("toInboxEmailDetailViewModel", () => {
 		expect(vm.linkCountLabel).toBeUndefined();
 	});
 
+	it("keeps the Skipped panel extracting too, so it never claims nothing was skipped early", () => {
+		const vm = build({ links: [], linksMeta: undefined });
+
+		// Both panels describe the same extractor run: answering "nothing was
+		// skipped" before it has looked is the same lie as "no links found".
+		expect(vm.excluded.isExtracting).toBe(true);
+		expect(vm.excluded.isStalePending).toBe(false);
+		// Its own fragment — polling /articles would swap the Articles panel in here.
+		expect(vm.excluded.panelPollUrl).toContain("/excluded?feature=email&poll=1");
+	});
+
 	it("gives up to a terminal stale state once the budget is spent without a meta barrier", () => {
 		const vm = build({ links: [], linksMeta: undefined, panelPollCount: 301 });
 
@@ -155,6 +173,9 @@ describe("toInboxEmailDetailViewModel", () => {
 		expect(vm.articles.isExtracting).toBe(false);
 		expect(vm.articles.isStalePending).toBe(true);
 		expect(vm.articles.panelPollUrl).toBeUndefined();
+		expect(vm.excluded.isExtracting).toBe(false);
+		expect(vm.excluded.isStalePending).toBe(true);
+		expect(vm.excluded.panelPollUrl).toBeUndefined();
 		// No trustworthy count while extraction never finished.
 		expect(vm.linkCountLabel).toBeUndefined();
 	});
@@ -165,14 +186,19 @@ describe("toInboxEmailDetailViewModel", () => {
 		expect(vm.articles.isExtracting).toBe(true);
 		expect(vm.articles.isStalePending).toBe(false);
 		expect(vm.articles.panelPollUrl).toContain("poll=300");
+		expect(vm.excluded.isExtracting).toBe(true);
+		expect(vm.excluded.panelPollUrl).toContain("poll=300");
 	});
 
-	it("never polls a non-received email's articles panel", () => {
+	it("never polls a non-received email's panels", () => {
 		const vm = build({ entry: entry({ status: "rejected" }), links: [], linksMeta: undefined });
 
 		expect(vm.articles.isExtracting).toBe(false);
 		expect(vm.articles.isEmpty).toBe(true);
 		expect(vm.articles.panelPollUrl).toBeUndefined();
+		expect(vm.excluded.isExtracting).toBe(false);
+		expect(vm.excluded.isEmpty).toBe(true);
+		expect(vm.excluded.panelPollUrl).toBeUndefined();
 	});
 
 	it("reports a genuinely empty panel once extraction wrote its meta with zero links", () => {
@@ -183,6 +209,20 @@ describe("toInboxEmailDetailViewModel", () => {
 		expect(vm.articles.cards).toHaveLength(0);
 		expect(vm.articles.panelPollUrl).toBeUndefined();
 		expect(vm.articles.truncatedNotice).toBeUndefined();
+		// An email with no links at all found none on either tab — neither panel may
+		// point at the other for an explanation it doesn't have.
+		expect(vm.articles.emptyMessage).toBe("No links found in this email.");
+		expect(vm.excluded.isEmpty).toBe(true);
+		expect(vm.excluded.emptyMessage).toBe("No links found in this email.");
+	});
+
+	it("tells the Skipped panel nothing was skipped when every link was kept", () => {
+		const vm = build({ links: [link({ status: "crawled" })], linksMeta: { truncated: false } });
+
+		expect(vm.excluded.isEmpty).toBe(true);
+		expect(vm.excluded.links).toHaveLength(0);
+		// "No links found" would be false here — one was found, and kept.
+		expect(vm.excluded.emptyMessage).toBe("Nothing was skipped in this email.");
 	});
 
 	it("maps a pending link to a polling card and a crawled link to a terminal card", () => {
@@ -224,6 +264,27 @@ describe("toInboxEmailDetailViewModel", () => {
 		expect(vm.linkCountLabel).toBe("1+ links");
 	});
 
+	it("discloses the extraction cap on both panels, including when every link was skipped", () => {
+		const vm = build({
+			links: [link({ status: "skipped", skipReason: "llm-ad" })],
+			linksMeta: { truncated: true },
+		});
+
+		// The cap is a fact about the email, not about one panel: an all-skipped email
+		// empties the Articles panel, so a notice that only rode the non-empty branch
+		// would disclose the cap on no tab at all.
+		expect(vm.articles.isEmpty).toBe(true);
+		expect(vm.articles.truncatedNotice).toBe("Showing the first 1 links found in this email.");
+		expect(vm.excluded.truncatedNotice).toBe("Showing the first 1 links found in this email.");
+	});
+
+	it("leaves the cap notice off both panels for an email that was not truncated", () => {
+		const vm = build({ links: [link()], linksMeta: { truncated: false } });
+
+		expect(vm.articles.truncatedNotice).toBeUndefined();
+		expect(vm.excluded.truncatedNotice).toBeUndefined();
+	});
+
 	it("routes skipped links to the excluded list and counts only the kept ones", () => {
 		const vm = build({
 			links: [
@@ -245,7 +306,8 @@ describe("toInboxEmailDetailViewModel", () => {
 		});
 
 		expect(vm.articles.cards.map((card) => card.ordinal)).toEqual(["0000"]);
-		expect(vm.articles.excluded).toEqual([
+		expect(vm.excluded.isEmpty).toBe(false);
+		expect(vm.excluded.links).toEqual([
 			{
 				ordinal: "0001",
 				url: "https://news.example.com/unsub",
@@ -263,21 +325,28 @@ describe("toInboxEmailDetailViewModel", () => {
 		expect(vm.articles.isEmpty).toBe(false);
 	});
 
-	it("keeps the panel non-empty when every link was excluded", () => {
+	it("empties the Articles panel when every link was skipped, and points at where they went", () => {
 		const vm = build({
 			links: [link({ status: "skipped", skipReason: "llm-menu" })],
 			linksMeta: { truncated: false },
 		});
 
-		expect(vm.articles.isEmpty).toBe(false);
+		expect(vm.articles.isEmpty).toBe(true);
 		expect(vm.articles.cards).toHaveLength(0);
-		expect(vm.articles.excluded.map((entry) => entry.reasonLabel)).toEqual(["Site navigation"]);
+		// "No links found" would be false: a link was found, then skipped. The empty
+		// Articles panel has to point at the tab that holds it.
+		expect(vm.articles.emptyMessage).toBe(
+			"Every link in this email was skipped — see the Skipped Links tab.",
+		);
+		expect(vm.excluded.isEmpty).toBe(false);
+		expect(vm.excluded.links.map((entry) => entry.reasonLabel)).toEqual(["Site navigation"]);
 		expect(vm.linkCountLabel).toBeUndefined();
 	});
 
-	it("surfaces the feedback confirmation only on the redirect that carries it", () => {
+	it("surfaces the feedback confirmation on both panels, for whichever tab it redirects to", () => {
 		const confirmed = build({ links: [link()], linksMeta: { truncated: false } });
 		expect(confirmed.articles.feedbackNotice).toBe(false);
+		expect(confirmed.excluded.feedbackNotice).toBe(false);
 
 		const vm = toInboxEmailDetailViewModel({
 			entry: entry(),
@@ -288,7 +357,10 @@ describe("toInboxEmailDetailViewModel", () => {
 			maxPolls: 300,
 			feedbackConfirmed: true,
 		});
+		// The redirect picks the tab from the reported link's status, so the notice has
+		// to be ready on either panel — only the active one renders it.
 		expect(vm.articles.feedbackNotice).toBe(true);
+		expect(vm.excluded.feedbackNotice).toBe(true);
 	});
 
 	it("labels an excluded link without a recorded reason generically", () => {
@@ -297,7 +369,7 @@ describe("toInboxEmailDetailViewModel", () => {
 			linksMeta: { truncated: false },
 		});
 
-		expect(vm.articles.excluded.map((entry) => entry.reasonLabel)).toEqual(["Not an article"]);
+		expect(vm.excluded.links.map((entry) => entry.reasonLabel)).toEqual(["Not an article"]);
 	});
 
 	it("reveals only the first page of cards and offers the rest behind a Show more control", () => {
@@ -350,7 +422,7 @@ describe("toInboxEmailDetailViewModel", () => {
 
 		expect(vm.articles.cards).toHaveLength(ARTICLES_PAGE_SIZE);
 		expect(vm.articles.cards[0].ordinal).toBe("0001");
-		expect(vm.articles.excluded).toHaveLength(1);
+		expect(vm.excluded.links).toHaveLength(1);
 		expect(vm.articles.showMore?.count).toBe(1);
 		expect(vm.linkCountLabel).toBe("21 links");
 	});
