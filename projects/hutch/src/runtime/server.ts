@@ -6,7 +6,6 @@ import cors from "cors";
 import type { Express, NextFunction, Request, Response } from "express";
 import express from "express";
 import { isbot } from "isbot";
-import type { LogParseError } from "@packages/hutch-infra-components";
 import type { ClientNameInGroup } from "@packages/supported-clients";
 import type {
 	CountUsers,
@@ -311,7 +310,6 @@ interface AppDependencies {
 	publishUpdateFetchTimestamp: PublishUpdateFetchTimestamp;
 	readArticleContent: ReadArticleContent;
 	httpErrorMessageMapping: HttpErrorMessageMapping;
-	logParseError: LogParseError;
 	importSessionStore: ImportSessionStore;
 	extractLinksFromPageUrl: ExtractLinksFromPageUrl;
 	provisionInboxAddress: (userId: UserId) => Promise<void>;
@@ -1025,7 +1023,6 @@ export function createApp(dependencies: AppDependencies): Express {
 		buildBannerState,
 		getChangelogBanner: deps.getChangelogBanner,
 		logError: deps.logError,
-		logParseError: deps.logParseError,
 		analytics: deps.analytics,
 		salt: deps.salt,
 		now: deps.now,

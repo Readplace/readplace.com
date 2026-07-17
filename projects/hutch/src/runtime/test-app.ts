@@ -117,7 +117,6 @@ function flattenFixtureToAppDependencies(
 		staticBaseUrl: fixture.shared.staticBaseUrl,
 		baseUrl: fixture.shared.appOrigin,
 		logError: fixture.shared.logError,
-		logParseError: fixture.shared.logParseError,
 		httpErrorMessageMapping: fixture.shared.httpErrorMessageMapping,
 		hashPassword: fixture.auth.hashPassword,
 		createUser: fixture.auth.createUser,

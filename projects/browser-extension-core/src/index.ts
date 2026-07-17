@@ -32,7 +32,6 @@ export {
 	initExtension,
 	initSaveArticleUnderstanding,
 	initSaveArticlesUnderstanding,
-	initSaveHtmlUnderstanding,
 	initSaveContentUnderstanding,
 	initListArticlesUnderstanding,
 	genericEntityAction,

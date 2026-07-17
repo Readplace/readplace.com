@@ -112,7 +112,7 @@ final class ReadingListViewModelTests: XCTestCase {
 
 		XCTAssertEqual(
 			viewModel.collectionAffordances.map(\.token), ["add-links-help"],
-			"the server's collection actions — save-article, the capture-only saves (save-html/save-content), and the field-requiring search — are all dropped client-side, leaving only the client + control"
+			"the server's collection actions — save-article, the capture-only save-content, and the field-requiring search — are all dropped client-side, leaving only the client + control"
 		)
 		XCTAssertFalse(
 			viewModel.collectionAffordances.contains { $0.token == "save-article" },

@@ -5,14 +5,13 @@ import {
 	SAVE_COOKIE_NAME,
 	SAVE_COOKIE_VALUE,
 } from "@packages/onboarding-extension-signal";
-import type { ErrorRequestHandler, Request, RequestHandler, Response, Router } from "express";
+import type { Request, RequestHandler, Response, Router } from "express";
 import express from "express";
 import { z } from "zod";
 import type { HutchLogger } from "@packages/hutch-logger";
-import type { LogParseError } from "@packages/hutch-infra-components";
 import type { SaveableUrl, ValidateSaveableUrl } from "@packages/domain/article";
 import type { UserId } from "@packages/domain/user";
-import { SaveArticleInputSchema, BulkSaveManifestSchema, MAX_PAGES_PER_BULK_SAVE, MAX_UPLOAD_REQUEST_BYTES, MAX_UPLOAD_HTML_BYTES, SaveHtmlInputSchema, ArticleStatusSchema, MAX_RAW_HTML_REQUEST_BYTES, RAW_HTML_FIELD, saveableUrlErrorMessage } from "@packages/domain/article";
+import { BulkSaveManifestSchema, MAX_PAGES_PER_BULK_SAVE, MAX_UPLOAD_REQUEST_BYTES, MAX_UPLOAD_HTML_BYTES, ArticleStatusSchema, saveableUrlErrorMessage } from "@packages/domain/article";
 import { buildSaveIntentEvent, classifyDeviceClass, hashIp, type AnalyticsEvent } from "@packages/web-analytics";
 import { ANALYTICS_EVENTS, SAVE_OUTCOMES, SAVE_SURFACES, STREAMS, type SaveOutcome, type SaveSurface } from "../../../observability/events";
 import {
@@ -253,7 +252,6 @@ interface QueueDependencies {
 	 * `buildBannerState` also performs and this shell has nowhere to render. */
 	getChangelogBanner: GetChangelogBanner;
 	logError: (message: string, error?: Error) => void;
-	logParseError: LogParseError;
 	analytics: HutchLogger.Typed<AnalyticsEvent>;
 	salt: string;
 	now: () => Date;
@@ -288,7 +286,6 @@ const SAVE_ROUTE = {
 	saveArticle: "/",
 	saveArticles: "/save-articles",
 	save: "/save",
-	saveHtml: "/save-html",
 	saveContent: "/save-content",
 } as const;
 
@@ -305,7 +302,6 @@ const SAVE_INTENT_PATH = {
 	saveArticle: saveIntentPath(SAVE_ROUTE.saveArticle),
 	saveArticles: saveIntentPath(SAVE_ROUTE.saveArticles),
 	save: saveIntentPath(SAVE_ROUTE.save),
-	saveHtml: saveIntentPath(SAVE_ROUTE.saveHtml),
 	saveContent: saveIntentPath(SAVE_ROUTE.saveContent),
 } as const;
 
@@ -884,126 +880,6 @@ export function initQueueRoutes(deps: QueueDependencies): Router {
 				skippedUrls: skipped,
 			}),
 		);
-	});
-
-	/** Translates body-parser oversize errors (bodies above MAX_RAW_HTML_REQUEST_BYTES, where we can't reach req.body.url to salvage) into a Siren 500 carrying the save-article action, so the extension can drop the oversized rawHtml and degrade onto the URL-only tier. Also gated on err.limit as defense-in-depth against a future middleware in the chain raising entity.too.large for a different parser. */
-	const saveHtmlLimitHandler: ErrorRequestHandler = (err, req, res, next) => {
-		const bodyErr = err as { type?: string; limit?: number } | null;
-		if (
-			bodyErr?.type === "entity.too.large" &&
-			bodyErr.limit === MAX_RAW_HTML_REQUEST_BYTES &&
-			wantsSiren(req)
-		) {
-			const mb = MAX_RAW_HTML_REQUEST_BYTES / (1024 * 1024);
-			deps.logError(
-				`request body exceeded ${mb}MB`,
-				err instanceof Error ? err : undefined,
-			);
-			// url=null because body-parser rejected before req.body was populated.
-			deps.logParseError({ url: null, reason: "payload-too-large" });
-			res.status(500).type(SIREN_MEDIA_TYPE).json(
-				sirenError({
-					code: "html-too-large",
-					message: `Submitting the HTML of this page has failed due to being too large exceeding ${mb}MB`,
-					actions: [
-						{
-							name: "save-article",
-							title: "Save a link",
-							href: QUEUE_PATH,
-							method: "POST",
-							type: "application/json",
-							fields: [{ name: "url", type: "url" }],
-						},
-					],
-				}),
-			);
-			return;
-		}
-		next(err);
-	};
-
-	router.post(SAVE_ROUTE.saveHtml, requireNotLocked, deps.requireWriteAccess, express.json({ limit: MAX_RAW_HTML_REQUEST_BYTES }), saveHtmlLimitHandler, async (req: Request, res: Response) => {
-		if (!wantsSiren(req)) {
-			res.status(406).send("Not Acceptable");
-			return;
-		}
-
-		assert(req.userId, "userId required - route must be protected by requireAuth");
-		const userId = req.userId;
-
-		let validatedArticleUrl: string | undefined;
-
-		try {
-			const parsed = SaveHtmlInputSchema.safeParse(req.body);
-
-			if (!parsed.success) {
-				/* rawHtml-too-big is the one schema failure the user can still recover
-				 * from: the URL is valid, the content is just too bulky to capture via
-				 * Tier 0. Fall back to a URL-only save so Tier 1 crawls the page the
-				 * ordinary way. Any other schema failure (missing/bad url, empty
-				 * rawHtml) is a client bug and stays a 422. */
-				const rawHtmlTooBig = parsed.error.issues.some(
-					(i) => i.code === "too_big" && i.path[i.path.length - 1] === RAW_HTML_FIELD,
-				);
-				const urlOnly = rawHtmlTooBig ? SaveArticleInputSchema.safeParse(req.body) : undefined;
-				const urlOnlyValidation = urlOnly?.success
-					? deps.validateSaveableUrl(urlOnly.data.url)
-					: undefined;
-				if (urlOnlyValidation?.status === "SUCCESS") {
-					validatedArticleUrl = urlOnlyValidation.url;
-					const rawHtml: unknown = req.body?.rawHtml;
-					const sizeBytes = typeof rawHtml === "string" ? rawHtml.length : 0;
-					/* logError (not warn) on purpose: feeds the alarm so oversize Tier-0
-					 * captures stay visible — they're the signal for raising MAX_RAW_HTML_BYTES. */
-					deps.logError(
-						`[SaveHtmlOversize] falling back to URL-only url=${urlOnlyValidation.url} userId=${userId} sizeBytes=${sizeBytes}`,
-					);
-					const freshness = await deps.refreshArticleIfStale({ url: urlOnlyValidation.url });
-					const result = await saveArticleFromUrl({ userId, url: urlOnlyValidation.url, freshness });
-					await recordSaveSignal(req, res, userId);
-					emitSaveIntent({ req, url: urlOnlyValidation.url, path: SAVE_INTENT_PATH.saveHtml, surface: SAVE_SURFACES.extension, outcome: SAVE_OUTCOMES.saved });
-					res.status(201).type(SIREN_MEDIA_TYPE).json(toArticleEntity(result.saved));
-					return;
-				}
-				emitSaveIntent({ req, url: typeof req.body?.url === "string" ? req.body.url : "", path: SAVE_INTENT_PATH.saveHtml, surface: SAVE_SURFACES.extension, outcome: SAVE_OUTCOMES.error });
-				res.status(422).type(SIREN_MEDIA_TYPE).json(
-					sirenError({ code: "invalid-save-html", message: "Invalid save-html request" }),
-				);
-				return;
-			}
-
-			const urlValidation = deps.validateSaveableUrl(parsed.data.url);
-			if (urlValidation.status === "ERROR") {
-				emitSaveIntent({ req, url: parsed.data.url, path: SAVE_INTENT_PATH.saveHtml, surface: SAVE_SURFACES.extension, outcome: SAVE_OUTCOMES.error });
-				res.status(422).type(SIREN_MEDIA_TYPE).json(
-					sirenError({ code: "invalid-save-html", message: urlValidation.error.message }),
-				);
-				return;
-			}
-			const articleUrl = urlValidation.url;
-			validatedArticleUrl = articleUrl;
-
-			const freshness = await deps.refreshArticleIfStale({ url: articleUrl });
-
-			await deps.putPendingHtml({ url: articleUrl, html: parsed.data.rawHtml });
-			await deps.publishSaveLinkRawHtmlCommand({
-				url: articleUrl,
-				userId,
-				title: parsed.data.title,
-			});
-
-			const result = await saveArticleFromUrl({ userId, url: articleUrl, freshness });
-			await recordSaveSignal(req, res, userId);
-			emitSaveIntent({ req, url: articleUrl, path: SAVE_INTENT_PATH.saveHtml, surface: SAVE_SURFACES.extension, outcome: SAVE_OUTCOMES.saved });
-			res.status(201).type(SIREN_MEDIA_TYPE).json(toArticleEntity(result.saved));
-		} catch (error) {
-			deps.logError("Failed to save article from html", error instanceof Error ? error : undefined);
-			assert(validatedArticleUrl, "save-html reaches the save pipeline only after the article URL is validated");
-			emitSaveIntent({ req, url: validatedArticleUrl, path: SAVE_INTENT_PATH.saveHtml, surface: SAVE_SURFACES.extension, outcome: SAVE_OUTCOMES.error });
-			res.status(500).type(SIREN_MEDIA_TYPE).json(
-				sirenError({ code: "save-failed", message: "Could not save article" }),
-			);
-		}
 	});
 
 	/** Unified content entry point. The extension sends captured bytes (HTML or

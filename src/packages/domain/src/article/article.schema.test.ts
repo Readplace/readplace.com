@@ -1,7 +1,6 @@
 import {
 	SaveArticleInputSchema,
 	BulkSaveManifestSchema,
-	SaveHtmlInputSchema,
 	LAMBDA_SYNC_INVOKE_PAYLOAD_BYTES,
 	MAX_UPLOAD_REQUEST_BYTES,
 	MAX_UPLOAD_CONTENT_BYTES,
@@ -56,36 +55,6 @@ describe("BulkSaveManifestSchema", () => {
 
 	it("rejects an entry without a url", () => {
 		const result = BulkSaveManifestSchema.safeParse([{ title: "no url" }]);
-
-		expect(result.success).toBe(false);
-	});
-});
-
-describe("SaveHtmlInputSchema", () => {
-	it("accepts a valid url + non-empty rawHtml", () => {
-		const result = SaveHtmlInputSchema.safeParse({
-			url: "https://example.com/article",
-			rawHtml: "<html><body>x</body></html>",
-		});
-
-		expect(result.success).toBe(true);
-	});
-
-	it("accepts an optional title", () => {
-		const result = SaveHtmlInputSchema.safeParse({
-			url: "https://example.com/article",
-			rawHtml: "<html />",
-			title: "My title",
-		});
-
-		expect(result.success).toBe(true);
-	});
-
-	it("rejects empty rawHtml", () => {
-		const result = SaveHtmlInputSchema.safeParse({
-			url: "https://example.com/article",
-			rawHtml: "",
-		});
 
 		expect(result.success).toBe(false);
 	});

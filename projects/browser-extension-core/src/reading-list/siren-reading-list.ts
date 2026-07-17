@@ -204,7 +204,7 @@ class SaveBlockedError extends Error {
 
 /** Surfaces a message-only refusal as a SaveBlockedError. A no-op when the body
  * isn't one, so the caller falls through to its normal error handling. Called
- * BEFORE the save-html/save-content fallback logic so a message-only refusal is
+ * BEFORE the save-content fallback logic so a message-only refusal is
  * never mistaken for a fallback action. */
 function throwIfBlocked(body: unknown): void {
 	const parsed = SirenMessagesErrorSchema.safeParse(body);
@@ -468,51 +468,8 @@ export function initSaveArticlesUnderstanding(): Map<string, ActionHandler> {
 	return handlers;
 }
 
-export function initSaveHtmlUnderstanding(deps: {
-	logger: HutchLogger;
-}): Map<string, ActionHandler> {
-	const handlers = new Map<string, ActionHandler>();
-	handlers.set("save-html", (sirenAction, context) => {
-		return async (fields) => {
-			assert(fields?.url, "save-html requires a url field");
-			assert(fields?.rawHtml, "save-html requires a rawHtml field");
-			const body: Record<string, string> = {
-				url: fields.url,
-				rawHtml: fields.rawHtml,
-			};
-			if (fields.title) body.title = fields.title;
-			const actionUrl = resolveHref({ base: context.serverUrl, href: sirenAction.href });
-			assert(actionUrl, "save-html action href is not actionable");
-			const response = await context.doFetch(
-				actionUrl,
-				{
-					method: sirenAction.method,
-					headers: {
-						"Content-Type": sirenAction.type ?? "application/json",
-					},
-					body: JSON.stringify(body),
-				},
-			);
-			if (!response.ok) {
-				const fallbackFields: Record<string, string> = { url: fields.url };
-				if (fields.title) fallbackFields.title = fields.title;
-				return followSaveFallback({
-					response,
-					context,
-					logger: deps.logger,
-					fallbackFields,
-				});
-			}
-			const responseBody = SirenSubEntitySchema.parse(await readSirenBody(response));
-			const item = context.resolveItem(responseBody);
-			return { items: [item], actions: {}, descriptors: {} };
-		};
-	});
-	return handlers;
-}
-
 /** The shared fallback the server advertises inside a Siren error body when a
- * rich save (save-html / save-content) can't be honoured: follow whatever action
+ * rich save (save-content) can't be honoured: follow whatever action
  * it carries to degrade onto a URL-only save. The client owns no policy about
  * when a fallback applies (no size caps, no thresholds) — it attempts the rich
  * save and follows the refusal the server returns. */
@@ -910,7 +867,6 @@ export function initSirenReadingList(deps: SirenReadingListDeps): {
 	const understandings = groupOf(
 		initSaveArticleUnderstanding(),
 		initSaveArticlesUnderstanding(),
-		initSaveHtmlUnderstanding({ logger: deps.logger }),
 		initSaveContentUnderstanding({
 			parsers: {
 				"application/pdf": pdfContentBody,
@@ -1022,13 +978,6 @@ export function initSirenReadingList(deps: SirenReadingListDeps): {
 				};
 				if (title) fields.title = title;
 				const result = await saveContentAction(fields);
-				trackItems(result.items);
-				return { ok: true, item: result.items[0] };
-			}
-			const saveHtmlAction = collection.actions["save-html"];
-			if (content?.mediaType === "text/html" && saveHtmlAction) {
-				const rawHtml = new TextDecoder().decode(content.bytes);
-				const result = await saveHtmlAction({ url, rawHtml, title });
 				trackItems(result.items);
 				return { ok: true, item: result.items[0] };
 			}

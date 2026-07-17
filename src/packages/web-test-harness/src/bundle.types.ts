@@ -1,5 +1,4 @@
 import type { CrawlArticle } from "@packages/crawl-article";
-import type { LogParseError } from "@packages/hutch-infra-components";
 import type { HutchLogger } from "@packages/hutch-logger";
 import type { ArticleMetadata, Minutes, ValidateSaveableUrl } from "@packages/domain/article";
 import type { ImportSessionStore } from "@packages/domain/import-session";
@@ -405,7 +404,6 @@ export interface SharedBundle {
 	staticBaseUrl: string;
 	httpErrorMessageMapping: HttpErrorMessageMapping;
 	logError: (message: string, error?: Error) => void;
-	logParseError: LogParseError;
 	now: () => Date;
 }
 

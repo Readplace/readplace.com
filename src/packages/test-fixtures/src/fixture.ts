@@ -440,7 +440,6 @@ export function createDefaultTestAppFixture(appOrigin: string): TestAppFixture {
 			staticBaseUrl: "https://static.test",
 			httpErrorMessageMapping,
 			logError: createNoopLogError(),
-			logParseError: () => {},
 			now: () => new Date(),
 		},
 		hostedCheckout,

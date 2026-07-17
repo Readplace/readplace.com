@@ -415,7 +415,7 @@ describe("POST /queue/save-content validation", () => {
 });
 
 describe("Collection-Siren advertises save-content action", () => {
-	it("advertises save-content alongside save-article and save-html", async () => {
+	it("advertises save-content alongside save-article", async () => {
 		const fixture = createDefaultTestAppFixture(TEST_APP_ORIGIN);
 		const testApp = useApp({
 			...fixture,
@@ -432,7 +432,6 @@ describe("Collection-Siren advertises save-content action", () => {
 		expect(actionNames).toEqual([
 			"save-article",
 			"save-articles",
-			"save-html",
 			"save-content",
 			"search",
 			"create-session",

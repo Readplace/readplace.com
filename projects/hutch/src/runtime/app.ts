@@ -110,7 +110,6 @@ import { initInMemorySubscriptionProviders } from "@packages/test-fixtures/provi
 import { initDynamoDbSubscriptionRead } from "@packages/subscription-access";
 import { initDynamoDbSubscriptionWrites } from "./providers/subscription-providers/dynamodb-subscription-writes";
 import { HutchLogger, consoleLogger } from "@packages/hutch-logger";
-import { initLogParseError, type ParseErrorEvent } from "@packages/hutch-infra-components";
 import { isBlockedIpAddress, validateSaveableUrl } from "@packages/domain/article";
 import { createApp } from "./server";
 import { initChangelogBannerSource } from "./web/changelog-banner-source";
@@ -752,12 +751,6 @@ export function createHutchApp(deps?: {
 		logger: HutchLogger.from(consoleLogger),
 	});
 
-	const { logParseError } = initLogParseError({
-		logger: HutchLogger.fromJSON<ParseErrorEvent>(),
-		now: () => new Date(),
-		source: "hutch-handler",
-	});
-
 	const app = createApp({
 		validateSaveableUrl: withUnwrapPreprocessing(
 			validateSaveableUrl,
@@ -778,7 +771,6 @@ export function createHutchApp(deps?: {
 		oauthModel,
 		validateAccessToken,
 		httpErrorMessageMapping,
-		logParseError,
 		importSessionStore,
 		getChangelogBanner,
 		now: () => new Date(),

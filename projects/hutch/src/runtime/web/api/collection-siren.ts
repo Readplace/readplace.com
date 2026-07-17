@@ -114,18 +114,6 @@ export function toArticleCollectionEntity(
 				],
 			},
 			{
-				name: "save-html",
-				title: "Save a page",
-				href: "/queue/save-html",
-				method: "POST",
-				type: "application/json",
-				fields: [
-					{ name: "url", type: "url" },
-					{ name: "rawHtml", type: "text" },
-					{ name: "title", type: "text" },
-				],
-			},
-			{
 				name: "save-content",
 				title: "Save a file",
 				href: "/queue/save-content",
