@@ -8,6 +8,7 @@ function link(overrides: Partial<InboxEmailLinkEntry> = {}): InboxEmailLinkEntry
 		receivedAtMessageId: "2026-06-24T09:00:00.000Z#<m@x>",
 		ordinal: EmailLinkOrdinalSchema.parse("0000"),
 		url: "https://example.com/post",
+		resolvedUrl: undefined,
 		status: "pending",
 		title: undefined,
 		excerpt: undefined,
@@ -53,5 +54,13 @@ describe("computeInboxLinkCardEtag", () => {
 		const t = computeInboxLinkCardEtag(link({ status: "crawled", title: "T" }));
 		const u = computeInboxLinkCardEtag(link({ status: "crawled", title: "U" }));
 		expect(t).not.toBe(u);
+	});
+
+	it("changes when the resolved destination changes", () => {
+		const unresolved = computeInboxLinkCardEtag(link({ status: "crawled", title: "T" }));
+		const resolved = computeInboxLinkCardEtag(
+			link({ status: "crawled", title: "T", resolvedUrl: "https://destination.test/a" }),
+		);
+		expect(unresolved).not.toBe(resolved);
 	});
 });

@@ -53,6 +53,7 @@ function linkEntry(userId: UserId, overrides: Partial<InboxEmailLinkEntry>): Inb
 		receivedAtMessageId: SK,
 		ordinal: EmailLinkOrdinalSchema.parse("0000"),
 		url: "https://example.com/post",
+		resolvedUrl: undefined,
 		status: "pending",
 		title: undefined,
 		excerpt: undefined,

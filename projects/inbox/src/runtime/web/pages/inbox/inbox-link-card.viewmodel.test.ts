@@ -10,6 +10,7 @@ function link(overrides: Partial<InboxEmailLinkEntry> = {}): InboxEmailLinkEntry
 		receivedAtMessageId: EMAIL_ID,
 		ordinal: EmailLinkOrdinalSchema.parse("0002"),
 		url: "https://example.com/post",
+		resolvedUrl: undefined,
 		status: "pending",
 		title: undefined,
 		excerpt: undefined,
@@ -50,6 +51,23 @@ describe("toInboxLinkCardViewModel", () => {
 		expect(crawled.cardPollUrl).toBeUndefined();
 		expect(crawled.title).toBe("T");
 		expect(crawled.hasTitle).toBe(true);
+		expect(crawled.url).toBe("https://example.com/post");
+	});
+
+	it("shows the post-redirect destination instead of the newsletter tracking link once resolved", () => {
+		const crawled = toInboxLinkCardViewModel({
+			link: link({
+				status: "crawled",
+				title: "T",
+				url: "https://nodeweekly.com/link/187980/4be0b3f821",
+				resolvedUrl: "https://destination.test/the-actual-article",
+			}),
+			emailId: EMAIL_ID,
+			pollCount: 1,
+			maxPolls: 300,
+		});
+
+		expect(crawled.url).toBe("https://destination.test/the-actual-article");
 	});
 
 	it("treats a crawled link whose page had no title as a bare row", () => {

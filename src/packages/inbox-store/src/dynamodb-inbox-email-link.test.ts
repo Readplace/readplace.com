@@ -97,6 +97,7 @@ describe("initDynamoDbInboxEmailLink", () => {
 				receivedAtMessageId: RAM,
 				ordinal: ORDINAL,
 				url: "https://example.com/post",
+				resolvedUrl: undefined,
 				status: "pending",
 				title: undefined,
 				excerpt: undefined,
@@ -125,6 +126,7 @@ describe("initDynamoDbInboxEmailLink", () => {
 				receivedAtMessageId: RAM,
 				ordinal: ORDINAL,
 				url: "https://news.example.com/unsub?token=send-1",
+				resolvedUrl: undefined,
 				status: "skipped",
 				title: undefined,
 				excerpt: undefined,
@@ -147,6 +149,7 @@ describe("initDynamoDbInboxEmailLink", () => {
 				receivedAtMessageId: RAM,
 				ordinal: ORDINAL,
 				url: "https://example.com/post",
+				resolvedUrl: undefined,
 				status: "pending",
 				title: undefined,
 				excerpt: undefined,
@@ -168,6 +171,7 @@ describe("initDynamoDbInboxEmailLink", () => {
 					receivedAtMessageId: RAM,
 					ordinal: ORDINAL,
 					url: "https://example.com/post",
+					resolvedUrl: undefined,
 					status: "pending",
 					title: undefined,
 					excerpt: undefined,
@@ -196,15 +200,20 @@ describe("initDynamoDbInboxEmailLink", () => {
 					excerpt: "E",
 					siteName: "S",
 					imageUrl: "https://cdn.test/x.jpg",
+					resolvedUrl: "https://destination.test/the-actual-article",
 				},
 			});
 
 			expect(captured?.input.Key).toEqual({ userLinkGroup: GROUP, ordinal: "0003" });
 			expect(captured?.input.ConditionExpression).toBe("attribute_exists(ordinal)");
 			expect(captured?.input.UpdateExpression).toContain("#imageUrl = :imageUrl");
+			expect(captured?.input.UpdateExpression).toContain("#resolvedUrl = :resolvedUrl");
 			expect(captured?.input.UpdateExpression).toContain("REMOVE #failureReason");
 			expect(captured?.input.ExpressionAttributeValues?.[":status"]).toBe("crawled");
 			expect(captured?.input.ExpressionAttributeValues?.[":imageUrl"]).toBe("https://cdn.test/x.jpg");
+			expect(captured?.input.ExpressionAttributeValues?.[":resolvedUrl"]).toBe(
+				"https://destination.test/the-actual-article",
+			);
 		});
 
 		it("removes the image attribute when a crawl yields no lead image", async () => {
@@ -216,13 +225,21 @@ describe("initDynamoDbInboxEmailLink", () => {
 				userId: USER,
 				receivedAtMessageId: RAM,
 				ordinal: ORDINAL,
-				outcome: { status: "crawled", title: "T", excerpt: "E", siteName: "S", imageUrl: undefined },
+				outcome: {
+					status: "crawled",
+					title: "T",
+					excerpt: "E",
+					siteName: "S",
+					imageUrl: undefined,
+					resolvedUrl: undefined,
+				},
 			});
 
 			expect(captured?.input.UpdateExpression).toContain(
-				"REMOVE #failureReason, #skipReason, #imageUrl",
+				"REMOVE #failureReason, #skipReason, #imageUrl, #resolvedUrl",
 			);
 			expect(captured?.input.ExpressionAttributeValues).not.toHaveProperty(":imageUrl");
+			expect(captured?.input.ExpressionAttributeValues).not.toHaveProperty(":resolvedUrl");
 		});
 
 		it("sets the failure reason and removes preview fields on a failed outcome", async () => {
@@ -239,7 +256,7 @@ describe("initDynamoDbInboxEmailLink", () => {
 
 			expect(captured?.input.ConditionExpression).toBe("attribute_exists(ordinal)");
 			expect(captured?.input.UpdateExpression).toBe(
-				"SET #status = :status, #failureReason = :failureReason REMOVE #title, #excerpt, #siteName, #imageUrl, #skipReason",
+				"SET #status = :status, #failureReason = :failureReason REMOVE #title, #excerpt, #siteName, #imageUrl, #resolvedUrl, #skipReason",
 			);
 			expect(captured?.input.ExpressionAttributeValues?.[":failureReason"]).toBe("unsafe-url");
 		});
@@ -272,6 +289,7 @@ describe("initDynamoDbInboxEmailLink", () => {
 							userId: USER,
 							receivedAtMessageId: RAM,
 							url: "https://a.test",
+							resolvedUrl: "https://destination.test/a",
 							status: "crawled",
 							title: "A",
 							excerpt: "ae",
@@ -303,7 +321,9 @@ describe("initDynamoDbInboxEmailLink", () => {
 			expect(captured?.input.ScanIndexForward).toBe(true);
 			expect(links.map((l) => l.ordinal)).toEqual(["0000", "0001"]);
 			expect(links[0].title).toBe("A");
+			expect(links[0].resolvedUrl).toBe("https://destination.test/a");
 			expect(links[1].status).toBe("pending");
+			expect(links[1].resolvedUrl).toBeUndefined();
 			expect(meta).toEqual({ truncated: true });
 		});
 

@@ -9,6 +9,7 @@ import type { HutchLogger } from "@packages/hutch-logger";
 import { EmailLinkOrdinalSchema, type InboxEmailLinkStore } from "@packages/domain/inbox";
 import { UserIdSchema } from "@packages/domain/user";
 import type { CrawlAndFinalizeArticle } from "@packages/finalize-article";
+import { toResolvedUrl } from "./to-resolved-url";
 
 /**
  * Consumes one `CrawlEmailLinkPreview` per message and crawls a preview of the
@@ -58,6 +59,7 @@ export function initCrawlEmailLinkPreviewHandler(deps: {
 							excerpt: metadata.excerpt,
 							siteName: metadata.siteName,
 							imageUrl: metadata.imageUrl,
+							resolvedUrl: toResolvedUrl({ url, finalUrl: result.finalUrl }),
 						},
 					});
 					logger.info("[crawl-email-link-preview] crawled", { receivedAtMessageId, ordinal });

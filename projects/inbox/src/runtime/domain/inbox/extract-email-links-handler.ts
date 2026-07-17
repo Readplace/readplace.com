@@ -158,6 +158,7 @@ export function initExtractEmailLinksHandler(deps: {
 						receivedAtMessageId,
 						ordinal,
 						url,
+						resolvedUrl: undefined,
 						title: undefined,
 						excerpt: undefined,
 						siteName: undefined,

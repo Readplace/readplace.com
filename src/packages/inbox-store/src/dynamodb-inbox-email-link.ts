@@ -39,6 +39,7 @@ const InboxEmailLinkRow = z.object({
 	userId: UserIdSchema,
 	receivedAtMessageId: z.string(),
 	url: dynamoField(z.string()),
+	resolvedUrl: dynamoField(z.string()),
 	status: dynamoField(EmailLinkStatusSchema),
 	title: dynamoField(z.string()),
 	excerpt: dynamoField(z.string()),
@@ -59,6 +60,7 @@ function toEntry(row: InboxEmailLinkRowType): InboxEmailLinkEntry {
 		receivedAtMessageId: row.receivedAtMessageId,
 		ordinal: EmailLinkOrdinalSchema.parse(row.ordinal),
 		url: row.url,
+		resolvedUrl: row.resolvedUrl,
 		status: row.status,
 		title: row.title,
 		excerpt: row.excerpt,
@@ -131,6 +133,7 @@ export function initDynamoDbInboxEmailLink(deps: {
 					"#excerpt": "excerpt",
 					"#siteName": "siteName",
 					"#imageUrl": "imageUrl",
+					"#resolvedUrl": "resolvedUrl",
 					"#failureReason": "failureReason",
 					"#skipReason": "skipReason",
 				};
@@ -146,6 +149,12 @@ export function initDynamoDbInboxEmailLink(deps: {
 					values[":imageUrl"] = outcome.imageUrl;
 				} else {
 					removes.push("#imageUrl");
+				}
+				if (outcome.resolvedUrl !== undefined) {
+					sets.push("#resolvedUrl = :resolvedUrl");
+					values[":resolvedUrl"] = outcome.resolvedUrl;
+				} else {
+					removes.push("#resolvedUrl");
 				}
 				await table.update({
 					Key,
@@ -163,7 +172,7 @@ export function initDynamoDbInboxEmailLink(deps: {
 				Key,
 				ConditionExpression: "attribute_exists(ordinal)",
 				UpdateExpression:
-					"SET #status = :status, #failureReason = :failureReason REMOVE #title, #excerpt, #siteName, #imageUrl, #skipReason",
+					"SET #status = :status, #failureReason = :failureReason REMOVE #title, #excerpt, #siteName, #imageUrl, #resolvedUrl, #skipReason",
 				ExpressionAttributeNames: {
 					"#status": "status",
 					"#failureReason": "failureReason",
@@ -171,6 +180,7 @@ export function initDynamoDbInboxEmailLink(deps: {
 					"#excerpt": "excerpt",
 					"#siteName": "siteName",
 					"#imageUrl": "imageUrl",
+					"#resolvedUrl": "resolvedUrl",
 					"#skipReason": "skipReason",
 				},
 				ExpressionAttributeValues: { ":status": "failed", ":failureReason": outcome.failureReason },

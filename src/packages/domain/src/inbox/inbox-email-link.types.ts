@@ -17,6 +17,7 @@ export interface InboxEmailLinkEntry {
 	receivedAtMessageId: string;
 	ordinal: EmailLinkOrdinal;
 	url: string;
+	resolvedUrl: string | undefined;
 	status: EmailLinkStatus;
 	title: string | undefined;
 	excerpt: string | undefined;
@@ -43,6 +44,7 @@ export type EmailLinkOutcome =
 			excerpt: string;
 			siteName: string;
 			imageUrl: string | undefined;
+			resolvedUrl: string | undefined;
 	  }
 	| { status: "failed"; failureReason: string };
 

@@ -341,6 +341,7 @@ async function seedAccount(
 		receivedAtMessageId: ramA,
 		ordinal: EmailLinkOrdinalSchema.parse("0000"),
 		url: `https://example.com/${label}/link`,
+		resolvedUrl: undefined,
 		status: "pending",
 		title: undefined,
 		excerpt: undefined,

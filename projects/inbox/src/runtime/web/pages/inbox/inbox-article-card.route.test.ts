@@ -17,6 +17,7 @@ function link(userId: UserId, overrides: Partial<InboxEmailLinkEntry> = {}): Inb
 		receivedAtMessageId: SK,
 		ordinal: EmailLinkOrdinalSchema.parse("0000"),
 		url: "https://example.com/post",
+		resolvedUrl: undefined,
 		status: "pending",
 		title: undefined,
 		excerpt: undefined,
@@ -175,6 +176,32 @@ describe("Inbox link card route", () => {
 		assert(url, "the crawled row must show its URL beneath the title");
 		expect(url.tagName).toBe("SPAN");
 		expect(url.textContent).toBe("https://example.com/post");
+	});
+
+	it("renders the post-redirect destination, not the newsletter tracking link, once the crawl resolved it", async () => {
+		const fixture = createDefaultTestAppFixture(TEST_APP_ORIGIN);
+		const harness = useApp(fixture);
+		const agent = await loginAgent(harness.server, harness.auth);
+		await seed(fixture, {
+			status: "crawled",
+			title: "Crawled title",
+			url: "https://nodeweekly.com/link/187980/4be0b3f821",
+			resolvedUrl: "https://destination.test/the-actual-article",
+		});
+
+		const response = await agent.get(cardPath);
+
+		expect(response.status).toBe(200);
+		const card = new JSDOM(response.text).window.document.querySelector(
+			"[data-test-inbox-article-card]",
+		);
+		assert(card, "the card fragment must render");
+		const title = card.querySelector("[data-test-inbox-article-title]");
+		assert(title, "the crawled row must render its title as a link");
+		expect(title.getAttribute("href")).toBe("https://destination.test/the-actual-article");
+		const url = card.querySelector("[data-test-inbox-article-url]");
+		assert(url, "the crawled row must show its URL beneath the title");
+		expect(url.textContent).toBe("https://destination.test/the-actual-article");
 	});
 
 	it("returns a failed card fragment as its bare URL with no status copy", async () => {

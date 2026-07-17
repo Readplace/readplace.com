@@ -16,6 +16,7 @@ function makeLink(overrides: Partial<InboxEmailLinkEntry> = {}): InboxEmailLinkE
 		receivedAtMessageId: RAM,
 		ordinal: EmailLinkOrdinalSchema.parse("0000"),
 		url: "https://example.com/post",
+		resolvedUrl: undefined,
 		status: "pending",
 		title: undefined,
 		excerpt: undefined,
@@ -99,6 +100,7 @@ describe("initInMemoryInboxEmailLink", () => {
 				excerpt: "An excerpt",
 				siteName: "Example",
 				imageUrl: "https://cdn.test/x.jpg",
+				resolvedUrl: "https://destination.test/the-actual-article",
 			},
 		});
 
@@ -111,6 +113,7 @@ describe("initInMemoryInboxEmailLink", () => {
 		expect(found.status).toBe("crawled");
 		expect(found.title).toBe("A title");
 		expect(found.imageUrl).toBe("https://cdn.test/x.jpg");
+		expect(found.resolvedUrl).toBe("https://destination.test/the-actual-article");
 		expect(found.failureReason).toBeUndefined();
 	});
 
@@ -122,7 +125,14 @@ describe("initInMemoryInboxEmailLink", () => {
 			userId: owner,
 			receivedAtMessageId: RAM,
 			ordinal: EmailLinkOrdinalSchema.parse("0000"),
-			outcome: { status: "crawled", title: "T", excerpt: "E", siteName: "S", imageUrl: undefined },
+			outcome: {
+				status: "crawled",
+				title: "T",
+				excerpt: "E",
+				siteName: "S",
+				imageUrl: undefined,
+				resolvedUrl: undefined,
+			},
 		});
 
 		const found = await store.getLink({
@@ -137,7 +147,9 @@ describe("initInMemoryInboxEmailLink", () => {
 
 	it("stamps a failed outcome and clears any preview fields", async () => {
 		const store = initInMemoryInboxEmailLink();
-		await store.putLink(makeLink({ status: "crawled", title: "stale" }));
+		await store.putLink(
+			makeLink({ status: "crawled", title: "stale", resolvedUrl: "https://destination.test/stale" }),
+		);
 
 		await store.setLinkOutcome({
 			userId: owner,
@@ -155,6 +167,7 @@ describe("initInMemoryInboxEmailLink", () => {
 		expect(found.status).toBe("failed");
 		expect(found.failureReason).toBe("crawl-failed");
 		expect(found.title).toBeUndefined();
+		expect(found.resolvedUrl).toBeUndefined();
 	});
 
 	describe("deleteLinksByEmail", () => {

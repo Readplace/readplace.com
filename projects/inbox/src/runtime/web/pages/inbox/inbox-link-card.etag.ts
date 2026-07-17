@@ -3,7 +3,7 @@ import type { InboxEmailLinkEntry } from "@packages/domain/inbox";
 
 export function computeInboxLinkCardEtag(link: InboxEmailLinkEntry): string {
 	const hash = createHash("sha256");
-	for (const part of [link.status, link.title ?? ""]) {
+	for (const part of [link.status, link.title ?? "", link.resolvedUrl ?? ""]) {
 		hash.update(part);
 		hash.update("|");
 	}

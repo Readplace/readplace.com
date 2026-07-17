@@ -29,7 +29,7 @@ export function toInboxLinkCardViewModel(input: {
 	const title = link.title ?? "";
 	return {
 		ordinal: link.ordinal,
-		url: link.url,
+		url: link.resolvedUrl ?? link.url,
 		title,
 		hasTitle: link.status === "crawled" && title !== "",
 		cardPollUrl,
