@@ -123,10 +123,28 @@ describe("canonicalizeViewLandingPath", () => {
 		expect(landing).toBe(viewPathFor("https://example.com/path%C3%A9"));
 	});
 
-	it("re-encodes an unsafe byte (space) the way Express encodes the Location, matching the 301 target", () => {
+	it("re-encodes an unsafe byte (space) the way the browser's post-301 request encodes it", () => {
 		const landing = canonicalizeViewLandingPath("/view/https://example.com/a%20b");
 		expect(landing).toBe("/view/example.com/a%20b");
 		expect(landing).toBe(viewPathFor("https://example.com/a b"));
+	});
+
+	it("keeps [ ] and | literal — the browser's post-301 request leaves them unencoded, so percent-encoding them would break the landing_path ↔ pageview join", () => {
+		const landing = canonicalizeViewLandingPath("/view/https://example.com/a[b]|c");
+		expect(landing).toBe("/view/example.com/a[b]|c");
+		expect(landing).toBe(viewPathFor("https://example.com/a[b]|c"));
+	});
+
+	it("re-encodes ^ the way the browser re-parses the 301 Location, even though the Location header itself carries it literally", () => {
+		const landing = canonicalizeViewLandingPath("/view/https://example.com/a^b");
+		expect(landing).toBe("/view/example.com/a%5Eb");
+		expect(landing).toBe(viewPathFor("https://example.com/a^b"));
+	});
+
+	it("folds a backslash to / the way the browser re-parses the 301 Location", () => {
+		const landing = canonicalizeViewLandingPath("/view/https://example.com/a\\b");
+		expect(landing).toBe("/view/example.com/a/b");
+		expect(landing).toBe(viewPathFor("https://example.com/a\\b"));
 	});
 
 	it("leaves a literal http:// landing path unchanged — the router renders it, so it equals its own no-redirect pageview", () => {

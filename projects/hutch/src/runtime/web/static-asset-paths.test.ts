@@ -1,10 +1,6 @@
-import { CLIENT_DIST_MOUNT_PATH, isStaticAssetRequestPath } from "./static-asset-paths";
+import { isStaticAssetRequestPath } from "./static-asset-paths";
 
 describe("isStaticAssetRequestPath", () => {
-	it("exposes the /client-dist mount path as a single source of truth for server.ts", () => {
-		expect(CLIENT_DIST_MOUNT_PATH).toBe("/client-dist");
-	});
-
 	it.each([
 		"/client-dist",
 		"/client-dist/toast.client.js",

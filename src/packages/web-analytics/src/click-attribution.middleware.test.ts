@@ -199,6 +199,14 @@ describe("createClickAttributionMiddleware", () => {
 		expect(parseCookieValue(cookies[0].value).landing_path).toBe("/view/fagnerbrack.com/learn-sql");
 	});
 
+	it("does not mint a cookie for a /.well-known/ machine endpoint, so agent-discovery fetches never steal first-touch attribution", () => {
+		const req = createReq({ path: "/.well-known/mcp/server-card.json" });
+		const { cookies, nextCalled } = runMiddleware(req);
+
+		expect(nextCalled).toBe(true);
+		expect(cookies).toEqual([]);
+	});
+
 	it("skips non-GET requests so form posts can never reset the first-touch cookie", () => {
 		const req = createReq({
 			method: "POST",

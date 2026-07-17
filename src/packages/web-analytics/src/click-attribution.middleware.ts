@@ -1,7 +1,7 @@
 import type { NextFunction, Request, RequestHandler, Response } from "express";
 import { z } from "zod";
 import { baseCookieOptions } from "./cookie-options";
-import { SKIP_PATHS } from "./skip-paths";
+import { isSkippedPath } from "./skip-paths";
 
 export const CLICK_COOKIE_NAME = "hutch_click";
 const CLICK_COOKIE_MAX_AGE_MS = 30 * 24 * 60 * 60 * 1000;
@@ -67,7 +67,7 @@ export function createClickAttributionMiddleware(deps: {
 			next();
 			return;
 		}
-		if (SKIP_PATHS.has(req.path)) {
+		if (isSkippedPath(req.path)) {
 			next();
 			return;
 		}

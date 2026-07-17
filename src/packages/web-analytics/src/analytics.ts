@@ -17,7 +17,7 @@ import {
 	classifyContentSource,
 	type ContentClass,
 } from "./content-source";
-import { SKIP_PATHS } from "./skip-paths";
+import { isSkippedPath } from "./skip-paths";
 
 declare global {
 	namespace Express {
@@ -290,7 +290,7 @@ function shouldLog(params: {
 	isStaticAssetPath: (path: string) => boolean;
 }): boolean {
 	if (params.req.method !== "GET") return false;
-	if (SKIP_PATHS.has(params.path)) return false;
+	if (isSkippedPath(params.path)) return false;
 	if (params.isStaticAssetPath(params.path)) return false;
 	if (!isRenderedPageStatus(params.statusCode)) return false;
 	if (isbot(params.req.get("user-agent"))) return false;

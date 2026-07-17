@@ -43,9 +43,8 @@ export function createBlogApp(
 	app.use(cookieParser());
 	app.use(createVisitorIdMiddleware({ generateVisitorId: deps.generateVisitorId, secure: deps.secureCookies }));
 
-	// The blog serves its shell assets from a separate static-asset origin (never
-	// through Express) and has no /view scheme-variant route, so no request path
-	// is ever a static asset and every landing path is already canonical.
+	// The blog has no /view scheme-variant route, so every landing path is
+	// already canonical.
 	const isStaticAssetPath = () => false;
 	const canonicalizeLandingPath = (path: string) => path;
 	app.use(

@@ -66,21 +66,12 @@ export function originalUrlFromViewPath(tail: string): string | undefined {
 	}
 }
 
-/** Canonicalizes a `/view/...` landing path to the byte-identical form the
- * routing 301 redirects to, collapsing the `https:/`, `https://`, and
- * scheme-less variants that split click-attribution's `landing_path`. Used at
- * cookie-set time, where the routing 301 cannot help because the cookie must be
- * written before headers are sent.
- *
- * Delegates to `parseViewPath` (the single source of truth for the redirect
- * target) instead of string-stripping the scheme, so a literal `%25`/`?`/`#` in
- * the article URL is re-encoded exactly as the 301 encodes it, and
- * `encodeViewLocation` mirrors the `Location` header Express emits. The result
- * therefore equals the post-301 pageview `path` byte-for-byte, so a downstream
- * query can join `landing_path` to a pageview `path`. A path the router renders
- * as-is (scheme-less canonical, literal `http://`, non-`/view`, or an
- * undecodable tail) is returned untouched so it stays identical to its own
- * no-redirect pageview. */
+/** Canonicalizes a `/view/...` landing path to the byte-identical form of the
+ * pageview logged after the routing 301, collapsing the scheme variants that
+ * split click-attribution's `landing_path`. Runs at cookie-set time — the
+ * cookie must be written before headers are sent, where the routing 301 cannot
+ * help. A path the router renders as-is is returned untouched so it stays
+ * identical to its own no-redirect pageview. */
 export function canonicalizeViewLandingPath(path: string): string {
 	const prefix = "/view/";
 	if (!path.startsWith(prefix)) return path;
@@ -96,18 +87,15 @@ export function canonicalizeViewLandingPath(path: string): string {
 	return encodeViewLocation(parsed.canonicalPath);
 }
 
-/** Percent-encodes a canonical `/view/...` path the way Express's `res.location`
- * (via `encodeurl`) encodes the redirect's `Location` header, so it matches the
- * request the browser makes after the 301 — and therefore the pageview `path`.
- * Non-ASCII and other unsafe bytes are encoded, but the valid `%XX` escapes
- * `parseViewPath` already produced (e.g. `%2525`, `%3F`) are left intact:
- * `encodeURI` on its own would re-encode their `%` and double them, so the
- * literal gaps between escapes are encoded and the escapes are passed through. */
+/** Encodes a canonical `/view/...` path into the exact bytes the browser
+ * requests after following the routing 301 — the pageview `path` analytics
+ * logs. The browser re-parses the `Location` header through the WHATWG URL
+ * parser before re-requesting (re-encoding `^`, folding `\` to `/`, keeping
+ * `[ ] |` and valid `%XX` escapes literal), so only serializing through that
+ * same parser yields request-path parity; mirroring the header's own
+ * `encodeurl` encoding would not. */
 function encodeViewLocation(canonicalPath: string): string {
-	return canonicalPath
-		.split(/(%[0-9A-Fa-f]{2})/)
-		.map((part, index) => (index % 2 === 0 ? encodeURI(part) : part))
-		.join("");
+	return new URL(canonicalPath, "https://origin.invalid").pathname;
 }
 
 /** Re-encode `%25` (literal `%`), `?`, and `#` so the canonical survives

@@ -153,6 +153,15 @@ describe("createAnalyticsMiddleware", () => {
 		expect(runMiddleware(createReq({ path: "/auth.md" }), createRes(200))).toEqual([]);
 	});
 
+	it("skips logging any /.well-known/ path — RFC 8615 reserves the prefix for machine-facing metadata (OAuth discovery, agent skills, MCP server card), never a human page render", () => {
+		expect(
+			runMiddleware(createReq({ path: "/.well-known/oauth-authorization-server" }), createRes(200)),
+		).toEqual([]);
+		expect(
+			runMiddleware(createReq({ path: "/.well-known/agent-skills/save-link/SKILL.md" }), createRes(200)),
+		).toEqual([]);
+	});
+
 	it("skips logging /blog/sitemap.xml so the blog's machine sitemap does not count as a pageview", () => {
 		expect(runMiddleware(createReq({ path: "/blog/sitemap.xml" }), createRes(200))).toEqual([]);
 	});

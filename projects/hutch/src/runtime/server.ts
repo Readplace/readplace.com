@@ -141,7 +141,7 @@ import {
 	initEmitSubscriptionEvent,
 	type SubscriptionLogEvent,
 } from "./observability/subscription-events";
-import { CLIENT_DIST_MOUNT_PATH, isStaticAssetRequestPath } from "./web/static-asset-paths";
+import { APPLE_TOUCH_ICON_PATH, CLIENT_DIST_MOUNT_PATH, isStaticAssetRequestPath } from "./web/static-asset-paths";
 import { canonicalizeViewLandingPath } from "./web/pages/view/view-path";
 import { initGoogleAuthRoutes } from "./web/auth/google-auth.page";
 import { initAppleAuthRoutes } from "./web/auth/apple-auth.page";
@@ -505,7 +505,7 @@ export function createApp(dependencies: AppDependencies): Express {
 	});
 
 	/** iOS Safari and other clients auto-fetch /apple-touch-icon[-NxN][-precomposed].png from the root before reading <link rel="apple-touch-icon"> in the HTML. Redirect every shape to the static CDN. */
-	app.get(/^\/apple-touch-icon(?:-\d+x\d+)?(?:-precomposed)?\.png$/, (req: Request, res: Response) => {
+	app.get(APPLE_TOUCH_ICON_PATH, (req: Request, res: Response) => {
 		res.redirect(301, `${staticBaseUrl}${req.path}`);
 	});
 
