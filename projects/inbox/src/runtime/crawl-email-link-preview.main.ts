@@ -11,7 +11,6 @@ import {
 	initCrawlFetch,
 	initFetchThumbnailImage,
 	initXTwitterSiteRules,
-	initAppleNewsSiteRules,
 } from "@packages/crawl-article";
 import { isBlockedIpAddress } from "@packages/domain/article";
 import { initCrawlAndFinalizeArticle, initFinalizeArticle } from "@packages/finalize-article";
@@ -60,7 +59,6 @@ const siteRules = [
 	mediumSiteRules,
 	linkedinSiteRules,
 	initXTwitterSiteRules({ crawlFetch, logError }),
-	initAppleNewsSiteRules({ crawlFetch, logError }),
 ];
 const crawlArticle = initCrawlArticle({ crawlFetch, siteRules, logError, logInfo });
 const { parseHtml } = initReadabilityParser({

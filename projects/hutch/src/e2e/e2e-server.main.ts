@@ -15,7 +15,7 @@ import {
 import { getEnv, requireEnv } from "@packages/require-env"
 import { initRefreshArticleIfStale } from '@packages/finalize-article'
 import type { ExtractPdf, IsBlockedAddress } from '@packages/crawl-article'
-import { CRAWL_PERSONAS, initAppleNewsSiteRules, initCrawlArticle, initCrawlFetch, initXTwitterSiteRules } from '@packages/crawl-article'
+import { CRAWL_PERSONAS, initCrawlArticle, initCrawlFetch, initXTwitterSiteRules } from '@packages/crawl-article'
 import { initExtractLinksFromPageUrl } from '@packages/extract-links-from-page'
 import { initReadabilityParser, linkedinSiteRules, mediumSiteRules, theInformationSiteRules } from '@packages/article-parser'
 import { initInMemoryRefreshArticleContent } from '@packages/test-fixtures/providers/events'
@@ -62,7 +62,7 @@ const extractPdf: ExtractPdf = async () => ({
   title: E2E_PDF_TITLE,
   html: `<!DOCTYPE html><html><head><title>${E2E_PDF_TITLE}</title></head><body><article><h1>${E2E_PDF_TITLE}</h1>${E2E_PDF_BODY_PARAGRAPHS}</article></body></html>`,
 })
-const siteRules = [theInformationSiteRules, mediumSiteRules, linkedinSiteRules, initXTwitterSiteRules({ crawlFetch, logError }), initAppleNewsSiteRules({ crawlFetch, logError })]
+const siteRules = [theInformationSiteRules, mediumSiteRules, linkedinSiteRules, initXTwitterSiteRules({ crawlFetch, logError })]
 const crawlArticle = initCrawlArticle({ crawlFetch, siteRules, extractPdf, logError, logInfo })
 const { parseArticle, parseHtml } = initReadabilityParser({ crawlArticle, siteRules, logError })
 

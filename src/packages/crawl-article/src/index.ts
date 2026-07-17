@@ -35,4 +35,3 @@ export type { RenderPdfPageToPng } from "./render-pdf-page";
 export { deriveTitleFromUrl, escapeHtmlText } from "./pdf-html-helpers";
 export { decodeHtmlEntities } from "./decode-html-entities";
 export { initXTwitterSiteRules } from "./x-twitter-site-rules";
-export { initAppleNewsSiteRules } from "./apple-news-site-rules";

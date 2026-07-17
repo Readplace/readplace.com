@@ -18,7 +18,6 @@ import {
 	initCrawlFetch,
 	initFetchThumbnailImage,
 	initXTwitterSiteRules,
-	initAppleNewsSiteRules,
 } from "@packages/crawl-article";
 import { initExtractLinksFromPageUrl } from "@packages/extract-links-from-page";
 import { initCrawlAndFinalizeArticle, initFinalizeArticle } from "@packages/finalize-article";
@@ -259,7 +258,6 @@ function initProviders() {
 			mediumSiteRules,
 			linkedinSiteRules,
 			initXTwitterSiteRules({ crawlFetch, logError }),
-			initAppleNewsSiteRules({ crawlFetch, logError }),
 		];
 		const crawlArticle = initFetchPinnedCrawl({
 			crawlArticle: initCrawlArticle({ crawlFetch, siteRules, extractPdf, logError, logInfo }),
@@ -522,7 +520,6 @@ function initProviders() {
 		mediumSiteRules,
 		linkedinSiteRules,
 		initXTwitterSiteRules({ crawlFetch, logError }),
-		initAppleNewsSiteRules({ crawlFetch, logError }),
 	];
 	const crawlArticle = initFetchPinnedCrawl({
 		crawlArticle: initCrawlArticle({ crawlFetch, siteRules, extractPdf, logError, logInfo }),
