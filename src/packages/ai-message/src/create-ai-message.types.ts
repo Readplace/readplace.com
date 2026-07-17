@@ -6,7 +6,6 @@ export type DocumentBlock = {
 };
 
 export type CreateAiMessage = (params: {
-	model: string;
 	max_tokens: number;
 	system: string;
 	messages: Array<{

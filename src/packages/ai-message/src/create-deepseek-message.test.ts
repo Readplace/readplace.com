@@ -13,14 +13,14 @@ describe("initCreateDeepseekMessage", () => {
 
 		const createMessage = initCreateDeepseekMessage({ createChatCompletion });
 		const result = await createMessage({
-			model: "ignored-model",
 			max_tokens: 1024,
 			system: "You are a summarizer.",
 			messages: [{ role: "user", content: "Summarize this article" }],
 		});
 
 		expect(createChatCompletion).toHaveBeenCalledWith({
-			model: "deepseek-chat",
+			model: "deepseek-v4-flash",
+			thinking: { type: "disabled" },
 			max_tokens: 1024,
 			response_format: { type: "json_object" },
 			messages: [
@@ -43,7 +43,6 @@ describe("initCreateDeepseekMessage", () => {
 
 		const createMessage = initCreateDeepseekMessage({ createChatCompletion });
 		const result = await createMessage({
-			model: "any",
 			max_tokens: 100,
 			system: "system",
 			messages: [{ role: "user", content: "hello" }],
@@ -61,7 +60,6 @@ describe("initCreateDeepseekMessage", () => {
 		const createMessage = initCreateDeepseekMessage({ createChatCompletion });
 
 		await expect(createMessage({
-			model: "any",
 			max_tokens: 100,
 			system: "system",
 			messages: [{ role: "user", content: "hello" }],
@@ -76,7 +74,6 @@ describe("initCreateDeepseekMessage", () => {
 
 		const createMessage = initCreateDeepseekMessage({ createChatCompletion });
 		await createMessage({
-			model: "ignored-model",
 			max_tokens: 1024,
 			system: "You are a summarizer.",
 			messages: [{
@@ -108,7 +105,6 @@ describe("initCreateDeepseekMessage", () => {
 
 		const createMessage = initCreateDeepseekMessage({ createChatCompletion });
 		await createMessage({
-			model: "ignored-model",
 			max_tokens: 1024,
 			system: "You are a summarizer.",
 			messages: [{
@@ -148,7 +144,6 @@ describe("initCreateDeepseekMessage", () => {
 
 		const createMessage = initCreateDeepseekMessage({ createChatCompletion });
 		await createMessage({
-			model: "any",
 			max_tokens: 10240,
 			system: "system",
 			messages: [{ role: "user", content: "hello" }],
@@ -168,7 +163,6 @@ describe("initCreateDeepseekMessage", () => {
 		const createMessage = initCreateDeepseekMessage({ createChatCompletion });
 
 		await expect(createMessage({
-			model: "any",
 			max_tokens: 100,
 			system: "system",
 			messages: [{ role: "user", content: "hello" }],

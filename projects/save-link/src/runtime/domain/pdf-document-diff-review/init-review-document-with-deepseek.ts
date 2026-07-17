@@ -1,4 +1,5 @@
 import assert from "node:assert";
+import { DEEPSEEK_MODEL, DEEPSEEK_NON_THINKING } from "@packages/ai-message";
 import type { ReviewDocumentWithLlm } from "./pdf-document-diff-review-handler.types";
 
 type ChatCompletionResponse = {
@@ -9,6 +10,7 @@ type ChatCompletionResponse = {
 type CreateChatCompletion = (params: {
 	model: string;
 	max_tokens: number;
+	thinking: { type: "disabled" };
 	temperature: number;
 	response_format: { type: "json_object" };
 	messages: Array<{ role: "system" | "user" | "assistant"; content: string }>;
@@ -28,7 +30,8 @@ export function initReviewDocumentWithDeepseek(deps: {
 }): ReviewDocumentWithLlm {
 	return async ({ systemPrompt, userMessage, maxTokens }) => {
 		const response = await deps.createChatCompletion({
-			model: "deepseek-chat",
+			model: DEEPSEEK_MODEL,
+			thinking: DEEPSEEK_NON_THINKING,
 			max_tokens: Math.min(maxTokens, DEEPSEEK_MAX_OUTPUT_TOKENS),
 			temperature: 0,
 			response_format: { type: "json_object" },

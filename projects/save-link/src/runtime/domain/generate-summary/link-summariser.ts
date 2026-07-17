@@ -72,7 +72,6 @@ export function initLinkSummariser(deps: {
 
 		await deps.markSummaryStage({ url: params.url, stage: "summary-generating" });
 		const response = await deps.createMessage({
-			model: "deepseek-chat",
 			max_tokens: 10240,
 			system: SUMMARIZE_PROMPT,
 			messages: [{

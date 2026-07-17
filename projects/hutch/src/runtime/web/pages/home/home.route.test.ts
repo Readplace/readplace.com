@@ -406,7 +406,7 @@ describe("GET /", () => {
 		expect(providerNames).toEqual([
 			"Mozilla Readability",
 			"Real Tesseract OCR",
-			"DeepSeek V3.2",
+			"DeepSeek V4",
 		]);
 		const text = section.textContent ?? "";
 		expect(text).toContain("no data resale");

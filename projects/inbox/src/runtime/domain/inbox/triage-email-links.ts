@@ -56,7 +56,6 @@ export function initTriageEmailLinks(deps: {
 		input: Parameters<TriageEmailLinks>[0],
 	): Promise<Map<EmailLinkOrdinal, EmailLinkTriageCategory> | undefined> => {
 		const response = await deps.createAiMessage({
-				model: "deepseek-chat",
 				max_tokens: TRIAGE_MAX_OUTPUT_TOKENS,
 				system: TRIAGE_PROMPT,
 				messages: [
