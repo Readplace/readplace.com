@@ -16,13 +16,13 @@ interface CrawlBookmarkTab {
 	iso: string;
 	mode: LocalTimeMode;
 	label: string;
-	badgeLabel: "current" | "latest" | "";
+	badgeLabel: "current" | "best" | "";
 	ariaDisabled: "true" | "false";
 }
 
 export function renderCrawlBookmark(input: { versions: LocalTime[] }): string {
 	if (input.versions.length === 0) return "";
-	const currentBadge = input.versions.length > 1 ? "latest" : "current";
+	const newestBadge = input.versions.length > 1 ? "best" : "current";
 	const tabs: CrawlBookmarkTab[] = input.versions.map((version, index) =>
 		index === 0
 			? {
@@ -31,7 +31,7 @@ export function renderCrawlBookmark(input: { versions: LocalTime[] }): string {
 					iso: version.iso,
 					mode: version.mode,
 					label: version.label,
-					badgeLabel: currentBadge,
+					badgeLabel: newestBadge,
 					ariaDisabled: "false",
 				}
 			: {
