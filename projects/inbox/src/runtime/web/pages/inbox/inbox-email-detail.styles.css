@@ -16,44 +16,62 @@
 }
 
 .inbox-email-detail__subject {
-  font-size: 1.5rem;
+  font-size: 1.375rem;
   font-weight: 700;
+  line-height: 1.3;
   color: var(--foreground);
-  margin: 0 0 4px;
+  overflow-wrap: anywhere;
+  margin: 0 0 8px;
 }
 
 .inbox-email-detail__meta {
-  display: flex;
-  gap: 12px;
-  font-size: 0.9rem;
-  color: var(--muted-foreground);
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  column-gap: 12px;
+  row-gap: 2px;
+  align-items: baseline;
   margin: 0;
 }
 
+.inbox-email-detail__sender {
+  font-size: 0.9rem;
+  font-weight: 600;
+  color: var(--foreground);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
 .inbox-email-detail__received {
+  font-size: 0.8rem;
   color: var(--muted-foreground);
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
 }
 
 .inbox-email-detail__link-count {
-  color: var(--muted-foreground);
+  grid-column: 1 / -1;
+  font-size: 0.8rem;
+  color: var(--color-text-muted);
 }
 
 /* Withheld during extraction: the badge is an always-present OOB swap anchor, so
-   keep the empty placeholder out of the meta row's flex flow until it has a count. */
+   keep the empty placeholder out of the meta row's flow until it has a count. */
 .inbox-email-detail__link-count:empty {
   display: none;
 }
 
 .inbox-email-detail__tabs {
   display: flex;
-  gap: 4px;
+  gap: 16px;
   border-bottom: 1px solid var(--border);
   margin-bottom: 16px;
 }
 
 .inbox-email-detail__tab {
-  padding: 8px 16px;
-  font-size: 0.95rem;
+  padding: 12px 8px;
+  margin: 0 -6px -1px;
+  font-size: 0.9rem;
   font-weight: 600;
   color: var(--muted-foreground);
   text-decoration: none;
@@ -79,12 +97,16 @@
   min-height: 70vh;
   border: 1px solid var(--border);
   border-radius: var(--radius);
+  box-shadow: var(--shadow-sm);
   background: #ffffff;
 }
 
 .inbox-email-detail__unavailable {
-  padding: 24px;
+  padding: 32px 24px;
+  text-align: center;
+  font-size: 0.9rem;
   color: var(--muted-foreground);
+  background: var(--muted);
   border: 1px solid var(--border);
   border-radius: var(--radius);
 }
@@ -114,8 +136,15 @@
 }
 
 .inbox-article-card__title {
+  font-size: 0.95rem;
   font-weight: 600;
   color: var(--foreground);
+  text-decoration: none;
+  transition: color 0.15s ease;
+}
+
+.inbox-article-card__title:hover {
+  color: var(--primary);
 }
 
 .inbox-article-card__title--bare {
@@ -126,6 +155,6 @@
 
 .inbox-article-card__url {
   font-size: 0.8rem;
-  color: var(--muted-foreground);
+  color: var(--color-text-muted);
   word-break: break-all;
 }
