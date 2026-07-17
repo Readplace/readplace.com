@@ -327,19 +327,27 @@ jobs:
   ios-tests:
     if: needs.detect-ios.outputs.ios-test-affected == 'true'
     needs: [detect-ios]
-    runs-on: macos-15
+    # Fork PRs fall back to the free GitHub-hosted macOS runner: on a public repo,
+    # untrusted PR code must never touch the self-hosted M5 (RCE + secret exposure).
+    # Own pushes and same-repo PRs use the M5, which keeps Xcode, xcodegen and a
+    # warm simulator + DerivedData between runs — no cold install/boot each time.
+    runs-on: ${{ (github.event_name != 'pull_request' || github.event.pull_request.head.repo.fork == false) && fromJSON('["self-hosted", "macOS"]') || 'macos-15' }}
     defaults:
       run:
         working-directory: projects/ios-readplace
     steps:
       - uses: actions/checkout@v6
 
+      # The self-hosted M5 already has Xcode and xcodegen installed; only the cold
+      # GitHub-hosted fallback needs to select a toolchain and install xcodegen.
       - name: Select the newest stable Xcode
+        if: runner.environment == 'github-hosted'
         uses: maxim-lobanov/setup-xcode@v1
         with:
           xcode-version: latest-stable
 
       - name: Install XcodeGen
+        if: runner.environment == 'github-hosted'
         run: brew install xcodegen
 
       - name: Run the tests on a discovered iPhone simulator
