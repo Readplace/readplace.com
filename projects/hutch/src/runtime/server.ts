@@ -951,6 +951,7 @@ export function createApp(dependencies: AppDependencies): Express {
 			now: deps.now,
 			conversionLogger: deps.conversionLogger,
 			analytics: deps.analytics,
+			salt: deps.salt,
 			foundingAllocation,
 		});
 		app.use(googleAuthRouter);
@@ -977,6 +978,7 @@ export function createApp(dependencies: AppDependencies): Express {
 		now: deps.now,
 		conversionLogger: deps.conversionLogger,
 		analytics: deps.analytics,
+		salt: deps.salt,
 		foundingAllocation,
 	});
 	app.use(appleAuthRouter);

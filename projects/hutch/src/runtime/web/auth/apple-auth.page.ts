@@ -89,6 +89,7 @@ interface AppleAuthDependencies {
 	now: () => Date;
 	conversionLogger: HutchLogger.Typed<ConversionEvent>;
 	analytics: HutchLogger.Typed<AnalyticsEvent>;
+	salt: string;
 	foundingAllocation: FoundingAllocation;
 }
 
@@ -298,8 +299,8 @@ export const initAppleAuthRoutes = (deps: AppleAuthDependencies): Router => {
 			);
 			const redirect = resolvePostSignupRedirect({ returnUrl: safeReturnUrl, lastViewUrl: stateData.lastViewUrl });
 			emitFirstArticleAutosaved(
-				{ logger: deps.analytics, now: deps.now },
-				{ autosavedUrl: redirect.autosavedUrl, userId: created.userId, visitorId: stateData.visitorId },
+				{ logger: deps.analytics, now: deps.now, salt: deps.salt },
+				{ autosavedUrl: redirect.autosavedUrl, userId: created.userId, visitorId: stateData.visitorId, ip: req.ip },
 			);
 			res.redirect(303, redirect.location);
 			return;
@@ -357,8 +358,8 @@ export const initAppleAuthRoutes = (deps: AppleAuthDependencies): Router => {
 		);
 		const redirect = resolvePostSignupRedirect({ returnUrl: safeReturnUrl, lastViewUrl: stateData.lastViewUrl });
 		emitFirstArticleAutosaved(
-			{ logger: deps.analytics, now: deps.now },
-			{ autosavedUrl: redirect.autosavedUrl, userId: created.userId, visitorId: stateData.visitorId },
+			{ logger: deps.analytics, now: deps.now, salt: deps.salt },
+			{ autosavedUrl: redirect.autosavedUrl, userId: created.userId, visitorId: stateData.visitorId, ip: req.ip },
 		);
 		res.redirect(303, redirect.location);
 	});

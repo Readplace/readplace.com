@@ -1,3 +1,5 @@
+import assert from "node:assert/strict";
+
 import { MAX_APPLE_STATE_COOKIE_BYTES, signAppleState } from "./apple-state";
 import { verifyState } from "./oauth-state";
 
@@ -5,7 +7,7 @@ const SECRET = "test-apple-state-secret";
 
 function payloadOf(signed: string): Record<string, unknown> {
 	const verified = verifyState({ signed, secret: SECRET });
-	if (verified === null) throw new Error("signed state failed verification");
+	assert(verified !== null, "signed state failed verification");
 	return JSON.parse(verified);
 }
 

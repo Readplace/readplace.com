@@ -75,11 +75,12 @@ describe("buildAnalyticsDashboardBody — drift prevention", () => {
 		expect(body.widgets).toHaveLength(35);
 	});
 
-	it("the first-article-autosave widget counts the discrete first_article_autosaved event per day — a 1:1 activation signal independent of the utm_source marker", () => {
+	it("the first-article-autosave widget counts the discrete first_article_autosaved event per day — a 1:1 activation signal independent of the utm_source marker — excluding internal visitors, whose single test signup would skew a day at this event's volume", () => {
 		const queries = widgetQueries();
 		const autosave = queries.find((q) => q.includes(`event = "${ANALYTICS_EVENTS.firstArticleAutosaved}"`));
 		expect(autosave).toBeDefined();
 		expect(autosave).toContain(`stream = "${STREAMS.analytics}"`);
+		expect(autosave).toContain("visitor_hash not in");
 		expect(autosave).toContain("stats count(*) as autosaves by bin(1d)");
 	});
 

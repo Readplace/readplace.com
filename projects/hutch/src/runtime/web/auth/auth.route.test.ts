@@ -1178,6 +1178,7 @@ describe("Auth routes", () => {
 				event: ANALYTICS_EVENTS.firstArticleAutosaved,
 				article_host: "example.com",
 				user_id: expect.any(String),
+				visitor_hash: expect.any(String),
 				visitor_id: expect.any(String),
 			});
 		}, 30000);

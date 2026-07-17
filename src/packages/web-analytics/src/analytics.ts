@@ -274,7 +274,9 @@ export interface SignupAttemptedEvent {
  * marker surviving on the post-signup `/queue` pageview — a reload, share, or
  * bookmark of that URL would recount the marker, but this event fires only at
  * the signup redirect decision. `user_id` joins to the resulting `article_read`;
- * `visitor_id` joins to the follow-on `view_save_intent` that persists the save.
+ * `visitor_id` joins to the follow-on `view_save_intent` that persists the save;
+ * `visitor_hash` applies the dashboard's exclusion list, which matters at this
+ * event's volume — a single internal test signup would skew a day's count.
  */
 export interface FirstArticleAutosavedEvent {
 	stream: typeof STREAMS.analytics;
@@ -282,6 +284,7 @@ export interface FirstArticleAutosavedEvent {
 	timestamp: string;
 	user_id: UserId;
 	article_host: string;
+	visitor_hash: string | null;
 	visitor_id?: string;
 }
 

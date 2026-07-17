@@ -244,7 +244,7 @@ function handleViewArticle(deps: ViewDependencies, reader: ReturnType<typeof ini
 				visitor_id: req.visitorId,
 				is_authenticated: req.userId ? 1 : 0,
 			});
-			if (req.userId === undefined) {
+			if (req.userId === undefined && !isPrefetchOrBot(req)) {
 				setLastViewUrl({ res, secure: deps.secureCookies }, articleUrl);
 			}
 		}

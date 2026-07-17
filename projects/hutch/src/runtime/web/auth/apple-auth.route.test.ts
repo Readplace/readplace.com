@@ -573,9 +573,30 @@ describe("Apple auth routes", () => {
 					event: ANALYTICS_EVENTS.firstArticleAutosaved,
 					article_host: "example.com",
 					user_id: expect.any(String),
+					visitor_hash: expect.any(String),
 				});
 				// No visitor id was tunneled in this state, so the event omits it.
 				expect(autosaves[0]).not.toHaveProperty("visitor_id");
+			}, 30000);
+
+			it("auto-saves through the trial signup branch when the founding allocation is exhausted", async () => {
+				const fixture = createDefaultTestAppFixture(TEST_APP_ORIGIN);
+				const harness = useApp({ ...fixture, apple: appleWith(stubExchange({ email: "autosave-trial-apple@example.com" })) });
+				for (let i = 0; i < TEST_FOUNDING_MEMBER_LIMIT; i++) {
+					await harness.auth.createUser({ email: `seed${i}@test.com`, password: "password123" });
+				}
+				const state = signState(freshState({ lastViewUrl: ARTICLE_URL }));
+
+				const response = await postCallback(harness.server, {
+					state,
+					cookie: `hutch_astate=${encodeURIComponent(state)}`,
+				});
+
+				expect(response.status).toBe(303);
+				expect(response.headers.location).toBe(AUTOSAVE_LOCATION);
+				expect(
+					harness.analytics.events.filter((e) => e.event === ANALYTICS_EVENTS.firstArticleAutosaved),
+				).toHaveLength(1);
 			}, 30000);
 
 			it("does not tunnel a pathologically long last-view url that would overflow the state cookie", async () => {
@@ -609,6 +630,9 @@ describe("Apple auth routes", () => {
 
 				expect(response.status).toBe(303);
 				expect(response.headers.location).toBe("/oauth/authorize?client_id=test");
+				expect(
+					harness.analytics.events.filter((e) => e.event === ANALYTICS_EVENTS.firstArticleAutosaved),
+				).toHaveLength(0);
 			}, 30000);
 
 			it("redirects to a plain /queue when the state carries no last-view url", async () => {

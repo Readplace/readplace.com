@@ -369,8 +369,8 @@ export function initAuthRoutes(deps: AuthDependencies): Router {
 			const lastViewUrl = consumeLastViewUrl({ req, res });
 			const redirect = resolvePostSignupRedirect({ returnUrl, lastViewUrl });
 			emitFirstArticleAutosaved(
-				{ logger: deps.analytics, now: deps.now },
-				{ autosavedUrl: redirect.autosavedUrl, userId: created.userId, visitorId: req.visitorId },
+				{ logger: deps.analytics, now: deps.now, salt: deps.salt },
+				{ autosavedUrl: redirect.autosavedUrl, userId: created.userId, visitorId: req.visitorId, ip: req.ip },
 			);
 			res.redirect(303, redirect.location);
 			return;
@@ -412,8 +412,8 @@ export function initAuthRoutes(deps: AuthDependencies): Router {
 		const lastViewUrl = consumeLastViewUrl({ req, res });
 		const redirect = resolvePostSignupRedirect({ returnUrl, lastViewUrl });
 		emitFirstArticleAutosaved(
-			{ logger: deps.analytics, now: deps.now },
-			{ autosavedUrl: redirect.autosavedUrl, userId: created.userId, visitorId: req.visitorId },
+			{ logger: deps.analytics, now: deps.now, salt: deps.salt },
+			{ autosavedUrl: redirect.autosavedUrl, userId: created.userId, visitorId: req.visitorId, ip: req.ip },
 		);
 		res.redirect(303, redirect.location);
 	});

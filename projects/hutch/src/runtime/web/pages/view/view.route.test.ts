@@ -789,6 +789,17 @@ describe("View routes", () => {
 			expect(response.status).toBe(200);
 			expect(lastViewCookie(response)).toBeUndefined();
 		});
+
+		it("does not set hutch_lastview for a Sec-Purpose: prefetch request — a speculative fetch is not the reader choosing this article, so it must not claim the autosave slot", async () => {
+			const harness = buildReaderHarness();
+
+			const response = await request(harness.server)
+				.get(`/view/${CANONICAL_PATH}`)
+				.set("Sec-Purpose", "prefetch");
+
+			expect(response.status).toBe(200);
+			expect(lastViewCookie(response)).toBeUndefined();
+		});
 	});
 
 	describe("prefetch and bot requests do not trigger the paid crawl", () => {
