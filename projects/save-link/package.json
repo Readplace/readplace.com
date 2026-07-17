@@ -14,7 +14,7 @@
     "build-image": "node tools/build-image.mjs",
     "compute-image-tags": "node tools/build-image.mjs --tag-only",
     "build-curl-impersonate-layer": "node tools/build-curl-impersonate-layer.mjs",
-    "deploy-infra": "nx run save-link:build-image && pnpm build-curl-impersonate-layer && PULUMI_CONFIG_PASSPHRASE='' pulumi up --stack \"${PULUMI_STACK:?PULUMI_STACK is not set}\" $([ \"$CI\" = true ] && echo --yes) $([ \"$CI\" = true ] && [ \"$PULUMI_STACK\" = staging ] && echo --skip-preview)",
+    "deploy-infra": "nx run save-link:build-image && pnpm build-curl-impersonate-layer && PULUMI_CONFIG_PASSPHRASE='' pulumi up --stack \"${PULUMI_STACK:?PULUMI_STACK is not set}\" $([ \"$CI\" = true ] && echo --skip-preview --yes)",
     "post-deploy": "echo 'No post-deploy steps'"
   },
   "dependencies": {

@@ -2,7 +2,7 @@
   "name": "firefox-extension",
   "targets": {
     "deploy-infra": {
-      "command": "PULUMI_CONFIG_PASSPHRASE='' pulumi up --stack \"${PULUMI_STACK:?PULUMI_STACK is not set}\" $([ \"$CI\" = true ] && echo --yes) $([ \"$CI\" = true ] && [ \"$PULUMI_STACK\" = staging ] && echo --skip-preview)",
+      "command": "PULUMI_CONFIG_PASSPHRASE='' pulumi up --stack \"${PULUMI_STACK:?PULUMI_STACK is not set}\" $([ \"$CI\" = true ] && echo --skip-preview --yes)",
       "options": { "cwd": "{projectRoot}" }
     },
     "compile": {
