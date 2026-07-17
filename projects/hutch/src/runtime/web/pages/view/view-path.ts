@@ -20,7 +20,7 @@ export function viewPathFor(articleUrl: string): string {
 	const u = new URL(articleUrl);
 	const tail = encodeArticlePathInfo(`${u.host}${u.pathname}${u.search}${u.hash}`);
 	const scheme = u.protocol === "http:" ? "http://" : "";
-	return `/view/${scheme}${tail}`;
+	return toBrowserRequestPath(`/view/${scheme}${tail}`);
 }
 
 /** Parses the wildcard segment of `/view/*splat` into either the article URL to
@@ -89,13 +89,24 @@ export function canonicalizeViewLandingPath(path: string): string {
 
 /** Encodes a canonical `/view/...` path into the exact bytes the browser
  * requests after following the routing 301 — the pageview `path` analytics
- * logs. The browser re-parses the `Location` header through the WHATWG URL
- * parser before re-requesting (re-encoding `^`, folding `\` to `/`, keeping
- * `[ ] |` and valid `%XX` escapes literal), so only serializing through that
- * same parser yields request-path parity; mirroring the header's own
- * `encodeurl` encoding would not. */
+ * logs. The browser re-parses the `Location` header through its URL parser
+ * before re-requesting (folding `\` to `/`, keeping `[ ]` and valid `%XX`
+ * escapes literal, percent-encoding `^` `|` and other unsafe bytes).
+ * `new URL().pathname` reproduces that for every byte except `^` and `|`, which
+ * `toBrowserRequestPath` normalizes; mirroring the header's own `encodeurl`
+ * encoding would not match either. */
 function encodeViewLocation(canonicalPath: string): string {
-	return new URL(canonicalPath, "https://origin.invalid").pathname;
+	return toBrowserRequestPath(new URL(canonicalPath, "https://origin.invalid").pathname);
+}
+
+/** Node's WHATWG URL parser (Ada) leaves `^` and `|` literal in a path, but the
+ * browser that follows the routing 301 percent-encodes both — the only two
+ * characters where the two parsers' path encoding disagrees. Normalizing them
+ * makes the serialized `/view/...` path byte-match the browser's post-301
+ * request on any Node version, so the stored landing_path joins the logged
+ * pageview `path`. */
+function toBrowserRequestPath(path: string): string {
+	return path.replace(/\^/g, "%5E").replace(/\|/g, "%7C");
 }
 
 /** Re-encode `%25` (literal `%`), `?`, and `#` so the canonical survives

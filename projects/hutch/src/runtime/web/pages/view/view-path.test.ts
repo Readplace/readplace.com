@@ -129,9 +129,9 @@ describe("canonicalizeViewLandingPath", () => {
 		expect(landing).toBe(viewPathFor("https://example.com/a b"));
 	});
 
-	it("keeps [ ] and | literal — the browser's post-301 request leaves them unencoded, so percent-encoding them would break the landing_path ↔ pageview join", () => {
+	it("keeps [ ] literal but percent-encodes | the way the browser's post-301 request does", () => {
 		const landing = canonicalizeViewLandingPath("/view/https://example.com/a[b]|c");
-		expect(landing).toBe("/view/example.com/a[b]|c");
+		expect(landing).toBe("/view/example.com/a[b]%7Cc");
 		expect(landing).toBe(viewPathFor("https://example.com/a[b]|c"));
 	});
 
