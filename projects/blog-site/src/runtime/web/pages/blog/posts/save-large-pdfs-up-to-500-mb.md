@@ -13,7 +13,7 @@ banner: "I raised the ceiling on how big a file you can save"
 <summary class="blog-tldr__toggle">Summary (TL;DR)</summary>
 <div class="blog-tldr__body">
 
-Most read-it-later tools keep the files you can save small, because a single web request can only carry so much. Readplace used to do the same. Anything past about 3 megabytes had no direct save and went to a slower path by email. A big file rides a different route now. When it is too large for the request, Readplace hands the browser a one-time upload address that points straight at storage, the file goes there directly, and the request-size limit stays out of it. The ceiling is 500 megabytes for a PDF, up to 300 pages for the read that follows, and 40 megabytes for a web page's HTML. Before a staged file counts as saved, Readplace checks it: the right size, uploaded inside its 15-minute window, and starting with the five bytes every PDF starts with. A file that fails any of those is refused, not kept. The browser extension carries the same route, so a heavy capture no longer stops at the old few-megabyte cap. Small saves are unchanged, still going straight through in one request.
+Most read-it-later tools keep the files you can save small, because a single web request can only carry so much. Readplace used to do the same. Anything past about 3 megabytes had no direct save and went to a slower path by email. A big file rides a different route now. When it is too large for the request, Readplace hands the browser a one-time upload address that points straight at storage, the file goes there directly, and the request-size limit stays out of it. The ceiling is 500 megabytes for a PDF, up to 300 pages for the read that follows, and 40 megabytes for a web page's HTML. Before a staged file counts as saved, Readplace checks it: the right size, recently uploaded, and starting with the five bytes every PDF starts with. A file that fails any of those is refused, not kept. The browser extension carries the same route, so a heavy capture no longer stops at the old few-megabyte cap. Small saves are unchanged, still going straight through in one request.
 
 </div>
 </details>
@@ -46,7 +46,7 @@ One small thing had to be exactly right. The key is minted to carry no content c
 
 A key that points at storage is a key that could be pointed at the wrong thing. So a staged file is not trusted on arrival. Before it counts as saved, Readplace reads the object back.
 
-The size has to match what was uploaded. The write has to be recent, inside the 15-minute window, not something left sitting from an hour ago. And the file has to actually be a PDF, which Readplace tests by reading the five bytes every PDF opens with, `%PDF-`.
+The size has to match what was uploaded. The write has to be recent, measured against a window twice the key's own life — about 30 minutes — so a big file whose upload ran long still counts, while a stale write left from an hour ago does not. And the file has to actually be a PDF, which Readplace tests by reading the five bytes every PDF opens with, `%PDF-`.
 
 A staged object that misses any of those checks is refused. The check sits on the server, past the browser, so a request that skips the page and posts straight at the route answers the same questions. Nothing lands in your queue on the strength of a key alone.
 
