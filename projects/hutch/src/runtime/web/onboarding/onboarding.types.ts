@@ -1,6 +1,9 @@
-import type { ClientNameInGroup } from "@packages/supported-clients";
+import type { ClientNameInCategory, ClientNameInGroup } from "@packages/supported-clients";
 
-export type Platform = ClientNameInGroup<"browserExtension" | "nativeApp"> | "other";
+/** A device's installable first-party client, or `other`. These are exactly the
+ * content-capture clients (browser extensions + the iPhone app), keyed off the
+ * category so a new content-capture client widens onboarding automatically. */
+export type Platform = ClientNameInCategory<"contentCapture"> | "other";
 
 /** Marketing install-CTA browser buckets — {@link Platform} with iPhone folded into `other`. */
 export type InstallBrowser = ClientNameInGroup<"browserExtension"> | "other";

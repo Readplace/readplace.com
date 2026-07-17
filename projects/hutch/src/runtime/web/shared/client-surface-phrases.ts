@@ -1,4 +1,4 @@
-import type { ClientGroup } from "@packages/supported-clients";
+import type { ClientGroup, ClientGroupInCategory } from "@packages/supported-clients";
 
 /**
  * User-facing copy enumerates client GROUPS, not individual clients: a new
@@ -37,9 +37,13 @@ const SAVE_FALLBACK_SURFACES = {
 
 export const SAVE_FALLBACK_PHRASE = `${SAVE_FALLBACK_SURFACES.browserExtension}, ${SAVE_FALLBACK_SURFACES.nativeApp}, or ${SAVE_FALLBACK_SURFACES.aiAssistant}`;
 
+/** The content-capture surfaces, keyed by the groups in that category — so a
+ * group joining or leaving `contentCapture` is a compile error here. Only these
+ * clients can save the full rendered page; url-only clients (MCP) cannot, which
+ * is why this phrase deliberately excludes them. */
 const FULL_PAGE_CAPTURE_SURFACES = {
 	browserExtension: "the browser extension",
 	nativeApp: "iPhone app",
-} satisfies Record<Exclude<ClientGroup, "aiAssistant">, string>;
+} satisfies Record<ClientGroupInCategory<"contentCapture">, string>;
 
 export const FULL_PAGE_CAPTURE_PHRASE = `${FULL_PAGE_CAPTURE_SURFACES.browserExtension} and ${FULL_PAGE_CAPTURE_SURFACES.nativeApp}`;

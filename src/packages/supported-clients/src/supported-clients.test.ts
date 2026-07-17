@@ -1,5 +1,12 @@
 import assert from "node:assert/strict";
-import { isBuiltInOAuthClientId, isClientName, SUPPORTED_CLIENTS } from "./supported-clients";
+import {
+	CLIENT_CATEGORIES,
+	clientCategoryOfGroup,
+	clientGroupsInCategory,
+	isBuiltInOAuthClientId,
+	isClientName,
+	SUPPORTED_CLIENTS,
+} from "./supported-clients";
 
 describe("SUPPORTED_CLIENTS", () => {
 	it("pins the exact roster so changing it is a conscious edit", () => {
@@ -25,6 +32,39 @@ describe("SUPPORTED_CLIENTS", () => {
 		for (const client of SUPPORTED_CLIENTS) {
 			assert.notEqual(client.displayName, "");
 			assert.notEqual(client.description, "");
+		}
+	});
+});
+
+describe("client categories", () => {
+	it("pins the category order so adding one is a conscious edit", () => {
+		assert.deepEqual(CLIENT_CATEGORIES, ["contentCapture", "urlOnly"]);
+	});
+
+	it("pins which category each group belongs to", () => {
+		assert.deepEqual(
+			Object.fromEntries(
+				[...new Set(SUPPORTED_CLIENTS.map((client) => client.group))].map((group) => [
+					group,
+					clientCategoryOfGroup(group),
+				]),
+			),
+			{
+				browserExtension: "contentCapture",
+				nativeApp: "contentCapture",
+				aiAssistant: "urlOnly",
+			},
+		);
+	});
+
+	it("names each content-capture and url-only group once, in registry order", () => {
+		assert.deepEqual(clientGroupsInCategory("contentCapture"), ["browserExtension", "nativeApp"]);
+		assert.deepEqual(clientGroupsInCategory("urlOnly"), ["aiAssistant"]);
+	});
+
+	it("covers every category with at least one group", () => {
+		for (const category of CLIENT_CATEGORIES) {
+			assert.notEqual(clientGroupsInCategory(category).length, 0, `category ${category} has no groups`);
 		}
 	});
 });

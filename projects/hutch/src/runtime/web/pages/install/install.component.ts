@@ -3,8 +3,8 @@ import { join } from "node:path";
 import assert from "node:assert";
 import { render, withInternalTracking } from "@packages/web-shell";
 import type { PageBody } from "@packages/web-shell";
-import { isClientName, SUPPORTED_CLIENTS } from "@packages/supported-clients";
-import type { ClientGroup, ClientName, SupportedClient } from "@packages/supported-clients";
+import { CLIENT_CATEGORIES, clientCategoryOfGroup, isClientName, SUPPORTED_CLIENTS } from "@packages/supported-clients";
+import type { ClientCategory, ClientName, SupportedClient } from "@packages/supported-clients";
 
 import { switchHelpers } from "../../handlebars-switch";
 import { INSTALL_PAGE_STYLES } from "./install.styles";
@@ -16,21 +16,17 @@ const FIREFOX_LATEST_POINTER_URL = firefoxS3Config.getLatestPointerUrl("prod");
 
 const INSTALL_COPY_SCRIPT = `<script src="/client-dist/install.client.js" defer></script>`;
 
-/** Stable slugs keyed by bucket; the values are the display labels. The slug is
- * what `data-test-group` and the aria-labelledby id are built from, so renaming
- * a label can't silently break a selector. */
-const TAB_GROUPS = {
-	browsers: "Browsers & Devices",
-	ai: "AI Assistants",
-} as const;
+/** The tab section each client CATEGORY renders as. `slug` is the stable value
+ * behind `data-test-group` and the aria-labelledby id, so relabelling can't
+ * silently break a selector; `label` is the visible heading. Keyed by
+ * ClientCategory, so a new category is a compile error here until it is given a
+ * tab section — which is what makes /install the place a category is "added". */
+const CATEGORY_TAB_GROUPS = {
+	contentCapture: { slug: "browsers", label: "Browsers & Devices" },
+	urlOnly: { slug: "ai", label: "AI Assistants" },
+} as const satisfies Record<ClientCategory, { slug: string; label: string }>;
 
-type BucketKey = keyof typeof TAB_GROUPS;
-
-const TAB_BUCKETS = {
-	browserExtension: "browsers",
-	nativeApp: "browsers",
-	aiAssistant: "ai",
-} as const satisfies Record<ClientGroup, BucketKey>;
+type BucketKey = (typeof CATEGORY_TAB_GROUPS)[keyof typeof CATEGORY_TAB_GROUPS]["slug"];
 
 export type InstallClient = ClientName;
 
@@ -100,14 +96,14 @@ interface InstallTabGroup {
 }
 
 function buildTabGroups(active: ClientName): InstallTabGroup[] {
-	const groups: InstallTabGroup[] = [];
+	const groups: InstallTabGroup[] = CLIENT_CATEGORIES.map((category) => {
+		const { slug, label } = CATEGORY_TAB_GROUPS[category];
+		return { key: slug, label, labelId: `install-group-${slug}`, tabs: [] };
+	});
 	for (const client of SUPPORTED_CLIENTS) {
-		const bucket = TAB_BUCKETS[client.group];
-		let target = groups.find((candidate) => candidate.key === bucket);
-		if (!target) {
-			target = { key: bucket, label: TAB_GROUPS[bucket], labelId: `install-group-${bucket}`, tabs: [] };
-			groups.push(target);
-		}
+		const { slug } = CATEGORY_TAB_GROUPS[clientCategoryOfGroup(client.group)];
+		const target = groups.find((candidate) => candidate.key === slug);
+		assert(target, `no install tab group for category slug ${slug}`);
 		const isActive = client.name === active;
 		target.tabs.push({
 			key: client.name,
@@ -118,7 +114,8 @@ function buildTabGroups(active: ClientName): InstallTabGroup[] {
 			ariaCurrent: isActive ? "page" : undefined,
 		});
 	}
-	return groups;
+	// A category with no clients yet renders no empty heading.
+	return groups.filter((group) => group.tabs.length > 0);
 }
 
 interface BetaSetupStep {

@@ -38,6 +38,7 @@
     "check-infra": "echo 'No infrastructure \u2014 shared library'"
   },
   "dependencies": {
+    "@packages/supported-clients": "workspace:*",
     "@packages/web-session": "workspace:*",
     "handlebars": "4.7.9",
     "linkedom": "0.18.12",

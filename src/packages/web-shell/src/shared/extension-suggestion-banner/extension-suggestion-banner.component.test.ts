@@ -95,6 +95,18 @@ describe("renderExtensionSuggestionBanner", () => {
 			expect(url.searchParams.get("utm_content")).toBe("inline-text");
 		});
 
+		it("names both content-capture surfaces — the browser extension and the iPhone app — not just the extension", () => {
+			const doc = parse(renderExtensionSuggestionBanner({ show: true }));
+
+			const message = doc.querySelector(
+				"[data-test-extension-suggestion-variant='not-installed']",
+			);
+			assert(message, "not-installed message must be rendered");
+			const text = message.textContent?.toLowerCase() ?? "";
+			expect(text).toContain("browser extension");
+			expect(text).toContain("iphone app");
+		});
+
 		it("uses distinct utm_content values on the inline link and the CTA so clicks are attributable", () => {
 			const doc = parse(renderExtensionSuggestionBanner({ show: true }));
 

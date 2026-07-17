@@ -1737,6 +1737,9 @@ importers:
 
   src/packages/web-shell:
     dependencies:
+      '@packages/supported-clients':
+        specifier: workspace:*
+        version: link:../supported-clients
       '@packages/web-session':
         specifier: workspace:*
         version: link:../web-session
