@@ -8,7 +8,7 @@ function parse(html: string): Document {
 }
 
 describe("renderCrawlBookmark", () => {
-	it("renders the newest version as the current tab and older ones as disabled, newest first", () => {
+	it("badges the newest version 'best' when more than one crawl exists, older ones disabled, newest first", () => {
 		const versions = [
 			toAbsoluteShortDateTime({ iso: "2026-07-10T09:14Z" }),
 			toAbsoluteShortDateTime({ iso: "2026-06-28T22:01Z" }),
@@ -22,7 +22,7 @@ describe("renderCrawlBookmark", () => {
 		);
 		expect(keys).toEqual(["canonical", "2026-06-28T22:01Z", "2026-03-26T14:32Z"]);
 
-		// Exactly one "current" badge across the whole list, and it sits on the newest tab.
+		// Exactly one badge across the whole list, and it sits on the newest tab.
 		expect(doc.querySelectorAll(".crawl-bookmark__badge").length).toBe(1);
 
 		const current = doc.querySelector('[data-test-crawl-bookmark-tab="canonical"]');
@@ -31,7 +31,7 @@ describe("renderCrawlBookmark", () => {
 		expect(current.getAttribute("aria-disabled")).toBe("false");
 		const badge = current.querySelector(".crawl-bookmark__badge");
 		assert(badge, "the current tab must carry the badge");
-		expect(badge.textContent).toBe("current");
+		expect(badge.textContent).toBe("best");
 		const currentTime = current.querySelector("time");
 		assert(currentTime, "the current tab must carry a <time>");
 		expect(currentTime.getAttribute("datetime")).toBe("2026-07-10T09:14Z");

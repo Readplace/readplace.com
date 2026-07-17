@@ -169,6 +169,11 @@ describe("Queue routes", () => {
 			).map((el) => el.getAttribute("data-test-crawl-bookmark-tab"));
 			expect(keys).toEqual(["canonical", "2026-06-28T22:01Z", "2026-03-26T14:32Z"]);
 			expect(versionedDoc.querySelectorAll(".crawl-bookmark__badge").length).toBe(1);
+			expect(
+				versionedDoc
+					.querySelector('[data-test-crawl-bookmark-tab="canonical"] .crawl-bookmark__badge')
+					?.textContent,
+			).toBe("best");
 			for (const key of ["2026-06-28T22:01Z", "2026-03-26T14:32Z"]) {
 				const disabled = versionedDoc.querySelector(`[data-test-crawl-bookmark-tab="${key}"]`);
 				assert(disabled, `version tab ${key} must render`);
