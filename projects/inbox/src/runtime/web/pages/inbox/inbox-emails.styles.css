@@ -59,7 +59,7 @@
   display: grid;
   grid-template-columns: minmax(0, 1fr) auto;
   column-gap: 12px;
-  row-gap: 2px;
+  row-gap: 4px;
   align-items: baseline;
   padding: 12px 16px;
   color: var(--foreground);
@@ -123,7 +123,7 @@
 .inbox-emails__link-count {
   flex: none;
   font-size: 0.75rem;
-  color: var(--color-text-muted);
+  color: var(--muted-foreground);
   white-space: nowrap;
 }
 

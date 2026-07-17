@@ -28,7 +28,7 @@
   display: grid;
   grid-template-columns: minmax(0, 1fr) auto;
   column-gap: 12px;
-  row-gap: 2px;
+  row-gap: 4px;
   align-items: baseline;
   margin: 0;
 }
@@ -52,7 +52,7 @@
 .inbox-email-detail__link-count {
   grid-column: 1 / -1;
   font-size: 0.8rem;
-  color: var(--color-text-muted);
+  color: var(--muted-foreground);
 }
 
 /* Withheld during extraction: the badge is an always-present OOB swap anchor, so
@@ -155,7 +155,7 @@
 
 .inbox-article-card__url {
   font-size: 0.8rem;
-  color: var(--color-text-muted);
+  color: var(--muted-foreground);
   word-break: break-all;
 }
 
