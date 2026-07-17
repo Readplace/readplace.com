@@ -36,6 +36,7 @@ function linkEntry(userId: UserId, overrides: Partial<InboxEmailLinkEntry>): Inb
 		receivedAtMessageId: SK,
 		ordinal: formatEmailLinkOrdinal(0),
 		url: "https://example.com/post",
+		resolvedUrl: undefined,
 		status: "pending",
 		title: undefined,
 		excerpt: undefined,
