@@ -17,7 +17,7 @@ import {
 	classifyContentSource,
 	type ContentClass,
 } from "./content-source";
-import { SKIP_PATHS } from "./skip-paths";
+import { isSkippedPath } from "./skip-paths";
 
 declare global {
 	namespace Express {
@@ -279,10 +279,20 @@ export type AnalyticsEvent =
 	| ViewSaveIntentEvent
 	| SignupAttemptedEvent;
 
-function shouldLog(params: { req: Request; path: string; statusCode: number }): boolean {
+function isRenderedPageStatus(statusCode: number): boolean {
+	return (statusCode >= 200 && statusCode < 300) || statusCode === 304;
+}
+
+function shouldLog(params: {
+	req: Request;
+	path: string;
+	statusCode: number;
+	isStaticAssetPath: (path: string) => boolean;
+}): boolean {
 	if (params.req.method !== "GET") return false;
-	if (SKIP_PATHS.has(params.path)) return false;
-	if (params.statusCode >= 400) return false;
+	if (isSkippedPath(params.path)) return false;
+	if (params.isStaticAssetPath(params.path)) return false;
+	if (!isRenderedPageStatus(params.statusCode)) return false;
 	if (isbot(params.req.get("user-agent"))) return false;
 	if (params.req.get("hx-request") === "true") return false;
 	return true;
@@ -433,6 +443,7 @@ export function createAnalyticsMiddleware(deps: {
 	logger: HutchLogger.Typed<AnalyticsEvent>;
 	salt: string;
 	now: () => Date;
+	isStaticAssetPath: (path: string) => boolean;
 }): RequestHandler {
 	return (req: Request, res: Response, next: NextFunction) => {
 		/** Capture the request path up front. A sub-router mount (e.g. blog-site's
@@ -456,7 +467,7 @@ export function createAnalyticsMiddleware(deps: {
 					is_authenticated: req.userId ? 1 : 0,
 				});
 			}
-			if (!shouldLog({ req, path, statusCode: res.statusCode })) return;
+			if (!shouldLog({ req, path, statusCode: res.statusCode, isStaticAssetPath: deps.isStaticAssetPath })) return;
 			const userAgent = req.get("user-agent");
 			deps.logger.info({
 				stream: STREAMS.analytics,

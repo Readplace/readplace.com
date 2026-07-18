@@ -7,6 +7,7 @@ import serverless from "serverless-http";
 import { HutchLogger, consoleLogger } from "@packages/hutch-logger";
 import { logger as requestLogger } from "./domain/logger";
 import { createAnalyticsMiddleware, hashIp } from "@packages/web-analytics";
+import { isStaticAssetRequestPath } from "./web/static-asset-paths";
 import { createBanMiddleware } from "./web/middleware/ban";
 import { type BotBlockEvent, createBlockNaiveBotMiddleware } from "./web/middleware/naive-bot";
 import { logAndRespondOnError } from "./web/middleware/error-handler";
@@ -28,6 +29,7 @@ const analytics = createAnalyticsMiddleware({
 	logger: analyticsLogger,
 	salt,
 	now: () => new Date(),
+	isStaticAssetPath: isStaticAssetRequestPath,
 });
 
 const application = express()

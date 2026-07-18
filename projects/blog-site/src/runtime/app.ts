@@ -42,8 +42,22 @@ export function createBlogApp(
 	app.use(utmValidationMiddleware);
 	app.use(cookieParser());
 	app.use(createVisitorIdMiddleware({ generateVisitorId: deps.generateVisitorId, secure: deps.secureCookies }));
-	app.use(createClickAttributionMiddleware({ now: deps.now, secure: deps.secureCookies }));
-	app.use(createAnalyticsMiddleware({ logger: deps.analyticsLogger, salt: deps.salt, now: deps.now }));
+
+	// The blog has no /view scheme-variant route, so every landing path is
+	// already canonical.
+	const isStaticAssetPath = () => false;
+	const canonicalizeLandingPath = (path: string) => path;
+	app.use(
+		createClickAttributionMiddleware({
+			now: deps.now,
+			secure: deps.secureCookies,
+			isStaticAssetPath,
+			canonicalizeLandingPath,
+		}),
+	);
+	app.use(
+		createAnalyticsMiddleware({ logger: deps.analyticsLogger, salt: deps.salt, now: deps.now, isStaticAssetPath }),
+	);
 
 	const base = initBase(config);
 	const blogPosts = initBlogPosts();

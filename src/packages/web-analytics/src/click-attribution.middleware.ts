@@ -1,7 +1,7 @@
 import type { NextFunction, Request, RequestHandler, Response } from "express";
 import { z } from "zod";
 import { baseCookieOptions } from "./cookie-options";
-import { SKIP_PATHS } from "./skip-paths";
+import { isSkippedPath } from "./skip-paths";
 
 export const CLICK_COOKIE_NAME = "hutch_click";
 const CLICK_COOKIE_MAX_AGE_MS = 30 * 24 * 60 * 60 * 1000;
@@ -58,6 +58,8 @@ export function readClickAttribution(req: Request): ClickAttribution | undefined
 export function createClickAttributionMiddleware(deps: {
 	now: () => Date;
 	secure: boolean;
+	isStaticAssetPath: (path: string) => boolean;
+	canonicalizeLandingPath: (path: string) => string;
 }): RequestHandler {
 	const cookieOptions = { ...baseCookieOptions(deps.secure), maxAge: CLICK_COOKIE_MAX_AGE_MS };
 	return (req: Request, res: Response, next: NextFunction) => {
@@ -65,7 +67,11 @@ export function createClickAttributionMiddleware(deps: {
 			next();
 			return;
 		}
-		if (SKIP_PATHS.has(req.path)) {
+		if (isSkippedPath(req.path)) {
+			next();
+			return;
+		}
+		if (deps.isStaticAssetPath(req.path)) {
 			next();
 			return;
 		}
@@ -86,7 +92,7 @@ export function createClickAttributionMiddleware(deps: {
 		 * no-attribution cookie minimal. */
 		const attribution: ClickAttribution = {
 			first_seen_at: deps.now().toISOString(),
-			landing_path: req.path,
+			landing_path: deps.canonicalizeLandingPath(req.path),
 			...(utm_source ? { utm_source } : {}),
 			...(utm_medium ? { utm_medium } : {}),
 			...(utm_campaign ? { utm_campaign } : {}),
