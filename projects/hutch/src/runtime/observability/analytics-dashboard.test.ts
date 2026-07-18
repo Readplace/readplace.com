@@ -85,6 +85,7 @@ describe("buildAnalyticsDashboardBody — drift prevention", () => {
 		const queries = widgetQueries();
 		const autosave = queries.find((q) => q.includes(`event = "${ANALYTICS_EVENTS.firstArticleAutosaved}"`));
 		expect(autosave).toBeDefined();
+		expect(autosave?.startsWith(`SOURCE '${ANALYTICS_LOG_GROUP}' | `)).toBe(true);
 		expect(autosave).toContain(`stream = "${STREAMS.analytics}"`);
 		expect(autosave).toContain("visitor_hash not in");
 		expect(autosave).toContain("stats count(*) as autosaves by bin(1d)");

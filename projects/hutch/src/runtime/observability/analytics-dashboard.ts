@@ -763,7 +763,7 @@ export function buildAnalyticsDashboardBody(deps: BuildAnalyticsDashboardDeps): 
 		logWidget({
 			region,
 			title: "First-article autosaves per day",
-			logGroupNames: [hutchLogGroupName],
+			logGroupNames: analyticsSource,
 			query: [
 				"fields @timestamp, user_id, visitor_id",
 				`| filter stream = "${STREAMS.analytics}" and event = "${ANALYTICS_EVENTS.firstArticleAutosaved}"`,
