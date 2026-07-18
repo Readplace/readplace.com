@@ -57,6 +57,36 @@ describe("htmlToMarkdown", () => {
 		expect(md).not.toContain("Enable JS");
 	});
 
+	it("drops ignored elements nested inside a link", () => {
+		const html = `
+			<a href="/install?client=chrome"><svg><title>Chrome logo</title><path d="M12 0"/></svg>Chrome</a>
+			<a href="/x"><template>Shadow</template>Plain</a>
+		`;
+
+		const md = htmlToMarkdown(html);
+
+		expect(md).toContain("[Chrome](/install?client=chrome)");
+		expect(md).toContain("[Plain](/x)");
+		expect(md).not.toContain("Chrome logo");
+		expect(md).not.toContain("Shadow");
+	});
+
+	it("drops ignored elements nested inside table cells and headers", () => {
+		const html = `
+			<table>
+				<thead><tr><th><svg><title>Icon</title></svg>Name</th></tr></thead>
+				<tbody><tr><td><svg><desc>Round</desc></svg>Readplace</td></tr></tbody>
+			</table>
+		`;
+
+		const md = htmlToMarkdown(html);
+
+		expect(md).toContain("Name");
+		expect(md).toContain("Readplace");
+		expect(md).not.toContain("Icon");
+		expect(md).not.toContain("Round");
+	});
+
 	it("does not retain htmx or data-test attributes from container elements", () => {
 		const html = `
 			<form hx-boost="true" hx-target="main" data-test-form="save">
