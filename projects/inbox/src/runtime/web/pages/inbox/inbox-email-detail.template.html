@@ -9,17 +9,7 @@
 		</p>
 	</header>
 
-	<nav class="inbox-email-detail__tabs" aria-label="Email views" data-test-inbox-tabs>
-		{{#each tabs}}
-		<a
-			class="inbox-email-detail__tab"
-			href="{{href}}"
-			data-test-inbox-tab="{{key}}"
-			{{#if ariaCurrent}}aria-current="{{ariaCurrent}}"{{/if}}
-			>{{label}}</a
-		>
-		{{/each}}
-	</nav>
+	{{{tabsHtml}}}
 
 	{{{panelHtml}}}
 </main>

@@ -153,6 +153,14 @@ describe("toInboxEmailDetailViewModel", () => {
 		expect(vm.articles.panelPollUrl).toContain("/articles?feature=email&poll=1");
 		// The header count is held back until extraction writes its barrier.
 		expect(vm.linkCountLabel).toBeUndefined();
+		// So are the tab counts: "(0)" would read as "none found" rather than
+		// "still looking", contradicting the panel's own spinner.
+		expect(vm.tabs.map((tab) => tab.label)).toEqual([
+			"View",
+			"Extracted Articles",
+			"Skipped Links",
+		]);
+		expect(vm.extractionReported).toBe(false);
 	});
 
 	it("keeps the Skipped panel extracting too, so it never claims nothing was skipped early", () => {
@@ -244,6 +252,13 @@ describe("toInboxEmailDetailViewModel", () => {
 
 		expect(vm.articles.isEmpty).toBe(false);
 		expect(vm.linkCountLabel).toBe("2 links");
+		// The tab counts every kept link, so it agrees with the header badge.
+		expect(vm.tabs.map((tab) => tab.label)).toEqual([
+			"View",
+			"Extracted Articles (2)",
+			"Skipped Links (0)",
+		]);
+		expect(vm.extractionReported).toBe(true);
 		const [pending, crawled] = vm.articles.cards;
 		expect(pending.hasTitle).toBe(false);
 		expect(pending.cardPollUrl).toContain("/inbox/");
@@ -393,6 +408,15 @@ describe("toInboxEmailDetailViewModel", () => {
 
 		expect(vm.linkCountLabel).toBe("25 links");
 		expect(vm.articles.isEmpty).toBe(false);
+	});
+
+	it("counts every kept link in the tab too, not the page of cards on screen", () => {
+		const vm = build({ links: crawledLinks(25), linksMeta: { truncated: false } });
+
+		// `articles.cards` is one page (20); the tab must report the whole set, or
+		// it would disagree with the header badge and with Show more's remainder.
+		expect(vm.articles.cards).toHaveLength(ARTICLES_PAGE_SIZE);
+		expect(vm.tabs[1].label).toBe("Extracted Articles (25)");
 	});
 
 	it("offers no control when the kept links exactly fill the first page", () => {

@@ -109,6 +109,12 @@ export interface InboxEmailDetailViewModel {
 	backHref: string;
 	activeTab: MailTabKey;
 	tabs: MailTab[];
+	/** True once extraction has written its meta barrier, so the tab counts are
+	 * trustworthy. The poll route emits its out-of-band tab strip only then: while
+	 * this is false the strip it would send is byte-identical to the one on
+	 * screen, and re-sending it every tick would tear down and rebuild the tab
+	 * links — taking keyboard focus with them every few seconds. */
+	extractionReported: boolean;
 	/** A `received` email with its body present renders in the iframe; every
 	 * other case (rejected, unparsed, or a body not yet readable from S3) shows
 	 * the graceful unavailable panel instead of an empty frame. */
@@ -241,7 +247,16 @@ export function toInboxEmailDetailViewModel(input: {
 		received: toAbsoluteDateTime({ iso: input.entry.receivedAt }),
 		backHref: `/inbox?feature=${EMAIL_FEATURE}`,
 		activeTab: input.activeTab,
-		tabs: buildMailTabs({ emailId, active: input.activeTab }),
+		// Counts come from every kept/skipped link, not the page of cards on
+		// screen, and are withheld on the same barrier as the header badge — a tab
+		// claiming "(0)" mid-extraction would read as "none found" rather than
+		// "still looking".
+		tabs: buildMailTabs({
+			emailId,
+			active: input.activeTab,
+			counts: awaitingMeta ? {} : { articles: totalCards, excluded: excludedLinks.length },
+		}),
+		extractionReported: !awaitingMeta,
 		canRenderBody,
 		bodyHtml: input.bodyHtml ?? "",
 		imagesCdnBaseUrl: input.imagesCdnBaseUrl,

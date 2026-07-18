@@ -77,3 +77,4 @@ export { etagMatches } from "./etag";
 export { MAX_POLLS, parsePollParam } from "./poll-protocol";
 export { QuerystringFeatureToggle } from "./feature-toggle";
 export type { FeatureToggleSource } from "./feature-toggle";
+export { formatTabCountLabel } from "./tab-count-label";

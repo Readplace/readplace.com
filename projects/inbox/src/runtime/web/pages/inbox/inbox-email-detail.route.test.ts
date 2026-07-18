@@ -353,6 +353,15 @@ describe("Inbox email detail Articles tab", () => {
 		expect(renderedPanels(doc)).toEqual(["articles"]);
 		expect(doc.querySelectorAll("[data-test-inbox-article-card]")).toHaveLength(3);
 		expect(doc.querySelector("[data-test-inbox-detail-link-count]")?.textContent).toBe("3 links");
+		// Each tab carries how many items it holds, so a reader can see what's on the
+		// other tab without opening it.
+		expect(doc.querySelector('[data-test-inbox-tab="articles"]')?.textContent).toBe(
+			"Extracted Articles (3)",
+		);
+		expect(doc.querySelector('[data-test-inbox-tab="excluded"]')?.textContent).toBe(
+			"Skipped Links (0)",
+		);
+		expect(doc.querySelector('[data-test-inbox-tab="view"]')?.textContent).toBe("View");
 		expect(doc.querySelector("[data-test-inbox-article-title]")?.textContent).toBe(
 			"Crawled headline",
 		);
@@ -404,6 +413,14 @@ describe("Inbox email detail Articles tab", () => {
 		).map((el) => el.getAttribute("data-test-inbox-article-card"));
 		expect(cardOrdinals).toEqual(["0000"]);
 		expect(doc.querySelector("[data-test-inbox-detail-link-count]")?.textContent).toBe("1 link");
+		// The tabs split the same way the panels do: the skipped link is counted by
+		// the Skipped Links tab, never by Extracted Articles.
+		expect(doc.querySelector('[data-test-inbox-tab="articles"]')?.textContent).toBe(
+			"Extracted Articles (1)",
+		);
+		expect(doc.querySelector('[data-test-inbox-tab="excluded"]')?.textContent).toBe(
+			"Skipped Links (1)",
+		);
 
 		// A skipped link belongs to the Skipped Links tab alone; rendering it here too
 		// would show the same row on two tabs.
@@ -759,6 +776,68 @@ describe("Inbox Articles panel poll route", () => {
 		assert(linkCount, "the poll fragment must carry the OOB link-count anchor");
 		expect(linkCount.getAttribute("hx-swap-oob")).toBe("outerHTML");
 		expect(linkCount.textContent).toBe("");
+		// The tab strip does NOT ride this tick: it would be byte-identical to the
+		// one on screen, and an outerHTML swap replaces the tab links rather than
+		// editing them, so a reader keyboarding through the tabs would lose focus
+		// every few seconds until extraction finished.
+		expect(doc.querySelector("[data-test-inbox-tabs]")).toBeNull();
+	});
+
+	it("fills the tab counts in on the poll tick that completes extraction", async () => {
+		const fixture = createDefaultTestAppFixture(TEST_APP_ORIGIN);
+		const harness = useApp(fixture);
+		const agent = await loginAgent(harness.server, harness.auth);
+		await seed(fixture, "received");
+		await seedLinks(fixture, [
+			{ ordinal: EmailLinkOrdinalSchema.parse("0000"), status: "crawled", title: "Kept" },
+			{
+				ordinal: EmailLinkOrdinalSchema.parse("0001"),
+				url: "https://news.example.com/unsub",
+				status: "skipped",
+				skipReason: "list-unsubscribe",
+			},
+		]);
+
+		const response = await agent.get(`${articlesPath}&poll=1`);
+
+		expect(response.status).toBe(200);
+		const doc = new JSDOM(response.text).window.document;
+		// Without this OOB swap the counts would stay withheld until a full reload,
+		// even though the panel it ships with already shows the finished card set.
+		const tabs = doc.querySelector("[data-test-inbox-tabs]");
+		assert(tabs, "the poll fragment must carry the OOB tab strip");
+		expect(tabs.getAttribute("hx-swap-oob")).toBe("outerHTML");
+		expect(doc.querySelector('[data-test-inbox-tab="articles"]')?.textContent).toBe(
+			"Extracted Articles (1)",
+		);
+		expect(doc.querySelector('[data-test-inbox-tab="excluded"]')?.textContent).toBe(
+			"Skipped Links (1)",
+		);
+	});
+
+	it("still ships the tab strip when extraction finishes having found nothing", async () => {
+		const fixture = createDefaultTestAppFixture(TEST_APP_ORIGIN);
+		const harness = useApp(fixture);
+		const agent = await loginAgent(harness.server, harness.auth);
+		await seed(fixture, "received");
+		await seedExtractionMeta(fixture);
+
+		const response = await agent.get(`${articlesPath}&poll=1`);
+
+		expect(response.status).toBe(200);
+		const doc = new JSDOM(response.text).window.document;
+		// An email whose extraction kept nothing reports "(0)", and "(0)" is a
+		// count — gating the swap on the header badge (which goes empty at zero)
+		// would strand these tabs on their bare labels forever.
+		const tabs = doc.querySelector("[data-test-inbox-tabs]");
+		assert(tabs, "a finished extraction must ship the tab strip even with no links");
+		expect(tabs.getAttribute("hx-swap-oob")).toBe("outerHTML");
+		expect(doc.querySelector('[data-test-inbox-tab="articles"]')?.textContent).toBe(
+			"Extracted Articles (0)",
+		);
+		expect(doc.querySelector('[data-test-inbox-tab="excluded"]')?.textContent).toBe(
+			"Skipped Links (0)",
+		);
 	});
 
 	it("gives up to a terminal stale notice once the poll budget is spent without a meta barrier", async () => {

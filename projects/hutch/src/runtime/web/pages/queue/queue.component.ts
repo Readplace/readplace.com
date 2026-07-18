@@ -4,7 +4,12 @@ import { NAV_HIDE_SCRIPT } from "../../shared/reader-nav-script";
 import { OnboardingChecklist, ONBOARDING_STYLES } from "../../onboarding/onboarding.component";
 import type { Platform } from "../../onboarding/onboarding.types";
 import type { DeviceClass } from "@packages/web-analytics";
-import { render, withInternalTracking, SUBSCRIBE_CTA_LABEL } from "@packages/web-shell";
+import {
+	formatTabCountLabel,
+	render,
+	withInternalTracking,
+	SUBSCRIBE_CTA_LABEL,
+} from "@packages/web-shell";
 import type { LocalTime, PageBody } from "@packages/web-shell";
 
 import { QUEUE_STYLES } from "./queue.styles";
@@ -66,7 +71,7 @@ function filterLinkClass(isActive: boolean): string {
 }
 
 export function formatUnreadLabel(count: number): string {
-	return count > 99 ? "To Read (99+)" : `To Read (${count})`;
+	return formatTabCountLabel({ label: "To Read", count });
 }
 
 const EMPTY_STATE_TITLES: Record<TabId, string> = {

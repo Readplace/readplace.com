@@ -7,6 +7,7 @@ import { renderInboxExcludedPanel } from "./inbox-excluded-panel.component";
 import type { MailTabKey } from "./inbox-email-detail.url";
 import { buildInboxEmailIframeSrcdoc } from "./inbox-email-iframe-srcdoc";
 import { renderInboxLinkCount } from "./inbox-link-count.component";
+import { renderInboxMailTabs } from "./inbox-mail-tabs.component";
 import { INBOX_EMAIL_DETAIL_STYLES } from "./inbox-email-detail.styles";
 import type { InboxEmailDetailViewModel } from "./inbox-email-detail.viewmodel";
 
@@ -42,6 +43,7 @@ const PANEL_RENDERERS: Record<MailTabKey, (vm: InboxEmailDetailViewModel) => str
 export function InboxEmailDetailPage(vm: InboxEmailDetailViewModel): PageBody {
 	const panelHtml = PANEL_RENDERERS[vm.activeTab](vm);
 	const linkCountHtml = renderInboxLinkCount({ label: vm.linkCountLabel, oob: false });
+	const tabsHtml = renderInboxMailTabs({ tabs: vm.tabs, oob: false });
 	return {
 		seo: {
 			title: "Email — Readplace",
@@ -53,7 +55,7 @@ export function InboxEmailDetailPage(vm: InboxEmailDetailViewModel): PageBody {
 		styles: INBOX_EMAIL_DETAIL_STYLES,
 		bodyClass: "page-inbox",
 		content: {
-			html: render(INBOX_EMAIL_DETAIL_TEMPLATE, { ...vm, panelHtml, linkCountHtml }),
+			html: render(INBOX_EMAIL_DETAIL_TEMPLATE, { ...vm, panelHtml, linkCountHtml, tabsHtml }),
 		},
 	};
 }
