@@ -24,6 +24,8 @@ import { initResolveVerificationStatus } from "./web/middleware/resolve-verifica
 import { initInboxRoutes } from "./web/pages/inbox/inbox.page";
 import "./web/session.types";
 
+/** Where local dev prefers to listen. The dev server steps to the next free
+ * port when something already holds this one, so two checkouts can both run. */
 export const PORT = 3300;
 
 /** Composition root for the inbox deployable: the /inbox pages behind hutch's

@@ -15,6 +15,7 @@ import {
 	createDefaultTestAppFixture,
 } from "@packages/test-fixtures";
 import { createInboxApp, PORT } from "./app";
+import { MAX_PORT_ATTEMPTS, findAvailablePort } from "./find-available-port";
 
 const logger = HutchLogger.from(consoleLogger);
 
@@ -153,8 +154,12 @@ async function main(): Promise<void> {
 		},
 	);
 
-	app.listen(PORT, () => {
-		logger.info(`inbox is running on http://localhost:${PORT}/inbox?feature=email`);
+	// Never fight another process for the port: a second checkout of this repo
+	// running its own dev server would otherwise keep answering on it, and the
+	// browser would show a running app serving that checkout's code.
+	const port = await findAvailablePort({ preferredPort: PORT, maxAttempts: MAX_PORT_ATTEMPTS });
+	app.listen(port, () => {
+		logger.info(`inbox is running on http://localhost:${port}/inbox?feature=email`);
 	});
 }
 
