@@ -4,6 +4,7 @@ import { ReaderArticleHashIdSchema } from "@packages/domain/article";
 import type { UserId } from "@packages/domain/user";
 import type {
 	FindArticleById,
+	FindArticleByUrl,
 	FindArticleUrlById,
 } from "@packages/provider-contracts/article-store";
 import type { Redirect } from "../../redirect.component";
@@ -19,6 +20,7 @@ import {
 export interface ReaderPermalinkDeps {
 	findArticleById: FindArticleById;
 	findArticleUrlById: FindArticleUrlById;
+	findArticleByUrl: FindArticleByUrl;
 }
 
 export interface ReaderPermalinkInput {
@@ -29,7 +31,8 @@ export interface ReaderPermalinkInput {
 
 export type ReaderPermalinkResult =
 	| { kind: "redirect"; redirect: Redirect }
-	| { kind: "article"; article: SavedArticle };
+	| { kind: "article"; article: SavedArticle }
+	| { kind: "not-found" };
 
 const REDIRECT_TO_QUEUE: ReaderPermalinkResult = {
 	kind: "redirect",
@@ -103,6 +106,14 @@ export function initReaderPermalink(deps: ReaderPermalinkDeps) {
 
 		const articleUrl = await deps.findArticleUrlById(parsedId.data);
 		if (!articleUrl) return REDIRECT_TO_QUEUE;
+
+		/** A tombstoned URL still resolves its id → url (the row survives) so this
+		 * is a genuine "removed", not a "never existed": 404 directly instead of
+		 * bouncing through a /view redirect that would 404 anyway. The owner-owns
+		 * path above can't reach here — a tombstone can't coexist with an owning
+		 * row — so an owner's own reader never wrongly 404s. */
+		const global = await deps.findArticleByUrl(articleUrl);
+		if (global?.purgedAt) return { kind: "not-found" };
 
 		/** 302 (not 301) because the redirect is conditional on
 		 * auth/ownership — the same URL renders differently for the

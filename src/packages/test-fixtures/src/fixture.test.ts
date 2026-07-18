@@ -140,14 +140,11 @@ describe("createDefaultTestAppFixture", () => {
 		expect(bad.ok).toBe(false);
 	});
 
-	it("shared.logError and shared.logParseError are no-ops that don't throw", () => {
+	it("shared.logError is a no-op that doesn't throw", () => {
 		const fixture = createDefaultTestAppFixture(TEST_APP_ORIGIN);
 
 		expect(() => fixture.shared.logError("ignored")).not.toThrow();
 		expect(() => fixture.shared.logError("ignored", new Error("x"))).not.toThrow();
-		expect(() =>
-			fixture.shared.logParseError({ url: "https://x", reason: "boom" }),
-		).not.toThrow();
 	});
 });
 

@@ -23,6 +23,9 @@ export class ArticleResourceUniqueId {
 	toS3PendingHtmlKey(): string {
 		return `pending-html/${encodeURIComponent(this.value)}.html`;
 	}
+	toS3PendingPdfKey(): string {
+		return `pending-pdf/${encodeURIComponent(this.value)}.pdf`;
+	}
 	toS3RefreshHtmlKey(): string {
 		return `refresh-html/${encodeURIComponent(this.value)}.html`;
 	}
@@ -31,6 +34,15 @@ export class ArticleResourceUniqueId {
 	}
 	toS3ContentVersionKey({ minuteId }: { minuteId: string }): string {
 		return `content-versions/${encodeURIComponent(this.value)}/${minuteId.replaceAll(":", "-")}/content.html`;
+	}
+	toS3ImagePrefix(): string {
+		return `content/${encodeURIComponent(this.value)}/images/`;
+	}
+	toS3SourcesPrefix(): string {
+		return `articles/${encodeURIComponent(this.value)}/sources/`;
+	}
+	toS3ContentVersionsPrefix(): string {
+		return `content-versions/${encodeURIComponent(this.value)}/`;
 	}
 	toS3SourceMetadataKey({ tier }: { tier: string }): string {
 		return `articles/${encodeURIComponent(this.value)}/sources/${tier}.metadata.json`;

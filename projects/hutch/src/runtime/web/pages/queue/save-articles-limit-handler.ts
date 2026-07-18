@@ -6,16 +6,17 @@ import { SIREN_MEDIA_TYPE, sirenError } from "../../api/siren";
  * Translates body-parser `entity.too.large` errors on the multipart
  * save-articles route into a Siren 422, so a bulk request whose combined
  * captured-page bodies exceed the parser limit fails cleanly instead of escaping
- * to the global handler as an unhandled 413. The extension chunks below the
- * page cap, so a well-behaved client never trips this; it guards other callers
- * and keeps the parser limit and the per-page cap in step.
+ * to the global handler as an unhandled 413. This parser limit is the route's
+ * only size bound — there is no per-page refusal — and the walker packs each
+ * request's manifest and content bytes under the advertised per-page budget,
+ * whose headroom keeps a compliant request below this limit.
  */
 export function initSaveArticlesLimitHandler(deps: {
 	logError: (message: string, error?: Error) => void;
 	maxBytes: number;
 }): ErrorRequestHandler {
 	const { maxBytes } = deps;
-	const label = `${Math.round(maxBytes / (1024 * 1024))} MB`;
+	const label = `${Math.round((maxBytes / (1024 * 1024)) * 10) / 10} MB`;
 	return (err, req, res, next) => {
 		if (
 			typeof err === "object" &&

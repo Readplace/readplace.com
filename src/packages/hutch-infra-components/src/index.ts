@@ -33,6 +33,10 @@ export {
 	type CrawlArticleFailedDetail,
 	RecrawlLinkInitiatedEvent,
 	type RecrawlLinkInitiatedDetail,
+	RemoveMyContentCommand,
+	type RemoveMyContentDetail,
+	ReselectAfterRemovalEvent,
+	type ReselectAfterRemovalDetail,
 	RecrawlContentExtractedEvent,
 	type RecrawlContentExtractedDetail,
 	RefreshContentExtractedEvent,
@@ -85,6 +89,10 @@ export {
 export { PARSE_ERROR_STREAM, type ParseErrorEvent } from "./logs";
 export { SAVE_LINK_LAMBDA_NAMES, SAVE_LINK_LOG_GROUPS } from "./save-link-lambdas";
 export { BLOG_SITE_LAMBDA_NAME, BLOG_SITE_LOG_GROUP } from "./blog-site-lambda";
+export {
+	FORWARD_ANALYTICS_LAMBDA_NAME,
+	FORWARD_ANALYTICS_FUNCTION_NAME,
+} from "./forward-analytics-lambda";
 export { initLogParseError, type LogParseError } from "./log-parse-error";
 export {
 	CRAWL_OUTCOME_STREAM,

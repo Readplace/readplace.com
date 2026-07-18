@@ -76,6 +76,14 @@ describe("toMcpArticle", () => {
 		});
 	});
 
+	it("returns the redirect destination as the url for a merged article", () => {
+		const article = buildArticle({
+			url: "https://example.com/a.html",
+			displayUrl: "https://example.com/a",
+		});
+		expect(toMcpArticle(article).url).toBe("https://example.com/a");
+	});
+
 	it("omits imageUrl and readAt when they are absent", () => {
 		const article = buildArticle({
 			metadata: {

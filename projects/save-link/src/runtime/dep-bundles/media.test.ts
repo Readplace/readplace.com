@@ -9,6 +9,7 @@ function makeBundle() {
 	const parser = initParserDepBundle({
 		logError: () => {},
 		logInfo: () => {},
+		findAdoptedFetchUrl: async () => undefined,
 	});
 	const articleStore = initArticleStoreDepBundle({
 		s3Client: new S3Client({ region: "us-east-1" }),

@@ -20,6 +20,17 @@ export const formatEmailLinkOrdinal = (index: number): EmailLinkOrdinal =>
  *  - `pending`  — extracted, not yet crawled (the only non-terminal state).
  *  - `crawled`  — crawl succeeded; title/excerpt/imageUrl/siteName populated.
  *  - `failed`   — crawl returned failed/unsupported, or the URL was SSRF-blocked.
- * Terminal = `crawled` | `failed`; a card polls only while it is `pending`. */
-export const EmailLinkStatusSchema = z.enum(["pending", "crawled", "failed"]);
+ *  - `skipped`  — classified as an action link at extraction; never crawled.
+ * Terminal = everything but `pending`; a card polls only while it is `pending`. */
+export const EmailLinkStatusSchema = z.enum(["pending", "crawled", "failed", "skipped"]);
 export type EmailLinkStatus = z.infer<typeof EmailLinkStatusSchema>;
+
+export const EmailLinkSkipReasonSchema = z.enum([
+	"list-unsubscribe",
+	"action-link-pattern",
+	"llm-noise",
+	"llm-ad",
+	"llm-menu",
+	"llm-subscription",
+]);
+export type EmailLinkSkipReason = z.infer<typeof EmailLinkSkipReasonSchema>;

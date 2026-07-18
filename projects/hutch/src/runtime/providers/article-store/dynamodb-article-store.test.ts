@@ -244,7 +244,10 @@ describe("initDynamoDbArticleStore global writes", () => {
 		});
 
 		const put = commands.find((c) => c.name === "PutCommand");
-		expect(put?.input.ConditionExpression).toBe("attribute_not_exists(#url)");
+		// The put succeeds on an absent row OR a tombstoned one, so re-saving a
+		// purged URL revives it (the full put drops purgedAt); a live row still
+		// fails the condition and stays a no-op upsert.
+		expect(put?.input.ConditionExpression).toBe("attribute_not_exists(#url) OR attribute_exists(purgedAt)");
 		expect(result).toEqual({ created: true });
 	});
 
@@ -489,7 +492,7 @@ describe("initDynamoDbArticleStore findArticlesByUser", () => {
 		const batch = commands.find((c) => c.name === "BatchGetCommand");
 		const requestItems = batch?.input.RequestItems as Record<string, { ProjectionExpression?: string }>;
 		expect(requestItems.articles.ProjectionExpression).toBe(
-			"#url, #routeId, #originalUrl, #title, #siteName, #excerpt, #wordCount, #imageUrl, #estimatedReadTime, #savedAt, #contentSourceTier",
+			"#url, #routeId, #originalUrl, #displayUrl, #title, #siteName, #excerpt, #wordCount, #imageUrl, #estimatedReadTime, #savedAt, #contentSourceTier, #purgedAt",
 		);
 	});
 
@@ -647,6 +650,55 @@ describe("initDynamoDbArticleStore deleteAllUserArticles", () => {
 	});
 });
 
+describe("initDynamoDbArticleStore listUserArticleUrls", () => {
+	it("pages the user's rows and resolves each to its global original URL via a batch get", async () => {
+		const { client, commands } = createFakeClient({
+			QueryCommand: {
+				queue: [
+					{ Items: [userArticleItem({ url: "example.com/one" })], Count: 1, LastEvaluatedKey: { userId: USER, url: "example.com/one" } },
+					{ Items: [userArticleItem({ url: "example.com/two" })], Count: 1 },
+				],
+			},
+			BatchGetCommand: {
+				default: {
+					Responses: {
+						articles: [
+							{ originalUrl: "https://example.com/one" },
+							{ originalUrl: "https://example.com/two" },
+						],
+					},
+				},
+			},
+		});
+
+		const urls = await initStore(client).listUserArticleUrls(USER);
+
+		expect(urls.sort()).toEqual(["https://example.com/one", "https://example.com/two"]);
+		const query = commands.find((c) => c.name === "QueryCommand");
+		expect(query?.input.IndexName).toBe("userId-savedAt-index");
+		const batchGet = commands.find((c) => c.name === "BatchGetCommand");
+		const requested = (batchGet?.input.RequestItems as Record<string, { Keys: { url: string }[] }>)
+			.articles.Keys;
+		expect(requested).toEqual([{ url: "example.com/one" }, { url: "example.com/two" }]);
+	});
+
+	it("returns an empty list (and issues no batch get) when the user has no saved rows", async () => {
+		const { client, commands } = createFakeClient({ QueryCommand: { default: { Items: [], Count: 0 } } });
+
+		expect(await initStore(client).listUserArticleUrls(USER)).toEqual([]);
+		expect(commands.some((c) => c.name === "BatchGetCommand")).toBe(false);
+	});
+
+	it("skips a normalized row whose global original URL is missing (legacy row)", async () => {
+		const { client } = createFakeClient({
+			QueryCommand: { default: { Items: [userArticleItem({ url: "example.com/legacy" })], Count: 1 } },
+			BatchGetCommand: { default: { Responses: { articles: [{}] } } },
+		});
+
+		expect(await initStore(client).listUserArticleUrls(USER)).toEqual([]);
+	});
+});
+
 describe("initDynamoDbArticleStore updateArticleStatus", () => {
 	it("stamps readAt when marking an article read", async () => {
 		const { client, commands } = createFakeClient({
@@ -737,6 +789,30 @@ describe("initDynamoDbArticleStore freshness, notification state, content and ur
 		]);
 	});
 
+	it("findArticleCrawlVersions carries each attributed entry's author through a mixed legacy/attributed log", async () => {
+		const { client } = createFakeClient({
+			GetCommand: {
+				default: {
+					Item: {
+						crawlVersions: [
+							{ minuteId: "2026-07-10T09:41Z", authorUserId: "user-1" },
+							{ minuteId: "2026-06-28T22:01Z" },
+							"2026-03-26T14:32Z",
+						],
+					},
+				},
+			},
+		});
+
+		const versions = await initStore(client).findArticleCrawlVersions(URL);
+
+		expect(versions).toEqual([
+			{ crawledAtMinute: "2026-07-10T09:41Z", authorUserId: "user-1" },
+			{ crawledAtMinute: "2026-06-28T22:01Z" },
+			{ crawledAtMinute: "2026-03-26T14:32Z" },
+		]);
+	});
+
 	it("findArticleCrawlVersions returns an empty list for a pre-feature row with no log", async () => {
 		const { client } = createFakeClient({ GetCommand: { default: { Item: undefined } } });
 
@@ -803,6 +879,16 @@ describe("initDynamoDbArticleStore freshness, notification state, content and ur
 		expect(data?.url).toBe(URL);
 		expect(data?.savedAt).toEqual(new Date("2026-05-30T09:00:00.000Z"));
 		expect(data?.contentSourceTier).toBe("tier-1");
+	});
+
+	it("findArticleByUrl surfaces the redirect destination for a merged row", async () => {
+		const { client } = createFakeClient({
+			GetCommand: { default: { Item: articleItem({ displayUrl: "https://example.com/dest", content: undefined }) } },
+		});
+
+		const data = await initStore(client).findArticleByUrl(URL);
+
+		expect(data?.displayUrl).toBe("https://example.com/dest");
 	});
 
 	it("findArticleByUrl falls back to the epoch savedAt for legacy rows missing the column", async () => {

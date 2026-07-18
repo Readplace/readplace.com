@@ -106,6 +106,24 @@ describe("initInMemoryArticleStore", () => {
 			expect(second).toEqual({ created: false });
 		});
 
+		it("revives a tombstoned row on re-save: reports created=true and clears purgedAt so the tombstone gate reopens", async () => {
+			const store = initInMemoryArticleStore();
+			const url = "https://example.com/article";
+			const metadata = { title: "T", siteName: "example.com", excerpt: "", wordCount: 0 };
+			await store.saveArticleGlobally({ url, metadata, estimatedReadTime: 0 as Minutes, savedAt: new Date("2026-04-01T12:00:00.000Z") });
+			await store.setPurgedAt({ url, at: new Date("2026-07-16T10:00:00.000Z") });
+
+			const revived = await store.saveArticleGlobally({
+				url,
+				metadata,
+				estimatedReadTime: 0 as Minutes,
+				savedAt: new Date("2026-07-20T12:00:00.000Z"),
+			});
+
+			expect(revived).toEqual({ created: true });
+			expect((await store.findArticleByUrl(url))?.purgedAt).toBeUndefined();
+		});
+
 		it("does not clobber real parsed metadata when a stub re-save lands on an existing row", async () => {
 			// Simulates the /view fallback path landing on a row that already
 			// holds parsed metadata: title/excerpt/wordCount must stay intact;
@@ -547,6 +565,25 @@ describe("initInMemoryArticleStore", () => {
 		});
 	});
 
+	describe("listUserArticleUrls", () => {
+		it("returns the user's original URLs and excludes other users' saves", async () => {
+			const store = initInMemoryArticleStore();
+			await store.saveArticle(makeArticleParams({ userId: USER_A, url: "https://example.com/one" }));
+			await store.saveArticle(makeArticleParams({ userId: USER_A, url: "https://example.com/two" }));
+			await store.saveArticle(makeArticleParams({ userId: USER_B, url: "https://example.com/three" }));
+
+			const urls = await store.listUserArticleUrls(USER_A);
+
+			expect(urls.sort()).toEqual(["https://example.com/one", "https://example.com/two"]);
+		});
+
+		it("returns an empty list for a user with no saves", async () => {
+			const store = initInMemoryArticleStore();
+
+			expect(await store.listUserArticleUrls(USER_A)).toEqual([]);
+		});
+	});
+
 	describe("freshness operations", () => {
 		it("findArticleFreshness returns null for unknown URL", async () => {
 			const store = initInMemoryArticleStore();
@@ -574,12 +611,15 @@ describe("initInMemoryArticleStore", () => {
 
 			await store.setCrawlVersions({
 				url: "https://example.com/article",
-				versions: ["2026-07-10T09:41Z", "2026-06-28T22:01Z"],
+				versions: [
+					{ crawledAtMinute: "2026-07-10T09:41Z", authorUserId: USER_A },
+					{ crawledAtMinute: "2026-06-28T22:01Z" },
+				],
 			});
 			const versions = await store.findArticleCrawlVersions("https://example.com/article");
 
 			expect(versions).toEqual([
-				{ crawledAtMinute: "2026-07-10T09:41Z" },
+				{ crawledAtMinute: "2026-07-10T09:41Z", authorUserId: USER_A },
 				{ crawledAtMinute: "2026-06-28T22:01Z" },
 			]);
 		});

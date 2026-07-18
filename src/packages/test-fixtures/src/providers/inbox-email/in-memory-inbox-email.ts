@@ -1,4 +1,5 @@
 import assert from "node:assert";
+import { emailImageS3KeyPrefix } from "@packages/domain/inbox";
 import type { InboxEmailEntry, InboxEmailStore } from "@packages/domain/inbox";
 import type { UserId } from "@packages/domain/user";
 
@@ -37,13 +38,17 @@ export function initInMemoryInboxEmail(): InboxEmailStore {
 			const receivedAtMessageIds: string[] = [];
 			const rawEmailS3Keys: string[] = [];
 			const bodyS3Keys: string[] = [];
+			const emailImageS3KeyPrefixes: string[] = [];
 			for (const row of rows.values()) {
 				if (row.userId !== userId) continue;
 				receivedAtMessageIds.push(row.receivedAtMessageId);
 				rawEmailS3Keys.push(row.rawEmailS3Key);
 				if (row.bodyS3Key !== undefined) bodyS3Keys.push(row.bodyS3Key);
+				emailImageS3KeyPrefixes.push(
+					emailImageS3KeyPrefix({ userId, receivedAtMessageId: row.receivedAtMessageId }),
+				);
 			}
-			return { receivedAtMessageIds, rawEmailS3Keys, bodyS3Keys };
+			return { receivedAtMessageIds, rawEmailS3Keys, bodyS3Keys, emailImageS3KeyPrefixes };
 		},
 		deleteAllEmailsByUserId: async (userId) => {
 			for (const [key, row] of rows) {

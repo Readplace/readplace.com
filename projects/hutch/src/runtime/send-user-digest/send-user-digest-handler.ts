@@ -14,9 +14,9 @@ import type {
 	FindArticleByUrl,
 	FindUserArticleNotificationState,
 	MarkReaderReadyEmailSent,
-	ReadArticleContent,
 	UserArticleNotificationState,
 } from "@packages/provider-contracts/article-store";
+import type { FindGeneratedSummary } from "@packages/provider-contracts/article-summary";
 import type { FindUserContactByUserId } from "@packages/provider-contracts/auth";
 import type {
 	ClaimReaderReadyEmailSlot,
@@ -28,7 +28,7 @@ import type {
 	ListDigestItemsByUser,
 } from "@packages/provider-contracts/digest-queue";
 import type { SendEmail } from "@packages/provider-contracts/email";
-import { htmlToEmailPreview } from "../web/html-to-email-preview";
+import { buildDigestPreview } from "../web/digest-preview";
 import { buildDigestEmailHtml, type DigestEmailItem } from "../web/digest-email";
 import { buildOwnerReaderPath } from "../web/pages/queue/owner-reader-link";
 
@@ -44,7 +44,7 @@ export interface SendUserDigestDeps {
 	listDigestItemsByUser: ListDigestItemsByUser;
 	findUserArticleNotificationState: FindUserArticleNotificationState;
 	findArticleByUrl: FindArticleByUrl;
-	readArticleContent: ReadArticleContent;
+	findGeneratedSummary: FindGeneratedSummary;
 	deleteDigestItem: DeleteDigestItem;
 	claimReaderReadyEmailSlot: ClaimReaderReadyEmailSlot;
 	releaseReaderReadyEmailSlot: ReleaseReaderReadyEmailSlot;
@@ -207,14 +207,14 @@ async function resolveDigestItem(
 	const article = await deps.findArticleByUrl(item.originalUrl);
 	if (!article) return drop("article-missing");
 
-	const content = await deps.readArticleContent(item.originalUrl);
+	const summary = await deps.findGeneratedSummary(item.originalUrl);
 	return {
 		item,
 		email: {
 			title: article.metadata.title,
 			siteName: article.metadata.siteName,
 			continueReadingUrl: `${deps.appOrigin}${buildOwnerReaderPath(article.id)}`,
-			preview: content ? htmlToEmailPreview(content) : [],
+			preview: buildDigestPreview(summary),
 		},
 	};
 }

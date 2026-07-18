@@ -4,8 +4,10 @@ import type {
 	ExtractPdf,
 } from "@packages/crawl-article";
 import {
+	initAppleNewsSiteRules,
 	initCrawlArticle,
 	initCrawlFetch,
+	initFetchPinnedCrawl,
 	initXTwitterSiteRules,
 	CRAWL_PERSONAS,
 } from "@packages/crawl-article";
@@ -13,16 +15,23 @@ import { isBlockedIpAddress } from "@packages/domain/article";
 import {
 	initReadabilityParser,
 	linkedinSiteRules,
+	mediaWikiSiteRules,
 	mediumSiteRules,
 	theInformationSiteRules,
 } from "@packages/article-parser";
 import type { ParseHtml } from "@packages/article-parser";
+import { initIsSiteRuleUrl } from "../domain/save-link/adopt-canonical-identity";
 import type { LogError, LogInfo } from "./observability";
 
 export type ParserDepBundle = {
 	crawlFetch: CrawlFetch;
 	crawlArticle: CrawlArticle;
 	parseHtml: ParseHtml;
+	/** Predicate over the crawl-claiming site rules only (oembed replacement,
+	 * shell redirect) — NOT the parse-time rules, because `mediumSiteRules.matches`
+	 * is deliberately true for every hostname (custom-domain sniffing) and would
+	 * make identity adoption refuse every terminal. */
+	isSiteRuleUrl: (url: string) => boolean;
 };
 
 /**
@@ -38,31 +47,35 @@ export type ParserDepBundle = {
 export function initParserDepBundle(deps: {
 	logError: LogError;
 	logInfo: LogInfo;
+	findAdoptedFetchUrl: (url: string) => Promise<string | undefined>;
 }): ParserDepBundle {
 	const crawlFetch = initCrawlFetch({
 		fetch: globalThis.fetch,
 		personas: CRAWL_PERSONAS,
 		isBlocked: isBlockedIpAddress,
 	});
-	const siteRules = [
-		theInformationSiteRules,
-		mediumSiteRules,
-		linkedinSiteRules,
+	const crawlClaimingSiteRules = [
 		initXTwitterSiteRules({ crawlFetch, logError: deps.logError }),
+		initAppleNewsSiteRules({ crawlFetch, logError: deps.logError }),
 	];
-	const crawlArticle = initCrawlArticle({ crawlFetch, siteRules, logError: deps.logError, logInfo: deps.logInfo });
+	const siteRules = [theInformationSiteRules, mediumSiteRules, linkedinSiteRules, mediaWikiSiteRules, ...crawlClaimingSiteRules];
+	const crawlArticle = initFetchPinnedCrawl({
+		crawlArticle: initCrawlArticle({ crawlFetch, siteRules, logError: deps.logError, logInfo: deps.logInfo }),
+		findAdoptedFetchUrl: deps.findAdoptedFetchUrl,
+	});
 	const { parseHtml } = initReadabilityParser({
 		crawlArticle,
 		siteRules,
 		logError: deps.logError,
 	});
-	return { crawlFetch, crawlArticle, parseHtml };
+	return { crawlFetch, crawlArticle, parseHtml, isSiteRuleUrl: initIsSiteRuleUrl(crawlClaimingSiteRules) };
 }
 
 export type ComprehensiveParserDepBundle = {
 	crawlFetch: CrawlFetch;
 	crawlArticle: CrawlArticle;
 	parseHtml: ParseHtml;
+	isSiteRuleUrl: (url: string) => boolean;
 };
 
 /**
@@ -76,29 +89,32 @@ export function initComprehensiveParserDepBundle(deps: {
 	logError: LogError;
 	logInfo: LogInfo;
 	extractPdf: ExtractPdf;
+	findAdoptedFetchUrl: (url: string) => Promise<string | undefined>;
 }): ComprehensiveParserDepBundle {
 	const crawlFetch = initCrawlFetch({
 		fetch: globalThis.fetch,
 		personas: CRAWL_PERSONAS,
 		isBlocked: isBlockedIpAddress,
 	});
-	const siteRules = [
-		theInformationSiteRules,
-		mediumSiteRules,
-		linkedinSiteRules,
+	const crawlClaimingSiteRules = [
 		initXTwitterSiteRules({ crawlFetch, logError: deps.logError }),
+		initAppleNewsSiteRules({ crawlFetch, logError: deps.logError }),
 	];
-	const crawlArticle = initCrawlArticle({
-		crawlFetch,
-		siteRules,
-		extractPdf: deps.extractPdf,
-		logError: deps.logError,
-		logInfo: deps.logInfo,
+	const siteRules = [theInformationSiteRules, mediumSiteRules, linkedinSiteRules, mediaWikiSiteRules, ...crawlClaimingSiteRules];
+	const crawlArticle = initFetchPinnedCrawl({
+		crawlArticle: initCrawlArticle({
+			crawlFetch,
+			siteRules,
+			extractPdf: deps.extractPdf,
+			logError: deps.logError,
+			logInfo: deps.logInfo,
+		}),
+		findAdoptedFetchUrl: deps.findAdoptedFetchUrl,
 	});
 	const { parseHtml } = initReadabilityParser({
 		crawlArticle,
 		siteRules,
 		logError: deps.logError,
 	});
-	return { crawlFetch, crawlArticle, parseHtml };
+	return { crawlFetch, crawlArticle, parseHtml, isSiteRuleUrl: initIsSiteRuleUrl(crawlClaimingSiteRules) };
 }

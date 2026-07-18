@@ -79,24 +79,42 @@ async function main(): Promise<void> {
 		receivedAtMessageId: withLinks.receivedAtMessageId,
 		ordinal: EmailLinkOrdinalSchema.parse("0000"),
 		url: "https://example.com/first-post",
+		resolvedUrl: undefined,
 		status: "crawled",
 		title: "An example crawled article",
-		excerpt: "A short excerpt so the preview card has something to show.",
+		excerpt: "A short excerpt stored with the crawl outcome.",
 		siteName: "Example",
 		imageUrl: undefined,
 		failureReason: undefined,
+		skipReason: undefined,
 	});
 	await fixture.inboxEmail.inboxEmailLinkStore.putLink({
 		userId,
 		receivedAtMessageId: withLinks.receivedAtMessageId,
 		ordinal: EmailLinkOrdinalSchema.parse("0001"),
 		url: "https://example.com/second-post",
+		resolvedUrl: undefined,
 		status: "pending",
 		title: undefined,
 		excerpt: undefined,
 		siteName: undefined,
 		imageUrl: undefined,
 		failureReason: undefined,
+		skipReason: undefined,
+	});
+	await fixture.inboxEmail.inboxEmailLinkStore.putLink({
+		userId,
+		receivedAtMessageId: withLinks.receivedAtMessageId,
+		ordinal: EmailLinkOrdinalSchema.parse("0002"),
+		url: "https://example.com/unsubscribe?token=dev",
+		resolvedUrl: undefined,
+		status: "skipped",
+		title: undefined,
+		excerpt: undefined,
+		siteName: undefined,
+		imageUrl: undefined,
+		failureReason: undefined,
+		skipReason: "list-unsubscribe",
 	});
 	await fixture.inboxEmail.inboxEmailLinkStore.putLinksMeta({
 		userId,
@@ -116,7 +134,10 @@ async function main(): Promise<void> {
 		sessionResolveLogin(`${SESSION_COOKIE_NAME}=${sessionId}`);
 
 	const app = createInboxApp(
-		{ inboxAddressDomain: fixture.inboxAddress.inboxAddressDomain },
+		{
+			inboxAddressDomain: fixture.inboxAddress.inboxAddressDomain,
+			imagesCdnBaseUrl: "https://cdn.readplace.com",
+		},
 		{
 			resolveLogin,
 			findUserById: fixture.auth.findUserById,

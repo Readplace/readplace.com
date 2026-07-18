@@ -16,6 +16,7 @@ export function BlogIndexPage(params: { posts: BlogPost[] }): PageBody {
 				"Articles about reading, building software, and the tools behind Readplace.",
 			canonicalUrl: "https://readplace.com/blog",
 			ogType: "website",
+			robots: "index, follow",
 			structuredData: [
 				{
 					"@context": "https://schema.org",

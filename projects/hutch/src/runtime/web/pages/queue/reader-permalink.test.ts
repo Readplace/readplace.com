@@ -29,6 +29,7 @@ function createDeps(overrides: Partial<ReaderPermalinkDeps> = {}): ReaderPermali
 	return {
 		findArticleById: async () => null,
 		findArticleUrlById: async () => null,
+		findArticleByUrl: async () => null,
 		...overrides,
 	};
 }
@@ -55,6 +56,29 @@ describe("resolveReaderPermalink", () => {
 		const result = await resolve({ rawId: ARTICLE_ID.value, requesterId: OWNER_ID, query: {} });
 
 		expect(result).toEqual({ kind: "article", article: owned });
+	});
+
+	it("returns not-found for a tombstoned URL whose id still resolves, so the route can 404 directly instead of bouncing through /view", async () => {
+		const resolve = initReaderPermalink(createDeps({
+			findArticleById: async () => null,
+			findArticleUrlById: async (id) =>
+				id.value === ARTICLE_ID.value ? ARTICLE_URL : null,
+			findArticleByUrl: async (url) =>
+				url === ARTICLE_URL
+					? {
+						id: ARTICLE_ID,
+						url: ARTICLE_URL,
+						metadata: { title: "example.com", siteName: "example.com", excerpt: "", wordCount: 0 },
+						estimatedReadTime: 0 as Minutes,
+						savedAt: new Date("2026-01-01T00:00:00.000Z"),
+						purgedAt: new Date("2026-07-16T10:00:00.000Z"),
+					}
+					: null,
+		}));
+
+		const result = await resolve({ rawId: ARTICLE_ID.value, requesterId: STRANGER_ID, query: {} });
+
+		expect(result).toEqual({ kind: "not-found" });
 	});
 
 	it("redirects a logged-in non-owner to the public /view permalink, stamping utm_content with the first 6 chars of their userId so /view treats the link as a permanent share", async () => {

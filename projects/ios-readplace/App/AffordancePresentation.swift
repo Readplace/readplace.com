@@ -26,7 +26,7 @@ struct AffordancePresentation {
 	/// name-gated as a known capability): a structural navigation link
 	/// (`self`/`root`/`prev`/`next`/`item`), which the client follows itself for
 	/// pagination/identity/item resolution, never as a user control; and an action
-	/// that needs a captured page (`save-html`/`save-content`), which iOS can only reach through
+	/// that needs a captured page (`save-content`), which iOS can only reach through
 	/// the Share Sheet, not the toolbar. An unknown token is toolbar-presentable so a
 	/// newly-advertised affordance still renders. A third, field-dependent exclusion
 	/// (a field-requiring action with no server value) cannot be decided from the
@@ -47,7 +47,7 @@ struct AffordancePresentation {
 	/// gets the neutral default so an unknown affordance still renders.
 	init(token: String) {
 		switch token {
-		case "save-html", "save-content":
+		case "save-content":
 			systemImage = "plus"
 			tint = nil
 			isDestructive = false

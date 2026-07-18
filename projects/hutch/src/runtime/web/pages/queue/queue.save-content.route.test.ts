@@ -8,13 +8,14 @@ import type {
 	PublishSaveLinkRawHtmlCommand,
 } from "@packages/test-fixtures/providers/events";
 import type { UserId } from "@packages/domain/user";
+import { MAX_PAGES_PER_BULK_SAVE, MAX_UPLOAD_CONTENT_BYTES, MAX_BULK_PAGE_CONTENT_BYTES, MAX_UPLOAD_REQUEST_BYTES, MAX_UPLOAD_HTML_BYTES } from "@packages/domain/article";
+import { MAX_PDF_BYTES } from "@packages/crawl-article";
 import { useTestServer, type TestAppHarness, type TestAppResult } from "../../../test-app";
 import {
 	TEST_APP_ORIGIN,
 	createDefaultTestAppFixture,
 } from "@packages/test-fixtures";
 import { SIREN_MEDIA_TYPE } from "../../api/siren";
-import { MAX_PDF_BYTES } from "@packages/crawl-article";
 
 const TEST_USER_ID = "test-user-content" as UserId;
 
@@ -67,6 +68,7 @@ describe("POST /queue/save-content with PDF", () => {
 				publishSaveLinkRawHtmlCommand: fixture.events.publishSaveLinkRawHtmlCommand,
 				publishSaveLinkRawPdfCommand,
 				publishStaleCheckRequested: fixture.events.publishStaleCheckRequested,
+				publishRemoveMyContent: fixture.events.publishRemoveMyContent,
 				publishUpdateFetchTimestamp: fixture.events.publishUpdateFetchTimestamp,
 				publishExportUserDataCommand: fixture.events.publishExportUserDataCommand,
 				publishDeleteAccountCommand: fixture.events.publishDeleteAccountCommand,
@@ -98,6 +100,28 @@ describe("POST /queue/save-content with PDF", () => {
 			expect.objectContaining({ url: "https://example.com/article.pdf" }),
 		]);
 		expect(testApp.pendingPdf.readPendingPdfSync("https://example.com/article.pdf")).toEqual(VALID_PDF);
+	});
+
+	it("forwards the captured title to the PDF pipeline", async () => {
+		const { testApp, publishedSavePdf } = setup();
+		const accessToken = await createAccessToken(testApp);
+
+		const response = await request(testApp.server)
+			.post("/queue/save-content")
+			.set("Accept", SIREN_MEDIA_TYPE)
+			.set("Authorization", `Bearer ${accessToken}`)
+			.field("url", "https://example.com/article.pdf")
+			.field("mediaType", "application/pdf")
+			.field("title", "Captured PDF Title")
+			.attach("content", VALID_PDF, "content");
+
+		expect(response.status).toBe(201);
+		expect(publishedSavePdf).toEqual([
+			expect.objectContaining({
+				url: "https://example.com/article.pdf",
+				title: "Captured PDF Title",
+			}),
+		]);
 	});
 
 	it("returns 201 and dispatches to the PDF pipeline when mediaType is application/x-pdf", async () => {
@@ -158,6 +182,7 @@ describe("POST /queue/save-content with HTML", () => {
 				publishSaveLinkRawHtmlCommand,
 				publishSaveLinkRawPdfCommand: fixture.events.publishSaveLinkRawPdfCommand,
 				publishStaleCheckRequested: fixture.events.publishStaleCheckRequested,
+				publishRemoveMyContent: fixture.events.publishRemoveMyContent,
 				publishUpdateFetchTimestamp: fixture.events.publishUpdateFetchTimestamp,
 				publishExportUserDataCommand: fixture.events.publishExportUserDataCommand,
 				publishDeleteAccountCommand: fixture.events.publishDeleteAccountCommand,
@@ -392,7 +417,7 @@ describe("POST /queue/save-content validation", () => {
 });
 
 describe("Collection-Siren advertises save-content action", () => {
-	it("includes save-content alongside save-article and save-html on the queue collection", async () => {
+	it("advertises save-content alongside save-article", async () => {
 		const fixture = createDefaultTestAppFixture(TEST_APP_ORIGIN);
 		const testApp = useApp({
 			...fixture,
@@ -406,9 +431,13 @@ describe("Collection-Siren advertises save-content action", () => {
 
 		expect(response.status).toBe(200);
 		const actionNames: string[] = response.body.actions.map((a: { name: string }) => a.name);
-		expect(actionNames).toContain("save-article");
-		expect(actionNames).toContain("save-html");
-		expect(actionNames).toContain("save-content");
+		expect(actionNames).toEqual([
+			"save-article",
+			"save-articles",
+			"save-content",
+			"search",
+			"create-session",
+		]);
 
 		const saveContentAction = response.body.actions.find((a: { name: string }) => a.name === "save-content");
 		expect(saveContentAction).toEqual(expect.objectContaining({
@@ -417,8 +446,347 @@ describe("Collection-Siren advertises save-content action", () => {
 			type: "multipart/form-data",
 		}));
 		const fieldNames: string[] = saveContentAction.fields.map((f: { name: string }) => f.name);
-		expect(fieldNames).toEqual(["url", "content", "mediaType", "title"]);
+		expect(fieldNames).toEqual(["url", "content", "mediaType", "title", "size"]);
+	});
+
+	it("declares the byte ceiling on save-content's content field", async () => {
+		const fixture = createDefaultTestAppFixture(TEST_APP_ORIGIN);
+		const testApp = useApp({ ...fixture });
+		const accessToken = await createAccessToken(testApp);
+
+		const response = await request(testApp.server)
+			.get("/queue")
+			.set("Accept", SIREN_MEDIA_TYPE)
+			.set("Authorization", `Bearer ${accessToken}`);
+
+		const saveContent = response.body.actions.find((a: { name: string }) => a.name === "save-content");
+		const contentField = saveContent.fields.find((f: { name: string }) => f.name === "content");
+		expect(contentField.maxBytes).toBe(MAX_UPLOAD_CONTENT_BYTES);
+	});
+
+	it("declares the page and byte ceilings on save-articles' fields", async () => {
+		const fixture = createDefaultTestAppFixture(TEST_APP_ORIGIN);
+		const testApp = useApp({ ...fixture });
+		const accessToken = await createAccessToken(testApp);
+
+		const response = await request(testApp.server)
+			.get("/queue")
+			.set("Accept", SIREN_MEDIA_TYPE)
+			.set("Authorization", `Bearer ${accessToken}`);
+
+		const saveArticles = response.body.actions.find((a: { name: string }) => a.name === "save-articles");
+		const manifestField = saveArticles.fields.find((f: { name: string }) => f.name === "manifest");
+		const contentField = saveArticles.fields.find((f: { name: string }) => f.name === "content");
+		expect(manifestField.maxItems).toBe(MAX_PAGES_PER_BULK_SAVE);
+		expect(contentField.maxBytes).toBe(MAX_BULK_PAGE_CONTENT_BYTES);
 	});
 });
 
-void MAX_PDF_BYTES;
+describe("POST /queue/save-content over the request limit", () => {
+	it("refuses with content-too-large and advertises the save-article fallback", async () => {
+		const fixture = createDefaultTestAppFixture(TEST_APP_ORIGIN);
+		const testApp = useApp({ ...fixture });
+		const accessToken = await createAccessToken(testApp);
+		const oversize = Buffer.concat([
+			Buffer.from("%PDF-1.4"),
+			Buffer.alloc(MAX_UPLOAD_REQUEST_BYTES, 0x20),
+		]);
+
+		const response = await request(testApp.server)
+			.post("/queue/save-content")
+			.set("Accept", SIREN_MEDIA_TYPE)
+			.set("Authorization", `Bearer ${accessToken}`)
+			.field("url", "https://example.com/article.pdf")
+			.field("mediaType", "application/pdf")
+			.attach("content", oversize, "content");
+
+		expect(response.status).toBe(422);
+		expect(response.body.properties.code).toBe("content-too-large");
+		expect(response.body.actions).toEqual([
+			expect.objectContaining({ name: "save-article", method: "POST" }),
+		]);
+	});
+
+	it("accepts a capture at the advertised content budget", async () => {
+		const fixture = createDefaultTestAppFixture(TEST_APP_ORIGIN);
+		const testApp = useApp({ ...fixture });
+		const accessToken = await createAccessToken(testApp);
+		const atBudget = Buffer.concat([
+			Buffer.from("%PDF-1.4"),
+			Buffer.alloc(MAX_UPLOAD_CONTENT_BYTES - 8, 0x20),
+		]);
+
+		const response = await request(testApp.server)
+			.post("/queue/save-content")
+			.set("Accept", SIREN_MEDIA_TYPE)
+			.set("Authorization", `Bearer ${accessToken}`)
+			.field("url", "https://example.com/article.pdf")
+			.field("mediaType", "application/pdf")
+			.attach("content", atBudget, "content");
+
+		expect(response.status).toBe(201);
+	});
+});
+
+
+describe("POST /queue/save-content upload-slot flow", () => {
+	function setupUpload(): {
+		testApp: TestAppHarness;
+		publishedSavePdf: Parameters<PublishSaveLinkRawPdfCommand>[0][];
+		publishedSaveHtml: Parameters<PublishSaveLinkRawHtmlCommand>[0][];
+	} {
+		const fixture = createDefaultTestAppFixture(TEST_APP_ORIGIN);
+		const publishedSavePdf: Parameters<PublishSaveLinkRawPdfCommand>[0][] = [];
+		const publishedSaveHtml: Parameters<PublishSaveLinkRawHtmlCommand>[0][] = [];
+		const testApp = useApp({
+			...fixture,
+			events: {
+				...fixture.events,
+				publishSaveLinkRawPdfCommand: async (params) => { publishedSavePdf.push(params); },
+				publishSaveLinkRawHtmlCommand: async (params) => { publishedSaveHtml.push(params); },
+			},
+		});
+		return { testApp, publishedSavePdf, publishedSaveHtml };
+	}
+
+	const PDF_URL = "https://example.com/big.pdf";
+
+	it("grants an upload slot for a large PDF, advertising the presigned PUT and completion actions", async () => {
+		const { testApp } = setupUpload();
+		const accessToken = await createAccessToken(testApp);
+
+		const response = await request(testApp.server)
+			.post("/queue/save-content")
+			.set("Accept", SIREN_MEDIA_TYPE)
+			.set("Authorization", `Bearer ${accessToken}`)
+			.field("url", PDF_URL)
+			.field("mediaType", "application/pdf")
+			.field("title", "Big Doc")
+			.field("size", String(50 * 1024 * 1024));
+
+		expect(response.status).toBe(200);
+		expect(response.body.class).toEqual(["upload-slot"]);
+		expect(typeof response.body.properties.expiresAt).toBe("string");
+		const actionNames: string[] = response.body.actions.map((a: { name: string }) => a.name);
+		expect(actionNames).toEqual(["upload-content", "save-uploaded-content"]);
+		const upload = response.body.actions.find((a: { name: string }) => a.name === "upload-content");
+		expect(upload).toEqual(expect.objectContaining({ method: "PUT", type: "application/pdf" }));
+		expect(typeof upload.href).toBe("string");
+		const complete = response.body.actions.find((a: { name: string }) => a.name === "save-uploaded-content");
+		expect(complete).toEqual(expect.objectContaining({ href: "/queue/save-content", method: "POST" }));
+		const byName = Object.fromEntries(complete.fields.map((f: { name: string; value?: string }) => [f.name, f.value]));
+		expect(byName).toEqual({ url: PDF_URL, mediaType: "application/pdf", title: "Big Doc", uploaded: "true" });
+	});
+
+	it("refuses a slot when the declared size exceeds the PDF ceiling", async () => {
+		const { testApp } = setupUpload();
+		const accessToken = await createAccessToken(testApp);
+
+		const response = await request(testApp.server)
+			.post("/queue/save-content")
+			.set("Accept", SIREN_MEDIA_TYPE)
+			.set("Authorization", `Bearer ${accessToken}`)
+			.field("url", PDF_URL)
+			.field("mediaType", "application/pdf")
+			.field("size", String(MAX_PDF_BYTES.bytes + 1));
+
+		expect(response.status).toBe(422);
+		expect(response.body.properties.code).toBe("content-too-large");
+		expect(response.body.actions).toEqual([expect.objectContaining({ name: "save-article" })]);
+	});
+
+	it("refuses a slot for an unsupported media type", async () => {
+		const { testApp } = setupUpload();
+		const accessToken = await createAccessToken(testApp);
+
+		const response = await request(testApp.server)
+			.post("/queue/save-content")
+			.set("Accept", SIREN_MEDIA_TYPE)
+			.set("Authorization", `Bearer ${accessToken}`)
+			.field("url", PDF_URL)
+			.field("mediaType", "image/png")
+			.field("size", "1000");
+
+		expect(response.status).toBe(422);
+		expect(response.body.properties.code).toBe("unsupported-media-type");
+	});
+
+	it("refuses a slot for an unsaveable URL", async () => {
+		const { testApp } = setupUpload();
+		const accessToken = await createAccessToken(testApp);
+
+		const response = await request(testApp.server)
+			.post("/queue/save-content")
+			.set("Accept", SIREN_MEDIA_TYPE)
+			.set("Authorization", `Bearer ${accessToken}`)
+			.field("url", "chrome://settings")
+			.field("mediaType", "application/pdf")
+			.field("size", "1000");
+
+		expect(response.status).toBe(422);
+		expect(response.body.properties.code).toBe("invalid-save-content");
+	});
+
+	it("refuses a slot request missing the mediaType", async () => {
+		const { testApp } = setupUpload();
+		const accessToken = await createAccessToken(testApp);
+
+		const response = await request(testApp.server)
+			.post("/queue/save-content")
+			.set("Accept", SIREN_MEDIA_TYPE)
+			.set("Authorization", `Bearer ${accessToken}`)
+			.field("url", PDF_URL)
+			.field("size", "1000");
+
+		expect(response.status).toBe(422);
+		expect(response.body.properties.message).toContain("mediaType");
+	});
+
+	it("completes a PDF upload, forwarding the title and publishing the raw-pdf command", async () => {
+		const { testApp, publishedSavePdf } = setupUpload();
+		const accessToken = await createAccessToken(testApp);
+		await testApp.pendingUpload.stageUploaded({ url: PDF_URL, mediaType: "application/pdf", bytes: VALID_PDF });
+
+		const response = await request(testApp.server)
+			.post("/queue/save-content")
+			.set("Accept", SIREN_MEDIA_TYPE)
+			.set("Authorization", `Bearer ${accessToken}`)
+			.field("url", PDF_URL)
+			.field("mediaType", "application/pdf")
+			.field("title", "Big Doc")
+			.field("uploaded", "true");
+
+		expect(response.status).toBe(201);
+		expect(response.body.properties).toEqual(expect.objectContaining({ url: PDF_URL }));
+		expect(publishedSavePdf).toEqual([expect.objectContaining({ url: PDF_URL, title: "Big Doc" })]);
+	});
+
+	it("completes an HTML upload, publishing the raw-html command", async () => {
+		const { testApp, publishedSaveHtml } = setupUpload();
+		const accessToken = await createAccessToken(testApp);
+		const url = "https://example.com/big.html";
+		await testApp.pendingUpload.stageUploaded({ url, mediaType: "text/html", bytes: VALID_HTML });
+
+		const response = await request(testApp.server)
+			.post("/queue/save-content")
+			.set("Accept", SIREN_MEDIA_TYPE)
+			.set("Authorization", `Bearer ${accessToken}`)
+			.field("url", url)
+			.field("mediaType", "text/html")
+			.field("title", "Big Page")
+			.field("uploaded", "true");
+
+		expect(response.status).toBe(201);
+		expect(publishedSaveHtml).toEqual([expect.objectContaining({ url, title: "Big Page" })]);
+	});
+
+	it("refuses completion when no upload was staged", async () => {
+		const { testApp } = setupUpload();
+		const accessToken = await createAccessToken(testApp);
+
+		const response = await request(testApp.server)
+			.post("/queue/save-content")
+			.set("Accept", SIREN_MEDIA_TYPE)
+			.set("Authorization", `Bearer ${accessToken}`)
+			.field("url", PDF_URL)
+			.field("mediaType", "application/pdf")
+			.field("uploaded", "true");
+
+		expect(response.status).toBe(422);
+		expect(response.body.properties.code).toBe("upload-not-found");
+	});
+
+	it("refuses completion when the staged bytes are not a PDF", async () => {
+		const { testApp, publishedSavePdf } = setupUpload();
+		const accessToken = await createAccessToken(testApp);
+		await testApp.pendingUpload.stageUploaded({ url: PDF_URL, mediaType: "application/pdf", bytes: Buffer.from("not a pdf at all") });
+
+		const response = await request(testApp.server)
+			.post("/queue/save-content")
+			.set("Accept", SIREN_MEDIA_TYPE)
+			.set("Authorization", `Bearer ${accessToken}`)
+			.field("url", PDF_URL)
+			.field("mediaType", "application/pdf")
+			.field("uploaded", "true");
+
+		expect(response.status).toBe(422);
+		expect(response.body.properties.code).toBe("not-a-pdf");
+		expect(publishedSavePdf).toHaveLength(0);
+	});
+
+	it("refuses completion when the staged object is stale", async () => {
+		const { testApp } = setupUpload();
+		const accessToken = await createAccessToken(testApp);
+		await testApp.pendingUpload.stageUploaded({
+			url: PDF_URL,
+			mediaType: "application/pdf",
+			bytes: VALID_PDF,
+			stagedAt: new Date(Date.now() - 3 * 60 * 60 * 1000),
+		});
+
+		const response = await request(testApp.server)
+			.post("/queue/save-content")
+			.set("Accept", SIREN_MEDIA_TYPE)
+			.set("Authorization", `Bearer ${accessToken}`)
+			.field("url", PDF_URL)
+			.field("mediaType", "application/pdf")
+			.field("uploaded", "true");
+
+		expect(response.status).toBe(422);
+		expect(response.body.properties.code).toBe("upload-not-found");
+	});
+
+	it("refuses completion when the staged object exceeds the ceiling", async () => {
+		const { testApp } = setupUpload();
+		const accessToken = await createAccessToken(testApp);
+		const url = "https://example.com/huge.html";
+		await testApp.pendingUpload.stageUploaded({
+			url,
+			mediaType: "text/html",
+			bytes: Buffer.alloc(MAX_UPLOAD_HTML_BYTES + 1, 0x61),
+		});
+
+		const response = await request(testApp.server)
+			.post("/queue/save-content")
+			.set("Accept", SIREN_MEDIA_TYPE)
+			.set("Authorization", `Bearer ${accessToken}`)
+			.field("url", url)
+			.field("mediaType", "text/html")
+			.field("uploaded", "true");
+
+		expect(response.status).toBe(422);
+		expect(response.body.properties.code).toBe("content-too-large");
+	});
+
+	it("refuses a request that is neither a direct save, a slot request, nor a completion", async () => {
+		const { testApp } = setupUpload();
+		const accessToken = await createAccessToken(testApp);
+
+		const response = await request(testApp.server)
+			.post("/queue/save-content")
+			.set("Accept", SIREN_MEDIA_TYPE)
+			.set("Authorization", `Bearer ${accessToken}`)
+			.field("url", PDF_URL)
+			.field("mediaType", "application/pdf");
+
+		expect(response.status).toBe(422);
+		expect(response.body.properties.code).toBe("invalid-save-content");
+	});
+
+	it("treats uploaded=false and a non-positive size as an invalid request", async () => {
+		const { testApp } = setupUpload();
+		const accessToken = await createAccessToken(testApp);
+
+		const response = await request(testApp.server)
+			.post("/queue/save-content")
+			.set("Accept", SIREN_MEDIA_TYPE)
+			.set("Authorization", `Bearer ${accessToken}`)
+			.field("url", PDF_URL)
+			.field("mediaType", "application/pdf")
+			.field("uploaded", "false")
+			.field("size", "0");
+
+		expect(response.status).toBe(422);
+		expect(response.body.properties.code).toBe("invalid-save-content");
+	});
+});

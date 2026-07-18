@@ -86,17 +86,21 @@ test.describe("Crawl bookmark visual regression", () => {
 		);
 	});
 
-	test("a single-version capsule hugs its one row, with no dead space", async ({ page }) => {
+	test("a single-version capsule keeps the collapsed height and centers its row", async ({ page }) => {
 		await seedCrawledArticle(page, SINGLE_VERSION_ARTICLE);
 		await openReaderWithBookmark(page, SINGLE_VERSION_ARTICLE);
+		const handle = await page.locator(".crawl-bookmark__handle").boundingBox();
 		const tabs = await page.locator(".crawl-bookmark__tabs").boundingBox();
 		const row = await page.locator(".crawl-bookmark__tab").boundingBox();
-		assert.ok(tabs && row, "tab list and its single row must have measurable boxes");
-		assert.equal(row.y - tabs.y, 1, "only the list's 1px top border sits above the row");
-		assert.equal(
-			tabs.y + tabs.height - (row.y + row.height),
-			1,
-			"only the list's 1px bottom border sits below the row — no dead space",
+		assert.ok(handle && tabs && row, "handle, tab list, and its single row must have measurable boxes");
+		assert.equal(tabs.height, 54, "the open capsule never shrinks below the 54px collapsed height");
+		assert.equal(handle.height, 54, "the handle holds the same 54px height while open");
+		const gapAbove = row.y - tabs.y;
+		const gapBelow = tabs.y + tabs.height - (row.y + row.height);
+		assert.ok(gapAbove > 1 && gapBelow > 1, "the short row leaves breathing room above and below");
+		assert.ok(
+			Math.abs(gapAbove - gapBelow) <= 1,
+			"the single row sits vertically centered in the capsule",
 		);
 	});
 

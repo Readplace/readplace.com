@@ -17,6 +17,7 @@ function createDeps(overrides?: Record<string, unknown>) {
 		}),
 		publishRefreshArticleContent: async () => {},
 		publishUpdateFetchTimestamp: async () => {},
+		resolveCanonicalIdentity: async (url: string) => url,
 		now: () => new Date("2026-03-20T10:00:00Z"),
 		staleTtlMs: 86400000,
 		...overrides,
@@ -31,6 +32,22 @@ describe("refreshArticleIfStale", () => {
 		const result = await refreshArticleIfStale({ url: "https://example.com/article" });
 
 		expect(result.action).toBe("new");
+	});
+
+	it("resolves an adopted terminal URL onto its alias target before checking freshness", async () => {
+		const checkedUrls: string[] = [];
+		const deps = createDeps({
+			resolveCanonicalIdentity: async () => "https://example.com/canonical",
+			findArticleFreshness: async (url: string) => {
+				checkedUrls.push(url);
+				return null;
+			},
+		});
+		const { refreshArticleIfStale } = initRefreshArticleIfStale(deps);
+
+		await refreshArticleIfStale({ url: "https://example.com/terminal" });
+
+		expect(checkedUrls).toEqual(["https://example.com/canonical"]);
 	});
 
 	it("returns action 'skip' when crawl status is failed (operator-driven recovery via /admin/recrawl)", async () => {

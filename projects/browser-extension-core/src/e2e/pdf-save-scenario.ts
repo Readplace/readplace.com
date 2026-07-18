@@ -133,9 +133,9 @@ export interface PdfSaveScenarioConfig {
 	/** Pre-provisioned test user; local harness creates this via POST /e2e/users. */
 	email: string;
 	password: string;
-	/** A URL that responds with Content-Type: application/pdf. The extension's
-	 * save-article path (no rawHtml) will be invoked with this URL. */
+	/** A URL that responds with Content-Type: application/pdf. */
 	pdfUrl: string;
+	uploadBytes?: ArrayBuffer;
 	/** Substring expected in the saved article's title after ComprehensiveCrawl
 	 * extracts the PDF (local: the stub's marker; staging: a fragment of the
 	 * real document title from vision OCR). */
@@ -150,22 +150,6 @@ export interface PdfSaveScenarioConfig {
 	pollIntervalMs?: number;
 }
 
-/**
- * End-to-end contract test for the extension's save flow on PDF URLs.
- *
- * Drives the same `initSirenReadingList` walker the production extension uses,
- * exercising the URL-only `save-article` fallback (no rawHtml) that fires
- * every time the popup is opened on a tab whose body the content script can't
- * capture — which is every PDF tab, because browsers render PDFs in a native
- * viewer where `document.documentElement.outerHTML` is unreachable.
- *
- * The scenario pins the contract:
- *   - extension follows Siren entry point and discovers `save-article` by name
- *   - server accepts the URL, kicks off SimpleCrawl → ComprehensiveCrawl
- *   - PDF branch runs extractPdf
- *   - selector promotes the article to `ready` and updates the title
- *   - re-walking Siren shows the updated title within the poll window
- */
 export async function runPdfSaveScenario(
 	config: PdfSaveScenarioConfig,
 ): Promise<void> {
@@ -193,6 +177,9 @@ export async function runPdfSaveScenario(
 	const saveResult = await saveUrl({
 		url: config.pdfUrl,
 		title: "",
+		...(config.uploadBytes
+			? { content: { bytes: config.uploadBytes, mediaType: "application/pdf" } }
+			: {}),
 	});
 	assert(saveResult.ok, `saveUrl failed: ${JSON.stringify(saveResult)}`);
 	const savedId = saveResult.item.id;

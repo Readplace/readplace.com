@@ -13,8 +13,8 @@ export interface DigestEmailItem {
 	siteName: string;
 	/** Owner reader permalink (carries the login marker) for this article. */
 	continueReadingUrl: string;
-	/** Bounded plain-text reader preview; empty when no content was available. */
-	preview: string[];
+	/** Excerpt-sized plain-text teaser; empty when no summary was available. */
+	preview: string;
 }
 
 export function buildDigestEmailHtml({ items }: { items: DigestEmailItem[] }): string {

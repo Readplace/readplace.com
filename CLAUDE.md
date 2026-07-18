@@ -1,5 +1,7 @@
 # Development Guidelines
 
+This file documents **why** — rationale, constraints, and policy. The code documents **how**: when a section here starts narrating mechanics the linked source already shows, condense it to the why and let the file links carry the rest.
+
 ## Setup
 
 1. Install devbox: https://www.jetify.com/docs/devbox/installing-devbox#linux
@@ -12,7 +14,7 @@
 
 Importing is a top-of-funnel acquisition path: it is reachable **logged out**, not gated behind auth. Entry points are the **Import Links** nav item (present for guests and authenticated users via `buildGuestNavItems` in [banner-state.ts](./src/packages/web-shell/src/banner-state.ts), so it also appears on the same-origin blog header) and the CTA next to the save bar on `/queue` — do **not** restore the removed "Import Your Data" landing-page card.
 
-Flow: the visitor uploads any file (≤ 5 MiB) or pastes a link, the server best-effort-decodes it as text and extracts `http(s)://…` URLs, then reviews a paginated list (every link checked by default, selections persisted server-side). Auth is required only at **commit** ("Import N selected" → `POST /import/:id/commit`); an anonymous visitor is redirected to `/signup?return=/import/:id` and returns to the same review with selections intact, because anonymous sessions are reached by **capability** (the unguessable id), not by owner. Only the commit route carries the save gates (`requireNotLocked`, `requireWriteAccess`) — see [import.page.ts](./projects/hutch/src/runtime/web/pages/import/import.page.ts). On commit the selected URLs are stub-saved under the authenticated user (hostname-only metadata at t=0) and the existing `SaveLinkCommand` pipeline fills in title/excerpt/content asynchronously, so cards appear immediately and progressively populate. Files larger than 5 MiB or imports above the 2,000-URL cap fall back to the concierge email path (`readplace+migrate@readplace.com`); keep that documented in [pocket-migration.md](./projects/blog-site/src/runtime/web/pages/blog/posts/pocket-migration.md).
+Why the flow is shaped the way it is ([import.page.ts](./projects/hutch/src/runtime/web/pages/import/import.page.ts) shows the mechanics): auth is deferred to **commit** so the whole upload-and-review works logged-out, and anonymous sessions are reached by **capability** (the unguessable import id), not by owner — that is what lets signup round-trip back to the same review with selections intact. Only the commit route carries the save gates (`requireNotLocked`, `requireWriteAccess`). Committed links stub-save first and enrich asynchronously so cards appear immediately. Files or imports above the caps in [import-session.schema.ts](./src/packages/domain/src/import-session/import-session.schema.ts) fall back to the concierge email path (`readplace+migrate@readplace.com`); keep that fallback documented in [pocket-migration.md](./projects/blog-site/src/runtime/web/pages/blog/posts/pocket-migration.md).
 
 ### Crawler Health Canary Is Load-Bearing
 
@@ -301,8 +303,25 @@ function createFakeResponse(): Partial<Response> {
 |-----------|--------|
 | `as const` | Not a type assertion — narrows literal types |
 | Isolated Node.js API wrappers (e.g., `promisify(scrypt)` returning `Buffer`, `requireEnv` generic) | The `as` is already contained in a single wrapper function with no better alternative from the type definitions |
+| A test fake bound to an existing signature (e.g. a `fetch` fake that must satisfy `typeof fetch` → `Promise<Response>`, as in [Tests Simulate Explicit HTTP Statuses](#tests-simulate-explicit-http-statuses)) | `Partial<T>` is not assignable where the full type is required, so the cast is forced. Still prefer `Partial<T>` whenever you control the return type, as in the `createFakeResponse` example above |
 
 **Swift:** the analog of `as` is force-cast `as!`, force-try `try!`, force-unwrap `!`, and `fatalError` — all bypass the compiler. Use `guard let … else { throw }` / `as?` for anything from external input (user-typed URLs, network bodies). Allowed, mirroring `as const` / isolated-wrapper above: force-unwrapping a compile-time-constant literal, and Apple's implicitly-unwrapped delegate parameters (e.g. `WKNavigation!`), which are framework-defined, not your assertions.
+
+### Tests Simulate Explicit HTTP Statuses
+
+A test fake that answers HTTP takes the actual status the test wants to simulate — never a boolean the fake maps to a status. `ok ? 200 : 403` hides which failure is under test and cannot express a second failure class without another flag.
+
+```typescript
+// BAD - the boolean hides the simulated status
+function fakeFetch(body: Buffer, ok = true) {
+	return async () => ({ ok, status: ok ? 200 : 403 }) as Response;
+}
+
+// GOOD - the caller states the status; ok derives from it like a real Response
+function fakeFetch(body: Buffer, status = 200) {
+	return async () => ({ ok: status >= 200 && status < 300, status }) as Response;
+}
+```
 
 ## CLI Commands
 
@@ -408,6 +427,12 @@ pnpm nx run hutch:test-with-coverage
 
 Use individual nx targets only when `pnpm check` has already surfaced a specific failure and you're isolating that one task while debugging.
 
+### Verify Infrastructure Changes with `pnpm check-infra`
+
+After any infrastructure change — a Pulumi program (`src/infra/**`), a `Pulumi.*.yaml` stack config, a shared infra component, or a deploy input that alters a built artifact (e.g. the OCR `Dockerfile`) — run `pnpm check-infra` and confirm the preview is the diff you intend: no unexpected replace, delete, or drift. Do this before pushing. For a single stack, `pnpm nx run <project>:check-infra`.
+
+`pnpm check` does not preview infrastructure, by design: it must stay credential-free so fork-PR CI can run it with no cloud secrets.
+
 ### Never Bypass Git Commit Hooks
 
 Never use `--no-verify` without explicit human approval. If hooks fail:
@@ -420,6 +445,10 @@ See the [git-commit skill](./.claude/skills/git-commit/SKILL.md) for pre-commit 
 ### Commit Directly to Main
 
 Commit and push directly to `main`. Do not create a feature branch unless a human explicitly approves one for a specific change. This overrides any default behaviour that branches off the main branch before committing — the standing instruction is that every commit lands on `main` unless a human says otherwise.
+
+### Unrelated Small Changes Ship as Their Own PR
+
+A small cleanup or refactor that is unrelated to the change being worked on — a stale comment fix, a rename, a drive-by simplification — must not ride the working diff. Send it as its own PR via the GitHub API (`gh pr create`) so the main change stays reviewable and the cleanup lands on its own merits.
 
 ## Architecture
 

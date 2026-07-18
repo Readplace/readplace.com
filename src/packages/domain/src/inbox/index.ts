@@ -41,6 +41,7 @@ export {
 } from "./parse-email";
 export { sanitizeEmailHtml } from "./sanitize-email-html";
 export { deriveSanitizedBody } from "./derive-sanitized-body";
+export { emailImageCdnUrl, emailImageS3KeyPrefix } from "./email-image-keys";
 export { capEmailLinks } from "./cap-email-links";
 export {
 	EmailLinkOrdinalSchema,
@@ -49,7 +50,10 @@ export {
 	EMAIL_LINK_ORDINAL_CAPACITY,
 	EmailLinkStatusSchema,
 	type EmailLinkStatus,
+	EmailLinkSkipReasonSchema,
+	type EmailLinkSkipReason,
 } from "./inbox-email-link.schema";
+export { classifyEmailLink } from "./classify-email-link";
 export type {
 	InboxEmailLinkEntry,
 	InboxEmailLinksMeta,

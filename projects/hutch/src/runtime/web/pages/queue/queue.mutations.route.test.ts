@@ -1,4 +1,5 @@
 import assert from "node:assert/strict";
+import request from "supertest";
 import { JSDOM } from "jsdom";
 import { MinutesSchema } from "@packages/domain/article";
 import { useTestServer, loginAgent } from "../../../test-app";
@@ -180,6 +181,7 @@ describe("Queue routes", () => {
 					publishSaveLinkRawHtmlCommand: fixture.events.publishSaveLinkRawHtmlCommand,
 					publishSaveLinkRawPdfCommand: fixture.events.publishSaveLinkRawPdfCommand,
 					publishStaleCheckRequested: fixture.events.publishStaleCheckRequested,
+					publishRemoveMyContent: fixture.events.publishRemoveMyContent,
 					publishUpdateFetchTimestamp: fixture.events.publishUpdateFetchTimestamp,
 					publishExportUserDataCommand: fixture.events.publishExportUserDataCommand,
 					publishDeleteAccountCommand: fixture.events.publishDeleteAccountCommand,
@@ -660,6 +662,211 @@ describe("Queue routes", () => {
 
 			expect(deleteResponse.status).toBe(303);
 			expect(deleteResponse.headers.location).toBe("/queue");
+		});
+	});
+
+	describe("re-saving a purged URL", () => {
+		it("revives a tombstoned URL: an authenticated save clears purgedAt and the article returns to the queue", async () => {
+			const url = "https://example.com/purged-then-resaved";
+			const fixture = createDefaultTestAppFixture(TEST_APP_ORIGIN);
+			const harness = useApp(fixture);
+			const agent = await loginAgent(harness.server, harness.auth);
+
+			// Simulate a prior purge: a tombstoned global row survives with purgedAt.
+			await fixture.articleStore.saveArticleGlobally({
+				url,
+				metadata: { title: "example.com", siteName: "example.com", excerpt: "", wordCount: 0 },
+				estimatedReadTime: MinutesSchema.parse(0),
+				savedAt: new Date("2026-01-01T00:00:00.000Z"),
+			});
+			await fixture.articleStore.setPurgedAt({ url, at: new Date("2026-07-16T10:00:00.000Z") });
+
+			const saveResponse = await agent.post("/queue/save").type("form").send({ url });
+
+			expect(saveResponse.status).toBe(303);
+			// The revived row no longer carries the tombstone, so it serves again.
+			const revived = await fixture.articleStore.findArticleByUrl(url);
+			assert(revived, "the revived global row must exist");
+			expect(revived.purgedAt).toBeUndefined();
+			// And it is back in the user's queue.
+			const queueDoc = new JSDOM((await agent.get("/queue")).text).window.document;
+			expect(queueDoc.querySelectorAll("[data-test-article-list] .queue-article").length).toBe(1);
+		});
+	});
+
+	describe("POST /queue/:id/remove-my-copy", () => {
+		async function saveAndGetId(agent: Awaited<ReturnType<typeof loginAgent>>) {
+			await agent.post("/queue/save").type("form").send({ url: "https://example.com/article" });
+			const queueResponse = await agent.get("/queue");
+			const doc = new JSDOM(queueResponse.text).window.document;
+			const articleId = doc
+				.querySelector("[data-test-article-list] .queue-article")
+				?.getAttribute("data-test-article");
+			assert(articleId, "the saved article must render with an id");
+			return articleId;
+		}
+
+		it("drops the owner's queue row and publishes the whole-copy removal command, redirecting to /queue", async () => {
+			const removeCalls: { url: string; userId: string; versionMinuteId?: string }[] = [];
+			const fixture = createDefaultTestAppFixture(TEST_APP_ORIGIN);
+			const harness = useApp({
+				...fixture,
+				events: {
+					...fixture.events,
+					publishRemoveMyContent: async (params) => {
+						removeCalls.push(params);
+					},
+				},
+			});
+			const agent = await loginAgent(harness.server, harness.auth);
+			const articleId = await saveAndGetId(agent);
+
+			const response = await agent.post(`/queue/${articleId}/remove-my-copy`);
+
+			expect(response.status).toBe(303);
+			expect(response.headers.location).toBe("/queue");
+			expect(removeCalls).toHaveLength(1);
+			expect(removeCalls[0].url).toBe("https://example.com/article");
+			expect(removeCalls[0].versionMinuteId).toBeUndefined();
+
+			// The queue row is gone.
+			const afterResponse = await agent.get("/queue");
+			const afterDoc = new JSDOM(afterResponse.text).window.document;
+			expect(afterDoc.querySelector("[data-test-empty-queue]")?.textContent).toContain(
+				"There are no more articles to read",
+			);
+		});
+
+		it("is a no-op 303 for a non-owner: it neither deletes nor publishes", async () => {
+			const removeCalls: unknown[] = [];
+			const fixture = createDefaultTestAppFixture(TEST_APP_ORIGIN);
+			const harness = useApp({
+				...fixture,
+				events: {
+					...fixture.events,
+					publishRemoveMyContent: async (params) => {
+						removeCalls.push(params);
+					},
+				},
+			});
+			const owner = await loginAgent(harness.server, harness.auth);
+			const articleId = await saveAndGetId(owner);
+
+			await harness.auth.createUser({ email: "stranger@example.com", password: "password123" });
+			const stranger = request.agent(harness.server);
+			await stranger.post("/login").type("form").send({ email: "stranger@example.com", password: "password123" });
+
+			const response = await stranger.post(`/queue/${articleId}/remove-my-copy`);
+
+			expect(response.status).toBe(303);
+			expect(removeCalls).toHaveLength(0);
+		});
+
+		it("is a no-op 303 for a malformed id", async () => {
+			const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
+			const agent = await loginAgent(harness.server, harness.auth);
+
+			const response = await agent.post("/queue/not-a-valid-hash/remove-my-copy");
+
+			expect(response.status).toBe(303);
+			expect(response.headers.location).toBe("/queue");
+		});
+	});
+
+	describe("POST /queue/:id/remove-my-version", () => {
+		async function saveAndGetId(agent: Awaited<ReturnType<typeof loginAgent>>) {
+			await agent.post("/queue/save").type("form").send({ url: "https://example.com/article" });
+			const queueResponse = await agent.get("/queue");
+			const doc = new JSDOM(queueResponse.text).window.document;
+			const articleId = doc
+				.querySelector("[data-test-article-list] .queue-article")
+				?.getAttribute("data-test-article");
+			assert(articleId, "the saved article must render with an id");
+			return articleId;
+		}
+
+		it("publishes a version-scoped removal command and redirects back to the reader", async () => {
+			const removeCalls: { url: string; userId: string; versionMinuteId?: string }[] = [];
+			const fixture = createDefaultTestAppFixture(TEST_APP_ORIGIN);
+			const harness = useApp({
+				...fixture,
+				events: {
+					...fixture.events,
+					publishRemoveMyContent: async (params) => {
+						removeCalls.push(params);
+					},
+				},
+			});
+			const agent = await loginAgent(harness.server, harness.auth);
+			const articleId = await saveAndGetId(agent);
+
+			const response = await agent
+				.post(`/queue/${articleId}/remove-my-version`)
+				.type("form")
+				.send({ versionMinuteId: "2026-07-10T09:41Z" });
+
+			expect(response.status).toBe(303);
+			expect(response.headers.location).toBe(`/queue/${articleId}/view`);
+			expect(removeCalls).toEqual([
+				{
+					url: "https://example.com/article",
+					userId: expect.any(String),
+					versionMinuteId: "2026-07-10T09:41Z",
+				},
+			]);
+		});
+
+		it("is a no-op 303 for a malformed version id (does not publish)", async () => {
+			const removeCalls: unknown[] = [];
+			const fixture = createDefaultTestAppFixture(TEST_APP_ORIGIN);
+			const harness = useApp({
+				...fixture,
+				events: {
+					...fixture.events,
+					publishRemoveMyContent: async (params) => {
+						removeCalls.push(params);
+					},
+				},
+			});
+			const agent = await loginAgent(harness.server, harness.auth);
+			const articleId = await saveAndGetId(agent);
+
+			const response = await agent
+				.post(`/queue/${articleId}/remove-my-version`)
+				.type("form")
+				.send({ versionMinuteId: "not-a-minute-id" });
+
+			expect(response.status).toBe(303);
+			expect(response.headers.location).toBe(`/queue/${articleId}/view`);
+			expect(removeCalls).toHaveLength(0);
+		});
+
+		it("is a no-op 303 for a non-owner", async () => {
+			const removeCalls: unknown[] = [];
+			const fixture = createDefaultTestAppFixture(TEST_APP_ORIGIN);
+			const harness = useApp({
+				...fixture,
+				events: {
+					...fixture.events,
+					publishRemoveMyContent: async (params) => {
+						removeCalls.push(params);
+					},
+				},
+			});
+			const owner = await loginAgent(harness.server, harness.auth);
+			const articleId = await saveAndGetId(owner);
+
+			await harness.auth.createUser({ email: "stranger2@example.com", password: "password123" });
+			const stranger = request.agent(harness.server);
+			await stranger.post("/login").type("form").send({ email: "stranger2@example.com", password: "password123" });
+
+			const response = await stranger
+				.post(`/queue/${articleId}/remove-my-version`)
+				.type("form")
+				.send({ versionMinuteId: "2026-07-10T09:41Z" });
+
+			expect(response.status).toBe(303);
+			expect(removeCalls).toHaveLength(0);
 		});
 	});
 });

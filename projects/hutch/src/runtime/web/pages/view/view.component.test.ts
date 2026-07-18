@@ -54,6 +54,18 @@ describe("ViewPage", () => {
 		expect(iframeDoc.body.innerHTML.trim()).toBe("<p>Body copy.</p>");
 	});
 
+	it("points 'View original' at the redirect destination for a merged article", () => {
+		const doc = render({
+			...baseInput,
+			articleUrl: "https://example.com/post.html",
+			displayUrl: "https://example.com/post",
+		});
+
+		const link = doc.querySelector("[data-test-original-link]");
+		assert(link, "header must render a 'View original' link");
+		assert.equal(link.getAttribute("href"), "https://example.com/post");
+	});
+
 	it("marks the back slot as hidden on the view page", () => {
 		const doc = render();
 

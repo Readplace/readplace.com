@@ -51,6 +51,20 @@ describe("GET /embed", () => {
 		expect(response.headers["content-type"]).toMatch(/text\/html/);
 	});
 
+	it("carries the sitewide Content-Signal policy so /embed matches the rest of the origin", async () => {
+		const response = await request(makeServer()).get("/embed");
+		expect(response.headers["content-signal"]).toBe("search=yes, ai-input=yes, ai-train=no");
+		expect(response.headers.vary).toMatch(/\bAccept\b/);
+	});
+
+	it("carries no Content-Signal on the embed assets (machine files, not pages)", async () => {
+		const server = makeServer();
+		const iconResponse = await request(server).get("/embed/icon.svg");
+		expect(iconResponse.headers["content-signal"]).toBeUndefined();
+		const scriptResponse = await request(server).get("/embed/embed.client.js");
+		expect(scriptResponse.headers["content-signal"]).toBeUndefined();
+	});
+
 	it("should render the hero title inside the embed page container", async () => {
 		const response = await request(makeServer()).get("/embed");
 		const doc = new JSDOM(response.text).window.document;

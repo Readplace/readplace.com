@@ -6,7 +6,6 @@ import cors from "cors";
 import type { Express, NextFunction, Request, Response } from "express";
 import express from "express";
 import { isbot } from "isbot";
-import type { LogParseError } from "@packages/hutch-infra-components";
 import type { ClientNameInGroup } from "@packages/supported-clients";
 import type {
 	CountUsers,
@@ -102,6 +101,7 @@ import type {
 } from "@packages/provider-contracts/article-summary";
 import type { PublishLinkSaved } from "@packages/provider-contracts/events";
 import type { PublishRecrawlLinkInitiated } from "@packages/provider-contracts/events";
+import type { PublishRemoveMyContent } from "@packages/provider-contracts/events";
 import type { PublishSaveAnonymousLink } from "@packages/provider-contracts/events";
 import type { PublishStaleCheckRequested } from "@packages/provider-contracts/events";
 import type { PublishSaveLinkRawHtmlCommand } from "@packages/provider-contracts/events";
@@ -109,6 +109,11 @@ import type { PublishSaveLinkRawPdfCommand } from "@packages/provider-contracts/
 import type { PublishExportUserDataCommand } from "@packages/provider-contracts/events";
 import type { PutPendingHtml } from "@packages/provider-contracts/pending-html";
 import type { PutPendingPdf } from "@packages/provider-contracts/pending-pdf";
+import type {
+	CreateUploadSlot,
+	StatPendingUpload,
+	ReadPendingUploadPrefix,
+} from "@packages/provider-contracts/pending-upload";
 import type { SendEmail } from "@packages/provider-contracts/email";
 import type {
 	CreateVerificationToken,
@@ -145,6 +150,8 @@ import {
 	initEmitSubscriptionEvent,
 	type SubscriptionLogEvent,
 } from "./observability/subscription-events";
+import { APPLE_TOUCH_ICON_PATH, CLIENT_DIST_MOUNT_PATH, isStaticAssetRequestPath } from "./web/static-asset-paths";
+import { canonicalizeViewLandingPath } from "./web/pages/view/view-path";
 import { initGoogleAuthRoutes } from "./web/auth/google-auth.page";
 import { initAppleAuthRoutes } from "./web/auth/apple-auth.page";
 import { initResolveLogin } from "@packages/web-session";
@@ -187,7 +194,8 @@ import { changelogDismissMiddleware } from "./web/changelog-dismiss.middleware";
 import { initChangelogDismissRoute } from "./web/pages/banner/changelog-dismiss.route";
 import { sendComponent, wantsMarkdown } from "@packages/web-shell";
 import { wantsSiren } from "./web/content-negotiation";
-import { CONTENT_SIGNAL_VALUE, contentSignalMiddleware } from "./web/content-signal.middleware";
+import { contentSignalMiddleware } from "./web/content-signal.middleware";
+import { buildRobotsTxt } from "./web/robots-txt";
 import { linkHeaderMiddleware } from "./web/link-header.middleware";
 import { AGENT_SCOPES_SUPPORTED, buildAgentAuthMetadata, renderAuthMarkdown } from "./web/agent-auth";
 import { QuerystringFeatureToggle } from "@packages/web-shell";
@@ -278,6 +286,7 @@ interface AppDependencies {
 	registerOAuthClient: RegisterOAuthClient;
 	publishLinkSaved: PublishLinkSaved;
 	publishRecrawlLinkInitiated: PublishRecrawlLinkInitiated;
+	publishRemoveMyContent: PublishRemoveMyContent;
 	publishSaveAnonymousLink: PublishSaveAnonymousLink;
 	publishStaleCheckRequested: PublishStaleCheckRequested;
 	publishSaveLinkRawHtmlCommand: PublishSaveLinkRawHtmlCommand;
@@ -287,12 +296,16 @@ interface AppDependencies {
 	findEmailByUserId: FindEmailByUserId;
 	putPendingHtml: PutPendingHtml;
 	putPendingPdf: PutPendingPdf;
+	createUploadSlot: CreateUploadSlot;
+	statPendingUpload: StatPendingUpload;
+	readPendingUploadPrefix: ReadPendingUploadPrefix;
 	findGeneratedSummary: FindGeneratedSummary;
 	markSummaryPending: MarkSummaryPending;
 	findArticleCrawlStatus: FindArticleCrawlStatus;
 	markCrawlPending: MarkCrawlPending;
 	forceMarkCrawlPending: ForceMarkCrawlPending;
 	refreshArticleIfStale: RefreshArticleIfStale;
+	resolveCanonicalIdentity: (url: string) => Promise<string>;
 	getIosAppSignals: GetIosAppSignals;
 	recordIosAnyActivity: RecordIosAnyActivity;
 	recordIosSavedArticle: RecordIosSavedArticle;
@@ -301,7 +314,6 @@ interface AppDependencies {
 	publishUpdateFetchTimestamp: PublishUpdateFetchTimestamp;
 	readArticleContent: ReadArticleContent;
 	httpErrorMessageMapping: HttpErrorMessageMapping;
-	logParseError: LogParseError;
 	importSessionStore: ImportSessionStore;
 	extractLinksFromPageUrl: ExtractLinksFromPageUrl;
 	provisionInboxAddress: (userId: UserId) => Promise<void>;
@@ -448,13 +460,20 @@ export function createApp(dependencies: AppDependencies): Express {
 	app.use(cookieParser());
 	app.use(changelogDismissMiddleware);
 	app.use(createVisitorIdMiddleware({ generateVisitorId: randomUUID, secure: secureCookies }));
-	app.use(createClickAttributionMiddleware({ now: dependencies.now, secure: secureCookies }));
+	app.use(
+		createClickAttributionMiddleware({
+			now: dependencies.now,
+			secure: secureCookies,
+			isStaticAssetPath: isStaticAssetRequestPath,
+			canonicalizeLandingPath: canonicalizeViewLandingPath,
+		}),
+	);
 
 	// Same-origin client bundles — the Lambda packaging step copies
 	// src/runtime/web/client-dist/ into the bundle, so `__dirname/web/client-dist`
 	// resolves both in dev (tsx → src/runtime/) and in prod (Lambda → /var/task/).
 	app.use(
-		"/client-dist",
+		CLIENT_DIST_MOUNT_PATH,
 		express.static(resolve(__dirname, "web", "client-dist"), {
 			maxAge: "5m",
 			fallthrough: false,
@@ -507,37 +526,12 @@ export function createApp(dependencies: AppDependencies): Express {
 	});
 
 	/** iOS Safari and other clients auto-fetch /apple-touch-icon[-NxN][-precomposed].png from the root before reading <link rel="apple-touch-icon"> in the HTML. Redirect every shape to the static CDN. */
-	app.get(/^\/apple-touch-icon(?:-\d+x\d+)?(?:-precomposed)?\.png$/, (req: Request, res: Response) => {
+	app.get(APPLE_TOUCH_ICON_PATH, (req: Request, res: Response) => {
 		res.redirect(301, `${staticBaseUrl}${req.path}`);
 	});
 
 	app.get("/robots.txt", (_req: Request, res: Response) => {
-		res.type("text/plain").send(
-			[
-				"User-agent: *",
-				`Content-Signal: ${CONTENT_SIGNAL_VALUE}`,
-				"Allow: /",
-				`Disallow: ${QUEUE_PATH}`,
-				"Disallow: /export",
-				"Disallow: /oauth",
-				"Disallow: /forgot-password",
-				"",
-				"User-agent: GPTBot",
-				"Allow: /",
-				"",
-				"User-agent: PerplexityBot",
-				"Allow: /",
-				"",
-				"User-agent: ClaudeBot",
-				"Allow: /",
-				"",
-				"User-agent: Googlebot",
-				"Allow: /",
-				"",
-				`Sitemap: ${dependencies.baseUrl}/sitemap.xml`,
-				`Sitemap: ${dependencies.baseUrl}/blog/sitemap.xml`,
-			].join("\n"),
-		);
+		res.type("text/plain").send(buildRobotsTxt(dependencies.baseUrl));
 	});
 
 	app.get("/llms.txt", (_req: Request, res: Response) => {
@@ -565,11 +559,9 @@ export function createApp(dependencies: AppDependencies): Express {
 			{ loc: "/", priority: "1.0", changefreq: "weekly", lastmod: "2026-04-08" },
 			{ loc: "/install", priority: "0.8", changefreq: "monthly", lastmod: "2026-03-01" },
 			{ loc: "/import", priority: "0.8", changefreq: "monthly", lastmod: "2026-07-07" },
+			{ loc: "/embed", priority: "0.5", changefreq: "monthly", lastmod: "2026-07-17" },
 			{ loc: "/login", priority: "0.5", changefreq: "yearly", lastmod: "2026-03-01" },
 			{ loc: "/signup", priority: "0.5", changefreq: "yearly", lastmod: "2026-03-01" },
-			{ loc: "/privacy", priority: "0.3", changefreq: "yearly", lastmod: "2026-03-01" },
-			{ loc: "/terms", priority: "0.3", changefreq: "yearly", lastmod: "2026-06-24" },
-			{ loc: "/support", priority: "0.3", changefreq: "yearly", lastmod: "2026-07-05" },
 			{ loc: "/llms.txt", priority: "0.3", changefreq: "monthly", lastmod: "2026-04-08" },
 			{ loc: "/llms-full.txt", priority: "0.3", changefreq: "monthly", lastmod: "2026-04-08" },
 			{ loc: "/auth.md", priority: "0.3", changefreq: "monthly", lastmod: "2026-06-13" },
@@ -1018,15 +1010,20 @@ export function createApp(dependencies: AppDependencies): Express {
 		markArticleViewed: deps.markArticleViewed,
 		markSummaryToggled: deps.markSummaryToggled,
 		publishLinkSaved: deps.publishLinkSaved,
+		publishRemoveMyContent: deps.publishRemoveMyContent,
 		publishSaveLinkRawHtmlCommand: deps.publishSaveLinkRawHtmlCommand,
 		publishSaveLinkRawPdfCommand: deps.publishSaveLinkRawPdfCommand,
 		putPendingHtml: deps.putPendingHtml,
 		putPendingPdf: deps.putPendingPdf,
+		createUploadSlot: deps.createUploadSlot,
+		statPendingUpload: deps.statPendingUpload,
+		readPendingUploadPrefix: deps.readPendingUploadPrefix,
 		findGeneratedSummary: deps.findGeneratedSummary,
 		markSummaryPending: deps.markSummaryPending,
 		findArticleCrawlStatus: deps.findArticleCrawlStatus,
 		markCrawlPending: deps.markCrawlPending,
 		refreshArticleIfStale: deps.refreshArticleIfStale,
+		resolveCanonicalIdentity: deps.resolveCanonicalIdentity,
 		publishUpdateFetchTimestamp: deps.publishUpdateFetchTimestamp,
 		readArticleContent: deps.readArticleContent,
 		stickyReader: StickyReader,
@@ -1042,7 +1039,6 @@ export function createApp(dependencies: AppDependencies): Express {
 		buildBannerState,
 		getChangelogBanner: deps.getChangelogBanner,
 		logError: deps.logError,
-		logParseError: deps.logParseError,
 		analytics: deps.analytics,
 		salt: deps.salt,
 		now: deps.now,
@@ -1066,6 +1062,7 @@ export function createApp(dependencies: AppDependencies): Express {
 		publishUpdateFetchTimestamp: deps.publishUpdateFetchTimestamp,
 		publishLinkSaved: deps.publishLinkSaved,
 		refreshArticleIfStale: deps.refreshArticleIfStale,
+		resolveCanonicalIdentity: deps.resolveCanonicalIdentity,
 		logError: deps.logError,
 		analytics: deps.analytics,
 		salt: deps.salt,
@@ -1099,6 +1096,7 @@ export function createApp(dependencies: AppDependencies): Express {
 		findArticleCrawlStatus: deps.findArticleCrawlStatus,
 		markCrawlPending: deps.markCrawlPending,
 		saveArticleGlobally: deps.saveArticleGlobally,
+		resolveCanonicalIdentity: deps.resolveCanonicalIdentity,
 		publishSaveAnonymousLink: deps.publishSaveAnonymousLink,
 		publishStaleCheckRequested: deps.publishStaleCheckRequested,
 		consumeRateLimit: deps.consumeRateLimit,

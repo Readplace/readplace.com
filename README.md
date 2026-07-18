@@ -30,6 +30,18 @@ The codebase has strong opinions on testing, typing, branded IDs, and comments t
 
 ---
 
+## Security
+
+### Redirect de-duplication is pinned to the destination
+
+Saving a link follows its redirects and keys the article on where it lands, so `site.com/post.html` (saved from the web) and `site.com/post` (saved from the extension) collapse into one article instead of two. Articles are global — every user who saves the same destination attaches to the same shared row.
+
+That sharing is the attack surface. Since the redirect terminal becomes an alias to whichever URL was saved first, an attacker could save `evil.com/x → victim.com/article` before anyone else claims it, let real users who save `victim.com/article` attach to *their* row, then swap `evil.com/x` to serve something malicious — and a later re-crawl of the stored identity would repaint the shared article for everyone, behind a URL they trust.
+
+Two pins close this. Every re-crawl fetches the **destination** (`victim.com/article`), never the origin that redirected there, so the attacker's host is never the content source again; and the reader shows the destination, not the origin, so the origin can't be laundered behind trusted content. Same-host redirects skip both — an attacker only controls their own host — so the protection is scoped to the cross-host case that actually needs it.
+
+---
+
 ## AI in the loop
 
 Claude reviews every PR, fixes CI failures, resolves merge conflicts, and applies high-priority review comments — all from GitHub Actions, on every push. You can also `@claude` in any issue or PR comment to get a response that's allowed to commit. A single repository secret bootstraps the pipeline.

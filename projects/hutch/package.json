@@ -43,6 +43,7 @@
     "post-deploy": "nx run post-deploy"
   },
   "dependencies": {
+    "@aws-sdk/client-cloudwatch-logs": "3.1057.0",
     "@aws-sdk/client-s3": "3.1057.0",
     "@aws-sdk/client-scheduler": "3.1057.0",
     "@aws-sdk/client-sqs": "3.1057.0",

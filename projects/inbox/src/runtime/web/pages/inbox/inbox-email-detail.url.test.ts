@@ -8,6 +8,10 @@ describe("parseMailTab", () => {
 		expect(parseMailTab("articles")).toBe("articles");
 	});
 
+	it("reads the Skipped Links tab from the query", () => {
+		expect(parseMailTab("excluded")).toBe("excluded");
+	});
+
 	it("defaults to the View tab when no tab is requested", () => {
 		expect(parseMailTab(undefined)).toBe("view");
 	});
@@ -28,6 +32,12 @@ describe("buildInboxEmailDetailUrl", () => {
 	it("addresses the Articles tab with a tab param", () => {
 		expect(buildInboxEmailDetailUrl({ emailId: EMAIL_ID, tab: "articles" })).toBe(
 			`/inbox/${ENCODED_EMAIL_ID}?feature=email&tab=articles`,
+		);
+	});
+
+	it("addresses the Skipped Links tab with a tab param", () => {
+		expect(buildInboxEmailDetailUrl({ emailId: EMAIL_ID, tab: "excluded" })).toBe(
+			`/inbox/${ENCODED_EMAIL_ID}?feature=email&tab=excluded`,
 		);
 	});
 });

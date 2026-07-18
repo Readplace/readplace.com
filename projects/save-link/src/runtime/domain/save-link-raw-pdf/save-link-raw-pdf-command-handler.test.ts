@@ -111,6 +111,7 @@ describe("initSaveLinkRawPdfCommandHandler", () => {
 				wordCount: 10,
 				estimatedReadTime: 1,
 				imageUrl: undefined,
+				authorUserId: "user-1",
 			},
 		});
 		expect(deps.publishEvent).toHaveBeenCalledWith(TierContentExtractedEvent, {

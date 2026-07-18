@@ -202,6 +202,7 @@ export class HutchLambda extends pulumi.ComponentResource {
 			 * `outputDir`, and `assetDir` are ignored when this is set.
 			 */
 			containerImage?: { imageUri: pulumi.Input<string> };
+			ephemeralStorageSize?: number;
 			/**
 			 * Logical name of the top-level `aws.cloudwatch.LogGroup` this call
 			 * site previously managed for the Lambda. Set only when migrating such
@@ -275,6 +276,10 @@ export class HutchLambda extends pulumi.ComponentResource {
 		const environmentArg = hasEnvironment ? { environment: { variables: args.environment } } : {};
 
 		const layersArg = args.layers?.length ? { layers: args.layers } : {};
+
+		const ephemeralStorageArg = args.ephemeralStorageSize
+			? { ephemeralStorage: { size: args.ephemeralStorageSize } }
+			: {};
 		let lambdaFunction: aws.lambda.Function;
 		if (args.containerImage) {
 			lambdaFunction = new aws.lambda.Function(lambdaName, {
@@ -284,6 +289,7 @@ export class HutchLambda extends pulumi.ComponentResource {
 				role: this.role.arn,
 				memorySize: args.memorySize,
 				timeout: args.timeout,
+				...ephemeralStorageArg,
 				...environmentArg,
 			}, { parent: this, dependsOn: [logGroup], aliases: [{ parent: pulumi.rootStackResource }] });
 		} else {
@@ -328,6 +334,7 @@ export class HutchLambda extends pulumi.ComponentResource {
 				code: lambdaCode,
 				memorySize: args.memorySize,
 				timeout: args.timeout,
+				...ephemeralStorageArg,
 				...environmentArg,
 				...layersArg,
 			}, { parent: this, dependsOn: [logGroup], aliases: [{ parent: pulumi.rootStackResource }] });

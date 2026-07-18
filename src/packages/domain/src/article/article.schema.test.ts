@@ -1,7 +1,10 @@
 import {
 	SaveArticleInputSchema,
 	BulkSaveManifestSchema,
-	SaveHtmlInputSchema,
+	LAMBDA_SYNC_INVOKE_PAYLOAD_BYTES,
+	MAX_UPLOAD_REQUEST_BYTES,
+	MAX_UPLOAD_CONTENT_BYTES,
+	MAX_BULK_PAGE_CONTENT_BYTES,
 	ArticleStatusSchema,
 	MinutesSchema,
 } from "./article.schema";
@@ -57,33 +60,25 @@ describe("BulkSaveManifestSchema", () => {
 	});
 });
 
-describe("SaveHtmlInputSchema", () => {
-	it("accepts a valid url + non-empty rawHtml", () => {
-		const result = SaveHtmlInputSchema.safeParse({
-			url: "https://example.com/article",
-			rawHtml: "<html><body>x</body></html>",
-		});
+describe("upload limits", () => {
+	const BASE64_INFLATION = 4 / 3;
 
-		expect(result.success).toBe(true);
+	it("keeps a full request body within the Lambda sync-invoke payload quota once base64-inflated", () => {
+		expect(MAX_UPLOAD_REQUEST_BYTES * BASE64_INFLATION).toBeLessThanOrEqual(
+			LAMBDA_SYNC_INVOKE_PAYLOAD_BYTES,
+		);
 	});
 
-	it("accepts an optional title", () => {
-		const result = SaveHtmlInputSchema.safeParse({
-			url: "https://example.com/article",
-			rawHtml: "<html />",
-			title: "My title",
-		});
-
-		expect(result.success).toBe(true);
+	it("leaves the multipart envelope room under the request limit", () => {
+		expect(MAX_UPLOAD_CONTENT_BYTES).toBeLessThan(MAX_UPLOAD_REQUEST_BYTES);
 	});
 
-	it("rejects empty rawHtml", () => {
-		const result = SaveHtmlInputSchema.safeParse({
-			url: "https://example.com/article",
-			rawHtml: "",
-		});
+	it("leaves a bulk page's advertised budget manifest headroom under the request limit", () => {
+		expect(MAX_BULK_PAGE_CONTENT_BYTES).toBeLessThan(MAX_UPLOAD_REQUEST_BYTES);
+	});
 
-		expect(result.success).toBe(false);
+	it("advertises a bulk page budget above the single-save direct budget, restoring the 3-4.4 MiB band", () => {
+		expect(MAX_BULK_PAGE_CONTENT_BYTES).toBeGreaterThan(MAX_UPLOAD_CONTENT_BYTES);
 	});
 });
 

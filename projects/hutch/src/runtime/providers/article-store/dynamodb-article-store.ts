@@ -11,6 +11,7 @@ import { z } from "zod";
 import type { SavedArticle } from "@packages/domain/article";
 import { MinutesSchema, ArticleStatusSchema } from "@packages/domain/article";
 import { ArticleResourceUniqueId } from "@packages/article-resource-unique-id";
+import { StoredCrawlVersionSchema, normalizeCrawlVersion } from "@packages/article-store";
 import { ReaderArticleHashId, ReaderArticleHashIdSchema } from "@packages/domain/article";
 import type { HutchLogger } from "@packages/hutch-logger";
 import { UserIdSchema } from "@packages/domain/user";
@@ -20,6 +21,7 @@ import type {
 	CountArticlesByUser,
 	DeleteAllUserArticles,
 	DeleteArticle,
+	ListUserArticleUrls,
 	FindArticleById,
 	FindArticleByUrl,
 	FindArticleCrawlVersions,
@@ -49,7 +51,7 @@ const ArticleFreshnessRow = z.object({
 });
 
 const ArticleCrawlVersionsRow = z.object({
-	crawlVersions: dynamoField(z.array(z.string())),
+	crawlVersions: dynamoField(z.array(StoredCrawlVersionSchema)),
 });
 
 /** `routeId` column holds the `ReaderArticleHashId.value` (32-char hex). The Zod schema rehydrates it into a `ReaderArticleHashId` instance on read.
@@ -63,6 +65,10 @@ const ArticleRow = z.object({
 	url: z.string(),
 	routeId: ReaderArticleHashIdSchema,
 	originalUrl: z.string(),
+	/** The redirect destination this article was adopted onto, stamped by the
+	 * adopt hook. Optional: only redirect-merged articles carry it. Read-only
+	 * here — it drives display, never identity. */
+	displayUrl: dynamoField(z.string()),
 	title: z.string(),
 	siteName: z.string(),
 	excerpt: z.string(),
@@ -72,6 +78,7 @@ const ArticleRow = z.object({
 	estimatedReadTime: MinutesSchema,
 	savedAt: dynamoField(z.string()),
 	contentSourceTier: dynamoField(z.enum(["tier-0", "tier-1"])),
+	purgedAt: dynamoField(z.string()),
 });
 /** Every ArticleRow attribute except `content`, derived so the list stays in sync with the schema. */
 const ArticleMetadataFields = ArticleRow.omit({ content: true }).keyof().options;
@@ -106,6 +113,7 @@ function toSavedArticle(
 		id: article.routeId,
 		userId: userArticle.userId,
 		url: article.originalUrl,
+		displayUrl: article.displayUrl,
 		metadata: {
 			title: article.title,
 			siteName: article.siteName,
@@ -137,6 +145,7 @@ export function initDynamoDbArticleStore(deps: {
 	countArticlesByUser: CountArticlesByUser;
 	deleteArticle: DeleteArticle;
 	deleteAllUserArticles: DeleteAllUserArticles;
+	listUserArticleUrls: ListUserArticleUrls;
 	updateArticleStatus: UpdateArticleStatus;
 	findArticleFreshness: FindArticleFreshness;
 	findArticleCrawlVersions: FindArticleCrawlVersions;
@@ -181,6 +190,10 @@ export function initDynamoDbArticleStore(deps: {
 		const routeId = ReaderArticleHashId.from(params.url);
 
 		try {
+			// A full put replaces the item, so a tombstoned row is revived clean —
+			// purgedAt and every content column drop away. Allowed when the row is
+			// absent OR tombstoned; a live (non-purged) row still fails the
+			// condition so an ordinary re-save stays a no-op upsert (savedAt bump).
 			await articles.put({
 				Item: {
 					url: articleResourceUniqueId.value,
@@ -194,7 +207,7 @@ export function initDynamoDbArticleStore(deps: {
 					estimatedReadTime: params.estimatedReadTime,
 					savedAt: params.savedAt.toISOString(),
 				},
-				ConditionExpression: "attribute_not_exists(#url)",
+				ConditionExpression: "attribute_not_exists(#url) OR attribute_exists(purgedAt)",
 				ExpressionAttributeNames: { "#url": "url" },
 			});
 			return { created: true };
@@ -431,6 +444,35 @@ export function initDynamoDbArticleStore(deps: {
 		);
 	};
 
+	const listUserArticleUrls: ListUserArticleUrls = async (userId) => {
+		const normalizedUrls: string[] = [];
+		await forEachQueryPage(
+			userArticles,
+			{
+				IndexName: "userId-savedAt-index",
+				KeyConditionExpression: "userId = :userId",
+				ExpressionAttributeValues: { ":userId": userId },
+			},
+			async (rows) => {
+				for (const row of rows) normalizedUrls.push(row.url);
+			},
+		);
+		if (normalizedUrls.length === 0) return [];
+		// The user-articles row keys the article by its normalized value, which
+		// cannot be re-parsed as an absolute URL — resolve each to its stored
+		// original via the global row so downstream content ops get a real URL.
+		const globals = await batchGetFromTable({
+			client,
+			tableName,
+			schema: z.object({ originalUrl: dynamoField(z.string()) }),
+			keys: normalizedUrls.map((url) => ({ url })),
+			projection: ["originalUrl"],
+		});
+		return globals
+			.map((row) => row.originalUrl)
+			.filter((url): url is string => url !== undefined);
+	};
+
 	const updateArticleStatus: UpdateArticleStatus = async (routeId, userId, status) => {
 		const article = await findArticleByRouteId(routeId);
 		if (!article) return false;
@@ -500,7 +542,12 @@ export function initDynamoDbArticleStore(deps: {
 			{ url: articleResourceUniqueId.value },
 			{ projection: ["crawlVersions"] },
 		);
-		return (row?.crawlVersions ?? []).map((crawledAtMinute) => ({ crawledAtMinute }));
+		return (row?.crawlVersions ?? []).map(normalizeCrawlVersion).map((entry) => ({
+			crawledAtMinute: entry.minuteId,
+			...(entry.authorUserId === undefined
+				? {}
+				: { authorUserId: UserIdSchema.parse(entry.authorUserId) }),
+		}));
 	};
 
 	const markArticleViewed: MarkArticleViewed = async ({ userId, url, at }) => {
@@ -585,6 +632,7 @@ export function initDynamoDbArticleStore(deps: {
 					"url",
 					"routeId",
 					"originalUrl",
+					"displayUrl",
 					"title",
 					"siteName",
 					"excerpt",
@@ -593,6 +641,7 @@ export function initDynamoDbArticleStore(deps: {
 					"estimatedReadTime",
 					"savedAt",
 					"contentSourceTier",
+					"purgedAt",
 				],
 			},
 		);
@@ -606,6 +655,7 @@ export function initDynamoDbArticleStore(deps: {
 		return {
 			id: row.routeId,
 			url: row.originalUrl,
+			displayUrl: row.displayUrl,
 			metadata: {
 				title: row.title,
 				siteName: row.siteName,
@@ -616,6 +666,7 @@ export function initDynamoDbArticleStore(deps: {
 			estimatedReadTime: row.estimatedReadTime,
 			savedAt: row.savedAt ? new Date(row.savedAt) : new Date(0),
 			contentSourceTier: row.contentSourceTier,
+			purgedAt: row.purgedAt ? new Date(row.purgedAt) : undefined,
 		};
 	};
 
@@ -639,6 +690,7 @@ export function initDynamoDbArticleStore(deps: {
 		countArticlesByUser,
 		deleteArticle,
 		deleteAllUserArticles,
+		listUserArticleUrls,
 		updateArticleStatus,
 		findArticleFreshness,
 		findArticleCrawlVersions,

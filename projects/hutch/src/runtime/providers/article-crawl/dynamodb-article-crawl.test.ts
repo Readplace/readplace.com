@@ -22,6 +22,8 @@ function clientReturning(
 
 const TABLE = "test-table";
 const URL = "https://example.com/article";
+const FROZEN_NOW = new Date("2026-07-17T10:00:00.000Z");
+const now = () => FROZEN_NOW;
 
 describe("initDynamoDbArticleCrawl", () => {
 	describe("findArticleCrawlStatus", () => {
@@ -29,6 +31,7 @@ describe("initDynamoDbArticleCrawl", () => {
 			const { findArticleCrawlStatus } = initDynamoDbArticleCrawl({
 				client: clientReturning(undefined),
 				tableName: TABLE,
+				now,
 			});
 
 			const result = await findArticleCrawlStatus(URL);
@@ -44,6 +47,7 @@ describe("initDynamoDbArticleCrawl", () => {
 			const { findArticleCrawlStatus } = initDynamoDbArticleCrawl({
 				client: clientReturning({ url: URL }),
 				tableName: TABLE,
+				now,
 			});
 
 			const result = await findArticleCrawlStatus(URL);
@@ -55,6 +59,7 @@ describe("initDynamoDbArticleCrawl", () => {
 			const { findArticleCrawlStatus } = initDynamoDbArticleCrawl({
 				client: clientReturning({ url: URL, crawlStatus: "pending" }),
 				tableName: TABLE,
+				now,
 			});
 
 			const result = await findArticleCrawlStatus(URL);
@@ -70,6 +75,7 @@ describe("initDynamoDbArticleCrawl", () => {
 					crawlStage: "crawl-parsed",
 				}),
 				tableName: TABLE,
+				now,
 			});
 
 			const result = await findArticleCrawlStatus(URL);
@@ -87,6 +93,7 @@ describe("initDynamoDbArticleCrawl", () => {
 					crawlPartTotal: 150,
 				}),
 				tableName: TABLE,
+				now,
 			});
 
 			const result = await findArticleCrawlStatus(URL);
@@ -107,6 +114,7 @@ describe("initDynamoDbArticleCrawl", () => {
 					crawlPartCurrent: 17,
 				}),
 				tableName: TABLE,
+				now,
 			});
 
 			const result = await findArticleCrawlStatus(URL);
@@ -126,6 +134,7 @@ describe("initDynamoDbArticleCrawl", () => {
 					crawlPartTotal: 4,
 				}),
 				tableName: TABLE,
+				now,
 			});
 
 			const result = await findArticleCrawlStatus(URL);
@@ -137,6 +146,7 @@ describe("initDynamoDbArticleCrawl", () => {
 			const { findArticleCrawlStatus } = initDynamoDbArticleCrawl({
 				client: clientReturning({ url: URL, crawlStatus: "ready" }),
 				tableName: TABLE,
+				now,
 			});
 
 			const result = await findArticleCrawlStatus(URL);
@@ -152,6 +162,7 @@ describe("initDynamoDbArticleCrawl", () => {
 					crawlFailureReason: "connect timeout",
 				}),
 				tableName: TABLE,
+				now,
 			});
 
 			const result = await findArticleCrawlStatus(URL);
@@ -167,6 +178,7 @@ describe("initDynamoDbArticleCrawl", () => {
 					crawlUnsupportedReason: "non-html content type: application/pdf",
 				}),
 				tableName: TABLE,
+				now,
 			});
 
 			const result = await findArticleCrawlStatus(URL);
@@ -181,6 +193,7 @@ describe("initDynamoDbArticleCrawl", () => {
 			const { findArticleCrawlStatus } = initDynamoDbArticleCrawl({
 				client: clientReturning({ url: URL, crawlStatus: "failed" }),
 				tableName: TABLE,
+				now,
 			});
 
 			await expect(findArticleCrawlStatus(URL)).rejects.toThrow(
@@ -192,6 +205,7 @@ describe("initDynamoDbArticleCrawl", () => {
 			const { findArticleCrawlStatus } = initDynamoDbArticleCrawl({
 				client: clientReturning({ url: URL, crawlStatus: "unsupported" }),
 				tableName: TABLE,
+				now,
 			});
 
 			await expect(findArticleCrawlStatus(URL)).rejects.toThrow(
@@ -201,7 +215,7 @@ describe("initDynamoDbArticleCrawl", () => {
 	});
 
 	describe("markCrawlPending", () => {
-		it("issues an UpdateItem that sets crawlStatus=pending with a guard against ready rows", async () => {
+		it("issues an UpdateItem that sets crawlStatus=pending and stamps crawlPendingSince so the stuck-articles canary's age gate anchors on when this crawl began, with a guard against ready rows", async () => {
 			let received: unknown;
 			const client = createFakeClient((input) => {
 				received = input;
@@ -210,6 +224,7 @@ describe("initDynamoDbArticleCrawl", () => {
 			const { markCrawlPending } = initDynamoDbArticleCrawl({
 				client: client as DynamoDBDocumentClient,
 				tableName: TABLE,
+				now,
 			});
 
 			await markCrawlPending({ url: URL });
@@ -221,12 +236,17 @@ describe("initDynamoDbArticleCrawl", () => {
 					ExpressionAttributeValues?: Record<string, unknown>;
 				};
 			};
-			expect(command.input.UpdateExpression).toBe("SET crawlStatus = :pending");
+			expect(command.input.UpdateExpression).toBe(
+				"SET crawlStatus = :pending, crawlPendingSince = :pendingSince",
+			);
 			expect(command.input.ConditionExpression).toBe(
 				"attribute_not_exists(crawlStatus) OR crawlStatus <> :ready",
 			);
 			expect(command.input.ExpressionAttributeValues?.[":pending"]).toBe(
 				"pending",
+			);
+			expect(command.input.ExpressionAttributeValues?.[":pendingSince"]).toBe(
+				FROZEN_NOW.toISOString(),
 			);
 			expect(command.input.ExpressionAttributeValues?.[":ready"]).toBe("ready");
 		});
@@ -241,6 +261,7 @@ describe("initDynamoDbArticleCrawl", () => {
 			const { markCrawlPending } = initDynamoDbArticleCrawl({
 				client: client as DynamoDBDocumentClient,
 				tableName: TABLE,
+				now,
 			});
 
 			await expect(markCrawlPending({ url: URL })).resolves.toBeUndefined();
@@ -253,6 +274,7 @@ describe("initDynamoDbArticleCrawl", () => {
 			const { markCrawlPending } = initDynamoDbArticleCrawl({
 				client: client as DynamoDBDocumentClient,
 				tableName: TABLE,
+				now,
 			});
 
 			await expect(markCrawlPending({ url: URL })).rejects.toThrow("throttled");
@@ -260,7 +282,7 @@ describe("initDynamoDbArticleCrawl", () => {
 	});
 
 	describe("forceMarkCrawlPending", () => {
-		it("issues an unconditional UpdateItem that sets crawlStatus=pending and clears the terminal-failure reason columns", async () => {
+		it("issues an unconditional UpdateItem that sets crawlStatus=pending, stamps crawlPendingSince so a force-recrawled row is not misread as stuck by the canary's age gate, and clears the terminal-failure reason columns", async () => {
 			let received: unknown;
 			const client = createFakeClient((input) => {
 				received = input;
@@ -269,6 +291,7 @@ describe("initDynamoDbArticleCrawl", () => {
 			const { forceMarkCrawlPending } = initDynamoDbArticleCrawl({
 				client: client as DynamoDBDocumentClient,
 				tableName: TABLE,
+				now,
 			});
 
 			await forceMarkCrawlPending({ url: URL });
@@ -281,11 +304,14 @@ describe("initDynamoDbArticleCrawl", () => {
 				};
 			};
 			expect(command.input.UpdateExpression).toBe(
-				"SET crawlStatus = :pending REMOVE crawlFailureReason, crawlUnsupportedReason",
+				"SET crawlStatus = :pending, crawlPendingSince = :pendingSince REMOVE crawlFailureReason, crawlUnsupportedReason",
 			);
 			expect(command.input.ConditionExpression).toBeUndefined();
 			expect(command.input.ExpressionAttributeValues?.[":pending"]).toBe(
 				"pending",
+			);
+			expect(command.input.ExpressionAttributeValues?.[":pendingSince"]).toBe(
+				FROZEN_NOW.toISOString(),
 			);
 		});
 
@@ -296,6 +322,7 @@ describe("initDynamoDbArticleCrawl", () => {
 			const { forceMarkCrawlPending } = initDynamoDbArticleCrawl({
 				client: client as DynamoDBDocumentClient,
 				tableName: TABLE,
+				now,
 			});
 
 			await expect(forceMarkCrawlPending({ url: URL })).rejects.toThrow(

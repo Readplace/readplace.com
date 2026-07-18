@@ -63,6 +63,13 @@ export class HutchS3ContentMediaCDN extends pulumi.ComponentResource {
 			viewerCertificate = { cloudfrontDefaultCertificate: true };
 		}
 
+		const noindexHeaders = new aws.cloudfront.ResponseHeadersPolicy(`${name}-noindex-headers`, {
+			name: `${name}-noindex-headers`,
+			customHeadersConfig: {
+				items: [{ header: "X-Robots-Tag", value: "noindex", override: true }],
+			},
+		}, { parent: this });
+
 		const distribution = new aws.cloudfront.Distribution(`${name}-cdn`, {
 			enabled: true,
 			aliases,
@@ -77,6 +84,7 @@ export class HutchS3ContentMediaCDN extends pulumi.ComponentResource {
 				allowedMethods: ["GET", "HEAD"],
 				cachedMethods: ["GET", "HEAD"],
 				cachePolicyId: "658327ea-f89d-4fab-a63d-7e88639e58f6",
+				responseHeadersPolicyId: noindexHeaders.id,
 			},
 			restrictions: {
 				geoRestriction: { restrictionType: "none" },

@@ -21,7 +21,7 @@ describe("initReviewDocumentWithDeepseek", () => {
 		expect(result.tokens).toEqual({ input: 500, output: 100 });
 	});
 
-	it("uses deepseek-chat with temperature 0 and JSON response_format", async () => {
+	it("uses deepseek-v4-flash in non-thinking mode with temperature 0 and JSON response_format", async () => {
 		let captured: Params | undefined;
 		const review = initReviewDocumentWithDeepseek({
 			createChatCompletion: async (params) => {
@@ -35,7 +35,8 @@ describe("initReviewDocumentWithDeepseek", () => {
 
 		await review({ systemPrompt: "s", userMessage: "u", maxTokens: 4096 });
 
-		expect(captured?.model).toBe("deepseek-chat");
+		expect(captured?.model).toBe("deepseek-v4-flash");
+		expect(captured?.thinking).toEqual({ type: "disabled" });
 		expect(captured?.temperature).toBe(0);
 		expect(captured?.response_format).toEqual({ type: "json_object" });
 	});

@@ -68,7 +68,7 @@ function createHandler(overrides: Partial<HandlerDeps> = {}) {
 }
 
 describe("initSaveLinkRawHtmlCommandHandler", () => {
-	it("reads pending HTML, writes a tier-0 source with the finalizer's metadata, and emits TierContentExtractedEvent carrying userId", async () => {
+	it("reads pending HTML, writes a tier-0 source attributed to the saver, and emits TierContentExtractedEvent carrying userId", async () => {
 		const { handler, deps } = createHandler();
 
 		await handler(
@@ -82,7 +82,7 @@ describe("initSaveLinkRawHtmlCommandHandler", () => {
 			url: "https://example.com/article",
 			tier: "tier-0",
 			html: stubFinalizedArticle.html,
-			metadata: stubFinalizedArticle.metadata,
+			metadata: { ...stubFinalizedArticle.metadata, authorUserId: "user-1" },
 		});
 		expect(deps.publishEvent).toHaveBeenCalledWith(TierContentExtractedEvent, {
 			url: "https://example.com/article",

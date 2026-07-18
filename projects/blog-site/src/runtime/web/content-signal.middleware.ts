@@ -1,6 +1,6 @@
 import type { NextFunction, Request, Response } from "express";
 
-export const CONTENT_SIGNAL_VALUE = "search=yes, ai-input=yes, ai-train=no";
+export const CONTENT_SIGNAL_VALUE = "search=yes, ai-input=yes, ai-train=yes";
 
 /** The sitemap is machine metadata, not a reader-facing page, so it carries no
  * Content-Signal policy and no Accept negotiation. */

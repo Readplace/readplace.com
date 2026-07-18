@@ -20,17 +20,21 @@ export function initRefreshArticleIfStale(deps: {
 	parseHtml: ParseHtml;
 	publishRefreshArticleContent: PublishRefreshArticleContent;
 	publishUpdateFetchTimestamp: PublishUpdateFetchTimestamp;
+	/** Collapse an adopted terminal URL onto the article it aliases before any
+	 * freshness/crawl decision, so intake keys on the same identity a save does. */
+	resolveCanonicalIdentity: (url: string) => Promise<string>;
 	now: () => Date;
 	staleTtlMs: number;
 }): { refreshArticleIfStale: RefreshArticleIfStale } {
 	const refreshArticleIfStale: RefreshArticleIfStale = async (params) => {
-		const freshness = await deps.findArticleFreshness(params.url);
+		const url = await deps.resolveCanonicalIdentity(params.url);
+		const freshness = await deps.findArticleFreshness(url);
 
 		if (!freshness) {
 			return { action: "new" };
 		}
 
-		const crawl = await deps.findArticleCrawlStatus(params.url);
+		const crawl = await deps.findArticleCrawlStatus(url);
 		const action = decideTerminalAction(crawl);
 		if (action === "skip") return { action: "skip" };
 
@@ -43,7 +47,7 @@ export function initRefreshArticleIfStale(deps: {
 		}
 
 		const result = await deps.crawlArticle({
-			url: params.url,
+			url,
 			etag: freshness.etag,
 			lastModified: freshness.lastModified,
 			previousBodyHash: freshness.bodyHash,
@@ -51,7 +55,7 @@ export function initRefreshArticleIfStale(deps: {
 
 		if (result.status === "not-modified") {
 			await deps.publishUpdateFetchTimestamp({
-				url: params.url,
+				url,
 				contentFetchedAt: deps.now().toISOString(),
 				bodyHash: freshness.bodyHash,
 			});
@@ -66,7 +70,7 @@ export function initRefreshArticleIfStale(deps: {
 			return { action: "skip" };
 		}
 
-		return handleFetchedContent(params.url, result);
+		return handleFetchedContent(url, result);
 	};
 
 	async function handleFetchedContent(

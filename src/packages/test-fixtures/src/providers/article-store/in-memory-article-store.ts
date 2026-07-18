@@ -9,10 +9,12 @@ import { ArticleResourceUniqueId } from "@packages/article-resource-unique-id";
 import { ReaderArticleHashId } from "@packages/domain/article";
 import type { UserId } from "@packages/domain/user";
 import type {
+	ArticleCrawlVersion,
 	BumpArticleSavedAt,
 	CountArticlesByUser,
 	DeleteAllUserArticles,
 	DeleteArticle,
+	ListUserArticleUrls,
 	FindArticleById,
 	FindArticleByUrl,
 	FindArticleCrawlVersions,
@@ -46,7 +48,8 @@ interface GlobalArticle {
 	contentFetchedAt?: string;
 	bodyHash?: string;
 	contentSourceTier?: "tier-0" | "tier-1";
-	crawlVersions?: string[];
+	crawlVersions?: ArticleCrawlVersion[];
+	purgedAt?: Date;
 }
 
 interface UserArticle {
@@ -90,6 +93,7 @@ export function initInMemoryArticleStore(): {
 	countArticlesByUser: CountArticlesByUser;
 	deleteArticle: DeleteArticle;
 	deleteAllUserArticles: DeleteAllUserArticles;
+	listUserArticleUrls: ListUserArticleUrls;
 	updateArticleStatus: UpdateArticleStatus;
 	markArticleViewed: MarkArticleViewed;
 	markSummaryToggled: MarkSummaryToggled;
@@ -108,7 +112,8 @@ export function initInMemoryArticleStore(): {
 	writeMetadata: (params: { url: string; metadata: ArticleMetadata; estimatedReadTime: Minutes }) => Promise<void>;
 	setContentSourceTier: (params: { url: string; tier: "tier-0" | "tier-1" }) => Promise<void>;
 	setContentFetchedAt: (params: { url: string; at: string }) => Promise<void>;
-	setCrawlVersions: (params: { url: string; versions: string[] }) => Promise<void>;
+	setCrawlVersions: (params: { url: string; versions: ArticleCrawlVersion[] }) => Promise<void>;
+	setPurgedAt: (params: { url: string; at: Date }) => Promise<void>;
 } {
 	const articles = new Map<string, GlobalArticle>();
 	const userArticles = new Map<string, UserArticle>();
@@ -126,7 +131,10 @@ export function initInMemoryArticleStore(): {
 
 	const saveArticleGlobally: SaveArticleGlobally = async (params) => {
 		const articleResourceUniqueId = ArticleResourceUniqueId.parse(params.url);
-		if (articles.has(articleResourceUniqueId.value)) {
+		const existing = articles.get(articleResourceUniqueId.value);
+		// A live (non-purged) row is a no-op upsert; a tombstoned row is revived
+		// clean, mirroring the store's conditional put that clears purgedAt.
+		if (existing && existing.purgedAt === undefined) {
 			return { created: false };
 		}
 		const routeId = ReaderArticleHashId.from(params.url);
@@ -208,6 +216,7 @@ export function initInMemoryArticleStore(): {
 			estimatedReadTime: article.estimatedReadTime,
 			savedAt: article.savedAt,
 			contentSourceTier: article.contentSourceTier,
+			purgedAt: article.purgedAt,
 		};
 	};
 
@@ -274,6 +283,16 @@ export function initInMemoryArticleStore(): {
 		for (const [key, ua] of userArticles) {
 			if (ua.userId === userId) userArticles.delete(key);
 		}
+	};
+
+	const listUserArticleUrls: ListUserArticleUrls = async (userId) => {
+		const urls: string[] = [];
+		for (const ua of userArticles.values()) {
+			if (ua.userId !== userId) continue;
+			const article = articles.get(ua.url);
+			if (article) urls.push(article.originalUrl);
+		}
+		return urls;
 	};
 
 	const updateArticleStatus: UpdateArticleStatus = async (id, userId, status) => {
@@ -372,7 +391,7 @@ export function initInMemoryArticleStore(): {
 	const findArticleCrawlVersions: FindArticleCrawlVersions = async (url) => {
 		const articleResourceUniqueId = ArticleResourceUniqueId.parse(url);
 		const article = articles.get(articleResourceUniqueId.value);
-		return (article?.crawlVersions ?? []).map((crawledAtMinute) => ({ crawledAtMinute }));
+		return (article?.crawlVersions ?? []).map((version) => ({ ...version }));
 	};
 
 	const readContent: ContentProvider = async (articleResourceUniqueId) => {
@@ -410,11 +429,18 @@ export function initInMemoryArticleStore(): {
 		article.contentFetchedAt = params.at;
 	};
 
-	const setCrawlVersions = async (params: { url: string; versions: string[] }) => {
+	const setCrawlVersions = async (params: { url: string; versions: ArticleCrawlVersion[] }) => {
 		const articleResourceUniqueId = ArticleResourceUniqueId.parse(params.url);
 		const article = articles.get(articleResourceUniqueId.value);
 		assert(article, `Article not found for URL: ${articleResourceUniqueId.value}`);
 		article.crawlVersions = params.versions;
+	};
+
+	const setPurgedAt = async (params: { url: string; at: Date }) => {
+		const articleResourceUniqueId = ArticleResourceUniqueId.parse(params.url);
+		const article = articles.get(articleResourceUniqueId.value);
+		assert(article, `Article not found for URL: ${articleResourceUniqueId.value}`);
+		article.purgedAt = params.at;
 	};
 
 	return {
@@ -430,6 +456,7 @@ export function initInMemoryArticleStore(): {
 		countArticlesByUser,
 		deleteArticle,
 		deleteAllUserArticles,
+		listUserArticleUrls,
 		updateArticleStatus,
 		markArticleViewed,
 		markSummaryToggled,
@@ -444,5 +471,6 @@ export function initInMemoryArticleStore(): {
 		setContentSourceTier,
 		setContentFetchedAt,
 		setCrawlVersions,
+		setPurgedAt,
 	};
 }

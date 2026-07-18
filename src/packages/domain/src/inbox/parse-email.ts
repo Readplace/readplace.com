@@ -3,6 +3,7 @@ import { createHash } from "node:crypto";
 import { escapeRegExp } from "@packages/escape-regexp";
 import PostalMime from "postal-mime";
 import { type MessageId, MessageIdSchema } from "./inbox-email.schema";
+import { parseListUnsubscribeHeader } from "./list-unsubscribe";
 
 export interface ParsedEmailInlineImage {
 	/** The bare Content-ID (no angle brackets), matching the `cid:` URI body. */
@@ -26,6 +27,9 @@ export interface ParsedEmail {
 	/** Injected SES receipt time — never the (forgeable) `Date:` header. */
 	receivedAt: string;
 	inlineImages: ParsedEmailInlineImage[];
+	/** The http(s) unsubscribe endpoints the `List-Unsubscribe` headers declare;
+	 * empty when the message carries none. */
+	listUnsubscribeUrls: string[];
 }
 
 export type ParseEmailResult =
@@ -99,6 +103,10 @@ export async function parseEmail(input: {
 			parsed.messageId ?? `sha256:${createHash("sha256").update(input.raw).digest("hex")}`,
 		);
 
+		const listUnsubscribeUrls = parsed.headers
+			.filter((header) => header.key === "list-unsubscribe")
+			.flatMap((header) => parseListUnsubscribeHeader(header.value));
+
 		return {
 			ok: true,
 			email: {
@@ -109,6 +117,7 @@ export async function parseEmail(input: {
 				messageId,
 				receivedAt: input.receivedAt,
 				inlineImages,
+				listUnsubscribeUrls,
 			},
 		};
 	} catch {

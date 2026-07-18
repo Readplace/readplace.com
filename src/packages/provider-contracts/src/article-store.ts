@@ -77,10 +77,16 @@ export type FindArticleUrlById = (
 export interface GlobalArticleData {
 	id: ReaderArticleHashId;
 	url: string;
+	/** Redirect destination for a merged article; drives display only. */
+	displayUrl?: string;
 	metadata: SavedArticle["metadata"];
 	estimatedReadTime: SavedArticle["estimatedReadTime"];
 	savedAt: Date;
 	contentSourceTier?: "tier-0" | "tier-1";
+	/** Set once the URL's content was purged and the row tombstoned. Serving
+	 * surfaces treat a purged row as gone (404) even though the row survives so
+	 * in-flight transitions still load it and its id still resolves. */
+	purgedAt?: Date;
 }
 
 export type FindArticleByUrl = (
@@ -125,6 +131,9 @@ export type FindArticleFreshness = (
 /** Minute-precision UTC ISO-8601, e.g. "2026-07-10T09:41Z" — version identity and display value. */
 export interface ArticleCrawlVersion {
 	crawledAtMinute: string;
+	/** The saver whose capture this snapshot preserves. Absent for anonymous
+	 * tier-1 content and for snapshots recorded before attribution shipped. */
+	authorUserId?: UserId;
 }
 
 /** Newest first, minute-deduped at write time; the full log is retained (unbounded,
@@ -208,3 +217,9 @@ export type ReadArticleContent = (url: string) => Promise<string | undefined>;
  * per-user gateway rows are removed; the URL-keyed global article cache is
  * shared across users and left untouched. */
 export type DeleteAllUserArticles = (userId: UserId) => Promise<void>;
+
+/** Every original (un-normalized) URL a user has saved. Used at account deletion
+ * to decide, per URL, whether the user was its only saver — in which case the
+ * global content is purged. Returns the original URLs (not the normalized
+ * partition-key form) so they can be fed back into the URL-keyed content ops. */
+export type ListUserArticleUrls = (userId: UserId) => Promise<string[]>;

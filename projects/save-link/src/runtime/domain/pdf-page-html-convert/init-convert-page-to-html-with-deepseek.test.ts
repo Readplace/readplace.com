@@ -23,7 +23,7 @@ describe("initConvertPageToHtmlWithDeepseek", () => {
 		});
 	});
 
-	it("uses deepseek-chat with temperature 0 and no response_format", async () => {
+	it("uses deepseek-v4-flash in non-thinking mode with temperature 0 and no response_format", async () => {
 		let captured: Params | undefined;
 		const convert = initConvertPageToHtmlWithDeepseek({
 			createChatCompletion: async (params) => {
@@ -34,7 +34,8 @@ describe("initConvertPageToHtmlWithDeepseek", () => {
 
 		await convert({ systemPrompt: "s", userText: "u", maxTokens: 1024 });
 
-		expect(captured?.model).toBe("deepseek-chat");
+		expect(captured?.model).toBe("deepseek-v4-flash");
+		expect(captured?.thinking).toEqual({ type: "disabled" });
 		expect(captured?.temperature).toBe(0);
 		expect("response_format" in (captured ?? {})).toBe(false);
 	});

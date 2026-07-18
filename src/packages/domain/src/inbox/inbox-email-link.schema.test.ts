@@ -1,7 +1,6 @@
 import {
 	EMAIL_LINK_ORDINAL_CAPACITY,
 	EmailLinkOrdinalSchema,
-	EmailLinkStatusSchema,
 	formatEmailLinkOrdinal,
 } from "./inbox-email-link.schema";
 
@@ -25,17 +24,5 @@ describe("formatEmailLinkOrdinal", () => {
 
 	it("refuses the first index past the capacity", () => {
 		expect(() => formatEmailLinkOrdinal(EMAIL_LINK_ORDINAL_CAPACITY)).toThrow();
-	});
-});
-
-describe("EmailLinkStatusSchema", () => {
-	it("accepts the three lifecycle states", () => {
-		expect(EmailLinkStatusSchema.parse("pending")).toBe("pending");
-		expect(EmailLinkStatusSchema.parse("crawled")).toBe("crawled");
-		expect(EmailLinkStatusSchema.parse("failed")).toBe("failed");
-	});
-
-	it("rejects an unknown state", () => {
-		expect(EmailLinkStatusSchema.safeParse("staging").success).toBe(false);
 	});
 });

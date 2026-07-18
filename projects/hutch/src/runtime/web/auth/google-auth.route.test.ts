@@ -198,7 +198,6 @@ describe("Google auth routes", () => {
 					staticBaseUrl: fixture.shared.staticBaseUrl,
 					httpErrorMessageMapping: fixture.shared.httpErrorMessageMapping,
 					logError: (msg) => { errors.push(msg); },
-					logParseError: fixture.shared.logParseError,
 					now: fixture.shared.now,
 				},
 			});

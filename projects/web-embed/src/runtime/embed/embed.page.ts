@@ -2,6 +2,7 @@ import express, { type Request, type Router } from "express";
 import helmet from "helmet";
 import { bannerStateFromRequest, type RenderBase, sendComponent } from "@packages/web-shell";
 import type { ResolveLogin } from "@packages/web-session";
+import { contentSignalMiddleware } from "./content-signal.middleware";
 import { EmbedPage } from "./embed.component";
 import { PreviewPage } from "./preview.component";
 import { EMBED_ICON_SVG } from "./icon";
@@ -22,6 +23,7 @@ export function initEmbedRoutes(deps: {
 			crossOriginResourcePolicy: { policy: "cross-origin" },
 		}),
 	);
+	router.use(contentSignalMiddleware);
 
 	/** Reads the host-only session cookie the browser already sends to /embed
 	 * (hutch owns it; same-origin) and turns it into the banner state that flips

@@ -14,6 +14,7 @@ import type {
 	PaymentMethodsBundle,
 	PendingHtmlBundle,
 	PendingPdfBundle,
+	PendingUploadBundle,
 	PendingSignupBundle,
 	RunningServer,
 	HostedCheckoutBundle,
@@ -28,6 +29,7 @@ import { readplaceUnwrapPreprocessor } from "./web/pages/view/readplace-unwrap-p
 import { unwrappedPreProcessors, withUnwrapPreprocessing } from "./web/unwrap-preprocessors";
 import type { GetChangelogBanner } from "./web/changelog-banner-source";
 import { initFoundingAllocation } from "./web/shared/founding-progress/founding-allocation";
+import { isStaticAssetRequestPath } from "./web/static-asset-paths";
 import { type AnalyticsEvent, createAnalyticsMiddleware } from "@packages/web-analytics";
 import { DEFAULT_INBOX_ALIAS } from "@packages/domain/inbox";
 import type { UserId } from "@packages/domain/user";
@@ -84,6 +86,7 @@ export interface TestAppResult {
 	articleCrawl: ArticleCrawlBundle;
 	pendingHtml: PendingHtmlBundle;
 	pendingPdf: PendingPdfBundle;
+	pendingUpload: PendingUploadBundle;
 	oauthModel: OAuthModel;
 	email: EmailBundle;
 	emailVerification: EmailVerificationBundle;
@@ -115,7 +118,6 @@ function flattenFixtureToAppDependencies(
 		staticBaseUrl: fixture.shared.staticBaseUrl,
 		baseUrl: fixture.shared.appOrigin,
 		logError: fixture.shared.logError,
-		logParseError: fixture.shared.logParseError,
 		httpErrorMessageMapping: fixture.shared.httpErrorMessageMapping,
 		hashPassword: fixture.auth.hashPassword,
 		createUser: fixture.auth.createUser,
@@ -156,6 +158,7 @@ function flattenFixtureToAppDependencies(
 		forceMarkCrawlPending: fixture.articleCrawl.forceMarkCrawlPending,
 		publishLinkSaved: fixture.events.publishLinkSaved,
 		publishRecrawlLinkInitiated: fixture.events.publishRecrawlLinkInitiated,
+		publishRemoveMyContent: fixture.events.publishRemoveMyContent,
 		publishSaveAnonymousLink: fixture.events.publishSaveAnonymousLink,
 		publishStaleCheckRequested: fixture.events.publishStaleCheckRequested,
 		publishSaveLinkRawHtmlCommand: fixture.events.publishSaveLinkRawHtmlCommand,
@@ -167,9 +170,13 @@ function flattenFixtureToAppDependencies(
 		publishSubscriptionReactivated: fixture.events.publishSubscriptionReactivated,
 		putPendingHtml: fixture.pendingHtml.putPendingHtml,
 		putPendingPdf: fixture.pendingPdf.putPendingPdf,
+		createUploadSlot: fixture.pendingUpload.createUploadSlot,
+		statPendingUpload: fixture.pendingUpload.statPendingUpload,
+		readPendingUploadPrefix: fixture.pendingUpload.readPendingUploadPrefix,
 		findGeneratedSummary: fixture.summary.findGeneratedSummary,
 		markSummaryPending: fixture.summary.markSummaryPending,
 		refreshArticleIfStale: fixture.freshness.refreshArticleIfStale,
+		resolveCanonicalIdentity: async (url: string) => url,
 		oauthModel: fixture.oauth.oauthModel,
 		revokeAllUserOAuthTokens: fixture.oauth.revokeAllUserOAuthTokens,
 		validateAccessToken: fixture.oauth.validateAccessToken,
@@ -279,6 +286,7 @@ export function createTestApp(
 			logger: analyticsBundle.logger,
 			salt: "test-analytics-salt",
 			now: fixture.shared.now,
+			isStaticAssetPath: isStaticAssetRequestPath,
 		}))
 		.use(createApp({ ...flattenFixtureToAppDependencies(fixture, analyticsBundle, subscriptionBundle), ...overrides }));
 	return {
@@ -288,6 +296,7 @@ export function createTestApp(
 		articleCrawl: fixture.articleCrawl,
 		pendingHtml: fixture.pendingHtml,
 		pendingPdf: fixture.pendingPdf,
+		pendingUpload: fixture.pendingUpload,
 		oauthModel: fixture.oauth.oauthModel,
 		email: fixture.email,
 		emailVerification: fixture.emailVerification,

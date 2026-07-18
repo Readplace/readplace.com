@@ -16,12 +16,14 @@ function makeLink(overrides: Partial<InboxEmailLinkEntry> = {}): InboxEmailLinkE
 		receivedAtMessageId: RAM,
 		ordinal: EmailLinkOrdinalSchema.parse("0000"),
 		url: "https://example.com/post",
+		resolvedUrl: undefined,
 		status: "pending",
 		title: undefined,
 		excerpt: undefined,
 		siteName: undefined,
 		imageUrl: undefined,
 		failureReason: undefined,
+		skipReason: undefined,
 		...overrides,
 	};
 }
@@ -98,6 +100,7 @@ describe("initInMemoryInboxEmailLink", () => {
 				excerpt: "An excerpt",
 				siteName: "Example",
 				imageUrl: "https://cdn.test/x.jpg",
+				resolvedUrl: "https://destination.test/the-actual-article",
 			},
 		});
 
@@ -110,12 +113,43 @@ describe("initInMemoryInboxEmailLink", () => {
 		expect(found.status).toBe("crawled");
 		expect(found.title).toBe("A title");
 		expect(found.imageUrl).toBe("https://cdn.test/x.jpg");
+		expect(found.resolvedUrl).toBe("https://destination.test/the-actual-article");
 		expect(found.failureReason).toBeUndefined();
+	});
+
+	it("clears the skip reason when an outcome lands on a skipped row", async () => {
+		const store = initInMemoryInboxEmailLink();
+		await store.putLink(makeLink({ status: "skipped", skipReason: "list-unsubscribe" }));
+
+		await store.setLinkOutcome({
+			userId: owner,
+			receivedAtMessageId: RAM,
+			ordinal: EmailLinkOrdinalSchema.parse("0000"),
+			outcome: {
+				status: "crawled",
+				title: "T",
+				excerpt: "E",
+				siteName: "S",
+				imageUrl: undefined,
+				resolvedUrl: undefined,
+			},
+		});
+
+		const found = await store.getLink({
+			userId: owner,
+			receivedAtMessageId: RAM,
+			ordinal: EmailLinkOrdinalSchema.parse("0000"),
+		});
+		assert(found);
+		expect(found.status).toBe("crawled");
+		expect(found.skipReason).toBeUndefined();
 	});
 
 	it("stamps a failed outcome and clears any preview fields", async () => {
 		const store = initInMemoryInboxEmailLink();
-		await store.putLink(makeLink({ status: "crawled", title: "stale" }));
+		await store.putLink(
+			makeLink({ status: "crawled", title: "stale", resolvedUrl: "https://destination.test/stale" }),
+		);
 
 		await store.setLinkOutcome({
 			userId: owner,
@@ -133,6 +167,7 @@ describe("initInMemoryInboxEmailLink", () => {
 		expect(found.status).toBe("failed");
 		expect(found.failureReason).toBe("crawl-failed");
 		expect(found.title).toBeUndefined();
+		expect(found.resolvedUrl).toBeUndefined();
 	});
 
 	describe("deleteLinksByEmail", () => {

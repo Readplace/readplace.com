@@ -8,7 +8,7 @@ import type { CrawlFetch } from "./crawl-fetch";
 import { extractThumbnailCandidates, initFetchThumbnailImage } from "./extract-thumbnail";
 import { headerOrUndefined } from "./header-utils";
 import { initLogFetchFailure } from "./log-fetch-failure";
-import { classifyMediaType } from "./media-type";
+import { classifyMediaType, type SupportedMediaType } from "./media-type";
 import { parseImageFromBuffer } from "./parse-image";
 import { parsePlainTextFromBuffer } from "./parse-plain-text";
 import { MAX_PDF_BYTES } from "./pdf-page-limits";
@@ -27,6 +27,8 @@ import type { SiteCrawlOutcome, SiteRules } from "@packages/site-rules";
  * 240 s timeout (30 + 180 = 210 s worst case).
  */
 const DEFAULT_FETCH_TIMEOUTS = { headersMs: 30000, bodyMs: 180000 } as const;
+
+const MAX_SITE_RULE_REDIRECTS = 3;
 
 type FetchTimeouts = { headersMs: number; bodyMs: number };
 
@@ -225,7 +227,6 @@ export async function parseHtmlFromBuffer(input: {
 		lastModified: headerOrUndefined(response.headers, "last-modified"),
 		bodyHash,
 	};
-	if (response.url) result.finalUrl = response.url;
 	if (thumbnailUrl) result.thumbnailUrl = thumbnailUrl;
 	if (thumbnailImage) result.thumbnailImage = thumbnailImage;
 	return result;
@@ -283,7 +284,8 @@ export async function parsePdfFromBuffer(input: {
  * supported media types) maps it to a `SupportedMediaType`, and the exhaustive
  * switch below dispatches to a parser:
  *
- *   - X/Twitter URLs bypass the article fetch entirely (oembed has the text).
+ *   - X/Twitter URLs bypass the article fetch entirely (oembed has the text);
+ *     an apple.news URL restarts the crawl at the story URL its shell opens.
  *   - HTML → `parseHtmlFromBuffer`.
  *   - PDF (content-type or magic-byte sniff) → `parsePdfFromBuffer`, but only
  *     when an `extractPdf` was supplied. Lambdas that defer PDF extraction
@@ -311,47 +313,65 @@ export function initCrawlArticle(deps: {
 	const fetchTimeouts = deps.fetchTimeouts ?? DEFAULT_FETCH_TIMEOUTS;
 	const conditionalGet = initConditionalGet({ crawlFetch, logError, logInfo, fetchTimeouts });
 	return async (params) => {
-		let hostname: string;
-		try {
-			hostname = new URL(params.url).hostname;
-		} catch {
-			logError(`[CrawlArticle] Invalid URL ${params.url}`);
-			return { status: "failed" };
-		}
-		/* Site-specific crawl override: the first matching site whose `onCrawl`
-		 * returns content (e.g. X/Twitter oembed) or fails closed wins; `skip`
-		 * falls through to the normal fetch cascade below. */
-		for (const site of siteRules) {
-			let claimed: boolean;
-			try {
-				claimed = site.matches({ url: params.url, hostname });
-			} catch (error) {
+		let currentUrl = params.url;
+		for (let siteRedirects = 0; ; siteRedirects++) {
+			if (siteRedirects > MAX_SITE_RULE_REDIRECTS) {
 				logError(
-					`[CrawlArticle] Site matches threw for ${params.url}`,
-					error instanceof Error ? error : undefined,
-				);
-				continue;
-			}
-			if (!claimed) continue;
-			let outcome: SiteCrawlOutcome;
-			try {
-				outcome = await site.onCrawl({ url: params.url });
-			} catch (error) {
-				logError(
-					`[CrawlArticle] Site onCrawl threw for ${params.url}`,
-					error instanceof Error ? error : undefined,
+					`[CrawlArticle] Too many site-rule redirects (>${MAX_SITE_RULE_REDIRECTS}) for ${params.url}`,
 				);
 				return { status: "failed" };
 			}
-			if (outcome.kind === "skip") continue;
-			if (outcome.kind === "failed") return { status: "failed" };
-			return {
-				status: "fetched",
-				html: outcome.html,
-				bodyHash: createHash("sha256").update(outcome.html).digest("hex"),
-			};
+			let hostname: string;
+			try {
+				hostname = new URL(currentUrl).hostname;
+			} catch {
+				logError(`[CrawlArticle] Invalid URL ${currentUrl}`);
+				return { status: "failed" };
+			}
+			/* Site-specific crawl override: the first matching site whose `onCrawl`
+			 * returns content (e.g. X/Twitter oembed), redirects the crawl (e.g. the
+			 * apple.news shell), or fails closed wins; `skip` falls through to the
+			 * normal fetch cascade below. */
+			let siteRedirect: string | undefined;
+			for (const site of siteRules) {
+				let claimed: boolean;
+				try {
+					claimed = site.matches({ url: currentUrl, hostname });
+				} catch (error) {
+					logError(
+						`[CrawlArticle] Site matches threw for ${currentUrl}`,
+						error instanceof Error ? error : undefined,
+					);
+					continue;
+				}
+				if (!claimed) continue;
+				let outcome: SiteCrawlOutcome;
+				try {
+					outcome = await site.onCrawl({ url: currentUrl });
+				} catch (error) {
+					logError(
+						`[CrawlArticle] Site onCrawl threw for ${currentUrl}`,
+						error instanceof Error ? error : undefined,
+					);
+					return { status: "failed" };
+				}
+				if (outcome.kind === "skip") continue;
+				if (outcome.kind === "failed") return { status: "failed" };
+				if (outcome.kind === "redirect") {
+					siteRedirect = outcome.url;
+					break;
+				}
+				return {
+					status: "fetched",
+					html: outcome.html,
+					bodyHash: createHash("sha256").update(outcome.html).digest("hex"),
+				};
+			}
+			if (siteRedirect === undefined) break;
+			currentUrl = siteRedirect;
 		}
-		const fetched = await conditionalGet(params);
+		const fetched = await conditionalGet({ ...params, url: currentUrl });
+		/* c8 ignore next -- V8 block-coverage phantom: the early-return continuation directly after the site-rule redirect loop gets a spurious zero-count sub-range even though the ok and non-ok statuses both have tests; restructuring only relocates it. See bcoe/c8#319 and https://v8.dev/blog/javascript-code-coverage */
 		if (fetched.status !== "ok") return fetched;
 		const { response, buffer } = fetched;
 		/* Pre-parse byte gate: many origins ignore conditional headers and
@@ -367,47 +387,90 @@ export function initCrawlArticle(deps: {
 		const contentType = response.headers.get("content-type") ?? "";
 		const mediaType = classifyMediaType({ contentType, buffer });
 		if (mediaType === undefined) {
-			logError(`[CrawlArticle] Unsupported content-type "${contentType}" for ${params.url}`);
+			logError(`[CrawlArticle] Unsupported content-type "${contentType}" for ${currentUrl}`);
 			return { status: "unsupported", reason: `unsupported content type: ${contentType}` };
 		}
-		switch (mediaType) {
-			case "html":
-				return parseHtmlFromBuffer({
-					buffer,
-					bodyHash,
-					response,
-					url: params.url,
-					fetchThumbnail: params.fetchThumbnail,
-					crawlFetch,
-					logError,
-					logInfo,
-				});
-			case "pdf":
-				if (!extractPdf) {
-					logInfo(`[CrawlArticle] PDF deferred to comprehensive crawl (no extractPdf in this runtime) for ${params.url}`);
-					return { status: "unsupported", reason: `unsupported content type: ${contentType}` };
-				}
-				return parsePdfFromBuffer({
-					buffer,
-					bodyHash,
-					response,
-					url: params.url,
-					maxPdfBytes: MAX_PDF_BYTES.bytes,
-					extractPdf,
-					onProgress: params.onProgress,
-					logError,
-				});
-			case "plain-text":
-				return parsePlainTextFromBuffer({ buffer, bodyHash, response, url: params.url });
-			case "image":
-				return parseImageFromBuffer({
-					buffer,
-					bodyHash,
-					response,
-					url: params.url,
-					contentType,
-					logError,
-				});
-		}
+		const result = await dispatchSupportedMedia({
+			mediaType,
+			buffer,
+			bodyHash,
+			response,
+			contentType,
+			url: currentUrl,
+			fetchThumbnail: params.fetchThumbnail,
+			onProgress: params.onProgress,
+			extractPdf,
+			crawlFetch,
+			logError,
+			logInfo,
+		});
+		/* Stamp the post-redirect terminal URL onto every fetched result at the one
+		 * dispatch point, so a 3xx resolves the article's identity uniformly across
+		 * HTML/PDF/text/image. `response.url` is the real terminal on every
+		 * transport — undici populates it on the primary path, and `redirectable`
+		 * stamps it on the h2/curl/aia fallbacks (see follow-redirects.ts). */
+		if (result.status === "fetched" && response.url) result.finalUrl = response.url;
+		return result;
 	};
+}
+
+/**
+ * Content-type dispatch for a successfully fetched body. Kept as one exhaustive
+ * switch so adding a `MEDIA_TYPE_MATCHERS` member fails to compile until handled
+ * here; the caller stamps `finalUrl` onto the returned `fetched` result.
+ */
+async function dispatchSupportedMedia(input: {
+	mediaType: SupportedMediaType;
+	buffer: Buffer;
+	bodyHash: string;
+	response: Response;
+	contentType: string;
+	url: string;
+	fetchThumbnail?: boolean;
+	onProgress?: ComprehensiveCrawlProgress;
+	extractPdf?: ExtractPdf;
+	crawlFetch: CrawlFetch;
+	logError: (message: string, error?: Error) => void;
+	logInfo: (message: string) => void;
+}): Promise<CrawlArticleResult> {
+	const { mediaType, buffer, bodyHash, response, contentType, url, crawlFetch, logError, logInfo } = input;
+	switch (mediaType) {
+		case "html":
+			return parseHtmlFromBuffer({
+				buffer,
+				bodyHash,
+				response,
+				url,
+				fetchThumbnail: input.fetchThumbnail,
+				crawlFetch,
+				logError,
+				logInfo,
+			});
+		case "pdf":
+			if (!input.extractPdf) {
+				logInfo(`[CrawlArticle] PDF deferred to comprehensive crawl (no extractPdf in this runtime) for ${url}`);
+				return { status: "unsupported", reason: `unsupported content type: ${contentType}` };
+			}
+			return parsePdfFromBuffer({
+				buffer,
+				bodyHash,
+				response,
+				url,
+				maxPdfBytes: MAX_PDF_BYTES.bytes,
+				extractPdf: input.extractPdf,
+				onProgress: input.onProgress,
+				logError,
+			});
+		case "plain-text":
+			return parsePlainTextFromBuffer({ buffer, bodyHash, response, url });
+		case "image":
+			return parseImageFromBuffer({
+				buffer,
+				bodyHash,
+				response,
+				url,
+				contentType,
+				logError,
+			});
+	}
 }

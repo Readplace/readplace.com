@@ -1,4 +1,9 @@
-import { originalUrlFromViewPath, parseViewPath, viewPathFor } from "./view-path";
+import {
+	canonicalizeViewLandingPath,
+	originalUrlFromViewPath,
+	parseViewPath,
+	viewPathFor,
+} from "./view-path";
 
 function parse(decodedAndEncoded: string): ReturnType<typeof parseViewPath>;
 function parse(args: { rawPath: string; encodedPath: string }): ReturnType<typeof parseViewPath>;
@@ -63,6 +68,94 @@ describe("viewPathFor", () => {
 	it("leaves regular percent-encoded bytes untouched (only %25 is double-encoded)", () => {
 		expect(viewPathFor("https://example.com/path%C3%A9")).toBe(
 			"/view/example.com/path%C3%A9",
+		);
+	});
+});
+
+describe("canonicalizeViewLandingPath", () => {
+	it("collapses a /view/https:/ landing path to the scheme-less canonical", () => {
+		expect(canonicalizeViewLandingPath("/view/https:/fagnerbrack.com/learn-sql")).toBe(
+			"/view/fagnerbrack.com/learn-sql",
+		);
+	});
+
+	it("collapses a /view/https:// landing path to the scheme-less canonical", () => {
+		expect(canonicalizeViewLandingPath("/view/https://fagnerbrack.com/learn-sql")).toBe(
+			"/view/fagnerbrack.com/learn-sql",
+		);
+	});
+
+	it("keeps the explicit http:// scheme for a /view/http:/ landing path", () => {
+		expect(canonicalizeViewLandingPath("/view/http:/example.com/post")).toBe(
+			"/view/http://example.com/post",
+		);
+	});
+
+	it("leaves an already-canonical /view path unchanged", () => {
+		expect(canonicalizeViewLandingPath("/view/fagnerbrack.com/learn-sql")).toBe(
+			"/view/fagnerbrack.com/learn-sql",
+		);
+	});
+
+	it("leaves a non-/view path unchanged", () => {
+		expect(canonicalizeViewLandingPath("/queue")).toBe("/queue");
+	});
+
+	it("leaves the root path unchanged", () => {
+		expect(canonicalizeViewLandingPath("/")).toBe("/");
+	});
+
+	it("re-encodes a literal %25 to %2525 so the landing path is byte-identical to the 301 target", () => {
+		const landing = canonicalizeViewLandingPath("/view/https://example.com/path%25foo");
+		expect(landing).toBe("/view/example.com/path%2525foo");
+		expect(landing).toBe(viewPathFor("https://example.com/path%25foo"));
+	});
+
+	it("re-encodes the article URL's ? separator into the path, matching the 301 target", () => {
+		const landing = canonicalizeViewLandingPath("/view/https://example.com/post%3Ffoo=bar");
+		expect(landing).toBe("/view/example.com/post%3Ffoo=bar");
+		expect(landing).toBe(viewPathFor("https://example.com/post?foo=bar"));
+	});
+
+	it("preserves already percent-encoded UTF-8 bytes so non-ASCII article paths are not corrupted", () => {
+		const landing = canonicalizeViewLandingPath("/view/https://example.com/path%C3%A9");
+		expect(landing).toBe("/view/example.com/path%C3%A9");
+		expect(landing).toBe(viewPathFor("https://example.com/path%C3%A9"));
+	});
+
+	it("re-encodes an unsafe byte (space) the way the browser's post-301 request encodes it", () => {
+		const landing = canonicalizeViewLandingPath("/view/https://example.com/a%20b");
+		expect(landing).toBe("/view/example.com/a%20b");
+		expect(landing).toBe(viewPathFor("https://example.com/a b"));
+	});
+
+	it("keeps [ ] literal but percent-encodes | the way the browser's post-301 request does", () => {
+		const landing = canonicalizeViewLandingPath("/view/https://example.com/a[b]|c");
+		expect(landing).toBe("/view/example.com/a[b]%7Cc");
+		expect(landing).toBe(viewPathFor("https://example.com/a[b]|c"));
+	});
+
+	it("re-encodes ^ the way the browser re-parses the 301 Location, even though the Location header itself carries it literally", () => {
+		const landing = canonicalizeViewLandingPath("/view/https://example.com/a^b");
+		expect(landing).toBe("/view/example.com/a%5Eb");
+		expect(landing).toBe(viewPathFor("https://example.com/a^b"));
+	});
+
+	it("folds a backslash to / the way the browser re-parses the 301 Location", () => {
+		const landing = canonicalizeViewLandingPath("/view/https://example.com/a\\b");
+		expect(landing).toBe("/view/example.com/a/b");
+		expect(landing).toBe(viewPathFor("https://example.com/a\\b"));
+	});
+
+	it("leaves a literal http:// landing path unchanged — the router renders it, so it equals its own no-redirect pageview", () => {
+		expect(canonicalizeViewLandingPath("/view/http://example.com/post")).toBe(
+			"/view/http://example.com/post",
+		);
+	});
+
+	it("leaves a landing path with an undecodable percent sequence unchanged", () => {
+		expect(canonicalizeViewLandingPath("/view/https://example.com/%zz")).toBe(
+			"/view/https://example.com/%zz",
 		);
 	});
 });

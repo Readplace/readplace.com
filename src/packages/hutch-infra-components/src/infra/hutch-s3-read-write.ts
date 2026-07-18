@@ -16,12 +16,14 @@ export class HutchS3ReadWrite extends pulumi.ComponentResource {
 
 	private readonly readPolicyDocument: pulumi.Output<string>;
 	private readonly writePolicyDocument: pulumi.Output<string>;
+	private readonly deletePolicyDocument: pulumi.Output<string>;
 
 	constructor(
 		name: string,
 		args: {
 			bucketName: pulumi.Input<string>;
 			expirationRules?: BucketExpirationRule[];
+			corsRules?: aws.types.input.s3.BucketCorsConfigurationV2CorsRule[];
 		},
 		opts?: pulumi.ComponentResourceOptions,
 	) {
@@ -39,6 +41,13 @@ export class HutchS3ReadWrite extends pulumi.ComponentResource {
 			ignorePublicAcls: true,
 			restrictPublicBuckets: true,
 		}, { parent: this, aliases: [{ parent: pulumi.rootStackResource }] });
+
+		if (args.corsRules && args.corsRules.length > 0) {
+			new aws.s3.BucketCorsConfigurationV2(`${name}-cors`, {
+				bucket: bucket.id,
+				corsRules: args.corsRules,
+			}, { parent: this });
+		}
 
 		if (args.expirationRules && args.expirationRules.length > 0) {
 			new aws.s3.BucketLifecycleConfigurationV2(`${name}-lifecycle`, {
@@ -79,6 +88,16 @@ export class HutchS3ReadWrite extends pulumi.ComponentResource {
 			}),
 		);
 
+		// Distinct from writePolicies so the delete grant lands only on the Lambdas
+		// that erase content (removal / account deletion), never widening every
+		// writer's blast radius to include object deletion.
+		this.deletePolicyDocument = bucket.arn.apply((arn) =>
+			JSON.stringify({
+				Version: "2012-10-17",
+				Statement: [{ Effect: "Allow", Action: ["s3:DeleteObject"], Resource: `${arn}/*` }],
+			}),
+		);
+
 		this.registerOutputs();
 	}
 
@@ -88,6 +107,10 @@ export class HutchS3ReadWrite extends pulumi.ComponentResource {
 
 	writePolicies(name: string): LambdaPolicy[] {
 		return [{ name: `${name}-write-pol`, policy: this.writePolicyDocument }];
+	}
+
+	deletePolicies(name: string): LambdaPolicy[] {
+		return [{ name: `${name}-delete-pol`, policy: this.deletePolicyDocument }];
 	}
 
 	static readPoliciesForBucket(name: string, bucketName: string): LambdaPolicy[] {

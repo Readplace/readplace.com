@@ -14,7 +14,15 @@ import type {
 	FindEmailByUserId,
 } from "@packages/provider-contracts/auth";
 import type { RevokeAllUserOAuthTokens } from "@packages/provider-contracts/oauth";
-import type { DeleteAllUserArticles } from "@packages/provider-contracts/article-store";
+import type {
+	DeleteAllUserArticles,
+	ListUserArticleUrls,
+} from "@packages/provider-contracts/article-store";
+import type {
+	CountOtherSaversByUrl,
+	PurgeArticleContent,
+	TombstoneArticle,
+} from "@packages/article-store";
 import type { DeleteDigestByUser } from "@packages/provider-contracts/digest-queue";
 import type { DeleteReaderReadyState } from "@packages/provider-contracts/reader-ready-state";
 import type { DeleteOnboarding } from "@packages/provider-contracts/ios-onboarding-signal";
@@ -57,7 +65,13 @@ export interface DeleteAccountHandlerDependencies {
 	tombstoneInboxAddresses: InboxAddressStore["tombstoneUserAddresses"];
 	deleteRawEmailObjects: (keys: string[]) => Promise<void>;
 	deleteEmailContentObjects: (keys: string[]) => Promise<void>;
+	deleteEmailImageObjects: (prefixes: string[]) => Promise<void>;
 	deleteAllUserArticles: DeleteAllUserArticles;
+	listUserArticleUrls: ListUserArticleUrls;
+	countOtherSaversByUrl: CountOtherSaversByUrl;
+	purgeArticleContent: PurgeArticleContent;
+	tombstoneArticle: TombstoneArticle;
+	now: () => Date;
 	deleteDigestByUser: DeleteDigestByUser;
 	deleteReaderReadyState: DeleteReaderReadyState;
 	deleteOnboarding: DeleteOnboarding;
@@ -120,15 +134,29 @@ async function processCommand(
 	// in S3. Finally tombstone the forwarding addresses (kept reserved, PII
 	// stripped, so a freed hash can never be re-minted to leak another user's
 	// mail).
-	const { receivedAtMessageIds, rawEmailS3Keys, bodyS3Keys } =
+	const { receivedAtMessageIds, rawEmailS3Keys, bodyS3Keys, emailImageS3KeyPrefixes } =
 		await deps.listInboxDeletionReferences(userId);
 	await deps.deleteRawEmailObjects(rawEmailS3Keys);
 	await deps.deleteEmailContentObjects(bodyS3Keys);
+	await deps.deleteEmailImageObjects(emailImageS3KeyPrefixes);
 	await deps.deleteAllInboxLinks(userId, receivedAtMessageIds);
 	await deps.deleteAllInboxEmails(userId);
 	await deps.tombstoneInboxAddresses(userId);
 
-	// Saved articles and the remaining per-user stores.
+	// Saved articles: purge every URL the user was the last saver of BEFORE
+	// dropping the per-user rows, so a crash mid-purge re-lists the same URLs on
+	// redrive and converges instead of stranding un-purged single-saver content
+	// (the rows are the sole index those URLs are re-derived from). countOther-
+	// SaversByUrl already excludes this user, so the still-present own rows don't
+	// inflate the count. Content another user still saves is left untouched.
+	const savedUrls = await deps.listUserArticleUrls(userId);
+	for (const url of savedUrls) {
+		const otherSavers = await deps.countOtherSaversByUrl({ url, excludeUserId: userId });
+		if (otherSavers === 0) {
+			await deps.purgeArticleContent(url);
+			await deps.tombstoneArticle({ url, at: deps.now() });
+		}
+	}
 	await deps.deleteAllUserArticles(userId);
 	await deps.deleteDigestByUser(userId);
 	await deps.deleteReaderReadyState(userId);

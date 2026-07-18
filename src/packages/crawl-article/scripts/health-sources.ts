@@ -17,7 +17,10 @@
 export interface HealthSource {
 	label: string;
 	url: string;
-	expectedContent: string;
+	/** Substrings that must ALL appear in the parsed HTML. A single string is
+	 * shorthand for one required substring; an array asserts each independently
+	 * (e.g. a body sentence AND a section heading). */
+	expectedContent: string | readonly string[];
 	/** Substrings that MUST NOT appear in the parsed HTML — surfaces parser regressions where site chrome leaks into the article body (e.g. Medium byline, read-time, publish-date, "Press enter…" tooltip). */
 	forbiddenContent?: readonly string[];
 	expectsThumbnail: boolean;
@@ -30,14 +33,27 @@ export const HEALTH_SOURCES: readonly HealthSource[] = [
 		// UNABLE_TO_VERIFY_LEAF_SIGNATURE. AIA chasing recovers
 		// by fetching the intermediate from the leaf cert's AIA URL.
 		label: "Medium (itnext publication)",
-		url: "https://fagnerbrack.com/youre-not-praised-for-the-bugs-you-didn-t-create-ef3df6894d5c",
+		url: "https://itnext.io/youre-not-praised-for-the-bugs-you-didn-t-create-ef3df6894d5c",
 		expectedContent: "developers were creating more and more bugs, only to fix them and get the prize",
 		expectsThumbnail: true,
 	},
 	{
-		label: "Wikipedia (baseline)",
-		url: "https://en.wikipedia.org/wiki/Reading",
-		expectedContent: "children and adults read because it is enjoyable",
+		// Guards the MediaWiki heading defect: each section heading ships with an
+		// "[edit]" link (.mw-editsection) whose link density makes Readability drop
+		// the whole heading wrapper unless `mediaWikiSiteRules` strips it first, so
+		// the reader loses every section heading. "Chemical mechanism" is a heading
+		// that vanishes when the rule regresses and returns when it holds — a
+		// positive signal (the reader view escapes tag characters, so the leaked
+		// edit markup never appears literally to assert against). Bioluminescence,
+		// not e.g. the Reading article: Reading's canonical is a pre-fix tier-0
+		// upload that /admin/recrawl never re-parses, so the fix isn't observable
+		// there; this URL's canonical is the tier-1 crawl the recrawl refreshes.
+		label: "Wikipedia (section headings)",
+		url: "https://en.wikipedia.org/wiki/Bioluminescence",
+		expectedContent: [
+			"It occurs in a wide variety of organisms",
+			"Chemical mechanism",
+		],
 		expectsThumbnail: true,
 	},
 	{
@@ -124,6 +140,22 @@ export const HEALTH_SOURCES: readonly HealthSource[] = [
 		url: "https://hex.ooo/library/last_question.html",
 		expectedContent: "he had had to carry the ice and glassware",
 		expectsThumbnail: false,
+	},
+	{
+		// apple.news answers 200 with a static shell that client-side-redirects
+		// to the publisher (here: a 2024 Guardian article), so this entry guards
+		// the shell-extraction fingerprint (the `redirectToUrl*("…")` script
+		// literal) end-to-end. The row was seeded un-adopted and recrawls never
+		// adopt, so every run re-fetches apple.news and re-exercises the
+		// extraction instead of a pinned publisher terminal.
+		// expectedContent avoids passages containing the Guardian's auto-linked
+		// tags ("South Carolina", "Republicans"): an inline <a> splits the text,
+		// so a substring crossing it never matches the reader output.
+		label: "Apple News (client-side redirect shell)",
+		url: "https://apple.news/A-KY3k0aRSK27SNKVtrWiDg",
+		expectedContent:
+			"Without an alternative map, it is difficult for plaintiffs to defeat our starting presumption that the legislature acted in good faith",
+		expectsThumbnail: true,
 	},
 	// PDF sources run last and are ordered cheapest-first: each one fans out
 	// per-page OCR (rasterisation + DeepInfra vision) and burns real tokens, so

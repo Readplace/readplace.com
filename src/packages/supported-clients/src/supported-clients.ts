@@ -1,5 +1,33 @@
 export type ClientGroup = "browserExtension" | "nativeApp" | "aiAssistant";
 
+/**
+ * How a saved link reaches Readplace, and the axis every client-listing surface
+ * splits on. A **content-capture** client (browser extension, iPhone app) sends
+ * the page's rendered content, so it saves the full article even when a bare-URL
+ * fetch is blocked or paywalled; a **url-only** client (an AI assistant over MCP)
+ * sends just the URL for the server to crawl.
+ *
+ * Every surface that lists clients does so BY CATEGORY, keying its per-category
+ * copy off `satisfies Record<ClientCategory, …>`. A new category is therefore a
+ * compile error at each of those surfaces until its copy is written — the /install
+ * tabs, the homepage feature cards, and so on. The one deliberate exception is
+ * blog posts: they are point-in-time snapshots, so a new client or category earns
+ * its own new post rather than an edit to an old one.
+ */
+export type ClientCategory = "contentCapture" | "urlOnly";
+
+/** The category each group belongs to — the single mapping the category helpers
+ * and type-level projections below are derived from. */
+const GROUP_CATEGORY = {
+	browserExtension: "contentCapture",
+	nativeApp: "contentCapture",
+	aiAssistant: "urlOnly",
+} as const satisfies Record<ClientGroup, ClientCategory>;
+
+/** Every category in display order (content-capture before url-only). Surfaces
+ * that render one block per category iterate this; pinned by a test. */
+export const CLIENT_CATEGORIES = ["contentCapture", "urlOnly"] as const satisfies readonly ClientCategory[];
+
 export type InstallSource =
 	| { readonly kind: "store"; readonly url: string }
 	| { readonly kind: "selfHostedPointer" }
@@ -89,6 +117,46 @@ export type ClientName = SupportedClient["name"];
 export type ClientInGroup<G extends ClientGroup> = Extract<SupportedClient, { group: G }>;
 export type ClientNameInGroup<G extends ClientGroup> = ClientInGroup<G>["name"];
 export type BuiltInOAuthClientId = Extract<SupportedClient["auth"], { kind: "builtIn" }>["oauthClientId"];
+
+/** The groups that belong to category `C`, projected from `GROUP_CATEGORY` — e.g.
+ * `ClientGroupInCategory<"contentCapture">` is `"browserExtension" | "nativeApp"`.
+ * A surface that names each group in a category keys its copy off this, so a group
+ * moving between categories is a compile error there. */
+export type ClientGroupInCategory<C extends ClientCategory> = {
+	[G in ClientGroup]: (typeof GROUP_CATEGORY)[G] extends C ? G : never;
+}[ClientGroup];
+/** The client names in category `C` (e.g. the content-capture platforms a device
+ * can install), for consumers that constrain a value to one category's clients. */
+export type ClientNameInCategory<C extends ClientCategory> = ClientInGroup<ClientGroupInCategory<C>>["name"];
+
+export function clientCategoryOfGroup(group: ClientGroup): ClientCategory {
+	return GROUP_CATEGORY[group];
+}
+
+/** Narrows a group to a category's groups so callers can index a
+ * `Record<ClientGroupInCategory<C>, …>` without a cast. */
+function isGroupInCategory<C extends ClientCategory>(
+	group: ClientGroup,
+	category: C,
+): group is ClientGroupInCategory<C> {
+	return GROUP_CATEGORY[group] === category;
+}
+
+/** The groups in category `C`, each once, in registry order — the basis for a
+ * phrase that names every content-capture (or url-only) surface exactly once.
+ * Derived from the roster so a new group can't drift out of sync with a parallel
+ * list. */
+export function clientGroupsInCategory<C extends ClientCategory>(
+	category: C,
+): readonly ClientGroupInCategory<C>[] {
+	const groups: ClientGroupInCategory<C>[] = [];
+	for (const client of SUPPORTED_CLIENTS) {
+		if (isGroupInCategory(client.group, category) && !groups.includes(client.group)) {
+			groups.push(client.group);
+		}
+	}
+	return groups;
+}
 
 const CLIENT_NAMES: ReadonlySet<string> = new Set(SUPPORTED_CLIENTS.map((client) => client.name));
 

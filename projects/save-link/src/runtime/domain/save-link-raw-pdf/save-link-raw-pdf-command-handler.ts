@@ -155,6 +155,7 @@ export function initSaveLinkRawPdfCommandHandler(deps: {
 						wordCount: parseResult.article.wordCount,
 						estimatedReadTime: estimatedReadTimeFromWordCount(parseResult.article.wordCount),
 						imageUrl: parseResult.article.imageUrl,
+						authorUserId: detail.userId,
 					},
 				});
 
@@ -174,7 +175,10 @@ export function initSaveLinkRawPdfCommandHandler(deps: {
 					extractedAt: now().toISOString(),
 				});
 
-				logger.info(`${logPrefix} tier-0 source written`, { url: detail.url });
+				logger.info(`${logPrefix} tier-0 source written`, {
+					url: detail.url,
+					capturedTitle: detail.title,
+				});
 			} catch (error) {
 				logger.error(`${logPrefix} record failed`, {
 					messageId: record.messageId,

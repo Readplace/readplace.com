@@ -15,6 +15,7 @@ import type {
 	SummaryState,
 } from "@packages/domain/article-aggregate";
 import {
+	ConditionalCheckFailedException,
 	type DynamoDBDocumentClient,
 	defineDynamoTable,
 	dynamoField,
@@ -406,11 +407,21 @@ export function initDynamoDbArticleStore(deps: {
 				transitionName,
 				writes,
 			});
-			await table.update({
-				Key: { url: articleResourceUniqueId.value },
-				UpdateExpression,
-				ExpressionAttributeValues,
-			});
+			/* A purged (tombstoned) row must never be resurrected by an in-flight or
+			 * DLQ-redriven transition. The condition makes such a save a swallowed
+			 * no-op instead of a retry loop; a fresh save clears purgedAt first, so
+			 * post-revival transitions pass again. */
+			try {
+				await table.update({
+					Key: { url: articleResourceUniqueId.value },
+					UpdateExpression,
+					ConditionExpression: "attribute_not_exists(purgedAt)",
+					ExpressionAttributeValues,
+				});
+			} catch (error) {
+				if (error instanceof ConditionalCheckFailedException) return;
+				throw error;
+			}
 		},
 	};
 

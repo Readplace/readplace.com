@@ -23,6 +23,29 @@ describe("initSelectMostCompleteContent (variadic)", () => {
 		expect(result).toEqual({ winner: "tier-0", reason: "tier-0 is more complete" });
 	});
 
+	it("calls deepseek-v4-flash in non-thinking JSON mode", async () => {
+		let captured: Parameters<CreateSelectorChatCompletion>[0] | undefined;
+		const { selectMostCompleteContent } = initSelectMostCompleteContent({
+			createChatCompletion: async (params) => {
+				captured = params;
+				return { choices: [{ message: { content: JSON.stringify({ winner: "tie", reason: "r" }) } }] };
+			},
+			logger: noopLogger,
+		});
+
+		await selectMostCompleteContent({
+			url: "https://example.com/a",
+			candidates: [
+				{ tier: "tier-0", title: "T", wordCount: 1, html: "" },
+				{ tier: "tier-1", title: "T", wordCount: 1, html: "" },
+			],
+		});
+
+		expect(captured?.model).toBe("deepseek-v4-flash");
+		expect(captured?.thinking).toEqual({ type: "disabled" });
+		expect(captured?.response_format).toEqual({ type: "json_object" });
+	});
+
 	it("returns 'tie' when the model says 'tie'", async () => {
 		const { selectMostCompleteContent } = initSelectMostCompleteContent({
 			createChatCompletion: fakeChat(JSON.stringify({ winner: "tie", reason: "equally good" })),

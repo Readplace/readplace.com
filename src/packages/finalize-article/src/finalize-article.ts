@@ -11,7 +11,6 @@ import type { DownloadMedia, DownloadedMedia } from "./download-media.types";
 import type { PutImageObject } from "./put-image-object.types";
 import { estimatedReadTimeFromWordCount } from "./estimated-read-time";
 import { isBareImageCapture } from "./is-bare-image-capture";
-import { resolveCanonicalUrl } from "./resolve-canonical-url";
 import { stripOversizedInlineImages } from "./strip-inline-image-data";
 
 export type ProcessContent = (params: { html: string; media: DownloadedMedia[] }) => Promise<string>;
@@ -30,15 +29,12 @@ export type FinalizedArticle = {
 };
 
 export type FinalizeArticleResult =
-	| { ok: true; article: FinalizedArticle; canonicalUrl?: string }
+	| { ok: true; article: FinalizedArticle }
 	| { ok: false; reason: string };
 
 export type FinalizeArticle = (input: {
 	url: string;
 	html: string;
-	/** The origin's post-redirect URL, threaded from the crawler so a 3xx
-	 * redirect resolves the article's canonical identity. */
-	finalUrl?: string;
 	/** Image bytes that the crawler already fetched inline (SimpleCrawl with
 	 * `fetchThumbnail: true`). When present, skip the re-fetch and just upload.
 	 * When absent (raw-HTML save, comprehensive crawl), the finalizer fetches
@@ -91,10 +87,9 @@ export function initFinalizeArticle(deps: {
 		 * Readability for content extraction — different libraries, different
 		 * concerns, negligible overhead on article-sized documents. */
 		const candidates = extractThumbnailCandidates({ html: input.html, baseUrl: input.url });
-		const canonicalUrl = resolveCanonicalUrl({ html: input.html, requestedUrl: input.url, finalUrl: input.finalUrl });
 
 		if (input.mediaType === "image" || isBareImageCapture({ html: input.html, candidates, url: input.url })) {
-			const imageResult = await finalizeImageArticle({
+			return finalizeImageArticle({
 				url: input.url,
 				candidates,
 				preFetchedThumbnail: input.preFetchedThumbnail,
@@ -102,7 +97,6 @@ export function initFinalizeArticle(deps: {
 				putImageObject,
 				imagesCdnBaseUrl,
 			});
-			return { ...imageResult, canonicalUrl };
 		}
 
 		const thumbnailUrl = candidates[0] ?? null;
@@ -145,7 +139,6 @@ export function initFinalizeArticle(deps: {
 
 		return {
 			ok: true,
-			canonicalUrl,
 			article: {
 				html,
 				metadata: {

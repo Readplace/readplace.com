@@ -6,7 +6,7 @@ import type { GeneratedSummary } from "@packages/provider-contracts/article-summ
 import { requireEnv } from "@packages/require-env";
 import { render } from "@packages/web-shell";
 import { renderArticleHeader } from "./article-header/article-header.component";
-import { renderCrawlBookmark } from "./crawl-bookmark/crawl-bookmark.component";
+import { renderCrawlBookmark, type CrawlBookmarkRemoval } from "./crawl-bookmark/crawl-bookmark.component";
 import { renderProgressBar } from "./progress-bar.component";
 import type { ProgressTick } from "@packages/domain/article";
 import type { LocalTime } from "@packages/web-shell/local-time.format";
@@ -47,6 +47,9 @@ export interface ArticleBodyInput {
 	progress?: ProgressTick;
 	appOrigin: string;
 	crawlVersions?: LocalTime[];
+	/** Owner-only removal controls for the crawl bookmark. Present only on the
+	 * authenticated owner reader; omitted on the public `/view` and iOS renders. */
+	crawlBookmarkRemoval?: CrawlBookmarkRemoval;
 }
 
 export function renderArticleBody(input: ArticleBodyInput): string {
@@ -70,7 +73,10 @@ export function renderArticleBody(input: ArticleBodyInput): string {
 
 	const progressBarHtml = renderProgressBar({ progress: input.progress });
 
-	const crawlBookmarkHtml = renderCrawlBookmark({ versions: input.crawlVersions ?? [] });
+	const crawlBookmarkHtml = renderCrawlBookmark({
+		versions: input.crawlVersions ?? [],
+		removal: input.crawlBookmarkRemoval,
+	});
 
 	const headerHtml = renderArticleHeader({
 		title: input.title,

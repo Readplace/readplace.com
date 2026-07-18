@@ -19,7 +19,7 @@ export function initReadPendingPdf(deps: {
 		);
 		assert(result.Body, "S3 GetObject response must have a Body");
 		const bytes = await result.Body.transformToByteArray();
-		return Buffer.from(bytes);
+		return Buffer.from(bytes.buffer, bytes.byteOffset, bytes.byteLength);
 	};
 
 	return { readPendingPdf };

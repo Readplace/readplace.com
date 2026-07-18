@@ -1,5 +1,8 @@
 import type { AggregateField, Article } from "@packages/domain/article-aggregate";
-import type { DynamoDBDocumentClient } from "@packages/hutch-storage-client";
+import {
+	ConditionalCheckFailedException,
+	type DynamoDBDocumentClient,
+} from "@packages/hutch-storage-client";
 import { z } from "zod";
 import { initDynamoDbArticleStore } from "./dynamodb-article-store";
 
@@ -1052,6 +1055,70 @@ describe("initDynamoDbArticleStore (unit)", () => {
 			expect(command.input.ExpressionAttributeValues?.[":etag"]).toBeNull();
 			expect(command.input.ExpressionAttributeValues?.[":lm"]).toBeNull();
 			expect(command.input.ExpressionAttributeValues?.[":img"]).toBeNull();
+		});
+	});
+
+	describe("save (purge guard)", () => {
+		it("conditions every write on the row not being tombstoned", async () => {
+			let received: unknown;
+			const client = createFakeClient((input) => {
+				received = input;
+				return {};
+			});
+			const { store } = initDynamoDbArticleStore({
+				client,
+				tableName: TABLE,
+			});
+
+			await store.save({
+				article: buildArticle(),
+				transitionName: "refreshContent",
+				writes: REFRESH_WRITES,
+			});
+
+			const command = z
+				.object({ input: z.object({ ConditionExpression: z.string() }) })
+				.parse(received);
+			expect(command.input.ConditionExpression).toBe("attribute_not_exists(purgedAt)");
+		});
+
+		it("swallows the conditional failure so a redriven transition against a tombstoned row is a no-op, not a DLQ loop", async () => {
+			const client = createFakeClient(() => {
+				throw new ConditionalCheckFailedException({
+					$metadata: {},
+					message: "The conditional request failed",
+				});
+			});
+			const { store } = initDynamoDbArticleStore({
+				client,
+				tableName: TABLE,
+			});
+
+			await expect(
+				store.save({
+					article: buildArticle(),
+					transitionName: "promoteTier",
+					writes: REFRESH_WRITES,
+				}),
+			).resolves.toBeUndefined();
+		});
+
+		it("rethrows every other write failure", async () => {
+			const client = createFakeClient(() => {
+				throw new Error("throughput exceeded");
+			});
+			const { store } = initDynamoDbArticleStore({
+				client,
+				tableName: TABLE,
+			});
+
+			await expect(
+				store.save({
+					article: buildArticle(),
+					transitionName: "promoteTier",
+					writes: REFRESH_WRITES,
+				}),
+			).rejects.toThrow("throughput exceeded");
 		});
 	});
 

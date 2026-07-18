@@ -1,12 +1,12 @@
 import type { CrawlArticle } from "@packages/crawl-article";
 import type { HutchLogger } from "@packages/hutch-logger";
-import type { LogParseError } from "@packages/hutch-infra-components";
 import type { ArticleMetadata, Minutes, ValidateSaveableUrl } from "@packages/domain/article";
 import type { ImportSessionStore } from "@packages/domain/import-session";
 import type { InboxAddressStore, InboxEmailLinkStore, InboxEmailStore } from "@packages/domain/inbox";
 import type { ExtractLinksFromPageUrl } from "@packages/extract-links-from-page";
 import type { ParseArticle } from "@packages/article-parser";
 import type {
+	ArticleCrawlVersion,
 	BotDefenseEvent,
 	BumpArticleSavedAt,
 	CheckoutPaymentStatus,
@@ -68,6 +68,7 @@ import type {
 	InMemoryMarkCrawlReady,
 	InMemoryMarkCrawlStage,
 	InMemoryMarkCrawlUnsupported,
+	ListUserArticleUrls,
 	MarkArticleViewed,
 	MarkCrawlPending,
 	MarkEmailVerified,
@@ -96,6 +97,7 @@ import type {
 	PublishExportUserDataCommand,
 	PublishLinkSaved,
 	PublishRecrawlLinkInitiated,
+	PublishRemoveMyContent,
 	PublishSaveAnonymousLink,
 	PublishSaveLinkRawHtmlCommand,
 	PublishSaveLinkRawPdfCommand,
@@ -104,6 +106,9 @@ import type {
 	PublishUpdateFetchTimestamp,
 	PutPendingHtml,
 	PutPendingPdf,
+	CreateUploadSlot,
+	StatPendingUpload,
+	ReadPendingUploadPrefix,
 	RateLimitRules,
 	ReadArticleContent,
 	RecordIosAnyActivity,
@@ -253,6 +258,7 @@ export interface SubscriptionBillingBundle {
 
 export interface ArticleStoreBundle {
 	deleteAllUserArticles: DeleteAllUserArticles;
+	listUserArticleUrls: ListUserArticleUrls;
 	findArticleById: FindArticleById;
 	findArticleByUrl: FindArticleByUrl;
 	findArticleUrlById: FindArticleUrlById;
@@ -285,7 +291,8 @@ export interface ArticleStoreBundle {
 	}) => Promise<void>;
 	setContentSourceTier: (params: { url: string; tier: "tier-0" | "tier-1" }) => Promise<void>;
 	setContentFetchedAt: (params: { url: string; at: string }) => Promise<void>;
-	setCrawlVersions: (params: { url: string; versions: string[] }) => Promise<void>;
+	setCrawlVersions: (params: { url: string; versions: ArticleCrawlVersion[] }) => Promise<void>;
+	setPurgedAt: (params: { url: string; at: Date }) => Promise<void>;
 }
 
 export interface ArticleCrawlBundle {
@@ -306,6 +313,7 @@ export interface ParserBundle {
 export interface EventsBundle {
 	publishLinkSaved: PublishLinkSaved;
 	publishRecrawlLinkInitiated: PublishRecrawlLinkInitiated;
+	publishRemoveMyContent: PublishRemoveMyContent;
 	publishSaveAnonymousLink: PublishSaveAnonymousLink;
 	publishSaveLinkRawHtmlCommand: PublishSaveLinkRawHtmlCommand;
 	publishSaveLinkRawPdfCommand: PublishSaveLinkRawPdfCommand;
@@ -325,6 +333,14 @@ export interface PendingHtmlBundle {
 export interface PendingPdfBundle {
 	putPendingPdf: PutPendingPdf;
 	readPendingPdfSync: (url: string) => Buffer | undefined;
+}
+
+export interface PendingUploadBundle {
+	createUploadSlot: CreateUploadSlot;
+	statPendingUpload: StatPendingUpload;
+	readPendingUploadPrefix: ReadPendingUploadPrefix;
+	stageUploaded: (params: { url: string; mediaType: string; bytes: Buffer; stagedAt?: Date }) => void;
+	receiveUpload: (key: string, bytes: Buffer) => void;
 }
 
 export interface SummaryBundle {
@@ -394,7 +410,6 @@ export interface SharedBundle {
 	staticBaseUrl: string;
 	httpErrorMessageMapping: HttpErrorMessageMapping;
 	logError: (message: string, error?: Error) => void;
-	logParseError: LogParseError;
 	now: () => Date;
 }
 
@@ -441,6 +456,7 @@ export interface TestAppFixture {
 	events: EventsBundle;
 	pendingHtml: PendingHtmlBundle;
 	pendingPdf: PendingPdfBundle;
+	pendingUpload: PendingUploadBundle;
 	summary: SummaryBundle;
 	freshness: FreshnessBundle;
 	oauth: OAuthBundle;

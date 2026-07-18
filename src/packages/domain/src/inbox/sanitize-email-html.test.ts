@@ -24,7 +24,7 @@ describe("sanitizeEmailHtml", () => {
 		expect(result).not.toContain("onclick");
 	});
 
-	it("removes the src of a remote image so tracking beacons cannot fire", () => {
+	it("removes the src of a remote image that was not rehosted so tracking beacons cannot fire", () => {
 		const result = sanitizeEmailHtml({
 			html: '<img src="https://tracker.test/beacon.gif" alt="beacon">',
 			rehostedImages: NO_IMAGES,
@@ -33,6 +33,18 @@ describe("sanitizeEmailHtml", () => {
 		expect(result).toContain("<img");
 		expect(result).toContain('alt="beacon"');
 		expect(result).not.toContain("tracker.test");
+	});
+
+	it("rewrites a rehosted remote image to its CDN https URL", () => {
+		const cdnUrl = "https://cdn.test.readplace.com/content/email-images/abc123/0011223344556677.png";
+		const result = sanitizeEmailHtml({
+			html: '<img src="https://res.cloudinary.test/photo.png" alt="photo" width="640">',
+			rehostedImages: { "https://res.cloudinary.test/photo.png": cdnUrl },
+		});
+
+		expect(result).toContain(`src="${cdnUrl}"`);
+		expect(result).toContain('alt="photo"');
+		expect(result).not.toContain("res.cloudinary.test");
 	});
 
 	it("rewrites a rehosted inline image to its inline data URI", () => {

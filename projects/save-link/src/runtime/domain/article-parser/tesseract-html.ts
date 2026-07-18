@@ -1,4 +1,4 @@
-import { escapeHtmlText } from "@packages/crawl-article";
+import { decodeHtmlEntities, escapeHtmlText } from "@packages/crawl-article";
 
 /* The per-paragraph wrapping emitted by the OCR provider. The cleanup
  * pipeline strips this wrapping before sending text to the LLM and reapplies
@@ -7,19 +7,6 @@ import { escapeHtmlText } from "@packages/crawl-article";
 const PARAGRAPH_OPEN = '<p class="ocr-tesseract">';
 const PARAGRAPH_OPEN_REGEX = /<p\s+class\s*=\s*(?:"ocr-tesseract"|'ocr-tesseract')\s*>/g;
 const PARAGRAPH_CLOSE = "</p>";
-
-/**
- * `&amp;` must decode last so chained entities like `&amp;lt;` come out as
- * `&lt;` rather than `<`.
- */
-function decodeBasicEntities(text: string): string {
-	return text
-		.replace(/&lt;/g, "<")
-		.replace(/&gt;/g, ">")
-		.replace(/&quot;/g, '"')
-		.replace(/&#39;/g, "'")
-		.replace(/&amp;/g, "&");
-}
 
 /**
  * Extract the plain-text paragraphs from a Tesseract HTML chunk. The chunk is
@@ -40,7 +27,7 @@ export function extractTesseractParagraphs(html: string): string[] {
 		const contentEnd = html.indexOf(PARAGRAPH_CLOSE, contentStart);
 		if (contentEnd === -1) break;
 		const inner = html.slice(contentStart, contentEnd);
-		paragraphs.push(decodeBasicEntities(inner));
+		paragraphs.push(decodeHtmlEntities(inner));
 		openRegex.lastIndex = contentEnd + PARAGRAPH_CLOSE.length;
 	}
 	return paragraphs;

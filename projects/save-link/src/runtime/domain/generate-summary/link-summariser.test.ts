@@ -1,7 +1,7 @@
 import { noopLogger } from "@packages/hutch-logger";
 import { MAX_EXCERPT_LENGTH } from "@packages/provider-contracts/article-summary";
 import { initLinkSummariser } from "./link-summariser";
-import type { CreateAiMessage } from "./create-ai-message.types";
+import type { CreateAiMessage } from "@packages/ai-message";
 import type { MarkSummaryStage } from "../../providers/article-crawl/mark-summary-stage";
 
 function createStubCreateMessage(payload: { summary: string; excerpt: string }): CreateAiMessage {

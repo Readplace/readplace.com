@@ -6,6 +6,7 @@ import {
 	buildSelectContentUserMessage,
 	labelForIndex,
 } from "./select-content-prompt";
+import { DEEPSEEK_MODEL, DEEPSEEK_NON_THINKING } from "@packages/ai-message";
 import { DEEPSEEK_MAX_OUTPUT_TOKENS } from "./deepseek-limits";
 import type { Tier } from "./tier.types";
 
@@ -21,6 +22,7 @@ type ChatCompletionResponse = {
 export type CreateSelectorChatCompletion = (params: {
 	model: string;
 	max_tokens: number;
+	thinking: { type: "disabled" };
 	response_format: { type: "json_object" };
 	messages: Array<{ role: "system" | "user" | "assistant"; content: string }>;
 }) => Promise<ChatCompletionResponse>;
@@ -42,7 +44,8 @@ export function initSelectMostCompleteContent(deps: {
 		let response: ChatCompletionResponse;
 		try {
 			response = await createChatCompletion({
-				model: "deepseek-chat",
+				model: DEEPSEEK_MODEL,
+				thinking: DEEPSEEK_NON_THINKING,
 				max_tokens: DEEPSEEK_MAX_OUTPUT_TOKENS,
 				// Deepseek's JSON-mode flag — guarantees the response body is parseable
 				// JSON (no prose, no fences). Shape is still validated by ResponseSchema

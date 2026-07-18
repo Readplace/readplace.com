@@ -44,7 +44,8 @@ function initWithDom(
 const OPEN_BOOKMARK = `<details class="crawl-bookmark" open><summary class="crawl-bookmark__handle"></summary></details>`;
 const CLOSED_BOOKMARK = `<details class="crawl-bookmark"><summary class="crawl-bookmark__handle"></summary></details>`;
 const HANDLELESS_BOOKMARK = `<details class="crawl-bookmark" open></details>`;
-const BOOKMARK_WITH_TABS = `<details class="crawl-bookmark" open><summary class="crawl-bookmark__handle"></summary><ul class="crawl-bookmark__tabs"><li class="crawl-bookmark__tab crawl-bookmark__tab--current" aria-disabled="false"><time class="crawl-bookmark__time">10 Jul '26, 09:14</time><span class="crawl-bookmark__badge">current</span></li><li class="crawl-bookmark__tab crawl-bookmark__tab--disabled" aria-disabled="true"><time class="crawl-bookmark__time">28 Jun '26, 22:01</time></li></ul></details>`;
+const BOOKMARK_WITH_TABS = `<details class="crawl-bookmark" open><summary class="crawl-bookmark__handle"></summary><ul class="crawl-bookmark__tabs"><li class="crawl-bookmark__tab crawl-bookmark__tab--current" aria-disabled="false"><time class="crawl-bookmark__time">10 Jul '26, 09:14</time><span class="crawl-bookmark__badge">best</span></li><li class="crawl-bookmark__tab crawl-bookmark__tab--disabled" aria-disabled="true"><time class="crawl-bookmark__time">28 Jun '26, 22:01</time></li></ul></details>`;
+const BOOKMARK_WITH_REMOVE_FORM = `<details class="crawl-bookmark" open><summary class="crawl-bookmark__handle"></summary><ul class="crawl-bookmark__tabs"><li class="crawl-bookmark__tab crawl-bookmark__tab--current" aria-disabled="false"><time class="crawl-bookmark__time">10 Jul '26, 09:14</time><span class="crawl-bookmark__badge">current</span><span class="crawl-bookmark__badge crawl-bookmark__badge--me">me</span><form class="crawl-bookmark__remove" method="POST" action="/queue/abc/remove-my-version"><input type="hidden" name="versionMinuteId" value="2026-07-10T09:14Z"><button type="submit" class="crawl-bookmark__remove-btn">Remove this version</button></form></li></ul></details>`;
 
 function pickTabs(document: Document): HTMLElement {
 	const tabs = document.querySelector<HTMLElement>(".crawl-bookmark__tabs");
@@ -118,6 +119,21 @@ describe("initCrawlBookmark", () => {
 		assert.equal(bookmark.hasAttribute("open"), true, "a wide viewport starts open");
 		disabledTab.click();
 		assert.equal(bookmark.hasAttribute("open"), false, "clicking a disabled tab closes the capsule");
+	});
+
+	it("does not collapse the capsule when a remove-form control inside the panel is clicked", () => {
+		const { document } = initWithDom(BOOKMARK_WITH_REMOVE_FORM, false);
+		const bookmark = document.querySelector(".crawl-bookmark");
+		assert(bookmark, "the bookmark must be present");
+		const removeButton = document.querySelector<HTMLElement>(".crawl-bookmark__remove-btn");
+		assert(removeButton, "the remove button must be present");
+		assert.equal(bookmark.hasAttribute("open"), true, "a wide viewport starts open");
+		removeButton.click();
+		assert.equal(
+			bookmark.hasAttribute("open"),
+			true,
+			"clicking the remove button submits the form without toggling the capsule shut",
+		);
 	});
 
 	it("binds the panel toggle once, so re-syncing the same bookmark can't stack listeners", () => {

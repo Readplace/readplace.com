@@ -2,7 +2,7 @@ import assert from "node:assert";
 import http2 from "node:http2";
 import type { AssertHostAllowed, SocketLookup } from "./blocked-address-lookup";
 import type { CurlFetch } from "./curl-fetch";
-import { followRedirects } from "./follow-redirects";
+import { redirectable } from "./follow-redirects";
 
 const FALLBACK_STATUS_CODES = new Set([403, 429]);
 
@@ -34,26 +34,21 @@ export type FetchH2 = (url: string, init?: FetchH2Init) => Promise<Response>;
  */
 export function initFetchH2(deps: { lookup?: SocketLookup; assertHostAllowed?: AssertHostAllowed } = {}): FetchH2 {
 	const connectOptions = deps.lookup ? { lookup: deps.lookup } : {};
-	return (url, init) =>
-		followRedirects({
-			label: "fetchH2",
-			url,
-			headers: init?.headers,
-			requestHop: async ({ url: hopUrl, headers }) => {
-				const parsed = new URL(hopUrl);
-				deps.assertHostAllowed?.(parsed.hostname);
-				const client = http2.connect(parsed.origin, connectOptions);
-				try {
-					const result = await h2Request(client, parsed, { headers, signal: init?.signal });
-					return new Response(result.body, {
-						status: result.status,
-						headers: toFetchHeaders(result.headers),
-					});
-				} finally {
-					client.close();
-				}
-			},
-		});
+	const h2SingleHop: FetchH2 = async (url, init) => {
+		const parsed = new URL(url);
+		deps.assertHostAllowed?.(parsed.hostname);
+		const client = http2.connect(parsed.origin, connectOptions);
+		try {
+			const result = await h2Request(client, parsed, { headers: init?.headers, signal: init?.signal });
+			return new Response(result.body, {
+				status: result.status,
+				headers: toFetchHeaders(result.headers),
+			});
+		} finally {
+			client.close();
+		}
+	};
+	return redirectable(h2SingleHop, "fetchH2");
 }
 
 export const fetchH2: FetchH2 = initFetchH2();

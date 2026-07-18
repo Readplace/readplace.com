@@ -5,7 +5,7 @@
 			class="inbox-emails__manage"
 			href="/inbox/addresses?feature=email"
 			data-test-inbox-manage-addresses
-			>Manage addresses</a
+			>My Emails</a
 		>
 	</header>
 
@@ -19,18 +19,20 @@
 		<li class="inbox-emails__row" data-test-inbox-emails-row>
 			<a class="inbox-emails__link" href="{{href}}">
 				<span class="inbox-emails__sender" data-test-inbox-email-sender>{{sender}}</span>
-				<span class="inbox-emails__subject" data-test-inbox-email-subject>{{subject}}</span>
-				{{#if needsBadge}}<span
-					class="inbox-emails__badge"
-					data-test-inbox-email-status="{{status}}"
-					>{{statusLabel}}</span
-				>{{/if}}
-				{{#if linkCountLabel}}<span
-					class="inbox-emails__link-count"
-					data-test-inbox-email-link-count
-					>{{linkCountLabel}}</span
-				>{{/if}}
 				<time class="inbox-emails__time" data-test-inbox-email-time datetime="{{received.iso}}" data-local-time="{{received.mode}}">{{received.label}}</time>
+				<span class="inbox-emails__meta-line">
+					<span class="inbox-emails__subject" data-test-inbox-email-subject>{{subject}}</span>
+					{{#if needsBadge}}<span
+						class="inbox-emails__badge"
+						data-test-inbox-email-status="{{status}}"
+						>{{statusLabel}}</span
+					>{{/if}}
+					{{#if linkCountLabel}}<span
+						class="inbox-emails__link-count"
+						data-test-inbox-email-link-count
+						>{{linkCountLabel}}</span
+					>{{/if}}
+				</span>
 			</a>
 		</li>
 		{{/each}}

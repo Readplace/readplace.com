@@ -30,10 +30,12 @@ function commandBody(over: Partial<{ url: string; ordinal: string }> = {}): stri
 
 function fetched(
 	metadata: { title: string; siteName: string; excerpt: string; imageUrl?: string },
+	over: Partial<{ finalUrl: string }> = {},
 ): CrawlAndFinalizeResult {
 	return {
 		status: "fetched",
 		bodyHash: "hash",
+		finalUrl: over.finalUrl ?? "https://example.com/post",
 		article: {
 			html: "<p>body that is discarded</p>",
 			metadata: {
@@ -45,18 +47,23 @@ function fetched(
 	};
 }
 
-async function seedPending(store: InboxEmailLinkStore, ordinal = "0000") {
+async function seedPending(
+	store: InboxEmailLinkStore,
+	over: Partial<{ ordinal: string; url: string }> = {},
+) {
 	await store.putLink({
 		userId: USER,
 		receivedAtMessageId: RAM,
-		ordinal: EmailLinkOrdinalSchema.parse(ordinal),
-		url: "https://example.com/post",
+		ordinal: EmailLinkOrdinalSchema.parse(over.ordinal ?? "0000"),
+		url: over.url ?? "https://example.com/post",
+		resolvedUrl: undefined,
 		status: "pending",
 		title: undefined,
 		excerpt: undefined,
 		siteName: undefined,
 		imageUrl: undefined,
 		failureReason: undefined,
+		skipReason: undefined,
 	});
 }
 
@@ -107,6 +114,29 @@ describe("initCrawlEmailLinkPreviewHandler", () => {
 		expect(link.siteName).toBe("Example");
 		expect(link.excerpt).toBe("An excerpt");
 		expect(link.imageUrl).toBe("https://cdn.test/x.jpg");
+		expect(link.resolvedUrl).toBeUndefined();
+	});
+
+	it("stamps the post-redirect destination as the resolved URL for a tracking link", async () => {
+		const store = initInMemoryInboxEmailLink();
+		await seedPending(store, { url: "https://nodeweekly.com/link/187980/4be0b3f821" });
+		const run = makeHandler({
+			crawlAndFinalize: async () =>
+				fetched(
+					{ title: "A title", siteName: "Example", excerpt: "An excerpt" },
+					{ finalUrl: "https://destination.test/the-actual-article" },
+				),
+			setLinkOutcome: store.setLinkOutcome,
+		});
+
+		const result = await run(commandBody({ url: "https://nodeweekly.com/link/187980/4be0b3f821" }));
+
+		assert(result);
+		expect(result.batchItemFailures).toHaveLength(0);
+		const link = await getLink(store);
+		expect(link.status).toBe("crawled");
+		expect(link.url).toBe("https://nodeweekly.com/link/187980/4be0b3f821");
+		expect(link.resolvedUrl).toBe("https://destination.test/the-actual-article");
 	});
 
 	it("maps a failed crawl to a failed preview and ACKs the record", async () => {

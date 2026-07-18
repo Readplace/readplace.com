@@ -1,5 +1,5 @@
 import assert from "node:assert";
-import type { Request, Response, Router } from "express";
+import type { NextFunction, Request, Response, Router } from "express";
 import express from "express";
 import type {
 	ArticleMetadata,
@@ -32,6 +32,7 @@ import { isbot } from "isbot";
 import { decomposeTimeLeft } from "@packages/time-left";
 import type { HutchLogger } from "@packages/hutch-logger";
 import { articleHostFrom, hashIp, type AnalyticsEvent } from "@packages/web-analytics";
+import { noindexMiddleware } from "../../middleware/noindex.middleware";
 import { rateLimitKeyFromRequest, sendRateLimited } from "../../middleware/rate-limit";
 import { ANALYTICS_EVENTS, STREAMS } from "../../../observability/events";
 import { wantsMarkdown, htmlToMarkdown, buildMarkdownFrontmatter, MarkdownPage, sendComponent } from "@packages/web-shell";
@@ -69,6 +70,7 @@ interface ViewDependencies {
 	findArticleCrawlStatus: FindArticleCrawlStatus;
 	markCrawlPending: MarkCrawlPending;
 	saveArticleGlobally: SaveArticleGlobally;
+	resolveCanonicalIdentity: (url: string) => Promise<string>;
 	publishSaveAnonymousLink: PublishSaveAnonymousLink;
 	publishStaleCheckRequested: PublishStaleCheckRequested;
 	consumeRateLimit: ConsumeRateLimit;
@@ -159,13 +161,24 @@ function handleViewArticle(deps: ViewDependencies, reader: ReturnType<typeof ini
 			await renderError(deps, req, res);
 			return;
 		}
-		const articleUrl = validation.url;
+		// Collapse an adopted terminal URL onto the article it aliases before any
+		// read/write, so viewing the terminal shows the deduped article and never
+		// mints a real row on top of the inert alias marker. The poll links below
+		// are built from this resolved URL, so the poll handlers need no resolve.
+		const articleUrl = await deps.resolveCanonicalIdentity(validation.url);
 
 		// Freshness/conditional-GET is delegated to the stale-check Lambda so
 		// /view never blocks on a remote crawl (Medium-hosted articles can take
 		// 5-30s). On first visit we still write a stub synchronously so the page
 		// has metadata to render and the existing summary/reader pollers see a row.
 		const existing = await deps.findArticleByUrl(articleUrl);
+		// A purged (tombstoned) URL is gone: 404 above the first-visit save cascade
+		// (so a visit can't re-stub it) and above the wantsMarkdown branch (so the
+		// markdown surface 404s too). Metadata/OG never render because we return here.
+		if (existing?.purgedAt) {
+			sendComponent(req, res, Base(NotFoundPage(), await deps.buildBannerState(req)));
+			return;
+		}
 		const hostname = articleHostFrom(articleUrl);
 		const stubMetadata: ArticleMetadata = { title: hostname, siteName: hostname, excerpt: "", wordCount: 0 };
 		const stubReadTime = calculateReadTime(0);
@@ -297,6 +310,7 @@ function handleViewArticle(deps: ViewDependencies, reader: ReturnType<typeof ini
 			Base(
 				ViewPage({
 					articleUrl,
+					displayUrl: articleSnapshot?.displayUrl,
 					appOrigin: deps.appOrigin,
 					metadata,
 					estimatedReadTime,
@@ -319,6 +333,11 @@ function handleViewArticle(deps: ViewDependencies, reader: ReturnType<typeof ini
 	};
 }
 
+async function isPurged(deps: ViewDependencies, articleUrl: string): Promise<boolean> {
+	const article = await deps.findArticleByUrl(articleUrl);
+	return article?.purgedAt !== undefined;
+}
+
 function handleViewSummary(deps: ViewDependencies, reader: ReturnType<typeof initArticleReader>) {
 	return async (req: Request, res: Response): Promise<void> => {
 		const validation = deps.validateSaveableUrl(req.query.url);
@@ -326,7 +345,12 @@ function handleViewSummary(deps: ViewDependencies, reader: ReturnType<typeof ini
 			res.status(400).type("html").send("");
 			return;
 		}
-		const articleUrl = validation.url;
+		const articleUrl = await deps.resolveCanonicalIdentity(validation.url);
+		// Stop the htmx summary poll chain once the URL is purged.
+		if (await isPurged(deps, articleUrl)) {
+			res.status(404).type("html").send("");
+			return;
+		}
 		const pollCount = Number(req.query.poll ?? "0");
 		const component = await reader.handleSummaryPoll({
 			articleUrl,
@@ -346,8 +370,12 @@ function handleViewReader(deps: ViewDependencies, reader: ReturnType<typeof init
 			res.status(400).type("html").send("");
 			return;
 		}
-		/* c8 ignore next -- V8 block coverage phantom: async continuation after if/return creates zero-count sub-range (bcoe/c8#319, v8.dev/blog/javascript-code-coverage) */
-		const articleUrl = validation.url;
+		const articleUrl = await deps.resolveCanonicalIdentity(validation.url);
+		// Stop the htmx reader poll chain once the URL is purged.
+		if (await isPurged(deps, articleUrl)) {
+			res.status(404).type("html").send("");
+			return;
+		}
 		const pollCount = Number(req.query.poll ?? "0");
 		const component = await reader.handleReaderPoll({
 			articleUrl,
@@ -360,9 +388,21 @@ function handleViewReader(deps: ViewDependencies, reader: ReturnType<typeof init
 	};
 }
 
+function redirectMixedCaseMount(req: Request, res: Response, next: NextFunction): void {
+	const lowercaseMount = req.baseUrl.toLowerCase();
+	if (req.baseUrl === lowercaseMount) {
+		next();
+		return;
+	}
+	res.redirect(301, `${lowercaseMount}${req.url}`);
+}
+
 export function initViewRoutes(deps: ViewDependencies): Router {
 	const router = express.Router();
 	const reader = initArticleReader(buildArticleReaderDeps(deps));
+
+	router.use(noindexMiddleware);
+	router.use(redirectMixedCaseMount);
 
 	router.get("/", handleViewRoot(deps));
 	router.get("/summary", handleViewSummary(deps, reader));

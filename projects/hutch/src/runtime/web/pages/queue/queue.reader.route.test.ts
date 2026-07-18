@@ -12,6 +12,7 @@ import {
 } from "@packages/test-fixtures";
 import { initReadabilityParser } from "@packages/article-parser";
 import { MAX_POLLS } from "@packages/web-shell";
+import { ReaderArticleHashId, calculateReadTime } from "@packages/domain/article";
 
 import request from "supertest";
 
@@ -46,6 +47,7 @@ describe("Queue routes", () => {
 					publishSaveLinkRawHtmlCommand: fixture.events.publishSaveLinkRawHtmlCommand,
 					publishSaveLinkRawPdfCommand: fixture.events.publishSaveLinkRawPdfCommand,
 					publishStaleCheckRequested: fixture.events.publishStaleCheckRequested,
+					publishRemoveMyContent: fixture.events.publishRemoveMyContent,
 					publishUpdateFetchTimestamp: fixture.events.publishUpdateFetchTimestamp,
 					publishExportUserDataCommand: fixture.events.publishExportUserDataCommand,
 					publishDeleteAccountCommand: fixture.events.publishDeleteAccountCommand,
@@ -110,6 +112,7 @@ describe("Queue routes", () => {
 					publishSaveLinkRawHtmlCommand: fixture.events.publishSaveLinkRawHtmlCommand,
 					publishSaveLinkRawPdfCommand: fixture.events.publishSaveLinkRawPdfCommand,
 					publishStaleCheckRequested: fixture.events.publishStaleCheckRequested,
+					publishRemoveMyContent: fixture.events.publishRemoveMyContent,
 					publishUpdateFetchTimestamp: fixture.events.publishUpdateFetchTimestamp,
 					publishExportUserDataCommand: fixture.events.publishExportUserDataCommand,
 					publishDeleteAccountCommand: fixture.events.publishDeleteAccountCommand,
@@ -159,7 +162,11 @@ describe("Queue routes", () => {
 
 			await fixture.articleStore.setCrawlVersions({
 				url: "https://example.com/crawled-post",
-				versions: ["2026-07-10T09:14Z", "2026-06-28T22:01Z", "2026-03-26T14:32Z"],
+				versions: [
+					{ crawledAtMinute: "2026-07-10T09:14Z" },
+					{ crawledAtMinute: "2026-06-28T22:01Z" },
+					{ crawledAtMinute: "2026-03-26T14:32Z" },
+				],
 			});
 
 			const versioned = await agent.get(`/queue/${articleId}/view`);
@@ -169,6 +176,11 @@ describe("Queue routes", () => {
 			).map((el) => el.getAttribute("data-test-crawl-bookmark-tab"));
 			expect(keys).toEqual(["canonical", "2026-06-28T22:01Z", "2026-03-26T14:32Z"]);
 			expect(versionedDoc.querySelectorAll(".crawl-bookmark__badge").length).toBe(1);
+			expect(
+				versionedDoc
+					.querySelector('[data-test-crawl-bookmark-tab="canonical"] .crawl-bookmark__badge')
+					?.textContent,
+			).toBe("best");
 			for (const key of ["2026-06-28T22:01Z", "2026-03-26T14:32Z"]) {
 				const disabled = versionedDoc.querySelector(`[data-test-crawl-bookmark-tab="${key}"]`);
 				assert(disabled, `version tab ${key} must render`);
@@ -204,6 +216,7 @@ describe("Queue routes", () => {
 					publishSaveLinkRawHtmlCommand: fixture.events.publishSaveLinkRawHtmlCommand,
 					publishSaveLinkRawPdfCommand: fixture.events.publishSaveLinkRawPdfCommand,
 					publishStaleCheckRequested: fixture.events.publishStaleCheckRequested,
+					publishRemoveMyContent: fixture.events.publishRemoveMyContent,
 					publishUpdateFetchTimestamp: fixture.events.publishUpdateFetchTimestamp,
 					publishExportUserDataCommand: fixture.events.publishExportUserDataCommand,
 					publishDeleteAccountCommand: fixture.events.publishDeleteAccountCommand,
@@ -263,6 +276,7 @@ describe("Queue routes", () => {
 					publishSaveLinkRawHtmlCommand: fixture.events.publishSaveLinkRawHtmlCommand,
 					publishSaveLinkRawPdfCommand: fixture.events.publishSaveLinkRawPdfCommand,
 					publishStaleCheckRequested: fixture.events.publishStaleCheckRequested,
+					publishRemoveMyContent: fixture.events.publishRemoveMyContent,
 					publishUpdateFetchTimestamp: fixture.events.publishUpdateFetchTimestamp,
 					publishExportUserDataCommand: fixture.events.publishExportUserDataCommand,
 					publishDeleteAccountCommand: fixture.events.publishDeleteAccountCommand,
@@ -332,6 +346,7 @@ describe("Queue routes", () => {
 					publishSaveLinkRawHtmlCommand: fixture.events.publishSaveLinkRawHtmlCommand,
 					publishSaveLinkRawPdfCommand: fixture.events.publishSaveLinkRawPdfCommand,
 					publishStaleCheckRequested: fixture.events.publishStaleCheckRequested,
+					publishRemoveMyContent: fixture.events.publishRemoveMyContent,
 					publishUpdateFetchTimestamp: fixture.events.publishUpdateFetchTimestamp,
 					publishExportUserDataCommand: fixture.events.publishExportUserDataCommand,
 					publishDeleteAccountCommand: fixture.events.publishDeleteAccountCommand,
@@ -403,6 +418,7 @@ describe("Queue routes", () => {
 					publishSaveLinkRawHtmlCommand: fixture.events.publishSaveLinkRawHtmlCommand,
 					publishSaveLinkRawPdfCommand: fixture.events.publishSaveLinkRawPdfCommand,
 					publishStaleCheckRequested: fixture.events.publishStaleCheckRequested,
+					publishRemoveMyContent: fixture.events.publishRemoveMyContent,
 					publishUpdateFetchTimestamp: fixture.events.publishUpdateFetchTimestamp,
 					publishExportUserDataCommand: fixture.events.publishExportUserDataCommand,
 					publishDeleteAccountCommand: fixture.events.publishDeleteAccountCommand,
@@ -455,6 +471,7 @@ describe("Queue routes", () => {
 			expect(response.headers.location).toBe(
 				`/queue/${articleHash}/view?utm_source=twitter&utm_medium=social`,
 			);
+			expect(response.headers["x-robots-tag"]).toBe("noindex");
 		});
 
 		it("should redirect to queue for non-existent article", async () => {
@@ -503,6 +520,7 @@ describe("Queue routes", () => {
 			const response = await request(harness.server).get(`/queue/${articleId}/view`);
 
 			expect(response.status).toBe(302);
+			expect(response.headers["x-robots-tag"]).toBe("noindex");
 			const location = new URL(response.headers.location, TEST_APP_ORIGIN);
 			expect(location.pathname).toBe(`/view/${new URL(articleUrl).host}${new URL(articleUrl).pathname}`);
 			expect(location.searchParams.get("utm_source")).toBe("read");
@@ -534,11 +552,33 @@ describe("Queue routes", () => {
 			const response = await guestAgent.get(`/queue/${articleId}/view`);
 
 			expect(response.status).toBe(302);
+			expect(response.headers["x-robots-tag"]).toBe("noindex");
 			const location = new URL(response.headers.location, TEST_APP_ORIGIN);
 			expect(location.pathname).toBe(`/view/${new URL(articleUrl).host}${new URL(articleUrl).pathname}`);
 			expect(location.searchParams.get("utm_source")).toBe("read");
 			expect(location.searchParams.get("utm_medium")).toBe("share");
 			expect(location.searchParams.get("utm_campaign")).toBe("read-permalink");
+		});
+
+		it("marks the owner-rendered reader page noindex via header to match its meta tag", async () => {
+			const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
+			const { auth } = harness;
+			const ownerAgent = await loginAgent(harness.server, auth);
+
+			const articleUrl = "https://example.com/owner-reader-headers";
+			await ownerAgent.post("/queue/save").type("form").send({ url: articleUrl });
+
+			const queueResponse = await ownerAgent.get("/queue");
+			const articleId = new JSDOM(queueResponse.text).window.document
+				.querySelector("[data-test-article-list] .queue-article")
+				?.getAttribute("data-test-article");
+			assert.ok(articleId, "owner must see the saved article in their queue");
+
+			const response = await ownerAgent.get(`/queue/${articleId}/view`);
+
+			expect(response.status).toBe(200);
+			expect(response.headers["x-robots-tag"]).toBe("noindex");
+			expect(response.headers["content-signal"]).toBe("search=no, ai-input=no, ai-train=no");
 		});
 
 		it("redirects a logged-out owner arriving via the reader-ready email marker to /login, returning to the private reader after login", async () => {
@@ -568,6 +608,7 @@ describe("Queue routes", () => {
 					publishSaveLinkRawHtmlCommand: fixture.events.publishSaveLinkRawHtmlCommand,
 					publishSaveLinkRawPdfCommand: fixture.events.publishSaveLinkRawPdfCommand,
 					publishStaleCheckRequested: fixture.events.publishStaleCheckRequested,
+					publishRemoveMyContent: fixture.events.publishRemoveMyContent,
 					publishUpdateFetchTimestamp: fixture.events.publishUpdateFetchTimestamp,
 					publishExportUserDataCommand: fixture.events.publishExportUserDataCommand,
 					publishDeleteAccountCommand: fixture.events.publishDeleteAccountCommand,
@@ -640,6 +681,7 @@ describe("Queue routes", () => {
 					publishSaveLinkRawHtmlCommand: fixture.events.publishSaveLinkRawHtmlCommand,
 					publishSaveLinkRawPdfCommand: fixture.events.publishSaveLinkRawPdfCommand,
 					publishStaleCheckRequested: fixture.events.publishStaleCheckRequested,
+					publishRemoveMyContent: fixture.events.publishRemoveMyContent,
 					publishUpdateFetchTimestamp: fixture.events.publishUpdateFetchTimestamp,
 					publishExportUserDataCommand: fixture.events.publishExportUserDataCommand,
 					publishDeleteAccountCommand: fixture.events.publishDeleteAccountCommand,
@@ -725,6 +767,7 @@ describe("Queue routes", () => {
 					publishSaveLinkRawHtmlCommand: fixture.events.publishSaveLinkRawHtmlCommand,
 					publishSaveLinkRawPdfCommand: fixture.events.publishSaveLinkRawPdfCommand,
 					publishStaleCheckRequested: fixture.events.publishStaleCheckRequested,
+					publishRemoveMyContent: fixture.events.publishRemoveMyContent,
 					publishUpdateFetchTimestamp: fixture.events.publishUpdateFetchTimestamp,
 					publishExportUserDataCommand: fixture.events.publishExportUserDataCommand,
 					publishDeleteAccountCommand: fixture.events.publishDeleteAccountCommand,
@@ -776,6 +819,7 @@ describe("Queue routes", () => {
 					publishSaveLinkRawHtmlCommand: fixture.events.publishSaveLinkRawHtmlCommand,
 					publishSaveLinkRawPdfCommand: fixture.events.publishSaveLinkRawPdfCommand,
 					publishStaleCheckRequested: fixture.events.publishStaleCheckRequested,
+					publishRemoveMyContent: fixture.events.publishRemoveMyContent,
 					publishUpdateFetchTimestamp: fixture.events.publishUpdateFetchTimestamp,
 					publishExportUserDataCommand: fixture.events.publishExportUserDataCommand,
 					publishDeleteAccountCommand: fixture.events.publishDeleteAccountCommand,
@@ -853,6 +897,7 @@ describe("Queue routes", () => {
 					publishSaveLinkRawHtmlCommand: fixture.events.publishSaveLinkRawHtmlCommand,
 					publishSaveLinkRawPdfCommand: fixture.events.publishSaveLinkRawPdfCommand,
 					publishStaleCheckRequested: fixture.events.publishStaleCheckRequested,
+					publishRemoveMyContent: fixture.events.publishRemoveMyContent,
 					publishUpdateFetchTimestamp: fixture.events.publishUpdateFetchTimestamp,
 					publishExportUserDataCommand: fixture.events.publishExportUserDataCommand,
 					publishDeleteAccountCommand: fixture.events.publishDeleteAccountCommand,
@@ -911,6 +956,7 @@ describe("Queue routes", () => {
 					publishSaveLinkRawHtmlCommand: fixture.events.publishSaveLinkRawHtmlCommand,
 					publishSaveLinkRawPdfCommand: fixture.events.publishSaveLinkRawPdfCommand,
 					publishStaleCheckRequested: fixture.events.publishStaleCheckRequested,
+					publishRemoveMyContent: fixture.events.publishRemoveMyContent,
 					publishUpdateFetchTimestamp: fixture.events.publishUpdateFetchTimestamp,
 					publishExportUserDataCommand: fixture.events.publishExportUserDataCommand,
 					publishDeleteAccountCommand: fixture.events.publishDeleteAccountCommand,
@@ -991,6 +1037,7 @@ describe("Queue routes", () => {
 					publishSaveLinkRawHtmlCommand: fixture.events.publishSaveLinkRawHtmlCommand,
 					publishSaveLinkRawPdfCommand: fixture.events.publishSaveLinkRawPdfCommand,
 					publishStaleCheckRequested: fixture.events.publishStaleCheckRequested,
+					publishRemoveMyContent: fixture.events.publishRemoveMyContent,
 					publishUpdateFetchTimestamp: fixture.events.publishUpdateFetchTimestamp,
 					publishExportUserDataCommand: fixture.events.publishExportUserDataCommand,
 					publishDeleteAccountCommand: fixture.events.publishDeleteAccountCommand,
@@ -1061,6 +1108,7 @@ describe("Queue routes", () => {
 					publishSaveLinkRawHtmlCommand: fixture.events.publishSaveLinkRawHtmlCommand,
 					publishSaveLinkRawPdfCommand: fixture.events.publishSaveLinkRawPdfCommand,
 					publishStaleCheckRequested: fixture.events.publishStaleCheckRequested,
+					publishRemoveMyContent: fixture.events.publishRemoveMyContent,
 					publishUpdateFetchTimestamp: fixture.events.publishUpdateFetchTimestamp,
 					publishExportUserDataCommand: fixture.events.publishExportUserDataCommand,
 					publishDeleteAccountCommand: fixture.events.publishDeleteAccountCommand,
@@ -1129,6 +1177,7 @@ describe("Queue routes", () => {
 					publishSaveLinkRawHtmlCommand: fixture.events.publishSaveLinkRawHtmlCommand,
 					publishSaveLinkRawPdfCommand: fixture.events.publishSaveLinkRawPdfCommand,
 					publishStaleCheckRequested: fixture.events.publishStaleCheckRequested,
+					publishRemoveMyContent: fixture.events.publishRemoveMyContent,
 					publishUpdateFetchTimestamp: fixture.events.publishUpdateFetchTimestamp,
 					publishExportUserDataCommand: fixture.events.publishExportUserDataCommand,
 					publishDeleteAccountCommand: fixture.events.publishDeleteAccountCommand,
@@ -1181,6 +1230,7 @@ describe("Queue routes", () => {
 					publishSaveLinkRawHtmlCommand: fixture.events.publishSaveLinkRawHtmlCommand,
 					publishSaveLinkRawPdfCommand: fixture.events.publishSaveLinkRawPdfCommand,
 					publishStaleCheckRequested: fixture.events.publishStaleCheckRequested,
+					publishRemoveMyContent: fixture.events.publishRemoveMyContent,
 					publishUpdateFetchTimestamp: fixture.events.publishUpdateFetchTimestamp,
 					publishExportUserDataCommand: fixture.events.publishExportUserDataCommand,
 					publishDeleteAccountCommand: fixture.events.publishDeleteAccountCommand,
@@ -1241,6 +1291,7 @@ describe("Queue routes", () => {
 					publishSaveLinkRawHtmlCommand: fixture.events.publishSaveLinkRawHtmlCommand,
 					publishSaveLinkRawPdfCommand: fixture.events.publishSaveLinkRawPdfCommand,
 					publishStaleCheckRequested: fixture.events.publishStaleCheckRequested,
+					publishRemoveMyContent: fixture.events.publishRemoveMyContent,
 					publishUpdateFetchTimestamp: fixture.events.publishUpdateFetchTimestamp,
 					publishExportUserDataCommand: fixture.events.publishExportUserDataCommand,
 					publishDeleteAccountCommand: fixture.events.publishDeleteAccountCommand,
@@ -1298,6 +1349,7 @@ describe("Queue routes", () => {
 					publishSaveLinkRawHtmlCommand: fixture.events.publishSaveLinkRawHtmlCommand,
 					publishSaveLinkRawPdfCommand: fixture.events.publishSaveLinkRawPdfCommand,
 					publishStaleCheckRequested: fixture.events.publishStaleCheckRequested,
+					publishRemoveMyContent: fixture.events.publishRemoveMyContent,
 					publishUpdateFetchTimestamp: fixture.events.publishUpdateFetchTimestamp,
 					publishExportUserDataCommand: fixture.events.publishExportUserDataCommand,
 					publishDeleteAccountCommand: fixture.events.publishDeleteAccountCommand,
@@ -1346,6 +1398,7 @@ describe("Queue routes", () => {
 					publishSaveLinkRawHtmlCommand: fixture.events.publishSaveLinkRawHtmlCommand,
 					publishSaveLinkRawPdfCommand: fixture.events.publishSaveLinkRawPdfCommand,
 					publishStaleCheckRequested: fixture.events.publishStaleCheckRequested,
+					publishRemoveMyContent: fixture.events.publishRemoveMyContent,
 					publishUpdateFetchTimestamp: fixture.events.publishUpdateFetchTimestamp,
 					publishExportUserDataCommand: fixture.events.publishExportUserDataCommand,
 					publishDeleteAccountCommand: fixture.events.publishDeleteAccountCommand,
@@ -1439,6 +1492,102 @@ describe("Queue routes", () => {
 			const link = new JSDOM(await openFailedReader(IPHONE_UA)).window.document
 				.querySelector("[data-test-reader-failed-install]");
 			assert.equal(link, null, "iPhone reader-failed card must not offer an extension install CTA");
+		});
+	});
+
+	describe("GET /queue/:id/view — owner removal controls in the crawl bookmark", () => {
+		const ARTICLE_URL = "https://example.com/owner-authored-post";
+
+		async function seedOwnerArticle() {
+			const fixture = createDefaultTestAppFixture(TEST_APP_ORIGIN);
+			const harness = useApp(fixture);
+			const created = await harness.auth.createUser({
+				email: "owner@example.com",
+				password: "password123",
+			});
+			assert(created.ok, "the owner must be created");
+			const agent = request.agent(harness.server);
+			await agent.post("/login").type("form").send({ email: "owner@example.com", password: "password123" });
+			await agent.post("/queue/save").type("form").send({ url: ARTICLE_URL });
+
+			const queueDoc = new JSDOM((await agent.get("/queue")).text).window.document;
+			const articleId = queueDoc
+				.querySelector("[data-test-article-list] .queue-article")
+				?.getAttribute("data-test-article");
+			assert(articleId, "the saved article must render with an id");
+
+			await fixture.articleStore.setContentFetchedAt({ url: ARTICLE_URL, at: "2026-03-26T14:32:00.000Z" });
+			await fixture.articleStore.setCrawlVersions({
+				url: ARTICLE_URL,
+				versions: [
+					{ crawledAtMinute: "2026-07-10T09:14Z", authorUserId: created.userId },
+					{ crawledAtMinute: "2026-06-28T22:01Z" },
+				],
+			});
+			return { agent, articleId };
+		}
+
+		it("marks the owner's authored snapshot with a 'me' badge and renders both remove forms", async () => {
+			const { agent, articleId } = await seedOwnerArticle();
+
+			const doc = new JSDOM((await agent.get(`/queue/${articleId}/view`)).text).window.document;
+
+			const authoredTab = doc.querySelector('[data-test-crawl-bookmark-tab="canonical"]');
+			assert(authoredTab, "the canonical tab must render");
+			const badges = Array.from(authoredTab.querySelectorAll(".crawl-bookmark__badge")).map(
+				(badge) => badge.textContent,
+			);
+			// Two seeded versions → the newest tab's state badge reads "best".
+			expect(badges).toEqual(["best", "me"]);
+
+			const removeVersionForm = authoredTab.querySelector("form.crawl-bookmark__remove");
+			assert(removeVersionForm, "the authored tab must carry a remove-version form");
+			expect(removeVersionForm.getAttribute("action")).toBe(`/queue/${articleId}/remove-my-version`);
+			expect(
+				removeVersionForm.querySelector('input[name="versionMinuteId"]')?.getAttribute("value"),
+			).toBe("2026-07-10T09:14Z");
+
+			const removeCopyForm = doc.querySelector("form.crawl-bookmark__remove-copy");
+			assert(removeCopyForm, "the owner reader must carry a remove-my-copy form");
+			expect(removeCopyForm.getAttribute("action")).toBe(`/queue/${articleId}/remove-my-copy`);
+
+			// The un-authored older version carries no 'me' badge and no remove form.
+			const otherTab = doc.querySelector('[data-test-crawl-bookmark-tab="2026-06-28T22:01Z"]');
+			assert(otherTab, "the older version tab must render");
+			expect(otherTab.querySelector(".crawl-bookmark__badge--me")).toBeNull();
+			expect(otherTab.querySelector("form.crawl-bookmark__remove")).toBeNull();
+		});
+
+		it("renders no removal controls on the iOS chromeless reader (?platform=ios)", async () => {
+			const { agent, articleId } = await seedOwnerArticle();
+
+			const doc = new JSDOM((await agent.get(`/queue/${articleId}/view?platform=ios`)).text).window.document;
+
+			// The bookmark tabs still render, but with no removal affordances.
+			expect(doc.querySelectorAll(".crawl-bookmark__badge--me").length).toBe(0);
+			expect(doc.querySelector("form.crawl-bookmark__remove")).toBeNull();
+			expect(doc.querySelector("form.crawl-bookmark__remove-copy")).toBeNull();
+		});
+	});
+
+	describe("GET /queue/:id/view — tombstoned URL", () => {
+		it("404s directly (not a /view bounce) for a purged article whose id still resolves", async () => {
+			const url = "https://example.com/purged-permalink";
+			const fixture = createDefaultTestAppFixture(TEST_APP_ORIGIN);
+			const harness = useApp(fixture);
+			await fixture.articleStore.saveArticleGlobally({
+				url,
+				metadata: { title: "example.com", siteName: "example.com", excerpt: "", wordCount: 0 },
+				estimatedReadTime: calculateReadTime(0),
+				savedAt: new Date("2026-01-01T00:00:00.000Z"),
+			});
+			await fixture.articleStore.setPurgedAt({ url, at: new Date("2026-07-16T10:00:00.000Z") });
+
+			const id = ReaderArticleHashId.from(url).value;
+			const response = await request(harness.server).get(`/queue/${id}/view`);
+
+			expect(response.status).toBe(404);
+			expect(new JSDOM(response.text).window.document.querySelector("body.page-not-found")).not.toBeNull();
 		});
 	});
 });

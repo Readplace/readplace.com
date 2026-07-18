@@ -249,6 +249,19 @@ describe("GET /", () => {
 		expect(mcpLink?.getAttribute("href")).toBe("/mcp");
 	});
 
+	it("links the content-capture feature to /install and names the iPhone, not just the browser extension", async () => {
+		const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
+		const response = await request(harness.server).get("/");
+		const doc = new JSDOM(response.text).window.document;
+
+		const feature = doc.querySelector('[data-test-feature="Save the Full Page"]');
+		assert(feature, "content-capture feature card must be rendered");
+		expect(feature.textContent?.toLowerCase()).toContain("iphone");
+
+		const installLink = doc.querySelector('[data-test-feature-link="Save the Full Page"]');
+		expect(installLink?.getAttribute("href")).toBe("/install");
+	});
+
 	it("should render two demo videos: Desktop and Browser Extension", async () => {
 		const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
 		const response = await request(harness.server).get("/");
@@ -406,7 +419,7 @@ describe("GET /", () => {
 		expect(providerNames).toEqual([
 			"Mozilla Readability",
 			"Real Tesseract OCR",
-			"DeepSeek V3.2",
+			"DeepSeek V4",
 		]);
 		const text = section.textContent ?? "";
 		expect(text).toContain("no data resale");

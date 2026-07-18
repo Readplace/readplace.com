@@ -2,6 +2,7 @@ import { readFileSync } from "node:fs";
 import { join } from "node:path";
 import { render } from "@packages/web-shell";
 import { renderInboxArticleCard } from "./inbox-article-card.component";
+import { renderInboxShowMore } from "./inbox-articles-show-more.component";
 import type { ArticlesPanelViewModel } from "./inbox-email-detail.viewmodel";
 
 const INBOX_ARTICLES_PANEL_TEMPLATE = readFileSync(
@@ -19,6 +20,7 @@ export function renderInboxArticlesPanel(vm: ArticlesPanelViewModel): string {
 	return render(INBOX_ARTICLES_PANEL_TEMPLATE, {
 		...vm,
 		articleHtmls: vm.cards.map(renderInboxArticleCard),
+		showMoreHtml: vm.showMore === undefined ? "" : renderInboxShowMore(vm.showMore),
 		panelStatus: vm.isExtracting ? "extracting" : vm.isStalePending ? "stale" : "terminal",
 	});
 }

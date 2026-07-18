@@ -14,14 +14,16 @@ import type { ExtractPdf } from "@packages/crawl-article";
 import {
 	CRAWL_PERSONAS,
 	initCrawlArticle,
+	initFetchPinnedCrawl,
 	initCrawlFetch,
 	initFetchThumbnailImage,
 	initXTwitterSiteRules,
+	initAppleNewsSiteRules,
 } from "@packages/crawl-article";
 import { initExtractLinksFromPageUrl } from "@packages/extract-links-from-page";
 import { initCrawlAndFinalizeArticle, initFinalizeArticle } from "@packages/finalize-article";
 import type { PublishStaleCheckRequested } from "@packages/provider-contracts/events";
-import { initReadabilityParser, linkedinSiteRules, mediumSiteRules, theInformationSiteRules } from "@packages/article-parser";
+import { initReadabilityParser, linkedinSiteRules, mediaWikiSiteRules, mediumSiteRules, theInformationSiteRules } from "@packages/article-parser";
 import { initRefreshArticleIfStale } from "@packages/finalize-article";
 import {
 	createOAuthModel,
@@ -58,9 +60,11 @@ import { initAwsTrialScheduler } from "./providers/trial-scheduler/aws-trial-sch
 import { initInMemorySubscriptionBilling } from "@packages/test-fixtures/providers/subscription-billing";
 import { initInMemoryTrialScheduler } from "@packages/test-fixtures/providers/trial-scheduler";
 import { initReadArticleContent } from "@packages/article-store";
+import { initCanonicalAliasStore, initResolveCanonicalIdentity } from "@packages/article-store";
 import { EventBridgeClient, initEventBridgePublisher } from "@packages/hutch-infra-components/runtime";
 import { initEventBridgeLinkSaved } from "./providers/events/eventbridge-link-saved";
 import { initEventBridgeRecrawlLinkInitiated } from "./providers/events/eventbridge-recrawl-link-initiated";
+import { initEventBridgeRemoveMyContent } from "./providers/events/eventbridge-remove-my-content";
 import { initEventBridgeSaveAnonymousLink } from "./providers/events/eventbridge-save-anonymous-link";
 import { initEventBridgeStaleCheckRequested } from "./providers/events/eventbridge-stale-check-requested";
 import { initEventBridgeSaveLinkRawHtmlCommand } from "./providers/events/eventbridge-save-link-raw-html-command";
@@ -84,11 +88,16 @@ import { initInMemoryStaleCheckRequested } from "@packages/test-fixtures/provide
 import { initInMemorySaveLinkRawHtmlCommand } from "@packages/test-fixtures/providers/events";
 import { initInMemorySaveLinkRawPdfCommand } from "@packages/test-fixtures/providers/events";
 import { initInMemoryRefreshArticleContent } from "@packages/test-fixtures/providers/events";
+import { initInMemoryRemoveMyContent } from "@packages/test-fixtures/providers/events";
 import { initInMemoryUpdateFetchTimestamp } from "@packages/test-fixtures/providers/events";
 import { initPutPendingHtml } from "./providers/pending-html/put-pending-html";
 import { initPutPendingPdf } from "./providers/pending-pdf/put-pending-pdf";
+import { initS3PendingUpload } from "./providers/pending-upload/s3-pending-upload";
+import { createPresignerClient } from "./providers/pending-upload/mint-upload-url";
+import { UPLOAD_SLOT_TTL_SECONDS } from "./web/pages/queue/upload-slot-ttl";
 import { initInMemoryPendingHtml } from "@packages/test-fixtures/providers/pending-html";
 import { initInMemoryPendingPdf } from "@packages/test-fixtures/providers/pending-pdf";
+import { initInMemoryPendingUpload } from "@packages/test-fixtures/providers/pending-upload";
 import { initInMemoryImportSession } from "@packages/test-fixtures/providers/import-session";
 import { initDynamoDbImportSession } from "./providers/import-session/dynamodb-import-session";
 import { initInMemoryInboxAddress } from "@packages/test-fixtures/providers/inbox-address";
@@ -104,7 +113,6 @@ import { initInMemorySubscriptionProviders } from "@packages/test-fixtures/provi
 import { initDynamoDbSubscriptionRead } from "@packages/subscription-access";
 import { initDynamoDbSubscriptionWrites } from "./providers/subscription-providers/dynamodb-subscription-writes";
 import { HutchLogger, consoleLogger } from "@packages/hutch-logger";
-import { initLogParseError, type ParseErrorEvent } from "@packages/hutch-infra-components";
 import { isBlockedIpAddress, validateSaveableUrl } from "@packages/domain/article";
 import { createApp } from "./server";
 import { initChangelogBannerSource } from "./web/changelog-banner-source";
@@ -193,6 +201,8 @@ function initProviders() {
 		const auth = initDynamoDbAuth({ client, usersTableName: usersTable, sessionsTableName: sessionsTable });
 		const iosOnboardingSignal = initIosOnboardingSignal({ client, onboardingTableName: onboardingTable, now: () => new Date() });
 		const articleStore = initDynamoDbArticleStore({ client, tableName: articlesTable, userArticlesTableName: userArticlesTable, logger });
+		const canonicalAlias = initCanonicalAliasStore({ client, tableName: articlesTable });
+		const resolveCanonicalIdentity = initResolveCanonicalIdentity({ resolveAlias: canonicalAlias.resolveAlias });
 		const readArticleContent = initReadArticleContent({
 			storageProviderQueryOrder: [
 				initS3ReadContent({ send: (cmd) => s3Client.send(cmd), bucketName: contentBucketName }),
@@ -210,13 +220,18 @@ function initProviders() {
 			markClientActive: oauthClientLookup.markClientActive,
 		});
 		const summaryStore = initDynamoDbGeneratedSummary({ client, tableName: articlesTable });
-		const crawlStore = initDynamoDbArticleCrawl({ client, tableName: articlesTable });
+		const crawlStore = initDynamoDbArticleCrawl({
+			client,
+			tableName: articlesTable,
+			now: () => new Date(),
+		});
 		const { publishEvent } = initEventBridgePublisher({
 			client: new EventBridgeClient({}),
 			eventBusName,
 		});
 		const { publishLinkSaved } = initEventBridgeLinkSaved({ publishEvent });
 		const { publishRecrawlLinkInitiated } = initEventBridgeRecrawlLinkInitiated({ publishEvent });
+		const { publishRemoveMyContent } = initEventBridgeRemoveMyContent({ publishEvent });
 		const { publishSaveAnonymousLink } = initEventBridgeSaveAnonymousLink({ publishEvent });
 		const { publishStaleCheckRequested } = initEventBridgeStaleCheckRequested({ publishEvent });
 		const { publishSaveLinkRawHtmlCommand } = initEventBridgeSaveLinkRawHtmlCommand({ publishEvent });
@@ -230,14 +245,27 @@ function initProviders() {
 		const { publishSubscriptionReactivated } = initEventBridgeSubscriptionReactivated({ publishEvent });
 		const { putPendingHtml } = initPutPendingHtml({ client: new S3Client({}), bucketName: pendingHtmlBucketName });
 		const { putPendingPdf } = initPutPendingPdf({ client: new S3Client({}), bucketName: pendingPdfBucketName });
+		const { createUploadSlot, statPendingUpload, readPendingUploadPrefix } = initS3PendingUpload({
+			presignerClient: createPresignerClient(),
+			client: new S3Client({}),
+			pdfBucketName: pendingPdfBucketName,
+			htmlBucketName: pendingHtmlBucketName,
+			ttlSeconds: UPLOAD_SLOT_TTL_SECONDS,
+			now: () => new Date(),
+		});
 		const extractPdf = createPdfDeferralStub(publishStaleCheckRequested);
 		const siteRules = [
 			theInformationSiteRules,
 			mediumSiteRules,
 			linkedinSiteRules,
+			mediaWikiSiteRules,
 			initXTwitterSiteRules({ crawlFetch, logError }),
+			initAppleNewsSiteRules({ crawlFetch, logError }),
 		];
-		const crawlArticle = initCrawlArticle({ crawlFetch, siteRules, extractPdf, logError, logInfo });
+		const crawlArticle = initFetchPinnedCrawl({
+			crawlArticle: initCrawlArticle({ crawlFetch, siteRules, extractPdf, logError, logInfo }),
+			findAdoptedFetchUrl: canonicalAlias.findAdoptedFetchUrl,
+		});
 		const extractLinksFromPageUrl = initExtractLinksFromPageUrl({ crawlFetch, validateUrl: validateSaveableUrl });
 		const { parseHtml } = initReadabilityParser({
 			crawlArticle,
@@ -251,6 +279,7 @@ function initProviders() {
 			parseHtml,
 			publishRefreshArticleContent,
 			publishUpdateFetchTimestamp,
+			resolveCanonicalIdentity,
 			now: () => new Date(),
 			staleTtlMs,
 		});
@@ -377,6 +406,7 @@ function initProviders() {
 			registerOAuthClient: oauthClients.registerClient,
 			publishLinkSaved,
 			publishRecrawlLinkInitiated,
+			publishRemoveMyContent,
 			publishSaveAnonymousLink,
 			publishStaleCheckRequested,
 			publishSaveLinkRawHtmlCommand,
@@ -388,6 +418,9 @@ function initProviders() {
 			publishSubscriptionReactivated,
 			putPendingHtml,
 			putPendingPdf,
+			createUploadSlot,
+			statPendingUpload,
+			readPendingUploadPrefix,
 			findGeneratedSummary: summaryStore.findGeneratedSummary,
 			markSummaryPending: summaryStore.markSummaryPending,
 			findArticleCrawlStatus: crawlStore.findArticleCrawlStatus,
@@ -396,6 +429,7 @@ function initProviders() {
 			markCrawlPending: crawlStore.markCrawlPending,
 			forceMarkCrawlPending: crawlStore.forceMarkCrawlPending,
 			refreshArticleIfStale,
+			resolveCanonicalIdentity,
 			getIosAppSignals: iosOnboardingSignal.getIosAppSignals,
 			recordIosAnyActivity: iosOnboardingSignal.recordIosAnyActivity,
 			recordIosSavedArticle: iosOnboardingSignal.recordIosSavedArticle,
@@ -488,9 +522,14 @@ function initProviders() {
 		theInformationSiteRules,
 		mediumSiteRules,
 		linkedinSiteRules,
+		mediaWikiSiteRules,
 		initXTwitterSiteRules({ crawlFetch, logError }),
+		initAppleNewsSiteRules({ crawlFetch, logError }),
 	];
-	const crawlArticle = initCrawlArticle({ crawlFetch, siteRules, extractPdf, logError, logInfo });
+	const crawlArticle = initFetchPinnedCrawl({
+		crawlArticle: initCrawlArticle({ crawlFetch, siteRules, extractPdf, logError, logInfo }),
+		findAdoptedFetchUrl: async () => undefined,
+	});
 	const extractLinksFromPageUrl = initExtractLinksFromPageUrl({ crawlFetch, validateUrl: validateSaveableUrl });
 	const { parseHtml } = initReadabilityParser({
 		crawlArticle,
@@ -562,6 +601,7 @@ function initProviders() {
 		await runCrawlAndSummariseInline(params.url);
 	};
 	const { publishRefreshArticleContent } = initInMemoryRefreshArticleContent({ logger: consoleLogger });
+	const { publishRemoveMyContent } = initInMemoryRemoveMyContent({ logger: consoleLogger });
 	const { publishUpdateFetchTimestamp } = initInMemoryUpdateFetchTimestamp({ logger: consoleLogger });
 	const { publishSaveLinkRawHtmlCommand } = initInMemorySaveLinkRawHtmlCommand({ logger: consoleLogger });
 	const { publishSaveLinkRawPdfCommand } = initInMemorySaveLinkRawPdfCommand({ logger: consoleLogger });
@@ -571,6 +611,14 @@ function initProviders() {
 	const { publishSubscriptionReactivated } = initInMemorySubscriptionReactivated({ logger: consoleLogger });
 	const { putPendingHtml } = initInMemoryPendingHtml();
 	const { putPendingPdf } = initInMemoryPendingPdf();
+	/* The in-memory composition has no alias store, so identity resolution is a
+	 * no-op — dedup-by-redirect is a production DynamoDB behaviour only. */
+	const resolveCanonicalIdentity = async (url: string) => url;
+	const { createUploadSlot, statPendingUpload, readPendingUploadPrefix } = initInMemoryPendingUpload({
+		uploadBaseUrl: `${requireEnv("APP_ORIGIN")}/e2e/s3`,
+		now: () => new Date(),
+		ttlSeconds: UPLOAD_SLOT_TTL_SECONDS,
+	});
 	const { refreshArticleIfStale } = initRefreshArticleIfStale({
 		findArticleFreshness: articleStore.findArticleFreshness,
 		findArticleCrawlStatus: crawlStore.findArticleCrawlStatus,
@@ -578,6 +626,7 @@ function initProviders() {
 		parseHtml,
 		publishRefreshArticleContent,
 		publishUpdateFetchTimestamp,
+		resolveCanonicalIdentity,
 		now: () => new Date(),
 		staleTtlMs,
 	});
@@ -644,6 +693,7 @@ function initProviders() {
 		registerOAuthClient: oauthClients.registerClient,
 		publishLinkSaved,
 		publishRecrawlLinkInitiated,
+		publishRemoveMyContent,
 		publishSaveAnonymousLink,
 		publishStaleCheckRequested,
 		publishSaveLinkRawHtmlCommand,
@@ -655,6 +705,9 @@ function initProviders() {
 		publishSubscriptionReactivated,
 		putPendingHtml,
 		putPendingPdf,
+		createUploadSlot,
+		statPendingUpload,
+		readPendingUploadPrefix,
 		findGeneratedSummary: summaryStore.findGeneratedSummary,
 		markSummaryPending: summaryStore.markSummaryPending,
 		findArticleCrawlStatus: crawlStore.findArticleCrawlStatus,
@@ -663,6 +716,7 @@ function initProviders() {
 		markCrawlPending: crawlStore.markCrawlPending,
 		forceMarkCrawlPending: crawlStore.forceMarkCrawlPending,
 		refreshArticleIfStale,
+		resolveCanonicalIdentity,
 		getIosAppSignals: iosOnboardingSignal.getIosAppSignals,
 		recordIosAnyActivity: iosOnboardingSignal.recordIosAnyActivity,
 		recordIosSavedArticle: iosOnboardingSignal.recordIosSavedArticle,
@@ -708,12 +762,6 @@ export function createHutchApp(deps?: {
 		logger: HutchLogger.from(consoleLogger),
 	});
 
-	const { logParseError } = initLogParseError({
-		logger: HutchLogger.fromJSON<ParseErrorEvent>(),
-		now: () => new Date(),
-		source: "hutch-handler",
-	});
-
 	const app = createApp({
 		validateSaveableUrl: withUnwrapPreprocessing(
 			validateSaveableUrl,
@@ -734,7 +782,6 @@ export function createHutchApp(deps?: {
 		oauthModel,
 		validateAccessToken,
 		httpErrorMessageMapping,
-		logParseError,
 		importSessionStore,
 		getChangelogBanner,
 		now: () => new Date(),

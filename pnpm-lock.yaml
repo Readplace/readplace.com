@@ -312,6 +312,9 @@ importers:
 
   projects/hutch:
     dependencies:
+      '@aws-sdk/client-cloudwatch-logs':
+        specifier: 3.1057.0
+        version: 3.1057.0
       '@aws-sdk/client-s3':
         specifier: 3.1057.0
         version: 3.1057.0
@@ -532,6 +535,9 @@ importers:
       '@aws-sdk/client-sqs':
         specifier: 3.1057.0
         version: 3.1057.0
+      '@packages/ai-message':
+        specifier: workspace:*
+        version: link:../../src/packages/ai-message
       '@packages/article-parser':
         specifier: workspace:*
         version: link:../../src/packages/article-parser
@@ -589,6 +595,12 @@ importers:
       helmet:
         specifier: 8.2.0
         version: 8.2.0
+      linkedom:
+        specifier: 0.18.12
+        version: 0.18.12
+      openai:
+        specifier: 6.39.1
+        version: 6.39.1(ws@8.21.0)(zod@4.4.3)
       serverless-http:
         specifier: 4.0.0
         version: 4.0.0
@@ -684,6 +696,9 @@ importers:
       '@aws-sdk/client-sqs':
         specifier: 3.1057.0
         version: 3.1057.0
+      '@packages/ai-message':
+        specifier: workspace:*
+        version: link:../../src/packages/ai-message
       '@packages/article-parser':
         specifier: workspace:*
         version: link:../../src/packages/article-parser
@@ -726,6 +741,9 @@ importers:
       '@packages/retriable':
         specifier: workspace:*
         version: link:../../src/packages/retriable
+      '@packages/site-rules':
+        specifier: workspace:*
+        version: link:../../src/packages/site-rules
       '@packages/test-fixtures':
         specifier: workspace:*
         version: link:../../src/packages/test-fixtures
@@ -921,6 +939,24 @@ importers:
       supertest:
         specifier: 7.2.2
         version: 7.2.2
+      typescript:
+        specifier: 6.0.3
+        version: 6.0.3
+
+  src/packages/ai-message:
+    devDependencies:
+      '@types/jest':
+        specifier: 30.0.0
+        version: 30.0.0
+      c8:
+        specifier: 11.0.0
+        version: 11.0.0
+      concurrently:
+        specifier: 10.0.0
+        version: 10.0.0
+      jest:
+        specifier: 30.4.2
+        version: 30.4.2(@types/node@22.19.19)(node-notifier@10.0.1)(ts-node@10.9.2(@types/node@22.19.19)(typescript@6.0.3))
       typescript:
         specifier: 6.0.3
         version: 6.0.3
@@ -1704,6 +1740,9 @@ importers:
 
   src/packages/web-shell:
     dependencies:
+      '@packages/supported-clients':
+        specifier: workspace:*
+        version: link:../supported-clients
       '@packages/web-session':
         specifier: workspace:*
         version: link:../web-session
@@ -1756,9 +1795,6 @@ importers:
       '@packages/extract-links-from-page':
         specifier: workspace:*
         version: link:../extract-links-from-page
-      '@packages/hutch-infra-components':
-        specifier: workspace:*
-        version: link:../hutch-infra-components
       '@packages/hutch-logger':
         specifier: workspace:*
         version: link:../hutch-logger
@@ -1850,6 +1886,10 @@ packages:
 
   '@aws-sdk/client-cloudfront@3.1057.0':
     resolution: {integrity: sha512-SSDMS+oxch09VWLBeQDEnHcQ7v1Q/YVBrA/YarjYKnqWzJO9bgoLOIN0mYG9SdcRXnyH8Bn6aIEtosanGjU5wQ==}
+    engines: {node: '>=20.0.0'}
+
+  '@aws-sdk/client-cloudwatch-logs@3.1057.0':
+    resolution: {integrity: sha512-VzrpX93RMMGE8mG9EKm/TX9aZQsQvg0bYz276UOUuxAZlMBrYxKhiMyRDIHtFSUFI5SKaBWE3nY5xoI3SK74LQ==}
     engines: {node: '>=20.0.0'}
 
   '@aws-sdk/client-dynamodb@3.1057.0':
@@ -6881,6 +6921,19 @@ snapshots:
       tslib: 2.8.1
 
   '@aws-sdk/client-cloudfront@3.1057.0':
+    dependencies:
+      '@aws-crypto/sha256-browser': 5.2.0
+      '@aws-crypto/sha256-js': 5.2.0
+      '@aws-sdk/core': 3.974.15
+      '@aws-sdk/credential-provider-node': 3.972.47
+      '@aws-sdk/types': 3.973.9
+      '@smithy/core': 3.24.5
+      '@smithy/fetch-http-handler': 5.4.5
+      '@smithy/node-http-handler': 4.7.5
+      '@smithy/types': 4.14.2
+      tslib: 2.8.1
+
+  '@aws-sdk/client-cloudwatch-logs@3.1057.0':
     dependencies:
       '@aws-crypto/sha256-browser': 5.2.0
       '@aws-crypto/sha256-js': 5.2.0

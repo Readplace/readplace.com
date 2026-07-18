@@ -91,7 +91,6 @@ struct ReadingListView: View {
 						}
 					)
 					.id(presentation.id)
-					.ignoresSafeArea()
 				}
 				.sheet(isPresented: $showingAddInstructions) {
 					// Edge-to-edge like the reader/account sheet: the help page is now

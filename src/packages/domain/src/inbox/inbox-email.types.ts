@@ -50,15 +50,18 @@ export interface InboxEmailStore {
 	/** Account-deletion read pass: enumerate every email the user owns WITHOUT
 	 * deleting, returning the pointers those rows hold — the raw `.eml` and
 	 * rendered-body S3 keys (different buckets, so returned apart; the body only on
-	 * `received` rows) and the link message-ids (the links table has no `userId`
-	 * index to enumerate on its own). The email rows are the sole index for all of
-	 * these, so the scrub deletes the S3 objects and link rows first and the email
-	 * rows last: an at-least-once redrive then re-derives the pointers from the
-	 * still-present rows instead of orphaning the raw `.eml`/body objects in S3. */
+	 * `received` rows), the opaque per-email prefixes rehosted images live under
+	 * (recomputed from the row keys — no attribute stores them), and the link
+	 * message-ids (the links table has no `userId` index to enumerate on its own).
+	 * The email rows are the sole index for all of these, so the scrub deletes the
+	 * S3 objects and link rows first and the email rows last: an at-least-once
+	 * redrive then re-derives the pointers from the still-present rows instead of
+	 * orphaning the raw `.eml`/body/image objects in S3. */
 	listDeletionReferencesByUserId: (userId: UserId) => Promise<{
 		receivedAtMessageIds: string[];
 		rawEmailS3Keys: string[];
 		bodyS3Keys: string[];
+		emailImageS3KeyPrefixes: string[];
 	}>;
 	/** Account-deletion write pass: delete every email row the user owns, run after
 	 * the S3 objects and link rows those rows point at are gone. Idempotent —

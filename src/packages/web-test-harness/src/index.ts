@@ -25,6 +25,7 @@ export type {
 	RateLimitBundle,
 	PendingHtmlBundle,
 	PendingPdfBundle,
+	PendingUploadBundle,
 	PendingSignupBundle,
 	SharedBundle,
 	SubscriptionBillingBundle,

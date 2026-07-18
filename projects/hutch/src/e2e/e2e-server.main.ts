@@ -15,9 +15,9 @@ import {
 import { getEnv, requireEnv } from "@packages/require-env"
 import { initRefreshArticleIfStale } from '@packages/finalize-article'
 import type { ExtractPdf, IsBlockedAddress } from '@packages/crawl-article'
-import { CRAWL_PERSONAS, initCrawlArticle, initCrawlFetch, initXTwitterSiteRules } from '@packages/crawl-article'
+import { CRAWL_PERSONAS, initAppleNewsSiteRules, initCrawlArticle, initCrawlFetch, initXTwitterSiteRules } from '@packages/crawl-article'
 import { initExtractLinksFromPageUrl } from '@packages/extract-links-from-page'
-import { initReadabilityParser, linkedinSiteRules, mediumSiteRules, theInformationSiteRules } from '@packages/article-parser'
+import { initReadabilityParser, linkedinSiteRules, mediaWikiSiteRules, mediumSiteRules, theInformationSiteRules } from '@packages/article-parser'
 import { initInMemoryRefreshArticleContent } from '@packages/test-fixtures/providers/events'
 import { initInMemoryUpdateFetchTimestamp } from '@packages/test-fixtures/providers/events'
 import { initInMemoryHostedCheckout } from '@packages/test-fixtures/providers/hosted-checkout'
@@ -62,7 +62,7 @@ const extractPdf: ExtractPdf = async () => ({
   title: E2E_PDF_TITLE,
   html: `<!DOCTYPE html><html><head><title>${E2E_PDF_TITLE}</title></head><body><article><h1>${E2E_PDF_TITLE}</h1>${E2E_PDF_BODY_PARAGRAPHS}</article></body></html>`,
 })
-const siteRules = [theInformationSiteRules, mediumSiteRules, linkedinSiteRules, initXTwitterSiteRules({ crawlFetch, logError })]
+const siteRules = [theInformationSiteRules, mediumSiteRules, linkedinSiteRules, mediaWikiSiteRules, initXTwitterSiteRules({ crawlFetch, logError }), initAppleNewsSiteRules({ crawlFetch, logError })]
 const crawlArticle = initCrawlArticle({ crawlFetch, siteRules, extractPdf, logError, logInfo })
 const { parseArticle, parseHtml } = initReadabilityParser({ crawlArticle, siteRules, logError })
 
@@ -96,6 +96,7 @@ const summary = createFakeSummaryProvider({ readyAfterReads: 3 })
 const eventLogger = getEnv('CI') === 'true' ? noopLogger : logger
 const { publishRefreshArticleContent } = initInMemoryRefreshArticleContent({ logger: eventLogger })
 const { publishUpdateFetchTimestamp } = initInMemoryUpdateFetchTimestamp({ logger: eventLogger })
+const resolveCanonicalIdentity = async (url: string) => url
 const { refreshArticleIfStale } = initRefreshArticleIfStale({
   findArticleFreshness: fixture.articleStore.findArticleFreshness,
   findArticleCrawlStatus: fixture.articleCrawl.findArticleCrawlStatus,
@@ -103,6 +104,7 @@ const { refreshArticleIfStale } = initRefreshArticleIfStale({
   parseHtml,
   publishRefreshArticleContent,
   publishUpdateFetchTimestamp,
+  resolveCanonicalIdentity,
   now: () => new Date(),
   staleTtlMs: 0,
 })
@@ -135,6 +137,7 @@ const { app: hutchApp, auth, email } = createTestApp({
     publishSaveLinkRawHtmlCommand: fixture.events.publishSaveLinkRawHtmlCommand,
     publishSaveLinkRawPdfCommand: fixture.events.publishSaveLinkRawPdfCommand,
     publishStaleCheckRequested: fixture.events.publishStaleCheckRequested,
+    publishRemoveMyContent: fixture.events.publishRemoveMyContent,
     publishUpdateFetchTimestamp,
     publishExportUserDataCommand: fixture.events.publishExportUserDataCommand,
     publishDeleteAccountCommand: fixture.events.publishDeleteAccountCommand,
@@ -156,7 +159,6 @@ const { app: hutchApp, auth, email } = createTestApp({
     staticBaseUrl: fixture.shared.staticBaseUrl,
     httpErrorMessageMapping: fixture.shared.httpErrorMessageMapping,
     logError,
-    logParseError: fixture.shared.logParseError,
     now: fixture.shared.now,
   },
 })
@@ -223,7 +225,10 @@ server.post('/e2e/seed-crawled-article', async (req, res) => {
   })
   await fixture.articleCrawl.markCrawlReady({ url })
   await fixture.articleStore.setContentFetchedAt({ url, at: contentFetchedAt })
-  await fixture.articleStore.setCrawlVersions({ url, versions: crawlVersions })
+  await fixture.articleStore.setCrawlVersions({
+    url,
+    versions: crawlVersions.map((crawledAtMinute) => ({ crawledAtMinute })),
+  })
   res.status(201).json({ ok: true })
 })
 
@@ -257,6 +262,20 @@ const E2E_SAMPLE_PDF = Buffer.from(
 server.get('/e2e/fixtures/sample.pdf', (_req, res) => {
   res.type('application/pdf').send(E2E_SAMPLE_PDF)
 })
+
+const E2E_LARGE_PDF = Buffer.concat([E2E_SAMPLE_PDF, Buffer.alloc(4 * 1024 * 1024, 0x20)])
+server.get('/e2e/fixtures/large.pdf', (_req, res) => {
+  res.type('application/pdf').send(E2E_LARGE_PDF)
+})
+
+server.put(
+  '/e2e/s3/:key',
+  express.raw({ type: () => true, limit: 512 * 1024 * 1024 }),
+  (req, res) => {
+    fixture.pendingUpload.receiveUpload(req.params.key, req.body)
+    res.status(200).end()
+  },
+)
 
 server.use(hutchApp)
 

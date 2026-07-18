@@ -135,6 +135,7 @@ export function initRecrawlContentExtractedHandler(deps: {
 							url: detail.url,
 							tier: winnerTier,
 							crawledAt: detail.extractedAt ?? crawledAt,
+							authorUserId: winnerSource.metadata.authorUserId,
 						});
 					}
 

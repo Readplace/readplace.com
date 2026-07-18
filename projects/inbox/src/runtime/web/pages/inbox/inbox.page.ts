@@ -25,11 +25,19 @@ import type { QuerystringFeatureToggle } from "@packages/web-shell";
 import { MAX_POLLS } from "@packages/web-shell";
 import { etagMatches } from "@packages/web-shell";
 import { renderInboxArticleCard } from "./inbox-article-card.component";
+import { renderInboxArticlesMore } from "./inbox-articles-more.component";
+import { parseArticlesShown } from "./inbox-articles-more.url";
 import { renderInboxArticlesPanel } from "./inbox-articles-panel.component";
+import { renderInboxExcludedPanel } from "./inbox-excluded-panel.component";
 import { InboxEmailDetailPage } from "./inbox-email-detail.component";
-import { parseMailTab } from "./inbox-email-detail.url";
+import { buildInboxEmailDetailUrl, parseMailTab } from "./inbox-email-detail.url";
+import type { MailTabKey } from "./inbox-email-detail.url";
 import { renderInboxLinkCount } from "./inbox-link-count.component";
-import { toInboxEmailDetailViewModel } from "./inbox-email-detail.viewmodel";
+import {
+	toInboxArticlesMoreViewModel,
+	toInboxEmailDetailViewModel,
+} from "./inbox-email-detail.viewmodel";
+import type { InboxEmailDetailViewModel } from "./inbox-email-detail.viewmodel";
 import { InboxEmailsPage } from "./inbox-emails.component";
 import {
 	INBOX_EMAILS_PAGE_SIZE,
@@ -49,6 +57,7 @@ interface InboxDependencies {
 	inboxEmailLinkStore: InboxEmailLinkStore;
 	readEmailContent: ContentProvider;
 	inboxAddressDomain: string;
+	imagesCdnBaseUrl: string;
 	logError: (message: string, error?: Error) => void;
 	buildBannerState: BuildBannerState;
 	/** Save gates applied only to /create, the sole route that mints an address —
@@ -62,8 +71,24 @@ interface InboxDependencies {
 	now: () => Date;
 }
 
+/** The tabs whose panel is extraction-driven, so each needs a poll fragment. `view`
+ * renders the stored email and has nothing to wait for. Typed off `MailTabKey` so a
+ * new tab has to decide whether it polls rather than silently not doing so. */
+const POLLABLE_PANELS: readonly Exclude<MailTabKey, "view">[] = ["articles", "excluded"];
+
+const POLL_PANEL_RENDERERS: Record<
+	Exclude<MailTabKey, "view">,
+	(vm: InboxEmailDetailViewModel) => string
+> = {
+	articles: (vm) => renderInboxArticlesPanel(vm.articles),
+	excluded: (vm) => renderInboxExcludedPanel(vm.excluded),
+};
+
 const DisableAddressSchema = z.object({ address: InboxAddressSchema });
 const CreateAddressSchema = z.object({ name: z.string() });
+const LinkFeedbackSchema = z.object({
+	verdict: z.enum(["should-be-included", "should-be-excluded"]),
+});
 
 export function initInboxRoutes(deps: InboxDependencies): Router {
 	const router = express.Router();
@@ -109,7 +134,10 @@ export function initInboxRoutes(deps: InboxDependencies): Router {
 				});
 				return [
 					email.receivedAtMessageId,
-					{ count: links.length, truncated: meta?.truncated === true },
+					{
+						count: links.filter((link) => link.status !== "skipped").length,
+						truncated: meta?.truncated === true,
+					},
 				];
 			}),
 		);
@@ -168,19 +196,63 @@ export function initInboxRoutes(deps: InboxDependencies): Router {
 			entry,
 			activeTab,
 			bodyHtml,
+			imagesCdnBaseUrl: deps.imagesCdnBaseUrl,
 			links,
 			linksMeta: meta,
 			maxPolls: MAX_POLLS,
+			shown: parseArticlesShown(req.query),
+			feedbackConfirmed: req.query.feedback === "sent",
 		});
 		sendComponent(req, res, Base(InboxEmailDetailPage(vm), await deps.buildBannerState(req)));
 	});
 
-	// Page-level poll for the Articles panel while extraction is still running.
-	// Until the extractor writes the per-email meta barrier there are no link rows
-	// to poll, so the panel polls itself here and swaps in the finished card set
-	// (or the terminal "no links" state) the instant extraction writes its meta.
-	// The literal `articles` suffix keeps `/:id` (single segment) from capturing it.
-	router.get("/:id/articles", async (req: Request<{ id: string }>, res: Response) => {
+	// Page-level poll for a panel while extraction is still running. Until the
+	// extractor writes the per-email meta barrier there are no link rows to poll, so
+	// the panel polls itself here and swaps in its finished state the instant
+	// extraction writes its meta. Each panel gets its own literal suffix — which also
+	// keeps `/:id` (single segment) from capturing it — because a panel swaps itself
+	// via `outerHTML`, so a shared URL would swap the other panel's markup in over it.
+	for (const panel of POLLABLE_PANELS) {
+		router.get(`/:id/${panel}`, async (req: Request<{ id: string }>, res: Response) => {
+			assert(req.userId, "userId required - route must be protected by requireAuth");
+			const userId = req.userId;
+			const receivedAtMessageId = req.params.id;
+			const entry = await deps.inboxEmailStore.getEmail({ userId, receivedAtMessageId });
+			if (entry === undefined) {
+				res.status(404).type("html").send("");
+				return;
+			}
+			const { links, meta } = await deps.inboxEmailLinkStore.listLinksByEmail({
+				userId,
+				receivedAtMessageId,
+			});
+			const requestedPoll = parsePollParam(req.query.poll, MAX_POLLS);
+			const vm = toInboxEmailDetailViewModel({
+				entry,
+				activeTab: panel,
+				bodyHtml: undefined,
+				imagesCdnBaseUrl: deps.imagesCdnBaseUrl,
+				links,
+				linksMeta: meta,
+				maxPolls: MAX_POLLS,
+				panelPollCount: requestedPoll + 1,
+			});
+			// The swap only replaces this one panel, so pair it with an out-of-band swap
+			// of the header badge — otherwise the count would lag the swapped-in state
+			// until a full reload, and this poll is the only request in flight. While
+			// extraction is pending the label is undefined, so the badge stays empty and
+			// the header keeps withholding the count in lockstep with the panel.
+			res
+				.status(200)
+				.type("html")
+				.send(
+					POLL_PANEL_RENDERERS[panel](vm) +
+						renderInboxLinkCount({ label: vm.linkCountLabel, oob: true }),
+				);
+		});
+	}
+
+	router.get("/:id/articles/more", async (req: Request<{ id: string }>, res: Response) => {
 		assert(req.userId, "userId required - route must be protected by requireAuth");
 		const userId = req.userId;
 		const receivedAtMessageId = req.params.id;
@@ -189,37 +261,21 @@ export function initInboxRoutes(deps: InboxDependencies): Router {
 			res.status(404).type("html").send("");
 			return;
 		}
-		const { links, meta } = await deps.inboxEmailLinkStore.listLinksByEmail({
+		const { links } = await deps.inboxEmailLinkStore.listLinksByEmail({
 			userId,
 			receivedAtMessageId,
 		});
-		const requestedPoll = parsePollParam(req.query.poll, MAX_POLLS);
-		const vm = toInboxEmailDetailViewModel({
-			entry,
-			activeTab: "articles",
-			bodyHtml: undefined,
+		const vm = toInboxArticlesMoreViewModel({
 			links,
-			linksMeta: meta,
+			emailId: receivedAtMessageId,
+			shown: parseArticlesShown(req.query),
 			maxPolls: MAX_POLLS,
-			panelPollCount: requestedPoll + 1,
 		});
-		// The panel swap only replaces the Articles section, so pair it with an
-		// out-of-band swap of the header badge — otherwise the count would lag the
-		// swapped-in card set until a full reload. While extraction is still pending
-		// the label is undefined, so the OOB badge stays empty and the header keeps
-		// withholding the count in lockstep with the panel.
-		res
-			.status(200)
-			.type("html")
-			.send(
-				renderInboxArticlesPanel(vm.articles) +
-					renderInboxLinkCount({ label: vm.linkCountLabel, oob: true }),
-			);
+		res.status(200).type("html").send(renderInboxArticlesMore(vm));
 	});
 
 	// The literal `links/:ordinal/card` suffix means `/:id` (single segment)
-	// never captures it. Renders one link-preview card fragment for the htmx
-	// poll; 304s when the link hasn't changed during the wait window.
+	// never captures it.
 	router.get(
 		"/:id/links/:ordinal/card",
 		async (req: Request<{ id: string; ordinal: string }>, res: Response) => {
@@ -234,7 +290,9 @@ export function initInboxRoutes(deps: InboxDependencies): Router {
 						ordinal: parsedOrdinal.data,
 					})
 				: undefined;
-			if (link === undefined) {
+			// A skipped link renders only as the inert excluded row — never as a live
+			// card — so the fragment route refuses it like a missing link.
+			if (link === undefined || link.status === "skipped") {
 				res.status(404).type("html").send("");
 				return;
 			}
@@ -254,6 +312,52 @@ export function initInboxRoutes(deps: InboxDependencies): Router {
 				maxPolls: MAX_POLLS,
 			});
 			res.status(200).type("html").send(renderInboxArticleCard(cardVm));
+		},
+	);
+
+	// The ERROR level is the point: link-classification feedback must surface in
+	// the operator's CloudWatch error widget, not sit in an unwatched info stream.
+	router.post(
+		"/:id/links/:ordinal/feedback",
+		async (req: Request<{ id: string; ordinal: string }>, res: Response) => {
+			assert(req.userId, "userId required - route must be protected by requireAuth");
+			const userId = req.userId;
+			const receivedAtMessageId = req.params.id;
+			const parsedOrdinal = EmailLinkOrdinalSchema.safeParse(req.params.ordinal);
+			const link = parsedOrdinal.success
+				? await deps.inboxEmailLinkStore.getLink({
+						userId,
+						receivedAtMessageId,
+						ordinal: parsedOrdinal.data,
+					})
+				: undefined;
+			if (link === undefined) {
+				res.status(404).type("html").send("");
+				return;
+			}
+			const parsedBody = LinkFeedbackSchema.safeParse(req.body);
+			if (parsedBody.success) {
+				deps.logError(
+					`[inbox-link-feedback] ${JSON.stringify({
+						verdict: parsedBody.data.verdict,
+						userId,
+						receivedAtMessageId,
+						ordinal: link.ordinal,
+						url: link.url,
+						status: link.status,
+						skipReason: link.skipReason,
+					})}`,
+				);
+			}
+			// Back to the tab the reported row actually lives on: an include verdict
+			// comes from a skipped row on the Skipped Links tab, an exclude verdict from
+			// a card on Articles. A fixed tab would bounce the reader to a panel that
+			// doesn't hold the link they just reported.
+			const tab = link.status === "skipped" ? "excluded" : "articles";
+			res.redirect(
+				303,
+				`${buildInboxEmailDetailUrl({ emailId: receivedAtMessageId, tab })}&feedback=sent`,
+			);
 		},
 	);
 

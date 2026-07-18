@@ -6,6 +6,7 @@ import {
 	EmailLinkOrdinalSchema,
 	InboxAddressSchema,
 	MessageIdSchema,
+	emailImageS3KeyPrefix,
 } from "@packages/domain/inbox";
 import { UserIdSchema, type UserId } from "@packages/domain/user";
 import { HutchLogger, noopLogger } from "@packages/hutch-logger";
@@ -70,6 +71,7 @@ function buildSubject() {
 	const chargeReminderCalls: UserId[] = [];
 	const rawEmailDeleteArgs: string[][] = [];
 	const bodyEmailDeleteArgs: string[][] = [];
+	const emailImageDeleteArgs: string[][] = [];
 	const deleteExportsCalls: UserId[] = [];
 	const passwordResetCalls: string[] = [];
 	const verificationTokenDeleteCalls: UserId[] = [];
@@ -97,10 +99,16 @@ function buildSubject() {
 	// added here, so a batch can carry one poisoned record beside a healthy one.
 	const articleDeleteThrowIds = new Set<string>();
 
+	// Content-purge captures. `otherSaversByUrl` lets a test declare a URL still
+	// saved by someone else, so the purge is skipped for it.
+	const purgeContentCalls: string[] = [];
+	const tombstoneCalls: Array<{ url: string; at: Date }> = [];
+	const otherSaversByUrl = new Map<string, number>();
+
 	// Test-only one-shot failures: each flag makes its step throw exactly once
 	// (self-clearing), so the record fails on the first delivery and its redrive
 	// then runs clean — the interleavings that exercise idempotency on retry.
-	const injectedFailures = { deleteSubscriptionOnce: false, deleteRawEmailOnce: false };
+	const injectedFailures = { deleteSubscriptionOnce: false, deleteRawEmailOnce: false, purgeContentOnce: false };
 
 	const handler = initDeleteAccountHandler({
 		findEmailByUserId: auth.findEmailByUserId,
@@ -145,12 +153,29 @@ function buildSubject() {
 		deleteEmailContentObjects: async (keys: string[]) => {
 			bodyEmailDeleteArgs.push(keys);
 		},
+		deleteEmailImageObjects: async (prefixes: string[]) => {
+			emailImageDeleteArgs.push(prefixes);
+		},
 		deleteAllUserArticles: async (userId: UserId) => {
 			if (articleDeleteThrowIds.has(userId)) {
 				throw new Error("simulated deleteAllUserArticles failure");
 			}
 			await articleStore.deleteAllUserArticles(userId);
 		},
+		listUserArticleUrls: articleStore.listUserArticleUrls,
+		countOtherSaversByUrl: async ({ url }: { url: string; excludeUserId: string }) =>
+			otherSaversByUrl.get(url) ?? 0,
+		purgeArticleContent: async (url: string) => {
+			if (injectedFailures.purgeContentOnce) {
+				injectedFailures.purgeContentOnce = false;
+				throw new Error("simulated purgeArticleContent failure");
+			}
+			purgeContentCalls.push(url);
+		},
+		tombstoneArticle: async ({ url, at }: { url: string; at: Date }) => {
+			tombstoneCalls.push({ url, at });
+		},
+		now: () => SEED_NOW,
 		deleteDigestByUser: digest.deleteDigestByUser,
 		deleteReaderReadyState: readerReady.deleteReaderReadyState,
 		deleteOnboarding: onboarding.deleteOnboarding,
@@ -197,12 +222,18 @@ function buildSubject() {
 		chargeReminderCalls,
 		rawEmailDeleteArgs,
 		bodyEmailDeleteArgs,
+		emailImageDeleteArgs,
 		deleteExportsCalls,
 		passwordResetCalls,
 		verificationTokenDeleteCalls,
 		pendingSignupDeleteCalls,
 		revokeIdpCalls,
 		appleRevokeCalls,
+		purgeContentCalls,
+		tombstoneCalls,
+		setOtherSavers: (url: string, count: number): void => {
+			otherSaversByUrl.set(url, count);
+		},
 		failArticleDeleteFor: (userId: UserId): void => {
 			articleDeleteThrowIds.add(userId);
 		},
@@ -211,6 +242,9 @@ function buildSubject() {
 		},
 		failRawEmailDeleteOnce: (): void => {
 			injectedFailures.deleteRawEmailOnce = true;
+		},
+		failPurgeContentOnce: (): void => {
+			injectedFailures.purgeContentOnce = true;
 		},
 	};
 }
@@ -313,12 +347,14 @@ async function seedAccount(
 		receivedAtMessageId: ramA,
 		ordinal: EmailLinkOrdinalSchema.parse("0000"),
 		url: `https://example.com/${label}/link`,
+		resolvedUrl: undefined,
 		status: "pending",
 		title: undefined,
 		excerpt: undefined,
 		siteName: undefined,
 		imageUrl: undefined,
 		failureReason: undefined,
+		skipReason: undefined,
 	});
 	await s.inboxLink.putLinksMeta({
 		userId,
@@ -420,6 +456,16 @@ describe("delete-account handler", () => {
 		assert.deepEqual(sorted(s.rawEmailDeleteArgs[0]), sorted(victim.rawKeys));
 		assert.equal(s.bodyEmailDeleteArgs.length, 1);
 		assert.deepEqual(sorted(s.bodyEmailDeleteArgs[0]), sorted(victim.bodyKeys));
+		// Rehosted-image prefixes are recomputed from the rows (bodied or not) and
+		// swept, so no image object outlives the account.
+		assert.equal(s.emailImageDeleteArgs.length, 1);
+		assert.deepEqual(
+			sorted(s.emailImageDeleteArgs[0]),
+			sorted([
+				emailImageS3KeyPrefix({ userId: victim.userId, receivedAtMessageId: victim.ramA }),
+				emailImageS3KeyPrefix({ userId: victim.userId, receivedAtMessageId: victim.ramB }),
+			]),
+		);
 
 		// Password-reset tokens purged by the email captured before deletion.
 		assert.deepEqual(s.passwordResetCalls, [victim.email]);
@@ -438,6 +484,13 @@ describe("delete-account handler", () => {
 		assert.deepEqual(s.deleteSubscriptionCalls, [victim.userId]);
 		assert.deepEqual(s.deleteExportsCalls, [victim.userId]);
 		assert.deepEqual(s.revokeIdpCalls, [victim.userId]);
+
+		// The victim was the only saver of their article, so its global content is
+		// purged and the row tombstoned — not just delisted.
+		assert.deepEqual(s.purgeContentCalls, ["https://example.com/u1/article"]);
+		assert.deepEqual(s.tombstoneCalls, [
+			{ url: "https://example.com/u1/article", at: SEED_NOW },
+		]);
 
 		// Bystander: everything intact.
 		assert.equal((await s.articleStore.findArticlesByUser({ userId: bystander.userId })).total, 1);
@@ -478,6 +531,51 @@ describe("delete-account handler", () => {
 		assert.equal(s.oauthDeps.userIdIndex.has(bystander.userId), true);
 		assert(await s.auth.getSessionUserId(bystander.sessionId));
 		assert.equal(await s.auth.findEmailByUserId(bystander.userId), bystander.email);
+	});
+
+	it("converges on redrive when a purge throws mid-loop: the per-user rows are not dropped until every single-saver URL is purged", async () => {
+		const s = buildSubject();
+		const account = await seedAccount(s, {
+			label: "retry",
+			email: "retry@example.com",
+			subscription: "none",
+		});
+		s.failPurgeContentOnce();
+
+		// First delivery: purge throws before the rows are deleted, so the record
+		// fails and the rows survive for the redrive to re-list.
+		const first = await run(s, [{ messageId: "msg", body: bodyFor(account.userId) }]);
+		assert.deepEqual(first.batchItemFailures, [{ itemIdentifier: "msg" }]);
+		assert.equal((await s.articleStore.findArticlesByUser({ userId: account.userId })).total, 1);
+		assert.deepEqual(s.purgeContentCalls, []);
+
+		// Redrive: the URL is still listable, so the purge converges and only then
+		// are the per-user rows dropped.
+		const second = await run(s, [{ messageId: "msg", body: bodyFor(account.userId) }]);
+		assert.deepEqual(second.batchItemFailures, []);
+		assert.deepEqual(s.purgeContentCalls, ["https://example.com/retry/article"]);
+		assert.deepEqual(s.tombstoneCalls, [
+			{ url: "https://example.com/retry/article", at: SEED_NOW },
+		]);
+		assert.equal((await s.articleStore.findArticlesByUser({ userId: account.userId })).total, 0);
+	});
+
+	it("leaves content another user still saves in place — delists the account but never purges a co-saved URL", async () => {
+		const s = buildSubject();
+		const account = await seedAccount(s, {
+			label: "shared",
+			email: "shared@example.com",
+			subscription: "none",
+		});
+		// Someone else still has this URL saved.
+		s.setOtherSavers("https://example.com/shared/article", 1);
+
+		const result = await run(s, [{ messageId: "msg", body: bodyFor(account.userId) }]);
+
+		assert.deepEqual(result.batchItemFailures, []);
+		assert.equal((await s.articleStore.findArticlesByUser({ userId: account.userId })).total, 0);
+		assert.deepEqual(s.purgeContentCalls, []);
+		assert.deepEqual(s.tombstoneCalls, []);
 	});
 
 	it("active subscription branch — deletes the Stripe customer (which cancels the sub) and drops the local row", async () => {

@@ -105,7 +105,11 @@ export function buildExpiryFields(
 }
 
 export interface ViewPageInput {
+	/** Identity: drives the /view share path, the save action, and SEO. */
 	articleUrl: string;
+	/** Redirect destination for a merged article; shown as the header "View
+	 * original" in place of `articleUrl`. Absent on a normal article. */
+	displayUrl?: string;
 	appOrigin: string;
 	metadata: ArticleMetadata;
 	estimatedReadTime: Minutes;
@@ -129,7 +133,9 @@ export function ViewPage(input: ViewPageInput): PageBody {
 		title: input.metadata.title,
 		siteName: input.metadata.siteName,
 		estimatedReadTime: input.estimatedReadTime,
-		url: input.articleUrl,
+		// Header "View original" only; the share path, save action and SEO below
+		// keep `articleUrl` (the identity).
+		url: input.displayUrl ?? input.articleUrl,
 		content: input.content,
 		crawl: input.crawl,
 		readerPollUrl: input.readerPollUrl,

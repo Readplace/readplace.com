@@ -16,6 +16,10 @@ export interface SaveArticleFromUrlDependencies {
 	publishUpdateFetchTimestamp: PublishUpdateFetchTimestamp;
 	publishLinkSaved: PublishLinkSaved;
 	refreshArticleIfStale: RefreshArticleIfStale;
+	/** Collapse an adopted terminal URL onto the article it aliases, so the save
+	 * attaches to that article instead of minting a duplicate (and never lands on
+	 * an inert alias row). */
+	resolveCanonicalIdentity: (url: string) => Promise<string>;
 }
 
 async function markUnreadIfRead(
@@ -80,5 +84,8 @@ export function initSaveArticleFromUrl(
 	url: SaveableUrl;
 	freshness: ContentFreshnessResult;
 }) => Promise<{ saved: SavedArticle }> {
-	return (params) => saveByFreshness(deps, params);
+	return async (params) => {
+		const url = await deps.resolveCanonicalIdentity(params.url);
+		return saveByFreshness(deps, { userId: params.userId, url, freshness: params.freshness });
+	};
 }

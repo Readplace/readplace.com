@@ -1,14 +1,12 @@
 /* c8 ignore start -- composition root, no logic to test */
-import { S3Client } from "@aws-sdk/client-s3";
 import { createDynamoDocumentClient } from "@packages/hutch-storage-client";
 import { HutchLogger, consoleLogger } from "@packages/hutch-logger";
 import { EventBridgeClient, initEventBridgePublisher } from "@packages/hutch-infra-components/runtime";
-import { initReadArticleContent } from "@packages/article-store";
 import { initDynamoDbArticleStore } from "./providers/article-store/dynamodb-article-store";
 import { initDynamoDbAuth } from "./providers/auth/dynamodb-auth";
 import { initDynamoDbReaderReadyState } from "./providers/reader-ready-state/dynamodb-reader-ready-state";
 import { initDynamoDbDigestQueue } from "./providers/digest-queue/dynamodb-digest-queue";
-import { initS3ReadContent } from "@packages/article-store";
+import { initDynamoDbGeneratedSummary } from "./providers/article-summary/dynamodb-generated-summary";
 import { initResendEmail } from "./providers/email/resend-email";
 import { initSendUserDigestHandler } from "./send-user-digest/send-user-digest-handler";
 import { requireEnv } from "@packages/require-env";
@@ -32,11 +30,9 @@ const usersTable = requireEnv("DYNAMODB_USERS_TABLE");
 const sessionsTable = requireEnv("DYNAMODB_SESSIONS_TABLE");
 const readerReadyNotificationsTable = requireEnv("DYNAMODB_READER_READY_NOTIFICATIONS_TABLE");
 const digestQueueTable = requireEnv("DYNAMODB_DIGEST_QUEUE_TABLE");
-const contentBucketName = requireEnv("CONTENT_BUCKET_NAME");
 const eventBusName = requireEnv("EVENT_BUS_NAME");
 
 const dynamoClient = createDynamoDocumentClient();
-const s3Client = new S3Client({});
 
 const articleStore = initDynamoDbArticleStore({
 	client: dynamoClient,
@@ -61,12 +57,9 @@ const digestQueue = initDynamoDbDigestQueue({
 	tableName: digestQueueTable,
 });
 
-const readArticleContent = initReadArticleContent({
-	storageProviderQueryOrder: [
-		initS3ReadContent({ send: (cmd) => s3Client.send(cmd), bucketName: contentBucketName }),
-		articleStore.readContent, // Legacy fallback for articles saved before S3 migration
-	],
-	logError: (message, error) => logger.error(message, { error }),
+const summaryStore = initDynamoDbGeneratedSummary({
+	client: dynamoClient,
+	tableName: articlesTable,
 });
 
 const { sendEmail } = initResendEmail(resendApiKey);
@@ -81,7 +74,7 @@ export const handler = initSendUserDigestHandler({
 	listDigestItemsByUser: digestQueue.listDigestItemsByUser,
 	findUserArticleNotificationState: articleStore.findUserArticleNotificationState,
 	findArticleByUrl: articleStore.findArticleByUrl,
-	readArticleContent,
+	findGeneratedSummary: summaryStore.findGeneratedSummary,
 	deleteDigestItem: digestQueue.deleteDigestItem,
 	claimReaderReadyEmailSlot: readerReadyState.claimReaderReadyEmailSlot,
 	releaseReaderReadyEmailSlot: readerReadyState.releaseReaderReadyEmailSlot,

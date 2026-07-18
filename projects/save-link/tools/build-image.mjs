@@ -26,6 +26,17 @@
  * never references. ECR repo URL is resolved from the platform stack via
  * `aws ecr describe-repositories` — the platform stack must already be
  * deployed before this runs.
+ *
+ * Because the tag is content-addressed, a deploy first asks ECR whether that
+ * exact tag is already present and, if so, reuses it instead of rebuilding —
+ * an unchanged handler costs one describe-images call rather than a ~minute-long
+ * docker build+push, on the staging AND prod registries independently. Only
+ * genuinely new content is built. Skipping the re-push is safe because the
+ * lifecycle policy now retains enough images (see HutchEcrRepository) that a
+ * reused image cannot age out before its content next changes; the forensic
+ * gitsha tag is still copied onto the reused image so every deployed commit
+ * remains traceable. An existence probe that errors falls back to building, so
+ * uncertainty never skips.
  */
 import assert from "node:assert";
 import { spawnSync } from "node:child_process";
@@ -70,6 +81,48 @@ function run(command, args, options = {}) {
 		throw new Error(`${command} ${args.join(" ")} failed (exit ${result.status}): ${stderr || stdout}`);
 	}
 	return result.stdout?.trim() ?? "";
+}
+
+function imageTagExists(repositoryName, tag) {
+	// Non-throwing existence probe. describe-images exits non-zero
+	// (ImageNotFoundException) when the tag is absent; any failure at all —
+	// missing tag or a transient API error — resolves to "not present" so the
+	// caller falls back to building. Uncertainty must never skip a build.
+	const result = spawnSync("aws", [
+		"ecr", "describe-images",
+		"--repository-name", repositoryName,
+		"--image-ids", `imageTag=${tag}`,
+		"--query", "imageDetails[0].imageDigest",
+		"--output", "text",
+	], { encoding: "utf-8" });
+	const digest = result.status === 0 ? (result.stdout?.trim() ?? "") : "";
+	return digest !== "" && digest !== "None";
+}
+
+function retagForensic(repositoryName, contentTag, forensicTag) {
+	// Keep the invariant that every deployed commit's image carries its gitsha
+	// tag even when the content build was skipped: copy the existing manifest
+	// onto the forensic tag with no rebuild. Best-effort — the tag is
+	// forensic-only (Pulumi never references it), and put-image also rejects a
+	// tag that already exists (a redeploy of the same commit), so a failure here
+	// must never fail the deploy.
+	try {
+		const manifest = run("aws", [
+			"ecr", "batch-get-image",
+			"--repository-name", repositoryName,
+			"--image-ids", `imageTag=${contentTag}`,
+			"--query", "images[0].imageManifest",
+			"--output", "text",
+		]);
+		run("aws", [
+			"ecr", "put-image",
+			"--repository-name", repositoryName,
+			"--image-tag", forensicTag,
+			"--image-manifest", manifest,
+		]);
+	} catch (err) {
+		console.warn(`[build-image] forensic retag ${forensicTag} skipped: ${err.message}`);
+	}
 }
 
 function resolveRepositoryUrl() {
@@ -143,8 +196,6 @@ async function main() {
 	const gitSha = TAG_ONLY ? null : run("git", ["rev-parse", "--short=12", "HEAD"]);
 	console.log(`[build-image] ${TAG_ONLY ? "tag-only " : ""}git=${gitSha ?? "-"} repo=${repositoryUrl}`);
 
-	if (!TAG_ONLY) loginToEcr(repositoryUrl);
-
 	console.log(`[build-image] bundling ${HANDLERS.length} handlers in parallel`);
 	await Promise.all(HANDLERS.map((handler) => bundleHandler(handler)));
 
@@ -152,6 +203,17 @@ async function main() {
 	 * curl-impersonate version pinned via build-arg. If either changes, every
 	 * handler's image changes too, so they must contribute to the tag. */
 	const dockerfileContents = readFileSync(resolve(PROJECT_ROOT, "Dockerfile"));
+
+	// Log in to ECR once, lazily, and only if a handler actually needs a
+	// build+push. A deploy where every image is already in ECR does no docker
+	// work at all.
+	let loggedIn = false;
+	const ensureLogin = () => {
+		if (!loggedIn) {
+			loginToEcr(repositoryUrl);
+			loggedIn = true;
+		}
+	};
 
 	const tags = {};
 	for (const handler of HANDLERS) {
@@ -167,11 +229,23 @@ async function main() {
 			dockerfileContents,
 			curlImpersonateVersion: CURL_IMPERSONATE_VERSION,
 		});
-		// buildAndPushImage returns exactly `${repositoryUrl}:${tag}`, so the
-		// tag-only path writes the identical imageUri Pulumi would otherwise diff.
-		tags[handler.name] = TAG_ONLY
-			? `${repositoryUrl}:${tag}`
-			: buildAndPushImage(handler, repositoryUrl, tag, gitSha);
+		const imageUri = `${repositoryUrl}:${tag}`;
+		// --tag-only writes the imageUri Pulumi would diff, no docker involved.
+		if (TAG_ONLY) {
+			tags[handler.name] = imageUri;
+			continue;
+		}
+		// Content-addressed: if the tag is already in ECR the image is byte-for-byte
+		// what a rebuild would produce, so reuse it and skip the build+push — still
+		// stamping the forensic gitsha tag so the commit stays traceable.
+		if (imageTagExists(REPO_NAME, tag)) {
+			console.log(`[build-image] reuse ${imageUri} — already in ECR, skipping build`);
+			retagForensic(REPO_NAME, tag, `gitsha-${gitSha}-${handler.name}`);
+			tags[handler.name] = imageUri;
+			continue;
+		}
+		ensureLogin();
+		tags[handler.name] = buildAndPushImage(handler, repositoryUrl, tag, gitSha);
 	}
 
 	const tagsFile = resolve(PROJECT_ROOT, ".lib", "ocr-image-tags.json");

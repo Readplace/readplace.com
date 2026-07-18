@@ -9,7 +9,9 @@ import { createDynamoDocumentClient } from "@packages/hutch-storage-client";
 import { extractPdfMetadata } from "@packages/crawl-article";
 import { parseRateLimitRule } from "@packages/domain/rate-limit";
 import { requireEnv } from "@packages/require-env";
+import { initCanonicalAliasStore } from "@packages/article-store";
 import { initComprehensiveCrawlHandler } from "./domain/comprehensive-crawl/comprehensive-crawl-handler";
+import { initAdoptCanonicalIdentity } from "./domain/save-link/adopt-canonical-identity";
 import { initDynamoDbPaidCrawlBudget } from "./providers/paid-crawl-budget/dynamodb-paid-crawl-budget";
 import { initSaveLinkPdfExtract } from "./domain/article-parser/init-save-link-pdf-extract";
 import { initStagePdfToS3 } from "./domain/article-parser/init-stage-pdf-to-s3";
@@ -74,7 +76,13 @@ const extractPdf = initSaveLinkPdfExtract({
 });
 
 const observability = initObservabilityDepBundle({ logger: consoleLogger, source: "save-link", now });
-const parser = initComprehensiveParserDepBundle({ logError: observability.logError, logInfo: observability.logInfo, extractPdf });
+const canonicalAliasStore = initCanonicalAliasStore({ client: dynamoClient, tableName: articlesTable });
+const parser = initComprehensiveParserDepBundle({
+	logError: observability.logError,
+	logInfo: observability.logInfo,
+	extractPdf,
+	findAdoptedFetchUrl: canonicalAliasStore.findAdoptedFetchUrl,
+});
 const articleStore = initArticleStoreDepBundle({ s3Client, dynamoClient, contentBucketName, articlesTable });
 const media = initMediaDepBundle({ parser, articleStore, logger: consoleLogger, imagesCdnBaseUrl });
 const crawlAndFinalize = initCrawlAndFinalizeDepBundle({
@@ -94,6 +102,13 @@ const { consumePaidCrawlBudget, refundPaidCrawlBudget } = initDynamoDbPaidCrawlB
 	rule: paidCrawlBudget,
 	now,
 });
+const adoptCanonicalIdentity = initAdoptCanonicalIdentity({
+	claimAlias: canonicalAliasStore.claimAlias,
+	setDisplayUrl: canonicalAliasStore.setDisplayUrl,
+	isSiteRuleUrl: parser.isSiteRuleUrl,
+	now,
+	logger: consoleLogger,
+});
 
 export const handler = initComprehensiveCrawlHandler({
 	crawlArticle: parser.crawlArticle,
@@ -105,5 +120,6 @@ export const handler = initComprehensiveCrawlHandler({
 	...observability,
 	consumePaidCrawlBudget,
 	refundPaidCrawlBudget,
+	adoptCanonicalIdentity,
 	now,
 });

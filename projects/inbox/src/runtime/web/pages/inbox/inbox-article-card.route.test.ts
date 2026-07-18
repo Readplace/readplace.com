@@ -17,12 +17,14 @@ function link(userId: UserId, overrides: Partial<InboxEmailLinkEntry> = {}): Inb
 		receivedAtMessageId: SK,
 		ordinal: EmailLinkOrdinalSchema.parse("0000"),
 		url: "https://example.com/post",
+		resolvedUrl: undefined,
 		status: "pending",
 		title: undefined,
 		excerpt: undefined,
 		siteName: undefined,
 		imageUrl: undefined,
 		failureReason: undefined,
+		skipReason: undefined,
 		...overrides,
 	};
 }
@@ -38,7 +40,15 @@ async function seed(
 
 const cardPath = `/inbox/${encodeURIComponent(SK)}/links/0000/card?feature=email`;
 
-describe("Inbox link-preview card route", () => {
+function expectBareUrlRow(card: Element): void {
+	expect(Array.from(card.children).map((child) => child.tagName)).toEqual(["A", "FORM"]);
+	const bare = card.querySelector("[data-test-inbox-article-url]");
+	assert(bare, "the bare URL anchor must render");
+	expect(bare.getAttribute("href")).toBe("https://example.com/post");
+	expect(bare.textContent).toBe("https://example.com/post");
+}
+
+describe("Inbox link card route", () => {
 	it("returns 404 without the email feature flag", async () => {
 		const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
 		const agent = await loginAgent(harness.server, harness.auth);
@@ -51,6 +61,17 @@ describe("Inbox link-preview card route", () => {
 	it("returns 404 for an unknown link", async () => {
 		const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
 		const agent = await loginAgent(harness.server, harness.auth);
+
+		const response = await agent.get(cardPath);
+
+		expect(response.status).toBe(404);
+	});
+
+	it("returns 404 for a skipped link, which renders only as an excluded row", async () => {
+		const fixture = createDefaultTestAppFixture(TEST_APP_ORIGIN);
+		const harness = useApp(fixture);
+		const agent = await loginAgent(harness.server, harness.auth);
+		await seed(fixture, { status: "skipped", skipReason: "list-unsubscribe" });
 
 		const response = await agent.get(cardPath);
 
@@ -85,7 +106,7 @@ describe("Inbox link-preview card route", () => {
 		assert(card, "the card fragment must render");
 		expect(card.getAttribute("data-card-status")).toBe("pending");
 		expect(card.getAttribute("hx-get")).toContain("/links/0000/card");
-		expect(card.querySelector("[data-test-inbox-article-pending]")).not.toBeNull();
+		expectBareUrlRow(card);
 	});
 
 	it("treats a non-numeric poll cursor as the start of the budget instead of polling unbounded", async () => {
@@ -105,7 +126,7 @@ describe("Inbox link-preview card route", () => {
 		expect(card.getAttribute("hx-get")).toContain("poll=1");
 	});
 
-	it("stops polling and shows the give-up state once the poll budget is spent", async () => {
+	it("stops polling and renders the bare URL once the poll budget is spent", async () => {
 		const fixture = createDefaultTestAppFixture(TEST_APP_ORIGIN);
 		const harness = useApp(fixture);
 		const agent = await loginAgent(harness.server, harness.auth);
@@ -120,8 +141,7 @@ describe("Inbox link-preview card route", () => {
 		assert(card, "the card fragment must render");
 		expect(card.getAttribute("data-card-status")).toBe("terminal");
 		expect(card.getAttribute("hx-get")).toBeNull();
-		expect(card.querySelector("[data-test-inbox-article-stale-pending]")).not.toBeNull();
-		expect(card.querySelector("[data-test-inbox-article-pending]")).toBeNull();
+		expectBareUrlRow(card);
 	});
 
 	it("returns a crawled card fragment with no further polling", async () => {
@@ -145,10 +165,46 @@ describe("Inbox link-preview card route", () => {
 		assert(card, "the card fragment must render");
 		expect(card.getAttribute("data-card-status")).toBe("terminal");
 		expect(card.getAttribute("hx-get")).toBeNull();
-		expect(card.querySelector("[data-test-inbox-article-title]")?.textContent).toBe("Crawled title");
+		expect(Array.from(card.children).map((child) => child.tagName)).toEqual(["A", "SPAN", "FORM"]);
+		const title = card.querySelector("[data-test-inbox-article-title]");
+		assert(title, "the crawled row must render its title as a link");
+		expect(title.tagName).toBe("A");
+		expect(title.textContent).toBe("Crawled title");
+		expect(title.getAttribute("href")).toBe("https://example.com/post");
+		expect(title.getAttribute("target")).toBe("_blank");
+		const url = card.querySelector("[data-test-inbox-article-url]");
+		assert(url, "the crawled row must show its URL beneath the title");
+		expect(url.tagName).toBe("SPAN");
+		expect(url.textContent).toBe("https://example.com/post");
 	});
 
-	it("returns a failed card fragment with the graceful couldn't-preview copy", async () => {
+	it("renders the post-redirect destination, not the newsletter tracking link, once the crawl resolved it", async () => {
+		const fixture = createDefaultTestAppFixture(TEST_APP_ORIGIN);
+		const harness = useApp(fixture);
+		const agent = await loginAgent(harness.server, harness.auth);
+		await seed(fixture, {
+			status: "crawled",
+			title: "Crawled title",
+			url: "https://nodeweekly.com/link/187980/4be0b3f821",
+			resolvedUrl: "https://destination.test/the-actual-article",
+		});
+
+		const response = await agent.get(cardPath);
+
+		expect(response.status).toBe(200);
+		const card = new JSDOM(response.text).window.document.querySelector(
+			"[data-test-inbox-article-card]",
+		);
+		assert(card, "the card fragment must render");
+		const title = card.querySelector("[data-test-inbox-article-title]");
+		assert(title, "the crawled row must render its title as a link");
+		expect(title.getAttribute("href")).toBe("https://destination.test/the-actual-article");
+		const url = card.querySelector("[data-test-inbox-article-url]");
+		assert(url, "the crawled row must show its URL beneath the title");
+		expect(url.textContent).toBe("https://destination.test/the-actual-article");
+	});
+
+	it("returns a failed card fragment as its bare URL with no status copy", async () => {
 		const fixture = createDefaultTestAppFixture(TEST_APP_ORIGIN);
 		const harness = useApp(fixture);
 		const agent = await loginAgent(harness.server, harness.auth);
@@ -161,8 +217,9 @@ describe("Inbox link-preview card route", () => {
 			"[data-test-inbox-article-card]",
 		);
 		assert(card, "the card fragment must render");
+		expect(card.getAttribute("data-card-status")).toBe("terminal");
 		expect(card.getAttribute("hx-get")).toBeNull();
-		expect(card.querySelector("[data-test-inbox-article-failed]")).not.toBeNull();
+		expectBareUrlRow(card);
 	});
 
 	it("revalidates with a 304 when the link has not changed", async () => {

@@ -4,6 +4,9 @@ import { MAX_PDF_BYTES } from "@packages/crawl-article";
 import { MONTHLY_EQUIVALENT_DISPLAY, render } from "@packages/web-shell";
 import type { PageBody } from "@packages/web-shell";
 
+import { CLIENT_CATEGORIES } from "@packages/supported-clients";
+import type { ClientCategory } from "@packages/supported-clients";
+
 import { STRIPE_TRIAL_PERIOD_DAYS } from "../../../domain/stripe/stripe-trial-config";
 
 import type { HomepageVariantMarker } from "../../experiments/homepage-split";
@@ -21,6 +24,35 @@ import type { FoundingAllocation } from "../../shared/founding-progress/founding
 import { HOME_PAGE_STYLES } from "./home.styles";
 
 const HOME_TEMPLATE = readFileSync(join(__dirname, "home.template.html"), "utf-8");
+
+interface HomeFeatureCard {
+	name: string;
+	description: string;
+	linkHref?: string;
+	linkLabel?: string;
+}
+
+/** The featured "what works today" card for each client CATEGORY. Built as a
+ * `Record<ClientCategory, …>` and spread into the featured list in
+ * CLIENT_CATEGORIES order, so a new category is a compile error until it earns a
+ * homepage card. Each category links to where you set it up — content-capture
+ * clients (extensions + iPhone) to /install, url-only clients (MCP) to /mcp — so
+ * the homepage surfaces every way to save, not just the browser extension. */
+const CLIENT_CATEGORY_FEATURES = {
+	contentCapture: {
+		name: "Save the Full Page",
+		description: `Save any page with one click, Ctrl/Cmd+D, or right-click — or straight from your iPhone's share sheet. The extension and app capture the full rendered page, picking the most complete version of the content over what a URL-only crawl would see. Available for ${BROWSER_EXTENSIONS_AND}, and on iPhone.`,
+		linkHref: "/install",
+		linkLabel: "See the ways to save",
+	},
+	urlOnly: {
+		name: "Connect Your AI Assistant",
+		description:
+			"Readplace runs an MCP server, so ChatGPT, Gemini, Claude, Perplexity, and other AI assistants can save links to your queue and read your list back — right inside the conversation. One OAuth login and your assistant does the rest.",
+		linkHref: "/mcp",
+		linkLabel: "How to connect",
+	},
+} satisfies Record<ClientCategory, HomeFeatureCard>;
 
 const HOME_CLIENT_SCRIPT = `<script src="/client-dist/home.client.js" defer></script>`;
 
@@ -241,7 +273,7 @@ export function HomePage(params: HomePageParams): PageBody {
 							name: `What does the ${MONTHLY_EQUIVALENT_DISPLAY}/month subscription pay for?`,
 							acceptedAnswer: {
 								"@type": "Answer",
-								text: `Each saved article runs through a pipeline: Mozilla Readability parses the page (free, open source); real Tesseract OCR runs locally on Lambda to extract text from multi-page scanned PDFs — pixel-level character recognition, not an LLM "reading" the image, so it never hallucinates — up to 300 pages and ${MAX_PDF_BYTES.label} per file (free, open source); and DeepSeek V3.2 writes the TL;DR, disambiguates the canonical URL when an extension capture and a link submission point at the same article, and cleans up Tesseract's OCR output for structure only (paragraphs, headings, lists) before a deterministic document-diff review rejects any token the LLM tried to add or remove, so no hallucinated words ever reach you. The ${MONTHLY_EQUIVALENT_DISPLAY}/month covers the infrastructure cost and crawler maintenance. There is no ad path, no data resale, and no third-party tracking.`,
+								text: `Each saved article runs through a pipeline: Mozilla Readability parses the page (free, open source); real Tesseract OCR runs locally on Lambda to extract text from multi-page scanned PDFs — pixel-level character recognition, not an LLM "reading" the image, so it never hallucinates — up to 300 pages and ${MAX_PDF_BYTES.label} per file (free, open source); and DeepSeek V4 writes the TL;DR, disambiguates the canonical URL when an extension capture and a link submission point at the same article, and cleans up Tesseract's OCR output for structure only (paragraphs, headings, lists) before a deterministic document-diff review rejects any token the LLM tried to add or remove, so no hallucinated words ever reach you. The ${MONTHLY_EQUIVALENT_DISPLAY}/month covers the infrastructure cost and crawler maintenance. There is no ad path, no data resale, and no third-party tracking.`,
 							},
 						},
 						{
@@ -300,18 +332,7 @@ export function HomePage(params: HomePageParams): PageBody {
 					description:
 						"Save any PDF link. Real Tesseract OCR turns it into a clean, readable article with a TL;DR — scanned pages included.",
 				},
-				{
-					name: "Browser Extensions",
-					description:
-						`Save any page with one click, Ctrl/Cmd+D, or right-click. The extension captures the full rendered page — picking the most complete version of the content over what a URL-only crawl would see. Available for ${BROWSER_EXTENSIONS_AND}.`,
-				},
-				{
-					name: "Connect Your AI Assistant",
-					description:
-						"Readplace runs an MCP server, so ChatGPT, Gemini, Claude, Perplexity, and other AI assistants can save links to your queue and read your list back — right inside the conversation. One OAuth login and your assistant does the rest.",
-					linkHref: "/mcp",
-					linkLabel: "How to connect",
-				},
+				...CLIENT_CATEGORIES.map((category) => CLIENT_CATEGORY_FEATURES[category]),
 			],
 			compactFeatures: [
 				{

@@ -251,7 +251,6 @@ describe("toArticleCollectionEntity", () => {
 		);
 		expect(titles).toEqual({
 			"save-article": "Save a link",
-			"save-html": "Save a page",
 			"save-content": "Save a file",
 			search: "Search",
 		});

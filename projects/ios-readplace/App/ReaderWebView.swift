@@ -23,13 +23,18 @@ struct ReaderWebView: UIViewControllerRepresentable {
 	/// Injected so the composition point wires the live browser and tests inject
 	/// their own; there is deliberately no internal default.
 	let externalBrowser: ExternalBrowser
+	/// Reports the page's load lifecycle (provisional → commit → finish/fail plus
+	/// live `estimatedProgress`) so the sheet can drive its skeleton and progress
+	/// bar. The reader page load is otherwise invisible to the sheet.
+	let onLoadPhaseChange: (ReaderLoadPhase) -> Void
 
 	func makeCoordinator() -> Coordinator {
 		Coordinator(
 			onMarkedRead: onMarkedRead,
 			onClose: onClose,
 			onLogout: onLogout,
-			externalBrowser: externalBrowser
+			externalBrowser: externalBrowser,
+			onLoadPhaseChange: onLoadPhaseChange
 		)
 	}
 
@@ -57,7 +62,16 @@ struct ReaderWebView: UIViewControllerRepresentable {
 		webView.allowsBackForwardNavigationGestures = true
 		webView.navigationDelegate = context.coordinator
 		webView.uiDelegate = context.coordinator
+		// Let the sheet's system background show through until the page paints, so
+		// the moment the skeleton lifts there is no white flash before the first
+		// paint (mirrors `WebPageView`).
+		webView.isOpaque = false
+		webView.backgroundColor = .systemBackground
 		controller.view = webView
+
+		// Observe the load before the first navigation starts so the sheet's bar
+		// tracks it from zero.
+		context.coordinator.observeProgress(of: webView)
 
 		// Inject every prefetched session cookie into the web view's own store before
 		// the first navigation, so the reader and its in-reader XHRs are
@@ -76,23 +90,100 @@ struct ReaderWebView: UIViewControllerRepresentable {
 
 	func updateUIViewController(_ controller: UIViewController, context: Context) {}
 
+	static func dismantleUIViewController(_ controller: UIViewController, coordinator: Coordinator) {
+		coordinator.invalidate()
+	}
+
 	final class Coordinator: NSObject, WKScriptMessageHandler, WKNavigationDelegate, WKUIDelegate {
 		private let onMarkedRead: () -> Void
 		private let onClose: () -> Void
 		private let onLogout: () -> Void
 		private let externalBrowser: ExternalBrowser
+		private let onLoadPhaseChange: (ReaderLoadPhase) -> Void
 		private var handled = false
+		private var progressObservation: NSKeyValueObservation?
+		/// Whether the main frame has committed (started painting) and whether the
+		/// load has already reached a terminal outcome. The first terminal outcome
+		/// wins: a later navigation on the same view (an in-page link, a
+		/// back/forward swipe) must not re-show the skeleton over a good page.
+		private var committed = false
+		private var terminal = false
 
 		init(
 			onMarkedRead: @escaping () -> Void,
 			onClose: @escaping () -> Void,
 			onLogout: @escaping () -> Void,
-			externalBrowser: ExternalBrowser
+			externalBrowser: ExternalBrowser,
+			onLoadPhaseChange: @escaping (ReaderLoadPhase) -> Void
 		) {
 			self.onMarkedRead = onMarkedRead
 			self.onClose = onClose
 			self.onLogout = onLogout
 			self.externalBrowser = externalBrowser
+			self.onLoadPhaseChange = onLoadPhaseChange
+		}
+
+		/// KVO on `estimatedProgress` (delivered on the main thread) advances the
+		/// bar. No `.initial` option: the handler must not fire synchronously while
+		/// the view is being built. Provisional progress is unreliable — it spikes to
+		/// 1.0 and drops back before the main frame commits — so the bar only tracks
+		/// it once committed; before that the skeleton covers the wait.
+		func observeProgress(of webView: WKWebView) {
+			progressObservation = webView.observe(\.estimatedProgress) { [weak self] webView, _ in
+				guard let self, self.committed else { return }
+				self.emit(ReaderLoad.rendering(estimatedProgress: webView.estimatedProgress))
+			}
+		}
+
+		func invalidate() {
+			progressObservation?.invalidate()
+		}
+
+		/// Reports an in-flight phase unless the load already settled.
+		private func emit(_ phase: ReaderLoadPhase) {
+			guard !terminal else { return }
+			onLoadPhaseChange(phase)
+		}
+
+		func webView(_ webView: WKWebView, didStartProvisionalNavigation navigation: WKNavigation!) {
+			committed = false
+			emit(.loading)
+		}
+
+		func webView(_ webView: WKWebView, didCommit navigation: WKNavigation!) {
+			// Content is now painting, so the skeleton lifts here — not at
+			// `didFinish`, which can lag far behind first paint (or never arrive for
+			// a hung subresource) and would strand the skeleton over a rendered page.
+			committed = true
+			emit(ReaderLoad.rendering(estimatedProgress: webView.estimatedProgress))
+		}
+
+		func webView(_ webView: WKWebView, didFinish navigation: WKNavigation!) {
+			guard !terminal else { return }
+			terminal = true
+			onLoadPhaseChange(.finished)
+		}
+
+		func webView(_ webView: WKWebView, didFail navigation: WKNavigation!, withError error: Error) {
+			handleFailure(error)
+		}
+
+		func webView(
+			_ webView: WKWebView,
+			didFailProvisionalNavigation navigation: WKNavigation!,
+			withError error: Error
+		) {
+			handleFailure(error)
+		}
+
+		/// A cancellation the reader provokes (a redirect superseding the first
+		/// navigation, an external link opened in Chrome) is not a page-load
+		/// failure, so it neither settles the load nor shows the error view — the
+		/// redirected navigation's commit/finish still resolves it.
+		private func handleFailure(_ error: Error) {
+			guard !terminal, ReaderLoad.isRealFailure(error: error) else { return }
+			terminal = true
+			onLoadPhaseChange(.failed)
 		}
 
 		func userContentController(_ controller: WKUserContentController, didReceive message: WKScriptMessage) {

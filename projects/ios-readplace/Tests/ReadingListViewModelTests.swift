@@ -112,7 +112,7 @@ final class ReadingListViewModelTests: XCTestCase {
 
 		XCTAssertEqual(
 			viewModel.collectionAffordances.map(\.token), ["add-links-help"],
-			"the server's collection actions — save-article, the capture-only saves (save-html/save-content), and the field-requiring search — are all dropped client-side, leaving only the client + control"
+			"the server's collection actions — save-article, the capture-only save-content, and the field-requiring search — are all dropped client-side, leaving only the client + control"
 		)
 		XCTAssertFalse(
 			viewModel.collectionAffordances.contains { $0.token == "save-article" },
@@ -991,25 +991,28 @@ final class ReadingListViewModelTests: XCTestCase {
 		}
 		let viewModel = makeViewModel(store: TestSupport.loggedInStore())
 
-		let cookies = await viewModel.mintReaderSession()
+		let mint = await viewModel.mintReaderSession()
 
-		XCTAssertEqual(cookies?.first?.value, "sess-xyz")
+		guard case .minted(let cookies) = mint else {
+			return XCTFail("a successful bootstrap concludes .minted, got \(mint)")
+		}
+		XCTAssertEqual(cookies.first?.value, "sess-xyz")
 		XCTAssertNil(viewModel.errorText)
 	}
 
-	func testMintReaderSessionReturnsNilAndSurfacesErrorOnFailure() async {
+	func testMintReaderSessionConcludesFailedAndSurfacesErrorOnFailure() async {
 		StubURLProtocol.setHandler { _, _ in
 			.json(500, Fixtures.sirenError(code: "boom", message: "nope", withSaveArticleFallback: false))
 		}
 		let viewModel = makeViewModel(store: TestSupport.loggedInStore())
 
-		let cookies = await viewModel.mintReaderSession()
+		let mint = await viewModel.mintReaderSession()
 
-		XCTAssertNil(cookies, "a failed bootstrap mints no session, so the sheet shows its unavailable view")
+		XCTAssertEqual(mint, .failed, "a failed bootstrap concludes .failed, so the sheet shows its unavailable view")
 		XCTAssertNotNil(viewModel.errorText)
 	}
 
-	func testMintReaderSessionSwallowsCancellationWhenTheOpenWasSuperseded() async {
+	func testMintReaderSessionConcludesSupersededWhenTheOpenWasCancelled() async {
 		StubURLProtocol.setHandler { _, _ in
 			.json(500, Fixtures.sirenError(code: "boom", message: "nope", withSaveArticleFallback: false))
 		}
@@ -1018,15 +1021,44 @@ final class ReadingListViewModelTests: XCTestCase {
 		// Switching articles cancels the superseded open's mint task; the mint only
 		// runs once cancellation is already observed, so whatever the bootstrap throws
 		// belongs to an open nobody is watching.
-		let supersededMint = Task { () -> [HTTPCookie]? in
+		let supersededMint = Task { () -> ReaderSessionMint in
 			while !Task.isCancelled { await Task.yield() }
 			return await viewModel.mintReaderSession()
 		}
 		supersededMint.cancel()
-		let cookies = await supersededMint.value
+		let mint = await supersededMint.value
 
-		XCTAssertNil(cookies, "a superseded open's mint yields no session")
-		XCTAssertNil(viewModel.errorText, "a cancelled mint is a superseded open, not a failure to surface")
+		XCTAssertEqual(mint, .superseded, "a cancelled mint belongs to an open the user already left")
+		XCTAssertNil(viewModel.errorText, "a superseded open is not a failure to surface")
+	}
+
+	func testRapidlySwitchingArticlesLeavesTheSecondArticleOpenable() async {
+		StubURLProtocol.setHandler { _, _ in
+			StubURLProtocol.Stub(status: 204, headers: ["Set-Cookie": "hutch_sid=sess-b; Path=/; HttpOnly"])
+		}
+		let viewModel = makeViewModel(store: TestSupport.loggedInStore())
+
+		viewModel.openReader(for: article(readHref: "/queue/a1/view", id: "a1"))
+		let supersededMint = Task { () -> ReaderSessionMint in
+			while !Task.isCancelled { await Task.yield() }
+			return await viewModel.mintReaderSession()
+		}
+		supersededMint.cancel()
+		let firstOpen = await supersededMint.value
+
+		viewModel.openReader(for: article(readHref: "/queue/b1/view", id: "b1"))
+		let secondOpen = await viewModel.mintReaderSession()
+
+		XCTAssertEqual(
+			ReaderBootstrap(after: firstOpen), .loading,
+			"the superseded first open stays retryable — it must not brand the reader \"Couldn't open the reader\""
+		)
+		guard case .minted(let cookies) = secondOpen else {
+			return XCTFail("the second article's own mint concludes .minted, got \(secondOpen)")
+		}
+		XCTAssertEqual(cookies.first?.value, "sess-b", "the second open is authenticated by its own fresh session")
+		XCTAssertEqual(viewModel.readerPresentation?.articleId, "b1")
+		XCTAssertNil(viewModel.errorText)
 	}
 
 	// MARK: - Session expiry & warnings
@@ -1090,9 +1122,12 @@ final class ReadingListViewModelTests: XCTestCase {
 		let viewModel = makeViewModel(store: TestSupport.loggedInStore())
 		await viewModel.refresh()
 
-		let cookies = await viewModel.mintReaderSession()
+		let mint = await viewModel.mintReaderSession()
 
-		XCTAssertEqual(cookies?.first?.value, "v")
+		guard case .minted(let cookies) = mint else {
+			return XCTFail("the discovered create-session action mints a session, got \(mint)")
+		}
+		XCTAssertEqual(cookies.first?.value, "v")
 		XCTAssertTrue(
 			StubURLProtocol.records.contains { $0.request.url?.path == "/custom/session" },
 			"the reader session mint follows the discovered create-session action, not a hard-coded route"

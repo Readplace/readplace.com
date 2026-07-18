@@ -21,7 +21,14 @@ import { initDynamoDbEmailVerification } from "./providers/email-verification/dy
 import { initDynamoDbPendingSignup } from "./providers/pending-signup/dynamodb-pending-signup";
 import { initRevokeExternalIdpTokens } from "./delete-account/revoke-external-idp-tokens";
 import { initDeleteAccountHandler } from "./delete-account/delete-account-handler";
-import { initDynamoDbInboxEmail, initDynamoDbInboxEmailLink, initDynamoDbInboxAddress, initS3DeleteObjects } from "@packages/inbox-store";
+import { initDynamoDbInboxEmail, initDynamoDbInboxEmailLink, initDynamoDbInboxAddress, initS3DeleteObjects, initS3DeleteObjectsByPrefix } from "@packages/inbox-store";
+import {
+	initCountOtherSaversByUrl,
+	initPurgeArticleContent,
+	initS3DeleteContentObjects,
+	initS3ListContentKeys,
+	initTombstoneArticle,
+} from "@packages/article-store";
 
 const logger = HutchLogger.from(consoleLogger);
 const now = () => new Date();
@@ -106,6 +113,11 @@ const deleteEmailContentObjects = initS3DeleteObjects({
 	bucketName: requireEnv("CONTENT_BUCKET_NAME"),
 });
 
+const deleteEmailImageObjects = initS3DeleteObjectsByPrefix({
+	client: s3Client,
+	bucketName: requireEnv("CONTENT_BUCKET_NAME"),
+});
+
 const { deleteUserExports } = initS3UserDataExport({
 	client: s3Client,
 	bucketName: requireEnv("USER_EXPORT_BUCKET_NAME"),
@@ -131,6 +143,24 @@ const pendingSignup = initDynamoDbPendingSignup({
 const appleClientId = requireEnv("APPLE_LOGIN_CLIENT_ID");
 const applePrivateKeyPem = Buffer.from(requireEnv("APPLE_LOGIN_PRIVATE_KEY_BASE64"), "base64").toString("utf8");
 assert(applePrivateKeyPem.includes("BEGIN PRIVATE KEY"), "APPLE_LOGIN_PRIVATE_KEY_BASE64 must decode to a PKCS#8 PEM");
+
+const articlesTableName = requireEnv("DYNAMODB_ARTICLES_TABLE");
+const contentBucketName = requireEnv("CONTENT_BUCKET_NAME");
+
+const { countOtherSaversByUrl } = initCountOtherSaversByUrl({
+	client: dynamoClient,
+	userArticlesTableName: requireEnv("DYNAMODB_USER_ARTICLES_TABLE"),
+});
+
+const { purgeArticleContent } = initPurgeArticleContent({
+	listContentKeys: initS3ListContentKeys({ client: s3Client, bucketName: contentBucketName }).listContentKeys,
+	deleteContentObjects: initS3DeleteContentObjects({ client: s3Client, bucketName: contentBucketName }).deleteContentObjects,
+});
+
+const { tombstoneArticle } = initTombstoneArticle({
+	client: dynamoClient,
+	tableName: articlesTableName,
+});
 
 const revokeExternalIdpTokens = initRevokeExternalIdpTokens({
 	findAppleRefreshTokenByUserId: auth.findAppleRefreshTokenByUserId,
@@ -162,7 +192,13 @@ export const handler = initDeleteAccountHandler({
 	tombstoneInboxAddresses: inboxAddress.tombstoneUserAddresses,
 	deleteRawEmailObjects,
 	deleteEmailContentObjects,
+	deleteEmailImageObjects,
 	deleteAllUserArticles: articleStore.deleteAllUserArticles,
+	listUserArticleUrls: articleStore.listUserArticleUrls,
+	countOtherSaversByUrl,
+	purgeArticleContent,
+	tombstoneArticle,
+	now,
 	deleteDigestByUser: digestQueue.deleteDigestByUser,
 	deleteReaderReadyState: readerReadyState.deleteReaderReadyState,
 	deleteOnboarding: onboarding.deleteOnboarding,

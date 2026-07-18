@@ -26,7 +26,7 @@ interface McpArticleOperationDeps {
 export function toMcpArticle(article: SavedArticle): McpArticle {
 	return {
 		id: article.id.value,
-		url: article.url,
+		url: article.displayUrl ?? article.url,
 		title: article.metadata.title,
 		siteName: article.metadata.siteName,
 		excerpt: article.metadata.excerpt,

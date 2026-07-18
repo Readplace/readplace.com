@@ -13,6 +13,7 @@ import {
 	CrawlEmailLinkPreview,
 	EmailReceivedEvent,
 } from "@packages/hutch-infra-components";
+import { requireEnv } from "@packages/require-env";
 
 /**
  * inbox is deployed as its own Lambda behind hutch's existing API Gateway:
@@ -27,6 +28,7 @@ import {
  * would steal hutch's live rule/queue instead of standing up beside it.
  */
 const config = new pulumi.Config();
+const deepseekApiKey = pulumi.secret(requireEnv("DEEPSEEK_API_KEY"));
 const nodeEnv = config.require("nodeEnv");
 const staticBaseUrl = config.require("staticBaseUrl");
 const alertEmail = config.require("alertEmail");
@@ -142,6 +144,8 @@ const webLambda = new HutchLambda("inbox-web", {
 		DYNAMODB_USERS_TABLE: tableNames.users,
 		DYNAMODB_SUBSCRIPTION_PROVIDERS_TABLE: tableNames.subscriptionProviders,
 		CONTENT_BUCKET_NAME: contentBucketName,
+		// Pinned into the email iframe's CSP so only rehosted image copies load.
+		IMAGES_CDN_BASE_URL: imagesCdnBaseUrl,
 		/** Same-origin fragment endpoint served by blog-site behind this same API
 		 * Gateway (/blog/{proxy+} routes there). The banner source is cached and
 		 * fail-open, so the extra gateway hop is fine for a decorative banner. */
@@ -167,8 +171,10 @@ const inboxRoutes = new HutchAPIGatewayLambdaRoute("inbox-web", {
 
 // --- Inbound email receive worker Lambda ---
 // Drains the SES→SNS receipt notifications: fetches the raw .eml from the raw
-// bucket, resolves each recipient, parses + sanitizes the body into the content
-// bucket, writes a row per recipient, and publishes EmailReceivedEvent. Expected
+// bucket, resolves each recipient, parses the body, rehosts its remote images to
+// the content bucket (served via the content-media CDN), sanitizes the body into
+// the content bucket, writes a row per recipient, and publishes
+// EmailReceivedEvent. Expected
 // catch-all-MX conditions (unknown or disabled recipient) record an audit row and
 // ACK — never paging. Oversize / unparseable mail also records an audit row, but
 // only pages (fails to the DLQ so the HutchSQSBackedLambda alarm fires) when a
@@ -184,8 +190,10 @@ const receiveEmailDynamodb = new HutchDynamoDBAccess("inbox-receive-email-dynamo
 });
 
 const receiveEmailQueue = new HutchSQS("inbox-receive-email", {
-	// Matches the worker timeout so an in-flight parse cannot be redelivered.
-	visibilityTimeoutSeconds: 120,
+	// Worker timeout plus a receive-to-invoke buffer (matching the extract
+	// queue's guard): image rehosting can push a multi-recipient parse near the
+	// timeout, and visibility expiring mid-flight would redeliver it.
+	visibilityTimeoutSeconds: 120 + 60,
 });
 
 const receiveEmailLambda = new HutchLambda("inbox-receive-email", {
@@ -200,13 +208,15 @@ const receiveEmailLambda = new HutchLambda("inbox-receive-email", {
 		RAW_EMAIL_BUCKET_NAME: rawEmailBucketName,
 		CONTENT_BUCKET_NAME: contentBucketName,
 		EVENT_BUS_NAME: eventBus.eventBusName,
+		// Rehosted image srcs are rewritten to this CDN origin at ingest.
+		IMAGES_CDN_BASE_URL: imagesCdnBaseUrl,
 		// 20 MiB — half SES's ~40 MB hard inbound cap; bounds parse memory.
 		INBOX_MAX_EMAIL_BYTES: String(20 * 1024 * 1024),
 	},
 	policies: [
 		...receiveEmailDynamodb.policies,
 		// Reads the raw bucket (the .eml) and only writes the content bucket (the
-		// sanitized body) — no content-bucket read.
+		// sanitized body and the rehosted images) — no content-bucket read.
 		...HutchS3ReadWrite.readPoliciesForBucket("inbox-receive-email-raw-read", rawEmailBucketName),
 		...HutchS3ReadWrite.writePoliciesForBucket(
 			"inbox-receive-email-content-write",
@@ -278,8 +288,14 @@ const extractEmailLinksDynamodb = new HutchDynamoDBAccess("inbox-extract-email-l
 	actions: ["dynamodb:GetItem", "dynamodb:PutItem"],
 });
 
+const EXTRACT_EMAIL_LINKS_TIMEOUT_SECONDS = 180;
+/** SQS starts the visibility clock at receive, before the Lambda invocation
+ * begins, so visibility must outlive the worker timeout by the receive-to-invoke
+ * gap or a still-running extraction gets redelivered in its final seconds. */
+const RECEIVE_TO_INVOKE_GUARD_SECONDS = 60;
+
 const extractEmailLinksQueue = new HutchSQS("inbox-extract-email-links", {
-	visibilityTimeoutSeconds: 120,
+	visibilityTimeoutSeconds: EXTRACT_EMAIL_LINKS_TIMEOUT_SECONDS + RECEIVE_TO_INVOKE_GUARD_SECONDS,
 });
 
 // Truncation is a successful degradation (the first N previews still shipped), not
@@ -335,12 +351,15 @@ const extractEmailLinksLambda = new HutchLambda("inbox-extract-email-links", {
 	outputDir: ".lib/inbox-extract-email-links",
 	assetDir: "./src/runtime",
 	memorySize: 1024,
-	timeout: 120,
+	// Headroom for the bounded LLM triage attempts on top of the parse and the
+	// per-link write fan-out.
+	timeout: EXTRACT_EMAIL_LINKS_TIMEOUT_SECONDS,
 	environment: {
 		DYNAMODB_INBOX_EMAILS_TABLE: tableNames.inboxEmails,
 		DYNAMODB_INBOX_EMAIL_LINKS_TABLE: tableNames.inboxEmailLinks,
 		RAW_EMAIL_BUCKET_NAME: rawEmailBucketName,
 		EVENT_BUS_NAME: eventBus.eventBusName,
+		DEEPSEEK_API_KEY: deepseekApiKey,
 		// A typical newsletter has < 30 links; 200 is generous headroom before the
 		// per-email cap truncates and the working path still ships the first 200.
 		INBOX_MAX_LINKS_PER_EMAIL: String(200),

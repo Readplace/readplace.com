@@ -3,6 +3,7 @@ import * as pulumi from "@pulumi/pulumi";
 import * as aws from "@pulumi/aws";
 import assert from "node:assert";
 import { z } from "zod";
+import { buildMediaRobotsTxt } from "@packages/domain/crawler-policy";
 import {
 	HutchEventBus,
 	HutchLambda,
@@ -33,6 +34,8 @@ import {
 	RecrawlLinkInitiatedEvent,
 	RecrawlContentExtractedEvent,
 	RefreshContentExtractedEvent,
+	RemoveMyContentCommand,
+	ReselectAfterRemovalEvent,
 	SAVE_LINK_LAMBDA_NAMES,
 } from "@packages/hutch-infra-components";
 import { requireEnv } from "@packages/require-env";
@@ -56,6 +59,10 @@ const config = new pulumi.Config();
 const alertEmail = config.require("alertEmail");
 const articlesTableName = config.require("articlesTableName");
 const articlesTableArn = config.require("articlesTableArn");
+// Per-user queue rows, owned by the hutch stack. The removal Lambda reads the
+// url-index GSI to count other savers before deciding to purge a URL.
+const userArticlesTableName = config.require("userArticlesTableName");
+const userArticlesTableArn = config.require("userArticlesTableArn");
 // Owned by the hutch stack (same convention as the articles table): counters
 // for per-IP throttles and the global paid-crawl budget share one TTL'd table.
 const rateLimitsTableName = config.require("rateLimitsTableName");
@@ -124,6 +131,19 @@ new aws.s3.BucketLifecycleConfigurationV2("content-bucket-pdf-staging-lifecycle"
 // content-bucket so the aggressive 1-day expiration applies only to staging
 // objects, never canonical content.
 
+// Browser extensions upload large captures straight to these buckets via a
+// presigned PUT (bypassing the API Gateway 6 MB payload limit), so the buckets
+// must allow the cross-origin PUT. The presigned signature is the authorisation
+// — see HutchS3ReadWrite.corsRules for why `["*"]` origins are safe.
+const UPLOAD_CORS_RULES = [
+	{
+		allowedMethods: ["PUT"],
+		allowedOrigins: ["*"],
+		allowedHeaders: ["*"],
+		maxAgeSeconds: 3600,
+	},
+];
+
 const pendingHtmlBucket = new HutchS3ReadWrite("pending-html-bucket", {
 	bucketName: pendingHtmlBucketName,
 	expirationRules: [
@@ -133,6 +153,7 @@ const pendingHtmlBucket = new HutchS3ReadWrite("pending-html-bucket", {
 			prefixes: ["pending-html/", "refresh-html/"],
 		},
 	],
+	corsRules: UPLOAD_CORS_RULES,
 });
 
 // --- Pending-PDF S3 Bucket ---
@@ -149,6 +170,7 @@ const pendingPdfBucket = new HutchS3ReadWrite("pending-pdf-bucket", {
 			prefixes: ["pending-pdf/"],
 		},
 	],
+	corsRules: UPLOAD_CORS_RULES,
 });
 
 // --- Content Images CDN ---
@@ -166,6 +188,13 @@ const contentMediaCustomDomain = contentMediaCdnDomain
 const contentMediaCdn = new HutchS3ContentMediaCDN("content-media", {
 	contentBucket,
 	customDomain: contentMediaCustomDomain,
+});
+
+new aws.s3.BucketObject("content-media-robots-txt", {
+	bucket: contentBucket.bucket,
+	key: "robots.txt",
+	content: buildMediaRobotsTxt(),
+	contentType: "text/plain",
 });
 
 const deepseekApiKey = pulumi.secret(requireEnv("DEEPSEEK_API_KEY"));
@@ -260,6 +289,14 @@ const staleCheckRequestedQueue = new HutchSQS("stale-check-requested", {
 });
 
 const recrawlContentExtractedQueue = new HutchSQS("recrawl-content-extracted", {
+	visibilityTimeoutSeconds: SELECT_CONTENT_TIMEOUTS.sqsVisibilitySeconds,
+});
+
+const removeMyContentCommandQueue = new HutchSQS("remove-my-content-command", {
+	visibilityTimeoutSeconds: 60,
+});
+
+const reselectAfterRemovalQueue = new HutchSQS("reselect-after-removal", {
 	visibilityTimeoutSeconds: SELECT_CONTENT_TIMEOUTS.sqsVisibilitySeconds,
 });
 
@@ -526,6 +563,10 @@ const pdfPageOcrLambda = new HutchLambda("pdf-page-ocr", {
 	// execution time so the headroom is free and absorbs any future
 	// regression on dense-text pages.
 	memorySize: 1769,
+	// Each page invocation downloads the full staged PDF and writes it to /tmp
+	// before pdftoppm rasterises its one page, so /tmp must hold the largest
+	// supported PDF (plus the rendered PNG) — 2 GiB, up from the 512 MiB default.
+	ephemeralStorageSize: 2048,
 	timeout: 900,
 	containerImage: { imageUri: ocrImageTags["pdf-page-ocr"] },
 	environment: {
@@ -689,12 +730,12 @@ const comprehensiveCrawlCommandStagingDelete: LambdaPolicy = {
 
 const comprehensiveCrawlCommandLambda = new HutchLambda(SAVE_LINK_LAMBDA_NAMES.comprehensiveCrawlCommand, {
 	priorLogGroupLogicalName: "comprehensiveCrawlCommand-log-group",
-	// Post-fan-out the orchestrator only runs pdfinfo, one S3 PutObject, up to
-	// 32 concurrent JSON Lambda responses, HTML join + sanitisation, and one
-	// tier-write — same workload shape as the simple-only save-link Lambdas at
-	// 512 MB. Timeout stays at the Lambda 900 s ceiling so a 200-page PDF with
-	// concurrency=32 still fits its worst-case ⌈pages/concurrency⌉ batches.
-	memorySize: 512,
+	// The orchestrator buffers the whole PDF (the AWS SDK stream collector alone
+	// peaks ~3× the file transiently) and writes it to /tmp for pdfinfo + S3
+	// staging, so a 500 MB upload needs headroom well above the post-fan-out
+	// workload: 3008 MB matches the select-content ceiling, /tmp at 2 GiB.
+	memorySize: 3008,
+	ephemeralStorageSize: 2048,
 	timeout: 900,
 	containerImage: { imageUri: ocrImageTags["comprehensive-crawl-command"] },
 	environment: {
@@ -807,10 +848,11 @@ const saveLinkRawPdfCommandStagingDelete: LambdaPolicy = {
 
 const saveLinkRawPdfCommandLambda = new HutchLambda(SAVE_LINK_LAMBDA_NAMES.saveLinkRawPdfCommand, {
 	priorLogGroupLogicalName: "saveLinkRawPdfCommand-log-group",
-	// pdfinfo + one S3 PutObject + fan-out
-	// JSON Lambda invokes + HTML join + tier-write. 900s is the Lambda ceiling for
-	// a worst-case many-page document.
-	memorySize: 512,
+	// Reads the whole staged PDF into memory (SDK stream collector peaks ~3× the
+	// file) and writes it to /tmp for pdfinfo + S3 staging before per-page fan-out.
+	// A 500 MB client upload needs 3008 MB + a 2 GiB /tmp, matching the OCR path.
+	memorySize: 3008,
+	ephemeralStorageSize: 2048,
 	timeout: 900,
 	containerImage: { imageUri: ocrImageTags["save-link-raw-pdf-command"] },
 	environment: {
@@ -990,6 +1032,110 @@ eventBus.subscribe(TierContentExtractedEvent, selectMostCompleteContentLambdaWit
 	additionalPolicies: renamePolicies(generateSummaryQueue.policies, "select-most-complete-content-dlq"),
 });
 
+// --- RemoveMyContentCommand handler ---
+// Content-removal orchestrator. Deletes the S3 objects the removing user
+// authored (their tier-0 capture + attributed snapshots), prunes the pruned
+// minute-ids from the crawlVersions log, then branches: re-select the canonical
+// from surviving sources, re-crawl for co-savers left with no source, or — when
+// nothing and nobody remains — purge every stored object and tombstone the row.
+// Idempotent throughout so an at-least-once redelivery converges.
+
+const removeMyContentCommandDynamodb = new HutchDynamoDBAccess("remove-my-content-command-dynamodb", {
+	tables: [
+		{ arn: articlesTableArn, includeIndexes: false },
+		// url-index GSI: countOtherSaversByUrl reads it to decide purge vs re-crawl.
+		{ arn: userArticlesTableArn, includeIndexes: true },
+	],
+	actions: ["dynamodb:GetItem", "dynamodb:UpdateItem", "dynamodb:Query"],
+});
+
+const removeMyContentCommandLambda = new HutchLambda(SAVE_LINK_LAMBDA_NAMES.removeMyContentCommand, {
+	entryPoint: "./src/runtime/remove-my-content-command.main.ts",
+	outputDir: ".lib/remove-my-content-command",
+	assetDir: "./src",
+	memorySize: 256,
+	timeout: 60,
+	environment: {
+		DYNAMODB_ARTICLES_TABLE: articlesTableName,
+		DYNAMODB_USER_ARTICLES_TABLE: userArticlesTableName,
+		CONTENT_BUCKET_NAME: contentBucketName,
+		EVENT_BUS_NAME: eventBus.eventBusName,
+	},
+	policies: [
+		...removeMyContentCommandDynamodb.policies,
+		...contentBucket.readPolicies("remove-my-content-command-content-read"),
+		...contentBucket.deletePolicies("remove-my-content-command-content-delete"),
+	],
+});
+
+eventBus.grantPublish(removeMyContentCommandLambda);
+
+const removeMyContentCommandLambdaWithSQS = new HutchSQSBackedLambda("remove-my-content-command", {
+	lambda: removeMyContentCommandLambda,
+	queue: removeMyContentCommandQueue,
+	alertEmailDLQEntry: alertEmail,
+	batchSize: 1,
+});
+
+eventBus.subscribe(RemoveMyContentCommand, removeMyContentCommandLambdaWithSQS);
+
+// --- ReselectAfterRemoval handler ---
+// Re-runs the tier-selection core over the sources that survive a removal,
+// with no userId so a canonical flip never fires a "saved!" notification at the
+// remover. Same shape as select-most-complete-content (3008 MB to hold full
+// tier-source HTML from S3).
+
+const reselectAfterRemovalDynamodb = new HutchDynamoDBAccess("reselect-after-removal-dynamodb", {
+	tables: [{ arn: articlesTableArn, includeIndexes: false }],
+	actions: ["dynamodb:GetItem", "dynamodb:UpdateItem"],
+});
+
+const reselectAfterRemovalLambda = new HutchLambda(SAVE_LINK_LAMBDA_NAMES.reselectAfterRemoval, {
+	entryPoint: "./src/runtime/reselect-after-removal.main.ts",
+	outputDir: ".lib/reselect-after-removal",
+	assetDir: "./src",
+	memorySize: 3008,
+	timeout: SELECT_CONTENT_TIMEOUTS.lambdaSeconds,
+	environment: {
+		DYNAMODB_ARTICLES_TABLE: articlesTableName,
+		CONTENT_BUCKET_NAME: contentBucketName,
+		EVENT_BUS_NAME: eventBus.eventBusName,
+		DEEPSEEK_API_KEY: deepseekApiKey,
+		GENERATE_SUMMARY_QUEUE_URL: generateSummaryQueue.queueUrl,
+	},
+	policies: [
+		...reselectAfterRemovalDynamodb.policies,
+		...contentBucket.readPolicies("reselect-after-removal-content-read"),
+		...contentBucket.writePolicies("reselect-after-removal-content-write"),
+		...renamePolicies(generateSummaryQueue.policies, "reselect-after-removal"),
+	],
+});
+
+eventBus.grantPublish(reselectAfterRemovalLambda);
+
+const reselectAfterRemovalLambdaWithSQS = new HutchSQSBackedLambda("reselect-after-removal", {
+	lambda: reselectAfterRemovalLambda,
+	queue: reselectAfterRemovalQueue,
+	alertEmailDLQEntry: alertEmail,
+	batchSize: 1,
+});
+
+eventBus.subscribe(ReselectAfterRemovalEvent, reselectAfterRemovalLambdaWithSQS);
+
+// --- ReselectAfterRemoval DLQ consumer ---
+new HutchDLQEventHandler("reselect-after-removal-dlq", {
+	sourceQueue: reselectAfterRemovalQueue,
+	tableArn: articlesTableArn,
+	tableName: articlesTableName,
+	eventBus,
+	batchSize: 1,
+	additionalDynamoActions: ["dynamodb:GetItem"],
+	additionalEnvironment: {
+		GENERATE_SUMMARY_QUEUE_URL: generateSummaryQueue.queueUrl,
+	},
+	additionalPolicies: renamePolicies(generateSummaryQueue.policies, "reselect-after-removal-dlq"),
+});
+
 // --- GenerateSummary handler ---
 
 const generateSummaryDynamodb = new HutchDynamoDBAccess("generate-summary-dynamodb", {
@@ -1001,7 +1147,10 @@ const generateSummaryLambda = new HutchLambda("generate-summary", {
 	entryPoint: "./src/runtime/generate-summary.main.ts",
 	outputDir: ".lib/generate-summary",
 	assetDir: "./src",
-	memorySize: 512,
+	// Loads the full canonical content from S3 and strips it via linkedom before
+	// summarising; a 40 MB HTML upload needs headroom above the old 512 MB (the
+	// input is also char-capped in link-summariser so the model call can't overflow).
+	memorySize: 1769,
 	timeout: GENERATE_SUMMARY_TIMEOUTS.lambdaSeconds,
 	environment: {
 		DYNAMODB_ARTICLES_TABLE: articlesTableName,
@@ -1477,6 +1626,10 @@ export const recrawlLinkInitiatedQueueUrl = recrawlLinkInitiatedQueue.queueUrl;
 export const recrawlLinkInitiatedDlqUrl = recrawlLinkInitiatedQueue.dlqUrl;
 export const recrawlContentExtractedQueueUrl = recrawlContentExtractedQueue.queueUrl;
 export const recrawlContentExtractedDlqUrl = recrawlContentExtractedQueue.dlqUrl;
+export const removeMyContentCommandQueueUrl = removeMyContentCommandQueue.queueUrl;
+export const removeMyContentCommandDlqUrl = removeMyContentCommandQueue.dlqUrl;
+export const reselectAfterRemovalQueueUrl = reselectAfterRemovalQueue.queueUrl;
+export const reselectAfterRemovalDlqUrl = reselectAfterRemovalQueue.dlqUrl;
 export const staleCheckRequestedQueueUrl = staleCheckRequestedQueue.queueUrl;
 export const staleCheckRequestedDlqUrl = staleCheckRequestedQueue.dlqUrl;
 export const contentBucketOutputName = contentBucket.bucket;

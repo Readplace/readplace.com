@@ -51,7 +51,9 @@ function createHandler(overrides: Partial<SendUserDigestDeps> = {}) {
 		listDigestItemsByUser: jest.fn().mockResolvedValue([digestItem(URL_A, CANON_A)]),
 		findUserArticleNotificationState: jest.fn().mockResolvedValue(eligibleState()),
 		findArticleByUrl: jest.fn().mockImplementation(async (url: string) => article(url, url === URL_A ? "Alpha" : "Beta")),
-		readArticleContent: jest.fn().mockResolvedValue("<p>Body paragraph.</p>"),
+		findGeneratedSummary: jest
+			.fn()
+			.mockResolvedValue({ status: "ready", summary: "Full summary body.", excerpt: "Short excerpt teaser." }),
 		deleteDigestItem: jest.fn().mockResolvedValue(undefined),
 		claimReaderReadyEmailSlot: jest.fn().mockResolvedValue(true),
 		releaseReaderReadyEmailSlot: jest.fn().mockResolvedValue(undefined),
@@ -94,6 +96,7 @@ describe("initSendUserDigestHandler", () => {
 			expect(sent.subject).toBe("Reader views are ready for articles you saved.");
 			expect(sent.html).toContain("Alpha");
 			expect(sent.html).toContain("Beta");
+			expect(sent.html).toContain("Short excerpt teaser.");
 
 			expect(deps.markReaderReadyEmailSent).toHaveBeenCalledWith({ userId: USER_ID, url: URL_A, at: NOW });
 			expect(deps.markReaderReadyEmailSent).toHaveBeenCalledWith({ userId: USER_ID, url: URL_B, at: NOW });
@@ -106,9 +109,9 @@ describe("initSendUserDigestHandler", () => {
 			});
 		});
 
-		it("includes an article with no stored content as a card with no body preview", async () => {
+		it("includes an article with no ready summary as a card with no body preview", async () => {
 			const { handler, deps } = createHandler({
-				readArticleContent: jest.fn().mockResolvedValue(undefined),
+				findGeneratedSummary: jest.fn().mockResolvedValue(undefined),
 			});
 
 			const result = await run(handler);
@@ -117,7 +120,7 @@ describe("initSendUserDigestHandler", () => {
 			expect(deps.sendEmail).toHaveBeenCalledTimes(1);
 			const sent = (deps.sendEmail as jest.Mock).mock.calls[0][0];
 			expect(sent.html).toContain("Alpha");
-			expect(sent.html).not.toContain("Body paragraph.");
+			expect(sent.html).not.toContain("Short excerpt teaser.");
 			expect(deps.markReaderReadyEmailSent).toHaveBeenCalledWith({ userId: USER_ID, url: URL_A, at: NOW });
 		});
 	});

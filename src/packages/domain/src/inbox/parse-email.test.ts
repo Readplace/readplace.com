@@ -315,4 +315,58 @@ describe("parseEmail", () => {
 
 		expect(result.ok).toBe(false);
 	});
+
+	it("collects the http(s) List-Unsubscribe targets and drops the mailto one", async () => {
+		const result = await parse(
+			eml(
+				"From: news@example.com",
+				"Subject: Digest",
+				"Message-ID: <lu@x>",
+				"List-Unsubscribe: <mailto:unsub@example.com>, <https://news.example.com/unsub?u=1>",
+				"Content-Type: text/html; charset=utf-8",
+				"",
+				"<p>Body</p>",
+			),
+		);
+
+		assert(result.ok);
+		expect(result.email.listUnsubscribeUrls).toEqual(["https://news.example.com/unsub?u=1"]);
+	});
+
+	it("collects targets from every List-Unsubscribe header when the message repeats it", async () => {
+		const result = await parse(
+			eml(
+				"From: news@example.com",
+				"Subject: Digest",
+				"Message-ID: <lu2@x>",
+				"List-Unsubscribe: <https://news.example.com/unsub?u=1>",
+				"List-Unsubscribe: <https://lists.example.net/optout>",
+				"Content-Type: text/html; charset=utf-8",
+				"",
+				"<p>Body</p>",
+			),
+		);
+
+		assert(result.ok);
+		expect(result.email.listUnsubscribeUrls).toEqual([
+			"https://news.example.com/unsub?u=1",
+			"https://lists.example.net/optout",
+		]);
+	});
+
+	it("returns no unsubscribe targets when the header is absent", async () => {
+		const result = await parse(
+			eml(
+				"From: news@example.com",
+				"Subject: Digest",
+				"Message-ID: <lu3@x>",
+				"Content-Type: text/html; charset=utf-8",
+				"",
+				"<p>Body</p>",
+			),
+		);
+
+		assert(result.ok);
+		expect(result.email.listUnsubscribeUrls).toEqual([]);
+	});
 });

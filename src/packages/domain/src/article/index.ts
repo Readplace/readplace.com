@@ -21,14 +21,12 @@ export {
 export {
 	SaveArticleInputSchema,
 	MAX_PAGES_PER_BULK_SAVE,
-	MAX_PAGE_CONTENT_BYTES,
-	MAX_BULK_CONTENT_REQUEST_BYTES,
 	BulkSavePageSchema,
 	BulkSaveManifestSchema,
-	MAX_RAW_HTML_BYTES,
-	MAX_RAW_HTML_REQUEST_BYTES,
-	SaveHtmlInputSchema,
-	RAW_HTML_FIELD,
+	MAX_UPLOAD_REQUEST_BYTES,
+	MAX_UPLOAD_CONTENT_BYTES,
+	MAX_UPLOAD_HTML_BYTES,
+	MAX_BULK_PAGE_CONTENT_BYTES,
 	MinutesSchema,
 	ArticleStatusSchema,
 } from "./article.schema";

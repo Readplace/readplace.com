@@ -17,6 +17,7 @@
   "dependencies": {
     "@aws-sdk/client-s3": "3.1057.0",
     "@aws-sdk/client-sqs": "3.1057.0",
+    "@packages/ai-message": "workspace:*",
     "@packages/article-parser": "workspace:*",
     "@packages/article-resource-unique-id": "workspace:*",
     "@packages/article-store": "workspace:*",
@@ -36,6 +37,8 @@
     "cookie-parser": "1.4.7",
     "express": "5.2.1",
     "helmet": "8.2.0",
+    "linkedom": "0.18.12",
+    "openai": "6.39.1",
     "serverless-http": "4.0.0",
     "zod": "4.4.3"
   },

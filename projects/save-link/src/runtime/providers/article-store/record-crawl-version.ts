@@ -10,11 +10,12 @@ import {
 	ArticleResourceUniqueId,
 	toCrawlVersionMinuteId,
 } from "@packages/article-resource-unique-id";
+import { type CrawlVersionEntry, StoredCrawlVersionSchema } from "@packages/article-store";
 import type { Tier } from "../../domain/select-content/tier.types";
 import { appendCrawlVersion } from "../../domain/select-content/crawl-versions";
 
 const CrawlVersionsRow = z.object({
-	crawlVersions: dynamoField(z.array(z.string())),
+	crawlVersions: dynamoField(z.array(StoredCrawlVersionSchema)),
 });
 
 /**
@@ -30,6 +31,10 @@ export type RecordCrawlVersion = (params: {
 	url: string;
 	tier: Tier;
 	crawledAt: string;
+	/** The winning source's capture author (its sidecar `authorUserId`), absent
+	 * for anonymous tier-1 content — stamped on the log entry so removal can
+	 * later resolve which snapshots a user authored. */
+	authorUserId?: string;
 }) => Promise<void>;
 
 export function initRecordCrawlVersion(deps: {
@@ -67,9 +72,16 @@ export function initRecordCrawlVersion(deps: {
 			{ projection: ["crawlVersions"] },
 		);
 		const existing = row?.crawlVersions ?? [];
-		const { changed, next } = appendCrawlVersion(existing, minuteId);
+		const entry: CrawlVersionEntry =
+			params.authorUserId === undefined
+				? { minuteId }
+				: { minuteId, authorUserId: params.authorUserId };
+		const { changed, next } = appendCrawlVersion(existing, entry);
 		if (!changed) return;
 
+		/* `:old` must be the raw stored array (bare strings on legacy rows), never
+		 * a normalized copy — a normalized `:old` can never equal what the row
+		 * holds, so the CAS would spuriously fail on every legacy row. */
 		await articleTable.update({
 			Key: { url: id.value },
 			UpdateExpression: "SET crawlVersions = :next",

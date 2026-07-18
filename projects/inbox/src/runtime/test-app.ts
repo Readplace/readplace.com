@@ -20,6 +20,10 @@ export interface TestAppResult {
 	subscriptionProviders: SubscriptionProvidersBundle;
 }
 
+/** Fixed CDN origin the test app pins into the email iframe's CSP, exported so
+ * route tests assert the exact policy the app would emit. */
+export const TEST_IMAGES_CDN_BASE_URL = "https://cdn.test.readplace.com";
+
 /** `overrides` lets a test swap a single dependency without rebuilding the whole
  * fixture — `getChangelogBanner` defaults to "no banner" so it stays hidden in
  * every other route test. */
@@ -35,7 +39,10 @@ export function createInboxTestApp(
 		}),
 	});
 	const app = createInboxApp(
-		{ inboxAddressDomain: fixture.inboxAddress.inboxAddressDomain },
+		{
+			inboxAddressDomain: fixture.inboxAddress.inboxAddressDomain,
+			imagesCdnBaseUrl: TEST_IMAGES_CDN_BASE_URL,
+		},
 		{
 			resolveLogin,
 			findUserById: fixture.auth.findUserById,

@@ -97,12 +97,14 @@ describe("initDynamoDbInboxEmailLink", () => {
 				receivedAtMessageId: RAM,
 				ordinal: ORDINAL,
 				url: "https://example.com/post",
+				resolvedUrl: undefined,
 				status: "pending",
 				title: undefined,
 				excerpt: undefined,
 				siteName: undefined,
 				imageUrl: undefined,
 				failureReason: undefined,
+				skipReason: undefined,
 			});
 
 			expect(result).toBe("stored");
@@ -114,6 +116,31 @@ describe("initDynamoDbInboxEmailLink", () => {
 			expect(captured?.input.Item).not.toHaveProperty("title");
 		});
 
+		it("puts a skipped row carrying its skip reason", async () => {
+			let captured: CapturedCommand | undefined;
+			const result = await store((cmd) => {
+				captured = cmd as CapturedCommand;
+				return {};
+			}).putLink({
+				userId: USER,
+				receivedAtMessageId: RAM,
+				ordinal: ORDINAL,
+				url: "https://news.example.com/unsub?token=send-1",
+				resolvedUrl: undefined,
+				status: "skipped",
+				title: undefined,
+				excerpt: undefined,
+				siteName: undefined,
+				imageUrl: undefined,
+				failureReason: undefined,
+				skipReason: "list-unsubscribe",
+			});
+
+			expect(result).toBe("stored");
+			expect(captured?.input.Item?.status).toBe("skipped");
+			expect(captured?.input.Item?.skipReason).toBe("list-unsubscribe");
+		});
+
 		it("returns duplicate when the conditional put fails on an existing row", async () => {
 			const result = await store(() => {
 				throw conditionalCheckFailed();
@@ -122,12 +149,14 @@ describe("initDynamoDbInboxEmailLink", () => {
 				receivedAtMessageId: RAM,
 				ordinal: ORDINAL,
 				url: "https://example.com/post",
+				resolvedUrl: undefined,
 				status: "pending",
 				title: undefined,
 				excerpt: undefined,
 				siteName: undefined,
 				imageUrl: undefined,
 				failureReason: undefined,
+				skipReason: undefined,
 			});
 
 			expect(result).toBe("duplicate");
@@ -142,12 +171,14 @@ describe("initDynamoDbInboxEmailLink", () => {
 					receivedAtMessageId: RAM,
 					ordinal: ORDINAL,
 					url: "https://example.com/post",
+					resolvedUrl: undefined,
 					status: "pending",
 					title: undefined,
 					excerpt: undefined,
 					siteName: undefined,
 					imageUrl: undefined,
 					failureReason: undefined,
+					skipReason: undefined,
 				}),
 			).rejects.toThrow("throttled");
 		});
@@ -169,15 +200,20 @@ describe("initDynamoDbInboxEmailLink", () => {
 					excerpt: "E",
 					siteName: "S",
 					imageUrl: "https://cdn.test/x.jpg",
+					resolvedUrl: "https://destination.test/the-actual-article",
 				},
 			});
 
 			expect(captured?.input.Key).toEqual({ userLinkGroup: GROUP, ordinal: "0003" });
 			expect(captured?.input.ConditionExpression).toBe("attribute_exists(ordinal)");
 			expect(captured?.input.UpdateExpression).toContain("#imageUrl = :imageUrl");
+			expect(captured?.input.UpdateExpression).toContain("#resolvedUrl = :resolvedUrl");
 			expect(captured?.input.UpdateExpression).toContain("REMOVE #failureReason");
 			expect(captured?.input.ExpressionAttributeValues?.[":status"]).toBe("crawled");
 			expect(captured?.input.ExpressionAttributeValues?.[":imageUrl"]).toBe("https://cdn.test/x.jpg");
+			expect(captured?.input.ExpressionAttributeValues?.[":resolvedUrl"]).toBe(
+				"https://destination.test/the-actual-article",
+			);
 		});
 
 		it("removes the image attribute when a crawl yields no lead image", async () => {
@@ -189,11 +225,21 @@ describe("initDynamoDbInboxEmailLink", () => {
 				userId: USER,
 				receivedAtMessageId: RAM,
 				ordinal: ORDINAL,
-				outcome: { status: "crawled", title: "T", excerpt: "E", siteName: "S", imageUrl: undefined },
+				outcome: {
+					status: "crawled",
+					title: "T",
+					excerpt: "E",
+					siteName: "S",
+					imageUrl: undefined,
+					resolvedUrl: undefined,
+				},
 			});
 
-			expect(captured?.input.UpdateExpression).toContain("REMOVE #failureReason, #imageUrl");
+			expect(captured?.input.UpdateExpression).toContain(
+				"REMOVE #failureReason, #skipReason, #imageUrl, #resolvedUrl",
+			);
 			expect(captured?.input.ExpressionAttributeValues).not.toHaveProperty(":imageUrl");
+			expect(captured?.input.ExpressionAttributeValues).not.toHaveProperty(":resolvedUrl");
 		});
 
 		it("sets the failure reason and removes preview fields on a failed outcome", async () => {
@@ -210,7 +256,7 @@ describe("initDynamoDbInboxEmailLink", () => {
 
 			expect(captured?.input.ConditionExpression).toBe("attribute_exists(ordinal)");
 			expect(captured?.input.UpdateExpression).toBe(
-				"SET #status = :status, #failureReason = :failureReason REMOVE #title, #excerpt, #siteName, #imageUrl",
+				"SET #status = :status, #failureReason = :failureReason REMOVE #title, #excerpt, #siteName, #imageUrl, #resolvedUrl, #skipReason",
 			);
 			expect(captured?.input.ExpressionAttributeValues?.[":failureReason"]).toBe("unsafe-url");
 		});
@@ -243,6 +289,7 @@ describe("initDynamoDbInboxEmailLink", () => {
 							userId: USER,
 							receivedAtMessageId: RAM,
 							url: "https://a.test",
+							resolvedUrl: "https://destination.test/a",
 							status: "crawled",
 							title: "A",
 							excerpt: "ae",
@@ -274,8 +321,31 @@ describe("initDynamoDbInboxEmailLink", () => {
 			expect(captured?.input.ScanIndexForward).toBe(true);
 			expect(links.map((l) => l.ordinal)).toEqual(["0000", "0001"]);
 			expect(links[0].title).toBe("A");
+			expect(links[0].resolvedUrl).toBe("https://destination.test/a");
 			expect(links[1].status).toBe("pending");
+			expect(links[1].resolvedUrl).toBeUndefined();
 			expect(meta).toEqual({ truncated: true });
+		});
+
+		it("reads a skipped row back with its skip reason", async () => {
+			const { links } = await store(() => ({
+				Items: [
+					{
+						userLinkGroup: GROUP,
+						ordinal: "0000",
+						userId: USER,
+						receivedAtMessageId: RAM,
+						url: "https://news.example.com/unsub",
+						status: "skipped",
+						skipReason: "list-unsubscribe",
+					},
+				],
+				Count: 1,
+			})).listLinksByEmail({ userId: USER, receivedAtMessageId: RAM });
+
+			expect(links.map((l) => [l.status, l.skipReason])).toEqual([
+				["skipped", "list-unsubscribe"],
+			]);
 		});
 
 		it("returns no meta when the partition holds only link rows", async () => {

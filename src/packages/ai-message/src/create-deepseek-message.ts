@@ -1,5 +1,6 @@
 import assert from "node:assert";
 import type { CreateAiMessage, DocumentBlock } from "./create-ai-message.types";
+import { DEEPSEEK_MODEL, DEEPSEEK_NON_THINKING } from "./deepseek-model";
 
 type ChatCompletionResponse = {
 	choices: Array<{ message?: { content?: string | null } }>;
@@ -9,11 +10,13 @@ type ChatCompletionResponse = {
 type CreateChatCompletion = (params: {
 	model: string;
 	max_tokens: number;
+	thinking: { type: "disabled" };
 	response_format?: { type: "json_object" };
 	messages: Array<{ role: "system" | "user" | "assistant"; content: string }>;
 }) => Promise<ChatCompletionResponse>;
 
-// https://api-docs.deepseek.com/quick_start/pricing — deepseek-chat max output is 8K
+// A self-imposed budget cap, not the model ceiling (v4-flash allows far more):
+// summaries never need more, and clamping keeps output cost bounded.
 const DEEPSEEK_MAX_OUTPUT_TOKENS = 8192;
 
 function extractTextContent(content: string | Array<DocumentBlock>): string {
@@ -34,7 +37,8 @@ export function initCreateDeepseekMessage(deps: {
 			...params.messages.map((msg) => ({ ...msg, content: extractTextContent(msg.content) })),
 		];
 		const response = await deps.createChatCompletion({
-			model: "deepseek-chat",
+			model: DEEPSEEK_MODEL,
+			thinking: DEEPSEEK_NON_THINKING,
 			max_tokens: Math.min(params.max_tokens, DEEPSEEK_MAX_OUTPUT_TOKENS),
 			response_format: { type: "json_object" },
 			messages,

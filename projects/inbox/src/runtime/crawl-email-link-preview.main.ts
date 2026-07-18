@@ -2,6 +2,7 @@ import { S3Client } from "@aws-sdk/client-s3";
 import {
 	initReadabilityParser,
 	linkedinSiteRules,
+	mediaWikiSiteRules,
 	mediumSiteRules,
 	theInformationSiteRules,
 } from "@packages/article-parser";
@@ -11,6 +12,7 @@ import {
 	initCrawlFetch,
 	initFetchThumbnailImage,
 	initXTwitterSiteRules,
+	initAppleNewsSiteRules,
 } from "@packages/crawl-article";
 import { isBlockedIpAddress } from "@packages/domain/article";
 import { initCrawlAndFinalizeArticle, initFinalizeArticle } from "@packages/finalize-article";
@@ -58,7 +60,9 @@ const siteRules = [
 	theInformationSiteRules,
 	mediumSiteRules,
 	linkedinSiteRules,
+	mediaWikiSiteRules,
 	initXTwitterSiteRules({ crawlFetch, logError }),
+	initAppleNewsSiteRules({ crawlFetch, logError }),
 ];
 const crawlArticle = initCrawlArticle({ crawlFetch, siteRules, logError, logInfo });
 const { parseHtml } = initReadabilityParser({

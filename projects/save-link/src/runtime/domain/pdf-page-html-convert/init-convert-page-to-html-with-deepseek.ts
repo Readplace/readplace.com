@@ -1,4 +1,5 @@
 import assert from "node:assert";
+import { DEEPSEEK_MODEL, DEEPSEEK_NON_THINKING } from "@packages/ai-message";
 import type { ConvertPageToHtmlWithLlm } from "./pdf-page-html-convert-handler.types";
 
 type ChatCompletionResponse = {
@@ -9,14 +10,14 @@ type ChatCompletionResponse = {
 type CreateChatCompletion = (params: {
 	model: string;
 	max_tokens: number;
+	thinking: { type: "disabled" };
 	temperature: number;
 	messages: Array<{ role: "system" | "user" | "assistant"; content: string }>;
 }) => Promise<ChatCompletionResponse>;
 
-/* https://api-docs.deepseek.com/quick_start/pricing — deepseek-chat caps
- * output at 8K tokens. The handler estimates a per-page budget proportional
- * to input length; this constant clamps the SDK request to the model's hard
- * ceiling so a long-document estimate never overshoots. */
+/* A self-imposed budget cap, not the model ceiling. The handler estimates a
+ * per-page budget proportional to input length; this constant clamps the SDK
+ * request so a long-document estimate never overshoots. */
 const DEEPSEEK_MAX_OUTPUT_TOKENS = 8192;
 
 /**
@@ -31,7 +32,8 @@ export function initConvertPageToHtmlWithDeepseek(deps: {
 }): ConvertPageToHtmlWithLlm {
 	return async ({ systemPrompt, userText, maxTokens }) => {
 		const response = await deps.createChatCompletion({
-			model: "deepseek-chat",
+			model: DEEPSEEK_MODEL,
+			thinking: DEEPSEEK_NON_THINKING,
 			max_tokens: Math.min(maxTokens, DEEPSEEK_MAX_OUTPUT_TOKENS),
 			/* Deterministic. Structural inference under sampling reintroduces
 			 * the layout drift that the multi-page stitching can't repair. */

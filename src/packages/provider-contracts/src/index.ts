@@ -17,6 +17,7 @@ export * from "./payment-methods";
 export type * from "./pending-html";
 export type * from "./pending-pdf";
 export type * from "./pending-signup";
+export type * from "./pending-upload";
 export type * from "./rate-limit";
 export type * from "./reader-ready-state";
 export type * from "./refresh-html";

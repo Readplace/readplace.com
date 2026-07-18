@@ -88,7 +88,7 @@ export function initSaveLinkRawHtmlCommandHandler(deps: {
 					url: detail.url,
 					tier: TIER,
 					html: finalized.article.html,
-					metadata: finalized.article.metadata,
+					metadata: { ...finalized.article.metadata, authorUserId: detail.userId },
 				});
 				logger.info("[SaveLinkRawHtmlCommand] tier-0 source written", {
 					url: detail.url,

@@ -194,7 +194,6 @@ describe("Apple auth routes", () => {
 					logError: (msg) => {
 						errors.push(msg);
 					},
-					logParseError: fixture.shared.logParseError,
 					now: fixture.shared.now,
 				},
 			});

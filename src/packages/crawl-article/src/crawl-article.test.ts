@@ -10,6 +10,7 @@ import type { CrawlArticleResult } from "./crawl-article.types";
 import type { CrawlFetch } from "./crawl-fetch";
 import { initCrawlFetch } from "./crawl-fetch";
 import type { CurlFetch } from "./curl-fetch";
+import { redirectable } from "./follow-redirects";
 import type { fetchH2 } from "./h2-fetch";
 import type { ExtractPdf } from "./pdf-extract.types";
 import { initXTwitterSiteRules } from "./x-twitter-site-rules";
@@ -659,6 +660,158 @@ describe("initCrawlArticle — single-fetch orchestration", () => {
 			extension: ".jpg",
 		});
 	});
+
+	it("stamps finalUrl from the primary response.url onto the fetched result", async () => {
+		const fakeFetch: typeof fetch = async () => {
+			const response = new Response("<html><body>hi</body></html>", {
+				status: 200,
+				headers: { "content-type": "text/html" },
+			});
+			Object.defineProperty(response, "url", { value: "https://example.com/final" });
+			return response;
+		};
+		const crawlArticle = initCrawl({ fetch: fakeFetch });
+
+		const result = await crawlArticle({ url: "https://example.com/requested" });
+
+		assertFetched(result);
+		expect(result.finalUrl).toBe("https://example.com/final");
+	});
+
+	it("stamps finalUrl from a redirectable fallback response, whose .url carries the followed terminal", async () => {
+		// A fallback transport (curl/h2/aia) is `redirectable(singleHop)`: it
+		// follows redirects and stamps the terminal onto the synthetic Response's
+		// `.url`, so the orchestrator reads it the same way it reads undici's.
+		const hops = [
+			new Response(null, { status: 301, headers: { location: "https://example.com/final" } }),
+			new Response("<html><body>hi</body></html>", { status: 200, headers: { "content-type": "text/html" } }),
+		];
+		let hop = 0;
+		const fallbackResponse = await redirectable(async () => hops[hop++], "test")("https://example.com/start");
+		expect(fallbackResponse.url).toBe("https://example.com/final");
+		const crawlArticle = initCrawl({ fetch: async () => fallbackResponse });
+
+		const result = await crawlArticle({ url: "https://example.com/start" });
+
+		assertFetched(result);
+		expect(result.finalUrl).toBe("https://example.com/final");
+	});
+
+	it("leaves finalUrl unset for the site-rule/oembed path, which issues no article fetch", async () => {
+		const fakeFetch: typeof fetch = async () =>
+			new Response(JSON.stringify({ author_name: "User", html: "<blockquote>x</blockquote>" }), {
+				status: 200,
+				headers: { "content-type": "application/json" },
+			});
+		const crawlArticle = initCrawl({ fetch: fakeFetch });
+
+		const result = await crawlArticle({ url: "https://x.com/user/status/123" });
+
+		assertFetched(result);
+		expect(result.finalUrl).toBeUndefined();
+	});
+});
+
+describe("initCrawlArticle — site-rule redirect restarts the crawl", () => {
+	function redirectSite(params: { hostname: string; redirectTo: string }): SiteRules {
+		return {
+			matches: ({ hostname }) => hostname === params.hostname,
+			onCrawl: async () => ({ kind: "redirect", url: params.redirectTo }),
+			extract: noExtract,
+			transform: noTransform,
+		};
+	}
+
+	function urlStampingFetch(collector: string[]): typeof fetch {
+		return async (input) => {
+			const url = typeof input === "string" ? input : input instanceof URL ? input.href : input.url;
+			collector.push(url);
+			const response = new Response(
+				"<html><body><article><p>Publisher article body served at the redirect target.</p></article></body></html>",
+				{ status: 200, headers: { "content-type": "text/html" } },
+			);
+			// Mimic undici, which populates the read-only `.url` on real fetches.
+			Object.defineProperty(response, "url", { value: url });
+			return response;
+		};
+	}
+
+	it("fetches the redirect target instead of the claimed URL and stamps it as finalUrl", async () => {
+		const fetched: string[] = [];
+		const crawlArticle = initCrawl({
+			fetch: urlStampingFetch(fetched),
+			siteRules: [redirectSite({ hostname: "shell.example", redirectTo: "https://story.example/article" })],
+		});
+
+		const result = await crawlArticle({ url: "https://shell.example/A123" });
+
+		assertFetched(result);
+		expect(fetched).toEqual(["https://story.example/article"]);
+		expect(result.finalUrl).toBe("https://story.example/article");
+	});
+
+	it("re-runs site rules for the redirect target so it gets its own bespoke treatment", async () => {
+		const fetched: string[] = [];
+		const targetContentSite: SiteRules = {
+			matches: ({ hostname }) => hostname === "story.example",
+			onCrawl: async () => ({ kind: "content", html: "<html><body>bespoke</body></html>" }),
+			extract: noExtract,
+			transform: noTransform,
+		};
+		const crawlArticle = initCrawl({
+			fetch: urlStampingFetch(fetched),
+			siteRules: [
+				redirectSite({ hostname: "shell.example", redirectTo: "https://story.example/article" }),
+				targetContentSite,
+			],
+		});
+
+		const result = await crawlArticle({ url: "https://shell.example/A123" });
+
+		assertFetched(result);
+		expect(result.html).toBe("<html><body>bespoke</body></html>");
+		expect(fetched).toEqual([]);
+	});
+
+	it("fails closed when site-rule redirects exceed the hop cap", async () => {
+		const logError = jest.fn();
+		const selfRedirectingSite: SiteRules = {
+			matches: ({ hostname }) => hostname === "loop.example",
+			onCrawl: async () => ({ kind: "redirect", url: "https://loop.example/again" }),
+			extract: noExtract,
+			transform: noTransform,
+		};
+		const fetched: string[] = [];
+		const crawlArticle = initCrawl({
+			fetch: urlStampingFetch(fetched),
+			siteRules: [selfRedirectingSite],
+			logError,
+		});
+
+		const result = await crawlArticle({ url: "https://loop.example/entry" });
+
+		expect(result).toEqual({ status: "failed" });
+		expect(fetched).toEqual([]);
+		expect(logError).toHaveBeenCalledWith(
+			"[CrawlArticle] Too many site-rule redirects (>3) for https://loop.example/entry",
+		);
+	});
+
+	it("fails when a site-rule redirect target is not a parseable URL", async () => {
+		const logError = jest.fn();
+		const fetched: string[] = [];
+		const crawlArticle = initCrawl({
+			fetch: urlStampingFetch(fetched),
+			siteRules: [redirectSite({ hostname: "shell.example", redirectTo: "::::" })],
+			logError,
+		});
+
+		const result = await crawlArticle({ url: "https://shell.example/A123" });
+
+		expect(result).toEqual({ status: "failed" });
+		expect(fetched).toEqual([]);
+		expect(logError).toHaveBeenCalledWith("[CrawlArticle] Invalid URL ::::");
+	});
 });
 
 describe("initCrawlArticle — split fetch budgets (headers vs body)", () => {
@@ -839,23 +992,6 @@ describe("parseHtmlFromBuffer — thumbnailUrl extraction", () => {
 			lastModified: "Wed, 21 Oct 2025 07:28:00 GMT",
 			bodyHash,
 		});
-	});
-
-	it("captures the post-redirect finalUrl from response.url", async () => {
-		const bodyHash = createHash("sha256").update(Buffer.from("<html></html>")).digest("hex");
-		const redirected = new Response(null, {});
-		Object.defineProperty(redirected, "url", { value: "https://example.com/final" });
-		const result = await parseHtmlFromBuffer({
-			buffer: Buffer.from("<html></html>"),
-			bodyHash,
-			response: redirected,
-			url: "https://example.com/requested",
-			crawlFetch: throwingCrawlFetch,
-			logError: noopLogError,
-			logInfo: noopLogInfo,
-		});
-		assertFetched(result);
-		expect(result.finalUrl).toBe("https://example.com/final");
 	});
 });
 

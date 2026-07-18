@@ -184,64 +184,6 @@ describe("view_save_intent — authenticated save surfaces", () => {
 		});
 	});
 
-	describe("POST /queue/save-html (extension)", () => {
-		it("emits extension / saved", async () => {
-			const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
-			const token = await bearerToken(harness);
-
-			const response = await request(harness.server)
-				.post("/queue/save-html")
-				.set("Accept", SIREN_MEDIA_TYPE)
-				.set("Authorization", `Bearer ${token}`)
-				.send({ url: "https://example.com/article", rawHtml: "<html>captured</html>", title: "Captured" });
-
-			expect(response.status).toBe(201);
-			expect(saveIntents(harness)[0]).toMatchObject({ path: "/queue/save-html", surface: "extension", outcome: "saved" });
-		});
-
-		it("emits extension / error when the save throws", async () => {
-			const harness = useApp(failingSaveFixture());
-			const token = await bearerToken(harness);
-
-			const response = await request(harness.server)
-				.post("/queue/save-html")
-				.set("Accept", SIREN_MEDIA_TYPE)
-				.set("Authorization", `Bearer ${token}`)
-				.send({ url: "https://example.com/article", rawHtml: "<html>captured</html>", title: "Captured" });
-
-			expect(response.status).toBe(500);
-			expect(saveIntents(harness)[0]).toMatchObject({ path: "/queue/save-html", surface: "extension", outcome: "error" });
-		});
-
-		it("emits extension / error when the request fails schema validation (invalid url, 422)", async () => {
-			const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
-			const token = await bearerToken(harness);
-
-			const response = await request(harness.server)
-				.post("/queue/save-html")
-				.set("Accept", SIREN_MEDIA_TYPE)
-				.set("Authorization", `Bearer ${token}`)
-				.send({ url: "not-a-url", rawHtml: "<html>captured</html>" });
-
-			expect(response.status).toBe(422);
-			expect(saveIntents(harness)[0]).toMatchObject({ path: "/queue/save-html", surface: "extension", outcome: "error", article_host: null });
-		});
-
-		it("emits extension / error when a schema-valid URL is unsaveable (private network, 422)", async () => {
-			const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
-			const token = await bearerToken(harness);
-
-			const response = await request(harness.server)
-				.post("/queue/save-html")
-				.set("Accept", SIREN_MEDIA_TYPE)
-				.set("Authorization", `Bearer ${token}`)
-				.send({ url: "http://localhost/x", rawHtml: "<html>captured</html>" });
-
-			expect(response.status).toBe(422);
-			expect(saveIntents(harness)[0]).toMatchObject({ path: "/queue/save-html", surface: "extension", outcome: "error", article_host: "localhost" });
-		});
-	});
-
 	describe("POST /queue/save-content (extension)", () => {
 		it("emits extension / saved", async () => {
 			const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));

@@ -10,12 +10,14 @@ function link(overrides: Partial<InboxEmailLinkEntry> = {}): InboxEmailLinkEntry
 		receivedAtMessageId: EMAIL_ID,
 		ordinal: EmailLinkOrdinalSchema.parse("0002"),
 		url: "https://example.com/post",
+		resolvedUrl: undefined,
 		status: "pending",
 		title: undefined,
 		excerpt: undefined,
 		siteName: undefined,
 		imageUrl: undefined,
 		failureReason: undefined,
+		skipReason: undefined,
 		...overrides,
 	};
 }
@@ -32,18 +34,15 @@ describe("toInboxLinkCardViewModel", () => {
 		expect(vm.cardPollUrl).toContain("/links/0002/card");
 		expect(vm.cardPollUrl).toContain("poll=1");
 		expect(vm.title).toBe("");
-		expect(vm.isStalePending).toBe(false);
+		expect(vm.hasTitle).toBe(false);
+		expect(vm.feedbackAction).toBe(
+			`/inbox/${encodeURIComponent(EMAIL_ID)}/links/0002/feedback?feature=email`,
+		);
 	});
 
 	it("stops polling once a link reaches a terminal state", () => {
 		const crawled = toInboxLinkCardViewModel({
-			link: link({
-				status: "crawled",
-				title: "T",
-				excerpt: "E",
-				siteName: "S",
-				imageUrl: "https://cdn.test/x.jpg",
-			}),
+			link: link({ status: "crawled", title: "T" }),
 			emailId: EMAIL_ID,
 			pollCount: 1,
 			maxPolls: 300,
@@ -51,11 +50,51 @@ describe("toInboxLinkCardViewModel", () => {
 
 		expect(crawled.cardPollUrl).toBeUndefined();
 		expect(crawled.title).toBe("T");
-		expect(crawled.imageUrl).toBe("https://cdn.test/x.jpg");
-		expect(crawled.isStalePending).toBe(false);
+		expect(crawled.hasTitle).toBe(true);
+		expect(crawled.url).toBe("https://example.com/post");
 	});
 
-	it("stops polling a still-pending link once the poll budget is spent and marks it stale", () => {
+	it("shows the post-redirect destination instead of the newsletter tracking link once resolved", () => {
+		const crawled = toInboxLinkCardViewModel({
+			link: link({
+				status: "crawled",
+				title: "T",
+				url: "https://nodeweekly.com/link/187980/4be0b3f821",
+				resolvedUrl: "https://destination.test/the-actual-article",
+			}),
+			emailId: EMAIL_ID,
+			pollCount: 1,
+			maxPolls: 300,
+		});
+
+		expect(crawled.url).toBe("https://destination.test/the-actual-article");
+	});
+
+	it("treats a crawled link whose page had no title as a bare row", () => {
+		const crawled = toInboxLinkCardViewModel({
+			link: link({ status: "crawled", title: undefined }),
+			emailId: EMAIL_ID,
+			pollCount: 1,
+			maxPolls: 300,
+		});
+
+		expect(crawled.cardPollUrl).toBeUndefined();
+		expect(crawled.hasTitle).toBe(false);
+	});
+
+	it("treats a skipped link as terminal so its card never polls", () => {
+		const skipped = toInboxLinkCardViewModel({
+			link: link({ status: "skipped", skipReason: "list-unsubscribe" }),
+			emailId: EMAIL_ID,
+			pollCount: 1,
+			maxPolls: 300,
+		});
+
+		expect(skipped.cardPollUrl).toBeUndefined();
+		expect(skipped.hasTitle).toBe(false);
+	});
+
+	it("stops polling a still-pending link once the poll budget is spent", () => {
 		const vm = toInboxLinkCardViewModel({
 			link: link({ status: "pending" }),
 			emailId: EMAIL_ID,
@@ -64,6 +103,6 @@ describe("toInboxLinkCardViewModel", () => {
 		});
 
 		expect(vm.cardPollUrl).toBeUndefined();
-		expect(vm.isStalePending).toBe(true);
+		expect(vm.hasTitle).toBe(false);
 	});
 });

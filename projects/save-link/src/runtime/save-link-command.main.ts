@@ -4,6 +4,7 @@ import { consoleLogger } from "@packages/hutch-logger";
 import { EventBridgeClient } from "@packages/hutch-infra-components/runtime";
 import { createDynamoDocumentClient } from "@packages/hutch-storage-client";
 import { requireEnv } from "@packages/require-env";
+import { initCanonicalAliasStore } from "@packages/article-store";
 import { initSaveLinkCommandHandler } from "./domain/save-link/save-link-command-handler";
 import { initObservabilityDepBundle } from "./dep-bundles/observability";
 import { initParserDepBundle } from "./dep-bundles/parser";
@@ -13,6 +14,7 @@ import { initCrawlAndFinalizeDepBundle } from "./dep-bundles/crawl-and-finalize"
 import { initEmitSimpleCrawlUnsupported, initEventsDepBundle } from "./dep-bundles/events";
 import { initArticleAggregateDepBundle } from "./dep-bundles/article-aggregate";
 import { initArticleCrawlDepBundle } from "./dep-bundles/article-crawl";
+import { initAdoptCanonicalIdentity } from "./domain/save-link/adopt-canonical-identity";
 
 const articlesTable = requireEnv("DYNAMODB_ARTICLES_TABLE");
 const contentBucketName = requireEnv("CONTENT_BUCKET_NAME");
@@ -27,7 +29,12 @@ const eventBridgeClient = new EventBridgeClient({});
 const now = () => new Date();
 
 const observability = initObservabilityDepBundle({ logger: consoleLogger, source: "save-link", now });
-const parser = initParserDepBundle({ logError: observability.logError, logInfo: observability.logInfo });
+const canonicalAliasStore = initCanonicalAliasStore({ client: dynamoClient, tableName: articlesTable });
+const parser = initParserDepBundle({
+	logError: observability.logError,
+	logInfo: observability.logInfo,
+	findAdoptedFetchUrl: canonicalAliasStore.findAdoptedFetchUrl,
+});
 const articleStore = initArticleStoreDepBundle({ s3Client, dynamoClient, contentBucketName, articlesTable });
 const media = initMediaDepBundle({ parser, articleStore, logger: consoleLogger, imagesCdnBaseUrl });
 const crawlAndFinalize = initCrawlAndFinalizeDepBundle({
@@ -44,6 +51,13 @@ const articleCrawl = initArticleCrawlDepBundle({ dynamoClient, articlesTable });
 const emitSimpleCrawlUnsupported = initEmitSimpleCrawlUnsupported({
 	publishEvent: events.publishEvent,
 });
+const adoptCanonicalIdentity = initAdoptCanonicalIdentity({
+	claimAlias: canonicalAliasStore.claimAlias,
+	setDisplayUrl: canonicalAliasStore.setDisplayUrl,
+	isSiteRuleUrl: parser.isSiteRuleUrl,
+	now,
+	logger: consoleLogger,
+});
 
 export const handler = initSaveLinkCommandHandler({
 	...articleStore,
@@ -53,5 +67,6 @@ export const handler = initSaveLinkCommandHandler({
 	...observability,
 	crawlAndFinalizeArticle: crawlAndFinalize.crawlAndFinalizeArticle,
 	emitSimpleCrawlUnsupported,
+	adoptCanonicalIdentity,
 	now,
 });

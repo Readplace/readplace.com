@@ -5,10 +5,15 @@ import {
 	type InboxEmailStatus,
 	InboxAddressSchema,
 	MessageIdSchema,
+	formatEmailLinkOrdinal,
 } from "@packages/domain/inbox";
 import { UserIdSchema } from "@packages/domain/user";
+import { ARTICLES_PAGE_SIZE } from "./inbox-articles-more.url";
 import type { MailTabKey } from "./inbox-email-detail.url";
-import { toInboxEmailDetailViewModel } from "./inbox-email-detail.viewmodel";
+import {
+	toInboxArticlesMoreViewModel,
+	toInboxEmailDetailViewModel,
+} from "./inbox-email-detail.viewmodel";
 
 const SK = "2026-06-24T09:00:00.000Z#<m@x>";
 
@@ -34,12 +39,14 @@ function link(overrides: Partial<InboxEmailLinkEntry> = {}): InboxEmailLinkEntry
 		receivedAtMessageId: SK,
 		ordinal: EmailLinkOrdinalSchema.parse("0000"),
 		url: "https://example.com/post",
+		resolvedUrl: undefined,
 		status: "pending",
 		title: undefined,
 		excerpt: undefined,
 		siteName: undefined,
 		imageUrl: undefined,
 		failureReason: undefined,
+		skipReason: undefined,
 		...overrides,
 	};
 }
@@ -50,17 +57,33 @@ function build(input: {
 	bodyHtml?: string | undefined;
 	links?: InboxEmailLinkEntry[];
 	linksMeta?: { truncated: boolean } | undefined;
+	shown?: number;
 	panelPollCount?: number;
 }) {
 	return toInboxEmailDetailViewModel({
 		entry: input.entry ?? entry(),
 		activeTab: input.activeTab ?? "view",
 		bodyHtml: input.bodyHtml,
+		imagesCdnBaseUrl: "https://cdn.test.readplace.com",
 		links: input.links ?? [],
 		linksMeta: input.linksMeta,
 		maxPolls: 300,
+		shown: input.shown,
 		panelPollCount: input.panelPollCount,
 	});
+}
+
+function crawledLinks(count: number, startIndex = 0): InboxEmailLinkEntry[] {
+	return Array.from({ length: count }, (_unused, index) =>
+		link({
+			ordinal: formatEmailLinkOrdinal(startIndex + index),
+			url: `https://example.com/post-${startIndex + index}`,
+			status: "crawled",
+			title: `Post ${startIndex + index}`,
+			excerpt: "An excerpt",
+			siteName: "Example",
+		}),
+	);
 }
 
 describe("toInboxEmailDetailViewModel", () => {
@@ -78,6 +101,13 @@ describe("toInboxEmailDetailViewModel", () => {
 
 		expect(vm.activeTab).toBe("articles");
 		expect(vm.tabs[1].ariaCurrent).toBe("page");
+	});
+
+	it("hands the Skipped Links tab to the page as the active one", () => {
+		const vm = build({ activeTab: "excluded", linksMeta: { truncated: false } });
+
+		expect(vm.activeTab).toBe("excluded");
+		expect(vm.tabs[2].ariaCurrent).toBe("page");
 	});
 
 	it("exposes the received instant as a UTC-baselined datetime LocalTime", () => {
@@ -125,6 +155,17 @@ describe("toInboxEmailDetailViewModel", () => {
 		expect(vm.linkCountLabel).toBeUndefined();
 	});
 
+	it("keeps the Skipped panel extracting too, so it never claims nothing was skipped early", () => {
+		const vm = build({ links: [], linksMeta: undefined });
+
+		// Both panels describe the same extractor run: answering "nothing was
+		// skipped" before it has looked is the same lie as "no links found".
+		expect(vm.excluded.isExtracting).toBe(true);
+		expect(vm.excluded.isStalePending).toBe(false);
+		// Its own fragment — polling /articles would swap the Articles panel in here.
+		expect(vm.excluded.panelPollUrl).toContain("/excluded?feature=email&poll=1");
+	});
+
 	it("gives up to a terminal stale state once the budget is spent without a meta barrier", () => {
 		const vm = build({ links: [], linksMeta: undefined, panelPollCount: 301 });
 
@@ -133,6 +174,9 @@ describe("toInboxEmailDetailViewModel", () => {
 		expect(vm.articles.isExtracting).toBe(false);
 		expect(vm.articles.isStalePending).toBe(true);
 		expect(vm.articles.panelPollUrl).toBeUndefined();
+		expect(vm.excluded.isExtracting).toBe(false);
+		expect(vm.excluded.isStalePending).toBe(true);
+		expect(vm.excluded.panelPollUrl).toBeUndefined();
 		// No trustworthy count while extraction never finished.
 		expect(vm.linkCountLabel).toBeUndefined();
 	});
@@ -143,14 +187,19 @@ describe("toInboxEmailDetailViewModel", () => {
 		expect(vm.articles.isExtracting).toBe(true);
 		expect(vm.articles.isStalePending).toBe(false);
 		expect(vm.articles.panelPollUrl).toContain("poll=300");
+		expect(vm.excluded.isExtracting).toBe(true);
+		expect(vm.excluded.panelPollUrl).toContain("poll=300");
 	});
 
-	it("never polls a non-received email's articles panel", () => {
+	it("never polls a non-received email's panels", () => {
 		const vm = build({ entry: entry({ status: "rejected" }), links: [], linksMeta: undefined });
 
 		expect(vm.articles.isExtracting).toBe(false);
 		expect(vm.articles.isEmpty).toBe(true);
 		expect(vm.articles.panelPollUrl).toBeUndefined();
+		expect(vm.excluded.isExtracting).toBe(false);
+		expect(vm.excluded.isEmpty).toBe(true);
+		expect(vm.excluded.panelPollUrl).toBeUndefined();
 	});
 
 	it("reports a genuinely empty panel once extraction wrote its meta with zero links", () => {
@@ -161,6 +210,20 @@ describe("toInboxEmailDetailViewModel", () => {
 		expect(vm.articles.cards).toHaveLength(0);
 		expect(vm.articles.panelPollUrl).toBeUndefined();
 		expect(vm.articles.truncatedNotice).toBeUndefined();
+		// An email with no links at all found none on either tab — neither panel may
+		// point at the other for an explanation it doesn't have.
+		expect(vm.articles.emptyMessage).toBe("No links found in this email.");
+		expect(vm.excluded.isEmpty).toBe(true);
+		expect(vm.excluded.emptyMessage).toBe("No links found in this email.");
+	});
+
+	it("tells the Skipped panel nothing was skipped when every link was kept", () => {
+		const vm = build({ links: [link({ status: "crawled" })], linksMeta: { truncated: false } });
+
+		expect(vm.excluded.isEmpty).toBe(true);
+		expect(vm.excluded.links).toHaveLength(0);
+		// "No links found" would be false here — one was found, and kept.
+		expect(vm.excluded.emptyMessage).toBe("Nothing was skipped in this email.");
 	});
 
 	it("maps a pending link to a polling card and a crawled link to a terminal card", () => {
@@ -182,10 +245,10 @@ describe("toInboxEmailDetailViewModel", () => {
 		expect(vm.articles.isEmpty).toBe(false);
 		expect(vm.linkCountLabel).toBe("2 links");
 		const [pending, crawled] = vm.articles.cards;
-		expect(pending.status).toBe("pending");
+		expect(pending.hasTitle).toBe(false);
 		expect(pending.cardPollUrl).toContain("/inbox/");
 		expect(pending.cardPollUrl).toContain("/links/0000/card");
-		expect(crawled.status).toBe("crawled");
+		expect(crawled.hasTitle).toBe(true);
 		expect(crawled.title).toBe("A title");
 		expect(crawled.cardPollUrl).toBeUndefined();
 	});
@@ -196,9 +259,227 @@ describe("toInboxEmailDetailViewModel", () => {
 			linksMeta: { truncated: true },
 		});
 
-		expect(vm.articles.cards[0].status).toBe("failed");
+		expect(vm.articles.cards[0].hasTitle).toBe(false);
 		expect(vm.articles.cards[0].cardPollUrl).toBeUndefined();
 		expect(vm.articles.truncatedNotice).toBe("Showing the first 1 links found in this email.");
 		expect(vm.linkCountLabel).toBe("1+ links");
+	});
+
+	it("discloses the extraction cap on both panels, including when every link was skipped", () => {
+		const vm = build({
+			links: [link({ status: "skipped", skipReason: "llm-ad" })],
+			linksMeta: { truncated: true },
+		});
+
+		// The cap is a fact about the email, not about one panel: an all-skipped email
+		// empties the Articles panel, so a notice that only rode the non-empty branch
+		// would disclose the cap on no tab at all.
+		expect(vm.articles.isEmpty).toBe(true);
+		expect(vm.articles.truncatedNotice).toBe("Showing the first 1 links found in this email.");
+		expect(vm.excluded.truncatedNotice).toBe("Showing the first 1 links found in this email.");
+	});
+
+	it("leaves the cap notice off both panels for an email that was not truncated", () => {
+		const vm = build({ links: [link()], linksMeta: { truncated: false } });
+
+		expect(vm.articles.truncatedNotice).toBeUndefined();
+		expect(vm.excluded.truncatedNotice).toBeUndefined();
+	});
+
+	it("routes skipped links to the excluded list and counts only the kept ones", () => {
+		const vm = build({
+			links: [
+				link({ status: "pending" }),
+				link({
+					ordinal: EmailLinkOrdinalSchema.parse("0001"),
+					url: "https://news.example.com/unsub",
+					status: "skipped",
+					skipReason: "list-unsubscribe",
+				}),
+				link({
+					ordinal: EmailLinkOrdinalSchema.parse("0002"),
+					url: "https://sponsor.example.com/deal",
+					status: "skipped",
+					skipReason: "llm-ad",
+				}),
+			],
+			linksMeta: { truncated: false },
+		});
+
+		expect(vm.articles.cards.map((card) => card.ordinal)).toEqual(["0000"]);
+		expect(vm.excluded.isEmpty).toBe(false);
+		expect(vm.excluded.links).toEqual([
+			{
+				ordinal: "0001",
+				url: "https://news.example.com/unsub",
+				reasonLabel: "Unsubscribe link",
+				feedbackAction: `/inbox/${encodeURIComponent(SK)}/links/0001/feedback?feature=email`,
+			},
+			{
+				ordinal: "0002",
+				url: "https://sponsor.example.com/deal",
+				reasonLabel: "Advertisement",
+				feedbackAction: `/inbox/${encodeURIComponent(SK)}/links/0002/feedback?feature=email`,
+			},
+		]);
+		expect(vm.linkCountLabel).toBe("1 link");
+		expect(vm.articles.isEmpty).toBe(false);
+	});
+
+	it("empties the Articles panel when every link was skipped, and points at where they went", () => {
+		const vm = build({
+			links: [link({ status: "skipped", skipReason: "llm-menu" })],
+			linksMeta: { truncated: false },
+		});
+
+		expect(vm.articles.isEmpty).toBe(true);
+		expect(vm.articles.cards).toHaveLength(0);
+		// "No links found" would be false: a link was found, then skipped. The empty
+		// Articles panel has to point at the tab that holds it.
+		expect(vm.articles.emptyMessage).toBe(
+			"Every link in this email was skipped — see the Skipped Links tab.",
+		);
+		expect(vm.excluded.isEmpty).toBe(false);
+		expect(vm.excluded.links.map((entry) => entry.reasonLabel)).toEqual(["Site navigation"]);
+		expect(vm.linkCountLabel).toBeUndefined();
+	});
+
+	it("surfaces the feedback confirmation on both panels, for whichever tab it redirects to", () => {
+		const confirmed = build({ links: [link()], linksMeta: { truncated: false } });
+		expect(confirmed.articles.feedbackNotice).toBe(false);
+		expect(confirmed.excluded.feedbackNotice).toBe(false);
+
+		const vm = toInboxEmailDetailViewModel({
+			entry: entry(),
+			activeTab: "articles",
+			bodyHtml: undefined,
+			imagesCdnBaseUrl: "https://cdn.test.readplace.com",
+			links: [link()],
+			linksMeta: { truncated: false },
+			maxPolls: 300,
+			feedbackConfirmed: true,
+		});
+		// The redirect picks the tab from the reported link's status, so the notice has
+		// to be ready on either panel — only the active one renders it.
+		expect(vm.articles.feedbackNotice).toBe(true);
+		expect(vm.excluded.feedbackNotice).toBe(true);
+	});
+
+	it("labels an excluded link without a recorded reason generically", () => {
+		const vm = build({
+			links: [link({ status: "skipped", skipReason: undefined })],
+			linksMeta: { truncated: false },
+		});
+
+		expect(vm.excluded.links.map((entry) => entry.reasonLabel)).toEqual(["Not an article"]);
+	});
+
+	it("reveals only the first page of cards and offers the rest behind a Show more control", () => {
+		const vm = build({ links: crawledLinks(25), linksMeta: { truncated: false } });
+
+		expect(vm.articles.cards).toHaveLength(ARTICLES_PAGE_SIZE);
+		expect(vm.articles.cards.map((card) => card.ordinal)).toEqual(
+			crawledLinks(ARTICLES_PAGE_SIZE).map((entry) => entry.ordinal),
+		);
+		expect(vm.articles.showMore).toEqual({
+			detailHref: `/inbox/${encodeURIComponent(SK)}?feature=email&tab=articles&shown=40`,
+			moreUrl: `/inbox/${encodeURIComponent(SK)}/articles/more?feature=email&shown=40`,
+			count: 5,
+		});
+	});
+
+	it("counts every kept link in the header badge, not just the revealed page", () => {
+		const vm = build({ links: crawledLinks(25), linksMeta: { truncated: false } });
+
+		expect(vm.linkCountLabel).toBe("25 links");
+		expect(vm.articles.isEmpty).toBe(false);
+	});
+
+	it("offers no control when the kept links exactly fill the first page", () => {
+		const vm = build({ links: crawledLinks(ARTICLES_PAGE_SIZE), linksMeta: { truncated: false } });
+
+		expect(vm.articles.cards).toHaveLength(ARTICLES_PAGE_SIZE);
+		expect(vm.articles.showMore).toBeUndefined();
+	});
+
+	it("renders the cumulative reveal a no-JS Show more navigation asks for", () => {
+		const vm = build({ links: crawledLinks(25), linksMeta: { truncated: false }, shown: 40 });
+
+		expect(vm.articles.cards).toHaveLength(25);
+		expect(vm.articles.showMore).toBeUndefined();
+	});
+
+	it("pages over the kept links only, leaving excluded ones out of the page budget", () => {
+		const vm = build({
+			links: [
+				link({
+					ordinal: formatEmailLinkOrdinal(0),
+					status: "skipped",
+					skipReason: "list-unsubscribe",
+				}),
+				...crawledLinks(21, 1),
+			],
+			linksMeta: { truncated: false },
+		});
+
+		expect(vm.articles.cards).toHaveLength(ARTICLES_PAGE_SIZE);
+		expect(vm.articles.cards[0].ordinal).toBe("0001");
+		expect(vm.excluded.links).toHaveLength(1);
+		expect(vm.articles.showMore?.count).toBe(1);
+		expect(vm.linkCountLabel).toBe("21 links");
+	});
+});
+
+describe("toInboxArticlesMoreViewModel", () => {
+	function buildMore(input: { links: InboxEmailLinkEntry[]; shown: number }) {
+		return toInboxArticlesMoreViewModel({
+			links: input.links,
+			emailId: SK,
+			shown: input.shown,
+			maxPolls: 300,
+		});
+	}
+
+	it("returns only the newly revealed delta, not the cards already on the page", () => {
+		const vm = buildMore({ links: crawledLinks(45), shown: 40 });
+
+		expect(vm.cards.map((card) => card.ordinal)).toEqual(
+			crawledLinks(ARTICLES_PAGE_SIZE, ARTICLES_PAGE_SIZE).map((entry) => entry.ordinal),
+		);
+		expect(vm.showMore).toEqual({
+			detailHref: `/inbox/${encodeURIComponent(SK)}?feature=email&tab=articles&shown=60`,
+			moreUrl: `/inbox/${encodeURIComponent(SK)}/articles/more?feature=email&shown=60`,
+			count: 5,
+		});
+	});
+
+	it("drops the control once the delta lands on the last card", () => {
+		const vm = buildMore({ links: crawledLinks(25), shown: 40 });
+
+		expect(vm.cards.map((card) => card.ordinal)).toEqual(["0020", "0021", "0022", "0023", "0024"]);
+		expect(vm.showMore).toBeUndefined();
+	});
+
+	it("keeps a still-pending revealed card polling for its preview", () => {
+		const vm = buildMore({
+			links: [...crawledLinks(ARTICLES_PAGE_SIZE), link({ ordinal: formatEmailLinkOrdinal(20) })],
+			shown: 40,
+		});
+
+		expect(vm.cards).toHaveLength(1);
+		expect(vm.cards[0].cardPollUrl).toContain("/links/0020/card");
+	});
+
+	it("never reveals an excluded link as a card", () => {
+		const vm = buildMore({
+			links: [
+				...crawledLinks(ARTICLES_PAGE_SIZE),
+				link({ ordinal: formatEmailLinkOrdinal(20), status: "skipped", skipReason: "llm-ad" }),
+				...crawledLinks(1, 21),
+			],
+			shown: 40,
+		});
+
+		expect(vm.cards.map((card) => card.ordinal)).toEqual(["0021"]);
 	});
 });

@@ -12,6 +12,7 @@ import { buildLambdaContext } from "@packages/test-fixtures/lambda-context";
 import { initInMemoryInboxEmailLink } from "@packages/test-fixtures/providers/inbox-email";
 import { buildSqsEvent } from "@packages/test-fixtures/sqs";
 import { initExtractEmailLinksHandler } from "./extract-email-links-handler";
+import type { EmailLinkTriageCategory, TriageEmailLinks } from "./triage-email-links";
 
 const USER = UserIdSchema.parse("00000000000000000000000000000001");
 const RECEIVED_AT = "2026-06-24T09:00:00.000Z";
@@ -34,7 +35,7 @@ function makeEmail(overrides: Partial<InboxEmailEntry> = {}): InboxEmailEntry {
 	};
 }
 
-function parsedOk(html: string): ParseEmailResult {
+function parsedOk(html: string, listUnsubscribeUrls: string[] = []): ParseEmailResult {
 	return {
 		ok: true,
 		email: {
@@ -45,6 +46,7 @@ function parsedOk(html: string): ParseEmailResult {
 			messageId: MessageIdSchema.parse("<m@x>"),
 			receivedAt: RECEIVED_AT,
 			inlineImages: [],
+			listUnsubscribeUrls,
 		},
 	};
 }
@@ -63,19 +65,34 @@ function makeHarness(opts?: {
 	getEmail?: (input: { userId: UserId; receivedAtMessageId: string }) => Promise<InboxEmailEntry | undefined>;
 	readRawEmail?: (s3Key: string) => Promise<Buffer | undefined>;
 	parseEmail?: () => Promise<ParseEmailResult>;
+	triageEmailLinks?: TriageEmailLinks;
 	derivedHtml?: string;
 	maxLinks?: number;
 }) {
 	const linkStore = initInMemoryInboxEmailLink();
 	const published: { ordinal: EmailLinkOrdinal; url: string }[] = [];
 	const alerts: { found: number }[] = [];
+	const triageCalls: Parameters<TriageEmailLinks>[0][] = [];
+	const deriveInputs: { rehostedRemoteImages: Record<string, string> }[] = [];
+
+	const everythingIsAnArticle: TriageEmailLinks = async (input) => {
+		triageCalls.push(input);
+		return {
+			status: "triaged",
+			categories: new Map(input.links.map((link) => [link.ordinal, "article" as const])),
+		};
+	};
 
 	const handler = initExtractEmailLinksHandler({
 		getEmail: opts?.getEmail ?? (async () => makeEmail()),
 		readRawEmail: opts?.readRawEmail ?? (async () => Buffer.from("raw eml")),
 		parseEmail: opts?.parseEmail ?? (async () => parsedOk("<p>body</p>")),
-		deriveSanitizedBody: () => opts?.derivedHtml ?? "",
+		deriveSanitizedBody: (input) => {
+			deriveInputs.push({ rehostedRemoteImages: input.rehostedRemoteImages });
+			return opts?.derivedHtml ?? "";
+		},
 		putLink: linkStore.putLink,
+		getLink: linkStore.getLink,
 		putLinksMeta: linkStore.putLinksMeta,
 		publishCrawlPreview: async ({ ordinal, url }) => {
 			published.push({ ordinal, url });
@@ -83,6 +100,7 @@ function makeHarness(opts?: {
 		alertTruncated: async ({ found }) => {
 			alerts.push({ found });
 		},
+		triageEmailLinks: opts?.triageEmailLinks ?? everythingIsAnArticle,
 		logger: HutchLogger.from(noopLogger),
 		maxLinks: opts?.maxLinks ?? 200,
 	});
@@ -90,7 +108,7 @@ function makeHarness(opts?: {
 	const run = (body: string) =>
 		handler(buildSqsEvent([{ messageId: "rec-1", body }]), buildLambdaContext(), () => {});
 
-	return { linkStore, published, alerts, run };
+	return { linkStore, published, alerts, triageCalls, deriveInputs, run };
 }
 
 describe("initExtractEmailLinksHandler", () => {
@@ -121,6 +139,32 @@ describe("initExtractEmailLinksHandler", () => {
 			{ ordinal: "0002", url: "https://c.test/z" },
 		]);
 		expect(harness.alerts).toHaveLength(0);
+		// Extraction must derive with NO remote-image rehost map: CDN image URLs
+		// in its body would be extracted as phantom article links, and building
+		// the map would re-download every image on every run.
+		expect(harness.deriveInputs).toEqual([{ rehostedRemoteImages: {} }]);
+	});
+
+	it("writes a List-Unsubscribe match as a terminal skipped row and does not fan it out", async () => {
+		const harness = makeHarness({
+			parseEmail: async () => parsedOk("<p>body</p>", ["https://news.example.com/unsub"]),
+			derivedHtml: "https://a.test/x https://news.example.com/unsub?token=send-1",
+		});
+
+		const result = await harness.run(eventBody());
+
+		assert(result);
+		expect(result.batchItemFailures).toHaveLength(0);
+		const { links, meta } = await harness.linkStore.listLinksByEmail({
+			userId: USER,
+			receivedAtMessageId: RAM,
+		});
+		expect(links.map((l) => [l.ordinal, l.url, l.status, l.skipReason])).toEqual([
+			["0000", "https://a.test/x", "pending", undefined],
+			["0001", "https://news.example.com/unsub?token=send-1", "skipped", "list-unsubscribe"],
+		]);
+		expect(meta).toEqual({ truncated: false });
+		expect(harness.published).toEqual([{ ordinal: "0000", url: "https://a.test/x" }]);
 	});
 
 	it("caps the fan-out, writes a truncated meta item, and raises one alert", async () => {
@@ -209,6 +253,169 @@ describe("initExtractEmailLinksHandler", () => {
 		assert(result);
 		expect(result.batchItemFailures).toEqual([{ itemIdentifier: "rec-1" }]);
 		expect(harness.published).toHaveLength(0);
+	});
+
+	it("decodes entity-encoded hrefs before storing, classifying, and publishing", async () => {
+		const harness = makeHarness({
+			parseEmail: async () => parsedOk("<p>body</p>", ["https://news.example.com/unsub&go"]),
+			derivedHtml:
+				'<a href="https://a.test/x?a=1&amp;b=2">A</a> <a href="https://news.example.com/unsub&amp;go">Unsub</a>',
+		});
+
+		await harness.run(eventBody());
+
+		const { links } = await harness.linkStore.listLinksByEmail({
+			userId: USER,
+			receivedAtMessageId: RAM,
+		});
+		expect(links.map((l) => [l.url, l.status])).toEqual([
+			["https://a.test/x?a=1&b=2", "pending"],
+			["https://news.example.com/unsub&go", "skipped"],
+		]);
+		expect(harness.published).toEqual([{ ordinal: "0000", url: "https://a.test/x?a=1&b=2" }]);
+	});
+
+	it("skips links the triage marks as noise, ad, menu, or subscription", async () => {
+		const verdicts = new Map<string, EmailLinkTriageCategory>([
+			["0000", "article"],
+			["0001", "noise"],
+			["0002", "ad"],
+			["0003", "menu"],
+			["0004", "subscription"],
+		]);
+		const harness = makeHarness({
+			triageEmailLinks: async (input) => ({
+				status: "triaged",
+				categories: new Map(
+					input.links.flatMap((link) => {
+						const category = verdicts.get(link.ordinal);
+						return category === undefined ? [] : [[link.ordinal, category] as const];
+					}),
+				),
+			}),
+			derivedHtml:
+				"https://a.test/1 https://a.test/2 https://a.test/3 https://a.test/4 https://a.test/5 https://a.test/6",
+		});
+
+		await harness.run(eventBody());
+
+		const { links } = await harness.linkStore.listLinksByEmail({
+			userId: USER,
+			receivedAtMessageId: RAM,
+		});
+		expect(links.map((l) => [l.ordinal, l.status, l.skipReason])).toEqual([
+			["0000", "pending", undefined],
+			["0001", "skipped", "llm-noise"],
+			["0002", "skipped", "llm-ad"],
+			["0003", "skipped", "llm-menu"],
+			["0004", "skipped", "llm-subscription"],
+			["0005", "pending", undefined],
+		]);
+		expect(harness.published).toEqual([
+			{ ordinal: "0000", url: "https://a.test/1" },
+			{ ordinal: "0005", url: "https://a.test/6" },
+		]);
+	});
+
+	it("crawls every remaining link when the triage is unavailable", async () => {
+		const harness = makeHarness({
+			triageEmailLinks: async () => ({ status: "unavailable" }),
+			derivedHtml: "https://a.test/x https://b.test/y",
+		});
+
+		await harness.run(eventBody());
+
+		const { links, meta } = await harness.linkStore.listLinksByEmail({
+			userId: USER,
+			receivedAtMessageId: RAM,
+		});
+		expect(links.map((l) => l.status)).toEqual(["pending", "pending"]);
+		expect(meta).toEqual({ truncated: false });
+		expect(harness.published).toHaveLength(2);
+	});
+
+	it("does not invoke the triage when every link is excluded by rules", async () => {
+		const harness = makeHarness({
+			parseEmail: async () => parsedOk("<p>body</p>", ["https://news.example.com/unsub"]),
+			derivedHtml: "https://news.example.com/unsub?token=send-1",
+		});
+
+		await harness.run(eventBody());
+
+		const { links } = await harness.linkStore.listLinksByEmail({
+			userId: USER,
+			receivedAtMessageId: RAM,
+		});
+		expect(links.map((l) => l.status)).toEqual(["skipped"]);
+		expect(harness.triageCalls).toHaveLength(0);
+	});
+
+	it("sends each link's anchor text with the email context to the triage", async () => {
+		const harness = makeHarness({
+			derivedHtml: '<a href="https://a.test/essay?x=1&amp;y=2">Read the essay</a>',
+		});
+
+		await harness.run(eventBody());
+
+		expect(harness.triageCalls).toEqual([
+			{
+				subject: "Digest",
+				from: "news@example.com",
+				links: [
+					{ ordinal: "0000", url: "https://a.test/essay?x=1&y=2", anchorText: "Read the essay" },
+				],
+			},
+		]);
+	});
+
+	it("does not re-publish a link whose row a previous delivery terminally skipped", async () => {
+		let deliveries = 0;
+		const harness = makeHarness({
+			triageEmailLinks: async (input) => {
+				deliveries += 1;
+				const category = deliveries === 1 ? ("subscription" as const) : ("article" as const);
+				return {
+					status: "triaged",
+					categories: new Map(input.links.map((link) => [link.ordinal, category])),
+				};
+			},
+			derivedHtml: "https://a.test/x",
+		});
+
+		await harness.run(eventBody());
+		await harness.run(eventBody());
+
+		const { links } = await harness.linkStore.listLinksByEmail({
+			userId: USER,
+			receivedAtMessageId: RAM,
+		});
+		expect(links.map((l) => [l.status, l.skipReason])).toEqual([
+			["skipped", "llm-subscription"],
+		]);
+		expect(harness.published).toEqual([]);
+	});
+
+	it("keeps a skipped link terminal and unpublished across re-delivery", async () => {
+		const harness = makeHarness({
+			parseEmail: async () => parsedOk("<p>body</p>", ["https://news.example.com/unsub"]),
+			derivedHtml: "https://a.test/x https://news.example.com/unsub",
+		});
+
+		await harness.run(eventBody());
+		await harness.run(eventBody());
+
+		const { links } = await harness.linkStore.listLinksByEmail({
+			userId: USER,
+			receivedAtMessageId: RAM,
+		});
+		expect(links.map((l) => [l.status, l.skipReason])).toEqual([
+			["pending", undefined],
+			["skipped", "list-unsubscribe"],
+		]);
+		expect(harness.published).toEqual([
+			{ ordinal: "0000", url: "https://a.test/x" },
+			{ ordinal: "0000", url: "https://a.test/x" },
+		]);
 	});
 
 	it("is idempotent under re-delivery: no duplicate rows, re-publishes the fan-out", async () => {

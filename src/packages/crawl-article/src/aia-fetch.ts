@@ -3,7 +3,7 @@ import http from "node:http";
 import https from "node:https";
 import tls from "node:tls";
 import type { AssertHostAllowed, SocketLookup } from "./blocked-address-lookup";
-import { followRedirects } from "./follow-redirects";
+import { redirectable, type RedirectableFetch } from "./follow-redirects";
 
 const TLS_CHAIN_ERROR_CODES = new Set([
 	"UNABLE_TO_VERIFY_LEAF_SIGNATURE",
@@ -54,37 +54,33 @@ export function initFetchAia(deps: AiaDeps) {
 	const intermediateCache = new Map<string, string>();
 	return function fetchAia(url: string, init?: AiaFetchInit): Promise<Response> {
 		const extraCa: string[] = [];
-		return followRedirects({
-			label: "fetchAia",
-			url,
-			headers: init?.headers,
-			requestHop: async ({ url: hopUrl, headers }) => {
-				const parsed = new URL(hopUrl);
-				/* c8 ignore next -- V8 block-coverage phantom: the optional-call continuation gets a spurious zero-count sub-range even though the retry test invokes assertHostAllowed (and the SSRF-guard threading is asserted there); the statement itself is covered. Restructuring to an explicit `if` only relocates the phantom. See bcoe/c8#319 and https://v8.dev/blog/javascript-code-coverage */
-				deps.assertHostAllowed?.(parsed.hostname);
-				const port = parsed.port ? Number(parsed.port) : 443;
-				const cached = intermediateCache.get(parsed.hostname);
-				const effectiveCa = cached && !extraCa.includes(cached) ? [...extraCa, cached] : extraCa;
-				let result: HttpsGetResult;
-				try {
-					result = await deps.httpsGet({ url: parsed, headers, signal: init?.signal, ca: effectiveCa });
-				} catch (error) {
-					if (!isTlsChainError(error)) throw error;
-					const cert = await deps.fetchPeerCertificate({ hostname: parsed.hostname, port, signal: init?.signal });
-					const aiaUrl = aiaUrlFromCert(cert);
-					assert(aiaUrl, `TLS chain error for ${hopUrl} but leaf cert has no AIA URL`);
-					const bytes = await deps.downloadIssuerBytes(aiaUrl, init?.signal);
-					const pem = derOrPemToPem(bytes);
-					intermediateCache.set(parsed.hostname, pem);
-					extraCa.push(pem);
-					result = await deps.httpsGet({ url: parsed, headers, signal: init?.signal, ca: extraCa });
-				}
-				return new Response(result.body, {
-					status: result.status,
-					headers: toFetchHeaders(result.headers),
-				});
-			},
-		});
+		const aiaSingleHop: RedirectableFetch = async (hopUrl, hopInit) => {
+			const parsed = new URL(hopUrl);
+			/* c8 ignore next -- V8 block-coverage phantom: the optional-call continuation gets a spurious zero-count sub-range even though the retry test invokes assertHostAllowed (and the SSRF-guard threading is asserted there); the statement itself is covered. Restructuring to an explicit `if` only relocates the phantom. See bcoe/c8#319 and https://v8.dev/blog/javascript-code-coverage */
+			deps.assertHostAllowed?.(parsed.hostname);
+			const port = parsed.port ? Number(parsed.port) : 443;
+			const cached = intermediateCache.get(parsed.hostname);
+			const effectiveCa = cached && !extraCa.includes(cached) ? [...extraCa, cached] : extraCa;
+			let result: HttpsGetResult;
+			try {
+				result = await deps.httpsGet({ url: parsed, headers: hopInit?.headers, signal: hopInit?.signal, ca: effectiveCa });
+			} catch (error) {
+				if (!isTlsChainError(error)) throw error;
+				const cert = await deps.fetchPeerCertificate({ hostname: parsed.hostname, port, signal: hopInit?.signal });
+				const aiaUrl = aiaUrlFromCert(cert);
+				assert(aiaUrl, `TLS chain error for ${hopUrl} but leaf cert has no AIA URL`);
+				const bytes = await deps.downloadIssuerBytes(aiaUrl, hopInit?.signal);
+				const pem = derOrPemToPem(bytes);
+				intermediateCache.set(parsed.hostname, pem);
+				extraCa.push(pem);
+				result = await deps.httpsGet({ url: parsed, headers: hopInit?.headers, signal: hopInit?.signal, ca: extraCa });
+			}
+			return new Response(result.body, {
+				status: result.status,
+				headers: toFetchHeaders(result.headers),
+			});
+		};
+		return redirectable(aiaSingleHop, "fetchAia")(url, init);
 	};
 }
 

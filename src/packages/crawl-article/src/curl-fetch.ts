@@ -6,7 +6,7 @@ import {
 	type ResolveAll,
 	type ResolvePinnedAddress,
 } from "./blocked-address-lookup";
-import { followRedirects } from "./follow-redirects";
+import { redirectable } from "./follow-redirects";
 import { MAX_PDF_BYTES } from "./pdf-page-limits";
 
 const DEFAULT_TIMEOUT_MS = 10000;
@@ -100,19 +100,18 @@ export function createCurlFetch(deps: { execCurl: ExecCurl; resolvePinnedAddress
 		});
 	}
 
-	return async function fetchCurl(url, init) {
+	return function fetchCurl(url, init) {
 		/* One budget spans the whole redirect chain — a fresh timeout per hop
-		 * would let a slow 5-hop origin consume 6x the intended ceiling. */
+		 * would let a slow 5-hop origin consume 6x the intended ceiling — so the
+		 * signal is fixed here and shared by every `fetchOnce` hop. Each hop still
+		 * re-runs resolvePinnedAddress on its own target host (curl stays at
+		 * --max-redirs 0 and is never allowed to chase a redirect unguarded). */
 		const signal = init?.signal ?? AbortSignal.timeout(DEFAULT_TIMEOUT_MS);
-		return followRedirects({
-			label: "fetchCurl",
-			url,
-			headers: init?.headers,
-			// Each hop re-runs resolvePinnedAddress on its target host — the
-			// per-hop SSRF re-validation that lets us follow a redirect curl
-			// itself (kept at --max-redirs 0) is not allowed to chase.
-			requestHop: ({ url: hopUrl, headers }) => fetchOnce(hopUrl, { headers, signal }),
-		});
+		const followCurl = redirectable(
+			(hopUrl, hopInit) => fetchOnce(hopUrl, { headers: hopInit?.headers, signal }),
+			"fetchCurl",
+		);
+		return followCurl(url, { headers: init?.headers });
 	};
 }
 

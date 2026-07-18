@@ -68,6 +68,7 @@ function createHandler(overrides: Partial<HandlerDeps> = {}) {
 		updateFetchTimestamp: jest.fn().mockResolvedValue(undefined),
 		transitionAndPersist: jest.fn().mockResolvedValue(undefined),
 		markCrawlStage: jest.fn().mockResolvedValue(undefined),
+		adoptCanonicalIdentity: jest.fn().mockResolvedValue(undefined),
 		publishEvent: jest.fn().mockResolvedValue(undefined),
 		now: fixedNow,
 		logger: noopLogger,

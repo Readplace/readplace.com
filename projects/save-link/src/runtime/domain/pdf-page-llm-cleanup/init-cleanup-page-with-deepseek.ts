@@ -1,4 +1,5 @@
 import assert from "node:assert";
+import { DEEPSEEK_MODEL, DEEPSEEK_NON_THINKING } from "@packages/ai-message";
 import type { CleanupPageWithLlm } from "./pdf-page-llm-cleanup-handler.types";
 
 type ChatCompletionResponse = {
@@ -9,14 +10,14 @@ type ChatCompletionResponse = {
 type CreateChatCompletion = (params: {
 	model: string;
 	max_tokens: number;
+	thinking: { type: "disabled" };
 	temperature: number;
 	messages: Array<{ role: "system" | "user" | "assistant"; content: string }>;
 }) => Promise<ChatCompletionResponse>;
 
-/* The DeepSeek SDK ceiling. The cleanup handler estimates a per-page budget
- * proportional to the input size; this constant clamps the SDK request so we
- * never overshoot the model's hard limit even if the estimate runs ahead.
- * https://api-docs.deepseek.com/quick_start/pricing */
+/* A self-imposed budget cap, not the model ceiling. The cleanup handler
+ * estimates a per-page budget proportional to the input size; this constant
+ * clamps the SDK request so a long-document estimate never overshoots. */
 const DEEPSEEK_MAX_OUTPUT_TOKENS = 8192;
 
 /**
@@ -32,7 +33,8 @@ export function initCleanupPageWithDeepseek(deps: {
 }): CleanupPageWithLlm {
 	return async ({ systemPrompt, userText, maxTokens }) => {
 		const response = await deps.createChatCompletion({
-			model: "deepseek-chat",
+			model: DEEPSEEK_MODEL,
+			thinking: DEEPSEEK_NON_THINKING,
 			max_tokens: Math.min(maxTokens, DEEPSEEK_MAX_OUTPUT_TOKENS),
 			/* Deterministic by design: the cleanup prompt requires conservative
 			 * single-pass corrections, and any sampling temperature reintroduces

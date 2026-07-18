@@ -235,17 +235,18 @@ describe("Email verification lockout (Siren API)", () => {
 		expect(response.body.actions).toBeUndefined();
 	});
 
-	it("refuses a locked account's Siren save-html write too", async () => {
+	it("refuses a locked account's Siren save-content write too", async () => {
 		const harness = useApp(fixtureClockedDaysAhead(8));
-		const userId = await createUnverifiedUser(harness, "locked-html@example.com");
+		const userId = await createUnverifiedUser(harness, "locked-content@example.com");
 		const token = await mintAccessToken(harness, userId);
 
 		const response = await request(harness.server)
-			.post("/queue/save-html")
+			.post("/queue/save-content")
 			.set("Accept", SIREN_MEDIA_TYPE)
 			.set("Authorization", `Bearer ${token}`)
-			.set("Content-Type", "application/json")
-			.send({ url: "https://example.com/article", rawHtml: "<p>hi</p>" });
+			.field("url", "https://example.com/article")
+			.field("mediaType", "text/html")
+			.attach("content", Buffer.from("<p>hi</p>"), "content.html");
 
 		expect(response.status).toBe(403);
 		expect(response.body.properties.messages[0].content.body).toContain(

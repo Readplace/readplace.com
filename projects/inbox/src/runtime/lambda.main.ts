@@ -70,7 +70,10 @@ const application = express()
 	)
 	.use(
 		createInboxApp(
-			{ inboxAddressDomain: requireEnv("INBOX_ADDRESS_DOMAIN") },
+			{
+				inboxAddressDomain: requireEnv("INBOX_ADDRESS_DOMAIN"),
+				imagesCdnBaseUrl: requireEnv("IMAGES_CDN_BASE_URL"),
+			},
 			{
 				resolveLogin,
 				findUserById: userStanding.findUserById,

@@ -23,7 +23,7 @@ describe("initCleanupPageWithDeepseek", () => {
 		});
 	});
 
-	it("uses deepseek-chat with temperature 0", async () => {
+	it("uses deepseek-v4-flash in non-thinking mode with temperature 0", async () => {
 		let captured: Params | undefined;
 		const cleanup = initCleanupPageWithDeepseek({
 			createChatCompletion: async (params) => {
@@ -37,7 +37,8 @@ describe("initCleanupPageWithDeepseek", () => {
 
 		await cleanup({ systemPrompt: "sys", userText: "u", maxTokens: 256 });
 
-		expect(captured?.model).toBe("deepseek-chat");
+		expect(captured?.model).toBe("deepseek-v4-flash");
+		expect(captured?.thinking).toEqual({ type: "disabled" });
 		expect(captured?.temperature).toBe(0);
 		expect(captured?.messages).toEqual([
 			{ role: "system", content: "sys" },

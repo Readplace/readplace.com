@@ -161,7 +161,7 @@ const IMPORT_FAQ: readonly { readonly question: string; readonly answer: string 
 	{
 		question: "How many links can I import at once?",
 		answer:
-			"Up to 2,000 links per import, from files up to 5 MiB. For anything larger, email the file to readplace+migrate@readplace.com and I import it by hand within 24 to 48 hours.",
+			"Up to 2,000 links per import, from files up to 4.5 MB. For anything larger, email the file to readplace+migrate@readplace.com and I import it by hand within 24 to 48 hours.",
 	},
 	{
 		question: "Is there a Pocket import?",

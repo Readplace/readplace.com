@@ -64,6 +64,7 @@ function makeTracker(savedOverride?: SavedArticle): CallTracker {
 			calls.publishLinkSaved += 1;
 		},
 		refreshArticleIfStale: async () => ({ action: "new" }),
+		resolveCanonicalIdentity: async (url) => url,
 	};
 	return { saved, calls, deps };
 }
@@ -85,6 +86,33 @@ describe("saveArticleFromUrl", () => {
 			publishLinkSaved: 1,
 			updateArticleStatusUnread: 0,
 		});
+	});
+
+	it("keys the save + crawl + link-saved on the alias target when the URL resolves to a different identity", async () => {
+		const tracker = makeTracker();
+		const keyedOn: string[] = [];
+		const deps: SaveArticleFromUrlDependencies = {
+			...tracker.deps,
+			resolveCanonicalIdentity: async () => "https://example.com/canonical",
+			saveArticle: async (p) => {
+				keyedOn.push(`saveArticle:${p.url}`);
+				return tracker.saved;
+			},
+			markCrawlPending: async ({ url }) => {
+				keyedOn.push(`markCrawlPending:${url}`);
+			},
+			publishLinkSaved: async ({ url }) => {
+				keyedOn.push(`publishLinkSaved:${url}`);
+			},
+		};
+
+		await initSaveArticleFromUrl(deps)({ userId, url: exampleUrl, freshness: { action: "new" } });
+
+		expect(keyedOn).toEqual([
+			"saveArticle:https://example.com/canonical",
+			"markCrawlPending:https://example.com/canonical",
+			"publishLinkSaved:https://example.com/canonical",
+		]);
 	});
 
 	it("publishes a link saved event when 'refreshed' has fresh content", async () => {

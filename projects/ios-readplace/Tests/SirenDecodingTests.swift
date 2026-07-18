@@ -299,11 +299,11 @@ final class SirenDecodingTests: XCTestCase {
 		let actionAffordances = page.affordances.filter { $0.action != nil }
 		XCTAssertEqual(
 			actionAffordances.compactMap(\.action).map(\.name),
-			["save-article", "save-html", "save-content", "search"]
+			["save-article", "save-content", "search"]
 		)
 		XCTAssertEqual(
 			actionAffordances.map(\.label),
-			["Save a link", "Save a page", "Save a file", "Search"]
+			["Save a link", "Save a file", "Search"]
 		)
 	}
 
@@ -313,7 +313,7 @@ final class SirenDecodingTests: XCTestCase {
 		// special-body actions, distinct from the looped toolbar rendering.
 		let json = Fixtures.collection(entitiesJSON: [Fixtures.article()])
 		let page = QueuePage(collection: try decodeCollection(json))
-		XCTAssertEqual(page.action(named: "save-html")?.href, "/queue/save-html")
+		XCTAssertEqual(page.action(named: "save-content")?.href, "/queue/save-content")
 		XCTAssertEqual(page.action(named: "save-article")?.href, "/queue")
 		XCTAssertNil(page.action(named: "no-such-action"))
 	}
@@ -443,17 +443,17 @@ final class SirenDecodingTests: XCTestCase {
 	}
 
 	func testSirenErrorDecodesWithFallbackAction() throws {
-		let json = Fixtures.sirenError(code: "html-too-large", message: "Too big", withSaveArticleFallback: true)
+		let json = Fixtures.sirenError(code: "content-too-large", message: "Too big", withSaveArticleFallback: true)
 		let error = try JSONDecoder().decode(SirenError.self, from: Data(json.utf8))
-		XCTAssertEqual(error.properties.code, "html-too-large")
+		XCTAssertEqual(error.properties.code, "content-too-large")
 		XCTAssertEqual(error.actions?.first?.name, "save-article")
 		XCTAssertEqual(error.actions?.first?.href, "/queue")
 	}
 
 	func testSirenErrorDecodesWithoutActions() throws {
-		let json = Fixtures.sirenError(code: "invalid-save-html", message: "Bad", withSaveArticleFallback: false)
+		let json = Fixtures.sirenError(code: "invalid-save-content", message: "Bad", withSaveArticleFallback: false)
 		let error = try JSONDecoder().decode(SirenError.self, from: Data(json.utf8))
-		XCTAssertEqual(error.properties.code, "invalid-save-html")
+		XCTAssertEqual(error.properties.code, "invalid-save-content")
 		XCTAssertNil(error.actions)
 	}
 }

@@ -41,6 +41,7 @@ describe("Queue freshness integration", () => {
 			}),
 			publishRefreshArticleContent: async (p) => { refreshPublished.push(p); },
 			publishUpdateFetchTimestamp: async (p) => { timestampPublished.push(p); },
+			resolveCanonicalIdentity: async (url) => url,
 			now: () => new Date(),
 			staleTtlMs: 0,
 		});
@@ -54,6 +55,7 @@ describe("Queue freshness integration", () => {
 				publishSaveLinkRawHtmlCommand: fixture.events.publishSaveLinkRawHtmlCommand,
 				publishSaveLinkRawPdfCommand: fixture.events.publishSaveLinkRawPdfCommand,
 				publishStaleCheckRequested: fixture.events.publishStaleCheckRequested,
+				publishRemoveMyContent: fixture.events.publishRemoveMyContent,
 				publishUpdateFetchTimestamp: async (p) => { timestampPublished.push(p); },
 				publishExportUserDataCommand: fixture.events.publishExportUserDataCommand,
 				publishDeleteAccountCommand: fixture.events.publishDeleteAccountCommand,
