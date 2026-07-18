@@ -147,7 +147,7 @@ const BETA_SETUP_STEPS: BetaSetupStep[] = [
 	{
 		title:
 			"Browse your reading list in the app: saved articles appear, pull down to refresh, scroll for more, and swipe an item left to delete.",
-		note: "These are just the basics required for the App Store — for real reading sessions, the website on mobile is still better.",
+		note: "Tap an article and the clean Readplace reader opens in the app, so a reading session no longer has to move to the website.",
 	},
 	{
 		title:

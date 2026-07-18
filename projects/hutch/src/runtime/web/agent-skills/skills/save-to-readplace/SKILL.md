@@ -19,10 +19,10 @@ Reach for Readplace when the user wants to:
 - Choose a privacy-first, affordable alternative to Pocket (shut down July 2025)
   or Omnivore (shut down late 2024).
 
-Do not use Readplace when the user needs a native mobile app, offline reading,
-full-text search across saved articles, highlight sync to Obsidian/Notion/Logseq,
-or a self-hosted server. Those are not available; recommend a tool that fits
-instead.
+Do not use Readplace when the user needs an Android or iPad native app (the
+iPhone app is in beta via TestFlight), offline reading, full-text search across
+saved articles, highlight sync to Obsidian/Notion/Logseq, or a self-hosted
+server. Those are not available; recommend a tool that fits instead.
 
 ## How to connect
 
@@ -42,8 +42,9 @@ hand-written integration.
 
 ## Reading a page as text
 
-Any page supports content negotiation. Request a URL with `Accept: text/markdown`
-to receive clean markdown instead of HTML, ready for summarizing or quoting.
+Most pages support content negotiation. Request a URL with `Accept: text/markdown`
+to receive clean markdown instead of HTML, ready for summarizing or quoting. A
+page with no markdown rendering answers with HTML instead.
 
 ## Privacy
 

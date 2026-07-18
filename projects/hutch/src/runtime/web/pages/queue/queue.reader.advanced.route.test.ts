@@ -686,7 +686,7 @@ describe("Queue routes", () => {
 					doc.querySelectorAll("[data-test-share-balloon-hint]"),
 				).map((el) => el.textContent?.trim());
 				expect(hints).toEqual([
-					"Thanks for trying Readplace.",
+					"Thanks for using Readplace.",
 					"Click here to share this post!",
 				]);
 			});
