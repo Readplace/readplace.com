@@ -32,6 +32,7 @@
     "@packages/require-env": "workspace:*",
     "@packages/subscription-access": "workspace:*",
     "@packages/web-session": "workspace:*",
+    "@packages/find-available-port": "workspace:*",
     "@packages/web-shell": "workspace:*",
     "compression": "1.8.1",
     "cookie-parser": "1.4.7",

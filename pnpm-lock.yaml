@@ -47,6 +47,9 @@ importers:
       '@packages/domain':
         specifier: workspace:*
         version: link:../../src/packages/domain
+      '@packages/find-available-port':
+        specifier: workspace:*
+        version: link:../../src/packages/find-available-port
       '@packages/hutch-logger':
         specifier: workspace:*
         version: link:../../src/packages/hutch-logger
@@ -360,6 +363,9 @@ importers:
       '@packages/finalize-article':
         specifier: workspace:*
         version: link:../../src/packages/finalize-article
+      '@packages/find-available-port':
+        specifier: workspace:*
+        version: link:../../src/packages/find-available-port
       '@packages/hutch-infra-components':
         specifier: workspace:*
         version: link:../../src/packages/hutch-infra-components
@@ -556,6 +562,9 @@ importers:
       '@packages/finalize-article':
         specifier: workspace:*
         version: link:../../src/packages/finalize-article
+      '@packages/find-available-port':
+        specifier: workspace:*
+        version: link:../../src/packages/find-available-port
       '@packages/hutch-infra-components':
         specifier: workspace:*
         version: link:../../src/packages/hutch-infra-components
@@ -1289,6 +1298,24 @@ importers:
       linkedom:
         specifier: 0.18.12
         version: 0.18.12
+    devDependencies:
+      '@types/jest':
+        specifier: 30.0.0
+        version: 30.0.0
+      c8:
+        specifier: 11.0.0
+        version: 11.0.0
+      concurrently:
+        specifier: 10.0.0
+        version: 10.0.0
+      jest:
+        specifier: 30.4.2
+        version: 30.4.2(@types/node@22.19.19)(node-notifier@10.0.1)(ts-node@10.9.2(@types/node@22.19.19)(typescript@6.0.3))
+      typescript:
+        specifier: 6.0.3
+        version: 6.0.3
+
+  src/packages/find-available-port:
     devDependencies:
       '@types/jest':
         specifier: 30.0.0

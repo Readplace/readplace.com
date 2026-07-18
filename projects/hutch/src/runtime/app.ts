@@ -147,7 +147,10 @@ function createPdfDeferralStub(publishStaleCheckRequested: PublishStaleCheckRequ
 	};
 }
 
-function initProviders() {
+/** `appOrigin` is threaded in rather than read from the environment because the
+ * dev server may have bound a different port than `APP_ORIGIN` names, and every
+ * absolute URL handed to a client has to point back at this process. */
+function initProviders(input: { appOrigin: string }) {
 	const persistence = requireEnv<"prod" | "development">("PERSISTENCE");
 	assert(
 		persistence === "prod" || persistence === "development",
@@ -176,7 +179,7 @@ function initProviders() {
 		const appleKeyId = requireEnv("APPLE_LOGIN_KEY_ID");
 		const applePrivateKeyPem = Buffer.from(requireEnv("APPLE_LOGIN_PRIVATE_KEY_BASE64"), "base64").toString("utf8");
 		assert(applePrivateKeyPem.includes("BEGIN PRIVATE KEY"), "APPLE_LOGIN_PRIVATE_KEY_BASE64 must decode to a PKCS#8 PEM");
-		const appOriginForRedirect = requireEnv("APP_ORIGIN");
+		const appOriginForRedirect = input.appOrigin;
 		const resendApiKey = requireEnv("RESEND_API_KEY");
 		const stripeApiKey = requireEnv("STRIPE_SECRET_KEY");
 		const stripePriceId = requireEnv("STRIPE_PRICE_ID");
@@ -615,7 +618,7 @@ function initProviders() {
 	 * no-op — dedup-by-redirect is a production DynamoDB behaviour only. */
 	const resolveCanonicalIdentity = async (url: string) => url;
 	const { createUploadSlot, statPendingUpload, readPendingUploadPrefix } = initInMemoryPendingUpload({
-		uploadBaseUrl: `${requireEnv("APP_ORIGIN")}/e2e/s3`,
+		uploadBaseUrl: `${input.appOrigin}/e2e/s3`,
 		now: () => new Date(),
 		ttlSeconds: UPLOAD_SLOT_TTL_SECONDS,
 	});
@@ -735,9 +738,8 @@ function parseAdminEmails(raw: string): readonly string[] {
 export function createHutchApp(deps?: {
 	appOrigin?: string;
 }) {
-	const { auth, articleStore, oauthModel, validateAccessToken, importSessionStore, ...providers } = initProviders();
-
 	const appOrigin = deps?.appOrigin ?? requireEnv("APP_ORIGIN");
+	const { auth, articleStore, oauthModel, validateAccessToken, importSessionStore, ...providers } = initProviders({ appOrigin });
 	const staticBaseUrl = requireEnv("STATIC_BASE_URL");
 	const expiryCountdown = requireEnv<"enabled" | "disabled">("EXPIRY_COUNTDOWN");
 	const foundingMemberLimit = Number.parseInt(requireEnv("FOUNDING_MEMBER_LIMIT"), 10);

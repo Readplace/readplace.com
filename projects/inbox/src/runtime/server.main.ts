@@ -14,8 +14,8 @@ import {
 	TEST_APP_ORIGIN,
 	createDefaultTestAppFixture,
 } from "@packages/test-fixtures";
+import { MAX_PORT_ATTEMPTS, findAvailablePort } from "@packages/find-available-port";
 import { createInboxApp, PORT } from "./app";
-import { MAX_PORT_ATTEMPTS, findAvailablePort } from "./find-available-port";
 
 const logger = HutchLogger.from(consoleLogger);
 

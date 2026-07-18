@@ -1,5 +1,6 @@
 import { randomUUID } from "node:crypto";
 import { hashPassword, verifyPassword } from "@packages/domain/user";
+import { MAX_PORT_ATTEMPTS, findAvailablePort } from "@packages/find-available-port";
 import { HutchLogger, consoleLogger } from "@packages/hutch-logger";
 import { GlobalNav } from "@packages/web-shell";
 import { initResolveLogin } from "@packages/web-session";
@@ -32,6 +33,17 @@ const app = createBlogApp(
 	},
 );
 
-app.listen(PORT, () => {
-	logger.info(`blog-site is running on http://localhost:${PORT}`);
-});
+async function main(): Promise<void> {
+	// Never fight another process for the port: a second checkout running its own
+	// dev server would otherwise keep answering on it, and the browser would show
+	// a running app serving that checkout's code. Nothing blog-site emits embeds
+	// its own port (APP_ORIGIN is read for the cookie scheme only), so moving is
+	// safe — at worst hutch's changelog banner, which points at the preferred
+	// port, quietly falls back to its no-banner state.
+	const port = await findAvailablePort({ preferredPort: PORT, maxAttempts: MAX_PORT_ATTEMPTS });
+	app.listen(port, () => {
+		logger.info(`blog-site is running on http://localhost:${port}`);
+	});
+}
+
+void main();
