@@ -5,6 +5,7 @@ import { resolve } from "node:path";
 import { HutchLambda, HutchAPIGateway, HutchDynamoDBAccess, HutchEventBus, HutchS3ReadWrite, HutchSQS, HutchSQSBackedLambda, HutchStripeWebhookReceiver } from "@packages/hutch-infra-components/infra";
 import {
 	BLOG_SITE_LOG_GROUP,
+	FORWARD_ANALYTICS_LAMBDA_NAME,
 	CancelSubscriptionCommand,
 	DeleteAccountCommand,
 	ExportUserDataCommand,
@@ -17,9 +18,10 @@ import {
 	SubscriptionStartRequestCommand,
 } from "@packages/hutch-infra-components";
 import { EXPORT_DOWNLOAD_TTL_DAYS, EXPORT_S3_KEY_PREFIX } from "../runtime/web/pages/export/export-ttl";
-import { ANALYTICS_EVENTS, LAMBDA_NAMES, METRICS, STREAMS } from "../runtime/observability/events";
+import { ANALYTICS_EVENTS, ANALYTICS_LOG_GROUP, FORWARDED_STREAMS, LAMBDA_NAMES, LOG_GROUPS, METRICS, STREAMS } from "../runtime/observability/events";
 import {
 	buildAnalyticsDashboardBody,
+	FORWARDED_SOURCE_LOG_GROUPS,
 	SUBSCRIPTION_DASHBOARD_LOG_GROUPS,
 	WORKER_DASHBOARD_LOG_GROUPS,
 } from "../runtime/observability/analytics-dashboard";
@@ -1262,6 +1264,169 @@ new aws.cloudwatch.LogMetricFilter("imports-completed-filter", {
 	},
 });
 
+// --- Analytics log-group split (never-expire forwarder) ---
+// Analytics / conversion / subscription log lines are copied out of each Lambda's
+// own 30-day operational group into one never-expire /readplace/analytics group,
+// so the dashboard scans only analytics bytes and the history is kept forever.
+// CloudWatch Logs subscription filters on every source group feed a small
+// forwarder Lambda that PutLogEvents each matched line's JSON payload into the
+// destination (preamble stripped so Logs Insights can query the fields). Only the
+// analytics streams match the filter; operational streams (parse-errors,
+// crawl-outcomes) stay behind at 30-day retention.
+
+const accountId = pulumi.output(aws.getCallerIdentity({})).accountId;
+
+// Never expires (no retentionInDays): this is the durable analytics store.
+// retainOnDelete guards the irreplaceable history against an accidental destroy.
+const analyticsLogGroup = new aws.cloudwatch.LogGroup("analytics-log-group", {
+	name: ANALYTICS_LOG_GROUP,
+}, { retainOnDelete: true });
+
+// Async invokes that still fail after their retries park the original awslogs
+// envelope here for replay. 14-day retention matches PutLogEvents' oldest-event
+// limit, so a parked delivery is always still forwardable when it is drained.
+const forwardAnalyticsFailures = new aws.sqs.Queue("forward-analytics-failures", {
+	name: "forward-analytics-failures",
+	messageRetentionSeconds: 1_209_600,
+});
+
+// Explicit least-privilege grants rather than leaning on the managed
+// AWSLambdaBasicExecutionRole '*': the destination group is this Lambda's data
+// store and the failure queue its on-failure sink, so the policy names both.
+const analyticsWritePolicy = {
+	name: "forward-analytics-write",
+	policy: analyticsLogGroup.arn.apply((arn) =>
+		JSON.stringify({
+			Version: "2012-10-17",
+			Statement: [{
+				Effect: "Allow",
+				Action: ["logs:CreateLogStream", "logs:PutLogEvents"],
+				Resource: [`${arn}:*`],
+			}],
+		}),
+	),
+};
+
+const analyticsFailurePolicy = {
+	name: "forward-analytics-dlq-send",
+	policy: forwardAnalyticsFailures.arn.apply((arn) =>
+		JSON.stringify({
+			Version: "2012-10-17",
+			Statement: [{
+				Effect: "Allow",
+				Action: ["sqs:SendMessage"],
+				Resource: [arn],
+			}],
+		}),
+	),
+};
+
+const forwardAnalyticsLambda = new HutchLambda(FORWARD_ANALYTICS_LAMBDA_NAME, {
+	entryPoint: "./src/runtime/forward-analytics.main.ts",
+	outputDir: ".lib/forward-analytics",
+	assetDir: "./src/runtime",
+	memorySize: 128,
+	timeout: 30,
+	environment: {
+		ANALYTICS_LOG_GROUP_NAME: analyticsLogGroup.name,
+	},
+	policies: [analyticsWritePolicy, analyticsFailurePolicy],
+});
+
+// A CloudWatch Logs subscription can only target Lambda/Kinesis/Firehose, so the
+// forwarder is invoked directly with no SQS queue in front of it (the one place a
+// naked Lambda is correct here). Async invokes retry twice, then the original
+// envelope goes to the failure queue for replay.
+new aws.lambda.FunctionEventInvokeConfig("forward-analytics-invoke-config", {
+	functionName: forwardAnalyticsLambda.functionName,
+	maximumRetryAttempts: 2,
+	destinationConfig: {
+		onFailure: { destination: forwardAnalyticsFailures.arn },
+	},
+});
+
+const forwardAnalyticsDlqTopic = new aws.sns.Topic("forward-analytics-dlq-topic", {
+	name: "forward-analytics-dlq-topic",
+});
+
+new aws.sns.TopicSubscription("forward-analytics-dlq-alarm-email", {
+	topic: forwardAnalyticsDlqTopic.arn,
+	protocol: "email",
+	endpoint: alertEmail,
+});
+
+new aws.cloudwatch.MetricAlarm("forward-analytics-dlq-alarm", {
+	name: "forward-analytics-dlq-alarm",
+	comparisonOperator: "GreaterThanOrEqualToThreshold",
+	evaluationPeriods: 1,
+	metricName: "ApproximateNumberOfMessagesVisible",
+	namespace: "AWS/SQS",
+	period: 300,
+	statistic: "Sum",
+	threshold: 1,
+	alarmDescription: "A log delivery entered the forward-analytics failure queue",
+	dimensions: { QueueName: forwardAnalyticsFailures.name },
+	alarmActions: [forwardAnalyticsDlqTopic.arn],
+});
+
+// The filter keeps only the analytics streams — identical shape to the
+// imports-completed metric filter above, which matches the same Lambda-Text lines.
+const forwardFilterPattern = `{ ${FORWARDED_STREAMS.map((stream) => `$.stream = "${stream}"`).join(" || ")} }`;
+
+// Invoke permission for every forwarded source group. The function owner grants
+// all nine here — including blog-site's group — so blog-site's Commit-2
+// subscription filter attaches to a permission that already exists. CloudWatch
+// Logs validates the invoke permission when a filter is created, so each filter
+// below dependsOn its permission.
+const forwardPermissions = new Map<string, aws.lambda.Permission>();
+for (const sourceLogGroup of FORWARDED_SOURCE_LOG_GROUPS) {
+	const slug = sourceLogGroup.replace(/[^a-zA-Z0-9]+/g, "-").replace(/^-|-$/g, "");
+	forwardPermissions.set(
+		sourceLogGroup,
+		new aws.lambda.Permission(`forward-analytics-invoke-${slug}`, {
+			action: "lambda:InvokeFunction",
+			function: forwardAnalyticsLambda.functionName,
+			principal: "logs.amazonaws.com",
+			sourceAccount: accountId,
+			sourceArn: pulumi.interpolate`arn:aws:logs:${region}:${accountId}:log-group:${sourceLogGroup}:*`,
+		}),
+	);
+}
+
+// Subscription filters for every source group hutch owns (all nine but blog-site's,
+// whose own stack attaches the filter in Commit 2). `logGroup` is the owner
+// Lambda's managed group output, so Pulumi orders the group ahead of the filter
+// and a fresh-stack bootstrap can't race the group's creation.
+const hutchForwardSources: { name: string; logGroup: pulumi.Output<string> }[] = [
+	{ name: LOG_GROUPS.hutchHandler, logGroup: lambda.logGroupName },
+	{ name: LOG_GROUPS.subscriptionStartRequest, logGroup: subscriptionStartRequestLambda.logGroupName },
+	{ name: LOG_GROUPS.subscriptionChargeSucceeded, logGroup: subscriptionChargeSucceededLambda.logGroupName },
+	{ name: LOG_GROUPS.subscriptionChargeFailed, logGroup: subscriptionChargeFailedLambda.logGroupName },
+	{ name: LOG_GROUPS.cancelSubscription, logGroup: cancelSubscriptionLambda.logGroupName },
+	{ name: LOG_GROUPS.handleSubscriptionCancelled, logGroup: handleSubscriptionCancelledLambda.logGroupName },
+	{ name: LOG_GROUPS.scheduleTrialFeedbackEmail, logGroup: scheduleTrialFeedbackEmailLambda.logGroupName },
+	{ name: LOG_GROUPS.sendTrialFeedbackEmail, logGroup: sendTrialFeedbackEmailLambda.logGroupName },
+];
+
+// Guard against the source-of-truth list and this owner map drifting: every
+// forwarded group except blog-site's must be wired to a filter here.
+assert.deepEqual(
+	hutchForwardSources.map((source) => source.name).sort(),
+	FORWARDED_SOURCE_LOG_GROUPS.filter((name) => name !== BLOG_SITE_LOG_GROUP).slice().sort(),
+	"hutch subscription-filter sources must equal FORWARDED_SOURCE_LOG_GROUPS minus the blog-site group",
+);
+
+for (const source of hutchForwardSources) {
+	const permission = forwardPermissions.get(source.name);
+	assert(permission, `forward-analytics: missing invoke permission for ${source.name}`);
+	const slug = source.name.replace(/[^a-zA-Z0-9]+/g, "-").replace(/^-|-$/g, "");
+	new aws.cloudwatch.LogSubscriptionFilter(`forward-analytics-sub-${slug}`, {
+		logGroup: source.logGroup,
+		filterPattern: forwardFilterPattern,
+		destinationArn: forwardAnalyticsLambda.arn,
+	}, { dependsOn: [permission] });
+}
+
 // Each subscription Lambda now owns its log group (HutchLambda), but those
 // Lambdas only run after a trial ends — so until the first trial-end charge
 // fires in a stack, AWS has never written to those groups. Depending on the
@@ -1270,11 +1435,11 @@ new aws.cloudwatch.LogMetricFilter("imports-completed-filter", {
 // `ResourceNotFoundException`.
 new aws.cloudwatch.Dashboard("readplace-analytics", {
 	dashboardName: "readplace-analytics",
-	dashboardBody: pulumi.output(lambda.logGroupName).apply((hutchLogGroupName) =>
+	dashboardBody: pulumi.all([lambda.logGroupName, analyticsLogGroup.name]).apply(([hutchLogGroupName, analyticsLogGroupName]) =>
 		JSON.stringify(buildAnalyticsDashboardBody({
 			region,
 			hutchLogGroupName,
-			blogLogGroupName: BLOG_SITE_LOG_GROUP,
+			analyticsLogGroupName,
 			subscriptionLogGroupNames: SUBSCRIPTION_DASHBOARD_LOG_GROUPS,
 			workerLogGroupNames: WORKER_DASHBOARD_LOG_GROUPS,
 			excludedVisitorHashes,
@@ -1282,6 +1447,7 @@ new aws.cloudwatch.Dashboard("readplace-analytics", {
 	),
 }, {
 	dependsOn: [
+		analyticsLogGroup,
 		subscriptionStartRequestLambda,
 		subscriptionChargeSucceededLambda,
 		subscriptionChargeFailedLambda,

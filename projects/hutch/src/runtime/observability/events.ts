@@ -1,4 +1,5 @@
 import type { CheckoutVariant } from "@packages/provider-contracts/hosted-checkout";
+import { STREAMS } from "@packages/web-analytics";
 
 export {
 	STREAMS,
@@ -51,6 +52,31 @@ export const METRICS = {
 		name: "ImportsCompleted",
 	},
 } as const;
+
+/**
+ * Destination log group for the never-expire analytics feed. The forward-analytics
+ * Lambda copies the JSON payload of every FORWARDED_STREAMS line from each source
+ * group into here (preamble stripped so Logs Insights can query the fields), so
+ * business/analytics history is retained forever while each source Lambda's own
+ * group keeps its 30-day operational retention. A fixed string is safe because
+ * staging and prod are separate AWS accounts, so the name never collides across
+ * environments.
+ */
+export const ANALYTICS_LOG_GROUP = "/readplace/analytics";
+
+/**
+ * The log streams the forwarder copies into ANALYTICS_LOG_GROUP — the
+ * business/analytics streams the user wants queryable forever. Operational
+ * streams (`parse-errors`, `crawl-outcomes`) are deliberately excluded: they stay
+ * in their source group under the 30-day retention. The subscription-filter
+ * pattern and the backfill script both derive their `$.stream = "…"` clauses from
+ * this one list, so it is the single source of truth for what "analytics" means.
+ */
+export const FORWARDED_STREAMS = [
+	STREAMS.analytics,
+	STREAMS.conversions,
+	STREAMS.subscriptions,
+] as const;
 
 /**
  * Names passed to `new HutchLambda(...)` for the Lambdas whose log groups

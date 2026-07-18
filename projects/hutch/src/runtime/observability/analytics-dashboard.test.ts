@@ -1,7 +1,12 @@
-import { BLOG_SITE_LOG_GROUP, SAVE_LINK_LOG_GROUPS } from "@packages/hutch-infra-components";
+import {
+	BLOG_SITE_LOG_GROUP,
+	FORWARD_ANALYTICS_FUNCTION_NAME,
+	SAVE_LINK_LOG_GROUPS,
+} from "@packages/hutch-infra-components";
 import { HOMEPAGE_SPLIT } from "../web/experiments/homepage-split";
 import {
 	ANALYTICS_EVENTS,
+	ANALYTICS_LOG_GROUP,
 	CONVERSION_EVENTS,
 	LAMBDA_NAMES,
 	LOG_GROUPS,
@@ -11,6 +16,7 @@ import {
 } from "./events";
 import {
 	buildAnalyticsDashboardBody,
+	FORWARDED_SOURCE_LOG_GROUPS,
 	SUBSCRIPTION_DASHBOARD_LOG_GROUPS,
 	WORKER_DASHBOARD_LOG_GROUPS,
 } from "./analytics-dashboard";
@@ -23,7 +29,7 @@ function buildBody() {
 	return buildAnalyticsDashboardBody({
 		region: "ap-southeast-2",
 		hutchLogGroupName: LOG_GROUPS.hutchHandler,
-		blogLogGroupName: BLOG_SITE_LOG_GROUP,
+		analyticsLogGroupName: ANALYTICS_LOG_GROUP,
 		subscriptionLogGroupNames: SUBSCRIPTION_DASHBOARD_LOG_GROUPS,
 		workerLogGroupNames: WORKER_DASHBOARD_LOG_GROUPS,
 		excludedVisitorHashes: ["deadbeefcafef00d"],
@@ -85,18 +91,19 @@ describe("buildAnalyticsDashboardBody — drift prevention", () => {
 		expect(ab).not.toContain("| filter ispresent(visitor_hash)");
 	});
 
-	it("audience pageview widgets read both the hutch and blog log groups so acquisition spans app + blog", () => {
+	it("audience pageview widgets read the single merged analytics group (both frontends already forwarded into it)", () => {
 		const queries = widgetQueries();
 		const distinctVisitors = queries.find((q) => q.includes("count_distinct(visitor_hash) as visitors by bin(1d)"));
 		expect(distinctVisitors).toBeDefined();
-		expect(distinctVisitors?.startsWith(`SOURCE '${LOG_GROUPS.hutchHandler}' | SOURCE '${BLOG_SITE_LOG_GROUP}' | `)).toBe(true);
+		expect(distinctVisitors?.startsWith(`SOURCE '${ANALYTICS_LOG_GROUP}' | `)).toBe(true);
 	});
 
-	it("the blog-traffic widget counts pageviews by path from the blog log group only", () => {
+	it("the blog-traffic widget reads the analytics group but re-scopes to blog origin via @logStream", () => {
 		const queries = widgetQueries();
 		const blog = queries.find((q) => q.includes("stats count(*) as pageviews by path"));
 		expect(blog).toBeDefined();
-		expect(blog?.startsWith(`SOURCE '${BLOG_SITE_LOG_GROUP}' | `)).toBe(true);
+		expect(blog?.startsWith(`SOURCE '${ANALYTICS_LOG_GROUP}' | `)).toBe(true);
+		expect(blog).toContain(`| filter @logStream like "${BLOG_SITE_LOG_GROUP}/"`);
 		expect(blog).toContain(`event = "${ANALYTICS_EVENTS.pageview}"`);
 	});
 
@@ -231,34 +238,51 @@ describe("buildAnalyticsDashboardBody — drift prevention", () => {
 		]);
 	});
 
-	it("queries spanning subscription Lambda log groups emit one `SOURCE '<name>'` per group joined by `|` — `logGroups(namePrefix: [...])` is a CLI-only form the dashboard renderer rejects", () => {
-		// Exempt the web-app-emitted events by name, not by log-group prefix: these
-		// are the only subscriptions-stream events the hutch handler writes, so any
-		// OTHER subscriptions query must still fan out across the Lambda log groups.
-		const webAppEvents = [
-			SUBSCRIPTION_EVENTS.checkoutStarted,
-			SUBSCRIPTION_EVENTS.checkoutCompleted,
-			SUBSCRIPTION_EVENTS.checkoutReturnFailed,
-			SUBSCRIPTION_EVENTS.resubscribeCompleted,
-		];
-		const isWebAppQuery = (q: string) => webAppEvents.some((e) => q.includes(e));
-		const subscriptionQueries = widgetQueries().filter(
-			(q) => q.includes(`"${STREAMS.subscriptions}"`) && !isWebAppQuery(q),
-		);
-		const expectedSourcePrefix = `${SUBSCRIPTION_DASHBOARD_LOG_GROUPS.map((name) => `SOURCE '${name}'`).join(" | ")} | `;
-		for (const q of subscriptionQueries) {
-			expect(q.startsWith(expectedSourcePrefix)).toBe(true);
+	it("every log widget except the cross-group errors table reads only the never-expire analytics group — the scan-only-analytics-bytes invariant", () => {
+		const prefix = `SOURCE '${ANALYTICS_LOG_GROUP}' | `;
+		const nonErrorQueries = buildBody()
+			.widgets.filter((w) => w.type === "log")
+			.map((w) => w.properties.query)
+			.filter((q): q is string => typeof q === "string")
+			.filter((q) => !q.includes("coalesce(message, reason) as detail"));
+		expect(nonErrorQueries.length).toBeGreaterThan(0);
+		for (const q of nonErrorQueries) {
+			expect(q.startsWith(prefix)).toBe(true);
 		}
-		expect(subscriptionQueries.length).toBeGreaterThan(0);
 	});
 
-	it("both checkout-funnel widgets source the hutch handler log group — checkout events are emitted by the web app, not the subscription Lambdas", () => {
+	it("the errors widget is the one log widget that still fans out across the operational source groups (its data stays at 30-day retention)", () => {
+		const errorQuery = widgetQueries().find((q) => q.includes("coalesce(message, reason) as detail"));
+		expect(errorQuery).toBeDefined();
+		expect(errorQuery?.startsWith(`SOURCE '${ANALYTICS_LOG_GROUP}' | `)).toBe(false);
+		expect(errorQuery?.startsWith(`SOURCE '${LOG_GROUPS.hutchHandler}' | `)).toBe(true);
+	});
+
+	it("the subscription state-changes widget excludes hutch-origin checkout events so it keeps its Lambda-only semantics after the merge", () => {
+		const q = widgetQueries().find(
+			(x) => x.includes("subscription_id, reason") && x.includes(`stream = "${STREAMS.subscriptions}"`),
+		);
+		expect(q).toBeDefined();
+		expect(q?.startsWith(`SOURCE '${ANALYTICS_LOG_GROUP}' | `)).toBe(true);
+		expect(q).toContain(`| filter @logStream not like "${LOG_GROUPS.hutchHandler}/"`);
+	});
+
+	it("FORWARDED_SOURCE_LOG_GROUPS covers hutch, blog, and every subscription group and excludes the analytics destination and the forwarder's own group so the forwarder never subscribes to its own output", () => {
+		const forwarded = new Set(FORWARDED_SOURCE_LOG_GROUPS);
+		for (const expected of [LOG_GROUPS.hutchHandler, BLOG_SITE_LOG_GROUP, ...SUBSCRIPTION_DASHBOARD_LOG_GROUPS]) {
+			expect(forwarded.has(expected)).toBe(true);
+		}
+		expect(forwarded.has(ANALYTICS_LOG_GROUP)).toBe(false);
+		expect(forwarded.has(`/aws/lambda/${FORWARD_ANALYTICS_FUNCTION_NAME}`)).toBe(false);
+	});
+
+	it("both checkout-funnel widgets read the analytics group — checkout events are web-app-emitted subscriptions-stream data now forwarded there", () => {
 		const checkoutQueries = widgetQueries().filter((x) =>
 			x.includes(SUBSCRIPTION_EVENTS.checkoutStarted),
 		);
 		expect(checkoutQueries).toHaveLength(2);
 		for (const q of checkoutQueries) {
-			expect(q.startsWith(`SOURCE '${LOG_GROUPS.hutchHandler}' | `)).toBe(true);
+			expect(q.startsWith(`SOURCE '${ANALYTICS_LOG_GROUP}' | `)).toBe(true);
 			expect(q).toContain(SUBSCRIPTION_EVENTS.checkoutCompleted);
 			expect(q).toContain(SUBSCRIPTION_EVENTS.checkoutReturnFailed);
 		}
@@ -273,7 +297,7 @@ describe("buildAnalyticsDashboardBody — drift prevention", () => {
 	it("the conversions widget splits completed checkouts by paid_now (a $0 trial capture is not revenue) and counts saved-card resubscribes, which never pass through Checkout", () => {
 		const q = widgetQueries().find((x) => x.includes(SUBSCRIPTION_EVENTS.resubscribeCompleted));
 		expect(q).toBeDefined();
-		expect(q?.startsWith(`SOURCE '${LOG_GROUPS.hutchHandler}' | `)).toBe(true);
+		expect(q?.startsWith(`SOURCE '${ANALYTICS_LOG_GROUP}' | `)).toBe(true);
 		expect(q).toContain(SUBSCRIPTION_EVENTS.checkoutCompleted);
 		expect(q).toContain("stats count_distinct(user_id) as users by bin(1d), event, paid_now");
 		expect(q).not.toContain(SUBSCRIPTION_EVENTS.checkoutStarted);
@@ -323,7 +347,7 @@ describe("buildAnalyticsDashboardBody — drift prevention", () => {
 		const withoutExclusion = buildAnalyticsDashboardBody({
 			region: "ap-southeast-2",
 			hutchLogGroupName: LOG_GROUPS.hutchHandler,
-			blogLogGroupName: BLOG_SITE_LOG_GROUP,
+			analyticsLogGroupName: ANALYTICS_LOG_GROUP,
 			subscriptionLogGroupNames: SUBSCRIPTION_DASHBOARD_LOG_GROUPS,
 			workerLogGroupNames: WORKER_DASHBOARD_LOG_GROUPS,
 			excludedVisitorHashes: [],

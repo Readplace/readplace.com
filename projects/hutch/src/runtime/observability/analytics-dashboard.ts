@@ -1,5 +1,5 @@
 import assert from "node:assert";
-import { SAVE_LINK_LOG_GROUPS } from "@packages/hutch-infra-components";
+import { BLOG_SITE_LOG_GROUP, SAVE_LINK_LOG_GROUPS } from "@packages/hutch-infra-components";
 import { HOMEPAGE_SPLIT } from "../web/experiments/homepage-split";
 import {
 	ANALYTICS_EVENTS,
@@ -28,7 +28,11 @@ export interface DashboardBody {
 export interface BuildAnalyticsDashboardDeps {
 	region: string;
 	hutchLogGroupName: string;
-	blogLogGroupName: string;
+	/** The never-expire destination group every analytics widget reads from. The
+	 * forwarder copies the analytics streams out of every source group into here,
+	 * so a widget scans only analytics bytes (roughly half the source volume) and
+	 * queries reach the full retained history rather than the source's 30 days. */
+	analyticsLogGroupName: string;
 	subscriptionLogGroupNames: readonly string[];
 	workerLogGroupNames: readonly string[];
 	excludedVisitorHashes: readonly string[];
@@ -43,6 +47,19 @@ export interface BuildAnalyticsDashboardDeps {
 function sourceClause(logGroupNames: readonly string[]): string {
 	assert(logGroupNames.length > 0, "sourceClause requires at least one log group name");
 	return logGroupNames.map((n) => `SOURCE '${n}'`).join(" | ");
+}
+
+/**
+ * Now that every source group's analytics lines land in the one destination
+ * group, a widget that used to be scoped by *which* group it read must re-scope
+ * by origin. The forwarder names each destination stream `<sourceGroup>/<stream>`,
+ * so `@logStream like "<sourceGroup>/"` keeps only lines that came from that
+ * source (and `not like` drops them). The double-quoted form is a substring match,
+ * not a regex, so the slashes in the group name are literal; the trailing slash
+ * stops `hutch-handler` from also matching `hutch-handler-role`.
+ */
+function originClause(params: { logGroupName: string; match: "like" | "not like" }): string {
+	return `| filter @logStream ${params.match} "${params.logGroupName}/"`;
 }
 
 function excludeVisitorHashesClause(excludedVisitorHashes: readonly string[]): string[] {
@@ -78,13 +95,17 @@ function logWidget(params: {
 }
 
 export function buildAnalyticsDashboardBody(deps: BuildAnalyticsDashboardDeps): DashboardBody {
-	const { region, hutchLogGroupName, blogLogGroupName, subscriptionLogGroupNames, workerLogGroupNames, excludedVisitorHashes } = deps;
+	const { region, hutchLogGroupName, analyticsLogGroupName, subscriptionLogGroupNames, workerLogGroupNames, excludedVisitorHashes } = deps;
 	const exclude = excludeVisitorHashesClause(excludedVisitorHashes);
 	const widgets: DashboardWidget[] = [];
 
-	/** Audience widgets read pageview/click events from both the app (hutch) and
-	 * the blog Lambda so the acquisition/audience picture spans every frontend. */
-	const pageviewLogGroups = [hutchLogGroupName, blogLogGroupName];
+	/** Every analytics widget reads the single never-expire destination group. The
+	 * forwarder has already merged both frontends' (app + blog) analytics lines
+	 * into it, so an audience query still spans every frontend while scanning only
+	 * analytics bytes. Widgets that need a single frontend re-scope by origin via
+	 * `originClause` rather than by log group. */
+	const analyticsSource = [analyticsLogGroupName];
+	const pageviewLogGroups = analyticsSource;
 
 	// --- Traffic + Audience ---
 
@@ -154,7 +175,7 @@ export function buildAnalyticsDashboardBody(deps: BuildAnalyticsDashboardDeps): 
 		logWidget({
 			region,
 			title: "Distinct Authenticated Readers per Day",
-			logGroupNames: [hutchLogGroupName],
+			logGroupNames: analyticsSource,
 			query: [
 				"fields @timestamp, user_id, visitor_hash",
 				`| filter stream = "${STREAMS.analytics}" and event = "${ANALYTICS_EVENTS.articleRead}"`,
@@ -167,10 +188,13 @@ export function buildAnalyticsDashboardBody(deps: BuildAnalyticsDashboardDeps): 
 		logWidget({
 			region,
 			title: "Reader Opens per Day",
-			logGroupNames: [hutchLogGroupName],
+			logGroupNames: analyticsSource,
 			query: [
 				"fields @timestamp, visitor_hash, path, is_authenticated",
 				`| filter stream = "${STREAMS.analytics}" and event = "${ANALYTICS_EVENTS.pageview}"`,
+				// Insurance: the reader-view path only exists on the app. Scoping to
+				// hutch origin keeps a future blog path collision out of the count.
+				originClause({ logGroupName: hutchLogGroupName, match: "like" }),
 				"| filter ispresent(visitor_hash)",
 				...exclude,
 				"| filter is_authenticated",
@@ -205,7 +229,7 @@ export function buildAnalyticsDashboardBody(deps: BuildAnalyticsDashboardDeps): 
 		logWidget({
 			region,
 			title: "Conversions by Source (unique users)",
-			logGroupNames: [hutchLogGroupName],
+			logGroupNames: analyticsSource,
 			query: [
 				"fields @timestamp, user_id, coalesce(utm_source, referrer_host, \"direct\") as source",
 				`| filter stream = "${STREAMS.conversions}" and event = "${CONVERSION_EVENTS.userCreated}"`,
@@ -219,7 +243,7 @@ export function buildAnalyticsDashboardBody(deps: BuildAnalyticsDashboardDeps): 
 		logWidget({
 			region,
 			title: "Conversions by Source × Tier",
-			logGroupNames: [hutchLogGroupName],
+			logGroupNames: analyticsSource,
 			query: [
 				"fields @timestamp, user_id, coalesce(utm_source, referrer_host, \"direct\") as source, tier",
 				`| filter stream = "${STREAMS.conversions}" and event = "${CONVERSION_EVENTS.userCreated}"`,
@@ -233,7 +257,7 @@ export function buildAnalyticsDashboardBody(deps: BuildAnalyticsDashboardDeps): 
 		logWidget({
 			region,
 			title: "Recent Conversions",
-			logGroupNames: [hutchLogGroupName],
+			logGroupNames: analyticsSource,
 			query: [
 				"fields @timestamp, user_id, method, tier, utm_source, utm_medium, utm_campaign, utm_content, referrer_host, landing_path, first_seen_at",
 				`| filter stream = "${STREAMS.conversions}" and event = "${CONVERSION_EVENTS.userCreated}"`,
@@ -267,15 +291,18 @@ export function buildAnalyticsDashboardBody(deps: BuildAnalyticsDashboardDeps): 
 		 * Counts inbound pageviews where the Medium `source=post_page-----<id>`
 		 * parameter is present, grouped by post id. The middleware extracts
 		 * the id into `medium_post_id`. To resolve an id back to a post, open
-		 * https://medium.com/p/<id>.
+		 * https://medium.com/p/<id>. Scoped to hutch origin: the blog runs the same
+		 * middleware and also emits `medium_post_id`, so without this the shared
+		 * analytics group would fold blog clicks into the app's Medium totals.
 		 */
 		logWidget({
 			region,
 			title: "Top Medium Posts by Clicks",
-			logGroupNames: [hutchLogGroupName],
+			logGroupNames: analyticsSource,
 			query: [
 				"fields @timestamp, medium_post_id",
 				`| filter stream = "${STREAMS.analytics}" and event = "${ANALYTICS_EVENTS.pageview}"`,
+				originClause({ logGroupName: hutchLogGroupName, match: "like" }),
 				"| filter ispresent(medium_post_id) and medium_post_id != \"\"",
 				...exclude,
 				"| stats count(*) as clicks by medium_post_id",
@@ -290,7 +317,7 @@ export function buildAnalyticsDashboardBody(deps: BuildAnalyticsDashboardDeps): 
 		logWidget({
 			region,
 			title: "Import acquire → commit funnel per day",
-			logGroupNames: [hutchLogGroupName],
+			logGroupNames: analyticsSource,
 			query: [
 				"fields @timestamp, event",
 				`| filter stream = "${STREAMS.analytics}"`,
@@ -308,7 +335,7 @@ export function buildAnalyticsDashboardBody(deps: BuildAnalyticsDashboardDeps): 
 		logWidget({
 			region,
 			title: "Trial-end charge outcomes per day",
-			logGroupNames: subscriptionLogGroupNames,
+			logGroupNames: analyticsSource,
 			query: [
 				"fields @timestamp, event",
 				`| filter stream = "${STREAMS.subscriptions}"`,
@@ -321,7 +348,7 @@ export function buildAnalyticsDashboardBody(deps: BuildAnalyticsDashboardDeps): 
 		logWidget({
 			region,
 			title: "Cancellations by reason",
-			logGroupNames: subscriptionLogGroupNames,
+			logGroupNames: analyticsSource,
 			query: [
 				"fields @timestamp, reason",
 				`| filter stream = "${STREAMS.subscriptions}" and event = "${SUBSCRIPTION_EVENTS.cancelled}"`,
@@ -334,10 +361,15 @@ export function buildAnalyticsDashboardBody(deps: BuildAnalyticsDashboardDeps): 
 		logWidget({
 			region,
 			title: "Recent subscription state-changes",
-			logGroupNames: subscriptionLogGroupNames,
+			logGroupNames: analyticsSource,
 			query: [
 				"fields @timestamp, event, user_id, subscription_id, reason",
 				`| filter stream = "${STREAMS.subscriptions}"`,
+				// This widget previously read only the subscription-Lambda groups. The
+				// hutch handler also emits the subscriptions stream (checkout events),
+				// which now shares the analytics group, so excluding hutch origin keeps
+				// this to Lambda-emitted state-changes exactly as before.
+				originClause({ logGroupName: hutchLogGroupName, match: "not like" }),
 				"| sort @timestamp desc",
 				"| limit 50",
 			].join(" "),
@@ -356,7 +388,7 @@ export function buildAnalyticsDashboardBody(deps: BuildAnalyticsDashboardDeps): 
 		logWidget({
 			region,
 			title: "Reader Tries per Day (anonymous, distinct visitors)",
-			logGroupNames: [hutchLogGroupName],
+			logGroupNames: analyticsSource,
 			query: [
 				"fields @timestamp, visitor_id",
 				`| filter stream = "${STREAMS.analytics}" and event = "${ANALYTICS_EVENTS.viewOpened}"`,
@@ -370,7 +402,7 @@ export function buildAnalyticsDashboardBody(deps: BuildAnalyticsDashboardDeps): 
 		logWidget({
 			region,
 			title: "Try → Save-intent → Signup (unique visitors by event)",
-			logGroupNames: [hutchLogGroupName],
+			logGroupNames: analyticsSource,
 			/**
 			 * The save-intent leg is pinned to the anonymous reader surface so this
 			 * funnel counts only anonymous reader saves; `view_save_intent` also
@@ -426,7 +458,7 @@ export function buildAnalyticsDashboardBody(deps: BuildAnalyticsDashboardDeps): 
 		logWidget({
 			region,
 			title: "Save-intent by surface × content class",
-			logGroupNames: [hutchLogGroupName],
+			logGroupNames: analyticsSource,
 			query: [
 				`fields coalesce(surface, "${SAVE_SURFACES.readerView}") as surface, coalesce(content_class, "unclassified") as content_class`,
 				`| filter stream = "${STREAMS.analytics}" and event = "${ANALYTICS_EVENTS.viewSaveIntent}"`,
@@ -441,7 +473,7 @@ export function buildAnalyticsDashboardBody(deps: BuildAnalyticsDashboardDeps): 
 		logWidget({
 			region,
 			title: "Save-intent by content class (own vs third-party, %)",
-			logGroupNames: [hutchLogGroupName],
+			logGroupNames: analyticsSource,
 			query: [
 				"fields coalesce(content_class, \"unclassified\") as content_class",
 				`| filter stream = "${STREAMS.analytics}" and event = "${ANALYTICS_EVENTS.viewSaveIntent}"`,
@@ -455,7 +487,7 @@ export function buildAnalyticsDashboardBody(deps: BuildAnalyticsDashboardDeps): 
 		logWidget({
 			region,
 			title: "Anonymous reader-view save attempts by outcome",
-			logGroupNames: [hutchLogGroupName],
+			logGroupNames: analyticsSource,
 			query: [
 				`fields coalesce(outcome, "${SAVE_OUTCOMES.promptedToSignUp}") as outcome`,
 				`| filter stream = "${STREAMS.analytics}" and event = "${ANALYTICS_EVENTS.viewSaveIntent}"`,
@@ -474,7 +506,7 @@ export function buildAnalyticsDashboardBody(deps: BuildAnalyticsDashboardDeps): 
 		logWidget({
 			region,
 			title: "Save errors by surface (view_save_intent outcome=error)",
-			logGroupNames: [hutchLogGroupName],
+			logGroupNames: analyticsSource,
 			query: [
 				`fields coalesce(surface, "${SAVE_SURFACES.readerView}") as surface`,
 				`| filter stream = "${STREAMS.analytics}" and event = "${ANALYTICS_EVENTS.viewSaveIntent}" and outcome = "${SAVE_OUTCOMES.error}"`,
@@ -496,7 +528,7 @@ export function buildAnalyticsDashboardBody(deps: BuildAnalyticsDashboardDeps): 
 		logWidget({
 			region,
 			title: "TL;DR toggles by state (open vs closed)",
-			logGroupNames: [hutchLogGroupName],
+			logGroupNames: analyticsSource,
 			query: [
 				"fields @timestamp, state",
 				`| filter stream = "${STREAMS.analytics}" and event = "${ANALYTICS_EVENTS.summaryToggled}"`,
@@ -601,7 +633,7 @@ export function buildAnalyticsDashboardBody(deps: BuildAnalyticsDashboardDeps): 
 		logWidget({
 			region,
 			title: "Homepage A/B — distinct visitors and landings by variant",
-			logGroupNames: [hutchLogGroupName],
+			logGroupNames: analyticsSource,
 			query: [
 				"fields @timestamp, visitor_hash, utm_content",
 				`| filter stream = "${STREAMS.analytics}" and event = "${ANALYTICS_EVENTS.pageview}" and utm_campaign = "${HOMEPAGE_SPLIT.campaign}"`,
@@ -615,17 +647,19 @@ export function buildAnalyticsDashboardBody(deps: BuildAnalyticsDashboardDeps): 
 	);
 
 	// --- Blog traffic ---
-	// The blog Lambda emits its own pageview stream; this table ranks the most
-	// visited blog paths, reading the blog log group only.
+	// The blog Lambda's pageviews now land in the shared analytics group alongside
+	// the app's, so this table re-scopes to blog origin via @logStream and ranks
+	// the most visited blog paths.
 
 	widgets.push(
 		logWidget({
 			region,
 			title: "Blog pageviews by path",
-			logGroupNames: [blogLogGroupName],
+			logGroupNames: analyticsSource,
 			query: [
 				"fields @timestamp, path",
 				`| filter stream = "${STREAMS.analytics}" and event = "${ANALYTICS_EVENTS.pageview}"`,
+				originClause({ logGroupName: BLOG_SITE_LOG_GROUP, match: "like" }),
 				...exclude,
 				"| stats count(*) as pageviews by path",
 				"| sort pageviews desc",
@@ -640,7 +674,7 @@ export function buildAnalyticsDashboardBody(deps: BuildAnalyticsDashboardDeps): 
 		logWidget({
 			region,
 			title: "Email signup form outcomes",
-			logGroupNames: [hutchLogGroupName],
+			logGroupNames: analyticsSource,
 			query: [
 				"fields @timestamp, outcome",
 				`| filter stream = "${STREAMS.analytics}" and event = "${ANALYTICS_EVENTS.signupAttempted}"`,
@@ -654,7 +688,7 @@ export function buildAnalyticsDashboardBody(deps: BuildAnalyticsDashboardDeps): 
 		logWidget({
 			region,
 			title: "Email signup form outcomes per day",
-			logGroupNames: [hutchLogGroupName],
+			logGroupNames: analyticsSource,
 			query: [
 				"fields @timestamp, outcome",
 				`| filter stream = "${STREAMS.analytics}" and event = "${ANALYTICS_EVENTS.signupAttempted}"`,
@@ -680,7 +714,7 @@ export function buildAnalyticsDashboardBody(deps: BuildAnalyticsDashboardDeps): 
 		logWidget({
 			region,
 			title: "Checkout funnel per day",
-			logGroupNames: [hutchLogGroupName],
+			logGroupNames: analyticsSource,
 			// Distinct users, not raw counts: checkout_started fires once per Subscribe
 			// click, so abandon-and-retry would inflate the conversion denominator.
 			query: [
@@ -694,7 +728,7 @@ export function buildAnalyticsDashboardBody(deps: BuildAnalyticsDashboardDeps): 
 		logWidget({
 			region,
 			title: "Checkout funnel detail (variant / reason)",
-			logGroupNames: [hutchLogGroupName],
+			logGroupNames: analyticsSource,
 			query: [
 				"fields @timestamp, event, variant, reason",
 				...checkoutFunnelFilter,
@@ -707,7 +741,7 @@ export function buildAnalyticsDashboardBody(deps: BuildAnalyticsDashboardDeps): 
 		logWidget({
 			region,
 			title: "Conversions per day — real charges vs $0 trial captures",
-			logGroupNames: [hutchLogGroupName],
+			logGroupNames: analyticsSource,
 			// A completed checkout is not necessarily revenue: a trial-preserving
 			// checkout captures a card for $0 (paid_now:false). A saved-card
 			// resubscribe charges immediately and never touches Stripe Checkout, so it
@@ -748,3 +782,19 @@ export const SUBSCRIPTION_DASHBOARD_LOG_GROUPS: readonly string[] = [
  * Lambda added to the shared constant flows onto the dashboard automatically.
  */
 export const WORKER_DASHBOARD_LOG_GROUPS: readonly string[] = Object.values(SAVE_LINK_LOG_GROUPS);
+
+/**
+ * Every source log group the forward-analytics Lambda subscribes to: the hutch
+ * handler, the blog Lambda, and every subscription/trial Lambda. The forwarder
+ * copies the FORWARDED_STREAMS lines from these into the never-expire analytics
+ * group. Kept here — next to the subscription/worker group sets it composes — so
+ * the infra permission and subscription-filter loops and the drift tests all read
+ * one definition. Two groups are deliberately absent: the forwarder's own group
+ * (subscribing it to its own output would loop) and the async save-link workers
+ * (they emit only operational streams, which stay at 30-day retention).
+ */
+export const FORWARDED_SOURCE_LOG_GROUPS: readonly string[] = [
+	LOG_GROUPS.hutchHandler,
+	BLOG_SITE_LOG_GROUP,
+	...SUBSCRIPTION_DASHBOARD_LOG_GROUPS,
+];

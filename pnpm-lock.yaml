@@ -312,6 +312,9 @@ importers:
 
   projects/hutch:
     dependencies:
+      '@aws-sdk/client-cloudwatch-logs':
+        specifier: 3.1057.0
+        version: 3.1057.0
       '@aws-sdk/client-s3':
         specifier: 3.1057.0
         version: 3.1057.0
@@ -1883,6 +1886,10 @@ packages:
 
   '@aws-sdk/client-cloudfront@3.1057.0':
     resolution: {integrity: sha512-SSDMS+oxch09VWLBeQDEnHcQ7v1Q/YVBrA/YarjYKnqWzJO9bgoLOIN0mYG9SdcRXnyH8Bn6aIEtosanGjU5wQ==}
+    engines: {node: '>=20.0.0'}
+
+  '@aws-sdk/client-cloudwatch-logs@3.1057.0':
+    resolution: {integrity: sha512-VzrpX93RMMGE8mG9EKm/TX9aZQsQvg0bYz276UOUuxAZlMBrYxKhiMyRDIHtFSUFI5SKaBWE3nY5xoI3SK74LQ==}
     engines: {node: '>=20.0.0'}
 
   '@aws-sdk/client-dynamodb@3.1057.0':
@@ -6914,6 +6921,19 @@ snapshots:
       tslib: 2.8.1
 
   '@aws-sdk/client-cloudfront@3.1057.0':
+    dependencies:
+      '@aws-crypto/sha256-browser': 5.2.0
+      '@aws-crypto/sha256-js': 5.2.0
+      '@aws-sdk/core': 3.974.15
+      '@aws-sdk/credential-provider-node': 3.972.47
+      '@aws-sdk/types': 3.973.9
+      '@smithy/core': 3.24.5
+      '@smithy/fetch-http-handler': 5.4.5
+      '@smithy/node-http-handler': 4.7.5
+      '@smithy/types': 4.14.2
+      tslib: 2.8.1
+
+  '@aws-sdk/client-cloudwatch-logs@3.1057.0':
     dependencies:
       '@aws-crypto/sha256-browser': 5.2.0
       '@aws-crypto/sha256-js': 5.2.0
