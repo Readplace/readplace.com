@@ -15,11 +15,22 @@ export type CreateLogStream = (params: {
 	logStreamName: string;
 }) => Promise<void>;
 
+/** What PutLogEvents reports when it accepted the request but dropped individual
+ * events: `[0, tooOldLogEventEndIndex)` were older than the 14-day ingest floor,
+ * `[tooNewLogEventStartIndex, batch.length)` too far in the future, and
+ * `[0, expiredLogEventEndIndex)` outside the group's retention. Absent when the
+ * whole batch was stored. */
+export interface RejectedLogEventsInfo {
+	tooOldLogEventEndIndex?: number;
+	tooNewLogEventStartIndex?: number;
+	expiredLogEventEndIndex?: number;
+}
+
 export type PutLogEvents = (params: {
 	logGroupName: string;
 	logStreamName: string;
 	logEvents: readonly ForwardLogEvent[];
-}) => Promise<void>;
+}) => Promise<RejectedLogEventsInfo | undefined>;
 
 export interface ForwardAnalyticsDeps {
 	createLogStream: CreateLogStream;
@@ -50,10 +61,12 @@ const MAX_BATCH_BYTES = 1_048_576;
 const PER_EVENT_OVERHEAD_BYTES = 26;
 const MAX_BATCH_SPAN_MS = 24 * 60 * 60 * 1000;
 
-/** Splits one delivery's events into PutLogEvents-legal batches, preserving the
- * source order (a subscription delivery is a single stream slice, already
- * chronological). A new batch starts when the next event would push the current
- * one past the count, byte, or 24-hour-span limit. */
+/** Splits one delivery's events into PutLogEvents-legal batches. Callers must pass
+ * events already sorted by timestamp: PutLogEvents rejects a non-chronological
+ * batch outright, and the span check below measures each event against the batch's
+ * first timestamp, so unsorted input would also let a batch exceed 24 hours
+ * undetected. A new batch starts when the next event would push the current one
+ * past the count, byte, or 24-hour-span limit. */
 export function chunkLogEvents(events: readonly ForwardLogEvent[]): ForwardLogEvent[][] {
 	const chunks: ForwardLogEvent[][] = [];
 	let current: ForwardLogEvent[] = [];
@@ -137,10 +150,17 @@ export function initForwardAnalyticsHandler(
 
 		const data = DataMessageSchema.parse(decoded);
 		const logStreamName = `${data.logGroup}/${data.logStream}`;
-		const events = data.logEvents.map((logEvent) => ({
-			timestamp: logEvent.timestamp,
-			message: extractJsonPayload(logEvent.message),
-		}));
+		/* Sorted, not merely mapped: PutLogEvents rejects a batch whose events are not
+		 * in chronological order, and AWS documents no ordering guarantee for the
+		 * events inside a subscription delivery. An unsorted delivery would fail
+		 * identically on every retry and again on replay, so this sort is what keeps
+		 * such a delivery recoverable rather than permanently stuck. */
+		const events = data.logEvents
+			.map((logEvent) => ({
+				timestamp: logEvent.timestamp,
+				message: extractJsonPayload(logEvent.message),
+			}))
+			.sort((a, b) => a.timestamp - b.timestamp);
 		const chunks = chunkLogEvents(events);
 
 		if (chunks.length === 0) {
@@ -158,7 +178,23 @@ export function initForwardAnalyticsHandler(
 		}
 
 		for (const logEvents of chunks) {
-			await putLogEvents({ logGroupName: destinationLogGroupName, logStreamName, logEvents });
+			const rejected = await putLogEvents({
+				logGroupName: destinationLogGroupName,
+				logStreamName,
+				logEvents,
+			});
+			/* PutLogEvents can succeed while silently discarding individual events. On
+			 * the live path they are always fresh, but a failure-queue replay near the
+			 * 14-day ingest floor can lose lines behind a 200 — so this is logged as an
+			 * error instead of being swallowed by the "forwarded" line below. */
+			if (rejected) {
+				logger.error("[ForwardAnalytics] PutLogEvents discarded events from an accepted batch", {
+					sourceLogGroup: data.logGroup,
+					sourceLogStream: data.logStream,
+					batchSize: logEvents.length,
+					rejected,
+				});
+			}
 		}
 
 		logger.info("[ForwardAnalytics] forwarded", {

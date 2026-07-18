@@ -25,7 +25,7 @@ export function initCloudWatchLogsAnalyticsForward(deps: {
 	};
 
 	const putLogEvents: PutLogEvents = async ({ logGroupName, logStreamName, logEvents }) => {
-		await client.send(
+		const response = await client.send(
 			new PutLogEventsCommand({
 				logGroupName,
 				logStreamName,
@@ -35,6 +35,9 @@ export function initCloudWatchLogsAnalyticsForward(deps: {
 				})),
 			}),
 		);
+		// Returned rather than dropped: a 200 can still discard individual events, and
+		// only the handler logs that loss.
+		return response.rejectedLogEventsInfo;
 	};
 
 	return { createLogStream, putLogEvents };

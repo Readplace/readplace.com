@@ -1364,6 +1364,49 @@ new aws.cloudwatch.MetricAlarm("forward-analytics-dlq-alarm", {
 	alarmActions: [forwardAnalyticsDlqTopic.arn],
 });
 
+// The two hops AWS owns, where a dropped analytics line never reaches the handler —
+// so neither the forwarder's Errors metric nor its failure queue would ever show it.
+// A Metrics Insights query aggregates DeliveryErrors across every subscription filter
+// in the account (including the one blog-site attaches to its own group, and any
+// added later); a SEARCH expression cannot be used because an alarm may watch only
+// one time series, and Metrics Insights is the one form allowed to aggregate many.
+new aws.cloudwatch.MetricAlarm("forward-analytics-delivery-errors-alarm", {
+	name: "forward-analytics-delivery-errors-alarm",
+	comparisonOperator: "GreaterThanOrEqualToThreshold",
+	evaluationPeriods: 1,
+	threshold: 1,
+	// The metric only exists once a delivery has failed, so absent data is healthy.
+	treatMissingData: "notBreaching",
+	alarmDescription:
+		"CloudWatch Logs could not deliver matched analytics lines to the forwarder — those lines are lost before the Lambda runs",
+	alarmActions: [forwardAnalyticsDlqTopic.arn],
+	metricQueries: [{
+		id: "dropped",
+		expression: `SELECT SUM(DeliveryErrors) FROM "AWS/Logs"`,
+		period: 300,
+		returnData: true,
+	}],
+});
+
+// Parking a failed delivery is itself best-effort: if Lambda cannot write the
+// envelope to the on-failure queue, the delivery is gone and the depth alarm above
+// stays silent because nothing ever arrives to be counted.
+new aws.cloudwatch.MetricAlarm("forward-analytics-destination-delivery-alarm", {
+	name: "forward-analytics-destination-delivery-alarm",
+	comparisonOperator: "GreaterThanOrEqualToThreshold",
+	evaluationPeriods: 1,
+	metricName: "DestinationDeliveryFailures",
+	namespace: "AWS/Lambda",
+	period: 300,
+	statistic: "Sum",
+	threshold: 1,
+	treatMissingData: "notBreaching",
+	alarmDescription:
+		"The forwarder could not park a failed delivery on its on-failure queue — that delivery is lost",
+	dimensions: { FunctionName: forwardAnalyticsLambda.functionName },
+	alarmActions: [forwardAnalyticsDlqTopic.arn],
+});
+
 // The filter keeps only the analytics streams — identical shape to the
 // imports-completed metric filter above, which matches the same Lambda-Text lines.
 const forwardFilterPattern = `{ ${FORWARDED_STREAMS.map((stream) => `$.stream = "${stream}"`).join(" || ")} }`;

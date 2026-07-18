@@ -2,7 +2,7 @@ import { gzipSync } from "node:zlib";
 import { ZodError } from "zod";
 import type { CloudWatchLogsEvent, Handler } from "aws-lambda";
 import { buildLambdaContext } from "@packages/test-fixtures/lambda-context";
-import { noopLogger } from "@packages/hutch-logger";
+import { noopLogger, type HutchLogger } from "@packages/hutch-logger";
 import {
 	extractJsonPayload,
 	initForwardAnalyticsHandler,
@@ -182,6 +182,57 @@ describe("initForwardAnalyticsHandler", () => {
 		expect(calls).toHaveLength(2);
 		expect(calls[0][0].logEvents.map((e: ForwardLogEvent) => e.message)).toEqual(["a", "b"]);
 		expect(calls[1][0].logEvents.map((e: ForwardLogEvent) => e.message)).toEqual(["c"]);
+	});
+
+	it("sorts a non-chronological delivery before writing — PutLogEvents rejects an out-of-order batch outright", async () => {
+		const logEvents: ForwardLogEvent[] = [
+			{ timestamp: BASE_TS + 2000, message: "c" },
+			{ timestamp: BASE_TS, message: "a" },
+			{ timestamp: BASE_TS + 1000, message: "b" },
+		];
+		const { handler, deps } = createHandler();
+
+		await run(handler, dataMessage(logEvents));
+
+		const calls = (deps.putLogEvents as jest.Mock).mock.calls;
+		expect(calls).toHaveLength(1);
+		expect(calls[0][0].logEvents.map((e: ForwardLogEvent) => e.message)).toEqual(["a", "b", "c"]);
+	});
+
+	it("applies the 24-hour span split on sorted order, so an out-of-order delivery cannot build an over-span batch", async () => {
+		const hour = 60 * 60 * 1000;
+		// Delivered newest-first: unsorted, the span check would compare against the
+		// 25h-later first event, yield negative diffs, and emit one illegal 25h batch.
+		const logEvents: ForwardLogEvent[] = [
+			{ timestamp: BASE_TS + 25 * hour, message: "c" },
+			{ timestamp: BASE_TS, message: "a" },
+			{ timestamp: BASE_TS + hour, message: "b" },
+		];
+		const { handler, deps } = createHandler();
+
+		await run(handler, dataMessage(logEvents));
+
+		const calls = (deps.putLogEvents as jest.Mock).mock.calls;
+		expect(calls).toHaveLength(2);
+		expect(calls[0][0].logEvents.map((e: ForwardLogEvent) => e.message)).toEqual(["a", "b"]);
+		expect(calls[1][0].logEvents.map((e: ForwardLogEvent) => e.message)).toEqual(["c"]);
+	});
+
+	it("logs an error when PutLogEvents accepts the batch but discards events, so a replay-edge drop is never silent", async () => {
+		const error = jest.fn();
+		const logger: HutchLogger = { ...noopLogger, error };
+		const { handler } = createHandler({
+			logger,
+			putLogEvents: jest.fn().mockResolvedValue({ tooOldLogEventEndIndex: 2 }),
+		});
+
+		await run(handler, dataMessage([{ timestamp: BASE_TS, message: "a" }]));
+
+		expect(error).toHaveBeenCalledTimes(1);
+		expect(error).toHaveBeenCalledWith(
+			expect.stringContaining("discarded events"),
+			expect.objectContaining({ batchSize: 1, rejected: { tooOldLogEventEndIndex: 2 } }),
+		);
 	});
 
 	it("propagates a putLogEvents rejection and does not send later batches", async () => {
