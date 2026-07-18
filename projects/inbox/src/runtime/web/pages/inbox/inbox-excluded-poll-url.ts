@@ -1,7 +1,7 @@
 import { EMAIL_FEATURE } from "@packages/web-shell";
 
 /**
- * Polling URL for the whole Skipped Links panel while extraction is still running.
+ * Polling URL for the whole Skipped panel while extraction is still running.
  * Sibling of `buildInboxArticlesPollUrl`, pointing at this panel's own
  * `/inbox/:id/excluded` fragment: the two panels swap themselves in place, so a
  * shared URL would make the Skipped panel replace itself with Articles markup on

@@ -361,7 +361,7 @@ export function initInboxRoutes(deps: InboxDependencies): Router {
 				);
 			}
 			// Back to the tab the reported row actually lives on: an include verdict
-			// comes from a skipped row on the Skipped Links tab, an exclude verdict from
+			// comes from a skipped row on the Skipped tab, an exclude verdict from
 			// a card on Articles. A fixed tab would bounce the reader to a panel that
 			// doesn't hold the link they just reported.
 			const tab = link.status === "skipped" ? "excluded" : "articles";

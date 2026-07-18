@@ -8,7 +8,7 @@ describe("parseMailTab", () => {
 		expect(parseMailTab("articles")).toBe("articles");
 	});
 
-	it("reads the Skipped Links tab from the query", () => {
+	it("reads the Skipped tab from the query", () => {
 		expect(parseMailTab("excluded")).toBe("excluded");
 	});
 
@@ -35,7 +35,7 @@ describe("buildInboxEmailDetailUrl", () => {
 		);
 	});
 
-	it("addresses the Skipped Links tab with a tab param", () => {
+	it("addresses the Skipped tab with a tab param", () => {
 		expect(buildInboxEmailDetailUrl({ emailId: EMAIL_ID, tab: "excluded" })).toBe(
 			`/inbox/${ENCODED_EMAIL_ID}?feature=email&tab=excluded`,
 		);

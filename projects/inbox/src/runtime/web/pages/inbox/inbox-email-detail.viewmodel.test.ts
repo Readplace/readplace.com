@@ -103,7 +103,7 @@ describe("toInboxEmailDetailViewModel", () => {
 		expect(vm.tabs[1].ariaCurrent).toBe("page");
 	});
 
-	it("hands the Skipped Links tab to the page as the active one", () => {
+	it("hands the Skipped tab to the page as the active one", () => {
 		const vm = build({ activeTab: "excluded", linksMeta: { truncated: false } });
 
 		expect(vm.activeTab).toBe("excluded");
@@ -158,7 +158,7 @@ describe("toInboxEmailDetailViewModel", () => {
 		expect(vm.tabs.map((tab) => tab.label)).toEqual([
 			"View",
 			"Extracted Articles",
-			"Skipped Links",
+			"Skipped",
 		]);
 		expect(vm.extractionReported).toBe(false);
 	});
@@ -256,7 +256,7 @@ describe("toInboxEmailDetailViewModel", () => {
 		expect(vm.tabs.map((tab) => tab.label)).toEqual([
 			"View",
 			"Extracted Articles (2)",
-			"Skipped Links (0)",
+			"Skipped (0)",
 		]);
 		expect(vm.extractionReported).toBe(true);
 		const [pending, crawled] = vm.articles.cards;
@@ -352,7 +352,7 @@ describe("toInboxEmailDetailViewModel", () => {
 		// "No links found" would be false: a link was found, then skipped. The empty
 		// Articles panel has to point at the tab that holds it.
 		expect(vm.articles.emptyMessage).toBe(
-			"Every link in this email was skipped — see the Skipped Links tab.",
+			"Every link in this email was skipped — see the Skipped tab.",
 		);
 		expect(vm.excluded.isEmpty).toBe(false);
 		expect(vm.excluded.links.map((entry) => entry.reasonLabel)).toEqual(["Site navigation"]);

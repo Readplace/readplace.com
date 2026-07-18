@@ -6,7 +6,7 @@ describe("formatTabCountLabel", () => {
 	});
 
 	it("shows zero rather than hiding it, so 'none' never reads as 'not known yet'", () => {
-		expect(formatTabCountLabel({ label: "Skipped Links", count: 0 })).toBe("Skipped Links (0)");
+		expect(formatTabCountLabel({ label: "Skipped", count: 0 })).toBe("Skipped (0)");
 	});
 
 	it("keeps the exact count up to the two-digit ceiling", () => {

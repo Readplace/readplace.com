@@ -5,7 +5,7 @@ const MAX_DISPLAYED_COUNT = 99;
 
 /**
  * Compose a tab label carrying how many items the tab holds — `To Read (2)`,
- * `Skipped Links (99+)`. Shared so every tabbed surface counts the same way; a
+ * `Skipped (99+)`. Shared so every tabbed surface counts the same way; a
  * surface with nothing to claim yet (a count still being derived) omits the
  * count by passing the bare label instead of calling this.
  *

@@ -156,7 +156,7 @@ describe("Inbox email detail View tab", () => {
 		const excludedTab = doc.querySelector('[data-test-inbox-tab="excluded"]');
 		assert(viewTab, "View tab must render");
 		assert(articlesTab, "Articles tab must render");
-		assert(excludedTab, "Skipped Links tab must render");
+		assert(excludedTab, "Skipped tab must render");
 		expect(viewTab.getAttribute("aria-current")).toBe("page");
 		expect(articlesTab.getAttribute("aria-current")).toBeNull();
 		expect(excludedTab.getAttribute("aria-current")).toBeNull();
@@ -359,7 +359,7 @@ describe("Inbox email detail Articles tab", () => {
 			"Extracted Articles (3)",
 		);
 		expect(doc.querySelector('[data-test-inbox-tab="excluded"]')?.textContent).toBe(
-			"Skipped Links (0)",
+			"Skipped (0)",
 		);
 		expect(doc.querySelector('[data-test-inbox-tab="view"]')?.textContent).toBe("View");
 		expect(doc.querySelector("[data-test-inbox-article-title]")?.textContent).toBe(
@@ -414,15 +414,15 @@ describe("Inbox email detail Articles tab", () => {
 		expect(cardOrdinals).toEqual(["0000"]);
 		expect(doc.querySelector("[data-test-inbox-detail-link-count]")?.textContent).toBe("1 link");
 		// The tabs split the same way the panels do: the skipped link is counted by
-		// the Skipped Links tab, never by Extracted Articles.
+		// the Skipped tab, never by Extracted Articles.
 		expect(doc.querySelector('[data-test-inbox-tab="articles"]')?.textContent).toBe(
 			"Extracted Articles (1)",
 		);
 		expect(doc.querySelector('[data-test-inbox-tab="excluded"]')?.textContent).toBe(
-			"Skipped Links (1)",
+			"Skipped (1)",
 		);
 
-		// A skipped link belongs to the Skipped Links tab alone; rendering it here too
+		// A skipped link belongs to the Skipped tab alone; rendering it here too
 		// would show the same row on two tabs.
 		expect(doc.querySelector("[data-test-inbox-excluded]")).toBeNull();
 		expect(doc.querySelector('[data-test-inbox-excluded-link="0001"]')).toBeNull();
@@ -484,7 +484,7 @@ describe("Inbox email detail Articles tab", () => {
 		assert(empty, "an all-skipped email must render the empty Articles panel");
 		// "No links found in this email." would be false — one was found, then skipped.
 		expect(empty.textContent?.trim()).toBe(
-			"Every link in this email was skipped — see the Skipped Links tab.",
+			"Every link in this email was skipped — see the Skipped tab.",
 		);
 	});
 
@@ -595,7 +595,7 @@ describe("Inbox email detail Articles tab", () => {
 	});
 });
 
-describe("Inbox email detail Skipped Links tab", () => {
+describe("Inbox email detail Skipped tab", () => {
 	it("returns 404 without the email feature flag", async () => {
 		const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
 		const agent = await loginAgent(harness.server, harness.auth);
@@ -637,7 +637,7 @@ describe("Inbox email detail Skipped Links tab", () => {
 		const doc = parseDoc(response.text);
 		expect(renderedPanels(doc)).toEqual(["excluded"]);
 		const excludedTab = doc.querySelector('[data-test-inbox-tab="excluded"]');
-		assert(excludedTab, "Skipped Links tab must render");
+		assert(excludedTab, "Skipped tab must render");
 		expect(excludedTab.getAttribute("aria-current")).toBe("page");
 
 		// The kept card belongs to the Articles tab and must not leak onto this one.
@@ -691,7 +691,7 @@ describe("Inbox email detail Skipped Links tab", () => {
 
 		const doc = parseDoc(response.text);
 		const panel = doc.querySelector('[data-test-tab-panel="excluded"]');
-		assert(panel, "the Skipped Links panel must render");
+		assert(panel, "the Skipped panel must render");
 		expect(panel.getAttribute("data-excluded-status")).toBe("terminal");
 		const empty = doc.querySelector("[data-test-excluded-empty]");
 		assert(empty, "a nothing-skipped email must render the empty Skipped panel");
@@ -708,7 +708,7 @@ describe("Inbox email detail Skipped Links tab", () => {
 
 		const doc = parseDoc(response.text);
 		const panel = doc.querySelector('[data-test-tab-panel="excluded"]');
-		assert(panel, "the Skipped Links panel must render");
+		assert(panel, "the Skipped panel must render");
 		expect(panel.getAttribute("data-excluded-status")).toBe("extracting");
 		// Its own fragment: polling /articles would swap the Articles panel in here.
 		expect(panel.getAttribute("hx-get")).toContain("/excluded");
@@ -727,7 +727,7 @@ describe("Inbox email detail Skipped Links tab", () => {
 		expect(response.status).toBe(200);
 		const doc = parseDoc(response.text);
 		const panel = doc.querySelector('[data-test-tab-panel="excluded"]');
-		assert(panel, "the Skipped Links panel must render");
+		assert(panel, "the Skipped panel must render");
 		expect(panel.getAttribute("data-excluded-status")).toBe("terminal");
 		expect(doc.querySelector("[data-test-excluded-empty]")?.textContent?.trim()).toBe(
 			"No links found in this email.",
@@ -811,7 +811,7 @@ describe("Inbox Articles panel poll route", () => {
 			"Extracted Articles (1)",
 		);
 		expect(doc.querySelector('[data-test-inbox-tab="excluded"]')?.textContent).toBe(
-			"Skipped Links (1)",
+			"Skipped (1)",
 		);
 	});
 
@@ -836,7 +836,7 @@ describe("Inbox Articles panel poll route", () => {
 			"Extracted Articles (0)",
 		);
 		expect(doc.querySelector('[data-test-inbox-tab="excluded"]')?.textContent).toBe(
-			"Skipped Links (0)",
+			"Skipped (0)",
 		);
 	});
 
@@ -1005,7 +1005,7 @@ describe("Inbox link feedback route", () => {
 		expect(response.status).toBe(404);
 	});
 
-	it("logs the feedback as an error and redirects back to the Skipped Links tab", async () => {
+	it("logs the feedback as an error and redirects back to the Skipped tab", async () => {
 		const fixture = createDefaultTestAppFixture(TEST_APP_ORIGIN);
 		const errors: string[] = [];
 		fixture.shared.logError = (message) => {
@@ -1088,7 +1088,7 @@ describe("Inbox link feedback route", () => {
 
 		// Crossed on purpose: every other case pairs a skipped link with an include
 		// verdict, so keying the redirect off the verdict would pass them all. The row
-		// is skipped, so it is on the Skipped Links tab whatever the reader claims.
+		// is skipped, so it is on the Skipped tab whatever the reader claims.
 		const response = await agent.post(`${feedbackPath}?feature=email`).type("form").send({
 			verdict: "should-be-excluded",
 		});

@@ -30,7 +30,7 @@ const SKIP_REASON_LABELS: Record<EmailLinkSkipReason, string> = {
 const GENERIC_EXCLUDED_LABEL = "Not an article";
 
 const NO_LINKS_MESSAGE = "No links found in this email.";
-const ALL_SKIPPED_MESSAGE = "Every link in this email was skipped — see the Skipped Links tab.";
+const ALL_SKIPPED_MESSAGE = "Every link in this email was skipped — see the Skipped tab.";
 const NOTHING_SKIPPED_MESSAGE = "Nothing was skipped in this email.";
 
 // Both panels report the same extractor run, so they say these in one voice from

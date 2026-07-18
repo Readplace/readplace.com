@@ -1,7 +1,7 @@
 /**
  * One-shot manual backfill: re-run link extraction for every received email so
  * the CURRENT skip/triage classification (ESP action-link shapes,
- * List-Unsubscribe matches, LLM triage, the Skipped Links tab) applies to mail
+ * List-Unsubscribe matches, LLM triage, the Skipped tab) applies to mail
  * that predates it. Per email: delete its link rows + meta barrier, then
  * re-publish `EmailReceivedEvent` — the DEPLOYED extraction consumer re-derives
  * everything through the same code a fresh receive runs, including the

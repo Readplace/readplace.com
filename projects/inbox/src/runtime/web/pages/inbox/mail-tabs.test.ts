@@ -10,7 +10,7 @@ describe("buildMailTabs", () => {
 		const tabs = buildMailTabs({ emailId: EMAIL_ID, active: "view", counts: NO_COUNTS });
 
 		expect(tabs.map((tab) => tab.key)).toEqual(["view", "articles", "excluded"]);
-		expect(tabs.map((tab) => tab.label)).toEqual(["View", "Extracted Articles", "Skipped Links"]);
+		expect(tabs.map((tab) => tab.label)).toEqual(["View", "Extracted Articles", "Skipped"]);
 		expect(tabs[0].ariaCurrent).toBe("page");
 		expect(tabs[1].ariaCurrent).toBeUndefined();
 		expect(tabs[2].ariaCurrent).toBeUndefined();
@@ -24,7 +24,7 @@ describe("buildMailTabs", () => {
 		expect(tabs[2].ariaCurrent).toBeUndefined();
 	});
 
-	it("moves aria-current to the Skipped Links tab when it is the active one", () => {
+	it("moves aria-current to the Skipped tab when it is the active one", () => {
 		const tabs = buildMailTabs({ emailId: EMAIL_ID, active: "excluded", counts: NO_COUNTS });
 
 		expect(tabs[0].ariaCurrent).toBeUndefined();
@@ -53,7 +53,7 @@ describe("buildMailTabs", () => {
 			// The View tab renders the email itself, so it never carries a count.
 			"View",
 			"Extracted Articles (12)",
-			"Skipped Links (3)",
+			"Skipped (3)",
 		]);
 	});
 
@@ -67,7 +67,7 @@ describe("buildMailTabs", () => {
 		expect(tabs.map((tab) => tab.label)).toEqual([
 			"View",
 			"Extracted Articles (0)",
-			"Skipped Links (0)",
+			"Skipped (0)",
 		]);
 	});
 
@@ -79,12 +79,12 @@ describe("buildMailTabs", () => {
 		});
 
 		expect(tabs[1].label).toBe("Extracted Articles (99+)");
-		expect(tabs[2].label).toBe("Skipped Links (1)");
+		expect(tabs[2].label).toBe("Skipped (1)");
 	});
 
 	it("omits the count while extraction has not reported, so no tab claims a total yet", () => {
 		const tabs = buildMailTabs({ emailId: EMAIL_ID, active: "articles", counts: NO_COUNTS });
 
-		expect(tabs.map((tab) => tab.label)).toEqual(["View", "Extracted Articles", "Skipped Links"]);
+		expect(tabs.map((tab) => tab.label)).toEqual(["View", "Extracted Articles", "Skipped"]);
 	});
 });

@@ -10,7 +10,7 @@ const INBOX_EXCLUDED_PANEL_TEMPLATE = readFileSync(
 );
 
 /**
- * Renders the Skipped Links panel as a standalone `<section>` so the same markup
+ * Renders the Skipped panel as a standalone `<section>` so the same markup
  * serves both the full detail page and the `GET /inbox/:id/excluded` poll
  * fragment, which swaps it in place via htmx `outerHTML` until extraction
  * completes. It polls for the same reason the Articles panel does: before the
