@@ -2,7 +2,6 @@ import assert from "node:assert/strict";
 import { SUPPORTED_CLIENTS } from "@packages/supported-clients";
 import {
 	FULL_PAGE_CAPTURE_PHRASE,
-	SAVE_FALLBACK_PHRASE,
 	SAVE_SURFACES_PHRASE,
 	SAVE_SURFACES_SHORT_PHRASE,
 	SETUP_SURFACES_PHRASE,
@@ -12,7 +11,6 @@ const ALL_PHRASES = [
 	SAVE_SURFACES_PHRASE,
 	SAVE_SURFACES_SHORT_PHRASE,
 	SETUP_SURFACES_PHRASE,
-	SAVE_FALLBACK_PHRASE,
 	FULL_PAGE_CAPTURE_PHRASE,
 ];
 
@@ -27,10 +25,6 @@ describe("client surface phrases", () => {
 
 	it("pins the home features setup-surfaces phrase", () => {
 		assert.equal(SETUP_SURFACES_PHRASE, "in your browser, on your iPhone, or in your AI assistant");
-	});
-
-	it("pins the reader-failed save-fallback phrase", () => {
-		assert.equal(SAVE_FALLBACK_PHRASE, "the browser extension, your iPhone, or your AI assistant");
 	});
 
 	it("pins the reader-failed full-page-capture phrase", () => {

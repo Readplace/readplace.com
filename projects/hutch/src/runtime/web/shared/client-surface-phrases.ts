@@ -29,14 +29,6 @@ const SETUP_LOCATIONS = {
 
 export const SETUP_SURFACES_PHRASE = `${SETUP_LOCATIONS.browserExtension}, ${SETUP_LOCATIONS.nativeApp}, or ${SETUP_LOCATIONS.aiAssistant}`;
 
-const SAVE_FALLBACK_SURFACES = {
-	browserExtension: "the browser extension",
-	nativeApp: "your iPhone",
-	aiAssistant: "your AI assistant",
-} satisfies Record<ClientGroup, string>;
-
-export const SAVE_FALLBACK_PHRASE = `${SAVE_FALLBACK_SURFACES.browserExtension}, ${SAVE_FALLBACK_SURFACES.nativeApp}, or ${SAVE_FALLBACK_SURFACES.aiAssistant}`;
-
 /** The content-capture surfaces, keyed by the groups in that category — so a
  * group joining or leaving `contentCapture` is a compile error here. Only these
  * clients can save the full rendered page; url-only clients (MCP) cannot, which
