@@ -427,6 +427,12 @@ pnpm nx run hutch:test-with-coverage
 
 Use individual nx targets only when `pnpm check` has already surfaced a specific failure and you're isolating that one task while debugging.
 
+### Verify Infrastructure Changes with `pnpm check-infra`
+
+After any infrastructure change — a Pulumi program (`src/infra/**`), a `Pulumi.*.yaml` stack config, a shared infra component, or a deploy input that alters a built artifact (e.g. the OCR `Dockerfile`) — run `pnpm check-infra` and confirm the preview is the diff you intend: no unexpected replace, delete, or drift. Do this before pushing. For a single stack, `pnpm nx run <project>:check-infra`.
+
+`pnpm check` does not preview infrastructure, by design: it must stay credential-free so fork-PR CI can run it with no cloud secrets.
+
 ### Never Bypass Git Commit Hooks
 
 Never use `--no-verify` without explicit human approval. If hooks fail:
