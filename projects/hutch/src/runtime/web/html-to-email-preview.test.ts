@@ -13,16 +13,25 @@ describe("htmlToEmailPreview", () => {
 		expect(htmlToEmailPreview(html, { maxParagraphs: 2 })).toEqual(["One", "Two"]);
 	});
 
-	it("truncates on the word budget and appends an ellipsis to the overflowing paragraph", () => {
-		const preview = htmlToEmailPreview("<p>alpha beta gamma delta epsilon</p>", { maxWords: 3 });
+	it("truncates on the character budget at a word boundary and appends an ellipsis", () => {
+		const preview = htmlToEmailPreview("<p>alpha beta gamma delta epsilon</p>", { maxChars: 12 });
 
-		expect(preview).toEqual(["alpha beta gamma…"]);
+		expect(preview).toEqual(["alpha beta…"]);
 	});
 
-	it("stops before a paragraph once the word budget is exhausted", () => {
-		const preview = htmlToEmailPreview("<p>alpha beta</p><p>gamma delta</p>", { maxWords: 2 });
+	it("stops before a paragraph once the character budget is exhausted", () => {
+		const preview = htmlToEmailPreview("<p>alpha beta</p><p>gamma delta</p>", { maxChars: 10 });
 
 		expect(preview).toEqual(["alpha beta"]);
+	});
+
+	it("caps to a character budget sized like the excerpt by default", () => {
+		const body = `<p>${Array.from({ length: 60 }, (_, i) => `word${i}`).join(" ")}</p>`;
+
+		const [preview] = htmlToEmailPreview(body);
+
+		expect(preview.length).toBeLessThanOrEqual(200);
+		expect(preview.endsWith("…")).toBe(true);
 	});
 
 	it("strips script and style content instead of previewing it", () => {

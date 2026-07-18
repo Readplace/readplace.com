@@ -1,4 +1,6 @@
 import { parseHTML } from "linkedom";
+import { MAX_EXCERPT_LENGTH } from "@packages/provider-contracts/article-summary";
+import { truncateAtWordBoundary } from "../providers/article-summary/article-summary.helpers";
 
 /** Block elements whose text becomes one preview paragraph. Excludes container
  * blocks (`blockquote`, `div`, `article`); when the listed blocks *do* nest
@@ -7,10 +9,15 @@ import { parseHTML } from "linkedom";
 const PARAGRAPH_SELECTOR = "p, li, h1, h2, h3, h4, h5, h6";
 
 const DEFAULT_MAX_PARAGRAPHS = 3;
-const DEFAULT_MAX_WORDS = 80;
+/** Size the preview like the article's own excerpt so the digest teases rather
+ * than reprints the opening: the excerpt's maximum length, plus a buffer that
+ * lets the email run a little longer than a bare excerpt would. */
+const PREVIEW_CHAR_BUFFER = 100;
+const DEFAULT_MAX_CHARS = MAX_EXCERPT_LENGTH + PREVIEW_CHAR_BUFFER;
 
 /** Turn stored reader HTML into a short, plain-text, email-safe preview: the
- * first few block paragraphs, whitespace-collapsed, capped to a word budget.
+ * first few block paragraphs, whitespace-collapsed, capped to a character
+ * budget sized like the article excerpt.
  *
  * Plain text (not HTML) because reader HTML is only ever safe inside the app's
  * sandboxed iframe; an email client has no such sandbox, so the digest embeds
@@ -19,10 +26,10 @@ const DEFAULT_MAX_WORDS = 80;
  * caller renders a card with no body. */
 export function htmlToEmailPreview(
 	html: string,
-	opts?: { maxParagraphs?: number; maxWords?: number },
+	opts?: { maxParagraphs?: number; maxChars?: number },
 ): string[] {
 	const maxParagraphs = opts?.maxParagraphs ?? DEFAULT_MAX_PARAGRAPHS;
-	const maxWords = opts?.maxWords ?? DEFAULT_MAX_WORDS;
+	const maxChars = opts?.maxChars ?? DEFAULT_MAX_CHARS;
 
 	const { document } = parseHTML(`<!DOCTYPE html><html><body>${html}</body></html>`);
 	// Remove non-prose nodes so their text never leaks into the preview.
@@ -44,17 +51,17 @@ export function htmlToEmailPreview(
 		if (paragraphs.length >= maxParagraphs) break;
 	}
 
-	// Cap the running word total, truncating the paragraph the budget runs out on.
-	let remaining = maxWords;
+	// Cap the running character total, truncating the paragraph the budget runs
+	// out on at a word boundary (with an ellipsis).
+	let remaining = maxChars;
 	const capped: string[] = [];
 	for (const paragraph of paragraphs) {
 		if (remaining <= 0) break;
-		const words = paragraph.split(" ");
-		if (words.length <= remaining) {
+		if (paragraph.length <= remaining) {
 			capped.push(paragraph);
-			remaining -= words.length;
+			remaining -= paragraph.length;
 		} else {
-			capped.push(`${words.slice(0, remaining).join(" ")}…`);
+			capped.push(truncateAtWordBoundary(paragraph, remaining));
 			remaining = 0;
 		}
 	}
