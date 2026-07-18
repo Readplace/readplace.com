@@ -257,7 +257,7 @@ Readplace collects only what is necessary to run the service:
 - Saved article URLs
 - Basic server logs
 
-Readplace does NOT use third-party analytics, does NOT sell data, and does NOT read article content. Data is stored in the AWS Sydney region under the Australian Privacy Act. A single session cookie is used — no tracking cookies. Users can export or delete their data at any time from the export page. Full data export is available even after cancellation.
+Readplace does NOT use third-party analytics and does NOT sell data. Article text is sent to the DeepSeek API to generate the TL;DR summary and to clean up the extracted article content. Data is stored in the AWS Sydney region under the Australian Privacy Act. First-party cookies only — a login session, an anonymous visitor id, campaign attribution, and short-lived functional cookies; no third-party or cross-site tracking cookies. Users can export or delete their data at any time from the export page. Full data export is available even after cancellation.
 
 ## Terms
 
