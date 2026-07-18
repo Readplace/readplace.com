@@ -690,14 +690,9 @@ const sendUserDigestLambda = new HutchLambda("send-user-digest", {
 		DYNAMODB_SESSIONS_TABLE: storage.sessionsTable.name,
 		DYNAMODB_READER_READY_NOTIFICATIONS_TABLE: storage.readerReadyNotificationsTable.name,
 		DYNAMODB_DIGEST_QUEUE_TABLE: storage.digestQueueTable.name,
-		CONTENT_BUCKET_NAME: contentBucketName,
 		EVENT_BUS_NAME: eventBus.eventBusName,
 	},
-	policies: [
-		...sendUserDigestDynamodb.policies,
-		// Reads stored reader content (S3) to build the in-email preview.
-		...HutchS3ReadWrite.readPoliciesForBucket("send-user-digest-content", contentBucketName),
-	],
+	policies: [...sendUserDigestDynamodb.policies],
 });
 
 eventBus.grantPublish(sendUserDigestLambda);
