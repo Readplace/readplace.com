@@ -11,7 +11,7 @@ keywords: "read it later iphone app, save articles iphone, ios share sheet, save
 <summary class="blog-tldr__toggle">Summary (TL;DR)</summary>
 <div class="blog-tldr__body">
 
-Readplace now has an iPhone app in beta. It plugs into the iOS share sheet, the same menu you use to send a link to a friend. Open any page in Safari, Chrome, or another browser, tap Share, and pick Readplace. The link saves to your reading queue and renders in the background, so you stay where you are. The app also lists your saved articles, with pull-to-refresh and swipe-to-delete. For a longer reading session, the website on mobile still reads better. The app is on TestFlight, Apple's free app for trying betas, and takes a couple of minutes to set up.
+Readplace now has an iPhone app in beta. It plugs into the iOS share sheet, the same menu you use to send a link to a friend. Open any page in Safari, Chrome, or another browser, tap Share, and pick Readplace. The link saves to your reading queue and renders in the background, so you stay where you are. The app also lists your saved articles, with pull-to-refresh and a swipe that marks an item read or deletes it. Tapping an article opens the clean Readplace reader inside the app. The app is on TestFlight, Apple's free app for trying betas, and takes a couple of minutes to set up.
 
 </div>
 </details>
@@ -36,11 +36,11 @@ This is the part worth testing first. If saving from the share sheet works on yo
 
 ## Browse your queue
 
-The app also shows your saved articles. They appear in order, you pull down to refresh, and you swipe an item left to delete it, so you can see what you have lined up and clear out the ones you no longer want without leaving the app.
+The app also shows your saved articles. They appear in order, you pull down to refresh, and you swipe an item left to mark it read or delete it, so you can see what you have lined up and clear the ones you are done with without leaving the app.
 
-The website on mobile still gives you the better view for a longer read.
+Tap an article and the clean Readplace reader opens in the app, the summary with it.
 
-The app keeps to the two things you do on the move, which are saving fast and glancing at your list.
+The app keeps to the three things you do on the move, which are saving fast, glancing at your list, and reading what you saved.
 
 ## It is a beta, and you can join
 

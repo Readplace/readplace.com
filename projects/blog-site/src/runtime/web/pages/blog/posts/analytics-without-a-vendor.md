@@ -11,12 +11,12 @@ keywords: "privacy analytics, cookieless analytics, IP hashing, read it later pr
 <summary class="blog-tldr__toggle">Summary (TL;DR)</summary>
 <div class="blog-tldr__body">
 
-Readplace counts pageviews without cookies, third-party scripts, or a consent banner. An Express middleware hashes each visitor's IP with a secret salt (SHA-256, truncated to 16 chars) and logs a JSON line to stdout. The same IP yields the same hash, so distinct visitors are countable, and because the hash is one-way it cannot be reversed into an IP. The logs flow to CloudWatch and the dashboard ships as infrastructure-as-code. About 80 lines of TypeScript stand in for an analytics vendor.
+Readplace counts pageviews without an analytics vendor, tracking scripts, or a consent banner. An Express middleware hashes each visitor's IP with a secret salt (SHA-256, truncated to 16 chars) and logs a JSON line to stdout. The same IP yields the same hash, so distinct visitors are countable, and because the hash is one-way it cannot be reversed into an IP. The logs flow to CloudWatch and the dashboard ships as infrastructure-as-code. About 80 lines of TypeScript stand in for an analytics vendor.
 
 </div>
 </details>
 
-I had a Hacker News post climbing the front page and no idea whether it was sending real readers or the same dozen people hitting refresh. Readplace runs without third-party analytics, without cookies, and without a consent banner, which is the privacy story I wanted to keep. It also meant I had nothing to look at while the traffic spiked.
+I had a Hacker News post climbing the front page and no idea whether it was sending real readers or the same dozen people hitting refresh. Readplace ran without third-party analytics, without cookies, and without a consent banner, which is the privacy story I wanted to keep. It also meant I had nothing to look at while the traffic spiked.
 
 So I had a decision to make under a little pressure, and I made the obvious wrong move first.
 

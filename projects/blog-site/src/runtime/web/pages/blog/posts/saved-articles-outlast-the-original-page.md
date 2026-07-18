@@ -1,6 +1,6 @@
 ---
 title: "Read It Later, Even After the Original Page Is Gone"
-description: "Save a link to Readplace and it builds a clean copy on its own servers. The source page can change, hide behind a paywall, or go offline, and your saved article stays readable, with no expiry on the link."
+description: "Save a link to Readplace and it builds a clean copy on its own servers. The source page can change, hide behind a paywall, or go offline, and your saved article stays readable, with no expiry on your copy."
 slug: "saved-articles-outlast-the-original-page"
 date: "2026-06-17"
 author: "Fayner Brack"
@@ -11,7 +11,7 @@ keywords: "read it later no expiry, saved article disappeared, link rot, save a 
 <summary class="blog-tldr__toggle">Summary (TL;DR)</summary>
 <div class="blog-tldr__body">
 
-Save a link to Readplace and it opens the page on its own servers, then stores a clean copy of the text and images. The source can edit the article, drop a paywall in front of it, or go offline, and your saved copy stays readable. Saved links carry no expiry, so an article you keep today opens the same way next month. You read on your own schedule, off your own copy.
+Save a link to Readplace and it opens the page on its own servers, then stores a clean copy of the text and images. The source can edit the article, drop a paywall in front of it, or go offline, and your saved copy stays readable. That copy carries no expiry, so an article you keep today opens the same way next month. You read on your own schedule, off your own copy.
 
 </div>
 </details>
@@ -26,9 +26,9 @@ Whole services vanish too. Pocket shut down on July 8, 2025. Omnivore shut down 
 
 When you save a link, Readplace opens the page on its own servers and builds a clean reader copy. It downloads the images and stores them on its own host, so your reader loads from us and not from the source site. Your saved article does not phone home to the original page every time you open it. It reads off the copy Readplace holds. A source that goes offline next week does not empty your queue.
 
-## The link does not run out
+## Your copy does not run out
 
-Saved links carry no expiry countdown. The article you keep today opens the same way next month, with the same text and pictures. Your queue holds what you put in it, on your timetable, not the source site's.
+Your saved copy carries no expiry countdown. The article you keep today opens the same way next month, with the same text and pictures. Your queue holds what you put in it, on your timetable, not the source site's.
 
 ## When the source updates, so can your copy
 

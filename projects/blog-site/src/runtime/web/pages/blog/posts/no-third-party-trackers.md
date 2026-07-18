@@ -1,6 +1,6 @@
 ---
 title: "How Readplace Measures Its Site Without Third-Party Trackers"
-description: "Readplace runs no Google Analytics, no ad pixels, and no outside scripts. It measures traffic with a salted IP hash and one anonymous first-party cookie that stays on its own servers."
+description: "Readplace runs no Google Analytics, no ad pixels, and no tracking scripts. It measures traffic with a salted IP hash and two anonymous first-party cookies that stay on its own servers."
 slug: "no-third-party-trackers"
 date: "2026-06-04"
 author: "Fayner Brack"
@@ -11,7 +11,7 @@ keywords: "privacy read it later, no third-party trackers, no Google Analytics, 
 <summary class="blog-tldr__toggle">Summary (TL;DR)</summary>
 <div class="blog-tldr__body">
 
-Readplace runs no third-party analytics. No Google Analytics, no ad pixels, no scripts from other companies. It measures traffic two ways. A salted one-way hash of your IP counts visitors in the server logs. One anonymous first-party cookie connects a first visit to a first saved article. Both stay on Readplace's own servers. A read-it-later app holds a private record of what you read, so the measurement matches that promise.
+Readplace runs no third-party analytics. No Google Analytics, no ad pixels, no tracking scripts from other companies. It measures traffic two ways. A salted one-way hash of your IP counts visitors in the server logs. Two anonymous first-party cookies connect a first visit to a first saved article. Both stay on Readplace's own servers. A read-it-later app holds a private record of what you read, so the measurement matches that promise.
 
 </div>
 </details>
@@ -20,7 +20,7 @@ Open the network tab on most apps and you find a crowd. Google Analytics, a few 
 
 Open the same tab on Readplace and the list is short.
 
-The app loads its own code, one login cookie, one measurement cookie, and not much beyond that.
+The app loads its own code, a few open-source assets from public CDNs, one login cookie, two measurement cookies, and not much beyond that.
 
 A read-it-later app sees what you save. Your queue is a record of what you worry about, what you want to learn, and the things you keep to yourself. That list deserves better than an ad network.
 
@@ -36,23 +36,23 @@ The same IP makes the same short string. So I can tell 100 real readers from 3 p
 
 The hash runs one way, which means the logs cannot turn back into an IP, and the secret stays on the server. It counts the visit and forgets who you are.
 
-## One cookie links a first visit to a first save
+## Two cookies link a first visit to a first save
 
 The hash has a limit.
 
 It cannot follow a single person from the homepage to the moment they save their first article, because people share office Wi-Fi and switch from phone to laptop, and the hash blurs those steps together.
 
-So I added one cookie. It holds a random id and nothing else, with no name, no email, and no link to your account until you sign in.
+So I added two cookies. One holds a random id and nothing else, with no name, no email, and no link to your account until you sign in. The other records where you landed and which campaign sent you.
 
-It sets on your device, it reports back only to Readplace, and it shows me the path from first visit to first save.
+They set on your device, they report back only to Readplace, and together they show me the path from first visit to first save.
 
-That cookie is first-party. It does not ride along to other sites, and it does not feed an ad profile anywhere.
+Those cookies are first-party. They do not ride along to other sites, and they do not feed an ad profile anywhere.
 
 ## The short list I hold
 
-Here is the full list of what loads in your browser on a Readplace page: the app's own code, one session cookie to keep you logged in, and one anonymous cookie to measure the funnel.
+Here is the full list of what loads in your browser on a Readplace page: the app's own code, the Inter web font, the Font Awesome icon stylesheet and the htmx library from public CDNs, one session cookie to keep you logged in, two anonymous cookies to measure the funnel, and a few functional cookies that remember things like a banner you dismissed or a save you started before signing in.
 
-The privacy policy says the same thing in plain words, last updated on 3 June 2026.
+The privacy policy says the same thing in plain words.
 
 Plenty of reading apps promise privacy on the marketing page, then load Google Analytics on that same page, so the promise and the code disagree. I would rather the code match the promise, even when nobody is checking.
 

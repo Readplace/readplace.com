@@ -58,7 +58,7 @@ Saving a page sounds like the easy half of a read-it-later tool. In practice it 
 
 Odd content types, edge guards, sites that treat any non-browser client as an attacker. Readplace runs a health check against the sources that have broken before, and each entry on that list traces back to a real reader who hit that exact wall.
 
-When a check goes red I fix the crawler until the page loads again. I do not drop the source to make the alarm stop, because dropping it just moves the failure onto the next reader who saves that kind of link.
+When a check goes red I fix the crawler until the page loads again, rather than dropping the source to make the alarm stop, because dropping it just moves the failure onto the next reader who saves that kind of link. What does take a source off the list is a block the crawler cannot reach from where it runs, like a site that bans the datacenter address itself, because an entry that fails every run drowns out the ones that catch real regressions.
 
 ## Try the link your last app refused
 

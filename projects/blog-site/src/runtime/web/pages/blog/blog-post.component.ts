@@ -27,7 +27,6 @@ export function BlogPostPage(params: { post: BlogPost }): PageBody {
 					headline: post.title,
 					description: post.description,
 					datePublished: post.date,
-					dateModified: post.date,
 					author: {
 						"@type": "Person",
 						name: post.author,

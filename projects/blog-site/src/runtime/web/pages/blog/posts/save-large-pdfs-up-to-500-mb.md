@@ -64,4 +64,4 @@ A read-it-later tool earns its place by holding what you put in it, [longer than
 
 Find the PDF that was too big last time, the report or the scan you routed to email or gave up on. Point [the browser extension](https://readplace.com/install) at it, or drop its link into [readplace.com](/), and it saves on the first try instead of the fifth workaround.
 
-The small file and the 400-page scan take the same two words from you now: save it. What happens under them is different, and that difference is the point. The size of the thing you keep stopped being the size of a web request.
+The small file and the 300-page scan take the same two words from you now: save it. What happens under them is different, and that difference is the point. The size of the thing you keep stopped being the size of a web request.
