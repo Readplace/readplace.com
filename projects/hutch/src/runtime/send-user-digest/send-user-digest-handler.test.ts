@@ -1,3 +1,4 @@
+import { JSDOM } from "jsdom";
 import { buildSqsEvent } from "@packages/test-fixtures/sqs";
 import { buildLambdaContext } from "@packages/test-fixtures/lambda-context";
 import { noopLogger } from "@packages/hutch-logger";
@@ -97,6 +98,15 @@ describe("initSendUserDigestHandler", () => {
 			expect(sent.html).toContain("Alpha");
 			expect(sent.html).toContain("Beta");
 			expect(sent.html).toContain("Short excerpt teaser.");
+			// Titles link to the private reader view; the two CTAs to the unread
+			// queue. Parsed with JSDOM because Handlebars entity-escapes `=`/`&`
+			// inside href attributes, so raw-substring checks would miss them.
+			const hrefs = [...new JSDOM(sent.html).window.document.querySelectorAll("a[href]")].map(
+				(a) => a.getAttribute("href"),
+			);
+			expect(hrefs.filter((href) => href?.endsWith("/view?from=reader-ready-email"))).toHaveLength(2);
+			expect(hrefs.filter((href) => href?.includes("utm_content=top"))).toHaveLength(1);
+			expect(hrefs.filter((href) => href?.includes("utm_content=bottom"))).toHaveLength(1);
 
 			expect(deps.markReaderReadyEmailSent).toHaveBeenCalledWith({ userId: USER_ID, url: URL_A, at: NOW });
 			expect(deps.markReaderReadyEmailSent).toHaveBeenCalledWith({ userId: USER_ID, url: URL_B, at: NOW });

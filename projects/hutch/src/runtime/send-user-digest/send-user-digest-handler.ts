@@ -151,7 +151,10 @@ async function processUserDigest(
 			to: contact.email,
 			bcc: DIGEST_BCC,
 			subject: SUBJECT,
-			html: buildDigestEmailHtml({ items: included.map((i) => i.email) }),
+			html: buildDigestEmailHtml({
+				items: included.map((i) => i.email),
+				queueUrl: `${deps.appOrigin}/queue`,
+			}),
 		});
 	} catch (error) {
 		/* A transient send failure must not burn the user's cooldown slot: release
@@ -213,7 +216,7 @@ async function resolveDigestItem(
 		email: {
 			title: article.metadata.title,
 			siteName: article.metadata.siteName,
-			continueReadingUrl: `${deps.appOrigin}${buildOwnerReaderPath(article.id)}`,
+			readerUrl: `${deps.appOrigin}${buildOwnerReaderPath(article.id)}`,
 			preview: buildDigestPreview(summary),
 		},
 	};
