@@ -10,6 +10,8 @@ import {
 
 import { AppleIdSchema } from "@packages/test-fixtures/providers/apple-auth";
 import type { ExchangeAppleCode } from "@packages/test-fixtures/providers/apple-auth";
+import { ANALYTICS_EVENTS } from "@packages/web-analytics";
+import { MAX_APPLE_STATE_COOKIE_BYTES } from "./apple-state";
 
 const TEST_FOUNDING_MEMBER_LIMIT = 3;
 
@@ -59,6 +61,7 @@ function freshState(overrides?: {
 	attribution?: Record<string, unknown>;
 	visitorId?: string;
 	pendingSaveId?: string;
+	lastViewUrl?: string;
 }) {
 	return {
 		nonce: "test-nonce",
@@ -67,6 +70,7 @@ function freshState(overrides?: {
 		...(overrides?.attribution ? { attribution: overrides.attribution } : {}),
 		...(overrides?.visitorId ? { visitorId: overrides.visitorId } : {}),
 		...(overrides?.pendingSaveId ? { pendingSaveId: overrides.pendingSaveId } : {}),
+		...(overrides?.lastViewUrl ? { lastViewUrl: overrides.lastViewUrl } : {}),
 	};
 }
 
@@ -524,6 +528,126 @@ describe("Apple auth routes", () => {
 
 			const passwordCheck = await auth.verifyCredentials({ email: "unverified@example.com", password: "password123" });
 			expect(passwordCheck.ok).toBe(true);
+		});
+
+		describe("first-article autosave", () => {
+			const ARTICLE_URL = "https://example.com/post";
+			const AUTOSAVE_LOCATION = `/queue?url=${encodeURIComponent(ARTICLE_URL)}&utm_source=signup-autosave`;
+
+			it("tunnels the last-viewed url into the signed state at GET so it survives the cross-site callback", async () => {
+				const fixture = createDefaultTestAppFixture(TEST_APP_ORIGIN);
+				const harness = useApp({ ...fixture, apple: appleWith() });
+
+				const getResponse = await request(harness.server)
+					.get("/auth/apple")
+					.set("Cookie", `hutch_lastview=${encodeURIComponent(ARTICLE_URL)}`);
+
+				expect(getResponse.status).toBe(303);
+				const state = readSetCookie(getResponse, "hutch_astate");
+				assert(state, "GET must set a state cookie carrying the tunneled last-view url");
+				const payload = JSON.parse(state.slice(0, state.lastIndexOf(".")));
+				expect(payload.lastViewUrl).toBe(ARTICLE_URL);
+			});
+
+			it("auto-saves the tunneled article for a new Apple user with no explicit return, and clears the cookie", async () => {
+				const fixture = createDefaultTestAppFixture(TEST_APP_ORIGIN);
+				const harness = useApp({ ...fixture, apple: appleWith(stubExchange({ email: "autosave-apple@example.com" })) });
+				await harness.auth.createUser({ email: "seed1@test.com", password: "password123" });
+				const state = signState(freshState({ lastViewUrl: ARTICLE_URL }));
+
+				const response = await postCallback(harness.server, {
+					state,
+					cookie: `hutch_astate=${encodeURIComponent(state)}`,
+				});
+
+				expect(response.status).toBe(303);
+				expect(response.headers.location).toBe(AUTOSAVE_LOCATION);
+				expect(cookiesFrom(response).join(";")).toContain("hutch_lastview=;");
+
+				const autosaves = harness.analytics.events.filter(
+					(e) => e.event === ANALYTICS_EVENTS.firstArticleAutosaved,
+				);
+				expect(autosaves).toHaveLength(1);
+				expect(autosaves[0]).toMatchObject({
+					event: ANALYTICS_EVENTS.firstArticleAutosaved,
+					article_host: "example.com",
+					user_id: expect.any(String),
+					visitor_hash: expect.any(String),
+				});
+				// No visitor id was tunneled in this state, so the event omits it.
+				expect(autosaves[0]).not.toHaveProperty("visitor_id");
+			}, 30000);
+
+			it("auto-saves through the trial signup branch when the founding allocation is exhausted", async () => {
+				const fixture = createDefaultTestAppFixture(TEST_APP_ORIGIN);
+				const harness = useApp({ ...fixture, apple: appleWith(stubExchange({ email: "autosave-trial-apple@example.com" })) });
+				for (let i = 0; i < TEST_FOUNDING_MEMBER_LIMIT; i++) {
+					await harness.auth.createUser({ email: `seed${i}@test.com`, password: "password123" });
+				}
+				const state = signState(freshState({ lastViewUrl: ARTICLE_URL }));
+
+				const response = await postCallback(harness.server, {
+					state,
+					cookie: `hutch_astate=${encodeURIComponent(state)}`,
+				});
+
+				expect(response.status).toBe(303);
+				expect(response.headers.location).toBe(AUTOSAVE_LOCATION);
+				expect(
+					harness.analytics.events.filter((e) => e.event === ANALYTICS_EVENTS.firstArticleAutosaved),
+				).toHaveLength(1);
+			}, 30000);
+
+			it("does not tunnel a pathologically long last-view url that would overflow the state cookie", async () => {
+				const fixture = createDefaultTestAppFixture(TEST_APP_ORIGIN);
+				const harness = useApp({ ...fixture, apple: appleWith() });
+				const hugeUrl = `https://example.com/${"a".repeat(MAX_APPLE_STATE_COOKIE_BYTES + 200)}`;
+
+				const getResponse = await request(harness.server)
+					.get("/auth/apple")
+					.set("Cookie", `hutch_lastview=${encodeURIComponent(hugeUrl)}`);
+
+				expect(getResponse.status).toBe(303);
+				const state = readSetCookie(getResponse, "hutch_astate");
+				assert(state, "GET must still set a state cookie with the oversized url dropped");
+				const payload = JSON.parse(state.slice(0, state.lastIndexOf(".")));
+				expect(payload.lastViewUrl).toBeUndefined();
+				// The nonce (and the rest of the load-bearing state) survives.
+				expect(payload.nonce).toBeDefined();
+			});
+
+			it("lets an explicit return URL win over the tunneled autosave", async () => {
+				const fixture = createDefaultTestAppFixture(TEST_APP_ORIGIN);
+				const harness = useApp({ ...fixture, apple: appleWith(stubExchange({ email: "autosave-return-apple@example.com" })) });
+				await harness.auth.createUser({ email: "seed1@test.com", password: "password123" });
+				const state = signState(freshState({ lastViewUrl: ARTICLE_URL, returnUrl: "/oauth/authorize?client_id=test" }));
+
+				const response = await postCallback(harness.server, {
+					state,
+					cookie: `hutch_astate=${encodeURIComponent(state)}`,
+				});
+
+				expect(response.status).toBe(303);
+				expect(response.headers.location).toBe("/oauth/authorize?client_id=test");
+				expect(
+					harness.analytics.events.filter((e) => e.event === ANALYTICS_EVENTS.firstArticleAutosaved),
+				).toHaveLength(0);
+			}, 30000);
+
+			it("redirects to a plain /queue when the state carries no last-view url", async () => {
+				const fixture = createDefaultTestAppFixture(TEST_APP_ORIGIN);
+				const harness = useApp({ ...fixture, apple: appleWith(stubExchange({ email: "autosave-plain-apple@example.com" })) });
+				await harness.auth.createUser({ email: "seed1@test.com", password: "password123" });
+				const state = signState(freshState());
+
+				const response = await postCallback(harness.server, {
+					state,
+					cookie: `hutch_astate=${encodeURIComponent(state)}`,
+				});
+
+				expect(response.status).toBe(303);
+				expect(response.headers.location).toBe("/queue");
+			}, 30000);
 		});
 
 		it("tunnels attribution, visitor id, and pending-save id captured at GET through the cross-site callback", async () => {

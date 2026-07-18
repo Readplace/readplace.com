@@ -757,6 +757,24 @@ export function buildAnalyticsDashboardBody(deps: BuildAnalyticsDashboardDeps): 
 		}),
 	);
 
+	// --- First-article autosave (activation) ---
+
+	widgets.push(
+		logWidget({
+			region,
+			title: "First-article autosaves per day",
+			logGroupNames: analyticsSource,
+			query: [
+				"fields @timestamp, user_id, visitor_id",
+				`| filter stream = "${STREAMS.analytics}" and event = "${ANALYTICS_EVENTS.firstArticleAutosaved}"`,
+				...exclude,
+				"| stats count(*) as autosaves by bin(1d)",
+			].join(" "),
+			x: 0, y: 154, width: 12, height: 8,
+			view: "timeSeries",
+		}),
+	);
+
 	return { widgets };
 }
 

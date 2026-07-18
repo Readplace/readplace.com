@@ -76,9 +76,19 @@ function collectReferencedEvents(): Set<string> {
 }
 
 describe("buildAnalyticsDashboardBody — drift prevention", () => {
-	it("emits 34 widgets (7 traffic+audience, 3 conversions, 3 imports+medium, 3 subscriptions, 2 view-funnel, 1 internal-clicks, 4 save-funnel, 1 summary-engagement, 2 audience-device, 1 errors, 1 homepage-ab, 1 blog-traffic, 2 signup-form, 2 checkout-funnel, 1 paid-conversions) — adding or dropping one without updating this count is a deliberate signal to review the dashboard's scope", () => {
+	it("emits 35 widgets (7 traffic+audience, 3 conversions, 3 imports+medium, 3 subscriptions, 2 view-funnel, 1 internal-clicks, 4 save-funnel, 1 summary-engagement, 2 audience-device, 1 errors, 1 homepage-ab, 1 blog-traffic, 2 signup-form, 2 checkout-funnel, 1 paid-conversions, 1 first-article-autosave) — adding or dropping one without updating this count is a deliberate signal to review the dashboard's scope", () => {
 		const body = buildBody();
-		expect(body.widgets).toHaveLength(34);
+		expect(body.widgets).toHaveLength(35);
+	});
+
+	it("the first-article-autosave widget counts the discrete first_article_autosaved event per day — a 1:1 activation signal independent of the utm_source marker — excluding internal visitors, whose single test signup would skew a day at this event's volume", () => {
+		const queries = widgetQueries();
+		const autosave = queries.find((q) => q.includes(`event = "${ANALYTICS_EVENTS.firstArticleAutosaved}"`));
+		expect(autosave).toBeDefined();
+		expect(autosave?.startsWith(`SOURCE '${ANALYTICS_LOG_GROUP}' | `)).toBe(true);
+		expect(autosave).toContain(`stream = "${STREAMS.analytics}"`);
+		expect(autosave).toContain("visitor_hash not in");
+		expect(autosave).toContain("stats count(*) as autosaves by bin(1d)");
 	});
 
 	it("the homepage A/B widget compares arms by distinct visitors (assignment is sticky per browser, so raw counts pile a returning visitor's landings onto one arm) with raw landings alongside, grouped by variant (utm_content)", () => {

@@ -55,8 +55,10 @@ function ctaAction(doc: Document): Element {
 }
 
 const useApp = useTestServer();
+const CANONICAL_OF_ALIAS = "https://example.com/canonical-post";
+const useAppWithAliasFold = useTestServer({ resolveCanonicalIdentity: async () => CANONICAL_OF_ALIAS });
 
-function buildReaderHarness() {
+function buildReaderHarness(mountApp: typeof useApp = useApp) {
 	const parseArticle: ParseArticle = async () => buildParseResult();
 	const fixture = createDefaultTestAppFixture(TEST_APP_ORIGIN);
 	const applyParseResult = createFakeApplyParseResult({
@@ -64,7 +66,7 @@ function buildReaderHarness() {
 		articleCrawl: fixture.articleCrawl,
 		parseArticle,
 	});
-	return useApp({
+	return mountApp({
 		...fixture,
 		parser: { parseArticle, crawlArticle: fixture.parser.crawlArticle },
 		events: {
@@ -763,6 +765,74 @@ describe("View routes", () => {
 			expect(response.status).toBe(200);
 			const events = harness.analytics.events.filter((e) => e.event === "view_opened");
 			assert.equal(events.length, 0, "no view_opened for a bot");
+		});
+	});
+
+	describe("hutch_lastview cookie for first-article autosave", () => {
+		function lastViewCookie(response: request.Response): string | undefined {
+			const setCookie = response.headers["set-cookie"];
+			const cookies = Array.isArray(setCookie) ? setCookie : [];
+			return cookies.find((c) => c.startsWith("hutch_lastview="));
+		}
+
+		it("sets hutch_lastview to the article url on an anonymous, non-bot open", async () => {
+			const harness = buildReaderHarness();
+
+			const response = await request(harness.server).get(`/view/${CANONICAL_PATH}`);
+
+			expect(response.status).toBe(200);
+			const cookie = lastViewCookie(response);
+			assert(cookie, "an anonymous open must set hutch_lastview");
+			expect(decodeURIComponent(cookie.slice("hutch_lastview=".length).split(";")[0])).toBe(ARTICLE_URL);
+			expect(cookie).toContain("HttpOnly");
+			expect(cookie).toContain("SameSite=Lax");
+			expect(cookie).toContain("Max-Age=7200");
+			expect(cookie).toContain("Path=/");
+		});
+
+		it("does not set hutch_lastview when an authenticated viewer opens the reader", async () => {
+			const harness = buildReaderHarness();
+			await harness.auth.createUser({ email: "reader2@example.com", password: "password123" });
+			const agent = request.agent(harness.server);
+			await agent.post("/login").type("form").send({ email: "reader2@example.com", password: "password123" });
+
+			const response = await agent.get(`/view/${CANONICAL_PATH}`);
+
+			expect(response.status).toBe(200);
+			expect(lastViewCookie(response)).toBeUndefined();
+		});
+
+		it("does not set hutch_lastview for a bot user-agent (behind the same gate as view_opened)", async () => {
+			const harness = buildReaderHarness();
+
+			const response = await request(harness.server)
+				.get(`/view/${CANONICAL_PATH}`)
+				.set("User-Agent", GOOGLEBOT);
+
+			expect(response.status).toBe(200);
+			expect(lastViewCookie(response)).toBeUndefined();
+		});
+
+		it("stores the canonical article identity, not the alias the visitor typed — the autosave must land on the same deduped article the reader was shown", async () => {
+			const harness = buildReaderHarness(useAppWithAliasFold);
+
+			const response = await request(harness.server).get(`/view/${CANONICAL_PATH}`);
+
+			expect(response.status).toBe(200);
+			const cookie = lastViewCookie(response);
+			assert(cookie, "an anonymous open must set hutch_lastview");
+			expect(decodeURIComponent(cookie.slice("hutch_lastview=".length).split(";")[0])).toBe(CANONICAL_OF_ALIAS);
+		});
+
+		it("does not set hutch_lastview for a Sec-Purpose: prefetch request — a speculative fetch is not the reader choosing this article, so it must not claim the autosave slot", async () => {
+			const harness = buildReaderHarness();
+
+			const response = await request(harness.server)
+				.get(`/view/${CANONICAL_PATH}`)
+				.set("Sec-Purpose", "prefetch");
+
+			expect(response.status).toBe(200);
+			expect(lastViewCookie(response)).toBeUndefined();
 		});
 	});
 

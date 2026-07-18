@@ -15,6 +15,7 @@ import { AppleTokenResponse } from "../../providers/apple-auth/apple-token";
 import { DISPOSABLE_EMAIL_MESSAGE } from "./disposable-email";
 import { SIGNUP_MIN_SUBMIT_MS } from "./validate-signup";
 import { SESSION_COOKIE_NAME, SESSION_TTL_SECONDS } from "@packages/web-session";
+import { ANALYTICS_EVENTS } from "@packages/web-analytics";
 
 const TEST_FOUNDING_MEMBER_LIMIT = 3;
 
@@ -1126,6 +1127,133 @@ describe("Auth routes", () => {
 		});
 	});
 
+	describe("POST /signup — first-article autosave", () => {
+		const ARTICLE_URL = "https://example.com/post";
+		const VIEW_PATH = "/view/example.com/post";
+		const AUTOSAVE_LOCATION = `/queue?url=${encodeURIComponent(ARTICLE_URL)}&utm_source=signup-autosave`;
+
+		function lastViewSetCookie(response: request.Response): string | undefined {
+			const setCookie = response.headers["set-cookie"];
+			const cookies = Array.isArray(setCookie) ? setCookie : [];
+			return cookies.find((c) => c.startsWith("hutch_lastview="));
+		}
+
+		it("redirects a free signup to auto-save the article the visitor just viewed, and clears the cookie", async () => {
+			const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
+			const agent = request.agent(harness.server);
+			await agent.get(VIEW_PATH);
+
+			const response = await agent.post("/signup").type("form").send({
+				email: "autosave-free@example.com",
+				password: "password123",
+				confirmPassword: "password123",
+				loadedAt: freshLoadedAt(),
+			});
+
+			expect(response.status).toBe(303);
+			expect(response.headers.location).toBe(AUTOSAVE_LOCATION);
+			const cleared = lastViewSetCookie(response);
+			assert(cleared, "signup must clear hutch_lastview after consuming it");
+			expect(cleared.startsWith("hutch_lastview=;")).toBe(true);
+		}, 30000);
+
+		it("emits a single discrete first_article_autosaved event carrying the new user and article host", async () => {
+			const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
+			const agent = request.agent(harness.server);
+			await agent.get(VIEW_PATH);
+
+			await agent.post("/signup").type("form").send({
+				email: "autosave-event@example.com",
+				password: "password123",
+				confirmPassword: "password123",
+				loadedAt: freshLoadedAt(),
+			});
+
+			const autosaves = harness.analytics.events.filter(
+				(e) => e.event === ANALYTICS_EVENTS.firstArticleAutosaved,
+			);
+			expect(autosaves).toHaveLength(1);
+			expect(autosaves[0]).toMatchObject({
+				stream: "analytics",
+				event: ANALYTICS_EVENTS.firstArticleAutosaved,
+				article_host: "example.com",
+				user_id: expect.any(String),
+				visitor_hash: expect.any(String),
+				visitor_id: expect.any(String),
+			});
+		}, 30000);
+
+		it("lets an explicit ?return= win over the autosave even when the cookie is present", async () => {
+			const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
+			const agent = request.agent(harness.server);
+			await agent.get(VIEW_PATH);
+
+			const response = await agent.post("/signup?return=%2Foauth%2Fauthorize").type("form").send({
+				email: "autosave-return@example.com",
+				password: "password123",
+				confirmPassword: "password123",
+				loadedAt: freshLoadedAt(),
+			});
+
+			expect(response.status).toBe(303);
+			expect(response.headers.location).toBe("/oauth/authorize");
+			expect(
+				harness.analytics.events.filter((e) => e.event === ANALYTICS_EVENTS.firstArticleAutosaved),
+			).toHaveLength(0);
+		}, 30000);
+
+		it("redirects a free signup to a plain /queue when no hutch_lastview cookie is present", async () => {
+			const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
+
+			const response = await request(harness.server).post("/signup").type("form").send({
+				email: "autosave-none@example.com",
+				password: "password123",
+				confirmPassword: "password123",
+				loadedAt: freshLoadedAt(),
+			});
+
+			expect(response.status).toBe(303);
+			expect(response.headers.location).toBe("/queue");
+		}, 30000);
+
+		it("ignores a tampered hutch_lastview cookie and redirects to a plain /queue", async () => {
+			const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
+
+			const response = await request(harness.server)
+				.post("/signup")
+				.type("form")
+				.set("Cookie", "hutch_lastview=not-a-url")
+				.send({
+					email: "autosave-tampered@example.com",
+					password: "password123",
+					confirmPassword: "password123",
+					loadedAt: freshLoadedAt(),
+				});
+
+			expect(response.status).toBe(303);
+			expect(response.headers.location).toBe("/queue");
+		}, 30000);
+
+		it("auto-saves through the trial signup branch when the founding allocation is exhausted", async () => {
+			const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
+			for (let i = 0; i < TEST_FOUNDING_MEMBER_LIMIT; i++) {
+				await harness.auth.createUser({ email: `seed${i}@test.com`, password: "password123" });
+			}
+			const agent = request.agent(harness.server);
+			await agent.get(VIEW_PATH);
+
+			const response = await agent.post("/signup").type("form").send({
+				email: "autosave-trial@example.com",
+				password: "password123",
+				confirmPassword: "password123",
+				loadedAt: freshLoadedAt(),
+			});
+
+			expect(response.status).toBe(303);
+			expect(response.headers.location).toBe(AUTOSAVE_LOCATION);
+		}, 30000);
+	});
+
 	describe("POST /signup — bot defense", () => {
 		it("returns a fake-success 303 to /?signup=pending and logs a 'honeypot' rejection when the hidden website field is filled", async () => {
 			const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
@@ -1482,6 +1610,12 @@ describe("Auth routes", () => {
 
 			expect(response.status).toBe(303);
 			expect(response.headers.location).toBe("/");
+			const setCookie = response.headers["set-cookie"];
+			const cookies = Array.isArray(setCookie) ? setCookie : [];
+			assert(
+				cookies.some((c) => c.startsWith("hutch_lastview=;")),
+				"logout must clear hutch_lastview so it cannot auto-save onto a later signup",
+			);
 		});
 
 		it("should handle logout when no session cookie exists", async () => {

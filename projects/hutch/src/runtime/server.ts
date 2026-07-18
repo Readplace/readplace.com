@@ -942,6 +942,8 @@ export function createApp(dependencies: AppDependencies): Express {
 			logError: deps.logError,
 			now: deps.now,
 			conversionLogger: deps.conversionLogger,
+			analytics: deps.analytics,
+			salt: deps.salt,
 			foundingAllocation,
 		});
 		app.use(googleAuthRouter);
@@ -967,6 +969,8 @@ export function createApp(dependencies: AppDependencies): Express {
 		logError: deps.logError,
 		now: deps.now,
 		conversionLogger: deps.conversionLogger,
+		analytics: deps.analytics,
+		salt: deps.salt,
 		foundingAllocation,
 	});
 	app.use(appleAuthRouter);
@@ -1082,6 +1086,7 @@ export function createApp(dependencies: AppDependencies): Express {
 	const viewRouter = initViewRoutes({
 		validateSaveableUrl: deps.validateSaveableUrl,
 		appOrigin,
+		secureCookies,
 		findArticleByUrl: deps.findArticleByUrl,
 		findArticleFreshness: deps.findArticleFreshness,
 		findArticleCrawlVersions: deps.findArticleCrawlVersions,

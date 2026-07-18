@@ -42,6 +42,7 @@ import { Base } from "../../base.component";
 import type { BuildBannerState } from "../../banner-state";
 
 import { extensionInstallUrlIfMissing, isExtensionInstalled } from "../../onboarding/extension-install";
+import { setLastViewUrl } from "../../last-view";
 import { initArticleReader } from "../../shared/article-reader/article-reader";
 import type {
 	ArticleReaderDeps,
@@ -59,6 +60,7 @@ import { ViewPage, formatViewDocumentTitle, type ViewAction } from "./view.compo
 interface ViewDependencies {
 	validateSaveableUrl: ValidateSaveableUrl;
 	appOrigin: string;
+	secureCookies: boolean;
 	findArticleByUrl: FindArticleByUrl;
 	findArticleFreshness: FindArticleFreshness;
 	findArticleCrawlVersions: FindArticleCrawlVersions;
@@ -255,6 +257,9 @@ function handleViewArticle(deps: ViewDependencies, reader: ReturnType<typeof ini
 				visitor_id: req.visitorId,
 				is_authenticated: req.userId ? 1 : 0,
 			});
+			if (req.userId === undefined && !isPrefetchOrBot(req)) {
+				setLastViewUrl({ res, secure: deps.secureCookies }, articleUrl);
+			}
 		}
 
 		const utmParams = collectUtmParams(req.query);
