@@ -104,9 +104,16 @@ describe("initSendUserDigestHandler", () => {
 			const hrefs = [...new JSDOM(sent.html).window.document.querySelectorAll("a[href]")].map(
 				(a) => a.getAttribute("href"),
 			);
-			expect(hrefs.filter((href) => href?.endsWith("/view?from=reader-ready-email"))).toHaveLength(2);
+			const readerHrefs = new Set(
+				hrefs.filter((href) => href?.endsWith("/view?from=reader-ready-email")),
+			);
+			expect(readerHrefs.size).toBe(2); // one private reader permalink per article
 			expect(hrefs.filter((href) => href?.includes("utm_content=top"))).toHaveLength(1);
 			expect(hrefs.filter((href) => href?.includes("utm_content=bottom"))).toHaveLength(1);
+			// Nothing in the digest may link off to the article's original site.
+			for (const href of hrefs) {
+				expect(new URL(href ?? "").origin).toBe("https://readplace.com");
+			}
 
 			expect(deps.markReaderReadyEmailSent).toHaveBeenCalledWith({ userId: USER_ID, url: URL_A, at: NOW });
 			expect(deps.markReaderReadyEmailSent).toHaveBeenCalledWith({ userId: USER_ID, url: URL_B, at: NOW });

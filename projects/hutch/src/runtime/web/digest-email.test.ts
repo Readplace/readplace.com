@@ -2,38 +2,67 @@ import { JSDOM } from "jsdom";
 import { buildDigestEmailHtml, type DigestEmailItem } from "./digest-email";
 
 const QUEUE_URL = "https://readplace.com/queue";
+const READER_URL = "https://readplace.com/queue/abc123/view?from=reader-ready-email";
 
 const item = (overrides: Partial<DigestEmailItem> = {}): DigestEmailItem => ({
 	title: "Distributed systems",
 	siteName: "example.com",
-	readerUrl: "https://readplace.com/queue/abc123/view?from=reader-ready-email",
+	readerUrl: READER_URL,
 	preview: "A tidy teaser.",
 	...overrides,
 });
 
 const build = (items: DigestEmailItem[]) => buildDigestEmailHtml({ items, queueUrl: QUEUE_URL });
 
+const anchorsOf = (html: string) => [...new JSDOM(html).window.document.querySelectorAll("a[href]")];
+const ctasOf = (html: string) =>
+	anchorsOf(html).filter((a) => a.textContent?.trim() === "Continue reading");
+
 describe("buildDigestEmailHtml", () => {
-	it("links each title to its own private reader permalink", () => {
+	it("links a card's title, site name and preview to that article's private reader view", () => {
+		const html = build([item({ readerUrl: READER_URL })]);
+
+		const nonCta = anchorsOf(html).filter((a) => a.textContent?.trim() !== "Continue reading");
+		expect(nonCta.map((a) => a.textContent?.trim())).toEqual([
+			"Distributed systems",
+			"example.com",
+			"A tidy teaser.",
+		]);
+		expect(nonCta.every((a) => a.getAttribute("href") === READER_URL)).toBe(true);
+	});
+
+	it("gives each card its own reader permalink", () => {
 		const html = build([
 			item({ title: "One", readerUrl: "https://readplace.com/queue/a/view?from=reader-ready-email" }),
 			item({ title: "Two", readerUrl: "https://readplace.com/queue/b/view?from=reader-ready-email" }),
 		]);
 
-		const doc = new JSDOM(html).window.document;
-		const titleLinks = [...doc.querySelectorAll("a[href*='/view']")];
+		const titleLinks = anchorsOf(html).filter((a) => ["One", "Two"].includes(a.textContent?.trim() ?? ""));
 		expect(titleLinks.map((a) => a.getAttribute("href"))).toEqual([
 			"https://readplace.com/queue/a/view?from=reader-ready-email",
 			"https://readplace.com/queue/b/view?from=reader-ready-email",
 		]);
-		expect(titleLinks.map((a) => a.textContent)).toEqual(["One", "Two"]);
+	});
+
+	/* Mail clients turn a bare domain in plain text into a link to that domain.
+	 * Every such string must therefore already sit inside an anchor we control. */
+	it("never offers a link to the article's original site, even when the site name and preview name domains", () => {
+		const html = build([
+			item({ siteName: "engineering.linkedin.com", preview: "Also covered on dataintensive.net today." }),
+		]);
+
+		const doc = new JSDOM(html).window.document;
+		for (const a of doc.querySelectorAll("a[href]")) {
+			expect(new URL(a.getAttribute("href") ?? "").origin).toBe("https://readplace.com");
+		}
+		for (const domainText of ["engineering.linkedin.com", "Also covered on dataintensive.net today."]) {
+			const holder = [...doc.querySelectorAll("a")].find((a) => a.textContent?.trim() === domainText);
+			expect(holder?.getAttribute("href")).toBe(READER_URL);
+		}
 	});
 
 	it("renders exactly two continue-reading CTAs pointing at the unread queue, tagged top and bottom", () => {
-		const html = build([item(), item({ title: "Second" })]);
-
-		const doc = new JSDOM(html).window.document;
-		const ctas = [...doc.querySelectorAll("a")].filter((a) => a.textContent?.trim() === "Continue reading");
+		const ctas = ctasOf(build([item(), item({ title: "Second" })]));
 		expect(ctas).toHaveLength(2);
 
 		const [top, bottom] = ctas.map((a) => new URL(a.getAttribute("href") ?? ""));
@@ -46,28 +75,23 @@ describe("buildDigestEmailHtml", () => {
 		expect(bottom.searchParams.get("utm_content")).toBe("bottom");
 	});
 
-	it("places the top CTA before the first article and the bottom CTA after the last", () => {
-		const html = build([item({ title: "Only card" })]);
+	it("places the top CTA before the first card and the bottom CTA after the last", () => {
+		const anchors = anchorsOf(build([item({ title: "Only card" })]));
 
-		const anchors = [...new JSDOM(html).window.document.querySelectorAll("a")];
-		expect(anchors).toHaveLength(3);
 		expect(anchors[0].textContent?.trim()).toBe("Continue reading");
 		expect(anchors[1].textContent).toBe("Only card");
-		expect(anchors[2].textContent?.trim()).toBe("Continue reading");
+		expect(anchors[anchors.length - 1].textContent?.trim()).toBe("Continue reading");
 	});
 
 	it("renders the preview teaser for an item", () => {
-		const html = build([item({ preview: "Alpha body teaser." })]);
-
-		expect(html).toContain("Alpha body teaser.");
+		expect(build([item({ preview: "Alpha body teaser." })])).toContain("Alpha body teaser.");
 	});
 
 	it("renders a card with no body when an item has no preview", () => {
 		const html = build([item({ title: "No content", preview: "" })]);
 
-		const doc = new JSDOM(html).window.document;
-		// Two queue CTAs plus the linked title — and no preview paragraph.
-		expect(doc.querySelectorAll("a[href]")).toHaveLength(3);
+		// Two queue CTAs plus the title and site-name links — no preview link.
+		expect(anchorsOf(html)).toHaveLength(4);
 		expect(html).toContain("No content");
 	});
 
