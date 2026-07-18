@@ -24,7 +24,12 @@ function renderViewPanel(vm: InboxEmailDetailViewModel): string {
 	return render(INBOX_EMAIL_VIEW_PANEL_TEMPLATE, {
 		canRenderBody: vm.canRenderBody,
 		unavailableMessage: vm.unavailableMessage,
-		viewSrcdoc: vm.canRenderBody ? buildInboxEmailIframeSrcdoc({ bodyHtml: vm.bodyHtml }) : "",
+		viewSrcdoc: vm.canRenderBody
+			? buildInboxEmailIframeSrcdoc({
+					bodyHtml: vm.bodyHtml,
+					imagesCdnBaseUrl: vm.imagesCdnBaseUrl,
+				})
+			: "",
 	});
 }
 

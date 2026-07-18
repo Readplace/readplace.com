@@ -49,14 +49,15 @@ const COLOUR = [
  * two-layer defence; the sandboxed iframe is Layer 2). Runs before the body is
  * written to S3 so storage only ever holds safe HTML.
  *
- * Remote images are blocked: an `<img>` whose `src` is not one of the inline
- * images we rehosted has its `src` stripped, so tracking-pixel beacons can never
- * fire. `rehostedImages` maps each parser-local image URL (`email://cid/<id>`,
- * produced by the email preparser) to a `data:` URI carrying the inline image's
- * bytes; those — and only those — survive with a rewritten `src`. Inlining as
- * `data:` (rather than a cross-origin CDN URL) is what lets the images render
- * inside the View tab's sandboxed, opaque-origin iframe under its
- * `img-src 'self' data:` CSP.
+ * Remote images are blocked unless rehosted: an `<img>` whose `src` is not a
+ * `rehostedImages` key has its `src` stripped, so a tracking-pixel beacon can
+ * never fire from the reader's browser. `rehostedImages` maps each parser-local
+ * cid URL (`email://cid/<id>`, produced by the email preparser) to a `data:`
+ * URI carrying the inline image's bytes, and each remote image URL the receive
+ * path downloaded at ingest to its copy on our CDN; those — and only those —
+ * survive with a rewritten `src`. Both shapes render inside the View tab's
+ * sandboxed, opaque-origin iframe because its CSP allows exactly `data:` plus
+ * our CDN origin.
  */
 export function sanitizeEmailHtml(input: {
 	html: string;
@@ -74,10 +75,11 @@ export function sanitizeEmailHtml(input: {
 		// Drops javascript:/vbscript:/data: hrefs on links — only these three
 		// survive for `a`.
 		allowedSchemes: ["http", "https", "mailto"],
-		// Images may carry only the `data:` URIs we rehosted inline; every remote
-		// (http/https) src has already been stripped by the transform below, so no
-		// network image fetch — tracking beacon or otherwise — can ever fire.
-		allowedSchemesByTag: { img: ["data"] },
+		// Images may carry only the `data:` URIs we inlined or the https CDN URLs
+		// we rehosted; this filter runs AFTER the transform below has stripped
+		// every src that isn't a `rehostedImages` value, so no sender-controlled
+		// URL — tracking beacon or otherwise — can reach the reader's browser.
+		allowedSchemesByTag: { img: ["data", "https"] },
 		disallowedTagsMode: "discard",
 		// Remove the CONTENT of these, not just the tags, closing the historical
 		// `<xmp>` raw-text bypass (CVE-2026-44990) and inert-script leakage.

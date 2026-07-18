@@ -73,6 +73,7 @@ function makeHarness(opts?: {
 	const published: { ordinal: EmailLinkOrdinal; url: string }[] = [];
 	const alerts: { found: number }[] = [];
 	const triageCalls: Parameters<TriageEmailLinks>[0][] = [];
+	const deriveInputs: { rehostedRemoteImages: Record<string, string> }[] = [];
 
 	const everythingIsAnArticle: TriageEmailLinks = async (input) => {
 		triageCalls.push(input);
@@ -86,7 +87,10 @@ function makeHarness(opts?: {
 		getEmail: opts?.getEmail ?? (async () => makeEmail()),
 		readRawEmail: opts?.readRawEmail ?? (async () => Buffer.from("raw eml")),
 		parseEmail: opts?.parseEmail ?? (async () => parsedOk("<p>body</p>")),
-		deriveSanitizedBody: () => opts?.derivedHtml ?? "",
+		deriveSanitizedBody: (input) => {
+			deriveInputs.push({ rehostedRemoteImages: input.rehostedRemoteImages });
+			return opts?.derivedHtml ?? "";
+		},
 		putLink: linkStore.putLink,
 		getLink: linkStore.getLink,
 		putLinksMeta: linkStore.putLinksMeta,
@@ -104,7 +108,7 @@ function makeHarness(opts?: {
 	const run = (body: string) =>
 		handler(buildSqsEvent([{ messageId: "rec-1", body }]), buildLambdaContext(), () => {});
 
-	return { linkStore, published, alerts, triageCalls, run };
+	return { linkStore, published, alerts, triageCalls, deriveInputs, run };
 }
 
 describe("initExtractEmailLinksHandler", () => {
@@ -135,6 +139,10 @@ describe("initExtractEmailLinksHandler", () => {
 			{ ordinal: "0002", url: "https://c.test/z" },
 		]);
 		expect(harness.alerts).toHaveLength(0);
+		// Extraction must derive with NO remote-image rehost map: CDN image URLs
+		// in its body would be extracted as phantom article links, and building
+		// the map would re-download every image on every run.
+		expect(harness.deriveInputs).toEqual([{ rehostedRemoteImages: {} }]);
 	});
 
 	it("writes a List-Unsubscribe match as a terminal skipped row and does not fan it out", async () => {

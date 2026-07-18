@@ -201,6 +201,7 @@ describe("initInMemoryInboxEmail", () => {
 				receivedAtMessageIds: [],
 				rawEmailS3Keys: [],
 				bodyS3Keys: [],
+				emailImageS3KeyPrefixes: [],
 			});
 		});
 	});

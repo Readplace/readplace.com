@@ -13,6 +13,7 @@ import {
 	InboxEmailStatusSchema,
 	type InboxEmailStore,
 	MessageIdSchema,
+	emailImageS3KeyPrefix,
 } from "@packages/domain/inbox";
 import { UserIdSchema } from "@packages/domain/user";
 
@@ -109,6 +110,7 @@ export function initDynamoDbInboxEmail(deps: {
 			const receivedAtMessageIds: string[] = [];
 			const rawEmailS3Keys: string[] = [];
 			const bodyS3Keys: string[] = [];
+			const emailImageS3KeyPrefixes: string[] = [];
 			await forEachQueryPage(
 				table,
 				{
@@ -120,10 +122,20 @@ export function initDynamoDbInboxEmail(deps: {
 						receivedAtMessageIds.push(row.receivedAtMessageId);
 						rawEmailS3Keys.push(row.rawEmailS3Key);
 						if (row.bodyS3Key !== undefined) bodyS3Keys.push(row.bodyS3Key);
+						// Every row, not just bodied ones: a crash between the image
+						// uploads and the body write may leave images under a prefix whose
+						// row never gained a bodyS3Key, and listing an empty prefix is
+						// cheaper than orphaning PII.
+						emailImageS3KeyPrefixes.push(
+							emailImageS3KeyPrefix({
+								userId,
+								receivedAtMessageId: row.receivedAtMessageId,
+							}),
+						);
 					}
 				},
 			);
-			return { receivedAtMessageIds, rawEmailS3Keys, bodyS3Keys };
+			return { receivedAtMessageIds, rawEmailS3Keys, bodyS3Keys, emailImageS3KeyPrefixes };
 		},
 		deleteAllEmailsByUserId: async (userId) => {
 			await forEachQueryPage(

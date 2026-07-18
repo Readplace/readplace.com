@@ -6,6 +6,7 @@ import {
 	EmailLinkOrdinalSchema,
 	InboxAddressSchema,
 	MessageIdSchema,
+	emailImageS3KeyPrefix,
 } from "@packages/domain/inbox";
 import { UserIdSchema, type UserId } from "@packages/domain/user";
 import { HutchLogger, noopLogger } from "@packages/hutch-logger";
@@ -70,6 +71,7 @@ function buildSubject() {
 	const chargeReminderCalls: UserId[] = [];
 	const rawEmailDeleteArgs: string[][] = [];
 	const bodyEmailDeleteArgs: string[][] = [];
+	const emailImageDeleteArgs: string[][] = [];
 	const deleteExportsCalls: UserId[] = [];
 	const passwordResetCalls: string[] = [];
 	const verificationTokenDeleteCalls: UserId[] = [];
@@ -151,6 +153,9 @@ function buildSubject() {
 		deleteEmailContentObjects: async (keys: string[]) => {
 			bodyEmailDeleteArgs.push(keys);
 		},
+		deleteEmailImageObjects: async (prefixes: string[]) => {
+			emailImageDeleteArgs.push(prefixes);
+		},
 		deleteAllUserArticles: async (userId: UserId) => {
 			if (articleDeleteThrowIds.has(userId)) {
 				throw new Error("simulated deleteAllUserArticles failure");
@@ -217,6 +222,7 @@ function buildSubject() {
 		chargeReminderCalls,
 		rawEmailDeleteArgs,
 		bodyEmailDeleteArgs,
+		emailImageDeleteArgs,
 		deleteExportsCalls,
 		passwordResetCalls,
 		verificationTokenDeleteCalls,
@@ -450,6 +456,16 @@ describe("delete-account handler", () => {
 		assert.deepEqual(sorted(s.rawEmailDeleteArgs[0]), sorted(victim.rawKeys));
 		assert.equal(s.bodyEmailDeleteArgs.length, 1);
 		assert.deepEqual(sorted(s.bodyEmailDeleteArgs[0]), sorted(victim.bodyKeys));
+		// Rehosted-image prefixes are recomputed from the rows (bodied or not) and
+		// swept, so no image object outlives the account.
+		assert.equal(s.emailImageDeleteArgs.length, 1);
+		assert.deepEqual(
+			sorted(s.emailImageDeleteArgs[0]),
+			sorted([
+				emailImageS3KeyPrefix({ userId: victim.userId, receivedAtMessageId: victim.ramA }),
+				emailImageS3KeyPrefix({ userId: victim.userId, receivedAtMessageId: victim.ramB }),
+			]),
+		);
 
 		// Password-reset tokens purged by the email captured before deletion.
 		assert.deepEqual(s.passwordResetCalls, [victim.email]);

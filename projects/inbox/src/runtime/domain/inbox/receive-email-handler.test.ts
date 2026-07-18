@@ -56,12 +56,17 @@ function makeHarness(opts?: {
 	const emailStore = initInMemoryInboxEmail();
 	const rawMap = new Map<string, Buffer>();
 	const published: { detail: { receivedAtMessageId: string; userId: string } }[] = [];
+	const imageDownloadCalls: { html: string }[] = [];
 
 	const handler = initReceiveEmailHandler({
 		readRawEmail: async (key) => rawMap.get(key),
 		findByAddress: addressStore.findByAddress,
 		putEmail: emailStore.putEmail,
 		parseEmail: opts?.parseEmail ?? (async () => parsedOk()),
+		downloadEmailImages: async ({ html }) => {
+			imageDownloadCalls.push({ html });
+			return [];
+		},
 		storeBody: opts?.storeBody ?? (async () => "content/email/content.html"),
 		publishEvent: async (_event, detail) => {
 			published.push({ detail: detail as { receivedAtMessageId: string; userId: string } });
@@ -78,7 +83,7 @@ function makeHarness(opts?: {
 		);
 	const run = (recipient: string) => runMany([recipient]);
 
-	return { addressStore, emailStore, rawMap, published, handler, run, runMany };
+	return { addressStore, emailStore, rawMap, published, imageDownloadCalls, handler, run, runMany };
 }
 
 async function listEmails(emailStore: InboxEmailStore, userId: UserId) {
@@ -167,7 +172,7 @@ describe("initReceiveEmailHandler", () => {
 	});
 
 	it("records an unknown recipient under the unrouted partition and ACKs (no page)", async () => {
-		const { emailStore, rawMap, published, run } = makeHarness();
+		const { emailStore, rawMap, published, imageDownloadCalls, run } = makeHarness();
 		rawMap.set(RAW_KEY, Buffer.from("raw"));
 
 		const result = await run("in-zzzzzz@read.place");
@@ -179,6 +184,8 @@ describe("initReceiveEmailHandler", () => {
 		const [row] = await listEmails(emailStore, UNROUTED);
 		expect(row.status).toBe("rejected");
 		expect(published).toHaveLength(0);
+		// Spam to a guessed address must not get to trigger outbound image fetches.
+		expect(imageDownloadCalls).toHaveLength(0);
 	});
 
 	it("records a disabled recipient under the unrouted partition and ACKs (no page)", async () => {
@@ -299,7 +306,8 @@ describe("initReceiveEmailHandler", () => {
 	});
 
 	it("stores a row and publishes for EVERY forwarding recipient in one envelope", async () => {
-		const { addressStore, emailStore, rawMap, published, runMany } = makeHarness();
+		const { addressStore, emailStore, rawMap, published, imageDownloadCalls, runMany } =
+			makeHarness();
 		const ownerAddress = await mintAddress(addressStore);
 		const second = await addressStore.createAddress({
 			userId: SECOND,
@@ -319,6 +327,10 @@ describe("initReceiveEmailHandler", () => {
 		expect(ownerRow.status).toBe("received");
 		expect(secondRow.status).toBe("received");
 		expect(published).toHaveLength(2);
+		// The HTML is identical for every co-addressed recipient, so remote images
+		// download ONCE per message — per-recipient fetches would multiply the
+		// sender-visible requests and the wall time against the Lambda timeout.
+		expect(imageDownloadCalls).toHaveLength(1);
 	});
 
 	it("collapses an envelope addressed to two of the SAME user's addresses to one row", async () => {

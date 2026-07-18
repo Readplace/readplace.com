@@ -65,6 +65,7 @@ export interface DeleteAccountHandlerDependencies {
 	tombstoneInboxAddresses: InboxAddressStore["tombstoneUserAddresses"];
 	deleteRawEmailObjects: (keys: string[]) => Promise<void>;
 	deleteEmailContentObjects: (keys: string[]) => Promise<void>;
+	deleteEmailImageObjects: (prefixes: string[]) => Promise<void>;
 	deleteAllUserArticles: DeleteAllUserArticles;
 	listUserArticleUrls: ListUserArticleUrls;
 	countOtherSaversByUrl: CountOtherSaversByUrl;
@@ -133,10 +134,11 @@ async function processCommand(
 	// in S3. Finally tombstone the forwarding addresses (kept reserved, PII
 	// stripped, so a freed hash can never be re-minted to leak another user's
 	// mail).
-	const { receivedAtMessageIds, rawEmailS3Keys, bodyS3Keys } =
+	const { receivedAtMessageIds, rawEmailS3Keys, bodyS3Keys, emailImageS3KeyPrefixes } =
 		await deps.listInboxDeletionReferences(userId);
 	await deps.deleteRawEmailObjects(rawEmailS3Keys);
 	await deps.deleteEmailContentObjects(bodyS3Keys);
+	await deps.deleteEmailImageObjects(emailImageS3KeyPrefixes);
 	await deps.deleteAllInboxLinks(userId, receivedAtMessageIds);
 	await deps.deleteAllInboxEmails(userId);
 	await deps.tombstoneInboxAddresses(userId);

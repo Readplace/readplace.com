@@ -134,7 +134,10 @@ async function main(): Promise<void> {
 		sessionResolveLogin(`${SESSION_COOKIE_NAME}=${sessionId}`);
 
 	const app = createInboxApp(
-		{ inboxAddressDomain: fixture.inboxAddress.inboxAddressDomain },
+		{
+			inboxAddressDomain: fixture.inboxAddress.inboxAddressDomain,
+			imagesCdnBaseUrl: "https://cdn.readplace.com",
+		},
 		{
 			resolveLogin,
 			findUserById: fixture.auth.findUserById,

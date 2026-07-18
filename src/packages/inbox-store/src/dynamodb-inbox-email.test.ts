@@ -7,6 +7,7 @@ import {
 	InboxAddressSchema,
 	type InboxEmailEntry,
 	MessageIdSchema,
+	emailImageS3KeyPrefix,
 } from "@packages/domain/inbox";
 import { UserIdSchema } from "@packages/domain/user";
 import { initDynamoDbInboxEmail } from "./dynamodb-inbox-email";
@@ -422,6 +423,18 @@ describe("initDynamoDbInboxEmail", () => {
 			]);
 			expect(refs.rawEmailS3Keys).toEqual(["inbound/a", "inbound/b"]);
 			expect(refs.bodyS3Keys).toEqual(["content/a/content.html"]);
+			// One opaque image prefix per row — bodied or not — recomputed from the
+			// row keys, so image objects never outlive the account.
+			expect(refs.emailImageS3KeyPrefixes).toEqual([
+				emailImageS3KeyPrefix({
+					userId: USER,
+					receivedAtMessageId: "2026-06-23T09:00:00.000Z#<a@x>",
+				}),
+				emailImageS3KeyPrefix({
+					userId: USER,
+					receivedAtMessageId: "2026-06-23T08:00:00.000Z#<b@x>",
+				}),
+			]);
 			const query = commands.find((c) => c.name === "QueryCommand");
 			expect(query?.input.KeyConditionExpression).toBe("userId = :uid");
 			expect(query?.input.ExpressionAttributeValues).toEqual({ ":uid": USER });
@@ -467,6 +480,7 @@ describe("initDynamoDbInboxEmail", () => {
 				receivedAtMessageIds: [],
 				rawEmailS3Keys: [],
 				bodyS3Keys: [],
+				emailImageS3KeyPrefixes: [],
 			});
 			expect(commands.some((c) => c.name === "DeleteCommand")).toBe(false);
 		});

@@ -1,11 +1,15 @@
 import { S3Client } from "@aws-sdk/client-s3";
+import { CRAWL_PERSONAS, initCrawlFetch } from "@packages/crawl-article";
+import { isBlockedIpAddress } from "@packages/domain/article";
 import { parseEmail } from "@packages/domain/inbox";
 import { EventBridgeClient, initEventBridgePublisher } from "@packages/hutch-infra-components/runtime";
 import { HutchLogger, consoleLogger } from "@packages/hutch-logger";
 import { createDynamoDocumentClient } from "@packages/hutch-storage-client";
 import { requireEnv } from "@packages/require-env";
+import { initDownloadEmailImages } from "./domain/inbox/download-email-images";
 import { initReceiveEmailHandler } from "./domain/inbox/receive-email-handler";
 import { initStoreEmailBody } from "./domain/inbox/store-email-body";
+import { initS3PutImageObject } from "./providers/article-image/s3-put-image-object";
 import { initDynamoDbInboxAddress, initDynamoDbInboxEmail, initS3ReadRawEmail, initS3WriteEmailContent } from "@packages/inbox-store";
 
 const inboxEmailsTable = requireEnv("DYNAMODB_INBOX_EMAILS_TABLE");
@@ -13,6 +17,7 @@ const inboxAddressesTable = requireEnv("DYNAMODB_INBOX_ADDRESSES_TABLE");
 const rawEmailBucketName = requireEnv("RAW_EMAIL_BUCKET_NAME");
 const contentBucketName = requireEnv("CONTENT_BUCKET_NAME");
 const eventBusName = requireEnv("EVENT_BUS_NAME");
+const imagesCdnBaseUrl = requireEnv("IMAGES_CDN_BASE_URL");
 const maxEmailBytes = Number.parseInt(requireEnv("INBOX_MAX_EMAIL_BYTES"), 10);
 
 const s3Client = new S3Client({});
@@ -27,8 +32,20 @@ const inboxAddressStore = initDynamoDbInboxAddress({
 });
 const inboxEmailStore = initDynamoDbInboxEmail({ client: dynamoClient, tableName: inboxEmailsTable });
 const { publishEvent } = initEventBridgePublisher({ client: eventBridgeClient, eventBusName });
+// The same SSRF-guarded crawlFetch the link-preview crawler uses: every connect
+// and redirect hop runs isBlockedIpAddress, so an image URL that resolves to a
+// private or metadata address is refused at connect time.
+const crawlFetch = initCrawlFetch({
+	fetch: globalThis.fetch,
+	personas: CRAWL_PERSONAS,
+	isBlocked: isBlockedIpAddress,
+});
+const { putImageObject } = initS3PutImageObject({ client: s3Client, bucketName: contentBucketName });
 const storeBody = initStoreEmailBody({
 	putContent: initS3WriteEmailContent({ client: s3Client, bucketName: contentBucketName }),
+	putImageObject,
+	imagesCdnBaseUrl,
+	logger,
 });
 
 export const handler = initReceiveEmailHandler({
@@ -36,6 +53,7 @@ export const handler = initReceiveEmailHandler({
 	findByAddress: inboxAddressStore.findByAddress,
 	putEmail: inboxEmailStore.putEmail,
 	parseEmail,
+	downloadEmailImages: initDownloadEmailImages({ crawlFetch, logger }),
 	storeBody,
 	publishEvent,
 	logger,

@@ -57,6 +57,7 @@ interface InboxDependencies {
 	inboxEmailLinkStore: InboxEmailLinkStore;
 	readEmailContent: ContentProvider;
 	inboxAddressDomain: string;
+	imagesCdnBaseUrl: string;
 	logError: (message: string, error?: Error) => void;
 	buildBannerState: BuildBannerState;
 	/** Save gates applied only to /create, the sole route that mints an address —
@@ -195,6 +196,7 @@ export function initInboxRoutes(deps: InboxDependencies): Router {
 			entry,
 			activeTab,
 			bodyHtml,
+			imagesCdnBaseUrl: deps.imagesCdnBaseUrl,
 			links,
 			linksMeta: meta,
 			maxPolls: MAX_POLLS,
@@ -229,6 +231,7 @@ export function initInboxRoutes(deps: InboxDependencies): Router {
 				entry,
 				activeTab: panel,
 				bodyHtml: undefined,
+				imagesCdnBaseUrl: deps.imagesCdnBaseUrl,
 				links,
 				linksMeta: meta,
 				maxPolls: MAX_POLLS,

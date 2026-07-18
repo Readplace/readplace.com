@@ -34,7 +34,7 @@ export const PORT = 3300;
  * verification standing → the auth-gated router), so a reader moving between
  * hutch pages and these pages never sees a different standing. */
 export function createInboxApp(
-	config: { inboxAddressDomain: string },
+	config: { inboxAddressDomain: string; imagesCdnBaseUrl: string },
 	deps: {
 		resolveLogin: ResolveLogin;
 		findUserById: FindUserById;
@@ -95,6 +95,7 @@ export function createInboxApp(
 		inboxEmailLinkStore: deps.inboxEmailLinkStore,
 		readEmailContent: deps.readEmailContent,
 		inboxAddressDomain: config.inboxAddressDomain,
+		imagesCdnBaseUrl: config.imagesCdnBaseUrl,
 		logError: deps.logError,
 		buildBannerState,
 		requireNotLocked,

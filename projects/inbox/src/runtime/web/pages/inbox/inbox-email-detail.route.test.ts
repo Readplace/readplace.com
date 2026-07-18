@@ -16,7 +16,7 @@ import {
 	TEST_APP_ORIGIN,
 	createDefaultTestAppFixture,
 } from "@packages/test-fixtures";
-import { loginAgent, useTestServer } from "../../../test-app";
+import { TEST_IMAGES_CDN_BASE_URL, loginAgent, useTestServer } from "../../../test-app";
 
 const useApp = useTestServer();
 
@@ -176,11 +176,12 @@ describe("Inbox email detail View tab", () => {
 			"allow-popups allow-popups-to-escape-sandbox",
 		);
 
-		// The srcdoc carries the restrictive CSP and the sanitized body, and no
+		// The srcdoc carries the restrictive CSP — images only from data: URIs and
+		// our CDN origin, never a sender host — and the sanitized body, and no
 		// script survives anywhere in the rendered page.
 		const srcdoc = iframe.getAttribute("srcdoc");
 		assert(srcdoc, "iframe must carry a srcdoc");
-		expect(srcdoc).toContain("img-src 'self'");
+		expect(srcdoc).toContain(`img-src data: ${TEST_IMAGES_CDN_BASE_URL};`);
 		expect(srcdoc).toContain("Sanitized newsletter body");
 		expect(response.text).not.toContain("<script>alert");
 
@@ -196,6 +197,26 @@ describe("Inbox email detail View tab", () => {
 		expect(received.getAttribute("datetime")).toBe("2026-06-24T09:00:00.000Z");
 		expect(received.getAttribute("data-local-time")).toBe("datetime");
 		expect(received.textContent).toBe("Jun 24, 2026, 09:00 UTC");
+	});
+
+	it("keeps a rehosted CDN image src in the srcdoc so newsletter images render", async () => {
+		const cdnSrc = `${TEST_IMAGES_CDN_BASE_URL}/content/email-images/abc123/0011223344556677.png`;
+		const fixture = createDefaultTestAppFixture(TEST_APP_ORIGIN);
+		fixture.inboxEmail.readEmailContent = async () =>
+			`<p>Photo issue</p><img src="${cdnSrc}" alt="hero" width="640">`;
+		const harness = useApp(fixture);
+		const agent = await loginAgent(harness.server, harness.auth);
+		await seed(fixture, "received");
+
+		const response = await agent.get(detailPath);
+
+		expect(response.status).toBe(200);
+		const doc = parseDoc(response.text);
+		const iframe = doc.querySelector("[data-test-inbox-email-iframe]");
+		assert(iframe, "View tab must render the iframe");
+		const srcdoc = iframe.getAttribute("srcdoc");
+		assert(srcdoc, "iframe must carry a srcdoc");
+		expect(srcdoc).toContain(`src="${cdnSrc}"`);
 	});
 
 	it("keeps the header link count on the View tab, where the cards are not rendered", async () => {

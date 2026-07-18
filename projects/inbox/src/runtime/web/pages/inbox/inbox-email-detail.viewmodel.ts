@@ -114,6 +114,9 @@ export interface InboxEmailDetailViewModel {
 	 * the graceful unavailable panel instead of an empty frame. */
 	canRenderBody: boolean;
 	bodyHtml: string;
+	/** The CDN origin rehosted email images are served from — pinned into the
+	 * iframe's per-document CSP so only our copies (never a sender host) load. */
+	imagesCdnBaseUrl: string;
 	unavailableMessage: string;
 	linkCountLabel: string | undefined;
 	articles: ArticlesPanelViewModel;
@@ -172,6 +175,7 @@ export function toInboxEmailDetailViewModel(input: {
 	entry: InboxEmailEntry;
 	activeTab: MailTabKey;
 	bodyHtml: string | undefined;
+	imagesCdnBaseUrl: string;
 	links: InboxEmailLinkEntry[];
 	linksMeta: InboxEmailLinksMeta | undefined;
 	maxPolls: number;
@@ -240,6 +244,7 @@ export function toInboxEmailDetailViewModel(input: {
 		tabs: buildMailTabs({ emailId, active: input.activeTab }),
 		canRenderBody,
 		bodyHtml: input.bodyHtml ?? "",
+		imagesCdnBaseUrl: input.imagesCdnBaseUrl,
 		unavailableMessage:
 			"This message couldn’t be displayed here; the original email is preserved.",
 		// Suppressed until extraction writes its barrier so the header never claims a

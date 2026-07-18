@@ -40,7 +40,11 @@ export function initExtractEmailLinksHandler(deps: {
 	getEmail: InboxEmailStore["getEmail"];
 	readRawEmail: (s3Key: string) => Promise<Buffer | undefined>;
 	parseEmail: (input: { raw: Buffer; receivedAt: string }) => Promise<ParseEmailResult>;
-	deriveSanitizedBody: (input: { html: string; inlineImages: ParsedEmailInlineImage[] }) => string;
+	deriveSanitizedBody: (input: {
+		html: string;
+		inlineImages: ParsedEmailInlineImage[];
+		rehostedRemoteImages: Record<string, string>;
+	}) => string;
 	putLink: InboxEmailLinkStore["putLink"];
 	getLink: InboxEmailLinkStore["getLink"];
 	putLinksMeta: InboxEmailLinkStore["putLinksMeta"];
@@ -117,9 +121,13 @@ export function initExtractEmailLinksHandler(deps: {
 					continue;
 				}
 
+				// Extraction reads only <a href>s, so no remote-image rehost map: CDN
+				// image URLs in the derived body would surface as phantom article links,
+				// and building the map would re-download every image on every run.
 				const sanitizedHtml = deriveSanitizedBody({
 					html: parsedEmail.email.html,
 					inlineImages: parsedEmail.email.inlineImages,
+					rehostedRemoteImages: {},
 				});
 				// Decode before extracting so the stored, classified, and crawled URL is
 				// the href as parsed, not its serialized form (`?a=1&amp;b=2`).

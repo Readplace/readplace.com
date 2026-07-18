@@ -41,6 +41,7 @@ export {
 } from "./parse-email";
 export { sanitizeEmailHtml } from "./sanitize-email-html";
 export { deriveSanitizedBody } from "./derive-sanitized-body";
+export { emailImageCdnUrl, emailImageS3KeyPrefix } from "./email-image-keys";
 export { capEmailLinks } from "./cap-email-links";
 export {
 	EmailLinkOrdinalSchema,

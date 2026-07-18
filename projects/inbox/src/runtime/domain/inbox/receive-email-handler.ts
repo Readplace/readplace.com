@@ -19,6 +19,7 @@ import {
 	type ParseEmailResult,
 } from "@packages/domain/inbox";
 import { type UserId, UserIdSchema } from "@packages/domain/user";
+import type { DownloadEmailImages } from "./download-email-images";
 import type { StoreEmailBody } from "./store-email-body";
 
 /** Mail that can't be delivered to an active user — a guessed/mistyped forwarding
@@ -43,13 +44,22 @@ export function initReceiveEmailHandler(deps: {
 	findByAddress: InboxAddressStore["findByAddress"];
 	putEmail: InboxEmailStore["putEmail"];
 	parseEmail: (input: { raw: Buffer; receivedAt: string }) => Promise<ParseEmailResult>;
+	downloadEmailImages: DownloadEmailImages;
 	storeBody: StoreEmailBody;
 	publishEvent: PublishEvent;
 	logger: HutchLogger;
 	maxEmailBytes: number;
 }): Handler<SQSEvent, SQSBatchResponse> {
-	const { readRawEmail, findByAddress, putEmail, parseEmail, storeBody, publishEvent, logger } =
-		deps;
+	const {
+		readRawEmail,
+		findByAddress,
+		putEmail,
+		parseEmail,
+		downloadEmailImages,
+		storeBody,
+		publishEvent,
+		logger,
+	} = deps;
 
 	return async (event): Promise<SQSBatchResponse> => {
 		const batchItemFailures: SQSBatchItemFailure[] = [];
@@ -181,6 +191,14 @@ export function initReceiveEmailHandler(deps: {
 				}
 
 				const receivedAtMessageId = `${receivedAt}#${parsed.email.messageId}`;
+				// Remote images download ONCE per message — the HTML is identical for
+				// every co-addressed recipient, so per-recipient fetches would multiply
+				// both the sender-visible requests and the wall time against the Lambda
+				// timeout. Gated on a deliverable recipient: dictionary-guessed spam to
+				// the public catch-all must not get to trigger outbound fetches.
+				const downloadedImages = hasDeliverable
+					? await downloadEmailImages({ html: parsed.email.html })
+					: [];
 				for (const { recipientAddress, resolved, userId } of resolvedRecipients) {
 					if (resolved === undefined) {
 						// Unknown address — a guessed/mistyped `in-xxxxxx@`, expected on a
@@ -216,6 +234,7 @@ export function initReceiveEmailHandler(deps: {
 						receivedAtMessageId,
 						html: parsed.email.html,
 						inlineImages: parsed.email.inlineImages,
+						downloadedImages,
 					});
 					if (bodyS3Key === undefined) {
 						// Parsed fine but sanitized to nothing — a body composed entirely of
