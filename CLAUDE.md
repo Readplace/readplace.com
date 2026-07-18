@@ -325,6 +325,10 @@ function fakeFetch(body: Buffer, status = 200) {
 
 ## CLI Commands
 
+### AWS Accounts
+
+Default credentials target **staging**; prod is a separate account reached with `--profile hutch-production` (both `ap-southeast-2`). Node scripts must also unset `AWS_ACCESS_KEY_ID`/`AWS_SECRET_ACCESS_KEY`/`AWS_SESSION_TOKEN`, which take precedence over `AWS_PROFILE`.
+
 ### Prefer Longhand Parameters
 
 Always use longhand (full) parameter names in CLI commands for clarity.
