@@ -55,8 +55,10 @@ function ctaAction(doc: Document): Element {
 }
 
 const useApp = useTestServer();
+const CANONICAL_OF_ALIAS = "https://example.com/canonical-post";
+const useAppWithAliasFold = useTestServer({ resolveCanonicalIdentity: async () => CANONICAL_OF_ALIAS });
 
-function buildReaderHarness() {
+function buildReaderHarness(mountApp: typeof useApp = useApp) {
 	const parseArticle: ParseArticle = async () => buildParseResult();
 	const fixture = createDefaultTestAppFixture(TEST_APP_ORIGIN);
 	const applyParseResult = createFakeApplyParseResult({
@@ -64,7 +66,7 @@ function buildReaderHarness() {
 		articleCrawl: fixture.articleCrawl,
 		parseArticle,
 	});
-	return useApp({
+	return mountApp({
 		...fixture,
 		parser: { parseArticle, crawlArticle: fixture.parser.crawlArticle },
 		events: {
@@ -809,6 +811,17 @@ describe("View routes", () => {
 
 			expect(response.status).toBe(200);
 			expect(lastViewCookie(response)).toBeUndefined();
+		});
+
+		it("stores the canonical article identity, not the alias the visitor typed — the autosave must land on the same deduped article the reader was shown", async () => {
+			const harness = buildReaderHarness(useAppWithAliasFold);
+
+			const response = await request(harness.server).get(`/view/${CANONICAL_PATH}`);
+
+			expect(response.status).toBe(200);
+			const cookie = lastViewCookie(response);
+			assert(cookie, "an anonymous open must set hutch_lastview");
+			expect(decodeURIComponent(cookie.slice("hutch_lastview=".length).split(";")[0])).toBe(CANONICAL_OF_ALIAS);
 		});
 
 		it("does not set hutch_lastview for a Sec-Purpose: prefetch request — a speculative fetch is not the reader choosing this article, so it must not claim the autosave slot", async () => {

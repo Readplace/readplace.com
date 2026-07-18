@@ -260,13 +260,16 @@ function flattenFixtureToAppDependencies(
 
 /** `overrides` lets a test swap a single dependency without rebuilding the whole
  * fixture — `getChangelogBanner` (defaults to "no banner" so it stays hidden in
- * every other route test), and `getSessionUserId` (so a test can make the session
- * lookup throw and assert the request still degrades to guest). */
+ * every other route test), `getSessionUserId` (so a test can make the session
+ * lookup throw and assert the request still degrades to guest), and
+ * `resolveCanonicalIdentity` (which defaults to identity, so a test that needs a
+ * real alias fold has to say so). */
 export function createTestApp(
 	fixture: TestAppFixture,
 	overrides?: {
 		getChangelogBanner?: GetChangelogBanner;
 		getSessionUserId?: GetSessionUserId;
+		resolveCanonicalIdentity?: (url: string) => Promise<string>;
 	},
 ): TestAppResult {
 	const analyticsEvents: AnalyticsEvent[] = [];
@@ -319,6 +322,7 @@ export interface TestAppHarness extends TestAppResult, RunningServer {}
 export function useTestServer(overrides?: {
 	getChangelogBanner?: GetChangelogBanner;
 	getSessionUserId?: GetSessionUserId;
+	resolveCanonicalIdentity?: (url: string) => Promise<string>;
 }): (fixture: TestAppFixture) => TestAppHarness {
 	return useServerForFixture((fixture) => createTestApp(fixture, overrides));
 }
