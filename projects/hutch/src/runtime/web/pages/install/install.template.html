@@ -9,7 +9,7 @@
           <span class="install-page__group-label" id="{{labelId}}">{{label}}</span>
           <div class="install-page__group-tabs">
             {{#each tabs}}
-            <a href="{{href}}" class="install-page__tab{{activeClass}}"{{#if ariaCurrent}} aria-current="{{ariaCurrent}}"{{/if}} data-test-tab="{{key}}">{{label}}{{#if beta}}<span class="install-page__tab-beta">Beta</span>{{/if}}</a>
+            <a href="{{href}}" class="install-page__tab{{activeClass}}"{{#if ariaCurrent}} aria-current="{{ariaCurrent}}"{{/if}} data-test-tab="{{key}}"><span class="install-page__tab-icon" aria-hidden="true">{{{iconSvg}}}</span>{{label}}{{#if beta}}<span class="install-page__tab-beta">Beta</span>{{/if}}</a>
             {{/each}}
           </div>
         </div>

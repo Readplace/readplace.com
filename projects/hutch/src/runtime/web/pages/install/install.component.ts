@@ -7,6 +7,7 @@ import { CLIENT_CATEGORIES, clientCategoryOfGroup, isClientName, SUPPORTED_CLIEN
 import type { ClientCategory, ClientName, SupportedClient } from "@packages/supported-clients";
 
 import { switchHelpers } from "../../handlebars-switch";
+import { CLIENT_ICON_SVG } from "./client-icons";
 import { INSTALL_PAGE_STYLES } from "./install.styles";
 
 import { firefoxS3Config } from "browser-extension-core/s3-config";
@@ -82,6 +83,7 @@ export function isSelfHostedDownload(client: InstallClient): boolean {
 interface InstallTab {
 	key: ClientName;
 	label: string;
+	iconSvg: string;
 	beta: boolean;
 	href: string;
 	activeClass: string;
@@ -108,6 +110,7 @@ function buildTabGroups(active: ClientName): InstallTabGroup[] {
 		target.tabs.push({
 			key: client.name,
 			label: client.displayName,
+			iconSvg: CLIENT_ICON_SVG[client.name],
 			beta: client.name === "iphone",
 			href: withInternalTracking(`/install?client=${client.name}`, { source: "install-tabs", content: client.name }),
 			activeClass: isActive ? " install-page__tab--active" : "",

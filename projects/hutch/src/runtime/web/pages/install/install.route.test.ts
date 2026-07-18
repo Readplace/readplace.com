@@ -133,6 +133,32 @@ describe("GET /install", () => {
 		expect(badge?.textContent).toBe("Beta");
 	});
 
+	it("should render a decorative brand icon inside every tab", async () => {
+		const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
+		const response = await request(harness.server).get("/install");
+		const doc = load(response.text);
+
+		const tabs = Array.from(doc.querySelectorAll("[data-test-tab]"));
+		expect(tabs).toHaveLength(6);
+		for (const tab of tabs) {
+			const icon = tab.querySelector(".install-page__tab-icon svg");
+			assert(icon, `tab ${tab.getAttribute("data-test-tab")} must render an inline icon`);
+			expect(icon.getAttribute("aria-hidden")).toBe("true");
+			expect(icon.getAttribute("focusable")).toBe("false");
+			assert(icon.querySelector("path"), "the icon must carry path geometry");
+		}
+	});
+
+	it("should keep tab icons free of text so the label is the tab's whole accessible name", async () => {
+		const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
+		const response = await request(harness.server).get("/install");
+		const doc = load(response.text);
+
+		expect(doc.querySelector('[data-test-tab="chrome"]')?.textContent).toBe("Chrome");
+		expect(doc.querySelector('[data-test-tab="claude"]')?.textContent).toBe("Claude");
+		expect(doc.querySelector('[data-test-tab="iphone"]')?.textContent).toBe("iPhoneBeta");
+	});
+
 	it("should default to the Chrome tab and browser panel when no client param is provided", async () => {
 		const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
 		const response = await request(harness.server).get("/install");
@@ -587,6 +613,19 @@ describe("GET /install", () => {
 		expect(response.headers["content-type"]).toBe("text/markdown; charset=utf-8");
 		expect(response.text).toMatch(/^# /);
 		expect(response.text).not.toContain("<script");
+	});
+
+	it("does not leak tab icon markup or geometry into a markdown response", async () => {
+		const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
+		const response = await request(harness.server)
+			.get("/install")
+			.set("Accept", "text/markdown");
+
+		expect(response.status).toBe(200);
+		expect(response.text).toContain("Chrome");
+		expect(response.text).not.toContain("<svg");
+		expect(response.text).not.toContain("currentColor");
+		expect(response.text).not.toContain("viewBox");
 	});
 
 	it("does not leak the AI copy-button script into a markdown response", async () => {

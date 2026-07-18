@@ -85,6 +85,11 @@ export const INSTALL_PAGE_STYLES = `
   font-weight: 600;
 }
 
+.install-page__tab-icon {
+  display: inline-flex;
+  flex-shrink: 0;
+}
+
 /**
  * 1. A label, not a pill — radius-sm keeps it inside the brand's
  *    "never fully rounded" rule while the warm fill flags the beta.
