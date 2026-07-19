@@ -3,6 +3,7 @@ import { UserIdSchema } from "@packages/domain/user";
 import { toInboxLinkCardViewModel } from "./inbox-link-card.viewmodel";
 
 const EMAIL_ID = "2026-06-24T09:00:00.000Z#<m@x>";
+const SHOWN = 20;
 
 function link(overrides: Partial<InboxEmailLinkEntry> = {}): InboxEmailLinkEntry {
 	return {
@@ -29,10 +30,14 @@ describe("toInboxLinkCardViewModel", () => {
 			emailId: EMAIL_ID,
 			pollCount: 1,
 			maxPolls: 300,
+			shown: SHOWN,
 		});
 
 		expect(vm.cardPollUrl).toContain("/links/0002/card");
 		expect(vm.cardPollUrl).toContain("poll=1");
+		// The re-rendered card has to keep posting the page size back, so a save
+		// from an expanded list still returns the reader to the same page.
+		expect(vm.cardPollUrl).toContain("shown=20");
 		expect(vm.title).toBe("");
 		expect(vm.hasTitle).toBe(false);
 		expect(vm.actions.map((action) => [action.key, action.href])).toEqual([
@@ -44,12 +49,28 @@ describe("toInboxLinkCardViewModel", () => {
 		]);
 	});
 
+	it("posts the panel's page size back from every action, so neither loses the reader's place", () => {
+		const vm = toInboxLinkCardViewModel({
+			link: link({ status: "crawled", title: "T" }),
+			emailId: EMAIL_ID,
+			pollCount: 1,
+			maxPolls: 300,
+			shown: 40,
+		});
+
+		expect(vm.actions.map((action) => [action.key, action.hiddenParams])).toEqual([
+			["save", { shown: "40" }],
+			["feedback-exclude", { shown: "40", verdict: "should-be-excluded" }],
+		]);
+	});
+
 	it("offers no save action for a link the save pipeline would reject", () => {
 		const vm = toInboxLinkCardViewModel({
 			link: link({ url: "https://localhost/private" }),
 			emailId: EMAIL_ID,
 			pollCount: 1,
 			maxPolls: 300,
+			shown: SHOWN,
 		});
 
 		expect(vm.actions.map((action) => action.key)).toEqual(["feedback-exclude"]);
@@ -65,6 +86,7 @@ describe("toInboxLinkCardViewModel", () => {
 			emailId: EMAIL_ID,
 			pollCount: 1,
 			maxPolls: 300,
+			shown: SHOWN,
 		});
 
 		expect(vm.actions[0]?.ariaLabel).toBe(
@@ -78,6 +100,7 @@ describe("toInboxLinkCardViewModel", () => {
 			emailId: EMAIL_ID,
 			pollCount: 1,
 			maxPolls: 300,
+			shown: SHOWN,
 		});
 
 		expect(crawled.cardPollUrl).toBeUndefined();
@@ -97,6 +120,7 @@ describe("toInboxLinkCardViewModel", () => {
 			emailId: EMAIL_ID,
 			pollCount: 1,
 			maxPolls: 300,
+			shown: SHOWN,
 		});
 
 		expect(crawled.url).toBe("https://destination.test/the-actual-article");
@@ -108,6 +132,7 @@ describe("toInboxLinkCardViewModel", () => {
 			emailId: EMAIL_ID,
 			pollCount: 1,
 			maxPolls: 300,
+			shown: SHOWN,
 		});
 
 		expect(crawled.cardPollUrl).toBeUndefined();
@@ -120,6 +145,7 @@ describe("toInboxLinkCardViewModel", () => {
 			emailId: EMAIL_ID,
 			pollCount: 1,
 			maxPolls: 300,
+			shown: SHOWN,
 		});
 
 		expect(skipped.cardPollUrl).toBeUndefined();
@@ -132,6 +158,7 @@ describe("toInboxLinkCardViewModel", () => {
 			emailId: EMAIL_ID,
 			pollCount: 301,
 			maxPolls: 300,
+			shown: SHOWN,
 		});
 
 		expect(vm.cardPollUrl).toBeUndefined();

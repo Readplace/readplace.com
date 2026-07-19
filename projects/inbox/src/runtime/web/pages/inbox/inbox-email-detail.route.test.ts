@@ -1077,9 +1077,7 @@ describe("Inbox link feedback route", () => {
 			`/inbox/${encodeURIComponent(SK)}?feature=email&tab=excluded&feedback=sent`,
 		);
 		const confirmation = await agent.get(response.headers.location);
-		const notice = parseDoc(confirmation.text).querySelector(
-			"[data-test-inbox-feedback-notice]",
-		);
+		const notice = parseDoc(confirmation.text).querySelector("[data-test-toast-message]");
 		assert(notice, "the followed redirect must confirm the report");
 		expect(notice.textContent?.trim()).toBe("Thanks — your report was logged.");
 		expect(errors).toHaveLength(1);
@@ -1114,7 +1112,7 @@ describe("Inbox link feedback route", () => {
 			`/inbox/${encodeURIComponent(SK)}?feature=email&tab=articles&feedback=sent`,
 		);
 		const confirmation = await agent.get(response.headers.location);
-		const notice = parseDoc(confirmation.text).querySelector("[data-test-inbox-feedback-notice]");
+		const notice = parseDoc(confirmation.text).querySelector("[data-test-toast-message]");
 		assert(notice, "the followed redirect must confirm the report on the Articles tab");
 		expect(errors).toHaveLength(1);
 	});

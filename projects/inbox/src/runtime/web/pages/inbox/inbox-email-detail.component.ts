@@ -1,6 +1,6 @@
 import { readFileSync } from "node:fs";
 import { join } from "node:path";
-import { render } from "@packages/web-shell";
+import { render, renderToast } from "@packages/web-shell";
 import type { PageBody } from "@packages/web-shell";
 import { renderInboxArticlesPanel } from "./inbox-articles-panel.component";
 import { renderInboxExcludedPanel } from "./inbox-excluded-panel.component";
@@ -40,10 +40,23 @@ const PANEL_RENDERERS: Record<MailTabKey, (vm: InboxEmailDetailViewModel) => str
 	excluded: (vm) => renderInboxExcludedPanel(vm.excluded),
 };
 
+/** Long enough to read the confirmation after a save or a report, short enough
+ * not to sit over the card list. Matches the queue's status toast. */
+const STATUS_TOAST_DISMISS_MS = 6000;
+
 export function InboxEmailDetailPage(vm: InboxEmailDetailViewModel): PageBody {
 	const panelHtml = PANEL_RENDERERS[vm.activeTab](vm);
 	const linkCountHtml = renderInboxLinkCount({ label: vm.linkCountLabel, oob: false });
 	const tabsHtml = renderInboxMailTabs({ tabs: vm.tabs, oob: false });
+	// No actions: the inbox has no unsave or undo-report route to offer.
+	const statusToastHtml =
+		vm.statusToastMessage === undefined
+			? ""
+			: renderToast({
+					message: vm.statusToastMessage,
+					dismissMs: STATUS_TOAST_DISMISS_MS,
+					actions: [],
+				});
 	return {
 		seo: {
 			title: "Email — Readplace",
@@ -55,7 +68,13 @@ export function InboxEmailDetailPage(vm: InboxEmailDetailViewModel): PageBody {
 		styles: INBOX_EMAIL_DETAIL_STYLES,
 		bodyClass: "page-inbox",
 		content: {
-			html: render(INBOX_EMAIL_DETAIL_TEMPLATE, { ...vm, panelHtml, linkCountHtml, tabsHtml }),
+			html: render(INBOX_EMAIL_DETAIL_TEMPLATE, {
+				...vm,
+				panelHtml,
+				linkCountHtml,
+				tabsHtml,
+				statusToastHtml,
+			}),
 		},
 	};
 }

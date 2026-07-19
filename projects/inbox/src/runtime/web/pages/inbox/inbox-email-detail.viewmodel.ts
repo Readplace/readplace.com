@@ -41,6 +41,12 @@ const EXTRACTING_MESSAGE = "Looking for links…";
 const STALE_MESSAGE =
 	"We couldn’t scan this email for links. The original message is still available on the View tab.";
 
+// Present tense on purpose: the save route only publishes SubmitLinkCommand, and
+// the queue write happens in a downstream subscriber. Claiming "Saved" would
+// promise a row a reader jumping straight to /queue might not find yet.
+const SAVED_TOAST_MESSAGE = "Adding to your queue…";
+const FEEDBACK_TOAST_MESSAGE = "Thanks — your report was logged.";
+
 export interface ExcludedLinkViewModel {
 	ordinal: string;
 	url: string;
@@ -89,8 +95,6 @@ interface ExtractionPanelViewModel {
 	 * polls its own fragment route: a shared URL would swap the other panel's markup
 	 * in over this one. */
 	panelPollUrl: string | undefined;
-	feedbackNotice: boolean;
-	savedNotice: boolean;
 }
 
 export interface ArticlesPanelViewModel extends ExtractionPanelViewModel {
@@ -111,6 +115,10 @@ export interface InboxEmailDetailViewModel {
 	backHref: string;
 	activeTab: MailTabKey;
 	tabs: MailTab[];
+	/** One-shot confirmation for a write that just completed, rendered as the
+	 * shared toast — a fixed, self-dismissing overlay, so it is seen wherever the
+	 * reader was scrolled to. Undefined on a plain page view. */
+	statusToastMessage: string | undefined;
 	/** True once extraction has written its meta barrier, so the tab counts are
 	 * trustworthy. The poll route emits its out-of-band tab strip only then: while
 	 * this is false the strip it would send is byte-identical to the one on
@@ -144,6 +152,7 @@ function buildArticleCardsPage(input: {
 			emailId: input.emailId,
 			pollCount: INITIAL_POLL_COUNT,
 			maxPolls: input.maxPolls,
+			shown: input.to,
 		}),
 	);
 	const shown = Math.min(input.to, input.allCards.length);
@@ -253,8 +262,14 @@ export function toInboxEmailDetailViewModel(input: {
 	// so we give up on the spinner and show a terminal notice instead of polling on.
 	const isStalePending = awaitingMeta && !withinPollBudget;
 	const isExtracting = awaitingMeta && withinPollBudget;
-	const feedbackNotice = input.feedbackConfirmed === true;
-	const savedNotice = input.savedConfirmed === true;
+	// Save wins a tie: the two flags only ever arrive together on a hand-typed
+	// URL, and a save is the more consequential of the two to confirm.
+	const statusToastMessage =
+		input.savedConfirmed === true
+			? SAVED_TOAST_MESSAGE
+			: input.feedbackConfirmed === true
+				? FEEDBACK_TOAST_MESSAGE
+				: undefined;
 	const shared = {
 		extractingMessage: EXTRACTING_MESSAGE,
 		staleMessage: STALE_MESSAGE,
@@ -263,8 +278,6 @@ export function toInboxEmailDetailViewModel(input: {
 		truncatedNotice: truncated
 			? `Showing the first ${links.length} links found in this email.`
 			: undefined,
-		feedbackNotice,
-		savedNotice,
 	};
 	return {
 		subject: input.entry.subject === "" ? "(no subject)" : input.entry.subject,
@@ -272,6 +285,7 @@ export function toInboxEmailDetailViewModel(input: {
 		received: toAbsoluteDateTime({ iso: input.entry.receivedAt }),
 		backHref: `/inbox?feature=${EMAIL_FEATURE}`,
 		activeTab: input.activeTab,
+		statusToastMessage,
 		// Counts come from every kept/skipped link, not the page of cards on
 		// screen, and are withheld on the same barrier as the header badge — a tab
 		// claiming "(0)" mid-extraction would read as "none found" rather than

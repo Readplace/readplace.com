@@ -4,11 +4,6 @@
 	data-excluded-status="{{panelStatus}}"
 	{{#if panelPollUrl}} hx-get="{{panelPollUrl}}" hx-trigger="every 3s" hx-target="this" hx-swap="outerHTML"{{/if}}
 >
-	{{#if feedbackNotice}}
-	<p class="inbox-email-detail__feedback-notice" data-test-inbox-feedback-notice>
-		Thanks — your report was logged.
-	</p>
-	{{/if}}
 	{{#if isExtracting}}
 	<p class="inbox-email-detail__notice" data-test-excluded-extracting>{{extractingMessage}}</p>
 	{{else}}

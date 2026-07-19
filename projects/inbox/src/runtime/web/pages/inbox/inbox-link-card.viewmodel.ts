@@ -29,8 +29,13 @@ function buildCardActions(input: {
 	link: InboxEmailLinkEntry;
 	emailId: string;
 	displayUrl: string;
+	shown: number;
 }): InboxCardAction[] {
-	const { link, emailId, displayUrl } = input;
+	const { link, emailId, displayUrl, shown } = input;
+	// Posted back so the redirect can rebuild the same page of cards. Without it
+	// a save from an expanded list returns a first page that no longer holds the
+	// card just acted on, which reads as the page discarding the reader's place.
+	const shownParam = { shown: String(shown) };
 	const actions: InboxCardAction[] = [];
 	// Crawl state does not gate saving: the queue save runs its own crawl, so a
 	// link whose preview is still pending or failed is still worth saving.
@@ -41,15 +46,16 @@ function buildCardActions(input: {
 			ariaLabel: `Save to queue: ${displayUrl}`,
 			href: buildInboxLinkSaveUrl({ emailId, ordinal: link.ordinal }),
 			method: "POST",
+			hiddenParams: shownParam,
 		});
 	}
 	actions.push({
 		key: "feedback-exclude",
-		label: "Not an article?",
-		ariaLabel: `Not an article? ${displayUrl}`,
+		label: "Not an article? (report)",
+		ariaLabel: `Not an article? (report) ${displayUrl}`,
 		href: buildInboxLinkFeedbackUrl({ emailId, ordinal: link.ordinal }),
 		method: "POST",
-		hiddenParams: { verdict: "should-be-excluded" },
+		hiddenParams: { ...shownParam, verdict: "should-be-excluded" },
 	});
 	return actions;
 }
@@ -59,13 +65,16 @@ export function toInboxLinkCardViewModel(input: {
 	emailId: string;
 	pollCount: number;
 	maxPolls: number;
+	/** How many cards the panel this card sits in is showing. Carried through the
+	 * card's own poll URL so a re-rendered pending card keeps posting it back. */
+	shown: number;
 }): InboxLinkCardViewModel {
-	const { link, emailId, pollCount, maxPolls } = input;
+	const { link, emailId, pollCount, maxPolls, shown } = input;
 	const reachedTerminal = link.status !== "pending";
 	const cardPollUrl =
 		reachedTerminal || pollCount > maxPolls
 			? undefined
-			: buildInboxLinkPollUrl({ emailId, ordinal: link.ordinal, pollCount });
+			: buildInboxLinkPollUrl({ emailId, ordinal: link.ordinal, pollCount, shown });
 	const title = link.title ?? "";
 	const url = link.resolvedUrl ?? link.url;
 	return {
@@ -74,6 +83,6 @@ export function toInboxLinkCardViewModel(input: {
 		title,
 		hasTitle: link.status === "crawled" && title !== "",
 		cardPollUrl,
-		actions: buildCardActions({ link, emailId, displayUrl: url }),
+		actions: buildCardActions({ link, emailId, displayUrl: url, shown }),
 	};
 }

@@ -165,14 +165,35 @@
   list-style: none;
 }
 
-.inbox-article-card__action-button {
+.inbox-article-card__action-button,
+.inbox-excluded-link__feedback-button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
   background: none;
   border: none;
   padding: 0;
   font-size: 0.75rem;
+  line-height: 1;
   color: var(--muted-foreground);
   text-decoration: underline;
   cursor: pointer;
+  transition: background 0.15s ease, color 0.15s ease, border-color 0.15s ease;
+  min-height: 44px;
+  min-width: 44px;
+}
+
+.inbox-article-card__action-button:hover,
+.inbox-excluded-link__feedback-button:hover {
+  color: var(--foreground);
+}
+
+/* Held disabled by hx-disabled-elt for the length of the request, so a slow
+   save reads as in-flight rather than as a click that did nothing. */
+.inbox-article-card__action-button:disabled,
+.inbox-excluded-link__feedback-button:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
 }
 
 .inbox-article-card__action-button--save {
@@ -183,14 +204,8 @@
   text-decoration: none;
 }
 
-.inbox-excluded-link__feedback-button {
-  background: none;
-  border: none;
-  padding: 0;
-  font-size: 0.75rem;
-  color: var(--muted-foreground);
-  text-decoration: underline;
-  cursor: pointer;
+.inbox-article-card__action-button--save:hover {
+  background: var(--muted);
 }
 
 .inbox-email-detail__show-more {
@@ -248,10 +263,4 @@
 
 .inbox-excluded-link__feedback {
   flex-shrink: 0;
-}
-
-.inbox-email-detail__feedback-notice {
-  font-size: 0.85rem;
-  color: var(--muted-foreground);
-  margin: 0 0 12px;
 }

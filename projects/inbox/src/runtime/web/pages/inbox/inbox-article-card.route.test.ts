@@ -54,9 +54,15 @@ function expectBareUrlRow(card: Element): void {
 	expect(cardActions(card)).toEqual(["save", "feedback-exclude"]);
 	const save = card.querySelector('[data-test-card-action="save"]');
 	assert(save, "the save button must render for a saveable link");
-	expect(save.closest("form")?.getAttribute("action")).toBe(
+	const form = save.closest("form");
+	expect(form?.getAttribute("action")).toBe(
 		`/inbox/${encodeURIComponent(SK)}/links/0000/save?feature=email`,
 	);
+	// Boosted so the confirmation swaps in place. A full navigation would reset
+	// the scroll position, putting the toast where the reader is not looking.
+	expect(form?.getAttribute("hx-boost")).toBe("true");
+	expect(form?.getAttribute("hx-select")).toBe("main");
+	expect(form?.getAttribute("hx-disabled-elt")).toBe("find button");
 }
 
 describe("Inbox link card route", () => {

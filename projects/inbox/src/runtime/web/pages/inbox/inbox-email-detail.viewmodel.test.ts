@@ -11,6 +11,7 @@ import { UserIdSchema } from "@packages/domain/user";
 import { ARTICLES_PAGE_SIZE } from "./inbox-articles-more.url";
 import type { MailTabKey } from "./inbox-email-detail.url";
 import {
+	type InboxEmailDetailViewModel,
 	toInboxArticlesMoreViewModel,
 	toInboxEmailDetailViewModel,
 } from "./inbox-email-detail.viewmodel";
@@ -359,24 +360,41 @@ describe("toInboxEmailDetailViewModel", () => {
 		expect(vm.linkCountLabel).toBeUndefined();
 	});
 
-	it("surfaces the feedback confirmation on both panels, for whichever tab it redirects to", () => {
-		const confirmed = build({ links: [link()], linksMeta: { truncated: false } });
-		expect(confirmed.articles.feedbackNotice).toBe(false);
-		expect(confirmed.excluded.feedbackNotice).toBe(false);
-
-		const vm = toInboxEmailDetailViewModel({
+	function withConfirmation(
+		confirmation: { feedbackConfirmed?: boolean; savedConfirmed?: boolean },
+	): InboxEmailDetailViewModel {
+		return toInboxEmailDetailViewModel({
 			entry: entry(),
 			activeTab: "articles",
 			bodyHtml: undefined,
 			imagesCdnBaseUrl: "https://cdn.test.readplace.com",
 			linkData: { source: "rows", links: [link()], meta: { truncated: false } },
 			maxPolls: 300,
-			feedbackConfirmed: true,
+			...confirmation,
 		});
-		// The redirect picks the tab from the reported link's status, so the notice has
-		// to be ready on either panel — only the active one renders it.
-		expect(vm.articles.feedbackNotice).toBe(true);
-		expect(vm.excluded.feedbackNotice).toBe(true);
+	}
+
+	it("carries no status toast on a plain page view", () => {
+		expect(build({ links: [link()], linksMeta: { truncated: false } }).statusToastMessage)
+			.toBeUndefined();
+	});
+
+	it("confirms a report as a status toast, so it is seen wherever the reader was scrolled to", () => {
+		expect(withConfirmation({ feedbackConfirmed: true }).statusToastMessage).toBe(
+			"Thanks — your report was logged.",
+		);
+	});
+
+	it("confirms a save in the present tense — the route publishes, a subscriber writes the queue", () => {
+		expect(withConfirmation({ savedConfirmed: true }).statusToastMessage).toBe(
+			"Adding to your queue…",
+		);
+	});
+
+	it("prefers the save confirmation when a hand-typed URL carries both flags", () => {
+		expect(
+			withConfirmation({ savedConfirmed: true, feedbackConfirmed: true }).statusToastMessage,
+		).toBe("Adding to your queue…");
 	});
 
 	it("labels an excluded link without a recorded reason generically", () => {

@@ -305,6 +305,7 @@ export function initInboxRoutes(deps: InboxDependencies): Router {
 				emailId: receivedAtMessageId,
 				pollCount: requestedPoll + 1,
 				maxPolls: MAX_POLLS,
+				shown: parseArticlesShown(req.query),
 			});
 			res.status(200).type("html").send(renderInboxArticleCard(cardVm));
 		},
@@ -351,7 +352,11 @@ export function initInboxRoutes(deps: InboxDependencies): Router {
 			const tab = link.status === "skipped" ? "excluded" : "articles";
 			res.redirect(
 				303,
-				`${buildInboxEmailDetailUrl({ emailId: receivedAtMessageId, tab })}&feedback=sent`,
+				`${buildInboxEmailDetailUrl({
+					emailId: receivedAtMessageId,
+					tab,
+					shown: parseArticlesShown(req.body),
+				})}&feedback=sent`,
 			);
 		},
 	);
@@ -385,7 +390,11 @@ export function initInboxRoutes(deps: InboxDependencies): Router {
 			await deps.publishSubmitLink({ userId, url: link.url });
 			res.redirect(
 				303,
-				`${buildInboxEmailDetailUrl({ emailId: receivedAtMessageId, tab: "articles" })}&saved=1`,
+				`${buildInboxEmailDetailUrl({
+					emailId: receivedAtMessageId,
+					tab: "articles",
+					shown: parseArticlesShown(req.body),
+				})}&saved=1`,
 			);
 		},
 	);
