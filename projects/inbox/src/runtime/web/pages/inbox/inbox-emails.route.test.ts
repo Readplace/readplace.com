@@ -2,7 +2,6 @@ import assert from "node:assert/strict";
 import { JSDOM } from "jsdom";
 import request from "supertest";
 import {
-	EmailLinkOrdinalSchema,
 	InboxAddressSchema,
 	type InboxEmailEntry,
 	MessageIdSchema,
@@ -186,42 +185,10 @@ describe("Inbox emails list route", () => {
 		]);
 		const user = await fixture.auth.findUserByEmail("test@example.com");
 		assert(user, "user must exist");
-		for (const ordinal of ["0000", "0001"]) {
-			await fixture.inboxEmail.inboxEmailLinkStore.putLink({
-				userId: user.userId,
-				receivedAtMessageId: withLinks,
-				ordinal: EmailLinkOrdinalSchema.parse(ordinal),
-				url: `https://example.com/${ordinal}`,
-				resolvedUrl: undefined,
-				status: "pending",
-				title: undefined,
-				excerpt: undefined,
-				siteName: undefined,
-				imageUrl: undefined,
-				failureReason: undefined,
-				skipReason: undefined,
-			});
-		}
-		await fixture.inboxEmail.inboxEmailLinkStore.putLink({
+		await fixture.inboxEmail.inboxEmailStore.setEmailLinkCounts({
 			userId: user.userId,
 			receivedAtMessageId: withLinks,
-			ordinal: EmailLinkOrdinalSchema.parse("0002"),
-			url: "https://news.example.com/unsub",
-			resolvedUrl: undefined,
-			status: "skipped",
-			title: undefined,
-			excerpt: undefined,
-			siteName: undefined,
-			imageUrl: undefined,
-			failureReason: undefined,
-			skipReason: "list-unsubscribe",
-		});
-		// The finished-extraction barrier: rows plus meta is the state the list
-		// normally renders once the extractor is done.
-		await fixture.inboxEmail.inboxEmailLinkStore.putLinksMeta({
-			userId: user.userId,
-			receivedAtMessageId: withLinks,
-			meta: { truncated: false },
+			linkCounts: { kept: 2, skipped: 1, truncated: false },
 		});
 
 		const response = await agent.get("/inbox?feature=email");

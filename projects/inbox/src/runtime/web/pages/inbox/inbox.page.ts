@@ -45,7 +45,7 @@ import {
 	buildInboxEmailsUrl,
 	parseInboxEmailsUrl,
 } from "./inbox-emails.url";
-import { type InboxEmailLinkSummary, toInboxEmailsViewModel } from "./inbox-emails.viewmodel";
+import { toInboxEmailsViewModel } from "./inbox-emails.viewmodel";
 import { computeInboxLinkCardEtag } from "./inbox-link-card.etag";
 import { toInboxLinkCardViewModel } from "./inbox-link-card.viewmodel";
 import { parsePollParam } from "@packages/web-shell";
@@ -119,23 +119,7 @@ export function initInboxRoutes(deps: InboxDependencies): Router {
 			res.redirect(302, buildInboxEmailsUrl({}));
 			return;
 		}
-		const summaries = await Promise.all(
-			result.emails.map(async (email): Promise<[string, InboxEmailLinkSummary]> => {
-				const { links, meta } = await deps.inboxEmailLinkStore.listLinksByEmail({
-					userId,
-					receivedAtMessageId: email.receivedAtMessageId,
-				});
-				return [
-					email.receivedAtMessageId,
-					{
-						count: links.filter((link) => link.status !== "skipped").length,
-						truncated: meta?.truncated === true,
-					},
-				];
-			}),
-		);
-		const linkSummaries = new Map<string, InboxEmailLinkSummary>(summaries);
-		const vm = toInboxEmailsViewModel(result, { now: deps.now(), linkSummaries });
+		const vm = toInboxEmailsViewModel(result, { now: deps.now() });
 		sendComponent(req, res, Base(InboxEmailsPage(vm), await deps.buildBannerState(req)));
 	});
 

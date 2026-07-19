@@ -4,13 +4,6 @@ import { buildInboxEmailDetailUrl } from "./inbox-email-detail.url";
 import { buildLinkCountLabel } from "./inbox-link-count-label";
 import { buildInboxEmailsUrl } from "./inbox-emails.url";
 
-/** Per-email link tally, derived by the route from a single per-email Query
- * (no parent-row denormalisation). */
-export interface InboxEmailLinkSummary {
-	count: number;
-	truncated: boolean;
-}
-
 export interface InboxEmailRowViewModel {
 	href: string;
 	sender: string;
@@ -73,30 +66,30 @@ function buildPaginationLinks(
 
 export function toInboxEmailsViewModel(
 	result: ListInboxEmailsResult,
-	options: { now: Date; linkSummaries: Map<string, InboxEmailLinkSummary> },
+	options: { now: Date },
 ): InboxEmailsViewModel {
 	const paginationLinks = buildPaginationLinks(result);
 	return {
 		isEmpty: result.emails.length === 0,
 		showPagination: paginationLinks.length > 0,
 		paginationLinks,
-		rows: result.emails.map((entry) => {
-			const summary = options.linkSummaries.get(entry.receivedAtMessageId);
-			return {
-				href: buildInboxEmailDetailUrl({ emailId: entry.receivedAtMessageId, tab: "view" }),
-				sender: entry.senderEmail === "" ? "(unknown sender)" : entry.senderEmail,
-				subject: entry.subject === "" ? "(no subject)" : entry.subject,
-				received: toRelativeOrDate({ iso: entry.receivedAt, now: options.now }),
-				status: entry.status,
-				statusLabel: STATUS_LABEL[entry.status],
-				needsBadge: entry.status !== "received",
-				// Only `received` mail ever has links; rejected/unparsed rows never
-				// surface a count even if a stray row existed.
-				linkCountLabel:
-					entry.status === "received" && summary !== undefined
-						? buildLinkCountLabel(summary)
-						: undefined,
-			};
-		}),
+		rows: result.emails.map((entry) => ({
+			href: buildInboxEmailDetailUrl({ emailId: entry.receivedAtMessageId, tab: "view" }),
+			sender: entry.senderEmail === "" ? "(unknown sender)" : entry.senderEmail,
+			subject: entry.subject === "" ? "(no subject)" : entry.subject,
+			received: toRelativeOrDate({ iso: entry.receivedAt, now: options.now }),
+			status: entry.status,
+			statusLabel: STATUS_LABEL[entry.status],
+			needsBadge: entry.status !== "received",
+			// Only `received` mail ever has links; rejected/unparsed rows never
+			// surface a count even if a stray row existed.
+			linkCountLabel:
+				entry.status === "received" && entry.linkCounts !== undefined
+					? buildLinkCountLabel({
+							count: entry.linkCounts.kept,
+							truncated: entry.linkCounts.truncated,
+						})
+					: undefined,
+		})),
 	};
 }

@@ -5,10 +5,7 @@ import {
 	MessageIdSchema,
 } from "@packages/domain/inbox";
 import { UserIdSchema } from "@packages/domain/user";
-import {
-	type InboxEmailLinkSummary,
-	toInboxEmailsViewModel,
-} from "./inbox-emails.viewmodel";
+import { toInboxEmailsViewModel } from "./inbox-emails.viewmodel";
 
 const USER = UserIdSchema.parse("user-1");
 const NOW = new Date("2026-06-24T12:00:00.000Z");
@@ -31,16 +28,10 @@ function entry(overrides: Partial<InboxEmailEntry> = {}): InboxEmailEntry {
 	};
 }
 
-function build(
-	entries: InboxEmailEntry[],
-	summaries: Record<string, InboxEmailLinkSummary> = {},
-) {
+function build(entries: InboxEmailEntry[]) {
 	return toInboxEmailsViewModel(
 		{ emails: entries, hasNewer: false, hasOlder: false },
-		{
-			now: NOW,
-			linkSummaries: new Map(Object.entries(summaries)),
-		},
+		{ now: NOW },
 	);
 }
 
@@ -53,7 +44,7 @@ function buildNav(input: { hasNewer: boolean; hasOlder: boolean }) {
 			],
 			...input,
 		},
-		{ now: NOW, linkSummaries: new Map() },
+		{ now: NOW },
 	);
 }
 
@@ -96,24 +87,27 @@ describe("toInboxEmailsViewModel", () => {
 	});
 
 	it("shows a link-count label for a received email with extracted links", () => {
-		const sk = "2026-06-24T11:59:30.000Z#<m-1@example.com>";
-		const vm = build([entry()], { [sk]: { count: 12, truncated: false } });
+		const vm = build([entry({ linkCounts: { kept: 12, skipped: 3, truncated: false } })]);
 
 		expect(vm.rows[0].linkCountLabel).toBe("12 links");
 	});
 
 	it("marks a truncated count and omits the label when there are no links", () => {
-		const sk = "2026-06-24T11:59:30.000Z#<m-1@example.com>";
-		expect(build([entry()], { [sk]: { count: 200, truncated: true } }).rows[0].linkCountLabel).toBe(
-			"200+ links",
-		);
-		expect(build([entry()], { [sk]: { count: 0, truncated: false } }).rows[0].linkCountLabel).toBeUndefined();
+		expect(
+			build([entry({ linkCounts: { kept: 200, skipped: 0, truncated: true } })]).rows[0]
+				.linkCountLabel,
+		).toBe("200+ links");
+		expect(
+			build([entry({ linkCounts: { kept: 0, skipped: 4, truncated: false } })]).rows[0]
+				.linkCountLabel,
+		).toBeUndefined();
 		expect(build([entry()]).rows[0].linkCountLabel).toBeUndefined();
 	});
 
 	it("never labels a rejected or unparsed row even if a count is present", () => {
-		const sk = "2026-06-24T11:59:30.000Z#<m-1@example.com>";
-		const vm = build([entry({ status: "unparsed" })], { [sk]: { count: 5, truncated: false } });
+		const vm = build([
+			entry({ status: "unparsed", linkCounts: { kept: 5, skipped: 0, truncated: false } }),
+		]);
 
 		expect(vm.rows[0].linkCountLabel).toBeUndefined();
 	});
