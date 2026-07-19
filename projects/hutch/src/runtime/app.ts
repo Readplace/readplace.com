@@ -45,9 +45,9 @@ import { initInMemoryRateLimit } from "@packages/test-fixtures/providers/rate-li
 import type { RateLimitRules } from "@packages/provider-contracts/rate-limit";
 import { parseRateLimitRule } from "@packages/domain/rate-limit";
 import { initDynamoDbRateLimit } from "./providers/rate-limit/dynamodb-rate-limit";
-import { initDynamoDbGeneratedSummary } from "./providers/article-summary/dynamodb-generated-summary";
+import { initDynamoDbGeneratedSummary } from "@packages/article-store";
 import { devSummariseInline } from "./providers/article-summary/dev-summarise-inline";
-import { initDynamoDbArticleCrawl } from "./providers/article-crawl/dynamodb-article-crawl";
+import { initDynamoDbArticleCrawl } from "@packages/article-store";
 import { initInMemoryArticleCrawl } from "@packages/test-fixtures/providers/article-crawl";
 import { initInMemoryGeneratedSummary } from "@packages/test-fixtures/providers/article-summary";
 import { S3Client } from "@aws-sdk/client-s3";
