@@ -6,7 +6,7 @@ import {
 	EventBridgeClient,
 	initEventBridgePublisher,
 } from "@packages/hutch-infra-components/runtime";
-import { initDynamoDbArticleStore } from "./providers/article-store/dynamodb-article-store";
+import { initDynamoDbSavedArticleStore } from "@packages/article-store";
 import { initResendEmail } from "./providers/email/resend-email";
 import { initS3UserDataExport } from "./providers/user-data-export/s3-user-data-export";
 import { initExportUserDataHandler } from "./export-user-data/export-user-data-handler";
@@ -21,7 +21,7 @@ const resendApiKey = requireEnv("RESEND_API_KEY");
 const dynamoClient = createDynamoDocumentClient();
 const s3Client = new S3Client({});
 
-const articleStore = initDynamoDbArticleStore({
+const articleStore = initDynamoDbSavedArticleStore({
 	client: dynamoClient,
 	tableName: articlesTable,
 	userArticlesTableName: userArticlesTable,

@@ -1,7 +1,7 @@
 /* c8 ignore start -- composition root, no logic to test */
 import { createDynamoDocumentClient } from "@packages/hutch-storage-client";
 import { HutchLogger, consoleLogger } from "@packages/hutch-logger";
-import { initDynamoDbArticleStore } from "./providers/article-store/dynamodb-article-store";
+import { initDynamoDbSavedArticleStore } from "@packages/article-store";
 import { initDynamoDbAuth } from "./providers/auth/dynamodb-auth";
 import { initDynamoDbSubscriptionProviders } from "./providers/subscription-providers/dynamodb-subscription-providers";
 import { initResendEmail } from "./providers/email/resend-email";
@@ -33,7 +33,7 @@ const auth = initDynamoDbAuth({
 	sessionsTableName: sessionsTable,
 });
 
-const articleStore = initDynamoDbArticleStore({
+const articleStore = initDynamoDbSavedArticleStore({
 	client: dynamoClient,
 	tableName: articlesTable,
 	userArticlesTableName: userArticlesTable,

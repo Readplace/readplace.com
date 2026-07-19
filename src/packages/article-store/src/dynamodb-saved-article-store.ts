@@ -11,7 +11,7 @@ import { z } from "zod";
 import type { SavedArticle } from "@packages/domain/article";
 import { MinutesSchema, ArticleStatusSchema } from "@packages/domain/article";
 import { ArticleResourceUniqueId } from "@packages/article-resource-unique-id";
-import { StoredCrawlVersionSchema, normalizeCrawlVersion } from "@packages/article-store";
+import { StoredCrawlVersionSchema, normalizeCrawlVersion } from "./crawl-version-log";
 import { ReaderArticleHashId, ReaderArticleHashIdSchema } from "@packages/domain/article";
 import type { HutchLogger } from "@packages/hutch-logger";
 import { UserIdSchema } from "@packages/domain/user";
@@ -105,6 +105,10 @@ const UserArticleRow = z.object({
 	lastSummaryClosedAt: dynamoField(z.string()),
 });
 
+function toOptionalDate(value: string | undefined): Date | undefined {
+	return value ? new Date(value) : undefined;
+}
+
 function toSavedArticle(
 	article: z.infer<typeof ArticleRow>,
 	userArticle: z.infer<typeof UserArticleRow>,
@@ -125,11 +129,11 @@ function toSavedArticle(
 		estimatedReadTime: article.estimatedReadTime,
 		status: userArticle.status,
 		savedAt: new Date(userArticle.savedAt),
-		readAt: userArticle.readAt ? new Date(userArticle.readAt) : undefined,
+		readAt: toOptionalDate(userArticle.readAt),
 	};
 }
 
-export function initDynamoDbArticleStore(deps: {
+export function initDynamoDbSavedArticleStore(deps: {
 	client: DynamoDBDocumentClient;
 	tableName: string;
 	userArticlesTableName: string;
@@ -586,7 +590,7 @@ export function initDynamoDbArticleStore(deps: {
 
 		return rows.map((row) => ({
 			userId: row.userId,
-			viewedAt: row.viewedAt ? new Date(row.viewedAt) : undefined,
+			viewedAt: toOptionalDate(row.viewedAt),
 		}));
 	};
 
@@ -612,9 +616,9 @@ export function initDynamoDbArticleStore(deps: {
 		return {
 			savedAt: new Date(row.savedAt),
 			status: row.status,
-			succeededAt: row.succeededAt ? new Date(row.succeededAt) : undefined,
-			viewedAt: row.viewedAt ? new Date(row.viewedAt) : undefined,
-			emailSentAt: row.emailSentAt ? new Date(row.emailSentAt) : undefined,
+			succeededAt: toOptionalDate(row.succeededAt),
+			viewedAt: toOptionalDate(row.viewedAt),
+			emailSentAt: toOptionalDate(row.emailSentAt),
 		};
 	};
 
@@ -666,7 +670,7 @@ export function initDynamoDbArticleStore(deps: {
 			estimatedReadTime: row.estimatedReadTime,
 			savedAt: row.savedAt ? new Date(row.savedAt) : new Date(0),
 			contentSourceTier: row.contentSourceTier,
-			purgedAt: row.purgedAt ? new Date(row.purgedAt) : undefined,
+			purgedAt: toOptionalDate(row.purgedAt),
 		};
 	};
 

@@ -2,7 +2,7 @@
 import { createDynamoDocumentClient } from "@packages/hutch-storage-client";
 import { HutchLogger, consoleLogger } from "@packages/hutch-logger";
 import { EventBridgeClient, initEventBridgePublisher } from "@packages/hutch-infra-components/runtime";
-import { initDynamoDbArticleStore } from "./providers/article-store/dynamodb-article-store";
+import { initDynamoDbSavedArticleStore } from "@packages/article-store";
 import { initDynamoDbAuth } from "./providers/auth/dynamodb-auth";
 import { initDynamoDbReaderReadyState } from "./providers/reader-ready-state/dynamodb-reader-ready-state";
 import { initDynamoDbDigestQueue } from "./providers/digest-queue/dynamodb-digest-queue";
@@ -34,7 +34,7 @@ const eventBusName = requireEnv("EVENT_BUS_NAME");
 
 const dynamoClient = createDynamoDocumentClient();
 
-const articleStore = initDynamoDbArticleStore({
+const articleStore = initDynamoDbSavedArticleStore({
 	client: dynamoClient,
 	tableName: articlesTable,
 	userArticlesTableName: userArticlesTable,

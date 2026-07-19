@@ -9,7 +9,7 @@ import { initDynamoDbAuth } from "./providers/auth/dynamodb-auth";
 import { initInMemoryIosOnboardingSignal } from "@packages/test-fixtures/providers/ios-onboarding-signal";
 import { initIosOnboardingSignal } from "./providers/ios-onboarding-signal/dynamodb-ios-onboarding-signal";
 import { initInMemoryArticleStore } from "@packages/test-fixtures/providers/article-store";
-import { initDynamoDbArticleStore } from "./providers/article-store/dynamodb-article-store";
+import { initDynamoDbSavedArticleStore } from "@packages/article-store";
 import type { ExtractPdf } from "@packages/crawl-article";
 import {
 	CRAWL_PERSONAS,
@@ -203,7 +203,7 @@ function initProviders(input: { appOrigin: string }) {
 
 		const auth = initDynamoDbAuth({ client, usersTableName: usersTable, sessionsTableName: sessionsTable });
 		const iosOnboardingSignal = initIosOnboardingSignal({ client, onboardingTableName: onboardingTable, now: () => new Date() });
-		const articleStore = initDynamoDbArticleStore({ client, tableName: articlesTable, userArticlesTableName: userArticlesTable, logger });
+		const articleStore = initDynamoDbSavedArticleStore({ client, tableName: articlesTable, userArticlesTableName: userArticlesTable, logger });
 		const canonicalAlias = initCanonicalAliasStore({ client, tableName: articlesTable });
 		const resolveCanonicalIdentity = initResolveCanonicalIdentity({ resolveAlias: canonicalAlias.resolveAlias });
 		const readArticleContent = initReadArticleContent({

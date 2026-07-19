@@ -1,7 +1,7 @@
 /* c8 ignore start -- composition root, no logic to test */
 import { createDynamoDocumentClient } from "@packages/hutch-storage-client";
 import { HutchLogger, consoleLogger } from "@packages/hutch-logger";
-import { initDynamoDbArticleStore } from "./providers/article-store/dynamodb-article-store";
+import { initDynamoDbSavedArticleStore } from "@packages/article-store";
 import { initDynamoDbDigestQueue } from "./providers/digest-queue/dynamodb-digest-queue";
 import { initReaderReadyUsersNotificationFanoutHandler } from "./reader-ready-fanout/reader-ready-fanout-handler";
 import { requireEnv } from "@packages/require-env";
@@ -18,7 +18,7 @@ const digestQueueTable = requireEnv("DYNAMODB_DIGEST_QUEUE_TABLE");
 const dynamoClient = createDynamoDocumentClient();
 const logger = HutchLogger.from(consoleLogger);
 
-const articleStore = initDynamoDbArticleStore({
+const articleStore = initDynamoDbSavedArticleStore({
 	client: dynamoClient,
 	tableName: articlesTable,
 	userArticlesTableName: userArticlesTable,

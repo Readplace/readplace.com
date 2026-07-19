@@ -1,4 +1,5 @@
 export { initDynamoDbArticleStore } from "./dynamodb-article-store";
+export { initDynamoDbSavedArticleStore } from "./dynamodb-saved-article-store";
 export {
 	initCanonicalAliasStore,
 	initResolveCanonicalIdentity,

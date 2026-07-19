@@ -8,7 +8,7 @@ import { requireEnv } from "@packages/require-env";
 import { initCreateAppleClientSecret } from "./providers/apple-auth/apple-client-secret";
 import { initDynamoDbAuth } from "./providers/auth/dynamodb-auth";
 import { initRevokeAllUserOAuthTokens } from "./providers/oauth/dynamodb-oauth-model";
-import { initDynamoDbArticleStore } from "./providers/article-store/dynamodb-article-store";
+import { initDynamoDbSavedArticleStore } from "@packages/article-store";
 import { initDynamoDbDigestQueue } from "./providers/digest-queue/dynamodb-digest-queue";
 import { initDynamoDbReaderReadyState } from "./providers/reader-ready-state/dynamodb-reader-ready-state";
 import { initIosOnboardingSignal } from "./providers/ios-onboarding-signal/dynamodb-ios-onboarding-signal";
@@ -46,7 +46,7 @@ const revokeAllUserOAuthTokens = initRevokeAllUserOAuthTokens({
 	tableName: requireEnv("DYNAMODB_OAUTH_TABLE"),
 });
 
-const articleStore = initDynamoDbArticleStore({
+const articleStore = initDynamoDbSavedArticleStore({
 	client: dynamoClient,
 	tableName: requireEnv("DYNAMODB_ARTICLES_TABLE"),
 	userArticlesTableName: requireEnv("DYNAMODB_USER_ARTICLES_TABLE"),

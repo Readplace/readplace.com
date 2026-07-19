@@ -3,7 +3,7 @@ import { ArticleResourceUniqueId } from "@packages/article-resource-unique-id";
 import { MinutesSchema, ReaderArticleHashId } from "@packages/domain/article";
 import type { UserId } from "@packages/domain/user";
 import { HutchLogger, noopLogger } from "@packages/hutch-logger";
-import { initDynamoDbArticleStore } from "./dynamodb-article-store";
+import { initDynamoDbSavedArticleStore } from "./dynamodb-saved-article-store";
 
 const USER = "abc123" as UserId;
 const URL = "https://example.com/article";
@@ -48,7 +48,7 @@ function createFakeClient(
 }
 
 function initStore(client: DynamoDBDocumentClient, logger: HutchLogger = HutchLogger.from(noopLogger)) {
-	return initDynamoDbArticleStore({
+	return initDynamoDbSavedArticleStore({
 		client,
 		tableName: "articles",
 		userArticlesTableName: "user-articles",
@@ -83,7 +83,7 @@ function userArticleItem(overrides: Record<string, unknown> = {}): Record<string
 	};
 }
 
-describe("initDynamoDbArticleStore reader-ready columns", () => {
+describe("initDynamoDbSavedArticleStore reader-ready columns", () => {
 	it("markArticleViewed stamps viewedAt only on a row that still exists so a delete race cannot resurrect it", async () => {
 		const { client, commands } = createFakeClient();
 		await initStore(client).markArticleViewed({ userId: USER, url: URL, at: new Date("2026-05-30T10:00:00.000Z") });
@@ -233,7 +233,7 @@ describe("initDynamoDbArticleStore reader-ready columns", () => {
 	});
 });
 
-describe("initDynamoDbArticleStore global writes", () => {
+describe("initDynamoDbSavedArticleStore global writes", () => {
 	it("saveArticleGlobally reports created=true on a fresh conditional put", async () => {
 		const { client, commands } = createFakeClient();
 		const result = await initStore(client).saveArticleGlobally({
@@ -378,7 +378,7 @@ describe("initDynamoDbArticleStore global writes", () => {
 	});
 });
 
-describe("initDynamoDbArticleStore reads by id", () => {
+describe("initDynamoDbSavedArticleStore reads by id", () => {
 	it("findArticleById joins the global row with the user row", async () => {
 		const { client } = createFakeClient({
 			QueryCommand: { default: { Items: [articleItem()], Count: 1 } },
@@ -427,7 +427,7 @@ describe("initDynamoDbArticleStore reads by id", () => {
 	});
 });
 
-describe("initDynamoDbArticleStore findArticlesByUser", () => {
+describe("initDynamoDbSavedArticleStore findArticlesByUser", () => {
 	it("uses the savedAt index with no filter by default and joins each user row to its article", async () => {
 		const { client, commands } = createFakeClient({
 			QueryCommand: {
@@ -551,7 +551,7 @@ describe("initDynamoDbArticleStore findArticlesByUser", () => {
 	});
 });
 
-describe("initDynamoDbArticleStore countArticlesByUser", () => {
+describe("initDynamoDbSavedArticleStore countArticlesByUser", () => {
 	it("sums COUNT pages without fetching rows", async () => {
 		const { client, commands } = createFakeClient({
 			QueryCommand: {
@@ -581,7 +581,7 @@ describe("initDynamoDbArticleStore countArticlesByUser", () => {
 	});
 });
 
-describe("initDynamoDbArticleStore deleteArticle", () => {
+describe("initDynamoDbSavedArticleStore deleteArticle", () => {
 	it("deletes the user row and reports success", async () => {
 		const { client, commands } = createFakeClient({
 			QueryCommand: { default: { Items: [articleItem()], Count: 1 } },
@@ -614,7 +614,7 @@ describe("initDynamoDbArticleStore deleteArticle", () => {
 	});
 });
 
-describe("initDynamoDbArticleStore deleteAllUserArticles", () => {
+describe("initDynamoDbSavedArticleStore deleteAllUserArticles", () => {
 	it("pages the userId-savedAt-index and deletes every userArticles row by its (userId, url) key across pages", async () => {
 		const { client, commands } = createFakeClient({
 			QueryCommand: {
@@ -650,7 +650,7 @@ describe("initDynamoDbArticleStore deleteAllUserArticles", () => {
 	});
 });
 
-describe("initDynamoDbArticleStore listUserArticleUrls", () => {
+describe("initDynamoDbSavedArticleStore listUserArticleUrls", () => {
 	it("pages the user's rows and resolves each to its global original URL via a batch get", async () => {
 		const { client, commands } = createFakeClient({
 			QueryCommand: {
@@ -699,7 +699,7 @@ describe("initDynamoDbArticleStore listUserArticleUrls", () => {
 	});
 });
 
-describe("initDynamoDbArticleStore updateArticleStatus", () => {
+describe("initDynamoDbSavedArticleStore updateArticleStatus", () => {
 	it("stamps readAt when marking an article read", async () => {
 		const { client, commands } = createFakeClient({
 			QueryCommand: { default: { Items: [articleItem()], Count: 1 } },
@@ -746,7 +746,7 @@ describe("initDynamoDbArticleStore updateArticleStatus", () => {
 	});
 });
 
-describe("initDynamoDbArticleStore freshness, notification state, content and url lookup", () => {
+describe("initDynamoDbSavedArticleStore freshness, notification state, content and url lookup", () => {
 	it("findArticleFreshness returns the etag, lastModified and contentFetchedAt", async () => {
 		const { client } = createFakeClient({
 			GetCommand: {
