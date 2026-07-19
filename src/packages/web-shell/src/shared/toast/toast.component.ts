@@ -1,6 +1,5 @@
-import { readFileSync } from "node:fs";
-import { join } from "node:path";
-import { render } from "@packages/web-shell";
+import { render } from "../../render";
+import { TOAST_TEMPLATE } from "./toast.template";
 
 export interface ToastAction {
 	method: string;
@@ -18,8 +17,6 @@ export interface ToastViewModel {
 	actions: ReadonlyArray<ToastAction>;
 }
 
-const TEMPLATE = readFileSync(join(__dirname, "toast.template.html"), "utf-8");
-
 export function renderToast(toast: ToastViewModel): string {
-	return render(TEMPLATE, toast);
+	return render(TOAST_TEMPLATE, toast);
 }

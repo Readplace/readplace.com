@@ -73,6 +73,8 @@ export type {
 	RenderChromelessPage,
 } from "./chromeless-page";
 export { VERIFICATION_CONTACT_EMAIL } from "./shared/verify-banner/verify-banner.component";
+export { renderToast } from "./shared/toast/toast.component";
+export type { ToastAction, ToastViewModel } from "./shared/toast/toast.component";
 export { etagMatches } from "./etag";
 export { MAX_POLLS, parsePollParam } from "./poll-protocol";
 export { QuerystringFeatureToggle } from "./feature-toggle";

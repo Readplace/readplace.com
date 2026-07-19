@@ -1,4 +1,4 @@
-<div class="toast" role="status" aria-live="polite" data-dismiss="{{dismissMs}}" data-test-toast>
+export const TOAST_TEMPLATE = `<div class="toast" role="status" aria-live="polite" data-dismiss="{{dismissMs}}" data-test-toast>
 	<span class="toast__message" data-test-toast-message>{{message}}</span>
 	{{#each actions}}
 	<form class="toast__action-form" method="{{method}}" action="{{url}}" hx-boost="true" hx-target="main" hx-select="main" hx-swap="outerHTML show:none" hx-disabled-elt="find button">
@@ -6,4 +6,4 @@
 		<button class="toast__action" type="submit" aria-label="{{label}}" data-test-toast-action><span class="toast__action-label">{{label}}</span><span class="toast__action-loader" aria-hidden="true"><span></span><span></span><span></span></span></button>
 	</form>
 	{{/each}}
-</div>
+</div>`;

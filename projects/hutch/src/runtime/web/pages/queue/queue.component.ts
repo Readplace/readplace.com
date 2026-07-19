@@ -7,6 +7,7 @@ import type { DeviceClass } from "@packages/web-analytics";
 import {
 	formatTabCountLabel,
 	render,
+	renderToast,
 	withInternalTracking,
 	SUBSCRIBE_CTA_LABEL,
 } from "@packages/web-shell";
@@ -14,7 +15,6 @@ import type { LocalTime, PageBody } from "@packages/web-shell";
 
 import { QUEUE_STYLES } from "./queue.styles";
 import { renderQueueCard, toQueueCardDisplayModel } from "./queue-card/queue-card.component";
-import { renderToast } from "../../shared/toast/toast.component";
 import { SAVE_SURFACES_SHORT_PHRASE } from "../../shared/client-surface-phrases";
 import type { QueueViewModel, SubscriptionBannerState } from "./queue.viewmodel";
 import { buildQueueUrl } from "./queue.url";
