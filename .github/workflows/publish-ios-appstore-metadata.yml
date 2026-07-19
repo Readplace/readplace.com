@@ -29,7 +29,7 @@ jobs:
       contents: read
     defaults:
       run:
-        working-directory: projects/ios-readplace
+        working-directory: projects/native-apps/ios
     steps:
       - uses: actions/checkout@v6
 
@@ -51,7 +51,7 @@ jobs:
         with:
           ruby-version: '3.3'
           bundler-cache: true
-          working-directory: projects/ios-readplace
+          working-directory: projects/native-apps/ios
 
       - name: Write the App Store Connect API key
         if: steps.preflight.outputs.configured == 'true'

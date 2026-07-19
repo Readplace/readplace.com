@@ -154,14 +154,14 @@ importers:
         specifier: 6.0.3
         version: 6.0.3
 
-  projects/browser-extension-core:
+  projects/browser-extensions/browser-extension-core:
     dependencies:
       '@packages/article-resource-unique-id':
         specifier: workspace:*
-        version: link:../../src/packages/article-resource-unique-id
+        version: link:../../../src/packages/article-resource-unique-id
       '@packages/hutch-logger':
         specifier: workspace:*
-        version: link:../../src/packages/hutch-logger
+        version: link:../../../src/packages/hutch-logger
       esbuild:
         specifier: 'catalog:'
         version: 0.28.0
@@ -174,10 +174,10 @@ importers:
     devDependencies:
       '@packages/check-unused-css':
         specifier: workspace:*
-        version: link:../../src/packages/check-unused-css
+        version: link:../../../src/packages/check-unused-css
       '@packages/test-phase-runner':
         specifier: workspace:*
-        version: link:../../src/packages/test-phase-runner
+        version: link:../../../src/packages/test-phase-runner
       '@types/selenium-webdriver':
         specifier: 4.35.6
         version: 4.35.6
@@ -197,7 +197,7 @@ importers:
         specifier: 6.0.3
         version: 6.0.3
 
-  projects/extensions/chrome-extension:
+  projects/browser-extensions/chrome-extension:
     dependencies:
       '@packages/hutch-logger':
         specifier: workspace:*
@@ -210,7 +210,7 @@ importers:
         version: link:../../../src/packages/supported-clients
       browser-extension-core:
         specifier: workspace:*
-        version: link:../../browser-extension-core
+        version: link:../browser-extension-core
       webextension-polyfill:
         specifier: 0.12.0
         version: 0.12.0
@@ -255,7 +255,7 @@ importers:
         specifier: 6.0.3
         version: 6.0.3
 
-  projects/extensions/firefox-extension:
+  projects/browser-extensions/firefox-extension:
     dependencies:
       '@packages/hutch-infra-components':
         specifier: workspace:*
@@ -271,7 +271,7 @@ importers:
         version: link:../../../src/packages/supported-clients
       browser-extension-core:
         specifier: workspace:*
-        version: link:../../browser-extension-core
+        version: link:../browser-extension-core
     devDependencies:
       '@packages/check-unused-css':
         specifier: workspace:*
@@ -416,7 +416,7 @@ importers:
         version: link:../../src/packages/web-shell
       browser-extension-core:
         specifier: workspace:*
-        version: link:../browser-extension-core
+        version: link:../browser-extensions/browser-extension-core
       compression:
         specifier: 1.8.1
         version: 1.8.1
@@ -11908,7 +11908,7 @@ snapshots:
     dependencies:
       '@bazel/runfiles': 6.5.0
       jszip: 3.10.1
-      tmp: 0.2.5
+      tmp: 0.2.6
       ws: 8.21.0
     transitivePeerDependencies:
       - bufferutil

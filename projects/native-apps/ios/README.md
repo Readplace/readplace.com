@@ -8,7 +8,7 @@ or a shared PDF's bytes — not just the URL) via the server's `save-content` Si
 action — exactly what the extension does.
 
 It lives under `projects/` as an nx project
-(`ios-readplace`). It builds with its own Swift/fastlane toolchain rather
+(`ios`). It builds with its own Swift/fastlane toolchain rather
 than pnpm, and its app code touches no other project. It authenticates with its
 own public OAuth client (`ios-app`), registered server-side in
 `built-in-clients.ts`, and otherwise reuses the existing Siren API.
@@ -32,7 +32,7 @@ way around installing it once). One-time setup, then one command, then install.
 **The command — build the app (run in this folder):**
 
 ```sh
-cd projects/ios-readplace
+cd projects/native-apps/ios
 make ipa
 ```
 
@@ -133,14 +133,14 @@ That produces `build/Readplace-unsigned.ipa` (the app + its share extension).
 
 It speaks `application/vnd.siren+json`, sends `Authorization: Bearer <token>` on
 every request, and refreshes the token once on a `401` — the same contract the
-extension uses. See [`../../.claude/skills/hypermedia-api-design/SKILL.md`](../../.claude/skills/hypermedia-api-design/SKILL.md).
+extension uses. See [`../../../.claude/skills/hypermedia-api-design/SKILL.md`](../../../.claude/skills/hypermedia-api-design/SKILL.md).
 
 ---
 
 ## Layout
 
 ```
-projects/ios-readplace/
+projects/native-apps/ios/
 ├── project.yml                  # XcodeGen spec (source of truth for the project)
 ├── Makefile                     # make ipa / ipa-staging / generate / open / test / clean
 ├── scripts/build-unsigned-ipa.sh  # one command → installable unsigned .ipa
@@ -170,7 +170,7 @@ convenience; regenerate anytime with `make generate` (`brew install xcodegen`).
 From a Mac with Xcode's command-line tools and `brew install xcodegen`:
 
 ```sh
-cd projects/ios-readplace
+cd projects/native-apps/ios
 make ipa
 ```
 
@@ -190,7 +190,7 @@ app stores. The free-account signature lasts 7 days; re-run `make ipa` and
 re-install to renew.
 
 For a build that targets the deployed **staging** stack instead of production,
-run `make ipa-staging` (or `nx run ios-readplace:compile-dev`). It sets the
+run `make ipa-staging` (or `nx run ios:compile-dev`). It sets the
 `STAGING` Swift compilation condition and writes a separate
 `build/Readplace-staging-unsigned.ipa`, so a tester signs in against staging
 without typing a URL. Same bundle id, so it replaces the prod app on a device.
@@ -206,7 +206,7 @@ You need a Mac with **Xcode 15+** and an Apple ID (a free personal team is fine)
 
 1. **Open the project**
    ```sh
-   cd projects/ios-readplace
+   cd projects/native-apps/ios
    make open          # or: open Readplace.xcodeproj
    ```
 
@@ -318,7 +318,7 @@ exercised on every run, not only when someone builds `make ipa-staging` by hand.
 ## Notes & caveats
 
 - **App icon.** The app ships a brand icon — a navy serif ampersand with the
-  warm-amber marker dot (see [BRAND_GUIDELINES.md](../../BRAND_GUIDELINES.md)) — in
+  warm-amber marker dot (see [BRAND_GUIDELINES.md](../../../BRAND_GUIDELINES.md)) — in
   an `Assets.xcassets` catalog, regenerated from the brand geometry by
   `scripts/make-appicon.sh`. Compiling the catalog (`actool`) needs the iOS
   **platform/simulator runtime** installed (`xcodebuild -downloadPlatform iOS`),
@@ -330,7 +330,7 @@ exercised on every run, not only when someone builds `make ipa-staging` by hand.
   variants so it stays legible on both login backgrounds, rendered from the brand
   geometry by `scripts/make-brandmark.sh`.
 - **Builds from the repo's devbox shell.** Every Xcode entry point — `make test`,
-  `make test-staging`, and `build-unsigned-ipa.sh` (so `nx run ios-readplace:compile`
+  `make test-staging`, and `build-unsigned-ipa.sh` (so `nx run ios:compile`
   too) — runs through [`scripts/xc.sh`](./scripts/xc.sh), which scrubs the nix
   toolchain out of the environment and points at the real Xcode. This is
   load-bearing, not tidiness: `xcodebuild` treats environment variables as

@@ -205,7 +205,7 @@ The browser-extension client separates three concerns:
 2. **Composition** — `groupOf(...)` merges multiple understandings; `httpCacheable(...)` wraps them with ETag caching.
 3. **Walker** — `initExtension(handlers, deps)` returns a no-arg function that fetches the entry point, resolves the `self` link, and parses collections into `{items, actions}` where every item has its own action map.
 
-For the full flow see the source — it is the spec: [projects/browser-extension-core/src/reading-list/siren-reading-list.ts](../../../projects/browser-extension-core/src/reading-list/siren-reading-list.ts). The adapter `initSirenReadingList` exists only to bridge this walker to the legacy `SaveUrl`/`RemoveUrl`/`FindByUrl`/`GetAllItems` interface that the popup consumes. New consumers should call the walker directly.
+For the full flow see the source — it is the spec: [projects/browser-extensions/browser-extension-core/src/reading-list/siren-reading-list.ts](../../../projects/browser-extensions/browser-extension-core/src/reading-list/siren-reading-list.ts). The adapter `initSirenReadingList` exists only to bridge this walker to the legacy `SaveUrl`/`RemoveUrl`/`FindByUrl`/`GetAllItems` interface that the popup consumes. New consumers should call the walker directly.
 
 When adding a capability the extension supports: add an `init*Understanding` keyed by the action name, compose it via `groupOf(...)`, wrap with `httpCacheable(...)` for cacheable GETs, and drive the walker directly rather than adding a method to `initSirenReadingList`.
 

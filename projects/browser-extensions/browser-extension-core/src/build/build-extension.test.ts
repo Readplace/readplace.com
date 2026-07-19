@@ -4,7 +4,7 @@ import { initBuildExtension } from "./build-extension";
 
 describe("createBuildPlan", () => {
 	const projectDir = "/projects/firefox-extension";
-	const corePackageJsonPath = "/projects/browser-extension-core/package.json";
+	const corePackageJsonPath = "/projects/browser-extensions/browser-extension-core/package.json";
 
 	function createBuildPlan(input: { config: { target: string }; projectDir: string; serverUrl: string; version?: string; appDomains?: readonly string[] }) {
 		const { createBuildPlan } = initBuildExtension({
@@ -76,7 +76,7 @@ describe("createBuildPlan", () => {
 		});
 
 		expect(plan.esbuildOptions.alias["browser-extension-core"]).toBe(
-			join("/projects/browser-extension-core", "src", "index.ts"),
+			join("/projects/browser-extensions/browser-extension-core", "src", "index.ts"),
 		);
 	});
 
@@ -127,7 +127,7 @@ describe("createBuildPlan", () => {
 
 		const srcDir = join(projectDir, "src");
 		const outDir = join(projectDir, "dist-extension-compiled");
-		const coreDir = "/projects/browser-extension-core";
+		const coreDir = "/projects/browser-extensions/browser-extension-core";
 
 		expect(plan.copies).toEqual([
 			{ src: join(srcDir, "runtime", "manifest.json"), dest: join(outDir, "manifest.json"), recursive: false },
@@ -241,7 +241,7 @@ describe("plan.buildExtension", () => {
 			writeFileSync: (path: string, data: string) => {
 				writtenFiles.set(path, data);
 			},
-			resolveCorePackageJson: () => "/projects/browser-extension-core/package.json",
+			resolveCorePackageJson: () => "/projects/browser-extensions/browser-extension-core/package.json",
 		};
 
 		return {
@@ -422,7 +422,7 @@ describe("plan.packExtension", () => {
 			cpSync: () => {},
 			readFileSync: () => "{}",
 			writeFileSync: () => {},
-			resolveCorePackageJson: () => "/projects/browser-extension-core/package.json",
+			resolveCorePackageJson: () => "/projects/browser-extensions/browser-extension-core/package.json",
 		};
 
 		return { deps, createdDirs };

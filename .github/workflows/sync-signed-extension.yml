@@ -33,7 +33,7 @@ jobs:
       - run: pnpm nx compile browser-extension-core
 
       - name: Sync signed extension from AMO to S3
-        run: node projects/extensions/firefox-extension/scripts/sync-signed-extension.js
+        run: node projects/browser-extensions/firefox-extension/scripts/sync-signed-extension.js
         env:
           AMO_JWT_ISSUER: ${{ secrets.AMO_JWT_ISSUER }}
           AMO_JWT_SECRET: ${{ secrets.AMO_JWT_SECRET }}

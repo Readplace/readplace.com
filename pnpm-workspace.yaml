@@ -1,6 +1,6 @@
 packages:
   - 'projects/*'
-  - 'projects/extensions/*'
+  - 'projects/browser-extensions/*'
   - 'src/packages/*'
 
 catalog:

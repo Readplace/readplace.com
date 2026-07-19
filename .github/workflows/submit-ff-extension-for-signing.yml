@@ -67,13 +67,13 @@ jobs:
       - name: Create source code archive for AMO review
         run: |
           zip -r /tmp/extension-source.zip \
-            projects/extensions/firefox-extension/src/ \
-            projects/extensions/firefox-extension/scripts/build-extension.js \
-            projects/extensions/firefox-extension/package.json \
-            projects/extensions/firefox-extension/tsconfig.json \
-            projects/browser-extension-core/src/ \
-            projects/browser-extension-core/package.json \
-            projects/browser-extension-core/tsconfig.json \
+            projects/browser-extensions/firefox-extension/src/ \
+            projects/browser-extensions/firefox-extension/scripts/build-extension.js \
+            projects/browser-extensions/firefox-extension/package.json \
+            projects/browser-extensions/firefox-extension/tsconfig.json \
+            projects/browser-extensions/browser-extension-core/src/ \
+            projects/browser-extensions/browser-extension-core/package.json \
+            projects/browser-extensions/browser-extension-core/tsconfig.json \
             src/packages/hutch-logger/src/ \
             src/packages/hutch-logger/package.json \
             src/packages/hutch-logger/tsconfig.json \
@@ -82,7 +82,7 @@ jobs:
             pnpm-workspace.yaml
 
       - name: Submit extension to AMO for signing
-        run: node projects/extensions/firefox-extension/scripts/submit-to-amo.js
+        run: node projects/browser-extensions/firefox-extension/scripts/submit-to-amo.js
         env:
           AMO_JWT_ISSUER: ${{ secrets.AMO_JWT_ISSUER }}
           AMO_JWT_SECRET: ${{ secrets.AMO_JWT_SECRET }}

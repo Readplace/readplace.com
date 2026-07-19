@@ -23,7 +23,7 @@ jobs:
       contents: write
     defaults:
       run:
-        working-directory: projects/ios-readplace
+        working-directory: projects/native-apps/ios
     steps:
       - uses: actions/checkout@v6
         with:
@@ -63,7 +63,7 @@ jobs:
         with:
           ruby-version: '3.3'
           bundler-cache: true
-          working-directory: projects/ios-readplace
+          working-directory: projects/native-apps/ios
 
       - name: Compute next build number and marketing version from the latest tag
         id: version

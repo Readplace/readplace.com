@@ -48,8 +48,8 @@ Every raster asset is generated — never hand-rendered — by `projects/hutch/s
 | **Android Chrome** | 48–512px + full-bleed maskable variants | `projects/hutch/static-assets/android-chrome-*.png` |
 | **Windows Tile** | 70, 150, 310×150 (lockup), 310px | `projects/hutch/static-assets/mstile-*.png` |
 | **Social cards** | 1200×630 (OG), 1200×600 (Twitter) | `projects/hutch/static-assets/og-image-*.png`, `twitter-card-*.png` |
-| **Extension icons** | 16–128px, light (white halo) + dark themes | `projects/extensions/{chrome,firefox}-extension/src/icons/{light,dark}/icon-*.png` |
-| **iOS mark + App Store icon** | 72–216px + 1024px | `projects/ios-readplace/scripts/make-brandmark.sh`, `make-appicon.sh` |
+| **Extension icons** | 16–128px, light (white halo) + dark themes | `projects/browser-extensions/{chrome,firefox}-extension/src/icons/{light,dark}/icon-*.png` |
+| **iOS mark + App Store icon** | 72–216px + 1024px | `projects/native-apps/ios/scripts/make-brandmark.sh`, `make-appicon.sh` |
 
 ### Usage Rules
 
@@ -299,7 +299,7 @@ Use a **4px base unit** with the following standard increments:
 
 ### Browser Extension
 
-- The toolbar icon is the standalone ampersand mark at 16×16 / 32×32px (dotless at those sizes, per the size cutover), themed light/dark per toolbar (see `projects/extensions/{chrome,firefox}-extension/src/icons/{light,dark}/`).
+- The toolbar icon is the standalone ampersand mark at 16×16 / 32×32px (dotless at those sizes, per the size cutover), themed light/dark per toolbar (see `projects/browser-extensions/{chrome,firefox}-extension/src/icons/{light,dark}/`).
 - The popup should feel like a utility — fast, minimal, single-purpose. Open → save → close. Width: `350px`.
 - Respect the user's browser theme. Match system light/dark mode via `prefers-color-scheme`.
 - No marketing or upsells inside the extension popup. It's a tool, not a billboard.

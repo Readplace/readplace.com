@@ -40,7 +40,7 @@ queue capture in a framed card. Same specs as screenshots: opaque RGB PNG.
 
 **Specs (checked into this set):** exactly 1280×800, opaque RGB PNG — no alpha
 channel. Apple's media pipeline hangs forever on PNGs with alpha (see
-`projects/ios-readplace/TESTFLIGHT.md`); Chrome is more forgiving, but flat sRGB
+`projects/native-apps/ios/TESTFLIGHT.md`); Chrome is more forgiving, but flat sRGB
 is safe everywhere, so keep the constraint.
 
 ## Regenerating the set

@@ -242,21 +242,21 @@ jobs:
           # changes — a path diff over NX_BASE..NX_HEAD is what keeps a build from
           # shipping when "the code itself" didn't change.
           IOS_CHANGED=$(git diff --name-only "$NX_BASE" "$NX_HEAD" -- \
-            projects/ios-readplace/App \
-            projects/ios-readplace/Shared \
-            projects/ios-readplace/ShareExtension \
-            projects/ios-readplace/project.yml)
+            projects/native-apps/ios/App \
+            projects/native-apps/ios/Shared \
+            projects/native-apps/ios/ShareExtension \
+            projects/native-apps/ios/project.yml)
           echo "ios-affected=$([ -n "$IOS_CHANGED" ] && echo true || echo false)" >> "$GITHUB_OUTPUT"
 
           # iOS test gate: a superset of ios-affected that also fires on test
           # changes, so a test-only change still runs the macOS suite (which gates
           # the publish) without shipping a build.
           IOS_TEST_CHANGED=$(git diff --name-only "$NX_BASE" "$NX_HEAD" -- \
-            projects/ios-readplace/App \
-            projects/ios-readplace/Shared \
-            projects/ios-readplace/ShareExtension \
-            projects/ios-readplace/Tests \
-            projects/ios-readplace/project.yml)
+            projects/native-apps/ios/App \
+            projects/native-apps/ios/Shared \
+            projects/native-apps/ios/ShareExtension \
+            projects/native-apps/ios/Tests \
+            projects/native-apps/ios/project.yml)
           echo "ios-test-affected=$([ -n "$IOS_TEST_CHANGED" ] && echo true || echo false)" >> "$GITHUB_OUTPUT"
 
   # Platform (EventBridge bus, shared infra) must deploy before any other project
@@ -334,7 +334,7 @@ jobs:
     runs-on: ${{ (github.event_name != 'pull_request' || github.event.pull_request.head.repo.fork == false) && fromJSON('["self-hosted", "macOS"]') || 'macos-15' }}
     defaults:
       run:
-        working-directory: projects/ios-readplace
+        working-directory: projects/native-apps/ios
     steps:
       - uses: actions/checkout@v6
 

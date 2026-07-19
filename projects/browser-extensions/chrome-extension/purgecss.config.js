@@ -5,6 +5,6 @@ module.exports = {
   ...base,
   css: [
     ...base.css,
-    '../../browser-extension-core/src/**/*.styles.css',
+    '../browser-extension-core/src/**/*.styles.css',
   ],
 };

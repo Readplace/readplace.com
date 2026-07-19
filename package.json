@@ -14,7 +14,7 @@
     "deploy-infra": "nx run-many --target=deploy-infra --all",
     "generate-package": "nx run @packages/workspace-generators:compile && nx generate @packages/workspace-generators:package",
     "generate-project": "nx run @packages/workspace-generators:compile && nx generate @packages/workspace-generators:project",
-    "clean-disk": "rm -rf projects/extensions/chrome-extension/.cache .nx node_modules projects/save-link/.lib projects/hutch/.lib",
+    "clean-disk": "rm -rf projects/browser-extensions/chrome-extension/.cache .nx node_modules projects/save-link/.lib projects/hutch/.lib",
     "prepare": "husky"
   },
   "devDependencies": {

@@ -1,4 +1,4 @@
-const baseConfig = require('../../enforce-coverage.config.base');
+const baseConfig = require('../../../enforce-coverage.config.base');
 const path = require('path')
 
 const config = {

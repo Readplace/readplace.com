@@ -1,5 +1,5 @@
 {
-  "name": "ios-readplace",
+  "name": "ios",
   "projectType": "application",
   "targets": {
     "generate": {
