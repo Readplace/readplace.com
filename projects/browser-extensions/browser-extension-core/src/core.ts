@@ -145,11 +145,15 @@ export function BrowserExtensionCore(shell: BrowserShell, deps: { auth: Auth; lo
 			});
 
 			shell.onTabActivated((tabId, url) => {
-				updateIconForTab(tabId, url).catch(() => {});
+				updateIconForTab(tabId, url).catch((err) =>
+					logger.error("Failed to update icon for activated tab", err),
+				);
 			});
 
 			shell.onTabUpdated((tabId, url) => {
-				updateIconForTab(tabId, url).catch(() => {});
+				updateIconForTab(tabId, url).catch((err) =>
+					logger.error("Failed to update icon for updated tab", err),
+				);
 			});
 
 			eventBus.emit("post-init");
@@ -194,7 +198,7 @@ export function BrowserExtensionCore(shell: BrowserShell, deps: { auth: Auth; lo
 							? shell.setIcon.showSaved(tabId)
 							: updateActiveTabIcon();
 					})
-					.catch(() => {});
+					.catch((err) => logger.error("Failed to update icon after save", err));
 			}
 		},
 

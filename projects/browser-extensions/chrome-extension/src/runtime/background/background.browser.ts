@@ -21,7 +21,7 @@ import {
 import { initCreateContextMenus } from "./create-context-menus";
 import { HutchLogger, consoleLogger } from "@packages/hutch-logger";
 import type { BuiltInOAuthClientId } from "@packages/supported-clients";
-import { createBrowserSetIcon } from "./tinted-icon.browser";
+import { createBrowserSetIcon } from "./action-icon.browser";
 
 const logger = HutchLogger.from(consoleLogger);
 
@@ -248,10 +248,6 @@ function broadcastSaveProgress(phase: SavePhase): void {
 browser.runtime.onMessage.addListener((raw, _sender, sendResponse) => {
 	if ((raw as { type: string }).type === "shortcut-pressed") {
 		browser.action.openPopup().catch((err) => logger.error(err));
-		return;
-	}
-
-	if ((raw as { target?: string }).target === "offscreen") {
 		return;
 	}
 

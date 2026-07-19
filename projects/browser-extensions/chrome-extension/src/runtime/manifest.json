@@ -7,8 +7,7 @@
     "activeTab",
     "tabs",
     "contextMenus",
-    "storage",
-    "offscreen"
+    "storage"
   ],
   "host_permissions": [
     "https://readplace.com/*"
@@ -25,10 +24,10 @@
     "default_popup": "popup/popup.template.html",
     "default_title": "Readplace",
     "default_icon": {
-      "16": "icons/dark/icon-16.png",
-      "32": "icons/dark/icon-32.png",
-      "48": "icons/dark/icon-48.png",
-      "64": "icons/dark/icon-64.png"
+      "16": "icons/light/icon-16.png",
+      "32": "icons/light/icon-32.png",
+      "48": "icons/light/icon-48.png",
+      "64": "icons/light/icon-64.png"
     }
   },
   "background": {
