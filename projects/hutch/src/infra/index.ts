@@ -18,12 +18,10 @@ import {
 	SubscriptionStartRequestCommand,
 } from "@packages/hutch-infra-components";
 import { EXPORT_DOWNLOAD_TTL_DAYS, EXPORT_S3_KEY_PREFIX } from "../runtime/web/pages/export/export-ttl";
-import { ANALYTICS_EVENTS, ANALYTICS_LOG_GROUP, FORWARDED_STREAMS, LAMBDA_NAMES, LOG_GROUPS, METRICS, STREAMS } from "../runtime/observability/events";
+import { ANALYTICS_EVENTS, ANALYTICS_LOG_GROUP, ERRORS_LOG_GROUP, ERRORS_LOG_GROUP_RETENTION_DAYS, FORWARDED_STREAMS, LAMBDA_NAMES, LOG_GROUPS, METRICS, STREAMS } from "../runtime/observability/events";
 import {
 	buildAnalyticsDashboardBody,
 	FORWARDED_SOURCE_LOG_GROUPS,
-	SUBSCRIPTION_DASHBOARD_LOG_GROUPS,
-	WORKER_DASHBOARD_LOG_GROUPS,
 } from "../runtime/observability/analytics-dashboard";
 import { DomainRegistration } from "./domain-registration";
 import { DomainRedirect } from "./domain-redirect";
@@ -1277,6 +1275,15 @@ const analyticsLogGroup = new aws.cloudwatch.LogGroup("analytics-log-group", {
 	name: ANALYTICS_LOG_GROUP,
 }, { retainOnDelete: true });
 
+// The single group the dashboard's error widget reads. It exists because Logs
+// Insights caps a query at 50 log groups and the account already holds 71 —
+// an enumerating widget cannot cover the fleet, and the groups it omitted were
+// silently unwatched (inbox and web-embed are shipping dark today).
+const errorsLogGroup = new aws.cloudwatch.LogGroup("errors-log-group", {
+	name: ERRORS_LOG_GROUP,
+	retentionInDays: ERRORS_LOG_GROUP_RETENTION_DAYS,
+}, { retainOnDelete: true });
+
 // Async invokes that still fail after their retries park the original awslogs
 // envelope here for replay. 14-day retention matches PutLogEvents' oldest-event
 // limit, so a parked delivery is always still forwardable when it is drained.
@@ -1286,17 +1293,17 @@ const forwardAnalyticsFailures = new aws.sqs.Queue("forward-analytics-failures",
 });
 
 // Explicit least-privilege grants rather than leaning on the managed
-// AWSLambdaBasicExecutionRole '*': the destination group is this Lambda's data
-// store and the failure queue its on-failure sink, so the policy names both.
+// AWSLambdaBasicExecutionRole '*': the destination groups are this Lambda's data
+// stores and the failure queue its on-failure sink, so the policy names all three.
 const analyticsWritePolicy = {
 	name: "forward-analytics-write",
-	policy: analyticsLogGroup.arn.apply((arn) =>
+	policy: pulumi.all([analyticsLogGroup.arn, errorsLogGroup.arn]).apply(([analyticsArn, errorsArn]) =>
 		JSON.stringify({
 			Version: "2012-10-17",
 			Statement: [{
 				Effect: "Allow",
 				Action: ["logs:CreateLogStream", "logs:PutLogEvents"],
-				Resource: [`${arn}:*`],
+				Resource: [`${analyticsArn}:*`, `${errorsArn}:*`],
 			}],
 		}),
 	),
@@ -1324,6 +1331,7 @@ const forwardAnalyticsLambda = new HutchLambda(FORWARD_ANALYTICS_LAMBDA_NAME, {
 	timeout: 30,
 	environment: {
 		ANALYTICS_LOG_GROUP_NAME: analyticsLogGroup.name,
+		ERRORS_LOG_GROUP_NAME: errorsLogGroup.name,
 	},
 	policies: [analyticsWritePolicy, analyticsFailurePolicy],
 });
@@ -1407,9 +1415,28 @@ new aws.cloudwatch.MetricAlarm("forward-analytics-destination-delivery-alarm", {
 	alarmActions: [forwardAnalyticsDlqTopic.arn],
 });
 
-// The filter keeps only the analytics streams — identical shape to the
-// imports-completed metric filter above, which matches the same Lambda-Text lines.
-const forwardFilterPattern = `{ ${FORWARDED_STREAMS.map((stream) => `$.stream = "${stream}"`).join(" || ")} }`;
+// A TEXT pattern, not the JSON pattern this used to be. CloudWatch cannot OR a
+// JSON selector (`{ $.stream = "…" }`) against a raw-text term, and the Lambda
+// runtime writes its most important failures — "Task timed out", "Runtime exited
+// with error: signal: killed" — as plain text with no JSON at all. A JSON-only
+// pattern therefore cannot see an OOM or a timeout, which is the failure class an
+// operator most needs. Quoted terms work as substrings because HutchLogger emits
+// `JSON.stringify(data)` with no spaces, so `"stream":"analytics"` appears
+// verbatim in the line.
+//
+// This deliberately over-matches (a saved article whose title contains "ERROR"
+// forwards too). That costs forwarder invocations, not correctness:
+// `classifyForwardedLine` re-decides precisely before anything is written, and a
+// line neither funnel claims is dropped there. Over-matching here is what keeps
+// this to ONE subscription filter per group — CloudWatch allows only two, and
+// spending both would leave no headroom.
+const forwardFilterPattern = [
+	...FORWARDED_STREAMS.map((stream) => `?"\\"stream\\":\\"${stream}\\""`),
+	'?"\\"level\\":\\"ERROR\\""',
+	'?"ERROR"',
+	'?"Task timed out"',
+	'?"Runtime exited with error"',
+].join(" ");
 
 // Invoke permission for every forwarded source group. The function owner grants
 // all nine here — including blog-site's group — so blog-site's Commit-2
@@ -1473,13 +1500,12 @@ for (const source of hutchForwardSources) {
 // `ResourceNotFoundException`.
 new aws.cloudwatch.Dashboard("readplace-analytics", {
 	dashboardName: "readplace-analytics",
-	dashboardBody: pulumi.all([lambda.logGroupName, analyticsLogGroup.name]).apply(([hutchLogGroupName, analyticsLogGroupName]) =>
+	dashboardBody: pulumi.all([lambda.logGroupName, analyticsLogGroup.name, errorsLogGroup.name]).apply(([hutchLogGroupName, analyticsLogGroupName, errorsLogGroupName]) =>
 		JSON.stringify(buildAnalyticsDashboardBody({
 			region,
 			hutchLogGroupName,
 			analyticsLogGroupName,
-			subscriptionLogGroupNames: SUBSCRIPTION_DASHBOARD_LOG_GROUPS,
-			workerLogGroupNames: WORKER_DASHBOARD_LOG_GROUPS,
+			errorsLogGroupName,
 			excludedVisitorHashes,
 		})),
 	),

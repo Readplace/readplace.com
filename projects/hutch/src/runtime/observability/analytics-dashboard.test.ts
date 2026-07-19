@@ -8,6 +8,7 @@ import {
 	ANALYTICS_EVENTS,
 	ANALYTICS_LOG_GROUP,
 	CONVERSION_EVENTS,
+	ERRORS_LOG_GROUP,
 	LAMBDA_NAMES,
 	LOG_GROUPS,
 	METRICS,
@@ -17,8 +18,6 @@ import {
 import {
 	buildAnalyticsDashboardBody,
 	FORWARDED_SOURCE_LOG_GROUPS,
-	SUBSCRIPTION_DASHBOARD_LOG_GROUPS,
-	WORKER_DASHBOARD_LOG_GROUPS,
 } from "./analytics-dashboard";
 
 const ANY_STREAM_RE = /\bstream\s*=\s*"([a-z][a-z0-9_-]*)"/g;
@@ -30,8 +29,7 @@ function buildBody() {
 		region: "ap-southeast-2",
 		hutchLogGroupName: LOG_GROUPS.hutchHandler,
 		analyticsLogGroupName: ANALYTICS_LOG_GROUP,
-		subscriptionLogGroupNames: SUBSCRIPTION_DASHBOARD_LOG_GROUPS,
-		workerLogGroupNames: WORKER_DASHBOARD_LOG_GROUPS,
+		errorsLogGroupName: ERRORS_LOG_GROUP,
 		excludedVisitorHashes: ["deadbeefcafef00d"],
 	});
 }
@@ -172,26 +170,28 @@ describe("buildAnalyticsDashboardBody — drift prevention", () => {
 		expect(query).toContain('@message like "ERROR"');
 		expect(query).toContain("| sort @timestamp desc");
 		expect(query).toContain("| limit 100");
-		const expectedSource = [
-			LOG_GROUPS.hutchHandler,
-			...SUBSCRIPTION_DASHBOARD_LOG_GROUPS,
-			...WORKER_DASHBOARD_LOG_GROUPS,
-		]
-			.map((name) => `SOURCE '${name}'`)
-			.join(" | ");
-		expect(query).toContain(`${expectedSource} | fields @timestamp, level`);
+		expect(query).toContain(`SOURCE '${ERRORS_LOG_GROUP}' | fields @timestamp, level`);
 	});
 
-	it("every async-worker log group (SAVE_LINK_LOG_GROUPS) is surfaced by the errors widget — adding a worker Lambda to the shared constant without it flowing onto the dashboard fails CI", () => {
-		const errorWidget = buildBody().widgets.find(
-			(w) => typeof w.properties.query === "string" && w.properties.query.includes("coalesce(message, reason) as detail"),
-		);
-		const query = errorWidget?.properties.query;
-		const workerLogGroups = Object.values(SAVE_LINK_LOG_GROUPS);
-		expect(workerLogGroups.length).toBeGreaterThan(0);
-		for (const logGroup of workerLogGroups) {
-			expect(query).toContain(`SOURCE '${logGroup}'`);
+	// This replaces a test that asserted every SAVE_LINK_LOG_GROUPS entry appeared
+	// as its own SOURCE in the errors widget. That guarantee is gone because its
+	// premise is gone: naming groups individually cannot scale past the 50-group
+	// Logs Insights cap, and it only ever covered the groups someone remembered to
+	// list — inbox and web-embed never were. Fleet coverage now comes from the
+	// forwarder funnel, and is enforced where log groups are created rather than
+	// where they are queried.
+	it("names no per-project log group at all — naming one would reintroduce the 50-group cap the funnel exists to escape", () => {
+		const errorQuery = widgetQueries().find((q) => q.includes("coalesce(message, reason) as detail"));
+		expect(errorQuery).toBeDefined();
+		expect(errorQuery).toContain(`SOURCE '${ERRORS_LOG_GROUP}'`);
+		for (const logGroup of [...Object.values(SAVE_LINK_LOG_GROUPS), ...Object.values(LOG_GROUPS), BLOG_SITE_LOG_GROUP]) {
+			expect(errorQuery).not.toContain(`SOURCE '${logGroup}'`);
 		}
+	});
+
+	it("attributes an error to its origin via @logStream, which the funnel stamps as <sourceGroup>/<sourceStream>", () => {
+		const errorQuery = widgetQueries().find((q) => q.includes("coalesce(message, reason) as detail"));
+		expect(errorQuery).toContain("@logStream as origin");
 	});
 
 	it("every stream used by an emitter (STREAMS) is referenced by at least one widget query — adding a new stream without a widget fails CI", () => {
@@ -261,11 +261,20 @@ describe("buildAnalyticsDashboardBody — drift prevention", () => {
 		}
 	});
 
-	it("the errors widget is the one log widget that still fans out across the operational source groups (its data stays at 30-day retention)", () => {
+	// The dashboard must reference ONLY groups its owning stack creates. That is
+	// what lets it move to the platform stack, which deploys before every project
+	// and so can never depend on a project-owned group existing.
+	it("reads exactly two log groups, both funnel destinations", () => {
+		const sources = new Set(
+			widgetQueries().flatMap((q) => [...q.matchAll(/SOURCE '([^']+)'/g)].map((m) => m[1])),
+		);
+		expect([...sources].sort()).toEqual([ANALYTICS_LOG_GROUP, ERRORS_LOG_GROUP].sort());
+	});
+
+	it("the errors widget reads the errors funnel, not the analytics group", () => {
 		const errorQuery = widgetQueries().find((q) => q.includes("coalesce(message, reason) as detail"));
 		expect(errorQuery).toBeDefined();
-		expect(errorQuery?.startsWith(`SOURCE '${ANALYTICS_LOG_GROUP}' | `)).toBe(false);
-		expect(errorQuery?.startsWith(`SOURCE '${LOG_GROUPS.hutchHandler}' | `)).toBe(true);
+		expect(errorQuery?.startsWith(`SOURCE '${ERRORS_LOG_GROUP}' | `)).toBe(true);
 	});
 
 	it("the subscription state-changes widget excludes hutch-origin checkout events so it keeps its Lambda-only semantics after the merge", () => {
@@ -279,7 +288,7 @@ describe("buildAnalyticsDashboardBody — drift prevention", () => {
 
 	it("FORWARDED_SOURCE_LOG_GROUPS covers hutch, blog, and every subscription group and excludes the analytics destination and the forwarder's own group so the forwarder never subscribes to its own output", () => {
 		const forwarded = new Set(FORWARDED_SOURCE_LOG_GROUPS);
-		for (const expected of [LOG_GROUPS.hutchHandler, BLOG_SITE_LOG_GROUP, ...SUBSCRIPTION_DASHBOARD_LOG_GROUPS]) {
+		for (const expected of [LOG_GROUPS.hutchHandler, BLOG_SITE_LOG_GROUP, ...Object.values(LOG_GROUPS)]) {
 			expect(forwarded.has(expected)).toBe(true);
 		}
 		expect(forwarded.has(ANALYTICS_LOG_GROUP)).toBe(false);
@@ -334,14 +343,14 @@ describe("buildAnalyticsDashboardBody — drift prevention", () => {
 		}
 	});
 
-	it("every LOG_GROUPS value is wired into the dashboard builder as hutchLogGroupName or via SUBSCRIPTION_DASHBOARD_LOG_GROUPS — adding a log group without a dashboard reference fails CI", () => {
-		const wired = new Set<string>([
-			LOG_GROUPS.hutchHandler,
-			...SUBSCRIPTION_DASHBOARD_LOG_GROUPS,
-		]);
-		const declared = Object.values(LOG_GROUPS);
-		const unwired = declared.filter((name) => !wired.has(name));
-		expect(unwired).toEqual([]);
+	// Replaces a test asserting every LOG_GROUPS value appeared in the dashboard.
+	// It cannot survive the funnel: the dashboard now references no project group
+	// at all, on purpose. What matters instead is that every declared group is
+	// forwarded, which is what puts its errors on the dashboard.
+	it("every LOG_GROUPS value is a forwarded source — a log group that reaches no funnel is invisible to the dashboard", () => {
+		const forwarded = new Set(FORWARDED_SOURCE_LOG_GROUPS);
+		const unforwarded = Object.values(LOG_GROUPS).filter((name) => !forwarded.has(name));
+		expect(unforwarded).toEqual([]);
 	});
 
 	it("LOG_GROUPS is mechanically derived from LAMBDA_NAMES — hand-editing a LOG_GROUPS value out of sync with its LAMBDA_NAMES entry fails CI", () => {
@@ -358,8 +367,7 @@ describe("buildAnalyticsDashboardBody — drift prevention", () => {
 			region: "ap-southeast-2",
 			hutchLogGroupName: LOG_GROUPS.hutchHandler,
 			analyticsLogGroupName: ANALYTICS_LOG_GROUP,
-			subscriptionLogGroupNames: SUBSCRIPTION_DASHBOARD_LOG_GROUPS,
-			workerLogGroupNames: WORKER_DASHBOARD_LOG_GROUPS,
+			errorsLogGroupName: ERRORS_LOG_GROUP,
 			excludedVisitorHashes: [],
 		});
 		expect(withoutExclusion.widgets).toHaveLength(withExclusion.widgets.length);

@@ -65,6 +65,22 @@ export const METRICS = {
 export const ANALYTICS_LOG_GROUP = "/readplace/analytics";
 
 /**
+ * Destination log group for the error feed. Every source group funnels its error
+ * output into here so the dashboard's error widget reads ONE group rather than
+ * naming each source: Logs Insights caps a query at 50 log groups (verified
+ * against prod — 51 returns "Too many log groups specified") and the account
+ * already holds 71 Lambda groups, so an enumerating widget cannot cover the
+ * fleet and silently omitted whichever groups nobody remembered to add.
+ *
+ * 90-day retention rather than the analytics group's never-expire: analytics is
+ * business history, errors are operational and disposable.
+ */
+export const ERRORS_LOG_GROUP = "/readplace/errors";
+
+/** Retention for ERRORS_LOG_GROUP. */
+export const ERRORS_LOG_GROUP_RETENTION_DAYS = 90;
+
+/**
  * The log streams the forwarder copies into ANALYTICS_LOG_GROUP — the
  * business/analytics streams the user wants queryable forever. Operational
  * streams (`parse-errors`, `crawl-outcomes`) are deliberately excluded: they stay

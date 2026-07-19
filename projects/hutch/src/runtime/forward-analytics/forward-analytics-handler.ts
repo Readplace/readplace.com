@@ -35,11 +35,82 @@ export type PutLogEvents = (params: {
 export interface ForwardAnalyticsDeps {
 	createLogStream: CreateLogStream;
 	putLogEvents: PutLogEvents;
-	destinationLogGroupName: string;
+	analyticsLogGroupName: string;
+	errorsLogGroupName: string;
+	/** The streams whose lines are business history and belong in the analytics
+	 * group. Passed in rather than imported so this module stays free of the
+	 * observability constants it would otherwise couple to. */
+	analyticsStreams: readonly string[];
 	logger: HutchLogger;
 }
 
+/** Which funnel a forwarded line belongs in, or `undefined` for a line the
+ * subscription filter matched but neither destination wants. */
+export type ForwardDestination = "analytics" | "errors";
+
+/**
+ * The subscription filter is a coarse text match — it has to be, because a JSON
+ * pattern cannot OR against the Lambda runtime's plain-text output (`Task timed
+ * out`, `Runtime exited with error: signal: killed`), which is the most
+ * operationally important error class there is. So the filter over-forwards and
+ * this function does the precise classification.
+ *
+ * Analytics wins a tie: a business event that also carries `level: "ERROR"` is
+ * still business history, and the errors widget would rather miss it than lose
+ * the conversion record.
+ */
+export function classifyForwardedLine(input: {
+	message: string;
+	analyticsStreams: readonly string[];
+}): ForwardDestination | undefined {
+	const { message, analyticsStreams } = input;
+	const payload = extractJsonPayload(message);
+	const parsed = ClassifiableLineSchema.safeParse(safeJsonParse(payload));
+	if (parsed.success) {
+		if (parsed.data.stream !== undefined && analyticsStreams.includes(parsed.data.stream)) {
+			return "analytics";
+		}
+		if (parsed.data.level === "ERROR" || parsed.data.stream === OPERATIONAL_ERROR_STREAM) {
+			return "errors";
+		}
+	}
+	// Not our JSON shape at all: the runtime's own plain-text failure output, which
+	// carries no `level` field and is exactly what the text filter exists to catch.
+	return message.includes("ERROR") || RUNTIME_FAILURE_MARKERS.some((m) => message.includes(m))
+		? "errors"
+		: undefined;
+}
+
 const CONTROL_MESSAGE = "CONTROL_MESSAGE";
+
+/** The one operational stream that routes to the errors funnel. The other
+ * operational streams stay in their source group at 30-day retention. */
+const OPERATIONAL_ERROR_STREAM = "parse-errors";
+
+/** Plain-text failure output the Lambda runtime writes itself. It carries no
+ * `level` field and does not contain the substring "ERROR", so nothing else in
+ * this classifier would catch it — and it is the failure class an operator most
+ * needs to see. */
+const RUNTIME_FAILURE_MARKERS = [
+	"Task timed out",
+	"Runtime exited with error",
+	"Runtime.OutOfMemory",
+] as const;
+
+/** Only the two fields classification reads. Everything else on the line is
+ * forwarded untouched, so the schema stays deliberately narrow. */
+const ClassifiableLineSchema = z.object({
+	stream: z.string().optional(),
+	level: z.string().optional(),
+});
+
+function safeJsonParse(text: string): unknown {
+	try {
+		return JSON.parse(text);
+	} catch {
+		return undefined;
+	}
+}
 
 /** First-phase parse: read only the discriminator so a subscription-validation
  * CONTROL_MESSAGE (which carries no real log data) is recognised before the
@@ -121,12 +192,20 @@ function isAlreadyExists(error: unknown): boolean {
 	return error instanceof Error && error.name === "ResourceAlreadyExistsException";
 }
 
-/** Forwards a CloudWatch Logs subscription delivery into the never-expire
- * analytics group. The source `messageType`, `logGroup`, and `logStream` name the
- * destination stream `<sourceGroup>/<sourceStream>`, which keeps the origin
- * queryable via `@logStream` and makes redeliveries idempotent on the stream. Each
- * line's JSON payload is forwarded (preamble stripped) so Logs Insights can query
- * its fields — see `extractJsonPayload`.
+/** Forwards a CloudWatch Logs subscription delivery into one of two funnels: the
+ * never-expire analytics group for business history, the errors group for
+ * operational failures. One delivery can feed both — `classifyForwardedLine`
+ * decides per line — which is why a single subscription filter per source group
+ * covers both feeds and leaves the second of CloudWatch's two filter slots free.
+ *
+ * The source `logGroup` and `logStream` name the destination stream
+ * `<sourceGroup>/<sourceStream>` in BOTH funnels, which keeps the origin
+ * queryable via `@logStream` and makes redeliveries idempotent on the stream.
+ * That naming is load-bearing beyond idempotence: the dashboard's origin-scoped
+ * widgets filter on `@logStream like "<group>/"`, and it is the only thing
+ * attributing an error to the project that raised it. Each line's JSON payload is
+ * forwarded (preamble stripped) so Logs Insights can query its fields — see
+ * `extractJsonPayload`.
  *
  * A rejection is deliberately propagated: CloudWatch Logs → Lambda is
  * at-least-once, so a failed delivery is redelivered (and after the async retry
@@ -135,7 +214,44 @@ function isAlreadyExists(error: unknown): boolean {
 export function initForwardAnalyticsHandler(
 	deps: ForwardAnalyticsDeps,
 ): Handler<CloudWatchLogsEvent, void> {
-	const { createLogStream, putLogEvents, destinationLogGroupName, logger } = deps;
+	const { createLogStream, putLogEvents, analyticsLogGroupName, errorsLogGroupName, analyticsStreams, logger } = deps;
+
+	async function deliver(input: {
+		destinationLogGroupName: string;
+		logStreamName: string;
+		events: readonly ForwardLogEvent[];
+		sourceLogGroup: string;
+		sourceLogStream: string;
+	}): Promise<number> {
+		const { destinationLogGroupName, logStreamName, events, sourceLogGroup, sourceLogStream } = input;
+		const chunks = chunkLogEvents(events);
+		try {
+			await createLogStream({ logGroupName: destinationLogGroupName, logStreamName });
+		} catch (error) {
+			if (!isAlreadyExists(error)) throw error;
+		}
+		for (const logEvents of chunks) {
+			const rejected = await putLogEvents({
+				logGroupName: destinationLogGroupName,
+				logStreamName,
+				logEvents,
+			});
+			/* PutLogEvents can succeed while silently discarding individual events. On
+			 * the live path they are always fresh, but a failure-queue replay near the
+			 * 14-day ingest floor can lose lines behind a 200 — so this is logged as an
+			 * error instead of being swallowed by the "forwarded" line below. */
+			if (rejected) {
+				logger.error("[ForwardAnalytics] PutLogEvents discarded events from an accepted batch", {
+					destinationLogGroup: destinationLogGroupName,
+					sourceLogGroup,
+					sourceLogStream,
+					batchSize: logEvents.length,
+					rejected,
+				});
+			}
+		}
+		return chunks.length;
+	}
 
 	return async (event): Promise<void> => {
 		const decoded: unknown = JSON.parse(
@@ -155,53 +271,61 @@ export function initForwardAnalyticsHandler(
 		 * events inside a subscription delivery. An unsorted delivery would fail
 		 * identically on every retry and again on replay, so this sort is what keeps
 		 * such a delivery recoverable rather than permanently stuck. */
-		const events = data.logEvents
+		const sorted = data.logEvents
 			.map((logEvent) => ({
+				destination: classifyForwardedLine({
+					message: logEvent.message,
+					analyticsStreams,
+				}),
 				timestamp: logEvent.timestamp,
 				message: extractJsonPayload(logEvent.message),
 			}))
 			.sort((a, b) => a.timestamp - b.timestamp);
-		const chunks = chunkLogEvents(events);
 
-		if (chunks.length === 0) {
-			logger.info("[ForwardAnalytics] delivery had no log events", {
+		const routed: Record<ForwardDestination, ForwardLogEvent[]> = { analytics: [], errors: [] };
+		for (const entry of sorted) {
+			// The subscription filter over-forwards on purpose; a line neither
+			// destination claims is dropped here rather than polluting a funnel.
+			if (entry.destination === undefined) continue;
+			routed[entry.destination].push({ timestamp: entry.timestamp, message: entry.message });
+		}
+
+		const destinations: readonly { key: ForwardDestination; logGroupName: string }[] = [
+			{ key: "analytics", logGroupName: analyticsLogGroupName },
+			{ key: "errors", logGroupName: errorsLogGroupName },
+		];
+
+		let batches = 0;
+		let forwarded = 0;
+		for (const destination of destinations) {
+			const events = routed[destination.key];
+			if (events.length === 0) continue;
+			forwarded += events.length;
+			batches += await deliver({
+				destinationLogGroupName: destination.logGroupName,
+				logStreamName,
+				events,
 				sourceLogGroup: data.logGroup,
 				sourceLogStream: data.logStream,
 			});
-			return;
 		}
 
-		try {
-			await createLogStream({ logGroupName: destinationLogGroupName, logStreamName });
-		} catch (error) {
-			if (!isAlreadyExists(error)) throw error;
-		}
-
-		for (const logEvents of chunks) {
-			const rejected = await putLogEvents({
-				logGroupName: destinationLogGroupName,
-				logStreamName,
-				logEvents,
+		if (batches === 0) {
+			logger.info("[ForwardAnalytics] delivery had nothing to forward", {
+				sourceLogGroup: data.logGroup,
+				sourceLogStream: data.logStream,
+				received: data.logEvents.length,
 			});
-			/* PutLogEvents can succeed while silently discarding individual events. On
-			 * the live path they are always fresh, but a failure-queue replay near the
-			 * 14-day ingest floor can lose lines behind a 200 — so this is logged as an
-			 * error instead of being swallowed by the "forwarded" line below. */
-			if (rejected) {
-				logger.error("[ForwardAnalytics] PutLogEvents discarded events from an accepted batch", {
-					sourceLogGroup: data.logGroup,
-					sourceLogStream: data.logStream,
-					batchSize: logEvents.length,
-					rejected,
-				});
-			}
+			return;
 		}
 
 		logger.info("[ForwardAnalytics] forwarded", {
 			sourceLogGroup: data.logGroup,
 			sourceLogStream: data.logStream,
-			events: data.logEvents.length,
-			batches: chunks.length,
+			events: forwarded,
+			analytics: routed.analytics.length,
+			errors: routed.errors.length,
+			batches,
 		});
 	};
 }

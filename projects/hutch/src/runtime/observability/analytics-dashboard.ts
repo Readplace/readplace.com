@@ -1,5 +1,5 @@
 import assert from "node:assert";
-import { BLOG_SITE_LOG_GROUP, SAVE_LINK_LOG_GROUPS } from "@packages/hutch-infra-components";
+import { BLOG_SITE_LOG_GROUP } from "@packages/hutch-infra-components";
 import { HOMEPAGE_SPLIT } from "../web/experiments/homepage-split";
 import {
 	ANALYTICS_EVENTS,
@@ -33,8 +33,11 @@ export interface BuildAnalyticsDashboardDeps {
 	 * so a widget scans only analytics bytes (roughly half the source volume) and
 	 * queries reach the full retained history rather than the source's 30 days. */
 	analyticsLogGroupName: string;
-	subscriptionLogGroupNames: readonly string[];
-	workerLogGroupNames: readonly string[];
+	/** The single group every source funnels its error output into. The error
+	 * widget reads only this, which is what makes fleet coverage independent of
+	 * anyone remembering to register a project — and what keeps the widget under
+	 * the 50-log-group Logs Insights cap the account has already outgrown. */
+	errorsLogGroupName: string;
 	excludedVisitorHashes: readonly string[];
 }
 
@@ -95,7 +98,7 @@ function logWidget(params: {
 }
 
 export function buildAnalyticsDashboardBody(deps: BuildAnalyticsDashboardDeps): DashboardBody {
-	const { region, hutchLogGroupName, analyticsLogGroupName, subscriptionLogGroupNames, workerLogGroupNames, excludedVisitorHashes } = deps;
+	const { region, hutchLogGroupName, analyticsLogGroupName, errorsLogGroupName, excludedVisitorHashes } = deps;
 	const exclude = excludeVisitorHashesClause(excludedVisitorHashes);
 	const widgets: DashboardWidget[] = [];
 
@@ -593,25 +596,33 @@ export function buildAnalyticsDashboardBody(deps: BuildAnalyticsDashboardDeps): 
 	);
 
 	// --- Errors ---
-	// A standing table of the most recent error output across every wired log
-	// group, so surfacing "the latest logError occurrences" is a live view rather
-	// than an ad-hoc Logs Insights query. The source spans the hutch handler, the
-	// subscription Lambdas, and the save-link async worker Lambdas
-	// so the crawl / save / summarise paths most likely to
-	// error are visible here. The three filter legs cover the three
-	// shapes error output takes: the structured logError JSON line (level =
-	// "ERROR"), the parse-errors stream emitted on save / summarise failure, and
-	// a best-effort substring match for raw logger.error text the Lambda runtime
-	// tags ERROR. coalesce(message, reason) folds the human-readable detail from
-	// the logError and parse-error shapes into a single column.
+	// A standing table of the most recent error output across the WHOLE fleet, so
+	// surfacing "the latest logError occurrences" is a live view rather than an
+	// ad-hoc Logs Insights query.
+	//
+	// It reads one group, not a list of them, and that is the point. Logs Insights
+	// caps a query at 50 log groups (verified: 51 returns "Too many log groups
+	// specified") and the account holds 71, so the previous enumerating form could
+	// not cover the fleet even in principle — and what it omitted was invisible
+	// rather than an error. The forwarder funnels every source group's error output
+	// into ERRORS_LOG_GROUP, so a project that has never been heard of is covered
+	// the moment it creates a Lambda.
+	//
+	// @logStream carries the origin as `<sourceGroup>/<sourceStream>`, replacing the
+	// `source` field the old per-group form leaned on. The three filter legs cover
+	// the three shapes error output takes: the structured logError JSON line
+	// (level = "ERROR"), the parse-errors stream emitted on save / summarise
+	// failure, and a substring match for raw text the Lambda runtime tags ERROR.
+	// coalesce(message, reason) folds the human-readable detail from the logError
+	// and parse-error shapes into a single column.
 
 	widgets.push(
 		logWidget({
 			region,
-			title: "Recent errors (logError + parse-errors, all wired log groups)",
-			logGroupNames: [hutchLogGroupName, ...subscriptionLogGroupNames, ...workerLogGroupNames],
+			title: "Recent errors (logError + parse-errors, whole fleet)",
+			logGroupNames: [errorsLogGroupName],
 			query: [
-				"fields @timestamp, level, source, url, coalesce(message, reason) as detail, @message, stack",
+				"fields @timestamp, level, @logStream as origin, url, coalesce(message, reason) as detail, @message, stack",
 				`| filter level = "ERROR" or stream = "${STREAMS.parseErrors}" or @message like "ERROR"`,
 				"| sort @timestamp desc",
 				"| limit 100",
@@ -779,29 +790,6 @@ export function buildAnalyticsDashboardBody(deps: BuildAnalyticsDashboardDeps): 
 }
 
 /**
- * Re-export so the dashboard's default log group set is co-located with the
- * widget builder and any addition or rename surfaces through this one
- * module rather than via independent edits across the event constants and the infrastructure definition.
- */
-export const SUBSCRIPTION_DASHBOARD_LOG_GROUPS: readonly string[] = [
-	LOG_GROUPS.subscriptionStartRequest,
-	LOG_GROUPS.subscriptionChargeSucceeded,
-	LOG_GROUPS.subscriptionChargeFailed,
-	LOG_GROUPS.cancelSubscription,
-	LOG_GROUPS.handleSubscriptionCancelled,
-	LOG_GROUPS.scheduleTrialFeedbackEmail,
-	LOG_GROUPS.sendTrialFeedbackEmail,
-];
-
-/**
- * The save-link async worker log groups the "Recent errors" widget queries.
- * Every SAVE_LINK_LOG_GROUPS entry is surfaced (these Lambdas exist solely to
- * run the error-prone crawl / save / summarise pipeline), so a new worker
- * Lambda added to the shared constant flows onto the dashboard automatically.
- */
-export const WORKER_DASHBOARD_LOG_GROUPS: readonly string[] = Object.values(SAVE_LINK_LOG_GROUPS);
-
-/**
  * Every source log group the forward-analytics Lambda subscribes to: the hutch
  * handler, the blog Lambda, and every subscription/trial Lambda. The forwarder
  * copies the FORWARDED_STREAMS lines from these into the never-expire analytics
@@ -814,5 +802,11 @@ export const WORKER_DASHBOARD_LOG_GROUPS: readonly string[] = Object.values(SAVE
 export const FORWARDED_SOURCE_LOG_GROUPS: readonly string[] = [
 	LOG_GROUPS.hutchHandler,
 	BLOG_SITE_LOG_GROUP,
-	...SUBSCRIPTION_DASHBOARD_LOG_GROUPS,
+	LOG_GROUPS.subscriptionStartRequest,
+	LOG_GROUPS.subscriptionChargeSucceeded,
+	LOG_GROUPS.subscriptionChargeFailed,
+	LOG_GROUPS.cancelSubscription,
+	LOG_GROUPS.handleSubscriptionCancelled,
+	LOG_GROUPS.scheduleTrialFeedbackEmail,
+	LOG_GROUPS.sendTrialFeedbackEmail,
 ];

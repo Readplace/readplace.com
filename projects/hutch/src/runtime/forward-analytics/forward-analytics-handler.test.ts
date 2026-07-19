@@ -4,6 +4,7 @@ import type { CloudWatchLogsEvent, Handler } from "aws-lambda";
 import { buildLambdaContext } from "@packages/test-fixtures/lambda-context";
 import { noopLogger, type HutchLogger } from "@packages/hutch-logger";
 import {
+	classifyForwardedLine,
 	extractJsonPayload,
 	initForwardAnalyticsHandler,
 	type ForwardAnalyticsDeps,
@@ -11,16 +12,29 @@ import {
 } from "./forward-analytics-handler";
 
 const DESTINATION = "/readplace/analytics";
+const ERRORS_DESTINATION = "/readplace/errors";
+const ANALYTICS_STREAMS = ["analytics", "conversions", "subscriptions"] as const;
 const SOURCE_GROUP = "/aws/lambda/hutch-handler";
 const SOURCE_STREAM = "2026/07/17/[$LATEST]abc";
 const DEST_STREAM = `${SOURCE_GROUP}/${SOURCE_STREAM}`;
 const BASE_TS = 1_752_768_512_073;
+/** A line the classifier routes, for tests about delivery mechanics rather than
+ * routing. A placeholder string would now be dropped as unclaimed. */
+const ANALYTICS_LINE = '{"stream":"analytics","event":"pageview"}';
+/** Wraps a batching-test payload as an analytics line so it routes to a funnel.
+ * These tests are about chunking and ordering, not classification, but the
+ * handler now drops a line no funnel claims — a bare tag would never be sent. */
+function line(tag: string): string {
+	return `{"stream":"analytics","m":"${tag}"}`;
+}
 
 function createHandler(overrides: Partial<ForwardAnalyticsDeps> = {}) {
 	const deps: ForwardAnalyticsDeps = {
 		createLogStream: jest.fn().mockResolvedValue(undefined),
 		putLogEvents: jest.fn().mockResolvedValue(undefined),
-		destinationLogGroupName: DESTINATION,
+		analyticsLogGroupName: DESTINATION,
+		errorsLogGroupName: ERRORS_DESTINATION,
+		analyticsStreams: ANALYTICS_STREAMS,
 		logger: noopLogger,
 		...overrides,
 	};
@@ -47,7 +61,95 @@ function run(handler: Handler<CloudWatchLogsEvent, void>, event: CloudWatchLogsE
 	return Promise.resolve(handler(event, buildLambdaContext(), () => {}));
 }
 
+describe("classifyForwardedLine", () => {
+	function classify(message: string) {
+		return classifyForwardedLine({ message, analyticsStreams: ANALYTICS_STREAMS });
+	}
+
+	it.each(ANALYTICS_STREAMS)("routes the %s stream to the analytics funnel", (stream) => {
+		expect(classify(`{"stream":"${stream}","event":"pageview"}`)).toBe("analytics");
+	});
+
+	it("routes a structured logError line to the errors funnel", () => {
+		expect(classify('{"level":"ERROR","message":"boom"}')).toBe("errors");
+	});
+
+	it("routes the parse-errors stream to the errors funnel — it is operational, not business history", () => {
+		expect(classify('{"stream":"parse-errors","reason":"bad html"}')).toBe("errors");
+	});
+
+	it.each([
+		"2026-07-17T16:08:32.073Z 37e4-req Task timed out after 30.03 seconds",
+		"RequestId: 37e4-req Error: Runtime exited with error: signal: killed",
+		"2026-07-17T16:08:32.073Z\t37e4-req\tERROR\tsomething broke",
+	])("routes the runtime's plain-text failure output to the errors funnel: %s", (line) => {
+		expect(classify(line)).toBe("errors");
+	});
+
+	// The subscription filter is a coarse text match by necessity, so it forwards
+	// lines neither funnel wants. Dropping them here is what keeps a saved article
+	// whose title contains "ERROR" out of the operator's error table.
+	it("claims nothing for an ordinary info line", () => {
+		expect(classify('{"stream":"crawl-outcomes","outcome":"ok"}')).toBeUndefined();
+	});
+
+	it("claims nothing for a line that is not JSON and carries no failure marker", () => {
+		expect(classify("START RequestId: 37e4-req Version: $LATEST")).toBeUndefined();
+	});
+
+	it("prefers analytics when a business line also carries an ERROR level, so a conversion is never lost to the error table", () => {
+		expect(classify('{"stream":"conversions","level":"ERROR","event":"user_created"}')).toBe(
+			"analytics",
+		);
+	});
+});
+
 describe("initForwardAnalyticsHandler", () => {
+	it("splits one delivery across both funnels, so a single subscription filter feeds them and the second filter slot stays free", async () => {
+		const { handler, deps } = createHandler();
+
+		await run(
+			handler,
+			dataMessage([
+				{ timestamp: BASE_TS, message: '{"stream":"analytics","event":"pageview"}' },
+				{ timestamp: BASE_TS + 1, message: '{"level":"ERROR","message":"boom"}' },
+			]),
+		);
+
+		expect(deps.putLogEvents).toHaveBeenCalledWith({
+			logGroupName: DESTINATION,
+			logStreamName: DEST_STREAM,
+			logEvents: [{ timestamp: BASE_TS, message: '{"stream":"analytics","event":"pageview"}' }],
+		});
+		expect(deps.putLogEvents).toHaveBeenCalledWith({
+			logGroupName: ERRORS_DESTINATION,
+			logStreamName: DEST_STREAM,
+			logEvents: [{ timestamp: BASE_TS + 1, message: '{"level":"ERROR","message":"boom"}' }],
+		});
+	});
+
+	// The origin is the only thing attributing an error to the project that raised
+	// it, now that the widget reads one group instead of naming each source.
+	it("stamps the same <sourceGroup>/<sourceStream> name on the errors funnel as on analytics", async () => {
+		const { handler, deps } = createHandler();
+
+		await run(handler, dataMessage([{ timestamp: BASE_TS, message: '{"level":"ERROR","m":1}' }]));
+
+		expect(deps.createLogStream).toHaveBeenCalledWith({
+			logGroupName: ERRORS_DESTINATION,
+			logStreamName: DEST_STREAM,
+		});
+	});
+
+	it("writes nothing when the coarse filter forwarded only lines neither funnel claims", async () => {
+		const { handler, deps } = createHandler();
+
+		await run(handler, dataMessage([{ timestamp: BASE_TS, message: "START RequestId: abc" }]));
+
+		expect(deps.createLogStream).not.toHaveBeenCalled();
+		expect(deps.putLogEvents).not.toHaveBeenCalled();
+	});
+
 	it("forwards each event's JSON payload (Lambda-Text preamble stripped) with its timestamp, so Logs Insights can query the fields", async () => {
 		const json = '{"stream":"analytics","event":"pageview"}';
 		const sourceLine = `2026-07-17T16:08:32.073Z\t37e4-req\tINFO\t${json}\n`;
@@ -66,7 +168,7 @@ describe("initForwardAnalyticsHandler", () => {
 	it("names the destination stream <sourceGroup>/<sourceStream> and creates it before writing", async () => {
 		const { handler, deps } = createHandler();
 
-		await run(handler, dataMessage([{ timestamp: BASE_TS, message: "m" }]));
+		await run(handler, dataMessage([{ timestamp: BASE_TS, message: ANALYTICS_LINE }]));
 
 		expect(deps.createLogStream).toHaveBeenCalledWith({
 			logGroupName: DESTINATION,
@@ -104,7 +206,7 @@ describe("initForwardAnalyticsHandler", () => {
 			createLogStream: jest.fn().mockRejectedValue(alreadyExists),
 		});
 
-		await run(handler, dataMessage([{ timestamp: BASE_TS, message: "m" }]));
+		await run(handler, dataMessage([{ timestamp: BASE_TS, message: ANALYTICS_LINE }]));
 
 		expect(deps.putLogEvents).toHaveBeenCalledTimes(1);
 	});
@@ -115,7 +217,7 @@ describe("initForwardAnalyticsHandler", () => {
 			createLogStream: jest.fn().mockRejectedValue(boom),
 		});
 
-		await expect(run(handler, dataMessage([{ timestamp: BASE_TS, message: "m" }]))).rejects.toThrow(
+		await expect(run(handler, dataMessage([{ timestamp: BASE_TS, message: ANALYTICS_LINE }]))).rejects.toThrow(
 			"access denied",
 		);
 		expect(deps.putLogEvents).not.toHaveBeenCalled();
@@ -126,7 +228,7 @@ describe("initForwardAnalyticsHandler", () => {
 			createLogStream: jest.fn().mockRejectedValue("stringly-typed failure"),
 		});
 
-		await expect(run(handler, dataMessage([{ timestamp: BASE_TS, message: "m" }]))).rejects.toBe(
+		await expect(run(handler, dataMessage([{ timestamp: BASE_TS, message: ANALYTICS_LINE }]))).rejects.toBe(
 			"stringly-typed failure",
 		);
 		expect(deps.putLogEvents).not.toHaveBeenCalled();
@@ -135,7 +237,7 @@ describe("initForwardAnalyticsHandler", () => {
 	it("splits a delivery over 10,000 events into ordered batches of 10,000 then the remainder", async () => {
 		const logEvents: ForwardLogEvent[] = Array.from({ length: 10_001 }, (_, i) => ({
 			timestamp: BASE_TS + i,
-			message: `msg-${i}`,
+			message: line(`msg-${i}`),
 		}));
 		const { handler, deps } = createHandler();
 
@@ -145,14 +247,14 @@ describe("initForwardAnalyticsHandler", () => {
 		expect(calls).toHaveLength(2);
 		expect(calls[0][0].logEvents).toHaveLength(10_000);
 		expect(calls[1][0].logEvents).toHaveLength(1);
-		expect(calls[0][0].logEvents[0].message).toBe("msg-0");
-		expect(calls[1][0].logEvents[0].message).toBe("msg-10000");
+		expect(calls[0][0].logEvents[0].message).toBe(line("msg-0"));
+		expect(calls[1][0].logEvents[0].message).toBe(line("msg-10000"));
 	});
 
 	it("splits on the 1 MB byte budget using UTF-8 byte length, not character count", async () => {
 		// 200,000 "€" = 600,000 UTF-8 bytes but only 200,000 chars. Two events exceed
 		// the 1 MB budget by bytes; by character count they would fit in one batch.
-		const big = "€".repeat(200_000);
+		const big = line("€".repeat(200_000));
 		const logEvents: ForwardLogEvent[] = [
 			{ timestamp: BASE_TS, message: big },
 			{ timestamp: BASE_TS + 1, message: big },
@@ -170,9 +272,9 @@ describe("initForwardAnalyticsHandler", () => {
 	it("keeps events within a 24-hour window together and starts a new batch when the span is exceeded", async () => {
 		const hour = 60 * 60 * 1000;
 		const logEvents: ForwardLogEvent[] = [
-			{ timestamp: BASE_TS, message: "a" },
-			{ timestamp: BASE_TS + hour, message: "b" },
-			{ timestamp: BASE_TS + 25 * hour, message: "c" },
+			{ timestamp: BASE_TS, message: line("a") },
+			{ timestamp: BASE_TS + hour, message: line("b") },
+			{ timestamp: BASE_TS + 25 * hour, message: line("c") },
 		];
 		const { handler, deps } = createHandler();
 
@@ -180,15 +282,15 @@ describe("initForwardAnalyticsHandler", () => {
 
 		const calls = (deps.putLogEvents as jest.Mock).mock.calls;
 		expect(calls).toHaveLength(2);
-		expect(calls[0][0].logEvents.map((e: ForwardLogEvent) => e.message)).toEqual(["a", "b"]);
-		expect(calls[1][0].logEvents.map((e: ForwardLogEvent) => e.message)).toEqual(["c"]);
+		expect(calls[0][0].logEvents.map((e: ForwardLogEvent) => e.message)).toEqual([line("a"), line("b")]);
+		expect(calls[1][0].logEvents.map((e: ForwardLogEvent) => e.message)).toEqual([line("c")]);
 	});
 
 	it("sorts a non-chronological delivery before writing — PutLogEvents rejects an out-of-order batch outright", async () => {
 		const logEvents: ForwardLogEvent[] = [
-			{ timestamp: BASE_TS + 2000, message: "c" },
-			{ timestamp: BASE_TS, message: "a" },
-			{ timestamp: BASE_TS + 1000, message: "b" },
+			{ timestamp: BASE_TS + 2000, message: line("c") },
+			{ timestamp: BASE_TS, message: line("a") },
+			{ timestamp: BASE_TS + 1000, message: line("b") },
 		];
 		const { handler, deps } = createHandler();
 
@@ -196,7 +298,7 @@ describe("initForwardAnalyticsHandler", () => {
 
 		const calls = (deps.putLogEvents as jest.Mock).mock.calls;
 		expect(calls).toHaveLength(1);
-		expect(calls[0][0].logEvents.map((e: ForwardLogEvent) => e.message)).toEqual(["a", "b", "c"]);
+		expect(calls[0][0].logEvents.map((e: ForwardLogEvent) => e.message)).toEqual([line("a"), line("b"), line("c")]);
 	});
 
 	it("applies the 24-hour span split on sorted order, so an out-of-order delivery cannot build an over-span batch", async () => {
@@ -204,9 +306,9 @@ describe("initForwardAnalyticsHandler", () => {
 		// Delivered newest-first: unsorted, the span check would compare against the
 		// 25h-later first event, yield negative diffs, and emit one illegal 25h batch.
 		const logEvents: ForwardLogEvent[] = [
-			{ timestamp: BASE_TS + 25 * hour, message: "c" },
-			{ timestamp: BASE_TS, message: "a" },
-			{ timestamp: BASE_TS + hour, message: "b" },
+			{ timestamp: BASE_TS + 25 * hour, message: line("c") },
+			{ timestamp: BASE_TS, message: line("a") },
+			{ timestamp: BASE_TS + hour, message: line("b") },
 		];
 		const { handler, deps } = createHandler();
 
@@ -214,8 +316,8 @@ describe("initForwardAnalyticsHandler", () => {
 
 		const calls = (deps.putLogEvents as jest.Mock).mock.calls;
 		expect(calls).toHaveLength(2);
-		expect(calls[0][0].logEvents.map((e: ForwardLogEvent) => e.message)).toEqual(["a", "b"]);
-		expect(calls[1][0].logEvents.map((e: ForwardLogEvent) => e.message)).toEqual(["c"]);
+		expect(calls[0][0].logEvents.map((e: ForwardLogEvent) => e.message)).toEqual([line("a"), line("b")]);
+		expect(calls[1][0].logEvents.map((e: ForwardLogEvent) => e.message)).toEqual([line("c")]);
 	});
 
 	it("logs an error when PutLogEvents accepts the batch but discards events, so a replay-edge drop is never silent", async () => {
@@ -226,7 +328,7 @@ describe("initForwardAnalyticsHandler", () => {
 			putLogEvents: jest.fn().mockResolvedValue({ tooOldLogEventEndIndex: 2 }),
 		});
 
-		await run(handler, dataMessage([{ timestamp: BASE_TS, message: "a" }]));
+		await run(handler, dataMessage([{ timestamp: BASE_TS, message: line("a") }]));
 
 		expect(error).toHaveBeenCalledTimes(1);
 		expect(error).toHaveBeenCalledWith(
@@ -238,8 +340,8 @@ describe("initForwardAnalyticsHandler", () => {
 	it("propagates a putLogEvents rejection and does not send later batches", async () => {
 		const hour = 60 * 60 * 1000;
 		const logEvents: ForwardLogEvent[] = [
-			{ timestamp: BASE_TS, message: "a" },
-			{ timestamp: BASE_TS + 25 * hour, message: "b" },
+			{ timestamp: BASE_TS, message: line("a") },
+			{ timestamp: BASE_TS + 25 * hour, message: line("b") },
 		];
 		const putLogEvents = jest.fn().mockRejectedValueOnce(new Error("throttled"));
 		const { handler, deps } = createHandler({ putLogEvents });
