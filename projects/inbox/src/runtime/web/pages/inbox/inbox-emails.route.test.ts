@@ -38,6 +38,7 @@ function emailEntry(userId: UserId, input: EmailEntryInput): InboxEmailEntry {
 		status: "received",
 		rawEmailS3Key: `inbound/${messageId}`,
 		bodyS3Key: `content/${messageId}/content.html`,
+		linkCounts: undefined,
 		...rest,
 		messageId,
 		receivedAt,

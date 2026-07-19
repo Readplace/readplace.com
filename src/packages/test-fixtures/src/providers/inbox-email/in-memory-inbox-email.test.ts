@@ -22,6 +22,7 @@ function makeEntry(overrides: Partial<InboxEmailEntry> = {}): InboxEmailEntry {
 		receivedAt: "2026-06-23T00:00:00.000Z",
 		rawEmailS3Key: "inbound/m-1",
 		bodyS3Key: "content/m-1/content.html",
+		linkCounts: undefined,
 		...overrides,
 	};
 }
@@ -195,6 +196,59 @@ describe("initInMemoryInboxEmail", () => {
 		expect(
 			await store.getEmail({ userId: owner, receivedAtMessageId: "missing" }),
 		).toBeUndefined();
+	});
+
+	describe("setEmailLinkCounts", () => {
+		it("stamps counts readable on the stored row", async () => {
+			const store = initInMemoryInboxEmail();
+			const entry = makeEntry();
+			await store.putEmail(entry);
+
+			await store.setEmailLinkCounts({
+				userId: owner,
+				receivedAtMessageId: entry.receivedAtMessageId,
+				linkCounts: { kept: 2, skipped: 1, truncated: false },
+			});
+
+			const found = await store.getEmail({
+				userId: owner,
+				receivedAtMessageId: entry.receivedAtMessageId,
+			});
+			assert(found, "expected the stored email to resolve");
+			expect(found.linkCounts).toEqual({ kept: 2, skipped: 1, truncated: false });
+		});
+
+		it("keeps the counts when the email row is redelivered as a duplicate", async () => {
+			const store = initInMemoryInboxEmail();
+			const entry = makeEntry();
+			await store.putEmail(entry);
+			await store.setEmailLinkCounts({
+				userId: owner,
+				receivedAtMessageId: entry.receivedAtMessageId,
+				linkCounts: { kept: 1, skipped: 0, truncated: false },
+			});
+
+			expect(await store.putEmail(entry)).toBe("duplicate");
+
+			const found = await store.getEmail({
+				userId: owner,
+				receivedAtMessageId: entry.receivedAtMessageId,
+			});
+			assert(found, "expected the stored email to resolve");
+			expect(found.linkCounts).toEqual({ kept: 1, skipped: 0, truncated: false });
+		});
+
+		it("rejects counts for a missing email row", async () => {
+			const store = initInMemoryInboxEmail();
+
+			await expect(
+				store.setEmailLinkCounts({
+					userId: owner,
+					receivedAtMessageId: "missing",
+					linkCounts: { kept: 0, skipped: 0, truncated: false },
+				}),
+			).rejects.toThrow("setEmailLinkCounts requires an existing email row");
+		});
 	});
 
 	describe("listDeletionReferencesByUserId", () => {

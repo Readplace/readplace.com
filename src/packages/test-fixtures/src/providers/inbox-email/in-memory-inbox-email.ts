@@ -55,6 +55,12 @@ export function initInMemoryInboxEmail(): InboxEmailStore {
 		},
 		getEmail: async ({ userId, receivedAtMessageId }) =>
 			rows.get(keyOf(userId, receivedAtMessageId)),
+		setEmailLinkCounts: async ({ userId, receivedAtMessageId, linkCounts }) => {
+			const key = keyOf(userId, receivedAtMessageId);
+			const row = rows.get(key);
+			assert(row, "setEmailLinkCounts requires an existing email row");
+			rows.set(key, { ...row, linkCounts });
+		},
 		listDeletionReferencesByUserId: async (userId) => {
 			const receivedAtMessageIds: string[] = [];
 			const rawEmailS3Keys: string[] = [];

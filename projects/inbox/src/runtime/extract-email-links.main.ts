@@ -59,6 +59,7 @@ export const handler = initExtractEmailLinksHandler({
 	putLink: inboxEmailLinkStore.putLink,
 	getLink: inboxEmailLinkStore.getLink,
 	putLinksMeta: inboxEmailLinkStore.putLinksMeta,
+	setEmailLinkCounts: inboxEmailStore.setEmailLinkCounts,
 	publishCrawlPreview: (input) => publishEvent(CrawlEmailLinkPreview, input),
 	alertTruncated: async (input) => {
 		// Dedicated alert queue, not the failure DLQ: truncation is a successful

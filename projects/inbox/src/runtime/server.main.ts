@@ -39,6 +39,7 @@ function emailEntry(
 		status: "received",
 		rawEmailS3Key: `inbound/${messageId}`,
 		bodyS3Key: `content/${messageId}/content.html`,
+		linkCounts: undefined,
 		messageId,
 		receivedAt: input.receivedAt,
 		receivedAtMessageId: `${input.receivedAt}#${messageId}`,
@@ -116,6 +117,11 @@ async function main(): Promise<void> {
 		imageUrl: undefined,
 		failureReason: undefined,
 		skipReason: "list-unsubscribe",
+	});
+	await fixture.inboxEmail.inboxEmailStore.setEmailLinkCounts({
+		userId,
+		receivedAtMessageId: withLinks.receivedAtMessageId,
+		linkCounts: { kept: 2, skipped: 1, truncated: false },
 	});
 	await fixture.inboxEmail.inboxEmailLinkStore.putLinksMeta({
 		userId,

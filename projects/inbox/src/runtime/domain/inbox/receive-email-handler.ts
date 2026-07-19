@@ -150,6 +150,7 @@ export function initReceiveEmailHandler(deps: {
 					receivedAt,
 					rawEmailS3Key: s3Key,
 					bodyS3Key: undefined,
+					linkCounts: undefined,
 				});
 
 				if (raw.byteLength > deps.maxEmailBytes) {
@@ -225,6 +226,7 @@ export function initReceiveEmailHandler(deps: {
 						subject: parsed.email.subject,
 						receivedAt,
 						rawEmailS3Key: s3Key,
+						linkCounts: undefined,
 					};
 					// Body (and its inline images) to S3 BEFORE the row, and the row BEFORE
 					// the event: a crash anywhere re-delivers and replays idempotently. The

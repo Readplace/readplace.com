@@ -20,6 +20,13 @@ export interface InboxEmailEntry {
 	receivedAt: string;
 	rawEmailS3Key: string;
 	bodyS3Key: string | undefined;
+	linkCounts: InboxEmailLinkCounts | undefined;
+}
+
+export interface InboxEmailLinkCounts {
+	kept: number;
+	skipped: number;
+	truncated: boolean;
 }
 
 export interface InboxEmailsCursor {
@@ -47,6 +54,11 @@ export interface InboxEmailStore {
 		userId: UserId;
 		receivedAtMessageId: string;
 	}) => Promise<InboxEmailEntry | undefined>;
+	setEmailLinkCounts: (input: {
+		userId: UserId;
+		receivedAtMessageId: string;
+		linkCounts: InboxEmailLinkCounts;
+	}) => Promise<void>;
 	/** Account-deletion read pass: enumerate every email the user owns WITHOUT
 	 * deleting, returning the pointers those rows hold — the raw `.eml` and
 	 * rendered-body S3 keys (different buckets, so returned apart; the body only on

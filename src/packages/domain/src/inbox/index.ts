@@ -24,6 +24,7 @@ export {
 } from "./inbox-address.schema";
 export type {
 	InboxEmailEntry,
+	InboxEmailLinkCounts,
 	InboxEmailStore,
 	InboxEmailsCursor,
 	ListInboxEmailsResult,

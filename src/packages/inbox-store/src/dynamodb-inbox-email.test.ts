@@ -75,6 +75,7 @@ interface CapturedCommand {
 		Limit?: number;
 		ExpressionAttributeValues?: Record<string, unknown>;
 		ExclusiveStartKey?: Record<string, unknown>;
+		UpdateExpression?: string;
 	};
 }
 
@@ -107,6 +108,7 @@ function makeEntry(overrides: Partial<InboxEmailEntry> = {}): InboxEmailEntry {
 		receivedAt: "2026-06-23T00:00:00.000Z",
 		rawEmailS3Key: "inbound/ses-message-1",
 		bodyS3Key: "content/email%3A%2F%2Fabc/content.html",
+		linkCounts: undefined,
 		...overrides,
 	};
 }
@@ -174,6 +176,27 @@ describe("initDynamoDbInboxEmail", () => {
 			expect(result).toBe("stored");
 			expect(captured?.input.Item?.status).toBe("rejected");
 			expect(captured?.input.Item).not.toHaveProperty("bodyS3Key");
+		});
+
+		it("writes the denormalized link counts when the entry carries them", async () => {
+			let captured: CapturedCommand | undefined;
+			const store = initDynamoDbInboxEmail({
+				client: createFakeClient((cmd) => {
+					captured = cmd as CapturedCommand;
+					return {};
+				}) as DynamoDBDocumentClient,
+				tableName: TABLE,
+			});
+
+			await store.putEmail(
+				makeEntry({ linkCounts: { kept: 2, skipped: 1, truncated: false } }),
+			);
+
+			expect(captured?.input.Item?.linkCounts).toEqual({
+				kept: 2,
+				skipped: 1,
+				truncated: false,
+			});
 		});
 
 		it("returns duplicate when the conditional put fails on an existing row", async () => {
@@ -459,6 +482,7 @@ describe("initDynamoDbInboxEmail", () => {
 							receivedAt: "2026-06-23T00:00:00.000Z",
 							rawEmailS3Key: "inbound/m-1",
 							bodyS3Key: "content/m-1/content.html",
+							linkCounts: { kept: 2, skipped: 1, truncated: false },
 						},
 					};
 				}) as DynamoDBDocumentClient,
@@ -476,6 +500,7 @@ describe("initDynamoDbInboxEmail", () => {
 			});
 			assert(entry, "expected the row to be returned");
 			expect(entry.subject).toBe("Weekly digest");
+			expect(entry.linkCounts).toEqual({ kept: 2, skipped: 1, truncated: false });
 		});
 
 		it("returns undefined for an unknown row", async () => {
@@ -487,6 +512,56 @@ describe("initDynamoDbInboxEmail", () => {
 			expect(
 				await store.getEmail({ userId: USER, receivedAtMessageId: "missing" }),
 			).toBeUndefined();
+		});
+	});
+
+	describe("setEmailLinkCounts", () => {
+		it("stamps the counts onto the row only when it still exists", async () => {
+			let captured: CapturedCommand | undefined;
+			const store = initDynamoDbInboxEmail({
+				client: createFakeClient((cmd) => {
+					captured = cmd as CapturedCommand;
+					return {};
+				}) as DynamoDBDocumentClient,
+				tableName: TABLE,
+			});
+
+			await store.setEmailLinkCounts({
+				userId: USER,
+				receivedAtMessageId: "2026-06-23T00:00:00.000Z#<m-1@example.com>",
+				linkCounts: { kept: 3, skipped: 2, truncated: true },
+			});
+
+			expect(captured?.input.Key).toEqual({
+				userId: USER,
+				receivedAtMessageId: "2026-06-23T00:00:00.000Z#<m-1@example.com>",
+			});
+			expect(captured?.input.ConditionExpression).toBe(
+				"attribute_exists(receivedAtMessageId)",
+			);
+			expect(captured?.input.UpdateExpression).toContain("SET linkCounts = :linkCounts");
+			expect(captured?.input.ExpressionAttributeValues?.[":linkCounts"]).toEqual({
+				kept: 3,
+				skipped: 2,
+				truncated: true,
+			});
+		});
+
+		it("propagates the conditional-check failure when the row is gone", async () => {
+			const store = initDynamoDbInboxEmail({
+				client: createFakeClient(() => {
+					throw conditionalCheckFailed();
+				}) as DynamoDBDocumentClient,
+				tableName: TABLE,
+			});
+
+			await expect(
+				store.setEmailLinkCounts({
+					userId: USER,
+					receivedAtMessageId: "missing",
+					linkCounts: { kept: 0, skipped: 0, truncated: false },
+				}),
+			).rejects.toThrow("exists");
 		});
 	});
 

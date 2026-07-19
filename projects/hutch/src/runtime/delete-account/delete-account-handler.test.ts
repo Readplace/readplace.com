@@ -328,6 +328,7 @@ async function seedAccount(
 		receivedAt: "2026-07-05T00:00:00.000Z",
 		rawEmailS3Key: rawKeyA,
 		bodyS3Key: bodyKeyA,
+		linkCounts: undefined,
 	});
 	await s.inboxEmail.putEmail({
 		userId,
@@ -340,6 +341,7 @@ async function seedAccount(
 		receivedAt: "2026-07-04T00:00:00.000Z",
 		rawEmailS3Key: rawKeyB,
 		bodyS3Key: undefined,
+		linkCounts: undefined,
 	});
 
 	await s.inboxLink.putLink({

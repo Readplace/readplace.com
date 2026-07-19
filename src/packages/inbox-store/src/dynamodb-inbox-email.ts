@@ -28,6 +28,13 @@ const InboxEmailRow = z.object({
 	receivedAt: z.string(),
 	rawEmailS3Key: z.string(),
 	bodyS3Key: dynamoField(z.string()),
+	linkCounts: dynamoField(
+		z.object({
+			kept: z.number().int().min(0),
+			skipped: z.number().int().min(0),
+			truncated: z.boolean(),
+		}),
+	),
 });
 
 export function initDynamoDbInboxEmail(deps: {
@@ -45,8 +52,12 @@ export function initDynamoDbInboxEmail(deps: {
 			// The document client is not configured to drop undefined values, so a
 			// rejected/unparsed row (no rendered body) must omit the attribute
 			// entirely rather than write `bodyS3Key: undefined`.
-			const { bodyS3Key, ...rest } = email;
-			const Item = bodyS3Key === undefined ? rest : { ...rest, bodyS3Key };
+			const { bodyS3Key, linkCounts, ...rest } = email;
+			const Item = {
+				...rest,
+				...(bodyS3Key === undefined ? {} : { bodyS3Key }),
+				...(linkCounts === undefined ? {} : { linkCounts }),
+			};
 			try {
 				await table.put({
 					Item,
@@ -94,6 +105,14 @@ export function initDynamoDbInboxEmail(deps: {
 		},
 		getEmail: async ({ userId, receivedAtMessageId }) =>
 			table.get({ userId, receivedAtMessageId }),
+		setEmailLinkCounts: async ({ userId, receivedAtMessageId, linkCounts }) => {
+			await table.update({
+				Key: { userId, receivedAtMessageId },
+				ConditionExpression: "attribute_exists(receivedAtMessageId)",
+				UpdateExpression: "SET linkCounts = :linkCounts",
+				ExpressionAttributeValues: { ":linkCounts": linkCounts },
+			});
+		},
 		listDeletionReferencesByUserId: async (userId) => {
 			const receivedAtMessageIds: string[] = [];
 			const rawEmailS3Keys: string[] = [];

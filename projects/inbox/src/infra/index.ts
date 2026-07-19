@@ -283,9 +283,10 @@ const extractEmailLinksDynamodb = new HutchDynamoDBAccess("inbox-extract-email-l
 		{ arn: tableArn(tableNames.inboxEmails), includeIndexes: false },
 		{ arn: tableArn(tableNames.inboxEmailLinks), includeIndexes: false },
 	],
-	// getEmail (GetItem); putLink/putLinksMeta (PutItem); the conditional put needs
-	// no Query, and listing is the web layer's job.
-	actions: ["dynamodb:GetItem", "dynamodb:PutItem"],
+	// getEmail (GetItem); putLink/putLinksMeta (PutItem); setEmailLinkCounts
+	// (UpdateItem); the conditional put needs no Query, and listing is the web
+	// layer's job.
+	actions: ["dynamodb:GetItem", "dynamodb:PutItem", "dynamodb:UpdateItem"],
 });
 
 const EXTRACT_EMAIL_LINKS_TIMEOUT_SECONDS = 180;

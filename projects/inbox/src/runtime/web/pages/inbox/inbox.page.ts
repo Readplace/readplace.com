@@ -119,9 +119,6 @@ export function initInboxRoutes(deps: InboxDependencies): Router {
 			res.redirect(302, buildInboxEmailsUrl({}));
 			return;
 		}
-		// One cheap per-email partition Query each (no GSI, no scan) — the accepted
-		// cost of deriving the count instead of denormalising it onto the email row.
-		// Fired concurrently so a heavy-newsletter user pays one round-trip, not N.
 		const summaries = await Promise.all(
 			result.emails.map(async (email): Promise<[string, InboxEmailLinkSummary]> => {
 				const { links, meta } = await deps.inboxEmailLinkStore.listLinksByEmail({

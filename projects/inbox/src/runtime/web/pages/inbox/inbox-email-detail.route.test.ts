@@ -35,6 +35,7 @@ function emailEntry(userId: UserId, status: InboxEmailStatus): InboxEmailEntry {
 		receivedAt: "2026-06-24T09:00:00.000Z",
 		rawEmailS3Key: "inbound/view",
 		bodyS3Key: status === "received" ? "content/view/content.html" : undefined,
+		linkCounts: undefined,
 	};
 }
 

@@ -12,7 +12,9 @@ import {
 	capEmailLinks,
 	classifyEmailLink,
 	type EmailLinkOrdinal,
+	type EmailLinkStatus,
 	formatEmailLinkOrdinal,
+	type InboxEmailLinkEntry,
 	type InboxEmailLinkStore,
 	type InboxEmailStore,
 	type ParseEmailResult,
@@ -48,6 +50,7 @@ export function initExtractEmailLinksHandler(deps: {
 	putLink: InboxEmailLinkStore["putLink"];
 	getLink: InboxEmailLinkStore["getLink"];
 	putLinksMeta: InboxEmailLinkStore["putLinksMeta"];
+	setEmailLinkCounts: InboxEmailStore["setEmailLinkCounts"];
 	publishCrawlPreview: (input: {
 		userId: UserId;
 		receivedAtMessageId: string;
@@ -71,6 +74,7 @@ export function initExtractEmailLinksHandler(deps: {
 		putLink,
 		getLink,
 		putLinksMeta,
+		setEmailLinkCounts,
 		publishCrawlPreview,
 		alertTruncated,
 		triageEmailLinks,
@@ -159,7 +163,20 @@ export function initExtractEmailLinksHandler(deps: {
 					});
 				}
 
+				const storedLinkStatus = async (row: InboxEmailLinkEntry): Promise<EmailLinkStatus> => {
+					const putResult = await putLink(row);
+					if (putResult === "stored") return row.status;
+					const existing = await getLink({ userId, receivedAtMessageId, ordinal: row.ordinal });
+					assert(existing, "conditional put reported a duplicate but the row is missing");
+					return existing.status;
+				};
+
+				let kept = 0;
 				let skipped = 0;
+				const countStored = (status: EmailLinkStatus) => {
+					if (status === "skipped") skipped += 1;
+					else kept += 1;
+				};
 				for (const { url, ordinal, classification } of links) {
 					const link = {
 						userId,
@@ -176,33 +193,41 @@ export function initExtractEmailLinksHandler(deps: {
 					if (classification.action === "skip") {
 						// Terminal at birth: a skipped link is never crawled, so no
 						// CrawlEmailLinkPreview is published for it and its card never polls.
-						await putLink({ ...link, status: "skipped", skipReason: classification.reason });
-						skipped += 1;
+						countStored(
+							await storedLinkStatus({ ...link, status: "skipped", skipReason: classification.reason }),
+						);
 						continue;
 					}
 					const category =
 						triage?.status === "triaged" ? triage.categories.get(ordinal) : undefined;
 					if (category !== undefined && category !== "article") {
-						await putLink({ ...link, status: "skipped", skipReason: LLM_SKIP_REASONS[category] });
-						skipped += 1;
+						countStored(
+							await storedLinkStatus({
+								...link,
+								status: "skipped",
+								skipReason: LLM_SKIP_REASONS[category],
+							}),
+						);
 						continue;
 					}
 					// Put the pending row BEFORE publishing so the Articles tab shows N
 					// pending cards immediately; a re-delivery hits the conditional put as
 					// a no-op duplicate, then re-publishes while the row is still pending
 					// (the crawl consumer is idempotent).
-					const putResult = await putLink({ ...link, status: "pending", skipReason: undefined });
-					if (putResult === "duplicate") {
-						const existing = await getLink({ userId, receivedAtMessageId, ordinal });
-						assert(existing, "conditional put reported a duplicate but the row is missing");
-						// Triage verdicts are not deterministic across re-deliveries: a row a
-						// previous delivery terminally skipped must never be crawled by a
-						// later delivery that judged the same URL an article.
-						if (existing.status !== "pending") continue;
-					}
+					const status = await storedLinkStatus({ ...link, status: "pending", skipReason: undefined });
+					countStored(status);
+					// Triage verdicts are not deterministic across re-deliveries: a row a
+					// previous delivery terminally skipped must never be crawled by a
+					// later delivery that judged the same URL an article.
+					if (status !== "pending") continue;
 					await publishCrawlPreview({ userId, receivedAtMessageId, ordinal, url });
 				}
 
+				await setEmailLinkCounts({
+					userId,
+					receivedAtMessageId,
+					linkCounts: { kept, skipped, truncated },
+				});
 				// Write the per-email meta row LAST, after every link row is in place, so
 				// its presence is an "extraction finished" barrier: the detail view reads
 				// no-meta as "still extracting, keep polling" and meta-present-with-zero-rows
@@ -214,12 +239,13 @@ export function initExtractEmailLinksHandler(deps: {
 					logger.error("[extract-email-links] link cap hit, truncated", {
 						receivedAtMessageId,
 						found: extracted.totalFound,
-						kept: urls.length,
+						capped: urls.length,
 					});
 				}
 				logger.info("[extract-email-links] extracted", {
 					receivedAtMessageId,
 					links: urls.length,
+					kept,
 					skipped,
 				});
 			} catch (error) {

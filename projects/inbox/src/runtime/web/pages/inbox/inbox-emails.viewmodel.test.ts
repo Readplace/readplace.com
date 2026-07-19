@@ -26,6 +26,7 @@ function entry(overrides: Partial<InboxEmailEntry> = {}): InboxEmailEntry {
 		receivedAt: "2026-06-24T11:59:30.000Z",
 		rawEmailS3Key: "inbound/m-1",
 		bodyS3Key: "content/m-1/content.html",
+		linkCounts: undefined,
 		...overrides,
 	};
 }

@@ -3,6 +3,7 @@ import { HutchLogger, noopLogger } from "@packages/hutch-logger";
 import {
 	type EmailLinkOrdinal,
 	type InboxEmailEntry,
+	type InboxEmailLinkCounts,
 	InboxAddressSchema,
 	MessageIdSchema,
 	type ParseEmailResult,
@@ -31,6 +32,7 @@ function makeEmail(overrides: Partial<InboxEmailEntry> = {}): InboxEmailEntry {
 		receivedAt: RECEIVED_AT,
 		rawEmailS3Key: RAW_KEY,
 		bodyS3Key: "content/m/content.html",
+		linkCounts: undefined,
 		...overrides,
 	};
 }
@@ -74,6 +76,8 @@ function makeHarness(opts?: {
 	const alerts: { found: number }[] = [];
 	const triageCalls: Parameters<TriageEmailLinks>[0][] = [];
 	const deriveInputs: { rehostedRemoteImages: Record<string, string> }[] = [];
+	const countsWrites: InboxEmailLinkCounts[] = [];
+	const writeOrder: ("counts" | "meta")[] = [];
 
 	const everythingIsAnArticle: TriageEmailLinks = async (input) => {
 		triageCalls.push(input);
@@ -93,7 +97,14 @@ function makeHarness(opts?: {
 		},
 		putLink: linkStore.putLink,
 		getLink: linkStore.getLink,
-		putLinksMeta: linkStore.putLinksMeta,
+		putLinksMeta: async (input) => {
+			writeOrder.push("meta");
+			await linkStore.putLinksMeta(input);
+		},
+		setEmailLinkCounts: async ({ linkCounts }) => {
+			writeOrder.push("counts");
+			countsWrites.push(linkCounts);
+		},
 		publishCrawlPreview: async ({ ordinal, url }) => {
 			published.push({ ordinal, url });
 		},
@@ -108,7 +119,7 @@ function makeHarness(opts?: {
 	const run = (body: string) =>
 		handler(buildSqsEvent([{ messageId: "rec-1", body }]), buildLambdaContext(), () => {});
 
-	return { linkStore, published, alerts, triageCalls, deriveInputs, run };
+	return { linkStore, published, alerts, triageCalls, deriveInputs, countsWrites, writeOrder, run };
 }
 
 describe("initExtractEmailLinksHandler", () => {
@@ -138,6 +149,8 @@ describe("initExtractEmailLinksHandler", () => {
 			{ ordinal: "0001", url: "https://b.test/y" },
 			{ ordinal: "0002", url: "https://c.test/z" },
 		]);
+		expect(harness.countsWrites).toEqual([{ kept: 3, skipped: 0, truncated: false }]);
+		expect(harness.writeOrder).toEqual(["counts", "meta"]);
 		expect(harness.alerts).toHaveLength(0);
 		// Extraction must derive with NO remote-image rehost map: CDN image URLs
 		// in its body would be extracted as phantom article links, and building
@@ -165,6 +178,7 @@ describe("initExtractEmailLinksHandler", () => {
 		]);
 		expect(meta).toEqual({ truncated: false });
 		expect(harness.published).toEqual([{ ordinal: "0000", url: "https://a.test/x" }]);
+		expect(harness.countsWrites).toEqual([{ kept: 1, skipped: 1, truncated: false }]);
 	});
 
 	it("caps the fan-out, writes a truncated meta item, and raises one alert", async () => {
@@ -185,6 +199,7 @@ describe("initExtractEmailLinksHandler", () => {
 		expect(meta).toEqual({ truncated: true });
 		expect(harness.published).toHaveLength(2);
 		expect(harness.alerts).toEqual([{ found: 3 }]);
+		expect(harness.countsWrites).toEqual([{ kept: 2, skipped: 0, truncated: true }]);
 	});
 
 	it("skips an email that is not in the received state", async () => {
@@ -315,6 +330,7 @@ describe("initExtractEmailLinksHandler", () => {
 			{ ordinal: "0000", url: "https://a.test/1" },
 			{ ordinal: "0005", url: "https://a.test/6" },
 		]);
+		expect(harness.countsWrites).toEqual([{ kept: 2, skipped: 4, truncated: false }]);
 	});
 
 	it("crawls every remaining link when the triage is unavailable", async () => {
@@ -393,6 +409,53 @@ describe("initExtractEmailLinksHandler", () => {
 			["skipped", "llm-subscription"],
 		]);
 		expect(harness.published).toEqual([]);
+		expect(harness.countsWrites).toEqual([
+			{ kept: 0, skipped: 1, truncated: false },
+			{ kept: 0, skipped: 1, truncated: false },
+		]);
+	});
+
+	it("counts a still-pending row as kept when a later delivery would skip it", async () => {
+		let deliveries = 0;
+		const harness = makeHarness({
+			triageEmailLinks: async (input) => {
+				deliveries += 1;
+				const category = deliveries === 1 ? ("article" as const) : ("subscription" as const);
+				return {
+					status: "triaged",
+					categories: new Map(input.links.map((link) => [link.ordinal, category])),
+				};
+			},
+			derivedHtml: "https://a.test/x",
+		});
+
+		await harness.run(eventBody());
+		await harness.run(eventBody());
+
+		const { links } = await harness.linkStore.listLinksByEmail({
+			userId: USER,
+			receivedAtMessageId: RAM,
+		});
+		expect(links.map((l) => l.status)).toEqual(["pending"]);
+		expect(harness.countsWrites).toEqual([
+			{ kept: 1, skipped: 0, truncated: false },
+			{ kept: 1, skipped: 0, truncated: false },
+		]);
+		expect(harness.published).toEqual([{ ordinal: "0000", url: "https://a.test/x" }]);
+	});
+
+	it("writes zero counts and the meta barrier for an email with no links", async () => {
+		const harness = makeHarness({ derivedHtml: "" });
+
+		await harness.run(eventBody());
+
+		const { links, meta } = await harness.linkStore.listLinksByEmail({
+			userId: USER,
+			receivedAtMessageId: RAM,
+		});
+		expect(links).toEqual([]);
+		expect(meta).toEqual({ truncated: false });
+		expect(harness.countsWrites).toEqual([{ kept: 0, skipped: 0, truncated: false }]);
 	});
 
 	it("keeps a skipped link terminal and unpublished across re-delivery", async () => {
@@ -415,6 +478,10 @@ describe("initExtractEmailLinksHandler", () => {
 		expect(harness.published).toEqual([
 			{ ordinal: "0000", url: "https://a.test/x" },
 			{ ordinal: "0000", url: "https://a.test/x" },
+		]);
+		expect(harness.countsWrites).toEqual([
+			{ kept: 1, skipped: 1, truncated: false },
+			{ kept: 1, skipped: 1, truncated: false },
 		]);
 	});
 
