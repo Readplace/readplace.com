@@ -2,6 +2,7 @@ import { gunzipSync } from "node:zlib";
 import { z } from "zod";
 import type { CloudWatchLogsEvent, Handler } from "aws-lambda";
 import type { HutchLogger } from "@packages/hutch-logger";
+import { ERROR_STREAMS, RUNTIME_FAILURE_MARKERS } from "../observability/observability-filter";
 
 /** One forwarded log line: the source event's timestamp, and its JSON payload
  * with the Lambda-Text preamble stripped (see `extractJsonPayload`). */
@@ -70,7 +71,10 @@ export function classifyForwardedLine(input: {
 		if (parsed.data.stream !== undefined && analyticsStreams.includes(parsed.data.stream)) {
 			return "analytics";
 		}
-		if (parsed.data.level === "ERROR" || parsed.data.stream === OPERATIONAL_ERROR_STREAM) {
+		if (
+			parsed.data.level === "ERROR" ||
+			(parsed.data.stream !== undefined && errorStreamNames.includes(parsed.data.stream))
+		) {
 			return "errors";
 		}
 	}
@@ -83,19 +87,10 @@ export function classifyForwardedLine(input: {
 
 const CONTROL_MESSAGE = "CONTROL_MESSAGE";
 
-/** The one operational stream that routes to the errors funnel. The other
- * operational streams stay in their source group at 30-day retention. */
-const OPERATIONAL_ERROR_STREAM = "parse-errors";
+/** Widened from the literal tuple so an arbitrary stream string can be tested
+ * against it — `readonly ["parse-errors"]` would narrow the argument instead. */
+const errorStreamNames: readonly string[] = ERROR_STREAMS;
 
-/** Plain-text failure output the Lambda runtime writes itself. It carries no
- * `level` field and does not contain the substring "ERROR", so nothing else in
- * this classifier would catch it — and it is the failure class an operator most
- * needs to see. */
-const RUNTIME_FAILURE_MARKERS = [
-	"Task timed out",
-	"Runtime exited with error",
-	"Runtime.OutOfMemory",
-] as const;
 
 /** Only the two fields classification reads. Everything else on the line is
  * forwarded untouched, so the schema stays deliberately narrow. */

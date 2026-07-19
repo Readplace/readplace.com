@@ -18,7 +18,8 @@ import {
 	SubscriptionStartRequestCommand,
 } from "@packages/hutch-infra-components";
 import { EXPORT_DOWNLOAD_TTL_DAYS, EXPORT_S3_KEY_PREFIX } from "../runtime/web/pages/export/export-ttl";
-import { ANALYTICS_EVENTS, ANALYTICS_LOG_GROUP, ERRORS_LOG_GROUP, ERRORS_LOG_GROUP_RETENTION_DAYS, FORWARDED_STREAMS, LAMBDA_NAMES, LOG_GROUPS, METRICS, STREAMS } from "../runtime/observability/events";
+import { ANALYTICS_EVENTS, ANALYTICS_LOG_GROUP, ERRORS_LOG_GROUP, ERRORS_LOG_GROUP_RETENTION_DAYS, LAMBDA_NAMES, LOG_GROUPS, METRICS, STREAMS } from "../runtime/observability/events";
+import { buildObservabilityFilterPattern } from "../runtime/observability/observability-filter";
 import {
 	buildAnalyticsDashboardBody,
 	FORWARDED_SOURCE_LOG_GROUPS,
@@ -1415,28 +1416,10 @@ new aws.cloudwatch.MetricAlarm("forward-analytics-destination-delivery-alarm", {
 	alarmActions: [forwardAnalyticsDlqTopic.arn],
 });
 
-// A TEXT pattern, not the JSON pattern this used to be. CloudWatch cannot OR a
-// JSON selector (`{ $.stream = "…" }`) against a raw-text term, and the Lambda
-// runtime writes its most important failures — "Task timed out", "Runtime exited
-// with error: signal: killed" — as plain text with no JSON at all. A JSON-only
-// pattern therefore cannot see an OOM or a timeout, which is the failure class an
-// operator most needs. Quoted terms work as substrings because HutchLogger emits
-// `JSON.stringify(data)` with no spaces, so `"stream":"analytics"` appears
-// verbatim in the line.
-//
-// This deliberately over-matches (a saved article whose title contains "ERROR"
-// forwards too). That costs forwarder invocations, not correctness:
-// `classifyForwardedLine` re-decides precisely before anything is written, and a
-// line neither funnel claims is dropped there. Over-matching here is what keeps
-// this to ONE subscription filter per group — CloudWatch allows only two, and
-// spending both would leave no headroom.
-const forwardFilterPattern = [
-	...FORWARDED_STREAMS.map((stream) => `?"\\"stream\\":\\"${stream}\\""`),
-	'?"\\"level\\":\\"ERROR\\""',
-	'?"ERROR"',
-	'?"Task timed out"',
-	'?"Runtime exited with error"',
-].join(" ");
+// Built in the runtime module so it is unit-testable and cannot drift from the
+// classifier that re-decides each delivered line — see observability-filter.ts
+// for why it is a text pattern and why it deliberately over-matches.
+const forwardFilterPattern = buildObservabilityFilterPattern();
 
 // Invoke permission for every forwarded source group. The function owner grants
 // all nine here — including blog-site's group — so blog-site's Commit-2
