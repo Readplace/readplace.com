@@ -215,13 +215,13 @@ describe("Inbox emails list route", () => {
 			const fixture = createDefaultTestAppFixture(TEST_APP_ORIGIN);
 			const harness = useApp(fixture);
 			const agent = await loginAgent(harness.server, harness.auth);
-			await seedEmails(fixture, (userId) => ascendingEmails(userId, 21));
+			await seedEmails(fixture, (userId) => ascendingEmails(userId, 11));
 
 			const response = await agent.get("/inbox?feature=email");
 
 			expect(response.status).toBe(200);
 			const doc = new JSDOM(response.text).window.document;
-			expect(doc.querySelectorAll("[data-test-inbox-emails-row]")).toHaveLength(20);
+			expect(doc.querySelectorAll("[data-test-inbox-emails-row]")).toHaveLength(10);
 			const pagination = doc.querySelector("[data-test-pagination]");
 			assert(pagination, "pagination nav must render");
 			expect(pagination.getAttribute("hx-boost")).toBe("true");
@@ -242,7 +242,7 @@ describe("Inbox emails list route", () => {
 			const fixture = createDefaultTestAppFixture(TEST_APP_ORIGIN);
 			const harness = useApp(fixture);
 			const agent = await loginAgent(harness.server, harness.auth);
-			await seedEmails(fixture, (userId) => ascendingEmails(userId, 21));
+			await seedEmails(fixture, (userId) => ascendingEmails(userId, 11));
 			const first = await agent.get("/inbox?feature=email");
 			const olderHref = new JSDOM(first.text).window.document
 				.querySelector('[data-test-pagination-link="older"]')
@@ -273,17 +273,17 @@ describe("Inbox emails list route", () => {
 			const backRows = Array.from(
 				new JSDOM(back.text).window.document.querySelectorAll("[data-test-inbox-emails-row]"),
 			);
-			expect(backRows).toHaveLength(20);
+			expect(backRows).toHaveLength(10);
 			expect(
 				backRows[0].querySelector("[data-test-inbox-email-sender]")?.textContent,
-			).toBe("sender-20@example.com");
+			).toBe("sender-10@example.com");
 		});
 
 		it("redirects a cursor past the oldest email back to the newest page", async () => {
 			const fixture = createDefaultTestAppFixture(TEST_APP_ORIGIN);
 			const harness = useApp(fixture);
 			const agent = await loginAgent(harness.server, harness.auth);
-			await seedEmails(fixture, (userId) => ascendingEmails(userId, 21));
+			await seedEmails(fixture, (userId) => ascendingEmails(userId, 11));
 
 			const response = await agent.get(
 				`/inbox?feature=email&older=${encodeURIComponent("2026-06-24T00:00:00.000Z#<m-0@x>")}`,
@@ -299,13 +299,13 @@ describe("Inbox emails list route", () => {
 			const fixture = createDefaultTestAppFixture(TEST_APP_ORIGIN);
 			const harness = useApp(fixture);
 			const agent = await loginAgent(harness.server, harness.auth);
-			await seedEmails(fixture, (userId) => ascendingEmails(userId, 20));
+			await seedEmails(fixture, (userId) => ascendingEmails(userId, 10));
 
 			const response = await agent.get("/inbox?feature=email");
 
 			expect(response.status).toBe(200);
 			const doc = new JSDOM(response.text).window.document;
-			expect(doc.querySelectorAll("[data-test-inbox-emails-row]")).toHaveLength(20);
+			expect(doc.querySelectorAll("[data-test-inbox-emails-row]")).toHaveLength(10);
 			expect(doc.querySelector("[data-test-pagination]")).toBeNull();
 		});
 
@@ -329,13 +329,13 @@ describe("Inbox emails list route", () => {
 			const fixture = createDefaultTestAppFixture(TEST_APP_ORIGIN);
 			const harness = useApp(fixture);
 			const agent = await loginAgent(harness.server, harness.auth);
-			await seedEmails(fixture, (userId) => ascendingEmails(userId, 21));
+			await seedEmails(fixture, (userId) => ascendingEmails(userId, 11));
 
 			const response = await agent.get("/inbox?feature=email&page=2");
 
 			expect(response.status).toBe(200);
 			const doc = new JSDOM(response.text).window.document;
-			expect(doc.querySelectorAll("[data-test-inbox-emails-row]")).toHaveLength(20);
+			expect(doc.querySelectorAll("[data-test-inbox-emails-row]")).toHaveLength(10);
 		});
 	});
 });

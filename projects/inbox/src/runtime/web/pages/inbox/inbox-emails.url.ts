@@ -4,7 +4,7 @@ import type { InboxEmailsCursor } from "@packages/domain/inbox";
 
 export const INBOX_PATH = "/inbox";
 
-export const INBOX_EMAILS_PAGE_SIZE = 20;
+export const INBOX_EMAILS_PAGE_SIZE = 10;
 
 const CursorValueSchema = z
 	.string()
