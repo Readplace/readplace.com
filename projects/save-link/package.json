@@ -37,6 +37,7 @@
     "@packages/refresh-article-content": "workspace:*",
     "@packages/require-env": "workspace:*",
     "@packages/retriable": "workspace:*",
+    "@packages/save-article": "workspace:*",
     "@packages/site-rules": "workspace:*",
     "@packages/test-fixtures": "workspace:*",
     "@smithy/node-http-handler": "4.7.5",

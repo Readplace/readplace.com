@@ -16,6 +16,7 @@
  * is `/aws/lambda/<name>-handler`.
  */
 export const SAVE_LINK_LAMBDA_NAMES = {
+	submitLink: "submit-link",
 	saveLinkCommand: "save-link-command",
 	saveAnonymousLinkCommand: "save-anonymous-link-command",
 	saveLinkRawHtmlCommand: "save-link-raw-html-command",
@@ -32,6 +33,7 @@ export const SAVE_LINK_LAMBDA_NAMES = {
 type LogGroupName<T extends string> = `/aws/lambda/${T}-handler`;
 
 export const SAVE_LINK_LOG_GROUPS = {
+	submitLink: `/aws/lambda/${SAVE_LINK_LAMBDA_NAMES.submitLink}-handler`,
 	saveLinkCommand: `/aws/lambda/${SAVE_LINK_LAMBDA_NAMES.saveLinkCommand}-handler`,
 	saveAnonymousLinkCommand: `/aws/lambda/${SAVE_LINK_LAMBDA_NAMES.saveAnonymousLinkCommand}-handler`,
 	saveLinkRawHtmlCommand: `/aws/lambda/${SAVE_LINK_LAMBDA_NAMES.saveLinkRawHtmlCommand}-handler`,

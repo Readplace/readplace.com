@@ -753,6 +753,9 @@ importers:
       '@packages/retriable':
         specifier: workspace:*
         version: link:../../src/packages/retriable
+      '@packages/save-article':
+        specifier: workspace:*
+        version: link:../../src/packages/save-article
       '@packages/site-rules':
         specifier: workspace:*
         version: link:../../src/packages/site-rules

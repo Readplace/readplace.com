@@ -17,6 +17,7 @@ import {
 } from "@packages/hutch-infra-components/infra";
 import {
 	SaveLinkCommand,
+	SubmitLinkCommand,
 	SaveAnonymousLinkCommand,
 	SaveLinkRawHtmlCommand,
 	SaveLinkRawPdfCommand,
@@ -357,6 +358,74 @@ new HutchDLQEventHandler("save-link-dlq", {
 	},
 	additionalPolicies: renamePolicies(generateSummaryQueue.policies, "save-link-dlq"),
 });
+
+// --- SubmitLinkCommand handler ---
+// dlqMaxReceiveCount 3, not the crawl queues' fail-fast 1: crawl failures
+// terminalise in-process inside the handler and never throw, so a thrown
+// record is an accept-phase failure (DynamoDB/EventBridge blip) that a
+// retry genuinely can heal. No HutchDLQEventHandler: a dead-letter here
+// means no article row was written for this record (or the row belongs to
+// another saver's in-flight crawl), so no row mutation is ever correct —
+// the HutchSQS DLQ alarm is the whole failure surface.
+const submitLinkQueue = new HutchSQS("submit-link", {
+	visibilityTimeoutSeconds: 480,
+	dlqMaxReceiveCount: 3,
+});
+
+const submitLinkArticlesDynamodb = new HutchDynamoDBAccess("submit-link-articles-dynamodb", {
+	// routeId-index Query: updateArticleStatus resolves the row for the
+	// read-to-unread resurface by reader hash id.
+	tables: [{ arn: articlesTableArn, includeIndexes: true }],
+	actions: [
+		"dynamodb:GetItem",
+		"dynamodb:PutItem",
+		"dynamodb:UpdateItem",
+		"dynamodb:Query",
+	],
+});
+
+const submitLinkUserArticlesDynamodb = new HutchDynamoDBAccess(
+	"submit-link-user-articles-dynamodb",
+	{
+		tables: [{ arn: userArticlesTableArn, includeIndexes: false }],
+		actions: ["dynamodb:GetItem", "dynamodb:UpdateItem"],
+	},
+);
+
+const submitLinkLambda = new HutchLambda(SAVE_LINK_LAMBDA_NAMES.submitLink, {
+	entryPoint: "./src/runtime/submit-link.main.ts",
+	outputDir: ".lib/submit-link",
+	assetDir: "./src",
+	memorySize: 1769,
+	timeout: 240,
+	layers: [curlImpersonateLayer.arn],
+	environment: {
+		DYNAMODB_ARTICLES_TABLE: articlesTableName,
+		DYNAMODB_USER_ARTICLES_TABLE: userArticlesTableName,
+		CONTENT_BUCKET_NAME: contentBucketName,
+		EVENT_BUS_NAME: eventBus.eventBusName,
+		IMAGES_CDN_BASE_URL: contentMediaCdn.baseUrl,
+		GENERATE_SUMMARY_QUEUE_URL: generateSummaryQueue.queueUrl,
+	},
+	policies: [
+		...submitLinkArticlesDynamodb.policies,
+		...submitLinkUserArticlesDynamodb.policies,
+		...contentBucket.readPolicies("submit-link-content-read"),
+		...contentBucket.writePolicies("submit-link-s3"),
+		...renamePolicies(generateSummaryQueue.policies, "submit-link"),
+	],
+});
+
+eventBus.grantPublish(submitLinkLambda);
+
+const submitLinkLambdaWithSQS = new HutchSQSBackedLambda("submit-link", {
+	lambda: submitLinkLambda,
+	queue: submitLinkQueue,
+	alertEmailDLQEntry: alertEmail,
+	batchSize: 1,
+});
+
+eventBus.subscribe(SubmitLinkCommand, submitLinkLambdaWithSQS);
 
 // --- SaveLinkRawHtmlCommand handler ---
 
