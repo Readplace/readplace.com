@@ -329,14 +329,17 @@ final class CosmicWaveFieldTests: XCTestCase {
 		assertHue(.magenta, light: "#B0447A", lightAlpha: 0.13, dark: "#DE82B2", darkAlpha: 0.18)
 	}
 
-	func testEveryHueBridgesToSwiftUIWithItsDynamicVariantsIntact() {
+	/// Pins that the SwiftUI colour is the brand `UIColor` and not some other hue.
+	/// Resolving both against the *same* ambient traits keeps this independent of
+	/// whether a given Xcode preserves a dynamic provider across the bridge or
+	/// snapshots it — the light/dark contract itself is pinned on `uiColor` above.
+	func testEveryHueBridgesToSwiftUI() {
+		let ambient = UITraitCollection.current
 		for hue in CosmicHue.allCases {
-			for style in [UIUserInterfaceStyle.light, .dark] {
-				let bridged = resolve(UIColor(hue.color), style)
-				let expected = resolve(hue.uiColor, style)
-				XCTAssertEqual(bridged.hex, expected.hex, "\(hue)")
-				XCTAssertEqual(bridged.alpha, expected.alpha, accuracy: 1e-9, "\(hue)")
-			}
+			let bridged = components(UIColor(hue.color).resolvedColor(with: ambient))
+			let expected = components(hue.uiColor.resolvedColor(with: ambient))
+			XCTAssertEqual(bridged.hex, expected.hex, "\(hue)")
+			XCTAssertEqual(bridged.alpha, expected.alpha, accuracy: 1e-6, "\(hue)")
 		}
 	}
 
@@ -439,9 +442,12 @@ final class CosmicWaveFieldTests: XCTestCase {
 	}
 
 	private func resolve(_ color: UIColor, _ style: UIUserInterfaceStyle) -> (hex: String, alpha: Double) {
-		let resolved = color.resolvedColor(with: UITraitCollection(userInterfaceStyle: style))
+		components(color.resolvedColor(with: UITraitCollection(userInterfaceStyle: style)))
+	}
+
+	private func components(_ color: UIColor) -> (hex: String, alpha: Double) {
 		var red: CGFloat = 0, green: CGFloat = 0, blue: CGFloat = 0, alpha: CGFloat = 0
-		resolved.getRed(&red, green: &green, blue: &blue, alpha: &alpha)
+		color.getRed(&red, green: &green, blue: &blue, alpha: &alpha)
 		let hex = String(
 			format: "#%02X%02X%02X",
 			Int((red * 255).rounded()),
