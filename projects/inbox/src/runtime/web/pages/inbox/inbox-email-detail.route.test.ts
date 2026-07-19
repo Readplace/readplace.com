@@ -73,16 +73,27 @@ async function seedLinks(
 ): Promise<void> {
 	const user = await fixture.auth.findUserByEmail("test@example.com");
 	assert(user, "logged-in user must exist before seeding");
-	for (const link of links) {
-		await fixture.inboxEmail.inboxEmailLinkStore.putLink(linkEntry(user.userId, link));
+	const rows = links.map((link) => linkEntry(user.userId, link));
+	for (const row of rows) {
+		await fixture.inboxEmail.inboxEmailLinkStore.putLink(row);
 	}
+	const truncated = options.truncated === true;
+	await fixture.inboxEmail.inboxEmailStore.setEmailLinkCounts({
+		userId: user.userId,
+		receivedAtMessageId: SK,
+		linkCounts: {
+			kept: rows.filter((row) => row.status !== "skipped").length,
+			skipped: rows.filter((row) => row.status === "skipped").length,
+			truncated,
+		},
+	});
 	// The meta barrier is always written once extraction finishes, so write it here
 	// too: seeded link rows then render as the terminal card set rather than the
 	// still-extracting state.
 	await fixture.inboxEmail.inboxEmailLinkStore.putLinksMeta({
 		userId: user.userId,
 		receivedAtMessageId: SK,
-		meta: { truncated: options.truncated === true },
+		meta: { truncated },
 	});
 }
 
@@ -91,6 +102,11 @@ async function seedExtractionMeta(
 ): Promise<void> {
 	const user = await fixture.auth.findUserByEmail("test@example.com");
 	assert(user, "logged-in user must exist before seeding");
+	await fixture.inboxEmail.inboxEmailStore.setEmailLinkCounts({
+		userId: user.userId,
+		receivedAtMessageId: SK,
+		linkCounts: { kept: 0, skipped: 0, truncated: false },
+	});
 	await fixture.inboxEmail.inboxEmailLinkStore.putLinksMeta({
 		userId: user.userId,
 		receivedAtMessageId: SK,
@@ -237,6 +253,32 @@ describe("Inbox email detail View tab", () => {
 		expect(doc.querySelector("[data-test-inbox-detail-link-count]")?.textContent).toBe("2 links");
 		expect(renderedPanels(doc)).toEqual(["view"]);
 		expect(doc.querySelectorAll("[data-test-inbox-article-card]")).toHaveLength(0);
+	});
+
+	it("derives the View tab counts from the email row without any link rows", async () => {
+		const fixture = createDefaultTestAppFixture(TEST_APP_ORIGIN);
+		fixture.inboxEmail.readEmailContent = async () => "<p>body</p>";
+		const harness = useApp(fixture);
+		const agent = await loginAgent(harness.server, harness.auth);
+		await seed(fixture, "received");
+		const user = await fixture.auth.findUserByEmail("test@example.com");
+		assert(user, "logged-in user must exist before seeding");
+		await fixture.inboxEmail.inboxEmailStore.setEmailLinkCounts({
+			userId: user.userId,
+			receivedAtMessageId: SK,
+			linkCounts: { kept: 5, skipped: 2, truncated: false },
+		});
+
+		const response = await agent.get(detailPath);
+
+		const doc = parseDoc(response.text);
+		expect(doc.querySelector("[data-test-inbox-detail-link-count]")?.textContent).toBe("5 links");
+		expect(doc.querySelector('[data-test-inbox-tab="articles"]')?.textContent).toBe(
+			"Extracted Articles (5)",
+		);
+		expect(doc.querySelector('[data-test-inbox-tab="excluded"]')?.textContent).toBe(
+			"Skipped (2)",
+		);
 	});
 
 	it("falls back to the View tab for a tab that does not exist", async () => {

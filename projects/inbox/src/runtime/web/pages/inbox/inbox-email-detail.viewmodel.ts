@@ -2,6 +2,7 @@ import { EMAIL_FEATURE, type LocalTime, toAbsoluteDateTime } from "@packages/web
 import type {
 	EmailLinkSkipReason,
 	InboxEmailEntry,
+	InboxEmailLinkCounts,
 	InboxEmailLinkEntry,
 	InboxEmailLinksMeta,
 } from "@packages/domain/inbox";
@@ -177,13 +178,21 @@ export function toInboxArticlesMoreViewModel(input: {
 	});
 }
 
+/** Where the header badge and tab counts come from. Tabs that fetch the link
+ * rows derive them from the same single query that carries the meta barrier, so
+ * a count is never shown that the rendered panel cannot back; the View tab
+ * fetches no rows and reads the tally the extraction barrier stamped onto the
+ * email row instead. */
+export type InboxEmailLinkData =
+	| { source: "rows"; links: InboxEmailLinkEntry[]; meta: InboxEmailLinksMeta | undefined }
+	| { source: "entry" };
+
 export function toInboxEmailDetailViewModel(input: {
 	entry: InboxEmailEntry;
 	activeTab: MailTabKey;
 	bodyHtml: string | undefined;
 	imagesCdnBaseUrl: string;
-	links: InboxEmailLinkEntry[];
-	linksMeta: InboxEmailLinksMeta | undefined;
+	linkData: InboxEmailLinkData;
 	maxPolls: number;
 	shown?: number;
 	/** The page-level poll tick: the full render starts at the initial count; the
@@ -193,7 +202,9 @@ export function toInboxEmailDetailViewModel(input: {
 }): InboxEmailDetailViewModel {
 	const emailId = input.entry.receivedAtMessageId;
 	const canRenderBody = input.entry.status === "received" && input.bodyHtml !== undefined;
-	const allCards = input.links.filter((link) => link.status !== "skipped");
+	const links = input.linkData.source === "rows" ? input.linkData.links : [];
+	const linksMeta = input.linkData.source === "rows" ? input.linkData.meta : undefined;
+	const allCards = links.filter((link) => link.status !== "skipped");
 	const totalCards = allCards.length;
 	const cardsPage = buildArticleCardsPage({
 		allCards,
@@ -202,7 +213,7 @@ export function toInboxEmailDetailViewModel(input: {
 		to: input.shown ?? ARTICLES_PAGE_SIZE,
 		maxPolls: input.maxPolls,
 	});
-	const excludedLinks = input.links
+	const excludedLinks = links
 		.filter((link) => link.status === "skipped")
 		.map(
 			(link): ExcludedLinkViewModel => ({
@@ -218,11 +229,21 @@ export function toInboxEmailDetailViewModel(input: {
 				}),
 			}),
 		);
-	const truncated = input.linksMeta?.truncated === true;
+	const truncated = linksMeta?.truncated === true;
 	// No meta row yet means the async extractor has not finished for this received
 	// email — keep polling rather than asserting it has zero links. Non-received
 	// emails never run extraction, so they are terminal immediately.
-	const awaitingMeta = input.entry.status === "received" && input.linksMeta === undefined;
+	const awaitingMeta = input.entry.status === "received" && linksMeta === undefined;
+	let headerCounts: InboxEmailLinkCounts | undefined;
+	if (input.linkData.source === "rows") {
+		headerCounts = awaitingMeta
+			? undefined
+			: { kept: allCards.length, skipped: excludedLinks.length, truncated };
+	} else if (input.entry.status === "received") {
+		headerCounts = input.entry.linkCounts;
+	} else {
+		headerCounts = { kept: 0, skipped: 0, truncated: false };
+	}
 	const panelPollCount = input.panelPollCount ?? INITIAL_POLL_COUNT;
 	const withinPollBudget = panelPollCount <= input.maxPolls;
 	// Once the budget is spent without a meta barrier the extractor is never coming
@@ -237,7 +258,7 @@ export function toInboxEmailDetailViewModel(input: {
 		isExtracting,
 		isStalePending,
 		truncatedNotice: truncated
-			? `Showing the first ${input.links.length} links found in this email.`
+			? `Showing the first ${links.length} links found in this email.`
 			: undefined,
 		feedbackNotice,
 	};
@@ -254,7 +275,10 @@ export function toInboxEmailDetailViewModel(input: {
 		tabs: buildMailTabs({
 			emailId,
 			active: input.activeTab,
-			counts: awaitingMeta ? {} : { articles: totalCards, excluded: excludedLinks.length },
+			counts:
+				headerCounts === undefined
+					? {}
+					: { articles: headerCounts.kept, excluded: headerCounts.skipped },
 		}),
 		extractionReported: !awaitingMeta,
 		canRenderBody,
@@ -265,9 +289,13 @@ export function toInboxEmailDetailViewModel(input: {
 		// Suppressed until extraction writes its barrier so the header never claims a
 		// count the panel can't back — this covers both the live spinner and the
 		// terminal give-up, neither of which has a trustworthy count.
-		linkCountLabel: awaitingMeta
-			? undefined
-			: buildLinkCountLabel({ count: totalCards, truncated }),
+		linkCountLabel:
+			headerCounts === undefined
+				? undefined
+				: buildLinkCountLabel({
+						count: headerCounts.kept,
+						truncated: headerCounts.truncated,
+					}),
 		articles: {
 			...shared,
 			cards: cardsPage.cards,

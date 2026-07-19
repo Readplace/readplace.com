@@ -165,17 +165,22 @@ export function initInboxRoutes(deps: InboxDependencies): Router {
 						emailContentResourceId({ userId: req.userId, receivedAtMessageId }),
 					)
 				: undefined;
-		const { links, meta } = await deps.inboxEmailLinkStore.listLinksByEmail({
-			userId: req.userId,
-			receivedAtMessageId,
-		});
+		const linkData =
+			activeTab === "view"
+				? ({ source: "entry" } as const)
+				: {
+						source: "rows" as const,
+						...(await deps.inboxEmailLinkStore.listLinksByEmail({
+							userId: req.userId,
+							receivedAtMessageId,
+						})),
+					};
 		const vm = toInboxEmailDetailViewModel({
 			entry,
 			activeTab,
 			bodyHtml,
 			imagesCdnBaseUrl: deps.imagesCdnBaseUrl,
-			links,
-			linksMeta: meta,
+			linkData,
 			maxPolls: MAX_POLLS,
 			shown: parseArticlesShown(req.query),
 			feedbackConfirmed: req.query.feedback === "sent",
@@ -209,8 +214,7 @@ export function initInboxRoutes(deps: InboxDependencies): Router {
 				activeTab: panel,
 				bodyHtml: undefined,
 				imagesCdnBaseUrl: deps.imagesCdnBaseUrl,
-				links,
-				linksMeta: meta,
+				linkData: { source: "rows", links, meta },
 				maxPolls: MAX_POLLS,
 				panelPollCount: requestedPoll + 1,
 			});

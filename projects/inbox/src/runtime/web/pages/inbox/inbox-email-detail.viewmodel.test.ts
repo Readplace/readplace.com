@@ -66,8 +66,7 @@ function build(input: {
 		activeTab: input.activeTab ?? "view",
 		bodyHtml: input.bodyHtml,
 		imagesCdnBaseUrl: "https://cdn.test.readplace.com",
-		links: input.links ?? [],
-		linksMeta: input.linksMeta,
+		linkData: { source: "rows", links: input.links ?? [], meta: input.linksMeta },
 		maxPolls: 300,
 		shown: input.shown,
 		panelPollCount: input.panelPollCount,
@@ -370,8 +369,7 @@ describe("toInboxEmailDetailViewModel", () => {
 			activeTab: "articles",
 			bodyHtml: undefined,
 			imagesCdnBaseUrl: "https://cdn.test.readplace.com",
-			links: [link()],
-			linksMeta: { truncated: false },
+			linkData: { source: "rows", links: [link()], meta: { truncated: false } },
 			maxPolls: 300,
 			feedbackConfirmed: true,
 		});
@@ -452,6 +450,63 @@ describe("toInboxEmailDetailViewModel", () => {
 		expect(vm.excluded.links).toHaveLength(1);
 		expect(vm.articles.showMore?.count).toBe(1);
 		expect(vm.linkCountLabel).toBe("21 links");
+	});
+	describe("View tab without link rows", () => {
+		function buildFromEntry(entryOverride: InboxEmailEntry) {
+			return toInboxEmailDetailViewModel({
+				entry: entryOverride,
+				activeTab: "view",
+				bodyHtml: "<p>hi</p>",
+				imagesCdnBaseUrl: "https://cdn.test.readplace.com",
+				linkData: { source: "entry" },
+				maxPolls: 300,
+			});
+		}
+
+		it("derives the header badge and tab counts from the email row's tally", () => {
+			const vm = buildFromEntry(
+				entry({ linkCounts: { kept: 5, skipped: 2, truncated: false } }),
+			);
+
+			expect(vm.linkCountLabel).toBe("5 links");
+			expect(vm.tabs.map((tab) => tab.label)).toEqual([
+				"View",
+				"Extracted Articles (5)",
+				"Skipped (2)",
+			]);
+		});
+
+		it("marks a truncated tally on the badge", () => {
+			const vm = buildFromEntry(
+				entry({ linkCounts: { kept: 200, skipped: 1, truncated: true } }),
+			);
+
+			expect(vm.linkCountLabel).toBe("200+ links");
+		});
+
+		it("withholds the badge and tab counts until extraction stamps the tally", () => {
+			const vm = buildFromEntry(entry());
+
+			expect(vm.linkCountLabel).toBeUndefined();
+			expect(vm.tabs.map((tab) => tab.label)).toEqual([
+				"View",
+				"Extracted Articles",
+				"Skipped",
+			]);
+		});
+
+		it("shows zero counts for a rejected or unparsed email, which never runs extraction", () => {
+			const statuses: InboxEmailStatus[] = ["rejected", "unparsed"];
+			for (const status of statuses) {
+				const vm = buildFromEntry(entry({ status }));
+				expect(vm.linkCountLabel).toBeUndefined();
+				expect(vm.tabs.map((tab) => tab.label)).toEqual([
+					"View",
+					"Extracted Articles (0)",
+					"Skipped (0)",
+				]);
+			}
+		});
 	});
 });
 
