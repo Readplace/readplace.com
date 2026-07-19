@@ -8,11 +8,12 @@ struct LoginView: View {
 	/// Injected so the composition point wires the live browser-opening flow and
 	/// tests capture the started request; there is deliberately no internal default.
 	let makeFlow: @MainActor (AppSession) -> WebAuthFlow
+	@State private var cosmicSeed = UInt64.random(in: .min ... .max)
 
 	var body: some View {
 		NavigationStack {
 			VStack(spacing: 28) {
-				Spacer()
+				CosmicWavesView(zone: .aboveBrand, seed: cosmicSeed)
 
 				VStack(spacing: 10) {
 					Image("BrandMark")
@@ -56,7 +57,7 @@ struct LoginView: View {
 						.multilineTextAlignment(.center)
 				}
 
-				Spacer()
+				CosmicWavesView(zone: .belowActions, seed: cosmicSeed)
 
 				Link("Privacy Policy", destination: AppConfig.privacyPolicyURL)
 					.font(.footnote)
