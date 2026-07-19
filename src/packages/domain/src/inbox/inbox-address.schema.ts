@@ -2,6 +2,12 @@ import { randomInt } from "node:crypto";
 import { z } from "zod";
 import { UserIdSchema } from "../user";
 
+/** Mail that can't be delivered to an active user — a guessed/mistyped forwarding
+ * address the open inbox still accepts, or one the owner has disabled — is
+ * recorded under this synthetic partition: an auditable row that never leaks into
+ * a real user's list. */
+export const UNROUTED_USER_ID = UserIdSchema.parse("__unrouted__");
+
 /** Opaque per-newsletter token in a forwarding address. Six lowercase base36
  * characters (a–z0–9) — short enough to be memorable/typeable, ~2.2B
  * combinations. Disposable and disable-able, so the smaller keyspace (vs a

@@ -81,12 +81,13 @@ export type SaveAnonymousLinkDetail = z.infer<
 
 /** Unified entry-point command for the redesigned save flow.
  *
- * Issued by hutch (user save / anonymous /view / operator recrawl) and
- * re-issued by save-link's effect dispatcher when the aggregate's
- * `submitLink` or `requestRecrawl` transitions fire. The future
- * `submit-link` Lambda branches on `rawHtml`-present (tier-0 path) vs
- * absent (tier-1 URL fetch path) and on `userId`-present (authenticated
- * save) vs absent (anonymous /view save). Routes via EventBridge — no
+ * Issued by the inbox extract-email-links Lambda (one per kept saveable
+ * newsletter link) and — dormant, no runtime caller yet — by save-link's
+ * effect dispatcher when the aggregate's `submitLink` or `requestRecrawl`
+ * transitions fire. Consumed by save-link's `submit-link` Lambda, which
+ * today handles only the authenticated URL shape (`userId` present,
+ * `rawHtml` absent); the `rawHtml` tier-0 and anonymous /view shapes are
+ * reserved for the hutch caller migration. Routes via EventBridge — no
  * dedicated SQS queue required at the publisher. */
 export const SubmitLinkCommand = defineEvent({
 	name: "submit-link-command",
@@ -765,6 +766,9 @@ export const EmailReceivedEvent = defineEvent({
 		userId: z.string(),
 		receivedAtMessageId: z.string(),
 		recipientAddress: z.string(),
+		/** "receive" saves kept links to the reader's queue; a "backfill" replay
+		 * re-derives preview rows only — historical mail must never mass-save. */
+		origin: z.enum(["receive", "backfill"]),
 	}),
 });
 export type EmailReceivedDetail = z.infer<typeof EmailReceivedEvent.detailSchema>;

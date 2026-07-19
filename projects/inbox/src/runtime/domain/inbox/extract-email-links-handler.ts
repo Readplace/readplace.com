@@ -20,7 +20,9 @@ import {
 	type ParseEmailResult,
 	type ParsedEmailInlineImage,
 } from "@packages/domain/inbox";
+import { UNROUTED_USER_ID } from "@packages/domain/inbox";
 import { extractUrls } from "@packages/domain/import-session";
+import { validateSaveableUrl } from "@packages/domain/article";
 import { type UserId, UserIdSchema } from "@packages/domain/user";
 import { collectEmailAnchors } from "./collect-email-anchors";
 import { LLM_SKIP_REASONS, type TriageEmailLinks } from "./triage-email-links";
@@ -28,9 +30,12 @@ import { LLM_SKIP_REASONS, type TriageEmailLinks } from "./triage-email-links";
 /**
  * Consumes `EmailReceivedEvent` and turns the links found inside the email into
  * `pending` preview rows, then fans out one `CrawlEmailLinkPreview` command per
- * link (mirroring how /queue fans each import URL into its own SaveLinkCommand).
- * Links classified as action links (a GET could unsubscribe or confirm on the
- * reader's behalf) are written as terminal `skipped` rows and never fanned out.
+ * link plus — for a routed user's saveable links — one `SubmitLinkCommand` per
+ * link, which lands the article in the reader's unread queue through the same
+ * entry point every save surface uses (mirroring how /queue fans each import
+ * URL into its own save command). Links classified as action links (a GET could
+ * unsubscribe or confirm on the reader's behalf) are written as terminal
+ * `skipped` rows and never fanned out.
  *
  * The body is RE-DERIVED from the immutable raw `.eml` on every run — read raw →
  * re-parse → re-sanitize — so a future parse/sanitize change applies to
@@ -57,6 +62,7 @@ export function initExtractEmailLinksHandler(deps: {
 		ordinal: EmailLinkOrdinal;
 		url: string;
 	}) => Promise<void>;
+	publishSubmitLink: (input: { userId: UserId; url: string }) => Promise<void>;
 	alertTruncated: (input: {
 		userId: UserId;
 		receivedAtMessageId: string;
@@ -76,6 +82,7 @@ export function initExtractEmailLinksHandler(deps: {
 		putLinksMeta,
 		setEmailLinkCounts,
 		publishCrawlPreview,
+		publishSubmitLink,
 		alertTruncated,
 		triageEmailLinks,
 		logger,
@@ -95,7 +102,7 @@ export function initExtractEmailLinksHandler(deps: {
 					continue;
 				}
 				const userId = UserIdSchema.parse(parsed.data.userId);
-				const { receivedAtMessageId } = parsed.data;
+				const { receivedAtMessageId, origin } = parsed.data;
 
 				const email = await getEmail({ userId, receivedAtMessageId });
 				if (email === undefined || email.status !== "received") {
@@ -220,6 +227,18 @@ export function initExtractEmailLinksHandler(deps: {
 					// previous delivery terminally skipped must never be crawled by a
 					// later delivery that judged the same URL an article.
 					if (status !== "pending") continue;
+					// Submit BEFORE the preview publish: the preview consumer flips this
+					// row terminal, so a crash after the preview went out would make the
+					// retry's pending-gate skip a submit that never happened. A crash
+					// after the submit leaves the row pending and the retry re-publishes
+					// both; the duplicate submit converges in the subscriber.
+					if (
+						origin === "receive" &&
+						userId !== UNROUTED_USER_ID &&
+						validateSaveableUrl(url).status === "SUCCESS"
+					) {
+						await publishSubmitLink({ userId, url });
+					}
 					await publishCrawlPreview({ userId, receivedAtMessageId, ordinal, url });
 				}
 

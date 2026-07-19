@@ -273,11 +273,13 @@ new aws.sns.TopicSubscription(
 // --- Inbox link previews (extract → crawl) ---
 // EmailReceivedEvent → extract-email-links re-derives the body from the raw .eml,
 // extracts links, writes pending rows, and fans out one CrawlEmailLinkPreview per
-// link (★14 cap + truncate-degrade-with-dedicated-alert-queue). Each CrawlEmailLinkPreview →
+// link (★14 cap + truncate-degrade-with-dedicated-alert-queue) plus one
+// SubmitLinkCommand per routed saveable link, which save-link's submit-link
+// Lambda turns into a queue save. Each CrawlEmailLinkPreview →
 // crawl-email-link-preview crawls a preview WITHOUT saving to /queue (★16 SSRF
 // guard inherited from crawlAndFinalize). Neither Lambda is granted the
-// articles/user-articles tables — the "nothing saved to the queue" invariant is
-// enforced at the IAM boundary.
+// articles/user-articles tables — queue writes happen only in save-link's
+// subscriber, routed by command, never from an inbox Lambda's own role.
 const extractEmailLinksDynamodb = new HutchDynamoDBAccess("inbox-extract-email-links-dynamodb", {
 	tables: [
 		{ arn: tableArn(tableNames.inboxEmails), includeIndexes: false },
@@ -434,7 +436,9 @@ const crawlEmailLinkPreviewLambda = new HutchLambda("inbox-crawl-email-link-prev
 	policies: [
 		...crawlEmailLinkPreviewDynamodb.policies,
 		// Only writes the content bucket (the lead-image thumbnail) — no read, and
-		// no access to the articles/user-articles tables (nothing saved to /queue).
+		// no access to the articles/user-articles tables (the preview itself
+		// saves nothing to /queue; the queue save rides SubmitLinkCommand from
+		// the extract Lambda into save-link's subscriber).
 		...HutchS3ReadWrite.writePoliciesForBucket(
 			"inbox-crawl-email-link-preview-content-write",
 			contentBucketName,

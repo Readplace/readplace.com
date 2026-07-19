@@ -3,7 +3,7 @@ import { S3Client } from "@aws-sdk/client-s3";
 import { SendMessageCommand, SQSClient } from "@aws-sdk/client-sqs";
 import { initCreateDeepseekMessage } from "@packages/ai-message";
 import { deriveSanitizedBody, EMAIL_LINK_ORDINAL_CAPACITY, parseEmail } from "@packages/domain/inbox";
-import { CrawlEmailLinkPreview } from "@packages/hutch-infra-components";
+import { CrawlEmailLinkPreview, SubmitLinkCommand } from "@packages/hutch-infra-components";
 import { EventBridgeClient, initEventBridgePublisher } from "@packages/hutch-infra-components/runtime";
 import { HutchLogger, consoleLogger } from "@packages/hutch-logger";
 import { createDynamoDocumentClient } from "@packages/hutch-storage-client";
@@ -61,6 +61,7 @@ export const handler = initExtractEmailLinksHandler({
 	putLinksMeta: inboxEmailLinkStore.putLinksMeta,
 	setEmailLinkCounts: inboxEmailStore.setEmailLinkCounts,
 	publishCrawlPreview: (input) => publishEvent(CrawlEmailLinkPreview, input),
+	publishSubmitLink: (input) => publishEvent(SubmitLinkCommand, input),
 	alertTruncated: async (input) => {
 		// Dedicated alert queue, not the failure DLQ: truncation is a successful
 		// degradation, so its send-rate alarm is a distinct signal from genuine faults.

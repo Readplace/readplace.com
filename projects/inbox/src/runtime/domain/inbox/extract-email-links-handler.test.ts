@@ -53,12 +53,15 @@ function parsedOk(html: string, listUnsubscribeUrls: string[] = []): ParseEmailR
 	};
 }
 
-function eventBody(over: Partial<{ userId: string; receivedAtMessageId: string }> = {}): string {
+function eventBody(
+	over: Partial<{ userId: string; receivedAtMessageId: string; origin: "receive" | "backfill" }> = {},
+): string {
 	return JSON.stringify({
 		detail: {
 			userId: over.userId ?? USER,
 			receivedAtMessageId: over.receivedAtMessageId ?? RAM,
 			recipientAddress: "in-3f9a2c@read.place",
+			origin: over.origin ?? "receive",
 		},
 	});
 }
@@ -73,6 +76,7 @@ function makeHarness(opts?: {
 }) {
 	const linkStore = initInMemoryInboxEmailLink();
 	const published: { ordinal: EmailLinkOrdinal; url: string }[] = [];
+	const submitted: { userId: UserId; url: string }[] = [];
 	const alerts: { found: number }[] = [];
 	const triageCalls: Parameters<TriageEmailLinks>[0][] = [];
 	const deriveInputs: { rehostedRemoteImages: Record<string, string> }[] = [];
@@ -108,6 +112,9 @@ function makeHarness(opts?: {
 		publishCrawlPreview: async ({ ordinal, url }) => {
 			published.push({ ordinal, url });
 		},
+		publishSubmitLink: async (input) => {
+			submitted.push(input);
+		},
 		alertTruncated: async ({ found }) => {
 			alerts.push({ found });
 		},
@@ -119,10 +126,78 @@ function makeHarness(opts?: {
 	const run = (body: string) =>
 		handler(buildSqsEvent([{ messageId: "rec-1", body }]), buildLambdaContext(), () => {});
 
-	return { linkStore, published, alerts, triageCalls, deriveInputs, countsWrites, writeOrder, run };
+	return { linkStore, published, submitted, alerts, triageCalls, deriveInputs, countsWrites, writeOrder, run };
 }
 
 describe("initExtractEmailLinksHandler", () => {
+	it("sends every kept link to the save pipeline so it lands in the reader's unread queue", async () => {
+		const harness = makeHarness({
+			derivedHtml: "https://a.test/x https://b.test/y",
+		});
+
+		const result = await harness.run(eventBody());
+
+		assert(result);
+		expect(result.batchItemFailures).toHaveLength(0);
+		expect(harness.submitted).toEqual([
+			{ userId: USER, url: "https://a.test/x" },
+			{ userId: USER, url: "https://b.test/y" },
+		]);
+	});
+
+	it("keeps a preview for an unsaveable link but never submits it — the save pipeline would reject it", async () => {
+		const harness = makeHarness({
+			derivedHtml: "https://a.test/x https://localhost/private",
+		});
+
+		await harness.run(eventBody());
+
+		expect(harness.published.map((p) => p.url)).toEqual([
+			"https://a.test/x",
+			"https://localhost/private",
+		]);
+		expect(harness.submitted).toEqual([{ userId: USER, url: "https://a.test/x" }]);
+	});
+
+	it("never submits unrouted audit mail's links to anyone's queue", async () => {
+		const harness = makeHarness({
+			derivedHtml: "https://a.test/x",
+			getEmail: async () =>
+				makeEmail({ userId: UserIdSchema.parse("__unrouted__") }),
+		});
+
+		await harness.run(eventBody({ userId: "__unrouted__" }));
+
+		expect(harness.published.map((p) => p.url)).toEqual(["https://a.test/x"]);
+		expect(harness.submitted).toEqual([]);
+	});
+
+	it("re-extracts previews for a backfill replay without submitting anything to the queue", async () => {
+		const harness = makeHarness({
+			derivedHtml: "https://a.test/x https://b.test/y",
+		});
+
+		await harness.run(eventBody({ origin: "backfill" }));
+
+		expect(harness.published.map((p) => p.url)).toEqual([
+			"https://a.test/x",
+			"https://b.test/y",
+		]);
+		expect(harness.submitted).toEqual([]);
+	});
+
+	it("submits nothing when every link is skipped by classification", async () => {
+		const harness = makeHarness({
+			derivedHtml: "https://news.test/unsubscribe?u=1",
+			parseEmail: async () =>
+				parsedOk("<p>bye</p>", ["https://news.test/unsubscribe?u=1"]),
+		});
+
+		await harness.run(eventBody());
+
+		expect(harness.submitted).toEqual([]);
+	});
+
 	it("writes one pending row per link and fans out a crawl command for each", async () => {
 		const harness = makeHarness({
 			derivedHtml: "https://a.test/x https://b.test/y https://c.test/z",
@@ -409,6 +484,7 @@ describe("initExtractEmailLinksHandler", () => {
 			["skipped", "llm-subscription"],
 		]);
 		expect(harness.published).toEqual([]);
+		expect(harness.submitted).toEqual([]);
 		expect(harness.countsWrites).toEqual([
 			{ kept: 0, skipped: 1, truncated: false },
 			{ kept: 0, skipped: 1, truncated: false },
@@ -499,5 +575,12 @@ describe("initExtractEmailLinksHandler", () => {
 		// Meta is an idempotent overwrite — re-delivery leaves a single barrier row.
 		expect(meta).toEqual({ truncated: false });
 		expect(harness.published).toHaveLength(4);
+		// Still-pending rows re-submit too; the subscriber converges duplicates.
+		expect(harness.submitted).toEqual([
+			{ userId: USER, url: "https://a.test/x" },
+			{ userId: USER, url: "https://b.test/y" },
+			{ userId: USER, url: "https://a.test/x" },
+			{ userId: USER, url: "https://b.test/y" },
+		]);
 	});
 });

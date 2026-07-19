@@ -1,3 +1,4 @@
+import { UNROUTED_USER_ID } from "@packages/domain/inbox";
 import { UserIdSchema } from "@packages/domain/user";
 import type { UserId } from "@packages/domain/user";
 import type { HutchLogger } from "@packages/hutch-logger";
@@ -12,8 +13,6 @@ export const BackfillLinksRowSchema = z.object({
 	recipientAddress: z.string().min(1),
 });
 export type BackfillLinksRow = z.infer<typeof BackfillLinksRowSchema>;
-
-const UNROUTED_USER_ID = "__unrouted__";
 
 export type BackfillLinksOutcome =
 	| "re-extracted"
@@ -45,6 +44,7 @@ export function initBackfillEmailLinks(deps: {
 		userId: UserId;
 		receivedAtMessageId: string;
 		recipientAddress: string;
+		origin: "backfill";
 	}) => Promise<void>;
 	logger: HutchLogger;
 	dryRun: boolean;
@@ -115,6 +115,7 @@ async function processRow(
 			userId: row.userId,
 			receivedAtMessageId: row.receivedAtMessageId,
 			recipientAddress: row.recipientAddress,
+			origin: "backfill",
 		});
 		return "re-extracted";
 	} catch (error) {

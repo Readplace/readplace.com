@@ -17,6 +17,7 @@ export {
 	DEFAULT_INBOX_ALIAS,
 	InboxAddressLimitReachedError,
 	DELETED_ACCOUNT_INBOX_OWNER,
+	UNROUTED_USER_ID,
 	generateInboxToken,
 	buildInboxAddress,
 	aliasNameFromAddress,

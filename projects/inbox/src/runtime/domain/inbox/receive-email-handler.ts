@@ -17,16 +17,11 @@ import {
 	type InboxEmailStore,
 	MessageIdSchema,
 	type ParseEmailResult,
+	UNROUTED_USER_ID,
 } from "@packages/domain/inbox";
-import { type UserId, UserIdSchema } from "@packages/domain/user";
+import type { UserId } from "@packages/domain/user";
 import type { DownloadEmailImages } from "./download-email-images";
 import type { StoreEmailBody } from "./store-email-body";
-
-/** Mail that can't be delivered to an active user — a guessed/mistyped forwarding
- * address the open inbox still accepts, or one the owner has disabled — is
- * recorded under this synthetic partition: an auditable row that never leaks into
- * a real user's list. */
-const UNROUTED_USER_ID = UserIdSchema.parse("__unrouted__");
 
 /** The SES "Received" notification SES publishes (via the S3 action's topic) for
  * each inbound message. Only the fields the receive path needs are validated. */
@@ -257,6 +252,7 @@ export function initReceiveEmailHandler(deps: {
 						userId,
 						receivedAtMessageId,
 						recipientAddress,
+						origin: "receive",
 					});
 					logger.info("[receive-email] stored", { receivedAtMessageId, outcome });
 				}
