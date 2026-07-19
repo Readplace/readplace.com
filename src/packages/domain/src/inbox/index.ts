@@ -25,6 +25,7 @@ export {
 export type {
 	InboxEmailEntry,
 	InboxEmailStore,
+	InboxEmailsCursor,
 	ListInboxEmailsResult,
 } from "./inbox-email.types";
 export {

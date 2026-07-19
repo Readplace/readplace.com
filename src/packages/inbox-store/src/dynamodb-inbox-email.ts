@@ -58,51 +58,39 @@ export function initDynamoDbInboxEmail(deps: {
 				throw error;
 			}
 		},
-		listEmailsByUserId: async ({ userId, page, pageSize }) => {
-			assert(Number.isInteger(page), "page must be an integer");
-			assert(page >= 1, "page must be >= 1");
+		listEmailsByUserId: async ({ userId, cursor, pageSize }) => {
 			assert(Number.isInteger(pageSize), "pageSize must be an integer");
 			assert(pageSize >= 1, "pageSize must be >= 1");
+			assert(
+				cursor === undefined || cursor.receivedAtMessageId !== "",
+				"cursor must name a boundary row",
+			);
 
-			let total = 0;
-			let countStartKey: Record<string, unknown> | undefined;
-			do {
-				const { count, lastEvaluatedKey } = await table.query({
-					KeyConditionExpression: "userId = :uid",
-					ExpressionAttributeValues: { ":uid": userId },
-					Select: "COUNT",
-					ExclusiveStartKey: countStartKey,
-				});
-				total += count;
-				countStartKey = lastEvaluatedKey;
-			} while (countStartKey);
-
-			const itemsToSkip = (page - 1) * pageSize;
-			const emails: InboxEmailEntry[] = [];
-			let skippedCount = 0;
-			let exclusiveStartKey: Record<string, unknown> | undefined;
+			const probeLimit = pageSize + 1;
+			const descending = cursor?.direction !== "newer";
+			const collected: InboxEmailEntry[] = [];
+			let exclusiveStartKey: Record<string, unknown> | undefined =
+				cursor === undefined
+					? undefined
+					: { userId, receivedAtMessageId: cursor.receivedAtMessageId };
 			do {
 				const { items, lastEvaluatedKey } = await table.query({
 					KeyConditionExpression: "userId = :uid",
 					ExpressionAttributeValues: { ":uid": userId },
-					ScanIndexForward: false,
-					Limit: pageSize,
+					ScanIndexForward: !descending,
+					Limit: probeLimit - collected.length,
 					ExclusiveStartKey: exclusiveStartKey,
 				});
-				for (const item of items) {
-					if (skippedCount < itemsToSkip) {
-						skippedCount++;
-					} else if (emails.length < pageSize) {
-						emails.push(item);
-					}
-				}
+				collected.push(...items);
 				exclusiveStartKey = lastEvaluatedKey;
-			} while (
-				exclusiveStartKey &&
-				(skippedCount < itemsToSkip || emails.length < pageSize)
-			);
+			} while (collected.length < probeLimit && exclusiveStartKey);
 
-			return { emails, total, page, pageSize };
+			const emails = collected.slice(0, pageSize);
+			const hasMore = collected.length > pageSize;
+			if (descending) {
+				return { emails, hasNewer: cursor !== undefined, hasOlder: hasMore };
+			}
+			return { emails: emails.reverse(), hasNewer: hasMore, hasOlder: true };
 		},
 		getEmail: async ({ userId, receivedAtMessageId }) =>
 			table.get({ userId, receivedAtMessageId }),

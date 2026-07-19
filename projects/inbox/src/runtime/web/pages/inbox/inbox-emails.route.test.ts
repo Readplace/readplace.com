@@ -243,7 +243,7 @@ describe("Inbox emails list route", () => {
 			);
 		}
 
-		it("renders page 1 of 2 with a boosted nav and only a next link", async () => {
+		it("renders the newest page with a boosted nav and only an older link", async () => {
 			const fixture = createDefaultTestAppFixture(TEST_APP_ORIGIN);
 			const harness = useApp(fixture);
 			const agent = await loginAgent(harness.server, harness.auth);
@@ -260,25 +260,28 @@ describe("Inbox emails list route", () => {
 			expect(pagination.getAttribute("hx-target")).toBe("main");
 			expect(pagination.getAttribute("hx-select")).toBe("main");
 			expect(pagination.getAttribute("hx-swap")).toBe("outerHTML show:none");
-			const links = Array.from(pagination.querySelectorAll(".inbox-emails__pagination-link"));
-			expect(links.map((link) => link.getAttribute("href"))).toEqual([
-				"/inbox?feature=email&page=2",
+			const links = Array.from(pagination.querySelectorAll("[data-test-pagination-link]"));
+			expect(links.map((link) => link.getAttribute("data-test-pagination-link"))).toEqual([
+				"older",
 			]);
-			const next = pagination.querySelector("[data-test-pagination-next]");
-			assert(next, "next link must render on page 1 of 2");
-			expect(next.getAttribute("href")).toBe("/inbox?feature=email&page=2");
-			expect(
-				pagination.querySelector("[data-test-pagination-info]")?.textContent,
-			).toBe("Page 1 of 2");
+			expect(links[0].textContent).toBe("Older →");
+			expect(links[0].getAttribute("href")).toBe(
+				`/inbox?feature=email&older=${encodeURIComponent("2026-06-24T00:01:00.000Z#<m-1@x>")}`,
+			);
 		});
 
-		it("renders the oldest email alone on page 2 with only a previous link", async () => {
+		it("shows the oldest email alone beyond the older link, linking back newer", async () => {
 			const fixture = createDefaultTestAppFixture(TEST_APP_ORIGIN);
 			const harness = useApp(fixture);
 			const agent = await loginAgent(harness.server, harness.auth);
 			await seedEmails(fixture, (userId) => ascendingEmails(userId, 21));
+			const first = await agent.get("/inbox?feature=email");
+			const olderHref = new JSDOM(first.text).window.document
+				.querySelector('[data-test-pagination-link="older"]')
+				?.getAttribute("href");
+			assert(olderHref, "older link must render on the newest page");
 
-			const response = await agent.get("/inbox?feature=email&page=2");
+			const response = await agent.get(olderHref);
 
 			expect(response.status).toBe(200);
 			const doc = new JSDOM(response.text).window.document;
@@ -289,28 +292,37 @@ describe("Inbox emails list route", () => {
 			);
 			const pagination = doc.querySelector("[data-test-pagination]");
 			assert(pagination, "pagination nav must render");
-			const links = Array.from(pagination.querySelectorAll(".inbox-emails__pagination-link"));
-			expect(links.map((link) => link.getAttribute("href"))).toEqual([
-				"/inbox?feature=email",
+			const links = Array.from(pagination.querySelectorAll("[data-test-pagination-link]"));
+			expect(links.map((link) => link.getAttribute("data-test-pagination-link"))).toEqual([
+				"newer",
 			]);
-			const prev = pagination.querySelector("[data-test-pagination-prev]");
-			assert(prev, "previous link must render on the last page");
-			expect(prev.getAttribute("href")).toBe("/inbox?feature=email");
+			expect(links[0].textContent).toBe("← Newer");
+
+			const newerHref = links[0].getAttribute("href");
+			assert(newerHref, "newer link must carry an href");
+			const back = await agent.get(newerHref);
+			expect(back.status).toBe(200);
+			const backRows = Array.from(
+				new JSDOM(back.text).window.document.querySelectorAll("[data-test-inbox-emails-row]"),
+			);
+			expect(backRows).toHaveLength(20);
 			expect(
-				pagination.querySelector("[data-test-pagination-info]")?.textContent,
-			).toBe("Page 2 of 2");
+				backRows[0].querySelector("[data-test-inbox-email-sender]")?.textContent,
+			).toBe("sender-20@example.com");
 		});
 
-		it("redirects an out-of-bounds page (stale bookmark / manual URL) to the last valid page", async () => {
+		it("redirects a cursor past the oldest email back to the newest page", async () => {
 			const fixture = createDefaultTestAppFixture(TEST_APP_ORIGIN);
 			const harness = useApp(fixture);
 			const agent = await loginAgent(harness.server, harness.auth);
 			await seedEmails(fixture, (userId) => ascendingEmails(userId, 21));
 
-			const response = await agent.get("/inbox?feature=email&page=99");
+			const response = await agent.get(
+				`/inbox?feature=email&older=${encodeURIComponent("2026-06-24T00:00:00.000Z#<m-0@x>")}`,
+			);
 
 			expect(response.status).toBe(302);
-			expect(response.headers.location).toBe("/inbox?feature=email&page=2");
+			expect(response.headers.location).toBe("/inbox?feature=email");
 			const followed = await agent.get(response.headers.location);
 			expect(followed.status).toBe(200);
 		});
@@ -329,11 +341,11 @@ describe("Inbox emails list route", () => {
 			expect(doc.querySelector("[data-test-pagination]")).toBeNull();
 		});
 
-		it("clamps a paged URL on an empty inbox back to the empty state", async () => {
+		it("redirects a cursor on an empty inbox back to the empty state", async () => {
 			const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
 			const agent = await loginAgent(harness.server, harness.auth);
 
-			const response = await agent.get("/inbox?feature=email&page=2");
+			const response = await agent.get("/inbox?feature=email&older=anything");
 
 			expect(response.status).toBe(302);
 			expect(response.headers.location).toBe("/inbox?feature=email");
@@ -343,6 +355,19 @@ describe("Inbox emails list route", () => {
 			const empty = doc.querySelector("[data-test-inbox-emails-empty]");
 			assert(empty, "empty state must render after the clamp");
 			expect(empty.textContent).toContain("No forwarded emails yet");
+		});
+
+		it("renders the newest page for a legacy ?page= URL", async () => {
+			const fixture = createDefaultTestAppFixture(TEST_APP_ORIGIN);
+			const harness = useApp(fixture);
+			const agent = await loginAgent(harness.server, harness.auth);
+			await seedEmails(fixture, (userId) => ascendingEmails(userId, 21));
+
+			const response = await agent.get("/inbox?feature=email&page=2");
+
+			expect(response.status).toBe(200);
+			const doc = new JSDOM(response.text).window.document;
+			expect(doc.querySelectorAll("[data-test-inbox-emails-row]")).toHaveLength(20);
 		});
 	});
 });

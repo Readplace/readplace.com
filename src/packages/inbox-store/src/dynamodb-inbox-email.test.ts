@@ -200,9 +200,8 @@ describe("initDynamoDbInboxEmail", () => {
 	});
 
 	describe("listEmailsByUserId", () => {
-		it("counts the mailbox, then fetches only the first page newest-first, normalizing a missing body pointer", async () => {
+		it("fetches the newest page in one descending probe query, normalizing a missing body pointer", async () => {
 			const { client, captured } = createOrderedClient([
-				{ Count: 2 },
 				{
 					Items: [
 						{
@@ -234,112 +233,211 @@ describe("initDynamoDbInboxEmail", () => {
 			]);
 			const store = initDynamoDbInboxEmail({ client, tableName: TABLE });
 
-			const result = await store.listEmailsByUserId({ userId: USER, page: 1, pageSize: 20 });
+			const result = await store.listEmailsByUserId({
+				userId: USER,
+				cursor: undefined,
+				pageSize: 20,
+			});
 
-			expect(captured[0].input.Select).toBe("COUNT");
-			expect(captured[1].input.KeyConditionExpression).toBe("userId = :uid");
-			expect(captured[1].input.ExpressionAttributeValues?.[":uid"]).toBe(USER);
-			expect(captured[1].input.ScanIndexForward).toBe(false);
-			expect(captured[1].input.Limit).toBe(20);
-			expect(captured[1].input.Select).toBeUndefined();
+			expect(captured).toHaveLength(1);
+			expect(captured[0].input.KeyConditionExpression).toBe("userId = :uid");
+			expect(captured[0].input.ExpressionAttributeValues?.[":uid"]).toBe(USER);
+			expect(captured[0].input.ScanIndexForward).toBe(false);
+			expect(captured[0].input.Limit).toBe(21);
+			expect(captured[0].input.Select).toBeUndefined();
+			expect(captured[0].input.ExclusiveStartKey).toBeUndefined();
 			expect(result.emails).toHaveLength(2);
-			expect(result.total).toBe(2);
+			expect(result.hasNewer).toBe(false);
+			expect(result.hasOlder).toBe(false);
 			expect(result.emails[0].subject).toBe("Newer");
 			expect(result.emails[0].bodyS3Key).toBe("content/b/content.html");
 			expect(result.emails[1].bodyS3Key).toBeUndefined();
 		});
 
-		it("sums COUNT pages so a total spanning more than 1 MB is not truncated", async () => {
-			const countStartKey = {
-				userId: "user-1",
-				receivedAtMessageId: "2026-06-23T09:00:00.000Z#<b@x>",
-			};
+		it("keeps only the page rows and reports older rows when the probe overflows", async () => {
 			const { client, captured } = createOrderedClient([
-				{ Count: 2, LastEvaluatedKey: countStartKey },
-				{ Count: 1 },
-				{ Items: [rawRow({ hour: "10", messageId: "<c@x>" })] },
+				{
+					Items: [
+						rawRow({ hour: "10", messageId: "<c@x>" }),
+						rawRow({ hour: "09", messageId: "<b@x>" }),
+						rawRow({ hour: "08", messageId: "<a@x>" }),
+					],
+				},
 			]);
 			const store = initDynamoDbInboxEmail({ client, tableName: TABLE });
 
-			const result = await store.listEmailsByUserId({ userId: USER, page: 1, pageSize: 20 });
+			const result = await store.listEmailsByUserId({
+				userId: USER,
+				cursor: undefined,
+				pageSize: 2,
+			});
 
-			expect(captured[0].input.Select).toBe("COUNT");
-			expect(captured[1].input.Select).toBe("COUNT");
-			expect(captured[1].input.ExclusiveStartKey).toEqual(countStartKey);
-			expect(captured[2].input.Select).toBeUndefined();
-			expect(result.total).toBe(3);
-			expect(result.emails.map((e) => e.subject)).toEqual(["At 10"]);
+			expect(captured[0].input.Limit).toBe(3);
+			expect(result.emails.map((e) => e.subject)).toEqual(["At 10", "At 09"]);
+			expect(result.hasOlder).toBe(true);
+			expect(result.hasNewer).toBe(false);
 		});
 
-		it("stops after filling the page even when earlier pages and more rows remain", async () => {
-			const firstItemKey = {
+		it("starts an older page just past the cursor row and flags the newer side", async () => {
+			const { client, captured } = createOrderedClient([
+				{ Items: [rawRow({ hour: "08", messageId: "<a@x>" })] },
+			]);
+			const store = initDynamoDbInboxEmail({ client, tableName: TABLE });
+
+			const result = await store.listEmailsByUserId({
+				userId: USER,
+				cursor: {
+					direction: "older",
+					receivedAtMessageId: "2026-06-23T09:00:00.000Z#<b@x>",
+				},
+				pageSize: 2,
+			});
+
+			expect(captured[0].input.ScanIndexForward).toBe(false);
+			expect(captured[0].input.ExclusiveStartKey).toEqual({
+				userId: USER,
+				receivedAtMessageId: "2026-06-23T09:00:00.000Z#<b@x>",
+			});
+			expect(result.emails.map((e) => e.subject)).toEqual(["At 08"]);
+			expect(result.hasNewer).toBe(true);
+			expect(result.hasOlder).toBe(false);
+		});
+
+		it("walks a newer page ascending and returns it newest-first", async () => {
+			const { client, captured } = createOrderedClient([
+				{
+					Items: [
+						rawRow({ hour: "08", messageId: "<a@x>" }),
+						rawRow({ hour: "09", messageId: "<b@x>" }),
+						rawRow({ hour: "10", messageId: "<c@x>" }),
+					],
+				},
+			]);
+			const store = initDynamoDbInboxEmail({ client, tableName: TABLE });
+
+			const result = await store.listEmailsByUserId({
+				userId: USER,
+				cursor: {
+					direction: "newer",
+					receivedAtMessageId: "2026-06-23T07:00:00.000Z#<z@x>",
+				},
+				pageSize: 2,
+			});
+
+			expect(captured[0].input.ScanIndexForward).toBe(true);
+			expect(captured[0].input.ExclusiveStartKey).toEqual({
+				userId: USER,
+				receivedAtMessageId: "2026-06-23T07:00:00.000Z#<z@x>",
+			});
+			expect(result.emails.map((e) => e.subject)).toEqual(["At 09", "At 08"]);
+			expect(result.hasNewer).toBe(true);
+			expect(result.hasOlder).toBe(true);
+		});
+
+		it("reports no newer rows when the ascending probe drains the mailbox", async () => {
+			const { client } = createOrderedClient([
+				{ Items: [rawRow({ hour: "08", messageId: "<a@x>" })] },
+			]);
+			const store = initDynamoDbInboxEmail({ client, tableName: TABLE });
+
+			const result = await store.listEmailsByUserId({
+				userId: USER,
+				cursor: {
+					direction: "newer",
+					receivedAtMessageId: "2026-06-23T07:00:00.000Z#<z@x>",
+				},
+				pageSize: 2,
+			});
+
+			expect(result.emails.map((e) => e.subject)).toEqual(["At 08"]);
+			expect(result.hasNewer).toBe(false);
+			expect(result.hasOlder).toBe(true);
+		});
+
+		it("accumulates across a 1 MB split until the probe is full", async () => {
+			const splitKey = {
 				userId: "user-1",
 				receivedAtMessageId: "2026-06-23T10:00:00.000Z#<c@x>",
 			};
-			const secondItemKey = {
-				userId: "user-1",
-				receivedAtMessageId: "2026-06-23T09:00:00.000Z#<b@x>",
-			};
 			const { client, captured } = createOrderedClient([
-				{ Count: 3 },
-				{ Items: [rawRow({ hour: "10", messageId: "<c@x>" })], LastEvaluatedKey: firstItemKey },
-				{ Items: [rawRow({ hour: "09", messageId: "<b@x>" })], LastEvaluatedKey: secondItemKey },
+				{ Items: [rawRow({ hour: "10", messageId: "<c@x>" })], LastEvaluatedKey: splitKey },
+				{
+					Items: [
+						rawRow({ hour: "09", messageId: "<b@x>" }),
+						rawRow({ hour: "08", messageId: "<a@x>" }),
+					],
+				},
 			]);
 			const store = initDynamoDbInboxEmail({ client, tableName: TABLE });
 
-			const result = await store.listEmailsByUserId({ userId: USER, page: 2, pageSize: 1 });
+			const result = await store.listEmailsByUserId({
+				userId: USER,
+				cursor: undefined,
+				pageSize: 2,
+			});
 
-			expect(captured).toHaveLength(3);
-			expect(captured[2].input.ExclusiveStartKey).toEqual(firstItemKey);
-			expect(result.emails.map((e) => e.subject)).toEqual(["At 09"]);
-			expect(result).toMatchObject({ total: 3, page: 2, pageSize: 1 });
+			expect(captured).toHaveLength(2);
+			expect(captured[0].input.Limit).toBe(3);
+			expect(captured[1].input.Limit).toBe(2);
+			expect(captured[1].input.ExclusiveStartKey).toEqual(splitKey);
+			expect(result.emails.map((e) => e.subject)).toEqual(["At 10", "At 09"]);
+			expect(result.hasOlder).toBe(true);
 		});
 
-		it("returns no emails but the correct total for a page beyond the data", async () => {
-			const { client } = createOrderedClient([
-				{ Count: 1 },
-				{ Items: [rawRow({ hour: "10", messageId: "<c@x>" })] },
+		it("issues no follow-up query once the probe is full even when DynamoDB reports more", async () => {
+			const { client, captured } = createOrderedClient([
+				{
+					Items: [
+						rawRow({ hour: "10", messageId: "<c@x>" }),
+						rawRow({ hour: "09", messageId: "<b@x>" }),
+					],
+					LastEvaluatedKey: {
+						userId: "user-1",
+						receivedAtMessageId: "2026-06-23T09:00:00.000Z#<b@x>",
+					},
+				},
 			]);
 			const store = initDynamoDbInboxEmail({ client, tableName: TABLE });
 
-			const result = await store.listEmailsByUserId({ userId: USER, page: 5, pageSize: 2 });
+			const result = await store.listEmailsByUserId({
+				userId: USER,
+				cursor: undefined,
+				pageSize: 1,
+			});
+
+			expect(captured).toHaveLength(1);
+			expect(result.emails.map((e) => e.subject)).toEqual(["At 10"]);
+			expect(result.hasOlder).toBe(true);
+		});
+
+		it("returns an empty page with no neighbours for an empty mailbox", async () => {
+			const { client } = createOrderedClient([{ Items: [] }]);
+			const store = initDynamoDbInboxEmail({ client, tableName: TABLE });
+
+			const result = await store.listEmailsByUserId({
+				userId: USER,
+				cursor: undefined,
+				pageSize: 20,
+			});
 
 			expect(result.emails).toEqual([]);
-			expect(result.total).toBe(1);
+			expect(result.hasNewer).toBe(false);
+			expect(result.hasOlder).toBe(false);
 		});
 
-		it("drops overflow rows when a 1 MB split misaligns the page boundary", async () => {
-			const firstItemKey = {
-				userId: "user-1",
-				receivedAtMessageId: "2026-06-23T05:00:00.000Z#<e@x>",
-			};
-			const secondItemKey = {
-				userId: "user-1",
-				receivedAtMessageId: "2026-06-23T03:00:00.000Z#<c@x>",
-			};
-			const { client } = createOrderedClient([
-				{ Count: 5 },
-				{ Items: [rawRow({ hour: "05", messageId: "<e@x>" })], LastEvaluatedKey: firstItemKey },
-				{
-					Items: [
-						rawRow({ hour: "04", messageId: "<d@x>" }),
-						rawRow({ hour: "03", messageId: "<c@x>" }),
-					],
-					LastEvaluatedKey: secondItemKey,
-				},
-				{
-					Items: [
-						rawRow({ hour: "02", messageId: "<b@x>" }),
-						rawRow({ hour: "01", messageId: "<a@x>" }),
-					],
-				},
-			]);
-			const store = initDynamoDbInboxEmail({ client, tableName: TABLE });
+		it("rejects a cursor with an empty boundary row", async () => {
+			const store = initDynamoDbInboxEmail({
+				client: createFakeClient(() => ({})) as DynamoDBDocumentClient,
+				tableName: TABLE,
+			});
 
-			const result = await store.listEmailsByUserId({ userId: USER, page: 2, pageSize: 2 });
-
-			expect(result.emails.map((e) => e.subject)).toEqual(["At 03", "At 02"]);
-			expect(result.total).toBe(5);
+			await expect(
+				store.listEmailsByUserId({
+					userId: USER,
+					cursor: { direction: "older", receivedAtMessageId: "" },
+					pageSize: 20,
+				}),
+			).rejects.toThrow("cursor must name a boundary row");
 		});
 	});
 

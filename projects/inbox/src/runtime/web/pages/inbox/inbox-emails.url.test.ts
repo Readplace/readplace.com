@@ -1,23 +1,42 @@
-import {
-	buildInboxEmailsUrl,
-	canonicalInboxEmailsPageRedirect,
-	parseInboxEmailsUrl,
-} from "./inbox-emails.url";
+import { buildInboxEmailsUrl, parseInboxEmailsUrl } from "./inbox-emails.url";
+
+const BOUNDARY = "2026-06-24T00:01:00.000Z#<m-1@x>";
+const ENCODED_BOUNDARY = "2026-06-24T00%3A01%3A00.000Z%23%3Cm-1%40x%3E";
 
 describe("parseInboxEmailsUrl", () => {
-	it("defaults to page 1 for an empty query", () => {
-		expect(parseInboxEmailsUrl({})).toEqual({ page: 1 });
+	it("yields no cursor for an empty query", () => {
+		expect(parseInboxEmailsUrl({})).toEqual({ cursor: undefined });
 	});
 
-	it("parses a valid page number", () => {
-		expect(parseInboxEmailsUrl({ page: "3" }).page).toBe(3);
+	it("parses an older cursor", () => {
+		expect(parseInboxEmailsUrl({ older: BOUNDARY })).toEqual({
+			cursor: { direction: "older", receivedAtMessageId: BOUNDARY },
+		});
 	});
 
-	it("defaults to page 1 for junk values", () => {
-		expect(parseInboxEmailsUrl({ page: "abc" }).page).toBe(1);
-		expect(parseInboxEmailsUrl({ page: "0" }).page).toBe(1);
-		expect(parseInboxEmailsUrl({ page: "-1" }).page).toBe(1);
-		expect(parseInboxEmailsUrl({ page: "1.5" }).page).toBe(1);
+	it("parses a newer cursor", () => {
+		expect(parseInboxEmailsUrl({ newer: BOUNDARY })).toEqual({
+			cursor: { direction: "newer", receivedAtMessageId: BOUNDARY },
+		});
+	});
+
+	it("prefers older when both directions are present", () => {
+		expect(parseInboxEmailsUrl({ older: BOUNDARY, newer: "other" })).toEqual({
+			cursor: { direction: "older", receivedAtMessageId: BOUNDARY },
+		});
+	});
+
+	it("treats junk cursors as absent", () => {
+		expect(parseInboxEmailsUrl({ older: "" })).toEqual({ cursor: undefined });
+		expect(parseInboxEmailsUrl({ older: ["a", "b"] })).toEqual({ cursor: undefined });
+	});
+
+	it("bounds the cursor by UTF-8 bytes, not characters", () => {
+		expect(parseInboxEmailsUrl({ older: "x".repeat(1025) })).toEqual({ cursor: undefined });
+		expect(parseInboxEmailsUrl({ newer: "é".repeat(600) })).toEqual({ cursor: undefined });
+		expect(parseInboxEmailsUrl({ older: "é".repeat(512) })).toEqual({
+			cursor: { direction: "older", receivedAtMessageId: "é".repeat(512) },
+		});
 	});
 });
 
@@ -26,37 +45,19 @@ describe("buildInboxEmailsUrl", () => {
 		expect(buildInboxEmailsUrl({})).toBe("/inbox?feature=email");
 	});
 
-	it("omits page 1", () => {
-		expect(buildInboxEmailsUrl({ page: 1 })).toBe("/inbox?feature=email");
-	});
-
-	it("appends page > 1 after the flag", () => {
-		expect(buildInboxEmailsUrl({ page: 2 })).toBe("/inbox?feature=email&page=2");
-	});
-});
-
-describe("canonicalInboxEmailsPageRedirect", () => {
-	it("returns undefined for an in-bounds page", () => {
+	it("URL-encodes an older cursor after the flag", () => {
 		expect(
-			canonicalInboxEmailsPageRedirect({ page: 1, total: 20, pageSize: 20 }),
-		).toBeUndefined();
+			buildInboxEmailsUrl({
+				cursor: { direction: "older", receivedAtMessageId: BOUNDARY },
+			}),
+		).toBe(`/inbox?feature=email&older=${ENCODED_BOUNDARY}`);
 	});
 
-	it("returns undefined for the last valid page", () => {
+	it("URL-encodes a newer cursor after the flag", () => {
 		expect(
-			canonicalInboxEmailsPageRedirect({ page: 3, total: 60, pageSize: 20 }),
-		).toBeUndefined();
-	});
-
-	it("clamps a page beyond the last to the last valid page", () => {
-		expect(
-			canonicalInboxEmailsPageRedirect({ page: 4, total: 60, pageSize: 20 }),
-		).toBe("/inbox?feature=email&page=3");
-	});
-
-	it("clamps a page beyond an empty inbox to page 1", () => {
-		expect(
-			canonicalInboxEmailsPageRedirect({ page: 2, total: 0, pageSize: 20 }),
-		).toBe("/inbox?feature=email");
+			buildInboxEmailsUrl({
+				cursor: { direction: "newer", receivedAtMessageId: BOUNDARY },
+			}),
+		).toBe(`/inbox?feature=email&newer=${ENCODED_BOUNDARY}`);
 	});
 });

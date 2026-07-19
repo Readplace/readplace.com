@@ -42,7 +42,7 @@ import type { InboxEmailDetailViewModel } from "./inbox-email-detail.viewmodel";
 import { InboxEmailsPage } from "./inbox-emails.component";
 import {
 	INBOX_EMAILS_PAGE_SIZE,
-	canonicalInboxEmailsPageRedirect,
+	buildInboxEmailsUrl,
 	parseInboxEmailsUrl,
 } from "./inbox-emails.url";
 import { type InboxEmailLinkSummary, toInboxEmailsViewModel } from "./inbox-emails.viewmodel";
@@ -109,19 +109,14 @@ export function initInboxRoutes(deps: InboxDependencies): Router {
 	router.get("/", async (req: Request, res: Response) => {
 		assert(req.userId, "userId required - route must be protected by requireAuth");
 		const userId = req.userId;
-		const { page } = parseInboxEmailsUrl(req.query);
+		const { cursor } = parseInboxEmailsUrl(req.query);
 		const result = await deps.inboxEmailStore.listEmailsByUserId({
 			userId,
-			page,
+			cursor,
 			pageSize: INBOX_EMAILS_PAGE_SIZE,
 		});
-		const pageRedirect = canonicalInboxEmailsPageRedirect({
-			page,
-			total: result.total,
-			pageSize: result.pageSize,
-		});
-		if (pageRedirect) {
-			res.redirect(302, pageRedirect);
+		if (cursor !== undefined && result.emails.length === 0) {
+			res.redirect(302, buildInboxEmailsUrl({}));
 			return;
 		}
 		// One cheap per-email partition Query each (no GSI, no scan) — the accepted

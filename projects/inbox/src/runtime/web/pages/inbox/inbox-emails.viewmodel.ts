@@ -30,13 +30,8 @@ export interface InboxEmailRowViewModel {
 export interface InboxEmailsViewModel {
 	isEmpty: boolean;
 	rows: InboxEmailRowViewModel[];
-	currentPage: number;
-	totalPages: number;
 	showPagination: boolean;
-	hasPrev: boolean;
-	hasNext: boolean;
-	prevUrl: string | undefined;
-	nextUrl: string | undefined;
+	paginationLinks: { key: "newer" | "older"; label: string; href: string }[];
 }
 
 const STATUS_LABEL: Record<InboxEmailStatus, string> = {
@@ -45,24 +40,46 @@ const STATUS_LABEL: Record<InboxEmailStatus, string> = {
 	unparsed: "Couldn’t render",
 };
 
+function buildPaginationLinks(
+	result: ListInboxEmailsResult,
+): InboxEmailsViewModel["paginationLinks"] {
+	const links: InboxEmailsViewModel["paginationLinks"] = [];
+	if (result.hasNewer) {
+		links.push({
+			key: "newer",
+			label: "← Newer",
+			href: buildInboxEmailsUrl({
+				cursor: {
+					direction: "newer",
+					receivedAtMessageId: result.emails[0].receivedAtMessageId,
+				},
+			}),
+		});
+	}
+	if (result.hasOlder) {
+		links.push({
+			key: "older",
+			label: "Older →",
+			href: buildInboxEmailsUrl({
+				cursor: {
+					direction: "older",
+					receivedAtMessageId: result.emails[result.emails.length - 1].receivedAtMessageId,
+				},
+			}),
+		});
+	}
+	return links;
+}
+
 export function toInboxEmailsViewModel(
 	result: ListInboxEmailsResult,
 	options: { now: Date; linkSummaries: Map<string, InboxEmailLinkSummary> },
 ): InboxEmailsViewModel {
-	const totalPages = Math.max(1, Math.ceil(result.total / result.pageSize));
+	const paginationLinks = buildPaginationLinks(result);
 	return {
-		isEmpty: result.total === 0,
-		currentPage: result.page,
-		totalPages,
-		showPagination: totalPages > 1,
-		hasPrev: result.page > 1,
-		hasNext: result.page < totalPages,
-		prevUrl:
-			result.page > 1 ? buildInboxEmailsUrl({ page: result.page - 1 }) : undefined,
-		nextUrl:
-			result.page < totalPages
-				? buildInboxEmailsUrl({ page: result.page + 1 })
-				: undefined,
+		isEmpty: result.emails.length === 0,
+		showPagination: paginationLinks.length > 0,
+		paginationLinks,
 		rows: result.emails.map((entry) => {
 			const summary = options.linkSummaries.get(entry.receivedAtMessageId);
 			return {

@@ -83,15 +83,15 @@ describe("initInMemoryInboxEmail", () => {
 
 		const ownerEmails = await store.listEmailsByUserId({
 			userId: owner,
-			page: 1,
+			cursor: undefined,
 			pageSize: 20,
 		});
 
 		expect(ownerEmails.emails.map((e) => e.subject)).toEqual(["Newer", "Older"]);
-		expect(ownerEmails.total).toBe(2);
+		expect(ownerEmails).toMatchObject({ hasNewer: false, hasOlder: false });
 	});
 
-	it("slices pages newest-first while reporting the unpaged total", async () => {
+	it("walks older pages from a cursor and back newer to the top", async () => {
 		const store = initInMemoryInboxEmail();
 		for (const hour of ["08", "09", "10"]) {
 			await store.putEmail(
@@ -105,33 +105,88 @@ describe("initInMemoryInboxEmail", () => {
 
 		const pageOne = await store.listEmailsByUserId({
 			userId: owner,
-			page: 1,
+			cursor: undefined,
 			pageSize: 2,
 		});
-		const pageTwo = await store.listEmailsByUserId({
-			userId: owner,
-			page: 2,
-			pageSize: 2,
-		});
-
 		expect(pageOne.emails.map((e) => e.subject)).toEqual(["At 10", "At 09"]);
-		expect(pageOne).toMatchObject({ total: 3, page: 1, pageSize: 2 });
-		expect(pageTwo.emails.map((e) => e.subject)).toEqual(["At 08"]);
-		expect(pageTwo).toMatchObject({ total: 3, page: 2, pageSize: 2 });
+		expect(pageOne).toMatchObject({ hasNewer: false, hasOlder: true });
+
+		const older = await store.listEmailsByUserId({
+			userId: owner,
+			cursor: {
+				direction: "older",
+				receivedAtMessageId: pageOne.emails[1].receivedAtMessageId,
+			},
+			pageSize: 2,
+		});
+		expect(older.emails.map((e) => e.subject)).toEqual(["At 08"]);
+		expect(older).toMatchObject({ hasNewer: true, hasOlder: false });
+
+		const newer = await store.listEmailsByUserId({
+			userId: owner,
+			cursor: {
+				direction: "newer",
+				receivedAtMessageId: older.emails[0].receivedAtMessageId,
+			},
+			pageSize: 2,
+		});
+		expect(newer.emails.map((e) => e.subject)).toEqual(["At 10", "At 09"]);
+		expect(newer).toMatchObject({ hasNewer: false, hasOlder: true });
 	});
 
-	it("returns no emails but the correct total for a page beyond the data", async () => {
+	it("takes the newer rows adjacent to the cursor when more than a page exist", async () => {
 		const store = initInMemoryInboxEmail();
-		await store.putEmail(makeEntry());
+		for (const hour of ["07", "08", "09", "10"]) {
+			await store.putEmail(
+				makeEntry({
+					messageId: MessageIdSchema.parse(`<m-${hour}@x>`),
+					receivedAtMessageId: `2026-06-23T${hour}:00:00.000Z#<m-${hour}@x>`,
+					subject: `At ${hour}`,
+				}),
+			);
+		}
 
 		const result = await store.listEmailsByUserId({
 			userId: owner,
-			page: 3,
+			cursor: {
+				direction: "newer",
+				receivedAtMessageId: "2026-06-23T07:00:00.000Z#<m-07@x>",
+			},
+			pageSize: 1,
+		});
+
+		expect(result.emails.map((e) => e.subject)).toEqual(["At 08"]);
+		expect(result).toMatchObject({ hasNewer: true, hasOlder: true });
+	});
+
+	it("returns an empty page past the oldest email", async () => {
+		const store = initInMemoryInboxEmail();
+		const entry = makeEntry();
+		await store.putEmail(entry);
+
+		const result = await store.listEmailsByUserId({
+			userId: owner,
+			cursor: {
+				direction: "older",
+				receivedAtMessageId: entry.receivedAtMessageId,
+			},
 			pageSize: 2,
 		});
 
 		expect(result.emails).toEqual([]);
-		expect(result.total).toBe(1);
+		expect(result).toMatchObject({ hasNewer: true, hasOlder: false });
+	});
+
+	it("rejects a cursor with an empty boundary row", async () => {
+		const store = initInMemoryInboxEmail();
+
+		await expect(
+			store.listEmailsByUserId({
+				userId: owner,
+				cursor: { direction: "older", receivedAtMessageId: "" },
+				pageSize: 2,
+			}),
+		).rejects.toThrow("cursor must name a boundary row");
 	});
 
 	it("returns undefined for an unknown email", async () => {
@@ -172,10 +227,10 @@ describe("initInMemoryInboxEmail", () => {
 			// The read pass leaves every row in place so a redrive re-derives the keys.
 			const remaining = await store.listEmailsByUserId({
 				userId: owner,
-				page: 1,
+				cursor: undefined,
 				pageSize: 20,
 			});
-			expect(remaining.total).toBe(2);
+			expect(remaining.emails).toHaveLength(2);
 		});
 
 		it("scopes the references to the owner, ignoring another user's emails", async () => {
@@ -220,10 +275,10 @@ describe("initInMemoryInboxEmail", () => {
 
 			const remaining = await store.listEmailsByUserId({
 				userId: owner,
-				page: 1,
+				cursor: undefined,
 				pageSize: 20,
 			});
-			expect(remaining.total).toBe(0);
+			expect(remaining.emails).toHaveLength(0);
 		});
 
 		it("leaves another user's emails intact", async () => {
@@ -240,16 +295,16 @@ describe("initInMemoryInboxEmail", () => {
 
 			const ownerRemaining = await store.listEmailsByUserId({
 				userId: owner,
-				page: 1,
+				cursor: undefined,
 				pageSize: 20,
 			});
 			const otherRemaining = await store.listEmailsByUserId({
 				userId: otherUser,
-				page: 1,
+				cursor: undefined,
 				pageSize: 20,
 			});
-			expect(ownerRemaining.total).toBe(0);
-			expect(otherRemaining.total).toBe(1);
+			expect(ownerRemaining.emails).toHaveLength(0);
+			expect(otherRemaining.emails).toHaveLength(1);
 		});
 
 		it("is a no-op for a user with no emails", async () => {
@@ -259,10 +314,10 @@ describe("initInMemoryInboxEmail", () => {
 
 			const remaining = await store.listEmailsByUserId({
 				userId: owner,
-				page: 1,
+				cursor: undefined,
 				pageSize: 20,
 			});
-			expect(remaining.total).toBe(0);
+			expect(remaining.emails).toHaveLength(0);
 		});
 	});
 });

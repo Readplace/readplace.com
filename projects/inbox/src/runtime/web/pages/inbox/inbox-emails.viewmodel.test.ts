@@ -35,7 +35,7 @@ function build(
 	summaries: Record<string, InboxEmailLinkSummary> = {},
 ) {
 	return toInboxEmailsViewModel(
-		{ emails: entries, total: entries.length, page: 1, pageSize: 20 },
+		{ emails: entries, hasNewer: false, hasOlder: false },
 		{
 			now: NOW,
 			linkSummaries: new Map(Object.entries(summaries)),
@@ -43,9 +43,15 @@ function build(
 	);
 }
 
-function buildPage(input: { page: number; total: number; pageSize: number }) {
+function buildNav(input: { hasNewer: boolean; hasOlder: boolean }) {
 	return toInboxEmailsViewModel(
-		{ emails: [entry()], ...input },
+		{
+			emails: [
+				entry({ receivedAtMessageId: "2026-06-24T10:00:00.000Z#<new@x>" }),
+				entry({ receivedAtMessageId: "2026-06-24T09:00:00.000Z#<old@x>" }),
+			],
+			...input,
+		},
 		{ now: NOW, linkSummaries: new Map() },
 	);
 }
@@ -128,37 +134,46 @@ describe("toInboxEmailsViewModel", () => {
 		expect(rows.every((row) => row.received.mode === "relative")).toBe(true);
 	});
 
-	it("hides pagination when everything fits on one page", () => {
-		const vm = buildPage({ page: 1, total: 20, pageSize: 20 });
+	it("hides pagination when the page has no neighbours", () => {
+		const vm = buildNav({ hasNewer: false, hasOlder: false });
 
 		expect(vm.showPagination).toBe(false);
-		expect(vm.totalPages).toBe(1);
-		expect(vm.currentPage).toBe(1);
-		expect(vm.hasPrev).toBe(false);
-		expect(vm.hasNext).toBe(false);
-		expect(vm.prevUrl).toBeUndefined();
-		expect(vm.nextUrl).toBeUndefined();
+		expect(vm.paginationLinks).toEqual([]);
 	});
 
-	it("links forward from page 1 of 2", () => {
-		const vm = buildPage({ page: 1, total: 21, pageSize: 20 });
+	it("links older from the page's oldest row", () => {
+		const vm = buildNav({ hasNewer: false, hasOlder: true });
 
 		expect(vm.showPagination).toBe(true);
-		expect(vm.totalPages).toBe(2);
-		expect(vm.hasPrev).toBe(false);
-		expect(vm.hasNext).toBe(true);
-		expect(vm.prevUrl).toBeUndefined();
-		expect(vm.nextUrl).toBe("/inbox?feature=email&page=2");
+		expect(vm.paginationLinks).toEqual([
+			{
+				key: "older",
+				label: "Older →",
+				href: `/inbox?feature=email&older=${encodeURIComponent(
+					"2026-06-24T09:00:00.000Z#<old@x>",
+				)}`,
+			},
+		]);
 	});
 
-	it("links back from the last page", () => {
-		const vm = buildPage({ page: 2, total: 21, pageSize: 20 });
+	it("links newer from the page's newest row", () => {
+		const vm = buildNav({ hasNewer: true, hasOlder: false });
 
-		expect(vm.currentPage).toBe(2);
-		expect(vm.hasPrev).toBe(true);
-		expect(vm.hasNext).toBe(false);
-		expect(vm.prevUrl).toBe("/inbox?feature=email");
-		expect(vm.nextUrl).toBeUndefined();
+		expect(vm.paginationLinks).toEqual([
+			{
+				key: "newer",
+				label: "← Newer",
+				href: `/inbox?feature=email&newer=${encodeURIComponent(
+					"2026-06-24T10:00:00.000Z#<new@x>",
+				)}`,
+			},
+		]);
+	});
+
+	it("orders newer before older when both neighbours exist", () => {
+		const vm = buildNav({ hasNewer: true, hasOlder: true });
+
+		expect(vm.paginationLinks.map((link) => link.key)).toEqual(["newer", "older"]);
 	});
 
 	it("falls back to a UTC-baselined absolute date past the 30-day cutoff", () => {

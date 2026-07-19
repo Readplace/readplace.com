@@ -87,7 +87,11 @@ function makeHarness(opts?: {
 }
 
 async function listEmails(emailStore: InboxEmailStore, userId: UserId) {
-	const { emails } = await emailStore.listEmailsByUserId({ userId, page: 1, pageSize: 100 });
+	const { emails } = await emailStore.listEmailsByUserId({
+		userId,
+		cursor: undefined,
+		pageSize: 100,
+	});
 	return emails;
 }
 

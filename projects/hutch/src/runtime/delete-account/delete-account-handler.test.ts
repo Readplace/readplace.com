@@ -428,8 +428,13 @@ describe("delete-account handler", () => {
 		});
 		assert.equal(await s.subs.findByUserId(victim.userId), undefined);
 		assert.equal(
-			(await s.inboxEmail.listEmailsByUserId({ userId: victim.userId, page: 1, pageSize: 20 }))
-				.total,
+			(
+				await s.inboxEmail.listEmailsByUserId({
+					userId: victim.userId,
+					cursor: undefined,
+					pageSize: 20,
+				})
+			).emails.length,
 			0,
 		);
 		const victimLinks = await s.inboxLink.listLinksByEmail({
@@ -507,10 +512,10 @@ describe("delete-account handler", () => {
 			(
 				await s.inboxEmail.listEmailsByUserId({
 					userId: bystander.userId,
-					page: 1,
+					cursor: undefined,
 					pageSize: 20,
 				})
-			).total,
+			).emails.length,
 			2,
 		);
 		assert.equal(
@@ -766,8 +771,13 @@ describe("delete-account handler", () => {
 		assert.equal(s.rawEmailDeleteArgs.length, 1);
 		assert.deepEqual(sorted(s.rawEmailDeleteArgs[0]), sorted(account.rawKeys));
 		assert.equal(
-			(await s.inboxEmail.listEmailsByUserId({ userId: account.userId, page: 1, pageSize: 20 }))
-				.total,
+			(
+				await s.inboxEmail.listEmailsByUserId({
+					userId: account.userId,
+					cursor: undefined,
+					pageSize: 20,
+				})
+			).emails.length,
 			0,
 		);
 

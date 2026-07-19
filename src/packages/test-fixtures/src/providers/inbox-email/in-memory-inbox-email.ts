@@ -15,21 +15,42 @@ export function initInMemoryInboxEmail(): InboxEmailStore {
 			rows.set(key, email);
 			return "stored";
 		},
-		listEmailsByUserId: async ({ userId, page, pageSize }) => {
-			assert(Number.isInteger(page), "page must be an integer");
-			assert(page >= 1, "page must be >= 1");
+		listEmailsByUserId: async ({ userId, cursor, pageSize }) => {
 			assert(Number.isInteger(pageSize), "pageSize must be an integer");
 			assert(pageSize >= 1, "pageSize must be >= 1");
-			const matching = [...rows.values()]
+			assert(
+				cursor === undefined || cursor.receivedAtMessageId !== "",
+				"cursor must name a boundary row",
+			);
+			const newestFirst = [...rows.values()]
 				.filter((row) => row.userId === userId)
 				.sort((a, b) =>
 					a.receivedAtMessageId < b.receivedAtMessageId ? 1 : -1,
 				);
+			if (cursor === undefined) {
+				return {
+					emails: newestFirst.slice(0, pageSize),
+					hasNewer: false,
+					hasOlder: newestFirst.length > pageSize,
+				};
+			}
+			if (cursor.direction === "older") {
+				const older = newestFirst.filter(
+					(row) => row.receivedAtMessageId < cursor.receivedAtMessageId,
+				);
+				return {
+					emails: older.slice(0, pageSize),
+					hasNewer: true,
+					hasOlder: older.length > pageSize,
+				};
+			}
+			const newer = newestFirst.filter(
+				(row) => row.receivedAtMessageId > cursor.receivedAtMessageId,
+			);
 			return {
-				emails: matching.slice((page - 1) * pageSize, page * pageSize),
-				total: matching.length,
-				page,
-				pageSize,
+				emails: newer.slice(-pageSize),
+				hasNewer: newer.length > pageSize,
+				hasOlder: true,
 			};
 		},
 		getEmail: async ({ userId, receivedAtMessageId }) =>

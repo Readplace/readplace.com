@@ -22,11 +22,15 @@ export interface InboxEmailEntry {
 	bodyS3Key: string | undefined;
 }
 
+export interface InboxEmailsCursor {
+	direction: "older" | "newer";
+	receivedAtMessageId: string;
+}
+
 export interface ListInboxEmailsResult {
 	emails: InboxEmailEntry[];
-	total: number;
-	page: number;
-	pageSize: number;
+	hasNewer: boolean;
+	hasOlder: boolean;
 }
 
 export interface InboxEmailStore {
@@ -34,13 +38,9 @@ export interface InboxEmailStore {
 	 * to one row. Returns `"duplicate"` when the row already exists so the caller
 	 * can skip re-publishing side effects. */
 	putEmail: (email: InboxEmailEntry) => Promise<"stored" | "duplicate">;
-	/** One 1-based page of the user's emails, newest first (descending sort
-	 * key), plus the total across all pages. Answered by the base table — no
-	 * GSI, no scan. Strongly consistent in the in-memory fixture; the
-	 * production adapter reads the base table so it is too. */
 	listEmailsByUserId: (input: {
 		userId: UserId;
-		page: number;
+		cursor: InboxEmailsCursor | undefined;
 		pageSize: number;
 	}) => Promise<ListInboxEmailsResult>;
 	getEmail: (input: {
