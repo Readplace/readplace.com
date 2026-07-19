@@ -128,7 +128,7 @@ const webLambda = new HutchLambda("inbox-web", {
 	entryPoint: "./src/runtime/lambda.main.ts",
 	outputDir: ".lib/inbox-web",
 	assetDir: "./src/runtime",
-	memorySize: 256,
+	memorySize: 1024,
 	timeout: 10,
 	environment: {
 		NODE_ENV: nodeEnv,
