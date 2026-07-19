@@ -393,6 +393,9 @@ importers:
       '@packages/retriable':
         specifier: workspace:*
         version: link:../../src/packages/retriable
+      '@packages/save-article':
+        specifier: workspace:*
+        version: link:../../src/packages/save-article
       '@packages/subscription-access':
         specifier: workspace:*
         version: link:../../src/packages/subscription-access
@@ -1513,6 +1516,31 @@ importers:
         version: 6.0.3
 
   src/packages/retriable:
+    devDependencies:
+      '@types/jest':
+        specifier: 30.0.0
+        version: 30.0.0
+      c8:
+        specifier: 11.0.0
+        version: 11.0.0
+      concurrently:
+        specifier: 10.0.0
+        version: 10.0.0
+      jest:
+        specifier: 30.4.2
+        version: 30.4.2(@types/node@22.19.19)(node-notifier@10.0.1)(ts-node@10.9.2(@types/node@22.19.19)(typescript@6.0.3))
+      typescript:
+        specifier: 6.0.3
+        version: 6.0.3
+
+  src/packages/save-article:
+    dependencies:
+      '@packages/domain':
+        specifier: workspace:*
+        version: link:../domain
+      '@packages/provider-contracts':
+        specifier: workspace:*
+        version: link:../provider-contracts
     devDependencies:
       '@types/jest':
         specifier: 30.0.0

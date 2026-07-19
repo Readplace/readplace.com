@@ -20,7 +20,7 @@ import { createRateLimitMiddleware } from "../../middleware/rate-limit";
 import { Base } from "../../base.component";
 import type { BuildBannerState } from "../../banner-state";
 import { sendComponent } from "@packages/web-shell";
-import { initSaveArticleFromUrl, type SaveArticleFromUrlDependencies } from "../../shared/save-article/save-article-from-url";
+import { initSaveArticleFromUrl, type SaveArticleFromUrlDependencies } from "@packages/save-article";
 import { type AnalyticsEvent, hashIp } from "@packages/web-analytics";
 import { ANALYTICS_EVENTS, STREAMS } from "../../../observability/events";
 import {

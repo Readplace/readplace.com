@@ -66,7 +66,7 @@ import type { PollUrlBuilder } from "../../shared/article-reader/article-reader.
 import type { PublishLinkSaved } from "@packages/provider-contracts/events";
 import type { PublishSaveLinkRawHtmlCommand } from "@packages/provider-contracts/events";
 import type { PutPendingHtml } from "@packages/provider-contracts/pending-html";
-import { initSaveArticleFromUrl } from "../../shared/save-article/save-article-from-url";
+import { initSaveArticleFromUrl } from "@packages/save-article";
 import { Base, ChromelessPage } from "../../base.component";
 import { NotFoundPage } from "../not-found";
 import type { BuildBannerState } from "../../banner-state";

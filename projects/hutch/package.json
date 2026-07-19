@@ -68,6 +68,7 @@
     "@packages/refresh-article-content": "workspace:*",
     "@packages/require-env": "workspace:*",
     "@packages/retriable": "workspace:*",
+    "@packages/save-article": "workspace:*",
     "@packages/subscription-access": "workspace:*",
     "@packages/supported-clients": "workspace:*",
     "@packages/time-left": "workspace:*",
