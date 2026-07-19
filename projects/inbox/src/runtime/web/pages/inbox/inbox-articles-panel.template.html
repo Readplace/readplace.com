@@ -9,6 +9,11 @@
 		Thanks — your report was logged.
 	</p>
 	{{/if}}
+	{{#if savedNotice}}
+	<p class="inbox-email-detail__feedback-notice" data-test-inbox-saved-notice>
+		Saved to your queue.
+	</p>
+	{{/if}}
 	{{#if isExtracting}}
 	<p class="inbox-email-detail__notice" data-test-articles-extracting>{{extractingMessage}}</p>
 	{{else}}

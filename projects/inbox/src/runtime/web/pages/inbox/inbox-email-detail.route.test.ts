@@ -472,7 +472,7 @@ describe("Inbox email detail Articles tab", () => {
 
 		const keptCard = doc.querySelector('[data-test-inbox-article-card="0000"]');
 		assert(keptCard, "kept card must render");
-		const excludeButton = keptCard.querySelector("[data-test-inbox-feedback-exclude]");
+		const excludeButton = keptCard.querySelector('[data-test-card-action="feedback-exclude"]');
 		assert(excludeButton, "kept card must offer exclude feedback");
 		expect(
 			excludeButton.closest("form")?.querySelector('input[name="verdict"]')?.getAttribute("value"),

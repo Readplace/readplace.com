@@ -155,6 +155,9 @@ async function main(): Promise<void> {
 			inboxEmailStore: fixture.inboxEmail.inboxEmailStore,
 			inboxEmailLinkStore: fixture.inboxEmail.inboxEmailLinkStore,
 			readEmailContent: async () => "<p>Example newsletter body for local dev.</p>",
+			publishSubmitLink: async (input) => {
+				logger.info("[dev] submit-link", input);
+			},
 			logError: (message, error) => logger.error(message, { error }),
 			now: () => new Date(),
 		},

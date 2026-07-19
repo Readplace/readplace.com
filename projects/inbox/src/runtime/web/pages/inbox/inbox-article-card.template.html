@@ -5,8 +5,14 @@
 	{{else}}
 	<a class="inbox-article-card__title inbox-article-card__title--bare" href="{{url}}" target="_blank" rel="noopener noreferrer" data-test-inbox-article-url>{{url}}</a>
 	{{/if}}
-	<form class="inbox-article-card__feedback" method="POST" action="{{feedbackAction}}">
-		<input type="hidden" name="verdict" value="should-be-excluded">
-		<button type="submit" class="inbox-article-card__feedback-button" aria-label="Not an article? {{url}}" data-test-inbox-feedback-exclude>Not an article?</button>
-	</form>
+	<ul class="inbox-article-card__actions">
+		{{#each actions}}
+		<li class="inbox-article-card__action">
+			<form method="{{method}}" action="{{href}}">
+				{{#each hiddenParams}}<input type="hidden" name="{{@key}}" value="{{this}}">{{/each}}
+				<button type="submit" class="inbox-article-card__action-button inbox-article-card__action-button--{{key}}" aria-label="{{ariaLabel}}" data-test-card-action="{{key}}">{{label}}</button>
+			</form>
+		</li>
+		{{/each}}
+	</ul>
 </article>

@@ -90,6 +90,7 @@ interface ExtractionPanelViewModel {
 	 * in over this one. */
 	panelPollUrl: string | undefined;
 	feedbackNotice: boolean;
+	savedNotice: boolean;
 }
 
 export interface ArticlesPanelViewModel extends ExtractionPanelViewModel {
@@ -199,6 +200,7 @@ export function toInboxEmailDetailViewModel(input: {
 	 * panel fragment routes pass the incremented count back. */
 	panelPollCount?: number;
 	feedbackConfirmed?: boolean;
+	savedConfirmed?: boolean;
 }): InboxEmailDetailViewModel {
 	const emailId = input.entry.receivedAtMessageId;
 	const canRenderBody = input.entry.status === "received" && input.bodyHtml !== undefined;
@@ -252,6 +254,7 @@ export function toInboxEmailDetailViewModel(input: {
 	const isStalePending = awaitingMeta && !withinPollBudget;
 	const isExtracting = awaitingMeta && withinPollBudget;
 	const feedbackNotice = input.feedbackConfirmed === true;
+	const savedNotice = input.savedConfirmed === true;
 	const shared = {
 		extractingMessage: EXTRACTING_MESSAGE,
 		staleMessage: STALE_MESSAGE,
@@ -261,6 +264,7 @@ export function toInboxEmailDetailViewModel(input: {
 			? `Showing the first ${links.length} links found in this email.`
 			: undefined,
 		feedbackNotice,
+		savedNotice,
 	};
 	return {
 		subject: input.entry.subject === "" ? "(no subject)" : input.entry.subject,

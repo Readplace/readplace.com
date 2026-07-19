@@ -156,11 +156,33 @@
   word-break: break-all;
 }
 
-.inbox-article-card__feedback {
-  margin-top: 2px;
+.inbox-article-card__actions {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin: 4px 0 0;
+  padding: 0;
+  list-style: none;
 }
 
-.inbox-article-card__feedback-button,
+.inbox-article-card__action-button {
+  background: none;
+  border: none;
+  padding: 0;
+  font-size: 0.75rem;
+  color: var(--muted-foreground);
+  text-decoration: underline;
+  cursor: pointer;
+}
+
+.inbox-article-card__action-button--save {
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  padding: var(--button-padding-xs);
+  color: var(--foreground);
+  text-decoration: none;
+}
+
 .inbox-excluded-link__feedback-button {
   background: none;
   border: none;

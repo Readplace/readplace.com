@@ -40,12 +40,23 @@ async function seed(
 
 const cardPath = `/inbox/${encodeURIComponent(SK)}/links/0000/card?feature=email`;
 
+function cardActions(card: Element): string[] {
+	return Array.from(card.querySelectorAll("[data-test-card-action]")).map(
+		(el) => el.getAttribute("data-test-card-action") ?? "",
+	);
+}
+
 function expectBareUrlRow(card: Element): void {
-	expect(Array.from(card.children).map((child) => child.tagName)).toEqual(["A", "FORM"]);
 	const bare = card.querySelector("[data-test-inbox-article-url]");
 	assert(bare, "the bare URL anchor must render");
 	expect(bare.getAttribute("href")).toBe("https://example.com/post");
 	expect(bare.textContent).toBe("https://example.com/post");
+	expect(cardActions(card)).toEqual(["save", "feedback-exclude"]);
+	const save = card.querySelector('[data-test-card-action="save"]');
+	assert(save, "the save button must render for a saveable link");
+	expect(save.closest("form")?.getAttribute("action")).toBe(
+		`/inbox/${encodeURIComponent(SK)}/links/0000/save?feature=email`,
+	);
 }
 
 describe("Inbox link card route", () => {
@@ -165,7 +176,7 @@ describe("Inbox link card route", () => {
 		assert(card, "the card fragment must render");
 		expect(card.getAttribute("data-card-status")).toBe("terminal");
 		expect(card.getAttribute("hx-get")).toBeNull();
-		expect(Array.from(card.children).map((child) => child.tagName)).toEqual(["A", "SPAN", "FORM"]);
+		expect(cardActions(card)).toEqual(["save", "feedback-exclude"]);
 		const title = card.querySelector("[data-test-inbox-article-title]");
 		assert(title, "the crawled row must render its title as a link");
 		expect(title.tagName).toBe("A");
@@ -220,6 +231,25 @@ describe("Inbox link card route", () => {
 		expect(card.getAttribute("data-card-status")).toBe("terminal");
 		expect(card.getAttribute("hx-get")).toBeNull();
 		expectBareUrlRow(card);
+	});
+
+	it("renders no Save button for a link the save pipeline would reject", async () => {
+		const fixture = createDefaultTestAppFixture(TEST_APP_ORIGIN);
+		const harness = useApp(fixture);
+		const agent = await loginAgent(harness.server, harness.auth);
+		await seed(fixture, { status: "failed", url: "https://localhost/private" });
+
+		const response = await agent.get(cardPath);
+
+		expect(response.status).toBe(200);
+		const card = new JSDOM(response.text).window.document.querySelector(
+			"[data-test-inbox-article-card]",
+		);
+		assert(card, "the card fragment must render");
+		expect(cardActions(card)).toEqual(["feedback-exclude"]);
+		const bare = card.querySelector("[data-test-inbox-article-url]");
+		assert(bare, "the bare URL anchor must render");
+		expect(bare.getAttribute("href")).toBe("https://localhost/private");
 	});
 
 	it("revalidates with a 304 when the link has not changed", async () => {

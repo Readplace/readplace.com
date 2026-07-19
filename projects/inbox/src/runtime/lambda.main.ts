@@ -14,6 +14,8 @@ import {
 	initDynamoDbInboxEmailLink,
 } from "@packages/inbox-store";
 import { initS3ReadContent } from "@packages/article-store";
+import { SubmitLinkCommand } from "@packages/hutch-infra-components";
+import { EventBridgeClient, initEventBridgePublisher } from "@packages/hutch-infra-components/runtime";
 import { initDynamoDbSubscriptionRead } from "@packages/subscription-access";
 import { getEnv, requireEnv } from "@packages/require-env";
 import { createInboxApp, PORT } from "./app";
@@ -43,6 +45,11 @@ const userStanding = initDynamoDbUserStanding({
 const subscriptionRead = initDynamoDbSubscriptionRead({
 	client,
 	tableName: requireEnv("DYNAMODB_SUBSCRIPTION_PROVIDERS_TABLE"),
+});
+
+const { publishEvent } = initEventBridgePublisher({
+	client: new EventBridgeClient({}),
+	eventBusName: requireEnv("EVENT_BUS_NAME"),
 });
 
 const readEmailContent = initS3ReadContent({
@@ -94,6 +101,7 @@ const application = express()
 					tableName: requireEnv("DYNAMODB_INBOX_EMAIL_LINKS_TABLE"),
 				}),
 				readEmailContent,
+				publishSubmitLink: (input) => publishEvent(SubmitLinkCommand, input),
 				logError: (message, error) => logger.error(message, { error }),
 				now: () => new Date(),
 			},

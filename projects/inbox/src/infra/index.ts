@@ -146,6 +146,7 @@ const webLambda = new HutchLambda("inbox-web", {
 		CONTENT_BUCKET_NAME: contentBucketName,
 		// Pinned into the email iframe's CSP so only rehosted image copies load.
 		IMAGES_CDN_BASE_URL: imagesCdnBaseUrl,
+		EVENT_BUS_NAME: eventBus.eventBusName,
 		/** Same-origin fragment endpoint served by blog-site behind this same API
 		 * Gateway (/blog/{proxy+} routes there). The banner source is cached and
 		 * fail-open, so the extra gateway hop is fine for a decorative banner. */
@@ -161,6 +162,10 @@ const webLambda = new HutchLambda("inbox-web", {
 		...HutchS3ReadWrite.readPoliciesForBucket("inbox-web-content", contentBucketName),
 	],
 });
+
+// The per-link Save button publishes SubmitLinkCommand; the queue write itself
+// still happens only in save-link's subscriber role.
+eventBus.grantPublish(webLambda);
 
 const inboxRoutes = new HutchAPIGatewayLambdaRoute("inbox-web", {
 	apiGatewayId,

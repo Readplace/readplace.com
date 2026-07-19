@@ -12,6 +12,8 @@ import {
 	isLiveAddress,
 	normalizeAliasName,
 } from "@packages/domain/inbox";
+import { validateSaveableUrl } from "@packages/domain/article";
+import type { UserId } from "@packages/domain/user";
 import type {
 	InboxAddressStore,
 	InboxEmailLinkStore,
@@ -61,9 +63,10 @@ interface InboxDependencies {
 	imagesCdnBaseUrl: string;
 	logError: (message: string, error?: Error) => void;
 	buildBannerState: BuildBannerState;
-	/** Save gates applied only to /create, the sole route that mints an address —
-	 * a forwarding address is a save-flow input, so creating one is a write action.
-	 * Both gates run: `requireNotLocked` blocks a
+	publishSubmitLink: (input: { userId: UserId; url: string }) => Promise<void>;
+	/** Save gates applied to the write actions — /create (a forwarding address is
+	 * a save-flow input) and the per-link save (it lands an article in the
+	 * reader's queue). Both gates run: `requireNotLocked` blocks a
 	 * locked (unverified-past-window) account, `requireWriteAccess` blocks a
 	 * read-only (trial-expired / cancelled) account. Viewing and disabling existing
 	 * addresses stay open — disabling reduces footprint and is harmless. */
@@ -184,6 +187,7 @@ export function initInboxRoutes(deps: InboxDependencies): Router {
 			maxPolls: MAX_POLLS,
 			shown: parseArticlesShown(req.query),
 			feedbackConfirmed: req.query.feedback === "sent",
+			savedConfirmed: req.query.saved === "1",
 		});
 		sendComponent(req, res, Base(InboxEmailDetailPage(vm), await deps.buildBannerState(req)));
 	});
@@ -348,6 +352,40 @@ export function initInboxRoutes(deps: InboxDependencies): Router {
 			res.redirect(
 				303,
 				`${buildInboxEmailDetailUrl({ emailId: receivedAtMessageId, tab })}&feedback=sent`,
+			);
+		},
+	);
+
+	router.post(
+		"/:id/links/:ordinal/save",
+		deps.requireNotLocked,
+		deps.requireWriteAccess,
+		async (req: Request<{ id: string; ordinal: string }>, res: Response) => {
+			assert(req.userId, "userId required - route must be protected by requireAuth");
+			const userId = req.userId;
+			const receivedAtMessageId = req.params.id;
+			const parsedOrdinal = EmailLinkOrdinalSchema.safeParse(req.params.ordinal);
+			const link = parsedOrdinal.success
+				? await deps.inboxEmailLinkStore.getLink({
+						userId,
+						receivedAtMessageId,
+						ordinal: parsedOrdinal.data,
+					})
+				: undefined;
+			// The card only renders Save for a non-skipped, saveable link, so any
+			// other shape is an out-of-band request, not a user path.
+			if (
+				link === undefined ||
+				link.status === "skipped" ||
+				validateSaveableUrl(link.url).status !== "SUCCESS"
+			) {
+				res.status(404).type("html").send("");
+				return;
+			}
+			await deps.publishSubmitLink({ userId, url: link.url });
+			res.redirect(
+				303,
+				`${buildInboxEmailDetailUrl({ emailId: receivedAtMessageId, tab: "articles" })}&saved=1`,
 			);
 		},
 	);

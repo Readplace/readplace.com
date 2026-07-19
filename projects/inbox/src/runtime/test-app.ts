@@ -18,6 +18,7 @@ export interface TestAppResult {
 	app: Express;
 	auth: AuthBundle;
 	subscriptionProviders: SubscriptionProvidersBundle;
+	submittedLinks: Array<{ userId: string; url: string }>;
 }
 
 /** Fixed CDN origin the test app pins into the email iframe's CSP, exported so
@@ -38,6 +39,7 @@ export function createInboxTestApp(
 			error: (...args) => fixture.shared.logError(String(args[0])),
 		}),
 	});
+	const submittedLinks: Array<{ userId: string; url: string }> = [];
 	const app = createInboxApp(
 		{
 			inboxAddressDomain: fixture.inboxAddress.inboxAddressDomain,
@@ -53,6 +55,9 @@ export function createInboxTestApp(
 			inboxEmailStore: fixture.inboxEmail.inboxEmailStore,
 			inboxEmailLinkStore: fixture.inboxEmail.inboxEmailLinkStore,
 			readEmailContent: fixture.inboxEmail.readEmailContent,
+			publishSubmitLink: async (input) => {
+				submittedLinks.push(input);
+			},
 			logError: fixture.shared.logError,
 			now: fixture.shared.now,
 		},
@@ -61,6 +66,7 @@ export function createInboxTestApp(
 		app,
 		auth: fixture.auth,
 		subscriptionProviders: fixture.subscriptionProviders,
+		submittedLinks,
 	};
 }
 

@@ -11,6 +11,7 @@ import type {
 	MarkSessionEmailVerified,
 } from "@packages/provider-contracts/auth";
 import type { FindSubscriptionByUserId } from "@packages/provider-contracts/subscription-providers";
+import type { UserId } from "@packages/domain/user";
 import type { ResolveLogin } from "@packages/web-session";
 import { QuerystringFeatureToggle } from "@packages/web-shell";
 import { initGetEffectiveAccess } from "@packages/subscription-access";
@@ -47,6 +48,7 @@ export function createInboxApp(
 		inboxEmailStore: InboxEmailStore;
 		inboxEmailLinkStore: InboxEmailLinkStore;
 		readEmailContent: ContentProvider;
+		publishSubmitLink: (input: { userId: UserId; url: string }) => Promise<void>;
 		logError: (message: string, error?: Error) => void;
 		now: () => Date;
 	},
@@ -96,6 +98,7 @@ export function createInboxApp(
 		inboxEmailStore: deps.inboxEmailStore,
 		inboxEmailLinkStore: deps.inboxEmailLinkStore,
 		readEmailContent: deps.readEmailContent,
+		publishSubmitLink: deps.publishSubmitLink,
 		inboxAddressDomain: config.inboxAddressDomain,
 		imagesCdnBaseUrl: config.imagesCdnBaseUrl,
 		logError: deps.logError,

@@ -35,8 +35,40 @@ describe("toInboxLinkCardViewModel", () => {
 		expect(vm.cardPollUrl).toContain("poll=1");
 		expect(vm.title).toBe("");
 		expect(vm.hasTitle).toBe(false);
-		expect(vm.feedbackAction).toBe(
-			`/inbox/${encodeURIComponent(EMAIL_ID)}/links/0002/feedback?feature=email`,
+		expect(vm.actions.map((action) => [action.key, action.href])).toEqual([
+			["save", `/inbox/${encodeURIComponent(EMAIL_ID)}/links/0002/save?feature=email`],
+			[
+				"feedback-exclude",
+				`/inbox/${encodeURIComponent(EMAIL_ID)}/links/0002/feedback?feature=email`,
+			],
+		]);
+	});
+
+	it("offers no save action for a link the save pipeline would reject", () => {
+		const vm = toInboxLinkCardViewModel({
+			link: link({ url: "https://localhost/private" }),
+			emailId: EMAIL_ID,
+			pollCount: 1,
+			maxPolls: 300,
+		});
+
+		expect(vm.actions.map((action) => action.key)).toEqual(["feedback-exclude"]);
+	});
+
+	it("labels the save action with the destination the card shows, not the tracking link", () => {
+		const vm = toInboxLinkCardViewModel({
+			link: link({
+				status: "crawled",
+				url: "https://nodeweekly.com/link/187980/4be0b3f821",
+				resolvedUrl: "https://destination.test/the-actual-article",
+			}),
+			emailId: EMAIL_ID,
+			pollCount: 1,
+			maxPolls: 300,
+		});
+
+		expect(vm.actions[0]?.ariaLabel).toBe(
+			"Save to queue: https://destination.test/the-actual-article",
 		);
 	});
 
