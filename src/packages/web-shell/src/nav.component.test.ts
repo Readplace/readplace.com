@@ -7,6 +7,12 @@ function parse(html: string): Document {
 	return new JSDOM(html).window.document;
 }
 
+/** Inside the inbox NEW badge's one-week window, so badge-agnostic tests render
+ * the same nav they always did. Pinned rather than `new Date()` so no test here
+ * starts failing once the badge lapses. */
+const BADGE_ACTIVE = new Date("2026-07-21T00:00:00.000Z");
+const BADGE_LAPSED = new Date("2026-07-27T00:00:00.000Z");
+
 const ACTIVE_TRIAL: TrialDisplay = {
 	state: "active",
 	endsAtIso: "2026-01-15T00:00:00.000Z",
@@ -22,6 +28,7 @@ describe("GlobalNav component", () => {
 				variant: "default",
 				isAuthenticated: true,
 				accessIsReadOnly: false,
+				now: BADGE_ACTIVE,
 			}),
 		);
 
@@ -38,6 +45,7 @@ describe("GlobalNav component", () => {
 				variant: "default",
 				isAuthenticated: true,
 				accessIsReadOnly: false,
+				now: BADGE_ACTIVE,
 				trialCounter: ACTIVE_TRIAL,
 			}),
 		);
@@ -59,6 +67,7 @@ describe("GlobalNav component", () => {
 				variant: "default",
 				isAuthenticated: true,
 				accessIsReadOnly: false,
+				now: BADGE_ACTIVE,
 				trialCounter: { state: "expired" },
 			}),
 		);
@@ -78,6 +87,7 @@ describe("GlobalNav component", () => {
 				variant: "default",
 				isAuthenticated: true,
 				accessIsReadOnly: false,
+				now: BADGE_ACTIVE,
 				trialCounter: {
 					state: "cancellation-scheduled",
 					endsAtIso: "2027-07-10T00:00:00.000Z",
@@ -105,6 +115,7 @@ describe("GlobalNav component", () => {
 				variant: "default",
 				isAuthenticated: true,
 				accessIsReadOnly: false,
+				now: BADGE_ACTIVE,
 				trialCounter: {
 					state: "cancellation-scheduled",
 					endsAtIso: "2026-07-17T00:00:00.000Z",
@@ -126,6 +137,7 @@ describe("GlobalNav component", () => {
 				variant: "default",
 				isAuthenticated: true,
 				accessIsReadOnly: false,
+				now: BADGE_ACTIVE,
 				trialCounter: {
 					state: "cancellation-scheduled",
 					endsAtIso: "2026-07-17T00:00:00.001Z",
@@ -145,6 +157,7 @@ describe("GlobalNav component", () => {
 				variant: "default",
 				isAuthenticated: true,
 				accessIsReadOnly: false,
+				now: BADGE_ACTIVE,
 				trialCounter: ACTIVE_TRIAL,
 			}),
 		);
@@ -158,6 +171,7 @@ describe("GlobalNav component", () => {
 				variant: "default",
 				isAuthenticated: true,
 				accessIsReadOnly: false,
+				now: BADGE_ACTIVE,
 				trialCounter: { state: "expired" },
 			}),
 		);
@@ -173,6 +187,7 @@ describe("GlobalNav component", () => {
 				variant: "default",
 				isAuthenticated: true,
 				accessIsReadOnly: false,
+				now: BADGE_ACTIVE,
 			}),
 		);
 
@@ -196,6 +211,7 @@ describe("GlobalNav component", () => {
 				variant: "default",
 				isAuthenticated: true,
 				accessIsReadOnly: false,
+				now: BADGE_ACTIVE,
 			}),
 		);
 
@@ -222,7 +238,7 @@ describe("GlobalNav component", () => {
 	});
 
 	it("renders the Inbox entry for every full-access user, with no feature flag to opt in", () => {
-		const doc = parse(GlobalNav({ variant: "default", isAuthenticated: true, accessIsReadOnly: false }));
+		const doc = parse(GlobalNav({ variant: "default", isAuthenticated: true, accessIsReadOnly: false, now: BADGE_ACTIVE }));
 
 		const libraryItems = Array.from(
 			doc
@@ -233,7 +249,7 @@ describe("GlobalNav component", () => {
 	});
 
 	it("submits the Inbox entry as a plain GET form carrying no feature flag", () => {
-		const doc = parse(GlobalNav({ variant: "default", isAuthenticated: true, accessIsReadOnly: false }));
+		const doc = parse(GlobalNav({ variant: "default", isAuthenticated: true, accessIsReadOnly: false, now: BADGE_ACTIVE }));
 
 		const inboxForm = doc.querySelector('[data-test-nav-item="inbox"]')?.closest("form");
 		assert(inboxForm, "inbox nav item must be inside a form");
@@ -242,7 +258,7 @@ describe("GlobalNav component", () => {
 	});
 
 	it("pins a NEW badge to the Inbox icon and to no other entry", () => {
-		const doc = parse(GlobalNav({ variant: "default", isAuthenticated: true, accessIsReadOnly: false }));
+		const doc = parse(GlobalNav({ variant: "default", isAuthenticated: true, accessIsReadOnly: false, now: BADGE_ACTIVE }));
 
 		const badges = Array.from(doc.querySelectorAll("[data-test-nav-badge]"));
 		expect(badges.map((el) => el.textContent)).toEqual(["NEW"]);
@@ -256,12 +272,31 @@ describe("GlobalNav component", () => {
 		assert(badge.closest(".nav__icon-wrap"), "the badge must be anchored to the icon wrapper");
 	});
 
+	it("drops the NEW badge once the week is up, keeping the Inbox entry itself", () => {
+		const doc = parse(GlobalNav({ variant: "default", isAuthenticated: true, accessIsReadOnly: false, now: BADGE_LAPSED }));
+
+		expect(doc.querySelector("[data-test-nav-badge]")).toBeNull();
+		assert(doc.querySelector('[data-test-nav-item="inbox"]'), "the inbox entry outlives its badge");
+	});
+
+	it("carries no dismiss control on the badge, so a reader cannot clear it early", () => {
+		const doc = parse(GlobalNav({ variant: "default", isAuthenticated: true, accessIsReadOnly: false, now: BADGE_ACTIVE }));
+
+		const badge = doc.querySelector("[data-test-nav-badge]");
+		assert(badge, "the NEW badge must render inside its window");
+		expect(badge.querySelector("button, a, input, form")).toBeNull();
+		const inboxForm = doc.querySelector('[data-test-nav-item="inbox"]')?.closest("form");
+		assert(inboxForm, "inbox nav item must be inside a form");
+		expect(inboxForm.querySelector('input[name="dismiss"], [data-dismiss]')).toBeNull();
+	});
+
 	it("renders an aria-hidden Font Awesome icon alongside each label without polluting the accessible name", () => {
 		const doc = parse(
 			GlobalNav({
 				variant: "default",
 				isAuthenticated: true,
 				accessIsReadOnly: false,
+				now: BADGE_ACTIVE,
 			}),
 		);
 
@@ -280,6 +315,7 @@ describe("GlobalNav component", () => {
 				variant: "default",
 				isAuthenticated: false,
 				accessIsReadOnly: false,
+				now: BADGE_ACTIVE,
 			}),
 		);
 
@@ -304,6 +340,7 @@ describe("GlobalNav component", () => {
 				variant: "transparent",
 				isAuthenticated: false,
 				accessIsReadOnly: false,
+				now: BADGE_ACTIVE,
 			}),
 		);
 
