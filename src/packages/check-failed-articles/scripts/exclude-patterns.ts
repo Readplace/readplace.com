@@ -163,6 +163,18 @@ export const EXCLUDE_PATTERNS: readonly RegExp[] = [
 	// can never be re-fetched. Matches the dead PDF path with or without a query.
 	/^https:\/\/d1wqtxts1xzle7\.cloudfront\.net\/49645891\/sce\.373067020820161016-1490-16axao2\.pdf(?:\?|$)/i,
 	/^https:\/\/academic\.oup\.com\/qje\/article-abstract\/101\/4\/729\/1840176(?:\?login=false)?$/i,
+	// WSJ paywall, same failure as the `/world/china/…` entry above: the article
+	// answers anonymous datacenter fetches with a bare 401 and no redirect at all,
+	// so the crawler exhausts retries without ever reaching the body. Anchored to
+	// the exact saved URL (including the `?mod=` referrer suffix) so other WSJ
+	// articles still surface.
+	/^https:\/\/www\.wsj\.com\/business\/parasitic-outbreak-puts-big-lettuce-in-pr-crisis-mode-db62f6f6\?mod=hp_lead_pos11$/i,
+	// leadershipintech.com newsletter link-tracker. The tracker resolves correctly
+	// (one 30x to a reuters.com article) — the wall is at the destination, which
+	// 401s anonymous datacenter fetches, so the crawl exhausts retries one hop past
+	// the redirect. Anchored to the exact saved link id, not the `/links/` prefix,
+	// so trackers pointing at unwalled hosts still surface.
+	/^https:\/\/leadershipintech\.com\/links\/22782\/4ce2871f-13aa-412f-8757-8bdf7060c9a1\/email$/i,
 	// (g) Redirect-variant of a working canonical URL — the saved form 30x-redirects
 	// to a different URL the AWS crawler can't follow (datacenter edge block, or an
 	// auth redirect loop), so the variant stays crawl-failed while the canonical
