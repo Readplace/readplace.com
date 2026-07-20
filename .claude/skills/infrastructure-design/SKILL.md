@@ -135,6 +135,56 @@ A consumer that reads a producer stack's output with `StackReference.requireOutp
 
 **Red flag in review:** a `requireOutput` whose value is a domain, bucket name, or any string you could write in `Pulumi.<env>.yaml`. If it can live in config, it belongs in config — not in a cross-stack read.
 
+## What Belongs in the `platform` Stack
+
+**The test: more than one project stack needs the resource to already exist.**
+
+Ownership follows dependency, not origin. A resource written first in `hutch` because that is where the feature started still belongs in `platform` once a second project depends on it — "hutch happens to own it" is not an architecture.
+
+`deploy-platform` runs before the project matrix, so anything `platform` creates is persisted before any consumer deploys. Inspect `projects/platform/src/infra/index.ts` for what it owns today and `.github/workflows/ci.yml` for the ordering.
+
+| Signal | Belongs in `platform` |
+|---|---|
+| Two or more project stacks `requireOutput` it | Yes — see the StackReference section above |
+| Every project gets one implicitly (observability, event bus, registries) | Yes |
+| Its name is a fixed string all projects hardcode or derive | Yes — the shared constant is already admitting it is not project-owned |
+| One project owns it and one other reads a deploy-time value | Keep it, and add an explicit CI `needs:` edge |
+| The value is knowable before any deploy | Neither — put it in config (preferred over both) |
+
+**Two limits to state accurately rather than assume:**
+
+- `deploy-platform` is conditional on `platform-affected`, and the matrix gate tolerates a *skip* (it only blocks on `failure`). "Platform deploys first" is a guarantee about failure, not about a run where platform is unaffected.
+- `platform` is infra-only — its `test` script is a no-op and `check` runs lint. **Logic with tests cannot live there.** Put the logic in a coverage-enforced workspace package and let `platform` hold only the wiring. This is why moving a tested module into `platform` is never a one-file change.
+
+**Uplifting an existing resource is not a code move.** Pulumi state has to hand over: `pulumi state delete` from the old stack, `pulumi import` into `platform`, one resource at a time, staging before prod, with both previews reading zero diff before the code merges. Do it out of band and **before** the code lands — never with the `import:` resource option, which hard-fails a fresh environment on the one stack everything else is gated behind. Because `deploy-platform` gates the whole matrix, a botched handover blocks every project's deploy, not just its own.
+
+## Fleet-Wide Observability Cannot Enumerate Its Sources
+
+A dashboard widget that lists the log groups it reads silently stops covering the fleet. Two hard limits force this, both verified against a live account rather than documentation:
+
+| Limit | Value | Consequence |
+|---|---|---|
+| Log groups per Logs Insights query | 50 | An account with more Lambdas than this cannot be covered by an enumerating widget at all |
+| Subscription filters per log group | 2 | One combined filter per group; a second consumer later has nowhere to go |
+| `logGroups(namePrefix:)` in a dashboard widget | rejected | Works for the start-query API only — the renderer errors on it |
+
+**So funnel instead of enumerate:** every source group forwards into one destination group, and the widget reads that. Coverage then follows from creating a Lambda rather than from remembering to register one — `HutchLambda` attaches the filter itself.
+
+Two failure modes this arrangement introduces, both of which reached production before being caught:
+
+- **The filter and the classifier are two halves of one decision.** A stream the classifier routes but the filter never delivers is dead code that looks alive. Assert that every line the classifier claims is a line the filter matches.
+- **Membership of the destination group *is* the classification.** Re-filtering in the widget applies per-source logic to an already-classified stream, where it can only subtract. A Lambda's `ERROR` tag lives in the log preamble, which is stripped before forwarding, so the obvious re-filter matches nothing.
+
+**Verify a dashboard query against real data, never against its own string.** A test asserting a query *contains* a clause cannot tell you the clause matches anything. Use `aws logs test-metric-filter` for filter patterns and `aws logs start-query` for widget queries — both caught bugs here that a green test suite did not.
+
+## Never `pulumi up` From a Developer Machine
+
+`.envrc` supplies placeholder values for secrets that only CI holds — inspect it for which. A local `pulumi up` therefore writes those placeholders over the deployed values, and the preview shows it as ordinary drift among real changes.
+
+**Why it is worth a rule:** the damage is silent and not a deploy failure. Overwriting an analytics salt re-keys every visitor hash, so returning visitors read as new and any configured hash exclusion list stops matching — a data-quality bug with no error anywhere.
+
+`pulumi preview`, `pulumi state`, and `pulumi import` are safe: they never push config. Only `up` does. CI holds the real secrets; CI deploys.
+
 ## Wire-Format Values Are Deployment Contracts
 
 The `source` and `detailType` strings in event definitions are stored in deployed EventBridge rules. Renaming them requires coordinated redeployment of all stacks that publish or subscribe. Change TypeScript identifiers freely, but treat wire values as immutable unless you coordinate the deployment.
