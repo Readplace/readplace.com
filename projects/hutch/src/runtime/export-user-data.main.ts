@@ -8,6 +8,7 @@ import {
 } from "@packages/hutch-infra-components/runtime";
 import { initDynamoDbSavedArticleStore } from "@packages/article-store";
 import { initResendEmail } from "./providers/email/resend-email";
+import { initSkipReservedDomain } from "./providers/email/skip-reserved-domain";
 import { initS3UserDataExport } from "./providers/user-data-export/s3-user-data-export";
 import { initExportUserDataHandler } from "./export-user-data/export-user-data-handler";
 import { requireEnv } from "@packages/require-env";
@@ -39,7 +40,10 @@ const { publishEvent } = initEventBridgePublisher({
 	eventBusName,
 });
 
-const { sendEmail } = initResendEmail(resendApiKey);
+const { sendEmail } = initSkipReservedDomain({
+	...initResendEmail(resendApiKey),
+	logger: HutchLogger.from(consoleLogger),
+});
 
 export const handler = initExportUserDataHandler({
 	findArticlesByUser: articleStore.findArticlesByUser,

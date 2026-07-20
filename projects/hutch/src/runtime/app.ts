@@ -37,6 +37,7 @@ import { initOAuthClientLookup } from "@packages/domain/oauth";
 import { createValidateAccessToken } from "@packages/web-session";
 import { initLogEmail } from "./providers/email/log-email";
 import { initResendEmail } from "./providers/email/resend-email";
+import { initSkipReservedDomain } from "./providers/email/skip-reserved-domain";
 import { initInMemoryEmailVerification } from "@packages/test-fixtures/providers/email-verification";
 import { initDynamoDbEmailVerification } from "./providers/email-verification/dynamodb-email-verification";
 import { initInMemoryPasswordReset } from "@packages/test-fixtures/providers/password-reset";
@@ -394,7 +395,10 @@ function initProviders(input: { appOrigin: string }) {
 			stripePriceId,
 			stripePublishableKey,
 
-			...initResendEmail(resendApiKey),
+			...initSkipReservedDomain({
+				...initResendEmail(resendApiKey),
+				logger,
+			}),
 			...initDynamoDbEmailVerification({ client, tableName: verificationTokensTable }),
 			...initDynamoDbPasswordReset({ client, tableName: passwordResetTokensTable }),
 			...stripe,

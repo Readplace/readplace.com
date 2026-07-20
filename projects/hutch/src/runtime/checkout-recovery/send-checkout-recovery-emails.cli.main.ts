@@ -3,6 +3,7 @@ import { HutchLogger, consoleLogger } from "@packages/hutch-logger";
 import { MONTHLY_EQUIVALENT_DISPLAY } from "@packages/web-shell";
 import { initDynamoDbPendingSignup } from "../providers/pending-signup/dynamodb-pending-signup";
 import { initResendEmail } from "../providers/email/resend-email";
+import { initSkipReservedDomain } from "../providers/email/skip-reserved-domain";
 import { initStripeCheckout } from "../providers/stripe-checkout/stripe-checkout";
 import { CheckoutRecoveryEmail } from "../web/auth/checkout-recovery-email";
 import { buildSignupResumeUrl } from "../web/auth/signup-resume-url";
@@ -28,7 +29,10 @@ async function main(): Promise<void> {
 		priceId: stripePriceId,
 		fetch: globalThis.fetch,
 	});
-	const { sendEmail } = initResendEmail(resendApiKey);
+	const { sendEmail } = initSkipReservedDomain({
+		...initResendEmail(resendApiKey),
+		logger,
+	});
 
 	const founderAvatarUrl = `${origin}/fayner-brack.jpg`;
 

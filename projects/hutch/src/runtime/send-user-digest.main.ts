@@ -8,6 +8,7 @@ import { initDynamoDbReaderReadyState } from "./providers/reader-ready-state/dyn
 import { initDynamoDbDigestQueue } from "./providers/digest-queue/dynamodb-digest-queue";
 import { initDynamoDbGeneratedSummary } from "@packages/article-store";
 import { initResendEmail } from "./providers/email/resend-email";
+import { initSkipReservedDomain } from "./providers/email/skip-reserved-domain";
 import { initSendUserDigestHandler } from "./send-user-digest/send-user-digest-handler";
 import { requireEnv } from "@packages/require-env";
 
@@ -62,7 +63,10 @@ const summaryStore = initDynamoDbGeneratedSummary({
 	tableName: articlesTable,
 });
 
-const { sendEmail } = initResendEmail(resendApiKey);
+const { sendEmail } = initSkipReservedDomain({
+	...initResendEmail(resendApiKey),
+	logger,
+});
 
 const { publishEvent } = initEventBridgePublisher({
 	client: new EventBridgeClient({}),

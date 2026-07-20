@@ -5,6 +5,7 @@ import { initDynamoDbSavedArticleStore } from "@packages/article-store";
 import { initDynamoDbAuth } from "./providers/auth/dynamodb-auth";
 import { initDynamoDbSubscriptionProviders } from "./providers/subscription-providers/dynamodb-subscription-providers";
 import { initResendEmail } from "./providers/email/resend-email";
+import { initSkipReservedDomain } from "./providers/email/skip-reserved-domain";
 import { initSendTrialFeedbackEmailHandler } from "./send-trial-feedback-email/send-trial-feedback-email-handler";
 import { requireEnv } from "@packages/require-env";
 
@@ -40,7 +41,10 @@ const articleStore = initDynamoDbSavedArticleStore({
 	logger: HutchLogger.from(consoleLogger),
 });
 
-const { sendEmail } = initResendEmail(resendApiKey);
+const { sendEmail } = initSkipReservedDomain({
+	...initResendEmail(resendApiKey),
+	logger: HutchLogger.from(consoleLogger),
+});
 
 export const handler = initSendTrialFeedbackEmailHandler({
 	findSubscriptionByUserId: subscriptionProviders.findByUserId,
