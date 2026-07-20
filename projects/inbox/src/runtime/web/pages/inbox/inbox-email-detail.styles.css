@@ -141,7 +141,7 @@
 }
 
 .inbox-article-card__title:hover {
-  color: var(--primary);
+  text-decoration: underline;
 }
 
 .inbox-article-card__title--bare {
@@ -215,7 +215,7 @@
   text-align: center;
   font-size: 0.85rem;
   font-weight: 600;
-  color: var(--primary);
+  color: var(--primary-text);
   text-decoration: none;
   cursor: pointer;
 }
