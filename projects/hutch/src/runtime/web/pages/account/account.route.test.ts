@@ -526,7 +526,7 @@ describe("GET /account?platform=ios&shell=app (the app's in-app web sheet)", () 
 });
 
 describe("GET /account?error=payment_method", () => {
-	it("renders the payment-method error card with a support email link — export lives in the nav menu", async () => {
+	it("renders the payment-method error card with a support email link", async () => {
 		const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
 		const { subscriptionProviders } = harness;
 		const { agent, userId } = await loginUser(harness, "pay-err@example.com");
@@ -603,7 +603,7 @@ describe("GET /account (trialing inside trial window)", () => {
 });
 
 describe("GET /account (inactive — trial expired vs cancelled render identical DOM)", () => {
-	it("renders the inactive card with a Subscribe form — export lives in the nav menu", async () => {
+	it("renders the inactive card with a Subscribe form", async () => {
 		const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
 		const { subscriptionProviders } = harness;
 		const { agent, userId } = await loginUser(harness, "expired@example.com");
@@ -2475,6 +2475,41 @@ describe("POST /account/delete", () => {
 		const response = await request(harness.server).post("/account/delete");
 		expect(response.status).toBe(303);
 		expect(response.headers.location).toBe("/login");
+	});
+});
+
+describe("GET /account (export)", () => {
+	it("offers the data export, which no longer has a header-nav entry of its own", async () => {
+		const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
+		const agent = await loginAgent(harness.server, harness.auth);
+
+		const response = await agent.get("/account");
+		const doc = new JSDOM(response.text).window.document;
+
+		const section = doc.querySelector("[data-test-account-export]");
+		assert(section, "the export section must render");
+		const link = section.querySelector("[data-test-account-export-link]");
+		assert(link, "the export link must render");
+		expect(link.getAttribute("href")).toBe(
+			"/export?utm_source=account&utm_medium=internal&utm_content=export",
+		);
+		expect(doc.querySelector('[data-test-nav-item="export"]')).toBeNull();
+	});
+
+	it("keeps the export reachable for a read-only user, whose data is still theirs to take", async () => {
+		const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
+		const { subscriptionProviders } = harness;
+		const { agent, userId } = await loginUser(harness, "export-expired@example.com");
+		await subscriptionProviders.upsertTrialing({
+			userId,
+			trialEndsAt: new Date(Date.now() - ONE_DAY_MS).toISOString(),
+		});
+
+		const response = await agent.get("/account");
+		const doc = new JSDOM(response.text).window.document;
+
+		const link = doc.querySelector("[data-test-account-export-link]");
+		assert(link, "a read-only user must still be offered the export");
 	});
 });
 

@@ -228,7 +228,7 @@ describe("GET /embed", () => {
 		const items = Array.from(doc.querySelectorAll("[data-test-nav-item]")).map((el) =>
 			el.getAttribute("data-test-nav-item"),
 		);
-		expect(items).toEqual(expect.arrayContaining(["queue", "import", "export", "account", "logout"]));
+		expect(items).toEqual(expect.arrayContaining(["queue", "import", "inbox", "account", "logout"]));
 	});
 });
 

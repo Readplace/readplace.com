@@ -210,7 +210,7 @@ describe("Base component", () => {
 		expect(navItems).toEqual(["install", "features", "import", "login"]);
 	});
 
-	it("renders the full nav (queue + import + inbox + account + export + logout) for an authenticated full-access user", () => {
+	it("renders the full nav (queue + import + inbox + account + logout) for an authenticated full-access user", () => {
 		const page = createTestPageBody();
 		const result = Base(page, {
 			isAuthenticated: true,
@@ -222,10 +222,10 @@ describe("Base component", () => {
 		const navItems = Array.from(doc.querySelectorAll("[data-test-nav-item]")).map(
 			(el) => el.getAttribute("data-test-nav-item"),
 		);
-		expect(navItems).toEqual(["queue", "import", "inbox", "account", "export", "logout"]);
+		expect(navItems).toEqual(["queue", "import", "inbox", "account", "logout"]);
 	});
 
-	it("hides import + account from the nav for a read-only user (trial-expired / subscription-cancelled) — only queue, export, logout remain", () => {
+	it("hides import, inbox, and account from the nav for a read-only user (trial-expired / subscription-cancelled) — only queue and logout remain", () => {
 		const page = createTestPageBody();
 		const result = Base(page, {
 			isAuthenticated: true,
@@ -237,7 +237,7 @@ describe("Base component", () => {
 		const navItems = Array.from(doc.querySelectorAll("[data-test-nav-item]")).map(
 			(el) => el.getAttribute("data-test-nav-item"),
 		);
-		expect(navItems).toEqual(["queue", "export", "logout"]);
+		expect(navItems).toEqual(["queue", "logout"]);
 	});
 
 	it("should include the footer with copyright", () => {

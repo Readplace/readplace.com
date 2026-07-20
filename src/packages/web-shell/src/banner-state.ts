@@ -40,7 +40,6 @@ export interface BannerStateSource {
 export type NavItemKey =
 	| "queue"
 	| "import"
-	| "export"
 	| "inbox"
 	| "account"
 	| "logout"
@@ -51,8 +50,7 @@ export type NavItemKey =
 /** Logical section a nav item belongs to. The header renders one section per
  * group so related destinations sit together and new destinations slot into an
  * existing group rather than lengthening one flat list. "library" holds the
- * reading surfaces; "account" holds identity/session actions and the data tools
- * that act on the account as a whole. */
+ * reading surfaces; "account" holds identity/session actions. */
 export type NavGroupKey = "library" | "account";
 
 /** Data-driven header nav item. Rendered uniformly as
@@ -81,6 +79,9 @@ export interface NavItem {
 	icon: string;
 	trackSource: string;
 	trackContent: string;
+	/** Short flag word pinned to the icon's top-left corner, announcing a
+	 * newly-released destination. Undefined for settled entries. */
+	badge?: string;
 }
 
 const NAV_SOURCE = "header-nav";
@@ -94,6 +95,7 @@ function navItem(input: {
 	path: string;
 	method: "GET" | "POST";
 	icon: string;
+	badge?: string;
 }): NavItem {
 	return {
 		key: input.key,
@@ -103,6 +105,7 @@ function navItem(input: {
 		icon: input.icon,
 		trackSource: NAV_SOURCE,
 		trackContent: input.key,
+		badge: input.badge,
 	};
 }
 
@@ -167,8 +170,7 @@ export interface BannerState {
 
 const NAV_QUEUE = navItem({ key: "queue", label: "Queue", path: "/queue", method: "GET", icon: "fa-solid fa-inbox" });
 const NAV_IMPORT = navItem({ key: "import", label: "Import Links", path: "/import", method: "GET", icon: "fa-solid fa-file-import" });
-const NAV_EXPORT = navItem({ key: "export", label: "Export", path: "/export", method: "GET", icon: "fa-solid fa-file-export" });
-const NAV_INBOX = navItem({ key: "inbox", label: "Inbox", path: "/inbox", method: "GET", icon: "fa-solid fa-envelope" });
+const NAV_INBOX = navItem({ key: "inbox", label: "Inbox", path: "/inbox", method: "GET", icon: "fa-solid fa-envelope", badge: "NEW" });
 const NAV_ACCOUNT = navItem({ key: "account", label: "Account", path: "/account", method: "GET", icon: "fa-solid fa-user" });
 const NAV_LOGOUT = navItem({ key: "logout", label: "Sign out", path: "/logout", method: "POST", icon: "fa-solid fa-right-from-bracket" });
 const NAV_INSTALL = navItem({ key: "install", label: "Install", path: "/install", method: "GET", icon: "fa-solid fa-download" });
@@ -186,10 +188,11 @@ export function buildGuestNavItems(): NavItem[] {
  * iterates the returned groups (then their items) — no inline conditionals.
  * Adding a destination means pushing a NavItem into the right group here, not
  * editing the template. Item order within a group is preserved so the flat
- * rendered order stays queue → import → inbox → account → export → logout.
- * Export sits under Account rather than Library: it acts on the whole account
- * rather than on what the reader is reading, and keeping Library to the reading
- * surfaces leaves room there for destinations that are actually read-facing. */
+ * rendered order stays queue → import → inbox → account → logout.
+ * Export is deliberately absent: it lives on the account page instead. The
+ * header only fits so many entries beside the trial countdown before the
+ * countdown is squeezed, so a destination reachable from a page it already
+ * belongs to does not also spend a nav slot. */
 export function buildNavGroups(input: { accessIsReadOnly: boolean }): NavGroup[] {
 	const library: NavItem[] = [NAV_QUEUE];
 	// Saving and minting an address are write actions gated by requireWriteAccess,
@@ -202,7 +205,7 @@ export function buildNavGroups(input: { accessIsReadOnly: boolean }): NavGroup[]
 	if (!input.accessIsReadOnly) {
 		account.push(NAV_ACCOUNT);
 	}
-	account.push(NAV_EXPORT, NAV_LOGOUT);
+	account.push(NAV_LOGOUT);
 	return [
 		{ key: "library", label: "Library", items: library },
 		{ key: "account", label: "Account", items: account },

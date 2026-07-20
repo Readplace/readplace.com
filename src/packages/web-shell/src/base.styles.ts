@@ -371,12 +371,36 @@ export const NAV_STYLES = `
     text-decoration: none;
   }
 
+  .nav__icon-wrap {
+    position: relative;
+    flex-shrink: 0;
+    display: inline-flex;
+    justify-content: center;
+    width: 1.1em;
+  }
+
   .nav__icon {
     flex-shrink: 0;
     width: 1.1em;
     text-align: center;
     font-size: 0.95em;
     color: var(--muted-foreground);
+  }
+
+  .nav__badge {
+    position: absolute;
+    top: -7px;
+    left: -9px;
+    padding: 2px 4px;
+    background: var(--color-error);
+    color: var(--color-on-brand);
+    font-size: 8px;
+    font-weight: 700;
+    line-height: 1;
+    letter-spacing: 0.04em;
+    text-transform: uppercase;
+    border-radius: var(--radius-sm);
+    pointer-events: none;
   }
 
   .nav__link:hover {

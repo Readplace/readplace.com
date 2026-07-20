@@ -167,7 +167,7 @@ describe("GlobalNav component", () => {
 		expect(expiredCountdown.hasAttribute("title")).toBe(false);
 	});
 
-	it("renders authenticated nav items (queue, import, export, account, sign out) for an authenticated full-access user", () => {
+	it("renders authenticated nav items (queue, import, inbox, account, sign out) for an authenticated full-access user", () => {
 		const doc = parse(
 			GlobalNav({
 				variant: "default",
@@ -181,7 +181,7 @@ describe("GlobalNav component", () => {
 		expect(nav.getAttribute("data-test-nav-variant")).toBe("authenticated");
 		assert(doc.querySelector('[data-test-nav-item="queue"]'));
 		assert(doc.querySelector('[data-test-nav-item="import"]'));
-		assert(doc.querySelector('[data-test-nav-item="export"]'));
+		assert(doc.querySelector('[data-test-nav-item="inbox"]'));
 		assert(doc.querySelector('[data-test-nav-item="logout"]'));
 		const account = doc.querySelector('[data-test-nav-item="account"]');
 		assert(account, "account nav item must render for authenticated full-access users");
@@ -190,7 +190,7 @@ describe("GlobalNav component", () => {
 		expect(form.getAttribute("action")).toBe("/account?utm_source=header-nav&utm_medium=internal&utm_content=account");
 	});
 
-	it("splits the authenticated nav into a Library section (queue, import, export) and an Account section (account, sign out)", () => {
+	it("splits the authenticated nav into a Library section (queue, import, inbox) and an Account section (account, sign out)", () => {
 		const doc = parse(
 			GlobalNav({
 				variant: "default",
@@ -218,7 +218,7 @@ describe("GlobalNav component", () => {
 		const accountItems = Array.from(
 			account.querySelectorAll("[data-test-nav-item]"),
 		).map((el) => el.getAttribute("data-test-nav-item"));
-		expect(accountItems).toEqual(["account", "export", "logout"]);
+		expect(accountItems).toEqual(["account", "logout"]);
 	});
 
 	it("renders the Inbox entry for every full-access user, with no feature flag to opt in", () => {
@@ -239,6 +239,21 @@ describe("GlobalNav component", () => {
 		assert(inboxForm, "inbox nav item must be inside a form");
 		expect(inboxForm.getAttribute("method")).toBe("GET");
 		expect(inboxForm.querySelector('input[type="hidden"][name="feature"]')).toBeNull();
+	});
+
+	it("pins a NEW badge to the Inbox icon and to no other entry", () => {
+		const doc = parse(GlobalNav({ variant: "default", isAuthenticated: true, accessIsReadOnly: false }));
+
+		const badges = Array.from(doc.querySelectorAll("[data-test-nav-badge]"));
+		expect(badges.map((el) => el.textContent)).toEqual(["NEW"]);
+
+		const inbox = doc.querySelector('[data-test-nav-item="inbox"]');
+		assert(inbox, "inbox nav item must render");
+		const badge = inbox.querySelector("[data-test-nav-badge]");
+		assert(badge, "the NEW badge must sit inside the inbox entry");
+		// Anchored to the icon wrapper, not the button: the badge is positioned
+		// against the glyph, so a badge outside that wrapper would float free.
+		assert(badge.closest(".nav__icon-wrap"), "the badge must be anchored to the icon wrapper");
 	});
 
 	it("renders an aria-hidden Font Awesome icon alongside each label without polluting the accessible name", () => {

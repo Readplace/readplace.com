@@ -291,7 +291,7 @@ describe("toAccountViewModel — actions", () => {
 		assert.equal(vm.actions[0].href, "/account/subscribe?utm_source=account&utm_medium=internal&utm_content=subscribe");
 	});
 
-	it("inactive users get a primary subscribe action only (export lives in the nav menu)", () => {
+	it("inactive users get a primary subscribe action only", () => {
 		const vm = toAccountViewModel(
 			{ tier: "inactive", access: "read-only", banner: "inactive", reason: "trial-expired" },
 			baseQuery,

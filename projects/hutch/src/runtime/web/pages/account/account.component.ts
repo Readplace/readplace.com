@@ -1,9 +1,10 @@
 import { readFileSync } from "node:fs";
 import { join } from "node:path";
-import { render } from "@packages/web-shell";
+import { render, withInternalTracking } from "@packages/web-shell";
 import type { PageBody } from "@packages/web-shell";
 
 import { ACCOUNT_STYLES } from "./account.styles";
+import { ACCOUNT_EXPORT_URL } from "./account.url";
 import type { AccountViewModel, CardSectionViewModel } from "./account.view-model";
 
 const ACCOUNT_TEMPLATE = readFileSync(join(__dirname, "account.template.html"), "utf-8");
@@ -13,6 +14,14 @@ const ACCOUNT_CARD_TEMPLATE = readFileSync(join(__dirname, "account-card.templat
  * Loaded on every /account render; it no-ops unless the Elements container is
  * present, so the list/manage views pay nothing for it. */
 const ACCOUNT_CARDS_SCRIPT = `<script src="/client-dist/account-cards.client.js" defer></script>`;
+
+/** Export left the header nav so the trial countdown keeps its room; the account
+ * page is where it lives now, reachable by read-only users too — they lose the
+ * Account nav entry but still reach /account from the countdown chip. */
+const EXPORT_HREF = withInternalTracking(ACCOUNT_EXPORT_URL, {
+	source: "account",
+	content: "export",
+});
 
 /** The app-shell rendering of this page: hosted in the iOS web sheet, so the web
  * chrome is gone and the page supplies its own way back — a deep link the sheet's
@@ -45,6 +54,7 @@ export function AccountPage(
 				...vm,
 				cardSection,
 				cardHtml: renderAccountCard(vm),
+				exportHref: EXPORT_HREF,
 				backLink: surface?.backLink,
 			}),
 		},

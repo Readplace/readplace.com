@@ -72,21 +72,21 @@ describe("buildGuestNavItems", () => {
 });
 
 describe("buildNavGroups", () => {
-	it("groups full-access items into Library (queue, import, inbox) and Account (account, export, sign out)", () => {
+	it("groups full-access items into Library (queue, import, inbox) and Account (account, sign out)", () => {
 		const groups = buildNavGroups({ accessIsReadOnly: false });
 		expect(groups.map((g) => g.key)).toEqual(["library", "account"]);
 		const [library, account] = groups;
 		expect(library?.label).toBe("Library");
 		expect(library?.items.map((i) => i.key)).toEqual(["queue", "import", "inbox"]);
 		expect(account?.label).toBe("Account");
-		expect(account?.items.map((i) => i.key)).toEqual(["account", "export", "logout"]);
+		expect(account?.items.map((i) => i.key)).toEqual(["account", "logout"]);
 	});
 
-	it("omits import, inbox, and account for a read-only user, leaving Library (queue) and Account (export, sign out)", () => {
+	it("omits import, inbox, and account for a read-only user, leaving Library (queue) and Account (sign out)", () => {
 		const groups = buildNavGroups({ accessIsReadOnly: true });
 		const [library, account] = groups;
 		expect(library?.items.map((i) => i.key)).toEqual(["queue"]);
-		expect(account?.items.map((i) => i.key)).toEqual(["export", "logout"]);
+		expect(account?.items.map((i) => i.key)).toEqual(["logout"]);
 	});
 
 	it("keeps the Inbox entry in Library for every full-access user, with no feature flag to opt in", () => {

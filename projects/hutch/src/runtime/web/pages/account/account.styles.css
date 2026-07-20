@@ -163,6 +163,41 @@
   text-decoration: underline;
 }
 
+.account-export {
+  padding: 20px;
+  border-radius: var(--radius);
+  background: var(--muted);
+  margin-bottom: 16px;
+}
+
+.account-export__heading {
+  font-size: 1.25rem;
+  font-weight: 700;
+  margin: 0 0 12px;
+  color: var(--foreground);
+}
+
+.account-export__body {
+  font-size: 0.9375rem;
+  margin: 0 0 12px;
+  color: var(--foreground);
+  line-height: 1.45;
+}
+
+.account-export__action {
+  display: inline-block;
+  padding: var(--button-padding-sm);
+  border-radius: var(--radius-sm);
+  border: 1px solid var(--border);
+  color: var(--foreground);
+  font-size: 0.9375rem;
+  text-decoration: none;
+}
+
+.account-export__action:hover {
+  background: var(--background);
+}
+
 /* Rim, not fill: a permanently red-washed delete box shouts at a user who is not
  * deleting anything. The rim marks the boundary without raising the volume. */
 .account-danger {
