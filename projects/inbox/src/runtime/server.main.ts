@@ -7,7 +7,7 @@ import {
 } from "@packages/domain/inbox";
 import type { InboxEmailEntry } from "@packages/domain/inbox";
 import type { UserId } from "@packages/domain/user";
-import { HutchLogger, consoleLogger } from "@packages/hutch-logger";
+import { HutchLogger, consoleLogger, formatErrorLogLine } from "@packages/hutch-logger";
 import { SESSION_COOKIE_NAME, initResolveLogin } from "@packages/web-session";
 import type { ResolveLogin } from "@packages/web-session";
 import {
@@ -158,7 +158,8 @@ async function main(): Promise<void> {
 			publishSubmitLink: async (input) => {
 				logger.info("[dev] submit-link", input);
 			},
-			logError: (message, error) => logger.error(message, { error }),
+			logError: (message, error) =>
+				logger.error(formatErrorLogLine({ message, error, now: () => new Date() })),
 			now: () => new Date(),
 		},
 	);

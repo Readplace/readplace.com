@@ -5,7 +5,7 @@ import helmet from "helmet";
 import compression from "compression";
 import serverless from "serverless-http";
 import { S3Client } from "@aws-sdk/client-s3";
-import { HutchLogger, consoleLogger } from "@packages/hutch-logger";
+import { HutchLogger, consoleLogger, formatErrorLogLine } from "@packages/hutch-logger";
 import { createDynamoDocumentClient } from "@packages/hutch-storage-client";
 import { initGetSessionUserId, initResolveLogin } from "@packages/web-session";
 import {
@@ -102,7 +102,8 @@ const application = express()
 				}),
 				readEmailContent,
 				publishSubmitLink: (input) => publishEvent(SubmitLinkCommand, input),
-				logError: (message, error) => logger.error(message, { error }),
+				logError: (message, error) =>
+					logger.error(formatErrorLogLine({ message, error, now: () => new Date() })),
 				now: () => new Date(),
 			},
 		),

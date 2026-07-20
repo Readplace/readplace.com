@@ -112,7 +112,7 @@ import { initDynamoDbPendingSignup } from "./providers/pending-signup/dynamodb-p
 import { initInMemorySubscriptionProviders } from "@packages/test-fixtures/providers/subscription-providers";
 import { initDynamoDbSubscriptionRead } from "@packages/subscription-access";
 import { initDynamoDbSubscriptionWrites } from "./providers/subscription-providers/dynamodb-subscription-writes";
-import { HutchLogger, consoleLogger } from "@packages/hutch-logger";
+import { HutchLogger, consoleLogger, formatErrorLogLine } from "@packages/hutch-logger";
 import { isBlockedIpAddress, validateSaveableUrl } from "@packages/domain/article";
 import { createApp } from "./server";
 import { initChangelogBannerSource } from "./web/changelog-banner-source";
@@ -780,7 +780,10 @@ export function createHutchApp(deps?: {
 		adminEmails,
 		recrawlServiceToken,
 		baseUrl: appOrigin,
-		logError: (message, error) => HutchLogger.from(consoleLogger).error(JSON.stringify({ level: "ERROR", timestamp: new Date().toISOString(), message, stack: error?.stack })),
+		logError: (message, error) =>
+			HutchLogger.from(consoleLogger).error(
+				formatErrorLogLine({ message, error, now: () => new Date() }),
+			),
 		oauthModel,
 		validateAccessToken,
 		httpErrorMessageMapping,
