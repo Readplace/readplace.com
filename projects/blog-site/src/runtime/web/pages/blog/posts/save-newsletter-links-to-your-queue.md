@@ -13,24 +13,24 @@ banner: "I made newsletters drop their links straight into your reading queue"
 <summary class="blog-tldr__toggle">Summary (TL;DR)</summary>
 <div class="blog-tldr__body">
 
-A newsletter issue arrives as one email, but only a few of its links are the articles you subscribed for. The rest is packaging: an unsubscribe line, a "view in browser" link, sponsor slots, a jobs board, section menus. Readplace now gives each newsletter its own forwarding address, shaped like tldr-a7b2c9@read.place, that you name after the source and point the newsletter at. When an issue lands, it pulls out the links, sets aside the ones that would unsubscribe or confirm on your behalf, and runs a pass that keeps only the articles. Those save to your reading queue like any other link, crawled and summarized, while the packaging is dropped. Each address is disposable, so a list that gets sold or noisy is one switch to cut off, and your real inbox is never in the loop. You can hold up to 25, one per newsletter.
+A newsletter issue arrives as one email, but only a few of its links are the articles you subscribed for. The rest is packaging: an unsubscribe line, a "view in browser" link, sponsor slots, a jobs board, section menus. Sorting that has always been yours to do by hand — until now. Readplace now gives each newsletter its own forwarding address, shaped like tldr-a7b2c9@read.place, that you name after the source and point the newsletter at. When an issue lands, it pulls out the links, sets aside the ones that would unsubscribe or confirm on your behalf, and runs a pass that keeps only the articles. Those save to your reading queue like any other link, crawled and summarized, while the packaging is dropped. Each address is disposable, so a list that gets sold or noisy is one switch to cut off, and your real inbox is never in the loop. You can hold up to 25, one per newsletter.
 
 </div>
 </details>
 
-tldr-a7b2c9@read.place is where I send one newsletter. Not my inbox and not a folder, just an address that belongs to TLDR and nothing else.
+As of this week, tldr-a7b2c9@read.place is where I send one newsletter. Not my inbox and not a folder, just an address that belongs to TLDR and nothing else.
 
-It exists because a newsletter is mostly not the thing I subscribed for.
+I wrote about [newsletter overload](/blog/newsletter-overload) a few months back and said I was building the fix. The plan then was a Gmail connection: hand Readplace your inbox, let it read your issues, pull the links out. What shipped doesn't reach into your inbox at all. Each newsletter gets an address of its own, and the issues come straight to Readplace instead of through your mail.
 
-Yesterday's issue carried 14 links. 3 of them were articles. The other 11 were an unsubscribe line, a "view in browser" link, 2 sponsor slots, a jobs board, and a strip of anchors that jump around inside the same email.
+The address earns its place because a newsletter is mostly not the thing I subscribed for.
+
+I've been running my own subscriptions through it while I built it. Yesterday's issue carried 14 links. 3 of them were articles. The other 11 were packaging — an unsubscribe line, a "view in browser" link, a couple of sponsor slots, a jobs board, and a run of section anchors that jump around inside the same email.
 
 Sorting that by hand is a small tax you pay every morning. Open the issue, find the 2 or 3 links worth reading, skip past the packaging, and either read them now or leave a tab open as a promise you might not keep.
 
 Run that across 10 subscriptions and the sorting is most of the work.
 
 > **A newsletter arrives as one email, but it reads like a folder someone else filled: a few articles inside a pile of packaging.**
-
-I wrote about the shape of this problem [a few months back](/blog/newsletter-overload), before there was anything built for it. There is now.
 
 ## An address you hand one newsletter
 
@@ -40,7 +40,7 @@ That address is the whole setup. Nothing to install, no account to connect, no i
 
 Each one stands alone. You can hold up to 25, one per newsletter, and a source only ever sees the address you handed it.
 
-## Most of an issue is not the article
+## What survives the sort
 
 When an issue arrives, Readplace pulls the links out and sorts them. A link that would unsubscribe or confirm gets set aside first. Then a pass reads what is left and labels each link an article, an ad, a menu, a subscription page, or noise.
 
@@ -70,6 +70,6 @@ Naming each address after its source earns its keep here too. When mail turns up
 
 ## Point a newsletter at it
 
-Pick the newsletter you open the least and trust the most, the one whose links you keep meaning to get to. Make an address for it, subscribe with that address, and let the next issue sort itself into your queue while the sponsor blocks and the unsubscribe footer stay behind.
+It's live now, so you can set the first one up today. Pick the newsletter you open the least and trust the most, the one whose links you keep meaning to get to. Make an address for it, subscribe with that address, and let the next issue sort itself into your queue while the sponsor blocks and the unsubscribe footer stay behind.
 
 Start at [readplace.com](/) to set up the first address, or bring an issue you already have by forwarding it in. The next newsletter you read can be 3 links waiting in a queue instead of 14 sitting in an email.
