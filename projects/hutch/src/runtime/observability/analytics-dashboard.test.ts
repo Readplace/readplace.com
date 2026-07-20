@@ -292,13 +292,38 @@ describe("buildAnalyticsDashboardBody — drift prevention", () => {
 		expect(errorQuery?.startsWith(`SOURCE '${ERRORS_LOG_GROUP}' | `)).toBe(true);
 	});
 
-	it("the subscription state-changes widget excludes hutch-origin checkout events so it keeps its Lambda-only semantics after the merge", () => {
+	// Replaces a test that asserted the widget EXCLUDED hutch's origin. That shape
+	// was correct only while hutch and the subscription Lambdas were the sole
+	// occupants of the analytics group: an excluding filter admits every origin
+	// nobody thought about, so each new project would have joined this widget
+	// silently. It now names the origins it accepts.
+	it("the subscription state-changes widget names its origins rather than excluding one", () => {
 		const q = widgetQueries().find(
 			(x) => x.includes("subscription_id, reason") && x.includes(`stream = "${STREAMS.subscriptions}"`),
 		);
 		expect(q).toBeDefined();
 		expect(q?.startsWith(`SOURCE '${ANALYTICS_LOG_GROUP}' | `)).toBe(true);
-		expect(q).toContain(`| filter @logStream not like "${LOG_GROUPS.hutchHandler}/"`);
+		expect(q).not.toContain("not like");
+		expect(q).toContain(`@logStream like "${LOG_GROUPS.subscriptionStartRequest}/"`);
+		expect(q).toContain(`@logStream like "${LOG_GROUPS.sendTrialFeedbackEmail}/"`);
+	});
+
+	it("keeps hutch's checkout events out of the state-changes widget, which is about the Lambda-driven state machine", () => {
+		const q = widgetQueries().find(
+			(x) => x.includes("subscription_id, reason") && x.includes(`stream = "${STREAMS.subscriptions}"`),
+		);
+		expect(q).not.toContain(`@logStream like "${LOG_GROUPS.hutchHandler}/"`);
+	});
+
+	// The guard that makes the record load-bearing: a Lambda added to LAMBDA_NAMES
+	// without an entry fails to compile, and one added with an entry but no log
+	// group must not silently leak into a widget about subscription state.
+	it("decides every LAMBDA_NAMES entry — an unlisted Lambda cannot reach this widget by default", () => {
+		const q = widgetQueries().find(
+			(x) => x.includes("subscription_id, reason") && x.includes(`stream = "${STREAMS.subscriptions}"`),
+		);
+		const named = Object.values(LOG_GROUPS).filter((g) => q?.includes(`@logStream like "${g}/"`));
+		expect(named).toHaveLength(Object.keys(LAMBDA_NAMES).length - 1);
 	});
 
 	it("FORWARDED_SOURCE_LOG_GROUPS covers hutch, blog, and every subscription group and excludes the analytics destination and the forwarder's own group so the forwarder never subscribes to its own output", () => {

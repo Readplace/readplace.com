@@ -65,6 +65,52 @@ function originClause(params: { logGroupName: string; match: "like" | "not like"
 	return `| filter @logStream ${params.match} "${params.logGroupName}/"`;
 }
 
+/**
+ * Which Lambdas legitimately emit the `subscriptions` stream, so the
+ * state-changes widget can name its origins instead of excluding one.
+ *
+ * It used to read `not like "hutch-handler/"` — correct when hutch and the
+ * subscription Lambdas were the only things in the analytics group, and silently
+ * wrong the moment anything else forwards. An excluding filter admits every
+ * origin nobody thought about, so each new project would have been swept into a
+ * widget about subscription state with no code change and no failure.
+ *
+ * Keyed off LOG_GROUPS — whose keys events.ts pins to LAMBDA_NAMES' — so adding
+ * a Lambda is a compile error here until somebody decides. `undefined` is the
+ * answer for most of them; the point is that it is an answer, not a default.
+ */
+const SUBSCRIPTION_EVENT_EMITTERS = {
+	// Emits checkout events on this stream, but this widget is about the
+	// Lambda-driven state machine, so it stays out — the exclusion this record
+	// replaces existed for exactly this one case.
+	hutchHandler: undefined,
+	subscriptionStartRequest: LOG_GROUPS.subscriptionStartRequest,
+	subscriptionChargeSucceeded: LOG_GROUPS.subscriptionChargeSucceeded,
+	subscriptionChargeFailed: LOG_GROUPS.subscriptionChargeFailed,
+	cancelSubscription: LOG_GROUPS.cancelSubscription,
+	handleSubscriptionCancelled: LOG_GROUPS.handleSubscriptionCancelled,
+	scheduleTrialFeedbackEmail: LOG_GROUPS.scheduleTrialFeedbackEmail,
+	sendTrialFeedbackEmail: LOG_GROUPS.sendTrialFeedbackEmail,
+} as const satisfies Record<keyof typeof LOG_GROUPS, string | undefined>;
+
+type SubscriptionEventOrigin = Exclude<
+	(typeof SUBSCRIPTION_EVENT_EMITTERS)[keyof typeof SUBSCRIPTION_EVENT_EMITTERS],
+	undefined
+>;
+
+/** The origins the state-changes widget accepts: every emitter that named a log
+ * group. Holds the values, not the keys, so no cast is needed to index back. */
+const SUBSCRIPTION_EVENT_ORIGINS: readonly string[] = Object.values(
+	SUBSCRIPTION_EVENT_EMITTERS,
+).filter((logGroup): logGroup is SubscriptionEventOrigin => logGroup !== undefined);
+
+/** An OR of `like` clauses, so only the named origins can appear. */
+function anyOriginClause(logGroupNames: readonly string[]): string {
+	assert(logGroupNames.length > 0, "anyOriginClause needs at least one origin");
+	const legs = logGroupNames.map((name) => `@logStream like "${name}/"`).join(" or ");
+	return `| filter (${legs})`;
+}
+
 function excludeVisitorHashesClause(excludedVisitorHashes: readonly string[]): string[] {
 	if (excludedVisitorHashes.length === 0) return [];
 	const list = excludedVisitorHashes.map((h) => `"${h}"`).join(", ");
@@ -368,11 +414,10 @@ export function buildAnalyticsDashboardBody(deps: BuildAnalyticsDashboardDeps): 
 			query: [
 				"fields @timestamp, event, user_id, subscription_id, reason",
 				`| filter stream = "${STREAMS.subscriptions}"`,
-				// This widget previously read only the subscription-Lambda groups. The
-				// hutch handler also emits the subscriptions stream (checkout events),
-				// which now shares the analytics group, so excluding hutch origin keeps
-				// this to Lambda-emitted state-changes exactly as before.
-				originClause({ logGroupName: hutchLogGroupName, match: "not like" }),
+				// Names its origins rather than excluding hutch's: an excluding filter
+				// admits every origin nobody thought about, and the analytics group now
+				// receives lines from every project in the fleet.
+				anyOriginClause(SUBSCRIPTION_EVENT_ORIGINS),
 				"| sort @timestamp desc",
 				"| limit 50",
 			].join(" "),
