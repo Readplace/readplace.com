@@ -211,6 +211,8 @@ import { E2EFixturePage } from "./web/pages/e2e-fixture";
 import { createE2EFixturePdf } from "./web/pages/e2e-fixture-pdf";
 import { initInstallRoutes } from "./web/pages/install";
 import { initLandingRoutes } from "./web/pages/landing";
+import { LANDING_PAGE_CONTENT, LandingPage } from "./web/pages/landing-pages";
+import type { LandingPageSlug } from "./web/pages/landing-pages";
 import { HOMEPAGE_SPLIT } from "./web/experiments/homepage-split";
 import { detectInstallBrowser } from "./web/onboarding/extension-install";
 import { NotFoundPage } from "./web/pages/not-found";
@@ -375,6 +377,7 @@ function requireAuth(req: Request, res: Response, next: NextFunction): void {
 const LLMS_TXT = readFileSync(join(__dirname, "llms.txt"), "utf-8");
 const LLMS_FULL_TXT = readFileSync(join(__dirname, "llms-full.txt"), "utf-8");
 const INDEXNOW_KEY = getEnv("INDEXNOW_KEY");
+const LANDING_PAGE_SLUGS = Object.keys(LANDING_PAGE_CONTENT) as LandingPageSlug[];
 
 export function createApp(dependencies: AppDependencies): Express {
 	const { appOrigin, staticBaseUrl, getSessionUserId, countUsers, foundingAllocation, ...deps } = dependencies;
@@ -559,6 +562,12 @@ export function createApp(dependencies: AppDependencies): Express {
 			{ loc: "/", priority: "1.0", changefreq: "weekly", lastmod: "2026-04-08" },
 			{ loc: "/install", priority: "0.8", changefreq: "monthly", lastmod: "2026-03-01" },
 			{ loc: "/import", priority: "0.8", changefreq: "monthly", lastmod: "2026-07-07" },
+			...LANDING_PAGE_SLUGS.map((slug) => ({
+				loc: `/${slug}`,
+				priority: "0.6",
+				changefreq: "monthly",
+				lastmod: "2026-07-20",
+			})),
 			{ loc: "/embed", priority: "0.5", changefreq: "monthly", lastmod: "2026-07-17" },
 			{ loc: "/login", priority: "0.5", changefreq: "yearly", lastmod: "2026-03-01" },
 			{ loc: "/signup", priority: "0.5", changefreq: "yearly", lastmod: "2026-03-01" },
@@ -740,6 +749,12 @@ export function createApp(dependencies: AppDependencies): Express {
 			}),
 		);
 	});
+
+	for (const slug of LANDING_PAGE_SLUGS) {
+		app.get(`/${slug}`, async (req: Request, res: Response) => {
+			sendComponent(req, res, Base(LandingPage(slug), await buildBannerState(req)));
+		});
+	}
 
 	app.get("/privacy", async (req: Request, res: Response) => {
 		sendComponent(req, res, Base(PrivacyPage(), await buildBannerState(req)));

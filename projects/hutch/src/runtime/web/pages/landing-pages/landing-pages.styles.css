@@ -1,0 +1,343 @@
+.lp {
+  display: block;
+}
+
+.lp-section__title {
+  font-size: 2rem;
+  font-weight: 700;
+  line-height: 1.3;
+  color: var(--foreground);
+  margin-bottom: 12px;
+}
+
+.lp-section__lede {
+  font-size: 1.0625rem;
+  line-height: 1.6;
+  color: var(--muted-foreground);
+  margin-bottom: 32px;
+}
+
+/**
+ * 1. Reading measure. Chrome may run wider, body copy stays narrow.
+ * 2. The 4px spacing scale: 48px page-level, 24px section padding.
+ */
+.lp-band {
+  padding: 48px 24px; /* 2 */
+}
+
+.lp-band__inner {
+  max-width: 680px; /* 1 */
+  margin: 0 auto;
+}
+
+.lp-band--muted {
+  background: var(--muted);
+  border-top: 1px solid var(--border);
+  border-bottom: 1px solid var(--border);
+}
+
+/**
+ * Hero — navy gradient mirroring the logo tile, per the brand guidelines.
+ * Warm amber highlight sits directly on this background.
+ */
+.lp-hero {
+  background: linear-gradient(135deg, #2B3A55 0%, #1E2A40 100%);
+  color: var(--color-on-brand);
+  padding: 64px 24px;
+}
+
+.lp-hero__inner {
+  max-width: 680px;
+  margin: 0 auto;
+}
+
+.lp-hero__eyebrow {
+  font-size: 0.875rem;
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  color: rgba(255, 255, 255, 0.72);
+  margin-bottom: 16px;
+}
+
+.lp-hero__title {
+  font-size: 2.5rem;
+  font-weight: 700;
+  line-height: 1.3;
+  margin-bottom: 16px;
+}
+
+/**
+ * 1. Highlight is colour, not type — same serif face, no weight or size change.
+ */
+.lp-hero__highlight {
+  font-family: Georgia, "Times New Roman", serif; /* 1 */
+  color: var(--color-highlight);
+}
+
+.lp-hero__lede {
+  font-size: 1.125rem;
+  line-height: 1.6;
+  color: rgba(255, 255, 255, 0.86);
+  margin-bottom: 32px;
+}
+
+.lp-hero__actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 16px;
+  align-items: center;
+  margin-bottom: 16px;
+}
+
+.lp-hero__reassurance {
+  font-size: 0.9375rem;
+  color: rgba(255, 255, 255, 0.66);
+}
+
+/**
+ * Every call to action is a GET form so a field-carrying CTA and a plain one
+ * share one shape. Wraps so the paste field and its button stack on mobile.
+ */
+.lp-action {
+  display: flex;
+  flex-wrap: nowrap;
+  gap: 8px;
+  align-items: center;
+}
+
+.lp-action__input {
+  flex: 1 1 auto;
+  min-width: 0;
+  height: var(--input-height);
+  padding: var(--input-padding);
+  font-size: var(--input-font-size);
+  font-family: inherit;
+  color: var(--foreground);
+  background: var(--background);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+}
+
+.lp-action__input::placeholder {
+  color: var(--color-text-muted);
+}
+
+/**
+ * A field-carrying action needs room for the input to sit beside its button;
+ * a button-only action must not stretch to match it. Growing from a content
+ * basis gives each the width it needs without a per-variant class.
+ */
+.lp-hero__actions .lp-action--field {
+  flex: 1 1 auto;
+  max-width: 520px;
+}
+
+/** Below this width a field and its button cannot share a line legibly. */
+@media (max-width: 520px) {
+  .lp-action {
+    flex-wrap: wrap;
+  }
+
+  .lp-action__input {
+    flex: 1 1 100%;
+  }
+}
+
+.lp-close__actions {
+  display: flex;
+  justify-content: center;
+}
+
+.lp-close__actions .lp-action {
+  justify-content: center;
+  width: 100%;
+  max-width: 480px;
+}
+
+.lp-btn {
+  display: inline-block;
+  padding: var(--button-padding);
+  border-radius: var(--radius);
+  font-size: 1rem;
+  font-weight: 600;
+  text-decoration: none;
+  border: none;
+  cursor: pointer;
+  transition: opacity 0.2s;
+}
+
+.lp-btn:hover {
+  opacity: 0.9;
+}
+
+.lp-btn--brand {
+  background: var(--primary);
+  color: var(--primary-foreground);
+}
+
+.lp-btn--on-dark {
+  background: var(--color-on-brand);
+  color: var(--secondary-foreground);
+}
+
+.lp-btn--ghost {
+  background: transparent;
+  color: rgba(255, 255, 255, 0.86);
+  border: 1px solid rgba(255, 255, 255, 0.3);
+}
+
+.lp-steps {
+  list-style: none;
+  display: grid;
+  gap: 24px;
+}
+
+.lp-steps__item {
+  display: grid;
+  grid-template-columns: 32px 1fr;
+  gap: 16px;
+  align-items: start;
+}
+
+.lp-steps__ordinal {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 32px;
+  height: 32px;
+  border-radius: var(--radius-sm);
+  background: var(--color-brand-light);
+  color: var(--secondary-foreground);
+  font-weight: 700;
+  font-size: 0.9375rem;
+}
+
+.lp-steps__heading {
+  font-size: 1.0625rem;
+  font-weight: 600;
+  line-height: 1.3;
+  color: var(--foreground);
+  margin-bottom: 4px;
+}
+
+.lp-steps__body {
+  font-size: 1rem;
+  line-height: 1.6;
+  color: var(--muted-foreground);
+}
+
+.lp-prose__paragraph {
+  font-size: 1.0625rem;
+  line-height: 1.6;
+  color: var(--foreground);
+  margin-bottom: 16px;
+}
+
+.lp-prose__paragraph a {
+  color: var(--primary);
+  text-decoration: underline;
+}
+
+/**
+ * Honest-limitations block. The brand guidelines require acknowledging what the
+ * product does not do; on a paid-ads destination that has to be visible, not
+ * buried, so it renders as a bordered card rather than fine print.
+ */
+.lp-limits {
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  background: var(--card);
+  padding: 24px;
+}
+
+.lp-limits__title {
+  font-size: 1.0625rem;
+  font-weight: 600;
+  line-height: 1.3;
+  color: var(--foreground);
+  margin-bottom: 12px;
+}
+
+.lp-limits__list {
+  list-style: none;
+  display: grid;
+  gap: 8px;
+}
+
+.lp-limits__item {
+  font-size: 1rem;
+  line-height: 1.6;
+  color: var(--muted-foreground);
+  padding-left: 16px;
+  position: relative;
+}
+
+.lp-limits__item::before {
+  content: "\2014";
+  position: absolute;
+  left: 0;
+  color: var(--color-text-muted);
+}
+
+.lp-faq__list {
+  display: grid;
+  gap: 24px;
+}
+
+.lp-faq__question {
+  font-size: 1.0625rem;
+  font-weight: 600;
+  line-height: 1.3;
+  color: var(--foreground);
+  margin-bottom: 8px;
+}
+
+.lp-faq__answer {
+  font-size: 1rem;
+  line-height: 1.6;
+  color: var(--muted-foreground);
+  margin-left: 0;
+}
+
+.lp-faq__answer a {
+  color: var(--primary);
+  text-decoration: underline;
+}
+
+.lp-close {
+  text-align: center;
+}
+
+.lp-close__title {
+  font-size: 1.75rem;
+  font-weight: 700;
+  line-height: 1.3;
+  color: var(--foreground);
+  margin-bottom: 24px;
+}
+
+.lp-close__note {
+  font-size: 0.9375rem;
+  line-height: 1.6;
+  color: var(--muted-foreground);
+  margin-top: 16px;
+}
+
+.lp-close__note a {
+  color: var(--primary);
+  text-decoration: underline;
+}
+
+@media (min-width: 768px) {
+  .lp-hero {
+    padding: 96px 24px;
+  }
+
+  .lp-hero__title {
+    font-size: 3rem;
+  }
+
+  .lp-band {
+    padding: 64px 24px;
+  }
+}

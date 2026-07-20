@@ -1,0 +1,96 @@
+<main class="lp">
+  <section class="lp-hero" data-test-section="lp-hero">
+    <div class="lp-hero__inner">
+      <p class="lp-hero__eyebrow">{{eyebrow}}</p>
+      <h1 class="lp-hero__title">{{titleLead}}<span class="lp-hero__highlight">{{titleHighlight}}</span>{{titleTail}}</h1>
+      <p class="lp-hero__lede">{{lede}}</p>
+      <div class="lp-hero__actions">
+        {{#each heroActions}}
+        <form class="lp-action" method="GET" action="{{action}}">
+          {{#each hiddenParams}}<input type="hidden" name="{{name}}" value="{{value}}">{{/each}}
+          {{#if input}}
+          <label class="sr-only" for="lp-field-{{key}}">{{input.label}}</label>
+          <input class="lp-action__input" type="url" id="lp-field-{{key}}" name="{{input.name}}" placeholder="{{input.placeholder}}" required data-test-lp-input="{{key}}">
+          {{/if}}
+          <button class="lp-btn {{cssClass}}" type="submit" data-test-cta="{{key}}">{{label}}</button>
+        </form>
+        {{/each}}
+      </div>
+      <p class="lp-hero__reassurance">{{reassurance}}</p>
+    </div>
+  </section>
+
+  <section class="lp-band" data-test-section="lp-how-it-works">
+    <div class="lp-band__inner">
+      <h2 class="lp-section__title">{{stepsTitle}}</h2>
+      <p class="lp-section__lede">{{stepsLede}}</p>
+      <ol class="lp-steps">
+        {{#each steps}}
+        <li class="lp-steps__item">
+          <span class="lp-steps__ordinal">{{ordinal}}</span>
+          <div>
+            <h3 class="lp-steps__heading">{{heading}}</h3>
+            <p class="lp-steps__body">{{body}}</p>
+          </div>
+        </li>
+        {{/each}}
+      </ol>
+    </div>
+  </section>
+
+  <section class="lp-band lp-band--muted" data-test-section="lp-mechanism">
+    <div class="lp-band__inner">
+      <h2 class="lp-section__title">{{mechanismTitle}}</h2>
+      <p class="lp-section__lede">{{mechanismLede}}</p>
+      {{#each mechanismParagraphs}}
+      <p class="lp-prose__paragraph">{{{this}}}</p>
+      {{/each}}
+    </div>
+  </section>
+
+  <section class="lp-band" data-test-section="lp-limits">
+    <div class="lp-band__inner">
+      <div class="lp-limits">
+        <h2 class="lp-limits__title">{{limitsTitle}}</h2>
+        <ul class="lp-limits__list">
+          {{#each limits}}
+          <li class="lp-limits__item">{{this}}</li>
+          {{/each}}
+        </ul>
+      </div>
+    </div>
+  </section>
+
+  <section class="lp-band lp-band--muted" data-test-section="lp-faq">
+    <div class="lp-band__inner">
+      <h2 class="lp-section__title">Questions</h2>
+      <dl class="lp-faq__list">
+        {{#each faq}}
+        <div>
+          <dt class="lp-faq__question" data-test-lp-faq-question>{{question}}</dt>
+          <dd class="lp-faq__answer" data-test-lp-faq-answer>{{answer}}</dd>
+        </div>
+        {{/each}}
+      </dl>
+    </div>
+  </section>
+
+  <section class="lp-band" data-test-section="lp-close">
+    <div class="lp-band__inner lp-close">
+      <h2 class="lp-close__title">{{closeTitle}}</h2>
+      <div class="lp-close__actions">
+        {{#each closeActions}}
+        <form class="lp-action" method="GET" action="{{action}}">
+          {{#each hiddenParams}}<input type="hidden" name="{{name}}" value="{{value}}">{{/each}}
+          {{#if input}}
+          <label class="sr-only" for="lp-close-field-{{key}}">{{input.label}}</label>
+          <input class="lp-action__input" type="url" id="lp-close-field-{{key}}" name="{{input.name}}" placeholder="{{input.placeholder}}" required data-test-lp-input="close-{{key}}">
+          {{/if}}
+          <button class="lp-btn {{cssClass}}" type="submit" data-test-cta="{{key}}">{{label}}</button>
+        </form>
+        {{/each}}
+      </div>
+      <p class="lp-close__note">{{{closeNote}}}</p>
+    </div>
+  </section>
+</main>
