@@ -2,6 +2,7 @@ import assert from "node:assert/strict";
 import { JSDOM } from "jsdom";
 import request from "supertest";
 import {
+	AliasNameSchema,
 	InboxAddressSchema,
 	type InboxEmailEntry,
 	MessageIdSchema,
@@ -79,6 +80,59 @@ describe("Inbox emails list route", () => {
 		expect(doc.querySelector('meta[name="robots"]')?.getAttribute("content")).toBe(
 			"noindex, nofollow",
 		);
+	});
+
+	it("sends a reader with no forwarding address to My Emails to create one", async () => {
+		const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
+		const agent = await loginAgent(harness.server, harness.auth);
+
+		const response = await agent.get("/inbox");
+
+		const doc = new JSDOM(response.text).window.document;
+		const empty = doc.querySelector("[data-test-inbox-emails-empty]");
+		assert(empty, "empty state must render");
+		expect(empty.getAttribute("data-test-inbox-empty-state")).toBe("no-address");
+		const cta = empty.querySelector("[data-test-inbox-emails-empty-cta]");
+		assert(cta, "setup CTA must render while the reader has no address");
+		expect(cta.getAttribute("href")).toBe("/inbox/addresses");
+		expect(cta.textContent).toBe("Create an inbox email");
+	});
+
+	it("tells a reader who already has an address to forward mail instead", async () => {
+		const fixture = createDefaultTestAppFixture(TEST_APP_ORIGIN);
+		const harness = useApp(fixture);
+		const agent = await loginAgent(harness.server, harness.auth);
+		const user = await fixture.auth.findUserByEmail("test@example.com");
+		assert(user, "logged-in user must exist before seeding an address");
+		await fixture.inboxAddress.inboxAddressStore.createAddress({
+			userId: user.userId,
+			domain: "read.place",
+			name: AliasNameSchema.parse("inbox"),
+		});
+
+		const response = await agent.get("/inbox");
+
+		const empty = new JSDOM(response.text).window.document.querySelector(
+			"[data-test-inbox-emails-empty]",
+		);
+		assert(empty, "empty state must render");
+		expect(empty.getAttribute("data-test-inbox-empty-state")).toBe("no-mail");
+		expect(empty.textContent).toContain("forward a newsletter to one of your addresses");
+	});
+
+	it("drops the setup CTA once mail has arrived", async () => {
+		const fixture = createDefaultTestAppFixture(TEST_APP_ORIGIN);
+		const harness = useApp(fixture);
+		const agent = await loginAgent(harness.server, harness.auth);
+		await seedEmails(fixture, (userId) => [
+			emailEntry(userId, { messageId: "<m1@x>", receivedAt: "2026-06-24T09:00:00.000Z" }),
+		]);
+
+		const response = await agent.get("/inbox");
+
+		const doc = new JSDOM(response.text).window.document;
+		expect(doc.querySelectorAll("[data-test-inbox-emails-row]")).toHaveLength(1);
+		expect(doc.querySelector("[data-test-inbox-emails-empty]")).toBeNull();
 	});
 
 	it("shows the Inbox nav entry on the list page", async () => {

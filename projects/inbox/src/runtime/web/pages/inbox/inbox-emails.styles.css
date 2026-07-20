@@ -40,6 +40,25 @@
   box-shadow: var(--shadow-sm);
 }
 
+.inbox-emails__empty-text {
+  margin: 0;
+}
+
+.inbox-emails__empty-cta {
+  display: inline-block;
+  margin-top: 16px;
+  padding: var(--button-padding);
+  background: var(--primary);
+  color: var(--primary-foreground);
+  border-radius: var(--radius);
+  font-weight: 600;
+  text-decoration: none;
+}
+
+.inbox-emails__empty-cta:hover {
+  opacity: 0.9;
+}
+
 .inbox-emails__list {
   list-style: none;
   margin: 0;

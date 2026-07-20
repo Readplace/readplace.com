@@ -110,7 +110,10 @@ export function initInboxRoutes(deps: InboxDependencies): Router {
 			res.redirect(302, buildInboxEmailsUrl({}));
 			return;
 		}
-		const vm = toInboxEmailsViewModel(result, { now: deps.now() });
+		const needsAddressSetup =
+			result.emails.length === 0 &&
+			countLiveAddresses(await deps.inboxAddressStore.listAddressesByUserId(userId)) === 0;
+		const vm = toInboxEmailsViewModel(result, { now: deps.now(), needsAddressSetup });
 		sendComponent(req, res, Base(InboxEmailsPage(vm), await deps.buildBannerState(req)));
 	});
 

@@ -28,10 +28,10 @@ function entry(overrides: Partial<InboxEmailEntry> = {}): InboxEmailEntry {
 	};
 }
 
-function build(entries: InboxEmailEntry[]) {
+function build(entries: InboxEmailEntry[], needsAddressSetup = false) {
 	return toInboxEmailsViewModel(
 		{ emails: entries, hasNewer: false, hasOlder: false },
-		{ now: NOW },
+		{ now: NOW, needsAddressSetup },
 	);
 }
 
@@ -44,7 +44,7 @@ function buildNav(input: { hasNewer: boolean; hasOlder: boolean }) {
 			],
 			...input,
 		},
-		{ now: NOW },
+		{ now: NOW, needsAddressSetup: false },
 	);
 }
 
@@ -53,14 +53,29 @@ function ago(ms: number): string {
 }
 
 describe("toInboxEmailsViewModel", () => {
-	it("flags an empty list", () => {
-		expect(build([]).isEmpty).toBe(true);
+	it("tells an empty inbox with an address to wait for mail, offering no CTA", () => {
+		const { empty } = build([]);
+
+		expect(empty?.key).toBe("no-mail");
+		expect(empty?.text).toContain("forward a newsletter to one of your addresses");
+		expect(empty?.cta).toBeUndefined();
+	});
+
+	it("sends an empty inbox with no address to My Emails to create one", () => {
+		const { empty } = build([], true);
+
+		expect(empty?.key).toBe("no-address");
+		expect(empty?.text).toContain("don’t have an inbox email address");
+		expect(empty?.cta).toEqual({
+			href: "/inbox/addresses",
+			label: "Create an inbox email",
+		});
 	});
 
 	it("builds a detail link from the URL-encoded sort key", () => {
 		const vm = build([entry({ receivedAtMessageId: "2026-06-24T09:00:00.000Z#<a@x>" })]);
 
-		expect(vm.isEmpty).toBe(false);
+		expect(vm.empty).toBeUndefined();
 		expect(vm.rows[0].href).toBe(
 			`/inbox/${encodeURIComponent("2026-06-24T09:00:00.000Z#<a@x>")}`,
 		);

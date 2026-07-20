@@ -9,9 +9,21 @@
 		>
 	</header>
 
-	{{#if isEmpty}}
-	<div class="inbox-emails__empty" data-test-inbox-emails-empty>
-		<p>No forwarded emails yet — forward a newsletter to one of your addresses and it’ll appear here.</p>
+	{{#if empty}}
+	<div
+		class="inbox-emails__empty"
+		data-test-inbox-emails-empty
+		data-test-inbox-empty-state="{{empty.key}}"
+	>
+		<p class="inbox-emails__empty-text">{{empty.text}}</p>
+		{{#if empty.cta}}
+		<a
+			class="inbox-emails__empty-cta"
+			href="{{empty.cta.href}}"
+			data-test-inbox-emails-empty-cta
+			>{{empty.cta.label}}</a
+		>
+		{{/if}}
 	</div>
 	{{else}}
 	<ul class="inbox-emails__list" data-test-inbox-emails-list>
