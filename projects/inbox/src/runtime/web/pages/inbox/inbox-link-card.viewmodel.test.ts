@@ -164,4 +164,50 @@ describe("toInboxLinkCardViewModel", () => {
 		expect(vm.cardPollUrl).toBeUndefined();
 		expect(vm.hasTitle).toBe(false);
 	});
+
+	it("keeps the card and action ids identical across a poll swap so focus can be restored", () => {
+		const pending = toInboxLinkCardViewModel({
+			link: link({ status: "pending" }),
+			emailId: EMAIL_ID,
+			pollCount: 1,
+			maxPolls: 300,
+			shown: SHOWN,
+		});
+		const crawled = toInboxLinkCardViewModel({
+			link: link({ status: "crawled", title: "Now resolved" }),
+			emailId: EMAIL_ID,
+			pollCount: 2,
+			maxPolls: 300,
+			shown: SHOWN,
+		});
+
+		expect(crawled.domId).toBe(pending.domId);
+		expect(crawled.actions.map((a) => a.buttonId)).toEqual(
+			pending.actions.map((a) => a.buttonId),
+		);
+	});
+
+	it("gives each card on the page its own ids so a swap cannot reattach focus to a sibling", () => {
+		const first = toInboxLinkCardViewModel({
+			link: link({ ordinal: EmailLinkOrdinalSchema.parse("0002") }),
+			emailId: EMAIL_ID,
+			pollCount: 1,
+			maxPolls: 300,
+			shown: SHOWN,
+		});
+		const second = toInboxLinkCardViewModel({
+			link: link({ ordinal: EmailLinkOrdinalSchema.parse("0003") }),
+			emailId: EMAIL_ID,
+			pollCount: 1,
+			maxPolls: 300,
+			shown: SHOWN,
+		});
+
+		expect(first.domId).toBe("inbox-card-0002");
+		expect(second.domId).toBe("inbox-card-0003");
+		expect(first.actions.map((a) => a.buttonId)).toEqual([
+			"inbox-card-0002-save",
+			"inbox-card-0002-feedback-exclude",
+		]);
+	});
 });

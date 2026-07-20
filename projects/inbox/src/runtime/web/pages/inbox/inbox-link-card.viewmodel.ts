@@ -8,6 +8,9 @@ export interface InboxCardAction {
 	key: string;
 	label: string;
 	ariaLabel: string;
+	/** Stable across a poll swap so htmx can restore focus to this button after it
+	 * replaces the card the reader was keyboarding through. */
+	buttonId: string;
 	href: string;
 	method: "POST";
 	hiddenParams?: Record<string, string>;
@@ -22,7 +25,14 @@ export interface InboxLinkCardViewModel {
 	 * reaches a terminal state (`crawled`/`failed`) or the poll budget is spent,
 	 * which is what stops the htmx `every 3s` trigger. */
 	cardPollUrl: string | undefined;
+	/** Stable across a poll swap, so htmx has something to match the replaced card
+	 * against when restoring focus. */
+	domId: string;
 	actions: InboxCardAction[];
+}
+
+function cardDomId(ordinal: string): string {
+	return `inbox-card-${ordinal}`;
 }
 
 function buildCardActions(input: {
@@ -32,6 +42,7 @@ function buildCardActions(input: {
 	shown: number;
 }): InboxCardAction[] {
 	const { link, emailId, displayUrl, shown } = input;
+	const buttonId = (key: string) => `${cardDomId(link.ordinal)}-${key}`;
 	// Posted back so the redirect can rebuild the same page of cards. Without it
 	// a save from an expanded list returns a first page that no longer holds the
 	// card just acted on, which reads as the page discarding the reader's place.
@@ -44,6 +55,7 @@ function buildCardActions(input: {
 			key: "save",
 			label: "Save to queue",
 			ariaLabel: `Save to queue: ${displayUrl}`,
+			buttonId: buttonId("save"),
 			href: buildInboxLinkSaveUrl({ emailId, ordinal: link.ordinal }),
 			method: "POST",
 			hiddenParams: shownParam,
@@ -53,6 +65,7 @@ function buildCardActions(input: {
 		key: "feedback-exclude",
 		label: "Not an article? (report)",
 		ariaLabel: `Not an article? (report) ${displayUrl}`,
+		buttonId: buttonId("feedback-exclude"),
 		href: buildInboxLinkFeedbackUrl({ emailId, ordinal: link.ordinal }),
 		method: "POST",
 		hiddenParams: { ...shownParam, verdict: "should-be-excluded" },
@@ -83,6 +96,7 @@ export function toInboxLinkCardViewModel(input: {
 		title,
 		hasTitle: link.status === "crawled" && title !== "",
 		cardPollUrl,
+		domId: cardDomId(link.ordinal),
 		actions: buildCardActions({ link, emailId, displayUrl: url, shown }),
 	};
 }

@@ -263,4 +263,40 @@ describe("Inbox link card route", () => {
 
 		expect(second.status).toBe(304);
 	});
+
+	it("serves the same card and button ids before and after the crawl resolves, so the poll swap can restore focus", async () => {
+		const fixture = createDefaultTestAppFixture(TEST_APP_ORIGIN);
+		const harness = useApp(fixture);
+		const agent = await loginAgent(harness.server, harness.auth);
+		await seed(fixture, { status: "pending" });
+
+		const ids = (html: string) => {
+			const doc = new JSDOM(html).window.document;
+			const card = doc.querySelector("[data-test-inbox-article-card]");
+			assert(card, "the card fragment must render");
+			return {
+				card: card.getAttribute("id"),
+				buttons: Array.from(doc.querySelectorAll("[data-test-card-action]")).map((b) =>
+					b.getAttribute("id"),
+				),
+			};
+		};
+
+		const whilePending = ids((await agent.get(cardPath)).text);
+		await fixture.inboxEmail.inboxEmailLinkStore.putLink(
+			link((await fixture.auth.findUserByEmail("test@example.com"))?.userId as UserId, {
+				status: "crawled",
+				title: "Resolved after the crawl",
+			}),
+		);
+		const onceCrawled = ids((await agent.get(cardPath)).text);
+
+		expect(whilePending.card).toBe("inbox-card-0000");
+		expect(onceCrawled.card).toBe(whilePending.card);
+		expect(onceCrawled.buttons).toEqual(whilePending.buttons);
+		expect(whilePending.buttons).toEqual([
+			"inbox-card-0000-save",
+			"inbox-card-0000-feedback-exclude",
+		]);
+	});
 });
