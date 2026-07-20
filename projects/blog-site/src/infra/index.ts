@@ -5,8 +5,7 @@ import {
 	HutchDynamoDBAccess,
 	HutchLambda,
 } from "@packages/hutch-infra-components/infra";
-import { BLOG_SITE_LAMBDA_NAME, FORWARD_ANALYTICS_FUNCTION_NAME } from "@packages/hutch-infra-components";
-import { STREAMS } from "@packages/web-analytics";
+import { BLOG_SITE_LAMBDA_NAME } from "@packages/hutch-infra-components";
 import { requireEnv } from "@packages/require-env";
 
 /**
@@ -73,22 +72,10 @@ const blogRoutes = new HutchAPIGatewayLambdaRoute("blog-site", {
 	routeKeys: ["GET /blog", "ANY /blog/{proxy+}"],
 });
 
-// Forward this stack's analytics lines into hutch's never-expire /readplace/analytics
-// group. The filter lives here — not in hutch — so its lifecycle follows the blog
-// log group it attaches to. The forwarder Lambda and this group's invoke permission
-// are both created by hutch's stack, so hutch must be deployed first (guaranteed by
-// the StackReference above); its ARN is derived from account + region + the shared
-// function name rather than read back, so a fresh-env bootstrap can't deadlock.
-// The blog only emits the `analytics` (pageview) stream today, but the pattern
-// matches all three forwarded streams to stay identical to hutch's filters.
-const forwardAnalyticsArn = pulumi.interpolate`arn:aws:lambda:${awsRegion}:${awsAccountId}:function:${FORWARD_ANALYTICS_FUNCTION_NAME}`;
-const forwardFilterPattern = `{ ${[STREAMS.analytics, STREAMS.conversions, STREAMS.subscriptions].map((stream) => `$.stream = "${stream}"`).join(" || ")} }`;
-
-new aws.cloudwatch.LogSubscriptionFilter("forward-analytics-sub-blog-site", {
-	logGroup: lambda.logGroupName,
-	filterPattern: forwardFilterPattern,
-	destinationArn: forwardAnalyticsArn,
-});
+// The subscription filter that used to live here is gone: HutchLambda attaches
+// one to every log group it creates, including this stack's. It also re-derived
+// the forwarded stream list by hand, so widening that list never reached the
+// blog — a drift this deletion removes rather than fixes.
 
 export const functionName = lambda.functionName;
 export const routeKeys = blogRoutes.routes.map((route) => route.routeKey);

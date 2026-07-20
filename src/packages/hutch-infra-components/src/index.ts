@@ -93,6 +93,12 @@ export {
 	FORWARD_ANALYTICS_LAMBDA_NAME,
 	FORWARD_ANALYTICS_FUNCTION_NAME,
 } from "./forward-analytics-lambda";
+export {
+	ANALYTICS_FILTER_STREAMS,
+	buildObservabilityFilterPattern,
+	ERROR_STREAMS,
+	RUNTIME_FAILURE_MARKERS,
+} from "./observability-filter";
 export { initLogParseError, type LogParseError } from "./log-parse-error";
 export {
 	CRAWL_OUTCOME_STREAM,

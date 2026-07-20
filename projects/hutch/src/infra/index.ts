@@ -4,7 +4,6 @@ import assert from "node:assert";
 import { resolve } from "node:path";
 import { HutchLambda, HutchAPIGateway, HutchDynamoDBAccess, HutchEventBus, HutchS3ReadWrite, HutchSQS, HutchSQSBackedLambda, HutchStripeWebhookReceiver } from "@packages/hutch-infra-components/infra";
 import {
-	BLOG_SITE_LOG_GROUP,
 	FORWARD_ANALYTICS_LAMBDA_NAME,
 	CancelSubscriptionCommand,
 	DeleteAccountCommand,
@@ -18,12 +17,8 @@ import {
 	SubscriptionStartRequestCommand,
 } from "@packages/hutch-infra-components";
 import { EXPORT_DOWNLOAD_TTL_DAYS, EXPORT_S3_KEY_PREFIX } from "../runtime/web/pages/export/export-ttl";
-import { ANALYTICS_EVENTS, ANALYTICS_LOG_GROUP, ERRORS_LOG_GROUP, ERRORS_LOG_GROUP_RETENTION_DAYS, LAMBDA_NAMES, LOG_GROUPS, METRICS, STREAMS } from "../runtime/observability/events";
-import { buildObservabilityFilterPattern } from "../runtime/observability/observability-filter";
-import {
-	buildAnalyticsDashboardBody,
-	FORWARDED_SOURCE_LOG_GROUPS,
-} from "../runtime/observability/analytics-dashboard";
+import { ANALYTICS_EVENTS, ANALYTICS_LOG_GROUP, ERRORS_LOG_GROUP, ERRORS_LOG_GROUP_RETENTION_DAYS, LAMBDA_NAMES, METRICS, STREAMS } from "../runtime/observability/events";
+import { buildAnalyticsDashboardBody } from "../runtime/observability/analytics-dashboard";
 import { DomainRegistration } from "./domain-registration";
 import { DomainRedirect } from "./domain-redirect";
 import { AgentDiscoveryDns } from "./agent-discovery-dns";
@@ -1416,64 +1411,28 @@ new aws.cloudwatch.MetricAlarm("forward-analytics-destination-delivery-alarm", {
 	alarmActions: [forwardAnalyticsDlqTopic.arn],
 });
 
-// Built in the runtime module so it is unit-testable and cannot drift from the
-// classifier that re-decides each delivered line — see observability-filter.ts
-// for why it is a text pattern and why it deliberately over-matches.
-const forwardFilterPattern = buildObservabilityFilterPattern();
+// One wildcard grant rather than a statement per source group. Now that
+// HutchLambda attaches a filter to every log group it creates, enumerating the
+// sources here would mean ~53 statements in one function policy — approaching the
+// 20KB policy limit — and would put concurrent AddPermission calls on a single
+// policy document across a parallel, fail-fast:false deploy matrix, which is a
+// ResourceConflictException waiting to happen. Enumerating would also reintroduce
+// exactly the register-or-be-invisible list this change exists to delete.
+//
+// The scope traded away is real but narrow: any log group in THIS account could
+// invoke the forwarder. The principal and account stay pinned, and the forwarder
+// only ever writes to the two funnel groups.
+new aws.lambda.Permission("forward-analytics-invoke-any-log-group", {
+	action: "lambda:InvokeFunction",
+	function: forwardAnalyticsLambda.functionName,
+	principal: "logs.amazonaws.com",
+	sourceAccount: accountId,
+	sourceArn: pulumi.interpolate`arn:aws:logs:${region}:${accountId}:log-group:*`,
+});
 
-// Invoke permission for every forwarded source group. The function owner grants
-// all nine here — including blog-site's group — so blog-site's Commit-2
-// subscription filter attaches to a permission that already exists. CloudWatch
-// Logs validates the invoke permission when a filter is created, so each filter
-// below dependsOn its permission.
-const forwardPermissions = new Map<string, aws.lambda.Permission>();
-for (const sourceLogGroup of FORWARDED_SOURCE_LOG_GROUPS) {
-	const slug = sourceLogGroup.replace(/[^a-zA-Z0-9]+/g, "-").replace(/^-|-$/g, "");
-	forwardPermissions.set(
-		sourceLogGroup,
-		new aws.lambda.Permission(`forward-analytics-invoke-${slug}`, {
-			action: "lambda:InvokeFunction",
-			function: forwardAnalyticsLambda.functionName,
-			principal: "logs.amazonaws.com",
-			sourceAccount: accountId,
-			sourceArn: pulumi.interpolate`arn:aws:logs:${region}:${accountId}:log-group:${sourceLogGroup}:*`,
-		}),
-	);
-}
-
-// Subscription filters for every source group hutch owns (all nine but blog-site's,
-// whose own stack attaches the filter in Commit 2). `logGroup` is the owner
-// Lambda's managed group output, so Pulumi orders the group ahead of the filter
-// and a fresh-stack bootstrap can't race the group's creation.
-const hutchForwardSources: { name: string; logGroup: pulumi.Output<string> }[] = [
-	{ name: LOG_GROUPS.hutchHandler, logGroup: lambda.logGroupName },
-	{ name: LOG_GROUPS.subscriptionStartRequest, logGroup: subscriptionStartRequestLambda.logGroupName },
-	{ name: LOG_GROUPS.subscriptionChargeSucceeded, logGroup: subscriptionChargeSucceededLambda.logGroupName },
-	{ name: LOG_GROUPS.subscriptionChargeFailed, logGroup: subscriptionChargeFailedLambda.logGroupName },
-	{ name: LOG_GROUPS.cancelSubscription, logGroup: cancelSubscriptionLambda.logGroupName },
-	{ name: LOG_GROUPS.handleSubscriptionCancelled, logGroup: handleSubscriptionCancelledLambda.logGroupName },
-	{ name: LOG_GROUPS.scheduleTrialFeedbackEmail, logGroup: scheduleTrialFeedbackEmailLambda.logGroupName },
-	{ name: LOG_GROUPS.sendTrialFeedbackEmail, logGroup: sendTrialFeedbackEmailLambda.logGroupName },
-];
-
-// Guard against the source-of-truth list and this owner map drifting: every
-// forwarded group except blog-site's must be wired to a filter here.
-assert.deepEqual(
-	hutchForwardSources.map((source) => source.name).sort(),
-	FORWARDED_SOURCE_LOG_GROUPS.filter((name) => name !== BLOG_SITE_LOG_GROUP).slice().sort(),
-	"hutch subscription-filter sources must equal FORWARDED_SOURCE_LOG_GROUPS minus the blog-site group",
-);
-
-for (const source of hutchForwardSources) {
-	const permission = forwardPermissions.get(source.name);
-	assert(permission, `forward-analytics: missing invoke permission for ${source.name}`);
-	const slug = source.name.replace(/[^a-zA-Z0-9]+/g, "-").replace(/^-|-$/g, "");
-	new aws.cloudwatch.LogSubscriptionFilter(`forward-analytics-sub-${slug}`, {
-		logGroup: source.logGroup,
-		filterPattern: forwardFilterPattern,
-		destinationArn: forwardAnalyticsLambda.arn,
-	}, { dependsOn: [permission] });
-}
+// The per-group subscription filters that used to live here are gone: every
+// HutchLambda now attaches its own, so the list, its drift guard, and the
+// blog-site special case all had nothing left to guard.
 
 // Each subscription Lambda now owns its log group (HutchLambda), but those
 // Lambdas only run after a trial ends — so until the first trial-end charge

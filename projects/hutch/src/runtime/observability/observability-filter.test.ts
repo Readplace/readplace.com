@@ -1,9 +1,10 @@
-import { FORWARDED_STREAMS, STREAMS } from "./events";
 import {
+	ANALYTICS_FILTER_STREAMS,
 	buildObservabilityFilterPattern,
 	ERROR_STREAMS,
 	RUNTIME_FAILURE_MARKERS,
-} from "./observability-filter";
+} from "@packages/hutch-infra-components";
+import { FORWARDED_STREAMS, STREAMS } from "./events";
 import { classifyForwardedLine } from "../forward-analytics/forward-analytics-handler";
 
 const pattern = buildObservabilityFilterPattern();
@@ -16,14 +17,26 @@ function matchesPattern(line: string): boolean {
 		.some((term) => line.includes(term));
 }
 
-describe("buildObservabilityFilterPattern", () => {
+describe("observability filter", () => {
+	// The stream names are literals in @packages/hutch-infra-components because
+	// @packages/web-analytics already depends on it, so importing STREAMS back
+	// would close a dependency cycle. These two assertions are what stop the
+	// duplicated literals drifting from the definitions they mirror.
+	it("mirrors FORWARDED_STREAMS — the analytics vocabulary cannot drift from its definition", () => {
+		expect([...ANALYTICS_FILTER_STREAMS]).toEqual([...FORWARDED_STREAMS]);
+	});
+
+	it("mirrors the operational error streams", () => {
+		expect([...ERROR_STREAMS]).toEqual([STREAMS.parseErrors]);
+	});
+
 	it.each(FORWARDED_STREAMS)("forwards the %s stream, so business history reaches the funnel", (stream) => {
 		expect(matchesPattern(`{"stream":"${stream}","event":"pageview"}`)).toBe(true);
 	});
 
-	// The bug this test exists for: parse-errors was absent from the pattern, so
-	// the classifier's parse-errors branch was dead in production — those lines
-	// were never delivered to classify. Caught with `aws logs test-metric-filter`
+	// The bug this exists for: parse-errors was absent from the pattern, so the
+	// classifier's parse-errors branch was dead in production — those lines were
+	// never delivered to be classified. Caught with `aws logs test-metric-filter`
 	// against real log lines, not by any unit test, which is why this one is here.
 	it.each(ERROR_STREAMS)("forwards the %s stream — the classifier routes it, so the filter must deliver it", (stream) => {
 		expect(matchesPattern(`{"stream":"${stream}","reason":"bad html"}`)).toBe(true);
@@ -47,10 +60,9 @@ describe("buildObservabilityFilterPattern", () => {
 		}
 	});
 
-	// The filter and the classifier are two halves of one decision and live in
-	// different modules. A stream the classifier claims but the filter drops is
-	// invisible; this is the guard that they agree.
-	it("delivers every line the classifier claims — a stream the filter drops can never be classified", () => {
+	// The filter and the classifier are two halves of one decision, in different
+	// packages. A line the classifier claims but the filter drops is invisible.
+	it("delivers every line the classifier claims", () => {
 		const claimed = [
 			...FORWARDED_STREAMS.map((s) => `{"stream":"${s}","event":"x"}`),
 			...ERROR_STREAMS.map((s) => `{"stream":"${s}","reason":"x"}`),
@@ -58,9 +70,7 @@ describe("buildObservabilityFilterPattern", () => {
 			...RUNTIME_FAILURE_MARKERS.map((m) => `req-1 ${m} detail`),
 		];
 		for (const line of claimed) {
-			expect(
-				classifyForwardedLine({ message: line, analyticsStreams: FORWARDED_STREAMS }),
-			).toBeDefined();
+			expect(classifyForwardedLine({ message: line, analyticsStreams: FORWARDED_STREAMS })).toBeDefined();
 			expect(matchesPattern(line)).toBe(true);
 		}
 	});

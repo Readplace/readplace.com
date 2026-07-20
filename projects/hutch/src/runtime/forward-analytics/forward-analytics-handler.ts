@@ -2,7 +2,7 @@ import { gunzipSync } from "node:zlib";
 import { z } from "zod";
 import type { CloudWatchLogsEvent, Handler } from "aws-lambda";
 import type { HutchLogger } from "@packages/hutch-logger";
-import { ERROR_STREAMS, RUNTIME_FAILURE_MARKERS } from "../observability/observability-filter";
+import { ERROR_STREAMS, RUNTIME_FAILURE_MARKERS } from "@packages/hutch-infra-components";
 
 /** One forwarded log line: the source event's timestamp, and its JSON payload
  * with the Lambda-Text preamble stripped (see `extractJsonPayload`). */

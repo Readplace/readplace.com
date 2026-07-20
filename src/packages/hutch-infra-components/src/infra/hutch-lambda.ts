@@ -5,6 +5,11 @@ import assert from "node:assert";
 import { copyFileSync, existsSync, lstatSync, mkdirSync, readFileSync, readdirSync, realpathSync } from "node:fs";
 import { createRequire } from "node:module";
 import { dirname, join, relative, resolve } from "node:path";
+import {
+	FORWARD_ANALYTICS_FUNCTION_NAME,
+	FORWARD_ANALYTICS_LAMBDA_NAME,
+} from "../forward-analytics-lambda";
+import { buildObservabilityFilterPattern } from "../observability-filter";
 
 const esbuildLoaders: Record<string, Loader> = { ".ts": "ts" };
 const bundledExtensions = Object.keys(esbuildLoaders);
@@ -271,6 +276,28 @@ export class HutchLambda extends pulumi.ComponentResource {
 				? [{ name: args.priorLogGroupLogicalName, parent: pulumi.rootStackResource }]
 				: [],
 		});
+
+		// Every Lambda's log group funnels into the shared observability
+		// destinations, attached here rather than at the call site so coverage is a
+		// property of creating a Lambda instead of a step someone has to remember.
+		// It is not hypothetical: inbox and web-embed each shipped Lambdas with no
+		// filter at all, so their errors reached no dashboard.
+		//
+		// The forwarder is skipped — subscribing it to its own output would loop.
+		//
+		// The destination ARN is derived from account + region + the shared function
+		// name rather than read back through a StackReference, matching blog-site's
+		// existing approach: a project stack must not have to resolve hutch's
+		// outputs just to create a log group, and deriving it means a fresh-env
+		// bootstrap cannot deadlock on deploy order.
+		if (name !== FORWARD_ANALYTICS_LAMBDA_NAME) {
+			const identity = aws.getCallerIdentity({});
+			new aws.cloudwatch.LogSubscriptionFilter(`${lambdaName}-observability`, {
+				logGroup: logGroup.name,
+				filterPattern: buildObservabilityFilterPattern(),
+				destinationArn: pulumi.interpolate`arn:aws:lambda:${aws.config.requireRegion()}:${pulumi.output(identity).accountId}:function:${FORWARD_ANALYTICS_FUNCTION_NAME}`,
+			}, { parent: this, dependsOn: [logGroup] });
+		}
 
 		const hasEnvironment = Object.keys(args.environment).length > 0;
 		const environmentArg = hasEnvironment ? { environment: { variables: args.environment } } : {};
