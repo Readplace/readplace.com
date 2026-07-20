@@ -48,7 +48,7 @@
   display: inline-block;
   margin-top: 16px;
   padding: var(--button-padding);
-  background: var(--primary-text);
+  background: var(--primary-fill);
   color: var(--primary-foreground);
   border-radius: var(--radius);
   font-weight: 600;

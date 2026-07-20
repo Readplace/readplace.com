@@ -18,6 +18,10 @@ const LIGHT_THEME_VARIABLES: Record<string, string> = {
 	"--shadow-md": "0 4px 6px rgba(0,0,0,0.07)",
 	"--primary": "hsl(27 65% 47%)",
 	"--primary-text": "var(--color-brand-dark)",
+	/** Amber dark enough to carry --primary-foreground at 5.06:1, so it is pinned
+	 * across both themes: a fill and a text colour need opposite lightness as the
+	 * page darkens, and --primary-text follows the page. */
+	"--primary-fill": "#A85A1E",
 	"--primary-foreground": "hsl(0 0% 100%)",
 	"--secondary": "hsl(27 30% 95%)",
 	"--secondary-foreground": "hsl(27 65% 35%)",

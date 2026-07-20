@@ -95,7 +95,7 @@
   font-size: 0.9rem;
   font-weight: 600;
   color: var(--primary-foreground);
-  background: var(--primary-text);
+  background: var(--primary-fill);
   border: none;
   border-radius: var(--radius);
   cursor: pointer;
@@ -220,7 +220,7 @@
 .inbox__create-btn {
   display: inline-block;
   padding: var(--button-padding);
-  background: var(--primary-text);
+  background: var(--primary-fill);
   color: var(--primary-foreground);
   font-size: 1rem;
   font-weight: 600;
