@@ -41,23 +41,23 @@ describe("parseInboxEmailsUrl", () => {
 });
 
 describe("buildInboxEmailsUrl", () => {
-	it("always carries the email feature flag", () => {
-		expect(buildInboxEmailsUrl({})).toBe("/inbox?feature=email");
+	it("returns the bare inbox path when there is no cursor", () => {
+		expect(buildInboxEmailsUrl({})).toBe("/inbox");
 	});
 
-	it("URL-encodes an older cursor after the flag", () => {
+	it("URL-encodes an older cursor", () => {
 		expect(
 			buildInboxEmailsUrl({
 				cursor: { direction: "older", receivedAtMessageId: BOUNDARY },
 			}),
-		).toBe(`/inbox?feature=email&older=${ENCODED_BOUNDARY}`);
+		).toBe(`/inbox?older=${ENCODED_BOUNDARY}`);
 	});
 
-	it("URL-encodes a newer cursor after the flag", () => {
+	it("URL-encodes a newer cursor", () => {
 		expect(
 			buildInboxEmailsUrl({
 				cursor: { direction: "newer", receivedAtMessageId: BOUNDARY },
 			}),
-		).toBe(`/inbox?feature=email&newer=${ENCODED_BOUNDARY}`);
+		).toBe(`/inbox?newer=${ENCODED_BOUNDARY}`);
 	});
 });

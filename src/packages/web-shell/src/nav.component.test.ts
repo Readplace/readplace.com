@@ -22,7 +22,6 @@ describe("GlobalNav component", () => {
 				variant: "default",
 				isAuthenticated: true,
 				accessIsReadOnly: false,
-				emailFeatureEnabled: false,
 			}),
 		);
 
@@ -39,7 +38,6 @@ describe("GlobalNav component", () => {
 				variant: "default",
 				isAuthenticated: true,
 				accessIsReadOnly: false,
-				emailFeatureEnabled: false,
 				trialCounter: ACTIVE_TRIAL,
 			}),
 		);
@@ -61,7 +59,6 @@ describe("GlobalNav component", () => {
 				variant: "default",
 				isAuthenticated: true,
 				accessIsReadOnly: false,
-				emailFeatureEnabled: false,
 				trialCounter: { state: "expired" },
 			}),
 		);
@@ -81,7 +78,6 @@ describe("GlobalNav component", () => {
 				variant: "default",
 				isAuthenticated: true,
 				accessIsReadOnly: false,
-				emailFeatureEnabled: false,
 				trialCounter: {
 					state: "cancellation-scheduled",
 					endsAtIso: "2027-07-10T00:00:00.000Z",
@@ -109,7 +105,6 @@ describe("GlobalNav component", () => {
 				variant: "default",
 				isAuthenticated: true,
 				accessIsReadOnly: false,
-				emailFeatureEnabled: false,
 				trialCounter: {
 					state: "cancellation-scheduled",
 					endsAtIso: "2026-07-17T00:00:00.000Z",
@@ -131,7 +126,6 @@ describe("GlobalNav component", () => {
 				variant: "default",
 				isAuthenticated: true,
 				accessIsReadOnly: false,
-				emailFeatureEnabled: false,
 				trialCounter: {
 					state: "cancellation-scheduled",
 					endsAtIso: "2026-07-17T00:00:00.001Z",
@@ -151,7 +145,6 @@ describe("GlobalNav component", () => {
 				variant: "default",
 				isAuthenticated: true,
 				accessIsReadOnly: false,
-				emailFeatureEnabled: false,
 				trialCounter: ACTIVE_TRIAL,
 			}),
 		);
@@ -165,7 +158,6 @@ describe("GlobalNav component", () => {
 				variant: "default",
 				isAuthenticated: true,
 				accessIsReadOnly: false,
-				emailFeatureEnabled: false,
 				trialCounter: { state: "expired" },
 			}),
 		);
@@ -181,7 +173,6 @@ describe("GlobalNav component", () => {
 				variant: "default",
 				isAuthenticated: true,
 				accessIsReadOnly: false,
-				emailFeatureEnabled: false,
 			}),
 		);
 
@@ -205,7 +196,6 @@ describe("GlobalNav component", () => {
 				variant: "default",
 				isAuthenticated: true,
 				accessIsReadOnly: false,
-				emailFeatureEnabled: false,
 			}),
 		);
 
@@ -220,7 +210,7 @@ describe("GlobalNav component", () => {
 		const libraryItems = Array.from(
 			library.querySelectorAll("[data-test-nav-item]"),
 		).map((el) => el.getAttribute("data-test-nav-item"));
-		expect(libraryItems).toEqual(["queue", "import", "export"]);
+		expect(libraryItems).toEqual(["queue", "import", "inbox"]);
 
 		const account = doc.querySelector('[data-test-nav-group="account"]');
 		assert(account, "account group must render");
@@ -228,43 +218,27 @@ describe("GlobalNav component", () => {
 		const accountItems = Array.from(
 			account.querySelectorAll("[data-test-nav-item]"),
 		).map((el) => el.getAttribute("data-test-nav-item"));
-		expect(accountItems).toEqual(["account", "logout"]);
+		expect(accountItems).toEqual(["account", "export", "logout"]);
 	});
 
-	it("omits the Inbox entry by default and appends it after Export when the email feature is enabled", () => {
-		const withoutFlag = Array.from(
-			parse(
-				GlobalNav({ variant: "default", isAuthenticated: true, accessIsReadOnly: false, emailFeatureEnabled: false }),
-			).querySelectorAll("[data-test-nav-item]"),
-		).map((el) => el.getAttribute("data-test-nav-item"));
-		expect(withoutFlag).not.toContain("inbox");
+	it("renders the Inbox entry for every full-access user, with no feature flag to opt in", () => {
+		const doc = parse(GlobalNav({ variant: "default", isAuthenticated: true, accessIsReadOnly: false }));
 
-		const withFlag = parse(
-			GlobalNav({ variant: "default", isAuthenticated: true, accessIsReadOnly: false, emailFeatureEnabled: true }),
-		);
 		const libraryItems = Array.from(
-			withFlag
+			doc
 				.querySelector('[data-test-nav-group="library"]')
 				?.querySelectorAll("[data-test-nav-item]") ?? [],
 		).map((el) => el.getAttribute("data-test-nav-item"));
-		expect(libraryItems).toEqual(["queue", "import", "export", "inbox"]);
+		expect(libraryItems).toEqual(["queue", "import", "inbox"]);
 	});
 
-	it("carries feature=email as a hidden input on the Inbox entry so its GET form keeps the gate flag", () => {
-		const doc = parse(
-			GlobalNav({ variant: "default", isAuthenticated: true, accessIsReadOnly: false, emailFeatureEnabled: true }),
-		);
+	it("submits the Inbox entry as a plain GET form carrying no feature flag", () => {
+		const doc = parse(GlobalNav({ variant: "default", isAuthenticated: true, accessIsReadOnly: false }));
 
 		const inboxForm = doc.querySelector('[data-test-nav-item="inbox"]')?.closest("form");
 		assert(inboxForm, "inbox nav item must be inside a form");
 		expect(inboxForm.getAttribute("method")).toBe("GET");
-		const feature = inboxForm.querySelector('input[type="hidden"][name="feature"]');
-		assert(feature, "inbox form must carry the feature flag as a hidden input");
-		expect(feature.getAttribute("value")).toBe("email");
-
-		const queueForm = doc.querySelector('[data-test-nav-item="queue"]')?.closest("form");
-		assert(queueForm, "queue nav item must be inside a form");
-		expect(queueForm.querySelector('input[type="hidden"][name="feature"]')).toBeNull();
+		expect(inboxForm.querySelector('input[type="hidden"][name="feature"]')).toBeNull();
 	});
 
 	it("renders an aria-hidden Font Awesome icon alongside each label without polluting the accessible name", () => {
@@ -273,7 +247,6 @@ describe("GlobalNav component", () => {
 				variant: "default",
 				isAuthenticated: true,
 				accessIsReadOnly: false,
-				emailFeatureEnabled: false,
 			}),
 		);
 
@@ -292,7 +265,6 @@ describe("GlobalNav component", () => {
 				variant: "default",
 				isAuthenticated: false,
 				accessIsReadOnly: false,
-				emailFeatureEnabled: false,
 			}),
 		);
 
@@ -317,7 +289,6 @@ describe("GlobalNav component", () => {
 				variant: "transparent",
 				isAuthenticated: false,
 				accessIsReadOnly: false,
-				emailFeatureEnabled: false,
 			}),
 		);
 

@@ -1,4 +1,4 @@
-import { EMAIL_FEATURE, type LocalTime, toAbsoluteDateTime } from "@packages/web-shell";
+import { type LocalTime, toAbsoluteDateTime } from "@packages/web-shell";
 import type {
 	EmailLinkSkipReason,
 	InboxEmailEntry,
@@ -283,7 +283,7 @@ export function toInboxEmailDetailViewModel(input: {
 		subject: input.entry.subject === "" ? "(no subject)" : input.entry.subject,
 		sender: input.entry.senderEmail === "" ? "(unknown sender)" : input.entry.senderEmail,
 		received: toAbsoluteDateTime({ iso: input.entry.receivedAt }),
-		backHref: `/inbox?feature=${EMAIL_FEATURE}`,
+		backHref: "/inbox",
 		activeTab: input.activeTab,
 		statusToastMessage,
 		// Counts come from every kept/skipped link, not the page of cards on

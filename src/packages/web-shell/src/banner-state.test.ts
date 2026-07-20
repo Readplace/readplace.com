@@ -38,11 +38,6 @@ describe("bannerStateFromRequest", () => {
 		expect(bannerStateFromRequest({}).currentPath).toBeUndefined();
 	});
 
-	it("sets emailFeatureEnabled only when the query carries feature=email", () => {
-		expect(bannerStateFromRequest({ query: { feature: "email" } }).emailFeatureEnabled).toBe(true);
-		expect(bannerStateFromRequest({ query: { feature: "audio" } }).emailFeatureEnabled).toBe(false);
-		expect(bannerStateFromRequest({}).emailFeatureEnabled).toBe(false);
-	});
 });
 
 describe("buildGuestNavItems", () => {
@@ -77,39 +72,39 @@ describe("buildGuestNavItems", () => {
 });
 
 describe("buildNavGroups", () => {
-	it("groups full-access items into Library (queue, import, export) and Account (account, sign out)", () => {
-		const groups = buildNavGroups({ accessIsReadOnly: false, emailFeatureEnabled: false });
+	it("groups full-access items into Library (queue, import, inbox) and Account (account, export, sign out)", () => {
+		const groups = buildNavGroups({ accessIsReadOnly: false });
 		expect(groups.map((g) => g.key)).toEqual(["library", "account"]);
 		const [library, account] = groups;
 		expect(library?.label).toBe("Library");
-		expect(library?.items.map((i) => i.key)).toEqual(["queue", "import", "export"]);
+		expect(library?.items.map((i) => i.key)).toEqual(["queue", "import", "inbox"]);
 		expect(account?.label).toBe("Account");
-		expect(account?.items.map((i) => i.key)).toEqual(["account", "logout"]);
+		expect(account?.items.map((i) => i.key)).toEqual(["account", "export", "logout"]);
 	});
 
-	it("omits import and account for a read-only user, leaving Library (queue, export) and Account (sign out)", () => {
-		const groups = buildNavGroups({ accessIsReadOnly: true, emailFeatureEnabled: false });
+	it("omits import, inbox, and account for a read-only user, leaving Library (queue) and Account (export, sign out)", () => {
+		const groups = buildNavGroups({ accessIsReadOnly: true });
 		const [library, account] = groups;
-		expect(library?.items.map((i) => i.key)).toEqual(["queue", "export"]);
-		expect(account?.items.map((i) => i.key)).toEqual(["logout"]);
+		expect(library?.items.map((i) => i.key)).toEqual(["queue"]);
+		expect(account?.items.map((i) => i.key)).toEqual(["export", "logout"]);
 	});
 
-	it("appends the Inbox entry to Library when the email feature is enabled", () => {
-		const groups = buildNavGroups({ accessIsReadOnly: false, emailFeatureEnabled: true });
+	it("keeps the Inbox entry in Library for every full-access user, with no feature flag to opt in", () => {
+		const groups = buildNavGroups({ accessIsReadOnly: false });
 		const [library] = groups;
-		expect(library?.items.map((i) => i.key)).toEqual(["queue", "import", "export", "inbox"]);
+		expect(library?.items.map((i) => i.key)).toContain("inbox");
 	});
 
-	it("omits the Inbox entry for a read-only user even when the email feature is enabled", () => {
-		const groups = buildNavGroups({ accessIsReadOnly: true, emailFeatureEnabled: true });
-		const [library] = groups;
-		expect(library?.items.map((i) => i.key)).toEqual(["queue", "export"]);
+	it("points the Inbox entry at the inbox page with no feature param", () => {
+		const inbox = buildNavGroups({ accessIsReadOnly: false })
+			.flatMap((g) => g.items)
+			.find((i) => i.key === "inbox");
+		assert(inbox, "library nav must include an inbox item");
+		expect(inbox.href).toBe("/inbox?utm_source=header-nav&utm_medium=internal&utm_content=inbox");
 	});
 
 	it("assigns a Font Awesome solid icon to every nav item", () => {
-		const items = buildNavGroups({ accessIsReadOnly: false, emailFeatureEnabled: true }).flatMap(
-			(g) => g.items,
-		);
+		const items = buildNavGroups({ accessIsReadOnly: false }).flatMap((g) => g.items);
 		for (const item of items) {
 			expect(item.icon).toMatch(/^fa-solid fa-[a-z-]+$/);
 		}

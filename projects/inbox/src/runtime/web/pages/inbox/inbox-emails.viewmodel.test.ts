@@ -57,12 +57,12 @@ describe("toInboxEmailsViewModel", () => {
 		expect(build([]).isEmpty).toBe(true);
 	});
 
-	it("builds a flag-carrying detail link from the URL-encoded sort key", () => {
+	it("builds a detail link from the URL-encoded sort key", () => {
 		const vm = build([entry({ receivedAtMessageId: "2026-06-24T09:00:00.000Z#<a@x>" })]);
 
 		expect(vm.isEmpty).toBe(false);
 		expect(vm.rows[0].href).toBe(
-			`/inbox/${encodeURIComponent("2026-06-24T09:00:00.000Z#<a@x>")}?feature=email`,
+			`/inbox/${encodeURIComponent("2026-06-24T09:00:00.000Z#<a@x>")}`,
 		);
 	});
 
@@ -144,7 +144,7 @@ describe("toInboxEmailsViewModel", () => {
 			{
 				key: "older",
 				label: "Older →",
-				href: `/inbox?feature=email&older=${encodeURIComponent(
+				href: `/inbox?older=${encodeURIComponent(
 					"2026-06-24T09:00:00.000Z#<old@x>",
 				)}`,
 			},
@@ -158,7 +158,7 @@ describe("toInboxEmailsViewModel", () => {
 			{
 				key: "newer",
 				label: "← Newer",
-				href: `/inbox?feature=email&newer=${encodeURIComponent(
+				href: `/inbox?newer=${encodeURIComponent(
 					"2026-06-24T10:00:00.000Z#<new@x>",
 				)}`,
 			},

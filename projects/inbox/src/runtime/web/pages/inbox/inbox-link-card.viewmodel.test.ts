@@ -41,10 +41,10 @@ describe("toInboxLinkCardViewModel", () => {
 		expect(vm.title).toBe("");
 		expect(vm.hasTitle).toBe(false);
 		expect(vm.actions.map((action) => [action.key, action.href])).toEqual([
-			["save", `/inbox/${encodeURIComponent(EMAIL_ID)}/links/0002/save?feature=email`],
+			["save", `/inbox/${encodeURIComponent(EMAIL_ID)}/links/0002/save`],
 			[
 				"feedback-exclude",
-				`/inbox/${encodeURIComponent(EMAIL_ID)}/links/0002/feedback?feature=email`,
+				`/inbox/${encodeURIComponent(EMAIL_ID)}/links/0002/feedback`,
 			],
 		]);
 	});

@@ -151,7 +151,7 @@ describe("toInboxEmailDetailViewModel", () => {
 
 		expect(vm.articles.isExtracting).toBe(true);
 		expect(vm.articles.isEmpty).toBe(true);
-		expect(vm.articles.panelPollUrl).toContain("/articles?feature=email&poll=1");
+		expect(vm.articles.panelPollUrl).toContain("/articles?poll=1");
 		// The header count is held back until extraction writes its barrier.
 		expect(vm.linkCountLabel).toBeUndefined();
 		// So are the tab counts: "(0)" would read as "none found" rather than
@@ -172,7 +172,7 @@ describe("toInboxEmailDetailViewModel", () => {
 		expect(vm.excluded.isExtracting).toBe(true);
 		expect(vm.excluded.isStalePending).toBe(false);
 		// Its own fragment — polling /articles would swap the Articles panel in here.
-		expect(vm.excluded.panelPollUrl).toContain("/excluded?feature=email&poll=1");
+		expect(vm.excluded.panelPollUrl).toContain("/excluded?poll=1");
 	});
 
 	it("gives up to a terminal stale state once the budget is spent without a meta barrier", () => {
@@ -329,13 +329,13 @@ describe("toInboxEmailDetailViewModel", () => {
 				ordinal: "0001",
 				url: "https://news.example.com/unsub",
 				reasonLabel: "Unsubscribe link",
-				feedbackAction: `/inbox/${encodeURIComponent(SK)}/links/0001/feedback?feature=email`,
+				feedbackAction: `/inbox/${encodeURIComponent(SK)}/links/0001/feedback`,
 			},
 			{
 				ordinal: "0002",
 				url: "https://sponsor.example.com/deal",
 				reasonLabel: "Advertisement",
-				feedbackAction: `/inbox/${encodeURIComponent(SK)}/links/0002/feedback?feature=email`,
+				feedbackAction: `/inbox/${encodeURIComponent(SK)}/links/0002/feedback`,
 			},
 		]);
 		expect(vm.linkCountLabel).toBe("1 link");
@@ -414,8 +414,8 @@ describe("toInboxEmailDetailViewModel", () => {
 			crawledLinks(ARTICLES_PAGE_SIZE).map((entry) => entry.ordinal),
 		);
 		expect(vm.articles.showMore).toEqual({
-			detailHref: `/inbox/${encodeURIComponent(SK)}?feature=email&tab=articles&shown=40`,
-			moreUrl: `/inbox/${encodeURIComponent(SK)}/articles/more?feature=email&shown=40`,
+			detailHref: `/inbox/${encodeURIComponent(SK)}?tab=articles&shown=40`,
+			moreUrl: `/inbox/${encodeURIComponent(SK)}/articles/more?shown=40`,
 			count: 5,
 		});
 	});
@@ -545,8 +545,8 @@ describe("toInboxArticlesMoreViewModel", () => {
 			crawledLinks(ARTICLES_PAGE_SIZE, ARTICLES_PAGE_SIZE).map((entry) => entry.ordinal),
 		);
 		expect(vm.showMore).toEqual({
-			detailHref: `/inbox/${encodeURIComponent(SK)}?feature=email&tab=articles&shown=60`,
-			moreUrl: `/inbox/${encodeURIComponent(SK)}/articles/more?feature=email&shown=60`,
+			detailHref: `/inbox/${encodeURIComponent(SK)}?tab=articles&shown=60`,
+			moreUrl: `/inbox/${encodeURIComponent(SK)}/articles/more?shown=60`,
 			count: 5,
 		});
 	});

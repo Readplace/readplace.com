@@ -210,7 +210,7 @@ describe("Base component", () => {
 		expect(navItems).toEqual(["install", "features", "import", "login"]);
 	});
 
-	it("renders the full nav (queue + import + export + account + logout) for an authenticated full-access user", () => {
+	it("renders the full nav (queue + import + inbox + account + export + logout) for an authenticated full-access user", () => {
 		const page = createTestPageBody();
 		const result = Base(page, {
 			isAuthenticated: true,
@@ -222,7 +222,7 @@ describe("Base component", () => {
 		const navItems = Array.from(doc.querySelectorAll("[data-test-nav-item]")).map(
 			(el) => el.getAttribute("data-test-nav-item"),
 		);
-		expect(navItems).toEqual(["queue", "import", "export", "account", "logout"]);
+		expect(navItems).toEqual(["queue", "import", "inbox", "account", "export", "logout"]);
 	});
 
 	it("hides import + account from the nav for a read-only user (trial-expired / subscription-cancelled) — only queue, export, logout remain", () => {
@@ -906,7 +906,6 @@ describe("initBase config", () => {
 				variant: "default",
 				isAuthenticated: false,
 				accessIsReadOnly: false,
-				emailFeatureEnabled: false,
 			}),
 		).toBe("");
 	});

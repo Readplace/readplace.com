@@ -30,7 +30,6 @@ export const NAV_TEMPLATE = `  <header class="header{{#if transparent}} header--
                   <input type="hidden" name="utm_source" value="{{trackSource}}">
                   <input type="hidden" name="utm_medium" value="internal">
                   <input type="hidden" name="utm_content" value="{{trackContent}}">
-                  {{#each hiddenParams}}<input type="hidden" name="{{@key}}" value="{{this}}">{{/each}}
                   <button type="submit" class="nav__link" data-test-nav-item="{{key}}"><i class="nav__icon {{icon}}" aria-hidden="true"></i><span class="nav__label">{{label}}</span></button>
                 </form>
               </li>
@@ -45,7 +44,6 @@ export const NAV_TEMPLATE = `  <header class="header{{#if transparent}} header--
               <input type="hidden" name="utm_source" value="{{trackSource}}">
               <input type="hidden" name="utm_medium" value="internal">
               <input type="hidden" name="utm_content" value="{{trackContent}}">
-              {{#each hiddenParams}}<input type="hidden" name="{{@key}}" value="{{this}}">{{/each}}
               <button type="submit" class="nav__link" data-test-nav-item="{{key}}"><i class="nav__icon {{icon}}" aria-hidden="true"></i><span class="nav__label">{{label}}</span></button>
             </form>
           </li>

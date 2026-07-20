@@ -35,11 +35,6 @@ export interface BannerStateSource {
 	 * post the page the reader is on (the dismiss route cannot rely on `Referer`,
 	 * which helmet's default `no-referrer` policy strips). */
 	originalUrl?: string;
-	/** The request's parsed query string. Express populates it on every request,
-	 * so passing the request as the source supplies it structurally;
-	 * `bannerStateFromRequest` reads `query.feature` to gate the email-feature
-	 * nav entry without the shell importing the host's feature toggle. */
-	query?: Record<string, unknown>;
 }
 
 export type NavItemKey =
@@ -53,17 +48,11 @@ export type NavItemKey =
 	| "features"
 	| "login";
 
-/** The querystring feature flag that reveals the email-forwarding surface. The
- * single source of truth for the string, shared so the consuming site's route
- * gate (`featureToggle.isEnabled(req, EMAIL_FEATURE)`) and this shell's nav
- * derivation agree without the shell importing the host's feature toggle. */
-export const EMAIL_FEATURE = "email";
-
 /** Logical section a nav item belongs to. The header renders one section per
  * group so related destinations sit together and new destinations slot into an
  * existing group rather than lengthening one flat list. "library" holds the
- * reading queue and its data tools; "account" holds identity/session actions;
- * "explore" is the guest pre-auth section. */
+ * reading surfaces; "account" holds identity/session actions and the data tools
+ * that act on the account as a whole. */
 export type NavGroupKey = "library" | "account";
 
 /** Data-driven header nav item. Rendered uniformly as
@@ -92,14 +81,6 @@ export interface NavItem {
 	icon: string;
 	trackSource: string;
 	trackContent: string;
-	/** Extra query params the entry must deliver to its target, rendered as
-	 * hidden inputs beside the UTM trio. A GET submit serializes the form's
-	 * fields into the target's query string and discards the action's own query
-	 * (the same browser behaviour the UTM dual-transmission above works around),
-	 * so these inputs are how NAV_INBOX carries `feature=email` to the
-	 * flag-gated /inbox route — without them the gate 404s. Undefined for
-	 * entries that need no extra params. */
-	hiddenParams?: Record<string, string>;
 }
 
 const NAV_SOURCE = "header-nav";
@@ -113,7 +94,6 @@ function navItem(input: {
 	path: string;
 	method: "GET" | "POST";
 	icon: string;
-	hiddenParams?: Record<string, string>;
 }): NavItem {
 	return {
 		key: input.key,
@@ -123,7 +103,6 @@ function navItem(input: {
 		icon: input.icon,
 		trackSource: NAV_SOURCE,
 		trackContent: input.key,
-		hiddenParams: input.hiddenParams,
 	};
 }
 
@@ -184,16 +163,12 @@ export interface BannerState {
 	 * rendering site supplies no request URL; the dismiss route then falls back
 	 * to "/". */
 	currentPath?: string;
-	/** True when the request carries `?feature=email`. Reveals the Inbox nav
-	 * entry; the per-request querystring toggle keeps the surface hidden by
-	 * default until the flag is flipped on a request. */
-	emailFeatureEnabled?: boolean;
 }
 
 const NAV_QUEUE = navItem({ key: "queue", label: "Queue", path: "/queue", method: "GET", icon: "fa-solid fa-inbox" });
 const NAV_IMPORT = navItem({ key: "import", label: "Import Links", path: "/import", method: "GET", icon: "fa-solid fa-file-import" });
 const NAV_EXPORT = navItem({ key: "export", label: "Export", path: "/export", method: "GET", icon: "fa-solid fa-file-export" });
-const NAV_INBOX = navItem({ key: "inbox", label: "Inbox", path: "/inbox", method: "GET", icon: "fa-solid fa-envelope", hiddenParams: { feature: EMAIL_FEATURE } });
+const NAV_INBOX = navItem({ key: "inbox", label: "Inbox", path: "/inbox", method: "GET", icon: "fa-solid fa-envelope" });
 const NAV_ACCOUNT = navItem({ key: "account", label: "Account", path: "/account", method: "GET", icon: "fa-solid fa-user" });
 const NAV_LOGOUT = navItem({ key: "logout", label: "Sign out", path: "/logout", method: "POST", icon: "fa-solid fa-right-from-bracket" });
 const NAV_INSTALL = navItem({ key: "install", label: "Install", path: "/install", method: "GET", icon: "fa-solid fa-download" });
@@ -211,27 +186,23 @@ export function buildGuestNavItems(): NavItem[] {
  * iterates the returned groups (then their items) — no inline conditionals.
  * Adding a destination means pushing a NavItem into the right group here, not
  * editing the template. Item order within a group is preserved so the flat
- * rendered order stays queue → import → export → account → logout. */
-export function buildNavGroups(input: {
-	accessIsReadOnly: boolean;
-	emailFeatureEnabled: boolean;
-}): NavGroup[] {
+ * rendered order stays queue → import → inbox → account → export → logout.
+ * Export sits under Account rather than Library: it acts on the whole account
+ * rather than on what the reader is reading, and keeping Library to the reading
+ * surfaces leaves room there for destinations that are actually read-facing. */
+export function buildNavGroups(input: { accessIsReadOnly: boolean }): NavGroup[] {
 	const library: NavItem[] = [NAV_QUEUE];
+	// Saving and minting an address are write actions gated by requireWriteAccess,
+	// so a read-only user gets neither entry. They keep access to existing
+	// addresses by direct link.
 	if (!input.accessIsReadOnly) {
-		library.push(NAV_IMPORT);
-	}
-	library.push(NAV_EXPORT);
-	// Minting an address is a write action gated by requireWriteAccess, so a
-	// read-only user gets no Inbox entry — matching Import, which is hidden the
-	// same way. They keep access to existing addresses by direct link.
-	if (input.emailFeatureEnabled && !input.accessIsReadOnly) {
-		library.push(NAV_INBOX);
+		library.push(NAV_IMPORT, NAV_INBOX);
 	}
 	const account: NavItem[] = [];
 	if (!input.accessIsReadOnly) {
 		account.push(NAV_ACCOUNT);
 	}
-	account.push(NAV_LOGOUT);
+	account.push(NAV_EXPORT, NAV_LOGOUT);
 	return [
 		{ key: "library", label: "Library", items: library },
 		{ key: "account", label: "Account", items: account },
@@ -244,6 +215,5 @@ export function bannerStateFromRequest(source: BannerStateSource): BannerState {
 		emailVerified: source.emailVerified,
 		verification: source.verificationStatus,
 		currentPath: source.originalUrl,
-		emailFeatureEnabled: source.query?.feature === EMAIL_FEATURE,
 	};
 }

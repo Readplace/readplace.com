@@ -123,9 +123,9 @@ function manyCrawledLinks(count: number): Partial<InboxEmailLinkEntry>[] {
 	}));
 }
 
-const detailPath = `/inbox/${encodeURIComponent(SK)}?feature=email`;
-const articlesTabPath = `${detailPath}&tab=articles`;
-const excludedTabPath = `${detailPath}&tab=excluded`;
+const detailPath = `/inbox/${encodeURIComponent(SK)}`;
+const articlesTabPath = `${detailPath}?tab=articles`;
+const excludedTabPath = `${detailPath}?tab=excluded`;
 
 function parseDoc(html: string) {
 	return new JSDOM(html).window.document;
@@ -138,15 +138,6 @@ function renderedPanels(doc: ReturnType<typeof parseDoc>): (string | null)[] {
 }
 
 describe("Inbox email detail View tab", () => {
-	it("returns 404 without the email feature flag", async () => {
-		const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
-		const agent = await loginAgent(harness.server, harness.auth);
-
-		const response = await agent.get(`/inbox/${encodeURIComponent(SK)}`);
-
-		expect(response.status).toBe(404);
-	});
-
 	it("returns 404 for an email the user does not have", async () => {
 		const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
 		const agent = await loginAgent(harness.server, harness.auth);
@@ -178,10 +169,10 @@ describe("Inbox email detail View tab", () => {
 		expect(articlesTab.getAttribute("aria-current")).toBeNull();
 		expect(excludedTab.getAttribute("aria-current")).toBeNull();
 		expect(articlesTab.getAttribute("href")).toBe(
-			`/inbox/${encodeURIComponent(SK)}?feature=email&tab=articles`,
+			`/inbox/${encodeURIComponent(SK)}?tab=articles`,
 		);
 		expect(excludedTab.getAttribute("href")).toBe(
-			`/inbox/${encodeURIComponent(SK)}?feature=email&tab=excluded`,
+			`/inbox/${encodeURIComponent(SK)}?tab=excluded`,
 		);
 		expect(renderedPanels(doc)).toEqual(["view"]);
 
@@ -288,7 +279,7 @@ describe("Inbox email detail View tab", () => {
 		const agent = await loginAgent(harness.server, harness.auth);
 		await seed(fixture, "received");
 
-		const response = await agent.get(`${detailPath}&tab=nope`);
+		const response = await agent.get(`${detailPath}?tab=nope`);
 
 		expect(response.status).toBe(200);
 		const doc = parseDoc(response.text);
@@ -353,15 +344,6 @@ describe("Inbox email detail View tab", () => {
 });
 
 describe("Inbox email detail Articles tab", () => {
-	it("returns 404 without the email feature flag", async () => {
-		const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
-		const agent = await loginAgent(harness.server, harness.auth);
-
-		const response = await agent.get(`/inbox/${encodeURIComponent(SK)}?tab=articles`);
-
-		expect(response.status).toBe(404);
-	});
-
 	it("renders one link row per extracted link, with per-state markup and no email body", async () => {
 		const fixture = createDefaultTestAppFixture(TEST_APP_ORIGIN);
 		let bodyReads = 0;
@@ -429,7 +411,7 @@ describe("Inbox email detail Articles tab", () => {
 		assert(viewTab, "View tab must render");
 		expect(articlesTab.getAttribute("aria-current")).toBe("page");
 		expect(viewTab.getAttribute("aria-current")).toBeNull();
-		expect(viewTab.getAttribute("href")).toBe(`/inbox/${encodeURIComponent(SK)}?feature=email`);
+		expect(viewTab.getAttribute("href")).toBe(`/inbox/${encodeURIComponent(SK)}`);
 	});
 
 	it("keeps only the kept links on the Articles tab, with an exclude-feedback form", async () => {
@@ -561,7 +543,7 @@ describe("Inbox email detail Articles tab", () => {
 		const control = doc.querySelector("[data-test-articles-show-more]");
 		assert(control, "the Show more control must offer the remaining cards");
 		expect(control.textContent).toBe("Show 5 more");
-		expect(control.getAttribute("href")).toBe(`${detailPath}&tab=articles&shown=40`);
+		expect(control.getAttribute("href")).toBe(`${detailPath}?tab=articles&shown=40`);
 		expect(control.closest("[data-test-inbox-articles]")).not.toBeNull();
 		expect(doc.querySelector("[data-test-inbox-detail-link-count]")?.textContent).toBe("25 links");
 	});
@@ -639,15 +621,6 @@ describe("Inbox email detail Articles tab", () => {
 });
 
 describe("Inbox email detail Skipped tab", () => {
-	it("returns 404 without the email feature flag", async () => {
-		const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
-		const agent = await loginAgent(harness.server, harness.auth);
-
-		const response = await agent.get(`/inbox/${encodeURIComponent(SK)}?tab=excluded`);
-
-		expect(response.status).toBe(404);
-	});
-
 	it("lists every skipped link with its reason and an include-feedback form, no email body", async () => {
 		const fixture = createDefaultTestAppFixture(TEST_APP_ORIGIN);
 		let bodyReads = 0;
@@ -711,7 +684,7 @@ describe("Inbox email detail Skipped tab", () => {
 		assert(includeForm, "include feedback must submit as a form");
 		expect(includeForm.getAttribute("method")).toBe("POST");
 		expect(includeForm.getAttribute("action")).toBe(
-			`/inbox/${encodeURIComponent(SK)}/links/0001/feedback?feature=email`,
+			`/inbox/${encodeURIComponent(SK)}/links/0001/feedback`,
 		);
 		expect(includeForm.querySelector('input[name="verdict"]')?.getAttribute("value")).toBe(
 			"should-be-included",
@@ -778,18 +751,9 @@ describe("Inbox email detail Skipped tab", () => {
 	});
 });
 
-const articlesPath = `/inbox/${encodeURIComponent(SK)}/articles?feature=email`;
+const articlesPath = `/inbox/${encodeURIComponent(SK)}/articles`;
 
 describe("Inbox Articles panel poll route", () => {
-	it("returns 404 without the email feature flag", async () => {
-		const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
-		const agent = await loginAgent(harness.server, harness.auth);
-
-		const response = await agent.get(`/inbox/${encodeURIComponent(SK)}/articles`);
-
-		expect(response.status).toBe(404);
-	});
-
 	it("returns 404 for an email the user does not have", async () => {
 		const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
 		const agent = await loginAgent(harness.server, harness.auth);
@@ -805,7 +769,7 @@ describe("Inbox Articles panel poll route", () => {
 		const agent = await loginAgent(harness.server, harness.auth);
 		await seed(fixture, "received");
 
-		const response = await agent.get(`${articlesPath}&poll=1`);
+		const response = await agent.get(`${articlesPath}?poll=1`);
 
 		expect(response.status).toBe(200);
 		const doc = new JSDOM(response.text).window.document;
@@ -841,7 +805,7 @@ describe("Inbox Articles panel poll route", () => {
 			},
 		]);
 
-		const response = await agent.get(`${articlesPath}&poll=1`);
+		const response = await agent.get(`${articlesPath}?poll=1`);
 
 		expect(response.status).toBe(200);
 		const doc = new JSDOM(response.text).window.document;
@@ -865,7 +829,7 @@ describe("Inbox Articles panel poll route", () => {
 		await seed(fixture, "received");
 		await seedExtractionMeta(fixture);
 
-		const response = await agent.get(`${articlesPath}&poll=1`);
+		const response = await agent.get(`${articlesPath}?poll=1`);
 
 		expect(response.status).toBe(200);
 		const doc = new JSDOM(response.text).window.document;
@@ -889,7 +853,7 @@ describe("Inbox Articles panel poll route", () => {
 		const agent = await loginAgent(harness.server, harness.auth);
 		await seed(fixture, "received");
 
-		const response = await agent.get(`${articlesPath}&poll=301`);
+		const response = await agent.get(`${articlesPath}?poll=301`);
 
 		expect(response.status).toBe(200);
 		const doc = new JSDOM(response.text).window.document;
@@ -938,18 +902,9 @@ describe("Inbox Articles panel poll route", () => {
 	});
 });
 
-const excludedPath = `/inbox/${encodeURIComponent(SK)}/excluded?feature=email`;
+const excludedPath = `/inbox/${encodeURIComponent(SK)}/excluded`;
 
 describe("Inbox Skipped panel poll route", () => {
-	it("returns 404 without the email feature flag", async () => {
-		const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
-		const agent = await loginAgent(harness.server, harness.auth);
-
-		const response = await agent.get(`/inbox/${encodeURIComponent(SK)}/excluded`);
-
-		expect(response.status).toBe(404);
-	});
-
 	it("returns 404 for an email the user does not have", async () => {
 		const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
 		const agent = await loginAgent(harness.server, harness.auth);
@@ -965,7 +920,7 @@ describe("Inbox Skipped panel poll route", () => {
 		const agent = await loginAgent(harness.server, harness.auth);
 		await seed(fixture, "received");
 
-		const response = await agent.get(`${excludedPath}&poll=1`);
+		const response = await agent.get(`${excludedPath}?poll=1`);
 
 		expect(response.status).toBe(200);
 		const doc = new JSDOM(response.text).window.document;
@@ -988,7 +943,7 @@ describe("Inbox Skipped panel poll route", () => {
 		const agent = await loginAgent(harness.server, harness.auth);
 		await seed(fixture, "received");
 
-		const response = await agent.get(`${excludedPath}&poll=301`);
+		const response = await agent.get(`${excludedPath}?poll=301`);
 
 		expect(response.status).toBe(200);
 		const doc = new JSDOM(response.text).window.document;
@@ -1036,18 +991,6 @@ describe("Inbox Skipped panel poll route", () => {
 describe("Inbox link feedback route", () => {
 	const feedbackPath = `/inbox/${encodeURIComponent(SK)}/links/0000/feedback`;
 
-	it("returns 404 without the email feature flag", async () => {
-		const fixture = createDefaultTestAppFixture(TEST_APP_ORIGIN);
-		const harness = useApp(fixture);
-		const agent = await loginAgent(harness.server, harness.auth);
-
-		const response = await agent.post(feedbackPath).type("form").send({
-			verdict: "should-be-included",
-		});
-
-		expect(response.status).toBe(404);
-	});
-
 	it("logs the feedback as an error and redirects back to the Skipped tab", async () => {
 		const fixture = createDefaultTestAppFixture(TEST_APP_ORIGIN);
 		const errors: string[] = [];
@@ -1065,7 +1008,7 @@ describe("Inbox link feedback route", () => {
 			},
 		]);
 
-		const response = await agent.post(`${feedbackPath}?feature=email`).type("form").send({
+		const response = await agent.post(`${feedbackPath}`).type("form").send({
 			verdict: "should-be-included",
 		});
 
@@ -1074,7 +1017,7 @@ describe("Inbox link feedback route", () => {
 		// Links, so a fixed &tab=articles would land the reader on a panel that
 		// doesn't hold it.
 		expect(response.headers.location).toBe(
-			`/inbox/${encodeURIComponent(SK)}?feature=email&tab=excluded&feedback=sent`,
+			`/inbox/${encodeURIComponent(SK)}?tab=excluded&feedback=sent`,
 		);
 		const confirmation = await agent.get(response.headers.location);
 		const notice = parseDoc(confirmation.text).querySelector("[data-test-toast-message]");
@@ -1103,13 +1046,13 @@ describe("Inbox link feedback route", () => {
 		await seed(fixture, "received");
 		await seedLinks(fixture, [{ status: "crawled", title: "Kept article" }]);
 
-		const response = await agent.post(`${feedbackPath}?feature=email`).type("form").send({
+		const response = await agent.post(`${feedbackPath}`).type("form").send({
 			verdict: "should-be-excluded",
 		});
 
 		expect(response.status).toBe(303);
 		expect(response.headers.location).toBe(
-			`/inbox/${encodeURIComponent(SK)}?feature=email&tab=articles&feedback=sent`,
+			`/inbox/${encodeURIComponent(SK)}?tab=articles&feedback=sent`,
 		);
 		const confirmation = await agent.get(response.headers.location);
 		const notice = parseDoc(confirmation.text).querySelector("[data-test-toast-message]");
@@ -1130,13 +1073,13 @@ describe("Inbox link feedback route", () => {
 		// Crossed on purpose: every other case pairs a skipped link with an include
 		// verdict, so keying the redirect off the verdict would pass them all. The row
 		// is skipped, so it is on the Skipped tab whatever the reader claims.
-		const response = await agent.post(`${feedbackPath}?feature=email`).type("form").send({
+		const response = await agent.post(`${feedbackPath}`).type("form").send({
 			verdict: "should-be-excluded",
 		});
 
 		expect(response.status).toBe(303);
 		expect(response.headers.location).toBe(
-			`/inbox/${encodeURIComponent(SK)}?feature=email&tab=excluded&feedback=sent`,
+			`/inbox/${encodeURIComponent(SK)}?tab=excluded&feedback=sent`,
 		);
 	});
 
@@ -1151,7 +1094,7 @@ describe("Inbox link feedback route", () => {
 		await seed(fixture, "received");
 
 		const response = await agent
-			.post(`/inbox/${encodeURIComponent(SK)}/links/0009/feedback?feature=email`)
+			.post(`/inbox/${encodeURIComponent(SK)}/links/0009/feedback`)
 			.type("form")
 			.send({ verdict: "should-be-included" });
 
@@ -1166,7 +1109,7 @@ describe("Inbox link feedback route", () => {
 		await seed(fixture, "received");
 
 		const response = await agent
-			.post(`/inbox/${encodeURIComponent(SK)}/links/not-an-ordinal/feedback?feature=email`)
+			.post(`/inbox/${encodeURIComponent(SK)}/links/not-an-ordinal/feedback`)
 			.type("form")
 			.send({ verdict: "should-be-included" });
 
@@ -1184,7 +1127,7 @@ describe("Inbox link feedback route", () => {
 		await seed(fixture, "received");
 		await seedLinks(fixture, [{ status: "pending" }]);
 
-		const response = await agent.post(`${feedbackPath}?feature=email`).type("form").send({
+		const response = await agent.post(`${feedbackPath}`).type("form").send({
 			verdict: "not-a-verdict",
 		});
 

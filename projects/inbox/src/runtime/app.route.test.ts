@@ -37,7 +37,7 @@ describe("Inbox app composition", () => {
 		const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
 		const agent = await loginAgent(harness.server, harness.auth);
 
-		const response = await agent.get("/inbox?feature=email");
+		const response = await agent.get("/inbox");
 
 		expect(response.status).toBe(200);
 	});
@@ -54,7 +54,7 @@ describe("Inbox app composition", () => {
 		const harness = useApp(fixture);
 		const agent = await loginAgent(harness.server, harness.auth);
 
-		const response = await agent.get("/inbox?feature=email");
+		const response = await agent.get("/inbox");
 
 		expect(response.status).toBe(303);
 		expect(response.headers.location).toBe("/login");
@@ -69,7 +69,7 @@ describe("Inbox app composition", () => {
 		try {
 			const agent = await loginAgent(harness.server, harness.auth);
 
-			const announced = await agent.get("/inbox?feature=email");
+			const announced = await agent.get("/inbox");
 			expect(announced.status).toBe(200);
 			const banner = new JSDOM(announced.text).window.document.querySelector(
 				"[data-test-changelog-banner]",
@@ -79,7 +79,7 @@ describe("Inbox app composition", () => {
 			expect(banner.textContent).toContain(CHANGELOG.hook);
 
 			const dismissed = await agent
-				.get("/inbox?feature=email")
+				.get("/inbox")
 				.set("Cookie", `${CHANGELOG_DISMISS_COOKIE_NAME}=${CHANGELOG_VERSION}`);
 			expect(dismissed.status).toBe(200);
 			const hiddenShell = new JSDOM(dismissed.text).window.document.querySelector(

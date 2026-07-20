@@ -61,7 +61,7 @@ async function seed(
 	return user.userId;
 }
 
-const savePath = `/inbox/${encodeURIComponent(SK)}/links/0000/save?feature=email`;
+const savePath = `/inbox/${encodeURIComponent(SK)}/links/0000/save`;
 
 describe("Inbox link save route", () => {
 	it("publishes a submit for the stored link and redirects back to the Articles tab", async () => {
@@ -74,7 +74,7 @@ describe("Inbox link save route", () => {
 
 		expect(response.status).toBe(303);
 		expect(response.headers.location).toBe(
-			`/inbox/${encodeURIComponent(SK)}?feature=email&tab=articles&saved=1`,
+			`/inbox/${encodeURIComponent(SK)}?tab=articles&saved=1`,
 		);
 		expect(harness.submittedLinks).toEqual([{ userId, url: "https://example.com/post" }]);
 	});
@@ -110,7 +110,7 @@ describe("Inbox link save route", () => {
 		await seed(fixture);
 
 		const plain = await agent.get(
-			`/inbox/${encodeURIComponent(SK)}?feature=email&tab=articles`,
+			`/inbox/${encodeURIComponent(SK)}?tab=articles`,
 		);
 
 		expect(new JSDOM(plain.text).window.document.querySelector("[data-test-toast]")).toBe(null);
@@ -125,7 +125,7 @@ describe("Inbox link save route", () => {
 		const response = await agent.post(savePath).type("form").send({ shown: "40" });
 
 		expect(response.headers.location).toBe(
-			`/inbox/${encodeURIComponent(SK)}?feature=email&tab=articles&shown=40&saved=1`,
+			`/inbox/${encodeURIComponent(SK)}?tab=articles&shown=40&saved=1`,
 		);
 	});
 
@@ -138,18 +138,6 @@ describe("Inbox link save route", () => {
 		await agent.post(savePath);
 
 		expect(harness.submittedLinks).toEqual([{ userId, url: "https://example.com/post" }]);
-	});
-
-	it("returns 404 without the email feature flag", async () => {
-		const fixture = createDefaultTestAppFixture(TEST_APP_ORIGIN);
-		const harness = useApp(fixture);
-		const agent = await loginAgent(harness.server, harness.auth);
-		await seed(fixture);
-
-		const response = await agent.post(`/inbox/${encodeURIComponent(SK)}/links/0000/save`);
-
-		expect(response.status).toBe(404);
-		expect(harness.submittedLinks).toEqual([]);
 	});
 
 	it("returns 404 for an unknown link and publishes nothing", async () => {
@@ -181,7 +169,7 @@ describe("Inbox link save route", () => {
 		await seed(fixture);
 
 		const response = await agent.post(
-			`/inbox/${encodeURIComponent(SK)}/links/not-an-ordinal/save?feature=email`,
+			`/inbox/${encodeURIComponent(SK)}/links/not-an-ordinal/save`,
 		);
 
 		expect(response.status).toBe(404);

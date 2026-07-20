@@ -31,7 +31,6 @@ async function bannerStateFor(resolveLogin: ResolveLogin, req: Request) {
 		userId: login.isAuthenticated ? login.userId : undefined,
 		emailVerified: login.isAuthenticated ? login.emailVerified : undefined,
 		originalUrl: req.originalUrl,
-		query: req.query,
 	});
 }
 

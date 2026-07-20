@@ -57,19 +57,10 @@ async function seedEmails(
 }
 
 describe("Inbox emails list route", () => {
-	it("returns 404 without the email feature flag", async () => {
-		const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
-		const agent = await loginAgent(harness.server, harness.auth);
-
-		const response = await agent.get("/inbox");
-
-		expect(response.status).toBe(404);
-	});
-
 	it("redirects an unauthenticated visitor to /login", async () => {
 		const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
 
-		const response = await request(harness.server).get("/inbox?feature=email");
+		const response = await request(harness.server).get("/inbox");
 
 		expect(response.status).toBe(303);
 		expect(response.headers.location).toBe("/login");
@@ -79,7 +70,7 @@ describe("Inbox emails list route", () => {
 		const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
 		const agent = await loginAgent(harness.server, harness.auth);
 
-		const response = await agent.get("/inbox?feature=email");
+		const response = await agent.get("/inbox");
 
 		expect(response.status).toBe(200);
 		const doc = new JSDOM(response.text).window.document;
@@ -90,11 +81,11 @@ describe("Inbox emails list route", () => {
 		);
 	});
 
-	it("shows the Inbox nav entry on the flagged list page", async () => {
+	it("shows the Inbox nav entry on the list page", async () => {
 		const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
 		const agent = await loginAgent(harness.server, harness.auth);
 
-		const inbox = await agent.get("/inbox?feature=email");
+		const inbox = await agent.get("/inbox");
 
 		expect(navItemKeys(inbox.text)).toContain("inbox");
 		expect(
@@ -136,7 +127,7 @@ describe("Inbox emails list route", () => {
 			}),
 		]);
 
-		const response = await agent.get("/inbox?feature=email");
+		const response = await agent.get("/inbox");
 
 		expect(response.status).toBe(200);
 		const doc = new JSDOM(response.text).window.document;
@@ -150,7 +141,7 @@ describe("Inbox emails list route", () => {
 
 		const newestHref = rows[0].querySelector("a")?.getAttribute("href");
 		expect(newestHref).toBe(
-			`/inbox/${encodeURIComponent("2026-06-24T09:00:00.000Z#<r3@x>")}?feature=email`,
+			`/inbox/${encodeURIComponent("2026-06-24T09:00:00.000Z#<r3@x>")}`,
 		);
 
 		expect(rows[2].querySelector("[data-test-inbox-email-subject]")?.textContent).toBe(
@@ -191,7 +182,7 @@ describe("Inbox emails list route", () => {
 			linkCounts: { kept: 2, skipped: 1, truncated: false },
 		});
 
-		const response = await agent.get("/inbox?feature=email");
+		const response = await agent.get("/inbox");
 
 		const rows = Array.from(
 			new JSDOM(response.text).window.document.querySelectorAll("[data-test-inbox-emails-row]"),
@@ -217,7 +208,7 @@ describe("Inbox emails list route", () => {
 			const agent = await loginAgent(harness.server, harness.auth);
 			await seedEmails(fixture, (userId) => ascendingEmails(userId, 11));
 
-			const response = await agent.get("/inbox?feature=email");
+			const response = await agent.get("/inbox");
 
 			expect(response.status).toBe(200);
 			const doc = new JSDOM(response.text).window.document;
@@ -234,7 +225,7 @@ describe("Inbox emails list route", () => {
 			]);
 			expect(links[0].textContent).toBe("Older →");
 			expect(links[0].getAttribute("href")).toBe(
-				`/inbox?feature=email&older=${encodeURIComponent("2026-06-24T00:01:00.000Z#<m-1@x>")}`,
+				`/inbox?older=${encodeURIComponent("2026-06-24T00:01:00.000Z#<m-1@x>")}`,
 			);
 		});
 
@@ -243,7 +234,7 @@ describe("Inbox emails list route", () => {
 			const harness = useApp(fixture);
 			const agent = await loginAgent(harness.server, harness.auth);
 			await seedEmails(fixture, (userId) => ascendingEmails(userId, 11));
-			const first = await agent.get("/inbox?feature=email");
+			const first = await agent.get("/inbox");
 			const olderHref = new JSDOM(first.text).window.document
 				.querySelector('[data-test-pagination-link="older"]')
 				?.getAttribute("href");
@@ -286,11 +277,11 @@ describe("Inbox emails list route", () => {
 			await seedEmails(fixture, (userId) => ascendingEmails(userId, 11));
 
 			const response = await agent.get(
-				`/inbox?feature=email&older=${encodeURIComponent("2026-06-24T00:00:00.000Z#<m-0@x>")}`,
+				`/inbox?older=${encodeURIComponent("2026-06-24T00:00:00.000Z#<m-0@x>")}`,
 			);
 
 			expect(response.status).toBe(302);
-			expect(response.headers.location).toBe("/inbox?feature=email");
+			expect(response.headers.location).toBe("/inbox");
 			const followed = await agent.get(response.headers.location);
 			expect(followed.status).toBe(200);
 		});
@@ -301,7 +292,7 @@ describe("Inbox emails list route", () => {
 			const agent = await loginAgent(harness.server, harness.auth);
 			await seedEmails(fixture, (userId) => ascendingEmails(userId, 10));
 
-			const response = await agent.get("/inbox?feature=email");
+			const response = await agent.get("/inbox");
 
 			expect(response.status).toBe(200);
 			const doc = new JSDOM(response.text).window.document;
@@ -313,10 +304,10 @@ describe("Inbox emails list route", () => {
 			const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
 			const agent = await loginAgent(harness.server, harness.auth);
 
-			const response = await agent.get("/inbox?feature=email&older=anything");
+			const response = await agent.get("/inbox?older=anything");
 
 			expect(response.status).toBe(302);
-			expect(response.headers.location).toBe("/inbox?feature=email");
+			expect(response.headers.location).toBe("/inbox");
 			const followed = await agent.get(response.headers.location);
 			expect(followed.status).toBe(200);
 			const doc = new JSDOM(followed.text).window.document;
@@ -331,7 +322,7 @@ describe("Inbox emails list route", () => {
 			const agent = await loginAgent(harness.server, harness.auth);
 			await seedEmails(fixture, (userId) => ascendingEmails(userId, 11));
 
-			const response = await agent.get("/inbox?feature=email&page=2");
+			const response = await agent.get("/inbox?page=2");
 
 			expect(response.status).toBe(200);
 			const doc = new JSDOM(response.text).window.document;

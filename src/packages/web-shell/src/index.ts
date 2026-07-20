@@ -36,7 +36,6 @@ export {
 	bannerStateFromRequest,
 	buildGuestNavItems,
 	buildNavGroups,
-	EMAIL_FEATURE,
 } from "./banner-state";
 export type {
 	BannerState,

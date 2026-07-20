@@ -116,15 +116,15 @@ describe("InboxPage", () => {
 		assert.equal(doc.querySelectorAll("[data-test-inbox-disable]").length, 1);
 	});
 
-	it("points the create and disable forms at the flag-carrying routes", () => {
+	it("points the create and disable forms at their routes", () => {
 		const doc = parse(InboxPage({ addresses: [entry()], limitReached: false }).content.html);
 		assert.equal(
 			doc.querySelector(".inbox__create")?.getAttribute("action"),
-			"/inbox/create?feature=email",
+			"/inbox/create",
 		);
 		assert.equal(
 			doc.querySelector(".inbox__disable")?.getAttribute("action"),
-			"/inbox/disable?feature=email",
+			"/inbox/disable",
 		);
 	});
 

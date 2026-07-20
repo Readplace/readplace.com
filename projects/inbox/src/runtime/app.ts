@@ -13,7 +13,6 @@ import type {
 import type { FindSubscriptionByUserId } from "@packages/provider-contracts/subscription-providers";
 import type { UserId } from "@packages/domain/user";
 import type { ResolveLogin } from "@packages/web-session";
-import { QuerystringFeatureToggle } from "@packages/web-shell";
 import { initGetEffectiveAccess } from "@packages/subscription-access";
 import { initBuildBannerState } from "./web/banner-state";
 import type { GetChangelogBanner } from "./web/changelog-banner-source";
@@ -90,10 +89,7 @@ export function createInboxApp(
 		getChangelogBanner: deps.getChangelogBanner,
 		now: deps.now,
 	});
-	const featureToggle = new QuerystringFeatureToggle();
-
 	const inboxRouter = initInboxRoutes({
-		featureToggle,
 		inboxAddressStore: deps.inboxAddressStore,
 		inboxEmailStore: deps.inboxEmailStore,
 		inboxEmailLinkStore: deps.inboxEmailLinkStore,

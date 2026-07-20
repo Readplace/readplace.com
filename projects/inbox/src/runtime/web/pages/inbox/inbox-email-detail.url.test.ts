@@ -25,19 +25,19 @@ describe("parseMailTab", () => {
 describe("buildInboxEmailDetailUrl", () => {
 	it("keeps the View tab on the canonical bare URL", () => {
 		expect(buildInboxEmailDetailUrl({ emailId: EMAIL_ID, tab: "view" })).toBe(
-			`/inbox/${ENCODED_EMAIL_ID}?feature=email`,
+			`/inbox/${ENCODED_EMAIL_ID}`,
 		);
 	});
 
 	it("addresses the Articles tab with a tab param", () => {
 		expect(buildInboxEmailDetailUrl({ emailId: EMAIL_ID, tab: "articles" })).toBe(
-			`/inbox/${ENCODED_EMAIL_ID}?feature=email&tab=articles`,
+			`/inbox/${ENCODED_EMAIL_ID}?tab=articles`,
 		);
 	});
 
 	it("addresses the Skipped tab with a tab param", () => {
 		expect(buildInboxEmailDetailUrl({ emailId: EMAIL_ID, tab: "excluded" })).toBe(
-			`/inbox/${ENCODED_EMAIL_ID}?feature=email&tab=excluded`,
+			`/inbox/${ENCODED_EMAIL_ID}?tab=excluded`,
 		);
 	});
 });

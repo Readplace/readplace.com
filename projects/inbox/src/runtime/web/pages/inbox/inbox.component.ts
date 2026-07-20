@@ -1,6 +1,6 @@
 import { readFileSync } from "node:fs";
 import { join } from "node:path";
-import { EMAIL_FEATURE, render } from "@packages/web-shell";
+import { render } from "@packages/web-shell";
 import type { PageBody } from "@packages/web-shell";
 import { INBOX_ADDRESS_MAX_PER_USER, type InboxAddressEntry } from "@packages/domain/inbox";
 import { INBOX_STYLES } from "./inbox.styles";
@@ -9,10 +9,6 @@ import { toInboxAddressesViewModel } from "./inbox.viewmodel";
 const INBOX_TEMPLATE = readFileSync(join(__dirname, "inbox.template.html"), "utf-8");
 
 const INBOX_SCRIPT = `<script src="/client-dist/inbox.client.js" defer></script>`;
-
-/** The create/disable forms must carry the per-request flag in their action so
- * the gated POST routes stay reachable when submitted from the flagged page. */
-const INBOX_QUERY = `?feature=${EMAIL_FEATURE}`;
 
 export function InboxPage(params: {
 	addresses: InboxAddressEntry[];
@@ -28,8 +24,8 @@ export function InboxPage(params: {
 		...toInboxAddressesViewModel(params.addresses),
 		limitReached: params.limitReached,
 		maxAddresses: INBOX_ADDRESS_MAX_PER_USER,
-		createAction: `/inbox/create${INBOX_QUERY}`,
-		disableAction: `/inbox/disable${INBOX_QUERY}`,
+		createAction: "/inbox/create",
+		disableAction: "/inbox/disable",
 	});
 
 	return {

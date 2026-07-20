@@ -38,7 +38,7 @@ async function seed(
 	await fixture.inboxEmail.inboxEmailLinkStore.putLink(link(user.userId, overrides));
 }
 
-const cardPath = `/inbox/${encodeURIComponent(SK)}/links/0000/card?feature=email`;
+const cardPath = `/inbox/${encodeURIComponent(SK)}/links/0000/card`;
 
 function cardActions(card: Element): string[] {
 	return Array.from(card.querySelectorAll("[data-test-card-action]")).map(
@@ -56,7 +56,7 @@ function expectBareUrlRow(card: Element): void {
 	assert(save, "the save button must render for a saveable link");
 	const form = save.closest("form");
 	expect(form?.getAttribute("action")).toBe(
-		`/inbox/${encodeURIComponent(SK)}/links/0000/save?feature=email`,
+		`/inbox/${encodeURIComponent(SK)}/links/0000/save`,
 	);
 	// Boosted so the confirmation swaps in place. A full navigation would reset
 	// the scroll position, putting the toast where the reader is not looking.
@@ -66,15 +66,6 @@ function expectBareUrlRow(card: Element): void {
 }
 
 describe("Inbox link card route", () => {
-	it("returns 404 without the email feature flag", async () => {
-		const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
-		const agent = await loginAgent(harness.server, harness.auth);
-
-		const response = await agent.get(`/inbox/${encodeURIComponent(SK)}/links/0000/card`);
-
-		expect(response.status).toBe(404);
-	});
-
 	it("returns 404 for an unknown link", async () => {
 		const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
 		const agent = await loginAgent(harness.server, harness.auth);
@@ -102,7 +93,7 @@ describe("Inbox link card route", () => {
 		await seed(fixture);
 
 		const response = await agent.get(
-			`/inbox/${encodeURIComponent(SK)}/links/not-an-ordinal/card?feature=email`,
+			`/inbox/${encodeURIComponent(SK)}/links/not-an-ordinal/card`,
 		);
 
 		expect(response.status).toBe(404);
@@ -132,7 +123,7 @@ describe("Inbox link card route", () => {
 		const agent = await loginAgent(harness.server, harness.auth);
 		await seed(fixture, { status: "pending" });
 
-		const response = await agent.get(`${cardPath}&poll=not-a-number`);
+		const response = await agent.get(`${cardPath}?poll=not-a-number`);
 
 		expect(response.status).toBe(200);
 		const card = new JSDOM(response.text).window.document.querySelector(
@@ -149,7 +140,7 @@ describe("Inbox link card route", () => {
 		const agent = await loginAgent(harness.server, harness.auth);
 		await seed(fixture, { status: "pending" });
 
-		const response = await agent.get(`${cardPath}&poll=300`);
+		const response = await agent.get(`${cardPath}?poll=300`);
 
 		expect(response.status).toBe(200);
 		const card = new JSDOM(response.text).window.document.querySelector(

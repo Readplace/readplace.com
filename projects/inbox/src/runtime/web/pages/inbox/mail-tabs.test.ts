@@ -32,13 +32,13 @@ describe("buildMailTabs", () => {
 		expect(tabs[2].ariaCurrent).toBe("page");
 	});
 
-	it("links every tab to its own URL, carrying the feature flag the surface needs", () => {
+	it("links every tab to its own URL", () => {
 		const tabs = buildMailTabs({ emailId: EMAIL_ID, active: "view", counts: NO_COUNTS });
 
 		expect(tabs.map((tab) => tab.href)).toEqual([
-			`/inbox/${ENCODED_EMAIL_ID}?feature=email`,
-			`/inbox/${ENCODED_EMAIL_ID}?feature=email&tab=articles`,
-			`/inbox/${ENCODED_EMAIL_ID}?feature=email&tab=excluded`,
+			`/inbox/${ENCODED_EMAIL_ID}`,
+			`/inbox/${ENCODED_EMAIL_ID}?tab=articles`,
+			`/inbox/${ENCODED_EMAIL_ID}?tab=excluded`,
 		]);
 	});
 

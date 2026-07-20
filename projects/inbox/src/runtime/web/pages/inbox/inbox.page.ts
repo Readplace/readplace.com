@@ -2,7 +2,7 @@ import assert from "node:assert";
 import type { Request, RequestHandler, Response, Router } from "express";
 import express from "express";
 import { z } from "zod";
-import { EMAIL_FEATURE, sendComponent } from "@packages/web-shell";
+import { sendComponent } from "@packages/web-shell";
 import {
 	countLiveAddresses,
 	EmailLinkOrdinalSchema,
@@ -23,7 +23,6 @@ import type { ContentProvider } from "@packages/provider-contracts/article-store
 import { emailContentResourceId } from "../../../domain/inbox/email-content-id";
 import { Base } from "../../base.component";
 import type { BuildBannerState } from "../../banner-state";
-import type { QuerystringFeatureToggle } from "@packages/web-shell";
 import { MAX_POLLS } from "@packages/web-shell";
 import { etagMatches } from "@packages/web-shell";
 import { renderInboxArticleCard } from "./inbox-article-card.component";
@@ -54,7 +53,6 @@ import { parsePollParam } from "@packages/web-shell";
 import { InboxPage } from "./inbox.component";
 
 interface InboxDependencies {
-	featureToggle: QuerystringFeatureToggle;
 	inboxAddressStore: InboxAddressStore;
 	inboxEmailStore: InboxEmailStore;
 	inboxEmailLinkStore: InboxEmailLinkStore;
@@ -96,18 +94,8 @@ const LinkFeedbackSchema = z.object({
 
 export function initInboxRoutes(deps: InboxDependencies): Router {
 	const router = express.Router();
-	const addressesPath = `/inbox/addresses?feature=${EMAIL_FEATURE}`;
-	const addressesCreateFailedPath = `${addressesPath}&error=create`;
-
-	/** Hidden by default: without the per-request flag the whole surface 404s, so
-	 * production traffic never sees it until the flag is flipped on a request. */
-	router.use((req: Request, res: Response, next: express.NextFunction) => {
-		if (!deps.featureToggle.isEnabled(req, EMAIL_FEATURE)) {
-			res.status(404).type("html").send("");
-			return;
-		}
-		next();
-	});
+	const addressesPath = "/inbox/addresses";
+	const addressesCreateFailedPath = `${addressesPath}?error=create`;
 
 	router.get("/", async (req: Request, res: Response) => {
 		assert(req.userId, "userId required - route must be protected by requireAuth");
@@ -133,7 +121,7 @@ export function initInboxRoutes(deps: InboxDependencies): Router {
 		const nameInvalid = req.query.error === "name";
 		const nameTaken = req.query.error === "name-taken";
 		// Banner shows whenever the cap is genuinely reached, not only after a
-		// rejected create. &error=limit stays OR'd in so a just-rejected create
+		// rejected create. error=limit stays OR'd in so a just-rejected create
 		// still shows it even when the eventually-consistent live read
 		// (listAddressesByUserId) briefly undercounts and would otherwise drop it.
 		const limitReached =
@@ -405,7 +393,7 @@ export function initInboxRoutes(deps: InboxDependencies): Router {
 		const parsed = CreateAddressSchema.safeParse(req.body);
 		const name = parsed.success ? normalizeAliasName(parsed.data.name) : undefined;
 		if (name === undefined) {
-			res.redirect(303, `${addressesPath}&error=name`);
+			res.redirect(303, `${addressesPath}?error=name`);
 			return;
 		}
 		// Soft duplicate guard: reject a name the user already holds on a live
@@ -415,7 +403,7 @@ export function initInboxRoutes(deps: InboxDependencies): Router {
 		// random token still keeps the two addresses distinct.
 		const owned = await deps.inboxAddressStore.listAddressesByUserId(userId);
 		if (owned.some((entry) => isLiveAddress(entry) && entry.name === name)) {
-			res.redirect(303, `${addressesPath}&error=name-taken`);
+			res.redirect(303, `${addressesPath}?error=name-taken`);
 			return;
 		}
 		try {
@@ -428,7 +416,7 @@ export function initInboxRoutes(deps: InboxDependencies): Router {
 			// Hitting the per-user cap is expected user behaviour, not a fault — echo
 			// it back as a friendly message instead of logging an alerting-worthy error.
 			if (error instanceof InboxAddressLimitReachedError) {
-				res.redirect(303, `${addressesPath}&error=limit`);
+				res.redirect(303, `${addressesPath}?error=limit`);
 				return;
 			}
 			deps.logError(

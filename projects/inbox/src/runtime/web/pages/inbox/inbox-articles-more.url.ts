@@ -1,5 +1,4 @@
 import { z } from "zod";
-import { EMAIL_FEATURE } from "@packages/web-shell";
 
 export const ARTICLES_PAGE_SIZE = 20;
 
@@ -18,7 +17,6 @@ export function parseArticlesShown(source: unknown): number {
 
 export function buildInboxArticlesMoreUrl(params: { emailId: string; shown: number }): string {
 	const search = new URLSearchParams();
-	search.set("feature", EMAIL_FEATURE);
 	search.set("shown", String(params.shown));
 	return `/inbox/${encodeURIComponent(params.emailId)}/articles/more?${search.toString()}`;
 }

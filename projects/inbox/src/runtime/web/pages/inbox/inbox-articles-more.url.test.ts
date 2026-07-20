@@ -5,14 +5,14 @@ import {
 } from "./inbox-articles-more.url";
 
 describe("buildInboxArticlesMoreUrl", () => {
-	it("builds the delta path carrying the feature flag and the cumulative reveal count", () => {
+	it("builds the delta path carrying the cumulative reveal count", () => {
 		const url = buildInboxArticlesMoreUrl({
 			emailId: "2026-06-24T09:00:00.000Z#<m@x>",
 			shown: 40,
 		});
 
 		expect(url).toBe(
-			"/inbox/2026-06-24T09%3A00%3A00.000Z%23%3Cm%40x%3E/articles/more?feature=email&shown=40",
+			"/inbox/2026-06-24T09%3A00%3A00.000Z%23%3Cm%40x%3E/articles/more?shown=40",
 		);
 	});
 });

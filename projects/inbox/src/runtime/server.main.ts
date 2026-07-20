@@ -169,7 +169,7 @@ async function main(): Promise<void> {
 	// browser would show a running app serving that checkout's code.
 	const port = await findAvailablePort({ preferredPort: PORT, maxAttempts: MAX_PORT_ATTEMPTS });
 	app.listen(port, () => {
-		logger.info(`inbox is running on http://localhost:${port}/inbox?feature=email`);
+		logger.info(`inbox is running on http://localhost:${port}/inbox`);
 	});
 }
 

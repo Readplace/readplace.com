@@ -85,23 +85,14 @@ function cardOrdinals(doc: ReturnType<typeof parseDoc>): (string | null)[] {
 	);
 }
 
-const morePath = `/inbox/${encodeURIComponent(SK)}/articles/more?feature=email`;
+const morePath = `/inbox/${encodeURIComponent(SK)}/articles/more`;
 
 describe("Inbox Extracted Articles Show more fragment", () => {
-	it("returns 404 without the email feature flag", async () => {
-		const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
-		const agent = await loginAgent(harness.server, harness.auth);
-
-		const response = await agent.get(`/inbox/${encodeURIComponent(SK)}/articles/more?shown=40`);
-
-		expect(response.status).toBe(404);
-	});
-
 	it("returns 404 for an email the user does not have", async () => {
 		const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
 		const agent = await loginAgent(harness.server, harness.auth);
 
-		const response = await agent.get(`${morePath}&shown=40`);
+		const response = await agent.get(`${morePath}?shown=40`);
 
 		expect(response.status).toBe(404);
 	});
@@ -112,7 +103,7 @@ describe("Inbox Extracted Articles Show more fragment", () => {
 		const agent = await loginAgent(harness.server, harness.auth);
 		await seed(fixture, crawled(45));
 
-		const response = await agent.get(`${morePath}&shown=40`);
+		const response = await agent.get(`${morePath}?shown=40`);
 
 		expect(response.status).toBe(200);
 		const doc = parseDoc(response.text);
@@ -122,10 +113,10 @@ describe("Inbox Extracted Articles Show more fragment", () => {
 		const control = doc.querySelector("[data-test-articles-show-more]");
 		assert(control, "a control must re-offer the remaining cards");
 		expect(control.textContent).toBe("Show 5 more");
-		expect(control.getAttribute("hx-get")).toBe(`${morePath}&shown=60`);
+		expect(control.getAttribute("hx-get")).toBe(`${morePath}?shown=60`);
 		expect(control.getAttribute("hx-swap")).toBe("outerHTML");
 		expect(control.getAttribute("href")).toBe(
-			`/inbox/${encodeURIComponent(SK)}?feature=email&tab=articles&shown=60`,
+			`/inbox/${encodeURIComponent(SK)}?tab=articles&shown=60`,
 		);
 	});
 
@@ -135,7 +126,7 @@ describe("Inbox Extracted Articles Show more fragment", () => {
 		const agent = await loginAgent(harness.server, harness.auth);
 		await seed(fixture, crawled(25));
 
-		const response = await agent.get(`${morePath}&shown=40`);
+		const response = await agent.get(`${morePath}?shown=40`);
 
 		expect(response.status).toBe(200);
 		const doc = parseDoc(response.text);
@@ -149,7 +140,7 @@ describe("Inbox Extracted Articles Show more fragment", () => {
 		const agent = await loginAgent(harness.server, harness.auth);
 		await seed(fixture, [...crawled(20), { ordinal: formatEmailLinkOrdinal(20) }]);
 
-		const response = await agent.get(`${morePath}&shown=40`);
+		const response = await agent.get(`${morePath}?shown=40`);
 
 		const doc = parseDoc(response.text);
 		const card = doc.querySelector('[data-test-inbox-article-card="0020"]');
@@ -168,7 +159,7 @@ describe("Inbox Extracted Articles Show more fragment", () => {
 			...crawled(1, 21),
 		]);
 
-		const response = await agent.get(`${morePath}&shown=40`);
+		const response = await agent.get(`${morePath}?shown=40`);
 
 		const doc = parseDoc(response.text);
 		expect(cardOrdinals(doc)).toEqual(["0021"]);

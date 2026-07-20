@@ -1,5 +1,4 @@
 import { z } from "zod";
-import { EMAIL_FEATURE } from "@packages/web-shell";
 import type { InboxEmailsCursor } from "@packages/domain/inbox";
 
 export const INBOX_PATH = "/inbox";
@@ -30,13 +29,11 @@ export function parseInboxEmailsUrl(query: Record<string, unknown>): {
 	return { cursor: undefined };
 }
 
-/** Every built URL carries feature=email — the whole inbox surface 404s
- * without the flag, so a link that dropped it would dead-end. */
 export function buildInboxEmailsUrl(state: { cursor?: InboxEmailsCursor }): string {
-	const params = new URLSearchParams();
-	params.set("feature", EMAIL_FEATURE);
-	if (state.cursor !== undefined) {
-		params.set(state.cursor.direction, state.cursor.receivedAtMessageId);
+	if (state.cursor === undefined) {
+		return INBOX_PATH;
 	}
+	const params = new URLSearchParams();
+	params.set(state.cursor.direction, state.cursor.receivedAtMessageId);
 	return `${INBOX_PATH}?${params.toString()}`;
 }
