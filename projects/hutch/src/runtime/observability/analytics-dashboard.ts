@@ -609,13 +609,22 @@ export function buildAnalyticsDashboardBody(deps: BuildAnalyticsDashboardDeps): 
 	// the moment it creates a Lambda.
 	//
 	// @logStream carries the origin as `<sourceGroup>/<sourceStream>`, replacing the
-	// `source` field the old per-group form leaned on. The three filter legs cover
-	// the three shapes error output takes: the structured logError JSON line
-	// (level = "ERROR"), the parse-errors stream emitted on save / summarise
-	// failure, and a substring match for raw text the Lambda runtime tags ERROR.
-	// coalesce(message, reason) folds the human-readable detail from the logError
-	// and parse-error shapes into a single column.
-
+	// `source` field the old per-group form leaned on. coalesce(message, reason)
+	// folds the human-readable detail from the logError and parse-error shapes into
+	// a single column.
+	//
+	// There is deliberately NO `filter` clause. Membership of this log group IS the
+	// filter: the forwarder classifies each line and writes only what it routed to
+	// the errors funnel, so re-testing `level = "ERROR"` here would apply the
+	// per-source-group logic to an already-classified stream.
+	//
+	// That is not theoretical. The filter this replaces matched nothing in
+	// production: a Lambda-Text line carries its level in the preamble
+	// (`<ts>\t<reqId>\tERROR\t<json>`), and `extractJsonPayload` strips that
+	// preamble so Logs Insights can discover the JSON fields this table displays.
+	// The stored line therefore has no `level` field and no "ERROR" substring —
+	// the classifier saw the level, the widget could not, and every forwarded error
+	// was invisible while the funnel filled correctly underneath it.
 	widgets.push(
 		logWidget({
 			region,
@@ -623,7 +632,6 @@ export function buildAnalyticsDashboardBody(deps: BuildAnalyticsDashboardDeps): 
 			logGroupNames: [errorsLogGroupName],
 			query: [
 				"fields @timestamp, level, @logStream as origin, url, coalesce(message, reason) as detail, @message, stack",
-				`| filter level = "ERROR" or stream = "${STREAMS.parseErrors}" or @message like "ERROR"`,
 				"| sort @timestamp desc",
 				"| limit 100",
 			].join(" "),

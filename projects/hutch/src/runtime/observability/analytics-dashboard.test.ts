@@ -158,19 +158,28 @@ describe("buildAnalyticsDashboardBody — drift prevention", () => {
 		expect(clicks).toContain("stats count(*) as clicks by section, element");
 	});
 
-	it("the errors widget is a latest-first table that surfaces logError lines and the parse-errors stream across the hutch, every subscription, and every async-worker log group", () => {
+	it("the errors widget is a latest-first table over the errors funnel", () => {
 		const errorWidget = buildBody().widgets.find(
 			(w) => typeof w.properties.query === "string" && w.properties.query.includes("coalesce(message, reason) as detail"),
 		);
 		expect(errorWidget).toBeDefined();
 		expect(errorWidget?.properties.view).toBe("table");
 		const query = errorWidget?.properties.query;
-		expect(query).toContain('filter level = "ERROR"');
-		expect(query).toContain(`stream = "${STREAMS.parseErrors}"`);
-		expect(query).toContain('@message like "ERROR"');
 		expect(query).toContain("| sort @timestamp desc");
 		expect(query).toContain("| limit 100");
 		expect(query).toContain(`SOURCE '${ERRORS_LOG_GROUP}' | fields @timestamp, level`);
+	});
+
+	// Regression guard for a bug that reached production: the widget re-tested
+	// `level = "ERROR"` on lines whose level lived in the Lambda-Text preamble that
+	// extractJsonPayload strips before forwarding. The funnel filled correctly and
+	// the table stayed empty. Membership of the group is the classification, so any
+	// filter here can only subtract from what the forwarder already decided.
+	it("applies no filter — the forwarder already classified every line it wrote", () => {
+		const errorWidget = buildBody().widgets.find(
+			(w) => typeof w.properties.query === "string" && w.properties.query.includes("coalesce(message, reason) as detail"),
+		);
+		expect(errorWidget?.properties.query).not.toContain("| filter");
 	});
 
 	// This replaces a test that asserted every SAVE_LINK_LOG_GROUPS entry appeared
@@ -197,14 +206,20 @@ describe("buildAnalyticsDashboardBody — drift prevention", () => {
 	it("every stream used by an emitter (STREAMS) is referenced by at least one widget query — adding a new stream without a widget fails CI", () => {
 		const referenced = collectReferencedStreams();
 		const declared = new Set(Object.values(STREAMS));
-		// Streams whose data is only inspected via ad-hoc Log Insights queries,
-		// not surfaced on the analytics dashboard. The parse-errors stream is
-		// surfaced by the Recent-errors widget, so only crawl-outcomes remains;
-		// adding a crawl-outcome widget would empty this set.
+		// Streams no widget QUERY names.
+		//
+		// crawl-outcomes is genuinely unsurfaced — inspected only by ad-hoc Logs
+		// Insights queries. Adding a crawl-outcome widget would drop it from here.
+		//
+		// parse-errors IS surfaced, by routing rather than by a query term: the
+		// forwarder writes it into the errors funnel and the errors widget shows
+		// everything in that group unfiltered. ERROR_STREAMS is what guarantees it
+		// arrives, and observability-filter.test.ts is what guards that.
 		const ignored = new Set<string>([
 			STREAMS.crawlOutcomes,
+			STREAMS.parseErrors,
 		]);
-		expect(ignored.size).toBe(1);
+		expect(ignored.size).toBe(2);
 		const missing = [...declared].filter((s) => !referenced.has(s) && !ignored.has(s));
 		expect(missing).toEqual([]);
 	});
