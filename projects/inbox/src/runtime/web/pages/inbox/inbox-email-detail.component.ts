@@ -7,6 +7,7 @@ import { renderInboxExcludedPanel } from "./inbox-excluded-panel.component";
 import type { MailTabKey } from "./inbox-email-detail.url";
 import { buildInboxEmailIframeSrcdoc } from "./inbox-email-iframe-srcdoc";
 import { renderInboxLinkCount } from "./inbox-link-count.component";
+import { renderInboxLiveStatus } from "./inbox-live-status.component";
 import { renderInboxMailTabs } from "./inbox-mail-tabs.component";
 import { INBOX_EMAIL_DETAIL_STYLES } from "./inbox-email-detail.styles";
 import type { InboxEmailDetailViewModel } from "./inbox-email-detail.viewmodel";
@@ -48,6 +49,8 @@ export function InboxEmailDetailPage(vm: InboxEmailDetailViewModel): PageBody {
 	const panelHtml = PANEL_RENDERERS[vm.activeTab](vm);
 	const linkCountHtml = renderInboxLinkCount({ label: vm.linkCountLabel, oob: false });
 	const tabsHtml = renderInboxMailTabs({ tabs: vm.tabs, oob: false });
+	// Empty on load and never a swap target: the poll routes write into it.
+	const liveStatusHtml = renderInboxLiveStatus({ message: "", oob: false });
 	// No actions: the inbox has no unsave or undo-report route to offer.
 	const statusToastHtml =
 		vm.statusToastMessage === undefined
@@ -73,6 +76,7 @@ export function InboxEmailDetailPage(vm: InboxEmailDetailViewModel): PageBody {
 				panelHtml,
 				linkCountHtml,
 				tabsHtml,
+				liveStatusHtml,
 				statusToastHtml,
 			}),
 		},

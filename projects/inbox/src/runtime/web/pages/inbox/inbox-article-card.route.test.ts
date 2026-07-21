@@ -264,6 +264,38 @@ describe("Inbox link card route", () => {
 		expect(second.status).toBe(304);
 	});
 
+	it("announces the crawl result out of band once a polled card resolves", async () => {
+		const fixture = createDefaultTestAppFixture(TEST_APP_ORIGIN);
+		const harness = useApp(fixture);
+		const agent = await loginAgent(harness.server, harness.auth);
+		await seed(fixture, { status: "crawled", title: "A crawled post" });
+
+		const response = await agent.get(cardPath);
+
+		expect(response.status).toBe(200);
+		const live = new JSDOM(response.text).window.document.querySelector(
+			"[data-test-inbox-live-status]",
+		);
+		assert(live, "a resolved card must carry the out-of-band announcement");
+		expect(live.getAttribute("hx-swap-oob")).toBe("innerHTML");
+		expect(live.textContent).toBe("Preview ready: A crawled post");
+	});
+
+	it("sends no announcement while the card is still pending, so repeat ticks stay silent", async () => {
+		const fixture = createDefaultTestAppFixture(TEST_APP_ORIGIN);
+		const harness = useApp(fixture);
+		const agent = await loginAgent(harness.server, harness.auth);
+		await seed(fixture, { status: "pending" });
+
+		const response = await agent.get(cardPath);
+
+		expect(response.status).toBe(200);
+		const doc = new JSDOM(response.text).window.document;
+		const card = doc.querySelector("[data-test-inbox-article-card]");
+		assert(card, "the card fragment must still render");
+		expect(doc.querySelectorAll("[data-test-inbox-live-status]").length).toBe(0);
+	});
+
 	it("serves the same card and button ids before and after the crawl resolves, so the poll swap can restore focus", async () => {
 		const fixture = createDefaultTestAppFixture(TEST_APP_ORIGIN);
 		const harness = useApp(fixture);

@@ -35,6 +35,10 @@ import { InboxEmailDetailPage } from "./inbox-email-detail.component";
 import { buildInboxEmailDetailUrl, parseMailTab } from "./inbox-email-detail.url";
 import type { MailTabKey } from "./inbox-email-detail.url";
 import { renderInboxLinkCount } from "./inbox-link-count.component";
+import {
+	buildCardResolvedAnnouncement,
+	renderInboxLiveStatus,
+} from "./inbox-live-status.component";
 import { renderInboxMailTabs } from "./inbox-mail-tabs.component";
 import {
 	toInboxArticlesMoreViewModel,
@@ -299,7 +303,21 @@ export function initInboxRoutes(deps: InboxDependencies): Router {
 				maxPolls: MAX_POLLS,
 				shown: parseArticlesShown(req.query),
 			});
-			res.status(200).type("html").send(renderInboxArticleCard(cardVm));
+			// The card only polls while it is pending, so a poll that finds the link
+			// terminal is the transition itself — the one moment worth announcing.
+			const announcement = buildCardResolvedAnnouncement({
+				status: link.status,
+				title: cardVm.title,
+				url: cardVm.url,
+			});
+			const liveStatusHtml =
+				announcement === ""
+					? ""
+					: renderInboxLiveStatus({ message: announcement, oob: true });
+			res
+				.status(200)
+				.type("html")
+				.send(`${renderInboxArticleCard(cardVm)}${liveStatusHtml}`);
 		},
 	);
 
