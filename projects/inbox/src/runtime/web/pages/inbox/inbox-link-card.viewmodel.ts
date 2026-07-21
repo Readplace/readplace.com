@@ -1,5 +1,6 @@
 import { validateSaveableUrl } from "@packages/domain/article";
 import type { InboxEmailLinkEntry } from "@packages/domain/inbox";
+import { stripUtmParams } from "../../../domain/inbox/strip-utm-params";
 import { buildInboxLinkFeedbackUrl } from "./inbox-link-feedback-url";
 import { buildInboxLinkPollUrl } from "./inbox-link-poll-url";
 import { buildInboxLinkSaveUrl } from "./inbox-link-save-url";
@@ -115,7 +116,11 @@ export function toInboxLinkCardViewModel(input: {
 			? undefined
 			: buildInboxLinkPollUrl({ emailId, ordinal: link.ordinal, pollCount, shown });
 	const title = link.title ?? "";
-	const url = link.resolvedUrl ?? link.url;
+	// A pending link is often an opaque ESP wrapper whose destination lives in a
+	// path token and which may sign its own query, so it is shown byte-exact;
+	// once the crawl is done the URL is a real destination and safe to clean.
+	const destination = link.resolvedUrl ?? link.url;
+	const url = reachedTerminal ? stripUtmParams(destination) : destination;
 	const statusState = cardStatusState({
 		status: link.status,
 		isPolling: cardPollUrl !== undefined,

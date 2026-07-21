@@ -140,6 +140,36 @@ describe("Inbox link save route", () => {
 		expect(harness.submittedLinks).toEqual([{ userId, url: "https://example.com/post" }]);
 	});
 
+	it("strips the newsletter's utm tags from a crawled link before submitting it", async () => {
+		const fixture = createDefaultTestAppFixture(TEST_APP_ORIGIN);
+		const harness = useApp(fixture);
+		const agent = await loginAgent(harness.server, harness.auth);
+		const userId = await seed(fixture, {
+			url: "https://example.com/post?id=7&utm_source=nl&utm_medium=email",
+		});
+
+		await agent.post(savePath);
+
+		expect(harness.submittedLinks).toEqual([{ userId, url: "https://example.com/post?id=7" }]);
+	});
+
+	it("submits a pending wrapper byte-exact, so a signed query survives the redirect chain", async () => {
+		const fixture = createDefaultTestAppFixture(TEST_APP_ORIGIN);
+		const harness = useApp(fixture);
+		const agent = await loginAgent(harness.server, harness.auth);
+		const userId = await seed(fixture, {
+			status: "pending",
+			title: undefined,
+			url: "https://link.mail.example.com/ss/c/token?utm_source=nl",
+		});
+
+		await agent.post(savePath);
+
+		expect(harness.submittedLinks).toEqual([
+			{ userId, url: "https://link.mail.example.com/ss/c/token?utm_source=nl" },
+		]);
+	});
+
 	it("returns 404 for an unknown link and publishes nothing", async () => {
 		const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
 		const agent = await loginAgent(harness.server, harness.auth);

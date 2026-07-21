@@ -159,6 +159,24 @@ describe("initExtractEmailLinksHandler", () => {
 		expect(harness.submitted).toEqual([{ userId: USER, url: "https://a.test/x" }]);
 	});
 
+	it("stores and crawls the link byte-exact, utm tags included — the crawl input must not be rewritten", async () => {
+		const harness = makeHarness({
+			derivedHtml: "https://link.mail.test/ss/c/token?utm_source=nl",
+		});
+
+		await harness.run(eventBody());
+
+		// Extraction cannot tell a plain link from an opaque wrapper that signs its
+		// own query, so cleaning is deferred to the card, which acts only once the
+		// crawl has resolved the real destination.
+		expect(harness.published.map((p) => p.url)).toEqual([
+			"https://link.mail.test/ss/c/token?utm_source=nl",
+		]);
+		expect(harness.submitted).toEqual([
+			{ userId: USER, url: "https://link.mail.test/ss/c/token?utm_source=nl" },
+		]);
+	});
+
 	it("never submits unrouted audit mail's links to anyone's queue", async () => {
 		const harness = makeHarness({
 			derivedHtml: "https://a.test/x",

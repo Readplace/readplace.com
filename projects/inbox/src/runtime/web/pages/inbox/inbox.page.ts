@@ -21,6 +21,7 @@ import type {
 } from "@packages/domain/inbox";
 import type { ContentProvider } from "@packages/provider-contracts/article-store";
 import { emailContentResourceId } from "../../../domain/inbox/email-content-id";
+import { stripUtmParams } from "../../../domain/inbox/strip-utm-params";
 import { Base } from "../../base.component";
 import type { BuildBannerState } from "../../banner-state";
 import { MAX_POLLS } from "@packages/web-shell";
@@ -378,7 +379,13 @@ export function initInboxRoutes(deps: InboxDependencies): Router {
 				res.status(404).type("html").send("");
 				return;
 			}
-			await deps.publishSubmitLink({ userId, url: link.url });
+			// Submits the stored URL, never the resolved one — the save pipeline owns
+			// redirects. Stripping runs after the saveable gate above and only shortens,
+			// so the validated URL cannot grow back past its length cap.
+			await deps.publishSubmitLink({
+				userId,
+				url: link.status === "pending" ? link.url : stripUtmParams(link.url),
+			});
 			res.redirect(
 				303,
 				`${buildInboxEmailDetailUrl({

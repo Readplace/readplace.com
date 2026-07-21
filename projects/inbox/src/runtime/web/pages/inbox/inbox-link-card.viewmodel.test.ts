@@ -126,6 +126,58 @@ describe("toInboxLinkCardViewModel", () => {
 		expect(crawled.url).toBe("https://destination.test/the-actual-article");
 	});
 
+	it("drops the newsletter's utm tags from a crawled link that never redirected", () => {
+		const crawled = toInboxLinkCardViewModel({
+			link: link({
+				status: "crawled",
+				title: "T",
+				url: "https://example.com/post?id=7&utm_source=nl&utm_medium=email",
+			}),
+			emailId: EMAIL_ID,
+			pollCount: 1,
+			maxPolls: 300,
+			shown: SHOWN,
+		});
+
+		expect(crawled.url).toBe("https://example.com/post?id=7");
+	});
+
+	it("drops utm tags the redirect destination itself carries", () => {
+		const crawled = toInboxLinkCardViewModel({
+			link: link({
+				status: "crawled",
+				title: "T",
+				url: "https://nodeweekly.com/link/187980/4be0b3f821",
+				resolvedUrl: "https://destination.test/article?utm_campaign=weekly&ref=nodeweekly",
+			}),
+			emailId: EMAIL_ID,
+			pollCount: 1,
+			maxPolls: 300,
+			shown: SHOWN,
+		});
+
+		expect(crawled.url).toBe("https://destination.test/article?ref=nodeweekly");
+		expect(crawled.actions.map((action) => action.ariaLabel)).toEqual([
+			"Save to queue: https://destination.test/article?ref=nodeweekly",
+			"Not an article? (report) https://destination.test/article?ref=nodeweekly",
+		]);
+	});
+
+	it("shows a pending wrapper byte-exact, since stripping could break a signed query", () => {
+		const pending = toInboxLinkCardViewModel({
+			link: link({
+				status: "pending",
+				url: "https://link.mail.example.com/ss/c/token?utm_source=nl",
+			}),
+			emailId: EMAIL_ID,
+			pollCount: 1,
+			maxPolls: 300,
+			shown: SHOWN,
+		});
+
+		expect(pending.url).toBe("https://link.mail.example.com/ss/c/token?utm_source=nl");
+	});
+
 	it("treats a crawled link whose page had no title as a bare row", () => {
 		const crawled = toInboxLinkCardViewModel({
 			link: link({ status: "crawled", title: undefined }),

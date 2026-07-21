@@ -42,6 +42,7 @@ export {
 	type ParsedEmailInlineImage,
 	type ParseEmailResult,
 } from "./parse-email";
+export { parseHttpUrl } from "./parse-http-url";
 export { sanitizeEmailHtml } from "./sanitize-email-html";
 export { deriveSanitizedBody } from "./derive-sanitized-body";
 export { emailImageCdnUrl, emailImageS3KeyPrefix } from "./email-image-keys";
