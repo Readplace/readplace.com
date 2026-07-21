@@ -81,9 +81,16 @@ hr::before {
 }
 
 .home-hero__title {
-  font-size: 2.5rem;
+  --hero-headline-font-size: 2.5rem;
+  --hero-headline-line-height: 1.3;
+  --hero-headline-lines: 2;
+  font-size: var(--hero-headline-font-size);
   font-weight: 800;
-  line-height: 1.3;
+  line-height: var(--hero-headline-line-height);
+  height: calc(
+    var(--hero-headline-font-size) * var(--hero-headline-line-height) *
+      var(--hero-headline-lines)
+  );
   margin-bottom: 24px;
   letter-spacing: -0.02em;
 }
@@ -101,7 +108,11 @@ hr::before {
  *    it by ~150ms with no blank gap.
  */
 .hero-headline__visible {
-  display: inline;
+  display: block;
+}
+
+.hero-headline__lead {
+  display: block;
 }
 
 .hero-headline__rotator {
@@ -1281,7 +1292,12 @@ hr::before {
 
 @media (min-width: 768px) {
   .home-hero__title {
-    font-size: 3.5rem;
+    --hero-headline-font-size: 3.5rem;
+    --hero-headline-lines: 1;
+  }
+
+  .hero-headline__lead {
+    display: inline;
   }
 
   .home-hero__subtitle {
