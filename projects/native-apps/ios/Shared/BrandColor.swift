@@ -10,6 +10,7 @@ enum BrandColor {
 	static let success = dynamic(light: rgb(61, 139, 110), dark: rgb(74, 159, 127))
 	static let warning = dynamic(light: rgb(200, 146, 60), dark: rgb(212, 160, 74))
 	static let error = dynamic(light: rgb(196, 92, 92), dark: rgb(212, 107, 107))
+	static let splashBackground = rgb(18, 18, 18)
 
 	private static func dynamic(light: UIColor, dark: UIColor) -> UIColor {
 		UIColor { trait in trait.userInterfaceStyle == .dark ? dark : light }
@@ -26,6 +27,7 @@ extension Color {
 	static let brandSuccess = Color(uiColor: BrandColor.success)
 	static let brandWarning = Color(uiColor: BrandColor.warning)
 	static let brandError = Color(uiColor: BrandColor.error)
+	static let brandSplashBackground = Color(uiColor: BrandColor.splashBackground)
 }
 
 extension UIColor {

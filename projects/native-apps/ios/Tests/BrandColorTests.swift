@@ -28,6 +28,10 @@ final class BrandColorTests: XCTestCase {
 		assertHex(BrandColor.error, light: "#C45C5C", dark: "#D46B6B")
 	}
 
+	func testSplashBackgroundMirrorsTheDarkNeutralToken() {
+		assertHex(BrandColor.splashBackground, light: "#121212", dark: "#121212")
+	}
+
 	private func assertHex(
 		_ color: UIColor,
 		light: String,

@@ -28,6 +28,7 @@
     "SaveSharedPage.swift": 93,
     "LoginView.swift": 91,
     "AffordancePresentation.swift": 91,
+    "LaunchIntroMedia.swift": 93,
     "TokenStore.swift": 98,
     "OAuthService.swift": 97,
     "KeychainTokenStorage.swift": 97,
