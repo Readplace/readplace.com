@@ -12,7 +12,7 @@ struct IntroMusic {
 	static let system: IntroMusic = {
 		let player = makeLoopingPlayer()
 		func activate() {
-			try? AVAudioSession.sharedInstance().setCategory(.ambient)
+			try? AVAudioSession.sharedInstance().setCategory(.playback, options: [.mixWithOthers])
 			try? AVAudioSession.sharedInstance().setActive(true)
 		}
 		return IntroMusic(

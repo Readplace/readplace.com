@@ -74,7 +74,9 @@ struct LoginView: View {
 				.overlay(alignment: .bottomTrailing) {
 					muteButton.padding(20)
 				}
+				.background(Color.white.ignoresSafeArea())
 			}
+			.preferredColorScheme(.light)
 		}
 	}
 
