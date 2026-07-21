@@ -90,26 +90,14 @@ describe("GET /help/add-links", () => {
 		expect(clone?.querySelector(".help__shot-img")?.getAttribute("alt")).toBe("");
 	});
 
-	it("lets keyboard and assistive tech reach the carousel to stop it moving", async () => {
+	it("names the carousel region for assistive tech", async () => {
 		const { server } = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
 
 		const response = await request(server).get("/help/add-links");
 
 		const doc = new JSDOM(response.text).window.document;
 		const viewport = doc.querySelector("[data-test-help-viewport]");
-		expect(viewport?.getAttribute("tabindex")).toBe("0");
 		expect(viewport?.getAttribute("aria-label")).toBe("Readplace screenshots");
-	});
-
-	it("tells the reader the screenshots pause on hold", async () => {
-		const { server } = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
-
-		const response = await request(server).get("/help/add-links");
-
-		const doc = new JSDOM(response.text).window.document;
-		expect(doc.querySelector("[data-test-help-hint]")?.textContent).toBe(
-			"Hold a screenshot to pause.",
-		);
 	});
 
 	it("walks through pinning Readplace to the share row, in order", async () => {

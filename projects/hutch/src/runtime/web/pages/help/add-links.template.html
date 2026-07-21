@@ -182,14 +182,6 @@
         margin-top: 0.75rem;
       }
 
-      .help__hint {
-        display: none;
-        margin: 0.5rem 0 0;
-        color: var(--help-text-secondary);
-        font-size: 0.8125rem;
-        text-align: center;
-      }
-
       .help__dots {
         display: inline-flex;
         gap: 0.5rem;
@@ -226,10 +218,6 @@
        *    and the share-sheet UI inside the screenshot goes soft.
        * 2. The raster is a light-theme capture on every surface; only the frame
        *    and the caption follow the theme. Same treatment as /install.
-       * 3. Holding a finger on an image is how the carousel is paused, but that
-       *    same gesture is what raises iOS Safari's "Copy / Save Image" callout,
-       *    which would swallow it. Suppressing the callout, the selection and the
-       *    drag leaves the hold to settle as :active on the viewport.
        */
       .help__shot-img {
         display: block;
@@ -238,10 +226,6 @@
         margin: 0 auto;
         border: 1px solid var(--help-border); /* 2 */
         border-radius: 10px;
-        -webkit-touch-callout: none; /* 3 */
-        -webkit-user-select: none; /* 3 */
-        user-select: none; /* 3 */
-        -webkit-user-drag: none; /* 3 */
       }
 
       .help__shot-caption {
@@ -262,36 +246,14 @@
        *    outrank animation declarations, so one here fights the keyframes and
        *    sweeps the track backwards.
        */
-      /**
-       * 3. WebKit only resolves :active on touch for elements it treats as
-       *    interactive, so without this a held finger never pauses anything on
-       *    the one platform the gesture exists for.
-       * 4. :hover latches on touch — one tap would leave it hovered, and so
-       *    paused, for good. Gating on a real pointer keeps hover a desktop
-       *    affordance and leaves touch to :active.
-       * 5. The pause mechanism WCAG 2.2.2 asks for, now that there is no button:
-       *    tabbing to the viewport stops the motion for keyboard and VoiceOver.
-       *    :focus-visible, not :focus-within — a tap also focuses the viewport,
-       *    and :focus-within would strand the carousel paused for good after one.
-       */
       @media (prefers-reduced-motion: no-preference) {
         .help__controls {
           display: flex;
         }
 
-        .help__hint {
-          display: block;
-        }
-
         .help__viewport {
           overflow: hidden; /* 1 */
           overflow: clip; /* 1 */
-          cursor: pointer; /* 3 */
-        }
-
-        .help__viewport:focus-visible {
-          outline: 2px solid var(--help-brand);
-          outline-offset: 2px;
         }
 
         .help__track {
@@ -319,20 +281,6 @@
 
         .help__dot--3 {
           animation-delay: 12s;
-        }
-
-        @media (hover: hover) {
-          .help__viewport:hover .help__track,
-          .help__viewport:hover .help__dot {
-            animation-play-state: paused; /* 4 */
-          }
-        }
-
-        .help__viewport:active .help__track,
-        .help__viewport:active .help__dot,
-        .help__viewport:focus-visible .help__track,
-        .help__viewport:focus-visible .help__dot {
-          animation-play-state: paused; /* 5 */
         }
       }
 
@@ -374,7 +322,7 @@
       </ol>
 
       <section class="help__carousel" aria-roledescription="carousel" aria-label="Readplace on iPhone" data-test-help-carousel>
-        <div class="help__viewport" tabindex="0" role="group" aria-label="Readplace screenshots" data-test-help-viewport>
+        <div class="help__viewport" role="group" aria-label="Readplace screenshots" data-test-help-viewport>
           <ul class="help__track" role="list">
             {{#each trackSlides}}
             <li class="help__slide{{loopClass}}"{{#if ariaHidden}} aria-hidden="{{ariaHidden}}"{{/if}} data-test-help-slide>
@@ -392,8 +340,6 @@
             {{#each dots}}<span class="help__dot {{positionClass}}"></span>{{/each}}
           </span>
         </div>
-
-        <p class="help__hint" data-test-help-hint>Hold a screenshot to pause.</p>
       </section>
 
       <section class="help__pin" data-test-help-pin>

@@ -91,7 +91,7 @@ function buildDots(): CarouselDot[] {
 
 /** Ordered, static and never animated, unlike the carousel above them: these are
  * a procedure, and a slide that moves on while someone is still following it is
- * the readability problem the pause gesture exists to solve. */
+ * a readability problem a numbered list does not have. */
 const PIN_STEPS: readonly IosScreenshot[] = [
 	{
 		path: "/screenshots/ios-share-more.webp",
