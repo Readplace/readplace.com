@@ -53,7 +53,7 @@ interface QueueDisplayModel {
 	prevUrl?: string;
 	nextUrl?: string;
 	currentPage: number;
-	totalPages: number;
+	countsUrl: string;
 	subscriptionBannerStateClass: string;
 	subscriptionBannerIsTrialCountdown: boolean;
 	subscriptionBannerIsCancellationScheduled: boolean;
@@ -66,12 +66,14 @@ interface QueueDisplayModel {
 	saveFormClass: string;
 }
 
-function filterLinkClass(isActive: boolean): string {
+export function filterLinkClass(isActive: boolean): string {
 	return `queue__filter-link${isActive ? " queue__filter-link--active" : ""}`;
 }
 
+const UNREAD_TAB_LABEL = "To Read";
+
 export function formatUnreadLabel(count: number): string {
-	return formatTabCountLabel({ label: "To Read", count });
+	return formatTabCountLabel({ label: UNREAD_TAB_LABEL, count });
 }
 
 const EMPTY_STATE_TITLES: Record<TabId, string> = {
@@ -141,13 +143,14 @@ function toQueueDisplayModel(vm: QueueViewModel, options: { installed: boolean; 
 			),
 		),
 		filterUnreadClass: filterLinkClass(activeTab === "queue"),
-		filterUnreadLabel: formatUnreadLabel(vm.unreadCount),
+		filterUnreadLabel: UNREAD_TAB_LABEL,
 		filterReadClass: filterLinkClass(activeTab === "done"),
 		filterUnreadUrl: withInternalTracking(vm.filterUrls.unread, { source: "queue-filters", content: "filter-unread" }),
 		filterReadUrl: withInternalTracking(vm.filterUrls.read, { source: "queue-filters", content: "filter-read" }),
+		countsUrl: vm.countsUrl,
 		sortUrl,
 		sortLabel,
-		showPagination: vm.totalPages > 1,
+		showPagination: Boolean(vm.paginationUrls.prev || vm.paginationUrls.next),
 		hasPrev: Boolean(vm.paginationUrls.prev),
 		hasNext: Boolean(vm.paginationUrls.next),
 		prevUrl: vm.paginationUrls.prev
@@ -157,7 +160,6 @@ function toQueueDisplayModel(vm: QueueViewModel, options: { installed: boolean; 
 			? withInternalTracking(vm.paginationUrls.next, { source: "queue-pagination", content: "next" })
 			: undefined,
 		currentPage: vm.currentPage,
-		totalPages: vm.totalPages,
 		subscriptionBannerStateClass: `queue-banner--${banner.state}`,
 		subscriptionBannerIsTrialCountdown: banner.state === "trial-countdown",
 		subscriptionBannerIsCancellationScheduled: banner.state === "cancellation-scheduled",

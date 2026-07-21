@@ -313,23 +313,28 @@ export function initDynamoDbSavedArticleStore(deps: {
 			expressionAttributeNames = { "#status": "status" };
 		}
 
-		let total = 0;
-		let countStartKey: Record<string, unknown> | undefined;
-		do {
-			const { count, lastEvaluatedKey } = await userArticles.query({
-				IndexName: indexName,
-				KeyConditionExpression: "userId = :userId",
-				FilterExpression: filterExpression,
-				ExpressionAttributeValues: expressionValues,
-				ExpressionAttributeNames: expressionAttributeNames,
-				Select: "COUNT",
-				ExclusiveStartKey: countStartKey,
-			});
-			total += count;
-			countStartKey = lastEvaluatedKey;
-		} while (countStartKey);
+		let total: number | undefined;
+		if (query.includeTotal) {
+			let counted = 0;
+			let countStartKey: Record<string, unknown> | undefined;
+			do {
+				const { count, lastEvaluatedKey } = await userArticles.query({
+					IndexName: indexName,
+					KeyConditionExpression: "userId = :userId",
+					FilterExpression: filterExpression,
+					ExpressionAttributeValues: expressionValues,
+					ExpressionAttributeNames: expressionAttributeNames,
+					Select: "COUNT",
+					ExclusiveStartKey: countStartKey,
+				});
+				counted += count;
+				countStartKey = lastEvaluatedKey;
+			} while (countStartKey);
+			total = counted;
+		}
 
 		const itemsToSkip = (page - 1) * pageSize;
+		const fetchTarget = pageSize + 1;
 		const userArts: z.infer<typeof UserArticleRow>[] = [];
 		let exclusiveStartKey: Record<string, unknown> | undefined;
 		let skippedCount = 0;
@@ -342,30 +347,35 @@ export function initDynamoDbSavedArticleStore(deps: {
 				ExpressionAttributeValues: expressionValues,
 				ExpressionAttributeNames: expressionAttributeNames,
 				ScanIndexForward: order === "asc",
-				Limit: pageSize,
+				Limit: fetchTarget,
 				ExclusiveStartKey: exclusiveStartKey,
 			});
 
 			for (const item of items) {
 				if (skippedCount < itemsToSkip) {
 					skippedCount++;
-				} else if (userArts.length < pageSize) {
+				} else if (userArts.length < fetchTarget) {
 					userArts.push(item);
 				}
 			}
 
 			exclusiveStartKey = lastEvaluatedKey;
 
-			if (userArts.length >= pageSize && !exclusiveStartKey) {
+			if (userArts.length >= fetchTarget && !exclusiveStartKey) {
 				break;
 			}
 		} while (
 			exclusiveStartKey &&
-			(skippedCount < itemsToSkip || userArts.length < pageSize)
+			(skippedCount < itemsToSkip || userArts.length < fetchTarget)
 		);
 
+		const hasMore = userArts.length > pageSize;
+		if (hasMore) {
+			userArts.length = pageSize;
+		}
+
 		if (userArts.length === 0) {
-			return { articles: [], total, page, pageSize };
+			return { articles: [], total, hasMore, page, pageSize };
 		}
 
 		const urls = userArts.map((ua) => ({ url: ua.url }));
@@ -390,7 +400,7 @@ export function initDynamoDbSavedArticleStore(deps: {
 			}
 		}
 
-		return { articles: result, total, page, pageSize };
+		return { articles: result, total, hasMore, page, pageSize };
 	};
 
 	const countArticlesByUser: CountArticlesByUser = async (query) => {
@@ -417,8 +427,8 @@ export function initDynamoDbSavedArticleStore(deps: {
 			});
 			total += count;
 			startKey = lastEvaluatedKey;
-		} while (startKey);
-		return total;
+		} while (startKey && (query.countLimit === undefined || total < query.countLimit));
+		return Math.min(total, query.countLimit ?? total);
 	};
 
 	const deleteArticle: DeleteArticle = async (routeId, userId) => {

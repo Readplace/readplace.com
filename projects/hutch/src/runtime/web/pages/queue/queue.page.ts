@@ -96,6 +96,10 @@ import { parsePollParam } from "@packages/web-shell";
 import { toQueueArticleViewModel, toQueueViewModel } from "./queue.viewmodel";
 import { QueuePage } from "./queue.component";
 import {
+	renderQueueCounts,
+	toQueueCountsDisplayModel,
+} from "./queue-counts.component";
+import {
 	renderQueueCard,
 	toQueueCardDisplayModel,
 } from "./queue-card/queue-card.component";
@@ -290,6 +294,10 @@ async function loadCrawls(
 		return [a.url, r.status === "fulfilled" ? r.value : undefined] as const;
 	}));
 }
+
+const UNREAD_BADGE_COUNT_LIMIT = 100;
+
+const QUEUE_PAGE_SIZE = 20;
 
 const SAVE_ROUTE = {
 	saveArticle: "/",
@@ -657,15 +665,18 @@ export function initQueueRoutes(deps: QueueDependencies): Router {
 		const filterUrl = typeof req.query.url === "string" ? req.query.url : undefined;
 
 		const order = urlState.order ?? tab.defaultOrder;
+		const siren = wantsSiren(req);
 		const result = await deps.findArticlesByUser({
 			userId,
 			status: tab.status,
 			sort: tab.sort,
 			order,
 			page: urlState.page,
+			pageSize: QUEUE_PAGE_SIZE,
+			includeTotal: siren,
 		});
 
-		if (wantsSiren(req)) {
+		if (siren) {
 			const filteredArticles = filterUrl
 				? result.articles.filter(a => a.url === filterUrl)
 				: result.articles;
@@ -695,31 +706,29 @@ export function initQueueRoutes(deps: QueueDependencies): Router {
 		 * out-of-bounds render is unreachable by navigation; mutation handlers
 		 * stay unchanged because they all redirect back through here. 302 not
 		 * 301/308 — the page becomes valid again once the list refills. */
-		const pageRedirect = canonicalQueuePageRedirect({
-			state: urlState,
-			total: result.total,
-			pageSize: result.pageSize,
-			extraParams: [...collectUtmParams(req.query), ...collectStatusFlashParams(req.query)],
-		});
-		if (pageRedirect) {
-			res.redirect(302, pageRedirect);
-			return;
+		if (result.articles.length === 0 && urlState.page > 1) {
+			const pageRedirect = canonicalQueuePageRedirect({
+				state: urlState,
+				total: await deps.countArticlesByUser({ userId, status: tab.status }),
+				pageSize: result.pageSize,
+				extraParams: [...collectUtmParams(req.query), ...collectStatusFlashParams(req.query)],
+			});
+			if (pageRedirect) {
+				res.redirect(302, pageRedirect);
+				return;
+			}
 		}
 
 		const saveError = deps.httpErrorMessageMapping(req.query);
 		const importFlash = importFlashMapping(req.query);
 		const statusFlash = statusFlashMapping(req.query);
 		const importSkipped = readImportSkippedFlash(req, res);
-		const [summaryByUrl, crawlByUrl, unreadCount, effectiveAccess] = await Promise.all([
+		const [summaryByUrl, crawlByUrl, effectiveAccess] = await Promise.all([
 			loadSummaries(deps.findGeneratedSummary, result.articles),
 			loadCrawls(deps.findArticleCrawlStatus, result.articles),
-			urlState.tab === "queue"
-				? Promise.resolve(result.total)
-				: deps.countArticlesByUser({ userId, status: "unread" }),
 			deps.getEffectiveAccess(userId),
 		]);
 		const vm = toQueueViewModel(result, urlState, {
-			unreadCount,
 			errors: saveError ? [{ message: saveError }] : undefined,
 			importFlash,
 			statusFlash,
@@ -735,6 +744,36 @@ export function initQueueRoutes(deps: QueueDependencies): Router {
 			Base(
 				QueuePage(vm, { ...onboarding, saveUrl: filterUrl, deviceClass: classifyDeviceClass(req.get("user-agent")) }),
 				await deps.buildBannerState(req, { preFetchedAccess: effectiveAccess }),
+			),
+		);
+	});
+
+	router.get("/counts", async (req: Request, res: Response) => {
+		assert(req.userId, "userId required - route must be protected by requireAuth");
+		const userId = req.userId;
+		const urlState = parseQueueUrl(req.query);
+		const tab = tabQuery(urlState.tab);
+		const tabTotalPromise = deps.countArticlesByUser({ userId, status: tab.status });
+		const unreadCountPromise =
+			tab.status === "unread"
+				? tabTotalPromise
+				: deps.countArticlesByUser({
+						userId,
+						status: "unread",
+						countLimit: UNREAD_BADGE_COUNT_LIMIT,
+					});
+		const [tabTotal, unreadCount] = await Promise.all([
+			tabTotalPromise,
+			unreadCountPromise,
+		]);
+		res.type("html").send(
+			renderQueueCounts(
+				toQueueCountsDisplayModel({
+					filters: urlState,
+					unreadCount,
+					tabTotal,
+					pageSize: QUEUE_PAGE_SIZE,
+				}),
 			),
 		);
 	});
@@ -770,7 +809,7 @@ export function initQueueRoutes(deps: QueueDependencies): Router {
 			 * surface a `warning` property carrying the failure code + a
 			 * human-readable message that the client can render as a warning
 			 * banner alongside the list. */
-			const collection = await deps.findArticlesByUser({ userId });
+			const collection = await deps.findArticlesByUser({ userId, includeTotal: true });
 			res.status(422).type(SIREN_MEDIA_TYPE).json(
 				toArticleCollectionEntity(
 					collection,
@@ -1109,7 +1148,6 @@ export function initQueueRoutes(deps: QueueDependencies): Router {
 			emitSaveIntent({ req, url: submittedUrl, path: SAVE_INTENT_PATH.save, surface: SAVE_SURFACES.queueSaveBar, outcome: SAVE_OUTCOMES.error });
 			const urlState = parseQueueUrl({});
 			const result = await deps.findArticlesByUser({ userId });
-			const unreadCount = await deps.countArticlesByUser({ userId, status: "unread" });
 			const [summaryByUrl, crawlByUrl] = await Promise.all([
 				loadSummaries(deps.findGeneratedSummary, result.articles),
 				loadCrawls(deps.findArticleCrawlStatus, result.articles),
@@ -1117,7 +1155,6 @@ export function initQueueRoutes(deps: QueueDependencies): Router {
 			const vm = toQueueViewModel(result, urlState, {
 				errors: [{ message: validation.error.message }],
 				saveErrorCode: validation.error.code,
-				unreadCount,
 				summaryByUrl,
 				crawlByUrl,
 			});

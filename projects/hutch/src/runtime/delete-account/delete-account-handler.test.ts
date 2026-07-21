@@ -421,7 +421,7 @@ describe("delete-account handler", () => {
 		assert.deepEqual(result.batchItemFailures, []);
 
 		// Victim: every store now returns empty / none.
-		assert.equal((await s.articleStore.findArticlesByUser({ userId: victim.userId })).total, 0);
+		assert.equal((await s.articleStore.findArticlesByUser({ userId: victim.userId, includeTotal: true })).total, 0);
 		assert.equal((await s.digest.listDigestItemsByUser(victim.userId)).length, 0);
 		assert.equal(await readerReadySlotPresent(s, victim.userId), false);
 		assert.deepEqual(await s.onboarding.getIosAppSignals({ userId: victim.userId }), {
@@ -500,7 +500,7 @@ describe("delete-account handler", () => {
 		]);
 
 		// Bystander: everything intact.
-		assert.equal((await s.articleStore.findArticlesByUser({ userId: bystander.userId })).total, 1);
+		assert.equal((await s.articleStore.findArticlesByUser({ userId: bystander.userId, includeTotal: true })).total, 1);
 		assert.equal((await s.digest.listDigestItemsByUser(bystander.userId)).length, 1);
 		assert.equal(await readerReadySlotPresent(s, bystander.userId), true);
 		assert.deepEqual(await s.onboarding.getIosAppSignals({ userId: bystander.userId }), {
@@ -553,7 +553,7 @@ describe("delete-account handler", () => {
 		// fails and the rows survive for the redrive to re-list.
 		const first = await run(s, [{ messageId: "msg", body: bodyFor(account.userId) }]);
 		assert.deepEqual(first.batchItemFailures, [{ itemIdentifier: "msg" }]);
-		assert.equal((await s.articleStore.findArticlesByUser({ userId: account.userId })).total, 1);
+		assert.equal((await s.articleStore.findArticlesByUser({ userId: account.userId, includeTotal: true })).total, 1);
 		assert.deepEqual(s.purgeContentCalls, []);
 
 		// Redrive: the URL is still listable, so the purge converges and only then
@@ -564,7 +564,7 @@ describe("delete-account handler", () => {
 		assert.deepEqual(s.tombstoneCalls, [
 			{ url: "https://example.com/retry/article", at: SEED_NOW },
 		]);
-		assert.equal((await s.articleStore.findArticlesByUser({ userId: account.userId })).total, 0);
+		assert.equal((await s.articleStore.findArticlesByUser({ userId: account.userId, includeTotal: true })).total, 0);
 	});
 
 	it("leaves content another user still saves in place — delists the account but never purges a co-saved URL", async () => {
@@ -580,7 +580,7 @@ describe("delete-account handler", () => {
 		const result = await run(s, [{ messageId: "msg", body: bodyFor(account.userId) }]);
 
 		assert.deepEqual(result.batchItemFailures, []);
-		assert.equal((await s.articleStore.findArticlesByUser({ userId: account.userId })).total, 0);
+		assert.equal((await s.articleStore.findArticlesByUser({ userId: account.userId, includeTotal: true })).total, 0);
 		assert.deepEqual(s.purgeContentCalls, []);
 		assert.deepEqual(s.tombstoneCalls, []);
 	});
@@ -684,7 +684,7 @@ describe("delete-account handler", () => {
 		assert.deepEqual(result.batchItemFailures, [{ itemIdentifier: "msg-boom" }]);
 		// The healthy record processed to completion despite its sibling failing.
 		assert.equal(await s.subs.findByUserId(healthy.userId), undefined);
-		assert.equal((await s.articleStore.findArticlesByUser({ userId: healthy.userId })).total, 0);
+		assert.equal((await s.articleStore.findArticlesByUser({ userId: healthy.userId, includeTotal: true })).total, 0);
 		assert.equal(await s.auth.findEmailByUserId(healthy.userId), null);
 	});
 

@@ -29,13 +29,10 @@ function makeArticle(overrides?: Partial<SavedArticle>): SavedArticle {
 	};
 }
 
-function makeResult(
-	articles: SavedArticle[],
-	total?: number,
-): FindArticlesResult {
+function makeResult(articles: SavedArticle[]): FindArticlesResult {
 	return {
 		articles,
-		total: total ?? articles.length,
+		hasMore: false,
 		page: 1,
 		pageSize: 20,
 	};
@@ -85,20 +82,34 @@ describe("toQueueViewModel", () => {
 		expect(vm.articles[0].saved.label).toBe("10m ago");
 	});
 
-	it("should calculate totalPages", () => {
+	it("should offer a next page and no prev page on the first page when more rows exist", () => {
 		const result: FindArticlesResult = {
 			articles: [],
-			total: 45,
+			hasMore: true,
 			page: 1,
 			pageSize: 20,
 		};
 		const vm = toQueueViewModel(result, DEFAULT_FILTERS, { now: NOW });
 
-		expect(vm.totalPages).toBe(3);
+		expect(vm.paginationUrls.next).toBe("/queue?page=2");
+		expect(vm.paginationUrls.prev).toBeUndefined();
 	});
 
 	it("should set isEmpty when no articles", () => {
 		const vm = toQueueViewModel(makeResult([]), DEFAULT_FILTERS, { now: NOW });
+
+		expect(vm.isEmpty).toBe(true);
+	});
+
+	it("should set isEmpty for an empty page even when the query counted a non-zero total", () => {
+		const result: FindArticlesResult = {
+			articles: [],
+			total: 45,
+			hasMore: false,
+			page: 3,
+			pageSize: 20,
+		};
+		const vm = toQueueViewModel(result, { ...DEFAULT_FILTERS, page: 3 }, { now: NOW });
 
 		expect(vm.isEmpty).toBe(true);
 	});
@@ -224,7 +235,7 @@ describe("toQueueViewModel", () => {
 	it("should generate next pagination URL when more pages exist", () => {
 		const result: FindArticlesResult = {
 			articles: [],
-			total: 45,
+			hasMore: true,
 			page: 1,
 			pageSize: 20,
 		};
@@ -236,7 +247,7 @@ describe("toQueueViewModel", () => {
 	it("should generate prev pagination URL on page 2", () => {
 		const result: FindArticlesResult = {
 			articles: [],
-			total: 45,
+			hasMore: true,
 			page: 2,
 			pageSize: 20,
 		};
@@ -245,10 +256,10 @@ describe("toQueueViewModel", () => {
 		expect(vm.paginationUrls.prev).toBe("/queue");
 	});
 
-	it("should not generate next pagination URL on last page", () => {
+	it("should not generate next pagination URL when no more rows exist", () => {
 		const result: FindArticlesResult = {
 			articles: [],
-			total: 45,
+			hasMore: false,
 			page: 3,
 			pageSize: 20,
 		};
@@ -362,19 +373,10 @@ describe("toQueueViewModel", () => {
 		expect(methods).toEqual(["POST", "POST"]);
 	});
 
-	it("should include unreadCount from options", () => {
-		const vm = toQueueViewModel(makeResult([]), DEFAULT_FILTERS, {
-			now: NOW,
-			unreadCount: 42,
-		});
+	it("should expose the counts URL for the active filters", () => {
+		const vm = toQueueViewModel(makeResult([]), { tab: "done", order: "asc", page: 2 }, { now: NOW });
 
-		expect(vm.unreadCount).toBe(42);
-	});
-
-	it("should default unreadCount to result total when not provided", () => {
-		const vm = toQueueViewModel(makeResult([], 7), DEFAULT_FILTERS, { now: NOW });
-
-		expect(vm.unreadCount).toBe(7);
+		expect(vm.countsUrl).toBe("/queue/counts?tab=done&order=asc&page=2");
 	});
 
 	it("should prefer the AI-generated excerpt over the summary when status is ready", () => {

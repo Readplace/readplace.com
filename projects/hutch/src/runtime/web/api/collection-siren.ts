@@ -1,3 +1,4 @@
+import assert from "node:assert";
 import type {
 	FindArticlesResult,
 	SortOrder,
@@ -38,6 +39,7 @@ export function toArticleCollectionEntity(
 	options: { warning?: CollectionWarning; iosSurface?: boolean; iosClient?: boolean } = {},
 ): SirenEntity {
 	const { articles, total, page, pageSize } = result;
+	assert(total !== undefined, "Siren collection requires a total");
 	const totalPages = Math.ceil(total / pageSize);
 
 	// The iOS app opens this account href in its WKWebView. `?platform=ios` tells

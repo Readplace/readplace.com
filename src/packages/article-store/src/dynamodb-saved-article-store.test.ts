@@ -1,3 +1,5 @@
+import assert from "node:assert/strict";
+import { z } from "zod";
 import { ConditionalCheckFailedException, type DynamoDBDocumentClient } from "@packages/hutch-storage-client";
 import { ArticleResourceUniqueId } from "@packages/article-resource-unique-id";
 import { MinutesSchema, ReaderArticleHashId } from "@packages/domain/article";
@@ -45,6 +47,24 @@ function createFakeClient(
 		}) as DynamoDBDocumentClient["send"],
 	};
 	return { client: client as typeof client & DynamoDBDocumentClient, commands };
+}
+
+const BatchGetArticleKeys = z.object({
+	RequestItems: z.object({ articles: z.object({ Keys: z.array(z.object({ url: z.string() })) }) }),
+});
+
+function queryCommands(commands: CapturedCommand[]): CapturedCommand[] {
+	return commands.filter((c) => c.name === "QueryCommand");
+}
+
+function countQueries(commands: CapturedCommand[]): CapturedCommand[] {
+	return commands.filter((c) => c.input.Select === "COUNT");
+}
+
+function batchGetKeys(commands: CapturedCommand[]): { url: string }[] {
+	const batchGet = commands.find((c) => c.name === "BatchGetCommand");
+	assert(batchGet, "the store must have sent a BatchGetCommand");
+	return BatchGetArticleKeys.parse(batchGet.input).RequestItems.articles.Keys;
 }
 
 function initStore(client: DynamoDBDocumentClient, logger: HutchLogger = HutchLogger.from(noopLogger)) {
@@ -439,7 +459,7 @@ describe("initDynamoDbSavedArticleStore findArticlesByUser", () => {
 			BatchGetCommand: { default: { Responses: { articles: [articleItem()] } } },
 		});
 
-		const result = await initStore(client).findArticlesByUser({ userId: USER });
+		const result = await initStore(client).findArticlesByUser({ userId: USER, includeTotal: true });
 
 		const firstQuery = commands.find((c) => c.name === "QueryCommand");
 		expect(firstQuery?.input.IndexName).toBe("userId-savedAt-index");
@@ -453,7 +473,6 @@ describe("initDynamoDbSavedArticleStore findArticlesByUser", () => {
 		const { client, commands } = createFakeClient({
 			QueryCommand: {
 				queue: [
-					{ Items: [], Count: 1 },
 					{ Items: [userArticleItem({ status: "read", readAt: "2026-05-30T11:00:00.000Z" })], Count: 1 },
 				],
 			},
@@ -467,11 +486,10 @@ describe("initDynamoDbSavedArticleStore findArticlesByUser", () => {
 			order: "asc",
 		});
 
-		const firstQuery = commands.find((c) => c.name === "QueryCommand");
-		expect(firstQuery?.input.IndexName).toBe("userId-readAt-index");
-		expect(firstQuery?.input.FilterExpression).toBe("#status = :status");
-		expect((firstQuery?.input.ExpressionAttributeValues as Record<string, unknown>)[":status"]).toBe("read");
-		const pageQuery = commands.filter((c) => c.name === "QueryCommand")[1];
+		const pageQuery = commands.find((c) => c.name === "QueryCommand");
+		expect(pageQuery?.input.IndexName).toBe("userId-readAt-index");
+		expect(pageQuery?.input.FilterExpression).toBe("#status = :status");
+		expect((pageQuery?.input.ExpressionAttributeValues as Record<string, unknown>)[":status"]).toBe("read");
 		expect(pageQuery?.input.ScanIndexForward).toBe(true);
 		expect(result.articles[0]?.readAt).toEqual(new Date("2026-05-30T11:00:00.000Z"));
 	});
@@ -479,10 +497,7 @@ describe("initDynamoDbSavedArticleStore findArticlesByUser", () => {
 	it("passes a metadata-only projection to BatchGet when excludeContent is set", async () => {
 		const { client, commands } = createFakeClient({
 			QueryCommand: {
-				queue: [
-					{ Items: [], Count: 1 },
-					{ Items: [userArticleItem()], Count: 1 },
-				],
+				queue: [{ Items: [userArticleItem()], Count: 1 }],
 			},
 			BatchGetCommand: { default: { Responses: { articles: [articleItem({ content: undefined })] } } },
 		});
@@ -509,7 +524,7 @@ describe("initDynamoDbSavedArticleStore findArticlesByUser", () => {
 			BatchGetCommand: { default: { Responses: { articles: [articleItem({ url: "b", originalUrl: "https://example.com/b" })] } } },
 		});
 
-		const result = await initStore(client).findArticlesByUser({ userId: USER, page: 2, pageSize: 1 });
+		const result = await initStore(client).findArticlesByUser({ userId: USER, page: 2, pageSize: 1, includeTotal: true });
 
 		expect(commands.filter((c) => c.name === "QueryCommand")).toHaveLength(4);
 		expect(result.total).toBe(3);
@@ -527,10 +542,10 @@ describe("initDynamoDbSavedArticleStore findArticlesByUser", () => {
 			},
 		});
 
-		const result = await initStore(client).findArticlesByUser({ userId: USER });
+		const result = await initStore(client).findArticlesByUser({ userId: USER, includeTotal: true });
 
 		expect(commands.some((c) => c.name === "BatchGetCommand")).toBe(false);
-		expect(result).toEqual({ articles: [], total: 0, page: 1, pageSize: 20 });
+		expect(result).toEqual({ articles: [], total: 0, hasMore: false, page: 1, pageSize: 20 });
 	});
 
 	it("drops a user row whose article was deleted from the global table between query and batch-get", async () => {
@@ -544,10 +559,90 @@ describe("initDynamoDbSavedArticleStore findArticlesByUser", () => {
 			BatchGetCommand: { default: { Responses: { articles: [] } } },
 		});
 
-		const result = await initStore(client).findArticlesByUser({ userId: USER });
+		const result = await initStore(client).findArticlesByUser({ userId: USER, includeTotal: true });
 
 		expect(result.total).toBe(1);
 		expect(result.articles).toEqual([]);
+	});
+
+	it("issues no COUNT query and leaves total undefined when includeTotal is not requested", async () => {
+		const { client, commands } = createFakeClient({
+			QueryCommand: { queue: [{ Items: [userArticleItem()], Count: 1 }] },
+			BatchGetCommand: { default: { Responses: { articles: [articleItem()] } } },
+		});
+
+		const result = await initStore(client).findArticlesByUser({ userId: USER });
+
+		expect(countQueries(commands)).toHaveLength(0);
+		expect(result.total).toBeUndefined();
+		expect(result.articles).toHaveLength(1);
+	});
+
+	it("sums every COUNT page into total when includeTotal is requested", async () => {
+		const { client, commands } = createFakeClient({
+			QueryCommand: {
+				queue: [
+					{ Items: [], Count: 4, LastEvaluatedKey: { url: "p1" } },
+					{ Items: [], Count: 3 },
+					{ Items: [userArticleItem()], Count: 1 },
+				],
+			},
+			BatchGetCommand: { default: { Responses: { articles: [articleItem()] } } },
+		});
+
+		const result = await initStore(client).findArticlesByUser({ userId: USER, includeTotal: true });
+
+		const counts = countQueries(commands);
+		expect(counts).toHaveLength(2);
+		expect(counts[1]?.input.ExclusiveStartKey).toEqual({ url: "p1" });
+		expect(result.total).toBe(7);
+		expect(result.articles).toHaveLength(1);
+	});
+
+	it("reports hasMore and truncates to the page when a row exists beyond it, in a single query", async () => {
+		const { client, commands } = createFakeClient({
+			QueryCommand: {
+				queue: [{ Items: [userArticleItem({ url: "a" }), userArticleItem({ url: "b" })], Count: 2 }],
+			},
+			BatchGetCommand: {
+				default: { Responses: { articles: [articleItem({ url: "a", originalUrl: "https://example.com/a" })] } },
+			},
+		});
+
+		const result = await initStore(client).findArticlesByUser({ userId: USER, pageSize: 1 });
+
+		const queries = queryCommands(commands);
+		expect(queries).toHaveLength(1);
+		expect(queries[0]?.input.Limit).toBe(2);
+		expect(batchGetKeys(commands)).toEqual([{ url: "a" }]);
+		expect(result.hasMore).toBe(true);
+		expect(result.articles).toHaveLength(1);
+		expect(result.articles[0]?.url).toBe("https://example.com/a");
+	});
+
+	it("asks for one row beyond the default page size so a full page needs no second query", async () => {
+		const { client, commands } = createFakeClient({
+			QueryCommand: { queue: [{ Items: [userArticleItem()], Count: 1 }] },
+			BatchGetCommand: { default: { Responses: { articles: [articleItem()] } } },
+		});
+
+		await initStore(client).findArticlesByUser({ userId: USER });
+
+		const queries = queryCommands(commands);
+		expect(queries).toHaveLength(1);
+		expect(queries[0]?.input.Limit).toBe(21);
+	});
+
+	it("reports hasMore false on the last page", async () => {
+		const { client } = createFakeClient({
+			QueryCommand: { queue: [{ Items: [userArticleItem()], Count: 1 }] },
+			BatchGetCommand: { default: { Responses: { articles: [articleItem()] } } },
+		});
+
+		const result = await initStore(client).findArticlesByUser({ userId: USER, pageSize: 1 });
+
+		expect(result.hasMore).toBe(false);
+		expect(result.articles).toHaveLength(1);
 	});
 });
 
@@ -564,7 +659,8 @@ describe("initDynamoDbSavedArticleStore countArticlesByUser", () => {
 
 		const total = await initStore(client).countArticlesByUser({ userId: USER });
 
-		expect(commands.every((c) => (c.input as { Select?: string }).Select === "COUNT")).toBe(true);
+		expect(countQueries(commands)).toHaveLength(2);
+		expect(queryCommands(commands)).toHaveLength(2);
 		expect(total).toBe(8);
 	});
 
@@ -578,6 +674,55 @@ describe("initDynamoDbSavedArticleStore countArticlesByUser", () => {
 		const query = commands.find((c) => c.name === "QueryCommand");
 		expect(query?.input.FilterExpression).toBe("#status = :status");
 		expect(total).toBe(2);
+	});
+
+	it("stops paging once countLimit rows have been counted", async () => {
+		const { client, commands } = createFakeClient({
+			QueryCommand: {
+				queue: [
+					{ Items: [], Count: 5, LastEvaluatedKey: { url: "p1" } },
+					{ Items: [], Count: 3 },
+				],
+			},
+		});
+
+		const total = await initStore(client).countArticlesByUser({ userId: USER, countLimit: 5 });
+
+		expect(queryCommands(commands)).toHaveLength(1);
+		expect(total).toBe(5);
+	});
+
+	it("keeps paging while the count is still short of countLimit", async () => {
+		const { client, commands } = createFakeClient({
+			QueryCommand: {
+				queue: [
+					{ Items: [], Count: 2, LastEvaluatedKey: { url: "p1" } },
+					{ Items: [], Count: 1, LastEvaluatedKey: { url: "p2" } },
+					{ Items: [], Count: 1 },
+				],
+			},
+		});
+
+		const total = await initStore(client).countArticlesByUser({ userId: USER, countLimit: 5 });
+
+		expect(queryCommands(commands)).toHaveLength(3);
+		expect(total).toBe(4);
+	});
+
+	it("clamps the reported total to countLimit when the last page overshoots it", async () => {
+		const { client, commands } = createFakeClient({
+			QueryCommand: {
+				queue: [
+					{ Items: [], Count: 3, LastEvaluatedKey: { url: "p1" } },
+					{ Items: [], Count: 4, LastEvaluatedKey: { url: "p2" } },
+				],
+			},
+		});
+
+		const total = await initStore(client).countArticlesByUser({ userId: USER, countLimit: 5 });
+
+		expect(queryCommands(commands)).toHaveLength(2);
+		expect(total).toBe(5);
 	});
 });
 

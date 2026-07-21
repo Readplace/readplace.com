@@ -25,16 +25,19 @@ export interface FindArticlesQuery {
 	pageSize?: number;
 	/** Skip the article body when reading rows. Use for list/export views that only need metadata. */
 	excludeContent?: boolean;
+	includeTotal?: boolean;
 }
 
 export interface CountArticlesQuery {
 	userId: UserId;
 	status?: ArticleStatus;
+	countLimit?: number;
 }
 
 export interface FindArticlesResult {
 	articles: SavedArticle[];
-	total: number;
+	total?: number;
+	hasMore: boolean;
 	page: number;
 	pageSize: number;
 }

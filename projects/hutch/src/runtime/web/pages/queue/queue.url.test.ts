@@ -1,4 +1,9 @@
-import { buildQueueUrl, canonicalQueuePageRedirect, parseQueueUrl } from "./queue.url";
+import {
+	buildQueueCountsUrl,
+	buildQueueUrl,
+	canonicalQueuePageRedirect,
+	parseQueueUrl,
+} from "./queue.url";
 
 describe("parseQueueUrl", () => {
 	it("should default to queue tab for empty query", () => {
@@ -90,6 +95,22 @@ describe("buildQueueUrl", () => {
 		expect(url).toContain("page=3");
 	});
 
+});
+
+describe("buildQueueCountsUrl", () => {
+	it("should return the bare counts path for defaults", () => {
+		expect(buildQueueCountsUrl({})).toBe("/queue/counts");
+	});
+
+	it("should carry the filters the counted page was rendered with", () => {
+		expect(buildQueueCountsUrl({ tab: "done", order: "asc", page: 3 })).toBe(
+			"/queue/counts?tab=done&order=asc&page=3",
+		);
+	});
+
+	it("should omit params the queue URL omits so both describe the same view", () => {
+		expect(buildQueueCountsUrl({ tab: "queue", order: "desc", page: 1 })).toBe("/queue/counts");
+	});
 });
 
 describe("canonicalQueuePageRedirect", () => {

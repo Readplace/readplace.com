@@ -31,6 +31,7 @@ describe("toArticleCollectionEntity", () => {
 		const result: FindArticlesResult = {
 			articles: [makeArticle("1")],
 			total: 1,
+			hasMore: false,
 			page: 1,
 			pageSize: 20,
 		};
@@ -45,6 +46,7 @@ describe("toArticleCollectionEntity", () => {
 		const result: FindArticlesResult = {
 			articles: [],
 			total: 42,
+			hasMore: true,
 			page: 2,
 			pageSize: 20,
 		};
@@ -60,6 +62,7 @@ describe("toArticleCollectionEntity", () => {
 		const result: FindArticlesResult = {
 			articles: [makeArticle("1"), makeArticle("2")],
 			total: 2,
+			hasMore: false,
 			page: 1,
 			pageSize: 20,
 		};
@@ -75,6 +78,7 @@ describe("toArticleCollectionEntity", () => {
 		const result: FindArticlesResult = {
 			articles: [makeArticle("1")],
 			total: 1,
+			hasMore: false,
 			page: 1,
 			pageSize: 20,
 		};
@@ -100,6 +104,7 @@ describe("toArticleCollectionEntity", () => {
 		const result: FindArticlesResult = {
 			articles: [],
 			total: 0,
+			hasMore: false,
 			page: 1,
 			pageSize: 20,
 		};
@@ -115,6 +120,7 @@ describe("toArticleCollectionEntity", () => {
 		const result: FindArticlesResult = {
 			articles: [],
 			total: 0,
+			hasMore: false,
 			page: 1,
 			pageSize: 20,
 		};
@@ -132,6 +138,7 @@ describe("toArticleCollectionEntity", () => {
 		const result: FindArticlesResult = {
 			articles: [],
 			total: 0,
+			hasMore: false,
 			page: 1,
 			pageSize: 20,
 		};
@@ -149,6 +156,7 @@ describe("toArticleCollectionEntity", () => {
 		const result: FindArticlesResult = {
 			articles: Array.from({ length: 20 }, (_, i) => makeArticle(`${i}`)),
 			total: 42,
+			hasMore: true,
 			page: 1,
 			pageSize: 20,
 		};
@@ -163,6 +171,7 @@ describe("toArticleCollectionEntity", () => {
 		const result: FindArticlesResult = {
 			articles: Array.from({ length: 20 }, (_, i) => makeArticle(`${i}`)),
 			total: 42,
+			hasMore: true,
 			page: 2,
 			pageSize: 20,
 		};
@@ -177,6 +186,7 @@ describe("toArticleCollectionEntity", () => {
 		const result: FindArticlesResult = {
 			articles: [makeArticle("1"), makeArticle("2")],
 			total: 22,
+			hasMore: false,
 			page: 2,
 			pageSize: 20,
 		};
@@ -191,6 +201,7 @@ describe("toArticleCollectionEntity", () => {
 		const result: FindArticlesResult = {
 			articles: [makeArticle("1")],
 			total: 1,
+			hasMore: false,
 			page: 1,
 			pageSize: 20,
 		};
@@ -205,6 +216,7 @@ describe("toArticleCollectionEntity", () => {
 		const result: FindArticlesResult = {
 			articles: Array.from({ length: 20 }, (_, i) => makeArticle(`${i}`)),
 			total: 42,
+			hasMore: true,
 			page: 1,
 			pageSize: 20,
 		};
@@ -224,6 +236,7 @@ describe("toArticleCollectionEntity", () => {
 		const result: FindArticlesResult = {
 			articles: [],
 			total: 0,
+			hasMore: false,
 			page: 1,
 			pageSize: 20,
 		};
@@ -240,6 +253,7 @@ describe("toArticleCollectionEntity", () => {
 		const result: FindArticlesResult = {
 			articles: [],
 			total: 0,
+			hasMore: false,
 			page: 1,
 			pageSize: 20,
 		};
@@ -260,6 +274,7 @@ describe("toArticleCollectionEntity", () => {
 		const result: FindArticlesResult = {
 			articles: [],
 			total: 0,
+			hasMore: false,
 			page: 1,
 			pageSize: 20,
 		};
@@ -277,6 +292,7 @@ describe("toArticleCollectionEntity", () => {
 		const result: FindArticlesResult = {
 			articles: [],
 			total: 0,
+			hasMore: false,
 			page: 1,
 			pageSize: 20,
 		};
@@ -292,6 +308,7 @@ describe("toArticleCollectionEntity", () => {
 		const result: FindArticlesResult = {
 			articles: [],
 			total: 0,
+			hasMore: false,
 			page: 1,
 			pageSize: 20,
 		};
@@ -314,6 +331,7 @@ describe("toArticleCollectionEntity", () => {
 		const result: FindArticlesResult = {
 			articles: [],
 			total: 0,
+			hasMore: false,
 			page: 1,
 			pageSize: 20,
 		};
@@ -336,6 +354,7 @@ describe("toArticleCollectionEntity", () => {
 		const result: FindArticlesResult = {
 			articles: [makeArticle("1"), makeArticle("2")],
 			total: 2,
+			hasMore: false,
 			page: 1,
 			pageSize: 20,
 		};
@@ -352,6 +371,7 @@ describe("toArticleCollectionEntity", () => {
 		const result: FindArticlesResult = {
 			articles: [],
 			total: 0,
+			hasMore: false,
 			page: 1,
 			pageSize: 20,
 		};
@@ -365,6 +385,7 @@ describe("toArticleCollectionEntity", () => {
 		const result: FindArticlesResult = {
 			articles: [],
 			total: 0,
+			hasMore: false,
 			page: 1,
 			pageSize: 20,
 		};
@@ -385,6 +406,7 @@ describe("toArticleCollectionEntity", () => {
 		const result: FindArticlesResult = {
 			articles: [],
 			total: 0,
+			hasMore: false,
 			page: 1,
 			pageSize: 20,
 		};
@@ -392,6 +414,19 @@ describe("toArticleCollectionEntity", () => {
 		const entity = toArticleCollectionEntity(result, {});
 
 		expect(entity.properties).not.toHaveProperty("messages");
+	});
+
+	it("throws when the result carries no total, since Siren pagination cannot be derived without one", () => {
+		const result: FindArticlesResult = {
+			articles: [makeArticle("1")],
+			hasMore: false,
+			page: 1,
+			pageSize: 20,
+		};
+
+		expect(() => toArticleCollectionEntity(result, {})).toThrow(
+			"Siren collection requires a total",
+		);
 	});
 
 });

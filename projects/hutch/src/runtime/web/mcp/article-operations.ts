@@ -1,3 +1,4 @@
+import assert from "node:assert";
 import { ReaderArticleHashIdSchema } from "@packages/domain/article";
 import type { SavedArticle } from "@packages/domain/article";
 import type { AuthenticatedUserId } from "@packages/domain/user";
@@ -103,7 +104,9 @@ export function initMcpArticleOperations(
 				page,
 				pageSize,
 				excludeContent: true,
+				includeTotal: true,
 			});
+			assert(result.total !== undefined, "includeTotal query must return a total");
 			return {
 				total: result.total,
 				page: result.page,

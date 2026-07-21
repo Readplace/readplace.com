@@ -48,7 +48,13 @@ function buildOps(overrides: DepOverrides = {}) {
 		findArticleById: overrides.findArticleById ?? (async () => null),
 		findArticlesByUser:
 			overrides.findArticlesByUser ??
-			(async () => ({ articles: [], total: 0, page: 1, pageSize: 20 })),
+			(async () => ({
+				articles: [],
+				total: 0,
+				hasMore: false,
+				page: 1,
+				pageSize: 20,
+			})),
 		readArticleContent: overrides.readArticleContent ?? (async () => undefined),
 		findGeneratedSummary:
 			overrides.findGeneratedSummary ?? (async () => undefined),
@@ -144,6 +150,7 @@ describe("initMcpArticleOperations", () => {
 			const findArticlesByUser = jest.fn(async () => ({
 				articles: [article],
 				total: 1,
+				hasMore: false,
 				page: 2,
 				pageSize: 5,
 			}));
@@ -166,6 +173,7 @@ describe("initMcpArticleOperations", () => {
 				page: 2,
 				pageSize: 5,
 				excludeContent: true,
+				includeTotal: true,
 			});
 			expect(result).toEqual({
 				total: 1,
@@ -173,6 +181,21 @@ describe("initMcpArticleOperations", () => {
 				pageSize: 5,
 				articles: [toMcpArticle(article)],
 			});
+		});
+
+		it("throws when the store answers the includeTotal query without a total", async () => {
+			const ops = buildOps({
+				findArticlesByUser: async () => ({
+					articles: [],
+					hasMore: false,
+					page: 1,
+					pageSize: 20,
+				}),
+			});
+
+			await expect(ops.listQueue({ userId })).rejects.toThrow(
+				"includeTotal query must return a total",
+			);
 		});
 	});
 

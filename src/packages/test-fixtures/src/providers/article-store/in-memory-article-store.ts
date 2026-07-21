@@ -243,9 +243,10 @@ export function initInMemoryArticleStore(): {
 			return order === "asc" ? diff : -diff;
 		});
 
-		const total = userArts.length;
+		const total = query.includeTotal ? userArts.length : undefined;
 		const start = (page - 1) * pageSize;
 		const paginated = userArts.slice(start, start + pageSize);
+		const hasMore = userArts.length > start + pageSize;
 
 		const result: SavedArticle[] = [];
 		for (const ua of paginated) {
@@ -255,7 +256,7 @@ export function initInMemoryArticleStore(): {
 			}
 		}
 
-		return { articles: result, total, page, pageSize };
+		return { articles: result, total, hasMore, page, pageSize };
 	};
 
 	const countArticlesByUser: CountArticlesByUser = async (query) => {
@@ -265,7 +266,7 @@ export function initInMemoryArticleStore(): {
 		if (query.status) {
 			userArts = userArts.filter((ua) => ua.status === query.status);
 		}
-		return userArts.length;
+		return Math.min(userArts.length, query.countLimit ?? userArts.length);
 	};
 
 	const deleteArticle: DeleteArticle = async (id, userId) => {

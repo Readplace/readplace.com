@@ -37,6 +37,7 @@ function fakeFindArticlesByUser(total: number): FindArticlesByUser {
 	return async () => ({
 		articles: [],
 		total,
+		hasMore: false,
 		page: 1,
 		pageSize: 20,
 	});
@@ -44,6 +45,7 @@ function fakeFindArticlesByUser(total: number): FindArticlesByUser {
 
 interface SubjectOverrides {
 	findEmail?: (userId: string) => Promise<string | null>;
+	findArticlesByUser?: FindArticlesByUser;
 	articlesTotal?: number;
 	now?: Date;
 }
@@ -58,7 +60,9 @@ function buildSubject(overrides: SubjectOverrides = {}) {
 	const deps: SendTrialFeedbackEmailDeps = {
 		findSubscriptionByUserId: providers.findByUserId,
 		findEmailByUserId,
-		findArticlesByUser: fakeFindArticlesByUser(overrides.articlesTotal ?? 0),
+		findArticlesByUser:
+			overrides.findArticlesByUser ??
+			fakeFindArticlesByUser(overrides.articlesTotal ?? 0),
 		markTrialFeedbackEmailSent: providers.markTrialFeedbackEmailSent,
 		markTrialReminderEmailSent: providers.markTrialReminderEmailSent,
 		sendEmail: email.sendEmail,
@@ -274,6 +278,34 @@ describe("send-trial-feedback-email handler", () => {
 		assert.equal(result.batchItemFailures.length, 1);
 		assert.equal(result.batchItemFailures[0].itemIdentifier, "msg-fail");
 		const row = await providers.findByUserId(USER_ID);
+		assert(row);
+		assert.equal(row.trialFeedbackEmailSentAt, undefined);
+	});
+
+	it("reports a batch item failure, and sends nothing, when the store answers the includeTotal query without a total", async () => {
+		const subject = buildSubject({
+			findArticlesByUser: async () => ({
+				articles: [],
+				hasMore: false,
+				page: 1,
+				pageSize: 20,
+			}),
+		});
+		await seedCancelledTrial(subject.providers);
+
+		const result = await subject.handler(
+			buildSqsEvent([
+				{ messageId: "msg-no-total", body: buildEventBridgeBody(USER_ID) },
+			]),
+			buildLambdaContext(),
+			() => {},
+		);
+
+		assert(result);
+		assert.equal(result.batchItemFailures.length, 1);
+		assert.equal(result.batchItemFailures[0].itemIdentifier, "msg-no-total");
+		assert.equal(subject.email.getSentEmails().length, 0);
+		const row = await subject.providers.findByUserId(USER_ID);
 		assert(row);
 		assert.equal(row.trialFeedbackEmailSentAt, undefined);
 	});

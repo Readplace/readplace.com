@@ -31,7 +31,7 @@ export function parseQueueUrl(query: Record<string, unknown>): QueueUrlState {
 	};
 }
 
-export function buildQueueUrl(
+function queueQueryString(
 	state: Partial<QueueUrlState>,
 	extraParams: readonly (readonly [string, string])[] = [],
 ): string {
@@ -52,13 +52,24 @@ export function buildQueueUrl(
 		params.append(key, value);
 	}
 
-	const qs = params.toString();
+	return params.toString();
+}
+
+export function buildQueueUrl(
+	state: Partial<QueueUrlState>,
+	extraParams: readonly (readonly [string, string])[] = [],
+): string {
+	const qs = queueQueryString(state, extraParams);
 	return qs ? `${QUEUE_PATH}?${qs}` : QUEUE_PATH;
 }
 
-/** This read-boundary clamp must compute the last page the same way the
- * rendered pagination does, so they agree on where the list ends and can't
- * diverge. */
+export const QUEUE_COUNTS_PATH = `${QUEUE_PATH}/counts`;
+
+export function buildQueueCountsUrl(state: Partial<QueueUrlState>): string {
+	const qs = queueQueryString(state);
+	return qs ? `${QUEUE_COUNTS_PATH}?${qs}` : QUEUE_COUNTS_PATH;
+}
+
 export function canonicalQueuePageRedirect(input: {
 	state: QueueUrlState;
 	total: number;

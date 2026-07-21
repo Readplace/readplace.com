@@ -9,7 +9,7 @@ import { MAX_POLLS } from "@packages/web-shell";
 import { buildCardPollUrl } from "./queue-card/queue-card-poll-url";
 import { isCardTerminal } from "./queue-card/is-card-terminal";
 import type { QueueUrlState } from "./queue.url";
-import { buildQueueUrl } from "./queue.url";
+import { buildQueueCountsUrl, buildQueueUrl } from "./queue.url";
 import type { StatusFlash } from "./queue.error";
 import type { EffectiveAccess } from "@packages/subscription-access";
 
@@ -71,10 +71,8 @@ export interface QueueViewModel {
 	articles: QueueArticleViewModel[];
 	filters: QueueUrlState;
 	isEmpty: boolean;
-	totalPages: number;
 	currentPage: number;
-	total: number;
-	unreadCount: number;
+	countsUrl: string;
 	filterUrls: {
 		unread: string;
 		read: string;
@@ -208,14 +206,12 @@ export function toQueueViewModel(
 		importFlash?: string;
 		importSkipped?: ImportSkippedViewModel;
 		statusFlash?: StatusFlash;
-		unreadCount?: number;
 		summaryByUrl?: ReadonlyMap<string, GeneratedSummary | undefined>;
 		crawlByUrl?: ReadonlyMap<string, ArticleCrawl | undefined>;
 		effectiveAccess?: EffectiveAccess;
 	},
 ): QueueViewModel {
 	const now = options?.now ?? new Date();
-	const totalPages = Math.max(1, Math.ceil(result.total / result.pageSize));
 	const baseFilters = { order: filters.order };
 	const queueUrl = buildQueueUrl(filters);
 	const queryIndex = queueUrl.indexOf("?");
@@ -245,11 +241,9 @@ export function toQueueViewModel(
 			}),
 		),
 		filters,
-		isEmpty: result.total === 0,
-		totalPages,
+		isEmpty: result.articles.length === 0,
 		currentPage: result.page,
-		total: result.total,
-		unreadCount: options?.unreadCount ?? result.total,
+		countsUrl: buildQueueCountsUrl(filters),
 		filterUrls: {
 			unread: buildQueueUrl({ ...baseFilters, tab: "queue" }),
 			read: buildQueueUrl({ ...baseFilters, tab: "done" }),
@@ -259,10 +253,9 @@ export function toQueueViewModel(
 				result.page > 1
 					? buildQueueUrl({ ...filters, page: result.page - 1 })
 					: undefined,
-			next:
-				result.page < totalPages
-					? buildQueueUrl({ ...filters, page: result.page + 1 })
-					: undefined,
+			next: result.hasMore
+				? buildQueueUrl({ ...filters, page: result.page + 1 })
+				: undefined,
 		},
 		errors: options?.errors,
 		saveErrorCode: options?.saveErrorCode,

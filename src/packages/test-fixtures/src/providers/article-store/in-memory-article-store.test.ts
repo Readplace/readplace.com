@@ -268,7 +268,10 @@ describe("initInMemoryArticleStore", () => {
 			await store.saveArticle(makeArticleParams({ userId: USER_A }));
 			await store.saveArticle(makeArticleParams({ userId: USER_A }));
 
-			const result = await store.findArticlesByUser({ userId: USER_A });
+			const result = await store.findArticlesByUser({
+				userId: USER_A,
+				includeTotal: true,
+			});
 
 			expect(result.articles.length).toBe(1);
 			expect(result.total).toBe(1);
@@ -314,7 +317,10 @@ describe("initInMemoryArticleStore", () => {
 				makeArticleParams({ userId: USER_B, url: "https://other.com/page" }),
 			);
 
-			const result = await store.findArticlesByUser({ userId: USER_A });
+			const result = await store.findArticlesByUser({
+				userId: USER_A,
+				includeTotal: true,
+			});
 
 			expect(result.articles.length).toBe(1);
 			expect(result.total).toBe(1);
@@ -451,6 +457,7 @@ describe("initInMemoryArticleStore", () => {
 				userId: USER_A,
 				page: 1,
 				pageSize: 2,
+				includeTotal: true,
 			});
 			const page2 = await store.findArticlesByUser({
 				userId: USER_A,
@@ -461,6 +468,66 @@ describe("initInMemoryArticleStore", () => {
 			expect(page1.articles.length).toBe(2);
 			expect(page2.articles.length).toBe(2);
 			expect(page1.total).toBe(5);
+		});
+
+		it("should omit total unless the query asks for it", async () => {
+			const store = initInMemoryArticleStore();
+			await store.saveArticle(
+				makeArticleParams({ url: "https://example.com/1" }),
+			);
+			await store.saveArticle(
+				makeArticleParams({ url: "https://example.com/2" }),
+			);
+
+			const withoutTotal = await store.findArticlesByUser({ userId: USER_A });
+			const withTotal = await store.findArticlesByUser({
+				userId: USER_A,
+				includeTotal: true,
+			});
+
+			expect(withoutTotal.total).toBeUndefined();
+			expect(withTotal.total).toBe(2);
+		});
+
+		it("should report the whole matching set as the total, uncapped", async () => {
+			const store = initInMemoryArticleStore();
+			for (let i = 0; i < 5; i++) {
+				await store.saveArticle(
+					makeArticleParams({ url: `https://example.com/${i}` }),
+				);
+			}
+
+			const result = await store.findArticlesByUser({
+				userId: USER_A,
+				pageSize: 2,
+				includeTotal: true,
+			});
+
+			expect(result.total).toBe(5);
+			expect(result.articles.length).toBe(2);
+		});
+
+		it("should report hasMore until the last page", async () => {
+			const store = initInMemoryArticleStore();
+			for (let i = 0; i < 3; i++) {
+				await store.saveArticle(
+					makeArticleParams({ url: `https://example.com/${i}` }),
+				);
+			}
+
+			const page1 = await store.findArticlesByUser({
+				userId: USER_A,
+				page: 1,
+				pageSize: 2,
+			});
+			const page2 = await store.findArticlesByUser({
+				userId: USER_A,
+				page: 2,
+				pageSize: 2,
+			});
+
+			expect(page1.hasMore).toBe(true);
+			expect(page2.hasMore).toBe(false);
 		});
 	});
 
@@ -493,6 +560,25 @@ describe("initInMemoryArticleStore", () => {
 			);
 
 			expect(await store.countArticlesByUser({ userId: USER_A })).toBe(1);
+		});
+
+		it("stops counting at countLimit", async () => {
+			const store = initInMemoryArticleStore();
+			for (let i = 0; i < 5; i++) {
+				await store.saveArticle(
+					makeArticleParams({ url: `https://example.com/${i}` }),
+				);
+			}
+
+			expect(await store.countArticlesByUser({ userId: USER_A, countLimit: 3 })).toBe(3);
+		});
+
+		it("reports the exact count when it sits under countLimit", async () => {
+			const store = initInMemoryArticleStore();
+			await store.saveArticle(makeArticleParams({ url: "https://example.com/1" }));
+			await store.saveArticle(makeArticleParams({ url: "https://example.com/2" }));
+
+			expect(await store.countArticlesByUser({ userId: USER_A, countLimit: 5 })).toBe(2);
 		});
 	});
 

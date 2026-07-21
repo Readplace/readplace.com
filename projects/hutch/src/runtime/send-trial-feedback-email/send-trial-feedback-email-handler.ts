@@ -4,6 +4,7 @@ import type {
 	SQSBatchResponse,
 	SQSEvent,
 } from "aws-lambda";
+import assert from "node:assert";
 import { z } from "zod";
 import { UserIdSchema } from "@packages/domain/user";
 import { SendTrialFeedbackEmailCommand } from "@packages/hutch-infra-components";
@@ -126,7 +127,9 @@ async function processCommand(
 	const { total } = await deps.findArticlesByUser({
 		userId,
 		excludeContent: true,
+		includeTotal: true,
 	});
+	assert(total !== undefined, "includeTotal query must return a total");
 
 	const component = TrialFeedbackEmail({
 		founderAvatarUrl: deps.founderAvatarUrl,
@@ -198,7 +201,9 @@ async function processReminder(
 	const { total } = await deps.findArticlesByUser({
 		userId,
 		excludeContent: true,
+		includeTotal: true,
 	});
+	assert(total !== undefined, "includeTotal query must return a total");
 
 	const component = TrialReminderEmail({
 		founderAvatarUrl: deps.founderAvatarUrl,

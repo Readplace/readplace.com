@@ -1,4 +1,4 @@
-import { emptyStateTitle, formatUnreadLabel } from "./queue.component";
+import { emptyStateTitle, filterLinkClass, formatUnreadLabel } from "./queue.component";
 
 describe("formatUnreadLabel", () => {
 	it("should format zero count", () => {
@@ -15,6 +15,16 @@ describe("formatUnreadLabel", () => {
 
 	it("should cap at 99+ when count exceeds 99", () => {
 		expect(formatUnreadLabel(100)).toBe("To Read (99+)");
+	});
+});
+
+describe("filterLinkClass", () => {
+	it("should mark the active filter", () => {
+		expect(filterLinkClass(true)).toBe("queue__filter-link queue__filter-link--active");
+	});
+
+	it("should leave an inactive filter unmarked", () => {
+		expect(filterLinkClass(false)).toBe("queue__filter-link");
 	});
 });
 
