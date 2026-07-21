@@ -28,7 +28,33 @@ export interface InboxLinkCardViewModel {
 	/** Stable across a poll swap, so htmx has something to match the replaced card
 	 * against when restoring focus. */
 	domId: string;
+	statusState: CardStatusState;
+	/** Empty for `crawled`, where the title the crawl produced is the signal. */
+	statusLabel: string;
 	actions: InboxCardAction[];
+}
+
+/** `none` still renders, hidden by its modifier, so a test asserts which state a
+ * card is in rather than that an element is absent. */
+type CardStatusState = "working" | "stalled" | "failed" | "none";
+
+const CARD_STATUS_LABELS: Record<CardStatusState, string> = {
+	working: "Fetching preview…",
+	stalled: "Preview didn’t arrive",
+	failed: "No preview available",
+	none: "",
+};
+
+/** Derived from the link's own status rather than from whether the card is still
+ * polling: a pending link that spent its poll budget stops polling without ever
+ * reaching a terminal state, and reads as stalled, not as finished. */
+function cardStatusState(input: {
+	status: InboxEmailLinkEntry["status"];
+	isPolling: boolean;
+}): CardStatusState {
+	if (input.status === "failed") return "failed";
+	if (input.status !== "pending") return "none";
+	return input.isPolling ? "working" : "stalled";
 }
 
 function cardDomId(ordinal: string): string {
@@ -90,6 +116,10 @@ export function toInboxLinkCardViewModel(input: {
 			: buildInboxLinkPollUrl({ emailId, ordinal: link.ordinal, pollCount, shown });
 	const title = link.title ?? "";
 	const url = link.resolvedUrl ?? link.url;
+	const statusState = cardStatusState({
+		status: link.status,
+		isPolling: cardPollUrl !== undefined,
+	});
 	return {
 		ordinal: link.ordinal,
 		url,
@@ -97,6 +127,8 @@ export function toInboxLinkCardViewModel(input: {
 		hasTitle: link.status === "crawled" && title !== "",
 		cardPollUrl,
 		domId: cardDomId(link.ordinal),
+		statusState,
+		statusLabel: CARD_STATUS_LABELS[statusState],
 		actions: buildCardActions({ link, emailId, displayUrl: url, shown }),
 	};
 }

@@ -44,6 +44,9 @@ const LIGHT_THEME_VARIABLES: Record<string, string> = {
 	"--ring": "hsl(27 65% 47%)",
 	"--ring-shadow": "hsl(27 65% 47% / 0.15)",
 	"--error": "hsl(0 43% 56%)",
+	/** --error is 4.17:1 on white, short of 1.4.3. Same hue, darkened to 5.2:1,
+	 * for error wording rather than error surfaces. */
+	"--error-text": "hsl(0 43% 50%)",
 	"--error-foreground": "hsl(0 0% 100%)",
 	"--error-bg": "hsl(0 43% 56% / 0.1)",
 	"--warning-bg": "hsl(37 56% 51% / 0.12)",
@@ -90,6 +93,7 @@ const DARK_THEME_VARIABLES: Record<string, string> = {
 	"--accent": "hsl(27 65% 52%)",
 	"--ring": "hsl(27 65% 52%)",
 	"--ring-shadow": "hsl(27 65% 52% / 0.25)",
+	"--error-text": "var(--color-error)",
 	"--error-bg": "hsl(0 43% 56% / 0.15)",
 	"--warning-bg": "hsl(37 62% 56% / 0.18)",
 	"--header-brand-stem": "var(--color-text-primary)",

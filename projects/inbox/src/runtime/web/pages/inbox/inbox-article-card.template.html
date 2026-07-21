@@ -5,6 +5,7 @@
 	{{else}}
 	<a class="inbox-article-card__title inbox-article-card__title--bare" href="{{url}}" target="_blank" rel="noopener noreferrer" data-test-inbox-article-url>{{url}}</a>
 	{{/if}}
+	<span class="inbox-article-card__status inbox-article-card__status--{{statusState}}" data-test-card-status="{{statusState}}">{{statusLabel}}</span>
 	<ul class="inbox-article-card__actions">
 		{{#each actions}}
 		<li class="inbox-article-card__action">

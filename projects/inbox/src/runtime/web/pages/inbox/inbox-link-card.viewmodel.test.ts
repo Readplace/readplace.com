@@ -165,6 +165,68 @@ describe("toInboxLinkCardViewModel", () => {
 		expect(vm.hasTitle).toBe(false);
 	});
 
+	it("tells the reader a preview is on its way while the card is still polling", () => {
+		const vm = toInboxLinkCardViewModel({
+			link: link({ status: "pending" }),
+			emailId: EMAIL_ID,
+			pollCount: 1,
+			maxPolls: 300,
+			shown: SHOWN,
+		});
+
+		expect(vm.statusState).toBe("working");
+		expect(vm.statusLabel).toBe("Fetching preview…");
+	});
+
+	it("distinguishes a pending link that spent its poll budget from one that finished", () => {
+		const stalled = toInboxLinkCardViewModel({
+			link: link({ status: "pending" }),
+			emailId: EMAIL_ID,
+			pollCount: 301,
+			maxPolls: 300,
+			shown: SHOWN,
+		});
+		const crawled = toInboxLinkCardViewModel({
+			link: link({ status: "crawled", title: "Done" }),
+			emailId: EMAIL_ID,
+			pollCount: 301,
+			maxPolls: 300,
+			shown: SHOWN,
+		});
+
+		// Both stopped polling, so cardPollUrl alone cannot tell them apart.
+		expect(stalled.cardPollUrl).toBeUndefined();
+		expect(crawled.cardPollUrl).toBeUndefined();
+		expect(stalled.statusState).toBe("stalled");
+		expect(crawled.statusState).toBe("none");
+	});
+
+	it("marks a failed crawl so a bare URL is not mistaken for one still arriving", () => {
+		const vm = toInboxLinkCardViewModel({
+			link: link({ status: "failed", failureReason: "timeout" }),
+			emailId: EMAIL_ID,
+			pollCount: 1,
+			maxPolls: 300,
+			shown: SHOWN,
+		});
+
+		expect(vm.statusState).toBe("failed");
+		expect(vm.statusLabel).toBe("No preview available");
+	});
+
+	it("says nothing on a crawled card, where the title is the signal", () => {
+		const vm = toInboxLinkCardViewModel({
+			link: link({ status: "crawled", title: "A real title" }),
+			emailId: EMAIL_ID,
+			pollCount: 1,
+			maxPolls: 300,
+			shown: SHOWN,
+		});
+
+		expect(vm.statusState).toBe("none");
+		expect(vm.statusLabel).toBe("");
+	});
+
 	it("keeps the card and action ids identical across a poll swap so focus can be restored", () => {
 		const pending = toInboxLinkCardViewModel({
 			link: link({ status: "pending" }),

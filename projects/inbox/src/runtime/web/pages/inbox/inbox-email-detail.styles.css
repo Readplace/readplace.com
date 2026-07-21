@@ -156,6 +156,24 @@
   word-break: break-all;
 }
 
+.inbox-article-card__status {
+  font-size: 0.75rem;
+  margin-top: 2px;
+}
+
+.inbox-article-card__status--working,
+.inbox-article-card__status--stalled {
+  color: var(--muted-foreground);
+}
+
+.inbox-article-card__status--failed {
+  color: var(--error-text);
+}
+
+.inbox-article-card__status--none {
+  display: none;
+}
+
 .inbox-article-card__actions {
   display: flex;
   align-items: center;
