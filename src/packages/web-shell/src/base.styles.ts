@@ -30,6 +30,9 @@ const LIGHT_THEME_VARIABLES: Record<string, string> = {
 	"--muted": "var(--color-surface)",
 	"--muted-foreground": "var(--color-text-secondary)",
 	"--success": "var(--color-success)",
+	/** --color-success is 4.10:1 on white, short of 1.4.3. Same hue and
+	 * saturation, darkened to 4.98:1, for success wording rather than surfaces. */
+	"--success-text": "hsl(158 39% 35%)",
 	"--success-foreground": "hsl(0 0% 100%)",
 	"--border": "var(--color-border)",
 	"--card": "var(--color-surface-elevated)",
@@ -93,6 +96,7 @@ const DARK_THEME_VARIABLES: Record<string, string> = {
 	"--accent": "hsl(27 65% 52%)",
 	"--ring": "hsl(27 65% 52%)",
 	"--ring-shadow": "hsl(27 65% 52% / 0.25)",
+	"--success-text": "var(--color-success)",
 	"--error-text": "var(--color-error)",
 	"--error-bg": "hsl(0 43% 56% / 0.15)",
 	"--warning-bg": "hsl(37 62% 56% / 0.18)",

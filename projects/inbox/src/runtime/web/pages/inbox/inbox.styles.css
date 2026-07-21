@@ -118,7 +118,7 @@
 }
 
 .inbox__status--enabled {
-  color: var(--success);
+  color: var(--success-text);
 }
 
 .inbox__status--disabled {
