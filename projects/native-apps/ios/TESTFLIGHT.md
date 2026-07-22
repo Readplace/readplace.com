@@ -226,16 +226,26 @@ listing and a deliberate human submission. The moving parts:
    until they exist (as secrets, or entered once by hand in ASC), a push that
    includes review notes fails with "missing a required attribute
    contactFirstName".
-4. **Manual, in App Store Connect** (the release lane deliberately does none of
-   these): create the version in *Prepare for Submission* — its string must
-   equal the attached build's `<major.minor>.<build>`, and every iOS-shipping
-   merge mints a new build, so create it right before submitting; attach the
-   build; complete the **App Privacy** labels (keep them consistent with
+4. **Manual, in App Store Connect** — the one-time listing setup no API
+   covers: complete the **App Privacy** labels (keep them consistent with
    `Shared/PrivacyInfo.xcprivacy`: email address, user ID, browsing history —
-   all linked, none tracking), **age rating**, and **pricing & availability**;
-   answer the content-rights question (the reader displays user-saved
-   third-party articles); choose the release option; **Submit for Review**.
-5. **After approval**: point the iPhone client's install URL
+   all linked, **none tracking**, and the app-level tracking question answered
+   No; there is no official API for the privacy label, and fastlane's
+   `upload_app_privacy_details_to_app_store` needs an Apple ID web session,
+   not the API key), **age rating**, **pricing & availability**, the
+   content-rights question (the reader displays user-saved third-party
+   articles), and the release option. Replies to App Review rejections
+   (Resolution Center) are also UI-only — no API exists.
+5. **Submitting** runs through the fastlane `resubmit` lane: trigger **Submit
+   iOS build for App Review** from the Actions tab with the build number, or
+   run `bundle exec fastlane resubmit build:<n>` locally. It sets the version
+   record's string to the required `<major.minor>.<build>`, attaches the
+   build, pushes the metadata draft, and submits — reusing the still-open
+   review submission after a rejection (a rejection leaves it in
+   UNRESOLVED_ISSUES and App Store Connect refuses a second one). Submission
+   stays a deliberate human act: the workflow is dispatch-only and nothing on
+   the push pipeline calls the lane.
+6. **After approval**: point the iPhone client's install URL
    (`src/packages/supported-clients/src/supported-clients.ts`) at the App
    Store listing instead of the TestFlight join link, and update the iPhone
    blog post's beta framing.

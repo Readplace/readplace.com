@@ -37,6 +37,28 @@ def asc_key_filepath
   path
 end
 
+# Creating the App Review detail requires the four reviewer-contact attributes
+# (contactFirstName/LastName/Email/Phone, phone in +<country> format) — with
+# only notes.txt, App Store Connect rejects the create. The contact (and the
+# optional demo account) is PII/credentials, so it comes from env (CI
+# environment secrets), never from files in git. When the env is absent the
+# hash is nil and review info comes from fastlane/metadata alone — which only
+# works once the review detail already exists in ASC.
+def review_information_from_env
+  contact_keys = %w[ASC_REVIEW_FIRST_NAME ASC_REVIEW_LAST_NAME ASC_REVIEW_EMAIL ASC_REVIEW_PHONE]
+  return nil unless contact_keys.all? { |k| ENV[k].to_s.strip != "" }
+
+  {
+    first_name: ENV.fetch("ASC_REVIEW_FIRST_NAME"),
+    last_name: ENV.fetch("ASC_REVIEW_LAST_NAME"),
+    email_address: ENV.fetch("ASC_REVIEW_EMAIL"),
+    phone_number: ENV.fetch("ASC_REVIEW_PHONE"),
+    demo_user: ENV["ASC_REVIEW_DEMO_USER"],
+    demo_password: ENV["ASC_REVIEW_DEMO_PASSWORD"],
+    notes: File.read(File.join(PROJECT_ROOT, "fastlane", "metadata", "review_information", "notes.txt")),
+  }.compact
+end
+
 platform :ios do
   desc "Build an App Store-signed .ipa and upload it to TestFlight (INTERNAL testers only)."
   desc "Re-runnable end to end. Requires the one-time portal/repo setup in TESTFLIGHT.md."
@@ -177,10 +199,9 @@ platform :ios do
 
   desc "Upload the App Store listing metadata (fastlane/metadata) to App Store Connect as a"
   desc "DRAFT. Never submits for review and never uploads a binary: the build comes from the"
-  desc "beta lane, and Submit for Review stays a deliberate human step (account deletion —"
-  desc "Guideline 5.1.1(v) — must ship first). Pass `screenshots:true` to also push"
-  desc "fastlane/screenshots. Requires an App Store version in 'Prepare for Submission' and the"
-  desc "same fastlane/.env API key the beta lane uses."
+  desc "beta lane, and submitting is the resubmit lane's job, dispatched by a human. Pass"
+  desc "`screenshots:true` to also push fastlane/screenshots. Requires an App Store version"
+  desc "in 'Prepare for Submission' and the same fastlane/.env API key the beta lane uses."
   lane :release do |options|
     api_key = app_store_connect_api_key(
       key_id: ENV.fetch("ASC_KEY_ID"),
@@ -190,26 +211,6 @@ platform :ios do
       in_house: false,
     )
 
-    # Creating the App Review detail requires the four reviewer-contact
-    # attributes (contactFirstName/LastName/Email/Phone, phone in +<country>
-    # format) — with only notes.txt, App Store Connect rejects the create. The
-    # contact (and the optional demo account) is PII/credentials, so it comes
-    # from env (CI environment secrets), never from files in git. When the env
-    # is absent the hash is nil and review info comes from fastlane/metadata
-    # alone — which only works once the review detail already exists in ASC.
-    contact_keys = %w[ASC_REVIEW_FIRST_NAME ASC_REVIEW_LAST_NAME ASC_REVIEW_EMAIL ASC_REVIEW_PHONE]
-    review_information = if contact_keys.all? { |k| ENV[k].to_s.strip != "" }
-      {
-        first_name: ENV.fetch("ASC_REVIEW_FIRST_NAME"),
-        last_name: ENV.fetch("ASC_REVIEW_LAST_NAME"),
-        email_address: ENV.fetch("ASC_REVIEW_EMAIL"),
-        phone_number: ENV.fetch("ASC_REVIEW_PHONE"),
-        demo_user: ENV["ASC_REVIEW_DEMO_USER"],
-        demo_password: ENV["ASC_REVIEW_DEMO_PASSWORD"],
-        notes: File.read(File.join(PROJECT_ROOT, "fastlane", "metadata", "review_information", "notes.txt")),
-      }.compact
-    end
-
     upload_to_app_store(
       api_key: api_key,
       app_identifier: APP_ID,
@@ -218,8 +219,8 @@ platform :ios do
       # Screenshots are opt-in so a metadata-only push doesn't require them to exist yet.
       skip_screenshots: options[:screenshots] != true,
       overwrite_screenshots: options[:screenshots] == true,
-      # Never auto-submit or run precheck: submitting is a deliberate human action once
-      # the account-deletion flow is in the attached build.
+      # Never auto-submit or run precheck: submitting for review is the resubmit
+      # lane's job, and only ever on a human's explicit dispatch.
       submit_for_review: false,
       run_precheck_before_submit: false,
       # Non-interactive: skip the HTML preview confirmation prompt.
@@ -228,7 +229,70 @@ platform :ios do
       # cwd is fastlane/, so anchor the trees to the project root explicitly.
       metadata_path: File.join(PROJECT_ROOT, "fastlane", "metadata"),
       screenshots_path: File.join(PROJECT_ROOT, "fastlane", "screenshots"),
-      app_review_information: review_information,
+      app_review_information: review_information_from_env,
     )
+  end
+
+  desc "Submit (or resubmit after a rejection) a TestFlight build for App Store review:"
+  desc "set the version record's string to <major.minor>.<build>, attach the build, push"
+  desc "the listing metadata (including the review notes), and submit. Reuses the"
+  desc "rejection's still-open review submission — a rejection leaves it in"
+  desc "UNRESOLVED_ISSUES, and App Store Connect refuses a second open submission per"
+  desc "platform. Usage: `bundle exec fastlane resubmit build:67`. Submitting stays a"
+  desc "deliberate human act: this lane runs only from the manually-dispatched resubmit"
+  desc "workflow or a developer's shell, never from the on-push CI pipeline."
+  lane :resubmit do |options|
+    build = options[:build].to_s
+    UI.user_error!("Pass the TestFlight build to attach, e.g. `fastlane resubmit build:67`") unless build.match?(/\A\d+\z/)
+
+    # The TestFlight publish workflow stamps CFBundleShortVersionString as
+    # <major.minor>.<build>; the version record must carry the identical string
+    # for the attach to be accepted.
+    spec = File.read(File.join(PROJECT_ROOT, SPEC))
+    base = spec[/MARKETING_VERSION:\s*"(\d+\.\d+)(?:\.\d+)?"/, 1]
+    UI.user_error!("Could not read MARKETING_VERSION from #{SPEC}") unless base
+    version_string = "#{base}.#{build}"
+
+    api_key = app_store_connect_api_key(
+      key_id: ENV.fetch("ASC_KEY_ID"),
+      issuer_id: ENV.fetch("ASC_ISSUER_ID"),
+      key_filepath: asc_key_filepath,
+      duration: 1200,
+      in_house: false,
+    )
+
+    upload_to_app_store(
+      api_key: api_key,
+      app_identifier: APP_ID,
+      app_version: version_string,
+      build_number: build,
+      skip_binary_upload: true,
+      skip_screenshots: true,
+      # deliver's own submit path refuses while the rejected submission is still
+      # open (UNRESOLVED_ISSUES counts as in progress), so submission happens
+      # below by reusing that record.
+      submit_for_review: false,
+      run_precheck_before_submit: false,
+      force: true,
+      precheck_include_in_app_purchases: false,
+      metadata_path: File.join(PROJECT_ROOT, "fastlane", "metadata"),
+      app_review_information: review_information_from_env,
+    )
+
+    app = Spaceship::ConnectAPI::App.find(APP_ID)
+    UI.user_error!("No App Store Connect app record for #{APP_ID}") unless app
+    version = app.get_edit_app_store_version(platform: Spaceship::ConnectAPI::Platform::IOS)
+    UI.user_error!("No editable App Store version to submit — create one in App Store Connect first") unless version
+
+    submission = app.get_in_progress_review_submission(platform: Spaceship::ConnectAPI::Platform::IOS, includes: "items")
+    if submission && submission.state != Spaceship::ConnectAPI::ReviewSubmission::ReviewSubmissionState::UNRESOLVED_ISSUES
+      UI.user_error!("A review submission is already #{submission.state} — resolve it in App Store Connect first")
+    end
+    submission ||= app.create_review_submission(platform: Spaceship::ConnectAPI::Platform::IOS)
+    if submission.items.to_a.empty?
+      submission.add_app_store_version_to_review_items(app_store_version_id: version.id)
+    end
+    submission.submit_for_review
+    UI.success("Submitted #{version_string} (build #{build}) for App Review")
   end
 end
