@@ -23,6 +23,10 @@ import type { ViewOpenedEvent } from "@packages/web-analytics";
 
 const GOOGLEBOT = "Googlebot/2.1 (+http://www.google.com/bot.html)";
 
+// A word count whose estimated read time clears the paywall's read-minutes
+// threshold, so seeds using it still exercise the expiry window and paywall.
+// Short reads stay permanently public — see PUBLIC_VIEW_PAYWALL_READ_MINUTES_THRESHOLD.
+const LONG_ARTICLE_WORD_COUNT = 1500;
 const ARTICLE_URL = "https://example.com/post";
 const ENCODED = encodeURIComponent(ARTICLE_URL);
 const CANONICAL_PATH = "example.com/post";
@@ -1754,8 +1758,8 @@ describe("View routes", () => {
 			const { fixture, harness } = makeHarness(now);
 			await fixture.articleStore.saveArticleGlobally({
 				url: ARTICLE_URL,
-				metadata: { title: "stub", siteName: "example.com", excerpt: "", wordCount: 0 },
-				estimatedReadTime: calculateReadTime(0),
+				metadata: { title: "stub", siteName: "example.com", excerpt: "", wordCount: LONG_ARTICLE_WORD_COUNT },
+				estimatedReadTime: calculateReadTime(LONG_ARTICLE_WORD_COUNT),
 				savedAt: new Date("2026-05-03T13:54:27.000Z"),
 			});
 
@@ -1803,8 +1807,8 @@ describe("View routes", () => {
 			const { fixture, harness } = makeHarness(now);
 			await fixture.articleStore.saveArticleGlobally({
 				url: ARTICLE_URL,
-				metadata: { title: "stub", siteName: "example.com", excerpt: "", wordCount: 0 },
-				estimatedReadTime: calculateReadTime(0),
+				metadata: { title: "stub", siteName: "example.com", excerpt: "", wordCount: LONG_ARTICLE_WORD_COUNT },
+				estimatedReadTime: calculateReadTime(LONG_ARTICLE_WORD_COUNT),
 				savedAt: new Date("2026-05-03T13:54:27.000Z"),
 			});
 
@@ -1823,8 +1827,8 @@ describe("View routes", () => {
 			const { fixture, harness } = makeHarness(now);
 			await fixture.articleStore.saveArticleGlobally({
 				url: ARTICLE_URL,
-				metadata: { title: "stub", siteName: "example.com", excerpt: "", wordCount: 0 },
-				estimatedReadTime: calculateReadTime(0),
+				metadata: { title: "stub", siteName: "example.com", excerpt: "", wordCount: LONG_ARTICLE_WORD_COUNT },
+				estimatedReadTime: calculateReadTime(LONG_ARTICLE_WORD_COUNT),
 				savedAt: new Date("2026-05-01T00:00:00.000Z"),
 			});
 
@@ -1842,8 +1846,8 @@ describe("View routes", () => {
 			const { fixture, harness } = makeHarness(now);
 			await fixture.articleStore.saveArticleGlobally({
 				url: ARTICLE_URL,
-				metadata: { title: "stub", siteName: "example.com", excerpt: "", wordCount: 0 },
-				estimatedReadTime: calculateReadTime(0),
+				metadata: { title: "stub", siteName: "example.com", excerpt: "", wordCount: LONG_ARTICLE_WORD_COUNT },
+				estimatedReadTime: calculateReadTime(LONG_ARTICLE_WORD_COUNT),
 				savedAt: new Date("2026-05-03T13:00:00.000Z"),
 			});
 
@@ -1878,8 +1882,8 @@ describe("View routes", () => {
 			const { fixture, harness } = makeHarness(now);
 			await fixture.articleStore.saveArticleGlobally({
 				url: ARTICLE_URL,
-				metadata: { title: "stub", siteName: "example.com", excerpt: "", wordCount: 0 },
-				estimatedReadTime: calculateReadTime(0),
+				metadata: { title: "stub", siteName: "example.com", excerpt: "", wordCount: LONG_ARTICLE_WORD_COUNT },
+				estimatedReadTime: calculateReadTime(LONG_ARTICLE_WORD_COUNT),
 				savedAt: new Date("2026-05-01T00:00:00.000Z"),
 			});
 
@@ -1949,9 +1953,9 @@ describe("View routes", () => {
 					title: "Hello World",
 					siteName: "example.com",
 					excerpt: "A lovely article.",
-					wordCount: 500,
+					wordCount: LONG_ARTICLE_WORD_COUNT,
 				},
-				estimatedReadTime: calculateReadTime(500),
+				estimatedReadTime: calculateReadTime(LONG_ARTICLE_WORD_COUNT),
 				savedAt,
 			});
 			await fixture.articleStore.writeContent({
@@ -2057,6 +2061,33 @@ describe("View routes", () => {
 			expect(counter.getAttribute("data-expiry-state")).toBe("permanent");
 
 			expect(doc.querySelectorAll("[data-test-view-paywall]").length).toBe(0);
+		});
+
+		it("never blurs or counts down a short read, even when the save window has elapsed", async () => {
+			const now = new Date("2026-05-10T00:00:00.000Z");
+			const { fixture, harness } = makeHarness(now);
+			// A ready article on a non-permanent domain, saved well over 3 days ago —
+			// long enough that a lengthy read would have expired — but short enough to
+			// finish in one sitting, so no login wall (the Jeff Atwood-post case).
+			await fixture.articleStore.saveArticleGlobally({
+				url: ARTICLE_URL,
+				metadata: { title: "Short one", siteName: "example.com", excerpt: "Quick read.", wordCount: 300 },
+				estimatedReadTime: calculateReadTime(300),
+				savedAt: new Date("2026-05-01T00:00:00.000Z"),
+			});
+			await fixture.articleStore.writeContent({ url: ARTICLE_URL, content: "<p>Body copy.</p>" });
+			await fixture.articleCrawl.markCrawlReady({ url: ARTICLE_URL });
+
+			const response = await request(harness.server).get(`/view/${CANONICAL_PATH}`);
+
+			const doc = new JSDOM(response.text).window.document;
+			const counter = doc.querySelector("[data-test-view-expiry]");
+			assert(counter, "expiry element must be rendered");
+			expect(counter.getAttribute("data-expiry-state")).toBe("permanent");
+			expect(doc.querySelectorAll("[data-test-view-paywall]").length).toBe(0);
+
+			const iframe = doc.querySelector("iframe[data-reader-iframe]");
+			assert(iframe, "a short read must show the full article, unblurred");
 		});
 	});
 

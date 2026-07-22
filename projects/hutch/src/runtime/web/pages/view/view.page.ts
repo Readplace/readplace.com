@@ -276,6 +276,7 @@ function handleViewArticle(deps: ViewDependencies, reader: ReturnType<typeof ini
 				articleDomain,
 				permanentArticleDomains: PERMANENT_ARTICLE_DOMAINS,
 				isValidSharer,
+				estimatedReadTime,
 			}));
 		}
 

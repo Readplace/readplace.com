@@ -1,8 +1,10 @@
 import assert from "node:assert/strict";
+import { MinutesSchema } from "@packages/domain/article";
 import { UserIdSchema } from "@packages/domain/user";
 import {
 	PERMANENT_ARTICLE_DOMAINS,
 	PUBLIC_VIEW_ACCESS_WINDOW_MS,
+	PUBLIC_VIEW_PAYWALL_READ_MINUTES_THRESHOLD,
 	computePublicViewExpiry,
 	formatSaveUtmContent,
 	sharedUserIdFrom,
@@ -57,6 +59,9 @@ describe("sharedUserIdFromQueryParams", () => {
 
 describe("computePublicViewExpiry", () => {
 	const savedAt = new Date("2026-05-01T00:00:00.000Z");
+	// A read time comfortably past the threshold, so the expiry window engages
+	// for these cases and only the property under test decides the outcome.
+	const longRead = MinutesSchema.parse(PUBLIC_VIEW_PAYWALL_READ_MINUTES_THRESHOLD + 5);
 
 	it("returns savedAt + 3 days for organic visits", () => {
 		const result = computePublicViewExpiry({
@@ -64,6 +69,7 @@ describe("computePublicViewExpiry", () => {
 			articleDomain: "example.com",
 			permanentArticleDomains: PERMANENT_ARTICLE_DOMAINS,
 			isValidSharer: false,
+			estimatedReadTime: longRead,
 		});
 		assert(result.expiresAt, "expiresAt must be set for organic visits");
 		assert.equal(result.expiresAt.toISOString(), "2026-05-04T00:00:00.000Z");
@@ -76,6 +82,7 @@ describe("computePublicViewExpiry", () => {
 			articleDomain: "fagnerbrack.com",
 			permanentArticleDomains: PERMANENT_ARTICLE_DOMAINS,
 			isValidSharer: false,
+			estimatedReadTime: longRead,
 		});
 		assert.equal(result.expiresAt, null);
 	});
@@ -86,6 +93,7 @@ describe("computePublicViewExpiry", () => {
 			articleDomain: "example.com",
 			permanentArticleDomains: PERMANENT_ARTICLE_DOMAINS,
 			isValidSharer: true,
+			estimatedReadTime: longRead,
 		});
 		assert.equal(result.expiresAt, null);
 	});
@@ -96,6 +104,7 @@ describe("computePublicViewExpiry", () => {
 			articleDomain: "example.com",
 			permanentArticleDomains: PERMANENT_ARTICLE_DOMAINS,
 			isValidSharer: false,
+			estimatedReadTime: longRead,
 		});
 		assert(result.expiresAt, "expiresAt must be set for non-sharer, non-permanent visits");
 		assert.equal(result.expiresAt.toISOString(), "2026-05-04T00:00:00.000Z");
@@ -109,6 +118,7 @@ describe("computePublicViewExpiry", () => {
 				articleDomain: domain,
 				permanentArticleDomains: multiDomains,
 				isValidSharer: false,
+				estimatedReadTime: longRead,
 			});
 			assert.equal(result.expiresAt, null, `expected permanent for ${domain}`);
 		}
@@ -120,8 +130,43 @@ describe("computePublicViewExpiry", () => {
 			articleDomain: "unknown.com",
 			permanentArticleDomains: ["first.com", "second.com", "third.com"],
 			isValidSharer: false,
+			estimatedReadTime: longRead,
 		});
 		assert(result.expiresAt, "expiresAt must be set for non-permanent domain");
+		assert.equal(result.expiresAt.toISOString(), "2026-05-04T00:00:00.000Z");
+	});
+
+	it("returns null for a short read even when the domain is not permanent and there is no sharer", () => {
+		const result = computePublicViewExpiry({
+			savedAt,
+			articleDomain: "example.com",
+			permanentArticleDomains: PERMANENT_ARTICLE_DOMAINS,
+			isValidSharer: false,
+			estimatedReadTime: MinutesSchema.parse(2),
+		});
+		assert.equal(result.expiresAt, null);
+	});
+
+	it("keeps a read exactly at the threshold permanently public", () => {
+		const result = computePublicViewExpiry({
+			savedAt,
+			articleDomain: "example.com",
+			permanentArticleDomains: PERMANENT_ARTICLE_DOMAINS,
+			isValidSharer: false,
+			estimatedReadTime: MinutesSchema.parse(PUBLIC_VIEW_PAYWALL_READ_MINUTES_THRESHOLD),
+		});
+		assert.equal(result.expiresAt, null);
+	});
+
+	it("applies the expiry one minute past the threshold", () => {
+		const result = computePublicViewExpiry({
+			savedAt,
+			articleDomain: "example.com",
+			permanentArticleDomains: PERMANENT_ARTICLE_DOMAINS,
+			isValidSharer: false,
+			estimatedReadTime: MinutesSchema.parse(PUBLIC_VIEW_PAYWALL_READ_MINUTES_THRESHOLD + 1),
+		});
+		assert(result.expiresAt, "a read past the threshold must carry an expiry");
 		assert.equal(result.expiresAt.toISOString(), "2026-05-04T00:00:00.000Z");
 	});
 });
