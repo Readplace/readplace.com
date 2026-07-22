@@ -1,17 +1,20 @@
 import Foundation
 import WebKit
 
-/// Why an authorization callback was rejected before any token exchange.
+/// Why an authorization attempt failed: either the auth session never ran, or the
+/// callback it returned was rejected before any token exchange.
 enum AuthFlowError: LocalizedError {
 	case denied(String)
 	case missingCode
 	case stateMismatch
+	case presentationFailed
 
 	var errorDescription: String? {
 		switch self {
 		case .denied(let reason): return "Authorization was denied (\(reason))."
 		case .missingCode: return "No authorization code was returned."
 		case .stateMismatch: return "Security check failed (state mismatch)."
+		case .presentationFailed: return "Could not open the sign-in page. Please try again."
 		}
 	}
 }

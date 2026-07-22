@@ -4,13 +4,14 @@ import type { OAuthClient } from "./oauth.types";
 import { OAuthClientIdSchema } from "./oauth.schema";
 
 /**
- * Custom-scheme redirect URI for the iOS app's external-browser auth flow shared
- * by Login and Sign up: the OS routes `readplace://oauth-callback` back to the app
- * with the auth code. The OAuth server matches `redirect_uri` by exact string at
- * both authorize and token time, so this single constant — not a loose literal —
- * is the server-side source of truth. The iOS app composes the identical value
- * from its own configuration; both sides pin it in tests so a change fails a
- * test instead of silently breaking the token exchange for either flow.
+ * Custom-scheme redirect URI for the iOS app's in-app auth flow shared by Login
+ * and Sign up: the app's auth session captures `readplace://oauth-callback`
+ * in-process with the auth code. The OAuth server matches `redirect_uri` by exact
+ * string at both authorize and token time, so this single constant — not a loose
+ * literal — is the server-side source of truth. The iOS app composes the
+ * identical value from its own configuration; both sides pin it in tests so a
+ * change fails a test instead of silently breaking the token exchange for either
+ * flow.
  */
 export const IOS_NATIVE_OAUTH_CALLBACK_URI = "readplace://oauth-callback";
 

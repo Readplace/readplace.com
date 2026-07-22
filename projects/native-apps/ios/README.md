@@ -62,21 +62,18 @@ That produces `build/Readplace-unsigned.ipa` (the app + its share extension).
 
 - **Sign in** with OAuth 2.0 + PKCE against `https://readplace.com`, using the
   app's own public client (`ios-app`). The authorize page opens
-  in the **external browser** via the same flow as **Sign up** (below), carrying
+  **inside the app** via the same flow as **Sign up** (below), carrying
   `screen_hint=login` so a logged-out user lands on the web `/login` page and
-  returns authenticated through the native `readplace://oauth-callback` deep link.
-- **Sign up** by opening `/oauth/authorize` in the **external browser**,
-  Chrome-first: it rewrites to `googlechromes://` and opens Chrome, falling back to
-  the default browser only if the system reports Chrome can't be opened (not
-  installed) — so an existing Chrome session is reused rather than the app landing
-  in the default browser (usually Safari), where the user isn't signed in. The
-  redirect is a native `readplace://oauth-callback` deep
-  link and the request carries `screen_hint=signup`: an already-logged-in Chrome
-  passes straight to consent, while a new/logged-out user lands on the web
-  `/signup` page and returns authenticated. This mirrors the browser extension's
-  tab-based flow (which an in-app web view can't, since it can't see Chrome's
-  cookies); the in-flight PKCE secrets are persisted to the App Group so a cold
-  relaunch via the deep link can still finish the token exchange. **Login uses
+  returns authenticated without ever leaving Readplace.
+- **Sign up** by opening `/oauth/authorize` in an `ASWebAuthenticationSession` —
+  Apple's in-app auth browser, which recognises the `readplace` callback scheme
+  and captures the `readplace://oauth-callback` redirect itself. The user is never
+  handed to Safari or Chrome; App Store review rejects that under Guideline 4.
+  The session shares Safari's cookie jar, so a user already signed in there passes
+  straight to consent, while a new/logged-out user lands on the web `/signup` page
+  (`screen_hint=signup`) and returns authenticated. Because the callback comes back
+  to its caller rather than through the app's URL handler, one `await` spans the
+  whole attempt and the in-flight PKCE secrets never leave memory. **Login uses
   this identical flow**, differing only in the `screen_hint`.
 - **List** your reading list by walking the Siren API from the one entry point
   it knows, following whatever the server hands back: the collection (unread
@@ -299,13 +296,16 @@ boundaries and edge cases:
   capture a main-frame PDF as a file) in isolation.
 - **Web-auth flow (shared by Login & Sign up)**: the native authorize requests
   (`readplace://oauth-callback` redirect + `screen_hint=login`/`signup`), the
-  deep-link callback exchanging the code with the native `redirect_uri` and
-  flipping the session logged-in, the Chrome-first open (unconditional rewrite to
-  `googlechromes://`, opening Chrome, with the default-browser fallback taken only
-  when the system reports Chrome can't be opened), the core handing the raw https
-  authorize URL to its open seam, the `PendingAuthStore` save/load/clear
-  round-trip, and the flow persisting the PKCE secrets before opening the browser
-  (so a kill mid-hop can't lose them).
+  in-app auth session presenting that URL verbatim over https and its captured
+  callback being exchanged with the same request's own PKCE verifier, a dismissed
+  sheet reporting nothing rather than an error, a failed presentation and a
+  dismissal both exchanging no code, and the mapping from
+  `ASWebAuthenticationSession`'s `(URL?, Error?)` completion onto those outcomes
+  (`canceledLogin` → dismissed; anything else → failure).
+- **Chrome-first content links**: the unconditional rewrite of one of our own URLs
+  to `googlechromes://`, opening Chrome with the default-browser fallback taken
+  only when the system reports Chrome can't be opened, and third-party links and
+  non-web schemes handed to the system untouched.
 
 `make test` then runs a **staging smoke pass** (`make test-staging`): it
 recompiles the app, extension and tests with the `STAGING` condition and runs
@@ -374,13 +374,13 @@ exercised on every run, not only when someone builds `make ipa-staging` by hand.
   reconciles on the next pull-to-refresh). Keep the server at or above the bridge
   change for as long as this build is live.
 - **Both Login and Sign up authenticate as the app's own `ios-app` client.** The
-  external-browser flow can't observe an HTTPS redirect in another app's tab, so
-  it returns via a native `readplace://oauth-callback` deep link, registered on
-  the `ios-app` client; `/oauth/authorize` accepts an optional `screen_hint`
+  flow returns via the native `readplace://oauth-callback` redirect, registered on
+  the `ios-app` client and handed to `ASWebAuthenticationSession` as its
+  `callbackURLScheme`; `/oauth/authorize` accepts an optional `screen_hint`
   (`login`/`signup`). Adding the `ios-app` client is additive, but switching the
   app onto it is a one-time breaking change for existing installs: earlier builds
   authenticated as `hutch-chrome-extension`, and `readplace://oauth-callback` has
-  been removed from that client so the deep link belongs to `ios-app` alone. A
+  been removed from that client so the redirect URI belongs to `ios-app` alone. A
   refresh token minted under the old client is rejected once the app sends
   `client_id=ios-app`, so each existing install must sign in again once (the live
   access token keeps working until it expires, so the forced re-login is deferred,
@@ -398,6 +398,6 @@ exercised on every run, not only when someone builds `make ipa-staging` by hand.
 - **The server URL is fixed at build time** in `AppConfig.serverBaseURL` — there
   is no Server field on the sign-in screen. `make ipa` targets production;
   `make ipa-staging` compiles with the `STAGING` condition to target staging.
-  Sign-in returns through the native `readplace://oauth-callback` deep link
+  Sign-in returns through the native `readplace://oauth-callback` redirect
   (`AppConfig.nativeCallbackURL`), registered for `ios-app` in
   `built-in-clients.ts` and identical across production and staging.

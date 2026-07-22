@@ -1,83 +1,44 @@
 import Foundation
 
-/// Rewrites one of *our own* web URLs to Chrome's scheme so the OS opens it in
-/// Chrome, which shares one cookie jar across scheme-opened tabs and so reuses the
-/// user's existing Readplace web session. Host, path and query are preserved.
-/// Chrome documents `googlechrome://` for http and `googlechromes://` for https,
-/// so the scheme is mapped rather than assumed.
-///
-/// Returns nil — meaning "open this untouched" — for anything else, and the two
-/// exclusions are the whole point of this function:
-///
-///   - **A host that is not ours.** Session reuse is the sole justification for
-///     overriding the user's browser, and there is no Readplace session on
-///     nytimes.com. Worse, a custom scheme can never be claimed by a Universal
-///     Link, so rewriting a third-party link would stop `apps.apple.com`,
-///     `youtube.com`, or `x.com` from handing off to their native apps, and would
-///     silently override a default browser the user deliberately chose.
-///   - **A non-http(s) scheme** (`mailto:`, `tel:`). Stamping `googlechromes` on
-///     those yields a URL nothing can open.
-///
-/// For the URLs it *does* rewrite, the rewrite is unconditional: whether Chrome
-/// can actually be opened is left to the system when the App seam opens the URL
-/// (via the open completion handler), not to a `canOpenURL` pre-check — a
-/// false-negative probe must never silently route the user into the default
-/// browser (Safari), where they aren't signed in.
-func chromeURLFor(_ url: URL) -> URL? {
-	guard url.host == AppConfig.serverHost else { return nil }
-
-	let chromeScheme: String
-	switch url.scheme?.lowercased() {
-	case "https": chromeScheme = "googlechromes"
-	case "http": chromeScheme = "googlechrome"
-	default: return nil
-	}
-	var components = URLComponents(url: url, resolvingAgainstBaseURL: false)
-	components?.scheme = chromeScheme
-	return components?.url
+/// What the in-app auth session returned: the `readplace://oauth-callback` URL it
+/// captured, or the user dismissing it. A dismissal is a choice rather than a
+/// fault, so it is a success case here and never becomes an error the sign-in
+/// screen shows.
+enum WebAuthPresentation: Equatable {
+	case returned(callbackURL: URL)
+	case dismissed
 }
 
-/// The seams the UI-free web-auth core needs, injected so tests never launch a
-/// browser or hit the network: where to persist the in-flight secrets, how to
-/// open the authorize URL, and how to exchange the returned code. `openAuthorizeURL`
-/// receives the raw https authorize URL; the Chrome-first rewrite and the
-/// open-failure fallback live behind this seam in the App layer.
+/// The seams the UI-free web-auth core needs, injected so tests never present a
+/// browser or hit the network: how to show the authorize URL and capture the
+/// callback it redirects to, and how to exchange the code that comes back.
 struct WebAuthFlowDependencies {
-	let pendingStore: PendingAuthStore
-	let openAuthorizeURL: (URL) -> Void
-	let exchange: (_ callbackURL: URL, _ pending: PendingAuth) async -> Result<Void, Error>
+	let present: (URL) async -> Result<WebAuthPresentation, Error>
+	let exchange: (_ callbackURL: URL, _ request: AuthorizationRequest) async -> Result<Void, Error>
 }
 
-/// The UI-free core of the external-browser auth flow, shared by Login and Sign
-/// up (which differ only in the authorize request handed to `start`). `start` is
-/// invoked from a button with a freshly-built request; `complete` from the
-/// `readplace://oauth-callback` deep link (possibly in a fresh process after a
-/// cold relaunch).
+/// The UI-free core of the in-app auth flow, shared by Login and Sign up, which
+/// differ only in the authorize request handed to `start`. One `await` spans the
+/// whole attempt because the auth session hands the callback back to its caller
+/// instead of routing it through the app's URL handler — so the PKCE verifier
+/// lives in this call's scope and never reaches disk.
 struct WebAuthFlow {
-	let start: (AuthorizationRequest) -> Void
-	/// Returns `nil` when there is no pending record (an unexpected deep link),
-	/// otherwise the result of exchanging the returned code.
-	let complete: (URL) async -> Result<Void, Error>?
+	/// `nil` when the user dismissed the auth session.
+	let start: (AuthorizationRequest) async -> Result<Void, Error>?
 }
 
 /// Partial application (`init*`) wiring the injected seams into a `WebAuthFlow`.
 func initWebAuthFlow(deps: WebAuthFlowDependencies) -> WebAuthFlow {
 	WebAuthFlow(
 		start: { request in
-			// Persist BEFORE opening the browser: the app may be killed during the
-			// external-browser hop, so the deep-link callback must be able to read
-			// these back from a cold launch.
-			deps.pendingStore.save(PendingAuth(
-				verifier: request.codeVerifier,
-				state: request.state,
-				redirectURI: request.redirectURI
-			))
-			deps.openAuthorizeURL(request.url)
-		},
-		complete: { callbackURL in
-			guard let pending = deps.pendingStore.load() else { return nil }
-			deps.pendingStore.clear()
-			return await deps.exchange(callbackURL, pending)
+			switch await deps.present(request.url) {
+			case .failure(let error):
+				return .failure(error)
+			case .success(.dismissed):
+				return nil
+			case .success(.returned(let callbackURL)):
+				return await deps.exchange(callbackURL, request)
+			}
 		}
 	)
 }

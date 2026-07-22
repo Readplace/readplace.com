@@ -12,6 +12,9 @@ final class LoginViewTests: XCTestCase {
 	private final class Captured {
 		var requests: [AuthorizationRequest] = []
 		var errorText: String? = "Authorization was denied (access_denied)."
+		/// What the injected flow answers for every attempt: `nil` models the user
+		/// dismissing the auth sheet, a `.failure` models a rejected callback.
+		var outcome: Result<Void, Error>?
 		let mutePreference: IntroMutePreference
 		let intro: LaunchIntroModel
 
@@ -34,7 +37,12 @@ final class LoginViewTests: XCTestCase {
 				sessionConfiguration: TestSupport.stubbedConfiguration()
 			),
 			authErrorText: Binding(get: { captured.errorText }, set: { captured.errorText = $0 }),
-			makeFlow: { _ in WebAuthFlow(start: { captured.requests.append($0) }, complete: { _ in nil }) },
+			makeFlow: { _ in
+				WebAuthFlow(start: { request in
+					captured.requests.append(request)
+					return captured.outcome
+				})
+			},
 			intro: captured.intro
 		)
 	}
@@ -44,10 +52,10 @@ final class LoginViewTests: XCTestCase {
 		return Dictionary(uniqueKeysWithValues: items.map { ($0.name, $0.value ?? "") })
 	}
 
-	func testLoginButtonClearsTheStaleErrorAndStartsALoginAuthorization() throws {
+	func testLoginButtonClearsTheStaleErrorAndStartsALoginAuthorization() async throws {
 		let captured = Captured()
 
-		makeView(captured).startLogin()
+		await makeView(captured).startLogin()
 
 		XCTAssertNil(captured.errorText, "a fresh attempt must clear the previous attempt's error")
 		XCTAssertEqual(captured.requests.count, 1)
@@ -56,16 +64,43 @@ final class LoginViewTests: XCTestCase {
 		XCTAssertEqual(request.redirectURI, AppConfig.nativeCallbackURL)
 	}
 
-	func testSignupButtonClearsTheStaleErrorAndStartsASignupAuthorization() throws {
+	func testSignupButtonClearsTheStaleErrorAndStartsASignupAuthorization() async throws {
 		let captured = Captured()
 
-		makeView(captured).startSignup()
+		await makeView(captured).startSignup()
 
 		XCTAssertNil(captured.errorText, "a fresh attempt must clear the previous attempt's error")
 		XCTAssertEqual(captured.requests.count, 1)
 		let request = try XCTUnwrap(captured.requests.first)
 		XCTAssertEqual(queryItems(request)["screen_hint"], "signup")
 		XCTAssertEqual(request.redirectURI, AppConfig.nativeCallbackURL)
+	}
+
+	func testAFailedAttemptSurfacesItsMessageOnTheSignInScreen() async {
+		let captured = Captured()
+		captured.outcome = .failure(AuthFlowError.stateMismatch)
+
+		await makeView(captured).startLogin()
+
+		XCTAssertEqual(captured.errorText, AuthFlowError.stateMismatch.errorDescription)
+	}
+
+	func testDismissingTheAuthSheetLeavesTheSignInScreenWithoutAnError() async {
+		let captured = Captured()
+		captured.outcome = nil
+
+		await makeView(captured).startLogin()
+
+		XCTAssertNil(captured.errorText, "a dismissal is a choice, not a failure to report")
+	}
+
+	func testASuccessfulAttemptReportsNoError() async {
+		let captured = Captured()
+		captured.outcome = .success(())
+
+		await makeView(captured).startSignup()
+
+		XCTAssertNil(captured.errorText)
 	}
 
 	func testTheLoginScreenRendersWithAndWithoutAnAuthError() {

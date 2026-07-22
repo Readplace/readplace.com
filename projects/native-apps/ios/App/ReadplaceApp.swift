@@ -35,16 +35,5 @@ struct RootView: View {
 		.onChange(of: scenePhase) { phase in
 			intro.sync(isLoggedIn: session.isLoggedIn, isForeground: phase == .active)
 		}
-		.onOpenURL { url in
-			guard url.scheme == AppConfig.callbackURLScheme, url.host == AppConfig.nativeCallbackHost else { return }
-			Task { @MainActor in
-				// A tampered callback (wrong/absent state or code) is rejected inside
-				// completeSignIn; nil means no pending auth, so the deep link is ignored.
-				guard let result = await makeWebAuthFlow(session: session).complete(url) else { return }
-				if case .failure(let error) = result {
-					authErrorText = (error as? LocalizedError)?.errorDescription ?? error.localizedDescription
-				}
-			}
-		}
 	}
 }

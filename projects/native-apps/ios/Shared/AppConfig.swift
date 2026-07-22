@@ -41,7 +41,7 @@ enum AppConfig {
 	static let serverHost = URL(string: serverBaseURL)!.host!
 
 	/// A registered public PKCE client whose allow-listed redirect URIs include the
-	/// native `readplace://oauth-callback` deep link the auth flow returns through.
+	/// native `readplace://oauth-callback` redirect the auth flow returns through.
 	static let clientId = "ios-app"
 
 	static let sirenMediaType = "application/vnd.siren+json"
@@ -79,23 +79,20 @@ enum AppConfig {
 	/// extension cannot read the token the app stores.
 	static let appGroupId = "group.com.readplace"
 
-	/// Custom URL scheme the OS routes back to this app. Declared in
-	/// `Info.plist`'s `CFBundleURLTypes`; used by the external-browser auth flow
-	/// (both Login and Sign up) to receive the OAuth redirect, since a web flow
-	/// running in another app's browser can't be observed in-process.
+	/// Custom URL scheme the auth flow redirects to. Handed to
+	/// `ASWebAuthenticationSession` as its `callbackURLScheme`, which is how the
+	/// in-app session recognises the redirect as the end of the flow and captures it
+	/// in-process instead of letting it leave the app.
 	static let callbackURLScheme = "readplace"
 
-	/// Host component of `nativeCallbackURL`. `RootView.onOpenURL` matches the
-	/// incoming deep link's host against this constant, so the registered URI and
-	/// the deep-link parse site share one source instead of two equal literals.
+	/// Host component of `nativeCallbackURL`, kept separate so the registered URI is
+	/// composed from its parts rather than repeated as a second literal.
 	static let nativeCallbackHost = "oauth-callback"
 
-	/// Native redirect URI for the external-browser Sign up flow, composed from
-	/// the scheme + host above so what we register can't disagree with what the
-	/// deep-link handler accepts. Must equal the redirect URI registered for this
-	/// client on the server — the OAuth server matches `redirect_uri` by exact
-	/// string at authorize and token time — and a test pins the value so a change
-	/// fails a test.
+	/// Native redirect URI for the Login and Sign up flows, composed from the scheme
+	/// + host above. Must equal the redirect URI registered for this client on the
+	/// server — the OAuth server matches `redirect_uri` by exact string at authorize
+	/// and token time — and a test pins the value so a change fails a test.
 	static let nativeCallbackURL = "\(callbackURLScheme)://\(nativeCallbackHost)"
 
 	/// A Safari-like user agent for the off-screen `WKWebView` that `HTMLCaptor`

@@ -1,7 +1,7 @@
 Readplace is a read-it-later app. Sign-in is required to use it.
 
 GETTING STARTED
-- On the first screen tap "Log in" or "Sign up". Authentication opens in the EXTERNAL browser (Safari/Chrome) and returns to the app via a readplace:// deep link. This app-switch is intentional (it reuses an existing web session) — please allow it to complete.
+- On the first screen tap "Login" or "Sign up". Authentication runs INSIDE the app in an ASWebAuthenticationSession sheet (Apple's in-app auth browser) — the app never switches you to Safari or Chrome. iOS shows a "Readplace wants to use readplace.com to Sign In" alert before the sheet opens; tap Continue. The sheet closes by itself once sign-in completes.
 - The demo account below has an active subscription. Sign-up is self-serve, so to test ACCOUNT DELETION please create a throwaway account rather than deleting the demo account.
 
 SAVING ARTICLES
@@ -10,6 +10,9 @@ SAVING ARTICLES
 NOTES FOR REVIEW
 - The app communicates only with https://readplace.com. The NSAllowsArbitraryLoadsInWebContent ATS exception exists solely so the reader and capture web views can load arbitrary user-saved article pages (some are http-only).
 - Readplace is a subscription service purchased on the web, not via In-App Purchase. The app is fully functional during the free trial and sells no digital content in-app.
-- Account deletion: in the Reading List, tap the person icon (Account) in the top-right toolbar — the account page opens in-app. Under "Danger zone", tap "Delete account" and confirm in the dialog. The account, every saved article, and the reading history are deleted immediately and the app returns to the sign-in screen. (The same flow exists on the web at readplace.com/account.)
+- TRACKING: the app does not track. It links no third-party SDK of any kind, contains no AppTrackingTransparency, IDFA or AdSupport reference, and shares no data with any third party or data broker. The bundled privacy manifest declares NSPrivacyTracking = false with an empty NSPrivacyTrackingDomains; the email address, user ID and reading history it collects are used only to run the user's own reading list, on our own server.
+- ACCOUNT DELETION: in the Reading List, tap "Account" (person icon, top-right toolbar) — the account page opens in-app. Scroll to "Danger zone". Deletion is guarded by a typed confirmation rather than a dialog: type the exact phrase
+      delete my account permanently
+  into the text field, then tap "Delete account". The account, every saved article and the reading history are deleted, and the app returns to the sign-in screen immediately. (The same flow exists on the web at readplace.com/account.)
 
 Demo account: see the App Review Information fields.

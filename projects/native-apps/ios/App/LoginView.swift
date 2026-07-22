@@ -3,14 +3,18 @@ import UIKit
 
 struct LoginView: View {
 	let session: AppSession
-	/// Owned by `RootView` (which handles the OAuth deep link) so a failed Login or
-	/// Sign up can surface here while this view is still on screen.
+	/// Owned by `RootView`, the app's auth-state root, so a failed Login or Sign up
+	/// message outlives any remount of this screen.
 	@Binding var authErrorText: String?
-	/// Injected so the composition point wires the live browser-opening flow and
-	/// tests capture the started request; there is deliberately no internal default.
+	/// Injected so the composition point wires the live auth-session flow and tests
+	/// capture the started request; there is deliberately no internal default.
 	let makeFlow: @MainActor (AppSession) -> WebAuthFlow
 	@ObservedObject var intro: LaunchIntroModel
 	@State private var cosmicSeed = UInt64.random(in: .min ... .max)
+	/// Disables both buttons while an auth sheet is up, so a second tap can't
+	/// start a competing session (whose `start()` would be refused and surface a
+	/// spurious error under the live sheet).
+	@State private var isAuthenticating = false
 
 	var body: some View {
 		NavigationStack {
@@ -37,7 +41,7 @@ struct LoginView: View {
 
 						VStack(spacing: 14) {
 							Button {
-								startLogin()
+								Task { await startLogin() }
 							} label: {
 								Label("Login", systemImage: "rectangle.portrait.and.arrow.right")
 									.font(.headline)
@@ -47,7 +51,7 @@ struct LoginView: View {
 							.buttonStyle(.borderedProminent)
 
 							Button {
-								startSignup()
+								Task { await startSignup() }
 							} label: {
 								Label("Sign up", systemImage: "person.badge.plus")
 									.font(.headline)
@@ -56,6 +60,7 @@ struct LoginView: View {
 							}
 							.buttonStyle(.bordered)
 						}
+						.disabled(isAuthenticating)
 
 						if let authErrorText {
 							Text(authErrorText)
@@ -136,21 +141,26 @@ struct LoginView: View {
 		.accessibilityLabel(intro.isMuted ? "Unmute music" : "Mute music")
 	}
 
-	/// Opens `/oauth/authorize` for login in the external browser (Chrome if
-	/// installed, to reuse its session); the result returns via the deep link.
 	@MainActor
-	func startLogin() {
-		authErrorText = nil
-		makeFlow(session).start(session.makeOAuth().makeNativeLoginAuthorizationRequest())
+	func startLogin() async {
+		await authenticate(with: session.makeOAuth().makeNativeLoginAuthorizationRequest())
 	}
 
-	/// Opens `/oauth/authorize` for sign up in the external browser. A fresh
-	/// `start` overwrites any prior pending record so an abandoned attempt can't
-	/// strand stale secrets.
 	@MainActor
-	func startSignup() {
+	func startSignup() async {
+		await authenticate(with: session.makeOAuth().makeSignupAuthorizationRequest())
+	}
+
+	/// Clears the previous attempt's message, runs the attempt, and reports only a
+	/// genuine failure — the flow answers `nil` when the user dismissed the sheet.
+	@MainActor
+	private func authenticate(with request: AuthorizationRequest) async {
 		authErrorText = nil
-		makeFlow(session).start(session.makeOAuth().makeSignupAuthorizationRequest())
+		isAuthenticating = true
+		let outcome = await makeFlow(session).start(request)
+		isAuthenticating = false
+		guard case .failure(let error)? = outcome else { return }
+		authErrorText = (error as? LocalizedError)?.errorDescription ?? error.localizedDescription
 	}
 
 	@MainActor

@@ -46,7 +46,12 @@ struct ReadingListView: View {
 							Button {
 								dispatch(affordance)
 							} label: {
-								Image(systemName: affordance.presentation.systemImage)
+								if affordance.presentation.showsTitle {
+									Label(affordance.label, systemImage: affordance.presentation.systemImage)
+										.labelStyle(.titleAndIcon)
+								} else {
+									Image(systemName: affordance.presentation.systemImage)
+								}
 							}
 							.tint(affordance.presentation.tint)
 							.accessibilityLabel(affordance.label)

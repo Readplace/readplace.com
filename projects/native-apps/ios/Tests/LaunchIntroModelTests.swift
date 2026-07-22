@@ -198,7 +198,7 @@ final class LaunchIntroModelTests: XCTestCase {
 
 		model.sync(isLoggedIn: false, isForeground: true)
 
-		XCTAssertEqual(log.starts, 2, "returning from the Chrome OAuth hop resumes the intro music")
+		XCTAssertEqual(log.starts, 2, "returning to the foreground while logged out resumes the intro music")
 	}
 
 	func testTheMusicKeepsLoopingOnTheLoginScreenAcrossABackgroundHopAfterTheVideoFinishes() {

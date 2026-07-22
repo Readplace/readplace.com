@@ -41,6 +41,11 @@ struct AffordancePresentation {
 	/// the collection but never a toolbar button — so a machine action the server
 	/// adds later can't phantom-render on an already-shipped build.
 	let isRecognizedToken: Bool
+	/// Whether a toolbar control renders the affordance's server title beside its
+	/// glyph rather than icon-only. True for `account`, because App Store review
+	/// requires the account-deletion path to be findable and a bare glyph names
+	/// nothing; every other control keeps the toolbar narrow.
+	let showsTitle: Bool
 
 	/// Derives the presentation for a wire token. The mapping is the client's own;
 	/// the token is never used as a style string verbatim. A token with no mapping
@@ -54,6 +59,7 @@ struct AffordancePresentation {
 			removesItem = false
 			isToolbarControl = false
 			isRecognizedToken = true
+			showsTitle = false
 		case "create-session":
 			// Not a user control: the client invokes this bespoke to mint the reader
 			// session cookie (like a capture-only save), so it never renders in the
@@ -64,6 +70,7 @@ struct AffordancePresentation {
 			removesItem = false
 			isToolbarControl = false
 			isRecognizedToken = true
+			showsTitle = false
 		case "update-status":
 			systemImage = "checkmark.circle"
 			tint = .brandSuccess
@@ -71,6 +78,7 @@ struct AffordancePresentation {
 			removesItem = false
 			isToolbarControl = true
 			isRecognizedToken = true
+			showsTitle = false
 		case "delete":
 			systemImage = "trash"
 			tint = .red
@@ -78,6 +86,7 @@ struct AffordancePresentation {
 			removesItem = true
 			isToolbarControl = true
 			isRecognizedToken = true
+			showsTitle = false
 		case "search":
 			systemImage = "magnifyingglass"
 			tint = nil
@@ -85,6 +94,7 @@ struct AffordancePresentation {
 			removesItem = false
 			isToolbarControl = true
 			isRecognizedToken = true
+			showsTitle = false
 		case "account":
 			systemImage = "person.crop.circle"
 			tint = nil
@@ -92,6 +102,7 @@ struct AffordancePresentation {
 			removesItem = false
 			isToolbarControl = true
 			isRecognizedToken = true
+			showsTitle = true
 		case "add-links-help":
 			systemImage = "plus"
 			tint = nil
@@ -99,6 +110,7 @@ struct AffordancePresentation {
 			removesItem = false
 			isToolbarControl = true
 			isRecognizedToken = true
+			showsTitle = false
 		case let rel where Affordance.structuralRels.contains(rel):
 			systemImage = "ellipsis.circle"
 			tint = nil
@@ -106,6 +118,7 @@ struct AffordancePresentation {
 			removesItem = false
 			isToolbarControl = false
 			isRecognizedToken = true
+			showsTitle = false
 		default:
 			systemImage = "ellipsis.circle"
 			tint = nil
@@ -113,6 +126,7 @@ struct AffordancePresentation {
 			removesItem = false
 			isToolbarControl = true
 			isRecognizedToken = false
+			showsTitle = false
 		}
 	}
 }

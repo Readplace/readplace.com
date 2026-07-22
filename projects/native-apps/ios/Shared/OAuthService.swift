@@ -16,8 +16,8 @@ enum OAuthError: LocalizedError {
 	}
 }
 
-/// The parameters needed to launch the external-browser authorization flow
-/// (shared by Login and Sign up).
+/// The parameters needed to launch the in-app authorization flow (shared by
+/// Login and Sign up).
 struct AuthorizationRequest {
 	let url: URL
 	let redirectURI: String
@@ -41,23 +41,22 @@ struct OAuthService {
 	private var tokenEndpoint: URL { URL(string: "\(baseURL)/oauth/token")! }
 	private var revokeEndpoint: URL { URL(string: "\(baseURL)/oauth/revoke")! }
 
-	/// The custom-scheme redirect used by the external-browser auth flow (both
-	/// Login and Sign up), so the OS routes `readplace://oauth-callback` back to
-	/// the app after the web redirect.
+	/// The custom-scheme redirect used by the auth flow (both Login and Sign up),
+	/// which the in-app auth session captures to end the web flow.
 	var nativeRedirectURI: String { AppConfig.nativeCallbackURL }
 
-	/// Builds the external-browser Login `/oauth/authorize` URL: the native
-	/// custom-scheme callback plus `screen_hint=login`, so the server shows an
-	/// unauthenticated user the sign-in screen (an already-authenticated Chrome
-	/// session passes straight through to consent, ignoring the hint).
+	/// Builds the Login `/oauth/authorize` URL: the native custom-scheme callback
+	/// plus `screen_hint=login`, so the server shows an unauthenticated user the
+	/// sign-in screen (a session already authenticated in Safari's shared cookie
+	/// jar passes straight through to consent, ignoring the hint).
 	func makeNativeLoginAuthorizationRequest() -> AuthorizationRequest {
 		makeAuthorizationRequest(redirectURI: nativeRedirectURI, screenHint: "login")
 	}
 
-	/// Builds the external-browser Sign up `/oauth/authorize` URL: the native
-	/// custom-scheme callback plus `screen_hint=signup`, so the server shows an
-	/// unauthenticated user the sign-up screen (an already-authenticated Chrome
-	/// session passes straight through to consent, ignoring the hint).
+	/// Builds the Sign up `/oauth/authorize` URL: the native custom-scheme callback
+	/// plus `screen_hint=signup`, so the server shows an unauthenticated user the
+	/// sign-up screen (a session already authenticated in Safari's shared cookie
+	/// jar passes straight through to consent, ignoring the hint).
 	func makeSignupAuthorizationRequest() -> AuthorizationRequest {
 		makeAuthorizationRequest(redirectURI: nativeRedirectURI, screenHint: "signup")
 	}
@@ -89,7 +88,7 @@ struct OAuthService {
 	/// Exchanges the authorization code for tokens and persists them. The OAuth
 	/// server checks `redirect_uri` by exact string against the authorize request,
 	/// so this must equal the `redirect_uri` that minted the code — the native
-	/// custom scheme used by the external-browser auth flow.
+	/// custom scheme the auth flow redirects to.
 	@discardableResult
 	func exchangeCode(_ code: String, verifier: String, redirectURI: String) async throws -> OAuthTokens {
 		let body = formBody([

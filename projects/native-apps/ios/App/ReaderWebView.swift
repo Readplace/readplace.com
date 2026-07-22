@@ -217,10 +217,10 @@ struct ReaderWebView: UIViewControllerRepresentable {
 				onLogout()
 			case let .openExternally(target):
 				decisionHandler(.cancel)
-				// Chrome-first for our own links (the changelog banner's "Read more"),
-				// like login: most users browse in Chrome but leave Safari as the OS
-				// default, so the default browser has no Readplace session. An article's
-				// link to someone else's site is opened untouched — see `chromeURLFor`.
+				// Chrome-first for our own links (the changelog banner's "Read more"):
+				// most users browse in Chrome but leave Safari as the OS default, so
+				// the default browser has no Readplace session. An article's link to
+				// someone else's site is opened untouched — see `chromeURLFor`.
 				openURLChromeFirst(target, browser: externalBrowser)
 			}
 		}

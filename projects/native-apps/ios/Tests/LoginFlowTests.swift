@@ -2,12 +2,12 @@ import XCTest
 @testable import Readplace
 
 /// End-to-end coverage of the login journey through the real production types,
-/// with the network faked by `StubURLProtocol`. Login opens `/oauth/authorize`
-/// in the external browser (carrying `screen_hint=login`) and returns through the
-/// native `readplace://oauth-callback` deep link; after that OS-owned redirect,
-/// `completeSignIn` exchanges the code and the session flips to logged-in, then a
-/// reading-list load renders the queue with the bearer token preserved across the
-/// entry-point 303.
+/// with the network faked by `StubURLProtocol`. Login presents `/oauth/authorize`
+/// in the in-app auth session (carrying `screen_hint=login`), which captures the
+/// `readplace://oauth-callback` redirect and hands it to `completeSignIn`, which
+/// exchanges the code and flips the session to logged-in; then a reading-list
+/// load renders the queue with the bearer token preserved across the entry-point
+/// 303.
 @MainActor
 final class LoginFlowTests: XCTestCase {
 	nonisolated override func setUp() {

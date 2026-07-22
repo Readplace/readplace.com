@@ -253,4 +253,19 @@ final class AffordancePresentationTests: XCTestCase {
 		let affordance = try XCTUnwrap(Affordance(action: titled))
 		XCTAssertEqual(affordance.label, "Mark as read", "the server's title wins when present")
 	}
+
+	func testOnlyTheAccountControlRendersItsTitleBesideItsGlyph() {
+		// The account page is the only route to deleting an account, and App Store
+		// review requires that route to be findable — a bare `person.crop.circle`
+		// names nothing. Every other toolbar control stays icon-only so the bar fits.
+		XCTAssertTrue(AffordancePresentation(token: "account").showsTitle)
+		XCTAssertFalse(AffordancePresentation(token: "search").showsTitle)
+		XCTAssertFalse(AffordancePresentation(token: "add-links-help").showsTitle)
+		XCTAssertFalse(AffordancePresentation(token: "update-status").showsTitle)
+		XCTAssertFalse(AffordancePresentation(token: "delete").showsTitle)
+		XCTAssertFalse(AffordancePresentation(token: "save-content").showsTitle)
+		XCTAssertFalse(AffordancePresentation(token: "create-session").showsTitle)
+		XCTAssertFalse(AffordancePresentation(token: "self").showsTitle)
+		XCTAssertFalse(AffordancePresentation(token: "a-token-shipped-after-this-build").showsTitle)
+	}
 }
