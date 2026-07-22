@@ -370,7 +370,7 @@ describe("Inbox address routes", () => {
 			);
 			expect(statuses).toEqual(["disabled"]);
 			expect(after.querySelector(".inbox__disabled-summary")?.textContent).toBe(
-				"Disabled addresses (1)",
+				"Disabled inbox emails (1)",
 			);
 		});
 

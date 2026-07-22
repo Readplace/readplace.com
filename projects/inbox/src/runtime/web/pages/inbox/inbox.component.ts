@@ -30,8 +30,8 @@ export function InboxPage(params: {
 
 	return {
 		seo: {
-			title: "Your forwarding addresses — Readplace",
-			description: "Your personal email forwarding addresses for Readplace.",
+			title: "Your inbox emails — Readplace",
+			description: "Your personal inbox emails for forwarding newsletters to Readplace.",
 			canonicalUrl: "/inbox/addresses",
 			robots: "noindex, nofollow",
 		},

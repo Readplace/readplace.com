@@ -1,41 +1,40 @@
     <main class="inbox">
       <div class="inbox__header">
-        <h1 class="inbox__title">Your forwarding addresses</h1>
-        <p class="inbox__subtitle">Sign up for any newsletter with one of these addresses (or use them to email links to your inbox) and it lands in your Readplace inbox. I'll pull out the links and list them under the email for you to read later.</p>
+        <h1 class="inbox__title">Your inbox emails</h1>
+        <p class="inbox__subtitle">Sign up for any newsletter with one of these inbox emails (or use them to email links to yourself) and it lands in your Readplace inbox. I'll pull out the links and list them under the email for you to read later.</p>
       </div>
 
       <section class="inbox__create-section" data-test-inbox-section="create">
         <section class="inbox__instructions">
           <h2 class="inbox__instructions-title">How it works</h2>
           <ol class="inbox__steps">
-            <li>Create a forwarding address and copy it.</li>
+            <li>Create an inbox email and copy it.</li>
             <li>In your email app, forward a newsletter (or set up forwarding) to it.</li>
-            <li>New issues show up here automatically.</li>
+            <li>New issues show up in your <a class="inbox__steps-link" href="/inbox">Inbox</a> automatically.</li>
           </ol>
-          <p class="inbox__note">This is new — forwarded mail shows up in your Readplace inbox, where you can read it and open the links I pull out.</p>
         </section>
 
         {{#if createFailed}}
-        <p class="inbox__error" role="alert" data-test-inbox-error>We couldn't create a forwarding address just now. Please try again in a moment.</p>
+        <p class="inbox__error" role="alert" data-test-inbox-error>I couldn't create an inbox email just now — try again in a moment.</p>
         {{/if}}
 
         {{#if nameInvalid}}
-        <p class="inbox__error" role="alert" data-test-inbox-name-error>Give the address a name using letters and numbers — for example, netflix.</p>
+        <p class="inbox__error" role="alert" data-test-inbox-name-error>Give the inbox email a name using letters and numbers — for example, netflix.</p>
         {{/if}}
 
         {{#if nameTaken}}
-        <p class="inbox__error" role="alert" data-test-inbox-name-taken>You already have an active address with that name. Pick a different one.</p>
+        <p class="inbox__error" role="alert" data-test-inbox-name-taken>You already have an active inbox email with that name. Pick a different one.</p>
         {{/if}}
 
         {{#if limitReached}}
-        <p class="inbox__error" data-test-inbox-limit role="alert">You've reached the maximum of {{maxAddresses}} forwarding addresses. Disable any you no longer need before creating more.</p>
+        <p class="inbox__error" data-test-inbox-limit role="alert">You've reached the maximum of {{maxAddresses}} inbox emails. Disable any you no longer need before creating more.</p>
         {{/if}}
 
         <form action="{{createAction}}" method="POST" class="inbox__create">
-          <label class="inbox__create-label" for="inbox-name">Name this address</label>
+          <label class="inbox__create-label" for="inbox-name">Name this inbox email</label>
           <div class="inbox__create-row">
             <input class="inbox__name-input" id="inbox-name" name="name" type="text" required maxlength="24" pattern="[A-Za-z0-9 -]+" placeholder="e.g. my-newsletter" autocomplete="off" data-test-inbox-name-input />
-            <button type="submit" class="inbox__create-btn" data-test-inbox-create>Create Inbox Email</button>
+            <button type="submit" class="inbox__create-btn" data-test-inbox-create>Create inbox email</button>
           </div>
         </form>
       </section>
@@ -47,7 +46,7 @@
           <li class="inbox__item" data-test-inbox-item>
             <span class="inbox__name" data-test-inbox-name>{{this.name}}</span>
             <button type="button" class="inbox__copy-btn" data-inbox-copy data-inbox-address="{{this.address}}" hidden>Copy</button>
-            <input class="inbox__address-field" type="text" value="{{this.address}}" readonly aria-label="Forwarding address" data-inbox-address="{{this.address}}" />
+            <input class="inbox__address-field" type="text" value="{{this.address}}" readonly aria-label="Inbox email" data-inbox-address="{{this.address}}" />
             <div class="inbox__controls">
               <span class="inbox__status inbox__status--enabled" data-test-inbox-status="enabled">Active</span>
               <form action="{{../disableAction}}" method="POST" class="inbox__disable">
@@ -59,12 +58,12 @@
           {{/each}}
         </ul>
         <details class="inbox__disabled-group {{#if hasDisabled}}inbox__disabled-group--visible{{else}}inbox__disabled-group--hidden{{/if}}" data-test-inbox-section="disabled" data-test-inbox-disabled-group>
-          <summary class="inbox__disabled-summary">Disabled addresses ({{disabledCount}})</summary>
+          <summary class="inbox__disabled-summary">Disabled inbox emails ({{disabledCount}})</summary>
           <ul class="inbox__list inbox__list--nested">
             {{#each disabledAddresses}}
             <li class="inbox__item" data-test-inbox-item>
               <span class="inbox__name" data-test-inbox-name>{{this.name}}</span>
-              <input class="inbox__address-field inbox__address-field--disabled" type="text" value="{{this.address}}" disabled aria-label="Forwarding address" />
+              <input class="inbox__address-field inbox__address-field--disabled" type="text" value="{{this.address}}" disabled aria-label="Inbox email" />
               <div class="inbox__controls">
                 <span class="inbox__status inbox__status--disabled" data-test-inbox-status="disabled">Disabled</span>
               </div>
@@ -74,6 +73,6 @@
         </details>
       </div>
       {{else}}
-      <p class="inbox__empty" data-test-inbox-empty>You don't have a forwarding address yet. Create one to get started.</p>
+      <p class="inbox__empty" data-test-inbox-empty>You don't have an inbox email yet. Create one to get started.</p>
       {{/if}}
     </main>

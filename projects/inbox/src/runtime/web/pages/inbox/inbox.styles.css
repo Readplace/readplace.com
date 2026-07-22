@@ -251,8 +251,6 @@
   line-height: 1.8;
 }
 
-.inbox__note {
-  color: var(--muted-foreground);
-  font-size: 0.9rem;
-  margin: 0;
+.inbox__steps-link {
+  color: var(--primary-text);
 }

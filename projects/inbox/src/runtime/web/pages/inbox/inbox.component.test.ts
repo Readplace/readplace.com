@@ -236,7 +236,7 @@ describe("InboxPage", () => {
 		assert.equal(group.hasAttribute("open"), false);
 		assert.equal(
 			group.querySelector(".inbox__disabled-summary")?.textContent,
-			"Disabled addresses (2)",
+			"Disabled inbox emails (2)",
 		);
 		const namesInside = Array.from(group.querySelectorAll("[data-test-inbox-name]")).map(
 			(el) => el.textContent,
@@ -252,7 +252,7 @@ describe("InboxPage", () => {
 		assert.equal(group.classList.contains("inbox__disabled-group--hidden"), true);
 		assert.equal(
 			group.querySelector(".inbox__disabled-summary")?.textContent,
-			"Disabled addresses (0)",
+			"Disabled inbox emails (0)",
 		);
 	});
 

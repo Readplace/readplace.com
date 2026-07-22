@@ -39,7 +39,7 @@ const NOTHING_SKIPPED_MESSAGE = "Nothing was skipped in this email.";
 // than about the panel showing it.
 const EXTRACTING_MESSAGE = "Looking for links…";
 const STALE_MESSAGE =
-	"We couldn’t scan this email for links. The original message is still available on the View tab.";
+	"I couldn’t scan this email for links. The original message is still on the View tab.";
 
 // Present tense on purpose: the save route only publishes SubmitLinkCommand, and
 // the queue write happens in a downstream subscriber. Claiming "Saved" would
