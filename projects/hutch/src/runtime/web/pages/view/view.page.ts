@@ -53,7 +53,7 @@ import { collectUtmParams } from "../../shared/utm";
 import { SaveErrorPage } from "../save/save-error.component";
 import { NotFoundPage } from "../not-found";
 import type { ExistsUserByIdPrefix } from "@packages/provider-contracts/auth";
-import { PERMANENT_ARTICLE_DOMAINS, computePublicViewExpiry, formatSaveUtmContent, sharedUserIdFrom, sharedUserIdFromQueryParams, type ExpiryCountdown } from "./view-expiry";
+import { PERMANENT_ARTICLE_DOMAINS, PERMANENT_REFERRER_DOMAINS, computePublicViewExpiry, isPermanentReferrer, formatSaveUtmContent, sharedUserIdFrom, sharedUserIdFromQueryParams, type ExpiryCountdown } from "./view-expiry";
 import { parseViewPath, viewPathFor } from "./view-path";
 import { ViewPage, formatViewDocumentTitle, type ViewAction } from "./view.component";
 
@@ -276,6 +276,10 @@ function handleViewArticle(deps: ViewDependencies, reader: ReturnType<typeof ini
 				articleDomain,
 				permanentArticleDomains: PERMANENT_ARTICLE_DOMAINS,
 				isValidSharer,
+				isPermanentReferrer: isPermanentReferrer({
+					referrer: req.get("referer"),
+					permanentReferrerDomains: PERMANENT_REFERRER_DOMAINS,
+				}),
 				estimatedReadTime,
 			}));
 		}

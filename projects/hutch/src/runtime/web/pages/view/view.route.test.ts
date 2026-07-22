@@ -2089,6 +2089,44 @@ describe("View routes", () => {
 			const iframe = doc.querySelector("iframe[data-reader-iframe]");
 			assert(iframe, "a short read must show the full article, unblurred");
 		});
+
+		it("never blurs or counts down when the reader arrived from the founder's blog, even a long expired read", async () => {
+			const now = new Date("2026-05-10T00:00:00.000Z");
+			const { fixture, harness } = makeHarness(now);
+			// A long read on a non-permanent domain whose save window has elapsed —
+			// normally the expired paywall — but the reader clicked through from the
+			// founder's fagnerbrack.com blog, so it stays open (no login wall).
+			await seedReadyArticle(fixture, new Date("2026-05-01T00:00:00.000Z"));
+
+			const response = await request(harness.server)
+				.get(`/view/${CANONICAL_PATH}`)
+				.set("Referer", "https://fagnerbrack.com/what-is-docker");
+
+			const doc = new JSDOM(response.text).window.document;
+			const counter = doc.querySelector("[data-test-view-expiry]");
+			assert(counter, "expiry element must be rendered");
+			expect(counter.getAttribute("data-expiry-state")).toBe("permanent");
+			expect(doc.querySelectorAll("[data-test-view-paywall]").length).toBe(0);
+
+			const iframe = doc.querySelector("iframe[data-reader-iframe]");
+			assert(iframe, "a founder-blog referral must show the full article, unblurred");
+		});
+
+		it("still counts down a long read arriving from an unrelated referrer", async () => {
+			const now = new Date("2026-05-04T00:00:00.000Z");
+			const { fixture, harness } = makeHarness(now);
+			await seedReadyArticle(fixture, new Date("2026-05-03T13:54:27.000Z"));
+
+			const response = await request(harness.server)
+				.get(`/view/${CANONICAL_PATH}`)
+				.set("Referer", "https://news.ycombinator.com/");
+
+			const doc = new JSDOM(response.text).window.document;
+			const counter = doc.querySelector("[data-test-view-expiry]");
+			assert(counter, "expiry element must be rendered");
+			expect(counter.getAttribute("data-expiry-state")).toBe("counting");
+			expect(doc.querySelectorAll("[data-test-view-paywall]").length).toBe(1);
+		});
 	});
 
 	describe("anonymous crawl-trigger rate limiting", () => {

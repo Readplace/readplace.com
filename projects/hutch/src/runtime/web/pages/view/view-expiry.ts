@@ -27,6 +27,35 @@ export const PUBLIC_VIEW_PAYWALL_READ_MINUTES_THRESHOLD = 5;
  * encourage, not penalise. */
 export const PERMANENT_ARTICLE_DOMAINS: readonly string[] = ["fagnerbrack.com"];
 
+/** Hosts whose outbound links we treat as founder syndication by *referrer*:
+ * a reader who clicked a /view link from here never meets the paywall,
+ * whatever the article's length. The founder's fagnerbrack.com blog (a Medium
+ * publication on a custom domain) links out to /view pages, and those readers
+ * are the audience the syndication is courting — gating them is the exact
+ * friction the channel exists to avoid. Kept separate from
+ * {@link PERMANENT_ARTICLE_DOMAINS} because one is about where the article
+ * lives and this is about where the reader came from. Deliberately not
+ * `medium.com`: that would hand the bypass to all of Medium's traffic, not the
+ * founder's own readers. */
+export const PERMANENT_REFERRER_DOMAINS: readonly string[] = ["fagnerbrack.com"];
+
+/** True when the HTTP Referer names a founder-blog host (exact host or any
+ * subdomain, e.g. www.fagnerbrack.com). A missing or unparseable Referer — the
+ * common case once a referrer policy strips it — is simply not a founder
+ * referral, so the caller falls through to the normal expiry rules. */
+export function isPermanentReferrer(input: {
+	referrer: string | undefined;
+	permanentReferrerDomains: readonly string[];
+}): boolean {
+	if (input.referrer === undefined) return false;
+	const url = URL.parse(input.referrer);
+	if (url === null) return false;
+	const host = url.hostname.toLowerCase();
+	return input.permanentReferrerDomains.some(
+		(domain) => host === domain || host.endsWith(`.${domain}`),
+	);
+}
+
 export type SharedUserId = UserIdPrefix;
 
 export function sharedUserIdFrom(userId: UserId): SharedUserId {
@@ -42,12 +71,14 @@ export type ComputePublicViewExpiryInput = {
 	articleDomain: string;
 	permanentArticleDomains: readonly string[];
 	isValidSharer: boolean;
+	isPermanentReferrer: boolean;
 	estimatedReadTime: Minutes;
 };
 
 export function computePublicViewExpiry(
 	input: ComputePublicViewExpiryInput,
 ): { expiresAt: Date | null } {
+	if (input.isPermanentReferrer) return { expiresAt: null };
 	if (input.estimatedReadTime <= PUBLIC_VIEW_PAYWALL_READ_MINUTES_THRESHOLD) return { expiresAt: null };
 	if (input.permanentArticleDomains.includes(input.articleDomain)) return { expiresAt: null };
 	if (input.isValidSharer) return { expiresAt: null };
