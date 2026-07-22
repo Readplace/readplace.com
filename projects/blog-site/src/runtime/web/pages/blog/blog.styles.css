@@ -328,3 +328,54 @@
   font-size: 1rem;
 }
 /* purgecss-ignore-end */
+
+/* Blog conversion CTA — classes used as raw HTML inside blog post .md files */
+
+/* purgecss-ignore-start: used in CTA HTML embedded in markdown blog posts */
+.blog-post__content .blog-cta {
+  margin: 32px 0;
+  padding: 24px;
+  background: var(--color-surface);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius);
+}
+
+.blog-post__content .blog-cta__title {
+  margin: 0 0 8px;
+  font-size: 1.125rem;
+  font-weight: 600;
+  color: var(--color-text-primary);
+}
+
+.blog-post__content .blog-cta__text {
+  margin: 0 0 16px;
+  color: var(--color-text-secondary);
+}
+
+.blog-post__content .blog-cta__button {
+  display: inline-block;
+  padding: var(--button-padding);
+  background: var(--color-brand);
+  color: var(--color-on-brand);
+  border-radius: var(--radius-sm);
+  font-weight: 600;
+  text-decoration: none;
+  transition: background 0.15s ease;
+}
+
+.blog-post__content .blog-cta__button:hover {
+  background: var(--color-brand-dark);
+  color: var(--color-on-brand);
+}
+
+.blog-post__content .blog-cta__button:focus-visible {
+  outline: 2px solid var(--ring);
+  outline-offset: 2px;
+}
+
+.blog-post__content .blog-cta__note {
+  margin: 12px 0 0;
+  font-size: 0.875rem;
+  color: var(--color-text-muted);
+}
+/* purgecss-ignore-end */
