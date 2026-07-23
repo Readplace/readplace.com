@@ -292,7 +292,21 @@ platform :ios do
     if submission.items.to_a.empty?
       submission.add_app_store_version_to_review_items(app_store_version_id: version.id)
     end
-    submission.submit_for_review
+
+    # ASC wires a freshly attached build into the version asynchronously, and a
+    # submit inside that window is refused with "Version is not ready to be
+    # submitted yet, please try again later" — so take the error at its word.
+    attempts = 0
+    begin
+      submission.submit_for_review
+    rescue Spaceship::UnexpectedResponse => e
+      raise unless e.to_s.include?("not ready to be submitted")
+      attempts += 1
+      raise if attempts >= 5
+      UI.message("Version not ready to submit yet (attempt #{attempts}/5) — waiting 60s")
+      sleep(60)
+      retry
+    end
     UI.success("Submitted #{version_string} (build #{build}) for App Review")
   end
 end
