@@ -44,6 +44,24 @@ end
 # environment secrets), never from files in git. When the env is absent the
 # hash is nil and review info comes from fastlane/metadata alone — which only
 # works once the review detail already exists in ASC.
+# When App Store Connect refuses a submit with "not in valid state", the error
+# names no resource — these states are the difference between diagnosing from
+# the run log and guessing.
+def log_submission_diagnostics(version:, submission:)
+  state = version.app_version_state || version.app_store_state
+  UI.message("version #{version.id}: state=#{state}, string=#{version.version_string}")
+  attached = version.build
+  if attached
+    UI.message("attached build #{attached.version}: processing_state=#{attached.processing_state}, expired=#{attached.expired}")
+  else
+    UI.message("attached build: none")
+  end
+  UI.message("review submission #{submission.id}: state=#{submission.state}")
+  submission.items.to_a.each do |item|
+    UI.message("  item #{item.id}: state=#{item.state}, version=#{item.app_store_version&.id}")
+  end
+end
+
 def review_information_from_env
   contact_keys = %w[ASC_REVIEW_FIRST_NAME ASC_REVIEW_LAST_NAME ASC_REVIEW_EMAIL ASC_REVIEW_PHONE]
   return nil unless contact_keys.all? { |k| ENV[k].to_s.strip != "" }
@@ -284,7 +302,7 @@ platform :ios do
     version = app.get_edit_app_store_version(platform: Spaceship::ConnectAPI::Platform::IOS)
     UI.user_error!("No editable App Store version to submit — create one in App Store Connect first") unless version
 
-    submission = app.get_in_progress_review_submission(platform: Spaceship::ConnectAPI::Platform::IOS, includes: "items")
+    submission = app.get_in_progress_review_submission(platform: Spaceship::ConnectAPI::Platform::IOS, includes: "items,items.appStoreVersion")
     if submission && submission.state != Spaceship::ConnectAPI::ReviewSubmission::ReviewSubmissionState::UNRESOLVED_ISSUES
       UI.user_error!("A review submission is already #{submission.state} — resolve it in App Store Connect first")
     end
@@ -292,6 +310,7 @@ platform :ios do
     if submission.items.to_a.empty?
       submission.add_app_store_version_to_review_items(app_store_version_id: version.id)
     end
+    log_submission_diagnostics(version: version, submission: submission)
 
     # ASC wires a freshly attached build into the version asynchronously, and a
     # submit inside that window is refused with "Version is not ready to be
@@ -305,6 +324,8 @@ platform :ios do
       raise if attempts >= 5
       UI.message("Version not ready to submit yet (attempt #{attempts}/5) — waiting 60s")
       sleep(60)
+      version = app.get_edit_app_store_version(platform: Spaceship::ConnectAPI::Platform::IOS)
+      log_submission_diagnostics(version: version, submission: submission)
       retry
     end
     UI.success("Submitted #{version_string} (build #{build}) for App Review")
