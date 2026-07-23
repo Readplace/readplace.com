@@ -137,6 +137,14 @@ export function initDynamoDbInboxAddress(deps: {
 				ExpressionAttributeValues: { ":uid": userId, ":now": deps.now().toISOString() },
 			});
 		},
+		enableAddress: async ({ userId, address }) => {
+			await table.update({
+				Key: { address },
+				ConditionExpression: "userId = :uid",
+				UpdateExpression: "REMOVE disabledAt",
+				ExpressionAttributeValues: { ":uid": userId },
+			});
+		},
 		findByAddress: async (address) => {
 			const row = await table.get({ address });
 			return row === undefined ? undefined : toEntry(row);

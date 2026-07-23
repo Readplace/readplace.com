@@ -136,11 +136,13 @@
   color: var(--muted-foreground);
 }
 
-.inbox__disable {
+.inbox__disable,
+.inbox__enable {
   margin: 0;
 }
 
-.inbox__disable-btn {
+.inbox__disable-btn,
+.inbox__enable-btn {
   padding: var(--button-padding-sm);
   font-size: 0.85rem;
   color: var(--muted-foreground);
@@ -150,7 +152,8 @@
   cursor: pointer;
 }
 
-.inbox__disable-btn:hover {
+.inbox__disable-btn:hover,
+.inbox__enable-btn:hover {
   color: var(--foreground);
 }
 

@@ -71,9 +71,9 @@ interface InboxDependencies {
 	logError: (message: string, error?: Error) => void;
 	buildBannerState: BuildBannerState;
 	publishSubmitLink: (input: { userId: UserId; url: string }) => Promise<void>;
-	/** Save gates applied to the write actions — /create (a forwarding address is
-	 * a save-flow input) and the per-link save (it lands an article in the
-	 * reader's queue). Both gates run: `requireNotLocked` blocks a
+	/** Save gates applied to the write actions — /create and /enable (each opens
+	 * a mail-receiving save-flow input) and the per-link save (it lands an article
+	 * in the reader's queue). Both gates run: `requireNotLocked` blocks a
 	 * locked (unverified-past-window) account, `requireWriteAccess` blocks a
 	 * read-only (trial-expired / cancelled) account. Viewing and disabling existing
 	 * addresses stay open — disabling reduces footprint and is harmless. */
@@ -95,7 +95,7 @@ const POLL_PANEL_RENDERERS: Record<
 	excluded: (vm) => renderInboxExcludedPanel(vm.excluded),
 };
 
-const DisableAddressSchema = z.object({ address: InboxAddressSchema });
+const AddressActionSchema = z.object({ address: InboxAddressSchema });
 const CreateAddressSchema = z.object({ name: z.string() });
 const LinkFeedbackSchema = z.object({
 	verdict: z.enum(["should-be-included", "should-be-excluded"]),
@@ -492,7 +492,7 @@ export function initInboxRoutes(deps: InboxDependencies): Router {
 	router.post("/disable", async (req: Request, res: Response) => {
 		assert(req.userId, "userId required - route must be protected by requireAuth");
 		const userId = req.userId;
-		const parsed = DisableAddressSchema.safeParse(req.body);
+		const parsed = AddressActionSchema.safeParse(req.body);
 		if (parsed.success) {
 			// Confirm ownership before disabling so a forged address for someone
 			// else's row never reaches the (also ownership-guarded) store write.
@@ -503,6 +503,29 @@ export function initInboxRoutes(deps: InboxDependencies): Router {
 		}
 		res.redirect(303, addressesPath);
 	});
+
+	router.post(
+		"/enable",
+		deps.requireNotLocked,
+		deps.requireWriteAccess,
+		async (req: Request, res: Response) => {
+			assert(req.userId, "userId required - route must be protected by requireAuth");
+			const userId = req.userId;
+			const parsed = AddressActionSchema.safeParse(req.body);
+			if (parsed.success) {
+				const owned = await deps.inboxAddressStore.listAddressesByUserId(userId);
+				const target = owned.find((entry) => entry.address === parsed.data.address);
+				if (target !== undefined && !isLiveAddress(target)) {
+					if (countLiveAddresses(owned) >= INBOX_ADDRESS_MAX_PER_USER) {
+						res.redirect(303, `${addressesPath}?error=limit`);
+						return;
+					}
+					await deps.inboxAddressStore.enableAddress({ userId, address: parsed.data.address });
+				}
+			}
+			res.redirect(303, addressesPath);
+		},
+	);
 
 	return router;
 }

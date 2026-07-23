@@ -27,6 +27,7 @@ export function InboxPage(params: {
 		}),
 		createAction: "/inbox/create",
 		disableAction: "/inbox/disable",
+		enableAction: "/inbox/enable",
 	});
 
 	return {

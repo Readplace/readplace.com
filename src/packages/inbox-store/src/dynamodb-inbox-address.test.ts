@@ -259,6 +259,43 @@ describe("initDynamoDbInboxAddress", () => {
 		});
 	});
 
+	describe("enableAddress", () => {
+		it("clears disabledAt with an ownership-guarded REMOVE update", async () => {
+			let captured: CapturedCommand | undefined;
+			const store = initDynamoDbInboxAddress({
+				client: createFakeClient((cmd) => {
+					captured = cmd as CapturedCommand;
+					return {};
+				}) as DynamoDBDocumentClient,
+				tableName: TABLE,
+				now: () => NOW,
+			});
+			const address = InboxAddressSchema.parse("in-3f9a2c@read.place");
+
+			await store.enableAddress({ userId: USER, address });
+
+			expect(captured?.input.Key).toEqual({ address });
+			expect(captured?.input.ConditionExpression).toBe("userId = :uid");
+			expect(captured?.input.UpdateExpression).toBe("REMOVE disabledAt");
+			expect(captured?.input.ExpressionAttributeValues?.[":uid"]).toBe(USER);
+		});
+
+		it("propagates the conditional-check failure when the caller does not own the row", async () => {
+			const store = initDynamoDbInboxAddress({
+				client: createFakeClient(() => {
+					throw conditionalCheckFailed();
+				}) as DynamoDBDocumentClient,
+				tableName: TABLE,
+				now: () => NOW,
+			});
+			const address = InboxAddressSchema.parse("in-3f9a2c@read.place");
+
+			await expect(store.enableAddress({ userId: USER, address })).rejects.toThrow(
+				ConditionalCheckFailedException,
+			);
+		});
+	});
+
 	describe("findByAddress", () => {
 		it("resolves an address with a single GetItem on the address key", async () => {
 			let captured: CapturedCommand | undefined;

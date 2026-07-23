@@ -439,4 +439,205 @@ describe("Inbox address routes", () => {
 			expect(after.querySelector('[data-test-inbox-status="enabled"]')).not.toBeNull();
 		});
 	});
+
+	describe("POST /inbox/enable", () => {
+		it("re-enables a disabled address and returns it to the active list", async () => {
+			const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
+			const agent = await loginAgent(harness.server, harness.auth);
+			await agent.post("/inbox/create").type("form").send({ name: "netflix" });
+			const address = addressFieldValue((await agent.get("/inbox/addresses")).text);
+			assert(address, "the created address must render");
+			await agent.post("/inbox/disable").type("form").send({ address });
+
+			const response = await agent.post("/inbox/enable").type("form").send({ address });
+
+			expect(response.status).toBe(303);
+			expect(response.headers.location).toBe("/inbox/addresses");
+			const after = new JSDOM(
+				(await agent.get("/inbox/addresses")).text,
+			).window.document;
+			const statuses = Array.from(after.querySelectorAll("[data-test-inbox-status]")).map(
+				(el) => el.getAttribute("data-test-inbox-status"),
+			);
+			expect(statuses).toEqual(["enabled"]);
+			expect(after.querySelector(".inbox__disabled-summary")?.textContent).toBe(
+				"Disabled inbox emails (0)",
+			);
+			expect(
+				after
+					.querySelector("[data-test-inbox-disabled-group]")
+					?.classList.contains("inbox__disabled-group--hidden"),
+			).toBe(true);
+		});
+
+		it("renders an enable control on each disabled row pointing at the enable route", async () => {
+			const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
+			const agent = await loginAgent(harness.server, harness.auth);
+			await agent.post("/inbox/create").type("form").send({ name: "netflix" });
+			const address = addressFieldValue((await agent.get("/inbox/addresses")).text);
+			assert(address, "the created address must render");
+			await agent.post("/inbox/disable").type("form").send({ address });
+
+			const after = new JSDOM(
+				(await agent.get("/inbox/addresses")).text,
+			).window.document;
+			const enable = after.querySelector(
+				"[data-test-inbox-disabled-group] [data-test-inbox-enable]",
+			);
+			assert(enable, "the disabled row must render an enable control");
+			expect(enable.closest("form")?.getAttribute("action")).toBe("/inbox/enable");
+		});
+
+		it("leaves an already-live address unchanged and issues no error param", async () => {
+			const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
+			const agent = await loginAgent(harness.server, harness.auth);
+			await agent.post("/inbox/create").type("form").send({ name: "netflix" });
+			const address = addressFieldValue((await agent.get("/inbox/addresses")).text);
+			assert(address, "the created address must render");
+
+			const response = await agent.post("/inbox/enable").type("form").send({ address });
+
+			expect(response.status).toBe(303);
+			expect(response.headers.location).toBe("/inbox/addresses");
+			const after = new JSDOM(
+				(await agent.get("/inbox/addresses")).text,
+			).window.document;
+			const statuses = Array.from(after.querySelectorAll("[data-test-inbox-status]")).map(
+				(el) => el.getAttribute("data-test-inbox-status"),
+			);
+			expect(statuses).toEqual(["enabled"]);
+		});
+
+		it("ignores a request whose body is not a valid address", async () => {
+			const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
+			const agent = await loginAgent(harness.server, harness.auth);
+			await agent.post("/inbox/create").type("form").send({ name: "netflix" });
+
+			const response = await agent
+				.post("/inbox/enable")
+				.type("form")
+				.send({ address: "not-an-address" });
+
+			expect(response.status).toBe(303);
+			expect(response.headers.location).toBe("/inbox/addresses");
+			const after = new JSDOM(
+				(await agent.get("/inbox/addresses")).text,
+			).window.document;
+			expect(after.querySelector('[data-test-inbox-status="enabled"]')).not.toBeNull();
+		});
+
+		it("does not enable an address the user does not own", async () => {
+			const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
+			const agent = await loginAgent(harness.server, harness.auth);
+			await agent.post("/inbox/create").type("form").send({ name: "netflix" });
+
+			const response = await agent
+				.post("/inbox/enable")
+				.type("form")
+				.send({ address: "in-zzzzzz@read.place" });
+
+			expect(response.status).toBe(303);
+			expect(response.headers.location).toBe("/inbox/addresses");
+			const after = new JSDOM(
+				(await agent.get("/inbox/addresses")).text,
+			).window.document;
+			const statuses = Array.from(after.querySelectorAll("[data-test-inbox-status]")).map(
+				(el) => el.getAttribute("data-test-inbox-status"),
+			);
+			expect(statuses).toEqual(["enabled"]);
+		});
+
+		it("refuses to enable when it would exceed the cap, leaving the row disabled", async () => {
+			const fixture = createDefaultTestAppFixture(TEST_APP_ORIGIN);
+			const harness = useApp(fixture);
+			const agent = await loginAgent(harness.server, harness.auth);
+			const userId = (await harness.auth.findUserByEmail("test@example.com"))?.userId;
+			assert(userId, "seeded login user must exist");
+			const store = fixture.inboxAddress.inboxAddressStore;
+			for (let i = 0; i < INBOX_ADDRESS_MAX_PER_USER - 1; i++) {
+				await store.createAddress({ userId, domain: "read.place", name: SEED_NAME });
+			}
+			const target = await store.createAddress({
+				userId,
+				domain: "read.place",
+				name: SEED_NAME,
+			});
+			await store.disableAddress({ userId, address: target.address });
+			await store.createAddress({ userId, domain: "read.place", name: SEED_NAME });
+
+			const response = await agent
+				.post("/inbox/enable")
+				.type("form")
+				.send({ address: target.address });
+
+			expect(response.status).toBe(303);
+			expect(response.headers.location).toBe("/inbox/addresses?error=limit");
+			const after = new JSDOM(
+				(await agent.get("/inbox/addresses")).text,
+			).window.document;
+			const disabledField = after.querySelector(
+				"[data-test-inbox-disabled-group] .inbox__address-field",
+			);
+			expect(disabledField?.getAttribute("value")).toBe(target.address);
+		});
+
+		it("redirects a read-only user to /queue?inactive=1 and re-enables nothing", async () => {
+			const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
+			const agent = await loginAgent(harness.server, harness.auth);
+			const userId = (await harness.auth.findUserByEmail("test@example.com"))?.userId;
+			assert(userId, "seeded login user must exist");
+			await agent.post("/inbox/create").type("form").send({ name: "netflix" });
+			const address = addressFieldValue((await agent.get("/inbox/addresses")).text);
+			assert(address, "the created address must render");
+			await agent.post("/inbox/disable").type("form").send({ address });
+			await harness.subscriptionProviders.upsertTrialing({
+				userId,
+				trialEndsAt: new Date(Date.now() - ONE_DAY_MS).toISOString(),
+			});
+
+			const response = await agent
+				.post("/inbox/enable")
+				.type("form")
+				.send({ address })
+				.set("Accept", "text/html");
+
+			expect(response.status).toBe(303);
+			expect(response.headers.location).toBe("/queue?inactive=1");
+			const after = new JSDOM(
+				(await agent.get("/inbox/addresses")).text,
+			).window.document;
+			expect(after.querySelector('[data-test-inbox-status="disabled"]')).not.toBeNull();
+			expect(after.querySelector('[data-test-inbox-status="enabled"]')).toBeNull();
+		});
+
+		it("blocks a locked user with the account-locked screen and re-enables nothing", async () => {
+			const fixture = fixtureClockedDaysAhead(8);
+			const harness = useApp(fixture);
+			const agent = await loginAgent(harness.server, harness.auth);
+			const userId = (await harness.auth.findUserByEmail("test@example.com"))?.userId;
+			assert(userId, "seeded login user must exist");
+			const store = fixture.inboxAddress.inboxAddressStore;
+			const entry = await store.createAddress({
+				userId,
+				domain: "read.place",
+				name: SEED_NAME,
+			});
+			await store.disableAddress({ userId, address: entry.address });
+
+			const response = await agent
+				.post("/inbox/enable")
+				.type("form")
+				.send({ address: entry.address })
+				.set("Accept", "text/html");
+
+			expect(response.status).toBe(403);
+			expect(
+				new JSDOM(response.text).window.document.querySelector("h1")?.textContent,
+			).toBe("Your account is locked");
+			const after = new JSDOM(
+				(await agent.get("/inbox/addresses")).text,
+			).window.document;
+			expect(after.querySelector('[data-test-inbox-status="disabled"]')).not.toBeNull();
+		});
+	});
 });

@@ -47,6 +47,11 @@ export interface InboxAddressStore {
 	 * another user throws `ConditionalCheckFailedException` rather than silently
 	 * succeeding, so a forged address can never reach a foreign row. */
 	disableAddress: (input: { userId: UserId; address: InboxAddress }) => Promise<void>;
+	/** Clears `disabledAt`, returning an address the user owns to live. Guarded
+	 * exactly like {@link disableAddress}: a tombstoned row's sentinel `userId`
+	 * fails the ownership condition, so a deleted-account address can never be
+	 * resurrected and a forged address can never reach a foreign row. */
+	enableAddress: (input: { userId: UserId; address: InboxAddress }) => Promise<void>;
 	/** Resolve a forwarding address to its owner. A single strongly-consistent
 	 * GetItem on the `address` partition key — not the eventually-consistent GSI
 	 * that `listAddressesByUserId` reads — so the receive path never races a

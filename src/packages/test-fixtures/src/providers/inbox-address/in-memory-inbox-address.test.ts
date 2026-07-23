@@ -153,6 +153,43 @@ describe("initInMemoryInboxAddress", () => {
 		expect(found.disabledAt).toBe("2026-06-23T12:00:00.000Z");
 	});
 
+	it("enables an owned address by clearing disabledAt", async () => {
+		const store = initInMemoryInboxAddress({
+			now: () => new Date("2026-06-23T12:00:00.000Z"),
+		});
+		const entry = await store.createAddress({ userId: owner, domain: DOMAIN, name: NAME });
+		await store.disableAddress({ userId: owner, address: entry.address });
+
+		await store.enableAddress({ userId: owner, address: entry.address });
+
+		const [refreshed] = await store.listAddressesByUserId(owner);
+		expect(refreshed.disabledAt).toBeUndefined();
+	});
+
+	it("rejects an enable for an address that does not exist", async () => {
+		const store = initInMemoryInboxAddress({ now: () => new Date() });
+		const missing = InboxAddressSchema.parse("in-3f9a2c@read.place");
+
+		await expect(
+			store.enableAddress({ userId: owner, address: missing }),
+		).rejects.toThrow(ConditionalCheckFailedException);
+
+		expect(await store.listAddressesByUserId(owner)).toHaveLength(0);
+	});
+
+	it("rejects an enable requested by a non-owner", async () => {
+		const store = initInMemoryInboxAddress({ now: () => new Date() });
+		const entry = await store.createAddress({ userId: owner, domain: DOMAIN, name: NAME });
+		await store.disableAddress({ userId: owner, address: entry.address });
+
+		await expect(
+			store.enableAddress({ userId: otherUser, address: entry.address }),
+		).rejects.toThrow(ConditionalCheckFailedException);
+
+		const [refreshed] = await store.listAddressesByUserId(owner);
+		expect(refreshed.disabledAt).not.toBeUndefined();
+	});
+
 	describe("tombstoneUserAddresses", () => {
 		it("unlinks the owner's addresses to the reserved owner, keeps every row, and stamps disabledAt only when unset", async () => {
 			let clock = new Date("2026-06-01T00:00:00.000Z");
