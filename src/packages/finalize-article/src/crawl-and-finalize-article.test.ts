@@ -159,6 +159,7 @@ describe("initCrawlAndFinalizeArticle", () => {
 			url: URL_UNDER_TEST,
 			html: "<html></html>",
 			preFetchedThumbnail: preFetched,
+			thumbnailAlreadyResolved: true,
 			mediaType: undefined,
 		});
 	});
@@ -188,6 +189,7 @@ describe("initCrawlAndFinalizeArticle", () => {
 			url: URL_UNDER_TEST,
 			html: '<figure><img src="https://example.com/photo.jpg" alt=""></figure>',
 			preFetchedThumbnail: imageBytes,
+			thumbnailAlreadyResolved: true,
 			mediaType: "image",
 		});
 	});

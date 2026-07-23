@@ -40,6 +40,14 @@ export type FinalizeArticle = (input: {
 	 * When absent (raw-HTML save, comprehensive crawl), the finalizer fetches
 	 * the cascade of og:image / twitter:image / first-<img> candidates itself. */
 	preFetchedThumbnail?: ThumbnailImage;
+	/** True when the crawler already ran the thumbnail cascade, so an absent
+	 * `preFetchedThumbnail` means "attempted and found nothing", not "never
+	 * tried". Without this the finalizer cannot tell the two apart and re-runs
+	 * the identical cascade — a second, failure-gated fetch of the same URLs that
+	 * doubles outbound requests and error volume exactly when an origin is
+	 * already failing. Left unset by raw-HTML / comprehensive callers, which
+	 * genuinely have not fetched and still need the finalizer to. */
+	thumbnailAlreadyResolved?: boolean;
 	/** Set by the crawler when the fetched body was itself an image. Routes the
 	 * save to image synthesis (host the image, store an `<img>` body, skip
 	 * Readability). The browser-extension raw-HTML save leaves this unset; the
@@ -93,6 +101,7 @@ export function initFinalizeArticle(deps: {
 				url: input.url,
 				candidates,
 				preFetchedThumbnail: input.preFetchedThumbnail,
+				thumbnailAlreadyResolved: input.thumbnailAlreadyResolved === true,
 				fetchThumbnailImage,
 				putImageObject,
 				imagesCdnBaseUrl,
@@ -124,9 +133,10 @@ export function initFinalizeArticle(deps: {
 		});
 		const html = await processContent({ html: content, media });
 
-		const thumbnailImage =
-			input.preFetchedThumbnail
-			?? (await fetchThumbnailImage({ candidates, referer: input.url }));
+		let thumbnailImage = input.preFetchedThumbnail;
+		if (!thumbnailImage && !input.thumbnailAlreadyResolved) {
+			thumbnailImage = await fetchThumbnailImage({ candidates, referer: input.url });
+		}
 
 		const imageUrl = thumbnailImage
 			? await uploadThumbnail({
@@ -168,16 +178,20 @@ async function finalizeImageArticle(args: {
 	url: string;
 	candidates: string[];
 	preFetchedThumbnail: ThumbnailImage | undefined;
+	thumbnailAlreadyResolved: boolean;
 	fetchThumbnailImage: FetchThumbnailImage;
 	putImageObject: PutImageObject;
 	imagesCdnBaseUrl: string;
 }): Promise<{ ok: true; article: FinalizedArticle }> {
-	const { url, candidates, preFetchedThumbnail, fetchThumbnailImage, putImageObject, imagesCdnBaseUrl } = args;
+	const { url, candidates, preFetchedThumbnail, thumbnailAlreadyResolved, fetchThumbnailImage, putImageObject, imagesCdnBaseUrl } = args;
 	const { hostname, pathname } = new URL(url);
 	const title = imageTitleFromPathname(pathname) || hostname;
 	const articleResourceUniqueId = ArticleResourceUniqueId.parse(url);
 
-	const image = preFetchedThumbnail ?? (await fetchThumbnailImage({ candidates, referer: url }));
+	let image = preFetchedThumbnail;
+	if (!image && !thumbnailAlreadyResolved) {
+		image = await fetchThumbnailImage({ candidates, referer: url });
+	}
 	const imageUrl = image
 		? await uploadThumbnail({ thumbnailImage: image, articleResourceUniqueId, putImageObject, imagesCdnBaseUrl })
 		: (candidates[0] ?? url);

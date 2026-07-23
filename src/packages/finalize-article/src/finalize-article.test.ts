@@ -155,6 +155,24 @@ describe("initFinalizeArticle", () => {
 		}
 	});
 
+	it("does not re-fetch when the crawler already resolved the thumbnail and found nothing (no duplicate fetch on the failure path)", async () => {
+		const fetchThumbnailImage = jest.fn(noopFetchThumbnailImage);
+		const finalize = createFinalize({ fetchThumbnailImage });
+		const html = `<html><head>
+			<meta property="og:image" content="https://example.com/og.jpg">
+		</head><body><p>Body</p></body></html>`;
+
+		const result = await finalize({ url: URL_UNDER_TEST, html, thumbnailAlreadyResolved: true });
+
+		expect(fetchThumbnailImage).not.toHaveBeenCalled();
+		expect(result.ok).toBe(true);
+		if (result.ok) {
+			// The crawler's cascade already failed; fall back to the raw og:image
+			// URL rather than fire the identical fetch a second time.
+			expect(result.article.metadata.imageUrl).toBe("https://example.com/og.jpg");
+		}
+	});
+
 	it("uploads the thumbnail under a stable sha256-derived key so re-saves of the same image hit the CDN's existing entry", async () => {
 		const thumbnail: ThumbnailImage = {
 			body: Buffer.from([0xff, 0xd8, 0xff]),
@@ -333,6 +351,25 @@ describe("initFinalizeArticle", () => {
 			expect(result.article.html).toBe(
 				'<figure><img src="https://example.com/photo.jpg" alt="photo" loading="lazy"></figure>',
 			);
+			expect(result.article.metadata.imageUrl).toBe("https://example.com/photo.jpg");
+		}
+	});
+
+	it("does not re-fetch the image when the crawler already resolved it and found nothing", async () => {
+		const fetchThumbnailImage = jest.fn(noopFetchThumbnailImage);
+		const finalize = createFinalize({ fetchThumbnailImage });
+		const html = `<html><body><img src="https://example.com/photo.jpg"></body></html>`;
+
+		const result = await finalize({
+			url: "https://example.com/photo.jpg",
+			html,
+			mediaType: "image",
+			thumbnailAlreadyResolved: true,
+		});
+
+		expect(fetchThumbnailImage).not.toHaveBeenCalled();
+		expect(result.ok).toBe(true);
+		if (result.ok) {
 			expect(result.article.metadata.imageUrl).toBe("https://example.com/photo.jpg");
 		}
 	});
