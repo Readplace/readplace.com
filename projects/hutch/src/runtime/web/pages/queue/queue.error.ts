@@ -17,6 +17,21 @@ export interface StatusFlash {
 	undoStatus: "read" | "unread";
 }
 
+/** Builds the confirmation flash for a status change: the message the toast
+ * shows and the opposite status its Undo posts back. Shared by the redirect
+ * query-param path (`statusFlashMapping`) and the card-scoped mutation handler,
+ * which builds it in-process, so the two message strings can't drift. */
+export function statusFlashFor(input: {
+	status: "read" | "unread";
+	articleId: string;
+}): StatusFlash {
+	return {
+		message: input.status === "read" ? "Marked as read" : "Marked as unread",
+		undoArticleId: input.articleId,
+		undoStatus: input.status === "read" ? "unread" : "read",
+	};
+}
+
 /** Reads the one-shot params the POST /:id/status redirect appends so the
  * queue page can confirm the change with a toast and offer a working Undo
  * that posts the opposite status back. */
@@ -27,11 +42,7 @@ export const statusFlashMapping = (
 	const articleId = query.status_article;
 	if (changed !== "read" && changed !== "unread") return undefined;
 	if (typeof articleId !== "string" || articleId.length === 0) return undefined;
-	return {
-		message: changed === "read" ? "Marked as read" : "Marked as unread",
-		undoArticleId: articleId,
-		undoStatus: changed === "read" ? "unread" : "read",
-	};
+	return statusFlashFor({ status: changed, articleId });
 };
 
 /** Pulls the one-shot status flash params off the query so an intervening

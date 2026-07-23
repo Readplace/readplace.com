@@ -30,6 +30,7 @@ import type {
 	FindArticleFreshness,
 	FindArticleUrlById,
 	FindArticlesByUser,
+	FindArticlesResult,
 	MarkArticleViewed,
 	MarkSummaryToggled,
 	SaveArticle,
@@ -86,11 +87,15 @@ import { toArticleCollectionEntity } from "../../api/collection-siren";
 import { toBulkSaveResultEntity } from "../../api/bulk-save-siren";
 import { toArticleEntity } from "../../api/article-siren";
 import { toUploadSlotEntity } from "../../api/upload-slot-siren";
-import { parseQueueUrl, buildQueueUrl, QUEUE_PATH, canonicalQueuePageRedirect } from "./queue.url";
+import { parseQueueUrl, buildQueueUrl, buildQueueCountsUrl, QUEUE_PATH, canonicalQueuePageRedirect, type QueueUrlState } from "./queue.url";
 import { collectUtmParams } from "../../shared/utm";
 import { tabQuery } from "./queue.tabs";
-import type { HttpErrorMessageMapping } from "./queue.error";
-import { collectStatusFlashParams, importFlashMapping, statusFlashMapping } from "./queue.error";
+import type { HttpErrorMessageMapping, StatusFlash } from "./queue.error";
+import { collectStatusFlashParams, importFlashMapping, statusFlashFor, statusFlashMapping } from "./queue.error";
+import {
+	renderDeleteMutationFragment,
+	renderStatusMutationFragment,
+} from "./queue-mutation-fragment";
 import { MAX_POLLS } from "@packages/web-shell";
 import { parsePollParam } from "@packages/web-shell";
 import { toQueueArticleViewModel, toQueueViewModel } from "./queue.viewmodel";
@@ -365,6 +370,17 @@ const READER_MARK_READ_BRIDGE_SCRIPT = `<script>
  * predating the query param — which cannot deploy in lockstep with the server —
  * still resolves to its chromeless reader. */
 const isIosPlatform = (req: Request): boolean => isIosSurface(req);
+
+/** True when a queue POST wants the card-scoped fragment response rather than
+ * the full-listing 303 redirect. Both conditions are required: the `HX-Request`
+ * header proves htmx is driving the swap (a no-JS submit gets the 303 baseline),
+ * and the `swap=card` marker — appended only to the card affordance's action URL
+ * (`withCardSwapMarker` in queue.viewmodel) — proves this POST is the card form,
+ * not the toast Undo, the reader's mark-read, or a Siren client sharing the same
+ * route. The marker only *selects the response representation*; the handler
+ * still computes the resulting page state from the store, never from the client. */
+const wantsCardSwap = (req: Request): boolean =>
+	req.get("HX-Request") === "true" && req.query.swap === "card";
 
 export function initQueueRoutes(deps: QueueDependencies): Router {
 	const router = express.Router();
@@ -649,6 +665,137 @@ export function initQueueRoutes(deps: QueueDependencies): Router {
 		return { platform, installed, savedArticle, hasInstallableClient: hasClient, onboardingDismissed };
 	};
 
+	/** Renders the full `<main>` queue listing for an already-fetched page of
+	 * rows. Shared by the top-of-page GET and the card-mutation fallback so the
+	 * fallback returns byte-identical HTML to the 303 → GET path. Flash options
+	 * are passed explicitly (the GET parses them from the query; the mutation
+	 * fallback builds its status flash in-process), keeping this helper free of
+	 * query-param knowledge. */
+	const renderQueueListing = async (
+		req: Request,
+		res: Response,
+		input: {
+			userId: UserId;
+			urlState: QueueUrlState;
+			result: FindArticlesResult;
+			saveError?: string;
+			importFlash?: string;
+			statusFlash?: StatusFlash;
+			importSkipped?: ImportSkippedViewModel;
+			filterUrl?: string;
+		},
+	): Promise<void> => {
+		const [summaryByUrl, crawlByUrl, effectiveAccess] = await Promise.all([
+			loadSummaries(deps.findGeneratedSummary, input.result.articles),
+			loadCrawls(deps.findArticleCrawlStatus, input.result.articles),
+			deps.getEffectiveAccess(input.userId),
+		]);
+		const vm = toQueueViewModel(input.result, input.urlState, {
+			errors: input.saveError ? [{ message: input.saveError }] : undefined,
+			importFlash: input.importFlash,
+			statusFlash: input.statusFlash,
+			importSkipped: input.importSkipped,
+			summaryByUrl,
+			crawlByUrl,
+			effectiveAccess,
+			now: deps.now(),
+		});
+		const onboarding = await resolveOnboardingSignals(req, input.userId);
+		sendComponent(
+			req, res,
+			Base(
+				QueuePage(vm, { ...onboarding, saveUrl: input.filterUrl, deviceClass: classifyDeviceClass(req.get("user-agent")) }),
+				await deps.buildBannerState(req, { preFetchedAccess: effectiveAccess }),
+			),
+		);
+	};
+
+	/** Answers a card-scoped status/delete POST (see {@link wantsCardSwap}). The
+	 * common case removes just the acted-on card and re-arms counts (plus a toast
+	 * for status) out-of-band. The server — never the client — decides when that
+	 * would leave the DOM out of sync and instead re-renders the whole listing,
+	 * retargeted to `<main>` via response headers so it lands exactly where the
+	 * 303 → GET swap would. `fallbackOnFullPage` is the one status/delete
+	 * asymmetry: a delete off a still-full page means the next page refilled it,
+	 * and the delete-loop journeys depend on seeing that refill; status accepts
+	 * the "list holds its place" drift instead. */
+	const respondToCardMutation = async (
+		req: Request,
+		res: Response,
+		input: {
+			userId: UserId;
+			applied: boolean;
+			fallbackOnFullPage: boolean;
+			statusFlash?: StatusFlash;
+		},
+	): Promise<void> => {
+		const urlState = parseQueueUrl(req.query);
+		const tab = tabQuery(urlState.tab);
+		const order = urlState.order ?? tab.defaultOrder;
+
+		const pageCheck = await deps.findArticlesByUser({
+			userId: input.userId,
+			status: tab.status,
+			sort: tab.sort,
+			order,
+			page: urlState.page,
+			pageSize: QUEUE_PAGE_SIZE,
+			excludeContent: true,
+		});
+		const rows = pageCheck.articles.length;
+		const shouldFallback =
+			!input.applied ||
+			rows === 0 ||
+			(input.fallbackOnFullPage && rows === QUEUE_PAGE_SIZE);
+
+		if (shouldFallback) {
+			let renderState = urlState;
+			if (rows === 0 && urlState.page > 1) {
+				const total = await deps.countArticlesByUser({ userId: input.userId, status: tab.status });
+				const totalPages = Math.max(1, Math.ceil(total / QUEUE_PAGE_SIZE));
+				renderState = { ...urlState, page: Math.min(urlState.page, totalPages) };
+			}
+			const result = await deps.findArticlesByUser({
+				userId: input.userId,
+				status: tab.status,
+				sort: tab.sort,
+				order,
+				page: renderState.page,
+				pageSize: QUEUE_PAGE_SIZE,
+			});
+			res.set("HX-Retarget", "main");
+			res.set("HX-Reswap", "outerHTML show:none");
+			res.set("HX-Reselect", "main");
+			await renderQueueListing(req, res, {
+				userId: input.userId,
+				urlState: renderState,
+				result,
+				statusFlash: input.statusFlash,
+			});
+			return;
+		}
+
+		const countsUrl = buildQueueCountsUrl(urlState);
+		if (input.statusFlash) {
+			const queueUrl = buildQueueUrl(urlState);
+			const queryIndex = queueUrl.indexOf("?");
+			const returnQuery = queryIndex !== -1 ? queueUrl.slice(queryIndex) : "";
+			res.status(200).type("html").send(
+				renderStatusMutationFragment({
+					flash: {
+						message: input.statusFlash.message,
+						undoUrl: `${QUEUE_PATH}/${input.statusFlash.undoArticleId}/status${returnQuery}`,
+						undoStatus: input.statusFlash.undoStatus,
+					},
+					countsUrl,
+				}),
+			);
+			return;
+		}
+
+		res.status(200).type("html").send(renderDeleteMutationFragment({ countsUrl }));
+	};
+
 	router.get("/", async (req: Request, res: Response) => {
 		assert(req.userId, "userId required - route must be protected by requireAuth");
 		const userId = req.userId;
@@ -719,33 +866,16 @@ export function initQueueRoutes(deps: QueueDependencies): Router {
 			}
 		}
 
-		const saveError = deps.httpErrorMessageMapping(req.query);
-		const importFlash = importFlashMapping(req.query);
-		const statusFlash = statusFlashMapping(req.query);
-		const importSkipped = readImportSkippedFlash(req, res);
-		const [summaryByUrl, crawlByUrl, effectiveAccess] = await Promise.all([
-			loadSummaries(deps.findGeneratedSummary, result.articles),
-			loadCrawls(deps.findArticleCrawlStatus, result.articles),
-			deps.getEffectiveAccess(userId),
-		]);
-		const vm = toQueueViewModel(result, urlState, {
-			errors: saveError ? [{ message: saveError }] : undefined,
-			importFlash,
-			statusFlash,
-			importSkipped,
-			summaryByUrl,
-			crawlByUrl,
-			effectiveAccess,
-			now: deps.now(),
+		await renderQueueListing(req, res, {
+			userId,
+			urlState,
+			result,
+			saveError: deps.httpErrorMessageMapping(req.query),
+			importFlash: importFlashMapping(req.query),
+			statusFlash: statusFlashMapping(req.query),
+			importSkipped: readImportSkippedFlash(req, res),
+			filterUrl,
 		});
-		const onboarding = await resolveOnboardingSignals(req, userId);
-		sendComponent(
-			req, res,
-			Base(
-				QueuePage(vm, { ...onboarding, saveUrl: filterUrl, deviceClass: classifyDeviceClass(req.get("user-agent")) }),
-				await deps.buildBannerState(req, { preFetchedAccess: effectiveAccess }),
-			),
-		);
 	});
 
 	router.get("/counts", async (req: Request, res: Response) => {
@@ -1330,25 +1460,42 @@ export function initQueueRoutes(deps: QueueDependencies): Router {
 		const parsedId = ReaderArticleHashIdSchema.safeParse(req.params.id);
 		const parsedStatus = ArticleStatusSchema.safeParse(req.body.status);
 
-		const flashParams: [string, string][] = [];
+		let appliedStatus: "read" | "unread" | undefined;
 		if (parsedId.success && parsedStatus.success) {
 			const updated = await deps.updateArticleStatus(parsedId.data, userId, parsedStatus.data);
 			if (updated) {
-				flashParams.push(["status_changed", parsedStatus.data]);
-				flashParams.push(["status_article", req.params.id]);
-			}
-			if (updated && parsedStatus.data === "read") {
-				deps.analytics.info({
-					stream: STREAMS.analytics,
-					event: ANALYTICS_EVENTS.articleRead,
-					timestamp: deps.now().toISOString(),
-					user_id: userId,
-					visitor_hash: hashIp({ ip: req.ip, salt: deps.salt }),
-					device_class: classifyDeviceClass(req.get("user-agent")),
-				});
+				appliedStatus = parsedStatus.data;
+				if (parsedStatus.data === "read") {
+					deps.analytics.info({
+						stream: STREAMS.analytics,
+						event: ANALYTICS_EVENTS.articleRead,
+						timestamp: deps.now().toISOString(),
+						user_id: userId,
+						visitor_hash: hashIp({ ip: req.ip, salt: deps.salt }),
+						device_class: classifyDeviceClass(req.get("user-agent")),
+					});
+				}
 			}
 		}
 
+		if (wantsCardSwap(req)) {
+			await respondToCardMutation(req, res, {
+				userId,
+				applied: appliedStatus !== undefined,
+				// A page that is still full after marking one card read means a row slid
+				// up from the next page; status accepts that drift (the list holds its
+				// place, matching the iOS app) rather than re-render.
+				fallbackOnFullPage: false,
+				statusFlash: appliedStatus
+					? statusFlashFor({ status: appliedStatus, articleId: req.params.id })
+					: undefined,
+			});
+			return;
+		}
+
+		const flashParams: [string, string][] = appliedStatus
+			? [["status_changed", appliedStatus], ["status_article", req.params.id]]
+			: [];
 		res.redirect(303, buildQueueUrl(parseQueueUrl(req.query), [...collectUtmParams(req.query), ...flashParams]));
 	});
 
@@ -1357,8 +1504,21 @@ export function initQueueRoutes(deps: QueueDependencies): Router {
 		const userId = req.userId;
 		const parsedId = ReaderArticleHashIdSchema.safeParse(req.params.id);
 
+		let applied = false;
 		if (parsedId.success) {
-			await deps.deleteArticle(parsedId.data, userId);
+			applied = await deps.deleteArticle(parsedId.data, userId);
+		}
+
+		if (wantsCardSwap(req)) {
+			await respondToCardMutation(req, res, {
+				userId,
+				applied,
+				// A still-full page after a delete means the next page refilled it; the
+				// delete-loop journeys assert the exact survivors, so re-render the
+				// refilled page rather than card-swap and strand a row off-screen.
+				fallbackOnFullPage: true,
+			});
+			return;
 		}
 
 		res.redirect(303, buildQueueUrl(parseQueueUrl(req.query)));

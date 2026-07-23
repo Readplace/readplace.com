@@ -311,50 +311,50 @@ describe("toQueueViewModel", () => {
 		expect(actions.map(a => a.testAction)).toEqual(["mark-unread", "delete"]);
 	});
 
-	it("should include return query in action URLs for non-default view", () => {
+	it("should include return query and the card-swap marker in action URLs for non-default view", () => {
 		const article = makeArticle({ status: "read" });
 		const filters = { order: "asc" as const, page: 1, tab: "done" as const };
 		const vm = toQueueViewModel(makeResult([article]), filters, { now: NOW });
 
 		const deleteAction = vm.articles[0].actions.find(a => a.testAction === "delete");
-		expect(deleteAction?.url).toBe(`/queue/${ARTICLE_ID}/delete?tab=done&order=asc`);
+		expect(deleteAction?.url).toBe(`/queue/${ARTICLE_ID}/delete?tab=done&order=asc&swap=card`);
 	});
 
-	it("should not include query string in action URLs for default view", () => {
+	it("should carry the card-swap marker even in the default view", () => {
 		const article = makeArticle({ status: "unread" });
 		const vm = toQueueViewModel(makeResult([article]), DEFAULT_FILTERS, { now: NOW });
 
 		const deleteAction = vm.articles[0].actions.find(a => a.testAction === "delete");
-		expect(deleteAction?.url).toBe(`/queue/${ARTICLE_ID}/delete`);
+		expect(deleteAction?.url).toBe(`/queue/${ARTICLE_ID}/delete?swap=card`);
 	});
 
-	it("should use POST method and /status URL for mark-unread action", () => {
+	it("should use POST method and /status URL (with the card-swap marker) for mark-unread action", () => {
 		const article = makeArticle({ status: "read" });
 		const vm = toQueueViewModel(makeResult([article]), DEFAULT_FILTERS, { now: NOW });
 
 		const markUnreadAction = vm.articles[0].actions.find(a => a.testAction === "mark-unread");
 		expect(markUnreadAction?.method).toBe("POST");
-		expect(markUnreadAction?.url).toBe(`/queue/${ARTICLE_ID}/status`);
+		expect(markUnreadAction?.url).toBe(`/queue/${ARTICLE_ID}/status?swap=card`);
 		expect(markUnreadAction?.fields).toEqual([{ name: "status", value: "unread" }]);
 	});
 
-	it("should use POST method and /status URL for mark-read action", () => {
+	it("should use POST method and /status URL (with the card-swap marker) for mark-read action", () => {
 		const article = makeArticle({ status: "unread" });
 		const vm = toQueueViewModel(makeResult([article]), DEFAULT_FILTERS, { now: NOW });
 
 		const markReadAction = vm.articles[0].actions.find(a => a.testAction === "mark-read");
 		expect(markReadAction?.method).toBe("POST");
-		expect(markReadAction?.url).toBe(`/queue/${ARTICLE_ID}/status`);
+		expect(markReadAction?.url).toBe(`/queue/${ARTICLE_ID}/status?swap=card`);
 		expect(markReadAction?.fields).toEqual([{ name: "status", value: "read" }]);
 	});
 
-	it("should include return query in mark-read URL for non-default view", () => {
+	it("should include return query and the card-swap marker in mark-read URL for non-default view", () => {
 		const article = makeArticle({ status: "unread" });
 		const filters = { order: "asc" as const, page: 1, tab: "queue" as const };
 		const vm = toQueueViewModel(makeResult([article]), filters, { now: NOW });
 
 		const markReadAction = vm.articles[0].actions.find(a => a.testAction === "mark-read");
-		expect(markReadAction?.url).toBe(`/queue/${ARTICLE_ID}/status?order=asc`);
+		expect(markReadAction?.url).toBe(`/queue/${ARTICLE_ID}/status?order=asc&swap=card`);
 	});
 
 	it("should have no hidden fields in delete action", () => {

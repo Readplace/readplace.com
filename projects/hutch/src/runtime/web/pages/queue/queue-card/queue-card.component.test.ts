@@ -302,7 +302,7 @@ describe("renderQueueCard", () => {
 		expect(statusForm.getAttribute("hx-disabled-elt")).toBe("find button");
 	});
 
-	it("leaves the delete control as a bare icon with no loader or request-disable", () => {
+	it("leaves the delete control a bare icon (no loader) but still disables it during its request", () => {
 		const html = renderQueueCard(
 			display(makeViewModel({ actions: [MARK_READ_ACTION, DELETE_ACTION] }), {
 				isFirst: false,
@@ -312,11 +312,14 @@ describe("renderQueueCard", () => {
 		const deleteButton = doc.querySelector("[data-test-action='delete']");
 		assert(deleteButton, "delete button must be present");
 		expect(deleteButton.textContent).toBe("×");
-		// The with-loader shape wraps its text in label + loader spans and its
-		// form carries hx-disabled-elt — both gated on affordance === "with-loader".
-		// Zero element children is the positive proof the delete control ("bare")
-		// opted out; a selector typo can't make it pass for the wrong reason.
+		// The with-loader shape wraps its text in label + loader spans; zero element
+		// children is the positive proof the delete control ("bare") opted out of the
+		// loader markup — a selector typo can't make it pass for the wrong reason.
 		expect(deleteButton.children.length).toBe(0);
+		// hx-disabled-elt now sits on the form of both affordances: under a
+		// card-scoped swap an un-disabled delete could double-submit against a card
+		// the first response is removing.
+		expect(deleteButton.closest("form")?.getAttribute("hx-disabled-elt")).toBe("find button");
 	});
 
 	it("shows a processing state and disables the status action while the card is still being fetched", () => {

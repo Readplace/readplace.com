@@ -415,18 +415,40 @@ const BUNDLES = [
   {
     entry: path.join(
       PROJECT_ROOT,
+      "src/runtime/web/pages/queue/queue-focus.client.ts",
+    ),
+    outfile: path.join(OUT_DIR, "queue-focus.client.js"),
+    globalName: "QueueFocus",
+    footer: [
+      // htmx:beforeSwap fires on the element about to be swapped; the queue's
+      // card mutations remove the card the user acted on, so this re-homes
+      // focus after the swap settles. Both listeners live on body so they
+      // survive the target's own removal.
+      "QueueFocus.initQueueFocus({",
+      "  document: window.document,",
+      "  addBeforeSwapListener: function (cb) { window.document.body.addEventListener('htmx:beforeSwap', function (e) { cb(e.target); }); },",
+      "  addAfterSettleListener: function (cb) { window.document.body.addEventListener('htmx:afterSettle', cb); }",
+      "});",
+    ].join("\n"),
+  },
+  {
+    entry: path.join(
+      PROJECT_ROOT,
       "src/runtime/web/shared/toast/toast.client.ts",
     ),
     outfile: path.join(OUT_DIR, "toast.client.js"),
     globalName: "Toast",
     footer: [
       // Loaded with `defer`, so the DOM is parsed before this runs and the
-      // initial scan sees any toast already in the document. The swap
-      // listener catches toasts that arrive inside a swapped <main>.
+      // initial scan sees any toast already in the document. afterSwap catches
+      // a toast that arrives inside a swapped <main>; oobAfterSwap catches one
+      // delivered out-of-band (the card-scoped status mutation), whose primary
+      // target is removed so afterSwap may fire on a detached node and never
+      // reach body.
       "Toast.initToastDismiss({",
       "  document: window.document,",
       "  setTimeoutFn: function (cb, ms) { return window.setTimeout(cb, ms); },",
-      "  addSwapListener: function (cb) { document.body.addEventListener('htmx:afterSwap', cb); }",
+      "  addSwapListener: function (cb) { document.body.addEventListener('htmx:afterSwap', cb); document.body.addEventListener('htmx:oobAfterSwap', cb); }",
       "});",
     ].join("\n"),
   },

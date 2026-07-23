@@ -138,6 +138,15 @@ No custom `*.client.js` is needed when htmx covers the interaction. Reserve `*.c
 
 IMPORTANT: Ask for human intervention whenever a deviation from htmx is needed away from this basic pattern for SPA navigation.
 
+#### Sanctioned deviation: card-scoped mutation fragments
+
+The boosted-`<main>` pattern above re-renders and re-ships the whole listing for every mutation. Where a mutation's visible effect is just "this one row disappears" — the queue's card **Mark as read / unread / Delete** — the maintainer has approved a narrower response. **This deviation is already decided; implement or extend it, don't re-litigate or revert it back to a full-`<main>` swap.** The shape:
+
+- **A URL marker selects the representation, not the behaviour.** The card affordance's action URL carries a `swap=card` query param (see `withCardSwapMarker` in `queue.viewmodel.ts`); the handler opts into the fragment response only when `req.get("HX-Request") === "true"` **and** `req.query.swap === "card"`. A no-JS submit (no `HX-Request`) and every other POST to the shared route (the toast Undo, the reader's mark-read, Siren clients) keep the byte-identical 303 baseline. The marker is a hint about the wanted response, never trusted state.
+- **The server decides sync vs. re-render — never the client.** The common case swaps the card out (`hx-target="closest .queue-article" hx-swap="outerHTML"`, empty primary body) and delivers toast/counts out-of-band. After the write the handler re-reads the page itself and, when a card-removal would desync the DOM (the page emptied, the mutation was a no-op, or — for delete — the page refilled from the next page), answers with the full listing plus `HX-Retarget: main` / `HX-Reswap` / `HX-Reselect` headers so it lands exactly where the 303 → GET swap would. Do **not** trust a client-reported count of visible rows to make this decision.
+
+See `respondToCardMutation` and `renderQueueListing` in `queue.page.ts` for the reference implementation.
+
 ### No Side Effects on GET
 
 Never mutate state on a GET — proxies cache them, prefetchers fire them, crawlers hit them. For URLs that need to trigger a mutation (e.g., a share-able permalink), render a page with an auto-submitting `<form method="POST">`:

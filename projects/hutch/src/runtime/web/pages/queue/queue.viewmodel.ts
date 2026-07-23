@@ -118,16 +118,27 @@ function toSubscriptionBannerState(access: EffectiveAccess, now: Date): Subscrip
 	}
 }
 
+/** Appends the `swap=card` marker to a card action URL. It tells the status and
+ * delete handlers that this POST came from the card affordance (not the toast
+ * Undo, the reader's mark-read, or a Siren client, all of which share the same
+ * routes), so — and only so — an htmx request may get the card-scoped fragment
+ * response instead of the full-listing 303. The marker is a response-shape hint,
+ * never trusted state: the handler still computes the resulting page itself. */
+function withCardSwapMarker(returnQuery: string): string {
+	return returnQuery ? `${returnQuery}&swap=card` : "?swap=card";
+}
+
 function toArticleActions(
 	article: { id: string; status: string },
 	returnQuery: string,
 ): ArticleAction[] {
 	const actions: ArticleAction[] = [];
+	const cardQuery = withCardSwapMarker(returnQuery);
 
 	if (article.status !== "read") {
 		actions.push({
 			method: "POST",
-			url: `/queue/${article.id}/status${returnQuery}`,
+			url: `/queue/${article.id}/status${cardQuery}`,
 			text: "Mark as read",
 			title: "Mark as read",
 			testAction: "mark-read",
@@ -138,7 +149,7 @@ function toArticleActions(
 	if (article.status !== "unread") {
 		actions.push({
 			method: "POST",
-			url: `/queue/${article.id}/status${returnQuery}`,
+			url: `/queue/${article.id}/status${cardQuery}`,
 			text: "Mark as unread",
 			title: "Mark as unread",
 			testAction: "mark-unread",
@@ -148,7 +159,7 @@ function toArticleActions(
 
 	actions.push({
 		method: "POST",
-		url: `/queue/${article.id}/delete${returnQuery}`,
+		url: `/queue/${article.id}/delete${cardQuery}`,
 		text: "×",
 		title: "Delete",
 		testAction: "delete",

@@ -14,9 +14,8 @@ export interface ActionDisplayModel extends ArticleAction {
 	buttonClass: string;
 	disabled: boolean;
 	/** "with-loader" for the mark-read/unread toggle — it renders the in-flight
-	 * loader affordance and hx-disabled-elt so the button behaves like the
-	 * reader's mark-read control during the htmx <main> swap. "bare" for the
-	 * delete action, a static icon that opts out of the loader treatment. */
+	 * loader affordance (the three animated dots). "bare" for the delete action,
+	 * a static icon that opts out of the loader treatment. */
 	affordance: "with-loader" | "bare";
 }
 

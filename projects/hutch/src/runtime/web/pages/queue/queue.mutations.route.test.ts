@@ -514,6 +514,239 @@ describe("Queue routes", () => {
 		});
 	});
 
+	describe("card-scoped mutations (HX-Request + swap=card)", () => {
+		type Agent = Awaited<ReturnType<typeof loginAgent>>;
+
+		async function saveMany(agent: Agent, count: number): Promise<void> {
+			for (let i = 0; i < count; i++) {
+				await agent.post("/queue/save").type("form").send({ url: `https://example.com/card-${i}` });
+			}
+		}
+
+		async function firstCardId(agent: Agent, path = "/queue"): Promise<string> {
+			const doc = new JSDOM((await agent.get(path)).text).window.document;
+			const id = doc.querySelector("[data-test-article-list] .queue-article")?.getAttribute("data-test-article");
+			assert(id, "a card must be listed");
+			return id;
+		}
+
+		function fragment(text: string): Document {
+			return new JSDOM(`<main>${text}</main>`).window.document;
+		}
+
+		it("marks a card read on a multi-row page: 200, no redirect, empty primary, OOB toast + counts", async () => {
+			const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
+			const agent = await loginAgent(harness.server, harness.auth);
+			await saveMany(agent, 2);
+			const id = await firstCardId(agent);
+
+			const response = await agent
+				.post(`/queue/${id}/status?swap=card`)
+				.set("HX-Request", "true")
+				.type("form")
+				.send({ status: "read" });
+
+			assert.equal(response.status, 200);
+			assert.equal(response.headers.location, undefined);
+			const doc = fragment(response.text);
+			// The primary swap body is empty — no card markup — so htmx removes the card.
+			assert.equal(doc.querySelectorAll(".queue-article").length, 0);
+
+			const toastMount = doc.getElementById("status-toast");
+			assert(toastMount, "status toast must arrive out-of-band");
+			assert.equal(toastMount.getAttribute("hx-swap-oob"), "outerHTML");
+			assert.equal(toastMount.querySelector("[data-test-toast-message]")?.textContent, "Marked as read");
+			const undoForm = toastMount.querySelector("[data-test-toast-action]")?.closest("form");
+			assert.equal(
+				undoForm?.getAttribute("action"),
+				`/queue/${id}/status?utm_source=queue-toast&utm_medium=internal&utm_content=undo`,
+			);
+			assert.equal(undoForm?.querySelector("input[name='status']")?.getAttribute("value"), "unread");
+
+			const counts = doc.getElementById("queue-counts");
+			assert(counts, "counts loader must re-arm out-of-band");
+			assert.equal(counts.getAttribute("hx-swap-oob"), "outerHTML");
+			assert.equal(counts.getAttribute("hx-trigger"), "load");
+		});
+
+		it("deletes a card on a multi-row page: 200, empty primary, OOB counts, no toast", async () => {
+			const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
+			const agent = await loginAgent(harness.server, harness.auth);
+			await saveMany(agent, 2);
+			const id = await firstCardId(agent);
+
+			const response = await agent
+				.post(`/queue/${id}/delete?swap=card`)
+				.set("HX-Request", "true");
+
+			assert.equal(response.status, 200);
+			assert.equal(response.headers.location, undefined);
+			const doc = fragment(response.text);
+			assert.equal(doc.querySelectorAll(".queue-article").length, 0);
+			// Delete carries no flash today, so the only out-of-band element is counts.
+			assert.deepEqual(
+				Array.from(doc.querySelectorAll("[hx-swap-oob]"), (el) => el.id),
+				["queue-counts"],
+			);
+		});
+
+		it("marks the last unread card read: full-listing fallback retargeted to main with the confirmation toast", async () => {
+			const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
+			const agent = await loginAgent(harness.server, harness.auth);
+			await saveMany(agent, 1);
+			const id = await firstCardId(agent);
+
+			const response = await agent
+				.post(`/queue/${id}/status?swap=card`)
+				.set("HX-Request", "true")
+				.type("form")
+				.send({ status: "read" });
+
+			assert.equal(response.status, 200);
+			assert.equal(response.headers.location, undefined);
+			assert.equal(response.headers["hx-retarget"], "main");
+			assert.equal(response.headers["hx-reswap"], "outerHTML show:none");
+			assert.equal(response.headers["hx-reselect"], "main");
+			const doc = new JSDOM(response.text).window.document;
+			assert(doc.querySelector("[data-test-empty-queue]"), "the emptied unread tab shows its empty state");
+			assert.equal(doc.querySelector("[data-test-toast-message]")?.textContent, "Marked as read");
+		});
+
+		it("deletes the last card: full-listing fallback with the empty state and no toast", async () => {
+			const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
+			const agent = await loginAgent(harness.server, harness.auth);
+			await saveMany(agent, 1);
+			const id = await firstCardId(agent);
+
+			const response = await agent
+				.post(`/queue/${id}/delete?swap=card`)
+				.set("HX-Request", "true");
+
+			assert.equal(response.status, 200);
+			assert.equal(response.headers["hx-retarget"], "main");
+			const doc = new JSDOM(response.text).window.document;
+			assert(doc.querySelector("[data-test-empty-queue]"), "the emptied tab shows its empty state");
+			assert.equal(doc.querySelector("[data-test-toast]"), null);
+		});
+
+		it("marks the last card on page 2 read: fallback clamped to the last valid page", async () => {
+			const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
+			const agent = await loginAgent(harness.server, harness.auth);
+			await saveMany(agent, 21);
+			const id = await firstCardId(agent, "/queue?page=2");
+
+			const response = await agent
+				.post(`/queue/${id}/status?page=2&swap=card`)
+				.set("HX-Request", "true")
+				.type("form")
+				.send({ status: "read" });
+
+			assert.equal(response.status, 200);
+			assert.equal(response.headers["hx-retarget"], "main");
+			const doc = new JSDOM(response.text).window.document;
+			const cards = doc.querySelectorAll("[data-test-article-list] .queue-article");
+			assert.equal(cards.length, 20, "the clamped page 1 shows the full 20 remaining unread items");
+			assert.ok(
+				!Array.from(cards).some((el) => el.getAttribute("data-test-article") === id),
+				"the just-read item is no longer listed",
+			);
+			assert.equal(doc.querySelector("[data-test-toast-message]")?.textContent, "Marked as read");
+		});
+
+		it("deletes from a still-full page: fallback re-renders the refilled page", async () => {
+			const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
+			const agent = await loginAgent(harness.server, harness.auth);
+			await saveMany(agent, 21);
+			const id = await firstCardId(agent);
+
+			const response = await agent
+				.post(`/queue/${id}/delete?swap=card`)
+				.set("HX-Request", "true");
+
+			assert.equal(response.status, 200);
+			assert.equal(response.headers["hx-retarget"], "main");
+			const doc = new JSDOM(response.text).window.document;
+			assert.equal(
+				doc.querySelectorAll("[data-test-article-list] .queue-article").length,
+				20,
+				"the page refilled from page 2 and re-rendered full",
+			);
+		});
+
+		it("marks a card read on a still-full page: card removal, drift accepted (no fallback)", async () => {
+			const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
+			const agent = await loginAgent(harness.server, harness.auth);
+			await saveMany(agent, 21);
+			const id = await firstCardId(agent);
+
+			const response = await agent
+				.post(`/queue/${id}/status?swap=card`)
+				.set("HX-Request", "true")
+				.type("form")
+				.send({ status: "read" });
+
+			assert.equal(response.status, 200);
+			assert.equal(response.headers["hx-retarget"], undefined);
+			const doc = fragment(response.text);
+			assert.equal(doc.querySelectorAll(".queue-article").length, 0, "just the card is removed");
+			assert(doc.getElementById("status-toast"), "status still confirms with a toast");
+		});
+
+		it("resyncs with the full listing when the mutation did not apply", async () => {
+			const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
+			const agent = await loginAgent(harness.server, harness.auth);
+			await saveMany(agent, 1);
+
+			// Well-formed hash id that resolves to no owned article → updateArticleStatus false.
+			const response = await agent
+				.post("/queue/00000000000000000000000000000000/status?swap=card")
+				.set("HX-Request", "true")
+				.type("form")
+				.send({ status: "read" });
+
+			assert.equal(response.status, 200);
+			assert.equal(response.headers["hx-retarget"], "main");
+			const doc = new JSDOM(response.text).window.document;
+			assert.equal(
+				doc.querySelectorAll("[data-test-article-list] .queue-article").length,
+				1,
+				"the DOM resyncs to the untouched listing rather than removing a card",
+			);
+			assert.equal(doc.querySelector("[data-test-toast]"), null, "a no-op mutation shows no toast");
+		});
+
+		it("keeps the 303 baseline for a no-JS submit that carries the marker but no HX-Request", async () => {
+			const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
+			const agent = await loginAgent(harness.server, harness.auth);
+			await saveMany(agent, 2);
+			const id = await firstCardId(agent);
+
+			const response = await agent
+				.post(`/queue/${id}/status?swap=card`)
+				.type("form")
+				.send({ status: "read" });
+
+			assert.equal(response.status, 303);
+			assert.equal(response.headers.location, `/queue?status_changed=read&status_article=${id}`);
+		});
+
+		it("keeps the 303 baseline for an htmx request without the card marker (the toast Undo shape)", async () => {
+			const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
+			const agent = await loginAgent(harness.server, harness.auth);
+			await saveMany(agent, 2);
+			const id = await firstCardId(agent);
+
+			const response = await agent
+				.post(`/queue/${id}/status`)
+				.set("HX-Request", "true")
+				.type("form")
+				.send({ status: "read" });
+
+			assert.equal(response.status, 303);
+			assert.equal(response.headers.location, `/queue?status_changed=read&status_article=${id}`);
+		});
+	});
+
 	describe("POST /queue/:id/summary-toggle", () => {
 		async function saveAndGetArticleId(agent: Awaited<ReturnType<typeof loginAgent>>): Promise<string> {
 			await agent.post("/queue/save").type("form").send({ url: "https://example.com/article" });

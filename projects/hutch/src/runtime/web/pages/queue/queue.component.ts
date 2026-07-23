@@ -7,7 +7,6 @@ import type { DeviceClass } from "@packages/web-analytics";
 import {
 	formatTabCountLabel,
 	render,
-	renderToast,
 	withInternalTracking,
 	SUBSCRIBE_CTA_LABEL,
 } from "@packages/web-shell";
@@ -15,6 +14,7 @@ import type { LocalTime, PageBody } from "@packages/web-shell";
 
 import { QUEUE_STYLES } from "./queue.styles";
 import { renderQueueCard, toQueueCardDisplayModel } from "./queue-card/queue-card.component";
+import { renderQueueCountsTrigger, renderQueueStatusToast } from "./queue-mutation-fragment";
 import { SAVE_SURFACES_SHORT_PHRASE } from "../../shared/client-surface-phrases";
 import type { QueueViewModel, SubscriptionBannerState } from "./queue.viewmodel";
 import { buildQueueUrl } from "./queue.url";
@@ -22,9 +22,7 @@ import { tabQuery, type TabId } from "./queue.tabs";
 
 const QUEUE_TEMPLATE = readFileSync(join(__dirname, "queue.template.html"), "utf-8");
 
-/** Long enough to read the message and reach for Undo, short enough not to
- * linger; the global toast.client script removes it after this delay. */
-const STATUS_TOAST_DISMISS_MS = 6000;
+const QUEUE_FOCUS_SCRIPT = `<script src="/client-dist/queue-focus.client.js" defer></script>`;
 
 interface QueueDisplayModel {
 	saveError?: string;
@@ -53,7 +51,7 @@ interface QueueDisplayModel {
 	prevUrl?: string;
 	nextUrl?: string;
 	currentPage: number;
-	countsUrl: string;
+	countsTriggerHtml: string;
 	subscriptionBannerStateClass: string;
 	subscriptionBannerIsTrialCountdown: boolean;
 	subscriptionBannerIsCancellationScheduled: boolean;
@@ -112,20 +110,7 @@ function toQueueDisplayModel(vm: QueueViewModel, options: { installed: boolean; 
 		saveError: vm.errors?.[0]?.message,
 		saveErrorCode: vm.saveErrorCode,
 		importFlash: vm.importFlash,
-		statusToastHtml: vm.statusFlash
-			? renderToast({
-				message: vm.statusFlash.message,
-				dismissMs: STATUS_TOAST_DISMISS_MS,
-				actions: [
-					{
-						method: "POST",
-						url: withInternalTracking(vm.statusFlash.undoUrl, { source: "queue-toast", content: "undo" }),
-						label: "Undo",
-						fields: [{ name: "status", value: vm.statusFlash.undoStatus }],
-					},
-				],
-			})
-			: "",
+		statusToastHtml: vm.statusFlash ? renderQueueStatusToast(vm.statusFlash) : "",
 		hasImportSkipped: Boolean(vm.importSkipped && vm.importSkipped.entries.length > 0),
 		importSkippedEntries: vm.importSkipped?.entries ?? [],
 		importSkippedAndMore: vm.importSkipped?.andMore,
@@ -147,7 +132,7 @@ function toQueueDisplayModel(vm: QueueViewModel, options: { installed: boolean; 
 		filterReadClass: filterLinkClass(activeTab === "done"),
 		filterUnreadUrl: withInternalTracking(vm.filterUrls.unread, { source: "queue-filters", content: "filter-unread" }),
 		filterReadUrl: withInternalTracking(vm.filterUrls.read, { source: "queue-filters", content: "filter-read" }),
-		countsUrl: vm.countsUrl,
+		countsTriggerHtml: renderQueueCountsTrigger({ countsUrl: vm.countsUrl, oob: false }),
 		sortUrl,
 		sortLabel,
 		showPagination: Boolean(vm.paginationUrls.prev || vm.paginationUrls.next),
@@ -194,7 +179,7 @@ export function QueuePage(vm: QueueViewModel, options: { deviceClass: DeviceClas
 	const displayModel = toQueueDisplayModel(vm, { installed: options.installed ?? false, savedArticle: options.savedArticle ?? false, platform: options.platform ?? "other", hasInstallableClient: options.hasInstallableClient ?? false, onboardingDismissed: options.onboardingDismissed ?? false, deviceClass: options.deviceClass });
 	const content = render(QUEUE_TEMPLATE, { ...displayModel, saveUrl });
 
-	const scriptParts: string[] = [NAV_HIDE_SCRIPT];
+	const scriptParts: string[] = [NAV_HIDE_SCRIPT, QUEUE_FOCUS_SCRIPT];
 	if (saveUrl) scriptParts.push(AUTO_SUBMIT_SCRIPT);
 
 	return {

@@ -240,7 +240,7 @@ describe("Queue routes", () => {
 			expect(doc.querySelector("[data-test-action='delete']")?.textContent).toBe("×");
 		});
 
-		it("should enable htmx boost on the mark-read action form", async () => {
+		it("boosts the mark-read action form and scopes its swap to the card", async () => {
 			const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
 			const { auth } = harness;
 			const agent = await loginAgent(harness.server, auth);
@@ -255,9 +255,16 @@ describe("Queue routes", () => {
 			const readForm = doc.querySelector("[data-test-action='mark-read']")?.closest("form");
 
 			expect(readForm?.getAttribute("hx-boost")).toBe("true");
-			expect(readForm?.getAttribute("hx-target")).toBe("main");
-			expect(readForm?.getAttribute("hx-select")).toBe("main");
-			expect(readForm?.getAttribute("hx-swap")).toBe("outerHTML show:none");
+			expect(readForm?.getAttribute("hx-target")).toBe("closest .queue-article");
+			// hx-select is dropped so htmx keeps the empty primary body (which removes
+			// the card) and the out-of-band toast/counts fragments; the full-listing
+			// fallback re-establishes selection with an HX-Reselect header instead.
+			expect(readForm?.hasAttribute("hx-select")).toBe(false);
+			expect(readForm?.getAttribute("hx-swap")).toBe("outerHTML");
+			// Boosted forms push history by default; the POST action URL must not
+			// become a history entry a refresh would re-GET.
+			expect(readForm?.getAttribute("hx-push-url")).toBe("false");
+			expect(readForm?.getAttribute("hx-disabled-elt")).toBe("find button");
 		});
 	});
 
