@@ -101,6 +101,23 @@ describe("Inbox address routes", () => {
 			const doc = new JSDOM(response.text).window.document;
 			expect(alertKeys(doc)).toEqual(["limit"]);
 		});
+
+		it("echoes the submitted name after a limit rejection without flagging the field", async () => {
+			const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
+			const agent = await loginAgent(harness.server, harness.auth);
+
+			const response = await agent.get("/inbox/addresses?error=limit&name=netflix");
+
+			expect(response.status).toBe(200);
+			const doc = new JSDOM(response.text).window.document;
+			expect(alertKeys(doc)).toEqual(["limit"]);
+			const input = doc.querySelector("[data-test-inbox-name-input]");
+			expect(input?.getAttribute("value")).toBe("netflix");
+			expect(input?.getAttribute("aria-invalid")).toBe("false");
+			expect(input?.hasAttribute("aria-describedby")).toBe(false);
+			expect(input?.hasAttribute("autofocus")).toBe(false);
+			expect(doc.querySelectorAll("#inbox-name-error")).toHaveLength(0);
+		});
 	});
 
 	describe("POST /inbox/create", () => {
@@ -151,13 +168,22 @@ describe("Inbox address routes", () => {
 			expect(response.headers.location).toBe("/inbox/addresses?error=name");
 		});
 
-		it("surfaces the invalid-name alert on the redirect target", async () => {
+		it("surfaces the invalid-name alert on the redirect target, wired to the focused input", async () => {
 			const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
 			const agent = await loginAgent(harness.server, harness.auth);
 
 			const landing = await agent.get("/inbox/addresses?error=name");
 
-			expect(alertKeys(new JSDOM(landing.text).window.document)).toEqual(["name-invalid"]);
+			const doc = new JSDOM(landing.text).window.document;
+			expect(alertKeys(doc)).toEqual(["name-invalid"]);
+			const input = doc.querySelector("[data-test-inbox-name-input]");
+			expect(input?.getAttribute("aria-invalid")).toBe("true");
+			expect(input?.getAttribute("aria-describedby")).toBe("inbox-name-error");
+			expect(input?.hasAttribute("autofocus")).toBe(true);
+			expect(doc.getElementById("inbox-name-error")).toBe(
+				doc.querySelector('[data-test-inbox-alert="name-invalid"]'),
+			);
+			expect(input?.getAttribute("value")).toBe("");
 		});
 
 		it("rejects a name the user already holds on a live address with error=name-taken", async () => {
@@ -171,11 +197,17 @@ describe("Inbox address routes", () => {
 				.send({ name: "Netflix" });
 
 			expect(dup.status).toBe(303);
-			expect(dup.headers.location).toBe("/inbox/addresses?error=name-taken");
-			const doc = new JSDOM(
-				(await agent.get("/inbox/addresses?error=name-taken")).text,
-			).window.document;
+			expect(dup.headers.location).toBe("/inbox/addresses?error=name-taken&name=netflix");
+			const doc = new JSDOM((await agent.get(dup.headers.location)).text).window.document;
 			expect(alertKeys(doc)).toEqual(["name-taken"]);
+			const input = doc.querySelector("[data-test-inbox-name-input]");
+			expect(input?.getAttribute("value")).toBe("netflix");
+			expect(input?.getAttribute("aria-invalid")).toBe("true");
+			expect(input?.getAttribute("aria-describedby")).toBe("inbox-name-error");
+			expect(input?.hasAttribute("autofocus")).toBe(true);
+			expect(doc.getElementById("inbox-name-error")?.textContent).toContain(
+				"already have an active inbox email",
+			);
 			// Only the first address was minted — the duplicate did not create a second.
 			expect(doc.querySelectorAll("[data-test-inbox-item]")).toHaveLength(1);
 		});
@@ -271,12 +303,34 @@ describe("Inbox address routes", () => {
 				.send({ name: "overflow" });
 
 			expect(response.status).toBe(303);
-			expect(response.headers.location).toBe("/inbox/addresses?error=limit");
+			expect(response.headers.location).toBe("/inbox/addresses?error=limit&name=overflow");
 			expect(errors.some((m) => m.includes("[Inbox] Failed to create"))).toBe(false);
 
-			const listed = await agent.get("/inbox/addresses?error=limit");
+			const listed = await agent.get(response.headers.location);
 			const doc = new JSDOM(listed.text).window.document;
 			expect(alertKeys(doc)).toEqual(["limit"]);
+			expect(doc.querySelector("[data-test-inbox-name-input]")?.getAttribute("value")).toBe(
+				"overflow",
+			);
+		});
+
+		it("keeps a single describedby target when the limit banner co-renders with the duplicate-name error", async () => {
+			const fixture = createDefaultTestAppFixture(TEST_APP_ORIGIN);
+			const harness = useApp(fixture);
+			const agent = await loginAgent(harness.server, harness.auth);
+			const userId = (await harness.auth.findUserByEmail("test@example.com"))?.userId;
+			assert(userId, "seeded login user must exist");
+			await seedAddressesToCap(fixture, userId);
+
+			const dup = await agent.post("/inbox/create").type("form").send({ name: SEED_NAME });
+
+			expect(dup.headers.location).toBe(`/inbox/addresses?error=name-taken&name=${SEED_NAME}`);
+			const doc = new JSDOM((await agent.get(dup.headers.location)).text).window.document;
+			expect(alertKeys(doc)).toEqual(["name-taken", "limit"]);
+			expect(doc.querySelectorAll("#inbox-name-error")).toHaveLength(1);
+			expect(
+				doc.querySelector("[data-test-inbox-name-input]")?.getAttribute("aria-describedby"),
+			).toBe("inbox-name-error");
 		});
 
 		it("redirects gracefully and logs when address creation fails", async () => {
@@ -297,7 +351,7 @@ describe("Inbox address routes", () => {
 				.send({ name: "netflix" });
 
 			expect(response.status).toBe(303);
-			expect(response.headers.location).toBe("/inbox/addresses?error=create");
+			expect(response.headers.location).toBe("/inbox/addresses?error=create&name=netflix");
 			expect(errors.some((m) => m.includes("[Inbox] Failed to create"))).toBe(true);
 		});
 
@@ -319,7 +373,7 @@ describe("Inbox address routes", () => {
 				.send({ name: "netflix" });
 
 			expect(response.status).toBe(303);
-			expect(response.headers.location).toBe("/inbox/addresses?error=create");
+			expect(response.headers.location).toBe("/inbox/addresses?error=create&name=netflix");
 			expect(loggedErrors[0]).toBeInstanceOf(Error);
 			expect(loggedErrors[0]?.message).toBe("dynamo down");
 		});
@@ -340,16 +394,40 @@ describe("Inbox address routes", () => {
 			const landing = await agent.get(created.headers.location);
 
 			expect(landing.status).toBe(200);
-			expect(alertKeys(new JSDOM(landing.text).window.document)).toEqual(["create-failed"]);
+			const doc = new JSDOM(landing.text).window.document;
+			expect(alertKeys(doc)).toEqual(["create-failed"]);
+			const input = doc.querySelector("[data-test-inbox-name-input]");
+			expect(input?.getAttribute("value")).toBe("netflix");
+			expect(input?.getAttribute("aria-invalid")).toBe("false");
+			expect(input?.hasAttribute("aria-describedby")).toBe(false);
 		});
 
-		it("renders no alert at all on a normal visit", async () => {
+		it("renders no alert at all on a normal visit and leaves the field empty and unflagged", async () => {
 			const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
 			const agent = await loginAgent(harness.server, harness.auth);
 
 			const response = await agent.get("/inbox/addresses");
 
-			expect(alertKeys(new JSDOM(response.text).window.document)).toEqual([]);
+			const doc = new JSDOM(response.text).window.document;
+			expect(alertKeys(doc)).toEqual([]);
+			const input = doc.querySelector("[data-test-inbox-name-input]");
+			expect(input?.getAttribute("value")).toBe("");
+			expect(input?.getAttribute("aria-invalid")).toBe("false");
+			expect(input?.hasAttribute("aria-describedby")).toBe(false);
+			expect(input?.hasAttribute("autofocus")).toBe(false);
+		});
+
+		it("reflects only a valid alias from ?name=, dropping tampered input that normalizes to nothing", async () => {
+			const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
+			const agent = await loginAgent(harness.server, harness.auth);
+
+			const response = await agent.get("/inbox/addresses?name=%F0%9F%8E%89");
+
+			expect(response.status).toBe(200);
+			const input = new JSDOM(response.text).window.document.querySelector(
+				"[data-test-inbox-name-input]",
+			);
+			expect(input?.getAttribute("value")).toBe("");
 		});
 
 		it("renders the visible create confirmation on the redirect target", async () => {

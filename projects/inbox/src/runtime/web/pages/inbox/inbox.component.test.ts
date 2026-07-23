@@ -34,14 +34,14 @@ function alertKeys(doc: Document): (string | null)[] {
 
 describe("InboxPage", () => {
 	it("noindexes the page and ships the copy-enhancement script", () => {
-		const page = InboxPage({ addresses: [], limitReached: false });
+		const page = InboxPage({ addresses: [], limitReached: false, submittedName: "" });
 		assert.equal(page.seo.robots, "noindex, nofollow");
 		assert.equal(page.bodyClass, "page-inbox");
 		assert.match(page.scripts ?? "", /inbox\.client\.js/);
 	});
 
 	it("shows an empty state with a create CTA when the user has no addresses", () => {
-		const doc = parse(InboxPage({ addresses: [], limitReached: false }).content.html);
+		const doc = parse(InboxPage({ addresses: [], limitReached: false, submittedName: "" }).content.html);
 		assert.ok(doc.querySelector("[data-test-inbox-empty]"), "empty state must render");
 		assert.ok(doc.querySelector("[data-test-inbox-create]"), "create CTA must render");
 		const list = doc.querySelector("[data-test-inbox-list]");
@@ -50,14 +50,14 @@ describe("InboxPage", () => {
 	});
 
 	it("switches the same list element to its populated state once an address exists", () => {
-		const doc = parse(InboxPage({ addresses: [entry()], limitReached: false }).content.html);
+		const doc = parse(InboxPage({ addresses: [entry()], limitReached: false, submittedName: "" }).content.html);
 		const list = doc.querySelector("[data-test-inbox-list]");
 		assert.ok(list, "the address list must render");
 		assert.equal(list.getAttribute("data-test-inbox-addresses-state"), "list");
 	});
 
 	it("renders each address into a selectable read-only field with a copy button", () => {
-		const doc = parse(InboxPage({ addresses: [entry()], limitReached: false }).content.html);
+		const doc = parse(InboxPage({ addresses: [entry()], limitReached: false, submittedName: "" }).content.html);
 		const field = doc.querySelector(".inbox-copyable__value");
 		assert.equal(field?.getAttribute("value"), "in-3f9a2c@read.place");
 		assert.equal(field?.getAttribute("readonly"), "");
@@ -86,6 +86,7 @@ describe("InboxPage", () => {
 					}),
 				],
 				limitReached: false,
+				submittedName: "",
 			}).content.html,
 		);
 
@@ -140,6 +141,7 @@ describe("InboxPage", () => {
 					}),
 				],
 				limitReached: false,
+				submittedName: "",
 			}).content.html,
 		);
 
@@ -177,6 +179,7 @@ describe("InboxPage", () => {
 					}),
 				],
 				limitReached: false,
+				submittedName: "",
 			}).content.html,
 		);
 		assert.equal(doc.querySelectorAll("[data-test-inbox-item]").length, 2);
@@ -188,7 +191,7 @@ describe("InboxPage", () => {
 	});
 
 	it("points the create and disable forms at their routes", () => {
-		const doc = parse(InboxPage({ addresses: [entry()], limitReached: false }).content.html);
+		const doc = parse(InboxPage({ addresses: [entry()], limitReached: false, submittedName: "" }).content.html);
 		assert.equal(
 			doc.querySelector(".inbox__create")?.getAttribute("action"),
 			"/inbox/create",
@@ -204,6 +207,7 @@ describe("InboxPage", () => {
 			InboxPage({
 				addresses: [entry({ name: AliasNameSchema.parse("netflix") })],
 				limitReached: false,
+				submittedName: "",
 			}).content.html,
 		);
 		const label = doc.querySelector("[data-test-inbox-name]");
@@ -211,7 +215,7 @@ describe("InboxPage", () => {
 	});
 
 	it("offers a required, length-capped name input on the create form", () => {
-		const doc = parse(InboxPage({ addresses: [], limitReached: false }).content.html);
+		const doc = parse(InboxPage({ addresses: [], limitReached: false, submittedName: "" }).content.html);
 		const input = doc.querySelector("[data-test-inbox-name-input]");
 		assert.ok(input, "name input must render");
 		assert.equal(input.getAttribute("name"), "name");
@@ -220,22 +224,36 @@ describe("InboxPage", () => {
 	});
 
 	it("shows exactly the alerts its inputs call for, and none otherwise", () => {
-		assert.deepEqual(alertKeys(parse(InboxPage({ addresses: [], limitReached: false }).content.html)), []);
 		assert.deepEqual(
 			alertKeys(
-				parse(InboxPage({ addresses: [], limitReached: false, nameInvalid: true }).content.html),
+				parse(InboxPage({ addresses: [], limitReached: false, submittedName: "" }).content.html),
+			),
+			[],
+		);
+		assert.deepEqual(
+			alertKeys(
+				parse(
+					InboxPage({ addresses: [], limitReached: false, nameInvalid: true, submittedName: "" })
+						.content.html,
+				),
 			),
 			["name-invalid"],
 		);
 		assert.deepEqual(
 			alertKeys(
-				parse(InboxPage({ addresses: [], limitReached: false, nameTaken: true }).content.html),
+				parse(
+					InboxPage({ addresses: [], limitReached: false, nameTaken: true, submittedName: "" })
+						.content.html,
+				),
 			),
 			["name-taken"],
 		);
 		assert.deepEqual(
 			alertKeys(
-				parse(InboxPage({ addresses: [], limitReached: false, createFailed: true }).content.html),
+				parse(
+					InboxPage({ addresses: [], limitReached: false, createFailed: true, submittedName: "" })
+						.content.html,
+				),
 			),
 			["create-failed"],
 		);
@@ -243,14 +261,17 @@ describe("InboxPage", () => {
 
 	it("stacks a rejected submission above the standing cap notice, in that order", () => {
 		const doc = parse(
-			InboxPage({ addresses: [entry()], limitReached: true, nameTaken: true }).content.html,
+			InboxPage({ addresses: [entry()], limitReached: true, nameTaken: true, submittedName: "" })
+				.content.html,
 		);
 
 		assert.deepEqual(alertKeys(doc), ["name-taken", "limit"]);
 	});
 
 	it("names the cap in the limit message so the reader knows the number", () => {
-		const doc = parse(InboxPage({ addresses: [entry()], limitReached: true }).content.html);
+		const doc = parse(
+			InboxPage({ addresses: [entry()], limitReached: true, submittedName: "" }).content.html,
+		);
 
 		const message = doc.querySelector('[data-test-inbox-alert="limit"]');
 		assert.ok(message, "limit message must render when the cap is reached");
@@ -274,6 +295,7 @@ describe("InboxPage", () => {
 					}),
 				],
 				limitReached: false,
+				submittedName: "",
 			}).content.html,
 		);
 
@@ -306,6 +328,7 @@ describe("InboxPage", () => {
 					}),
 				],
 				limitReached: false,
+				submittedName: "",
 			}).content.html,
 		);
 
@@ -324,7 +347,7 @@ describe("InboxPage", () => {
 	});
 
 	it("keeps the details group rendered but hidden when no address is disabled", () => {
-		const doc = parse(InboxPage({ addresses: [entry()], limitReached: false }).content.html);
+		const doc = parse(InboxPage({ addresses: [entry()], limitReached: false, submittedName: "" }).content.html);
 
 		const group = doc.querySelector("[data-test-inbox-disabled-group]");
 		assert.ok(group, "disabled group must render");
@@ -346,6 +369,7 @@ describe("InboxPage", () => {
 					}),
 				],
 				limitReached: false,
+				submittedName: "",
 			}).content.html,
 		);
 
@@ -355,7 +379,7 @@ describe("InboxPage", () => {
 	});
 
 	it("lays out the page as create, then active, then disabled sections", () => {
-		const doc = parse(InboxPage({ addresses: [entry()], limitReached: false }).content.html);
+		const doc = parse(InboxPage({ addresses: [entry()], limitReached: false, submittedName: "" }).content.html);
 
 		const sections = Array.from(doc.querySelectorAll("[data-test-inbox-section]")).map((el) =>
 			el.getAttribute("data-test-inbox-section"),
@@ -364,7 +388,7 @@ describe("InboxPage", () => {
 	});
 
 	it("orders an active row as name, the one-box copyable address, then right-edge controls", () => {
-		const doc = parse(InboxPage({ addresses: [entry()], limitReached: false }).content.html);
+		const doc = parse(InboxPage({ addresses: [entry()], limitReached: false, submittedName: "" }).content.html);
 
 		const row = doc.querySelector('[data-test-inbox-section="active"] [data-test-inbox-item]');
 		assert.ok(row, "active row must render");
@@ -377,7 +401,7 @@ describe("InboxPage", () => {
 	it("keeps the explainer first and the create form last in the create section, with the limit error and create confirmation between them", () => {
 		const shape = (el: Element) => `${el.tagName.toLowerCase()}.${el.classList[0]}`;
 
-		const withoutErrors = parse(InboxPage({ addresses: [], limitReached: false }).content.html);
+		const withoutErrors = parse(InboxPage({ addresses: [], limitReached: false, submittedName: "" }).content.html);
 		const section = withoutErrors.querySelector('[data-test-inbox-section="create"]');
 		assert.ok(section, "create section must render");
 		assert.deepEqual(Array.from(section.children).map(shape), [
@@ -386,7 +410,9 @@ describe("InboxPage", () => {
 			"form.inbox__create",
 		]);
 
-		const withLimit = parse(InboxPage({ addresses: [], limitReached: true }).content.html);
+		const withLimit = parse(
+			InboxPage({ addresses: [], limitReached: true, submittedName: "" }).content.html,
+		);
 		const limitedSection = withLimit.querySelector('[data-test-inbox-section="create"]');
 		assert.ok(limitedSection, "create section must render");
 		assert.deepEqual(Array.from(limitedSection.children).map(shape), [

@@ -19,8 +19,15 @@ export function InboxPage(params: {
 	nameTaken?: boolean;
 	limitReached: boolean;
 	createdName?: string;
+	submittedName: string;
 }): PageBody {
 	const addresses = toInboxAddressesViewModel(params.addresses);
+	const alerts = toInboxAlerts({
+		createFailed: params.createFailed === true,
+		nameInvalid: params.nameInvalid === true,
+		nameTaken: params.nameTaken === true,
+		limitReached: params.limitReached,
+	});
 	const content = render(INBOX_TEMPLATE, {
 		created: params.createdName !== undefined,
 		createdName: params.createdName ?? "",
@@ -29,12 +36,11 @@ export function InboxPage(params: {
 			...row,
 			copyableHtml: renderCopyableAddress(row),
 		})),
-		alerts: toInboxAlerts({
-			createFailed: params.createFailed === true,
-			nameInvalid: params.nameInvalid === true,
-			nameTaken: params.nameTaken === true,
-			limitReached: params.limitReached,
-		}),
+		alerts,
+		// The input is flagged exactly when an alert carries the describedby
+		// target, so aria-describedby can never point at an id that is not there.
+		nameError: alerts.some((alert) => alert.id !== undefined),
+		submittedName: params.submittedName,
 		createAction: "/inbox/create",
 		disableAction: "/inbox/disable",
 		enableAction: "/inbox/enable",

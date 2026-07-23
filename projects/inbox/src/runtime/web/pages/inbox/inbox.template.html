@@ -15,7 +15,7 @@
         </section>
 
         {{#each alerts}}
-        <p class="inbox__error" role="alert" data-test-inbox-alert="{{key}}">{{message}}</p>
+        <p class="inbox__error" role="alert" {{#if id}}id="{{id}}" {{/if}}data-test-inbox-alert="{{key}}">{{message}}</p>
         {{/each}}
 
         <p class="inbox__success {{#if created}}inbox__success--visible{{else}}inbox__success--hidden{{/if}}" role="status" data-test-inbox-created>{{#if created}}Created the inbox email "{{createdName}}" — it's live in the list below.{{/if}}</p>
@@ -23,7 +23,7 @@
         <form action="{{createAction}}" method="POST" class="inbox__create">
           <label class="inbox__create-label" for="inbox-name">Name this inbox email</label>
           <div class="inbox__create-row">
-            <input class="inbox__name-input" id="inbox-name" name="name" type="text" required maxlength="24" pattern="[A-Za-z0-9 -]+" placeholder="e.g. my-newsletter" autocomplete="off" data-test-inbox-name-input />
+            <input class="inbox__name-input" id="inbox-name" name="name" type="text" value="{{submittedName}}" required maxlength="24" pattern="[A-Za-z0-9 -]+" placeholder="e.g. my-newsletter" autocomplete="off" aria-invalid="{{#if nameError}}true{{else}}false{{/if}}" {{#if nameError}}aria-describedby="inbox-name-error" autofocus {{/if}}data-test-inbox-name-input />
             <button type="submit" class="btn btn--primary btn--field" data-test-inbox-create>Create inbox email</button>
           </div>
         </form>

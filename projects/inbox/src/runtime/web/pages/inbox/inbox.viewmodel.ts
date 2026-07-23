@@ -17,6 +17,10 @@ export type InboxAlertKey = "create-failed" | "name-invalid" | "name-taken" | "l
 export interface InboxAlertViewModel {
 	key: InboxAlertKey;
 	message: string;
+	/** The stable id the name input's aria-describedby points at. Only the two
+	 * field-level complaints about the typed value carry it, and the route derives
+	 * them from a single `error` query value, so at most one alert renders it. */
+	id: "inbox-name-error" | undefined;
 }
 
 export interface InboxAddressesViewModel {
@@ -52,7 +56,11 @@ export function toInboxAlerts(input: {
 	if (input.nameInvalid) keys.push("name-invalid");
 	if (input.nameTaken) keys.push("name-taken");
 	if (input.limitReached) keys.push("limit");
-	return keys.map((key) => ({ key, message: ALERT_MESSAGES[key] }));
+	return keys.map((key) => ({
+		key,
+		message: ALERT_MESSAGES[key],
+		id: key === "name-invalid" || key === "name-taken" ? "inbox-name-error" : undefined,
+	}));
 }
 
 export function toInboxAddressAriaLabels(name: string): {
