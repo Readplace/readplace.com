@@ -18,7 +18,7 @@ import {
 } from "@packages/crawl-article";
 import { isBlockedIpAddress } from "@packages/domain/article";
 import { initCrawlAndFinalizeArticle, initFinalizeArticle } from "@packages/finalize-article";
-import { HutchLogger, consoleLogger } from "@packages/hutch-logger";
+import { HutchLogger, consoleLogger, formatErrorLogLine } from "@packages/hutch-logger";
 import { createDynamoDocumentClient } from "@packages/hutch-storage-client";
 import { getEnv, requireEnv } from "@packages/require-env";
 import { initCrawlEmailLinkPreviewHandler } from "./domain/inbox/crawl-email-link-preview-handler";
@@ -33,14 +33,7 @@ const s3Client = new S3Client({});
 const dynamoClient = createDynamoDocumentClient();
 const logger = HutchLogger.from(consoleLogger);
 const logError = (message: string, error?: Error) =>
-	logger.error(
-		JSON.stringify({
-			level: "ERROR",
-			timestamp: new Date().toISOString(),
-			message,
-			stack: error?.stack,
-		}),
-	);
+	logger.error(formatErrorLogLine({ message, error, now: () => new Date() }));
 const logInfo = (message: string) =>
 	logger.info(
 		JSON.stringify({

@@ -36,6 +36,36 @@ describe("formatErrorLogLine", () => {
 		expect(formatErrorLogLine({ message: "boom", now })).not.toContain("stack");
 	});
 
+	it("carries name and the Node error code/errno/syscall so the failure class is queryable", () => {
+		const error = Object.assign(new Error("spawn curl_chrome131 ENOENT"), {
+			code: "ENOENT",
+			errno: -2,
+			syscall: "spawn curl_chrome131",
+		});
+		const line = JSON.parse(formatErrorLogLine({ message: "boom", error, now }));
+		expect(line.name).toBe("Error");
+		expect(line.code).toBe("ENOENT");
+		expect(line.errno).toBe(-2);
+		expect(line.syscall).toBe("spawn curl_chrome131");
+	});
+
+	it("unwinds an Error cause to its name/message/code — where undici hides the real reason", () => {
+		const cause = Object.assign(new Error("read ECONNRESET"), { code: "ECONNRESET" });
+		const error = new Error("fetch failed", { cause });
+		const line = JSON.parse(formatErrorLogLine({ message: "boom", error, now }));
+		expect(line.cause).toMatchObject({ name: "Error", message: "read ECONNRESET", code: "ECONNRESET" });
+	});
+
+	it("stringifies a non-Error cause rather than dropping it", () => {
+		const error = new Error("wrapped", { cause: "raw string reason" });
+		expect(JSON.parse(formatErrorLogLine({ message: "boom", error, now })).cause).toBe("raw string reason");
+	});
+
+	it("omits the cause key when the Error has none", () => {
+		const line = JSON.parse(formatErrorLogLine({ message: "boom", error: new Error("plain"), now }));
+		expect(line).not.toHaveProperty("cause");
+	});
+
 	// The end the format exists for: a line in this shape must reach the errors
 	// funnel rather than being dropped or filed as business history.
 	it("routes to the errors funnel", () => {
