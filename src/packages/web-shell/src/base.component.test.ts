@@ -249,6 +249,20 @@ describe("Base component", () => {
 		expect(footer?.textContent).toContain("Readplace");
 	});
 
+	it("renders one empty persistent live region for toast announcements, outside <main> so a main-targeted swap never replaces it", () => {
+		const page = createTestPageBody();
+		const result = Base(page, GUEST_STATE).to("text/html");
+		const doc = new JSDOM(result.body).window.document;
+
+		const regions = doc.querySelectorAll("#toast-live-region");
+		expect(regions.length).toBe(1);
+		const region = regions[0];
+		expect(region.getAttribute("role")).toBe("status");
+		expect(region.getAttribute("aria-live")).toBe("polite");
+		expect(region.textContent).toBe("");
+		expect(region.closest("main")).toBeNull();
+	});
+
 	it("should include the offline banner", () => {
 		const page = createTestPageBody();
 		const result = Base(page, GUEST_STATE).to("text/html");

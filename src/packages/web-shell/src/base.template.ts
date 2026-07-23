@@ -125,6 +125,7 @@ export const BASE_TEMPLATE = `<!DOCTYPE html>
 		})();
 	</script>
 	{{{content}}}
+	<div class="sr-only" id="toast-live-region" role="status" aria-live="polite" data-test-toast-live-region></div>
 	{{{footer}}}
 	{{{navScript}}}
 	{{{offlineScript}}}
