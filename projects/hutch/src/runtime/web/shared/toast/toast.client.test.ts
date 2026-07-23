@@ -14,28 +14,56 @@ function initWithDom(
 	document: Document;
 	timers: ScheduledTimer[];
 	triggerSwap: () => void;
+	triggerBeforeRequest: () => void;
+	triggerAfterSettle: () => void;
+	setActiveElement: (element: Element | null) => void;
 } {
 	const region = opts.withRegion
 		? `<div class="sr-only" id="toast-live-region" role="status" aria-live="polite"></div>`
 		: "";
 	const dom = new JSDOM(`<!DOCTYPE html><html><body>${bodyHtml}${region}</body></html>`);
+	const document = dom.window.document;
 	const timers: ScheduledTimer[] = [];
 	let swapListener: (() => void) | undefined;
+	let beforeRequestListener: (() => void) | undefined;
+	let afterSettleListener: (() => void) | undefined;
 	initToastDismiss({
-		document: dom.window.document,
+		document,
 		setTimeoutFn: (callback, ms) => {
 			timers.push({ callback, ms });
 		},
 		addSwapListener: (listener) => {
 			swapListener = listener;
 		},
+		addBeforeRequestListener: (listener) => {
+			beforeRequestListener = listener;
+		},
+		addAfterSettleListener: (listener) => {
+			afterSettleListener = listener;
+		},
 	});
 	return {
-		document: dom.window.document,
+		document,
 		timers,
 		triggerSwap: () => {
 			assert(swapListener, "a swap listener must be registered");
 			swapListener();
+		},
+		triggerBeforeRequest: () => {
+			assert(beforeRequestListener, "a beforeRequest listener must be registered");
+			beforeRequestListener();
+		},
+		triggerAfterSettle: () => {
+			assert(afterSettleListener, "an afterSettle listener must be registered");
+			afterSettleListener();
+		},
+		// JSDOM computes activeElement from real focus() side effects; the injected
+		// deps let a test state it directly instead, keeping those quirks out.
+		setActiveElement: (element) => {
+			Object.defineProperty(document, "activeElement", {
+				value: element,
+				configurable: true,
+			});
 		},
 	};
 }
@@ -176,7 +204,170 @@ describe("initToastDismiss", () => {
 				document: dom.window.document,
 				setTimeoutFn: () => {},
 				addSwapListener: () => {},
+				addBeforeRequestListener: () => {},
+				addAfterSettleListener: () => {},
 			}),
 		).toThrow(/toast__message/);
+	});
+
+	it("returns focus to the acted-on control after the swap settles", () => {
+		const { document, triggerBeforeRequest, triggerAfterSettle, setActiveElement } =
+			initWithDom(
+				`<button id="inbox-card-0001-save">Save</button><div class="toast" data-dismiss="6000" tabindex="-1">Adding…</div>`,
+			);
+		const button = document.getElementById("inbox-card-0001-save");
+		assert(button, "the save button must render");
+		const focusSpy = jest.spyOn(button, "focus");
+
+		// The reader has the Save button focused when the request fires.
+		setActiveElement(button);
+		triggerBeforeRequest();
+		// hx-disabled-elt has since blurred the button to <body>; focus must come
+		// back to the same-id button carried in the swapped markup.
+		setActiveElement(document.body);
+		triggerAfterSettle();
+
+		expect(focusSpy).toHaveBeenCalledTimes(1);
+	});
+
+	it("treats focus resting on the document element as dropped and restores it", () => {
+		const { document, triggerBeforeRequest, triggerAfterSettle, setActiveElement } =
+			initWithDom(`<button id="inbox-card-0002-save">Save</button>`);
+		const button = document.getElementById("inbox-card-0002-save");
+		assert(button, "the save button must render");
+		const focusSpy = jest.spyOn(button, "focus");
+
+		setActiveElement(button);
+		triggerBeforeRequest();
+		setActiveElement(document.documentElement);
+		triggerAfterSettle();
+
+		expect(focusSpy).toHaveBeenCalledTimes(1);
+	});
+
+	it("focuses the newest toast when the acted-on control did not survive the swap", () => {
+		const { document, triggerBeforeRequest, triggerAfterSettle, setActiveElement } =
+			initWithDom(
+				`<button id="inbox-card-0003-save">Save</button><div class="toast" data-dismiss="6000" tabindex="-1">Adding…</div>`,
+			);
+		const button = document.getElementById("inbox-card-0003-save");
+		const toast = document.querySelector<HTMLElement>(".toast");
+		assert(button && toast, "the button and toast must render");
+		const toastFocusSpy = jest.spyOn(toast, "focus");
+
+		setActiveElement(button);
+		triggerBeforeRequest();
+		// The swap replaced the markup without this control.
+		button.remove();
+		setActiveElement(document.body);
+		triggerAfterSettle();
+
+		expect(toastFocusSpy).toHaveBeenCalledTimes(1);
+	});
+
+	it("restores nothing when neither the control nor a toast survives the swap", () => {
+		const { document, triggerBeforeRequest, triggerAfterSettle, setActiveElement } =
+			initWithDom(`<button id="inbox-card-0004-save">Save</button>`);
+		const button = document.getElementById("inbox-card-0004-save");
+		assert(button, "the save button must render");
+
+		setActiveElement(button);
+		triggerBeforeRequest();
+		button.remove();
+		setActiveElement(document.body);
+		// No control and no toast to fall back to: the swap simply leaves focus be.
+		triggerAfterSettle();
+
+		expect(document.querySelector("[data-dismiss]")).toBeNull();
+	});
+
+	it("leaves focus where the reader moved it during the request", () => {
+		const { document, triggerBeforeRequest, triggerAfterSettle, setActiveElement } =
+			initWithDom(
+				`<button id="inbox-card-0005-save">Save</button><a id="elsewhere" href="#">Back</a>`,
+			);
+		const button = document.getElementById("inbox-card-0005-save");
+		const elsewhere = document.getElementById("elsewhere");
+		assert(button && elsewhere, "both controls must render");
+		const focusSpy = jest.spyOn(button, "focus");
+
+		setActiveElement(button);
+		triggerBeforeRequest();
+		// The reader tabbed away before the swap settled.
+		setActiveElement(elsewhere);
+		triggerAfterSettle();
+
+		expect(focusSpy).not.toHaveBeenCalled();
+	});
+
+	it("restores no focus when the request came from a control with no id", () => {
+		const { document, triggerBeforeRequest, triggerAfterSettle, setActiveElement } =
+			initWithDom(`<button class="no-id">Save</button>`);
+		const button = document.querySelector<HTMLButtonElement>(".no-id");
+		assert(button, "the button must render");
+		const focusSpy = jest.spyOn(button, "focus");
+
+		setActiveElement(button);
+		triggerBeforeRequest();
+		setActiveElement(document.body);
+		triggerAfterSettle();
+
+		expect(focusSpy).not.toHaveBeenCalled();
+	});
+
+	it("records nothing to restore when the document has no active element", () => {
+		const { document, triggerBeforeRequest, triggerAfterSettle, setActiveElement } =
+			initWithDom(`<button id="inbox-card-0006-save">Save</button>`);
+		const button = document.getElementById("inbox-card-0006-save");
+		assert(button, "the save button must render");
+		const focusSpy = jest.spyOn(button, "focus");
+
+		setActiveElement(null);
+		triggerBeforeRequest();
+		setActiveElement(document.body);
+		triggerAfterSettle();
+
+		expect(focusSpy).not.toHaveBeenCalled();
+	});
+
+	it("hands focus back to the recorded control when the toast self-dismisses under focus", () => {
+		const { document, timers, triggerBeforeRequest, setActiveElement } = initWithDom(
+			`<button id="inbox-card-0007-save">Save</button><div class="toast" data-dismiss="6000" tabindex="-1">Adding…</div>`,
+		);
+		const button = document.getElementById("inbox-card-0007-save");
+		const toast = document.querySelector<HTMLElement>(".toast");
+		assert(button && toast, "the button and toast must render");
+		const focusSpy = jest.spyOn(button, "focus");
+
+		// The action recorded the button; the reader's focus is now parked on the
+		// toast when its dismiss timer fires.
+		setActiveElement(button);
+		triggerBeforeRequest();
+		setActiveElement(toast);
+		const dismissTimer = timers.find((timer) => timer.ms === 6000);
+		assert(dismissTimer, "the toast must have scheduled its dismissal");
+		dismissTimer.callback();
+
+		expect(focusSpy).toHaveBeenCalledTimes(1);
+		expect(toast.classList.contains("toast--dismissing")).toBe(true);
+	});
+
+	it("removes the toast without error when it self-dismisses under focus and the control is gone", () => {
+		const { document, timers, triggerBeforeRequest, setActiveElement } = initWithDom(
+			`<button id="inbox-card-0008-save">Save</button><div class="toast" data-dismiss="6000" tabindex="-1">Adding…</div>`,
+		);
+		const button = document.getElementById("inbox-card-0008-save");
+		const toast = document.querySelector<HTMLElement>(".toast");
+		assert(button && toast, "the button and toast must render");
+
+		setActiveElement(button);
+		triggerBeforeRequest();
+		button.remove();
+		setActiveElement(toast);
+		const dismissTimer = timers.find((timer) => timer.ms === 6000);
+		assert(dismissTimer, "the toast must have scheduled its dismissal");
+		dismissTimer.callback();
+
+		expect(toast.classList.contains("toast--dismissing")).toBe(true);
 	});
 });

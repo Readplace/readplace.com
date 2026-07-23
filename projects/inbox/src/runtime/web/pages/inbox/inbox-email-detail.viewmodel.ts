@@ -53,6 +53,10 @@ export interface ExcludedLinkViewModel {
 	url: string;
 	reasonLabel: string;
 	feedbackAction: string;
+	/** Stable id so htmx can hand keyboard focus back to this report button after
+	 * the swap replaces the row the reader was keyboarding through. Mirrors the
+	 * card action's `inbox-card-{ordinal}-{key}` scheme. */
+	buttonId: string;
 }
 
 export interface ArticleShowMore {
@@ -253,6 +257,7 @@ export function toInboxEmailDetailViewModel(input: {
 					emailId,
 					ordinal: link.ordinal,
 				}),
+				buttonId: `inbox-skipped-${link.ordinal}-feedback-include`,
 			}),
 		);
 	const truncated = linksMeta?.truncated === true;

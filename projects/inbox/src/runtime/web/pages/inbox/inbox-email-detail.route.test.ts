@@ -693,6 +693,8 @@ describe("Inbox email detail Skipped tab", () => {
 
 		const includeButton = excludedRow.querySelector("[data-test-inbox-feedback-include]");
 		assert(includeButton, "excluded row must offer include feedback");
+		// Stable id so htmx restores keyboard focus to this button after the swap.
+		expect(includeButton.getAttribute("id")).toBe("inbox-skipped-0001-feedback-include");
 		const includeForm = includeButton.closest("form");
 		assert(includeForm, "include feedback must submit as a form");
 		expect(includeForm.getAttribute("method")).toBe("POST");

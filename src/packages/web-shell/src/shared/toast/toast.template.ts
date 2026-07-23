@@ -1,4 +1,4 @@
-export const TOAST_TEMPLATE = `<div class="toast" data-dismiss="{{dismissMs}}" data-test-toast>
+export const TOAST_TEMPLATE = `<div class="toast" tabindex="-1" data-dismiss="{{dismissMs}}" data-test-toast>
 	<span class="toast__message" data-test-toast-message>{{message}}</span>
 	{{#each actions}}
 	<form class="toast__action-form" method="{{method}}" action="{{url}}" hx-boost="true" hx-target="main" hx-select="main" hx-swap="outerHTML show:none" hx-disabled-elt="find button">
