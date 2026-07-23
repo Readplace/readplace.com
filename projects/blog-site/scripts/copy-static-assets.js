@@ -14,23 +14,23 @@ const DIST_DIR = path.join(__dirname, "../dist");
 const EXTENSIONS = [".css", ".html", ".md", ".txt"];
 
 function shouldCopy(filePath) {
-	return EXTENSIONS.some((ext) => filePath.endsWith(ext));
+  return EXTENSIONS.some((ext) => filePath.endsWith(ext));
 }
 
 function copyStaticAssets(srcDir, distDir) {
-	let count = 0;
-	for (const entry of fs.readdirSync(srcDir, { withFileTypes: true })) {
-		const srcPath = path.join(srcDir, entry.name);
-		const distPath = path.join(distDir, entry.name);
-		if (entry.isDirectory()) {
-			count += copyStaticAssets(srcPath, distPath);
-		} else if (shouldCopy(entry.name)) {
-			fs.mkdirSync(path.dirname(distPath), { recursive: true });
-			fs.copyFileSync(srcPath, distPath);
-			count++;
-		}
-	}
-	return count;
+  let count = 0;
+  for (const entry of fs.readdirSync(srcDir, { withFileTypes: true })) {
+    const srcPath = path.join(srcDir, entry.name);
+    const distPath = path.join(distDir, entry.name);
+    if (entry.isDirectory()) {
+      count += copyStaticAssets(srcPath, distPath);
+    } else if (shouldCopy(entry.name)) {
+      fs.mkdirSync(path.dirname(distPath), { recursive: true });
+      fs.copyFileSync(srcPath, distPath);
+      count++;
+    }
+  }
+  return count;
 }
 
 const copied = copyStaticAssets(SRC_DIR, DIST_DIR);

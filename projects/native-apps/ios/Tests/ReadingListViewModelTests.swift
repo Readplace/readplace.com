@@ -580,11 +580,11 @@ final class ReadingListViewModelTests: XCTestCase {
 		// the row, so it stays in place.
 		let readArticle = """
 			{ "class": ["article"], "rel": ["item"],
-			  "properties": { "id": "a1", "url": "https://example.com/x", "status": "read" },
-			  "links": [{ "rel": ["read"], "href": "/queue/a1/view" }],
-			  "actions": [
-			    { "name": "update-status", "href": "/queue/a1/status", "method": "POST", "type": "application/x-www-form-urlencoded", "fields": [{ "name": "status", "type": "text", "value": "unread" }] }
-			  ] }
+				"properties": { "id": "a1", "url": "https://example.com/x", "status": "read" },
+				"links": [{ "rel": ["read"], "href": "/queue/a1/view" }],
+				"actions": [
+					{ "name": "update-status", "href": "/queue/a1/status", "method": "POST", "type": "application/x-www-form-urlencoded", "fields": [{ "name": "status", "type": "text", "value": "unread" }] }
+				] }
 			"""
 		StubURLProtocol.setHandler { request, _ in
 			let path = request.url?.path ?? ""
@@ -721,7 +721,7 @@ final class ReadingListViewModelTests: XCTestCase {
 			"""
 		let articleWithView = """
 			{ "class": ["article"], "properties": { "id": "a1", "url": "https://example.com/x" },
-			  "actions": [\(viewAction)] }
+				"actions": [\(viewAction)] }
 			"""
 		StubURLProtocol.setHandler { request, _ in
 			switch request.url?.path {
@@ -1084,11 +1084,11 @@ final class ReadingListViewModelTests: XCTestCase {
 	func testCollectionWarningPopulatesWarningText() async {
 		let warnedQueue = """
 		{
-		  "class": ["collection", "articles"],
-		  "properties": { "total": 1, "page": 1, "pageSize": 20, "warning": { "code": "not-saveable", "message": "Cannot save that link." } },
-		  "entities": [\(Fixtures.article(id: "a1"))],
-		  "links": [{ "rel": ["self"], "href": "/queue" }, { "rel": ["root"], "href": "/queue" }],
-		  "actions": []
+			"class": ["collection", "articles"],
+			"properties": { "total": 1, "page": 1, "pageSize": 20, "warning": { "code": "not-saveable", "message": "Cannot save that link." } },
+			"entities": [\(Fixtures.article(id: "a1"))],
+			"links": [{ "rel": ["self"], "href": "/queue" }, { "rel": ["root"], "href": "/queue" }],
+			"actions": []
 		}
 		"""
 		StubURLProtocol.setHandler { request, _ in
@@ -1104,11 +1104,11 @@ final class ReadingListViewModelTests: XCTestCase {
 	func testMintReaderSessionFollowsTheServersCreateSessionAction() async {
 		let queueWithSession = """
 		{
-		  "class": ["collection", "articles"],
-		  "properties": { "total": 1, "page": 1, "pageSize": 20 },
-		  "entities": [\(Fixtures.article(id: "a1"))],
-		  "links": [{ "rel": ["self"], "href": "/queue" }, { "rel": ["root"], "href": "/queue" }],
-		  "actions": [{ "name": "create-session", "href": "/custom/session", "method": "POST" }]
+			"class": ["collection", "articles"],
+			"properties": { "total": 1, "page": 1, "pageSize": 20 },
+			"entities": [\(Fixtures.article(id: "a1"))],
+			"links": [{ "rel": ["self"], "href": "/queue" }, { "rel": ["root"], "href": "/queue" }],
+			"actions": [{ "name": "create-session", "href": "/custom/session", "method": "POST" }]
 		}
 		"""
 		StubURLProtocol.setHandler { request, _ in

@@ -5,12 +5,12 @@ import { HutchLogger, consoleLogger, noopLogger } from '@packages/hutch-logger'
 import { calculateReadTime, validateSaveableUrl, type ValidateSaveableUrl } from '@packages/domain/article'
 import { createTestApp } from '../runtime/test-app'
 import {
-  createDefaultTestAppFixture,
-  createFakeApplyParseResult,
-  createFakePublishLinkSaved,
-  createFakePublishRecrawlLinkInitiated,
-  createFakePublishSaveAnonymousLink,
-  createFakeSummaryProvider,
+	createDefaultTestAppFixture,
+	createFakeApplyParseResult,
+	createFakePublishLinkSaved,
+	createFakePublishRecrawlLinkInitiated,
+	createFakePublishSaveAnonymousLink,
+	createFakeSummaryProvider,
 } from '@packages/test-fixtures'
 import { getEnv, requireEnv } from "@packages/require-env"
 import { initRefreshArticleIfStale } from '@packages/finalize-article'
@@ -58,9 +58,9 @@ const E2E_PDF_TITLE = "READPLACE_E2E_PDF_FIXTURE"
 const E2E_PDF_BODY = "Readplace e2e pdf fixture body — this string is asserted on by the pdf-save-flow scenario."
 const E2E_PDF_BODY_PARAGRAPHS = Array.from({ length: 12 }, () => `<p>${E2E_PDF_BODY}</p>`).join("")
 const extractPdf: ExtractPdf = async () => ({
-  kind: "fetched",
-  title: E2E_PDF_TITLE,
-  html: `<!DOCTYPE html><html><head><title>${E2E_PDF_TITLE}</title></head><body><article><h1>${E2E_PDF_TITLE}</h1>${E2E_PDF_BODY_PARAGRAPHS}</article></body></html>`,
+	kind: "fetched",
+	title: E2E_PDF_TITLE,
+	html: `<!DOCTYPE html><html><head><title>${E2E_PDF_TITLE}</title></head><body><article><h1>${E2E_PDF_TITLE}</h1>${E2E_PDF_BODY_PARAGRAPHS}</article></body></html>`,
 })
 const siteRules = [theInformationSiteRules, mediumSiteRules, linkedinSiteRules, mediaWikiSiteRules, initXTwitterSiteRules({ crawlFetch, logError }), initAppleNewsSiteRules({ crawlFetch, logError })]
 const crawlArticle = initCrawlArticle({ crawlFetch, siteRules, extractPdf, logError, logInfo })
@@ -70,16 +70,16 @@ const { parseArticle, parseHtml } = initReadabilityParser({ crawlArticle, siteRu
  * Skip private-network rejection so test articles can be saved and viewed. */
 const E2eSaveableUrlBrand = z.string().brand<"SaveableUrl">()
 const e2eValidateSaveableUrl: ValidateSaveableUrl = (value) => {
-  const result = validateSaveableUrl(value)
-  if (result.status === "SUCCESS") return result
-  if (result.error.code !== "private_network") return result
-  const trimmed = typeof value === "string" ? value.trim() : ""
-  try {
-    const parsed = new URL(trimmed)
-    return { status: "SUCCESS", url: E2eSaveableUrlBrand.parse(parsed.toString()) }
-  } catch {
-    return result
-  }
+	const result = validateSaveableUrl(value)
+	if (result.status === "SUCCESS") return result
+	if (result.error.code !== "private_network") return result
+	const trimmed = typeof value === "string" ? value.trim() : ""
+	try {
+		const parsed = new URL(trimmed)
+		return { status: "SUCCESS", url: E2eSaveableUrlBrand.parse(parsed.toString()) }
+	} catch {
+		return result
+	}
 }
 
 const fixture = createDefaultTestAppFixture(origin)
@@ -98,21 +98,21 @@ const { publishRefreshArticleContent } = initInMemoryRefreshArticleContent({ log
 const { publishUpdateFetchTimestamp } = initInMemoryUpdateFetchTimestamp({ logger: eventLogger })
 const resolveCanonicalIdentity = async (url: string) => url
 const { refreshArticleIfStale } = initRefreshArticleIfStale({
-  findArticleFreshness: fixture.articleStore.findArticleFreshness,
-  findArticleCrawlStatus: fixture.articleCrawl.findArticleCrawlStatus,
-  crawlArticle,
-  parseHtml,
-  publishRefreshArticleContent,
-  publishUpdateFetchTimestamp,
-  resolveCanonicalIdentity,
-  now: () => new Date(),
-  staleTtlMs: 0,
+	findArticleFreshness: fixture.articleStore.findArticleFreshness,
+	findArticleCrawlStatus: fixture.articleCrawl.findArticleCrawlStatus,
+	crawlArticle,
+	parseHtml,
+	publishRefreshArticleContent,
+	publishUpdateFetchTimestamp,
+	resolveCanonicalIdentity,
+	now: () => new Date(),
+	staleTtlMs: 0,
 })
 
 const applyParseResult = createFakeApplyParseResult({
-  articleStore: fixture.articleStore,
-  articleCrawl: fixture.articleCrawl,
-  parseArticle,
+	articleStore: fixture.articleStore,
+	articleCrawl: fixture.articleCrawl,
+	parseArticle,
 })
 
 // E2E-specific Stripe checkout: generates local URLs so the browser can follow
@@ -121,46 +121,46 @@ const applyParseResult = createFakeApplyParseResult({
 const e2eStripe = initInMemoryHostedCheckout({ checkoutBaseUrl: `${origin}/e2e/stripe-checkout`, now: () => new Date() })
 
 const { app: hutchApp, auth, email } = createTestApp({
-  ...fixture,
-  // The default fixture allowlist is empty (fail-closed); the admin
-  // extend-trial flow signs in as this address to pass the /admin gate.
-  admin: {
-    adminEmails: [E2E_ADMIN_EMAIL],
-    recrawlServiceToken: fixture.admin.recrawlServiceToken,
-  },
-  hostedCheckout: e2eStripe,
-  parser: { parseArticle, crawlArticle },
-  events: {
-    publishLinkSaved: createFakePublishLinkSaved(applyParseResult),
-    publishRecrawlLinkInitiated: createFakePublishRecrawlLinkInitiated(applyParseResult),
-    publishSaveAnonymousLink: createFakePublishSaveAnonymousLink(applyParseResult),
-    publishSaveLinkRawHtmlCommand: fixture.events.publishSaveLinkRawHtmlCommand,
-    publishSaveLinkRawPdfCommand: fixture.events.publishSaveLinkRawPdfCommand,
-    publishStaleCheckRequested: fixture.events.publishStaleCheckRequested,
-    publishRemoveMyContent: fixture.events.publishRemoveMyContent,
-    publishUpdateFetchTimestamp,
-    publishExportUserDataCommand: fixture.events.publishExportUserDataCommand,
-    publishDeleteAccountCommand: fixture.events.publishDeleteAccountCommand,
-    publishCancelSubscriptionCommand: fixture.events.publishCancelSubscriptionCommand,
-    publishSubscriptionReactivated: fixture.events.publishSubscriptionReactivated,
-  },
-  freshness: { refreshArticleIfStale },
-  summary,
-  importSession: {
-    importSessionStore: fixture.importSession.importSessionStore,
-    extractLinksFromPageUrl: initExtractLinksFromPageUrl({ crawlFetch, validateUrl: e2eValidateSaveableUrl }),
-  },
-  shared: {
-    /** Raw on purpose: createTestApp decorates shared.validateSaveableUrl with
-     * withUnwrapPreprocessing itself — wrapping here too would unwrap twice and
-     * diverge the e2e server from the production composition. */
-    validateSaveableUrl: e2eValidateSaveableUrl,
-    appOrigin: fixture.shared.appOrigin,
-    staticBaseUrl: fixture.shared.staticBaseUrl,
-    httpErrorMessageMapping: fixture.shared.httpErrorMessageMapping,
-    logError,
-    now: fixture.shared.now,
-  },
+	...fixture,
+	// The default fixture allowlist is empty (fail-closed); the admin
+	// extend-trial flow signs in as this address to pass the /admin gate.
+	admin: {
+		adminEmails: [E2E_ADMIN_EMAIL],
+		recrawlServiceToken: fixture.admin.recrawlServiceToken,
+	},
+	hostedCheckout: e2eStripe,
+	parser: { parseArticle, crawlArticle },
+	events: {
+		publishLinkSaved: createFakePublishLinkSaved(applyParseResult),
+		publishRecrawlLinkInitiated: createFakePublishRecrawlLinkInitiated(applyParseResult),
+		publishSaveAnonymousLink: createFakePublishSaveAnonymousLink(applyParseResult),
+		publishSaveLinkRawHtmlCommand: fixture.events.publishSaveLinkRawHtmlCommand,
+		publishSaveLinkRawPdfCommand: fixture.events.publishSaveLinkRawPdfCommand,
+		publishStaleCheckRequested: fixture.events.publishStaleCheckRequested,
+		publishRemoveMyContent: fixture.events.publishRemoveMyContent,
+		publishUpdateFetchTimestamp,
+		publishExportUserDataCommand: fixture.events.publishExportUserDataCommand,
+		publishDeleteAccountCommand: fixture.events.publishDeleteAccountCommand,
+		publishCancelSubscriptionCommand: fixture.events.publishCancelSubscriptionCommand,
+		publishSubscriptionReactivated: fixture.events.publishSubscriptionReactivated,
+	},
+	freshness: { refreshArticleIfStale },
+	summary,
+	importSession: {
+		importSessionStore: fixture.importSession.importSessionStore,
+		extractLinksFromPageUrl: initExtractLinksFromPageUrl({ crawlFetch, validateUrl: e2eValidateSaveableUrl }),
+	},
+	shared: {
+		/** Raw on purpose: createTestApp decorates shared.validateSaveableUrl with
+		 * withUnwrapPreprocessing itself — wrapping here too would unwrap twice and
+		 * diverge the e2e server from the production composition. */
+		validateSaveableUrl: e2eValidateSaveableUrl,
+		appOrigin: fixture.shared.appOrigin,
+		staticBaseUrl: fixture.shared.staticBaseUrl,
+		httpErrorMessageMapping: fixture.shared.httpErrorMessageMapping,
+		logError,
+		now: fixture.shared.now,
+	},
 })
 
 const server = express()
@@ -170,8 +170,8 @@ const server = express()
 server.use('/e2e', express.json())
 
 const CreateUserBody = z.object({
-  email: z.email(),
-  password: z.string().min(8),
+	email: z.email(),
+	password: z.string().min(8),
 })
 
 // Test fixture: create a user out-of-band so extension e2e tests can spawn this
@@ -179,18 +179,18 @@ const CreateUserBody = z.object({
 // reaching for `auth.createUser` in-process. The single legitimate way the
 // extension can ask for a new test capability is by adding an endpoint here.
 server.post('/e2e/users', async (req, res) => {
-  const parsed = CreateUserBody.safeParse(req.body)
-  if (!parsed.success) {
-    res.status(400).json({ error: parsed.error.flatten() })
-    return
-  }
-  await auth.createUser(parsed.data)
-  res.status(201).json({ ok: true })
+	const parsed = CreateUserBody.safeParse(req.body)
+	if (!parsed.success) {
+		res.status(400).json({ error: parsed.error.flatten() })
+		return
+	}
+	await auth.createUser(parsed.data)
+	res.status(201).json({ ok: true })
 })
 
 // Expose sent emails for E2E tests (password reset flow needs the reset token from email)
 server.get('/e2e/sent-emails', (_req, res) => {
-  res.json(email.getSentEmails())
+	res.json(email.getSentEmails())
 })
 
 // Seed a fully-crawled article with a fixed contentFetchedAt (and optional
@@ -200,54 +200,54 @@ server.get('/e2e/sent-emails', (_req, res) => {
 // never overwrites the timestamp with wall-clock time — keeping the screenshot
 // deterministic across runs.
 const SeedCrawledArticleBody = z.object({
-  url: z.string(),
-  title: z.string(),
-  contentFetchedAt: z.string(),
-  crawlVersions: z.array(z.string()).default([]),
+	url: z.string(),
+	title: z.string(),
+	contentFetchedAt: z.string(),
+	crawlVersions: z.array(z.string()).default([]),
 })
 server.post('/e2e/seed-crawled-article', async (req, res) => {
-  const parsed = SeedCrawledArticleBody.safeParse(req.body)
-  if (!parsed.success) {
-    res.status(400).json({ error: parsed.error.flatten() })
-    return
-  }
-  const { url, title, contentFetchedAt, crawlVersions } = parsed.data
-  const hostname = new URL(url).hostname
-  await fixture.articleStore.saveArticleGlobally({
-    url,
-    metadata: { title, siteName: hostname, excerpt: 'Seeded for the crawl-bookmark visual test.', wordCount: 500 },
-    estimatedReadTime: calculateReadTime(500),
-    savedAt: new Date(contentFetchedAt),
-  })
-  await fixture.articleStore.writeContent({
-    url,
-    content: '<p>Seeded article body for the crawl-bookmark visual regression test.</p>',
-  })
-  await fixture.articleCrawl.markCrawlReady({ url })
-  await fixture.articleStore.setContentFetchedAt({ url, at: contentFetchedAt })
-  await fixture.articleStore.setCrawlVersions({
-    url,
-    versions: crawlVersions.map((crawledAtMinute) => ({ crawledAtMinute })),
-  })
-  res.status(201).json({ ok: true })
+	const parsed = SeedCrawledArticleBody.safeParse(req.body)
+	if (!parsed.success) {
+		res.status(400).json({ error: parsed.error.flatten() })
+		return
+	}
+	const { url, title, contentFetchedAt, crawlVersions } = parsed.data
+	const hostname = new URL(url).hostname
+	await fixture.articleStore.saveArticleGlobally({
+		url,
+		metadata: { title, siteName: hostname, excerpt: 'Seeded for the crawl-bookmark visual test.', wordCount: 500 },
+		estimatedReadTime: calculateReadTime(500),
+		savedAt: new Date(contentFetchedAt),
+	})
+	await fixture.articleStore.writeContent({
+		url,
+		content: '<p>Seeded article body for the crawl-bookmark visual regression test.</p>',
+	})
+	await fixture.articleCrawl.markCrawlReady({ url })
+	await fixture.articleStore.setContentFetchedAt({ url, at: contentFetchedAt })
+	await fixture.articleStore.setCrawlVersions({
+		url,
+		versions: crawlVersions.map((crawledAtMinute) => ({ crawledAtMinute })),
+	})
+	res.status(201).json({ ok: true })
 })
 
 // Simulated Stripe Checkout: marks the session as paid and redirects to the
 // success URL (replacing {CHECKOUT_SESSION_ID} the same way real Stripe does).
 server.get('/e2e/stripe-checkout/:id', (req, res) => {
-  const sessionId = CheckoutSessionIdSchema.parse(req.params.id)
-  e2eStripe.markPaid(sessionId)
-  const next = req.query.next
-  assert(typeof next === 'string', 'next query param required')
-  const successUrl = next.replace('{CHECKOUT_SESSION_ID}', sessionId)
-  res.redirect(303, successUrl)
+	const sessionId = CheckoutSessionIdSchema.parse(req.params.id)
+	e2eStripe.markPaid(sessionId)
+	const next = req.query.next
+	assert(typeof next === 'string', 'next query param required')
+	const successUrl = next.replace('{CHECKOUT_SESSION_ID}', sessionId)
+	res.redirect(303, successUrl)
 })
 
 // Deterministic crawl-failure fixture: any GET returns 500 so tests can exercise
 // the reader-failed / summary-hidden flow against a URL that's guaranteed to
 // fail regardless of network conditions.
 server.get('/e2e/unfetchable', (_req, res) => {
-  res.status(500).type('text/plain').send('e2e: intentional crawl failure')
+	res.status(500).type('text/plain').send('e2e: intentional crawl failure')
 })
 
 /** Minimal valid PDF (single empty page, ~300 bytes). The extractor stub above
@@ -256,25 +256,25 @@ server.get('/e2e/unfetchable', (_req, res) => {
  * magic bytes match `application/pdf` so the crawler dispatches to the PDF
  * extraction branch. */
 const E2E_SAMPLE_PDF = Buffer.from(
-  '%PDF-1.1\n1 0 obj<</Type/Catalog/Pages 2 0 R>>endobj\n2 0 obj<</Type/Pages/Kids[3 0 R]/Count 1>>endobj\n3 0 obj<</Type/Page/Parent 2 0 R/MediaBox[0 0 612 792]>>endobj\nxref\n0 4\n0000000000 65535 f \n0000000009 00000 n \n0000000052 00000 n \n0000000099 00000 n \ntrailer<</Size 4/Root 1 0 R>>\nstartxref\n149\n%%EOF\n',
-  'utf-8',
+	'%PDF-1.1\n1 0 obj<</Type/Catalog/Pages 2 0 R>>endobj\n2 0 obj<</Type/Pages/Kids[3 0 R]/Count 1>>endobj\n3 0 obj<</Type/Page/Parent 2 0 R/MediaBox[0 0 612 792]>>endobj\nxref\n0 4\n0000000000 65535 f \n0000000009 00000 n \n0000000052 00000 n \n0000000099 00000 n \ntrailer<</Size 4/Root 1 0 R>>\nstartxref\n149\n%%EOF\n',
+	'utf-8',
 )
 server.get('/e2e/fixtures/sample.pdf', (_req, res) => {
-  res.type('application/pdf').send(E2E_SAMPLE_PDF)
+	res.type('application/pdf').send(E2E_SAMPLE_PDF)
 })
 
 const E2E_LARGE_PDF = Buffer.concat([E2E_SAMPLE_PDF, Buffer.alloc(4 * 1024 * 1024, 0x20)])
 server.get('/e2e/fixtures/large.pdf', (_req, res) => {
-  res.type('application/pdf').send(E2E_LARGE_PDF)
+	res.type('application/pdf').send(E2E_LARGE_PDF)
 })
 
 server.put(
-  '/e2e/s3/:key',
-  express.raw({ type: () => true, limit: 512 * 1024 * 1024 }),
-  (req, res) => {
-    fixture.pendingUpload.receiveUpload(req.params.key, req.body)
-    res.status(200).end()
-  },
+	'/e2e/s3/:key',
+	express.raw({ type: () => true, limit: 512 * 1024 * 1024 }),
+	(req, res) => {
+		fixture.pendingUpload.receiveUpload(req.params.key, req.body)
+		res.status(200).end()
+	},
 )
 
 server.use(hutchApp)
@@ -287,5 +287,5 @@ process.on('SIGINT', () => process.exit(0))
 // extension popup connects to (Firefox treats 127.0.0.1 and IPv6 ::1 as
 // distinct origins; binding to 0.0.0.0 + IPv6 ::1 has surfaced flakes).
 server.listen(PORT, '127.0.0.1', () => {
-  logger.info(`E2E server running on http://127.0.0.1:${PORT}`)
+	logger.info(`E2E server running on http://127.0.0.1:${PORT}`)
 })

@@ -92,7 +92,7 @@ function wrap(text, fs, maxW){
     let line='';
     for(const w of words){
       const trial = line? line+' '+w : w;
-      if(lineWidth(trial,fs) <= maxW || !line){ 
+      if(lineWidth(trial,fs) <= maxW || !line){
         if(lineWidth(trial,fs) > maxW && !line){ // single long word: hard-split
           let chunk='';
           for(const ch of w){ if(lineWidth(chunk+ch,fs)>maxW && chunk){ out.push(chunk); chunk=ch; } else chunk+=ch; }

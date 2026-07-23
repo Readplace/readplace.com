@@ -14,13 +14,13 @@ export type Effect =
 			url: string;
 			userId?: string;
 			rawHtml?: string;
-	  }
+		}
 	| {
 			kind: "publish-crawl-article-failed";
 			url: string;
 			reason: string;
 			receiveCount: number;
-	  }
+		}
 	| { kind: "publish-recrawl-completed"; url: string }
 	| { kind: "publish-crawl-article-completed"; url: string }
 	| { kind: "publish-canonical-content-changed"; url: string }
@@ -31,16 +31,16 @@ export type Effect =
 			url: string;
 			inputTokens: number;
 			outputTokens: number;
-	  }
+		}
 	| {
 			kind: "publish-summary-generation-failed";
 			url: string;
 			reason: string;
 			receiveCount: number;
-	  }
+		}
 	| {
 			kind: "publish-reader-view-loading-succeeded";
 			url: string;
 			succeededAt: string;
 			hasSummary: boolean;
-	  };
+		};

@@ -224,9 +224,9 @@ describe("Queue routes", () => {
 					publishSubscriptionReactivated: fixture.events.publishSubscriptionReactivated,
 				},
 				summary:{
- 	findGeneratedSummary: findGeneratedSummary,
- 	markSummaryPending: fixture.summary.markSummaryPending,
- },
+	findGeneratedSummary: findGeneratedSummary,
+	markSummaryPending: fixture.summary.markSummaryPending,
+	},
 			});
 			const { auth } = harness;
 			const agent = await loginAgent(harness.server, auth);
@@ -284,9 +284,9 @@ describe("Queue routes", () => {
 					publishSubscriptionReactivated: fixture.events.publishSubscriptionReactivated,
 				},
 				summary:{
- 	findGeneratedSummary: findGeneratedSummary,
- 	markSummaryPending: fixture.summary.markSummaryPending,
- },
+	findGeneratedSummary: findGeneratedSummary,
+	markSummaryPending: fixture.summary.markSummaryPending,
+	},
 			});
 			const { auth } = harness;
 			const agent = await loginAgent(harness.server, auth);
@@ -341,14 +341,14 @@ describe("Queue routes", () => {
 					publishSubscriptionReactivated: fixture.events.publishSubscriptionReactivated,
 				},
 				articleCrawl:{
- 	findArticleCrawlStatus: findArticleCrawlStatus,
- 	markCrawlPending: fixture.articleCrawl.markCrawlPending,
- 	forceMarkCrawlPending: fixture.articleCrawl.forceMarkCrawlPending,
- 	markCrawlReady: fixture.articleCrawl.markCrawlReady,
- 	markCrawlFailed: fixture.articleCrawl.markCrawlFailed,
- 	markCrawlStage: fixture.articleCrawl.markCrawlStage,
- 	markCrawlUnsupported: fixture.articleCrawl.markCrawlUnsupported,
- },
+	findArticleCrawlStatus: findArticleCrawlStatus,
+	markCrawlPending: fixture.articleCrawl.markCrawlPending,
+	forceMarkCrawlPending: fixture.articleCrawl.forceMarkCrawlPending,
+	markCrawlReady: fixture.articleCrawl.markCrawlReady,
+	markCrawlFailed: fixture.articleCrawl.markCrawlFailed,
+	markCrawlStage: fixture.articleCrawl.markCrawlStage,
+	markCrawlUnsupported: fixture.articleCrawl.markCrawlUnsupported,
+	},
 			});
 			const { auth } = harness;
 			const agent = await loginAgent(harness.server, auth);
@@ -402,14 +402,14 @@ describe("Queue routes", () => {
 					publishSubscriptionReactivated: fixture.events.publishSubscriptionReactivated,
 				},
 				articleCrawl:{
- 	findArticleCrawlStatus: findArticleCrawlStatus,
- 	markCrawlPending: fixture.articleCrawl.markCrawlPending,
- 	forceMarkCrawlPending: fixture.articleCrawl.forceMarkCrawlPending,
- 	markCrawlReady: fixture.articleCrawl.markCrawlReady,
- 	markCrawlFailed: fixture.articleCrawl.markCrawlFailed,
- 	markCrawlStage: fixture.articleCrawl.markCrawlStage,
- 	markCrawlUnsupported: fixture.articleCrawl.markCrawlUnsupported,
- },
+	findArticleCrawlStatus: findArticleCrawlStatus,
+	markCrawlPending: fixture.articleCrawl.markCrawlPending,
+	forceMarkCrawlPending: fixture.articleCrawl.forceMarkCrawlPending,
+	markCrawlReady: fixture.articleCrawl.markCrawlReady,
+	markCrawlFailed: fixture.articleCrawl.markCrawlFailed,
+	markCrawlStage: fixture.articleCrawl.markCrawlStage,
+	markCrawlUnsupported: fixture.articleCrawl.markCrawlUnsupported,
+	},
 			});
 			const { auth } = harness;
 			const agent = await loginAgent(harness.server, auth);

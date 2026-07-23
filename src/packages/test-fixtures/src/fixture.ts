@@ -88,9 +88,9 @@ const httpErrorMessageMapping: HttpErrorMessageMapping = (query) => {
 };
 
 /* c8 ignore next -- V8 block-coverage phantom: the const initializer for the first
-   `export const arrowFn` in this module is reported as an uncovered function even
-   though every test exercises it. See https://github.com/bcoe/c8/issues/319 and
-   https://v8.dev/blog/javascript-code-coverage. */
+	`export const arrowFn` in this module is reported as an uncovered function even
+	though every test exercises it. See https://github.com/bcoe/c8/issues/319 and
+	https://v8.dev/blog/javascript-code-coverage. */
 export const stubCrawlArticle: CrawlArticle = async ({ url }) => {
 	const hostname = new URL(url).hostname;
 	const html = `<html><head><title>Article from ${hostname}</title></head><body><article><p>Content saved from ${hostname}.</p></article></body></html>`;
@@ -246,7 +246,7 @@ export function createDefaultTestAppFixture(appOrigin: string): TestAppFixture {
 	const emailVerification = initInMemoryEmailVerification();
 	const passwordReset = initInMemoryPasswordReset();
 	/* Generous enough that no unrelated suite ever trips a limiter; tests that
-	 * exercise 429 behaviour override the bundle with tight rules. */
+	* exercise 429 behaviour override the bundle with tight rules. */
 	const unlimitedRule = { limit: 10_000, windowSeconds: 3600 };
 	const rateLimit = {
 		consumeRateLimit: initInMemoryRateLimit({ now: () => new Date() }).consumeRateLimit,
@@ -306,8 +306,8 @@ export function createDefaultTestAppFixture(appOrigin: string): TestAppFixture {
 
 	const botDefenseEvents: BotDefenseEvent[] = [];
 	/** Shared capture handler for every level — production code only ever calls
-	 * .info(), so the other levels collapse onto the same function. Avoids per-
-	 * level no-op closures that V8 reports as uncovered functions. */
+	* .info(), so the other levels collapse onto the same function. Avoids per-
+	* level no-op closures that V8 reports as uncovered functions. */
 	const capture = (data: BotDefenseEvent) => { botDefenseEvents.push(data); };
 	const botDefenseLogger: HutchLogger.Typed<BotDefenseEvent> = {
 		info: capture,
@@ -409,8 +409,8 @@ export function createDefaultTestAppFixture(appOrigin: string): TestAppFixture {
 		iosOnboardingSignal: initInMemoryIosOnboardingSignal(),
 		google: undefined,
 		/* Apple sign-in is a mandatory dependency — the /auth/apple route is always
-		 * mounted so the button always resolves — so the default fixture wires a
-		 * stub exchange. Apple-flow tests override `apple` with their own bundle. */
+		* mounted so the button always resolves — so the default fixture wires a
+		* stub exchange. Apple-flow tests override `apple` with their own bundle. */
 		apple: {
 			exchangeAppleCode: async () => ({
 				appleId: AppleIdSchema.parse("apple-sub-default"),
@@ -457,8 +457,8 @@ export function createDefaultTestAppFixture(appOrigin: string): TestAppFixture {
 		botDefense: { logger: botDefenseLogger, events: botDefenseEvents },
 		conversions: { logger: conversionLogger, events: conversionEvents },
 		/** Small enough that founding-allocation seed loops finish in
-		 * milliseconds while still leaving room for "one above the limit" tests
-		 * to seed N+1 distinct emails. Production uses a much larger limit. */
+		* milliseconds while still leaving room for "one above the limit" tests
+		* to seed N+1 distinct emails. Production uses a much larger limit. */
 		foundingAllocation: { foundingMemberLimit: 3 },
 	};
 }

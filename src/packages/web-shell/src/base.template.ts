@@ -1,134 +1,134 @@
 export const BASE_TEMPLATE = `<!DOCTYPE html>
 <html lang="en-US">
 <head>
-  <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title id="document-title">{{title}}</title>
-  <meta name="description" content="{{description}}">
-  <meta name="robots" content="{{robots}}">
-  {{#if author}}<meta name="author" content="{{author}}">{{/if}}
-  {{#if keywords}}<meta name="keywords" content="{{keywords}}">{{/if}}
-  <link rel="canonical" href="{{canonicalUrl}}">
-  <meta name="theme-color" content="#2B3A55" media="(prefers-color-scheme: light)">
-  <meta name="theme-color" content="#121212" media="(prefers-color-scheme: dark)">
+	<meta charset="UTF-8">
+	<meta name="viewport" content="width=device-width, initial-scale=1.0">
+	<title id="document-title">{{title}}</title>
+	<meta name="description" content="{{description}}">
+	<meta name="robots" content="{{robots}}">
+	{{#if author}}<meta name="author" content="{{author}}">{{/if}}
+	{{#if keywords}}<meta name="keywords" content="{{keywords}}">{{/if}}
+	<link rel="canonical" href="{{canonicalUrl}}">
+	<meta name="theme-color" content="#2B3A55" media="(prefers-color-scheme: light)">
+	<meta name="theme-color" content="#121212" media="(prefers-color-scheme: dark)">
 
-  <meta property="og:type" content="{{ogType}}">
-  <meta property="og:site_name" content="Readplace">
-  <meta property="og:title" content="{{title}}">
-  <meta property="og:description" content="{{description}}">
-  <meta property="og:url" content="{{ogUrl}}">
-  {{#if ogImage}}
-  <meta property="og:image" content="{{ogImage}}">
-  <meta property="og:image:width" content="1200">
-  <meta property="og:image:height" content="630">
-  {{#if ogImageType}}<meta property="og:image:type" content="{{ogImageType}}">{{/if}}
-  {{#if ogImageAlt}}<meta property="og:image:alt" content="{{ogImageAlt}}">{{/if}}
-  {{/if}}
-  <meta property="og:locale" content="en_US">
+	<meta property="og:type" content="{{ogType}}">
+	<meta property="og:site_name" content="Readplace">
+	<meta property="og:title" content="{{title}}">
+	<meta property="og:description" content="{{description}}">
+	<meta property="og:url" content="{{ogUrl}}">
+	{{#if ogImage}}
+	<meta property="og:image" content="{{ogImage}}">
+	<meta property="og:image:width" content="1200">
+	<meta property="og:image:height" content="630">
+	{{#if ogImageType}}<meta property="og:image:type" content="{{ogImageType}}">{{/if}}
+	{{#if ogImageAlt}}<meta property="og:image:alt" content="{{ogImageAlt}}">{{/if}}
+	{{/if}}
+	<meta property="og:locale" content="en_US">
 
-  <meta name="twitter:card" content="summary_large_image">
-  <meta name="twitter:title" content="{{title}}">
-  <meta name="twitter:description" content="{{description}}">
-  {{#if twitterImage}}<meta name="twitter:image" content="{{twitterImage}}">{{/if}}
-  {{#if twitterSite}}<meta name="twitter:site" content="{{twitterSite}}">{{/if}}
-  <meta name="twitter:creator" content="@fagnerbrack">
+	<meta name="twitter:card" content="summary_large_image">
+	<meta name="twitter:title" content="{{title}}">
+	<meta name="twitter:description" content="{{description}}">
+	{{#if twitterImage}}<meta name="twitter:image" content="{{twitterImage}}">{{/if}}
+	{{#if twitterSite}}<meta name="twitter:site" content="{{twitterSite}}">{{/if}}
+	<meta name="twitter:creator" content="@fagnerbrack">
 
-  <link rel="preconnect" href="https://fonts.googleapis.com">
-  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-  <link rel="preload" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" as="style" onload="this.onload=null;this.rel='stylesheet'">
-  <noscript><link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap"></noscript>
+	<link rel="preconnect" href="https://fonts.googleapis.com">
+	<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+	<link rel="preload" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" as="style" onload="this.onload=null;this.rel='stylesheet'">
+	<noscript><link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap"></noscript>
 
-  <link rel="preconnect" href="https://cdnjs.cloudflare.com" crossorigin>
-  <link rel="preload" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.2/css/fontawesome.min.css" as="style" integrity="sha384-5t0634b3BeTSoxIIgd8lhUy22xY2BGs89gw0vReAMGcfJXXfA7fblIRGVkRFWRDL" crossorigin="anonymous" onload="this.onload=null;this.rel='stylesheet'">
-  <noscript><link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.2/css/fontawesome.min.css" integrity="sha384-5t0634b3BeTSoxIIgd8lhUy22xY2BGs89gw0vReAMGcfJXXfA7fblIRGVkRFWRDL" crossorigin="anonymous"></noscript>
-  <link rel="preload" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.2/css/solid.min.css" as="style" integrity="sha384-+CMpNM/Tv3YfWmU43LPsvXlIdOUnxSooWv5fY/Tkap65JU4QTLBHp8nMrEkIEb3u" crossorigin="anonymous" onload="this.onload=null;this.rel='stylesheet'">
-  <noscript><link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.2/css/solid.min.css" integrity="sha384-+CMpNM/Tv3YfWmU43LPsvXlIdOUnxSooWv5fY/Tkap65JU4QTLBHp8nMrEkIEb3u" crossorigin="anonymous"></noscript>
-  <link rel="preload" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.2/css/brands.min.css" as="style" integrity="sha384-hu7sKftLeB/8IYmWPfl2Jo6MTRHquwXVmGPT/08RqhuANVZrbNFBIsvWPOiUduYX" crossorigin="anonymous" onload="this.onload=null;this.rel='stylesheet'">
-  <noscript><link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.2/css/brands.min.css" integrity="sha384-hu7sKftLeB/8IYmWPfl2Jo6MTRHquwXVmGPT/08RqhuANVZrbNFBIsvWPOiUduYX" crossorigin="anonymous"></noscript>
+	<link rel="preconnect" href="https://cdnjs.cloudflare.com" crossorigin>
+	<link rel="preload" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.2/css/fontawesome.min.css" as="style" integrity="sha384-5t0634b3BeTSoxIIgd8lhUy22xY2BGs89gw0vReAMGcfJXXfA7fblIRGVkRFWRDL" crossorigin="anonymous" onload="this.onload=null;this.rel='stylesheet'">
+	<noscript><link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.2/css/fontawesome.min.css" integrity="sha384-5t0634b3BeTSoxIIgd8lhUy22xY2BGs89gw0vReAMGcfJXXfA7fblIRGVkRFWRDL" crossorigin="anonymous"></noscript>
+	<link rel="preload" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.2/css/solid.min.css" as="style" integrity="sha384-+CMpNM/Tv3YfWmU43LPsvXlIdOUnxSooWv5fY/Tkap65JU4QTLBHp8nMrEkIEb3u" crossorigin="anonymous" onload="this.onload=null;this.rel='stylesheet'">
+	<noscript><link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.2/css/solid.min.css" integrity="sha384-+CMpNM/Tv3YfWmU43LPsvXlIdOUnxSooWv5fY/Tkap65JU4QTLBHp8nMrEkIEb3u" crossorigin="anonymous"></noscript>
+	<link rel="preload" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.2/css/brands.min.css" as="style" integrity="sha384-hu7sKftLeB/8IYmWPfl2Jo6MTRHquwXVmGPT/08RqhuANVZrbNFBIsvWPOiUduYX" crossorigin="anonymous" onload="this.onload=null;this.rel='stylesheet'">
+	<noscript><link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.2/css/brands.min.css" integrity="sha384-hu7sKftLeB/8IYmWPfl2Jo6MTRHquwXVmGPT/08RqhuANVZrbNFBIsvWPOiUduYX" crossorigin="anonymous"></noscript>
 
-  <link rel="icon" type="image/svg+xml" href="{{staticBaseUrl}}/favicon.svg">
-  <link rel="icon" type="image/x-icon" href="{{staticBaseUrl}}/favicon.ico">
-  <link rel="icon" type="image/png" sizes="16x16" href="{{staticBaseUrl}}/favicon-16x16.png">
-  <link rel="icon" type="image/png" sizes="32x32" href="{{staticBaseUrl}}/favicon-32x32.png">
-  <link rel="icon" type="image/png" sizes="48x48" href="{{staticBaseUrl}}/favicon-48x48.png">
-  <link rel="icon" type="image/png" sizes="96x96" href="{{staticBaseUrl}}/favicon-96x96.png">
+	<link rel="icon" type="image/svg+xml" href="{{staticBaseUrl}}/favicon.svg">
+	<link rel="icon" type="image/x-icon" href="{{staticBaseUrl}}/favicon.ico">
+	<link rel="icon" type="image/png" sizes="16x16" href="{{staticBaseUrl}}/favicon-16x16.png">
+	<link rel="icon" type="image/png" sizes="32x32" href="{{staticBaseUrl}}/favicon-32x32.png">
+	<link rel="icon" type="image/png" sizes="48x48" href="{{staticBaseUrl}}/favicon-48x48.png">
+	<link rel="icon" type="image/png" sizes="96x96" href="{{staticBaseUrl}}/favicon-96x96.png">
 
-  <link rel="apple-touch-icon" href="{{staticBaseUrl}}/apple-touch-icon.png">
-  <link rel="apple-touch-icon" sizes="57x57" href="{{staticBaseUrl}}/apple-touch-icon-57x57.png">
-  <link rel="apple-touch-icon" sizes="60x60" href="{{staticBaseUrl}}/apple-touch-icon-60x60.png">
-  <link rel="apple-touch-icon" sizes="72x72" href="{{staticBaseUrl}}/apple-touch-icon-72x72.png">
-  <link rel="apple-touch-icon" sizes="76x76" href="{{staticBaseUrl}}/apple-touch-icon-76x76.png">
-  <link rel="apple-touch-icon" sizes="114x114" href="{{staticBaseUrl}}/apple-touch-icon-114x114.png">
-  <link rel="apple-touch-icon" sizes="120x120" href="{{staticBaseUrl}}/apple-touch-icon-120x120.png">
-  <link rel="apple-touch-icon" sizes="144x144" href="{{staticBaseUrl}}/apple-touch-icon-144x144.png">
-  <link rel="apple-touch-icon" sizes="152x152" href="{{staticBaseUrl}}/apple-touch-icon-152x152.png">
-  <link rel="apple-touch-icon" sizes="167x167" href="{{staticBaseUrl}}/apple-touch-icon-167x167.png">
-  <link rel="apple-touch-icon" sizes="180x180" href="{{staticBaseUrl}}/apple-touch-icon-180x180.png">
+	<link rel="apple-touch-icon" href="{{staticBaseUrl}}/apple-touch-icon.png">
+	<link rel="apple-touch-icon" sizes="57x57" href="{{staticBaseUrl}}/apple-touch-icon-57x57.png">
+	<link rel="apple-touch-icon" sizes="60x60" href="{{staticBaseUrl}}/apple-touch-icon-60x60.png">
+	<link rel="apple-touch-icon" sizes="72x72" href="{{staticBaseUrl}}/apple-touch-icon-72x72.png">
+	<link rel="apple-touch-icon" sizes="76x76" href="{{staticBaseUrl}}/apple-touch-icon-76x76.png">
+	<link rel="apple-touch-icon" sizes="114x114" href="{{staticBaseUrl}}/apple-touch-icon-114x114.png">
+	<link rel="apple-touch-icon" sizes="120x120" href="{{staticBaseUrl}}/apple-touch-icon-120x120.png">
+	<link rel="apple-touch-icon" sizes="144x144" href="{{staticBaseUrl}}/apple-touch-icon-144x144.png">
+	<link rel="apple-touch-icon" sizes="152x152" href="{{staticBaseUrl}}/apple-touch-icon-152x152.png">
+	<link rel="apple-touch-icon" sizes="167x167" href="{{staticBaseUrl}}/apple-touch-icon-167x167.png">
+	<link rel="apple-touch-icon" sizes="180x180" href="{{staticBaseUrl}}/apple-touch-icon-180x180.png">
 
-  <link rel="manifest" href="{{staticBaseUrl}}/site.webmanifest">
+	<link rel="manifest" href="{{staticBaseUrl}}/site.webmanifest">
 
-  <meta name="msapplication-TileColor" content="#2B3A55">
-  <meta name="msapplication-TileImage" content="{{staticBaseUrl}}/mstile-150x150.png">
-  <meta name="msapplication-config" content="{{staticBaseUrl}}/browserconfig.xml">
+	<meta name="msapplication-TileColor" content="#2B3A55">
+	<meta name="msapplication-TileImage" content="{{staticBaseUrl}}/mstile-150x150.png">
+	<meta name="msapplication-config" content="{{staticBaseUrl}}/browserconfig.xml">
 
-  <link rel="alternate" type="text/plain" href="https://readplace.com/llms.txt" title="LLM-optimized summary">
-  <link rel="alternate" type="text/plain" href="https://readplace.com/llms-full.txt" title="LLM full context">
+	<link rel="alternate" type="text/plain" href="https://readplace.com/llms.txt" title="LLM-optimized summary">
+	<link rel="alternate" type="text/plain" href="https://readplace.com/llms-full.txt" title="LLM full context">
 
-  {{{structuredDataScript}}}
+	{{{structuredDataScript}}}
 
-  <style>
-    {{{baseStyles}}}
-    {{{resetStyles}}}
-    {{{utilityStyles}}}
-    {{{bannerAreaStyles}}}
-    {{{changelogBannerStyles}}}
-    {{{headerStyles}}}
-    {{{navStyles}}}
-    {{{footerStyles}}}
-    {{{offlineBannerStyles}}}
-    {{{toastStyles}}}
-    {{{verifyBannerStyles}}}
-    {{{trialCountdownStyles}}}
-    {{{extensionSuggestionBannerStyles}}}
-  </style>
+	<style>
+		{{{baseStyles}}}
+		{{{resetStyles}}}
+		{{{utilityStyles}}}
+		{{{bannerAreaStyles}}}
+		{{{changelogBannerStyles}}}
+		{{{headerStyles}}}
+		{{{navStyles}}}
+		{{{footerStyles}}}
+		{{{offlineBannerStyles}}}
+		{{{toastStyles}}}
+		{{{verifyBannerStyles}}}
+		{{{trialCountdownStyles}}}
+		{{{extensionSuggestionBannerStyles}}}
+	</style>
 </head>
 <body{{#if bodyClass}} class="{{bodyClass}}"{{/if}}>
-  <div class="banner-area">
-    {{{changelogBanner}}}
-    <div class="offline-banner" role="alert" aria-live="polite" aria-hidden="true">
-      You're offline. Some features may be unavailable.
-    </div>
-    {{{verifyBanner}}}
-    {{{extensionSuggestionBanner}}}
-  </div>
-  <script>
-    (function() {
-      var ba = document.querySelector('.banner-area');
-      if (!ba) return;
-      function setBannerAreaHeight() {
-        document.documentElement.style.setProperty('--banner-area-height', ba.offsetHeight + 'px');
-      }
-      setBannerAreaHeight();
-      // The banner grows after this first measure — the web font swaps in, or a
-      // resize rewraps the verify banner to a second line — and the sticky nav's
-      // top offset is this var, so keep it current or the fixed banner overlaps
-      // the nav.
-      if (window.ResizeObserver) new ResizeObserver(setBannerAreaHeight).observe(ba);
-      if (document.fonts && document.fonts.ready) document.fonts.ready.then(setBannerAreaHeight);
-    })();
-  </script>
-  {{{header}}}
-  <script>
-    (function() {
-      var h = document.querySelector('.header');
-      if (h) document.documentElement.style.setProperty('--header-height', h.offsetHeight + 'px');
-    })();
-  </script>
-  {{{content}}}
-  {{{footer}}}
-  {{{navScript}}}
-  {{{offlineScript}}}
-  {{{scripts}}}
+	<div class="banner-area">
+		{{{changelogBanner}}}
+		<div class="offline-banner" role="alert" aria-live="polite" aria-hidden="true">
+			You're offline. Some features may be unavailable.
+		</div>
+		{{{verifyBanner}}}
+		{{{extensionSuggestionBanner}}}
+	</div>
+	<script>
+		(function() {
+			var ba = document.querySelector('.banner-area');
+			if (!ba) return;
+			function setBannerAreaHeight() {
+				document.documentElement.style.setProperty('--banner-area-height', ba.offsetHeight + 'px');
+			}
+			setBannerAreaHeight();
+			// The banner grows after this first measure — the web font swaps in, or a
+			// resize rewraps the verify banner to a second line — and the sticky nav's
+			// top offset is this var, so keep it current or the fixed banner overlaps
+			// the nav.
+			if (window.ResizeObserver) new ResizeObserver(setBannerAreaHeight).observe(ba);
+			if (document.fonts && document.fonts.ready) document.fonts.ready.then(setBannerAreaHeight);
+		})();
+	</script>
+	{{{header}}}
+	<script>
+		(function() {
+			var h = document.querySelector('.header');
+			if (h) document.documentElement.style.setProperty('--header-height', h.offsetHeight + 'px');
+		})();
+	</script>
+	{{{content}}}
+	{{{footer}}}
+	{{{navScript}}}
+	{{{offlineScript}}}
+	{{{scripts}}}
 </body>
 </html>
 `;

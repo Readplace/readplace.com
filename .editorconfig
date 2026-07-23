@@ -1,0 +1,62 @@
+; Editor defaults, enforced in CI by editorconfig-checker (see each project's
+; `lint` script). Indent styles below record what the repository already does —
+; they are descriptive, not aspirational, so adopting them cost almost no diff.
+root = true
+
+[*]
+end_of_line = lf
+charset = utf-8
+trim_trailing_whitespace = true
+insert_final_newline = true
+
+; TypeScript and Swift indent with tabs (Biome's default, and the iOS codebase).
+[*.{ts,swift}]
+indent_style = tab
+
+[*.{js,mjs,json,yml,yaml,sh}]
+indent_style = space
+
+; Markdown carries fenced code blocks in other languages — TypeScript examples
+; indent with tabs, mermaid diagrams with tabs — so a single indent style cannot
+; be enforced here without rewriting the content the blocks are demonstrating.
+[*.md]
+indent_style = unset
+
+; Templates and stylesheets: 2 spaces per level, checked for even steps.
+[*.{html,css}]
+indent_style = space
+indent_size = 2
+
+; Make recipe lines must begin with a literal tab or make refuses to run them.
+[Makefile]
+indent_style = tab
+
+; Vendored third-party bundles are shipped verbatim, not formatted by us.
+[**/e2e-cdn-fixtures/**]
+indent_style = unset
+insert_final_newline = unset
+trim_trailing_whitespace = unset
+
+; Parser fixtures are deliberately malformed input, not source we format.
+[**/fixtures/**]
+indent_style = unset
+indent_size = unset
+insert_final_newline = unset
+trim_trailing_whitespace = unset
+
+; App Store listing values are submitted verbatim; a trailing newline would
+; become part of the published metadata.
+[**/fastlane/metadata/**]
+insert_final_newline = unset
+trim_trailing_whitespace = unset
+
+; Binary and generated assets carry no text formatting to enforce.
+[*.{caf,png,jpg,jpeg,gif,ico,svg,pdf,woff,woff2,ttf,otf,zip,mobileprovision}]
+charset = unset
+end_of_line = unset
+insert_final_newline = unset
+trim_trailing_whitespace = unset
+
+[{pnpm-lock.yaml,devbox.lock}]
+indent_style = unset
+insert_final_newline = unset

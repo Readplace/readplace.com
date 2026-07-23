@@ -28,18 +28,18 @@ OBJ="$(pwd)/build/obj"
 # applies to the app and its embedded ShareExtension in one xcodebuild invocation.
 READPLACE_ENV="${READPLACE_ENV:-production}"
 case "$READPLACE_ENV" in
-	production)
-		OUT="build/Readplace-unsigned.ipa"
-		STAGING_BUILD_SETTING=""
-		;;
-	staging)
-		OUT="build/Readplace-staging-unsigned.ipa"
-		STAGING_BUILD_SETTING="SWIFT_ACTIVE_COMPILATION_CONDITIONS=STAGING"
-		;;
-	*)
-		echo "!! READPLACE_ENV must be 'production' or 'staging', got: '$READPLACE_ENV'" >&2
-		exit 1
-		;;
+  production)
+    OUT="build/Readplace-unsigned.ipa"
+    STAGING_BUILD_SETTING=""
+    ;;
+  staging)
+    OUT="build/Readplace-staging-unsigned.ipa"
+    STAGING_BUILD_SETTING="SWIFT_ACTIVE_COMPILATION_CONDITIONS=STAGING"
+    ;;
+  *)
+    echo "!! READPLACE_ENV must be 'production' or 'staging', got: '$READPLACE_ENV'" >&2
+    exit 1
+    ;;
 esac
 
 # --- Run Xcode tools with the devbox/nix toolchain scrubbed out ---------------
@@ -52,15 +52,15 @@ xc() { scripts/xc.sh "$@"; }
 
 # --- Preflight: the iOS SDK ships only inside the full Xcode app --------------
 if ! xc xcrun --sdk iphoneos --show-sdk-path >/dev/null 2>&1; then
-	echo "!! The iOS SDK isn't available, so this can't build for a device yet." >&2
-	echo "   Install the full Xcode (free) from the Mac App Store, open it once to" >&2
-	echo "   finish setup, then re-run: make ipa" >&2
-	exit 1
+  echo "!! The iOS SDK isn't available, so this can't build for a device yet." >&2
+  echo "   Install the full Xcode (free) from the Mac App Store, open it once to" >&2
+  echo "   finish setup, then re-run: make ipa" >&2
+  exit 1
 fi
 
 if ! command -v xcodegen >/dev/null 2>&1; then
-	echo "==> Installing XcodeGen via Homebrew…"
-	brew install xcodegen
+  echo "==> Installing XcodeGen via Homebrew…"
+  brew install xcodegen
 fi
 
 echo "==> Cleaning previous build artifacts…"
@@ -71,22 +71,22 @@ rm -rf "$SYM" "$OBJ" build/Payload "$OUT"
 # destination — which matters on partial Xcode installs missing the platform.
 echo "==> Building $TARGET for device ($READPLACE_ENV, code signing disabled)…"
 xc xcodebuild \
-	-project Readplace.xcodeproj \
-	-target "$TARGET" \
-	-sdk iphoneos \
-	-configuration Release \
-	SYMROOT="$SYM" \
-	OBJROOT="$OBJ" \
-	CODE_SIGNING_ALLOWED=NO \
-	CODE_SIGNING_REQUIRED=NO \
-	CODE_SIGN_IDENTITY="" \
-	${STAGING_BUILD_SETTING:+"$STAGING_BUILD_SETTING"} \
-	build
+  -project Readplace.xcodeproj \
+  -target "$TARGET" \
+  -sdk iphoneos \
+  -configuration Release \
+  SYMROOT="$SYM" \
+  OBJROOT="$OBJ" \
+  CODE_SIGNING_ALLOWED=NO \
+  CODE_SIGNING_REQUIRED=NO \
+  CODE_SIGN_IDENTITY="" \
+  ${STAGING_BUILD_SETTING:+"$STAGING_BUILD_SETTING"} \
+  build
 
 APP="$(find "$SYM/Release-iphoneos" -maxdepth 1 -name '*.app' 2>/dev/null | head -1 || true)"
 if [ -z "$APP" ]; then
-	echo "!! Build produced no .app under $SYM/Release-iphoneos" >&2
-	exit 1
+  echo "!! Build produced no .app under $SYM/Release-iphoneos" >&2
+  exit 1
 fi
 
 # Ad-hoc sign (no cert needed) with the entitlements so the App Group is
@@ -96,11 +96,11 @@ fi
 # nested extension first, then the app.
 echo "==> Ad-hoc signing with entitlements (App Group survives re-signing)…"
 /usr/bin/codesign --force --sign - --timestamp=none \
-	--entitlements ShareExtension/ShareExtension.entitlements \
-	"$APP/PlugIns/ShareExtension.appex"
+  --entitlements ShareExtension/ShareExtension.entitlements \
+  "$APP/PlugIns/ShareExtension.appex"
 /usr/bin/codesign --force --sign - --timestamp=none \
-	--entitlements App/App.entitlements \
-	"$APP"
+  --entitlements App/App.entitlements \
+  "$APP"
 echo "   embedded app-group entitlement:"
 /usr/bin/codesign -d --entitlements :- "$APP" 2>/dev/null | grep -A1 "application-groups" | sed 's/^/     /' || true
 

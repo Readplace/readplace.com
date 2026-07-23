@@ -1,82 +1,82 @@
 {
-	"$schema": "https://biomejs.dev/schemas/2.4.16/schema.json",
-	"vcs": {
-		"enabled": true,
-		"clientKind": "git",
-		"useIgnoreFile": false
-	},
-	"files": {
-		"includes": [
-			"**",
-			"!**/dist/**",
-			"!**/node_modules/**",
-			"!**/*.js",
-			"!**/*.mjs",
-			"!**/*.html"
-		]
-	},
-	"linter": {
-		"enabled": true,
-		"rules": {
-			"recommended": true,
-			"complexity": {
-				"useLiteralKeys": "error",
-				"useOptionalChain": "error"
-			},
-			"correctness": {
-				"noUnusedVariables": "error",
-				"noUnusedImports": "error"
-			},
-			"suspicious": {
-				"noTemplateCurlyInString": "off",
-				"noDocumentCookie": "error"
-			},
-			"style": {
-				"noCommonJs": "error",
-				"noNonNullAssertion": "error",
-				"noDescendingSpecificity": "error",
-				"useImportType": "error",
-				"useTemplate": "error",
-				"noRestrictedImports": {
-					"level": "error",
-					"options": {
-						"paths": {
-							"@aws-sdk/lib-dynamodb": "Import from @packages/hutch-storage-client instead — it forces schema-driven null handling (see projects/save-link/src/save-link/find-article-content.ts for the bug this prevents).",
-							"@aws-sdk/client-dynamodb": "Import from @packages/hutch-storage-client instead — it forces schema-driven null handling.",
-							"@packages/domain/user": {
-								"importNames": ["authenticatedUserIdFrom"],
-								"message": "authenticatedUserIdFrom mints the request principal (AuthenticatedUserId) and must be called only where a validated session cookie or OAuth bearer token becomes the principal — never on a row field, event payload, or tool argument. New auth boundary? Add the file to the noRestrictedImports override in biome.config.base.json."
-							}
-						}
-					}
-				}
-			}
-		}
-	},
-	"overrides": [
-		{
-			"includes": [
-				"**/*.test.ts",
-				"**/providers/auth/dynamodb-auth.ts",
-				"**/providers/auth/in-memory-auth.ts",
-				"src/get-session-user-id.ts",
-				"src/validate-access-token.ts"
-			],
-			"linter": {
-				"rules": {
-					"style": {
-						"noRestrictedImports": {
-							"level": "error",
-							"options": {
-								"paths": {
-									"@aws-sdk/lib-dynamodb": "Import from @packages/hutch-storage-client instead — it forces schema-driven null handling (see projects/save-link/src/save-link/find-article-content.ts for the bug this prevents).",
-									"@aws-sdk/client-dynamodb": "Import from @packages/hutch-storage-client instead — it forces schema-driven null handling."
-								}
-							}
-						}
-					}
-				}
-			}
-		}
-	]
+  "$schema": "https://biomejs.dev/schemas/2.4.16/schema.json",
+  "vcs": {
+    "enabled": true,
+    "clientKind": "git",
+    "useIgnoreFile": false
+  },
+  "files": {
+    "includes": [
+      "**",
+      "!**/dist/**",
+      "!**/node_modules/**",
+      "!**/*.js",
+      "!**/*.mjs",
+      "!**/*.html"
+    ]
+  },
+  "linter": {
+    "enabled": true,
+    "rules": {
+      "recommended": true,
+      "complexity": {
+        "useLiteralKeys": "error",
+        "useOptionalChain": "error"
+      },
+      "correctness": {
+        "noUnusedVariables": "error",
+        "noUnusedImports": "error"
+      },
+      "suspicious": {
+        "noTemplateCurlyInString": "off",
+        "noDocumentCookie": "error"
+      },
+      "style": {
+        "noCommonJs": "error",
+        "noNonNullAssertion": "error",
+        "noDescendingSpecificity": "error",
+        "useImportType": "error",
+        "useTemplate": "error",
+        "noRestrictedImports": {
+          "level": "error",
+          "options": {
+            "paths": {
+              "@aws-sdk/lib-dynamodb": "Import from @packages/hutch-storage-client instead — it forces schema-driven null handling (see projects/save-link/src/save-link/find-article-content.ts for the bug this prevents).",
+              "@aws-sdk/client-dynamodb": "Import from @packages/hutch-storage-client instead — it forces schema-driven null handling.",
+              "@packages/domain/user": {
+                "importNames": ["authenticatedUserIdFrom"],
+                "message": "authenticatedUserIdFrom mints the request principal (AuthenticatedUserId) and must be called only where a validated session cookie or OAuth bearer token becomes the principal — never on a row field, event payload, or tool argument. New auth boundary? Add the file to the noRestrictedImports override in biome.config.base.json."
+              }
+            }
+          }
+        }
+      }
+    }
+  },
+  "overrides": [
+    {
+      "includes": [
+        "**/*.test.ts",
+        "**/providers/auth/dynamodb-auth.ts",
+        "**/providers/auth/in-memory-auth.ts",
+        "src/get-session-user-id.ts",
+        "src/validate-access-token.ts"
+      ],
+      "linter": {
+        "rules": {
+          "style": {
+            "noRestrictedImports": {
+              "level": "error",
+              "options": {
+                "paths": {
+                  "@aws-sdk/lib-dynamodb": "Import from @packages/hutch-storage-client instead — it forces schema-driven null handling (see projects/save-link/src/save-link/find-article-content.ts for the bug this prevents).",
+                  "@aws-sdk/client-dynamodb": "Import from @packages/hutch-storage-client instead — it forces schema-driven null handling."
+                }
+              }
+            }
+          }
+        }
+      }
+    }
+  ]
 }

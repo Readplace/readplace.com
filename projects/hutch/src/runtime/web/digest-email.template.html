@@ -26,10 +26,10 @@
                   <tr>
                     <td>
                       <!-- Site name and preview are links, not plain text, because mail
-                           clients auto-linkify bare domains: a site name is always one, and
-                           a summary can mention one. Left unwrapped, the client would build
-                           its own link to the original site — the one destination this email
-                           must never offer. Text already inside an anchor is left alone. -->
+                        clients auto-linkify bare domains: a site name is always one, and
+                        a summary can mention one. Left unwrapped, the client would build
+                        its own link to the original site — the one destination this email
+                        must never offer. Text already inside an anchor is left alone. -->
                       <p style="margin:0 0 4px;font-size:18px;line-height:1.4;font-weight:600;"><a href="{{readerUrl}}" style="color:{{../colors.heading}};text-decoration:none;">{{title}}</a></p>
                       <p style="margin:0 0 12px;font-size:14px;line-height:1.6;"><a href="{{readerUrl}}" style="color:{{../colors.muted}};text-decoration:none;">{{siteName}}</a></p>
                       {{#if preview}}

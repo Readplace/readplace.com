@@ -1,7 +1,7 @@
 {
   "name": "hutch",
   "version": "1.0.0",
-  "description": "Readplace \u2014 read-it-later web application",
+  "description": "Readplace — read-it-later web application",
   "main": "src/infra/index.ts",
   "exports": {
     ".": "./src/infra/index.ts",
@@ -36,7 +36,7 @@
     "check-unused-css": "node scripts/check-unused-css.js",
     "generate-brand-assets": "node scripts/generate-brand-assets.mjs",
     "sync-disposable-domains": "node scripts/sync-disposable-domains.js",
-    "lint": "tsc --project tsconfig.lint.json && concurrently --kill-others-on-fail \"biome lint src\" \"knip\" \"pnpm check-unused-css\"",
+    "lint": "tsc --project tsconfig.lint.json && concurrently --kill-others-on-fail \"biome lint src\" \"knip\" \"editorconfig-checker\" \"pnpm check-unused-css\"",
     "check-infra": "PULUMI_CONFIG_PASSPHRASE='' pulumi preview --stack \"${PULUMI_STACK:?PULUMI_STACK is not set}\"",
     "check": "nx run hutch:check",
     "deploy-infra": "nx run deploy-infra",
@@ -111,6 +111,7 @@
     "@types/supertest": "7.2.0",
     "c8": "11.0.0",
     "concurrently": "10.0.0",
+    "editorconfig-checker": "6.1.1",
     "esbuild": "catalog:",
     "jest": "30.4.2",
     "jsdom": "26.1.0",

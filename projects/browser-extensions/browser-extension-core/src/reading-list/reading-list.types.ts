@@ -40,7 +40,7 @@ export type SaveUrlResult =
 			reason: "not-saveable";
 			items: ReadingListItem[];
 			warning?: SaveWarning;
-	  }
+		}
 	| { ok: false; messages: Message[] };
 
 /** The outcome of invoking one advertised per-item action by (id, name). A

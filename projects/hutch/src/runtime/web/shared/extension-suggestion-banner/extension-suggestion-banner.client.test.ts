@@ -8,14 +8,14 @@ const VISIBLE_CLASS = "extension-suggestion-banner--visible";
 
 function buildFixture(showAttr: "true" | "false"): string {
 	return `<!DOCTYPE html><html><body>
-    <div class="extension-suggestion-banner" data-show-extension-suggestion="${showAttr}">
-      <span class="extension-suggestion-banner__message">Tip</span>
-      <a class="extension-suggestion-banner__cta" href="/install">Get the extension</a>
-      <button type="button" class="extension-suggestion-banner__close" data-extension-suggestion-close>
-        <span aria-hidden="true">&times;</span>
-      </button>
-    </div>
-  </body></html>`;
+		<div class="extension-suggestion-banner" data-show-extension-suggestion="${showAttr}">
+			<span class="extension-suggestion-banner__message">Tip</span>
+			<a class="extension-suggestion-banner__cta" href="/install">Get the extension</a>
+			<button type="button" class="extension-suggestion-banner__close" data-extension-suggestion-close>
+				<span aria-hidden="true">&times;</span>
+			</button>
+		</div>
+	</body></html>`;
 }
 
 function createDom(showAttr: "true" | "false") {
@@ -157,8 +157,8 @@ describe("initExtensionSuggestionBanner — missing elements", () => {
 	it("throws a descriptive error when the close button is absent", () => {
 		const dom = new JSDOM(
 			`<!DOCTYPE html><html><body>
-        <div class="extension-suggestion-banner" data-show-extension-suggestion="true"></div>
-      </body></html>`,
+				<div class="extension-suggestion-banner" data-show-extension-suggestion="true"></div>
+			</body></html>`,
 			{ url: "https://readplace.com/" },
 		);
 

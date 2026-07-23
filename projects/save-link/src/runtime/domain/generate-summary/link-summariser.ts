@@ -32,7 +32,7 @@ export type SummarizeResult =
 			excerpt: string;
 			inputTokens: number;
 			outputTokens: number;
-	  }
+		}
 	| { kind: "skipped"; reason: SummarySkipReason }
 	| { kind: "no-text-block" };
 

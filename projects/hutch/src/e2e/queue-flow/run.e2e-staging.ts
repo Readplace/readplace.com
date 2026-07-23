@@ -4,11 +4,11 @@ import { randomUUID } from 'node:crypto'
 import { test } from '@playwright/test'
 import type { PageAction } from '../hateoas/navigation-handler.types'
 import {
-  IMPORT_ACTION_KEYS,
-  IMPORT_FROM_URL_ACTION_KEYS,
-  ONBOARDING_ACTION_KEYS,
-  PASSWORD_RESET_ACTION_KEYS,
-  SEED_ACTION_KEYS,
+	IMPORT_ACTION_KEYS,
+	IMPORT_FROM_URL_ACTION_KEYS,
+	ONBOARDING_ACTION_KEYS,
+	PASSWORD_RESET_ACTION_KEYS,
+	SEED_ACTION_KEYS,
 } from './action-catalog'
 import { createBannerOnReaderActions, type BannerOnReaderProgress } from './banner-on-reader-actions'
 import { createCleanupActions, type CleanupProgress } from './cleanup-actions'
@@ -28,192 +28,192 @@ import { runOAuthRevokeFlow } from '../oauth-revoke/oauth-revoke-flow'
 // cookie signal). Declaring the same keys as local preserves action-key
 // parity at compile time via the exhaustive *_ACTION_KEYS tuples.
 const SKIP_ACTION: PageAction = {
-  isAvailable: async () => false,
-  execute: async () => { /* staging-skipped action, never runs */ },
+	isAvailable: async () => false,
+	execute: async () => { /* staging-skipped action, never runs */ },
 }
 function skipFactory<K extends string>(
-  keys: readonly K[],
+	keys: readonly K[],
 ): () => Record<K, PageAction> {
-  return () => {
-    const result = {} as Record<K, PageAction>
-    for (const key of keys) {
-      result[key] = SKIP_ACTION
-    }
-    return result
-  }
+	return () => {
+		const result = {} as Record<K, PageAction>
+		for (const key of keys) {
+			result[key] = SKIP_ACTION
+		}
+		return result
+	}
 }
 
 test.describe('Queue management flow (staging)', () => {
-  test('signup, logout, login, add articles, pagination, sort, read, delete, verify tabs', async ({ page, baseURL }) => {
-    assert(baseURL, "baseURL must be defined — set STAGING_URL env var")
+	test('signup, logout, login, add articles, pagination, sort, read, delete, verify tabs', async ({ page, baseURL }) => {
+		assert(baseURL, "baseURL must be defined — set STAGING_URL env var")
 
-    // Each CI run gets its own runId so every article URL the test feeds into
-    // /save and /view is unique. Reusing a shared URL across runs (e.g.
-    // ${baseURL}/privacy?view=1, which API Gateway strips back to
-    // ${baseURL}/privacy) would let one broken run strand the row at
-    // summaryStatus=pending and brick every subsequent run on the cached state.
-    // The /e2e/article/:id route on hutch returns the same fixture body for
-    // every :id, so unique paths produce unique articles without needing a
-    // separate static page per slot. randomUUID over Date.now() so two runs
-    // scheduled in the same millisecond cannot collide.
-    const runId = randomUUID()
-    const fixtureUrl = (slug: string): string => `${baseURL}/e2e/article/${runId}-${slug}`
-    const FIXTURE_TITLE = 'Readplace E2E test fixture article'
+		// Each CI run gets its own runId so every article URL the test feeds into
+		// /save and /view is unique. Reusing a shared URL across runs (e.g.
+		// ${baseURL}/privacy?view=1, which API Gateway strips back to
+		// ${baseURL}/privacy) would let one broken run strand the row at
+		// summaryStatus=pending and brick every subsequent run on the cached state.
+		// The /e2e/article/:id route on hutch returns the same fixture body for
+		// every :id, so unique paths produce unique articles without needing a
+		// separate static page per slot. randomUUID over Date.now() so two runs
+		// scheduled in the same millisecond cannot collide.
+		const runId = randomUUID()
+		const fixtureUrl = (slug: string): string => `${baseURL}/e2e/article/${runId}-${slug}`
+		const FIXTURE_TITLE = 'Readplace E2E test fixture article'
 
-    const cleanupProgress: CleanupProgress = {
-      previousArticlesDeleted: false,
-    }
+		const cleanupProgress: CleanupProgress = {
+			previousArticlesDeleted: false,
+		}
 
-    const savePermalinkProgress: SavePermalinkProgress = {
-      savedViaPermalink: false,
-      deletedPermalinkArticle: false,
-    }
+		const savePermalinkProgress: SavePermalinkProgress = {
+			savedViaPermalink: false,
+			deletedPermalinkArticle: false,
+		}
 
-    const bannerOnReaderProgress: BannerOnReaderProgress = {
-      bannerVerifiedOnPublicView: false,
-      bannerVerifiedOnPrivateReader: false,
-      bannerTestArticleDeleted: false,
-    }
+		const bannerOnReaderProgress: BannerOnReaderProgress = {
+			bannerVerifiedOnPublicView: false,
+			bannerVerifiedOnPrivateReader: false,
+			bannerTestArticleDeleted: false,
+		}
 
-    const viewPageProgress: ViewPageProgress = {
-      visitedAnonymously: false,
-      // Staging has no deterministic crawl-failure endpoint (/e2e/unfetchable
-      // is local-only), so mark the crawl-failure leg complete up front. Its
-      // action skips itself via the missing `unfetchableUrl` config option.
-      visitedCrawlFailure: true,
-    }
+		const viewPageProgress: ViewPageProgress = {
+			visitedAnonymously: false,
+			// Staging has no deterministic crawl-failure endpoint (/e2e/unfetchable
+			// is local-only), so mark the crawl-failure leg complete up front. Its
+			// action skips itself via the missing `unfetchableUrl` config option.
+			visitedCrawlFailure: true,
+		}
 
-    // All-true stubs: staging skips these flows (no /e2e/sent-emails endpoint,
-    // no seed URLs, no extension cookie signal), so mark their progress as
-    // complete up front. The paired skipFactory below keeps action-key parity
-    // with local by registering no-op actions under the same keys.
-    const onboardingProgress: OnboardingProgress = {
-      installedExtension: true,
-      savedFirstArticle: true,
-    }
+		// All-true stubs: staging skips these flows (no /e2e/sent-emails endpoint,
+		// no seed URLs, no extension cookie signal), so mark their progress as
+		// complete up front. The paired skipFactory below keeps action-key parity
+		// with local by registering no-op actions under the same keys.
+		const onboardingProgress: OnboardingProgress = {
+			installedExtension: true,
+			savedFirstArticle: true,
+		}
 
-    const seedProgress: SeedProgress = {
-      articlesSeeded: true,
-    }
+		const seedProgress: SeedProgress = {
+			articlesSeeded: true,
+		}
 
-    const passwordResetProgress: PasswordResetProgress = {
-      navigatedToForgotPassword: true,
-      submittedForgotPassword: true,
-      navigatedToResetPassword: true,
-      submittedResetPassword: true,
-      loggedInWithNewPassword: true,
-    }
+		const passwordResetProgress: PasswordResetProgress = {
+			navigatedToForgotPassword: true,
+			submittedForgotPassword: true,
+			navigatedToResetPassword: true,
+			submittedResetPassword: true,
+			loggedInWithNewPassword: true,
+		}
 
-    const importProgress: ImportProgress = {
-      allThreeImported: true,
-      middleUncheckedImported: true,
-      selectAllDeselectSomeImported: true,
-      deselectAllSelectSomeImported: true,
-      paginatedSelectAllSpansPagesImported: true,
-    }
+		const importProgress: ImportProgress = {
+			allThreeImported: true,
+			middleUncheckedImported: true,
+			selectAllDeselectSomeImported: true,
+			deselectAllSelectSomeImported: true,
+			paginatedSelectAllSpansPagesImported: true,
+		}
 
-    const importFromUrlProgress: ImportFromUrlProgress = {
-      happyPathImported: true,
-      pageError500Surfaced: true,
-      pageWithoutLinksSurfaced: true,
-    }
+		const importFromUrlProgress: ImportFromUrlProgress = {
+			happyPathImported: true,
+			pageError500Surfaced: true,
+			pageWithoutLinksSurfaced: true,
+		}
 
-    const queueProgress: QueueProgress = {
-      allArticlesAdded: false,
-      paginationArticlesAdded: false,
-      verifiedPage1HasNext: false,
-      navigatedToPage2: false,
-      verifiedPage2: false,
-      navigatedBackToPage1: false,
-      verifiedBackOnPage1: false,
-      refreshedExistingArticle: false,
-      paginationArticlesDeleted: false,
-      verifiedNewestFirst: false,
-      sortedOldestFirst: false,
-      verifiedOldestFirst: false,
-      openedFirstArticle: false,
-      backFromReader: false,
-      verifiedReadStatus: false,
-      deletedLastArticle: false,
-      checkedReadTab: false,
-      checkedUnreadTab: false,
-      cleanupDeleted: false,
-    }
+		const queueProgress: QueueProgress = {
+			allArticlesAdded: false,
+			paginationArticlesAdded: false,
+			verifiedPage1HasNext: false,
+			navigatedToPage2: false,
+			verifiedPage2: false,
+			navigatedBackToPage1: false,
+			verifiedBackOnPage1: false,
+			refreshedExistingArticle: false,
+			paginationArticlesDeleted: false,
+			verifiedNewestFirst: false,
+			sortedOldestFirst: false,
+			verifiedOldestFirst: false,
+			openedFirstArticle: false,
+			backFromReader: false,
+			verifiedReadStatus: false,
+			deletedLastArticle: false,
+			checkedReadTab: false,
+			checkedUnreadTab: false,
+			cleanupDeleted: false,
+		}
 
-    const stagingArticles: TestArticleData = {
-      urls: [
-        fixtureUrl('queue-1'),
-        fixtureUrl('queue-2'),
-        fixtureUrl('queue-3'),
-        fixtureUrl('queue-4'),
-      ],
-      titles: [FIXTURE_TITLE, FIXTURE_TITLE, FIXTURE_TITLE, FIXTURE_TITLE],
-      paginationUrls: Array.from({ length: 17 }, (_, i) => fixtureUrl(`pagi-${i + 1}`)),
-    }
+		const stagingArticles: TestArticleData = {
+			urls: [
+				fixtureUrl('queue-1'),
+				fixtureUrl('queue-2'),
+				fixtureUrl('queue-3'),
+				fixtureUrl('queue-4'),
+			],
+			titles: [FIXTURE_TITLE, FIXTURE_TITLE, FIXTURE_TITLE, FIXTURE_TITLE],
+			paginationUrls: Array.from({ length: 17 }, (_, i) => fixtureUrl(`pagi-${i + 1}`)),
+		}
 
-    await runQueueFlow(page, {
-      baseURL,
-      testArticles: stagingArticles,
-      authData: {
-        email: 'e2e-test@example.com',
-        password: 'test-password-123',
-      },
-      passwordResetProgress,
-      queueProgress,
-      preQueueActionFactories: {
-        anonymousView: createAnonymousViewPageActions(
-          { baseUrl: baseURL, testUrl: fixtureUrl('anon-view') },
-          viewPageProgress,
-        ),
-        onboarding: skipFactory(ONBOARDING_ACTION_KEYS),
-        seed: skipFactory(SEED_ACTION_KEYS),
-        cleanup: createCleanupActions(cleanupProgress),
-        passwordReset: skipFactory(PASSWORD_RESET_ACTION_KEYS),
-        savePermalink: createSavePermalinkActions(
-          { baseUrl: baseURL, testUrl: fixtureUrl('permalink') },
-          cleanupProgress,
-          savePermalinkProgress,
-        ),
-        bannerOnReader: createBannerOnReaderActions(
-          {
-            baseUrl: baseURL,
-            publicViewTestUrl: fixtureUrl('banner-on-public-view'),
-            privateReaderTestUrl: fixtureUrl('banner-on-private-reader'),
-          },
-          cleanupProgress,
-          bannerOnReaderProgress,
-        ),
-        importActions: skipFactory(IMPORT_ACTION_KEYS),
-        importFromUrlActions: skipFactory(IMPORT_FROM_URL_ACTION_KEYS),
-      },
-      preQueueProgressObjects: [
-        viewPageProgress,
-        cleanupProgress,
-        savePermalinkProgress,
-        bannerOnReaderProgress,
-        onboardingProgress,
-        seedProgress,
-        passwordResetProgress,
-        importProgress,
-        importFromUrlProgress,
-      ],
-      maxNavigations: 100,
-    })
-  })
+		await runQueueFlow(page, {
+			baseURL,
+			testArticles: stagingArticles,
+			authData: {
+				email: 'e2e-test@example.com',
+				password: 'test-password-123',
+			},
+			passwordResetProgress,
+			queueProgress,
+			preQueueActionFactories: {
+				anonymousView: createAnonymousViewPageActions(
+					{ baseUrl: baseURL, testUrl: fixtureUrl('anon-view') },
+					viewPageProgress,
+				),
+				onboarding: skipFactory(ONBOARDING_ACTION_KEYS),
+				seed: skipFactory(SEED_ACTION_KEYS),
+				cleanup: createCleanupActions(cleanupProgress),
+				passwordReset: skipFactory(PASSWORD_RESET_ACTION_KEYS),
+				savePermalink: createSavePermalinkActions(
+					{ baseUrl: baseURL, testUrl: fixtureUrl('permalink') },
+					cleanupProgress,
+					savePermalinkProgress,
+				),
+				bannerOnReader: createBannerOnReaderActions(
+					{
+						baseUrl: baseURL,
+						publicViewTestUrl: fixtureUrl('banner-on-public-view'),
+						privateReaderTestUrl: fixtureUrl('banner-on-private-reader'),
+					},
+					cleanupProgress,
+					bannerOnReaderProgress,
+				),
+				importActions: skipFactory(IMPORT_ACTION_KEYS),
+				importFromUrlActions: skipFactory(IMPORT_FROM_URL_ACTION_KEYS),
+			},
+			preQueueProgressObjects: [
+				viewPageProgress,
+				cleanupProgress,
+				savePermalinkProgress,
+				bannerOnReaderProgress,
+				onboardingProgress,
+				seedProgress,
+				passwordResetProgress,
+				importProgress,
+				importFromUrlProgress,
+			],
+			maxNavigations: 100,
+		})
+	})
 
-  test('iOS token revocation destroys every session the user holds', async ({ baseURL }) => {
-    assert(baseURL, "baseURL must be defined — set STAGING_URL env var")
+	test('iOS token revocation destroys every session the user holds', async ({ baseURL }) => {
+		assert(baseURL, "baseURL must be defined — set STAGING_URL env var")
 
-    // Runs against the deployed stack, so it exercises the sessions-table
-    // userId-index and its IAM grant — the parts no in-memory test can reach.
-    // A user of its own: the flow destroys every session of its account, so
-    // sharing the UI flow's user would sign out concurrently running suites
-    // (or a human) logged in as that account.
-    await runOAuthRevokeFlow({
-      baseURL,
-      email: 'oauth-revoke-e2e@example.com',
-      password: 'test-password-123',
-    })
-  })
+		// Runs against the deployed stack, so it exercises the sessions-table
+		// userId-index and its IAM grant — the parts no in-memory test can reach.
+		// A user of its own: the flow destroys every session of its account, so
+		// sharing the UI flow's user would sign out concurrently running suites
+		// (or a human) logged in as that account.
+		await runOAuthRevokeFlow({
+			baseURL,
+			email: 'oauth-revoke-e2e@example.com',
+			password: 'test-password-123',
+		})
+	})
 })
 /* c8 ignore stop */

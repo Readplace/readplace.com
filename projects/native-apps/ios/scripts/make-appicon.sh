@@ -31,9 +31,9 @@ sips -s format png --resampleHeightWidth 1024 1024 "$TMP_SVG" --out "$TMP_PNG" >
 
 # Flatten alpha against the real Xcode toolchain (the devbox nix SDK is scrubbed).
 env -u CC -u CXX -u CPP -u LD -u SDKROOT -u MACOSX_DEPLOYMENT_TARGET \
-	DEVELOPER_DIR=/Applications/Xcode.app/Contents/Developer \
-	PATH="/usr/bin:/bin:/usr/sbin:/sbin" \
-	swift - "$TMP_PNG" "$OUT" <<'SWIFT'
+  DEVELOPER_DIR=/Applications/Xcode.app/Contents/Developer \
+  PATH="/usr/bin:/bin:/usr/sbin:/sbin" \
+  swift - "$TMP_PNG" "$OUT" <<'SWIFT'
 import Foundation
 import CoreGraphics
 import ImageIO

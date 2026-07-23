@@ -31,7 +31,7 @@ export type CrawlArticleResult =
 			 * stamps it on the h2/curl/aia fallbacks. Absent only for the
 			 * site-rule/oembed path, which never issues an HTTP fetch. */
 			finalUrl?: string;
-	  }
+		}
 	| { status: "not-modified" }
 	| { status: "failed" }
 	| { status: "not-found"; httpStatus: 404 | 410 }

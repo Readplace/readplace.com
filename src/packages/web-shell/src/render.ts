@@ -11,20 +11,20 @@ import { withInternalTracking } from './internal-link-tracking';
  * `&` into `&amp;`, the correct form inside an HTML attribute.
  */
 Handlebars.registerHelper('track', (href: unknown, options: Handlebars.HelperOptions): string => {
-  assert(typeof href === 'string', '{{track}} requires a string href');
-  const { source, content } = options.hash;
-  assert(typeof source === 'string', "{{track}} requires a source= named arg");
-  assert(typeof content === 'string', "{{track}} requires a content= named arg");
-  return withInternalTracking(href, { source, content });
+	assert(typeof href === 'string', '{{track}} requires a string href');
+	const { source, content } = options.hash;
+	assert(typeof source === 'string', "{{track}} requires a source= named arg");
+	assert(typeof content === 'string', "{{track}} requires a content= named arg");
+	return withInternalTracking(href, { source, content });
 });
 
 const compiledTemplates = new Map<string, HandlebarsTemplateDelegate>();
 
 export function render(template: string, data: object, options?: { helpers?: Record<string, Handlebars.HelperDelegate> }): string {
-  let compiled = compiledTemplates.get(template);
-  if (!compiled) {
-    compiled = Handlebars.compile(template);
-    compiledTemplates.set(template, compiled);
-  }
-  return compiled(data, { helpers: options?.helpers });
+	let compiled = compiledTemplates.get(template);
+	if (!compiled) {
+		compiled = Handlebars.compile(template);
+		compiledTemplates.set(template, compiled);
+	}
+	return compiled(data, { helpers: options?.helpers });
 }

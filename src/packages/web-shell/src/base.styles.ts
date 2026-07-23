@@ -19,8 +19,8 @@ const LIGHT_THEME_VARIABLES: Record<string, string> = {
 	"--primary": "hsl(27 65% 47%)",
 	"--primary-text": "var(--color-brand-dark)",
 	/** Amber dark enough to carry --primary-foreground at 5.06:1, so it is pinned
-	 * across both themes: a fill and a text colour need opposite lightness as the
-	 * page darkens, and --primary-text follows the page. */
+	* across both themes: a fill and a text colour need opposite lightness as the
+	* page darkens, and --primary-text follows the page. */
 	"--primary-fill": "#A85A1E",
 	"--primary-foreground": "hsl(0 0% 100%)",
 	"--secondary": "hsl(27 30% 95%)",
@@ -48,7 +48,7 @@ const LIGHT_THEME_VARIABLES: Record<string, string> = {
 	"--ring-shadow": "hsl(27 65% 47% / 0.15)",
 	"--error": "hsl(0 43% 56%)",
 	/** --error is 4.17:1 on white, short of 1.4.3. Same hue, darkened to 5.2:1,
-	 * for error wording rather than error surfaces. */
+	* for error wording rather than error surfaces. */
 	"--error-text": "hsl(0 43% 50%)",
 	"--error-foreground": "hsl(0 0% 100%)",
 	"--error-bg": "hsl(0 43% 56% / 0.1)",
@@ -112,582 +112,582 @@ function generateCssVariables(variables: Record<string, string>): string {
 }
 
 export const BASE_CSS_VARIABLES = `
-  :root {
-    color-scheme: light;
+	:root {
+		color-scheme: light;
 ${generateCssVariables(LIGHT_THEME_VARIABLES)}
-  }
+	}
 
-  @media (prefers-color-scheme: dark) {
-    :root {
-      color-scheme: dark;
+	@media (prefers-color-scheme: dark) {
+		:root {
+			color-scheme: dark;
 ${generateCssVariables(DARK_THEME_VARIABLES)}
-    }
-  }
+		}
+	}
 
-  @media (min-width: 768px) {
-    :root {
-      --form-gap: 24px;
-    }
-  }
+	@media (min-width: 768px) {
+		:root {
+			--form-gap: 24px;
+		}
+	}
 `;
 
 export const BASE_RESET_STYLES = `
-  * {
-    box-sizing: border-box;
-    margin: 0;
-    padding: 0;
-  }
-  html {
-    scroll-padding-top: calc(var(--banner-area-height, 38px) + var(--header-height, 64px));
-  }
-  body {
-    font-family: Inter, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
-    line-height: 1.6;
-    color: var(--foreground);
-    min-height: 100vh;
-    padding-top: var(--banner-area-height, 38px);
-  }
-  button:focus-visible,
-  a:focus-visible {
-    outline: 2px solid var(--ring);
-    outline-offset: 2px;
-  }
+	* {
+		box-sizing: border-box;
+		margin: 0;
+		padding: 0;
+	}
+	html {
+		scroll-padding-top: calc(var(--banner-area-height, 38px) + var(--header-height, 64px));
+	}
+	body {
+		font-family: Inter, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+		line-height: 1.6;
+		color: var(--foreground);
+		min-height: 100vh;
+		padding-top: var(--banner-area-height, 38px);
+	}
+	button:focus-visible,
+	a:focus-visible {
+		outline: 2px solid var(--ring);
+		outline-offset: 2px;
+	}
 `;
 
 export const HEADER_STYLES = `
-  .header {
-    background: var(--background);
-    border-bottom: 1px solid var(--border);
-    padding: 16px 20px;
-    position: sticky;
-    top: var(--banner-area-height, 38px);
-    z-index: 100;
-    transition: transform 0.25s ease;
-  }
-  /* Reader views slide the nav offscreen on scroll-down (reader-nav.client.ts).
-     -100% is exactly the header's height — the same distance the sticky mark-read
-     toolbar rises — so the two move in lockstep with no content gap. The strip
-     left at the very top is covered by the opaque fixed .banner-area (z-index 200
-     > 100); keep it -100%, not -100% - banner, or a text sliver flashes through. */
-  .nav-hidden .header {
-    transform: translateY(-100%);
-  }
-  @media (prefers-reduced-motion: reduce) {
-    .header {
-      transition: none;
-    }
-  }
-  .header--transparent {
-    background: transparent;
-    border-bottom: none;
-    position: absolute;
-    top: var(--banner-area-height, 38px);
-    left: 0;
-    right: 0;
-  }
-  .header__content {
-    max-width: 1000px;
-    margin: 0 auto;
-    display: flex;
-    align-items: center;
-    justify-content: space-between;
-    gap: 12px;
-  }
-  .header__brand {
-    font-family: Georgia, "Times New Roman", serif;
-    font-size: 1.5rem;
-    font-weight: 700;
-    color: var(--header-brand-stem);
-    text-decoration: none;
-    letter-spacing: -0.02em;
-    display: inline-flex;
-    align-items: center;
-    gap: 8px;
-  }
-  .header__brand-icon {
-    width: 26px;
-    height: 26px;
-    flex-shrink: 0;
-  }
-  .header__brand-mark {
-    color: var(--header-brand-tail);
-  }
-  .header--transparent .header__brand {
-    color: var(--color-on-brand);
-  }
-  .header--transparent .header__brand-mark {
-    color: var(--color-highlight);
-  }
+	.header {
+		background: var(--background);
+		border-bottom: 1px solid var(--border);
+		padding: 16px 20px;
+		position: sticky;
+		top: var(--banner-area-height, 38px);
+		z-index: 100;
+		transition: transform 0.25s ease;
+	}
+	/* Reader views slide the nav offscreen on scroll-down (reader-nav.client.ts).
+		-100% is exactly the header's height — the same distance the sticky mark-read
+		toolbar rises — so the two move in lockstep with no content gap. The strip
+		left at the very top is covered by the opaque fixed .banner-area (z-index 200
+		> 100); keep it -100%, not -100% - banner, or a text sliver flashes through. */
+	.nav-hidden .header {
+		transform: translateY(-100%);
+	}
+	@media (prefers-reduced-motion: reduce) {
+		.header {
+			transition: none;
+		}
+	}
+	.header--transparent {
+		background: transparent;
+		border-bottom: none;
+		position: absolute;
+		top: var(--banner-area-height, 38px);
+		left: 0;
+		right: 0;
+	}
+	.header__content {
+		max-width: 1000px;
+		margin: 0 auto;
+		display: flex;
+		align-items: center;
+		justify-content: space-between;
+		gap: 12px;
+	}
+	.header__brand {
+		font-family: Georgia, "Times New Roman", serif;
+		font-size: 1.5rem;
+		font-weight: 700;
+		color: var(--header-brand-stem);
+		text-decoration: none;
+		letter-spacing: -0.02em;
+		display: inline-flex;
+		align-items: center;
+		gap: 8px;
+	}
+	.header__brand-icon {
+		width: 26px;
+		height: 26px;
+		flex-shrink: 0;
+	}
+	.header__brand-mark {
+		color: var(--header-brand-tail);
+	}
+	.header--transparent .header__brand {
+		color: var(--color-on-brand);
+	}
+	.header--transparent .header__brand-mark {
+		color: var(--color-highlight);
+	}
 `;
 
 export const FOOTER_STYLES = `
-  .footer {
-    background: var(--footer-bg);
-    color: var(--footer-text);
-    padding: 24px 20px;
-    margin-top: auto;
-  }
+	.footer {
+		background: var(--footer-bg);
+		color: var(--footer-text);
+		padding: 24px 20px;
+		margin-top: auto;
+	}
 
-  .footer__content {
-    max-width: 1000px;
-    margin: 0 auto;
-    text-align: center;
-  }
+	.footer__content {
+		max-width: 1000px;
+		margin: 0 auto;
+		text-align: center;
+	}
 
-  .footer__links {
-    list-style: none;
-    display: flex;
-    justify-content: center;
-    gap: 24px;
-    margin: 0 0 12px 0;
-    padding: 0;
-  }
+	.footer__links {
+		list-style: none;
+		display: flex;
+		justify-content: center;
+		gap: 24px;
+		margin: 0 0 12px 0;
+		padding: 0;
+	}
 
-  .footer__link {
-    color: var(--footer-link);
-    text-decoration: none;
-    font-size: 0.875rem;
-  }
+	.footer__link {
+		color: var(--footer-link);
+		text-decoration: none;
+		font-size: 0.875rem;
+	}
 
-  .footer__link:hover {
-    color: var(--footer-link-hover);
-  }
+	.footer__link:hover {
+		color: var(--footer-link-hover);
+	}
 
-  .footer__copyright {
-    font-size: 0.6875rem;
-    color: var(--footer-copyright);
-    margin: 0;
-  }
+	.footer__copyright {
+		font-size: 0.6875rem;
+		color: var(--footer-copyright);
+		margin: 0;
+	}
 `;
 
 export const OFFLINE_BANNER_STYLES = `
-  .offline-banner {
-    background: var(--color-warning);
-    color: var(--foreground);
-    text-align: center;
-    font-size: 14px;
-    font-weight: 500;
-    max-height: 0;
-    overflow: hidden;
-    transition: max-height 0.3s ease, padding 0.3s ease;
-    padding: 0 16px;
-  }
+	.offline-banner {
+		background: var(--color-warning);
+		color: var(--foreground);
+		text-align: center;
+		font-size: 14px;
+		font-weight: 500;
+		max-height: 0;
+		overflow: hidden;
+		transition: max-height 0.3s ease, padding 0.3s ease;
+		padding: 0 16px;
+	}
 
-  .offline-banner--visible {
-    max-height: 50px;
-    padding: 8px 16px;
-  }
+	.offline-banner--visible {
+		max-height: 50px;
+		padding: 8px 16px;
+	}
 
-  .offline-banner__icon {
-    display: inline-block;
-    vertical-align: middle;
-    margin-right: 8px;
-  }
+	.offline-banner__icon {
+		display: inline-block;
+		vertical-align: middle;
+		margin-right: 8px;
+	}
 `;
 
 export const NAV_STYLES = `
-  .nav {
-    position: relative;
-  }
+	.nav {
+		position: relative;
+	}
 
-  .nav__toggle {
-    display: flex;
-    flex-direction: column;
-    justify-content: space-around;
-    width: 24px;
-    height: 20px;
-    background: transparent;
-    border: none;
-    cursor: pointer;
-    padding: 0;
-  }
+	.nav__toggle {
+		display: flex;
+		flex-direction: column;
+		justify-content: space-around;
+		width: 24px;
+		height: 20px;
+		background: transparent;
+		border: none;
+		cursor: pointer;
+		padding: 0;
+	}
 
-  .nav__toggle-bar {
-    width: 100%;
-    height: 2px;
-    background: var(--foreground);
-    border-radius: 1px;
-    transition: transform 0.2s ease, opacity 0.2s ease;
-  }
+	.nav__toggle-bar {
+		width: 100%;
+		height: 2px;
+		background: var(--foreground);
+		border-radius: 1px;
+		transition: transform 0.2s ease, opacity 0.2s ease;
+	}
 
-  .header--transparent .nav__toggle-bar {
-    background: var(--color-on-brand);
-  }
+	.header--transparent .nav__toggle-bar {
+		background: var(--color-on-brand);
+	}
 
-  .nav__toggle[aria-expanded="true"] .nav__toggle-bar:nth-child(1) {
-    transform: translateY(9px) rotate(45deg);
-  }
+	.nav__toggle[aria-expanded="true"] .nav__toggle-bar:nth-child(1) {
+		transform: translateY(9px) rotate(45deg);
+	}
 
-  .nav__toggle[aria-expanded="true"] .nav__toggle-bar:nth-child(2) {
-    opacity: 0;
-  }
+	.nav__toggle[aria-expanded="true"] .nav__toggle-bar:nth-child(2) {
+		opacity: 0;
+	}
 
-  .nav__toggle[aria-expanded="true"] .nav__toggle-bar:nth-child(3) {
-    transform: translateY(-9px) rotate(-45deg);
-  }
+	.nav__toggle[aria-expanded="true"] .nav__toggle-bar:nth-child(3) {
+		transform: translateY(-9px) rotate(-45deg);
+	}
 
-  .nav__menu {
-    display: none;
-    position: absolute;
-    top: 100%;
-    right: 0;
-    background: var(--background);
-    border: 1px solid var(--border);
-    border-radius: var(--radius-lg);
-    box-shadow: var(--shadow-md);
-    min-width: 180px;
-    margin-top: 8px;
-    z-index: 101;
-  }
+	.nav__menu {
+		display: none;
+		position: absolute;
+		top: 100%;
+		right: 0;
+		background: var(--background);
+		border: 1px solid var(--border);
+		border-radius: var(--radius-lg);
+		box-shadow: var(--shadow-md);
+		min-width: 180px;
+		margin-top: 8px;
+		z-index: 101;
+	}
 
-  .nav__menu--open {
-    display: block;
-  }
+	.nav__menu--open {
+		display: block;
+	}
 
-  /**
-   * 1. Sibling groups are split by a hairline so the sections read as distinct
-   *    without a heading on every one (the heading is the .nav__group-label).
-   */
-  .nav__group {
-    padding: 8px 0;
-  }
+	/**
+	* 1. Sibling groups are split by a hairline so the sections read as distinct
+	*    without a heading on every one (the heading is the .nav__group-label).
+	*/
+	.nav__group {
+		padding: 8px 0;
+	}
 
-  .nav__group + .nav__group {
-    border-top: 1px solid var(--border); /* 1 */
-  }
+	.nav__group + .nav__group {
+		border-top: 1px solid var(--border); /* 1 */
+	}
 
-  .nav__group-label {
-    display: block;
-    padding: 4px 16px;
-    font-size: 11px;
-    font-weight: 600;
-    letter-spacing: 0.06em;
-    text-transform: uppercase;
-    color: var(--muted-foreground);
-  }
+	.nav__group-label {
+		display: block;
+		padding: 4px 16px;
+		font-size: 11px;
+		font-weight: 600;
+		letter-spacing: 0.06em;
+		text-transform: uppercase;
+		color: var(--muted-foreground);
+	}
 
-  /**
-   * 1. Ensure font-size of nav-list is consistent to avoid different sizes when wrapped by a form, like the logout
-   */
-  .nav__list {
-    list-style: none;
-    margin: 0;
-    padding: 0;
-    font-size: 14px; /* 1 */
-  }
+	/**
+	* 1. Ensure font-size of nav-list is consistent to avoid different sizes when wrapped by a form, like the logout
+	*/
+	.nav__list {
+		list-style: none;
+		margin: 0;
+		padding: 0;
+		font-size: 14px; /* 1 */
+	}
 
-  .nav__link {
-    display: flex;
-    align-items: center;
-    gap: 10px;
-    padding: 12px 16px;
-    color: var(--foreground);
-    text-decoration: none;
-  }
+	.nav__link {
+		display: flex;
+		align-items: center;
+		gap: 10px;
+		padding: 12px 16px;
+		color: var(--foreground);
+		text-decoration: none;
+	}
 
-  .nav__icon-wrap {
-    position: relative;
-    flex-shrink: 0;
-    display: inline-flex;
-    justify-content: center;
-    width: 1.1em;
-  }
+	.nav__icon-wrap {
+		position: relative;
+		flex-shrink: 0;
+		display: inline-flex;
+		justify-content: center;
+		width: 1.1em;
+	}
 
-  .nav__icon {
-    flex-shrink: 0;
-    width: 1.1em;
-    text-align: center;
-    font-size: 0.95em;
-    color: var(--muted-foreground);
-  }
+	.nav__icon {
+		flex-shrink: 0;
+		width: 1.1em;
+		text-align: center;
+		font-size: 0.95em;
+		color: var(--muted-foreground);
+	}
 
-  .nav__badge {
-    position: absolute;
-    top: -7px;
-    left: -9px;
-    padding: 2px 4px;
-    background: var(--color-error);
-    color: var(--color-on-brand);
-    font-size: 8px;
-    font-weight: 700;
-    line-height: 1;
-    letter-spacing: 0.04em;
-    text-transform: uppercase;
-    border-radius: var(--radius-sm);
-    pointer-events: none;
-  }
+	.nav__badge {
+		position: absolute;
+		top: -7px;
+		left: -9px;
+		padding: 2px 4px;
+		background: var(--color-error);
+		color: var(--color-on-brand);
+		font-size: 8px;
+		font-weight: 700;
+		line-height: 1;
+		letter-spacing: 0.04em;
+		text-transform: uppercase;
+		border-radius: var(--radius-sm);
+		pointer-events: none;
+	}
 
-  .nav__link:hover {
-    background: var(--muted);
-  }
+	.nav__link:hover {
+		background: var(--muted);
+	}
 
-  button.nav__link {
-    background: none;
-    border: none;
-    cursor: pointer;
-    font: inherit;
-    width: 100%;
-    text-align: left;
-  }
+	button.nav__link {
+		background: none;
+		border: none;
+		cursor: pointer;
+		font: inherit;
+		width: 100%;
+		text-align: left;
+	}
 
-  @media (max-width: 767px) {
-    .header--transparent .nav__menu {
-      background: var(--background);
-      border: 1px solid var(--border);
-    }
-    .header--transparent .nav__link {
-      color: var(--foreground);
-    }
-    .header--transparent .nav__icon {
-      color: var(--muted-foreground);
-    }
-  }
+	@media (max-width: 767px) {
+		.header--transparent .nav__menu {
+			background: var(--background);
+			border: 1px solid var(--border);
+		}
+		.header--transparent .nav__link {
+			color: var(--foreground);
+		}
+		.header--transparent .nav__icon {
+			color: var(--muted-foreground);
+		}
+	}
 
-  @media (min-width: 768px) {
-    .nav__toggle {
-      display: none;
-    }
+	@media (min-width: 768px) {
+		.nav__toggle {
+			display: none;
+		}
 
-    .nav__menu {
-      display: flex;
-      align-items: center;
-      gap: 8px;
-      position: static;
-      background: transparent;
-      border: none;
-      box-shadow: none;
-      min-width: auto;
-      margin-top: 0;
-    }
+		.nav__menu {
+			display: flex;
+			align-items: center;
+			gap: 8px;
+			position: static;
+			background: transparent;
+			border: none;
+			box-shadow: none;
+			min-width: auto;
+			margin-top: 0;
+		}
 
-    .nav__group {
-      display: flex;
-      align-items: center;
-      padding: 0;
-    }
+		.nav__group {
+			display: flex;
+			align-items: center;
+			padding: 0;
+		}
 
-    /**
-     * 1. Visually hidden on the horizontal bar (the grouping reads from the
-     *    divider + spacing), but kept in the accessibility tree so screen
-     *    readers still announce the section heading.
-     */
-    .nav__group-label {
-      position: absolute; /* 1 */
-      width: 1px;
-      height: 1px;
-      padding: 0;
-      margin: -1px;
-      overflow: hidden;
-      clip: rect(0, 0, 0, 0);
-      white-space: nowrap;
-      border: 0;
-    }
+		/**
+		* 1. Visually hidden on the horizontal bar (the grouping reads from the
+		*    divider + spacing), but kept in the accessibility tree so screen
+		*    readers still announce the section heading.
+		*/
+		.nav__group-label {
+			position: absolute; /* 1 */
+			width: 1px;
+			height: 1px;
+			padding: 0;
+			margin: -1px;
+			overflow: hidden;
+			clip: rect(0, 0, 0, 0);
+			white-space: nowrap;
+			border: 0;
+		}
 
-    .nav__group + .nav__group {
-      border-top: none;
-      border-left: 1px solid var(--border);
-      margin-left: 8px;
-      padding-left: 8px;
-    }
+		.nav__group + .nav__group {
+			border-top: none;
+			border-left: 1px solid var(--border);
+			margin-left: 8px;
+			padding-left: 8px;
+		}
 
-    .nav__list {
-      display: flex;
-      gap: 8px;
-    }
+		.nav__list {
+			display: flex;
+			gap: 8px;
+		}
 
-    .nav__link {
-      padding: 8px 12px;
-      border-radius: var(--radius);
-    }
+		.nav__link {
+			padding: 8px 12px;
+			border-radius: var(--radius);
+		}
 
-    .header--transparent .nav__group + .nav__group {
-      border-left-color: rgba(255, 255, 255, 0.25);
-    }
+		.header--transparent .nav__group + .nav__group {
+			border-left-color: rgba(255, 255, 255, 0.25);
+		}
 
-    .header--transparent .nav__link,
-    .header--transparent .nav__icon {
-      color: var(--color-on-brand);
-    }
+		.header--transparent .nav__link,
+		.header--transparent .nav__icon {
+			color: var(--color-on-brand);
+		}
 
-    .header--transparent .nav__link:hover {
-      background: rgba(255, 255, 255, 0.1);
-    }
-  }
+		.header--transparent .nav__link:hover {
+			background: rgba(255, 255, 255, 0.1);
+		}
+	}
 `;
 
 export const TRIAL_COUNTDOWN_STYLES = `
-  .trial-countdown {
-    margin: 0;
-    padding: 0 12px;
-    color: var(--color-error);
-    font-weight: 600;
-    font-size: 0.875rem;
-    font-variant-numeric: tabular-nums;
-    letter-spacing: 0.01em;
-    text-decoration: none;
-    transition: color 0.3s ease, background 0.3s ease, font-weight 0.3s ease;
-  }
+	.trial-countdown {
+		margin: 0;
+		padding: 0 12px;
+		color: var(--color-error);
+		font-weight: 600;
+		font-size: 0.875rem;
+		font-variant-numeric: tabular-nums;
+		letter-spacing: 0.01em;
+		text-decoration: none;
+		transition: color 0.3s ease, background 0.3s ease, font-weight 0.3s ease;
+	}
 
-  .trial-countdown:hover {
-    text-decoration: underline;
-    text-decoration-thickness: 1px;
-    text-underline-offset: 3px;
-  }
+	.trial-countdown:hover {
+		text-decoration: underline;
+		text-decoration-thickness: 1px;
+		text-underline-offset: 3px;
+	}
 
-  /* purgecss-ignore-start: modifier suffix is interpolated from BannerState.trial.escalation, the cancellation branch of escalationClassFor in nav.component.ts, and the visibility state in nav.template.ts */
-  .trial-countdown--visible {
-    display: inline-block;
-  }
+	/* purgecss-ignore-start: modifier suffix is interpolated from BannerState.trial.escalation, the cancellation branch of escalationClassFor in nav.component.ts, and the visibility state in nav.template.ts */
+	.trial-countdown--visible {
+		display: inline-block;
+	}
 
-  .trial-countdown--hidden {
-    display: none;
-  }
+	.trial-countdown--hidden {
+		display: none;
+	}
 
-  .trial-countdown--soft {
-    font-weight: 500;
-    opacity: 0.85;
-  }
+	.trial-countdown--soft {
+		font-weight: 500;
+		opacity: 0.85;
+	}
 
-  .trial-countdown--moderate {
-    font-weight: 600;
-  }
+	.trial-countdown--moderate {
+		font-weight: 600;
+	}
 
-  .trial-countdown--urgent {
-    font-weight: 700;
-    padding: 2px 10px;
-    background: var(--error-bg);
-    border-radius: var(--radius-sm);
-  }
+	.trial-countdown--urgent {
+		font-weight: 700;
+		padding: 2px 10px;
+		background: var(--error-bg);
+		border-radius: var(--radius-sm);
+	}
 
-  .trial-countdown--critical {
-    font-weight: 700;
-    padding: 2px 10px;
-    background: var(--color-error);
-    color: var(--error-foreground);
-    border-radius: var(--radius-sm);
-    animation: trial-countdown-pulse 1.5s ease-in-out infinite;
-  }
+	.trial-countdown--critical {
+		font-weight: 700;
+		padding: 2px 10px;
+		background: var(--color-error);
+		color: var(--error-foreground);
+		border-radius: var(--radius-sm);
+		animation: trial-countdown-pulse 1.5s ease-in-out infinite;
+	}
 
-  .trial-countdown--expired {
-    font-weight: 700;
-    padding: 2px 10px;
-    background: var(--color-error);
-    color: var(--error-foreground);
-    border-radius: var(--radius-sm);
-    animation: trial-countdown-shake 0.5s ease-in-out 1;
-  }
+	.trial-countdown--expired {
+		font-weight: 700;
+		padding: 2px 10px;
+		background: var(--color-error);
+		color: var(--error-foreground);
+		border-radius: var(--radius-sm);
+		animation: trial-countdown-shake 0.5s ease-in-out 1;
+	}
 
-  .trial-countdown--cancellation-scheduled,
-  .trial-countdown--cancellation-imminent {
-    font-weight: 500;
-    padding: 2px 10px;
-    background: var(--warning-bg);
-    color: var(--foreground);
-    border-radius: var(--radius-sm);
-    white-space: nowrap;
-    min-width: 0;
-    overflow: hidden;
-    text-overflow: ellipsis;
-  }
+	.trial-countdown--cancellation-scheduled,
+	.trial-countdown--cancellation-imminent {
+		font-weight: 500;
+		padding: 2px 10px;
+		background: var(--warning-bg);
+		color: var(--foreground);
+		border-radius: var(--radius-sm);
+		white-space: nowrap;
+		min-width: 0;
+		overflow: hidden;
+		text-overflow: ellipsis;
+	}
 
-  .trial-countdown--cancellation-imminent {
-    font-weight: 700;
-    background: var(--error-bg);
-    color: var(--color-error);
-  }
-  /* purgecss-ignore-end */
+	.trial-countdown--cancellation-imminent {
+		font-weight: 700;
+		background: var(--error-bg);
+		color: var(--color-error);
+	}
+	/* purgecss-ignore-end */
 
-  @keyframes trial-countdown-pulse {
-    0%, 100% { transform: scale(1); }
-    50% { transform: scale(1.04); }
-  }
+	@keyframes trial-countdown-pulse {
+		0%, 100% { transform: scale(1); }
+		50% { transform: scale(1.04); }
+	}
 
-  @keyframes trial-countdown-shake {
-    0%, 100% { transform: translateX(0); }
-    25% { transform: translateX(-2px); }
-    75% { transform: translateX(2px); }
-  }
+	@keyframes trial-countdown-shake {
+		0%, 100% { transform: translateX(0); }
+		25% { transform: translateX(-2px); }
+		75% { transform: translateX(2px); }
+	}
 
-  @media (prefers-reduced-motion: reduce) {
-    .trial-countdown {
-      transition: none;
-      animation: none !important;
-    }
-  }
+	@media (prefers-reduced-motion: reduce) {
+		.trial-countdown {
+			transition: none;
+			animation: none !important;
+		}
+	}
 
-  /** Below 960px the inline header row (brand + horizontal nav) leaves the chip
-   * less than its ~150px minimum, so it moves to its own full-width row. The
-   * wrap is scoped with :has() to the cancellation state so every other trial
-   * state keeps today's single-row layout; browsers without :has() fall back
-   * to the ellipsized inline chip, whose title still carries the full text. */
-  @media (max-width: 959px) {
-    .header__content:has(.trial-countdown--cancellation-scheduled),
-    .header__content:has(.trial-countdown--cancellation-imminent) {
-      flex-wrap: wrap;
-    }
+	/** Below 960px the inline header row (brand + horizontal nav) leaves the chip
+	* less than its ~150px minimum, so it moves to its own full-width row. The
+	* wrap is scoped with :has() to the cancellation state so every other trial
+	* state keeps today's single-row layout; browsers without :has() fall back
+	* to the ellipsized inline chip, whose title still carries the full text. */
+	@media (max-width: 959px) {
+		.header__content:has(.trial-countdown--cancellation-scheduled),
+		.header__content:has(.trial-countdown--cancellation-imminent) {
+			flex-wrap: wrap;
+		}
 
-    .trial-countdown--cancellation-scheduled,
-    .trial-countdown--cancellation-imminent {
-      flex-basis: 100%;
-      order: 99;
-      padding: 4px 10px;
-    }
-  }
+		.trial-countdown--cancellation-scheduled,
+		.trial-countdown--cancellation-imminent {
+			flex-basis: 100%;
+			order: 99;
+			padding: 4px 10px;
+		}
+	}
 
-  @media (max-width: 480px) {
-    .header__content {
-      flex-wrap: wrap;
-    }
+	@media (max-width: 480px) {
+		.header__content {
+			flex-wrap: wrap;
+		}
 
-    .trial-countdown {
-      flex-basis: 100%;
-      padding: 4px 0 0;
-      order: 99;
-    }
+		.trial-countdown {
+			flex-basis: 100%;
+			padding: 4px 0 0;
+			order: 99;
+		}
 
-    .trial-countdown--cancellation-scheduled,
-    .trial-countdown--cancellation-imminent {
-      padding: 4px 10px;
-    }
-  }
+		.trial-countdown--cancellation-scheduled,
+		.trial-countdown--cancellation-imminent {
+			padding: 4px 10px;
+		}
+	}
 `;
 
 export const VERIFY_BANNER_STYLES = `
-  .verify-banner {
-    background: var(--color-warning);
-    color: var(--foreground);
-    text-align: center;
-    font-size: 14px;
-    font-weight: 500;
-    padding: 8px 16px;
-  }
+	.verify-banner {
+		background: var(--color-warning);
+		color: var(--foreground);
+		text-align: center;
+		font-size: 14px;
+		font-weight: 500;
+		padding: 8px 16px;
+	}
 
-  .verify-banner--visible { display: block; }
-  .verify-banner--hidden { display: none; }
+	.verify-banner--visible { display: block; }
+	.verify-banner--hidden { display: none; }
 
-  .verify-banner--locked {
-    background: var(--color-error);
-    color: var(--error-foreground);
-    font-weight: 600;
-  }
+	.verify-banner--locked {
+		background: var(--color-error);
+		color: var(--error-foreground);
+		font-weight: 600;
+	}
 
-  .verify-banner__count { font-weight: 700; }
+	.verify-banner__count { font-weight: 700; }
 
-  .verify-banner__contact {
-    color: inherit;
-    font-weight: 700;
-    text-decoration: underline;
-  }
+	.verify-banner__contact {
+		color: inherit;
+		font-weight: 700;
+		text-decoration: underline;
+	}
 `;
 
 export const BANNER_AREA_STYLES = `
-  .banner-area {
-    position: fixed;
-    top: 0;
-    left: 0;
-    right: 0;
-    z-index: 200;
-  }
+	.banner-area {
+		position: fixed;
+		top: 0;
+		left: 0;
+		right: 0;
+		z-index: 200;
+	}
 `;
 
 /**
@@ -698,123 +698,123 @@ export const BANNER_AREA_STYLES = `
  * strip above the announcement, and above the article when there is none.
  */
 export const CHROMELESS_BANNER_AREA_STYLES = `
-  :root {
-    --banner-area-height: 0px;
-  }
+	:root {
+		--banner-area-height: 0px;
+	}
 `;
 
 export const CHANGELOG_BANNER_STYLES = `
-  .changelog-banner {
-    background: var(--color-surface-elevated);
-    border-bottom: 1px solid var(--color-border);
-    color: var(--foreground);
-    font-size: 14px;
-    line-height: 1.5;
-    box-shadow: var(--shadow-sm);
-  }
+	.changelog-banner {
+		background: var(--color-surface-elevated);
+		border-bottom: 1px solid var(--color-border);
+		color: var(--foreground);
+		font-size: 14px;
+		line-height: 1.5;
+		box-shadow: var(--shadow-sm);
+	}
 
-  .changelog-banner--visible { display: block; }
-  .changelog-banner--hidden { display: none; }
+	.changelog-banner--visible { display: block; }
+	.changelog-banner--hidden { display: none; }
 
-  .changelog-banner__inner {
-    max-width: 1000px;
-    margin: 0 auto;
-    padding: 10px 16px;
-    display: flex;
-    align-items: center;
-    gap: 12px;
-  }
+	.changelog-banner__inner {
+		max-width: 1000px;
+		margin: 0 auto;
+		padding: 10px 16px;
+		display: flex;
+		align-items: center;
+		gap: 12px;
+	}
 
-  /**
-   * 1. A label, not a pill — 6px radius (var(--radius-sm)) keeps it inside the
-   *    brand's "never fully rounded" rule while the navy fill carries novelty.
-   * 2. Navy (the secondary brand colour) so the chip reads as "unseen" against
-   *    the amber chrome that links and CTAs already own, without colliding with
-   *    --color-success (which means "saved"). The inline seen-script adds
-   *    --seen on a version this browser has already seen, dropping the chip so
-   *    NEW signals novelty rather than merely "not yet dismissed".
-   */
-  .changelog-banner__chip {
-    flex: 0 0 auto;
-    text-transform: uppercase;
-    letter-spacing: 0.06em;
-    font-size: 11px;
-    font-weight: 700;
-    line-height: 1;
-    padding: 4px 7px;
-    background: var(--color-secondary); /* 2 */
-    color: var(--color-on-brand);
-    border-radius: var(--radius-sm); /* 1 */
-  }
+	/**
+	* 1. A label, not a pill — 6px radius (var(--radius-sm)) keeps it inside the
+	*    brand's "never fully rounded" rule while the navy fill carries novelty.
+	* 2. Navy (the secondary brand colour) so the chip reads as "unseen" against
+	*    the amber chrome that links and CTAs already own, without colliding with
+	*    --color-success (which means "saved"). The inline seen-script adds
+	*    --seen on a version this browser has already seen, dropping the chip so
+	*    NEW signals novelty rather than merely "not yet dismissed".
+	*/
+	.changelog-banner__chip {
+		flex: 0 0 auto;
+		text-transform: uppercase;
+		letter-spacing: 0.06em;
+		font-size: 11px;
+		font-weight: 700;
+		line-height: 1;
+		padding: 4px 7px;
+		background: var(--color-secondary); /* 2 */
+		color: var(--color-on-brand);
+		border-radius: var(--radius-sm); /* 1 */
+	}
 
-  .changelog-banner--seen .changelog-banner__chip { display: none; }
+	.changelog-banner--seen .changelog-banner__chip { display: none; }
 
-  .changelog-banner__hook {
-    flex: 1 1 auto;
-    min-width: 0;
-    overflow: hidden;
-    text-overflow: ellipsis;
-    white-space: nowrap;
-    color: var(--color-text-secondary);
-  }
+	.changelog-banner__hook {
+		flex: 1 1 auto;
+		min-width: 0;
+		overflow: hidden;
+		text-overflow: ellipsis;
+		white-space: nowrap;
+		color: var(--color-text-secondary);
+	}
 
-  .changelog-banner__link {
-    flex: 0 0 auto;
-    color: var(--primary);
-    font-weight: 600;
-    text-decoration: none;
-    white-space: nowrap;
-  }
+	.changelog-banner__link {
+		flex: 0 0 auto;
+		color: var(--primary);
+		font-weight: 600;
+		text-decoration: none;
+		white-space: nowrap;
+	}
 
-  .changelog-banner__link:hover,
-  .changelog-banner__link:focus-visible {
-    text-decoration: underline;
-    text-decoration-thickness: 1px;
-    text-underline-offset: 3px;
-  }
+	.changelog-banner__link:hover,
+	.changelog-banner__link:focus-visible {
+		text-decoration: underline;
+		text-decoration-thickness: 1px;
+		text-underline-offset: 3px;
+	}
 
-  .changelog-banner__dismiss {
-    flex: 0 0 auto;
-    margin: 0;
-    line-height: 1;
-  }
+	.changelog-banner__dismiss {
+		flex: 0 0 auto;
+		margin: 0;
+		line-height: 1;
+	}
 
-  .changelog-banner__close {
-    background: transparent;
-    border: none;
-    color: var(--color-text-muted);
-    font-size: 18px;
-    line-height: 1;
-    cursor: pointer;
-    padding: var(--button-padding-xs);
-    border-radius: var(--radius-sm);
-    transition: color 0.15s ease, background 0.15s ease;
-  }
+	.changelog-banner__close {
+		background: transparent;
+		border: none;
+		color: var(--color-text-muted);
+		font-size: 18px;
+		line-height: 1;
+		cursor: pointer;
+		padding: var(--button-padding-xs);
+		border-radius: var(--radius-sm);
+		transition: color 0.15s ease, background 0.15s ease;
+	}
 
-  .changelog-banner__close:hover,
-  .changelog-banner__close:focus-visible {
-    color: var(--foreground);
-    background: var(--color-surface);
-  }
+	.changelog-banner__close:hover,
+	.changelog-banner__close:focus-visible {
+		color: var(--foreground);
+		background: var(--color-surface);
+	}
 
-  @media (max-width: 480px) {
-    .changelog-banner__hook {
-      white-space: normal;
-    }
-  }
+	@media (max-width: 480px) {
+		.changelog-banner__hook {
+			white-space: normal;
+		}
+	}
 `;
 
 
 export const UTILITY_STYLES = `
-  .sr-only {
-    position: absolute;
-    width: 1px;
-    height: 1px;
-    padding: 0;
-    margin: -1px;
-    overflow: hidden;
-    clip: rect(0, 0, 0, 0);
-    white-space: nowrap;
-    border: 0;
-  }
+	.sr-only {
+		position: absolute;
+		width: 1px;
+		height: 1px;
+		padding: 0;
+		margin: -1px;
+		overflow: hidden;
+		clip: rect(0, 0, 0, 0);
+		white-space: nowrap;
+		border: 0;
+	}
 `;

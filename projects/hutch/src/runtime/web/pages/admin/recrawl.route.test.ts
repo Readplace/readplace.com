@@ -63,9 +63,9 @@ function buildHarness(options: { adminEmails: readonly string[] }): RecrawlHarne
 	const harness = useApp({
 		...fixture,
 		parser:{
- 	parseArticle: parseArticle,
- 	crawlArticle: fixture.parser.crawlArticle,
- },
+	parseArticle: parseArticle,
+	crawlArticle: fixture.parser.crawlArticle,
+	},
 		events: {
 			publishLinkSaved: fixture.events.publishLinkSaved,
 			publishRecrawlLinkInitiated: publishRecrawlLinkInitiated,
@@ -82,9 +82,9 @@ function buildHarness(options: { adminEmails: readonly string[] }): RecrawlHarne
 		},
 		summary,
 		admin:{
- 	adminEmails: options.adminEmails,
- 	recrawlServiceToken: fixture.admin.recrawlServiceToken,
- },
+	adminEmails: options.adminEmails,
+	recrawlServiceToken: fixture.admin.recrawlServiceToken,
+	},
 	});
 
 	return {

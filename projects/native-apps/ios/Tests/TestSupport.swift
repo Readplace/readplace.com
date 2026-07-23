@@ -167,25 +167,25 @@ enum Fixtures {
 		}
 		return """
 		{
-		  "class": ["article"],
-		  "rel": ["item"],
-		  "properties": {
-		    "id": "\(id)",
-		    "url": "\(url)",
-		    \(field("title", title)),
-		    \(field("siteName", siteName)),
-		    \(field("excerpt", excerpt)),
-		    \(field("imageUrl", imageUrl)),
-		    \(numField("estimatedReadTimeMinutes", readTime)),
-		    "status": "\(status)",
-		    "savedAt": "\(savedAt)",
-		    \(field("readAt", readAt))\(boolField("isRead", isRead))
-		  },
-		  "links": [{ "rel": ["read"], "href": "/queue/\(id)/view" }],
-		  "actions": [
-		    { "name": "delete", "href": "/queue/\(id)/delete", "method": "POST" },
-		    { "name": "update-status", "href": "/queue/\(id)/status", "method": "POST", "type": "application/x-www-form-urlencoded", "fields": [{ "name": "status", "type": "text", "value": "read" }] }
-		  ]
+			"class": ["article"],
+			"rel": ["item"],
+			"properties": {
+				"id": "\(id)",
+				"url": "\(url)",
+				\(field("title", title)),
+				\(field("siteName", siteName)),
+				\(field("excerpt", excerpt)),
+				\(field("imageUrl", imageUrl)),
+				\(numField("estimatedReadTimeMinutes", readTime)),
+				"status": "\(status)",
+				"savedAt": "\(savedAt)",
+				\(field("readAt", readAt))\(boolField("isRead", isRead))
+			},
+			"links": [{ "rel": ["read"], "href": "/queue/\(id)/view" }],
+			"actions": [
+				{ "name": "delete", "href": "/queue/\(id)/delete", "method": "POST" },
+				{ "name": "update-status", "href": "/queue/\(id)/status", "method": "POST", "type": "application/x-www-form-urlencoded", "fields": [{ "name": "status", "type": "text", "value": "read" }] }
+			]
 		}
 		"""
 	}
@@ -213,14 +213,14 @@ enum Fixtures {
 		let messages = messagesJSON.map { ", \"messages\": [\($0)]" } ?? ""
 		return """
 		{
-		  "class": ["collection", "articles"],
-		  "properties": { "total": \(total), "page": \(page), "pageSize": 20\(messages) },
-		  "entities": [\(entitiesJSON.joined(separator: ",\n"))],
-		  "links": [
-		    { "rel": ["self"], "href": "/queue?page=\(page)" },
-		    { "rel": ["root"], "href": "/queue" }\(extraLinks)
-		  ],
-		  "actions": [\(actionsJSON)]
+			"class": ["collection", "articles"],
+			"properties": { "total": \(total), "page": \(page), "pageSize": 20\(messages) },
+			"entities": [\(entitiesJSON.joined(separator: ",\n"))],
+			"links": [
+				{ "rel": ["self"], "href": "/queue?page=\(page)" },
+				{ "rel": ["root"], "href": "/queue" }\(extraLinks)
+			],
+			"actions": [\(actionsJSON)]
 		}
 		"""
 	}

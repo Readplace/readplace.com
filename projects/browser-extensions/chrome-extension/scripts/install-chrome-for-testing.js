@@ -19,19 +19,19 @@ mkdirSync(cacheDir, { recursive: true });
 // otherwise fall through to the normal download (hosted runners, local dev).
 const bakedDir = process.env.CFT_BAKED_DIR;
 if (
-	bakedDir &&
-	existsSync(join(bakedDir, "binary-path")) &&
-	existsSync(join(bakedDir, "driver-path"))
+  bakedDir &&
+  existsSync(join(bakedDir, "binary-path")) &&
+  existsSync(join(bakedDir, "driver-path"))
 ) {
-	copyFileSync(join(bakedDir, "binary-path"), join(cacheDir, "binary-path"));
-	copyFileSync(join(bakedDir, "driver-path"), join(cacheDir, "driver-path"));
-	console.log(`Chrome for Testing: reused from baked image cache (${bakedDir})`);
-	process.exit(0);
+  copyFileSync(join(bakedDir, "binary-path"), join(cacheDir, "binary-path"));
+  copyFileSync(join(bakedDir, "driver-path"), join(cacheDir, "driver-path"));
+  console.log(`Chrome for Testing: reused from baked image cache (${bakedDir})`);
+  process.exit(0);
 }
 
 const chromeOutput = execSync(
-	`npx @puppeteer/browsers install chrome@stable --path "${cacheDir}"`,
-	{ encoding: "utf8", timeout: 120_000, stdio: ["pipe", "pipe", "inherit"] },
+  `npx @puppeteer/browsers install chrome@stable --path "${cacheDir}"`,
+  { encoding: "utf8", timeout: 120_000, stdio: ["pipe", "pipe", "inherit"] },
 );
 
 // Output format: "chrome@{version} {path}" — path may contain spaces
@@ -45,8 +45,8 @@ writeFileSync(join(cacheDir, "binary-path"), chromeBinaryPath, "utf8");
 console.log(`Chrome for Testing: ${chromeBinaryPath}`);
 
 const driverOutput = execSync(
-	`npx @puppeteer/browsers install chromedriver@${chromeVersion} --path "${cacheDir}"`,
-	{ encoding: "utf8", timeout: 120_000, stdio: ["pipe", "pipe", "inherit"] },
+  `npx @puppeteer/browsers install chromedriver@${chromeVersion} --path "${cacheDir}"`,
+  { encoding: "utf8", timeout: 120_000, stdio: ["pipe", "pipe", "inherit"] },
 );
 
 const driverLastLine = driverOutput.trim().split("\n").pop();

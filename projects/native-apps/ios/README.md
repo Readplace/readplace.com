@@ -229,7 +229,7 @@ You need a Mac with **Xcode 15+** and an Apple ID (a free personal team is fine)
 
 5. **Login** in the app (the build targets `https://readplace.com`).
 
-6. **Save by sharing**: in Safari (or anywhere with a link), tap **Share → 
+6. **Save by sharing**: in Safari (or anywhere with a link), tap **Share →
    Readplace**. The extension renders the page and saves it; pull-to-refresh in
    the app to see it appear.
 

@@ -1,11 +1,11 @@
 <nav class="inbox-email-detail__tabs" id="inbox-email-detail-tabs" aria-label="Email views" data-test-inbox-tabs{{#if oob}} hx-swap-oob="outerHTML"{{/if}}>
-	{{#each tabs}}
-	<a
-		class="inbox-email-detail__tab"
-		href="{{href}}"
-		data-test-inbox-tab="{{key}}"
-		{{#if ariaCurrent}}aria-current="{{ariaCurrent}}"{{/if}}
-		>{{label}}</a
-	>
-	{{/each}}
+  {{#each tabs}}
+  <a
+    class="inbox-email-detail__tab"
+    href="{{href}}"
+    data-test-inbox-tab="{{key}}"
+    {{#if ariaCurrent}}aria-current="{{ariaCurrent}}"{{/if}}
+    >{{label}}</a
+  >
+  {{/each}}
 </nav>

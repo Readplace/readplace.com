@@ -7,21 +7,21 @@ import { RECRAWL_STYLES } from "./recrawl.styles";
  */
 export function AdminRecrawlLandingPage(): PageBody {
 	const content = `
-    <main class="admin-recrawl" data-test-admin-recrawl-landing>
-      <h1>Admin recrawl</h1>
-      <p>Forces a fresh re-crawl of any URL already in the articles DB. No caching, no TTL.</p>
-      <form method="GET" action="/admin/recrawl" data-test-admin-recrawl-form>
-        <label for="admin-recrawl-url">Article URL</label>
-        <input
-          id="admin-recrawl-url"
-          type="url"
-          name="url"
-          required
-          placeholder="https://example.com/article"
-          data-test-admin-recrawl-input>
-        <button type="submit">Recrawl</button>
-      </form>
-    </main>`;
+		<main class="admin-recrawl" data-test-admin-recrawl-landing>
+			<h1>Admin recrawl</h1>
+			<p>Forces a fresh re-crawl of any URL already in the articles DB. No caching, no TTL.</p>
+			<form method="GET" action="/admin/recrawl" data-test-admin-recrawl-form>
+				<label for="admin-recrawl-url">Article URL</label>
+				<input
+					id="admin-recrawl-url"
+					type="url"
+					name="url"
+					required
+					placeholder="https://example.com/article"
+					data-test-admin-recrawl-input>
+				<button type="submit">Recrawl</button>
+			</form>
+		</main>`;
 
 	return {
 		seo: {

@@ -12,17 +12,17 @@ function makeDoc(html: string): Document {
 
 const UPLOAD_FORM_HTML = `
 <form class="import__upload-form" method="POST" action="/import" enctype="multipart/form-data"
-      data-import-state="idle" hx-post="/import">
-  <div class="import__idle" data-import-region="idle">
-    <input type="file" name="file" required>
-    <button type="submit">Upload</button>
-  </div>
-  <div class="import__uploading" data-import-region="uploading">
-    <div class="import__progress-bar" data-import-progress-bar>
-      <div class="import__progress-fill" data-import-progress-fill style="width: 0%"></div>
-    </div>
-    <p class="import__progress-label" data-import-progress-label>Preparing upload&hellip;</p>
-  </div>
+			data-import-state="idle" hx-post="/import">
+	<div class="import__idle" data-import-region="idle">
+		<input type="file" name="file" required>
+		<button type="submit">Upload</button>
+	</div>
+	<div class="import__uploading" data-import-region="uploading">
+		<div class="import__progress-bar" data-import-progress-bar>
+			<div class="import__progress-fill" data-import-progress-fill style="width: 0%"></div>
+		</div>
+		<p class="import__progress-label" data-import-progress-label>Preparing upload&hellip;</p>
+	</div>
 </form>
 `;
 

@@ -1,16 +1,16 @@
 <section class="inbox-email-detail__panel" data-test-tab-panel="view">
-	{{#if canRenderBody}}
-	<iframe
-		class="inbox-email-detail__iframe"
-		data-test-inbox-email-iframe
-		sandbox="allow-popups allow-popups-to-escape-sandbox"
-		srcdoc="{{viewSrcdoc}}"
-		loading="eager"
-		title="Email content"
-	></iframe>
-	{{else}}
-	<div class="inbox-email-detail__unavailable" data-test-inbox-email-unavailable>
-		<p>{{unavailableMessage}}</p>
-	</div>
-	{{/if}}
+  {{#if canRenderBody}}
+  <iframe
+    class="inbox-email-detail__iframe"
+    data-test-inbox-email-iframe
+    sandbox="allow-popups allow-popups-to-escape-sandbox"
+    srcdoc="{{viewSrcdoc}}"
+    loading="eager"
+    title="Email content"
+  ></iframe>
+  {{else}}
+  <div class="inbox-email-detail__unavailable" data-test-inbox-email-unavailable>
+    <p>{{unavailableMessage}}</p>
+  </div>
+  {{/if}}
 </section>

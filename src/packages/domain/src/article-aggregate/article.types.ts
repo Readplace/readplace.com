@@ -42,7 +42,7 @@ export type SummaryState =
 			 * a later caller (admin recrawl, refresh) can compare to the current
 			 * canonical hash and detect "content is unchanged — keep this summary". */
 			sourceContentHash?: string;
-	  }
+		}
 	| { kind: "failed"; reason: SummaryFailureReason }
 	| { kind: "skipped"; reason?: string };
 

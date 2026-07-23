@@ -1291,9 +1291,9 @@ describe("View routes", () => {
 					publishSubscriptionReactivated: fixture.events.publishSubscriptionReactivated,
 				},
 				summary:{
- 	findGeneratedSummary: findGeneratedSummary,
- 	markSummaryPending: fixture.summary.markSummaryPending,
- },
+	findGeneratedSummary: findGeneratedSummary,
+	markSummaryPending: fixture.summary.markSummaryPending,
+	},
 			});
 
 			const response = await request(harness.server).get(`/view/${CANONICAL_PATH}`);
@@ -1341,9 +1341,9 @@ describe("View routes", () => {
 					publishSubscriptionReactivated: fixture.events.publishSubscriptionReactivated,
 				},
 				summary:{
- 	findGeneratedSummary: findGeneratedSummary,
- 	markSummaryPending: fixture.summary.markSummaryPending,
- },
+	findGeneratedSummary: findGeneratedSummary,
+	markSummaryPending: fixture.summary.markSummaryPending,
+	},
 			});
 
 			const response = await request(harness.server).get(`/view/${CANONICAL_PATH}`);
@@ -1391,9 +1391,9 @@ describe("View routes", () => {
 					publishSubscriptionReactivated: fixture.events.publishSubscriptionReactivated,
 				},
 				summary:{
- 	findGeneratedSummary: findGeneratedSummary,
- 	markSummaryPending: fixture.summary.markSummaryPending,
- },
+	findGeneratedSummary: findGeneratedSummary,
+	markSummaryPending: fixture.summary.markSummaryPending,
+	},
 			});
 
 			const response = await request(harness.server).get(`/view/${CANONICAL_PATH}`);
@@ -1445,9 +1445,9 @@ describe("View routes", () => {
 					publishSubscriptionReactivated: fixture.events.publishSubscriptionReactivated,
 				},
 				summary:{
- 	findGeneratedSummary: findGeneratedSummary,
- 	markSummaryPending: fixture.summary.markSummaryPending,
- },
+	findGeneratedSummary: findGeneratedSummary,
+	markSummaryPending: fixture.summary.markSummaryPending,
+	},
 			});
 
 			const response = await request(harness.server).get(`/view/${CANONICAL_PATH}`);
@@ -1499,9 +1499,9 @@ describe("View routes", () => {
 					publishSubscriptionReactivated: fixture.events.publishSubscriptionReactivated,
 				},
 				summary:{
- 	findGeneratedSummary: findGeneratedSummary,
- 	markSummaryPending: fixture.summary.markSummaryPending,
- },
+	findGeneratedSummary: findGeneratedSummary,
+	markSummaryPending: fixture.summary.markSummaryPending,
+	},
 			});
 
 			const response = await request(harness.server).get(`/view/${CANONICAL_PATH}`);
@@ -1527,9 +1527,9 @@ describe("View routes", () => {
 			const harness = useApp({
 				...fixture,
 				summary:{
- 	findGeneratedSummary: findGeneratedSummary,
- 	markSummaryPending: fixture.summary.markSummaryPending,
- },
+	findGeneratedSummary: findGeneratedSummary,
+	markSummaryPending: fixture.summary.markSummaryPending,
+	},
 			});
 
 			const response = await request(harness.server).get(
@@ -1550,9 +1550,9 @@ describe("View routes", () => {
 			const harness = useApp({
 				...fixture,
 				summary:{
- 	findGeneratedSummary: findGeneratedSummary,
- 	markSummaryPending: fixture.summary.markSummaryPending,
- },
+	findGeneratedSummary: findGeneratedSummary,
+	markSummaryPending: fixture.summary.markSummaryPending,
+	},
 			});
 
 			const response = await request(harness.server).get(
@@ -1572,9 +1572,9 @@ describe("View routes", () => {
 			const harness = useApp({
 				...fixture,
 				summary:{
- 	findGeneratedSummary: findGeneratedSummary,
- 	markSummaryPending: fixture.summary.markSummaryPending,
- },
+	findGeneratedSummary: findGeneratedSummary,
+	markSummaryPending: fixture.summary.markSummaryPending,
+	},
 			});
 
 			const response = await request(harness.server).get(
@@ -1615,18 +1615,18 @@ describe("View routes", () => {
 			const harness = useApp({
 				...fixture,
 				articleCrawl:{
- 	findArticleCrawlStatus: findArticleCrawlStatus,
- 	markCrawlPending: fixture.articleCrawl.markCrawlPending,
- 	forceMarkCrawlPending: fixture.articleCrawl.forceMarkCrawlPending,
- 	markCrawlReady: fixture.articleCrawl.markCrawlReady,
- 	markCrawlFailed: fixture.articleCrawl.markCrawlFailed,
- 	markCrawlUnsupported: fixture.articleCrawl.markCrawlUnsupported,
- 	markCrawlStage: fixture.articleCrawl.markCrawlStage,
- },
+	findArticleCrawlStatus: findArticleCrawlStatus,
+	markCrawlPending: fixture.articleCrawl.markCrawlPending,
+	forceMarkCrawlPending: fixture.articleCrawl.forceMarkCrawlPending,
+	markCrawlReady: fixture.articleCrawl.markCrawlReady,
+	markCrawlFailed: fixture.articleCrawl.markCrawlFailed,
+	markCrawlUnsupported: fixture.articleCrawl.markCrawlUnsupported,
+	markCrawlStage: fixture.articleCrawl.markCrawlStage,
+	},
 				summary:{
- 	findGeneratedSummary: findGeneratedSummary,
- 	markSummaryPending: fixture.summary.markSummaryPending,
- },
+	findGeneratedSummary: findGeneratedSummary,
+	markSummaryPending: fixture.summary.markSummaryPending,
+	},
 			});
 
 			const response = await request(harness.server).get(

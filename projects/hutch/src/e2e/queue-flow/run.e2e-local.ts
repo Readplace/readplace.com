@@ -15,128 +15,128 @@ import { requireEnv } from "@packages/require-env"
 const BASE_URL = `http://localhost:${requireEnv('E2E_PORT')}`
 
 test.describe('Queue management flow (local)', () => {
-  test('signup, logout, reset password, login, add articles, pagination, sort, read, delete, verify tabs', async ({ page }) => {
+	test('signup, logout, reset password, login, add articles, pagination, sort, read, delete, verify tabs', async ({ page }) => {
 
-    const authData = {
-      email: 'e2e-test@example.com',
-      password: 'test-password-123',
-    }
+		const authData = {
+			email: 'e2e-test@example.com',
+			password: 'test-password-123',
+		}
 
-    const seedProgress: SeedProgress = {
-      articlesSeeded: false,
-    }
+		const seedProgress: SeedProgress = {
+			articlesSeeded: false,
+		}
 
-    const cleanupProgress: CleanupProgress = {
-      previousArticlesDeleted: false,
-    }
+		const cleanupProgress: CleanupProgress = {
+			previousArticlesDeleted: false,
+		}
 
-    const passwordResetProgress: PasswordResetProgress = {
-      navigatedToForgotPassword: false,
-      submittedForgotPassword: false,
-      navigatedToResetPassword: false,
-      submittedResetPassword: false,
-      loggedInWithNewPassword: false,
-    }
+		const passwordResetProgress: PasswordResetProgress = {
+			navigatedToForgotPassword: false,
+			submittedForgotPassword: false,
+			navigatedToResetPassword: false,
+			submittedResetPassword: false,
+			loggedInWithNewPassword: false,
+		}
 
-    const onboardingProgress: OnboardingProgress = {
-      installedExtension: false,
-      savedFirstArticle: false,
-    }
+		const onboardingProgress: OnboardingProgress = {
+			installedExtension: false,
+			savedFirstArticle: false,
+		}
 
-    const savePermalinkProgress: SavePermalinkProgress = {
-      savedViaPermalink: false,
-      deletedPermalinkArticle: false,
-    }
+		const savePermalinkProgress: SavePermalinkProgress = {
+			savedViaPermalink: false,
+			deletedPermalinkArticle: false,
+		}
 
-    const bannerOnReaderProgress: BannerOnReaderProgress = {
-      bannerVerifiedOnPublicView: false,
-      bannerVerifiedOnPrivateReader: false,
-      bannerTestArticleDeleted: false,
-    }
+		const bannerOnReaderProgress: BannerOnReaderProgress = {
+			bannerVerifiedOnPublicView: false,
+			bannerVerifiedOnPrivateReader: false,
+			bannerTestArticleDeleted: false,
+		}
 
-    const viewPageProgress: ViewPageProgress = {
-      visitedAnonymously: false,
-      visitedCrawlFailure: false,
-    }
+		const viewPageProgress: ViewPageProgress = {
+			visitedAnonymously: false,
+			visitedCrawlFailure: false,
+		}
 
-    const queueProgress: QueueProgress = {
-      allArticlesAdded: false,
-      paginationArticlesAdded: false,
-      verifiedPage1HasNext: false,
-      navigatedToPage2: false,
-      verifiedPage2: false,
-      navigatedBackToPage1: false,
-      verifiedBackOnPage1: false,
-      refreshedExistingArticle: false,
-      paginationArticlesDeleted: false,
-      verifiedNewestFirst: false,
-      sortedOldestFirst: false,
-      verifiedOldestFirst: false,
-      openedFirstArticle: false,
-      backFromReader: false,
-      verifiedReadStatus: false,
-      deletedLastArticle: false,
-      checkedReadTab: false,
-      checkedUnreadTab: false,
-      cleanupDeleted: false,
-    }
+		const queueProgress: QueueProgress = {
+			allArticlesAdded: false,
+			paginationArticlesAdded: false,
+			verifiedPage1HasNext: false,
+			navigatedToPage2: false,
+			verifiedPage2: false,
+			navigatedBackToPage1: false,
+			verifiedBackOnPage1: false,
+			refreshedExistingArticle: false,
+			paginationArticlesDeleted: false,
+			verifiedNewestFirst: false,
+			sortedOldestFirst: false,
+			verifiedOldestFirst: false,
+			openedFirstArticle: false,
+			backFromReader: false,
+			verifiedReadStatus: false,
+			deletedLastArticle: false,
+			checkedReadTab: false,
+			checkedUnreadTab: false,
+			cleanupDeleted: false,
+		}
 
-    const importProgress: ImportProgress = {
-      allThreeImported: false,
-      middleUncheckedImported: false,
-      selectAllDeselectSomeImported: false,
-      deselectAllSelectSomeImported: false,
-      paginatedSelectAllSpansPagesImported: false,
-    }
+		const importProgress: ImportProgress = {
+			allThreeImported: false,
+			middleUncheckedImported: false,
+			selectAllDeselectSomeImported: false,
+			deselectAllSelectSomeImported: false,
+			paginatedSelectAllSpansPagesImported: false,
+		}
 
-    const importFromUrlProgress: ImportFromUrlProgress = {
-      happyPathImported: false,
-      pageError500Surfaced: false,
-      pageWithoutLinksSurfaced: false,
-    }
+		const importFromUrlProgress: ImportFromUrlProgress = {
+			happyPathImported: false,
+			pageError500Surfaced: false,
+			pageWithoutLinksSurfaced: false,
+		}
 
-    await runQueueFlow(page, {
-      baseURL: BASE_URL,
-      testArticles: createLocalTestArticles(BASE_URL),
-      authData,
-      passwordResetProgress,
-      queueProgress,
-      preQueueActionFactories: {
-        anonymousView: createAnonymousViewPageActions(
-          { baseUrl: BASE_URL, testUrl: `${BASE_URL}/privacy?view=1`, unfetchableUrl: `${BASE_URL}/e2e/unfetchable` },
-          viewPageProgress,
-        ),
-        onboarding: createOnboardingActions(onboardingProgress),
-        seed: createSeedActions(seedProgress, [`${BASE_URL}/privacy?seed=1`, `${BASE_URL}/privacy?seed=2`]),
-        cleanup: createCleanupActions(cleanupProgress),
-        passwordReset: createPasswordResetActions(
-          { email: authData.email, oldPassword: authData.password, newPassword: 'reset-password-456', baseUrl: BASE_URL },
-          authData,
-          passwordResetProgress,
-        ),
-        savePermalink: createSavePermalinkActions(
-          { baseUrl: BASE_URL, testUrl: `${BASE_URL}/privacy?permalink=1` },
-          cleanupProgress,
-          savePermalinkProgress,
-        ),
-        bannerOnReader: createBannerOnReaderActions(
-          {
-            baseUrl: BASE_URL,
-            // /e2e/unfetchable fails the crawl synchronously and terminally, so
-            // "latest article not fully parsed" (the banner's show condition) is
-            // a stable state, not a race against the in-memory parse pipeline
-            // finishing before the page renders.
-            publicViewTestUrl: `${BASE_URL}/e2e/unfetchable?banner-on-public-view=${Date.now()}`,
-            privateReaderTestUrl: `${BASE_URL}/e2e/unfetchable?banner-on-private-reader=${Date.now()}`,
-          },
-          cleanupProgress,
-          bannerOnReaderProgress,
-        ),
-        importActions: createImportActions({ baseUrl: BASE_URL }, queueProgress, importProgress),
-        importFromUrlActions: createImportFromUrlActions({ baseUrl: BASE_URL }, queueProgress, importFromUrlProgress),
-      },
-      preQueueProgressObjects: [viewPageProgress, seedProgress, cleanupProgress, passwordResetProgress, onboardingProgress, savePermalinkProgress, bannerOnReaderProgress, importProgress, importFromUrlProgress],
-      maxNavigations: 120,
-    })
-  })
+		await runQueueFlow(page, {
+			baseURL: BASE_URL,
+			testArticles: createLocalTestArticles(BASE_URL),
+			authData,
+			passwordResetProgress,
+			queueProgress,
+			preQueueActionFactories: {
+				anonymousView: createAnonymousViewPageActions(
+					{ baseUrl: BASE_URL, testUrl: `${BASE_URL}/privacy?view=1`, unfetchableUrl: `${BASE_URL}/e2e/unfetchable` },
+					viewPageProgress,
+				),
+				onboarding: createOnboardingActions(onboardingProgress),
+				seed: createSeedActions(seedProgress, [`${BASE_URL}/privacy?seed=1`, `${BASE_URL}/privacy?seed=2`]),
+				cleanup: createCleanupActions(cleanupProgress),
+				passwordReset: createPasswordResetActions(
+					{ email: authData.email, oldPassword: authData.password, newPassword: 'reset-password-456', baseUrl: BASE_URL },
+					authData,
+					passwordResetProgress,
+				),
+				savePermalink: createSavePermalinkActions(
+					{ baseUrl: BASE_URL, testUrl: `${BASE_URL}/privacy?permalink=1` },
+					cleanupProgress,
+					savePermalinkProgress,
+				),
+				bannerOnReader: createBannerOnReaderActions(
+					{
+						baseUrl: BASE_URL,
+						// /e2e/unfetchable fails the crawl synchronously and terminally, so
+						// "latest article not fully parsed" (the banner's show condition) is
+						// a stable state, not a race against the in-memory parse pipeline
+						// finishing before the page renders.
+						publicViewTestUrl: `${BASE_URL}/e2e/unfetchable?banner-on-public-view=${Date.now()}`,
+						privateReaderTestUrl: `${BASE_URL}/e2e/unfetchable?banner-on-private-reader=${Date.now()}`,
+					},
+					cleanupProgress,
+					bannerOnReaderProgress,
+				),
+				importActions: createImportActions({ baseUrl: BASE_URL }, queueProgress, importProgress),
+				importFromUrlActions: createImportFromUrlActions({ baseUrl: BASE_URL }, queueProgress, importFromUrlProgress),
+			},
+			preQueueProgressObjects: [viewPageProgress, seedProgress, cleanupProgress, passwordResetProgress, onboardingProgress, savePermalinkProgress, bannerOnReaderProgress, importProgress, importFromUrlProgress],
+			maxNavigations: 120,
+		})
+	})
 })

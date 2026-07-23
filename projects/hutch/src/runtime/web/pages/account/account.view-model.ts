@@ -243,7 +243,7 @@ export type CardSectionInput =
 			publishableKey: string | undefined;
 			cardError: CardError | undefined;
 			adding: { clientSecret: string; setupId: string } | undefined;
-	  };
+		};
 
 const CARD_NOTICES: Record<CardError, string> = {
 	card_limit: "You can save up to 3 cards. Remove a backup before adding another.",

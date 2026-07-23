@@ -1,19 +1,19 @@
 <main class="inbox-email-detail" data-test-inbox-email-detail>
-	<header class="inbox-email-detail__header">
-		<a class="inbox-email-detail__back" href="{{backHref}}" data-test-inbox-back>← Inbox</a>
-		<h1 class="inbox-email-detail__subject" data-test-inbox-detail-subject>{{subject}}</h1>
-		<p class="inbox-email-detail__meta">
-			<span class="inbox-email-detail__sender" data-test-inbox-detail-sender>{{sender}}</span>
-			<time class="inbox-email-detail__received" datetime="{{received.iso}}" data-local-time="{{received.mode}}">{{received.label}}</time>
-			{{{linkCountHtml}}}
-		</p>
-	</header>
+  <header class="inbox-email-detail__header">
+    <a class="inbox-email-detail__back" href="{{backHref}}" data-test-inbox-back>← Inbox</a>
+    <h1 class="inbox-email-detail__subject" data-test-inbox-detail-subject>{{subject}}</h1>
+    <p class="inbox-email-detail__meta">
+      <span class="inbox-email-detail__sender" data-test-inbox-detail-sender>{{sender}}</span>
+      <time class="inbox-email-detail__received" datetime="{{received.iso}}" data-local-time="{{received.mode}}">{{received.label}}</time>
+      {{{linkCountHtml}}}
+    </p>
+  </header>
 
-	{{{tabsHtml}}}
+  {{{tabsHtml}}}
 
-	{{{liveStatusHtml}}}
+  {{{liveStatusHtml}}}
 
-	{{{panelHtml}}}
+  {{{panelHtml}}}
 
-	{{{statusToastHtml}}}
+  {{{statusToastHtml}}}
 </main>

@@ -17,12 +17,12 @@
           <input type="hidden" name="checked" value="{{#if allSelected}}false{{else}}true{{/if}}">
           <label class="import__select-all-label">
             <input type="checkbox"
-                   name="confirm"
-                   class="import__checkbox"
-                   {{#if allSelected}}checked{{/if}}
-                   {{#if someSelected}}data-import-indeterminate{{/if}}
-                   onclick="this.form.requestSubmit()"
-                   data-test-import-select-all>
+              name="confirm"
+              class="import__checkbox"
+              {{#if allSelected}}checked{{/if}}
+              {{#if someSelected}}data-import-indeterminate{{/if}}
+              onclick="this.form.requestSubmit()"
+              data-test-import-select-all>
             <span class="import__summary" data-test-import-summary>
               <strong class="import__summary-count">{{totalSelected}}</strong>
               <span class="import__summary-label">of {{totalUrls}} selected</span>
@@ -48,11 +48,11 @@
             <input type="hidden" name="checked" value="{{#if checked}}false{{else}}true{{/if}}">
             <label class="import__row-label">
               <input type="checkbox"
-                     name="confirm"
-                     class="import__checkbox"
-                     {{#if checked}}checked{{/if}}
-                     onclick="this.form.requestSubmit()"
-                     data-test-import-checkbox="{{index}}">
+                name="confirm"
+                class="import__checkbox"
+                {{#if checked}}checked{{/if}}
+                onclick="this.form.requestSubmit()"
+                data-test-import-checkbox="{{index}}">
               <span class="import__row-url" data-test-import-url>{{url}}</span>
             </label>
             <noscript><button type="submit" class="import__row-toggle-btn">Toggle</button></noscript>
@@ -63,8 +63,8 @@
 
       {{#if showPagination}}
       <nav class="import__pagination" aria-label="Pagination"
-           hx-boost="true" hx-target="main" hx-select="main" hx-swap="outerHTML show:none"
-           data-test-import-pagination>
+        hx-boost="true" hx-target="main" hx-select="main" hx-swap="outerHTML show:none"
+        data-test-import-pagination>
         {{#if hasPrev}}
         <a class="import__pagination-link import__pagination-link--prev" href="{{prevUrl}}" data-test-import-pagination-prev>
           <span aria-hidden="true">&larr;</span> Previous

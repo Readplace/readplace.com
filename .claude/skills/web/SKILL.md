@@ -258,6 +258,49 @@ const content = document.querySelector('meta[property="og:image"]')?.getAttribut
 - No view rendering frameworks (React, Vue, Angular) - vanilla HTML/CSS/JS only
 - Keep templates colocated with their page objects
 
+### Template Indentation
+
+Templates indent with **2 spaces per level, never tabs**. Biome does not format
+`.html` (it is excluded in `biome.config.base.json`), so the rule lives in
+[`.editorconfig`](../../../.editorconfig) and is enforced in CI by
+`editorconfig-checker`, wired into every project's `lint` script. It reports and
+fails; it never rewrites a file.
+
+Two conventions the checker cannot see, so they rely on review:
+
+**Handlebars block helpers do not add an indent level.** `{{#if}}`, `{{#each}}`,
+and `{{else}}` sit at the surrounding indent and their contents stay level with
+them, so a template's indentation reflects DOM structure rather than control
+flow.
+
+```html
+<div class="queue-article__actions">
+  {{#each actions}}
+  <form method="{{method}}" action="{{url}}">
+    <button type="submit">{{text}}</button>
+  </form>
+  {{/each}}
+</div>
+```
+
+**A partial substituted through `{{{placeholder}}}` starts its root at column 0.**
+Handlebars replaces the placeholder in place, so the placeholder's own indent
+supplies the root line's indent at render time — only the root's. The body and
+closing tag carry the embedding depth, which makes the file look lopsided in
+isolation while rendering correctly. `account-card.template.html` is the worked
+example: root at 0, body at 8, closer at 6, injected at a placeholder indented 6.
+
+Continuation lines wrap at **parent indent + 2**, not aligned to the attribute
+column — column alignment lands on odd indents, which `indent_size = 2` rejects.
+
+```html
+<!-- ✅ GOOD — continuation at parent + 2 -->
+<input
+  id="import-from-url-input"
+  class="import__from-url-input"
+  type="url">
+```
+
 ## DOM Testing
 
 Use JSDOM (or `linkedom`'s `parseHTML`) to parse HTML responses in tests and assert against the DOM.

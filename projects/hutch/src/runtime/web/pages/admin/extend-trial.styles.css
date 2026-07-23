@@ -1,51 +1,51 @@
 .admin-extend-trial {
-	max-width: 42rem;
-	margin: 0 auto;
-	padding: 1.5rem;
+  max-width: 42rem;
+  margin: 0 auto;
+  padding: 1.5rem;
 }
 
 .admin-extend-trial__intro {
-	color: var(--color-text-muted);
+  color: var(--color-text-muted);
 }
 
 .admin-extend-trial__lookup,
 .admin-extend-trial__extend {
-	display: flex;
-	flex-direction: column;
-	gap: 0.5rem;
-	margin-block: 1rem;
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+  margin-block: 1rem;
 }
 
 .admin-extend-trial__panel {
-	border: 1px solid var(--color-border);
-	border-radius: 0.5rem;
-	padding: 1rem;
-	margin-block-start: 1.5rem;
+  border: 1px solid var(--color-border);
+  border-radius: 0.5rem;
+  padding: 1rem;
+  margin-block-start: 1.5rem;
 }
 
 .admin-extend-trial__panel--refused {
-	border-color: var(--color-error);
+  border-color: var(--color-error);
 }
 
 .admin-extend-trial__facts {
-	display: grid;
-	grid-template-columns: auto 1fr;
-	gap: 0.25rem 1rem;
-	margin: 0;
+  display: grid;
+  grid-template-columns: auto 1fr;
+  gap: 0.25rem 1rem;
+  margin: 0;
 }
 
 .admin-extend-trial__facts dt {
-	font-weight: 600;
+  font-weight: 600;
 }
 
 .admin-extend-trial__facts dd {
-	margin: 0;
+  margin: 0;
 }
 
 .admin-extend-trial__notice {
-	color: var(--color-success);
+  color: var(--color-success);
 }
 
 .admin-extend-trial__error {
-	color: var(--color-error);
+  color: var(--color-error);
 }

@@ -48,9 +48,9 @@
         {{/if}}
         {{#if cardSection.isAdding}}
         <div class="account-cards__elements" data-test-card-elements data-card-elements
-             data-publishable-key="{{cardSection.adding.publishableKey}}"
-             data-client-secret="{{cardSection.adding.clientSecret}}"
-             data-setup-id="{{cardSection.adding.setupId}}">
+          data-publishable-key="{{cardSection.adding.publishableKey}}"
+          data-client-secret="{{cardSection.adding.clientSecret}}"
+          data-setup-id="{{cardSection.adding.setupId}}">
           <div class="account-cards__element-mount" data-card-element></div>
           <p class="account-cards__element-error" data-card-error role="alert"></p>
           <div class="account-cards__elements-actions">
@@ -80,9 +80,9 @@
               data-test-danger-action="{{dangerAction.key}}">
           <label class="account-danger__confirm-label" for="delete-account-confirmation">Type "{{dangerConfirmation.phrase}}" to confirm:</label>
           <input type="text" id="delete-account-confirmation" class="account-danger__confirm-input"
-                 name="{{dangerConfirmation.field}}" required pattern="{{dangerConfirmation.pattern}}"
-                 title="{{dangerConfirmation.title}}" autocomplete="off" autocapitalize="off" spellcheck="false"
-                 data-test-danger-confirm-input>
+            name="{{dangerConfirmation.field}}" required pattern="{{dangerConfirmation.pattern}}"
+            title="{{dangerConfirmation.title}}" autocomplete="off" autocapitalize="off" spellcheck="false"
+            data-test-danger-confirm-input>
           <button type="submit" class="account-card__action account-card__action--{{dangerAction.variant}}">{{dangerAction.name}}</button>
         </form>
       </section>

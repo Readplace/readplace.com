@@ -665,9 +665,9 @@ describe("View routes", () => {
 					publishSubscriptionReactivated: fixture.events.publishSubscriptionReactivated,
 				},
 				summary:{
- 	findGeneratedSummary: findGeneratedSummary,
- 	markSummaryPending: fixture.summary.markSummaryPending,
- },
+	findGeneratedSummary: findGeneratedSummary,
+	markSummaryPending: fixture.summary.markSummaryPending,
+	},
 			});
 			const { articleStore, articleCrawl } = harness;
 			await articleStore.saveArticleGlobally({

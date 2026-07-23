@@ -41,6 +41,6 @@ export type RetrieveCheckoutSession = (id: CheckoutSessionId) => Promise<
 			created: number;
 			subscriptionId?: string;
 			customerId?: string;
-	  }
+		}
 	| { ok: false; reason: "not-found" }
 >;

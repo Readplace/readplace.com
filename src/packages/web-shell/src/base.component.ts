@@ -44,23 +44,23 @@ function renderFooter(): string {
 const NAV_SCRIPT = `
 <script>
 (function() {
-  var toggle = document.querySelector('.nav__toggle');
-  var menu = document.querySelector('.nav__menu');
-  if (!toggle || !menu) return;
+	var toggle = document.querySelector('.nav__toggle');
+	var menu = document.querySelector('.nav__menu');
+	if (!toggle || !menu) return;
 
-  toggle.addEventListener('click', function() {
-    var expanded = this.getAttribute('aria-expanded') === 'true';
-    this.setAttribute('aria-expanded', String(!expanded));
-    menu.classList.toggle('nav__menu--open', !expanded);
-  });
+	toggle.addEventListener('click', function() {
+		var expanded = this.getAttribute('aria-expanded') === 'true';
+		this.setAttribute('aria-expanded', String(!expanded));
+		menu.classList.toggle('nav__menu--open', !expanded);
+	});
 
-  document.addEventListener('click', function(e) {
-    var isToggleVisible = window.getComputedStyle(toggle).display !== 'none';
-    if (isToggleVisible && !e.target.closest('.nav')) {
-      toggle.setAttribute('aria-expanded', 'false');
-      menu.classList.remove('nav__menu--open');
-    }
-  });
+	document.addEventListener('click', function(e) {
+		var isToggleVisible = window.getComputedStyle(toggle).display !== 'none';
+		if (isToggleVisible && !e.target.closest('.nav')) {
+			toggle.setAttribute('aria-expanded', 'false');
+			menu.classList.remove('nav__menu--open');
+		}
+	});
 })();
 </script>`;
 
@@ -92,43 +92,43 @@ const TOAST_SCRIPT = `<script src="/client-dist/toast.client.js" defer></script>
 const OFFLINE_INDICATOR_SCRIPT = `
 <script>
 (function() {
-  var banner = document.querySelector('.offline-banner');
-  if (!banner) return;
+	var banner = document.querySelector('.offline-banner');
+	if (!banner) return;
 
-  var wasOffline = false;
-  var hideTimeout = null;
+	var wasOffline = false;
+	var hideTimeout = null;
 
-  function updateOnlineStatus() {
-    if (hideTimeout) {
-      clearTimeout(hideTimeout);
-      hideTimeout = null;
-    }
+	function updateOnlineStatus() {
+		if (hideTimeout) {
+			clearTimeout(hideTimeout);
+			hideTimeout = null;
+		}
 
-    if (navigator.onLine) {
-      if (wasOffline) {
-        banner.textContent = 'Back online';
-        banner.classList.add('offline-banner--visible');
-        banner.setAttribute('aria-hidden', 'false');
-        hideTimeout = setTimeout(function() {
-          banner.classList.remove('offline-banner--visible');
-          banner.setAttribute('aria-hidden', 'true');
-        }, 2000);
-      } else {
-        banner.classList.remove('offline-banner--visible');
-        banner.setAttribute('aria-hidden', 'true');
-      }
-      wasOffline = false;
-    } else {
-      wasOffline = true;
-      banner.textContent = "You're offline. Some features may be unavailable.";
-      banner.classList.add('offline-banner--visible');
-      banner.setAttribute('aria-hidden', 'false');
-    }
-  }
+		if (navigator.onLine) {
+			if (wasOffline) {
+				banner.textContent = 'Back online';
+				banner.classList.add('offline-banner--visible');
+				banner.setAttribute('aria-hidden', 'false');
+				hideTimeout = setTimeout(function() {
+					banner.classList.remove('offline-banner--visible');
+					banner.setAttribute('aria-hidden', 'true');
+				}, 2000);
+			} else {
+				banner.classList.remove('offline-banner--visible');
+				banner.setAttribute('aria-hidden', 'true');
+			}
+			wasOffline = false;
+		} else {
+			wasOffline = true;
+			banner.textContent = "You're offline. Some features may be unavailable.";
+			banner.classList.add('offline-banner--visible');
+			banner.setAttribute('aria-hidden', 'false');
+		}
+	}
 
-  window.addEventListener('online', updateOnlineStatus);
-  window.addEventListener('offline', updateOnlineStatus);
-  updateOnlineStatus();
+	window.addEventListener('online', updateOnlineStatus);
+	window.addEventListener('offline', updateOnlineStatus);
+	updateOnlineStatus();
 })();
 </script>`;
 

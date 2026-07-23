@@ -56,7 +56,7 @@
 }
 
 /* Withheld during extraction: the badge is an always-present OOB swap anchor, so
-   keep the empty placeholder out of the meta row's flow until it has a count. */
+ * keep the empty placeholder out of the meta row's flow until it has a count. */
 .inbox-email-detail__link-count:empty {
   display: none;
 }
@@ -207,7 +207,7 @@
 }
 
 /* Held disabled by hx-disabled-elt for the length of the request, so a slow
-   save reads as in-flight rather than as a click that did nothing. */
+ * save reads as in-flight rather than as a click that did nothing. */
 .inbox-article-card__action-button:disabled,
 .inbox-excluded-link__feedback-button:disabled {
   opacity: 0.5;

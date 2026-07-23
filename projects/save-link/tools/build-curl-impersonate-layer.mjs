@@ -28,85 +28,85 @@ const RELEASE_VERSION = readFileSync(resolve(PROJECT_ROOT, ".curl-impersonate-ve
 const RELEASE_URL = `https://github.com/lexiforest/curl-impersonate/releases/download/v${RELEASE_VERSION}/curl-impersonate-v${RELEASE_VERSION}.x86_64-linux-gnu.tar.gz`;
 
 function run(command, args, options = {}) {
-	const merged = { stdio: ["ignore", "pipe", "pipe"], encoding: "utf-8", ...options };
-	const result = spawnSync(command, args, merged);
-	if (result.status !== 0) {
-		const stderr = result.stderr?.trim() ?? "";
-		const stdout = result.stdout?.trim() ?? "";
-		throw new Error(`${command} ${args.join(" ")} failed (exit ${result.status}): ${stderr || stdout}`);
-	}
-	return result.stdout?.trim() ?? "";
+  const merged = { stdio: ["ignore", "pipe", "pipe"], encoding: "utf-8", ...options };
+  const result = spawnSync(command, args, merged);
+  if (result.status !== 0) {
+    const stderr = result.stderr?.trim() ?? "";
+    const stdout = result.stdout?.trim() ?? "";
+    throw new Error(`${command} ${args.join(" ")} failed (exit ${result.status}): ${stderr || stdout}`);
+  }
+  return result.stdout?.trim() ?? "";
 }
 
 async function downloadRelease() {
-	const tarPath = resolve(OUTPUT_DIR, "curl-impersonate.tar.gz");
-	mkdirSync(OUTPUT_DIR, { recursive: true });
+  const tarPath = resolve(OUTPUT_DIR, "curl-impersonate.tar.gz");
+  mkdirSync(OUTPUT_DIR, { recursive: true });
 
-	console.log(`[build-layer] downloading ${RELEASE_URL}`);
-	const response = await fetch(RELEASE_URL);
-	if (!response.ok) {
-		throw new Error(`Download failed: ${response.status} ${response.statusText}`);
-	}
-	const fileStream = createWriteStream(tarPath);
-	await pipeline(response.body, fileStream);
-	return tarPath;
+  console.log(`[build-layer] downloading ${RELEASE_URL}`);
+  const response = await fetch(RELEASE_URL);
+  if (!response.ok) {
+    throw new Error(`Download failed: ${response.status} ${response.statusText}`);
+  }
+  const fileStream = createWriteStream(tarPath);
+  await pipeline(response.body, fileStream);
+  return tarPath;
 }
 
 function extractAndPackage(tarPath) {
-	const extractDir = resolve(OUTPUT_DIR, "extracted");
-	mkdirSync(extractDir, { recursive: true });
+  const extractDir = resolve(OUTPUT_DIR, "extracted");
+  mkdirSync(extractDir, { recursive: true });
 
-	console.log("[build-layer] extracting release archive");
-	run("tar", ["--extract", "--gzip", "--file", tarPath, "--directory", extractDir]);
+  console.log("[build-layer] extracting release archive");
+  run("tar", ["--extract", "--gzip", "--file", tarPath, "--directory", extractDir]);
 
-	const layerRoot = resolve(OUTPUT_DIR, "layer");
-	const binDir = resolve(layerRoot, "bin");
-	mkdirSync(binDir, { recursive: true });
+  const layerRoot = resolve(OUTPUT_DIR, "layer");
+  const binDir = resolve(layerRoot, "bin");
+  mkdirSync(binDir, { recursive: true });
 
-	/* The wrapper script execs its sibling binary by relative path, so both
-	 * must be co-located in the same /opt/bin directory.
-	 * Statically-linked binaries ship no shared objects to stage. */
-	run("cp", [resolve(extractDir, "curl_chrome131"), binDir]);
-	run("cp", [resolve(extractDir, "curl-impersonate"), binDir]);
-	chmodSync(resolve(binDir, "curl_chrome131"), 0o755);
-	chmodSync(resolve(binDir, "curl-impersonate"), 0o755);
+  /* The wrapper script execs its sibling binary by relative path, so both
+   * must be co-located in the same /opt/bin directory.
+   * Statically-linked binaries ship no shared objects to stage. */
+  run("cp", [resolve(extractDir, "curl_chrome131"), binDir]);
+  run("cp", [resolve(extractDir, "curl-impersonate"), binDir]);
+  chmodSync(resolve(binDir, "curl_chrome131"), 0o755);
+  chmodSync(resolve(binDir, "curl-impersonate"), 0o755);
 
-	return layerRoot;
+  return layerRoot;
 }
 
 function createZip(layerRoot) {
-	if (existsSync(OUTPUT_ZIP)) {
-		rmSync(OUTPUT_ZIP);
-	}
-	console.log(`[build-layer] creating ${OUTPUT_ZIP}`);
-	/* Deterministic build: pin mtimes to a fixed epoch (tar extraction sets
-	 * them to "now"), feed a sorted file list to zip (readdir order varies
-	 * between APFS and ext4), and strip OS-specific extra fields with -X
-	 * (high-precision timestamps, uid/gid). Without this, the zip SHA-256
-	 * changes on every rebuild, Pulumi replaces the LayerVersion, and every
-	 * Lambda that mounts the layer re-configures on every deploy. */
-	const script = [
-		"find . -exec touch -t 200001010000.00 {} +",
-		'find . \\( -type f -o -type l \\) -print | LC_ALL=C sort | zip -X --symlinks -@ "$OUTPUT_ZIP"',
-	].join(" && ");
-	run("sh", ["-c", script], {
-		cwd: layerRoot,
-		env: { ...process.env, OUTPUT_ZIP },
-	});
+  if (existsSync(OUTPUT_ZIP)) {
+    rmSync(OUTPUT_ZIP);
+  }
+  console.log(`[build-layer] creating ${OUTPUT_ZIP}`);
+  /* Deterministic build: pin mtimes to a fixed epoch (tar extraction sets
+   * them to "now"), feed a sorted file list to zip (readdir order varies
+   * between APFS and ext4), and strip OS-specific extra fields with -X
+   * (high-precision timestamps, uid/gid). Without this, the zip SHA-256
+   * changes on every rebuild, Pulumi replaces the LayerVersion, and every
+   * Lambda that mounts the layer re-configures on every deploy. */
+  const script = [
+    "find . -exec touch -t 200001010000.00 {} +",
+    'find . \\( -type f -o -type l \\) -print | LC_ALL=C sort | zip -X --symlinks -@ "$OUTPUT_ZIP"',
+  ].join(" && ");
+  run("sh", ["-c", script], {
+    cwd: layerRoot,
+    env: { ...process.env, OUTPUT_ZIP },
+  });
 }
 
 async function main() {
-	console.log("[build-layer] building curl-impersonate Lambda layer");
-	rmSync(OUTPUT_DIR, { recursive: true, force: true });
+  console.log("[build-layer] building curl-impersonate Lambda layer");
+  rmSync(OUTPUT_DIR, { recursive: true, force: true });
 
-	const tarPath = await downloadRelease();
-	const layerRoot = extractAndPackage(tarPath);
-	createZip(layerRoot);
+  const tarPath = await downloadRelease();
+  const layerRoot = extractAndPackage(tarPath);
+  createZip(layerRoot);
 
-	console.log(`[build-layer] done: ${OUTPUT_ZIP}`);
+  console.log(`[build-layer] done: ${OUTPUT_ZIP}`);
 }
 
 main().catch((err) => {
-	console.error(err);
-	process.exit(1);
+  console.error(err);
+  process.exit(1);
 });

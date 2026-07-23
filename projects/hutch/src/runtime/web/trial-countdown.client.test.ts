@@ -22,12 +22,12 @@ function buildFixture(opts: {
 }): string {
 	return `<!DOCTYPE html><html><body>
 		<p class="trial-countdown trial-countdown--${opts.escalation}"
-		   data-trial-ends-at-iso="${opts.endsAtIso}"
-		   data-server-now-iso="${opts.serverNowIso}"
-		   data-trial-state="${opts.state}"
-		   role="timer"
-		   aria-live="off"
-		   data-test-trial-countdown>${opts.text}</p>
+			data-trial-ends-at-iso="${opts.endsAtIso}"
+			data-server-now-iso="${opts.serverNowIso}"
+			data-trial-state="${opts.state}"
+			role="timer"
+			aria-live="off"
+			data-test-trial-countdown>${opts.text}</p>
 	</body></html>`;
 }
 
@@ -43,11 +43,11 @@ function buildSemanticOnlyFixture(opts: {
 }): string {
 	return `<!DOCTYPE html><html><body>
 		<p class="trial-countdown trial-countdown--${opts.escalation}"
-		   data-trial-ends-at-iso="${opts.endsAtIso}"
-		   data-server-now-iso="${opts.serverNowIso}"
-		   data-trial-state="${opts.state}"
-		   role="timer"
-		   aria-live="off">${opts.text}</p>
+			data-trial-ends-at-iso="${opts.endsAtIso}"
+			data-server-now-iso="${opts.serverNowIso}"
+			data-trial-state="${opts.state}"
+			role="timer"
+			aria-live="off">${opts.text}</p>
 	</body></html>`;
 }
 
@@ -329,12 +329,12 @@ describe("initTrialCountdown — clock skew fallback", () => {
 		const endsAt = new Date(Date.parse("2026-01-01T00:00:00.000Z") + ONE_HOUR_MS).toISOString();
 		const { document } = createDom(`<!DOCTYPE html><html><body>
 			<p class="trial-countdown trial-countdown--urgent"
-			   data-trial-ends-at-iso="${endsAt}"
-			   data-server-now-iso=""
-			   data-trial-state="active"
-			   role="timer"
-			   aria-live="off"
-			   data-test-trial-countdown>placeholder</p>
+				data-trial-ends-at-iso="${endsAt}"
+				data-server-now-iso=""
+				data-trial-state="active"
+				role="timer"
+				aria-live="off"
+				data-test-trial-countdown>placeholder</p>
 		</body></html>`);
 
 		const clock = createFakeClock(document, Date.parse("2026-01-01T00:00:00.000Z"));
@@ -349,12 +349,12 @@ describe("initTrialCountdown — clock skew fallback", () => {
 		const endsAt = new Date(Date.parse("2026-01-01T00:00:00.000Z") + 30 * ONE_MINUTE_MS).toISOString();
 		const { document } = createDom(`<!DOCTYPE html><html><body>
 			<p class="trial-countdown trial-countdown--urgent"
-			   data-trial-ends-at-iso="${endsAt}"
-			   data-server-now-iso="not-a-date"
-			   data-trial-state="active"
-			   role="timer"
-			   aria-live="off"
-			   data-test-trial-countdown>placeholder</p>
+				data-trial-ends-at-iso="${endsAt}"
+				data-server-now-iso="not-a-date"
+				data-trial-state="active"
+				role="timer"
+				aria-live="off"
+				data-test-trial-countdown>placeholder</p>
 		</body></html>`);
 
 		const clock = createFakeClock(document, Date.parse("2026-01-01T00:00:00.000Z"));

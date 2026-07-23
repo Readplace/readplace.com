@@ -15,13 +15,13 @@ export type SignupValidationResult =
 			kind: "bot-rejected";
 			reason: BotDefenseRejectReason;
 			timeToSubmitMs?: number;
-	  }
+		}
 	| {
 			ok: false;
 			kind: "field-errors";
 			errors: ComponentError[];
 			email: string | undefined;
-	  }
+		}
 	| { ok: false; kind: "duplicate-email"; email: string };
 
 export interface ValidateSignupInput {

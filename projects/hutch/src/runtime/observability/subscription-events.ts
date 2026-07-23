@@ -13,24 +13,24 @@ export type SubscriptionLogEvent =
 			event: typeof SUBSCRIPTION_EVENTS.chargeSucceeded;
 			user_id: UserId;
 			subscription_id: string;
-	  })
+		})
 	| (SubscriptionEventBase & {
 			event: typeof SUBSCRIPTION_EVENTS.chargeFailed;
 			user_id: UserId;
 			reason: string;
-	  })
+		})
 	| (SubscriptionEventBase & {
 			event: typeof SUBSCRIPTION_EVENTS.cancelled;
 			user_id: UserId;
 			reason: string;
 			subscription_id?: string;
-	  })
+		})
 	| (SubscriptionEventBase & {
 			event: typeof SUBSCRIPTION_EVENTS.checkoutStarted;
 			user_id: UserId;
 			variant: CheckoutVariant;
 			checkout_session_id: string;
-	  })
+		})
 	| (SubscriptionEventBase & {
 			event: typeof SUBSCRIPTION_EVENTS.checkoutCompleted;
 			user_id: UserId;
@@ -38,19 +38,19 @@ export type SubscriptionLogEvent =
 			checkout_session_id: string;
 			paid_now: boolean;
 			variant?: CheckoutVariant;
-	  })
+		})
 	| (SubscriptionEventBase & {
 			event: typeof SUBSCRIPTION_EVENTS.checkoutReturnFailed;
 			reason: CheckoutReturnFailureReason;
 			user_id?: UserId;
 			checkout_session_id?: string;
-	  })
+		})
 	| (SubscriptionEventBase & {
 			event: typeof SUBSCRIPTION_EVENTS.resubscribeCompleted;
 			user_id: UserId;
 			subscription_id: string;
 			paid_now: boolean;
-	  });
+		});
 
 // Emitters build the strict union above so user_id is omissible only on
 // checkout_return_failed (the pre-auth return). Consumers that read a captured

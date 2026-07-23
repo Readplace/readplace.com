@@ -10,9 +10,9 @@ import {
 
 const CONTAINER_HTML = `
 <div data-card-elements data-publishable-key="pk_test_123" data-client-secret="seti_123_secret" data-setup-id="seti_123">
-  <div data-card-element></div>
-  <p data-card-error></p>
-  <button type="button" data-card-submit>Save card</button>
+	<div data-card-element></div>
+	<p data-card-error></p>
+	<button type="button" data-card-submit>Save card</button>
 </div>
 `;
 

@@ -1,19 +1,19 @@
 <article class="inbox-article-card" id="{{domId}}" data-test-inbox-article-card="{{ordinal}}"{{#if cardPollUrl}} hx-get="{{cardPollUrl}}" hx-trigger="every 3s" hx-target="this" hx-swap="outerHTML"{{/if}} data-card-status="{{cardStatus}}">
-	{{#if hasTitle}}
-	<a class="inbox-article-card__title" href="{{url}}" target="_blank" rel="noopener noreferrer" data-test-inbox-article-title>{{title}}</a>
-	<span class="inbox-article-card__url" data-test-inbox-article-url>{{url}}</span>
-	{{else}}
-	<a class="inbox-article-card__title inbox-article-card__title--bare" href="{{url}}" target="_blank" rel="noopener noreferrer" data-test-inbox-article-url>{{url}}</a>
-	{{/if}}
-	<span class="inbox-article-card__status inbox-article-card__status--{{statusState}}" data-test-card-status="{{statusState}}">{{statusLabel}}</span>
-	<ul class="inbox-article-card__actions">
-		{{#each actions}}
-		<li class="inbox-article-card__action">
-			<form method="{{method}}" action="{{href}}" hx-boost="true" hx-target="main" hx-select="main" hx-swap="outerHTML show:none" hx-disabled-elt="find button">
-				{{#each hiddenParams}}<input type="hidden" name="{{@key}}" value="{{this}}">{{/each}}
-				<button type="submit" id="{{buttonId}}" class="inbox-article-card__action-button inbox-article-card__action-button--{{key}}" aria-label="{{ariaLabel}}" data-test-card-action="{{key}}">{{label}}</button>
-			</form>
-		</li>
-		{{/each}}
-	</ul>
+  {{#if hasTitle}}
+  <a class="inbox-article-card__title" href="{{url}}" target="_blank" rel="noopener noreferrer" data-test-inbox-article-title>{{title}}</a>
+  <span class="inbox-article-card__url" data-test-inbox-article-url>{{url}}</span>
+  {{else}}
+  <a class="inbox-article-card__title inbox-article-card__title--bare" href="{{url}}" target="_blank" rel="noopener noreferrer" data-test-inbox-article-url>{{url}}</a>
+  {{/if}}
+  <span class="inbox-article-card__status inbox-article-card__status--{{statusState}}" data-test-card-status="{{statusState}}">{{statusLabel}}</span>
+  <ul class="inbox-article-card__actions">
+    {{#each actions}}
+    <li class="inbox-article-card__action">
+      <form method="{{method}}" action="{{href}}" hx-boost="true" hx-target="main" hx-select="main" hx-swap="outerHTML show:none" hx-disabled-elt="find button">
+        {{#each hiddenParams}}<input type="hidden" name="{{@key}}" value="{{this}}">{{/each}}
+        <button type="submit" id="{{buttonId}}" class="inbox-article-card__action-button inbox-article-card__action-button--{{key}}" aria-label="{{ariaLabel}}" data-test-card-action="{{key}}">{{label}}</button>
+      </form>
+    </li>
+    {{/each}}
+  </ul>
 </article>

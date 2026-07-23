@@ -25,13 +25,13 @@ function buildFixture(
 <div data-article-body></div>
 ${readerSlot}
 <div data-share-balloon-wrap hidden>
-  <div data-share-balloon-buttons>
-    <div data-share-balloon-chat></div>
-    <button type="button" data-share-balloon-copy data-share-url="${ARTICLE_URL_COPY}"></button>
-    <button type="button" data-share-balloon data-share-url="${ARTICLE_URL_SHARE}" data-share-title="${ARTICLE_TITLE}"></button>
-  </div>
-  <button type="button" data-share-balloon-close></button>
-  <span data-share-balloon-copied>Link copied!</span>
+	<div data-share-balloon-buttons>
+		<div data-share-balloon-chat></div>
+		<button type="button" data-share-balloon-copy data-share-url="${ARTICLE_URL_COPY}"></button>
+		<button type="button" data-share-balloon data-share-url="${ARTICLE_URL_SHARE}" data-share-title="${ARTICLE_TITLE}"></button>
+	</div>
+	<button type="button" data-share-balloon-close></button>
+	<span data-share-balloon-copied>Link copied!</span>
 </div>
 </body></html>`;
 }

@@ -20,7 +20,7 @@ export type ExtractLinksFromPageResult =
 			readonly status: "FETCH_FAILED";
 			readonly reason: "timeout" | "network" | "http" | "too_large";
 			readonly httpStatus?: number;
-	  };
+		};
 
 export type ExtractLinksFromPageUrl = (
 	pageUrl: string,

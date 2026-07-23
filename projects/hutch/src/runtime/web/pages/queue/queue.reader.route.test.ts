@@ -827,9 +827,9 @@ describe("Queue routes", () => {
 					publishSubscriptionReactivated: fixture.events.publishSubscriptionReactivated,
 				},
 				summary:{
- 	findGeneratedSummary: findGeneratedSummary,
- 	markSummaryPending: fixture.summary.markSummaryPending,
- },
+	findGeneratedSummary: findGeneratedSummary,
+	markSummaryPending: fixture.summary.markSummaryPending,
+	},
 			});
 			const { auth } = harness;
 			const agent = await loginAgent(harness.server, auth);
@@ -1045,9 +1045,9 @@ describe("Queue routes", () => {
 					publishSubscriptionReactivated: fixture.events.publishSubscriptionReactivated,
 				},
 				summary:{
- 	findGeneratedSummary: findGeneratedSummary,
- 	markSummaryPending: fixture.summary.markSummaryPending,
- },
+	findGeneratedSummary: findGeneratedSummary,
+	markSummaryPending: fixture.summary.markSummaryPending,
+	},
 			});
 			const { auth } = harness;
 			const agent = await loginAgent(harness.server, auth);
@@ -1116,9 +1116,9 @@ describe("Queue routes", () => {
 					publishSubscriptionReactivated: fixture.events.publishSubscriptionReactivated,
 				},
 				summary:{
- 	findGeneratedSummary: findGeneratedSummary,
- 	markSummaryPending: fixture.summary.markSummaryPending,
- },
+	findGeneratedSummary: findGeneratedSummary,
+	markSummaryPending: fixture.summary.markSummaryPending,
+	},
 			});
 			const { auth } = harness;
 			const agent = await loginAgent(harness.server, auth);
@@ -1299,9 +1299,9 @@ describe("Queue routes", () => {
 					publishSubscriptionReactivated: fixture.events.publishSubscriptionReactivated,
 				},
 				summary:{
- 	findGeneratedSummary: findGeneratedSummary,
- 	markSummaryPending: fixture.summary.markSummaryPending,
- },
+	findGeneratedSummary: findGeneratedSummary,
+	markSummaryPending: fixture.summary.markSummaryPending,
+	},
 			});
 			const { auth } = harness;
 			const agent = await loginAgent(harness.server, auth);
@@ -1441,8 +1441,8 @@ describe("Queue routes", () => {
 	});
 
 	/** The reader-failed card carries an "Install the Readplace extension" CTA
-	 * gated on the extension-install URL. iPhone has no extension, so that URL —
-	 * and the CTA — must be suppressed there while staying for desktop browsers. */
+	* gated on the extension-install URL. iPhone has no extension, so that URL —
+	* and the CTA — must be suppressed there while staying for desktop browsers. */
 	describe("Reader-failed install CTA — platform suppression", () => {
 		const IPHONE_UA =
 			"Mozilla/5.0 (iPhone; CPU iPhone OS 17_5 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/17.5 Mobile/15E148 Safari/604.1";

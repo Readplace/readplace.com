@@ -45,7 +45,7 @@ export type EmailLinkOutcome =
 			siteName: string;
 			imageUrl: string | undefined;
 			resolvedUrl: string | undefined;
-	  }
+		}
 	| { status: "failed"; failureReason: string };
 
 export interface InboxEmailLinkStore {

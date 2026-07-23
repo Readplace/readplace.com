@@ -46,11 +46,11 @@ final class SirenDecodingTests: XCTestCase {
 		// by matching a known name — so a newly-advertised item action renders.
 		let json = """
 		{ "properties": { "id": "x", "url": "https://example.com/x" },
-		  "actions": [
-		    { "name": "update-status", "title": "Mark read", "href": "/queue/x/status", "method": "POST" },
-		    { "name": "delete", "title": "Delete", "href": "/queue/x/delete", "method": "POST" },
-		    { "name": "archive", "title": "Archive", "href": "/queue/x/archive", "method": "POST" }
-		  ] }
+			"actions": [
+				{ "name": "update-status", "title": "Mark read", "href": "/queue/x/status", "method": "POST" },
+				{ "name": "delete", "title": "Delete", "href": "/queue/x/delete", "method": "POST" },
+				{ "name": "archive", "title": "Archive", "href": "/queue/x/archive", "method": "POST" }
+			] }
 		"""
 		let article = try XCTUnwrap(Article(entity: try decodeEntity(json)))
 		XCTAssertEqual(
@@ -67,11 +67,11 @@ final class SirenDecodingTests: XCTestCase {
 		// carries a server value) stay.
 		let json = """
 		{ "properties": { "id": "x", "url": "https://example.com/x" },
-		  "actions": [
-		    { "name": "update-status", "title": "Mark read", "href": "/queue/x/status", "method": "POST", "fields": [{ "name": "status", "type": "text", "value": "read" }] },
-		    { "name": "delete", "title": "Delete", "href": "/queue/x/delete", "method": "POST" },
-		    { "name": "annotate", "title": "Annotate", "href": "/queue/x/annotate", "method": "POST", "fields": [{ "name": "note", "type": "text" }] }
-		  ] }
+			"actions": [
+				{ "name": "update-status", "title": "Mark read", "href": "/queue/x/status", "method": "POST", "fields": [{ "name": "status", "type": "text", "value": "read" }] },
+				{ "name": "delete", "title": "Delete", "href": "/queue/x/delete", "method": "POST" },
+				{ "name": "annotate", "title": "Annotate", "href": "/queue/x/annotate", "method": "POST", "fields": [{ "name": "note", "type": "text" }] }
+			] }
 		"""
 		let article = try XCTUnwrap(Article(entity: try decodeEntity(json)))
 		XCTAssertEqual(
@@ -91,11 +91,11 @@ final class SirenDecodingTests: XCTestCase {
 		// `item` link) stay out.
 		let json = """
 		{ "properties": { "id": "x", "url": "https://example.com/x" },
-		  "links": [
-		    { "rel": ["read"], "href": "/queue/x/view", "title": "Read" },
-		    { "rel": ["item"], "href": "/queue/x" },
-		    { "rel": ["share"], "href": "/queue/x/share", "title": "Share" }
-		  ] }
+			"links": [
+				{ "rel": ["read"], "href": "/queue/x/view", "title": "Read" },
+				{ "rel": ["item"], "href": "/queue/x" },
+				{ "rel": ["share"], "href": "/queue/x/share", "title": "Share" }
+			] }
 		"""
 		let article = try XCTUnwrap(Article(entity: try decodeEntity(json)))
 		XCTAssertEqual(
@@ -232,8 +232,8 @@ final class SirenDecodingTests: XCTestCase {
 		// decode; it is simply kept and treated as unactionable.
 		let json = """
 		{ "properties": { "id": "x", "url": "https://example.com/x" },
-		  "links": [{ "rel": ["read"] }],
-		  "actions": [{ "name": "update-status", "method": "POST" }] }
+			"links": [{ "rel": ["read"] }],
+			"actions": [{ "name": "update-status", "method": "POST" }] }
 		"""
 		let article = try XCTUnwrap(Article(entity: try decodeEntity(json)))
 		XCTAssertNil(article.readHref, "a read link with no href leaves the row unopenable")
@@ -381,9 +381,9 @@ final class SirenDecodingTests: XCTestCase {
 		// the whole collection decode and blank the list.
 		let json = """
 		{ "class": ["collection", "articles"],
-		  "properties": { "total": 1, "page": 1, "pageSize": 20, "warning": { "code": "not-saveable" } },
-		  "entities": [\(Fixtures.article(id: "a1"))],
-		  "links": [], "actions": [] }
+			"properties": { "total": 1, "page": 1, "pageSize": 20, "warning": { "code": "not-saveable" } },
+			"entities": [\(Fixtures.article(id: "a1"))],
+			"links": [], "actions": [] }
 		"""
 		let page = QueuePage(collection: try decodeCollection(json))
 		XCTAssertNil(page.warning, "a warning missing its required message degrades to no banner")

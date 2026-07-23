@@ -18,17 +18,17 @@ function toSiteRules(site: TestSite): SiteRules {
 const ARTICLE_HTML = `
 <html>
 <head>
-  <title>Test Article Title</title>
-  <meta property="og:site_name" content="Test Blog">
-  <meta property="og:image" content="https://example.com/image.jpg">
+	<title>Test Article Title</title>
+	<meta property="og:site_name" content="Test Blog">
+	<meta property="og:image" content="https://example.com/image.jpg">
 </head>
 <body>
-  <article>
-    <h1>Test Article Title</h1>
-    <p>This is the first paragraph of the article with enough text to be meaningful content for readability extraction.</p>
-    <p>This is the second paragraph with additional content that helps readability determine this is a real article worth parsing.</p>
-    <p>And a third paragraph to ensure there is enough content for the word count calculation to work properly.</p>
-  </article>
+	<article>
+		<h1>Test Article Title</h1>
+		<p>This is the first paragraph of the article with enough text to be meaningful content for readability extraction.</p>
+		<p>This is the second paragraph with additional content that helps readability determine this is a real article worth parsing.</p>
+		<p>And a third paragraph to ensure there is enough content for the word count calculation to work properly.</p>
+	</article>
 </body>
 </html>`;
 
