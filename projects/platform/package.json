@@ -8,8 +8,9 @@
     "compile": "echo 'Infra-only project — no compile step'",
     "lint": "tsc --project tsconfig.lint.json && biome lint src",
     "test": "echo 'Infra-only project — no tests'",
-    "check-infra": "PULUMI_CONFIG_PASSPHRASE='' pulumi preview --stack \"${PULUMI_STACK:?PULUMI_STACK is not set}\"",
-    "deploy-infra": "PULUMI_CONFIG_PASSPHRASE='' pulumi up --stack \"${PULUMI_STACK:?PULUMI_STACK is not set}\"",
+    "build-curl-impersonate-layer": "node tools/build-curl-impersonate-layer.mjs",
+    "check-infra": "pnpm build-curl-impersonate-layer && PULUMI_CONFIG_PASSPHRASE='' pulumi preview --stack \"${PULUMI_STACK:?PULUMI_STACK is not set}\"",
+    "deploy-infra": "pnpm build-curl-impersonate-layer && PULUMI_CONFIG_PASSPHRASE='' pulumi up --stack \"${PULUMI_STACK:?PULUMI_STACK is not set}\"",
     "post-deploy": "echo 'No post-deploy steps'"
   },
   "dependencies": {
