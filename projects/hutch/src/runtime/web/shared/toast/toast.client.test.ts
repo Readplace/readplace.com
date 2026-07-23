@@ -270,6 +270,7 @@ describe("initToastDismiss", () => {
 			initWithDom(`<button id="inbox-card-0004-save">Save</button>`);
 		const button = document.getElementById("inbox-card-0004-save");
 		assert(button, "the save button must render");
+		const focusSpy = jest.spyOn(button, "focus");
 
 		setActiveElement(button);
 		triggerBeforeRequest();
@@ -278,7 +279,7 @@ describe("initToastDismiss", () => {
 		// No control and no toast to fall back to: the swap simply leaves focus be.
 		triggerAfterSettle();
 
-		expect(document.querySelector("[data-dismiss]")).toBeNull();
+		expect(focusSpy).not.toHaveBeenCalled();
 	});
 
 	it("leaves focus where the reader moved it during the request", () => {
