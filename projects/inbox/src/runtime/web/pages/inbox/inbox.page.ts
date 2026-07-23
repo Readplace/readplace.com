@@ -4,6 +4,7 @@ import express from "express";
 import { z } from "zod";
 import { sendComponent } from "@packages/web-shell";
 import {
+	AliasNameSchema,
 	countLiveAddresses,
 	EmailLinkOrdinalSchema,
 	INBOX_ADDRESS_MAX_PER_USER,
@@ -146,6 +147,7 @@ export function initInboxRoutes(deps: InboxDependencies): Router {
 		const createFailed = req.query.error === "create";
 		const nameInvalid = req.query.error === "name";
 		const nameTaken = req.query.error === "name-taken";
+		const createdName = AliasNameSchema.safeParse(req.query.created);
 		// Banner shows whenever the cap is genuinely reached, not only after a
 		// rejected create. error=limit stays OR'd in so a just-rejected create
 		// still shows it even when the eventually-consistent live read
@@ -156,7 +158,14 @@ export function initInboxRoutes(deps: InboxDependencies): Router {
 			req,
 			res,
 			Base(
-				InboxPage({ addresses, createFailed, nameInvalid, nameTaken, limitReached }),
+				InboxPage({
+					addresses,
+					createFailed,
+					nameInvalid,
+					nameTaken,
+					limitReached,
+					createdName: createdName.success ? createdName.data : undefined,
+				}),
 				await deps.buildBannerState(req),
 			),
 		);
@@ -486,7 +495,7 @@ export function initInboxRoutes(deps: InboxDependencies): Router {
 			res.redirect(303, addressesCreateFailedPath);
 			return;
 		}
-		res.redirect(303, addressesPath);
+		res.redirect(303, `${addressesPath}?created=${encodeURIComponent(name)}`);
 	});
 
 	router.post("/disable", async (req: Request, res: Response) => {

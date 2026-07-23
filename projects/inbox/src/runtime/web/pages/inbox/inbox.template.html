@@ -18,6 +18,8 @@
         <p class="inbox__error" role="alert" data-test-inbox-alert="{{key}}">{{message}}</p>
         {{/each}}
 
+        <p class="inbox__success {{#if created}}inbox__success--visible{{else}}inbox__success--hidden{{/if}}" role="status" data-test-inbox-created>{{#if created}}Created the inbox email "{{createdName}}" — it's live in the list below.{{/if}}</p>
+
         <form action="{{createAction}}" method="POST" class="inbox__create">
           <label class="inbox__create-label" for="inbox-name">Name this inbox email</label>
           <div class="inbox__create-row">

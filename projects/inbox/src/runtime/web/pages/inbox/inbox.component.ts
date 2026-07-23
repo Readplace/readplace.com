@@ -16,8 +16,11 @@ export function InboxPage(params: {
 	nameInvalid?: boolean;
 	nameTaken?: boolean;
 	limitReached: boolean;
+	createdName?: string;
 }): PageBody {
 	const content = render(INBOX_TEMPLATE, {
+		created: params.createdName !== undefined,
+		createdName: params.createdName ?? "",
 		...toInboxAddressesViewModel(params.addresses),
 		alerts: toInboxAlerts({
 			createFailed: params.createFailed === true,

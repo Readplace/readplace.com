@@ -113,12 +113,17 @@ describe("Inbox address routes", () => {
 				.type("form")
 				.send({ name: "Netflix" });
 			expect(created.status).toBe(303);
-			expect(created.headers.location).toBe("/inbox/addresses");
+			expect(created.headers.location).toBe("/inbox/addresses?created=netflix");
 
-			const listed = await agent.get("/inbox/addresses");
+			const listed = await agent.get(created.headers.location);
 			expect(addressFieldValue(listed.text)).toMatch(/^netflix-[0-9a-z]{6}@read\.place$/);
 			const doc = new JSDOM(listed.text).window.document;
 			expect(doc.querySelector("[data-test-inbox-name]")?.textContent).toBe("netflix");
+			const confirmation = doc.querySelector("[data-test-inbox-created]");
+			assert(confirmation, "the create confirmation must render on the redirect target");
+			expect(confirmation.classList.contains("inbox__success--visible")).toBe(true);
+			expect(confirmation.getAttribute("role")).toBe("status");
+			expect(confirmation.textContent).toContain("netflix");
 		});
 
 		it("redirects with error=name when the submitted name has no valid characters", async () => {
@@ -186,7 +191,7 @@ describe("Inbox address routes", () => {
 				.send({ name: "gmail" });
 
 			expect(second.status).toBe(303);
-			expect(second.headers.location).toBe("/inbox/addresses");
+			expect(second.headers.location).toBe("/inbox/addresses?created=gmail");
 			const names = Array.from(
 				new JSDOM(
 					(await agent.get("/inbox/addresses")).text,
@@ -211,7 +216,7 @@ describe("Inbox address routes", () => {
 				.send({ name: "netflix" });
 
 			expect(recreated.status).toBe(303);
-			expect(recreated.headers.location).toBe("/inbox/addresses");
+			expect(recreated.headers.location).toBe("/inbox/addresses?created=netflix");
 		});
 
 		it("redirects a read-only user to /queue?inactive=1 and mints nothing", async () => {
@@ -345,6 +350,48 @@ describe("Inbox address routes", () => {
 			const response = await agent.get("/inbox/addresses");
 
 			expect(alertKeys(new JSDOM(response.text).window.document)).toEqual([]);
+		});
+
+		it("renders the visible create confirmation on the redirect target", async () => {
+			const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
+			const agent = await loginAgent(harness.server, harness.auth);
+
+			const response = await agent.get("/inbox/addresses?created=netflix");
+
+			const confirmation = new JSDOM(response.text).window.document.querySelector(
+				"[data-test-inbox-created]",
+			);
+			assert(confirmation, "the create confirmation element must render");
+			expect(confirmation.classList.contains("inbox__success--visible")).toBe(true);
+			expect(confirmation.getAttribute("role")).toBe("status");
+			expect(confirmation.textContent).toContain("netflix");
+		});
+
+		it("keeps the create confirmation hidden and empty on a normal visit", async () => {
+			const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
+			const agent = await loginAgent(harness.server, harness.auth);
+
+			const response = await agent.get("/inbox/addresses");
+
+			const confirmation = new JSDOM(response.text).window.document.querySelector(
+				"[data-test-inbox-created]",
+			);
+			assert(confirmation, "the create confirmation element must render");
+			expect(confirmation.classList.contains("inbox__success--hidden")).toBe(true);
+			expect(confirmation.textContent).toBe("");
+		});
+
+		it("keeps the create confirmation hidden when the created param is not a valid name", async () => {
+			const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
+			const agent = await loginAgent(harness.server, harness.auth);
+
+			const response = await agent.get("/inbox/addresses?created=NOT%20a%20name!");
+
+			const confirmation = new JSDOM(response.text).window.document.querySelector(
+				"[data-test-inbox-created]",
+			);
+			assert(confirmation, "the create confirmation element must render");
+			expect(confirmation.classList.contains("inbox__success--hidden")).toBe(true);
 		});
 	});
 
