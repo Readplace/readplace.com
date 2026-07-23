@@ -555,6 +555,26 @@ describe("GET /", () => {
 		expect(faq.mainEntity[5].name).toBe("Does Readplace hallucinate text when extracting PDFs?");
 	});
 
+	it("should advertise the free founding tier in structured data while founding seats remain", async () => {
+		const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
+		const response = await request(harness.server).get("/");
+		const doc = new JSDOM(response.text).window.document;
+
+		const scripts = doc.querySelectorAll('script[type="application/ld+json"]');
+		const schemas = Array.from(scripts).map((s) => JSON.parse(s.textContent ?? "{}"));
+		const app = schemas.find((s: { "@type": string }) => s["@type"] === "WebApplication");
+
+		expect(app.isAccessibleForFree).toBe(true);
+		const offerNames = app.offers.map((offer: { name: string }) => offer.name);
+		expect(offerNames).toEqual(["Founding Member", "Standard"]);
+
+		const faq = schemas.find((s: { "@type": string }) => s["@type"] === "FAQPage");
+		const freeQuestion = faq.mainEntity.find(
+			(q: { name: string }) => q.name === "Is Readplace free?",
+		);
+		expect(freeQuestion.acceptedAnswer.text).toContain("founding members get full access free");
+	});
+
 	it("should include the reader review nested in the WebApplication structured data", async () => {
 		const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
 		const response = await request(harness.server).get("/");

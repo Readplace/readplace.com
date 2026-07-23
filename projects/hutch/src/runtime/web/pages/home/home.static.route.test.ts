@@ -76,6 +76,37 @@ describe("GET / with exhausted founding allocation", () => {
 		);
 	}, 30000);
 
+	it("stops advertising a free tier in structured data once the founding allocation is exhausted", async () => {
+		const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
+		const { auth } = harness;
+
+		for (let i = 0; i < TEST_FOUNDING_MEMBER_LIMIT; i++) {
+			await auth.createUser({ email: `schema${i}@test.com`, password: "password123" });
+		}
+
+		const response = await request(harness.server).get("/");
+		const doc = new JSDOM(response.text).window.document;
+
+		const scripts = doc.querySelectorAll('script[type="application/ld+json"]');
+		const schemas = Array.from(scripts).map((s) => JSON.parse(s.textContent ?? "{}"));
+
+		const app = schemas.find((s: { "@type": string }) => s["@type"] === "WebApplication");
+		assert(app, "WebApplication schema must be rendered");
+		expect(app.isAccessibleForFree).toBe(false);
+		const offerNames = app.offers.map((offer: { name: string }) => offer.name);
+		expect(offerNames).toEqual(["Standard"]);
+
+		const faq = schemas.find((s: { "@type": string }) => s["@type"] === "FAQPage");
+		assert(faq, "FAQPage schema must be rendered");
+		expect(faq.mainEntity.length).toBe(6);
+		const freeQuestion = faq.mainEntity.find(
+			(q: { name: string }) => q.name === "Is Readplace free?",
+		);
+		assert(freeQuestion, "the 'Is Readplace free?' question must still be present");
+		expect(freeQuestion.acceptedAnswer.text).toContain("14-day free trial");
+		expect(freeQuestion.acceptedAnswer.text).not.toContain("free, forever");
+	}, 30000);
+
 	it("should hide the founding pricing title when over the limit", async () => {
 		const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
 		const { auth } = harness;
