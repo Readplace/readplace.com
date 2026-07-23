@@ -283,7 +283,6 @@ platform :ios do
       api_key: api_key,
       app_identifier: APP_ID,
       app_version: version_string,
-      build_number: build,
       skip_binary_upload: true,
       skip_screenshots: true,
       # deliver's own submit path refuses while the rejected submission is still
@@ -301,6 +300,19 @@ platform :ios do
     UI.user_error!("No App Store Connect app record for #{APP_ID}") unless app
     version = app.get_edit_app_store_version(platform: Spaceship::ConnectAPI::Platform::IOS)
     UI.user_error!("No editable App Store version to submit — create one in App Store Connect first") unless version
+
+    # deliver honours build_number only inside its own submit path, which this
+    # lane bypasses — run 29975411270's diagnostics showed the rejected build
+    # still attached after four "successful" metadata pushes. Attach explicitly.
+    candidate = Spaceship::ConnectAPI::Build.all(
+      app_id: app.id,
+      version: version_string,
+      build_number: build,
+      processing_states: "VALID",
+    ).first
+    UI.user_error!("No processed TestFlight build #{build} (#{version_string}) in App Store Connect") unless candidate
+    Spaceship::ConnectAPI.patch_app_store_version_with_build(app_store_version_id: version.id, build_id: candidate.id)
+    version = app.get_edit_app_store_version(platform: Spaceship::ConnectAPI::Platform::IOS)
 
     submission = app.get_in_progress_review_submission(platform: Spaceship::ConnectAPI::Platform::IOS, includes: "items")
     if submission && submission.state != Spaceship::ConnectAPI::ReviewSubmission::ReviewSubmissionState::UNRESOLVED_ISSUES
