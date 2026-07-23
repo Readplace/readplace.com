@@ -33,7 +33,7 @@ describe("writeHomepageAssignment", () => {
 
 		expect(cookies).toHaveLength(1);
 		expect(cookies[0].name).toBe(EXPERIMENT_COOKIE_NAME);
-		expect(cookies[0].value).toBe("homepage-split:1:variant-b");
+		expect(cookies[0].value).toBe("homepage-split:2:variant-b");
 		expect(cookies[0].options).toMatchObject({ httpOnly: true, secure: true, sameSite: "lax" });
 	});
 
@@ -49,11 +49,11 @@ describe("writeHomepageAssignment", () => {
 describe("readHomepageAssignment", () => {
 	it("resolves a current campaign+epoch cookie to its variant", () => {
 		assert.equal(
-			readHomepageAssignment(reqWithCookie("homepage-split:1:variant-a"), HOMEPAGE_SPLIT),
+			readHomepageAssignment(reqWithCookie("homepage-split:2:variant-a"), HOMEPAGE_SPLIT),
 			VARIANT_A,
 		);
 		assert.equal(
-			readHomepageAssignment(reqWithCookie("homepage-split:1:variant-b"), HOMEPAGE_SPLIT),
+			readHomepageAssignment(reqWithCookie("homepage-split:2:variant-b"), HOMEPAGE_SPLIT),
 			VARIANT_B,
 		);
 	});
@@ -82,20 +82,20 @@ describe("readHomepageAssignment", () => {
 
 	it("returns undefined for a stale epoch, so a re-bucket discards it", () => {
 		expect(
-			readHomepageAssignment(reqWithCookie("homepage-split:2:variant-a"), HOMEPAGE_SPLIT),
+			readHomepageAssignment(reqWithCookie("homepage-split:1:variant-a"), HOMEPAGE_SPLIT),
 		).toBeUndefined();
 	});
 
 	it("returns undefined when the epoch matches but the slug is unknown", () => {
 		expect(
-			readHomepageAssignment(reqWithCookie("homepage-split:1:variant-z"), HOMEPAGE_SPLIT),
+			readHomepageAssignment(reqWithCookie("homepage-split:2:variant-z"), HOMEPAGE_SPLIT),
 		).toBeUndefined();
 	});
 });
 
 describe("readHomepageVariantSlug", () => {
 	it("returns the arm slug against the live config", () => {
-		expect(readHomepageVariantSlug(reqWithCookie("homepage-split:1:variant-b"))).toBe("variant-b");
+		expect(readHomepageVariantSlug(reqWithCookie("homepage-split:2:variant-b"))).toBe("variant-b");
 	});
 
 	it("returns undefined when no valid assignment is present", () => {

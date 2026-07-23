@@ -39,7 +39,10 @@ export interface HomepageSplitConfig {
 export const HOMEPAGE_SPLIT: HomepageSplitConfig = {
 	active: true,
 	campaign: "homepage-split",
-	epoch: 1,
+	// Epoch 2: arm B diverges from A here (the trial-first rewrite). Bumping off
+	// epoch 1 re-buckets every browser that was assigned while both arms rendered
+	// the identical page, so the A/B measurement starts clean.
+	epoch: 2,
 	storageKey: "readplace.homepage-split",
 	variants: [
 		{ slug: "variant-a", path: "/landing-a", marker: "a" },

@@ -47,14 +47,14 @@ describe.each([
 		expect(doc.body.classList.contains(variantClass)).toBe(true);
 	});
 
-	it("renders the homepage content", async () => {
+	it("renders a hero tagline", async () => {
 		const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
 		const response = await request(harness.server).get(path);
 		const doc = load(response.text);
 
 		const tagline = doc.querySelector("[data-test-tagline]");
-		assert(tagline, "landing page must render the homepage tagline");
-		expect(tagline.textContent?.trim()).toBe("Read the Web, not the Slop.");
+		assert(tagline, "each arm must render a hero tagline");
+		expect(tagline.textContent?.trim().length).toBeGreaterThan(0);
 	});
 
 	it("is excluded from indexing so it never competes with / for SEO", async () => {
@@ -84,18 +84,35 @@ describe.each([
 		expect(response.text).not.toContain(SPLIT_SCRIPT);
 	});
 
-	it("still loads the home client bundle so the hero enhancements work", async () => {
-		const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
-		const response = await request(harness.server).get(path);
-
-		expect(response.text).toContain(HOME_SCRIPT);
-	});
-
 	it("stamps the experiment cookie server-side so a later signup can be attributed to this arm", async () => {
 		const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
 		const response = await request(harness.server).get(path);
 
-		expect(readSetCookie(response, "hutch_exp")).toBe(`homepage-split:1:${slug}`);
+		expect(readSetCookie(response, "hutch_exp")).toBe(`homepage-split:2:${slug}`);
+	});
+});
+
+describe("GET /landing-a (arm A — the incumbent homepage)", () => {
+	it("renders the canonical tagline and loads the home client bundle for the hero enhancements", async () => {
+		const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
+		const response = await request(harness.server).get("/landing-a");
+		const doc = load(response.text);
+
+		expect(doc.querySelector("[data-test-tagline]")?.textContent?.trim()).toBe(
+			"Read the Web, not the Slop.",
+		);
+		expect(response.text).toContain(HOME_SCRIPT);
+	});
+});
+
+describe("GET /landing-b (arm B — the trial-first rewrite)", () => {
+	it("renders its own page without the home client bundle (no hero rotator to enhance)", async () => {
+		const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
+		const response = await request(harness.server).get("/landing-b");
+		const doc = load(response.text);
+
+		assert(doc.querySelector("[data-test-variant-b]"), "arm B must render its own main element");
+		expect(response.text).not.toContain(HOME_SCRIPT);
 	});
 });
 
