@@ -262,6 +262,9 @@ Use a **4px base unit** with the following standard increments:
 ### Layout Principles
 
 - **Content width for reading should max out at ~680px.** Wider text blocks reduce readability. Chrome and navigation can extend wider (max-width `1000px` for header/footer), but article content stays narrow.
+- **One measure per page column.** Stacked sections in a column — headings, prose, tab bars, input rows — share one content measure; never cap prose at a per-section `max-width` (e.g. `56ch`) while sibling controls run full-width.
+- **Fixed-count card rows use an explicit column count** — the item count or a clean divisor of it. `auto-fit`/`minmax` can strand a lone card in an empty cell; reserve it for genuinely variable-length lists.
+- **Responsive container padding.** Card and container padding starts at the `lg` 24px token and grows to 32–40px at `@media (min-width: 768px)` — the same breakpoint `src/packages/web-shell/src/base.styles.ts` uses for `--form-gap`.
 - **Generous whitespace is intentional.** Don't fill space because it's empty. Breathing room is core to the brand.
 - **Align to grid.** All spacing should use the 4px base. Avoid arbitrary pixel values.
 - **Mobile first.** Every feature design starts with the smallest viewport. The extension popup, mobile web, and app are the most constrained contexts — design for those first.

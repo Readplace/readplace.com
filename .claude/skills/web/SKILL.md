@@ -186,6 +186,32 @@ pyramid heading) demands it. See [orphan control in the brand
 guidelines](../../../BRAND_GUIDELINES.md#typography-rules) for the exceptions
 (keyword rotator; centred pyramid title uses `pretty`, not `balance`).
 
+### One Measure Per Page Column
+
+All stacked sections in a page column share a single content measure (see [Layout Principles](../../../BRAND_GUIDELINES.md#layout-principles)):
+
+```css
+/* ❌ BAD — prose capped narrower than the full-width tab bar above it */
+.import { max-width: 800px; }
+.import__intro { max-width: 56ch; }
+
+/* ✅ GOOD — the whole flow shares one measure */
+.import { max-width: var(--reader-max-width); }
+.import__intro { /* no per-section cap */ }
+```
+
+### Responsive Container Padding
+
+Container padding starts at the `lg` 24px token and grows to 32–40px at `@media (min-width: 768px)` (see [Layout Principles](../../../BRAND_GUIDELINES.md#layout-principles)):
+
+```css
+/* ✅ GOOD — mobile-affordable base, generous on desktop */
+.auth-card { padding: 24px; }
+@media (min-width: 768px) {
+  .auth-card { padding: 40px; }
+}
+```
+
 ### CSS Comment Index Format
 
 Use numbered references for multi-line explanations:

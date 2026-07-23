@@ -1,5 +1,5 @@
 .import {
-  max-width: 800px;
+  max-width: var(--reader-max-width);
   margin: 0 auto;
   padding: 32px 20px 64px;
 }
@@ -29,7 +29,6 @@
   font-size: 1rem;
   line-height: 1.6;
   margin: 0;
-  max-width: 56ch;
   text-wrap: pretty;
 }
 
@@ -307,7 +306,6 @@
   gap: 8px;
   margin: 0;
   padding-left: 20px;
-  max-width: 56ch;
   font-size: 0.9375rem;
   line-height: 1.6;
   color: var(--muted-foreground);
@@ -327,7 +325,6 @@
 .import__faq {
   display: grid;
   gap: 16px;
-  max-width: 56ch;
 }
 
 .import__faq-question {

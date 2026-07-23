@@ -1042,9 +1042,9 @@ hr::before {
 }
 
 .pricing-grid {
-  grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
-  gap: 24px;
-  align-items: start;
+  grid-template-columns: 1fr;
+  max-width: 480px;
+  margin: 0 auto;
 }
 
 .pricing-grid--visible {
@@ -1186,8 +1186,14 @@ hr::before {
 
 .trust-grid {
   display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+  grid-template-columns: repeat(3, 1fr);
   gap: 24px;
+}
+
+@media (max-width: 640px) {
+  .trust-grid {
+    grid-template-columns: 1fr;
+  }
 }
 
 .trust-card {
@@ -1265,7 +1271,7 @@ hr::before {
 .home-testimonial__figure {
   max-width: var(--reader-max-width);
   margin: 0 auto;
-  padding: 40px 32px;
+  padding: 24px;
   background: var(--muted);
   border: 1px solid var(--border);
   border-radius: var(--radius-lg);
@@ -1307,6 +1313,10 @@ hr::before {
 
   .home-hero__subtitle {
     font-size: 1.25rem;
+  }
+
+  .home-testimonial__figure {
+    padding: 40px 32px;
   }
 }
 

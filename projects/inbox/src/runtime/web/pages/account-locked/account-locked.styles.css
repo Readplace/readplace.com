@@ -10,10 +10,16 @@
   background: var(--card);
   border: 1px solid var(--border);
   border-radius: var(--radius-lg);
-  padding: 40px;
+  padding: 24px;
   width: 100%;
-  max-width: 420px;
+  max-width: 480px;
   box-shadow: var(--shadow-md);
+}
+
+@media (min-width: 768px) {
+  .auth-card {
+    padding: 40px;
+  }
 }
 
 .auth-card__title {
