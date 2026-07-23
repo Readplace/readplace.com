@@ -143,6 +143,10 @@
 
 .inbox__disable-btn,
 .inbox__enable-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-height: var(--tap-target-min);
   padding: var(--button-padding-sm);
   font-size: 0.85rem;
   color: var(--muted-foreground);

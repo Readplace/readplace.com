@@ -227,6 +227,7 @@
   display: inline-flex;
   align-items: center;
   gap: 6px;
+  min-height: var(--tap-target-min);
   padding: var(--button-padding-sm);
   border: 1px solid var(--border);
   border-radius: var(--radius-sm);

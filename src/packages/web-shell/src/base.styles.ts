@@ -69,6 +69,7 @@ const LIGHT_THEME_VARIABLES: Record<string, string> = {
 	"--button-padding-sm": "8px 16px",
 	"--button-padding-xs": "4px 8px",
 	"--button-padding-x": "24px",
+	"--tap-target-min": "44px",
 	"--color-on-brand": "#FFFFFF",
 	"--header-brand-stem": "var(--color-secondary)",
 	"--header-brand-tail": "var(--color-brand)",
