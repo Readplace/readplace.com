@@ -387,8 +387,8 @@ export function initInboxRoutes(deps: InboxDependencies): Router {
 						ordinal: parsedOrdinal.data,
 					})
 				: undefined;
-			// The card only renders Save for a non-skipped, saveable link, so any
-			// other shape is an out-of-band request, not a user path.
+			// A missing, skipped, or unsaveable link never renders Save, so a POST for
+			// one is an out-of-band request, not a user path.
 			if (
 				link === undefined ||
 				link.status === "skipped" ||
@@ -397,23 +397,30 @@ export function initInboxRoutes(deps: InboxDependencies): Router {
 				res.status(404).type("html").send("");
 				return;
 			}
-			// Submits the stored URL, never the resolved one — the save pipeline owns
-			// redirects. Stripping runs after the saveable gate above and only shortens,
-			// so the validated URL cannot grow back past its length cap.
-			await deps.publishSubmitLink({
-				userId,
-				url: link.status === "pending" ? link.url : stripUtmParams(link.url),
-			});
-			// Publish first, then mark: a failed mark under-promises (no marker, but the
-			// command is out) where a failed publish after marking would over-promise a
-			// save that never happened. The marker is what makes the saved card durable —
-			// otherwise it reverts to an unsaved-looking card the moment the toast fades.
-			await deps.inboxEmailLinkStore.markLinkSubmitted({
-				userId,
-				receivedAtMessageId,
-				ordinal: link.ordinal,
-				submittedAt: deps.now().toISOString(),
-			});
+			// A submitted link no longer renders Save either, but a stale second-tab
+			// button or a replay can still POST it. Re-publishing would resurrect a
+			// finished article (the downstream save runs markUnreadIfRead), so an
+			// already-submitted save is answered idempotently — the publish and mark
+			// skipped, the &saved=1 redirect not.
+			if (link.submittedAt === undefined) {
+				// Submits the stored URL, never the resolved one — the save pipeline owns
+				// redirects. Stripping runs after the saveable gate above and only shortens,
+				// so the validated URL cannot grow back past its length cap.
+				await deps.publishSubmitLink({
+					userId,
+					url: link.status === "pending" ? link.url : stripUtmParams(link.url),
+				});
+				// Publish first, then mark: a failed mark under-promises (no marker, but the
+				// command is out) where a failed publish after marking would over-promise a
+				// save that never happened. The marker is what makes the saved card durable —
+				// otherwise it reverts to an unsaved-looking card the moment the toast fades.
+				await deps.inboxEmailLinkStore.markLinkSubmitted({
+					userId,
+					receivedAtMessageId,
+					ordinal: link.ordinal,
+					submittedAt: deps.now().toISOString(),
+				});
+			}
 			res.redirect(
 				303,
 				`${buildInboxEmailDetailUrl({

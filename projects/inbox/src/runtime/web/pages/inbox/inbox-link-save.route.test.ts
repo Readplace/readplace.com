@@ -181,6 +181,22 @@ describe("Inbox link save route", () => {
 		expect(card.querySelector('[data-test-card-action="save"]')).toBe(null);
 	});
 
+	it("does not re-publish an already-submitted link, so a stale second-tab save can't resurrect it", async () => {
+		const fixture = createDefaultTestAppFixture(TEST_APP_ORIGIN);
+		const harness = useApp(fixture);
+		const agent = await loginAgent(harness.server, harness.auth);
+		const userId = await seed(fixture);
+
+		await agent.post(savePath);
+		const second = await agent.post(savePath);
+
+		expect(second.status).toBe(303);
+		expect(second.headers.location).toBe(
+			`/inbox/${encodeURIComponent(SK)}?tab=articles&saved=1`,
+		);
+		expect(harness.submittedLinks).toEqual([{ userId, url: "https://example.com/post" }]);
+	});
+
 	it("leaves the link unmarked when the publish fails, so a saved card never over-promises", async () => {
 		const fixture = createDefaultTestAppFixture(TEST_APP_ORIGIN);
 		const harness = usePublishFailsApp(fixture);
