@@ -152,10 +152,8 @@ describe("toInboxEmailDetailViewModel", () => {
 		expect(vm.articles.isExtracting).toBe(true);
 		expect(vm.articles.isEmpty).toBe(true);
 		expect(vm.articles.panelPollUrl).toContain("/articles?poll=1");
-		// The header count is held back until extraction writes its barrier.
-		expect(vm.linkCountLabel).toBeUndefined();
-		// So are the tab counts: "(0)" would read as "none found" rather than
-		// "still looking", contradicting the panel's own spinner.
+		// The tab counts are withheld while extracting: "(0)" would read as "none
+		// found" rather than "still looking", contradicting the panel's own spinner.
 		expect(vm.tabs.map((tab) => tab.label)).toEqual([
 			"View",
 			"Extracted Articles",
@@ -191,7 +189,6 @@ describe("toInboxEmailDetailViewModel", () => {
 	it("withholds every count for a failed extraction, so no zero is presented as an answer", () => {
 		const vm = build({ links: [], linksMeta: { truncated: false, extractionFailed: true } });
 
-		expect(vm.linkCountLabel).toBeUndefined();
 		expect(vm.tabs.map((tab) => tab.label)).toEqual(["View", "Extracted Articles", "Skipped"]);
 		// An extraction with no counts has no strip worth shipping out of band, so
 		// the poll route never tears the tab links out from under the keyboard.
@@ -206,7 +203,7 @@ describe("toInboxEmailDetailViewModel", () => {
 
 		expect(vm.articles.isExtractionFailed).toBe(false);
 		expect(vm.extractionReported).toBe(true);
-		expect(vm.linkCountLabel).toBe("2 links");
+		expect(vm.tabs[1].label).toBe("Extracted Articles (2)");
 	});
 
 	it("gives up to a terminal stale state once the budget is spent without a meta barrier", () => {
@@ -221,8 +218,6 @@ describe("toInboxEmailDetailViewModel", () => {
 		expect(vm.excluded.isExtracting).toBe(false);
 		expect(vm.excluded.isStalePending).toBe(true);
 		expect(vm.excluded.panelPollUrl).toBeUndefined();
-		// No trustworthy count while extraction never finished.
-		expect(vm.linkCountLabel).toBeUndefined();
 	});
 
 	it("stays extracting on the last budgeted poll, before the give-up threshold", () => {
@@ -287,8 +282,7 @@ describe("toInboxEmailDetailViewModel", () => {
 		});
 
 		expect(vm.articles.isEmpty).toBe(false);
-		expect(vm.linkCountLabel).toBe("2 links");
-		// The tab counts every kept link, so it agrees with the header badge.
+		// The tab reports every kept link, not the page of cards on screen.
 		expect(vm.tabs.map((tab) => tab.label)).toEqual([
 			"View",
 			"Extracted Articles (2)",
@@ -313,7 +307,6 @@ describe("toInboxEmailDetailViewModel", () => {
 		expect(vm.articles.cards[0].hasTitle).toBe(false);
 		expect(vm.articles.cards[0].cardPollUrl).toBeUndefined();
 		expect(vm.articles.truncatedNotice).toBe("Showing the first 1 links found in this email.");
-		expect(vm.linkCountLabel).toBe("1+ links");
 	});
 
 	it("discloses the extraction cap on both panels, including when every link was skipped", () => {
@@ -375,7 +368,6 @@ describe("toInboxEmailDetailViewModel", () => {
 				saveButtonId: "inbox-skipped-0002-save",
 			},
 		]);
-		expect(vm.linkCountLabel).toBe("1 link");
 		expect(vm.articles.isEmpty).toBe(false);
 	});
 
@@ -394,7 +386,6 @@ describe("toInboxEmailDetailViewModel", () => {
 		);
 		expect(vm.excluded.isEmpty).toBe(false);
 		expect(vm.excluded.links.map((entry) => entry.reasonLabel)).toEqual(["Site navigation"]);
-		expect(vm.linkCountLabel).toBeUndefined();
 	});
 
 	function withConfirmation(
@@ -478,18 +469,11 @@ describe("toInboxEmailDetailViewModel", () => {
 		});
 	});
 
-	it("counts every kept link in the header badge, not just the revealed page", () => {
-		const vm = build({ links: crawledLinks(25), linksMeta: { truncated: false, extractionFailed: false } });
-
-		expect(vm.linkCountLabel).toBe("25 links");
-		expect(vm.articles.isEmpty).toBe(false);
-	});
-
-	it("counts every kept link in the tab too, not the page of cards on screen", () => {
+	it("counts every kept link in the tab, not the page of cards on screen", () => {
 		const vm = build({ links: crawledLinks(25), linksMeta: { truncated: false, extractionFailed: false } });
 
 		// `articles.cards` is one page (20); the tab must report the whole set, or
-		// it would disagree with the header badge and with Show more's remainder.
+		// it would disagree with Show more's remainder.
 		expect(vm.articles.cards).toHaveLength(ARTICLES_PAGE_SIZE);
 		expect(vm.tabs[1].label).toBe("Extracted Articles (25)");
 	});
@@ -525,7 +509,6 @@ describe("toInboxEmailDetailViewModel", () => {
 		expect(vm.articles.cards[0].ordinal).toBe("0001");
 		expect(vm.excluded.links).toHaveLength(1);
 		expect(vm.articles.showMore?.count).toBe(1);
-		expect(vm.linkCountLabel).toBe("21 links");
 	});
 	describe("View tab without link rows", () => {
 		function buildFromEntry(entryOverride: InboxEmailEntry) {
@@ -538,12 +521,11 @@ describe("toInboxEmailDetailViewModel", () => {
 				maxPolls: 300, linkSaveStates: new Map() });
 		}
 
-		it("derives the header badge and tab counts from the email row's tally", () => {
+		it("derives the tab counts from the email row's tally", () => {
 			const vm = buildFromEntry(
 				entry({ linkCounts: { kept: 5, skipped: 2, truncated: false } }),
 			);
 
-			expect(vm.linkCountLabel).toBe("5 links");
 			expect(vm.tabs.map((tab) => tab.label)).toEqual([
 				"View",
 				"Extracted Articles (5)",
@@ -551,18 +533,9 @@ describe("toInboxEmailDetailViewModel", () => {
 			]);
 		});
 
-		it("marks a truncated tally on the badge", () => {
-			const vm = buildFromEntry(
-				entry({ linkCounts: { kept: 200, skipped: 1, truncated: true } }),
-			);
-
-			expect(vm.linkCountLabel).toBe("200+ links");
-		});
-
-		it("withholds the badge and tab counts until extraction stamps the tally", () => {
+		it("withholds the tab counts until extraction stamps the tally", () => {
 			const vm = buildFromEntry(entry());
 
-			expect(vm.linkCountLabel).toBeUndefined();
 			expect(vm.tabs.map((tab) => tab.label)).toEqual([
 				"View",
 				"Extracted Articles",
@@ -574,7 +547,6 @@ describe("toInboxEmailDetailViewModel", () => {
 			const statuses: InboxEmailStatus[] = ["rejected", "unparsed"];
 			for (const status of statuses) {
 				const vm = buildFromEntry(entry({ status }));
-				expect(vm.linkCountLabel).toBeUndefined();
 				expect(vm.tabs.map((tab) => tab.label)).toEqual([
 					"View",
 					"Extracted Articles (0)",

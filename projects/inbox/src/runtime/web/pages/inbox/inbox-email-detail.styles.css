@@ -57,18 +57,6 @@
   white-space: nowrap;
 }
 
-.inbox-email-detail__link-count {
-  grid-column: 1 / -1;
-  font-size: 0.8125rem;
-  color: var(--muted-foreground);
-}
-
-/* Withheld during extraction: the badge is an always-present OOB swap anchor, so
- * keep the empty placeholder out of the meta row's flow until it has a count. */
-.inbox-email-detail__link-count:empty {
-  display: none;
-}
-
 .inbox-email-detail__tabs {
   display: flex;
   gap: 16px;

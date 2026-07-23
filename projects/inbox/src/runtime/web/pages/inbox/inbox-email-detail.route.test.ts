@@ -141,13 +141,12 @@ function renderedPanels(doc: ReturnType<typeof parseDoc>): (string | null)[] {
  * which fragments ride a tick and which do not — where checking one for absence
  * passes just as happily when the selector is misspelled. */
 function fragmentRoots(doc: ReturnType<typeof parseDoc>): string[] {
-	return Array.from(
-		doc.querySelectorAll("[data-test-tab-panel], [data-test-inbox-detail-link-count], [data-test-inbox-tabs]"),
-	).map((el) => {
-		const panel = el.getAttribute("data-test-tab-panel");
-		if (panel !== null) return `panel:${panel}`;
-		return el.hasAttribute("data-test-inbox-tabs") ? "tabs" : "link-count";
-	});
+	return Array.from(doc.querySelectorAll("[data-test-tab-panel], [data-test-inbox-tabs]")).map(
+		(el) => {
+			const panel = el.getAttribute("data-test-tab-panel");
+			return panel !== null ? `panel:${panel}` : "tabs";
+		},
+	);
 }
 
 describe("Inbox email detail View tab", () => {
@@ -240,7 +239,7 @@ describe("Inbox email detail View tab", () => {
 		expect(srcdoc).toContain(`src="${cdnSrc}"`);
 	});
 
-	it("keeps the header link count on the View tab, where the cards are not rendered", async () => {
+	it("renders no article cards on the View tab even when the email has link rows", async () => {
 		const fixture = createDefaultTestAppFixture(TEST_APP_ORIGIN);
 		fixture.inboxEmail.readEmailContent = async () => "<p>body</p>";
 		const harness = useApp(fixture);
@@ -254,7 +253,6 @@ describe("Inbox email detail View tab", () => {
 		const response = await agent.get(detailPath);
 
 		const doc = parseDoc(response.text);
-		expect(doc.querySelector("[data-test-inbox-detail-link-count]")?.textContent).toBe("2 links");
 		expect(renderedPanels(doc)).toEqual(["view"]);
 		expect(doc.querySelectorAll("[data-test-inbox-article-card]")).toHaveLength(0);
 	});
@@ -276,7 +274,6 @@ describe("Inbox email detail View tab", () => {
 		const response = await agent.get(detailPath);
 
 		const doc = parseDoc(response.text);
-		expect(doc.querySelector("[data-test-inbox-detail-link-count]")?.textContent).toBe("5 links");
 		expect(doc.querySelector('[data-test-inbox-tab="articles"]')?.textContent).toBe(
 			"Extracted Articles (5)",
 		);
@@ -390,7 +387,6 @@ describe("Inbox email detail Articles tab", () => {
 		const doc = parseDoc(response.text);
 		expect(renderedPanels(doc)).toEqual(["articles"]);
 		expect(doc.querySelectorAll("[data-test-inbox-article-card]")).toHaveLength(3);
-		expect(doc.querySelector("[data-test-inbox-detail-link-count]")?.textContent).toBe("3 links");
 		// Each tab carries how many items it holds, so a reader can see what's on the
 		// other tab without opening it.
 		expect(doc.querySelector('[data-test-inbox-tab="articles"]')?.textContent).toBe(
@@ -450,7 +446,6 @@ describe("Inbox email detail Articles tab", () => {
 			doc.querySelectorAll("[data-test-inbox-article-card]"),
 		).map((el) => el.getAttribute("data-test-inbox-article-card"));
 		expect(cardOrdinals).toEqual(["0000"]);
-		expect(doc.querySelector("[data-test-inbox-detail-link-count]")?.textContent).toBe("1 link");
 		// The tabs split the same way the panels do: the skipped link is counted by
 		// the Skipped tab, never by Extracted Articles.
 		expect(doc.querySelector('[data-test-inbox-tab="articles"]')?.textContent).toBe(
@@ -558,7 +553,6 @@ describe("Inbox email detail Articles tab", () => {
 		expect(control.textContent).toBe("Show 5 more");
 		expect(control.getAttribute("href")).toBe(`${detailPath}?tab=articles&shown=40`);
 		expect(control.closest("[data-test-inbox-articles]")).not.toBeNull();
-		expect(doc.querySelector("[data-test-inbox-detail-link-count]")?.textContent).toBe("25 links");
 	});
 
 	it("renders the cumulative reveal a no-JS Show more navigation asks for", async () => {
@@ -590,11 +584,6 @@ describe("Inbox email detail Articles tab", () => {
 		expect(panel.getAttribute("data-articles-status")).toBe("extracting");
 		expect(panel.getAttribute("hx-get")).toContain("/articles");
 		expect(doc.querySelector("[data-test-articles-extracting]")).not.toBeNull();
-		// The header badge is an always-present OOB swap anchor, but withholds the
-		// count until extraction finishes, so it renders empty rather than absent.
-		const linkCount = doc.querySelector("[data-test-inbox-detail-link-count]");
-		assert(linkCount, "the header link-count anchor must render as an OOB swap target");
-		expect(linkCount.textContent).toBe("");
 	});
 
 	it("shows the terminal no-links state once extraction wrote its meta with zero links", async () => {
@@ -671,8 +660,6 @@ describe("Inbox email detail Skipped tab", () => {
 
 		// The kept card belongs to the Articles tab and must not leak onto this one.
 		expect(doc.querySelectorAll("[data-test-inbox-article-card]")).toHaveLength(0);
-		// The header count still reports kept links, on every tab.
-		expect(doc.querySelector("[data-test-inbox-detail-link-count]")?.textContent).toBe("1 link");
 
 		const excludedRow = doc.querySelector('[data-test-inbox-excluded-link="0001"]');
 		assert(excludedRow, "excluded row must render");
@@ -792,17 +779,11 @@ describe("Inbox Articles panel poll route", () => {
 		assert(panel, "the panel fragment must render");
 		expect(panel.getAttribute("data-articles-status")).toBe("extracting");
 		expect(panel.getAttribute("hx-get")).toContain("poll=2");
-		// The OOB header badge ships with every tick but stays empty while extracting,
-		// so the header keeps withholding the count in lockstep with the panel.
-		const linkCount = doc.querySelector("[data-test-inbox-detail-link-count]");
-		assert(linkCount, "the poll fragment must carry the OOB link-count anchor");
-		expect(linkCount.getAttribute("hx-swap-oob")).toBe("outerHTML");
-		expect(linkCount.textContent).toBe("");
 		// The tab strip does NOT ride this tick: it would be byte-identical to the
 		// one on screen, and an outerHTML swap replaces the tab links rather than
 		// editing them, so a reader keyboarding through the tabs would lose focus
 		// every few seconds until extraction finished.
-		expect(fragmentRoots(doc)).toEqual(["panel:articles", "link-count"]);
+		expect(fragmentRoots(doc)).toEqual(["panel:articles"]);
 	});
 
 	it("fills the tab counts in on the poll tick that completes extraction", async () => {
@@ -848,9 +829,9 @@ describe("Inbox Articles panel poll route", () => {
 
 		expect(response.status).toBe(200);
 		const doc = new JSDOM(response.text).window.document;
-		// An email whose extraction kept nothing reports "(0)", and "(0)" is a
-		// count — gating the swap on the header badge (which goes empty at zero)
-		// would strand these tabs on their bare labels forever.
+		// An email whose extraction kept nothing still wrote its meta barrier, so the
+		// tab strip ships and reports "(0)": the swap is gated on extraction having
+		// finished, not on the count being nonzero.
 		const tabs = doc.querySelector("[data-test-inbox-tabs]");
 		assert(tabs, "a finished extraction must ship the tab strip even with no links");
 		expect(tabs.getAttribute("hx-swap-oob")).toBe("outerHTML");
@@ -908,9 +889,8 @@ describe("Inbox Articles panel poll route", () => {
 			"I couldn't scan this email for links. The original message is still on the View tab.",
 		);
 		// Counts stay withheld — a scan that never ran has no zero to report — so the
-		// tick ships the panel and an empty count badge, and no tab strip to rebuild.
-		expect(fragmentRoots(doc)).toEqual(["panel:articles", "link-count"]);
-		expect(doc.querySelector("[data-test-inbox-detail-link-count]")?.textContent).toBe("");
+		// tick ships only the panel, and no tab strip to rebuild.
+		expect(fragmentRoots(doc)).toEqual(["panel:articles"]);
 	});
 
 	it("reports the same give-up on the Skipped panel, which describes the same run", async () => {
@@ -964,12 +944,6 @@ describe("Inbox Articles panel poll route", () => {
 		expect(doc.querySelector("[data-test-inbox-article-title]")?.textContent).toBe(
 			"Crawled headline",
 		);
-		// The terminal tick carries the count as an OOB swap so the header badge catches
-		// up to the swapped-in card set without waiting for a full page reload.
-		const linkCount = doc.querySelector("[data-test-inbox-detail-link-count]");
-		assert(linkCount, "the terminal poll fragment must carry the OOB link-count update");
-		expect(linkCount.getAttribute("hx-swap-oob")).toBe("outerHTML");
-		expect(linkCount.textContent).toBe("1 link");
 	});
 });
 
@@ -1002,10 +976,6 @@ describe("Inbox Skipped panel poll route", () => {
 		// It must keep polling its OWN fragment: a shared URL would swap the Articles
 		// panel in over this one on the first tick.
 		expect(panel.getAttribute("hx-get")).toContain("/excluded");
-		const linkCount = doc.querySelector("[data-test-inbox-detail-link-count]");
-		assert(linkCount, "the poll fragment must carry the OOB link-count anchor");
-		expect(linkCount.getAttribute("hx-swap-oob")).toBe("outerHTML");
-		expect(linkCount.textContent).toBe("");
 	});
 
 	it("gives up to a terminal stale notice once the poll budget is spent without a meta barrier", async () => {
@@ -1050,12 +1020,6 @@ describe("Inbox Skipped panel poll route", () => {
 		expect(panel.getAttribute("data-excluded-status")).toBe("terminal");
 		expect(panel.getAttribute("hx-get")).toBeNull();
 		expect(doc.querySelectorAll("[data-test-inbox-excluded-link]")).toHaveLength(1);
-		// The header badge counts kept links and has to catch up here too — this poll
-		// is the only request in flight while the reader sits on this tab.
-		const linkCount = doc.querySelector("[data-test-inbox-detail-link-count]");
-		assert(linkCount, "the terminal poll fragment must carry the OOB link-count update");
-		expect(linkCount.getAttribute("hx-swap-oob")).toBe("outerHTML");
-		expect(linkCount.textContent).toBe("1 link");
 	});
 });
 

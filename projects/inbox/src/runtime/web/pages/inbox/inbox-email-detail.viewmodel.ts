@@ -13,7 +13,6 @@ import { buildInboxArticlesPollUrl } from "./inbox-articles-poll-url";
 import { buildInboxExcludedPollUrl } from "./inbox-excluded-poll-url";
 import { type MailTabKey, buildInboxEmailDetailUrl } from "./inbox-email-detail.url";
 import { buildInboxLinkSaveUrl } from "./inbox-link-save-url";
-import { buildLinkCountLabel } from "./inbox-link-count-label";
 import { type InboxLinkCardViewModel, toInboxLinkCardViewModel } from "./inbox-link-card.viewmodel";
 import { type MailTab, buildMailTabs } from "./mail-tabs";
 
@@ -146,7 +145,6 @@ export interface InboxEmailDetailViewModel {
 	 * iframe's per-document CSP so only our copies (never a sender host) load. */
 	imagesCdnBaseUrl: string;
 	unavailableMessage: string;
-	linkCountLabel: string | undefined;
 	articles: ArticlesPanelViewModel;
 	excluded: ExcludedPanelViewModel;
 }
@@ -204,11 +202,10 @@ export function toInboxArticlesMoreViewModel(input: {
 	});
 }
 
-/** Where the header badge and tab counts come from. Tabs that fetch the link
- * rows derive them from the same single query that carries the meta barrier, so
- * a count is never shown that the rendered panel cannot back; the View tab
- * fetches no rows and reads the tally the extraction barrier stamped onto the
- * email row instead. */
+/** Where the tab counts come from. Tabs that fetch the link rows derive them
+ * from the same single query that carries the meta barrier, so a count is never
+ * shown that the rendered panel cannot back; the View tab fetches no rows and
+ * reads the tally the extraction barrier stamped onto the email row instead. */
 export type InboxEmailLinkData =
 	| { source: "rows"; links: InboxEmailLinkEntry[]; meta: InboxEmailLinksMeta | undefined }
 	| { source: "entry" };
@@ -313,7 +310,7 @@ export function toInboxEmailDetailViewModel(input: {
 		activeTab: input.activeTab,
 		statusToastMessage,
 		// Counts come from every kept/skipped link, not the page of cards on
-		// screen, and are withheld on the same barrier as the header badge — a tab
+		// screen, and are withheld until extraction writes its barrier — a tab
 		// claiming "(0)" mid-extraction would read as "none found" rather than
 		// "still looking".
 		tabs: buildMailTabs({
@@ -330,16 +327,6 @@ export function toInboxEmailDetailViewModel(input: {
 		imagesCdnBaseUrl: input.imagesCdnBaseUrl,
 		unavailableMessage:
 			"This message couldn't be displayed here; the original email is preserved.",
-		// Suppressed until extraction writes its barrier so the header never claims a
-		// count the panel can't back — this covers both the live spinner and the
-		// terminal give-up, neither of which has a trustworthy count.
-		linkCountLabel:
-			headerCounts === undefined
-				? undefined
-				: buildLinkCountLabel({
-						count: headerCounts.kept,
-						truncated: headerCounts.truncated,
-					}),
 		articles: {
 			...shared,
 			cards: cardsPage.cards,
