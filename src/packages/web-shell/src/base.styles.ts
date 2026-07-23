@@ -221,6 +221,11 @@ export const HEADER_STYLES = `
 `;
 
 export const FOOTER_STYLES = `
+	body {
+		display: flex;
+		flex-direction: column;
+	}
+
 	.footer {
 		background: var(--footer-bg);
 		color: var(--footer-text);

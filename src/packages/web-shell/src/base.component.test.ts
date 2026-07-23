@@ -249,6 +249,19 @@ describe("Base component", () => {
 		expect(footer?.textContent).toContain("Readplace");
 	});
 
+	it("ships both halves of the sticky-footer pattern together — a body flex column plus .footer margin-top:auto — so the footer pins to the viewport bottom instead of floating mid-screen", () => {
+		const page = createTestPageBody();
+		const result = Base(page, GUEST_STATE).to("text/html");
+		const doc = new JSDOM(result.body).window.document;
+
+		const headStyle = doc.querySelector("head style");
+		assert(headStyle?.textContent, "the base shell must inline its CSS in a <head> <style>");
+		const styleText = headStyle.textContent;
+
+		expect(styleText).toMatch(/body\s*\{[^}]*display:\s*flex[^}]*flex-direction:\s*column[^}]*\}/);
+		expect(styleText).toContain("margin-top: auto");
+	});
+
 	it("should include the offline banner", () => {
 		const page = createTestPageBody();
 		const result = Base(page, GUEST_STATE).to("text/html");
