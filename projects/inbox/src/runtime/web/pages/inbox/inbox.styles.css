@@ -8,6 +8,20 @@
   margin-bottom: 32px;
 }
 
+.inbox__back {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  margin-bottom: 12px;
+  font-size: 0.875rem;
+  color: var(--muted-foreground);
+}
+
+.inbox__back svg {
+  width: 16px;
+  height: 16px;
+}
+
 .inbox__title {
   font-family: var(--font-serif);
   font-size: 1.5rem;
