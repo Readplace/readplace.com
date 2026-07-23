@@ -435,10 +435,15 @@ export function initDynamoDbSavedArticleStore(deps: {
 		const article = await findArticleByRouteId(routeId);
 		if (!article) return false;
 
-		const ua = await findUserArticle(userId, article.url);
-		if (!ua) return false;
-
-		await userArticles.delete({ Key: { userId, url: article.url } });
+		try {
+			await userArticles.delete({
+				Key: { userId, url: article.url },
+				ConditionExpression: "attribute_exists(savedAt)",
+			});
+		} catch (error) {
+			if (error instanceof ConditionalCheckFailedException) return false;
+			throw error;
+		}
 		return true;
 	};
 
@@ -491,28 +496,28 @@ export function initDynamoDbSavedArticleStore(deps: {
 		const article = await findArticleByRouteId(routeId);
 		if (!article) return false;
 
-		const ua = await findUserArticle(userId, article.url);
-		if (!ua) return false;
+		const expression =
+			status === "read"
+				? {
+						UpdateExpression: "SET #status = :status, readAt = :readAt",
+						ExpressionAttributeValues: { ":status": status, ":readAt": new Date().toISOString() },
+					}
+				: {
+						UpdateExpression: "SET #status = :status REMOVE readAt",
+						ExpressionAttributeValues: { ":status": status },
+					};
 
-		if (status === "read") {
+		try {
 			await userArticles.update({
 				Key: { userId, url: article.url },
-				UpdateExpression: "SET #status = :status, readAt = :readAt",
+				ConditionExpression: "attribute_exists(savedAt)",
 				ExpressionAttributeNames: { "#status": "status" },
-				ExpressionAttributeValues: {
-					":status": status,
-					":readAt": new Date().toISOString(),
-				},
+				...expression,
 			});
-		} else {
-			await userArticles.update({
-				Key: { userId, url: article.url },
-				UpdateExpression: "SET #status = :status REMOVE readAt",
-				ExpressionAttributeNames: { "#status": "status" },
-				ExpressionAttributeValues: { ":status": status },
-			});
+		} catch (error) {
+			if (error instanceof ConditionalCheckFailedException) return false;
+			throw error;
 		}
-
 		return true;
 	};
 
