@@ -58,7 +58,7 @@ def log_submission_diagnostics(version:, submission:)
   end
   UI.message("review submission #{submission.id}: state=#{submission.state}")
   submission.items.to_a.each do |item|
-    UI.message("  item #{item.id}: state=#{item.state}, version=#{item.app_store_version&.id}")
+    UI.message("  item #{item.id}: state=#{item.state}")
   end
 end
 
@@ -302,7 +302,7 @@ platform :ios do
     version = app.get_edit_app_store_version(platform: Spaceship::ConnectAPI::Platform::IOS)
     UI.user_error!("No editable App Store version to submit — create one in App Store Connect first") unless version
 
-    submission = app.get_in_progress_review_submission(platform: Spaceship::ConnectAPI::Platform::IOS, includes: "items,items.appStoreVersion")
+    submission = app.get_in_progress_review_submission(platform: Spaceship::ConnectAPI::Platform::IOS, includes: "items")
     if submission && submission.state != Spaceship::ConnectAPI::ReviewSubmission::ReviewSubmissionState::UNRESOLVED_ISSUES
       UI.user_error!("A review submission is already #{submission.state} — resolve it in App Store Connect first")
     end
