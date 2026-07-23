@@ -7,7 +7,9 @@ import {
 	theInformationSiteRules,
 } from "@packages/article-parser";
 import {
+	assertCurlImpersonateAvailable,
 	CRAWL_PERSONAS,
+	defaultCurlImpersonateProbe,
 	initCrawlArticle,
 	initCrawlFetch,
 	initFetchThumbnailImage,
@@ -18,7 +20,7 @@ import { isBlockedIpAddress } from "@packages/domain/article";
 import { initCrawlAndFinalizeArticle, initFinalizeArticle } from "@packages/finalize-article";
 import { HutchLogger, consoleLogger } from "@packages/hutch-logger";
 import { createDynamoDocumentClient } from "@packages/hutch-storage-client";
-import { requireEnv } from "@packages/require-env";
+import { getEnv, requireEnv } from "@packages/require-env";
 import { initCrawlEmailLinkPreviewHandler } from "./domain/inbox/crawl-email-link-preview-handler";
 import { initS3PutImageObject } from "./providers/article-image/s3-put-image-object";
 import { initDynamoDbInboxEmailLink } from "@packages/inbox-store";
@@ -56,6 +58,13 @@ const crawlFetch = initCrawlFetch({
 	personas: CRAWL_PERSONAS,
 	isBlocked: isBlockedIpAddress,
 });
+// Fail this Lambda's cold start loudly if the curl-impersonate binary is missing,
+// rather than let each crawl that reaches the curl leg die on a per-URL ENOENT
+// that reads like a network error. Only in the deployed Lambda — dev/tests have
+// no layer and never reach the curl leg against a real origin.
+if (getEnv("AWS_LAMBDA_FUNCTION_NAME")) {
+	assertCurlImpersonateAvailable({ probe: defaultCurlImpersonateProbe });
+}
 const siteRules = [
 	theInformationSiteRules,
 	mediumSiteRules,

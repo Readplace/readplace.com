@@ -1,5 +1,7 @@
-import { execFile } from "node:child_process";
+import assert from "node:assert";
+import { execFile, execFileSync } from "node:child_process";
 import { isIP } from "node:net";
+import { getEnv } from "@packages/require-env";
 import {
 	createPinnedAddressResolver,
 	type IsBlockedAddress,
@@ -51,6 +53,42 @@ const defaultExecCurl: ExecCurl = (args, callback) => {
 			child.on("close", listener);
 		},
 	};
+};
+/* c8 ignore stop */
+
+export type CurlImpersonateProbeResult = { available: true } | { available: false; reason: string };
+export type CurlImpersonateProbe = () => CurlImpersonateProbeResult;
+
+/**
+ * Fail-fast check that the curl-impersonate binary can actually run in this
+ * process. Every runtime that builds `initCrawlFetch` needs it — the fetch
+ * chain's last-resort leg spawns it — but the binary arrives as a Lambda layer
+ * a composition root can be deployed without, in which case the fault only
+ * surfaces mid-crawl as a scattered `spawn curl_chrome131 ENOENT` that reads
+ * like an origin outage. Run at cold start, this turns it into one immediate,
+ * unambiguous init failure. The probe is injected so the decision is testable
+ * without spawning a real subprocess.
+ */
+export function assertCurlImpersonateAvailable(deps: { probe: CurlImpersonateProbe }): void {
+	const result = deps.probe();
+	const reason = result.available ? undefined : result.reason;
+	assert(
+		result.available,
+		`[CrawlArticle] curl-impersonate binary "${CURL_IMPERSONATE_BIN}" is not runnable at startup: ${reason}. ` +
+			"This runtime builds the crawl fallback chain, which spawns it as a last resort — " +
+			"attach the curl-impersonate layer (platform stack) or bake it into the image.",
+	);
+}
+
+/* c8 ignore start -- thin child_process probe; assertCurlImpersonateAvailable's decision is unit-tested with a fake probe, this default impl runs only at Lambda cold start */
+export const defaultCurlImpersonateProbe: CurlImpersonateProbe = () => {
+	try {
+		execFileSync(CURL_IMPERSONATE_BIN, ["--version"], { stdio: "ignore", timeout: 5000 });
+		return { available: true };
+	} catch (error) {
+		const code = error instanceof Error && "code" in error ? String(error.code) : "unknown";
+		return { available: false, reason: `spawn → ${code}; PATH=${getEnv("PATH") ?? "<unset>"}` };
+	}
 };
 /* c8 ignore stop */
 

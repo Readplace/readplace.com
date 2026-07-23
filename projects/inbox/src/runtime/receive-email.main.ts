@@ -1,11 +1,16 @@
 import { S3Client } from "@aws-sdk/client-s3";
-import { CRAWL_PERSONAS, initCrawlFetch } from "@packages/crawl-article";
+import {
+	assertCurlImpersonateAvailable,
+	CRAWL_PERSONAS,
+	defaultCurlImpersonateProbe,
+	initCrawlFetch,
+} from "@packages/crawl-article";
 import { isBlockedIpAddress } from "@packages/domain/article";
 import { parseEmail } from "@packages/domain/inbox";
 import { EventBridgeClient, initEventBridgePublisher } from "@packages/hutch-infra-components/runtime";
 import { HutchLogger, consoleLogger } from "@packages/hutch-logger";
 import { createDynamoDocumentClient } from "@packages/hutch-storage-client";
-import { requireEnv } from "@packages/require-env";
+import { getEnv, requireEnv } from "@packages/require-env";
 import { initDownloadEmailImages } from "./domain/inbox/download-email-images";
 import { initReceiveEmailHandler } from "./domain/inbox/receive-email-handler";
 import { initStoreEmailBody } from "./domain/inbox/store-email-body";
@@ -40,6 +45,12 @@ const crawlFetch = initCrawlFetch({
 	personas: CRAWL_PERSONAS,
 	isBlocked: isBlockedIpAddress,
 });
+// Fail cold start loudly if the curl-impersonate binary is missing rather than
+// let each image download that reaches the curl leg die on a per-URL ENOENT.
+// Only in the deployed Lambda — dev/tests have no layer.
+if (getEnv("AWS_LAMBDA_FUNCTION_NAME")) {
+	assertCurlImpersonateAvailable({ probe: defaultCurlImpersonateProbe });
+}
 const { putImageObject } = initS3PutImageObject({ client: s3Client, bucketName: contentBucketName });
 const storeBody = initStoreEmailBody({
 	putContent: initS3WriteEmailContent({ client: s3Client, bucketName: contentBucketName }),

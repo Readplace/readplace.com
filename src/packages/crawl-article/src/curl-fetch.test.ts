@@ -1,5 +1,11 @@
 import type { ResolvePinnedAddress } from "./blocked-address-lookup";
-import { type ExecCurl, CURL_IMPERSONATE_BIN, createCurlFetch } from "./curl-fetch";
+import {
+	type CurlImpersonateProbe,
+	type ExecCurl,
+	assertCurlImpersonateAvailable,
+	CURL_IMPERSONATE_BIN,
+	createCurlFetch,
+} from "./curl-fetch";
 
 /** Default fake: every host resolves to one public address (no pin needed in
  * tests that only exercise argument/response handling). */
@@ -471,5 +477,21 @@ describe("createCurlFetch defaults", () => {
 describe("CURL_IMPERSONATE_BIN", () => {
 	it("is the curl-impersonate Chrome variant binary name", () => {
 		expect(CURL_IMPERSONATE_BIN).toBe("curl_chrome131");
+	});
+});
+
+describe("assertCurlImpersonateAvailable", () => {
+	it("returns without throwing when the probe reports the binary is available", () => {
+		const probe: CurlImpersonateProbe = () => ({ available: true });
+		expect(() => assertCurlImpersonateAvailable({ probe })).not.toThrow();
+	});
+
+	it("throws with the probe's reason and the binary name when it is unavailable", () => {
+		const probe: CurlImpersonateProbe = () => ({
+			available: false,
+			reason: "spawn → ENOENT; PATH=/usr/bin",
+		});
+		expect(() => assertCurlImpersonateAvailable({ probe })).toThrow(/curl_chrome131/);
+		expect(() => assertCurlImpersonateAvailable({ probe })).toThrow(/ENOENT; PATH=\/usr\/bin/);
 	});
 });

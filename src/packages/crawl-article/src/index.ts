@@ -21,6 +21,8 @@ export type {
 export { initCrawlFetch } from "./crawl-fetch";
 export { initFetchPinnedCrawl } from "./fetch-pinned-crawl";
 export type { CrawlFetch, CrawlFetchInit } from "./crawl-fetch";
+export { assertCurlImpersonateAvailable, defaultCurlImpersonateProbe } from "./curl-fetch";
+export type { CurlImpersonateProbe, CurlImpersonateProbeResult } from "./curl-fetch";
 export { readBodyWithCap, BodyTooLargeError } from "./read-capped-body";
 export type { IsBlockedAddress, ResolveAll } from "./blocked-address-lookup";
 export type { ExtractPdf, PdfExtractProgress, PdfExtractResult, PdfExtractStage } from "./pdf-extract.types";
