@@ -16,10 +16,21 @@ function load(text: string): Document {
 	return new JSDOM(text).window.document;
 }
 
+function readSetCookie(
+	response: { headers: Record<string, string | string[] | undefined> },
+	name: string,
+): string | undefined {
+	const raw = response.headers["set-cookie"];
+	const header = raw === undefined ? [] : Array.isArray(raw) ? raw : [raw];
+	const match = header.find((cookie) => cookie.startsWith(`${name}=`));
+	if (!match) return undefined;
+	return decodeURIComponent(match.slice(name.length + 1).split(";")[0]);
+}
+
 describe.each([
-	{ path: "/landing-a", variantClass: "variant-a" },
-	{ path: "/landing-b", variantClass: "variant-b" },
-])("GET $path (guest)", ({ path, variantClass }) => {
+	{ path: "/landing-a", variantClass: "variant-a", slug: "variant-a" },
+	{ path: "/landing-b", variantClass: "variant-b", slug: "variant-b" },
+])("GET $path (guest)", ({ path, variantClass, slug }) => {
 	it("returns 200 and HTML content", async () => {
 		const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
 		const response = await request(harness.server).get(path);
@@ -78,6 +89,13 @@ describe.each([
 		const response = await request(harness.server).get(path);
 
 		expect(response.text).toContain(HOME_SCRIPT);
+	});
+
+	it("stamps the experiment cookie server-side so a later signup can be attributed to this arm", async () => {
+		const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
+		const response = await request(harness.server).get(path);
+
+		expect(readSetCookie(response, "hutch_exp")).toBe(`homepage-split:1:${slug}`);
 	});
 });
 

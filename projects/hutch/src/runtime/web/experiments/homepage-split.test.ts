@@ -2,6 +2,7 @@ import assert from "node:assert/strict";
 import {
 	assignVariant,
 	buildLandingUrl,
+	campaignTag,
 	formatStoredVariant,
 	HOMEPAGE_SPLIT,
 	parseStoredVariant,
@@ -30,13 +31,20 @@ describe("assignVariant", () => {
 	});
 });
 
+describe("campaignTag", () => {
+	it("folds the epoch into the campaign so a re-bucket scopes the measurement window", () => {
+		expect(campaignTag(HOMEPAGE_SPLIT)).toBe("homepage-split-e1");
+		expect(campaignTag({ ...HOMEPAGE_SPLIT, epoch: 2 })).toBe("homepage-split-e2");
+	});
+});
+
 describe("buildLandingUrl", () => {
-	it("carries the campaign, an experiment medium, and the variant slug (no utm_source)", () => {
+	it("carries the epoch-tagged campaign, an experiment medium, and the variant slug (no utm_source)", () => {
 		expect(buildLandingUrl(HOMEPAGE_SPLIT, VARIANT_A)).toBe(
-			"/landing-a?utm_campaign=homepage-split&utm_medium=experiment&utm_content=variant-a",
+			"/landing-a?utm_campaign=homepage-split-e1&utm_medium=experiment&utm_content=variant-a",
 		);
 		expect(buildLandingUrl(HOMEPAGE_SPLIT, VARIANT_B)).toBe(
-			"/landing-b?utm_campaign=homepage-split&utm_medium=experiment&utm_content=variant-b",
+			"/landing-b?utm_campaign=homepage-split-e1&utm_medium=experiment&utm_content=variant-b",
 		);
 	});
 });

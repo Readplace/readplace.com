@@ -72,6 +72,7 @@ import { resolvePostSignupRedirect } from "./post-signup-redirect";
 import { emitFirstArticleAutosaved } from "./first-article-autosaved";
 import type { ConversionEvent } from "../../conversions";
 import { emitUserCreated } from "../../conversions";
+import { readHomepageVariantSlug } from "../experiments/homepage-assignment";
 import { buildSignupAttemptedEvent } from "@packages/web-analytics";
 import { SIGNUP_OUTCOMES, type SignupOutcome } from "../../observability/events";
 import {
@@ -363,6 +364,7 @@ export function initAuthRoutes(deps: AuthDependencies): Router {
 					tier: "free",
 					attribution,
 					visitorId: req.visitorId,
+					homepageVariant: readHomepageVariantSlug(req),
 					pendingSaveId: consumePendingSaveId({ req, res }),
 				},
 			);
@@ -406,6 +408,7 @@ export function initAuthRoutes(deps: AuthDependencies): Router {
 				tier: "trial",
 				attribution: readClickAttribution(req),
 				visitorId: req.visitorId,
+				homepageVariant: readHomepageVariantSlug(req),
 				pendingSaveId: consumePendingSaveId({ req, res }),
 			},
 		);

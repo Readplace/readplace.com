@@ -38,6 +38,7 @@ import { resolvePostSignupRedirect } from "./post-signup-redirect";
 import { emitFirstArticleAutosaved } from "./first-article-autosaved";
 import type { ConversionEvent } from "../../conversions";
 import { emitUserCreated } from "../../conversions";
+import { readHomepageVariantSlug } from "../experiments/homepage-assignment";
 import { signState, verifyState } from "./oauth-state";
 
 const CallbackQuerySchema = z.object({
@@ -221,6 +222,7 @@ export const initGoogleAuthRoutes = (deps: GoogleAuthDependencies): Router => {
 					tier: "free",
 					attribution,
 					visitorId: req.visitorId,
+					homepageVariant: readHomepageVariantSlug(req),
 					pendingSaveId: consumePendingSaveId({ req, res }),
 				},
 			);
@@ -276,6 +278,7 @@ export const initGoogleAuthRoutes = (deps: GoogleAuthDependencies): Router => {
 				tier: "trial",
 				attribution: readClickAttribution(req),
 				visitorId: req.visitorId,
+				homepageVariant: readHomepageVariantSlug(req),
 				pendingSaveId: consumePendingSaveId({ req, res }),
 			},
 		);

@@ -4,7 +4,8 @@ import express from "express";
 import type { Request, Response, Router } from "express";
 import type { BuildBannerState } from "../../banner-state";
 import { Base } from "../../base.component";
-import { HOMEPAGE_SPLIT, type HomepageVariantMarker } from "../../experiments/homepage-split";
+import { writeHomepageAssignment } from "../../experiments/homepage-assignment";
+import { HOMEPAGE_SPLIT, type HomepageSplitVariant } from "../../experiments/homepage-split";
 import { detectInstallBrowser } from "../../onboarding/extension-install";
 import type { FoundingAllocation } from "../../shared/founding-progress/founding-allocation";
 import { QUEUE_PATH } from "../queue/queue.url";
@@ -23,34 +24,41 @@ export function initLandingRoutes(deps: {
 	countUsers: CountUsers;
 	foundingAllocation: FoundingAllocation;
 	staticBaseUrl: string;
+	secureCookies: boolean;
 }): Router {
 	const router = express.Router();
-	const { buildBannerState, countUsers, foundingAllocation, staticBaseUrl } = deps;
+	const { buildBannerState, countUsers, foundingAllocation, staticBaseUrl, secureCookies } = deps;
 
 	async function renderLanding(
 		req: Request,
 		res: Response,
-		variant: HomepageVariantMarker,
+		variant: HomepageSplitVariant,
 	): Promise<void> {
 		if (req.userId) {
 			res.redirect(303, QUEUE_PATH);
 			return;
 		}
+		// Record the arm server-side so a later signup can be attributed to it —
+		// the client-set localStorage bucket never reaches the signup handler.
+		writeHomepageAssignment(res, { config: HOMEPAGE_SPLIT, variant, secure: secureCookies });
 		const browser = detectInstallBrowser(req);
 		const userCount = await countUsers().catch(() => 0);
 		const banner = await buildBannerState(req);
 		sendComponent(
 			req,
 			res,
-			Base(HomePage({ userCount, staticBaseUrl, browser, foundingAllocation, variant }), banner),
+			Base(
+				HomePage({ userCount, staticBaseUrl, browser, foundingAllocation, variant: variant.marker }),
+				banner,
+			),
 		);
 	}
 
 	router.get(HOMEPAGE_SPLIT.variants[0].path, (req, res) =>
-		renderLanding(req, res, HOMEPAGE_SPLIT.variants[0].marker),
+		renderLanding(req, res, HOMEPAGE_SPLIT.variants[0]),
 	);
 	router.get(HOMEPAGE_SPLIT.variants[1].path, (req, res) =>
-		renderLanding(req, res, HOMEPAGE_SPLIT.variants[1].marker),
+		renderLanding(req, res, HOMEPAGE_SPLIT.variants[1]),
 	);
 
 	return router;

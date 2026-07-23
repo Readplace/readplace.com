@@ -849,7 +849,7 @@ export function createApp(dependencies: AppDependencies): Express {
 	// A/B landing arms for the homepage split (`/landing-a`, `/landing-b`),
 	// reached by the client-side redirect from `/`. Same guest render as `/`.
 	app.use(
-		initLandingRoutes({ buildBannerState, countUsers, foundingAllocation, staticBaseUrl }),
+		initLandingRoutes({ buildBannerState, countUsers, foundingAllocation, staticBaseUrl, secureCookies }),
 	);
 
 	/** Same-origin dismissal endpoint for the site-wide changelog banner; served

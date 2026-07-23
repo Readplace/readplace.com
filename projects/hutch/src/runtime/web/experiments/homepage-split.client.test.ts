@@ -2,9 +2,9 @@ import { HOMEPAGE_SPLIT, initHomepageSplit } from "./homepage-split.client";
 
 const STORAGE_KEY = "readplace.homepage-split";
 const LANDING_A_URL =
-	"/landing-a?utm_campaign=homepage-split&utm_medium=experiment&utm_content=variant-a";
+	"/landing-a?utm_campaign=homepage-split-e1&utm_medium=experiment&utm_content=variant-a";
 const LANDING_B_URL =
-	"/landing-b?utm_campaign=homepage-split&utm_medium=experiment&utm_content=variant-b";
+	"/landing-b?utm_campaign=homepage-split-e1&utm_medium=experiment&utm_content=variant-b";
 
 function makeLocation(pathname: string) {
 	return { pathname, replace: jest.fn() };

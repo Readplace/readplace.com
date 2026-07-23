@@ -39,6 +39,7 @@ import { resolvePostSignupRedirect } from "./post-signup-redirect";
 import { emitFirstArticleAutosaved } from "./first-article-autosaved";
 import type { ConversionEvent } from "../../conversions";
 import { emitUserCreated } from "../../conversions";
+import { readHomepageVariantSlug } from "../experiments/homepage-assignment";
 import { verifyState } from "./oauth-state";
 import { signAppleState } from "./apple-state";
 
@@ -61,6 +62,7 @@ const StatePayloadSchema = z.object({
 	createdAt: z.number(),
 	attribution: ClickAttributionSchema.optional(),
 	visitorId: z.string().optional(),
+	homepageVariant: z.string().optional(),
 	pendingSaveId: z.string().optional(),
 	lastViewUrl: z.string().optional(),
 });
@@ -124,6 +126,7 @@ export const initAppleAuthRoutes = (deps: AppleAuthDependencies): Router => {
 		 * intact for a later signup. */
 		const attribution = readClickAttribution(req);
 		const visitorId = req.visitorId;
+		const homepageVariant = readHomepageVariantSlug(req);
 		const pendingSaveId = readPendingSaveId(req);
 		const lastViewUrl = readLastViewUrl(req);
 		const signedState = signAppleState({
@@ -133,6 +136,7 @@ export const initAppleAuthRoutes = (deps: AppleAuthDependencies): Router => {
 				createdAt,
 				...(attribution ? { attribution } : {}),
 				...(visitorId ? { visitorId } : {}),
+				...(homepageVariant ? { homepageVariant } : {}),
 				...(pendingSaveId ? { pendingSaveId } : {}),
 			},
 			lastViewUrl,
@@ -243,6 +247,7 @@ export const initAppleAuthRoutes = (deps: AppleAuthDependencies): Router => {
 		const conversionContext = {
 			attribution,
 			visitorId: stateData.visitorId,
+			homepageVariant: stateData.homepageVariant,
 			pendingSaveId: stateData.pendingSaveId,
 		};
 		/* hutch_psid is same-site so it is not sent on this cross-site POST, but

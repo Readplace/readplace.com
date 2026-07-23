@@ -1,6 +1,6 @@
 import assert from "node:assert";
 import { BLOG_SITE_LOG_GROUP } from "@packages/hutch-infra-components";
-import { HOMEPAGE_SPLIT } from "../web/experiments/homepage-split";
+import { campaignTag, HOMEPAGE_SPLIT } from "../web/experiments/homepage-split";
 import {
 	ANALYTICS_EVENTS,
 	CONVERSION_EVENTS,
@@ -308,7 +308,7 @@ export function buildAnalyticsDashboardBody(deps: BuildAnalyticsDashboardDeps): 
 			title: "Recent Conversions",
 			logGroupNames: analyticsSource,
 			query: [
-				"fields @timestamp, user_id, method, tier, utm_source, utm_medium, utm_campaign, utm_content, referrer_host, landing_path, first_seen_at",
+				"fields @timestamp, user_id, method, tier, homepage_variant, utm_source, utm_medium, utm_campaign, utm_content, referrer_host, landing_path, first_seen_at",
 				`| filter stream = "${STREAMS.conversions}" and event = "${CONVERSION_EVENTS.userCreated}"`,
 				"| sort @timestamp desc",
 				"| limit 50",
@@ -686,12 +686,16 @@ export function buildAnalyticsDashboardBody(deps: BuildAnalyticsDashboardDeps): 
 	);
 
 	// --- Homepage A/B experiment ---
-	// The client redirect stamps utm_campaign=<campaign> + utm_content=<variant
-	// slug> on the pageview (utm_medium=experiment, no utm_source), so a group-by
-	// utm_content compares the two buckets. Distinct visitors is the headline
-	// metric: assignment is sticky per browser (localStorage), so a returning
-	// visitor piles repeat landings onto one arm and raw counts distort the
-	// split; count(*) landings stays alongside as volume context.
+	// The client redirect stamps utm_campaign=<campaignTag> + utm_content=<variant
+	// slug> on the landing pageview (utm_medium=experiment, no utm_source), and the
+	// signup path stamps homepage_variant=<slug> on the user_created conversion, so
+	// the arm can be read on both legs. `campaignTag` folds the epoch into the
+	// campaign, so a re-bucket scopes these widgets to the new era rather than
+	// averaging the previous one in.
+	//
+	// The denominator is `visitor_id` (the sticky first-party cookie identity the
+	// conversion also carries), not `visitor_hash` (a salted IP hash that collapses
+	// people behind shared NAT and is not the id a signup joins on).
 
 	widgets.push(
 		logWidget({
@@ -699,14 +703,53 @@ export function buildAnalyticsDashboardBody(deps: BuildAnalyticsDashboardDeps): 
 			title: "Homepage A/B — distinct visitors and landings by variant",
 			logGroupNames: analyticsSource,
 			query: [
-				"fields @timestamp, visitor_hash, utm_content",
-				`| filter stream = "${STREAMS.analytics}" and event = "${ANALYTICS_EVENTS.pageview}" and utm_campaign = "${HOMEPAGE_SPLIT.campaign}"`,
+				"fields @timestamp, visitor_id, utm_content",
+				`| filter stream = "${STREAMS.analytics}" and event = "${ANALYTICS_EVENTS.pageview}" and utm_campaign = "${campaignTag(HOMEPAGE_SPLIT)}"`,
 				...exclude,
-				"| stats count_distinct(visitor_hash) as visitors, count(*) as landings by utm_content",
+				"| stats count_distinct(visitor_id) as visitors, count(*) as landings by utm_content",
 				"| sort visitors desc",
 			].join(" "),
 			x: 0, y: 122, width: 12, height: 8,
 			view: "bar",
+		}),
+	);
+
+	// Assigned visitors vs signups, per arm, in one bar so the conversion rate is
+	// visitors:signups per arm at a glance. The union filter puts the landing
+	// pageview and the user_created conversion on the same query; `arm` coalesces
+	// the pageview's utm_content with the conversion's homepage_variant. SRM check:
+	// the two `pageview` bars must stay within a few percent — a skew means an arm
+	// is erroring and the read is void. (The internal-visitor exclude filters on
+	// visitor_hash, which conversions do not carry, so it prunes the pageview
+	// denominator but not the signup numerator — keep test signups off prod.)
+	widgets.push(
+		logWidget({
+			region,
+			title: "Homepage A/B — assigned visitors vs signups by arm",
+			logGroupNames: analyticsSource,
+			query: [
+				"fields @timestamp, visitor_id, coalesce(utm_content, homepage_variant) as arm",
+				`| filter (stream = "${STREAMS.analytics}" and event = "${ANALYTICS_EVENTS.pageview}" and utm_campaign = "${campaignTag(HOMEPAGE_SPLIT)}") or (stream = "${STREAMS.conversions}" and event = "${CONVERSION_EVENTS.userCreated}" and ispresent(homepage_variant))`,
+				...exclude,
+				"| filter ispresent(visitor_id)",
+				"| stats count_distinct(visitor_id) as visitors by arm, event",
+				"| sort arm asc",
+			].join(" "),
+			x: 0, y: 162, width: 12, height: 8,
+			view: "bar",
+		}),
+		logWidget({
+			region,
+			title: "Homepage A/B — signups by arm × tier",
+			logGroupNames: analyticsSource,
+			query: [
+				"fields @timestamp, user_id, homepage_variant, tier",
+				`| filter stream = "${STREAMS.conversions}" and event = "${CONVERSION_EVENTS.userCreated}" and ispresent(homepage_variant)`,
+				"| stats count_distinct(user_id) as signups by homepage_variant, tier",
+				"| sort signups desc",
+			].join(" "),
+			x: 12, y: 162, width: 12, height: 8,
+			view: "table",
 		}),
 	);
 

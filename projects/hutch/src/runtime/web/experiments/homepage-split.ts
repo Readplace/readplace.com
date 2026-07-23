@@ -8,8 +8,12 @@
  *
  * Kill switches: flip `active` to false to no-op the client (everyone stays on
  * `/`); bump `epoch` to re-bucket everyone (stored assignments stop matching, so
- * each visitor is re-assigned 50/50) while keeping `campaign` stable so the
- * dashboard widget keeps aggregating.
+ * each visitor is re-assigned 50/50). The campaign tag stamped on the pageview
+ * (`campaignTag`) folds in the epoch, so a bump also starts a fresh measurement
+ * window — the dashboard widget stops mixing the previous era's numbers with the
+ * new one. That matters the moment the two arms render different pages: an epoch
+ * that spanned identical arms and one that spans a real A/B must not aggregate
+ * together.
  */
 
 /** Shared marker for an arm — the body-class suffix (`variant-a`) and the render
@@ -52,6 +56,16 @@ export function assignVariant(config: HomepageSplitConfig, randomByte: number): 
 }
 
 /**
+ * The campaign value stamped on the landing pageview and matched by the
+ * dashboard widget. It folds the epoch into the campaign so a re-bucket also
+ * scopes the measurement to that epoch — old-era pageviews carry a different tag
+ * and drop out of the widget rather than averaging in.
+ */
+export function campaignTag(config: HomepageSplitConfig): string {
+	return `${config.campaign}-e${config.epoch}`;
+}
+
+/**
  * The redirect target. `utm_medium=experiment` (deliberately not `internal`, so
  * the analytics middleware keeps the pageview instead of dropping it as a click)
  * and `utm_source` omitted (so the landing does not dilute the acquisition pies,
@@ -63,7 +77,7 @@ export function assignVariant(config: HomepageSplitConfig, randomByte: number): 
  * lost — it is already recorded on the pre-redirect `/` pageview.
  */
 export function buildLandingUrl(config: HomepageSplitConfig, variant: HomepageSplitVariant): string {
-	return `${variant.path}?utm_campaign=${config.campaign}&utm_medium=experiment&utm_content=${variant.slug}`;
+	return `${variant.path}?utm_campaign=${campaignTag(config)}&utm_medium=experiment&utm_content=${variant.slug}`;
 }
 
 export function variantBySlug(config: HomepageSplitConfig, slug: string): HomepageSplitVariant | undefined {
