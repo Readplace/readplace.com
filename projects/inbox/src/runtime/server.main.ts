@@ -89,6 +89,7 @@ async function main(): Promise<void> {
 		imageUrl: undefined,
 		failureReason: undefined,
 		skipReason: undefined,
+		submittedAt: undefined,
 	});
 	await fixture.inboxEmail.inboxEmailLinkStore.putLink({
 		userId,
@@ -103,6 +104,7 @@ async function main(): Promise<void> {
 		imageUrl: undefined,
 		failureReason: undefined,
 		skipReason: undefined,
+		submittedAt: undefined,
 	});
 	await fixture.inboxEmail.inboxEmailLinkStore.putLink({
 		userId,
@@ -117,6 +119,7 @@ async function main(): Promise<void> {
 		imageUrl: undefined,
 		failureReason: undefined,
 		skipReason: "list-unsubscribe",
+		submittedAt: undefined,
 	});
 	await fixture.inboxEmail.inboxEmailStore.setEmailLinkCounts({
 		userId,

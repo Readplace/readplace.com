@@ -25,6 +25,7 @@ function link(userId: UserId, overrides: Partial<InboxEmailLinkEntry> = {}): Inb
 		imageUrl: undefined,
 		failureReason: undefined,
 		skipReason: undefined,
+		submittedAt: undefined,
 		...overrides,
 	};
 }
@@ -247,6 +248,54 @@ describe("Inbox link card route", () => {
 		const bare = card.querySelector("[data-test-inbox-article-url]");
 		assert(bare, "the bare URL anchor must render");
 		expect(bare.getAttribute("href")).toBe("https://localhost/private");
+	});
+
+	it("renders a submitted link as sent, drops its Save button, and survives the poll swap", async () => {
+		const fixture = createDefaultTestAppFixture(TEST_APP_ORIGIN);
+		const harness = useApp(fixture);
+		const agent = await loginAgent(harness.server, harness.auth);
+		await seed(fixture, {
+			status: "crawled",
+			title: "A saved post",
+			submittedAt: "2026-07-01T00:00:00.000Z",
+		});
+
+		const response = await agent.get(cardPath);
+
+		expect(response.status).toBe(200);
+		const card = new JSDOM(response.text).window.document.querySelector(
+			"[data-test-inbox-article-card]",
+		);
+		assert(card, "the card fragment must render");
+		const saved = card.querySelector("[data-test-card-saved]");
+		assert(saved, "the saved marker must render on every card");
+		expect(saved.getAttribute("data-test-card-saved")).toBe("sent");
+		expect(saved.textContent).toBe("Sent to your queue");
+		expect(saved.classList.contains("inbox-article-card__saved--sent")).toBe(true);
+		expect(cardActions(card)).toEqual(["feedback-exclude"]);
+	});
+
+	it("differs the ETag between a submitted and an unsubmitted row", async () => {
+		const fixture = createDefaultTestAppFixture(TEST_APP_ORIGIN);
+		const harness = useApp(fixture);
+		const agent = await loginAgent(harness.server, harness.auth);
+		await seed(fixture, { status: "crawled", title: "T" });
+
+		const beforeSave = await agent.get(cardPath);
+		const beforeEtag = beforeSave.headers.etag;
+		assert(beforeEtag, "the card response must carry an ETag");
+
+		const user = await fixture.auth.findUserByEmail("test@example.com");
+		assert(user, "the seeded user must exist");
+		await fixture.inboxEmail.inboxEmailLinkStore.markLinkSubmitted({
+			userId: user.userId,
+			receivedAtMessageId: SK,
+			ordinal: EmailLinkOrdinalSchema.parse("0000"),
+			submittedAt: "2026-07-01T00:00:00.000Z",
+		});
+
+		const afterSave = await agent.get(cardPath);
+		expect(afterSave.headers.etag).not.toBe(beforeEtag);
 	});
 
 	it("revalidates with a 304 when the link has not changed", async () => {

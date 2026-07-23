@@ -62,6 +62,7 @@ function linkEntry(userId: UserId, overrides: Partial<InboxEmailLinkEntry>): Inb
 		imageUrl: undefined,
 		failureReason: undefined,
 		skipReason: undefined,
+		submittedAt: undefined,
 		...overrides,
 	};
 }

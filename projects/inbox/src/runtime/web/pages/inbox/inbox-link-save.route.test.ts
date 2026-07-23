@@ -12,6 +12,14 @@ import { TEST_APP_ORIGIN, createDefaultTestAppFixture } from "@packages/test-fix
 import { loginAgent, useTestServer } from "../../../test-app";
 
 const useApp = useTestServer();
+// A second harness whose publish always rejects, to prove the mark runs after the
+// publish: a failed publish must leave the link unmarked (under-promise) rather
+// than marking a save that never happened (over-promise).
+const usePublishFailsApp = useTestServer({
+	publishSubmitLink: async () => {
+		throw new Error("submit publish failed");
+	},
+});
 const SK = "2026-06-24T09:00:00.000Z#<save@x>";
 
 function link(userId: UserId, overrides: Partial<InboxEmailLinkEntry> = {}): InboxEmailLinkEntry {
@@ -28,6 +36,7 @@ function link(userId: UserId, overrides: Partial<InboxEmailLinkEntry> = {}): Inb
 		imageUrl: undefined,
 		failureReason: undefined,
 		skipReason: undefined,
+		submittedAt: undefined,
 		...overrides,
 	};
 }
@@ -101,6 +110,93 @@ describe("Inbox link save route", () => {
 		expect(toast.getAttribute("role")).toBe("status");
 		expect(toast.getAttribute("aria-live")).toBe("polite");
 		expect(toast.getAttribute("data-dismiss")).toBe("6000");
+	});
+
+	it("marks the link submitted so the saved card stays distinct after the toast fades", async () => {
+		const fixture = createDefaultTestAppFixture(TEST_APP_ORIGIN);
+		const harness = useApp(fixture);
+		const agent = await loginAgent(harness.server, harness.auth);
+		const userId = await seed(fixture);
+
+		await agent.post(savePath);
+
+		const saved = await fixture.inboxEmail.inboxEmailLinkStore.getLink({
+			userId,
+			receivedAtMessageId: SK,
+			ordinal: EmailLinkOrdinalSchema.parse("0000"),
+		});
+		assert(saved, "the saved link must still exist");
+		expect(saved.submittedAt).toBeDefined();
+	});
+
+	it("shows the durable sent marker on the followed redirect, not just the toast", async () => {
+		const fixture = createDefaultTestAppFixture(TEST_APP_ORIGIN);
+		const harness = useApp(fixture);
+		const agent = await loginAgent(harness.server, harness.auth);
+		const userId = await seed(fixture);
+		// The meta barrier makes the Articles panel terminal, so it renders cards
+		// rather than the "Looking for links…" extracting notice.
+		await fixture.inboxEmail.inboxEmailLinkStore.putLinksMeta({
+			userId,
+			receivedAtMessageId: SK,
+			meta: { truncated: false },
+		});
+
+		const response = await agent.post(savePath);
+		const confirmation = await agent.get(response.headers.location);
+
+		const card = new JSDOM(confirmation.text).window.document.querySelector(
+			'[data-test-inbox-article-card="0000"]',
+		);
+		assert(card, "the saved card must render on the redirect target");
+		const marker = card.querySelector("[data-test-card-saved]");
+		assert(marker, "the saved card must carry its sent marker");
+		expect(marker.getAttribute("data-test-card-saved")).toBe("sent");
+		expect(marker.classList.contains("inbox-article-card__saved--sent")).toBe(true);
+		expect(marker.textContent).toBe("Sent to your queue");
+		// The Save button is gone once sent — only the report action remains.
+		expect(card.querySelector('[data-test-card-action="save"]')).toBe(null);
+	});
+
+	it("keeps the sent marker on a plain reload, where a card is byte-identical to its poll swap", async () => {
+		const fixture = createDefaultTestAppFixture(TEST_APP_ORIGIN);
+		const harness = useApp(fixture);
+		const agent = await loginAgent(harness.server, harness.auth);
+		const userId = await seed(fixture, { submittedAt: "2026-07-01T00:00:00.000Z" });
+		await fixture.inboxEmail.inboxEmailLinkStore.putLinksMeta({
+			userId,
+			receivedAtMessageId: SK,
+			meta: { truncated: false },
+		});
+
+		const plain = await agent.get(`/inbox/${encodeURIComponent(SK)}?tab=articles`);
+
+		const card = new JSDOM(plain.text).window.document.querySelector(
+			'[data-test-inbox-article-card="0000"]',
+		);
+		assert(card, "the pre-submitted card must render on a plain GET");
+		expect(card.querySelector("[data-test-card-saved]")?.getAttribute("data-test-card-saved")).toBe(
+			"sent",
+		);
+		expect(card.querySelector('[data-test-card-action="save"]')).toBe(null);
+	});
+
+	it("leaves the link unmarked when the publish fails, so a saved card never over-promises", async () => {
+		const fixture = createDefaultTestAppFixture(TEST_APP_ORIGIN);
+		const harness = usePublishFailsApp(fixture);
+		const agent = await loginAgent(harness.server, harness.auth);
+		const userId = await seed(fixture);
+
+		const response = await agent.post(savePath);
+
+		expect(response.status).toBe(500);
+		const link = await fixture.inboxEmail.inboxEmailLinkStore.getLink({
+			userId,
+			receivedAtMessageId: SK,
+			ordinal: EmailLinkOrdinalSchema.parse("0000"),
+		});
+		assert(link, "the seeded link must still exist");
+		expect(link.submittedAt).toBeUndefined();
 	});
 
 	it("renders no toast on a plain view of the same page", async () => {

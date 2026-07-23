@@ -47,6 +47,7 @@ const InboxEmailLinkRow = z.object({
 	imageUrl: dynamoField(z.string()),
 	failureReason: dynamoField(z.string()),
 	skipReason: dynamoField(EmailLinkSkipReasonSchema),
+	submittedAt: dynamoField(z.string()),
 	truncated: dynamoField(z.boolean()),
 });
 
@@ -68,6 +69,7 @@ function toEntry(row: InboxEmailLinkRowType): InboxEmailLinkEntry {
 		imageUrl: row.imageUrl,
 		failureReason: row.failureReason,
 		skipReason: row.skipReason,
+		submittedAt: row.submittedAt,
 	};
 }
 
@@ -184,6 +186,19 @@ export function initDynamoDbInboxEmailLink(deps: {
 					"#skipReason": "skipReason",
 				},
 				ExpressionAttributeValues: { ":status": "failed", ":failureReason": outcome.failureReason },
+			});
+		},
+		markLinkSubmitted: async ({ userId, receivedAtMessageId, ordinal, submittedAt }) => {
+			await table.update({
+				Key: { userLinkGroup: groupKey({ userId, receivedAtMessageId }), ordinal },
+				// Fail closed if the row is gone (same reason as setLinkOutcome): a bare
+				// UpdateItem would upsert a partial item with no url/status. A crawl
+				// outcome that lands after this only REMOVEs preview fields, never
+				// submittedAt, so the marker survives a save-then-crawl race.
+				ConditionExpression: "attribute_exists(ordinal)",
+				UpdateExpression: "SET #submittedAt = :submittedAt",
+				ExpressionAttributeNames: { "#submittedAt": "submittedAt" },
+				ExpressionAttributeValues: { ":submittedAt": submittedAt },
 			});
 		},
 		putLinksMeta: async ({ userId, receivedAtMessageId, meta }) => {

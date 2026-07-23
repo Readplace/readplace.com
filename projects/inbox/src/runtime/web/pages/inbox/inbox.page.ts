@@ -404,6 +404,16 @@ export function initInboxRoutes(deps: InboxDependencies): Router {
 				userId,
 				url: link.status === "pending" ? link.url : stripUtmParams(link.url),
 			});
+			// Publish first, then mark: a failed mark under-promises (no marker, but the
+			// command is out) where a failed publish after marking would over-promise a
+			// save that never happened. The marker is what makes the saved card durable —
+			// otherwise it reverts to an unsaved-looking card the moment the toast fades.
+			await deps.inboxEmailLinkStore.markLinkSubmitted({
+				userId,
+				receivedAtMessageId,
+				ordinal: link.ordinal,
+				submittedAt: deps.now().toISOString(),
+			});
 			res.redirect(
 				303,
 				`${buildInboxEmailDetailUrl({

@@ -62,6 +62,12 @@ export function initInMemoryInboxEmailLink(): InboxEmailLinkStore {
 						},
 			);
 		},
+		markLinkSubmitted: async ({ userId, receivedAtMessageId, ordinal, submittedAt }) => {
+			const key = linkKey(groupKey({ userId, receivedAtMessageId }), ordinal);
+			const existing = links.get(key);
+			assert(existing, "markLinkSubmitted on a link that was never stored");
+			links.set(key, { ...existing, submittedAt });
+		},
 		putLinksMeta: async ({ userId, receivedAtMessageId, meta }) => {
 			metas.set(groupKey({ userId, receivedAtMessageId }), meta);
 		},

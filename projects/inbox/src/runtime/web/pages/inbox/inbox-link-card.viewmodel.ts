@@ -32,6 +32,12 @@ export interface InboxLinkCardViewModel {
 	statusState: CardStatusState;
 	/** Empty for `crawled`, where the title the crawl produced is the signal. */
 	statusLabel: string;
+	/** `sent` once the link has been submitted to the queue, otherwise `none`.
+	 * Renders the durable "Sent to your queue" marker so a saved card stays visibly
+	 * distinct from an unsaved one after the toast fades, a reload, or a poll swap. */
+	savedState: CardSavedState;
+	/** Empty for `none`; the marker copy for `sent`. */
+	savedLabel: string;
 	actions: InboxCardAction[];
 }
 
@@ -43,6 +49,20 @@ const CARD_STATUS_LABELS: Record<CardStatusState, string> = {
 	working: "Fetching preview…",
 	stalled: "Preview didn’t arrive",
 	failed: "No preview available",
+	none: "",
+};
+
+/** Mirrors {@link CardStatusState}: `none` still renders, hidden by its modifier,
+ * so a test asserts the state rather than an element's absence. */
+type CardSavedState = "sent" | "none";
+
+// Past tense, and "Sent" not "In": the save route only publishes SubmitLinkCommand
+// — the queue row lands in a downstream subscriber — so claiming "In your queue"
+// would over-promise a row a reader jumping to /queue might not find yet. Kept in
+// step with the transient toast ("Adding to your queue…"): present and past tense
+// of the same publish.
+const CARD_SAVED_LABELS: Record<CardSavedState, string> = {
+	sent: "Sent to your queue",
 	none: "",
 };
 
@@ -76,8 +96,11 @@ function buildCardActions(input: {
 	const shownParam = { shown: String(shown) };
 	const actions: InboxCardAction[] = [];
 	// Crawl state does not gate saving: the queue save runs its own crawl, so a
-	// link whose preview is still pending or failed is still worth saving.
-	if (validateSaveableUrl(link.url).status === "SUCCESS") {
+	// link whose preview is still pending or failed is still worth saving. An
+	// already-submitted link drops Save entirely: re-submitting is harmless as
+	// dedupe but resurrects a finished article (markUnreadIfRead), and a live Save
+	// next to "Sent to your queue" reads as a contradiction.
+	if (link.submittedAt === undefined && validateSaveableUrl(link.url).status === "SUCCESS") {
 		actions.push({
 			key: "save",
 			label: "Save to queue",
@@ -125,6 +148,7 @@ export function toInboxLinkCardViewModel(input: {
 		status: link.status,
 		isPolling: cardPollUrl !== undefined,
 	});
+	const savedState: CardSavedState = link.submittedAt !== undefined ? "sent" : "none";
 	return {
 		ordinal: link.ordinal,
 		url,
@@ -134,6 +158,8 @@ export function toInboxLinkCardViewModel(input: {
 		domId: cardDomId(link.ordinal),
 		statusState,
 		statusLabel: CARD_STATUS_LABELS[statusState],
+		savedState,
+		savedLabel: CARD_SAVED_LABELS[savedState],
 		actions: buildCardActions({ link, emailId, displayUrl: url, shown }),
 	};
 }

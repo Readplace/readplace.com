@@ -24,6 +24,7 @@ function makeLink(overrides: Partial<InboxEmailLinkEntry> = {}): InboxEmailLinkE
 		imageUrl: undefined,
 		failureReason: undefined,
 		skipReason: undefined,
+		submittedAt: undefined,
 		...overrides,
 	};
 }
@@ -168,6 +169,75 @@ describe("initInMemoryInboxEmailLink", () => {
 		expect(found.failureReason).toBe("crawl-failed");
 		expect(found.title).toBeUndefined();
 		expect(found.resolvedUrl).toBeUndefined();
+	});
+
+	describe("markLinkSubmitted", () => {
+		it("stamps the submitted timestamp onto an existing link", async () => {
+			const store = initInMemoryInboxEmailLink();
+			await store.putLink(makeLink());
+
+			await store.markLinkSubmitted({
+				userId: owner,
+				receivedAtMessageId: RAM,
+				ordinal: EmailLinkOrdinalSchema.parse("0000"),
+				submittedAt: "2026-07-01T00:00:00.000Z",
+			});
+
+			const found = await store.getLink({
+				userId: owner,
+				receivedAtMessageId: RAM,
+				ordinal: EmailLinkOrdinalSchema.parse("0000"),
+			});
+			assert(found);
+			expect(found.submittedAt).toBe("2026-07-01T00:00:00.000Z");
+		});
+
+		it("asserts when the link was never stored, rather than upserting a partial row", async () => {
+			const store = initInMemoryInboxEmailLink();
+
+			await expect(
+				store.markLinkSubmitted({
+					userId: owner,
+					receivedAtMessageId: RAM,
+					ordinal: EmailLinkOrdinalSchema.parse("0000"),
+					submittedAt: "2026-07-01T00:00:00.000Z",
+				}),
+			).rejects.toThrow("never stored");
+		});
+
+		it("keeps the submitted marker when a crawl outcome lands afterwards", async () => {
+			const store = initInMemoryInboxEmailLink();
+			await store.putLink(makeLink());
+			await store.markLinkSubmitted({
+				userId: owner,
+				receivedAtMessageId: RAM,
+				ordinal: EmailLinkOrdinalSchema.parse("0000"),
+				submittedAt: "2026-07-01T00:00:00.000Z",
+			});
+
+			await store.setLinkOutcome({
+				userId: owner,
+				receivedAtMessageId: RAM,
+				ordinal: EmailLinkOrdinalSchema.parse("0000"),
+				outcome: {
+					status: "crawled",
+					title: "T",
+					excerpt: "E",
+					siteName: "S",
+					imageUrl: undefined,
+					resolvedUrl: undefined,
+				},
+			});
+
+			const found = await store.getLink({
+				userId: owner,
+				receivedAtMessageId: RAM,
+				ordinal: EmailLinkOrdinalSchema.parse("0000"),
+			});
+			assert(found);
+			expect(found.status).toBe("crawled");
+			expect(found.submittedAt).toBe("2026-07-01T00:00:00.000Z");
+		});
 	});
 
 	describe("deleteLinksByEmail", () => {

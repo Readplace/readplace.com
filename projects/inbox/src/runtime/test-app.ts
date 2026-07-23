@@ -3,6 +3,7 @@ import type { Server } from "node:http";
 import type { Express } from "express";
 import request from "supertest";
 import { HutchLogger, noopLogger } from "@packages/hutch-logger";
+import type { UserId } from "@packages/domain/user";
 import type {
 	AuthBundle,
 	RunningServer,
@@ -27,10 +28,15 @@ export const TEST_IMAGES_CDN_BASE_URL = "https://cdn.test.readplace.com";
 
 /** `overrides` lets a test swap a single dependency without rebuilding the whole
  * fixture — `getChangelogBanner` defaults to "no banner" so it stays hidden in
- * every other route test. */
+ * every other route test; `publishSubmitLink` defaults to recording into
+ * `submittedLinks` and is overridden to a throwing stub only by the save route's
+ * publish-failure test, which asserts the link is left unmarked. */
 export function createInboxTestApp(
 	fixture: TestAppFixture,
-	overrides?: { getChangelogBanner?: GetChangelogBanner },
+	overrides?: {
+		getChangelogBanner?: GetChangelogBanner;
+		publishSubmitLink?: (input: { userId: UserId; url: string }) => Promise<void>;
+	},
 ): TestAppResult {
 	const resolveLogin = initResolveLogin({
 		getSessionUserId: fixture.auth.getSessionUserId,
@@ -55,9 +61,11 @@ export function createInboxTestApp(
 			inboxEmailStore: fixture.inboxEmail.inboxEmailStore,
 			inboxEmailLinkStore: fixture.inboxEmail.inboxEmailLinkStore,
 			readEmailContent: fixture.inboxEmail.readEmailContent,
-			publishSubmitLink: async (input) => {
-				submittedLinks.push(input);
-			},
+			publishSubmitLink:
+				overrides?.publishSubmitLink ??
+				(async (input) => {
+					submittedLinks.push(input);
+				}),
 			logError: fixture.shared.logError,
 			now: fixture.shared.now,
 		},
@@ -72,8 +80,10 @@ export function createInboxTestApp(
 
 export interface TestAppHarness extends TestAppResult, RunningServer {}
 
-export function useTestServer(): (fixture: TestAppFixture) => TestAppHarness {
-	return useServerForFixture(createInboxTestApp);
+export function useTestServer(
+	overrides?: Parameters<typeof createInboxTestApp>[1],
+): (fixture: TestAppFixture) => TestAppHarness {
+	return useServerForFixture((fixture) => createInboxTestApp(fixture, overrides));
 }
 
 /** Logs a fresh user in without a /login route: this deployable never mounts

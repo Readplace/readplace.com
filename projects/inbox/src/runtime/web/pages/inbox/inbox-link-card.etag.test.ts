@@ -16,6 +16,7 @@ function link(overrides: Partial<InboxEmailLinkEntry> = {}): InboxEmailLinkEntry
 		imageUrl: undefined,
 		failureReason: undefined,
 		skipReason: undefined,
+		submittedAt: undefined,
 		...overrides,
 	};
 }
@@ -62,5 +63,13 @@ describe("computeInboxLinkCardEtag", () => {
 			link({ status: "crawled", title: "T", resolvedUrl: "https://destination.test/a" }),
 		);
 		expect(unresolved).not.toBe(resolved);
+	});
+
+	it("changes once the link is submitted, so a save from another tab invalidates a mid-poll card", () => {
+		const unsaved = computeInboxLinkCardEtag(link({ status: "crawled", title: "T" }));
+		const saved = computeInboxLinkCardEtag(
+			link({ status: "crawled", title: "T", submittedAt: "2026-07-01T00:00:00.000Z" }),
+		);
+		expect(unsaved).not.toBe(saved);
 	});
 });

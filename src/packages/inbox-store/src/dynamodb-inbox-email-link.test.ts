@@ -105,6 +105,7 @@ describe("initDynamoDbInboxEmailLink", () => {
 				imageUrl: undefined,
 				failureReason: undefined,
 				skipReason: undefined,
+				submittedAt: undefined,
 			});
 
 			expect(result).toBe("stored");
@@ -134,6 +135,7 @@ describe("initDynamoDbInboxEmailLink", () => {
 				imageUrl: undefined,
 				failureReason: undefined,
 				skipReason: "list-unsubscribe",
+				submittedAt: undefined,
 			});
 
 			expect(result).toBe("stored");
@@ -157,6 +159,7 @@ describe("initDynamoDbInboxEmailLink", () => {
 				imageUrl: undefined,
 				failureReason: undefined,
 				skipReason: undefined,
+				submittedAt: undefined,
 			});
 
 			expect(result).toBe("duplicate");
@@ -179,6 +182,7 @@ describe("initDynamoDbInboxEmailLink", () => {
 					imageUrl: undefined,
 					failureReason: undefined,
 					skipReason: undefined,
+					submittedAt: undefined,
 				}),
 			).rejects.toThrow("throttled");
 		});
@@ -259,6 +263,76 @@ describe("initDynamoDbInboxEmailLink", () => {
 				"SET #status = :status, #failureReason = :failureReason REMOVE #title, #excerpt, #siteName, #imageUrl, #resolvedUrl, #skipReason",
 			);
 			expect(captured?.input.ExpressionAttributeValues?.[":failureReason"]).toBe("unsafe-url");
+		});
+	});
+
+	describe("markLinkSubmitted", () => {
+		it("sets the submitted timestamp on an existing row, conditional on the row's presence", async () => {
+			let captured: CapturedCommand | undefined;
+			await store((cmd) => {
+				captured = cmd as CapturedCommand;
+				return {};
+			}).markLinkSubmitted({
+				userId: USER,
+				receivedAtMessageId: RAM,
+				ordinal: ORDINAL,
+				submittedAt: "2026-07-01T00:00:00.000Z",
+			});
+
+			expect(captured?.input.Key).toEqual({ userLinkGroup: GROUP, ordinal: "0003" });
+			expect(captured?.input.ConditionExpression).toBe("attribute_exists(ordinal)");
+			expect(captured?.input.UpdateExpression).toBe("SET #submittedAt = :submittedAt");
+			expect(captured?.input.ExpressionAttributeNames?.["#submittedAt"]).toBe("submittedAt");
+			expect(captured?.input.ExpressionAttributeValues?.[":submittedAt"]).toBe(
+				"2026-07-01T00:00:00.000Z",
+			);
+		});
+
+		it("surfaces a conditional-check failure when the row is gone rather than upserting it", async () => {
+			await expect(
+				store(() => {
+					throw conditionalCheckFailed();
+				}).markLinkSubmitted({
+					userId: USER,
+					receivedAtMessageId: RAM,
+					ordinal: ORDINAL,
+					submittedAt: "2026-07-01T00:00:00.000Z",
+				}),
+			).rejects.toBeInstanceOf(ConditionalCheckFailedException);
+		});
+
+		it("is never undone by a later crawl outcome — setLinkOutcome removes only preview fields", async () => {
+			const removeExpressions: string[] = [];
+			const s = store((cmd) => {
+				const update = (cmd as CapturedCommand).input.UpdateExpression;
+				if (update !== undefined) removeExpressions.push(update);
+				return {};
+			});
+
+			await s.setLinkOutcome({
+				userId: USER,
+				receivedAtMessageId: RAM,
+				ordinal: ORDINAL,
+				outcome: {
+					status: "crawled",
+					title: "T",
+					excerpt: "E",
+					siteName: "S",
+					imageUrl: undefined,
+					resolvedUrl: undefined,
+				},
+			});
+			await s.setLinkOutcome({
+				userId: USER,
+				receivedAtMessageId: RAM,
+				ordinal: ORDINAL,
+				outcome: { status: "failed", failureReason: "crawl-failed" },
+			});
+
+			expect(removeExpressions).toHaveLength(2);
+			for (const expression of removeExpressions) {
+				expect(expression).not.toContain("submittedAt");
+			}
 		});
 	});
 
@@ -384,6 +458,7 @@ describe("initDynamoDbInboxEmailLink", () => {
 						title: "Title",
 						excerpt: "Excerpt",
 						siteName: "Site",
+						submittedAt: "2026-07-01T00:00:00.000Z",
 					},
 				};
 			}).getLink({ userId: USER, receivedAtMessageId: RAM, ordinal: ORDINAL });
@@ -392,6 +467,7 @@ describe("initDynamoDbInboxEmailLink", () => {
 			assert(found, "expected the link to be returned");
 			expect(found.title).toBe("Title");
 			expect(found.imageUrl).toBeUndefined();
+			expect(found.submittedAt).toBe("2026-07-01T00:00:00.000Z");
 		});
 
 		it("returns undefined for an unknown link", async () => {

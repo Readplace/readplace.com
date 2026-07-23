@@ -19,6 +19,7 @@ function link(overrides: Partial<InboxEmailLinkEntry> = {}): InboxEmailLinkEntry
 		imageUrl: undefined,
 		failureReason: undefined,
 		skipReason: undefined,
+		submittedAt: undefined,
 		...overrides,
 	};
 }
@@ -277,6 +278,36 @@ describe("toInboxLinkCardViewModel", () => {
 
 		expect(vm.statusState).toBe("none");
 		expect(vm.statusLabel).toBe("");
+	});
+
+	it("marks a submitted link as sent and drops its Save action", () => {
+		const vm = toInboxLinkCardViewModel({
+			link: link({ status: "crawled", title: "T", submittedAt: "2026-07-01T00:00:00.000Z" }),
+			emailId: EMAIL_ID,
+			pollCount: 1,
+			maxPolls: 300,
+			shown: SHOWN,
+		});
+
+		expect(vm.savedState).toBe("sent");
+		expect(vm.savedLabel).toBe("Sent to your queue");
+		// Re-saving is harmless as dedupe but resurrects a finished article, so a sent
+		// card offers only the report action — never a second Save.
+		expect(vm.actions.map((action) => action.key)).toEqual(["feedback-exclude"]);
+	});
+
+	it("leaves an unsubmitted link savable and shows no sent marker", () => {
+		const vm = toInboxLinkCardViewModel({
+			link: link({ status: "crawled", title: "T", submittedAt: undefined }),
+			emailId: EMAIL_ID,
+			pollCount: 1,
+			maxPolls: 300,
+			shown: SHOWN,
+		});
+
+		expect(vm.savedState).toBe("none");
+		expect(vm.savedLabel).toBe("");
+		expect(vm.actions.map((action) => action.key)).toEqual(["save", "feedback-exclude"]);
 	});
 
 	it("keeps the card and action ids identical across a poll swap so focus can be restored", () => {

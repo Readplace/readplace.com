@@ -25,6 +25,13 @@ export interface InboxEmailLinkEntry {
 	imageUrl: string | undefined;
 	failureReason: string | undefined;
 	skipReason: EmailLinkSkipReason | undefined;
+	/** ISO timestamp of the last `SubmitLinkCommand` publish for this link, or
+	 * `undefined` if never saved. Named for the act the save route performs — it
+	 * only publishes; the queue row lands in a downstream subscriber — so the card
+	 * can show a durable "Sent to your queue" marker that survives a reload, a poll
+	 * swap, or a device switch, where before a saved card was byte-identical to an
+	 * unsaved one once the toast faded. */
+	submittedAt: string | undefined;
 }
 
 /** A small per-email summary co-located in the links partition under a reserved
@@ -59,6 +66,15 @@ export interface InboxEmailLinkStore {
 		receivedAtMessageId: string;
 		ordinal: EmailLinkOrdinal;
 		outcome: EmailLinkOutcome;
+	}) => Promise<void>;
+	/** Stamp the last-submitted timestamp onto an existing link when the reader
+	 * saves it. Conditional on the row existing (fail closed like {@link
+	 * setLinkOutcome}), so a save on a deleted link never upserts a partial row. */
+	markLinkSubmitted: (input: {
+		userId: UserId;
+		receivedAtMessageId: string;
+		ordinal: EmailLinkOrdinal;
+		submittedAt: string;
 	}) => Promise<void>;
 	/** Write the per-email truncated meta item (reserved sort key) under the
 	 * email's partition. Idempotent PutItem. */
