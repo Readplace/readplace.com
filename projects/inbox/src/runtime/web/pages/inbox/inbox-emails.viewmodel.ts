@@ -66,13 +66,13 @@ export interface InboxEmailsViewModel {
 const EMPTY_STATES: Record<InboxEmptyStateKey, InboxEmailsEmptyViewModel> = {
 	"no-address": {
 		key: "no-address",
-		text: "No forwarded emails yet — you don’t have an inbox email address to send them to.",
+		text: "No forwarded emails yet — you don't have an inbox email address to send them to.",
 		cta: { href: INBOX_ADDRESSES_PATH, label: "Create my first inbox address" },
 		addresses: [],
 	},
 	"no-mail": {
 		key: "no-mail",
-		text: "No forwarded emails yet — forward a newsletter to one of your addresses and it’ll appear here.",
+		text: "No forwarded emails yet — forward a newsletter to one of your addresses and it'll appear here.",
 		cta: undefined,
 		addresses: [],
 	},
@@ -81,7 +81,7 @@ const EMPTY_STATES: Record<InboxEmptyStateKey, InboxEmailsEmptyViewModel> = {
 const STATUS_LABEL: Record<InboxEmailStatus, string> = {
 	received: "Received",
 	rejected: "Rejected",
-	unparsed: "Couldn’t render",
+	unparsed: "Couldn't render",
 };
 
 /** Empty rather than absent for a row with nothing to count — the element always
