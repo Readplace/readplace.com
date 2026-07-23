@@ -1,6 +1,7 @@
 import * as aws from "@pulumi/aws";
 import * as pulumi from "@pulumi/pulumi";
 import {
+	curlImpersonateLayerArnFromPlatformStack,
 	HutchAPIGatewayLambdaRoute,
 	HutchDynamoDBAccess,
 	HutchEventBus,
@@ -79,6 +80,11 @@ function tableArn(tableName: string): pulumi.Output<string> {
 }
 
 const eventBus = HutchEventBus.fromPlatformStack(config);
+
+// receiveEmailLambda and crawlEmailLinkPreviewLambda both build initCrawlFetch,
+// whose last-resort leg spawns curl_chrome131 from this layer. Without it a
+// crawl that falls through to curl dies on `spawn curl_chrome131 ENOENT`.
+const curlImpersonateLayerArn = curlImpersonateLayerArnFromPlatformStack(config);
 
 // --- Web Lambda (GET /inbox + ANY /inbox/{proxy+}) ---
 
@@ -207,6 +213,7 @@ const receiveEmailLambda = new HutchLambda("inbox-receive-email", {
 	assetDir: "./src/runtime",
 	memorySize: 1024,
 	timeout: 120,
+	layers: [curlImpersonateLayerArn],
 	environment: {
 		DYNAMODB_INBOX_EMAILS_TABLE: tableNames.inboxEmails,
 		DYNAMODB_INBOX_ADDRESSES_TABLE: tableNames.inboxAddresses,
@@ -431,6 +438,7 @@ const crawlEmailLinkPreviewLambda = new HutchLambda("inbox-crawl-email-link-prev
 	assetDir: "./src/runtime",
 	memorySize: 1024,
 	timeout: 120,
+	layers: [curlImpersonateLayerArn],
 	environment: {
 		DYNAMODB_INBOX_EMAIL_LINKS_TABLE: tableNames.inboxEmailLinks,
 		// Uploads each lead image to the shared content bucket, fronted by the

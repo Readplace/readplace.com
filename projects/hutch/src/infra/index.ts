@@ -2,7 +2,7 @@ import * as pulumi from "@pulumi/pulumi";
 import * as aws from "@pulumi/aws";
 import assert from "node:assert";
 import { resolve } from "node:path";
-import { HutchLambda, HutchAPIGateway, HutchDynamoDBAccess, HutchEventBus, HutchS3ReadWrite, HutchSQS, HutchSQSBackedLambda, HutchStripeWebhookReceiver } from "@packages/hutch-infra-components/infra";
+import { curlImpersonateLayerArnFromPlatformStack, HutchLambda, HutchAPIGateway, HutchDynamoDBAccess, HutchEventBus, HutchS3ReadWrite, HutchSQS, HutchSQSBackedLambda, HutchStripeWebhookReceiver } from "@packages/hutch-infra-components/infra";
 import {
 	FORWARD_ANALYTICS_LAMBDA_NAME,
 	CancelSubscriptionCommand,
@@ -162,6 +162,11 @@ const staticAssets = new HutchStaticAssets("hutch-static", {
 
 const eventBus = HutchEventBus.fromPlatformStack(config);
 
+// The web Lambda builds initCrawlFetch (article/thumbnail crawls, stale-check
+// refresh), whose last-resort leg spawns curl_chrome131 from this layer; without
+// it a crawl that falls through to curl dies on `spawn curl_chrome131 ENOENT`.
+const curlImpersonateLayerArn = curlImpersonateLayerArnFromPlatformStack(config);
+
 const dynamodb = new HutchDynamoDBAccess("hutch-dynamodb-access", {
 	tables: [
 		{ arn: storage.articlesTable.arn, includeIndexes: true },
@@ -287,6 +292,7 @@ const lambda = new HutchLambda(LAMBDA_NAMES.hutchHandler, {
 	assetDir: "./src/runtime",
 	memorySize: 512,
 	timeout: 30,
+	layers: [curlImpersonateLayerArn],
 	environment: {
 		NODE_ENV: config.require("nodeEnv"),
 		PERSISTENCE: "prod",
