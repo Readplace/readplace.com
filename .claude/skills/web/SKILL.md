@@ -168,6 +168,7 @@ Alternatively use the POST - Redirect - GET pattern.
 | Test attributes are for tests only | Never use `data-test-*` in CSS selectors |
 | Use semantic classes | Describe visual state (`.flight-segment--outbound`) |
 | Use BEM for scoping | Prevent class collisions (`.flight-segment__label`) |
+| Orphan/widow control lives on the prose container, not on `body` | A global `text-wrap` forces a full-page reflow |
 
 ```css
 /* ❌ BAD */
@@ -176,6 +177,14 @@ Alternatively use the POST - Redirect - GET pattern.
 /* ✅ GOOD */
 .flight-segment--outbound { ... }
 ```
+
+Add `text-wrap: pretty` to body-copy selectors and `text-wrap: balance` to
+heading selectors — scoped to those selectors, never on `body`. Prefer the CSS
+property over a manual `&nbsp;`/`<br>` so a later copy edit can't reintroduce the
+orphan; reach for a manual break only when a specific shape (e.g. a centred
+pyramid heading) demands it. See [orphan control in the brand
+guidelines](../../../BRAND_GUIDELINES.md#typography-rules) for the exceptions
+(keyword rotator; centred pyramid title uses `pretty`, not `balance`).
 
 ### CSS Comment Index Format
 

@@ -16,6 +16,7 @@
   letter-spacing: -0.01em;
   margin: 0 0 8px;
   color: var(--foreground);
+  text-wrap: balance;
 }
 
 .import__title-mark {
@@ -29,6 +30,7 @@
   line-height: 1.6;
   margin: 0;
   max-width: 56ch;
+  text-wrap: pretty;
 }
 
 /* ---------- Acquisition tabs ---------- */

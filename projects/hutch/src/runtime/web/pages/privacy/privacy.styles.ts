@@ -13,6 +13,7 @@ export const LEGAL_PAGE_STYLES = `
 	font-weight: 700;
 	margin-bottom: 8px;
 	color: var(--foreground);
+	text-wrap: balance;
 }
 
 .legal-page__updated {
@@ -30,6 +31,7 @@ export const LEGAL_PAGE_STYLES = `
 	font-weight: 600;
 	margin-bottom: 12px;
 	color: var(--foreground);
+	text-wrap: balance;
 }
 
 .legal-page__section p,
@@ -38,6 +40,7 @@ export const LEGAL_PAGE_STYLES = `
 	line-height: 1.7;
 	color: var(--muted-foreground);
 	margin-bottom: 8px;
+	text-wrap: pretty;
 }
 
 .legal-page__section ul {
