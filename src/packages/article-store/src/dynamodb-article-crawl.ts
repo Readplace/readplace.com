@@ -3,6 +3,7 @@ import { CrawlStatusSchema } from "@packages/article-state-types";
 import {
 	ConditionalCheckFailedException,
 	type DynamoDBDocumentClient,
+	batchGetFromTable,
 	defineDynamoTable,
 	dynamoField,
 } from "@packages/hutch-storage-client";
@@ -11,6 +12,7 @@ import { ArticleResourceUniqueId } from "@packages/article-resource-unique-id";
 import type {
 	ArticleCrawl,
 	FindArticleCrawlStatus,
+	FindArticleCrawlStatuses,
 	ForceMarkCrawlPending,
 	MarkCrawlPending,
 } from "@packages/provider-contracts/article-crawl";
@@ -75,12 +77,18 @@ function rowToArticleCrawl(
 	return undefined;
 }
 
+// Loose schema for the batch read: batchGetFromTable runs `schema.parse` on
+// every returned item, so a strict schema would discard the whole batch on one
+// malformed row. Each row is re-validated strictly below, per row.
+const LooseArticleCrawlRow = z.looseObject({ url: z.string() });
+
 export function initDynamoDbArticleCrawl(deps: {
 	client: DynamoDBDocumentClient;
 	tableName: string;
 	now: () => Date;
 }): {
 	findArticleCrawlStatus: FindArticleCrawlStatus;
+	findArticleCrawlStatuses: FindArticleCrawlStatuses;
 	markCrawlPending: MarkCrawlPending;
 	forceMarkCrawlPending: ForceMarkCrawlPending;
 } {
@@ -94,6 +102,51 @@ export function initDynamoDbArticleCrawl(deps: {
 		const articleResourceUniqueId = ArticleResourceUniqueId.parse(url);
 		const row = await table.get({ url: articleResourceUniqueId.value });
 		return rowToArticleCrawl(row);
+	};
+
+	const findArticleCrawlStatuses: FindArticleCrawlStatuses = async (urls) => {
+		const result = new Map<string, ArticleCrawl | undefined>();
+		const keyToUrls = new Map<string, string[]>();
+		for (const url of urls) {
+			let normalizedKey: string;
+			try {
+				normalizedKey = ArticleResourceUniqueId.parse(url).value;
+			} catch {
+				result.set(url, undefined);
+				continue;
+			}
+			const group = keyToUrls.get(normalizedKey);
+			if (group) group.push(url);
+			else keyToUrls.set(normalizedKey, [url]);
+		}
+		if (keyToUrls.size === 0) return result;
+
+		const rows = await batchGetFromTable({
+			client: deps.client,
+			tableName: deps.tableName,
+			schema: LooseArticleCrawlRow,
+			keys: [...keyToUrls.keys()].map((url) => ({ url })),
+			projection: ArticleCrawlRow.keyof().options,
+		});
+
+		const valueByKey = new Map<string, ArticleCrawl | undefined>();
+		for (const row of rows) {
+			const parsed = ArticleCrawlRow.safeParse(row);
+			let value: ArticleCrawl | undefined;
+			if (parsed.success) {
+				try {
+					value = rowToArticleCrawl(parsed.data);
+				} catch {
+					value = undefined;
+				}
+			}
+			valueByKey.set(row.url, value);
+		}
+		for (const [key, groupUrls] of keyToUrls) {
+			const value = valueByKey.get(key);
+			for (const url of groupUrls) result.set(url, value);
+		}
+		return result;
 	};
 
 	const markCrawlPending: MarkCrawlPending = async ({ url }) => {
@@ -131,6 +184,7 @@ export function initDynamoDbArticleCrawl(deps: {
 
 	return {
 		findArticleCrawlStatus,
+		findArticleCrawlStatuses,
 		markCrawlPending,
 		forceMarkCrawlPending,
 	};

@@ -3,6 +3,7 @@ import { SummaryStatusSchema } from "@packages/article-state-types";
 import {
 	ConditionalCheckFailedException,
 	type DynamoDBDocumentClient,
+	batchGetFromTable,
 	defineDynamoTable,
 	dynamoField,
 } from "@packages/hutch-storage-client";
@@ -10,6 +11,7 @@ import { z } from "zod";
 import { ArticleResourceUniqueId } from "@packages/article-resource-unique-id";
 import type {
 	GeneratedSummary,
+	FindGeneratedSummaries,
 	FindGeneratedSummary,
 	MarkSummaryPending,
 } from "@packages/provider-contracts/article-summary";
@@ -76,11 +78,17 @@ function rowToGeneratedSummary(
 	return readyFromRow(row.summary, row.summaryExcerpt);
 }
 
+// Loose schema for the batch read: batchGetFromTable runs `schema.parse` on
+// every returned item, so a strict schema would discard the whole batch on one
+// malformed row. Each row is re-validated strictly below, per row.
+const LooseArticleSummaryRow = z.looseObject({ url: z.string() });
+
 export function initDynamoDbGeneratedSummary(deps: {
 	client: DynamoDBDocumentClient;
 	tableName: string;
 }): {
 	findGeneratedSummary: FindGeneratedSummary;
+	findGeneratedSummaries: FindGeneratedSummaries;
 	markSummaryPending: MarkSummaryPending;
 } {
 	const table = defineDynamoTable({
@@ -93,6 +101,51 @@ export function initDynamoDbGeneratedSummary(deps: {
 		const articleResourceUniqueId = ArticleResourceUniqueId.parse(url);
 		const row = await table.get({ url: articleResourceUniqueId.value });
 		return rowToGeneratedSummary(row);
+	};
+
+	const findGeneratedSummaries: FindGeneratedSummaries = async (urls) => {
+		const result = new Map<string, GeneratedSummary | undefined>();
+		const keyToUrls = new Map<string, string[]>();
+		for (const url of urls) {
+			let normalizedKey: string;
+			try {
+				normalizedKey = ArticleResourceUniqueId.parse(url).value;
+			} catch {
+				result.set(url, undefined);
+				continue;
+			}
+			const group = keyToUrls.get(normalizedKey);
+			if (group) group.push(url);
+			else keyToUrls.set(normalizedKey, [url]);
+		}
+		if (keyToUrls.size === 0) return result;
+
+		const rows = await batchGetFromTable({
+			client: deps.client,
+			tableName: deps.tableName,
+			schema: LooseArticleSummaryRow,
+			keys: [...keyToUrls.keys()].map((url) => ({ url })),
+			projection: ArticleSummaryRow.keyof().options,
+		});
+
+		const valueByKey = new Map<string, GeneratedSummary | undefined>();
+		for (const row of rows) {
+			const parsed = ArticleSummaryRow.safeParse(row);
+			let value: GeneratedSummary | undefined;
+			if (parsed.success) {
+				try {
+					value = rowToGeneratedSummary(parsed.data);
+				} catch {
+					value = undefined;
+				}
+			}
+			valueByKey.set(row.url, value);
+		}
+		for (const [key, groupUrls] of keyToUrls) {
+			const value = valueByKey.get(key);
+			for (const url of groupUrls) result.set(url, value);
+		}
+		return result;
 	};
 
 	const markSummaryPending: MarkSummaryPending = async ({ url }) => {
@@ -113,5 +166,5 @@ export function initDynamoDbGeneratedSummary(deps: {
 		}
 	};
 
-	return { findGeneratedSummary, markSummaryPending };
+	return { findGeneratedSummary, findGeneratedSummaries, markSummaryPending };
 }

@@ -25,6 +25,7 @@ import type {
 } from "@packages/web-test-harness";
 import { useTestServer as useServerForFixture } from "@packages/web-test-harness";
 import { createApp } from "./server";
+import { batchFromSingular } from "./batch-from-singular";
 import { readplaceUnwrapPreprocessor } from "./web/pages/view/readplace-unwrap-preprocessor";
 import { unwrappedPreProcessors, withUnwrapPreprocessing } from "./web/unwrap-preprocessors";
 import type { GetChangelogBanner } from "./web/changelog-banner-source";
@@ -154,6 +155,7 @@ function flattenFixtureToAppDependencies(
 		markSummaryToggled: fixture.articleStore.markSummaryToggled,
 		readArticleContent: fixture.articleStore.readArticleContent,
 		findArticleCrawlStatus: fixture.articleCrawl.findArticleCrawlStatus,
+		findArticleCrawlStatuses: batchFromSingular(fixture.articleCrawl.findArticleCrawlStatus),
 		markCrawlPending: fixture.articleCrawl.markCrawlPending,
 		forceMarkCrawlPending: fixture.articleCrawl.forceMarkCrawlPending,
 		publishLinkSaved: fixture.events.publishLinkSaved,
@@ -174,6 +176,7 @@ function flattenFixtureToAppDependencies(
 		statPendingUpload: fixture.pendingUpload.statPendingUpload,
 		readPendingUploadPrefix: fixture.pendingUpload.readPendingUploadPrefix,
 		findGeneratedSummary: fixture.summary.findGeneratedSummary,
+		findGeneratedSummaries: batchFromSingular(fixture.summary.findGeneratedSummary),
 		markSummaryPending: fixture.summary.markSummaryPending,
 		refreshArticleIfStale: fixture.freshness.refreshArticleIfStale,
 		resolveCanonicalIdentity: async (url: string) => url,

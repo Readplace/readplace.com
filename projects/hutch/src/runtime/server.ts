@@ -92,10 +92,12 @@ import type { ReadArticleContent } from "@packages/provider-contracts/article-st
 import type { RefreshArticleIfStale } from "@packages/provider-contracts/article-freshness";
 import type {
 	FindArticleCrawlStatus,
+	FindArticleCrawlStatuses,
 	ForceMarkCrawlPending,
 	MarkCrawlPending,
 } from "@packages/provider-contracts/article-crawl";
 import type {
+	FindGeneratedSummaries,
 	FindGeneratedSummary,
 	MarkSummaryPending,
 } from "@packages/provider-contracts/article-summary";
@@ -302,8 +304,10 @@ interface AppDependencies {
 	statPendingUpload: StatPendingUpload;
 	readPendingUploadPrefix: ReadPendingUploadPrefix;
 	findGeneratedSummary: FindGeneratedSummary;
+	findGeneratedSummaries: FindGeneratedSummaries;
 	markSummaryPending: MarkSummaryPending;
 	findArticleCrawlStatus: FindArticleCrawlStatus;
+	findArticleCrawlStatuses: FindArticleCrawlStatuses;
 	markCrawlPending: MarkCrawlPending;
 	forceMarkCrawlPending: ForceMarkCrawlPending;
 	refreshArticleIfStale: RefreshArticleIfStale;
@@ -1034,8 +1038,10 @@ export function createApp(dependencies: AppDependencies): Express {
 		statPendingUpload: deps.statPendingUpload,
 		readPendingUploadPrefix: deps.readPendingUploadPrefix,
 		findGeneratedSummary: deps.findGeneratedSummary,
+		findGeneratedSummaries: deps.findGeneratedSummaries,
 		markSummaryPending: deps.markSummaryPending,
 		findArticleCrawlStatus: deps.findArticleCrawlStatus,
+		findArticleCrawlStatuses: deps.findArticleCrawlStatuses,
 		markCrawlPending: deps.markCrawlPending,
 		refreshArticleIfStale: deps.refreshArticleIfStale,
 		resolveCanonicalIdentity: deps.resolveCanonicalIdentity,

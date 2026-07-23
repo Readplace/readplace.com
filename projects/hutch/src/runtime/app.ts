@@ -51,6 +51,7 @@ import { devSummariseInline } from "./providers/article-summary/dev-summarise-in
 import { initDynamoDbArticleCrawl } from "@packages/article-store";
 import { initInMemoryArticleCrawl } from "@packages/test-fixtures/providers/article-crawl";
 import { initInMemoryGeneratedSummary } from "@packages/test-fixtures/providers/article-summary";
+import { batchFromSingular } from "./batch-from-singular";
 import { S3Client } from "@aws-sdk/client-s3";
 import { SchedulerClient } from "@aws-sdk/client-scheduler";
 import { initS3ReadContent } from "@packages/article-store";
@@ -429,8 +430,10 @@ function initProviders(input: { appOrigin: string }) {
 			statPendingUpload,
 			readPendingUploadPrefix,
 			findGeneratedSummary: summaryStore.findGeneratedSummary,
+			findGeneratedSummaries: summaryStore.findGeneratedSummaries,
 			markSummaryPending: summaryStore.markSummaryPending,
 			findArticleCrawlStatus: crawlStore.findArticleCrawlStatus,
+			findArticleCrawlStatuses: crawlStore.findArticleCrawlStatuses,
 			findArticleFreshness: articleStore.findArticleFreshness,
 			findArticleCrawlVersions: articleStore.findArticleCrawlVersions,
 			markCrawlPending: crawlStore.markCrawlPending,
@@ -716,8 +719,10 @@ function initProviders(input: { appOrigin: string }) {
 		statPendingUpload,
 		readPendingUploadPrefix,
 		findGeneratedSummary: summaryStore.findGeneratedSummary,
+		findGeneratedSummaries: batchFromSingular(summaryStore.findGeneratedSummary),
 		markSummaryPending: summaryStore.markSummaryPending,
 		findArticleCrawlStatus: crawlStore.findArticleCrawlStatus,
+		findArticleCrawlStatuses: batchFromSingular(crawlStore.findArticleCrawlStatus),
 		findArticleFreshness: articleStore.findArticleFreshness,
 		findArticleCrawlVersions: articleStore.findArticleCrawlVersions,
 		markCrawlPending: crawlStore.markCrawlPending,
