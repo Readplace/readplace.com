@@ -255,7 +255,7 @@
 
 .inbox-excluded-link {
   display: flex;
-  align-items: baseline;
+  align-items: center;
   justify-content: space-between;
   gap: 12px;
   padding: 6px 0;
@@ -281,4 +281,12 @@
 
 .inbox-excluded-link__feedback {
   flex-shrink: 0;
+}
+
+@media (max-width: 480px) {
+  .inbox-excluded-link {
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 0;
+  }
 }
