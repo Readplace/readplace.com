@@ -4,16 +4,18 @@ import { initQueueFocus } from "./queue-focus.client";
 
 interface Harness {
 	document: Document;
-	fireBeforeSwap: (target: Element) => void;
+	fireBeforeSwap: (target: Element, verb?: string) => void;
 	fireAfterSettle: () => void;
 }
 
 /** Wires initQueueFocus to a jsdom document, capturing the htmx listeners so a
- * test can drive a beforeSwap → (DOM mutation) → afterSettle cycle by hand. */
+ * test can drive a beforeSwap → (DOM mutation) → afterSettle cycle by hand. The
+ * verb defaults to "post" — the card mutations that remove a card — so only the
+ * self-poll case has to name the "get" verb. */
 function harness(bodyHtml: string): Harness {
 	const dom = new JSDOM(`<!doctype html><html><body>${bodyHtml}</body></html>`);
 	const document = dom.window.document;
-	let beforeSwap: ((target: Element) => void) | undefined;
+	let beforeSwap: ((swap: { target: Element; verb: string }) => void) | undefined;
 	let afterSettle: (() => void) | undefined;
 	initQueueFocus({
 		document,
@@ -26,9 +28,10 @@ function harness(bodyHtml: string): Harness {
 	});
 	assert(beforeSwap, "beforeSwap listener must be registered");
 	assert(afterSettle, "afterSettle listener must be registered");
+	const fireBeforeSwap = beforeSwap;
 	return {
 		document,
-		fireBeforeSwap: beforeSwap,
+		fireBeforeSwap: (target, verb = "post") => fireBeforeSwap({ target, verb }),
 		fireAfterSettle: afterSettle,
 	};
 }
@@ -169,6 +172,25 @@ describe("initQueueFocus", () => {
 		h.fireAfterSettle();
 
 		expect(h.document.activeElement).toBe(h.document.querySelector(".queue__save-input"));
+	});
+
+	it("leaves focus alone when a focused pending card re-renders itself in place via the 3s poll (GET)", () => {
+		const h = harness(LIST(CARD("c1") + CARD("c2")));
+		focus(h.document, "#btn-c1");
+		const c1 = h.document.getElementById("c1");
+		assert(c1);
+
+		// The 3s self-poll is a GET that swaps the card with a fresh copy in place
+		// (hx-target="this" hx-swap="outerHTML") — the old node detaches exactly as
+		// a removal would, so only the verb tells them apart.
+		h.fireBeforeSwap(c1, "get");
+		c1.remove();
+		h.document.querySelector(".queue__list")?.insertAdjacentHTML("afterbegin", CARD("c1"));
+		h.fireAfterSettle();
+
+		// Focus must not jump to the neighbour: the card was re-rendered, not
+		// removed, so the script stays out of it and focus falls to <body>.
+		expect(h.document.activeElement).toBe(h.document.body);
 	});
 
 	it("ignores a swap whose target is not a queue card (counts / poll swaps)", () => {

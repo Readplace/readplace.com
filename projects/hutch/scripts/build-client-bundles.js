@@ -421,12 +421,14 @@ const BUNDLES = [
     globalName: "QueueFocus",
     footer: [
       // htmx:beforeSwap fires on the element about to be swapped; the queue's
-      // card mutations remove the card the user acted on, so this re-homes
-      // focus after the swap settles. Both listeners live on body so they
-      // survive the target's own removal.
+      // card mutations (POST) remove the card the user acted on, so this
+      // re-homes focus after the swap settles. The request verb rides along so
+      // the script can ignore a pending card's 3s self-poll (GET), which
+      // re-renders the card in place rather than removing it. Both listeners
+      // live on body so they survive the target's own removal.
       "QueueFocus.initQueueFocus({",
       "  document: window.document,",
-      "  addBeforeSwapListener: function (cb) { window.document.body.addEventListener('htmx:beforeSwap', function (e) { cb(e.target); }); },",
+      "  addBeforeSwapListener: function (cb) { window.document.body.addEventListener('htmx:beforeSwap', function (e) { cb({ target: e.target, verb: e.detail.requestConfig.verb }); }); },",
       "  addAfterSettleListener: function (cb) { window.document.body.addEventListener('htmx:afterSettle', cb); }",
       "});",
     ].join("\n"),

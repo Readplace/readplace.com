@@ -9,8 +9,11 @@
  */
 export interface QueueFocusDeps {
 	document: Document;
-	/** Fires with the element htmx is about to swap, for every swap. */
-	addBeforeSwapListener: (listener: (target: Element) => void) => void;
+	/** Fires with the element htmx is about to swap and the swap request's HTTP
+	 * verb (lowercased), for every swap. */
+	addBeforeSwapListener: (
+		listener: (swap: { target: Element; verb: string }) => void,
+	) => void;
 	/** Fires after htmx settles a swap (main and out-of-band both done). */
 	addAfterSettleListener: (listener: () => void) => void;
 }
@@ -46,8 +49,13 @@ export function initQueueFocus(deps: QueueFocusDeps): void {
 	let adjacentToRemoved: Element | null = null;
 	let armed = false;
 
-	deps.addBeforeSwapListener((target) => {
+	deps.addBeforeSwapListener(({ target, verb }) => {
 		if (!isQueueArticle(target)) return;
+		// Only a POST mutation (mark read/unread, delete) removes the card. A
+		// pending card also self-polls every 3s with GET and re-renders itself in
+		// place (hx-target="this" hx-swap="outerHTML"); relocating on that would
+		// yank a keyboard user's focus to a neighbour every 3s, so ignore it.
+		if (verb !== "post") return;
 		if (!target.contains(deps.document.activeElement)) return;
 		adjacentToRemoved = adjacentCard(target);
 		armed = true;
