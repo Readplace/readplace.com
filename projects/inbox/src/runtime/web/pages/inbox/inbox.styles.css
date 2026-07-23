@@ -76,7 +76,7 @@
   flex: 1 1 200px;
   min-width: 0;
   padding: 8px 12px;
-  font-size: 0.95rem;
+  font-size: var(--input-font-size);
   color: var(--foreground);
   background: var(--background);
   border: 1px solid var(--border);
@@ -210,7 +210,7 @@
   flex: 1 1 200px;
   min-width: 0;
   padding: 8px 12px;
-  font-size: 0.95rem;
+  font-size: var(--input-font-size);
   color: var(--foreground);
   background: var(--background);
   border: 1px solid var(--border);
