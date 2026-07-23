@@ -314,11 +314,32 @@ platform :ios do
     Spaceship::ConnectAPI.patch_app_store_version_with_build(app_store_version_id: version.id, build_id: candidate.id)
     version = app.get_edit_app_store_version(platform: Spaceship::ConnectAPI::Platform::IOS)
 
-    submission = app.get_in_progress_review_submission(platform: Spaceship::ConnectAPI::Platform::IOS, includes: "items")
+    platform = Spaceship::ConnectAPI::Platform::IOS
+    submission = app.get_in_progress_review_submission(platform: platform, includes: "items")
     if submission && submission.state != Spaceship::ConnectAPI::ReviewSubmission::ReviewSubmissionState::UNRESOLVED_ISSUES
       UI.user_error!("A review submission is already #{submission.state} — resolve it in App Store Connect first")
     end
-    submission ||= app.create_review_submission(platform: Spaceship::ConnectAPI::Platform::IOS)
+
+    if submission && submission.items.to_a.any? { |item| item.state == "REJECTED" }
+      # A rejected item stays REJECTED even once its version is fixed and a new
+      # build attached (run 29975701128: version PREPARE_FOR_SUBMISSION, build
+      # VALID, submit still refused), and this fastlane version has no API to
+      # shed a single item — so the submission is replaced wholesale.
+      UI.message("Cancelling review submission #{submission.id} — its item is REJECTED")
+      submission.cancel_submission
+      submission = nil
+      # Cancellation drains asynchronously and ASC refuses a new submission
+      # until it completes; UNRESOLVED_ISSUES may linger briefly pre-flip.
+      waited = 0
+      until app.get_review_submissions(filter: { state: "CANCELING,UNRESOLVED_ISSUES", platform: platform }).to_a.empty?
+        UI.user_error!("Cancelled review submission is still draining after 5 minutes — re-run once it settles") if waited >= 300
+        sleep(10)
+        waited += 10
+      end
+    end
+
+    submission ||= app.get_ready_review_submission(platform: platform, includes: "items")
+    submission ||= app.create_review_submission(platform: platform)
     if submission.items.to_a.empty?
       submission.add_app_store_version_to_review_items(app_store_version_id: version.id)
     end
