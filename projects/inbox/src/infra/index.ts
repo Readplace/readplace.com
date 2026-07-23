@@ -86,6 +86,12 @@ const eventBus = HutchEventBus.fromPlatformStack(config);
 // crawl that falls through to curl dies on `spawn curl_chrome131 ENOENT`.
 const curlImpersonateLayerArn = curlImpersonateLayerArnFromPlatformStack(config);
 
+// Both crawl Lambdas parse fetched HTML with linkedom, where a 40 MB+ page
+// expands 3-5×, and the now-reachable curl fallback can buffer a large body
+// before the size cap applies; 1024 MB OOM'd save-link on those, so match its
+// crawl Lambdas rather than run tighter here.
+const CRAWL_LAMBDA_MEMORY_MB = 1769;
+
 // --- Web Lambda (GET /inbox + ANY /inbox/{proxy+}) ---
 
 const webInboxTables = new HutchDynamoDBAccess("inbox-web-inbox-tables", {
@@ -211,7 +217,7 @@ const receiveEmailLambda = new HutchLambda("inbox-receive-email", {
 	entryPoint: "./src/runtime/receive-email.main.ts",
 	outputDir: ".lib/inbox-receive-email",
 	assetDir: "./src/runtime",
-	memorySize: 1024,
+	memorySize: CRAWL_LAMBDA_MEMORY_MB,
 	timeout: 120,
 	layers: [curlImpersonateLayerArn],
 	environment: {
@@ -436,7 +442,7 @@ const crawlEmailLinkPreviewLambda = new HutchLambda("inbox-crawl-email-link-prev
 	entryPoint: "./src/runtime/crawl-email-link-preview.main.ts",
 	outputDir: ".lib/inbox-crawl-email-link-preview",
 	assetDir: "./src/runtime",
-	memorySize: 1024,
+	memorySize: CRAWL_LAMBDA_MEMORY_MB,
 	timeout: 120,
 	layers: [curlImpersonateLayerArn],
 	environment: {
