@@ -6,6 +6,20 @@ import { redirectable } from "./follow-redirects";
 
 const FALLBACK_STATUS_CODES = new Set([403, 429]);
 
+const DEFAULT_H2_TIMEOUT_MS = 10000;
+
+/**
+ * Mirrors crawl-article's fetchTimeoutReason: a plain Error named "TimeoutError"
+ * rather than a DOMException, so `shouldTryFallback`'s `isTimeoutError` still
+ * matches under jest's cross-realm sandbox (a host-realm DOMException fails
+ * `instanceof Error` there and would silently disable the timeout→curl fallback).
+ */
+function h2TimeoutReason(message: string): Error {
+	const reason = new Error(message);
+	reason.name = "TimeoutError";
+	return reason;
+}
+
 type FetchH2Init = {
 	headers?: Record<string, string>;
 	signal?: AbortSignal;
@@ -143,6 +157,7 @@ export function withH2Fallback(
 	baseFetch: typeof fetch,
 	h2FetchImpl: FetchH2,
 	curlFetchImpl: CurlFetch,
+	h2TimeoutMs: number = DEFAULT_H2_TIMEOUT_MS,
 ): typeof fetch {
 	return async (input, init) => {
 		let response: Response;
@@ -151,12 +166,12 @@ export function withH2Fallback(
 		} catch (error) {
 			if (!shouldTryFallback(error, init?.signal ?? undefined)) throw error;
 			const url = urlFromInput(input);
-			return h2ThenCurl(url, init, h2FetchImpl, curlFetchImpl);
+			return h2ThenCurl(url, init, h2FetchImpl, curlFetchImpl, h2TimeoutMs);
 		}
 		if (!FALLBACK_STATUS_CODES.has(response.status)) return response;
 		await response.text();
 		const url = urlFromInput(input);
-		return h2ThenCurl(url, init, h2FetchImpl, curlFetchImpl);
+		return h2ThenCurl(url, init, h2FetchImpl, curlFetchImpl, h2TimeoutMs);
 	};
 }
 
@@ -164,32 +179,62 @@ export function withH2Fallback(
  * Try Node's http2 module, then curl subprocess. Shared by the Cloudflare
  * 403/429 path and the baseFetch-error path — both represent a
  * TLS-fingerprint block where varying the TLS client is the right remedy.
+ *
+ * The h2 attempt runs under its OWN deadline, not just the caller's shared
+ * wall-clock budget: entered after a fast 403, an h2 leg with no bound could
+ * silently absorb the whole remaining budget, starving curl and making every
+ * timeout unattributable. The caller's signal still short-circuits it (whichever
+ * fires first). When the h2 leg fails and curl is tried, the h2 error rides on
+ * the curl error's `cause` — messages are left untouched so persona-fallback's
+ * block-class matching is unaffected, but the leg that actually failed is no
+ * longer discarded.
  */
 async function h2ThenCurl(
 	url: string,
 	init: FetchInit | undefined,
 	h2FetchImpl: FetchH2,
 	curlFetchImpl: CurlFetch,
+	h2TimeoutMs: number,
 ): Promise<Response> {
-	const fallbackInit = {
-		headers: toPlainHeaders(init?.headers),
-		signal: init?.signal ?? undefined,
-	};
+	const headers = toPlainHeaders(init?.headers);
+	const callerSignal = init?.signal ?? undefined;
+	let h2Error: unknown;
+
 	/* Skip h2 when the caller's signal is already exhausted — http2.connect
 	 * would open a TCP connection only to abort it immediately. */
-	if (!fallbackInit.signal?.aborted) {
+	if (!callerSignal?.aborted) {
+		const h2Controller = new AbortController();
+		const timer = setTimeout(
+			() => h2Controller.abort(h2TimeoutReason(`h2 no response within ${h2TimeoutMs}ms`)),
+			h2TimeoutMs,
+		);
+		let removeCallerListener: (() => void) | undefined;
+		if (callerSignal) {
+			const onCallerAbort = () => h2Controller.abort(callerSignal.reason);
+			callerSignal.addEventListener("abort", onCallerAbort, { once: true });
+			removeCallerListener = () => callerSignal.removeEventListener("abort", onCallerAbort);
+		}
 		try {
-			const h2Response = await h2FetchImpl(url, fallbackInit);
+			const h2Response = await h2FetchImpl(url, { headers, signal: h2Controller.signal });
 			if (!FALLBACK_STATUS_CODES.has(h2Response.status)) return h2Response;
 			await h2Response.text();
 		} catch (error) {
-			if (!shouldTryFallback(error, fallbackInit.signal)) throw error;
+			if (!shouldTryFallback(error, callerSignal)) throw error;
+			h2Error = error;
+		} finally {
+			clearTimeout(timer);
+			removeCallerListener?.();
 		}
 	}
-	if (fallbackInit.signal?.aborted) {
-		return curlFetchImpl(url, { headers: fallbackInit.headers });
+
+	try {
+		return await (callerSignal?.aborted
+			? curlFetchImpl(url, { headers })
+			: curlFetchImpl(url, { headers, signal: callerSignal }));
+	} catch (curlError) {
+		if (curlError instanceof Error && h2Error !== undefined) curlError.cause = h2Error;
+		throw curlError;
 	}
-	return curlFetchImpl(url, fallbackInit);
 }
 
 function isTimeoutError(reason: unknown): boolean {

@@ -234,9 +234,11 @@ describe("withH2Fallback", () => {
 
 		expect(response.status).toBe(200);
 		expect(await response.text()).toBe("<html>real</html>");
+		// h2 no longer gets the caller's signal directly — it gets a deadline-bounded
+		// signal derived from it, so the h2 leg cannot outlive its own budget.
 		expect(h2Impl).toHaveBeenCalledWith("https://example.com", {
 			headers: { "user-agent": "Test/1.0", accept: "text/html" },
-			signal,
+			signal: expect.any(AbortSignal),
 		});
 	});
 
@@ -347,7 +349,7 @@ describe("withH2Fallback", () => {
 
 		expect(h2Impl).toHaveBeenCalledWith("https://example.com", {
 			headers: { "user-agent": "Test/1.0", "accept-language": "en-US" },
-			signal: undefined,
+			signal: expect.any(AbortSignal),
 		});
 	});
 
@@ -363,7 +365,7 @@ describe("withH2Fallback", () => {
 
 		expect(h2Impl).toHaveBeenCalledWith("https://example.com", {
 			headers: undefined,
-			signal: undefined,
+			signal: expect.any(AbortSignal),
 		});
 	});
 
@@ -670,5 +672,77 @@ describe("withH2Fallback", () => {
 		expect(await response.text()).toBe("<html>h2 bypassed akamai</html>");
 		expect(h2Impl).toHaveBeenCalledTimes(1);
 		expect(curlImpl).not.toHaveBeenCalled();
+	});
+
+	it("bounds the h2 attempt with its own deadline and falls back to curl when it stalls", async () => {
+		const baseFetch: typeof fetch = async () =>
+			new Response("challenge", { status: 403, headers: { server: "cloudflare" } });
+		// Hangs until its own signal aborts — i.e. only the h2 deadline can end it.
+		const h2Impl = jest.fn<ReturnType<typeof fetchH2>, Parameters<typeof fetchH2>>(
+			(_url, init) =>
+				new Promise((_resolve, reject) => {
+					init?.signal?.addEventListener("abort", () => reject(init.signal?.reason), { once: true });
+				}),
+		);
+		const curlImpl = jest.fn<ReturnType<CurlFetch>, Parameters<CurlFetch>>(async () =>
+			new Response("<html>curl after h2 deadline</html>", { status: 200, headers: { "content-type": "text/html" } }),
+		);
+		const wrapped = withH2Fallback(baseFetch, h2Impl, curlImpl, 20);
+
+		const response = await wrapped("https://example.com", { headers: { "user-agent": "Test/1.0" } });
+
+		expect(response.status).toBe(200);
+		expect(await response.text()).toBe("<html>curl after h2 deadline</html>");
+		expect(h2Impl).toHaveBeenCalledTimes(1);
+		expect(curlImpl).toHaveBeenCalledTimes(1);
+	});
+
+	it("attaches the failed h2 error as the cause of the curl error so the masked leg is not lost", async () => {
+		const baseFetch: typeof fetch = async () =>
+			new Response("challenge", { status: 403, headers: { server: "cloudflare" } });
+		const h2Failure = new Error("ERR_HTTP2_ERROR: Protocol error");
+		const h2Impl = jest.fn<ReturnType<typeof fetchH2>, Parameters<typeof fetchH2>>(async () => {
+			throw h2Failure;
+		});
+		const curlFailure = new Error("fetchCurl failed for https://example.com: spawn curl_chrome131 ENOENT");
+		const curlImpl = jest.fn<ReturnType<CurlFetch>, Parameters<CurlFetch>>(async () => {
+			throw curlFailure;
+		});
+		const wrapped = withH2Fallback(baseFetch, h2Impl, curlImpl);
+
+		await expect(wrapped("https://example.com")).rejects.toBe(curlFailure);
+		// The curl message is untouched (persona-fallback still matches it), but the
+		// h2 error it masked now rides on `.cause`.
+		expect(curlFailure.cause).toBe(h2Failure);
+	});
+
+	it("leaves the curl error's cause unset when there was no h2 error (h2 returned a block-class response)", async () => {
+		const baseFetch: typeof fetch = async () =>
+			new Response("challenge", { status: 403, headers: { server: "cloudflare" } });
+		const h2Impl = jest.fn<ReturnType<typeof fetchH2>, Parameters<typeof fetchH2>>(async () =>
+			new Response("still blocked", { status: 403, headers: { server: "cloudflare" } }),
+		);
+		const curlFailure = new Error("fetchCurl failed for https://example.com: exit 92");
+		const curlImpl = jest.fn<ReturnType<CurlFetch>, Parameters<CurlFetch>>(async () => {
+			throw curlFailure;
+		});
+		const wrapped = withH2Fallback(baseFetch, h2Impl, curlImpl);
+
+		await expect(wrapped("https://example.com")).rejects.toBe(curlFailure);
+		expect(curlFailure.cause).toBeUndefined();
+	});
+
+	it("propagates a non-Error curl rejection unchanged (no cause to attach)", async () => {
+		const baseFetch: typeof fetch = async () =>
+			new Response("challenge", { status: 403, headers: { server: "cloudflare" } });
+		const h2Impl = jest.fn<ReturnType<typeof fetchH2>, Parameters<typeof fetchH2>>(async () =>
+			new Response("still blocked", { status: 403, headers: { server: "cloudflare" } }),
+		);
+		const curlImpl = jest.fn<ReturnType<CurlFetch>, Parameters<CurlFetch>>(async () => {
+			throw "raw curl string failure";
+		});
+		const wrapped = withH2Fallback(baseFetch, h2Impl, curlImpl);
+
+		await expect(wrapped("https://example.com")).rejects.toBe("raw curl string failure");
 	});
 });
