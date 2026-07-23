@@ -90,8 +90,8 @@ function buildCardActions(input: {
 	}
 	actions.push({
 		key: "feedback-exclude",
-		label: "Not an article? (report)",
-		ariaLabel: `Not an article? (report) ${displayUrl}`,
+		label: "Not an article (report)",
+		ariaLabel: `Not an article (report): ${displayUrl}`,
 		buttonId: buttonId("feedback-exclude"),
 		href: buildInboxLinkFeedbackUrl({ emailId, ordinal: link.ordinal }),
 		method: "POST",
