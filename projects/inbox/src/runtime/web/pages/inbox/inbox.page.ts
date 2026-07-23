@@ -15,6 +15,7 @@ import {
 import { validateSaveableUrl } from "@packages/domain/article";
 import type { UserId } from "@packages/domain/user";
 import type {
+	EmailLinkStatus,
 	InboxAddressStore,
 	InboxEmailLinkEntry,
 	InboxEmailLinkStore,
@@ -95,6 +96,10 @@ const POLL_PANEL_RENDERERS: Record<
 	excluded: (vm) => renderInboxExcludedPanel(vm.excluded),
 };
 
+function tabForLinkRow(status: EmailLinkStatus): MailTabKey {
+	return status === "skipped" ? "excluded" : "articles";
+}
+
 const AddressActionSchema = z.object({ address: InboxAddressSchema });
 const CreateAddressSchema = z.object({ name: z.string() });
 const LinkFeedbackSchema = z.object({
@@ -106,8 +111,9 @@ export function initInboxRoutes(deps: InboxDependencies): Router {
 	const addressesPath = "/inbox/addresses";
 	const addressesCreateFailedPath = `${addressesPath}?error=create`;
 
-	// Skipped links render as inert excluded rows with no save button, so their
-	// URLs are left out of the lookup rather than costing a key each.
+	// A skipped row's Save button never renders a saved state — only article
+	// cards do — so skipped URLs are left out of the lookup rather than costing
+	// a key each.
 	const findLinkSaveStates = async (input: {
 		userId: UserId;
 		links: readonly InboxEmailLinkEntry[];
@@ -391,7 +397,7 @@ export function initInboxRoutes(deps: InboxDependencies): Router {
 			// comes from a skipped row on the Skipped tab, an exclude verdict from
 			// a card on Articles. A fixed tab would bounce the reader to a panel that
 			// doesn't hold the link they just reported.
-			const tab = link.status === "skipped" ? "excluded" : "articles";
+			const tab = tabForLinkRow(link.status);
 			res.redirect(
 				303,
 				`${buildInboxEmailDetailUrl({
@@ -419,28 +425,23 @@ export function initInboxRoutes(deps: InboxDependencies): Router {
 						ordinal: parsedOrdinal.data,
 					})
 				: undefined;
-			// The card only renders Save for a non-skipped, saveable link, so any
-			// other shape is an out-of-band request, not a user path.
-			if (
-				link === undefined ||
-				link.status === "skipped" ||
-				validateSaveableUrl(link.url).status !== "SUCCESS"
-			) {
+			if (link === undefined || validateSaveableUrl(link.url).status !== "SUCCESS") {
 				res.status(404).type("html").send("");
 				return;
 			}
 			// Submits the stored URL, never the resolved one — the save pipeline owns
 			// redirects. Stripping runs after the saveable gate above and only shortens,
 			// so the validated URL cannot grow back past its length cap.
+			const unresolved = link.status === "pending" || link.status === "skipped";
 			await deps.publishSubmitLink({
 				userId,
-				url: link.status === "pending" ? link.url : stripUtmParams(link.url),
+				url: unresolved ? link.url : stripUtmParams(link.url),
 			});
 			res.redirect(
 				303,
 				`${buildInboxEmailDetailUrl({
 					emailId: receivedAtMessageId,
-					tab: "articles",
+					tab: tabForLinkRow(link.status),
 					shown: parseArticlesShown(req.body),
 				})}&saved=1`,
 			);

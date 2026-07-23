@@ -366,6 +366,7 @@ describe("toInboxEmailDetailViewModel", () => {
 				reasonLabel: "Unsubscribe link",
 				feedbackAction: `/inbox/${encodeURIComponent(SK)}/links/0001/feedback`,
 				buttonId: "inbox-skipped-0001-feedback-include",
+				saveAction: `/inbox/${encodeURIComponent(SK)}/links/0001/save`,
 			},
 			{
 				ordinal: "0002",
@@ -373,6 +374,7 @@ describe("toInboxEmailDetailViewModel", () => {
 				reasonLabel: "Advertisement",
 				feedbackAction: `/inbox/${encodeURIComponent(SK)}/links/0002/feedback`,
 				buttonId: "inbox-skipped-0002-feedback-include",
+				saveAction: `/inbox/${encodeURIComponent(SK)}/links/0002/save`,
 			},
 		]);
 		expect(vm.linkCountLabel).toBe("1 link");
@@ -440,6 +442,28 @@ describe("toInboxEmailDetailViewModel", () => {
 		});
 
 		expect(vm.excluded.links.map((entry) => entry.reasonLabel)).toEqual(["Not an article"]);
+	});
+
+	it("offers a save action on a saveable skipped link, so a misclassification is one click to fix", () => {
+		const vm = build({
+			links: [link({ status: "skipped", skipReason: "llm-ad" })],
+			linksMeta: { truncated: false, extractionFailed: false },
+		});
+
+		expect(vm.excluded.links[0].saveAction).toBe(
+			`/inbox/${encodeURIComponent(SK)}/links/0000/save`,
+		);
+	});
+
+	it("withholds the save action from a skipped link whose URL is unsaveable", () => {
+		const vm = build({
+			links: [
+				link({ status: "skipped", skipReason: "list-unsubscribe", url: "https://localhost/private" }),
+			],
+			linksMeta: { truncated: false, extractionFailed: false },
+		});
+
+		expect(vm.excluded.links[0].saveAction).toBeUndefined();
 	});
 
 	it("reveals only the first page of cards and offers the rest behind a Show more control", () => {

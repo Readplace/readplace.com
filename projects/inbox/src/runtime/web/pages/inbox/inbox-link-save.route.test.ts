@@ -180,11 +180,38 @@ describe("Inbox link save route", () => {
 		expect(harness.submittedLinks).toEqual([]);
 	});
 
-	it("returns 404 for a skipped link — its row renders without a Save button", async () => {
+	it("saves a misclassified skipped link byte-exact and redirects back to the Skipped tab", async () => {
 		const fixture = createDefaultTestAppFixture(TEST_APP_ORIGIN);
 		const harness = useApp(fixture);
 		const agent = await loginAgent(harness.server, harness.auth);
-		await seed(fixture, { status: "skipped", skipReason: "llm-ad", title: undefined });
+		const userId = await seed(fixture, {
+			status: "skipped",
+			skipReason: "llm-ad",
+			title: undefined,
+			url: "https://example.com/story?utm_source=nl&sig=abc",
+		});
+
+		const response = await agent.post(savePath);
+
+		expect(response.status).toBe(303);
+		expect(response.headers.location).toBe(
+			`/inbox/${encodeURIComponent(SK)}?tab=excluded&saved=1`,
+		);
+		expect(harness.submittedLinks).toEqual([
+			{ userId, url: "https://example.com/story?utm_source=nl&sig=abc" },
+		]);
+	});
+
+	it("returns 404 for a skipped link the save pipeline would reject, publishing nothing", async () => {
+		const fixture = createDefaultTestAppFixture(TEST_APP_ORIGIN);
+		const harness = useApp(fixture);
+		const agent = await loginAgent(harness.server, harness.auth);
+		await seed(fixture, {
+			status: "skipped",
+			skipReason: "list-unsubscribe",
+			title: undefined,
+			url: "https://localhost/private",
+		});
 
 		const response = await agent.post(savePath);
 

@@ -705,6 +705,15 @@ describe("Inbox email detail Skipped tab", () => {
 			"should-be-included",
 		);
 
+		const saveButton = excludedRow.querySelector("[data-test-inbox-excluded-save]");
+		assert(saveButton, "a saveable skipped row must offer Save to queue");
+		const saveForm = saveButton.closest("form");
+		assert(saveForm, "save must submit as a form");
+		expect(saveForm.getAttribute("method")).toBe("POST");
+		expect(saveForm.getAttribute("action")).toBe(
+			`/inbox/${encodeURIComponent(SK)}/links/0001/save`,
+		);
+
 		expect(bodyReads).toBe(0);
 		expect(doc.querySelector("[data-test-inbox-email-iframe]")).toBeNull();
 	});

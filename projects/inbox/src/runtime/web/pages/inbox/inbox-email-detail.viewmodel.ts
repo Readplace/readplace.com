@@ -7,11 +7,13 @@ import type {
 	InboxEmailLinksMeta,
 	InboxLinkSaveState,
 } from "@packages/domain/inbox";
+import { validateSaveableUrl } from "@packages/domain/article";
 import { ARTICLES_PAGE_SIZE, buildInboxArticlesMoreUrl } from "./inbox-articles-more.url";
 import { buildInboxArticlesPollUrl } from "./inbox-articles-poll-url";
 import { buildInboxExcludedPollUrl } from "./inbox-excluded-poll-url";
 import { type MailTabKey, buildInboxEmailDetailUrl } from "./inbox-email-detail.url";
 import { buildInboxLinkFeedbackUrl } from "./inbox-link-feedback-url";
+import { buildInboxLinkSaveUrl } from "./inbox-link-save-url";
 import { buildLinkCountLabel } from "./inbox-link-count-label";
 import { type InboxLinkCardViewModel, toInboxLinkCardViewModel } from "./inbox-link-card.viewmodel";
 import { type MailTab, buildMailTabs } from "./mail-tabs";
@@ -57,6 +59,7 @@ export interface ExcludedLinkViewModel {
 	 * the swap replaces the row the reader was keyboarding through. Mirrors the
 	 * card action's `inbox-card-{ordinal}-{key}` scheme. */
 	buttonId: string;
+	saveAction: string | undefined;
 }
 
 export interface ArticleShowMore {
@@ -258,6 +261,10 @@ export function toInboxEmailDetailViewModel(input: {
 					ordinal: link.ordinal,
 				}),
 				buttonId: `inbox-skipped-${link.ordinal}-feedback-include`,
+				saveAction:
+					validateSaveableUrl(link.url).status === "SUCCESS"
+						? buildInboxLinkSaveUrl({ emailId, ordinal: link.ordinal })
+						: undefined,
 			}),
 		);
 	const truncated = linksMeta?.truncated === true;
