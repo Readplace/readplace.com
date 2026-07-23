@@ -5,6 +5,7 @@ import assert from "node:assert";
 import { z } from "zod";
 import { buildMediaRobotsTxt } from "@packages/domain/crawler-policy";
 import {
+	curlImpersonateLayerArnFromPlatformStack,
 	HutchEventBus,
 	HutchLambda,
 	HutchDynamoDBAccess,
@@ -90,16 +91,11 @@ const ocrImageTags = z
 	})
 	.parse(JSON.parse(readFileSync(".lib/ocr-image-tags.json", "utf-8")));
 
-// --- curl-impersonate Lambda Layer ---
-// Contains the curl_chrome131 bash wrapper and the statically-linked
-// curl-impersonate binary (BoringSSL embedded) that produce a Chrome
-// TLS fingerprint, bypassing Akamai/Cloudflare JA3/JA4 blocks.
-const curlImpersonateLayer = new aws.lambda.LayerVersion("curl-impersonate", {
-	layerName: "curl-impersonate-chrome",
-	compatibleRuntimes: [aws.lambda.Runtime.NodeJS22dX],
-	code: new pulumi.asset.FileArchive(".lib/curl-impersonate-layer.zip"),
-	description: "curl-impersonate Chrome variant (curl_chrome131) for TLS fingerprint bypass",
-});
+// The curl_chrome131 bash wrapper + statically-linked curl-impersonate binary
+// (Chrome TLS fingerprint, bypassing Akamai/Cloudflare JA3/JA4 blocks) is
+// published once by the platform stack — inbox and hutch need the same binary,
+// so one owner beats three copies. Read its ARN via the platform StackReference.
+const curlImpersonateLayerArn = curlImpersonateLayerArnFromPlatformStack(config);
 
 // --- Content S3 Bucket ---
 
@@ -317,7 +313,7 @@ const saveLinkCommandLambda = new HutchLambda(SAVE_LINK_LAMBDA_NAMES.saveLinkCom
 	// papers) expand to 3-5× in linkedom; 512 MB OOM'd on those.
 	memorySize: 1769,
 	timeout: 240,
-	layers: [curlImpersonateLayer.arn],
+	layers: [curlImpersonateLayerArn],
 	environment: {
 		DYNAMODB_ARTICLES_TABLE: articlesTableName,
 		CONTENT_BUCKET_NAME: contentBucketName,
@@ -398,7 +394,7 @@ const submitLinkLambda = new HutchLambda(SAVE_LINK_LAMBDA_NAMES.submitLink, {
 	assetDir: "./src",
 	memorySize: 1769,
 	timeout: 240,
-	layers: [curlImpersonateLayer.arn],
+	layers: [curlImpersonateLayerArn],
 	environment: {
 		DYNAMODB_ARTICLES_TABLE: articlesTableName,
 		DYNAMODB_USER_ARTICLES_TABLE: userArticlesTableName,
@@ -442,7 +438,7 @@ const saveLinkRawHtmlCommandLambda = new HutchLambda(SAVE_LINK_LAMBDA_NAMES.save
 	// 1769 MB = 1 full vCPU.
 	memorySize: 1769,
 	timeout: 240,
-	layers: [curlImpersonateLayer.arn],
+	layers: [curlImpersonateLayerArn],
 	environment: {
 		DYNAMODB_ARTICLES_TABLE: articlesTableName,
 		CONTENT_BUCKET_NAME: contentBucketName,
@@ -503,7 +499,7 @@ const saveAnonymousLinkCommandLambda = new HutchLambda(SAVE_LINK_LAMBDA_NAMES.sa
 	// 1769 MB = 1 full vCPU.
 	memorySize: 1769,
 	timeout: 240,
-	layers: [curlImpersonateLayer.arn],
+	layers: [curlImpersonateLayerArn],
 	environment: {
 		DYNAMODB_ARTICLES_TABLE: articlesTableName,
 		CONTENT_BUCKET_NAME: contentBucketName,
@@ -1000,7 +996,7 @@ const staleCheckRequestedLambda = new HutchLambda(SAVE_LINK_LAMBDA_NAMES.staleCh
 	// 1769 MB = 1 full vCPU.
 	memorySize: 1769,
 	timeout: 240,
-	layers: [curlImpersonateLayer.arn],
+	layers: [curlImpersonateLayerArn],
 	environment: {
 		DYNAMODB_ARTICLES_TABLE: articlesTableName,
 		CONTENT_BUCKET_NAME: contentBucketName,
@@ -1394,7 +1390,7 @@ const recrawlLinkInitiatedLambda = new HutchLambda(SAVE_LINK_LAMBDA_NAMES.recraw
 			// 1769 MB = 1 full vCPU.
 	memorySize: 1769,
 	timeout: 240,
-	layers: [curlImpersonateLayer.arn],
+	layers: [curlImpersonateLayerArn],
 	environment: {
 		DYNAMODB_ARTICLES_TABLE: articlesTableName,
 		CONTENT_BUCKET_NAME: contentBucketName,
