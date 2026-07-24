@@ -1,6 +1,7 @@
 import assert from "node:assert/strict";
 import { fireEvent } from "@testing-library/dom";
 import { JSDOM } from "jsdom";
+import { PAYWALL_REVEALED_EVENT } from "../paywall-revealed-event";
 import { initShareBalloon } from "./share-balloon.client";
 
 const OPEN_CLASS = "share-balloon__wrap--open";
@@ -11,19 +12,29 @@ const ARTICLE_URL_COPY = "https://example.com/post?utm_medium=copy";
 const ARTICLE_TITLE = "Hello World";
 
 type ReaderStatus = "ready" | "pending" | "failed" | "unsupported";
+type PaywallState = "latched" | "unlatched" | "absent";
 
-function buildFixture(
-	options: { readerStatus?: ReaderStatus | "absent" } = {},
-): string {
+interface FixtureOptions {
+	readerStatus?: ReaderStatus | "absent";
+	paywall?: PaywallState;
+}
+
+function buildFixture(options: FixtureOptions = {}): string {
 	const readerStatus = options.readerStatus ?? "absent";
 	const readerSlot =
 		readerStatus === "absent"
 			? ""
 			: `<div data-reader-status="${readerStatus}"></div>`;
+	const paywall = options.paywall ?? "absent";
+	const paywallEl =
+		paywall === "absent"
+			? ""
+			: `<div data-view-paywall data-paywall-active="${paywall === "latched"}"></div>`;
 	return `<!DOCTYPE html><html><body>
 <span data-share-balloon-status></span>
 <div data-article-body></div>
 ${readerSlot}
+${paywallEl}
 <div data-share-balloon-wrap hidden>
 	<div data-share-balloon-buttons>
 		<div data-share-balloon-chat></div>
@@ -43,9 +54,7 @@ interface NavigatorStub {
 
 type TestWindow = ReturnType<typeof createDom>["window"];
 
-function createDom(
-	options: { readerStatus?: ReaderStatus | "absent" } = {},
-) {
+function createDom(options: FixtureOptions = {}) {
 	const dom = new JSDOM(buildFixture(options), { url: "https://readplace.com/" });
 	return { window: dom.window, document: dom.window.document };
 }
@@ -78,9 +87,13 @@ function setup(
 		navigator?: NavigatorStub;
 		articleHeight?: number;
 		readerStatus?: ReaderStatus | "absent";
+		paywall?: PaywallState;
 	} = {},
 ) {
-	const { window, document } = createDom({ readerStatus: options.readerStatus });
+	const { window, document } = createDom({
+		readerStatus: options.readerStatus,
+		paywall: options.paywall,
+	});
 	setScrollY(window, options.scrollY ?? 0);
 	setArticleHeight(document, options.articleHeight ?? 4000);
 	if (options.dismissed) {
@@ -104,6 +117,11 @@ function element(doc: Document, selector: string): HTMLElement {
 	const el = doc.querySelector<HTMLElement>(selector);
 	assert(el, `${selector} must exist in fixture`);
 	return el;
+}
+
+function latchPaywall(doc: Document, win: TestWindow): void {
+	element(doc, "[data-view-paywall]").setAttribute("data-paywall-active", "true");
+	doc.dispatchEvent(new win.Event(PAYWALL_REVEALED_EVENT));
 }
 
 async function flushPromises() {
@@ -442,6 +460,138 @@ describe("initShareBalloon — close button", () => {
 		fireEvent.click(element(document, "[data-share-balloon-close]"));
 
 		expect(bubbled).not.toHaveBeenCalled();
+	});
+});
+
+describe("initShareBalloon — paywall suppression", () => {
+	it("aborts a scheduled open when the wall latches during the open delay", () => {
+		const { window, document, ctrl } = setup({
+			articleHeight: 2000,
+			paywall: "unlatched",
+		});
+		const wrap = element(document, "[data-share-balloon-wrap]");
+		ctrl.attach();
+
+		setScrollY(window, 1000);
+		fireScroll(window);
+		element(document, "[data-view-paywall]").setAttribute(
+			"data-paywall-active",
+			"true",
+		);
+		jest.advanceTimersByTime(1000);
+
+		expect(wrap.classList.contains(OPEN_CLASS)).toBe(false);
+	});
+
+	it("opens as usual while the wall is present but not latched", () => {
+		const { window, document, ctrl } = setup({
+			articleHeight: 2000,
+			paywall: "unlatched",
+		});
+		const wrap = element(document, "[data-share-balloon-wrap]");
+		ctrl.attach();
+
+		setScrollY(window, 1000);
+		fireScroll(window);
+		jest.advanceTimersByTime(1000);
+
+		expect(wrap.classList.contains(OPEN_CLASS)).toBe(true);
+	});
+
+	it("closes an open bubble when the wall reveals, without persisting a dismissal", () => {
+		const { window, document, ctrl } = setup({
+			scrollY: 2500,
+			paywall: "unlatched",
+		});
+		const wrap = element(document, "[data-share-balloon-wrap]");
+		ctrl.attach();
+		jest.advanceTimersByTime(1000);
+		expect(wrap.classList.contains(OPEN_CLASS)).toBe(true);
+
+		latchPaywall(document, window);
+
+		expect(wrap.classList.contains(OPEN_CLASS)).toBe(false);
+		expect(window.localStorage.getItem(STORAGE_KEY)).toBeNull();
+	});
+
+	it("cancels a pending open when the wall reveals before the delay elapses", () => {
+		const { window, document, ctrl } = setup({
+			scrollY: 2500,
+			paywall: "unlatched",
+		});
+		const wrap = element(document, "[data-share-balloon-wrap]");
+		ctrl.attach();
+
+		latchPaywall(document, window);
+		jest.advanceTimersByTime(5000);
+
+		expect(wrap.classList.contains(OPEN_CLASS)).toBe(false);
+		expect(window.localStorage.getItem(STORAGE_KEY)).toBeNull();
+	});
+
+	it("stays closed for later scrolls and reader-slot swaps after the reveal", () => {
+		const { window, document, ctrl } = setup({
+			articleHeight: 2000,
+			readerStatus: "pending",
+			paywall: "unlatched",
+		});
+		const wrap = element(document, "[data-share-balloon-wrap]");
+		ctrl.attach();
+
+		latchPaywall(document, window);
+		setScrollY(window, 1500);
+		fireScroll(window);
+		element(document, "[data-reader-status]").setAttribute(
+			"data-reader-status",
+			"ready",
+		);
+		fireEvent(document, new window.Event("htmx:afterSwap"));
+		jest.advanceTimersByTime(5000);
+
+		expect(wrap.classList.contains(OPEN_CLASS)).toBe(false);
+		expect(window.localStorage.getItem(STORAGE_KEY)).toBeNull();
+	});
+
+	it("keeps the collapsed pill visible and the copy button working after the reveal", () => {
+		const writeText = jest.fn(() => Promise.resolve());
+		const { window, document, ctrl } = setup({
+			scrollY: 2500,
+			paywall: "unlatched",
+			navigator: { clipboard: { writeText } },
+		});
+		const wrap = element(document, "[data-share-balloon-wrap]");
+		ctrl.attach();
+		jest.advanceTimersByTime(1000);
+
+		latchPaywall(document, window);
+
+		expect(wrap.hasAttribute("hidden")).toBe(false);
+		fireEvent.click(element(document, "[data-share-balloon-copy]"));
+		expect(writeText).toHaveBeenCalledWith(ARTICLE_URL_COPY);
+	});
+
+	it("still persists the dismiss flag when the close button follows a reveal", () => {
+		const { window, document, ctrl } = setup({ paywall: "unlatched" });
+		ctrl.attach();
+
+		latchPaywall(document, window);
+		fireEvent.click(element(document, "[data-share-balloon-close]"));
+
+		expect(window.localStorage.getItem(STORAGE_KEY)).toBe("1");
+	});
+
+	it("detaches cleanly after a reveal has already removed the listeners", () => {
+		const { window, document, ctrl } = setup({ paywall: "unlatched" });
+		const wrap = element(document, "[data-share-balloon-wrap]");
+		ctrl.attach();
+
+		latchPaywall(document, window);
+		expect(() => ctrl.detach()).not.toThrow();
+
+		setScrollY(window, 3000);
+		fireScroll(window);
+		jest.advanceTimersByTime(5000);
+		expect(wrap.classList.contains(OPEN_CLASS)).toBe(false);
 	});
 });
 

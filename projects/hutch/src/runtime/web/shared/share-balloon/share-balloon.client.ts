@@ -1,3 +1,5 @@
+import { PAYWALL_REVEALED_EVENT } from "../paywall-revealed-event";
+
 interface ShareBalloonWindow {
 	readonly scrollY: number;
 	addEventListener(
@@ -97,6 +99,7 @@ export function initShareBalloon(
 	let fadeTimerId: ShareTimerId | null = null;
 	let scrollListener: (() => void) | null = null;
 	let htmxSwapListener: (() => void) | null = null;
+	let paywallRevealListener: (() => void) | null = null;
 	let closeListener: ((event: Event) => void) | null = null;
 	let clickListener: (() => void) | null = null;
 	let copyListener: (() => void) | null = null;
@@ -113,8 +116,13 @@ export function initShareBalloon(
 		return slot.getAttribute("data-reader-status") === "ready";
 	}
 
+	function isPaywallActive(): boolean {
+		return deps.document.querySelector('[data-paywall-active="true"]') !== null;
+	}
+
 	function openBalloon() {
 		openTimerId = null;
+		if (isPaywallActive()) return;
 		wrap.classList.add(OPEN_CLASS);
 	}
 
@@ -180,8 +188,7 @@ export function initShareBalloon(
 		}
 	}
 
-	function onCloseClick(event: Event) {
-		event.stopPropagation();
+	function closeAndStopReopening() {
 		cancelPendingOpen();
 		if (scrollListener !== null) {
 			deps.window.removeEventListener("scroll", scrollListener);
@@ -191,7 +198,19 @@ export function initShareBalloon(
 			deps.document.removeEventListener("htmx:afterSwap", htmxSwapListener);
 			htmxSwapListener = null;
 		}
+		if (paywallRevealListener !== null) {
+			deps.document.removeEventListener(
+				PAYWALL_REVEALED_EVENT,
+				paywallRevealListener,
+			);
+			paywallRevealListener = null;
+		}
 		wrap.classList.remove(OPEN_CLASS);
+	}
+
+	function onCloseClick(event: Event) {
+		event.stopPropagation();
+		closeAndStopReopening();
 		writeDismissed();
 	}
 
@@ -208,6 +227,11 @@ export function initShareBalloon(
 			deps.window.addEventListener("scroll", scrollListener, { passive: true });
 			htmxSwapListener = onHtmxSwap;
 			deps.document.addEventListener("htmx:afterSwap", htmxSwapListener);
+			paywallRevealListener = closeAndStopReopening;
+			deps.document.addEventListener(
+				PAYWALL_REVEALED_EVENT,
+				paywallRevealListener,
+			);
 			onScroll();
 		}
 
@@ -231,6 +255,13 @@ export function initShareBalloon(
 		if (htmxSwapListener !== null) {
 			deps.document.removeEventListener("htmx:afterSwap", htmxSwapListener);
 			htmxSwapListener = null;
+		}
+		if (paywallRevealListener !== null) {
+			deps.document.removeEventListener(
+				PAYWALL_REVEALED_EVENT,
+				paywallRevealListener,
+			);
+			paywallRevealListener = null;
 		}
 		if (closeListener !== null) {
 			closeBtn.removeEventListener("click", closeListener);

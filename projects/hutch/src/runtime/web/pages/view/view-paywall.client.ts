@@ -1,3 +1,5 @@
+import { PAYWALL_REVEALED_EVENT } from "../../shared/paywall-revealed-event";
+
 interface ViewPaywallWindow {
 	readonly scrollY: number;
 	addEventListener(
@@ -14,6 +16,7 @@ interface ViewPaywallDeps {
 	now: () => number;
 	setTimeoutFn: (cb: () => void, ms: number) => unknown;
 	clearTimeoutFn: (id: unknown) => void;
+	dispatchDocumentEvent: (type: string) => void;
 }
 
 /** The expired-public-reader paywall is a soft, scroll-gated blur. The element
@@ -54,6 +57,7 @@ export function initViewPaywall(deps: ViewPaywallDeps): void {
 			deps.clearTimeoutFn(timerId);
 			timerId = null;
 		}
+		deps.dispatchDocumentEvent(PAYWALL_REVEALED_EVENT);
 	}
 
 	function onScroll(): void {

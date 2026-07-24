@@ -1,5 +1,7 @@
 import assert from "node:assert/strict";
 import { JSDOM } from "jsdom";
+import { PAYWALL_REVEALED_EVENT } from "../../shared/paywall-revealed-event";
+import { initShareBalloon } from "../../shared/share-balloon/share-balloon.client";
 import { initViewPaywall } from "./view-paywall.client";
 
 const ACTIVE = "view__paywall--active";
@@ -99,18 +101,31 @@ function createClock(startMs: number) {
 	};
 }
 
+interface DispatchRecord {
+	type: string;
+	paywallActiveAttr: string | null;
+}
+
 function start(
 	doc: Document,
 	fake: ReturnType<typeof createFakeWindow>,
 	clock: ReturnType<typeof createClock>,
-): void {
+): DispatchRecord[] {
+	const dispatched: DispatchRecord[] = [];
 	initViewPaywall({
 		document: doc,
 		window: fake.win,
 		now: clock.now,
 		setTimeoutFn: clock.setTimeoutFn,
 		clearTimeoutFn: clock.clearTimeoutFn,
+		dispatchDocumentEvent: (type) => {
+			dispatched.push({
+				type,
+				paywallActiveAttr: paywallEl(doc).getAttribute("data-paywall-active"),
+			});
+		},
 	});
+	return dispatched;
 }
 
 describe("initViewPaywall — gating no-ops", () => {
@@ -285,5 +300,143 @@ describe("initViewPaywall — latch", () => {
 		fake.scrollTo(0); // scrolling back up must not un-blur
 		assert.equal(el.classList.contains(ACTIVE), true);
 		assert.equal(el.classList.contains(INACTIVE), false);
+	});
+});
+
+describe("initViewPaywall — reveal announcement", () => {
+	it("announces the reveal once, with the latched state already applied", () => {
+		const doc = makeDocument(
+			articleWith(paywallMarkup(` data-expires-at="${EXPIRED_ISO}"`)),
+		);
+		const fake = createFakeWindow();
+		const clock = createClock(START_MS);
+		setArticleHeight(doc, ARTICLE_HEIGHT);
+
+		const dispatched = start(doc, fake, clock);
+		fake.scrollTo(PAST_THRESHOLD);
+
+		assert.deepEqual(dispatched, [
+			{ type: PAYWALL_REVEALED_EVENT, paywallActiveAttr: "true" },
+		]);
+	});
+
+	it("does not announce again on later scrolls", () => {
+		const doc = makeDocument(
+			articleWith(paywallMarkup(` data-expires-at="${COUNTING_ISO}"`)),
+		);
+		const fake = createFakeWindow();
+		const clock = createClock(START_MS);
+		setArticleHeight(doc, ARTICLE_HEIGHT);
+
+		const dispatched = start(doc, fake, clock);
+		fake.scrollTo(PAST_THRESHOLD);
+		clock.advance(5000); // reveal via the deadline timer
+		fake.scrollTo(PAST_THRESHOLD + 100);
+
+		assert.equal(dispatched.length, 1);
+	});
+
+	it("stays silent while access has not expired", () => {
+		const doc = makeDocument(
+			articleWith(paywallMarkup(` data-expires-at="${COUNTING_ISO}"`)),
+		);
+		const fake = createFakeWindow();
+		const clock = createClock(START_MS);
+		setArticleHeight(doc, ARTICLE_HEIGHT);
+
+		const dispatched = start(doc, fake, clock);
+		fake.scrollTo(PAST_THRESHOLD);
+
+		assert.deepEqual(dispatched, []);
+	});
+
+	it("stays silent on an expired page the reader has not scrolled", () => {
+		const doc = makeDocument(
+			articleWith(paywallMarkup(` data-expires-at="${EXPIRED_ISO}"`)),
+		);
+		const fake = createFakeWindow();
+		const clock = createClock(START_MS);
+		setArticleHeight(doc, ARTICLE_HEIGHT);
+
+		const dispatched = start(doc, fake, clock);
+		clock.advance(5000);
+
+		assert.deepEqual(dispatched, []);
+	});
+});
+
+describe("initViewPaywall — share balloon suppression", () => {
+	const OPEN_CLASS = "share-balloon__wrap--open";
+	const SHARE_DISMISSED_KEY = "readplace.share-dismissed";
+
+	function balloonMarkup(): string {
+		return `<span data-share-balloon-status></span>
+		<div data-share-balloon-wrap hidden>
+			<div data-share-balloon-buttons>
+				<button type="button" data-share-balloon-copy data-share-url="https://example.com/x?utm_medium=copy"></button>
+				<button type="button" data-share-balloon data-share-url="https://example.com/x?utm_medium=share" data-share-title="Hello"></button>
+			</div>
+			<button type="button" data-share-balloon-close></button>
+			<span data-share-balloon-copied></span>
+		</div>`;
+	}
+
+	beforeEach(() => {
+		jest.useFakeTimers();
+	});
+
+	afterEach(() => {
+		jest.useRealTimers();
+	});
+
+	it("closes an open bubble when the wall reveals mid-read, without dismissing it", () => {
+		const dom = new JSDOM(
+			`<!doctype html><html><body>${balloonMarkup()}${articleWith(
+				paywallMarkup(` data-expires-at="${COUNTING_ISO}"`),
+			)}</body></html>`,
+			{ url: "https://readplace.com/" },
+		);
+		const { window } = dom;
+		const doc = window.document;
+		const clock = createClock(START_MS);
+		setArticleHeight(doc, ARTICLE_HEIGHT);
+		Object.defineProperty(window, "scrollY", {
+			value: 0,
+			writable: true,
+			configurable: true,
+		});
+
+		initShareBalloon({
+			window,
+			document: doc,
+			storage: window.localStorage,
+			navigator: { share: () => Promise.resolve() },
+			setTimeoutFn: setTimeout,
+			clearTimeoutFn: clearTimeout,
+		}).attach();
+		initViewPaywall({
+			document: doc,
+			window,
+			now: clock.now,
+			setTimeoutFn: clock.setTimeoutFn,
+			clearTimeoutFn: clock.clearTimeoutFn,
+			dispatchDocumentEvent: (type) =>
+				doc.dispatchEvent(new window.Event(type)),
+		});
+
+		Object.defineProperty(window, "scrollY", { value: 600 }); // past both thresholds
+		window.dispatchEvent(new window.Event("scroll"));
+		jest.advanceTimersByTime(1000);
+
+		const wrap = doc.querySelector("[data-share-balloon-wrap]");
+		assert(wrap, "the balloon wrap must exist in the fixture");
+		assert.equal(wrap.classList.contains(OPEN_CLASS), true); // open before the wall
+
+		clock.advance(5000); // deadline passes → wall latches
+
+		assert.equal(paywallEl(doc).classList.contains(ACTIVE), true);
+		assert.equal(wrap.classList.contains(OPEN_CLASS), false);
+		assert.equal(wrap.hasAttribute("hidden"), false); // pill stays available
+		assert.equal(window.localStorage.getItem(SHARE_DISMISSED_KEY), null);
 	});
 });
