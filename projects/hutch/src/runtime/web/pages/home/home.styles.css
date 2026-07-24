@@ -69,6 +69,12 @@ hr::before {
   text-decoration: underline;
 }
 
+.home-band--muted {
+  background: var(--muted);
+  border-top: 1px solid var(--border);
+  border-bottom: 1px solid var(--border);
+}
+
 .home-hero {
   background: linear-gradient(135deg, #2B3A55 0%, #1E2A40 100%);
   color: var(--color-on-brand);
@@ -331,23 +337,19 @@ hr::before {
 .home-try__scroll-hint {
   display: inline-flex;
   align-items: center;
-  gap: 8px;
   margin-top: 28px;
-  font-size: 0.875rem;
   color: var(--muted-foreground);
   text-decoration: none;
-  border-bottom: 1px dashed transparent;
 }
 
 .home-try__scroll-hint:hover,
 .home-try__scroll-hint:focus-visible {
   color: var(--foreground);
-  border-bottom-color: var(--muted-foreground);
 }
 
 .home-try__scroll-hint-arrow {
   display: inline-block;
-  font-size: 1rem;
+  font-size: 1.5rem;
   animation: home-try-bounce 2s ease-in-out infinite;
 }
 
@@ -385,7 +387,6 @@ hr::before {
 
 .home-demo {
   padding: 80px 20px;
-  background: var(--muted);
 }
 
 .home-demo__container {
@@ -525,8 +526,9 @@ hr::before {
 }
 
 .feature-card--compact {
-  padding: 8px 0;
-  border-bottom: 1px solid var(--border);
+  padding: 16px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
 }
 
 .feature-card--compact .feature-card__name {
@@ -672,7 +674,6 @@ hr::before {
 
 .home-roadmap {
   padding: 48px 20px 80px;
-  background: var(--muted);
 }
 
 .home-roadmap__container {
@@ -718,7 +719,6 @@ hr::before {
 
 .home-backstory {
   padding: 80px 20px;
-  background: var(--muted);
 }
 
 .home-backstory__container {
@@ -768,12 +768,11 @@ hr::before {
 }
 
 .home-backstory__highlight a {
-  color: inherit;
+  color: var(--primary);
 }
 
 .home-comparison {
   padding: 80px 20px;
-  background: var(--muted);
 }
 
 .home-comparison__container {
@@ -827,13 +826,12 @@ hr::before {
 /**
  * Decline Statements ("What Readplace will not become")
  *
- * 1. Bullet list uses a custom marker that visually reads as a strikethrough —
- *    a small minus sign — so each entry feels like a deliberate refusal, not
- *    a feature.
+ * 1. Each entry is an exclusion, so the marker is the ✗ (\2717) the comparison
+ *    table already uses for "no" — a neutral dash would read as a feature, not
+ *    a refusal.
  */
 .home-decline {
   padding: 64px 20px;
-  background: var(--muted);
 }
 
 .home-decline__container {
@@ -883,7 +881,7 @@ hr::before {
 }
 
 .home-decline__item::before {
-  content: "\2014"; /* 1 */
+  content: "\2717"; /* 1 */
   position: absolute;
   left: 0;
   top: 8px;
@@ -896,37 +894,6 @@ hr::before {
   line-height: 1.7;
   color: var(--muted-foreground);
   margin: 0;
-}
-
-/**
- * Bridge title that pivots the page from principles to ask — small section, no
- * card, sharing the muted background of the adjacent content so it reads as a
- * continuation rather than a new block.
- */
-.home-transition {
-  padding: 24px 20px 48px;
-  background: var(--muted);
-  text-align: center;
-}
-
-.home-transition__container {
-  max-width: var(--reader-max-width);
-  margin: 0 auto;
-}
-
-.home-transition__heading {
-  font-family: Georgia, "Times New Roman", serif;
-  font-size: 1.75rem;
-  font-weight: 700;
-  line-height: 1.3;
-  color: var(--color-secondary);
-  margin: 0;
-}
-
-@media (prefers-color-scheme: dark) {
-  .home-transition__heading {
-    color: var(--foreground);
-  }
 }
 
 /**
@@ -962,6 +929,13 @@ hr::before {
   .home-cost__heading {
     color: var(--foreground);
   }
+}
+
+.home-cost__subtitle {
+  font-size: 1.0625rem;
+  line-height: 1.6;
+  color: var(--muted-foreground);
+  margin: 0 0 16px;
 }
 
 .home-cost__lead {
@@ -1176,7 +1150,6 @@ hr::before {
 
 .home-trust {
   padding: 80px 20px;
-  background: var(--muted);
 }
 
 .home-trust__container {
@@ -1321,15 +1294,61 @@ hr::before {
 }
 
 @media (max-width: 767px) {
-  .home-comparison__container {
-    overflow-x: auto;
-  }
+  /**
+   * 1. The wide comparison matrix reflows to one stacked card per feature row so
+   *    the page scrolls down only — an `overflow-x` table would force a sideways
+   *    swipe that breaks the scroll-down flow on a phone. The semantic <table>
+   *    is kept: screen readers, SEO, and the text/markdown negotiation depend
+   *    on it.
+   * 2. Neutralise the table's own card surface here so each row-card floats on
+   *    the section background rather than sitting on a second card.
+   */
   .comparison-table {
-    font-size: 0.8125rem;
-    min-width: 700px;
+    background: transparent; /* 2 */
+    box-shadow: none;
+    border-radius: 0;
+    overflow: visible;
+  }
+  .comparison-table,
+  .comparison-table tbody,
+  .comparison-table tr,
+  .comparison-table th,
+  .comparison-table td {
+    display: block; /* 1 */
+    width: 100%;
+  }
+  .comparison-table thead {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    overflow: hidden;
+    clip: rect(0 0 0 0);
+  }
+  .comparison-table tr {
+    margin-bottom: 16px;
+    padding: 4px 0 8px;
+    background: var(--card);
+    border: 1px solid var(--border);
+    border-radius: var(--radius-lg);
   }
   .comparison-table th,
   .comparison-table td {
-    padding: 8px 12px;
+    text-align: left;
+    border-bottom: none;
+    padding: 6px 16px;
+  }
+  .comparison-table tr > th[scope="row"] {
+    background: transparent;
+    font-size: 1rem;
+    font-weight: 700;
+    color: var(--foreground);
+    padding-top: 12px;
+  }
+  .comparison-table td::before {
+    content: attr(data-label);
+    display: block;
+    font-size: 0.75rem;
+    font-weight: 600;
+    color: var(--muted-foreground);
   }
 }

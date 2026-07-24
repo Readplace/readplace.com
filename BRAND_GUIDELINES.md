@@ -120,6 +120,7 @@ In dark mode, the brand colours shift slightly warmer and lighter to maintain co
 - **Warm amber on dark backgrounds** is the signature brand combination. When in doubt, lead with this pairing.
 - **Reading surfaces should be neutral.** The amber appears in chrome and UI — never as the background behind article text. Article content sits on white/off-white (light) or dark grey (dark).
 - **Hero gradient:** `linear-gradient(135deg, #2B3A55 0%, #1E2A40 100%)` — a deep navy gradient that mirrors the logo tile. Warm amber highlights (`--color-highlight`) sit directly on this background.
+- **Inline text links use one token — `--primary`.** Do not introduce a second amber (`--color-highlight`, `--color-brand`, `--primary-text`) for a link, and do not redeclare link colour per block. Emphasis inside a link comes from weight (`<strong>`), never a different hue. There is no global bare-`<a>` reset, so an unstyled link renders browser-default blue — that is a styling gap, not a choice; every body-copy link must set `color: var(--primary)`.
 
 ### Browser Extension Palette
 
@@ -184,6 +185,10 @@ A single highlight word inside a phrase can be recoloured with `--color-highligh
 - Use a single consistent icon library across all clients (Lucide, Phosphor, or equivalent).
 - Icons should feel calm and functional. No filled/solid icons for primary navigation — save filled variants for active/selected states.
 
+### List Markers
+
+List markers carry polarity. An included / positive item uses a `✓` (`\2713`) in a success colour; an excluded / negative item — a "what this will **not** do" list — uses a `✗` (`\2717`) in `--color-text-muted` (or `--color-error` for a louder refusal), as `.comparison-table__cross` does. Never mark an exclusion list with a neutral dash or bullet — a dash reads as a feature, not a refusal.
+
 ### Buttons
 
 | Type | Style | Usage |
@@ -218,6 +223,8 @@ Vertical padding (`12px`) matches `--input-padding`; horizontal follows the 4px 
 | Large | `12px` | `--radius-lg` | Modals, dialogs, dropdown menus |
 
 **Never fully rounded** (pill shapes) for primary UI. This isn't a social app.
+
+A card laid out in a grid is a fully-enclosed box — `1px solid var(--border)` plus a `--radius*` corner. Reserve a bottom-border-only separator for a vertical divided list; never use it for a grid tile, which reads as half-drawn beside its neighbours.
 
 ### Shadows & Elevation
 
@@ -259,6 +266,8 @@ Use a **4px base unit** with the following standard increments:
 | Font size | `16px` | `--input-font-size` |
 | Form gap | `20px` (24px on desktop) | `--form-gap` |
 
+**An input paired with a button shares the button's height.** When a text input sits inline with a button (search / save bars, the inbox create row, the import from-url bar), set `height: var(--input-height)` on **both**; give the button `padding: 0 var(--button-padding-x)` (no vertical padding) and let the input keep `padding: var(--input-padding)`. Because `box-sizing: border-box` is global, an explicit shared height is the only reliable equaliser — never hand-tune vertical padding or font-size to fake the match. Canonical pairs: `.queue__save-input` / `.queue__save-btn`, `.inbox__name-input` / `.inbox__create-btn`.
+
 ### Layout Principles
 
 - **Content width for reading should max out at ~680px.** Wider text blocks reduce readability. Chrome and navigation can extend wider (max-width `1000px` for header/footer), but article content stays narrow.
@@ -269,6 +278,8 @@ Use a **4px base unit** with the following standard increments:
 - **Align to grid.** All spacing should use the 4px base. Avoid arbitrary pixel values.
 - **Mobile first.** Every feature design starts with the smallest viewport. The extension popup, mobile web, and app are the most constrained contexts — design for those first.
 - **Sticky header** with `position: sticky` and `1px solid var(--border)` bottom border. Background matches `--background`.
+- **Section background rhythm.** Long marketing pages alternate `--background` and `--muted` section bands so no two adjacent content sections share a fill; every muted band carries a `1px var(--border)` top/bottom rule so grouping stays legible where an accent (the navy hero, a `--card` surface) interrupts the alternation. `--card` is a card-only surface, never a full-bleed section background. See the `.lp-band--muted` pattern in `landing-pages.styles.css` and `.home-band--muted` in `home.styles.css`.
+- **Full-width status / alert banners** separate from the block below with `lg` (24px) minimum — never the `md` inter-element gap, and never a `clamp()` that collapses to a tighter value on the smallest viewport, where a full-width alert most needs the separation.
 
 ---
 
@@ -281,6 +292,7 @@ Use a **4px base unit** with the following standard increments:
 - **Be specific over vague.** "Your article is saved" beats "Action completed." "Import your 847 Pocket articles" beats "Migrate your data."
 - **Modest language.** Never say "best", "revolutionary", "game-changing", "reimagined". The product speaks for itself.
 - **Acknowledge limitations honestly.** "This feature isn't ready yet" is always better than hiding it or over-promising.
+- **Affordances are shown, not narrated.** A scroll cue is a chevron, not a sentence. Never label an obvious UI gesture with explanatory microcopy ("keep scrolling, the story is below") — instructional filler is a machine-writing tell; let the animated cue carry it.
 
 ### UI Copy Patterns
 

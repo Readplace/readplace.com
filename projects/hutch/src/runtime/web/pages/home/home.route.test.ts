@@ -410,7 +410,10 @@ describe("GET /", () => {
 
 		const section = doc.querySelector('[data-test-section="cost-transparency"]');
 		assert(section, "cost transparency section must be rendered");
-		expect(section.querySelector(".home-cost__heading")?.textContent).toContain("$4.08");
+		expect(section.querySelector(".home-cost__heading")?.textContent).toContain(
+			"And that's why I need your help",
+		);
+		expect(section.querySelector(".home-cost__subtitle")?.textContent).toContain("$4.08");
 		const items = section.querySelectorAll("[data-test-cost-list] .home-cost__item");
 		expect(items.length).toBe(3);
 		const providerNames = Array.from(

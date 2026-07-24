@@ -20,7 +20,6 @@
         </form>
         <p class="home-try__reassurance">Free. No account. Works with any article.</p>
         <a class="home-try__scroll-hint" href="#about" aria-label="Scroll to read why I built Readplace">
-          <span class="home-try__scroll-hint-text">Or keep scrolling &mdash; the story is below</span>
           <span class="home-try__scroll-hint-arrow" aria-hidden="true">&darr;</span>
         </a>
       </div>
@@ -65,7 +64,7 @@
       </figure>
     </section>
 
-    <section class="home-backstory" data-test-section="backstory" aria-label="About the creator">
+    <section class="home-backstory home-band--muted" data-test-section="backstory" aria-label="About the creator">
       <div class="home-backstory__container">
         <header class="home-backstory__header">
           <img class="home-backstory__avatar" src="{{founderAvatarUrl}}" alt="Fayner Brack" width="96" height="96">
@@ -110,7 +109,7 @@
       </div>
     </section>
 
-    <section id="what-works" class="home-features" data-test-section="core-features" aria-label="Current features">
+    <section id="what-works" class="home-features home-band--muted" data-test-section="core-features" aria-label="Current features">
       <div class="home-features__container">
         <h2 class="home-features__heading">What works today.</h2>
         <p class="home-features__lead">These features are shipped and working right now. Set up Readplace {{setupSurfaces}} and try them.</p>
@@ -165,7 +164,7 @@
       </div>
     </section>
 
-    <section id="roadmap" class="home-roadmap" data-test-section="roadmap" aria-label="Planned features">
+    <section id="roadmap" class="home-roadmap home-band--muted" data-test-section="roadmap" aria-label="Planned features">
       <div class="home-roadmap__container">
         <h2 class="home-roadmap__heading">What's Next</h2>
         <div class="home-roadmap__list">
@@ -198,50 +197,50 @@
           <tbody>
             <tr>
               <th scope="row">Price</th>
-              <td class="comparison-table__hutch">$49/yr</td>
-              <td>$119.88/yr</td>
-              <td>Free / $59.99/yr</td>
-              <td>Free / $28/yr</td>
-              <td>Free self-host / $40/yr</td>
+              <td class="comparison-table__hutch" data-label="Readplace">$49/yr</td>
+              <td data-label="Readwise Reader">$119.88/yr</td>
+              <td data-label="Instapaper">Free / $59.99/yr</td>
+              <td data-label="Raindrop.io">Free / $28/yr</td>
+              <td data-label="Karakeep">Free self-host / $40/yr</td>
             </tr>
             <tr>
               <th scope="row">AI Features</th>
-              <td class="comparison-table__hutch">TL;DR summary + page capture</td>
-              <td>Ghostreader AI</td>
-              <td>Summaries</td>
-              <td>AI assistant (Pro)</td>
-              <td>Tagging + summaries</td>
+              <td class="comparison-table__hutch" data-label="Readplace">TL;DR summary + page capture</td>
+              <td data-label="Readwise Reader">Ghostreader AI</td>
+              <td data-label="Instapaper">Summaries</td>
+              <td data-label="Raindrop.io">AI assistant (Pro)</td>
+              <td data-label="Karakeep">Tagging + summaries</td>
             </tr>
             <tr>
               <th scope="row">PDF Text Extraction</th>
-              <td class="comparison-table__hutch">300 pages / {{maxPdfBytesLabel}} &mdash; <strong>Tesseract OCR</strong></td>
-              <td>No OCR &mdash; needs text layer</td>
-              <td>Premium only &mdash; no OCR</td>
-              <td>Pro upload &mdash; no OCR</td>
-              <td>50&nbsp;MB &mdash; no PDF OCR</td>
+              <td class="comparison-table__hutch" data-label="Readplace">300 pages / {{maxPdfBytesLabel}} &mdash; <strong>Tesseract OCR</strong></td>
+              <td data-label="Readwise Reader">No OCR &mdash; needs text layer</td>
+              <td data-label="Instapaper">Premium only &mdash; no OCR</td>
+              <td data-label="Raindrop.io">Pro upload &mdash; no OCR</td>
+              <td data-label="Karakeep">50&nbsp;MB &mdash; no PDF OCR</td>
             </tr>
             <tr>
               <th scope="row">Open Source</th>
-              <td class="comparison-table__hutch">Source-available</td>
-              <td><span class="comparison-table__cross" aria-label="No">&#10007;</span></td>
-              <td><span class="comparison-table__cross" aria-label="No">&#10007;</span></td>
-              <td>Clients only (MIT)</td>
-              <td><span class="comparison-table__check" aria-label="Yes">&#10003;</span></td>
+              <td class="comparison-table__hutch" data-label="Readplace">Source-available</td>
+              <td data-label="Readwise Reader"><span class="comparison-table__cross" aria-label="No">&#10007;</span></td>
+              <td data-label="Instapaper"><span class="comparison-table__cross" aria-label="No">&#10007;</span></td>
+              <td data-label="Raindrop.io">Clients only (MIT)</td>
+              <td data-label="Karakeep"><span class="comparison-table__check" aria-label="Yes">&#10003;</span></td>
             </tr>
             <tr>
               <th scope="row">Platforms</th>
-              <td class="comparison-table__hutch">{{platformsCell}}</td>
-              <td>Web, iOS, Android, Desktop, Extensions: Chrome, Firefox, Safari</td>
-              <td>Web, iOS, macOS, Android, Kindle/Kobo, Extensions: Chrome, Firefox</td>
-              <td>Web, iOS, Android, Desktop, Extensions: Chrome, Firefox, Safari</td>
-              <td>Web, iOS, Android, Extensions: Chrome, Firefox, Safari</td>
+              <td class="comparison-table__hutch" data-label="Readplace">{{platformsCell}}</td>
+              <td data-label="Readwise Reader">Web, iOS, Android, Desktop, Extensions: Chrome, Firefox, Safari</td>
+              <td data-label="Instapaper">Web, iOS, macOS, Android, Kindle/Kobo, Extensions: Chrome, Firefox</td>
+              <td data-label="Raindrop.io">Web, iOS, Android, Desktop, Extensions: Chrome, Firefox, Safari</td>
+              <td data-label="Karakeep">Web, iOS, Android, Extensions: Chrome, Firefox, Safari</td>
             </tr>
           </tbody>
         </table>
       </div>
     </section>
 
-    <section id="not-becoming" class="home-decline" data-test-section="decline" aria-label="What Readplace will not become">
+    <section id="not-becoming" class="home-decline home-band--muted" data-test-section="decline" aria-label="What Readplace will not become">
       <div class="home-decline__container">
         <h2 class="home-decline__heading">What Readplace will NOT become.</h2>
         <p class="home-decline__lead">Readplace will not add:</p>
@@ -255,15 +254,10 @@
       </div>
     </section>
 
-    <section class="home-transition" data-test-section="transition" aria-label="Transition to cost transparency">
-      <div class="home-transition__container">
-        <h2 class="home-transition__heading">And that's why I need your help!</h2>
-      </div>
-    </section>
-
     <section id="what-you-pay-for" class="home-cost" data-test-section="cost-transparency" aria-label="What your subscription pays for">
       <div class="home-cost__container">
-        <h2 class="home-cost__heading">What $4.08 a month pays for.</h2>
+        <h2 class="home-cost__heading">And that's why I need your help!</h2>
+        <p class="home-cost__subtitle">What $4.08 a month pays for.</p>
         <p class="home-cost__lead">Every saved article runs through this pipeline:</p>
         <ul class="home-cost__list" data-test-cost-list>
           <li class="home-cost__item"><strong>Mozilla Readability</strong> &mdash; parses the page.</li>
@@ -276,7 +270,7 @@
       </div>
     </section>
 
-    <section id="pricing" class="home-pricing" data-test-section="pricing" aria-label="Pricing">
+    <section id="pricing" class="home-pricing home-band--muted" data-test-section="pricing" aria-label="Pricing">
       <div class="home-pricing__container">
         <div class="section-header home-pricing__title {{pricingTitleStateClass}}" data-test-pricing-title>
           {{#if foundingAvailable}}<h2 class="section-header__title">Free for the first {{foundingMemberLimit}} members.</h2>{{/if}}
@@ -343,7 +337,7 @@
       </div>
     </section>
 
-    <section class="home-cta" data-test-section="cta" aria-label="Get started">
+    <section class="home-cta home-band--muted" data-test-section="cta" aria-label="Get started">
       <div class="home-cta__container">
         <h2 class="home-cta__title">I'm building this in public.</h2>
         <p class="home-cta__subtitle">Try the extension, tell me what to build next. Readplace gets better with every user who shows up and says what they need.</p>

@@ -249,6 +249,10 @@ export const INSTALL_PAGE_STYLES = `
 	flex-wrap: wrap;
 	gap: 10px 12px;
 	margin-bottom: 16px;
+	padding: 14px 16px;
+	border: 1px solid var(--border);
+	border-radius: var(--radius-sm);
+	background: var(--muted);
 }
 
 .install-page__prompt-label {
@@ -267,10 +271,6 @@ export const INSTALL_PAGE_STYLES = `
 	font-size: 0.9375rem;
 	line-height: 1.5;
 	color: var(--foreground);
-	padding: 12px 14px;
-	border: 1px solid var(--border);
-	border-radius: var(--radius-sm);
-	background: var(--muted);
 	word-break: break-word;
 }
 

@@ -75,8 +75,9 @@
 .inbox__address-field {
   flex: 1 1 200px;
   min-width: 0;
-  padding: 8px 12px;
-  font-size: 0.95rem;
+  height: var(--input-height);
+  padding: var(--input-padding);
+  font-size: var(--input-font-size);
   color: var(--foreground);
   background: var(--background);
   border: 1px solid var(--border);
@@ -91,7 +92,8 @@
 }
 
 .inbox__copy-btn {
-  padding: var(--button-padding-sm);
+  height: var(--input-height);
+  padding: 0 var(--button-padding-x);
   font-size: 0.9rem;
   font-weight: 600;
   color: var(--primary-foreground);
@@ -209,8 +211,9 @@
 .inbox__name-input {
   flex: 1 1 200px;
   min-width: 0;
-  padding: 8px 12px;
-  font-size: 0.95rem;
+  height: var(--input-height);
+  padding: var(--input-padding);
+  font-size: var(--input-font-size);
   color: var(--foreground);
   background: var(--background);
   border: 1px solid var(--border);
@@ -218,8 +221,8 @@
 }
 
 .inbox__create-btn {
-  display: inline-block;
-  padding: var(--button-padding);
+  height: var(--input-height);
+  padding: 0 var(--button-padding-x);
   background: var(--primary-fill);
   color: var(--primary-foreground);
   font-size: 1rem;

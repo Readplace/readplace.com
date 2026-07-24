@@ -223,6 +223,23 @@ Use numbered references for multi-line explanations:
 .flight-segment--outbound { color: var(--primary); /* 1 */ }
 ```
 
+### Reuse Tokens and Patterns — Don't Hand-Roll Per Element
+
+Point a drifting element at the shared token or the existing house pattern rather than a bespoke per-element value. The recurring "AI-generated" tell is pieces that should read as one system each styled in isolation — a second link colour here, a hand-tuned control height there.
+
+- **Inline body-copy links set `color: var(--primary)`.** There is no global bare-`<a>` reset, so an unstyled link renders browser-default blue — a styling gap, not a choice. One link token per page; emphasis inside a link is weight (`<strong>`), never a second hue.
+- **An input paired with a button shares the button's height.** Set `height: var(--input-height)` on both, give the button `padding: 0 var(--button-padding-x)`, and let the input keep `padding: var(--input-padding)`. `box-sizing: border-box` is global, so an explicit shared height is the only reliable equaliser — never fake the match with padding or font-size.
+- **A directional `→` on a guide link is all-or-nothing across a page.** If one forward/guide link carries the trailing arrow, every sibling link to the same destination carries it too — and an arrow-terminated link takes no trailing period.
+- **Section background rhythm.** A long marketing page alternates `--background` and `--muted` section bands so no two adjacent content sections share a fill; each muted band carries a `1px var(--border)` top/bottom rule (the `.lp-band--muted` / `.home-band--muted` pattern). `--card` is a card-only surface, never a full-bleed section background.
+
+### Copyable Fields Are One Box
+
+A copyable value — a server URL, a CLI command, a prompt — renders as **one** bordered box that wraps **both** the value and its Copy button; the Copy button is always a child inside that box, never a sibling floating outside it. Put the border/background/padding on the row container, not on the inner text element, so a second copyable field can't drift to a different placement. Reuse one partial for every copyable field.
+
+### Wide Tables Reflow to Stacked Cards on Mobile
+
+A wide comparison / data table reflows to a single-column stacked-card layout at mobile widths — never `overflow-x: auto` + `min-width` to permit a sideways swipe. The page body scrolls **down only**. Keep the semantic `<table>` (screen readers, SEO, and `text/markdown` content-negotiation all depend on it) and drive the mobile layout from CSS — `display: block` rows plus a `data-label` prefix on each cell (`td::before { content: attr(data-label) }`) — not by swapping the `<table>` for `<div>`s.
+
 ## Client-Side JavaScript Conventions
 
 ### Test Attributes Are for Tests Only
