@@ -745,7 +745,6 @@ export function createHutchApp(deps?: {
 	const appOrigin = deps?.appOrigin ?? requireEnv("APP_ORIGIN");
 	const { auth, articleStore, oauthModel, validateAccessToken, importSessionStore, ...providers } = initProviders({ appOrigin });
 	const staticBaseUrl = requireEnv("STATIC_BASE_URL");
-	const expiryCountdown = requireEnv<"enabled" | "disabled">("EXPIRY_COUNTDOWN");
 	const foundingMemberLimit = Number.parseInt(requireEnv("FOUNDING_MEMBER_LIMIT"), 10);
 	assert(
 		Number.isInteger(foundingMemberLimit) && foundingMemberLimit > 0,
@@ -800,7 +799,6 @@ export function createHutchApp(deps?: {
 		analytics: analyticsLogger,
 		salt,
 		foundingAllocation: initFoundingAllocation({ foundingMemberLimit }),
-		expiryCountdown,
 	});
 
 	return { app, auth, articleStore, oauthModel, analyticsLogger };

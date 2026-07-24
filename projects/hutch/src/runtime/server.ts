@@ -170,7 +170,6 @@ import type { HttpErrorMessageMapping } from "./web/pages/queue/queue.error";
 import { initSaveRoutes } from "./web/pages/save/save.page";
 import type { ValidateSaveableUrl } from "@packages/domain/article";
 import { initViewRoutes } from "./web/pages/view/view.page";
-import type { ExpiryCountdown } from "./web/pages/view/view-expiry";
 import { initAdminExtendTrialRoutes } from "./web/pages/admin/extend-trial.page";
 import { initAdminRecrawlRoutes } from "./web/pages/admin/recrawl.page";
 import { initExportRoutes } from "./web/pages/export/export.page";
@@ -362,7 +361,6 @@ interface AppDependencies {
 	analytics: HutchLogger.Typed<AnalyticsEvent>;
 	salt: string;
 	foundingAllocation: FoundingAllocation;
-	expiryCountdown: ExpiryCountdown;
 	consumeRateLimit: ConsumeRateLimit;
 	rateLimitRules: RateLimitRules;
 }
@@ -1123,7 +1121,6 @@ export function createApp(dependencies: AppDependencies): Express {
 		viewCrawlRateLimit: deps.rateLimitRules.viewCrawl,
 		findUserIdsByPrefix: deps.findUserIdsByPrefix,
 		getEffectiveAccess,
-		expiryCountdown: deps.expiryCountdown,
 		now: deps.now,
 		buildBannerState,
 		analytics: deps.analytics,

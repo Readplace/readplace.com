@@ -55,7 +55,7 @@ import { NotFoundPage } from "../not-found";
 import type { FindUserIdsByPrefix } from "@packages/provider-contracts/auth";
 import type { GetEffectiveAccess } from "@packages/subscription-access";
 import { resolveSharerPublicAccess } from "./sharer-access";
-import { PERMANENT_ARTICLE_DOMAINS, PERMANENT_REFERRER_DOMAINS, computePublicViewExpiry, isPermanentReferrer, formatSaveUtmContent, sharedUserIdFrom, sharedUserIdFromQueryParams, type ExpiryCountdown } from "./view-expiry";
+import { PERMANENT_ARTICLE_DOMAINS, PERMANENT_REFERRER_DOMAINS, computePublicViewExpiry, isPermanentReferrer, formatSaveUtmContent, sharedUserIdFrom, sharedUserIdFromQueryParams } from "./view-expiry";
 import { parseViewPath, viewPathFor } from "./view-path";
 import { ViewPage, formatViewDocumentTitle, type ViewAction } from "./view.component";
 
@@ -79,7 +79,6 @@ interface ViewDependencies {
 	viewCrawlRateLimit: RateLimitRule;
 	findUserIdsByPrefix: FindUserIdsByPrefix;
 	getEffectiveAccess: GetEffectiveAccess;
-	expiryCountdown: ExpiryCountdown;
 	now: () => Date;
 	buildBannerState: BuildBannerState;
 	analytics: HutchLogger.Typed<AnalyticsEvent>;
@@ -271,7 +270,7 @@ function handleViewArticle(deps: ViewDependencies, reader: ReturnType<typeof ini
 
 		let expiresAt: Date | null = null;
 		let sharerInactive = false;
-		if (deps.expiryCountdown === "enabled" && req.userId === undefined) {
+		if (req.userId === undefined) {
 			const sharerPrefix = sharedUserIdFromQueryParams(utmContent);
 			const sharerAccess = sharerPrefix === null
 				? "unknown"

@@ -254,7 +254,6 @@ function flattenFixtureToAppDependencies(
 		foundingAllocation: initFoundingAllocation({
 			foundingMemberLimit: fixture.foundingAllocation.foundingMemberLimit,
 		}),
-		expiryCountdown: "enabled",
 	};
 }
 

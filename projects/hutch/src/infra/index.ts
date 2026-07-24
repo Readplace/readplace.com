@@ -348,7 +348,6 @@ const lambda = new HutchLambda(LAMBDA_NAMES.hutchHandler, {
 		RECRAWL_SERVICE_TOKEN: requireEnv("RECRAWL_SERVICE_TOKEN"),
 		TRIAL_SCHEDULER_GROUP_NAME: trialSchedulerGroup.name,
 		TRIAL_SCHEDULER_ROLE_ARN: trialSchedulerRole.arn,
-		EXPIRY_COUNTDOWN: config.require("expiryCountdown"),
 		FOUNDING_MEMBER_LIMIT: config.require("foundingMemberLimit"),
 	},
 	policies: [
