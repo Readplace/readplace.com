@@ -43,7 +43,6 @@ import type {
 	EmailMessage,
 	ExchangeAppleCode,
 	ExchangeGoogleCode,
-	ExistsUserByIdPrefix,
 	FindArticleById,
 	FindArticleByUrl,
 	FindArticleCrawlStatus,
@@ -61,6 +60,7 @@ import type {
 	FindUserArticlesByUrl,
 	FindUserByEmail,
 	FindUserById,
+	FindUserIdsByPrefix,
 	ForceMarkCrawlPending,
 	GetIosAppSignals,
 	GetSessionUserId,
@@ -162,7 +162,7 @@ export interface AuthBundle {
 	markEmailVerified: MarkEmailVerified;
 	markSessionEmailVerified: MarkSessionEmailVerified;
 	userExistsByEmail: UserExistsByEmail;
-	existsUserByIdPrefix: ExistsUserByIdPrefix;
+	findUserIdsByPrefix: FindUserIdsByPrefix;
 	updatePassword: UpdatePassword;
 	findEmailByUserId: FindEmailByUserId;
 	findUserById: FindUserById;

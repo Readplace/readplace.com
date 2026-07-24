@@ -89,7 +89,7 @@ export type FindUserContactByUserId = (
 	userId: UserId,
 ) => Promise<UserContact | null>;
 
-export type ExistsUserByIdPrefix = (prefix: UserIdPrefix) => Promise<boolean>;
+export type FindUserIdsByPrefix = (prefix: UserIdPrefix) => Promise<UserId[]>;
 
 export type CreateGoogleUser = (user: {
 	email: string;

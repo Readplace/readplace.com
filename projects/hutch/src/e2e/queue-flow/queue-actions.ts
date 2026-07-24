@@ -392,7 +392,7 @@ export function createQueueActions(
 
 				// Trigger the share balloon, click Copy, then visit the produced
 				// /view link in a fresh anonymous browser context. Regression guard
-				// for a 500 from existsUserByIdPrefix when the share URL carries a
+				// for a 500 from findUserIdsByPrefix when the share URL carries a
 				// utm_content prefix that hits the KEYS_ONLY userIdPrefix-index GSI.
 				await page.evaluate(() => {
 					const article = document.querySelector<HTMLElement>('[data-article-body]')

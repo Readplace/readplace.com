@@ -26,7 +26,7 @@ import type {
 	UpdatePassword,
 	UserExistsByEmail,
 	VerifyCredentials,
-	ExistsUserByIdPrefix,
+	FindUserIdsByPrefix,
 } from "@packages/provider-contracts/auth";
 import type {
 	CreateCheckoutSession,
@@ -276,7 +276,7 @@ interface AppDependencies {
 	createPasswordResetToken: CreatePasswordResetToken;
 	verifyPasswordResetToken: VerifyPasswordResetToken;
 	userExistsByEmail: UserExistsByEmail;
-	existsUserByIdPrefix: ExistsUserByIdPrefix;
+	findUserIdsByPrefix: FindUserIdsByPrefix;
 	updatePassword: UpdatePassword;
 	baseUrl: string;
 	logError: (message: string, error?: Error) => void;
@@ -1116,7 +1116,8 @@ export function createApp(dependencies: AppDependencies): Express {
 		publishStaleCheckRequested: deps.publishStaleCheckRequested,
 		consumeRateLimit: deps.consumeRateLimit,
 		viewCrawlRateLimit: deps.rateLimitRules.viewCrawl,
-		existsUserByIdPrefix: deps.existsUserByIdPrefix,
+		findUserIdsByPrefix: deps.findUserIdsByPrefix,
+		getEffectiveAccess,
 		expiryCountdown: deps.expiryCountdown,
 		now: deps.now,
 		buildBannerState,

@@ -2127,6 +2127,95 @@ describe("View routes", () => {
 			expect(counter.getAttribute("data-expiry-state")).toBe("counting");
 			expect(doc.querySelectorAll("[data-test-view-paywall]").length).toBe(1);
 		});
+
+		const SHARER_LAPSED_COPY =
+			"The person who shared this doesn't have an active Readplace subscription.";
+
+		async function seedSharerWithExpiredTrial(
+			ctx: ReturnType<typeof makeHarness>,
+		): Promise<string> {
+			const result = await ctx.harness.auth.createUser({
+				email: "sharer@example.com",
+				password: "password123",
+			});
+			assert(result.ok);
+			await ctx.fixture.subscriptionProviders.upsertTrialing({
+				userId: result.userId,
+				trialEndsAt: "2026-04-01T00:00:00.000Z",
+			});
+			return result.userId.slice(0, 6).toLowerCase();
+		}
+
+		it("counts down instead of staying permanent when the sharer's trial has expired", async () => {
+			const now = new Date("2026-05-04T00:00:00.000Z");
+			const { fixture, harness } = makeHarness(now);
+			await seedReadyArticle(fixture, new Date("2026-05-03T13:54:27.000Z"));
+			const prefix = await seedSharerWithExpiredTrial({ fixture, harness });
+
+			const response = await request(harness.server).get(
+				`/view/${CANONICAL_PATH}?utm_content=${prefix}`,
+			);
+
+			const doc = new JSDOM(response.text).window.document;
+			const counter = doc.querySelector("[data-test-view-expiry]");
+			assert(counter, "expiry element must be rendered");
+			expect(counter.getAttribute("data-expiry-state")).toBe("counting");
+		});
+
+		it("explains the lapsed subscription in the paywall when the sharer's trial has expired", async () => {
+			const now = new Date("2026-05-10T00:00:00.000Z");
+			const { fixture, harness } = makeHarness(now);
+			await seedReadyArticle(fixture, new Date("2026-05-01T00:00:00.000Z"));
+			const prefix = await seedSharerWithExpiredTrial({ fixture, harness });
+
+			const response = await request(harness.server).get(
+				`/view/${CANONICAL_PATH}?utm_content=${prefix}`,
+			);
+
+			const doc = new JSDOM(response.text).window.document;
+			const body = doc.querySelector(".view__paywall-body");
+			assert(body, "paywall body must be rendered for an expired link");
+			expect(body.textContent).toBe(
+				`${SHARER_LAPSED_COPY} Sign in to save it to your queue and read the whole article in reader view.`,
+			);
+		});
+
+		it("stays permanent and omits the lapsed-subscription copy when the sharer is a founding member", async () => {
+			const now = new Date("2026-05-10T00:00:00.000Z");
+			const { fixture, harness } = makeHarness(now);
+			await seedReadyArticle(fixture, new Date("2026-05-01T00:00:00.000Z"));
+			const result = await harness.auth.createUser({
+				email: "founder@example.com",
+				password: "password123",
+			});
+			assert(result.ok);
+			const prefix = result.userId.slice(0, 6).toLowerCase();
+
+			const response = await request(harness.server).get(
+				`/view/${CANONICAL_PATH}?utm_content=${prefix}`,
+			);
+
+			const doc = new JSDOM(response.text).window.document;
+			const counter = doc.querySelector("[data-test-view-expiry]");
+			assert(counter, "expiry element must be rendered");
+			expect(counter.getAttribute("data-expiry-state")).toBe("permanent");
+			expect(doc.querySelectorAll("[data-test-view-paywall]").length).toBe(0);
+		});
+
+		it("keeps the generic paywall copy when an expired link never named a sharer", async () => {
+			const now = new Date("2026-05-10T00:00:00.000Z");
+			const { fixture, harness } = makeHarness(now);
+			await seedReadyArticle(fixture, new Date("2026-05-01T00:00:00.000Z"));
+
+			const response = await request(harness.server).get(`/view/${CANONICAL_PATH}`);
+
+			const doc = new JSDOM(response.text).window.document;
+			const body = doc.querySelector(".view__paywall-body");
+			assert(body, "paywall body must be rendered for an expired link");
+			expect(body.textContent).toBe(
+				"Sign in to save it to your queue and read the whole article in reader view.",
+			);
+		});
 	});
 
 	describe("anonymous crawl-trigger rate limiting", () => {

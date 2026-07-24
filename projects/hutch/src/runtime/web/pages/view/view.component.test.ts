@@ -28,6 +28,7 @@ const baseInput: ViewPageInput = {
 	],
 	expiresAt: null,
 	now: new Date("2026-05-01T00:00:00.000Z"),
+	sharerInactive: false,
 };
 
 function render(input = baseInput) {

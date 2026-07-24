@@ -33,12 +33,12 @@ import type {
 	CreateUserWithPasswordHash,
 	DestroySession,
 	DestroyUserSessions,
-	ExistsUserByIdPrefix,
 	FindAppleRefreshTokenByUserId,
 	FindEmailByUserId,
 	FindUserById,
 	FindUserByEmail,
 	FindUserContactByUserId,
+	FindUserIdsByPrefix,
 	GetSessionUserId,
 	MarkEmailVerified,
 	MarkSessionEmailVerified,
@@ -103,7 +103,7 @@ export function initDynamoDbAuth(deps: {
 	markEmailVerified: MarkEmailVerified;
 	markSessionEmailVerified: MarkSessionEmailVerified;
 	userExistsByEmail: UserExistsByEmail;
-	existsUserByIdPrefix: ExistsUserByIdPrefix;
+	findUserIdsByPrefix: FindUserIdsByPrefix;
 	updatePassword: UpdatePassword;
 	findEmailByUserId: FindEmailByUserId;
 	findUserContactByUserId: FindUserContactByUserId;
@@ -124,6 +124,13 @@ export function initDynamoDbAuth(deps: {
 		client: deps.client,
 		tableName: deps.sessionsTableName,
 		schema: z.object({ sessionId: z.string() }),
+	});
+	/* Matches the KEYS_ONLY projection of the users userIdPrefix-index, which
+	 * carries only the table key (email) — never userId, which UserRow requires. */
+	const userKeysByPrefix = defineDynamoTable({
+		client: deps.client,
+		tableName: deps.usersTableName,
+		schema: z.object({ email: z.string() }),
 	});
 
 	/** Persists a new user row, guarded by attribute_not_exists(email). For Gmail
@@ -457,16 +464,21 @@ export function initDynamoDbAuth(deps: {
 		};
 	};
 
-	const existsUserByIdPrefix: ExistsUserByIdPrefix = async (prefix) => {
-		// Select: COUNT because the GSI is KEYS_ONLY: returned items would lack
-		// `userId` and fail UserRow parsing in defineDynamoTable.query.
-		const { count } = await users.query({
+	const findUserIdsByPrefix: FindUserIdsByPrefix = async (prefix) => {
+		// The index yields emails only, so each match needs a second read to
+		// recover the userId the subscription lookup is keyed by. A 6-hex prefix
+		// makes more than one match vanishingly rare.
+		const { items } = await userKeysByPrefix.query({
 			IndexName: "userIdPrefix-index",
 			KeyConditionExpression: "userIdPrefix = :prefix",
 			ExpressionAttributeValues: { ":prefix": prefix },
-			Select: "COUNT",
 		});
-		return count > 0;
+		const userIds: UserId[] = [];
+		for (const item of items) {
+			const user = await findUserByEmail(item.email);
+			if (user) userIds.push(user.userId);
+		}
+		return userIds;
 	};
 
 	const updatePassword: UpdatePassword = async ({ email, password }) => {
@@ -498,7 +510,7 @@ export function initDynamoDbAuth(deps: {
 		markEmailVerified,
 		markSessionEmailVerified,
 		userExistsByEmail,
-		existsUserByIdPrefix,
+		findUserIdsByPrefix,
 		updatePassword,
 		findEmailByUserId,
 		findUserContactByUserId,

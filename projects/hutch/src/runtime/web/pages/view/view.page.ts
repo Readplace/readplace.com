@@ -52,7 +52,9 @@ import { isFullyParsed } from "../../shared/article-state/is-fully-parsed";
 import { collectUtmParams } from "../../shared/utm";
 import { SaveErrorPage } from "../save/save-error.component";
 import { NotFoundPage } from "../not-found";
-import type { ExistsUserByIdPrefix } from "@packages/provider-contracts/auth";
+import type { FindUserIdsByPrefix } from "@packages/provider-contracts/auth";
+import type { GetEffectiveAccess } from "@packages/subscription-access";
+import { resolveSharerPublicAccess } from "./sharer-access";
 import { PERMANENT_ARTICLE_DOMAINS, PERMANENT_REFERRER_DOMAINS, computePublicViewExpiry, isPermanentReferrer, formatSaveUtmContent, sharedUserIdFrom, sharedUserIdFromQueryParams, type ExpiryCountdown } from "./view-expiry";
 import { parseViewPath, viewPathFor } from "./view-path";
 import { ViewPage, formatViewDocumentTitle, type ViewAction } from "./view.component";
@@ -75,7 +77,8 @@ interface ViewDependencies {
 	publishStaleCheckRequested: PublishStaleCheckRequested;
 	consumeRateLimit: ConsumeRateLimit;
 	viewCrawlRateLimit: RateLimitRule;
-	existsUserByIdPrefix: ExistsUserByIdPrefix;
+	findUserIdsByPrefix: FindUserIdsByPrefix;
+	getEffectiveAccess: GetEffectiveAccess;
 	expiryCountdown: ExpiryCountdown;
 	now: () => Date;
 	buildBannerState: BuildBannerState;
@@ -267,15 +270,28 @@ function handleViewArticle(deps: ViewDependencies, reader: ReturnType<typeof ini
 		const now = deps.now();
 
 		let expiresAt: Date | null = null;
+		let sharerInactive = false;
 		if (deps.expiryCountdown === "enabled" && req.userId === undefined) {
 			const sharerPrefix = sharedUserIdFromQueryParams(utmContent);
-			const isValidSharer = sharerPrefix !== null && await deps.existsUserByIdPrefix(sharerPrefix);
+			const sharerAccess = sharerPrefix === null
+				? "unknown"
+				: await resolveSharerPublicAccess(
+						{
+							findUserIdsByPrefix: deps.findUserIdsByPrefix,
+							getEffectiveAccess: deps.getEffectiveAccess,
+						},
+						sharerPrefix,
+					);
+			// A sharer whose subscription lapsed keeps no perk — the link expires
+			// on the normal schedule — but the paywall says why, which a link that
+			// never named a sharer cannot.
+			sharerInactive = sharerAccess === "inactive";
 			const articleDomain = new URL(articleUrl).hostname;
 			({ expiresAt } = computePublicViewExpiry({
 				savedAt: snapshot.savedAt,
 				articleDomain,
 				permanentArticleDomains: PERMANENT_ARTICLE_DOMAINS,
-				isValidSharer,
+				isValidSharer: sharerAccess === "valid",
 				isPermanentReferrer: isPermanentReferrer({
 					referrer: req.get("referer"),
 					permanentReferrerDomains: PERMANENT_REFERRER_DOMAINS,
@@ -329,6 +345,7 @@ function handleViewArticle(deps: ViewDependencies, reader: ReturnType<typeof ini
 					extensionInstallUrl: extensionInstallUrlIfMissing(req),
 					expiresAt,
 					now,
+					sharerInactive,
 					sharerUserIdPrefix,
 					crawlVersions: state.crawlVersions,
 				}),

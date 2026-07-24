@@ -18,12 +18,12 @@ import type {
 	CreateUserWithPasswordHash,
 	DestroySession,
 	DestroyUserSessions,
-	ExistsUserByIdPrefix,
 	FindAppleRefreshTokenByUserId,
 	FindEmailByUserId,
 	FindUserById,
 	FindUserByEmail,
 	FindUserContactByUserId,
+	FindUserIdsByPrefix,
 	GetSessionUserId,
 	MarkEmailVerified,
 	MarkSessionEmailVerified,
@@ -71,7 +71,7 @@ export function initInMemoryAuth(opts: {
 	markSessionEmailVerified: MarkSessionEmailVerified;
 	userExistsByEmail: UserExistsByEmail;
 	updatePassword: UpdatePassword;
-	existsUserByIdPrefix: ExistsUserByIdPrefix;
+	findUserIdsByPrefix: FindUserIdsByPrefix;
 	findEmailByUserId: FindEmailByUserId;
 	findUserContactByUserId: FindUserContactByUserId;
 	findUserById: FindUserById;
@@ -84,7 +84,6 @@ export function initInMemoryAuth(opts: {
 	const _verifyPassword = opts.verifyPassword;
 	const users = new Map<string, StoredUser>();
 	const sessions = new Map<string, StoredSession>();
-	const userIdPrefixes = new Set<string>();
 	const gmailClaims = new Map<string, UserId>();
 
 	/** Reserves the identity atomically: rejects when either the delivery key or
@@ -119,7 +118,6 @@ export function initInMemoryAuth(opts: {
 			registeredAt: new Date().toISOString(),
 			attribution,
 		});
-		userIdPrefixes.add(userIdPrefixFrom(userId));
 
 		return { ok: true, userId };
 	};
@@ -140,7 +138,6 @@ export function initInMemoryAuth(opts: {
 			registeredAt: new Date().toISOString(),
 			attribution,
 		});
-		userIdPrefixes.add(userIdPrefixFrom(userId));
 
 		return { ok: true, userId };
 	};
@@ -173,7 +170,6 @@ export function initInMemoryAuth(opts: {
 			registeredAt: new Date().toISOString(),
 			attribution,
 		});
-		userIdPrefixes.add(userIdPrefixFrom(userId));
 
 		return { ok: true as const, userId };
 	};
@@ -280,8 +276,12 @@ export function initInMemoryAuth(opts: {
 		return users.has(normalizedEmail);
 	};
 
-	const existsUserByIdPrefix: ExistsUserByIdPrefix = async (prefix) => {
-		return userIdPrefixes.has(prefix);
+	const findUserIdsByPrefix: FindUserIdsByPrefix = async (prefix) => {
+		const userIds: UserId[] = [];
+		for (const user of users.values()) {
+			if (userIdPrefixFrom(user.id) === prefix) userIds.push(user.id);
+		}
+		return userIds;
 	};
 
 	const findEmailByUserId: FindEmailByUserId = async (userId) => {
@@ -351,7 +351,7 @@ export function initInMemoryAuth(opts: {
 		markEmailVerified,
 		markSessionEmailVerified,
 		userExistsByEmail,
-		existsUserByIdPrefix,
+		findUserIdsByPrefix,
 		updatePassword,
 		findEmailByUserId,
 		findUserContactByUserId,

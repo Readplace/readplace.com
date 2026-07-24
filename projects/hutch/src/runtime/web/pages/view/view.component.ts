@@ -63,10 +63,11 @@ const VIEW_PAYWALL_TEMPLATE = readFileSync(
  * data-expires-at; a client-side script reveals it once the reader scrolls
  * past 10% of the article AND access has expired, so the blur is a soft,
  * scroll-gated paywall rather than an on-load curtain. */
-function renderViewPaywall(input: { saveHref: string; expiresAtIso: string }): string {
+function renderViewPaywall(input: { saveHref: string; expiresAtIso: string; sharerInactive: boolean }): string {
 	return render(VIEW_PAYWALL_TEMPLATE, {
 		saveHref: input.saveHref,
 		expiresAtIso: input.expiresAtIso,
+		sharerInactive: input.sharerInactive,
 	});
 }
 
@@ -123,6 +124,7 @@ export interface ViewPageInput {
 	extensionInstallUrl?: string;
 	expiresAt: Date | null;
 	now: Date;
+	sharerInactive: boolean;
 	sharerUserIdPrefix?: SharedUserId;
 	crawlVersions?: LocalTime[];
 }
@@ -178,6 +180,7 @@ export function ViewPage(input: ViewPageInput): PageBody {
 		paywall = renderViewPaywall({
 			saveHref: primarySaveAction.href,
 			expiresAtIso: expiry.expiresAtIso,
+			sharerInactive: input.sharerInactive,
 		});
 	}
 

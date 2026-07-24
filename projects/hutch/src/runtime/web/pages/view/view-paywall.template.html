@@ -2,7 +2,7 @@
   <div class="view__paywall-fade" aria-hidden="true"></div>
   <div class="view__paywall-modal">
     <h2 class="view__paywall-heading" id="view-paywall-heading">Public access expired</h2>
-    <p class="view__paywall-body">Sign in to save it to your queue and read the whole article in reader view.</p>
+    <p class="view__paywall-body">{{#if sharerInactive}}The person who shared this doesn't have an active Readplace subscription. {{/if}}Sign in to save it to your queue and read the whole article in reader view.</p>
     <a class="view__paywall-save" href="{{saveHref}}" data-test-view-paywall-save>Save to My Queue</a>
   </div>
 </div>
