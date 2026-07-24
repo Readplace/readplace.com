@@ -217,6 +217,25 @@ describe("GET /robots.txt", () => {
 	});
 });
 
+describe("GET /site.webmanifest", () => {
+	it("serves a same-origin manifest with the manifest MIME type", async () => {
+		const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
+		const response = await request(harness.server).get("/site.webmanifest");
+		expect(response.status).toBe(200);
+		expect(response.headers["content-type"]).toMatch(/application\/manifest\+json/);
+	});
+
+	it("keeps start_url root-relative and stamps icon srcs absolute to the static CDN", async () => {
+		const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
+		const response = await request(harness.server).get("/site.webmanifest");
+		const manifest = JSON.parse(response.text);
+		expect(manifest.start_url).toBe("/");
+		for (const icon of manifest.icons) {
+			expect(icon.src.startsWith("https://static.test/")).toBe(true);
+		}
+	});
+});
+
 describe("GET /llms.txt", () => {
 	it("should return a text response with the product overview", async () => {
 		const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));

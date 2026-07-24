@@ -89,6 +89,22 @@ Why prefer this even though `<form>` is heavier markup than `<a>`:
 
 The same rule applies to action lists, card actions, and any other repeated UI element with mixed methods. Reserve raw `<a href>` for the rare standalone link that doesn't fit the iteration (e.g., a single brand link in the header).
 
+The header nav and the footer diverge on purpose, and that divergence is not a candidate for this unification. The header nav mixes a mutation (logout `POST`) with GET navigation, so every item renders as `<form method="{{method}}" action="{{href}}">` wrapping a `<button class="nav__link">`, carrying UTM in hidden inputs. The footer is GET-only navigation, so each item is a raw `<a class="footer__link">` under the standalone-link carve-out above, with UTM baked into the `href` by the `{{track}}` helper.
+
+- Do not turn the footer into forms: it adds a POST wrapper no mutation justifies.
+- Do not collapse the nav to plain `<a>`: it drops the logout form and its CSRF posture along with the hidden-input UTM.
+
+```html
+<!-- ✅ GOOD — header nav: uniform form + button, UTM in hidden inputs -->
+<form method="{{method}}" action="{{href}}">
+  <input type="hidden" name="utm_source" value="{{trackSource}}">
+  <button type="submit" class="nav__link">{{label}}</button>
+</form>
+
+<!-- ✅ GOOD — footer: GET-only navigation as a standalone link, UTM via the {{track}} helper -->
+<a class="footer__link" href="{{track '/blog' source='footer' content='blog'}}">Blog</a>
+```
+
 Tests asserting on the list use positive assertions on the rendered keys (per [test-driven-design's "Never Rely on `querySelector(...).toBeNull()`"](../test-driven-design/SKILL.md)):
 
 ```typescript
@@ -289,6 +305,18 @@ Compile `*.client.ts` to a browser IIFE bundle and reference it via a relative `
 
 The bundle output directory must be inside the runtime asset tree so the Lambda packaging step ships it alongside the handler; the Express app mounts the matching URL prefix as `express.static` so the same relative URL resolves in dev and in prod.
 
+### Web App Manifest Is Served Same-Origin
+
+Serve the web app manifest from the document's own origin, not the static-asset CDN: a manifest's relative URLs (`start_url`, icon `src`) resolve against the manifest's own URL, so a CDN-hosted manifest makes `start_url` cross-origin to the document and Chrome warns. A 301 from the app origin to the CDN does not fix it — relative URLs then resolve against the redirected CDN URL — so the app origin must serve the manifest body itself and stamp each icon `src` as an absolute CDN URL.
+
+```html
+<!-- ❌ BAD — CDN-hosted manifest: start_url resolves cross-origin, Chrome warns -->
+<link rel="manifest" href="${STATIC_BASE_URL}/site.webmanifest">
+
+<!-- ✅ GOOD — same-origin manifest; a builder stamps icon src values absolute to the CDN -->
+<link rel="manifest" href="/site.webmanifest">
+```
+
 ## Structured Parsing Over Regex
 
 Use a proper parser for any structured format (HTML, XML, JSON, etc.). Never use regex to extract data from structured markup — regex cannot handle nesting, attribute ordering, or encoding edge cases reliably.
@@ -368,3 +396,4 @@ When staged changes include `.css`, `.html`, or `.client.js` files:
 - [ ] URL/query string represents page state
 - [ ] Interactive features work without JavaScript
 - [ ] Browser JS is bundled and referenced via a same-origin `<script src>`, not inlined via `Function.toString()` or served through the static asset CDN base URL
+- [ ] Web app manifest is served same-origin (not the static-asset CDN); icon `src` values are absolute CDN URLs

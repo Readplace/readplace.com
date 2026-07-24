@@ -196,6 +196,7 @@ import { sendComponent, wantsMarkdown } from "@packages/web-shell";
 import { wantsSiren } from "./web/content-negotiation";
 import { contentSignalMiddleware } from "./web/content-signal.middleware";
 import { buildRobotsTxt } from "./web/robots-txt";
+import { buildSiteWebmanifest } from "./web/site-webmanifest";
 import { linkHeaderMiddleware } from "./web/link-header.middleware";
 import { AGENT_SCOPES_SUPPORTED, buildAgentAuthMetadata, renderAuthMarkdown } from "./web/agent-auth";
 import { QuerystringFeatureToggle } from "@packages/web-shell";
@@ -547,6 +548,10 @@ export function createApp(dependencies: AppDependencies): Express {
 
 	app.get("/auth.md", (_req: Request, res: Response) => {
 		res.type("text/markdown").send(renderAuthMarkdown(dependencies.baseUrl));
+	});
+
+	app.get("/site.webmanifest", (_req: Request, res: Response) => {
+		res.type("application/manifest+json").send(buildSiteWebmanifest(staticBaseUrl));
 	});
 
 	if (INDEXNOW_KEY) {

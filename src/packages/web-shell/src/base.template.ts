@@ -65,7 +65,7 @@ export const BASE_TEMPLATE = `<!DOCTYPE html>
 	<link rel="apple-touch-icon" sizes="167x167" href="{{staticBaseUrl}}/apple-touch-icon-167x167.png">
 	<link rel="apple-touch-icon" sizes="180x180" href="{{staticBaseUrl}}/apple-touch-icon-180x180.png">
 
-	<link rel="manifest" href="{{staticBaseUrl}}/site.webmanifest">
+	<link rel="manifest" href="/site.webmanifest">
 
 	<meta name="msapplication-TileColor" content="#2B3A55">
 	<meta name="msapplication-TileImage" content="{{staticBaseUrl}}/mstile-150x150.png">
