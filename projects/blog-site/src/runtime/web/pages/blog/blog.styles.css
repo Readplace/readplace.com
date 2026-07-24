@@ -7,6 +7,7 @@
 }
 
 .blog__title {
+  font-family: var(--font-serif);
   font-size: 2.75rem;
   font-weight: 800;
   letter-spacing: -0.02em;
@@ -49,6 +50,7 @@
 }
 
 .blog-card__title {
+  font-family: var(--font-serif);
   font-size: 1.35rem;
   font-weight: 600;
   color: var(--color-text-primary);
@@ -90,6 +92,7 @@
 }
 
 .blog-post__title {
+  font-family: var(--font-serif);
   font-size: 2.2rem;
   font-weight: 700;
   color: var(--color-text-primary);
@@ -117,6 +120,7 @@
 }
 
 .blog-post__content h2 {
+  font-family: var(--font-serif);
   font-size: 1.5rem;
   font-weight: 600;
   margin: 40px 0 16px;
@@ -126,6 +130,7 @@
 }
 
 .blog-post__content h3 {
+  font-family: var(--font-serif);
   font-size: 1.25rem;
   font-weight: 600;
   margin: 32px 0 12px;
@@ -135,6 +140,7 @@
 }
 
 .blog-post__content h4 {
+  font-family: var(--font-serif);
   font-size: 1.1rem;
   font-weight: 600;
   margin: 24px 0 8px;
@@ -181,7 +187,7 @@
   content: "\201C";
   display: block;
   margin-bottom: 0.5rem;
-  font-family: Georgia, "Times New Roman", serif;
+  font-family: var(--font-serif);
   font-size: 3.5rem;
   line-height: 1;
   color: var(--color-brand);

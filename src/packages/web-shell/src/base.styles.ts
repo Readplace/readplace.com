@@ -1,4 +1,7 @@
 const LIGHT_THEME_VARIABLES: Record<string, string> = {
+	"--font-sans":
+		"Inter, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif",
+	"--font-serif": 'Georgia, "Times New Roman", serif',
 	"--color-background": "#FFFFFF",
 	"--color-surface": "#F7F8FA",
 	"--color-surface-elevated": "#FFFFFF",
@@ -141,7 +144,7 @@ export const BASE_RESET_STYLES = `
 		scroll-padding-top: calc(var(--banner-area-height, 38px) + var(--header-height, 64px));
 	}
 	body {
-		font-family: Inter, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+		font-family: var(--font-sans);
 		line-height: 1.6;
 		color: var(--foreground);
 		min-height: 100vh;
@@ -194,7 +197,7 @@ export const HEADER_STYLES = `
 		gap: 12px;
 	}
 	.header__brand {
-		font-family: Georgia, "Times New Roman", serif;
+		font-family: var(--font-serif);
 		font-size: 1.5rem;
 		font-weight: 700;
 		color: var(--header-brand-stem);

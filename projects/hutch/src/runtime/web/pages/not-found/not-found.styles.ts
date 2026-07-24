@@ -10,6 +10,7 @@ export const NOT_FOUND_STYLES = `
 }
 
 .not-found__title {
+	font-family: var(--font-serif);
 	font-size: 2rem;
 	font-weight: 700;
 	margin-bottom: 12px;

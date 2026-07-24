@@ -3,6 +3,7 @@
 }
 
 .lp-section__title {
+  font-family: var(--font-serif);
   font-size: 2rem;
   font-weight: 700;
   line-height: 1.3;
@@ -60,6 +61,7 @@
 }
 
 .lp-hero__title {
+  font-family: var(--font-serif);
   font-size: 2.5rem;
   font-weight: 700;
   line-height: 1.3;
@@ -70,7 +72,7 @@
  * 1. Highlight is colour, not type — same serif face, no weight or size change.
  */
 .lp-hero__highlight {
-  font-family: Georgia, "Times New Roman", serif; /* 1 */
+  font-family: var(--font-serif); /* 1 */
   color: var(--color-highlight);
 }
 
@@ -309,6 +311,7 @@
 }
 
 .lp-close__title {
+  font-family: var(--font-serif);
   font-size: 1.75rem;
   font-weight: 700;
   line-height: 1.3;

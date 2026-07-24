@@ -135,19 +135,21 @@ The Firefox extension uses a slightly different palette tuned for small popup co
 
 ## Typography
 
-> **Source of truth:** `src/packages/web-shell/src/base.styles.ts` (body font), `src/packages/web-shell/src/base.template.ts` (font loading)
+> **Source of truth:** `src/packages/web-shell/src/base.styles.ts` (the `--font-sans` / `--font-serif` tokens and the body font), `src/packages/web-shell/src/base.template.ts` (font loading)
 
 ### Typefaces in Use
 
 | Role | Typeface | Weight | Where defined |
 |---|---|---|---|
-| **Body / UI** | `Inter, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif` (Inter loaded from Google Fonts, weights 400–700) | 400, 500, 600, 700 | `base.styles.ts` → `BASE_RESET_STYLES`; `base.template.ts` preload link |
-| **Extension UI** | `Inter, "Source Sans Pro", system-ui, -apple-system, sans-serif` | — | `popup.styles.css` |
-| **Brand serif** | `Georgia, "Times New Roman", serif` | — | Extension popup brand text |
+| **Body / UI** | `--font-sans` → `Inter, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif` (Inter loaded from Google Fonts, weights 400–700) | 400, 500, 600, 700 | `base.styles.ts` → `LIGHT_THEME_VARIABLES`, applied on `body` in `BASE_RESET_STYLES`; `base.template.ts` preload link |
+| **Headings** | `--font-serif` → `Georgia, "Times New Roman", serif` | 600, 700, 800 | `base.styles.ts` → `LIGHT_THEME_VARIABLES`. Reference implementations: `home.styles.css`, `import.styles.css` |
+| **Extension UI** | `Inter, "Source Sans Pro", system-ui, -apple-system, sans-serif` | — | `popup.styles.css` — the popup ships its own stylesheet and never sees the tokens |
+| **Brand serif** | `--font-serif` | — | Header wordmark (`.header__brand`); extension popup brand text uses the literal, for the same reason |
 | **Reader view** | User-configurable (default: high-legibility serif or sans) | Regular | Article body text in reading mode — this is the user's space |
 
 ### Typography Rules
 
+- **Headings are serif; everything you operate is sans.** Every first-party page title (`h1`) and section-level heading (`h2`) uses `var(--font-serif)`. `var(--font-sans)` is reserved for body copy, UI controls, form labels, metadata, and code/mono. The rule is heading-**level**, not the tag: an in-card sub-label (the Import FAQ `h3`), an eyebrow, an empty-state message, or a modal's `aria-labelledby` line is UI, and stays sans. Never inline the `Georgia, "Times New Roman", serif` stack — the font stack has one source of truth, like colours, so a heading cannot silently ship in the body face because its rule forgot the declaration. A heading that inherits the body sans is a drift, not a choice.
 - **Legibility is non-negotiable.** This is a product about reading. If a type choice looks good but reads poorly, reject it.
 - **Line-height:** Body text uses `1.6` (set in `BASE_RESET_STYLES`). Minimum `1.3` for headings. Generous spacing is a feature, not a waste of space.
 - **Never use all-caps** for more than short labels (e.g., "SAVED", "NEW"). Never for headings or body text.
@@ -162,7 +164,7 @@ A single highlight word inside a phrase can be recoloured with `--color-highligh
 
 **Rules:**
 
-- Use the same serif face as the surrounding text (`Georgia, "Times New Roman", serif`). The highlight is colour, not type.
+- Use the same serif face as the surrounding text (`var(--font-serif)`). The highlight is colour, not type.
 - **No weight or size change.** Motion or contrast does the work — bold would be shouting.
 - **Never add space** between the default-colour prefix and the highlight word. Readplace is one word, not two.
 - One highlight per phrase. If two words need emphasis, pick the stronger one.

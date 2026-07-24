@@ -9,6 +9,7 @@
 }
 
 .save-error__title {
+  font-family: var(--font-serif);
   font-size: 2rem;
   font-weight: 700;
   margin-bottom: 12px;

@@ -9,6 +9,7 @@
 }
 
 .export__title {
+  font-family: var(--font-serif);
   font-size: 1.5rem;
   font-weight: 700;
   color: var(--foreground);
@@ -26,6 +27,7 @@
 }
 
 .export__section-title {
+  font-family: var(--font-serif);
   font-size: 1.125rem;
   font-weight: 600;
   color: var(--foreground);

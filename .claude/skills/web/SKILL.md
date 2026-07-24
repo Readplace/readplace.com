@@ -185,6 +185,13 @@ Alternatively use the POST - Redirect - GET pattern.
 | Use semantic classes | Describe visual state (`.flight-segment--outbound`) |
 | Use BEM for scoping | Prevent class collisions (`.flight-segment__label`) |
 | Orphan/widow control lives on the prose container, not on `body` | A global `text-wrap` forces a full-page reflow |
+| Fonts come from `var(--font-serif)` / `var(--font-sans)` | Never inline the `Georgia, "Times New Roman", serif` stack — one source of truth in `base.styles.ts`, like colours |
+
+A new page's `h1` and section `h2` must set `font-family: var(--font-serif)`, or
+they ship in the body sans by inheritance. In-card sub-labels, eyebrows,
+empty-state messages, and modal titles stay on `--font-sans` — the rule is
+heading-*level*, not the tag. See [typography rules in the brand
+guidelines](../../../BRAND_GUIDELINES.md#typography-rules).
 
 ```css
 /* ❌ BAD */

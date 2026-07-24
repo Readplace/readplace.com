@@ -9,6 +9,7 @@ export const MCP_CONNECT_STYLES = `
 }
 
 .mcp-connect__title {
+	font-family: var(--font-serif);
 	font-size: 2rem;
 	font-weight: 700;
 	margin-bottom: 8px;
@@ -59,6 +60,7 @@ export const MCP_CONNECT_STYLES = `
 }
 
 .mcp-connect__tool-name {
+	font-family: var(--font-serif);
 	font-size: 1.25rem;
 	font-weight: 600;
 	margin-bottom: 6px;

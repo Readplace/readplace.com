@@ -9,6 +9,7 @@ export const LEGAL_PAGE_STYLES = `
 }
 
 .legal-page__title {
+	font-family: var(--font-serif);
 	font-size: 2rem;
 	font-weight: 700;
 	margin-bottom: 8px;
@@ -27,6 +28,7 @@ export const LEGAL_PAGE_STYLES = `
 }
 
 .legal-page__section h2 {
+	font-family: var(--font-serif);
 	font-size: 1.25rem;
 	font-weight: 600;
 	margin-bottom: 12px;
