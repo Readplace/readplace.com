@@ -296,7 +296,7 @@ export const NAV_STYLES = `
 	.nav__toggle {
 		display: flex;
 		flex-direction: column;
-		justify-content: space-around;
+		justify-content: space-between;
 		width: 24px;
 		height: 20px;
 		background: transparent;
@@ -330,21 +330,34 @@ export const NAV_STYLES = `
 	}
 
 	.nav__menu {
-		display: none;
-		position: absolute;
-		top: 100%;
+		display: block;
+		position: fixed;
+		top: calc(var(--banner-area-height, 38px) + var(--header-height, 64px));
 		right: 0;
+		bottom: 0;
+		width: min(80vw, 320px);
 		background: var(--background);
-		border: 1px solid var(--border);
-		border-radius: var(--radius-lg);
+		border-left: 1px solid var(--border);
 		box-shadow: var(--shadow-md);
-		min-width: 180px;
-		margin-top: 8px;
 		z-index: 101;
+		padding: 12px 0;
+		overflow-y: auto;
+		overscroll-behavior: contain;
+		transform: translateX(100%);
+		visibility: hidden;
+		transition: transform 0.25s ease, visibility 0s linear 0.25s;
 	}
 
 	.nav__menu--open {
-		display: block;
+		transform: translateX(0);
+		visibility: visible;
+		transition: transform 0.25s ease, visibility 0s;
+	}
+
+	@media (prefers-reduced-motion: reduce) {
+		.nav__menu {
+			transition: none;
+		}
 	}
 
 	/**
@@ -434,9 +447,11 @@ export const NAV_STYLES = `
 	}
 
 	@media (max-width: 767px) {
-		.header--transparent .nav__menu {
-			background: var(--background);
-			border: 1px solid var(--border);
+		.header {
+			overflow-x: clip;
+		}
+		.nav-hidden .header:has(.nav__menu--open) {
+			transform: none;
 		}
 		.header--transparent .nav__link {
 			color: var(--foreground);
@@ -456,11 +471,15 @@ export const NAV_STYLES = `
 			align-items: center;
 			gap: 8px;
 			position: static;
+			width: auto;
 			background: transparent;
 			border: none;
 			box-shadow: none;
-			min-width: auto;
-			margin-top: 0;
+			padding: 0;
+			overflow: visible;
+			transform: none;
+			visibility: visible;
+			transition: none;
 		}
 
 		.nav__group {
