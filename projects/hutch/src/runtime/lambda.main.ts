@@ -9,7 +9,6 @@ import { logger as requestLogger } from "./domain/logger";
 import { createAnalyticsMiddleware, hashIp } from "@packages/web-analytics";
 import { isStaticAssetRequestPath } from "./web/static-asset-paths";
 import { createBanMiddleware } from "./web/middleware/ban";
-import { type BotBlockEvent, createBlockNaiveBotMiddleware } from "./web/middleware/naive-bot";
 import { logAndRespondOnError } from "./web/middleware/error-handler";
 import { createHutchApp, localServer } from "./app";
 import { assertCurlImpersonateAvailable, defaultCurlImpersonateProbe } from "@packages/crawl-article";
@@ -31,9 +30,6 @@ const log = requestLogger();
 const logger = HutchLogger.from(consoleLogger);
 const salt = requireEnv("ANALYTICS_SALT");
 const ban = createBanMiddleware({ salt, hashIp });
-const blockNaiveBot = createBlockNaiveBotMiddleware({
-	logger: HutchLogger.fromJSON<BotBlockEvent>(),
-});
 const analytics = createAnalyticsMiddleware({
 	logger: analyticsLogger,
 	salt,
@@ -51,7 +47,6 @@ const application = express()
 		}),
 	)
 	.use(ban)
-	.use(blockNaiveBot)
 	.use(analytics)
 	.use(app)
 	.use(logAndRespondOnError(logger));
