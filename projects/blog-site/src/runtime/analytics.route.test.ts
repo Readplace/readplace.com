@@ -40,6 +40,18 @@ function makeApp(resolveLogin: ResolveLogin) {
 	);
 }
 
+const BROWSER_HEADERS: Record<string, string> = {
+	"User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/145.0.0.0 Safari/537.36",
+	"Accept-Language": "en-US,en;q=0.9",
+	"Sec-CH-UA": '"Chromium";v="145", "Google Chrome";v="145", "Not?A_Brand";v="24"',
+	"Sec-Fetch-Mode": "navigate",
+	"Sec-Fetch-Dest": "document",
+};
+
+function browserGet(resolveLogin: ResolveLogin, path: string) {
+	return request(makeApp(resolveLogin)).get(path).set(BROWSER_HEADERS);
+}
+
 function setCookieHeaders(res: SupertestResponse): string[] {
 	const raw = res.headers["set-cookie"];
 	if (!raw) return [];
@@ -77,7 +89,7 @@ beforeEach(() => {
 
 describe("blog analytics instrumentation", () => {
 	it("emits one pageview and mints hutch_vid + hutch_click on a first landing carrying utm_source", async () => {
-		const res = await request(makeApp(guestResolver)).get("/blog?utm_source=hn");
+		const res = await browserGet(guestResolver, "/blog?utm_source=hn");
 
 		expect(res.status).toBe(200);
 		expect(pageviews()).toHaveLength(1);
@@ -96,7 +108,7 @@ describe("blog analytics instrumentation", () => {
 	});
 
 	it("reuses the visitor id from the replayed hutch_vid cookie and mints no new hutch_vid", async () => {
-		const res = await request(makeApp(guestResolver)).get("/blog").set("Cookie", `hutch_vid=${VISITOR_ID}`);
+		const res = await browserGet(guestResolver, "/blog").set("Cookie", `hutch_vid=${VISITOR_ID}`);
 
 		expect(res.status).toBe(200);
 		expect(pageviews()[0].visitor_id).toBe(VISITOR_ID);
@@ -104,7 +116,8 @@ describe("blog analytics instrumentation", () => {
 	});
 
 	it("records an internal-medium link as a click and strips its utm_source from the pageview", async () => {
-		const res = await request(makeApp(guestResolver)).get(
+		const res = await browserGet(
+			guestResolver,
 			`/blog/${firstSlug}?utm_source=changelog-banner&utm_medium=internal&utm_content=read-more`,
 		);
 
@@ -125,6 +138,23 @@ describe("blog analytics instrumentation", () => {
 			.set("User-Agent", "Googlebot/2.1 (+http://www.google.com/bot.html)");
 
 		expect(res.status).toBe(200);
+		expect(events).toHaveLength(0);
+	});
+
+	it("serves the real page to a curl-shaped client while counting nothing — dropping a request from the analytics stream must never drop it from the response", async () => {
+		const res = await request(makeApp(guestResolver)).get("/blog").set("User-Agent", "curl/8.7.1");
+
+		expect(res.status).toBe(200);
+		expect(res.text).toContain("<html lang=");
+		expect(events).toHaveLength(0);
+	});
+
+	it("serves the real page to the spoofed-desktop-Chrome swarm shape — an otherwise complete desktop Chrome navigation presenting no Sec-CH-UA — while counting nothing", async () => {
+		const { "Sec-CH-UA": _clientHints, ...spoofedChrome } = BROWSER_HEADERS;
+		const res = await request(makeApp(guestResolver)).get("/blog").set(spoofedChrome);
+
+		expect(res.status).toBe(200);
+		expect(res.text).toContain("<html lang=");
 		expect(events).toHaveLength(0);
 	});
 
@@ -152,12 +182,12 @@ describe("blog analytics instrumentation", () => {
 	});
 
 	it("stamps is_authenticated=1 when the session resolves to a user and 0 for a guest", async () => {
-		const authed = await request(makeApp(authedResolver)).get("/blog").set("Cookie", "hutch_sid=valid");
+		const authed = await browserGet(authedResolver, "/blog").set("Cookie", "hutch_sid=valid");
 		expect(authed.status).toBe(200);
 		expect(pageviews()[0].is_authenticated).toBe(1);
 
 		events.length = 0;
-		const guest = await request(makeApp(guestResolver)).get("/blog");
+		const guest = await browserGet(guestResolver, "/blog");
 		expect(guest.status).toBe(200);
 		expect(pageviews()[0].is_authenticated).toBe(0);
 	});

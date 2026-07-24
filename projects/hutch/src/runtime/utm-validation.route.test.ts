@@ -1,6 +1,6 @@
 import request from "supertest";
 import { createDefaultTestAppFixture } from "@packages/test-fixtures";
-import { useTestServer } from "./test-app";
+import { BROWSER_REQUEST_HEADERS, useTestServer } from "./test-app";
 
 const useApp = useTestServer();
 
@@ -28,7 +28,9 @@ describe("utm validation", () => {
 	it("still serves a campaign link whose utm values are well-formed, and still counts the pageview", async () => {
 		const harness = useApp(createDefaultTestAppFixture("https://readplace.com"));
 
-		const response = await request(harness.server).get("/?utm_source=fagnerbrack.com&utm_content=top");
+		const response = await request(harness.server)
+			.get("/?utm_source=fagnerbrack.com&utm_content=top")
+			.set(BROWSER_REQUEST_HEADERS);
 
 		expect(response.status).toBe(200);
 		expect(harness.analytics.events).toHaveLength(1);

@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import { JSDOM } from "jsdom";
 import request from "supertest";
-import { useTestServer } from "../../test-app";
+import { BROWSER_REQUEST_HEADERS, useTestServer } from "../../test-app";
 
 import { CheckoutSessionIdSchema } from "@packages/test-fixtures/providers/hosted-checkout";
 import {
@@ -1496,6 +1496,7 @@ describe("Auth routes", () => {
 
 			const response = await request(harness.server)
 				.post("/signup?utm_source=auth-page&utm_medium=internal&utm_content=signup-submit-btn")
+				.set(BROWSER_REQUEST_HEADERS)
 				.type("form")
 				.send({
 					email: "bot@example.com",
@@ -1514,6 +1515,7 @@ describe("Auth routes", () => {
 
 			const response = await request(harness.server)
 				.post("/signup?utm_source=auth-page&utm_medium=internal&utm_content=signup-submit-btn")
+				.set(BROWSER_REQUEST_HEADERS)
 				.type("form")
 				.send({
 					email: "human@example.com",

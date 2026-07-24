@@ -31,6 +31,10 @@ interface MockReqOverrides {
 function createReq(overrides: MockReqOverrides = {}): Partial<Request> {
 	const headers: Record<string, string | undefined> = {
 		"user-agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) Chrome/145.0",
+		"accept-language": "en-US,en;q=0.9",
+		"sec-ch-ua": '"Chromium";v="145", "Google Chrome";v="145", "Not?A_Brand";v="24"',
+		"sec-fetch-mode": "navigate",
+		"sec-fetch-dest": "document",
 		...overrides.headers,
 	};
 	return {
@@ -178,6 +182,55 @@ describe("createAnalyticsMiddleware", () => {
 	it("skips logging for HTMX requests (HX-Request: true) — reader-pending fragment polls every 3s and would otherwise drown the analytics stream", () => {
 		const req = createReq({ headers: { "hx-request": "true" } });
 		expect(runMiddleware(req, createRes(200))).toEqual([]);
+	});
+
+	it("skips logging a request carrying no User-Agent at all — isbot(undefined) is false, so without this the cheapest possible spoof (send no UA) counts as a human", () => {
+		expect(runMiddleware(createReq({ headers: { "user-agent": undefined } }), createRes(200))).toEqual([]);
+	});
+
+	it("skips logging a request carrying no Accept-Language — every real browser navigation sends one", () => {
+		expect(runMiddleware(createReq({ headers: { "accept-language": undefined } }), createRes(200))).toEqual([]);
+	});
+
+	it("skips logging a UA claiming Chrome that sends no Sec-CH-UA — Chromium has sent client hints on every navigation since Chrome 89, so the combination is incoherent and identifies the spoofed-Chrome proxy swarm", () => {
+		expect(runMiddleware(createReq({ headers: { "sec-ch-ua": undefined } }), createRes(200))).toEqual([]);
+	});
+
+	it("skips logging a UA claiming Chromium (no `Chrome/` token) that sends no Sec-CH-UA", () => {
+		const req = createReq({
+			headers: {
+				"user-agent": "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chromium/145.0 Safari/537.36",
+				"sec-ch-ua": undefined,
+			},
+		});
+		expect(runMiddleware(req, createRes(200))).toEqual([]);
+	});
+
+	it("still logs a Safari pageview that sends no Sec-CH-UA — the client-hint check fails open for non-Chromium engines, which never send it", () => {
+		const req = createReq({
+			headers: {
+				"user-agent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/17.0 Safari/605.1.15",
+				"sec-ch-ua": undefined,
+			},
+		});
+		expect(runMiddleware(req, createRes(200))).toHaveLength(1);
+	});
+
+	it("skips logging a prefetch (Sec-Purpose: prefetch) — the browser fetched the page speculatively and the human may never see it", () => {
+		const req = createReq({ headers: { "sec-purpose": "prefetch;prerender" } });
+		expect(runMiddleware(req, createRes(200))).toEqual([]);
+	});
+
+	it("still logs a navigation carrying a Sec-Purpose that is not a prefetch — only speculative fetches are dropped, not every request that declares a purpose", () => {
+		expect(runMiddleware(createReq({ headers: { "sec-purpose": "navigate" } }), createRes(200))).toHaveLength(1);
+	});
+
+	it("skips logging when Sec-Fetch-Mode is not a navigation — a document pageview is a top-level navigation, not a subresource or CORS fetch", () => {
+		expect(runMiddleware(createReq({ headers: { "sec-fetch-mode": "cors" } }), createRes(200))).toEqual([]);
+	});
+
+	it("skips logging when Sec-Fetch-Dest is not a document", () => {
+		expect(runMiddleware(createReq({ headers: { "sec-fetch-dest": "empty" } }), createRes(200))).toEqual([]);
 	});
 
 	it("drops empty-string UTM params from the emitted JSON (utm_source=\"\" is not a meaningful source)", () => {
@@ -339,6 +392,35 @@ describe("createAnalyticsMiddleware — internal click events", () => {
 
 	it("does not count a click when isbot flags the user-agent", () => {
 		const req = createReq({ query: internalQuery, headers: { "user-agent": "Googlebot/2.1 (+http://www.google.com/bot.html)" } });
+		expect(runMiddlewareClicks(req, createRes(200))).toEqual([]);
+	});
+
+	it("counts a click carrying the fetch-metadata of a real HTMX request (Sec-Fetch-Mode: cors, Sec-Fetch-Dest: empty) — the navigation-shape gate belongs to pageviews only, and applying it to clicks would silently zero out every boosted click", () => {
+		const req = createReq({
+			query: internalQuery,
+			headers: { "hx-request": "true", "sec-fetch-mode": "cors", "sec-fetch-dest": "empty" },
+		});
+		expect(runMiddlewareClicks(req, createRes(200))).toHaveLength(1);
+		expect(runMiddleware(req, createRes(200))).toEqual([]);
+	});
+
+	it("does not count a click from a request carrying no User-Agent", () => {
+		const req = createReq({ query: internalQuery, headers: { "user-agent": undefined } });
+		expect(runMiddlewareClicks(req, createRes(200))).toEqual([]);
+	});
+
+	it("does not count a click from a request carrying no Accept-Language", () => {
+		const req = createReq({ query: internalQuery, headers: { "accept-language": undefined } });
+		expect(runMiddlewareClicks(req, createRes(200))).toEqual([]);
+	});
+
+	it("does not count a click from a UA claiming Chrome that sends no Sec-CH-UA, so the click stream stays consistent with the pageview stream", () => {
+		const req = createReq({ query: internalQuery, headers: { "sec-ch-ua": undefined } });
+		expect(runMiddlewareClicks(req, createRes(200))).toEqual([]);
+	});
+
+	it("does not count a speculatively prefetched internal link as a click — the browser fetched it, no human pressed it", () => {
+		const req = createReq({ query: internalQuery, headers: { "sec-purpose": "prefetch" } });
 		expect(runMiddlewareClicks(req, createRes(200))).toEqual([]);
 	});
 

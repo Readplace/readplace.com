@@ -305,6 +305,30 @@ function isRenderedPageStatus(statusCode: number): boolean {
 	return (statusCode >= 200 && statusCode < 300) || statusCode === 304;
 }
 
+function declaresChromium(userAgent: string): boolean {
+	return userAgent.includes("Chrome/") || userAgent.includes("Chromium/");
+}
+
+function isBrowserClient(req: Request): boolean {
+	const userAgent = req.get("user-agent");
+	if (!userAgent) return false;
+	if (!req.get("accept-language")) return false;
+	if (declaresChromium(userAgent) && !req.get("sec-ch-ua")) return false;
+	return true;
+}
+
+function isPrefetch(req: Request): boolean {
+	const purpose = req.get("sec-purpose");
+	if (!purpose) return false;
+	return purpose.includes("prefetch");
+}
+
+function isTopLevelNavigation(req: Request): boolean {
+	if (req.get("sec-fetch-mode") !== "navigate") return false;
+	if (req.get("sec-fetch-dest") !== "document") return false;
+	return true;
+}
+
 function shouldLog(params: {
 	req: Request;
 	path: string;
@@ -317,6 +341,9 @@ function shouldLog(params: {
 	if (!isRenderedPageStatus(params.statusCode)) return false;
 	if (isbot(params.req.get("user-agent"))) return false;
 	if (params.req.get("hx-request") === "true") return false;
+	if (isPrefetch(params.req)) return false;
+	if (!isBrowserClient(params.req)) return false;
+	if (!isTopLevelNavigation(params.req)) return false;
 	return true;
 }
 
@@ -366,16 +393,18 @@ export function suppressClickCount(res: Response): void {
 
 /**
  * Clicks are counted regardless of method or `hx-request` (HTMX-boosted links
- * and POST actions are clicks too); only bots, error responses, and responses
- * a route suppressed via suppressClickCount (the `isbot` UA sniff misses a
- * spoofed User-Agent, but a route that tripped its own bot defense knows
- * better) are dropped. The precise `utm_medium=internal` marker already
- * excludes background polls, which never carry it.
+ * and POST actions are clicks too); only bots, non-browser clients, error
+ * responses, and responses a route suppressed via suppressClickCount (the
+ * `isbot` UA sniff misses a spoofed User-Agent, but a route that tripped its own
+ * bot defense knows better) are dropped. The precise `utm_medium=internal`
+ * marker already excludes background polls, which never carry it.
  */
 function shouldCountClick(req: Request, res: Response): boolean {
 	if (suppressedClickResponses.has(res)) return false;
 	if (res.statusCode >= 400) return false;
 	if (isbot(req.get("user-agent"))) return false;
+	if (isPrefetch(req)) return false;
+	if (!isBrowserClient(req)) return false;
 	return true;
 }
 
