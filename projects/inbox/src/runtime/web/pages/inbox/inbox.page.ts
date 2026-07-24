@@ -115,10 +115,13 @@ export function initInboxRoutes(deps: InboxDependencies): Router {
 			res.redirect(302, buildInboxEmailsUrl({}));
 			return;
 		}
-		const needsAddressSetup =
-			result.emails.length === 0 &&
-			countLiveAddresses(await deps.inboxAddressStore.listAddressesByUserId(userId)) === 0;
-		const vm = toInboxEmailsViewModel(result, { now: deps.now(), needsAddressSetup });
+		const activeAddresses =
+			result.emails.length === 0
+				? (await deps.inboxAddressStore.listAddressesByUserId(userId))
+						.filter(isLiveAddress)
+						.map((entry) => ({ name: entry.name, address: entry.address }))
+				: [];
+		const vm = toInboxEmailsViewModel(result, { now: deps.now(), activeAddresses });
 		sendComponent(req, res, Base(InboxEmailsPage(vm), await deps.buildBannerState(req)));
 	});
 

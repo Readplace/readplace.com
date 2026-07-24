@@ -10,6 +10,8 @@ const INBOX_EMAILS_TEMPLATE = readFileSync(
 	"utf-8",
 );
 
+const INBOX_SCRIPT = `<script src="/client-dist/inbox.client.js" defer></script>`;
+
 export function InboxEmailsPage(vm: InboxEmailsViewModel): PageBody {
 	return {
 		seo: {
@@ -22,5 +24,6 @@ export function InboxEmailsPage(vm: InboxEmailsViewModel): PageBody {
 		styles: INBOX_EMAILS_STYLES,
 		bodyClass: "page-inbox",
 		content: { html: render(INBOX_EMAILS_TEMPLATE, vm) },
+		scripts: INBOX_SCRIPT,
 	};
 }

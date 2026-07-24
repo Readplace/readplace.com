@@ -95,16 +95,16 @@ describe("Inbox emails list route", () => {
 		const cta = empty.querySelector("[data-test-inbox-emails-empty-cta]");
 		assert(cta, "setup CTA must render while the reader has no address");
 		expect(cta.getAttribute("href")).toBe("/inbox/addresses");
-		expect(cta.textContent).toBe("Create an inbox email");
+		expect(cta.textContent).toBe("Create my first inbox address");
 	});
 
-	it("tells a reader who already has an address to forward mail instead", async () => {
+	it("tells a reader who already has an address to forward mail instead, offering it to copy in place", async () => {
 		const fixture = createDefaultTestAppFixture(TEST_APP_ORIGIN);
 		const harness = useApp(fixture);
 		const agent = await loginAgent(harness.server, harness.auth);
 		const user = await fixture.auth.findUserByEmail("test@example.com");
 		assert(user, "logged-in user must exist before seeding an address");
-		await fixture.inboxAddress.inboxAddressStore.createAddress({
+		const created = await fixture.inboxAddress.inboxAddressStore.createAddress({
 			userId: user.userId,
 			domain: "read.place",
 			name: AliasNameSchema.parse("inbox"),
@@ -112,12 +112,59 @@ describe("Inbox emails list route", () => {
 
 		const response = await agent.get("/inbox");
 
-		const empty = new JSDOM(response.text).window.document.querySelector(
-			"[data-test-inbox-emails-empty]",
-		);
+		const doc = new JSDOM(response.text).window.document;
+		const empty = doc.querySelector("[data-test-inbox-emails-empty]");
 		assert(empty, "empty state must render");
 		expect(empty.getAttribute("data-test-inbox-empty-state")).toBe("no-mail");
 		expect(empty.textContent).toContain("forward a newsletter to one of your addresses");
+
+		const rows = Array.from(empty.querySelectorAll("[data-test-inbox-empty-address]"));
+		expect(rows).toHaveLength(1);
+		expect(
+			rows[0].querySelector("[data-test-inbox-empty-address-name]")?.textContent,
+		).toBe("inbox");
+		expect(rows[0].querySelector("input")?.getAttribute("value")).toBe(created.address);
+		const copy = rows[0].querySelector("[data-inbox-copy]");
+		assert(copy, "copy button must render alongside the address");
+		expect(copy.getAttribute("data-inbox-address")).toBe(created.address);
+		expect(
+			doc.querySelector('script[src="/client-dist/inbox.client.js"]'),
+		).not.toBeNull();
+	});
+
+	it("lists every active address on the empty state, leaving disabled ones out", async () => {
+		const fixture = createDefaultTestAppFixture(TEST_APP_ORIGIN);
+		const harness = useApp(fixture);
+		const agent = await loginAgent(harness.server, harness.auth);
+		const user = await fixture.auth.findUserByEmail("test@example.com");
+		assert(user, "logged-in user must exist before seeding addresses");
+		for (const name of ["inbox", "netflix"]) {
+			await fixture.inboxAddress.inboxAddressStore.createAddress({
+				userId: user.userId,
+				domain: "read.place",
+				name: AliasNameSchema.parse(name),
+			});
+		}
+		const retired = await fixture.inboxAddress.inboxAddressStore.createAddress({
+			userId: user.userId,
+			domain: "read.place",
+			name: AliasNameSchema.parse("substack"),
+		});
+		await fixture.inboxAddress.inboxAddressStore.disableAddress({
+			userId: user.userId,
+			address: retired.address,
+		});
+
+		const response = await agent.get("/inbox");
+
+		const list = new JSDOM(response.text).window.document.querySelector(
+			"[data-test-inbox-empty-addresses]",
+		);
+		assert(list, "address list must render");
+		const names = Array.from(
+			list.querySelectorAll("[data-test-inbox-empty-address-name]"),
+		).map((el) => el.textContent);
+		expect(names).toEqual(["inbox", "netflix"]);
 	});
 
 	it("drops the setup CTA once mail has arrived", async () => {

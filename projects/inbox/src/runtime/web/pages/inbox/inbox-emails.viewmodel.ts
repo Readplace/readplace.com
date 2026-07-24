@@ -24,10 +24,16 @@ const INBOX_ADDRESSES_PATH = "/inbox/addresses";
 
 export type InboxEmptyStateKey = "no-address" | "no-mail";
 
+export interface InboxEmptyAddressViewModel {
+	name: string;
+	address: string;
+}
+
 export interface InboxEmailsEmptyViewModel {
 	key: InboxEmptyStateKey;
 	text: string;
 	cta: { href: string; label: string } | undefined;
+	addresses: InboxEmptyAddressViewModel[];
 }
 
 export interface InboxEmailsViewModel {
@@ -41,12 +47,14 @@ const EMPTY_STATES: Record<InboxEmptyStateKey, InboxEmailsEmptyViewModel> = {
 	"no-address": {
 		key: "no-address",
 		text: "No forwarded emails yet — you don’t have an inbox email address to send them to.",
-		cta: { href: INBOX_ADDRESSES_PATH, label: "Create an inbox email" },
+		cta: { href: INBOX_ADDRESSES_PATH, label: "Create my first inbox address" },
+		addresses: [],
 	},
 	"no-mail": {
 		key: "no-mail",
 		text: "No forwarded emails yet — forward a newsletter to one of your addresses and it’ll appear here.",
 		cta: undefined,
+		addresses: [],
 	},
 };
 
@@ -87,16 +95,22 @@ function buildPaginationLinks(
 	return links;
 }
 
+function buildEmptyState(
+	activeAddresses: InboxEmptyAddressViewModel[],
+): InboxEmailsEmptyViewModel {
+	return activeAddresses.length === 0
+		? EMPTY_STATES["no-address"]
+		: { ...EMPTY_STATES["no-mail"], addresses: activeAddresses };
+}
+
 export function toInboxEmailsViewModel(
 	result: ListInboxEmailsResult,
-	options: { now: Date; needsAddressSetup: boolean },
+	options: { now: Date; activeAddresses: InboxEmptyAddressViewModel[] },
 ): InboxEmailsViewModel {
 	const paginationLinks = buildPaginationLinks(result);
 	return {
 		empty:
-			result.emails.length === 0
-				? EMPTY_STATES[options.needsAddressSetup ? "no-address" : "no-mail"]
-				: undefined,
+			result.emails.length === 0 ? buildEmptyState(options.activeAddresses) : undefined,
 		showPagination: paginationLinks.length > 0,
 		paginationLinks,
 		rows: result.emails.map((entry) => ({

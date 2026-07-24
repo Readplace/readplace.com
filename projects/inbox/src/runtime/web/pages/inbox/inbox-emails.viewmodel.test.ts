@@ -28,10 +28,12 @@ function entry(overrides: Partial<InboxEmailEntry> = {}): InboxEmailEntry {
 	};
 }
 
-function build(entries: InboxEmailEntry[], needsAddressSetup = false) {
+const ADDRESS = { name: "inbox", address: "inbox-3f9a2c@read.place" };
+
+function build(entries: InboxEmailEntry[], activeAddresses = [ADDRESS]) {
 	return toInboxEmailsViewModel(
 		{ emails: entries, hasNewer: false, hasOlder: false },
-		{ now: NOW, needsAddressSetup },
+		{ now: NOW, activeAddresses },
 	);
 }
 
@@ -44,7 +46,7 @@ function buildNav(input: { hasNewer: boolean; hasOlder: boolean }) {
 			],
 			...input,
 		},
-		{ now: NOW, needsAddressSetup: false },
+		{ now: NOW, activeAddresses: [ADDRESS] },
 	);
 }
 
@@ -53,23 +55,33 @@ function ago(ms: number): string {
 }
 
 describe("toInboxEmailsViewModel", () => {
-	it("tells an empty inbox with an address to wait for mail, offering no CTA", () => {
+	it("tells an empty inbox with an address to wait for mail, surfacing it to copy instead of a CTA", () => {
 		const { empty } = build([]);
 
 		expect(empty?.key).toBe("no-mail");
 		expect(empty?.text).toContain("forward a newsletter to one of your addresses");
 		expect(empty?.cta).toBeUndefined();
+		expect(empty?.addresses).toEqual([ADDRESS]);
+	});
+
+	it("surfaces every active address on an empty inbox, not just the first", () => {
+		const second = { name: "netflix", address: "netflix-def456@read.place" };
+
+		const { empty } = build([], [ADDRESS, second]);
+
+		expect(empty?.addresses).toEqual([ADDRESS, second]);
 	});
 
 	it("sends an empty inbox with no address to My Emails to create one", () => {
-		const { empty } = build([], true);
+		const { empty } = build([], []);
 
 		expect(empty?.key).toBe("no-address");
 		expect(empty?.text).toContain("don’t have an inbox email address");
 		expect(empty?.cta).toEqual({
 			href: "/inbox/addresses",
-			label: "Create an inbox email",
+			label: "Create my first inbox address",
 		});
+		expect(empty?.addresses).toEqual([]);
 	});
 
 	it("builds a detail link from the URL-encoded sort key", () => {

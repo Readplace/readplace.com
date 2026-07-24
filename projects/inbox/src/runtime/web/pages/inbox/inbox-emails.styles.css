@@ -59,6 +59,59 @@
   opacity: 0.9;
 }
 
+.inbox-emails__address-list {
+  list-style: none;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  margin: 24px 0 0;
+  padding: 0;
+  text-align: left;
+}
+
+.inbox-emails__address {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+  padding: 12px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+}
+
+.inbox-emails__address-name {
+  flex: 1 1 100%;
+  font-size: 0.9rem;
+  font-weight: 600;
+  color: var(--foreground);
+}
+
+.inbox-emails__copy-btn {
+  padding: var(--button-padding-sm);
+  font-size: 0.9rem;
+  font-weight: 600;
+  color: var(--primary-foreground);
+  background: var(--primary-fill);
+  border: none;
+  border-radius: var(--radius);
+  cursor: pointer;
+}
+
+.inbox-emails__copy-btn:hover {
+  opacity: 0.9;
+}
+
+.inbox-emails__address-field {
+  flex: 1 1 200px;
+  min-width: 0;
+  padding: 8px 12px;
+  font-size: 0.95rem;
+  color: var(--foreground);
+  background: var(--background);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+}
+
 .inbox-emails__list {
   list-style: none;
   margin: 0;

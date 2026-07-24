@@ -24,6 +24,17 @@
       >{{empty.cta.label}}</a
     >
     {{/if}}
+    {{#if empty.addresses}}
+    <ul class="inbox-emails__address-list" data-test-inbox-empty-addresses>
+      {{#each empty.addresses}}
+      <li class="inbox-emails__address" data-test-inbox-empty-address>
+        <span class="inbox-emails__address-name" data-test-inbox-empty-address-name>{{this.name}}</span>
+        <button type="button" class="inbox-emails__copy-btn" data-inbox-copy data-inbox-address="{{this.address}}" hidden>Copy</button>
+        <input class="inbox-emails__address-field" type="text" value="{{this.address}}" readonly aria-label="Inbox email" data-inbox-address="{{this.address}}" />
+      </li>
+      {{/each}}
+    </ul>
+    {{/if}}
   </div>
   {{else}}
   <ul class="inbox-emails__list" data-test-inbox-emails-list>
