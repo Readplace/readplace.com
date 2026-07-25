@@ -82,7 +82,7 @@ jobs:
       - uses: pnpm/action-setup@v4
         if: steps.existing-issue.outputs.skip != 'true'
         with:
-          version: 9.15.0
+          version: 10.28.0
 
       - uses: actions/setup-node@v6
         if: steps.existing-issue.outputs.skip != 'true'

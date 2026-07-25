@@ -28,7 +28,7 @@
     "nx": "22.7.5",
     "typescript": "6.0.3"
   },
-  "packageManager": "pnpm@9.15.0",
+  "packageManager": "pnpm@10.28.0",
   "engines": {
     "node": ">=22.12.0"
   },
@@ -37,6 +37,13 @@
       "os": ["current", "linux"],
       "cpu": ["current", "x64"],
       "libc": ["current", "glibc"]
-    }
+    },
+    "onlyBuiltDependencies": [
+      "esbuild",
+      "nx",
+      "protobufjs",
+      "spawn-sync",
+      "unrs-resolver"
+    ]
   }
 }

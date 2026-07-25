@@ -13,10 +13,10 @@ RUN apt-get update && apt-get install -y \
     jq unzip zstd openssl build-essential python3 \
  && rm -rf /var/lib/apt/lists/*
 
-# Node 22 + pnpm 9.15.0: the exact pins in ci.yml.
+# Node 22 + pnpm 10.28.0: the exact pins in ci.yml.
 RUN curl -fsSL https://deb.nodesource.com/setup_22.x | bash - \
  && apt-get install -y nodejs \
- && npm install -g pnpm@9.15.0 \
+ && npm install -g pnpm@10.28.0 \
  && rm -rf /var/lib/apt/lists/*
 
 # Pulumi: absent binary reads as "drift unknown" in check-infra and

@@ -59,10 +59,10 @@ services:
       # EXDEV and pnpm silently falls back to a 735 MB copy per install; sharing
       # one filesystem lets it reflink/hardlink instead. This container env also
       # fixes the store *path*: pnpm/action-setup exports PNPM_HOME and pnpm
-      # otherwise resolves the store to $PNPM_HOME/store/v3 — a dir action-setup
+      # otherwise resolves the store to $PNPM_HOME/store/v10 — a dir action-setup
       # wipes on every job's self-install, which is why the old pnpm-store volume
       # never filled. npm_config_store_dir beats both PNPM_HOME and a project
-      # .npmrc (verified against pnpm 9.15.0 in this container). Cosmetic only:
+      # .npmrc (verified against pnpm 10.28.0 in this container). Cosmetic only:
       # npm/npx print `npm warn Unknown env config "store-dir"` on every job
       # invocation — harmless, it is a pnpm setting npm itself doesn't recognise.
       npm_config_store_dir: /persist/pnpm-store
