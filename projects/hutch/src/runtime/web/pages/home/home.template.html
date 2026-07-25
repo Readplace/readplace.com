@@ -1,5 +1,5 @@
   <main>
-    <section class="home-try" data-test-section="try" aria-label="Try the reader view">
+    <section id="paste-a-link" class="home-try" data-test-section="try" aria-label="Try the reader view">
       <div class="home-try__container">
         <h1 class="home-try__title" data-test-tagline>Read the Web, not the Slop.</h1>
         <p class="home-try__lede">Paste any article link. Get a clean reader view with a TL;DR summary &mdash; articles or PDFs, in seconds. No signup. No download. Try it with that one article you've been meaning to read.</p>
@@ -28,7 +28,7 @@
     <section id="about" class="home-hero" data-test-section="hero" aria-label="Introduction">
       <div class="home-hero__container">
         <h2 class="home-hero__title hero-headline"><span class="sr-only">A home for articles, newsletters, essays, longreads, news, blogs, stories, posts, reports, and interviews.</span><span class="hero-headline__visible" aria-hidden="true"><span class="hero-headline__lead">A home for</span> <span class="hero-headline__rotator">articles</span></span></h2>
-        <p class="home-hero__subtitle">Pocket is gone. Omnivore is gone. I built Readplace from a personal system I've maintained for 10 years. Save articles with one click, read them when you're ready.</p>
+        <p class="home-hero__subtitle">Pocket is gone. Omnivore is gone. I built Readplace from a personal system I've maintained for 10 years. Save from wherever you already read &mdash; browser, iPhone, AI chat, or a link pasted right here &mdash; and read when you're ready.</p>
         <div class="home-hero__actions">
           {{#switch browserName}}
           {{#case "firefox"}}
@@ -45,15 +45,33 @@
         </div>
         {{#switch browserName}}
         {{#case "firefox"}}
-        <p class="home-hero__trust">Also available for Chrome</p>
+        <p class="home-hero__trust">Also on Chrome, iPhone, and your AI assistant.</p>
         {{/case}}
         {{#case "chrome"}}
-        <p class="home-hero__trust">Also available for Firefox</p>
+        <p class="home-hero__trust">Also on Firefox, iPhone, and your AI assistant.</p>
         {{/case}}
         {{#default}}
-        <p class="home-hero__trust">Firefox &amp; Chrome</p>
+        <p class="home-hero__trust">Firefox, Chrome, iPhone, and your AI assistant.</p>
         {{/default}}
         {{/switch}}
+        <p class="home-hero__ways"><a href="#ways-to-save" data-test-cta="hero-ways">Every way to save &darr;</a></p>
+      </div>
+    </section>
+
+    <section id="ways-to-save" class="home-ways home-band--muted" data-test-section="ways-to-save" aria-label="Every way to save">
+      <div class="home-ways__container">
+        <h2 class="home-ways__heading">Every way to save.</h2>
+        <p class="home-ways__lead">The button above installs a browser extension. That is one door in, not the only one &mdash; everything below is shipped and working today.</p>
+        <ul class="home-ways__list" role="list" data-test-ways-list>
+          {{#each waysToSave}}
+          <li class="home-ways__item" data-test-way="{{name}}">
+            <strong class="home-ways__name">{{name}}</strong>
+            <span class="home-ways__body">{{body}}</span>
+            <a class="home-ways__link" href="{{track linkHref source='home-ways' content=trackContent}}" data-test-way-link="{{name}}">{{linkLabel}} &rarr;</a>
+          </li>
+          {{/each}}
+        </ul>
+        <p class="home-ways__note">A PDF link works anywhere an article link does &mdash; <a href="{{track '/pdf-ocr' source='home-ways' content='pdf'}}">Tesseract reads it off the pixels, up to 300 pages</a>. If an export is too big for the importer, email the file to <a href="mailto:readplace+migrate@readplace.com">readplace+migrate@readplace.com</a> and I import it by hand within 24 to 48 hours.</p>
       </div>
     </section>
 
@@ -137,15 +155,15 @@
     <section id="how-saving-works" class="home-canonical" data-test-section="canonical" aria-label="How saving works">
       <div class="home-canonical__container">
         <h2 class="home-canonical__heading">Same article, different versions?</h2>
-        <p class="home-canonical__body">When you save from the browser extension, Readplace captures the rendered page you&rsquo;re looking at. When you paste a link on the homepage, Readplace fetches it server-side. DeepSeek does the canonical disambiguation so both paths converge on the same article &mdash; even when the source URL is wrapped in a tracker (<code>utm_*</code>, <code>gclid</code>).</p>
+        <p class="home-canonical__body">When you save from the browser extension or the iPhone app, Readplace captures the rendered page you&rsquo;re looking at. When a link arrives as a URL &mdash; pasted here, sent by your AI assistant, or picked up in an import &mdash; Readplace fetches it server-side. DeepSeek does the canonical disambiguation so both paths converge on the same article &mdash; even when the source URL is wrapped in a tracker (<code>utm_*</code>, <code>gclid</code>).</p>
         <figure class="home-canonical__diagram" data-test-canonical-diagram aria-label="Both capture paths converge through DeepSeek into one canonical article">
           <div class="home-canonical__diagram-inputs">
             <div class="home-canonical__diagram-node">
-              <strong>Browser extension</strong>
+              <strong>Extension or iPhone</strong>
               <span>rendered page</span>
             </div>
             <div class="home-canonical__diagram-node">
-              <strong>Pasted link</strong>
+              <strong>Pasted or shared URL</strong>
               <span>server-side fetch</span>
             </div>
           </div>
@@ -160,7 +178,7 @@
             <span>trackers stripped</span>
           </div>
         </figure>
-        <p class="home-canonical__body">The extension-captured version wins when both exist, as long as it&rsquo;s the most complete version of the content. If you saved from the extension while logged in to a site, you captured the full article &mdash; saving again when logged out won&rsquo;t overwrite it with the paywalled version. Most read-later apps replace the captured version with whatever the canonical URL returns; Readplace keeps the most complete one.</p>
+        <p class="home-canonical__body">The captured version wins when both exist, as long as it&rsquo;s the most complete version of the content. If you saved from the extension or the iPhone app while logged in to a site, you captured the full article &mdash; saving again when logged out won&rsquo;t overwrite it with the paywalled version. Most read-later apps replace the captured version with whatever the canonical URL returns; Readplace keeps the most complete one.</p>
       </div>
     </section>
 
@@ -285,7 +303,7 @@
             <p class="pricing-card__description">Be one of the first {{foundingMemberLimit}} users. Get full access free, forever. Help shape the product. $4.08/month for everyone else &mdash; includes TL;DR summaries.</p>
             <ul class="pricing-card__features">
               <li class="pricing-card__feature">Save unlimited articles</li>
-              <li class="pricing-card__feature">{{browserExtensionsAnd}} extensions</li>
+              <li class="pricing-card__feature">Save from {{saveSurfacesShort}}</li>
               <li class="pricing-card__feature">TL;DR summaries included</li>
               <li class="pricing-card__feature">PDF extraction with Tesseract OCR</li>
               <li class="pricing-card__feature">All features as they ship</li>
@@ -307,7 +325,7 @@
             <p class="pricing-card__description">Try everything free for {{trialPeriodDays}} days. No credit card required to start.</p>
             <ul class="pricing-card__features home-pricing__fallback-features" data-test-fallback-benefits>
               <li class="pricing-card__feature">Save unlimited articles</li>
-              <li class="pricing-card__feature">{{browserExtensionsAnd}} extensions</li>
+              <li class="pricing-card__feature">Save from {{saveSurfacesShort}}</li>
               <li class="pricing-card__feature">TL;DR summaries included</li>
               <li class="pricing-card__feature">PDF extraction with Tesseract OCR</li>
               <li class="pricing-card__feature">All features as they ship</li>
@@ -340,7 +358,7 @@
     <section class="home-cta home-band--muted" data-test-section="cta" aria-label="Get started">
       <div class="home-cta__container">
         <h2 class="home-cta__title">I'm building this in public.</h2>
-        <p class="home-cta__subtitle">Try the extension, tell me what to build next. Readplace gets better with every user who shows up and says what they need.</p>
+        <p class="home-cta__subtitle">Try it whichever way suits you, then tell me what to build next. Readplace gets better with every user who shows up and says what they need.</p>
         <div class="home-cta__actions">
           {{#switch browserName}}
           {{#case "firefox"}}
@@ -353,7 +371,8 @@
           <a href="{{track '/install' source='home-cta' content='install'}}" class="btn btn--brand" data-test-cta="bottom-install">Install Browser Extension</a>
           {{/default}}
           {{/switch}}
-          <a href="https://github.com/Readplace/readplace.com" class="home-cta__github-link" data-test-cta="bottom-github">View on GitHub</a>
+          <a href="#ways-to-save" class="home-cta__link" data-test-cta="bottom-ways">Every way to save</a>
+          <a href="https://github.com/Readplace/readplace.com" class="home-cta__link" data-test-cta="bottom-github">View on GitHub</a>
         </div>
       </div>
     </section>

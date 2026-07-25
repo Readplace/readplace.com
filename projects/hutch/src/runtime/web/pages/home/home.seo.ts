@@ -69,7 +69,7 @@ export function buildHomeSeo(input: {
 	return {
 		title: "Readplace — Read the Web, not the Slop. | Read-It-Later App",
 		description:
-			"The read-it-later app and online reader for distraction-free reading — save any article or web page in one click and read it later in a clean reader view. A privacy-first Pocket alternative with real Tesseract OCR for scanned PDFs (no LLM hallucination). Read the Web, not the Slop.",
+			"The read-it-later app and online reader for distraction-free reading — save from your browser, your iPhone, an AI assistant, a pasted link, or a bulk import, and read it later in a clean reader view. A privacy-first Pocket alternative with real Tesseract OCR for scanned PDFs (no LLM hallucination). Read the Web, not the Slop.",
 		canonicalUrl: "https://readplace.com",
 		ogType: "website",
 		// The A/B arms render `noindex` with canonical=`/`, so only the canonical `/` competes for
@@ -84,7 +84,7 @@ export function buildHomeSeo(input: {
 			"Readplace — Read the Web, not the Slop. A read-it-later app and Pocket alternative.",
 		twitterImage: `${staticBaseUrl}/twitter-card-1200x600.png`,
 		author: "Fayner Brack",
-		keywords: `read it later, read-it-later app, online reader, online reading app, read the web not the slop, slop-free reading, no LLM hallucination, real OCR, Tesseract OCR, deterministic PDF extraction, save articles, bookmark manager, reading list, Pocket alternative, Omnivore alternative, browser extension, ${BROWSER_EXTENSION_KEYWORDS}, article reader, distraction free reading, AI summaries`,
+		keywords: `read it later, read-it-later app, online reader, online reading app, read the web not the slop, slop-free reading, no LLM hallucination, real OCR, Tesseract OCR, deterministic PDF extraction, save articles, bookmark manager, reading list, Pocket alternative, Omnivore alternative, browser extension, ${BROWSER_EXTENSION_KEYWORDS}, article reader, distraction free reading, AI summaries, save from ChatGPT, MCP server, iPhone share sheet, share sheet saving, import bookmarks, import Pocket export, newsletter to read later`,
 		structuredData: [
 			{
 				"@context": "https://schema.org",
@@ -95,11 +95,11 @@ export function buildHomeSeo(input: {
 				alternateName: ["Readplace Read-It-Later App", "Readplace App"],
 				url: "https://readplace.com",
 				description:
-					"Read the Web, not the Slop. A privacy-first read-it-later app and Pocket alternative. Save articles with one click, read them later. Real Tesseract OCR for scanned PDFs — no LLM hallucination.",
+					"Read the Web, not the Slop. A privacy-first read-it-later app and Pocket alternative. Save from your browser, your iPhone, an AI assistant over MCP, a pasted link, or a bulk import — then read it later. Real Tesseract OCR for scanned PDFs — no LLM hallucination.",
 				applicationCategory: "ProductivityApplication",
 				applicationSubCategory: "Read-It-Later",
 				operatingSystem: "Web",
-				browserRequirements: `Requires ${BROWSER_EXTENSIONS_OR} for browser extension`,
+				browserRequirements: `Any modern browser. The browser extension requires ${BROWSER_EXTENSIONS_OR}.`,
 				softwareVersion: "1.0",
 				datePublished: "2026-03-01",
 				inLanguage: "en",
@@ -112,7 +112,13 @@ export function buildHomeSeo(input: {
 					url: "https://fagnerbrack.com",
 				},
 				featureList: [
-					`One-click article saving via browser extension for ${BROWSER_EXTENSIONS_AND}`,
+					`One-click saving from the ${BROWSER_EXTENSIONS_AND} browser extensions, which capture the rendered page`,
+					"Saving from the iPhone share sheet (TestFlight beta)",
+					"Saving from ChatGPT, Claude, Gemini and other MCP clients over a hosted MCP server",
+					"Paste any article or PDF link on readplace.com to read it in the reader view with no account",
+					"Bulk import of bookmark, Pocket and newsletter export files, or every link on a page URL, before you create an account",
+					"A per-newsletter forwarding address on every account, so newsletters land in Readplace with their article links pulled out",
+					"A save-button snippet publishers can embed on their own site",
 					"Distraction-free reader view powered by Readability.js",
 					"AI-generated TL;DR summaries for every saved article",
 					"Concierge import service — email your Pocket, Instapaper, or Omnivore export file to readplace+migrate@readplace.com and Fayner imports it by hand within 24–48 hours",
@@ -141,6 +147,7 @@ export function buildHomeSeo(input: {
 				sameAs: [
 					"https://github.com/Readplace/readplace.com",
 					"https://chromewebstore.google.com/detail/readplace-%E2%80%94-save-articles/klblengmhlfnmjoagchagfcdbpbocgbf",
+					"https://testflight.apple.com/join/5eng821W",
 				],
 				founder: {
 					"@type": "Person",
@@ -186,7 +193,7 @@ export function buildHomeSeo(input: {
 						name: "What is Readplace?",
 						acceptedAnswer: {
 							"@type": "Answer",
-							text: `Readplace is a read-it-later app built from a 10-year personal reading system. Save articles with one click using the browser extension for ${BROWSER_EXTENSIONS_OR}, read them in a clean reader view, and get TL;DR summaries for every article.`,
+							text: `Readplace is a read-it-later app built from a 10-year personal reading system. Save an article from the ${BROWSER_EXTENSIONS_OR} browser extension, the iPhone share sheet, an AI assistant like ChatGPT or Claude, a bulk import of your old export file, or by pasting the link straight on readplace.com — then read it in a clean reader view with a TL;DR summary.`,
 						},
 					},
 					{
@@ -210,7 +217,7 @@ export function buildHomeSeo(input: {
 						name: "What features does Readplace have?",
 						acceptedAnswer: {
 							"@type": "Answer",
-							text: `Readplace offers browser extensions for ${BROWSER_EXTENSIONS_AND}, an iPhone app in beta that saves from the share sheet, a web app for managing saved articles, a distraction-free reader view, TL;DR summaries, dark mode, and secure OAuth with PKCE. Planned features include a 'what to read next' view that sorts and filters your unread pile, and listening to saved articles as audio.`,
+							text: `Readplace saves from browser extensions for ${BROWSER_EXTENSIONS_AND}, an iPhone app in beta that saves from the share sheet, an MCP server that lets ChatGPT, Claude and Gemini save links and read your queue back, a link pasted on the homepage, and a bulk import of bookmark or Pocket export files that works before you make an account. Every account also gets a per-newsletter forwarding address, so newsletters land in Readplace with their article links pulled out. It also has a web app for managing saved articles, a distraction-free reader view, TL;DR summaries, real Tesseract OCR for PDFs, dark mode, and secure OAuth with PKCE. Planned features include a 'what to read next' view that sorts and filters your unread pile, and listening to saved articles as audio.`,
 						},
 					},
 					{

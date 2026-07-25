@@ -111,7 +111,7 @@ describe("GET /", () => {
 		expect(cta?.getAttribute("href")).toBe("/install?client=firefox&utm_source=home-hero&utm_medium=internal&utm_content=install");
 
 		const trust = doc.querySelector(".home-hero__trust");
-		expect(trust?.textContent).toBe("Also available for Chrome");
+		expect(trust?.textContent).toBe("Also on Chrome, iPhone, and your AI assistant.");
 	});
 
 	it("should render Chrome install CTA when User-Agent is Chrome", async () => {
@@ -126,7 +126,7 @@ describe("GET /", () => {
 		expect(cta?.getAttribute("href")).toBe("/install?client=chrome&utm_source=home-hero&utm_medium=internal&utm_content=install");
 
 		const trust = doc.querySelector(".home-hero__trust");
-		expect(trust?.textContent).toBe("Also available for Firefox");
+		expect(trust?.textContent).toBe("Also on Firefox, iPhone, and your AI assistant.");
 	});
 
 	it("should render Chrome install CTA when User-Agent is Edge", async () => {
@@ -170,7 +170,7 @@ describe("GET /", () => {
 		const doc = new JSDOM(response.text).window.document;
 
 		const trust = doc.querySelector(".home-hero__trust");
-		expect(trust?.textContent).toBe("Firefox & Chrome");
+		expect(trust?.textContent).toBe("Firefox, Chrome, iPhone, and your AI assistant.");
 	});
 
 	it("should render browser-specific bottom install CTA for Firefox", async () => {
@@ -262,6 +262,60 @@ describe("GET /", () => {
 		expect(installLink?.getAttribute("href")).toBe("/install");
 	});
 
+	it("lists every shipped way to save, each with its own link", async () => {
+		const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
+		const response = await request(harness.server).get("/");
+		const doc = new JSDOM(response.text).window.document;
+
+		const section = doc.querySelector('[data-test-section="ways-to-save"]');
+		assert(section, "ways-to-save section must be rendered");
+
+		const names = Array.from(section.querySelectorAll("[data-test-way]")).map((el) =>
+			el.getAttribute("data-test-way"),
+		);
+		expect(names).toEqual([
+			"Paste a link on this page",
+			"Chrome, Edge, or Brave",
+			"Firefox",
+			"Your iPhone",
+			"ChatGPT, Claude, or Gemini",
+			"A file, or a page full of links",
+			"Your newsletters",
+			"A save button on your own site",
+		]);
+
+		const hrefs = Array.from(section.querySelectorAll("[data-test-way-link]")).map((el) =>
+			el.getAttribute("href"),
+		);
+		expect(hrefs).toEqual([
+			"#paste-a-link",
+			"/install?client=chrome&utm_source=home-ways&utm_medium=internal&utm_content=chrome",
+			"/install?client=firefox&utm_source=home-ways&utm_medium=internal&utm_content=firefox",
+			"/install?client=iphone&utm_source=home-ways&utm_medium=internal&utm_content=iphone",
+			"/mcp?utm_source=home-ways&utm_medium=internal&utm_content=mcp",
+			"/import?utm_source=home-ways&utm_medium=internal&utm_content=import",
+			"/blog/save-newsletter-links-to-your-queue?utm_source=home-ways&utm_medium=internal&utm_content=inbox",
+			"/embed?utm_source=home-ways&utm_medium=internal&utm_content=embed",
+		]);
+	});
+
+	it("anchors the hero and the closing CTA at the ways-to-save list", async () => {
+		const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
+		const response = await request(harness.server).get("/");
+		const doc = new JSDOM(response.text).window.document;
+
+		expect(doc.querySelector('[data-test-cta="hero-ways"]')?.getAttribute("href")).toBe(
+			"#ways-to-save",
+		);
+		expect(doc.querySelector('[data-test-cta="bottom-ways"]')?.getAttribute("href")).toBe(
+			"#ways-to-save",
+		);
+		// The first way links back to the paste box, so that fragment must resolve too.
+		expect(doc.querySelector('[data-test-section="try"]')?.getAttribute("id")).toBe(
+			"paste-a-link",
+		);
+	});
+
 	it("should render two demo videos: Desktop and Browser Extension", async () => {
 		const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
 		const response = await request(harness.server).get("/");
@@ -286,7 +340,7 @@ describe("GET /", () => {
 		);
 	});
 
-	it("should render the highlighted reader testimonial immediately after the hero", async () => {
+	it("should render the highlighted reader testimonial after the hero", async () => {
 		const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
 		const response = await request(harness.server).get("/");
 		const doc = new JSDOM(response.text).window.document;

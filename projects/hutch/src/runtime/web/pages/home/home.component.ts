@@ -12,7 +12,10 @@ import { STRIPE_TRIAL_PERIOD_DAYS } from "../../../domain/stripe/stripe-trial-co
 import type { HomepageVariantMarker } from "../../experiments/homepage-split";
 import { switchHelpers } from "../../handlebars-switch";
 import type { InstallBrowser } from "../../onboarding/onboarding.types";
-import { SETUP_SURFACES_PHRASE } from "../../shared/client-surface-phrases";
+import {
+	SAVE_SURFACES_SHORT_PHRASE,
+	SETUP_SURFACES_PHRASE,
+} from "../../shared/client-surface-phrases";
 import {
 	BROWSER_EXTENSIONS_AND,
 	BROWSER_EXTENSIONS_LISTED,
@@ -52,6 +55,86 @@ const CLIENT_CATEGORY_FEATURES = {
 		linkLabel: "How to connect",
 	},
 } satisfies Record<ClientCategory, HomeFeatureCard>;
+
+interface WayToSave {
+	name: string;
+	body: string;
+	linkLabel: string;
+	linkHref: string;
+	trackContent: string;
+}
+
+/**
+ * Every shipped route a link can take into Readplace, in the order the section
+ * renders them. This is a hand-written list rather than a projection of
+ * SUPPORTED_CLIENTS because most entries are not clients at all — the paste box,
+ * the importer, a newsletter forwarding address and the publisher snippet have no
+ * roster row, and the extensions are split per browser because each has its own
+ * install destination.
+ *
+ * Every `linkHref` must be reachable while logged out, so a visitor who clicks
+ * lands on the explanation rather than a login wall. That is why the newsletter
+ * row points at the blog explainer and not at `/inbox`, which is behind
+ * `requireAuth`.
+ */
+const WAYS_TO_SAVE: readonly WayToSave[] = [
+	{
+		name: "Paste a link on this page",
+		body: "It opens in the reader with a TL;DR in seconds — an article or a PDF, no account and nothing to install. Save it from there and it goes to your queue; that is the point where I ask for an account.",
+		linkLabel: "Try it now",
+		linkHref: "#paste-a-link",
+		trackContent: "paste",
+	},
+	{
+		name: "Chrome, Edge, or Brave",
+		body: "One click, Ctrl/Cmd+D, or right-click. The extension saves the page as it renders in front of you, so sites that turn crawlers away still come across whole.",
+		linkLabel: "Install for Chrome",
+		linkHref: "/install?client=chrome",
+		trackContent: "chrome",
+	},
+	{
+		name: "Firefox",
+		body: "The same one click, the same full-page capture. The Firefox build is a signed download from this site rather than addons.mozilla.org.",
+		linkLabel: "Install for Firefox",
+		linkHref: "/install?client=firefox",
+		trackContent: "firefox",
+	},
+	{
+		name: "Your iPhone",
+		body: "Open a page in any browser, tap Share, choose Readplace. The app is a TestFlight beta and the join link is public, so you can add yourself.",
+		linkLabel: "Join the beta",
+		linkHref: "/install?client=iphone",
+		trackContent: "iphone",
+	},
+	{
+		name: "ChatGPT, Claude, or Gemini",
+		body: "Readplace runs an MCP server. Paste one URL into your assistant's connector settings, sign in once, and it can save links to your queue and read the list back inside the conversation.",
+		linkLabel: "Connect your assistant",
+		linkHref: "/mcp",
+		trackContent: "mcp",
+	},
+	{
+		name: "A file, or a page full of links",
+		body: "Upload a Pocket, Instapaper, or bookmark export — anything text-shaped — or paste a newsletter or index URL, and Readplace pulls every link out for you to review. All of that works logged out; the account is asked for when you save the selection.",
+		linkLabel: "Import your links",
+		linkHref: "/import",
+		trackContent: "import",
+	},
+	{
+		name: "Your newsletters",
+		body: "Every account gets its own address at read.place, shaped like netflix-a7b2c9@read.place. Subscribe with it, or forward an issue to it, and Readplace saves the article links out of the email. You can hold up to 25, one per newsletter.",
+		linkLabel: "How that works",
+		linkHref: "/blog/save-newsletter-links-to-your-queue",
+		trackContent: "inbox",
+	},
+	{
+		name: "A save button on your own site",
+		body: "If you publish, the snippet is a plain link — under 1 KB, no JavaScript, no tracking — that puts your article in a reader's queue in one click.",
+		linkLabel: "Get the snippet",
+		linkHref: "/embed",
+		trackContent: "embed",
+	},
+];
 
 const HOME_CLIENT_SCRIPT = `<script src="/client-dist/home.client.js" defer></script>`;
 
@@ -117,8 +200,9 @@ export function HomePage(params: HomePageParams): PageBody {
 			staticBaseUrl,
 			browserName: browser,
 			setupSurfaces: SETUP_SURFACES_PHRASE,
-			browserExtensionsAnd: BROWSER_EXTENSIONS_AND,
-			platformsCell: `Web, iPhone (beta), Extensions: ${BROWSER_EXTENSIONS_LISTED}`,
+			saveSurfacesShort: SAVE_SURFACES_SHORT_PHRASE,
+			waysToSave: WAYS_TO_SAVE,
+			platformsCell: `Web, iPhone (beta), AI assistants (MCP), Extensions: ${BROWSER_EXTENSIONS_LISTED}`,
 			maxPdfBytesLabel: MAX_PDF_BYTES.label,
 			founderAvatarUrl: `${staticBaseUrl}/fayner-brack.jpg`,
 			foundingProgressHtml,
@@ -147,7 +231,7 @@ export function HomePage(params: HomePageParams): PageBody {
 				{
 					name: "Links Import",
 					description:
-						"Upload bookmarks, notes, newsletters — any text-shaped export — and Readplace pulls every URL out for you to review before saving.",
+						"Upload bookmarks, notes, newsletters — any text-shaped export — or paste a newsletter or index URL, and Readplace pulls every link out for you to review before saving. No account needed until you save.",
 				},
 				{
 					name: "Privacy First",
