@@ -2,9 +2,9 @@ import { HOMEPAGE_SPLIT, initHomepageSplit } from "./homepage-split.client";
 
 const STORAGE_KEY = "readplace.homepage-split";
 const LANDING_A_URL =
-	"/landing-a?utm_campaign=homepage-split-e2&utm_medium=experiment&utm_content=variant-a";
+	"/landing-a?utm_campaign=homepage-split-e3&utm_medium=experiment&utm_content=variant-a";
 const LANDING_B_URL =
-	"/landing-b?utm_campaign=homepage-split-e2&utm_medium=experiment&utm_content=variant-b";
+	"/landing-b?utm_campaign=homepage-split-e3&utm_medium=experiment&utm_content=variant-b";
 
 function makeLocation(pathname: string) {
 	return { pathname, replace: jest.fn() };
@@ -54,7 +54,7 @@ describe("initHomepageSplit — fresh assignment", () => {
 
 		initHomepageSplit({ config: HOMEPAGE_SPLIT, location, storage, randomByte: () => 0 });
 
-		expect(storage.setItem).toHaveBeenCalledWith(STORAGE_KEY, "2:variant-a");
+		expect(storage.setItem).toHaveBeenCalledWith(STORAGE_KEY, "3:variant-a");
 		expect(location.replace).toHaveBeenCalledWith(LANDING_A_URL);
 	});
 
@@ -64,7 +64,7 @@ describe("initHomepageSplit — fresh assignment", () => {
 
 		initHomepageSplit({ config: HOMEPAGE_SPLIT, location, storage, randomByte: () => 200 });
 
-		expect(storage.setItem).toHaveBeenCalledWith(STORAGE_KEY, "2:variant-b");
+		expect(storage.setItem).toHaveBeenCalledWith(STORAGE_KEY, "3:variant-b");
 		expect(location.replace).toHaveBeenCalledWith(LANDING_B_URL);
 	});
 });
@@ -72,7 +72,7 @@ describe("initHomepageSplit — fresh assignment", () => {
 describe("initHomepageSplit — persistence", () => {
 	it("reuses a stored current-epoch assignment without re-rolling or re-writing", () => {
 		const location = makeLocation("/");
-		const storage = makeStorage({ getItem: () => "2:variant-b" });
+		const storage = makeStorage({ getItem: () => "3:variant-b" });
 		const randomByte = jest.fn(() => 0);
 
 		initHomepageSplit({ config: HOMEPAGE_SPLIT, location, storage, randomByte });
@@ -88,7 +88,7 @@ describe("initHomepageSplit — persistence", () => {
 
 		initHomepageSplit({ config: HOMEPAGE_SPLIT, location, storage, randomByte: () => 200 });
 
-		expect(storage.setItem).toHaveBeenCalledWith(STORAGE_KEY, "2:variant-b");
+		expect(storage.setItem).toHaveBeenCalledWith(STORAGE_KEY, "3:variant-b");
 		expect(location.replace).toHaveBeenCalledWith(LANDING_B_URL);
 	});
 });

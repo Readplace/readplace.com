@@ -33,18 +33,18 @@ describe("assignVariant", () => {
 
 describe("campaignTag", () => {
 	it("folds the epoch into the campaign so a re-bucket scopes the measurement window", () => {
-		expect(campaignTag(HOMEPAGE_SPLIT)).toBe("homepage-split-e2");
-		expect(campaignTag({ ...HOMEPAGE_SPLIT, epoch: 3 })).toBe("homepage-split-e3");
+		expect(campaignTag(HOMEPAGE_SPLIT)).toBe("homepage-split-e3");
+		expect(campaignTag({ ...HOMEPAGE_SPLIT, epoch: 4 })).toBe("homepage-split-e4");
 	});
 });
 
 describe("buildLandingUrl", () => {
 	it("carries the epoch-tagged campaign, an experiment medium, and the variant slug (no utm_source)", () => {
 		expect(buildLandingUrl(HOMEPAGE_SPLIT, VARIANT_A)).toBe(
-			"/landing-a?utm_campaign=homepage-split-e2&utm_medium=experiment&utm_content=variant-a",
+			"/landing-a?utm_campaign=homepage-split-e3&utm_medium=experiment&utm_content=variant-a",
 		);
 		expect(buildLandingUrl(HOMEPAGE_SPLIT, VARIANT_B)).toBe(
-			"/landing-b?utm_campaign=homepage-split-e2&utm_medium=experiment&utm_content=variant-b",
+			"/landing-b?utm_campaign=homepage-split-e3&utm_medium=experiment&utm_content=variant-b",
 		);
 	});
 });
@@ -62,7 +62,7 @@ describe("variantBySlug", () => {
 
 describe("formatStoredVariant", () => {
 	it("prefixes the current epoch to the slug", () => {
-		expect(formatStoredVariant(HOMEPAGE_SPLIT, VARIANT_A)).toBe("2:variant-a");
+		expect(formatStoredVariant(HOMEPAGE_SPLIT, VARIANT_A)).toBe("3:variant-a");
 	});
 });
 
@@ -81,7 +81,7 @@ describe("parseStoredVariant", () => {
 	});
 
 	it("returns undefined when the epoch matches but the slug is unknown", () => {
-		expect(parseStoredVariant(HOMEPAGE_SPLIT, "2:variant-z")).toBeUndefined();
+		expect(parseStoredVariant(HOMEPAGE_SPLIT, "3:variant-z")).toBeUndefined();
 	});
 
 	it("returns undefined for a malformed value with no separator", () => {

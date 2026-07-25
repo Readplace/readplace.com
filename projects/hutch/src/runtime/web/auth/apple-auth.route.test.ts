@@ -664,7 +664,7 @@ describe("Apple auth routes", () => {
 				.set("Cookie", [
 					`hutch_click=${encodeURIComponent(attributionCookie)}`,
 					`hutch_vid=${TEST_VISITOR_ID}`,
-					`hutch_exp=${encodeURIComponent("homepage-split:2:variant-b")}`,
+					`hutch_exp=${encodeURIComponent("homepage-split:3:variant-b")}`,
 					`hutch_psid=${TEST_PENDING_SAVE_ID}`,
 				]);
 

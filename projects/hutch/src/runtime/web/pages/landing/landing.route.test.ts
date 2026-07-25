@@ -88,7 +88,7 @@ describe.each([
 		const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
 		const response = await request(harness.server).get(path);
 
-		expect(readSetCookie(response, "hutch_exp")).toBe(`homepage-split:2:${slug}`);
+		expect(readSetCookie(response, "hutch_exp")).toBe(`homepage-split:3:${slug}`);
 	});
 });
 

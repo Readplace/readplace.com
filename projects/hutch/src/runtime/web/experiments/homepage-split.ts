@@ -39,10 +39,10 @@ export interface HomepageSplitConfig {
 export const HOMEPAGE_SPLIT: HomepageSplitConfig = {
 	active: true,
 	campaign: "homepage-split",
-	// Epoch 2: arm B diverges from A here (the trial-first rewrite). Bumping off
-	// epoch 1 re-buckets every browser that was assigned while both arms rendered
-	// the identical page, so the A/B measurement starts clean.
-	epoch: 2,
+	// Epoch 3: arm A gained the ways-to-save section, so the control itself
+	// changed. Bumping off epoch 2 scopes the widgets to the rewritten arm A
+	// rather than averaging the extension-only era into it.
+	epoch: 3,
 	storageKey: "readplace.homepage-split",
 	variants: [
 		{ slug: "variant-a", path: "/landing-a", marker: "a" },
