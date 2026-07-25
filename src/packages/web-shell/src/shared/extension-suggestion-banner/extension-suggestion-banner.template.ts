@@ -13,7 +13,7 @@ export const EXTENSION_SUGGESTION_BANNER_TEMPLATE = `<div
 			data-test-extension-suggestion-close
 			aria-label="Dismiss extension suggestion"
 		>
-			<span aria-hidden="true">&times;</span>
+			{{icon "x"}}
 		</button>
 		<span class="extension-suggestion-banner__marker" aria-hidden="true"></span>
 		<div class="extension-suggestion-banner__content">

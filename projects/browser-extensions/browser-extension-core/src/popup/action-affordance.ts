@@ -1,3 +1,4 @@
+import { type IconName, iconSvg } from "@packages/ui-icons";
 import type {
 	ActionDescriptor,
 	LinkDescriptor,
@@ -21,18 +22,20 @@ export function actionVariant(name: string): ActionVariant {
 	return VARIANT_BY_NAME[name] ?? "default";
 }
 
-/** The client's own glyph for a known action `name`, or undefined when the
- * action has no bespoke glyph (the control falls back to its text label). This
- * is the same one-mapping-with-a-default shape as `actionVariant`: presentation
- * (here the icon) is derived from the wire `name` client-side, never from a
- * per-name `if` in the popup. A server-side rename only loses the glyph
- * (degrading to the label), it never injects one. */
-const ICON_BY_NAME: Record<string, string> = {
-	delete: "×",
+/** The client's own icon for a known action `name`, or undefined when the action
+ * has no bespoke icon (the control falls back to its text label). This is the
+ * same one-mapping-with-a-default shape as `actionVariant`: presentation (here
+ * the icon) is derived from the wire `name` client-side, never from a per-name
+ * `if` in the popup. The map holds a *name* from the shared set, so a
+ * server-side rename only loses the icon (degrading to the label) and can never
+ * reach the returned markup. */
+const ICON_BY_NAME: Record<string, IconName> = {
+	delete: "x",
 };
 
 export function actionIcon(name: string): string | undefined {
-	return ICON_BY_NAME[name];
+	const icon = ICON_BY_NAME[name];
+	return icon === undefined ? undefined : iconSvg(icon);
 }
 
 /** Turns a wire `name` (`mark-read`, `archive_now`) into a human label when the

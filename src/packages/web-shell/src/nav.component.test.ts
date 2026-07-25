@@ -290,7 +290,7 @@ describe("GlobalNav component", () => {
 		expect(inboxForm.querySelector('input[name="dismiss"], [data-dismiss]')).toBeNull();
 	});
 
-	it("renders an aria-hidden Font Awesome icon alongside each label without polluting the accessible name", () => {
+	it("keeps the icon out of each item's accessible name, leaving the label alone", () => {
 		const doc = parse(
 			GlobalNav({
 				variant: "default",
@@ -302,10 +302,6 @@ describe("GlobalNav component", () => {
 
 		const queue = doc.querySelector('[data-test-nav-item="queue"]');
 		assert(queue, "queue nav item must render");
-		const icon = queue.querySelector(".nav__icon");
-		assert(icon, "queue nav item must render an icon");
-		expect(icon.getAttribute("aria-hidden")).toBe("true");
-		expect(icon.classList.contains("fa-inbox")).toBe(true);
 		expect(queue.textContent).toBe("Queue");
 	});
 

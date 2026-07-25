@@ -67,21 +67,21 @@
         data-test-import-pagination>
         {{#if hasPrev}}
         <a class="import__pagination-link import__pagination-link--prev" href="{{prevUrl}}" data-test-import-pagination-prev>
-          <span aria-hidden="true">&larr;</span> Previous
+          {{icon "arrow-left"}} Previous
         </a>
         {{else}}
         <span class="import__pagination-link import__pagination-link--disabled" aria-disabled="true">
-          <span aria-hidden="true">&larr;</span> Previous
+          {{icon "arrow-left"}} Previous
         </span>
         {{/if}}
         <span class="import__pagination-info" data-test-import-pagination-info>Page <strong>{{currentPage}}</strong> of {{totalPages}}</span>
         {{#if hasNext}}
         <a class="import__pagination-link import__pagination-link--next" href="{{nextUrl}}" data-test-import-pagination-next>
-          Next <span aria-hidden="true">&rarr;</span>
+          Next {{icon "arrow-right"}}
         </a>
         {{else}}
         <span class="import__pagination-link import__pagination-link--disabled" aria-disabled="true">
-          Next <span aria-hidden="true">&rarr;</span>
+          Next {{icon "arrow-right"}}
         </span>
         {{/if}}
       </nav>

@@ -237,7 +237,7 @@ describe("Queue routes", () => {
 
 			expect(actionForms.length).toBe(2);
 			expect(doc.querySelector("[data-test-action='mark-read']")?.textContent).toBe("Mark as read");
-			expect(doc.querySelector("[data-test-action='delete']")?.textContent).toBe("×");
+			expect(doc.querySelector("[data-test-action='delete']")?.textContent).toBe("Delete");
 		});
 
 		it("should enable htmx boost on the mark-read action form", async () => {

@@ -488,10 +488,13 @@ export const NAV_STYLES = `
 
 	.nav__icon {
 		flex-shrink: 0;
-		width: 1.1em;
-		text-align: center;
-		font-size: 0.95em;
+		display: inline-flex;
 		color: var(--muted-foreground);
+	}
+
+	.nav__icon svg {
+		width: 1.1em;
+		height: 1.1em;
 	}
 
 	.nav__badge {

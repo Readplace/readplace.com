@@ -306,6 +306,10 @@ export const INSTALL_PAGE_STYLES = `
 	text-underline-offset: 3px;
 }
 
+.install-page__ai-guide svg {
+	vertical-align: -0.125em;
+}
+
 .install-page__foot-note {
 	margin: 0;
 	padding-top: 20px;

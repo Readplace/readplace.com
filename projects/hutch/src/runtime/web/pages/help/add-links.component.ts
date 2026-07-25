@@ -134,7 +134,7 @@ export function HelpAddLinksPage(params: {
 	 * hosted in the iOS web sheet (`?shell=app`). A browser visitor gets no link —
 	 * the `readplace://` scheme would be a dead end there — so the page keeps its
 	 * bare public shape by default. Mirrors the account page, the other chromeless
-	 * surface the same sheet hosts, so both read "← Back to queue". */
+	 * surface the same sheet hosts, so both read "Back to queue". */
 	backLink?: { href: string; label: string };
 }): Component {
 	return HtmlPage(

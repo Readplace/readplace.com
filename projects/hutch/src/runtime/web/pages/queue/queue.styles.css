@@ -227,6 +227,10 @@
   color: var(--foreground);
 }
 
+.queue__sort-link svg {
+  vertical-align: -0.15em;
+}
+
 .queue__list {
   display: flex;
   flex-direction: column;
@@ -436,8 +440,6 @@
 .queue-article__status {
   display: inline-flex;
   align-items: center;
-  line-height: 1;
-  font-weight: 600;
 }
 
 .queue-article__status--unread {
@@ -448,14 +450,23 @@
   color: var(--success);
 }
 
+/**
+ * 1. A status dot is a shape, not an icon — drawn here rather than pulled from
+ *    the icon set, which is line-only. 8px is the ink the `●` glyph it replaced
+ *    measured at its old 0.625rem font-size.
+ */
 .queue-article__status--unread::before {
-  content: "●";
-  font-size: 0.625rem;
+  content: "";
+  display: block;
+  width: 0.5rem; /* 1 */
+  height: 0.5rem;
+  border-radius: 50%;
+  background: currentColor;
 }
 
-.queue-article__status--read::before {
-  content: "✓";
-  font-weight: 700;
+.queue-article__status--read svg {
+  width: 0.875rem;
+  height: 0.875rem;
 }
 
 .queue-article__time {
@@ -526,6 +537,11 @@
 .queue-article__action-btn--delete {
   color: var(--error);
   border-color: var(--error);
+}
+
+.queue-article__action-btn--delete svg {
+  width: 1rem;
+  height: 1rem;
 }
 
 .queue-article__action-btn--delete:hover {
@@ -649,6 +665,10 @@
 
 .queue__pagination-link:hover {
   background: var(--muted);
+}
+
+.queue__pagination-link svg {
+  vertical-align: -0.15em;
 }
 
 .queue__pagination-info {

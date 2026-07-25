@@ -165,13 +165,13 @@
 }
 
 .onboarding__dismiss {
+  display: flex;
   background: none;
   border: none;
   font-size: 1.25rem;
   color: var(--muted-foreground);
   cursor: pointer;
   padding: var(--button-padding-xs);
-  line-height: 1;
 }
 
 .onboarding__dismiss:hover {
@@ -187,6 +187,11 @@
   font-weight: 600;
   color: var(--foreground);
   margin-bottom: 4px;
+}
+
+.onboarding__success-title svg {
+  color: var(--success);
+  vertical-align: -0.15em;
 }
 
 .onboarding__success-message {

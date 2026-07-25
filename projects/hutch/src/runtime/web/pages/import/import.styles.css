@@ -206,6 +206,11 @@
   color: var(--primary);
 }
 
+.import__dropzone-icon svg {
+  width: 40px;
+  height: 40px;
+}
+
 .import__file-input:focus-visible + .import__dropzone-icon {
   outline: 2px solid var(--ring);
   outline-offset: 4px;

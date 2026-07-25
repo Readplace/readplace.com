@@ -1,7 +1,7 @@
 <div class="queue-article{{unreadClass}}" data-test-article="{{id}}"{{#if isFirst}} id="latest-saved"{{/if}}{{#if cardPollUrl}} hx-get="{{cardPollUrl}}" hx-trigger="every 3s" hx-target="this" hx-swap="outerHTML"{{/if}} data-card-status="{{cardStatus}}">
   <div class="queue-article__header">
     <div class="queue-article__meta">
-      {{#if isUnread}}<span class="queue-article__status queue-article__status--unread" data-test-read-status="unread"><span class="sr-only">Unread</span></span>{{else}}<span class="queue-article__status queue-article__status--read" data-test-read-status="read"><span class="sr-only">Read</span></span>{{/if}}
+      {{#if isUnread}}<span class="queue-article__status queue-article__status--unread" data-test-read-status="unread"><span class="sr-only">Unread</span></span>{{else}}<span class="queue-article__status queue-article__status--read" data-test-read-status="read">{{icon "check"}}<span class="sr-only">Read</span></span>{{/if}}
       <a class="queue-article__url{{urlEmptyClass}}" href="{{url}}" target="_blank" rel="noopener" data-test-article-url>{{siteName}}</a>
       <time class="queue-article__time" datetime="{{saved.iso}}" data-local-time="{{saved.mode}}">{{saved.label}}</time>
     </div>
@@ -9,7 +9,7 @@
       {{#each actions}}
       <form method="{{method}}" action="{{url}}" class="queue-article__action-form" hx-boost="true" hx-target="main" hx-select="main" hx-swap="outerHTML show:none"{{#if (eq affordance "with-loader")}} hx-disabled-elt="find button"{{/if}}>
         {{#each fields}}<input type="hidden" name="{{name}}" value="{{value}}">{{/each}}
-        <button class="{{buttonClass}}" type="submit" title="{{title}}" data-test-action="{{testAction}}"{{#if disabled}} disabled{{/if}}>{{#if (eq affordance "with-loader")}}<span class="queue-article__action-btn-label">{{text}}</span><span class="queue-article__action-btn-loader" aria-hidden="true"><span></span><span></span><span></span></span>{{else}}{{text}}{{/if}}</button>
+        <button class="{{buttonClass}}" type="submit" title="{{title}}" data-test-action="{{testAction}}"{{#if disabled}} disabled{{/if}}>{{#if iconName}}{{icon iconName}}<span class="sr-only">{{text}}</span>{{else}}<span class="queue-article__action-btn-label">{{text}}</span>{{/if}}{{#if (eq affordance "with-loader")}}<span class="queue-article__action-btn-loader" aria-hidden="true"><span></span><span></span><span></span></span>{{/if}}</button>
       </form>
       {{/each}}
     </div>

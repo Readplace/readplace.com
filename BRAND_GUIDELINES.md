@@ -182,14 +182,16 @@ A single highlight word inside a phrase can be recoloured with `--color-highligh
 
 ### Icon Style
 
-- **Line-based**, consistent stroke weight (2px at 24×24 default size).
-- Rounded end caps, slightly rounded joins — approachable but not bubbly.
-- Use a single consistent icon library across all clients (Lucide, Phosphor, or equivalent).
-- Icons should feel calm and functional. No filled/solid icons for primary navigation — save filled variants for active/selected states.
+Every UI icon comes from [`@packages/ui-icons`](./src/packages/ui-icons/src/ui-icons.ts), which defines the one line spec. Add a drawing there rather than at a call site.
+
+- **No icon font, no icon CDN, no entity or Unicode glyph (`× ↓ ← → ✓ ✗ ● ▾`), no emoji.** A font glyph's stroke follows the system font and an SVG's does not, so mixing them puts two visual weights on one row — the tell that icons were picked at different times.
+- **Filled colour is only for brand and logo marks.** Never a UI icon, and never primary navigation.
+- **Typographic punctuation stays text** — em dash, ellipsis, curly quotes, bullet dividers are copy. A plain shape (an unread dot) is CSS, not an icon.
+- **An icon carrying meaning alone needs an `.sr-only` twin.** `htmlToMarkdown` drops `<svg>`, so a lone icon reaches AI clients and screen readers as an empty cell.
 
 ### List Markers
 
-List markers carry polarity. An included / positive item uses a `✓` (`\2713`) in a success colour; an excluded / negative item — a "what this will **not** do" list — uses a `✗` (`\2717`) in `--color-text-muted` (or `--color-error` for a louder refusal), as `.comparison-table__cross` does. Never mark an exclusion list with a neutral dash or bullet — a dash reads as a feature, not a refusal.
+List markers carry polarity. An included / positive item takes the `check` icon in a success colour; an excluded / negative item — a "what this will **not** do" list — takes the `x` icon in `--color-text-muted` (or `--color-error` for a louder refusal), as `.comparison-table__cross` does. Never mark an exclusion list with a neutral dash or bullet — a dash reads as a feature, not a refusal.
 
 ### Buttons
 

@@ -39,7 +39,7 @@ function makeArticle(overrides: Partial<SavedArticle> = {}): SavedArticle {
 const DEFAULT_APP_ORIGIN = "http://localhost:3000";
 const TEST_BACK_LINK = {
 	topHref: "/queue?back=top",
-	label: "← Back to queue",
+	label: "Back to queue",
 };
 
 describe("ReaderPage", () => {

@@ -257,7 +257,8 @@ describe("renderQueueCard", () => {
 	const DELETE_ACTION = {
 		method: "POST",
 		url: "/queue/abc123/delete",
-		text: "×",
+		text: "Delete",
+		iconName: "x",
 		title: "Delete",
 		testAction: "delete",
 		fields: [],
@@ -311,12 +312,10 @@ describe("renderQueueCard", () => {
 		const doc = parse(html);
 		const deleteButton = doc.querySelector("[data-test-action='delete']");
 		assert(deleteButton, "delete button must be present");
-		expect(deleteButton.textContent).toBe("×");
-		// The with-loader shape wraps its text in label + loader spans and its
-		// form carries hx-disabled-elt — both gated on affordance === "with-loader".
-		// Zero element children is the positive proof the delete control ("bare")
-		// opted out; a selector typo can't make it pass for the wrong reason.
-		expect(deleteButton.children.length).toBe(0);
+		expect(deleteButton.textContent).toBe("Delete");
+		// The loader spans are gated on affordance === "with-loader"; their absence
+		// is the positive proof the delete control ("bare") opted out.
+		expect(deleteButton.querySelectorAll(".queue-article__action-btn-loader").length).toBe(0);
 	});
 
 	it("shows a processing state and disables the status action while the card is still being fetched", () => {

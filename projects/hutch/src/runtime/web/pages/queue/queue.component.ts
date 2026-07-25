@@ -1,5 +1,6 @@
 import { readFileSync } from "node:fs";
 import { join } from "node:path";
+import type { IconName } from "@packages/ui-icons";
 import { NAV_HIDE_SCRIPT } from "../../shared/reader-nav-script";
 import { OnboardingChecklist, ONBOARDING_STYLES } from "../../onboarding/onboarding.component";
 import type { Platform } from "../../onboarding/onboarding.types";
@@ -47,6 +48,7 @@ interface QueueDisplayModel {
 	filterReadUrl: string;
 	sortUrl: string;
 	sortLabel: string;
+	sortIconName: IconName;
 	showPagination: boolean;
 	hasPrev: boolean;
 	hasNext: boolean;
@@ -89,7 +91,10 @@ function toQueueDisplayModel(vm: QueueViewModel, options: { installed: boolean; 
 	const activeTab = vm.filters.tab;
 	const effectiveOrder = vm.filters.order ?? tabQuery(activeTab).defaultOrder;
 	const nextOrder = effectiveOrder === "desc" ? "asc" : "desc";
-	const sortLabel = effectiveOrder === "desc" ? "Newest first ↓" : "Oldest first ↑";
+	const sort: { label: string; iconName: IconName } =
+		effectiveOrder === "desc"
+			? { label: "Newest first", iconName: "arrow-down" }
+			: { label: "Oldest first", iconName: "arrow-up" };
 	const sortUrl = withInternalTracking(buildQueueUrl({ tab: activeTab, order: nextOrder }), {
 		source: "queue-sort",
 		content: "sort",
@@ -149,7 +154,8 @@ function toQueueDisplayModel(vm: QueueViewModel, options: { installed: boolean; 
 		filterReadUrl: withInternalTracking(vm.filterUrls.read, { source: "queue-filters", content: "filter-read" }),
 		countsUrl: vm.countsUrl,
 		sortUrl,
-		sortLabel,
+		sortLabel: sort.label,
+		sortIconName: sort.iconName,
 		showPagination: Boolean(vm.paginationUrls.prev || vm.paginationUrls.next),
 		hasPrev: Boolean(vm.paginationUrls.prev),
 		hasNext: Boolean(vm.paginationUrls.next),

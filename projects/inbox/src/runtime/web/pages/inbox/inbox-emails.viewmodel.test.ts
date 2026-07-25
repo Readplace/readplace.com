@@ -170,7 +170,9 @@ describe("toInboxEmailsViewModel", () => {
 		expect(vm.paginationLinks).toEqual([
 			{
 				key: "older",
-				label: "Older →",
+				label: "Older",
+				iconName: "arrow-right",
+				iconLeading: false,
 				href: `/inbox?older=${encodeURIComponent(
 					"2026-06-24T09:00:00.000Z#<old@x>",
 				)}`,
@@ -184,7 +186,9 @@ describe("toInboxEmailsViewModel", () => {
 		expect(vm.paginationLinks).toEqual([
 			{
 				key: "newer",
-				label: "← Newer",
+				label: "Newer",
+				iconName: "arrow-left",
+				iconLeading: true,
 				href: `/inbox?newer=${encodeURIComponent(
 					"2026-06-24T10:00:00.000Z#<new@x>",
 				)}`,

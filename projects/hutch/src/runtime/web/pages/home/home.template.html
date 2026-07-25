@@ -19,8 +19,9 @@
           <button type="submit" class="btn btn--primary" data-test-home-try-submit>Open in reader view</button>
         </form>
         <p class="home-try__reassurance">Free. No account. Works with any article.</p>
-        <a class="home-try__scroll-hint" href="#about" aria-label="Scroll to read why I built Readplace">
-          <span class="home-try__scroll-hint-arrow" aria-hidden="true">&darr;</span>
+        <a class="home-try__scroll-hint" href="#about">
+          <span class="home-try__scroll-hint-arrow">{{icon "chevron-down"}}</span>
+          <span class="sr-only">Scroll to read why I built Readplace</span>
         </a>
       </div>
     </section>
@@ -54,7 +55,7 @@
         <p class="home-hero__trust">Firefox, Chrome, iPhone, and your AI assistant.</p>
         {{/default}}
         {{/switch}}
-        <p class="home-hero__ways"><a href="#ways-to-save" data-test-cta="hero-ways">Every way to save &darr;</a></p>
+        <p class="home-hero__ways"><a href="#ways-to-save" data-test-cta="hero-ways">Every way to save {{icon "arrow-down"}}</a></p>
       </div>
     </section>
 
@@ -67,7 +68,7 @@
           <li class="home-ways__item" data-test-way="{{name}}">
             <strong class="home-ways__name">{{name}}</strong>
             <span class="home-ways__body">{{body}}</span>
-            <a class="home-ways__link" href="{{track linkHref source='home-ways' content=trackContent}}" data-test-way-link="{{name}}">{{linkLabel}} &rarr;</a>
+            <a class="home-ways__link" href="{{track linkHref source='home-ways' content=trackContent}}" data-test-way-link="{{name}}">{{linkLabel}} {{icon "arrow-right"}}</a>
           </li>
           {{/each}}
         </ul>
@@ -137,7 +138,7 @@
           <div class="feature-card feature-card--featured" data-test-feature="{{name}}">
             <h3 class="feature-card__name">{{name}}</h3>
             <p class="feature-card__description">{{description}}</p>
-            {{#if linkHref}}<a class="feature-card__link" href="{{linkHref}}" data-test-feature-link="{{name}}">{{linkLabel}} &rarr;</a>{{/if}}
+            {{#if linkHref}}<a class="feature-card__link" href="{{linkHref}}" data-test-feature-link="{{name}}">{{linkLabel}} {{icon "arrow-right"}}</a>{{/if}}
           </div>
           {{/each}}
         </div>
@@ -167,12 +168,12 @@
               <span>server-side fetch</span>
             </div>
           </div>
-          <span class="home-canonical__diagram-arrow" aria-hidden="true">&rarr;</span>
+          <span class="home-canonical__diagram-arrow" aria-hidden="true">{{icon "arrow-right"}}</span>
           <div class="home-canonical__diagram-node home-canonical__diagram-node--accent">
             <strong>DeepSeek</strong>
             <span>canonical disambiguation</span>
           </div>
-          <span class="home-canonical__diagram-arrow" aria-hidden="true">&rarr;</span>
+          <span class="home-canonical__diagram-arrow" aria-hidden="true">{{icon "arrow-right"}}</span>
           <div class="home-canonical__diagram-node">
             <strong>One article</strong>
             <span>trackers stripped</span>
@@ -240,10 +241,10 @@
             <tr>
               <th scope="row">Open Source</th>
               <td class="comparison-table__hutch" data-label="Readplace">Source-available</td>
-              <td data-label="Readwise Reader"><span class="comparison-table__cross" aria-label="No">&#10007;</span></td>
-              <td data-label="Instapaper"><span class="comparison-table__cross" aria-label="No">&#10007;</span></td>
+              <td data-label="Readwise Reader"><span class="comparison-table__cross">{{icon "x"}}<span class="sr-only">No</span></span></td>
+              <td data-label="Instapaper"><span class="comparison-table__cross">{{icon "x"}}<span class="sr-only">No</span></span></td>
               <td data-label="Raindrop.io">Clients only (MIT)</td>
-              <td data-label="Karakeep"><span class="comparison-table__check" aria-label="Yes">&#10003;</span></td>
+              <td data-label="Karakeep"><span class="comparison-table__check">{{icon "check"}}<span class="sr-only">Yes</span></span></td>
             </tr>
             <tr>
               <th scope="row">Platforms</th>
@@ -263,10 +264,10 @@
         <h2 class="home-decline__heading">What Readplace will NOT become.</h2>
         <p class="home-decline__lead">Readplace will not add:</p>
         <ul class="home-decline__list" data-test-decline-list>
-          <li class="home-decline__item">Nested folder hierarchies</li>
-          <li class="home-decline__item">Social feeds or public collections</li>
-          <li class="home-decline__item">Secret browsing-history capture</li>
-          <li class="home-decline__item">Recommendation algorithms to simulate social media</li>
+          <li class="home-decline__item"><span class="home-decline__marker">{{icon "x"}}</span>Nested folder hierarchies</li>
+          <li class="home-decline__item"><span class="home-decline__marker">{{icon "x"}}</span>Social feeds or public collections</li>
+          <li class="home-decline__item"><span class="home-decline__marker">{{icon "x"}}</span>Secret browsing-history capture</li>
+          <li class="home-decline__item"><span class="home-decline__marker">{{icon "x"}}</span>Recommendation algorithms to simulate social media</li>
         </ul>
         <p class="home-decline__closing">Those features grow daily active users by encouraging saving. Readplace is to encourage reading what matters to you.</p>
       </div>
@@ -302,12 +303,12 @@
             <p class="pricing-card__price">$0<span class="pricing-card__price-suffix"> forever</span></p>
             <p class="pricing-card__description">Be one of the first {{foundingMemberLimit}} users. Get full access free, forever. Help shape the product. $4.08/month for everyone else &mdash; includes TL;DR summaries.</p>
             <ul class="pricing-card__features">
-              <li class="pricing-card__feature">Save unlimited articles</li>
-              <li class="pricing-card__feature">Save from {{saveSurfacesShort}}</li>
-              <li class="pricing-card__feature">TL;DR summaries included</li>
-              <li class="pricing-card__feature">PDF extraction with Tesseract OCR</li>
-              <li class="pricing-card__feature">All features as they ship</li>
-              <li class="pricing-card__feature">Direct access to the developer</li>
+              <li class="pricing-card__feature"><span class="pricing-card__feature-marker">{{icon "check"}}</span>Save unlimited articles</li>
+              <li class="pricing-card__feature"><span class="pricing-card__feature-marker">{{icon "check"}}</span>Save from {{saveSurfacesShort}}</li>
+              <li class="pricing-card__feature"><span class="pricing-card__feature-marker">{{icon "check"}}</span>TL;DR summaries included</li>
+              <li class="pricing-card__feature"><span class="pricing-card__feature-marker">{{icon "check"}}</span>PDF extraction with Tesseract OCR</li>
+              <li class="pricing-card__feature"><span class="pricing-card__feature-marker">{{icon "check"}}</span>All features as they ship</li>
+              <li class="pricing-card__feature"><span class="pricing-card__feature-marker">{{icon "check"}}</span>Direct access to the developer</li>
             </ul>
             <a href="/signup?utm_source=homepage&utm_medium=internal&utm_content=founding-card" class="btn btn--primary pricing-card__cta" data-test-cta="founding">Signup</a>
           </div>
@@ -324,12 +325,12 @@
             <p class="pricing-card__price">{{monthlyPriceDisplay}}<span class="pricing-card__price-suffix">/month</span></p>
             <p class="pricing-card__description">Try everything free for {{trialPeriodDays}} days. No credit card required to start.</p>
             <ul class="pricing-card__features home-pricing__fallback-features" data-test-fallback-benefits>
-              <li class="pricing-card__feature">Save unlimited articles</li>
-              <li class="pricing-card__feature">Save from {{saveSurfacesShort}}</li>
-              <li class="pricing-card__feature">TL;DR summaries included</li>
-              <li class="pricing-card__feature">PDF extraction with Tesseract OCR</li>
-              <li class="pricing-card__feature">All features as they ship</li>
-              <li class="pricing-card__feature">Direct access to the developer</li>
+              <li class="pricing-card__feature"><span class="pricing-card__feature-marker">{{icon "check"}}</span>Save unlimited articles</li>
+              <li class="pricing-card__feature"><span class="pricing-card__feature-marker">{{icon "check"}}</span>Save from {{saveSurfacesShort}}</li>
+              <li class="pricing-card__feature"><span class="pricing-card__feature-marker">{{icon "check"}}</span>TL;DR summaries included</li>
+              <li class="pricing-card__feature"><span class="pricing-card__feature-marker">{{icon "check"}}</span>PDF extraction with Tesseract OCR</li>
+              <li class="pricing-card__feature"><span class="pricing-card__feature-marker">{{icon "check"}}</span>All features as they ship</li>
+              <li class="pricing-card__feature"><span class="pricing-card__feature-marker">{{icon "check"}}</span>Direct access to the developer</li>
             </ul>
             <a href="/signup?utm_source=homepage&utm_medium=internal&utm_content=signup-body" class="btn btn--primary pricing-card__cta" data-test-cta="become-member">Become a Member</a>
           </div>

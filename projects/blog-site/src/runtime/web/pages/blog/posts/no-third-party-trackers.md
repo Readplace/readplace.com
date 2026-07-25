@@ -50,7 +50,7 @@ Those cookies are first-party. They do not ride along to other sites, and they d
 
 ## The short list I hold
 
-Here is the full list of what loads in your browser on a Readplace page: the app's own code, the Inter web font, the Font Awesome icon stylesheet and the htmx library from public CDNs, one session cookie to keep you logged in, two anonymous cookies to measure the funnel, and a few functional cookies that remember things like a banner you dismissed or a save you started before signing in.
+Here is the full list of what loads in your browser on a Readplace page: the app's own code, the Inter web font from Google Fonts and the htmx library from jsDelivr, one session cookie to keep you logged in, two anonymous cookies to measure the funnel, and a few functional cookies that remember things like a banner you dismissed or a save you started before signing in. The icons are inline SVG in the page itself, so they come from the same server as everything else.
 
 The privacy policy says the same thing in plain words.
 

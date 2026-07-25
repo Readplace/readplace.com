@@ -174,14 +174,18 @@
   display: none;
 }
 
-.inbox__disabled-summary::after {
-  content: "\25BE";
-  font-size: 1.2em;
+.inbox__disabled-caret {
+  display: inline-flex;
   color: var(--muted-foreground);
   transition: transform 0.2s ease;
 }
 
-.inbox__disabled-group[open] .inbox__disabled-summary::after {
+.inbox__disabled-caret svg {
+  width: 16px;
+  height: 16px;
+}
+
+.inbox__disabled-group[open] .inbox__disabled-caret {
   transform: rotate(180deg);
 }
 

@@ -1,3 +1,4 @@
+import { iconSvg } from "@packages/ui-icons";
 import { render } from "./render";
 
 describe("render", () => {
@@ -44,6 +45,24 @@ describe("render", () => {
 	it("{{track}} leaves an absolute external href untouched so analytics params never leak off-site", () => {
 		const result = render("<a href=\"{{track 'https://github.com/Readplace/readplace.com' source='home-hero' content='github'}}\">GitHub</a>", {});
 		expect(result).toBe('<a href="https://github.com/Readplace/readplace.com">GitHub</a>');
+	});
+
+	it("{{icon}} emits the icon's markup unescaped, unlike a double-stache value", () => {
+		expect(render('{{icon "arrow-right"}}', {})).toBe(iconSvg("arrow-right"));
+	});
+
+	it("{{icon}} resolves a name held in the render data, so a loop draws a different icon per item", () => {
+		expect(render("{{#each items}}{{icon this}}{{/each}}", { items: ["check", "x"] })).toBe(
+			`${iconSvg("check")}${iconSvg("x")}`,
+		);
+	});
+
+	it("{{icon}} fails the render on a name outside the set rather than drawing nothing", () => {
+		expect(() => render('{{icon "fa-solid fa-inbox"}}', {})).toThrow(/does not know the icon/);
+	});
+
+	it("{{icon}} fails the render when handed something that is not a name at all", () => {
+		expect(() => render("{{icon missing}}", {})).toThrow(/requires an icon name/);
 	});
 
 	it("registers caller-provided helpers for that render call", () => {

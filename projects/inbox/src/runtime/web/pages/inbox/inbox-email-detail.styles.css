@@ -9,10 +9,17 @@
 }
 
 .inbox-email-detail__back {
-  display: inline-block;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
   margin-bottom: 12px;
   font-size: 0.9rem;
   color: var(--muted-foreground);
+}
+
+.inbox-email-detail__back svg {
+  width: 16px;
+  height: 16px;
 }
 
 .inbox-email-detail__subject {

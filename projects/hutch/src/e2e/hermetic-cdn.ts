@@ -1,4 +1,3 @@
-import assert from "node:assert";
 import path from "node:path";
 import { test as base, type Page } from "@playwright/test";
 
@@ -23,25 +22,6 @@ export const test = base.extend({
 				return route.fulfill({
 					path: path.join(FIXTURES_DIR, "gstatic", file),
 					contentType: "font/woff2",
-				});
-			},
-		);
-		await context.route(
-			(url) => url.hostname === "cdnjs.cloudflare.com",
-			(route) => {
-				const requested = new URL(route.request().url());
-				const file = path.basename(requested.pathname);
-				const isWebfont = requested.pathname.includes("/webfonts/");
-				const contentTypes: Record<string, string> = {
-					".css": "text/css",
-					".woff2": "font/woff2",
-					".ttf": "font/ttf",
-				};
-				const contentType = contentTypes[path.extname(file)];
-				assert(contentType, `unexpected cdnjs asset type requested: ${file}`);
-				return route.fulfill({
-					path: path.join(FIXTURES_DIR, isWebfont ? "webfonts" : ".", file),
-					contentType,
 				});
 			},
 		);

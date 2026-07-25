@@ -39,6 +39,7 @@
   },
   "dependencies": {
     "@packages/supported-clients": "workspace:*",
+    "@packages/ui-icons": "workspace:*",
     "@packages/web-session": "workspace:*",
     "handlebars": "4.7.9",
     "linkedom": "0.18.12",

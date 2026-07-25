@@ -3,6 +3,7 @@ import { createHash } from "node:crypto";
 import { readdirSync, readFileSync } from "node:fs";
 import { join, basename } from "node:path";
 import { z } from "zod";
+import { iconSvg } from "@packages/ui-icons";
 import {
 	CHANGELOG_VERSION_LENGTH,
 	type ChangelogBanner,
@@ -13,6 +14,22 @@ import matter from "gray-matter";
 import MarkdownIt from "markdown-it";
 
 const md = new MarkdownIt({ html: true });
+
+const TLDR_SUMMARY = /(<summary class="blog-tldr__toggle">[^<]*)<\/summary>/g;
+
+/** Draws the TL;DR disclosure's caret into every post at render time.
+ *
+ * The `<summary>` is hand-written HTML inside each post's markdown, so authoring
+ * the caret beside it would paste the same icon geometry into 58 content files
+ * and put a drawing where prose belongs. Injecting it once here keeps the icon
+ * in the shared set and leaves the posts as text; the markdown representation is
+ * the untouched source, which never carried the caret either. */
+function withTldrCaret(html: string): string {
+	return html.replace(
+		TLDR_SUMMARY,
+		`$1<span class="blog-tldr__caret">${iconSvg("chevron-down")}</span></summary>`,
+	);
+}
 
 /** The tag that opts a post into the site-wide changelog banner. The newest
  * post carrying it drives the banner; the schema below requires such a post to
@@ -126,7 +143,7 @@ export function initBlogPosts(): BlogPosts {
 
 			return {
 				...frontmatter,
-				htmlContent: md.render(content),
+				htmlContent: withTldrCaret(md.render(content)),
 				markdownContent: content,
 				formattedDate: formatDate(frontmatter.date),
 			};

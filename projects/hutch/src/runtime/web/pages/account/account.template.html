@@ -1,7 +1,7 @@
     <main class="account">
       <div class="account__header">
         {{#if backLink}}
-        <a class="account__back" href="{{backLink.href}}" data-test-account-back-link>{{backLink.label}}</a>
+        <a class="account__back" href="{{backLink.href}}" data-test-account-back-link>{{icon "arrow-left"}} {{backLink.label}}</a>
         {{/if}}
         <h1 class="account__title">{{heading}}</h1>
       </div>

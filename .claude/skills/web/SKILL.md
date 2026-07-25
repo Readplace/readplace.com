@@ -187,6 +187,7 @@ Alternatively use the POST - Redirect - GET pattern.
 | Orphan/widow control lives on the prose container, not on `body` | A global `text-wrap` forces a full-page reflow |
 | Fonts come from `var(--font-serif)` / `var(--font-sans)` | Never inline the `Georgia, "Times New Roman", serif` stack — one source of truth in `base.styles.ts`, like colours |
 | Buttons come from the shared `.btn` system | One button in the product — a per-page base class is how padding, radius, height, and hover direction drift apart |
+| Icons are inline same-origin SVG, drawn with `{{icon "name"}}` | Never an icon font, an icon CDN, an entity/Unicode glyph (`× → ✓ ▾`), or a CSS `content:` glyph. See [Icon Style](../../../BRAND_GUIDELINES.md#icon-style) |
 
 A new page's `h1` and section `h2` must set `font-family: var(--font-serif)`, or
 they ship in the body sans by inheritance. In-card sub-labels, eyebrows,

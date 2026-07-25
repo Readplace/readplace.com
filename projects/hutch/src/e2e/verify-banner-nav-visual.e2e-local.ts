@@ -62,7 +62,7 @@ async function openReaderAsUnverified(page: Page, email: string): Promise<void> 
 		waitUntil: "domcontentloaded",
 	});
 	await page.waitForSelector("[data-article-body]");
-	await waitForBrandFonts(page, ["Inter", "Font Awesome 6 Free"]);
+	await waitForBrandFonts(page, ["Inter"]);
 	// Confirms we are authenticated-but-unverified before we measure or capture:
 	// this copy only renders for a counting-down verification state.
 	await expect(page.locator("[data-test-verify-banner]")).toContainText(

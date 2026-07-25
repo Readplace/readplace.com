@@ -324,7 +324,7 @@ describe("Inbox emails list route", () => {
 			expect(links.map((link) => link.getAttribute("data-test-pagination-link"))).toEqual([
 				"older",
 			]);
-			expect(links[0].textContent).toBe("Older →");
+			expect(links[0].textContent?.trim()).toBe("Older");
 			expect(links[0].getAttribute("href")).toBe(
 				`/inbox?older=${encodeURIComponent("2026-06-24T00:01:00.000Z#<m-1@x>")}`,
 			);
@@ -356,7 +356,7 @@ describe("Inbox emails list route", () => {
 			expect(links.map((link) => link.getAttribute("data-test-pagination-link"))).toEqual([
 				"newer",
 			]);
-			expect(links[0].textContent).toBe("← Newer");
+			expect(links[0].textContent?.trim()).toBe("Newer");
 
 			const newerHref = links[0].getAttribute("href");
 			assert(newerHref, "newer link must carry an href");

@@ -41,7 +41,7 @@
           <p class="hb-job__body">{{body}}</p>
           {{#if links.length}}
           <div class="hb-job__links">
-            {{#each links}}<a class="hb-job__link" href="{{href}}">{{label}} &rarr;</a>{{/each}}
+            {{#each links}}<a class="hb-job__link" href="{{href}}">{{label}} {{icon "arrow-right"}}</a>{{/each}}
           </div>
           {{/if}}
         </div>
@@ -61,7 +61,7 @@
         <blockquote class="hb-proof__quote-text">{{proofQuote}}</blockquote>
         <figcaption class="hb-proof__quote-by">&mdash; {{proofAttribution}}</figcaption>
       </figure>
-      <p class="hb-proof__founder">{{proofFounderBody}} <a class="hb-proof__link" href="{{proofFounderLink.href}}">{{proofFounderLink.label}} &rarr;</a></p>
+      <p class="hb-proof__founder">{{proofFounderBody}} <a class="hb-proof__link" href="{{proofFounderLink.href}}">{{proofFounderLink.label}} {{icon "arrow-right"}}</a></p>
       <p class="hb-proof__privacy">{{proofPrivacyBody}} <a class="hb-proof__link" href="{{proofGithubLink.href}}">{{proofGithubLink.label}}</a>.</p>
     </div>
   </section>

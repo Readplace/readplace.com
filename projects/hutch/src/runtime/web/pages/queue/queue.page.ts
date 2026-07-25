@@ -324,7 +324,7 @@ const SAVE_INTENT_PATH = {
 
 const VIEW_BACK_LINK = {
 	topHref: "/queue?utm_source=reader&utm_medium=internal&utm_content=back-top",
-	label: "← Back to queue",
+	label: "Back to queue",
 } as const;
 
 /** Server-authored bridge for the iOS in-app reader: when the reader's mark-read

@@ -10,7 +10,7 @@ import {
 const BACK = {
 	topHref: "/queue?utm_content=back-top",
 	bottomHref: "/queue?utm_content=back-bottom",
-	label: "← Back to queue",
+	label: "Back to queue",
 };
 
 const ACTION_BTNS: ActionButtons = {

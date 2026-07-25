@@ -1,4 +1,5 @@
 import type { SavedArticle, SaveableUrlErrorCode } from "@packages/domain/article";
+import type { IconName } from "@packages/ui-icons";
 import { type LocalTime, toAbsoluteDate, toRelativeOrDate } from "@packages/web-shell";
 import type { FindArticlesResult } from "@packages/provider-contracts/article-store";
 import { pickExcerpt } from "../../../providers/article-summary/article-summary.helpers";
@@ -28,6 +29,9 @@ export interface ArticleAction {
 	method: string;
 	url: string;
 	text: string;
+	/** Names an icon from the shared set; `text` then becomes the button's
+	 * screen-reader name instead of its visible label. */
+	iconName?: IconName;
 	title: string;
 	testAction: string;
 	fields: ArticleActionField[];
@@ -149,7 +153,8 @@ function toArticleActions(
 	actions.push({
 		method: "POST",
 		url: `/queue/${article.id}/delete${returnQuery}`,
-		text: "×",
+		text: "Delete",
+		iconName: "x",
 		title: "Delete",
 		testAction: "delete",
 		fields: [],

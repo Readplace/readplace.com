@@ -271,7 +271,12 @@ function renderLinks(items: ReadingListItem[]) {
 			const button = document.createElement("button");
 			button.className = ACTION_CLASS_BY_VARIANT[actionVariant(action.name)];
 			const label = actionLabel(action);
-			button.textContent = actionIcon(action.name) ?? label;
+			const icon = actionIcon(action.name);
+			if (icon === undefined) {
+				button.textContent = label;
+			} else {
+				button.innerHTML = icon;
+			}
 			button.title = label;
 			button.setAttribute("aria-label", label);
 			button.addEventListener("click", async () => {

@@ -36,11 +36,24 @@ export interface InboxEmailsEmptyViewModel {
 	addresses: InboxEmptyAddressViewModel[];
 }
 
+/** One step through the list. The direction glyph is an icon `name` resolved by
+ * the template's `{{icon}}`, never markup and never part of `label` — the label
+ * is the whole accessible name, so a reader that drops SVG (the markdown
+ * representation) still reads "Newer"/"Older". `iconLeading` places the arrow on
+ * the side it points to. */
+export interface InboxEmailsPaginationLink {
+	key: "newer" | "older";
+	label: string;
+	iconName: "arrow-left" | "arrow-right";
+	iconLeading: boolean;
+	href: string;
+}
+
 export interface InboxEmailsViewModel {
 	empty: InboxEmailsEmptyViewModel | undefined;
 	rows: InboxEmailRowViewModel[];
 	showPagination: boolean;
-	paginationLinks: { key: "newer" | "older"; label: string; href: string }[];
+	paginationLinks: InboxEmailsPaginationLink[];
 }
 
 const EMPTY_STATES: Record<InboxEmptyStateKey, InboxEmailsEmptyViewModel> = {
@@ -66,12 +79,14 @@ const STATUS_LABEL: Record<InboxEmailStatus, string> = {
 
 function buildPaginationLinks(
 	result: ListInboxEmailsResult,
-): InboxEmailsViewModel["paginationLinks"] {
-	const links: InboxEmailsViewModel["paginationLinks"] = [];
+): InboxEmailsPaginationLink[] {
+	const links: InboxEmailsPaginationLink[] = [];
 	if (result.hasNewer) {
 		links.push({
 			key: "newer",
-			label: "← Newer",
+			label: "Newer",
+			iconName: "arrow-left",
+			iconLeading: true,
 			href: buildInboxEmailsUrl({
 				cursor: {
 					direction: "newer",
@@ -83,7 +98,9 @@ function buildPaginationLinks(
 	if (result.hasOlder) {
 		links.push({
 			key: "older",
-			label: "Older →",
+			label: "Older",
+			iconName: "arrow-right",
+			iconLeading: false,
 			href: buildInboxEmailsUrl({
 				cursor: {
 					direction: "older",

@@ -17,8 +17,8 @@ describe("renderReaderFailed", () => {
 				renderReaderFailed({ url: "https://example.com/post", variant }),
 			);
 			assert.equal(
-				doc.querySelector(".article-body__reader-notice-title")?.textContent,
-				"Your link is saved ✅",
+				doc.querySelector(".article-body__reader-notice-title")?.textContent?.trim(),
+				"Your link is saved",
 				`title for variant=${variant}`,
 			);
 		}

@@ -68,12 +68,6 @@ describe("buildGuestNavItems", () => {
 		assert(install, "guest nav must include an install item");
 		expect(install.href).toBe("/install?utm_source=header-nav&utm_medium=internal&utm_content=install");
 	});
-
-	it("assigns a Font Awesome solid icon to every guest item", () => {
-		for (const item of buildGuestNavItems()) {
-			expect(item.icon).toMatch(/^fa-solid fa-[a-z-]+$/);
-		}
-	});
 });
 
 describe("buildNavGroups", () => {
@@ -106,13 +100,6 @@ describe("buildNavGroups", () => {
 			.find((i) => i.key === "inbox");
 		assert(inbox, "library nav must include an inbox item");
 		expect(inbox.href).toBe("/inbox?utm_source=header-nav&utm_medium=internal&utm_content=inbox");
-	});
-
-	it("assigns a Font Awesome solid icon to every nav item", () => {
-		const items = buildNavGroups({ accessIsReadOnly: false, now: BADGE_ACTIVE }).flatMap((g) => g.items);
-		for (const item of items) {
-			expect(item.icon).toMatch(/^fa-solid fa-[a-z-]+$/);
-		}
 	});
 });
 

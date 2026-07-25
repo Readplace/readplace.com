@@ -38,14 +38,6 @@ export const BASE_TEMPLATE = `<!DOCTYPE html>
 	<link rel="preload" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" as="style" onload="this.onload=null;this.rel='stylesheet'">
 	<noscript><link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap"></noscript>
 
-	<link rel="preconnect" href="https://cdnjs.cloudflare.com" crossorigin>
-	<link rel="preload" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.2/css/fontawesome.min.css" as="style" integrity="sha384-5t0634b3BeTSoxIIgd8lhUy22xY2BGs89gw0vReAMGcfJXXfA7fblIRGVkRFWRDL" crossorigin="anonymous" onload="this.onload=null;this.rel='stylesheet'">
-	<noscript><link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.2/css/fontawesome.min.css" integrity="sha384-5t0634b3BeTSoxIIgd8lhUy22xY2BGs89gw0vReAMGcfJXXfA7fblIRGVkRFWRDL" crossorigin="anonymous"></noscript>
-	<link rel="preload" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.2/css/solid.min.css" as="style" integrity="sha384-+CMpNM/Tv3YfWmU43LPsvXlIdOUnxSooWv5fY/Tkap65JU4QTLBHp8nMrEkIEb3u" crossorigin="anonymous" onload="this.onload=null;this.rel='stylesheet'">
-	<noscript><link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.2/css/solid.min.css" integrity="sha384-+CMpNM/Tv3YfWmU43LPsvXlIdOUnxSooWv5fY/Tkap65JU4QTLBHp8nMrEkIEb3u" crossorigin="anonymous"></noscript>
-	<link rel="preload" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.2/css/brands.min.css" as="style" integrity="sha384-hu7sKftLeB/8IYmWPfl2Jo6MTRHquwXVmGPT/08RqhuANVZrbNFBIsvWPOiUduYX" crossorigin="anonymous" onload="this.onload=null;this.rel='stylesheet'">
-	<noscript><link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.2/css/brands.min.css" integrity="sha384-hu7sKftLeB/8IYmWPfl2Jo6MTRHquwXVmGPT/08RqhuANVZrbNFBIsvWPOiUduYX" crossorigin="anonymous"></noscript>
-
 	<link rel="icon" type="image/svg+xml" href="{{staticBaseUrl}}/favicon.svg">
 	<link rel="icon" type="image/x-icon" href="{{staticBaseUrl}}/favicon.ico">
 	<link rel="icon" type="image/png" sizes="16x16" href="{{staticBaseUrl}}/favicon-16x16.png">

@@ -208,12 +208,24 @@
 }
 
 .inbox-emails__pagination-link {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
   padding: var(--button-padding-sm);
   border: 1px solid var(--border);
   border-radius: var(--radius-sm);
   font-size: 0.875rem;
   color: var(--foreground);
   text-decoration: none;
+}
+
+.inbox-emails__pagination-icon {
+  display: inline-flex;
+}
+
+.inbox-emails__pagination-icon svg {
+  width: 16px;
+  height: 16px;
 }
 
 .inbox-emails__pagination-link:hover {

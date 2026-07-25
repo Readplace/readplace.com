@@ -322,18 +322,23 @@
   border-radius: var(--radius) var(--radius) 0 0;
 }
 
-.blog-tldr__toggle::after {
-  content: "\25BE";
-  font-size: 1.2em;
+.blog-tldr__caret {
+  display: inline-flex;
+  flex-shrink: 0;
   color: var(--color-text-muted);
   transition: transform 0.2s ease, color 0.2s ease;
 }
 
-.blog-tldr__toggle:hover::after {
+.blog-tldr__caret svg {
+  width: 1.2em;
+  height: 1.2em;
+}
+
+.blog-tldr__toggle:hover .blog-tldr__caret {
   color: var(--color-brand);
 }
 
-.blog-tldr[open] .blog-tldr__toggle::after {
+.blog-tldr[open] .blog-tldr__caret {
   transform: rotate(180deg);
 }
 

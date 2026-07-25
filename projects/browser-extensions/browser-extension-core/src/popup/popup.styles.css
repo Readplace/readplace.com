@@ -489,18 +489,24 @@ body {
  * 2. Hidden by default, shown on row hover
  */
 .list-view__delete {
+  display: flex;
+  align-items: center;
+  justify-content: center;
   background: transparent; /* 1 */
   color: var(--popup-delete);
-  font-size: 16px;
   padding: 2px 6px;
   margin-right: 10px;
-  line-height: 1;
   border: none;
   border-radius: 4px;
   flex-shrink: 0;
   cursor: pointer;
   opacity: 0; /* 2 */
   transition: opacity 0.1s ease, background-color 0.1s ease;
+}
+
+.list-view__delete svg {
+  width: 14px;
+  height: 14px;
 }
 
 .list-view__row:hover .list-view__delete,

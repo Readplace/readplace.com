@@ -57,7 +57,9 @@
       /* The app sheet's only way back to the native list, matching the account
        * page's back affordance so the two chromeless surfaces read identically. */
       .help__back {
-        display: inline-block;
+        display: inline-flex;
+        align-items: center;
+        gap: 4px;
         margin: 0 0 1rem;
         font-size: 0.9375rem;
         font-weight: 600;
@@ -312,7 +314,7 @@
   <body>
     <main class="{{mainClass}}">
       {{#if backLink}}
-      <a class="help__back" href="{{backLink.href}}" data-test-help-back-link>{{backLink.label}}</a>
+      <a class="help__back" href="{{backLink.href}}" data-test-help-back-link>{{icon "arrow-left"}} {{backLink.label}}</a>
       {{/if}}
       <h1 class="help__title" data-test-help-title>Add links with Share</h1>
       <ol class="help__steps">

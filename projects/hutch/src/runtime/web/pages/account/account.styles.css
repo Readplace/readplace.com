@@ -12,7 +12,9 @@
  * (.article-body__back) is bundled into READER_STYLES alone, so it cannot be
  * reused here without pulling the whole reader stylesheet onto this page. */
 .account__back {
-  display: inline-block;
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
   margin-bottom: 12px;
   font-size: 0.9375rem;
   font-weight: 600;

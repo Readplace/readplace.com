@@ -215,6 +215,11 @@ hr::before {
   text-decoration: underline;
 }
 
+.home-hero__ways svg,
+.home-ways__link svg {
+  vertical-align: -0.125em;
+}
+
 .home-ways {
   padding: 64px 20px;
 }
@@ -402,9 +407,13 @@ hr::before {
 }
 
 .home-try__scroll-hint-arrow {
-  display: inline-block;
-  font-size: 1.5rem;
+  display: inline-flex;
   animation: home-try-bounce 2s ease-in-out infinite;
+}
+
+.home-try__scroll-hint-arrow svg {
+  width: 1.5rem;
+  height: 1.5rem;
 }
 
 @keyframes home-try-bounce {
@@ -569,6 +578,10 @@ hr::before {
   text-decoration: none;
 }
 
+.feature-card__link svg {
+  vertical-align: -0.125em;
+}
+
 /**
  * Compact features use a two-column grid with minimal vertical
  * space — name and description on a single line each.
@@ -711,9 +724,13 @@ hr::before {
 }
 
 .home-canonical__diagram-arrow {
-  font-size: 1.5rem;
-  line-height: 1;
+  display: inline-flex;
   color: var(--muted-foreground);
+}
+
+.home-canonical__diagram-arrow svg {
+  width: 1.5rem;
+  height: 1.5rem;
 }
 
 @media (max-width: 640px) {
@@ -871,19 +888,20 @@ hr::before {
 }
 
 .comparison-table__check {
+  display: inline-flex;
   color: var(--color-success);
 }
 
 .comparison-table__cross {
+  display: inline-flex;
   color: var(--color-text-muted);
 }
 
 /**
  * Decline Statements ("What Readplace will not become")
  *
- * 1. Each entry is an exclusion, so the marker is the ✗ (\2717) the comparison
- *    table already uses for "no" — a neutral dash would read as a feature, not
- *    a refusal.
+ * Each entry is an exclusion, so the marker is the same "x" icon the comparison
+ * table uses for "no" — a neutral dash would read as a feature, not a refusal.
  */
 .home-decline {
   padding: 64px 20px;
@@ -923,8 +941,10 @@ hr::before {
 }
 
 .home-decline__item {
-  position: relative;
-  padding: 8px 0 8px 28px;
+  display: flex;
+  align-items: baseline;
+  gap: 12px;
+  padding: 8px 0;
   font-size: 1rem;
   line-height: 1.5;
   color: var(--muted-foreground);
@@ -935,13 +955,10 @@ hr::before {
   border-bottom: none;
 }
 
-.home-decline__item::before {
-  content: "\2717"; /* 1 */
-  position: absolute;
-  left: 0;
-  top: 8px;
+.home-decline__marker {
+  display: inline-flex;
+  flex-shrink: 0;
   color: var(--color-text-muted);
-  font-weight: 700;
 }
 
 .home-decline__closing {
@@ -1185,16 +1202,18 @@ hr::before {
 }
 
 .pricing-card__feature {
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
   padding: 8px 0;
   font-size: 0.9375rem;
   color: var(--foreground);
 }
 
-.pricing-card__feature::before {
-  content: '\2713';
+.pricing-card__feature-marker {
+  display: inline-flex;
+  flex-shrink: 0;
   color: var(--color-success);
-  margin-right: 8px;
-  font-weight: 700;
 }
 
 .pricing-card__cta {

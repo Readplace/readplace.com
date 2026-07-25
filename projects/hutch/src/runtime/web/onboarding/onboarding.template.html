@@ -22,10 +22,10 @@
   {{#if allComplete}}
   <div class="onboarding__success" data-test-onboarding-success>
     <form method="POST" action="/queue/dismiss-onboarding" class="onboarding__dismiss-form">
-      <button type="submit" class="onboarding__dismiss" aria-label="Dismiss" data-test-onboarding-dismiss>&times;</button>
+      <button type="submit" class="onboarding__dismiss" aria-label="Dismiss" data-test-onboarding-dismiss>{{icon "x"}}</button>
     </form>
     <img class="onboarding__avatar" src="{{founderAvatarUrl}}" alt="Fayner Brack" width="72" height="72" loading="lazy">
-    <h2 class="onboarding__success-title">You did it! ✅</h2>
+    <h2 class="onboarding__success-title">You did it! {{icon "check-circle"}}</h2>
     <p class="onboarding__success-message">You're officially one of us. Welcome to Readplace.</p>
   </div>
   {{else}}

@@ -150,6 +150,11 @@
   text-decoration: underline;
 }
 
+.hb-job__link svg,
+.hb-proof__link svg {
+  vertical-align: -0.125em;
+}
+
 /* Proof */
 
 .hb-proof__video {

@@ -1,3 +1,4 @@
+import { iconSvg } from "@packages/ui-icons";
 import {
 	actionIcon,
 	actionLabel,
@@ -36,11 +37,11 @@ describe("actionVariant", () => {
 });
 
 describe("actionIcon", () => {
-	it("maps the delete action to its glyph", () => {
-		expect(actionIcon("delete")).toBe("×");
+	it("maps the delete action to the shared set's icon markup", () => {
+		expect(actionIcon("delete")).toBe(iconSvg("x"));
 	});
 
-	it("returns undefined for an action with no bespoke glyph", () => {
+	it("returns undefined for an action with no bespoke icon", () => {
 		expect(actionIcon("mark-read")).toBeUndefined();
 	});
 });

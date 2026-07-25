@@ -58,7 +58,7 @@
           {{/each}}
         </ul>
         <details class="inbox__disabled-group {{#if hasDisabled}}inbox__disabled-group--visible{{else}}inbox__disabled-group--hidden{{/if}}" data-test-inbox-section="disabled" data-test-inbox-disabled-group>
-          <summary class="inbox__disabled-summary">Disabled inbox emails ({{disabledCount}})</summary>
+          <summary class="inbox__disabled-summary">Disabled inbox emails ({{disabledCount}})<span class="inbox__disabled-caret">{{icon "chevron-down"}}</span></summary>
           <ul class="inbox__list inbox__list--nested">
             {{#each disabledAddresses}}
             <li class="inbox__item" data-test-inbox-item>

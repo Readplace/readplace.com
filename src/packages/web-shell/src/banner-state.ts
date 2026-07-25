@@ -1,3 +1,4 @@
+import type { IconName } from "@packages/ui-icons";
 import type { ChangelogBanner } from "./changelog-banner";
 import { withInternalTracking } from "./internal-link-tracking";
 import type { TrialDisplay } from "./trial-countdown.format";
@@ -60,9 +61,10 @@ export type NavGroupKey = "library" | "account";
  * so it behaves exactly like a link; using forms everywhere keeps a single
  * template shape and a single styling target (`.nav__link` already styles
  * `button.nav__link`). Excessive markup is not a performance concern at this
- * scale. The `icon` is a Font Awesome class pair (e.g. "fa-solid fa-inbox")
- * rendered into an empty, `aria-hidden` `<i>` so the glyph reinforces the
- * label without adding text.
+ * scale. The `iconName` is a name from the shared set, not markup: the template
+ * resolves it through `{{icon}}`, so this module stays free of drawing detail
+ * and a redraw of an icon never touches nav data. The glyph is decoration beside
+ * the visible label, so it adds nothing to the accessible name.
  *
  * `trackSource`/`trackContent` carry the internal-click UTM dimensions. The
  * template renders them as hidden inputs AND `href` is pre-tagged via
@@ -76,7 +78,7 @@ export interface NavItem {
 	label: string;
 	href: string;
 	method: "GET" | "POST";
-	icon: string;
+	iconName: IconName;
 	trackSource: string;
 	trackContent: string;
 	/** Short flag word pinned to the icon's top-left corner, announcing a
@@ -94,7 +96,7 @@ function navItem(input: {
 	label: string;
 	path: string;
 	method: "GET" | "POST";
-	icon: string;
+	iconName: IconName;
 	badge?: string;
 }): NavItem {
 	return {
@@ -102,7 +104,7 @@ function navItem(input: {
 		label: input.label,
 		href: withInternalTracking(input.path, { source: NAV_SOURCE, content: input.key }),
 		method: input.method,
-		icon: input.icon,
+		iconName: input.iconName,
 		trackSource: NAV_SOURCE,
 		trackContent: input.key,
 		badge: input.badge,
@@ -168,9 +170,9 @@ export interface BannerState {
 	currentPath?: string;
 }
 
-const NAV_QUEUE = navItem({ key: "queue", label: "Queue", path: "/queue", method: "GET", icon: "fa-solid fa-inbox" });
-const NAV_IMPORT = navItem({ key: "import", label: "Import Links", path: "/import", method: "GET", icon: "fa-solid fa-file-import" });
-const NAV_INBOX = navItem({ key: "inbox", label: "Inbox", path: "/inbox", method: "GET", icon: "fa-solid fa-envelope" });
+const NAV_QUEUE = navItem({ key: "queue", label: "Queue", path: "/queue", method: "GET", iconName: "inbox" });
+const NAV_IMPORT = navItem({ key: "import", label: "Import Links", path: "/import", method: "GET", iconName: "file-input" });
+const NAV_INBOX = navItem({ key: "inbox", label: "Inbox", path: "/inbox", method: "GET", iconName: "mail" });
 
 /** The inbox shipped on 2026-07-20 and its NEW badge stops one week later. The
  * expiry is the only way the badge goes away: there is no dismiss control and no
@@ -184,11 +186,11 @@ const INBOX_BADGE_LABEL = "NEW";
 export function inboxBadgeFor(now: Date): string | undefined {
 	return now.getTime() < INBOX_BADGE_EXPIRES_AT ? INBOX_BADGE_LABEL : undefined;
 }
-const NAV_ACCOUNT = navItem({ key: "account", label: "Account", path: "/account", method: "GET", icon: "fa-solid fa-user" });
-const NAV_LOGOUT = navItem({ key: "logout", label: "Sign out", path: "/logout", method: "POST", icon: "fa-solid fa-right-from-bracket" });
-const NAV_INSTALL = navItem({ key: "install", label: "Install", path: "/install", method: "GET", icon: "fa-solid fa-download" });
-const NAV_FEATURES = navItem({ key: "features", label: "Features", path: "/#what-works", method: "GET", icon: "fa-solid fa-wand-magic-sparkles" });
-const NAV_LOGIN = navItem({ key: "login", label: "Log in", path: "/login", method: "GET", icon: "fa-solid fa-right-to-bracket" });
+const NAV_ACCOUNT = navItem({ key: "account", label: "Account", path: "/account", method: "GET", iconName: "user" });
+const NAV_LOGOUT = navItem({ key: "logout", label: "Sign out", path: "/logout", method: "POST", iconName: "log-out" });
+const NAV_INSTALL = navItem({ key: "install", label: "Install", path: "/install", method: "GET", iconName: "download" });
+const NAV_FEATURES = navItem({ key: "features", label: "Features", path: "/#what-works", method: "GET", iconName: "sparkles" });
+const NAV_LOGIN = navItem({ key: "login", label: "Log in", path: "/login", method: "GET", iconName: "log-in" });
 
 /** Guest nav items rendered as a flat list without group structure. Import sits
  * before the login entry so a logged-out visitor can start a migration from the

@@ -134,7 +134,7 @@ describe("GET /help/add-links", () => {
 		const doc = new JSDOM(response.text).window.document;
 		const back = doc.querySelector("[data-test-help-back-link]");
 		expect(back?.getAttribute("href")).toBe("readplace://reader/close");
-		expect(back?.textContent).toBe("← Back to queue");
+		expect(back?.textContent?.trim()).toBe("Back to queue");
 		// The chromeless variant hard-codes the home-indicator pad the app sheet needs.
 		expect(doc.querySelector("main")?.className).toBe("help help--app");
 	});

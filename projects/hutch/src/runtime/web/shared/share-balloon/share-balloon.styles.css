@@ -36,9 +36,7 @@
   border: 1px solid var(--color-border);
   border-radius: 50%;
   box-shadow: var(--shadow-md);
-  font-family: inherit;
   font-size: 14px;
-  line-height: 1;
   cursor: pointer;
   opacity: 0;
   visibility: hidden;
