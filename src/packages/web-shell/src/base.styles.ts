@@ -148,7 +148,12 @@ export const BASE_RESET_STYLES = `
 		line-height: 1.6;
 		color: var(--foreground);
 		min-height: 100vh;
+		display: flex;
+		flex-direction: column;
 		padding-top: var(--banner-area-height, 38px);
+	}
+	body > main {
+		width: 100%;
 	}
 	button:focus-visible,
 	a:focus-visible {
