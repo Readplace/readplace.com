@@ -16,7 +16,7 @@
           <input type="hidden" name="utm_source" value="homepage">
           <input type="hidden" name="utm_medium" value="internal">
           <input type="hidden" name="utm_content" value="homepage-link-input">
-          <button type="submit" class="home-try__submit" data-test-home-try-submit>Open in reader view</button>
+          <button type="submit" class="btn btn--primary" data-test-home-try-submit>Open in reader view</button>
         </form>
         <p class="home-try__reassurance">Free. No account. Works with any article.</p>
         <a class="home-try__scroll-hint" href="#about" aria-label="Scroll to read why I built Readplace">
@@ -32,16 +32,16 @@
         <div class="home-hero__actions">
           {{#switch browserName}}
           {{#case "firefox"}}
-          <a href="{{track '/install?client=firefox' source='home-hero' content='install'}}" class="btn btn--primary" data-test-cta="install-extension">Install Firefox Extension</a>
+          <a href="{{track '/install?client=firefox' source='home-hero' content='install'}}" class="btn btn--on-dark" data-test-cta="install-extension">Install Firefox Extension</a>
           {{/case}}
           {{#case "chrome"}}
-          <a href="{{track '/install?client=chrome' source='home-hero' content='install'}}" class="btn btn--primary" data-test-cta="install-extension">Install Chrome Extension</a>
+          <a href="{{track '/install?client=chrome' source='home-hero' content='install'}}" class="btn btn--on-dark" data-test-cta="install-extension">Install Chrome Extension</a>
           {{/case}}
           {{#default}}
-          <a href="{{track '/install' source='home-hero' content='install'}}" class="btn btn--primary" data-test-cta="install-extension">Install Browser Extension</a>
+          <a href="{{track '/install' source='home-hero' content='install'}}" class="btn btn--on-dark" data-test-cta="install-extension">Install Browser Extension</a>
           {{/default}}
           {{/switch}}
-          <a href="https://github.com/Readplace/readplace.com" class="btn btn--secondary" data-test-cta="view-github">View on GitHub</a>
+          <a href="https://github.com/Readplace/readplace.com" class="btn btn--on-dark-ghost" data-test-cta="view-github">View on GitHub</a>
         </div>
         {{#switch browserName}}
         {{#case "firefox"}}
@@ -309,7 +309,7 @@
               <li class="pricing-card__feature">All features as they ship</li>
               <li class="pricing-card__feature">Direct access to the developer</li>
             </ul>
-            <a href="/signup?utm_source=homepage&utm_medium=internal&utm_content=founding-card" class="btn btn--brand pricing-card__cta" data-test-cta="founding">Signup</a>
+            <a href="/signup?utm_source=homepage&utm_medium=internal&utm_content=founding-card" class="btn btn--primary pricing-card__cta" data-test-cta="founding">Signup</a>
           </div>
           {{/if}}
         </div>
@@ -331,7 +331,7 @@
               <li class="pricing-card__feature">All features as they ship</li>
               <li class="pricing-card__feature">Direct access to the developer</li>
             </ul>
-            <a href="/signup?utm_source=homepage&utm_medium=internal&utm_content=signup-body" class="btn btn--brand pricing-card__cta" data-test-cta="become-member">Become a Member</a>
+            <a href="/signup?utm_source=homepage&utm_medium=internal&utm_content=signup-body" class="btn btn--primary pricing-card__cta" data-test-cta="become-member">Become a Member</a>
           </div>
           {{/unless}}
         </div>
@@ -362,17 +362,17 @@
         <div class="home-cta__actions">
           {{#switch browserName}}
           {{#case "firefox"}}
-          <a href="{{track '/install?client=firefox' source='home-cta' content='install'}}" class="btn btn--brand" data-test-cta="bottom-install">Install Firefox Extension</a>
+          <a href="{{track '/install?client=firefox' source='home-cta' content='install'}}" class="btn btn--primary" data-test-cta="bottom-install">Install Firefox Extension</a>
           {{/case}}
           {{#case "chrome"}}
-          <a href="{{track '/install?client=chrome' source='home-cta' content='install'}}" class="btn btn--brand" data-test-cta="bottom-install">Install Chrome Extension</a>
+          <a href="{{track '/install?client=chrome' source='home-cta' content='install'}}" class="btn btn--primary" data-test-cta="bottom-install">Install Chrome Extension</a>
           {{/case}}
           {{#default}}
-          <a href="{{track '/install' source='home-cta' content='install'}}" class="btn btn--brand" data-test-cta="bottom-install">Install Browser Extension</a>
+          <a href="{{track '/install' source='home-cta' content='install'}}" class="btn btn--primary" data-test-cta="bottom-install">Install Browser Extension</a>
           {{/default}}
           {{/switch}}
           <a href="#ways-to-save" class="home-cta__link" data-test-cta="bottom-ways">Every way to save</a>
-          <a href="https://github.com/Readplace/readplace.com" class="home-cta__link" data-test-cta="bottom-github">View on GitHub</a>
+          <a href="https://github.com/Readplace/readplace.com" class="btn btn--secondary" data-test-cta="bottom-github">View on GitHub</a>
         </div>
       </div>
     </section>

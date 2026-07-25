@@ -35,7 +35,7 @@
             <input class="auth-form__input{{passwordField.errorClass}}" type="password" id="password" name="password" required autocomplete="new-password" minlength="8">
             {{#if passwordField.error}}<p class="auth-form__error" data-test-error="password">{{passwordField.error}}</p>{{/if}}
           </div>
-          <button class="auth-form__submit" type="submit" data-test-action="signup">{{submitLabel}}</button>
+          <button class="btn btn--primary btn--field auth-form__submit" type="submit" data-test-action="signup">{{submitLabel}}</button>
           {{#unless foundingAvailable}}<p class="auth-form__hint" data-test-trial-hint>{{trialPeriodDays}}-day free trial, then {{monthlyPriceDisplay}}/month. No credit card required.</p>{{/unless}}
         </form>
         <p class="auth-card__footer">

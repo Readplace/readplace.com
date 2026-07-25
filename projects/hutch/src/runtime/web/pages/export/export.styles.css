@@ -51,21 +51,3 @@
   margin-top: 32px;
   text-align: center;
 }
-
-.export__action-btn {
-  display: inline-block;
-  padding: var(--button-padding);
-  background: var(--primary);
-  color: var(--primary-foreground);
-  font-size: 1rem;
-  font-weight: 600;
-  text-decoration: none;
-  border: none;
-  border-radius: var(--radius);
-  cursor: pointer;
-  transition: opacity 0.15s ease;
-}
-
-.export__action-btn:hover {
-  opacity: 0.9;
-}

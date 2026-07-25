@@ -14,7 +14,9 @@ const PARSE_ORIGIN = "https://internal.invalid";
 
 const TRACKING_SOURCE = "homepage";
 
-type ActionStyle = "hb-btn--primary" | "hb-btn--ghost";
+type ActionStyle = "btn--primary" | "btn--secondary";
+
+type ActionClass = ActionStyle | `${ActionStyle} btn--field`;
 
 interface HiddenParam {
 	readonly name: string;
@@ -32,7 +34,7 @@ interface RenderedAction {
 	readonly label: string;
 	readonly action: string;
 	readonly hiddenParams: readonly HiddenParam[];
-	readonly cssClass: ActionStyle;
+	readonly cssClass: ActionClass;
 	readonly input?: ActionInput;
 }
 
@@ -68,7 +70,7 @@ function renderAction(input: {
 	return {
 		key: input.key,
 		label: input.label,
-		cssClass: input.cssClass,
+		cssClass: input.field ? `${input.cssClass} btn--field` : input.cssClass,
 		input: input.field,
 		action: tracked.pathname,
 		hiddenParams: Array.from(tracked.searchParams, ([name, value]) => ({ name, value })),
@@ -96,7 +98,7 @@ export function HomeVariantBPage(params: {
 		label: hero.primaryCtaLabel,
 		href: "/signup",
 		content: "hero",
-		cssClass: "hb-btn--primary",
+		cssClass: "btn--primary",
 	});
 
 	// The one secondary slot: for a reader-view arrival, save the article they
@@ -109,14 +111,14 @@ export function HomeVariantBPage(params: {
 				label: hero.saveLastViewLabel,
 				href: `/save?url=${encodeURIComponent(lastViewUrl)}`,
 				content: "hero-save-last-view",
-				cssClass: "hb-btn--ghost",
+				cssClass: "btn--secondary",
 			})
 		: renderAction({
 				key: "hero-open-reader",
 				label: hero.pasteCtaLabel,
 				href: "/view",
 				content: "hero-open-reader",
-				cssClass: "hb-btn--ghost",
+				cssClass: "btn--secondary",
 				field: {
 					name: "url",
 					label: hero.pasteInputLabel,
@@ -157,7 +159,7 @@ export function HomeVariantBPage(params: {
 			label: hero.primaryCtaLabel,
 			href: "/signup",
 			content: "pricing",
-			cssClass: "hb-btn--primary",
+			cssClass: "btn--primary",
 		}),
 		priceNote: price.note,
 		limitsTitle: limits.title,
@@ -169,7 +171,7 @@ export function HomeVariantBPage(params: {
 			label: hero.primaryCtaLabel,
 			href: "/signup",
 			content: "close",
-			cssClass: "hb-btn--primary",
+			cssClass: "btn--primary",
 		}),
 		closeImportLink: trackedLink(close.importLink),
 		closeNote: close.note,

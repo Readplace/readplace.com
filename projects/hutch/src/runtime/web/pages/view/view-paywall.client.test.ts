@@ -16,7 +16,7 @@ function paywallMarkup(expiresAtAttr: string): string {
 	return `<div class="view__paywall view__paywall--inactive" data-view-paywall data-test-view-paywall data-paywall-active="false"${expiresAtAttr}>
 		<div class="view__paywall-fade"></div>
 		<div class="view__paywall-modal">
-			<a class="view__paywall-save" href="/save?url=x" data-test-view-paywall-save>Save to My Queue</a>
+			<a class="btn btn--primary" href="/save?url=x" data-test-view-paywall-save>Save to My Queue</a>
 		</div>
 	</div>`;
 }

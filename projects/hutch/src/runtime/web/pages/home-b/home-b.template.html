@@ -8,7 +8,7 @@
       <form class="hb-cta" method="GET" action="{{action}}">
         {{#each hiddenParams}}<input type="hidden" name="{{name}}" value="{{value}}">
         {{/each}}
-        <button class="hb-btn {{cssClass}}" type="submit" data-test-cta="{{key}}">{{label}}</button>
+        <button class="btn {{cssClass}}" type="submit" data-test-cta="{{key}}">{{label}}</button>
       </form>
       {{/with}}
       <p class="hb-hero__reassurance">{{heroReassurance}}</p>
@@ -23,7 +23,7 @@
           <label class="sr-only" for="hb-field-{{key}}">{{input.label}}</label>
           <input class="hb-cta__input" type="url" id="hb-field-{{key}}" name="{{input.name}}" placeholder="{{input.placeholder}}" required data-test-hb-input="{{key}}">
           {{/if}}
-          <button class="hb-btn {{cssClass}}" type="submit" data-test-cta="{{key}}">{{label}}</button>
+          <button class="btn {{cssClass}}" type="submit" data-test-cta="{{key}}">{{label}}</button>
         </form>
         {{/with}}
       </div>
@@ -74,7 +74,7 @@
       <form class="hb-cta" method="GET" action="{{action}}">
         {{#each hiddenParams}}<input type="hidden" name="{{name}}" value="{{value}}">
         {{/each}}
-        <button class="hb-btn {{cssClass}}" type="submit" data-test-cta="{{key}}">{{label}}</button>
+        <button class="btn {{cssClass}}" type="submit" data-test-cta="{{key}}">{{label}}</button>
       </form>
       {{/with}}
       <p class="hb-price__note">{{priceNote}}</p>
@@ -100,7 +100,7 @@
         <form class="hb-cta" method="GET" action="{{action}}">
           {{#each hiddenParams}}<input type="hidden" name="{{name}}" value="{{value}}">
           {{/each}}
-          <button class="hb-btn {{cssClass}}" type="submit" data-test-cta="{{key}}">{{label}}</button>
+          <button class="btn {{cssClass}}" type="submit" data-test-cta="{{key}}">{{label}}</button>
         </form>
         {{/with}}
         <a class="hb-close__import" href="{{closeImportLink.href}}">{{closeImportLink.label}}</a>

@@ -127,21 +127,7 @@ export const INSTALL_PAGE_STYLES = `
 }
 
 .install-page__download {
-	display: inline-block;
-	padding: var(--button-padding);
-	border-radius: var(--radius);
-	font-weight: 600;
-	font-size: 1rem;
-	text-decoration: none;
-	cursor: pointer;
-	background: var(--primary);
-	color: var(--primary-foreground);
-	transition: opacity 0.2s;
 	margin-bottom: 36px;
-}
-
-.install-page__download:hover {
-	opacity: 0.9;
 }
 
 .install-page__unavailable {

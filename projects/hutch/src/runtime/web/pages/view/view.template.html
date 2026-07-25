@@ -11,7 +11,7 @@
       <div class="view__cta-content">
         {{#each actions}}
         <div class="view__cta-item">
-          <a class="view__cta-btn view__cta-btn--{{variant}}" href="{{href}}" data-test-view-cta-action{{#if expirySaveLink}} data-expiry-save-link{{/if}}>{{name}}</a>
+          <a class="btn btn--{{variant}} view__cta-btn" href="{{href}}" data-test-view-cta-action{{#if expirySaveLink}} data-expiry-save-link{{/if}}>{{name}}</a>
         </div>
         {{/each}}
       </div>

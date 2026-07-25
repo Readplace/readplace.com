@@ -12,7 +12,7 @@
           <label class="sr-only" for="lp-field-{{key}}">{{input.label}}</label>
           <input class="lp-action__input" type="url" id="lp-field-{{key}}" name="{{input.name}}" placeholder="{{input.placeholder}}" required data-test-lp-input="{{key}}">
           {{/if}}
-          <button class="lp-btn {{cssClass}}" type="submit" data-test-cta="{{key}}">{{label}}</button>
+          <button class="btn {{cssClass}}" type="submit" data-test-cta="{{key}}">{{label}}</button>
         </form>
         {{/each}}
       </div>
@@ -86,7 +86,7 @@
           <label class="sr-only" for="lp-close-field-{{key}}">{{input.label}}</label>
           <input class="lp-action__input" type="url" id="lp-close-field-{{key}}" name="{{input.name}}" placeholder="{{input.placeholder}}" required data-test-lp-input="close-{{key}}">
           {{/if}}
-          <button class="lp-btn {{cssClass}}" type="submit" data-test-cta="{{key}}">{{label}}</button>
+          <button class="btn {{cssClass}}" type="submit" data-test-cta="{{key}}">{{label}}</button>
         </form>
         {{/each}}
       </div>

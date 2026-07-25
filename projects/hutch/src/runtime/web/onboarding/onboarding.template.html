@@ -12,7 +12,7 @@
   <div data-test-onboarding-no-client>
     {{> intro lede="Readplace doesn't have an app for this device yet. If you use Chrome or Firefox on a computer, or an iPhone, you can install Readplace there."}}
     <div class="onboarding__actions">
-      <a href="{{installOptionsUrl}}" class="onboarding__action" data-test-onboarding-action="{{installOptionsUrl}}">See install options</a>
+      <a href="{{installOptionsUrl}}" class="btn btn--primary btn--compact" data-test-onboarding-action="{{installOptionsUrl}}">See install options</a>
       <form method="POST" action="/queue/dismiss-onboarding">
         <button type="submit" class="onboarding__dismiss-text" data-test-onboarding-dismiss>Dismiss</button>
       </form>
@@ -40,7 +40,7 @@
         {{#if actions.length}}
         <div class="onboarding__actions">
           {{#each actions}}
-          <a href="{{url}}" class="onboarding__action" data-test-onboarding-action="{{url}}">{{label}}</a>
+          <a href="{{url}}" class="btn btn--primary btn--compact" data-test-onboarding-action="{{url}}">{{label}}</a>
           {{/each}}
         </div>
         {{/if}}

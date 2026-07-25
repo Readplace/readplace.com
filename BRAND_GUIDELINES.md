@@ -74,7 +74,7 @@ Every raster asset is generated — never hand-rendered — by `projects/hutch/s
 | Role | Colour | Hex / HSL | CSS variable | Usage |
 |---|---|---|---|---|
 | **Warm amber** (Primary) | Warm terracotta/amber-brown | `#c8702a` / `hsl(27 65% 47%)` | `--color-brand`, `--primary`, `--accent` | Interactive elements, CTAs, default header brand text, links |
-| **Amber dark** | Darker amber | `#a85a1e` | `--color-brand-dark` | Hover/active states on brand elements |
+| **Amber dark** | Darker amber | `#a85a1e` | `--color-brand-dark`, `--primary-fill` | Brand text on a light page (via `--primary-text`); the hover/active fill of every button (via `--primary-fill`, which is pinned to this value in **both** themes). Never reach for `--color-brand-dark` directly as a hover fill — it flips to a *lighter* `#e89a55` in dark mode, so the hover would darken on a white page and lighten on a dark one |
 | **Amber light** | Pale amber tint | `#f5e6d3` | `--color-brand-light` | Subtle brand-tinted backgrounds |
 | **Warm amber highlight** | Warm gold — the logo dot colour | `#c8923c` | `--color-highlight` | Highlight words in the wordmark and copy (see Highlight Words below) |
 | **Navy** (Secondary) | Deep navy blue | `#2B3A55` | — | Hero background, manifest theme colour, meta tags, extension icon background, extension active states |
@@ -193,26 +193,53 @@ List markers carry polarity. An included / positive item uses a `✓` (`\2713`) 
 
 ### Buttons
 
-| Type | Style | Usage |
+> **Source of truth:** `BUTTON_STYLES` in `src/packages/web-shell/src/base.styles.ts`, injected into every page's `<head>`.
+
+There is **one** button in the product. Every call to action is `.btn` plus exactly one variant, plus — only where its surroundings demand it — one tier modifier. A page stylesheet may add layout (`width`, `margin`, grid/flex placement, `white-space`) and nothing else. A per-page button base class is what let the fill token, radius, height, font size, and hover direction drift apart across ten pages; it is not allowed. See the [web skill](.claude/skills/web/SKILL.md#buttons-come-from-the-shared-system).
+
+#### Variants
+
+| Variant | Style | Usage |
 |---|---|---|
-| **Primary** | Amber background (`--primary`), white text (`--primary-foreground`) | Main action per screen (Save, Import, Subscribe) |
-| **Secondary** | Subtle amber tint (`--secondary`), amber text (`--secondary-foreground`) | Supporting actions (Cancel, Back, Filter) |
-| **Destructive** | Muted red outline, red text → solid on hover | Delete, remove, unsave |
-| **Ghost** | Text-only with hover underline or subtle background | Tertiary actions, inline links |
-| **Brand** | `--primary` background, white text | Landing page CTAs |
+| **`primary`** | Amber fill (`--primary`), white text (`--primary-foreground`) | The amber CTA — main action per screen (Save, Import, Subscribe, install, landing and pricing CTAs) |
+| **`secondary`** | Subtle amber tint (`--secondary`), amber text (`--primary-text`), 1px inset amber outline | The supporting action beside a primary (View on GitHub, Cancel, Back) |
+| **`on-dark`** | White fill, dark-amber text (`--secondary-foreground`) | *Context modifier, not a priority level* — a primary sitting on the navy hero |
+| **`on-dark-ghost`** | Translucent white fill, white text, translucent white inset outline | *Context modifier* — the secondary beside an `on-dark` primary |
 
-#### Padding
+`primary` **always** means the amber CTA. The `--brand`, `--light` and `--dark` aliases are retired: a variant whose name contradicts this table is naming drift, not a choice. `on-dark` and `on-dark-ghost` carry theme-stable values because the navy hero is navy in both themes.
 
-> Defined in `src/packages/web-shell/src/base.styles.ts` as CSS custom properties. Reference the tier token — never hardcode button padding.
+A **tertiary** action is not a button — it is a plain inline link (`color: var(--primary)`, underlined) per [Colour Rules](#colour-rules). Do not render it as a `.btn`, and do not put one beside a button (see Pairing).
 
-| Tier | Value | CSS variable | Usage |
-|---|---|---|---|
-| **Primary / Brand** | `12px 24px` | `--button-padding` | Main CTA per screen (Save, Import, Subscribe, hero + landing buttons) |
-| **Secondary / Compact** | `8px 16px` | `--button-padding-sm` | Supporting actions — tabs, pagination, filter/copy chips, banner CTAs |
-| **Small / Icon** | `4px 8px` | `--button-padding-xs` | Icon, close, dismiss, and row-toggle buttons |
-| **Fixed-height (horizontal)** | `24px` | `--button-padding-x` | Buttons sized by `height` (`--input-height` / 48px, or 40px) use `padding: 0 var(--button-padding-x)` so they align with adjacent inputs |
+A **destructive** action (delete, remove, unsave — muted red outline, red text, solid on hover) is still styled per page (`.account-card__action--destructive`) and has not been folded into this system.
+
+#### Pairing
+
+When two buttons sit side by side, the **first is the primary action and the second is the secondary action** — always in that order, never two of the same weight, and never a button beside a bare text link. A repeated action keeps **one** variant everywhere it appears on a page: if "View on GitHub" is an outlined button in the hero, it is an outlined button in the closing CTA band too, not a text link.
+
+#### Size and padding
+
+> Defined in `base.styles.ts` as CSS custom properties. Reference the tier token — never hardcode button padding.
+
+Every button carries `min-height: 44px` and `border-radius: var(--radius-sm)` (6px) **regardless of tier**, so the touch target and the corners are identical on desktop, tablet, and mobile. The padding tiers below **never change per breakpoint** — the 44px floor is the mobile guarantee, not a per-breakpoint padding override. The tier is chosen by *where the button sits*, not by how important it is.
+
+| Tier | Modifier | Value | CSS variable | Usage |
+|---|---|---|---|---|
+| **Default** | — | `12px 24px` | `--button-padding` | A CTA on its own line — hero, landing, install, pricing card, import commit |
+| **Field-aligned** | `.btn--field` | `min-height: 48px` + `0 24px` | `--input-height`, `--button-padding-x` | A CTA beside a text input, so the row lines up (Save, Fetch links, Upload, auth submit). The input keeps `padding: var(--input-padding)` |
+| **Compact** | `.btn--compact` | `8px 16px` | `--button-padding-sm` | A banner or in-card CTA (Subscribe, onboarding Install) |
+| **Small / Icon** | — | `4px 8px` | `--button-padding-xs` | Icon, close, dismiss, and row-toggle buttons — sized to content, not `.btn` |
 
 Vertical padding (`12px`) matches `--input-padding`; horizontal follows the 4px spacing scale (`lg` 24 / `md` 16 / `sm` 8). Disclosure toggles (`<details>`/`<summary>` panel headers) and circular icon buttons (the share bubble) are sized to their content, not these tiers.
+
+#### Hover and active
+
+**Hover and active swap the fill — they never fade it.** One mechanism (`background-color`) and one direction: the fill moves *away* from the surface behind it, so the button gains presence rather than losing it.
+
+- A filled amber button darkens to `--primary-fill`. That token is **pinned to the same value in both themes**, so the direction cannot invert, and it carries `--primary-foreground` at 5.06:1.
+- A tinted or translucent variant deepens its own fill by the same mechanism.
+- **Never `opacity` on a button that has a fill.** It fades the label along with the background, so the button reads as disabled. `opacity: 0.5` is reserved for the actual disabled state.
+- **Never `filter: brightness()`** — it lightens, which is the opposite direction.
+- **Never `--color-brand-dark` as a hover fill** — it inverts lightness between themes (see [Primary Colours](#primary-colours)).
 
 ### Border Radius
 
@@ -268,7 +295,7 @@ Use a **4px base unit** with the following standard increments:
 | Font size | `16px` | `--input-font-size` |
 | Form gap | `20px` (24px on desktop) | `--form-gap` |
 
-**An input paired with a button shares the button's height.** When a text input sits inline with a button (search / save bars, the inbox create row, the import from-url bar), set `height: var(--input-height)` on **both**; give the button `padding: 0 var(--button-padding-x)` (no vertical padding) and let the input keep `padding: var(--input-padding)`. Because `box-sizing: border-box` is global, an explicit shared height is the only reliable equaliser — never hand-tune vertical padding or font-size to fake the match. Canonical pairs: `.queue__save-input` / `.queue__save-btn`, `.inbox__name-input` / `.inbox__create-btn`.
+**An input paired with a button shares the button's height.** When a text input sits inline with a button (search / save bars, the inbox create row, the import from-url bar, the landing paste field), set `height: var(--input-height)` on the input and give the button the `.btn--field` tier — it carries `min-height: var(--input-height)` and `padding: 0 var(--button-padding-x)` so the row lines up. The input keeps `padding: var(--input-padding)`. Because `box-sizing: border-box` is global, an explicit shared height is the only reliable equaliser — never hand-tune vertical padding or font-size to fake the match, and never re-declare the height on the button itself (see [Buttons](#buttons)). Canonical pairs: `.queue__save-input` / the queue Save button, `.lp-action__input` / the landing hero CTA.
 
 ### Layout Principles
 

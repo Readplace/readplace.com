@@ -79,6 +79,7 @@ export const BASE_TEMPLATE = `<!DOCTYPE html>
 	<style>
 		{{{baseStyles}}}
 		{{{resetStyles}}}
+		{{{buttonStyles}}}
 		{{{utilityStyles}}}
 		{{{bannerAreaStyles}}}
 		{{{changelogBannerStyles}}}

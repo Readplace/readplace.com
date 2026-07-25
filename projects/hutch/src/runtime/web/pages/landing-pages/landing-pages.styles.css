@@ -156,38 +156,6 @@
   max-width: 480px;
 }
 
-.lp-btn {
-  display: inline-block;
-  padding: var(--button-padding);
-  border-radius: var(--radius);
-  font-size: 1rem;
-  font-weight: 600;
-  text-decoration: none;
-  border: none;
-  cursor: pointer;
-  transition: opacity 0.2s;
-}
-
-.lp-btn:hover {
-  opacity: 0.9;
-}
-
-.lp-btn--brand {
-  background: var(--primary);
-  color: var(--primary-foreground);
-}
-
-.lp-btn--on-dark {
-  background: var(--color-on-brand);
-  color: var(--secondary-foreground);
-}
-
-.lp-btn--ghost {
-  background: transparent;
-  color: rgba(255, 255, 255, 0.86);
-  border: 1px solid rgba(255, 255, 255, 0.3);
-}
-
 .lp-steps {
   list-style: none;
   display: grid;

@@ -27,7 +27,7 @@
           <p class="install-page__beta-copy">The iPhone app is still in beta. You can join it yourself through TestFlight, Apple's app for trying out betas — it takes a couple of minutes to set up.</p>
         </div>
 
-        <a href="{{testflightUrl}}" class="install-page__download" data-test-cta="join-ios-beta">Join the beta on TestFlight</a>
+        <a href="{{testflightUrl}}" class="btn btn--primary install-page__download" data-test-cta="join-ios-beta">Join the beta on TestFlight</a>
 
         <ol class="install-page__steps" data-test-section="ios-beta-steps">
           {{#each betaSteps}}
@@ -72,7 +72,7 @@
         <h2 class="install-page__panel-title">Readplace for {{panel.browser.name}}</h2>
         <p class="install-page__lead">{{panel.browser.intro}}</p>
         {{#if panel.browser.downloadUrl}}
-        <a href="{{panel.browser.downloadUrl}}" class="install-page__download" data-test-cta="{{panel.browser.ctaTestId}}">{{panel.browser.ctaLabel}}</a>
+        <a href="{{panel.browser.downloadUrl}}" class="btn btn--primary install-page__download" data-test-cta="{{panel.browser.ctaTestId}}">{{panel.browser.ctaLabel}}</a>
         {{else}}
         <p class="install-page__unavailable" data-test-section="firefox-unavailable">The Firefox extension is not available for download yet. Please check back soon.</p>
         {{/if}}

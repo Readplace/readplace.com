@@ -186,6 +186,7 @@ Alternatively use the POST - Redirect - GET pattern.
 | Use BEM for scoping | Prevent class collisions (`.flight-segment__label`) |
 | Orphan/widow control lives on the prose container, not on `body` | A global `text-wrap` forces a full-page reflow |
 | Fonts come from `var(--font-serif)` / `var(--font-sans)` | Never inline the `Georgia, "Times New Roman", serif` stack — one source of truth in `base.styles.ts`, like colours |
+| Buttons come from the shared `.btn` system | One button in the product — a per-page base class is how padding, radius, height, and hover direction drift apart |
 
 A new page's `h1` and section `h2` must set `font-family: var(--font-serif)`, or
 they ship in the body sans by inheritance. In-card sub-labels, eyebrows,
@@ -208,6 +209,33 @@ orphan; reach for a manual break only when a specific shape (e.g. a centred
 pyramid heading) demands it. See [orphan control in the brand
 guidelines](../../../BRAND_GUIDELINES.md#typography-rules) for the exceptions
 (keyword rotator; centred pyramid title uses `pretty`, not `balance`).
+
+### Buttons Come From the Shared System
+
+Every call to action uses the shared `.btn` + `.btn--<variant>` classes that `BUTTON_STYLES`
+in [`base.styles.ts`](../../../src/packages/web-shell/src/base.styles.ts) injects into every
+page's `<head>`. A page stylesheet contributes layout only — `width`, `margin`, grid/flex
+placement, `white-space`.
+
+Do **not** define a per-page button base class (`.lp-btn`, `.hb-btn`, `.<page>__*-btn`) that
+re-declares padding, radius, weight, fill, or hover. If a button needs something the shared
+set cannot express, add a variant to the shared set. See the [button system in the brand
+guidelines](../../../BRAND_GUIDELINES.md#buttons) for the variant taxonomy, the tier table,
+and the single hover rule.
+
+```css
+/* ❌ BAD — a fourth copy of the same button, with its own radius and hover direction */
+.checkout__pay-btn {
+  padding: var(--button-padding);
+  border-radius: var(--radius);
+  background: var(--primary);
+  color: var(--primary-foreground);
+}
+.checkout__pay-btn:hover { opacity: 0.9; }
+
+/* ✅ GOOD — markup is class="btn btn--primary checkout__pay-btn" */
+.checkout__pay-btn { width: 100%; }
+```
 
 ### One Measure Per Page Column
 
@@ -251,7 +279,7 @@ Use numbered references for multi-line explanations:
 Point a drifting element at the shared token or the existing house pattern rather than a bespoke per-element value. The recurring "AI-generated" tell is pieces that should read as one system each styled in isolation — a second link colour here, a hand-tuned control height there.
 
 - **Inline body-copy links set `color: var(--primary)`.** There is no global bare-`<a>` reset, so an unstyled link renders browser-default blue — a styling gap, not a choice. One link token per page; emphasis inside a link is weight (`<strong>`), never a second hue.
-- **An input paired with a button shares the button's height.** Set `height: var(--input-height)` on both, give the button `padding: 0 var(--button-padding-x)`, and let the input keep `padding: var(--input-padding)`. `box-sizing: border-box` is global, so an explicit shared height is the only reliable equaliser — never fake the match with padding or font-size.
+- **An input paired with a button shares the button's height.** Set `height: var(--input-height)` on the input and give the button the shared `.btn--field` tier, which carries that height and `padding: 0 var(--button-padding-x)`; the input keeps `padding: var(--input-padding)`. `box-sizing: border-box` is global, so an explicit shared height is the only reliable equaliser — never fake the match with padding or font-size, and never re-declare the height on the button.
 - **A directional `→` on a guide link is all-or-nothing across a page.** If one forward/guide link carries the trailing arrow, every sibling link to the same destination carries it too — and an arrow-terminated link takes no trailing period.
 - **Section background rhythm.** A long marketing page alternates `--background` and `--muted` section bands so no two adjacent content sections share a fill; each muted band carries a `1px var(--border)` top/bottom rule (the `.lp-band--muted` / `.home-band--muted` pattern). `--card` is a card-only surface, never a full-bleed section background.
 

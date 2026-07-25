@@ -215,38 +215,6 @@ hr::before {
   text-decoration: underline;
 }
 
-.btn {
-  display: inline-block;
-  padding: var(--button-padding);
-  border-radius: var(--radius);
-  font-size: 1rem;
-  font-weight: 600;
-  text-decoration: none;
-  border: none;
-  cursor: pointer;
-  transition: opacity 0.2s;
-}
-
-.btn:hover {
-  opacity: 0.9;
-}
-
-.btn--primary {
-  background: var(--color-on-brand);
-  color: var(--secondary-foreground);
-}
-
-.btn--secondary {
-  background: rgba(255,255,255,0.15);
-  color: var(--color-on-brand);
-  border: 1px solid rgba(255,255,255,0.3);
-}
-
-.btn--brand {
-  background: var(--primary);
-  color: var(--primary-foreground);
-}
-
 .home-ways {
   padding: 64px 20px;
 }
@@ -398,7 +366,7 @@ hr::before {
   padding: 14px 16px;
   font-size: 1rem;
   border: 1px solid var(--border);
-  border-radius: var(--radius);
+  border-radius: var(--radius-sm);
   background: var(--background);
   color: var(--foreground);
   box-sizing: border-box;
@@ -407,21 +375,6 @@ hr::before {
 .home-try__input:focus {
   outline: 2px solid var(--primary);
   outline-offset: 1px;
-}
-
-.home-try__submit {
-  padding: var(--button-padding);
-  font-size: 1rem;
-  font-weight: 600;
-  color: var(--primary-foreground);
-  background: var(--primary);
-  border: none;
-  border-radius: var(--radius);
-  cursor: pointer;
-}
-
-.home-try__submit:hover {
-  filter: brightness(1.05);
 }
 
 .home-try__reassurance {
@@ -1245,9 +1198,7 @@ hr::before {
 }
 
 .pricing-card__cta {
-  display: block;
   width: 100%;
-  text-align: center;
 }
 
 .home-trust {

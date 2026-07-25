@@ -63,23 +63,8 @@
 }
 
 .queue-banner__cta {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
   flex: 0 0 auto;
-  min-height: 44px;
-  padding: var(--button-padding-sm);
-  background: var(--primary);
-  color: var(--primary-foreground);
-  border-radius: var(--radius-sm);
-  font-size: 0.8125rem;
-  font-weight: 600;
-  text-decoration: none;
   white-space: nowrap;
-}
-
-.queue-banner__cta:hover {
-  opacity: 0.9;
 }
 
 .queue__save-form {
@@ -107,20 +92,7 @@
 }
 
 .queue__save-btn {
-  height: var(--input-height);
-  padding: 0 var(--button-padding-x);
-  background: var(--primary);
-  color: var(--primary-foreground);
-  border: none;
-  border-radius: var(--radius);
-  font-size: 0.875rem;
-  font-weight: 600;
-  cursor: pointer;
   white-space: nowrap;
-}
-
-.queue__save-btn:hover {
-  opacity: 0.9;
 }
 
 .queue__save-form--disabled .queue__save-input,

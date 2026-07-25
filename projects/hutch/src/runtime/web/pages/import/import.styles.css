@@ -89,7 +89,7 @@
   height: var(--input-height);
   padding: 0 12px;
   border: 1px solid var(--border);
-  border-radius: var(--radius);
+  border-radius: var(--radius-sm);
   font-size: 0.9375rem;
   background: var(--background);
   color: var(--foreground);
@@ -99,23 +99,6 @@
   outline: 2px solid var(--ring);
   outline-offset: 2px;
   border-color: var(--primary);
-}
-
-.import__from-url-btn {
-  height: var(--input-height);
-  padding: 0 var(--button-padding-x);
-  background: var(--primary);
-  color: var(--primary-foreground);
-  border: none;
-  border-radius: var(--radius);
-  font-size: 0.9375rem;
-  font-weight: 600;
-  cursor: pointer;
-  transition: background-color 0.15s ease;
-}
-
-.import__from-url-btn:hover {
-  background: var(--color-brand-dark);
 }
 
 .import__from-url-meta {
@@ -257,20 +240,6 @@
 
 .import__upload-btn {
   justify-self: end;
-  height: var(--input-height);
-  padding: 0 var(--button-padding-x);
-  background: var(--primary);
-  color: var(--primary-foreground);
-  border: none;
-  border-radius: var(--radius);
-  font-size: 0.9375rem;
-  font-weight: 600;
-  cursor: pointer;
-  transition: background-color 0.15s ease;
-}
-
-.import__upload-btn:hover {
-  background: var(--color-brand-dark);
 }
 
 .import__upload-error {
@@ -413,23 +382,6 @@
 
 .import__commit-form {
   margin: 0;
-}
-
-.import__commit-btn {
-  height: 40px;
-  padding: 0 var(--button-padding-x);
-  background: var(--primary);
-  color: var(--primary-foreground);
-  border: none;
-  border-radius: var(--radius);
-  font-size: 0.9375rem;
-  font-weight: 600;
-  cursor: pointer;
-  transition: background-color 0.15s ease;
-}
-
-.import__commit-btn:hover {
-  background: var(--color-brand-dark);
 }
 
 .import__list {

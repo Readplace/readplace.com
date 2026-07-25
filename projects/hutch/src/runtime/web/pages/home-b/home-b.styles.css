@@ -115,38 +115,6 @@
   color: var(--color-text-primary);
 }
 
-.hb-btn {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  padding: var(--button-padding, 12px 24px);
-  border: 1px solid transparent;
-  border-radius: var(--radius-sm, 6px);
-  font-weight: 600;
-  font-size: 1rem;
-  text-decoration: none;
-  cursor: pointer;
-}
-
-.hb-btn--primary {
-  background: var(--color-brand);
-  color: var(--color-on-brand, #fff);
-}
-
-.hb-btn--primary:hover {
-  background: var(--color-brand-dark);
-}
-
-.hb-btn--ghost {
-  background: transparent;
-  color: var(--color-brand);
-  border-color: var(--color-border);
-}
-
-.hb-btn--ghost:hover {
-  background: var(--color-surface);
-}
-
 /* Jobs */
 
 .hb-jobs__list {

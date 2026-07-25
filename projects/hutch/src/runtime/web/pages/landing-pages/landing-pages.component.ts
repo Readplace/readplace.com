@@ -14,7 +14,9 @@ const ORIGIN = "https://readplace.com";
 /** Discarded — only pathname and search are read back off the parsed href. */
 const PARSE_ORIGIN = "https://internal.invalid";
 
-type ActionStyle = "lp-btn--on-dark" | "lp-btn--ghost" | "lp-btn--brand";
+type ActionStyle = "btn--on-dark" | "btn--on-dark-ghost" | "btn--primary";
+
+type ActionClass = ActionStyle | `${ActionStyle} btn--field`;
 
 interface HiddenParam {
 	readonly name: string;
@@ -26,7 +28,7 @@ interface RenderedAction {
 	readonly label: string;
 	readonly action: string;
 	readonly hiddenParams: readonly HiddenParam[];
-	readonly cssClass: ActionStyle;
+	readonly cssClass: ActionClass;
 	readonly formClass: "lp-action" | "lp-action lp-action--field";
 	readonly input?: LandingPageActionInput;
 }
@@ -56,7 +58,7 @@ function renderAction(
 	return {
 		key: action.key,
 		label: action.label,
-		cssClass,
+		cssClass: action.input ? `${cssClass} btn--field` : cssClass,
 		input: action.input,
 		formClass: action.input ? "lp-action lp-action--field" : "lp-action",
 		action: tracked.pathname,
@@ -69,8 +71,8 @@ export function LandingPage(slug: LandingPageSlug): PageBody {
 
 	const heroSource = `lp-${slug}-hero`;
 	const heroActions: readonly RenderedAction[] = [
-		renderAction(page.primaryAction, heroSource, "lp-btn--on-dark"),
-		...page.secondaryActions.map((action) => renderAction(action, heroSource, "lp-btn--ghost")),
+		renderAction(page.primaryAction, heroSource, "btn--on-dark"),
+		...page.secondaryActions.map((action) => renderAction(action, heroSource, "btn--on-dark-ghost")),
 	];
 
 	const steps: readonly RenderedStep[] = page.steps.map((step, index) => ({
@@ -83,7 +85,7 @@ export function LandingPage(slug: LandingPageSlug): PageBody {
 		...page,
 		heroActions,
 		steps,
-		closeActions: [renderAction(page.primaryAction, `lp-${slug}-close`, "lp-btn--brand")],
+		closeActions: [renderAction(page.primaryAction, `lp-${slug}-close`, "btn--primary")],
 	});
 
 	return {

@@ -130,22 +130,6 @@
   gap: 8px;
 }
 
-.onboarding__action {
-  display: inline-block;
-  font-size: 0.8125rem;
-  font-weight: 500;
-  color: var(--primary-foreground);
-  background: var(--primary);
-  padding: var(--button-padding-sm);
-  border-radius: var(--radius-sm);
-  text-decoration: none;
-  transition: opacity 0.15s ease;
-}
-
-.onboarding__action:hover {
-  opacity: 0.85;
-}
-
 .onboarding__step--complete .onboarding__actions {
   display: none;
 }

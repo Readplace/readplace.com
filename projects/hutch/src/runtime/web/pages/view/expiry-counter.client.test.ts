@@ -22,7 +22,7 @@ function makeDoc(html: string): Document {
 function counterHtml(expiresAt: string): string {
 	return `<aside class="view__cta">
 		<div class="view__cta-content">
-			<a class="view__cta-btn view__cta-btn--primary" href="/save?url=https%3A%2F%2Fexample.com%2Fpost&utm_content=2d_10h_left" data-expiry-save-link>Save to My Queue</a>
+			<a class="btn btn--primary view__cta-btn" href="/save?url=https%3A%2F%2Fexample.com%2Fpost&utm_content=2d_10h_left" data-expiry-save-link>Save to My Queue</a>
 		</div>
 		<p class="view__expiry view__expiry--counting" data-expiry-state="counting" data-expires-at="${expiresAt}">Public access will expire in 2d 10h 5m 33s</p>
 	</aside>`;

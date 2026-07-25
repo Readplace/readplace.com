@@ -162,6 +162,78 @@ export const BASE_RESET_STYLES = `
 	}
 `;
 
+export const BUTTON_STYLES = `
+	.btn {
+		display: inline-flex;
+		align-items: center;
+		justify-content: center;
+		min-height: 44px;
+		padding: var(--button-padding);
+		border: none;
+		border-radius: var(--radius-sm);
+		font-family: inherit;
+		font-size: 1rem;
+		font-weight: 600;
+		line-height: 1.25;
+		text-align: center;
+		text-decoration: none;
+		cursor: pointer;
+		transition: background-color 0.15s ease;
+	}
+
+	.btn--primary {
+		background: var(--primary);
+		color: var(--primary-foreground);
+	}
+
+	.btn--primary:hover,
+	.btn--primary:active {
+		background: var(--primary-fill);
+	}
+
+	.btn--secondary {
+		background: var(--secondary);
+		color: var(--primary-text);
+		box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--primary-text) 30%, transparent);
+	}
+
+	.btn--secondary:hover,
+	.btn--secondary:active {
+		background: color-mix(in srgb, var(--primary) 12%, var(--secondary));
+	}
+
+	.btn--on-dark {
+		background: var(--color-on-brand);
+		color: var(--secondary-foreground);
+	}
+
+	.btn--on-dark:hover,
+	.btn--on-dark:active {
+		background: color-mix(in srgb, var(--secondary-foreground) 10%, var(--color-on-brand));
+	}
+
+	.btn--on-dark-ghost {
+		background: rgba(255, 255, 255, 0.15);
+		color: var(--color-on-brand);
+		box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.3);
+	}
+
+	.btn--on-dark-ghost:hover,
+	.btn--on-dark-ghost:active {
+		background: rgba(255, 255, 255, 0.28);
+	}
+
+	.btn--field {
+		min-height: var(--input-height);
+		padding: 0 var(--button-padding-x);
+	}
+
+	.btn--compact {
+		padding: var(--button-padding-sm);
+		font-size: 0.8125rem;
+	}
+`;
+
 export const HEADER_STYLES = `
 	.header {
 		background: var(--background);

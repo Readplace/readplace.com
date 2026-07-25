@@ -31,46 +31,8 @@
 }
 
 .view__cta-btn {
-  display: block;
-  box-sizing: border-box;
   width: 100%;
-  padding: var(--button-padding);
-  font-size: 1rem;
-  font-weight: 600;
-  border: 1px solid var(--color-brand);
-  border-radius: 8px;
-  text-align: center;
-  text-decoration: none;
-  cursor: pointer;
 }
-
-/* purgecss-ignore-start: modifier suffix is interpolated at runtime, so it never appears literally for the purge scanner to keep */
-.view__cta-btn--primary {
-  color: #fff;
-  background: var(--color-brand);
-}
-
-.view__cta-btn--primary:hover {
-  filter: brightness(1.05);
-}
-
-.view__cta-btn--primary:active {
-  filter: brightness(0.95);
-}
-
-.view__cta-btn--secondary {
-  color: var(--color-brand);
-  background: transparent;
-}
-
-.view__cta-btn--secondary:hover {
-  background: color-mix(in srgb, var(--color-brand) 8%, transparent);
-}
-
-.view__cta-btn--secondary:active {
-  background: color-mix(in srgb, var(--color-brand) 14%, transparent);
-}
-/* purgecss-ignore-end */
 
 .view__share-row {
   position: sticky;
@@ -165,30 +127,6 @@
   color: var(--color-text-secondary);
 }
 
-.view__paywall-save {
-  display: inline-block;
-  box-sizing: border-box;
-  padding: var(--button-padding);
-  font-size: 1rem;
-  font-weight: 600;
-  color: var(--color-on-brand);
-  background: var(--color-brand);
-  border: 1px solid var(--color-brand);
-  border-radius: 8px;
-  text-align: center;
-  text-decoration: none;
-  cursor: pointer;
-  transition: filter 150ms ease;
-}
-
-.view__paywall-save:hover {
-  filter: brightness(1.05);
-}
-
-.view__paywall-save:active {
-  filter: brightness(0.95);
-}
-
 /* purgecss-ignore-start: --inactive ships hidden in markup; --active is toggled by client script and appears in no template literally */
 .view__paywall--inactive {
   display: none;
@@ -198,9 +136,3 @@
   display: flex;
 }
 /* purgecss-ignore-end */
-
-@media (prefers-reduced-motion: reduce) {
-  .view__paywall-save {
-    transition: none;
-  }
-}

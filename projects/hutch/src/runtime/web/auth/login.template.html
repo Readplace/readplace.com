@@ -29,7 +29,7 @@
             <input class="auth-form__input{{passwordField.errorClass}}" type="password" id="password" name="password" required autocomplete="current-password">
             {{#if passwordField.error}}<p class="auth-form__error" data-test-error="password">{{passwordField.error}}</p>{{/if}}
           </div>
-          <button class="auth-form__submit" type="submit">Sign in</button>
+          <button class="btn btn--primary btn--field auth-form__submit" type="submit">Sign in</button>
         </form>
         <p class="auth-card__footer auth-card__footer--forgot">
           <a href="{{track '/forgot-password' source='auth-login' content='forgot-password'}}">Forgot your password?</a>
