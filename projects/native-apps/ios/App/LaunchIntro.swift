@@ -48,7 +48,7 @@ enum LaunchIntro {
 
 	static let watchdogSlack = 3.0
 
-	static let videoDuration = 8.041667
+	static let videoDuration = 8.083333
 
 	static let logoScreenFraction = 0.378
 }
