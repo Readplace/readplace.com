@@ -1,3 +1,4 @@
+import assert from 'node:assert/strict'
 import { test } from '../hermetic-cdn'
 import { createBannerOnReaderActions, type BannerOnReaderProgress } from './banner-on-reader-actions'
 import { createCleanupActions, type CleanupProgress } from './cleanup-actions'
@@ -97,6 +98,8 @@ test.describe('Queue management flow (local)', () => {
 			pageWithoutLinksSurfaced: false,
 		}
 
+		const firedCheckpointActions = new Set<string>()
+
 		await runQueueFlow(page, {
 			baseURL: BASE_URL,
 			testArticles: createLocalTestArticles(BASE_URL),
@@ -141,9 +144,16 @@ test.describe('Queue management flow (local)', () => {
 			onActionComplete: async (actionName) => {
 				const checkpoint = visualCheckpoints.get(actionName)
 				if (!checkpoint) return
+				firedCheckpointActions.add(actionName)
 				await captureCheckpoint(page, checkpoint)
 			},
 			maxNavigations: 120,
 		})
+
+		assert.deepEqual(
+			[...firedCheckpointActions].sort(),
+			[...visualCheckpoints.keys()].sort(),
+			'every ledgered checkpoint must fire during the flow — a ledger entry whose action no longer runs leaves its committed baseline uncompared',
+		)
 	})
 })

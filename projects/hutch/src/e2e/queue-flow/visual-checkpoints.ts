@@ -1,11 +1,16 @@
 import assert from 'node:assert/strict'
 import type { Page } from '@playwright/test'
+import { expect } from '../hermetic-cdn'
 import { measuredBox, type VisualCheckpoint } from '../visual-checkpoint'
 import type { QueueFlowActionKey } from './action-catalog'
 
 const EMPTY_QUEUE_REGION = '[data-test-empty-queue]'
 const EMPTY_QUEUE_TITLE = `${EMPTY_QUEUE_REGION} .queue__empty-title`
 const EMPTY_STATE_HORIZONTAL_PADDING_PX = 20
+const PAGINATION_REGION = '[data-test-pagination]'
+const PAGINATION_INFO = '[data-test-pagination-info]'
+const PAGINATION_NEXT_LINK = '[data-test-pagination-next]'
+const PAGINATION_FLEX_GAP_PX = 16
 
 async function emptyQueueSettled(page: Page): Promise<void> {
 	await page.waitForSelector('body.page-queue')
@@ -29,6 +34,23 @@ async function emptyQueueGeometry(page: Page): Promise<void> {
 	)
 }
 
+async function paginationPage1Settled(page: Page): Promise<void> {
+	await page.waitForSelector('body.page-queue')
+	await page.waitForSelector(PAGINATION_NEXT_LINK)
+	await expect(page.locator(PAGINATION_INFO)).toHaveText('Page 1 of 2')
+}
+
+async function paginationPage1Geometry(page: Page): Promise<void> {
+	const info = await measuredBox(page, PAGINATION_INFO)
+	const nextLink = await measuredBox(page, PAGINATION_NEXT_LINK)
+	const gapBeforeNext = nextLink.x - (info.x + info.width)
+	assert.equal(
+		gapBeforeNext,
+		PAGINATION_FLEX_GAP_PX,
+		'gap between the page info and the Next link must equal the pagination flex gap',
+	)
+}
+
 const QUEUE_FLOW_VISUAL_CHECKPOINTS: ReadonlyArray<[QueueFlowActionKey, VisualCheckpoint]> = [
 	[
 		'cleanup-previous-articles',
@@ -40,6 +62,22 @@ const QUEUE_FLOW_VISUAL_CHECKPOINTS: ReadonlyArray<[QueueFlowActionKey, VisualCh
 			pinnedText: [],
 		},
 	],
+	[
+		'verify-page1-has-next',
+		{
+			name: 'queue-pagination-page-1',
+			settled: paginationPage1Settled,
+			geometry: paginationPage1Geometry,
+			target: PAGINATION_REGION,
+			pinnedText: [],
+		},
+	],
 ]
 
 export const visualCheckpoints = new Map<string, VisualCheckpoint>(QUEUE_FLOW_VISUAL_CHECKPOINTS)
+
+assert.equal(
+	visualCheckpoints.size,
+	QUEUE_FLOW_VISUAL_CHECKPOINTS.length,
+	'duplicate action key in QUEUE_FLOW_VISUAL_CHECKPOINTS — a repeated key silently drops every checkpoint under it except the last',
+)
