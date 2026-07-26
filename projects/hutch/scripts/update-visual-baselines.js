@@ -12,7 +12,10 @@ const logger = HutchLogger.from(consoleLogger);
 const PROJECT_ROOT = path.resolve(__dirname, '..');
 const WORKSPACE_ROOT = path.resolve(PROJECT_ROOT, '..', '..');
 const PLAYWRIGHT_CONFIG = 'playwright.config.local-dev.ts';
-const VISUAL_SPEC_PATTERN = 'src/e2e/**/*-visual.e2e-local.ts';
+const VISUAL_SPEC_PATTERNS = [
+  'src/e2e/**/*-visual.e2e-local.ts',
+  'src/e2e/queue-flow/run.e2e-local.ts',
+];
 
 function playwrightImage() {
   const pinnedVersion = devDependencies['@playwright/test'];
@@ -25,9 +28,11 @@ function playwrightImage() {
 }
 
 function visualSpecs() {
-  const specs = globSync(VISUAL_SPEC_PATTERN, { cwd: PROJECT_ROOT }).sort();
-  assert.ok(specs.length > 0, `no visual specs matched ${VISUAL_SPEC_PATTERN}`);
-  return specs;
+  return VISUAL_SPEC_PATTERNS.flatMap((pattern) => {
+    const matches = globSync(pattern, { cwd: PROJECT_ROOT });
+    assert.ok(matches.length > 0, `no visual specs matched ${pattern}`);
+    return matches;
+  }).sort();
 }
 
 function run(command, args, options) {

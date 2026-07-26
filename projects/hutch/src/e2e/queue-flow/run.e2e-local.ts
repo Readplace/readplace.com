@@ -10,6 +10,8 @@ import { createSeedActions, type SeedProgress } from './seed-actions'
 import { createAnonymousViewPageActions, type ViewPageProgress } from './view-page-actions'
 import { createLocalTestArticles, type QueueProgress } from './queue-actions'
 import { runQueueFlow } from './queue-flow'
+import { captureCheckpoint } from '../visual-checkpoint'
+import { visualCheckpoints } from './visual-checkpoints'
 import { requireEnv } from "@packages/require-env"
 
 const BASE_URL = `http://localhost:${requireEnv('E2E_PORT')}`
@@ -136,7 +138,11 @@ test.describe('Queue management flow (local)', () => {
 				importFromUrlActions: createImportFromUrlActions({ baseUrl: BASE_URL }, queueProgress, importFromUrlProgress),
 			},
 			preQueueProgressObjects: [viewPageProgress, seedProgress, cleanupProgress, passwordResetProgress, onboardingProgress, savePermalinkProgress, bannerOnReaderProgress, importProgress, importFromUrlProgress],
-			onActionComplete: async () => {},
+			onActionComplete: async (actionName) => {
+				const checkpoint = visualCheckpoints.get(actionName)
+				if (!checkpoint) return
+				await captureCheckpoint(page, checkpoint)
+			},
 			maxNavigations: 120,
 		})
 	})
