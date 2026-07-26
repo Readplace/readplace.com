@@ -36,6 +36,11 @@ export interface BannerStateSource {
 	 * post the page the reader is on (the dismiss route cannot rely on `Referer`,
 	 * which helmet's default `no-referrer` policy strips). */
 	originalUrl?: string;
+	/** Markup the consuming site computed for *this request alone*, appended to
+	 * the page's scripts. `BaseConfig.siteScripts` cannot express it: that string
+	 * is bound once at `initBase` and is therefore the same on every render. A
+	 * site that computes none — the blog — never sets it and renders unchanged. */
+	requestScripts?: string;
 }
 
 export type NavItemKey =
@@ -168,6 +173,8 @@ export interface BannerState {
 	 * rendering site supplies no request URL; the dismiss route then falls back
 	 * to "/". */
 	currentPath?: string;
+	/** Per-request script markup carried through from `BannerStateSource`. */
+	requestScripts?: string;
 }
 
 const NAV_QUEUE = navItem({ key: "queue", label: "Queue", path: "/queue", method: "GET", iconName: "inbox" });
@@ -233,5 +240,6 @@ export function bannerStateFromRequest(source: BannerStateSource): BannerState {
 		emailVerified: source.emailVerified,
 		verification: source.verificationStatus,
 		currentPath: source.originalUrl,
+		requestScripts: source.requestScripts,
 	};
 }

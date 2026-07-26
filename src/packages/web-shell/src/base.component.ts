@@ -282,6 +282,7 @@ export function initBase(config: BaseConfig): RenderBase {
 				TOAST_SCRIPT +
 				(trialChipCarriesInstant(state.trial) ? TRIAL_COUNTDOWN_SCRIPT : "") +
 				(body.scripts ?? "") +
+				(state.requestScripts ?? "") +
 				siteScripts +
 				liveReloadScript,
 		});
