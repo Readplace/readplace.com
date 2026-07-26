@@ -205,17 +205,28 @@ listing and a deliberate human submission. The moving parts:
    `release` lane pushes it to App Store Connect as a **draft**: run
    `bundle exec fastlane release` locally (same `fastlane/.env` as `beta`) or
    trigger **Publish iOS App Store metadata** from the Actions tab (same `prod`
-   environment secrets; no Mac needed). It requires an App Store version in
-   *Prepare for Submission* and never uploads a binary or submits for review.
-2. **Screenshots** live under `fastlane/screenshots/en-US/` (iPhone 6.9″-slot
-   sizes: 1320×2868 or 1290×2796; the app is iPhone-only so no iPad set).
-   Push them with `bundle exec fastlane release screenshots:true` (or tick the
-   checkbox on the Actions run) — `overwrite_screenshots` replaces whatever is
-   in App Store Connect. PNGs must be **opaque RGB — no alpha channel**.
-   `simctl` captures RGBA, and App Store Connect's media pipeline never
-   finishes processing a PNG that carries alpha: the upload succeeds,
-   processing hangs, and deliver loops on "screenshots missing" until its
-   retries run out. Flatten before committing, e.g.
+   environment secrets; no Mac needed). It never uploads a binary or submits for
+   review. Pass `build:<n>` (lane) or fill the **build** input (Actions) to
+   create the `<major.minor>.<build>` version record when nothing is in
+   *Prepare for Submission*; without it the lane edits the open draft.
+2. **Screenshots** live under `fastlane/screenshots/en-US/` (1290×2796, which
+   deliver files into the iPhone **6.7″** set — this fastlane has no 6.9″
+   display type; the app is iPhone-only so no iPad set). Push them with
+   `bundle exec fastlane release screenshots:true` (or tick the checkbox on the
+   Actions run) — `overwrite_screenshots` replaces whatever is in App Store
+   Connect. The lane then reads the listing back and fails unless it matches the
+   committed files exactly: deliver mistakes App Store Connect's processing
+   delay for a failed upload and re-uploads every file without removing the
+   copies already in flight, which is how 1.0.67 was approved showing all four
+   screenshots twice. Duplicates found are deleted and re-verified; a red run
+   means the listing does **not** match git and is safe to re-dispatch.
+   Screenshots on a released version cannot be edited, so correcting them means
+   a new version and another review pass.
+   PNGs must be **opaque RGB — no alpha channel**. `simctl` captures RGBA, and
+   App Store Connect's media pipeline never finishes processing a PNG that
+   carries alpha: the upload succeeds, processing hangs, and deliver loops on
+   "screenshots missing" until its retries run out. Flatten before committing,
+   e.g.
    `python3 -c "from PIL import Image; im = Image.open('shot.png').convert('RGB'); im.save('shot.png')"`.
 3. **App Review contact + demo account** ride the same push, from `prod`
    environment secrets (never git — they are PII/credentials):
@@ -242,7 +253,9 @@ listing and a deliberate human submission. The moving parts:
    record's string to the required `<major.minor>.<build>`, attaches the
    build, pushes the metadata draft, and submits — reusing the still-open
    review submission after a rejection (a rejection leaves it in
-   UNRESOLVED_ISSUES and App Store Connect refuses a second one). Submission
+   UNRESOLVED_ISSUES and App Store Connect refuses a second one). It refuses to
+   submit while the listing's screenshots differ from `fastlane/screenshots/`,
+   since a new version inherits the released one's — do step 2 first. Submission
    stays a deliberate human act: the workflow is dispatch-only and nothing on
    the push pipeline calls the lane.
 6. **After approval**: point the iPhone client's install URL

@@ -1,1 +1,1 @@
-First release of the Readplace app: save articles by sharing to Readplace, then read them later in a clean reader with an AI summary.
+Faster launch: the intro animation is gone — the app now cuts straight to your reading list.

@@ -13,9 +13,14 @@ on:
   workflow_dispatch:
     inputs:
       screenshots:
-        description: "Also push fastlane/screenshots (overwrites the sets in App Store Connect)"
+        description: "Also push fastlane/screenshots (replaces the sets in App Store Connect, then fails the run unless the listing reads back matching the committed files)"
         type: boolean
         default: false
+      build:
+        description: "TestFlight build number, e.g. 68 — creates or renames the draft version to <major.minor>.<build>. Needed when nothing is in Prepare for Submission; leave empty to edit the open draft."
+        type: string
+        required: false
+        default: ""
 
 concurrency:
   group: ios-appstore-metadata
@@ -63,8 +68,13 @@ jobs:
 
       - name: Push listing metadata draft to App Store Connect
         if: steps.preflight.outputs.configured == 'true'
-        run: bundle exec fastlane release screenshots:${{ inputs.screenshots }}
+        # Quoted through the environment rather than interpolated into the command:
+        # dispatch inputs are attacker-controlled text as far as the shell cares.
+        # An empty build reaches the lane as "", which it treats as "not given".
+        run: bundle exec fastlane release "screenshots:$SCREENSHOTS" "build:$BUILD"
         env:
+          SCREENSHOTS: ${{ inputs.screenshots }}
+          BUILD: ${{ inputs.build }}
           ASC_KEY_ID: ${{ secrets.ASC_KEY_ID }}
           ASC_ISSUER_ID: ${{ secrets.ASC_ISSUER_ID }}
           ASC_KEY_PATH: ./fastlane/secrets/AuthKey.p8
