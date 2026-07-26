@@ -1,6 +1,7 @@
 import assert from "node:assert/strict";
 import type { Page } from "@playwright/test";
 import { expect, test, waitForBrandFonts } from "./hermetic-cdn";
+import { captureCheckpoint, measuredBox, type VisualCheckpoint } from "./visual-checkpoint";
 
 const E2E_PORT = process.env.E2E_PORT;
 assert(E2E_PORT, "E2E_PORT must be set by the Playwright webServer config");
@@ -10,8 +11,6 @@ const CONTENT_FETCHED_AT = "2026-03-26T14:32:00.000Z";
 const ARTICLE_URL = "https://example.com/verify-banner-nav-visual";
 const CANONICAL_PATH = "example.com/verify-banner-nav-visual";
 const PASSWORD = "Sup3r-Secret-Pw!";
-
-const FONTS_READY = "document.fonts.ready.then(() => undefined)";
 
 // A wide viewport keeps the long verify banner on one line; the narrow one
 // wraps it to two lines. That rewrap is the trigger the bug depended on: the
@@ -70,21 +69,6 @@ async function openReaderAsUnverified(page: Page, email: string): Promise<void> 
 	);
 }
 
-// Narrow the viewport so the verify banner wraps to two lines (the bug trigger),
-// then settle the header for a deterministic capture: the trial countdown pill
-// ("13d 23h left…") reveals asynchronously and its text ticks by the hour, so
-// remove it — a detached node can't render whatever visibility class the client
-// script later toggles. (The extension-suggestion banner is already suppressed
-// via localStorage in beforeEach.)
-async function settleNarrow(page: Page): Promise<void> {
-	await page.setViewportSize(NARROW);
-	await page.evaluate(() => {
-		document.querySelector(".trial-countdown")?.remove();
-		document.querySelector(".offline-banner")?.remove();
-	});
-	await page.evaluate(FONTS_READY);
-}
-
 // The regression guard, reused before every screenshot so the pixels are only
 // captured once the layout has settled. A positive gap means the banner's
 // bottom edge sits below the nav's top edge — i.e. they overlap.
@@ -99,30 +83,41 @@ async function expectNavBelowBanner(page: Page): Promise<void> {
 		.toBeLessThanOrEqual(1);
 }
 
-// Capture from the top of the page through the bottom of the nav — the verify
-// banner plus the nav — and stop before the article body, whose summary and
-// progress states are not deterministic. Polls until the nav's bottom is stable
-// across two reads so an in-flight reflow can't size the clip mid-settle.
-async function topClip(page: Page): Promise<{
-	x: number;
-	y: number;
-	width: number;
-	height: number;
-}> {
-	let previous = -1;
-	let bottom = -1;
-	await expect
-		.poll(async () => {
-			const nav = await page.locator(".header").boundingBox();
-			assert.ok(nav, "nav must be laid out");
-			bottom = Math.ceil(nav.y + nav.height);
-			const stable = bottom === previous;
-			previous = bottom;
-			return stable;
-		})
-		.toBe(true);
-	return { x: 0, y: 0, width: NARROW.width, height: bottom };
+async function bannerNavSettled(page: Page): Promise<void> {
+	await page.evaluate(() => {
+		document.querySelector(".trial-countdown")?.remove();
+		document.querySelector(".offline-banner")?.remove();
+	});
+	await expectNavBelowBanner(page);
 }
+
+async function navClearsBannerGeometry(page: Page): Promise<void> {
+	const banner = await measuredBox(page, ".banner-area");
+	const nav = await measuredBox(page, ".header");
+	assert.equal(banner.y, 0, "the banner must start at the very top of the page");
+	assert.ok(
+		banner.y + banner.height - nav.y <= 1,
+		"the banner's bottom edge must not overlap the nav's top edge",
+	);
+}
+
+const VERIFY_BANNER_NAV_LIGHT: VisualCheckpoint = {
+	name: "verify-banner-nav-light",
+	settled: bannerNavSettled,
+	geometry: navClearsBannerGeometry,
+	target: ".header",
+	capture: "page-from-top",
+	pinnedText: [],
+};
+
+const VERIFY_BANNER_NAV_DARK: VisualCheckpoint = {
+	name: "verify-banner-nav-dark",
+	settled: bannerNavSettled,
+	geometry: navClearsBannerGeometry,
+	target: ".header",
+	capture: "page-from-top",
+	pinnedText: [],
+};
 
 test.describe("Verify banner never overlaps the nav", () => {
 	test.use({ timezoneId: "UTC", viewport: WIDE });
@@ -130,9 +125,7 @@ test.describe("Verify banner never overlaps the nav", () => {
 	test.beforeEach(async ({ page }) => {
 		// The extension-suggestion banner slides in on a client timer and animates
 		// its height, which would race the capture. It opts out of showing when its
-		// dismissed flag is set, so set it up front. (The trial countdown is removed
-		// per-capture in settleNarrow — a style tag can't reliably beat the client
-		// script that reveals it, but a removed element can't render.)
+		// dismissed flag is set, so set it up front.
 		await page.addInitScript(() => {
 			window.localStorage.setItem(
 				"readplace.extension-suggestion-dismissed",
@@ -148,8 +141,9 @@ test.describe("Verify banner never overlaps the nav", () => {
 			page,
 			`verify-nav-guard-${testInfo.workerIndex}-${Date.now()}@example.com`,
 		);
-		await settleNarrow(page);
-		await expectNavBelowBanner(page);
+		await page.setViewportSize(NARROW);
+		await bannerNavSettled(page);
+		await navClearsBannerGeometry(page);
 	});
 
 	test("renders the banner above the nav (light)", async ({ page }, testInfo) => {
@@ -158,11 +152,8 @@ test.describe("Verify banner never overlaps the nav", () => {
 			page,
 			`verify-nav-light-${testInfo.workerIndex}-${Date.now()}@example.com`,
 		);
-		await settleNarrow(page);
-		await expectNavBelowBanner(page);
-		await expect(page).toHaveScreenshot("verify-banner-nav-light.png", {
-			clip: await topClip(page),
-		});
+		await page.setViewportSize(NARROW);
+		await captureCheckpoint(page, VERIFY_BANNER_NAV_LIGHT);
 	});
 
 	test("renders the banner above the nav (dark)", async ({ page }, testInfo) => {
@@ -171,10 +162,7 @@ test.describe("Verify banner never overlaps the nav", () => {
 			page,
 			`verify-nav-dark-${testInfo.workerIndex}-${Date.now()}@example.com`,
 		);
-		await settleNarrow(page);
-		await expectNavBelowBanner(page);
-		await expect(page).toHaveScreenshot("verify-banner-nav-dark.png", {
-			clip: await topClip(page),
-		});
+		await page.setViewportSize(NARROW);
+		await captureCheckpoint(page, VERIFY_BANNER_NAV_DARK);
 	});
 });

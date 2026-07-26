@@ -69,6 +69,7 @@ const CRAWL_BOOKMARK_LIGHT: VisualCheckpoint = {
 	settled: bookmarkSettled,
 	geometry: capsuleEdgesAligned,
 	target: ".crawl-bookmark",
+	capture: "element",
 	pinnedText: [],
 };
 
@@ -77,6 +78,7 @@ const CRAWL_BOOKMARK_DARK: VisualCheckpoint = {
 	settled: bookmarkSettled,
 	geometry: capsuleEdgesAligned,
 	target: ".crawl-bookmark",
+	capture: "element",
 	pinnedText: [],
 };
 
