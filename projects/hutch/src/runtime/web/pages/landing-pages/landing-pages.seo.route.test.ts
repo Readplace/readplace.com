@@ -4,7 +4,7 @@ import request from "supertest";
 import { useTestServer } from "../../../test-app";
 import { TEST_APP_ORIGIN, createDefaultTestAppFixture } from "@packages/test-fixtures";
 import { LANDING_PAGE_CONTENT } from "./landing-pages.content";
-import type { LandingPageSlug } from "./landing-pages.content";
+import type { LandingPageSlug } from "./landing-pages.types";
 
 const SLUGS = Object.keys(LANDING_PAGE_CONTENT) as LandingPageSlug[];
 

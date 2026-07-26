@@ -4,13 +4,13 @@ import { render, withInternalTracking } from "@packages/web-shell";
 import type { PageBody } from "@packages/web-shell";
 
 import { LANDING_PAGE_CONTENT } from "./landing-pages.content";
+import { LANDING_PAGE_STYLES } from "./landing-pages.styles";
 import type {
 	LandingPageAction,
 	LandingPageActionInput,
 	LandingPageProof,
 	LandingPageSlug,
-} from "./landing-pages.content";
-import { LANDING_PAGE_STYLES } from "./landing-pages.styles";
+} from "./landing-pages.types";
 
 const TEMPLATE = readFileSync(join(__dirname, "landing-pages.template.html"), "utf-8");
 

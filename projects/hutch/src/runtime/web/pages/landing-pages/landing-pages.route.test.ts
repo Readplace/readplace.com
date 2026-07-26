@@ -6,7 +6,7 @@ import { TEST_APP_ORIGIN, createDefaultTestAppFixture } from "@packages/test-fix
 import { ANNUAL_PRICE_DISPLAY, MONTHLY_EQUIVALENT_DISPLAY } from "@packages/web-shell";
 import { STRIPE_TRIAL_PERIOD_DAYS } from "../../../domain/stripe/stripe-trial-config";
 import { LANDING_PAGE_CONTENT } from "./landing-pages.content";
-import type { LandingPageSlug } from "./landing-pages.content";
+import type { LandingPageSlug } from "./landing-pages.types";
 
 const SLUGS = Object.keys(LANDING_PAGE_CONTENT) as LandingPageSlug[];
 
