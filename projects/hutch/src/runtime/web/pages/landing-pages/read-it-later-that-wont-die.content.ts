@@ -6,7 +6,7 @@ import type { LandingPageContent } from "./landing-pages.types";
 export const READ_IT_LATER_THAT_WONT_DIE_CONTENT: LandingPageContent = {
 	title: "A Read-It-Later App That Goes Read-Only, Not Dark | Readplace",
 	description:
-		"Cancel and your Readplace account keeps working for reading. You keep every article you saved, and Export stays in the menu rather than moving behind the subscription.",
+		"Cancel and your Readplace account keeps working for reading. You keep every article you saved, and the export route carries no subscription gate.",
 	keywords:
 		"read it later app, pocket shut down, omnivore shut down, export reading list, read only account, data portability, article archive, cancel subscription keep data, source available reading app",
 	headline: "Cancel and it goes read-only, not dark",
