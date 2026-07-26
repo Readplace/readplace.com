@@ -24,7 +24,6 @@ import { DomainRedirect } from "./domain-redirect";
 import { AgentDiscoveryDns } from "./agent-discovery-dns";
 import { HutchStorage } from "./hutch-storage";
 import { HutchStaticAssets } from "./hutch-static-assets";
-import { InboxMail } from "./inbox-mail";
 import { OutboundMailAuth } from "./outbound-mail-auth";
 import { requireEnv } from "@packages/require-env";
 
@@ -43,7 +42,16 @@ const userExportBucketName = config.require("userExportBucketName");
 const inboxAddressDomain = config.require("inboxAddressDomain");
 const alertEmail = config.require("alertEmail");
 const rawEmailBucketName = config.require("rawEmailBucketName");
-const inboxMailParentZone = config.require("inboxMailParentZone");
+
+// The inbox stack owns the inbox tables and the SES receiving pipeline. hutch
+// keeps only the access its own workers still need — the forwarding-address page
+// and the account-deletion sweep — and names those tables by ARN derived from
+// account + region, so neither stack waits on the other to deploy.
+const inboxAwsRegion = new pulumi.Config("aws").require("region");
+const inboxAwsAccountId = pulumi.output(aws.getCallerIdentity({})).accountId;
+function inboxTableArn(tableName: string): pulumi.Output<string> {
+	return pulumi.interpolate`arn:aws:dynamodb:${inboxAwsRegion}:${inboxAwsAccountId}:table/${tableName}`;
+}
 
 const tableNames = {
 	articles: config.require("dynamodbArticlesTable"),
@@ -179,7 +187,7 @@ const dynamodb = new HutchDynamoDBAccess("hutch-dynamodb-access", {
 		{ arn: storage.passwordResetTokensTable.arn, includeIndexes: false },
 		{ arn: storage.pendingSignupsTable.arn, includeIndexes: false },
 		{ arn: storage.importSessionsTable.arn, includeIndexes: false },
-		{ arn: storage.inboxAddressesTable.arn, includeIndexes: true },
+		{ arn: inboxTableArn(tableNames.inboxAddresses), includeIndexes: true },
 		{ arn: storage.subscriptionProvidersTable.arn, includeIndexes: true },
 		{ arn: storage.onboardingTable.arn, includeIndexes: false },
 		{ arn: storage.rateLimitsTable.arn, includeIndexes: false },
@@ -314,7 +322,7 @@ const lambda = new HutchLambda(LAMBDA_NAMES.hutchHandler, {
 		DYNAMODB_PASSWORD_RESET_TOKENS_TABLE: storage.passwordResetTokensTable.name,
 		DYNAMODB_PENDING_SIGNUPS_TABLE: storage.pendingSignupsTable.name,
 		DYNAMODB_IMPORT_SESSIONS_TABLE: storage.importSessionsTable.name,
-		DYNAMODB_INBOX_ADDRESSES_TABLE: storage.inboxAddressesTable.name,
+		DYNAMODB_INBOX_ADDRESSES_TABLE: tableNames.inboxAddresses,
 		INBOX_ADDRESS_DOMAIN: inboxAddressDomain,
 		DYNAMODB_SUBSCRIPTION_PROVIDERS_TABLE: storage.subscriptionProvidersTable.name,
 		DYNAMODB_ONBOARDING_TABLE: storage.onboardingTable.name,
@@ -442,13 +450,6 @@ new aws.s3.BucketLifecycleConfigurationV2("user-export-bucket-lifecycle", {
 	],
 });
 
-// --- Inbound email (SES receiving) ---
-const inboxMail = new InboxMail("inbox-mail", {
-	mailDomain: inboxAddressDomain,
-	inboxMailParentZone,
-	rawEmailBucketName,
-});
-
 // --- Outbound email auth for Google Workspace (Gmail) human mail ---
 // Publishes the apex SPF + Workspace DKIM so replies sent from Gmail to Sign in
 // with Apple `@privaterelay.appleid.com` addresses pass Apple's relay checks.
@@ -534,10 +535,10 @@ const deleteAccountDynamodb = new HutchDynamoDBAccess("delete-account-dynamodb",
 		{ arn: storage.readerReadyNotificationsTable.arn, includeIndexes: false },
 		{ arn: storage.onboardingTable.arn, includeIndexes: false },
 		{ arn: storage.subscriptionProvidersTable.arn, includeIndexes: false },
-		{ arn: storage.inboxEmailsTable.arn, includeIndexes: false },
-		{ arn: storage.inboxEmailLinksTable.arn, includeIndexes: false },
-		{ arn: storage.inboxSavedLinksTable.arn, includeIndexes: false },
-		{ arn: storage.inboxAddressesTable.arn, includeIndexes: true },
+		{ arn: inboxTableArn(tableNames.inboxEmails), includeIndexes: false },
+		{ arn: inboxTableArn(tableNames.inboxEmailLinks), includeIndexes: false },
+		{ arn: inboxTableArn(tableNames.inboxSavedLinks), includeIndexes: false },
+		{ arn: inboxTableArn(tableNames.inboxAddresses), includeIndexes: true },
 		{ arn: storage.passwordResetTokensTable.arn, includeIndexes: false },
 		{ arn: storage.verificationTokensTable.arn, includeIndexes: false },
 		{ arn: storage.pendingSignupsTable.arn, includeIndexes: false },
@@ -610,10 +611,10 @@ const deleteAccountLambda = new HutchLambda("delete-account", {
 		DYNAMODB_READER_READY_NOTIFICATIONS_TABLE: storage.readerReadyNotificationsTable.name,
 		DYNAMODB_ONBOARDING_TABLE: storage.onboardingTable.name,
 		DYNAMODB_SUBSCRIPTION_PROVIDERS_TABLE: storage.subscriptionProvidersTable.name,
-		DYNAMODB_INBOX_EMAILS_TABLE: storage.inboxEmailsTable.name,
-		DYNAMODB_INBOX_EMAIL_LINKS_TABLE: storage.inboxEmailLinksTable.name,
-		DYNAMODB_INBOX_SAVED_LINKS_TABLE: storage.inboxSavedLinksTable.name,
-		DYNAMODB_INBOX_ADDRESSES_TABLE: storage.inboxAddressesTable.name,
+		DYNAMODB_INBOX_EMAILS_TABLE: tableNames.inboxEmails,
+		DYNAMODB_INBOX_EMAIL_LINKS_TABLE: tableNames.inboxEmailLinks,
+		DYNAMODB_INBOX_SAVED_LINKS_TABLE: tableNames.inboxSavedLinks,
+		DYNAMODB_INBOX_ADDRESSES_TABLE: tableNames.inboxAddresses,
 		DYNAMODB_PASSWORD_RESET_TOKENS_TABLE: storage.passwordResetTokensTable.name,
 		DYNAMODB_VERIFICATION_TOKENS_TABLE: storage.verificationTokensTable.name,
 		DYNAMODB_PENDING_SIGNUPS_TABLE: storage.pendingSignupsTable.name,
@@ -1492,8 +1493,4 @@ export const sessionsTableArn = storage.sessionsTable.arn;
 export const exportUserDataQueueUrl = exportUserDataQueue.queueUrl;
 export const exportUserDataDlqUrl = exportUserDataQueue.dlqUrl;
 export const userExportBucketOutputName = userExportBucket.bucket;
-// Consumed by the inbox deployable via StackReference: the SES receipt topic
-// is auto-named, so its ARN is genuinely deploy-time. hutch must deploy first
-// so this output exists before inbox's first deploy.
-export const inboxNotificationTopicArn = inboxMail.notificationTopicArn;
 export const _dependencies = [gateway.defaultRoute];

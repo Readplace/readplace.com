@@ -8,6 +8,8 @@ config:
   inbox:platformStack: organization/platform/prod
   inbox:alertEmail: readplace+devops@readplace.com
   inbox:inboxAddressDomain: read.place
+  inbox:inboxMailParentZone: read.place
+  inbox:deletionProtection: true
   inbox:dynamodbInboxAddressesTable: hutch-inbox-addresses-prod
   inbox:dynamodbInboxEmailsTable: hutch-inbox-emails-prod
   inbox:dynamodbInboxEmailLinksTable: hutch-inbox-email-links-prod

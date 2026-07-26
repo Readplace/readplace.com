@@ -17,6 +17,8 @@ import {
 	LinkQueuedEvent,
 } from "@packages/hutch-infra-components";
 import { requireEnv } from "@packages/require-env";
+import { InboxMail } from "./inbox-mail";
+import { InboxStorage } from "./inbox-storage";
 
 /**
  * inbox is deployed as its own Lambda behind hutch's existing API Gateway:
@@ -39,6 +41,8 @@ const inboxAddressDomain = config.require("inboxAddressDomain");
 const rawEmailBucketName = config.require("rawEmailBucketName");
 const contentBucketName = config.require("contentBucketName");
 const hutchStackName = config.require("hutchStack");
+const inboxMailParentZone = config.require("inboxMailParentZone");
+const deletionProtection = config.requireBoolean("deletionProtection");
 
 // The content-media CDN over the shared article-content bucket is owned by
 // save-link; the link-preview crawler uploads lead images there and needs the
@@ -51,14 +55,14 @@ const hutchStack = new pulumi.StackReference(hutchStackName);
 const apiGatewayId = hutchStack.requireOutput("apiGatewayId");
 const apiGatewayExecutionArn = hutchStack.requireOutput("apiGatewayExecutionArn");
 const hutchApiUrl = hutchStack.requireOutput("apiUrl");
-// The SES receipt-rule SNS topic stays with hutch (SES receipt rules and the
-// inbound-mail DNS live there). Its ARN is genuinely deploy-time — not a value
-// config could carry — so this is a legitimate project→project StackReference
-// edge (infrastructure-design: "Don't StackReference a Value You Could Put in
-// Config", exception 3).
-const inboxNotificationTopicArn = hutchStack
-	.requireOutput("inboxNotificationTopicArn")
-	.apply(String);
+// This stack owns the SES receiving pipeline, so the receipt topic is a local
+// resource rather than a cross-stack read — one less edge coupling deploy order.
+const inboxMail = new InboxMail("inbox-mail", {
+	mailDomain: inboxAddressDomain,
+	inboxMailParentZone,
+	rawEmailBucketName,
+});
+const inboxNotificationTopicArn = inboxMail.notificationTopicArn;
 
 // Table and bucket names are config constants (identical across deploys), so
 // this stack reads them from its own config rather than via a StackReference —
@@ -82,6 +86,19 @@ function tableArn(tableName: string): pulumi.Output<string> {
 	return pulumi.interpolate`arn:aws:dynamodb:${awsRegion}:${awsAccountId}:table/${tableName}`;
 }
 
+// The tables this stack owns are referenced through the resources themselves, so
+// a worker cannot be created ahead of the table it writes. Only the tables owned
+// elsewhere (sessions, users, subscriptions) go through the derived ARN above.
+const inboxStorage = new InboxStorage("inbox-storage", {
+	deletionProtection,
+	tableNames: {
+		addresses: tableNames.inboxAddresses,
+		emails: tableNames.inboxEmails,
+		emailLinks: tableNames.inboxEmailLinks,
+		savedLinks: tableNames.inboxSavedLinks,
+	},
+});
+
 const eventBus = HutchEventBus.fromPlatformStack(config);
 
 // receiveEmailLambda and crawlEmailLinkPreviewLambda both build initCrawlFetch,
@@ -100,9 +117,9 @@ const CRAWL_LAMBDA_MEMORY_MB = 1769;
 const webInboxTables = new HutchDynamoDBAccess("inbox-web-inbox-tables", {
 	tables: [
 		// The addresses userId-index backs the address reverse-lookup per page view.
-		{ arn: tableArn(tableNames.inboxAddresses), includeIndexes: true },
-		{ arn: tableArn(tableNames.inboxEmails), includeIndexes: false },
-		{ arn: tableArn(tableNames.inboxEmailLinks), includeIndexes: false },
+		{ arn: inboxStorage.addressesTable.arn, includeIndexes: true },
+		{ arn: inboxStorage.emailsTable.arn, includeIndexes: false },
+		{ arn: inboxStorage.emailLinksTable.arn, includeIndexes: false },
 	],
 	// Mirrors the actions hutch's web Lambda held on these tables before the
 	// /inbox pages re-homed here.
@@ -144,7 +161,7 @@ const webSubscriptionProvidersRead = new HutchDynamoDBAccess(
 // still holds, which is why this state arrives as a save-side fact rather than a
 // cross-boundary read.
 const webSavedLinksRead = new HutchDynamoDBAccess("inbox-web-saved-links-read", {
-	tables: [{ arn: tableArn(tableNames.inboxSavedLinks), includeIndexes: false }],
+	tables: [{ arn: inboxStorage.savedLinksTable.arn, includeIndexes: false }],
 	actions: ["dynamodb:BatchGetItem"],
 });
 
@@ -213,8 +230,8 @@ const inboxRoutes = new HutchAPIGatewayLambdaRoute("inbox-web", {
 // immutable raw .eml is kept forever as the audit trail (★15 degrade-with-alert).
 const receiveEmailDynamodb = new HutchDynamoDBAccess("inbox-receive-email-dynamodb", {
 	tables: [
-		{ arn: tableArn(tableNames.inboxEmails), includeIndexes: false },
-		{ arn: tableArn(tableNames.inboxAddresses), includeIndexes: false },
+		{ arn: inboxStorage.emailsTable.arn, includeIndexes: false },
+		{ arn: inboxStorage.addressesTable.arn, includeIndexes: false },
 	],
 	// findByAddress is a GetItem and putEmail a (conditional) PutItem — no Query.
 	actions: ["dynamodb:GetItem", "dynamodb:PutItem"],
@@ -267,7 +284,7 @@ new HutchSQSBackedLambda("inbox-receive-email", {
 });
 
 // SES → SNS → SQS bridge: SES cannot target SQS directly, so the receipt rule
-// publishes to hutch's inbox-mail topic (read via the StackReference above) and
+// publishes to this stack's inbox-mail topic and
 // the receive queue subscribes here with raw message delivery, so the SQS body
 // is the SES notification JSON the handler parses. The queue policy lets only
 // that topic enqueue.
@@ -314,8 +331,8 @@ new aws.sns.TopicSubscription(
 // subscriber, routed by command, never from an inbox Lambda's own role.
 const extractEmailLinksDynamodb = new HutchDynamoDBAccess("inbox-extract-email-links-dynamodb", {
 	tables: [
-		{ arn: tableArn(tableNames.inboxEmails), includeIndexes: false },
-		{ arn: tableArn(tableNames.inboxEmailLinks), includeIndexes: false },
+		{ arn: inboxStorage.emailsTable.arn, includeIndexes: false },
+		{ arn: inboxStorage.emailLinksTable.arn, includeIndexes: false },
 	],
 	// getEmail (GetItem); putLink/putLinksMeta (PutItem); setEmailLinkCounts
 	// (UpdateItem); the conditional put needs no Query, and listing is the web
@@ -440,7 +457,7 @@ eventBus.subscribe(EmailReceivedEvent, extractEmailLinksWithSQS, {
 const crawlEmailLinkPreviewDynamodb = new HutchDynamoDBAccess(
 	"inbox-crawl-email-link-preview-dynamodb",
 	{
-		tables: [{ arn: tableArn(tableNames.inboxEmailLinks), includeIndexes: false }],
+		tables: [{ arn: inboxStorage.emailLinksTable.arn, includeIndexes: false }],
 		// setLinkOutcome is an UpdateItem; getLink is not used by the worker.
 		actions: ["dynamodb:UpdateItem"],
 	},
@@ -497,7 +514,7 @@ eventBus.subscribe(CrawlEmailLinkPreview, crawlEmailLinkPreviewWithSQS, {
 // This is how the Articles tab knows a link is already in the reader's queue
 // without any inbox role reading the articles/user-articles tables.
 const recordLinkQueuedDynamodb = new HutchDynamoDBAccess("inbox-record-link-queued-dynamodb", {
-	tables: [{ arn: tableArn(tableNames.inboxSavedLinks), includeIndexes: false }],
+	tables: [{ arn: inboxStorage.savedLinksTable.arn, includeIndexes: false }],
 	// Both writes are unconditional upserts of one row — no read, no query.
 	actions: ["dynamodb:PutItem"],
 });
