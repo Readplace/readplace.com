@@ -11,7 +11,7 @@ keywords: "Readplace founder, why I built Readplace, js-cookie, read-it-later ap
 <summary class="blog-tldr__toggle">Summary (TL;DR)</summary>
 <div class="blog-tldr__body">
 
-I wrote js-cookie, a tiny JavaScript library browsers download about 22 billion times a year, and for ten years I ran my own reading on Gmail filters, DynamoDB tables, and a stack of Reddit automations. That system taught me the bottleneck was never saving — it was deciding what *not* to read. When Pocket was acquired and abandoned, and Omnivore shut down overnight, the tool I needed didn't exist as a product anyone could use, so I turned my system into Readplace. It's a solo project, built in public. The part that matters most isn't a feature: if you ever stop paying, your account goes read-only rather than dark — you keep reading everything you saved, and Export stays in the menu. That behaviour is a few lines of code you can read on GitHub, not a promise on a page.
+I wrote js-cookie, a tiny JavaScript library browsers download about 22 billion times a year, and for ten years I ran my own reading on Gmail filters, DynamoDB tables, and a stack of Reddit automations. That system taught me the bottleneck was never saving — it was deciding what *not* to read. When Pocket was acquired and abandoned, and Omnivore shut down overnight, the tool I needed didn't exist as a product anyone could use, so I turned my system into Readplace. It's a solo project, built in public. The part that matters most isn't a feature: if you ever stop paying, your account goes read-only rather than dark — you keep reading everything you saved, and you can still export. That behaviour is a few lines of code you can read on GitHub, not a promise on a page.
 
 </div>
 </details>
@@ -36,7 +36,7 @@ So I started turning my personal system into Readplace — built in Australia, o
 
 Here's the part that matters most, and it isn't a feature.
 
-A sentence about "we'll always let you export your data" does not survive an acquisition. What survives is the code. So the behaviour is written in rather than promised: if you ever stop paying, your account goes **read-only, not dark**. Your queue, your saved articles, and the reader all keep working — you keep reading everything you saved. Only saving new links and importing pause. And Export stays in the menu whether or not you're paying, so you can pull everything out as JSON any time.
+A sentence about "we'll always let you export your data" does not survive an acquisition. What survives is the code. So the behaviour is written in rather than promised: if you ever stop paying, your account goes **read-only, not dark**. Your queue, your saved articles, and the reader all keep working — you keep reading everything you saved. Only saving new links and importing pause. And export carries no subscription gate, so you can pull everything out as JSON any time, paying or not.
 
 The infrastructure sits in Sydney under Australian privacy law. The codebase is [on GitHub](https://github.com/Readplace/readplace.com) — source-available, so the branch that decides what a cancelled account can still do is something you can go and read rather than take my word for.
 
