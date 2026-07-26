@@ -569,7 +569,7 @@ export function createApp(dependencies: AppDependencies): Express {
 				loc: `/${slug}`,
 				priority: "0.6",
 				changefreq: "monthly",
-				lastmod: "2026-07-20",
+				lastmod: "2026-07-26",
 			})),
 			{ loc: "/embed", priority: "0.5", changefreq: "monthly", lastmod: "2026-07-17" },
 			{ loc: "/login", priority: "0.5", changefreq: "yearly", lastmod: "2026-03-01" },
@@ -755,7 +755,11 @@ export function createApp(dependencies: AppDependencies): Express {
 
 	for (const slug of LANDING_PAGE_SLUGS) {
 		app.get(`/${slug}`, async (req: Request, res: Response) => {
-			sendComponent(req, res, Base(LandingPage(slug), await buildBannerState(req)));
+			sendComponent(
+				req,
+				res,
+				Base(LandingPage({ slug, staticBaseUrl }), await buildBannerState(req)),
+			);
 		});
 	}
 

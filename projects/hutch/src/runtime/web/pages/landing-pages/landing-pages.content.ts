@@ -1,3 +1,7 @@
+import { ANNUAL_PRICE_DISPLAY, MONTHLY_EQUIVALENT_DISPLAY } from "@packages/web-shell";
+
+import { STRIPE_TRIAL_PERIOD_DAYS } from "../../../domain/stripe/stripe-trial-config";
+
 export type LandingPageSlug =
 	| "pocket-alternative"
 	| "pdf-ocr"
@@ -27,6 +31,35 @@ export interface LandingPageFaqEntry {
 	readonly answer: string;
 }
 
+export interface LandingPageScreenshot {
+	/** Resolved against the static asset host at render time, so the same entry
+	 * works on localhost and behind the CDN. */
+	readonly path: string;
+	readonly alt: string;
+	readonly caption: string;
+	readonly width: number;
+	readonly height: number;
+}
+
+export interface LandingPageProof {
+	readonly title: string;
+	readonly screenshot?: LandingPageScreenshot;
+	readonly quote?: { readonly text: string; readonly attribution: string };
+	readonly founderLine?: string;
+}
+
+/**
+ * What a reader is asked to pay once the page has convinced them. Three of these
+ * pages send a stranger to a destination that eventually asks for a
+ * subscription, so the price belongs on the page they saw the ad on rather than
+ * as a surprise two clicks later.
+ */
+export interface LandingPageOffer {
+	readonly title: string;
+	readonly paragraphs: readonly string[];
+	readonly note: string;
+}
+
 export interface LandingPageContent {
 	readonly title: string;
 	readonly description: string;
@@ -37,19 +70,31 @@ export interface LandingPageContent {
 	readonly titleHighlight: string;
 	readonly titleTail: string;
 	readonly lede: string;
+	readonly ogImageAlt: string;
 	readonly primaryAction: LandingPageAction;
 	readonly secondaryActions: readonly LandingPageAction[];
 	readonly reassurance: string;
 	readonly stepsTitle: string;
 	readonly stepsLede: string;
 	readonly steps: readonly LandingPageStep[];
+	readonly proof: LandingPageProof;
 	readonly mechanismTitle: string;
 	readonly mechanismLede: string;
 	readonly mechanismParagraphs: readonly string[];
 	readonly limitsTitle: string;
 	readonly limits: readonly string[];
 	readonly faq: readonly LandingPageFaqEntry[];
+	readonly offer: LandingPageOffer;
 	readonly closeTitle: string;
+	/**
+	 * The way out for a reader the page convinced but whose hands are in the
+	 * wrong place. Three of these pages lead with an action that wants a desktop —
+	 * a Pocket export file, an assistant's connector settings, a PDF link to
+	 * hand — and the ads pointing at them land mostly on phones. Without this the
+	 * page argues someone into wanting the product and then offers them nothing
+	 * they can do about it until they are back at a computer.
+	 */
+	readonly closeSecondaryAction?: LandingPageAction;
 	readonly closeNote: string;
 }
 
@@ -59,6 +104,42 @@ const PASTE_A_LINK: LandingPageActionInput = {
 	placeholder: "https://example.com/paper.pdf",
 };
 
+const QUEUE_SHOT = {
+	path: "/screenshots/queue.webp",
+	alt: "The Readplace queue listing saved articles with thumbnails and short previews",
+	width: 1440,
+	height: 900,
+} as const;
+
+const READER_SHOT = {
+	path: "/screenshots/reader-tldr.webp",
+	alt: "The Readplace reader showing an article with its AI summary expanded",
+	width: 1440,
+	height: 900,
+} as const;
+
+/** The one testimonial the product has. There is no second one to reach for, so
+ * a page that needs more credibility than this reaches for the mechanism
+ * instead. */
+const EARLY_USER_QUOTE = { text: "It just works.", attribution: "Matthew Motz, early user" };
+
+const FOUNDER_LINE =
+	'Built by one person. I wrote js-cookie, which browsers download about 22 billion times a year, and ran my own reading pipeline for ten years before turning it into this. <a href="/blog/why-i-built-readplace">Why I built it</a>.';
+
+const TRIAL_TERMS = `${STRIPE_TRIAL_PERIOD_DAYS} days free, no card. After that ${MONTHLY_EQUIVALENT_DISPLAY} a month, billed once a year at ${ANNUAL_PRICE_DISPLAY}.`;
+
+/** The sentence this whole product is arguing for. Every offer section lands on
+ * it, because for a reader who has already lost one queue it answers the
+ * objection that a price tag raises. */
+const READ_ONLY_CLOSE =
+	"If you never subscribe, nothing is charged and the account goes read-only, not dark — you keep reading every article you saved, and you can still export.";
+
+const START_TRIAL: LandingPageAction = {
+	key: "signup",
+	label: `Start your ${STRIPE_TRIAL_PERIOD_DAYS}-day free trial`,
+	href: "/signup",
+};
+
 /**
  * Every claim on these pages was checked against the code that implements it,
  * and the limits sections exist because the brand guidelines require stating
@@ -66,12 +147,19 @@ const PASTE_A_LINK: LandingPageActionInput = {
  * several obvious-sounding claims (a diff that rejects every altered token, an
  * assistant that can tidy your queue, an export containing your articles) are
  * contradicted by the implementation.
+ *
+ * These are paid-ads destinations, so each page also states the price. A reader
+ * who arrives from an ad and is asked for money two clicks later was misled by
+ * the page, not by the checkout — and on pages selling a product whose entire
+ * argument is that it tells you the truth about itself, that would be the one
+ * unrecoverable lie. Prices interpolate from the pricing and trial constants so
+ * the copy cannot drift away from what the card is actually charged.
  */
 export const LANDING_PAGE_CONTENT: Record<LandingPageSlug, LandingPageContent> = {
 	"pocket-alternative": {
-		title: "Pocket Alternative — Move Your Saved Links Across | Readplace",
+		title: "Pocket Alternative — Recover Your Saved Links | Readplace",
 		description:
-			"Upload the export file Pocket gave you, choose which links to keep, and see them in a reading queue before you make an account. Only the URLs transfer.",
+			"Readplace is a read-it-later app. Upload the export file Pocket gave you, pick the links you still want, and review them before you make an account.",
 		keywords:
 			"pocket alternative, pocket replacement, pocket shut down, import pocket export, move pocket links, read it later app, pocket export html, reading queue, save articles for later, pocket migration",
 		headline: "Move your Pocket links without signing up first",
@@ -79,7 +167,9 @@ export const LANDING_PAGE_CONTENT: Record<LandingPageSlug, LandingPageContent> =
 		titleLead: "Your Pocket links, ",
 		titleHighlight: "recovered",
 		titleTail: ".",
-		lede: "Upload the export file Pocket gave you, choose which links you actually want, and see them in a reading queue. The account comes at the end, not the beginning.",
+		lede: "Readplace is a read-it-later app: save a link now, read it later on a clean page. Start with the file Pocket gave you — every link in it is listed for you to keep or drop, and the account comes at the end, not the beginning.",
+		ogImageAlt:
+			"Readplace — a read-it-later app you can move a Pocket export into before making an account.",
 		primaryAction: { key: "import", label: "Import your links", href: "/import" },
 		secondaryActions: [
 			{ key: "guide", label: "Read the recovery guide", href: "/blog/pocket-migration" },
@@ -101,6 +191,15 @@ export const LANDING_PAGE_CONTENT: Record<LandingPageSlug, LandingPageContent> =
 				body: "You land back on the same review with your choices intact, and the links go into your queue.",
 			},
 		],
+		proof: {
+			title: "Where the links land",
+			screenshot: {
+				...QUEUE_SHOT,
+				caption:
+					"Everything you kept arrives in one queue, with a short preview so you can tell what is still worth your time.",
+			},
+			quote: EARLY_USER_QUOTE,
+		},
 		mechanismTitle: "What actually transfers",
 		mechanismLede: "Being specific here matters more than sounding generous.",
 		mechanismParagraphs: [
@@ -142,16 +241,35 @@ export const LANDING_PAGE_CONTENT: Record<LandingPageSlug, LandingPageContent> =
 				answer:
 					"They are kept. Signing up returns you to the same review with the same links selected, as long as it is within 24 hours of the upload.",
 			},
+			{
+				question: "Do I need a credit card to start?",
+				answer: `No. Making the account starts a ${STRIPE_TRIAL_PERIOD_DAYS}-day trial of the full product, and no card is asked for at any point in it. If you don't subscribe, nothing is charged.`,
+			},
+			{
+				question: "What happens to my links if I stop paying?",
+				answer:
+					"You keep reading every one of them. The account goes read-only: the queue, the reader and export all keep working, and you can still mark things read or delete them. Saving new links and importing are what stop.",
+			},
 		],
+		offer: {
+			title: "What it costs once the links are across",
+			paragraphs: [
+				`Uploading and reviewing costs nothing and needs no account. Saving the selection does, and that account is a subscription: ${TRIAL_TERMS}`,
+				`${MONTHLY_EQUIVALENT_DISPLAY} a month is the whole business. No ad path, no data resale, and no investor whose timeline outlives yours — which is the failure mode you are on this page because of.`,
+				READ_ONLY_CLOSE,
+			],
+			note: "Google, Apple, or an email address. No card at any point in the trial.",
+		},
 		closeTitle: "Start with the file Pocket gave you",
+		closeSecondaryAction: START_TRIAL,
 		closeNote:
 			'No account needed to see what comes across. <a href="/blog/pocket-migration">The recovery guide</a> covers getting the export out of Pocket.',
 	},
 
 	"pdf-ocr": {
-		title: "Save PDFs as Readable Text — PDF OCR | Readplace",
+		title: "Read Scanned PDFs as Clean Text — PDF OCR | Readplace",
 		description:
-			"Every PDF page is rasterised at 300 DPI and read by Tesseract, then each language-model pass is checked against the raw scan. Digit sequences must match exactly.",
+			"Paste a link to a scanned paper and read it as text on your phone. Every page is read from its pixels, and a pass that alters a number is thrown away.",
 		keywords:
 			"pdf ocr, scanned pdf to text, read pdf online, extract text from pdf, ocr scanned document, pdf reader view, save pdf to read later, tesseract ocr, pdf text extraction, research paper reader",
 		headline: "PDFs read from the pixels, with the numbers checked",
@@ -159,7 +277,9 @@ export const LANDING_PAGE_CONTENT: Record<LandingPageSlug, LandingPageContent> =
 		titleLead: "Read the PDF, not a ",
 		titleHighlight: "guess",
 		titleTail: " at it.",
-		lede: "Every page is rasterised at 300 DPI and read by Tesseract. Language models then clean the text up, and each pass is checked against the raw scan before it is allowed to ship.",
+		lede: "Paste a link to a scanned paper or report and read it as text that reflows on a phone. Language models tidy up what the scanner read, and every number is checked against the raw read afterwards — a pass that alters one is thrown away rather than shown to you.",
+		ogImageAlt:
+			"Readplace — read a scanned PDF as text, with the numbers checked against what came off the scan.",
 		primaryAction: {
 			key: "try-pdf",
 			label: "Open in reader view",
@@ -180,15 +300,24 @@ export const LANDING_PAGE_CONTENT: Record<LandingPageSlug, LandingPageContent> =
 				body: "One language-model pass fixes OCR noise, a second reviews a word-level diff of those edits, and a third turns the result into structured HTML.",
 			},
 			{
-				heading: "Each pass is checked against the raw scan",
-				body: "If a check fails, that pass is discarded and the text from the stage below it is kept. A rejected rewrite never reaches you.",
+				heading: "Each pass has to survive a check",
+				body: "The two passes that touch the words are checked against the raw Tesseract text; the pass that turns it into HTML is checked for text it dropped. Fail either and that pass is discarded and the stage below it is kept, so a rejected rewrite never reaches you.",
 			},
 		],
+		proof: {
+			title: "Where an extracted PDF ends up",
+			screenshot: {
+				...READER_SHOT,
+				caption:
+					"The reader view any saved link opens into. An extracted PDF lands here too — as text that reflows on a phone, not as a page you pinch and drag.",
+			},
+			founderLine: FOUNDER_LINE,
+		},
 		mechanismTitle: "What the checks actually check",
 		mechanismLede:
 			"This is the part worth being precise about, because a language model in a pipeline usually means the opposite.",
 		mechanismParagraphs: [
-			"Three deterministic checks run against the raw Tesseract output after each language-model pass: every run of digits must match exactly, the total length must stay within 30 percent, and the line and blank-line structure must be unchanged.",
+			"Three deterministic checks run against the raw Tesseract output after each of the two passes that touch the words: the same runs of digits must all come back, the total length must stay within 30 percent, and the line and blank-line structure must be unchanged. The third pass only turns text into HTML, so it is checked for how much text it dropped rather than for what it said.",
 			"The digit check is the one that earns its place. Dates, page numbers, citations, figures and table values are what a language model is most likely to quietly alter, and what a reader is least likely to catch. If they change, the pass is dropped.",
 			"This is not a guarantee that no word ever changes. A same-length substitution of one non-numeric word for another passes all three checks. The narrower claim is the true one: altered numbers are caught, and a rejected rewrite is discarded rather than shipped.",
 		],
@@ -210,7 +339,7 @@ export const LANDING_PAGE_CONTENT: Record<LandingPageSlug, LandingPageContent> =
 			{
 				question: "Can the language model make things up?",
 				answer:
-					"It can change words, and the checks are built around that. Every run of digits must survive a pass unchanged, the total length must stay within 30 percent, and the line structure must match. A pass that fails any of those is discarded and the rawer text underneath is kept.",
+					"It can change words, and the checks are built around that. On the two passes that touch the words, the same runs of digits must all come back, the total length must stay within 30 percent, and the line structure must match. A pass that fails any of those is discarded and the rawer text underneath is kept.",
 			},
 			{
 				question: "What languages work?",
@@ -225,15 +354,34 @@ export const LANDING_PAGE_CONTENT: Record<LandingPageSlug, LandingPageContent> =
 				question: "Do I need an account to try it?",
 				answer: "No. Paste a PDF link into the reader and read the result.",
 			},
+			{
+				question: "What does it cost to keep using it?",
+				answer: `Making an account starts a ${STRIPE_TRIAL_PERIOD_DAYS}-day trial of the full product with no card asked for. After that it is ${MONTHLY_EQUIVALENT_DISPLAY} a month, billed once a year at ${ANNUAL_PRICE_DISPLAY}.`,
+			},
+			{
+				question: "What happens to PDFs I already saved if I stop paying?",
+				answer:
+					"You keep reading them. The account goes read-only: the queue, the reader view, the extracted text and export all keep working. Saving new links and importing are what stop.",
+			},
 		],
+		offer: {
+			title: "What it costs after the first one",
+			paragraphs: [
+				`Reading a link you paste here costs nothing. Keeping a library of them is a subscription: ${TRIAL_TERMS}`,
+				`${MONTHLY_EQUIVALENT_DISPLAY} a month is what pays for the extraction — rasterising every page and running Tesseract over it is the expensive part of this product, and it is charged to me per document whether or not you subscribe.`,
+				READ_ONLY_CLOSE,
+			],
+			note: "Google, Apple, or an email address. No card at any point in the trial.",
+		},
 		closeTitle: "Try it on a PDF you already have",
+		closeSecondaryAction: START_TRIAL,
 		closeNote: "Paste a link and read the extraction. No account required.",
 	},
 
 	"ai-reading-list": {
-		title: "Connect Your Reading Queue to Claude and ChatGPT — MCP | Readplace",
+		title: "Save Links from Claude, ChatGPT or Gemini — MCP | Readplace",
 		description:
-			"Readplace runs an MCP server. Your assistant can save links and read your queue, an article, its reader view or its summary back. It cannot delete anything.",
+			"Connect Readplace to your assistant once, then save links mid-conversation and read them later. It can add to your queue and read it back, never delete.",
 		keywords:
 			"mcp server, model context protocol, claude mcp, chatgpt connector, save links from claude, ai reading list, reading queue mcp, claude integration, gemini cli mcp, oauth pkce mcp",
 		headline: "Save links from your assistant, read your queue back",
@@ -241,7 +389,9 @@ export const LANDING_PAGE_CONTENT: Record<LandingPageSlug, LandingPageContent> =
 		titleLead: "Your assistant can add to your queue. It cannot ",
 		titleHighlight: "empty",
 		titleTail: " it.",
-		lede: "Readplace runs an MCP server. Connect it once and your assistant can save links and read your queue back, including an article's reader view and its summary. Marking things read and deleting them stay in the app, on purpose.",
+		lede: "Connect it once, then save links out of a conversation as they come up and read them later in a clean queue. Your assistant can read that queue back too — an article, its reader view, its summary. Marking things read and deleting them stay in the app, on purpose.",
+		ogImageAlt:
+			"Readplace — connect Claude, ChatGPT or Gemini to a reading queue they can add to but not empty.",
 		primaryAction: { key: "connect", label: "Set up the connection", href: "/mcp" },
 		secondaryActions: [],
 		reassurance:
@@ -262,6 +412,15 @@ export const LANDING_PAGE_CONTENT: Record<LandingPageSlug, LandingPageContent> =
 				body: "Save a link mid-conversation, ask what is in your queue, or pull an article's text or summary to talk about it.",
 			},
 		],
+		proof: {
+			title: "What your assistant is writing into",
+			screenshot: {
+				...QUEUE_SHOT,
+				caption:
+					"A link saved mid-conversation lands in the same queue you read from in the browser and on your phone.",
+			},
+			founderLine: FOUNDER_LINE,
+		},
 		mechanismTitle: "Five tools that act, three that refuse",
 		mechanismLede: "The refusals are the design, not a gap in it.",
 		mechanismParagraphs: [
@@ -303,8 +462,27 @@ export const LANDING_PAGE_CONTENT: Record<LandingPageSlug, LandingPageContent> =
 				answer:
 					"Your queue listing, an article's details, its reader view text, and its summary.",
 			},
+			{
+				question: "Do I need a credit card to start?",
+				answer: `No. Making the account starts a ${STRIPE_TRIAL_PERIOD_DAYS}-day trial of the full product with no card at any point in it. After that it is ${MONTHLY_EQUIVALENT_DISPLAY} a month, billed once a year at ${ANNUAL_PRICE_DISPLAY}.`,
+			},
+			{
+				question: "What happens to the connection if I stop paying?",
+				answer:
+					"It stays connected and goes read-only. Your assistant can still list your queue and pull an article, its reader view or its summary. Saving is the one tool that stops, and it comes back with a note that new saves are paused rather than an error.",
+			},
 		],
+		offer: {
+			title: "What it costs",
+			paragraphs: [
+				`Connecting costs nothing. The queue behind the connection is a subscription: ${TRIAL_TERMS}`,
+				`${MONTHLY_EQUIVALENT_DISPLAY} a month is the whole business. No ad path, no data resale, and nothing your assistant saves is sold to anyone.`,
+				"If the subscription lapses, only saving refuses. Your assistant can still list your queue and pull an article's text or summary — it just cannot add anything new.",
+			],
+			note: "Google, Apple, or an email address. No card at any point in the trial.",
+		},
 		closeTitle: "Connect it in about a minute",
+		closeSecondaryAction: START_TRIAL,
 		closeNote:
 			'The <a href="/mcp">setup guide</a> has the steps for Claude, ChatGPT and Gemini.',
 	},
@@ -320,10 +498,17 @@ export const LANDING_PAGE_CONTENT: Record<LandingPageSlug, LandingPageContent> =
 		titleLead: "Stop paying and it goes read-only, not ",
 		titleHighlight: "dark",
 		titleTail: ".",
-		lede: "Pocket shut down. Omnivore shut down. I cannot promise Readplace outlives them, so instead the cancelled state is written into the code: you keep reading everything you saved.",
-		primaryAction: { key: "signup", label: "Create an account", href: "/signup" },
+		lede: `Pocket shut down. Omnivore shut down. I cannot promise Readplace outlives them, so instead the cancelled state is written into the code: you keep reading everything you saved. It costs ${MONTHLY_EQUIVALENT_DISPLAY} a month, and that price is the whole business — no ad path, no data resale, no investor whose timeline outlives yours.`,
+		ogImageAlt:
+			"Readplace — a read-it-later app whose cancelled accounts go read-only instead of dark.",
+		primaryAction: {
+			key: "signup",
+			label: `Start your ${STRIPE_TRIAL_PERIOD_DAYS}-day free trial`,
+			href: "/signup",
+		},
 		secondaryActions: [],
-		reassurance: "Export stays in the menu whether or not you are paying.",
+		reassurance:
+			"No credit card. Google, Apple, or an email address — about twenty seconds. Export keeps working whether or not you are paying.",
 		stepsTitle: "What happens when you stop paying",
 		stepsLede: "The account changes what you can add, not what you can read.",
 		steps: [
@@ -332,14 +517,18 @@ export const LANDING_PAGE_CONTENT: Record<LandingPageSlug, LandingPageContent> =
 				body: "A cancelled account resolves to read-only. Your queue, your articles and the reader view all keep working, and you can still mark things read or delete them. Saving new links and running imports stop.",
 			},
 			{
-				heading: "Export stays in the menu",
-				body: "A read-only account can still request an export. It is not moved behind the subscription.",
+				heading: "Export keeps working",
+				body: "A read-only account can still request an export. It lives on the account page, which the header's subscription notice still links to, and it carries no subscription gate.",
 			},
 			{
 				heading: "The export is a JSON file",
 				body: "One indented JSON file readable in any text editor: URL, title, site name, excerpt, word count, estimated read time, read status, saved date and read date, one entry per article.",
 			},
 		],
+		proof: {
+			title: "Who you are trusting with it",
+			founderLine: FOUNDER_LINE,
+		},
 		mechanismTitle: "Why this is in the code rather than on a promise page",
 		mechanismLede: "A sentence about always letting you export does not survive an acquisition.",
 		mechanismParagraphs: [
@@ -351,7 +540,7 @@ export const LANDING_PAGE_CONTENT: Record<LandingPageSlug, LandingPageContent> =
 		limits: [
 			"The export lists what you saved — URL, title, excerpt and read history. It does not contain the full article text.",
 			"The export runs in the background and arrives as an emailed download link. The link works for 7 days; after that, request another.",
-			"A read-only account loses Import and Inbox from the menu. Queue, Export and sign-out stay.",
+			"A read-only account loses Import, Inbox and Account from the nav; Queue and sign-out stay. Export was never a nav entry — it lives on the account page, which the header's subscription notice still reaches.",
 			"Source-available is not open source. The code is on GitHub to read, but no licence grants you rights to reuse it.",
 			"None of this promises Readplace outlives Pocket. It describes what happens to your account if you stop paying.",
 		],
@@ -364,7 +553,7 @@ export const LANDING_PAGE_CONTENT: Record<LandingPageSlug, LandingPageContent> =
 			{
 				question: "Can I still export after I cancel?",
 				answer:
-					"Yes. Export stays in the menu for a read-only account rather than moving behind the subscription.",
+					"Yes. The export route carries no subscription gate, so a read-only account can still request one from the account page.",
 			},
 			{
 				question: "What is in the export?",
@@ -381,7 +570,24 @@ export const LANDING_PAGE_CONTENT: Record<LandingPageSlug, LandingPageContent> =
 				answer:
 					"No. It is source-available: the code is on GitHub to read, but no licence grants rights to reuse it.",
 			},
+			{
+				question: "Do I need a credit card to start?",
+				answer: `No. ${STRIPE_TRIAL_PERIOD_DAYS} days with the full product and no card. If you never subscribe, nothing is charged and the account goes read-only.`,
+			},
+			{
+				question: "What does it cost after the trial?",
+				answer: `${MONTHLY_EQUIVALENT_DISPLAY} a month, billed once a year at ${ANNUAL_PRICE_DISPLAY}. There is one price and one plan.`,
+			},
 		],
+		offer: {
+			title: `${MONTHLY_EQUIVALENT_DISPLAY} a month, and that's the whole business.`,
+			paragraphs: [
+				`${ANNUAL_PRICE_DISPLAY} a year, billed once. No ad path, no data resale, no investor whose timeline outlives yours. That is the entire answer to what stops Readplace going the way of Pocket: there is nobody who profits from selling it.`,
+				`${STRIPE_TRIAL_PERIOD_DAYS} days free first, and I don't ask for a card to start them.`,
+				READ_ONLY_CLOSE,
+			],
+			note: "Google, Apple, or an email address. No card at any point in the trial.",
+		},
 		closeTitle: "Somewhere your reading survives a cancelled card",
 		closeNote:
 			'The branch that decides what a cancelled account can do is readable on <a href="https://github.com/Readplace/readplace.com">GitHub</a>.',

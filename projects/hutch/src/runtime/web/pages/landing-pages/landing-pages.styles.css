@@ -40,11 +40,16 @@
 /**
  * Hero — navy gradient mirroring the logo tile, per the brand guidelines.
  * Warm amber highlight sits directly on this background.
+ *
+ * The header is the transparent variant here, which is absolutely positioned
+ * and so takes no layout height. The top padding therefore has to cover the
+ * header's own height as well as the hero's spacing, or the eyebrow renders
+ * underneath the nav.
  */
 .lp-hero {
   background: linear-gradient(135deg, #2B3A55 0%, #1E2A40 100%);
   color: var(--color-on-brand);
-  padding: 64px 24px;
+  padding: 128px 24px 64px;
 }
 
 .lp-hero__inner {
@@ -147,12 +152,19 @@
 
 .lp-close__actions {
   display: flex;
+  flex-wrap: wrap;
   justify-content: center;
+  gap: 16px;
 }
 
+/**
+ * The basis is wide enough that two actions cannot share a row on a phone: a
+ * paste field squeezed beside a button loses both the placeholder and the
+ * button's label to truncation.
+ */
 .lp-close__actions .lp-action {
   justify-content: center;
-  width: 100%;
+  flex: 1 1 320px;
   max-width: 480px;
 }
 
@@ -209,6 +221,72 @@
 }
 
 /**
+ * Proof — the one band that shows the product rather than describing it. The
+ * image is lazy and carries its intrinsic size so an ad click does not wait on
+ * it, and the copy below it does not jump when it arrives.
+ */
+.lp-proof__figure {
+  margin-bottom: 24px;
+}
+
+.lp-proof__image {
+  display: block;
+  width: 100%;
+  height: auto;
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+}
+
+.lp-proof__caption {
+  font-size: 0.9375rem;
+  line-height: 1.6;
+  color: var(--muted-foreground);
+  margin-top: 12px;
+}
+
+.lp-proof__quote {
+  border-left: 2px solid var(--border);
+  padding-left: 16px;
+  margin-bottom: 24px;
+}
+
+.lp-proof__quote-text {
+  font-size: 1.25rem;
+  line-height: 1.4;
+  color: var(--foreground);
+}
+
+.lp-proof__quote-source {
+  font-size: 0.9375rem;
+  line-height: 1.6;
+  color: var(--muted-foreground);
+  margin-top: 4px;
+}
+
+.lp-proof__founder {
+  font-size: 1rem;
+  line-height: 1.6;
+  color: var(--muted-foreground);
+}
+
+.lp-proof__founder a {
+  color: var(--primary);
+  text-decoration: underline;
+}
+
+.lp-offer__note {
+  font-size: 0.9375rem;
+  line-height: 1.6;
+  color: var(--muted-foreground);
+  margin-top: 8px;
+}
+
+.lp-offer__note a {
+  color: var(--primary);
+  text-decoration: underline;
+}
+
+/**
  * Honest-limitations block. The brand guidelines require acknowledging what the
  * product does not do; on a paid-ads destination that has to be visible, not
  * buried, so it renders as a bordered card rather than fine print.
@@ -234,18 +312,22 @@
   gap: 8px;
 }
 
+/**
+ * An exclusion list takes the x marker, per the brand guidelines: a dash or a
+ * bullet reads as a feature rather than a refusal.
+ */
 .lp-limits__item {
+  display: flex;
+  align-items: baseline;
+  gap: 12px;
   font-size: 1rem;
   line-height: 1.6;
   color: var(--muted-foreground);
-  padding-left: 16px;
-  position: relative;
 }
 
-.lp-limits__item::before {
-  content: "\2014";
-  position: absolute;
-  left: 0;
+.lp-limits__marker {
+  display: inline-flex;
+  flex-shrink: 0;
   color: var(--color-text-muted);
 }
 
@@ -301,7 +383,7 @@
 
 @media (min-width: 768px) {
   .lp-hero {
-    padding: 96px 24px;
+    padding: 160px 24px 96px;
   }
 
   .lp-hero__title {

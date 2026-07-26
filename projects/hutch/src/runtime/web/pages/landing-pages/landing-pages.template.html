@@ -6,7 +6,7 @@
       <p class="lp-hero__lede">{{lede}}</p>
       <div class="lp-hero__actions">
         {{#each heroActions}}
-        <form class="lp-action" method="GET" action="{{action}}">
+        <form class="{{formClass}}" method="GET" action="{{action}}">
           {{#each hiddenParams}}<input type="hidden" name="{{name}}" value="{{value}}">{{/each}}
           {{#if input}}
           <label class="sr-only" for="lp-field-{{key}}">{{input.label}}</label>
@@ -38,7 +38,28 @@
     </div>
   </section>
 
-  <section class="lp-band lp-band--muted" data-test-section="lp-mechanism">
+  <section class="lp-band lp-band--muted" data-test-section="lp-proof">
+    <div class="lp-band__inner">
+      <h2 class="lp-section__title">{{proof.title}}</h2>
+      {{#if proof.screenshot}}
+      <figure class="lp-proof__figure">
+        <img class="lp-proof__image" src="{{proof.screenshot.src}}" alt="{{proof.screenshot.alt}}" width="{{proof.screenshot.width}}" height="{{proof.screenshot.height}}" loading="lazy" decoding="async">
+        <figcaption class="lp-proof__caption">{{proof.screenshot.caption}}</figcaption>
+      </figure>
+      {{/if}}
+      {{#if proof.quote}}
+      <figure class="lp-proof__quote">
+        <blockquote class="lp-proof__quote-text" data-test-lp-quote>{{proof.quote.text}}</blockquote>
+        <figcaption class="lp-proof__quote-source">{{proof.quote.attribution}}</figcaption>
+      </figure>
+      {{/if}}
+      {{#if proof.founderLine}}
+      <p class="lp-proof__founder">{{{proof.founderLine}}}</p>
+      {{/if}}
+    </div>
+  </section>
+
+  <section class="lp-band" data-test-section="lp-mechanism">
     <div class="lp-band__inner">
       <h2 class="lp-section__title">{{mechanismTitle}}</h2>
       <p class="lp-section__lede">{{mechanismLede}}</p>
@@ -48,20 +69,20 @@
     </div>
   </section>
 
-  <section class="lp-band" data-test-section="lp-limits">
+  <section class="lp-band lp-band--muted" data-test-section="lp-limits">
     <div class="lp-band__inner">
       <div class="lp-limits">
         <h2 class="lp-limits__title">{{limitsTitle}}</h2>
         <ul class="lp-limits__list">
           {{#each limits}}
-          <li class="lp-limits__item">{{this}}</li>
+          <li class="lp-limits__item"><span class="lp-limits__marker">{{icon "x"}}</span>{{this}}</li>
           {{/each}}
         </ul>
       </div>
     </div>
   </section>
 
-  <section class="lp-band lp-band--muted" data-test-section="lp-faq">
+  <section class="lp-band" data-test-section="lp-faq">
     <div class="lp-band__inner">
       <h2 class="lp-section__title">Questions</h2>
       <dl class="lp-faq__list">
@@ -75,12 +96,22 @@
     </div>
   </section>
 
+  <section class="lp-band lp-band--muted" data-test-section="lp-offer">
+    <div class="lp-band__inner">
+      <h2 class="lp-section__title">{{offer.title}}</h2>
+      {{#each offer.paragraphs}}
+      <p class="lp-prose__paragraph">{{{this}}}</p>
+      {{/each}}
+      <p class="lp-offer__note">{{{offer.note}}}</p>
+    </div>
+  </section>
+
   <section class="lp-band" data-test-section="lp-close">
     <div class="lp-band__inner lp-close">
       <h2 class="lp-close__title">{{closeTitle}}</h2>
       <div class="lp-close__actions">
         {{#each closeActions}}
-        <form class="lp-action" method="GET" action="{{action}}">
+        <form class="{{formClass}}" method="GET" action="{{action}}">
           {{#each hiddenParams}}<input type="hidden" name="{{name}}" value="{{value}}">{{/each}}
           {{#if input}}
           <label class="sr-only" for="lp-close-field-{{key}}">{{input.label}}</label>

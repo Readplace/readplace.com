@@ -36,6 +36,28 @@ describe("landing page SEO", () => {
 		);
 	});
 
+	/** These are paid-ads destinations. Without an image, a Meta or LinkedIn share
+	 * of the URL renders as a bare text row that reads as broken. */
+	it.each(SLUGS)("gives /%s a share card so a link preview is not blank", async (slug) => {
+		const doc = await loadPage(slug);
+
+		const ogImage = doc.querySelector('meta[property="og:image"]')?.getAttribute("content");
+		assert(ogImage, `${slug} must carry an og:image`);
+		expect(ogImage).toMatch(/\/og-image-1200x630\.png$/);
+		expect(doc.querySelector('meta[property="og:image:alt"]')?.getAttribute("content")).toBe(
+			LANDING_PAGE_CONTENT[slug].ogImageAlt,
+		);
+		expect(
+			doc.querySelector('meta[name="twitter:image"]')?.getAttribute("content"),
+		).toMatch(/\/twitter-card-1200x600\.png$/);
+	});
+
+	it("describes each landing page's share card in its own words", async () => {
+		const alts = SLUGS.map((slug) => LANDING_PAGE_CONTENT[slug].ogImageAlt);
+
+		expect(new Set(alts).size).toBe(SLUGS.length);
+	});
+
 	it.each(SLUGS)("emits WebPage and FAQPage JSON-LD on /%s", async (slug) => {
 		const doc = await loadPage(slug);
 
