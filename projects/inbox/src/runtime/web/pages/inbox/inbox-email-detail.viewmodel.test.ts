@@ -70,8 +70,7 @@ function build(input: {
 		linkData: { source: "rows", links: input.links ?? [], meta: input.linksMeta },
 		maxPolls: 300,
 		shown: input.shown,
-		panelPollCount: input.panelPollCount,
-	});
+		panelPollCount: input.panelPollCount, linkSaveStates: new Map() });
 }
 
 function crawledLinks(count: number, startIndex = 0): InboxEmailLinkEntry[] {
@@ -370,8 +369,7 @@ describe("toInboxEmailDetailViewModel", () => {
 			imagesCdnBaseUrl: "https://cdn.test.readplace.com",
 			linkData: { source: "rows", links: [link()], meta: { truncated: false } },
 			maxPolls: 300,
-			...confirmation,
-		});
+			...confirmation, linkSaveStates: new Map() });
 	}
 
 	it("carries no status toast on a plain page view", () => {
@@ -477,8 +475,7 @@ describe("toInboxEmailDetailViewModel", () => {
 				bodyHtml: "<p>hi</p>",
 				imagesCdnBaseUrl: "https://cdn.test.readplace.com",
 				linkData: { source: "entry" },
-				maxPolls: 300,
-			});
+				maxPolls: 300, linkSaveStates: new Map() });
 		}
 
 		it("derives the header badge and tab counts from the email row's tally", () => {
@@ -534,8 +531,7 @@ describe("toInboxArticlesMoreViewModel", () => {
 			links: input.links,
 			emailId: SK,
 			shown: input.shown,
-			maxPolls: 300,
-		});
+			maxPolls: 300, linkSaveStates: new Map() });
 	}
 
 	it("returns only the newly revealed delta, not the cards already on the page", () => {

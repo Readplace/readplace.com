@@ -21,7 +21,7 @@ import { initDynamoDbEmailVerification } from "./providers/email-verification/dy
 import { initDynamoDbPendingSignup } from "./providers/pending-signup/dynamodb-pending-signup";
 import { initRevokeExternalIdpTokens } from "./delete-account/revoke-external-idp-tokens";
 import { initDeleteAccountHandler } from "./delete-account/delete-account-handler";
-import { initDynamoDbInboxEmail, initDynamoDbInboxEmailLink, initDynamoDbInboxAddress, initS3DeleteObjects, initS3DeleteObjectsByPrefix } from "@packages/inbox-store";
+import { initDynamoDbInboxEmail, initDynamoDbInboxEmailLink, initDynamoDbInboxSavedLink, initDynamoDbInboxAddress, initS3DeleteObjects, initS3DeleteObjectsByPrefix } from "@packages/inbox-store";
 import {
 	initCountOtherSaversByUrl,
 	initPurgeArticleContent,
@@ -95,6 +95,12 @@ const inboxEmail = initDynamoDbInboxEmail({
 const inboxEmailLink = initDynamoDbInboxEmailLink({
 	client: dynamoClient,
 	tableName: requireEnv("DYNAMODB_INBOX_EMAIL_LINKS_TABLE"),
+});
+
+const inboxSavedLink = initDynamoDbInboxSavedLink({
+	client: dynamoClient,
+	tableName: requireEnv("DYNAMODB_INBOX_SAVED_LINKS_TABLE"),
+	now: () => new Date(),
 });
 
 const inboxAddress = initDynamoDbInboxAddress({
@@ -189,6 +195,7 @@ export const handler = initDeleteAccountHandler({
 	listInboxDeletionReferences: inboxEmail.listDeletionReferencesByUserId,
 	deleteAllInboxEmails: inboxEmail.deleteAllEmailsByUserId,
 	deleteAllInboxLinks: inboxEmailLink.deleteAllLinksByUserId,
+	deleteAllInboxSavedLinks: inboxSavedLink.deleteAllByUserId,
 	tombstoneInboxAddresses: inboxAddress.tombstoneUserAddresses,
 	deleteRawEmailObjects,
 	deleteEmailContentObjects,

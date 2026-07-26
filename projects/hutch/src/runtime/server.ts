@@ -99,7 +99,7 @@ import type {
 	FindGeneratedSummary,
 	MarkSummaryPending,
 } from "@packages/provider-contracts/article-summary";
-import type { PublishLinkSaved } from "@packages/provider-contracts/events";
+import type { PublishLinkQueued, PublishLinkSaved } from "@packages/provider-contracts/events";
 import type { PublishRecrawlLinkInitiated } from "@packages/provider-contracts/events";
 import type { PublishRemoveMyContent } from "@packages/provider-contracts/events";
 import type { PublishSaveAnonymousLink } from "@packages/provider-contracts/events";
@@ -287,6 +287,7 @@ interface AppDependencies {
 	validateOAuthRedirectUri: ValidateOAuthRedirectUri;
 	registerOAuthClient: RegisterOAuthClient;
 	publishLinkSaved: PublishLinkSaved;
+	publishLinkQueued: PublishLinkQueued;
 	publishRecrawlLinkInitiated: PublishRecrawlLinkInitiated;
 	publishRemoveMyContent: PublishRemoveMyContent;
 	publishSaveAnonymousLink: PublishSaveAnonymousLink;
@@ -1032,6 +1033,7 @@ export function createApp(dependencies: AppDependencies): Express {
 		markArticleViewed: deps.markArticleViewed,
 		markSummaryToggled: deps.markSummaryToggled,
 		publishLinkSaved: deps.publishLinkSaved,
+		publishLinkQueued: deps.publishLinkQueued,
 		publishRemoveMyContent: deps.publishRemoveMyContent,
 		publishSaveLinkRawHtmlCommand: deps.publishSaveLinkRawHtmlCommand,
 		publishSaveLinkRawPdfCommand: deps.publishSaveLinkRawPdfCommand,
@@ -1083,6 +1085,7 @@ export function createApp(dependencies: AppDependencies): Express {
 		markSummaryPending: deps.markSummaryPending,
 		publishUpdateFetchTimestamp: deps.publishUpdateFetchTimestamp,
 		publishLinkSaved: deps.publishLinkSaved,
+		publishLinkQueued: deps.publishLinkQueued,
 		refreshArticleIfStale: deps.refreshArticleIfStale,
 		resolveCanonicalIdentity: deps.resolveCanonicalIdentity,
 		logError: deps.logError,

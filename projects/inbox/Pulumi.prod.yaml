@@ -11,6 +11,7 @@ config:
   inbox:dynamodbInboxAddressesTable: hutch-inbox-addresses-prod
   inbox:dynamodbInboxEmailsTable: hutch-inbox-emails-prod
   inbox:dynamodbInboxEmailLinksTable: hutch-inbox-email-links-prod
+  inbox:dynamodbInboxSavedLinksTable: hutch-inbox-saved-links-prod
   inbox:dynamodbSessionsTable: hutch-sessions-d17dbb3
   inbox:dynamodbUsersTable: hutch-users-f90c09e
   inbox:dynamodbSubscriptionProvidersTable: hutch-subscription-providers-prod

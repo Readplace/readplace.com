@@ -31,6 +31,7 @@ interface CallTracker {
 		markSummaryPending: number;
 		publishUpdateFetchTimestamp: number;
 		publishLinkSaved: number;
+		publishLinkQueued: number;
 		updateArticleStatusUnread: number;
 	};
 	deps: SaveArticleFromUrlDependencies;
@@ -43,6 +44,7 @@ function makeTracker(savedOverride?: SavedArticle): CallTracker {
 		markSummaryPending: 0,
 		publishUpdateFetchTimestamp: 0,
 		publishLinkSaved: 0,
+		publishLinkQueued: 0,
 		updateArticleStatusUnread: 0,
 	};
 	const deps: SaveArticleFromUrlDependencies = {
@@ -62,6 +64,9 @@ function makeTracker(savedOverride?: SavedArticle): CallTracker {
 		},
 		publishLinkSaved: async () => {
 			calls.publishLinkSaved += 1;
+		},
+		publishLinkQueued: async () => {
+			calls.publishLinkQueued += 1;
 		},
 		refreshArticleIfStale: async () => ({ action: "new" }),
 		resolveCanonicalIdentity: async (url) => url,
@@ -84,6 +89,7 @@ describe("saveArticleFromUrl", () => {
 			markSummaryPending: 1,
 			publishUpdateFetchTimestamp: 1,
 			publishLinkSaved: 1,
+			publishLinkQueued: 1,
 			updateArticleStatusUnread: 0,
 		});
 	});
@@ -177,6 +183,34 @@ describe("saveArticleFromUrl", () => {
 
 		expect(tracker.calls.publishLinkSaved).toBe(0);
 		expect(tracker.calls.markCrawlPending).toBe(0);
+	});
+
+	it("announces the accepted save on a 'skip' verdict, where no link-saved fires", async () => {
+		const tracker = makeTracker();
+
+		await initSaveArticleFromUrl(tracker.deps)({
+			userId,
+			url: exampleUrl,
+			freshness: { action: "skip" },
+		});
+
+		expect(tracker.calls.publishLinkQueued).toBe(1);
+	});
+
+	it("announces the accepted save with the submitted URL, not the alias target", async () => {
+		const tracker = makeTracker();
+		const queued: string[] = [];
+		const deps: SaveArticleFromUrlDependencies = {
+			...tracker.deps,
+			resolveCanonicalIdentity: async () => "https://example.com/canonical",
+			publishLinkQueued: async ({ url }) => {
+				queued.push(url);
+			},
+		};
+
+		await initSaveArticleFromUrl(deps)({ userId, url: exampleUrl, freshness: { action: "new" } });
+
+		expect(queued).toEqual([exampleUrl]);
 	});
 
 	it("flips a previously-read article back to unread after a re-save", async () => {

@@ -3,7 +3,7 @@ import type { ContentFreshnessResult, RefreshArticleIfStale } from "@packages/pr
 import type { MarkCrawlPending } from "@packages/provider-contracts/article-crawl";
 import type { MarkSummaryPending } from "@packages/provider-contracts/article-summary";
 import type { SaveArticle, UpdateArticleStatus } from "@packages/provider-contracts/article-store";
-import type { PublishLinkSaved } from "@packages/provider-contracts/events";
+import type { PublishLinkQueued, PublishLinkSaved } from "@packages/provider-contracts/events";
 import type { PublishUpdateFetchTimestamp } from "@packages/provider-contracts/events";
 import type { UserId } from "@packages/domain/user";
 import type { SaveableUrl, SavedArticle } from "@packages/domain/article";
@@ -15,6 +15,7 @@ export interface SaveArticleFromUrlDependencies {
 	markSummaryPending: MarkSummaryPending;
 	publishUpdateFetchTimestamp: PublishUpdateFetchTimestamp;
 	publishLinkSaved: PublishLinkSaved;
+	publishLinkQueued: PublishLinkQueued;
 	refreshArticleIfStale: RefreshArticleIfStale;
 	/** Collapse an adopted terminal URL onto the article it aliases, so the save
 	 * attaches to that article instead of minting a duplicate (and never lands on
@@ -86,6 +87,15 @@ export function initSaveArticleFromUrl(
 }) => Promise<{ saved: SavedArticle }> {
 	return async (params) => {
 		const url = await deps.resolveCanonicalIdentity(params.url);
-		return saveByFreshness(deps, { userId: params.userId, url, freshness: params.freshness });
+		const result = await saveByFreshness(deps, {
+			userId: params.userId,
+			url,
+			freshness: params.freshness,
+		});
+		// The row is committed, so the save is accepted on every freshness branch —
+		// including the skip that publishes no LinkSaved. Carries the submitted URL,
+		// not the canonical one a consumer never saw.
+		await deps.publishLinkQueued({ url: params.url, userId: params.userId });
+		return result;
 	};
 }

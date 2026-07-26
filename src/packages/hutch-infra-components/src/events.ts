@@ -194,6 +194,51 @@ export const LinkSavedEvent = defineEvent({
 });
 export type LinkSavedDetail = z.infer<typeof LinkSavedEvent.detailSchema>;
 
+/** Irreversible fact: an authenticated save reached its terminal accept state —
+ * the per-user queue row was upserted — whatever the freshness action was
+ * (`new`, `refreshed`, or a skip on an already-settled article). Published by
+ * every save surface through `@packages/save-article`, so a duplicate save
+ * emits it exactly like a first save.
+ *
+ * Distinct from {@link LinkSavedEvent}, which fires only when the canonical
+ * content tier flips and carries the aggregate's canonical URL: it is silent on
+ * duplicates and unusable as an "is this saved?" signal. `url` here is the URL
+ * as submitted, *before* canonical-alias resolution, so a consumer keying on
+ * the URL it submitted matches the fact it gets back.
+ *
+ * Consumed by the inbox's `record-link-queued` Lambda, which maintains the
+ * per-user saved-link read model behind the Articles tab's Saved button. */
+export const LinkQueuedEvent = defineEvent({
+	name: "link-queued",
+	source: "hutch.save-article",
+	detailType: "LinkQueued",
+	detailSchema: z.object({
+		url: z.string(),
+		userId: z.string(),
+	}),
+});
+export type LinkQueuedDetail = z.infer<typeof LinkQueuedEvent.detailSchema>;
+
+/** Irreversible fact: a `SubmitLinkCommand` exhausted its accept-phase retries
+ * and dead-lettered, so the save never reached its terminal accept state.
+ * Published by save-link's `submit-link-dlq` handler off the submit-link DLQ.
+ *
+ * Only emitted for a command carrying a `userId` — the reserved anonymous
+ * shapes have no per-user read model to correct, and the DLQ alarm remains the
+ * failure surface for those. */
+export const LinkQueueFailedEvent = defineEvent({
+	name: "link-queue-failed",
+	source: "hutch.save-link",
+	detailType: "LinkQueueFailed",
+	detailSchema: z.object({
+		url: z.string(),
+		userId: z.string(),
+		reason: z.string(),
+		receiveCount: z.number(),
+	}),
+});
+export type LinkQueueFailedDetail = z.infer<typeof LinkQueueFailedEvent.detailSchema>;
+
 export const AnonymousLinkSavedEvent = defineEvent({
 	name: "anonymous-link-saved",
 	source: "hutch.save-link",

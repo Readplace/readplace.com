@@ -331,4 +331,108 @@ describe("Inbox link card route", () => {
 			"inbox-card-0000-feedback-exclude",
 		]);
 	});
+	describe("the saved-to-queue button state", () => {
+		const saveButton = (html: string) => {
+			const card = new JSDOM(html).window.document.querySelector(
+				"[data-test-inbox-article-card]",
+			);
+			assert(card, "the card must render");
+			const save = card.querySelector('[data-test-card-action="save"]');
+			assert(save, "the save button must render for a saveable link");
+			return save;
+		};
+
+		it("renders an unsaved link's button in the unsaved state", async () => {
+			const fixture = createDefaultTestAppFixture(TEST_APP_ORIGIN);
+			const harness = useApp(fixture);
+			const agent = await loginAgent(harness.server, harness.auth);
+			await seed(fixture);
+
+			const response = await agent.get(cardPath);
+
+			const save = saveButton(response.text);
+			expect(save.getAttribute("data-test-save-state")).toBe("unsaved");
+			expect(save.textContent?.trim()).toBe("Save to queue");
+		});
+
+		it("renders the saved state once a save has been accepted for the link", async () => {
+			const fixture = createDefaultTestAppFixture(TEST_APP_ORIGIN);
+			const harness = useApp(fixture);
+			const agent = await loginAgent(harness.server, harness.auth);
+			await seed(fixture);
+			const user = await fixture.auth.findUserByEmail("test@example.com");
+			assert(user, "logged-in user must exist");
+			await fixture.inboxEmail.inboxSavedLinkStore.markLinkSaved({
+				userId: user.userId,
+				url: "https://example.com/post",
+			});
+
+			const response = await agent.get(cardPath);
+
+			const save = saveButton(response.text);
+			expect(save.getAttribute("data-test-save-state")).toBe("saved");
+			expect(save.textContent?.trim()).toBe("Saved");
+		});
+
+		it("keeps a saved link's button posting the same save route, so re-saving still works", async () => {
+			const fixture = createDefaultTestAppFixture(TEST_APP_ORIGIN);
+			const harness = useApp(fixture);
+			const agent = await loginAgent(harness.server, harness.auth);
+			await seed(fixture);
+			const user = await fixture.auth.findUserByEmail("test@example.com");
+			assert(user, "logged-in user must exist");
+			await fixture.inboxEmail.inboxSavedLinkStore.markLinkSaved({
+				userId: user.userId,
+				url: "https://example.com/post",
+			});
+
+			const response = await agent.get(cardPath);
+
+			const form = saveButton(response.text).closest("form");
+			expect(form?.getAttribute("action")).toBe(
+				`/inbox/${encodeURIComponent(SK)}/links/0000/save`,
+			);
+			expect(form?.getAttribute("method")).toBe("POST");
+			expect(form?.getAttribute("hx-disabled-elt")).toBe("find button");
+		});
+
+		it("serves a fresh card rather than a 304 when the save lands after the reader's last poll", async () => {
+			const fixture = createDefaultTestAppFixture(TEST_APP_ORIGIN);
+			const harness = useApp(fixture);
+			const agent = await loginAgent(harness.server, harness.auth);
+			await seed(fixture);
+
+			const first = await agent.get(cardPath);
+			const etag = first.headers.etag;
+			assert(etag, "the card response must carry an ETag");
+			const user = await fixture.auth.findUserByEmail("test@example.com");
+			assert(user, "logged-in user must exist");
+			await fixture.inboxEmail.inboxSavedLinkStore.markLinkSaved({
+				userId: user.userId,
+				url: "https://example.com/post",
+			});
+
+			const second = await agent.get(cardPath).set("If-None-Match", etag);
+
+			expect(second.status).toBe(200);
+			expect(saveButton(second.text).getAttribute("data-test-save-state")).toBe("saved");
+		});
+
+		it("reads a failed save as unsaved, so the reader can try it again", async () => {
+			const fixture = createDefaultTestAppFixture(TEST_APP_ORIGIN);
+			const harness = useApp(fixture);
+			const agent = await loginAgent(harness.server, harness.auth);
+			await seed(fixture);
+			const user = await fixture.auth.findUserByEmail("test@example.com");
+			assert(user, "logged-in user must exist");
+			await fixture.inboxEmail.inboxSavedLinkStore.markLinkSaveFailed({
+				userId: user.userId,
+				url: "https://example.com/post",
+			});
+
+			const response = await agent.get(cardPath);
+
+			expect(saveButton(response.text).getAttribute("data-test-save-state")).toBe("unsaved");
+		});
+	});
 });

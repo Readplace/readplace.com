@@ -83,6 +83,10 @@ export {
 	type EmailReceivedDetail,
 	CrawlEmailLinkPreview,
 	type CrawlEmailLinkPreviewDetail,
+	LinkQueuedEvent,
+	type LinkQueuedDetail,
+	LinkQueueFailedEvent,
+	type LinkQueueFailedDetail,
 	type HutchEvent,
 	type HutchCommand,
 } from "./events";

@@ -85,6 +85,7 @@ describe("GET /view/{url} — extension suggestion banner", () => {
 			events: {
 				...fixture.events,
 				publishLinkSaved: createFakePublishLinkSaved(applyParseResult),
+				publishLinkQueued: fixture.events.publishLinkQueued,
 				publishRecrawlLinkInitiated:
 					createFakePublishRecrawlLinkInitiated(applyParseResult),
 				publishSaveAnonymousLink:
@@ -115,6 +116,7 @@ describe("GET /view/{url} — extension suggestion banner", () => {
 			events: {
 				...fixture.events,
 				publishLinkSaved: createFakePublishLinkSaved(applyParseResult),
+				publishLinkQueued: fixture.events.publishLinkQueued,
 				publishRecrawlLinkInitiated:
 					createFakePublishRecrawlLinkInitiated(applyParseResult),
 				publishSaveAnonymousLink:

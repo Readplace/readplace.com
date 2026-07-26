@@ -4,6 +4,7 @@ import type {
 	InboxAddressStore,
 	InboxEmailLinkStore,
 	InboxEmailStore,
+	InboxSavedLinkStore,
 } from "@packages/domain/inbox";
 import type { ContentProvider } from "@packages/provider-contracts/article-store";
 import type {
@@ -46,6 +47,7 @@ export function createInboxApp(
 		inboxAddressStore: InboxAddressStore;
 		inboxEmailStore: InboxEmailStore;
 		inboxEmailLinkStore: InboxEmailLinkStore;
+		inboxSavedLinkStore: InboxSavedLinkStore;
 		readEmailContent: ContentProvider;
 		publishSubmitLink: (input: { userId: UserId; url: string }) => Promise<void>;
 		logError: (message: string, error?: Error) => void;
@@ -93,6 +95,7 @@ export function createInboxApp(
 		inboxAddressStore: deps.inboxAddressStore,
 		inboxEmailStore: deps.inboxEmailStore,
 		inboxEmailLinkStore: deps.inboxEmailLinkStore,
+		inboxSavedLinkStore: deps.inboxSavedLinkStore,
 		readEmailContent: deps.readEmailContent,
 		publishSubmitLink: deps.publishSubmitLink,
 		inboxAddressDomain: config.inboxAddressDomain,

@@ -63,6 +63,7 @@ import { initInMemoryTrialScheduler } from "@packages/test-fixtures/providers/tr
 import { initReadArticleContent } from "@packages/article-store";
 import { initCanonicalAliasStore, initResolveCanonicalIdentity } from "@packages/article-store";
 import { EventBridgeClient, initEventBridgePublisher } from "@packages/hutch-infra-components/runtime";
+import { initEventBridgeLinkQueued } from "./providers/events/eventbridge-link-queued";
 import { initEventBridgeLinkSaved } from "./providers/events/eventbridge-link-saved";
 import { initEventBridgeRecrawlLinkInitiated } from "./providers/events/eventbridge-recrawl-link-initiated";
 import { initEventBridgeRemoveMyContent } from "./providers/events/eventbridge-remove-my-content";
@@ -82,7 +83,7 @@ import {
 	initInMemoryExportUserDataCommand,
 	initInMemorySubscriptionReactivated,
 } from "@packages/test-fixtures/providers/events";
-import { initInMemoryLinkSaved } from "@packages/test-fixtures/providers/events";
+import { initInMemoryLinkQueued, initInMemoryLinkSaved } from "@packages/test-fixtures/providers/events";
 import { initInMemoryRecrawlLinkInitiated } from "@packages/test-fixtures/providers/events";
 import { initInMemorySaveAnonymousLink } from "@packages/test-fixtures/providers/events";
 import { initInMemoryStaleCheckRequested } from "@packages/test-fixtures/providers/events";
@@ -234,6 +235,7 @@ function initProviders(input: { appOrigin: string }) {
 			eventBusName,
 		});
 		const { publishLinkSaved } = initEventBridgeLinkSaved({ publishEvent });
+		const { publishLinkQueued } = initEventBridgeLinkQueued({ publishEvent });
 		const { publishRecrawlLinkInitiated } = initEventBridgeRecrawlLinkInitiated({ publishEvent });
 		const { publishRemoveMyContent } = initEventBridgeRemoveMyContent({ publishEvent });
 		const { publishSaveAnonymousLink } = initEventBridgeSaveAnonymousLink({ publishEvent });
@@ -412,6 +414,7 @@ function initProviders(input: { appOrigin: string }) {
 			validateOAuthRedirectUri: oauthClientLookup.validateRedirectUri,
 			registerOAuthClient: oauthClients.registerClient,
 			publishLinkSaved,
+			publishLinkQueued,
 			publishRecrawlLinkInitiated,
 			publishRemoveMyContent,
 			publishSaveAnonymousLink,
@@ -592,6 +595,7 @@ function initProviders(input: { appOrigin: string }) {
 		await crawlStore.markCrawlReady({ url });
 		await finaliseSummaryFromContent({ url, html: result.article.html });
 	};
+	const { publishLinkQueued } = initInMemoryLinkQueued({ logger: consoleLogger });
 	const { publishLinkSaved: logOnlyPublishLinkSaved } = initInMemoryLinkSaved({ logger: consoleLogger });
 	const publishLinkSaved: typeof logOnlyPublishLinkSaved = async (params) => {
 		await logOnlyPublishLinkSaved(params);
@@ -699,6 +703,7 @@ function initProviders(input: { appOrigin: string }) {
 		validateOAuthRedirectUri: oauthClientLookup.validateRedirectUri,
 		registerOAuthClient: oauthClients.registerClient,
 		publishLinkSaved,
+		publishLinkQueued,
 		publishRecrawlLinkInitiated,
 		publishRemoveMyContent,
 		publishSaveAnonymousLink,

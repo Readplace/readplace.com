@@ -31,6 +31,7 @@ import { initInMemoryImportSession } from "./providers/import-session/in-memory-
 import { initInMemoryInboxAddress } from "./providers/inbox-address/in-memory-inbox-address";
 import { initInMemoryInboxEmail } from "./providers/inbox-email/in-memory-inbox-email";
 import { initInMemoryInboxEmailLink } from "./providers/inbox-email/in-memory-inbox-email-link";
+import { initInMemoryInboxSavedLink } from "./providers/inbox-email/in-memory-inbox-saved-link";
 import type { ExtractLinksFromPageUrl } from "@packages/extract-links-from-page";
 import { initInMemorySaveLinkRawHtmlCommand } from "./providers/events/in-memory-save-link-raw-html-command";
 import { initInMemorySaveLinkRawPdfCommand } from "./providers/events/in-memory-save-link-raw-pdf-command";
@@ -52,6 +53,7 @@ import type {
 	GeneratedSummary,
 	MarkSummaryPending,
 } from "@packages/provider-contracts/article-summary";
+import { initInMemoryLinkQueued } from "./providers/events/in-memory-link-queued";
 import { initInMemoryLinkSaved } from "./providers/events/in-memory-link-saved";
 import { initInMemoryRecrawlLinkInitiated } from "./providers/events/in-memory-recrawl-link-initiated";
 import { initInMemorySaveAnonymousLink } from "./providers/events/in-memory-save-anonymous-link";
@@ -371,6 +373,7 @@ export function createDefaultTestAppFixture(appOrigin: string): TestAppFixture {
 		parser: { parseArticle, crawlArticle },
 		events: {
 			publishLinkSaved: createFakePublishLinkSaved(applyParseResult),
+			publishLinkQueued: initInMemoryLinkQueued({ logger: noopLogger }).publishLinkQueued,
 			publishRecrawlLinkInitiated: createFakePublishRecrawlLinkInitiated(applyParseResult),
 			publishSaveAnonymousLink: createFakePublishSaveAnonymousLink(applyParseResult),
 			publishSaveLinkRawHtmlCommand,
@@ -436,6 +439,7 @@ export function createDefaultTestAppFixture(appOrigin: string): TestAppFixture {
 		inboxEmail: {
 			inboxEmailStore: initInMemoryInboxEmail(),
 			inboxEmailLinkStore: initInMemoryInboxEmailLink(),
+			inboxSavedLinkStore: initInMemoryInboxSavedLink(),
 			readEmailContent: async () => undefined,
 		},
 		shared: {

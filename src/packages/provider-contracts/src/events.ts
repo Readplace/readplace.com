@@ -24,6 +24,14 @@ export type PublishLinkSaved = (params: {
 	userId: UserId;
 }) => Promise<void>;
 
+/** Announce that a save reached its terminal accept state. `url` is the URL as
+ * submitted, before canonical-alias resolution, so a consumer that keyed a
+ * lookup on the URL it submitted can match it back. */
+export type PublishLinkQueued = (params: {
+	url: string;
+	userId: UserId;
+}) => Promise<void>;
+
 export type PublishRecrawlLinkInitiated = (params: {
 	url: string;
 }) => Promise<void>;

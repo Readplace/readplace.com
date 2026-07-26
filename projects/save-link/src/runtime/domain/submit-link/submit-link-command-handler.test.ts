@@ -118,6 +118,12 @@ function createHandler(overrides: Partial<HandlerDeps> = {}) {
 	});
 }
 
+/** The detail types published, in order — every accepted save emits LinkQueued,
+ * so a test that cares about the crawl chain names what it expects beside it. */
+function publishedDetailTypes(publishEvent: jest.Mock): string[] {
+	return publishEvent.mock.calls.map((call) => call[0].detailType);
+}
+
 async function run(handler: ReturnType<typeof createHandler>, event: SQSEvent) {
 	const response = await handler(event, buildLambdaContext(), () => undefined);
 	if (!response) throw new Error("handler returned no response");
@@ -150,7 +156,7 @@ describe("initSubmitLinkCommandHandler", () => {
 		});
 	});
 
-	it("attaches an existing article without re-crawling: 'skip' freshness bumps the row and emits nothing", async () => {
+	it("attaches an existing article without re-crawling: 'skip' freshness bumps the row and emits only the accepted-save fact", async () => {
 		const saveArticle = jest.fn().mockResolvedValue(makeSaved());
 		const publishEvent = jest.fn().mockResolvedValue(undefined);
 		const crawlAndFinalizeArticle = jest.fn();
@@ -168,7 +174,7 @@ describe("initSubmitLinkCommandHandler", () => {
 			expect.objectContaining({ userId, url: exampleUrl }),
 		);
 		expect(crawlAndFinalizeArticle).not.toHaveBeenCalled();
-		expect(publishEvent).not.toHaveBeenCalled();
+		expect(publishedDetailTypes(publishEvent)).toEqual(["LinkQueued"]);
 	});
 
 	it("resurfaces a previously-read article back to unread, exactly like the queue save button", async () => {
@@ -261,10 +267,10 @@ describe("initSubmitLinkCommandHandler", () => {
 			userId,
 			recrawl: undefined,
 		});
-		expect(publishEvent).not.toHaveBeenCalled();
+		expect(publishedDetailTypes(publishEvent)).toEqual(["LinkQueued"]);
 	});
 
-	it("acks a tier-1-terminal crawl (origin no longer serves the page) without emitting an event", async () => {
+	it("acks a tier-1-terminal crawl (origin no longer serves the page) without emitting a tier event", async () => {
 		const publishEvent = jest.fn().mockResolvedValue(undefined);
 		const handler = createHandler({
 			publishEvent,
@@ -277,7 +283,7 @@ describe("initSubmitLinkCommandHandler", () => {
 		const response = await run(handler, createSqsEvent([{ url: exampleUrl, userId }]));
 
 		expect(response.batchItemFailures).toEqual([]);
-		expect(publishEvent).not.toHaveBeenCalled();
+		expect(publishedDetailTypes(publishEvent)).toEqual(["LinkQueued"]);
 	});
 
 	it("terminalises the row in-process and acks the record when the tier-1 crawl throws — the accept phase already succeeded, so a retry could not help", async () => {
@@ -335,5 +341,15 @@ describe("initSubmitLinkCommandHandler", () => {
 		const response = await run(handler, event);
 
 		expect(response.batchItemFailures).toEqual([{ itemIdentifier: "msg-1" }]);
+	});
+
+	it("announces the accepted save with the submitted url, so a reader's saved-link view can match it", async () => {
+		const publishEvent = jest.fn().mockResolvedValue(undefined);
+		const handler = createHandler({ publishEvent });
+
+		await run(handler, createSqsEvent([{ url: exampleUrl, userId }]));
+
+		const queued = publishEvent.mock.calls.find((call) => call[0].detailType === "LinkQueued");
+		expect(queued?.[1]).toEqual({ url: exampleUrl, userId });
 	});
 });

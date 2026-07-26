@@ -16,8 +16,11 @@ import { validateSaveableUrl } from "@packages/domain/article";
 import type { UserId } from "@packages/domain/user";
 import type {
 	InboxAddressStore,
+	InboxEmailLinkEntry,
 	InboxEmailLinkStore,
 	InboxEmailStore,
+	InboxLinkSaveState,
+	InboxSavedLinkStore,
 } from "@packages/domain/inbox";
 import type { ContentProvider } from "@packages/provider-contracts/article-store";
 import { emailContentResourceId } from "../../../domain/inbox/email-content-id";
@@ -61,6 +64,7 @@ interface InboxDependencies {
 	inboxAddressStore: InboxAddressStore;
 	inboxEmailStore: InboxEmailStore;
 	inboxEmailLinkStore: InboxEmailLinkStore;
+	inboxSavedLinkStore: InboxSavedLinkStore;
 	readEmailContent: ContentProvider;
 	inboxAddressDomain: string;
 	imagesCdnBaseUrl: string;
@@ -101,6 +105,17 @@ export function initInboxRoutes(deps: InboxDependencies): Router {
 	const router = express.Router();
 	const addressesPath = "/inbox/addresses";
 	const addressesCreateFailedPath = `${addressesPath}?error=create`;
+
+	// Skipped links render as inert excluded rows with no save button, so their
+	// URLs are left out of the lookup rather than costing a key each.
+	const findLinkSaveStates = async (input: {
+		userId: UserId;
+		links: readonly InboxEmailLinkEntry[];
+	}): Promise<ReadonlyMap<string, InboxLinkSaveState>> =>
+		deps.inboxSavedLinkStore.findSavedLinks({
+			userId: input.userId,
+			urls: input.links.filter((link) => link.status !== "skipped").map((link) => link.url),
+		});
 
 	router.get("/", async (req: Request, res: Response) => {
 		assert(req.userId, "userId required - route must be protected by requireAuth");
@@ -183,6 +198,10 @@ export function initInboxRoutes(deps: InboxDependencies): Router {
 			bodyHtml,
 			imagesCdnBaseUrl: deps.imagesCdnBaseUrl,
 			linkData,
+			linkSaveStates: await findLinkSaveStates({
+				userId: req.userId,
+				links: linkData.source === "rows" ? linkData.links : [],
+			}),
 			maxPolls: MAX_POLLS,
 			shown: parseArticlesShown(req.query),
 			feedbackConfirmed: req.query.feedback === "sent",
@@ -218,6 +237,7 @@ export function initInboxRoutes(deps: InboxDependencies): Router {
 				bodyHtml: undefined,
 				imagesCdnBaseUrl: deps.imagesCdnBaseUrl,
 				linkData: { source: "rows", links, meta },
+				linkSaveStates: await findLinkSaveStates({ userId, links }),
 				maxPolls: MAX_POLLS,
 				panelPollCount: requestedPoll + 1,
 			});
@@ -264,6 +284,7 @@ export function initInboxRoutes(deps: InboxDependencies): Router {
 			emailId: receivedAtMessageId,
 			shown: parseArticlesShown(req.query),
 			maxPolls: MAX_POLLS,
+			linkSaveStates: await findLinkSaveStates({ userId, links }),
 		});
 		res.status(200).type("html").send(renderInboxArticlesMore(vm));
 	});
@@ -290,7 +311,14 @@ export function initInboxRoutes(deps: InboxDependencies): Router {
 				res.status(404).type("html").send("");
 				return;
 			}
-			const etag = computeInboxLinkCardEtag(link);
+			// Read before the ETag so the save state is part of what the ETag covers;
+			// computing it after would let a card that just became saved answer 304
+			// with its pre-save validator.
+			const linkSaveStates = await findLinkSaveStates({ userId, links: [link] });
+			const etag = computeInboxLinkCardEtag({
+				link,
+				saveState: linkSaveStates.get(link.url),
+			});
 			res.set("Cache-Control", "private, no-cache");
 			res.set("Vary", "Cookie");
 			res.set("ETag", etag);
@@ -305,6 +333,7 @@ export function initInboxRoutes(deps: InboxDependencies): Router {
 				pollCount: requestedPoll + 1,
 				maxPolls: MAX_POLLS,
 				shown: parseArticlesShown(req.query),
+				linkSaveStates,
 			});
 			// The card only polls while it is pending, so a poll that finds the link
 			// terminal is the transition itself — the one moment worth announcing.

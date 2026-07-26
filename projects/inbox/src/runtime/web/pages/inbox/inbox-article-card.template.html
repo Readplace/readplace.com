@@ -11,7 +11,7 @@
     <li class="inbox-article-card__action">
       <form method="{{method}}" action="{{href}}" hx-boost="true" hx-target="main" hx-select="main" hx-swap="outerHTML show:none" hx-disabled-elt="find button">
         {{#each hiddenParams}}<input type="hidden" name="{{@key}}" value="{{this}}">{{/each}}
-        <button type="submit" id="{{buttonId}}" class="inbox-article-card__action-button inbox-article-card__action-button--{{key}}" aria-label="{{ariaLabel}}" data-test-card-action="{{key}}">{{label}}</button>
+        <button type="submit" id="{{buttonId}}" class="inbox-article-card__action-button inbox-article-card__action-button--{{key}}{{savedClass}}" aria-label="{{ariaLabel}}"{{#if saveState}} data-test-save-state="{{saveState}}"{{/if}} data-test-card-action="{{key}}">{{#if iconName}}{{icon iconName}}{{/if}}{{label}}</button>
       </form>
     </li>
     {{/each}}

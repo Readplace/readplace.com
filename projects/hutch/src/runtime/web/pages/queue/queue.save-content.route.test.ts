@@ -63,6 +63,7 @@ describe("POST /queue/save-content with PDF", () => {
 			...fixture,
 			events: {
 				publishLinkSaved: fixture.events.publishLinkSaved,
+				publishLinkQueued: fixture.events.publishLinkQueued,
 				publishRecrawlLinkInitiated: fixture.events.publishRecrawlLinkInitiated,
 				publishSaveAnonymousLink: fixture.events.publishSaveAnonymousLink,
 				publishSaveLinkRawHtmlCommand: fixture.events.publishSaveLinkRawHtmlCommand,
@@ -177,6 +178,7 @@ describe("POST /queue/save-content with HTML", () => {
 			...fixture,
 			events: {
 				publishLinkSaved: fixture.events.publishLinkSaved,
+				publishLinkQueued: fixture.events.publishLinkQueued,
 				publishRecrawlLinkInitiated: fixture.events.publishRecrawlLinkInitiated,
 				publishSaveAnonymousLink: fixture.events.publishSaveAnonymousLink,
 				publishSaveLinkRawHtmlCommand,

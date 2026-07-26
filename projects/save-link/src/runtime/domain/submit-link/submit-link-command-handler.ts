@@ -8,6 +8,7 @@ import type { PublishEvent } from "@packages/hutch-infra-components/runtime";
 import type { TransitionAndPersist } from "@packages/domain/article-aggregate";
 import { markCrawlExhausted } from "@packages/domain/article-aggregate";
 import {
+	LinkQueuedEvent,
 	SubmitLinkCommand,
 	TierContentExtractedEvent,
 } from "@packages/hutch-infra-components";
@@ -120,6 +121,7 @@ export function initSubmitLinkCommandHandler(deps: {
 					publishLinkSaved: async (params) => {
 						enrichment.push(params);
 					},
+					publishLinkQueued: (params) => deps.publishEvent(LinkQueuedEvent, params),
 				});
 
 				const freshness = await deps.refreshArticleIfStale({ url: validation.url });

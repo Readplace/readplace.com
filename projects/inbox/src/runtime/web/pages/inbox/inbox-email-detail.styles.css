@@ -233,6 +233,27 @@
   background: var(--muted);
 }
 
+/**
+ * 1. Recedes rather than disables: the button still saves again, matching a
+ *    re-save from the website or the extension.
+ * 2. Spaces the check glyph from the label; the button is already inline-flex.
+ */
+.inbox-article-card__action-button--saved {
+  gap: 4px; /* 2 */
+  background: var(--muted); /* 1 */
+  color: var(--muted-foreground);
+}
+
+.inbox-article-card__action-button--saved:hover {
+  color: var(--foreground);
+}
+
+.inbox-article-card__action-button--saved svg {
+  width: 0.875rem;
+  height: 0.875rem;
+  color: var(--success);
+}
+
 .inbox-email-detail__show-more {
   display: block;
   margin-top: 12px;

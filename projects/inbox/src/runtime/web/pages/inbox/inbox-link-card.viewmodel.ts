@@ -1,5 +1,5 @@
 import { validateSaveableUrl } from "@packages/domain/article";
-import type { InboxEmailLinkEntry } from "@packages/domain/inbox";
+import type { InboxEmailLinkEntry, InboxLinkSaveState } from "@packages/domain/inbox";
 import { stripUtmParams } from "../../../domain/inbox/strip-utm-params";
 import { buildInboxLinkFeedbackUrl } from "./inbox-link-feedback-url";
 import { buildInboxLinkPollUrl } from "./inbox-link-poll-url";
@@ -15,7 +15,13 @@ export interface InboxCardAction {
 	href: string;
 	method: "POST";
 	hiddenParams?: Record<string, string>;
+	/** Set on the save action only. Rendered as a state attribute on both values
+	 * so a test asserts which state the button is in, never that it is absent. */
+	saveState?: SaveButtonState;
+	iconName?: string;
 }
+
+type SaveButtonState = "saved" | "unsaved";
 
 export interface InboxLinkCardViewModel {
 	ordinal: string;
@@ -62,13 +68,41 @@ function cardDomId(ordinal: string): string {
 	return `inbox-card-${ordinal}`;
 }
 
+/** The save button never stops being a save button. A saved link keeps its
+ * action, its URL and its method, so re-saving from here is the same POST the
+ * unsaved state makes — and lands on the same queue-side upsert the website and
+ * the extension re-save through, which bumps `savedAt` and resurfaces a
+ * read article as unread. */
+function saveActionCopy(input: { isSaved: boolean; displayUrl: string }): {
+	label: string;
+	ariaLabel: string;
+	saveState: SaveButtonState;
+	iconName: string | undefined;
+} {
+	if (input.isSaved) {
+		return {
+			label: "Saved",
+			ariaLabel: `Saved to queue — save again: ${input.displayUrl}`,
+			saveState: "saved",
+			iconName: "check",
+		};
+	}
+	return {
+		label: "Save to queue",
+		ariaLabel: `Save to queue: ${input.displayUrl}`,
+		saveState: "unsaved",
+		iconName: undefined,
+	};
+}
+
 function buildCardActions(input: {
 	link: InboxEmailLinkEntry;
 	emailId: string;
 	displayUrl: string;
 	shown: number;
+	isSaved: boolean;
 }): InboxCardAction[] {
-	const { link, emailId, displayUrl, shown } = input;
+	const { link, emailId, displayUrl, shown, isSaved } = input;
 	const buttonId = (key: string) => `${cardDomId(link.ordinal)}-${key}`;
 	// Posted back so the redirect can rebuild the same page of cards. Without it
 	// a save from an expanded list returns a first page that no longer holds the
@@ -80,8 +114,7 @@ function buildCardActions(input: {
 	if (validateSaveableUrl(link.url).status === "SUCCESS") {
 		actions.push({
 			key: "save",
-			label: "Save to queue",
-			ariaLabel: `Save to queue: ${displayUrl}`,
+			...saveActionCopy({ isSaved, displayUrl }),
 			buttonId: buttonId("save"),
 			href: buildInboxLinkSaveUrl({ emailId, ordinal: link.ordinal }),
 			method: "POST",
@@ -108,8 +141,11 @@ export function toInboxLinkCardViewModel(input: {
 	/** How many cards the panel this card sits in is showing. Carried through the
 	 * card's own poll URL so a re-rendered pending card keeps posting it back. */
 	shown: number;
+	/** Save state for the cards being rendered, keyed by the link's stored URL. A
+	 * link absent from the map, or one whose save failed, reads as unsaved. */
+	linkSaveStates: ReadonlyMap<string, InboxLinkSaveState>;
 }): InboxLinkCardViewModel {
-	const { link, emailId, pollCount, maxPolls, shown } = input;
+	const { link, emailId, pollCount, maxPolls, shown, linkSaveStates } = input;
 	const reachedTerminal = link.status !== "pending";
 	const cardPollUrl =
 		reachedTerminal || pollCount > maxPolls
@@ -134,6 +170,12 @@ export function toInboxLinkCardViewModel(input: {
 		domId: cardDomId(link.ordinal),
 		statusState,
 		statusLabel: CARD_STATUS_LABELS[statusState],
-		actions: buildCardActions({ link, emailId, displayUrl: url, shown }),
+		actions: buildCardActions({
+			link,
+			emailId,
+			displayUrl: url,
+			shown,
+			isSaved: linkSaveStates.get(link.url) === "saved",
+		}),
 	};
 }

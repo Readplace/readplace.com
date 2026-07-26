@@ -5,6 +5,7 @@ import type {
 	InboxEmailLinkCounts,
 	InboxEmailLinkEntry,
 	InboxEmailLinksMeta,
+	InboxLinkSaveState,
 } from "@packages/domain/inbox";
 import { ARTICLES_PAGE_SIZE, buildInboxArticlesMoreUrl } from "./inbox-articles-more.url";
 import { buildInboxArticlesPollUrl } from "./inbox-articles-poll-url";
@@ -145,6 +146,7 @@ function buildArticleCardsPage(input: {
 	from: number;
 	to: number;
 	maxPolls: number;
+	linkSaveStates: ReadonlyMap<string, InboxLinkSaveState>;
 }): ArticleCardsPage {
 	const cards = input.allCards.slice(input.from, input.to).map((link) =>
 		toInboxLinkCardViewModel({
@@ -153,6 +155,7 @@ function buildArticleCardsPage(input: {
 			pollCount: INITIAL_POLL_COUNT,
 			maxPolls: input.maxPolls,
 			shown: input.to,
+			linkSaveStates: input.linkSaveStates,
 		}),
 	);
 	const shown = Math.min(input.to, input.allCards.length);
@@ -178,6 +181,7 @@ export function toInboxArticlesMoreViewModel(input: {
 	emailId: string;
 	shown: number;
 	maxPolls: number;
+	linkSaveStates: ReadonlyMap<string, InboxLinkSaveState>;
 }): ArticleCardsPage {
 	return buildArticleCardsPage({
 		allCards: input.links.filter((link) => link.status !== "skipped"),
@@ -185,6 +189,7 @@ export function toInboxArticlesMoreViewModel(input: {
 		from: input.shown - ARTICLES_PAGE_SIZE,
 		to: input.shown,
 		maxPolls: input.maxPolls,
+		linkSaveStates: input.linkSaveStates,
 	});
 }
 
@@ -203,6 +208,9 @@ export function toInboxEmailDetailViewModel(input: {
 	bodyHtml: string | undefined;
 	imagesCdnBaseUrl: string;
 	linkData: InboxEmailLinkData;
+	/** Save state for the email's links, keyed by stored URL. Empty for the View
+	 * tab, which fetches no link rows to look up. */
+	linkSaveStates: ReadonlyMap<string, InboxLinkSaveState>;
 	maxPolls: number;
 	shown?: number;
 	/** The page-level poll tick: the full render starts at the initial count; the
@@ -223,6 +231,7 @@ export function toInboxEmailDetailViewModel(input: {
 		from: 0,
 		to: input.shown ?? ARTICLES_PAGE_SIZE,
 		maxPolls: input.maxPolls,
+		linkSaveStates: input.linkSaveStates,
 	});
 	const excludedLinks = links
 		.filter((link) => link.status === "skipped")

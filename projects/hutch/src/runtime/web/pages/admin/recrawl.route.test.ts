@@ -68,6 +68,7 @@ function buildHarness(options: { adminEmails: readonly string[] }): RecrawlHarne
 	},
 		events: {
 			publishLinkSaved: fixture.events.publishLinkSaved,
+			publishLinkQueued: fixture.events.publishLinkQueued,
 			publishRecrawlLinkInitiated: publishRecrawlLinkInitiated,
 			publishSaveAnonymousLink: fixture.events.publishSaveAnonymousLink,
 			publishSaveLinkRawHtmlCommand: fixture.events.publishSaveLinkRawHtmlCommand,

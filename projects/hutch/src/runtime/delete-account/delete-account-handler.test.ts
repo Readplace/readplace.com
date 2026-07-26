@@ -19,6 +19,7 @@ import {
 import {
 	initInMemoryInboxEmail,
 	initInMemoryInboxEmailLink,
+	initInMemoryInboxSavedLink,
 } from "@packages/test-fixtures/providers/inbox-email";
 import { initInMemoryIosOnboardingSignal } from "@packages/test-fixtures/providers/ios-onboarding-signal";
 import {
@@ -60,6 +61,7 @@ function buildSubject() {
 	const subs = initInMemorySubscriptionProviders({ now: () => SEED_NOW });
 	const inboxEmail = initInMemoryInboxEmail();
 	const inboxLink = initInMemoryInboxEmailLink();
+	const inboxSavedLink = initInMemoryInboxSavedLink();
 	const inboxAddress = initInMemoryInboxAddress({ now: () => SEED_NOW });
 
 	const deleteCustomerCalls: Array<{ customerId: string }> = [];
@@ -142,6 +144,7 @@ function buildSubject() {
 		listInboxDeletionReferences: inboxEmail.listDeletionReferencesByUserId,
 		deleteAllInboxEmails: inboxEmail.deleteAllEmailsByUserId,
 		deleteAllInboxLinks: inboxLink.deleteAllLinksByUserId,
+		deleteAllInboxSavedLinks: inboxSavedLink.deleteAllByUserId,
 		tombstoneInboxAddresses: inboxAddress.tombstoneUserAddresses,
 		deleteRawEmailObjects: async (keys: string[]) => {
 			if (injectedFailures.deleteRawEmailOnce) {

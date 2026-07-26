@@ -2,7 +2,12 @@ import type { CrawlArticle } from "@packages/crawl-article";
 import type { HutchLogger } from "@packages/hutch-logger";
 import type { ArticleMetadata, Minutes, ValidateSaveableUrl } from "@packages/domain/article";
 import type { ImportSessionStore } from "@packages/domain/import-session";
-import type { InboxAddressStore, InboxEmailLinkStore, InboxEmailStore } from "@packages/domain/inbox";
+import type {
+	InboxAddressStore,
+	InboxEmailLinkStore,
+	InboxEmailStore,
+	InboxSavedLinkStore,
+} from "@packages/domain/inbox";
 import type { ExtractLinksFromPageUrl } from "@packages/extract-links-from-page";
 import type { ParseArticle } from "@packages/article-parser";
 import type {
@@ -95,6 +100,7 @@ import type {
 	PublishCancelSubscriptionCommand,
 	PublishDeleteAccountCommand,
 	PublishExportUserDataCommand,
+	PublishLinkQueued,
 	PublishLinkSaved,
 	PublishRecrawlLinkInitiated,
 	PublishRemoveMyContent,
@@ -312,6 +318,7 @@ export interface ParserBundle {
 
 export interface EventsBundle {
 	publishLinkSaved: PublishLinkSaved;
+	publishLinkQueued: PublishLinkQueued;
 	publishRecrawlLinkInitiated: PublishRecrawlLinkInitiated;
 	publishRemoveMyContent: PublishRemoveMyContent;
 	publishSaveAnonymousLink: PublishSaveAnonymousLink;
@@ -426,6 +433,7 @@ export interface InboxAddressBundle {
 export interface InboxEmailBundle {
 	inboxEmailStore: InboxEmailStore;
 	inboxEmailLinkStore: InboxEmailLinkStore;
+	inboxSavedLinkStore: InboxSavedLinkStore;
 	readEmailContent: ContentProvider;
 }
 

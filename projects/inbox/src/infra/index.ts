@@ -13,6 +13,8 @@ import {
 import {
 	CrawlEmailLinkPreview,
 	EmailReceivedEvent,
+	LinkQueueFailedEvent,
+	LinkQueuedEvent,
 } from "@packages/hutch-infra-components";
 import { requireEnv } from "@packages/require-env";
 
@@ -70,6 +72,7 @@ const tableNames = {
 	inboxAddresses: config.require("dynamodbInboxAddressesTable"),
 	inboxEmails: config.require("dynamodbInboxEmailsTable"),
 	inboxEmailLinks: config.require("dynamodbInboxEmailLinksTable"),
+	inboxSavedLinks: config.require("dynamodbInboxSavedLinksTable"),
 	sessions: config.require("dynamodbSessionsTable"),
 	users: config.require("dynamodbUsersTable"),
 	subscriptionProviders: config.require("dynamodbSubscriptionProvidersTable"),
@@ -136,6 +139,15 @@ const webSubscriptionProvidersRead = new HutchDynamoDBAccess(
 	},
 );
 
+// Renders the Articles tab's Saved button. Read-only, and only of the inbox's own
+// read model — the invariant that no inbox role touches articles/user-articles
+// still holds, which is why this state arrives as a save-side fact rather than a
+// cross-boundary read.
+const webSavedLinksRead = new HutchDynamoDBAccess("inbox-web-saved-links-read", {
+	tables: [{ arn: tableArn(tableNames.inboxSavedLinks), includeIndexes: false }],
+	actions: ["dynamodb:BatchGetItem"],
+});
+
 const webLambda = new HutchLambda("inbox-web", {
 	entryPoint: "./src/runtime/lambda.main.ts",
 	outputDir: ".lib/inbox-web",
@@ -152,6 +164,7 @@ const webLambda = new HutchLambda("inbox-web", {
 		DYNAMODB_INBOX_ADDRESSES_TABLE: tableNames.inboxAddresses,
 		DYNAMODB_INBOX_EMAILS_TABLE: tableNames.inboxEmails,
 		DYNAMODB_INBOX_EMAIL_LINKS_TABLE: tableNames.inboxEmailLinks,
+		DYNAMODB_INBOX_SAVED_LINKS_TABLE: tableNames.inboxSavedLinks,
 		DYNAMODB_SESSIONS_TABLE: tableNames.sessions,
 		DYNAMODB_USERS_TABLE: tableNames.users,
 		DYNAMODB_SUBSCRIPTION_PROVIDERS_TABLE: tableNames.subscriptionProviders,
@@ -169,6 +182,7 @@ const webLambda = new HutchLambda("inbox-web", {
 		...webSessions.policies,
 		...webUsersRead.policies,
 		...webSubscriptionProvidersRead.policies,
+		...webSavedLinksRead.policies,
 		// Reads the sanitized email bodies the receive worker wrote to the shared
 		// content bucket.
 		...HutchS3ReadWrite.readPoliciesForBucket("inbox-web-content", contentBucketName),
@@ -474,6 +488,70 @@ const crawlEmailLinkPreviewWithSQS = new HutchSQSBackedLambda("inbox-crawl-email
 
 eventBus.subscribe(CrawlEmailLinkPreview, crawlEmailLinkPreviewWithSQS, {
 	name: "inbox-crawl-email-link-preview",
+});
+
+// --- Saved-link read model (save-side facts → Articles tab's Saved button) ---
+// LinkQueuedEvent (a save reached its terminal accept state, published by every
+// save surface through @packages/save-article) and LinkQueueFailedEvent (it
+// exhausted its accept retries) both land here and stamp one row per user+URL.
+// This is how the Articles tab knows a link is already in the reader's queue
+// without any inbox role reading the articles/user-articles tables.
+const recordLinkQueuedDynamodb = new HutchDynamoDBAccess("inbox-record-link-queued-dynamodb", {
+	tables: [{ arn: tableArn(tableNames.inboxSavedLinks), includeIndexes: false }],
+	// Both writes are unconditional upserts of one row — no read, no query.
+	actions: ["dynamodb:PutItem"],
+});
+
+const RECORD_LINK_QUEUED_TIMEOUT_SECONDS = 30;
+
+const recordLinkQueuedLambda = new HutchLambda("inbox-record-link-queued", {
+	entryPoint: "./src/runtime/record-link-queued.main.ts",
+	outputDir: ".lib/inbox-record-link-queued",
+	assetDir: "./src/runtime",
+	memorySize: 256,
+	timeout: RECORD_LINK_QUEUED_TIMEOUT_SECONDS,
+	environment: {
+		DYNAMODB_INBOX_SAVED_LINKS_TABLE: tableNames.inboxSavedLinks,
+	},
+	policies: [...recordLinkQueuedDynamodb.policies],
+});
+
+// One rule per queue: eventBus.subscribe creates a QueuePolicy per call, and
+// two rules pointing at one queue would fight over that single physical policy.
+// The two facts therefore get their own queue each, both feeding this Lambda.
+const recordLinkQueuedQueue = new HutchSQS("inbox-record-link-queued", {
+	visibilityTimeoutSeconds:
+		RECORD_LINK_QUEUED_TIMEOUT_SECONDS + RECEIVE_TO_INVOKE_GUARD_SECONDS,
+});
+
+const recordLinkQueuedWithSQS = new HutchSQSBackedLambda("inbox-record-link-queued", {
+	lambda: recordLinkQueuedLambda,
+	queue: recordLinkQueuedQueue,
+	alertEmailDLQEntry: alertEmail,
+	batchSize: 1,
+});
+
+// Explicit rule names: the default is derived from the event, and save-link
+// already owns rules for its own subscriptions — PutRule is an upsert, so a
+// colliding default name would silently retarget someone else's rule.
+eventBus.subscribe(LinkQueuedEvent, recordLinkQueuedWithSQS, {
+	name: "inbox-record-link-queued",
+});
+
+const recordLinkQueueFailedQueue = new HutchSQS("inbox-record-link-queue-failed", {
+	visibilityTimeoutSeconds:
+		RECORD_LINK_QUEUED_TIMEOUT_SECONDS + RECEIVE_TO_INVOKE_GUARD_SECONDS,
+});
+
+const recordLinkQueueFailedWithSQS = new HutchSQSBackedLambda("inbox-record-link-queue-failed", {
+	lambda: recordLinkQueuedLambda,
+	queue: recordLinkQueueFailedQueue,
+	alertEmailDLQEntry: alertEmail,
+	batchSize: 1,
+});
+
+eventBus.subscribe(LinkQueueFailedEvent, recordLinkQueueFailedWithSQS, {
+	name: "inbox-record-link-queue-failed",
 });
 
 export const functionName = webLambda.functionName;

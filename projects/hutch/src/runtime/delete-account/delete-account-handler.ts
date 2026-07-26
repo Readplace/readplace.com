@@ -45,6 +45,7 @@ import type {
 	InboxAddressStore,
 	InboxEmailLinkStore,
 	InboxEmailStore,
+	InboxSavedLinkStore,
 } from "@packages/domain/inbox";
 import type { DeleteUserExports } from "../providers/user-data-export/user-data-export.types";
 import type { RevokeExternalIdpTokens } from "./revoke-external-idp-tokens";
@@ -62,6 +63,7 @@ export interface DeleteAccountHandlerDependencies {
 	listInboxDeletionReferences: InboxEmailStore["listDeletionReferencesByUserId"];
 	deleteAllInboxEmails: InboxEmailStore["deleteAllEmailsByUserId"];
 	deleteAllInboxLinks: InboxEmailLinkStore["deleteAllLinksByUserId"];
+	deleteAllInboxSavedLinks: InboxSavedLinkStore["deleteAllByUserId"];
 	tombstoneInboxAddresses: InboxAddressStore["tombstoneUserAddresses"];
 	deleteRawEmailObjects: (keys: string[]) => Promise<void>;
 	deleteEmailContentObjects: (keys: string[]) => Promise<void>;
@@ -140,6 +142,7 @@ async function processCommand(
 	await deps.deleteEmailContentObjects(bodyS3Keys);
 	await deps.deleteEmailImageObjects(emailImageS3KeyPrefixes);
 	await deps.deleteAllInboxLinks(userId, receivedAtMessageIds);
+	await deps.deleteAllInboxSavedLinks(userId);
 	await deps.deleteAllInboxEmails(userId);
 	await deps.tombstoneInboxAddresses(userId);
 

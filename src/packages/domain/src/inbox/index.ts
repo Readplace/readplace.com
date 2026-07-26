@@ -64,3 +64,9 @@ export type {
 	InboxEmailLinkStore,
 	EmailLinkOutcome,
 } from "./inbox-email-link.types";
+export {
+	inboxSavedLinkKey,
+	type InboxLinkSaveState,
+	type InboxSavedLinkEntry,
+	type InboxSavedLinkStore,
+} from "./inbox-saved-link.types";

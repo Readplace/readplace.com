@@ -132,6 +132,7 @@ const { app: hutchApp, auth, email } = createTestApp({
 	parser: { parseArticle, crawlArticle },
 	events: {
 		publishLinkSaved: createFakePublishLinkSaved(applyParseResult),
+		publishLinkQueued: fixture.events.publishLinkQueued,
 		publishRecrawlLinkInitiated: createFakePublishRecrawlLinkInitiated(applyParseResult),
 		publishSaveAnonymousLink: createFakePublishSaveAnonymousLink(applyParseResult),
 		publishSaveLinkRawHtmlCommand: fixture.events.publishSaveLinkRawHtmlCommand,

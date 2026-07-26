@@ -176,6 +176,7 @@ describe("Queue routes", () => {
 				...fixture,
 				events: {
 					publishLinkSaved: async (params) => { publishedLinkSaved.push(params); },
+					publishLinkQueued: fixture.events.publishLinkQueued,
 					publishRecrawlLinkInitiated: fixture.events.publishRecrawlLinkInitiated,
 					publishSaveAnonymousLink: fixture.events.publishSaveAnonymousLink,
 					publishSaveLinkRawHtmlCommand: fixture.events.publishSaveLinkRawHtmlCommand,

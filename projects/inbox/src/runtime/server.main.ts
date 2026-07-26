@@ -154,9 +154,14 @@ async function main(): Promise<void> {
 			inboxAddressStore: fixture.inboxAddress.inboxAddressStore,
 			inboxEmailStore: fixture.inboxEmail.inboxEmailStore,
 			inboxEmailLinkStore: fixture.inboxEmail.inboxEmailLinkStore,
+			inboxSavedLinkStore: fixture.inboxEmail.inboxSavedLinkStore,
 			readEmailContent: async () => "<p>Example newsletter body for local dev.</p>",
+			// Dev has no bus, so stand in for the round trip the deployed stack makes:
+			// publish, save-link accepts, LinkQueued lands, the subscriber stamps the
+			// read model. Without this the Saved button could never appear locally.
 			publishSubmitLink: async (input) => {
 				logger.info("[dev] submit-link", input);
+				await fixture.inboxEmail.inboxSavedLinkStore.markLinkSaved(input);
 			},
 			logError: (message, error) =>
 				logger.error(formatErrorLogLine({ message, error, now: () => new Date() })),

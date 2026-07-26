@@ -359,10 +359,13 @@ new HutchDLQEventHandler("save-link-dlq", {
 // dlqMaxReceiveCount 3, not the crawl queues' fail-fast 1: crawl failures
 // terminalise in-process inside the handler and never throw, so a thrown
 // record is an accept-phase failure (DynamoDB/EventBridge blip) that a
-// retry genuinely can heal. No HutchDLQEventHandler: a dead-letter here
-// means no article row was written for this record (or the row belongs to
-// another saver's in-flight crawl), so no row mutation is ever correct —
-// the HutchSQS DLQ alarm is the whole failure surface.
+// retry genuinely can heal. Its DLQ handler mutates no article row — the row
+// either does not exist or belongs to another saver's in-flight crawl — it only
+// publishes LinkQueueFailedEvent so a reader's saved-link read model is not left
+// claiming a queue row that never landed. That fact means "the command gave up",
+// not "nothing was queued" (the accept phase writes the queue row before several
+// calls that can still throw), so its consumer lets an accepted save outrank it.
+// The HutchSQS DLQ alarm stays wired alongside it.
 const submitLinkQueue = new HutchSQS("submit-link", {
 	visibilityTimeoutSeconds: 480,
 	dlqMaxReceiveCount: 3,
@@ -422,6 +425,15 @@ const submitLinkLambdaWithSQS = new HutchSQSBackedLambda("submit-link", {
 });
 
 eventBus.subscribe(SubmitLinkCommand, submitLinkLambdaWithSQS);
+
+// --- SubmitLinkCommand DLQ consumer ---
+new HutchDLQEventHandler("submit-link-dlq", {
+	sourceQueue: submitLinkQueue,
+	tableArn: articlesTableArn,
+	tableName: articlesTableName,
+	eventBus,
+	batchSize: 1,
+});
 
 // --- SaveLinkRawHtmlCommand handler ---
 

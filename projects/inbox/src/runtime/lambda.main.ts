@@ -12,6 +12,7 @@ import {
 	initDynamoDbInboxAddress,
 	initDynamoDbInboxEmail,
 	initDynamoDbInboxEmailLink,
+	initDynamoDbInboxSavedLink,
 } from "@packages/inbox-store";
 import { initS3ReadContent } from "@packages/article-store";
 import { SubmitLinkCommand } from "@packages/hutch-infra-components";
@@ -99,6 +100,11 @@ const application = express()
 				inboxEmailLinkStore: initDynamoDbInboxEmailLink({
 					client,
 					tableName: requireEnv("DYNAMODB_INBOX_EMAIL_LINKS_TABLE"),
+				}),
+				inboxSavedLinkStore: initDynamoDbInboxSavedLink({
+					client,
+					tableName: requireEnv("DYNAMODB_INBOX_SAVED_LINKS_TABLE"),
+					now: () => new Date(),
 				}),
 				readEmailContent,
 				publishSubmitLink: (input) => publishEvent(SubmitLinkCommand, input),

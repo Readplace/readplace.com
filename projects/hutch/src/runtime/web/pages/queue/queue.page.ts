@@ -63,7 +63,7 @@ import type {
 import { initArticleReader } from "../../shared/article-reader/article-reader";
 import type { RenderReaderActions } from "../../shared/article-body/reader-actions/reader-actions.component";
 import type { PollUrlBuilder } from "../../shared/article-reader/article-reader.types";
-import type { PublishLinkSaved } from "@packages/provider-contracts/events";
+import type { PublishLinkQueued, PublishLinkSaved } from "@packages/provider-contracts/events";
 import type { PublishSaveLinkRawHtmlCommand } from "@packages/provider-contracts/events";
 import type { PutPendingHtml } from "@packages/provider-contracts/pending-html";
 import { initSaveArticleFromUrl } from "@packages/save-article";
@@ -212,6 +212,7 @@ interface QueueDependencies {
 	markArticleViewed: MarkArticleViewed;
 	markSummaryToggled: MarkSummaryToggled;
 	publishLinkSaved: PublishLinkSaved;
+	publishLinkQueued: PublishLinkQueued;
 	publishRemoveMyContent: PublishRemoveMyContent;
 	publishSaveLinkRawHtmlCommand: PublishSaveLinkRawHtmlCommand;
 	publishSaveLinkRawPdfCommand: PublishSaveLinkRawPdfCommand;

@@ -54,6 +54,7 @@ export function createInboxTestApp(
 			inboxAddressStore: fixture.inboxAddress.inboxAddressStore,
 			inboxEmailStore: fixture.inboxEmail.inboxEmailStore,
 			inboxEmailLinkStore: fixture.inboxEmail.inboxEmailLinkStore,
+			inboxSavedLinkStore: fixture.inboxEmail.inboxSavedLinkStore,
 			readEmailContent: fixture.inboxEmail.readEmailContent,
 			publishSubmitLink: async (input) => {
 				submittedLinks.push(input);

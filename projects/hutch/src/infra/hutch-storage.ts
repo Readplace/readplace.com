@@ -15,6 +15,7 @@ export class HutchStorage extends pulumi.ComponentResource {
 	public readonly inboxAddressesTable: aws.dynamodb.Table;
 	public readonly inboxEmailsTable: aws.dynamodb.Table;
 	public readonly inboxEmailLinksTable: aws.dynamodb.Table;
+	public readonly inboxSavedLinksTable: aws.dynamodb.Table;
 	public readonly subscriptionProvidersTable: aws.dynamodb.Table;
 	public readonly onboardingTable: aws.dynamodb.Table;
 	public readonly rateLimitsTable: aws.dynamodb.Table;
@@ -34,6 +35,7 @@ export class HutchStorage extends pulumi.ComponentResource {
 		inboxAddresses: string;
 		inboxEmails: string;
 		inboxEmailLinks: string;
+		inboxSavedLinks: string;
 		subscriptionProviders: string;
 		onboarding: string;
 		rateLimits: string;
@@ -286,6 +288,26 @@ export class HutchStorage extends pulumi.ComponentResource {
 			attributes: [
 				{ name: "userLinkGroup", type: "S" },
 				{ name: "ordinal", type: "S" },
+			],
+		}, { parent: this });
+
+		/* Which links a reader has already had accepted into their queue, so the
+		 * Articles tab can render its Saved button without the inbox ever reading
+		 * the articles/user-articles tables. PK=userId, SK=the normalized URL, so a
+		 * page of cards resolves in one BatchGetItem — no GSI, no scan. Written only
+		 * by the record-link-queued subscriber, off the save-side facts. A moment-in-
+		 * time record, not the queue's own state: removing an article publishes no
+		 * fact, so a row here outlives the queue row it describes. */
+		this.inboxSavedLinksTable = new aws.dynamodb.Table(`hutch-inbox-saved-links`, {
+			name: args.tableNames.inboxSavedLinks,
+			billingMode: "PAY_PER_REQUEST",
+			deletionProtectionEnabled: args.deletionProtection,
+			pointInTimeRecovery: { enabled: true },
+			hashKey: "userId",
+			rangeKey: "linkKey",
+			attributes: [
+				{ name: "userId", type: "S" },
+				{ name: "linkKey", type: "S" },
 			],
 		}, { parent: this });
 
