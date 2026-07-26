@@ -197,6 +197,7 @@ test.describe('Queue management flow (staging)', () => {
 				importProgress,
 				importFromUrlProgress,
 			],
+			onActionComplete: async () => {},
 			maxNavigations: 100,
 		})
 	})

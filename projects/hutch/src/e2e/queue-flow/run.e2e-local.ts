@@ -136,6 +136,7 @@ test.describe('Queue management flow (local)', () => {
 				importFromUrlActions: createImportFromUrlActions({ baseUrl: BASE_URL }, queueProgress, importFromUrlProgress),
 			},
 			preQueueProgressObjects: [viewPageProgress, seedProgress, cleanupProgress, passwordResetProgress, onboardingProgress, savePermalinkProgress, bannerOnReaderProgress, importProgress, importFromUrlProgress],
+			onActionComplete: async () => {},
 			maxNavigations: 120,
 		})
 	})

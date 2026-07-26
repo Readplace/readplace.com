@@ -1,5 +1,5 @@
 import { type Page, expect } from '@playwright/test'
-import { HATEOASClient, PageNavigationHandler, type NavigationConfig } from '../hateoas'
+import { HATEOASClient, PageNavigationHandler, withActionCompleted, type NavigationConfig, type OnActionComplete } from '../hateoas'
 import type {
 	ViewPageActionKey,
 	OnboardingActionKey,
@@ -37,6 +37,7 @@ export interface QueueFlowConfig {
 	queueProgress: QueueProgress
 	preQueueActionFactories: PreQueueActionFactories
 	preQueueProgressObjects: Record<string, boolean>[]
+	onActionComplete: OnActionComplete
 	maxNavigations?: number
 }
 
@@ -73,13 +74,16 @@ export async function runQueueFlow(page: Page, config: QueueFlowConfig): Promise
 
 	const actionsMap = new Map<string, PageAction>(Object.entries(allActions))
 
-	const navigationHandler = new PageNavigationHandler(
-		page,
-		{
-			successDetector: async () =>
-				allProgressObjects.every(p => Object.values(p).every(Boolean)),
-		},
-		actionsMap,
+	const navigationHandler = withActionCompleted(
+		new PageNavigationHandler(
+			page,
+			{
+				successDetector: async () =>
+					allProgressObjects.every(p => Object.values(p).every(Boolean)),
+			},
+			actionsMap,
+		),
+		config.onActionComplete,
 	)
 
 	const client = new HATEOASClient(page, navigationHandler)
