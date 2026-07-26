@@ -1,5 +1,6 @@
 import { readFileSync } from "node:fs";
 import { join } from "node:path";
+import { APPLE_ITUNES_APP_META } from "@packages/supported-clients";
 import { render } from "@packages/web-shell";
 import type { PageBody } from "@packages/web-shell";
 
@@ -18,6 +19,7 @@ export function BlogPostPage(params: { post: BlogPost }): PageBody {
 			canonicalUrl: `https://readplace.com/blog/${post.slug}`,
 			ogType: "article",
 			robots: "index, follow",
+			appleItunesApp: APPLE_ITUNES_APP_META,
 			author: post.author,
 			keywords: post.keywords,
 			structuredData: [
@@ -27,6 +29,7 @@ export function BlogPostPage(params: { post: BlogPost }): PageBody {
 					headline: post.title,
 					description: post.description,
 					datePublished: post.date,
+					dateModified: post.lastModified,
 					author: {
 						"@type": "Person",
 						name: post.author,

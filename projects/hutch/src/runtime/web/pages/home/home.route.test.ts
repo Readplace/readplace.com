@@ -597,6 +597,22 @@ describe("GET /", () => {
 		expect(types).toEqual(["WebApplication", "Organization", "FAQPage", "WebSite"]);
 	});
 
+	it("should link the Organization to the App Store listing and offer the Smart App Banner", async () => {
+		const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
+		const response = await request(harness.server).get("/");
+		const doc = new JSDOM(response.text).window.document;
+
+		const schemas = Array.from(doc.querySelectorAll('script[type="application/ld+json"]')).map(
+			(s) => JSON.parse(s.textContent ?? "{}"),
+		);
+		const organization = schemas.find((s: { "@type": string }) => s["@type"] === "Organization");
+		expect(organization.sameAs).toContain("https://apps.apple.com/app/readplace/id6777107238");
+
+		expect(doc.querySelector('meta[name="apple-itunes-app"]')?.getAttribute("content")).toBe(
+			"app-id=6777107238",
+		);
+	});
+
 	it("should include FAQ structured data with questions and answers", async () => {
 		const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
 		const response = await request(harness.server).get("/");

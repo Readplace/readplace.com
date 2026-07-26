@@ -108,6 +108,20 @@ describe("parseBlogFrontmatter", () => {
 		).toThrow(/must include a `banner:`/);
 	});
 
+	it("carries a revision date when the post declares one, and none when it does not", () => {
+		expect(
+			parseBlogFrontmatter({ ...VALID_FRONTMATTER, lastModified: "2026-07-26" }, "a-post.md")
+				.lastModified,
+		).toBe("2026-07-26");
+		expect(parseBlogFrontmatter(VALID_FRONTMATTER, "a-post.md").lastModified).toBeUndefined();
+	});
+
+	it("rejects a revision date that precedes publication", () => {
+		expect(() =>
+			parseBlogFrontmatter({ ...VALID_FRONTMATTER, lastModified: "2026-01-01" }, "a-post.md"),
+		).toThrow(/cannot precede/);
+	});
+
 	it("rejects a post whose slug does not match its filename", () => {
 		expect(() => parseBlogFrontmatter(VALID_FRONTMATTER, "different-name.md")).toThrow(
 			/does not match filename/,

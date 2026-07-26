@@ -1,5 +1,6 @@
 import { readFileSync } from "node:fs";
 import { join } from "node:path";
+import { APPLE_ITUNES_APP_META } from "@packages/supported-clients";
 import { render, withInternalTracking } from "@packages/web-shell";
 import type { PageBody } from "@packages/web-shell";
 
@@ -124,6 +125,7 @@ export function LandingPage(params: {
 			description: page.description,
 			canonicalUrl: `/${slug}`,
 			robots: "index, follow",
+			appleItunesApp: APPLE_ITUNES_APP_META,
 			keywords: page.keywords,
 			ogType: "website",
 			ogImage: `${staticBaseUrl}/og-image-1200x630.png`,

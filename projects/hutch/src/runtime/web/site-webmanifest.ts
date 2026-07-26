@@ -1,3 +1,5 @@
+import { APPLE_APP_ID, IPHONE_APP_STORE_URL } from "@packages/supported-clients";
+
 type ManifestIcon = {
 	src: string;
 	sizes: string;
@@ -34,6 +36,14 @@ export function buildSiteWebmanifest(staticBaseUrl: string): string {
 			background_color: "#2B3A55",
 			theme_color: "#2B3A55",
 			icons,
+			related_applications: [
+				{ platform: "itunes", url: IPHONE_APP_STORE_URL, id: APPLE_APP_ID },
+			],
+			/** One manifest is served to every platform and there is no Android app,
+			 * so preferring the native app would suppress the installable web app on
+			 * Android and desktop Chrome, where there is nothing to prefer. Safari
+			 * ignores both fields, so this is a Chrome-side signal only. */
+			prefer_related_applications: false,
 		},
 		null,
 		2,

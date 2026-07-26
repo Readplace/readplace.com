@@ -18,6 +18,7 @@
     "@packages/hutch-logger": "workspace:*",
     "@packages/hutch-storage-client": "workspace:*",
     "@packages/require-env": "workspace:*",
+    "@packages/supported-clients": "workspace:*",
     "@packages/ui-icons": "workspace:*",
     "@packages/web-analytics": "workspace:*",
     "@packages/web-session": "workspace:*",

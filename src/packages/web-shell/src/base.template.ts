@@ -4,10 +4,9 @@ export const BASE_TEMPLATE = `<!DOCTYPE html>
 	<meta charset="UTF-8">
 	<meta name="viewport" content="width=device-width, initial-scale=1.0">
 	<title id="document-title">{{title}}</title>
-	<meta name="description" content="{{description}}">
-	<meta name="robots" content="{{robots}}">
-	{{#if author}}<meta name="author" content="{{author}}">{{/if}}
-	{{#if keywords}}<meta name="keywords" content="{{keywords}}">{{/if}}
+	{{#each headMetas}}
+	<meta name="{{name}}" content="{{content}}">
+	{{/each}}
 	<link rel="canonical" href="{{canonicalUrl}}">
 	<meta name="theme-color" content="#2B3A55" media="(prefers-color-scheme: light)">
 	<meta name="theme-color" content="#121212" media="(prefers-color-scheme: dark)">

@@ -1,4 +1,5 @@
 import { MAX_PDF_BYTES } from "@packages/crawl-article";
+import { APPLE_ITUNES_APP_META, IPHONE_APP_STORE_URL } from "@packages/supported-clients";
 import { MONTHLY_EQUIVALENT_DISPLAY } from "@packages/web-shell";
 import type { SeoMetadata } from "@packages/web-shell";
 
@@ -84,6 +85,7 @@ export function buildHomeSeo(input: {
 			"Readplace — Read the Web, not the Slop. A read-it-later app and Pocket alternative.",
 		twitterImage: `${staticBaseUrl}/twitter-card-1200x600.png`,
 		author: "Fayner Brack",
+		appleItunesApp: APPLE_ITUNES_APP_META,
 		keywords: `read it later, read-it-later app, online reader, online reading app, read the web not the slop, slop-free reading, no LLM hallucination, real OCR, Tesseract OCR, deterministic PDF extraction, save articles, bookmark manager, reading list, Pocket alternative, Omnivore alternative, browser extension, ${BROWSER_EXTENSION_KEYWORDS}, article reader, distraction free reading, AI summaries, save from ChatGPT, MCP server, iPhone share sheet, share sheet saving, import bookmarks, import Pocket export, newsletter to read later`,
 		structuredData: [
 			{
@@ -113,7 +115,7 @@ export function buildHomeSeo(input: {
 				},
 				featureList: [
 					`One-click saving from the ${BROWSER_EXTENSIONS_AND} browser extensions, which capture the rendered page`,
-					"Saving from the iPhone share sheet (TestFlight beta)",
+					"Saving from the iPhone share sheet with the App Store app",
 					"Saving from ChatGPT, Claude, Gemini and other MCP clients over a hosted MCP server",
 					"Paste any article or PDF link on readplace.com to read it in the reader view with no account",
 					"Bulk import of bookmark, Pocket and newsletter export files, or every link on a page URL, before you create an account",
@@ -147,7 +149,7 @@ export function buildHomeSeo(input: {
 				sameAs: [
 					"https://github.com/Readplace/readplace.com",
 					"https://chromewebstore.google.com/detail/readplace-%E2%80%94-save-articles/klblengmhlfnmjoagchagfcdbpbocgbf",
-					"https://testflight.apple.com/join/5eng821W",
+					IPHONE_APP_STORE_URL,
 				],
 				founder: {
 					"@type": "Person",
@@ -217,7 +219,7 @@ export function buildHomeSeo(input: {
 						name: "What features does Readplace have?",
 						acceptedAnswer: {
 							"@type": "Answer",
-							text: `Readplace saves from browser extensions for ${BROWSER_EXTENSIONS_AND}, an iPhone app in beta that saves from the share sheet, an MCP server that lets ChatGPT, Claude and Gemini save links and read your queue back, a link pasted on the homepage, and a bulk import of bookmark or Pocket export files that works before you make an account. Every account also gets a per-newsletter forwarding address, so newsletters land in Readplace with their article links pulled out. It also has a web app for managing saved articles, a distraction-free reader view, TL;DR summaries, real Tesseract OCR for PDFs, dark mode, and secure OAuth with PKCE. Planned features include a 'what to read next' view that sorts and filters your unread pile, and listening to saved articles as audio.`,
+							text: `Readplace saves from browser extensions for ${BROWSER_EXTENSIONS_AND}, an iPhone app on the App Store that saves from the share sheet, an MCP server that lets ChatGPT, Claude and Gemini save links and read your queue back, a link pasted on the homepage, and a bulk import of bookmark or Pocket export files that works before you make an account. Every account also gets a per-newsletter forwarding address, so newsletters land in Readplace with their article links pulled out. It also has a web app for managing saved articles, a distraction-free reader view, TL;DR summaries, real Tesseract OCR for PDFs, dark mode, and secure OAuth with PKCE. Planned features include a 'what to read next' view that sorts and filters your unread pile, and listening to saved articles as audio.`,
 						},
 					},
 					{

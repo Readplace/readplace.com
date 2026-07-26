@@ -1,17 +1,18 @@
 ---
 title: "Read It Later on Your iPhone, From the Share Sheet"
-description: "Readplace now has an iPhone app in beta. Open any page in Safari, Chrome, or another browser, tap Share, and pick Readplace. The link saves to your reading queue and renders in the background, with no copy-paste and no opening the app first."
+description: "The Readplace iPhone app saves from the iOS share sheet. Open any page in Safari, Chrome, or another browser, tap Share, and pick Readplace. The link saves to your reading queue and renders in the background, with no copy-paste and no opening the app first."
 slug: "read-it-later-iphone-app"
 date: "2026-06-09"
+lastModified: "2026-07-26"
 author: "Fayner Brack"
-keywords: "read it later iphone app, save articles iphone, ios share sheet, save to read later ios, pocket alternative iphone, save article from safari, testflight, readplace"
+keywords: "read it later iphone app, save articles iphone, ios share sheet, save to read later ios, pocket alternative iphone, save article from safari, app store, readplace"
 ---
 
 <details class="blog-tldr">
 <summary class="blog-tldr__toggle">Summary (TL;DR)</summary>
 <div class="blog-tldr__body">
 
-Readplace now has an iPhone app in beta. It plugs into the iOS share sheet, the same menu you use to send a link to a friend. Open any page in Safari, Chrome, or another browser, tap Share, and pick Readplace. The link saves to your reading queue and renders in the background, so you stay where you are. The app also lists your saved articles, with pull-to-refresh and a swipe that marks an item read or deletes it. Tapping an article opens the clean Readplace reader inside the app. The app is on TestFlight, Apple's free app for trying betas, and takes a couple of minutes to set up.
+Readplace has an iPhone app. It plugs into the iOS share sheet, the same menu you use to send a link to a friend. Open any page in Safari, Chrome, or another browser, tap Share, and pick Readplace. The link saves to your reading queue and renders in the background, so you stay where you are. The app also lists your saved articles, with pull-to-refresh and a swipe that marks an item read or deletes it. Tapping an article opens the clean Readplace reader inside the app. The app is on the App Store, and takes a couple of minutes to set up.
 
 </div>
 </details>
@@ -32,7 +33,7 @@ Switch back to your browser and carry on. A moment later the article shows up at
 
 > **The share sheet turns any browser on your phone into a save button for your reading list.**
 
-This is the part worth testing first. If saving from the share sheet works on your phone, the browsing and beta setup below are the easy bits.
+This is the part worth trying first. If saving from the share sheet works on your phone, the browsing and the setup below are the easy bits.
 
 ## Browse your queue
 
@@ -42,11 +43,11 @@ Tap an article and the clean Readplace reader opens in the app, the summary with
 
 The app keeps to the three things you do on the move, which are saving fast, glancing at your list, and reading what you saved.
 
-## It is a beta, and you can join
+## Getting it on your phone
 
-The app is in beta through TestFlight, Apple's free app for trying out betas. Setup takes a couple of minutes.
+The app is on the App Store. Setup takes a couple of minutes.
 
-Install TestFlight from the App Store, join the Readplace beta, then install and open the app once. Opening it the first time registers the "Share to Readplace" option in iOS, so saving works from then on. Sign in with your account and leave the server set to readplace.com.
+Install Readplace, then open it once and sign in. Opening it the first time registers the "Share to Readplace" option in iOS, so saving works from then on.
 
 That first launch matters, because iOS only adds the share option after the app has run at least once.
 
@@ -54,8 +55,8 @@ If Readplace does not show up in the share row, scroll the row to the right and 
 
 ## Try it
 
-Open the install page on your iPhone and pick the iPhone tab to join the beta. Save a handful of articles from the share sheet over the next week, then open readplace.com when you finally have time to read them, and tell me where the saving felt slow or where a page came out garbled. Feedback from these early saves shapes what the app does next.
+Open the install page on your iPhone and pick the iPhone tab. Save a handful of articles from the share sheet over the next week, then open readplace.com when you finally have time to read them, and tell me where the saving felt slow or where a page came out garbled. Feedback from those saves shapes what the app does next.
 
 The app is built around saving fast so the link is there when you finally have time to read it.
 
-[Join the iPhone beta](https://readplace.com/install?client=iphone) or start at [readplace.com](/).
+[Get the iPhone app](https://readplace.com/install?client=iphone) or start at [readplace.com](/).

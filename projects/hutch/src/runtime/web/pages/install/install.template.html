@@ -9,7 +9,7 @@
           <span class="install-page__group-label" id="{{labelId}}">{{label}}</span>
           <div class="install-page__group-tabs">
             {{#each tabs}}
-            <a href="{{href}}" class="install-page__tab{{activeClass}}"{{#if ariaCurrent}} aria-current="{{ariaCurrent}}"{{/if}} data-test-tab="{{key}}"><span class="install-page__tab-icon" aria-hidden="true">{{{iconSvg}}}</span>{{label}}{{#if beta}}<span class="install-page__tab-beta">Beta</span>{{/if}}</a>
+            <a href="{{href}}" class="install-page__tab{{activeClass}}"{{#if ariaCurrent}} aria-current="{{ariaCurrent}}"{{/if}} data-test-tab="{{key}}"><span class="install-page__tab-icon" aria-hidden="true">{{{iconSvg}}}</span>{{label}}</a>
             {{/each}}
           </div>
         </div>
@@ -20,25 +20,20 @@
       {{#case "iphone"}}
       <section class="install-page__panel" data-test-panel="iphone">
         <h2 class="install-page__panel-title">Readplace on iPhone</h2>
-        <p class="install-page__lead">Save links from any browser on your iPhone. Open the page in Safari, Chrome, or anywhere else, tap the share button, and choose Readplace — the link drops straight into your reading queue. No copy-paste, no opening the app first.</p>
+        <p class="install-page__lead">Save links from any browser on your iPhone. Open the page in Safari, Chrome, or anywhere else, tap the share button, and choose Readplace — the link drops straight into your reading queue. No copy-paste, and no need to open the app to save. The same app runs on your Mac.</p>
 
-        <div class="install-page__beta" data-test-section="ios-beta-notice">
-          <span class="install-page__beta-badge">Beta</span>
-          <p class="install-page__beta-copy">The iPhone app is still in beta. You can join it yourself through TestFlight, Apple's app for trying out betas — it takes a couple of minutes to set up.</p>
-        </div>
+        <a href="{{iphoneAppStoreUrl}}" class="btn btn--primary install-page__download" data-test-cta="download-iphone">Install Readplace for iPhone</a>
 
-        <a href="{{testflightUrl}}" class="btn btn--primary install-page__download" data-test-cta="join-ios-beta">Join the beta on TestFlight</a>
-
-        <ol class="install-page__steps" data-test-section="ios-beta-steps">
-          {{#each betaSteps}}
-          <li class="install-page__step" data-test-beta-step>
+        <ol class="install-page__steps" data-test-section="ios-setup-steps">
+          {{#each iosSteps}}
+          <li class="install-page__step" data-test-ios-step>
             <span class="install-page__step-title">{{title}}</span>
             {{#if note}}<span class="install-page__step-note">{{note}}</span>{{/if}}
           </li>
           {{/each}}
         </ol>
 
-        <p class="install-page__steps-outro" data-test-section="ios-beta-outro">{{betaOutro}}</p>
+        <p class="install-page__steps-outro" data-test-section="ios-setup-outro">{{iosOutro}}</p>
       </section>
       {{/case}}
 

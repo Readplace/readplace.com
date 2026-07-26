@@ -1,5 +1,6 @@
 import { readFileSync } from "node:fs";
 import { join } from "node:path";
+import { APPLE_ITUNES_APP_META } from "@packages/supported-clients";
 import { render } from "@packages/web-shell";
 import type { PageBody } from "@packages/web-shell";
 
@@ -17,6 +18,7 @@ export function BlogIndexPage(params: { posts: BlogPost[] }): PageBody {
 			canonicalUrl: "https://readplace.com/blog",
 			ogType: "website",
 			robots: "index, follow",
+			appleItunesApp: APPLE_ITUNES_APP_META,
 			structuredData: [
 				{
 					"@context": "https://schema.org",

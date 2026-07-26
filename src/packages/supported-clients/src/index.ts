@@ -1,6 +1,10 @@
 export {
+	APPLE_APP_ID,
+	APPLE_ITUNES_APP_META,
+	appStoreUrl,
 	CLIENT_CATEGORIES,
 	clientCategoryOfGroup,
+	IPHONE_APP_STORE_URL,
 	clientGroupsInCategory,
 	isBuiltInOAuthClientId,
 	isClientName,

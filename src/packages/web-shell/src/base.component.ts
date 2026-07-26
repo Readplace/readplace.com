@@ -193,6 +193,22 @@ export type RenderSiteNav = (props: NavProps) => string;
 
 export type RenderBase = (body: PageBody, state: BannerState) => Component;
 
+interface HeadMeta {
+	name: string;
+	content: string;
+}
+
+function headMetas(seo: SeoMetadata, robots: string): HeadMeta[] {
+	const metas: HeadMeta[] = [
+		{ name: "description", content: seo.description },
+		{ name: "robots", content: robots },
+	];
+	if (seo.author) metas.push({ name: "author", content: seo.author });
+	if (seo.keywords) metas.push({ name: "keywords", content: seo.keywords });
+	if (seo.appleItunesApp) metas.push({ name: "apple-itunes-app", content: seo.appleItunesApp });
+	return metas;
+}
+
 export function initBase(config: BaseConfig): RenderBase {
 	const liveReloadScript = config.liveReload
 		? `\n<script src="http://localhost:35729/livereload.js?snipver=1"></script>`
@@ -216,6 +232,7 @@ export function initBase(config: BaseConfig): RenderBase {
 			staticBaseUrl: config.staticBaseUrl,
 			title: seo.title,
 			description: seo.description,
+			headMetas: headMetas(seo, robots),
 			canonicalUrl,
 			ogUrl,
 			ogType,
@@ -224,9 +241,6 @@ export function initBase(config: BaseConfig): RenderBase {
 			ogImageType: seo.ogImageType,
 			twitterImage: seo.twitterImage ?? seo.ogImage,
 			twitterSite: seo.twitterSite,
-			robots,
-			author: seo.author,
-			keywords: seo.keywords,
 			structuredDataScript: renderStructuredData(seo.structuredData),
 			baseStyles: BASE_CSS_VARIABLES,
 			resetStyles: BASE_RESET_STYLES,

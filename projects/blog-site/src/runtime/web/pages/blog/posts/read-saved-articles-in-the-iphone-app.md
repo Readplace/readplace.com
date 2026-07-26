@@ -3,6 +3,7 @@ title: "The iPhone Reader That Kept Loading a Login Screen"
 description: "The Readplace iPhone app now opens a saved article inside the app, the clean reader and the AI summary, instead of sending you to the source site. Swipe marks an article read and keeps it. Getting the in-app reader to open as you took a server endpoint that trades the app's sign-in token for the session cookie the web reader trusts."
 slug: "read-saved-articles-in-the-iphone-app"
 date: "2026-06-24"
+lastModified: "2026-07-26"
 author: "Fayner Brack"
 keywords: "read it later iphone app, read saved articles in app, in-app reader iOS, swipe to mark as read, read clean version not source site, AI summary iphone, Readplace iOS app, read it later app iphone, mark as read keep article, read saved copy not original page"
 ---
@@ -11,7 +12,7 @@ keywords: "read it later iphone app, read saved articles in app, in-app reader i
 <summary class="blog-tldr__toggle">Summary (TL;DR)</summary>
 <div class="blog-tldr__body">
 
-Tapping a saved article in the iPhone app used to send you out to the original website, login walls and pop-ups and all. Now it opens the clean Readplace reader and the AI summary inside the app, off your saved copy. Swiping a row marks the article read and keeps it, instead of deleting it. Getting the reader to open as you took a small server endpoint that trades the app's sign-in token for the session cookie the web reader trusts, plus a short script so the reader's own Mark as read reaches the app around it. The iPhone app is in beta on TestFlight, at [readplace.com/install](https://readplace.com/install?client=iphone).
+Tapping a saved article in the iPhone app used to send you out to the original website, login walls and pop-ups and all. Now it opens the clean Readplace reader and the AI summary inside the app, off your saved copy. Swiping a row marks the article read and keeps it, instead of deleting it. Getting the reader to open as you took a small server endpoint that trades the app's sign-in token for the session cookie the web reader trusts, plus a short script so the reader's own Mark as read reaches the app around it. The iPhone app is on the App Store, at [readplace.com/install](https://readplace.com/install?client=iphone).
 
 </div>
 </details>
@@ -60,4 +61,4 @@ Tap a saved article and the clean Readplace reader opens in the app, the summary
 
 A tester sent two sentences about how he wanted to read. They turned into two gestures, a tap that opens your own copy and a swipe that files it away, with a credential trade and an injected listener underneath holding both up.
 
-If you are already on [the iPhone app](/blog/read-it-later-iphone-app), the reader you tap into now shows your saved copy, the same clean text and summary the web reader serves. The app is still in beta, and you can join it at [readplace.com/install](https://readplace.com/install?client=iphone).
+If you are already on [the iPhone app](/blog/read-it-later-iphone-app), the reader you tap into now shows your saved copy, the same clean text and summary the web reader serves. The app is on the App Store, and the install page has it at [readplace.com/install](https://readplace.com/install?client=iphone).

@@ -42,6 +42,10 @@ const BlogFrontmatter = z
 		description: z.string(),
 		slug: z.string(),
 		date: z.string().regex(/^\d{4}-\d{2}-\d{2}$/),
+		/** Set only on a post whose text has actually been revised since
+		 * publication, so `dateModified` asserts something true rather than
+		 * restating `date` for every post. */
+		lastModified: z.string().regex(/^\d{4}-\d{2}-\d{2}$/).optional(),
 		author: z.string(),
 		keywords: z.string().optional(),
 		tags: z.array(z.string()).default([]),
@@ -58,7 +62,11 @@ const BlogFrontmatter = z
 			message: 'A post tagged "changelog" must include a `banner:` one-liner for the site-wide banner.',
 			path: ["banner"],
 		},
-	);
+	)
+	.refine((value) => value.lastModified === undefined || value.lastModified >= value.date, {
+		message: "`lastModified` cannot precede the post's `date`.",
+		path: ["lastModified"],
+	});
 
 type BlogFrontmatterData = z.infer<typeof BlogFrontmatter>;
 

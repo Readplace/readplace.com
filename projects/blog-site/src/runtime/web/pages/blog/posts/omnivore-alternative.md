@@ -3,6 +3,7 @@ title: "Omnivore Shut Down. Here's a Read-It-Later App That Won't."
 description: "Omnivore shut down with two weeks notice. Readplace is a privacy-first read-it-later app built by a developer and no VC funding."
 slug: "omnivore-alternative"
 date: "2026-05-06"
+lastModified: "2026-07-26"
 author: "Fayner Brack"
 keywords: "Omnivore alternative, Omnivore replacement, Omnivore shut down, read it later app, ElevenLabs Omnivore, Readwise Reader alternative, Pocket alternative"
 ---
@@ -63,7 +64,7 @@ Omnivore had years of head start. Readplace is younger, and I would rather show 
 | Full-text search | Yes | No | Planned |
 | Newsletter inbox | Yes | No | Planned as Gmail import |
 | Labels / tags | Yes | No | Planned |
-| Native mobile apps | Yes | No | Planned |
+| Native mobile apps | Yes | iPhone and Mac | Shipped for iPhone and Mac, Android planned |
 | RSS feed reader | Yes | No | Not planned yet |
 | API access | Yes | OAuth only | Extension API exists but not yet for public consumption |
 

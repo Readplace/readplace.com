@@ -1,3 +1,5 @@
+import assert from "node:assert";
+
 export type ClientGroup = "browserExtension" | "nativeApp" | "aiAssistant";
 
 /**
@@ -30,8 +32,22 @@ export const CLIENT_CATEGORIES = ["contentCapture", "urlOnly"] as const satisfie
 
 export type InstallSource =
 	| { readonly kind: "store"; readonly url: string }
+	| { readonly kind: "appStore"; readonly appleAppId: string }
 	| { readonly kind: "selfHostedPointer" }
 	| { readonly kind: "mcpConnector"; readonly serverUrl: string; readonly guidePath: string };
+
+/** The storefront-less form. A region-prefixed link (`/au/`) shows a "not
+ * available in your storefront" interstitial to everyone outside that region,
+ * and Apple normalises the name segment — only the id is load-bearing. */
+export function appStoreUrl(appleAppId: string): string {
+	return `https://apps.apple.com/app/readplace/id${appleAppId}`;
+}
+
+function iphoneAppleAppId(): string {
+	const iphone = SUPPORTED_CLIENTS.find((client) => client.name === "iphone");
+	assert(iphone?.install.kind === "appStore", "the iPhone client must install from the App Store");
+	return iphone.install.appleAppId;
+}
 
 export type AuthIdentity =
 	| { readonly kind: "builtIn"; readonly oauthClientId: string }
@@ -52,10 +68,12 @@ type ClientDefinition = {
  *    index signatures (excess-property checks only fire on literals) — so
  *    adding or removing a client here is a compile error at every place
  *    that must know about the roster.
- * 2. oauthClientId values and store URLs are shipped wire contracts: the ids
- *    are baked into released extension and app builds. They are data, never
- *    derived from `name` (the iPhone client's id is "ios-app", and the OAuth
- *    ids keep the legacy "hutch" prefix) — renaming any of them breaks the
+ * 2. oauthClientId values, store URLs, and the Apple app id are shipped wire
+ *    contracts: the ids are baked into released extension and app builds, and
+ *    the Apple app id is the identifier the listing, Safari's Smart App Banner,
+ *    and the web manifest's related_applications all key off. They are data,
+ *    never derived from `name` (the iPhone client's id is "ios-app", and the
+ *    OAuth ids keep the legacy "hutch" prefix) — renaming any of them breaks the
  *    OAuth token exchange for clients already shipped.
  */
 export const SUPPORTED_CLIENTS = [
@@ -83,7 +101,7 @@ export const SUPPORTED_CLIENTS = [
 		displayName: "iPhone",
 		group: "nativeApp",
 		description: "Saves from any iPhone browser via the share sheet.",
-		install: { kind: "store", url: "https://testflight.apple.com/join/5eng821W" }, /* 2 */
+		install: { kind: "appStore", appleAppId: "6777107238" }, /* 2 */
 		auth: { kind: "builtIn", oauthClientId: "ios-app" }, /* 2 */
 	},
 	{
@@ -173,3 +191,8 @@ const BUILT_IN_OAUTH_CLIENT_IDS: ReadonlySet<string> = new Set(
 export function isBuiltInOAuthClientId(value: string): value is BuiltInOAuthClientId {
 	return BUILT_IN_OAUTH_CLIENT_IDS.has(value);
 }
+
+export const APPLE_APP_ID = iphoneAppleAppId();
+export const IPHONE_APP_STORE_URL = appStoreUrl(APPLE_APP_ID);
+
+export const APPLE_ITUNES_APP_META = `app-id=${APPLE_APP_ID}`;

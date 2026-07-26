@@ -1,8 +1,13 @@
-# TestFlight via fastlane (CLI-only, no Xcode GUI)
+# Releasing Readplace for iOS via fastlane (CLI-only, no Xcode GUI)
 
-Build, sign, and upload Readplace (app **and** its share extension) to
-TestFlight for **internal** testers, entirely from the terminal. fastlane drives
-`xcodebuild` under the hood; the Xcode GUI is never opened.
+Readplace is live on the App Store. Every build still reaches TestFlight first —
+that is the internal-testing step, and it runs automatically — so this document
+covers the whole path: **build and sign → TestFlight → App Store**. fastlane
+drives `xcodebuild` under the hood; the Xcode GUI is never opened.
+
+Jump to [Releasing to the App Store](#releasing-to-the-app-store) for the
+public-release half. Everything before it is the build and TestFlight machinery
+that half depends on.
 
 ## The command
 
@@ -258,7 +263,9 @@ listing and a deliberate human submission. The moving parts:
    since a new version inherits the released one's — do step 2 first. Submission
    stays a deliberate human act: the workflow is dispatch-only and nothing on
    the push pipeline calls the lane.
-6. **After approval**: point the iPhone client's install URL
-   (`src/packages/supported-clients/src/supported-clients.ts`) at the App
-   Store listing instead of the TestFlight join link, and update the iPhone
-   blog post's beta framing.
+6. **The website's link to the listing** is derived from one datum: the
+   `appleAppId` on the iPhone entry in
+   `src/packages/supported-clients/src/supported-clients.ts`. The install page,
+   the web manifest's `related_applications`, the homepage's `sameAs`, and
+   Safari's Smart App Banner all read it from there, so a new app record is a
+   one-line change plus its pinned test.

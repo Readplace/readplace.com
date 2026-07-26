@@ -214,6 +214,26 @@ describe("GET /blog/:slug", () => {
 		expect(data.headline).toBe(firstPost.title);
 	});
 
+	it("should publish a revision date only for a post that declares one", async () => {
+		const posts = blogPosts.getAllPosts();
+		const revised = posts.find((post) => post.lastModified !== undefined);
+		const untouched = posts.find((post) => post.lastModified === undefined);
+		assert(revised, "at least one post must declare a revision date");
+		assert(untouched, "at least one post must have no revision date");
+
+		async function publishedAndModified(slug: string) {
+			const response = await request(app).get(`/blog/${slug}`);
+			const doc = new JSDOM(response.text).window.document;
+			const posting = JSON.parse(
+				doc.querySelector('script[type="application/ld+json"]')?.textContent ?? "{}",
+			);
+			return [posting.datePublished, posting.dateModified];
+		}
+
+		expect(await publishedAndModified(revised.slug)).toEqual([revised.date, revised.lastModified]);
+		expect(await publishedAndModified(untouched.slug)).toEqual([untouched.date, undefined]);
+	});
+
 	it("should have correct canonical URL", async () => {
 		const response = await request(app).get(`/blog/${firstPost.slug}`);
 		const doc = new JSDOM(response.text).window.document;

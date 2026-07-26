@@ -91,21 +91,6 @@ export const INSTALL_PAGE_STYLES = `
 	flex-shrink: 0;
 }
 
-/**
- * 1. A label, not a pill — radius-sm keeps it inside the brand's
- *    "never fully rounded" rule while the warm fill flags the beta.
- */
-.install-page__tab-beta {
-	text-transform: uppercase;
-	letter-spacing: 0.05em;
-	font-size: 0.625rem;
-	font-weight: 700;
-	padding: 2px 6px;
-	border-radius: var(--radius-sm); /* 1 */
-	background: var(--color-warning);
-	color: var(--foreground);
-}
-
 .install-page__panel {
 	padding-top: 8px;
 }
@@ -170,36 +155,6 @@ export const INSTALL_PAGE_STYLES = `
 	font-size: 0.9375rem;
 	line-height: 1.6;
 	color: var(--muted-foreground);
-}
-
-.install-page__beta {
-	display: flex;
-	gap: 12px;
-	align-items: flex-start;
-	padding: 16px 20px;
-	background: var(--secondary);
-	border: 1px solid var(--border);
-	border-radius: var(--radius);
-	margin-bottom: 32px;
-}
-
-.install-page__beta-badge {
-	flex-shrink: 0;
-	text-transform: uppercase;
-	letter-spacing: 0.05em;
-	font-size: 0.75rem;
-	font-weight: 700;
-	padding: 4px 8px;
-	border-radius: var(--radius-sm);
-	background: var(--color-warning);
-	color: var(--foreground);
-}
-
-.install-page__beta-copy {
-	margin: 0;
-	font-size: 0.9375rem;
-	line-height: 1.6;
-	color: var(--foreground);
 }
 
 .install-page__server-url {

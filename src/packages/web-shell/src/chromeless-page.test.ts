@@ -68,6 +68,35 @@ describe("ChromelessPage", () => {
 		expect(doc.querySelector('meta[name="description"]')?.getAttribute("content")).toBe("An article");
 	});
 
+	/* The in-app web sheet must not offer to open the app the user is already in. */
+	it("carries only description and robots into <head>, even when the page declares more", () => {
+		const page = createTestPageBody({
+			seo: {
+				title: "Reader",
+				description: "An article",
+				canonicalUrl: "https://readplace.com/queue/abc/view",
+				robots: "noindex, nofollow",
+				author: "Fayner Brack",
+				keywords: "read it later",
+				appleItunesApp: "app-id=6777107238",
+			},
+		});
+		const doc = new JSDOM(ChromelessPage(page, NO_BANNER).to("text/html").body).window.document;
+
+		expect(
+			["description", "robots", "author", "keywords", "apple-itunes-app"].map((name) => [
+				name,
+				doc.head.querySelector(`meta[name="${name}"]`)?.getAttribute("content") ?? null,
+			]),
+		).toEqual([
+			["description", "An article"],
+			["robots", "noindex, nofollow"],
+			["author", null],
+			["keywords", null],
+			["apple-itunes-app", null],
+		]);
+	});
+
 	it("honours the PageBody status code", () => {
 		const result = ChromelessPage(createTestPageBody({ statusCode: 404 }), NO_BANNER).to("text/html");
 		expect(result.statusCode).toBe(404);

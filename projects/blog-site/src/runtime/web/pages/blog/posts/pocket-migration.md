@@ -3,6 +3,7 @@ title: "Pocket Shut Down in 2025. Here's How to Recover and Move Your Reading Li
 description: "Pocket closed on July 8, 2025. If you missed the export, your articles are often still recoverable. Here's how to find them and move to Readplace."
 slug: "pocket-migration"
 date: "2026-05-06"
+lastModified: "2026-07-26"
 author: "Fayner Brack"
 keywords: "Pocket migration, Pocket export, Pocket alternative, move from Pocket, Pocket shut down 2025, Pocket replacement"
 ---
@@ -79,11 +80,11 @@ If you came out of the recovery step with a pile of loose URLs and no export fil
 | Highlights | No | Planned |
 | Full-text search | Yes (Premium) | Yes |
 | Offline reading | Yes (mobile) | Planned |
-| Mobile app | iOS, Android | Browser-based (mobile web) |
+| Mobile app | iOS, Android | iPhone and Mac (App Store), mobile web elsewhere |
 | Data export | Yes (before shutdown) | Anytime, even after cancelling |
 | Dark mode | Yes | Yes |
 
-Readplace is smaller than Pocket was. It has no tags and no mobile app yet.
+Readplace is smaller than Pocket was. It has no tags, and its app covers iPhone and Mac.
 
 What it does have is an AI-generated TL;DR for every saved article, which Pocket did not offer. If you want to see how the current options stack up against each other, I wrote up the [best read-it-later apps in 2026](/blog/best-read-it-later-apps-2026).
 

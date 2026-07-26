@@ -9,6 +9,7 @@ import {
 	TEST_APP_ORIGIN,
 	createDefaultTestAppFixture,
 } from "@packages/test-fixtures";
+import { SUPPORTED_CLIENTS } from "@packages/supported-clients";
 
 const TEST_XPI_FILENAME = "abc123-1.0.0.xpi";
 const INSTALL_CLIENT_SCRIPT = "/client-dist/install.client.js";
@@ -119,18 +120,16 @@ describe("GET /install", () => {
 		}
 	});
 
-	it("should flag exactly the iPhone tab as a beta", async () => {
+	it("should label every tab with exactly its display name and no status chip", async () => {
 		const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
 		const response = await request(harness.server).get("/install");
 		const doc = load(response.text);
 
-		const betaTabs = Array.from(doc.querySelectorAll("[data-test-tab]"))
-			.filter((tab) => tab.querySelector(".install-page__tab-beta"))
-			.map((tab) => tab.getAttribute("data-test-tab"));
-		expect(betaTabs).toEqual(["iphone"]);
-
-		const badge = doc.querySelector('[data-test-tab="iphone"] .install-page__tab-beta');
-		expect(badge?.textContent).toBe("Beta");
+		for (const client of SUPPORTED_CLIENTS) {
+			const tab = doc.querySelector(`[data-test-tab="${client.name}"]`);
+			assert(tab, `tab ${client.name} must render`);
+			expect(tab.textContent).toBe(client.displayName);
+		}
 	});
 
 	it("should render a decorative brand icon inside every tab", async () => {
@@ -156,7 +155,7 @@ describe("GET /install", () => {
 
 		expect(doc.querySelector('[data-test-tab="chrome"]')?.textContent).toBe("Chrome");
 		expect(doc.querySelector('[data-test-tab="claude"]')?.textContent).toBe("Claude");
-		expect(doc.querySelector('[data-test-tab="iphone"]')?.textContent).toBe("iPhoneBeta");
+		expect(doc.querySelector('[data-test-tab="iphone"]')?.textContent).toBe("iPhone");
 	});
 
 	it("should default to the Chrome tab and browser panel when no client param is provided", async () => {
@@ -318,25 +317,48 @@ describe("GET /install", () => {
 		expect(doc.querySelector('[data-test-panel="iphone"]')?.textContent).toContain("share");
 	});
 
-	it("should show the beta notice, TestFlight CTA, steps and outro on the iPhone panel", async () => {
+	it("should show the App Store CTA, setup steps and outro on the iPhone panel", async () => {
 		const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
 		const response = await request(harness.server).get("/install?client=iphone");
 		const doc = load(response.text);
 
-		const notice = doc.querySelector('[data-test-section="ios-beta-notice"]');
-		expect(notice?.textContent).toContain("beta");
-		expect(notice?.textContent).toContain("TestFlight");
+		const cta = doc.querySelector('[data-test-cta="download-iphone"]');
+		expect(cta?.getAttribute("href")).toBe("https://apps.apple.com/app/readplace/id6777107238");
+		expect(cta?.textContent).toBe("Install Readplace for iPhone");
 
-		const cta = doc.querySelector('[data-test-cta="join-ios-beta"]');
-		expect(cta?.getAttribute("href")).toBe("https://testflight.apple.com/join/5eng821W");
-		expect(cta?.textContent).toBe("Join the beta on TestFlight");
+		const steps = doc.querySelector('[data-test-section="ios-setup-steps"]');
+		assert(steps, "iPhone setup steps must be rendered");
+		expect(doc.querySelectorAll("[data-test-ios-step]")).toHaveLength(3);
+		expect(steps.textContent).toContain("Share to Readplace");
+		expect(steps.textContent).toContain("Favourites");
 
-		expect(doc.querySelectorAll("[data-test-beta-step]")).toHaveLength(6);
-
-		const outro = doc.querySelector('[data-test-section="ios-beta-outro"]');
-		assert(outro, "iPhone beta outro must be rendered");
-		expect(outro.textContent).toContain("I'll check in soon by email");
+		const outro = doc.querySelector('[data-test-section="ios-setup-outro"]');
+		assert(outro, "iPhone setup outro must be rendered");
 		expect(outro.textContent).toContain("feedback is welcome in-app");
+	});
+
+	it("should offer Safari's Smart App Banner, so an iPhone visitor gets the native install prompt", async () => {
+		const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
+		const response = await request(harness.server).get("/install?client=iphone");
+		const doc = load(response.text);
+
+		expect(doc.querySelector('meta[name="apple-itunes-app"]')?.getAttribute("content")).toBe(
+			"app-id=6777107238",
+		);
+	});
+
+	it("should describe the iPhone app as a MobileApplication installed from the App Store", async () => {
+		const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
+		const response = await request(harness.server).get("/install?client=iphone");
+		const doc = load(response.text);
+
+		const schemas = Array.from(doc.querySelectorAll('script[type="application/ld+json"]')).map(
+			(script) => JSON.parse(script.textContent ?? "{}"),
+		);
+		const app = schemas.find((schema) => schema["@type"] === "MobileApplication");
+		assert(app, "the iPhone panel must publish a MobileApplication entity");
+		expect(app.operatingSystem).toBe("iOS, macOS");
+		expect(app.installUrl).toBe("https://apps.apple.com/app/readplace/id6777107238");
 	});
 
 	it("should not load the copy-button script on non-AI panels", async () => {

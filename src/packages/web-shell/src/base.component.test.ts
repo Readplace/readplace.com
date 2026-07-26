@@ -26,6 +26,18 @@ function createTestPageBody(overrides: Partial<PageBody> = {}): PageBody {
 
 const GUEST_STATE: BannerState = { isAuthenticated: false, emailVerified: undefined };
 
+/** Every meta the page's SeoMetadata can produce. Reading each name from this
+ * fixed list — rather than a selector typed into the assertion — means a typo
+ * cannot make an expectation pass for the wrong reason. */
+const SEO_META_NAMES = ["description", "robots", "author", "keywords", "apple-itunes-app"];
+
+function seoMetas(doc: Document): [string, string | null][] {
+	return SEO_META_NAMES.map((name) => [
+		name,
+		doc.head.querySelector(`meta[name="${name}"]`)?.getAttribute("content") ?? null,
+	]);
+}
+
 function loadedClientScripts(doc: Document): string[] {
 	return Array.from(doc.querySelectorAll('script[src*="/client-dist/"]')).map((el) => {
 		const src = el.getAttribute("src");
@@ -42,6 +54,42 @@ describe("Base component", () => {
 		expect(result.statusCode).toBe(200);
 		const doc = new JSDOM(result.body).window.document;
 		expect(doc.title).toBe("My Title");
+	});
+
+	it("renders the head metas a page declares, in order, and nothing it does not", () => {
+		const page = createTestPageBody({
+			seo: {
+				title: "Install",
+				description: "Desc",
+				canonicalUrl: "https://readplace.com/install",
+				robots: "index, follow",
+				author: "Fayner Brack",
+				keywords: "read it later",
+				appleItunesApp: "app-id=6777107238",
+			},
+		});
+		const doc = new JSDOM(Base(page, GUEST_STATE).to("text/html").body).window.document;
+
+		expect(seoMetas(doc)).toEqual([
+			["description", "Desc"],
+			["robots", "index, follow"],
+			["author", "Fayner Brack"],
+			["keywords", "read it later"],
+			["apple-itunes-app", "app-id=6777107238"],
+		]);
+	});
+
+	it("renders only the mandatory head metas for a page that declares no optional ones", () => {
+		const doc = new JSDOM(Base(createTestPageBody(), GUEST_STATE).to("text/html").body).window
+			.document;
+
+		expect(seoMetas(doc)).toEqual([
+			["description", "Test description"],
+			["robots", "index, follow"],
+			["author", null],
+			["keywords", null],
+			["apple-itunes-app", null],
+		]);
 	});
 
 	it("should render the Readplace brand name in the header", () => {

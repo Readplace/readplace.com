@@ -3,6 +3,7 @@ title: "Best Read-It-Later Apps in 2026 (Honest Comparison)"
 description: "Honest comparison of read-it-later apps in 2026: Readplace, Readwise Reader, Instapaper, Raindrop.io, Karakeep, Wallabag, and Matter."
 slug: "best-read-it-later-apps-2026"
 date: "2026-05-06"
+lastModified: "2026-07-26"
 author: "Fayner Brack"
 keywords: "read it later apps, Pocket alternative, Omnivore alternative, best read it later 2026, Readwise Reader, Instapaper, Karakeep, Wallabag, Raindrop, Matter, Readplace"
 ---
@@ -32,7 +33,7 @@ These 5 axes leave things out. They say nothing about reading-view typography, p
 
 | App | Price | AI Features | Open Source | Offline Reading | Platforms |
 |-----|-------|-------------|-------------|-----------------|-----------|
-| **Readplace** | $4/month ($49/yr) — 14-day free trial, no card | TL;DR summaries | Source-available | Planned | Web, Chrome, Firefox |
+| **Readplace** | $4/month ($49/yr) — 14-day free trial, no card | TL;DR summaries | Source-available | Planned | Web, iPhone, Mac, Chrome, Firefox |
 | **Readwise Reader** | $119.88/yr | Ghostreader AI | No | Yes | Web, iOS, Android, Chrome, Firefox, Safari |
 | **Instapaper** | Free / Premium | Summaries | No | Yes | Web, iOS, macOS, Android, Kindle/Kobo |
 | **Raindrop.io** | Free / $28/yr | AI Suggestions + Stella | Clients only | Pro only | Web, iOS, Android, Chrome, Firefox, Safari |
@@ -59,7 +60,7 @@ The part that matters most after watching Pocket and Omnivore die: the subscript
 
 ### Limitations
 
-- There is no mobile app yet and no offline reading, and the feature set is smaller than Readwise Reader or Instapaper.
+- The native app is for iPhone and Mac, so there is no Android version and no offline reading, and the feature set is smaller than Readwise Reader or Instapaper.
 - It is solo-built and young. If you want a mature product with years of polish behind it, Readplace is not there.
 
 **Good fit for:** Readers who want a clean save-and-read loop with AI summaries and privacy, without paying Readwise prices — unless you need offline mobile reading or highlight sync into a note-taking system today, in which case read on.
@@ -217,11 +218,11 @@ Most of them do. Readwise Reader, Instapaper, and Raindrop.io all have self-serv
 
 ### Which app has the best mobile experience?
 
-Readwise Reader has the most polished mobile apps, with full offline support. Instapaper's mobile apps are mature and reliable. Readplace has no native mobile app yet, so while the web app works in a mobile browser, it is not the same as a dedicated app. If offline mobile reading is your first requirement, that is a good reason to pick Reader or Instapaper over Readplace today.
+Readwise Reader has the most polished mobile apps, with full offline support. Instapaper's mobile apps are mature and reliable. Readplace has an iPhone app that saves from the share sheet and opens your saved copy in the app, and it runs on Mac, with no Android version and no offline reading. If offline mobile reading is your first requirement, that is still a good reason to pick Reader or Instapaper over Readplace.
 
 ### Is Readplace biased in this comparison?
 
-Yes, inherently. I built Readplace, so I have a stake in how it lands. I wrote this page to represent each app fairly and to be honest about where Readplace falls short: no mobile app, no offline reading, a smaller feature set, and a younger track record. If you think this page is unfair, I want to hear about it.
+Yes, inherently. I built Readplace, so I have a stake in how it lands. I wrote this page to represent each app fairly and to be honest about where Readplace falls short: no Android app, no offline reading, a smaller feature set, and a younger track record. If you think this page is unfair, I want to hear about it.
 
 <div class="blog-cta">
 <p class="blog-cta__title">See whether Readplace fits your reading</p>

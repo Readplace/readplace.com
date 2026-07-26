@@ -3,6 +3,7 @@ title: "The Share Sheet That Left Out Every PDF"
 description: "Sharing a PDF from an iPhone used to skip Readplace, because the app was missing from the share sheet for any PDF. Fixing how the share extension declares what it accepts brings it back for Safari's viewer, Files, and mail attachments, and it uploads the file's bytes directly so a PDF behind a login still saves."
 slug: "save-pdf-from-iphone-share-sheet"
 date: "2026-07-03"
+lastModified: "2026-07-26"
 author: "Fayner Brack"
 keywords: "save pdf from iphone, save pdf to read later iphone, share pdf to read it later, iphone share sheet pdf, save safari pdf ios, read pdf later app iphone, save pdf behind login, ios share extension pdf, save mail attachment pdf, readplace iphone"
 ---
@@ -11,7 +12,7 @@ keywords: "save pdf from iphone, save pdf to read later iphone, share pdf to rea
 <summary class="blog-tldr__toggle">Summary (TL;DR)</summary>
 <div class="blog-tldr__body">
 
-On an iPhone, a PDF was the one thing you could not hand to Readplace. Open a PDF in Safari, in Files, or as a mail attachment, tap share, and Readplace was missing from the row of apps. That was a bug in how the app told iOS what it accepts, not a choice. The share extension now declares PDFs too, so it shows up for them, and it uploads the file the share sheet already holds instead of fetching it again. That last part matters for a PDF behind a login: the app sends the bytes it was handed, so a file a crawler would be blocked from still saves. One limit stayed. A PDF shared straight from Files, with no web address behind it, reports no link to save, because Readplace files articles by their URL. The iPhone app is in beta on TestFlight.
+On an iPhone, a PDF was the one thing you could not hand to Readplace. Open a PDF in Safari, in Files, or as a mail attachment, tap share, and Readplace was missing from the row of apps. That was a bug in how the app told iOS what it accepts, not a choice. The share extension now declares PDFs too, so it shows up for them, and it uploads the file the share sheet already holds instead of fetching it again. That last part matters for a PDF behind a login: the app sends the bytes it was handed, so a file a crawler would be blocked from still saves. One limit stayed. A PDF shared straight from Files, with no web address behind it, reports no link to save, because Readplace files articles by their URL. The iPhone app is on the App Store.
 
 </div>
 </details>
@@ -52,4 +53,4 @@ One case still comes back empty, and that one is on purpose. Share a PDF straigh
 
 Readplace files every article under its web address. A loose PDF sitting in Files has none, so there is nothing to file it under. Open the same PDF from a web page and it carries that page's address, and it saves. The file with no origin is the edge that stays open, and closing it is a separate piece of work.
 
-So the share sheet now offers Readplace for a PDF wherever one shows up on the phone, from Safari's viewer to a mail attachment to a file that came off a web page. Share it, and the app sends the bytes it was already holding, which is what gets a login-guarded PDF into your queue. The iPhone app is in beta at [readplace.com/install](https://readplace.com/install?client=iphone). Put a PDF into it from your phone and open it back in the [in-app reader](/blog/read-saved-articles-in-the-iphone-app).
+So the share sheet now offers Readplace for a PDF wherever one shows up on the phone, from Safari's viewer to a mail attachment to a file that came off a web page. Share it, and the app sends the bytes it was already holding, which is what gets a login-guarded PDF into your queue. The iPhone app is on the App Store, linked from [readplace.com/install](https://readplace.com/install?client=iphone). Put a PDF into it from your phone and open it back in the [in-app reader](/blog/read-saved-articles-in-the-iphone-app).

@@ -90,8 +90,8 @@ export const HOME_B_CONTENT = {
 		lede: "I'd rather you find this out here than on day three.",
 		items: [
 			"No full-text search, tags, folders, highlights, or notes.",
-			"No offline reading. No Android, iPad, Safari extension, audio, or RSS.",
-			"The iPhone app is a TestFlight beta; the Firefox extension is a download from this site, not addons.mozilla.org.",
+			"No offline reading. No Android, Safari extension, audio, or RSS.",
+			"The Firefox extension is a download from this site, not addons.mozilla.org.",
 			"Export is a JSON file of your URLs, titles, excerpts and read history — not the article text.",
 			"Source-available is not open source: you can read the code, but no licence grants you the right to reuse it.",
 		],
@@ -122,7 +122,7 @@ export const HOME_B_CONTENT = {
 		{
 			question: "Is there a mobile app?",
 			answer:
-				"An iPhone app in TestFlight beta that saves from the share sheet. There is no Android or iPad app yet.",
+				"An iPhone app on the App Store that saves from the share sheet, and it runs on Mac too. There is no Android app yet.",
 		},
 		{
 			question: "Where does my data live?",

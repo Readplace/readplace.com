@@ -3,7 +3,14 @@ import { join } from "node:path";
 import assert from "node:assert";
 import { render, withInternalTracking } from "@packages/web-shell";
 import type { PageBody } from "@packages/web-shell";
-import { CLIENT_CATEGORIES, clientCategoryOfGroup, isClientName, SUPPORTED_CLIENTS } from "@packages/supported-clients";
+import {
+	APPLE_ITUNES_APP_META,
+	CLIENT_CATEGORIES,
+	clientCategoryOfGroup,
+	IPHONE_APP_STORE_URL,
+	isClientName,
+	SUPPORTED_CLIENTS,
+} from "@packages/supported-clients";
 import type { ClientCategory, ClientName, SupportedClient } from "@packages/supported-clients";
 
 import { switchHelpers } from "../../handlebars-switch";
@@ -36,10 +43,6 @@ function clientByName(name: ClientName): SupportedClient {
 	assert(client, `Client missing from SUPPORTED_CLIENTS: ${name}`);
 	return client;
 }
-
-const iphone = clientByName("iphone");
-assert(iphone.install.kind === "store", "iPhone install must be a store link");
-const TESTFLIGHT_URL = iphone.install.url;
 
 const claude = clientByName("claude");
 assert(claude.install.kind === "mcpConnector", "Claude install must be the MCP connector");
@@ -84,7 +87,6 @@ interface InstallTab {
 	key: ClientName;
 	label: string;
 	iconSvg: string;
-	beta: boolean;
 	href: string;
 	activeClass: string;
 	ariaCurrent?: "page";
@@ -111,7 +113,6 @@ function buildTabGroups(active: ClientName): InstallTabGroup[] {
 			key: client.name,
 			label: client.displayName,
 			iconSvg: CLIENT_ICON_SVG[client.name],
-			beta: client.name === "iphone",
 			href: withInternalTracking(`/install?client=${client.name}`, { source: "install-tabs", content: client.name }),
 			activeClass: isActive ? " install-page__tab--active" : "",
 			ariaCurrent: isActive ? "page" : undefined,
@@ -121,7 +122,7 @@ function buildTabGroups(active: ClientName): InstallTabGroup[] {
 	return groups.filter((group) => group.tabs.length > 0);
 }
 
-interface BetaSetupStep {
+interface IosSetupStep {
 	title: string;
 	note?: string;
 }
@@ -132,32 +133,25 @@ const BROWSER_STEPS: string[] = [
 	"Save the page you're reading from the toolbar button, the Ctrl/Cmd+D shortcut, or the right-click menu.",
 ];
 
-const BETA_SETUP_STEPS: BetaSetupStep[] = [
-	{ title: "Install the free TestFlight app from the App Store." },
+const IOS_SETUP_STEPS: IosSetupStep[] = [
 	{
-		title:
-			'Tap "Join the beta on TestFlight" above and accept the invite (or open the invitation email if I sent you one).',
-	},
-	{ title: "In TestFlight, tap Install next to Readplace, then Open." },
-	{
-		title:
-			"Launch Readplace once and sign in — leave the server set to https://readplace.com and log in with your account.",
-		note: 'Opening the app once is what registers the "Share to Readplace" option in iOS; it will not show up until you have opened the app at least once.',
+		title: "Open Readplace once and sign in with your account.",
+		note: 'Opening the app the first time is what registers the "Share to Readplace" option in iOS; it will not appear in the share sheet until you have.',
 	},
 	{
 		title:
-			"Browse your reading list in the app: saved articles appear, pull down to refresh, scroll for more, and swipe an item left to delete.",
-		note: "Tap an article and the clean Readplace reader opens in the app, so a reading session no longer has to move to the website.",
-	},
-	{
-		title:
-			"Save a page — this is the main thing to test. Open any page in Safari, Chrome, or Firefox, tap Share, and choose Readplace, just like sharing to WhatsApp. It renders and saves the page in the background; head back to readplace.com to see it land.",
+			"Save a page: open it in Safari, Chrome, or Firefox, tap Share, and choose Readplace, just like sharing to WhatsApp. It renders and saves the page in the background, so you stay where you are.",
 		note: "If Readplace is not in the share row, scroll the row to the right and tap More, then Edit, and add Readplace to your Favourites — it sits first in the row from then on, so you never have to hunt for it. The screenshots below walk through it.",
+	},
+	{
+		title:
+			"Read from the app: saved articles appear in the list, pull down to refresh, and scroll for more. Tap one and the clean Readplace reader opens in the app, TL;DR included.",
+		note: "Swipe a row to mark it read — it stays in your list, and readplace.com shows the same queue.",
 	},
 ];
 
-const BETA_OUTRO =
-	"Use it for a few days or weeks: save the articles you want to read later, then open readplace.com when you have time to read them. I'll check in soon by email to see how it's going, and any feedback is welcome in-app.";
+const IOS_SETUP_OUTRO =
+	"Save what you want to read while you're out, then read it in the app or at readplace.com when you have the time. Any feedback is welcome in-app.";
 
 interface InstallScreenshot {
 	pathUnderStaticBase: string;
@@ -372,8 +366,9 @@ export function InstallPage(params: { firefox: string | null; client: InstallCli
 		seo: {
 			title: "Install Readplace — Browser, iPhone & AI Assistants",
 			description:
-				"Read the Web, not the Slop. Install the Readplace browser extension for Firefox or Chrome, save from your iPhone, or connect your AI assistant to save and read your reading list.",
+				"Read the Web, not the Slop. Install the Readplace browser extension for Firefox or Chrome, get the iPhone app on the App Store, or connect your AI assistant to save and read your reading list.",
 			canonicalUrl: "https://readplace.com/install",
+			appleItunesApp: APPLE_ITUNES_APP_META,
 			ogImage: `${params.staticBaseUrl}/screenshots/og-install-1200x630.png`,
 			ogImageAlt: "The Readplace queue listing saved articles with thumbnails and short previews",
 			structuredData: [
@@ -387,6 +382,28 @@ export function InstallPage(params: { firefox: string | null; client: InstallCli
 					operatingSystem: "Windows, macOS, Linux, ChromeOS, iOS",
 					url: "https://readplace.com/install",
 					downloadUrl: "https://readplace.com/install",
+					offers: {
+						"@type": "Offer",
+						price: "0",
+						priceCurrency: "USD",
+					},
+					publisher: {
+						"@type": "Organization",
+						name: "Readplace",
+						url: "https://readplace.com",
+					},
+				},
+				{
+					"@context": "https://schema.org",
+					"@type": "MobileApplication",
+					name: "Readplace for iPhone",
+					description:
+						"Save any page to your Readplace reading list from the iPhone share sheet, then read it in the app with its TL;DR.",
+					applicationCategory: "ProductivityApplication",
+					operatingSystem: "iOS, macOS",
+					url: "https://readplace.com/install?client=iphone",
+					installUrl: IPHONE_APP_STORE_URL,
+					downloadUrl: IPHONE_APP_STORE_URL,
 					offers: {
 						"@type": "Offer",
 						price: "0",
@@ -428,9 +445,9 @@ export function InstallPage(params: { firefox: string | null; client: InstallCli
 					panel,
 					screenshots: buildScreenshots(params.client, params.staticBaseUrl),
 					browserSteps: BROWSER_STEPS,
-					testflightUrl: TESTFLIGHT_URL,
-					betaSteps: BETA_SETUP_STEPS,
-					betaOutro: BETA_OUTRO,
+					iphoneAppStoreUrl: IPHONE_APP_STORE_URL,
+					iosSteps: IOS_SETUP_STEPS,
+					iosOutro: IOS_SETUP_OUTRO,
 					mcpServerUrl: MCP_SERVER_URL,
 					mcpGuideUrl: MCP_GUIDE_URL,
 				},

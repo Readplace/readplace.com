@@ -1,5 +1,6 @@
 import { readFileSync } from "node:fs";
 import { join } from "node:path";
+import { APPLE_ITUNES_APP_META } from "@packages/supported-clients";
 import { render, withInternalTracking } from "@packages/web-shell";
 import type { PageBody } from "@packages/web-shell";
 
@@ -189,6 +190,7 @@ export function HomeVariantBPage(params: {
 			// noindex with canonical=/ so this A/B arm never competes with the
 			// canonical `/` for SEO. Reached only via the client-side split redirect.
 			robots: "noindex, follow",
+			appleItunesApp: APPLE_ITUNES_APP_META,
 			ogImage: `${staticBaseUrl}/og-image-1200x630.png`,
 			ogImageType: "image/png",
 			ogImageAlt:

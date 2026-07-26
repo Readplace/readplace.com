@@ -3,6 +3,7 @@ title: "Readplace vs Karakeep: Hosted vs Self-Hosted Read-It-Later"
 description: "A fair comparison of two developer-focused read-it-later tools, one self-hosted and one managed, and the tradeoffs each makes."
 slug: "readplace-vs-karakeep-hosted-vs-self-hosted-read-it-later"
 date: "2026-05-06"
+lastModified: "2026-07-26"
 author: "Fayner Brack"
 keywords: "karakeep, hoarder, readplace, read it later, self-hosted, pocket alternative"
 ---
@@ -72,7 +73,7 @@ I can't promise what a hosted service will look like in 5 years. But each of the
 | **Source code** | Open source | Source-available |
 | **AI features** | Auto-tagging (Ollama / OpenAI) | TL;DR summaries (included) |
 | **Browser extensions** | Chrome, Firefox | Chrome, Firefox |
-| **Mobile apps** | iOS, Android | Mobile web |
+| **Mobile apps** | iOS, Android | iPhone and Mac (App Store), mobile web elsewhere |
 | **Full-text search** | Yes (Meilisearch) | Yes |
 | **Pocket import** | Yes | Yes |
 | **Data ownership** | Full (your server) | Export anytime |

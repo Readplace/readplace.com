@@ -22,6 +22,11 @@ export interface SeoMetadata {
 	robots?: string;
 	author?: string;
 	keywords?: string;
+	/** Safari Smart App Banner payload (`app-id=…`). Opt-in per page, because the
+	 * iOS app runs `/oauth/authorize` in an `ASWebAuthenticationSession`: an
+	 * "Open in app" strip in front of a user who is already in the app, mid
+	 * sign-in, is the hand-off App Store review rejected under Guideline 4. */
+	appleItunesApp?: string;
 	structuredData?: object[];
 }
 

@@ -563,7 +563,7 @@ export function createApp(dependencies: AppDependencies): Express {
 		 * (advertised in robots.txt), since the blog is a separate deployable. */
 		const pages: { loc: string; priority: string; changefreq: string; lastmod: string }[] = [
 			{ loc: "/", priority: "1.0", changefreq: "weekly", lastmod: "2026-04-08" },
-			{ loc: "/install", priority: "0.8", changefreq: "monthly", lastmod: "2026-03-01" },
+			{ loc: "/install", priority: "0.8", changefreq: "monthly", lastmod: "2026-07-25" },
 			{ loc: "/import", priority: "0.8", changefreq: "monthly", lastmod: "2026-07-07" },
 			...LANDING_PAGE_SLUGS.map((slug) => ({
 				loc: `/${slug}`,

@@ -1,5 +1,6 @@
 import assert from "node:assert/strict";
 import {
+	appStoreUrl,
 	CLIENT_CATEGORIES,
 	clientCategoryOfGroup,
 	clientGroupsInCategory,
@@ -33,6 +34,32 @@ describe("SUPPORTED_CLIENTS", () => {
 			assert.notEqual(client.displayName, "");
 			assert.notEqual(client.description, "");
 		}
+	});
+
+	it("pins how each client is installed so changing a client's install source is a conscious edit", () => {
+		assert.deepEqual(
+			Object.fromEntries(SUPPORTED_CLIENTS.map((client) => [client.name, client.install.kind])),
+			{
+				firefox: "selfHostedPointer",
+				chrome: "store",
+				iphone: "appStore",
+				chatgpt: "mcpConnector",
+				gemini: "mcpConnector",
+				claude: "mcpConnector",
+			},
+		);
+	});
+
+	it("pins the Apple app id shipped in the App Store listing", () => {
+		const iphone = SUPPORTED_CLIENTS.find((client) => client.name === "iphone");
+		assert(iphone?.install.kind === "appStore", "the iPhone client must install from the App Store");
+		assert.equal(iphone.install.appleAppId, "6777107238");
+	});
+});
+
+describe("appStoreUrl", () => {
+	it("builds a storefront-less listing URL from an app id", () => {
+		assert.equal(appStoreUrl("1234567890"), "https://apps.apple.com/app/readplace/id1234567890");
 	});
 });
 
