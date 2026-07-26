@@ -1,6 +1,7 @@
 import assert from "node:assert/strict";
 import type { Page } from "@playwright/test";
 import { expect, test, waitForBrandFonts } from "./hermetic-cdn";
+import { captureCheckpoint, measuredBox, type VisualCheckpoint } from "./visual-checkpoint";
 
 const E2E_PORT = process.env.E2E_PORT;
 assert(E2E_PORT, "E2E_PORT must be set by the Playwright webServer config");
@@ -43,14 +44,48 @@ function canonicalPathOf(article: SeededArticle): string {
 	return `${host}${pathname}`;
 }
 
-async function openReaderWithBookmark(page: Page, article: SeededArticle): Promise<void> {
+async function openReader(page: Page, article: SeededArticle): Promise<void> {
 	await page.goto(`${BASE_URL}/view/${canonicalPathOf(article)}`, { waitUntil: "domcontentloaded" });
+}
+
+async function bookmarkSettled(page: Page): Promise<void> {
 	await page.waitForSelector(".crawl-bookmark__tabs");
-	await waitForBrandFonts(page, ["Inter"]);
-	// The newest version's label; waiting on it settles the client re-localisation
-	// before the pixel capture so the text can't change mid-screenshot. `.first()`
-	// disambiguates the several version rows for strict-mode locators.
 	await expect(page.locator(".crawl-bookmark__time").first()).toHaveText("10 Jul '26, 09:14");
+}
+
+async function capsuleEdgesAligned(page: Page): Promise<void> {
+	const handle = await measuredBox(page, ".crawl-bookmark__handle");
+	const tabs = await measuredBox(page, ".crawl-bookmark__tabs");
+	assert.equal(tabs.y, handle.y, "info card top must align with the handle top");
+	assert.equal(
+		tabs.y + tabs.height,
+		handle.y + handle.height,
+		"info card bottom must align with the handle bottom",
+	);
+}
+
+const CRAWL_BOOKMARK_LIGHT: VisualCheckpoint = {
+	name: "crawl-bookmark-light",
+	settled: bookmarkSettled,
+	geometry: capsuleEdgesAligned,
+	target: ".crawl-bookmark",
+	capture: "element",
+	pinnedText: [],
+};
+
+const CRAWL_BOOKMARK_DARK: VisualCheckpoint = {
+	name: "crawl-bookmark-dark",
+	settled: bookmarkSettled,
+	geometry: capsuleEdgesAligned,
+	target: ".crawl-bookmark",
+	capture: "element",
+	pinnedText: [],
+};
+
+async function openReaderWithBookmark(page: Page, article: SeededArticle): Promise<void> {
+	await openReader(page, article);
+	await bookmarkSettled(page);
+	await waitForBrandFonts(page, ["Inter"]);
 }
 
 test.describe("Crawl bookmark visual regression", () => {
@@ -61,29 +96,21 @@ test.describe("Crawl bookmark visual regression", () => {
 	test("the bookmark renders as one seamless rounded-left capsule (light)", async ({ page }) => {
 		await seedCrawledArticle(page, MULTI_VERSION_ARTICLE);
 		await page.emulateMedia({ colorScheme: "light" });
-		await openReaderWithBookmark(page, MULTI_VERSION_ARTICLE);
-		await expect(page.locator(".crawl-bookmark")).toHaveScreenshot("crawl-bookmark-light.png");
+		await openReader(page, MULTI_VERSION_ARTICLE);
+		await captureCheckpoint(page, CRAWL_BOOKMARK_LIGHT);
 	});
 
 	test("the bookmark renders as one seamless rounded-left capsule (dark)", async ({ page }) => {
 		await seedCrawledArticle(page, MULTI_VERSION_ARTICLE);
 		await page.emulateMedia({ colorScheme: "dark" });
-		await openReaderWithBookmark(page, MULTI_VERSION_ARTICLE);
-		await expect(page.locator(".crawl-bookmark")).toHaveScreenshot("crawl-bookmark-dark.png");
+		await openReader(page, MULTI_VERSION_ARTICLE);
+		await captureCheckpoint(page, CRAWL_BOOKMARK_DARK);
 	});
 
 	test("the info card's edges align with the handle's edges", async ({ page }) => {
 		await seedCrawledArticle(page, MULTI_VERSION_ARTICLE);
 		await openReaderWithBookmark(page, MULTI_VERSION_ARTICLE);
-		const handle = await page.locator(".crawl-bookmark__handle").boundingBox();
-		const tabs = await page.locator(".crawl-bookmark__tabs").boundingBox();
-		assert.ok(handle && tabs, "handle and info card must have measurable boxes");
-		assert.equal(tabs.y, handle.y, "info card top must align with the handle top");
-		assert.equal(
-			tabs.y + tabs.height,
-			handle.y + handle.height,
-			"info card bottom must align with the handle bottom",
-		);
+		await capsuleEdgesAligned(page);
 	});
 
 	test("a single-version capsule keeps the collapsed height and centers its row", async ({ page }) => {

@@ -750,6 +750,32 @@ describe("Base component", () => {
 		).toBe("https://readplace.com/view/example.com/original-post");
 	});
 
+	it("appends per-request markup after the page's own scripts", () => {
+		const page = createTestPageBody({ scripts: '<script src="/client-dist/page.client.js"></script>' });
+		const result = Base(page, {
+			isAuthenticated: false,
+			emailVerified: undefined,
+			requestScripts: '<script src="/client-dist/per-request.client.js"></script>',
+		}).to("text/html");
+		const doc = new JSDOM(result.body).window.document;
+
+		const scripts = loadedClientScripts(doc);
+		expect(scripts.indexOf("/client-dist/per-request.client.js")).toBe(
+			scripts.indexOf("/client-dist/page.client.js") + 1,
+		);
+	});
+
+	it("renders no per-request markup for a state that carries none", () => {
+		const page = createTestPageBody();
+		const result = Base(page, { isAuthenticated: false, emailVerified: undefined }).to("text/html");
+		const doc = new JSDOM(result.body).window.document;
+
+		expect(loadedClientScripts(doc)).toEqual([
+			"/client-dist/extension-suggestion-banner.client.js",
+			"/client-dist/toast.client.js",
+		]);
+	});
+
 	it("renders the trial countdown hidden (state class) and omits the client script when state.trial is undefined", () => {
 		const page = createTestPageBody();
 		const result = Base(page, { isAuthenticated: true, emailVerified: true }).to("text/html");

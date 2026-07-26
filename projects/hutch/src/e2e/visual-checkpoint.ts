@@ -2,11 +2,14 @@ import assert from "node:assert/strict";
 import { type Page, expect } from "@playwright/test";
 import { waitForBrandFonts } from "./hermetic-cdn";
 
+export type CaptureMode = "element" | "page-from-top";
+
 export interface VisualCheckpoint {
 	name: string;
 	settled: (page: Page) => Promise<void>;
 	geometry: (page: Page) => Promise<void>;
 	target: string;
+	capture: CaptureMode;
 	pinnedText: readonly { selector: string; text: string }[];
 }
 
@@ -47,7 +50,19 @@ export async function captureCheckpoint(page: Page, checkpoint: VisualCheckpoint
 		})
 		.toBe(true);
 	await checkpoint.geometry(page);
-	await expect.soft(target).toHaveScreenshot(`${checkpoint.name}.png`);
+	if (checkpoint.capture === "page-from-top") {
+		const viewport = page.viewportSize();
+		assert.ok(
+			viewport,
+			`visual checkpoint "${checkpoint.name}": capture "page-from-top" requires a fixed viewport to size the clip`,
+		);
+		const box = await measuredBox(page, checkpoint.target);
+		await expect.soft(page).toHaveScreenshot(`${checkpoint.name}.png`, {
+			clip: { x: 0, y: 0, width: viewport.width, height: Math.ceil(box.y + box.height) },
+		});
+	} else {
+		await expect.soft(target).toHaveScreenshot(`${checkpoint.name}.png`);
+	}
 	await page.evaluate((scroll) => {
 		window.scrollTo(scroll.x, scroll.y);
 	}, scrollLeftByAction);
