@@ -958,7 +958,6 @@ describe("initBase config", () => {
 				variant: "default",
 				isAuthenticated: false,
 				accessIsReadOnly: false,
-				now: new Date("2026-07-21T00:00:00.000Z"),
 			}),
 		).toBe("");
 	});

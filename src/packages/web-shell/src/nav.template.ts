@@ -30,7 +30,7 @@ export const NAV_TEMPLATE = `  <header class="header{{#if transparent}} header--
 									<input type="hidden" name="utm_source" value="{{trackSource}}">
 									<input type="hidden" name="utm_medium" value="internal">
 									<input type="hidden" name="utm_content" value="{{trackContent}}">
-									<button type="submit" class="nav__link" data-test-nav-item="{{key}}"><span class="nav__icon-wrap"><span class="nav__icon">{{icon iconName}}</span>{{#if badge}}<span class="nav__badge" data-test-nav-badge>{{badge}}</span>{{/if}}</span><span class="nav__label">{{label}}</span></button>
+									<button type="submit" class="nav__link" data-test-nav-item="{{key}}"><span class="nav__icon-wrap"><span class="nav__icon">{{icon iconName}}</span></span><span class="nav__label">{{label}}</span></button>
 								</form>
 							</li>
 							{{/each}}
@@ -44,7 +44,7 @@ export const NAV_TEMPLATE = `  <header class="header{{#if transparent}} header--
 							<input type="hidden" name="utm_source" value="{{trackSource}}">
 							<input type="hidden" name="utm_medium" value="internal">
 							<input type="hidden" name="utm_content" value="{{trackContent}}">
-							<button type="submit" class="nav__link" data-test-nav-item="{{key}}"><span class="nav__icon-wrap"><span class="nav__icon">{{icon iconName}}</span>{{#if badge}}<span class="nav__badge" data-test-nav-badge>{{badge}}</span>{{/if}}</span><span class="nav__label">{{label}}</span></button>
+							<button type="submit" class="nav__link" data-test-nav-item="{{key}}"><span class="nav__icon-wrap"><span class="nav__icon">{{icon iconName}}</span></span><span class="nav__label">{{label}}</span></button>
 						</form>
 					</li>
 					{{#if @last}}</ul>{{/if}}

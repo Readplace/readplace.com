@@ -86,9 +86,6 @@ export interface NavItem {
 	iconName: IconName;
 	trackSource: string;
 	trackContent: string;
-	/** Short flag word pinned to the icon's top-left corner, announcing a
-	 * newly-released destination. Undefined for settled entries. */
-	badge?: string;
 }
 
 const NAV_SOURCE = "header-nav";
@@ -102,7 +99,6 @@ function navItem(input: {
 	path: string;
 	method: "GET" | "POST";
 	iconName: IconName;
-	badge?: string;
 }): NavItem {
 	return {
 		key: input.key,
@@ -112,7 +108,6 @@ function navItem(input: {
 		iconName: input.iconName,
 		trackSource: NAV_SOURCE,
 		trackContent: input.key,
-		badge: input.badge,
 	};
 }
 
@@ -174,18 +169,6 @@ const NAV_QUEUE = navItem({ key: "queue", label: "Queue", path: "/queue", method
 const NAV_IMPORT = navItem({ key: "import", label: "Import Links", path: "/import", method: "GET", iconName: "file-input" });
 const NAV_INBOX = navItem({ key: "inbox", label: "Inbox", path: "/inbox", method: "GET", iconName: "mail" });
 
-/** The inbox shipped on 2026-07-20 and its NEW badge stops one week later. The
- * expiry is the only way the badge goes away: there is no dismiss control and no
- * client-side seen-state, so a reader cannot clear it early and clearing site
- * data cannot bring it back. Server-rendered from this constant, so every client
- * agrees on when it lapses. */
-const INBOX_BADGE_EXPIRES_AT = Date.parse("2026-07-27T00:00:00.000Z");
-
-const INBOX_BADGE_LABEL = "NEW";
-
-export function inboxBadgeFor(now: Date): string | undefined {
-	return now.getTime() < INBOX_BADGE_EXPIRES_AT ? INBOX_BADGE_LABEL : undefined;
-}
 const NAV_ACCOUNT = navItem({ key: "account", label: "Account", path: "/account", method: "GET", iconName: "user" });
 const NAV_LOGOUT = navItem({ key: "logout", label: "Sign out", path: "/logout", method: "POST", iconName: "log-out" });
 const NAV_INSTALL = navItem({ key: "install", label: "Install", path: "/install", method: "GET", iconName: "download" });
@@ -208,13 +191,13 @@ export function buildGuestNavItems(): NavItem[] {
  * header only fits so many entries beside the trial countdown before the
  * countdown is squeezed, so a destination reachable from a page it already
  * belongs to does not also spend a nav slot. */
-export function buildNavGroups(input: { accessIsReadOnly: boolean; now: Date }): NavGroup[] {
+export function buildNavGroups(input: { accessIsReadOnly: boolean }): NavGroup[] {
 	const library: NavItem[] = [NAV_QUEUE];
 	// Saving and minting an address are write actions gated by requireWriteAccess,
 	// so a read-only user gets neither entry. They keep access to existing
 	// addresses by direct link.
 	if (!input.accessIsReadOnly) {
-		library.push(NAV_IMPORT, { ...NAV_INBOX, badge: inboxBadgeFor(input.now) });
+		library.push(NAV_IMPORT, NAV_INBOX);
 	}
 	const account: NavItem[] = [];
 	if (!input.accessIsReadOnly) {

@@ -1,18 +1,9 @@
 import assert from "node:assert/strict";
-import {
-	bannerStateFromRequest,
-	inboxBadgeFor,
-	buildGuestNavItems,
-	buildNavGroups,
-} from "./banner-state";
+import { bannerStateFromRequest, buildGuestNavItems, buildNavGroups } from "./banner-state";
 
 /** The shell carries no domain dependency and reads `userId` only for
  * truthiness, so a plain string id is sufficient — there is no brand to parse. */
 const USER_ID = "user-1";
-
-/** Inside the inbox NEW badge's one-week window. Pinned so nav-shape tests do
- * not change behaviour once the badge lapses. */
-const BADGE_ACTIVE = new Date("2026-07-21T00:00:00.000Z");
 
 describe("bannerStateFromRequest", () => {
 	it("maps a present userId to isAuthenticated=true", () => {
@@ -82,7 +73,7 @@ describe("buildGuestNavItems", () => {
 
 describe("buildNavGroups", () => {
 	it("groups full-access items into Library (queue, import, inbox) and Account (account, sign out)", () => {
-		const groups = buildNavGroups({ accessIsReadOnly: false, now: BADGE_ACTIVE });
+		const groups = buildNavGroups({ accessIsReadOnly: false });
 		expect(groups.map((g) => g.key)).toEqual(["library", "account"]);
 		const [library, account] = groups;
 		expect(library?.label).toBe("Library");
@@ -92,39 +83,23 @@ describe("buildNavGroups", () => {
 	});
 
 	it("omits import, inbox, and account for a read-only user, leaving Library (queue) and Account (sign out)", () => {
-		const groups = buildNavGroups({ accessIsReadOnly: true, now: BADGE_ACTIVE });
+		const groups = buildNavGroups({ accessIsReadOnly: true });
 		const [library, account] = groups;
 		expect(library?.items.map((i) => i.key)).toEqual(["queue"]);
 		expect(account?.items.map((i) => i.key)).toEqual(["logout"]);
 	});
 
-	it("keeps the Inbox entry in Library for every full-access user, with no feature flag to opt in", () => {
-		const groups = buildNavGroups({ accessIsReadOnly: false, now: BADGE_ACTIVE });
+	it("keeps the Inbox entry in Library for every full-access user", () => {
+		const groups = buildNavGroups({ accessIsReadOnly: false });
 		const [library] = groups;
 		expect(library?.items.map((i) => i.key)).toContain("inbox");
 	});
 
-	it("points the Inbox entry at the inbox page with no feature param", () => {
-		const inbox = buildNavGroups({ accessIsReadOnly: false, now: BADGE_ACTIVE })
+	it("points the Inbox entry at the inbox page", () => {
+		const inbox = buildNavGroups({ accessIsReadOnly: false })
 			.flatMap((g) => g.items)
 			.find((i) => i.key === "inbox");
 		assert(inbox, "library nav must include an inbox item");
 		expect(inbox.href).toBe("/inbox?utm_source=header-nav&utm_medium=internal&utm_content=inbox");
-	});
-});
-
-describe("inboxBadgeFor", () => {
-	it("announces the inbox for the week following its release", () => {
-		expect(inboxBadgeFor(new Date("2026-07-20T00:00:00.000Z"))).toBe("NEW");
-		expect(inboxBadgeFor(new Date("2026-07-26T23:59:59.999Z"))).toBe("NEW");
-	});
-
-	it("lapses exactly on the expiry instant rather than a moment either side", () => {
-		expect(inboxBadgeFor(new Date("2026-07-27T00:00:00.000Z"))).toBeUndefined();
-		expect(inboxBadgeFor(new Date("2026-07-26T23:59:59.999Z"))).toBe("NEW");
-	});
-
-	it("stays lapsed indefinitely, so the badge cannot resurface later", () => {
-		expect(inboxBadgeFor(new Date("2027-01-01T00:00:00.000Z"))).toBeUndefined();
 	});
 });

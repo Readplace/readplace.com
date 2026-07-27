@@ -14,9 +14,6 @@ export interface NavProps {
 	variant: "default" | "transparent";
 	isAuthenticated: boolean;
 	accessIsReadOnly: boolean;
-	/** Server clock, injected rather than read here so the time-limited NEW badge
-	 * is testable at a chosen instant instead of only at wall-clock now. */
-	now: Date;
 	/** Absence means the user is not on a trial — no countdown rendered.
 	 * Pre-auth pages (login, signup, forgot-password) build banner state from
 	 * the request synchronously and never populate this field, which is correct:
@@ -77,7 +74,7 @@ export function GlobalNav(props: NavProps): string {
 		trialEndsAtIso: endsAtIsoFor(trial),
 		serverNowIso: serverNowIsoFor(trial),
 		navGroups: props.isAuthenticated
-			? buildNavGroups({ accessIsReadOnly: props.accessIsReadOnly, now: props.now })
+			? buildNavGroups({ accessIsReadOnly: props.accessIsReadOnly })
 			: undefined,
 		navItems: props.isAuthenticated ? undefined : buildGuestNavItems(),
 		navVariant: props.isAuthenticated ? "authenticated" : "guest",
