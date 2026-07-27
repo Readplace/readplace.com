@@ -35,6 +35,7 @@ export {
 	createAnalyticsMiddleware,
 	hashIp,
 	suppressClickCount,
+	tagPageviewExperiment,
 	classifyDeviceClass,
 	classifyBrowser,
 	buildSaveIntentEvent,

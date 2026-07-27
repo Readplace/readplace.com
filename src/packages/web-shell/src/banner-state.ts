@@ -160,13 +160,6 @@ export interface BannerState {
 	 * the reader has dismissed the current one; the shell then renders the
 	 * hidden, empty banner shell. */
 	changelogBanner?: ChangelogBanner;
-	/** When true, the visible changelog banner omits its inline seen-script, so
-	 * this render does not record the version as seen. Set by a render that is
-	 * replaced client-side before it paints (the homepage A/B-split launcher) —
-	 * otherwise that throwaway frame burns the one-shot NEW chip before the
-	 * reader's real page renders. Undefined everywhere else, preserving current
-	 * behaviour on blog-site and every other hutch page. */
-	suppressChangelogSeenScript?: boolean;
 	/** Path (+ query) of the page this banner is rendered on, echoed into the
 	 * changelog dismiss form's hidden `returnTo` field so dismissing returns the
 	 * reader to where they were rather than the homepage. Undefined when the

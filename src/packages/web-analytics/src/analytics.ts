@@ -38,6 +38,12 @@ export interface AnalyticsPageview {
 	utm_content?: string;
 	referrer_host?: string;
 	medium_post_id?: string;
+	/** The experiment this render was an exposure for, and the arm it drew. Set
+	 * by `tagPageviewExperiment` when the arm is chosen server-side, so the
+	 * exposure rides the page the visitor already requested instead of a
+	 * redirect's utm params — the visitor's own `utm_*` keep meaning acquisition. */
+	experiment?: string;
+	experiment_variant?: string;
 	/**
 	 * Bots are already dropped by `shouldLog`, so a logged pageview never
 	 * classifies as `bot` — that is what makes the pageview stream a human-device
@@ -391,6 +397,19 @@ export function suppressClickCount(res: Response): void {
 	suppressedClickResponses.add(res);
 }
 
+const pageviewExperiments = new WeakMap<Response, { experiment: string; variant: string }>();
+
+/** Marks this response as an exposure to an experiment arm, so the pageview
+ * emitted on finish carries which arm rendered. A route that picks the arm
+ * itself has no arm-specific URL for the middleware to read, and the visitor's
+ * own `utm_*` must keep describing where they came from. */
+export function tagPageviewExperiment(
+	res: Response,
+	exposure: { experiment: string; variant: string },
+): void {
+	pageviewExperiments.set(res, exposure);
+}
+
 /**
  * Clicks are counted regardless of method or `hx-request` (HTMX-boosted links
  * and POST actions are clicks too); only bots, non-browser clients, error
@@ -520,6 +539,7 @@ export function createAnalyticsMiddleware(deps: {
 			}
 			if (!shouldLog({ req, path, statusCode: res.statusCode, isStaticAssetPath: deps.isStaticAssetPath })) return;
 			const userAgent = req.get("user-agent");
+			const exposure = pageviewExperiments.get(res);
 			deps.logger.info({
 				stream: STREAMS.analytics,
 				event: ANALYTICS_EVENTS.pageview,
@@ -528,6 +548,8 @@ export function createAnalyticsMiddleware(deps: {
 				...extractPageviewUtm(req),
 				referrer_host: extractReferrerHost(req),
 				medium_post_id: extractMediumPostId(req),
+				experiment: exposure?.experiment,
+				experiment_variant: exposure?.variant,
 				device_class: classifyDeviceClass(userAgent),
 				browser: classifyBrowser(userAgent),
 				visitor_hash: hashIp({ ip: req.ip, salt: deps.salt }),

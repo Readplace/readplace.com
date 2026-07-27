@@ -92,10 +92,11 @@ describe("buildAnalyticsDashboardBody — drift prevention", () => {
 	it("the homepage A/B landings widget compares arms by distinct visitor_id (the id the conversion also carries), filtered to the epoch-tagged campaign, with raw landings alongside", () => {
 		const queries = widgetQueries();
 		const ab = queries.find((q) =>
-			q.includes("stats count_distinct(visitor_id) as visitors, count(*) as landings by utm_content"),
+			q.includes("stats count_distinct(visitor_id) as visitors, count(*) as landings by arm"),
 		);
 		expect(ab).toBeDefined();
-		expect(ab).toContain(`utm_campaign = "${campaignTag(HOMEPAGE_SPLIT)}"`);
+		expect(ab).toContain("coalesce(experiment_variant, utm_content) as arm");
+		expect(ab).toContain(`experiment = "${campaignTag(HOMEPAGE_SPLIT)}"`);
 		expect(ab).toContain(`event = "${ANALYTICS_EVENTS.pageview}"`);
 		expect(ab).toContain("| sort visitors desc");
 		// The denominator switched off the salted IP hash; the internal-visitor
@@ -103,13 +104,23 @@ describe("buildAnalyticsDashboardBody — drift prevention", () => {
 		expect(ab).not.toContain("count_distinct(visitor_hash)");
 	});
 
-	it("the homepage A/B conversion widget joins landing pageviews and user_created signups on visitor_id, keyed by arm (utm_content on the pageview, homepage_variant on the conversion)", () => {
+	// This epoch spans both exposure mechanisms — the arm's own landing pageview
+	// while the split ran client-side, and `/`'s own pageview now that the arm is
+	// picked server-side — so both legs are matched or the window reads as a cliff.
+	it("the homepage A/B widgets count an exposure from either the arm-tagged pageview or the earlier landing campaign", () => {
+		for (const query of widgetQueries().filter((q) => q.includes("as arm"))) {
+			expect(query).toContain(`experiment = "${campaignTag(HOMEPAGE_SPLIT)}"`);
+			expect(query).toContain(`utm_campaign = "${campaignTag(HOMEPAGE_SPLIT)}"`);
+		}
+	});
+
+	it("the homepage A/B conversion widget joins exposure pageviews and user_created signups on visitor_id, keyed by arm (the tagged arm on the pageview, homepage_variant on the conversion, before the acquisition utm_content a conversion also carries)", () => {
 		const queries = widgetQueries();
 		const byArm = queries.find((q) =>
 			q.includes("stats count_distinct(visitor_id) as visitors by arm, event"),
 		);
 		expect(byArm).toBeDefined();
-		expect(byArm).toContain("coalesce(utm_content, homepage_variant) as arm");
+		expect(byArm).toContain("coalesce(experiment_variant, homepage_variant, utm_content) as arm");
 		expect(byArm).toContain(`event = "${ANALYTICS_EVENTS.pageview}"`);
 		expect(byArm).toContain(`event = "${CONVERSION_EVENTS.userCreated}"`);
 		expect(byArm).toContain("ispresent(homepage_variant)");

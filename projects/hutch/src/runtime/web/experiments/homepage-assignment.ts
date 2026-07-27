@@ -9,24 +9,26 @@ import {
 } from "./homepage-split";
 
 /**
- * A first-party, server-written record of which homepage arm a visitor landed
- * on, so a signup completed later can be attributed to arm A or B.
+ * The visitor's homepage arm. `/` reads it to re-render the same arm on every
+ * visit, and the six `emitUserCreated` call sites read it back at signup to
+ * attribute the conversion to arm A or B.
  *
  * Why this exists separately from the `hutch_click` attribution cookie: that
- * cookie is set on the visitor's *first* GET (the bare `/`, before the
- * client-side split redirect) and then never refreshed, so it carries
- * `landing_path: "/"` and no arm. CloudWatch Insights cannot join the landing
- * pageview line to the conversion line, so the arm has to ride the conversion
- * event itself — which means it has to be readable server-side at signup time.
- * The landing route stamps this cookie when it renders an arm; the six
- * `emitUserCreated` call sites read it back.
+ * cookie is set on the visitor's *first* GET and then never refreshed, so it
+ * carries no arm. CloudWatch Insights cannot join the exposure pageview line to
+ * the conversion line, so the arm has to ride the conversion event itself —
+ * which means it has to be readable server-side at signup time.
  *
- * Stored form is `<campaign>:<epoch>:<slug>`, mirroring `formatStoredVariant`'s
- * epoch-prefixing so a renamed campaign or a bumped epoch discards a stale
- * assignment exactly as the client discards its localStorage bucket.
+ * Stored form is `<campaign>:<epoch>:<slug>` so a renamed campaign or a bumped
+ * epoch reads as "no assignment" and the visitor is re-drawn.
+ *
+ * The Max-Age matches the year-long `hutch_vid` visitor identity: this cookie
+ * IS the assignment, so it must outlive any plausible experiment window — a
+ * lapsed cookie re-randomizes the returning visitor into the other arm half the
+ * time. `/` re-stamps it on every render, so only lapsed visitors are affected.
  */
 export const EXPERIMENT_COOKIE_NAME = "hutch_exp";
-const EXPERIMENT_COOKIE_MAX_AGE_MS = 30 * 24 * 60 * 60 * 1000;
+const EXPERIMENT_COOKIE_MAX_AGE_MS = 365 * 24 * 60 * 60 * 1000;
 
 function formatAssignment(config: HomepageSplitConfig, variant: HomepageSplitVariant): string {
 	return `${config.campaign}:${config.epoch}:${variant.slug}`;

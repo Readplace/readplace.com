@@ -1,5 +1,6 @@
 /* c8 ignore start -- composition root, no logic to test */
 import assert from "node:assert";
+import { randomInt } from "node:crypto";
 import type { Express } from "express";
 import { createDynamoDocumentClient } from "@packages/hutch-storage-client";
 import type { Logger } from "./domain/logger";
@@ -798,6 +799,7 @@ export function createHutchApp(deps?: {
 		importSessionStore,
 		getChangelogBanner,
 		now: () => new Date(),
+		drawRandomByte: () => randomInt(256),
 		botDefenseLogger: HutchLogger.fromJSON<BotDefenseEvent>(),
 		conversionLogger: HutchLogger.fromJSON<ConversionEvent>(),
 		subscriptionLogger: HutchLogger.fromJSON<SubscriptionLogEvent>(),

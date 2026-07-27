@@ -686,16 +686,22 @@ export function buildAnalyticsDashboardBody(deps: BuildAnalyticsDashboardDeps): 
 	);
 
 	// --- Homepage A/B experiment ---
-	// The client redirect stamps utm_campaign=<campaignTag> + utm_content=<variant
-	// slug> on the landing pageview (utm_medium=experiment, no utm_source), and the
-	// signup path stamps homepage_variant=<slug> on the user_created conversion, so
-	// the arm can be read on both legs. `campaignTag` folds the epoch into the
-	// campaign, so a re-bucket scopes these widgets to the new era rather than
-	// averaging the previous one in.
+	// The `/` render stamps experiment=<campaignTag> + experiment_variant=<slug> on
+	// its own pageview, and the signup path stamps homepage_variant=<slug> on the
+	// user_created conversion, so the arm can be read on both legs. `campaignTag`
+	// folds the epoch into the campaign, so a re-bucket scopes these widgets to the
+	// new era rather than averaging the previous one in.
+	//
+	// The utm_campaign leg is the same epoch's earlier mechanism, when the arm was
+	// picked client-side and the exposure was the redirect's own landing pageview.
+	// Both legs are matched so this epoch's window reads continuously across the
+	// switch; it can go once the epoch is bumped.
 	//
 	// The denominator is `visitor_id` (the sticky first-party cookie identity the
 	// conversion also carries), not `visitor_hash` (a salted IP hash that collapses
 	// people behind shared NAT and is not the id a signup joins on).
+
+	const exposureFilter = `(experiment = "${campaignTag(HOMEPAGE_SPLIT)}" or utm_campaign = "${campaignTag(HOMEPAGE_SPLIT)}")`;
 
 	widgets.push(
 		logWidget({
@@ -703,10 +709,10 @@ export function buildAnalyticsDashboardBody(deps: BuildAnalyticsDashboardDeps): 
 			title: "Homepage A/B — distinct visitors and landings by variant",
 			logGroupNames: analyticsSource,
 			query: [
-				"fields @timestamp, visitor_id, utm_content",
-				`| filter stream = "${STREAMS.analytics}" and event = "${ANALYTICS_EVENTS.pageview}" and utm_campaign = "${campaignTag(HOMEPAGE_SPLIT)}"`,
+				"fields @timestamp, visitor_id, coalesce(experiment_variant, utm_content) as arm",
+				`| filter stream = "${STREAMS.analytics}" and event = "${ANALYTICS_EVENTS.pageview}" and ${exposureFilter}`,
 				...exclude,
-				"| stats count_distinct(visitor_id) as visitors, count(*) as landings by utm_content",
+				"| stats count_distinct(visitor_id) as visitors, count(*) as landings by arm",
 				"| sort visitors desc",
 			].join(" "),
 			x: 0, y: 122, width: 12, height: 8,
@@ -715,9 +721,12 @@ export function buildAnalyticsDashboardBody(deps: BuildAnalyticsDashboardDeps): 
 	);
 
 	// Assigned visitors vs signups, per arm, in one bar so the conversion rate is
-	// visitors:signups per arm at a glance. The union filter puts the landing
+	// visitors:signups per arm at a glance. The union filter puts the exposure
 	// pageview and the user_created conversion on the same query; `arm` coalesces
-	// the pageview's utm_content with the conversion's homepage_variant. SRM check:
+	// the pageview's arm with the conversion's homepage_variant. homepage_variant
+	// must outrank utm_content: a conversion also carries the acquisition
+	// utm_content spread from hutch_click, which would otherwise bin the signup
+	// under a phantom arm (e.g. an ad's utm_content). SRM check:
 	// the two `pageview` bars must stay within a few percent — a skew means an arm
 	// is erroring and the read is void. (The internal-visitor exclude filters on
 	// visitor_hash, which conversions do not carry, so it prunes the pageview
@@ -728,8 +737,8 @@ export function buildAnalyticsDashboardBody(deps: BuildAnalyticsDashboardDeps): 
 			title: "Homepage A/B — assigned visitors vs signups by arm",
 			logGroupNames: analyticsSource,
 			query: [
-				"fields @timestamp, visitor_id, coalesce(utm_content, homepage_variant) as arm",
-				`| filter (stream = "${STREAMS.analytics}" and event = "${ANALYTICS_EVENTS.pageview}" and utm_campaign = "${campaignTag(HOMEPAGE_SPLIT)}") or (stream = "${STREAMS.conversions}" and event = "${CONVERSION_EVENTS.userCreated}" and ispresent(homepage_variant))`,
+				"fields @timestamp, visitor_id, coalesce(experiment_variant, homepage_variant, utm_content) as arm",
+				`| filter (stream = "${STREAMS.analytics}" and event = "${ANALYTICS_EVENTS.pageview}" and ${exposureFilter}) or (stream = "${STREAMS.conversions}" and event = "${CONVERSION_EVENTS.userCreated}" and ispresent(homepage_variant))`,
 				...exclude,
 				"| filter ispresent(visitor_id)",
 				"| stats count_distinct(visitor_id) as visitors by arm, event",

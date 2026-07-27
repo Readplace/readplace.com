@@ -3,7 +3,6 @@ import { APPLE_ITUNES_APP_META, IPHONE_APP_STORE_URL } from "@packages/supported
 import { MONTHLY_EQUIVALENT_DISPLAY } from "@packages/web-shell";
 import type { SeoMetadata } from "@packages/web-shell";
 
-import type { HomepageVariantMarker } from "../../experiments/homepage-split";
 import {
 	BROWSER_EXTENSION_KEYWORDS,
 	BROWSER_EXTENSIONS_AND,
@@ -28,9 +27,8 @@ export function buildHomeSeo(input: {
 	staticBaseUrl: string;
 	foundingMemberLimit: number;
 	foundingAllocationAvailable: boolean;
-	variant?: HomepageVariantMarker;
 }): SeoMetadata {
-	const { staticBaseUrl, foundingMemberLimit, foundingAllocationAvailable, variant } = input;
+	const { staticBaseUrl, foundingMemberLimit, foundingAllocationAvailable } = input;
 
 	const foundingOffer = {
 		"@type": "Offer",
@@ -73,12 +71,7 @@ export function buildHomeSeo(input: {
 			"The read-it-later app and online reader for distraction-free reading — save from your browser, your iPhone, an AI assistant, a pasted link, or a bulk import, and read it later in a clean reader view. A privacy-first Pocket alternative with real Tesseract OCR for scanned PDFs (no LLM hallucination). Read the Web, not the Slop.",
 		canonicalUrl: "https://readplace.com",
 		ogType: "website",
-		// The A/B arms render `noindex` with canonical=`/`, so only the canonical `/` competes for
-		// SEO across all three renders. This is defence-in-depth, not redundancy: the isbot gate on
-		// `/` only keeps crawlers off the arms they'd reach via the client redirect. A direct hit to
-		// a `/landing-*` URL is not bot-gated and not disallowed in robots.txt, so on that path the
-		// arm's own noindex + canonical=`/` are the only guard. Don't remove either half.
-		robots: variant ? "noindex, follow" : "index, follow",
+		robots: "index, follow",
 		ogImage: `${staticBaseUrl}/og-image-1200x630.png`,
 		ogImageType: "image/png",
 		ogImageAlt:
