@@ -1,5 +1,4 @@
 
-/** The `feature` flag is carried because the whole inbox surface 404s without it. */
 export function buildInboxLinkPollUrl(params: {
 	emailId: string;
 	ordinal: string;
