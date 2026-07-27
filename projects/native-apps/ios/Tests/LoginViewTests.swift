@@ -145,12 +145,55 @@ final class LoginViewTests: XCTestCase {
 		XCTAssertEqual(BrandMarkGeometry.dot.y, 182.0 / 512 * 72, accuracy: 0.01)
 	}
 
-	private func renderedViewCount(_ view: LoginView) -> Int {
+	func testAnAuthErrorNeverMovesTheBrandMark() throws {
+		let clean = Captured()
+		clean.errorText = nil
+		let erroring = Captured()
+		erroring.errorText = String(
+			repeating: "Authorization was denied because the request was cancelled before it completed. ",
+			count: 4
+		)
+
+		let cleanFrame = try XCTUnwrap(
+			brandMarkFrame(in: mountWindow(makeView(clean))),
+			"the brand mark must be findable as a \(Int(BrandMarkGeometry.side))pt image layer"
+		)
+		let erroringFrame = try XCTUnwrap(brandMarkFrame(in: mountWindow(makeView(erroring))))
+
+		XCTAssertEqual(
+			erroringFrame.midX, cleanFrame.midX, accuracy: 0.5,
+			"the video's closing mark lands on the clean position; an error shifting the mark breaks the handoff"
+		)
+		XCTAssertEqual(erroringFrame.midY, cleanFrame.midY, accuracy: 0.5)
+	}
+
+	private func mountWindow(_ view: LoginView) -> UIWindow {
 		let window = UIWindow(frame: UIScreen.main.bounds)
 		window.rootViewController = UIHostingController(rootView: view)
 		window.makeKeyAndVisible()
 		window.layoutIfNeeded()
-		return viewCount(in: window)
+		return window
+	}
+
+	private func brandMarkFrame(in window: UIWindow) -> CGRect? {
+		markLayer(in: window.layer).map { $0.convert($0.bounds, to: window.layer) }
+	}
+
+	private func markLayer(in layer: CALayer) -> CALayer? {
+		let side = BrandMarkGeometry.side
+		if layer.contents != nil,
+			abs(layer.bounds.width - side) < 0.5,
+			abs(layer.bounds.height - side) < 0.5 {
+			return layer
+		}
+		for sublayer in layer.sublayers ?? [] {
+			if let found = markLayer(in: sublayer) { return found }
+		}
+		return nil
+	}
+
+	private func renderedViewCount(_ view: LoginView) -> Int {
+		viewCount(in: mountWindow(view))
 	}
 
 	private func viewCount(in view: UIView) -> Int {

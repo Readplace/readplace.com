@@ -66,16 +66,25 @@ final class LaunchIntroVideoContainerView: UIView {
 
 struct LaunchIntroVideoView: UIViewRepresentable {
 	let player: AVPlayer
+	let backdrop: UIColor
 
 	func makeUIView(context: Context) -> LaunchIntroVideoContainerView {
 		let view = LaunchIntroVideoContainerView()
-		view.backgroundColor = BrandColor.splashBackground
+		view.backgroundColor = backdrop
 		view.playerLayer.player = player
 		view.playerLayer.videoGravity = .resizeAspectFill
 		return view
 	}
 
-	func updateUIView(_ uiView: LaunchIntroVideoContainerView, context: Context) {}
+	func updateUIView(_ uiView: LaunchIntroVideoContainerView, context: Context) {
+		uiView.backgroundColor = backdrop
+	}
+}
+
+extension LaunchIntroOverlay {
+	var backdropColor: UIColor {
+		usesDarkBackdrop ? BrandColor.splashBackground : .white
+	}
 }
 
 struct LaunchIntroOverlayView: View {
@@ -90,9 +99,13 @@ struct LaunchIntroOverlayView: View {
 	var body: some View {
 		Group {
 			if model.overlay.showsVideo {
-				LaunchIntroVideoView(player: player)
+				LaunchIntroVideoView(player: player, backdrop: model.overlay.backdropColor)
 					.ignoresSafeArea()
-					.background(Color.brandSplashBackground.ignoresSafeArea())
+					.background(
+						Color(uiColor: model.overlay.backdropColor)
+							.ignoresSafeArea()
+							.transaction { $0.animation = nil }
+					)
 					.opacity(model.overlay.opacity)
 					.animation(.easeOut(duration: LaunchIntro.fadeDuration), value: model.overlay.opacity)
 					.contentShape(Rectangle())

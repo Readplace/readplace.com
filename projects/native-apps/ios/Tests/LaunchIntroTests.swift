@@ -14,20 +14,32 @@ final class LaunchIntroTests: XCTestCase {
 		XCTAssertEqual(LaunchIntro.initialPhase(isFirstLaunch: true, reduceMotion: true), .idle)
 	}
 
-	func testThePlayingOverlayShowsTheVideoAtFullOpacity() {
-		XCTAssertEqual(LaunchIntro.overlay(for: .playing), LaunchIntroOverlay(showsVideo: true, opacity: 1))
+	func testThePlayingOverlayShowsTheVideoAtFullOpacityOnADarkBackdrop() {
+		XCTAssertEqual(
+			LaunchIntro.overlay(for: .playing),
+			LaunchIntroOverlay(showsVideo: true, opacity: 1, usesDarkBackdrop: true)
+		)
 	}
 
-	func testTheFadingOverlayKeepsTheVideoMountedAtZeroOpacity() {
-		XCTAssertEqual(LaunchIntro.overlay(for: .fading), LaunchIntroOverlay(showsVideo: true, opacity: 0))
+	func testTheFadingOverlayDropsTheDarkBackdropSoTheWhiteEndingCannotDim() {
+		XCTAssertEqual(
+			LaunchIntro.overlay(for: .fading),
+			LaunchIntroOverlay(showsVideo: true, opacity: 0, usesDarkBackdrop: false)
+		)
 	}
 
 	func testTheIdleOverlayRendersNothing() {
-		XCTAssertEqual(LaunchIntro.overlay(for: .idle), LaunchIntroOverlay(showsVideo: false, opacity: 0))
+		XCTAssertEqual(
+			LaunchIntro.overlay(for: .idle),
+			LaunchIntroOverlay(showsVideo: false, opacity: 0, usesDarkBackdrop: false)
+		)
 	}
 
 	func testTheFinishedOverlayRendersNothing() {
-		XCTAssertEqual(LaunchIntro.overlay(for: .finished), LaunchIntroOverlay(showsVideo: false, opacity: 0))
+		XCTAssertEqual(
+			LaunchIntro.overlay(for: .finished),
+			LaunchIntroOverlay(showsVideo: false, opacity: 0, usesDarkBackdrop: false)
+		)
 	}
 
 	func testPlayingToEndMovesToFading() {

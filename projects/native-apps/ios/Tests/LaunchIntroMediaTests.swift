@@ -57,6 +57,49 @@ final class LaunchIntroMediaTests: XCTestCase {
 		XCTAssertNotNil(LaunchIntroVideoContainerView().playerLayer)
 	}
 
+	func testTheBackdropIsDarkWhilePlayingAndWhiteWhileFading() {
+		XCTAssertEqual(LaunchIntro.overlay(for: .playing).backdropColor, BrandColor.splashBackground)
+		XCTAssertEqual(LaunchIntro.overlay(for: .fading).backdropColor, .white)
+	}
+
+	func testTheMountedVideoViewSwapsItsDarkBackdropForWhiteWhenTheFadeBegins() {
+		let model = makeModel(seen: freshSeen())
+		let window = mount(LaunchIntroOverlayView(model: model))
+
+		XCTAssertEqual(
+			containerView(in: window)?.backgroundColor,
+			BrandColor.splashBackground,
+			"while the video plays, the backdrop must cover the pre-first-frame moment in the splash colour"
+		)
+
+		expectPhase(.fading, on: model) {
+			NotificationCenter.default.post(name: .AVPlayerItemDidPlayToEndTime, object: nil)
+		}
+
+		XCTAssertTrue(
+			waitForBackdrop(.white, in: window),
+			"once the fade begins, a dark backdrop would dim the white ending mid-fade"
+		)
+	}
+
+	private func containerView(in view: UIView) -> LaunchIntroVideoContainerView? {
+		if let container = view as? LaunchIntroVideoContainerView { return container }
+		for subview in view.subviews {
+			if let found = containerView(in: subview) { return found }
+		}
+		return nil
+	}
+
+	private func waitForBackdrop(_ color: UIColor, in window: UIWindow, timeout: TimeInterval = 2) -> Bool {
+		let deadline = Date().addingTimeInterval(timeout)
+		while Date() < deadline {
+			window.layoutIfNeeded()
+			if containerView(in: window)?.backgroundColor == color { return true }
+			RunLoop.main.run(until: Date().addingTimeInterval(0.02))
+		}
+		return false
+	}
+
 	func testTheCompositionRootBuildsAnIdleModelOnAReturningLaunch() {
 		_ = makeLaunchIntroModel(reduceMotion: true)
 		let model = makeLaunchIntroModel(reduceMotion: true)

@@ -17,6 +17,7 @@ enum LaunchIntroPhase: Equatable {
 struct LaunchIntroOverlay: Equatable {
 	let showsVideo: Bool
 	let opacity: Double
+	let usesDarkBackdrop: Bool
 }
 
 enum LaunchIntro {
@@ -27,11 +28,11 @@ enum LaunchIntro {
 	static func overlay(for phase: LaunchIntroPhase) -> LaunchIntroOverlay {
 		switch phase {
 		case .idle, .finished:
-			return LaunchIntroOverlay(showsVideo: false, opacity: 0)
+			return LaunchIntroOverlay(showsVideo: false, opacity: 0, usesDarkBackdrop: false)
 		case .playing:
-			return LaunchIntroOverlay(showsVideo: true, opacity: 1)
+			return LaunchIntroOverlay(showsVideo: true, opacity: 1, usesDarkBackdrop: true)
 		case .fading:
-			return LaunchIntroOverlay(showsVideo: true, opacity: 0)
+			return LaunchIntroOverlay(showsVideo: true, opacity: 0, usesDarkBackdrop: false)
 		}
 	}
 
