@@ -644,12 +644,21 @@ importers:
         specifier: 4.4.3
         version: 4.4.3
     devDependencies:
+      '@packages/e2e-harness':
+        specifier: workspace:*
+        version: link:../../src/packages/e2e-harness
       '@packages/test-fixtures':
         specifier: workspace:*
         version: link:../../src/packages/test-fixtures
+      '@packages/test-phase-runner':
+        specifier: workspace:*
+        version: link:../../src/packages/test-phase-runner
       '@packages/web-test-harness':
         specifier: workspace:*
         version: link:../../src/packages/web-test-harness
+      '@playwright/test':
+        specifier: 1.60.0
+        version: 1.60.0
       '@pulumi/aws':
         specifier: 7.32.0
         version: 7.32.0(ts-node@10.9.2(@types/node@22.19.19)(typescript@6.0.3))(typescript@6.0.3)

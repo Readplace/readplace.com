@@ -30,7 +30,10 @@ export const TEST_IMAGES_CDN_BASE_URL = "https://cdn.test.readplace.com";
  * every other route test. */
 export function createInboxTestApp(
 	fixture: TestAppFixture,
-	overrides?: { getChangelogBanner?: GetChangelogBanner },
+	overrides?: {
+		getChangelogBanner?: GetChangelogBanner;
+		publishSubmitLink?: (input: { userId: string; url: string }) => Promise<void>;
+	},
 ): TestAppResult {
 	const resolveLogin = initResolveLogin({
 		getSessionUserId: fixture.auth.getSessionUserId,
@@ -58,6 +61,9 @@ export function createInboxTestApp(
 			readEmailContent: fixture.inboxEmail.readEmailContent,
 			publishSubmitLink: async (input) => {
 				submittedLinks.push(input);
+				// The e2e server stands in for the deployed round trip so the Saved
+				// chip can appear; route tests leave it recording-only.
+				await overrides?.publishSubmitLink?.(input);
 			},
 			logError: fixture.shared.logError,
 			now: fixture.shared.now,
@@ -73,8 +79,11 @@ export function createInboxTestApp(
 
 export interface TestAppHarness extends TestAppResult, RunningServer {}
 
-export function useTestServer(): (fixture: TestAppFixture) => TestAppHarness {
-	return useServerForFixture(createInboxTestApp);
+export function useTestServer(overrides?: {
+	getChangelogBanner?: GetChangelogBanner;
+	publishSubmitLink?: (input: { userId: string; url: string }) => Promise<void>;
+}): (fixture: TestAppFixture) => TestAppHarness {
+	return useServerForFixture((fixture) => createInboxTestApp(fixture, overrides));
 }
 
 /** Logs a fresh user in without a /login route: this deployable never mounts

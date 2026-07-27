@@ -218,3 +218,29 @@ describe("Inbox link save route", () => {
 		expect(harness.submittedLinks).toEqual([]);
 	});
 });
+
+describe("Inbox link save route with a relayed publisher", () => {
+	// The e2e harness stands in for the deployed round trip — publish, accept,
+	// LinkQueued, read model — so the Saved chip can appear against an in-memory
+	// stack. This pins that seam from the same route a reader would use.
+	const relayed: Array<{ userId: string; url: string }> = [];
+	const useRelayingApp = useTestServer({
+		publishSubmitLink: async (input) => {
+			relayed.push(input);
+		},
+	});
+
+	it("relays the submitted link to the injected publisher as well as recording it", async () => {
+		relayed.length = 0;
+		const fixture = createDefaultTestAppFixture(TEST_APP_ORIGIN);
+		const harness = useRelayingApp(fixture);
+		const agent = await loginAgent(harness.server, harness.auth);
+		const userId = await seed(fixture);
+
+		const response = await agent.post(savePath);
+
+		expect(response.status).toBe(303);
+		expect(relayed).toEqual([{ userId, url: "https://example.com/post" }]);
+		expect(harness.submittedLinks).toEqual([{ userId, url: "https://example.com/post" }]);
+	});
+});

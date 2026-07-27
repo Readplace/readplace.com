@@ -5,14 +5,15 @@
   "main": "src/infra/index.ts",
   "private": true,
   "scripts": {
-    "start": "node dist/runtime/server.main.js",
-    "dev": "tsx watch src/runtime/server.main.ts",
-    "test": "jest --testMatch='**/dist/**/*.test.js' --testTimeout=10000",
-    "test-with-coverage": "c8 pnpm test && node enforce-coverage.config.js",
-    "compile": "rm -rf dist && tsc && node scripts/copy-static-assets.js",
-    "lint": "concurrently --kill-others-on-fail \"tsc --project tsconfig.lint.json\" \"biome lint src\" \"knip\" \"editorconfig-checker\"",
+    "check": "nx run inbox:check",
     "check-infra": "PULUMI_CONFIG_PASSPHRASE='' pulumi preview --stack \"${PULUMI_STACK:?PULUMI_STACK is not set}\"",
-    "check": "nx run inbox:check"
+    "compile": "rm -rf dist && tsc && node scripts/copy-static-assets.js",
+    "dev": "tsx watch src/runtime/server.main.ts",
+    "lint": "concurrently --kill-others-on-fail \"tsc --project tsconfig.lint.json\" \"biome lint src\" \"knip\" \"editorconfig-checker\"",
+    "start": "node dist/runtime/server.main.js",
+    "test": "jest --testMatch='**/dist/**/*.test.js' --testTimeout=10000",
+    "test-with-coverage": "c8 node scripts/run-tests-with-coverage.js && node enforce-coverage.config.js",
+    "test:e2e": "pnpm compile && E2E_PORT=3120 playwright test --config playwright.config.local-dev.ts"
   },
   "dependencies": {
     "@aws-sdk/client-s3": "3.1057.0",
@@ -44,8 +45,11 @@
     "zod": "4.4.3"
   },
   "devDependencies": {
+    "@packages/e2e-harness": "workspace:*",
     "@packages/test-fixtures": "workspace:*",
+    "@packages/test-phase-runner": "workspace:*",
     "@packages/web-test-harness": "workspace:*",
+    "@playwright/test": "1.60.0",
     "@pulumi/aws": "7.32.0",
     "@pulumi/pulumi": "3.244.0",
     "@types/aws-lambda": "8.10.161",
