@@ -14,7 +14,7 @@
  * first word and the hint falls back to the browser's native anchor jump.
  */
 
-const HEADLINE_WORDS = [
+export const HEADLINE_WORDS = [
 	"articles",
 	"news",
 	"blogs",
