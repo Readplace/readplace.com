@@ -262,6 +262,62 @@ describe("initDynamoDbInboxEmailLink", () => {
 		});
 	});
 
+	describe("failPendingLink", () => {
+		it("guards the failure write on the row still being pending", async () => {
+			let captured: CapturedCommand | undefined;
+
+			const result = await store((cmd) => {
+				captured = cmd as CapturedCommand;
+				return {};
+			}).failPendingLink({
+				userId: USER,
+				receivedAtMessageId: RAM,
+				ordinal: ORDINAL,
+				failureReason: "preview-retries-exhausted",
+			});
+
+			expect(result).toBe("failed");
+			expect(captured?.input.Key).toEqual({ userLinkGroup: GROUP, ordinal: ORDINAL });
+			expect(captured?.input.ConditionExpression).toBe(
+				"attribute_exists(ordinal) AND #status = :pending",
+			);
+			expect(captured?.input.UpdateExpression).toBe(
+				"SET #status = :status, #failureReason = :failureReason REMOVE #title, #excerpt, #siteName, #imageUrl, #resolvedUrl, #skipReason",
+			);
+			expect(captured?.input.ExpressionAttributeValues).toEqual({
+				":status": "failed",
+				":failureReason": "preview-retries-exhausted",
+				":pending": "pending",
+			});
+		});
+
+		it("reports already-terminal when the row is no longer pending", async () => {
+			const result = await store(() => {
+				throw conditionalCheckFailed();
+			}).failPendingLink({
+				userId: USER,
+				receivedAtMessageId: RAM,
+				ordinal: ORDINAL,
+				failureReason: "preview-retries-exhausted",
+			});
+
+			expect(result).toBe("already-terminal");
+		});
+
+		it("rethrows errors that are not conditional-check failures", async () => {
+			await expect(
+				store(() => {
+					throw new Error("throttled");
+				}).failPendingLink({
+					userId: USER,
+					receivedAtMessageId: RAM,
+					ordinal: ORDINAL,
+					failureReason: "preview-retries-exhausted",
+				}),
+			).rejects.toThrow("throttled");
+		});
+	});
+
 	describe("putLinksMeta", () => {
 		it("writes the truncated meta item under the reserved sort key", async () => {
 			let captured: CapturedCommand | undefined;

@@ -10,6 +10,7 @@ export { HutchCertificate } from "./hutch-certificate";
 export { HutchSQS } from "./hutch-sqs";
 export { HutchSQSBackedLambda } from "./hutch-sqs-backed-lambda";
 export { HutchDLQEventHandler } from "./hutch-dlq-event-handler";
+export { attachDlqConsumer } from "./attach-dlq-consumer";
 export { HutchStripeWebhookReceiver } from "./hutch-stripe-webhook-receiver";
 export { HutchS3ReadWrite } from "./hutch-s3-read-write";
 export { HutchS3PublicRead } from "./hutch-s3-public-read";

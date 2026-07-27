@@ -60,6 +60,12 @@ export interface InboxEmailLinkStore {
 		ordinal: EmailLinkOrdinal;
 		outcome: EmailLinkOutcome;
 	}) => Promise<void>;
+	failPendingLink: (input: {
+		userId: UserId;
+		receivedAtMessageId: string;
+		ordinal: EmailLinkOrdinal;
+		failureReason: string;
+	}) => Promise<"failed" | "already-terminal">;
 	/** Write the per-email truncated meta item (reserved sort key) under the
 	 * email's partition. Idempotent PutItem. */
 	putLinksMeta: (input: {

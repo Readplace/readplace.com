@@ -22,6 +22,20 @@ import { type UserId, UserIdSchema } from "@packages/domain/user";
  * the meta item trails the link rows in a single ascending Query. */
 const META_SORT_KEY = "meta";
 
+const FAILED_UPDATE_EXPRESSION =
+	"SET #status = :status, #failureReason = :failureReason REMOVE #title, #excerpt, #siteName, #imageUrl, #resolvedUrl, #skipReason";
+
+const FAILED_UPDATE_NAMES: Record<string, string> = {
+	"#status": "status",
+	"#failureReason": "failureReason",
+	"#title": "title",
+	"#excerpt": "excerpt",
+	"#siteName": "siteName",
+	"#imageUrl": "imageUrl",
+	"#resolvedUrl": "resolvedUrl",
+	"#skipReason": "skipReason",
+};
+
 /** One partition per email so every link (and the meta item) returns from a
  * single Query. `receivedAtMessageId` already embeds the message id, so the
  * composite is unique per email. */
@@ -171,20 +185,29 @@ export function initDynamoDbInboxEmailLink(deps: {
 			await table.update({
 				Key,
 				ConditionExpression: "attribute_exists(ordinal)",
-				UpdateExpression:
-					"SET #status = :status, #failureReason = :failureReason REMOVE #title, #excerpt, #siteName, #imageUrl, #resolvedUrl, #skipReason",
-				ExpressionAttributeNames: {
-					"#status": "status",
-					"#failureReason": "failureReason",
-					"#title": "title",
-					"#excerpt": "excerpt",
-					"#siteName": "siteName",
-					"#imageUrl": "imageUrl",
-					"#resolvedUrl": "resolvedUrl",
-					"#skipReason": "skipReason",
-				},
+				UpdateExpression: FAILED_UPDATE_EXPRESSION,
+				ExpressionAttributeNames: FAILED_UPDATE_NAMES,
 				ExpressionAttributeValues: { ":status": "failed", ":failureReason": outcome.failureReason },
 			});
+		},
+		failPendingLink: async ({ userId, receivedAtMessageId, ordinal, failureReason }) => {
+			try {
+				await table.update({
+					Key: { userLinkGroup: groupKey({ userId, receivedAtMessageId }), ordinal },
+					ConditionExpression: "attribute_exists(ordinal) AND #status = :pending",
+					UpdateExpression: FAILED_UPDATE_EXPRESSION,
+					ExpressionAttributeNames: FAILED_UPDATE_NAMES,
+					ExpressionAttributeValues: {
+						":status": "failed",
+						":failureReason": failureReason,
+						":pending": "pending",
+					},
+				});
+				return "failed";
+			} catch (error) {
+				if (error instanceof ConditionalCheckFailedException) return "already-terminal";
+				throw error;
+			}
 		},
 		putLinksMeta: async ({ userId, receivedAtMessageId, meta }) => {
 			await table.put({

@@ -62,6 +62,23 @@ export function initInMemoryInboxEmailLink(): InboxEmailLinkStore {
 						},
 			);
 		},
+		failPendingLink: async ({ userId, receivedAtMessageId, ordinal, failureReason }) => {
+			const key = linkKey(groupKey({ userId, receivedAtMessageId }), ordinal);
+			const existing = links.get(key);
+			if (existing === undefined || existing.status !== "pending") return "already-terminal";
+			links.set(key, {
+				...existing,
+				status: "failed",
+				failureReason,
+				title: undefined,
+				excerpt: undefined,
+				siteName: undefined,
+				imageUrl: undefined,
+				resolvedUrl: undefined,
+				skipReason: undefined,
+			});
+			return "failed";
+		},
 		putLinksMeta: async ({ userId, receivedAtMessageId, meta }) => {
 			metas.set(groupKey({ userId, receivedAtMessageId }), meta);
 		},

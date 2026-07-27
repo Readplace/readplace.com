@@ -1,5 +1,5 @@
-import * as aws from "@pulumi/aws";
 import * as pulumi from "@pulumi/pulumi";
+import { attachDlqConsumer } from "./attach-dlq-consumer";
 import type { HutchEventBus } from "./event-bus";
 import { HutchDynamoDBAccess } from "./hutch-dynamodb-access";
 import { HutchLambda, type LambdaPolicy } from "./hutch-lambda";
@@ -63,26 +63,10 @@ export class HutchDLQEventHandler extends pulumi.ComponentResource {
 
 		args.eventBus.grantPublish(lambda);
 
-		new aws.iam.RolePolicy(`${name}-sqs-recv`, {
-			name: `${name}-sqs-recv`,
-			role: lambda.role.name,
-			policy: args.sourceQueue.dlqArn.apply((arn) =>
-				JSON.stringify({
-					Version: "2012-10-17",
-					Statement: [{
-						Effect: "Allow",
-						Action: ["sqs:ReceiveMessage", "sqs:DeleteMessage", "sqs:GetQueueAttributes"],
-						Resource: [arn],
-					}],
-				}),
-			),
-		}, { parent: this });
-
-		new aws.lambda.EventSourceMapping(`${name}-mapping`, {
-			eventSourceArn: args.sourceQueue.dlqArn,
-			functionName: lambda.arn,
+		attachDlqConsumer(name, {
+			sourceQueue: args.sourceQueue,
+			lambda,
 			batchSize: args.batchSize,
-			functionResponseTypes: ["ReportBatchItemFailures"],
 		}, { parent: this });
 
 		this.registerOutputs();

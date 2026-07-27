@@ -1,6 +1,7 @@
 import * as aws from "@pulumi/aws";
 import * as pulumi from "@pulumi/pulumi";
 import {
+	attachDlqConsumer,
 	curlImpersonateLayerArnFromPlatformStack,
 	HutchAPIGatewayLambdaRoute,
 	HutchDynamoDBAccess,
@@ -504,6 +505,32 @@ const crawlEmailLinkPreviewWithSQS = new HutchSQSBackedLambda("inbox-crawl-email
 
 eventBus.subscribe(CrawlEmailLinkPreview, crawlEmailLinkPreviewWithSQS, {
 	name: "inbox-crawl-email-link-preview",
+});
+
+const crawlEmailLinkPreviewDlqDynamodb = new HutchDynamoDBAccess(
+	"inbox-crawl-email-link-preview-dlq-dynamodb",
+	{
+		tables: [{ arn: inboxStorage.emailLinksTable.arn, includeIndexes: false }],
+		actions: ["dynamodb:UpdateItem"],
+	},
+);
+
+const crawlEmailLinkPreviewDlqLambda = new HutchLambda("inbox-crawl-email-link-preview-dlq", {
+	entryPoint: "./src/runtime/crawl-email-link-preview-dlq.main.ts",
+	outputDir: ".lib/inbox-crawl-email-link-preview-dlq",
+	assetDir: "./src/runtime",
+	memorySize: 256,
+	timeout: 30,
+	environment: {
+		DYNAMODB_INBOX_EMAIL_LINKS_TABLE: tableNames.inboxEmailLinks,
+	},
+	policies: [...crawlEmailLinkPreviewDlqDynamodb.policies],
+});
+
+attachDlqConsumer("inbox-crawl-email-link-preview-dlq", {
+	sourceQueue: crawlEmailLinkPreviewQueue,
+	lambda: crawlEmailLinkPreviewDlqLambda,
+	batchSize: 1,
 });
 
 // --- Saved-link read model (save-side facts → Articles tab's Saved button) ---
