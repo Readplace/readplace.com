@@ -29,6 +29,11 @@ export class InboxMail extends pulumi.ComponentResource {
 		},
 		opts?: pulumi.ComponentResourceOptions,
 	) {
+		// `hutch:` rather than `inbox:` because this component was declared by the
+		// hutch stack until the inbox took ownership of it, and a component's type
+		// token is embedded in the URN of every resource beneath it. Renaming it
+		// would re-URN the SES identity, the MX record, and the receipt rule that
+		// carry live mail — recoverable only via aliases, for a cosmetic gain.
 		super("hutch:infra:InboxMail", name, {}, opts);
 
 		// `read.place` is already a Route53 hosted zone (it redirects to

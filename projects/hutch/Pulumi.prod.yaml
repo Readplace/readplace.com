@@ -59,7 +59,6 @@ config:
   hutch:userExportBucketName: hutch-user-exports-prod
   hutch:inboxAddressDomain: read.place
   hutch:rawEmailBucketName: hutch-inbox-raw-email-prod
-  hutch:inboxMailParentZone: read.place
   hutch:alertEmail: readplace+devops@readplace.com
   hutch:googleWorkspaceMail:
     domain: readplace.com

@@ -16,14 +16,6 @@ export class InboxStorage extends pulumi.ComponentResource {
 	public readonly emailLinksTable: aws.dynamodb.Table;
 	public readonly savedLinksTable: aws.dynamodb.Table;
 
-	/** The URN each table carried while it lived in hutch's HutchStorage — the
-	 * state move re-points the parent but cannot rewrite the URN's type path, so
-	 * the alias must spell it out. Deletable once both environments have deployed
-	 * once after the handover (the deploy rewrites the URNs). */
-	private static legacyUrn(tableLogicalName: string): pulumi.Input<string> {
-		return `urn:pulumi:${pulumi.getStack()}::${pulumi.getProject()}::hutch:infra:HutchStorage$aws:dynamodb/table:Table::${tableLogicalName}`;
-	}
-
 	constructor(
 		name: string,
 		args: {
@@ -60,7 +52,7 @@ export class InboxStorage extends pulumi.ComponentResource {
 					projectionType: "ALL",
 				},
 			],
-		}, { parent: this, aliases: [InboxStorage.legacyUrn("hutch-inbox-addresses")] });
+		}, { parent: this });
 
 		/* One row per received email, PK=userId so a reader's mail list is a single
 		 * Query, SK=`${receivedAt}#${messageId}` so it returns newest-first without
@@ -76,7 +68,7 @@ export class InboxStorage extends pulumi.ComponentResource {
 				{ name: "userId", type: "S" },
 				{ name: "receivedAtMessageId", type: "S" },
 			],
-		}, { parent: this, aliases: [InboxStorage.legacyUrn("hutch-inbox-emails")] });
+		}, { parent: this });
 
 		/* Crawled previews of the links found inside a received email, one row per
 		 * link. PK=`${userId}#${receivedAtMessageId}` colocates every link of one
@@ -97,7 +89,7 @@ export class InboxStorage extends pulumi.ComponentResource {
 				{ name: "userLinkGroup", type: "S" },
 				{ name: "ordinal", type: "S" },
 			],
-		}, { parent: this, aliases: [InboxStorage.legacyUrn("hutch-inbox-email-links")] });
+		}, { parent: this });
 
 		/* Which links a reader has already had accepted into their queue, so the
 		 * Articles tab can render its Saved button without the inbox ever reading
@@ -118,7 +110,7 @@ export class InboxStorage extends pulumi.ComponentResource {
 				{ name: "userId", type: "S" },
 				{ name: "linkKey", type: "S" },
 			],
-		}, { parent: this, aliases: [InboxStorage.legacyUrn("hutch-inbox-saved-links")] });
+		}, { parent: this });
 
 		this.registerOutputs();
 	}

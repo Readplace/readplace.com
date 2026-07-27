@@ -68,8 +68,7 @@ const inboxNotificationTopicArn = inboxMail.notificationTopicArn;
 // this stack reads them from its own config rather than via a StackReference —
 // a cross-stack read of a value you could put in config couples deploy order
 // and breaks the first deploy after any new hutch output (infrastructure-design:
-// "Don't StackReference a Value You Could Put in Config"). ARNs are derived
-// from account + region rather than read back.
+// "Don't StackReference a Value You Could Put in Config").
 const awsRegion = new pulumi.Config("aws").require("region");
 const awsAccountId = pulumi.output(aws.getCallerIdentity({})).accountId;
 const tableNames = {

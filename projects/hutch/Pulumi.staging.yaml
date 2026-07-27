@@ -51,7 +51,6 @@ config:
   hutch:userExportBucketName: hutch-user-exports-staging
   hutch:inboxAddressDomain: readplace-staging.com
   hutch:rawEmailBucketName: hutch-inbox-raw-email-staging
-  hutch:inboxMailParentZone: readplace-staging.com
   hutch:alertEmail: readplace+staging@readplace.com
   # Test rig for the outbound-mail-auth component on staging's own zone.
   # readplace-staging.com has no Google Workspace, so the SPF value is inert for
