@@ -364,7 +364,7 @@ async function seedAccount(
 	await s.inboxLink.putLinksMeta({
 		userId,
 		receivedAtMessageId: ramA,
-		meta: { truncated: true },
+		meta: { truncated: true, extractionFailed: false },
 	});
 
 	const addressEntry = await s.inboxAddress.createAddress({

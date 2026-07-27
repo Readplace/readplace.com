@@ -28,10 +28,16 @@ export interface InboxEmailLinkEntry {
 }
 
 /** A small per-email summary co-located in the links partition under a reserved
- * sort key, so it returns from the same single Query as the link rows. Holds only
- * the truncation flag; the link count is derived from the row count. */
+ * sort key, so it returns from the same single Query as the link rows. Its
+ * presence is the "extraction finished" barrier; the link count is derived from
+ * the row count. */
 export interface InboxEmailLinksMeta {
 	truncated: boolean;
+	/** True when extraction gave up rather than finished — written only by the
+	 * dead-letter handler once the retries are spent. Terminal like any other
+	 * barrier, so the panel stops polling, but the reader is told the scan failed
+	 * instead of being told the email contained no links. */
+	extractionFailed: boolean;
 }
 
 /** A crawl outcome to stamp onto a `pending` link. The discriminated union makes
@@ -67,12 +73,22 @@ export interface InboxEmailLinkStore {
 		failureReason: string;
 	}) => Promise<"failed" | "already-terminal">;
 	/** Write the per-email truncated meta item (reserved sort key) under the
-	 * email's partition. Idempotent PutItem. */
+	 * email's partition. Idempotent PutItem, and unconditional so a later
+	 * successful extraction always overwrites an earlier give-up marker. */
 	putLinksMeta: (input: {
 		userId: UserId;
 		receivedAtMessageId: string;
 		meta: InboxEmailLinksMeta;
 	}) => Promise<void>;
+	/** Record that extraction gave up, as the barrier itself. Conditional on the
+	 * meta row's absence: at-least-once delivery means one attempt can succeed
+	 * while a duplicate exhausts its retries, and overwriting that success would
+	 * paint a permanent failure over a real card set. Returns `"superseded"` when
+	 * a barrier already exists. */
+	markLinksExtractionFailed: (input: {
+		userId: UserId;
+		receivedAtMessageId: string;
+	}) => Promise<"stored" | "superseded">;
 	/** Every link for one email, in ordinal order, plus the meta item if present.
 	 * Single Query (partition = the email), no GSI, no scan. */
 	listLinksByEmail: (input: {

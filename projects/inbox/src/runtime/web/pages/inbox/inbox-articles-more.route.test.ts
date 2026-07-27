@@ -62,7 +62,7 @@ async function seed(
 	await fixture.inboxEmail.inboxEmailLinkStore.putLinksMeta({
 		userId: user.userId,
 		receivedAtMessageId: SK,
-		meta: { truncated: false },
+		meta: { truncated: false, extractionFailed: false },
 	});
 }
 

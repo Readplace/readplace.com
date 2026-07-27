@@ -236,7 +236,7 @@ describe("initExtractEmailLinksHandler", () => {
 		]);
 		// Meta is always written once extraction finishes (the "extraction ran"
 			// barrier the detail view polls against); only `truncated` differs.
-			expect(meta).toEqual({ truncated: false });
+			expect(meta).toEqual({ truncated: false, extractionFailed: false });
 		expect(harness.published).toEqual([
 			{ ordinal: "0000", url: "https://a.test/x" },
 			{ ordinal: "0001", url: "https://b.test/y" },
@@ -269,7 +269,7 @@ describe("initExtractEmailLinksHandler", () => {
 			["0000", "https://a.test/x", "pending", undefined],
 			["0001", "https://news.example.com/unsub?token=send-1", "skipped", "list-unsubscribe"],
 		]);
-		expect(meta).toEqual({ truncated: false });
+		expect(meta).toEqual({ truncated: false, extractionFailed: false });
 		expect(harness.published).toEqual([{ ordinal: "0000", url: "https://a.test/x" }]);
 		expect(harness.countsWrites).toEqual([{ kept: 1, skipped: 1, truncated: false }]);
 	});
@@ -289,7 +289,7 @@ describe("initExtractEmailLinksHandler", () => {
 			receivedAtMessageId: RAM,
 		});
 		expect(links).toHaveLength(2);
-		expect(meta).toEqual({ truncated: true });
+		expect(meta).toEqual({ truncated: true, extractionFailed: false });
 		expect(harness.published).toHaveLength(2);
 		expect(harness.alerts).toEqual([{ found: 3 }]);
 		expect(harness.countsWrites).toEqual([{ kept: 2, skipped: 0, truncated: true }]);
@@ -439,7 +439,7 @@ describe("initExtractEmailLinksHandler", () => {
 			receivedAtMessageId: RAM,
 		});
 		expect(links.map((l) => l.status)).toEqual(["pending", "pending"]);
-		expect(meta).toEqual({ truncated: false });
+		expect(meta).toEqual({ truncated: false, extractionFailed: false });
 		expect(harness.published).toHaveLength(2);
 	});
 
@@ -548,7 +548,7 @@ describe("initExtractEmailLinksHandler", () => {
 			receivedAtMessageId: RAM,
 		});
 		expect(links).toEqual([]);
-		expect(meta).toEqual({ truncated: false });
+		expect(meta).toEqual({ truncated: false, extractionFailed: false });
 		expect(harness.countsWrites).toEqual([{ kept: 0, skipped: 0, truncated: false }]);
 	});
 
@@ -591,7 +591,7 @@ describe("initExtractEmailLinksHandler", () => {
 		});
 		expect(links).toHaveLength(2);
 		// Meta is an idempotent overwrite — re-delivery leaves a single barrier row.
-		expect(meta).toEqual({ truncated: false });
+		expect(meta).toEqual({ truncated: false, extractionFailed: false });
 		expect(harness.published).toHaveLength(4);
 		// Still-pending rows re-submit too; the subscriber converges duplicates.
 		expect(harness.submitted).toEqual([

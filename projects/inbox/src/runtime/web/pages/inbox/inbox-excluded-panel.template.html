@@ -7,6 +7,9 @@
   {{#if isExtracting}}
   <p class="inbox-email-detail__notice" data-test-excluded-extracting>{{extractingMessage}}</p>
   {{else}}
+  {{#if isExtractionFailed}}
+  <p class="inbox-email-detail__notice" data-test-excluded-failed>{{staleMessage}}</p>
+  {{else}}
   {{#if isStalePending}}
   <p class="inbox-email-detail__notice" data-test-excluded-stale>{{staleMessage}}</p>
   {{else}}
@@ -24,6 +27,7 @@
     </p>
     {{#each excludedHtmls}}{{{this}}}{{/each}}
   </div>
+  {{/if}}
   {{/if}}
   {{/if}}
   {{/if}}

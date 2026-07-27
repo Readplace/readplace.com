@@ -2,6 +2,7 @@ import { readFileSync } from "node:fs";
 import { join } from "node:path";
 import { render } from "@packages/web-shell";
 import { renderInboxExcludedLink } from "./inbox-excluded-link.component";
+import { panelStatusFor } from "./inbox-panel-status";
 import type { ExcludedPanelViewModel } from "./inbox-email-detail.viewmodel";
 
 const INBOX_EXCLUDED_PANEL_TEMPLATE = readFileSync(
@@ -21,6 +22,6 @@ export function renderInboxExcludedPanel(vm: ExcludedPanelViewModel): string {
 	return render(INBOX_EXCLUDED_PANEL_TEMPLATE, {
 		...vm,
 		excludedHtmls: vm.links.map(renderInboxExcludedLink),
-		panelStatus: vm.isExtracting ? "extracting" : vm.isStalePending ? "stale" : "terminal",
+		panelStatus: panelStatusFor(vm),
 	});
 }

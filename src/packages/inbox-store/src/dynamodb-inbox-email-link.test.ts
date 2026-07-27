@@ -324,11 +324,62 @@ describe("initDynamoDbInboxEmailLink", () => {
 			await store((cmd) => {
 				captured = cmd as CapturedCommand;
 				return {};
-			}).putLinksMeta({ userId: USER, receivedAtMessageId: RAM, meta: { truncated: true } });
+			}).putLinksMeta({
+				userId: USER,
+				receivedAtMessageId: RAM,
+				meta: { truncated: true, extractionFailed: false },
+			});
 
 			expect(captured?.input.Item?.userLinkGroup).toBe(GROUP);
 			expect(captured?.input.Item?.ordinal).toBe("meta");
 			expect(captured?.input.Item?.truncated).toBe(true);
+			expect(captured?.input.Item?.extractionFailed).toBe(false);
+		});
+
+		it("writes the barrier unconditionally so a later success overwrites a give-up marker", async () => {
+			let captured: CapturedCommand | undefined;
+			await store((cmd) => {
+				captured = cmd as CapturedCommand;
+				return {};
+			}).putLinksMeta({
+				userId: USER,
+				receivedAtMessageId: RAM,
+				meta: { truncated: false, extractionFailed: false },
+			});
+
+			expect(captured?.input.ConditionExpression).toBeUndefined();
+		});
+	});
+
+	describe("markLinksExtractionFailed", () => {
+		it("writes the give-up barrier only when no barrier exists yet", async () => {
+			let captured: CapturedCommand | undefined;
+			const result = await store((cmd) => {
+				captured = cmd as CapturedCommand;
+				return {};
+			}).markLinksExtractionFailed({ userId: USER, receivedAtMessageId: RAM });
+
+			expect(result).toBe("stored");
+			expect(captured?.input.ConditionExpression).toContain("attribute_not_exists(ordinal)");
+			expect(captured?.input.Item?.ordinal).toBe("meta");
+			expect(captured?.input.Item?.extractionFailed).toBe(true);
+			expect(captured?.input.Item?.truncated).toBe(false);
+		});
+
+		it("reports superseded when a completed extraction already wrote its barrier", async () => {
+			const result = await store(() => {
+				throw new ConditionalCheckFailedException({ message: "exists", $metadata: {} });
+			}).markLinksExtractionFailed({ userId: USER, receivedAtMessageId: RAM });
+
+			expect(result).toBe("superseded");
+		});
+
+		it("rethrows a failure that is not the barrier-already-present condition", async () => {
+			await expect(
+				store(() => {
+					throw new Error("dynamo unavailable");
+				}).markLinksExtractionFailed({ userId: USER, receivedAtMessageId: RAM }),
+			).rejects.toThrow("dynamo unavailable");
 		});
 	});
 
@@ -380,7 +431,27 @@ describe("initDynamoDbInboxEmailLink", () => {
 			expect(links[0].resolvedUrl).toBe("https://destination.test/a");
 			expect(links[1].status).toBe("pending");
 			expect(links[1].resolvedUrl).toBeUndefined();
-			expect(meta).toEqual({ truncated: true });
+			// A row written before the give-up marker existed carries no such column;
+			// its absence means the extraction that wrote it succeeded.
+			expect(meta).toEqual({ truncated: true, extractionFailed: false });
+		});
+
+		it("reads a give-up barrier back as a failed extraction", async () => {
+			const { meta } = await store(() => ({
+				Items: [
+					{
+						userLinkGroup: GROUP,
+						ordinal: "meta",
+						userId: USER,
+						receivedAtMessageId: RAM,
+						truncated: false,
+						extractionFailed: true,
+					},
+				],
+				Count: 1,
+			})).listLinksByEmail({ userId: USER, receivedAtMessageId: RAM });
+
+			expect(meta).toEqual({ truncated: false, extractionFailed: true });
 		});
 
 		it("reads a skipped row back with its skip reason", async () => {

@@ -454,6 +454,37 @@ eventBus.subscribe(EmailReceivedEvent, extractEmailLinksWithSQS, {
 	name: "inbox-extract-email-links",
 });
 
+// Without this the panel has no terminal state to reach: it polls "Looking for
+// links…" until the reader's budget runs out. The handler writes the meta
+// barrier itself, flagged as a give-up, so the panel stops and says the scan
+// failed rather than reporting an email nobody read as having no links.
+const extractEmailLinksDlqDynamodb = new HutchDynamoDBAccess(
+	"inbox-extract-email-links-dlq-dynamodb",
+	{
+		tables: [{ arn: inboxStorage.emailLinksTable.arn, includeIndexes: false }],
+		// The barrier is a conditional Put of the reserved meta row.
+		actions: ["dynamodb:PutItem"],
+	},
+);
+
+const extractEmailLinksDlqLambda = new HutchLambda("inbox-extract-email-links-dlq", {
+	entryPoint: "./src/runtime/inbox-extract-email-links-dlq.main.ts",
+	outputDir: ".lib/inbox-extract-email-links-dlq",
+	assetDir: "./src/runtime",
+	memorySize: 256,
+	timeout: 30,
+	environment: {
+		DYNAMODB_INBOX_EMAIL_LINKS_TABLE: tableNames.inboxEmailLinks,
+	},
+	policies: [...extractEmailLinksDlqDynamodb.policies],
+});
+
+attachDlqConsumer("inbox-extract-email-links-dlq", {
+	sourceQueue: extractEmailLinksQueue,
+	lambda: extractEmailLinksDlqLambda,
+	batchSize: 1,
+});
+
 const crawlEmailLinkPreviewDynamodb = new HutchDynamoDBAccess(
 	"inbox-crawl-email-link-preview-dynamodb",
 	{

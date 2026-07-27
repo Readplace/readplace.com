@@ -93,7 +93,7 @@ async function seedLinks(
 	await fixture.inboxEmail.inboxEmailLinkStore.putLinksMeta({
 		userId: user.userId,
 		receivedAtMessageId: SK,
-		meta: { truncated },
+		meta: { truncated, extractionFailed: false },
 	});
 }
 
@@ -110,7 +110,7 @@ async function seedExtractionMeta(
 	await fixture.inboxEmail.inboxEmailLinkStore.putLinksMeta({
 		userId: user.userId,
 		receivedAtMessageId: SK,
-		meta: { truncated: false },
+		meta: { truncated: false, extractionFailed: false },
 	});
 }
 
@@ -135,6 +135,19 @@ function renderedPanels(doc: ReturnType<typeof parseDoc>): (string | null)[] {
 	return Array.from(doc.querySelectorAll("[data-test-tab-panel]")).map((panel) =>
 		panel.getAttribute("data-test-tab-panel"),
 	);
+}
+
+/** Every top-level thing a poll tick ships, named. Asserting the whole set says
+ * which fragments ride a tick and which do not — where checking one for absence
+ * passes just as happily when the selector is misspelled. */
+function fragmentRoots(doc: ReturnType<typeof parseDoc>): string[] {
+	return Array.from(
+		doc.querySelectorAll("[data-test-tab-panel], [data-test-inbox-detail-link-count], [data-test-inbox-tabs]"),
+	).map((el) => {
+		const panel = el.getAttribute("data-test-tab-panel");
+		if (panel !== null) return `panel:${panel}`;
+		return el.hasAttribute("data-test-inbox-tabs") ? "tabs" : "link-count";
+	});
 }
 
 describe("Inbox email detail View tab", () => {
@@ -787,7 +800,7 @@ describe("Inbox Articles panel poll route", () => {
 		// one on screen, and an outerHTML swap replaces the tab links rather than
 		// editing them, so a reader keyboarding through the tabs would lose focus
 		// every few seconds until extraction finished.
-		expect(doc.querySelector("[data-test-inbox-tabs]")).toBeNull();
+		expect(fragmentRoots(doc)).toEqual(["panel:articles", "link-count"]);
 	});
 
 	it("fills the tab counts in on the poll tick that completes extraction", async () => {
@@ -863,6 +876,62 @@ describe("Inbox Articles panel poll route", () => {
 		expect(panel.getAttribute("hx-get")).toBeNull();
 		expect(doc.querySelector("[data-test-articles-stale]")).not.toBeNull();
 		expect(doc.querySelector("[data-test-articles-extracting]")).toBeNull();
+	});
+
+	it("reports a dead-lettered extraction as failed on its first render, not after the budget", async () => {
+		const fixture = createDefaultTestAppFixture(TEST_APP_ORIGIN);
+		const harness = useApp(fixture);
+		const agent = await loginAgent(harness.server, harness.auth);
+		await seed(fixture, "received");
+		const user = await fixture.auth.findUserByEmail("test@example.com");
+		assert(user, "logged-in user must exist before seeding");
+		await fixture.inboxEmail.inboxEmailLinkStore.markLinksExtractionFailed({
+			userId: user.userId,
+			receivedAtMessageId: SK,
+		});
+
+		const response = await agent.get(articlesPath);
+
+		expect(response.status).toBe(200);
+		const doc = new JSDOM(response.text).window.document;
+		const panel = doc.querySelector('[data-test-tab-panel="articles"]');
+		assert(panel, "the panel fragment must render");
+		expect(panel.getAttribute("data-articles-status")).toBe("failed");
+		// Terminal on the first tick: no poll URL, and the reader is told the scan
+		// failed rather than that the email had no links.
+		expect(panel.getAttribute("hx-get")).toBeNull();
+		const failed = doc.querySelector("[data-test-articles-failed]");
+		assert(failed, "the failed notice must render");
+		expect(failed.textContent).toBe(
+			"I couldn’t scan this email for links. The original message is still on the View tab.",
+		);
+		// Counts stay withheld — a scan that never ran has no zero to report — so the
+		// tick ships the panel and an empty count badge, and no tab strip to rebuild.
+		expect(fragmentRoots(doc)).toEqual(["panel:articles", "link-count"]);
+		expect(doc.querySelector("[data-test-inbox-detail-link-count]")?.textContent).toBe("");
+	});
+
+	it("reports the same give-up on the Skipped panel, which describes the same run", async () => {
+		const fixture = createDefaultTestAppFixture(TEST_APP_ORIGIN);
+		const harness = useApp(fixture);
+		const agent = await loginAgent(harness.server, harness.auth);
+		await seed(fixture, "received");
+		const user = await fixture.auth.findUserByEmail("test@example.com");
+		assert(user, "logged-in user must exist before seeding");
+		await fixture.inboxEmail.inboxEmailLinkStore.markLinksExtractionFailed({
+			userId: user.userId,
+			receivedAtMessageId: SK,
+		});
+
+		const response = await agent.get(excludedPath);
+
+		expect(response.status).toBe(200);
+		const doc = new JSDOM(response.text).window.document;
+		const panel = doc.querySelector('[data-test-tab-panel="excluded"]');
+		assert(panel, "the panel fragment must render");
+		expect(panel.getAttribute("data-excluded-status")).toBe("failed");
+		expect(panel.getAttribute("hx-get")).toBeNull();
+		expect(doc.querySelector("[data-test-excluded-failed]")).not.toBeNull();
 	});
 
 	it("swaps in the finished card set once extraction wrote its meta", async () => {

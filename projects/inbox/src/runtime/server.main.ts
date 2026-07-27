@@ -126,7 +126,7 @@ async function main(): Promise<void> {
 	await fixture.inboxEmail.inboxEmailLinkStore.putLinksMeta({
 		userId,
 		receivedAtMessageId: withLinks.receivedAtMessageId,
-		meta: { truncated: false },
+		meta: { truncated: false, extractionFailed: false },
 	});
 
 	// The fixed dev login rides the real session boundary: a session minted at

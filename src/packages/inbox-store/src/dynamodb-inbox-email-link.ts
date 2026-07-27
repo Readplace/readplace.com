@@ -62,6 +62,7 @@ const InboxEmailLinkRow = z.object({
 	failureReason: dynamoField(z.string()),
 	skipReason: dynamoField(EmailLinkSkipReasonSchema),
 	truncated: dynamoField(z.boolean()),
+	extractionFailed: dynamoField(z.boolean()),
 });
 
 type InboxEmailLinkRowType = z.infer<typeof InboxEmailLinkRow>;
@@ -217,8 +218,28 @@ export function initDynamoDbInboxEmailLink(deps: {
 					userId,
 					receivedAtMessageId,
 					truncated: meta.truncated,
+					extractionFailed: meta.extractionFailed,
 				},
 			});
+		},
+		markLinksExtractionFailed: async ({ userId, receivedAtMessageId }) => {
+			try {
+				await table.put({
+					Item: {
+						userLinkGroup: groupKey({ userId, receivedAtMessageId }),
+						ordinal: META_SORT_KEY,
+						userId,
+						receivedAtMessageId,
+						truncated: false,
+						extractionFailed: true,
+					},
+					ConditionExpression: "attribute_not_exists(ordinal)",
+				});
+				return "stored";
+			} catch (error) {
+				if (error instanceof ConditionalCheckFailedException) return "superseded";
+				throw error;
+			}
 		},
 		listLinksByEmail: async ({ userId, receivedAtMessageId }) => {
 			const { items } = await table.query({
@@ -230,7 +251,13 @@ export function initDynamoDbInboxEmailLink(deps: {
 			let meta: InboxEmailLinksMeta | undefined;
 			for (const item of items) {
 				if (item.ordinal === META_SORT_KEY) {
-					meta = { truncated: Boolean(item.truncated) };
+					// Coerced rather than parsed: rows written before the give-up marker
+					// existed carry no such column, and their absence means the extraction
+					// that wrote them succeeded.
+					meta = {
+						truncated: Boolean(item.truncated),
+						extractionFailed: Boolean(item.extractionFailed),
+					};
 					continue;
 				}
 				links.push(toEntry(item));

@@ -251,7 +251,11 @@ export function initExtractEmailLinksHandler(deps: {
 				// its presence is an "extraction finished" barrier: the detail view reads
 				// no-meta as "still extracting, keep polling" and meta-present-with-zero-rows
 				// as the genuinely terminal "no links found" — never collapsing the two.
-				await putLinksMeta({ userId, receivedAtMessageId, meta: { truncated } });
+				await putLinksMeta({
+					userId,
+					receivedAtMessageId,
+					meta: { truncated, extractionFailed: false },
+				});
 
 				if (truncated) {
 					await alertTruncated({ userId, receivedAtMessageId, found: extracted.totalFound });

@@ -82,6 +82,12 @@ export function initInMemoryInboxEmailLink(): InboxEmailLinkStore {
 		putLinksMeta: async ({ userId, receivedAtMessageId, meta }) => {
 			metas.set(groupKey({ userId, receivedAtMessageId }), meta);
 		},
+		markLinksExtractionFailed: async ({ userId, receivedAtMessageId }) => {
+			const group = groupKey({ userId, receivedAtMessageId });
+			if (metas.has(group)) return "superseded";
+			metas.set(group, { truncated: false, extractionFailed: true });
+			return "stored";
+		},
 		listLinksByEmail: async ({ userId, receivedAtMessageId }) => {
 			const group = groupKey({ userId, receivedAtMessageId });
 			const list = [...links.values()]

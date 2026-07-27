@@ -87,10 +87,15 @@ interface ExtractionPanelViewModel {
 	 * shown as terminal. Goes false once `isStalePending` takes over. */
 	isExtracting: boolean;
 	/** True when the poll budget is spent but extraction never wrote its meta
-	 * barrier — a permanent extract-DLQ failure or a pre-feature email that predates
-	 * the meta row. The panel gives up on "Looking for links…" and shows a terminal
-	 * notice instead of polling forever. */
+	 * barrier — a pre-feature email that predates the meta row, or an extractor
+	 * that died without reaching its dead-letter queue. The panel gives up on
+	 * "Looking for links…" and shows a terminal notice instead of polling forever. */
 	isStalePending: boolean;
+	/** True when the dead-letter handler recorded that extraction gave up. Terminal
+	 * like any other barrier — the panel stops polling immediately rather than
+	 * burning the whole budget first — and carries the same wording as
+	 * `isStalePending`, since the reader's situation is identical. */
+	isExtractionFailed: boolean;
 	/** Present only while `isExtracting` and within the poll budget — drives the
 	 * page-level htmx poll that swaps the finished panel in on completion. Each panel
 	 * polls its own fragment route: a shared URL would swap the other panel's markup
@@ -120,11 +125,12 @@ export interface InboxEmailDetailViewModel {
 	 * shared toast — a fixed, self-dismissing overlay, so it is seen wherever the
 	 * reader was scrolled to. Undefined on a plain page view. */
 	statusToastMessage: string | undefined;
-	/** True once extraction has written its meta barrier, so the tab counts are
-	 * trustworthy. The poll route emits its out-of-band tab strip only then: while
-	 * this is false the strip it would send is byte-identical to the one on
-	 * screen, and re-sending it every tick would tear down and rebuild the tab
-	 * links — taking keyboard focus with them every few seconds. */
+	/** True once extraction has finished and its counts are trustworthy. The poll
+	 * route emits its out-of-band tab strip only then: while this is false the strip
+	 * it would send is byte-identical to the one on screen, and re-sending it every
+	 * tick would tear down and rebuild the tab links — taking keyboard focus with
+	 * them every few seconds. An extraction that gave up has no counts to report, so
+	 * it never ships a strip either. */
 	extractionReported: boolean;
 	/** A `received` email with its body present renders in the iframe; every
 	 * other case (rejected, unparsed, or a body not yet readable from S3) shows
@@ -254,11 +260,15 @@ export function toInboxEmailDetailViewModel(input: {
 	// email — keep polling rather than asserting it has zero links. Non-received
 	// emails never run extraction, so they are terminal immediately.
 	const awaitingMeta = input.entry.status === "received" && linksMeta === undefined;
+	// A barrier written by the dead-letter handler reports a scan that never
+	// completed, so its zero rows are not an answer about the email's contents.
+	const isExtractionFailed = linksMeta?.extractionFailed === true;
 	let headerCounts: InboxEmailLinkCounts | undefined;
 	if (input.linkData.source === "rows") {
-		headerCounts = awaitingMeta
-			? undefined
-			: { kept: allCards.length, skipped: excludedLinks.length, truncated };
+		headerCounts =
+			awaitingMeta || isExtractionFailed
+				? undefined
+				: { kept: allCards.length, skipped: excludedLinks.length, truncated };
 	} else if (input.entry.status === "received") {
 		headerCounts = input.entry.linkCounts;
 	} else {
@@ -284,6 +294,7 @@ export function toInboxEmailDetailViewModel(input: {
 		staleMessage: STALE_MESSAGE,
 		isExtracting,
 		isStalePending,
+		isExtractionFailed,
 		truncatedNotice: truncated
 			? `Showing the first ${links.length} links found in this email.`
 			: undefined,
@@ -307,7 +318,7 @@ export function toInboxEmailDetailViewModel(input: {
 					? {}
 					: { articles: headerCounts.kept, excluded: headerCounts.skipped },
 		}),
-		extractionReported: !awaitingMeta,
+		extractionReported: !awaitingMeta && !isExtractionFailed,
 		canRenderBody,
 		bodyHtml: input.bodyHtml ?? "",
 		imagesCdnBaseUrl: input.imagesCdnBaseUrl,

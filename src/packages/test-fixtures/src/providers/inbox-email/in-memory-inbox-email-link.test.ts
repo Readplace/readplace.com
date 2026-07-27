@@ -79,11 +79,36 @@ describe("initInMemoryInboxEmailLink", () => {
 		await store.putLinksMeta({
 			userId: owner,
 			receivedAtMessageId: RAM,
-			meta: { truncated: true },
+			meta: { truncated: true, extractionFailed: false },
 		});
 
 		const { meta } = await store.listLinksByEmail({ userId: owner, receivedAtMessageId: RAM });
-		expect(meta).toEqual({ truncated: true });
+		expect(meta).toEqual({ truncated: true, extractionFailed: false });
+	});
+
+	it("writes a give-up barrier when extraction has not already reported", async () => {
+		const store = initInMemoryInboxEmailLink();
+
+		const result = await store.markLinksExtractionFailed({ userId: owner, receivedAtMessageId: RAM });
+
+		expect(result).toBe("stored");
+		const { meta } = await store.listLinksByEmail({ userId: owner, receivedAtMessageId: RAM });
+		expect(meta).toEqual({ truncated: false, extractionFailed: true });
+	});
+
+	it("leaves a completed extraction's barrier untouched when a duplicate delivery gives up", async () => {
+		const store = initInMemoryInboxEmailLink();
+		await store.putLinksMeta({
+			userId: owner,
+			receivedAtMessageId: RAM,
+			meta: { truncated: true, extractionFailed: false },
+		});
+
+		const result = await store.markLinksExtractionFailed({ userId: owner, receivedAtMessageId: RAM });
+
+		expect(result).toBe("superseded");
+		const { meta } = await store.listLinksByEmail({ userId: owner, receivedAtMessageId: RAM });
+		expect(meta).toEqual({ truncated: true, extractionFailed: false });
 	});
 
 	it("stamps a crawled outcome including a lead image", async () => {
@@ -179,7 +204,7 @@ describe("initInMemoryInboxEmailLink", () => {
 			await store.putLinksMeta({
 				userId: owner,
 				receivedAtMessageId: RAM,
-				meta: { truncated: true },
+				meta: { truncated: true, extractionFailed: false },
 			});
 			await store.putLink(makeLink({ receivedAtMessageId: otherRam }));
 
