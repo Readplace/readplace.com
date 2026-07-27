@@ -1,4 +1,5 @@
 import assert from 'node:assert'
+import { AsyncLocalStorage } from 'node:async_hooks'
 import express from 'express'
 import { z } from 'zod'
 import { HutchLogger, consoleLogger, noopLogger } from '@packages/hutch-logger'
@@ -23,6 +24,8 @@ import { initInMemoryUpdateFetchTimestamp } from '@packages/test-fixtures/provid
 import { initInMemoryHostedCheckout } from '@packages/test-fixtures/providers/hosted-checkout'
 import { CheckoutSessionIdSchema } from '@packages/test-fixtures/providers/hosted-checkout'
 import { E2E_ADMIN_EMAIL } from './admin-extend-trial/admin-e2e-user'
+import type { ChangelogBanner } from '@packages/web-shell'
+import { E2E_CHANGELOG_BANNER, E2E_CHANGELOG_BANNER_HEADER } from './changelog-banner-fixture'
 
 const PORT = Number(requireEnv('E2E_PORT'))
 // Use 127.0.0.1 (not localhost) so the appOrigin passed into the test fixture
@@ -120,6 +123,8 @@ const applyParseResult = createFakeApplyParseResult({
 // instead of hitting the unreachable https://checkout.stripe.test domain.
 const e2eStripe = initInMemoryHostedCheckout({ checkoutBaseUrl: `${origin}/e2e/stripe-checkout`, now: () => new Date() })
 
+const changelogBannerForRequest = new AsyncLocalStorage<ChangelogBanner>()
+
 const { app: hutchApp, auth, email } = createTestApp({
 	...fixture,
 	// The default fixture allowlist is empty (fail-closed); the admin
@@ -162,6 +167,8 @@ const { app: hutchApp, auth, email } = createTestApp({
 		logError,
 		now: fixture.shared.now,
 	},
+}, {
+	getChangelogBanner: async () => changelogBannerForRequest.getStore(),
 })
 
 const server = express()
@@ -277,6 +284,14 @@ server.put(
 		res.status(200).end()
 	},
 )
+
+server.use((req, _res, next) => {
+	if (!req.get(E2E_CHANGELOG_BANNER_HEADER)) {
+		next()
+		return
+	}
+	changelogBannerForRequest.run(E2E_CHANGELOG_BANNER, next)
+})
 
 server.use(hutchApp)
 

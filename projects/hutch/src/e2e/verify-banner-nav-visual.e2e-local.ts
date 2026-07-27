@@ -8,6 +8,7 @@ import {
 	type VisualCheckpoint,
 	waitForBrandFonts,
 } from "@packages/e2e-harness";
+import { E2E_CHANGELOG_BANNER_HEADER } from "./changelog-banner-fixture";
 
 const E2E_PORT = process.env.E2E_PORT;
 assert(E2E_PORT, "E2E_PORT must be set by the Playwright webServer config");
@@ -42,6 +43,21 @@ async function seedArticle(page: Page): Promise<void> {
 		201,
 		"seed endpoint must create the crawled article",
 	);
+}
+
+const FOUNDING_SEATS_IN_THE_E2E_FIXTURE = [1, 2, 3];
+
+async function fillFoundingSeatsSoSignupStartsATrial(page: Page, stamp: string): Promise<void> {
+	for (const seat of FOUNDING_SEATS_IN_THE_E2E_FIXTURE) {
+		const response = await page.request.post(`${BASE_URL}/e2e/users`, {
+			data: { email: `founding-seat-${seat}-${stamp}@example.com`, password: PASSWORD },
+		});
+		assert.equal(
+			response.status(),
+			201,
+			"the e2e user fixture must seed a founding-seat filler",
+		);
+	}
 }
 
 // Sign up a fresh user through the real form. New accounts are unverified, so
@@ -89,13 +105,47 @@ async function expectNavBelowBanner(page: Page): Promise<void> {
 		.toBeLessThanOrEqual(1);
 }
 
-async function bannerNavSettled(page: Page): Promise<void> {
-	await page.evaluate(() => {
-		document.querySelector(".trial-countdown")?.remove();
-		document.querySelector(".offline-banner")?.remove();
-	});
-	await expectNavBelowBanner(page);
+async function bannerAreaHeightSettled(page: Page): Promise<void> {
+	let previousHeight = Number.NaN;
+	await expect
+		.poll(async () => {
+			const { height } = await measuredBox(page, ".banner-area");
+			const stable = height === previousHeight;
+			previousHeight = height;
+			return stable;
+		})
+		.toBe(true);
 }
+
+async function offlineNoticeFullyExpanded(page: Page): Promise<void> {
+	await page.waitForFunction(
+		() =>
+			document.querySelector(".offline-banner.offline-banner--visible")?.getAnimations()
+				.length === 0,
+	);
+}
+
+async function narrowSoTheBannerGrows(page: Page): Promise<void> {
+	await page.setViewportSize(NARROW);
+	await waitForBrandFonts(page, ["Inter"]);
+	await bannerAreaHeightSettled(page);
+}
+
+const VOLATILE_CHROME = [".trial-countdown", ".offline-banner"];
+
+function initBannerNavSettled(keptUnderTest: readonly string[]) {
+	const stripped = VOLATILE_CHROME.filter((selector) => !keptUnderTest.includes(selector));
+	return async function settled(page: Page): Promise<void> {
+		await page.evaluate((selectors) => {
+			for (const selector of selectors) document.querySelector(selector)?.remove();
+		}, stripped);
+		await expectNavBelowBanner(page);
+	};
+}
+
+const bannerNavSettled = initBannerNavSettled([]);
+const bannerNavSettledKeepingTrialCountdown = initBannerNavSettled([".trial-countdown"]);
+const bannerNavSettledKeepingOfflineBanner = initBannerNavSettled([".offline-banner"]);
 
 async function navClearsBannerGeometry(page: Page): Promise<void> {
 	const banner = await measuredBox(page, ".banner-area");
@@ -149,6 +199,50 @@ test.describe("Verify banner never overlaps the nav", () => {
 		);
 		await page.setViewportSize(NARROW);
 		await bannerNavSettled(page);
+		await navClearsBannerGeometry(page);
+	});
+
+	test("the nav stays clear of the banner while the trial countdown is live", async ({
+		page,
+	}, testInfo) => {
+		const stamp = `${testInfo.workerIndex}-${Date.now()}`;
+		await fillFoundingSeatsSoSignupStartsATrial(page, stamp);
+		await openReaderAsUnverified(page, `verify-nav-trial-${stamp}@example.com`);
+		await expect(page.locator("[data-test-trial-countdown]")).toHaveClass(
+			/trial-countdown--visible/,
+		);
+		await narrowSoTheBannerGrows(page);
+		await bannerNavSettledKeepingTrialCountdown(page);
+		await navClearsBannerGeometry(page);
+	});
+
+	test("the nav stays clear of the banner when a changelog announcement stacks above it", async ({
+		page,
+	}, testInfo) => {
+		await page.setExtraHTTPHeaders({ [E2E_CHANGELOG_BANNER_HEADER]: "1" });
+		await openReaderAsUnverified(
+			page,
+			`verify-nav-changelog-${testInfo.workerIndex}-${Date.now()}@example.com`,
+		);
+		await expect(page.locator("[data-test-changelog-banner]")).toHaveClass(
+			/changelog-banner--visible/,
+		);
+		await narrowSoTheBannerGrows(page);
+		await bannerNavSettled(page);
+		await navClearsBannerGeometry(page);
+	});
+
+	test("the nav stays clear of the banner when the offline notice expands", async ({
+		page,
+	}, testInfo) => {
+		await openReaderAsUnverified(
+			page,
+			`verify-nav-offline-${testInfo.workerIndex}-${Date.now()}@example.com`,
+		);
+		await narrowSoTheBannerGrows(page);
+		await page.context().setOffline(true);
+		await offlineNoticeFullyExpanded(page);
+		await bannerNavSettledKeepingOfflineBanner(page);
 		await navClearsBannerGeometry(page);
 	});
 
