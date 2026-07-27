@@ -53,6 +53,11 @@ const LIGHT_THEME_VARIABLES: Record<string, string> = {
 	/** --error is 4.17:1 on white, short of 1.4.3. Same hue, darkened to 5.2:1,
 	* for error wording rather than error surfaces. */
 	"--error-text": "hsl(0 43% 50%)",
+	/** Red dark enough to carry --error-foreground at 4.85:1, so it is pinned
+	* across both themes: a fill and a text colour need opposite lightness as the
+	* page darkens, and --error-text follows the page. */
+	"--error-fill": "hsl(0 43% 52%)",
+	"--error-fill-hover": "hsl(0 43% 44%)",
 	"--error-foreground": "hsl(0 0% 100%)",
 	"--error-bg": "hsl(0 43% 56% / 0.1)",
 	"--warning-bg": "hsl(37 56% 51% / 0.12)",

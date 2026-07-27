@@ -22,6 +22,11 @@ function makeViewModel(
 		saved: { iso: "2025-06-01T12:50:00.000Z", label: "10m ago", mode: "relative" },
 		hasContent: false,
 		actions: [],
+		deleteConfirm: {
+			articleId: "abc123",
+			popoverId: "queue-delete-confirm-abc123",
+			url: "/queue/abc123/delete",
+		},
 		isStalePending: false,
 		...overrides,
 	};
@@ -303,19 +308,52 @@ describe("renderQueueCard", () => {
 		expect(statusForm.getAttribute("hx-disabled-elt")).toBe("find button");
 	});
 
-	it("leaves the delete control as a bare icon with no loader or request-disable", () => {
+	it("opens the confirmation instead of submitting the delete", () => {
 		const html = renderQueueCard(
 			display(makeViewModel({ actions: [MARK_READ_ACTION, DELETE_ACTION] }), {
 				isFirst: false,
 			}),
 		);
 		const doc = parse(html);
-		const deleteButton = doc.querySelector("[data-test-action='delete']");
-		assert(deleteButton, "delete button must be present");
-		expect(deleteButton.textContent).toBe("Delete");
+		const trigger = doc.querySelector("[data-test-action='delete']");
+		assert(trigger, "delete trigger must be present");
+		expect(trigger.textContent).toBe("Delete");
+		expect(trigger.getAttribute("type")).toBe("button");
+		expect(trigger.getAttribute("popovertarget")).toBe("queue-delete-confirm-abc123");
+		// A submit button inside a form submits and returns before the popover
+		// step runs, so re-parenting the trigger into a form would delete on the
+		// first click and the confirmation would silently cease to exist.
+		expect(trigger.closest("form")).toBeNull();
 		// The loader spans are gated on affordance === "with-loader"; their absence
 		// is the positive proof the delete control ("bare") opted out.
-		expect(deleteButton.querySelectorAll(".queue-article__action-btn-loader").length).toBe(0);
+		expect(trigger.querySelectorAll(".queue-article__action-btn-loader").length).toBe(0);
+	});
+
+	it("renders exactly one delete trigger per card", () => {
+		const html = renderQueueCard(
+			display(makeViewModel({ actions: [MARK_READ_ACTION, DELETE_ACTION] }), {
+				isFirst: false,
+			}),
+		);
+		expect(parse(html).querySelectorAll("[data-test-action='delete']").length).toBe(1);
+	});
+
+	it("keeps a straight-through delete form for browsers without popover support", () => {
+		const html = renderQueueCard(
+			display(makeViewModel({ actions: [MARK_READ_ACTION, DELETE_ACTION] }), {
+				isFirst: false,
+			}),
+		);
+		const fallback = parse(html).querySelector("[data-test-action='delete-fallback']");
+		assert(fallback, "no-popover fallback must be present");
+		expect(fallback.getAttribute("type")).toBe("submit");
+
+		const fallbackForm = fallback.closest("form");
+		assert(fallbackForm, "the fallback must submit a real form");
+		expect(fallbackForm.classList.contains("queue-article__delete-fallback")).toBe(true);
+		expect(fallbackForm.getAttribute("method")).toBe("POST");
+		assert.match(fallbackForm.getAttribute("action") ?? "", /^\/queue\/abc123\/delete\?/);
+		assert.match(fallbackForm.getAttribute("action") ?? "", /utm_content=delete(&|$)/);
 	});
 
 	it("shows a processing state and disables the status action while the card is still being fetched", () => {

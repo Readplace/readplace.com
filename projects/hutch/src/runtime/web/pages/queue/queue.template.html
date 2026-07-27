@@ -64,4 +64,17 @@
         {{#if hasNext}}<a class="queue__pagination-link" href="{{nextUrl}}" data-test-pagination-next>Next {{icon "arrow-right"}}</a>{{/if}}
       </nav>
       {{/if}}
+      {{#each deleteConfirms}}
+      <div class="queue-confirm" id="{{popoverId}}" popover="auto" role="dialog" tabindex="-1" autofocus aria-labelledby="{{popoverId}}-title" aria-describedby="{{popoverId}}-body {{popoverId}}-article" data-test-delete-confirm="{{articleId}}">
+        <div class="queue-confirm__header">
+          <h2 class="queue-confirm__title" id="{{popoverId}}-title">Delete this article?</h2>
+          <button class="queue-confirm__close" type="button" popovertarget="{{popoverId}}" popovertargetaction="hide" data-test-action="delete-dismiss">{{icon "x"}}<span class="sr-only">Close</span></button>
+        </div>
+        <p class="queue-confirm__body" id="{{popoverId}}-body">By deleting this you won't be able to find it anymore until you save it again.</p>
+        <span class="sr-only" id="{{popoverId}}-article">Article: {{title}}</span>
+        <form class="queue-confirm__form" method="POST" action="{{url}}" hx-boost="true" hx-target="main" hx-select="main" hx-swap="outerHTML show:none">
+          <button class="queue-confirm__cta" type="submit" data-test-action="delete-confirm">Confirm Deletion</button>
+        </form>
+      </div>
+      {{/each}}
     </main>

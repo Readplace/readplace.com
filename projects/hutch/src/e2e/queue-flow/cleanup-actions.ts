@@ -1,7 +1,7 @@
 import type { Page } from '@playwright/test'
 import type { PageAction } from '../hateoas/navigation-handler.types'
 import type { CleanupActionKey } from './action-catalog'
-import { isOnPage, clickAndWaitForPageReload } from '../page-interactions'
+import { isOnPage, deleteArticleWithConfirmation } from '../page-interactions'
 import type { AuthProgress } from './auth-actions'
 
 export type CleanupProgress = {
@@ -17,7 +17,7 @@ const GSI_PROPAGATION_SETTLE_MS = 2000
 async function deleteAllVisibleArticles(page: Page): Promise<void> {
 	let count = await page.locator('[data-test-action="delete"]').count()
 	while (count > 0) {
-		await clickAndWaitForPageReload(page, page.locator('[data-test-action="delete"]').first())
+		await deleteArticleWithConfirmation(page, page.locator('[data-test-action="delete"]').first())
 		count = await page.locator('[data-test-action="delete"]').count()
 	}
 }

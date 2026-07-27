@@ -12,6 +12,7 @@ const TEMPLATE = readFileSync(join(__dirname, "queue-card.template.html"), "utf-
 
 export interface ActionDisplayModel extends ArticleAction {
 	buttonClass: string;
+	formClass: string;
 	disabled: boolean;
 	/** "with-loader" for the mark-read/unread toggle — it renders the in-flight
 	 * loader affordance and hx-disabled-elt so the button behaves like the
@@ -44,7 +45,16 @@ export function toActionDisplayModel(
 	return {
 		...action,
 		url: withInternalTracking(action.url, { source: "queue-card", content: action.testAction }),
+		// A submit button cannot open a popover — button activation behaviour
+		// submits and returns before the popover step — so the confirmed delete
+		// ships as a separate trigger and this form stays as the fallback for
+		// browsers without popover support. It answers to its own test action so
+		// the two controls can never collide in a locator.
+		testAction: isStatusAction ? action.testAction : "delete-fallback",
 		buttonClass,
+		formClass: isStatusAction
+			? "queue-article__action-form"
+			: "queue-article__action-form queue-article__delete-fallback",
 		disabled: options.isProcessing && isStatusAction,
 		affordance: isStatusAction ? "with-loader" : "bare",
 	};

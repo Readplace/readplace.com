@@ -2,7 +2,7 @@ import assert from 'node:assert/strict'
 import { expect, type Page } from '@playwright/test'
 import type { PageAction } from '../hateoas/navigation-handler.types'
 import type { ImportActionKey } from './action-catalog'
-import { isOnPage, clickAndWaitForPageReload } from '../page-interactions'
+import { isOnPage, clickAndWaitForPageReload, deleteArticleWithConfirmation } from '../page-interactions'
 import type { AuthProgress } from './auth-actions'
 import type { QueueProgress } from './queue-actions'
 
@@ -44,13 +44,13 @@ async function commitAndAssertOnQueue(page: Page): Promise<void> {
 async function deleteAllOnQueue(page: Page): Promise<void> {
 	let count = await page.locator('[data-test-action="delete"]').count()
 	while (count > 0) {
-		await clickAndWaitForPageReload(page, page.locator('[data-test-action="delete"]').first())
+		await deleteArticleWithConfirmation(page, page.locator('[data-test-action="delete"]').first())
 		count = await page.locator('[data-test-action="delete"]').count()
 	}
 	await clickAndWaitForPageReload(page, page.locator('[data-test-filter="read"]'))
 	count = await page.locator('[data-test-action="delete"]').count()
 	while (count > 0) {
-		await clickAndWaitForPageReload(page, page.locator('[data-test-action="delete"]').first())
+		await deleteArticleWithConfirmation(page, page.locator('[data-test-action="delete"]').first())
 		count = await page.locator('[data-test-action="delete"]').count()
 	}
 }

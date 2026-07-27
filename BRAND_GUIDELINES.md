@@ -99,6 +99,7 @@ Every raster asset is generated — never hand-rendered — by `projects/hutch/s
 | **Success** | `#3D8B6E` | `#4a9f7f` | `--color-success` | Saved confirmations, sync complete |
 | **Warning** | `#C8923C` | `#d4a04a` | `--color-warning` | Non-critical alerts |
 | **Error** | `#C45C5C` | `#d46b6b` | `--color-error` | Validation errors, failed saves, destructive actions |
+| **Error fill** | `hsl(0 43% 52%)` | same | `--error-fill`, `--error-fill-hover` | The solid red of a destructive *surface* — the confirm button in a delete dialog. Pinned to the same value in **both** themes, like `--primary-fill`, and carries `--error-foreground` at 4.85:1. Never fill with `--error` (4.17:1 under white) or `--error-text` (flips to a *lighter* `#D46B6B` in dark, so the fill would invert) |
 | **Info** | `#4A7FB5` | — | — | Informational banners, tips |
 
 ### Dark Mode Brand Adaptations

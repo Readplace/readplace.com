@@ -1,0 +1,182 @@
+import assert from "node:assert/strict";
+import { JSDOM } from "jsdom";
+import { useTestServer, loginAgent } from "../../../test-app";
+import { TEST_APP_ORIGIN, createDefaultTestAppFixture } from "@packages/test-fixtures";
+
+const useApp = useTestServer();
+
+async function saveArticles(
+	agent: Awaited<ReturnType<typeof loginAgent>>,
+	urls: string[],
+): Promise<void> {
+	for (const url of urls) {
+		await agent.post("/queue/save").type("form").send({ url });
+	}
+}
+
+function queueDocument(html: string): Document {
+	return new JSDOM(html).window.document;
+}
+
+describe("Queue delete confirmation", () => {
+	it("renders one confirmation panel per article, as a child of <main>", async () => {
+		const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
+		const agent = await loginAgent(harness.server, harness.auth);
+		await saveArticles(agent, ["https://example.com/one", "https://example.com/two"]);
+
+		const doc = queueDocument((await agent.get("/queue")).text);
+		const panels = doc.querySelectorAll("[data-test-delete-confirm]");
+
+		expect(panels.length).toBe(2);
+		for (const panel of panels) {
+			// Page level, not inside the card: a pending card replaces its own
+			// subtree every 3s and would rip an open confirmation out mid-decision.
+			expect(panel.parentElement?.tagName).toBe("MAIN");
+			expect(panel.parentElement?.classList.contains("queue")).toBe(true);
+			expect(panel.closest(".queue-article")).toBeNull();
+			expect(panel.getAttribute("popover")).toBe("auto");
+			expect(panel.getAttribute("role")).toBe("dialog");
+			// popover=auto traps nothing and leaves the page live, so claiming
+			// modality to a screen reader would be a lie.
+			expect(panel.hasAttribute("aria-modal")).toBe(false);
+		}
+	});
+
+	it("points every card's trigger at that same card's panel", async () => {
+		const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
+		const agent = await loginAgent(harness.server, harness.auth);
+		await saveArticles(agent, ["https://example.com/first", "https://example.com/second"]);
+
+		const doc = queueDocument((await agent.get("/queue")).text);
+		const triggersByArticle = new Map(
+			[...doc.querySelectorAll(".queue-article")].map((card) => [
+				card.getAttribute("data-test-article"),
+				card.querySelector("[data-test-action='delete']")?.getAttribute("popovertarget"),
+			]),
+		);
+		const panelsByArticle = new Map(
+			[...doc.querySelectorAll("[data-test-delete-confirm]")].map((panel) => [
+				panel.getAttribute("data-test-delete-confirm"),
+				panel.getAttribute("id"),
+			]),
+		);
+
+		expect(triggersByArticle.size).toBe(2);
+		expect(triggersByArticle).toEqual(panelsByArticle);
+	});
+
+	it("keeps every popover and heading id unique across the page", async () => {
+		const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
+		const agent = await loginAgent(harness.server, harness.auth);
+		await saveArticles(agent, [
+			"https://example.com/a",
+			"https://example.com/b",
+			"https://example.com/c",
+		]);
+
+		const doc = queueDocument((await agent.get("/queue")).text);
+		const ids = [...doc.querySelectorAll("[data-test-delete-confirm], .queue-confirm__title")].map(
+			(el) => el.getAttribute("id"),
+		);
+
+		expect(ids.length).toBe(6);
+		expect(new Set(ids).size).toBe(ids.length);
+	});
+
+	it("labels and describes the panel from its own copy and the article title", async () => {
+		const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
+		const agent = await loginAgent(harness.server, harness.auth);
+		await saveArticles(agent, ["https://example.com/described"]);
+
+		const doc = queueDocument((await agent.get("/queue")).text);
+		const panel = doc.querySelector("[data-test-delete-confirm]");
+		assert(panel, "confirmation panel must be rendered");
+
+		const title = doc.getElementById(panel.getAttribute("aria-labelledby") ?? "");
+		assert(title, "aria-labelledby must resolve");
+		expect(title.tagName).toBe("H2");
+		expect(title.textContent).toBe("Delete this article?");
+
+		const [bodyId, articleId] = (panel.getAttribute("aria-describedby") ?? "").split(" ");
+		expect(doc.getElementById(bodyId ?? "")?.textContent).toBe(
+			"By deleting this you won't be able to find it anymore until you save it again.",
+		);
+		// The visible copy is brand-approved and does not name the article, so the
+		// title reaches a screen reader through the second described-by id.
+		assert.match(doc.getElementById(articleId ?? "")?.textContent ?? "", /^Article: /);
+	});
+
+	it("posts the delete from inside the panel, preserving the queue view state", async () => {
+		const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
+		const agent = await loginAgent(harness.server, harness.auth);
+		await saveArticles(agent, ["https://example.com/done-tab"]);
+		const listDoc = queueDocument((await agent.get("/queue")).text);
+		const articleId = listDoc
+			.querySelector("[data-test-article-list] .queue-article")
+			?.getAttribute("data-test-article");
+		await agent.post(`/queue/${articleId}/status`).type("form").send({ status: "read" });
+
+		const doc = queueDocument((await agent.get("/queue?tab=done&order=asc")).text);
+		const cta = doc.querySelector("[data-test-action='delete-confirm']");
+		assert(cta, "confirm call to action must be rendered");
+		expect(cta.textContent).toBe("Confirm Deletion");
+
+		const form = cta.closest("form");
+		assert(form, "the confirm call to action must submit a real form");
+		expect(form.getAttribute("method")).toBe("POST");
+		expect(form.getAttribute("hx-boost")).toBe("true");
+		expect(form.getAttribute("hx-target")).toBe("main");
+		expect(form.getAttribute("hx-select")).toBe("main");
+		expect(form.getAttribute("hx-swap")).toBe("outerHTML show:none");
+		// Not queue-article__action-form: that class carries the status toggle's
+		// in-flight loader machinery and is counted by the listing route test.
+		expect(form.classList.contains("queue-confirm__form")).toBe(true);
+		expect(form.classList.contains("queue-article__action-form")).toBe(false);
+
+		const action = new URL(form.getAttribute("action") ?? "", TEST_APP_ORIGIN);
+		expect(action.pathname).toBe(`/queue/${articleId}/delete`);
+		expect(action.searchParams.get("tab")).toBe("done");
+		expect(action.searchParams.get("order")).toBe("asc");
+		expect(action.searchParams.get("utm_content")).toBe("delete");
+	});
+
+	it("dismisses with the close control rather than deleting", async () => {
+		const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
+		const agent = await loginAgent(harness.server, harness.auth);
+		await saveArticles(agent, ["https://example.com/dismissable"]);
+
+		const doc = queueDocument((await agent.get("/queue")).text);
+		const panel = doc.querySelector("[data-test-delete-confirm]");
+		assert(panel, "confirmation panel must be rendered");
+		const close = doc.querySelector("[data-test-action='delete-dismiss']");
+		assert(close, "close control must be rendered");
+
+		expect(close.getAttribute("type")).toBe("button");
+		expect(close.getAttribute("popovertargetaction")).toBe("hide");
+		expect(close.getAttribute("popovertarget")).toBe(panel.getAttribute("id"));
+		// A close control that fell inside the confirm form would delete the
+		// article instead of dismissing it.
+		expect(close.closest("form")).toBeNull();
+	});
+
+	it("leaves the confirmation out of the polled card fragment", async () => {
+		const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
+		const agent = await loginAgent(harness.server, harness.auth);
+		await saveArticles(agent, ["https://example.com/polled"]);
+		const listDoc = queueDocument((await agent.get("/queue")).text);
+		const card = listDoc.querySelector("[data-test-article-list] .queue-article");
+		const articleId = card?.getAttribute("data-test-article");
+		const pageTarget = card
+			?.querySelector("[data-test-action='delete']")
+			?.getAttribute("popovertarget");
+
+		const fragment = queueDocument((await agent.get(`/queue/${articleId}/card?poll=2`)).text);
+
+		expect(
+			fragment.querySelector("[data-test-action='delete']")?.getAttribute("popovertarget"),
+		).toBe(pageTarget);
+		// A panel in the fragment would duplicate the id, win tree-order
+		// resolution, and then be destroyed by the next 3s poll.
+		expect(fragment.querySelectorAll("[data-test-delete-confirm]").length).toBe(0);
+	});
+});

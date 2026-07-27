@@ -125,6 +125,37 @@ async function auditQueue(page: Page, where: { theme: string; view: string }): P
 		const ratio = contrastRatio({ ink: measured.ink, surface: measured.surface });
 		assert.ok(ratio >= minimumRatio(measured), shortfall(measured, where));
 	}
+
+	await auditDeleteConfirmation(page, where);
+}
+
+/** A closed popover has a zero rect, so the delete confirmation is invisible to
+ * the pass above and its surfaces would ship unmeasured. Opening it puts the
+ * panel in the top layer, which changes painting only — it stays a DOM
+ * descendant of the queue root, so the same walk reaches it. */
+async function auditDeleteConfirmation(
+	page: Page,
+	where: { theme: string; view: string },
+): Promise<void> {
+	const trigger = page.locator('[data-test-action="delete"]').first();
+	await trigger.click({ timeout: SETTLE_MS });
+	await expect(page.locator('[data-test-action="delete-confirm"]').first()).toBeVisible({
+		timeout: SETTLE_MS,
+	});
+	// The click leaves the pointer over the trigger, whose :hover state fills it
+	// solid red; measuring that would audit a state the guidelines exempt.
+	await page.mouse.move(0, 0);
+
+	const measurements = await page.evaluate(collectRenderedInk, QUEUE_ROOT);
+	for (const measured of measurements) {
+		const ratio = contrastRatio({ ink: measured.ink, surface: measured.surface });
+		assert.ok(ratio >= minimumRatio(measured), shortfall(measured, { ...where, view: `${where.view}/delete-confirm` }));
+	}
+
+	await page.keyboard.press("Escape");
+	await expect(page.locator('[data-test-action="delete-confirm"]').first()).toBeHidden({
+		timeout: SETTLE_MS,
+	});
 }
 
 test.describe("Queue colour roles hold their WCAG contrast in both themes", () => {

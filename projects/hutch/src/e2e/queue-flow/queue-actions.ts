@@ -3,7 +3,7 @@ import { expect, type Page } from '@playwright/test'
 import type { PageAction } from '../hateoas/navigation-handler.types'
 import type { QueueActionKey, SaveArticleKey, PaginationArticleKey } from './action-catalog'
 import { TEST_ARTICLE_COUNT, PAGINATION_ARTICLE_COUNT } from './action-catalog'
-import { isOnPage, clickAndWaitForPageReload } from '../page-interactions'
+import { isOnPage, clickAndWaitForPageReload, deleteArticleWithConfirmation } from '../page-interactions'
 import { retriable } from '@packages/retriable'
 import type { AuthProgress } from './auth-actions'
 
@@ -314,7 +314,7 @@ export function createQueueActions(
 				let cards = await page.locator('.queue-article').count()
 
 				while (cards > targetCount) {
-					await clickAndWaitForPageReload(page, page.locator('[data-test-action="delete"]').first())
+					await deleteArticleWithConfirmation(page, page.locator('[data-test-action="delete"]').first())
 					cards = await page.locator('.queue-article').count()
 				}
 
@@ -461,7 +461,7 @@ export function createQueueActions(
 			execute: async (page) => {
 				const deleteButtons = page.locator('[data-test-action="delete"]')
 				const count = await deleteButtons.count()
-				await clickAndWaitForPageReload(page, deleteButtons.nth(count - 1))
+				await deleteArticleWithConfirmation(page, deleteButtons.nth(count - 1))
 				progress.deletedLastArticle = true
 			},
 		},
@@ -513,7 +513,7 @@ export function createQueueActions(
 				let count = await deleteButtons.count()
 				while (count > 0) {
 					const before = count
-					await clickAndWaitForPageReload(page, deleteButtons.first())
+					await deleteArticleWithConfirmation(page, deleteButtons.first())
 					await expect.poll(() => deleteButtons.count(), { timeout: 15000 }).toBeLessThan(before)
 					count = await deleteButtons.count()
 				}
@@ -522,7 +522,7 @@ export function createQueueActions(
 				count = await deleteButtons.count()
 				while (count > 0) {
 					const before = count
-					await clickAndWaitForPageReload(page, deleteButtons.first())
+					await deleteArticleWithConfirmation(page, deleteButtons.first())
 					await expect.poll(() => deleteButtons.count(), { timeout: 15000 }).toBeLessThan(before)
 					count = await deleteButtons.count()
 				}

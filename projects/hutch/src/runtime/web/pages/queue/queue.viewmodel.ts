@@ -8,6 +8,10 @@ import type { GeneratedSummary } from "@packages/provider-contracts/article-summ
 import type { ComponentError } from "../../shared/component-error.types";
 import { MAX_POLLS } from "@packages/web-shell";
 import { buildCardPollUrl } from "./queue-card/queue-card-poll-url";
+import {
+	deleteConfirmPopoverId,
+	type DeleteConfirmViewModel,
+} from "./queue-card/delete-confirm";
 import { isCardTerminal } from "./queue-card/is-card-terminal";
 import type { QueueUrlState } from "./queue.url";
 import { buildQueueCountsUrl, buildQueueUrl } from "./queue.url";
@@ -49,6 +53,7 @@ export interface QueueArticleViewModel {
 	imageUrl?: string;
 	hasContent: boolean;
 	actions: ArticleAction[];
+	deleteConfirm: DeleteConfirmViewModel;
 	/**
 	 * Set when the row's crawl/summary state machines are still in flight.
 	 * The card renders an htmx poll against this URL every 3s; once both
@@ -122,7 +127,7 @@ function toSubscriptionBannerState(access: EffectiveAccess, now: Date): Subscrip
 	}
 }
 
-function toArticleActions(
+function toStatusActions(
 	article: { id: string; status: string },
 	returnQuery: string,
 ): ArticleAction[] {
@@ -150,17 +155,19 @@ function toArticleActions(
 		});
 	}
 
-	actions.push({
+	return actions;
+}
+
+function toDeleteAction(params: { articleId: string; returnQuery: string }): ArticleAction {
+	return {
 		method: "POST",
-		url: `/queue/${article.id}/delete${returnQuery}`,
+		url: `/queue/${params.articleId}/delete${params.returnQuery}`,
 		text: "Delete",
 		iconName: "x",
 		title: "Delete",
 		testAction: "delete",
 		fields: [],
-	});
-
-	return actions;
+	};
 }
 
 export function toQueueArticleViewModel(params: {
@@ -182,6 +189,7 @@ export function toQueueArticleViewModel(params: {
 			? undefined
 			: buildCardPollUrl({ articleId: id, pollCount, filters });
 	const isStalePending = !reachedTerminal && pollCount > maxPolls;
+	const deleteAction = toDeleteAction({ articleId: id, returnQuery });
 	return {
 		id,
 		title: article.metadata.title,
@@ -195,7 +203,12 @@ export function toQueueArticleViewModel(params: {
 		saved: toRelativeOrDate({ iso: article.savedAt.toISOString(), now }),
 		imageUrl: article.metadata.imageUrl,
 		hasContent: Boolean(article.content),
-		actions: toArticleActions({ id, status: article.status }, returnQuery),
+		actions: [...toStatusActions({ id, status: article.status }, returnQuery), deleteAction],
+		deleteConfirm: {
+			articleId: id,
+			popoverId: deleteConfirmPopoverId(id),
+			url: deleteAction.url,
+		},
 		cardPollUrl,
 		isStalePending,
 	};

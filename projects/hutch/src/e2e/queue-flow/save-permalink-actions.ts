@@ -1,7 +1,7 @@
 import { expect } from '@playwright/test'
 import type { PageAction } from '../hateoas/navigation-handler.types'
 import type { SavePermalinkActionKey } from './action-catalog'
-import { isOnPage, clickAndWaitForPageReload } from '../page-interactions'
+import { isOnPage, deleteArticleWithConfirmation } from '../page-interactions'
 import type { AuthProgress } from './auth-actions'
 import type { CleanupProgress } from './cleanup-actions'
 
@@ -43,7 +43,7 @@ export function createSavePermalinkActions(
 				return isOnPage(page, 'page-queue')
 			},
 			execute: async (page) => {
-				await clickAndWaitForPageReload(page, page.locator('[data-test-action="delete"]').first())
+				await deleteArticleWithConfirmation(page, page.locator('[data-test-action="delete"]').first())
 
 				// The delete propagates to the eventually-consistent queue GSI
 				// asynchronously, so the first post-redirect render can still list the

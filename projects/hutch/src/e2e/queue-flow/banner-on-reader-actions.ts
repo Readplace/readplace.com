@@ -2,7 +2,7 @@ import assert from 'node:assert/strict'
 import { expect } from '@playwright/test'
 import type { PageAction } from '../hateoas/navigation-handler.types'
 import type { BannerOnReaderActionKey } from './action-catalog'
-import { isOnPage, clickAndWaitForPageReload } from '../page-interactions'
+import { isOnPage, clickAndWaitForPageReload, deleteArticleWithConfirmation } from '../page-interactions'
 import type { AuthProgress } from './auth-actions'
 import type { CleanupProgress } from './cleanup-actions'
 
@@ -156,7 +156,7 @@ export function createBannerOnReaderActions(
 			execute: async (page) => {
 				// The reader does not auto-mark articles as read, so the
 				// article is still in the default unread tab — delete directly.
-				await clickAndWaitForPageReload(
+				await deleteArticleWithConfirmation(
 					page,
 					page.locator('[data-test-action="delete"]').first(),
 				)

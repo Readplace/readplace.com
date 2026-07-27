@@ -16,6 +16,10 @@ import type { LocalTime, PageBody } from "@packages/web-shell";
 
 import { QUEUE_STYLES } from "./queue.styles";
 import { renderQueueCard, toQueueCardDisplayModel } from "./queue-card/queue-card.component";
+import {
+	toDeleteConfirmDisplayModel,
+	type DeleteConfirmViewModel,
+} from "./queue-card/delete-confirm";
 import { SAVE_SURFACES_SHORT_PHRASE } from "../../shared/client-surface-phrases";
 import type { QueueViewModel, SubscriptionBannerState } from "./queue.viewmodel";
 import { buildQueueUrl } from "./queue.url";
@@ -26,6 +30,14 @@ const QUEUE_TEMPLATE = readFileSync(join(__dirname, "queue.template.html"), "utf
 /** Long enough to read the message and reach for Undo, short enough not to
  * linger; the global toast.client script removes it after this delay. */
 const STATUS_TOAST_DISMISS_MS = 6000;
+
+/** The confirmation panels are built from the same `vm.articles` array as the
+ * cards, so the popover set and the trigger set can never disagree. They live at
+ * page level rather than in the card because a pending card replaces its own
+ * subtree every 3s and would rip an open confirmation out mid-decision. */
+interface DeleteConfirmDisplayModel extends DeleteConfirmViewModel {
+	title: string;
+}
 
 interface QueueDisplayModel {
 	saveError?: string;
@@ -41,6 +53,7 @@ interface QueueDisplayModel {
 	hasArticles: boolean;
 	onboardingHtml: string;
 	articleHtmls: string[];
+	deleteConfirms: DeleteConfirmDisplayModel[];
 	filterUnreadClass: string;
 	filterUnreadLabel: string;
 	filterReadClass: string;
@@ -147,6 +160,10 @@ function toQueueDisplayModel(vm: QueueViewModel, options: { installed: boolean; 
 				}),
 			),
 		),
+		deleteConfirms: vm.articles.map((article) => ({
+			...toDeleteConfirmDisplayModel(article.deleteConfirm),
+			title: article.title,
+		})),
 		filterUnreadClass: filterLinkClass(activeTab === "queue"),
 		filterUnreadLabel: UNREAD_TAB_LABEL,
 		filterReadClass: filterLinkClass(activeTab === "done"),
