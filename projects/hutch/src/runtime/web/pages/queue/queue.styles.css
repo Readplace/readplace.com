@@ -201,14 +201,14 @@
 
 .queue__filter-link--active {
   background: var(--secondary);
-  color: var(--secondary-foreground);
+  color: var(--primary-text);
   border-color: var(--secondary);
   font-weight: 600;
 }
 
 .queue__filter-link--active:hover {
   background: var(--secondary);
-  color: var(--secondary-foreground);
+  color: var(--primary-text);
 }
 
 .queue__sort {
@@ -447,7 +447,7 @@
 }
 
 .queue-article__status--read {
-  color: var(--success);
+  color: var(--success-text);
 }
 
 /**
@@ -513,7 +513,7 @@
 }
 
 .queue-article__action-btn--status {
-  color: var(--primary);
+  color: var(--primary-text);
   border-color: var(--primary);
   font-weight: 600;
 }
