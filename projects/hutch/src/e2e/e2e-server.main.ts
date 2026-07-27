@@ -210,6 +210,7 @@ server.get('/e2e/sent-emails', (_req, res) => {
 const SeedCrawledArticleBody = z.object({
 	url: z.string(),
 	title: z.string(),
+	content: z.string(),
 	contentFetchedAt: z.string(),
 	crawlVersions: z.array(z.string()).default([]),
 })
@@ -219,7 +220,7 @@ server.post('/e2e/seed-crawled-article', async (req, res) => {
 		res.status(400).json({ error: parsed.error.flatten() })
 		return
 	}
-	const { url, title, contentFetchedAt, crawlVersions } = parsed.data
+	const { url, title, content, contentFetchedAt, crawlVersions } = parsed.data
 	const hostname = new URL(url).hostname
 	await fixture.articleStore.saveArticleGlobally({
 		url,
@@ -227,10 +228,7 @@ server.post('/e2e/seed-crawled-article', async (req, res) => {
 		estimatedReadTime: calculateReadTime(500),
 		savedAt: new Date(contentFetchedAt),
 	})
-	await fixture.articleStore.writeContent({
-		url,
-		content: '<p>Seeded article body for the crawl-bookmark visual regression test.</p>',
-	})
+	await fixture.articleStore.writeContent({ url, content })
 	await fixture.articleCrawl.markCrawlReady({ url })
 	await fixture.articleStore.setContentFetchedAt({ url, at: contentFetchedAt })
 	await fixture.articleStore.setCrawlVersions({

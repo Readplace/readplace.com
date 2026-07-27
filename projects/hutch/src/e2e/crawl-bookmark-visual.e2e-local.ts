@@ -18,6 +18,8 @@ const BASE_URL = `http://127.0.0.1:${E2E_PORT}`;
 // the pinned timezoneId below makes the client-side re-localisation resolve to
 // the same UTC value — so the rendered labels are byte-stable across runs.
 const CONTENT_FETCHED_AT = "2026-07-10T09:14:00.000Z";
+const SEEDED_BODY =
+	"<p>Seeded article body for the crawl-bookmark visual regression test.</p>";
 const NEWEST_VERSION = "2026-07-10T09:14Z";
 const MULTI_VERSION_ARTICLE = {
 	url: "https://example.com/crawl-bookmark-visual",
@@ -38,6 +40,7 @@ async function seedCrawledArticle(page: Page, article: SeededArticle): Promise<v
 		data: {
 			url: article.url,
 			title: "Crawl Bookmark Visual",
+			content: SEEDED_BODY,
 			contentFetchedAt: CONTENT_FETCHED_AT,
 			crawlVersions: article.crawlVersions,
 		},

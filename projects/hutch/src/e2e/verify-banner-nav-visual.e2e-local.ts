@@ -18,6 +18,8 @@ const CONTENT_FETCHED_AT = "2026-03-26T14:32:00.000Z";
 const ARTICLE_URL = "https://example.com/verify-banner-nav-visual";
 const CANONICAL_PATH = "example.com/verify-banner-nav-visual";
 const PASSWORD = "Sup3r-Secret-Pw!";
+const SEEDED_BODY =
+	"<p>Seeded article body for the verify-banner-nav visual regression test.</p>";
 
 // A wide viewport keeps the long verify banner on one line; the narrow one
 // wraps it to two lines. That rewrap is the trigger the bug depended on: the
@@ -34,6 +36,7 @@ async function seedArticle(page: Page): Promise<void> {
 			data: {
 				url: ARTICLE_URL,
 				title: "Verify Banner Nav Visual",
+				content: SEEDED_BODY,
 				contentFetchedAt: CONTENT_FETCHED_AT,
 			},
 		},
