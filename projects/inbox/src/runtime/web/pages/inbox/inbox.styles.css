@@ -42,6 +42,14 @@
   margin: 0 0 24px;
 }
 
+.inbox__addresses--visible {
+  display: block;
+}
+
+.inbox__addresses--hidden {
+  display: none;
+}
+
 .inbox__list {
   list-style: none;
   margin: 0;
@@ -192,6 +200,14 @@
 .inbox__empty {
   color: var(--muted-foreground);
   margin: 0 0 24px;
+}
+
+.inbox__empty--visible {
+  display: block;
+}
+
+.inbox__empty--hidden {
+  display: none;
 }
 
 .inbox__create {

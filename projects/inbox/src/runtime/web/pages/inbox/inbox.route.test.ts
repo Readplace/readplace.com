@@ -14,6 +14,12 @@ import {
 const useApp = useTestServer();
 const ONE_DAY_MS = 86_400_000;
 
+function alertKeys(doc: Document): (string | null)[] {
+	return Array.from(doc.querySelectorAll("[data-test-inbox-alert]")).map((el) =>
+		el.getAttribute("data-test-inbox-alert"),
+	);
+}
+
 /** A fixture whose server clock runs `days` ahead of real time, so a freshly
  * created user lands past the 7-day verification window — i.e. locked — with no
  * way to backdate `registeredAt` directly. */
@@ -63,9 +69,11 @@ describe("Inbox address routes", () => {
 
 			expect(response.status).toBe(200);
 			const doc = new JSDOM(response.text).window.document;
-			expect(doc.querySelector("[data-test-inbox-empty]")).not.toBeNull();
-			expect(doc.querySelector("[data-test-inbox-create]")).not.toBeNull();
-			expect(doc.querySelector("[data-test-inbox-list]")).toBeNull();
+			const list = doc.querySelector("[data-test-inbox-list]");
+			assert(list, "the address list must always render, hidden when empty");
+			expect(list.getAttribute("data-test-inbox-addresses-state")).toBe("empty");
+			assert(doc.querySelector("[data-test-inbox-empty]"), "the empty line must render");
+			assert(doc.querySelector("[data-test-inbox-create]"), "the create form must render");
 		});
 
 		it("shows the limit banner proactively at the cap without the &error=limit param", async () => {
@@ -80,7 +88,7 @@ describe("Inbox address routes", () => {
 
 			expect(response.status).toBe(200);
 			const doc = new JSDOM(response.text).window.document;
-			expect(doc.querySelector("[data-test-inbox-limit]")).not.toBeNull();
+			expect(alertKeys(doc)).toEqual(["limit"]);
 		});
 
 		it("shows the limit banner from the &error=limit flag even when the live count is below the cap", async () => {
@@ -91,7 +99,7 @@ describe("Inbox address routes", () => {
 
 			expect(response.status).toBe(200);
 			const doc = new JSDOM(response.text).window.document;
-			expect(doc.querySelector("[data-test-inbox-limit]")).not.toBeNull();
+			expect(alertKeys(doc)).toEqual(["limit"]);
 		});
 	});
 
@@ -144,9 +152,7 @@ describe("Inbox address routes", () => {
 
 			const landing = await agent.get("/inbox/addresses?error=name");
 
-			expect(
-				new JSDOM(landing.text).window.document.querySelector("[data-test-inbox-name-error]"),
-			).not.toBeNull();
+			expect(alertKeys(new JSDOM(landing.text).window.document)).toEqual(["name-invalid"]);
 		});
 
 		it("rejects a name the user already holds on a live address with error=name-taken", async () => {
@@ -164,7 +170,7 @@ describe("Inbox address routes", () => {
 			const doc = new JSDOM(
 				(await agent.get("/inbox/addresses?error=name-taken")).text,
 			).window.document;
-			expect(doc.querySelector("[data-test-inbox-name-taken]")).not.toBeNull();
+			expect(alertKeys(doc)).toEqual(["name-taken"]);
 			// Only the first address was minted — the duplicate did not create a second.
 			expect(doc.querySelectorAll("[data-test-inbox-item]")).toHaveLength(1);
 		});
@@ -265,7 +271,7 @@ describe("Inbox address routes", () => {
 
 			const listed = await agent.get("/inbox/addresses?error=limit");
 			const doc = new JSDOM(listed.text).window.document;
-			expect(doc.querySelector("[data-test-inbox-limit]")).not.toBeNull();
+			expect(alertKeys(doc)).toEqual(["limit"]);
 		});
 
 		it("redirects gracefully and logs when address creation fails", async () => {
@@ -329,20 +335,16 @@ describe("Inbox address routes", () => {
 			const landing = await agent.get(created.headers.location);
 
 			expect(landing.status).toBe(200);
-			expect(
-				new JSDOM(landing.text).window.document.querySelector("[data-test-inbox-error]"),
-			).not.toBeNull();
+			expect(alertKeys(new JSDOM(landing.text).window.document)).toEqual(["create-failed"]);
 		});
 
-		it("does not render the error indicator on a normal visit", async () => {
+		it("renders no alert at all on a normal visit", async () => {
 			const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
 			const agent = await loginAgent(harness.server, harness.auth);
 
 			const response = await agent.get("/inbox/addresses");
 
-			expect(
-				new JSDOM(response.text).window.document.querySelector("[data-test-inbox-error]"),
-			).toBeNull();
+			expect(alertKeys(new JSDOM(response.text).window.document)).toEqual([]);
 		});
 	});
 

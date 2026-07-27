@@ -85,6 +85,22 @@ function cardOrdinals(doc: ReturnType<typeof parseDoc>): (string | null)[] {
 	);
 }
 
+function showMoreLabels(doc: ReturnType<typeof parseDoc>): (string | null)[] {
+	return Array.from(doc.querySelectorAll("[data-test-articles-show-more]")).map(
+		(control) => control.textContent,
+	);
+}
+
+function rowKeys(doc: ReturnType<typeof parseDoc>): string[] {
+	return Array.from(
+		doc.querySelectorAll("[data-test-inbox-article-card], [data-test-inbox-excluded-link]"),
+	).map((row) => {
+		const excluded = row.getAttribute("data-test-inbox-excluded-link");
+		if (excluded === null) return `card:${row.getAttribute("data-test-inbox-article-card")}`;
+		return `excluded:${excluded}`;
+	});
+}
+
 const morePath = `/inbox/${encodeURIComponent(SK)}/articles/more`;
 
 describe("Inbox Extracted Articles Show more fragment", () => {
@@ -110,9 +126,9 @@ describe("Inbox Extracted Articles Show more fragment", () => {
 		expect(cardOrdinals(doc)).toEqual(
 			Array.from({ length: 20 }, (_unused, index) => formatEmailLinkOrdinal(20 + index)),
 		);
+		expect(showMoreLabels(doc)).toEqual(["Show 5 more"]);
 		const control = doc.querySelector("[data-test-articles-show-more]");
 		assert(control, "a control must re-offer the remaining cards");
-		expect(control.textContent).toBe("Show 5 more");
 		expect(control.getAttribute("hx-get")).toBe(`${morePath}?shown=60`);
 		expect(control.getAttribute("hx-swap")).toBe("outerHTML");
 		expect(control.getAttribute("href")).toBe(
@@ -131,7 +147,7 @@ describe("Inbox Extracted Articles Show more fragment", () => {
 		expect(response.status).toBe(200);
 		const doc = parseDoc(response.text);
 		expect(cardOrdinals(doc)).toEqual(["0020", "0021", "0022", "0023", "0024"]);
-		expect(doc.querySelector("[data-test-articles-show-more]")).toBeNull();
+		expect(showMoreLabels(doc)).toEqual([]);
 	});
 
 	it("keeps a revealed pending card polling for its preview", async () => {
@@ -162,7 +178,6 @@ describe("Inbox Extracted Articles Show more fragment", () => {
 		const response = await agent.get(`${morePath}?shown=40`);
 
 		const doc = parseDoc(response.text);
-		expect(cardOrdinals(doc)).toEqual(["0021"]);
-		expect(doc.querySelector("[data-test-inbox-excluded-link]")).toBeNull();
+		expect(rowKeys(doc)).toEqual(["card:0021"]);
 	});
 });

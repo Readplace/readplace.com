@@ -193,11 +193,27 @@
   white-space: nowrap;
 }
 
+.inbox-emails__badge--visible {
+  display: inline;
+}
+
+.inbox-emails__badge--hidden {
+  display: none;
+}
+
 .inbox-emails__link-count {
   flex: none;
   font-size: 0.75rem;
   color: var(--muted-foreground);
   white-space: nowrap;
+}
+
+/**
+ * Renders on every row so a test asserts the count a row shows rather than that
+ * an element is absent; a row with nothing to count collapses instead.
+ */
+.inbox-emails__link-count:empty {
+  display: none;
 }
 
 .inbox-emails__pagination {

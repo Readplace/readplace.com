@@ -1,16 +1,55 @@
-import { type InboxAddressEntry, isLiveAddress } from "@packages/domain/inbox";
+import {
+	INBOX_ADDRESS_MAX_PER_USER,
+	type InboxAddressEntry,
+	isLiveAddress,
+} from "@packages/domain/inbox";
 
 export interface InboxAddressRowViewModel {
 	address: string;
 	name: string;
 }
 
+export type InboxAlertKey = "create-failed" | "name-invalid" | "name-taken" | "limit";
+
+export interface InboxAlertViewModel {
+	key: InboxAlertKey;
+	message: string;
+}
+
 export interface InboxAddressesViewModel {
 	hasAddresses: boolean;
+	/** Both the list and the empty line always render; this says which one the
+	 * reader is looking at, so a test asserts the state rather than an absence. */
+	addressesState: "list" | "empty";
 	activeAddresses: InboxAddressRowViewModel[];
 	disabledAddresses: InboxAddressRowViewModel[];
 	hasDisabled: boolean;
 	disabledCount: number;
+}
+
+const ALERT_MESSAGES: Record<InboxAlertKey, string> = {
+	"create-failed": "I couldn't create an inbox email just now — try again in a moment.",
+	"name-invalid":
+		"Give the inbox email a name using letters and numbers — for example, netflix.",
+	"name-taken": "You already have an active inbox email with that name. Pick a different one.",
+	limit: `You've reached the maximum of ${INBOX_ADDRESS_MAX_PER_USER} inbox emails. Disable any you no longer need before creating more.`,
+};
+
+/** The alerts the page is showing, in the order they render. Built here rather
+ * than branched in the template so adding one is a map entry and a push, and so
+ * a test can assert the whole set a reader sees rather than probing for each. */
+export function toInboxAlerts(input: {
+	createFailed: boolean;
+	nameInvalid: boolean;
+	nameTaken: boolean;
+	limitReached: boolean;
+}): InboxAlertViewModel[] {
+	const keys: InboxAlertKey[] = [];
+	if (input.createFailed) keys.push("create-failed");
+	if (input.nameInvalid) keys.push("name-invalid");
+	if (input.nameTaken) keys.push("name-taken");
+	if (input.limitReached) keys.push("limit");
+	return keys.map((key) => ({ key, message: ALERT_MESSAGES[key] }));
 }
 
 function toRow(entry: InboxAddressEntry): InboxAddressRowViewModel {
@@ -22,6 +61,7 @@ export function toInboxAddressesViewModel(entries: InboxAddressEntry[]): InboxAd
 	const disabledAddresses = entries.filter((entry) => !isLiveAddress(entry)).map(toRow);
 	return {
 		hasAddresses: entries.length > 0,
+		addressesState: entries.length > 0 ? "list" : "empty",
 		activeAddresses,
 		disabledAddresses,
 		hasDisabled: disabledAddresses.length > 0,

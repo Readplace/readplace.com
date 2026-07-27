@@ -2,9 +2,9 @@ import { readFileSync } from "node:fs";
 import { join } from "node:path";
 import { render } from "@packages/web-shell";
 import type { PageBody } from "@packages/web-shell";
-import { INBOX_ADDRESS_MAX_PER_USER, type InboxAddressEntry } from "@packages/domain/inbox";
+import type { InboxAddressEntry } from "@packages/domain/inbox";
 import { INBOX_STYLES } from "./inbox.styles";
-import { toInboxAddressesViewModel } from "./inbox.viewmodel";
+import { toInboxAddressesViewModel, toInboxAlerts } from "./inbox.viewmodel";
 
 const INBOX_TEMPLATE = readFileSync(join(__dirname, "inbox.template.html"), "utf-8");
 
@@ -18,12 +18,13 @@ export function InboxPage(params: {
 	limitReached: boolean;
 }): PageBody {
 	const content = render(INBOX_TEMPLATE, {
-		createFailed: params.createFailed === true,
-		nameInvalid: params.nameInvalid === true,
-		nameTaken: params.nameTaken === true,
 		...toInboxAddressesViewModel(params.addresses),
-		limitReached: params.limitReached,
-		maxAddresses: INBOX_ADDRESS_MAX_PER_USER,
+		alerts: toInboxAlerts({
+			createFailed: params.createFailed === true,
+			nameInvalid: params.nameInvalid === true,
+			nameTaken: params.nameTaken === true,
+			limitReached: params.limitReached,
+		}),
 		createAction: "/inbox/create",
 		disableAction: "/inbox/disable",
 	});

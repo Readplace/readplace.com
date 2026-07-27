@@ -16,6 +16,20 @@ import { loginAgent, useTestServer } from "../../../test-app";
 
 const useApp = useTestServer();
 
+function rowStatus(row: Element): string | null | undefined {
+	return row.querySelector("[data-test-inbox-email-status]")?.getAttribute("data-test-inbox-email-status");
+}
+
+function rowStatusVisible(row: Element): boolean | undefined {
+	return row
+		.querySelector("[data-test-inbox-email-status]")
+		?.classList.contains("inbox-emails__badge--visible");
+}
+
+function rowLinkCount(row: Element): string | undefined {
+	return row.querySelector("[data-test-inbox-email-link-count]")?.textContent ?? undefined;
+}
+
 function navItemKeys(html: string): (string | null)[] {
 	const doc = new JSDOM(html).window.document;
 	return Array.from(doc.querySelectorAll("[data-test-nav-item]")).map((el) =>
@@ -257,13 +271,9 @@ describe("Inbox emails list route", () => {
 		expect(time.getAttribute("datetime")).toBe("2026-06-24T09:00:00.000Z");
 		expect(time.getAttribute("data-local-time")).toBe("relative");
 
-		expect(rows[0].querySelector("[data-test-inbox-email-status]")).toBeNull();
-		expect(
-			rows[1].querySelector('[data-test-inbox-email-status="unparsed"]'),
-		).not.toBeNull();
-		expect(
-			rows[2].querySelector('[data-test-inbox-email-status="rejected"]'),
-		).not.toBeNull();
+		// Every row carries its status; only the two that failed to render show it.
+		expect(rows.map(rowStatus)).toEqual(["received", "unparsed", "rejected"]);
+		expect(rows.map(rowStatusVisible)).toEqual([false, true, true]);
 	});
 
 	it("shows an 'N links' badge only on rows whose links have been extracted", async () => {
@@ -288,8 +298,9 @@ describe("Inbox emails list route", () => {
 		const rows = Array.from(
 			new JSDOM(response.text).window.document.querySelectorAll("[data-test-inbox-emails-row]"),
 		);
-		expect(rows[0].querySelector("[data-test-inbox-email-link-count]")?.textContent).toBe("2 links");
-		expect(rows[1].querySelector("[data-test-inbox-email-link-count]")).toBeNull();
+		// The count element rides every row and collapses when it has nothing to
+		// say, so the assertion is over the labels rather than over an absence.
+		expect(rows.map(rowLinkCount)).toEqual(["2 links", ""]);
 	});
 
 	describe("Pagination", () => {

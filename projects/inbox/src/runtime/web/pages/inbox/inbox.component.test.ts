@@ -26,6 +26,12 @@ function parse(html: string): Document {
 	return new JSDOM(`<!DOCTYPE html><html><body>${html}</body></html>`).window.document;
 }
 
+function alertKeys(doc: Document): (string | null)[] {
+	return Array.from(doc.querySelectorAll("[data-test-inbox-alert]")).map((el) =>
+		el.getAttribute("data-test-inbox-alert"),
+	);
+}
+
 describe("InboxPage", () => {
 	it("noindexes the page and ships the copy-enhancement script", () => {
 		const page = InboxPage({ addresses: [], limitReached: false });
@@ -34,11 +40,20 @@ describe("InboxPage", () => {
 		assert.match(page.scripts ?? "", /inbox\.client\.js/);
 	});
 
-	it("shows an empty state with a create CTA and no list when the user has no addresses", () => {
+	it("shows an empty state with a create CTA when the user has no addresses", () => {
 		const doc = parse(InboxPage({ addresses: [], limitReached: false }).content.html);
 		assert.ok(doc.querySelector("[data-test-inbox-empty]"), "empty state must render");
 		assert.ok(doc.querySelector("[data-test-inbox-create]"), "create CTA must render");
-		assert.equal(doc.querySelector("[data-test-inbox-list]"), null);
+		const list = doc.querySelector("[data-test-inbox-list]");
+		assert.ok(list, "the list renders in both states, hidden when there is nothing in it");
+		assert.equal(list.getAttribute("data-test-inbox-addresses-state"), "empty");
+	});
+
+	it("switches the same list element to its populated state once an address exists", () => {
+		const doc = parse(InboxPage({ addresses: [entry()], limitReached: false }).content.html);
+		const list = doc.querySelector("[data-test-inbox-list]");
+		assert.ok(list, "the address list must render");
+		assert.equal(list.getAttribute("data-test-inbox-addresses-state"), "list");
 	});
 
 	it("renders each address into a selectable read-only field with a copy button", () => {
@@ -148,32 +163,40 @@ describe("InboxPage", () => {
 		assert.equal(input.getAttribute("maxlength"), "24");
 	});
 
-	it("shows the invalid-name alert only when nameInvalid is set", () => {
-		const without = parse(InboxPage({ addresses: [], limitReached: false }).content.html);
-		assert.equal(without.querySelector("[data-test-inbox-name-error]"), null);
-
-		const withError = parse(
-			InboxPage({ addresses: [], limitReached: false, nameInvalid: true }).content.html,
+	it("shows exactly the alerts its inputs call for, and none otherwise", () => {
+		assert.deepEqual(alertKeys(parse(InboxPage({ addresses: [], limitReached: false }).content.html)), []);
+		assert.deepEqual(
+			alertKeys(
+				parse(InboxPage({ addresses: [], limitReached: false, nameInvalid: true }).content.html),
+			),
+			["name-invalid"],
 		);
-		assert.ok(withError.querySelector("[data-test-inbox-name-error]"), "invalid-name alert must render");
+		assert.deepEqual(
+			alertKeys(
+				parse(InboxPage({ addresses: [], limitReached: false, nameTaken: true }).content.html),
+			),
+			["name-taken"],
+		);
+		assert.deepEqual(
+			alertKeys(
+				parse(InboxPage({ addresses: [], limitReached: false, createFailed: true }).content.html),
+			),
+			["create-failed"],
+		);
 	});
 
-	it("shows the duplicate-name alert only when nameTaken is set", () => {
-		const without = parse(InboxPage({ addresses: [], limitReached: false }).content.html);
-		assert.equal(without.querySelector("[data-test-inbox-name-taken]"), null);
-
-		const withError = parse(
-			InboxPage({ addresses: [], limitReached: false, nameTaken: true }).content.html,
+	it("stacks a rejected submission above the standing cap notice, in that order", () => {
+		const doc = parse(
+			InboxPage({ addresses: [entry()], limitReached: true, nameTaken: true }).content.html,
 		);
-		assert.ok(withError.querySelector("[data-test-inbox-name-taken]"), "duplicate-name alert must render");
+
+		assert.deepEqual(alertKeys(doc), ["name-taken", "limit"]);
 	});
 
-	it("shows the per-user limit message naming the cap only when the limit is reached", () => {
-		const without = parse(InboxPage({ addresses: [entry()], limitReached: false }).content.html);
-		assert.equal(without.querySelector("[data-test-inbox-limit]"), null);
+	it("names the cap in the limit message so the reader knows the number", () => {
+		const doc = parse(InboxPage({ addresses: [entry()], limitReached: true }).content.html);
 
-		const withLimit = parse(InboxPage({ addresses: [entry()], limitReached: true }).content.html);
-		const message = withLimit.querySelector("[data-test-inbox-limit]");
+		const message = doc.querySelector('[data-test-inbox-alert="limit"]');
 		assert.ok(message, "limit message must render when the cap is reached");
 		assert.match(message.textContent ?? "", new RegExp(String(INBOX_ADDRESS_MAX_PER_USER)));
 	});

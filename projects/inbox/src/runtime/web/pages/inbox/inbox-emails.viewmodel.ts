@@ -1,5 +1,9 @@
 import { type LocalTime, toRelativeOrDate } from "@packages/web-shell";
-import type { InboxEmailStatus, ListInboxEmailsResult } from "@packages/domain/inbox";
+import type {
+	InboxEmailEntry,
+	InboxEmailStatus,
+	ListInboxEmailsResult,
+} from "@packages/domain/inbox";
 import { buildInboxEmailDetailUrl } from "./inbox-email-detail.url";
 import { buildLinkCountLabel } from "./inbox-link-count-label";
 import { buildInboxEmailsUrl } from "./inbox-emails.url";
@@ -13,11 +17,14 @@ export interface InboxEmailRowViewModel {
 	statusLabel: string;
 	/** `received` mail renders normally; rejected/unparsed rows surface a badge
 	 * inline so the user (and operator) sees that something arrived but did not
-	 * render, rather than it silently vanishing. */
+	 * render, rather than it silently vanishing. The badge element itself always
+	 * renders — carrying the row's status either way — so a test asserts which
+	 * status a row is in rather than that a badge is absent. */
 	needsBadge: boolean;
-	/** "12 links" / "200+ links" once the email's links have been extracted;
-	 * omitted before extraction runs and for rows that never have links. */
-	linkCountLabel: string | undefined;
+	/** "12 links" / "200+ links" once the email's links have been extracted; empty
+	 * before extraction runs and for rows that never have links, matching the
+	 * detail page's always-present count badge. */
+	linkCountLabel: string;
 }
 
 const INBOX_ADDRESSES_PATH = "/inbox/addresses";
@@ -76,6 +83,19 @@ const STATUS_LABEL: Record<InboxEmailStatus, string> = {
 	rejected: "Rejected",
 	unparsed: "Couldn’t render",
 };
+
+/** Empty rather than absent for a row with nothing to count — the element always
+ * renders and collapses on `:empty`, so a test asserts the label a row carries
+ * instead of probing for a missing element. */
+function rowLinkCountLabel(entry: InboxEmailEntry): string {
+	if (entry.status !== "received" || entry.linkCounts === undefined) return "";
+	return (
+		buildLinkCountLabel({
+			count: entry.linkCounts.kept,
+			truncated: entry.linkCounts.truncated,
+		}) ?? ""
+	);
+}
 
 function buildPaginationLinks(
 	result: ListInboxEmailsResult,
@@ -140,13 +160,7 @@ export function toInboxEmailsViewModel(
 			needsBadge: entry.status !== "received",
 			// Only `received` mail ever has links; rejected/unparsed rows never
 			// surface a count even if a stray row existed.
-			linkCountLabel:
-				entry.status === "received" && entry.linkCounts !== undefined
-					? buildLinkCountLabel({
-							count: entry.linkCounts.kept,
-							truncated: entry.linkCounts.truncated,
-						})
-					: undefined,
+			linkCountLabel: rowLinkCountLabel(entry),
 		})),
 	};
 }

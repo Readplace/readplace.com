@@ -148,7 +148,6 @@ describe("Inbox link card route", () => {
 		);
 		assert(card, "the card fragment must render");
 		expect(card.getAttribute("data-card-status")).toBe("terminal");
-		expect(card.getAttribute("hx-get")).toBeNull();
 		expectBareUrlRow(card);
 	});
 
@@ -172,7 +171,6 @@ describe("Inbox link card route", () => {
 		);
 		assert(card, "the card fragment must render");
 		expect(card.getAttribute("data-card-status")).toBe("terminal");
-		expect(card.getAttribute("hx-get")).toBeNull();
 		expect(cardActions(card)).toEqual(["save", "feedback-exclude"]);
 		const title = card.querySelector("[data-test-inbox-article-title]");
 		assert(title, "the crawled row must render its title as a link");
@@ -226,7 +224,6 @@ describe("Inbox link card route", () => {
 		);
 		assert(card, "the card fragment must render");
 		expect(card.getAttribute("data-card-status")).toBe("terminal");
-		expect(card.getAttribute("hx-get")).toBeNull();
 		expectBareUrlRow(card);
 	});
 

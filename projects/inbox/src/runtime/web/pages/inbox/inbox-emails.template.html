@@ -45,16 +45,16 @@
         <time class="inbox-emails__time" data-test-inbox-email-time datetime="{{received.iso}}" data-local-time="{{received.mode}}">{{received.label}}</time>
         <span class="inbox-emails__meta-line">
           <span class="inbox-emails__subject" data-test-inbox-email-subject>{{subject}}</span>
-          {{#if needsBadge}}<span
-            class="inbox-emails__badge"
+          <span
+            class="inbox-emails__badge {{#if needsBadge}}inbox-emails__badge--visible{{else}}inbox-emails__badge--hidden{{/if}}"
             data-test-inbox-email-status="{{status}}"
             >{{statusLabel}}</span
-          >{{/if}}
-          {{#if linkCountLabel}}<span
+          >
+          <span
             class="inbox-emails__link-count"
             data-test-inbox-email-link-count
             >{{linkCountLabel}}</span
-          >{{/if}}
+          >
         </span>
       </a>
     </li>

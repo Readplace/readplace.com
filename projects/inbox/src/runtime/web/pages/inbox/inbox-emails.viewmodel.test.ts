@@ -127,8 +127,8 @@ describe("toInboxEmailsViewModel", () => {
 		expect(
 			build([entry({ linkCounts: { kept: 0, skipped: 4, truncated: false } })]).rows[0]
 				.linkCountLabel,
-		).toBeUndefined();
-		expect(build([entry()]).rows[0].linkCountLabel).toBeUndefined();
+		).toBe("");
+		expect(build([entry()]).rows[0].linkCountLabel).toBe("");
 	});
 
 	it("never labels a rejected or unparsed row even if a count is present", () => {
@@ -136,7 +136,7 @@ describe("toInboxEmailsViewModel", () => {
 			entry({ status: "unparsed", linkCounts: { kept: 5, skipped: 0, truncated: false } }),
 		]);
 
-		expect(vm.rows[0].linkCountLabel).toBeUndefined();
+		expect(vm.rows[0].linkCountLabel).toBe("");
 	});
 
 	it("formats the received time as a relative LocalTime across each granularity", () => {
