@@ -15,8 +15,8 @@ export async function clickAndWaitForPageReload(page: Page, locator: ReturnType<
 		// network to go idle. HTMX may schedule the DOM swap asynchronously after
 		// removing htmx-request; networkidle ensures the swap and any follow-up
 		// requests (e.g. redirects) have fully completed before we return.
-		page.waitForSelector('.htmx-request', { state: 'attached', timeout: 5000 })
-			.then(() => page.waitForSelector('.htmx-request', { state: 'detached', timeout: 60000 }))
+		page.waitForSelector('.htmx-request', { state: 'attached', timeout: 750 })
+			.then(() => page.waitForSelector('.htmx-request', { state: 'detached', timeout: 15000 }))
 			.then(() => page.waitForLoadState('networkidle'))
 			.catch(() => page.waitForLoadState('networkidle')),
 	])
@@ -24,7 +24,7 @@ export async function clickAndWaitForPageReload(page: Page, locator: ReturnType<
 
 /**
  * Deleting takes two clicks now. Opening the confirmation navigates nothing and
- * issues no htmx request, so clickAndWaitForPageReload would burn its 5s
+ * issues no htmx request, so clickAndWaitForPageReload would burn its
  * fallback and return with the popover still open — and because
  * popovertargetaction defaults to Toggle, the caller's next click would close it
  * again and nothing would ever be deleted.
