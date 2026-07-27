@@ -1,15 +1,30 @@
 import assert from "node:assert/strict";
 import { JSDOM } from "jsdom";
 import request from "supertest";
-import { useTestServer, loginAgent } from "../../../test-app";
+import { BROWSER_REQUEST_HEADERS, useTestServer, loginAgent } from "../../../test-app";
 import {
 	TEST_APP_ORIGIN,
 	createDefaultTestAppFixture,
 } from "@packages/test-fixtures";
+import { HOMEPAGE_SPLIT } from "../../experiments/homepage-split";
 
 const TEST_FOUNDING_MEMBER_LIMIT = 3;
+const GOOGLEBOT_UA =
+	"Mozilla/5.0 (compatible; Googlebot/2.1; +http://www.google.com/bot.html)";
 
 const useApp = useTestServer();
+const useAppDrawingArmB = useTestServer({ drawRandomByte: () => 200 });
+
+function readSetCookie(
+	response: { headers: Record<string, string | string[] | undefined> },
+	name: string,
+): string | undefined {
+	const raw = response.headers["set-cookie"];
+	const header = raw === undefined ? [] : Array.isArray(raw) ? raw : [raw];
+	const match = header.find((cookie) => cookie.startsWith(`${name}=`));
+	if (!match) return undefined;
+	return decodeURIComponent(match.slice(name.length + 1).split(";")[0]);
+}
 
 describe("GET / (authenticated)", () => {
 	it("should redirect a logged-in visitor straight to /queue", async () => {
@@ -23,6 +38,112 @@ describe("GET / (authenticated)", () => {
 		expect(response.headers.location).toBe("/queue");
 	});
 });
+
+describe("GET / (homepage A/B arm)", () => {
+	it("renders the drawn arm on the visitor's first paint, with no redirect to swap it afterwards", async () => {
+		const harness = useAppDrawingArmB(createDefaultTestAppFixture(TEST_APP_ORIGIN));
+		const response = await request(harness.server).get("/");
+		const doc = new JSDOM(response.text).window.document;
+
+		expect(response.status).toBe(200);
+		assert(doc.querySelector("[data-test-variant-b]"), "the drawn arm must render at /");
+		expect(doc.body.classList.contains("variant-b")).toBe(true);
+		expect(readSetCookie(response, "hutch_exp")).toBe("homepage-split:3:variant-b");
+	});
+
+	it("draws the incumbent arm from the low half of the byte range and records that too", async () => {
+		const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
+		const response = await request(harness.server).get("/");
+		const doc = new JSDOM(response.text).window.document;
+
+		expect(doc.body.classList.contains("variant-a")).toBe(true);
+		expect(readSetCookie(response, "hutch_exp")).toBe("homepage-split:3:variant-a");
+	});
+
+	it("re-renders the recorded arm instead of drawing again, so a returning visitor keeps their page", async () => {
+		const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
+		const response = await request(harness.server)
+			.get("/")
+			.set("Cookie", ["hutch_exp=homepage-split%3A3%3Avariant-b"]);
+		const doc = new JSDOM(response.text).window.document;
+
+		assert(doc.querySelector("[data-test-variant-b]"), "the recorded arm must render at /");
+		expect(readSetCookie(response, "hutch_exp")).toBe("homepage-split:3:variant-b");
+	});
+
+	it("re-draws when the recorded arm is from a bumped epoch", async () => {
+		const harness = useAppDrawingArmB(createDefaultTestAppFixture(TEST_APP_ORIGIN));
+		const response = await request(harness.server)
+			.get("/")
+			.set("Cookie", ["hutch_exp=homepage-split%3A1%3Avariant-a"]);
+		const doc = new JSDOM(response.text).window.document;
+
+		assert(doc.querySelector("[data-test-variant-b]"), "a stale epoch must be re-bucketed");
+		expect(readSetCookie(response, "hutch_exp")).toBe("homepage-split:3:variant-b");
+	});
+
+	it("keeps a crawler on the incumbent arm and never records it, so an arm is not indexed by a coin flip", async () => {
+		const harness = useAppDrawingArmB(createDefaultTestAppFixture(TEST_APP_ORIGIN));
+		const response = await request(harness.server).get("/").set("User-Agent", GOOGLEBOT_UA);
+		const doc = new JSDOM(response.text).window.document;
+
+		expect(doc.body.classList.contains("variant-a")).toBe(true);
+		expect(readSetCookie(response, "hutch_exp")).toBeUndefined();
+	});
+
+	it("indexes / whichever arm rendered, with the canonical on / for both", async () => {
+		const harness = useAppDrawingArmB(createDefaultTestAppFixture(TEST_APP_ORIGIN));
+		const response = await request(harness.server).get("/");
+		const doc = new JSDOM(response.text).window.document;
+
+		expect(doc.querySelector('meta[name="robots"]')?.getAttribute("content")).toBe("index, follow");
+		expect(doc.querySelector('link[rel="canonical"]')?.getAttribute("href")).toBe(
+			"https://readplace.com/",
+		);
+	});
+
+	it("keeps / out of shared caches, since the arm now varies per visitor", async () => {
+		const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
+		const response = await request(harness.server).get("/");
+
+		expect(response.headers["cache-control"]).toBe("private, no-cache");
+	});
+
+	it("records the exposure on / itself, so an arm with no URL of its own is still counted", async () => {
+		const harness = useAppDrawingArmB(createDefaultTestAppFixture(TEST_APP_ORIGIN));
+		await request(harness.server).get("/").set(BROWSER_REQUEST_HEADERS);
+
+		const pageviews = harness.analytics.events.filter((event) => event.event === "pageview");
+		expect(pageviews).toHaveLength(1);
+		expect(pageviews[0]).toMatchObject({
+			path: "/",
+			experiment: "homepage-split-e3",
+			experiment_variant: "variant-b",
+		});
+	});
+
+	it("leaves the exposure off a crawler's pageview, which is not part of the read", async () => {
+		const harness = useAppDrawingArmB(createDefaultTestAppFixture(TEST_APP_ORIGIN));
+		await request(harness.server)
+			.get("/")
+			.set({ ...BROWSER_REQUEST_HEADERS, "User-Agent": GOOGLEBOT_UA });
+
+		expect(harness.analytics.events).toEqual([]);
+	});
+});
+
+describe.each(HOMEPAGE_SPLIT.variants.map((variant) => variant.path))(
+	"GET %s (the arm's own URL while the split ran client-side)",
+	(path) => {
+		it("sends the visitor to /, which renders whichever arm they are on", async () => {
+			const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
+			const response = await request(harness.server).get(path);
+
+			expect(response.status).toBe(303);
+			expect(response.headers.location).toBe("/");
+		});
+	},
+);
 
 describe("GET /", () => {
 	it("should return 200 and HTML content", async () => {
@@ -62,31 +183,6 @@ describe("GET /", () => {
 		const script = doc.querySelector('script[src="/client-dist/home.client.js"]');
 		assert(script, "home.client.js bundle must be loaded on the home page");
 		expect(script.hasAttribute("defer")).toBe(true);
-	});
-
-	it("should load the homepage-split A/B redirect bundle on the guest entry", async () => {
-		const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
-		const response = await request(harness.server).get("/");
-		const doc = new JSDOM(response.text).window.document;
-
-		const script = doc.querySelector('script[src="/client-dist/homepage-split.client.js"]');
-		assert(script, "homepage-split.client.js bundle must be loaded on the guest / entry");
-		expect(script.hasAttribute("defer")).toBe(true);
-	});
-
-	it("does not load the split script for a crawler, so bots keep the control /", async () => {
-		const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
-		const response = await request(harness.server)
-			.get("/")
-			.set("User-Agent", "Mozilla/5.0 (compatible; Googlebot/2.1; +http://www.google.com/bot.html)");
-		const doc = new JSDOM(response.text).window.document;
-
-		expect(doc.querySelector('script[src="/client-dist/homepage-split.client.js"]')).toBeNull();
-		// The home client bundle still loads so the indexed control / keeps its enhancements.
-		assert(
-			doc.querySelector('script[src="/client-dist/home.client.js"]'),
-			"home.client.js must still load for crawlers on the control /",
-		);
 	});
 
 	it("should render a generic install CTA when browser is unrecognized", async () => {

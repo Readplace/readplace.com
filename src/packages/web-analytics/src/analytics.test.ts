@@ -1,7 +1,7 @@
 import { EventEmitter } from "node:events";
 import type { NextFunction, Request, Response } from "express";
 import type { HutchLogger } from "@packages/hutch-logger";
-import { type AnalyticsClick, type AnalyticsEvent, type AnalyticsPageview, buildSaveIntentEvent, buildSignupAttemptedEvent, classifyBrowser, classifyDeviceClass, createAnalyticsMiddleware, hashIp, type SignupAttemptedEvent, suppressClickCount, type ViewSaveIntentEvent } from "./analytics";
+import { type AnalyticsClick, type AnalyticsEvent, type AnalyticsPageview, buildSaveIntentEvent, buildSignupAttemptedEvent, classifyBrowser, classifyDeviceClass, createAnalyticsMiddleware, hashIp, type SignupAttemptedEvent, suppressClickCount, tagPageviewExperiment, type ViewSaveIntentEvent } from "./analytics";
 import { SAVE_OUTCOMES, SAVE_SURFACES, SIGNUP_OUTCOMES } from "./events";
 
 function createCapturingLogger(): {
@@ -79,8 +79,9 @@ function runMiddleware(
 	req: Partial<Request>,
 	res: Response & EventEmitter,
 	isStaticAssetPath?: (path: string) => boolean,
+	beforeFinish?: () => void,
 ): AnalyticsPageview[] {
-	return captureEvents(req, res, undefined, isStaticAssetPath).filter(
+	return captureEvents(req, res, beforeFinish, isStaticAssetPath).filter(
 		(e): e is AnalyticsPageview => e.event === "pageview",
 	);
 }
@@ -135,6 +136,40 @@ describe("createAnalyticsMiddleware", () => {
 		const req = createReq({ headers: { referer: "not a url" } });
 		const [event] = runMiddleware(req, createRes(200));
 		expect(JSON.stringify(event)).not.toContain("referrer_host");
+	});
+
+	it("carries the experiment arm the route tagged onto the response, so an arm chosen server-side is still counted as an exposure", () => {
+		const res = createRes(200);
+		const [event] = runMiddleware(createReq({ path: "/" }), res, undefined, () => {
+			tagPageviewExperiment(res, { experiment: "homepage-split-e3", variant: "variant-b" });
+		});
+		expect(event).toMatchObject({
+			experiment: "homepage-split-e3",
+			experiment_variant: "variant-b",
+		});
+	});
+
+	it("keeps the visitor's own utm_* alongside the experiment arm, so an inbound campaign still reads as acquisition", () => {
+		const res = createRes(200);
+		const [event] = runMiddleware(
+			createReq({ path: "/", query: { utm_source: "twitter", utm_medium: "social" } }),
+			res,
+			undefined,
+			() => {
+				tagPageviewExperiment(res, { experiment: "homepage-split-e3", variant: "variant-a" });
+			},
+		);
+		expect(event).toMatchObject({
+			utm_source: "twitter",
+			utm_medium: "social",
+			experiment: "homepage-split-e3",
+			experiment_variant: "variant-a",
+		});
+	});
+
+	it("omits the experiment keys from the emitted JSON when the route tagged no arm", () => {
+		const serialized = JSON.stringify(runMiddleware(createReq({ path: "/" }), createRes(200))[0]);
+		expect(serialized).not.toContain("experiment");
 	});
 
 	it("skips logging for non-GET requests", () => {

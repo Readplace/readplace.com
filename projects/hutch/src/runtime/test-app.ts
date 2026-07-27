@@ -210,6 +210,7 @@ function flattenFixtureToAppDependencies(
 				.then(() => undefined),
 		getChangelogBanner: async () => undefined,
 		now: fixture.shared.now,
+		drawRandomByte: () => 0,
 		retrieveCheckoutSession: fixture.hostedCheckout.retrieveCheckoutSession,
 		createCheckoutSession: fixture.hostedCheckout.createCheckoutSession,
 		consumePendingSignup: fixture.pendingSignup.consumePendingSignup,
@@ -274,15 +275,17 @@ export const BROWSER_REQUEST_HEADERS: Record<string, string> = {
 /** `overrides` lets a test swap a single dependency without rebuilding the whole
  * fixture — `getChangelogBanner` (defaults to "no banner" so it stays hidden in
  * every other route test), `getSessionUserId` (so a test can make the session
- * lookup throw and assert the request still degrades to guest), and
+ * lookup throw and assert the request still degrades to guest),
  * `resolveCanonicalIdentity` (which defaults to identity, so a test that needs a
- * real alias fold has to say so). */
+ * real alias fold has to say so), and `drawRandomByte` (which defaults to the
+ * first homepage arm, so a test only says so when it wants the other one). */
 export function createTestApp(
 	fixture: TestAppFixture,
 	overrides?: {
 		getChangelogBanner?: GetChangelogBanner;
 		getSessionUserId?: GetSessionUserId;
 		resolveCanonicalIdentity?: (url: string) => Promise<string>;
+		drawRandomByte?: () => number;
 	},
 ): TestAppResult {
 	const analyticsEvents: AnalyticsEvent[] = [];
@@ -336,6 +339,7 @@ export function useTestServer(overrides?: {
 	getChangelogBanner?: GetChangelogBanner;
 	getSessionUserId?: GetSessionUserId;
 	resolveCanonicalIdentity?: (url: string) => Promise<string>;
+	drawRandomByte?: () => number;
 }): (fixture: TestAppFixture) => TestAppHarness {
 	return useServerForFixture((fixture) => createTestApp(fixture, overrides));
 }

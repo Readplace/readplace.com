@@ -187,9 +187,7 @@ export function HomeVariantBPage(params: {
 				"Readplace is a read-it-later app: save any article, newsletter, or PDF in one click and read it later in a clean reader view with an AI TL;DR. 14-day free trial, no credit card.",
 			canonicalUrl: "https://readplace.com",
 			ogType: "website",
-			// noindex with canonical=/ so this A/B arm never competes with the
-			// canonical `/` for SEO. Reached only via the client-side split redirect.
-			robots: "noindex, follow",
+			robots: "index, follow",
 			appleItunesApp: APPLE_ITUNES_APP_META,
 			ogImage: `${staticBaseUrl}/og-image-1200x630.png`,
 			ogImageType: "image/png",

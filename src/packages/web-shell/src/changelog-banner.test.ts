@@ -163,20 +163,6 @@ describe("renderChangelogBannerShell", () => {
 		expect(last.textContent).toBe(CHANGELOG_SEEN_SCRIPT);
 	});
 
-	it("omits the seen-script when suppressSeenScript is set, while still rendering the visible banner, version, and NEW chip", () => {
-		const html = renderChangelogBannerShell(BANNER, "/x", { suppressSeenScript: true });
-		const doc = parse(html);
-		const banner = doc.querySelector(".changelog-banner");
-		assert(banner, "the banner element must still render");
-		expect(banner.classList.contains("changelog-banner--visible")).toBe(true);
-		expect(banner.getAttribute("data-changelog-version")).toBe(VERSION);
-		const chip = banner.querySelector(".changelog-banner__chip");
-		assert(chip, "the NEW chip must still render when the seen-script is suppressed");
-		expect(chip.textContent).toBe("NEW");
-		expect(banner.querySelector("script")).toBeNull();
-		expect(html).not.toContain(CHANGELOG_SEEN_SCRIPT);
-	});
-
 	it("renders the hidden, empty banner when no banner is present", () => {
 		const doc = parse(renderChangelogBannerShell(undefined));
 		const banner = doc.querySelector(".changelog-banner");

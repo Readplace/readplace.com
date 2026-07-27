@@ -150,9 +150,10 @@ export interface ConversionEvent {
 	visitor_id?: string;
 	/** The homepage A/B arm (`variant-a` / `variant-b`) the visitor was assigned
 	 * when they landed, read from the server-written experiment cookie at signup.
-	 * Absent when the signup did not follow a homepage-split landing (direct hits,
-	 * bots kept on the canonical `/`, or a cleared/stale-epoch cookie). This is the
-	 * only field that lets a conversion be attributed to an arm. */
+	 * Absent when the visitor was never assigned an arm (a signup that started
+	 * somewhere other than the homepage, a crawler kept on the incumbent arm, or a
+	 * cleared/stale-epoch cookie). This is the only field that lets a conversion be
+	 * attributed to an arm. */
 	homepage_variant?: string;
 	/** The id minted when an anonymous save was held behind the sign-in wall
 	 * (carried on the matching `view_save_intent`), so a signup-blocked save can

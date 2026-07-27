@@ -138,35 +138,16 @@ const WAYS_TO_SAVE: readonly WayToSave[] = [
 
 const HOME_CLIENT_SCRIPT = `<script src="/client-dist/home.client.js" defer></script>`;
 
-/** Emitted on the bare `/` entry only for a human guest (`abSplit`, no `variant`).
- * It reads/assigns the A/B bucket in localStorage and redirects to the matching
- * landing arm. Bots are gated out server-side (`abSplit` false) so crawlers keep
- * the canonical `/` and never follow a client redirect into a `noindex` arm. The
- * landing arms render HomePage *with* a `variant`, so they omit this script and
- * can't redirect into a loop. */
-const HOME_SPLIT_SCRIPT = `<script src="/client-dist/homepage-split.client.js" defer></script>`;
-
-/**
- * `/` and the A/B landing arms are mutually-exclusive render modes, so the
- * variant marker and the split-script flag are a union — a caller passes exactly
- * one, never both or neither:
- * - the arms (`/landing-a`, `/landing-b`) pass `variant` (noindex, no split
- *   script — see `HOME_SPLIT_SCRIPT`);
- * - `/` passes `abSplit` (true for a human guest → emit the split script; false
- *   for a bot → keep the canonical control `/`).
- */
-type HomePageParams = {
+interface HomePageParams {
 	userCount: number;
 	staticBaseUrl: string;
 	browser: InstallBrowser;
 	foundingAllocation: FoundingAllocation;
-} & (
-	| { variant: HomepageVariantMarker; abSplit?: never }
-	| { variant?: never; abSplit: boolean }
-);
+	variant: HomepageVariantMarker;
+}
 
 export function HomePage(params: HomePageParams): PageBody {
-	const { userCount, staticBaseUrl, browser, foundingAllocation, variant, abSplit } = params;
+	const { userCount, staticBaseUrl, browser, foundingAllocation, variant } = params;
 	const foundingMemberLimit = foundingAllocation.foundingMemberLimit;
 	const foundingProgressHtml = renderFoundingProgress({ userCount, foundingAllocation });
 	const foundingAllocationAvailable = !foundingAllocation.isFoundingAllocationExhausted(userCount);
@@ -187,15 +168,10 @@ export function HomePage(params: HomePageParams): PageBody {
 			staticBaseUrl,
 			foundingMemberLimit,
 			foundingAllocationAvailable,
-			variant,
 		}),
 		styles: HOME_PAGE_STYLES,
-		scripts: variant
-			? HOME_CLIENT_SCRIPT
-			: abSplit
-				? `${HOME_CLIENT_SCRIPT}${HOME_SPLIT_SCRIPT}`
-				: HOME_CLIENT_SCRIPT,
-		bodyClass: variant ? `page-home variant-${variant}` : "page-home",
+		scripts: HOME_CLIENT_SCRIPT,
+		bodyClass: `page-home variant-${variant}`,
 		content: { html: render(HOME_TEMPLATE, {
 			staticBaseUrl,
 			browserName: browser,

@@ -1,11 +1,19 @@
 import assert from "node:assert/strict";
 import { JSDOM } from "jsdom";
 import request from "supertest";
+import type { Server } from "node:http";
+import type { Test } from "supertest";
 import { TEST_APP_ORIGIN, createDefaultTestAppFixture } from "@packages/test-fixtures";
 import { useTestServer } from "../../../test-app";
 import { HOME_B_CONTENT } from "./home-b.content";
 
 const useApp = useTestServer();
+
+/** Arm B has no URL of its own: `/` renders it for a visitor recorded on that
+ * arm, which is the only way a reader ever reaches it. */
+function getArmB(server: Server): Test {
+	return request(server).get("/").set("Cookie", ["hutch_exp=homepage-split%3A3%3Avariant-b"]);
+}
 
 function loadB(text: string): Document {
 	return new JSDOM(text).window.document;
@@ -15,10 +23,10 @@ function attrs(doc: Document, selector: string, attr: string): string[] {
 	return Array.from(doc.querySelectorAll(selector)).map((el) => el.getAttribute(attr) ?? "");
 }
 
-describe("GET /landing-b (arm B content)", () => {
+describe("GET / (arm B content)", () => {
 	it("renders the sections in funnel order, top to bottom", async () => {
 		const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
-		const response = await request(harness.server).get("/landing-b");
+		const response = await getArmB(harness.server);
 		const doc = loadB(response.text);
 
 		expect(attrs(doc, "[data-test-section]", "data-test-section")).toEqual([
@@ -33,7 +41,7 @@ describe("GET /landing-b (arm B content)", () => {
 
 	it("puts three signup CTAs above, at, and after the offer, all one GET form with internal-click tracking", async () => {
 		const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
-		const response = await request(harness.server).get("/landing-b");
+		const response = await getArmB(harness.server);
 		const doc = loadB(response.text);
 
 		// hero primary, hero secondary (default = open reader), price, close.
@@ -60,7 +68,7 @@ describe("GET /landing-b (arm B content)", () => {
 
 	it("states plainly what Readplace is and the value, for a cold visitor", async () => {
 		const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
-		const response = await request(harness.server).get("/landing-b");
+		const response = await getArmB(harness.server);
 		const doc = loadB(response.text);
 
 		const subhead = doc.querySelector(".hb-hero__subhead")?.textContent ?? "";
@@ -70,7 +78,7 @@ describe("GET /landing-b (arm B content)", () => {
 
 	it("renders one card per job, limit, and FAQ entry, driven by the content arrays", async () => {
 		const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
-		const response = await request(harness.server).get("/landing-b");
+		const response = await getArmB(harness.server);
 		const doc = loadB(response.text);
 
 		expect(doc.querySelectorAll("[data-test-hb-job]").length).toBe(
@@ -82,13 +90,13 @@ describe("GET /landing-b (arm B content)", () => {
 		);
 	});
 
-	it("is noindex with the canonical on / so it never competes with the indexed homepage", async () => {
+	it("is indexable with the canonical on /, the URL it renders at", async () => {
 		const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
-		const response = await request(harness.server).get("/landing-b");
+		const response = await getArmB(harness.server);
 		const doc = loadB(response.text);
 
 		expect(doc.querySelector('meta[name="robots"]')?.getAttribute("content")).toBe(
-			"noindex, follow",
+			"index, follow",
 		);
 		expect(doc.querySelector('link[rel="canonical"]')?.getAttribute("href")).toBe(
 			"https://readplace.com/",
@@ -96,12 +104,15 @@ describe("GET /landing-b (arm B content)", () => {
 	});
 });
 
-describe("GET /landing-b arrival treatment", () => {
+describe("GET / arm B arrival treatment", () => {
 	it("greets a reader-view arrival and offers to save the article they just read", async () => {
 		const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
 		const response = await request(harness.server)
-			.get("/landing-b")
-			.set("Cookie", ["hutch_lastview=https%3A%2F%2Fexample.com%2Farticle"]);
+			.get("/")
+			.set("Cookie", [
+				"hutch_exp=homepage-split%3A3%3Avariant-b",
+				"hutch_lastview=https%3A%2F%2Fexample.com%2Farticle",
+			]);
 		const doc = loadB(response.text);
 
 		assert(doc.querySelector("[data-test-hb-eyebrow]"), "arrival must show the reader eyebrow");
@@ -119,7 +130,7 @@ describe("GET /landing-b arrival treatment", () => {
 
 	it("shows no eyebrow and offers the paste-a-link reader form for a cold visitor", async () => {
 		const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
-		const response = await request(harness.server).get("/landing-b");
+		const response = await getArmB(harness.server);
 		const doc = loadB(response.text);
 
 		expect(doc.querySelectorAll("[data-test-hb-eyebrow]").length).toBe(0);

@@ -47,15 +47,9 @@ export function createAnonymousViewPageActions(
 				const summarySlot = page.locator('[data-test-reader-summary]')
 				await expect(summarySlot).toHaveAttribute('data-summary-status', 'skipped')
 
-				// Return to the guest homepage. A guest hitting `/` runs the client-side
-				// A/B split redirect to a byte-identical landing arm (same body.page-home).
-				// `goto` resolves at commit (before the deferred redirect can interrupt
-				// it); the body.page-home assertion retries across the redirect until the
-				// terminal document lands. We assert the terminal body.page-home rather
-				// than the arm URL so the documented kill switch stays honest: flipping
-				// HOMEPAGE_SPLIT.active off keeps the guest on `/` (also body.page-home),
-				// so this unrelated flow stays green instead of hanging until timeout on
-				// a redirect that never fires.
+				// Return to the guest homepage. `/` renders whichever A/B arm this
+				// visitor draws, so the assertion is on body.page-home — carried by
+				// both arms — rather than on either arm's own markup.
 				await page.goto(`${config.baseUrl}/`, { waitUntil: 'commit' })
 				await expect(page.locator('body.page-home')).toHaveCount(1, { timeout: 15000 })
 				progress.visitedCrawlFailure = true

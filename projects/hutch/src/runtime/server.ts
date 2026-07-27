@@ -141,6 +141,7 @@ import {
 	createClickAttributionMiddleware,
 	createVisitorIdMiddleware,
 	isHttpsOrigin,
+	tagPageviewExperiment,
 	utmValidationMiddleware,
 } from "@packages/web-analytics";
 import { initAuthRoutes } from "./web/auth/auth.page";
@@ -197,9 +198,10 @@ import { contentSignalMiddleware } from "./web/content-signal.middleware";
 import { buildRobotsTxt } from "./web/robots-txt";
 import { buildSiteWebmanifest } from "./web/site-webmanifest";
 import { linkHeaderMiddleware } from "./web/link-header.middleware";
+import { readLastViewUrl } from "./web/last-view";
 import { AGENT_SCOPES_SUPPORTED, buildAgentAuthMetadata, renderAuthMarkdown } from "./web/agent-auth";
 import { QuerystringFeatureToggle } from "@packages/web-shell";
-import { HomePage } from "./web/pages/home";
+import { buildHomepageArmBody } from "./web/pages/home";
 import { McpConnectPage } from "./web/pages/mcp";
 import { PrivacyPage } from "./web/pages/privacy";
 import { SupportPage } from "./web/pages/support";
@@ -210,10 +212,11 @@ import { APP_BACK_LINK } from "./web/shared/ios-app-links";
 import { E2EFixturePage } from "./web/pages/e2e-fixture";
 import { createE2EFixturePdf } from "./web/pages/e2e-fixture-pdf";
 import { initInstallRoutes } from "./web/pages/install";
-import { initLandingRoutes } from "./web/pages/landing";
 import { LANDING_PAGE_CONTENT, LandingPage } from "./web/pages/landing-pages";
 import type { LandingPageSlug } from "./web/pages/landing-pages";
-import { HOMEPAGE_SPLIT } from "./web/experiments/homepage-split";
+import { resolveHomepageArm } from "./web/experiments/homepage-arm";
+import { writeHomepageAssignment } from "./web/experiments/homepage-assignment";
+import { campaignTag, HOMEPAGE_SPLIT } from "./web/experiments/homepage-split";
 import { detectInstallBrowser } from "./web/onboarding/extension-install";
 import { NotFoundPage } from "./web/pages/not-found";
 import { initGetEffectiveAccess } from "@packages/subscription-access";
@@ -322,6 +325,9 @@ interface AppDependencies {
 	provisionInboxAddress: (userId: UserId) => Promise<void>;
 	getChangelogBanner: GetChangelogBanner;
 	now: () => Date;
+	/** One unsigned byte (0–255) for the homepage A/B draw. Injected so a route
+	 * test can pin the arm instead of asserting against a coin flip. */
+	drawRandomByte: () => number;
 	retrieveCheckoutSession: RetrieveCheckoutSession;
 	createCheckoutSession: CreateCheckoutSession;
 	consumePendingSignup: ConsumePendingSignup;
@@ -729,30 +735,61 @@ export function createApp(dependencies: AppDependencies): Express {
 			return;
 		}
 
+		// Bots and markdown clients keep the incumbent arm and stay out of the
+		// measurement: an arm is a human-facing read, and a crawler handed a random
+		// one would index whichever page it happened to draw.
+		const eligible = !isbot(req.get("user-agent")) && !wantsMarkdown(req);
+		const arm = resolveHomepageArm({
+			req,
+			config: HOMEPAGE_SPLIT,
+			eligible,
+			drawRandomByte: deps.drawRandomByte,
+		});
+		if (arm.participating) {
+			// Re-stamped on every render, so an active visitor's arm never lapses
+			// mid-experiment when the cookie's window would otherwise run out.
+			writeHomepageAssignment(res, {
+				config: HOMEPAGE_SPLIT,
+				variant: arm.variant,
+				secure: secureCookies,
+			});
+			tagPageviewExperiment(res, {
+				experiment: campaignTag(HOMEPAGE_SPLIT),
+				variant: arm.variant.slug,
+			});
+		}
+		// The arm rides a cookie, so this response is per-visitor and must not be
+		// held by a shared cache that would hand arm B to an arm-A visitor.
+		res.set("Cache-Control", "private, no-cache");
+
 		const browser = detectInstallBrowser(req);
 		const userCount = await countUsers().catch(() => 0);
 		const banner = await buildBannerState(req);
-		// Gate the client A/B split redirect on humans: bots keep the canonical `/`
-		// (control) instead of following a client redirect into a noindex arm.
-		const abSplit = !isbot(req.get("user-agent"));
-		// Suppress this render's changelog seen-script only when the split script
-		// will actually replace `/` before it paints — a human guest AND the
-		// experiment active. That throwaway frame must not record the banner
-		// version as seen, or the landing arm the reader lands on would hide the
-		// one-shot NEW chip. When the split is off (kill switch) the emitted
-		// script no-ops and the guest stays on `/`, and a bot never runs it at
-		// all: in both cases `/` is the reader's real, persistent page, so it
-		// keeps its seen-script and the chip self-suppresses on the next visit.
-		const suppressChangelogSeenScript = abSplit && HOMEPAGE_SPLIT.active;
 		sendComponent(
 			req,
 			res,
-			Base(HomePage({ userCount, staticBaseUrl, browser, foundingAllocation, abSplit }), {
-				...banner,
-				suppressChangelogSeenScript,
-			}),
+			Base(
+				buildHomepageArmBody({
+					userCount,
+					staticBaseUrl,
+					browser,
+					foundingAllocation,
+					lastViewUrl: readLastViewUrl(req),
+					variant: arm.variant.marker,
+				}),
+				banner,
+			),
 		);
 	});
+
+	// The arms were their own URLs while the split redirected client-side, so they
+	// sit in histories and bookmarks; `/` now renders whichever arm the visitor is
+	// on, which is the page these ever meant.
+	for (const variant of HOMEPAGE_SPLIT.variants) {
+		app.get(variant.path, (_req: Request, res: Response) => {
+			res.redirect(303, "/");
+		});
+	}
 
 	for (const slug of LANDING_PAGE_SLUGS) {
 		app.get(`/${slug}`, async (req: Request, res: Response) => {
@@ -853,12 +890,6 @@ export function createApp(dependencies: AppDependencies): Express {
 	}
 
 	app.use(initInstallRoutes({ buildBannerState, staticBaseUrl }));
-
-	// A/B landing arms for the homepage split (`/landing-a`, `/landing-b`),
-	// reached by the client-side redirect from `/`. Same guest render as `/`.
-	app.use(
-		initLandingRoutes({ buildBannerState, countUsers, foundingAllocation, staticBaseUrl, secureCookies }),
-	);
 
 	/** Same-origin dismissal endpoint for the site-wide changelog banner; served
 	 * here on $default even when the close button is clicked on a /blog page. */
