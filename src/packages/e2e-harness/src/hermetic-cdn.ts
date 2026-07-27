@@ -3,7 +3,11 @@ import { test as base, type BrowserContext, type Page } from "@playwright/test";
 
 export { expect } from "@playwright/test";
 
-const FIXTURES_DIR = path.join(__dirname, "..", "..", "e2e-cdn-fixtures");
+/** Ships inside the package rather than being passed in by each consumer: the
+ * fixture set is the closure of the shared shell's third-party requests, so it
+ * is the same everywhere, and a per-consumer path invites pinning a partial
+ * closure — which fails only as an intermittent network-dependent flake. */
+const FIXTURES_DIR = path.join(__dirname, "..", "e2e-cdn-fixtures");
 
 export async function pinCdnFixtures(context: BrowserContext): Promise<void> {
 	await context.route(
@@ -34,12 +38,15 @@ export async function pinCdnFixtures(context: BrowserContext): Promise<void> {
 	);
 }
 
-export const test = base.extend({
-	context: async ({ context }, use) => {
-		await pinCdnFixtures(context);
-		await use(context);
-	},
-});
+export const cdnContextFixture = async (
+	{ context }: { context: BrowserContext },
+	use: (pinned: BrowserContext) => Promise<void>,
+): Promise<void> => {
+	await pinCdnFixtures(context);
+	await use(context);
+};
+
+export const test = base.extend({ context: cdnContextFixture });
 
 export async function waitForBrandFonts(page: Page, families: string[]): Promise<void> {
 	await page.waitForFunction((wanted) => {

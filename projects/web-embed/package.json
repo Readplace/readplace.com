@@ -1,7 +1,7 @@
 {
   "name": "web-embed",
   "version": "1.0.0",
-  "description": "Standalone embed kit pages (/embed, /embed/preview) — save-button snippets for publishers",
+  "description": "Standalone embed kit pages (/embed, /embed/preview) \u2014 save-button snippets for publishers",
   "main": "src/infra/index.ts",
   "private": true,
   "scripts": {
@@ -25,6 +25,7 @@
     "serverless-http": "4.0.0"
   },
   "devDependencies": {
+    "@packages/e2e-harness": "workspace:*",
     "@packages/hutch-infra-components": "workspace:*",
     "@packages/test-fixtures": "workspace:*",
     "@packages/test-phase-runner": "workspace:*",

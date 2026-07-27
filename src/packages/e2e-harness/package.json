@@ -1,0 +1,33 @@
+{
+  "name": "@packages/e2e-harness",
+  "version": "1.0.0",
+  "description": "Shared Playwright harness for Readplace end-to-end suites: hermetic CDN pinning, visual checkpoints, and the config factory",
+  "main": "dist/index.js",
+  "types": "dist/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "default": "./dist/index.js"
+    }
+  },
+  "private": true,
+  "scripts": {
+    "compile": "rm -rf dist && tsc",
+    "lint": "concurrently --kill-others-on-fail \"tsc --project tsconfig.lint.json\" \"biome lint src\" \"knip\"",
+    "test": "jest --testMatch='**/dist/**/*.test.js' --testTimeout=10000",
+    "test-with-coverage": "c8 pnpm test && node enforce-coverage.config.js",
+    "check": "nx run @packages/e2e-harness:check",
+    "check-infra": "echo 'No infrastructure — shared library'"
+  },
+  "peerDependencies": {
+    "@playwright/test": "1.60.0"
+  },
+  "devDependencies": {
+    "@playwright/test": "1.60.0",
+    "@types/jest": "30.0.0",
+    "c8": "11.0.0",
+    "concurrently": "10.0.0",
+    "jest": "30.4.2",
+    "typescript": "6.0.3"
+  }
+}

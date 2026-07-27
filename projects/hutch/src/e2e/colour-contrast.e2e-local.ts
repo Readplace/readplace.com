@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import type { Page } from "@playwright/test";
-import { expect, test } from "./hermetic-cdn";
+import { expect, test } from "@packages/e2e-harness";
 import { type RenderedInk, collectRenderedInk } from "./rendered-ink.browser";
 
 const E2E_PORT = process.env.E2E_PORT;

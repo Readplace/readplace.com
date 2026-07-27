@@ -1,4 +1,4 @@
-import { createPlaywrightConfig } from './playwright.config.factory'
+import { createPlaywrightConfig } from '@packages/e2e-harness'
 
 // Fallback to port 0 because knip loads this file during lint when E2E_PORT is not set
 const serverUrl = `http://localhost:${process.env.E2E_PORT || '0'}`

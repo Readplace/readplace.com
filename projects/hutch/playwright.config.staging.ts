@@ -1,4 +1,4 @@
-import { createPlaywrightConfig } from './playwright.config.factory'
+import { createPlaywrightConfig } from '@packages/e2e-harness'
 
 export default createPlaywrightConfig({
 	testMatch: '**/*.e2e-staging.ts',

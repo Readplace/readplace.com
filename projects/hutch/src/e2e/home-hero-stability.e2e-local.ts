@@ -3,7 +3,7 @@ import type { Page } from "@playwright/test";
 import { EXPERIMENT_COOKIE_NAME } from "../runtime/web/experiments/homepage-assignment";
 import { HOMEPAGE_SPLIT } from "../runtime/web/experiments/homepage-split";
 import { HEADLINE_WORDS } from "../runtime/web/pages/home/home.client";
-import { test, waitForBrandFonts } from "./hermetic-cdn";
+import { test, waitForBrandFonts } from "@packages/e2e-harness";
 
 const E2E_PORT = process.env.E2E_PORT;
 assert(E2E_PORT, "E2E_PORT must be set by the Playwright webServer config");

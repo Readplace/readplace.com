@@ -1,5 +1,5 @@
 import assert from 'node:assert/strict'
-import { test } from '../hermetic-cdn'
+import { captureCheckpoint, test } from '@packages/e2e-harness'
 import { createBannerOnReaderActions, type BannerOnReaderProgress } from './banner-on-reader-actions'
 import { createCleanupActions, type CleanupProgress } from './cleanup-actions'
 import { createImportActions, type ImportProgress } from './import-actions'
@@ -11,7 +11,6 @@ import { createSeedActions, type SeedProgress } from './seed-actions'
 import { createAnonymousViewPageActions, type ViewPageProgress } from './view-page-actions'
 import { createLocalTestArticles, type QueueProgress } from './queue-actions'
 import { runQueueFlow } from './queue-flow'
-import { captureCheckpoint } from '../visual-checkpoint'
 import { visualCheckpoints } from './visual-checkpoints'
 import { requireEnv } from "@packages/require-env"
 

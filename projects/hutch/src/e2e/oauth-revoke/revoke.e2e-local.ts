@@ -1,4 +1,4 @@
-import { test } from '../hermetic-cdn'
+import { test } from '@packages/e2e-harness'
 import { requireEnv } from '@packages/require-env'
 import { runOAuthRevokeFlow } from './oauth-revoke-flow'
 

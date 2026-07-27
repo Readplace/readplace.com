@@ -1,5 +1,5 @@
 import { requireEnv } from '@packages/require-env'
-import { test } from '../hermetic-cdn'
+import { test } from '@packages/e2e-harness'
 import { E2E_ADMIN_EMAIL, E2E_ADMIN_PASSWORD } from './admin-e2e-user'
 import { runExtendTrialFlow } from './extend-trial-flow'
 

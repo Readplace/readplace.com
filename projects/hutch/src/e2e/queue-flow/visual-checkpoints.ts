@@ -1,7 +1,6 @@
 import assert from 'node:assert/strict'
 import type { Page } from '@playwright/test'
-import { expect } from '../hermetic-cdn'
-import { measuredBox, type VisualCheckpoint } from '../visual-checkpoint'
+import { expect, measuredBox, type VisualCheckpoint } from '@packages/e2e-harness'
 import type { QueueFlowActionKey } from './action-catalog'
 
 const EMPTY_QUEUE_REGION = '[data-test-empty-queue]'

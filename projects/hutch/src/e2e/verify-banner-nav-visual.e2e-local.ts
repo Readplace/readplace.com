@@ -1,7 +1,13 @@
 import assert from "node:assert/strict";
 import type { Page } from "@playwright/test";
-import { expect, test, waitForBrandFonts } from "./hermetic-cdn";
-import { captureCheckpoint, measuredBox, type VisualCheckpoint } from "./visual-checkpoint";
+import {
+	captureCheckpoint,
+	expect,
+	measuredBox,
+	test,
+	type VisualCheckpoint,
+	waitForBrandFonts,
+} from "@packages/e2e-harness";
 
 const E2E_PORT = process.env.E2E_PORT;
 assert(E2E_PORT, "E2E_PORT must be set by the Playwright webServer config");

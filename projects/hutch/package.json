@@ -1,7 +1,7 @@
 {
   "name": "hutch",
   "version": "1.0.0",
-  "description": "Readplace — read-it-later web application",
+  "description": "Readplace \u2014 read-it-later web application",
   "main": "src/infra/index.ts",
   "exports": {
     ".": "./src/infra/index.ts",
@@ -95,6 +95,7 @@
   "devDependencies": {
     "@aws-sdk/client-cloudfront": "3.1057.0",
     "@packages/check-unused-css": "workspace:*",
+    "@packages/e2e-harness": "workspace:*",
     "@packages/test-fixtures": "workspace:*",
     "@packages/test-phase-runner": "workspace:*",
     "@packages/web-test-harness": "workspace:*",

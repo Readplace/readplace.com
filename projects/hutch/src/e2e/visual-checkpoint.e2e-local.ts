@@ -1,7 +1,12 @@
 import assert from "node:assert/strict";
 import type { Page } from "@playwright/test";
-import { pinCdnFixtures, test } from "./hermetic-cdn";
-import { captureCheckpoint, measuredBox, type VisualCheckpoint } from "./visual-checkpoint";
+import {
+	captureCheckpoint,
+	measuredBox,
+	pinCdnFixtures,
+	test,
+	type VisualCheckpoint,
+} from "@packages/e2e-harness";
 
 async function loginPageSettled(page: Page): Promise<void> {
 	await page.waitForSelector("body.page-login");
