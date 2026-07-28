@@ -14,8 +14,13 @@ import assert from "node:assert";
  * rewrote to `data:` URIs and the remote images the receive path rehosted to
  * our CDN — the host pin is what keeps "no tracking beacon can fire" true even
  * against a future sanitizer regression; `style-src 'unsafe-inline'` keeps the
- * email's own inline styling. `<base target="_top">` makes any surviving link
- * open the top tab. `bodyHtml` is already allowlist-sanitized.
+ * email's own inline styling AND legitimizes the base `<style>` reset below, so
+ * do not tighten it to nonce-only — that reset is the only thing that caps a
+ * rehosted `width="600"` hero image to the frame width (the sanitizer's `style=`
+ * allowlist has no `width`/`max-width`, so a surviving `width` attribute would
+ * otherwise force a horizontal scrollbar inside the ~350px frame on a phone).
+ * `<base target="_top">` makes any surviving link open the top tab. `bodyHtml`
+ * is already allowlist-sanitized.
  */
 export function buildInboxEmailIframeSrcdoc(input: {
 	bodyHtml: string;
@@ -31,6 +36,7 @@ export function buildInboxEmailIframeSrcdoc(input: {
 		"<!doctype html><html><head>",
 		'<meta charset="utf-8">',
 		`<meta http-equiv="Content-Security-Policy" content="default-src 'none'; img-src data: ${input.imagesCdnBaseUrl}; style-src 'unsafe-inline';">`,
+		"<style>img{max-width:100%;height:auto}table{max-width:100%}body{margin:0;padding:12px;overflow-wrap:anywhere;font-family:system-ui,-apple-system,sans-serif}pre{white-space:pre-wrap}</style>",
 		'<base target="_top">',
 		"</head><body>",
 		input.bodyHtml,
