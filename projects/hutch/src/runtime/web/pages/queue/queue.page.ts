@@ -53,9 +53,11 @@ import type { ReadArticleContent } from "@packages/provider-contracts/article-st
 import type {
 	ArticleCrawl,
 	FindArticleCrawlStatus,
+	FindArticleCrawlStatuses,
 	MarkCrawlPending,
 } from "@packages/provider-contracts/article-crawl";
 import type {
+	FindGeneratedSummaries,
 	FindGeneratedSummary,
 	GeneratedSummary,
 	MarkSummaryPending,
@@ -222,8 +224,10 @@ interface QueueDependencies {
 	statPendingUpload: StatPendingUpload;
 	readPendingUploadPrefix: ReadPendingUploadPrefix;
 	findGeneratedSummary: FindGeneratedSummary;
+	findGeneratedSummaries: FindGeneratedSummaries;
 	markSummaryPending: MarkSummaryPending;
 	findArticleCrawlStatus: FindArticleCrawlStatus;
+	findArticleCrawlStatuses: FindArticleCrawlStatuses;
 	markCrawlPending: MarkCrawlPending;
 	refreshArticleIfStale: RefreshArticleIfStale;
 	resolveCanonicalIdentity: (url: string) => Promise<string>;
@@ -275,25 +279,36 @@ interface QueueDependencies {
 import type { SavedArticle } from "@packages/domain/article";
 
 async function loadSummaries(
-	findGeneratedSummary: FindGeneratedSummary,
+	findGeneratedSummaries: FindGeneratedSummaries,
 	articles: readonly SavedArticle[],
+	logError: (message: string, error?: Error) => void,
 ): Promise<Map<string, GeneratedSummary | undefined>> {
-	const results = await Promise.allSettled(articles.map((a) => findGeneratedSummary(a.url)));
-	return new Map(articles.map((a, i) => {
-		const r = results[i];
-		return [a.url, r.status === "fulfilled" ? r.value : undefined] as const;
-	}));
+	const urls = articles.map((a) => a.url);
+	try {
+		const byUrl = await findGeneratedSummaries(urls);
+		return new Map(urls.map((url) => [url, byUrl.get(url)] as const));
+	} catch (error) {
+		// A whole-batch transport failure degrades every card to "no summary chip"
+		// (the same visible outcome the old per-item allSettled produced), but log
+		// it — the previous silent swallow made this class of failure invisible.
+		logError("Failed to batch-load article summaries", error instanceof Error ? error : undefined);
+		return new Map(urls.map((url) => [url, undefined] as const));
+	}
 }
 
 async function loadCrawls(
-	findArticleCrawlStatus: FindArticleCrawlStatus,
+	findArticleCrawlStatuses: FindArticleCrawlStatuses,
 	articles: readonly SavedArticle[],
+	logError: (message: string, error?: Error) => void,
 ): Promise<Map<string, ArticleCrawl | undefined>> {
-	const results = await Promise.allSettled(articles.map((a) => findArticleCrawlStatus(a.url)));
-	return new Map(articles.map((a, i) => {
-		const r = results[i];
-		return [a.url, r.status === "fulfilled" ? r.value : undefined] as const;
-	}));
+	const urls = articles.map((a) => a.url);
+	try {
+		const byUrl = await findArticleCrawlStatuses(urls);
+		return new Map(urls.map((url) => [url, byUrl.get(url)] as const));
+	} catch (error) {
+		logError("Failed to batch-load article crawl statuses", error instanceof Error ? error : undefined);
+		return new Map(urls.map((url) => [url, undefined] as const));
+	}
 }
 
 const UNREAD_BADGE_COUNT_LIMIT = 100;
@@ -725,8 +740,8 @@ export function initQueueRoutes(deps: QueueDependencies): Router {
 		const statusFlash = statusFlashMapping(req.query);
 		const importSkipped = readImportSkippedFlash(req, res);
 		const [summaryByUrl, crawlByUrl, effectiveAccess] = await Promise.all([
-			loadSummaries(deps.findGeneratedSummary, result.articles),
-			loadCrawls(deps.findArticleCrawlStatus, result.articles),
+			loadSummaries(deps.findGeneratedSummaries, result.articles, deps.logError),
+			loadCrawls(deps.findArticleCrawlStatuses, result.articles, deps.logError),
 			deps.getEffectiveAccess(userId),
 		]);
 		const vm = toQueueViewModel(result, urlState, {
@@ -1150,8 +1165,8 @@ export function initQueueRoutes(deps: QueueDependencies): Router {
 			const urlState = parseQueueUrl({});
 			const result = await deps.findArticlesByUser({ userId });
 			const [summaryByUrl, crawlByUrl] = await Promise.all([
-				loadSummaries(deps.findGeneratedSummary, result.articles),
-				loadCrawls(deps.findArticleCrawlStatus, result.articles),
+				loadSummaries(deps.findGeneratedSummaries, result.articles, deps.logError),
+				loadCrawls(deps.findArticleCrawlStatuses, result.articles, deps.logError),
 			]);
 			const vm = toQueueViewModel(result, urlState, {
 				errors: [{ message: validation.error.message }],

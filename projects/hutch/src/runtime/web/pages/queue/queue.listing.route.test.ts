@@ -49,6 +49,51 @@ describe("Queue routes", () => {
 		});
 	});
 
+	describe("GET /queue — degraded batched summary/crawl reads", () => {
+		it("still renders the cards (minus chips) and logs when the batch reads reject", async () => {
+			const fixture = createDefaultTestAppFixture(TEST_APP_ORIGIN);
+			const logged: string[] = [];
+			// The in-memory bundles expose only the singular read; test-app derives the
+			// batch by looping it, so a throwing singular makes the derived batch
+			// reject — exercising loadSummaries/loadCrawls' degradation path.
+			const harness = useApp({
+				...fixture,
+				summary: {
+					...fixture.summary,
+					findGeneratedSummary: async () => {
+						throw new Error("summary read unavailable");
+					},
+				},
+				articleCrawl: {
+					...fixture.articleCrawl,
+					findArticleCrawlStatus: async () => {
+						throw new Error("crawl read unavailable");
+					},
+				},
+				shared: {
+					...fixture.shared,
+					logError: (message: string) => {
+						logged.push(message);
+					},
+				},
+			});
+			const agent = await loginAgent(harness.server, harness.auth);
+
+			await agent.post("/queue/save").type("form").send({ url: "https://example.com/degraded" });
+			const response = await agent.get("/queue");
+
+			expect(response.status).toBe(200);
+			const doc = new JSDOM(response.text).window.document;
+			expect(doc.querySelectorAll("[data-test-article-list] .queue-article").length).toBe(1);
+			expect(logged).toEqual(
+				expect.arrayContaining([
+					"Failed to batch-load article summaries",
+					"Failed to batch-load article crawl statuses",
+				]),
+			);
+		});
+	});
+
 	describe("Read status indicators", () => {
 		it("should show unread indicator on newly saved articles", async () => {
 			const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));

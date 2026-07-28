@@ -1,3 +1,4 @@
+import assert from "node:assert/strict";
 import {
 	ConditionalCheckFailedException,
 	type DynamoDBDocumentClient,
@@ -26,6 +27,137 @@ const FROZEN_NOW = new Date("2026-07-17T10:00:00.000Z");
 const now = () => FROZEN_NOW;
 
 describe("initDynamoDbArticleCrawl", () => {
+	describe("findArticleCrawlStatuses (batch)", () => {
+		interface BatchRequest {
+			Keys: { url: string }[];
+			ProjectionExpression?: string;
+			ExpressionAttributeNames?: Record<string, string>;
+		}
+		interface Captured {
+			commands: { input: { RequestItems?: Record<string, BatchRequest> } }[];
+		}
+
+		function batchClient(
+			rows: Record<string, unknown>[],
+			captured: Captured,
+		): DynamoDBDocumentClient {
+			return createFakeClient((input) => {
+				const command = input as Captured["commands"][number];
+				captured.commands.push(command);
+				const tableName = Object.keys(command.input.RequestItems ?? {})[0] ?? TABLE;
+				return { Responses: { [tableName]: rows }, UnprocessedKeys: {} };
+			}) as DynamoDBDocumentClient;
+		}
+
+		function requestFor(captured: Captured): BatchRequest {
+			const req = captured.commands[0]?.input.RequestItems?.[TABLE];
+			assert(req, "a BatchGet must have been issued against the table");
+			return req;
+		}
+
+		it("issues one BatchGet with normalized, deduped keys and a projection that excludes content", async () => {
+			const captured: Captured = { commands: [] };
+			const client = batchClient([{ url: "example.com/a", crawlStatus: "ready" }], captured);
+			const { findArticleCrawlStatuses } = initDynamoDbArticleCrawl({ client, tableName: TABLE, now });
+
+			const map = await findArticleCrawlStatuses([
+				"https://example.com/a",
+				"https://example.com/a#heading",
+			]);
+
+			expect(captured.commands).toHaveLength(1);
+			const req = requestFor(captured);
+			expect(req.Keys).toEqual([{ url: "example.com/a" }]);
+			const projectedNames = Object.values(req.ExpressionAttributeNames ?? {});
+			expect(projectedNames).not.toContain("content");
+			expect(projectedNames).toEqual(
+				expect.arrayContaining(["url", "crawlStatus", "crawlStage"]),
+			);
+			expect(req.ProjectionExpression).not.toContain("content");
+			expect(map.get("https://example.com/a")).toEqual({ status: "ready" });
+			expect(map.get("https://example.com/a#heading")).toEqual({ status: "ready" });
+		});
+
+		it("keys every input url, mapping a missing row to undefined", async () => {
+			const captured: Captured = { commands: [] };
+			const client = batchClient([{ url: "example.com/present", crawlStatus: "ready" }], captured);
+			const { findArticleCrawlStatuses } = initDynamoDbArticleCrawl({ client, tableName: TABLE, now });
+
+			const map = await findArticleCrawlStatuses([
+				"https://example.com/present",
+				"https://example.com/absent",
+			]);
+
+			expect(map.has("https://example.com/absent")).toBe(true);
+			expect(map.get("https://example.com/absent")).toBeUndefined();
+			expect(map.get("https://example.com/present")).toEqual({ status: "ready" });
+		});
+
+		it("degrades only the poisoned row (unknown status enum), mapping its siblings", async () => {
+			const captured: Captured = { commands: [] };
+			const client = batchClient(
+				[
+					{ url: "example.com/good", crawlStatus: "ready" },
+					{ url: "example.com/poison", crawlStatus: "not-a-real-status" },
+				],
+				captured,
+			);
+			const { findArticleCrawlStatuses } = initDynamoDbArticleCrawl({ client, tableName: TABLE, now });
+
+			const map = await findArticleCrawlStatuses([
+				"https://example.com/good",
+				"https://example.com/poison",
+			]);
+
+			expect(map.get("https://example.com/poison")).toBeUndefined();
+			expect(map.get("https://example.com/good")).toEqual({ status: "ready" });
+		});
+
+		it("degrades a row that trips a mapper assert (failed without a reason) without throwing the batch", async () => {
+			const captured: Captured = { commands: [] };
+			const client = batchClient(
+				[
+					{ url: "example.com/ok", crawlStatus: "ready" },
+					{ url: "example.com/broken", crawlStatus: "failed" },
+				],
+				captured,
+			);
+			const { findArticleCrawlStatuses } = initDynamoDbArticleCrawl({ client, tableName: TABLE, now });
+
+			const map = await findArticleCrawlStatuses([
+				"https://example.com/ok",
+				"https://example.com/broken",
+			]);
+
+			expect(map.get("https://example.com/broken")).toBeUndefined();
+			expect(map.get("https://example.com/ok")).toEqual({ status: "ready" });
+		});
+
+		it("maps an unparseable input url to undefined and never sends its key", async () => {
+			const captured: Captured = { commands: [] };
+			const client = batchClient([{ url: "example.com/valid", crawlStatus: "pending" }], captured);
+			const { findArticleCrawlStatuses } = initDynamoDbArticleCrawl({ client, tableName: TABLE, now });
+
+			const map = await findArticleCrawlStatuses(["https://example.com/valid", "not a url"]);
+
+			expect(map.has("not a url")).toBe(true);
+			expect(map.get("not a url")).toBeUndefined();
+			expect(map.get("https://example.com/valid")).toEqual({ status: "pending" });
+			expect(requestFor(captured).Keys).toEqual([{ url: "example.com/valid" }]);
+		});
+
+		it("sends no request for empty input", async () => {
+			const captured: Captured = { commands: [] };
+			const client = batchClient([], captured);
+			const { findArticleCrawlStatuses } = initDynamoDbArticleCrawl({ client, tableName: TABLE, now });
+
+			const map = await findArticleCrawlStatuses([]);
+
+			expect(map.size).toBe(0);
+			expect(captured.commands).toHaveLength(0);
+		});
+	});
+
 	describe("findArticleCrawlStatus", () => {
 		it("returns undefined when no row exists", async () => {
 			const { findArticleCrawlStatus } = initDynamoDbArticleCrawl({

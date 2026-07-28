@@ -1,3 +1,4 @@
+import assert from "node:assert/strict";
 import {
 	ConditionalCheckFailedException,
 	type DynamoDBDocumentClient,
@@ -215,6 +216,146 @@ describe("initDynamoDbGeneratedSummary", () => {
 		const result = await findGeneratedSummary("https://example.com/article");
 
 		expect(result).toEqual({ status: "skipped", reason: "content-too-short" });
+	});
+
+	describe("findGeneratedSummaries (batch)", () => {
+		interface BatchRequest {
+			Keys: { url: string }[];
+			ProjectionExpression?: string;
+			ExpressionAttributeNames?: Record<string, string>;
+		}
+		interface Captured {
+			commands: { input: { RequestItems?: Record<string, BatchRequest> } }[];
+		}
+
+		function batchClient(
+			rows: Record<string, unknown>[],
+			captured: Captured,
+		): DynamoDBDocumentClient {
+			return createSendingClient((input) => {
+				const command = input as Captured["commands"][number];
+				captured.commands.push(command);
+				const tableName = Object.keys(command.input.RequestItems ?? {})[0] ?? "test-table";
+				return { Responses: { [tableName]: rows }, UnprocessedKeys: {} };
+			});
+		}
+
+		function requestFor(captured: Captured): BatchRequest {
+			const req = captured.commands[0]?.input.RequestItems?.["test-table"];
+			assert(req, "a BatchGet must have been issued against test-table");
+			return req;
+		}
+
+		it("issues one BatchGet with normalized, deduped keys and a projection that excludes content", async () => {
+			const captured: Captured = { commands: [] };
+			const client = batchClient(
+				[{ url: "example.com/a", summaryStatus: "ready", summary: "A" }],
+				captured,
+			);
+			const { findGeneratedSummaries } = initDynamoDbGeneratedSummary({ client, tableName: "test-table" });
+
+			const map = await findGeneratedSummaries([
+				"https://example.com/a",
+				"https://example.com/a#heading", // strips to the same table key
+			]);
+
+			expect(captured.commands).toHaveLength(1);
+			const req = requestFor(captured);
+			expect(req.Keys).toEqual([{ url: "example.com/a" }]);
+			const projectedNames = Object.values(req.ExpressionAttributeNames ?? {});
+			expect(projectedNames).not.toContain("content");
+			expect(projectedNames).toEqual(
+				expect.arrayContaining(["url", "summaryStatus", "summary", "summaryExcerpt"]),
+			);
+			expect(req.ProjectionExpression).not.toContain("content");
+			expect(map.get("https://example.com/a")).toEqual({ status: "ready", summary: "A" });
+			expect(map.get("https://example.com/a#heading")).toEqual({ status: "ready", summary: "A" });
+		});
+
+		it("keys every input url, mapping a missing row to undefined", async () => {
+			const captured: Captured = { commands: [] };
+			const client = batchClient(
+				[{ url: "example.com/present", summaryStatus: "ready", summary: "Here" }],
+				captured,
+			);
+			const { findGeneratedSummaries } = initDynamoDbGeneratedSummary({ client, tableName: "test-table" });
+
+			const map = await findGeneratedSummaries([
+				"https://example.com/present",
+				"https://example.com/absent",
+			]);
+
+			expect(map.has("https://example.com/absent")).toBe(true);
+			expect(map.get("https://example.com/absent")).toBeUndefined();
+			expect(map.get("https://example.com/present")).toEqual({ status: "ready", summary: "Here" });
+		});
+
+		it("degrades only the poisoned row (unknown status enum), mapping its siblings", async () => {
+			const captured: Captured = { commands: [] };
+			const client = batchClient(
+				[
+					{ url: "example.com/good", summaryStatus: "ready", summary: "Good" },
+					{ url: "example.com/poison", summaryStatus: "not-a-real-status" },
+				],
+				captured,
+			);
+			const { findGeneratedSummaries } = initDynamoDbGeneratedSummary({ client, tableName: "test-table" });
+
+			const map = await findGeneratedSummaries([
+				"https://example.com/good",
+				"https://example.com/poison",
+			]);
+
+			expect(map.get("https://example.com/poison")).toBeUndefined();
+			expect(map.get("https://example.com/good")).toEqual({ status: "ready", summary: "Good" });
+		});
+
+		it("degrades a row that trips a mapper assert (ready without summary text) without throwing the batch", async () => {
+			const captured: Captured = { commands: [] };
+			const client = batchClient(
+				[
+					{ url: "example.com/ok", summaryStatus: "ready", summary: "OK" },
+					{ url: "example.com/broken", summaryStatus: "ready" },
+				],
+				captured,
+			);
+			const { findGeneratedSummaries } = initDynamoDbGeneratedSummary({ client, tableName: "test-table" });
+
+			const map = await findGeneratedSummaries([
+				"https://example.com/ok",
+				"https://example.com/broken",
+			]);
+
+			expect(map.get("https://example.com/broken")).toBeUndefined();
+			expect(map.get("https://example.com/ok")).toEqual({ status: "ready", summary: "OK" });
+		});
+
+		it("maps an unparseable input url to undefined and never sends its key", async () => {
+			const captured: Captured = { commands: [] };
+			const client = batchClient(
+				[{ url: "example.com/valid", summaryStatus: "pending" }],
+				captured,
+			);
+			const { findGeneratedSummaries } = initDynamoDbGeneratedSummary({ client, tableName: "test-table" });
+
+			const map = await findGeneratedSummaries(["https://example.com/valid", "not a url"]);
+
+			expect(map.has("not a url")).toBe(true);
+			expect(map.get("not a url")).toBeUndefined();
+			expect(map.get("https://example.com/valid")).toEqual({ status: "pending" });
+			expect(requestFor(captured).Keys).toEqual([{ url: "example.com/valid" }]);
+		});
+
+		it("sends no request for empty input", async () => {
+			const captured: Captured = { commands: [] };
+			const client = batchClient([], captured);
+			const { findGeneratedSummaries } = initDynamoDbGeneratedSummary({ client, tableName: "test-table" });
+
+			const map = await findGeneratedSummaries([]);
+
+			expect(map.size).toBe(0);
+			expect(captured.commands).toHaveLength(0);
+		});
 	});
 
 	describe("markSummaryPending", () => {

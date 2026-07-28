@@ -15,6 +15,14 @@ export type FindArticleCrawlStatus = (
 	url: string,
 ) => Promise<ArticleCrawl | undefined>;
 
+/** Batched form of {@link FindArticleCrawlStatus}. Every input url has an entry
+ * in the returned map (value possibly `undefined`), keyed by the url as given. A
+ * row missing, unparseable, or failing the strict row schema degrades to
+ * `undefined` for that url only; a transport failure rejects the whole call. */
+export type FindArticleCrawlStatuses = (
+	urls: readonly string[],
+) => Promise<ReadonlyMap<string, ArticleCrawl | undefined>>;
+
 export type MarkCrawlPending = (params: { url: string }) => Promise<void>;
 
 /**
