@@ -19,6 +19,16 @@ describe("renderToast", () => {
 		);
 	});
 
+	it("carries no live-region attributes: the shell's persistent #toast-live-region announces, so a self-announcing toast would double-speak", () => {
+		const doc = parse(
+			renderToast({ message: "Marked as read", dismissMs: 10000, actions: [] }),
+		);
+		const toast = doc.querySelector("[data-test-toast]");
+		assert(toast, "toast must render");
+		expect(toast.getAttribute("role")).toBeNull();
+		expect(toast.getAttribute("aria-live")).toBeNull();
+	});
+
 	it("renders each action as a boosted form posting its hidden fields", () => {
 		const doc = parse(
 			renderToast({

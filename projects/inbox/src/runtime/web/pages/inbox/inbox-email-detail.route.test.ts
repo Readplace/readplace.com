@@ -1129,6 +1129,29 @@ describe("Inbox link feedback route", () => {
 		expect(errors).toHaveLength(1);
 	});
 
+	it("renders the confirmation toast ahead of the active tab panel, so a no-JS reader meets it before the panel instead of last in the page", async () => {
+		const fixture = createDefaultTestAppFixture(TEST_APP_ORIGIN);
+		fixture.shared.logError = () => {};
+		const harness = useApp(fixture);
+		const agent = await loginAgent(harness.server, harness.auth);
+		await seed(fixture, "received");
+		await seedLinks(fixture, [{ status: "crawled", title: "Kept article" }]);
+
+		const response = await agent.post(`${feedbackPath}`).type("form").send({
+			verdict: "should-be-excluded",
+		});
+		const confirmation = await agent.get(response.headers.location);
+		const doc = parseDoc(confirmation.text);
+
+		const toast = doc.querySelector("[data-test-toast]");
+		const panel = doc.querySelector("[data-test-tab-panel]");
+		assert(toast, "the confirmation toast must render");
+		assert(panel, "the active tab panel must render");
+		expect(toast.compareDocumentPosition(panel) & toast.DOCUMENT_POSITION_FOLLOWING).toBe(
+			toast.DOCUMENT_POSITION_FOLLOWING,
+		);
+	});
+
 	it("picks the tab from the link's status, not from the verdict", async () => {
 		const fixture = createDefaultTestAppFixture(TEST_APP_ORIGIN);
 		fixture.shared.logError = () => {};

@@ -96,10 +96,10 @@ describe("Inbox link save route", () => {
 		expect(doc.querySelector("[data-test-toast-message]")?.textContent?.trim()).toBe(
 			"Adding to your queue…",
 		);
-		// role/aria-live carry the announcement; data-dismiss is what the global
-		// toast script reads to fade it out, so a stale flag can't pin it on screen.
-		expect(toast.getAttribute("role")).toBe("status");
-		expect(toast.getAttribute("aria-live")).toBe("polite");
+		// data-dismiss is what the global toast script reads to fade the toast out,
+		// so a stale flag can't pin it on screen.
+		expect(toast.getAttribute("role")).toBeNull();
+		expect(toast.getAttribute("aria-live")).toBeNull();
 		expect(toast.getAttribute("data-dismiss")).toBe("6000");
 	});
 
