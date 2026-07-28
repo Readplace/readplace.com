@@ -110,13 +110,35 @@ async function markNewestArticleRead(page: Page): Promise<void> {
 	});
 }
 
+/** Moving the pointer off a control starts its colour transition, and a sample
+ * taken mid-fade reads a blend that belongs to no state the guidelines cover —
+ * the delete icon measured 2.76:1 against its own half-faded hover fill. Two
+ * identical consecutive reads mean every transition has landed. */
+async function stableMeasurements(page: Page): Promise<RenderedInk[]> {
+	let measurements: RenderedInk[] = [];
+	let previous = "";
+	await expect
+		.poll(
+			async () => {
+				measurements = await page.evaluate(collectRenderedInk, QUEUE_ROOT);
+				const current = JSON.stringify(measurements);
+				const settled = current === previous;
+				previous = current;
+				return settled;
+			},
+			{ timeout: SETTLE_MS },
+		)
+		.toBe(true);
+	return measurements;
+}
+
 async function auditQueue(page: Page, where: { theme: string; view: string }): Promise<void> {
 	await page.waitForSelector("body.page-queue");
 	await expect(page.locator("[data-test-article]")).toHaveCount(1, { timeout: SETTLE_MS });
 	await waitForCardsSettled(page);
 	await page.mouse.move(0, 0);
 
-	const measurements = await page.evaluate(collectRenderedInk, QUEUE_ROOT);
+	const measurements = await stableMeasurements(page);
 	assert.ok(
 		measurements.length > 0,
 		`${where.theme}/${where.view}: the audit measured nothing inside ${QUEUE_ROOT}`,
@@ -146,7 +168,7 @@ async function auditDeleteConfirmation(
 	// solid red; measuring that would audit a state the guidelines exempt.
 	await page.mouse.move(0, 0);
 
-	const measurements = await page.evaluate(collectRenderedInk, QUEUE_ROOT);
+	const measurements = await stableMeasurements(page);
 	for (const measured of measurements) {
 		const ratio = contrastRatio({ ink: measured.ink, surface: measured.surface });
 		assert.ok(ratio >= minimumRatio(measured), shortfall(measured, { ...where, view: `${where.view}/delete-confirm` }));
