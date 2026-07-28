@@ -2,7 +2,7 @@
 title: "A Short Read Shouldn't Ask You to Sign In"
 description: "Share a link to a short article and the person who opens it can read the whole thing with no account. Readplace now checks the estimated reading time before its public reader page ever shows a sign-in wall, so a piece you can finish in one sitting stays open for good."
 slug: "read-a-short-article-without-signing-in"
-date: "2026-07-25"
+date: "2026-07-28"
 author: "Fayner Brack"
 keywords: "read a shared article without signing in, read it later without an account, read the whole article no sign in, public article reader page, share a read it later link no signup, open a saved article link without an account, read article free no login, read shared link without account, no sign in wall short article, read it later share a clean link"
 ---
