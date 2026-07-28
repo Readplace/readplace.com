@@ -186,8 +186,8 @@
   flex: none;
   font-size: 0.75rem;
   font-weight: 500;
-  color: var(--muted-foreground);
-  border: 1px solid var(--border);
+  color: var(--error-text);
+  border: 1px solid var(--error-text);
   border-radius: var(--radius-sm);
   padding: 2px 8px;
   white-space: nowrap;
