@@ -112,7 +112,7 @@ export const HOME_B_CONTENT = {
 		{
 			question: "What happens to my articles if I stop paying?",
 			answer:
-				"You keep reading every one of them. Saving new links and importing stop; the queue, the reader, and Export stay.",
+				"You keep reading every one of them. Saving new links and importing stop; the queue and the reader stay, and you can still export.",
 		},
 		{
 			question: "Can I bring my Pocket export?",
