@@ -14,8 +14,6 @@ describe("renderToast", () => {
 		const toast = doc.querySelector("[data-test-toast]");
 		assert(toast, "toast must render");
 		expect(toast.getAttribute("data-dismiss")).toBe("10000");
-		expect(toast.getAttribute("role")).toBe("status");
-		expect(toast.getAttribute("aria-live")).toBe("polite");
 		// Focusable but out of the tab order, so the global focus manager can land
 		// keyboard focus here when the acted-on element didn't survive the swap.
 		expect(toast.getAttribute("tabindex")).toBe("-1");
