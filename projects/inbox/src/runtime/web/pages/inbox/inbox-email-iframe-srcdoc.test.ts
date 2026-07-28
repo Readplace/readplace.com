@@ -34,6 +34,11 @@ describe("buildInboxEmailIframeSrcdoc", () => {
 		expect(srcdoc).toContain(
 			"body{margin:0;padding:12px;overflow-wrap:anywhere;font-family:system-ui,-apple-system,sans-serif}",
 		);
+		// An explicit table width never survives the sanitizer, but auto table
+		// layout is content-driven: side-by-side cells of wide rehosted images
+		// expand to intrinsic width, so the img cap alone measures against the
+		// widened cell rather than the frame.
+		expect(srcdoc).toContain("table{max-width:100%}");
 		// `pre` is the one other allowlisted tag that can force horizontal overflow.
 		expect(srcdoc).toContain("pre{white-space:pre-wrap}");
 		// The reset must live in the head, never inside the sanitized body.
