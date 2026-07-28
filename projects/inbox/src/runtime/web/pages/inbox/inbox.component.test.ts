@@ -109,6 +109,45 @@ describe("InboxPage", () => {
 		);
 	});
 
+	it("gives each control in a row a per-row accessible name so screen-reader users can tell rows apart", () => {
+		const doc = parse(
+			InboxPage({
+				addresses: [
+					entry({
+						name: AliasNameSchema.parse("netflix"),
+						address: InboxAddressSchema.parse("netflix-def456@read.place"),
+						token: InboxTokenSchema.parse("def456"),
+					}),
+					entry({
+						name: AliasNameSchema.parse("stratechery"),
+						address: InboxAddressSchema.parse("stratechery-abc123@read.place"),
+						token: InboxTokenSchema.parse("abc123"),
+						disabledAt: "2026-06-22T00:00:00.000Z",
+					}),
+				],
+				limitReached: false,
+			}).content.html,
+		);
+
+		assert.equal(
+			doc.querySelector("[data-inbox-copy]")?.getAttribute("aria-label"),
+			"Copy inbox email: netflix",
+		);
+		assert.equal(
+			doc.querySelector("[data-test-inbox-disable]")?.getAttribute("aria-label"),
+			"Disable inbox email: netflix",
+		);
+
+		const [active, disabled] = Array.from(doc.querySelectorAll(".inbox__address-field"));
+		assert.equal(active.getAttribute("aria-label"), "Inbox email: netflix");
+		assert.equal(disabled.getAttribute("aria-label"), "Inbox email: stratechery");
+		assert.notEqual(
+			active.getAttribute("aria-label"),
+			disabled.getAttribute("aria-label"),
+			"each row's field carries a distinct accessible name",
+		);
+	});
+
 	it("shows a Disable action for enabled addresses and a Disabled marker (no action) for disabled ones", () => {
 		const doc = parse(
 			InboxPage({

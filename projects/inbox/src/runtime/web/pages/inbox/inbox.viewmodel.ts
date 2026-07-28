@@ -7,6 +7,9 @@ import {
 export interface InboxAddressRowViewModel {
 	address: string;
 	name: string;
+	addressAriaLabel: string;
+	copyAriaLabel: string;
+	disableAriaLabel: string;
 }
 
 export type InboxAlertKey = "create-failed" | "name-invalid" | "name-taken" | "limit";
@@ -53,7 +56,13 @@ export function toInboxAlerts(input: {
 }
 
 function toRow(entry: InboxAddressEntry): InboxAddressRowViewModel {
-	return { address: entry.address, name: entry.name };
+	return {
+		address: entry.address,
+		name: entry.name,
+		addressAriaLabel: `Inbox email: ${entry.name}`,
+		copyAriaLabel: `Copy inbox email: ${entry.name}`,
+		disableAriaLabel: `Disable inbox email: ${entry.name}`,
+	};
 }
 
 export function toInboxAddressesViewModel(entries: InboxAddressEntry[]): InboxAddressesViewModel {

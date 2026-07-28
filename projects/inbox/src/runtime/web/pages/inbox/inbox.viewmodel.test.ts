@@ -40,11 +40,29 @@ describe("toInboxAddressesViewModel", () => {
 
 		expect(vm.hasAddresses).toBe(true);
 		expect(vm.activeAddresses).toEqual([
-			{ name: "netflix", address: "netflix-bbb222@read.place" },
+			{
+				name: "netflix",
+				address: "netflix-bbb222@read.place",
+				addressAriaLabel: "Inbox email: netflix",
+				copyAriaLabel: "Copy inbox email: netflix",
+				disableAriaLabel: "Disable inbox email: netflix",
+			},
 		]);
 		expect(vm.disabledAddresses).toEqual([
-			{ name: "gmail", address: "gmail-aaa111@read.place" },
-			{ name: "substack", address: "substack-ccc333@read.place" },
+			{
+				name: "gmail",
+				address: "gmail-aaa111@read.place",
+				addressAriaLabel: "Inbox email: gmail",
+				copyAriaLabel: "Copy inbox email: gmail",
+				disableAriaLabel: "Disable inbox email: gmail",
+			},
+			{
+				name: "substack",
+				address: "substack-ccc333@read.place",
+				addressAriaLabel: "Inbox email: substack",
+				copyAriaLabel: "Copy inbox email: substack",
+				disableAriaLabel: "Disable inbox email: substack",
+			},
 		]);
 		expect(vm.hasDisabled).toBe(true);
 		expect(vm.disabledCount).toBe(2);
@@ -58,8 +76,20 @@ describe("toInboxAddressesViewModel", () => {
 
 		expect(vm.hasAddresses).toBe(true);
 		expect(vm.activeAddresses).toEqual([
-			{ name: "netflix", address: "netflix-bbb222@read.place" },
-			{ name: "gmail", address: "gmail-aaa111@read.place" },
+			{
+				name: "netflix",
+				address: "netflix-bbb222@read.place",
+				addressAriaLabel: "Inbox email: netflix",
+				copyAriaLabel: "Copy inbox email: netflix",
+				disableAriaLabel: "Disable inbox email: netflix",
+			},
+			{
+				name: "gmail",
+				address: "gmail-aaa111@read.place",
+				addressAriaLabel: "Inbox email: gmail",
+				copyAriaLabel: "Copy inbox email: gmail",
+				disableAriaLabel: "Disable inbox email: gmail",
+			},
 		]);
 		expect(vm.disabledAddresses).toEqual([]);
 		expect(vm.hasDisabled).toBe(false);
