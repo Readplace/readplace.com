@@ -51,4 +51,5 @@ export async function deleteArticleWithConfirmation(page: Page, trigger: Locator
 	await trigger.click({ timeout: 15000 })
 	await expect(confirm).toBeVisible()
 	await clickAndWaitForPageReload(page, confirm)
+	await expect(page.locator(`[id="${popoverId}"]`)).toHaveCount(0, { timeout: 15000 })
 }
