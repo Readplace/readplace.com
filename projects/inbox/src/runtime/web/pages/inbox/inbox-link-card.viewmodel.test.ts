@@ -156,7 +156,7 @@ describe("toInboxLinkCardViewModel", () => {
 		expect(crawled.url).toBe("https://destination.test/article?ref=nodeweekly");
 		expect(crawled.actions.map((action) => action.ariaLabel)).toEqual([
 			"Save to queue: https://destination.test/article?ref=nodeweekly",
-			"Not an article? (report) https://destination.test/article?ref=nodeweekly",
+			"Not an article (report): https://destination.test/article?ref=nodeweekly",
 		]);
 	});
 
