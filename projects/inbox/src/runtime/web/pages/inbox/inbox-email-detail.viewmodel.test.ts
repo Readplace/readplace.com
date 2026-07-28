@@ -365,12 +365,14 @@ describe("toInboxEmailDetailViewModel", () => {
 				url: "https://news.example.com/unsub",
 				reasonLabel: "Unsubscribe link",
 				feedbackAction: `/inbox/${encodeURIComponent(SK)}/links/0001/feedback`,
+				buttonId: "inbox-skipped-0001-feedback-include",
 			},
 			{
 				ordinal: "0002",
 				url: "https://sponsor.example.com/deal",
 				reasonLabel: "Advertisement",
 				feedbackAction: `/inbox/${encodeURIComponent(SK)}/links/0002/feedback`,
+				buttonId: "inbox-skipped-0002-feedback-include",
 			},
 		]);
 		expect(vm.linkCountLabel).toBe("1 link");

@@ -5,6 +5,6 @@
   </div>
   <form class="inbox-excluded-link__feedback" method="POST" action="{{feedbackAction}}" hx-boost="true" hx-target="main" hx-select="main" hx-swap="outerHTML show:none" hx-disabled-elt="find button">
     <input type="hidden" name="verdict" value="should-be-included">
-    <button type="submit" class="inbox-excluded-link__feedback-button" aria-label="This is an article (report): {{url}}" data-test-inbox-feedback-include>This is an article (report)</button>
+    <button type="submit" id="{{buttonId}}" class="inbox-excluded-link__feedback-button" aria-label="This is an article (report): {{url}}" data-test-inbox-feedback-include>This is an article (report)</button>
   </form>
 </div>
