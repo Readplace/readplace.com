@@ -730,12 +730,13 @@ describe("initDynamoDbSavedArticleStore deleteArticle", () => {
 	it("deletes the user row and reports success", async () => {
 		const { client, commands } = createFakeClient({
 			QueryCommand: { default: { Items: [articleItem()], Count: 1 } },
-			GetCommand: { default: { Item: userArticleItem() } },
 		});
 
 		const deleted = await initStore(client).deleteArticle(ReaderArticleHashId.fromHash(ROUTE_ID), USER);
 
-		expect(commands.some((c) => c.name === "DeleteCommand")).toBe(true);
+		const del = commands.find((c) => c.name === "DeleteCommand");
+		expect(del?.input.ConditionExpression).toBe("attribute_exists(savedAt)");
+		expect(commands.some((c) => c.name === "GetCommand")).toBe(false);
 		expect(deleted).toBe(true);
 	});
 
@@ -750,12 +751,31 @@ describe("initDynamoDbSavedArticleStore deleteArticle", () => {
 	it("reports false when the user never saved the article", async () => {
 		const { client } = createFakeClient({
 			QueryCommand: { default: { Items: [articleItem()], Count: 1 } },
-			GetCommand: { default: { Item: undefined } },
+			DeleteCommand: {
+				default: () => {
+					throw new ConditionalCheckFailedException({ $metadata: {}, message: "row deleted" });
+				},
+			},
 		});
 
 		const deleted = await initStore(client).deleteArticle(ReaderArticleHashId.fromHash(ROUTE_ID), USER);
 
 		expect(deleted).toBe(false);
+	});
+
+	it("rethrows non-conditional errors", async () => {
+		const { client } = createFakeClient({
+			QueryCommand: { default: { Items: [articleItem()], Count: 1 } },
+			DeleteCommand: {
+				default: () => {
+					throw new Error("throttled");
+				},
+			},
+		});
+
+		await expect(
+			initStore(client).deleteArticle(ReaderArticleHashId.fromHash(ROUTE_ID), USER),
+		).rejects.toThrow("throttled");
 	});
 });
 
@@ -848,20 +868,20 @@ describe("initDynamoDbSavedArticleStore updateArticleStatus", () => {
 	it("stamps readAt when marking an article read", async () => {
 		const { client, commands } = createFakeClient({
 			QueryCommand: { default: { Items: [articleItem()], Count: 1 } },
-			GetCommand: { default: { Item: userArticleItem() } },
 		});
 
 		const updated = await initStore(client).updateArticleStatus(ReaderArticleHashId.fromHash(ROUTE_ID), USER, "read");
 
 		const update = commands.find((c) => c.name === "UpdateCommand");
 		expect(update?.input.UpdateExpression).toBe("SET #status = :status, readAt = :readAt");
+		expect(update?.input.ConditionExpression).toBe("attribute_exists(savedAt)");
+		expect(commands.some((c) => c.name === "GetCommand")).toBe(false);
 		expect(updated).toBe(true);
 	});
 
 	it("removes readAt when marking an article unread", async () => {
 		const { client, commands } = createFakeClient({
 			QueryCommand: { default: { Items: [articleItem()], Count: 1 } },
-			GetCommand: { default: { Item: userArticleItem({ status: "read", readAt: "2026-05-30T11:00:00.000Z" }) } },
 		});
 
 		const updated = await initStore(client).updateArticleStatus(ReaderArticleHashId.fromHash(ROUTE_ID), USER, "unread");
@@ -882,12 +902,31 @@ describe("initDynamoDbSavedArticleStore updateArticleStatus", () => {
 	it("reports false when the user never saved the article", async () => {
 		const { client } = createFakeClient({
 			QueryCommand: { default: { Items: [articleItem()], Count: 1 } },
-			GetCommand: { default: { Item: undefined } },
+			UpdateCommand: {
+				default: () => {
+					throw new ConditionalCheckFailedException({ $metadata: {}, message: "row deleted" });
+				},
+			},
 		});
 
 		const updated = await initStore(client).updateArticleStatus(ReaderArticleHashId.fromHash(ROUTE_ID), USER, "read");
 
 		expect(updated).toBe(false);
+	});
+
+	it("rethrows non-conditional errors", async () => {
+		const { client } = createFakeClient({
+			QueryCommand: { default: { Items: [articleItem()], Count: 1 } },
+			UpdateCommand: {
+				default: () => {
+					throw new Error("throttled");
+				},
+			},
+		});
+
+		await expect(
+			initStore(client).updateArticleStatus(ReaderArticleHashId.fromHash(ROUTE_ID), USER, "read"),
+		).rejects.toThrow("throttled");
 	});
 });
 
