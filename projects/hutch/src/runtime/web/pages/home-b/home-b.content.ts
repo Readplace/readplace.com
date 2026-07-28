@@ -82,7 +82,7 @@ export const HOME_B_CONTENT = {
 	},
 	price: {
 		title: "$4.08 a month, and that's the whole business.",
-		body: "$49 a year, billed once. No ad path, no data resale, no investor whose timeline outlives yours. Fourteen days free first, and I don't ask for a card to start them. If you never subscribe, nothing is charged: the account drops to read-only, not dark — you keep reading every article you saved, and Export stays in the menu.",
+		body: "$49 a year, billed once. No ad path, no data resale, no investor whose timeline outlives yours. Fourteen days free first, and I don't ask for a card to start them. If you never subscribe, nothing is charged: the account drops to read-only, not dark — you keep reading every article you saved, and you can still export.",
 		note: "Google, Apple, or an email address. No card at any point in the trial.",
 	},
 	limits: {
@@ -112,7 +112,7 @@ export const HOME_B_CONTENT = {
 		{
 			question: "What happens to my articles if I stop paying?",
 			answer:
-				"You keep reading every one of them. Saving new links and importing stop; the queue, the reader, and Export stay.",
+				"You keep reading every one of them. Saving new links and importing stop; the queue and the reader stay, and you can still export.",
 		},
 		{
 			question: "Can I bring my Pocket export?",
