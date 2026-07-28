@@ -6,7 +6,7 @@ date: "2026-07-27"
 author: "Fayner Brack"
 keywords: "read it later delete confirmation, confirm before deleting saved article, undo delete read it later, accidental delete read later app, html popover confirmation dialog, native popover no javascript, delete confirmation without javascript, read it later app data safety, save reading queue protect deletes, are you sure delete web app"
 tags: ["changelog"]
-banner: "Deleting a saved article now asks first"
+banner: "I made deleting a saved article ask before it acts"
 ---
 
 <details class="blog-tldr">
