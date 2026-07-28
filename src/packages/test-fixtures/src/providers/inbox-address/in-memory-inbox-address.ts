@@ -47,6 +47,16 @@ export function initInMemoryInboxAddress(deps: { now: () => Date }): InboxAddres
 			}
 			rows.set(address, { ...row, disabledAt: deps.now().toISOString() });
 		},
+		enableAddress: async ({ userId, address }) => {
+			const row = rows.get(address);
+			if (row === undefined || row.userId !== userId) {
+				throw new ConditionalCheckFailedException({
+					$metadata: {},
+					message: "The conditional request failed",
+				});
+			}
+			rows.set(address, { ...row, disabledAt: undefined });
+		},
 		findByAddress: async (address) => rows.get(address),
 		tombstoneUserAddresses: async (userId) => {
 			for (const [address, entry] of rows) {

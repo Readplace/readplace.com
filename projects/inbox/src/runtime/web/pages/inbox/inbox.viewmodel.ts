@@ -35,7 +35,7 @@ const ALERT_MESSAGES: Record<InboxAlertKey, string> = {
 	"name-invalid":
 		"Give the inbox email a name using letters and numbers — for example, netflix.",
 	"name-taken": "You already have an active inbox email with that name. Pick a different one.",
-	limit: `You've reached the maximum of ${INBOX_ADDRESS_MAX_PER_USER} inbox emails. Disable any you no longer need before creating more.`,
+	limit: `You've reached the maximum of ${INBOX_ADDRESS_MAX_PER_USER} inbox emails. Disable any you no longer need before enabling or creating more.`,
 };
 
 /** The alerts the page is showing, in the order they render. Built here rather

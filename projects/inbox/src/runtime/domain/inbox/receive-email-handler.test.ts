@@ -212,6 +212,22 @@ describe("initReceiveEmailHandler", () => {
 		expect(published).toHaveLength(0);
 	});
 
+	it("delivers again to an address that was disabled and then re-enabled", async () => {
+		const { addressStore, emailStore, rawMap, published, run } = makeHarness();
+		const address = await mintAddress(addressStore);
+		await addressStore.disableAddress({ userId: OWNER, address });
+		await addressStore.enableAddress({ userId: OWNER, address });
+		rawMap.set(RAW_KEY, Buffer.from("raw"));
+
+		const result = await run(address);
+
+		assert(result);
+		expect(result.batchItemFailures).toHaveLength(0);
+		const [row] = await listEmails(emailStore, OWNER);
+		expect(row.status).toBe("received");
+		expect(published).toHaveLength(1);
+	});
+
 	it("records an unparseable email as status=unparsed and fails to the DLQ", async () => {
 		const { addressStore, emailStore, rawMap, published, run } = makeHarness({
 			parseEmail: async () => ({ ok: false, reason: "unparseable" }),
