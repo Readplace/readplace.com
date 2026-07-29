@@ -707,6 +707,7 @@ describe("Inbox email detail Skipped tab", () => {
 
 		const saveButton = excludedRow.querySelector("[data-test-inbox-excluded-save]");
 		assert(saveButton, "a saveable skipped row must offer Save to queue");
+		expect(saveButton.getAttribute("id")).toBe("inbox-skipped-0001-save");
 		const saveForm = saveButton.closest("form");
 		assert(saveForm, "save must submit as a form");
 		expect(saveForm.getAttribute("method")).toBe("POST");

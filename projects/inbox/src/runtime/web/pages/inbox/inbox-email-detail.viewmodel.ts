@@ -60,6 +60,7 @@ export interface ExcludedLinkViewModel {
 	 * card action's `inbox-card-{ordinal}-{key}` scheme. */
 	buttonId: string;
 	saveAction: string | undefined;
+	saveButtonId: string;
 }
 
 export interface ArticleShowMore {
@@ -265,6 +266,7 @@ export function toInboxEmailDetailViewModel(input: {
 					validateSaveableUrl(link.url).status === "SUCCESS"
 						? buildInboxLinkSaveUrl({ emailId, ordinal: link.ordinal })
 						: undefined,
+				saveButtonId: `inbox-skipped-${link.ordinal}-save`,
 			}),
 		);
 	const truncated = linksMeta?.truncated === true;

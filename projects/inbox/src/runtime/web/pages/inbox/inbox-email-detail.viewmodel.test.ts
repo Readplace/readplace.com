@@ -367,6 +367,7 @@ describe("toInboxEmailDetailViewModel", () => {
 				feedbackAction: `/inbox/${encodeURIComponent(SK)}/links/0001/feedback`,
 				buttonId: "inbox-skipped-0001-feedback-include",
 				saveAction: `/inbox/${encodeURIComponent(SK)}/links/0001/save`,
+				saveButtonId: "inbox-skipped-0001-save",
 			},
 			{
 				ordinal: "0002",
@@ -375,6 +376,7 @@ describe("toInboxEmailDetailViewModel", () => {
 				feedbackAction: `/inbox/${encodeURIComponent(SK)}/links/0002/feedback`,
 				buttonId: "inbox-skipped-0002-feedback-include",
 				saveAction: `/inbox/${encodeURIComponent(SK)}/links/0002/save`,
+				saveButtonId: "inbox-skipped-0002-save",
 			},
 		]);
 		expect(vm.linkCountLabel).toBe("1 link");
