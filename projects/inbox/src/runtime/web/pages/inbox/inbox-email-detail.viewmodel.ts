@@ -266,16 +266,16 @@ export function toInboxEmailDetailViewModel(input: {
 	// A barrier written by the dead-letter handler reports a scan that never
 	// completed, so its zero rows are not an answer about the email's contents.
 	const isExtractionFailed = linksMeta?.extractionFailed === true;
-	let headerCounts: InboxEmailLinkCounts | undefined;
+	let linkCounts: InboxEmailLinkCounts | undefined;
 	if (input.linkData.source === "rows") {
-		headerCounts =
+		linkCounts =
 			awaitingMeta || isExtractionFailed
 				? undefined
 				: { kept: allCards.length, skipped: excludedLinks.length, truncated };
 	} else if (input.entry.status === "received") {
-		headerCounts = input.entry.linkCounts;
+		linkCounts = input.entry.linkCounts;
 	} else {
-		headerCounts = { kept: 0, skipped: 0, truncated: false };
+		linkCounts = { kept: 0, skipped: 0, truncated: false };
 	}
 	const panelPollCount = input.panelPollCount ?? INITIAL_POLL_COUNT;
 	const withinPollBudget = panelPollCount <= input.maxPolls;
@@ -317,9 +317,9 @@ export function toInboxEmailDetailViewModel(input: {
 			emailId,
 			active: input.activeTab,
 			counts:
-				headerCounts === undefined
+				linkCounts === undefined
 					? {}
-					: { articles: headerCounts.kept, excluded: headerCounts.skipped },
+					: { articles: linkCounts.kept, excluded: linkCounts.skipped },
 		}),
 		extractionReported: !awaitingMeta && !isExtractionFailed,
 		canRenderBody,
