@@ -43,7 +43,17 @@ const logInfo = (message: string) => logger.info(message)
  * during URL validation; the guard's lookup returns every resolved address, so
  * undici still reaches the 127.0.0.1 listener when localhost yields ::1 first. */
 const e2eIsBlocked: IsBlockedAddress = () => false
-const crawlFetch = initCrawlFetch({ fetch: globalThis.fetch, personas: CRAWL_PERSONAS, isBlocked: e2eIsBlocked })
+const crawlFetch = initCrawlFetch({
+	fetch: globalThis.fetch,
+	personas: CRAWL_PERSONAS,
+	isBlocked: e2eIsBlocked,
+	fetchH2: async (url) => {
+		throw new Error(`[e2e] h2 fallback disabled — primary fetch failed for ${url}`)
+	},
+	fetchCurl: async (url) => {
+		throw new Error(`[e2e] curl fallback disabled — primary fetch failed for ${url}`)
+	},
+})
 /** Deterministic PDF extractor for the e2e harness: emits the same synthetic
  * HTML the prod vision pipeline would produce for the bundled /e2e/fixtures/sample.pdf
  * fixture, so the pdf-save-flow e2e test can pin the extension's Siren contract
