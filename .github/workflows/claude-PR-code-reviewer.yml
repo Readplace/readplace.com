@@ -44,9 +44,13 @@ jobs:
 
             const pr = pulls[0];
 
-            // Check if we already posted a review request for this commit
-            const { data: comments } = await github.rest.issues.listComments({
-              owner, repo, issue_number: pr.number, per_page: 50
+            // Check if we already posted a review request for this commit. Paginate rather
+            // than reading one page: listComments is oldest-first, so a bounded page stops
+            // covering recent comments once a PR outgrows it and this dedup goes blind —
+            // re-requesting a review that already ran, which is a whole agent run against
+            // the weekly usage budget.
+            const comments = await github.paginate(github.rest.issues.listComments, {
+              owner, repo, issue_number: pr.number, per_page: 100
             });
 
             const existingReviewRequest = comments.find(c =>

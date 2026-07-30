@@ -7,9 +7,14 @@ name: Claude Code Crash Retry
 # the Max-plan OAuth fix. The crash is intermittent across job invocations, so
 # re-running a crashed run is a fresh roll (verified: a crashed run succeeded on
 # rerun attempt 2). Re-run (not in-job retry, which shares the same inputs and
-# crashes together) up to 4 attempts; only fast failures are re-run so genuine
-# post-work failures are left alone. Reruns reuse the sticky tracking comment,
+# crashes together) up to 4 attempts. Reruns reuse the sticky tracking comment,
 # so they add no comments.
+#
+# "Fast" alone is not enough to identify that crash: a toolchain failure in a
+# setup step and a usage-limit rejection are also fast, but deterministic — no
+# reroll can pass one, so retrying them only burns attempts and, for the usage
+# limit, repeats an error comment on the PR every attempt. Rule those out
+# before re-running.
 on:
   workflow_run:
     workflows: ["Claude Code"]
@@ -30,11 +35,36 @@ jobs:
           REPO: ${{ github.repository }}
           RUN_ID: ${{ github.event.workflow_run.id }}
           ATTEMPT: ${{ github.event.workflow_run.run_attempt }}
+          # Must match the step name the listener gives the Claude action. A rename
+          # degrades every failure to "deterministic", which stops retries rather than
+          # misdirecting them.
+          CLAUDE_STEP: Run Claude Code
         run: |
+          set -euo pipefail
           started=$(gh api "repos/$REPO/actions/runs/$RUN_ID" --jq .run_started_at)
           ended=$(gh api "repos/$REPO/actions/runs/$RUN_ID" --jq .updated_at)
           dur=$(( $(date -d "$ended" +%s) - $(date -d "$started" +%s) ))
-          echo "run $RUN_ID attempt $ATTEMPT duration ${dur}s"
+          failed_step=$(gh api "repos/$REPO/actions/runs/$RUN_ID/jobs" \
+            --jq '[.jobs[].steps[]? | select(.conclusion == "failure") | .name] | first // "unknown"')
+          echo "run $RUN_ID attempt $ATTEMPT failed at \"$failed_step\" after ${dur}s"
+
+          if [ "$failed_step" != "$CLAUDE_STEP" ]; then
+            echo "Failed before the agent ran — deterministic; not re-running. The listener reports this on the PR."
+            exit 0
+          fi
+
+          if ! gh run view "$RUN_ID" --repo "$REPO" --log-failed > /tmp/failed.log 2>/dev/null; then
+            echo "::warning::Could not read the failed step log; falling back to the duration-only rule."
+          fi
+
+          # Matches every limit window, not just the weekly one: real rejections in this
+          # repo carried rateLimitType five_hour as well as seven_day, and both are
+          # deterministic until their reset.
+          if grep -qE '"api_error_status": 429|hit your (weekly|[0-9]+-hour) limit|"rateLimitType"' /tmp/failed.log; then
+            echo "Usage limit reached — deterministic until it resets; not re-running."
+            exit 0
+          fi
+
           # The #852 startup crash exits before the agent works (~60s). A genuine
           # failure (agent ran, then errored) takes minutes — do not re-run those,
           # to avoid repeating real work.
