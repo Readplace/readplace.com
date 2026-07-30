@@ -188,8 +188,7 @@ export function initInboxRoutes(deps: InboxDependencies): Router {
 		// (listAddressesByUserId) briefly undercounts and would otherwise drop it.
 		const limitReached =
 			req.query.error === "limit" || countLiveAddresses(addresses) >= INBOX_ADDRESS_MAX_PER_USER;
-		const submittedName =
-			typeof req.query.name === "string" ? (normalizeAliasName(req.query.name) ?? "") : "";
+		const submittedName = typeof req.query.name === "string" ? req.query.name : "";
 		sendComponent(
 			req,
 			res,

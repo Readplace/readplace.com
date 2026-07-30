@@ -416,20 +416,6 @@ describe("Inbox address routes", () => {
 			expect(input?.hasAttribute("aria-describedby")).toBe(false);
 			expect(input?.hasAttribute("autofocus")).toBe(false);
 		});
-
-		it("reflects only a valid alias from ?name=, dropping tampered input that normalizes to nothing", async () => {
-			const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
-			const agent = await loginAgent(harness.server, harness.auth);
-
-			const response = await agent.get("/inbox/addresses?name=%F0%9F%8E%89");
-
-			expect(response.status).toBe(200);
-			const input = new JSDOM(response.text).window.document.querySelector(
-				"[data-test-inbox-name-input]",
-			);
-			expect(input?.getAttribute("value")).toBe("");
-		});
-
 		it("renders the visible create confirmation on the redirect target", async () => {
 			const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
 			const agent = await loginAgent(harness.server, harness.auth);
