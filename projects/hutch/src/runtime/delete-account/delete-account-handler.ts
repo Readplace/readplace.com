@@ -26,6 +26,7 @@ import type {
 import type { DeleteDigestByUser } from "@packages/provider-contracts/digest-queue";
 import type { DeleteReaderReadyState } from "@packages/provider-contracts/reader-ready-state";
 import type { DeleteOnboarding } from "@packages/provider-contracts/ios-onboarding-signal";
+import type { DeleteReadingPreference } from "@packages/provider-contracts/reading-preference";
 import type { DeletePasswordResetTokensByEmail } from "@packages/provider-contracts/password-reset";
 import type { DeleteVerificationTokensByUserId } from "@packages/provider-contracts/email-verification";
 import type { DeletePendingSignupsByUser } from "@packages/provider-contracts/pending-signup";
@@ -77,6 +78,7 @@ export interface DeleteAccountHandlerDependencies {
 	deleteDigestByUser: DeleteDigestByUser;
 	deleteReaderReadyState: DeleteReaderReadyState;
 	deleteOnboarding: DeleteOnboarding;
+	deleteReadingPreference: DeleteReadingPreference;
 	deleteUserExports: DeleteUserExports;
 	deletePasswordResetTokensByEmail: DeletePasswordResetTokensByEmail;
 	deleteVerificationTokensByUserId: DeleteVerificationTokensByUserId;
@@ -164,6 +166,7 @@ async function processCommand(
 	await deps.deleteDigestByUser(userId);
 	await deps.deleteReaderReadyState(userId);
 	await deps.deleteOnboarding({ userId });
+	await deps.deleteReadingPreference({ userId });
 	await deps.deleteUserExports(userId);
 	if (email !== null) {
 		await deps.deletePasswordResetTokensByEmail(email);

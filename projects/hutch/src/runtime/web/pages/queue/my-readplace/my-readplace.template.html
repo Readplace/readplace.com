@@ -1,0 +1,32 @@
+    <main class="queue">
+      <div class="queue__header">
+        <h1 class="queue__title">My Queue</h1>
+      </div>
+      {{{filtersHtml}}}
+      <span hx-get="{{countsUrl}}" hx-trigger="load" hx-swap="none" data-test-queue-counts></span>
+      <section class="queue-my" data-test-my-readplace data-test-my-mode="{{mode}}">
+        {{#if showForm}}
+        <form class="queue-my__form" method="POST" action="{{saveUrl}}" hx-boost="true" hx-target="main" hx-select="main" hx-swap="outerHTML show:none" data-test-form="my-readplace">
+          <label class="queue-my__label" for="my-readplace-text">What do you want to read more of?</label>
+          <p class="queue-my__hint">Describe the kinds of posts you find interesting. We use it to pick what surfaces here.</p>
+          {{#if invalid}}<p class="queue-my__error" data-test-my-error>Write a sentence or two about what you want to read.</p>{{/if}}
+          <textarea class="queue-my__textarea" id="my-readplace-text" name="text" rows="6" maxlength="{{maxLength}}" placeholder="Long-form essays on systems design, trip reports from long hikes, anything that changes how I think about my work…" required>{{text}}</textarea>
+          <div class="queue-my__actions">
+            <button class="btn btn--primary queue-my__save-btn" type="submit" data-test-action="save-my-readplace">Save</button>
+            {{#if showCancel}}<a class="btn btn--secondary queue-my__cancel-btn" href="{{cancelUrl}}" data-test-action="cancel-my-readplace">Cancel</a>{{/if}}
+          </div>
+        </form>
+        {{/if}}
+        {{#if showSummary}}
+        <div class="queue-my__summary" data-test-my-summary>
+          <p class="queue-my__summary-eyebrow">Your reading interests</p>
+          <p class="queue-my__summary-text" data-test-my-preference-text>{{text}}</p>
+          <a class="btn btn--secondary btn--compact queue-my__edit-btn" href="{{editUrl}}" data-test-action="edit-my-readplace">Edit</a>
+        </div>
+        <h2 class="queue-my__preview-title">Picked for you</h2>
+        <div class="queue__list queue-my__preview" data-test-my-preview>
+          {{#each cardHtmls}}{{{this}}}{{/each}}
+        </div>
+        {{/if}}
+      </section>
+    </main>

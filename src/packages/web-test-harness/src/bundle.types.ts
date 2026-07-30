@@ -68,6 +68,7 @@ import type {
 	FindUserIdsByPrefix,
 	ForceMarkCrawlPending,
 	GetIosAppSignals,
+	GetReadingPreference,
 	GetSessionUserId,
 	InMemoryMarkCrawlFailed,
 	InMemoryMarkCrawlReady,
@@ -125,6 +126,7 @@ import type {
 	SaveAppleRefreshToken,
 	SaveArticle,
 	SaveArticleGlobally,
+	SaveReadingPreference,
 	ScheduleCancellationAtPeriodEnd,
 	SetSubscriptionNextCharge,
 	SubscriptionNextCharge,
@@ -394,6 +396,11 @@ export interface IosOnboardingSignalBundle {
 	getIosAppSignals: GetIosAppSignals;
 }
 
+export interface ReadingPreferenceBundle {
+	saveReadingPreference: SaveReadingPreference;
+	getReadingPreference: GetReadingPreference;
+}
+
 export interface GoogleAuthBundle {
 	exchangeGoogleCode: ExchangeGoogleCode;
 	clientId: string;
@@ -473,6 +480,7 @@ export interface TestAppFixture {
 	passwordReset: PasswordResetBundle;
 	rateLimit: RateLimitBundle;
 	iosOnboardingSignal: IosOnboardingSignalBundle;
+	readingPreference: ReadingPreferenceBundle;
 	google: GoogleAuthBundle | undefined;
 	apple: AppleAuthBundle;
 	admin: AdminBundle;

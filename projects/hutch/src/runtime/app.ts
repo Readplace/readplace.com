@@ -8,7 +8,9 @@ import { initInMemoryAuth } from "@packages/test-fixtures/providers/auth";
 import { hashPassword, verifyPassword } from "@packages/domain/user";
 import { initDynamoDbAuth } from "./providers/auth/dynamodb-auth";
 import { initInMemoryIosOnboardingSignal } from "@packages/test-fixtures/providers/ios-onboarding-signal";
+import { initInMemoryReadingPreference } from "@packages/test-fixtures/providers/reading-preference";
 import { initIosOnboardingSignal } from "./providers/ios-onboarding-signal/dynamodb-ios-onboarding-signal";
+import { initReadingPreference } from "./providers/reading-preference/dynamodb-reading-preference";
 import { initInMemoryArticleStore } from "@packages/test-fixtures/providers/article-store";
 import { initDynamoDbSavedArticleStore } from "@packages/article-store";
 import type { ExtractPdf } from "@packages/crawl-article";
@@ -197,6 +199,7 @@ function initProviders(input: { appOrigin: string }) {
 		const inboxAddressDomain = requireEnv("INBOX_ADDRESS_DOMAIN");
 		const subscriptionProvidersTable = requireEnv("DYNAMODB_SUBSCRIPTION_PROVIDERS_TABLE");
 		const onboardingTable = requireEnv("DYNAMODB_ONBOARDING_TABLE");
+		const readingPreferencesTable = requireEnv("DYNAMODB_READING_PREFERENCES_TABLE");
 		const rateLimitsTable = requireEnv("DYNAMODB_RATE_LIMITS_TABLE");
 		const trialSchedulerGroupName = requireEnv("TRIAL_SCHEDULER_GROUP_NAME");
 		const trialSchedulerRoleArn = requireEnv("TRIAL_SCHEDULER_ROLE_ARN");
@@ -207,6 +210,7 @@ function initProviders(input: { appOrigin: string }) {
 
 		const auth = initDynamoDbAuth({ client, usersTableName: usersTable, sessionsTableName: sessionsTable });
 		const iosOnboardingSignal = initIosOnboardingSignal({ client, onboardingTableName: onboardingTable, now: () => new Date() });
+		const readingPreference = initReadingPreference({ client, tableName: readingPreferencesTable, now: () => new Date() });
 		const articleStore = initDynamoDbSavedArticleStore({ client, tableName: articlesTable, userArticlesTableName: userArticlesTable, logger });
 		const canonicalAlias = initCanonicalAliasStore({ client, tableName: articlesTable });
 		const resolveCanonicalIdentity = initResolveCanonicalIdentity({ resolveAlias: canonicalAlias.resolveAlias });
@@ -422,6 +426,8 @@ function initProviders(input: { appOrigin: string }) {
 			getIosAppSignals: iosOnboardingSignal.getIosAppSignals,
 			recordIosAnyActivity: iosOnboardingSignal.recordIosAnyActivity,
 			recordIosSavedArticle: iosOnboardingSignal.recordIosSavedArticle,
+			saveReadingPreference: readingPreference.saveReadingPreference,
+			getReadingPreference: readingPreference.getReadingPreference,
 			consumeRateLimit,
 			rateLimitRules,
 		};
@@ -429,6 +435,7 @@ function initProviders(input: { appOrigin: string }) {
 
 	const auth = initInMemoryAuth({ hashPassword, verifyPassword });
 	const iosOnboardingSignal = initInMemoryIosOnboardingSignal();
+	const readingPreference = initInMemoryReadingPreference({ now: () => new Date() });
 	const articleStore = initInMemoryArticleStore();
 	const oauthClients = initInMemoryOAuthClients({ now: () => new Date() });
 	const oauthClientLookup = initOAuthClientLookup({ dynamic: oauthClients });
@@ -713,6 +720,8 @@ function initProviders(input: { appOrigin: string }) {
 		getIosAppSignals: iosOnboardingSignal.getIosAppSignals,
 		recordIosAnyActivity: iosOnboardingSignal.recordIosAnyActivity,
 		recordIosSavedArticle: iosOnboardingSignal.recordIosSavedArticle,
+		saveReadingPreference: readingPreference.saveReadingPreference,
+		getReadingPreference: readingPreference.getReadingPreference,
 		consumeRateLimit,
 		rateLimitRules,
 	};

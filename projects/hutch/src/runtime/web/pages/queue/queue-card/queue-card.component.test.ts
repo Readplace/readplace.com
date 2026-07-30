@@ -329,6 +329,18 @@ describe("renderQueueCard", () => {
 		expect(trigger.querySelectorAll(".queue-article__action-btn-loader").length).toBe(0);
 	});
 
+	it("disables the confirm trigger when the display model marks it inert", () => {
+		const html = renderQueueCard({
+			...display(makeViewModel({ actions: [MARK_READ_ACTION, DELETE_ACTION] }), {
+				isFirst: false,
+			}),
+			deleteTriggerDisabled: true,
+		});
+		const trigger = parse(html).querySelector("[data-test-action='delete']");
+		assert(trigger, "delete trigger must be present");
+		expect(trigger.hasAttribute("disabled")).toBe(true);
+	});
+
 	it("renders exactly one delete trigger per card", () => {
 		const html = renderQueueCard(
 			display(makeViewModel({ actions: [MARK_READ_ACTION, DELETE_ACTION] }), {

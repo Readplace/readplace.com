@@ -30,6 +30,7 @@ config:
   hutch:dynamodbInboxSavedLinksTable: hutch-inbox-saved-links-staging
   hutch:dynamodbSubscriptionProvidersTable: hutch-subscription-providers-staging
   hutch:dynamodbOnboardingTable: hutch-onboarding-staging
+  hutch:dynamodbReadingPreferencesTable: hutch-reading-preferences-staging
   hutch:dynamodbRateLimitsTable: hutch-rate-limits-staging
   hutch:dynamodbDigestQueueTable: hutch-digest-queue-staging
   hutch:rateLimitViewCrawl: 10000/3600

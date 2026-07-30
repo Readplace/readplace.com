@@ -197,6 +197,8 @@ function flattenFixtureToAppDependencies(
 		getIosAppSignals: fixture.iosOnboardingSignal.getIosAppSignals,
 		recordIosAnyActivity: fixture.iosOnboardingSignal.recordIosAnyActivity,
 		recordIosSavedArticle: fixture.iosOnboardingSignal.recordIosSavedArticle,
+		saveReadingPreference: fixture.readingPreference.saveReadingPreference,
+		getReadingPreference: fixture.readingPreference.getReadingPreference,
 		googleAuth: fixture.google,
 		appleAuth: fixture.apple,
 		adminEmails: fixture.admin.adminEmails,

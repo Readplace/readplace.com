@@ -14,6 +14,7 @@ export class HutchStorage extends pulumi.ComponentResource {
 	public readonly importSessionsTable: aws.dynamodb.Table;
 	public readonly subscriptionProvidersTable: aws.dynamodb.Table;
 	public readonly onboardingTable: aws.dynamodb.Table;
+	public readonly readingPreferencesTable: aws.dynamodb.Table;
 	public readonly rateLimitsTable: aws.dynamodb.Table;
 	public readonly digestQueueTable: aws.dynamodb.Table;
 
@@ -30,6 +31,7 @@ export class HutchStorage extends pulumi.ComponentResource {
 		importSessions: string;
 		subscriptionProviders: string;
 		onboarding: string;
+		readingPreferences: string;
 		rateLimits: string;
 		digestQueue: string;
 	} }, opts?: pulumi.ComponentResourceOptions) {
@@ -276,6 +278,15 @@ export class HutchStorage extends pulumi.ComponentResource {
 		 * per-user onboarding state registers here too. */
 		this.onboardingTable = new aws.dynamodb.Table(`hutch-onboarding`, {
 			name: args.tableNames.onboarding,
+			billingMode: "PAY_PER_REQUEST",
+			deletionProtectionEnabled: args.deletionProtection,
+			pointInTimeRecovery: { enabled: true },
+			hashKey: "userId",
+			attributes: [{ name: "userId", type: "S" }],
+		}, { parent: this });
+
+		this.readingPreferencesTable = new aws.dynamodb.Table(`hutch-reading-preferences`, {
+			name: args.tableNames.readingPreferences,
 			billingMode: "PAY_PER_REQUEST",
 			deletionProtectionEnabled: args.deletionProtection,
 			pointInTimeRecovery: { enabled: true },

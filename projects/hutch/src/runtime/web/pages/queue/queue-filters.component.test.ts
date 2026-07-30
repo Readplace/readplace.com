@@ -98,6 +98,51 @@ describe("buildQueueFilters", () => {
 		expect(hrefParts(tabLink(doc, "read")).params.get("order")).toBe("asc");
 	});
 
+	it("should render a registered feature tab ahead of the listing tabs, in its own group", () => {
+		const doc = renderTabs({
+			activeTab: "queue",
+			extraTabs: [{ id: "my", href: "/queue?tab=my&feature=my", label: "My Readplace" }],
+		});
+
+		const rendered = Array.from(doc.querySelectorAll("[data-test-filter]")).map((el) =>
+			el.getAttribute("data-test-filter"),
+		);
+		expect(rendered).toEqual(["my", "unread", "read"]);
+		expect(doc.querySelectorAll(".queue__filter-group").length).toBe(2);
+	});
+
+	it("should badge a feature tab that asks for one", () => {
+		const doc = renderTabs({
+			activeTab: "queue",
+			extraTabs: [
+				{ id: "my", href: "/queue?tab=my&feature=my", label: "My Readplace", badgeLabel: "New" },
+			],
+		});
+
+		const badge = doc.querySelector('[data-test-filter="my"] [data-test-filter-badge]');
+		assert(badge, "the feature tab must carry its badge");
+		expect(badge.textContent).toBe("New");
+	});
+
+	it("should mark a feature tab active when the reader is on it", () => {
+		const doc = renderTabs({
+			activeTab: "my",
+			extraTabs: [{ id: "my", href: "/queue?tab=my&feature=my", label: "My Readplace" }],
+		});
+
+		const active = Array.from(doc.querySelectorAll(".queue__filter-link--active")).map((el) =>
+			el.getAttribute("data-test-filter"),
+		);
+		expect(active).toEqual(["my"]);
+	});
+
+	it("should carry an active feature flag onto every listing tab link", () => {
+		const doc = renderTabs({ activeTab: "queue", feature: "my" });
+
+		expect(hrefParts(tabLink(doc, "unread")).params.get("feature")).toBe("my");
+		expect(hrefParts(tabLink(doc, "read")).params.get("feature")).toBe("my");
+	});
+
 	it("should anchor only the tab the counts fragment swaps out of band", () => {
 		const doc = renderTabs({ activeTab: "queue" });
 
