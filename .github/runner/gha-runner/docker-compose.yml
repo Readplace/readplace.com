@@ -104,6 +104,7 @@ services:
       # `docker compose --scale gha-runner=N` — each replica would need its own
       # persist volume. Today there is exactly one runner.
       - persist:/persist
+      - ~/ci-frames:/frames
       # NO docker socket. It used to be mounted so detect-projects' save-link
       # check-infra could `docker buildx build --push`, but that was a
       # root-equivalent host escape (`docker run -v /:/host` reaches the PAT on the
