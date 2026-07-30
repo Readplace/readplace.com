@@ -1,9 +1,11 @@
+import assert from "node:assert/strict";
 import {
 	BLOG_SITE_LOG_GROUP,
 	FORWARD_ANALYTICS_FUNCTION_NAME,
 	SAVE_LINK_LOG_GROUPS,
 } from "@packages/hutch-infra-components";
 import { campaignTag, HOMEPAGE_SPLIT } from "../web/experiments/homepage-split";
+import { QUEUE_PATH } from "../web/pages/queue/queue.url";
 import {
 	ANALYTICS_EVENTS,
 	ANALYTICS_LOG_GROUP,
@@ -160,12 +162,23 @@ describe("buildAnalyticsDashboardBody — drift prevention", () => {
 		expect(readers).toContain("count_distinct(user_id)");
 	});
 
-	it("the opens widget counts distinct authenticated visitors on the reader view path /<id>/view — funnel companion to the readers widget", () => {
+	it("the opens widget counts distinct authenticated visitors on the reader view path — funnel companion to the readers widget", () => {
 		const queries = widgetQueries();
 		const opens = queries.find((q) => q.includes("reader_opens"));
 		expect(opens).toBeDefined();
 		expect(opens).toContain(`event = "${ANALYTICS_EVENTS.pageview}"`);
 		expect(opens).toContain("\\/view$");
+	});
+
+	it("the opens widget's path pattern actually matches a real authenticated reader permalink — asserting only that the query mentions \\/view$ let a pattern one path segment short ship and plot nothing for weeks", () => {
+		const opens = widgetQueries().find((q) => q.includes("reader_opens"));
+		assert(opens, "the reader_opens widget must exist");
+		const source = opens.match(/\| filter path like \/(\S+)\/ \|/)?.[1];
+		assert(source, "the opens widget must filter on a regex literal");
+		const pattern = new RegExp(source);
+		expect(pattern.test(`${QUEUE_PATH}/58b83c9aad6a5c0a32f6d8caa3a69bbc/view`)).toBe(true);
+		expect(pattern.test("/view/example.com/some-article")).toBe(false);
+		expect(pattern.test(QUEUE_PATH)).toBe(false);
 	});
 
 	it("the device-mix widget slices pageviews by the composite device_class / browser key so the audience's device+browser usage is visible at pageview scale (not just the authenticated-reader cohort), excluding pageviews logged before the field shipped and the no-signal \"other\" (no-User-Agent) bucket so the pie reads as real devices", () => {
