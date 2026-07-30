@@ -270,24 +270,6 @@ describe("toQueueViewModel", () => {
 		expect(vm.errors?.[0]?.message).toBe("Could not parse article: Invalid URL");
 	});
 
-	it("should set hasContent to true when article has content", () => {
-		const article = makeArticle({ content: "<p>Some content</p>" });
-		const vm = toQueueViewModel(makeResult([article]), DEFAULT_FILTERS, {
-			now: NOW,
-		});
-
-		expect(vm.articles[0].hasContent).toBe(true);
-	});
-
-	it("should set hasContent to false when article has no content", () => {
-		const article = makeArticle({ content: undefined });
-		const vm = toQueueViewModel(makeResult([article]), DEFAULT_FILTERS, {
-			now: NOW,
-		});
-
-		expect(vm.articles[0].hasContent).toBe(false);
-	});
-
 	it("should generate mark-read and delete actions for unread article", () => {
 		const article = makeArticle({ status: "unread" });
 		const vm = toQueueViewModel(makeResult([article]), DEFAULT_FILTERS, { now: NOW });

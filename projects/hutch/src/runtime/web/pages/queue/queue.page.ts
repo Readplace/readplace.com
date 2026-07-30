@@ -748,6 +748,7 @@ export function initQueueRoutes(deps: QueueDependencies): Router {
 			page: urlState.page,
 			pageSize: queuePageSizeForClient(req.oauthClientId),
 			includeTotal: siren,
+			excludeContent: true,
 		});
 
 		if (siren) {
@@ -904,6 +905,7 @@ export function initQueueRoutes(deps: QueueDependencies): Router {
 				userId,
 				includeTotal: true,
 				pageSize: queuePageSizeForClient(req.oauthClientId),
+				excludeContent: true,
 			});
 			const crawlByUrl = await loadCrawls(
 				deps.findArticleCrawlStatuses,
@@ -1241,7 +1243,7 @@ export function initQueueRoutes(deps: QueueDependencies): Router {
 		if (validation.status === "ERROR") {
 			emitSaveIntent({ req, url: submittedUrl, path: SAVE_INTENT_PATH.save, surface: SAVE_SURFACES.queueSaveBar, outcome: SAVE_OUTCOMES.error });
 			const urlState = parseQueueUrl({});
-			const result = await deps.findArticlesByUser({ userId });
+			const result = await deps.findArticlesByUser({ userId, excludeContent: true });
 			const [summaryByUrl, crawlByUrl] = await Promise.all([
 				loadSummaries(deps.findGeneratedSummaries, result.articles, deps.logError),
 				loadCrawls(deps.findArticleCrawlStatuses, result.articles, deps.logError),

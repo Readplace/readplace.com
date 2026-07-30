@@ -4,6 +4,7 @@ import { JSDOM } from "jsdom";
 import { MinutesSchema } from "@packages/domain/article";
 import { useTestServer, loginAgent } from "../../../test-app";
 import type { ArticleReadEvent } from "@packages/web-analytics";
+import type { FindArticlesQuery } from "@packages/provider-contracts/article-store";
 import {
 	TEST_APP_ORIGIN,
 	createDefaultTestAppFixture,
@@ -46,6 +47,32 @@ describe("Queue routes", () => {
 			expect(response.status).toBe(422);
 			const doc = new JSDOM(response.text).window.document;
 			expect(doc.querySelector("[data-test-save-error]")?.textContent).toBe("Please enter a valid URL");
+		});
+
+		it("skips the article body when re-rendering the queue after an invalid save", async () => {
+			const fixture = createDefaultTestAppFixture(TEST_APP_ORIGIN);
+			const recorded: FindArticlesQuery[] = [];
+			const harness = useApp({
+				...fixture,
+				articleStore: {
+					...fixture.articleStore,
+					findArticlesByUser: async (query: FindArticlesQuery) => {
+						recorded.push(query);
+						return fixture.articleStore.findArticlesByUser(query);
+					},
+				},
+			});
+			const { auth } = harness;
+			const agent = await loginAgent(harness.server, auth);
+
+			const response = await agent
+				.post("/queue/save")
+				.type("form")
+				.send({ url: "not-a-url" });
+
+			expect(response.status).toBe(422);
+			expect(recorded).toHaveLength(1);
+			expect(recorded[0]).toMatchObject({ excludeContent: true });
 		});
 
 		it("rejects a chrome:// URL with an unsupported-scheme message and never saves", async () => {

@@ -14,6 +14,7 @@ import {
 import { initReadabilityParser } from "@packages/article-parser";
 
 import type { RefreshArticleIfStale } from "@packages/provider-contracts/article-freshness";
+import type { FindArticlesQuery } from "@packages/provider-contracts/article-store";
 
 const useApp = useTestServer();
 
@@ -91,6 +92,30 @@ describe("Queue routes", () => {
 					"Failed to batch-load article crawl statuses",
 				]),
 			);
+		});
+	});
+
+	describe("Listing content projection", () => {
+		it("asks the store to skip the article body when listing the queue", async () => {
+			const fixture = createDefaultTestAppFixture(TEST_APP_ORIGIN);
+			const recorded: FindArticlesQuery[] = [];
+			const harness = useApp({
+				...fixture,
+				articleStore: {
+					...fixture.articleStore,
+					findArticlesByUser: async (query: FindArticlesQuery) => {
+						recorded.push(query);
+						return fixture.articleStore.findArticlesByUser(query);
+					},
+				},
+			});
+			const { auth } = harness;
+			const agent = await loginAgent(harness.server, auth);
+
+			await agent.get("/queue");
+
+			expect(recorded).toHaveLength(1);
+			expect(recorded[0]).toMatchObject({ excludeContent: true });
 		});
 	});
 
