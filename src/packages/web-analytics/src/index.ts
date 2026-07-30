@@ -33,6 +33,7 @@ export {
 export { utmValidationMiddleware } from "./utm-validation.middleware";
 export {
 	createAnalyticsMiddleware,
+	isCountableBrowserRequest,
 	hashIp,
 	suppressClickCount,
 	tagPageviewExperiment,

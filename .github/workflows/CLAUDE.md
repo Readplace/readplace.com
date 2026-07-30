@@ -14,6 +14,8 @@ This repository uses a centralized Claude automation architecture where only `cl
 | Auditable | All prompts visible in PR history |
 | Retry Limits | Max 5 attempts for automated fixes |
 | Separated Prompts | Instructions in `.md` files, comments contain only context |
+| No Silent Failure | A request that cannot be served says so on the PR — the Claude action reports itself, `claude-listener.yml` reports every step outside it |
+| Comment-Driven Recovery | Automated limits bound the automated loop only; a human `@claude` comment always re-enters the flow, and a push resets a per-head budget. No standing machinery (canaries, health issues) beyond the PR conversation itself |
 
 ## Workflows
 
@@ -27,7 +29,7 @@ Inspect the `.yml` files in this directory for implementation details. Summary:
 | `claude-PR-code-reviewer.yml` | Automated code review | CI succeeds on PR |
 | `claude-PR-code-review-auto-apply.yml` | Post the review comment from the review run's saved output, then fix HIGH/MEDIUM issues | Review run completes (`workflow_run`) + the posted review comment |
 | `claude-PR-conflict-fixer.yml` | Resolve merge conflicts | CI succeeds + conflicts detected |
-| `claude-PR-crash-retry.yml` | Re-run `claude-listener.yml` on the intermittent agent-SDK startup crash (#852); fast failures only, ≤4 attempts | `claude-listener.yml` run fails |
+| `claude-PR-crash-retry.yml` | Re-run `claude-listener.yml` on the intermittent agent-SDK startup crash (#852): fast failures of the agent step only, ≤4 attempts. A failure in a setup step or a usage-limit rejection is deterministic and never retried | `claude-listener.yml` run fails |
 | `tier-1-plus-crawl-pipeline-health.yml` | Tier 1+ crawl pipeline canary; opens a tracking issue on failure for an operator to debug and close manually | Schedule (06:00 AEST daily) / manual |
 | `stuck-articles-canary.yml` | Surfaces articles stuck non-terminal whose URLs still resolve; opens or comments on a tracking issue on failure for an operator to debug and close manually | Schedule (06:30 AEST daily) / manual |
 | `failed-articles-canary.yml` | Surfaces articles whose state machines reached a terminal unsuccessful outcome; opens a debug-worklist tracking issue when non-empty for an operator to debug and close manually; skips while a prior issue is open | Schedule (07:00 AEST daily) / manual |
@@ -65,5 +67,8 @@ Each workflow has a corresponding `.md` file containing detailed instructions fo
 | `<!-- REVIEW_RUN: <run-id> -->` | Dedup marker on the workflow-authored review comment (one per review run) |
 | `<!-- HIGH/MEDIUM_PRIORITY_COUNT: N -->` | Issue counts |
 | `<!-- CLAUDE_CONFLICT_FIX -->` | Conflict fix request |
+| `<!-- CONFLICT_FIX_HEAD: <sha> -->` | The head SHA a conflict fix request (or its limit notice) was raised against; attempts are counted per SHA, so a push resets the budget |
+| `<!-- CLAUDE_CONFLICT_FIX_LIMIT -->` | One-time notice that the conflict fix budget for a head SHA is spent |
+| `<!-- CLAUDE_LISTENER_SETUP_FAILURE -->` | Posted on the PR/issue when the listener failed outside the Claude action, so no tracking comment exists; deduped to one per hour |
 | `<!-- CLAUDE_TIER_1_PLUS_FIX -->` | Tier 1+ canary tracking-issue dedup marker (detection only; no Claude handoff) |
 | `<!-- CLAUDE_FAILED_ARTICLES_FIX -->` | Failed-articles canary debug-worklist dedup marker (one open at a time; canary skips while present; detection only) |

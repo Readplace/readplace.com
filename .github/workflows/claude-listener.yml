@@ -90,10 +90,14 @@ jobs:
         with:
           node-version: '22'
 
+      # The pnpm version must come from the checked-out ref's packageManager field and
+      # never be pinned here as well. This workflow always runs main's copy of itself but
+      # checks out an arbitrary PR head (see the checkout step), so a second pin rejects
+      # every branch whose packageManager still names an older pnpm — action-setup fails
+      # with ERR_PNPM_BAD_PM_VERSION and skips every later step, including the one that
+      # reports back to the PR.
       - name: Setup pnpm
         uses: pnpm/action-setup@v4
-        with:
-          version: 10.28.0
 
       - name: Install dependencies
         run: pnpm install --frozen-lockfile
@@ -202,3 +206,74 @@ jobs:
           path: ${{ steps.claude.outputs.execution_file }}
           retention-days: 1
           if-no-files-found: error
+
+      # Everything this workflow tells a human is carried by the Claude action's own
+      # tracking comment, so a failure in any step outside that action reaches the PR as
+      # silence — indistinguishable from the bot ignoring the request, and the reason a
+      # four-day toolchain outage read as "the automation is dead". Report those here
+      # instead. The default token authors the comment as github-actions[bot], whose
+      # comments cannot re-trigger this workflow.
+      - name: Report a failure the Claude action could not report
+        if: failure() && steps.claude.outcome != 'failure'
+        uses: actions/github-script@v8
+        env:
+          CLAUDE_OUTCOME: ${{ steps.claude.outcome }}
+          RUN_ATTEMPT: ${{ github.run_attempt }}
+        with:
+          github-token: ${{ github.token }}
+          script: |
+            const MARKER = '<!-- CLAUDE_LISTENER_SETUP_FAILURE -->';
+            const DEDUP_WINDOW_MS = 60 * 60 * 1000;
+
+            const { owner, repo } = context.repo;
+            const issueNumber = context.issue.number;
+            const runUrl = `https://github.com/${owner}/${repo}/actions/runs/${context.runId}`;
+
+            const { data: attempt } = await github.rest.actions.listJobsForWorkflowRunAttempt({
+              owner, repo,
+              run_id: context.runId,
+              attempt_number: Number(process.env.RUN_ATTEMPT),
+            });
+            const failedStep = attempt.jobs
+              .flatMap((job) => job.steps ?? [])
+              .find((step) => step.conclusion === 'failure');
+            const stepName = failedStep?.name ?? 'an unidentified step';
+            const claudeOutcome = process.env.CLAUDE_OUTCOME || 'did not run';
+            core.warning(`Listener failed at "${stepName}"; Claude step ${claudeOutcome}.`);
+
+            // Paginate rather than reading one page: listComments returns OLDEST first, so
+            // a bounded page silently stops covering the newest comments once a PR grows
+            // past it — which is how the 1h dedup on this marker would rot. Dedup matters:
+            // the crash-retry workflow re-runs a crashed listener, and each failed attempt
+            // lands back here.
+            const comments = await github.paginate(github.rest.issues.listComments, {
+              owner, repo, issue_number: issueNumber, per_page: 100,
+            });
+            const recentlyReported = comments.some((c) =>
+              c.body.includes(MARKER) &&
+              Date.now() - new Date(c.created_at).getTime() < DEDUP_WINDOW_MS);
+            if (recentlyReported) {
+              core.info('A failure report already exists within the dedup window.');
+              return;
+            }
+
+            const ranAgent = claudeOutcome === 'success';
+            await github.rest.issues.createComment({
+              owner, repo, issue_number: issueNumber,
+              body: [
+                MARKER,
+                '',
+                ranAgent
+                  ? '### This `@claude` run failed after the agent finished'
+                  : '### This `@claude` request was never processed',
+                '',
+                ranAgent
+                  ? `The agent completed, but the run then failed at **\`${stepName}\`**, so anything keyed on the run finishing cleanly — such as the review hand-off — did not happen.`
+                  : `The listener run failed at **\`${stepName}\`** — outside the Claude action, so no tracking comment was posted and nothing was applied here.`,
+                '',
+                `- **Claude step**: ${claudeOutcome}`,
+                `- **Run**: ${runUrl}`,
+                '',
+                'This is a pipeline failure, not a task failure. Fix the run above, then re-request.',
+              ].join('\n'),
+            });

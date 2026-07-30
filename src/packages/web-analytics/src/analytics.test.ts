@@ -1,8 +1,10 @@
 import { EventEmitter } from "node:events";
 import type { NextFunction, Request, Response } from "express";
 import type { HutchLogger } from "@packages/hutch-logger";
-import { type AnalyticsClick, type AnalyticsEvent, type AnalyticsPageview, buildSaveIntentEvent, buildSignupAttemptedEvent, classifyBrowser, classifyDeviceClass, createAnalyticsMiddleware, hashIp, type SignupAttemptedEvent, suppressClickCount, tagPageviewExperiment, type ViewSaveIntentEvent } from "./analytics";
+import { type AnalyticsClick, type AnalyticsEvent, type AnalyticsPageview, buildSaveIntentEvent, buildSignupAttemptedEvent, classifyBrowser, classifyDeviceClass, createAnalyticsMiddleware, hashIp, isCountableBrowserRequest, type SignupAttemptedEvent, suppressClickCount, tagPageviewExperiment, type ViewSaveIntentEvent } from "./analytics";
 import { SAVE_OUTCOMES, SAVE_SURFACES, SIGNUP_OUTCOMES } from "./events";
+
+const OWN_HOST = "readplace.test";
 
 function createCapturingLogger(): {
 	logger: HutchLogger.Typed<AnalyticsEvent>;
@@ -67,6 +69,7 @@ function captureEvents(
 		salt: "test-salt",
 		now: () => new Date("2026-04-21T10:00:00.000Z"),
 		isStaticAssetPath,
+		ownHost: OWN_HOST,
 	});
 	const next: NextFunction = () => {};
 	middleware(req as Request, res, next);
@@ -797,5 +800,58 @@ describe("buildSignupAttemptedEvent", () => {
 		expect(() => buildSignup({ req: {} })).toThrow(
 			"visitor-id middleware must run before POST /signup emits signup_attempted",
 		);
+	});
+});
+
+describe("isCountableBrowserRequest", () => {
+	const run = (overrides: MockReqOverrides = {}) =>
+		isCountableBrowserRequest({ req: createReq(overrides) as Request, ownHost: OWN_HOST });
+
+	it("counts a request carrying the header set a real browser navigation always sends", () => {
+		expect(run()).toBe(true);
+	});
+
+	it("drops a self-declared crawler", () => {
+		expect(run({ headers: { "user-agent": "Mozilla/5.0 (compatible; Googlebot/2.1; +http://www.google.com/bot.html)" } })).toBe(false);
+	});
+
+	it("drops a request with no User-Agent at all, which isbot() alone reports as human", () => {
+		expect(run({ headers: { "user-agent": undefined } })).toBe(false);
+	});
+
+	it("drops a request with no Accept-Language, which every real browser sends", () => {
+		expect(run({ headers: { "accept-language": undefined } })).toBe(false);
+	});
+
+	it("drops a User-Agent claiming Chrome that sends no Sec-CH-UA, which Chromium has sent on every navigation since 89", () => {
+		expect(run({ headers: { "sec-ch-ua": undefined } })).toBe(false);
+	});
+
+	it("keeps a Chromium-family UA spelled Chromium/ rather than Chrome/ honest about Sec-CH-UA too", () => {
+		expect(run({ headers: { "user-agent": "Mozilla/5.0 Chromium/145.0", "sec-ch-ua": undefined } })).toBe(false);
+	});
+
+	it("counts Safari with no Sec-CH-UA — the client-hints check must fail open for browsers that never send it", () => {
+		expect(run({ headers: { "user-agent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/605.1.15 Version/18.0 Safari/605.1.15", "sec-ch-ua": undefined } })).toBe(true);
+	});
+
+	it("drops a browser prefetch, which is not a visitor deciding to open anything", () => {
+		expect(run({ headers: { "sec-purpose": "prefetch;prerender" } })).toBe(false);
+	});
+
+	it("drops a request whose Referer is our own host: every response sets Referrer-Policy: no-referrer, so a conforming browser cannot send one", () => {
+		expect(run({ headers: { referer: `https://${OWN_HOST}/queue` } })).toBe(false);
+	});
+
+	it("counts a genuine inbound referral from another host, whose referrer its own policy governs", () => {
+		expect(run({ headers: { referer: "https://fagnerbrack.com/some-post" } })).toBe(true);
+	});
+
+	it("counts a request whose Referer does not parse as a URL rather than guessing at its host", () => {
+		expect(run({ headers: { referer: "not a url" } })).toBe(true);
+	});
+
+	it("counts a non-navigation request shape: navigation is a pageview-only rule, so completing this predicate with it would zero out every HTMX-boosted click", () => {
+		expect(run({ headers: { "sec-fetch-mode": "cors", "sec-fetch-dest": "empty" } })).toBe(true);
 	});
 });

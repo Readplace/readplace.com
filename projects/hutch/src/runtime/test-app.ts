@@ -309,6 +309,7 @@ export function createTestApp(
 			salt: "test-analytics-salt",
 			now: fixture.shared.now,
 			isStaticAssetPath: isStaticAssetRequestPath,
+			ownHost: new URL(fixture.shared.appOrigin).hostname,
 		}))
 		.use(createApp({ ...flattenFixtureToAppDependencies(fixture, analyticsBundle, subscriptionBundle), ...overrides }));
 	return {

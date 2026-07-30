@@ -104,9 +104,12 @@ jobs:
               : 0;
 
             if (currentAttempt >= MAX_AUTO_FIX_ATTEMPTS) {
-              // Check if we already posted the bail message to avoid duplicates
-              const { data: comments } = await github.rest.issues.listComments({
-                owner, repo, issue_number: prNumber, per_page: 20
+              // Check if we already posted the bail message to avoid duplicates. Paginate
+              // rather than reading one page: listComments is oldest-first, so a bounded page
+              // stops covering recent comments once a PR outgrows it and this notice is
+              // re-posted on every subsequent review.
+              const comments = await github.paginate(github.rest.issues.listComments, {
+                owner, repo, issue_number: prNumber, per_page: 100
               });
 
               if (!comments.some(c => c.body.includes('Auto-fix limit reached'))) {
@@ -268,8 +271,11 @@ jobs:
                 if (b) block = b; // last match wins
               }
             }
-            // Fetch comments once for both the coexistence and idempotency checks.
-            const { data: comments } = await github.rest.issues.listComments({
+            // Fetch comments once for both the coexistence and idempotency checks. Paginate
+            // rather than reading one page: listComments is oldest-first, so a bounded page
+            // stops covering recent comments once a PR outgrows it and the idempotency check
+            // goes blind — posting the same review again, which re-triggers request-fix.
+            const comments = await github.paginate(github.rest.issues.listComments, {
               owner, repo, issue_number, per_page: 100,
             });
 

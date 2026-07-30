@@ -26,6 +26,8 @@ const authedResolver: ResolveLogin = async (cookieHeader) =>
 const VISITOR_ID = "00000000-0000-4000-8000-000000000000";
 const firstSlug = initBlogPosts().getAllPosts()[0].slug;
 
+const OWN_HOST = "readplace.test";
+
 function makeApp(resolveLogin: ResolveLogin) {
 	return createBlogApp(
 		{ staticBaseUrl: "", liveReload: false, renderNav: GlobalNav },
@@ -36,6 +38,7 @@ function makeApp(resolveLogin: ResolveLogin) {
 			now: () => new Date("2026-07-01T00:00:00.000Z"),
 			generateVisitorId: () => VISITOR_ID,
 			secureCookies: false,
+			ownHost: OWN_HOST,
 		},
 	);
 }
@@ -156,6 +159,26 @@ describe("blog analytics instrumentation", () => {
 		expect(res.status).toBe(200);
 		expect(res.text).toContain("<html lang=");
 		expect(events).toHaveLength(0);
+	});
+
+	it("serves the real page while counting nothing when the Referer names our own host — every response sets Referrer-Policy: no-referrer, so a conforming browser navigating our own links cannot send one", async () => {
+		const res = await request(makeApp(guestResolver))
+			.get("/blog")
+			.set({ ...BROWSER_HEADERS, Referer: `https://${OWN_HOST}/queue` });
+
+		expect(res.status).toBe(200);
+		expect(res.text).toContain("<html lang=");
+		expect(events).toHaveLength(0);
+	});
+
+	it("still counts a genuine inbound referral from another host, whose Referer that host's own policy governs", async () => {
+		const res = await request(makeApp(guestResolver))
+			.get("/blog")
+			.set({ ...BROWSER_HEADERS, Referer: "https://news.ycombinator.com/item?id=1" });
+
+		expect(res.status).toBe(200);
+		expect(events).toHaveLength(1);
+		expect(events[0]).toMatchObject({ referrer_host: "news.ycombinator.com" });
 	});
 
 	it("skips the blog sitemap and the changelog-banner fragment so machine traffic is not counted", async () => {

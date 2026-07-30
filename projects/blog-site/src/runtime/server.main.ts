@@ -30,6 +30,7 @@ const app = createBlogApp(
 		now: () => new Date(),
 		generateVisitorId: randomUUID,
 		secureCookies: isHttpsOrigin(requireEnv("APP_ORIGIN")),
+		ownHost: new URL(requireEnv("APP_ORIGIN")).hostname,
 	},
 );
 

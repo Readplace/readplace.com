@@ -8,6 +8,10 @@ This file documents **why** — rationale, constraints, and policy. The code doc
   a) if unable to install devbox, check [devbox.json](./devbox.json) for required tools and install them manually (Node.js, AWS CLI, Pulumi, etc.), Check [.envrc](./.envrc) for required environment variables and set them in your shell profile (e.g., .bashrc, .zshrc)
 1. Run pnpm install to install dependencies
 
+## Evidence Over Speculation
+
+Every change must fix a problem that has been observed — a failing run, a measured behaviour, a reproduced bug — or implement an explicit requirement. Do not add guards, fallbacks, canaries, or standing infrastructure for problems that have not happened, even when a plan or a review proposes them: ask for the evidence or leave them out. If a safeguard still seems worth having, propose it as its own change with the evidence that motivates it.
+
 ## Product Constraints
 
 ### Imports are self-serve and public, with email as fallback

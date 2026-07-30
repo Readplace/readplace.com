@@ -391,6 +391,7 @@ const LANDING_PAGE_SLUGS = Object.keys(LANDING_PAGE_CONTENT) as LandingPageSlug[
 
 export function createApp(dependencies: AppDependencies): Express {
 	const { appOrigin, staticBaseUrl, getSessionUserId, countUsers, foundingAllocation, ...deps } = dependencies;
+	const ownHost = new URL(appOrigin).hostname;
 	const app: Express = express();
 
 	app.use(utmValidationMiddleware);
@@ -1142,12 +1143,13 @@ export function createApp(dependencies: AppDependencies): Express {
 	 * `requireNotLocked`/`requireWriteAccess` gates run as route middleware. */
 	app.use("/import", importRouter);
 
-	const saveRouter = initSaveRoutes({ buildBannerState, analytics: deps.analytics, salt: deps.salt, now: deps.now, secureCookies, generatePendingSaveId: randomUUID });
+	const saveRouter = initSaveRoutes({ buildBannerState, analytics: deps.analytics, salt: deps.salt, now: deps.now, secureCookies, generatePendingSaveId: randomUUID, ownHost });
 	app.use("/save", saveRouter);
 
 	const viewRouter = initViewRoutes({
 		validateSaveableUrl: deps.validateSaveableUrl,
 		appOrigin,
+		ownHost,
 		secureCookies,
 		findArticleByUrl: deps.findArticleByUrl,
 		findArticleFreshness: deps.findArticleFreshness,

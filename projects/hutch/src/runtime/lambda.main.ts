@@ -35,6 +35,7 @@ const analytics = createAnalyticsMiddleware({
 	salt,
 	now: () => new Date(),
 	isStaticAssetPath: isStaticAssetRequestPath,
+	ownHost: new URL(requireEnv("APP_ORIGIN")).hostname,
 });
 
 const application = express()

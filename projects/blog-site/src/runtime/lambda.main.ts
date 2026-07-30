@@ -48,6 +48,9 @@ const application = express()
 				// APP_ORIGIN carries the scheme the blog is served on; only that scheme
 				// is consumed (isHttpsOrigin) to decide Secure cookies.
 				secureCookies: isHttpsOrigin(requireEnv("APP_ORIGIN")),
+				// The blog is served under the app's own host (readplace.com/blog), so
+				// its analytics gate reads the same origin.
+				ownHost: new URL(requireEnv("APP_ORIGIN")).hostname,
 			},
 		),
 	);

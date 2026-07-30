@@ -7,7 +7,7 @@ import type {
 } from "@packages/article-parser";
 import type { FindArticleCrawlStatus } from "@packages/test-fixtures/providers/article-crawl";
 import type { FindGeneratedSummary } from "@packages/test-fixtures/providers/article-summary";
-import { useTestServer } from "../../../test-app";
+import { useTestServer, BROWSER_REQUEST_HEADERS } from "../../../test-app";
 import {
 	TEST_APP_ORIGIN,
 	createDefaultTestAppFixture,
@@ -737,7 +737,9 @@ describe("View routes", () => {
 		it("emits one view_opened with the article host and a joinable visitor_id when an anonymous visitor opens the reader", async () => {
 			const harness = buildReaderHarness();
 
-			const response = await request(harness.server).get(`/view/${CANONICAL_PATH}`);
+			const response = await request(harness.server)
+				.get(`/view/${CANONICAL_PATH}`)
+				.set(BROWSER_REQUEST_HEADERS);
 
 			expect(response.status).toBe(200);
 			const events = harness.analytics.events.filter(
@@ -761,7 +763,7 @@ describe("View routes", () => {
 			const agent = request.agent(harness.server);
 			await agent.post("/login").type("form").send({ email: "reader@example.com", password: "password123" });
 
-			const response = await agent.get(`/view/${CANONICAL_PATH}`);
+			const response = await agent.get(`/view/${CANONICAL_PATH}`).set(BROWSER_REQUEST_HEADERS);
 
 			expect(response.status).toBe(200);
 			const events = harness.analytics.events.filter(
@@ -771,12 +773,37 @@ describe("View routes", () => {
 			expect(events[0].is_authenticated).toBe(1);
 		});
 
+		it("serves the reader normally but emits no view_opened when the Referer is our own host — Referrer-Policy: no-referrer means a real browser cannot send one, so this is a crawler walking our links", async () => {
+			const harness = buildReaderHarness();
+
+			const response = await request(harness.server)
+				.get(`/view/${CANONICAL_PATH}`)
+				.set({ ...BROWSER_REQUEST_HEADERS, Referer: `${TEST_APP_ORIGIN}/queue` });
+
+			expect(response.status).toBe(200);
+			expect(response.text).toContain("<html lang=");
+			const events = harness.analytics.events.filter((e) => e.event === "view_opened");
+			assert.equal(events.length, 0, "no view_opened for a self-referring request");
+		});
+
+		it("still emits view_opened for a genuine inbound referral from another host", async () => {
+			const harness = buildReaderHarness();
+
+			const response = await request(harness.server)
+				.get(`/view/${CANONICAL_PATH}`)
+				.set({ ...BROWSER_REQUEST_HEADERS, Referer: "https://news.ycombinator.com/item?id=1" });
+
+			expect(response.status).toBe(200);
+			const events = harness.analytics.events.filter((e) => e.event === "view_opened");
+			assert.equal(events.length, 1, "an external referral is still a reader try");
+		});
+
 		it("does not emit view_opened for a bot user-agent so the try funnel is not inflated by crawlers", async () => {
 			const harness = buildReaderHarness();
 
 			const response = await request(harness.server)
 				.get(`/view/${CANONICAL_PATH}`)
-				.set("User-Agent", GOOGLEBOT);
+				.set({ ...BROWSER_REQUEST_HEADERS, "User-Agent": GOOGLEBOT });
 
 			expect(response.status).toBe(200);
 			const events = harness.analytics.events.filter((e) => e.event === "view_opened");
