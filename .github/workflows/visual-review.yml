@@ -28,8 +28,18 @@ jobs:
           node-version: 22
 
       - name: Review transition frames with the local vision model
+        id: review
         env:
           FRAMES_DIR: /Users/fagnerbrack/ci-frames/pending
           VLM_MODEL: mlx-community/Qwen3-VL-30B-A3B-Instruct-4bit
           VLM_PYTHON: /Users/fagnerbrack/.readplace-ci/vlm-venv/bin/python
         run: node .github/runner/macos/review-frames.mjs
+
+      - name: Upload the frames the model reported defects in
+        if: steps.review.outputs.defect-count != '0' && steps.review.outputs.defect-count != ''
+        uses: actions/upload-artifact@v4
+        with:
+          name: visual-review-found-${{ steps.review.outputs.defect-count }}-defects-in-transition-frames-${{ github.event.workflow_run.head_sha }}
+          path: flagged-frames
+          retention-days: 30
+          if-no-files-found: ignore

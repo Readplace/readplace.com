@@ -1,5 +1,5 @@
 import { execFile } from "node:child_process";
-import { appendFile, readdir, rm } from "node:fs/promises";
+import { appendFile, cp, readdir, rm } from "node:fs/promises";
 import path from "node:path";
 import { promisify } from "node:util";
 
@@ -198,6 +198,18 @@ async function main() {
     reviews.push(await reviewFlow({ python, model, flow }));
   }
   await publishSummary(formatSummary(reviews));
+  const defectCount = reviews.reduce((total, review) => total + review.findings.length, 0);
+  if (process.env.GITHUB_OUTPUT) {
+    await appendFile(process.env.GITHUB_OUTPUT, `defect-count=${defectCount}\n`);
+  }
+  // Flagged frames are the evidence for the summary above, so they are copied
+  // into the workspace for the upload step to keep; a clean review has nothing
+  // worth keeping. The copy is what lets the upload name a relative path —
+  // uploading straight from the host directory reads as exfiltration to
+  // GitHub's workflow scanner, which holds the whole run for approval.
+  if (defectCount > 0) {
+    await cp(framesDir, "flagged-frames", { recursive: true });
+  }
   await rm(framesDir, { recursive: true, force: true });
 }
 
