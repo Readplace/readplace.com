@@ -22,6 +22,7 @@ import {
 	initInMemoryInboxSavedLink,
 } from "@packages/test-fixtures/providers/inbox-email";
 import { initInMemoryIosOnboardingSignal } from "@packages/test-fixtures/providers/ios-onboarding-signal";
+import { initInMemoryReadingPreference } from "@packages/test-fixtures/providers/reading-preference";
 import {
 	createRevokeAllUserOAuthTokens,
 	initInMemoryOAuthModel,
@@ -58,6 +59,7 @@ function buildSubject() {
 	const digest = initInMemoryDigestQueue();
 	const readerReady = initInMemoryReaderReadyState();
 	const onboarding = initInMemoryIosOnboardingSignal();
+	const readingPreference = initInMemoryReadingPreference({ now: () => SEED_NOW });
 	const subs = initInMemorySubscriptionProviders({ now: () => SEED_NOW });
 	const inboxEmail = initInMemoryInboxEmail();
 	const inboxLink = initInMemoryInboxEmailLink();
@@ -182,6 +184,7 @@ function buildSubject() {
 		deleteDigestByUser: digest.deleteDigestByUser,
 		deleteReaderReadyState: readerReady.deleteReaderReadyState,
 		deleteOnboarding: onboarding.deleteOnboarding,
+		deleteReadingPreference: readingPreference.deleteReadingPreference,
 		deleteUserExports: async (userId: UserId) => {
 			deleteExportsCalls.push(userId);
 		},
@@ -212,6 +215,7 @@ function buildSubject() {
 		digest,
 		readerReady,
 		onboarding,
+		readingPreference,
 		subs,
 		inboxEmail,
 		inboxLink,
@@ -306,6 +310,11 @@ async function seedAccount(
 	assert(claimed, "expected the reader-ready slot to seed as claimed");
 
 	await s.onboarding.recordIosSavedArticle({ userId });
+
+	await s.readingPreference.saveReadingPreference({
+		userId,
+		text: `prefers long-form essays (${label})`,
+	});
 
 	if (subscription === "active") {
 		await s.subs.upsertActive({ userId, subscriptionId, customerId });
@@ -431,6 +440,10 @@ describe("delete-account handler", () => {
 			installed: false,
 			savedArticle: false,
 		});
+		assert.equal(
+			await s.readingPreference.getReadingPreference({ userId: victim.userId }),
+			undefined,
+		);
 		assert.equal(await s.subs.findByUserId(victim.userId), undefined);
 		assert.equal(
 			(
@@ -510,6 +523,10 @@ describe("delete-account handler", () => {
 			installed: true,
 			savedArticle: true,
 		});
+		assert.deepEqual(
+			await s.readingPreference.getReadingPreference({ userId: bystander.userId }),
+			{ text: "prefers long-form essays (u2)", updatedAt: SEED_NOW.toISOString() },
+		);
 		const bystanderSub = await s.subs.findByUserId(bystander.userId);
 		assert(bystanderSub, "expected the bystander subscription to survive");
 		assert.equal(bystanderSub.status, "active");

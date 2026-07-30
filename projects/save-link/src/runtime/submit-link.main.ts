@@ -14,7 +14,7 @@ import {
 	initResolveCanonicalIdentity,
 } from "@packages/article-store";
 import { initSubmitLinkCommandHandler } from "./domain/submit-link/submit-link-command-handler";
-import { initSubmitFreshness } from "./domain/submit-link/submit-freshness";
+import { initSubmitFreshness } from "@packages/save-article";
 import { initObservabilityDepBundle } from "./dep-bundles/observability";
 import { initParserDepBundle } from "./dep-bundles/parser";
 import { initArticleStoreDepBundle } from "./dep-bundles/article-store";

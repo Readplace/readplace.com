@@ -40,7 +40,7 @@ const NOTHING_SKIPPED_MESSAGE = "Nothing was skipped in this email.";
 // than about the panel showing it.
 const EXTRACTING_MESSAGE = "Looking for links…";
 const STALE_MESSAGE =
-	"I couldn’t scan this email for links. The original message is still on the View tab.";
+	"I couldn't scan this email for links. The original message is still on the View tab.";
 
 // Present tense on purpose: the save route only publishes SubmitLinkCommand, and
 // the queue write happens in a downstream subscriber. Claiming "Saved" would
@@ -328,7 +328,7 @@ export function toInboxEmailDetailViewModel(input: {
 		bodyHtml: input.bodyHtml ?? "",
 		imagesCdnBaseUrl: input.imagesCdnBaseUrl,
 		unavailableMessage:
-			"This message couldn’t be displayed here; the original email is preserved.",
+			"This message couldn't be displayed here; the original email is preserved.",
 		// Suppressed until extraction writes its barrier so the header never claims a
 		// count the panel can't back — this covers both the live spinner and the
 		// terminal give-up, neither of which has a trustworthy count.

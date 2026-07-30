@@ -399,9 +399,6 @@ importers:
       '@packages/provider-contracts':
         specifier: workspace:*
         version: link:../../src/packages/provider-contracts
-      '@packages/refresh-article-content':
-        specifier: workspace:*
-        version: link:../../src/packages/refresh-article-content
       '@packages/require-env':
         specifier: workspace:*
         version: link:../../src/packages/require-env

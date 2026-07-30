@@ -1,6 +1,6 @@
 import { z } from "zod";
 import type { SortOrder } from "@packages/provider-contracts/article-store";
-import { type TabId, tabQuery } from "./queue.tabs";
+import { TAB_IDS, type TabId, tabQuery } from "./queue.tabs";
 
 /** Single source of truth for where the queue router is mounted. Its redirects,
  * links and analytics paths — plus the skipped-import cookie scope and the
@@ -12,13 +12,15 @@ export interface QueueUrlState {
 	tab: TabId;
 	order?: SortOrder;
 	page: number;
+	feature?: string;
 }
 
 const QueueQuerySchema = z.object({
-	tab: z.enum(["queue", "done"]).optional().catch(undefined),
+	tab: z.enum(TAB_IDS).optional().catch(undefined),
 	status: z.enum(["unread", "read"]).optional().catch(undefined),
 	order: z.enum(["asc", "desc"]).optional().catch(undefined),
 	page: z.coerce.number().int().min(1).optional().catch(undefined),
+	feature: z.string().optional().catch(undefined),
 }).passthrough();
 
 export function parseQueueUrl(query: Record<string, unknown>): QueueUrlState {
@@ -28,6 +30,7 @@ export function parseQueueUrl(query: Record<string, unknown>): QueueUrlState {
 		tab,
 		order: parsed.order,
 		page: parsed.page ?? 1,
+		feature: parsed.feature,
 	};
 }
 
@@ -47,6 +50,9 @@ function queueQueryString(
 	}
 	if (state.page && state.page > 1) {
 		params.set("page", String(state.page));
+	}
+	if (state.feature) {
+		params.set("feature", state.feature);
 	}
 	for (const [key, value] of extraParams) {
 		params.append(key, value);

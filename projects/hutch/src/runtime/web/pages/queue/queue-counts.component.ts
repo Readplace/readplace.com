@@ -2,11 +2,13 @@ import { readFileSync } from "node:fs";
 import { join } from "node:path";
 import { render, withInternalTracking } from "@packages/web-shell";
 
-import { filterLinkClass, formatUnreadLabel } from "./queue.component";
+import { filterLinkClass, formatUnreadLabel } from "./queue-filters.component";
 import { buildQueueUrl } from "./queue.url";
 import type { QueueUrlState } from "./queue.url";
 
 const TEMPLATE = readFileSync(join(__dirname, "queue-counts.template.html"), "utf-8");
+
+export const UNREAD_BADGE_COUNT_LIMIT = 100;
 
 export interface QueueCountsDisplayModel {
 	filterUnreadClass: string;
@@ -27,7 +29,7 @@ export function toQueueCountsDisplayModel(input: {
 	return {
 		filterUnreadClass: filterLinkClass(input.filters.tab === "queue"),
 		filterUnreadUrl: withInternalTracking(
-			buildQueueUrl({ tab: "queue", order: input.filters.order }),
+			buildQueueUrl({ tab: "queue", order: input.filters.order, feature: input.filters.feature }),
 			{ source: "queue-filters", content: "filter-unread" },
 		),
 		filterUnreadLabel: formatUnreadLabel(input.unreadCount),

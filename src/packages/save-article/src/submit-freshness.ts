@@ -3,12 +3,16 @@ import type { FindArticleCrawlStatus } from "@packages/provider-contracts/articl
 import type { FindArticleByUrl } from "@packages/provider-contracts/article-store";
 import type { PublishStaleCheckRequested } from "@packages/provider-contracts/events";
 
-export function initSubmitFreshness(deps: {
+export interface SubmitFreshnessDependencies {
 	findArticleByUrl: FindArticleByUrl;
 	findArticleCrawlStatus: FindArticleCrawlStatus;
 	resolveCanonicalIdentity: (url: string) => Promise<string>;
 	publishStaleCheckRequested: PublishStaleCheckRequested;
-}): { refreshArticleIfStale: RefreshArticleIfStale } {
+}
+
+export function initSubmitFreshness(deps: SubmitFreshnessDependencies): {
+	refreshArticleIfStale: RefreshArticleIfStale;
+} {
 	const {
 		findArticleByUrl,
 		findArticleCrawlStatus,

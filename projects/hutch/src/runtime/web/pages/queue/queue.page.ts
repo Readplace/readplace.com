@@ -88,6 +88,7 @@ import { toArticleCollectionEntity } from "../../api/collection-siren";
 import { toBulkSaveResultEntity } from "../../api/bulk-save-siren";
 import { toArticleEntity } from "../../api/article-siren";
 import { toUploadSlotEntity } from "../../api/upload-slot-siren";
+import { activeQueueTab, type QueueTab } from "./queue-tab";
 import { parseQueueUrl, buildQueueUrl, QUEUE_PATH, canonicalQueuePageRedirect } from "./queue.url";
 import { collectUtmParams } from "../../shared/utm";
 import { tabQuery } from "./queue.tabs";
@@ -98,6 +99,7 @@ import { parsePollParam } from "@packages/web-shell";
 import { toQueueArticleViewModel, toQueueViewModel } from "./queue.viewmodel";
 import { QueuePage } from "./queue.component";
 import {
+	UNREAD_BADGE_COUNT_LIMIT,
 	renderQueueCounts,
 	toQueueCountsDisplayModel,
 } from "./queue-counts.component";
@@ -250,6 +252,7 @@ interface QueueDependencies {
 	/** Marks the user's first iOS save when a save request carries the client
 	 * header — the substitute for the extension's save cookie. */
 	recordIosSavedArticle: RecordIosSavedArticle;
+	tabs: readonly QueueTab[];
 	/** Auth middleware applied to every queue route except the public
 	 * `GET /:id/read` permalink. Owned by the composition root so the same
 	 * middleware applies to all other authenticated mounts. */
@@ -310,8 +313,6 @@ async function loadCrawls(
 		return new Map(urls.map((url) => [url, undefined] as const));
 	}
 }
-
-const UNREAD_BADGE_COUNT_LIMIT = 100;
 
 const QUEUE_PAGE_SIZE = 20;
 
@@ -665,6 +666,9 @@ export function initQueueRoutes(deps: QueueDependencies): Router {
 		return { platform, installed, savedArticle, hasInstallableClient: hasClient, onboardingDismissed };
 	};
 
+	const enabledTabLinks = (req: Request) =>
+		deps.tabs.filter((tab) => tab.isEnabled(req)).map((tab) => tab.filterTab());
+
 	router.get("/", async (req: Request, res: Response) => {
 		assert(req.userId, "userId required - route must be protected by requireAuth");
 		const userId = req.userId;
@@ -675,6 +679,13 @@ export function initQueueRoutes(deps: QueueDependencies): Router {
 		 * write must never be able to fail it. */
 		if (isIosClient(req)) {
 			await recordIosSignalBestEffort(() => deps.recordIosAnyActivity({ userId }));
+		}
+		if (!wantsSiren(req)) {
+			const featureTab = activeQueueTab(deps.tabs, req);
+			if (featureTab) {
+				await featureTab.renderPage(req, res);
+				return;
+			}
 		}
 		const urlState = parseQueueUrl(req.query);
 		const tab = tabQuery(urlState.tab);
@@ -758,7 +769,7 @@ export function initQueueRoutes(deps: QueueDependencies): Router {
 		sendComponent(
 			req, res,
 			Base(
-				QueuePage(vm, { ...onboarding, saveUrl: filterUrl, deviceClass: classifyDeviceClass(req.get("user-agent")) }),
+				QueuePage(vm, { ...onboarding, saveUrl: filterUrl, deviceClass: classifyDeviceClass(req.get("user-agent")), extraTabs: enabledTabLinks(req) }),
 				await deps.buildBannerState(req, { preFetchedAccess: effectiveAccess }),
 			),
 		);
@@ -767,6 +778,11 @@ export function initQueueRoutes(deps: QueueDependencies): Router {
 	router.get("/counts", async (req: Request, res: Response) => {
 		assert(req.userId, "userId required - route must be protected by requireAuth");
 		const userId = req.userId;
+		const featureTab = activeQueueTab(deps.tabs, req);
+		if (featureTab) {
+			await featureTab.renderCounts(req, res);
+			return;
+		}
 		const urlState = parseQueueUrl(req.query);
 		const tab = tabQuery(urlState.tab);
 		const tabTotalPromise = deps.countArticlesByUser({ userId, status: tab.status });
@@ -793,6 +809,10 @@ export function initQueueRoutes(deps: QueueDependencies): Router {
 			),
 		);
 	});
+
+	for (const tab of deps.tabs) {
+		tab.registerRoutes(router);
+	}
 
 	router.post("/dismiss-onboarding", (req: Request, res: Response) => {
 		const version = dismissTokenFor(hasInstallableClient(req));
@@ -1175,7 +1195,7 @@ export function initQueueRoutes(deps: QueueDependencies): Router {
 				crawlByUrl,
 			});
 			const onboarding = await resolveOnboardingSignals(req, userId);
-			sendComponent(req, res, Base(QueuePage(vm, { ...onboarding, statusCode: 422, deviceClass: classifyDeviceClass(req.get("user-agent")) }), await deps.buildBannerState(req)));
+			sendComponent(req, res, Base(QueuePage(vm, { ...onboarding, statusCode: 422, deviceClass: classifyDeviceClass(req.get("user-agent")), extraTabs: enabledTabLinks(req) }), await deps.buildBannerState(req)));
 			return;
 		}
 

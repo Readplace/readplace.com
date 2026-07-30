@@ -905,7 +905,7 @@ describe("Inbox Articles panel poll route", () => {
 		const failed = doc.querySelector("[data-test-articles-failed]");
 		assert(failed, "the failed notice must render");
 		expect(failed.textContent).toBe(
-			"I couldn’t scan this email for links. The original message is still on the View tab.",
+			"I couldn't scan this email for links. The original message is still on the View tab.",
 		);
 		// Counts stay withheld — a scan that never ran has no zero to report — so the
 		// tick ships the panel and an empty count badge, and no tab strip to rebuild.

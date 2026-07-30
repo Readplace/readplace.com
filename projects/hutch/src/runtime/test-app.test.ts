@@ -55,6 +55,7 @@ describe("createTestApp + createDefaultTestAppFixture", () => {
 			passwordReset: fixture.passwordReset,
 			rateLimit: fixture.rateLimit,
 			iosOnboardingSignal: fixture.iosOnboardingSignal,
+			readingPreference: fixture.readingPreference,
 			google: {
 				exchangeGoogleCode: async () => ({
 					googleId: GoogleIdSchema.parse("google-sub"),

@@ -1,0 +1,9 @@
+<nav class="queue__filters" hx-boost="true" hx-target="main" hx-select="main" hx-swap="outerHTML show:none" data-test-filters>
+        {{#each groups}}
+        <div class="queue__filter-group">
+          {{#each tabs}}
+          <a class="{{linkClass}}"{{#if anchorId}} id="{{anchorId}}"{{/if}} href="{{href}}" data-test-filter="{{testFilter}}">{{#if badgeLabel}}<span class="queue__filter-badge" data-test-filter-badge>{{badgeLabel}}</span>{{/if}}{{label}}</a>
+          {{/each}}
+        </div>
+        {{/each}}
+      </nav>

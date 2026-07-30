@@ -12,7 +12,7 @@
         <button class="{{buttonClass}}" type="submit" title="{{title}}" data-test-action="{{testAction}}"{{#if disabled}} disabled{{/if}}>{{#if iconName}}{{icon iconName}}<span class="sr-only">{{text}}</span>{{else}}<span class="queue-article__action-btn-label">{{text}}</span>{{/if}}{{#if (eq affordance "with-loader")}}<span class="queue-article__action-btn-loader" aria-hidden="true"><span></span><span></span><span></span></span>{{/if}}</button>
       </form>
       {{/each}}
-      <button class="queue-article__action-btn queue-article__action-btn--delete queue-article__confirm-trigger" type="button" popovertarget="{{deleteConfirm.popoverId}}" title="Delete" aria-haspopup="dialog" data-test-action="delete">{{icon "x"}}<span class="sr-only">Delete</span></button>
+      <button class="queue-article__action-btn queue-article__action-btn--delete queue-article__confirm-trigger" type="button" popovertarget="{{deleteConfirm.popoverId}}" title="Delete" aria-haspopup="dialog" data-test-action="delete"{{#if deleteTriggerDisabled}} disabled{{/if}}>{{icon "x"}}<span class="sr-only">Delete</span></button>
     </div>
   </div>
   <div class="queue-article__body">
