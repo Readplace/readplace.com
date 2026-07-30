@@ -58,7 +58,14 @@ function extractFindings(stdout) {
 }
 
 async function listFlows(framesDir) {
-  const entries = await readdir(framesDir, { withFileTypes: true });
+  // A cache-replayed `pnpm check` runs no e2e, so the directory is absent
+  // rather than empty. That is the ordinary outcome, not a fault.
+  const entries = await readdir(framesDir, { withFileTypes: true }).catch((error) => {
+    if (error.code === "ENOENT") {
+      return [];
+    }
+    throw error;
+  });
   const flows = [];
   for (const entry of entries.filter((candidate) => candidate.isDirectory())) {
     const flowDir = path.join(framesDir, entry.name);
