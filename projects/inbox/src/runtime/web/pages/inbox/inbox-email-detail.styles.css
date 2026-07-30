@@ -228,13 +228,15 @@
 .inbox-article-card__action-button--save {
   border: 1px solid var(--border);
   border-radius: var(--radius-sm);
-  padding: var(--button-padding-xs);
-  color: var(--foreground);
+  padding: var(--button-padding-sm);
+  background: var(--secondary);
+  color: var(--primary-text);
+  font-size: 0.85rem;
   text-decoration: none;
 }
 
 .inbox-article-card__action-button--save:hover {
-  background: var(--muted);
+  color: var(--primary-text);
 }
 
 /**
