@@ -1,6 +1,7 @@
 import assert from "node:assert";
 import { BLOG_SITE_LOG_GROUP } from "@packages/hutch-infra-components";
 import { campaignTag, HOMEPAGE_SPLIT } from "../web/experiments/homepage-split";
+import { QUEUE_PATH } from "../web/pages/queue/queue.url";
 import {
 	ANALYTICS_EVENTS,
 	CONVERSION_EVENTS,
@@ -110,6 +111,14 @@ function anyOriginClause(logGroupNames: readonly string[]): string {
 	const legs = logGroupNames.map((name) => `@logStream like "${name}/"`).join(" or ");
 	return `| filter (${legs})`;
 }
+
+/**
+ * The authenticated reader permalink, as a Logs Insights regex literal. Derived
+ * from QUEUE_PATH so it cannot drift from the mount point the path is built
+ * from — the previous hand-written pattern matched `/<id>/view`, one segment
+ * short of the real `/queue/<id>/view`, so the widget silently plotted nothing.
+ */
+const READER_VIEW_PATH_PATTERN = `/^${QUEUE_PATH.replaceAll("/", "\\/")}\\/[^\\/]+\\/view$/`;
 
 function excludeVisitorHashesClause(excludedVisitorHashes: readonly string[]): string[] {
 	if (excludedVisitorHashes.length === 0) return [];
@@ -247,7 +256,7 @@ export function buildAnalyticsDashboardBody(deps: BuildAnalyticsDashboardDeps): 
 				"| filter ispresent(visitor_hash)",
 				...exclude,
 				"| filter is_authenticated",
-				"| filter path like /^\\/[^\\/]+\\/view$/",
+				`| filter path like ${READER_VIEW_PATH_PATTERN}`,
 				"| stats count_distinct(visitor_hash) as reader_opens by bin(1d)",
 			].join(" "),
 			x: 12, y: 16, width: 12, height: 8,
@@ -427,10 +436,9 @@ export function buildAnalyticsDashboardBody(deps: BuildAnalyticsDashboardDeps): 
 	);
 
 	// --- View ("try the reader") funnel ---
-	// The pageview middleware cannot see /view (hx-request + redirect chain), so
-	// these widgets are driven by the explicit view_opened / view_save_intent
-	// events. Counting distinct visitor_id makes the funnel joinable to
-	// user_created, which also carries visitor_id.
+	// Driven by the explicit view_opened / view_save_intent events. Counting
+	// distinct visitor_id makes the funnel joinable to user_created, which also
+	// carries visitor_id.
 
 	widgets.push(
 		logWidget({
