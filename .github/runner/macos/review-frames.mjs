@@ -177,14 +177,6 @@ async function publishSummary(markdown) {
   console.log(markdown);
 }
 
-async function commentOnPullRequest(markdown) {
-  const prNumber = process.env.PR_NUMBER;
-  if (!prNumber) {
-    return;
-  }
-  await runCommand("gh", ["pr", "comment", prNumber, "--body", markdown]);
-}
-
 async function main() {
   const framesDir = requireEnv("FRAMES_DIR");
   const model = requireEnv("VLM_MODEL");
@@ -198,12 +190,7 @@ async function main() {
   for (const flow of flows) {
     reviews.push(await reviewFlow({ python, model, flow }));
   }
-  const markdown = formatSummary(reviews);
-  await publishSummary(markdown);
-  const findingsCount = reviews.reduce((total, review) => total + review.findings.length, 0);
-  if (findingsCount > 0) {
-    await commentOnPullRequest(markdown);
-  }
+  await publishSummary(formatSummary(reviews));
   await rm(framesDir, { recursive: true, force: true });
 }
 

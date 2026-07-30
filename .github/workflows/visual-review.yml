@@ -1,0 +1,30 @@
+name: Visual Review
+
+on:
+  workflow_run:
+    workflows: ['CI']
+    types: [completed]
+
+permissions:
+  contents: read
+
+jobs:
+  # Advisory only: reads the transition frames the CI run left on the host and
+  # asks a local vision model whether any frame is structurally broken. Lives in
+  # its own file so that a hold or a failure here can never stop ci.yml, and
+  # runs outside a container because inference needs Metal.
+  visual-review:
+    runs-on: [self-hosted, macOS]
+    timeout-minutes: 10
+    continue-on-error: true
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          sparse-checkout: .github/runner/macos
+
+      - name: Review transition frames with the local vision model
+        env:
+          FRAMES_DIR: /Users/fagnerbrack/ci-frames/pending
+          VLM_MODEL: mlx-community/Qwen3-VL-30B-A3B-Instruct-4bit
+          VLM_PYTHON: /Users/fagnerbrack/.readplace-ci/vlm-venv/bin/python
+        run: node .github/runner/macos/review-frames.mjs

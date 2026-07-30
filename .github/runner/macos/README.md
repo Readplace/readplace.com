@@ -1,8 +1,13 @@
 # macOS runner: visual review
 
-The `visual-review` job in [ci.yml](../../workflows/ci.yml) runs on the macOS self-hosted runner, outside any container, because vision-model inference needs Metal — a containerised model server silently falls back to CPU and is too slow to be useful. It reads the transition frames the `web-tests` job wrote to `~/ci-frames/<run id>` (through the `~/ci-frames:/frames` bind mount in [docker-compose.yml](../gha-runner/docker-compose.yml)), reviews them with a local Qwen3-VL model via `mlx_vlm`, and publishes findings to the job summary, plus a PR comment when a pull request has findings.
+[visual-review.yml](../../workflows/visual-review.yml) reads the transition frames a CI run left on the host and asks a local Qwen3-VL model whether any frame is structurally broken. It runs on the macOS self-hosted runner, outside any container, because inference needs Metal — a containerised model server silently falls back to CPU and is too slow to be useful.
 
-The review is advisory and must stay that way until its false-positive rate is known: every failure mode — model not downloaded, timeout, unparseable reply, missing frames — logs and exits 0.
+Two shape constraints, both learned the hard way:
+
+- **It is its own workflow file, not a job in ci.yml.** A job added there was held by GitHub's [malicious-workflow detector](https://github.blog/changelog/2026-07-28-github-actions-holds-potentially-malicious-workflows-for-approval/), which holds the *entire run* — `web-tests` and the deploy chain never started, so two commits landed on main with no CI. Approval requires an authenticated web session, so nobody can clear it from a script. A separate file keeps that blast radius off the critical path.
+- **Frames arrive by bind mount, not over the network.** The runner container is deliberately firewalled off from the Mac, so it cannot call a host model server. It writes frames to `/frames/pending` (the `TRANSITION_FRAMES_DIR` container env in [docker-compose.yml](../gha-runner/docker-compose.yml)) which is `~/ci-frames/pending` on the host.
+
+The review is advisory and must stay that way until its false-positive rate is known: a missing model, a timeout, an unparseable reply, or absent frames all log and exit 0. It writes to the job summary and holds no `GITHUB_TOKEN`.
 
 ## Host setup (one-time)
 
@@ -10,20 +15,20 @@ The review is advisory and must stay that way until its false-positive rate is k
 .github/runner/macos/setup-vlm.sh
 ```
 
-Creates `~/.readplace-ci/vlm-venv`, installs `mlx-vlm`, downloads the model (~18 GB), and creates `~/ci-frames`. The review job runs with `HF_HUB_OFFLINE=1` so CI can never trigger a model download over the satellite link; to change models, run the script with the new model id, then update `VLM_MODEL` in ci.yml.
+Creates `~/.readplace-ci/vlm-venv`, installs `mlx-vlm`, downloads the model (~18 GB), and creates `~/ci-frames`. The review runs with `HF_HUB_OFFLINE=1` so CI can never trigger a model download over the satellite link; to change models, run the script with the new model id, then update `VLM_MODEL` in the workflow.
 
 ## Retention and cache replay
 
-Frames are per-run disposable data: the reviewer deletes the run's directory once it has reported. Cleanup lives in the script rather than a workflow step because a `rm -rf` in a `run:` block — like any `${{ }}` expression interpolated into a shell — trips GitHub's malicious-workflow detector, which blocks the entire run (every job, not just this one) pending manual approval. Runs whose review never happens leave their directory behind at roughly 400 KB each; `~/ci-frames` is unmanaged beyond that, so check it if disk ever gets tight.
+The reviewer deletes the frames directory once it has reported, so a fixed path is enough — `EPHEMERAL=true` gives one job per container and there is one runner, so captures serialize. Cleanup lives in the script because an `rm -rf` in a `run:` block is exactly the kind of pattern that gets a workflow held.
 
-A fully nx-cache-replayed `pnpm check` writes no frames — the review then reports none were captured, which is correct: identical inputs were already reviewed when the cache entry was created.
+A fully nx-cache-replayed `pnpm check` writes no frames, and the review then reports none were captured. That is correct: identical inputs were already reviewed when the cache entry was created.
 
 ## Cost
 
-Each model call is a fresh `mlx_vlm.generate` process, so every call reloads the 18 GB of weights: ~10 s for a single-image verification, ~25–40 s for a multi-frame review pass. One flow with a handful of findings runs a couple of minutes. If that becomes the bottleneck, the fix is a resident `mlx_vlm.server` the script talks to over HTTP instead of spawning per call.
+Each model call is a fresh `mlx_vlm.generate` process, so every call reloads the 18 GB of weights: ~10 s for a single-image verification, ~25–40 s for a multi-frame review pass. Every reported finding costs one verification call, because the 4-bit model invents cross-frame defects when handed a sequence and only holds up under single-frame questioning. If latency becomes the bottleneck, the fix is a resident `mlx_vlm.server` the script talks to over HTTP instead of spawning per call.
 
 ## Rollout
 
-The runner stack runs from a separate deploy checkout. After pulling a compose change there, restart it with `docker compose up -d` from `.github/runner/gha-runner/`.
+The runner stack boots from a separate deploy checkout (`~/Git/hutch-app`). Pull there and restart with `docker compose up -d` from `.github/runner/gha-runner/` — but only while the runner is idle: `EPHEMERAL=true` means a restart mid-job fails that job.
 
-Treat `~/ci-frames` as job-writable data, nothing more: the review job parses PNGs from it and never executes its contents.
+Treat `~/ci-frames` as job-writable data, nothing more: the review parses PNGs from it and never executes its contents.
