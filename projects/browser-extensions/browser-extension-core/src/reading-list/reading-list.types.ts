@@ -57,6 +57,24 @@ export type SaveUrl = (params: {
 	content?: TabContent;
 }) => Promise<SaveUrlResult>;
 
+/** The outcome of a deferred content upload onto an article the link save
+ * already created. `unsupported` and `rejected` are both the server's final
+ * word on this payload — nothing is retried, and no URL-only fallback is
+ * followed, because the link save has already happened and only the enrichment
+ * is lost. Anything transient throws instead, so the caller can back off. */
+export type UploadContentResult =
+	| { ok: true }
+	| { ok: false; reason: "unsupported" | "rejected" };
+
+/** Uploads captured bytes against a URL that is already saved. The `url` must
+ * be byte-identical to the one the link save used — it is the identity the
+ * server reconciles the content onto. */
+export type UploadContent = (params: {
+	url: string;
+	title?: string;
+	content: TabContent;
+}) => Promise<UploadContentResult>;
+
 /** Invokes the named action the server advertised on the item with `id`. The
  * popup learned the `name` from the item's descriptor list and echoes it back;
  * the walker holds the bound callable and resolves (id, name) to it. Two

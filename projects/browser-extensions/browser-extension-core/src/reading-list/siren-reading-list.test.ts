@@ -3565,8 +3565,14 @@ describe("initSirenReadingList", () => {
 			expect(slotHeaders.get("authorization")).toBe("Bearer test-token");
 		});
 
-		it("falls back to a URL-only save when the presigned PUT fails", async () => {
-			const { routes } = slotRoutes({ put: { status: 500 } });
+		it("falls back to a URL-only save when the presigned PUT fails, naming the leg and S3's reason", async () => {
+			const { routes } = slotRoutes({
+				put: {
+					status: 500,
+					body: "<Error><Code>InternalError</Code></Error>",
+					headers: { "Content-Type": "application/xml" },
+				},
+			});
 			const warnings: string[] = [];
 			const { fetchFn, calls } = createRoutingFetch(routes);
 			const list = initSirenReadingList({
@@ -3582,7 +3588,13 @@ describe("initSirenReadingList", () => {
 
 			assert.equal(result.ok, true);
 			expect(calls).toContain("POST http://localhost:3000/queue");
-			expect(warnings.some((w) => w.includes("Upload-slot save failed"))).toBe(true);
+			expect(
+				warnings.some(
+					(w) =>
+						w.includes("Upload-slot save failed") &&
+						w.includes("upload-content failed: 500 <Error><Code>InternalError</Code></Error>"),
+				),
+			).toBe(true);
 		});
 
 		it("falls back to a URL-only save when the completion fails", async () => {
@@ -3602,7 +3614,9 @@ describe("initSirenReadingList", () => {
 
 			assert.equal(result.ok, true);
 			expect(calls).toContain("POST http://localhost:3000/queue");
-			expect(warnings.some((w) => w.includes("Upload-slot save failed"))).toBe(true);
+			expect(
+				warnings.some((w) => w.includes("save-uploaded-content failed: 500")),
+			).toBe(true);
 		});
 
 		it("falls back to a URL-only save when the slot request is refused", async () => {
@@ -4117,3 +4131,381 @@ describe("hypermedia conformance", () => {
 		expect(calls).toContain("GET http://localhost:3000/queue");
 	});
 });
+
+describe("initSirenReadingList deferred content upload", () => {
+	const SERVER = "http://localhost:3000";
+	const SLOT_UPLOAD_URL = "https://s3.example.test/pending/doc?sig=abc";
+
+	function uploadDeps(
+		fetchFn: SirenReadingListDeps["fetchFn"],
+		overrides: Partial<SirenReadingListDeps> = {},
+	): SirenReadingListDeps {
+		return {
+			serverUrl: SERVER,
+			getAccessToken: async () => "test-token",
+			fetchFn,
+			onUnauthorized: async () => {},
+			logger: noopLogger,
+			...overrides,
+		};
+	}
+
+	function collectionAdvertising(saveContentFields?: unknown[]) {
+		const actions: unknown[] = [COLLECTION_ACTIONS[0], COLLECTION_ACTIONS[1]];
+		if (saveContentFields) {
+			actions.push({
+				name: "save-content",
+				href: "/queue/save-content",
+				method: "POST",
+				type: "multipart/form-data",
+				fields: saveContentFields,
+			});
+		}
+		return JSON.stringify({
+			class: ["collection", "articles"],
+			entities: [],
+			links: [{ rel: ["self"], href: "/queue" }],
+			actions,
+		});
+	}
+
+	const INLINE_FIELDS = [
+		{ name: "url", type: "url" },
+		{ name: "content", type: "file", maxBytes: 1024 },
+		{ name: "mediaType", type: "text" },
+		{ name: "title", type: "text" },
+	];
+
+	const SLOT_FIELDS = [...INLINE_FIELDS, { name: "size", type: "number" }];
+
+	function uploadSlotResponse() {
+		return JSON.stringify({
+			class: ["upload-slot"],
+			actions: [
+				{ name: "upload-content", href: SLOT_UPLOAD_URL, method: "PUT", type: "text/html" },
+				{
+					name: "save-uploaded-content",
+					href: "/queue/save-content",
+					method: "POST",
+					type: "multipart/form-data",
+					fields: [
+						{ name: "url", type: "url", value: "https://example.com/a" },
+						{ name: "uploaded", type: "hidden", value: "true" },
+					],
+				},
+			],
+		});
+	}
+
+	it("posts the captured bytes as a multipart part, never a base64 field", async () => {
+		let uploaded: FormData | undefined;
+		const { fetchFn, calls } = createRoutingFetch(
+			withEntryPoint({
+				"GET http://localhost:3000/queue": {
+					status: 200,
+					body: collectionAdvertising(INLINE_FIELDS),
+				},
+				"POST http://localhost:3000/queue/save-content": (init) => {
+					uploaded = init?.body instanceof FormData ? init.body : undefined;
+					return { status: 201 };
+				},
+			}),
+		);
+		const { uploadContent } = initSirenReadingList(uploadDeps(fetchFn));
+
+		const result = await uploadContent({
+			url: "https://example.com/a",
+			title: "A",
+			content: { bytes: new TextEncoder().encode("<html>a</html>").buffer, mediaType: "text/html" },
+		});
+
+		expect(result).toEqual({ ok: true });
+		expect(calls[0]).toBe("GET http://localhost:3000/");
+		assert(uploaded, "save-content must carry a multipart body");
+		expect(uploaded.get("url")).toBe("https://example.com/a");
+		expect(uploaded.get("mediaType")).toBe("text/html");
+		expect(uploaded.get("title")).toBe("A");
+		expect(uploaded.get("contentBase64")).toBeNull();
+		const part = uploaded.get("content");
+		assert(part instanceof Blob, "content part must be a Blob");
+		expect(await part.text()).toBe("<html>a</html>");
+	});
+
+	it("omits the title part when the tab had none", async () => {
+		let uploaded: FormData | undefined;
+		const { fetchFn } = createRoutingFetch(
+			withEntryPoint({
+				"GET http://localhost:3000/queue": {
+					status: 200,
+					body: collectionAdvertising(INLINE_FIELDS),
+				},
+				"POST http://localhost:3000/queue/save-content": (init) => {
+					uploaded = init?.body instanceof FormData ? init.body : undefined;
+					return { status: 201 };
+				},
+			}),
+		);
+		const { uploadContent } = initSirenReadingList(uploadDeps(fetchFn));
+
+		await uploadContent({
+			url: "https://example.com/a",
+			content: { bytes: new ArrayBuffer(8), mediaType: "text/html" },
+		});
+
+		assert(uploaded, "save-content must carry a multipart body");
+		expect(uploaded.get("title")).toBeNull();
+	});
+
+	it("uploads whatever it captured when the server advertises no ceiling", async () => {
+		const { fetchFn, calls } = createRoutingFetch(
+			withEntryPoint({
+				"GET http://localhost:3000/queue": {
+					status: 200,
+					body: collectionAdvertising([
+						{ name: "url", type: "url" },
+						{ name: "content", type: "file" },
+					]),
+				},
+				"POST http://localhost:3000/queue/save-content": { status: 201 },
+			}),
+		);
+		const { uploadContent } = initSirenReadingList(uploadDeps(fetchFn));
+
+		const result = await uploadContent({
+			url: "https://example.com/a",
+			content: { bytes: new ArrayBuffer(9_999), mediaType: "text/html" },
+		});
+
+		expect(result).toEqual({ ok: true });
+		expect(calls).toContain("POST http://localhost:3000/queue/save-content");
+	});
+
+	it("takes the presigned slot when the capture is over the advertised ceiling", async () => {
+		const captured: { putInit?: RequestInit } = {};
+		const { fetchFn, calls } = createRoutingFetch(
+			withEntryPoint({
+				"GET http://localhost:3000/queue": {
+					status: 200,
+					body: collectionAdvertising(SLOT_FIELDS),
+				},
+				"POST http://localhost:3000/queue/save-content": (init) => {
+					const body = init?.body;
+					if (body instanceof FormData && body.has("uploaded")) return { status: 201 };
+					return { status: 200, body: uploadSlotResponse() };
+				},
+				[`PUT ${SLOT_UPLOAD_URL}`]: (init) => {
+					captured.putInit = init;
+					return { status: 200 };
+				},
+			}),
+		);
+		const { uploadContent } = initSirenReadingList(uploadDeps(fetchFn));
+
+		const result = await uploadContent({
+			url: "https://example.com/a",
+			content: { bytes: new ArrayBuffer(2048), mediaType: "text/html" },
+		});
+
+		expect(result).toEqual({ ok: true });
+		expect(calls).toEqual([
+			"GET http://localhost:3000/",
+			"POST http://localhost:3000/queue/save-content",
+			`PUT ${SLOT_UPLOAD_URL}`,
+			"POST http://localhost:3000/queue/save-content",
+		]);
+		expect(new Headers(captured.putInit?.headers).get("authorization")).toBeNull();
+	});
+
+	it("reports a refused slot request as rejected rather than degrading to a URL-only save", async () => {
+		const { fetchFn, calls } = createRoutingFetch(
+			withEntryPoint({
+				"GET http://localhost:3000/queue": {
+					status: 200,
+					body: collectionAdvertising(SLOT_FIELDS),
+				},
+				"POST http://localhost:3000/queue/save-content": { status: 422, body: "too big" },
+			}),
+		);
+		const { uploadContent } = initSirenReadingList(uploadDeps(fetchFn));
+
+		const result = await uploadContent({
+			url: "https://example.com/a",
+			content: { bytes: new ArrayBuffer(2048), mediaType: "text/html" },
+		});
+
+		expect(result).toEqual({ ok: false, reason: "rejected" });
+		expect(calls).not.toContain("POST http://localhost:3000/queue");
+	});
+
+	it("reports a failed presigned PUT as retryable", async () => {
+		const { fetchFn } = createRoutingFetch(
+			withEntryPoint({
+				"GET http://localhost:3000/queue": {
+					status: 200,
+					body: collectionAdvertising(SLOT_FIELDS),
+				},
+				"POST http://localhost:3000/queue/save-content": {
+					status: 200,
+					body: uploadSlotResponse(),
+				},
+				[`PUT ${SLOT_UPLOAD_URL}`]: { status: 503 },
+			}),
+		);
+		const { uploadContent } = initSirenReadingList(uploadDeps(fetchFn));
+
+		await expect(
+			uploadContent({
+				url: "https://example.com/a",
+				content: { bytes: new ArrayBuffer(2048), mediaType: "text/html" },
+			}),
+		).rejects.toThrow("upload-content failed: 503");
+	});
+
+	it("names the leg that ended a failed exchange and carries the store's own explanation", async () => {
+		const { fetchFn } = createRoutingFetch(
+			withEntryPoint({
+				"GET http://localhost:3000/queue": {
+					status: 200,
+					body: collectionAdvertising(SLOT_FIELDS),
+				},
+				"POST http://localhost:3000/queue/save-content": {
+					status: 200,
+					body: uploadSlotResponse(),
+				},
+				[`PUT ${SLOT_UPLOAD_URL}`]: {
+					status: 503,
+					body: "<Error><Code>SlowDown</Code></Error>",
+					headers: { "Content-Type": "application/xml" },
+				},
+			}),
+		);
+		const { uploadContent } = initSirenReadingList(uploadDeps(fetchFn));
+
+		await expect(
+			uploadContent({
+				url: "https://example.com/a",
+				content: { bytes: new ArrayBuffer(2048), mediaType: "text/html" },
+			}),
+		).rejects.toThrow("upload-content failed: 503 <Error><Code>SlowDown</Code></Error>");
+	});
+
+	it("reports unsupported when the server advertises no save-content action", async () => {
+		const { fetchFn } = createRoutingFetch(
+			withEntryPoint({
+				"GET http://localhost:3000/queue": { status: 200, body: collectionAdvertising() },
+			}),
+		);
+		const warnings: string[] = [];
+		const { uploadContent } = initSirenReadingList(
+			uploadDeps(fetchFn, {
+				logger: { ...noopLogger, warn: (m: unknown) => warnings.push(String(m)) },
+			}),
+		);
+
+		const result = await uploadContent({
+			url: "https://example.com/a",
+			content: { bytes: new ArrayBuffer(8), mediaType: "text/html" },
+		});
+
+		expect(result).toEqual({ ok: false, reason: "unsupported" });
+		expect(warnings.some((w) => w.includes("no save-content action"))).toBe(true);
+	});
+
+	it("reports unsupported when the capture is over the ceiling and no slot is advertised", async () => {
+		const { fetchFn } = createRoutingFetch(
+			withEntryPoint({
+				"GET http://localhost:3000/queue": {
+					status: 200,
+					body: collectionAdvertising(INLINE_FIELDS),
+				},
+			}),
+		);
+		const warnings: string[] = [];
+		const { uploadContent } = initSirenReadingList(
+			uploadDeps(fetchFn, {
+				logger: { ...noopLogger, warn: (m: unknown) => warnings.push(String(m)) },
+			}),
+		);
+
+		const result = await uploadContent({
+			url: "https://example.com/a",
+			content: { bytes: new ArrayBuffer(2048), mediaType: "text/html" },
+		});
+
+		expect(result).toEqual({ ok: false, reason: "unsupported" });
+		expect(warnings.some((w) => w.includes("advertises no upload slot"))).toBe(true);
+	});
+
+	it("reports a 4xx refusal as rejected", async () => {
+		const { fetchFn } = createRoutingFetch(
+			withEntryPoint({
+				"GET http://localhost:3000/queue": {
+					status: 200,
+					body: collectionAdvertising(INLINE_FIELDS),
+				},
+				"POST http://localhost:3000/queue/save-content": { status: 415, body: "nope" },
+			}),
+		);
+		const { uploadContent } = initSirenReadingList(uploadDeps(fetchFn));
+
+		const result = await uploadContent({
+			url: "https://example.com/a",
+			content: { bytes: new ArrayBuffer(8), mediaType: "text/html" },
+		});
+
+		expect(result).toEqual({ ok: false, reason: "rejected" });
+	});
+
+	it("throws on a server-side failure so the caller can back off", async () => {
+		const { fetchFn } = createRoutingFetch(
+			withEntryPoint({
+				"GET http://localhost:3000/queue": {
+					status: 200,
+					body: collectionAdvertising(INLINE_FIELDS),
+				},
+				"POST http://localhost:3000/queue/save-content": { status: 500 },
+			}),
+		);
+		const { uploadContent } = initSirenReadingList(uploadDeps(fetchFn));
+
+		await expect(
+			uploadContent({
+				url: "https://example.com/a",
+				content: { bytes: new ArrayBuffer(8), mediaType: "text/html" },
+			}),
+		).rejects.toThrow("save-content failed: 500");
+	});
+
+	it("asserts when the advertised save-content href is not actionable", async () => {
+		const { fetchFn } = createRoutingFetch(
+			withEntryPoint({
+				"GET http://localhost:3000/queue": {
+					status: 200,
+					body: JSON.stringify({
+						class: ["collection", "articles"],
+						entities: [],
+						links: [{ rel: ["self"], href: "/queue" }],
+						actions: [
+							COLLECTION_ACTIONS[0],
+							{
+								name: "save-content",
+								href: "mailto:ops@example.com",
+								method: "POST",
+								fields: INLINE_FIELDS,
+							},
+						],
+					}),
+				},
+			}),
+		);
+		const { uploadContent } = initSirenReadingList(uploadDeps(fetchFn));
+
+		await expect(
+			uploadContent({
+				url: "https://example.com/a",
+				content: { bytes: new ArrayBuffer(8), mediaType: "text/html" },
+			}),
+		).rejects.toThrow("save-content action href is not actionable");
+	});
+});
+

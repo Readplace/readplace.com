@@ -18,6 +18,9 @@ import type {
 	SaveUrl,
 	SavePages,
 	SaveWarning,
+	TabContent,
+	UploadContent,
+	UploadContentResult,
 } from "./reading-list.types";
 import { pdfContentBody, htmlContentBody, base64ToBytes, type ContentBodyBuilder } from "./content-body-parsers";
 
@@ -263,7 +266,7 @@ function createAuthorizedFetch(deps: {
 	fetchFn: typeof fetch;
 	onUnauthorized: () => Promise<void>;
 }): DoFetch {
-	return async (url, init) => {
+	async function attempt(url: string, init?: DoFetchInit): Promise<Response> {
 		const token = await deps.getAccessToken();
 		assert(token, "No access token available");
 		const headers: Record<string, string> = {
@@ -271,12 +274,13 @@ function createAuthorizedFetch(deps: {
 			Accept: SIREN_MEDIA_TYPE,
 			...init?.headers,
 		};
-		const response = await deps.fetchFn(url, { ...init, headers });
-		if (response.status === 401) {
-			await deps.onUnauthorized();
-			throw new UnauthorizedError();
-		}
-		return response;
+		return deps.fetchFn(url, { ...init, headers });
+	}
+	return async (url, init) => {
+		const response = await attempt(url, init);
+		if (response.status !== 401) return response;
+		await deps.onUnauthorized();
+		throw new UnauthorizedError();
 	};
 }
 
@@ -849,6 +853,27 @@ export function initExtension(
 	};
 }
 
+/** Which advertised action produced a response, named after the action itself, so
+ * a failure says which of the three legs ended the exchange. */
+type UploadLeg = "save-content" | "upload-content" | "save-uploaded-content";
+
+type UploadAttempt = { leg: UploadLeg; response: Response };
+
+/** S3 answers a failed presigned PUT in the body (`SignatureDoesNotMatch`,
+ * `RequestTimeTooSkewed`), which the status alone never shows. */
+async function describeUpload(attempt: UploadAttempt): Promise<string> {
+	const body = attempt.leg === "upload-content" ? ` ${await attempt.response.text()}` : "";
+	return `${attempt.leg} failed: ${attempt.response.status}${body}`;
+}
+
+/** A 4xx is a verdict on these exact bytes, so a deferred upload drops rather than
+ * retrying or degrading onto a URL-only save — the link save already landed. */
+async function classifyUpload(attempt: UploadAttempt): Promise<UploadContentResult> {
+	if (attempt.response.ok) return { ok: true };
+	if (attempt.response.status < 500) return { ok: false, reason: "rejected" };
+	throw new Error(await describeUpload(attempt));
+}
+
 export interface SirenReadingListDeps {
 	serverUrl: string;
 	getAccessToken: () => Promise<string | null>;
@@ -859,6 +884,7 @@ export interface SirenReadingListDeps {
 
 export function initSirenReadingList(deps: SirenReadingListDeps): {
 	saveUrl: SaveUrl;
+	uploadContent: UploadContent;
 	invokeAction: InvokeAction;
 	findByUrl: FindByUrl;
 	getAllItems: GetAllItems;
@@ -901,12 +927,16 @@ export function initSirenReadingList(deps: SirenReadingListDeps): {
 		return btoa(binaryString);
 	}
 
-	async function saveViaUploadSlot(params: {
+	/** Runs the three legs of the presigned slot and hands back whichever
+	 * response ended the exchange — the first refusal, or the completion — tagged
+	 * with the leg that produced it, so each caller applies its own policy to a
+	 * failure instead of one shared assert deciding for both. */
+	async function uploadThroughSlot(params: {
 		descriptor: SirenAction;
 		url: string;
 		title?: string;
-		content: { bytes: ArrayBuffer; mediaType: string };
-	}): Promise<ReadingListItem> {
+		content: TabContent;
+	}): Promise<UploadAttempt> {
 		const authFetch = createAuthorizedFetch(deps);
 
 		const slotHref = resolveHref({ base: deps.serverUrl, href: params.descriptor.href });
@@ -917,7 +947,7 @@ export function initSirenReadingList(deps: SirenReadingListDeps): {
 		slotForm.append("size", String(params.content.bytes.byteLength));
 		if (params.title) slotForm.append("title", params.title);
 		const slotResponse = await authFetch(slotHref, { method: params.descriptor.method, body: slotForm });
-		assert(slotResponse.ok, `upload-slot request failed: ${slotResponse.status}`);
+		if (!slotResponse.ok) return { leg: "save-content", response: slotResponse };
 		const slot = UploadSlotResponseSchema.parse(await readSirenBody(slotResponse));
 		const uploadAction = slot.actions.find((a) => a.name === "upload-content");
 		const completeAction = slot.actions.find((a) => a.name === "save-uploaded-content");
@@ -930,10 +960,7 @@ export function initSirenReadingList(deps: SirenReadingListDeps): {
 			headers: { "Content-Type": params.content.mediaType },
 			body: params.content.bytes,
 		});
-		assert(
-			putResponse.ok,
-			`content upload failed: ${putResponse.status} ${await putResponse.text().catch(() => "")}`,
-		);
+		if (!putResponse.ok) return { leg: "upload-content", response: putResponse };
 
 		const completeHref = resolveHref({ base: deps.serverUrl, href: completeAction.href });
 		assert(completeHref, "save-uploaded-content action href is not actionable");
@@ -942,9 +969,21 @@ export function initSirenReadingList(deps: SirenReadingListDeps): {
 		for (const field of completeAction.fields) {
 			if (field.value !== undefined) completeForm.append(field.name, String(field.value));
 		}
-		const completeResponse = await authFetch(completeHref, { method: completeAction.method, body: completeForm });
-		assert(completeResponse.ok, `save-uploaded-content failed: ${completeResponse.status}`);
-		return toReadingListItem(SirenSubEntitySchema.parse(await readSirenBody(completeResponse)), deps.serverUrl);
+		return {
+			leg: "save-uploaded-content",
+			response: await authFetch(completeHref, { method: completeAction.method, body: completeForm }),
+		};
+	}
+
+	async function saveViaUploadSlot(params: {
+		descriptor: SirenAction;
+		url: string;
+		title?: string;
+		content: TabContent;
+	}): Promise<ReadingListItem> {
+		const attempt = await uploadThroughSlot(params);
+		assert(attempt.response.ok, await describeUpload(attempt));
+		return toReadingListItem(SirenSubEntitySchema.parse(await readSirenBody(attempt.response)), deps.serverUrl);
 	}
 
 	const saveUrl: SaveUrl = async ({ url, title, content }) => {
@@ -1007,6 +1046,41 @@ export function initSirenReadingList(deps: SirenReadingListDeps): {
 			}
 			throw err;
 		}
+	};
+
+	/** The entry point is walked fresh on every run: a job outlives the worker
+	 * that queued it, and every href and presigned slot URL it could have
+	 * carried would have expired by the time it wakes. */
+	const uploadContent: UploadContent = async ({ url, title, content }) => {
+		const collection = await start();
+		const descriptor = collection.descriptors["save-content"];
+		if (!descriptor) {
+			deps.logger.warn(`Server advertises no save-content action — dropping the deferred upload of ${url}`);
+			return { ok: false, reason: "unsupported" };
+		}
+		const maxBytes = advertisedLimit(descriptor, "content", "maxBytes");
+		if (maxBytes !== undefined && content.bytes.byteLength > maxBytes) {
+			const slotSupported = descriptor.fields?.some((field) => field.name === "size");
+			if (!slotSupported) {
+				deps.logger.warn(
+					`Captured content of ${content.bytes.byteLength} bytes exceeds the advertised ${maxBytes}-byte upload limit and the server advertises no upload slot — dropping the deferred upload`,
+				);
+				return { ok: false, reason: "unsupported" };
+			}
+			return classifyUpload(await uploadThroughSlot({ descriptor, url, title, content }));
+		}
+		const actionUrl = resolveHref({ base: deps.serverUrl, href: descriptor.href });
+		assert(actionUrl, "save-content action href is not actionable");
+		const form = new FormData();
+		form.append("url", url);
+		form.append("mediaType", content.mediaType);
+		if (title) form.append("title", title);
+		form.append("content", new Blob([content.bytes], { type: content.mediaType }), "content");
+		const authFetch = createAuthorizedFetch(deps);
+		return classifyUpload({
+			leg: "save-content",
+			response: await authFetch(actionUrl, { method: descriptor.method, body: form }),
+		});
 	};
 
 	const invokeAction: InvokeAction = async ({ id, name }) => {
@@ -1150,5 +1224,5 @@ export function initSirenReadingList(deps: SirenReadingListDeps): {
 		return summary;
 	};
 
-	return { saveUrl, invokeAction, findByUrl, getAllItems, savePages };
+	return { saveUrl, uploadContent, invokeAction, findByUrl, getAllItems, savePages };
 }
