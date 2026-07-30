@@ -34,6 +34,7 @@ export function createBlogApp(
 		now: () => Date;
 		generateVisitorId: () => string;
 		secureCookies: boolean;
+		ownHost: string;
 	},
 ): Express {
 	const app = express();
@@ -56,7 +57,13 @@ export function createBlogApp(
 		}),
 	);
 	app.use(
-		createAnalyticsMiddleware({ logger: deps.analyticsLogger, salt: deps.salt, now: deps.now, isStaticAssetPath }),
+		createAnalyticsMiddleware({
+			logger: deps.analyticsLogger,
+			salt: deps.salt,
+			now: deps.now,
+			isStaticAssetPath,
+			ownHost: deps.ownHost,
+		}),
 	);
 
 	const base = initBase(config);

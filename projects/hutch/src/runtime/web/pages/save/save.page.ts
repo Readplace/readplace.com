@@ -8,7 +8,7 @@ import { Base } from "../../base.component";
 import type { BuildBannerState } from "../../banner-state";
 import { sendComponent } from "@packages/web-shell";
 import { collectUtmParams } from "../../shared/utm";
-import { buildSaveIntentEvent, type AnalyticsEvent } from "@packages/web-analytics";
+import { buildSaveIntentEvent, isCountableBrowserRequest, type AnalyticsEvent } from "@packages/web-analytics";
 import { SAVE_OUTCOMES, SAVE_SURFACES } from "../../../observability/events";
 import { setPendingSaveId } from "../../pending-save";
 import { SaveErrorPage } from "./save-error.component";
@@ -28,6 +28,7 @@ export function initSaveRoutes(deps: {
 	now: () => Date;
 	secureCookies: boolean;
 	generatePendingSaveId: () => string;
+	ownHost: string;
 }): Router {
 	const router = express.Router();
 
@@ -46,19 +47,24 @@ export function initSaveRoutes(deps: {
 				assert(req.visitorId, "visitor-id middleware must run before /save");
 				const pendingSaveId = deps.generatePendingSaveId();
 				setPendingSaveId({ res, secure: deps.secureCookies }, pendingSaveId);
-				deps.analytics.info(
-					buildSaveIntentEvent(
-						{ now: deps.now, salt: deps.salt },
-						{
-							req,
-							url,
-							path: req.baseUrl,
-							surface: SAVE_SURFACES.readerView,
-							outcome: SAVE_OUTCOMES.promptedToSignUp,
-							pendingSaveId,
-						},
-					),
-				);
+				// The cookie above is minted for every non-bot so signup attribution
+				// survives a client the analytics gate rejects; only the measurement is
+				// gated, and the 303 below is unconditional either way.
+				if (isCountableBrowserRequest({ req, ownHost: deps.ownHost })) {
+					deps.analytics.info(
+						buildSaveIntentEvent(
+							{ now: deps.now, salt: deps.salt },
+							{
+								req,
+								url,
+								path: req.baseUrl,
+								surface: SAVE_SURFACES.readerView,
+								outcome: SAVE_OUTCOMES.promptedToSignUp,
+								pendingSaveId,
+							},
+						),
+					);
+				}
 			}
 			res.redirect(303, `/signup?return=${encodeURIComponent(req.originalUrl)}`);
 			return;

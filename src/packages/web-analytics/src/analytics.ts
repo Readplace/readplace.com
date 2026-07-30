@@ -217,11 +217,7 @@ export interface SummaryToggledEvent {
 }
 
 /**
- * Anonymous "try the reader" opens are invisible to the pageview middleware —
- * the homepage form GET /view 302→/view/<url> and the reader's htmx polls carry
- * `hx-request`, all dropped by `shouldLog`. This event is emitted directly from
- * the /view handler so the activation step is countable, and carries
- * `visitor_id` so it joins to the `user_created` conversion per device.
+ * Carries `visitor_id` so it joins to the `user_created` conversion per device.
  */
 export interface ViewOpenedEvent {
 	stream: typeof STREAMS.analytics;
@@ -335,20 +331,35 @@ function isTopLevelNavigation(req: Request): boolean {
 	return true;
 }
 
+/**
+ * `ownHost` is the host this deployable serves, as `new URL(appOrigin).hostname`
+ * — port-less, to match what `extractReferrerHost` derives from the header. Every
+ * app response carries helmet's default `Referrer-Policy: no-referrer`, so a
+ * conforming browser navigating *within* the site sends no `Referer` at all — a
+ * request whose referrer is our own host therefore cannot have come from one.
+ * Inbound referrers from other hosts are governed by those hosts' policies and
+ * stay countable, which is what keeps genuine acquisition traffic measurable.
+ */
+export function isCountableBrowserRequest(params: { req: Request; ownHost: string }): boolean {
+	if (isbot(params.req.get("user-agent"))) return false;
+	if (isPrefetch(params.req)) return false;
+	if (extractReferrerHost(params.req) === params.ownHost) return false;
+	return isBrowserClient(params.req);
+}
+
 function shouldLog(params: {
 	req: Request;
 	path: string;
 	statusCode: number;
 	isStaticAssetPath: (path: string) => boolean;
+	ownHost: string;
 }): boolean {
 	if (params.req.method !== "GET") return false;
 	if (isSkippedPath(params.path)) return false;
 	if (params.isStaticAssetPath(params.path)) return false;
 	if (!isRenderedPageStatus(params.statusCode)) return false;
-	if (isbot(params.req.get("user-agent"))) return false;
 	if (params.req.get("hx-request") === "true") return false;
-	if (isPrefetch(params.req)) return false;
-	if (!isBrowserClient(params.req)) return false;
+	if (!isCountableBrowserRequest({ req: params.req, ownHost: params.ownHost })) return false;
 	if (!isTopLevelNavigation(params.req)) return false;
 	return true;
 }
@@ -412,19 +423,18 @@ export function tagPageviewExperiment(
 
 /**
  * Clicks are counted regardless of method or `hx-request` (HTMX-boosted links
- * and POST actions are clicks too); only bots, non-browser clients, error
- * responses, and responses a route suppressed via suppressClickCount (the
- * `isbot` UA sniff misses a spoofed User-Agent, but a route that tripped its own
- * bot defense knows better) are dropped. The precise `utm_medium=internal`
- * marker already excludes background polls, which never carry it.
+ * and POST actions are clicks too); only error responses, responses a route
+ * suppressed via suppressClickCount (a route that tripped its own bot defense
+ * knows more than the UA sniff does), and requests that fail
+ * `isCountableBrowserRequest` are dropped. Navigation shape is deliberately not
+ * checked: an HTMX-boosted click sends `sec-fetch-dest: empty`, so requiring a
+ * top-level navigation here would zero out every boosted click. The precise
+ * `utm_medium=internal` marker already excludes background polls.
  */
-function shouldCountClick(req: Request, res: Response): boolean {
-	if (suppressedClickResponses.has(res)) return false;
-	if (res.statusCode >= 400) return false;
-	if (isbot(req.get("user-agent"))) return false;
-	if (isPrefetch(req)) return false;
-	if (!isBrowserClient(req)) return false;
-	return true;
+function shouldCountClick(params: { req: Request; res: Response; ownHost: string }): boolean {
+	if (suppressedClickResponses.has(params.res)) return false;
+	if (params.res.statusCode >= 400) return false;
+	return isCountableBrowserRequest({ req: params.req, ownHost: params.ownHost });
 }
 
 /**
@@ -514,6 +524,7 @@ export function createAnalyticsMiddleware(deps: {
 	salt: string;
 	now: () => Date;
 	isStaticAssetPath: (path: string) => boolean;
+	ownHost: string;
 }): RequestHandler {
 	return (req: Request, res: Response, next: NextFunction) => {
 		/** Capture the request path up front. A sub-router mount (e.g. blog-site's
@@ -522,7 +533,7 @@ export function createAnalyticsMiddleware(deps: {
 		 * misclassify the pageview (and defeat the `/blog/...` SKIP_PATHS). */
 		const path = req.path;
 		res.on("finish", () => {
-			if (isInternalClick(req) && shouldCountClick(req, res)) {
+			if (isInternalClick(req) && shouldCountClick({ req, res, ownHost: deps.ownHost })) {
 				deps.logger.info({
 					stream: STREAMS.analytics,
 					event: ANALYTICS_EVENTS.click,
@@ -537,7 +548,16 @@ export function createAnalyticsMiddleware(deps: {
 					is_authenticated: req.userId ? 1 : 0,
 				});
 			}
-			if (!shouldLog({ req, path, statusCode: res.statusCode, isStaticAssetPath: deps.isStaticAssetPath })) return;
+			if (
+				!shouldLog({
+					req,
+					path,
+					statusCode: res.statusCode,
+					isStaticAssetPath: deps.isStaticAssetPath,
+					ownHost: deps.ownHost,
+				})
+			)
+				return;
 			const userAgent = req.get("user-agent");
 			const exposure = pageviewExperiments.get(res);
 			deps.logger.info({

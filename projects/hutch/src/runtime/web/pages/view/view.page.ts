@@ -31,7 +31,7 @@ import type { RateLimitRule } from "@packages/domain/rate-limit";
 import { isbot } from "isbot";
 import { decomposeTimeLeft } from "@packages/time-left";
 import type { HutchLogger } from "@packages/hutch-logger";
-import { articleHostFrom, hashIp, type AnalyticsEvent } from "@packages/web-analytics";
+import { articleHostFrom, hashIp, isCountableBrowserRequest, type AnalyticsEvent } from "@packages/web-analytics";
 import { noindexMiddleware } from "../../middleware/noindex.middleware";
 import { rateLimitKeyFromRequest, sendRateLimited } from "../../middleware/rate-limit";
 import { ANALYTICS_EVENTS, STREAMS } from "../../../observability/events";
@@ -62,6 +62,7 @@ import { ViewPage, formatViewDocumentTitle, type ViewAction } from "./view.compo
 interface ViewDependencies {
 	validateSaveableUrl: ValidateSaveableUrl;
 	appOrigin: string;
+	ownHost: string;
 	secureCookies: boolean;
 	findArticleByUrl: FindArticleByUrl;
 	findArticleFreshness: FindArticleFreshness;
@@ -247,7 +248,7 @@ function handleViewArticle(deps: ViewDependencies, reader: ReturnType<typeof ini
 			return;
 		}
 
-		if (!isbot(req.get("user-agent"))) {
+		if (isCountableBrowserRequest({ req, ownHost: deps.ownHost })) {
 			assert(req.visitorId, "visitor-id middleware must run before the /view router");
 			deps.analytics.info({
 				stream: STREAMS.analytics,
@@ -259,9 +260,13 @@ function handleViewArticle(deps: ViewDependencies, reader: ReturnType<typeof ini
 				visitor_id: req.visitorId,
 				is_authenticated: req.userId ? 1 : 0,
 			});
-			if (req.userId === undefined && !isPrefetchOrBot(req)) {
-				setLastViewUrl({ res, secure: deps.secureCookies }, articleUrl);
-			}
+		}
+		// Deliberately outside the analytics gate: hutch_lastview is the only input
+		// to the post-signup first-article autosave, so a reader whose headers the
+		// analytics gate rejects must still get the cookie or they sign up and land
+		// on an empty queue. isPrefetchOrBot already subsumes the isbot check.
+		if (req.userId === undefined && !isPrefetchOrBot(req)) {
+			setLastViewUrl({ res, secure: deps.secureCookies }, articleUrl);
 		}
 
 		const utmParams = collectUtmParams(req.query);

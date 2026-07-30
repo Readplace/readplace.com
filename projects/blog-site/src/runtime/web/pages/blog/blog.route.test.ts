@@ -30,6 +30,7 @@ const app = createBlogApp(
 		now: () => new Date("2026-07-01T00:00:00.000Z"),
 		generateVisitorId: () => "00000000-0000-4000-8000-000000000000",
 		secureCookies: false,
+		ownHost: "readplace.test",
 	},
 );
 const blogPosts = initBlogPosts();

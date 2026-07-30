@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import { JSDOM } from "jsdom";
 import request from "supertest";
-import { useTestServer, loginAgent } from "../../../test-app";
+import { useTestServer, loginAgent, BROWSER_REQUEST_HEADERS } from "../../../test-app";
 import type { ViewSaveIntentEvent } from "@packages/web-analytics";
 
 import {
@@ -219,7 +219,9 @@ describe("Save routes", () => {
 		it("emits one view_save_intent for an anonymous save click before redirecting to /signup — the warmest funnel moment, now routed to account creation instead of the sign-in page", async () => {
 			const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
 
-			const response = await request(harness.server).get("/save?url=https://example.com/article");
+			const response = await request(harness.server)
+				.get("/save?url=https://example.com/article")
+				.set(BROWSER_REQUEST_HEADERS);
 
 			expect(response.status).toBe(303);
 			const intents = saveIntents(harness);
@@ -242,7 +244,9 @@ describe("Save routes", () => {
 		it("mints a pending-save cookie carrying the same id as the event so the blocked save links to the eventual signup", async () => {
 			const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
 
-			const response = await request(harness.server).get("/save?url=https://example.com/article");
+			const response = await request(harness.server)
+				.get("/save?url=https://example.com/article")
+				.set(BROWSER_REQUEST_HEADERS);
 
 			const setCookieHeader: string | string[] = response.headers["set-cookie"];
 			const setCookies = Array.isArray(setCookieHeader) ? setCookieHeader : [setCookieHeader];
@@ -255,7 +259,9 @@ describe("Save routes", () => {
 		it("classifies a save of our own content (readplace.com) as own", async () => {
 			const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
 
-			await request(harness.server).get("/save?url=https://readplace.com/blog/something");
+			await request(harness.server)
+				.get("/save?url=https://readplace.com/blog/something")
+				.set(BROWSER_REQUEST_HEADERS);
 
 			expect(saveIntents(harness)[0]).toMatchObject({ article_host: "readplace.com", content_class: "own" });
 		});
@@ -265,7 +271,7 @@ describe("Save routes", () => {
 
 			await request(harness.server)
 				.get("/save?url=https://example.com/article")
-				.set("Referer", "https://readplace.com/some/reader/page");
+				.set({ ...BROWSER_REQUEST_HEADERS, Referer: "https://readplace.com/some/reader/page" });
 
 			expect(saveIntents(harness)[0]).toMatchObject({
 				article_host: "example.com",
@@ -274,12 +280,30 @@ describe("Save routes", () => {
 			});
 		});
 
+		it("still redirects to signup and still mints the pending-save cookie, but emits no view_save_intent, when the Referer is our own host — only the measurement is gated", async () => {
+			const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
+
+			const response = await request(harness.server)
+				.get("/save?url=https://example.com/article")
+				.set({ ...BROWSER_REQUEST_HEADERS, Referer: `${TEST_APP_ORIGIN}/view/example.com/article` });
+
+			expect(response.status).toBe(303);
+			expect(response.headers.location.startsWith("/signup")).toBe(true);
+			const setCookieHeader: string | string[] = response.headers["set-cookie"];
+			const setCookies = Array.isArray(setCookieHeader) ? setCookieHeader : [setCookieHeader];
+			assert(
+				setCookies.find((c) => c.startsWith("hutch_psid=")),
+				"the pending-save cookie must still be minted so signup attribution survives",
+			);
+			assert.equal(saveIntents(harness).length, 0, "no view_save_intent for a self-referring request");
+		});
+
 		it("does not emit view_save_intent for a bot user-agent (keeps the funnel free of crawler-followed Save links)", async () => {
 			const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
 
 			const response = await request(harness.server)
 				.get("/save?url=https://example.com/article")
-				.set("User-Agent", GOOGLEBOT);
+				.set({ ...BROWSER_REQUEST_HEADERS, "User-Agent": GOOGLEBOT });
 
 			expect(response.status).toBe(303);
 			assert.equal(saveIntents(harness).length, 0, "no view_save_intent for a bot");
@@ -289,7 +313,7 @@ describe("Save routes", () => {
 			const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
 			const agent = await loginAgent(harness.server, harness.auth);
 
-			const response = await agent.get("/save?url=https://example.com/article");
+			const response = await agent.get("/save?url=https://example.com/article").set(BROWSER_REQUEST_HEADERS);
 
 			expect(response.status).toBe(303);
 			assert.equal(saveIntents(harness).length, 0, "no view_save_intent when already authenticated");
@@ -301,7 +325,7 @@ describe("Save routes", () => {
 			const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
 			const agent = request.agent(harness.server);
 
-			await agent.get("/save?url=https://example.com/article");
+			await agent.get("/save?url=https://example.com/article").set(BROWSER_REQUEST_HEADERS);
 			const intent = saveIntents(harness)[0];
 			assert(intent.pending_save_id, "the blocked save must mint a pending_save_id");
 
@@ -321,7 +345,7 @@ describe("Save routes", () => {
 			const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
 			const agent = request.agent(harness.server);
 
-			await agent.get("/save?url=https://example.com/article");
+			await agent.get("/save?url=https://example.com/article").set(BROWSER_REQUEST_HEADERS);
 
 			const signup = await agent.post("/signup").type("form").send({
 				email: "clears-pending-save@example.com",
