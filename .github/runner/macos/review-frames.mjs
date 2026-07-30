@@ -1,5 +1,5 @@
 import { execFile } from "node:child_process";
-import { appendFile, readdir } from "node:fs/promises";
+import { appendFile, readdir, rm } from "node:fs/promises";
 import path from "node:path";
 import { promisify } from "node:util";
 
@@ -204,6 +204,7 @@ async function main() {
   if (findingsCount > 0) {
     await commentOnPullRequest(markdown);
   }
+  await rm(framesDir, { recursive: true, force: true });
 }
 
 main().catch((error) => {

@@ -60,8 +60,8 @@ jobs:
         if: runner.environment == 'self-hosted'
         run: |
           if [ -d /frames ]; then
-            mkdir -p "/frames/${{ github.run_id }}"
-            echo "TRANSITION_FRAMES_DIR=/frames/${{ github.run_id }}" >> "$GITHUB_ENV"
+            mkdir -p "/frames/$GITHUB_RUN_ID"
+            echo "TRANSITION_FRAMES_DIR=/frames/$GITHUB_RUN_ID" >> "$GITHUB_ENV"
           fi
 
       - run: pnpm check
@@ -88,10 +88,6 @@ jobs:
           GH_TOKEN: ${{ github.token }}
           PR_NUMBER: ${{ github.event_name == 'pull_request' && github.event.pull_request.number || '' }}
         run: node .github/runner/macos/review-frames.mjs
-
-      - name: Remove this run's frames
-        if: always()
-        run: rm -rf "/Users/fagnerbrack/ci-frames/${{ github.run_id }}"
 
   # Only detect and deploy on pushes to main (not on PRs)
   detect-projects:

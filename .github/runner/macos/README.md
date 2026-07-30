@@ -14,7 +14,7 @@ Creates `~/.readplace-ci/vlm-venv`, installs `mlx-vlm`, downloads the model (~18
 
 ## Retention and cache replay
 
-Frames are per-run disposable data: the review job deletes its own run's directory when it finishes. Runs whose review never happens (concurrency-cancelled PR syncs, runner outages) leave their directory behind at roughly 400 KB each; `~/ci-frames` is unmanaged beyond that, so check it if disk ever gets tight.
+Frames are per-run disposable data: the reviewer deletes the run's directory once it has reported. Cleanup lives in the script rather than a workflow step because a `rm -rf` in a `run:` block — like any `${{ }}` expression interpolated into a shell — trips GitHub's malicious-workflow detector, which blocks the entire run (every job, not just this one) pending manual approval. Runs whose review never happens leave their directory behind at roughly 400 KB each; `~/ci-frames` is unmanaged beyond that, so check it if disk ever gets tight.
 
 A fully nx-cache-replayed `pnpm check` writes no frames — the review then reports none were captured, which is correct: identical inputs were already reviewed when the cache entry was created.
 
