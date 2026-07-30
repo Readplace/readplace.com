@@ -26,6 +26,7 @@ import { initCrawlAndFinalizeArticle, initFinalizeArticle } from "@packages/fina
 import type { PublishStaleCheckRequested } from "@packages/provider-contracts/events";
 import { initReadabilityParser, linkedinSiteRules, mediaWikiSiteRules, mediumSiteRules, theInformationSiteRules } from "@packages/article-parser";
 import { initRefreshArticleIfStale } from "@packages/finalize-article";
+import { initSubmitFreshness } from "@packages/save-article";
 import {
 	createOAuthModel,
 	createRevokeAllUserOAuthTokens,
@@ -73,7 +74,6 @@ import { initEventBridgeSaveAnonymousLink } from "./providers/events/eventbridge
 import { initEventBridgeStaleCheckRequested } from "./providers/events/eventbridge-stale-check-requested";
 import { initEventBridgeSaveLinkRawHtmlCommand } from "./providers/events/eventbridge-save-link-raw-html-command";
 import { initEventBridgeSaveLinkRawPdfCommand } from "./providers/events/eventbridge-save-link-raw-pdf-command";
-import { initEventBridgeRefreshArticleContent, initPutRefreshHtml } from "@packages/refresh-article-content";
 import { initEventBridgeUpdateFetchTimestamp } from "./providers/events/eventbridge-update-fetch-timestamp";
 import { initEventBridgeExportUserDataCommand } from "./providers/events/eventbridge-export-user-data-command";
 import { initEventBridgeDeleteAccountCommand } from "./providers/events/eventbridge-delete-account-command";
@@ -244,8 +244,6 @@ function initProviders(input: { appOrigin: string }) {
 		const { publishStaleCheckRequested } = initEventBridgeStaleCheckRequested({ publishEvent });
 		const { publishSaveLinkRawHtmlCommand } = initEventBridgeSaveLinkRawHtmlCommand({ publishEvent });
 		const { publishSaveLinkRawPdfCommand } = initEventBridgeSaveLinkRawPdfCommand({ publishEvent });
-		const { putRefreshHtml } = initPutRefreshHtml({ client: s3Client, bucketName: pendingHtmlBucketName });
-		const { publishRefreshArticleContent } = initEventBridgeRefreshArticleContent({ publishEvent, putRefreshHtml });
 		const { publishUpdateFetchTimestamp } = initEventBridgeUpdateFetchTimestamp({ publishEvent });
 		const { publishExportUserDataCommand } = initEventBridgeExportUserDataCommand({ publishEvent });
 		const { publishDeleteAccountCommand } = initEventBridgeDeleteAccountCommand({ publishEvent });
@@ -261,35 +259,12 @@ function initProviders(input: { appOrigin: string }) {
 			ttlSeconds: UPLOAD_SLOT_TTL_SECONDS,
 			now: () => new Date(),
 		});
-		const extractPdf = createPdfDeferralStub(publishStaleCheckRequested);
-		const siteRules = [
-			theInformationSiteRules,
-			mediumSiteRules,
-			linkedinSiteRules,
-			mediaWikiSiteRules,
-			initXTwitterSiteRules({ crawlFetch, logError }),
-			initAppleNewsSiteRules({ crawlFetch, logError }),
-		];
-		const crawlArticle = initFetchPinnedCrawl({
-			crawlArticle: initCrawlArticle({ crawlFetch, siteRules, extractPdf, logError, logInfo }),
-			findAdoptedFetchUrl: canonicalAlias.findAdoptedFetchUrl,
-		});
 		const extractLinksFromPageUrl = initExtractLinksFromPageUrl({ crawlFetch, validateUrl: validateSaveableUrl });
-		const { parseHtml } = initReadabilityParser({
-			crawlArticle,
-			siteRules,
-			logError,
-		});
-		const { refreshArticleIfStale } = initRefreshArticleIfStale({
-			findArticleFreshness: articleStore.findArticleFreshness,
+		const { refreshArticleIfStale } = initSubmitFreshness({
+			findArticleByUrl: articleStore.findArticleByUrl,
 			findArticleCrawlStatus: crawlStore.findArticleCrawlStatus,
-			crawlArticle,
-			parseHtml,
-			publishRefreshArticleContent,
-			publishUpdateFetchTimestamp,
 			resolveCanonicalIdentity,
-			now: () => new Date(),
-			staleTtlMs,
+			publishStaleCheckRequested,
 		});
 		const googleAuth = {
 			exchangeGoogleCode: initExchangeGoogleCode({

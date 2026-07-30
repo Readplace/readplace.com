@@ -55,12 +55,15 @@ async function saveByFreshness(
 		});
 		await deps.markCrawlPending({ url });
 		await deps.markSummaryPending({ url });
-		await deps.publishUpdateFetchTimestamp({
-			url,
-			contentFetchedAt: new Date().toISOString(),
-		});
-		await deps.publishLinkSaved({ url, userId });
-		return { saved: await markUnreadIfRead(deps.updateArticleStatus, saved) };
+		const [unread] = await Promise.all([
+			markUnreadIfRead(deps.updateArticleStatus, saved),
+			deps.publishUpdateFetchTimestamp({
+				url,
+				contentFetchedAt: new Date().toISOString(),
+			}),
+			deps.publishLinkSaved({ url, userId }),
+		]);
+		return { saved: unread };
 	}
 
 	const saved = await deps.saveArticle({
