@@ -22,6 +22,11 @@ jobs:
         with:
           sparse-checkout: .github/runner/macos
 
+      # The macOS runner carries Xcode for ios-tests, not node.
+      - uses: actions/setup-node@v6
+        with:
+          node-version: 22
+
       - name: Review transition frames with the local vision model
         env:
           FRAMES_DIR: /Users/fagnerbrack/ci-frames/pending
