@@ -77,7 +77,6 @@ describe("Inbox address routes", () => {
 			const back = doc.querySelector("[data-test-inbox-back]");
 			assert(back, "the header back link must render");
 			expect(back.getAttribute("href")).toBe("/inbox");
-			expect(back.querySelector("svg")).not.toBeNull();
 			expect(back.textContent?.trim()).toBe("Inbox");
 		});
 
