@@ -80,9 +80,9 @@ export const INSTALL_PAGE_STYLES = `
 }
 
 .install-page__tab--active {
-	color: var(--secondary-foreground);
+	color: var(--primary-text);
 	background: var(--secondary);
-	border-color: var(--secondary-foreground);
+	border-color: var(--primary-text);
 	font-weight: 600;
 }
 
