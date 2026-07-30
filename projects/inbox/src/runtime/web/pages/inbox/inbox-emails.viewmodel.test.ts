@@ -76,7 +76,7 @@ describe("toInboxEmailsViewModel", () => {
 		const { empty } = build([], []);
 
 		expect(empty?.key).toBe("no-address");
-		expect(empty?.text).toContain("don’t have an inbox email address");
+		expect(empty?.text).toContain("don't have an inbox email address");
 		expect(empty?.cta).toEqual({
 			href: "/inbox/addresses",
 			label: "Create my first inbox address",
@@ -103,7 +103,7 @@ describe("toInboxEmailsViewModel", () => {
 	it("badges non-received statuses with a label, leaving received unbadged", () => {
 		const cases: { status: InboxEmailStatus; needsBadge: boolean; label: string }[] = [
 			{ status: "received", needsBadge: false, label: "Received" },
-			{ status: "unparsed", needsBadge: true, label: "Couldn’t render" },
+			{ status: "unparsed", needsBadge: true, label: "Couldn't render" },
 			{ status: "rejected", needsBadge: true, label: "Rejected" },
 		];
 		for (const { status, needsBadge, label } of cases) {

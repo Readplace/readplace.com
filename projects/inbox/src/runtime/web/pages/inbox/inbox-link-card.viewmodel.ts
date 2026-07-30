@@ -47,7 +47,7 @@ type CardStatusState = "working" | "stalled" | "failed" | "none";
 
 const CARD_STATUS_LABELS: Record<CardStatusState, string> = {
 	working: "Fetching preview…",
-	stalled: "Preview didn’t arrive",
+	stalled: "Preview didn't arrive",
 	failed: "No preview available",
 	none: "",
 };
