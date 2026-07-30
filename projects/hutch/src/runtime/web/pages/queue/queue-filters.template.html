@@ -1,0 +1,5 @@
+<nav class="queue__filters" hx-boost="true" hx-target="main" hx-select="main" hx-swap="outerHTML show:none" data-test-filters>
+        {{#each tabs}}
+        <a class="{{linkClass}}"{{#if anchorId}} id="{{anchorId}}"{{/if}} href="{{href}}" data-test-filter="{{testFilter}}">{{label}}</a>
+        {{/each}}
+      </nav>

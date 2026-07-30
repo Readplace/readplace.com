@@ -1,7 +1,9 @@
 import type { ArticleStatus } from "@packages/domain/article";
 import type { SortField, SortOrder } from "@packages/provider-contracts/article-store";
 
-export type TabId = "queue" | "done";
+export const TAB_IDS = ["queue", "done"] as const;
+
+export type TabId = (typeof TAB_IDS)[number];
 
 interface TabQuery {
 	status: ArticleStatus;
@@ -9,11 +11,43 @@ interface TabQuery {
 	defaultOrder: SortOrder;
 }
 
-const tabs: Record<TabId, TabQuery> = {
-	queue: { status: "unread", sort: "savedAt", defaultOrder: "desc" },
-	done: { status: "read", sort: "readAt", defaultOrder: "desc" },
+interface TabDefinition {
+	label: string;
+	testFilter: string;
+	trackingContent: string;
+	anchorId?: string;
+	query: TabQuery;
+}
+
+export interface QueueTab extends TabDefinition {
+	id: TabId;
+}
+
+const TAB_DEFINITIONS: Record<TabId, TabDefinition> = {
+	queue: {
+		label: "To Read",
+		testFilter: "unread",
+		trackingContent: "filter-unread",
+		anchorId: "queue-filter-unread",
+		query: { status: "unread", sort: "savedAt", defaultOrder: "desc" },
+	},
+	done: {
+		label: "Read",
+		testFilter: "read",
+		trackingContent: "filter-read",
+		query: { status: "read", sort: "readAt", defaultOrder: "desc" },
+	},
 };
 
+export const QUEUE_TABS: readonly QueueTab[] = TAB_IDS.map((id) => ({
+	id,
+	...TAB_DEFINITIONS[id],
+}));
+
 export function tabQuery(tab: TabId): TabQuery {
-	return tabs[tab];
+	return TAB_DEFINITIONS[tab].query;
+}
+
+export function tabLabel(tab: TabId): string {
+	return TAB_DEFINITIONS[tab].label;
 }

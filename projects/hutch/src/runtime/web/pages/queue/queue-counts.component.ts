@@ -2,7 +2,7 @@ import { readFileSync } from "node:fs";
 import { join } from "node:path";
 import { render, withInternalTracking } from "@packages/web-shell";
 
-import { filterLinkClass, formatUnreadLabel } from "./queue.component";
+import { filterLinkClass, formatUnreadLabel } from "./queue-filters.component";
 import { buildQueueUrl } from "./queue.url";
 import type { QueueUrlState } from "./queue.url";
 

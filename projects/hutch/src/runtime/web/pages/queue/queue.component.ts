@@ -6,7 +6,6 @@ import { OnboardingChecklist, ONBOARDING_STYLES } from "../../onboarding/onboard
 import type { Platform } from "../../onboarding/onboarding.types";
 import type { DeviceClass } from "@packages/web-analytics";
 import {
-	formatTabCountLabel,
 	render,
 	renderToast,
 	withInternalTracking,
@@ -20,6 +19,7 @@ import {
 	toDeleteConfirmDisplayModel,
 	type DeleteConfirmViewModel,
 } from "./queue-card/delete-confirm";
+import { buildQueueFilters, renderQueueFilters } from "./queue-filters.component";
 import { SAVE_SURFACES_SHORT_PHRASE } from "../../shared/client-surface-phrases";
 import type { QueueViewModel, SubscriptionBannerState } from "./queue.viewmodel";
 import { buildQueueUrl } from "./queue.url";
@@ -54,11 +54,7 @@ interface QueueDisplayModel {
 	onboardingHtml: string;
 	articleHtmls: string[];
 	deleteConfirms: DeleteConfirmDisplayModel[];
-	filterUnreadClass: string;
-	filterUnreadLabel: string;
-	filterReadClass: string;
-	filterUnreadUrl: string;
-	filterReadUrl: string;
+	filtersHtml: string;
 	sortUrl: string;
 	sortLabel: string;
 	sortIconName: IconName;
@@ -79,16 +75,6 @@ interface QueueDisplayModel {
 	cancellationEffectiveAt?: LocalTime;
 	accessIsReadOnly: boolean;
 	saveFormClass: string;
-}
-
-export function filterLinkClass(isActive: boolean): string {
-	return `queue__filter-link${isActive ? " queue__filter-link--active" : ""}`;
-}
-
-const UNREAD_TAB_LABEL = "To Read";
-
-export function formatUnreadLabel(count: number): string {
-	return formatTabCountLabel({ label: UNREAD_TAB_LABEL, count });
 }
 
 const EMPTY_STATE_TITLES: Record<TabId, string> = {
@@ -164,11 +150,9 @@ function toQueueDisplayModel(vm: QueueViewModel, options: { installed: boolean; 
 			...toDeleteConfirmDisplayModel(article.deleteConfirm),
 			title: article.title,
 		})),
-		filterUnreadClass: filterLinkClass(activeTab === "queue"),
-		filterUnreadLabel: UNREAD_TAB_LABEL,
-		filterReadClass: filterLinkClass(activeTab === "done"),
-		filterUnreadUrl: withInternalTracking(vm.filterUrls.unread, { source: "queue-filters", content: "filter-unread" }),
-		filterReadUrl: withInternalTracking(vm.filterUrls.read, { source: "queue-filters", content: "filter-read" }),
+		filtersHtml: renderQueueFilters(
+			buildQueueFilters({ activeTab, order: vm.filters.order }),
+		),
 		countsUrl: vm.countsUrl,
 		sortUrl,
 		sortLabel: sort.label,

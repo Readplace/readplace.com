@@ -114,13 +114,6 @@ describe("toQueueViewModel", () => {
 		expect(vm.isEmpty).toBe(true);
 	});
 
-	it("should include filter URLs", () => {
-		const vm = toQueueViewModel(makeResult([]), DEFAULT_FILTERS, { now: NOW });
-
-		expect(vm.filterUrls.unread).toBe("/queue");
-		expect(vm.filterUrls.read).toBe("/queue?tab=done");
-	});
-
 	it("should leave statusFlash undefined when not provided", () => {
 		const vm = toQueueViewModel(makeResult([makeArticle()]), DEFAULT_FILTERS, { now: NOW });
 

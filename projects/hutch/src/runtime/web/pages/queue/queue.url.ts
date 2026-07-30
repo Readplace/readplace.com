@@ -1,6 +1,6 @@
 import { z } from "zod";
 import type { SortOrder } from "@packages/provider-contracts/article-store";
-import { type TabId, tabQuery } from "./queue.tabs";
+import { TAB_IDS, type TabId, tabQuery } from "./queue.tabs";
 
 /** Single source of truth for where the queue router is mounted. Its redirects,
  * links and analytics paths — plus the skipped-import cookie scope and the
@@ -15,7 +15,7 @@ export interface QueueUrlState {
 }
 
 const QueueQuerySchema = z.object({
-	tab: z.enum(["queue", "done"]).optional().catch(undefined),
+	tab: z.enum(TAB_IDS).optional().catch(undefined),
 	status: z.enum(["unread", "read"]).optional().catch(undefined),
 	order: z.enum(["asc", "desc"]).optional().catch(undefined),
 	page: z.coerce.number().int().min(1).optional().catch(undefined),

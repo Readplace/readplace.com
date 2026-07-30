@@ -82,10 +82,6 @@ export interface QueueViewModel {
 	isEmpty: boolean;
 	currentPage: number;
 	countsUrl: string;
-	filterUrls: {
-		unread: string;
-		read: string;
-	};
 	paginationUrls: {
 		prev?: string;
 		next?: string;
@@ -230,7 +226,6 @@ export function toQueueViewModel(
 	},
 ): QueueViewModel {
 	const now = options?.now ?? new Date();
-	const baseFilters = { order: filters.order };
 	const queueUrl = buildQueueUrl(filters);
 	const queryIndex = queueUrl.indexOf("?");
 	const returnQuery = queryIndex !== -1 ? queueUrl.slice(queryIndex) : "";
@@ -262,10 +257,6 @@ export function toQueueViewModel(
 		isEmpty: result.articles.length === 0,
 		currentPage: result.page,
 		countsUrl: buildQueueCountsUrl(filters),
-		filterUrls: {
-			unread: buildQueueUrl({ ...baseFilters, tab: "queue" }),
-			read: buildQueueUrl({ ...baseFilters, tab: "done" }),
-		},
 		paginationUrls: {
 			prev:
 				result.page > 1
