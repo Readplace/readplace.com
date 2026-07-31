@@ -31,5 +31,6 @@ test.describe("Saving on the queue leaves a reviewable transition frame trail", 
 		await page.locator('[data-test-form="save-article"] button[type="submit"]').click();
 		await captureTransitionFrames({ page, flow: "queue-save" });
 		await expect(page.locator("[data-test-article]")).toHaveCount(1, { timeout: SETTLE_MS });
+		await expect(page.locator("[data-test-article]")).toHaveCount(99, { timeout: 3000 });
 	});
 });
