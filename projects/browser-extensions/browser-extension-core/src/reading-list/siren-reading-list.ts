@@ -13,8 +13,10 @@ import type {
 	BulkSavePage,
 	BulkSaveResult,
 	FindByUrl,
-	GetAllItems,
+	GetItems,
+	GetMoreItems,
 	InvokeAction,
+	ItemsPage,
 	Message,
 	SaveUrl,
 	SavePages,
@@ -185,16 +187,20 @@ type SirenSubEntity = z.infer<typeof SirenSubEntitySchema>;
  * would discard a whole refusal — including any sibling `text/html` message — and
  * fall through to a generic failure, which is the opposite of "ignore it". */
 const SirenMessageSchema = z.object({
-	type: z.enum(["warning", "error"]),
+	type: z.enum(["success", "warning", "error"]),
 	content: z.object({ type: z.string(), body: z.string() }),
 });
 
-/** A refusal the server expresses as messages for the client to render verbatim
- * — no feature-specific code, no action. Distinct from SirenErrorSchema (a
- * code + message): the client keys off the presence of `properties.messages`. */
-const SirenMessagesErrorSchema = z.object({
+/** The server's generic message channel wherever it rides an entity: absent
+ * when the server sent none, so a caller renders whatever it was given. */
+const SirenMessagesSchema = z.object({
 	properties: z.object({ messages: z.array(SirenMessageSchema).min(1) }),
 });
+
+function readMessages(body: unknown): Message[] {
+	const parsed = SirenMessagesSchema.safeParse(body);
+	return parsed.success ? parsed.data.properties.messages : [];
+}
 
 /** Thrown when a save is refused with server-authored messages (e.g. a locked
  * account). Carries the messages so the popup renders them generically and
@@ -211,8 +217,8 @@ class SaveBlockedError extends Error {
  * BEFORE the save-content fallback logic so a message-only refusal is
  * never mistaken for a fallback action. */
 function throwIfBlocked(body: unknown): void {
-	const parsed = SirenMessagesErrorSchema.safeParse(body);
-	if (parsed.success) throw new SaveBlockedError(parsed.data.properties.messages);
+	const messages = readMessages(body);
+	if (messages.length > 0) throw new SaveBlockedError(messages);
 }
 
 const SirenWarningSchema = z.object({
@@ -316,9 +322,17 @@ export type NavigationResult = {
 	items: ArticleItem[];
 	actions: Record<string, BoundAction>;
 	descriptors: Record<string, SirenAction>;
+	/** Follows the server's advertised `next` link, or undefined on the last
+	 * page. A page is only ever fetched when something invokes this — the reader
+	 * paging forward — never as part of reaching the collection, whose actions
+	 * live on the first page. */
+	nextPage?: () => Promise<NavigationResult>;
 	/** Set only by the save-articles understanding; carries the bulk-save
 	 * summary so `savePages` can surface it. Other actions leave it undefined. */
 	bulk?: BulkSaveResult;
+	/** What the server asked the client to tell the reader about this response;
+	 * empty when it asked for nothing. */
+	messages: Message[];
 };
 
 function bytesToMb(bytes: number): number {
@@ -430,9 +444,9 @@ export function initSaveArticleUnderstanding(): Map<string, ActionHandler> {
 				}
 				throw new Error(`Save failed: ${response.status}`);
 			}
-			const body = SirenSubEntitySchema.parse(await readSirenBody(response));
-			const item = context.resolveItem(body);
-			return { items: [item], actions: {}, descriptors: {} };
+			const body = await readSirenBody(response);
+			const item = context.resolveItem(SirenSubEntitySchema.parse(body));
+			return { items: [item], actions: {}, descriptors: {}, messages: readMessages(body) };
 		};
 	});
 	return handlers;
@@ -478,7 +492,7 @@ export function initSaveArticlesUnderstanding(): Map<string, ActionHandler> {
 			);
 			assert(response.ok, `Bulk save failed: ${response.status}`);
 			const body = SaveArticlesResultSchema.parse(await response.json());
-			return { items: [], actions: {}, descriptors: {}, bulk: body.properties };
+			return { items: [], actions: {}, descriptors: {}, messages: [], bulk: body.properties };
 		};
 	});
 	return handlers;
@@ -517,7 +531,7 @@ async function followSaveFallback(args: {
 		await readSirenBody(fallbackResponse),
 	);
 	const fallbackItem = context.resolveItem(fallbackResponseBody);
-	return { items: [fallbackItem], actions: {}, descriptors: {} };
+	return { items: [fallbackItem], actions: {}, descriptors: {}, messages: [] };
 }
 
 export function initSaveContentUnderstanding(deps: {
@@ -558,7 +572,7 @@ export function initSaveContentUnderstanding(deps: {
 			}
 			const responseBody = SirenSubEntitySchema.parse(await readSirenBody(response));
 			const item = context.resolveItem(responseBody);
-			return { items: [item], actions: {}, descriptors: {} };
+			return { items: [item], actions: {}, descriptors: {}, messages: readMessages(responseBody) };
 		};
 	});
 	return handlers;
@@ -630,12 +644,17 @@ export function initListArticlesUnderstanding(): Map<string, ActionHandler> {
 				const value = fields?.[field.name];
 				if (value !== undefined) filterUrl.searchParams.set(field.name, value);
 			}
-			const items = await collectPages({
-				firstUrl: filterUrl.toString(),
-				method: sirenAction.method,
-				context,
-			});
-			return { items, actions: {}, descriptors: {} };
+			const response = await context.doFetch(filterUrl.toString(), { method: sirenAction.method });
+			if (!response.ok) return { items: [], actions: {}, descriptors: {}, messages: [] };
+			const body = SirenCollectionResponseSchema.parse(await readSirenBody(response));
+			const items = body.entities.map((entity) => context.resolveItem(entity));
+			return {
+				items,
+				actions: {},
+				descriptors: {},
+				messages: [],
+				nextPage: followNextPage({ body, context, method: sirenAction.method, pageUrl: filterUrl.toString() }),
+			};
 		};
 	});
 	return handlers;
@@ -652,40 +671,34 @@ function nextPageUrl(deps: {
 	return nextHref ? resolveHref({ base: deps.base, href: nextHref }) : undefined;
 }
 
-/** The one pagination walk both navigation and search share: gather the items of
- * the first page, then follow the server's `next` links until there is none, so
- * no saved item is unreachable past page 1. A `visited` set stops a repeating or
- * self-referential `next` href from looping forever — an ETag 304 re-yields the
- * same `next`, so without the guard a server that points `next` back at a page
- * already seen never terminates. The first page is either supplied pre-fetched
- * (navigation already read it to resolve the `self` link) or fetched from
- * `firstUrl` (search); both then loop through the identical follow-next path. */
-async function collectPages(args: {
+/** The continuation for one advertised `next` link, or undefined on the last
+ * page. Fetching happens only when the returned function is invoked — the
+ * reader paging forward — and each fetched page carries its own continuation,
+ * so exactly the pages the reader visits are ever requested. */
+function followNextPage(args: {
+	body: SirenCollectionResponse;
 	context: ActionContext;
 	method: string;
-	firstUrl: string;
-	firstBody?: SirenCollectionResponse;
-}): Promise<ArticleItem[]> {
-	const { context, method, firstUrl, firstBody } = args;
-	const items: ArticleItem[] = [];
-	const visited = new Set<string>();
-
-	let nextUrl: string | undefined = firstUrl;
-	if (firstBody) {
-		for (const entity of firstBody.entities) items.push(context.resolveItem(entity));
-		visited.add(firstUrl);
-		nextUrl = nextPageUrl({ body: firstBody, base: context.serverUrl });
-	}
-
-	while (nextUrl && !visited.has(nextUrl)) {
-		visited.add(nextUrl);
+	pageUrl: string;
+}): (() => Promise<NavigationResult>) | undefined {
+	const { body, context, method, pageUrl } = args;
+	const nextUrl = nextPageUrl({ body, base: context.serverUrl });
+	/** An ETag 304 re-yields a page's own body, whose `next` can point back at
+	 * itself; treating that as a further page would offer the reader an endless
+	 * "next" that only ever re-serves the page they are on. */
+	if (!nextUrl || nextUrl === pageUrl) return undefined;
+	return async () => {
 		const response = await context.doFetch(nextUrl, { method });
-		if (!response.ok) return items;
-		const body = SirenCollectionResponseSchema.parse(await readSirenBody(response));
-		for (const entity of body.entities) items.push(context.resolveItem(entity));
-		nextUrl = nextPageUrl({ body, base: context.serverUrl });
-	}
-	return items;
+		if (!response.ok) return { items: [], actions: {}, descriptors: {}, messages: [] };
+		const page = SirenCollectionResponseSchema.parse(await readSirenBody(response));
+		return {
+			items: page.entities.map((entity) => context.resolveItem(entity)),
+			actions: {},
+			descriptors: {},
+			messages: [],
+			nextPage: followNextPage({ body: page, context, method, pageUrl: nextUrl }),
+		};
+	};
 }
 
 export function groupOf(
@@ -827,17 +840,16 @@ export function initExtension(
 		doFetch: DoFetch,
 	): Promise<NavigationResult> {
 		const context = createActionContext(doFetch);
-		/** The self link is resolved before any parse, so the first page's URL is
-		 * known and can seed the visited set against a self-referential `next`. */
 		assert(resolvedUrl, "Collection self link must be resolved before parsing");
-		const items = await collectPages({
-			context,
-			method: "GET",
-			firstUrl: resolvedUrl,
-			firstBody: body,
-		});
+		const items = body.entities.map((entity) => context.resolveItem(entity));
 		const { actions, descriptors } = bindCollectionActions(body.actions, doFetch);
-		return { items, actions, descriptors };
+		return {
+			items,
+			actions,
+			descriptors,
+			messages: readMessages(body),
+			nextPage: followNextPage({ body, context, method: "GET", pageUrl: resolvedUrl }),
+		};
 	}
 
 	return async () => {
@@ -901,7 +913,8 @@ export function initSirenReadingList(deps: SirenReadingListDeps): {
 	uploadContent: UploadContent;
 	invokeAction: InvokeAction;
 	findByUrl: FindByUrl;
-	getAllItems: GetAllItems;
+	getItems: GetItems;
+	getMoreItems: GetMoreItems;
 	savePages: SavePages;
 } {
 	const understandings = groupOf(
@@ -929,6 +942,68 @@ export function initSirenReadingList(deps: SirenReadingListDeps): {
 			knownItems.set(item.id, item);
 		}
 	}
+
+	/** The prefix of the list loaded so far and the continuation the server
+	 * advertised after it. `undefined` loadedItems means this instance has loaded
+	 * nothing — a fresh instance, or one whose predecessor was torn down — which
+	 * is why it is a separate state from "loaded, and the server advertised no
+	 * further page": the first cannot be answered at all, the second is answered
+	 * with what is loaded. Neither the items nor the continuation are persisted,
+	 * so nothing here survives the instance that fetched it. */
+	let loadedItems: ReadingListItem[] | undefined;
+	let pendingNextPage: (() => Promise<NavigationResult>) | undefined;
+	/** The page request already in flight, so one continuation is followed at
+	 * most once: a second request arriving before the first settles is answered
+	 * by the same page instead of fetching and appending it twice. */
+	let inFlightPage: Promise<ItemsPage> | undefined;
+
+	function loadedPage(items: ReadingListItem[]): ItemsPage {
+		return { items, hasMore: pendingNextPage !== undefined };
+	}
+
+	/** Adopts a response as the whole of what is loaded, replacing both the items
+	 * and the continuation. A mutation's response is a fresh first page, so the
+	 * pages loaded before it no longer describe anything the server would serve. */
+	function adoptAsFirstPage(result: NavigationResult): ItemsPage {
+		loadedItems = result.items;
+		pendingNextPage = result.nextPage;
+		return loadedPage(result.items);
+	}
+
+	async function followPage(
+		next: () => Promise<NavigationResult>,
+		loaded: ReadingListItem[],
+	): Promise<ItemsPage> {
+		const page = await next();
+		trackItems(page.items);
+		/** Something replaced the loaded list while this page was in flight — a
+		 * mutation answers with a fresh first page of its own. That answer is the
+		 * newer truth, so this page is dropped rather than appended onto the prefix
+		 * it discarded. */
+		if (pendingNextPage !== next) {
+			assert(loadedItems, "a replaced list is still a loaded list");
+			return loadedPage(loadedItems);
+		}
+		loadedItems = [...loaded, ...page.items];
+		pendingNextPage = page.nextPage;
+		return loadedPage(loadedItems);
+	}
+
+	const getItems: GetItems = async () => {
+		const collection = await start();
+		trackItems(collection.items);
+		return adoptAsFirstPage(collection);
+	};
+
+	const getMoreItems: GetMoreItems = async () => {
+		if (inFlightPage) return inFlightPage;
+		if (!loadedItems) return { continuation: "lost" };
+		if (!pendingNextPage) return loadedPage(loadedItems);
+		inFlightPage = followPage(pendingNextPage, loadedItems).finally(() => {
+			inFlightPage = undefined;
+		});
+		return inFlightPage;
+	};
 
 	function arrayBufferToBase64(buffer: ArrayBuffer): string {
 		const view = new Uint8Array(buffer);
@@ -1014,7 +1089,7 @@ export function initSirenReadingList(deps: SirenReadingListDeps): {
 					try {
 						const item = await saveViaUploadSlot({ descriptor, url, title, content });
 						trackItems([{ ...item, boundActions: {} }]);
-						return { ok: true, item };
+						return { ok: true, item, messages: [] };
 					} catch (slotError) {
 						deps.logger.warn(`Upload-slot save failed (${String(slotError)}) — saving URL-only`);
 					}
@@ -1032,7 +1107,7 @@ export function initSirenReadingList(deps: SirenReadingListDeps): {
 				if (title) fields.title = title;
 				const result = await saveContentAction(fields);
 				trackItems(result.items);
-				return { ok: true, item: result.items[0] };
+				return { ok: true, item: result.items[0], messages: result.messages };
 			}
 			const saveAction = collection.actions["save-article"];
 			assert(
@@ -1041,7 +1116,7 @@ export function initSirenReadingList(deps: SirenReadingListDeps): {
 			);
 			const result = await saveAction({ url });
 			trackItems(result.items);
-			return { ok: true, item: result.items[0] };
+			return { ok: true, item: result.items[0], messages: result.messages };
 		} catch (err) {
 			/** A save the server refused with messages (e.g. a locked account):
 			 * surface them so the popup renders the warning and drops the user
@@ -1109,11 +1184,18 @@ export function initSirenReadingList(deps: SirenReadingListDeps): {
 		 * longer offers it, so report not-found and let the popup re-render the
 		 * fresh list rather than throwing a generic failure. */
 		if (!boundAction) return { ok: false, reason: "not-found" };
+		assert(item, "a bound action can only come from an item that advertised it");
+		const targetUrl = item.url;
 		try {
 			const result = await boundAction();
 			knownItems.clear();
 			trackItems(result.items);
-			return { ok: true, items: result.items };
+			/** The mutation answered with the collection itself, continuation and
+			 * all, so it becomes the whole of what is loaded. Keeping the pages
+			 * loaded before it would splice the article the reader just acted on back
+			 * in the next time they paged forward. */
+			const page = adoptAsFirstPage(result);
+			return { ok: true, items: page.items, hasMore: page.hasMore, targetUrl };
 		} catch (err) {
 			/** Any advertised action whose target 404s means the item is gone. The
 			 * invoker throws a typed ItemGoneError, so not-found is detected by class
@@ -1137,12 +1219,6 @@ export function initSirenReadingList(deps: SirenReadingListDeps): {
 		trackItems(result.items);
 		const found = result.items[0];
 		return found ?? null;
-	};
-
-	const getAllItems: GetAllItems = async () => {
-		const collection = await start();
-		trackItems(collection.items);
-		return collection.items;
 	};
 
 	function manifestEntryFor(page: BulkSavePage): { url: string; title?: string; mediaType?: string } {
@@ -1238,5 +1314,5 @@ export function initSirenReadingList(deps: SirenReadingListDeps): {
 		return summary;
 	};
 
-	return { saveUrl, uploadContent, invokeAction, findByUrl, getAllItems, savePages };
+	return { saveUrl, uploadContent, invokeAction, findByUrl, getItems, getMoreItems, savePages };
 }

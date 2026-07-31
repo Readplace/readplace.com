@@ -30,10 +30,7 @@ export function buildMessageView(messages: Message[]): MessageView {
 		(message) => message.content.type === RENDERABLE_MEDIA_TYPE,
 	);
 	const items = renderable.map((message) => ({
-		className:
-			message.type === "error"
-				? "messages__item messages__item--error"
-				: "messages__item messages__item--warning",
+		className: `messages__item messages__item--${message.type}`,
 		html: message.content.body,
 	}));
 	const hasError = renderable.some((message) => message.type === "error");

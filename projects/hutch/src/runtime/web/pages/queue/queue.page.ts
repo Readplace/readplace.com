@@ -86,7 +86,7 @@ import type { QuerystringFeatureToggle } from "@packages/web-shell";
 import { SIREN_MEDIA_TYPE, sirenError } from "../../api/siren";
 import { toArticleCollectionEntity } from "../../api/collection-siren";
 import { toBulkSaveResultEntity } from "../../api/bulk-save-siren";
-import { toArticleEntity } from "../../api/article-siren";
+import { toSavedArticleEntity } from "../../api/article-siren";
 import { toUploadSlotEntity } from "../../api/upload-slot-siren";
 import { activeQueueTab, type QueueTab } from "./queue-tab";
 import { parseQueueUrl, buildQueueUrl, QUEUE_PATH, canonicalQueuePageRedirect } from "./queue.url";
@@ -864,7 +864,7 @@ export function initQueueRoutes(deps: QueueDependencies): Router {
 			const result = await saveArticleFromUrl({ userId, url: validation.url, freshness });
 			await recordSaveSignal(req, res, userId);
 			emitSaveIntent({ req, url: validation.url, path: SAVE_INTENT_PATH.saveArticle, surface: SAVE_SURFACES.extension, outcome: SAVE_OUTCOMES.saved });
-			res.status(201).type(SIREN_MEDIA_TYPE).json(toArticleEntity(result.saved));
+			res.status(201).type(SIREN_MEDIA_TYPE).json(toSavedArticleEntity(result.saved));
 		} catch (error) {
 			deps.logError("Failed to save article", error instanceof Error ? error : undefined);
 			emitSaveIntent({ req, url: validation.url, path: SAVE_INTENT_PATH.saveArticle, surface: SAVE_SURFACES.extension, outcome: SAVE_OUTCOMES.error });
@@ -1079,7 +1079,7 @@ export function initQueueRoutes(deps: QueueDependencies): Router {
 				const result = await saveArticleFromUrl({ userId, url: articleUrl, freshness });
 				await recordSaveSignal(req, res, userId);
 				emitSaveIntent({ req, url: articleUrl, path: SAVE_INTENT_PATH.saveContent, surface: SAVE_SURFACES.extension, outcome: SAVE_OUTCOMES.saved });
-				res.status(201).type(SIREN_MEDIA_TYPE).json(toArticleEntity(result.saved));
+				res.status(201).type(SIREN_MEDIA_TYPE).json(toSavedArticleEntity(result.saved));
 			};
 
 			try {

@@ -1,6 +1,8 @@
 /* c8 ignore start -- popup entry point, all DOM + browser API glue, tested via Selenium E2E */
 import browser from "webextension-polyfill";
 import type {
+	ItemsPage,
+	MoreItemsPage,
 	ReadingListItem,
 	PopupMessage,
 	GuardedResult,
@@ -60,7 +62,11 @@ function isNotLoggedIn(result: { ok: boolean; reason?: string }): boolean {
 }
 
 let allItems: ReadingListItem[] = [];
+let serverHasMore = false;
 let currentPage = 1;
+/** A further page is being fetched. The next control is disabled while it is,
+ * so one click can't queue the same page twice. */
+let loadingMore = false;
 
 function renderPagination(totalPages: number, visiblePages: number[]) {
 	const pagination = document.getElementById("pagination");
@@ -68,7 +74,7 @@ function renderPagination(totalPages: number, visiblePages: number[]) {
 
 	pagination.innerHTML = "";
 
-	if (totalPages <= 1) {
+	if (totalPages <= 1 && !serverHasMore) {
 		pagination.hidden = true;
 		return;
 	}
@@ -106,8 +112,15 @@ function renderPagination(totalPages: number, visiblePages: number[]) {
 	nextButton.textContent = "\u203A";
 	nextButton.title = "Next page";
 	nextButton.setAttribute("aria-label", "Next page");
-	nextButton.disabled = currentPage >= totalPages;
+	nextButton.disabled = loadingMore || (currentPage >= totalPages && !serverHasMore);
 	nextButton.addEventListener("click", () => {
+		/** Past the last loaded page, the server's advertised next page is
+		 * fetched — the only moment a further page is ever requested. */
+		if (currentPage >= totalPages && serverHasMore) {
+			nextButton.disabled = true;
+			void loadMoreItems();
+			return;
+		}
 		currentPage++;
 		renderLinks(filterItems());
 	});
@@ -242,7 +255,13 @@ function renderLinks(items: ReadingListItem[]) {
 					}
 
 					if (result.ok && result.value.ok) {
+						/** The mutation answered with the list as it now stands — a fresh
+						 * first page, with its own further-page answer — so the paging
+						 * counters start over from it instead of keeping the ones that
+						 * described the list before the mutation. */
 						allItems = result.value.items;
+						serverHasMore = result.value.hasMore;
+						currentPage = 1;
 						renderLinks(filterItems());
 					} else if (result.ok) {
 						/** not-found: the item was removed elsewhere or the server no
@@ -276,7 +295,7 @@ function filterItems(): ReadingListItem[] {
 }
 
 async function loadAllItems() {
-	const result = await send<GuardedResult<ReadingListItem[]>>({
+	const result = await send<GuardedResult<ItemsPage>>({
 		type: "get-all-items",
 	});
 
@@ -290,7 +309,45 @@ async function loadAllItems() {
 		return;
 	}
 
-	allItems = result.value;
+	allItems = result.value.items;
+	serverHasMore = result.value.hasMore;
+	renderLinks(filterItems());
+}
+
+async function loadMoreItems(): Promise<void> {
+	if (loadingMore) return;
+	loadingMore = true;
+	let result: GuardedResult<MoreItemsPage>;
+	try {
+		result = await send<GuardedResult<MoreItemsPage>>({
+			type: "get-more-items",
+		});
+	} finally {
+		loadingMore = false;
+	}
+
+	if (isNotLoggedIn(result)) {
+		await performLogout();
+		return;
+	}
+
+	if (!result.ok) {
+		setListError("Failed to load links");
+		return;
+	}
+
+	if ("continuation" in result.value) {
+		/** Nothing holds the continuation any more, so there is no further page to
+		 * ask for — only the list itself, read again from its first page. Rendering
+		 * the empty answer instead would wipe the list the reader is looking at. */
+		currentPage = 1;
+		await loadAllItems();
+		return;
+	}
+
+	allItems = result.value.items;
+	serverHasMore = result.value.hasMore;
+	currentPage++;
 	renderLinks(filterItems());
 }
 
@@ -325,8 +382,8 @@ function setListError(message: string | null): void {
 // what they mean. A shared helper makes every rendering decision; this glue
 // only paints it. The body is server-authored HTML, injected as HTML and
 // trusted by contract.
-function renderMessages(messages: Message[]): void {
-	const container = document.getElementById("messages");
+function renderMessages(messages: Message[], containerId = "messages"): void {
+	const container = document.getElementById(containerId);
 	if (!container) return;
 	const view = buildMessageView(messages);
 	container.replaceChildren();
@@ -338,6 +395,38 @@ function renderMessages(messages: Message[]): void {
 		container.appendChild(el);
 	}
 	container.hidden = view.hidden;
+}
+
+/** Paints the outcome the server described: its messages, then one control per
+ * semantic link it offered. Nothing here is client-authored copy, and only the
+ * reader choosing the list surface fetches the collection. */
+function renderSavedView(saved: { item: ReadingListItem; messages: Message[] }): void {
+	renderMessages(saved.messages, "saved-messages");
+	const affordances = document.getElementById("saved-affordances");
+	if (!affordances) return;
+	affordances.replaceChildren();
+	for (const link of saved.item.links) {
+		const presentation = linkPresentation(link.rel);
+		if (presentation === "row-anchor") continue;
+		const label = linkLabel(link);
+		const control =
+			presentation === "list-view"
+				? document.createElement("button")
+				: document.createElement("a");
+		control.className = "saved-view__action";
+		control.textContent = label;
+		control.setAttribute("aria-label", label);
+		if (control instanceof HTMLAnchorElement) {
+			control.href = link.href;
+			control.target = "_blank";
+			control.rel = "noopener noreferrer";
+		} else {
+			control.addEventListener("click", () => {
+				void showListView();
+			});
+		}
+		affordances.appendChild(control);
+	}
 }
 
 async function showListView() {
@@ -354,7 +443,15 @@ async function getActiveTab(): Promise<{ url: string; title: string; tabId?: num
 		await browser.storage.session.remove("pendingTarget").catch(() => {});
 		const title =
 			typeof pending.title === "string" ? pending.title : pending.url;
-		return { url: pending.url, title };
+		/** The tab travels with the target when the target is that tab's own page,
+		 * so a save started from outside the toolbar can still mark it from the
+		 * save's own outcome instead of asking the server what is on screen. */
+		const target: { url: string; title: string; tabId?: number } = {
+			url: pending.url,
+			title,
+		};
+		if (typeof pending.tabId === "number") target.tabId = pending.tabId;
+		return target;
 	}
 
 	const params = new URLSearchParams(window.location.search);
@@ -391,6 +488,7 @@ async function saveAndShowList() {
 	}
 
 	if (saveResult.ok && saveResult.value.ok) {
+		renderSavedView(saveResult.value);
 		showView("saved-view");
 		return;
 	}
@@ -500,12 +598,6 @@ document.getElementById("login-button")?.addEventListener("click", async () => {
 	showView("saving-view");
 	await saveAndShowList();
 });
-
-document
-	.getElementById("view-queue-button")
-	?.addEventListener("click", async () => {
-		await showListView();
-	});
 
 document
 	.getElementById("logout-button")

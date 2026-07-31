@@ -5,7 +5,7 @@ import { UnauthorizedError } from "./auth/unauthorized-error";
 import { BrowserExtensionCore } from "./core";
 import type { CoreError, ReadingList } from "./core";
 import { initInMemoryReadingList } from "./reading-list/in-memory-reading-list";
-import type { BulkSaveResult, BulkSavePage, SaveUrl, SavePages, SaveUrlResult } from "./reading-list/reading-list.types";
+import type { BulkSaveResult, BulkSavePage, ItemsPage, MoreItemsPage, SaveUrl, SavePages, SaveUrlResult } from "./reading-list/reading-list.types";
 import type { BrowserShell } from "./shell.types";
 import type { Auth, GuardedResult, WhenLoggedIn } from "./auth/auth.types";
 import type { ReadingListItem, ReadingListItemId } from "./domain/reading-list-item.types";
@@ -19,7 +19,7 @@ interface FakeShell {
 	getOpenSaveAllTabsPopupCount: () => number;
 	triggerContextMenu: (
 		info: { menuItemId: string; linkUrl?: string; pageUrl?: string },
-		tab?: { url?: string; title?: string },
+		tab?: { id?: number; url?: string; title?: string },
 	) => void;
 	triggerSaveAllTabsShortcut: () => void;
 }
@@ -83,10 +83,18 @@ function createRecordingReadingList(
 		savePagesResult?: BulkSaveResult;
 		failSavePagesOnCall?: { call: number; error: Error };
 	} = {},
-): ReadingList & { saveCalls: SaveArgs[]; savePagesCalls: { pages: BulkSavePage[] }[] } {
+): ReadingList & {
+	saveCalls: SaveArgs[];
+	savePagesCalls: { pages: BulkSavePage[] }[];
+	findByUrlCalls: string[];
+} {
 	const inner = initInMemoryReadingList();
 	const saveCalls: SaveArgs[] = [];
 	const savePagesCalls: { pages: BulkSavePage[] }[] = [];
+	/** findByUrl is the only reading-list call that asks the server to describe
+	 * the collection, so recording it is how a test pins that a flow issued no
+	 * list request the reader did not trigger. */
+	const findByUrlCalls: string[] = [];
 	const saveUrl: SaveUrl = async (params) => {
 		saveCalls.push(params);
 		if (options.saveResult) return options.saveResult;
@@ -106,11 +114,16 @@ function createRecordingReadingList(
 	return {
 		saveCalls,
 		savePagesCalls,
+		findByUrlCalls,
 		saveUrl,
 		savePages,
 		invokeAction: inner.invokeAction,
-		findByUrl: inner.findByUrl,
-		getAllItems: inner.getAllItems,
+		findByUrl: async (url) => {
+			findByUrlCalls.push(url);
+			return inner.findByUrl(url);
+		},
+		getItems: inner.getItems,
+		getMoreItems: inner.getMoreItems,
 	};
 }
 
@@ -138,16 +151,15 @@ describe("BrowserExtensionCore save", () => {
 		expect(showDefaultCalls).toEqual([]);
 	});
 
-	it("refreshes the active tab icon when no tabId is provided", async () => {
+	it("asks the server nothing to derive the icon when the save carries no tab", async () => {
 		const auth = initInMemoryAuth();
 		await auth.login();
 		const readingList = createRecordingReadingList();
-		const { shell, showSavedCalls, showDefaultCalls, iconUpdated } =
-			createFakeShell({
-				id: 7,
-				url: "https://active.example",
-				title: "Active",
-			});
+		const { shell, showSavedCalls, showDefaultCalls } = createFakeShell({
+			id: 7,
+			url: "https://active.example",
+			title: "Active",
+		});
 		const core = BrowserExtensionCore(shell, {
 			auth,
 			logger: HutchLogger.from(noopLogger),
@@ -158,24 +170,22 @@ describe("BrowserExtensionCore save", () => {
 			url: "https://example.com/article",
 			title: "Article",
 		});
+		await flush();
 
-		await iconUpdated;
 		expect(showSavedCalls).toEqual([]);
-		expect(showDefaultCalls).toEqual([7]);
+		expect(showDefaultCalls).toEqual([]);
+		expect(readingList.findByUrlCalls).toEqual([]);
 	});
 
-	it("does not mark the invoking tab as saved when the result is not saveable", async () => {
+	it("asks the server for no list when a save succeeds", async () => {
 		const auth = initInMemoryAuth();
 		await auth.login();
-		const readingList = createRecordingReadingList({
-			saveResult: { ok: false, reason: "not-saveable", items: [] },
+		const readingList = createRecordingReadingList();
+		const { shell, showSavedCalls } = createFakeShell({
+			id: 7,
+			url: "https://example.com/article",
+			title: "Article",
 		});
-		const { shell, showSavedCalls, showDefaultCalls, iconUpdated } =
-			createFakeShell({
-				id: 7,
-				url: "https://active.example",
-				title: "Active",
-			});
 		const core = BrowserExtensionCore(shell, {
 			auth,
 			logger: HutchLogger.from(noopLogger),
@@ -187,22 +197,19 @@ describe("BrowserExtensionCore save", () => {
 			title: "Article",
 			tabId: 42,
 		});
+		await flush();
 
-		await iconUpdated;
-		expect(showSavedCalls).toEqual([]);
-		expect(showDefaultCalls).toEqual([7]);
+		expect(showSavedCalls).toEqual([42]);
+		expect(readingList.findByUrlCalls).toEqual([]);
 	});
 
-	it("mints a web session when a save is not saveable and drops into the reader list", async () => {
-		const auth = loggedInAuth();
-		let mintCalls = 0;
-		auth.ensureWebSession = async () => {
-			mintCalls += 1;
-		};
+	it("does not mark the invoking tab as saved when the result is not saveable", async () => {
+		const auth = initInMemoryAuth();
+		await auth.login();
 		const readingList = createRecordingReadingList({
 			saveResult: { ok: false, reason: "not-saveable", items: [] },
 		});
-		const { shell, iconUpdated } = createFakeShell({
+		const { shell, showSavedCalls, showDefaultCalls } = createFakeShell({
 			id: 7,
 			url: "https://active.example",
 			title: "Active",
@@ -218,8 +225,40 @@ describe("BrowserExtensionCore save", () => {
 			title: "Article",
 			tabId: 42,
 		});
+		await flush();
 
-		await iconUpdated;
+		expect(showSavedCalls).toEqual([]);
+		expect(showDefaultCalls).toEqual([]);
+		expect(readingList.findByUrlCalls).toEqual([]);
+	});
+
+	it("mints a web session when a save is not saveable and drops into the reader list", async () => {
+		const auth = loggedInAuth();
+		let mintCalls = 0;
+		auth.ensureWebSession = async () => {
+			mintCalls += 1;
+		};
+		const readingList = createRecordingReadingList({
+			saveResult: { ok: false, reason: "not-saveable", items: [] },
+		});
+		const { shell } = createFakeShell({
+			id: 7,
+			url: "https://active.example",
+			title: "Active",
+		});
+		const core = BrowserExtensionCore(shell, {
+			auth,
+			logger: HutchLogger.from(noopLogger),
+			readingList,
+		});
+
+		core.save("current-tab", {
+			url: "https://example.com/article",
+			title: "Article",
+			tabId: 42,
+		});
+		await flush();
+
 		expect(mintCalls).toBe(1);
 	});
 });
@@ -227,13 +266,13 @@ describe("BrowserExtensionCore save", () => {
 type ShortcutHandler = () => void;
 type ContextMenuHandler = (
 	info: { menuItemId: string; linkUrl?: string; pageUrl?: string },
-	tab?: { url?: string; title?: string },
+	tab?: { id?: number; url?: string; title?: string },
 ) => void;
 type TabHandler = (tabId: number, url: string) => void;
 
 interface Captured {
 	shell: BrowserShell;
-	openPopupCalls: Array<{ url: string; title: string }>;
+	openPopupCalls: Array<{ url: string; title: string; tabId?: number }>;
 	showSavedCalls: number[];
 	showDefaultCalls: number[];
 	fireShortcut: () => void;
@@ -248,7 +287,7 @@ function createCapturingShell(
 		activeTabs?: Array<{ id?: number; url?: string; title?: string }>;
 	} = {},
 ): Captured {
-	const openPopupCalls: Array<{ url: string; title: string }> = [];
+	const openPopupCalls: Array<{ url: string; title: string; tabId?: number }> = [];
 	const showSavedCalls: number[] = [];
 	const showDefaultCalls: number[] = [];
 	let shortcutHandler: ShortcutHandler = () => {};
@@ -325,6 +364,13 @@ function makeItem(url: string): ReadingListItem {
 const logger = HutchLogger.from(noopLogger);
 const flush = () => new Promise((resolve) => setTimeout(resolve, 0));
 
+function loadedPage(page: MoreItemsPage | undefined): ItemsPage {
+	if (page === undefined || !("items" in page)) {
+		throw new Error("expected a loaded page, not a lost continuation");
+	}
+	return page;
+}
+
 describe("BrowserExtensionCore init", () => {
 	it("opens the popup for the context-menu target", () => {
 		const cap = createCapturingShell();
@@ -343,6 +389,23 @@ describe("BrowserExtensionCore init", () => {
 		expect(cap.openPopupCalls).toEqual([
 			{ url: "https://page.example", title: "Page" },
 		]);
+	});
+
+	it("hands the popup the tab a context-menu page save is for", () => {
+		const cap = createCapturingShell();
+		const core = BrowserExtensionCore(cap.shell, {
+			auth: loggedInAuth(),
+			logger,
+			readingList: initInMemoryReadingList(),
+		});
+		core.init();
+
+		cap.fireContextMenu(
+			{ menuItemId: "save-page-to-hutch", pageUrl: "https://page.example" },
+			{ id: 21, url: "https://page.example", title: "Page" },
+		);
+
+		expect(cap.openPopupCalls[0]?.tabId).toBe(21);
 	});
 
 	it("ignores a context-menu click with no resolvable target", () => {
@@ -374,7 +437,7 @@ describe("BrowserExtensionCore init", () => {
 		await flush();
 
 		expect(cap.openPopupCalls).toEqual([
-			{ url: "https://shortcut.example", title: "Sc" },
+			{ url: "https://shortcut.example", title: "Sc", tabId: 1 },
 		]);
 	});
 
@@ -551,6 +614,67 @@ describe("BrowserExtensionCore invoke/fetch", () => {
 		expect(cap.showSavedCalls).toEqual([3]);
 	});
 
+	it("asks the server nothing when the mutated article is not the tab's page", async () => {
+		const readingList = createRecordingReadingList();
+		const saved = await readingList.saveUrl({ url: "https://i.example", title: "I" });
+		assert(saved.ok, "save should succeed for a fresh url");
+		const cap = createCapturingShell({
+			activeTab: { id: 3, url: "https://elsewhere.example", title: "E" },
+		});
+		const core = BrowserExtensionCore(cap.shell, {
+			auth: loggedInAuth(),
+			logger,
+			readingList,
+		});
+
+		core.invoke("item-action", { id: saved.item.id, name: "update-status" });
+		await flush();
+
+		expect(cap.showSavedCalls).toEqual([]);
+		expect(cap.showDefaultCalls).toEqual([]);
+		expect(readingList.findByUrlCalls).toEqual([]);
+	});
+
+	it("asks the server nothing when no tab is active to mark", async () => {
+		const readingList = createRecordingReadingList();
+		const saved = await readingList.saveUrl({ url: "https://i.example", title: "I" });
+		assert(saved.ok, "save should succeed for a fresh url");
+		const cap = createCapturingShell();
+		const core = BrowserExtensionCore(cap.shell, {
+			auth: loggedInAuth(),
+			logger,
+			readingList,
+		});
+
+		core.invoke("item-action", { id: saved.item.id, name: "update-status" });
+		await flush();
+
+		expect(cap.showSavedCalls).toEqual([]);
+		expect(readingList.findByUrlCalls).toEqual([]);
+	});
+
+	it("skips the icon entirely when the server no longer advertises the action", async () => {
+		const readingList = createRecordingReadingList();
+		const cap = createCapturingShell({
+			activeTab: { id: 3, url: "https://i.example", title: "I" },
+		});
+		const core = BrowserExtensionCore(cap.shell, {
+			auth: loggedInAuth(),
+			logger,
+			readingList,
+		});
+
+		core.invoke("item-action", {
+			id: "ghost" as ReadingListItemId,
+			name: "update-status",
+		});
+		await flush();
+
+		expect(cap.showSavedCalls).toEqual([]);
+		expect(cap.showDefaultCalls).toEqual([]);
+		expect(readingList.findByUrlCalls).toEqual([]);
+	});
+
 	it("emits a failure and skips the icon refresh when invoking while logged out", async () => {
 		const cap = createCapturingShell();
 		const auth = loggedInAuth();
@@ -582,14 +706,57 @@ describe("BrowserExtensionCore invoke/fetch", () => {
 			logger,
 			readingList,
 		});
-		const results: ReadingListItem[][] = [];
+		const results: MoreItemsPage[] = [];
 		core.on("fetched-reading-list", { success: (v) => results.push(v), failure: () => {} });
 
 		core.fetch("reading-list");
 		await flush();
 
 		expect(results).toHaveLength(1);
-		expect(results[0]).toHaveLength(1);
+		expect(loadedPage(results[0]).items).toHaveLength(1);
+		expect(loadedPage(results[0]).hasMore).toBe(false);
+	});
+
+	it("fetches more of the reading list when asked for the next page", async () => {
+		const auth = initInMemoryAuth();
+		await auth.login();
+		const readingList = createRecordingReadingList();
+		await readingList.saveUrl({ url: "https://g.example", title: "G" });
+		const cap = createCapturingShell();
+		const core = BrowserExtensionCore(cap.shell, {
+			auth,
+			logger,
+			readingList,
+		});
+		const results: MoreItemsPage[] = [];
+		core.once("fetched-reading-list", { success: (v) => results.push(v), failure: () => {} });
+
+		core.fetch("reading-list", { more: true });
+		await flush();
+
+		expect(results).toHaveLength(1);
+		expect(loadedPage(results[0]).items.map((item) => item.url)).toEqual([
+			"https://g.example",
+		]);
+		expect(loadedPage(results[0]).hasMore).toBe(false);
+	});
+
+	it("forwards a lost continuation rather than dressing it up as an empty page", async () => {
+		const readingList = createRecordingReadingList();
+		readingList.getMoreItems = async () => ({ continuation: "lost" });
+		const cap = createCapturingShell();
+		const core = BrowserExtensionCore(cap.shell, {
+			auth: loggedInAuth(),
+			logger,
+			readingList,
+		});
+		const results: MoreItemsPage[] = [];
+		core.once("fetched-reading-list", { success: (v) => results.push(v), failure: () => {} });
+
+		core.fetch("reading-list", { more: true });
+		await flush();
+
+		expect(results).toEqual([{ continuation: "lost" }]);
 	});
 
 	it("mints a web session when fetching the reading list while logged in", async () => {
@@ -647,7 +814,7 @@ describe("BrowserExtensionCore invoke/fetch", () => {
 			logger: capturingLogger,
 			readingList,
 		});
-		const results: ReadingListItem[][] = [];
+		const results: MoreItemsPage[] = [];
 		core.on("fetched-reading-list", { success: (v) => results.push(v), failure: () => {} });
 
 		core.fetch("reading-list");
@@ -740,18 +907,18 @@ describe("BrowserExtensionCore result emission", () => {
 	it("emits a success synchronously for a non-promise value", async () => {
 		const cap = createCapturingShell();
 		const core = BrowserExtensionCore(cap.shell, {
-			auth: authReturning({ ok: true, value: [makeItem("https://sync.example")] }),
+			auth: authReturning({ ok: true, value: { items: [makeItem("https://sync.example")], hasMore: false } }),
 			logger,
 			readingList: initInMemoryReadingList(),
 		});
-		const results: ReadingListItem[][] = [];
+		const results: MoreItemsPage[] = [];
 		core.once("fetched-reading-list", { success: (v) => results.push(v), failure: () => {} });
 
 		core.fetch("reading-list");
 		await flush();
 
 		expect(results).toHaveLength(1);
-		expect(results[0]?.[0]?.url).toBe("https://sync.example");
+		expect(loadedPage(results[0]).items[0]?.url).toBe("https://sync.example");
 	});
 
 });

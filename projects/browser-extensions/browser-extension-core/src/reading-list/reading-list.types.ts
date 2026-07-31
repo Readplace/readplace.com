@@ -26,14 +26,17 @@ export interface SaveWarning {
  * email) without escaping it server-side is markup injection. See the
  * hypermedia-api-design skill, "Server-Driven Messages Are Trusted HTML". */
 export interface Message {
-	readonly type: "warning" | "error";
+	readonly type: "success" | "warning" | "error";
 	readonly content: { readonly type: string; readonly body: string };
 }
 
 export type TabContent = { bytes: ArrayBuffer; mediaType: string };
 
 export type SaveUrlResult =
-	| { ok: true; item: ReadingListItem }
+	/** `messages` is what the server wants the reader told about this save, and
+	 * the item's links carry where it may send them next — so the confirmation
+	 * renders from this response without fetching the collection. */
+	| { ok: true; item: ReadingListItem; messages: Message[] }
 	| { ok: false; reason: "already-saved" }
 	| {
 			ok: false;
@@ -45,10 +48,20 @@ export type SaveUrlResult =
 
 /** The outcome of invoking one advertised per-item action by (id, name). A
  * simple entity mutation lands the client back on the collection, so success
- * carries the new items; `not-found` covers an item or action the server no
- * longer advertises (the client re-renders the fresh list either way). */
+ * carries that response verbatim: its items, and whether it advertised a
+ * further page — the mutation's answer replaces the loaded list wholesale, so a
+ * caller tracking pages resets its own counters from `hasMore` rather than
+ * keeping the ones it had before the mutation. `targetUrl` is the article the
+ * action applied to, which is the only article whose saved-ness can have
+ * changed. `not-found` covers an item or action the server no longer advertises
+ * (the client re-renders the fresh list either way). */
 export type InvokeActionResult =
-	| { ok: true; items: ReadingListItem[] }
+	| {
+			ok: true;
+			items: ReadingListItem[];
+			hasMore: boolean;
+			targetUrl: string;
+		}
 	| { ok: false; reason: "not-found" };
 
 export type SaveUrl = (params: {
@@ -88,7 +101,29 @@ export type FindByUrl = (
 	url: string,
 ) => Promise<ReadingListItem | null>;
 
-export type GetAllItems = () => Promise<ReadingListItem[]>;
+/** One loaded prefix of the reading list: every item fetched so far, and
+ * whether the server advertises a further page. */
+export interface ItemsPage {
+	items: ReadingListItem[];
+	hasMore: boolean;
+}
+
+/** What a request for a further page can answer. `continuation: "lost"` is the
+ * honest report that the client no longer holds the continuation it was asked
+ * to follow: it is the server's own opaque link, held in memory and never
+ * persisted, so a background context that is torn down between two requests
+ * comes back holding nothing to follow. It is a distinct answer from an empty
+ * `ItemsPage` on purpose — an empty page is indistinguishable from an empty
+ * reading list, and a caller that rendered it would replace what the reader is
+ * looking at with the empty state. The caller recovers by reading the list from
+ * its first page again. */
+export type MoreItemsPage = ItemsPage | { continuation: "lost" };
+
+/** First page only — the rest of the list loads through `GetMoreItems`, one
+ * page per invocation, so pages are fetched exactly when the reader asks. */
+export type GetItems = () => Promise<ItemsPage>;
+
+export type GetMoreItems = () => Promise<MoreItemsPage>;
 
 export type BulkSaveResult = {
 	saved: number;

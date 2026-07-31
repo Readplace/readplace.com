@@ -12,7 +12,7 @@ import {
 	type OAuthTokens,
 	type PopupMessage,
 	captureActiveTabBytes,
-	type ReadingListItem,
+	type MoreItemsPage,
 	type SaveUrlResult,
 	type InvokeActionResult,
 	type BulkSaveResult,
@@ -99,12 +99,12 @@ const shell: BrowserShell = {
 		// "shortcut-pressed" is handled in the main onMessage listener below.
 	},
 
-	openPopup({ url, title }) {
+	openPopup({ url, title, tabId }) {
 		// browserAction.openPopup() can't accept query params, so hand the
 		// target off through session storage. The popup reads-and-removes it
 		// on init. Caller MUST be in a user-gesture context (e.g. menus
 		// .onClicked) for openPopup to succeed.
-		void browser.storage.session.set({ pendingTarget: { url, title } });
+		void browser.storage.session.set({ pendingTarget: { url, title, tabId } });
 		browser.browserAction.openPopup().catch(async (err) => {
 			await browser.storage.session.remove("pendingTarget").catch(() => {});
 			logger.error(err);
@@ -328,6 +328,7 @@ const POPUP_MESSAGE_TYPES = new Set([
 	"invoke-action",
 	"save-all-tabs",
 	"get-all-items",
+	"get-more-items",
 	"login",
 	"logout",
 ]);
@@ -407,15 +408,16 @@ browser.runtime.onMessage.addListener((raw, _sender, sendResponse) => {
 					pending.then(sendResponse);
 					break;
 				}
-				case "get-all-items": {
+				case "get-all-items":
+				case "get-more-items": {
 					const pending = new Promise<unknown>((resolve) => {
 						core.once("fetched-reading-list", {
-							success: (value: ReadingListItem[]) =>
+							success: (value: MoreItemsPage) =>
 								resolve({ ok: true, value }),
 							failure: (err) => resolve({ ok: false, ...err }),
 						});
 					});
-					core.fetch("reading-list");
+					core.fetch("reading-list", { more: message.type === "get-more-items" });
 					pending.then(sendResponse);
 					break;
 				}

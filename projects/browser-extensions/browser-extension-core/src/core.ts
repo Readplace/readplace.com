@@ -1,6 +1,6 @@
-import type { ReadingListItem, ReadingListItemId } from "./domain/reading-list-item.types";
+import type { ReadingListItemId } from "./domain/reading-list-item.types";
 import type { Auth, GuardedResult } from "./auth/auth.types";
-import type { SaveUrlResult, InvokeActionResult, SaveUrl, InvokeAction, FindByUrl, GetAllItems, SavePages, BulkSavePage, BulkSaveResult } from "./reading-list/reading-list.types";
+import type { SaveUrlResult, InvokeActionResult, SaveUrl, InvokeAction, FindByUrl, GetItems, GetMoreItems, MoreItemsPage, SavePages, BulkSavePage, BulkSaveResult } from "./reading-list/reading-list.types";
 import type { BrowserShell } from "./shell.types";
 import type { HutchLogger } from "@packages/hutch-logger";
 import { createEventBus } from "./event-bus";
@@ -14,7 +14,8 @@ export interface ReadingList {
 	saveUrl: SaveUrl;
 	invokeAction: InvokeAction;
 	findByUrl: FindByUrl;
-	getAllItems: GetAllItems;
+	getItems: GetItems;
+	getMoreItems: GetMoreItems;
 	savePages: SavePages;
 }
 
@@ -35,7 +36,7 @@ export interface Core {
 	logout(): void;
 	save(resource: "current-tab", data: { url: string; title: string; tabId?: number }): void;
 	invoke(resource: "item-action", data: { id: ReadingListItemId; name: string }): void;
-	fetch(resource: "reading-list"): void;
+	fetch(resource: "reading-list", data?: { more: boolean }): void;
 	saveAll(resource: "tabs", data: { pages: BulkSavePage[] }): void;
 
 	on(event: "pre-init", handler: () => void): void;
@@ -44,13 +45,13 @@ export interface Core {
 	on(event: "logged-out", handler: () => void): void;
 	on(event: "saved-current-tab", handler: ResultCallbacks<SaveUrlResult>): void;
 	on(event: "invoked-item-action", handler: ResultCallbacks<InvokeActionResult>): void;
-	on(event: "fetched-reading-list", handler: ResultCallbacks<ReadingListItem[]>): void;
+	on(event: "fetched-reading-list", handler: ResultCallbacks<MoreItemsPage>): void;
 	on(event: "saved-all-tabs", handler: ResultCallbacks<BulkSaveResult>): void;
 
 	once(event: "logged-in", handler: ResultCallbacks<void>): void;
 	once(event: "saved-current-tab", handler: ResultCallbacks<SaveUrlResult>): void;
 	once(event: "invoked-item-action", handler: ResultCallbacks<InvokeActionResult>): void;
-	once(event: "fetched-reading-list", handler: ResultCallbacks<ReadingListItem[]>): void;
+	once(event: "fetched-reading-list", handler: ResultCallbacks<MoreItemsPage>): void;
 	once(event: "saved-all-tabs", handler: ResultCallbacks<BulkSaveResult>): void;
 }
 
@@ -102,6 +103,16 @@ export function BrowserExtensionCore(shell: BrowserShell, deps: { auth: Auth; lo
 		}
 	}
 
+	/** A per-item mutation changes one article; the icon answers a different
+	 * question — whether the tab the reader is looking at is saved. Only when
+	 * those are the same article can the answer have changed, so every other
+	 * mutation leaves the icon alone and costs nothing. */
+	async function updateIconForMutatedUrl(url: string) {
+		const tab = await shell.getActiveTab();
+		if (tab?.id == null || tab.url !== url) return;
+		await updateIconForTab(tab.id, tab.url);
+	}
+
 	/** Mint the browser session cookie so a reader link (/queue/:id/view, whose
 	 * owner is resolved from the hutch_sid cookie, never the bearer) opens the
 	 * private reader instead of the public /view. Fired whenever the popup is about
@@ -124,7 +135,7 @@ export function BrowserExtensionCore(shell: BrowserShell, deps: { auth: Auth; lo
 				}
 				const target = getContextMenuTarget(info, tab);
 				if (!target) return;
-				shell.openPopup({ url: target.url, title: target.title });
+				shell.openPopup(target);
 			});
 
 			shell.onSaveAllTabsShortcut(() => shell.openSaveAllTabsPopup());
@@ -133,7 +144,7 @@ export function BrowserExtensionCore(shell: BrowserShell, deps: { auth: Auth; lo
 				getShortcutTarget()
 					.then((target) => {
 						if (!target) return;
-						shell.openPopup({ url: target.url, title: target.title });
+						shell.openPopup(target);
 					})
 					.catch((err) => logger.error(err));
 			});
@@ -182,11 +193,18 @@ export function BrowserExtensionCore(shell: BrowserShell, deps: { auth: Auth; lo
 			if (guarded.ok) {
 				const { tabId } = data;
 				guarded.value
-					.then((result) => {
-						if (!result.ok) establishWebSession();
-						return tabId != null && result.ok
-							? shell.setIcon.showSaved(tabId)
-							: updateActiveTabIcon();
+					.then(async (result) => {
+						if (!result.ok) {
+							establishWebSession();
+							return;
+						}
+						/** The save's own outcome already says what the icon should show,
+						 * so it is set from that. Re-deriving it would make the client ask
+						 * the server to answer what this response has answered — a list
+						 * request the reader never triggered. A target that carries no tab
+						 * (a saved link, or one opened without one) is worth no request at
+						 * all: the icon simply stays as the tab last left it. */
+						if (tabId != null) await shell.setIcon.showSaved(tabId);
 					})
 					.catch((err) => logger.error("Failed to update icon after save", err));
 			}
@@ -198,12 +216,18 @@ export function BrowserExtensionCore(shell: BrowserShell, deps: { auth: Auth; lo
 			);
 			emitResult("invoked-item-action", guarded);
 			if (guarded.ok) {
-				guarded.value.then(() => updateActiveTabIcon()).catch(() => {});
+				guarded.value
+					.then(async (result) => {
+						if (result.ok) await updateIconForMutatedUrl(result.targetUrl);
+					})
+					.catch(() => {});
 			}
 		},
 
-		fetch(_resource) {
-			const guarded = auth.whenLoggedIn(() => readingList.getAllItems());
+		fetch(_resource, data) {
+			const guarded = auth.whenLoggedIn(() =>
+				data?.more ? readingList.getMoreItems() : readingList.getItems(),
+			);
 			emitResult("fetched-reading-list", guarded);
 			if (guarded.ok) establishWebSession();
 		},

@@ -1,5 +1,5 @@
 import type { SavedArticle } from "@packages/domain/article";
-import type { SirenEntity, SirenLink, SirenSubEntity } from "./siren";
+import type { SirenEntity, SirenLink, SirenMessage, SirenSubEntity } from "./siren";
 
 export function toArticleSubEntity(article: SavedArticle): SirenSubEntity {
 	const id = article.id.value;
@@ -48,4 +48,28 @@ export function toArticleSubEntity(article: SavedArticle): SirenSubEntity {
 export function toArticleEntity(article: SavedArticle): SirenEntity {
 	const { rel: _rel, ...entity } = toArticleSubEntity(article);
 	return entity;
+}
+
+/** The article a save just accepted, carrying what the client should tell the
+ * reader and where it may send them next. The confirmation copy and the
+ * onward affordance are server-authored so a client renders the outcome from
+ * this response alone — it has no reason to fetch the collection, and none of
+ * the wording lives in a shipped build. */
+export function toSavedArticleEntity(article: SavedArticle): SirenEntity {
+	const entity = toArticleEntity(article);
+	const messages: SirenMessage[] = [
+		{ type: "success", content: { type: "text/html", body: "Article saved" } },
+		{
+			type: "success",
+			content: { type: "text/html", body: "Saved to your reading list" },
+		},
+	];
+	return {
+		...entity,
+		properties: { ...entity.properties, messages },
+		links: [
+			...(entity.links ?? []),
+			{ rel: ["collection"], title: "View Queue", href: "/queue" },
+		],
+	};
 }

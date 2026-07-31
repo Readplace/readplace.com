@@ -164,7 +164,7 @@ export async function runPdfSaveScenario(
 		fetchFn,
 	});
 
-	const { saveUrl, getAllItems } = initSirenReadingList({
+	const { saveUrl, getItems } = initSirenReadingList({
 		serverUrl: config.serverUrl,
 		getAccessToken: async () => accessToken,
 		fetchFn,
@@ -188,7 +188,7 @@ export async function runPdfSaveScenario(
 	const deadline = Date.now() + pollTimeoutMs;
 	let lastTitle = saveResult.item.title;
 	while (Date.now() < deadline) {
-		const items = await getAllItems();
+		const { items } = await getItems();
 		const current = items.find((item) => item.id === savedId);
 		assert(
 			current,

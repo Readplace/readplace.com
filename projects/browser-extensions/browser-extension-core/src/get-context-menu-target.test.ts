@@ -20,6 +20,17 @@ describe("initGetContextMenuTarget", () => {
 			});
 		});
 
+		it("carries the tab whose own page is the target", () => {
+			const getTarget = initGetContextMenuTarget();
+
+			const result = getTarget(
+				{ menuItemId: MENU_ITEM_SAVE_PAGE, pageUrl: "https://example.com/article" },
+				{ id: 12, url: "https://example.com/article", title: "Example Article" },
+			);
+
+			expect(result?.tabId).toBe(12);
+		});
+
 		it("should fall back to pageUrl when tab has no URL", () => {
 			const getTarget = initGetContextMenuTarget();
 
@@ -72,6 +83,17 @@ describe("initGetContextMenuTarget", () => {
 				url: "https://example.com/linked",
 				title: "https://example.com/linked",
 			});
+		});
+
+		it("carries no tab, because the saved link is not the page the tab is on", () => {
+			const getTarget = initGetContextMenuTarget();
+
+			const result = getTarget(
+				{ menuItemId: MENU_ITEM_SAVE_LINK, linkUrl: "https://example.com/linked" },
+				{ id: 12, url: "https://example.com/page", title: "Page Title" },
+			);
+
+			expect(result?.tabId).toBeUndefined();
 		});
 
 		it("should return null when link menu clicked without linkUrl", () => {

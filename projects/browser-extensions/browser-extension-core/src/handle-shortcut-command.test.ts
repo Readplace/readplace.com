@@ -16,6 +16,18 @@ describe("initGetShortcutTarget", () => {
 		});
 	});
 
+	it("carries the active tab so a save can mark it without asking the server", async () => {
+		const getTarget = initGetShortcutTarget({
+			queryActiveTabs: async () => [
+				{ id: 4, url: "https://example.com/article", title: "Example Article" },
+			],
+		});
+
+		const result = await getTarget();
+
+		expect(result?.tabId).toBe(4);
+	});
+
 	it("should use URL as title when tab has no title", async () => {
 		const getTarget = initGetShortcutTarget({
 			queryActiveTabs: async () => [{ url: "https://example.com/no-title" }],

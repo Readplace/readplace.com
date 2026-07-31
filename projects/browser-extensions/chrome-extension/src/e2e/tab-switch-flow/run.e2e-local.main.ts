@@ -258,7 +258,7 @@ async function assertSavedContentIsPageA(): Promise<void> {
 		email: TEST_EMAIL,
 		password: TEST_PASSWORD,
 	});
-	const { getAllItems } = initSirenReadingList({
+	const { getItems } = initSirenReadingList({
 		serverUrl: ORIGIN,
 		getAccessToken: async () => accessToken,
 		fetchFn: (...args) => fetch(...args),
@@ -272,7 +272,7 @@ async function assertSavedContentIsPageA(): Promise<void> {
 	const deadline = Date.now() + 60_000;
 	let lastTitle = "<no item yet>";
 	while (Date.now() < deadline) {
-		const items = await getAllItems();
+		const { items } = await getItems();
 		const saved = items.find((item) => item.url.includes(MARKER_A));
 		if (saved) {
 			lastTitle = saved.title;

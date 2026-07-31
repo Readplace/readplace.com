@@ -61,11 +61,15 @@ export function actionLabel(action: ActionDescriptor): string {
  * standalone control. This is the link counterpart of `actionVariant` — one
  * client-side rel->presentation map with a default — so a future semantic rel
  * (e.g. `summary`) renders as a generic control with zero further client change,
- * and `read` stays the row anchor without a per-rel `if` in the render loop. */
-export type LinkPresentation = "row-anchor" | "control";
+ * and `read` stays the row anchor without a per-rel `if` in the render loop.
+ * `list-view` is the popup's own list surface: the reader stays in the popup
+ * rather than being handed to a tab, and that navigation is what fetches the
+ * collection — nothing else does. */
+export type LinkPresentation = "row-anchor" | "list-view" | "control";
 
 const PRESENTATION_BY_REL: Record<string, LinkPresentation> = {
 	read: "row-anchor",
+	collection: "list-view",
 };
 
 export function linkPresentation(rel: string): LinkPresentation {

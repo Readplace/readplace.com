@@ -591,6 +591,11 @@ body {
   background: color-mix(in srgb, var(--popup-warning) 12%, transparent);
 }
 
+.messages__item--success {
+  border-left-color: var(--popup-success);
+  background: color-mix(in srgb, var(--popup-success) 12%, transparent);
+}
+
 .messages__item--error {
   border-left-color: var(--popup-error);
   background: color-mix(in srgb, var(--popup-error) 12%, transparent);

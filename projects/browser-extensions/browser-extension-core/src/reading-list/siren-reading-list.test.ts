@@ -1,6 +1,7 @@
 import assert from "node:assert/strict";
 import { noopLogger } from "@packages/hutch-logger";
 import type { ReadingListItemId } from "../domain/reading-list-item.types";
+import type { ItemsPage, MoreItemsPage } from "./reading-list.types";
 import { UnauthorizedError } from "../auth/unauthorized-error";
 import {
 	initSirenReadingList,
@@ -42,6 +43,16 @@ function collectionResponse(entities: unknown[] = []) {
 		links: [{ rel: ["self"], href: "/queue" }],
 		actions: COLLECTION_ACTIONS,
 	});
+}
+
+/** Narrows the answer to a request for a further page down to a loaded one, so
+ * a test that expected a page fails loudly instead of silently reading a lost
+ * continuation as an empty list. */
+function loadedPage(page: MoreItemsPage): ItemsPage {
+	if (!("items" in page)) {
+		throw new Error("expected a loaded page, not a lost continuation");
+	}
+	return page;
 }
 
 const LOCK_MESSAGE_HTML =
@@ -462,7 +473,7 @@ describe("initExtension", () => {
 							savedAt: "2026-01-01T00:00:00.000Z",
 						},
 					};
-					return { items: [context.resolveItem(sub)], actions: {}, descriptors: {} };
+					return { items: [context.resolveItem(sub)], actions: {}, descriptors: {}, messages: [] };
 				};
 			});
 			const handlers = groupOf(expandHandler);
@@ -2568,7 +2579,7 @@ describe("initSirenReadingList", () => {
 				}),
 			);
 			const list = initSirenReadingList(createAdapterDeps(fetchFn));
-			await list.getAllItems();
+			await list.getItems();
 			const result = await list.invokeAction({
 				id: "article-1" as ReadingListItemId,
 				name: "update-status",
@@ -2783,7 +2794,7 @@ describe("initSirenReadingList", () => {
 				}),
 			);
 			const list = initSirenReadingList(createAdapterDeps(fetchFn));
-			await list.getAllItems();
+			await list.getItems();
 			const result = await list.invokeAction({
 				id: "article-1" as ReadingListItemId,
 				name: "mark-read",
@@ -2838,7 +2849,7 @@ describe("initSirenReadingList", () => {
 				}),
 			);
 			const list = initSirenReadingList(createAdapterDeps(fetchFn));
-			await list.getAllItems();
+			await list.getItems();
 			/** The popup re-invokes by (id, name) only — no field knowledge crosses
 			 * the boundary — so the server must still receive status=read, sourced
 			 * from the action's declared field value and urlencoded per its type. */
@@ -2959,7 +2970,7 @@ describe("initSirenReadingList", () => {
 		});
 	});
 
-	describe("getAllItems", () => {
+	describe("getItems", () => {
 		it("should return all items from the collection", async () => {
 			const { fetchFn } = createRoutingFetch(
 				withEntryPoint({
@@ -2983,7 +2994,7 @@ describe("initSirenReadingList", () => {
 				}),
 			);
 			const list = initSirenReadingList(createAdapterDeps(fetchFn));
-			const items = await list.getAllItems();
+			const { items } = await list.getItems();
 			expect(items.map((i) => i.url)).toEqual([
 				"https://example.com/a",
 				"https://example.com/b",
@@ -3000,7 +3011,7 @@ describe("initSirenReadingList", () => {
 				}),
 			);
 			const list = initSirenReadingList(createAdapterDeps(fetchFn));
-			expect(await list.getAllItems()).toEqual([]);
+			expect((await list.getItems()).items).toEqual([]);
 		});
 
 		it("should throw when server returns an error", async () => {
@@ -3010,9 +3021,356 @@ describe("initSirenReadingList", () => {
 				}),
 			);
 			const list = initSirenReadingList(createAdapterDeps(fetchFn));
-			await expect(list.getAllItems()).rejects.toThrow(
+			await expect(list.getItems()).rejects.toThrow(
 				"Navigation failed: 500",
 			);
+		});
+
+		it("reports a further page without fetching it, and appends it when the reader asks", async () => {
+			const page1 = JSON.stringify({
+				class: ["collection", "articles"],
+				entities: [
+					articleEntity({
+						id: "1",
+						url: "https://example.com/a",
+						title: "A",
+						savedAt: "2026-01-15T10:00:00.000Z",
+					}),
+				],
+				links: [
+					{ rel: ["self"], href: "/queue" },
+					{ rel: ["next"], href: "/queue?page=2" },
+				],
+				actions: COLLECTION_ACTIONS,
+			});
+			const page2 = JSON.stringify({
+				class: ["collection", "articles"],
+				entities: [
+					articleEntity({
+						id: "2",
+						url: "https://example.com/b",
+						title: "B",
+						savedAt: "2026-01-15T11:00:00.000Z",
+					}),
+				],
+				links: [{ rel: ["self"], href: "/queue?page=2" }],
+				actions: COLLECTION_ACTIONS,
+			});
+			const { fetchFn, calls } = createRoutingFetch(
+				withEntryPoint({
+					"GET http://localhost:3000/queue": { status: 200, body: page1 },
+					"GET http://localhost:3000/queue?page=2": { status: 200, body: page2 },
+				}),
+			);
+			const list = initSirenReadingList(createAdapterDeps(fetchFn));
+
+			const first = await list.getItems();
+			expect(first.items.map((i) => i.url)).toEqual(["https://example.com/a"]);
+			expect(first.hasMore).toBe(true);
+			expect(calls).not.toContain("GET http://localhost:3000/queue?page=2");
+
+			const more = loadedPage(await list.getMoreItems());
+			expect(more.items.map((i) => i.url)).toEqual([
+				"https://example.com/a",
+				"https://example.com/b",
+			]);
+			expect(more.hasMore).toBe(false);
+		});
+
+		it("answers what is already loaded when no further page exists", async () => {
+			const { fetchFn } = createRoutingFetch(
+				withEntryPoint({
+					"GET http://localhost:3000/queue": {
+						status: 200,
+						body: collectionResponse([
+							articleEntity({
+								id: "1",
+								url: "https://example.com/a",
+								title: "A",
+								savedAt: "2026-01-15T10:00:00.000Z",
+							}),
+						]),
+					},
+				}),
+			);
+			const list = initSirenReadingList(createAdapterDeps(fetchFn));
+
+			await list.getItems();
+			const more = loadedPage(await list.getMoreItems());
+
+			expect(more.items.map((i) => i.url)).toEqual(["https://example.com/a"]);
+			expect(more.hasMore).toBe(false);
+		});
+
+		it("keeps what is loaded when fetching a further page fails", async () => {
+			const page1 = JSON.stringify({
+				class: ["collection", "articles"],
+				entities: [
+					articleEntity({
+						id: "1",
+						url: "https://example.com/a",
+						title: "A",
+						savedAt: "2026-01-15T10:00:00.000Z",
+					}),
+				],
+				links: [
+					{ rel: ["self"], href: "/queue" },
+					{ rel: ["next"], href: "/queue?page=2" },
+				],
+				actions: COLLECTION_ACTIONS,
+			});
+			const { fetchFn } = createRoutingFetch(
+				withEntryPoint({
+					"GET http://localhost:3000/queue": { status: 200, body: page1 },
+					"GET http://localhost:3000/queue?page=2": { status: 500 },
+				}),
+			);
+			const list = initSirenReadingList(createAdapterDeps(fetchFn));
+
+			await list.getItems();
+			const more = loadedPage(await list.getMoreItems());
+
+			expect(more.items.map((i) => i.url)).toEqual(["https://example.com/a"]);
+			expect(more.hasMore).toBe(false);
+		});
+
+		it("reports a lost continuation when it holds none, rather than an empty list", async () => {
+			const { fetchFn, calls } = createRoutingFetch(
+				withEntryPoint({
+					"GET http://localhost:3000/queue": {
+						status: 200,
+						body: collectionResponse([
+							articleEntity({
+								id: "1",
+								url: "https://example.com/a",
+								title: "A",
+								savedAt: "2026-01-15T10:00:00.000Z",
+							}),
+						]),
+					},
+				}),
+			);
+			const list = initSirenReadingList(createAdapterDeps(fetchFn));
+
+			/** Nothing has been loaded through this instance — the state of one that
+			 * was torn down after the reader paged forward. An empty page here reads
+			 * as "your list is empty" and wipes what the reader is looking at. */
+			const more = await list.getMoreItems();
+
+			expect(more).toEqual({ continuation: "lost" });
+			expect(calls).toEqual([]);
+		});
+
+		it("follows one continuation at most once when asked for it twice at once", async () => {
+			const page1 = JSON.stringify({
+				class: ["collection", "articles"],
+				entities: [
+					articleEntity({
+						id: "1",
+						url: "https://example.com/a",
+						title: "A",
+						savedAt: "2026-01-15T10:00:00.000Z",
+					}),
+				],
+				links: [
+					{ rel: ["self"], href: "/queue" },
+					{ rel: ["next"], href: "/queue?page=2" },
+				],
+				actions: COLLECTION_ACTIONS,
+			});
+			const page2 = JSON.stringify({
+				class: ["collection", "articles"],
+				entities: [
+					articleEntity({
+						id: "2",
+						url: "https://example.com/b",
+						title: "B",
+						savedAt: "2026-01-15T11:00:00.000Z",
+					}),
+				],
+				links: [{ rel: ["self"], href: "/queue?page=2" }],
+				actions: COLLECTION_ACTIONS,
+			});
+			const { fetchFn, calls } = createRoutingFetch(
+				withEntryPoint({
+					"GET http://localhost:3000/queue": { status: 200, body: page1 },
+					"GET http://localhost:3000/queue?page=2": { status: 200, body: page2 },
+				}),
+			);
+			const list = initSirenReadingList(createAdapterDeps(fetchFn));
+			await list.getItems();
+
+			const [first, second] = await Promise.all([
+				list.getMoreItems(),
+				list.getMoreItems(),
+			]);
+
+			expect(
+				calls.filter((call) => call === "GET http://localhost:3000/queue?page=2"),
+			).toHaveLength(1);
+			expect(loadedPage(first).items.map((i) => i.id)).toEqual(["1", "2"]);
+			expect(loadedPage(second).items.map((i) => i.id)).toEqual(["1", "2"]);
+		});
+
+		it("pages on from the mutation's own answer, not from the pages it replaced", async () => {
+			const beforeMutation = JSON.stringify({
+				class: ["collection", "articles"],
+				entities: [
+					articleEntity({
+						id: "article-1",
+						url: "https://example.com/a",
+						title: "A",
+						savedAt: "2026-01-15T10:00:00.000Z",
+					}),
+					articleEntity({
+						id: "article-2",
+						url: "https://example.com/b",
+						title: "B",
+						savedAt: "2026-01-15T11:00:00.000Z",
+					}),
+				],
+				links: [
+					{ rel: ["self"], href: "/queue" },
+					{ rel: ["next"], href: "/queue?page=stale" },
+				],
+				actions: COLLECTION_ACTIONS,
+			});
+			const afterMutation = JSON.stringify({
+				class: ["collection", "articles"],
+				entities: [
+					articleEntity({
+						id: "article-2",
+						url: "https://example.com/b",
+						title: "B",
+						savedAt: "2026-01-15T11:00:00.000Z",
+					}),
+				],
+				links: [
+					{ rel: ["self"], href: "/queue" },
+					{ rel: ["next"], href: "/queue?page=fresh" },
+				],
+				actions: COLLECTION_ACTIONS,
+			});
+			const freshSecondPage = JSON.stringify({
+				class: ["collection", "articles"],
+				entities: [
+					articleEntity({
+						id: "article-3",
+						url: "https://example.com/c",
+						title: "C",
+						savedAt: "2026-01-15T09:00:00.000Z",
+					}),
+				],
+				links: [{ rel: ["self"], href: "/queue?page=fresh" }],
+				actions: COLLECTION_ACTIONS,
+			});
+			const { fetchFn, calls } = createRoutingFetch(
+				withEntryPoint({
+					"GET http://localhost:3000/queue": { status: 200, body: beforeMutation },
+					"POST http://localhost:3000/queue/article-1/status": {
+						status: 200,
+						body: afterMutation,
+					},
+					"GET http://localhost:3000/queue?page=fresh": {
+						status: 200,
+						body: freshSecondPage,
+					},
+				}),
+			);
+			const list = initSirenReadingList(createAdapterDeps(fetchFn));
+			await list.getItems();
+
+			const invoked = await list.invokeAction({
+				id: "article-1" as ReadingListItemId,
+				name: "update-status",
+			});
+			assert(invoked.ok, "the advertised action should apply");
+			const more = loadedPage(await list.getMoreItems());
+
+			expect(invoked.items.map((i) => i.id)).toEqual(["article-2"]);
+			expect(invoked.hasMore).toBe(true);
+			expect(more.items.map((i) => i.id)).toEqual(["article-2", "article-3"]);
+			expect(calls).not.toContain("GET http://localhost:3000/queue?page=stale");
+		});
+
+		it("drops a page that lands after a mutation replaced the list", async () => {
+			const beforeMutation = JSON.stringify({
+				class: ["collection", "articles"],
+				entities: [
+					articleEntity({
+						id: "article-1",
+						url: "https://example.com/a",
+						title: "A",
+						savedAt: "2026-01-15T10:00:00.000Z",
+					}),
+				],
+				links: [
+					{ rel: ["self"], href: "/queue" },
+					{ rel: ["next"], href: "/queue?page=stale" },
+				],
+				actions: COLLECTION_ACTIONS,
+			});
+			const stalePage = JSON.stringify({
+				class: ["collection", "articles"],
+				entities: [
+					articleEntity({
+						id: "article-9",
+						url: "https://example.com/i",
+						title: "I",
+						savedAt: "2026-01-15T08:00:00.000Z",
+					}),
+				],
+				links: [{ rel: ["self"], href: "/queue?page=stale" }],
+				actions: COLLECTION_ACTIONS,
+			});
+			const afterMutation = JSON.stringify({
+				class: ["collection", "articles"],
+				entities: [
+					articleEntity({
+						id: "article-2",
+						url: "https://example.com/b",
+						title: "B",
+						savedAt: "2026-01-15T11:00:00.000Z",
+					}),
+				],
+				links: [{ rel: ["self"], href: "/queue" }],
+				actions: COLLECTION_ACTIONS,
+			});
+			let releaseStalePage: () => void = () => {};
+			const stalePageArrives = new Promise<void>((resolve) => {
+				releaseStalePage = resolve;
+			});
+			const { fetchFn: routed } = createRoutingFetch(
+				withEntryPoint({
+					"GET http://localhost:3000/queue": { status: 200, body: beforeMutation },
+					"GET http://localhost:3000/queue?page=stale": {
+						status: 200,
+						body: stalePage,
+					},
+					"POST http://localhost:3000/queue/article-1/status": {
+						status: 200,
+						body: afterMutation,
+					},
+				}),
+			);
+			const fetchFn: SirenReadingListDeps["fetchFn"] = async (input, init) => {
+				if (requestInfoToUrl(input).includes("page=stale")) await stalePageArrives;
+				return routed(input, init);
+			};
+			const list = initSirenReadingList(createAdapterDeps(fetchFn));
+			await list.getItems();
+
+			const pendingPage = list.getMoreItems();
+			const invoked = await list.invokeAction({
+				id: "article-1" as ReadingListItemId,
+				name: "update-status",
+			});
+			assert(invoked.ok, "the advertised action should apply");
+			releaseStalePage();
+			const more = loadedPage(await pendingPage);
+
+			expect(more.items.map((i) => i.id)).toEqual(["article-2"]);
+			expect(more.hasMore).toBe(false);
 		});
 
 		it("should throw when save-article action is missing from collection", async () => {
@@ -3028,7 +3386,7 @@ describe("initSirenReadingList", () => {
 				}),
 			);
 			const list = initSirenReadingList(createAdapterDeps(fetchFn));
-			await list.getAllItems();
+			await list.getItems();
 			await expect(
 				list.saveUrl({ url: "https://example.com", title: "Test" }),
 			).rejects.toThrow(
@@ -3740,7 +4098,7 @@ describe("initSirenReadingList", () => {
 				logger: noopLogger,
 			};
 			const list = initSirenReadingList(deps);
-			await expect(list.getAllItems()).rejects.toThrow(
+			await expect(list.getItems()).rejects.toThrow(
 				"No access token available",
 			);
 		});
@@ -3910,7 +4268,7 @@ describe("hypermedia conformance", () => {
 		expect(result.items[0].actions.map((a) => a.name)).toEqual(["update-status"]);
 	});
 
-	it("follows the collection's next link so items past the first page are reachable", async () => {
+	it("leaves the next page unfetched until something follows it", async () => {
 		const page1 = JSON.stringify({
 			class: ["collection", "articles"],
 			entities: [
@@ -3940,14 +4298,23 @@ describe("hypermedia conformance", () => {
 			links: [{ rel: ["self"], href: "/queue?page=2" }],
 			actions: COLLECTION_ACTIONS,
 		});
-		const { fetchFn } = createRoutingFetch({
+		const { fetchFn, calls } = createRoutingFetch({
 			"GET http://localhost:3000/": { status: 200, body: page1 },
 			"GET http://localhost:3000/queue": { status: 200, body: page1 },
 			"GET http://localhost:3000/queue?page=2": { status: 200, body: page2 },
 		});
 		const start = initExtension(createUnderstandings(), createDeps(fetchFn));
+
 		const result = await start();
-		expect(result.items.map((i) => i.id)).toEqual(["1", "2"]);
+
+		expect(result.items.map((i) => i.id)).toEqual(["1"]);
+		expect(calls).not.toContain("GET http://localhost:3000/queue?page=2");
+		assert(result.nextPage, "the advertised next link must be followable");
+
+		const followed = await result.nextPage();
+
+		expect(followed.items.map((i) => i.id)).toEqual(["2"]);
+		expect(followed.nextPage).toBeUndefined();
 	});
 
 	it("stops following navigation pages when a next page errors", async () => {
@@ -4003,7 +4370,7 @@ describe("hypermedia conformance", () => {
 		expect(result.items.map((i) => i.id)).toEqual(["1"]);
 	});
 
-	it("aggregates every search page by following the search response's next link", async () => {
+	it("returns the search's first page and leaves its next link unfetched", async () => {
 		const searchPage1 = JSON.stringify({
 			class: ["collection", "articles"],
 			entities: [
@@ -4020,20 +4387,7 @@ describe("hypermedia conformance", () => {
 			],
 			actions: COLLECTION_ACTIONS,
 		});
-		const searchPage2 = JSON.stringify({
-			class: ["collection", "articles"],
-			entities: [
-				articleEntity({
-					id: "2",
-					url: "https://example.com/b",
-					title: "B",
-					savedAt: "2026-01-15T11:00:00.000Z",
-				}),
-			],
-			links: [{ rel: ["self"], href: "/queue?status=unread&page=2" }],
-			actions: COLLECTION_ACTIONS,
-		});
-		const { fetchFn } = createRoutingFetch(
+		const { fetchFn, calls } = createRoutingFetch(
 			withEntryPoint({
 				"GET http://localhost:3000/queue": {
 					status: 200,
@@ -4043,16 +4397,15 @@ describe("hypermedia conformance", () => {
 					status: 200,
 					body: searchPage1,
 				},
-				"GET http://localhost:3000/queue?status=unread&page=2": {
-					status: 200,
-					body: searchPage2,
-				},
 			}),
 		);
 		const start = initExtension(createUnderstandings(), createDeps(fetchFn));
 		const collection = await start();
+
 		const result = await collection.actions.search({ status: "unread" });
-		expect(result.items.map((i) => i.id)).toEqual(["1", "2"]);
+
+		expect(result.items.map((i) => i.id)).toEqual(["1"]);
+		expect(calls).not.toContain("GET http://localhost:3000/queue?status=unread&page=2");
 	});
 
 	it("stops following search pages when a later page errors, returning what it has", async () => {
@@ -4117,7 +4470,7 @@ describe("hypermedia conformance", () => {
 		expect(result.items.map((i) => i.id)).toEqual(["1"]);
 	});
 
-	it("stops navigation when the next links form a repeating cycle", async () => {
+	it("offers no further page when a next link points back at the page itself", async () => {
 		const page1 = JSON.stringify({
 			class: ["collection", "articles"],
 			entities: [
@@ -4157,7 +4510,12 @@ describe("hypermedia conformance", () => {
 		});
 		const start = initExtension(createUnderstandings(), createDeps(fetchFn));
 		const result = await start();
-		expect(result.items.map((i) => i.id)).toEqual(["1", "2"]);
+		assert(result.nextPage, "page 1 advertises a real next page");
+
+		const followed = await result.nextPage();
+
+		expect(followed.items.map((i) => i.id)).toEqual(["2"]);
+		expect(followed.nextPage).toBeUndefined();
 	});
 
 	it("stops a search whose next link points back to a page already fetched", async () => {

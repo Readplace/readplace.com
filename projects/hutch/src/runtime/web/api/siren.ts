@@ -41,7 +41,7 @@ export const SIREN_MEDIA_TYPE = "application/vnd.siren+json";
  * client injects into a generic message view. The same shape is used for every
  * message the server asks a client to surface. */
 export interface SirenMessage {
-	type: "warning" | "error";
+	type: "success" | "warning" | "error";
 	content: { type: "text/html"; body: string };
 }
 

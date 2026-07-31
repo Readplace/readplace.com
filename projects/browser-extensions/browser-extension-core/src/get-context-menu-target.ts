@@ -9,11 +9,16 @@ interface ClickInfo {
 }
 
 interface TabInfo {
+	id?: number;
 	url?: string;
 	title?: string;
 }
 
-type ContextMenuTarget = { url: string; title: string };
+/** `tabId` is carried only when the target IS the tab's own page, so a save can
+ * mark that tab without asking the server what it is showing. A saved link is a
+ * different article than the page the tab is on, so it carries none — marking
+ * the tab there would claim the page itself was saved. */
+type ContextMenuTarget = { url: string; title: string; tabId?: number };
 
 export function initGetContextMenuTarget(): (info: ClickInfo, tab?: TabInfo) => ContextMenuTarget | null {
 	return (info, tab) => {
@@ -24,7 +29,7 @@ export function initGetContextMenuTarget(): (info: ClickInfo, tab?: TabInfo) => 
 		if (info.menuItemId === MENU_ITEM_SAVE_PAGE) {
 			const url = info.pageUrl ?? tab?.url;
 			if (!url) return null;
-			return { url, title: tab?.title ?? url };
+			return { url, title: tab?.title ?? url, tabId: tab?.id };
 		}
 
 		return null;

@@ -90,11 +90,11 @@ describe("initInMemoryReadingList", () => {
 		});
 	});
 
-	describe("getAllItems", () => {
+	describe("getItems", () => {
 		it("should return empty array when no items saved", async () => {
 			const list = initInMemoryReadingList();
 
-			const items = await list.getAllItems();
+			const { items } = await list.getItems();
 
 			expect(items).toEqual([]);
 		});
@@ -104,7 +104,7 @@ describe("initInMemoryReadingList", () => {
 			await list.saveUrl({ url: "https://example.com/a", title: "Article A" });
 			await list.saveUrl({ url: "https://example.com/b", title: "Article B" });
 
-			const items = await list.getAllItems();
+			const { items } = await list.getItems();
 
 			const urls = items.map((item) => item.url);
 			expect(urls).toEqual([
@@ -120,7 +120,7 @@ describe("initInMemoryReadingList", () => {
 				title: "First",
 			});
 
-			const beforeReload = await list.getAllItems();
+			const { items: beforeReload } = await list.getItems();
 			expect(beforeReload.map((i) => i.url)).toEqual([
 				"https://example.com/first",
 			]);
@@ -130,7 +130,7 @@ describe("initInMemoryReadingList", () => {
 				title: "Second",
 			});
 
-			const afterReload = await list.getAllItems();
+			const { items: afterReload } = await list.getItems();
 			expect(afterReload.map((i) => i.url)).toEqual([
 				"https://example.com/first",
 				"https://example.com/second",
@@ -156,7 +156,7 @@ describe("initInMemoryReadingList", () => {
 				tooBig: [],
 				skippedUrls: [],
 			});
-			const items = await list.getAllItems();
+			const { items } = await list.getItems();
 			expect(items.map((i) => i.url)).toEqual([
 				"https://example.com/a",
 				"https://example.com/b",

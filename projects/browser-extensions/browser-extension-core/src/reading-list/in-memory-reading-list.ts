@@ -4,7 +4,8 @@ import type {
 } from "../domain/reading-list-item.types";
 import type {
 	FindByUrl,
-	GetAllItems,
+	GetItems,
+	GetMoreItems,
 	InvokeAction,
 	SaveUrl,
 	SavePages,
@@ -14,7 +15,8 @@ export function initInMemoryReadingList(): {
 	saveUrl: SaveUrl;
 	invokeAction: InvokeAction;
 	findByUrl: FindByUrl;
-	getAllItems: GetAllItems;
+	getItems: GetItems;
+	getMoreItems: GetMoreItems;
 	savePages: SavePages;
 } {
 	const items = new Map<ReadingListItemId, ReadingListItem>();
@@ -39,7 +41,7 @@ export function initInMemoryReadingList(): {
 			links: [],
 		};
 		items.set(id, item);
-		return { ok: true, item };
+		return { ok: true, item, messages: [] };
 	};
 
 	const invokeAction: InvokeAction = async ({ id, name }) => {
@@ -49,7 +51,12 @@ export function initInMemoryReadingList(): {
 		if (!item?.actions.some((action) => action.name === name)) {
 			return { ok: false, reason: "not-found" };
 		}
-		return { ok: true, items: Array.from(items.values()) };
+		return {
+			ok: true,
+			items: Array.from(items.values()),
+			hasMore: false,
+			targetUrl: item.url,
+		};
 	};
 
 	const findByUrl: FindByUrl = async (url) => {
@@ -61,9 +68,9 @@ export function initInMemoryReadingList(): {
 		return null;
 	};
 
-	const getAllItems: GetAllItems = async () => {
-		return Array.from(items.values());
-	};
+	const getItems: GetItems = async () => ({ items: Array.from(items.values()), hasMore: false });
+
+	const getMoreItems: GetMoreItems = async () => ({ items: Array.from(items.values()), hasMore: false });
 
 	const savePages: SavePages = async ({ pages }) => {
 		let saved = 0;
@@ -83,7 +90,8 @@ export function initInMemoryReadingList(): {
 		saveUrl,
 		invokeAction,
 		findByUrl,
-		getAllItems,
+		getItems,
+		getMoreItems,
 		savePages,
 	};
 }
