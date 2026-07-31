@@ -152,6 +152,7 @@ function createDeps(
 		getAccessToken: async () => "test-token",
 		fetchFn,
 		onUnauthorized,
+		refreshTokens: async () => ({ ok: false, reason: "no-refresh-token" }),
 	};
 }
 
@@ -441,6 +442,7 @@ describe("initExtension", () => {
 				getAccessToken: async () => null,
 				fetchFn,
 				onUnauthorized: async () => {},
+				refreshTokens: async () => ({ ok: false, reason: "no-refresh-token" }),
 			};
 			const start = initExtension(createUnderstandings(), deps);
 			await expect(start()).rejects.toThrow(
@@ -1031,6 +1033,90 @@ describe("initExtension", () => {
 					url: "https://example.com/article",
 				}),
 			).rejects.toBeInstanceOf(UnauthorizedError);
+			expect(onUnauthorizedCallCount).toBe(1);
+		});
+
+		it("should refresh and replay the same request behind the fresh token on 401", async () => {
+			const SEARCH_ROUTE =
+				"GET http://localhost:3000/queue?url=https%3A%2F%2Fexample.com%2Farticle";
+			let token = "stale-token";
+			const { fetchFn, calls } = createRoutingFetch(
+				withEntryPoint({
+					"GET http://localhost:3000/queue": {
+						status: 200,
+						body: collectionResponse(),
+					},
+					[SEARCH_ROUTE]: (init) =>
+						new Headers(init?.headers).get("authorization") === "Bearer fresh-token"
+							? {
+									status: 200,
+									body: collectionResponse([
+										articleEntity({
+											id: "1",
+											url: "https://example.com/article",
+											title: "Found",
+											savedAt: "2026-01-15T10:00:00.000Z",
+										}),
+									]),
+								}
+							: { status: 401 },
+				}),
+			);
+			let onUnauthorizedCallCount = 0;
+			const start = initExtension(createUnderstandings(), {
+				...createDeps(fetchFn, async () => {
+					onUnauthorizedCallCount++;
+				}),
+				getAccessToken: async () => token,
+				refreshTokens: async () => {
+					token = "fresh-token";
+					return { ok: true };
+				},
+			});
+			const collection = await start();
+
+			const result = await collection.actions.search({
+				url: "https://example.com/article",
+			});
+
+			expect(result.items.map((item) => item.url)).toEqual([
+				"https://example.com/article",
+			]);
+			expect(calls.filter((call) => call === SEARCH_ROUTE)).toHaveLength(2);
+			expect(onUnauthorizedCallCount).toBe(0);
+		});
+
+		it("should end the session when the replay behind a refreshed token is still 401", async () => {
+			const SEARCH_ROUTE =
+				"GET http://localhost:3000/queue?url=https%3A%2F%2Fexample.com%2Farticle";
+			const { fetchFn, calls } = createRoutingFetch(
+				withEntryPoint({
+					"GET http://localhost:3000/queue": {
+						status: 200,
+						body: collectionResponse(),
+					},
+					[SEARCH_ROUTE]: { status: 401 },
+				}),
+			);
+			let onUnauthorizedCallCount = 0;
+			let refreshCallCount = 0;
+			const start = initExtension(createUnderstandings(), {
+				...createDeps(fetchFn, async () => {
+					onUnauthorizedCallCount++;
+				}),
+				refreshTokens: async () => {
+					refreshCallCount++;
+					return { ok: true };
+				},
+			});
+			const collection = await start();
+
+			await expect(
+				collection.actions.search({ url: "https://example.com/article" }),
+			).rejects.toBeInstanceOf(UnauthorizedError);
+
+			expect(calls.filter((call) => call === SEARCH_ROUTE)).toHaveLength(2);
+			expect(refreshCallCount).toBe(1);
 			expect(onUnauthorizedCallCount).toBe(1);
 		});
 
@@ -1693,6 +1779,7 @@ describe("initSirenReadingList capability negotiation", () => {
 			getAccessToken: async () => "test-token",
 			fetchFn,
 			onUnauthorized,
+			refreshTokens: async () => ({ ok: false, reason: "no-refresh-token" }),
 			logger: noopLogger,
 		};
 	}
@@ -2054,6 +2141,7 @@ describe("initSirenReadingList", () => {
 			getAccessToken: async () => "test-token",
 			fetchFn,
 			onUnauthorized,
+			refreshTokens: async () => ({ ok: false, reason: "no-refresh-token" }),
 			logger: noopLogger,
 		};
 	}
@@ -3648,6 +3736,7 @@ describe("initSirenReadingList", () => {
 				getAccessToken: async () => null,
 				fetchFn,
 				onUnauthorized: async () => {},
+				refreshTokens: async () => ({ ok: false, reason: "no-refresh-token" }),
 				logger: noopLogger,
 			};
 			const list = initSirenReadingList(deps);
@@ -4145,6 +4234,7 @@ describe("initSirenReadingList deferred content upload", () => {
 			getAccessToken: async () => "test-token",
 			fetchFn,
 			onUnauthorized: async () => {},
+			refreshTokens: async () => ({ ok: false, reason: "no-refresh-token" }),
 			logger: noopLogger,
 			...overrides,
 		};

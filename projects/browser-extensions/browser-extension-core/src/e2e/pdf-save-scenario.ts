@@ -168,6 +168,7 @@ export async function runPdfSaveScenario(
 		serverUrl: config.serverUrl,
 		getAccessToken: async () => accessToken,
 		fetchFn,
+		refreshTokens: async () => ({ ok: false, reason: "no-refresh-token" }),
 		onUnauthorized: async () => {
 			throw new Error("Unauthorized while running pdf-save scenario");
 		},

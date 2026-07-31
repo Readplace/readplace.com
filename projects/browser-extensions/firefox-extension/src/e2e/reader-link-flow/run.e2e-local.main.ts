@@ -167,6 +167,7 @@ test("saved-article link in the popup opens the private reader, not the public v
 			});
 
 			const saveLinkActions = createSaveLinkActions({
+			capturesBeforeSaving: true,
 				popupUrl: POPUP_URL,
 				testUrl: TEST_LINK_URL,
 				testTitle: TEST_LINK_TITLE,

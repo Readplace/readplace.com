@@ -20,6 +20,10 @@ export function createSaveLinkActions(config: {
 	testTitle: string;
 	popupWindowHandle: string;
 	progress: SaveLinkProgress;
+	/** Whether this extension still reads the page before it saves. A shell that
+	 * saves the URL first has no capture to report, so it paints no milestone for
+	 * the poll below to catch. */
+	capturesBeforeSaving: boolean;
 }): Map<string, FlowAction<WebDriver>> {
 	const actions = new Map<string, FlowAction<WebDriver>>();
 
@@ -38,24 +42,21 @@ export function createSaveLinkActions(config: {
 		async execute(driver: WebDriver): Promise<void> {
 			const saveUrl = `${config.popupUrl}?url=${encodeURIComponent(config.testUrl)}&title=${encodeURIComponent(config.testTitle)}`;
 			await driver.get(saveUrl);
-			// The capture milestone is held on screen by the min-dwell sequencer,
-			// so a sub-frame capturing→uploading transition still paints
-			// "Reading page…" long enough for the poll below to observe it.
-			const capturingLabel = initSaveProgress().labelFor("capturing");
-			await waitForUi(
-				driver,
-				async () => {
-					try {
-						const title = await driver.findElement(
-							By.css(CSS_SELECTORS.savingTitle),
-						);
-						return (await title.getText()).includes(capturingLabel);
-					} catch {
-						return false;
-					}
-				},
-				`saving-view should show "${capturingLabel}" while the save is in progress`,
-			);
+			if (config.capturesBeforeSaving) {
+				const capturingLabel = initSaveProgress().labelFor("capturing");
+				await waitForUi(
+					driver,
+					async () => {
+						try {
+							const title = await driver.findElement(By.css(CSS_SELECTORS.savingTitle));
+							return (await title.getText()).includes(capturingLabel);
+						} catch {
+							return false;
+						}
+					},
+					`saving-view should show "${capturingLabel}" while the save is in progress`,
+				);
+			}
 			await waitForUi(driver, async () => {
 				try {
 					const savedView = await driver.findElement(By.id("saved-view"));

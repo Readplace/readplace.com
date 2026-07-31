@@ -5,7 +5,6 @@ import type { CapturedContent } from "../capture-active-tab-bytes";
 import type { UploadContent, UploadContentResult } from "../reading-list/reading-list.types";
 import { type UploadJob, parseUploadJobs } from "./upload-job";
 import { initUploadQueue } from "./upload-queue";
-import type { RefreshTokens } from "../auth/auth.types";
 import type { CaptureForJob, PayloadStore, UploadJobStore } from "./upload-queue.types";
 
 const MINUTE = 60_000;
@@ -36,7 +35,6 @@ interface Harness {
 	captures: { url: string; tabId?: number }[];
 	wakes: number[];
 	getCancelCount: () => number;
-	getRefreshCount: () => number;
 	setNow: (value: number) => void;
 	jobs: () => UploadJob[];
 	warns: string[];
@@ -48,7 +46,6 @@ function createHarness(
 		now?: number;
 		capture?: CaptureForJob;
 		upload?: UploadContent;
-		refresh?: RefreshTokens;
 		jobStore?: Partial<UploadJobStore>;
 		payloadStore?: Partial<PayloadStore>;
 	} = {},
@@ -61,7 +58,6 @@ function createHarness(
 	const warns: string[] = [];
 	const errors: string[] = [];
 	let cancelCount = 0;
-	let refreshCount = 0;
 	let now = options.now ?? 1_000_000;
 
 	const jobStore: UploadJobStore = {
@@ -104,12 +100,6 @@ function createHarness(
 				captures.push(target);
 				return capturedHtml();
 			}),
-		refreshAuth:
-			options.refresh ??
-			(async () => {
-				refreshCount += 1;
-				return { ok: false, reason: "refresh-failed" };
-			}),
 		uploadContent:
 			options.upload ??
 			(async ({ url, title, content }) => {
@@ -131,7 +121,6 @@ function createHarness(
 		captures,
 		wakes,
 		getCancelCount: () => cancelCount,
-		getRefreshCount: () => refreshCount,
 		setNow: (value) => {
 			now = value;
 		},
@@ -431,27 +420,14 @@ describe("initUploadQueue retries", () => {
 });
 
 describe("initUploadQueue session loss", () => {
-	it("refreshes the session and retries the upload once", async () => {
+	/** The upload refreshes and replays for itself, so an UnauthorizedError
+	 * reaching the queue is a session that is already gone: the queue spends no
+	 * second refresh on it and never retries. */
+	it("purges every queued page without attempting the upload again", async () => {
 		let attempts = 0;
 		const harness = createHarness({
-			refresh: async () => ({ ok: true }),
 			upload: async () => {
 				attempts += 1;
-				if (attempts === 1) throw new UnauthorizedError();
-				return { ok: true };
-			},
-		});
-
-		await harness.queue.enqueue({ url: "https://example.com/a" });
-
-		expect(attempts).toBe(2);
-		expect(harness.jobs()).toEqual([]);
-		expect(harness.payloads.size).toBe(0);
-	});
-
-	it("purges every queued page when the session cannot be refreshed", async () => {
-		const harness = createHarness({
-			upload: async () => {
 				throw new UnauthorizedError();
 			},
 		});
@@ -461,7 +437,7 @@ describe("initUploadQueue session loss", () => {
 
 		await harness.queue.enqueue({ url: "https://example.com/second" });
 
-		expect(harness.getRefreshCount()).toBeGreaterThan(0);
+		expect(attempts).toBe(2);
 		expect(harness.jobs()).toEqual([]);
 		expect(harness.payloads.size).toBe(0);
 		expect(harness.warns.some((line) => line.includes("the session is gone"))).toBe(true);
@@ -482,22 +458,6 @@ describe("initUploadQueue session loss", () => {
 
 		expect(harness.captures.map((capture) => capture.url)).toEqual(["https://example.com/first"]);
 		expect(harness.payloads.size).toBe(0);
-		expect(harness.jobs()).toEqual([]);
-	});
-
-	it("purges when the retry behind a successful refresh is still unauthorized", async () => {
-		let attempts = 0;
-		const harness = createHarness({
-			refresh: async () => ({ ok: true }),
-			upload: async () => {
-				attempts += 1;
-				throw new UnauthorizedError();
-			},
-		});
-
-		await harness.queue.enqueue({ url: "https://example.com/a" });
-
-		expect(attempts).toBe(2);
 		expect(harness.jobs()).toEqual([]);
 	});
 });

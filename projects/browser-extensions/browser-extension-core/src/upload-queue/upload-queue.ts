@@ -2,7 +2,6 @@ import type { HutchLogger } from "@packages/hutch-logger";
 import { UnauthorizedError } from "../auth/unauthorized-error";
 import type { TabContent, UploadContent, UploadContentResult } from "../reading-list/reading-list.types";
 import { type UploadJob, parseUploadJobs } from "./upload-job";
-import type { RefreshTokens } from "../auth/auth.types";
 import type {
 	CaptureForJob,
 	PayloadStore,
@@ -38,7 +37,6 @@ export function initUploadQueue(deps: {
 	payloads: PayloadStore;
 	scheduler: WakeScheduler;
 	capture: CaptureForJob;
-	refreshAuth: RefreshTokens;
 	uploadContent: UploadContent;
 	logger: HutchLogger;
 }): UploadQueue {
@@ -75,20 +73,22 @@ export function initUploadQueue(deps: {
 		await deps.scheduler.cancel();
 	}
 
-	async function send(params: {
-		payload: { url: string; title?: string; content: TabContent };
-		canRefresh: boolean;
+	/** An UnauthorizedError here has already been through the upload's own
+	 * refresh-and-replay, so the session is genuinely gone rather than merely
+	 * stale — retrying or refreshing again would only spend a second refresh
+	 * token against a session that no longer exists. */
+	async function send(payload: {
+		url: string;
+		title?: string;
+		content: TabContent;
 	}): Promise<SendOutcome> {
 		try {
-			const result = await deps.uploadContent(params.payload);
+			const result = await deps.uploadContent(payload);
 			return result.ok ? { state: "uploaded" } : { state: "terminal", reason: result.reason };
 		} catch (error) {
 			if (!(error instanceof UnauthorizedError)) {
-				deps.logger.warn(`[upload-queue] upload of ${params.payload.url} failed`, error);
+				deps.logger.warn(`[upload-queue] upload of ${payload.url} failed`, error);
 				return { state: "retry" };
-			}
-			if (params.canRefresh && (await deps.refreshAuth()).ok) {
-				return send({ payload: params.payload, canRefresh: false });
 			}
 			deps.logger.warn("[upload-queue] purging queued page bytes: the session is gone");
 			await purgeAll();
@@ -111,12 +111,9 @@ export function initUploadQueue(deps: {
 
 	async function attempt(params: { job: UploadJob; content: TabContent }): Promise<PassOutcome> {
 		const outcome = await send({
-			payload: {
-				url: params.job.url,
-				title: params.job.title,
-				content: params.content,
-			},
-			canRefresh: true,
+			url: params.job.url,
+			title: params.job.title,
+			content: params.content,
 		});
 		if (outcome.state === "purged") return "purged";
 		if (outcome.state === "retry") {

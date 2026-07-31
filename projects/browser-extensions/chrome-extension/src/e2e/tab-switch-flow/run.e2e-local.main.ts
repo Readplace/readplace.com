@@ -259,6 +259,7 @@ async function assertSavedContentIsPageA(): Promise<void> {
 		serverUrl: ORIGIN,
 		getAccessToken: async () => accessToken,
 		fetchFn: (...args) => fetch(...args),
+		refreshTokens: async () => ({ ok: false, reason: "no-refresh-token" }),
 		onUnauthorized: async () => {
 			throw new Error("Unauthorized while walking the saved queue");
 		},

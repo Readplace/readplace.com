@@ -175,6 +175,7 @@ async function initCore() {
 		serverUrl: SERVER_URL,
 		getAccessToken: auth.getAccessToken,
 		fetchFn: (...args) => fetch(...args),
+		refreshTokens: auth.refreshTokens,
 		onUnauthorized: auth.logout,
 		logger,
 	});

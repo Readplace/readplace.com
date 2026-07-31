@@ -8,6 +8,7 @@ import type {
 } from "../domain/reading-list-item.types";
 import { ReadingListItemIdSchema } from "../domain/reading-list-item-id";
 import { UnauthorizedError } from "../auth/unauthorized-error";
+import type { RefreshTokens } from "../auth/auth.types";
 import type {
 	BulkSavePage,
 	BulkSaveResult,
@@ -261,10 +262,16 @@ type DoFetchInit = Omit<RequestInit, "headers"> & {
 
 type DoFetch = (url: string, init?: DoFetchInit) => Promise<Response>;
 
+/** The only place a 401 may be answered, because it is the only one still
+ * holding the request to replay — a caller that refreshes has already lost it,
+ * and a rotating refresh token spent twice invalidates the session it was
+ * meant to save. `onUnauthorized` ends the session, so it runs only once a
+ * replay behind a fresh token is refused too. */
 function createAuthorizedFetch(deps: {
 	getAccessToken: () => Promise<string | null>;
 	fetchFn: typeof fetch;
 	onUnauthorized: () => Promise<void>;
+	refreshTokens: RefreshTokens;
 }): DoFetch {
 	async function attempt(url: string, init?: DoFetchInit): Promise<Response> {
 		const token = await deps.getAccessToken();
@@ -279,6 +286,11 @@ function createAuthorizedFetch(deps: {
 	return async (url, init) => {
 		const response = await attempt(url, init);
 		if (response.status !== 401) return response;
+		const refreshed = await deps.refreshTokens();
+		if (refreshed.ok) {
+			const retried = await attempt(url, init);
+			if (retried.status !== 401) return retried;
+		}
 		await deps.onUnauthorized();
 		throw new UnauthorizedError();
 	};
@@ -744,6 +756,7 @@ export interface ExtensionDeps {
 	getAccessToken: () => Promise<string | null>;
 	fetchFn: typeof fetch;
 	onUnauthorized: () => Promise<void>;
+	refreshTokens: RefreshTokens;
 }
 
 const ENTRY_POINT = "/";
@@ -879,6 +892,7 @@ export interface SirenReadingListDeps {
 	getAccessToken: () => Promise<string | null>;
 	fetchFn: typeof fetch;
 	onUnauthorized: () => Promise<void>;
+	refreshTokens: RefreshTokens;
 	logger: HutchLogger;
 }
 
