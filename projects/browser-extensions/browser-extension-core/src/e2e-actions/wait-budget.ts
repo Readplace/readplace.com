@@ -18,11 +18,10 @@ export async function waitForServer(url: string): Promise<void> {
 	const deadline = Date.now() + SERVER_START_WAIT_MS;
 	while (Date.now() < deadline) {
 		try {
-			await fetch(url, { redirect: "manual" });
-			return;
-		} catch {
-			await new Promise((resolve) => setTimeout(resolve, 100));
-		}
+			const response = await fetch(url, { redirect: "manual" });
+			if (response.ok) return;
+		} catch {}
+		await new Promise((resolve) => setTimeout(resolve, 100));
 	}
 	throw new Error(`e2e server did not respond at ${url} within ${SERVER_START_WAIT_MS}ms`);
 }

@@ -42,7 +42,7 @@ async function main(): Promise<void> {
 	// safe — at worst hutch's changelog banner, which points at the preferred
 	// port, quietly falls back to its no-banner state.
 	const port = await findAvailablePort({ preferredPort: PORT, maxAttempts: MAX_PORT_ATTEMPTS });
-	app.listen(port, () => {
+	app.listen(port).on("listening", () => {
 		logger.info(`blog-site is running on http://localhost:${port}`);
 	});
 }

@@ -14,6 +14,7 @@ import {
 	createFakeSummaryProvider,
 } from '@packages/test-fixtures'
 import { getEnv, requireEnv } from "@packages/require-env"
+import { READY_NONCE_ENV, readyProbePath } from "@packages/e2e-harness/ready-probe"
 import { initRefreshArticleIfStale } from '@packages/finalize-article'
 import type { ExtractPdf, IsBlockedAddress } from '@packages/crawl-article'
 import { CRAWL_PERSONAS, initAppleNewsSiteRules, initCrawlArticle, initCrawlFetch, initXTwitterSiteRules } from '@packages/crawl-article'
@@ -187,6 +188,10 @@ const server = express()
 // hutch's app keeps urlencoded for its own forms.
 server.use('/e2e', express.json())
 
+server.get(readyProbePath(requireEnv(READY_NONCE_ENV)), (_req, res) => {
+	res.status(200).end()
+})
+
 const CreateUserBody = z.object({
 	email: z.email(),
 	password: z.string().min(8),
@@ -310,6 +315,6 @@ process.on('SIGINT', () => process.exit(0))
 // Bind explicitly to 127.0.0.1 so the listening socket matches what the
 // extension popup connects to (Firefox treats 127.0.0.1 and IPv6 ::1 as
 // distinct origins; binding to 0.0.0.0 + IPv6 ::1 has surfaced flakes).
-server.listen(PORT, '127.0.0.1', () => {
+server.listen(PORT, '127.0.0.1').on('listening', () => {
 	logger.info(`E2E server running on http://127.0.0.1:${PORT}`)
 })

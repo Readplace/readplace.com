@@ -802,7 +802,7 @@ export function createHutchApp(deps?: {
 
 export const localServer = (expressApp: Express, logger: Logger): void => {
 	const port = getEnv("PORT") || "3000";
-	expressApp.listen(Number.parseInt(port, 10), () => {
+	expressApp.listen(Number.parseInt(port, 10)).on("listening", () => {
 		logger.info(`Local server running on http://localhost:${port}`);
 	});
 };

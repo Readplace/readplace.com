@@ -8,6 +8,15 @@
     ".": {
       "types": "./dist/index.d.ts",
       "default": "./dist/index.js"
+    },
+    "./ready-probe": {
+      "types": "./dist/ready-probe.d.ts",
+      "default": "./dist/ready-probe.js"
+    }
+  },
+  "typesVersions": {
+    "*": {
+      "ready-probe": ["./dist/ready-probe.d.ts"]
     }
   },
   "private": true,

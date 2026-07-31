@@ -56,7 +56,7 @@ const application = express()
 	);
 
 if (!lambda) {
-	application.listen(PORT, () => {
+	application.listen(PORT).on("listening", () => {
 		logger.info(`blog-site is running on http://localhost:${PORT}`);
 	});
 }

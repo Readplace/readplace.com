@@ -173,7 +173,7 @@ async function main(): Promise<void> {
 	// running its own dev server would otherwise keep answering on it, and the
 	// browser would show a running app serving that checkout's code.
 	const port = await findAvailablePort({ preferredPort: PORT, maxAttempts: MAX_PORT_ATTEMPTS });
-	app.listen(port, () => {
+	app.listen(port).on("listening", () => {
 		logger.info(`inbox is running on http://localhost:${port}/inbox`);
 	});
 }

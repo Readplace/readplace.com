@@ -116,7 +116,7 @@ const application = express()
 	);
 
 if (!lambda) {
-	application.listen(PORT, () => {
+	application.listen(PORT).on("listening", () => {
 		logger.info(`inbox is running on http://localhost:${PORT}`);
 	});
 }

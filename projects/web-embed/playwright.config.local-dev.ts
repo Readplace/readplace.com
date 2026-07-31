@@ -24,10 +24,7 @@ export default createPlaywrightConfig({
 	video: 'off',
 	launchOptions: {},
 	webServer: {
-		// Probe /embed, not /, for readiness: only the embed router is mounted, so
-		// the bare origin returns 404 and Playwright would never see the server come up.
 		command: 'env -u NODE_V8_COVERAGE node dist/runtime/server.main.js',
-		url: `${serverUrl}/embed`,
 		stdout: 'pipe',
 		stderr: 'pipe',
 	},

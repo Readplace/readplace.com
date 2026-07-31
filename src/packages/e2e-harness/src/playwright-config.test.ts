@@ -1,30 +1,50 @@
+import assert from "node:assert/strict";
 import { createPlaywrightConfig } from "./playwright-config";
+import { READY_NONCE_ENV, readyProbePath } from "./ready-probe";
+
+function localConfig() {
+	return createPlaywrightConfig({
+		testMatch: "**/*.e2e-local.ts",
+		outputDir: "./test-results/local",
+		baseURL: "http://localhost:4001",
+		retries: 0,
+		headless: true,
+		video: "retain-on-failure",
+		launchOptions: { slowMo: 250 },
+		webServer: {
+			command: "pnpm e2e-server",
+			stdout: "pipe",
+			stderr: "pipe",
+		},
+	});
+}
 
 describe("createPlaywrightConfig", () => {
 	it("starts its own server rather than adopting one already on the port", () => {
-		const config = createPlaywrightConfig({
-			testMatch: "**/*.e2e-local.ts",
-			outputDir: "./test-results/local",
-			baseURL: "http://localhost:4001",
-			retries: 0,
-			headless: true,
-			video: "retain-on-failure",
-			launchOptions: { slowMo: 250 },
-			webServer: {
-				command: "pnpm e2e-server",
-				url: "http://localhost:4001/health",
-				stdout: "pipe",
-				stderr: "pipe",
-			},
+		const webServer = localConfig().webServer;
+		assert(webServer && !Array.isArray(webServer), "a single webServer is configured");
+
+		expect(webServer.command).toBe("pnpm e2e-server");
+		expect(webServer.reuseExistingServer).toBe(false);
+	});
+
+	it("probes a readiness URL only the server it launched can answer", () => {
+		const webServer = localConfig().webServer;
+		assert(webServer && !Array.isArray(webServer), "a single webServer is configured");
+
+		const nonce = webServer.env?.[READY_NONCE_ENV];
+		assert(typeof nonce === "string", `${READY_NONCE_ENV} is handed to the server it launches`);
+		expect(webServer.url).toBe(`http://localhost:4001${readyProbePath(nonce)}`);
+	});
+
+	it("gives every run a nonce of its own so a sibling run's server cannot answer", () => {
+		const nonces = Array.from({ length: 5 }, () => {
+			const webServer = localConfig().webServer;
+			assert(webServer && !Array.isArray(webServer), "a single webServer is configured");
+			return webServer.env?.[READY_NONCE_ENV];
 		});
 
-		expect(config.webServer).toEqual({
-			command: "pnpm e2e-server",
-			url: "http://localhost:4001/health",
-			stdout: "pipe",
-			stderr: "pipe",
-			reuseExistingServer: false,
-		});
+		expect(new Set(nonces).size).toBe(5);
 	});
 
 	it("runs against an already-deployed target when no server is supplied", () => {

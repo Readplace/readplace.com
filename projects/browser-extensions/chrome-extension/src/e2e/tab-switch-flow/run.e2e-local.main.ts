@@ -27,6 +27,7 @@ import {
 } from "browser-extension-core/e2e-actions";
 import { initSirenReadingList } from "browser-extension-core";
 import { HutchLogger, consoleLogger } from "@packages/hutch-logger";
+import { READY_NONCE_ENV, readyProbePath } from "@packages/e2e-harness/ready-probe";
 
 const EXTENSION_DIR = path.resolve(__dirname, "../../../dist-extension-compiled");
 const CFT_PATH_FILE = path.resolve(__dirname, "../../../.cache/chrome/binary-path");
@@ -36,6 +37,7 @@ const TEST_EMAIL = "tab-switch-e2e-test@example.com";
 const TEST_PASSWORD = "testpassword123";
 assert(process.env.E2E_PORT, "E2E_PORT is required");
 const TEST_PORT = Number(process.env.E2E_PORT);
+const READY_NONCE = randomUUID();
 const ORIGIN = `http://127.0.0.1:${TEST_PORT}`;
 
 // Per-run-unique labels keep concurrent CI runs from colliding on the same
@@ -78,6 +80,7 @@ async function startTestServer(): Promise<ChildProcess> {
 		env: {
 			...process.env,
 			E2E_PORT: String(TEST_PORT),
+			[READY_NONCE_ENV]: READY_NONCE,
 			NODE_ENV: "test",
 			NX_DAEMON: "false",
 		},
@@ -85,7 +88,7 @@ async function startTestServer(): Promise<ChildProcess> {
 		detached: true,
 	});
 	child.on("error", () => {}); // waitForServer will throw on its own timeout
-	await waitForServer(`http://127.0.0.1:${TEST_PORT}/`);
+	await waitForServer(`http://127.0.0.1:${TEST_PORT}${readyProbePath(READY_NONCE)}`);
 	const userRes = await fetch(`${ORIGIN}/e2e/users`, {
 		method: "POST",
 		headers: { "content-type": "application/json" },

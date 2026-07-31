@@ -29,6 +29,7 @@
   },
   "devDependencies": {
     "@packages/check-unused-css": "workspace:*",
+    "@packages/e2e-harness": "workspace:*",
     "@packages/test-phase-runner": "workspace:*",
     "@packages/web-shell": "workspace:*",
     "@pulumi/aws": "7.32.0",

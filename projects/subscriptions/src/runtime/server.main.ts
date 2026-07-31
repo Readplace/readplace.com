@@ -6,6 +6,6 @@ const logger = HutchLogger.from(consoleLogger);
 const port = Number(requireEnv("SUBSCRIPTIONS_PORT"));
 
 const app = createSubscriptionsApp();
-app.listen(port, () => {
+app.listen(port).on("listening", () => {
 	logger.info(`subscriptions is running on http://localhost:${port}`);
 });

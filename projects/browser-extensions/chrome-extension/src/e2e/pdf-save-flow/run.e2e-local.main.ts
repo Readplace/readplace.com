@@ -1,13 +1,16 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
+import { randomUUID } from "node:crypto";
 import { spawn, type ChildProcess } from "node:child_process";
 import { runPdfSaveScenario } from "browser-extension-core/e2e";
 import { waitForServer, SUITE_FAILSAFE_MS } from "browser-extension-core/e2e-actions";
+import { READY_NONCE_ENV, readyProbePath } from "@packages/e2e-harness/ready-probe";
 
 const TEST_EMAIL = "pdf-e2e-test@example.com";
 const TEST_PASSWORD = "testpassword123";
 assert(process.env.E2E_PORT, "E2E_PORT is required");
 const TEST_PORT = Number(process.env.E2E_PORT);
+const READY_NONCE = randomUUID();
 const ORIGIN = `http://127.0.0.1:${TEST_PORT}`;
 
 // The suite must always end: a test cancelled by --test-timeout skips its
@@ -39,6 +42,7 @@ async function startTestServer(): Promise<ChildProcess> {
 		env: {
 			...process.env,
 			E2E_PORT: String(TEST_PORT),
+			[READY_NONCE_ENV]: READY_NONCE,
 			NODE_ENV: "test",
 			NX_DAEMON: "false",
 		},
@@ -48,7 +52,7 @@ async function startTestServer(): Promise<ChildProcess> {
 		detached: true,
 	});
 	child.on("error", () => {}); // waitForServer will throw on its own timeout
-	await waitForServer(`http://127.0.0.1:${TEST_PORT}/`);
+	await waitForServer(`http://127.0.0.1:${TEST_PORT}${readyProbePath(READY_NONCE)}`);
 	const userRes = await fetch(`${ORIGIN}/e2e/users`, {
 		method: "POST",
 		headers: { "content-type": "application/json" },

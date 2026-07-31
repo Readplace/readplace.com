@@ -24,7 +24,7 @@ const application = express()
 if (!lambda) {
 	const logger = HutchLogger.from(consoleLogger);
 	const port = Number(requireEnv("SUBSCRIPTIONS_PORT"));
-	application.listen(port, () => {
+	application.listen(port).on("listening", () => {
 		logger.info(`subscriptions is running on http://localhost:${port}`);
 	});
 }

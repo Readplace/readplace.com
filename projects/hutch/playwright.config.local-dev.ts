@@ -26,7 +26,6 @@ export default createPlaywrightConfig({
 	launchOptions: {},
 	webServer: {
 		command: 'env -u NODE_V8_COVERAGE node dist/e2e/e2e-server.main.js',
-		url: serverUrl,
 		stdout: 'pipe',
 		stderr: 'pipe',
 	},

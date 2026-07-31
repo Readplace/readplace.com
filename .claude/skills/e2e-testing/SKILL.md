@@ -118,7 +118,11 @@ The repo invokes raw Playwright CLI through `test-phase-runner` rather than adop
 
 ## Never Reuse an Existing Server — Every Run Gets a Fresh One on a Fresh Port
 
-Playwright's `reuseExistingServer: true` is forbidden. If a stale dev server or a previous test run is still bound to the same port, Playwright silently connects to it and runs against the wrong instance. The failures look like real regressions and the passes are worse — tests that pass against the wrong state. The factory in `playwright.config.factory.ts` hard-codes `reuseExistingServer: false` as a safety net for every config it produces.
+Playwright's `reuseExistingServer: true` is forbidden. If a stale dev server or a previous test run is still bound to the same port, Playwright silently connects to it and runs against the wrong instance. The failures look like real regressions and the passes are worse — tests that pass against the wrong state. `createPlaywrightConfig` hard-codes `reuseExistingServer: false` for every config it produces.
+
+That setting alone is not enough. It only makes Playwright check the port *before* it spawns the server; a foreign listener that takes the port during the server's boot window is still adopted by the readiness poll, and the suite runs green against it. So the readiness URL carries a per-run nonce that only the server this run launched is told — a foreign listener 404s and the run fails instead of lying. `createPlaywrightConfig` owns both halves (it mints the nonce, builds the probe URL, and passes it to the server it spawns), which is why a `webServer` block has no `url` to hardcode.
+
+Anything that starts an e2e server **outside** Playwright — the extension suites spawn `hutch:e2e-server` themselves — must mint its own nonce, pass `READY_NONCE_ENV`, and poll `readyProbePath(nonce)`. The servers read that variable with `requireEnv`, so one started without it fails at boot rather than serving an unguarded readiness route.
 
 Pair that with a dynamically allocated port so a hardcoded number can't collide with a running dev server:
 
@@ -144,7 +148,6 @@ export default createPlaywrightConfig({
   baseURL: `http://localhost:${process.env.E2E_PORT || '0'}`,
   webServer: {
     command: 'env -u NODE_V8_COVERAGE node dist/e2e/e2e-server.main.js',
-    url: serverUrl,
     stdout: 'pipe',
     stderr: 'pipe',
   },
@@ -152,7 +155,13 @@ export default createPlaywrightConfig({
 })
 ```
 
-Never hardcode `E2E_PORT` in a package.json script, never set `reuseExistingServer: true`, and never launch the e2e server without stripping `NODE_V8_COVERAGE` — all three produce silently-wrong runs that look like real regressions.
+Never hardcode `E2E_PORT` in a package.json script, never set `reuseExistingServer: true`, never give a server a readiness URL the nonce does not guard, and never launch the e2e server without stripping `NODE_V8_COVERAGE` — all four produce silently-wrong runs that look like real regressions.
+
+## Never Pass a Callback to `app.listen`
+
+Express registers the last-argument callback as the socket's `error` listener as well as its `listening` one (`server.once('error', done)`). A callback that ignores its argument therefore logs "server running" when the bind *failed*, swallows the error so Node never throws it, and exits 0. A lost port race then reports success and Playwright reports only `Process from config.webServer exited early.` with no `EADDRINUSE` anywhere.
+
+Attach the handler instead — `app.listen(port).on('listening', …)` — so an unhandled `error` keeps Node's default behaviour: the full `EADDRINUSE` message on stderr and exit 1.
 
 ## Debugging E2E Test Failures
 

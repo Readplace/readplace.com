@@ -13,6 +13,7 @@ import {
 import { UserIdSchema } from "@packages/domain/user";
 import { createDefaultTestAppFixture } from "@packages/test-fixtures";
 import { requireEnv } from "@packages/require-env";
+import { READY_NONCE_ENV, readyProbePath } from "@packages/e2e-harness/ready-probe";
 import { SESSION_COOKIE_NAME } from "@packages/web-session";
 import { createInboxTestApp } from "../runtime/test-app";
 
@@ -61,11 +62,8 @@ const server = express();
 server.use(express.json());
 server.use(cookieParser());
 
-// Readiness probe: every inbox route is behind auth and redirects an anonymous
-// request to a /login this deployable does not mount, so probing one would leave
-// Playwright waiting on a 404.
-server.get("/e2e/health", (_req, res) => {
-	res.json({ ok: true });
+server.get(readyProbePath(requireEnv(READY_NONCE_ENV)), (_req, res) => {
+	res.status(200).end();
 });
 
 /** Each test seeds the state it needs through these routes rather than sharing a
@@ -177,7 +175,8 @@ server.post("/e2e/resolve-link", async (req, res) => {
 
 server.use(app);
 
-const listening = server.listen(PORT, "127.0.0.1", () => {
+const listening = server.listen(PORT, "127.0.0.1");
+listening.on("listening", () => {
 	logger.info(`inbox e2e server running on ${origin}/inbox`);
 });
 

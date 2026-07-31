@@ -25,11 +25,7 @@ export default createPlaywrightConfig({
 	video: 'off',
 	launchOptions: {},
 	webServer: {
-		// Probe the harness health route: the bare origin 404s (only the inbox
-		// router is mounted) and every inbox route redirects an anonymous request
-		// to a /login this deployable does not serve.
 		command: 'env -u NODE_V8_COVERAGE node dist/e2e/e2e-server.main.js',
-		url: `${serverUrl}/e2e/health`,
 		stdout: 'pipe',
 		stderr: 'pipe',
 	},

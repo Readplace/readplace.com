@@ -230,6 +230,9 @@ importers:
       '@packages/check-unused-css':
         specifier: workspace:*
         version: link:../../../src/packages/check-unused-css
+      '@packages/e2e-harness':
+        specifier: workspace:*
+        version: link:../../../src/packages/e2e-harness
       '@packages/test-phase-runner':
         specifier: workspace:*
         version: link:../../../src/packages/test-phase-runner
@@ -288,6 +291,9 @@ importers:
       '@packages/check-unused-css':
         specifier: workspace:*
         version: link:../../../src/packages/check-unused-css
+      '@packages/e2e-harness':
+        specifier: workspace:*
+        version: link:../../../src/packages/e2e-harness
       '@packages/test-phase-runner':
         specifier: workspace:*
         version: link:../../../src/packages/test-phase-runner

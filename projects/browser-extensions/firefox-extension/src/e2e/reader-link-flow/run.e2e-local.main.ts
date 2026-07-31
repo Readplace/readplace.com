@@ -1,5 +1,6 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
+import { randomUUID } from "node:crypto";
 import { spawn, type ChildProcess } from "node:child_process";
 import path from "node:path";
 import { Builder, By } from "selenium-webdriver";
@@ -16,6 +17,7 @@ import {
 	type SaveLinkProgress,
 	waitForUi,
 } from "browser-extension-core/e2e-actions";
+import { READY_NONCE_ENV, readyProbePath } from "@packages/e2e-harness/ready-probe";
 
 const ADDON_ID = "hutch-extension@hutch-app.com";
 const ADDON_UUID = "d3b07384-d113-4ec6-a7b8-5f7e3b4c9a12";
@@ -26,6 +28,7 @@ const TEST_EMAIL = "reader-link-e2e-test@example.com";
 const TEST_PASSWORD = "testpassword123";
 assert(process.env.E2E_PORT, "E2E_PORT is required");
 const TEST_PORT = Number(process.env.E2E_PORT);
+const READY_NONCE = randomUUID();
 const SERVER_ORIGIN = `http://127.0.0.1:${TEST_PORT}`;
 
 const TEST_LINK_URL = "https://example.com/reader-link-article";
@@ -67,6 +70,7 @@ async function startTestServer(): Promise<ChildProcess> {
 		env: {
 			...process.env,
 			E2E_PORT: String(TEST_PORT),
+			[READY_NONCE_ENV]: READY_NONCE,
 			NODE_ENV: "test",
 			NX_DAEMON: "false",
 		},
@@ -79,7 +83,7 @@ async function startTestServer(): Promise<ChildProcess> {
 	});
 	child.on("error", () => {}); // waitForServer will throw on its own timeout
 
-	await waitForServer(`http://127.0.0.1:${TEST_PORT}/`);
+	await waitForServer(`http://127.0.0.1:${TEST_PORT}${readyProbePath(READY_NONCE)}`);
 
 	const userRes = await fetch(`${SERVER_ORIGIN}/e2e/users`, {
 		method: "POST",

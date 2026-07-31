@@ -6,6 +6,7 @@ import { initResolveLogin } from "@packages/web-session";
 import { initInMemoryAuth } from "@packages/test-fixtures/providers/auth";
 import { initEmbedRoutes } from "./embed/embed.page";
 import { requireEnv } from "@packages/require-env";
+import { READY_NONCE_ENV, readyProbePath } from "@packages/e2e-harness/ready-probe";
 
 const PORT = Number(requireEnv("E2E_PORT"));
 const appOrigin = `http://localhost:${PORT}`;
@@ -21,6 +22,11 @@ const resolveLogin = initResolveLogin({ getSessionUserId: auth.getSessionUserId,
 
 const app = express();
 app.disable("x-powered-by");
+
+app.get(readyProbePath(requireEnv(READY_NONCE_ENV)), (_req, res) => {
+	res.status(200).end();
+});
+
 app.use("/embed", initEmbedRoutes({ appOrigin, base, resolveLogin }));
 
 process.on("SIGTERM", () => process.exit(0));

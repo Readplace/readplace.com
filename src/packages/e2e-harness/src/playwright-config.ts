@@ -1,4 +1,7 @@
+import assert from 'node:assert'
+import { randomUUID } from 'node:crypto'
 import { defineConfig, devices } from '@playwright/test'
+import { READY_NONCE_ENV, readyProbePath } from './ready-probe'
 
 interface PlaywrightConfigOptions {
 	testMatch: string
@@ -12,7 +15,6 @@ interface PlaywrightConfigOptions {
 	webServer:
 		| {
 				command: string
-				url: string
 				stdout: 'pipe' | 'ignore'
 				stderr: 'pipe' | 'ignore'
 			}
@@ -20,6 +22,7 @@ interface PlaywrightConfigOptions {
 }
 
 export const createPlaywrightConfig = (options: PlaywrightConfigOptions) => {
+	const readyNonce = randomUUID()
 	return defineConfig({
 		testDir: './src/e2e',
 		testMatch: options.testMatch,
@@ -53,10 +56,18 @@ export const createPlaywrightConfig = (options: PlaywrightConfigOptions) => {
 				},
 			},
 		],
-		// Never reuse an existing server — a stale dev server or previous test run on the same port
-		// will silently match and the test will run against the wrong instance. See .claude/skills/e2e-testing/SKILL.md.
 		webServer: options.webServer
-			? { ...options.webServer, reuseExistingServer: false }
+			? {
+					...options.webServer,
+					url: readyProbeUrl(options.baseURL, readyNonce),
+					env: { [READY_NONCE_ENV]: readyNonce },
+					reuseExistingServer: false,
+				}
 			: undefined,
 	})
+}
+
+function readyProbeUrl(baseURL: string | undefined, nonce: string): string {
+	assert(baseURL, 'a launched webServer needs a baseURL to build its readiness probe from')
+	return `${baseURL}${readyProbePath(nonce)}`
 }

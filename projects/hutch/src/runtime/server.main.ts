@@ -25,7 +25,7 @@ async function main(): Promise<void> {
 	appOrigin.port = String(port);
 
 	const { app } = createHutchApp({ appOrigin: appOrigin.origin });
-	app.listen(port, () => {
+	app.listen(port).on("listening", () => {
 		logger.info(`Server is running on ${appOrigin.origin}`);
 	});
 }
