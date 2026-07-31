@@ -195,7 +195,7 @@
 }
 
 .inbox-article-card__action-button,
-.inbox-excluded-link__feedback-button {
+.inbox-excluded-link__save-button {
   display: inline-flex;
   align-items: center;
   justify-content: center;
@@ -213,19 +213,20 @@
 }
 
 .inbox-article-card__action-button:hover,
-.inbox-excluded-link__feedback-button:hover {
+.inbox-excluded-link__save-button:hover {
   color: var(--foreground);
 }
 
 /* Held disabled by hx-disabled-elt for the length of the request, so a slow
  * save reads as in-flight rather than as a click that did nothing. */
 .inbox-article-card__action-button:disabled,
-.inbox-excluded-link__feedback-button:disabled {
+.inbox-excluded-link__save-button:disabled {
   opacity: 0.5;
   cursor: not-allowed;
 }
 
-.inbox-article-card__action-button--save {
+.inbox-article-card__action-button--save,
+.inbox-excluded-link__save-button {
   border: 1px solid var(--border);
   border-radius: var(--radius-sm);
   padding: var(--button-padding-xs);
@@ -233,7 +234,8 @@
   text-decoration: none;
 }
 
-.inbox-article-card__action-button--save:hover {
+.inbox-article-card__action-button--save:hover,
+.inbox-excluded-link__save-button:hover {
   background: var(--muted);
 }
 
@@ -311,7 +313,10 @@
   color: var(--muted-foreground);
 }
 
-.inbox-excluded-link__feedback {
+.inbox-excluded-link__actions {
+  display: flex;
+  align-items: center;
+  gap: 12px;
   flex-shrink: 0;
 }
 
