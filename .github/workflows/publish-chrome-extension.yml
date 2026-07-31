@@ -43,9 +43,11 @@ jobs:
 
       - run: pnpm install --frozen-lockfile
 
-      - name: Compute next version from latest chrome-extension tag
+      - name: Claim the next version, before an upload can spend it
         id: version
         run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
           LATEST=$(git tag --list 'chrome-extension@v*' --sort=-v:refname | head -n1 | sed 's/^chrome-extension@v//')
           if [ -z "$LATEST" ]; then
             # Bootstrap value matches the last commit-based version published to
@@ -57,6 +59,21 @@ jobs:
           PATCH="${LATEST##*.}"
           PREFIX="${LATEST%.*}"
           NEXT="${PREFIX}.$((PATCH + 1))"
+          TAG="chrome-extension@v$NEXT"
+          git tag "$TAG"
+          push_succeeded=false
+          for i in 1 2 3 4 5; do
+            if git push origin "$TAG"; then
+              push_succeeded=true
+              break
+            fi
+            echo "Tag push attempt $i failed, retrying..."
+            sleep 2
+          done
+          if [ "$push_succeeded" = false ]; then
+            echo "ERROR: All 5 tag push attempts failed"
+            exit 1
+          fi
           echo "version=$NEXT" >> "$GITHUB_OUTPUT"
           echo "Latest tag: chrome-extension@v$LATEST → publishing v$NEXT"
 
@@ -72,24 +89,3 @@ jobs:
           GOOGLE_CLIENT_SECRET: ${{ secrets.GOOGLE_CLIENT_SECRET }}
           GOOGLE_REFRESH_TOKEN: ${{ secrets.GOOGLE_REFRESH_TOKEN }}
           CHROME_EXTENSION_ID: ${{ secrets.CHROME_EXTENSION_ID }}
-
-      - name: Tag the published commit
-        if: success()
-        run: |
-          git config user.name "github-actions[bot]"
-          git config user.email "github-actions[bot]@users.noreply.github.com"
-          TAG="chrome-extension@v${{ steps.version.outputs.version }}"
-          git tag "$TAG"
-          push_succeeded=false
-          for i in 1 2 3 4 5; do
-            if git push origin "$TAG"; then
-              push_succeeded=true
-              break
-            fi
-            echo "Tag push attempt $i failed, retrying..."
-            sleep 2
-          done
-          if [ "$push_succeeded" = false ]; then
-            echo "ERROR: All 5 tag push attempts failed"
-            exit 1
-          fi
