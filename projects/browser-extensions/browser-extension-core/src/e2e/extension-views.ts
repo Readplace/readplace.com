@@ -1,8 +1,6 @@
 export const EXTENSION_VIEW_IDS = [
 	"login-view",
 	"saved-view",
-	"already-saved-view",
-	"removed-view",
 	"list-view",
 	"saving-view",
 ] as const;
@@ -42,7 +40,6 @@ export const CSS_SELECTORS = {
 	listItem: "#link-list .list-view__item",
 	listItemTitle: "#link-list .list-view__item-title",
 	deleteButton: "#link-list .list-view__delete",
-	savingTitle: "#saving-view .saving-view__title",
 } as const;
 
 /** Reader permalink (readUrl) shape, `/queue/:id/view`: a saved-article link

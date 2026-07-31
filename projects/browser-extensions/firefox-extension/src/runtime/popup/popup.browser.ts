@@ -9,7 +9,7 @@ import type {
 	Message,
 	ActionVariant,
 } from "browser-extension-core";
-import { filterByUrl, paginateItems, avatarColor, relativeTime, isAppUrl, itemDisplay, selectSaveableTabs, summarizeBulkSave, installShortcuts, isCmdD, initSaveProgress, initSaveProgressSequencer, buildMessageView, actionLabel, actionVariant, actionIcon, linkLabel, linkPresentation } from "browser-extension-core";
+import { filterByUrl, paginateItems, avatarColor, relativeTime, isAppUrl, itemDisplay, selectSaveableTabs, summarizeBulkSave, installShortcuts, isCmdD, buildMessageView, actionLabel, actionVariant, actionIcon, linkLabel, linkPresentation } from "browser-extension-core";
 import { HutchLogger, consoleLogger } from "@packages/hutch-logger";
 
 /** The client's own presentation map: an action variant -> the popup's CSS
@@ -37,62 +37,10 @@ function showView(id: string) {
 	if (target) target.hidden = false;
 }
 
-const saveProgress = initSaveProgress();
-
-const sequencer = initSaveProgressSequencer({
-	minDwellMs: 450,
-	scheduler: {
-		setTimer: (callback, delayMs) => {
-			setTimeout(callback, delayMs);
-		},
-		now: () => performance.now(),
-	},
-	apply: (phase) => {
-		const fill = document.querySelector<HTMLElement>(".saving-view__progress-fill");
-		if (fill) fill.style.width = saveProgress.widthFor(phase);
-		const title = document.querySelector(".saving-view__title");
-		if (title) title.textContent = saveProgress.labelFor(phase);
-	},
-});
-
-browser.runtime.onMessage.addListener((raw) => {
-	if (!isSaveProgressMessage(raw)) return undefined;
-	sequencer.enqueue(raw.phase);
-	return undefined;
-});
-
-async function finishSavingProgress(): Promise<void> {
-	await sequencer.finish();
-	return new Promise((resolve) => {
-		const fill = document.querySelector<HTMLElement>(".saving-view__progress-fill");
-		if (!fill) {
-			resolve();
-			return;
-		}
-		// Inline width beats the prior milestone's inline width; --complete swaps
-		// the long milestone ease for the 0.2s snap to the terminal 100%.
-		fill.style.width = "100%";
-		fill.classList.add("saving-view__progress-fill--complete");
-		setTimeout(resolve, 350); // 200ms snap to 100% + 150ms hold
-	});
-}
-
 /** Isolated boundary wrapper: the single contained assertion for the untyped
  * webextension-polyfill response, so call sites stay free of `as`. */
 function send<T>(message: PopupMessage): Promise<T> {
 	return browser.runtime.sendMessage(message) as Promise<T>;
-}
-
-function isSaveProgressMessage(
-	raw: unknown,
-): raw is Extract<PopupMessage, { type: "save-progress" }> {
-	return (
-		typeof raw === "object" &&
-		raw !== null &&
-		"type" in raw &&
-		raw.type === "save-progress" &&
-		"phase" in raw
-	);
 }
 
 async function performLogout() {
@@ -421,24 +369,7 @@ async function saveAndShowList() {
 		return;
 	}
 
-	const checkResult = await send<GuardedResult<ReadingListItem | null>>({
-		type: "check-url",
-		url: activeTab.url,
-	});
-
-	if (isNotLoggedIn(checkResult)) {
-		await performLogout();
-		return;
-	}
-
-	if (!checkResult.ok) {
-		return;
-	}
-
-	if (checkResult.value) {
-		await showListView();
-		return;
-	}
+	showView("saving-view");
 
 	const saveResult = await send<GuardedResult<SaveUrlResult>>({
 		type: "save-current-tab",
@@ -453,7 +384,6 @@ async function saveAndShowList() {
 	}
 
 	if (saveResult.ok && saveResult.value.ok) {
-		await finishSavingProgress();
 		showView("saved-view");
 		return;
 	}

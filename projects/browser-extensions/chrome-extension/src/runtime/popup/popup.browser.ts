@@ -367,18 +367,6 @@ async function getActiveTab(): Promise<{ url: string; title: string; tabId?: num
 	return { url: tab.url, title: tab.title ?? tab.url, tabId: tab.id };
 }
 
-/** The save is one round trip with nothing to report in between, so the bar gets
- * a single target and the stylesheet's asymptotic ease glides toward it — it
- * reads as working rather than stalled, and the view is replaced the moment the
- * save lands. */
-function showSavingView(): void {
-	const title = document.querySelector(".saving-view__title");
-	if (title) title.textContent = "Saving…";
-	const fill = document.querySelector<HTMLElement>(".saving-view__progress-fill");
-	if (fill) fill.style.width = "90%";
-	showView("saving-view");
-}
-
 async function saveAndShowList() {
 	const activeTab = await getActiveTab();
 	if (!activeTab) throw new Error("No active tab or URL parameters");
@@ -388,7 +376,7 @@ async function saveAndShowList() {
 		return;
 	}
 
-	showSavingView();
+	showView("saving-view");
 
 	const saveResult = await send<GuardedResult<SaveUrlResult>>({
 		type: "save-current-tab",

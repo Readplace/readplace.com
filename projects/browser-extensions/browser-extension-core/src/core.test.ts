@@ -138,52 +138,6 @@ describe("BrowserExtensionCore save", () => {
 		expect(showDefaultCalls).toEqual([]);
 	});
 
-	it("threads captured content through to the reading list", async () => {
-		const auth = initInMemoryAuth();
-		await auth.login();
-		const readingList = createRecordingReadingList();
-		const { shell, iconUpdated } = createFakeShell();
-		const core = BrowserExtensionCore(shell, {
-			auth,
-			logger: HutchLogger.from(noopLogger),
-			readingList,
-		});
-
-		const content = { bytes: new TextEncoder().encode("<html><body>captured</body></html>").buffer, mediaType: "text/html" };
-		core.save("current-tab", {
-			url: "https://example.com/article",
-			title: "Article",
-			content,
-			tabId: 42,
-		});
-
-		await iconUpdated;
-		expect(readingList.saveCalls).toHaveLength(1);
-		expect(readingList.saveCalls[0].content).toBe(content);
-	});
-
-	it("saves without content when none was captured", async () => {
-		const auth = initInMemoryAuth();
-		await auth.login();
-		const readingList = createRecordingReadingList();
-		const { shell, iconUpdated } = createFakeShell();
-		const core = BrowserExtensionCore(shell, {
-			auth,
-			logger: HutchLogger.from(noopLogger),
-			readingList,
-		});
-
-		core.save("current-tab", {
-			url: "https://example.com/article",
-			title: "Article",
-			tabId: 42,
-		});
-
-		await iconUpdated;
-		expect(readingList.saveCalls).toHaveLength(1);
-		expect(readingList.saveCalls[0].content).toBeUndefined();
-	});
-
 	it("refreshes the active tab icon when no tabId is provided", async () => {
 		const auth = initInMemoryAuth();
 		await auth.login();
@@ -573,7 +527,7 @@ describe("BrowserExtensionCore login/logout", () => {
 	});
 });
 
-describe("BrowserExtensionCore invoke/fetch/check", () => {
+describe("BrowserExtensionCore invoke/fetch", () => {
 	it("invokes a per-item action and refreshes the icon", async () => {
 		const readingList = initInMemoryReadingList();
 		const saved = await readingList.saveUrl({ url: "https://i.example", title: "I" });
@@ -703,24 +657,6 @@ describe("BrowserExtensionCore invoke/fetch/check", () => {
 		expect(warns).toHaveLength(1);
 	});
 
-	it("checks a url", async () => {
-		const readingList = initInMemoryReadingList();
-		await readingList.saveUrl({ url: "https://c.example", title: "C" });
-		const cap = createCapturingShell();
-		const core = BrowserExtensionCore(cap.shell, {
-			auth: loggedInAuth(),
-			logger,
-			readingList,
-		});
-		const results: Array<ReadingListItem | null> = [];
-		core.once("checked-url", { success: (v) => results.push(v), failure: () => {} });
-
-		core.check("url", { url: "https://c.example" });
-		await flush();
-
-		expect(results).toHaveLength(1);
-		expect(results[0]?.url).toBe("https://c.example");
-	});
 });
 
 describe("BrowserExtensionCore result emission", () => {
@@ -738,9 +674,9 @@ describe("BrowserExtensionCore result emission", () => {
 			readingList: initInMemoryReadingList(),
 		});
 		const failures: unknown[] = [];
-		core.once("checked-url", { success: () => {}, failure: (e) => failures.push(e) });
+		core.once("fetched-reading-list", { success: () => {}, failure: (e) => failures.push(e) });
 
-		core.check("url", { url: "https://x.example" });
+		core.fetch("reading-list");
 		await flush();
 
 		expect(failures).toEqual([{ reason: "not-logged-in" }]);
@@ -804,30 +740,20 @@ describe("BrowserExtensionCore result emission", () => {
 	it("emits a success synchronously for a non-promise value", async () => {
 		const cap = createCapturingShell();
 		const core = BrowserExtensionCore(cap.shell, {
-			auth: authReturning({ ok: true, value: makeItem("https://sync.example") }),
+			auth: authReturning({ ok: true, value: [makeItem("https://sync.example")] }),
 			logger,
 			readingList: initInMemoryReadingList(),
 		});
-		const results: Array<ReadingListItem | null> = [];
-		core.once("checked-url", { success: (v) => results.push(v), failure: () => {} });
+		const results: ReadingListItem[][] = [];
+		core.once("fetched-reading-list", { success: (v) => results.push(v), failure: () => {} });
 
-		core.check("url", { url: "https://sync.example" });
+		core.fetch("reading-list");
 		await flush();
 
 		expect(results).toHaveLength(1);
-		expect(results[0]?.url).toBe("https://sync.example");
+		expect(results[0]?.[0]?.url).toBe("https://sync.example");
 	});
 
-	it("ignores once handler events that are neither success nor failure", () => {
-		const cap = createCapturingShell();
-		const core = BrowserExtensionCore(cap.shell, {
-			auth: loggedInAuth(),
-			logger,
-			readingList: initInMemoryReadingList(),
-		});
-		core.once("checked-url", { success: () => {}, failure: () => {} });
-		expect(cap.openPopupCalls).toEqual([]);
-	});
 });
 
 describe("BrowserExtensionCore saveAll", () => {

@@ -187,7 +187,6 @@ test("should complete OAuth login flow, save links, and paginate the list", asyn
 			});
 
 			const saveLinkActions = createSaveLinkActions({
-			capturesBeforeSaving: true,
 				popupUrl: POPUP_URL,
 				testUrl: TEST_LINK_URL,
 				testTitle: TEST_LINK_TITLE,

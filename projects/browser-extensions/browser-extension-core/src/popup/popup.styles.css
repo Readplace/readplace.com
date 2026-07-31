@@ -193,55 +193,6 @@ body {
   margin: 0;
 }
 
-.saving-view__progress {
-  width: 100%;
-  height: 4px;
-  background: var(--popup-surface);
-  border-radius: 2px;
-  overflow: hidden;
-}
-
-/**
- * 1. Width is set inline as each save milestone lands
- *    (capturing → uploading). The asymptotic ease lets the bar glide to a
- *    milestone and settle there while that phase runs, rather than snapping.
- * 2. A settled segment would otherwise look frozen while a slow phase churns
- *    (e.g. serializing a large page), so a highlight sweeps across the filled
- *    portion to signal liveness; reduced-motion users get the bar without it.
- */
-.saving-view__progress-fill {
-  width: 0%;
-  height: 100%;
-  background-color: var(--popup-brand);
-  background-image: linear-gradient(
-    90deg,
-    transparent 0%,
-    rgba(255, 255, 255, 0.35) 50%,
-    transparent 100%
-  ); /* 2 */
-  background-size: 40% 100%; /* 2 */
-  background-repeat: no-repeat; /* 2 */
-  border-radius: 2px;
-  transition: width 3s cubic-bezier(0, 0.7, 0.3, 1); /* 1 */
-  animation: saving-progress-shimmer 1.4s ease-in-out infinite; /* 2 */
-}
-
-@keyframes saving-progress-shimmer {
-  from { background-position: -50% 0; }
-  to { background-position: 150% 0; }
-}
-
-@media (prefers-reduced-motion: reduce) {
-  .saving-view__progress-fill { animation: none; } /* 2 */
-}
-
-/* purgecss-ignore-start: applied dynamically when the save completes */
-.saving-view__progress-fill--complete {
-  width: 100%;
-  transition: width 0.2s ease-out;
-}
-/* purgecss-ignore-end */
-
 /* --- Shortcut hint --- */
 
 .shortcut-hint {
@@ -587,20 +538,6 @@ body {
 }
 /* purgecss-ignore-end */
 
-/* --- Status views (saved, already-saved, removed) --- */
-
-.view--status {
-  padding: 24px 16px;
-  gap: 12px;
-  align-items: center;
-  text-align: center;
-}
-
-.view--status > p {
-  margin: 0;
-  font-size: 14px;
-  color: var(--popup-text);
-}
 
 /* --- Empty / error states --- */
 

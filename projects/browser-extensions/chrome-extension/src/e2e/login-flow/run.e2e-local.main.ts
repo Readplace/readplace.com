@@ -251,7 +251,6 @@ async function runTest() {
 		});
 
 		const saveLinkActions = createSaveLinkActions({
-			capturesBeforeSaving: false,
 			popupUrl: POPUP_URL,
 			testUrl: TEST_LINK_URL,
 			testTitle: TEST_LINK_TITLE,

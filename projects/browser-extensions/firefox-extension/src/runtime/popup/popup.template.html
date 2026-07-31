@@ -34,14 +34,6 @@
     <button id="save-all-view-queue" class="saved-view__action" hidden>View Queue</button>
   </div>
 
-  <div id="already-saved-view" class="view view--status" hidden>
-    <p>Already in your list</p>
-  </div>
-
-  <div id="removed-view" class="view view--status" hidden>
-    <p>Removed</p>
-  </div>
-
   <div id="list-view" class="view" hidden>
     <div class="list-view__header">
       <a href="https://readplace.com/queue?utm=ff-ext" class="list-view__brand" aria-label="Open Readplace queue" target="_blank" rel="noopener">
@@ -70,17 +62,7 @@
   </div>
 
   <div id="saving-view" class="view saving-view">
-    <p class="saving-view__title">Loading&hellip;</p>
-    <div
-      class="saving-view__progress"
-      role="progressbar"
-      aria-busy="true"
-      aria-label="Loading"
-      aria-valuemin="0"
-      aria-valuemax="100"
-    >
-      <div class="saving-view__progress-fill"></div>
-    </div>
+    <p class="saving-view__title" role="status">Saving&hellip;</p>
   </div>
 
   <div id="spinner-overlay" class="spinner-overlay" hidden>

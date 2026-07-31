@@ -33,13 +33,9 @@ export interface Core {
 
 	login(): void;
 	logout(): void;
-	save(
-		resource: "current-tab",
-		data: { url: string; title: string; content?: { bytes: ArrayBuffer; mediaType: string }; tabId?: number },
-	): void;
+	save(resource: "current-tab", data: { url: string; title: string; tabId?: number }): void;
 	invoke(resource: "item-action", data: { id: ReadingListItemId; name: string }): void;
 	fetch(resource: "reading-list"): void;
-	check(resource: "url", data: { url: string }): void;
 	saveAll(resource: "tabs", data: { pages: BulkSavePage[] }): void;
 
 	on(event: "pre-init", handler: () => void): void;
@@ -49,14 +45,12 @@ export interface Core {
 	on(event: "saved-current-tab", handler: ResultCallbacks<SaveUrlResult>): void;
 	on(event: "invoked-item-action", handler: ResultCallbacks<InvokeActionResult>): void;
 	on(event: "fetched-reading-list", handler: ResultCallbacks<ReadingListItem[]>): void;
-	on(event: "checked-url", handler: ResultCallbacks<ReadingListItem | null>): void;
 	on(event: "saved-all-tabs", handler: ResultCallbacks<BulkSaveResult>): void;
 
 	once(event: "logged-in", handler: ResultCallbacks<void>): void;
 	once(event: "saved-current-tab", handler: ResultCallbacks<SaveUrlResult>): void;
 	once(event: "invoked-item-action", handler: ResultCallbacks<InvokeActionResult>): void;
 	once(event: "fetched-reading-list", handler: ResultCallbacks<ReadingListItem[]>): void;
-	once(event: "checked-url", handler: ResultCallbacks<ReadingListItem | null>): void;
 	once(event: "saved-all-tabs", handler: ResultCallbacks<BulkSaveResult>): void;
 }
 
@@ -182,11 +176,7 @@ export function BrowserExtensionCore(shell: BrowserShell, deps: { auth: Auth; lo
 
 		save(_resource, data) {
 			const guarded = auth.whenLoggedIn(() =>
-				saveCurrentTab({
-					url: data.url,
-					title: data.title,
-					content: data.content,
-				}),
+				saveCurrentTab({ url: data.url, title: data.title }),
 			);
 			emitResult("saved-current-tab", guarded);
 			if (guarded.ok) {
@@ -216,11 +206,6 @@ export function BrowserExtensionCore(shell: BrowserShell, deps: { auth: Auth; lo
 			const guarded = auth.whenLoggedIn(() => readingList.getAllItems());
 			emitResult("fetched-reading-list", guarded);
 			if (guarded.ok) establishWebSession();
-		},
-
-		check(_resource, data) {
-			const guarded = auth.whenLoggedIn(() => readingList.findByUrl(data.url));
-			emitResult("checked-url", guarded);
 		},
 
 		saveAll(_resource, data) {

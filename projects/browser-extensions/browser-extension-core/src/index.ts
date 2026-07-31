@@ -72,10 +72,6 @@ export { actionIcon, actionLabel, actionVariant, humanize, linkLabel, linkPresen
 export type { ActionVariant, LinkPresentation } from "./popup/action-affordance";
 export { selectSaveableTabs, summarizeBulkSave } from "./popup/save-all-tabs";
 export type { SaveableTab } from "./popup/save-all-tabs";
-export { initSaveProgress } from "./popup/save-progress";
-export type { SavePhase, SaveProgress } from "./popup/save-progress";
-export { initSaveProgressSequencer } from "./popup/save-progress-sequencer";
-export type { SaveProgressSequencer, Scheduler } from "./popup/save-progress-sequencer";
 export {
 	MENU_ITEM_SAVE_PAGE,
 	MENU_ITEM_SAVE_LINK,

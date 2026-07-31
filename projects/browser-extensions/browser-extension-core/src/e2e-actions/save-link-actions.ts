@@ -2,7 +2,6 @@ import assert from "node:assert/strict";
 import { By, until } from "selenium-webdriver";
 import type { WebDriver } from "selenium-webdriver";
 import { CSS_SELECTORS, READER_PERMALINK_PATTERN, type FlowAction } from "../e2e";
-import { initSaveProgress } from "../popup/save-progress";
 import { waitForUi } from "./wait-budget";
 
 export interface SaveLinkProgress {
@@ -20,10 +19,6 @@ export function createSaveLinkActions(config: {
 	testTitle: string;
 	popupWindowHandle: string;
 	progress: SaveLinkProgress;
-	/** Whether this extension still reads the page before it saves. A shell that
-	 * saves the URL first has no capture to report, so it paints no milestone for
-	 * the poll below to catch. */
-	capturesBeforeSaving: boolean;
 }): Map<string, FlowAction<WebDriver>> {
 	const actions = new Map<string, FlowAction<WebDriver>>();
 
@@ -42,21 +37,6 @@ export function createSaveLinkActions(config: {
 		async execute(driver: WebDriver): Promise<void> {
 			const saveUrl = `${config.popupUrl}?url=${encodeURIComponent(config.testUrl)}&title=${encodeURIComponent(config.testTitle)}`;
 			await driver.get(saveUrl);
-			if (config.capturesBeforeSaving) {
-				const capturingLabel = initSaveProgress().labelFor("capturing");
-				await waitForUi(
-					driver,
-					async () => {
-						try {
-							const title = await driver.findElement(By.css(CSS_SELECTORS.savingTitle));
-							return (await title.getText()).includes(capturingLabel);
-						} catch {
-							return false;
-						}
-					},
-					`saving-view should show "${capturingLabel}" while the save is in progress`,
-				);
-			}
 			await waitForUi(driver, async () => {
 				try {
 					const savedView = await driver.findElement(By.id("saved-view"));
