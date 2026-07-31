@@ -2,21 +2,25 @@
 import browser from "webextension-polyfill";
 import {
 	BrowserExtensionCore,
+	initIndexedDbPayloadStore,
 	initOAuthAuth,
 	initSirenReadingList,
+	initUploadQueue,
 	type BrowserShell,
 	type OAuthTokens,
 	OAuthTokensSchema,
 	type PopupMessage,
 	type ReadingListItem,
 	captureActiveTabBytes,
-	type SavePhase,
 	type SaveUrlResult,
 	type InvokeActionResult,
 	type BulkSaveResult,
 	type BulkSavePage,
 	type SaveableTab,
 	type TokenStorage,
+	type UploadJobStore,
+	type UploadQueue,
+	type WakeScheduler,
 } from "browser-extension-core";
 import { initCreateContextMenus } from "./create-context-menus";
 import { HutchLogger, consoleLogger } from "@packages/hutch-logger";
@@ -33,9 +37,32 @@ function withServiceWorkerKeepalive<T>(work: Promise<T>): Promise<T> {
 }
 
 const STORAGE_KEY = "hutch_oauth_tokens";
+const UPLOAD_JOBS_KEY = "hutch_upload_jobs";
+const UPLOAD_ALARM_NAME = "hutch-upload-queue";
+const UPLOAD_PAYLOAD_DB = "hutch-upload-payloads";
 declare const __SERVER_URL__: string;
 const SERVER_URL = __SERVER_URL__;
 const CLIENT_ID: BuiltInOAuthClientId = "hutch-chrome-extension";
+
+const uploadJobStore: UploadJobStore = {
+	async read(): Promise<unknown> {
+		const stored = await browser.storage.local.get(UPLOAD_JOBS_KEY);
+		return stored[UPLOAD_JOBS_KEY];
+	},
+	async write(jobs): Promise<void> {
+		await browser.storage.local.set({ [UPLOAD_JOBS_KEY]: jobs });
+	},
+};
+
+const wakeScheduler: WakeScheduler = {
+	now: () => Date.now(),
+	async wakeAt(timestamp): Promise<void> {
+		browser.alarms.create(UPLOAD_ALARM_NAME, { when: timestamp });
+	},
+	async cancel(): Promise<void> {
+		await browser.alarms.clear(UPLOAD_ALARM_NAME);
+	},
+};
 
 const tokenStorage: TokenStorage = {
 	async getTokens(): Promise<OAuthTokens | null> {
@@ -176,7 +203,24 @@ async function initCore() {
 		getAccessToken: auth.getAccessToken,
 		fetchFn: (...args) => fetch(...args),
 		refreshTokens: auth.refreshTokens,
-		onUnauthorized: auth.logout,
+		/** A 401 that survived the refresh-and-replay ends the session, not just an
+		 * explicit logout, so the captured page bytes go with it rather than waiting
+		 * on the queue's own next wake. Not awaited: the queue's own upload reaches
+		 * this through the same serialised chain the purge joins, so awaiting it
+		 * here would deadlock that pass — it is already purging for itself. */
+		onUnauthorized: async () => {
+			void uploadQueue.purge();
+			await auth.logout();
+		},
+		logger,
+	});
+
+	const uploadQueue = initUploadQueue({
+		jobs: uploadJobStore,
+		payloads: initIndexedDbPayloadStore({ databaseName: UPLOAD_PAYLOAD_DB }),
+		scheduler: wakeScheduler,
+		capture: (target) => captureTabContent(target),
+		uploadContent: readingList.uploadContent,
 		logger,
 	});
 
@@ -188,17 +232,42 @@ async function initCore() {
 
 	core.init();
 
-	return core;
+	return { core, uploadQueue };
 }
 
-const corePromise = initCore();
+const appPromise = initCore();
+
+function resumeUploads(): void {
+	appPromise
+		.then(({ uploadQueue }) => withServiceWorkerKeepalive(uploadQueue.resume()))
+		.catch((err) => logger.error("Failed to resume deferred uploads", err));
+}
+
+/** Starting the worker re-runs this module top level, so this call already
+ * covers every startup and install; only an alarm-driven wake needs a listener
+ * of its own. */
+resumeUploads();
+browser.alarms.onAlarm.addListener((alarm) => {
+	if (alarm.name === UPLOAD_ALARM_NAME) resumeUploads();
+});
+
+/** The job carries the tab URL verbatim: substituting anything else (a canonical
+ * URL, a redirect target) would land the bytes on a different article than the one
+ * the user just saw appear. The popup's response is already on its way, so the
+ * worker is held open for the capture and upload that follow it. */
+function queueContentUpload(
+	uploadQueue: UploadQueue,
+	target: { url: string; title: string; tabId?: number },
+): void {
+	void withServiceWorkerKeepalive(uploadQueue.enqueue(target));
+}
 
 const CAPTURE_HTML_TIMEOUT_MS = 5000;
 
 async function captureTabHtml(
 	tabId: number | undefined,
 	url: string,
-): Promise<{ rawHtml: string; canonicalUrl?: string } | undefined> {
+): Promise<string | undefined> {
 	if (tabId == null) return undefined;
 	const tab = await browser.tabs.get(tabId).catch(() => undefined);
 	if (!tab || tab.url !== url) return undefined;
@@ -210,21 +279,18 @@ async function captureTabHtml(
 	]).catch(() => undefined);
 	if (captured && typeof captured === "object" && "rawHtml" in captured) {
 		const rawHtml = (captured as { rawHtml: unknown }).rawHtml;
-		if (typeof rawHtml === "string" && rawHtml.length > 0) {
-			const rawCanonical = (captured as { canonicalUrl?: unknown }).canonicalUrl;
-			const canonicalUrl =
-				typeof rawCanonical === "string" && rawCanonical.length > 0 ? rawCanonical : undefined;
-			return { rawHtml, canonicalUrl };
-		}
+		if (typeof rawHtml === "string" && rawHtml.length > 0) return rawHtml;
 	}
 	return undefined;
 }
 
 /** Best-effort content capture for one tab: the live DOM via the content script,
- * else a byte fetch in the user's session, else undefined (a URL-only save). */
+ * else a byte fetch in the user's session, else undefined. `captureTabHtml`
+ * refuses a tab that has navigated away from `url`, which is what keeps the
+ * bytes attached to the article the save actually created. */
 async function captureTabContent(tab: { url: string; tabId?: number }): Promise<{ bytes: ArrayBuffer; mediaType: string } | undefined> {
-	const captured = await captureTabHtml(tab.tabId, tab.url);
-	if (captured) return { bytes: new TextEncoder().encode(captured.rawHtml).buffer, mediaType: "text/html" };
+	const rawHtml = await captureTabHtml(tab.tabId, tab.url);
+	if (rawHtml) return { bytes: new TextEncoder().encode(rawHtml).buffer, mediaType: "text/html" };
 	return captureActiveTabBytes({ tabUrl: tab.url, fetchFn: fetch, logger });
 }
 
@@ -241,11 +307,6 @@ async function capturePages(tabs: SaveableTab[]): Promise<BulkSavePage[]> {
 	);
 }
 
-function broadcastSaveProgress(phase: SavePhase): void {
-	// .catch: the popup is the only receiver and may have closed mid-save.
-	browser.runtime.sendMessage({ type: "save-progress", phase }).catch(() => {});
-}
-
 browser.runtime.onMessage.addListener((raw, _sender, sendResponse) => {
 	if ((raw as { type: string }).type === "shortcut-pressed") {
 		browser.action.openPopup().catch((err) => logger.error(err));
@@ -254,8 +315,8 @@ browser.runtime.onMessage.addListener((raw, _sender, sendResponse) => {
 
 	const message = raw as PopupMessage;
 
-	corePromise
-		.then((core) => {
+	appPromise
+		.then(({ core, uploadQueue }) => {
 			switch (message.type) {
 				case "login": {
 					const pending = new Promise<unknown>((resolve) => {
@@ -269,40 +330,30 @@ browser.runtime.onMessage.addListener((raw, _sender, sendResponse) => {
 					break;
 				}
 				case "logout": {
+					/** Page bytes captured for a signed-in reader must not outlive the
+					 * session that authorised capturing them, so the worker is held open
+					 * until the purge lands and the popup is answered only then. */
+					const purged = withServiceWorkerKeepalive(uploadQueue.purge());
 					core.logout();
-					sendResponse({ ok: true });
+					purged.then(() => sendResponse({ ok: true }));
 					break;
 				}
 				case "save-current-tab": {
+					const target = {
+						url: message.url,
+						title: message.title,
+						tabId: message.tabId,
+					};
 					const pending = new Promise<unknown>((resolve) => {
 						core.once("saved-current-tab", {
-							success: (value: SaveUrlResult) =>
-								resolve({ ok: true, value }),
+							success: (value: SaveUrlResult) => {
+								if (value.ok) queueContentUpload(uploadQueue, target);
+								resolve({ ok: true, value });
+							},
 							failure: (err) => resolve({ ok: false, ...err }),
 						});
 					});
-					broadcastSaveProgress("capturing");
-					captureTabHtml(message.tabId, message.url)
-						.then(async (captured) => {
-							broadcastSaveProgress("uploading");
-							const content = captured
-								? { bytes: new TextEncoder().encode(captured.rawHtml).buffer, mediaType: "text/html" }
-								: await captureActiveTabBytes({ tabUrl: message.url, fetchFn: fetch, logger });
-							core.save("current-tab", {
-								url: captured?.canonicalUrl ?? message.url,
-								title: message.title,
-								content,
-								tabId: message.tabId,
-							});
-						})
-						.catch(() => {
-							broadcastSaveProgress("uploading");
-							core.save("current-tab", {
-								url: message.url,
-								title: message.title,
-								tabId: message.tabId,
-							});
-						});
+					core.save("current-tab", target);
 					withServiceWorkerKeepalive(pending).then(sendResponse);
 					break;
 				}
@@ -315,18 +366,6 @@ browser.runtime.onMessage.addListener((raw, _sender, sendResponse) => {
 						});
 					});
 					core.invoke("item-action", { id: message.id, name: message.name });
-					pending.then(sendResponse);
-					break;
-				}
-				case "check-url": {
-					const pending = new Promise<unknown>((resolve) => {
-						core.once("checked-url", {
-							success: (value: ReadingListItem | null) =>
-								resolve({ ok: true, value }),
-							failure: (err) => resolve({ ok: false, ...err }),
-						});
-					});
-					core.check("url", { url: message.url });
 					pending.then(sendResponse);
 					break;
 				}

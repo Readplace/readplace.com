@@ -29,6 +29,22 @@ declare module "webextension-polyfill" {
 		};
 	}
 
+	namespace Alarms {
+		interface Alarm {
+			name: string;
+		}
+
+		/** `create` is absent from the polyfill's async-method metadata, so it is
+		 * handed back as the underlying callback-style API and returns nothing;
+		 * `clear` is wrapped and does return a promise. */
+		function create(name: string, alarmInfo: { when: number }): void;
+		function clear(name: string): Promise<boolean>;
+
+		const onAlarm: {
+			addListener(callback: (alarm: Alarm) => void): void;
+		};
+	}
+
 	namespace Tabs {
 		interface Tab {
 			id?: number;
@@ -124,6 +140,7 @@ declare module "webextension-polyfill" {
 		runtime: typeof Runtime;
 		tabs: typeof Tabs;
 		action: typeof Action;
+		alarms: typeof Alarms;
 		contextMenus: typeof ContextMenus;
 		commands: typeof Commands;
 	};

@@ -3,7 +3,6 @@ import browser from "webextension-polyfill";
 import type {
 	ReadingListItem,
 	PopupMessage,
-	SavePhase,
 	GuardedResult,
 	SaveUrlResult,
 	InvokeActionResult,
@@ -11,7 +10,7 @@ import type {
 	Message,
 	ActionVariant,
 } from "browser-extension-core";
-import { filterByUrl, paginateItems, avatarColor, relativeTime, isAppUrl, itemDisplay, selectSaveableTabs, summarizeBulkSave, installShortcuts, isCmdD, initSaveProgress, initSaveProgressSequencer, buildMessageView, actionLabel, actionVariant, actionIcon, linkLabel, linkPresentation } from "browser-extension-core";
+import { filterByUrl, paginateItems, avatarColor, relativeTime, isAppUrl, itemDisplay, selectSaveableTabs, summarizeBulkSave, installShortcuts, isCmdD, buildMessageView, actionLabel, actionVariant, actionIcon, linkLabel, linkPresentation } from "browser-extension-core";
 import { HutchLogger, consoleLogger } from "@packages/hutch-logger";
 
 /** The client's own presentation map: an action variant -> the popup's CSS
@@ -43,58 +42,6 @@ function showView(id: string) {
 	}
 	const target = document.getElementById(id);
 	if (target) target.hidden = false;
-}
-
-const saveProgress = initSaveProgress();
-
-const sequencer = initSaveProgressSequencer({
-	minDwellMs: 450,
-	scheduler: {
-		setTimer: (callback, delayMs) => {
-			setTimeout(callback, delayMs);
-		},
-		now: () => performance.now(),
-	},
-	apply: (phase) => {
-		const fill = document.querySelector<HTMLElement>(".saving-view__progress-fill");
-		if (fill) fill.style.width = saveProgress.widthFor(phase);
-		const title = document.querySelector(".saving-view__title");
-		if (title) title.textContent = saveProgress.labelFor(phase);
-	},
-});
-
-function isSavePhase(value: unknown): value is SavePhase {
-	return value === "capturing" || value === "uploading";
-}
-
-function isSaveProgressMessage(
-	value: unknown,
-): value is { type: "save-progress"; phase: SavePhase } {
-	if (typeof value !== "object" || value === null) return false;
-	if (!("type" in value) || value.type !== "save-progress") return false;
-	return "phase" in value && isSavePhase(value.phase);
-}
-
-browser.runtime.onMessage.addListener((raw) => {
-	if (!isSaveProgressMessage(raw)) return undefined;
-	sequencer.enqueue(raw.phase);
-	return undefined;
-});
-
-async function finishSavingProgress(): Promise<void> {
-	await sequencer.finish();
-	return new Promise((resolve) => {
-		const fill = document.querySelector<HTMLElement>(".saving-view__progress-fill");
-		if (!fill) {
-			resolve();
-			return;
-		}
-		// Inline width beats the prior milestone's inline width; --complete swaps
-		// the long milestone ease for the 0.2s snap to the terminal 100%.
-		fill.style.width = "100%";
-		fill.classList.add("saving-view__progress-fill--complete");
-		setTimeout(resolve, 350); // 200ms snap to 100% + 150ms hold
-	});
 }
 
 /** Isolated boundary wrapper: the single contained assertion for the untyped
@@ -420,6 +367,18 @@ async function getActiveTab(): Promise<{ url: string; title: string; tabId?: num
 	return { url: tab.url, title: tab.title ?? tab.url, tabId: tab.id };
 }
 
+/** The save is one round trip with nothing to report in between, so the bar gets
+ * a single target and the stylesheet's asymptotic ease glides toward it — it
+ * reads as working rather than stalled, and the view is replaced the moment the
+ * save lands. */
+function showSavingView(): void {
+	const title = document.querySelector(".saving-view__title");
+	if (title) title.textContent = "Saving…";
+	const fill = document.querySelector<HTMLElement>(".saving-view__progress-fill");
+	if (fill) fill.style.width = "90%";
+	showView("saving-view");
+}
+
 async function saveAndShowList() {
 	const activeTab = await getActiveTab();
 	if (!activeTab) throw new Error("No active tab or URL parameters");
@@ -429,24 +388,7 @@ async function saveAndShowList() {
 		return;
 	}
 
-	const checkResult = await send<GuardedResult<ReadingListItem | null>>({
-		type: "check-url",
-		url: activeTab.url,
-	});
-
-	if (isNotLoggedIn(checkResult)) {
-		await performLogout();
-		return;
-	}
-
-	if (!checkResult.ok) {
-		return;
-	}
-
-	if (checkResult.value) {
-		await showListView();
-		return;
-	}
+	showSavingView();
 
 	const saveResult = await send<GuardedResult<SaveUrlResult>>({
 		type: "save-current-tab",
@@ -461,7 +403,6 @@ async function saveAndShowList() {
 	}
 
 	if (saveResult.ok && saveResult.value.ok) {
-		await finishSavingProgress();
 		showView("saved-view");
 		return;
 	}
