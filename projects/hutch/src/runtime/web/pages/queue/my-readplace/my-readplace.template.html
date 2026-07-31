@@ -8,7 +8,7 @@
         {{#if showForm}}
         <form class="queue-my__form" method="POST" action="{{saveUrl}}" hx-boost="true" hx-target="main" hx-select="main" hx-swap="outerHTML show:none" data-test-form="my-readplace">
           <label class="queue-my__label" for="my-readplace-text">What do you want to read more of?</label>
-          <p class="queue-my__hint">Describe the kinds of posts you find interesting. We use it to pick what surfaces here.</p>
+          <p class="queue-my__hint">Describe the kinds of posts you find interesting. I use it to pick what surfaces here.</p>
           {{#if invalid}}<p class="queue-my__error" data-test-my-error>Write a sentence or two about what you want to read.</p>{{/if}}
           <textarea class="queue-my__textarea" id="my-readplace-text" name="text" rows="6" maxlength="{{maxLength}}" placeholder="Long-form essays on systems design, trip reports from long hikes, anything that changes how I think about my work…" required>{{text}}</textarea>
           <div class="queue-my__actions">
