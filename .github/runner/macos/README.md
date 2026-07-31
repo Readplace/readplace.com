@@ -5,7 +5,9 @@
 Two shape constraints, both learned the hard way:
 
 - **It is its own workflow file, not a job in ci.yml.** A job added there was held by GitHub's [malicious-workflow detector](https://github.blog/changelog/2026-07-28-github-actions-holds-potentially-malicious-workflows-for-approval/), which holds the *entire run* — `web-tests` and the deploy chain never started, so two commits landed on main with no CI. Approval requires an authenticated web session, so nobody can clear it from a script. A separate file keeps that blast radius off the critical path.
-- **Frames arrive by bind mount, not over the network.** The runner container is deliberately firewalled off from the Mac, so it cannot call a host model server. It writes frames to `/frames/pending` (the `TRANSITION_FRAMES_DIR` container env in [docker-compose.yml](../gha-runner/docker-compose.yml)) which is `~/ci-frames/pending` on the host.
+- **Evidence arrives by bind mount, not over the network.** The runner container is deliberately firewalled off from the Mac, so it cannot call a host model server. It writes under `/frames/<run id>` (the `CI_ARTIFACT_ROOT` container env in [docker-compose.yml](../gha-runner/docker-compose.yml)), which is `~/ci-frames/<run id>` on the host: `frames/` for the transition capture and `playwright/<project>/` for the screenshots and traces Playwright writes when a test fails. Keying by run id matters because reviews for concurrent runs overlap and the reviewer consumes the directory it reads — a fixed path let one run's review report on another run's frames.
+
+That routing is also what lets the Playwright evidence be uploaded at all: it has to leave the ephemeral container, and adding an upload step to `ci.yml` is not available (see above).
 
 The review is advisory and must stay that way until its false-positive rate is known: a missing model, a timeout, an unparseable reply, or absent frames all log and exit 0. It writes to the job summary and holds no `GITHUB_TOKEN`.
 
@@ -19,7 +21,7 @@ Creates `~/.readplace-ci/vlm-venv`, installs `mlx-vlm`, downloads the model (~18
 
 ## Retention and cache replay
 
-The reviewer deletes the frames directory once it has reported, so a fixed path is enough — `EPHEMERAL=true` gives one job per container and there is one runner, so captures serialize. Cleanup lives in the script because an `rm -rf` in a `run:` block is exactly the kind of pattern that gets a workflow held.
+The reviewer deletes the frames directory once it has reported, keeping only what a model flagged. Cleanup lives in the script because an `rm -rf` in a `run:` block is exactly the kind of pattern that gets a workflow held. Per-run directories under `~/ci-frames` are otherwise left alone; a green run leaves an empty shell, and a failed one leaves its screenshots.
 
 A fully nx-cache-replayed `pnpm check` writes no frames, and the review then reports none were captured. That is correct: identical inputs were already reviewed when the cache entry was created.
 

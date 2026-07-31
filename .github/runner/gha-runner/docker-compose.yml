@@ -66,12 +66,14 @@ services:
       # npm/npx print `npm warn Unknown env config "store-dir"` on every job
       # invocation — harmless, it is a pnpm setting npm itself doesn't recognise.
       npm_config_store_dir: /persist/pnpm-store
-      # Hands the e2e transition frames to the host review job through the
-      # /frames bind mount below. Set here rather than in ci.yml because a job
-      # added there was held by GitHub's malicious-workflow detector, which
-      # blocks every job in the run. A fixed path is safe: EPHEMERAL=true gives
-      # one job per container and there is one runner, so captures serialize.
-      TRANSITION_FRAMES_DIR: /frames/pending
+      # Hands this run's e2e evidence — transition frames, and the screenshots
+      # and traces playwright writes only when a test fails — to the host review
+      # job through the /frames bind mount below. Set here rather than in ci.yml
+      # because a step added there was held by GitHub's malicious-workflow
+      # detector, which blocks every job in the run. Paths below it are keyed by
+      # run id: reviews for concurrent runs overlap, and the reviewer consumes
+      # the directory it reads.
+      CI_ARTIFACT_ROOT: /frames
     volumes:
       # The PAT lives behind /root (0700, root-owned). A docker secret lands in
       # /run/secrets, which the runner user could still read even at 0400 root:root

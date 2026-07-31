@@ -17,6 +17,8 @@ jobs:
     runs-on: [self-hosted, macOS]
     timeout-minutes: 10
     continue-on-error: true
+    env:
+      RUN_DIR: /Users/fagnerbrack/ci-frames/${{ github.event.workflow_run.id }}
     steps:
       - uses: actions/checkout@v6
         with:
@@ -30,7 +32,7 @@ jobs:
       - name: Review transition frames with the local vision model
         id: review
         env:
-          FRAMES_DIR: /Users/fagnerbrack/ci-frames/pending
+          FRAMES_DIR: ${{ env.RUN_DIR }}/frames
           VLM_MODEL: mlx-community/Qwen3-VL-30B-A3B-Instruct-4bit
           VLM_PYTHON: /Users/fagnerbrack/.readplace-ci/vlm-venv/bin/python
         run: node .github/runner/macos/review-frames.mjs
@@ -41,5 +43,27 @@ jobs:
         with:
           name: visual-review-found-${{ steps.review.outputs.defect-count }}-defects-in-transition-frames-${{ github.event.workflow_run.head_sha }}
           path: flagged-frames
+          retention-days: 30
+          if-no-files-found: ignore
+
+      # Playwright writes screenshots only on failure and traces only on retry,
+      # so once its bookkeeping file is excluded below this directory has
+      # contents exactly when a test failed. The runner that produced them is
+      # ephemeral, so without collecting them here they are lost.
+      - name: Collect the screenshots and traces from any failed test
+        if: always()
+        run: |
+          if [ -d "$RUN_DIR/playwright" ]; then
+            cp -R "$RUN_DIR/playwright" failed-test-evidence
+          fi
+
+      - name: Upload the screenshots and traces from the failed tests
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: failed-check-playwright-screenshots-and-traces-${{ github.event.workflow_run.head_sha }}
+          path: |
+            failed-test-evidence
+            !failed-test-evidence/**/.last-run.json
           retention-days: 30
           if-no-files-found: ignore
