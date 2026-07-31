@@ -106,6 +106,34 @@ const LinkFeedbackSchema = z.object({
 	verdict: z.enum(["should-be-included", "should-be-excluded"]),
 });
 
+type LinkClassificationVerdict = z.infer<typeof LinkFeedbackSchema>["verdict"];
+
+/** The one classifier-audit line both report paths emit, at ERROR level so a
+ * misclassification surfaces in the operator's CloudWatch error widget rather
+ * than an unwatched info stream. The article card's "Not an article" button
+ * sends `should-be-excluded`; saving a skipped link is itself the reader's
+ * `should-be-included` verdict, so the save route emits the same line instead of
+ * asking the reader to also press a separate report button. */
+function logLinkClassificationFeedback(input: {
+	logError: (message: string, error?: Error) => void;
+	verdict: LinkClassificationVerdict;
+	userId: UserId;
+	receivedAtMessageId: string;
+	link: InboxEmailLinkEntry;
+}): void {
+	input.logError(
+		`[inbox-link-feedback] ${JSON.stringify({
+			verdict: input.verdict,
+			userId: input.userId,
+			receivedAtMessageId: input.receivedAtMessageId,
+			ordinal: input.link.ordinal,
+			url: input.link.url,
+			status: input.link.status,
+			skipReason: input.link.skipReason,
+		})}`,
+	);
+}
+
 export function initInboxRoutes(deps: InboxDependencies): Router {
 	const router = express.Router();
 	const addressesPath = "/inbox/addresses";
@@ -359,8 +387,6 @@ export function initInboxRoutes(deps: InboxDependencies): Router {
 		},
 	);
 
-	// The ERROR level is the point: link-classification feedback must surface in
-	// the operator's CloudWatch error widget, not sit in an unwatched info stream.
 	router.post(
 		"/:id/links/:ordinal/feedback",
 		async (req: Request<{ id: string; ordinal: string }>, res: Response) => {
@@ -381,22 +407,17 @@ export function initInboxRoutes(deps: InboxDependencies): Router {
 			}
 			const parsedBody = LinkFeedbackSchema.safeParse(req.body);
 			if (parsedBody.success) {
-				deps.logError(
-					`[inbox-link-feedback] ${JSON.stringify({
-						verdict: parsedBody.data.verdict,
-						userId,
-						receivedAtMessageId,
-						ordinal: link.ordinal,
-						url: link.url,
-						status: link.status,
-						skipReason: link.skipReason,
-					})}`,
-				);
+				logLinkClassificationFeedback({
+					logError: deps.logError,
+					verdict: parsedBody.data.verdict,
+					userId,
+					receivedAtMessageId,
+					link,
+				});
 			}
-			// Back to the tab the reported row actually lives on: an include verdict
-			// comes from a skipped row on the Skipped tab, an exclude verdict from
-			// a card on Articles. A fixed tab would bounce the reader to a panel that
-			// doesn't hold the link they just reported.
+			// Back to the tab the reported row lives on, keyed off its status rather
+			// than the verdict: a card reported from Articles returns to Articles. A
+			// fixed tab would bounce the reader to a panel that doesn't hold it.
 			const tab = tabForLinkRow(link.status);
 			res.redirect(
 				303,
@@ -437,6 +458,19 @@ export function initInboxRoutes(deps: InboxDependencies): Router {
 				userId,
 				url: unresolved ? link.url : stripUtmParams(link.url),
 			});
+			// Saving a skipped link is itself the reader's verdict that the classifier
+			// was wrong to skip it, so it emits the same classifier-audit line the
+			// removed "This is an article" report button did — Save both remediates and
+			// reports. A kept card's save carries no such verdict, so it stays silent.
+			if (link.status === "skipped") {
+				logLinkClassificationFeedback({
+					logError: deps.logError,
+					verdict: "should-be-included",
+					userId,
+					receivedAtMessageId,
+					link,
+				});
+			}
 			res.redirect(
 				303,
 				`${buildInboxEmailDetailUrl({

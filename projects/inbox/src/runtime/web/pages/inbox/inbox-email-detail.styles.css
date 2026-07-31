@@ -195,7 +195,6 @@
 }
 
 .inbox-article-card__action-button,
-.inbox-excluded-link__feedback-button,
 .inbox-excluded-link__save-button {
   display: inline-flex;
   align-items: center;
@@ -214,7 +213,6 @@
 }
 
 .inbox-article-card__action-button:hover,
-.inbox-excluded-link__feedback-button:hover,
 .inbox-excluded-link__save-button:hover {
   color: var(--foreground);
 }
@@ -222,7 +220,6 @@
 /* Held disabled by hx-disabled-elt for the length of the request, so a slow
  * save reads as in-flight rather than as a click that did nothing. */
 .inbox-article-card__action-button:disabled,
-.inbox-excluded-link__feedback-button:disabled,
 .inbox-excluded-link__save-button:disabled {
   opacity: 0.5;
   cursor: not-allowed;

@@ -12,7 +12,6 @@ import { ARTICLES_PAGE_SIZE, buildInboxArticlesMoreUrl } from "./inbox-articles-
 import { buildInboxArticlesPollUrl } from "./inbox-articles-poll-url";
 import { buildInboxExcludedPollUrl } from "./inbox-excluded-poll-url";
 import { type MailTabKey, buildInboxEmailDetailUrl } from "./inbox-email-detail.url";
-import { buildInboxLinkFeedbackUrl } from "./inbox-link-feedback-url";
 import { buildInboxLinkSaveUrl } from "./inbox-link-save-url";
 import { buildLinkCountLabel } from "./inbox-link-count-label";
 import { type InboxLinkCardViewModel, toInboxLinkCardViewModel } from "./inbox-link-card.viewmodel";
@@ -54,12 +53,10 @@ export interface ExcludedLinkViewModel {
 	ordinal: string;
 	url: string;
 	reasonLabel: string;
-	feedbackAction: string;
-	/** Stable id so htmx can hand keyboard focus back to this report button after
-	 * the swap replaces the row the reader was keyboarding through. Mirrors the
-	 * card action's `inbox-card-{ordinal}-{key}` scheme. */
-	buttonId: string;
 	saveAction: string | undefined;
+	/** Stable id so htmx can hand keyboard focus back to the Save button after the
+	 * swap replaces the row the reader was keyboarding through. Mirrors the card
+	 * action's `inbox-card-{ordinal}-{key}` scheme. */
 	saveButtonId: string;
 }
 
@@ -257,11 +254,6 @@ export function toInboxEmailDetailViewModel(input: {
 					link.skipReason === undefined
 						? GENERIC_EXCLUDED_LABEL
 						: SKIP_REASON_LABELS[link.skipReason],
-				feedbackAction: buildInboxLinkFeedbackUrl({
-					emailId,
-					ordinal: link.ordinal,
-				}),
-				buttonId: `inbox-skipped-${link.ordinal}-feedback-include`,
 				saveAction:
 					validateSaveableUrl(link.url).status === "SUCCESS"
 						? buildInboxLinkSaveUrl({ emailId, ordinal: link.ordinal })

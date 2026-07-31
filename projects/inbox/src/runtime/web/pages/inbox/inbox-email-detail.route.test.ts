@@ -634,7 +634,7 @@ describe("Inbox email detail Articles tab", () => {
 });
 
 describe("Inbox email detail Skipped tab", () => {
-	it("lists every skipped link with its reason and an include-feedback form, no email body", async () => {
+	it("lists every skipped link with its reason and a Save form but no report button, no email body", async () => {
 		const fixture = createDefaultTestAppFixture(TEST_APP_ORIGIN);
 		let bodyReads = 0;
 		fixture.inboxEmail.readEmailContent = async () => {
@@ -691,19 +691,9 @@ describe("Inbox email detail Skipped tab", () => {
 				?.querySelector("[data-test-inbox-excluded-reason]")?.textContent,
 		).toBe("Advertisement");
 
-		const includeButton = excludedRow.querySelector("[data-test-inbox-feedback-include]");
-		assert(includeButton, "excluded row must offer include feedback");
-		// Stable id so htmx restores keyboard focus to this button after the swap.
-		expect(includeButton.getAttribute("id")).toBe("inbox-skipped-0001-feedback-include");
-		const includeForm = includeButton.closest("form");
-		assert(includeForm, "include feedback must submit as a form");
-		expect(includeForm.getAttribute("method")).toBe("POST");
-		expect(includeForm.getAttribute("action")).toBe(
-			`/inbox/${encodeURIComponent(SK)}/links/0001/feedback`,
-		);
-		expect(includeForm.querySelector('input[name="verdict"]')?.getAttribute("value")).toBe(
-			"should-be-included",
-		);
+		// The "This is an article (report)" button is gone: saving the row is now the
+		// report, so a separate report control would only re-log what the save does.
+		expect(excludedRow.querySelector("[data-test-inbox-feedback-include]")).toBeNull();
 
 		const saveButton = excludedRow.querySelector("[data-test-inbox-excluded-save]");
 		assert(saveButton, "a saveable skipped row must offer Save to queue");

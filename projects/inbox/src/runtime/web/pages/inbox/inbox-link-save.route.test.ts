@@ -64,8 +64,12 @@ async function seed(
 const savePath = `/inbox/${encodeURIComponent(SK)}/links/0000/save`;
 
 describe("Inbox link save route", () => {
-	it("publishes a submit for the stored link and redirects back to the Articles tab", async () => {
+	it("publishes a submit for the stored link, reports nothing, and redirects back to the Articles tab", async () => {
 		const fixture = createDefaultTestAppFixture(TEST_APP_ORIGIN);
+		const errors: string[] = [];
+		fixture.shared.logError = (message) => {
+			errors.push(message);
+		};
 		const harness = useApp(fixture);
 		const agent = await loginAgent(harness.server, harness.auth);
 		const userId = await seed(fixture);
@@ -77,6 +81,9 @@ describe("Inbox link save route", () => {
 			`/inbox/${encodeURIComponent(SK)}?tab=articles&saved=1`,
 		);
 		expect(harness.submittedLinks).toEqual([{ userId, url: "https://example.com/post" }]);
+		// A kept card carries no misclassification verdict, so its save logs no
+		// classifier-audit line — only a skipped row's save reports one.
+		expect(errors).toHaveLength(0);
 	});
 
 	it("confirms the save on the followed redirect as a dismissable status toast", async () => {
@@ -180,8 +187,12 @@ describe("Inbox link save route", () => {
 		expect(harness.submittedLinks).toEqual([]);
 	});
 
-	it("saves a misclassified skipped link byte-exact and redirects back to the Skipped tab", async () => {
+	it("saves a misclassified skipped link byte-exact, reports it, and redirects back to the Skipped tab", async () => {
 		const fixture = createDefaultTestAppFixture(TEST_APP_ORIGIN);
+		const errors: string[] = [];
+		fixture.shared.logError = (message) => {
+			errors.push(message);
+		};
 		const harness = useApp(fixture);
 		const agent = await loginAgent(harness.server, harness.auth);
 		const userId = await seed(fixture, {
@@ -200,6 +211,19 @@ describe("Inbox link save route", () => {
 		expect(harness.submittedLinks).toEqual([
 			{ userId, url: "https://example.com/story?utm_source=nl&sig=abc" },
 		]);
+		// Saving a skipped row IS the report now that the report button is gone: the
+		// save emits the same classifier-audit line the button used to, so a
+		// misclassification still reaches the operator's error widget.
+		expect(errors).toHaveLength(1);
+		assert(errors[0].startsWith("[inbox-link-feedback] "));
+		expect(JSON.parse(errors[0].slice("[inbox-link-feedback] ".length))).toMatchObject({
+			verdict: "should-be-included",
+			receivedAtMessageId: SK,
+			ordinal: "0000",
+			url: "https://example.com/story?utm_source=nl&sig=abc",
+			status: "skipped",
+			skipReason: "llm-ad",
+		});
 	});
 
 	it("returns 404 for a skipped link the save pipeline would reject, publishing nothing", async () => {

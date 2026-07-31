@@ -7,9 +7,5 @@
     {{#if saveAction}}<form class="inbox-excluded-link__save" method="POST" action="{{saveAction}}" hx-boost="true" hx-target="main" hx-select="main" hx-swap="outerHTML show:none" hx-disabled-elt="find button">
       <button type="submit" id="{{saveButtonId}}" class="inbox-excluded-link__save-button" aria-label="Save to queue: {{url}}" data-test-inbox-excluded-save>Save to queue</button>
     </form>{{/if}}
-    <form class="inbox-excluded-link__feedback" method="POST" action="{{feedbackAction}}" hx-boost="true" hx-target="main" hx-select="main" hx-swap="outerHTML show:none" hx-disabled-elt="find button">
-      <input type="hidden" name="verdict" value="should-be-included">
-      <button type="submit" id="{{buttonId}}" class="inbox-excluded-link__feedback-button" aria-label="This is an article (report): {{url}}" data-test-inbox-feedback-include>This is an article (report)</button>
-    </form>
   </div>
 </div>
