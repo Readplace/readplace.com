@@ -59,7 +59,7 @@ function buildSubject() {
 	const digest = initInMemoryDigestQueue();
 	const readerReady = initInMemoryReaderReadyState();
 	const onboarding = initInMemoryIosOnboardingSignal();
-	const readingPreference = initInMemoryReadingPreference({ now: () => SEED_NOW });
+	const readingPreference = initInMemoryReadingPreference();
 	const subs = initInMemorySubscriptionProviders({ now: () => SEED_NOW });
 	const inboxEmail = initInMemoryInboxEmail();
 	const inboxLink = initInMemoryInboxEmailLink();
@@ -525,7 +525,7 @@ describe("delete-account handler", () => {
 		});
 		assert.deepEqual(
 			await s.readingPreference.getReadingPreference({ userId: bystander.userId }),
-			{ text: "prefers long-form essays (u2)", updatedAt: SEED_NOW.toISOString() },
+			{ text: "prefers long-form essays (u2)" },
 		);
 		const bystanderSub = await s.subs.findByUserId(bystander.userId);
 		assert(bystanderSub, "expected the bystander subscription to survive");

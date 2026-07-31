@@ -210,7 +210,7 @@ function initProviders(input: { appOrigin: string }) {
 
 		const auth = initDynamoDbAuth({ client, usersTableName: usersTable, sessionsTableName: sessionsTable });
 		const iosOnboardingSignal = initIosOnboardingSignal({ client, onboardingTableName: onboardingTable, now: () => new Date() });
-		const readingPreference = initReadingPreference({ client, tableName: readingPreferencesTable, now: () => new Date() });
+		const readingPreference = initReadingPreference({ client, tableName: readingPreferencesTable });
 		const articleStore = initDynamoDbSavedArticleStore({ client, tableName: articlesTable, userArticlesTableName: userArticlesTable, logger });
 		const canonicalAlias = initCanonicalAliasStore({ client, tableName: articlesTable });
 		const resolveCanonicalIdentity = initResolveCanonicalIdentity({ resolveAlias: canonicalAlias.resolveAlias });
@@ -435,7 +435,7 @@ function initProviders(input: { appOrigin: string }) {
 
 	const auth = initInMemoryAuth({ hashPassword, verifyPassword });
 	const iosOnboardingSignal = initInMemoryIosOnboardingSignal();
-	const readingPreference = initInMemoryReadingPreference({ now: () => new Date() });
+	const readingPreference = initInMemoryReadingPreference();
 	const articleStore = initInMemoryArticleStore();
 	const oauthClients = initInMemoryOAuthClients({ now: () => new Date() });
 	const oauthClientLookup = initOAuthClientLookup({ dynamic: oauthClients });

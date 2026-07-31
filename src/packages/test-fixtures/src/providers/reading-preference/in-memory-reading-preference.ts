@@ -5,15 +5,15 @@ import type {
 	SaveReadingPreference,
 } from "@packages/provider-contracts/reading-preference";
 
-export function initInMemoryReadingPreference(deps: { now: () => Date }): {
+export function initInMemoryReadingPreference(): {
 	saveReadingPreference: SaveReadingPreference;
 	getReadingPreference: GetReadingPreference;
 	deleteReadingPreference: DeleteReadingPreference;
 } {
-	const preferences = new Map<UserId, { text: string; updatedAt: string }>();
+	const preferences = new Map<UserId, { text: string }>();
 
 	const saveReadingPreference: SaveReadingPreference = async ({ userId, text }) => {
-		preferences.set(userId, { text, updatedAt: deps.now().toISOString() });
+		preferences.set(userId, { text });
 	};
 
 	const getReadingPreference: GetReadingPreference = async ({ userId }) =>

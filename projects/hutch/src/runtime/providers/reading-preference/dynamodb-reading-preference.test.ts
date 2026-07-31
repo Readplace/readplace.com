@@ -26,15 +26,14 @@ function createFakeClient(opts: { row?: Record<string, unknown> }): {
 }
 
 const USER = UserIdSchema.parse("user-1");
-const NOW = new Date("2026-07-27T10:00:00.000Z");
 
 function initPreference(client: DynamoDBDocumentClient) {
-	return initReadingPreference({ client, tableName: "reading-preferences", now: () => NOW });
+	return initReadingPreference({ client, tableName: "reading-preferences" });
 }
 
 describe("initReadingPreference", () => {
 	describe("saveReadingPreference", () => {
-		it("writes the whole row so a re-save replaces the previous text and timestamp", async () => {
+		it("writes the whole row so a re-save replaces the previous text", async () => {
 			const { client, commands } = createFakeClient({});
 
 			await initPreference(client).saveReadingPreference({
@@ -47,7 +46,6 @@ describe("initReadingPreference", () => {
 			expect(put?.input.Item).toEqual({
 				userId: "user-1",
 				preferenceText: "Long-form essays about systems design",
-				updatedAt: NOW.toISOString(),
 			});
 		});
 	});
@@ -64,21 +62,17 @@ describe("initReadingPreference", () => {
 			expect(preference).toBeUndefined();
 		});
 
-		it("maps the stored row onto the text and updatedAt the caller renders", async () => {
+		it("maps the stored row onto the text the caller renders", async () => {
 			const { client } = createFakeClient({
 				row: {
 					userId: "user-1",
 					preferenceText: "Deep dives on distributed systems",
-					updatedAt: "2026-07-26T08:30:00.000Z",
 				},
 			});
 
 			const preference = await initPreference(client).getReadingPreference({ userId: USER });
 
-			expect(preference).toEqual({
-				text: "Deep dives on distributed systems",
-				updatedAt: "2026-07-26T08:30:00.000Z",
-			});
+			expect(preference).toEqual({ text: "Deep dives on distributed systems" });
 		});
 	});
 

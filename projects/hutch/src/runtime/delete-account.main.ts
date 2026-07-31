@@ -73,7 +73,6 @@ const onboarding = initIosOnboardingSignal({
 const readingPreference = initReadingPreference({
 	client: dynamoClient,
 	tableName: requireEnv("DYNAMODB_READING_PREFERENCES_TABLE"),
-	now,
 });
 
 const subscriptionProviders = initDynamoDbSubscriptionProviders({

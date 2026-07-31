@@ -10,13 +10,11 @@ import type {
 const ReadingPreferenceRow = z.object({
 	userId: UserIdSchema,
 	preferenceText: z.string(),
-	updatedAt: z.string(),
 });
 
 export function initReadingPreference(deps: {
 	client: DynamoDBDocumentClient;
 	tableName: string;
-	now: () => Date;
 }): {
 	saveReadingPreference: SaveReadingPreference;
 	getReadingPreference: GetReadingPreference;
@@ -30,14 +28,14 @@ export function initReadingPreference(deps: {
 
 	const saveReadingPreference: SaveReadingPreference = async ({ userId, text }) => {
 		await preferences.put({
-			Item: { userId, preferenceText: text, updatedAt: deps.now().toISOString() },
+			Item: { userId, preferenceText: text },
 		});
 	};
 
 	const getReadingPreference: GetReadingPreference = async ({ userId }) => {
 		const row = await preferences.get({ userId });
 		if (!row) return undefined;
-		return { text: row.preferenceText, updatedAt: row.updatedAt };
+		return { text: row.preferenceText };
 	};
 
 	const deleteReadingPreference: DeleteReadingPreference = async ({ userId }) => {

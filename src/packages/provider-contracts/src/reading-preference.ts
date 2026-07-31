@@ -10,10 +10,9 @@ export type SaveReadingPreference = (params: {
 
 /** Reads the user's reading preference, or `undefined` when they have never
  * saved one — the two states drive different renders, so absence is a value the
- * caller must handle rather than an empty string. `updatedAt` is an ISO-8601
- * instant. */
+ * caller must handle rather than an empty string. */
 export type GetReadingPreference = (params: {
 	userId: UserId;
-}) => Promise<{ text: string; updatedAt: string } | undefined>;
+}) => Promise<{ text: string } | undefined>;
 
 export type DeleteReadingPreference = (params: { userId: UserId }) => Promise<void>;

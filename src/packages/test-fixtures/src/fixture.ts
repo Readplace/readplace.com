@@ -411,7 +411,7 @@ export function createDefaultTestAppFixture(appOrigin: string): TestAppFixture {
 		passwordReset,
 		rateLimit,
 		iosOnboardingSignal: initInMemoryIosOnboardingSignal(),
-		readingPreference: initInMemoryReadingPreference({ now: () => new Date() }),
+		readingPreference: initInMemoryReadingPreference(),
 		google: undefined,
 		/* Apple sign-in is a mandatory dependency — the /auth/apple route is always
 		* mounted so the button always resolves — so the default fixture wires a
