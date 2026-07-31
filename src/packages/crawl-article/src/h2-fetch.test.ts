@@ -115,6 +115,20 @@ describe("fetchH2 — against a local HTTP/2 server", () => {
 			await server.close();
 		}
 	});
+
+	it("rejects — without the failure escaping as an uncaughtException — when the stream ends before any response", async () => {
+		const server = await startH2Server((stream) => stream.close(http2.constants.NGHTTP2_NO_ERROR));
+		const escaped: unknown[] = [];
+		const captureEscaped = (error: unknown) => escaped.push(error);
+		process.on("uncaughtException", captureEscaped);
+		try {
+			await expect(fetchH2(`${server.origin}/`)).rejects.toThrow("HTTP/2 stream ended without a response");
+			expect(escaped).toEqual([]);
+		} finally {
+			process.off("uncaughtException", captureEscaped);
+			await server.close();
+		}
+	});
 });
 
 /**
@@ -730,6 +744,28 @@ describe("withH2Fallback", () => {
 
 		await expect(wrapped("https://example.com")).rejects.toBe(curlFailure);
 		expect(curlFailure.cause).toBeUndefined();
+	});
+
+	it("escalates to curl when a real h2 stream ends before any response", async () => {
+		const server = await startH2Server((stream) => stream.close(http2.constants.NGHTTP2_NO_ERROR));
+		const baseFetch: typeof fetch = async () =>
+			new Response("challenge", { status: 403, headers: { server: "cloudflare" } });
+		const curlImpl = jest.fn<ReturnType<CurlFetch>, Parameters<CurlFetch>>(async () =>
+			new Response("<html>curl after a headerless h2 stream</html>", {
+				status: 200,
+				headers: { "content-type": "text/html" },
+			}),
+		);
+		const wrapped = withH2Fallback(baseFetch, fetchH2, curlImpl);
+		try {
+			const response = await wrapped(`${server.origin}/`);
+
+			expect(response.status).toBe(200);
+			expect(await response.text()).toBe("<html>curl after a headerless h2 stream</html>");
+			expect(curlImpl).toHaveBeenCalledTimes(1);
+		} finally {
+			await server.close();
+		}
 	});
 
 	it("propagates a non-Error curl rejection unchanged (no cause to attach)", async () => {

@@ -1,4 +1,3 @@
-import assert from "node:assert";
 import http2 from "node:http2";
 import type { AssertHostAllowed, SocketLookup } from "./blocked-address-lookup";
 import type { CurlFetch } from "./curl-fetch";
@@ -99,20 +98,19 @@ function h2Request(
 			signal.addEventListener("abort", onAbort, { once: true });
 			req.on("close", () => signal.removeEventListener("abort", onAbort));
 		}
-		let status: number | undefined;
-		let responseHeaders: http2.IncomingHttpHeaders | undefined;
+		let response: { status: number; headers: http2.IncomingHttpHeaders } | undefined;
 		req.on("response", (headers) => {
-			status = Number(headers[":status"]);
-			responseHeaders = headers;
+			response = { status: Number(headers[":status"]), headers };
 		});
 		const chunks: Buffer[] = [];
 		req.on("data", (chunk: Buffer) => chunks.push(chunk));
 		req.on("end", () => {
-			assert(status !== undefined, "HTTP/2 stream ended without :status");
-			/* c8 ignore next -- V8 block-coverage phantom: this assert's message string gets a spurious zero-count sub-range even though the guard runs on every response; see bcoe/c8#319 and https://v8.dev/blog/javascript-code-coverage */
-			assert(responseHeaders, "HTTP/2 stream ended without response headers");
-			/* c8 ignore next -- V8 block-coverage phantom: the resolve/Buffer.concat continuation gets a spurious zero-count sub-range even though every h2 response reaches it; see bcoe/c8#319 and https://v8.dev/blog/javascript-code-coverage */
-			resolve({ status, headers: responseHeaders, body: Buffer.concat(chunks) });
+			if (!response) {
+				reject(new Error("HTTP/2 stream ended without a response"));
+				return;
+			}
+			resolve({ ...response, body: Buffer.concat(chunks) });
+			/* c8 ignore next -- V8 block-coverage phantom: the range between this listener's closing brace and the next statement gets a spurious zero-count sub-range even though every h2 response reaches it; see bcoe/c8#319 and https://v8.dev/blog/javascript-code-coverage */
 		});
 		req.end();
 	});
