@@ -12,7 +12,7 @@ import type {
 	Message,
 	ActionVariant,
 } from "browser-extension-core";
-import { filterByUrl, paginateItems, avatarColor, relativeTime, isAppUrl, itemDisplay, selectSaveableTabs, summarizeBulkSave, installShortcuts, isCmdD, buildMessageView, actionLabel, actionVariant, actionIcon, linkLabel, linkPresentation } from "browser-extension-core";
+import { filterByUrl, paginateItems, avatarColor, relativeTime, isAppUrl, itemDisplay, selectSaveableTabs, summarizeBulkSave, installShortcuts, isCmdD, buildMessageView, buildSavedView, actionLabel, actionVariant, actionIcon, linkLabel, linkPresentation } from "browser-extension-core";
 import { HutchLogger, consoleLogger } from "@packages/hutch-logger";
 
 /** The client's own presentation map: an action variant -> the popup's CSS
@@ -382,8 +382,8 @@ function setListError(message: string | null): void {
 // what they mean. A shared helper makes every rendering decision; this glue
 // only paints it. The body is server-authored HTML, injected as HTML and
 // trusted by contract.
-function renderMessages(messages: Message[], containerId = "messages"): void {
-	const container = document.getElementById(containerId);
+function renderMessages(messages: Message[]): void {
+	const container = document.getElementById("messages");
 	if (!container) return;
 	const view = buildMessageView(messages);
 	container.replaceChildren();
@@ -401,7 +401,16 @@ function renderMessages(messages: Message[], containerId = "messages"): void {
  * semantic link it offered. Nothing here is client-authored copy, and only the
  * reader choosing the list surface fetches the collection. */
 function renderSavedView(saved: { item: ReadingListItem; messages: Message[] }): void {
-	renderMessages(saved.messages, "saved-messages");
+	const lines = document.getElementById("saved-messages");
+	if (lines) {
+		lines.replaceChildren();
+		for (const line of buildSavedView(saved.messages)) {
+			const el = document.createElement("p");
+			el.className = line.className;
+			el.innerHTML = line.html;
+			lines.appendChild(el);
+		}
+	}
 	const affordances = document.getElementById("saved-affordances");
 	if (!affordances) return;
 	affordances.replaceChildren();

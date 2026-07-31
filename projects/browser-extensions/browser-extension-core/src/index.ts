@@ -64,6 +64,8 @@ export { paginateItems } from "./popup/paginate-items";
 export { avatarColor } from "./popup/avatar-color";
 export { relativeTime } from "./popup/relative-time";
 export { buildMessageView } from "./popup/message-view";
+export { buildSavedView } from "./popup/saved-view";
+export type { SavedViewLine } from "./popup/saved-view";
 export type { MessageView } from "./popup/message-view";
 export { isAppUrl } from "./popup/is-app-url";
 export { itemDisplay } from "./popup/item-display";

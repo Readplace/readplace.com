@@ -4957,3 +4957,110 @@ describe("initSirenReadingList deferred content upload", () => {
 	});
 });
 
+
+/** The reader's queue is not a dependency of saving to it. A save fetched every
+ * page of the queue twice before this budget existed — the walker collected all
+ * pages eagerly, and a save walks twice — which is why the cost is asserted as
+ * an exact request list rather than a maximum. Anything that reintroduces a
+ * collection read here shows up as an extra entry. */
+describe("initSirenReadingList request budget", () => {
+	function budgetDeps(
+		fetchFn: SirenReadingListDeps["fetchFn"],
+	): SirenReadingListDeps {
+		return {
+			serverUrl: "http://localhost:3000",
+			getAccessToken: async () => "test-token",
+			fetchFn,
+			onUnauthorized: async () => {},
+			refreshTokens: async () => ({ ok: false, reason: "no-refresh-token" }),
+			logger: noopLogger,
+		};
+	}
+
+	it("spends one entry-point walk and the save itself, and never reads the queue", async () => {
+		const { fetchFn, calls } = createRoutingFetch(
+			withEntryPoint({
+				"GET http://localhost:3000/queue": {
+					status: 200,
+					body: collectionResponse([
+						articleEntity({
+							id: "1",
+							url: "https://example.com/a",
+							title: "A",
+							savedAt: "2026-01-15T10:00:00.000Z",
+						}),
+					]),
+				},
+				"POST http://localhost:3000/queue": {
+					status: 201,
+					body: JSON.stringify(
+						articleEntity({
+							id: "2",
+							url: "https://example.com/b",
+							title: "B",
+							savedAt: "2026-01-15T11:00:00.000Z",
+						}),
+					),
+				},
+			}),
+		);
+		const { saveUrl } = initSirenReadingList(budgetDeps(fetchFn));
+
+		const result = await saveUrl({ url: "https://example.com/b", title: "B" });
+
+		expect(result.ok).toBe(true);
+		expect(calls).toEqual([
+			"GET http://localhost:3000/",
+			"POST http://localhost:3000/queue",
+		]);
+	});
+
+	it("reads one page to show the list, and one more only when asked for another", async () => {
+		const { fetchFn, calls } = createRoutingFetch(
+			withEntryPoint({
+				"GET http://localhost:3000/queue": {
+					status: 200,
+					body: JSON.stringify({
+						class: ["collection", "articles"],
+						entities: [
+							articleEntity({
+								id: "1",
+								url: "https://example.com/a",
+								title: "A",
+								savedAt: "2026-01-15T10:00:00.000Z",
+							}),
+						],
+						links: [
+							{ rel: ["self"], href: "/queue" },
+							{ rel: ["next"], href: "/queue?page=2" },
+						],
+						actions: COLLECTION_ACTIONS,
+					}),
+				},
+				"GET http://localhost:3000/queue?page=2": {
+					status: 200,
+					body: collectionResponse([
+						articleEntity({
+							id: "2",
+							url: "https://example.com/b",
+							title: "B",
+							savedAt: "2026-01-15T09:00:00.000Z",
+						}),
+					]),
+				},
+			}),
+		);
+		const { getItems, getMoreItems } = initSirenReadingList(budgetDeps(fetchFn));
+
+		const first = await getItems();
+		expect(first.items).toHaveLength(1);
+		expect(calls).toEqual(["GET http://localhost:3000/"]);
+
+		const second = loadedPage(await getMoreItems());
+		expect(second.items).toHaveLength(2);
+		expect(calls).toEqual([
+			"GET http://localhost:3000/",
+			"GET http://localhost:3000/queue?page=2",
+		]);
+	});
+});

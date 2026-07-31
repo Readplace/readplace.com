@@ -23,7 +23,7 @@ export interface MessageView {
  * `content.type` is anything else is ignored — never injected — so the server
  * can adopt a richer media type without older clients mis-rendering an unknown
  * body as HTML. */
-const RENDERABLE_MEDIA_TYPE = "text/html";
+export const RENDERABLE_MEDIA_TYPE = "text/html";
 
 export function buildMessageView(messages: Message[]): MessageView {
 	const renderable = messages.filter(
