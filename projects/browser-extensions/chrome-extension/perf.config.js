@@ -1,11 +1,12 @@
-// Measured, not chosen. 150ms is ~2.8x the slowest run mean over 20
-// independent github-hosted runs (52.9ms), which is ~17 standard deviations of
-// run-to-run spread above the average one; a real CI run measures ~49ms. Small
-// enough that the regression this suite exists for — a save that walks the
-// queue, ~12x the cost — cannot hide under it. Re-derive with the perf soak
-// workflow when the runner image, the browser, or the save path moves.
+// Measured, not chosen. 110ms is ~2.1x the slowest run mean over 20
+// independent github-hosted runs (52.9ms), which is ~10 standard deviations of
+// run-to-run spread above the average one; a real CI run measures ~49ms. None
+// of those 20 runs comes within 57ms of it, and Chrome showed no tail worth
+// pricing in — its worst single sample was 65.9ms, so a run made entirely of
+// worst-case saves would still pass. Re-derive with the perf soak workflow
+// when the runner image, the browser, or the save path moves.
 module.exports = {
-  meanSaveMs: 150,
+  meanSaveMs: 110,
 
   // The gate is the mean of this many warm saves. Twenty keeps the standard
   // error under a millisecond and is what the soak's budget was derived from,
