@@ -185,6 +185,11 @@
   display: none;
 }
 
+.inbox__disabled-summary:focus-visible {
+  outline: 2px solid var(--ring);
+  outline-offset: -2px;
+}
+
 .inbox__disabled-caret {
   display: inline-flex;
   color: var(--muted-foreground);
@@ -242,6 +247,13 @@
   background: var(--background);
   border: 1px solid var(--border);
   border-radius: var(--radius);
+}
+
+.inbox__name-input:focus,
+.inbox__address-field:focus {
+  outline: none;
+  border-color: var(--ring);
+  box-shadow: 0 0 0 3px var(--ring-shadow);
 }
 
 .inbox__create-btn {
