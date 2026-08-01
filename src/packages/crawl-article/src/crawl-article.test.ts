@@ -873,12 +873,11 @@ describe("initCrawlArticle — split fetch budgets (headers vs body)", () => {
 		return signal;
 	}
 
-	it("aborts with a TimeoutError when no headers arrive within the headers budget, then falls back to signal-less curl", async () => {
-		const curlError = new Error("curl fallback also failed");
-		const curlSignals: Array<AbortSignal | undefined> = [];
-		const fakeFetchCurl: CurlFetch = async (_url, init) => {
-			curlSignals.push(init?.signal);
-			throw curlError;
+	it("fails at the headers budget without granting curl a fresh timer", async () => {
+		const curlCalls: string[] = [];
+		const fakeFetchCurl: CurlFetch = async (url) => {
+			curlCalls.push(url);
+			throw new Error("curl must not run once the headers budget is spent");
 		};
 		const fakeFetch: typeof fetch = (_input, init) =>
 			new Promise((_resolve, reject) => {
@@ -896,11 +895,13 @@ describe("initCrawlArticle — split fetch budgets (headers vs body)", () => {
 		const result = await crawlArticle({ url: "https://example.com/huge.pdf" });
 
 		expect(result).toEqual({ status: "failed" });
-		expect(logError).toHaveBeenCalledWith(
-			"[CrawlArticle] Network error for https://example.com/huge.pdf",
-			curlError,
-		);
-		expect(curlSignals).toEqual([undefined]);
+		expect(curlCalls).toEqual([]);
+		expect(logError).toHaveBeenCalledTimes(1);
+		const [loggedMessage, loggedError] = logError.mock.calls[0];
+		expect(loggedMessage).toBe("[CrawlArticle] Network error for https://example.com/huge.pdf");
+		assert(loggedError instanceof Error, "Expected the headers timeout to be logged as an Error");
+		expect(loggedError.name).toBe("TimeoutError");
+		expect(loggedError.message).toBe("no response headers within 15ms");
 	});
 
 	it("aborts with a TimeoutError when the body is not fully read within the body budget", async () => {

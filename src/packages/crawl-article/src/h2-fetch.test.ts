@@ -515,7 +515,7 @@ describe("withH2Fallback", () => {
 		expect(curlImpl).not.toHaveBeenCalled();
 	});
 
-	it("falls back to curl when h2 times out (signal fires during h2 attempt)", async () => {
+	it("propagates the caller's timeout that fires during the h2 attempt instead of giving curl a fresh timer", async () => {
 		const baseFetch: typeof fetch = async () =>
 			new Response("challenge", { status: 403, headers: { server: "cloudflare" } });
 		const controller = new AbortController();
@@ -524,41 +524,30 @@ describe("withH2Fallback", () => {
 			controller.abort(reason);
 			throw reason;
 		});
-		const curlImpl = jest.fn<ReturnType<CurlFetch>, Parameters<CurlFetch>>(async () =>
-			new Response("<html>curl after h2 timeout</html>", { status: 200, headers: { "content-type": "text/html" } }),
-		);
+		const curlImpl = jest.fn<ReturnType<CurlFetch>, Parameters<CurlFetch>>();
 		const wrapped = withH2Fallback(baseFetch, h2Impl, curlImpl);
 
-		const response = await wrapped("https://example.com", {
-			headers: { "user-agent": "Test/1.0" },
-			signal: controller.signal,
-		});
-
-		expect(response.status).toBe(200);
-		expect(await response.text()).toBe("<html>curl after h2 timeout</html>");
-		expect(curlImpl).toHaveBeenCalledWith("https://example.com", {
-			headers: { "user-agent": "Test/1.0" },
-		});
+		await expect(
+			wrapped("https://example.com", { headers: { "user-agent": "Test/1.0" }, signal: controller.signal }),
+		).rejects.toBe(reason);
+		expect(h2Impl).toHaveBeenCalledTimes(1);
+		expect(curlImpl).not.toHaveBeenCalled();
 	});
 
-	it("does not pass the exhausted signal to curl when h2 times out", async () => {
-		const baseFetch: typeof fetch = async () =>
-			new Response("challenge", { status: 403, headers: { server: "cloudflare" } });
+	it("propagates the caller's abort from the block-class response path without entering h2 or curl", async () => {
 		const controller = new AbortController();
-		const reason = Object.assign(new Error("timed out"), { name: "TimeoutError" });
-		const h2Impl = jest.fn<ReturnType<typeof fetchH2>, Parameters<typeof fetchH2>>(async () => {
+		const reason = Object.assign(new Error("The operation timed out"), { name: "TimeoutError" });
+		const baseFetch: typeof fetch = async () => {
 			controller.abort(reason);
-			throw reason;
-		});
-		const curlImpl = jest.fn<ReturnType<CurlFetch>, Parameters<CurlFetch>>(async () =>
-			new Response("ok", { status: 200 }),
-		);
+			return new Response("challenge", { status: 403, headers: { server: "cloudflare" } });
+		};
+		const h2Impl = jest.fn<ReturnType<typeof fetchH2>, Parameters<typeof fetchH2>>();
+		const curlImpl = jest.fn<ReturnType<CurlFetch>, Parameters<CurlFetch>>();
 		const wrapped = withH2Fallback(baseFetch, h2Impl, curlImpl);
 
-		await wrapped("https://example.com", { signal: controller.signal });
-
-		const curlCall = curlImpl.mock.calls[0];
-		expect(curlCall[1]).toEqual({ headers: undefined });
+		await expect(wrapped("https://example.com", { signal: controller.signal })).rejects.toBe(reason);
+		expect(h2Impl).not.toHaveBeenCalled();
+		expect(curlImpl).not.toHaveBeenCalled();
 	});
 
 	it("falls back to curl when h2 throws a non-Error value", async () => {
@@ -578,7 +567,7 @@ describe("withH2Fallback", () => {
 		expect(curlImpl).toHaveBeenCalledTimes(1);
 	});
 
-	it("falls back to curl when baseFetch throws due to a timed-out signal", async () => {
+	it("propagates a caller timeout on the primary leg without trying h2 or curl", async () => {
 		const controller = new AbortController();
 		const reason = Object.assign(new Error("The operation timed out"), { name: "TimeoutError" });
 		controller.abort(reason);
@@ -586,41 +575,14 @@ describe("withH2Fallback", () => {
 			throw reason;
 		};
 		const h2Impl = jest.fn<ReturnType<typeof fetchH2>, Parameters<typeof fetchH2>>();
-		const curlImpl = jest.fn<ReturnType<CurlFetch>, Parameters<CurlFetch>>(async () =>
-			new Response("<html>curl fallback</html>", { status: 200, headers: { "content-type": "text/html" } }),
-		);
+		const curlImpl = jest.fn<ReturnType<CurlFetch>, Parameters<CurlFetch>>();
 		const wrapped = withH2Fallback(baseFetch, h2Impl, curlImpl);
 
-		const response = await wrapped("https://hex.ooo/page.html", {
-			headers: { "user-agent": "Test/1.0" },
-			signal: controller.signal,
-		});
-
-		expect(response.status).toBe(200);
-		expect(await response.text()).toBe("<html>curl fallback</html>");
+		await expect(
+			wrapped("https://hex.ooo/page.html", { headers: { "user-agent": "Test/1.0" }, signal: controller.signal }),
+		).rejects.toBe(reason);
 		expect(h2Impl).not.toHaveBeenCalled();
-		expect(curlImpl).toHaveBeenCalledWith("https://hex.ooo/page.html", {
-			headers: { "user-agent": "Test/1.0" },
-		});
-	});
-
-	it("does not pass the exhausted signal to curl on timeout fallback", async () => {
-		const controller = new AbortController();
-		const reason = Object.assign(new Error("timed out"), { name: "TimeoutError" });
-		controller.abort(reason);
-		const baseFetch: typeof fetch = async () => {
-			throw reason;
-		};
-		const curlImpl = jest.fn<ReturnType<CurlFetch>, Parameters<CurlFetch>>(async () =>
-			new Response("ok", { status: 200 }),
-		);
-		const wrapped = withH2Fallback(baseFetch, jest.fn(), curlImpl);
-
-		await wrapped("https://example.com", { signal: controller.signal });
-
-		expect(curlImpl).toHaveBeenCalledWith("https://example.com", {
-			headers: undefined,
-		});
+		expect(curlImpl).not.toHaveBeenCalled();
 	});
 
 	it("propagates baseFetch error when signal is explicitly aborted (not timeout)", async () => {

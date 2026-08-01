@@ -8,10 +8,12 @@ const FALLBACK_STATUS_CODES = new Set([401, 403, 429]);
 const DEFAULT_H2_TIMEOUT_MS = 10000;
 
 /**
- * Mirrors crawl-article's fetchTimeoutReason: a plain Error named "TimeoutError"
- * rather than a DOMException, so `shouldTryFallback`'s `isTimeoutError` still
- * matches under jest's cross-realm sandbox (a host-realm DOMException fails
- * `instanceof Error` there and would silently disable the timeout→curl fallback).
+ * A plain Error named "TimeoutError": the name is uniform across every fetch
+ * deadline in the crawl chain, which is what makes a production log line
+ * attributable to the leg that actually ran out of time. Plain Error rather
+ * than DOMException because a host-realm DOMException fails `instanceof Error`
+ * under jest's cross-realm sandbox, and the crawl logger drops any rejection
+ * that is not an Error.
  */
 function h2TimeoutReason(message: string): Error {
 	const reason = new Error(message);
@@ -152,8 +154,14 @@ function toFetchHeaders(incoming: http2.IncomingHttpHeaders): Headers {
  * key on the undici ClientHello. curl's OpenSSL-based fingerprint differs
  * from both, and its fresh TCP connection also sidesteps upstream nginx/edge
  * sniffers that drop specific Lambda outbound IPs. Clear network failures
- * (DNS, connection refused) and explicit user-aborts skip both h2 and curl
- * since they would fail the same way and only add latency.
+ * (DNS, connection refused) skip both h2 and curl since they would fail the
+ * same way and only add latency.
+ *
+ * Any caller abort is final — a user cancel and an exhausted fetch budget
+ * alike. The budget belongs to the caller, so a per-transport timeout may only
+ * shorten what is left of it, never extend it: a fallback leg that armed a
+ * fresh timer after the budget blew turned every dead origin into one Lambda
+ * invocation costing the sum of both deadlines.
  */
 export function withH2Fallback(
 	baseFetch: typeof fetch,
@@ -200,47 +208,38 @@ async function h2ThenCurl(
 ): Promise<Response> {
 	const headers = toPlainHeaders(init?.headers);
 	const callerSignal = init?.signal ?? undefined;
+	if (callerSignal?.aborted) throw callerSignal.reason;
 	let h2Error: unknown;
 
-	/* Skip h2 when the caller's signal is already exhausted — http2.connect
-	 * would open a TCP connection only to abort it immediately. */
-	if (!callerSignal?.aborted) {
-		const h2Controller = new AbortController();
-		const timer = setTimeout(
-			() => h2Controller.abort(h2TimeoutReason(`h2 no response within ${h2TimeoutMs}ms`)),
-			h2TimeoutMs,
-		);
-		let removeCallerListener: (() => void) | undefined;
-		if (callerSignal) {
-			const onCallerAbort = () => h2Controller.abort(callerSignal.reason);
-			callerSignal.addEventListener("abort", onCallerAbort, { once: true });
-			removeCallerListener = () => callerSignal.removeEventListener("abort", onCallerAbort);
-		}
-		try {
-			const h2Response = await h2FetchImpl(url, { headers, signal: h2Controller.signal });
-			if (!FALLBACK_STATUS_CODES.has(h2Response.status)) return h2Response;
-			await h2Response.text();
-		} catch (error) {
-			if (!shouldTryFallback(error, callerSignal)) throw error;
-			h2Error = error;
-		} finally {
-			clearTimeout(timer);
-			removeCallerListener?.();
-		}
+	const h2Controller = new AbortController();
+	const timer = setTimeout(
+		() => h2Controller.abort(h2TimeoutReason(`h2 no response within ${h2TimeoutMs}ms`)),
+		h2TimeoutMs,
+	);
+	let removeCallerListener: (() => void) | undefined;
+	if (callerSignal) {
+		const onCallerAbort = () => h2Controller.abort(callerSignal.reason);
+		callerSignal.addEventListener("abort", onCallerAbort, { once: true });
+		removeCallerListener = () => callerSignal.removeEventListener("abort", onCallerAbort);
+	}
+	try {
+		const h2Response = await h2FetchImpl(url, { headers, signal: h2Controller.signal });
+		if (!FALLBACK_STATUS_CODES.has(h2Response.status)) return h2Response;
+		await h2Response.text();
+	} catch (error) {
+		if (!shouldTryFallback(error, callerSignal)) throw error;
+		h2Error = error;
+	} finally {
+		clearTimeout(timer);
+		removeCallerListener?.();
 	}
 
 	try {
-		return await (callerSignal?.aborted
-			? curlFetchImpl(url, { headers })
-			: curlFetchImpl(url, { headers, signal: callerSignal }));
+		return await curlFetchImpl(url, { headers, signal: callerSignal });
 	} catch (curlError) {
 		if (curlError instanceof Error && h2Error !== undefined) curlError.cause = h2Error;
 		throw curlError;
 	}
-}
-
-function isTimeoutError(reason: unknown): boolean {
-	return reason instanceof Error && reason.name === "TimeoutError";
 }
 
 const NETWORK_ERROR_CODES = new Set([
@@ -251,7 +250,7 @@ const NETWORK_ERROR_CODES = new Set([
 ]);
 
 function shouldTryFallback(error: unknown, signal: AbortSignal | undefined): boolean {
-	if (signal?.aborted && !isTimeoutError(signal.reason)) return false;
+	if (signal?.aborted) return false;
 	if (!(error instanceof Error)) return true;
 	if ("code" in error && typeof error.code === "string" && NETWORK_ERROR_CODES.has(error.code)) {
 		return false;

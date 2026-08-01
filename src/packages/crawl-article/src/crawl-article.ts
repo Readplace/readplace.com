@@ -33,13 +33,12 @@ const MAX_SITE_RULE_REDIRECTS = 3;
 type FetchTimeouts = { headersMs: number; bodyMs: number };
 
 /**
- * Mirrors the reason `AbortSignal.timeout()` aborts with: h2-fetch's
- * `shouldTryFallback` only proceeds past an aborted signal when
- * `reason instanceof Error && reason.name === "TimeoutError"`, so the manual
- * aborts here must keep that shape or timeouts stop falling back to curl.
- * A plain `Error` rather than `DOMException` because platform-constructed
- * DOMExceptions come from the host realm — under jest's sandbox they fail
- * `instanceof Error` and silently disable the fallback chain.
+ * A plain Error named "TimeoutError": the name is uniform across every fetch
+ * deadline in the crawl chain, which is what makes a production log line
+ * attributable to the budget that actually ran out. Plain Error rather than
+ * DOMException because a platform-constructed DOMException comes from the host
+ * realm and fails `instanceof Error` under jest's sandbox, and the crawl logger
+ * drops any rejection that is not an Error.
  */
 function fetchTimeoutReason(message: string): Error {
 	const reason = new Error(message);
