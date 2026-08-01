@@ -157,6 +157,20 @@ export const HEALTH_SOURCES: readonly HealthSource[] = [
 			"Without an alternative map, it is difficult for plaintiffs to defeat our starting presumption that the legislature acted in good faith",
 		expectsThumbnail: true,
 	},
+	{
+		// web.archive.org's nginx answers the Chrome desktop UA with a non-standard
+		// HTTP 498 whose body is a plain 404 page; the honest-bot persona gets the
+		// real bytes. 498 belonged to none of the escalation sets, so the first
+		// persona's 498 was terminal and the reader got "Sorry, we couldn't save
+		// this link" — this exact URL is the production row it broke. An `im_`
+		// image snapshot, so it guards the thumbnail-prefetch path on the same
+		// origin too. expectedContent is the image title the finalizer derives from
+		// the last path segment (extension dropped).
+		label: "Web Archive (Wayback im_ snapshot)",
+		url: "https://web.archive.org/web/20260707152150im_/https://www.tampabay.com/resizer/v2/LX7ER5SUP5FFTERGGD7DO5QYEI.jpg?auth=5bad6d3ff30583f1c9147dcc0dd6f5db9d445dd7e07a8178928d31205b5f1a96&height=675&width=1200&smart=true",
+		expectedContent: "LX7ER5SUP5FFTERGGD7DO5QYEI",
+		expectsThumbnail: true,
+	},
 	// PDF sources run last and are ordered cheapest-first: each one fans out
 	// per-page OCR (rasterisation + DeepInfra vision) and burns real tokens, so
 	// the tier-1-plus canary's fail-fast gate skips every remaining PDF once any
