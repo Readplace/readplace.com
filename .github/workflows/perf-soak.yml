@@ -25,6 +25,9 @@ jobs:
       matrix:
         run: [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20]
     runs-on: ubuntu-latest
+    # Same ceiling as the perf-tests job it feeds, and it matters more here:
+    # twenty jobs each free to hang for the 6h default is twenty held runners.
+    timeout-minutes: 30
     env:
       STATIC_BASE_URL: ''
     steps:
