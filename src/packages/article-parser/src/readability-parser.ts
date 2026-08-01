@@ -34,15 +34,16 @@ export function initReadabilityParser(deps: {
 		const { document } = parseHTML(
 			extracted ? buildSyntheticHtml(extracted) : params.html,
 		);
+		if (!document.documentElement) {
+			return { ok: false, reason: "no <html> element in response body" };
+		}
 		// Any throw from normalization, Readability construction, or
 		// Readability.parse() becomes a terminal parse failure so
 		// the caller can mark the crawl failed immediately — otherwise
 		// it escapes the whole pipeline and the reader slot is stuck on
-		// "pending" until the dead-letter path ticks over. Readability
-		// still crashes on pages whose DOM shape trips its heuristics;
-		// we normalize the common linkedom-implicit-body shape above
-		// but other shapes remain.
+		// "pending" until the dead-letter path ticks over.
 		let parsed: ReturnType<Readability["parse"]>;
+		let phase: "Article normalization" | "Readability parse" = "Article normalization";
 		try {
 			normalizeImplicitBody(document);
 			replaceVideosWithPlaceholder({
@@ -68,6 +69,7 @@ export function initReadabilityParser(deps: {
 			 * inline-post shape). In place, so a false match can't drop the
 			 * article — Readability still scores the whole document. */
 			promoteBrParagraphHosts(document);
+			phase = "Readability parse";
 			/* `reader-video-placeholder` and `reader-embed-facade` join
 			 * Readability's default `CLASSES_TO_PRESERVE` (concat'd internally) so
 			 * the CSS hooks survive `_cleanClasses`; the <p> tag is also exempt
@@ -79,7 +81,7 @@ export function initReadabilityParser(deps: {
 			}).parse();
 		} catch (error) {
 			const message = error instanceof Error ? error.message : String(error);
-			return { ok: false, reason: `Readability parse failed: ${message}` };
+			return { ok: false, reason: `${phase} failed: ${message}` };
 		}
 
 		if (!parsed) {

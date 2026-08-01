@@ -587,15 +587,58 @@ describe("initReadabilityParser", () => {
 			}
 		});
 
-		it("returns ok:false when the pre-Readability normalization step throws (linkedom returns documentElement=null for empty HTML, and the safety net must cover it)", () => {
+		it("reports the missing <html> element when the body has no elements at all (linkedom returns documentElement=null for empty HTML)", () => {
 			const { parseHtml } = initParser();
 
 			const result = parseHtml({ url: "https://example.com/article", html: "", thumbnailUrl: null });
 
 			expect(result.ok).toBe(false);
 			if (!result.ok) {
-				expect(result.reason).toContain("Readability parse failed:");
+				expect(result.reason).toBe("no <html> element in response body");
 			}
+		});
+
+		it("reports the missing <html> element for a 200 body that is bare text (news.ycombinator.com/item soft-404)", () => {
+			const html = readFileSync(join(__dirname, "fixtures", "no-such-item.html"), "utf-8");
+			const { parseHtml } = initParser();
+
+			const result = parseHtml({
+				url: "https://news.ycombinator.com/item",
+				html,
+				thumbnailUrl: null,
+			});
+
+			expect(result.ok).toBe(false);
+			if (!result.ok) {
+				expect(result.reason).toBe("no <html> element in response body");
+			}
+		});
+
+		it("reports a throw raised before Readability is constructed as a normalization failure, not a Readability failure", () => {
+			const logged: { message: string; error?: Error }[] = [];
+			const throwingMatches: TestSite = {
+				matches: () => {
+					throw new Error("matches boom");
+				},
+			};
+
+			const { parseHtml } = initParser({
+				siteRules: [throwingMatches],
+				logError: (message, error) => logged.push({ message, error }),
+			});
+
+			const result = parseHtml({
+				url: "https://example.com/article",
+				html: ARTICLE_HTML,
+				thumbnailUrl: null,
+			});
+
+			expect(result.ok).toBe(false);
+			if (!result.ok) {
+				expect(result.reason).toBe("Article normalization failed: matches boom");
+			}
+			expect(logged).toHaveLength(1);
+			expect(logged[0].message).toContain("extract threw");
 		});
 
 		/* Upstream Readability bug — linkedom leaves flow content as a
