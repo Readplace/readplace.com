@@ -5,8 +5,10 @@
  * Failures surface the `label` in the GitHub Actions UI, not a URL.
  *
  * A canary failure is a real failure: the crawler must handle TLS-fingerprint
- * blocks (e.g. Stack Overflow via Cloudflare) so production traffic still
- * reaches the origin. Fix the crawler before touching this list.
+ * blocks (Cloudflare, Akamai BotManager, Fastly) so production traffic still
+ * reaches the origin. Fix the crawler before touching this list. A source only
+ * leaves it when no fingerprint reaches the origin at all, so every run would be
+ * red whatever the crawler does.
  *
  * `expectsThumbnail` asserts the thumbnail download path: `true` means the
  * source has an og:image/twitter:image that must fetch successfully under
@@ -92,12 +94,6 @@ export const HEALTH_SOURCES: readonly HealthSource[] = [
 		label: "Ars Technica",
 		url: "https://arstechnica.com/features/2005/10/linux/",
 		expectedContent: "take a gander at The GIMP’s procedure database",
-		expectsThumbnail: true,
-	},
-	{
-		label: "Stack Overflow",
-		url: "https://stackoverflow.com/questions/11227809/why-is-processing-a-sorted-array-faster-than-processing-an-unsorted-array",
-		expectedContent: "You are a blind operator of a junction and you hear a train coming",
 		expectsThumbnail: true,
 	},
 	{

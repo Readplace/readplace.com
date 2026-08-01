@@ -55,6 +55,13 @@ export const EXCLUDE_PATTERNS: readonly RegExp[] = [
 	// operator cannot act on without a residential proxy; exclude them at the
 	// canary boundary.
 	/(?:^|\/\/)(?:[a-z0-9-]+\.)*reddit\.com(?:[/:?#]|$)/i,
+	// Stack Overflow — any subdomain, any path. A site-wide Cloudflare managed
+	// challenge answers every request 403 `cf-mitigated=challenge`, from a
+	// residential address as readily as from AWS, so it is a browser-integrity
+	// check no egress change and no curl-impersonate persona passes — only a
+	// client that executes the challenge JS. Same unactionable-noise rationale as
+	// the reddit.com entry above.
+	/(?:^|\/\/)(?:[a-z0-9-]+\.)*stackoverflow\.com(?:[/:?#]|$)/i,
 	// Time-limited presigned URLs — permanently dead once the signature lapses.
 	// TTLs are minutes, so the crawl fetch lands at or after expiry and the
 	// origin answers 403 for the object from then on; recrawl re-fetches the

@@ -84,6 +84,28 @@ describe("EXCLUDE_PATTERNS — reddit.com entry", () => {
 	}
 });
 
+describe("EXCLUDE_PATTERNS — stackoverflow.com entry", () => {
+	const cases: ReadonlyArray<{ url: string; excluded: boolean; label: string }> = [
+		{ url: "https://stackoverflow.com/questions/11227809/why-is-processing-a-sorted-array-faster-than-processing-an-unsorted-array", excluded: true, label: "apex question URL" },
+		{ url: "https://www.stackoverflow.com/questions/11227809", excluded: true, label: "www.stackoverflow.com" },
+		{ url: "https://meta.stackoverflow.com/questions/1", excluded: true, label: "meta.stackoverflow.com" },
+		{ url: "http://stackoverflow.com/q/11227809", excluded: true, label: "http scheme" },
+		{ url: "https://stackoverflow.com:443/q/1", excluded: true, label: "explicit port" },
+		{ url: "https://stackoverflow.com?q=1", excluded: true, label: "query immediately after host" },
+		{ url: "https://notstackoverflow.com/q/1", excluded: false, label: "prefixed similar host (should NOT match)" },
+		{ url: "https://stackoverflow.com.evil.com/q/1", excluded: false, label: "subdomain trick (should NOT match)" },
+		{ url: "https://other.test/stackoverflow.com/q/1", excluded: false, label: "stackoverflow.com inside a path" },
+		// The wider Stack Exchange network is not uniformly challenged — this host
+		// answered 200 to the same client — so its rows must still surface.
+		{ url: "https://softwareengineering.stackexchange.com/questions/1", excluded: false, label: "stackexchange.com sibling (should NOT match)" },
+	];
+	for (const { url, excluded, label } of cases) {
+		it(`${excluded ? "excludes" : "keeps"}: ${label} — ${url}`, () => {
+			assert.equal(isExcluded(url, EXCLUDE_PATTERNS), excluded);
+		});
+	}
+});
+
 describe("EXCLUDE_PATTERNS — presigned-URL entries", () => {
 	const cases: ReadonlyArray<{ url: string; excluded: boolean; label: string }> = [
 		{
