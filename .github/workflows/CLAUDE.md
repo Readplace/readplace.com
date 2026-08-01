@@ -24,6 +24,7 @@ Inspect the `.yml` files in this directory for implementation details. Summary:
 | Workflow | Purpose | Trigger |
 |----------|---------|---------|
 | `ci.yml` | Base CI pipeline | push/PR to main |
+| `perf-soak.yml` | Re-derives the save-latency budgets `ci.yml`'s `perf-tests` job gates on: 20 independent github-hosted runs, each uploading its own distribution | Manual |
 | `claude-listener.yml` | Central hub - ONLY workflow that runs Claude | `@claude` comments |
 | `claude-PR-CI-failure-fixer.yml` | Auto-fix CI failures (max 5 attempts) | CI fails on PR |
 | `claude-PR-code-reviewer.yml` | Automated code review | CI succeeds on PR |

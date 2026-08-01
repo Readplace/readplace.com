@@ -58,6 +58,48 @@ jobs:
 
       - run: pnpm check
 
+  # Save-latency gate for both browser extensions: a save must paint the saved
+  # view in under the measured budget on average.
+  #
+  # github-hosted, never the self-hosted runner: these samples are wall clock,
+  # and the orbstack box is one machine shared with whatever else is scheduled
+  # on it (a prior commit's visual-review runs MLX inference there), which shows
+  # up as latency this job would report as a regression. A hosted runner is a
+  # dedicated VM. It also removes the Rosetta tax — self-hosted is arm64 and
+  # runs Chrome for Testing emulated, so its numbers describe no real user.
+  #
+  # `needs` is about cost, not isolation: a hosted runner is billable, so don't
+  # spend one measuring a commit whose build is already broken.
+  perf-tests:
+    needs: [web-tests]
+    runs-on: ubuntu-latest
+    env:
+      STATIC_BASE_URL: ''
+    steps:
+      - uses: actions/checkout@v6
+
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 10.28.0
+
+      - uses: actions/setup-node@v6
+        with:
+          node-version: 22
+          cache: ${{ runner.environment == 'github-hosted' && 'pnpm' || '' }}
+
+      - run: pnpm install --frozen-lockfile --reporter=append-only --loglevel=warn
+
+      - run: pnpm perf
+
+      # Uploaded on failure too: the distribution is what separates a genuine
+      # regression from a runner that was starved.
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: save-latency-${{ github.run_id }}
+          path: projects/browser-extensions/*/test-results/perf/*.json
+          if-no-files-found: warn
+
   # Only detect and deploy on pushes to main (not on PRs)
   detect-projects:
     if: github.ref == 'refs/heads/main' && github.event_name == 'push'
@@ -263,7 +305,7 @@ jobs:
   # because other projects depend on platform resources (e.g. event bus ARN)
   deploy-platform:
     if: needs.detect-projects.outputs.platform-affected == 'true'
-    needs: [web-tests, detect-projects]
+    needs: [web-tests, perf-tests, detect-projects]
     uses: ./.github/workflows/project-deployment.yaml
     secrets: inherit
     with:
@@ -277,10 +319,11 @@ jobs:
     if: >-
       always()
       && needs.web-tests.result == 'success'
+      && needs.perf-tests.result == 'success'
       && needs.detect-projects.result == 'success'
       && needs.deploy-platform.result != 'failure'
       && needs.detect-projects.outputs.has-non-platform == 'true'
-    needs: [web-tests, detect-projects, deploy-platform]
+    needs: [web-tests, perf-tests, detect-projects, deploy-platform]
     strategy:
       fail-fast: false
       matrix:

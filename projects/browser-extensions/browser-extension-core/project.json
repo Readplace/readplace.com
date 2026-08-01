@@ -11,6 +11,10 @@
     },
     "test-with-coverage": {
       "dependsOn": ["compile"]
+    },
+    "perf": {
+      "dependsOn": ["compile"],
+      "cache": false
     }
   }
 }

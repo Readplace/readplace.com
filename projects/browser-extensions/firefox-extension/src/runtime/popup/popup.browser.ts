@@ -11,7 +11,7 @@ import type {
 	Message,
 	ActionVariant,
 } from "browser-extension-core";
-import { filterByUrl, paginateItems, avatarColor, relativeTime, isAppUrl, itemDisplay, selectSaveableTabs, summarizeBulkSave, installShortcuts, isCmdD, buildMessageView, buildSavedView, actionLabel, actionVariant, actionIcon, linkLabel, linkPresentation } from "browser-extension-core";
+import { filterByUrl, paginateItems, avatarColor, relativeTime, isAppUrl, itemDisplay, selectSaveableTabs, summarizeBulkSave, installShortcuts, isCmdD, buildMessageView, buildSavedView, actionLabel, actionVariant, actionIcon, linkLabel, linkPresentation, SAVE_RENDERED_MARK } from "browser-extension-core";
 import { HutchLogger, consoleLogger } from "@packages/hutch-logger";
 
 /** The client's own presentation map: an action variant -> the popup's CSS
@@ -492,6 +492,7 @@ async function saveAndShowList() {
 	if (saveResult.ok && saveResult.value.ok) {
 		renderSavedView(saveResult.value);
 		showView("saved-view");
+		performance.mark(SAVE_RENDERED_MARK);
 		return;
 	}
 

@@ -10,6 +10,7 @@
     "dev": "nx run hutch:dev",
     "permalink": "pnpm --filter hutch permalink",
     "check": ". ./.envrc && nx run-many --target=check --all",
+    "perf": ". ./.envrc && nx run-many --target=perf --all --parallel=1",
     "check-infra": ". ./.envrc && nx run-many --target=compile --all && nx run-many --target=check-infra --all",
     "deploy-infra": "nx run-many --target=deploy-infra --all",
     "generate-package": "nx run @packages/workspace-generators:compile && nx generate @packages/workspace-generators:package",

@@ -14,6 +14,10 @@
     "test:e2e": {
       "dependsOn": ["compile", "hutch:compile"]
     },
+    "perf": {
+      "dependsOn": ["compile", "hutch:compile"],
+      "cache": false
+    },
     "post-deploy": {
       "command": "bash scripts/post-deploy.sh",
       "options": { "cwd": "{projectRoot}" },

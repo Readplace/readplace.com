@@ -233,6 +233,9 @@ importers:
       '@packages/e2e-harness':
         specifier: workspace:*
         version: link:../../../src/packages/e2e-harness
+      '@packages/require-env':
+        specifier: workspace:*
+        version: link:../../../src/packages/require-env
       '@packages/test-phase-runner':
         specifier: workspace:*
         version: link:../../../src/packages/test-phase-runner
@@ -294,6 +297,9 @@ importers:
       '@packages/e2e-harness':
         specifier: workspace:*
         version: link:../../../src/packages/e2e-harness
+      '@packages/require-env':
+        specifier: workspace:*
+        version: link:../../../src/packages/require-env
       '@packages/test-phase-runner':
         specifier: workspace:*
         version: link:../../../src/packages/test-phase-runner

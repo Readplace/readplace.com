@@ -1,0 +1,54 @@
+name: Perf soak
+
+# Re-derives the save-latency budgets that ci.yml's perf-tests job gates on.
+# One green run proves nothing about a wall-clock threshold, so this runs the
+# suite 20 independent times and each run reports its own distribution.
+#
+# One job per run, never a loop inside one job: perf-tests gets a fresh
+# github-hosted VM on every push, so the spread that decides the budget is the
+# spread *between* VMs. A warm loop would measure one machine and understate it.
+#
+# Dispatch-only. Run it when the budgets need re-deriving — a new runner image,
+# a browser bump, or a save path that legitimately got slower or faster — and
+# set the budgets from the artifacts it uploads.
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  soak:
+    strategy:
+      fail-fast: false
+      matrix:
+        run: [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20]
+    runs-on: ubuntu-latest
+    env:
+      STATIC_BASE_URL: ''
+    steps:
+      - uses: actions/checkout@v6
+
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 10.28.0
+
+      - uses: actions/setup-node@v6
+        with:
+          node-version: 22
+          cache: pnpm
+
+      - run: pnpm install --frozen-lockfile --reporter=append-only --loglevel=warn
+
+      # A breach is data here, not a verdict: the whole point is to see where
+      # the distribution actually sits, including its tail.
+      - run: pnpm perf
+        continue-on-error: true
+
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: save-latency-run-${{ matrix.run }}
+          path: projects/browser-extensions/*/test-results/perf/*.json
+          if-no-files-found: warn

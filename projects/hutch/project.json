@@ -38,6 +38,9 @@
     "test-integration": {},
     "e2e-server": {
       "cache": false
+    },
+    "perf-server": {
+      "cache": false
     }
   }
 }

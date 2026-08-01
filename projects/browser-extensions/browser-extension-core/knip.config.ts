@@ -1,7 +1,7 @@
 import type { KnipConfig } from "knip";
 
 export default {
-	entry: [],
+	entry: ["src/perf/run.perf.main.ts"],
 	ignore: [
 		// PurgeCSS config loaded via CLI, not imported in source
 		"purgecss.config.js",

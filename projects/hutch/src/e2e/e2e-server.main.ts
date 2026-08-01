@@ -16,12 +16,14 @@ import {
 import { getEnv, requireEnv } from "@packages/require-env"
 import { READY_NONCE_ENV, readyProbePath } from "@packages/e2e-harness/ready-probe"
 import { initRefreshArticleIfStale } from '@packages/finalize-article'
+import { initSubmitFreshness } from '@packages/save-article'
 import type { ExtractPdf, IsBlockedAddress } from '@packages/crawl-article'
 import { CRAWL_PERSONAS, initAppleNewsSiteRules, initCrawlArticle, initCrawlFetch, initXTwitterSiteRules } from '@packages/crawl-article'
 import { initExtractLinksFromPageUrl } from '@packages/extract-links-from-page'
 import { initReadabilityParser, linkedinSiteRules, mediaWikiSiteRules, mediumSiteRules, theInformationSiteRules } from '@packages/article-parser'
 import { initInMemoryRefreshArticleContent } from '@packages/test-fixtures/providers/events'
 import { initInMemoryUpdateFetchTimestamp } from '@packages/test-fixtures/providers/events'
+import { initInMemoryLinkSaved } from '@packages/test-fixtures/providers/events'
 import { initInMemoryHostedCheckout } from '@packages/test-fixtures/providers/hosted-checkout'
 import { CheckoutSessionIdSchema } from '@packages/test-fixtures/providers/hosted-checkout'
 import { E2E_ADMIN_EMAIL } from './admin-extend-trial/admin-e2e-user'
@@ -111,23 +113,45 @@ const eventLogger = getEnv('CI') === 'true' ? noopLogger : logger
 const { publishRefreshArticleContent } = initInMemoryRefreshArticleContent({ logger: eventLogger })
 const { publishUpdateFetchTimestamp } = initInMemoryUpdateFetchTimestamp({ logger: eventLogger })
 const resolveCanonicalIdentity = async (url: string) => url
-const { refreshArticleIfStale } = initRefreshArticleIfStale({
-	findArticleFreshness: fixture.articleStore.findArticleFreshness,
-	findArticleCrawlStatus: fixture.articleCrawl.findArticleCrawlStatus,
-	crawlArticle,
-	parseHtml,
-	publishRefreshArticleContent,
-	publishUpdateFetchTimestamp,
-	resolveCanonicalIdentity,
-	now: () => new Date(),
-	staleTtlMs: 0,
-})
 
 const applyParseResult = createFakeApplyParseResult({
 	articleStore: fixture.articleStore,
 	articleCrawl: fixture.articleCrawl,
 	parseArticle,
 })
+
+/** `inline` crawls and parses the article inside the save request so a
+ * functional flow can assert on real crawled content; `submit` is the
+ * production accept path, which only reads state and publishes, so a latency
+ * measurement times the save rather than the crawler. */
+const SAVE_PIPELINES = {
+	inline: () => ({
+		refreshArticleIfStale: initRefreshArticleIfStale({
+			findArticleFreshness: fixture.articleStore.findArticleFreshness,
+			findArticleCrawlStatus: fixture.articleCrawl.findArticleCrawlStatus,
+			crawlArticle,
+			parseHtml,
+			publishRefreshArticleContent,
+			publishUpdateFetchTimestamp,
+			resolveCanonicalIdentity,
+			now: () => new Date(),
+			staleTtlMs: 0,
+		}).refreshArticleIfStale,
+		publishLinkSaved: createFakePublishLinkSaved(applyParseResult),
+	}),
+	submit: () => ({
+		refreshArticleIfStale: initSubmitFreshness({
+			findArticleByUrl: fixture.articleStore.findArticleByUrl,
+			findArticleCrawlStatus: fixture.articleCrawl.findArticleCrawlStatus,
+			resolveCanonicalIdentity,
+			publishStaleCheckRequested: fixture.events.publishStaleCheckRequested,
+		}).refreshArticleIfStale,
+		publishLinkSaved: initInMemoryLinkSaved({ logger: eventLogger }).publishLinkSaved,
+	}),
+}
+
+const { refreshArticleIfStale, publishLinkSaved } =
+	SAVE_PIPELINES[z.enum(["inline", "submit"]).parse(requireEnv("E2E_SAVE_PIPELINE"))]()
 
 // E2E-specific Stripe checkout: generates local URLs so the browser can follow
 // the redirect chain (POST /signup → local checkout → /auth/checkout/success)
@@ -147,7 +171,7 @@ const { app: hutchApp, auth, email } = createTestApp({
 	hostedCheckout: e2eStripe,
 	parser: { parseArticle, crawlArticle },
 	events: {
-		publishLinkSaved: createFakePublishLinkSaved(applyParseResult),
+		publishLinkSaved,
 		publishLinkQueued: fixture.events.publishLinkQueued,
 		publishRecrawlLinkInitiated: createFakePublishRecrawlLinkInitiated(applyParseResult),
 		publishSaveAnonymousLink: createFakePublishSaveAnonymousLink(applyParseResult),

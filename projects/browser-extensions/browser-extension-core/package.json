@@ -25,13 +25,18 @@
       "types": "./dist/e2e-actions/index.d.ts",
       "default": "./dist/e2e-actions/index.js"
     },
+    "./perf": {
+      "types": "./dist/perf/index.d.ts",
+      "default": "./dist/perf/index.js"
+    },
     "./package.json": "./package.json"
   },
   "typesVersions": {
     "*": {
       "e2e": ["dist/e2e/index.d.ts"],
       "s3-config": ["dist/s3-config.d.ts"],
-      "e2e-actions": ["dist/e2e-actions/index.d.ts"]
+      "e2e-actions": ["dist/e2e-actions/index.d.ts"],
+      "perf": ["dist/perf/index.d.ts"]
     }
   },
   "private": true,
@@ -42,6 +47,7 @@
     "test": "jest --testMatch='**/dist/**/*.test.js' --testTimeout=10000",
     "test:sequential": "jest --testMatch='**/dist/**/*.test.js' --testTimeout=10000 --runInBand",
     "test-with-coverage": "c8 node scripts/run-tests-with-coverage.js && node enforce-coverage.config.js",
+    "perf": "node --test dist/perf/run.perf.main.js",
     "check": "nx run browser-extension-core:check",
     "check-infra": "echo 'No infrastructure — shared library'"
   },

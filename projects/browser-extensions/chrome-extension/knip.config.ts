@@ -36,5 +36,6 @@ export default {
 		// E2E test entry points (run via node --test)
 		"src/e2e/**/run.e2e-local.main.ts",
 		"src/e2e/**/run.e2e-staging.main.ts",
+		"src/e2e/**/run.perf-local.main.ts",
 	],
 } satisfies KnipConfig;

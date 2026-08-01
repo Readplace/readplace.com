@@ -25,7 +25,7 @@ export default createPlaywrightConfig({
 	video: 'off',
 	launchOptions: {},
 	webServer: {
-		command: 'env -u NODE_V8_COVERAGE node dist/e2e/e2e-server.main.js',
+		command: 'env -u NODE_V8_COVERAGE E2E_SAVE_PIPELINE=inline node dist/e2e/e2e-server.main.js',
 		stdout: 'pipe',
 		stderr: 'pipe',
 	},

@@ -11,6 +11,11 @@ export interface SavedViewLine {
 	readonly html: string;
 }
 
+/** Where a save stops being measured: the popup marks this the moment the saved
+ * view is on screen, so the perf suite times what the reader waits for rather
+ * than when the server answered. */
+export const SAVE_RENDERED_MARK = "save-rendered";
+
 export function buildSavedView(messages: Message[]): SavedViewLine[] {
 	return messages
 		.filter((message) => message.content.type === RENDERABLE_MEDIA_TYPE)
