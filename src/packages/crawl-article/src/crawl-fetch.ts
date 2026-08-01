@@ -25,7 +25,7 @@ export type CrawlFetchInit = {
  * images, oembed JSON). Composes the same fallback chain as `crawlArticle`:
  * AIA chasing → HTTP/2 fallback for Cloudflare TLS challenges → curl
  * fallback for JA3/JA4 + transient TLS errors → persona fallback for
- * block-class responses/errors (401/403/406/451, h2 RST_STREAM, curl exit 92).
+ * block-class responses/errors (401/403/406/451/498, h2 RST_STREAM, curl exit 92).
  * Persona headers are merged with per-call headers (caller wins); `referer`
  * always rides as a per-call header.
  */

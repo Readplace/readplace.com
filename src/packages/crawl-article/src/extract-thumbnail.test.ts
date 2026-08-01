@@ -116,7 +116,7 @@ describe("extractThumbnailCandidates", () => {
 });
 
 describe("initFetchThumbnailImage", () => {
-	it.each([403, 404, 406, 429])(
+	it.each([403, 404, 406, 429, 498])(
 		"skips a candidate that returns a non-recoverable %i and logs the status at info",
 		async (status) => {
 			const infoLogs: string[] = [];

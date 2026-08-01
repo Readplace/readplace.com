@@ -23,7 +23,7 @@ const personaFallback: Persona = {
 };
 
 describe("isBlockClassResponse", () => {
-	it.each([401, 403, 406, 451])("treats %i as block-class", (status) => {
+	it.each([401, 403, 406, 451, 498])("treats %i as block-class", (status) => {
 		expect(isBlockClassResponse(new Response(null, { status }))).toBe(true);
 	});
 
@@ -78,22 +78,25 @@ describe("withPersonaFallback", () => {
 		expect(calls[0].headers["user-agent"]).toBe("Primary/1.0");
 	});
 
-	it("advances to the next persona when the response is a block-class status", async () => {
-		const calls: { headers: Record<string, string> }[] = [];
-		const inner: typeof fetch = async (_input, init) => {
-			calls.push({ headers: recordHeaders(init) });
-			if (calls.length === 1) return new Response("blocked", { status: 403 });
-			return new Response("ok", { status: 200 });
-		};
-		const wrapped = withPersonaFallback(inner, [personaPrimary, personaFallback]);
+	it.each([403, 498])(
+		"advances to the next persona when the response is a block-class %i",
+		async (status) => {
+			const calls: { headers: Record<string, string> }[] = [];
+			const inner: typeof fetch = async (_input, init) => {
+				calls.push({ headers: recordHeaders(init) });
+				if (calls.length === 1) return new Response("blocked", { status });
+				return new Response("ok", { status: 200 });
+			};
+			const wrapped = withPersonaFallback(inner, [personaPrimary, personaFallback]);
 
-		const response = await wrapped("https://example.com");
+			const response = await wrapped("https://example.com");
 
-		expect(response.status).toBe(200);
-		expect(calls).toHaveLength(2);
-		expect(calls[0].headers["user-agent"]).toBe("Primary/1.0");
-		expect(calls[1].headers["user-agent"]).toBe("Fallback/1.0");
-	});
+			expect(response.status).toBe(200);
+			expect(calls).toHaveLength(2);
+			expect(calls[0].headers["user-agent"]).toBe("Primary/1.0");
+			expect(calls[1].headers["user-agent"]).toBe("Fallback/1.0");
+		},
+	);
 
 	it("advances to the next persona when the response is a 401", async () => {
 		const calls: { headers: Record<string, string> }[] = [];

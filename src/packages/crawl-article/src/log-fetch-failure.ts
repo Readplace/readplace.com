@@ -4,7 +4,7 @@
  * limited). These log at info so the error dashboard only surfaces failures
  * that are actionable; everything else stays at error.
  */
-const NON_RECOVERABLE_FETCH_STATUSES: ReadonlySet<number> = new Set([403, 404, 406, 429]);
+const NON_RECOVERABLE_FETCH_STATUSES: ReadonlySet<number> = new Set([403, 404, 406, 429, 498]);
 
 export type LogFetchFailure = (params: { status: number; message: string }) => void;
 

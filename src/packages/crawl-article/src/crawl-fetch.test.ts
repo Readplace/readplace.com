@@ -53,4 +53,35 @@ describe("initCrawlFetch", () => {
 		assert.equal(await response.text(), "ok");
 		assert.equal(primaryCalls, 2);
 	});
+
+	it("recovers from a persona-keyed 498 without fanning out to the TLS-client fallbacks", async () => {
+		const userAgents: string[] = [];
+		const personaAware: typeof fetch = async (_input, init) => {
+			const userAgent = new Headers(init?.headers).get("user-agent");
+			assert(userAgent, "persona fallback always sends a user-agent");
+			userAgents.push(userAgent);
+			return userAgent === "Blocked/1.0"
+				? new Response("nope", { status: 498 })
+				: new Response("ok");
+		};
+		const neverCalled = async (): Promise<Response> => {
+			throw new Error("498 must not fan out to the TLS-client fallbacks");
+		};
+		const crawlFetch = initCrawlFetch({
+			fetch: personaAware,
+			personas: [
+				{ name: "blocked", headers: { "user-agent": "Blocked/1.0" } },
+				{ name: "allowed", headers: { "user-agent": "Allowed/1.0" } },
+			],
+			isBlocked: () => false,
+			fetchH2: neverCalled,
+			fetchCurl: neverCalled,
+		});
+
+		const response = await crawlFetch("https://example.com");
+
+		assert.equal(response.status, 200);
+		assert.equal(await response.text(), "ok");
+		assert.deepEqual(userAgents, ["Blocked/1.0", "Allowed/1.0"]);
+	});
 });

@@ -1,7 +1,7 @@
 /**
  * Iterate through a list of request "personas" — coherent sets of headers
  * that together look like a single client to the origin — when the inner
- * fetch returns a block-class response (401/403/406/451) or throws a
+ * fetch returns a block-class response (401/403/406/451/498) or throws a
  * block-class error (HTTP/2 RST_STREAM INTERNAL_ERROR, curl exit 92, etc.).
  *
  * The wrapper is intentionally domain- and tool-agnostic: it never names
@@ -22,7 +22,7 @@ export type Persona = {
 	readonly headers: Readonly<Record<string, string>>;
 };
 
-const BLOCK_STATUS_CODES = new Set([401, 403, 406, 451]);
+const BLOCK_STATUS_CODES = new Set([401, 403, 406, 451, 498]);
 
 const BLOCK_ERROR_SIGNATURES = [
 	"internal_error", /* HTTP/2 RST_STREAM frame, code 0x2 — Akamai BotManager hallmark */

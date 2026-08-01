@@ -530,6 +530,19 @@ describe("initCrawlArticle — single-fetch orchestration", () => {
 		expect(logError).not.toHaveBeenCalled();
 	});
 
+	it("returns failed and logs at info when every persona is rejected with 498", async () => {
+		const blocked = async () => new Response(null, { status: 498 });
+		const logError = jest.fn();
+		const logInfo = jest.fn();
+		const crawlArticle = initCrawl({ fetch: blocked, logError, logInfo });
+
+		const result = await crawlArticle({ url: "https://example.com" });
+
+		expect(result).toEqual({ status: "failed" });
+		expect(logInfo).toHaveBeenCalledWith("[CrawlArticle] HTTP 498 for https://example.com");
+		expect(logError).not.toHaveBeenCalled();
+	});
+
 	it("returns failed and logs at error when every fallback rung stays blocked with 401", async () => {
 		const blockedFetch = jest.fn<ReturnType<typeof fetch>, Parameters<typeof fetch>>(async () =>
 			new Response(null, { status: 401 }),
