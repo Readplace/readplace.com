@@ -141,6 +141,9 @@ struct ArticleProperties: Decodable {
 	/// that doesn't emit it still decodes; the client falls back to deriving read
 	/// state from `status`/`readAt` only then.
 	let isRead: Bool?
+	/// What the server asked the client to tell the reader about this response
+	/// (e.g. a save confirmation). Optional so an older server still decodes.
+	let messages: [ServerMessage]?
 }
 
 struct SirenEntity: Decodable {
@@ -333,11 +336,11 @@ struct SirenErrorProperties: Decodable {
 	let messages: [ServerMessage]?
 }
 
-/// A Siren error response. May carry a fallback `action` (e.g. the URL-only
-/// `save-article` path when an HTML payload is too large).
+/// A Siren error response. The client reads only what it renders: an error body
+/// may also advertise actions, but every save it can refuse is one the client has
+/// already completed or has no way to retry, so there is nothing to follow.
 struct SirenError: Decodable {
 	let properties: SirenErrorProperties
-	let actions: [SirenAction]?
 }
 
 // MARK: - Domain model for the UI

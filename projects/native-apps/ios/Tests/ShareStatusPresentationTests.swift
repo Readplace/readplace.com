@@ -11,17 +11,29 @@ final class ShareStatusPresentationTests: XCTestCase {
 		ServerMessage(type: type, content: ServerMessage.Content(type: "text/html", body: body))
 	}
 
-	func testSavedWithContentIsSuccess() {
-		let status = present(.savedWithContent)
-		XCTAssertEqual(status.message, "Saved with content")
+	func testSavedIsSuccess() {
+		// One outcome, and it says nothing about content: the capture rides a
+		// background session the user is never asked to wait for.
+		let status = present(.saved([]))
+		XCTAssertEqual(status.message, "Saved")
 		XCTAssertEqual(status.symbol, "checkmark.circle.fill")
 		XCTAssertEqual(status.tone, .success)
 	}
 
-	func testSavedLinkOnlyIsSuccess() {
-		let status = present(.savedLinkOnly)
-		XCTAssertEqual(status.message, "Saved (link only)")
+	func testSavedSpeaksTheServersConfirmationWhenItSentOne() {
+		let status = present(.saved([
+			message(type: "success", body: "Article saved"),
+			message(type: "success", body: "Saved to your reading list"),
+		]))
+		XCTAssertEqual(status.message, "Article saved\nSaved to your reading list")
 		XCTAssertEqual(status.tone, .success)
+	}
+
+	func testSavedConfirmationIsShownAsTextNeverMarkup() {
+		let status = present(.saved([
+			message(type: "success", body: "<strong>Article</strong> saved"),
+		]))
+		XCTAssertEqual(status.message, "Article saved")
 	}
 
 	func testNotLoggedInIsWarning() {

@@ -1,10 +1,9 @@
 import UIKit
 
-/// The share-sheet entry point. Renders the shared page in a WKWebView (or
-/// takes a shared PDF's bytes straight from the payload, or fetches them),
-/// uploads the captured content via the `save-content` action — degrading to a
-/// URL-only save if the token is missing, capture fails, or the content is too
-/// big.
+/// The share-sheet entry point. Saves the link first and says so, then renders
+/// the shared page in a WKWebView (or takes a shared PDF's bytes straight from
+/// the payload, or fetches them) and hands the captured content to a background
+/// session that outlives this process.
 @MainActor
 final class ShareViewController: UIViewController {
 	private let store = TokenStore()
@@ -26,10 +25,29 @@ final class ShareViewController: UIViewController {
 		let shared = await ShareURLExtractor.extract(from: extensionContext)
 
 		let captor = LazyHTMLCaptor { [weak self] webView in self?.attachHidden(webView) }
-		let saver = SaveSharedPage(store: store, api: ReadplaceAPI(baseURL: AppConfig.serverBaseURL, store: store), captor: captor)
+		let staging = UploadStaging.inSharedContainer(appGroupId: TokenStore.resolvedAppGroupId)
+		let saver = SaveSharedPage(
+			store: store,
+			api: ReadplaceAPI(baseURL: AppConfig.serverBaseURL, store: store),
+			captor: captor,
+			staging: staging,
+			uploads: BackgroundUploadScheduler(makeSession: {
+				URLSession(
+					configuration: BackgroundUpload.sessionConfiguration(
+						identifier: BackgroundUpload.freshSessionIdentifier(),
+						appGroupId: TokenStore.resolvedAppGroupId
+					),
+					delegate: staging.map { UploadSessionDelegate(staging: $0, whenDrained: nil) },
+					delegateQueue: nil
+				)
+			})
+		)
 		let sharedPdf: (() async -> Data?)? = shared?.pdfProvider.map { provider in
 			{ await ShareURLExtractor.loadPDFData(provider) }
 		}
+		// Assigned when the link lands, so the sheet's dwell starts at the "Saved"
+		// the user reads — not at the end of a capture they never see.
+		var dwell: Task<Void, Never>?
 		let outcome = await saver.run(
 			url: shared?.url,
 			fallbackTitle: shared?.title,
@@ -38,10 +56,11 @@ final class ShareViewController: UIViewController {
 				guard let self, !messages.isEmpty else { return }
 				self.noticeLabel.text = messages.map(\.plainText).joined(separator: "\n")
 				self.noticeLabel.isHidden = false
-			}
+			},
+			onSaved: { [weak self] messages in dwell = self?.paint(.saved(messages)) }
 		)
-		let status = ShareStatusPresentation(outcome: outcome)
-		finish(message: status.message, symbol: status.symbol, tint: uiColor(for: status.tone))
+		await (dwell ?? paint(outcome)).value
+		extensionContext?.completeRequest(returningItems: [], completionHandler: nil)
 	}
 
 	private func uiColor(for tone: ShareStatusTone) -> UIColor {
@@ -130,20 +149,21 @@ final class ShareViewController: UIViewController {
 		spinner.startAnimating()
 	}
 
-	private func finish(message: String, symbol: String, tint: UIColor) {
+	/// Paints the terminal state and returns the beat the sheet must not dismiss
+	/// before, so the user gets to read it.
+	private func paint(_ outcome: SaveSharedOutcome) -> Task<Void, Never> {
+		let status = ShareStatusPresentation(outcome: outcome)
 		spinner.stopAnimating()
 		spinner.isHidden = true
-		iconView.image = UIImage(systemName: symbol)
-		iconView.tintColor = tint
+		iconView.image = UIImage(systemName: status.symbol)
+		iconView.tintColor = uiColor(for: status.tone)
 		iconView.isHidden = false
-		statusLabel.text = message
-		// The terminal state ("Saved with content" / an error) replaces the spinner,
-		// so the "don't close this" caption must go with it — it no longer applies.
+		statusLabel.text = status.message
+		// The terminal state ("Saved" / an error) replaces the spinner, so the
+		// "don't close this" caption must go with it — it no longer applies.
 		noticeLabel.isHidden = true
 
-		DispatchQueue.main.asyncAfter(deadline: .now() + 1.4) { [weak self] in
-			self?.extensionContext?.completeRequest(returningItems: [], completionHandler: nil)
-		}
+		return Task { try? await Task.sleep(nanoseconds: 1_400_000_000) }
 	}
 }
 

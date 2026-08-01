@@ -21,12 +21,11 @@ struct ShareStatusPresentation: Equatable {
 
 	init(outcome: SaveSharedOutcome) {
 		switch outcome {
-		case .savedWithContent:
-			message = "Saved with content"
-			symbol = "checkmark.circle.fill"
-			tone = .success
-		case .savedLinkOnly:
-			message = "Saved (link only)"
+		case .saved(let messages):
+			/// The server's confirmation when it sent one, so the sheet's copy can
+			/// change without an App Store release; the client's own word otherwise.
+			let serverCopy = messages.map(\.plainText).joined(separator: "\n")
+			message = serverCopy.isEmpty ? "Saved" : serverCopy
 			symbol = "checkmark.circle.fill"
 			tone = .success
 		case .notLoggedIn:

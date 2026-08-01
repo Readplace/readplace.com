@@ -42,7 +42,9 @@ final class ShareExtensionKeychainDiagnosticsTests: XCTestCase {
 				store: store,
 				sessionConfiguration: TestSupport.stubbedConfiguration()
 			),
-			captor: FakeHTMLCaptor(page: CapturedPage(rawHtml: "<html></html>", title: "x", mediaType: nil))
+			captor: FakeHTMLCaptor(page: CapturedPage(rawHtml: "<html></html>", title: "x", mediaType: nil)),
+			staging: UploadStaging(containerURL: TestSupport.temporaryContainer()),
+			uploads: FakeBackgroundUploads()
 		)
 
 		let outcome = await saver.run(

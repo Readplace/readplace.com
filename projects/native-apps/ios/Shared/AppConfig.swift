@@ -46,6 +46,19 @@ enum AppConfig {
 
 	static let sirenMediaType = "application/vnd.siren+json"
 
+	/// Tells the server this build's saves survive the share sheet — the content
+	/// upload runs on a background session — so it drops the notice asking the user
+	/// not to close it. The server never advertises the header: a shipped build that
+	/// predates the background leg simply never sends it and keeps the notice, for
+	/// which it is still true.
+	static let saveContinuityHeader = "X-Readplace-Save-Continuity"
+	static let saveContinuityBackground = "background"
+
+	/// Identifies the native app to the server, which keys onboarding signals and
+	/// the save notice off it; Safari on the same phone can never send it.
+	static let clientHeader = "X-Readplace-Client"
+	static let clientIos = "ios"
+
 	/// The public privacy policy served by the web app, linked from the sign-in
 	/// screen so the policy is reachable in-app (App Store Review Guideline
 	/// 5.1.1(i)). Force-unwrap is safe: both operands are compile-time constants.

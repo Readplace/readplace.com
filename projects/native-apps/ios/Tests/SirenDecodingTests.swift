@@ -442,18 +442,10 @@ final class SirenDecodingTests: XCTestCase {
 		XCTAssertNil(SirenDate.parse(""))
 	}
 
-	func testSirenErrorDecodesWithFallbackAction() throws {
-		let json = Fixtures.sirenError(code: "content-too-large", message: "Too big", withSaveArticleFallback: true)
-		let error = try JSONDecoder().decode(SirenError.self, from: Data(json.utf8))
-		XCTAssertEqual(error.properties.code, "content-too-large")
-		XCTAssertEqual(error.actions?.first?.name, "save-article")
-		XCTAssertEqual(error.actions?.first?.href, "/queue")
-	}
-
-	func testSirenErrorDecodesWithoutActions() throws {
-		let json = Fixtures.sirenError(code: "invalid-save-content", message: "Bad", withSaveArticleFallback: false)
+	func testSirenErrorDecodesItsProperties() throws {
+		let json = Fixtures.sirenError(code: "invalid-save-content", message: "Bad")
 		let error = try JSONDecoder().decode(SirenError.self, from: Data(json.utf8))
 		XCTAssertEqual(error.properties.code, "invalid-save-content")
-		XCTAssertNil(error.actions)
+		XCTAssertEqual(error.properties.message, "Bad")
 	}
 }

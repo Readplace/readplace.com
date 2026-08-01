@@ -3,6 +3,7 @@ import UIKit
 
 @main
 struct ReadplaceApp: App {
+	@UIApplicationDelegateAdaptor(BackgroundSessionAppDelegate.self) private var backgroundSessions
 	@StateObject private var session = AppSession()
 
 	var body: some Scene {

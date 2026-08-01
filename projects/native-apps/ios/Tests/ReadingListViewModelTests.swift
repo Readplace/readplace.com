@@ -345,7 +345,7 @@ final class ReadingListViewModelTests: XCTestCase {
 			case "/":
 				return .redirect(to: "/queue")
 			case "/queue/purge":
-				return .json(500, Fixtures.sirenError(code: "boom", message: "nope", withSaveArticleFallback: false))
+				return .json(500, Fixtures.sirenError(code: "boom", message: "nope"))
 			case "/queue":
 				return .json(200, Fixtures.collection(entitiesJSON: [Fixtures.article(id: "a1")]))
 			default:
@@ -629,7 +629,7 @@ final class ReadingListViewModelTests: XCTestCase {
 
 	func testInvokeLeavesTheListInPlaceOnServerError() async throws {
 		StubURLProtocol.setHandler(markReadHandler { _ in
-			.json(500, Fixtures.sirenError(code: "boom", message: "nope", withSaveArticleFallback: false))
+			.json(500, Fixtures.sirenError(code: "boom", message: "nope"))
 		})
 		let viewModel = makeViewModel(store: TestSupport.loggedInStore())
 		await viewModel.refresh()
@@ -1002,7 +1002,7 @@ final class ReadingListViewModelTests: XCTestCase {
 
 	func testMintReaderSessionConcludesFailedAndSurfacesErrorOnFailure() async {
 		StubURLProtocol.setHandler { _, _ in
-			.json(500, Fixtures.sirenError(code: "boom", message: "nope", withSaveArticleFallback: false))
+			.json(500, Fixtures.sirenError(code: "boom", message: "nope"))
 		}
 		let viewModel = makeViewModel(store: TestSupport.loggedInStore())
 
@@ -1014,7 +1014,7 @@ final class ReadingListViewModelTests: XCTestCase {
 
 	func testMintReaderSessionConcludesSupersededWhenTheOpenWasCancelled() async {
 		StubURLProtocol.setHandler { _, _ in
-			.json(500, Fixtures.sirenError(code: "boom", message: "nope", withSaveArticleFallback: false))
+			.json(500, Fixtures.sirenError(code: "boom", message: "nope"))
 		}
 		let viewModel = makeViewModel(store: TestSupport.loggedInStore())
 

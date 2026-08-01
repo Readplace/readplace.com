@@ -26,6 +26,29 @@ enum TestSupport {
 		return defaults
 	}
 
+	/// A throwaway stand-in for the App Group container, so staging writes land in
+	/// a directory this test owns rather than the shared one every test sees.
+	static func temporaryContainer() -> URL {
+		let container = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString, isDirectory: true)
+		try? FileManager.default.createDirectory(at: container, withIntermediateDirectories: true)
+		return container
+	}
+
+	static func multipartForm(
+		url: String = "https://example.com/post",
+		mediaType: String = "text/html",
+		content: Data = Data("<html><body>hi</body></html>".utf8)
+	) -> MultipartForm {
+		MultipartForm(
+			boundary: UUID().uuidString,
+			textParts: [
+				MultipartForm.TextPart(name: "url", value: url),
+				MultipartForm.TextPart(name: "mediaType", value: mediaType),
+			],
+			filePart: MultipartForm.FilePart(name: "content", filename: "content", bytes: content)
+		)
+	}
+
 	static func stubbedConfiguration() -> URLSessionConfiguration {
 		let config = URLSessionConfiguration.ephemeral
 		config.protocolClasses = [StubURLProtocol.self]
@@ -232,14 +255,9 @@ enum Fixtures {
 		"""
 	}
 
-	static func sirenError(code: String, message: String, withSaveArticleFallback: Bool) -> String {
-		let actions = withSaveArticleFallback
-			? """
-			, "actions": [{ "name": "save-article", "href": "/queue", "method": "POST", "type": "application/json", "fields": [{ "name": "url", "type": "url" }] }]
-			"""
-			: ""
-		return """
-		{ "class": ["error"], "properties": { "code": "\(code)", "message": "\(message)" }\(actions) }
+	static func sirenError(code: String, message: String) -> String {
+		"""
+		{ "class": ["error"], "properties": { "code": "\(code)", "message": "\(message)" } }
 		"""
 	}
 

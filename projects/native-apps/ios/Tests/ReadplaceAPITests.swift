@@ -11,10 +11,6 @@ final class ReadplaceAPITests: XCTestCase {
 		ReadplaceAPI(baseURL: AppConfig.serverBaseURL, store: store, sessionConfiguration: TestSupport.stubbedConfiguration())
 	}
 
-	private func saveContentAction() -> SirenAction {
-		SirenAction(name: "save-content", href: "/queue/save-content", method: "POST", title: nil, type: "multipart/form-data", fields: nil)
-	}
-
 	private func saveArticleAction() -> SirenAction {
 		SirenAction(name: "save-article", href: "/queue", method: "POST", title: nil, type: "application/json", fields: nil)
 	}
@@ -55,6 +51,10 @@ final class ReadplaceAPITests: XCTestCase {
 			queueRequest.value(forHTTPHeaderField: "X-Readplace-Client"), "ios",
 			"the iOS client header must survive the GET / → /queue redirect so the server records onboarding"
 		)
+		XCTAssertEqual(
+			queueRequest.value(forHTTPHeaderField: AppConfig.saveContinuityHeader), AppConfig.saveContinuityBackground,
+			"this build's saves survive the share sheet, so the server must drop the 'don't close this' notice"
+		)
 	}
 
 	func testLoadQueueRefreshesOnceAndRetriesOn401() async throws {
@@ -65,7 +65,7 @@ final class ReadplaceAPITests: XCTestCase {
 			case "/":
 				entryAttempts += 1
 				if entryAttempts == 1 {
-					return .json(401, Fixtures.sirenError(code: "invalid-token", message: "expired", withSaveArticleFallback: false))
+					return .json(401, Fixtures.sirenError(code: "invalid-token", message: "expired"))
 				}
 				return .json(200, Fixtures.collection(entitiesJSON: [Fixtures.article(id: "fresh")]))
 			case "/oauth/token":
@@ -208,161 +208,7 @@ final class ReadplaceAPITests: XCTestCase {
 		}
 	}
 
-	// MARK: - Saving content
-
-	func testSaveContentSuccessSendsMultipart() async throws {
-		let store = TestSupport.loggedInStore()
-		StubURLProtocol.setHandler { request, _ in
-			XCTAssertEqual(request.url?.path, "/queue/save-content")
-			return .json(201, Fixtures.article(id: "saved", url: "https://example.com/x"))
-		}
-
-		let result = try await makeAPI(store: store).saveContent(
-			action: saveContentAction(),
-			url: "https://example.com/x",
-			content: Data("<html><body>hi</body></html>".utf8),
-			mediaType: "text/html",
-			title: "Captured"
-		)
-
-		XCTAssertEqual(result.article.id, "saved")
-		XCTAssertFalse(result.usedFallback, "a clean save-content does not use the fallback")
-		let record = try XCTUnwrap(StubURLProtocol.records(path: "/queue/save-content").first)
-		XCTAssertEqual(record.request.value(forHTTPHeaderField: "X-Readplace-Client"), "ios")
-		let contentType = try XCTUnwrap(record.request.value(forHTTPHeaderField: "Content-Type"))
-		XCTAssertTrue(
-			contentType.hasPrefix("multipart/form-data; boundary="),
-			"the request must declare a multipart body with a boundary, got \(contentType)"
-		)
-		let parts = TestSupport.multipartParts(contentType: contentType, body: record.body)
-		XCTAssertEqual(parts.first { $0.name == "url" }?.text, "https://example.com/x")
-		XCTAssertEqual(parts.first { $0.name == "mediaType" }?.text, "text/html")
-		XCTAssertEqual(parts.first { $0.name == "title" }?.text, "Captured")
-		let contentPart = try XCTUnwrap(parts.first { $0.name == "content" })
-		XCTAssertEqual(contentPart.filename, "content")
-		XCTAssertEqual(contentPart.text, "<html><body>hi</body></html>")
-	}
-
-	func testSaveContentOmitsTitleWhenNil() async throws {
-		let store = TestSupport.loggedInStore()
-		StubURLProtocol.setHandler { _, _ in .json(201, Fixtures.article(id: "saved")) }
-
-		_ = try await makeAPI(store: store).saveContent(
-			action: saveContentAction(), url: "https://example.com/x",
-			content: Data("<html></html>".utf8), mediaType: "text/html", title: nil
-		)
-
-		let record = try XCTUnwrap(StubURLProtocol.records(path: "/queue/save-content").first)
-		let parts = TestSupport.multipartParts(
-			contentType: record.request.value(forHTTPHeaderField: "Content-Type"), body: record.body
-		)
-		XCTAssertNil(parts.first { $0.name == "title" }, "no title part is emitted when the title is nil")
-	}
-
-	func testSaveContentFallsBackToURLOnlyWhenServerOffersFallbackAction() async throws {
-		let store = TestSupport.loggedInStore()
-		StubURLProtocol.setHandler { request, _ in
-			switch request.url?.path {
-			case "/queue/save-content":
-				return .json(422, Fixtures.sirenError(code: "content-too-large", message: "Too big", withSaveArticleFallback: true))
-			case "/queue":
-				return .json(201, Fixtures.article(id: "fallback-saved"))
-			default:
-				return .json(404, "{}")
-			}
-		}
-
-		let result = try await makeAPI(store: store).saveContent(
-			action: saveContentAction(), url: "https://example.com/x",
-			content: Data("<huge/>".utf8), mediaType: "text/html", title: "T"
-		)
-
-		XCTAssertEqual(result.article.id, "fallback-saved")
-		XCTAssertTrue(result.usedFallback, "following the server's fallback action is reported as a fallback")
-		let fallbackBody = TestSupport.jsonObject(try XCTUnwrap(StubURLProtocol.records(path: "/queue").first).body)
-		XCTAssertEqual(fallbackBody["url"] as? String, "https://example.com/x")
-		XCTAssertEqual(fallbackBody["title"] as? String, "T")
-		XCTAssertNil(fallbackBody["rawHtml"], "the fallback carries the URL only, never the captured content")
-	}
-
-	func testSaveContentThrowsWhenErrorHasNoFallbackAction() async {
-		let store = TestSupport.loggedInStore()
-		StubURLProtocol.setHandler { _, _ in
-			.json(422, Fixtures.sirenError(code: "invalid-save-content", message: "Invalid", withSaveArticleFallback: false))
-		}
-		do {
-			_ = try await makeAPI(store: store).saveContent(
-				action: saveContentAction(), url: "https://example.com/x",
-				content: Data("<html></html>".utf8), mediaType: "text/html", title: nil
-			)
-			XCTFail("Expected a server error")
-		} catch let error as APIError {
-			guard case .server(let status, let code, _) = error else {
-				return XCTFail("Expected .server, got \(error)")
-			}
-			XCTAssertEqual(status, 422)
-			XCTAssertEqual(code, "invalid-save-content")
-		} catch {
-			XCTFail("Expected APIError.server, got \(error)")
-		}
-	}
-
-	func testSaveContentSurfacesRefusalAndAttemptsNoFallbackSave() async {
-		let store = TestSupport.loggedInStore()
-		StubURLProtocol.setHandler { request, _ in
-			switch request.url?.path {
-			case "/queue/save-content":
-				return .json(403, Fixtures.accountLockedError())
-			default:
-				// A message-only refusal must never trigger a fallback save.
-				return .json(201, Fixtures.article(id: "should-not-happen"))
-			}
-		}
-		do {
-			_ = try await makeAPI(store: store).saveContent(
-				action: saveContentAction(), url: "https://example.com/x",
-				content: Data("<html></html>".utf8), mediaType: "text/html", title: nil
-			)
-			XCTFail("Expected a message-only refusal")
-		} catch let APIError.refused(messages) {
-			XCTAssertTrue(messages.first?.content.body.contains("readplace+verification@readplace.com") ?? false)
-		} catch {
-			XCTFail("Expected APIError.refused, got \(error)")
-		}
-		// The refusal carries no action, so no URL-only fallback save fires.
-		XCTAssertEqual(StubURLProtocol.records(path: "/queue").count, 0, "must not attempt a fallback save")
-	}
-
-	func testSaveContentSurfacesRefusalOnPaymentRequiredStatus() async {
-		// An inactive subscription refuses the save with a 402 carrying a server-authored
-		// message. The share extension must render that message (a `.refused`), not fall
-		// through to the cryptic "Server error 402" — the client reads messages[] on any
-		// non-2xx status, so the fix is purely the server attaching the message body.
-		let store = TestSupport.loggedInStore()
-		StubURLProtocol.setHandler { request, _ in
-			switch request.url?.path {
-			case "/queue/save-content":
-				return .json(402, Fixtures.messageRefusal([
-					(type: "warning", mediaType: "text/html", body: "Couldn't save — your subscription isn't active."),
-				]))
-			default:
-				// A message-only refusal must never trigger a fallback save.
-				return .json(201, Fixtures.article(id: "should-not-happen"))
-			}
-		}
-		do {
-			_ = try await makeAPI(store: store).saveContent(
-				action: saveContentAction(), url: "https://example.com/x",
-				content: Data("<html></html>".utf8), mediaType: "text/html", title: nil
-			)
-			XCTFail("Expected a message-only refusal")
-		} catch let APIError.refused(messages) {
-			XCTAssertTrue(messages.first?.content.body.contains("subscription isn't active") ?? false)
-		} catch {
-			XCTFail("Expected APIError.refused, got \(error)")
-		}
-		XCTAssertEqual(StubURLProtocol.records(path: "/queue").count, 0, "must not attempt a fallback save")
-	}
+	// MARK: - Fetching content to upload
 
 	func testFetchExternalContentSendsNoAuthorization() async throws {
 		let store = TestSupport.loggedInStore(access: "secret-access")
@@ -459,9 +305,10 @@ final class ReadplaceAPITests: XCTestCase {
 			return .json(201, Fixtures.article(id: "url-saved"))
 		}
 
-		let article = try await makeAPI(store: store).saveArticle(action: saveArticleAction(), url: "https://example.com/x")
+		let confirmation = try await makeAPI(store: store).saveArticle(action: saveArticleAction(), url: "https://example.com/x")
 
-		XCTAssertEqual(article.id, "url-saved")
+		XCTAssertEqual(confirmation.article.id, "url-saved")
+		XCTAssertEqual(confirmation.messages, [], "a server that predates the confirmation channel yields no copy, so the sheet keeps its own")
 		let body = TestSupport.jsonObject(StubURLProtocol.records(path: "/queue").first!.body)
 		XCTAssertEqual(body["url"] as? String, "https://example.com/x")
 	}
@@ -478,6 +325,27 @@ final class ReadplaceAPITests: XCTestCase {
 			XCTAssertEqual(messages.first?.type, "warning")
 			XCTAssertEqual(messages.first?.content.type, "text/html")
 			XCTAssertTrue(messages.first?.content.body.contains("readplace+verification@readplace.com") ?? false)
+		} catch {
+			XCTFail("Expected APIError.refused, got \(error)")
+		}
+	}
+
+	func testSaveArticleSurfacesRefusalOnPaymentRequiredStatus() async {
+		// An inactive subscription refuses the save with a 402 carrying a server-authored
+		// message. The share extension must render that message (a `.refused`), not fall
+		// through to the cryptic "Server error 402" — the client reads messages[] on any
+		// non-2xx status, so the fix is purely the server attaching the message body.
+		let store = TestSupport.loggedInStore()
+		StubURLProtocol.setHandler { _, _ in
+			.json(402, Fixtures.messageRefusal([
+				(type: "warning", mediaType: "text/html", body: "Couldn't save — your subscription isn't active."),
+			]))
+		}
+		do {
+			_ = try await makeAPI(store: store).saveArticle(action: saveArticleAction(), url: "https://example.com/x")
+			XCTFail("Expected a message-only refusal")
+		} catch let APIError.refused(messages) {
+			XCTAssertTrue(messages.first?.content.body.contains("subscription isn't active") ?? false)
 		} catch {
 			XCTFail("Expected APIError.refused, got \(error)")
 		}
@@ -672,7 +540,7 @@ final class ReadplaceAPITests: XCTestCase {
 	func testInvokeSurfacesServerErrorOnFailureStatus() async {
 		let store = TestSupport.loggedInStore()
 		StubURLProtocol.setHandler { _, _ in
-			.json(500, Fixtures.sirenError(code: "boom", message: "nope", withSaveArticleFallback: false))
+			.json(500, Fixtures.sirenError(code: "boom", message: "nope"))
 		}
 		do {
 			_ = try await makeAPI(store: store).invoke(action: updateStatusAction(), values: ["status": "read"])
