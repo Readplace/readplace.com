@@ -175,9 +175,10 @@ private func firstValue<Value>(of task: Task<Value?, Never>, within seconds: Tim
 	}
 }
 
-/// One-shot gate so exactly one racer resumes the continuation.
+/// One-shot gate so exactly one racer resumes the continuation. Shared with the
+/// share sheet, which races the reader's dismissal against the journey settling.
 @MainActor
-private final class FirstClaim {
+final class FirstClaim {
 	private var taken = false
 
 	func take() -> Bool {

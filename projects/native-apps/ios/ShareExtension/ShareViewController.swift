@@ -13,6 +13,12 @@ final class ShareViewController: UIViewController {
 	private let spinner = UIActivityIndicatorView(style: .large)
 	private let statusLabel = UILabel()
 	private let noticeLabel = UILabel()
+	/// Tapping outside the card dismisses. Disabled until the server has confirmed
+	/// the save, because until then a dismissal would abandon a save in flight.
+	private let backdropTap = UITapGestureRecognizer()
+	/// Called by the backdrop tap to end the sheet's wait early; nil until the
+	/// wait is running.
+	private var dismissNow: (() -> Void)?
 
 	override func viewDidLoad() {
 		super.viewDidLoad()
@@ -48,19 +54,47 @@ final class ShareViewController: UIViewController {
 		// Assigned when the link lands, so the sheet's dwell starts at the "Saved"
 		// the user reads — not at the end of a capture they never see.
 		var dwell: Task<Void, Never>?
-		let outcome = await saver.run(
-			url: shared?.url,
-			fallbackTitle: shared?.title,
-			sharedPdf: sharedPdf,
-			onNotice: { [weak self] messages in
-				guard let self, !messages.isEmpty else { return }
-				self.noticeLabel.text = messages.map(\.plainText).joined(separator: "\n")
-				self.noticeLabel.isHidden = false
-			},
-			onSaved: { [weak self] messages in dwell = self?.paint(.saved(messages)) }
-		)
-		await (dwell ?? paint(outcome)).value
+		let settled = Task { [weak self] in
+			let outcome = await saver.run(
+				url: shared?.url,
+				fallbackTitle: shared?.title,
+				sharedPdf: sharedPdf,
+				onNotice: { [weak self] messages in
+					guard let self, !messages.isEmpty else { return }
+					self.noticeLabel.text = messages.map(\.plainText).joined(separator: "\n")
+					self.noticeLabel.isHidden = false
+				},
+				onSaved: { [weak self] messages in
+					dwell = self?.paint(.saved(messages))
+					// The server has answered and the link is on it, so leaving now
+					// costs nothing the reader was promised.
+					self?.backdropTap.isEnabled = true
+				}
+			)
+			await (dwell ?? self?.paint(outcome))?.value
+		}
+		await endOfSheet(settled)
 		extensionContext?.completeRequest(returningItems: [], completionHandler: nil)
+	}
+
+	/// Returns once the journey has settled, or as soon as the reader taps outside
+	/// the card — whichever lands first. A reader who has read "Saved" and wants to
+	/// move on should not be held by a capture running behind it: the link is
+	/// already saved, and an abandoned capture is only the enrichment the server's
+	/// own crawl produces anyway.
+	private func endOfSheet(_ settled: Task<Void, Never>) async {
+		let claim = FirstClaim()
+		await withCheckedContinuation { (continuation: CheckedContinuation<Void, Never>) in
+			dismissNow = { if claim.take() { continuation.resume() } }
+			Task { @MainActor in
+				await settled.value
+				if claim.take() { continuation.resume() }
+			}
+		}
+	}
+
+	@objc private func backdropTapped() {
+		dismissNow?()
 	}
 
 	private func uiColor(for tone: ShareStatusTone) -> UIColor {
@@ -75,6 +109,11 @@ final class ShareViewController: UIViewController {
 
 	private func setupUI() {
 		view.backgroundColor = UIColor.black.withAlphaComponent(0.35)
+
+		backdropTap.addTarget(self, action: #selector(backdropTapped))
+		backdropTap.delegate = self
+		backdropTap.isEnabled = false
+		view.addGestureRecognizer(backdropTap)
 
 		card.translatesAutoresizingMaskIntoConstraints = false
 		card.backgroundColor = .systemBackground
@@ -164,6 +203,17 @@ final class ShareViewController: UIViewController {
 		noticeLabel.isHidden = true
 
 		return Task { try? await Task.sleep(nanoseconds: 1_400_000_000) }
+	}
+}
+
+/// The card is the sheet's content, not its backdrop: a tap that lands on it is
+/// not a request to leave.
+extension ShareViewController: UIGestureRecognizerDelegate {
+	func gestureRecognizer(
+		_ gestureRecognizer: UIGestureRecognizer,
+		shouldReceive touch: UITouch
+	) -> Bool {
+		!card.frame.contains(touch.location(in: view))
 	}
 }
 
