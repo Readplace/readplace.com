@@ -1,4 +1,38 @@
-import { latencyReportPath, summarizeLatency } from "./latency-report";
+import {
+	latencyReportPath,
+	perfSetting,
+	summarizeLatency,
+} from "./latency-report";
+
+describe("perfSetting", () => {
+	const SETTING = "PERF_TEST_SETTING";
+
+	afterEach(() => {
+		delete process.env[SETTING];
+	});
+
+	it("reads a whole number a project declared for its suite", () => {
+		process.env[SETTING] = "150";
+
+		expect(perfSetting(SETTING)).toBe(150);
+	});
+
+	it("refuses a value that is not a number", () => {
+		process.env[SETTING] = "soon";
+
+		expect(() => perfSetting(SETTING)).toThrow(
+			`${SETTING} must be a whole number, got "soon"`,
+		);
+	});
+
+	it("refuses a negative budget", () => {
+		process.env[SETTING] = "-1";
+
+		expect(() => perfSetting(SETTING)).toThrow(
+			`${SETTING} must be a whole number, got "-1"`,
+		);
+	});
+});
 
 describe("summarizeLatency", () => {
 	it("summarizes an unsorted sample set", () => {

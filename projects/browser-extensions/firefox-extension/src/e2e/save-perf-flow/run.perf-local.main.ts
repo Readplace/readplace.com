@@ -21,14 +21,14 @@ import {
 } from "browser-extension-core/e2e-actions";
 import { SAVE_RENDERED_MARK } from "browser-extension-core";
 import {
-	SAVE_LATENCY_BUDGET_MS,
+	perfSetting,
 	latencyReportPath,
 	summarizeLatency,
 } from "browser-extension-core/perf";
 import { getEnv, requireEnv } from "@packages/require-env";
 import { READY_NONCE_ENV, readyProbePath } from "@packages/e2e-harness/ready-probe";
 
-const BUDGET_MS = SAVE_LATENCY_BUDGET_MS.firefox;
+const BUDGET_MS = perfSetting("PERF_MEAN_SAVE_BUDGET_MS");
 
 const ADDON_ID = "hutch-extension@hutch-app.com";
 const ADDON_UUID = "d3b07384-d113-4ec6-a7b8-5f7e3b4c9a12";
@@ -45,8 +45,8 @@ const ORIGIN = `http://127.0.0.1:${TEST_PORT}`;
  * browser launch carry extension start-up, the token mint the login just did,
  * and an entry point no ETag has been issued for yet. The cold request shape is
  * what regresses, and the simulated-network suite gates that deterministically. */
-const WARMUP_SAVES = 2;
-const GATED_SAVES = 20;
+const WARMUP_SAVES = perfSetting("PERF_WARMUP_SAVES");
+const GATED_SAVES = perfSetting("PERF_GATED_SAVES");
 
 function armSuiteFailsafe(server: ChildProcess): void {
 	const reapServerGroup = () => {

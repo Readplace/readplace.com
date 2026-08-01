@@ -1,24 +1,21 @@
 import assert from "node:assert/strict";
 import path from "node:path";
+import { requireEnv } from "@packages/require-env";
 
 export type PerfSuite = "simulated" | "chrome" | "firefox";
 
-/** 1. Measured, not chosen. Each browser budget is ~2.8x the slowest run mean
- *     over 20 independent github-hosted runs, which is ~12 standard deviations
- *     of run-to-run spread above the average one — far enough out that a
- *     breach means the save got slower, not that the runner did. Re-derive
- *     them with the perf soak workflow when the runner image, the browsers, or
- *     the save path itself moves. Chrome and Firefox are apart because Firefox
- *     measured 1.7x slower with 2.3x the spread, and one budget covering both
- *     would let a 5x Chrome regression through.
- *  2. The simulated suite has no clock and no variance, so its budget is not a
- *     safety margin: it is one simulated round trip above the costliest
- *     scenario, so a save that grows by a single request fails it. */
-export const SAVE_LATENCY_BUDGET_MS: Record<PerfSuite, number> = {
-	simulated: 400 /* 2 */,
-	chrome: 150 /* 1 */,
-	firefox: 250 /* 1 */,
-};
+/** Every budget and sample count a perf suite runs under is declared in its own
+ * project's perf config and reaches the suite through the environment, so a
+ * project can be tightened without touching any other. */
+export function perfSetting(name: string): number {
+	const raw = requireEnv(name);
+	const value = Number(raw);
+	assert(
+		Number.isInteger(value) && value >= 0,
+		`${name} must be a whole number, got "${raw}"`,
+	);
+	return value;
+}
 
 export type LatencySummary = {
 	count: number;

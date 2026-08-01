@@ -33,10 +33,18 @@
   },
   "typesVersions": {
     "*": {
-      "e2e": ["dist/e2e/index.d.ts"],
-      "s3-config": ["dist/s3-config.d.ts"],
-      "e2e-actions": ["dist/e2e-actions/index.d.ts"],
-      "perf": ["dist/perf/index.d.ts"]
+      "e2e": [
+        "dist/e2e/index.d.ts"
+      ],
+      "s3-config": [
+        "dist/s3-config.d.ts"
+      ],
+      "e2e-actions": [
+        "dist/e2e-actions/index.d.ts"
+      ],
+      "perf": [
+        "dist/perf/index.d.ts"
+      ]
     }
   },
   "private": true,
@@ -47,7 +55,7 @@
     "test": "jest --testMatch='**/dist/**/*.test.js' --testTimeout=10000",
     "test:sequential": "jest --testMatch='**/dist/**/*.test.js' --testTimeout=10000 --runInBand",
     "test-with-coverage": "c8 node scripts/run-tests-with-coverage.js && node enforce-coverage.config.js",
-    "perf": "node --test dist/perf/run.perf.main.js",
+    "perf": "node scripts/run-perf.js",
     "check": "nx run browser-extension-core:check",
     "check-infra": "echo 'No infrastructure — shared library'"
   },
@@ -61,6 +69,7 @@
   },
   "devDependencies": {
     "@packages/check-unused-css": "workspace:*",
+    "@packages/require-env": "workspace:*",
     "@packages/test-phase-runner": "workspace:*",
     "@types/selenium-webdriver": "4.35.6",
     "c8": "11.0.0",

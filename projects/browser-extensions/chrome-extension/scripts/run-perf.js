@@ -1,6 +1,7 @@
 #!/usr/bin/env node
 const { spawnSync } = require('node:child_process');
 const { getFreePort } = require('@packages/test-phase-runner');
+const { meanSaveMs, gatedSaves, warmupSaves } = require('../perf.config.js');
 
 // Deliberately not a test-phase-runner phase: `e2e: true` phases are retried
 // once on failure and skipped entirely under CLAUDE_CODE_REMOTE, either of
@@ -22,6 +23,9 @@ async function main() {
   });
   run('node', ['--test', '--test-timeout=300000', 'dist/e2e/save-perf-flow/run.perf-local.main.js'], {
     E2E_PORT: port,
+    PERF_MEAN_SAVE_BUDGET_MS: String(meanSaveMs),
+    PERF_GATED_SAVES: String(gatedSaves),
+    PERF_WARMUP_SAVES: String(warmupSaves),
   });
 }
 

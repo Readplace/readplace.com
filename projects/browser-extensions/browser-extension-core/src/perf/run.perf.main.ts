@@ -4,12 +4,12 @@ import { noopLogger } from "@packages/hutch-logger";
 import { initOAuthAuth } from "../auth/oauth-auth";
 import type { OAuthTokens } from "../auth/oauth-tokens";
 import { initSirenReadingList } from "../reading-list/siren-reading-list";
-import { SAVE_LATENCY_BUDGET_MS, summarizeLatency } from "./latency-report";
+import { perfSetting, summarizeLatency } from "./latency-report";
 import { initVirtualNetwork } from "./virtual-network";
 
-const SIMULATED_BUDGET_MS = SAVE_LATENCY_BUDGET_MS.simulated;
-const SIMULATED_ROUND_TRIP_MS = 100;
-const SAMPLES_PER_SCENARIO = 3;
+const SIMULATED_BUDGET_MS = perfSetting("PERF_MEAN_SAVE_BUDGET_MS");
+const SIMULATED_ROUND_TRIP_MS = perfSetting("PERF_ROUND_TRIP_MS");
+const SAMPLES_PER_SCENARIO = perfSetting("PERF_SAMPLES_PER_SCENARIO");
 const SERVER_URL = "http://localhost:3000";
 const SIREN_MEDIA_TYPE = "application/vnd.siren+json";
 const ENTRY_POINT_CALL = `GET ${SERVER_URL}/`;

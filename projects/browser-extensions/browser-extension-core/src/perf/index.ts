@@ -1,5 +1,5 @@
 export {
-	SAVE_LATENCY_BUDGET_MS,
+	perfSetting,
 	summarizeLatency,
 	latencyReportPath,
 } from "./latency-report";
