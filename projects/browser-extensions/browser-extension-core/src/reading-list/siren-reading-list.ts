@@ -27,7 +27,7 @@ import type {
 	UploadContent,
 	UploadContentResult,
 } from "./reading-list.types";
-import { pdfContentBody, htmlContentBody, base64ToBytes, type ContentBodyBuilder } from "./content-body-parsers";
+import { capturedContentBody, base64ToBytes } from "./content-body-parsers";
 
 const SIREN_MEDIA_TYPE = "application/vnd.siren+json";
 
@@ -555,7 +555,6 @@ async function followSaveFallback(args: {
 }
 
 export function initSaveContentUnderstanding(deps: {
-	parsers: Record<string, ContentBodyBuilder>;
 	logger: HutchLogger;
 }): Map<string, ActionHandler> {
 	const handlers = new Map<string, ActionHandler>();
@@ -563,9 +562,7 @@ export function initSaveContentUnderstanding(deps: {
 		return async (input) => {
 			assert(input?.url, "save-content requires a url field");
 			assert(input?.mediaType, "save-content requires a mediaType field");
-			const parser = deps.parsers[input.mediaType];
-			assert(parser, `No content parser registered for media type: ${input.mediaType}`);
-			const { blob, filename } = parser(input);
+			const { blob, filename } = capturedContentBody(input);
 			const formData = new FormData();
 			formData.append("url", input.url);
 			formData.append("mediaType", input.mediaType);
@@ -920,13 +917,7 @@ export function initSirenReadingList(deps: SirenReadingListDeps): {
 	const understandings = groupOf(
 		initSaveArticleUnderstanding(),
 		initSaveArticlesUnderstanding(),
-		initSaveContentUnderstanding({
-			parsers: {
-				"application/pdf": pdfContentBody,
-				"text/html": htmlContentBody,
-			},
-			logger: deps.logger,
-		}),
+		initSaveContentUnderstanding({ logger: deps.logger }),
 		/** search carries its own `httpCacheable` ETag layer so the understanding is
 		 * cacheable on its own terms, not by silently relying on the walker's
 		 * navigation cache also seeing the GET. Both layers share one If-None-Match

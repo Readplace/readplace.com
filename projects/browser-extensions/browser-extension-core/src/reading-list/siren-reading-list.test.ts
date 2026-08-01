@@ -15,7 +15,6 @@ import {
 	type ExtensionDeps,
 	type SirenReadingListDeps,
 } from "./siren-reading-list";
-import { pdfContentBody, htmlContentBody } from "./content-body-parsers";
 
 const COLLECTION_ACTIONS = [
 	{
@@ -1282,7 +1281,7 @@ describe("save-content action", () => {
 	function createUnderstandingsWithSaveContent() {
 		return groupOf(
 			initSaveArticleUnderstanding(),
-			initSaveContentUnderstanding({ parsers: { "application/pdf": pdfContentBody, "text/html": htmlContentBody }, logger: noopLogger }),
+			initSaveContentUnderstanding({ logger: noopLogger }),
 			httpCacheable(initListArticlesUnderstanding()),
 		);
 	}

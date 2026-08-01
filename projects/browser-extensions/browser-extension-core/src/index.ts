@@ -46,7 +46,7 @@ export type {
 	BoundAction,
 } from "./reading-list/siren-reading-list";
 export type { ContentBodyBuilder } from "./reading-list/content-body-parsers";
-export { pdfContentBody, htmlContentBody } from "./reading-list/content-body-parsers";
+export { capturedContentBody } from "./reading-list/content-body-parsers";
 export type { SaveUrl, UploadContent, UploadContentResult, InvokeAction, FindByUrl, GetItems, LoadPage, LoadPageResult, CollectionPage, PageDescriptor, PageRel, SavePages, BulkSavePage, BulkSaveResult } from "./reading-list/reading-list.types";
 export { initUploadQueue } from "./upload-queue/upload-queue";
 export { initIndexedDbPayloadStore } from "./upload-queue/indexed-db-payload-store.browser";
@@ -84,6 +84,6 @@ export { installShortcuts, isCmdD } from "./keydown-shortcuts";
 export type { Shortcut } from "./keydown-shortcuts";
 export { captureActiveTabBytes } from "./capture-active-tab-bytes";
 export type { CapturedContent } from "./capture-active-tab-bytes";
-export { isPdfViewerDocument } from "./is-pdf-viewer-document";
+export { isHtmlDocument } from "./is-html-document";
 export type { TabContent } from "./reading-list/reading-list.types";
 

@@ -13,14 +13,8 @@ export function base64ToBytes(base64: string): Uint8Array<ArrayBuffer> {
 	return bytes;
 }
 
-export const pdfContentBody: ContentBodyBuilder = (input) => {
-	assert(input.contentBase64, "PDF content body requires contentBase64");
+export const capturedContentBody: ContentBodyBuilder = (input) => {
+	assert(input.contentBase64, "content body requires contentBase64");
 	const bytes = base64ToBytes(input.contentBase64);
 	return { blob: new Blob([bytes], { type: input.mediaType }), filename: "content" };
-};
-
-export const htmlContentBody: ContentBodyBuilder = (input) => {
-	assert(input.contentBase64, "HTML content body requires contentBase64");
-	const bytes = base64ToBytes(input.contentBase64);
-	return { blob: new Blob([bytes], { type: "text/html" }), filename: "content.html" };
 };
