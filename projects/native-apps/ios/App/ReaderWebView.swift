@@ -200,15 +200,19 @@ struct ReaderWebView: UIViewControllerRepresentable {
 				alreadyMarkedRead: handled
 			) {
 			case .startCapture:
-				guard let host = message.webView else { return }
+				/// The capture view is parented to the WINDOW, not the reader, because
+				/// the reader sheet is dismissed on the next line: a WKWebView removed
+				/// from the hierarchy stops laying out and running JS, so hosting the
+				/// capture inside the view being torn down would kill it mid-render.
+				guard let window = message.webView?.window else { return }
 				capturing = true
+				let captor = HTMLCaptor()
+				attachHidden(captor.webView, in: window)
+				onClose()
 				Task { @MainActor in
-					let captor = HTMLCaptor()
-					self.attachHidden(captor.webView, in: host)
 					await self.onCaptureBlocked(captor)
 					captor.webView.removeFromSuperview()
 					self.capturing = false
-					host.reload()
 				}
 			case .markRead:
 				handled = true

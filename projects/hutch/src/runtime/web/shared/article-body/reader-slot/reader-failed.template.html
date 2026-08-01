@@ -1,14 +1,16 @@
 <div id="article-body-reader-slot" class="article-body__reader-slot article-body__reader-slot--notice" data-test-reader-slot data-reader-status="{{variant}}"{{#if oob}} hx-swap-oob="outerHTML"{{/if}}>
   <h2 class="article-body__reader-notice-title">Your link is saved {{icon "check-circle"}}</h2>
   <p class="article-body__reader-notice-text">{{explanation}}</p>
-  <a class="article-body__reader-notice-link" href="{{url}}" target="_blank" rel="noopener" data-test-reader-failed-primary data-test-reader-action="open">
-    Read it on {{hostname}} {{icon "arrow-right"}}
-  </a>
-  {{#if showCapture}}
-  <button type="button" class="article-body__reader-notice-capture article-body__reader-notice-capture--hidden" data-reader-capture data-test-reader-action="capture">
-    Capture it here {{icon "arrow-right"}}
-  </button>
-  {{/if}}
+  <div class="article-body__reader-notice-actions">
+    <a class="article-body__reader-notice-link" href="{{url}}" target="_blank" rel="noopener" data-test-reader-failed-primary data-test-reader-action="open">
+      Read it on {{hostname}} {{icon "arrow-right"}}
+    </a>
+    {{#if showCapture}}
+    <button type="button" class="article-body__reader-notice-capture article-body__reader-notice-capture--hidden" data-reader-capture data-test-reader-action="capture">
+      Capture it here {{icon "arrow-right"}}
+    </button>
+    {{/if}}
+  </div>
   {{#if extensionInstallUrl}}
   <p class="article-body__reader-notice-extension-pitch">
     Tip: {{captureSurfaces}} capture the full page in one tap — including sites that don't open well in the reader.

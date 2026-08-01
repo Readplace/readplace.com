@@ -449,9 +449,15 @@
  *    inside the app's WKWebView — a browser cannot service the message, so the
  *    control must never be tappable there.
  */
+.article-body__reader-notice-actions {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  gap: 0.75rem;
+}
+
 .article-body__reader-notice-capture {
   display: inline-block;
-  margin-left: 0.75rem;
   padding: var(--button-padding);
   border: 1px solid var(--color-brand);
   border-radius: 6px;
