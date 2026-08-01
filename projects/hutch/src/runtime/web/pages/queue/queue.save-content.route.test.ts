@@ -141,7 +141,7 @@ describe("POST /queue/save-content with PDF", () => {
 		expect(publishedSavePdf).toHaveLength(1);
 	});
 
-	it("returns 422 with not-a-pdf when mediaType says PDF but bytes lack magic header", async () => {
+	it("saves the link URL-only when mediaType says PDF but bytes lack the magic header", async () => {
 		const { testApp, publishedSavePdf } = setup();
 		const accessToken = await createAccessToken(testApp);
 
@@ -153,13 +153,12 @@ describe("POST /queue/save-content with PDF", () => {
 			.field("mediaType", "application/pdf")
 			.attach("content", Buffer.from("not a pdf"), "content");
 
-		expect(response.status).toBe(422);
-		expect(response.body.properties.code).toBe("not-a-pdf");
-		const fallback = response.body.actions.find(
-			(a: { name: string }) => a.name === "save-article",
-		);
-		expect(fallback).toBeDefined();
+		expect(response.status).toBe(201);
+		expect(response.body.properties).toEqual(expect.objectContaining({
+			url: "https://example.com/article.pdf",
+		}));
 		expect(publishedSavePdf).toHaveLength(0);
+		expect(testApp.pendingPdf.readPendingPdfSync("https://example.com/article.pdf")).toBeUndefined();
 	});
 });
 
@@ -239,6 +238,26 @@ describe("POST /queue/save-content with HTML", () => {
 		expect(response.status).toBe(201);
 		expect(publishedSaveHtml).toHaveLength(1);
 	});
+
+	it("saves the link URL-only when the mediaType is unsupported, leaving the crawl to enrich it", async () => {
+		const { testApp, publishedSaveHtml } = setup();
+		const accessToken = await createAccessToken(testApp);
+
+		const response = await request(testApp.server)
+			.post("/queue/save-content")
+			.set("Accept", SIREN_MEDIA_TYPE)
+			.set("Authorization", `Bearer ${accessToken}`)
+			.field("url", "https://example.com/article")
+			.field("mediaType", "image/png")
+			.attach("content", Buffer.from("PNG data"), "content.png");
+
+		expect(response.status).toBe(201);
+		expect(response.body.properties).toEqual(expect.objectContaining({
+			url: "https://example.com/article",
+		}));
+		expect(publishedSaveHtml).toHaveLength(0);
+		expect(testApp.pendingHtml.readPendingHtml("https://example.com/article")).toBeUndefined();
+	});
 });
 
 describe("POST /queue/save-content validation", () => {
@@ -313,26 +332,6 @@ describe("POST /queue/save-content validation", () => {
 
 		expect(response.status).toBe(422);
 		expect(response.body.properties.code).toBe("invalid-save-content");
-		const fallback = response.body.actions.find(
-			(a: { name: string }) => a.name === "save-article",
-		);
-		expect(fallback).toBeDefined();
-	});
-
-	it("returns 422 when the mediaType is unsupported", async () => {
-		const { testApp } = setup();
-		const accessToken = await createAccessToken(testApp);
-
-		const response = await request(testApp.server)
-			.post("/queue/save-content")
-			.set("Accept", SIREN_MEDIA_TYPE)
-			.set("Authorization", `Bearer ${accessToken}`)
-			.field("url", "https://example.com/article")
-			.field("mediaType", "image/png")
-			.attach("content", Buffer.from("PNG data"), "content.png");
-
-		expect(response.status).toBe(422);
-		expect(response.body.properties.code).toBe("unsupported-media-type");
 		const fallback = response.body.actions.find(
 			(a: { name: string }) => a.name === "save-article",
 		);

@@ -170,12 +170,27 @@ type SaveContentResult =
 	| { ok: true }
 	| { ok: false; code: string; message: string };
 
-type SaveContentMediaHandler = (input: {
-	url: string;
-	bytes: Buffer;
-	title?: string;
-	userId: UserId;
-}) => Promise<SaveContentResult>;
+type SaveContentMedia = {
+	uploadCeilingBytes: number;
+	stageInlineBytes: (input: {
+		url: string;
+		bytes: Buffer;
+		title?: string;
+		userId: UserId;
+	}) => Promise<SaveContentResult>;
+	admitUploadedBytes: (input: {
+		url: SaveableUrl;
+		mediaType: string;
+		title?: string;
+		userId: UserId;
+	}) => Promise<SaveContentResult>;
+};
+
+const NOT_A_PDF: SaveContentResult = {
+	ok: false,
+	code: "not-a-pdf",
+	message: "Uploaded bytes do not look like a PDF (missing %PDF- magic header)",
+};
 
 function normalizeMediaType(mediaType: string): string {
 	const base = mediaType.split(";")[0].trim().toLowerCase();
@@ -322,11 +337,6 @@ const SAVE_ROUTE = {
 	saveContent: "/save-content",
 } as const;
 
-const UPLOAD_CEILINGS: Record<string, number> = {
-	"application/pdf": MAX_PDF_BYTES.bytes,
-	"text/html": MAX_UPLOAD_HTML_BYTES,
-};
-
 /** Root ("/") maps to QUEUE_PATH alone; appending it would record a spurious "/queue/" trailing slash. */
 const saveIntentPath = (route: string): string =>
 	route === "/" ? QUEUE_PATH : `${QUEUE_PATH}${route}`;
@@ -428,23 +438,33 @@ export function initQueueRoutes(deps: QueueDependencies): Router {
 		deps.analytics.info(buildSaveIntentEvent({ now: deps.now, salt: deps.salt }, params));
 	};
 
-	/** Stages captured bytes (HTML or PDF) into the pending store and dispatches
-	 * the matching save-link command, keyed by normalised media type. Shared by
-	 * the single-page save-content route and the bulk save-articles route. */
-	const saveContentHandlers: Record<string, SaveContentMediaHandler> = {
-		"application/pdf": async ({ url, bytes, title, userId }) => {
-			if (!isPDF({ bodyBytes: bytes })) {
-				return { ok: false, code: "not-a-pdf", message: "Uploaded bytes do not look like a PDF (missing %PDF- magic header)" };
-			}
-			await deps.putPendingPdf({ url, bytes });
-			await deps.publishSaveLinkRawPdfCommand({ url, userId, title });
-			return { ok: true };
+	const saveContentMedia: Record<string, SaveContentMedia> = {
+		"application/pdf": {
+			uploadCeilingBytes: MAX_PDF_BYTES.bytes,
+			stageInlineBytes: async ({ url, bytes, title, userId }) => {
+				if (!isPDF({ bodyBytes: bytes })) return NOT_A_PDF;
+				await deps.putPendingPdf({ url, bytes });
+				await deps.publishSaveLinkRawPdfCommand({ url, userId, title });
+				return { ok: true };
+			},
+			admitUploadedBytes: async ({ url, mediaType, title, userId }) => {
+				const prefix = await deps.readPendingUploadPrefix({ url, mediaType, bytes: 8 });
+				if (!isPDF({ bodyBytes: prefix })) return NOT_A_PDF;
+				await deps.publishSaveLinkRawPdfCommand({ url, userId, title });
+				return { ok: true };
+			},
 		},
-		"text/html": async ({ url, bytes, title, userId }) => {
-			const html = bytes.toString("utf8");
-			await deps.putPendingHtml({ url, html });
-			await deps.publishSaveLinkRawHtmlCommand({ url, userId, title });
-			return { ok: true };
+		"text/html": {
+			uploadCeilingBytes: MAX_UPLOAD_HTML_BYTES,
+			stageInlineBytes: async ({ url, bytes, title, userId }) => {
+				await deps.putPendingHtml({ url, html: bytes.toString("utf8") });
+				await deps.publishSaveLinkRawHtmlCommand({ url, userId, title });
+				return { ok: true };
+			},
+			admitUploadedBytes: async ({ url, title, userId }) => {
+				await deps.publishSaveLinkRawHtmlCommand({ url, userId, title });
+				return { ok: true };
+			},
 		},
 	};
 
@@ -968,8 +988,8 @@ export function initQueueRoutes(deps: QueueDependencies): Router {
 					/** Stage the captured bytes when the media type is supported; an
 					 * unsupported type stages nothing and the page is saved URL-only,
 					 * so the crawl enriches it the ordinary way. */
-					const handler = saveContentHandlers[normalizeMediaType(job.mediaType)];
-					if (handler) await handler({ url: job.url, bytes: job.bytes, title: job.title, userId });
+					const media = saveContentMedia[normalizeMediaType(job.mediaType)];
+					if (media) await media.stageInlineBytes({ url: job.url, bytes: job.bytes, title: job.title, userId });
 				}
 				await saveArticleFromUrl({ userId, url: job.url, freshness });
 				emitSaveIntent({ req, url: job.url, path: SAVE_INTENT_PATH.saveArticles, surface: SAVE_SURFACES.extension, outcome: SAVE_OUTCOMES.saved });
@@ -1060,7 +1080,7 @@ export function initQueueRoutes(deps: QueueDependencies): Router {
 				);
 			};
 
-			const resolveTarget = (): { articleUrl: SaveableUrl; normalized: string; ceiling: number } | undefined => {
+			const resolveTarget = (): { articleUrl: SaveableUrl; normalized: string; media: SaveContentMedia } | undefined => {
 				if (!mediaType) {
 					refuse("save-content requires a mediaType field");
 					return undefined;
@@ -1071,12 +1091,12 @@ export function initQueueRoutes(deps: QueueDependencies): Router {
 					return undefined;
 				}
 				const normalized = normalizeMediaType(mediaType);
-				const ceiling = UPLOAD_CEILINGS[normalized];
-				if (ceiling === undefined) {
+				const media = saveContentMedia[normalized];
+				if (!media) {
 					refuse(`Unsupported media type: ${mediaType}`, "unsupported-media-type");
 					return undefined;
 				}
-				return { articleUrl: validation.url, normalized, ceiling };
+				return { articleUrl: validation.url, normalized, media };
 			};
 
 			const finishSave = async (articleUrl: SaveableUrl): Promise<void> => {
@@ -1098,16 +1118,9 @@ export function initQueueRoutes(deps: QueueDependencies): Router {
 						refuse(validation.error.message);
 						return;
 					}
-					const normalized = normalizeMediaType(mediaType);
-					const handler = saveContentHandlers[normalized];
-					if (!handler) {
-						refuse(`Unsupported media type: ${mediaType}`, "unsupported-media-type");
-						return;
-					}
-					const handlerResult = await handler({ url: validation.url, bytes: contentBytes, title, userId });
-					if (!handlerResult.ok) {
-						refuse(handlerResult.message, handlerResult.code);
-						return;
+					const media = saveContentMedia[normalizeMediaType(mediaType)];
+					if (media) {
+						await media.stageInlineBytes({ url: validation.url, bytes: contentBytes, title, userId });
 					}
 					await finishSave(validation.url);
 					return;
@@ -1121,8 +1134,8 @@ export function initQueueRoutes(deps: QueueDependencies): Router {
 						refuse("No uploaded content found for this URL", "upload-not-found");
 						return;
 					}
-					if (stat.byteLength > target.ceiling) {
-						refuse(`Content upload exceeded ${bytesToMb(target.ceiling)} MB`, "content-too-large");
+					if (stat.byteLength > target.media.uploadCeilingBytes) {
+						refuse(`Content upload exceeded ${bytesToMb(target.media.uploadCeilingBytes)} MB`, "content-too-large");
 						return;
 					}
 					const ageSeconds = (deps.now().getTime() - stat.lastModified.getTime()) / 1000;
@@ -1130,15 +1143,15 @@ export function initQueueRoutes(deps: QueueDependencies): Router {
 						refuse("The uploaded content has expired; please re-upload", "upload-not-found");
 						return;
 					}
-					if (target.normalized === "application/pdf") {
-						const prefix = await deps.readPendingUploadPrefix({ url: target.articleUrl, mediaType: target.normalized, bytes: 8 });
-						if (!isPDF({ bodyBytes: prefix })) {
-							refuse("Uploaded bytes do not look like a PDF (missing %PDF- magic header)", "not-a-pdf");
-							return;
-						}
-						await deps.publishSaveLinkRawPdfCommand({ url: target.articleUrl, userId, title });
-					} else {
-						await deps.publishSaveLinkRawHtmlCommand({ url: target.articleUrl, userId, title });
+					const admitted = await target.media.admitUploadedBytes({
+						url: target.articleUrl,
+						mediaType: target.normalized,
+						title,
+						userId,
+					});
+					if (!admitted.ok) {
+						refuse(admitted.message, admitted.code);
+						return;
 					}
 					await finishSave(target.articleUrl);
 					return;
@@ -1147,8 +1160,8 @@ export function initQueueRoutes(deps: QueueDependencies): Router {
 				if (Number.isInteger(size) && size > 0) {
 					const target = resolveTarget();
 					if (!target) return;
-					if (size > target.ceiling) {
-						refuse(`Content upload exceeded ${bytesToMb(target.ceiling)} MB`, "content-too-large");
+					if (size > target.media.uploadCeilingBytes) {
+						refuse(`Content upload exceeded ${bytesToMb(target.media.uploadCeilingBytes)} MB`, "content-too-large");
 						return;
 					}
 					const slot = await deps.createUploadSlot({ url: target.articleUrl, mediaType: target.normalized, byteLength: size });

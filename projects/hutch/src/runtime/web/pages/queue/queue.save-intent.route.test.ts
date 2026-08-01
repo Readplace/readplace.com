@@ -263,7 +263,7 @@ describe("view_save_intent — authenticated save surfaces", () => {
 			expect(saveIntents(harness)[0]).toMatchObject({ path: "/queue/save-content", surface: "extension", outcome: "error", article_host: "example.com" });
 		});
 
-		it("emits extension / error on an unsupported media type (422)", async () => {
+		it("emits extension / saved on an unsupported media type, which degrades to a URL-only save (201)", async () => {
 			const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
 			const token = await bearerToken(harness);
 
@@ -275,11 +275,11 @@ describe("view_save_intent — authenticated save surfaces", () => {
 				.field("mediaType", "application/xml")
 				.attach("content", Buffer.from("<note>hi</note>"), "content");
 
-			expect(response.status).toBe(422);
-			expect(saveIntents(harness)[0]).toMatchObject({ path: "/queue/save-content", surface: "extension", outcome: "error", article_host: "example.com" });
+			expect(response.status).toBe(201);
+			expect(saveIntents(harness)[0]).toMatchObject({ path: "/queue/save-content", surface: "extension", outcome: "saved", article_host: "example.com" });
 		});
 
-		it("emits extension / error when the uploaded bytes are not a PDF (422)", async () => {
+		it("emits extension / saved when the uploaded bytes are not a PDF, which degrades to a URL-only save (201)", async () => {
 			const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
 			const token = await bearerToken(harness);
 
@@ -291,8 +291,8 @@ describe("view_save_intent — authenticated save surfaces", () => {
 				.field("mediaType", "application/pdf")
 				.attach("content", Buffer.from("<html>not a pdf</html>"), "content");
 
-			expect(response.status).toBe(422);
-			expect(saveIntents(harness)[0]).toMatchObject({ path: "/queue/save-content", surface: "extension", outcome: "error", article_host: "example.com" });
+			expect(response.status).toBe(201);
+			expect(saveIntents(harness)[0]).toMatchObject({ path: "/queue/save-content", surface: "extension", outcome: "saved", article_host: "example.com" });
 		});
 	});
 
