@@ -433,10 +433,11 @@ describe("withH2Fallback", () => {
 			new Response("<html>curl worked</html>", { status: 200, headers: { "content-type": "text/html" } }),
 		);
 		const wrapped = withH2Fallback(baseFetch, h2Impl, curlImpl);
+		const callerSignal = AbortSignal.timeout(5000);
 
 		const response = await wrapped("https://example.com", {
 			headers: { "user-agent": "Test/1.0" },
-			signal: AbortSignal.timeout(5000),
+			signal: callerSignal,
 		});
 
 		expect(response.status).toBe(200);
@@ -446,6 +447,7 @@ describe("withH2Fallback", () => {
 			headers: { "user-agent": "Test/1.0" },
 			signal: expect.any(AbortSignal),
 		});
+		expect(curlImpl.mock.calls[0][1]?.signal).toBe(callerSignal);
 	});
 
 	it("escalates to curl when h2 also returns 403 (e.g. old.reddit.com blocks both undici and Node http2)", async () => {
@@ -585,7 +587,7 @@ describe("withH2Fallback", () => {
 		expect(curlImpl).not.toHaveBeenCalled();
 	});
 
-	it("propagates baseFetch error when signal is explicitly aborted (not timeout)", async () => {
+	it("propagates a user cancellation on the primary fetch without falling back to curl", async () => {
 		const controller = new AbortController();
 		controller.abort(new Error("user cancelled"));
 		const baseFetch: typeof fetch = async () => {
