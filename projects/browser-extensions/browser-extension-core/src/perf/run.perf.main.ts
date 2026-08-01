@@ -7,6 +7,7 @@ import { initSirenReadingList } from "../reading-list/siren-reading-list";
 import { SAVE_LATENCY_BUDGET_MS, summarizeLatency } from "./latency-report";
 import { initVirtualNetwork } from "./virtual-network";
 
+const SIMULATED_BUDGET_MS = SAVE_LATENCY_BUDGET_MS.simulated;
 const SIMULATED_ROUND_TRIP_MS = 100;
 const SAMPLES_PER_SCENARIO = 3;
 const SERVER_URL = "http://localhost:3000";
@@ -249,7 +250,7 @@ const SCENARIOS = [warmSave(), coldBootSave(), repeatSave()];
 const scenarioMeansMs: number[] = [];
 
 for (const scenario of SCENARIOS) {
-	test(`${scenario.name} stays under the ${SAVE_LATENCY_BUDGET_MS}ms simulated-network budget`, async (t) => {
+	test(`${scenario.name} stays under the ${SIMULATED_BUDGET_MS}ms simulated-network budget`, async (t) => {
 		const runs: { virtualMs: number; calls: string[] }[] = [];
 		for (let sample = 0; sample < SAMPLES_PER_SCENARIO; sample += 1) {
 			runs.push(await scenario.measure());
@@ -271,14 +272,14 @@ for (const scenario of SCENARIOS) {
 			`${scenario.name}: ${summary.meanMs}ms over ${summary.meanMs / SIMULATED_ROUND_TRIP_MS} round trips`,
 		);
 		assert.ok(
-			summary.meanMs < SAVE_LATENCY_BUDGET_MS,
-			`${scenario.name} costs ${summary.meanMs}ms, over the ${SAVE_LATENCY_BUDGET_MS}ms budget`,
+			summary.meanMs < SIMULATED_BUDGET_MS,
+			`${scenario.name} costs ${summary.meanMs}ms, over the ${SIMULATED_BUDGET_MS}ms budget`,
 		);
 		scenarioMeansMs.push(summary.meanMs);
 	});
 }
 
-test(`the mean save stays under the ${SAVE_LATENCY_BUDGET_MS}ms simulated-network budget`, (t) => {
+test(`the mean save stays under the ${SIMULATED_BUDGET_MS}ms simulated-network budget`, (t) => {
 	assert.equal(
 		scenarioMeansMs.length,
 		SCENARIOS.length,
@@ -290,7 +291,7 @@ test(`the mean save stays under the ${SAVE_LATENCY_BUDGET_MS}ms simulated-networ
 		`mean ${summary.meanMs}ms, p95 ${summary.p95Ms}ms, slowest ${summary.maxMs}ms across ${summary.count} scenarios`,
 	);
 	assert.ok(
-		summary.meanMs < SAVE_LATENCY_BUDGET_MS,
-		`the mean save costs ${summary.meanMs}ms, over the ${SAVE_LATENCY_BUDGET_MS}ms budget`,
+		summary.meanMs < SIMULATED_BUDGET_MS,
+		`the mean save costs ${summary.meanMs}ms, over the ${SIMULATED_BUDGET_MS}ms budget`,
 	);
 });

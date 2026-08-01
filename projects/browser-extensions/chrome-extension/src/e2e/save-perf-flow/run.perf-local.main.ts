@@ -33,6 +33,8 @@ import {
 import { getEnv, requireEnv } from "@packages/require-env";
 import { READY_NONCE_ENV, readyProbePath } from "@packages/e2e-harness/ready-probe";
 
+const BUDGET_MS = SAVE_LATENCY_BUDGET_MS.chrome;
+
 const EXTENSION_DIR = path.resolve(__dirname, "../../../dist-extension-compiled");
 const CFT_PATH_FILE = path.resolve(__dirname, "../../../.cache/chrome/binary-path");
 const CFT_DRIVER_PATH_FILE = path.resolve(__dirname, "../../../.cache/chrome/driver-path");
@@ -262,7 +264,7 @@ function writeReport(input: { warmupMs: number[]; samplesMs: number[] }): string
 			{
 				schema: "save-latency/v1",
 				browser: "chrome",
-				budgetMs: SAVE_LATENCY_BUDGET_MS,
+				budgetMs: BUDGET_MS,
 				warmupMs: input.warmupMs,
 				samplesMs: input.samplesMs,
 				stats: summarizeLatency(input.samplesMs),
@@ -275,7 +277,7 @@ function writeReport(input: { warmupMs: number[]; samplesMs: number[] }): string
 }
 
 const MAX_ATTEMPTS = 3;
-test(`a save paints the saved view in under ${SAVE_LATENCY_BUDGET_MS}ms on average`, async (t) => {
+test(`a save paints the saved view in under ${BUDGET_MS}ms on average`, async (t) => {
 	const server = await startPerfServer();
 	armSuiteFailsafe(server);
 	try {
@@ -354,8 +356,8 @@ async function runTest(t: { diagnostic: (message: string) => void }) {
 		t.diagnostic(`report: ${reportPath}`);
 
 		assert.ok(
-			stats.meanMs < SAVE_LATENCY_BUDGET_MS,
-			`a save took ${Math.round(stats.meanMs)}ms on average, over the ${SAVE_LATENCY_BUDGET_MS}ms budget`,
+			stats.meanMs < BUDGET_MS,
+			`a save took ${Math.round(stats.meanMs)}ms on average, over the ${BUDGET_MS}ms budget`,
 		);
 	} finally {
 		await driver.quit();
