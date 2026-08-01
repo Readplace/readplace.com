@@ -4,7 +4,12 @@ import {
 	createDefaultTestAppFixture,
 } from "@packages/test-fixtures";
 import { SIREN_MEDIA_TYPE } from "../../api/siren";
-import { IOS_CLIENT_HEADER, IOS_CLIENT_VALUE } from "../../onboarding/ios-client";
+import {
+	IOS_CLIENT_HEADER,
+	IOS_CLIENT_VALUE,
+	SAVE_CONTINUITY_BACKGROUND,
+	SAVE_CONTINUITY_HEADER,
+} from "../../onboarding/ios-client";
 import { createAccessToken } from "../../test-helpers/oauth-token";
 import { useTestServer } from "../../../test-app";
 
@@ -27,6 +32,38 @@ describe("Queue save-in-progress notice (GET /queue, Siren)", () => {
 			.set("Accept", SIREN_MEDIA_TYPE)
 			.set("Authorization", `Bearer ${token}`)
 			.set(IOS_CLIENT_HEADER, IOS_CLIENT_VALUE);
+
+		expect(response.status).toBe(200);
+		expect(response.body.properties.messages).toEqual([
+			{ type: "warning", content: { type: "text/html", body: SAVE_NOTICE_BODY } },
+		]);
+	});
+
+	it("omits the notice for an app build that finishes the upload in the background", async () => {
+		const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
+		const token = await createAccessToken(harness);
+
+		const response = await request(harness.server)
+			.get("/queue")
+			.set("Accept", SIREN_MEDIA_TYPE)
+			.set("Authorization", `Bearer ${token}`)
+			.set(IOS_CLIENT_HEADER, IOS_CLIENT_VALUE)
+			.set(SAVE_CONTINUITY_HEADER, SAVE_CONTINUITY_BACKGROUND);
+
+		expect(response.status).toBe(200);
+		expect(response.body.properties.messages).toBeUndefined();
+	});
+
+	it("keeps the notice when the continuity header carries an unknown value", async () => {
+		const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
+		const token = await createAccessToken(harness);
+
+		const response = await request(harness.server)
+			.get("/queue")
+			.set("Accept", SIREN_MEDIA_TYPE)
+			.set("Authorization", `Bearer ${token}`)
+			.set(IOS_CLIENT_HEADER, IOS_CLIENT_VALUE)
+			.set(SAVE_CONTINUITY_HEADER, "foreground");
 
 		expect(response.status).toBe(200);
 		expect(response.body.properties.messages).toEqual([

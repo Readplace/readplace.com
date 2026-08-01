@@ -118,7 +118,7 @@ import {
 	isExtensionInstalled,
 	isExtensionSavedArticle,
 } from "../../onboarding/extension-install";
-import { isIosClient, isIosSurface } from "../../onboarding/ios-client";
+import { hasBackgroundSaveContinuity, isIosClient, isIosSurface } from "../../onboarding/ios-client";
 import { APP_BACK_LINK } from "../../shared/ios-app-links";
 import type { GetIosAppSignals, RecordIosAnyActivity, RecordIosSavedArticle } from "@packages/provider-contracts/ios-onboarding-signal";
 import type { GetEffectiveAccess } from "@packages/subscription-access";
@@ -721,7 +721,10 @@ export function initQueueRoutes(deps: QueueDependencies): Router {
 						pageSize: result.pageSize,
 						url: filterUrl,
 					},
-					{ iosSurface: isIosPlatform(req), iosClient: isIosClient(req) },
+					{
+						iosSurface: isIosPlatform(req),
+						iosClient: isIosClient(req) && !hasBackgroundSaveContinuity(req),
+					},
 				),
 			);
 			return;

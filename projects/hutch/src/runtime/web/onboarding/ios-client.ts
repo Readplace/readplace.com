@@ -14,6 +14,17 @@ export function isIosClient(req: Request): boolean {
 	return req.get(IOS_CLIENT_HEADER) === IOS_CLIENT_VALUE;
 }
 
+/** Header an app build sets once it finishes the content upload on a background
+ * URLSession that outlives the share sheet. The server never advertises it, so a
+ * shipped build that predates the marker still gets the "don't close this" notice
+ * — for that build it is still true. */
+export const SAVE_CONTINUITY_HEADER = "x-readplace-save-continuity";
+export const SAVE_CONTINUITY_BACKGROUND = "background";
+
+export function hasBackgroundSaveContinuity(req: Request): boolean {
+	return req.get(SAVE_CONTINUITY_HEADER) === SAVE_CONTINUITY_BACKGROUND;
+}
+
 /** Query param the app carries on an href it opens in its web sheet, since the
  * WKWebView cannot attach {@link IOS_CLIENT_HEADER} to a page load or a form post. */
 export const IOS_PLATFORM_QUERY = "platform";
