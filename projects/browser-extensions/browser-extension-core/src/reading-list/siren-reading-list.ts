@@ -106,6 +106,7 @@ const SirenPropertiesSchema = z.object({
 	url: z.string().default(""),
 	title: z.string().default(""),
 	savedAt: z.string().optional(),
+	needsBrowserCapture: z.boolean().default(false),
 });
 
 const SirenLinkSchema = z.object({
@@ -422,6 +423,7 @@ function toReadingListItem(
 		savedAt: props.savedAt ? new Date(props.savedAt) : new Date(0),
 		actions,
 		links,
+		needsBrowserCapture: props.needsBrowserCapture,
 	};
 }
 

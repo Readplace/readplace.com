@@ -1061,6 +1061,112 @@ final class ReadingListViewModelTests: XCTestCase {
 		XCTAssertNil(viewModel.errorText)
 	}
 
+	private func blockedCaptureHandler(
+		laterQueue: String? = nil,
+		queueGETsBeforeTheHealReconciles: Int = 2,
+		saveContentStub: @escaping () -> StubURLProtocol.Stub = { .json(201, Fixtures.article(id: "a1")) }
+	) -> (URLRequest, Data) -> StubURLProtocol.Stub {
+		var queueGETs = 0
+		return { request, _ in
+			switch request.url?.path {
+			case "/":
+				return .redirect(to: "/queue")
+			case "/queue":
+				queueGETs += 1
+				if queueGETs > queueGETsBeforeTheHealReconciles, let laterQueue { return .json(200, laterQueue) }
+				return .json(200, Fixtures.collection(entitiesJSON: [Fixtures.article(id: "a1")]))
+			case "/queue/save-content":
+				return saveContentStub()
+			default:
+				return .json(404, "{}")
+			}
+		}
+	}
+
+	private func htmlCaptor(_ rawHtml: String?) -> FakeHTMLCaptor {
+		FakeHTMLCaptor(page: CapturedPage(rawHtml: rawHtml, title: "Captured", mediaType: "text/html"))
+	}
+
+	func testCapturingTheOpenBlockedArticleUploadsItAndReconcilesTheList() async throws {
+		let postHeal = Fixtures.collection(
+			entitiesJSON: [Fixtures.article(id: "a1"), Fixtures.article(id: "h1")], total: 2
+		)
+		StubURLProtocol.setHandler(blockedCaptureHandler(laterQueue: postHeal))
+		let viewModel = makeViewModel(store: TestSupport.loggedInStore())
+		await viewModel.refresh()
+		viewModel.openReader(for: try XCTUnwrap(viewModel.articles.first))
+
+		await viewModel.captureBlockedArticle(with: htmlCaptor("<html>captured in the app</html>"))
+
+		let upload = try XCTUnwrap(StubURLProtocol.records(path: "/queue/save-content").first)
+		let parts = TestSupport.multipartParts(
+			contentType: upload.request.value(forHTTPHeaderField: "Content-Type"),
+			body: upload.body
+		)
+		XCTAssertEqual(
+			parts.first { $0.name == "url" }?.text, "https://example.com/post",
+			"the capture is keyed on the open row's own url, never the reader url hosting it"
+		)
+		XCTAssertEqual(parts.first { $0.name == "content" }?.text, "<html>captured in the app</html>")
+		XCTAssertEqual(
+			viewModel.articles.map(\.id), ["a1", "h1"],
+			"a landed heal reconciles the list with the server's new truth"
+		)
+	}
+
+	func testCaptureIsANoOpWithoutAnOpenReader() async {
+		StubURLProtocol.setHandler(blockedCaptureHandler())
+		let viewModel = makeViewModel(store: TestSupport.loggedInStore())
+		await viewModel.refresh()
+		let captor = htmlCaptor("<html>hi</html>")
+
+		await viewModel.captureBlockedArticle(with: captor)
+
+		XCTAssertEqual(captor.capturedURLs, [], "nothing is rendered for an article the user is not reading")
+		XCTAssertTrue(StubURLProtocol.records(path: "/queue/save-content").isEmpty)
+	}
+
+	func testAnEmptyCaptureTellsTheUserAndLeavesTheListAlone() async throws {
+		let postHeal = Fixtures.collection(
+			entitiesJSON: [Fixtures.article(id: "a1"), Fixtures.article(id: "h1")], total: 2
+		)
+		StubURLProtocol.setHandler(
+			blockedCaptureHandler(laterQueue: postHeal, queueGETsBeforeTheHealReconciles: 1)
+		)
+		let viewModel = makeViewModel(store: TestSupport.loggedInStore())
+		await viewModel.refresh()
+		viewModel.openReader(for: try XCTUnwrap(viewModel.articles.first))
+
+		await viewModel.captureBlockedArticle(with: htmlCaptor(nil))
+
+		XCTAssertTrue(StubURLProtocol.records(path: "/queue/save-content").isEmpty)
+		XCTAssertEqual(
+			viewModel.errorText,
+			"This device couldn't capture that page either — the site returned nothing to save.",
+			"an origin hostile to automated fetches can refuse the on-device render too; the user is told, not left with a silent reload"
+		)
+		XCTAssertEqual(
+			viewModel.articles.map(\.id), ["a1"],
+			"with nothing uploaded there is no new server truth to adopt — any re-read here would take the post-heal collection this stub serves from the second GET on"
+		)
+	}
+
+	func testCaptureSurfacesTheServersRefusalToTheList() async throws {
+		StubURLProtocol.setHandler(
+			blockedCaptureHandler(saveContentStub: { .json(403, Fixtures.accountLockedError()) })
+		)
+		let viewModel = makeViewModel(store: TestSupport.loggedInStore())
+		await viewModel.refresh()
+		viewModel.openReader(for: try XCTUnwrap(viewModel.articles.first))
+
+		await viewModel.captureBlockedArticle(with: htmlCaptor("<html>hi</html>"))
+
+		XCTAssertTrue(
+			viewModel.messages.first?.content.body.contains("readplace+verification@readplace.com") ?? false,
+			"a refused capture reuses the same server-authored message channel every other refused write does"
+		)
+	}
+
 	// MARK: - Session expiry & warnings
 
 	func testUnauthorizedLoadLogsOutWithoutAnErrorBanner() async {

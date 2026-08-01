@@ -1,5 +1,5 @@
 import browser from "webextension-polyfill";
-import { compositeSavedIcon, type Rgba } from "./composite-saved-icon";
+import { compositeTintedIcon, type Rgba, type Tint } from "./composite-tinted-icon";
 
 const ICON_SIZES = [16, 32, 48, 64] as const;
 
@@ -19,27 +19,31 @@ async function readIcon(path: string, size: number): Promise<Rgba> {
 	return ctx.getImageData(0, 0, size, size);
 }
 
-async function tintIcon(size: number): Promise<ImageData> {
+async function tintIcon(size: number, tint: Tint): Promise<ImageData> {
 	const [glyph, haloed] = await Promise.all([
 		readIcon(`icons/dark/icon-${size}.png`, size),
 		readIcon(`icons/light/icon-${size}.png`, size),
 	]);
-	const { data } = compositeSavedIcon({ glyph, haloed });
+	const { data } = compositeTintedIcon({ glyph, haloed, tint });
 	return new ImageData(data, size, size);
 }
 
-let pending: Promise<Record<number, ImageData>> | null = null;
+const pending = new Map<string, Promise<Record<number, ImageData>>>();
 
-async function tintEverySize(): Promise<Record<number, ImageData>> {
+async function tintEverySize(tint: Tint): Promise<Record<number, ImageData>> {
 	const entries = await Promise.all(
-		ICON_SIZES.map(async (size) => [size, await tintIcon(size)] as const),
+		ICON_SIZES.map(async (size) => [size, await tintIcon(size, tint)] as const),
 	);
 	return Object.fromEntries(entries);
 }
 
-export function getSavedIconData(): Promise<Record<number, ImageData>> {
+export function getTintedIconData(tint: Tint): Promise<Record<number, ImageData>> {
 	// Cache the promise, not its value: the four tints are kicked off once even
 	// when saves land back-to-back before the first has resolved.
-	pending ??= tintEverySize();
-	return pending;
+	const key = tint.join(",");
+	const cached = pending.get(key);
+	if (cached) return cached;
+	const started = tintEverySize(tint);
+	pending.set(key, started);
+	return started;
 }

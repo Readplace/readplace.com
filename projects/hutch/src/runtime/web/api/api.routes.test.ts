@@ -811,6 +811,87 @@ describe("Article sub-entity actions", () => {
 	});
 });
 
+describe("needsBrowserCapture on the Siren collection", () => {
+	const BLOCKED_URL = "https://example.com/edge-blocked";
+	const READY_URL = "https://example.com/readable";
+
+	async function seedBlockedAndReadyRows() {
+		const fixture = createDefaultTestAppFixture(TEST_APP_ORIGIN);
+		const parseArticle: typeof fixture.parser.parseArticle = async (url) =>
+			url === BLOCKED_URL
+				? { ok: false, reason: JSON.stringify({ kind: "blocked", cause: "edge-block" }) }
+				: fixture.parser.parseArticle(url);
+		const applyParseResult = createFakeApplyParseResult({
+			articleStore: fixture.articleStore,
+			articleCrawl: fixture.articleCrawl,
+			parseArticle,
+		});
+		const harness = useApp({
+			...fixture,
+			parser: { parseArticle, crawlArticle: fixture.parser.crawlArticle },
+			events: {
+				...fixture.events,
+				publishLinkSaved: createFakePublishLinkSaved(applyParseResult),
+			},
+		});
+		const accessToken = await createAccessToken(harness);
+
+		for (const url of [BLOCKED_URL, READY_URL]) {
+			await request(harness.server)
+				.post("/queue")
+				.set("Accept", SIREN_MEDIA_TYPE)
+				.set("Authorization", `Bearer ${accessToken}`)
+				.set("Content-Type", "application/json")
+				.send({ url });
+		}
+
+		return { harness, accessToken };
+	}
+
+	function captureFlagByUrl(
+		entities: Array<{ properties: { url: string; needsBrowserCapture: unknown } }>,
+	): Record<string, unknown> {
+		return Object.fromEntries(
+			entities.map((entity) => [
+				entity.properties.url,
+				entity.properties.needsBrowserCapture,
+			]),
+		);
+	}
+
+	it("flags the edge-blocked row and only that row, so a client offers the capture on the article that needs it", async () => {
+		const { harness, accessToken } = await seedBlockedAndReadyRows();
+
+		const response = await request(harness.server)
+			.get("/queue")
+			.set("Accept", SIREN_MEDIA_TYPE)
+			.set("Authorization", `Bearer ${accessToken}`);
+
+		expect(response.status).toBe(200);
+		expect(captureFlagByUrl(response.body.entities)).toEqual({
+			[BLOCKED_URL]: true,
+			[READY_URL]: false,
+		});
+	});
+
+	it("carries the same flags on the 422 collection a rejected save returns, so re-rendering the list keeps the affordance", async () => {
+		const { harness, accessToken } = await seedBlockedAndReadyRows();
+
+		const response = await request(harness.server)
+			.post("/queue")
+			.set("Accept", SIREN_MEDIA_TYPE)
+			.set("Authorization", `Bearer ${accessToken}`)
+			.set("Content-Type", "application/json")
+			.send({ url: "chrome://newtab/" });
+
+		expect(response.status).toBe(422);
+		expect(captureFlagByUrl(response.body.entities)).toEqual({
+			[BLOCKED_URL]: true,
+			[READY_URL]: false,
+		});
+	});
+});
+
 describe("Content negotiation", () => {
 	it("returns HTML when Accept header is text/html", async () => {
 		const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));

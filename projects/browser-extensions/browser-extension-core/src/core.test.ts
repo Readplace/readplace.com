@@ -14,6 +14,7 @@ import { MENU_ITEM_SAVE_ALL_TABS } from "./get-context-menu-target";
 interface FakeShell {
 	shell: BrowserShell;
 	showSavedCalls: number[];
+	showNeedsCaptureCalls: number[];
 	showDefaultCalls: number[];
 	iconUpdated: Promise<void>;
 	getOpenSaveAllTabsPopupCount: () => number;
@@ -28,6 +29,7 @@ function createFakeShell(
 	activeTab: { id?: number; url: string; title: string } | null = null,
 ): FakeShell {
 	const showSavedCalls: number[] = [];
+	const showNeedsCaptureCalls: number[] = [];
 	const showDefaultCalls: number[] = [];
 	let openSaveAllTabsPopupCount = 0;
 	let contextMenuHandler: Parameters<BrowserShell["onContextMenuClicked"]>[0] = () => {};
@@ -52,6 +54,10 @@ function createFakeShell(
 				showSavedCalls.push(tabId);
 				resolveIconUpdated();
 			},
+			showNeedsCapture: async (tabId) => {
+				showNeedsCaptureCalls.push(tabId);
+				resolveIconUpdated();
+			},
 			showDefault: async (tabId) => {
 				showDefaultCalls.push(tabId);
 				resolveIconUpdated();
@@ -67,6 +73,7 @@ function createFakeShell(
 	return {
 		shell,
 		showSavedCalls,
+		showNeedsCaptureCalls,
 		showDefaultCalls,
 		iconUpdated,
 		getOpenSaveAllTabsPopupCount: () => openSaveAllTabsPopupCount,
@@ -138,7 +145,7 @@ describe("BrowserExtensionCore save", () => {
 		const auth = initInMemoryAuth();
 		await auth.login();
 		const readingList = createRecordingReadingList();
-		const { shell, showSavedCalls, showDefaultCalls, iconUpdated } =
+		const { shell, showSavedCalls, showNeedsCaptureCalls, showDefaultCalls, iconUpdated } =
 			createFakeShell({ id: 7, url: "https://other.example", title: "Other" });
 		const core = BrowserExtensionCore(shell, {
 			auth,
@@ -154,6 +161,7 @@ describe("BrowserExtensionCore save", () => {
 
 		await iconUpdated;
 		expect(showSavedCalls).toEqual([42]);
+		expect(showNeedsCaptureCalls).toEqual([]);
 		expect(showDefaultCalls).toEqual([]);
 	});
 
@@ -280,6 +288,7 @@ interface Captured {
 	shell: BrowserShell;
 	openPopupCalls: Array<{ url: string; title: string; tabId?: number }>;
 	showSavedCalls: number[];
+	showNeedsCaptureCalls: number[];
 	showDefaultCalls: number[];
 	fireShortcut: () => void;
 	fireContextMenu: ContextMenuHandler;
@@ -295,6 +304,7 @@ function createCapturingShell(
 ): Captured {
 	const openPopupCalls: Array<{ url: string; title: string; tabId?: number }> = [];
 	const showSavedCalls: number[] = [];
+	const showNeedsCaptureCalls: number[] = [];
 	const showDefaultCalls: number[] = [];
 	let shortcutHandler: ShortcutHandler = () => {};
 	let contextMenuHandler: ContextMenuHandler = () => {};
@@ -316,6 +326,9 @@ function createCapturingShell(
 			showSaved: async (tabId) => {
 				showSavedCalls.push(tabId);
 			},
+			showNeedsCapture: async (tabId) => {
+				showNeedsCaptureCalls.push(tabId);
+			},
 			showDefault: async (tabId) => {
 				showDefaultCalls.push(tabId);
 			},
@@ -336,6 +349,7 @@ function createCapturingShell(
 		shell,
 		openPopupCalls,
 		showSavedCalls,
+		showNeedsCaptureCalls,
 		showDefaultCalls,
 		fireShortcut: () => shortcutHandler(),
 		fireContextMenu: (info, tab) => contextMenuHandler(info, tab),
@@ -364,6 +378,7 @@ function makeItem(url: string): ReadingListItem {
 		savedAt: new Date(0),
 		actions: [],
 		links: [],
+		needsBrowserCapture: false,
 	};
 }
 

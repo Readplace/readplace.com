@@ -384,6 +384,20 @@ const READER_MARK_READ_BRIDGE_SCRIPT = `<script>
 })();
 </script>`;
 
+const READER_CAPTURE_BRIDGE_SCRIPT = `<script>
+(function () {
+	var handlers = window.webkit && window.webkit.messageHandlers;
+	if (!handlers || !handlers.readplaceReader) { return; }
+	var button = document.querySelector("[data-reader-capture]");
+	if (!button) { return; }
+	button.classList.remove("article-body__reader-notice-capture--hidden");
+	button.addEventListener("click", function () {
+		button.disabled = true;
+		handlers.readplaceReader.postMessage({ type: "captureBlocked" });
+	});
+})();
+</script>`;
+
 /** True when the client wants the app's chromeless reader rather than the full web
  * shell — chosen by an explicit client signal, never a user-agent sniff. The app
  * appends `?platform=ios` to the `read` link it loads in its WKWebView; the
@@ -594,7 +608,10 @@ export function initQueueRoutes(deps: QueueDependencies): Router {
 				ChromelessPage(
 					{
 						...readerBody,
-						scripts: readerBody.scripts + READER_MARK_READ_BRIDGE_SCRIPT,
+						scripts:
+							readerBody.scripts +
+							READER_MARK_READ_BRIDGE_SCRIPT +
+							READER_CAPTURE_BRIDGE_SCRIPT,
 					},
 					{
 						changelogBanner: selectChangelogBanner(
@@ -729,6 +746,11 @@ export function initQueueRoutes(deps: QueueDependencies): Router {
 			const filtered = filterUrl
 				? { ...result, articles: filteredArticles, total: filteredArticles.length }
 				: result;
+			const crawlByUrl = await loadCrawls(
+				deps.findArticleCrawlStatuses,
+				filtered.articles,
+				deps.logError,
+			);
 
 			res.type(SIREN_MEDIA_TYPE).json(
 				toArticleCollectionEntity(
@@ -742,6 +764,7 @@ export function initQueueRoutes(deps: QueueDependencies): Router {
 					{
 						iosSurface: isIosPlatform(req),
 						iosClient: isIosClient(req) && !hasBackgroundSaveContinuity(req),
+						crawlByUrl,
 					},
 				),
 			);
@@ -871,6 +894,11 @@ export function initQueueRoutes(deps: QueueDependencies): Router {
 				includeTotal: true,
 				pageSize: queuePageSizeForClient(req.oauthClientId),
 			});
+			const crawlByUrl = await loadCrawls(
+				deps.findArticleCrawlStatuses,
+				collection.articles,
+				deps.logError,
+			);
 			res.status(422).type(SIREN_MEDIA_TYPE).json(
 				toArticleCollectionEntity(
 					collection,
@@ -878,6 +906,7 @@ export function initQueueRoutes(deps: QueueDependencies): Router {
 					{
 						warning: { code: validation.error.code, message: validation.error.message },
 						iosSurface: isIosPlatform(req),
+						crawlByUrl,
 					},
 				),
 			);

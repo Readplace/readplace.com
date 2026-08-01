@@ -1,5 +1,7 @@
 import { initInMemoryAuth } from "./auth/in-memory-auth";
 import { initInMemoryReadingList } from "./reading-list/in-memory-reading-list";
+import { ReadingListItemIdSchema } from "./domain/reading-list-item-id";
+import type { FindByUrl } from "./reading-list/reading-list.types";
 import type { SetIcon } from "./icon-status";
 import { initIconStatus } from "./icon-status";
 
@@ -12,10 +14,25 @@ function createRecordingSetIcon(): SetIcon & {
 		showSaved: async (tabId) => {
 			calls.push({ method: "showSaved", tabId });
 		},
+		showNeedsCapture: async (tabId) => {
+			calls.push({ method: "showNeedsCapture", tabId });
+		},
 		showDefault: async (tabId) => {
 			calls.push({ method: "showDefault", tabId });
 		},
 	};
+}
+
+function findingSavedItem(needsBrowserCapture: boolean): FindByUrl {
+	return async (url) => ({
+		id: ReadingListItemIdSchema.parse("saved-1"),
+		url,
+		title: "Saved Page",
+		savedAt: new Date(0),
+		actions: [],
+		links: [],
+		needsBrowserCapture,
+	});
 }
 
 describe("initIconStatus", () => {
@@ -71,6 +88,38 @@ describe("initIconStatus", () => {
 		await updateIconForTab(42, "https://example.com/saved");
 
 		expect(setIcon.calls).toEqual([{ method: "showSaved", tabId: 42 }]);
+	});
+
+	it("should show the needs-capture icon when the saved URL still needs a browser capture", async () => {
+		const auth = initInMemoryAuth();
+		const setIcon = createRecordingSetIcon();
+		await auth.login();
+
+		const { updateIconForTab } = initIconStatus({
+			findByUrl: findingSavedItem(true),
+			whenLoggedIn: auth.whenLoggedIn,
+			setIcon,
+		});
+
+		await updateIconForTab(7, "https://blocked.example/article");
+
+		expect(setIcon.calls).toEqual([{ method: "showNeedsCapture", tabId: 7 }]);
+	});
+
+	it("should show the saved icon when the saved URL needs no browser capture", async () => {
+		const auth = initInMemoryAuth();
+		const setIcon = createRecordingSetIcon();
+		await auth.login();
+
+		const { updateIconForTab } = initIconStatus({
+			findByUrl: findingSavedItem(false),
+			whenLoggedIn: auth.whenLoggedIn,
+			setIcon,
+		});
+
+		await updateIconForTab(7, "https://blocked.example/article");
+
+		expect(setIcon.calls).toEqual([{ method: "showSaved", tabId: 7 }]);
 	});
 
 	it("should use correct tabId for each call", async () => {

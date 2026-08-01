@@ -1590,6 +1590,65 @@ describe("Queue routes", () => {
 		});
 	});
 
+	describe("GET /queue/:id/view — a crawl an origin edge refused", () => {
+		const ARTICLE_URL = "https://example.com/edge-blocked-post";
+
+		it("reframes the reader around the capture the user's own browser can still perform", async () => {
+			const crawlArticle = async () => ({
+				status: "fetched" as const,
+				html: "<html><body><article><p>x</p></article></body></html>",
+				bodyHash: "a".repeat(64),
+			});
+			const parseArticle = async () => ({
+				ok: false as const,
+				reason: JSON.stringify({ kind: "blocked", cause: "edge-block" }),
+			});
+			const fixture = createDefaultTestAppFixture(TEST_APP_ORIGIN);
+			const applyParseResult = createFakeApplyParseResult({
+				articleStore: fixture.articleStore,
+				articleCrawl: fixture.articleCrawl,
+				parseArticle,
+			});
+			const harness = useApp({
+				...fixture,
+				parser: { parseArticle, crawlArticle },
+				events: {
+					...fixture.events,
+					publishLinkSaved: createFakePublishLinkSaved(applyParseResult),
+					publishRecrawlLinkInitiated: createFakePublishRecrawlLinkInitiated(applyParseResult),
+					publishSaveAnonymousLink: createFakePublishSaveAnonymousLink(applyParseResult),
+				},
+			});
+			const agent = await loginAgent(harness.server, harness.auth);
+			await agent.post("/queue/save").type("form").send({ url: ARTICLE_URL });
+			const articleId = new JSDOM((await agent.get("/queue")).text).window.document
+				.querySelector("[data-test-article-list] .queue-article")
+				?.getAttribute("data-test-article");
+			assert(articleId, "the saved article must render with an id");
+
+			const doc = new JSDOM((await agent.get(`/queue/${articleId}/view`)).text).window.document;
+			const slot = doc.querySelector("[data-test-reader-slot]");
+			assert(slot, "reader slot must be rendered");
+
+			expect(slot.getAttribute("data-reader-status")).toBe("blocked");
+			expect(slot.querySelector(".article-body__reader-notice-text")?.textContent?.trim()).toBe(
+				"The site blocked our servers from fetching it. Open it in your browser and we'll capture the page from there — the browser extension and iPhone app do this in one tap.",
+			);
+			const actions = Array.from(slot.querySelectorAll("[data-test-reader-action]")).map(
+				(el) => el.getAttribute("data-test-reader-action"),
+			);
+			expect(actions).toEqual(["open", "capture"]);
+			expect(
+				slot.querySelector("[data-reader-capture]")?.classList.contains(
+					"article-body__reader-notice-capture--hidden",
+				),
+			).toBe(true);
+			expect(
+				slot.querySelector("[data-test-reader-failed-primary]")?.getAttribute("href"),
+			).toBe(ARTICLE_URL);
+		});
+	});
+
 	describe("GET /queue/:id/view — tombstoned URL", () => {
 		it("404s directly (not a /view bounce) for a purged article whose id still resolves", async () => {
 			const url = "https://example.com/purged-permalink";

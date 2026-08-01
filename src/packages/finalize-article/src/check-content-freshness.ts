@@ -64,6 +64,7 @@ export function initRefreshArticleIfStale(deps: {
 
 		if (
 			result.status === "failed" ||
+			result.status === "blocked" ||
 			result.status === "not-found" ||
 			result.status === "unsupported"
 		) {

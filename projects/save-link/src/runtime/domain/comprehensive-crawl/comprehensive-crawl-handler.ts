@@ -1,4 +1,5 @@
 import type { Handler, SQSBatchItemFailure, SQSBatchResponse, SQSEvent } from "aws-lambda";
+import { blockedCauseForStatus } from "@packages/article-state-types";
 import type { HutchLogger } from "@packages/hutch-logger";
 import type { CrawlArticle } from "@packages/crawl-article";
 import type { PublishEvent } from "@packages/hutch-infra-components/runtime";
@@ -116,7 +117,7 @@ export function initComprehensiveCrawlHandler(deps: {
 		}
 		await transitionAndPersist(markCrawlBlocked, {
 			url: ctx.url,
-			input: { reason: { kind: "blocked", cause: "rate-limited" } },
+			input: { reason: { kind: "blocked", cause: "spend-capped" } },
 		});
 		return { via: "committed-in-process" };
 	};
@@ -168,6 +169,32 @@ export function initComprehensiveCrawlHandler(deps: {
 				logParseError({ url, reason });
 				await emitTier1Failure(url);
 				throw new Error(`crawl failed for ${url}: ${reason}`);
+			}
+			case "blocked": {
+				logParseError({ url, reason: `crawl-blocked: HTTP ${crawlResult.httpStatus}` });
+				/* The origin's edge refuses this egress IP, which no retry from this
+				 * Lambda can change. Settle the row so the reader can ask for a
+				 * browser capture instead of the message dead-lettering and being
+				 * relabelled `exhausted-retries`. */
+				await transitionAndPersist(markCrawlBlocked, {
+					url,
+					input: {
+						reason: {
+							kind: "blocked",
+							cause: blockedCauseForStatus(crawlResult.httpStatus),
+						},
+					},
+				});
+				/* Best-effort: the row is already terminal, and this queue is
+				 * maxReceiveCount=1 — a throw here would dead-letter the message and
+				 * let the DLQ handler overwrite the blocked classification. */
+				await emitTier1Failure(url).catch((error: unknown) => {
+					logger.warn(`${logPrefix} tier-1 failure outcome log failed`, {
+						url,
+						error: String(error),
+					});
+				});
+				return { via: "committed-in-process" };
 			}
 			case "not-found": {
 				logParseError({ url, reason: `crawl-not-found: HTTP ${crawlResult.httpStatus}` });

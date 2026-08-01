@@ -98,6 +98,25 @@ final class MultipartFormTests: XCTestCase {
 		)
 	}
 
+	func testTheInMemoryBodyIsTheSameBytesTheStagedFileCarries() throws {
+		let file = temporaryFile()
+		let subject = form(
+			boundary: "BOUNDARY-5",
+			textParts: [
+				MultipartForm.TextPart(name: "url", value: "https://example.com/post"),
+				MultipartForm.TextPart(name: "mediaType", value: "text/html"),
+			],
+			content: Data("<html><body>hi</body></html>".utf8)
+		)
+
+		try subject.write(to: file)
+
+		XCTAssertEqual(
+			subject.body, try Data(contentsOf: file),
+			"a foreground request and a staged upload must put the same bytes on the wire"
+		)
+	}
+
 	func testDeclaresTheBoundaryInItsContentType() {
 		XCTAssertEqual(
 			form(boundary: "abc-123", textParts: [], content: Data()).contentType,

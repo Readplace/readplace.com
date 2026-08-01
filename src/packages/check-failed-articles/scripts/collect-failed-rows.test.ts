@@ -181,12 +181,37 @@ describe("collectFailedRows", () => {
 		);
 	});
 
-	it("drops a paid-crawl-budget rate-limited block — a transient cap, not a debuggable failure", async () => {
+	it("drops a paid-crawl-budget spend-capped block — our own transient cap, not a debuggable failure", async () => {
 		const { client } = createFakeClient(() => ({
 			Items: [
 				{
 					url: "site.test/throttled",
 					originalUrl: "https://site.test/throttled.pdf",
+					crawlStatus: "failed",
+					crawlFailureReason: '{"kind":"blocked","cause":"spend-capped"}',
+					summaryStatus: "skipped",
+					savedAt: "2026-05-10T00:00:00.000Z",
+				},
+			],
+			Count: 1,
+		}));
+		const failed = await collectFailedRows({
+			client,
+			tableName: TABLE,
+			origin: ORIGIN,
+			now: () => NOW,
+			lookbackDays: 0,
+			excludePatterns: NO_EXCLUDES,
+		});
+		assert.deepEqual(failed, []);
+	});
+
+	it("surfaces an origin rate-limit — the site throttled us, which is a link we lost, unlike our own spend cap", async () => {
+		const { client } = createFakeClient(() => ({
+			Items: [
+				{
+					url: "site.test/429",
+					originalUrl: "https://site.test/429",
 					crawlStatus: "failed",
 					crawlFailureReason: '{"kind":"blocked","cause":"rate-limited"}',
 					summaryStatus: "skipped",
@@ -203,7 +228,8 @@ describe("collectFailedRows", () => {
 			lookbackDays: 0,
 			excludePatterns: NO_EXCLUDES,
 		});
-		assert.deepEqual(failed, []);
+		assert.equal(failed.length, 1);
+		assert.deepEqual(failed[0]?.axes, ["crawl-failed"]);
 	});
 
 	it("drops a not-found crawl failure — the origin no longer serves the page, so a recrawl can never succeed", async () => {
@@ -258,14 +284,14 @@ describe("collectFailedRows", () => {
 		assert.deepEqual(failed[0]?.axes, ["summary-failed"]);
 	});
 
-	it("surfaces a non-rate-limited block (e.g. cloudflare) — a real crawler block to investigate", async () => {
+	it("surfaces a non-rate-limited block (edge-block) — a real crawler block to investigate", async () => {
 		const { client } = createFakeClient(() => ({
 			Items: [
 				{
 					url: "site.test/cf",
 					originalUrl: "https://site.test/cf",
 					crawlStatus: "failed",
-					crawlFailureReason: '{"kind":"blocked","cause":"cloudflare"}',
+					crawlFailureReason: '{"kind":"blocked","cause":"edge-block"}',
 					summaryStatus: "skipped",
 					savedAt: "2026-05-10T00:00:00.000Z",
 				},
@@ -282,7 +308,7 @@ describe("collectFailedRows", () => {
 		});
 		assert.equal(failed.length, 1);
 		assert.deepEqual(failed[0]?.axes, ["crawl-failed"]);
-		assert.equal(failed[0]?.reasons["crawl-failed"], '{"kind":"blocked","cause":"cloudflare"}');
+		assert.equal(failed[0]?.reasons["crawl-failed"], '{"kind":"blocked","cause":"edge-block"}');
 	});
 
 	it("surfaces a valid non-blocked failure reason (parse-error) — only blocked/rate-limited is dropped", async () => {

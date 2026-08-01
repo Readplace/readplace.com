@@ -16,6 +16,7 @@ export type CrawlAndFinalizeResult =
 		}
 	| { status: "not-modified" }
 	| { status: "failed"; reason: string }
+	| { status: "blocked"; httpStatus: number }
 	| { status: "not-found"; httpStatus: 404 | 410 }
 	| { status: "unsupported"; reason: string };
 
@@ -64,6 +65,9 @@ export function initCrawlAndFinalizeArticle(deps: {
 		}
 		if (crawlResult.status === "not-found") {
 			return { status: "not-found", httpStatus: crawlResult.httpStatus };
+		}
+		if (crawlResult.status === "blocked") {
+			return { status: "blocked", httpStatus: crawlResult.httpStatus };
 		}
 		if (crawlResult.status === "failed") {
 			return { status: "failed", reason: "crawl-failed" };

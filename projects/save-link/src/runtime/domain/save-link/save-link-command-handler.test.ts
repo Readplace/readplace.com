@@ -1,5 +1,5 @@
 import { noopLogger } from "@packages/hutch-logger";
-import { markCrawlFailed, markCrawlNotFound } from "@packages/domain/article-aggregate";
+import { markCrawlBlocked, markCrawlFailed, markCrawlNotFound } from "@packages/domain/article-aggregate";
 import { TierContentExtractedEvent } from "@packages/hutch-infra-components";
 import { initSaveLinkCommandHandler } from "./save-link-command-handler";
 import type {
@@ -244,6 +244,29 @@ describe("initSaveLinkCommandHandler", () => {
 		expect(transitionAndPersist).toHaveBeenCalledWith(markCrawlNotFound, {
 			url: "https://example.com/gone",
 			input: { reason: { kind: "not-found", httpStatus: 404 } },
+		});
+		expect(publishEvent).not.toHaveBeenCalled();
+		expect(putTierSource).not.toHaveBeenCalled();
+	});
+
+	it("terminalises an edge-blocked link (HTTP 403) via markCrawlBlocked and reports no batch failure — dead-lettering would let the DLQ handler relabel the block as exhausted-retries", async () => {
+		const transitionAndPersist = jest.fn().mockResolvedValue(undefined);
+		const publishEvent = jest.fn().mockResolvedValue(undefined);
+		const putTierSource: PutTierSource = jest.fn().mockResolvedValue(undefined);
+		const crawlAndFinalizeArticle: CrawlAndFinalizeArticle = async () => ({ status: "blocked", httpStatus: 403 });
+
+		const handler = createHandler({ crawlAndFinalizeArticle, transitionAndPersist, publishEvent, putTierSource });
+
+		const result = await handler(
+			createSqsEvent({ url: "https://example.com/walled", userId: "user-1" }),
+			buildLambdaContext(),
+			() => {},
+		);
+
+		expect(result).toEqual({ batchItemFailures: [] });
+		expect(transitionAndPersist).toHaveBeenCalledWith(markCrawlBlocked, {
+			url: "https://example.com/walled",
+			input: { reason: { kind: "blocked", cause: "edge-block" } },
 		});
 		expect(publishEvent).not.toHaveBeenCalled();
 		expect(putTierSource).not.toHaveBeenCalled();

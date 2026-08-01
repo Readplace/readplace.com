@@ -21,6 +21,15 @@ export function markCrawlBlocked(
 	effects: readonly Effect[];
 	writes: readonly AggregateField[];
 } {
+	/* A re-crawl of an already-served article can be refused by the origin's edge
+	 * long after a first crawl succeeded. Single writer per terminal state, as in
+	 * markCrawlNotFound: a block never overwrites content a reader can already
+	 * read — otherwise one 403 on a refresh turns a readable article into the
+	 * "we couldn't fetch this" notice and drops its summary. */
+	if (article.crawl.kind === "ready") {
+		return { article, effects: [], writes: [] };
+	}
+
 	const next: Article = {
 		...article,
 		crawl: { kind: "failed", reason: input.reason },

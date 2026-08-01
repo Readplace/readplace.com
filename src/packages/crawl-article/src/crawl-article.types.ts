@@ -34,6 +34,7 @@ export type CrawlArticleResult =
 		}
 	| { status: "not-modified" }
 	| { status: "failed" }
+	| { status: "blocked"; httpStatus: number }
 	| { status: "not-found"; httpStatus: 404 | 410 }
 	| { status: "unsupported"; reason: string };
 

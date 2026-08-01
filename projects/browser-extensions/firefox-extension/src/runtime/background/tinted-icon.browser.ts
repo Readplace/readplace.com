@@ -1,6 +1,7 @@
 import type { SetIcon } from "browser-extension-core";
 
 const SAVED_COLOR = "#3D8B6E";
+const NEEDS_CAPTURE_COLOR = "#c8702a";
 const ICON_SIZES = [16, 32, 48, 64] as const;
 
 async function tintIcon(size: number, color: string): Promise<ImageData> {
@@ -25,23 +26,31 @@ async function tintIcon(size: number, color: string): Promise<ImageData> {
 	return ctx.getImageData(0, 0, size, size);
 }
 
-let savedIconCache: Record<number, ImageData> | null = null;
+const tintedIconCache = new Map<string, Record<number, ImageData>>();
 
-async function getSavedIconData(): Promise<Record<number, ImageData>> {
-	if (savedIconCache) return savedIconCache;
+async function getTintedIconData(
+	color: string,
+): Promise<Record<number, ImageData>> {
+	const cached = tintedIconCache.get(color);
+	if (cached) return cached;
 	const entries = await Promise.all(
 		ICON_SIZES.map(
-			async (size) => [size, await tintIcon(size, SAVED_COLOR)] as const,
+			async (size) => [size, await tintIcon(size, color)] as const,
 		),
 	);
-	savedIconCache = Object.fromEntries(entries);
-	return savedIconCache;
+	const tinted = Object.fromEntries(entries);
+	tintedIconCache.set(color, tinted);
+	return tinted;
 }
 
 export function createBrowserSetIcon(): SetIcon {
 	return {
 		showSaved: async (tabId) => {
-			const imageData = await getSavedIconData();
+			const imageData = await getTintedIconData(SAVED_COLOR);
+			await browser.browserAction.setIcon({ tabId, imageData });
+		},
+		showNeedsCapture: async (tabId) => {
+			const imageData = await getTintedIconData(NEEDS_CAPTURE_COLOR);
 			await browser.browserAction.setIcon({ tabId, imageData });
 		},
 		showDefault: async (tabId) => {

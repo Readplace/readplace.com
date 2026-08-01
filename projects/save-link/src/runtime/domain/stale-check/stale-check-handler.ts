@@ -120,7 +120,7 @@ export function initStaleCheckHandler(deps: {
 			return "unchanged";
 		}
 
-		if (result.status === "failed") {
+		if (result.status === "failed" || result.status === "blocked") {
 			/* A permanently-failing origin (cert error, redirect, bot block) would
 			 * otherwise be re-crawled on every /view, since the failed branch never
 			 * advanced contentFetchedAt. Reset the freshness clock so the next

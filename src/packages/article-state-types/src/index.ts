@@ -13,8 +13,10 @@ export type {
 	ReaderViewStatus,
 	SummaryStatus,
 } from "./article-state";
+export { blockedCauseForStatus } from "./blocked-cause";
 export { CrawlFailureReasonSchema } from "./crawl-failure-reason";
 export type { CrawlFailureReason } from "./crawl-failure-reason";
+export { parseCrawlFailureReason } from "./parse-crawl-failure-reason";
 export { CrawlUnsupportedReasonSchema } from "./crawl-unsupported-reason";
 export type { CrawlUnsupportedReason } from "./crawl-unsupported-reason";
 export { SummaryFailureReasonSchema } from "./summary-failure-reason";

@@ -2,7 +2,13 @@ import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import { join } from "node:path";
 import { inflateSync } from "node:zlib";
-import { compositeSavedIcon, type Rgba } from "./composite-saved-icon";
+import {
+	compositeTintedIcon,
+	NEEDS_CAPTURE_TINT,
+	SAVED_TINT,
+	type Rgba,
+	type Tint,
+} from "./composite-tinted-icon";
 
 // Toolbar backgrounds the action icon is actually painted on. Chromium exposes
 // no API for the toolbar colour, so the shipped asset has to clear every one of
@@ -184,35 +190,47 @@ function toRgba(pixels: Pixels): Rgba {
 	};
 }
 
+const TINTS: Record<string, Tint> = {
+	saved: SAVED_TINT,
+	"needs-capture": NEEDS_CAPTURE_TINT,
+};
+
+const TINTED_VARIANTS = Object.entries(TINTS).flatMap(([label, tint]) =>
+	[16, 32, 48, 64].map((size) => ({ label, tint, size })),
+);
+
+function tintedIcon(tint: Tint, size: number): Rgba {
+	return compositeTintedIcon({
+		glyph: toRgba(readIcon(`icons/dark/icon-${size}.png`)),
+		haloed: toRgba(readIcon(`icons/light/icon-${size}.png`)),
+		tint,
+	});
+}
+
 describe("toolbar icon contrast", () => {
 	it.each(actionIconPaths())("%s stays legible on every toolbar", (iconPath) => {
 		expectLegibleOnEveryToolbar(readIcon(iconPath), iconPath);
 	});
 
-	// The saved icon is synthesised at runtime, so it is the one variant no
-	// shipped asset can vouch for — and it is what a reader sees the instant
-	// they save, which is when a vanished icon reads as a failed save.
-	it.each([16, 32, 48, 64])(
-		"the %ipx saved icon stays legible on every toolbar",
-		(size) => {
-			const saved = compositeSavedIcon({
-				glyph: toRgba(readIcon(`icons/dark/icon-${size}.png`)),
-				haloed: toRgba(readIcon(`icons/light/icon-${size}.png`)),
-			});
+	it.each(TINTED_VARIANTS)(
+		"the $label icon at $size px stays legible on every toolbar",
+		({ label, tint, size }) => {
+			const tinted = tintedIcon(tint, size);
 			expectLegibleOnEveryToolbar(
-				{ width: saved.width, height: saved.height, data: Buffer.from(saved.data) },
-				`saved-${size}`,
+				{ width: tinted.width, height: tinted.height, data: Buffer.from(tinted.data) },
+				`${label}-${size}`,
 			);
 		},
 	);
 
-	it.each([16, 32, 48, 64])(
-		"the %ipx saved icon is distinguishable from the unsaved icon",
-		(size) => {
+	it.each(TINTED_VARIANTS)(
+		"the $label icon at $size px is distinguishable from the unsaved icon",
+		({ tint, size }) => {
 			const haloed = toRgba(readIcon(`icons/light/icon-${size}.png`));
-			const saved = compositeSavedIcon({
+			const tinted = compositeTintedIcon({
 				glyph: toRgba(readIcon(`icons/dark/icon-${size}.png`)),
 				haloed,
+				tint,
 			});
 
 			let ink = 0;
@@ -222,7 +240,7 @@ describe("toolbar icon contrast", () => {
 				ink++;
 				const shifted = [0, 1, 2].some(
 					(channel) =>
-						Math.abs(saved.data[i + channel] - haloed.data[i + channel]) > 32,
+						Math.abs(tinted.data[i + channel] - haloed.data[i + channel]) > 32,
 				);
 				if (shifted) recoloured++;
 			}
@@ -230,4 +248,23 @@ describe("toolbar icon contrast", () => {
 			expect(recoloured / ink).toBeGreaterThan(MIN_LEGIBLE_INK);
 		},
 	);
+
+	it("tints the two saved states differently enough to tell apart", () => {
+		const saved = tintedIcon(SAVED_TINT, 32);
+		const needsCapture = tintedIcon(NEEDS_CAPTURE_TINT, 32);
+
+		let ink = 0;
+		let differing = 0;
+		for (let i = 0; i < saved.data.length; i += 4) {
+			if (saved.data[i + 3] < 128) continue;
+			ink++;
+			const shifted = [0, 1, 2].some(
+				(channel) =>
+					Math.abs(saved.data[i + channel] - needsCapture.data[i + channel]) > 32,
+			);
+			if (shifted) differing++;
+		}
+
+		expect(differing / ink).toBeGreaterThan(MIN_LEGIBLE_INK);
+	});
 });

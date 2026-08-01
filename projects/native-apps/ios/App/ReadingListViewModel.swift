@@ -259,6 +259,23 @@ final class ReadingListViewModel: ObservableObject {
 		readerPresentation = ReaderPresentation(readerURL: shellURL, articleId: nil)
 	}
 
+	func captureBlockedArticle(with captor: HTMLCapturing) async {
+		guard let articleId = readerPresentation?.articleId,
+			let article = articles.first(where: { $0.id == articleId }),
+			let url = URL(string: article.url)
+		else { return }
+		do {
+			let outcome = try await HealBlockedArticle(api: api, captor: captor).run(url: url)
+			if let failureText = outcome.failureText {
+				errorText = failureText
+				return
+			}
+			await reloadAndAdopt(droppingId: nil)
+		} catch {
+			handle(error)
+		}
+	}
+
 	/// Mints the cookie session the reader webview needs from the current bearer.
 	func mintReaderSession() async -> ReaderSessionMint {
 		do {

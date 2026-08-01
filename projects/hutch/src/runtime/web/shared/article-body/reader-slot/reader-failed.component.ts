@@ -8,15 +8,17 @@ const TEMPLATE = readFileSync(
 	"utf-8",
 );
 
-export type ReaderFailedVariant = "failed" | "unsupported" | "slow";
+export type ReaderFailedVariant = "failed" | "unsupported" | "slow" | "blocked";
 
 export interface ReaderFailedInput {
 	url: string;
 	/**
-	 * Distinguishes the three states that all surface the same "your link is
+	 * Distinguishes the four states that all surface the same "your link is
 	 * saved, open it on the source" page:
 	 *   - `unsupported`: terminal — PDFs, images, archives, anything reader view can't render.
-	 *   - `failed`: transient — site blocked us (Cloudflare etc.) or the fetch errored.
+	 *   - `failed`: transient — the fetch errored.
+	 *   - `blocked`: an origin edge refused our servers; a browser on the user's
+	 *     own connection is the only thing that can still fetch it.
 	 *   - `slow`: pending past the poll cap — worker still might land but the user shouldn't wait.
 	 * Same template, the explanation line differs.
 	 */
@@ -30,6 +32,7 @@ const EXPLANATIONS: Record<ReaderFailedVariant, string> = {
 	unsupported:
 		"There are some links that are not webpages which we yet don't show in the reader.",
 	failed: `We couldn't pull the article text. The site may be blocking automated fetches. Save it with ${FULL_PAGE_CAPTURE_PHRASE} instead.`,
+	blocked: `The site blocked our servers from fetching it. Open it in your browser and we'll capture the page from there — ${FULL_PAGE_CAPTURE_PHRASE} do this in one tap.`,
 	slow: "Reader view is taking longer than usual.",
 };
 
@@ -39,6 +42,7 @@ export function renderReaderFailed(input: ReaderFailedInput): string {
 		variant: input.variant,
 		hostname: new URL(input.url).hostname,
 		explanation: EXPLANATIONS[input.variant],
+		showCapture: input.variant === "blocked",
 		extensionInstallUrl: input.extensionInstallUrl,
 		captureSurfaces: FULL_PAGE_CAPTURE_PHRASE,
 		oob: input.oob === true,

@@ -4,6 +4,7 @@ import type {
 } from "@packages/domain/article";
 import { ReaderArticleHashId } from "@packages/domain/article";
 import type { UserId } from "@packages/domain/user";
+import type { ArticleCrawl } from "@packages/provider-contracts/article-crawl";
 import type { FindArticlesResult } from "@packages/test-fixtures/providers/article-store";
 import { toArticleCollectionEntity } from "./collection-siren";
 
@@ -135,7 +136,60 @@ describe("toArticleCollectionEntity", () => {
 			"savedAt",
 			"readAt",
 			"isRead",
+			"needsBrowserCapture",
 		]);
+	});
+
+	it("resolves each row's crawl state by that row's own url, so only the edge-blocked article asks for a browser capture", () => {
+		const blocked = makeArticle("blocked");
+		const ready = makeArticle("ready");
+		const result: FindArticlesResult = {
+			articles: [blocked, ready],
+			total: 2,
+			hasMore: false,
+			page: 1,
+			pageSize: 20,
+		};
+
+		const entity = toArticleCollectionEntity(
+			result,
+			{},
+			{
+				crawlByUrl: new Map<string, ArticleCrawl | undefined>([
+					[
+						blocked.url,
+						{ status: "failed", reason: JSON.stringify({ kind: "blocked", cause: "edge-block" }) },
+					],
+					[ready.url, { status: "ready" }],
+				]),
+			},
+		);
+
+		expect(
+			(entity.entities ?? []).map((sub) => [
+				sub.properties?.url,
+				sub.properties?.needsBrowserCapture,
+			]),
+		).toEqual([
+			[blocked.url, true],
+			[ready.url, false],
+		]);
+	});
+
+	it("reports no browser capture on any row when the crawl states were never loaded — an absent read must not fabricate an affordance", () => {
+		const result: FindArticlesResult = {
+			articles: [makeArticle("1"), makeArticle("2")],
+			total: 2,
+			hasMore: false,
+			page: 1,
+			pageSize: 20,
+		};
+
+		const entity = toArticleCollectionEntity(result, {});
+
+		expect(
+			(entity.entities ?? []).map((sub) => sub.properties?.needsBrowserCapture),
+		).toEqual([false, false]);
 	});
 
 	it("includes self and root links", () => {

@@ -1,11 +1,13 @@
 import { noopLogger } from "@packages/hutch-logger";
-import { markCrawlNotFound } from "@packages/domain/article-aggregate";
+import { markCrawlBlocked, markCrawlNotFound } from "@packages/domain/article-aggregate";
 import { initSaveLinkWork } from "./save-link-work";
 import type { CrawlAndFinalizeArticle } from "@packages/finalize-article";
 import type { PutTierSource } from "../../providers/article-store/put-tier-source";
 import type { EmitSimpleCrawlUnsupported } from "../../dep-bundles/events";
 
 const notFoundCrawl = (httpStatus: 404 | 410): CrawlAndFinalizeArticle => async () => ({ status: "not-found", httpStatus });
+
+const blockedCrawl = (httpStatus: number): CrawlAndFinalizeArticle => async () => ({ status: "blocked", httpStatus });
 
 const rejectingEmitSimpleCrawlUnsupported: EmitSimpleCrawlUnsupported = async () => {
 	throw new Error("emitSimpleCrawlUnsupported invoked unexpectedly");
@@ -113,6 +115,70 @@ describe("initSaveLinkWork", () => {
 		expect(putTierSource).not.toHaveBeenCalled();
 		expect(updateFetchTimestamp).not.toHaveBeenCalled();
 		expect(emitSimpleCrawlUnsupported).not.toHaveBeenCalled();
+	});
+
+	it("terminalises an edge-blocked link via markCrawlBlocked instead of throwing, so the record settles and the DLQ handler can never relabel it exhausted-retries", async () => {
+		const transitionAndPersist = jest.fn().mockResolvedValue(undefined);
+
+		const { saveLinkWork } = createWork({ crawlAndFinalizeArticle: blockedCrawl(403), transitionAndPersist });
+
+		await expect(saveLinkWork("https://example.com/walled")).resolves.toBe("tier-1-terminal");
+		expect(transitionAndPersist).toHaveBeenCalledWith(markCrawlBlocked, {
+			url: "https://example.com/walled",
+			input: { reason: { kind: "blocked", cause: "edge-block" } },
+		});
+	});
+
+	it("records a 429 as rate-limited rather than an edge block, so the reader is not told to capture a page a later crawl can still fetch", async () => {
+		const transitionAndPersist = jest.fn().mockResolvedValue(undefined);
+
+		const { saveLinkWork } = createWork({ crawlAndFinalizeArticle: blockedCrawl(429), transitionAndPersist });
+
+		await expect(saveLinkWork("https://example.com/throttled")).resolves.toBe("tier-1-terminal");
+		expect(transitionAndPersist).toHaveBeenCalledWith(markCrawlBlocked, {
+			url: "https://example.com/throttled",
+			input: { reason: { kind: "blocked", cause: "rate-limited" } },
+		});
+	});
+
+	it("reports the edge block via logParseError with the HTTP status so the parse-errors dashboard separates blocks from crawler defects", async () => {
+		const logParseError = jest.fn();
+
+		const { saveLinkWork } = createWork({ crawlAndFinalizeArticle: blockedCrawl(429), logParseError });
+
+		await saveLinkWork("https://example.com/walled");
+
+		expect(logParseError).toHaveBeenCalledWith({
+			url: "https://example.com/walled",
+			reason: "crawl-blocked: HTTP 429",
+		});
+	});
+
+	it("writes no tier source and defers nothing to the comprehensive crawl for an edge-blocked link — no persona change alters the Lambda's egress IP", async () => {
+		const putTierSource: PutTierSource = jest.fn().mockResolvedValue(undefined);
+		const updateFetchTimestamp = jest.fn().mockResolvedValue(undefined);
+		const emitSimpleCrawlUnsupported = jest.fn().mockResolvedValue(undefined);
+
+		const { saveLinkWork } = createWork({
+			crawlAndFinalizeArticle: blockedCrawl(403),
+			putTierSource,
+			updateFetchTimestamp,
+			emitSimpleCrawlUnsupported,
+		});
+
+		await saveLinkWork("https://example.com/walled");
+
+		expect(putTierSource).not.toHaveBeenCalled();
+		expect(updateFetchTimestamp).not.toHaveBeenCalled();
+		expect(emitSimpleCrawlUnsupported).not.toHaveBeenCalled();
+	});
+
+	it("still resolves tier-1-terminal for an edge-blocked link when the tier-1 failure outcome log fails — a telemetry hiccup must not dead-letter a row that is already terminal", async () => {
+		const readTierSnapshot = jest.fn().mockRejectedValue(new Error("DDB read timed out"));
+
+		const { saveLinkWork } = createWork({ crawlAndFinalizeArticle: blockedCrawl(403), readTierSnapshot });
+
+		await expect(saveLinkWork("https://example.com/walled")).resolves.toBe("tier-1-terminal");
 	});
 
 	it("hands the redirect terminal + word count to adoptCanonicalIdentity after a successful tier-1 write", async () => {

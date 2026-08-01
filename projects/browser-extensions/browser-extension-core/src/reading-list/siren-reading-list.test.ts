@@ -2928,6 +2928,69 @@ describe("initSirenReadingList", () => {
 			expect(found?.title).toBe("Found Article");
 		});
 
+		it("should carry the server's browser-capture state onto the found item", async () => {
+			const entity = articleEntity({
+				id: "article-1",
+				url: "https://example.com/article",
+				title: "Blocked Article",
+				savedAt: "2026-01-15T10:00:00.000Z",
+			});
+			const { fetchFn } = createRoutingFetch(
+				withEntryPoint({
+					"GET http://localhost:3000/queue": {
+						status: 200,
+						body: collectionResponse(),
+					},
+					"GET http://localhost:3000/queue?url=https%3A%2F%2Fexample.com%2Farticle":
+						{
+							status: 200,
+							body: collectionResponse([
+								{
+									...entity,
+									properties: {
+										...entity.properties,
+										needsBrowserCapture: true,
+									},
+								},
+							]),
+						},
+				}),
+			);
+			const list = initSirenReadingList(createAdapterDeps(fetchFn));
+
+			const found = await list.findByUrl("https://example.com/article");
+
+			expect(found?.needsBrowserCapture).toBe(true);
+		});
+
+		it("should need no browser capture when the server describes none", async () => {
+			const { fetchFn } = createRoutingFetch(
+				withEntryPoint({
+					"GET http://localhost:3000/queue": {
+						status: 200,
+						body: collectionResponse(),
+					},
+					"GET http://localhost:3000/queue?url=https%3A%2F%2Fexample.com%2Farticle":
+						{
+							status: 200,
+							body: collectionResponse([
+								articleEntity({
+									id: "article-1",
+									url: "https://example.com/article",
+									title: "Found Article",
+									savedAt: "2026-01-15T10:00:00.000Z",
+								}),
+							]),
+						},
+				}),
+			);
+			const list = initSirenReadingList(createAdapterDeps(fetchFn));
+
+			const found = await list.findByUrl("https://example.com/article");
+
+			expect(found?.needsBrowserCapture).toBe(false);
+		});
+
 		it("should return null when no entities match", async () => {
 			const { fetchFn } = createRoutingFetch(
 				withEntryPoint({

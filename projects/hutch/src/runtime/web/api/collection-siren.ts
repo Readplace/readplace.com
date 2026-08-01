@@ -4,6 +4,7 @@ import type {
 	SortOrder,
 } from "@packages/provider-contracts/article-store";
 import type { ArticleStatus } from "@packages/domain/article";
+import type { ArticleCrawl } from "@packages/provider-contracts/article-crawl";
 import { MAX_PAGES_PER_BULK_SAVE, MAX_UPLOAD_CONTENT_BYTES, MAX_BULK_PAGE_CONTENT_BYTES } from "@packages/domain/article";
 import type { SirenEntity, SirenLink } from "./siren";
 import { buildPageList } from "./page-list";
@@ -35,7 +36,12 @@ function buildQueryString(params: CollectionQueryParams): string {
 export function toArticleCollectionEntity(
 	result: FindArticlesResult,
 	queryParams: CollectionQueryParams,
-	options: { warning?: CollectionWarning; iosSurface?: boolean; iosClient?: boolean } = {},
+	options: {
+		warning?: CollectionWarning;
+		iosSurface?: boolean;
+		iosClient?: boolean;
+		crawlByUrl?: ReadonlyMap<string, ArticleCrawl | undefined>;
+	} = {},
 ): SirenEntity {
 	const { articles, total, page, pageSize } = result;
 	assert(total !== undefined, "Siren collection requires a total");
@@ -95,7 +101,9 @@ export function toArticleCollectionEntity(
 	return {
 		class: ["collection", "articles"],
 		properties,
-		entities: articles.map((article) => toArticleSubEntity(article)),
+		entities: articles.map((article) =>
+			toArticleSubEntity(article, options.crawlByUrl?.get(article.url)),
+		),
 		links,
 		actions: [
 			{

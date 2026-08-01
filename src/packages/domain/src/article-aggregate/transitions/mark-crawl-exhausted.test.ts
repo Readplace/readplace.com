@@ -144,12 +144,12 @@ describe("markCrawlExhausted", () => {
 
 	it("stringifies blocked reasons with cause", () => {
 		const { effects } = markCrawlExhausted(buildArticle(), {
-			reason: { kind: "blocked", cause: "cloudflare" },
+			reason: { kind: "blocked", cause: "edge-block" },
 			receiveCount: 1,
 		});
 		const failed = effects[0];
 		assert.ok(failed && failed.kind === "publish-crawl-article-failed");
-		assert.equal(failed.reason, "blocked: cloudflare");
+		assert.equal(failed.reason, "blocked: edge-block");
 	});
 
 	it("stringifies not-found reasons with the httpStatus", () => {

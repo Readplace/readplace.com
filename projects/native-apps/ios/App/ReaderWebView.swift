@@ -15,6 +15,7 @@ struct ReaderWebView: UIViewControllerRepresentable {
 	let url: URL
 	let cookies: [HTTPCookie]
 	let onMarkedRead: () -> Void
+	let onCaptureBlocked: (HTMLCapturing) async -> Void
 	let onClose: () -> Void
 	/// The account page deleted the account, so the server destroyed every session
 	/// and redirected here rather than to the logged-out home — the sheet dismisses
@@ -31,6 +32,7 @@ struct ReaderWebView: UIViewControllerRepresentable {
 	func makeCoordinator() -> Coordinator {
 		Coordinator(
 			onMarkedRead: onMarkedRead,
+			onCaptureBlocked: onCaptureBlocked,
 			onClose: onClose,
 			onLogout: onLogout,
 			externalBrowser: externalBrowser,
@@ -96,11 +98,13 @@ struct ReaderWebView: UIViewControllerRepresentable {
 
 	final class Coordinator: NSObject, WKScriptMessageHandler, WKNavigationDelegate, WKUIDelegate {
 		private let onMarkedRead: () -> Void
+		private let onCaptureBlocked: (HTMLCapturing) async -> Void
 		private let onClose: () -> Void
 		private let onLogout: () -> Void
 		private let externalBrowser: ExternalBrowser
 		private let onLoadPhaseChange: (ReaderLoadPhase) -> Void
 		private var handled = false
+		private var capturing = false
 		private var progressObservation: NSKeyValueObservation?
 		/// Whether the main frame has committed (started painting) and whether the
 		/// load has already reached a terminal outcome. The first terminal outcome
@@ -111,12 +115,14 @@ struct ReaderWebView: UIViewControllerRepresentable {
 
 		init(
 			onMarkedRead: @escaping () -> Void,
+			onCaptureBlocked: @escaping (HTMLCapturing) async -> Void,
 			onClose: @escaping () -> Void,
 			onLogout: @escaping () -> Void,
 			externalBrowser: ExternalBrowser,
 			onLoadPhaseChange: @escaping (ReaderLoadPhase) -> Void
 		) {
 			self.onMarkedRead = onMarkedRead
+			self.onCaptureBlocked = onCaptureBlocked
 			self.onClose = onClose
 			self.onLogout = onLogout
 			self.externalBrowser = externalBrowser
@@ -187,9 +193,36 @@ struct ReaderWebView: UIViewControllerRepresentable {
 		}
 
 		func userContentController(_ controller: WKUserContentController, didReceive message: WKScriptMessage) {
-			guard !handled, ReaderBridge.isMarkedRead(message: message.name, body: message.body) else { return }
-			handled = true
-			onMarkedRead()
+			switch ReaderMessageRoute.route(
+				message: message.name,
+				body: message.body,
+				captureInFlight: capturing,
+				alreadyMarkedRead: handled
+			) {
+			case .startCapture:
+				guard let host = message.webView else { return }
+				capturing = true
+				Task { @MainActor in
+					let captor = HTMLCaptor()
+					self.attachHidden(captor.webView, in: host)
+					await self.onCaptureBlocked(captor)
+					captor.webView.removeFromSuperview()
+					self.capturing = false
+					host.reload()
+				}
+			case .markRead:
+				handled = true
+				onMarkedRead()
+			case .ignore:
+				break
+			}
+		}
+
+		private func attachHidden(_ webView: UIView, in host: UIView) {
+			webView.alpha = 0
+			webView.isUserInteractionEnabled = false
+			webView.frame = host.bounds
+			host.insertSubview(webView, at: 0)
 		}
 
 		func webView(
@@ -290,7 +323,15 @@ enum ReaderBridge {
 	/// Whether a received bridge message reports a completed mark-read. Pure and
 	/// unit-tested.
 	static func isMarkedRead(message name: String, body: Any) -> Bool {
-		guard name == messageName, let payload = body as? [String: Any] else { return false }
-		return payload["type"] as? String == "markedRead"
+		payloadType(message: name, body: body) == "markedRead"
+	}
+
+	static func isCaptureBlocked(message name: String, body: Any) -> Bool {
+		payloadType(message: name, body: body) == "captureBlocked"
+	}
+
+	private static func payloadType(message name: String, body: Any) -> String? {
+		guard name == messageName, let payload = body as? [String: Any] else { return nil }
+		return payload["type"] as? String
 	}
 }

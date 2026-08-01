@@ -39,6 +39,7 @@ export function initInMemoryReadingList(): {
 			savedAt: new Date(),
 			actions: [{ name: "update-status" }],
 			links: [],
+			needsBrowserCapture: false,
 		};
 		items.set(id, item);
 		return { ok: true, item, messages: [] };

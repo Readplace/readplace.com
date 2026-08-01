@@ -83,6 +83,25 @@ describe("markCrawlBlocked", () => {
 		assert.equal(article.estimatedReadTime, 3);
 	});
 
+	it("leaves a crawl-ready row untouched so an edge block on a re-crawl cannot destroy content a reader can already read", () => {
+		const served = buildArticle({
+			crawl: { kind: "ready" },
+			summary: { kind: "ready", summary: "a summary a reader can already read" },
+		});
+
+		const { article, effects, writes } = markCrawlBlocked(served, {
+			reason: { kind: "blocked", cause: "edge-block" },
+		});
+
+		assert.deepEqual(article.crawl, { kind: "ready" });
+		assert.deepEqual(article.summary, {
+			kind: "ready",
+			summary: "a summary a reader can already read",
+		});
+		assert.deepEqual(effects, []);
+		assert.deepEqual(writes, []);
+	});
+
 	it("does not mutate the input article (pure function)", () => {
 		const before = buildArticle();
 		const snapshot = JSON.parse(JSON.stringify(before));

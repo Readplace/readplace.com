@@ -12,6 +12,7 @@ import { classifyMediaType, type SupportedMediaType } from "./media-type";
 import { parseImageFromBuffer } from "./parse-image";
 import { parsePlainTextFromBuffer } from "./parse-plain-text";
 import { MAX_PDF_BYTES } from "./pdf-page-limits";
+import { isBlockClassResponse } from "./persona-fallback";
 import { readBodyWithCap } from "./read-capped-body";
 import type { ExtractPdf } from "./pdf-extract.types";
 import type { SiteCrawlOutcome, SiteRules } from "@packages/site-rules";
@@ -139,6 +140,7 @@ function initConditionalGet(deps: {
 	| { status: "ok"; response: Response; buffer: Buffer }
 	| { status: "not-modified" }
 	| { status: "failed" }
+	| { status: "blocked"; httpStatus: number }
 	| { status: "not-found"; httpStatus: 404 | 410 }
 > {
 	const { crawlFetch, logError, logInfo, fetchTimeouts } = deps;
@@ -177,6 +179,9 @@ function initConditionalGet(deps: {
 					status: response.status,
 					message: `[CrawlArticle] HTTP ${response.status} for ${params.url}${describeEdgeHeaders(response.headers)}`,
 				});
+				if (isBlockClassResponse(response) || response.status === 429) {
+					return { status: "blocked", httpStatus: response.status };
+				}
 				return { status: "failed" };
 			}
 			budgetTimer = setTimeout(() => {

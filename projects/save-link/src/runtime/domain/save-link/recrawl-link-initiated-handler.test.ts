@@ -1,5 +1,5 @@
 import { noopLogger } from "@packages/hutch-logger";
-import { markCrawlNotFound } from "@packages/domain/article-aggregate";
+import { markCrawlBlocked, markCrawlNotFound } from "@packages/domain/article-aggregate";
 import { RecrawlContentExtractedEvent } from "@packages/hutch-infra-components";
 import { initRecrawlLinkInitiatedHandler } from "./recrawl-link-initiated-handler";
 import type {
@@ -126,6 +126,27 @@ describe("initRecrawlLinkInitiatedHandler", () => {
 		expect(transitionAndPersist).toHaveBeenCalledWith(markCrawlNotFound, {
 			url: "https://example.com/gone",
 			input: { reason: { kind: "not-found", httpStatus: 404 } },
+		});
+		expect(publishEvent).not.toHaveBeenCalled();
+	});
+
+	it("terminalises an edge-blocked recrawl (HTTP 403) via markCrawlBlocked and reports no batch failure — dead-lettering would let the DLQ handler relabel the block as exhausted-retries", async () => {
+		const transitionAndPersist = jest.fn().mockResolvedValue(undefined);
+		const publishEvent = jest.fn().mockResolvedValue(undefined);
+		const crawlAndFinalizeArticle: CrawlAndFinalizeArticle = async () => ({ status: "blocked", httpStatus: 403 });
+
+		const handler = createHandler({ crawlAndFinalizeArticle, transitionAndPersist, publishEvent });
+
+		const result = await handler(
+			createSqsEvent({ url: "https://example.com/walled" }),
+			buildLambdaContext(),
+			() => {},
+		);
+
+		expect(result).toEqual({ batchItemFailures: [] });
+		expect(transitionAndPersist).toHaveBeenCalledWith(markCrawlBlocked, {
+			url: "https://example.com/walled",
+			input: { reason: { kind: "blocked", cause: "edge-block" } },
 		});
 		expect(publishEvent).not.toHaveBeenCalled();
 	});

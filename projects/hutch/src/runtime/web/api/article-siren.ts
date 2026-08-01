@@ -1,7 +1,19 @@
+import { parseCrawlFailureReason } from "@packages/article-state-types";
 import type { SavedArticle } from "@packages/domain/article";
+import type { ArticleCrawl } from "@packages/provider-contracts/article-crawl";
 import type { SirenEntity, SirenLink, SirenMessage, SirenSubEntity } from "./siren";
 
-export function toArticleSubEntity(article: SavedArticle): SirenSubEntity {
+function needsBrowserCapture(crawl: ArticleCrawl | undefined): boolean {
+	if (crawl?.status !== "failed") return false;
+	const reason = parseCrawlFailureReason(crawl.reason);
+	if (reason?.kind !== "blocked") return false;
+	return reason.cause === "edge-block" || reason.cause === "rate-limited";
+}
+
+export function toArticleSubEntity(
+	article: SavedArticle,
+	crawl?: ArticleCrawl,
+): SirenSubEntity {
 	const id = article.id.value;
 	const links: SirenLink[] = [
 		{ rel: ["read"], title: "Read", href: `/queue/${id}/view` },
@@ -30,6 +42,7 @@ export function toArticleSubEntity(article: SavedArticle): SirenSubEntity {
 			// indicator from one server-authored boolean rather than re-deriving it
 			// from the `status` vocabulary it would otherwise have to hard-code.
 			isRead,
+			needsBrowserCapture: needsBrowserCapture(crawl),
 		},
 		links,
 		actions: [

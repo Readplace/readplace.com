@@ -143,7 +143,7 @@ struct SaveSharedPage {
 
 /// The `save-content` fields in wire order, boundary included, so the body that is
 /// staged and the `Content-Type` the request declares can never disagree.
-private func saveContentForm(url: URL, bytes: Data, mediaType: String, title: String?) -> MultipartForm {
+func saveContentForm(url: URL, bytes: Data, mediaType: String, title: String?) -> MultipartForm {
 	var textParts = [
 		MultipartForm.TextPart(name: "url", value: url.absoluteString),
 		MultipartForm.TextPart(name: "mediaType", value: mediaType),

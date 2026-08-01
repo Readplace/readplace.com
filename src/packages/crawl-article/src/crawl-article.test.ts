@@ -498,7 +498,7 @@ describe("initCrawlArticle — single-fetch orchestration", () => {
 		expect(logError).not.toHaveBeenCalled();
 	});
 
-	it("returns failed on an HTTP 406 and logs at info because content-negotiation refusals are non-recoverable", async () => {
+	it("returns blocked on an HTTP 406 and logs at info because content-negotiation refusals are non-recoverable", async () => {
 		const fakeFetch: typeof fetch = async () => new Response(null, { status: 406 });
 		const logError = jest.fn();
 		const logInfo = jest.fn();
@@ -506,12 +506,25 @@ describe("initCrawlArticle — single-fetch orchestration", () => {
 
 		const result = await crawlArticle({ url: "https://example.com" });
 
-		expect(result).toEqual({ status: "failed" });
+		expect(result).toEqual({ status: "blocked", httpStatus: 406 });
 		expect(logInfo).toHaveBeenCalledWith("[CrawlArticle] HTTP 406 for https://example.com");
 		expect(logError).not.toHaveBeenCalled();
 	});
 
-	it("returns failed and logs at info when every TLS-fingerprint fallback stays blocked with 403", async () => {
+	it("returns blocked on an HTTP 451 so the caller can offer a browser capture instead of retrying a legal takedown at this egress", async () => {
+		const fakeFetch: typeof fetch = async () => new Response(null, { status: 451 });
+		const logError = jest.fn();
+		const logInfo = jest.fn();
+		const crawlArticle = initCrawl({ fetch: fakeFetch, logError, logInfo });
+
+		const result = await crawlArticle({ url: "https://example.com/geo-blocked" });
+
+		expect(result).toEqual({ status: "blocked", httpStatus: 451 });
+		expect(logError).toHaveBeenCalledWith("[CrawlArticle] HTTP 451 for https://example.com/geo-blocked");
+		expect(logInfo).not.toHaveBeenCalled();
+	});
+
+	it("returns blocked and logs at info when every TLS-fingerprint fallback stays blocked with 403", async () => {
 		const blocked = async () => new Response(null, { status: 403 });
 		const logError = jest.fn();
 		const logInfo = jest.fn();
@@ -525,12 +538,41 @@ describe("initCrawlArticle — single-fetch orchestration", () => {
 
 		const result = await crawlArticle({ url: "https://example.com" });
 
-		expect(result).toEqual({ status: "failed" });
+		expect(result).toEqual({ status: "blocked", httpStatus: 403 });
 		expect(logInfo).toHaveBeenCalledWith("[CrawlArticle] HTTP 403 for https://example.com");
 		expect(logError).not.toHaveBeenCalled();
 	});
 
-	it("returns failed and logs at info when every persona is rejected with 498", async () => {
+	it("returns blocked on a Cloudflare-challenged 403, logging the edge diagnostics at info so the block stays off the errors dashboard", async () => {
+		const challenged = async () =>
+			new Response(null, {
+				status: 403,
+				headers: {
+					server: "cloudflare",
+					"cf-mitigated": "challenge",
+					"cf-ray": "9560a1b2c3d4e5f6-SYD",
+				},
+			});
+		const logError = jest.fn();
+		const logInfo = jest.fn();
+		const crawlArticle = initCrawl({
+			fetch: challenged,
+			fetchH2: challenged,
+			fetchCurl: challenged,
+			logError,
+			logInfo,
+		});
+
+		const result = await crawlArticle({ url: "https://example.com/article" });
+
+		expect(result).toEqual({ status: "blocked", httpStatus: 403 });
+		expect(logInfo).toHaveBeenCalledWith(
+			"[CrawlArticle] HTTP 403 for https://example.com/article (server=cloudflare, cf-mitigated=challenge, cf-ray=9560a1b2c3d4e5f6-SYD)",
+		);
+		expect(logError).not.toHaveBeenCalled();
+	});
+
+	it("returns blocked and logs at info when every persona is rejected with 498", async () => {
 		const blocked = async () => new Response(null, { status: 498 });
 		const logError = jest.fn();
 		const logInfo = jest.fn();
@@ -538,12 +580,12 @@ describe("initCrawlArticle — single-fetch orchestration", () => {
 
 		const result = await crawlArticle({ url: "https://example.com" });
 
-		expect(result).toEqual({ status: "failed" });
+		expect(result).toEqual({ status: "blocked", httpStatus: 498 });
 		expect(logInfo).toHaveBeenCalledWith("[CrawlArticle] HTTP 498 for https://example.com");
 		expect(logError).not.toHaveBeenCalled();
 	});
 
-	it("returns failed and logs at error when every fallback rung stays blocked with 401", async () => {
+	it("returns blocked and logs at error when every fallback rung stays blocked with 401", async () => {
 		const blockedFetch = jest.fn<ReturnType<typeof fetch>, Parameters<typeof fetch>>(async () =>
 			new Response(null, { status: 401 }),
 		);
@@ -569,7 +611,7 @@ describe("initCrawlArticle — single-fetch orchestration", () => {
 
 		const result = await crawlArticle({ url: "https://example.com" });
 
-		expect(result).toEqual({ status: "failed" });
+		expect(result).toEqual({ status: "blocked", httpStatus: 401 });
 		expect(logError).toHaveBeenCalledWith("[CrawlArticle] HTTP 401 for https://example.com");
 		expect(logInfo).not.toHaveBeenCalledWith("[CrawlArticle] HTTP 401 for https://example.com");
 		expect(blockedFetch).toHaveBeenCalledTimes(2);
@@ -577,7 +619,7 @@ describe("initCrawlArticle — single-fetch orchestration", () => {
 		expect(blockedCurl).toHaveBeenCalledTimes(2);
 	});
 
-	it("returns failed and logs at info when the origin keeps rate-limiting with 429", async () => {
+	it("returns blocked and logs at info when the origin keeps rate-limiting with 429", async () => {
 		const rateLimited = async () => new Response(null, { status: 429 });
 		const logError = jest.fn();
 		const logInfo = jest.fn();
@@ -592,7 +634,7 @@ describe("initCrawlArticle — single-fetch orchestration", () => {
 
 		const result = await crawlArticle({ url: "https://example.com" });
 
-		expect(result).toEqual({ status: "failed" });
+		expect(result).toEqual({ status: "blocked", httpStatus: 429 });
 		expect(logInfo).toHaveBeenCalledWith("[CrawlArticle] HTTP 429 for https://example.com");
 		expect(logError).not.toHaveBeenCalled();
 	});

@@ -111,6 +111,22 @@ describe("promoteTier", () => {
 		assert.deepEqual(article.crawl, { kind: "ready" });
 	});
 
+	it("discards a prior terminal crawl failure rather than preserving it, so a capture heals a row the server could never fetch", () => {
+		const before = buildArticle({
+			crawl: { kind: "failed", reason: { kind: "blocked", cause: "edge-block" } },
+		});
+
+		const { article } = promoteTier(
+			before,
+			buildInput({
+				metadata: canonicalMetadata(before.metadata),
+				estimatedReadTime: 1,
+			}),
+		);
+
+		assert.deepEqual(article.crawl, { kind: "ready" });
+	});
+
 	it("leaves the summary axis untouched when the canonical hash changed (regeneration is driven by the CanonicalContentChanged subscriber, not this transition)", () => {
 		const existingSummary = {
 			kind: "ready" as const,

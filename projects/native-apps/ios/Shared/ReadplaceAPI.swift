@@ -332,6 +332,17 @@ final class ReadplaceAPI {
 		return SaveConfirmation(article: article, messages: messages)
 	}
 
+	func saveContent(action: SirenAction, form: MultipartForm) async throws {
+		var request = URLRequest(url: try absoluteURL(action.href))
+		request.httpMethod = action.method
+		request.setValue(form.contentType, forHTTPHeaderField: "Content-Type")
+		request.httpBody = form.body
+		let (data, http) = try await send(request)
+		guard (200...299).contains(http.statusCode) else {
+			throw apiError(from: data, status: http.statusCode)
+		}
+	}
+
 	// MARK: - Transport
 
 	private func send(_ request: URLRequest, retryOn401: Bool = true) async throws -> (Data, HTTPURLResponse) {

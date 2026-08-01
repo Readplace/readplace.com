@@ -46,4 +46,31 @@ final class ReaderBridgeTests: XCTestCase {
 	func testIsMarkedReadRejectsNonDictionaryBody() {
 		XCTAssertFalse(ReaderBridge.isMarkedRead(message: ReaderBridge.messageName, body: "markedRead"))
 	}
+
+	func testIsCaptureBlockedAcceptsCaptureBlockedPayloadOnBridgeChannel() {
+		XCTAssertTrue(ReaderBridge.isCaptureBlocked(message: ReaderBridge.messageName, body: ["type": "captureBlocked"]))
+	}
+
+	func testIsCaptureBlockedRejectsOtherMessageTypes() {
+		XCTAssertFalse(ReaderBridge.isCaptureBlocked(message: ReaderBridge.messageName, body: ["type": "scrolled"]))
+	}
+
+	func testIsCaptureBlockedRejectsWrongChannel() {
+		XCTAssertFalse(ReaderBridge.isCaptureBlocked(message: "someOtherHandler", body: ["type": "captureBlocked"]))
+	}
+
+	func testIsCaptureBlockedRejectsNonDictionaryBody() {
+		XCTAssertFalse(ReaderBridge.isCaptureBlocked(message: ReaderBridge.messageName, body: "captureBlocked"))
+	}
+
+	func testTheTwoBridgeMessagesDoNotCrossFireOnTheirSharedChannel() {
+		XCTAssertFalse(
+			ReaderBridge.isMarkedRead(message: ReaderBridge.messageName, body: ["type": "captureBlocked"]),
+			"a capture request must not mark the article read"
+		)
+		XCTAssertFalse(
+			ReaderBridge.isCaptureBlocked(message: ReaderBridge.messageName, body: ["type": "markedRead"]),
+			"a mark-read must not start a capture"
+		)
+	}
 }

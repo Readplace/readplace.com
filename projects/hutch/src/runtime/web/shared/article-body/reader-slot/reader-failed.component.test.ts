@@ -12,7 +12,7 @@ function parse(html: string) {
 
 describe("renderReaderFailed", () => {
 	it("renders the reassuring 'Your link is saved' title regardless of variant", () => {
-		for (const variant of ["failed", "unsupported", "slow"] as const) {
+		for (const variant of ["failed", "unsupported", "slow", "blocked"] as const) {
 			const doc = parse(
 				renderReaderFailed({ url: "https://example.com/post", variant }),
 			);
@@ -45,6 +45,7 @@ describe("renderReaderFailed", () => {
 			["unsupported", /not webpages which we yet don't show/],
 			["failed", /blocking automated fetches/],
 			["slow", /taking longer than usual/],
+			["blocked", /Open it in your browser/],
 		];
 		for (const [variant, expected] of cases) {
 			const doc = parse(
@@ -59,7 +60,7 @@ describe("renderReaderFailed", () => {
 	});
 
 	it("exposes the variant on the slot via data-reader-status (so tests can pin behaviour per variant)", () => {
-		for (const variant of ["failed", "unsupported", "slow"] as const) {
+		for (const variant of ["failed", "unsupported", "slow", "blocked"] as const) {
 			const doc = parse(
 				renderReaderFailed({ url: "https://example.com/post", variant }),
 			);
@@ -70,7 +71,7 @@ describe("renderReaderFailed", () => {
 	});
 
 	it("renders the extension install pitch when extensionInstallUrl is provided — for all variants", () => {
-		for (const variant of ["failed", "unsupported", "slow"] as const) {
+		for (const variant of ["failed", "unsupported", "slow", "blocked"] as const) {
 			const doc = parse(
 				renderReaderFailed({
 					url: "https://example.com/post",
@@ -87,6 +88,43 @@ describe("renderReaderFailed", () => {
 				/Tip: the browser extension and iPhone app capture the full page in one tap/,
 			);
 		}
+	});
+
+	it("offers the capture control only on the blocked variant — the one failure the reader's own host can still fix", () => {
+		function actionsFor(variant: ReaderFailedVariant): (string | null)[] {
+			const doc = parse(
+				renderReaderFailed({ url: "https://example.com/post", variant }),
+			);
+			return Array.from(doc.querySelectorAll("[data-test-reader-action]")).map(
+				(el) => el.getAttribute("data-test-reader-action"),
+			);
+		}
+
+		assert.deepEqual(actionsFor("blocked"), ["open", "capture"]);
+		for (const variant of ["failed", "unsupported", "slow"] as const) {
+			assert.deepEqual(actionsFor(variant), ["open"], `actions for variant=${variant}`);
+		}
+	});
+
+	it("ships the capture control hidden and keeps the source link primary, so a plain browser still sees only the affordance it can honour", () => {
+		const doc = parse(
+			renderReaderFailed({
+				url: "https://example.com/some-article",
+				variant: "blocked",
+			}),
+		);
+
+		const capture = doc.querySelector("[data-reader-capture]");
+		assert(capture, "the blocked variant must render a capture control");
+		assert.equal(capture.getAttribute("type"), "button");
+		assert.equal(
+			capture.classList.contains("article-body__reader-notice-capture--hidden"),
+			true,
+		);
+		assert.equal(
+			doc.querySelector("[data-test-reader-failed-primary]")?.getAttribute("href"),
+			"https://example.com/some-article",
+		);
 	});
 
 	it("omits the extension install pitch when extensionInstallUrl is not provided (extension already installed)", () => {

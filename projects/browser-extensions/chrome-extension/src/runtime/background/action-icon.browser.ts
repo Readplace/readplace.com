@@ -1,6 +1,7 @@
 import browser from "webextension-polyfill";
 import type { SetIcon } from "browser-extension-core";
-import { getSavedIconData } from "./saved-icon.browser";
+import { NEEDS_CAPTURE_TINT, SAVED_TINT } from "./composite-tinted-icon";
+import { getTintedIconData } from "./tinted-icon.browser";
 
 // One variant ships for every toolbar: Chromium exposes no API for the toolbar
 // colour, and `prefers-color-scheme` answers for the OS, which a custom or
@@ -18,7 +19,11 @@ const ICON_PATHS: Record<number, string> = {
 export function createBrowserSetIcon(): SetIcon {
 	return {
 		showSaved: async (tabId) => {
-			const imageData = await getSavedIconData();
+			const imageData = await getTintedIconData(SAVED_TINT);
+			await browser.action.setIcon({ tabId, imageData });
+		},
+		showNeedsCapture: async (tabId) => {
+			const imageData = await getTintedIconData(NEEDS_CAPTURE_TINT);
 			await browser.action.setIcon({ tabId, imageData });
 		},
 		showDefault: async (tabId) => {

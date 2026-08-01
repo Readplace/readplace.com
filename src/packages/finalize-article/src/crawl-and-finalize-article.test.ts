@@ -134,6 +134,19 @@ describe("initCrawlAndFinalizeArticle", () => {
 		expect(result).toEqual({ status: "not-found", httpStatus: 404 });
 	});
 
+	it("maps the crawler's blocked status through with the httpStatus and never finalizes — there is no body to run Readability over", async () => {
+		const finalizeArticle = jest.fn(okFinalize);
+		const crawlAndFinalize = initCrawlAndFinalizeArticle({
+			crawlArticle: async () => ({ status: "blocked", httpStatus: 403 }),
+			finalizeArticle,
+		});
+
+		const result = await crawlAndFinalize({ url: URL_UNDER_TEST });
+
+		expect(result).toEqual({ status: "blocked", httpStatus: 403 });
+		expect(finalizeArticle).toHaveBeenCalledTimes(0);
+	});
+
 	it("threads the crawler's pre-fetched thumbnailImage into finalizeArticle so no second image fetch fires", async () => {
 		const preFetched: ThumbnailImage = {
 			body: Buffer.from([0xff, 0xd8, 0xff]),

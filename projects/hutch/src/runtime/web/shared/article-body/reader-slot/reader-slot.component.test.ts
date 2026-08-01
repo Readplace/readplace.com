@@ -124,6 +124,99 @@ describe("renderReaderSlot", () => {
 		).toBe(URL);
 	});
 
+	it("routes a rate-limited crawl to the same blocked variant — the stored cause differs, what the reader sees does not", () => {
+		const doc = parse(
+			renderReaderSlot({
+				crawl: {
+					status: "failed",
+					reason: JSON.stringify({ kind: "blocked", cause: "rate-limited" }),
+				},
+				url: URL,
+				appOrigin: APP_ORIGIN,
+			}),
+		);
+
+		const slot = doc.querySelector("[data-test-reader-slot]");
+		assert(slot, "reader slot must be rendered");
+		expect(slot.getAttribute("data-reader-status")).toBe("blocked");
+		const actions = Array.from(
+			slot.querySelectorAll("[data-test-reader-action]"),
+		).map((el) => el.getAttribute("data-test-reader-action"));
+		expect(actions).toEqual(["open", "capture"]);
+	});
+
+	it("leaves a robots-blocked crawl on the generic failed variant, so the reader is never offered a capture that routes around robots.txt", () => {
+		const doc = parse(
+			renderReaderSlot({
+				crawl: {
+					status: "failed",
+					reason: JSON.stringify({ kind: "blocked", cause: "robots" }),
+				},
+				url: URL,
+				appOrigin: APP_ORIGIN,
+			}),
+		);
+
+		const slot = doc.querySelector("[data-test-reader-slot]");
+		assert(slot, "reader slot must be rendered");
+		expect(slot.getAttribute("data-reader-status")).toBe("failed");
+		const actions = Array.from(
+			slot.querySelectorAll("[data-test-reader-action]"),
+		).map((el) => el.getAttribute("data-test-reader-action"));
+		expect(actions).toEqual(["open"]);
+	});
+
+	it("routes a failed crawl whose reason records an edge block to the blocked variant, which offers the capture", () => {
+		const doc = parse(
+			renderReaderSlot({
+				crawl: {
+					status: "failed",
+					reason: JSON.stringify({ kind: "blocked", cause: "edge-block" }),
+				},
+				url: URL,
+				appOrigin: APP_ORIGIN,
+			}),
+		);
+
+		const slot = doc.querySelector("[data-test-reader-slot]");
+		assert(slot, "reader slot must be rendered");
+		expect(slot.getAttribute("data-reader-status")).toBe("blocked");
+		const actions = Array.from(
+			slot.querySelectorAll("[data-test-reader-action]"),
+		).map((el) => el.getAttribute("data-test-reader-action"));
+		expect(actions).toEqual(["open", "capture"]);
+	});
+
+	it("keeps every other failure reason on the generic failed variant — a reason we cannot read must not invite a capture", () => {
+		const reasons = [
+			JSON.stringify({ kind: "parse-error", detail: "Readability null" }),
+			JSON.stringify({ kind: "exhausted-retries", receiveCount: 4 }),
+			JSON.stringify({ kind: "blocked", cause: "robots" }),
+			JSON.stringify({ kind: "blocked", cause: "cloudflare" }),
+			"exceeded SQS maxReceiveCount",
+		];
+
+		for (const reason of reasons) {
+			const doc = parse(
+				renderReaderSlot({
+					crawl: { status: "failed", reason },
+					url: URL,
+					appOrigin: APP_ORIGIN,
+				}),
+			);
+			const slot = doc.querySelector("[data-test-reader-slot]");
+			assert(slot, `reader slot must be rendered for reason=${reason}`);
+			const actions = Array.from(
+				slot.querySelectorAll("[data-test-reader-action]"),
+			).map((el) => el.getAttribute("data-test-reader-action"));
+			expect([reason, slot.getAttribute("data-reader-status"), actions]).toEqual([
+				reason,
+				"failed",
+				["open"],
+			]);
+		}
+	});
+
 	it("routes status=unsupported to the unsupported variant with the reassuring title", () => {
 		const doc = parse(
 			renderReaderSlot({

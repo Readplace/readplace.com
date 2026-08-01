@@ -5,6 +5,7 @@ import type {
 } from "@packages/domain/article";
 import { ReaderArticleHashId } from "@packages/domain/article";
 import type { UserId } from "@packages/domain/user";
+import type { ArticleCrawl } from "@packages/provider-contracts/article-crawl";
 import { toArticleSubEntity, toArticleEntity } from "./article-siren";
 
 const ARTICLE_URL = "https://example.com/article";
@@ -51,6 +52,7 @@ describe("toArticleSubEntity", () => {
 				savedAt: "2026-03-04T10:00:00.000Z",
 				readAt: null,
 				isRead: false,
+				needsBrowserCapture: false,
 			},
 			links: [
 				{ rel: ["read"], title: "Read", href: `/queue/${ARTICLE_ID}/view` },
@@ -135,6 +137,66 @@ describe("toArticleSubEntity", () => {
 			makeArticle({ url: "https://example.com/article.html", displayUrl: "https://example.com/article" }),
 		);
 		expect(subEntity.properties?.url).toBe("https://example.com/article");
+	});
+
+	it("asks for a browser capture when the crawl failed because an origin edge refused our servers", () => {
+		const subEntity = toArticleSubEntity(makeArticle(), {
+			status: "failed",
+			reason: JSON.stringify({ kind: "blocked", cause: "edge-block" }),
+		});
+
+		expect(subEntity.properties?.needsBrowserCapture).toBe(true);
+	});
+
+	it("asks for a browser capture on a rate-limited row too — the user's own connection is not the one the origin throttled", () => {
+		const subEntity = toArticleSubEntity(makeArticle(), {
+			status: "failed",
+			reason: JSON.stringify({ kind: "blocked", cause: "rate-limited" }),
+		});
+
+		expect(subEntity.properties?.needsBrowserCapture).toBe(true);
+	});
+
+	it("asks for no browser capture when robots.txt is the blocker — the site asked us not to crawl it, and a capture would route around that", () => {
+		const subEntity = toArticleSubEntity(makeArticle(), {
+			status: "failed",
+			reason: JSON.stringify({ kind: "blocked", cause: "robots" }),
+		});
+
+		expect(subEntity.properties?.needsBrowserCapture).toBe(false);
+	});
+
+	it("asks for no browser capture in any other crawl state — the flag invites a user action, so only an edge block may raise it", () => {
+		const cases: Array<[string, ArticleCrawl | undefined]> = [
+			["no crawl row loaded", undefined],
+			["crawl ready", { status: "ready" }],
+			["crawl pending", { status: "pending" }],
+			[
+				"failed on our own parser, which a second fetch would not fix",
+				{ status: "failed", reason: JSON.stringify({ kind: "parse-error", detail: "Readability null" }) },
+			],
+			[
+				"failed on robots.txt, which the user's browser does not exempt us from",
+				{ status: "failed", reason: JSON.stringify({ kind: "blocked", cause: "robots" }) },
+			],
+			[
+				"failed with a legacy bare-string reason",
+				{ status: "failed", reason: "crawl-failed" },
+			],
+			[
+				"failed with the retired cloudflare cause",
+				{ status: "failed", reason: JSON.stringify({ kind: "blocked", cause: "cloudflare" }) },
+			],
+			[
+				"unsupported",
+				{ status: "unsupported", reason: JSON.stringify({ kind: "paywall" }) },
+			],
+		];
+
+		for (const [label, crawl] of cases) {
+			const subEntity = toArticleSubEntity(makeArticle(), crawl);
+			expect([label, subEntity.properties?.needsBrowserCapture]).toEqual([label, false]);
+		}
 	});
 
 	it("maps readAt when present", () => {

@@ -2,6 +2,7 @@
 import assert from "node:assert";
 import { randomInt } from "node:crypto";
 import type { Express } from "express";
+import { blockedCauseForStatus } from "@packages/article-state-types";
 import { createDynamoDocumentClient } from "@packages/hutch-storage-client";
 import type { Logger } from "./domain/logger";
 import { initInMemoryAuth } from "@packages/test-fixtures/providers/auth";
@@ -570,6 +571,16 @@ function initProviders(input: { appOrigin: string }) {
 		}
 		if (result.status === "not-found") {
 			await crawlStore.markCrawlFailed({ url, reason: `not-found: HTTP ${result.httpStatus}` });
+			return;
+		}
+		if (result.status === "blocked") {
+			await crawlStore.markCrawlFailed({
+				url,
+				reason: JSON.stringify({
+					kind: "blocked",
+					cause: blockedCauseForStatus(result.httpStatus),
+				}),
+			});
 			return;
 		}
 		if (result.status === "not-modified") return;

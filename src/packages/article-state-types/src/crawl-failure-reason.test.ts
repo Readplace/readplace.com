@@ -32,9 +32,9 @@ describe("CrawlFailureReasonSchema", () => {
 	it("accepts blocked with cause", () => {
 		const parsed = CrawlFailureReasonSchema.parse({
 			kind: "blocked",
-			cause: "cloudflare",
+			cause: "edge-block",
 		});
-		assert.deepEqual(parsed, { kind: "blocked", cause: "cloudflare" });
+		assert.deepEqual(parsed, { kind: "blocked", cause: "edge-block" });
 	});
 
 	it("rejects unknown kinds", () => {

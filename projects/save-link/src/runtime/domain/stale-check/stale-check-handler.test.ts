@@ -327,6 +327,53 @@ describe("initStaleCheckHandler", () => {
 		expect(emitSimpleCrawlUnsupported).not.toHaveBeenCalled();
 	});
 
+	it("backs off when crawl returns blocked: an origin edge block resets the freshness clock just like a failed refresh", async () => {
+		const findArticleFreshness: FindArticleFreshness = async () => ({
+			etag: undefined,
+			lastModified: undefined,
+			contentFetchedAt: "2026-04-01T00:00:00.000Z",
+			bodyHash: "h".repeat(64),
+		});
+		const crawlAndFinalizeArticle: CrawlAndFinalizeArticle = async () => ({
+			status: "blocked",
+			httpStatus: 403,
+		});
+		const publishRefreshArticleContent: PublishRefreshArticleContent = jest
+			.fn()
+			.mockResolvedValue(undefined);
+		const publishUpdateFetchTimestamp: PublishUpdateFetchTimestamp = jest
+			.fn()
+			.mockResolvedValue(undefined);
+		const emitSimpleCrawlUnsupported: EmitSimpleCrawlUnsupported = jest
+			.fn()
+			.mockResolvedValue(undefined);
+		const logger = { info: jest.fn(), warn: jest.fn(), error: jest.fn(), debug: jest.fn() };
+
+		const handler = createHandler({
+			findArticleFreshness,
+			crawlAndFinalizeArticle,
+			publishRefreshArticleContent,
+			publishUpdateFetchTimestamp,
+			emitSimpleCrawlUnsupported,
+			logger,
+		});
+
+		const result = await handler(createSqsEvent({ url: URL_UNDER_TEST }), buildLambdaContext(), () => {});
+
+		expect(result).toEqual({ batchItemFailures: [] });
+		expect(publishUpdateFetchTimestamp).toHaveBeenCalledTimes(1);
+		expect(publishUpdateFetchTimestamp).toHaveBeenCalledWith({
+			url: URL_UNDER_TEST,
+			contentFetchedAt: fixedNow().toISOString(),
+			bodyHash: "h".repeat(64),
+		});
+		expect(logger.info).toHaveBeenCalledWith("[StaleCheckRequested] backed off after refresh failure", {
+			url: URL_UNDER_TEST,
+		});
+		expect(publishRefreshArticleContent).not.toHaveBeenCalled();
+		expect(emitSimpleCrawlUnsupported).not.toHaveBeenCalled();
+	});
+
 	it("skips when crawl returns not-found (the prior served content stays; no refresh, timestamp bump, or deferral)", async () => {
 		const findArticleFreshness: FindArticleFreshness = async () => ({
 			etag: undefined,

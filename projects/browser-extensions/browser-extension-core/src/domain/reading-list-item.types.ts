@@ -42,4 +42,5 @@ export interface ReadingListItem {
 	 * anchor, so a future semantic rel (e.g. `summary`) renders with no client
 	 * change. */
 	links: LinkDescriptor[];
+	needsBrowserCapture: boolean;
 }

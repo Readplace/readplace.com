@@ -17,10 +17,9 @@
  * the shared predicates keeps the canary in step with production: a new or
  * reclassified status is a compile break there, not a silent canary change.
  *
- * A crawl that `failed` with a `blocked`/`rate-limited` reason is likewise
- * dropped: that is the paid-crawl-budget circuit-breaker tripping — a
- * transient, self-inflicted spend cap, not a crawler defect. Re-saving only
- * re-trips it until the window frees, so it is not a debug-worklist item.
+ * A crawl that `failed` with a `blocked`/`spend-capped` reason is likewise
+ * dropped: re-saving only re-trips it until the window frees, so it is not a
+ * debug-worklist item.
  *
  * A crawl that `failed` with a `not-found` reason (HTTP 404/410) is also
  * dropped: the origin definitively no longer serves the page, so a recrawl
@@ -37,8 +36,8 @@ import {
 	classifyCrawlOutcome,
 	classifySummaryOutcome,
 	type CrawlFailureReason,
-	CrawlFailureReasonSchema,
 	CrawlStatusSchema,
+	parseCrawlFailureReason,
 	SummaryStatusSchema,
 } from "@packages/article-state-types";
 import {
@@ -120,25 +119,8 @@ export function buildScanInput(now: Date, lookbackDays: number) {
 	} as const;
 }
 
-/* The crawl-failure reason is persisted as `JSON.stringify(reason)`; parse it
- * back so the worklist can drop reason kinds that are not operator-actionable.
- * Legacy rows whose reason is a bare (non-JSON) string or an unknown kind
- * parse to `undefined` and surface normally. */
-function parseReason(rawReason: string | undefined): CrawlFailureReason | undefined {
-	if (rawReason === undefined) return undefined;
-	let parsed: unknown;
-	try {
-		parsed = JSON.parse(rawReason);
-	} catch {
-		return undefined;
-	}
-	const result = CrawlFailureReasonSchema.safeParse(parsed);
-	if (!result.success) return undefined;
-	return result.data;
-}
-
-function isRateLimitedBlock(reason: CrawlFailureReason | undefined): boolean {
-	return reason !== undefined && reason.kind === "blocked" && reason.cause === "rate-limited";
+function isSpendCappedBlock(reason: CrawlFailureReason | undefined): boolean {
+	return reason !== undefined && reason.kind === "blocked" && reason.cause === "spend-capped";
 }
 
 function isNotFound(reason: CrawlFailureReason | undefined): boolean {
@@ -151,10 +133,10 @@ function classifyAxes(row: z.infer<typeof FailedArticleRow>): {
 } {
 	const axes: FailedAxis[] = [];
 	const reasons: Partial<Record<FailedAxis, string>> = {};
-	const crawlReason = parseReason(row.crawlFailureReason);
+	const crawlReason = parseCrawlFailureReason(row.crawlFailureReason);
 	if (
 		classifyCrawlOutcome(row.crawlStatus) === "error" &&
-		!isRateLimitedBlock(crawlReason) &&
+		!isSpendCappedBlock(crawlReason) &&
 		!isNotFound(crawlReason)
 	) {
 		axes.push("crawl-failed");

@@ -25,6 +25,8 @@ struct MultipartForm {
 
 	var contentType: String { "multipart/form-data; boundary=\(boundary)" }
 
+	var body: Data { preamble + filePart.bytes + epilogue }
+
 	/// Writes the body around `filePart.bytes` rather than into a buffer that
 	/// duplicates them — the whole reason the body is file-backed.
 	func write(to url: URL) throws {

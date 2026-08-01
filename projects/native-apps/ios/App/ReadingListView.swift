@@ -85,6 +85,9 @@ struct ReadingListView: View {
 							Task { await viewModel.readerStatusChanged() }
 							viewModel.readerPresentation = nil
 						},
+						onCaptureBlocked: { captor in
+							await viewModel.captureBlockedArticle(with: captor)
+						},
 						onClose: { viewModel.readerPresentation = nil },
 						// The account is gone, so the server-side revoke `logout()` performs
 						// would only 401: drop the local credentials instead. The dismissal

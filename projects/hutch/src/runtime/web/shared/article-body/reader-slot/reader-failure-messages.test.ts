@@ -37,10 +37,10 @@ describe("messageForCrawlFailure", () => {
 		).toContain("HTTP 404");
 	});
 
-	it("maps blocked/cloudflare to a Cloudflare-specific explanation", () => {
+	it("maps blocked/edge-block to an explanation naming the browser-capture recovery", () => {
 		expect(
-			messageForCrawlFailure({ kind: "blocked", cause: "cloudflare" }),
-		).toContain("Cloudflare");
+			messageForCrawlFailure({ kind: "blocked", cause: "edge-block" }),
+		).toContain("Open it in your browser");
 	});
 
 	it("maps blocked/robots to a robots.txt explanation", () => {
@@ -49,10 +49,19 @@ describe("messageForCrawlFailure", () => {
 		).toContain("robots.txt");
 	});
 
-	it("maps blocked/rate-limited to a rate-limit explanation", () => {
+	it("maps blocked/spend-capped to our own processing limit, never blaming the site for a cap we set", () => {
+		expect(
+			messageForCrawlFailure({ kind: "blocked", cause: "spend-capped" }),
+		).toContain("our own processing limit");
+	});
+
+	it("gives blocked/rate-limited the same recovery copy as an edge block — the reader is told what to do, and only the stored cause distinguishes them", () => {
+		expect(messageForCrawlFailure({ kind: "blocked", cause: "rate-limited" })).toBe(
+			messageForCrawlFailure({ kind: "blocked", cause: "edge-block" }),
+		);
 		expect(
 			messageForCrawlFailure({ kind: "blocked", cause: "rate-limited" }),
-		).toContain("rate-limited");
+		).toContain("Open it in your browser");
 	});
 });
 

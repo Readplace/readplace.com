@@ -1,6 +1,7 @@
+import { parseCrawlFailureReason } from "@packages/article-state-types";
 import type { ArticleCrawl } from "@packages/provider-contracts/article-crawl";
 import { isPDF } from "@packages/crawl-article";
-import { renderReaderFailed } from "./reader-failed.component";
+import { type ReaderFailedVariant, renderReaderFailed } from "./reader-failed.component";
 import { renderReaderPending } from "./reader-pending.component";
 import { renderReaderReady } from "./reader-ready.component";
 
@@ -51,6 +52,13 @@ function resolveLoadingHint(url: string): string | undefined {
 	return undefined;
 }
 
+function failedVariant(reason: string): ReaderFailedVariant {
+	const parsed = parseCrawlFailureReason(reason);
+	if (parsed?.kind !== "blocked") return "failed";
+	if (parsed.cause === "edge-block" || parsed.cause === "rate-limited") return "blocked";
+	return "failed";
+}
+
 function pollOrSlow(input: ReaderSlotInput, oob: boolean): string {
 	return input.readerPollUrl
 		? renderReaderPending({
@@ -85,7 +93,7 @@ export function renderReaderSlot(input: ReaderSlotInput): string {
 		case "failed":
 			return renderReaderFailed({
 				url: input.url,
-				variant: "failed",
+				variant: failedVariant(input.crawl.reason),
 				extensionInstallUrl: input.extensionInstallUrl,
 				oob,
 			});

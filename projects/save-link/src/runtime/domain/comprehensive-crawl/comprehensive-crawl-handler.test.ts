@@ -391,6 +391,62 @@ describe("initComprehensiveCrawlHandler", () => {
 		});
 	});
 
+	it("consumes the message (empty batchItemFailures, no SQS retry) and terminalises via markCrawlBlocked with cause edge-block when the origin's edge refuses this egress IP", async () => {
+		const blockedComprehensiveCrawl: CrawlArticle = async () => ({ status: "blocked", httpStatus: 403 });
+		const transitionAndPersist = jest.fn().mockResolvedValue(undefined);
+		const publishEvent = jest.fn().mockResolvedValue(undefined);
+		const logParseError = jest.fn();
+
+		const handler = createHandler({
+			crawlArticle: blockedComprehensiveCrawl,
+			transitionAndPersist,
+			publishEvent,
+			logParseError,
+		});
+
+		const result = await handler(
+			createSqsEvent({ url: "https://example.com/walled.pdf" }),
+			buildLambdaContext(),
+			() => {},
+		);
+
+		expect(result).toEqual({ batchItemFailures: [] });
+		expect(transitionAndPersist).toHaveBeenCalledWith(markCrawlBlocked, {
+			url: "https://example.com/walled.pdf",
+			input: { reason: { kind: "blocked", cause: "edge-block" } },
+		});
+		expect(transitionAndPersist).toHaveBeenCalledTimes(1);
+		expect(publishEvent).not.toHaveBeenCalled();
+		expect(logParseError).toHaveBeenCalledWith({
+			url: "https://example.com/walled.pdf",
+			reason: "crawl-blocked: HTTP 403",
+		});
+	});
+
+	it("still consumes an edge-blocked message when the tier-1 failure outcome log fails — a telemetry hiccup must not dead-letter a row that is already terminal", async () => {
+		const blockedComprehensiveCrawl: CrawlArticle = async () => ({ status: "blocked", httpStatus: 429 });
+		const transitionAndPersist = jest.fn().mockResolvedValue(undefined);
+		const readTierSnapshot = jest.fn().mockRejectedValue(new Error("DDB read timed out"));
+
+		const handler = createHandler({
+			crawlArticle: blockedComprehensiveCrawl,
+			transitionAndPersist,
+			readTierSnapshot,
+		});
+
+		const result = await handler(
+			createSqsEvent({ url: "https://example.com/walled.pdf" }),
+			buildLambdaContext(),
+			() => {},
+		);
+
+		expect(result).toEqual({ batchItemFailures: [] });
+		expect(transitionAndPersist).toHaveBeenCalledWith(markCrawlBlocked, {
+			url: "https://example.com/walled.pdf",
+			input: { reason: { kind: "blocked", cause: "rate-limited" } },
+		});
+	});
+
 	it("terminalises a refresh's 404 through the same markCrawlNotFound transition — its crawl-ready guard preserves a served row while a stuck-pending row still lands terminal", async () => {
 		const notFoundComprehensiveCrawl: CrawlArticle = async () => ({ status: "not-found", httpStatus: 404 });
 		const transitionAndPersist = jest.fn().mockResolvedValue(undefined);
@@ -660,7 +716,7 @@ describe("initComprehensiveCrawlHandler", () => {
 			// stuck-articles canary would page over a transient cap.
 			expect(transitionAndPersist).toHaveBeenCalledWith(markCrawlBlocked, {
 				url: "https://example.com/doc.pdf",
-				input: { reason: { kind: "blocked", cause: "rate-limited" } },
+				input: { reason: { kind: "blocked", cause: "spend-capped" } },
 			});
 			expect(transitionAndPersist).toHaveBeenCalledTimes(1);
 			expect(publishEvent).not.toHaveBeenCalled();

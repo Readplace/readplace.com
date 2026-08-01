@@ -191,6 +191,20 @@ describe("Queue reader chromeless switch (GET /queue/:id/view?platform=ios)", ()
 		expect(shellText).not.toContain("readplaceReader");
 	});
 
+	it("injects the server-owned capture bridge for the app, absent from the browser shell", async () => {
+		const harness = buildHarness();
+		const agent = await loginAgent(harness.server, harness.auth);
+		const articleId = await saveAndGetArticleId(agent, "https://example.com/app-capture-bridge");
+
+		const iosText = (await agent.get(`/queue/${articleId}/view?platform=ios`)).text;
+		expect(iosText).toContain("captureBlocked");
+		expect(iosText).toContain("data-reader-capture");
+		expect(iosText).toContain("article-body__reader-notice-capture--hidden");
+
+		const shellText = (await agent.get(`/queue/${articleId}/view`)).text;
+		expect(shellText).not.toContain("captureBlocked");
+	});
+
 	it("marks the body chromeless so the reader CSS can pin the top actions", async () => {
 		const harness = buildHarness();
 		const agent = await loginAgent(harness.server, harness.auth);

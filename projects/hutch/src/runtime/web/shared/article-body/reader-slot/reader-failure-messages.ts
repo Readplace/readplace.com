@@ -17,12 +17,13 @@ export function messageForCrawlFailure(reason: CrawlFailureReason): string {
 			return `The page no longer exists at this address (HTTP ${reason.httpStatus}).`;
 		case "blocked":
 			switch (reason.cause) {
-				case "cloudflare":
-					return "The site is behind a bot-protection layer (Cloudflare) that blocked our request.";
+				case "edge-block":
+				case "rate-limited":
+					return "The site blocked our servers from fetching it. Open it in your browser and we'll capture it from there.";
 				case "robots":
 					return "The site's robots.txt asks us not to crawl this URL.";
-				case "rate-limited":
-					return "The site rate-limited our request.";
+				case "spend-capped":
+					return "We hit our own processing limit for this file, so we couldn't extract its content.";
 			}
 	}
 }

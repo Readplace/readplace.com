@@ -66,7 +66,9 @@ export function initCrawlEmailLinkPreviewHandler(deps: {
 					continue;
 				}
 				const failureReason =
-					result.status === "not-modified" || result.status === "not-found"
+					result.status === "not-modified" ||
+					result.status === "not-found" ||
+					result.status === "blocked"
 						? result.status
 						: result.reason;
 				await setLinkOutcome({

@@ -12,6 +12,7 @@ function item(url: string): ReadingListItem {
 		savedAt: new Date(),
 		actions: [],
 		links: [],
+		needsBrowserCapture: false,
 	};
 }
 

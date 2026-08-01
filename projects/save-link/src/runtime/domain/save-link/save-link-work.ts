@@ -1,5 +1,7 @@
+import { blockedCauseForStatus } from "@packages/article-state-types";
 import type { HutchLogger } from "@packages/hutch-logger";
 import {
+	markCrawlBlocked,
 	markCrawlFailed,
 	markCrawlNotFound,
 	type TransitionAndPersist,
@@ -26,10 +28,11 @@ import type { AdoptCanonicalIdentity } from "./adopt-canonical-identity";
  * the appropriate event after it finishes (TierContentExtractedEvent or
  * RecrawlContentExtractedEvent).
  *
- * `"tier-1-terminal"` — the origin no longer serves the page (HTTP 404/410)
- * and the worker terminalised both axes in-process. No tier source was
- * written, so the caller must NOT publish a follow-up event: there is no new
- * content for a selector to pick and no summary to generate.
+ * `"tier-1-terminal"` — the origin will not serve the page to this crawler
+ * (HTTP 404/410, or an edge that refuses the datacenter IP) and the worker
+ * terminalised both axes in-process. No tier source was written, so the caller
+ * must NOT publish a follow-up event: there is no new content for a selector
+ * to pick and no summary to generate.
  */
 export type SaveLinkWorkResult = "tier-1-written" | "tier-1-deferred" | "tier-1-terminal";
 
@@ -140,6 +143,26 @@ export function initSaveLinkWork(deps: {
 			/* Best-effort: the row is already terminal, and the crawl queues are
 			 * maxReceiveCount=1 — a throw here would dead-letter the message and
 			 * let the DLQ handler overwrite the not-found classification. */
+			await emitTier1Failure(url).catch((error: unknown) => {
+				logger.warn(`${logPrefix} tier-1 failure outcome log failed`, {
+					url,
+					error: String(error),
+				});
+			});
+			return "tier-1-terminal";
+		}
+
+		if (result.status === "blocked") {
+			logParseError({ url, reason: `crawl-blocked: HTTP ${result.httpStatus}` });
+			await transitionAndPersist(markCrawlBlocked, {
+				url,
+				input: {
+					reason: { kind: "blocked", cause: blockedCauseForStatus(result.httpStatus) },
+				},
+			});
+			/* Best-effort: the row is already terminal, and the crawl queues are
+			 * maxReceiveCount=1 — a throw here would dead-letter the message and
+			 * let the DLQ handler overwrite the blocked classification. */
 			await emitTier1Failure(url).catch((error: unknown) => {
 				logger.warn(`${logPrefix} tier-1 failure outcome log failed`, {
 					url,
