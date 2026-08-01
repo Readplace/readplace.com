@@ -51,11 +51,49 @@ describe("toArticleCollectionEntity", () => {
 			pageSize: 20,
 		};
 
-		const entity = toArticleCollectionEntity(result, { page: 2, pageSize: 20 });
+		const entity = toArticleCollectionEntity(result, { page: 2 });
 
 		expect(entity.properties).toMatchObject({
 			pageSize: 20,
 		});
+	});
+
+	it("advertises every page, carrying the filters and no page size in each href", () => {
+		const result: FindArticlesResult = {
+			articles: [makeArticle("1")],
+			total: 42,
+			hasMore: true,
+			page: 2,
+			pageSize: 20,
+		};
+
+		const entity = toArticleCollectionEntity(result, {
+			status: "unread",
+			order: "desc",
+			page: 2,
+		});
+
+		expect(entity.properties?.pages).toEqual([
+			{ label: "1", rel: "prev", href: "/queue?status=unread&order=desc&page=1" },
+			{ label: "2", rel: "current", href: "/queue?status=unread&order=desc&page=2" },
+			{ label: "3", rel: "next", href: "/queue?status=unread&order=desc&page=3" },
+		]);
+	});
+
+	it("advertises a lone current page when everything fits on one", () => {
+		const result: FindArticlesResult = {
+			articles: [makeArticle("1")],
+			total: 1,
+			hasMore: false,
+			page: 1,
+			pageSize: 20,
+		};
+
+		const entity = toArticleCollectionEntity(result, {});
+
+		expect(entity.properties?.pages).toEqual([
+			{ label: "1", rel: "current", href: "/queue?page=1" },
+		]);
 	});
 
 	it("embeds articles as sub-entities with rel: item", () => {
@@ -161,7 +199,7 @@ describe("toArticleCollectionEntity", () => {
 			pageSize: 20,
 		};
 
-		const entity = toArticleCollectionEntity(result, { pageSize: 20 });
+		const entity = toArticleCollectionEntity(result, {});
 
 		const nextLink = entity.links?.find((l) => l.rel.includes("next"));
 		expect(nextLink?.href).toContain("page=2");
@@ -176,7 +214,7 @@ describe("toArticleCollectionEntity", () => {
 			pageSize: 20,
 		};
 
-		const entity = toArticleCollectionEntity(result, { page: 2, pageSize: 20 });
+		const entity = toArticleCollectionEntity(result, { page: 2 });
 
 		const prevLink = entity.links?.find((l) => l.rel.includes("prev"));
 		expect(prevLink?.href).toContain("page=1");
@@ -191,7 +229,7 @@ describe("toArticleCollectionEntity", () => {
 			pageSize: 20,
 		};
 
-		const entity = toArticleCollectionEntity(result, { page: 2, pageSize: 20 });
+		const entity = toArticleCollectionEntity(result, { page: 2 });
 
 		const linkRels = entity.links?.map((l) => l.rel[0]);
 		expect(linkRels).toEqual(["self", "root", "account", "add-links-help", "prev"]);
@@ -224,7 +262,6 @@ describe("toArticleCollectionEntity", () => {
 		const entity = toArticleCollectionEntity(result, {
 			status: "unread",
 			order: "desc",
-			pageSize: 20,
 		});
 
 		const nextLink = entity.links?.find((l) => l.rel.includes("next"));

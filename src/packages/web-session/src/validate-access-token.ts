@@ -10,6 +10,7 @@ export function createValidateAccessToken(model: OAuthModel): ValidateAccessToke
 		return {
 			userId: authenticatedUserIdFrom(token.user.id),
 			emailVerified: token.user.emailVerified === true,
+			oauthClientId: token.client.id,
 		};
 	};
 }

@@ -92,6 +92,7 @@ import { activeQueueTab, type QueueTab } from "./queue-tab";
 import { parseQueueUrl, buildQueueUrl, QUEUE_PATH, canonicalQueuePageRedirect } from "./queue.url";
 import { collectUtmParams } from "../../shared/utm";
 import { tabQuery } from "./queue.tabs";
+import { QUEUE_PAGE_SIZE, queuePageSizeForClient } from "./queue-page-size";
 import type { HttpErrorMessageMapping } from "./queue.error";
 import { collectStatusFlashParams, importFlashMapping, statusFlashMapping } from "./queue.error";
 import { MAX_POLLS } from "@packages/web-shell";
@@ -313,8 +314,6 @@ async function loadCrawls(
 		return new Map(urls.map((url) => [url, undefined] as const));
 	}
 }
-
-const QUEUE_PAGE_SIZE = 20;
 
 const SAVE_ROUTE = {
 	saveArticle: "/",
@@ -699,7 +698,7 @@ export function initQueueRoutes(deps: QueueDependencies): Router {
 			sort: tab.sort,
 			order,
 			page: urlState.page,
-			pageSize: QUEUE_PAGE_SIZE,
+			pageSize: queuePageSizeForClient(req.oauthClientId),
 			includeTotal: siren,
 		});
 
@@ -718,7 +717,6 @@ export function initQueueRoutes(deps: QueueDependencies): Router {
 						status: tab.status,
 						order: urlState.order,
 						page: urlState.page,
-						pageSize: result.pageSize,
 						url: filterUrl,
 					},
 					{
@@ -848,11 +846,15 @@ export function initQueueRoutes(deps: QueueDependencies): Router {
 			 * surface a `warning` property carrying the failure code + a
 			 * human-readable message that the client can render as a warning
 			 * banner alongside the list. */
-			const collection = await deps.findArticlesByUser({ userId, includeTotal: true });
+			const collection = await deps.findArticlesByUser({
+				userId,
+				includeTotal: true,
+				pageSize: queuePageSizeForClient(req.oauthClientId),
+			});
 			res.status(422).type(SIREN_MEDIA_TYPE).json(
 				toArticleCollectionEntity(
 					collection,
-					{ page: collection.page, pageSize: collection.pageSize },
+					{ page: collection.page },
 					{
 						warning: { code: validation.error.code, message: validation.error.message },
 						iosSurface: isIosPlatform(req),

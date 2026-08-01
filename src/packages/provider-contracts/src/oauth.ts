@@ -9,7 +9,11 @@ export type OAuthModel = AuthorizationCodeModel & RefreshTokenModel;
 
 export type ValidateAccessToken = (
 	accessToken: AccessToken,
-) => Promise<{ userId: AuthenticatedUserId; emailVerified: boolean } | null>;
+) => Promise<{
+	userId: AuthenticatedUserId;
+	emailVerified: boolean;
+	oauthClientId: string;
+} | null>;
 
 export type RevokeAllUserOAuthTokens = (userId: UserId) => Promise<void>;
 

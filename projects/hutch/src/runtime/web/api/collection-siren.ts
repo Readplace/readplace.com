@@ -6,6 +6,7 @@ import type {
 import type { ArticleStatus } from "@packages/domain/article";
 import { MAX_PAGES_PER_BULK_SAVE, MAX_UPLOAD_CONTENT_BYTES, MAX_BULK_PAGE_CONTENT_BYTES } from "@packages/domain/article";
 import type { SirenEntity, SirenLink } from "./siren";
+import { buildPageList } from "./page-list";
 import { toArticleSubEntity } from "./article-siren";
 import { saveInProgressNotice } from "./save-notice-siren";
 
@@ -13,7 +14,6 @@ interface CollectionQueryParams {
 	status?: ArticleStatus;
 	order?: SortOrder;
 	page?: number;
-	pageSize?: number;
 	url?: string;
 }
 
@@ -27,7 +27,6 @@ function buildQueryString(params: CollectionQueryParams): string {
 	if (params.status) search.set("status", params.status);
 	if (params.order) search.set("order", params.order);
 	if (params.page) search.set("page", String(params.page));
-	if (params.pageSize) search.set("pageSize", String(params.pageSize));
 	if (params.url) search.set("url", params.url);
 	const qs = search.toString();
 	return qs ? `?${qs}` : "";
@@ -78,7 +77,14 @@ export function toArticleCollectionEntity(
 		});
 	}
 
-	const properties: Record<string, unknown> = { pageSize };
+	const properties: Record<string, unknown> = {
+		pageSize,
+		pages: buildPageList({
+			currentPage: page,
+			totalPages,
+			hrefForPage: (pageNumber) => `/queue${buildQueryString({ ...queryParams, page: pageNumber })}`,
+		}),
+	};
 	if (options.warning) properties.warning = options.warning;
 	// Offered only to the native iOS app (header-gated, never `?platform=ios`), so
 	// the Share Extension can render "don't close this" beneath its spinner. Every

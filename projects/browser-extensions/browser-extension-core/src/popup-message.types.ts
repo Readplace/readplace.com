@@ -6,6 +6,6 @@ export type PopupMessage =
 	| { type: "invoke-action"; id: ReadingListItemId; name: string }
 	| { type: "save-all-tabs"; tabs: SaveableTab[] }
 	| { type: "get-all-items" }
-	| { type: "get-more-items" }
+	| { type: "load-page"; index: number }
 	| { type: "login" }
 	| { type: "logout" };

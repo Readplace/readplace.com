@@ -13,9 +13,37 @@ import {
 import { initReadabilityParser } from "@packages/article-parser";
 
 import { SIREN_MEDIA_TYPE } from "./siren";
-import { createAccessToken, saveAccessTokenForUser } from "../test-helpers/oauth-token";
+import {
+	createAccessToken,
+	saveAccessTokenForClient,
+	saveAccessTokenForUser,
+} from "../test-helpers/oauth-token";
 
 const useApp = useTestServer();
+
+async function loginAndSave(
+	harness: ReturnType<typeof useApp>,
+	params: { email: string; urlCount: number },
+) {
+	await harness.auth.createUser({ email: params.email, password: "password123" });
+	const agent = request.agent(harness.server);
+	await agent
+		.post("/login")
+		.type("form")
+		.send({ email: params.email, password: "password123" });
+	for (let i = 0; i < params.urlCount; i++) {
+		await agent
+			.post("/queue/save")
+			.type("form")
+			.send({ url: `https://example.com/article-${i}` });
+	}
+	const loginResult = await harness.auth.verifyCredentials({
+		email: params.email,
+		password: "password123",
+	});
+	assert(loginResult.ok);
+	return loginResult.userId;
+}
 
 describe("GET /queue (Siren content negotiation)", () => {
 	it("returns 401 without token when requesting Siren", async () => {
@@ -129,6 +157,87 @@ describe("GET /queue (Siren content negotiation)", () => {
 			(l: { rel: string[] }) => l.rel.includes("self"),
 		);
 		expect(selfLink?.href).toContain("page=2");
+	});
+
+	it("pages a browser extension at the size its popup displays", async () => {
+		const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
+		const userId = await loginAndSave(harness, { email: "ext@example.com", urlCount: 11 });
+		const accessToken = await saveAccessTokenForClient(harness, {
+			userId,
+			clientId: "hutch-chrome-extension",
+		});
+
+		const response = await request(harness.server)
+			.get("/queue")
+			.set("Accept", SIREN_MEDIA_TYPE)
+			.set("Authorization", `Bearer ${accessToken}`);
+
+		expect(response.body.entities).toHaveLength(10);
+		expect(response.body.properties.pageSize).toBe(10);
+		expect(response.body.properties.pages).toEqual([
+			{ label: "1", rel: "current", href: "/queue?status=unread&page=1" },
+			{ label: "2", rel: "next", href: "/queue?status=unread&page=2" },
+		]);
+	});
+
+	it("keeps the iPhone app on the default page size", async () => {
+		const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
+		const userId = await loginAndSave(harness, { email: "ios@example.com", urlCount: 11 });
+		const accessToken = await saveAccessTokenForClient(harness, { userId, clientId: "ios-app" });
+
+		const response = await request(harness.server)
+			.get("/queue")
+			.set("Accept", SIREN_MEDIA_TYPE)
+			.set("Authorization", `Bearer ${accessToken}`);
+
+		expect(response.body.entities).toHaveLength(11);
+		expect(response.body.properties.pageSize).toBe(20);
+		expect(response.body.properties.pages).toEqual([
+			{ label: "1", rel: "current", href: "/queue?status=unread&page=1" },
+		]);
+	});
+
+	it("advertises the pages around the one it served", async () => {
+		const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
+		const userId = await loginAndSave(harness, { email: "pages@example.com", urlCount: 25 });
+		const accessToken = await saveAccessTokenForClient(harness, {
+			userId,
+			clientId: "hutch-chrome-extension",
+		});
+
+		const response = await request(harness.server)
+			.get("/queue?page=2")
+			.set("Accept", SIREN_MEDIA_TYPE)
+			.set("Authorization", `Bearer ${accessToken}`);
+
+		expect(response.body.properties.pages).toEqual([
+			{ label: "1", rel: "prev", href: "/queue?status=unread&page=1" },
+			{ label: "2", rel: "current", href: "/queue?status=unread&page=2" },
+			{ label: "3", rel: "next", href: "/queue?status=unread&page=3" },
+		]);
+	});
+
+	it("advertises a single page when a url filter narrows the collection", async () => {
+		const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
+		const userId = await loginAndSave(harness, { email: "filter@example.com", urlCount: 11 });
+		const accessToken = await saveAccessTokenForClient(harness, {
+			userId,
+			clientId: "hutch-chrome-extension",
+		});
+
+		const response = await request(harness.server)
+			.get("/queue?url=https%3A%2F%2Fexample.com%2Farticle-3")
+			.set("Accept", SIREN_MEDIA_TYPE)
+			.set("Authorization", `Bearer ${accessToken}`);
+
+		expect(response.body.entities).toHaveLength(1);
+		expect(response.body.properties.pages).toEqual([
+			{
+				label: "1",
+				rel: "current",
+				href: "/queue?status=unread&page=1&url=https%3A%2F%2Fexample.com%2Farticle-3",
+			},
+		]);
 	});
 
 	it("includes search action", async () => {

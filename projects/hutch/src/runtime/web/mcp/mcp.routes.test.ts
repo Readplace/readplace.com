@@ -8,7 +8,9 @@ import { initMcpServer } from "./mcp-server";
 const userId = authenticatedUserIdFrom("00000000000000000000000000000001");
 
 const validateAccessToken: ValidateAccessToken = async (token) =>
-	token === "good-token" ? { userId, emailVerified: true } : null;
+	token === "good-token"
+		? { userId, emailVerified: true, oauthClientId: "dyn-registered-mcp-client" }
+		: null;
 
 function buildApp(): Express {
 	const mcpServer = initMcpServer({

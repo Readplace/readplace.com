@@ -42,24 +42,16 @@ export type SaveUrlResult =
 			ok: false;
 			reason: "not-saveable";
 			items: ReadingListItem[];
+			pages: PageDescriptor[];
 			warning?: SaveWarning;
 		}
 	| { ok: false; messages: Message[] };
 
-/** The outcome of invoking one advertised per-item action by (id, name). A
- * simple entity mutation lands the client back on the collection, so success
- * carries that response verbatim: its items, and whether it advertised a
- * further page — the mutation's answer replaces the loaded list wholesale, so a
- * caller tracking pages resets its own counters from `hasMore` rather than
- * keeping the ones it had before the mutation. `targetUrl` is the article the
- * action applied to, which is the only article whose saved-ness can have
- * changed. `not-found` covers an item or action the server no longer advertises
- * (the client re-renders the fresh list either way). */
 export type InvokeActionResult =
 	| {
 			ok: true;
 			items: ReadingListItem[];
-			hasMore: boolean;
+			pages: PageDescriptor[];
 			targetUrl: string;
 		}
 	| { ok: false; reason: "not-found" };
@@ -101,29 +93,35 @@ export type FindByUrl = (
 	url: string,
 ) => Promise<ReadingListItem | null>;
 
-/** One loaded prefix of the reading list: every item fetched so far, and
- * whether the server advertises a further page. */
-export interface ItemsPage {
-	items: ReadingListItem[];
-	hasMore: boolean;
+export type PageRel = "prev" | "current" | "next";
+
+/** One page of the reading list as it crosses the popup boundary: what to label
+ * it and where it sits, never how to fetch it. The server's opaque page href
+ * stays inside the walker, so the popup asks for a page by its position in this
+ * list and can neither build nor replay a URL of its own. */
+export interface PageDescriptor {
+	readonly label: string;
+	readonly rel: PageRel;
 }
 
-/** What a request for a further page can answer. `continuation: "lost"` is the
- * honest report that the client no longer holds the continuation it was asked
- * to follow: it is the server's own opaque link, held in memory and never
- * persisted, so a background context that is torn down between two requests
- * comes back holding nothing to follow. It is a distinct answer from an empty
- * `ItemsPage` on purpose — an empty page is indistinguishable from an empty
- * reading list, and a caller that rendered it would replace what the reader is
- * looking at with the empty state. The caller recovers by reading the list from
- * its first page again. */
-export type MoreItemsPage = ItemsPage | { continuation: "lost" };
+export interface CollectionPage {
+	items: ReadingListItem[];
+	pages: PageDescriptor[];
+}
 
-/** First page only — the rest of the list loads through `GetMoreItems`, one
- * page per invocation, so pages are fetched exactly when the reader asks. */
-export type GetItems = () => Promise<ItemsPage>;
+/** What a request for a page can answer. `pageList: "lost"` is the honest report
+ * that the client no longer holds the page list the request addressed: the
+ * server's own opaque hrefs are held in memory and never persisted, so a
+ * background context torn down between two requests comes back holding nothing
+ * to follow. It is a distinct answer from an empty `CollectionPage` on purpose —
+ * an empty page is indistinguishable from an empty reading list, and a caller
+ * that rendered it would replace what the reader is looking at with the empty
+ * state. The caller recovers by reading the list from its first page again. */
+export type LoadPageResult = CollectionPage | { pageList: "lost" };
 
-export type GetMoreItems = () => Promise<MoreItemsPage>;
+export type GetItems = () => Promise<CollectionPage>;
+
+export type LoadPage = (params: { index: number }) => Promise<LoadPageResult>;
 
 export type BulkSaveResult = {
 	saved: number;

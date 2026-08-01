@@ -38,6 +38,7 @@ export function initDualAuth(deps: DualAuthDeps) {
 			// the verified majority. Unverified/legacy tokens leave it `false`, so the
 			// record lookup (and self-heal) still runs — see resolve-verification-status.
 			req.emailVerified = validated.emailVerified;
+			req.oauthClientId = validated.oauthClientId;
 			next();
 			return;
 		}

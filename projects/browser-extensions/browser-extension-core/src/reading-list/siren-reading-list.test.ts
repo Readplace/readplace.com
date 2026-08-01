@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import { noopLogger } from "@packages/hutch-logger";
 import type { ReadingListItemId } from "../domain/reading-list-item.types";
-import type { ItemsPage, MoreItemsPage } from "./reading-list.types";
+import type { CollectionPage, LoadPageResult } from "./reading-list.types";
 import { UnauthorizedError } from "../auth/unauthorized-error";
 import {
 	initSirenReadingList,
@@ -45,14 +45,25 @@ function collectionResponse(entities: unknown[] = []) {
 	});
 }
 
-/** Narrows the answer to a request for a further page down to a loaded one, so
- * a test that expected a page fails loudly instead of silently reading a lost
- * continuation as an empty list. */
-function loadedPage(page: MoreItemsPage): ItemsPage {
+function collectionPage(page: LoadPageResult): CollectionPage {
 	if (!("items" in page)) {
-		throw new Error("expected a loaded page, not a lost continuation");
+		throw new Error("expected a loaded page, not a lost page list");
 	}
 	return page;
+}
+
+function pagedCollection(params: {
+	self: string;
+	entities: unknown[];
+	pages: { label: string; rel: string; href: string }[];
+}) {
+	return JSON.stringify({
+		class: ["collection", "articles"],
+		properties: { pages: params.pages },
+		entities: params.entities,
+		links: [{ rel: ["self"], href: params.self }],
+		actions: COLLECTION_ACTIONS,
+	});
 }
 
 const LOCK_MESSAGE_HTML =
@@ -473,7 +484,16 @@ describe("initExtension", () => {
 							savedAt: "2026-01-01T00:00:00.000Z",
 						},
 					};
-					return { items: [context.resolveItem(sub)], actions: {}, descriptors: {}, messages: [] };
+					return {
+						items: [context.resolveItem(sub)],
+						actions: {},
+						descriptors: {},
+						pages: [],
+						followPage: async () => {
+							throw new Error("this handler advertises no pages");
+						},
+						messages: [],
+					};
 				};
 			});
 			const handlers = groupOf(expandHandler);
@@ -3026,59 +3046,138 @@ describe("initSirenReadingList", () => {
 			);
 		});
 
-		it("reports a further page without fetching it, and appends it when the reader asks", async () => {
-			const page1 = JSON.stringify({
-				class: ["collection", "articles"],
-				entities: [
-					articleEntity({
-						id: "1",
-						url: "https://example.com/a",
-						title: "A",
-						savedAt: "2026-01-15T10:00:00.000Z",
-					}),
-				],
-				links: [
-					{ rel: ["self"], href: "/queue" },
-					{ rel: ["next"], href: "/queue?page=2" },
-				],
-				actions: COLLECTION_ACTIONS,
-			});
-			const page2 = JSON.stringify({
-				class: ["collection", "articles"],
-				entities: [
-					articleEntity({
-						id: "2",
-						url: "https://example.com/b",
-						title: "B",
-						savedAt: "2026-01-15T11:00:00.000Z",
-					}),
-				],
-				links: [{ rel: ["self"], href: "/queue?page=2" }],
-				actions: COLLECTION_ACTIONS,
-			});
+		it("publishes the page list without fetching those pages, and serves one when the reader picks it", async () => {
 			const { fetchFn, calls } = createRoutingFetch(
 				withEntryPoint({
-					"GET http://localhost:3000/queue": { status: 200, body: page1 },
-					"GET http://localhost:3000/queue?page=2": { status: 200, body: page2 },
+					"GET http://localhost:3000/queue": {
+						status: 200,
+						body: pagedCollection({
+							self: "/queue",
+							entities: [
+								articleEntity({
+									id: "1",
+									url: "https://example.com/a",
+									title: "A",
+									savedAt: "2026-01-15T10:00:00.000Z",
+								}),
+							],
+							pages: [
+								{ label: "1", rel: "current", href: "/queue?page=1" },
+								{ label: "2", rel: "next", href: "/queue?page=2" },
+							],
+						}),
+					},
+					"GET http://localhost:3000/queue?page=2": {
+						status: 200,
+						body: pagedCollection({
+							self: "/queue?page=2",
+							entities: [
+								articleEntity({
+									id: "2",
+									url: "https://example.com/b",
+									title: "B",
+									savedAt: "2026-01-15T11:00:00.000Z",
+								}),
+							],
+							pages: [
+								{ label: "1", rel: "prev", href: "/queue?page=1" },
+								{ label: "2", rel: "current", href: "/queue?page=2" },
+							],
+						}),
+					},
 				}),
 			);
 			const list = initSirenReadingList(createAdapterDeps(fetchFn));
 
 			const first = await list.getItems();
-			expect(first.items.map((i) => i.url)).toEqual(["https://example.com/a"]);
-			expect(first.hasMore).toBe(true);
+			expect(first.items.map((item) => item.url)).toEqual(["https://example.com/a"]);
+			expect(first.pages).toEqual([
+				{ label: "1", rel: "current" },
+				{ label: "2", rel: "next" },
+			]);
 			expect(calls).not.toContain("GET http://localhost:3000/queue?page=2");
 
-			const more = loadedPage(await list.getMoreItems());
-			expect(more.items.map((i) => i.url)).toEqual([
-				"https://example.com/a",
-				"https://example.com/b",
+			const second = collectionPage(await list.loadPage({ index: 1 }));
+
+			expect(second.items.map((item) => item.url)).toEqual(["https://example.com/b"]);
+			expect(second.pages).toEqual([
+				{ label: "1", rel: "prev" },
+				{ label: "2", rel: "current" },
 			]);
-			expect(more.hasMore).toBe(false);
 		});
 
-		it("answers what is already loaded when no further page exists", async () => {
+		it("keeps every page the server advertised, in order, however its states repeat", async () => {
 			const { fetchFn } = createRoutingFetch(
+				withEntryPoint({
+					"GET http://localhost:3000/queue": {
+						status: 200,
+						body: pagedCollection({
+							self: "/queue?page=3",
+							entities: [],
+							pages: [
+								{ label: "1", rel: "prev", href: "/queue?page=1" },
+								{ label: "2", rel: "prev", href: "/queue?page=2" },
+								{ label: "Latest", rel: "current", href: "/queue?page=3" },
+								{ label: "4", rel: "next", href: "/queue?page=4" },
+								{ label: "5", rel: "next", href: "/queue?page=5" },
+							],
+						}),
+					},
+				}),
+			);
+			const list = initSirenReadingList(createAdapterDeps(fetchFn));
+
+			const page = await list.getItems();
+
+			expect(page.pages).toEqual([
+				{ label: "1", rel: "prev" },
+				{ label: "2", rel: "prev" },
+				{ label: "Latest", rel: "current" },
+				{ label: "4", rel: "next" },
+				{ label: "5", rel: "next" },
+			]);
+		});
+
+		it("drops a malformed or unactionable page entry and keeps its siblings", async () => {
+			const { fetchFn, calls } = createRoutingFetch(
+				withEntryPoint({
+					"GET http://localhost:3000/queue": {
+						status: 200,
+						body: pagedCollection({
+							self: "/queue",
+							entities: [],
+							pages: [
+								{ label: "1", rel: "current", href: "/queue?page=1" },
+								{ label: "2", rel: "sideways", href: "/queue?page=2" },
+								{ label: "3", rel: "next", href: "mailto:someone@example.com" },
+								{ label: "4", rel: "next", href: "http://localhost:3000/queue?page=4" },
+							],
+						}),
+					},
+					"GET http://localhost:3000/queue?page=4": {
+						status: 200,
+						body: pagedCollection({
+							self: "/queue?page=4",
+							entities: [],
+							pages: [{ label: "4", rel: "current", href: "/queue?page=4" }],
+						}),
+					},
+				}),
+			);
+			const list = initSirenReadingList(createAdapterDeps(fetchFn));
+
+			const page = await list.getItems();
+			expect(page.pages).toEqual([
+				{ label: "1", rel: "current" },
+				{ label: "4", rel: "next" },
+			]);
+
+			collectionPage(await list.loadPage({ index: 1 }));
+			expect(calls).toContain("GET http://localhost:3000/queue?page=4");
+		});
+
+		it("has no pager for a collection the server advertised no pages for", async () => {
+			const { fetchFn, calls } = createRoutingFetch(
 				withEntryPoint({
 					"GET http://localhost:3000/queue": {
 						status: 200,
@@ -3095,91 +3194,141 @@ describe("initSirenReadingList", () => {
 			);
 			const list = initSirenReadingList(createAdapterDeps(fetchFn));
 
-			await list.getItems();
-			const more = loadedPage(await list.getMoreItems());
+			const page = await list.getItems();
+			expect(page.pages).toEqual([]);
 
-			expect(more.items.map((i) => i.url)).toEqual(["https://example.com/a"]);
-			expect(more.hasMore).toBe(false);
+			expect(await list.loadPage({ index: 0 })).toEqual({ pageList: "lost" });
+			expect(calls).not.toContain("GET http://localhost:3000/queue?page=1");
 		});
 
-		it("keeps what is loaded when fetching a further page fails", async () => {
-			const page1 = JSON.stringify({
-				class: ["collection", "articles"],
-				entities: [
-					articleEntity({
-						id: "1",
-						url: "https://example.com/a",
-						title: "A",
-						savedAt: "2026-01-15T10:00:00.000Z",
-					}),
-				],
-				links: [
-					{ rel: ["self"], href: "/queue" },
-					{ rel: ["next"], href: "/queue?page=2" },
-				],
-				actions: COLLECTION_ACTIONS,
-			});
+		it("keeps the reader on the page they have when loading another one fails", async () => {
 			const { fetchFn } = createRoutingFetch(
 				withEntryPoint({
-					"GET http://localhost:3000/queue": { status: 200, body: page1 },
+					"GET http://localhost:3000/queue": {
+						status: 200,
+						body: pagedCollection({
+							self: "/queue",
+							entities: [
+								articleEntity({
+									id: "1",
+									url: "https://example.com/a",
+									title: "A",
+									savedAt: "2026-01-15T10:00:00.000Z",
+								}),
+							],
+							pages: [
+								{ label: "1", rel: "current", href: "/queue?page=1" },
+								{ label: "2", rel: "next", href: "/queue?page=2" },
+							],
+						}),
+					},
 					"GET http://localhost:3000/queue?page=2": { status: 500 },
 				}),
 			);
 			const list = initSirenReadingList(createAdapterDeps(fetchFn));
 
 			await list.getItems();
-			const more = loadedPage(await list.getMoreItems());
+			const page = collectionPage(await list.loadPage({ index: 1 }));
 
-			expect(more.items.map((i) => i.url)).toEqual(["https://example.com/a"]);
-			expect(more.hasMore).toBe(false);
+			expect(page.items.map((item) => item.url)).toEqual(["https://example.com/a"]);
+			expect(page.pages).toEqual([
+				{ label: "1", rel: "current" },
+				{ label: "2", rel: "next" },
+			]);
 		});
 
-		it("reports a lost continuation when it holds none, rather than an empty list", async () => {
+		it("surfaces an expired session while loading a page rather than swallowing it", async () => {
+			const { fetchFn } = createRoutingFetch(
+				withEntryPoint({
+					"GET http://localhost:3000/queue": {
+						status: 200,
+						body: pagedCollection({
+							self: "/queue",
+							entities: [],
+							pages: [
+								{ label: "1", rel: "current", href: "/queue?page=1" },
+								{ label: "2", rel: "next", href: "/queue?page=2" },
+							],
+						}),
+					},
+					"GET http://localhost:3000/queue?page=2": { status: 401 },
+				}),
+			);
+			const list = initSirenReadingList(createAdapterDeps(fetchFn));
+			await list.getItems();
+
+			await expect(list.loadPage({ index: 1 })).rejects.toThrow(UnauthorizedError);
+		});
+
+		it("reports a lost page list when it holds none, rather than an empty list", async () => {
 			const { fetchFn, calls } = createRoutingFetch(
 				withEntryPoint({
 					"GET http://localhost:3000/queue": {
 						status: 200,
-						body: collectionResponse([
-							articleEntity({
-								id: "1",
-								url: "https://example.com/a",
-								title: "A",
-								savedAt: "2026-01-15T10:00:00.000Z",
-							}),
-						]),
+						body: collectionResponse([]),
 					},
 				}),
 			);
 			const list = initSirenReadingList(createAdapterDeps(fetchFn));
 
-			/** Nothing has been loaded through this instance — the state of one that
-			 * was torn down after the reader paged forward. An empty page here reads
-			 * as "your list is empty" and wipes what the reader is looking at. */
-			const more = await list.getMoreItems();
+			const page = await list.loadPage({ index: 0 });
 
-			expect(more).toEqual({ continuation: "lost" });
+			expect(page).toEqual({ pageList: "lost" });
 			expect(calls).toEqual([]);
 		});
 
-		it("follows one continuation at most once when asked for it twice at once", async () => {
-			const page1 = JSON.stringify({
-				class: ["collection", "articles"],
-				entities: [
-					articleEntity({
-						id: "1",
-						url: "https://example.com/a",
-						title: "A",
-						savedAt: "2026-01-15T10:00:00.000Z",
-					}),
-				],
-				links: [
-					{ rel: ["self"], href: "/queue" },
-					{ rel: ["next"], href: "/queue?page=2" },
-				],
-				actions: COLLECTION_ACTIONS,
-			});
-			const page2 = JSON.stringify({
-				class: ["collection", "articles"],
+		it("fetches one page at most once when asked for it twice at once", async () => {
+			const { fetchFn, calls } = createRoutingFetch(
+				withEntryPoint({
+					"GET http://localhost:3000/queue": {
+						status: 200,
+						body: pagedCollection({
+							self: "/queue",
+							entities: [],
+							pages: [
+								{ label: "1", rel: "current", href: "/queue?page=1" },
+								{ label: "2", rel: "next", href: "/queue?page=2" },
+							],
+						}),
+					},
+					"GET http://localhost:3000/queue?page=2": {
+						status: 200,
+						body: pagedCollection({
+							self: "/queue?page=2",
+							entities: [
+								articleEntity({
+									id: "2",
+									url: "https://example.com/b",
+									title: "B",
+									savedAt: "2026-01-15T11:00:00.000Z",
+								}),
+							],
+							pages: [
+								{ label: "1", rel: "prev", href: "/queue?page=1" },
+								{ label: "2", rel: "current", href: "/queue?page=2" },
+							],
+						}),
+					},
+				}),
+			);
+			const list = initSirenReadingList(createAdapterDeps(fetchFn));
+			await list.getItems();
+
+			const [first, second] = await Promise.all([
+				list.loadPage({ index: 1 }),
+				list.loadPage({ index: 1 }),
+			]);
+
+			expect(
+				calls.filter((call) => call === "GET http://localhost:3000/queue?page=2"),
+			).toHaveLength(1);
+			expect(collectionPage(first).items.map((item) => item.id)).toEqual(["2"]);
+			expect(collectionPage(second).items.map((item) => item.id)).toEqual(["2"]);
+		});
+
+		it("shows the page the reader asked for last when an earlier one settles after it", async () => {
+			const pageTwo = pagedCollection({
+				self: "/queue?page=2",
 				entities: [
 					articleEntity({
 						id: "2",
@@ -3188,33 +3337,69 @@ describe("initSirenReadingList", () => {
 						savedAt: "2026-01-15T11:00:00.000Z",
 					}),
 				],
-				links: [{ rel: ["self"], href: "/queue?page=2" }],
-				actions: COLLECTION_ACTIONS,
+				pages: [
+					{ label: "1", rel: "prev", href: "/queue?page=1" },
+					{ label: "2", rel: "current", href: "/queue?page=2" },
+					{ label: "3", rel: "next", href: "/queue?page=3" },
+				],
 			});
-			const { fetchFn, calls } = createRoutingFetch(
+			const pageThree = pagedCollection({
+				self: "/queue?page=3",
+				entities: [
+					articleEntity({
+						id: "3",
+						url: "https://example.com/c",
+						title: "C",
+						savedAt: "2026-01-15T09:00:00.000Z",
+					}),
+				],
+				pages: [
+					{ label: "1", rel: "prev", href: "/queue?page=1" },
+					{ label: "2", rel: "prev", href: "/queue?page=2" },
+					{ label: "3", rel: "current", href: "/queue?page=3" },
+				],
+			});
+			let releasePageTwo: () => void = () => {};
+			const pageTwoArrives = new Promise<void>((resolve) => {
+				releasePageTwo = resolve;
+			});
+			const { fetchFn: routed } = createRoutingFetch(
 				withEntryPoint({
-					"GET http://localhost:3000/queue": { status: 200, body: page1 },
-					"GET http://localhost:3000/queue?page=2": { status: 200, body: page2 },
+					"GET http://localhost:3000/queue": {
+						status: 200,
+						body: pagedCollection({
+							self: "/queue",
+							entities: [],
+							pages: [
+								{ label: "1", rel: "current", href: "/queue?page=1" },
+								{ label: "2", rel: "next", href: "/queue?page=2" },
+								{ label: "3", rel: "next", href: "/queue?page=3" },
+							],
+						}),
+					},
+					"GET http://localhost:3000/queue?page=2": { status: 200, body: pageTwo },
+					"GET http://localhost:3000/queue?page=3": { status: 200, body: pageThree },
 				}),
 			);
+			const fetchFn: SirenReadingListDeps["fetchFn"] = async (input, init) => {
+				if (requestInfoToUrl(input).includes("page=2")) await pageTwoArrives;
+				return routed(input, init);
+			};
 			const list = initSirenReadingList(createAdapterDeps(fetchFn));
 			await list.getItems();
 
-			const [first, second] = await Promise.all([
-				list.getMoreItems(),
-				list.getMoreItems(),
-			]);
+			const pendingTwo = list.loadPage({ index: 1 });
+			const three = collectionPage(await list.loadPage({ index: 2 }));
+			releasePageTwo();
+			const two = collectionPage(await pendingTwo);
 
-			expect(
-				calls.filter((call) => call === "GET http://localhost:3000/queue?page=2"),
-			).toHaveLength(1);
-			expect(loadedPage(first).items.map((i) => i.id)).toEqual(["1", "2"]);
-			expect(loadedPage(second).items.map((i) => i.id)).toEqual(["1", "2"]);
+			expect(three.items.map((item) => item.id)).toEqual(["3"]);
+			expect(two.items.map((item) => item.id)).toEqual(["3"]);
 		});
 
 		it("pages on from the mutation's own answer, not from the pages it replaced", async () => {
-			const beforeMutation = JSON.stringify({
-				class: ["collection", "articles"],
+			const beforeMutation = pagedCollection({
+				self: "/queue",
 				entities: [
 					articleEntity({
 						id: "article-1",
@@ -3229,14 +3414,13 @@ describe("initSirenReadingList", () => {
 						savedAt: "2026-01-15T11:00:00.000Z",
 					}),
 				],
-				links: [
-					{ rel: ["self"], href: "/queue" },
-					{ rel: ["next"], href: "/queue?page=stale" },
+				pages: [
+					{ label: "1", rel: "current", href: "/queue?page=1" },
+					{ label: "2", rel: "next", href: "/queue?page=stale" },
 				],
-				actions: COLLECTION_ACTIONS,
 			});
-			const afterMutation = JSON.stringify({
-				class: ["collection", "articles"],
+			const afterMutation = pagedCollection({
+				self: "/queue",
 				entities: [
 					articleEntity({
 						id: "article-2",
@@ -3245,14 +3429,13 @@ describe("initSirenReadingList", () => {
 						savedAt: "2026-01-15T11:00:00.000Z",
 					}),
 				],
-				links: [
-					{ rel: ["self"], href: "/queue" },
-					{ rel: ["next"], href: "/queue?page=fresh" },
+				pages: [
+					{ label: "1", rel: "current", href: "/queue?page=1" },
+					{ label: "2", rel: "next", href: "/queue?page=fresh" },
 				],
-				actions: COLLECTION_ACTIONS,
 			});
-			const freshSecondPage = JSON.stringify({
-				class: ["collection", "articles"],
+			const freshSecondPage = pagedCollection({
+				self: "/queue?page=fresh",
 				entities: [
 					articleEntity({
 						id: "article-3",
@@ -3261,8 +3444,10 @@ describe("initSirenReadingList", () => {
 						savedAt: "2026-01-15T09:00:00.000Z",
 					}),
 				],
-				links: [{ rel: ["self"], href: "/queue?page=fresh" }],
-				actions: COLLECTION_ACTIONS,
+				pages: [
+					{ label: "1", rel: "prev", href: "/queue?page=1" },
+					{ label: "2", rel: "current", href: "/queue?page=fresh" },
+				],
 			});
 			const { fetchFn, calls } = createRoutingFetch(
 				withEntryPoint({
@@ -3285,17 +3470,20 @@ describe("initSirenReadingList", () => {
 				name: "update-status",
 			});
 			assert(invoked.ok, "the advertised action should apply");
-			const more = loadedPage(await list.getMoreItems());
+			const second = collectionPage(await list.loadPage({ index: 1 }));
 
-			expect(invoked.items.map((i) => i.id)).toEqual(["article-2"]);
-			expect(invoked.hasMore).toBe(true);
-			expect(more.items.map((i) => i.id)).toEqual(["article-2", "article-3"]);
+			expect(invoked.items.map((item) => item.id)).toEqual(["article-2"]);
+			expect(invoked.pages).toEqual([
+				{ label: "1", rel: "current" },
+				{ label: "2", rel: "next" },
+			]);
+			expect(second.items.map((item) => item.id)).toEqual(["article-3"]);
 			expect(calls).not.toContain("GET http://localhost:3000/queue?page=stale");
 		});
 
 		it("drops a page that lands after a mutation replaced the list", async () => {
-			const beforeMutation = JSON.stringify({
-				class: ["collection", "articles"],
+			const beforeMutation = pagedCollection({
+				self: "/queue",
 				entities: [
 					articleEntity({
 						id: "article-1",
@@ -3304,14 +3492,13 @@ describe("initSirenReadingList", () => {
 						savedAt: "2026-01-15T10:00:00.000Z",
 					}),
 				],
-				links: [
-					{ rel: ["self"], href: "/queue" },
-					{ rel: ["next"], href: "/queue?page=stale" },
+				pages: [
+					{ label: "1", rel: "current", href: "/queue?page=1" },
+					{ label: "2", rel: "next", href: "/queue?page=stale" },
 				],
-				actions: COLLECTION_ACTIONS,
 			});
-			const stalePage = JSON.stringify({
-				class: ["collection", "articles"],
+			const stalePage = pagedCollection({
+				self: "/queue?page=stale",
 				entities: [
 					articleEntity({
 						id: "article-9",
@@ -3320,11 +3507,13 @@ describe("initSirenReadingList", () => {
 						savedAt: "2026-01-15T08:00:00.000Z",
 					}),
 				],
-				links: [{ rel: ["self"], href: "/queue?page=stale" }],
-				actions: COLLECTION_ACTIONS,
+				pages: [
+					{ label: "1", rel: "prev", href: "/queue?page=1" },
+					{ label: "2", rel: "current", href: "/queue?page=stale" },
+				],
 			});
-			const afterMutation = JSON.stringify({
-				class: ["collection", "articles"],
+			const afterMutation = pagedCollection({
+				self: "/queue",
 				entities: [
 					articleEntity({
 						id: "article-2",
@@ -3333,8 +3522,7 @@ describe("initSirenReadingList", () => {
 						savedAt: "2026-01-15T11:00:00.000Z",
 					}),
 				],
-				links: [{ rel: ["self"], href: "/queue" }],
-				actions: COLLECTION_ACTIONS,
+				pages: [{ label: "1", rel: "current", href: "/queue?page=1" }],
 			});
 			let releaseStalePage: () => void = () => {};
 			const stalePageArrives = new Promise<void>((resolve) => {
@@ -3360,17 +3548,65 @@ describe("initSirenReadingList", () => {
 			const list = initSirenReadingList(createAdapterDeps(fetchFn));
 			await list.getItems();
 
-			const pendingPage = list.getMoreItems();
+			const pendingPage = list.loadPage({ index: 1 });
 			const invoked = await list.invokeAction({
 				id: "article-1" as ReadingListItemId,
 				name: "update-status",
 			});
 			assert(invoked.ok, "the advertised action should apply");
 			releaseStalePage();
-			const more = loadedPage(await pendingPage);
+			const page = collectionPage(await pendingPage);
 
-			expect(more.items.map((i) => i.id)).toEqual(["article-2"]);
-			expect(more.hasMore).toBe(false);
+			expect(page.items.map((item) => item.id)).toEqual(["article-2"]);
+			expect(page.pages).toEqual([{ label: "1", rel: "current" }]);
+		});
+
+		it("re-serves a page from cache when the server answers not-modified", async () => {
+			const pageTwoBody = pagedCollection({
+				self: "/queue?page=2",
+				entities: [
+					articleEntity({
+						id: "2",
+						url: "https://example.com/b",
+						title: "B",
+						savedAt: "2026-01-15T11:00:00.000Z",
+					}),
+				],
+				pages: [
+					{ label: "1", rel: "prev", href: "/queue?page=1" },
+					{ label: "2", rel: "current", href: "/queue?page=2" },
+				],
+			});
+			const firstPageBody = pagedCollection({
+				self: "/queue",
+				entities: [],
+				pages: [
+					{ label: "1", rel: "current", href: "/queue?page=1" },
+					{ label: "2", rel: "next", href: "/queue?page=2" },
+				],
+			});
+			const sentIfNoneMatch: (string | undefined)[] = [];
+			const { fetchFn } = createRoutingFetch(
+				withEntryPoint({
+					"GET http://localhost:3000/queue": { status: 200, body: firstPageBody },
+					"GET http://localhost:3000/queue?page=2": (init) => {
+						const headers = init?.headers as Record<string, string> | undefined;
+						sentIfNoneMatch.push(headers?.["If-None-Match"]);
+						if (headers?.["If-None-Match"] === '"page-2"') return { status: 304 };
+						return { status: 200, body: pageTwoBody, headers: { ETag: '"page-2"' } };
+					},
+				}),
+			);
+			const list = initSirenReadingList(createAdapterDeps(fetchFn));
+
+			await list.getItems();
+			const first = collectionPage(await list.loadPage({ index: 1 }));
+			await list.getItems();
+			const again = collectionPage(await list.loadPage({ index: 1 }));
+
+			expect(sentIfNoneMatch).toEqual([undefined, '"page-2"']);
+			expect(first.items.map((item) => item.id)).toEqual(["2"]);
+			expect(again.items.map((item) => item.id)).toEqual(["2"]);
 		});
 
 		it("should throw when save-article action is missing from collection", async () => {
@@ -4268,9 +4504,15 @@ describe("hypermedia conformance", () => {
 		expect(result.items[0].actions.map((a) => a.name)).toEqual(["update-status"]);
 	});
 
-	it("leaves the next page unfetched until something follows it", async () => {
+	it("leaves an advertised page unfetched until something follows it", async () => {
 		const page1 = JSON.stringify({
 			class: ["collection", "articles"],
+			properties: {
+				pages: [
+					{ label: "1", rel: "current", href: "/queue?page=1" },
+					{ label: "2", rel: "next", href: "/queue?page=2" },
+				],
+			},
 			entities: [
 				articleEntity({
 					id: "1",
@@ -4279,14 +4521,17 @@ describe("hypermedia conformance", () => {
 					savedAt: "2026-01-15T10:00:00.000Z",
 				}),
 			],
-			links: [
-				{ rel: ["self"], href: "/queue" },
-				{ rel: ["next"], href: "/queue?page=2" },
-			],
+			links: [{ rel: ["self"], href: "/queue" }],
 			actions: COLLECTION_ACTIONS,
 		});
 		const page2 = JSON.stringify({
 			class: ["collection", "articles"],
+			properties: {
+				pages: [
+					{ label: "1", rel: "prev", href: "/queue?page=1" },
+					{ label: "2", rel: "current", href: "/queue?page=2" },
+				],
+			},
 			entities: [
 				articleEntity({
 					id: "2",
@@ -4308,30 +4553,29 @@ describe("hypermedia conformance", () => {
 		const result = await start();
 
 		expect(result.items.map((i) => i.id)).toEqual(["1"]);
+		expect(result.pages.map((page) => page.href)).toEqual([
+			"http://localhost:3000/queue?page=1",
+			"http://localhost:3000/queue?page=2",
+		]);
 		expect(calls).not.toContain("GET http://localhost:3000/queue?page=2");
-		assert(result.nextPage, "the advertised next link must be followable");
 
-		const followed = await result.nextPage();
+		const followed = await result.followPage("http://localhost:3000/queue?page=2");
 
 		expect(followed.items.map((i) => i.id)).toEqual(["2"]);
-		expect(followed.nextPage).toBeUndefined();
+		expect(followed.pages.map((page) => page.rel)).toEqual(["prev", "current"]);
 	});
 
-	it("stops following navigation pages when a next page errors", async () => {
+	it("fails loudly when an advertised page cannot be fetched", async () => {
 		const page1 = JSON.stringify({
 			class: ["collection", "articles"],
-			entities: [
-				articleEntity({
-					id: "1",
-					url: "https://example.com/a",
-					title: "A",
-					savedAt: "2026-01-15T10:00:00.000Z",
-				}),
-			],
-			links: [
-				{ rel: ["self"], href: "/queue" },
-				{ rel: ["next"], href: "/queue?page=2" },
-			],
+			properties: {
+				pages: [
+					{ label: "1", rel: "current", href: "/queue?page=1" },
+					{ label: "2", rel: "next", href: "/queue?page=2" },
+				],
+			},
+			entities: [],
+			links: [{ rel: ["self"], href: "/queue" }],
 			actions: COLLECTION_ACTIONS,
 		});
 		const { fetchFn } = createRoutingFetch({
@@ -4341,186 +4585,21 @@ describe("hypermedia conformance", () => {
 		});
 		const start = initExtension(createUnderstandings(), createDeps(fetchFn));
 		const result = await start();
-		expect(result.items.map((i) => i.id)).toEqual(["1"]);
+
+		await expect(
+			result.followPage("http://localhost:3000/queue?page=2"),
+		).rejects.toThrow("Page load failed: 500");
 	});
 
-	it("ignores a navigation next link whose scheme is unactionable", async () => {
-		const page1 = JSON.stringify({
-			class: ["collection", "articles"],
-			entities: [
-				articleEntity({
-					id: "1",
-					url: "https://example.com/a",
-					title: "A",
-					savedAt: "2026-01-15T10:00:00.000Z",
-				}),
-			],
-			links: [
-				{ rel: ["self"], href: "/queue" },
-				{ rel: ["next"], href: "mailto:more@example.com" },
-			],
-			actions: COLLECTION_ACTIONS,
-		});
-		const { fetchFn } = createRoutingFetch({
-			"GET http://localhost:3000/": { status: 200, body: page1 },
-			"GET http://localhost:3000/queue": { status: 200, body: page1 },
-		});
-		const start = initExtension(createUnderstandings(), createDeps(fetchFn));
-		const result = await start();
-		expect(result.items.map((i) => i.id)).toEqual(["1"]);
-	});
-
-	it("returns the search's first page and leaves its next link unfetched", async () => {
-		const searchPage1 = JSON.stringify({
-			class: ["collection", "articles"],
-			entities: [
-				articleEntity({
-					id: "1",
-					url: "https://example.com/a",
-					title: "A",
-					savedAt: "2026-01-15T10:00:00.000Z",
-				}),
-			],
-			links: [
-				{ rel: ["self"], href: "/queue?status=unread" },
-				{ rel: ["next"], href: "/queue?status=unread&page=2" },
-			],
-			actions: COLLECTION_ACTIONS,
-		});
-		const { fetchFn, calls } = createRoutingFetch(
-			withEntryPoint({
-				"GET http://localhost:3000/queue": {
-					status: 200,
-					body: collectionResponse(),
-				},
-				"GET http://localhost:3000/queue?status=unread": {
-					status: 200,
-					body: searchPage1,
-				},
-			}),
-		);
-		const start = initExtension(createUnderstandings(), createDeps(fetchFn));
-		const collection = await start();
-
-		const result = await collection.actions.search({ status: "unread" });
-
-		expect(result.items.map((i) => i.id)).toEqual(["1"]);
-		expect(calls).not.toContain("GET http://localhost:3000/queue?status=unread&page=2");
-	});
-
-	it("stops following search pages when a later page errors, returning what it has", async () => {
-		const searchPage1 = JSON.stringify({
-			class: ["collection", "articles"],
-			entities: [
-				articleEntity({
-					id: "1",
-					url: "https://example.com/a",
-					title: "A",
-					savedAt: "2026-01-15T10:00:00.000Z",
-				}),
-			],
-			links: [
-				{ rel: ["self"], href: "/queue?status=unread" },
-				{ rel: ["next"], href: "/queue?status=unread&page=2" },
-			],
-			actions: COLLECTION_ACTIONS,
-		});
-		const { fetchFn } = createRoutingFetch(
-			withEntryPoint({
-				"GET http://localhost:3000/queue": {
-					status: 200,
-					body: collectionResponse(),
-				},
-				"GET http://localhost:3000/queue?status=unread": {
-					status: 200,
-					body: searchPage1,
-				},
-				"GET http://localhost:3000/queue?status=unread&page=2": { status: 500 },
-			}),
-		);
-		const start = initExtension(createUnderstandings(), createDeps(fetchFn));
-		const collection = await start();
-		const result = await collection.actions.search({ status: "unread" });
-		expect(result.items.map((i) => i.id)).toEqual(["1"]);
-	});
-
-	it("stops navigation when the next link points back to a page already visited", async () => {
-		const page = JSON.stringify({
-			class: ["collection", "articles"],
-			entities: [
-				articleEntity({
-					id: "1",
-					url: "https://example.com/a",
-					title: "A",
-					savedAt: "2026-01-15T10:00:00.000Z",
-				}),
-			],
-			links: [
-				{ rel: ["self"], href: "/queue" },
-				{ rel: ["next"], href: "/queue" },
-			],
-			actions: COLLECTION_ACTIONS,
-		});
-		const { fetchFn } = createRoutingFetch({
-			"GET http://localhost:3000/": { status: 200, body: page },
-			"GET http://localhost:3000/queue": { status: 200, body: page },
-		});
-		const start = initExtension(createUnderstandings(), createDeps(fetchFn));
-		const result = await start();
-		expect(result.items.map((i) => i.id)).toEqual(["1"]);
-	});
-
-	it("offers no further page when a next link points back at the page itself", async () => {
-		const page1 = JSON.stringify({
-			class: ["collection", "articles"],
-			entities: [
-				articleEntity({
-					id: "1",
-					url: "https://example.com/a",
-					title: "A",
-					savedAt: "2026-01-15T10:00:00.000Z",
-				}),
-			],
-			links: [
-				{ rel: ["self"], href: "/queue" },
-				{ rel: ["next"], href: "/queue?page=2" },
-			],
-			actions: COLLECTION_ACTIONS,
-		});
-		const page2 = JSON.stringify({
-			class: ["collection", "articles"],
-			entities: [
-				articleEntity({
-					id: "2",
-					url: "https://example.com/b",
-					title: "B",
-					savedAt: "2026-01-15T11:00:00.000Z",
-				}),
-			],
-			links: [
-				{ rel: ["self"], href: "/queue?page=2" },
-				{ rel: ["next"], href: "/queue?page=2" },
-			],
-			actions: COLLECTION_ACTIONS,
-		});
-		const { fetchFn } = createRoutingFetch({
-			"GET http://localhost:3000/": { status: 200, body: page1 },
-			"GET http://localhost:3000/queue": { status: 200, body: page1 },
-			"GET http://localhost:3000/queue?page=2": { status: 200, body: page2 },
-		});
-		const start = initExtension(createUnderstandings(), createDeps(fetchFn));
-		const result = await start();
-		assert(result.nextPage, "page 1 advertises a real next page");
-
-		const followed = await result.nextPage();
-
-		expect(followed.items.map((i) => i.id)).toEqual(["2"]);
-		expect(followed.nextPage).toBeUndefined();
-	});
-
-	it("stops a search whose next link points back to a page already fetched", async () => {
+	it("returns the search's own page list and leaves those pages unfetched", async () => {
 		const searchPage = JSON.stringify({
 			class: ["collection", "articles"],
+			properties: {
+				pages: [
+					{ label: "1", rel: "current", href: "/queue?url=x&page=1" },
+					{ label: "2", rel: "next", href: "/queue?url=x&page=2" },
+				],
+			},
 			entities: [
 				articleEntity({
 					id: "1",
@@ -4529,30 +4608,45 @@ describe("hypermedia conformance", () => {
 					savedAt: "2026-01-15T10:00:00.000Z",
 				}),
 			],
-			links: [
-				{ rel: ["self"], href: "/queue?status=unread" },
-				{ rel: ["next"], href: "/queue?status=unread" },
-			],
+			links: [{ rel: ["self"], href: "/queue?url=x" }],
 			actions: COLLECTION_ACTIONS,
 		});
-		const { fetchFn } = createRoutingFetch(
-			withEntryPoint({
-				"GET http://localhost:3000/queue": {
-					status: 200,
-					body: collectionResponse(),
-				},
-				"GET http://localhost:3000/queue?status=unread": {
-					status: 200,
-					body: searchPage,
-				},
-			}),
-		);
+		const { fetchFn, calls } = createRoutingFetch({
+			"GET http://localhost:3000/": { status: 200, body: collectionResponse() },
+			"GET http://localhost:3000/queue": { status: 200, body: collectionResponse() },
+			"GET http://localhost:3000/queue?url=x": { status: 200, body: searchPage },
+		});
 		const start = initExtension(createUnderstandings(), createDeps(fetchFn));
 		const collection = await start();
-		const result = await collection.actions.search({ status: "unread" });
+		const search = collection.actions.search;
+		assert(search, "the collection advertises a search action");
+
+		const result = await search({ url: "x" });
+
 		expect(result.items.map((i) => i.id)).toEqual(["1"]);
+		expect(result.pages.map((page) => page.href)).toEqual([
+			"http://localhost:3000/queue?url=x&page=1",
+			"http://localhost:3000/queue?url=x&page=2",
+		]);
+		expect(calls).not.toContain("GET http://localhost:3000/queue?url=x&page=2");
 	});
 
+	it("answers an empty search when the server refuses it", async () => {
+		const { fetchFn } = createRoutingFetch({
+			"GET http://localhost:3000/": { status: 200, body: collectionResponse() },
+			"GET http://localhost:3000/queue": { status: 200, body: collectionResponse() },
+			"GET http://localhost:3000/queue?url=x": { status: 500 },
+		});
+		const start = initExtension(createUnderstandings(), createDeps(fetchFn));
+		const collection = await start();
+		const search = collection.actions.search;
+		assert(search, "the collection advertises a search action");
+
+		const result = await search({ url: "x" });
+
+		expect(result.items).toEqual([]);
+		expect(result.pages).toEqual([]);
+	});
 	it("sends no params for a search action that declares no fields", async () => {
 		const fieldlessSearch = [
 			COLLECTION_ACTIONS[0],
@@ -5020,8 +5114,8 @@ describe("initSirenReadingList request budget", () => {
 			withEntryPoint({
 				"GET http://localhost:3000/queue": {
 					status: 200,
-					body: JSON.stringify({
-						class: ["collection", "articles"],
+					body: pagedCollection({
+						self: "/queue",
 						entities: [
 							articleEntity({
 								id: "1",
@@ -5030,11 +5124,10 @@ describe("initSirenReadingList request budget", () => {
 								savedAt: "2026-01-15T10:00:00.000Z",
 							}),
 						],
-						links: [
-							{ rel: ["self"], href: "/queue" },
-							{ rel: ["next"], href: "/queue?page=2" },
+						pages: [
+							{ label: "1", rel: "current", href: "/queue?page=1" },
+							{ label: "2", rel: "next", href: "/queue?page=2" },
 						],
-						actions: COLLECTION_ACTIONS,
 					}),
 				},
 				"GET http://localhost:3000/queue?page=2": {
@@ -5050,14 +5143,14 @@ describe("initSirenReadingList request budget", () => {
 				},
 			}),
 		);
-		const { getItems, getMoreItems } = initSirenReadingList(budgetDeps(fetchFn));
+		const { getItems, loadPage } = initSirenReadingList(budgetDeps(fetchFn));
 
 		const first = await getItems();
 		expect(first.items).toHaveLength(1);
 		expect(calls).toEqual(["GET http://localhost:3000/"]);
 
-		const second = loadedPage(await getMoreItems());
-		expect(second.items).toHaveLength(2);
+		const second = collectionPage(await loadPage({ index: 1 }));
+		expect(second.items).toHaveLength(1);
 		expect(calls).toEqual([
 			"GET http://localhost:3000/",
 			"GET http://localhost:3000/queue?page=2",

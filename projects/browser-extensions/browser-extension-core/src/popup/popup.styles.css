@@ -523,8 +523,19 @@ body {
   transition: background-color 0.15s ease, border-color 0.15s ease;
 }
 
-.pagination__page:hover {
+.pagination__page:hover:not(:disabled) {
   background: var(--popup-surface);
+}
+
+.pagination__page:disabled {
+  cursor: default;
+}
+
+.pagination__gap {
+  color: var(--popup-label);
+  font-size: 13px;
+  line-height: 1.4;
+  padding: 4px 2px;
 }
 
 .pagination__page--active {

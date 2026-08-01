@@ -5,7 +5,7 @@ import { UnauthorizedError } from "./auth/unauthorized-error";
 import { BrowserExtensionCore } from "./core";
 import type { CoreError, ReadingList } from "./core";
 import { initInMemoryReadingList } from "./reading-list/in-memory-reading-list";
-import type { BulkSaveResult, BulkSavePage, ItemsPage, MoreItemsPage, SaveUrl, SavePages, SaveUrlResult } from "./reading-list/reading-list.types";
+import type { BulkSaveResult, BulkSavePage, CollectionPage, LoadPageResult, SaveUrl, SavePages, SaveUrlResult } from "./reading-list/reading-list.types";
 import type { BrowserShell } from "./shell.types";
 import type { Auth, GuardedResult, WhenLoggedIn } from "./auth/auth.types";
 import type { ReadingListItem, ReadingListItemId } from "./domain/reading-list-item.types";
@@ -87,6 +87,7 @@ function createRecordingReadingList(
 	saveCalls: SaveArgs[];
 	savePagesCalls: { pages: BulkSavePage[] }[];
 	findByUrlCalls: string[];
+	loadPageCalls: { index: number }[];
 } {
 	const inner = initInMemoryReadingList();
 	const saveCalls: SaveArgs[] = [];
@@ -95,6 +96,7 @@ function createRecordingReadingList(
 	 * the collection, so recording it is how a test pins that a flow issued no
 	 * list request the reader did not trigger. */
 	const findByUrlCalls: string[] = [];
+	const loadPageCalls: { index: number }[] = [];
 	const saveUrl: SaveUrl = async (params) => {
 		saveCalls.push(params);
 		if (options.saveResult) return options.saveResult;
@@ -115,6 +117,7 @@ function createRecordingReadingList(
 		saveCalls,
 		savePagesCalls,
 		findByUrlCalls,
+		loadPageCalls,
 		saveUrl,
 		savePages,
 		invokeAction: inner.invokeAction,
@@ -123,7 +126,10 @@ function createRecordingReadingList(
 			return inner.findByUrl(url);
 		},
 		getItems: inner.getItems,
-		getMoreItems: inner.getMoreItems,
+		loadPage: async (params) => {
+			loadPageCalls.push(params);
+			return inner.loadPage(params);
+		},
 	};
 }
 
@@ -207,7 +213,7 @@ describe("BrowserExtensionCore save", () => {
 		const auth = initInMemoryAuth();
 		await auth.login();
 		const readingList = createRecordingReadingList({
-			saveResult: { ok: false, reason: "not-saveable", items: [] },
+			saveResult: { ok: false, reason: "not-saveable", items: [], pages: [] },
 		});
 		const { shell, showSavedCalls, showDefaultCalls } = createFakeShell({
 			id: 7,
@@ -239,7 +245,7 @@ describe("BrowserExtensionCore save", () => {
 			mintCalls += 1;
 		};
 		const readingList = createRecordingReadingList({
-			saveResult: { ok: false, reason: "not-saveable", items: [] },
+			saveResult: { ok: false, reason: "not-saveable", items: [], pages: [] },
 		});
 		const { shell } = createFakeShell({
 			id: 7,
@@ -364,9 +370,9 @@ function makeItem(url: string): ReadingListItem {
 const logger = HutchLogger.from(noopLogger);
 const flush = () => new Promise((resolve) => setTimeout(resolve, 0));
 
-function loadedPage(page: MoreItemsPage | undefined): ItemsPage {
+function collectionPage(page: LoadPageResult | undefined): CollectionPage {
 	if (page === undefined || !("items" in page)) {
-		throw new Error("expected a loaded page, not a lost continuation");
+		throw new Error("expected a loaded page, not a lost page list");
 	}
 	return page;
 }
@@ -706,18 +712,18 @@ describe("BrowserExtensionCore invoke/fetch", () => {
 			logger,
 			readingList,
 		});
-		const results: MoreItemsPage[] = [];
+		const results: LoadPageResult[] = [];
 		core.on("fetched-reading-list", { success: (v) => results.push(v), failure: () => {} });
 
 		core.fetch("reading-list");
 		await flush();
 
 		expect(results).toHaveLength(1);
-		expect(loadedPage(results[0]).items).toHaveLength(1);
-		expect(loadedPage(results[0]).hasMore).toBe(false);
+		expect(collectionPage(results[0]).items).toHaveLength(1);
+		expect(collectionPage(results[0]).pages).toEqual([]);
 	});
 
-	it("fetches more of the reading list when asked for the next page", async () => {
+	it("fetches the page the reader picked, by its position in the list", async () => {
 		const auth = initInMemoryAuth();
 		await auth.login();
 		const readingList = createRecordingReadingList();
@@ -728,35 +734,35 @@ describe("BrowserExtensionCore invoke/fetch", () => {
 			logger,
 			readingList,
 		});
-		const results: MoreItemsPage[] = [];
+		const results: LoadPageResult[] = [];
 		core.once("fetched-reading-list", { success: (v) => results.push(v), failure: () => {} });
 
-		core.fetch("reading-list", { more: true });
+		core.fetch("reading-list", { page: 1 });
 		await flush();
 
 		expect(results).toHaveLength(1);
-		expect(loadedPage(results[0]).items.map((item) => item.url)).toEqual([
+		expect(collectionPage(results[0]).items.map((item) => item.url)).toEqual([
 			"https://g.example",
 		]);
-		expect(loadedPage(results[0]).hasMore).toBe(false);
+		expect(readingList.loadPageCalls).toEqual([{ index: 1 }]);
 	});
 
-	it("forwards a lost continuation rather than dressing it up as an empty page", async () => {
+	it("forwards a lost page list rather than dressing it up as an empty page", async () => {
 		const readingList = createRecordingReadingList();
-		readingList.getMoreItems = async () => ({ continuation: "lost" });
+		readingList.loadPage = async () => ({ pageList: "lost" });
 		const cap = createCapturingShell();
 		const core = BrowserExtensionCore(cap.shell, {
 			auth: loggedInAuth(),
 			logger,
 			readingList,
 		});
-		const results: MoreItemsPage[] = [];
+		const results: LoadPageResult[] = [];
 		core.once("fetched-reading-list", { success: (v) => results.push(v), failure: () => {} });
 
-		core.fetch("reading-list", { more: true });
+		core.fetch("reading-list", { page: 0 });
 		await flush();
 
-		expect(results).toEqual([{ continuation: "lost" }]);
+		expect(results).toEqual([{ pageList: "lost" }]);
 	});
 
 	it("mints a web session when fetching the reading list while logged in", async () => {
@@ -814,7 +820,7 @@ describe("BrowserExtensionCore invoke/fetch", () => {
 			logger: capturingLogger,
 			readingList,
 		});
-		const results: MoreItemsPage[] = [];
+		const results: LoadPageResult[] = [];
 		core.on("fetched-reading-list", { success: (v) => results.push(v), failure: () => {} });
 
 		core.fetch("reading-list");
@@ -911,14 +917,14 @@ describe("BrowserExtensionCore result emission", () => {
 			logger,
 			readingList: initInMemoryReadingList(),
 		});
-		const results: MoreItemsPage[] = [];
+		const results: LoadPageResult[] = [];
 		core.once("fetched-reading-list", { success: (v) => results.push(v), failure: () => {} });
 
 		core.fetch("reading-list");
 		await flush();
 
 		expect(results).toHaveLength(1);
-		expect(loadedPage(results[0]).items[0]?.url).toBe("https://sync.example");
+		expect(collectionPage(results[0]).items[0]?.url).toBe("https://sync.example");
 	});
 
 });

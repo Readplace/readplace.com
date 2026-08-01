@@ -12,12 +12,14 @@ import type { RefreshTokens } from "../auth/auth.types";
 import type {
 	BulkSavePage,
 	BulkSaveResult,
+	CollectionPage,
 	FindByUrl,
 	GetItems,
-	GetMoreItems,
 	InvokeAction,
-	ItemsPage,
+	LoadPage,
+	LoadPageResult,
 	Message,
+	PageDescriptor,
 	SaveUrl,
 	SavePages,
 	SaveWarning,
@@ -89,7 +91,7 @@ async function readSirenBody(response: Response): Promise<unknown> {
  * can surface it next to the list. */
 class NotSaveableError extends Error {
 	constructor(
-		public readonly items: ReadingListItem[],
+		public readonly collection: NavigationResult,
 		public readonly warning?: SaveWarning,
 	) {
 		super("URL not saveable");
@@ -247,6 +249,28 @@ const SirenCollectionResponseSchema = z.object({
 	actions: lenientArray(SirenActionSchema),
 });
 
+const SirenPageSchema = z.object({
+	label: z.string(),
+	rel: z.enum(["prev", "current", "next"]),
+	href: z.string(),
+});
+
+type PageEntry = PageDescriptor & { readonly href: string };
+
+function readPageList(deps: {
+	body: SirenCollectionResponse;
+	base: string;
+}): PageEntry[] {
+	const parsed = z.array(z.unknown()).safeParse(deps.body.properties?.pages);
+	if (!parsed.success) return [];
+	return parsed.data.flatMap((entry) => {
+		const page = SirenPageSchema.safeParse(entry);
+		if (!page.success) return [];
+		const href = resolveHref({ base: deps.base, href: page.data.href });
+		return href === undefined ? [] : [{ ...page.data, href }];
+	});
+}
+
 const UploadSlotResponseSchema = z.object({
 	actions: lenientArray(SirenActionSchema),
 });
@@ -322,11 +346,8 @@ export type NavigationResult = {
 	items: ArticleItem[];
 	actions: Record<string, BoundAction>;
 	descriptors: Record<string, SirenAction>;
-	/** Follows the server's advertised `next` link, or undefined on the last
-	 * page. A page is only ever fetched when something invokes this — the reader
-	 * paging forward — never as part of reaching the collection, whose actions
-	 * live on the first page. */
-	nextPage?: () => Promise<NavigationResult>;
+	pages: PageEntry[];
+	followPage: (href: string) => Promise<NavigationResult>;
 	/** Set only by the save-articles understanding; carries the bulk-save
 	 * summary so `savePages` can surface it. Other actions leave it undefined. */
 	bulk?: BulkSaveResult;
@@ -436,9 +457,8 @@ export function initSaveArticleUnderstanding(): Map<string, ActionHandler> {
 				throwIfBlocked(body);
 				const collection = SirenCollectionResponseSchema.safeParse(body);
 				if (collection.success && collection.data.class?.includes("collection")) {
-					const parsed = await context.parseCollection(collection.data);
 					throw new NotSaveableError(
-						parsed.items,
+						await context.parseCollection(collection.data),
 						extractCollectionWarning(collection.data),
 					);
 				}
@@ -446,7 +466,7 @@ export function initSaveArticleUnderstanding(): Map<string, ActionHandler> {
 			}
 			const body = await readSirenBody(response);
 			const item = context.resolveItem(SirenSubEntitySchema.parse(body));
-			return { items: [item], actions: {}, descriptors: {}, messages: readMessages(body) };
+			return { items: [item], actions: {}, descriptors: {}, pages: [], followPage: followPageWith(context), messages: readMessages(body) };
 		};
 	});
 	return handlers;
@@ -492,7 +512,7 @@ export function initSaveArticlesUnderstanding(): Map<string, ActionHandler> {
 			);
 			assert(response.ok, `Bulk save failed: ${response.status}`);
 			const body = SaveArticlesResultSchema.parse(await response.json());
-			return { items: [], actions: {}, descriptors: {}, messages: [], bulk: body.properties };
+			return { items: [], actions: {}, descriptors: {}, pages: [], followPage: followPageWith(context), messages: [], bulk: body.properties };
 		};
 	});
 	return handlers;
@@ -531,7 +551,7 @@ async function followSaveFallback(args: {
 		await readSirenBody(fallbackResponse),
 	);
 	const fallbackItem = context.resolveItem(fallbackResponseBody);
-	return { items: [fallbackItem], actions: {}, descriptors: {}, messages: [] };
+	return { items: [fallbackItem], actions: {}, descriptors: {}, pages: [], followPage: followPageWith(context), messages: [] };
 }
 
 export function initSaveContentUnderstanding(deps: {
@@ -572,7 +592,7 @@ export function initSaveContentUnderstanding(deps: {
 			}
 			const responseBody = SirenSubEntitySchema.parse(await readSirenBody(response));
 			const item = context.resolveItem(responseBody);
-			return { items: [item], actions: {}, descriptors: {}, messages: readMessages(responseBody) };
+			return { items: [item], actions: {}, descriptors: {}, pages: [], followPage: followPageWith(context), messages: readMessages(responseBody) };
 		};
 	});
 	return handlers;
@@ -645,59 +665,38 @@ export function initListArticlesUnderstanding(): Map<string, ActionHandler> {
 				if (value !== undefined) filterUrl.searchParams.set(field.name, value);
 			}
 			const response = await context.doFetch(filterUrl.toString(), { method: sirenAction.method });
-			if (!response.ok) return { items: [], actions: {}, descriptors: {}, messages: [] };
+			if (!response.ok)
+				return {
+					items: [],
+					actions: {},
+					descriptors: {},
+					pages: [],
+					followPage: followPageWith(context),
+					messages: [],
+				};
 			const body = SirenCollectionResponseSchema.parse(await readSirenBody(response));
 			const items = body.entities.map((entity) => context.resolveItem(entity));
 			return {
 				items,
 				actions: {},
 				descriptors: {},
+				/** The pages of the FILTERED collection: following one carries the
+				 * filter, because the server built the href. */
+				pages: readPageList({ body, base: context.serverUrl }),
+				followPage: followPageWith(context),
 				messages: [],
-				nextPage: followNextPage({ body, context, method: sirenAction.method, pageUrl: filterUrl.toString() }),
 			};
 		};
 	});
 	return handlers;
 }
 
-/** The next page URL the server advertised, resolved through the one href helper,
- * or undefined when there is no further page. The client never builds a `?page=`
- * param — it follows the opaque `next` href the server returns. */
-function nextPageUrl(deps: {
-	body: SirenCollectionResponse;
-	base: string;
-}): string | undefined {
-	const nextHref = deps.body.links.find((link) => link.rel.includes("next"))?.href;
-	return nextHref ? resolveHref({ base: deps.base, href: nextHref }) : undefined;
-}
-
-/** The continuation for one advertised `next` link, or undefined on the last
- * page. Fetching happens only when the returned function is invoked — the
- * reader paging forward — and each fetched page carries its own continuation,
- * so exactly the pages the reader visits are ever requested. */
-function followNextPage(args: {
-	body: SirenCollectionResponse;
-	context: ActionContext;
-	method: string;
-	pageUrl: string;
-}): (() => Promise<NavigationResult>) | undefined {
-	const { body, context, method, pageUrl } = args;
-	const nextUrl = nextPageUrl({ body, base: context.serverUrl });
-	/** An ETag 304 re-yields a page's own body, whose `next` can point back at
-	 * itself; treating that as a further page would offer the reader an endless
-	 * "next" that only ever re-serves the page they are on. */
-	if (!nextUrl || nextUrl === pageUrl) return undefined;
-	return async () => {
-		const response = await context.doFetch(nextUrl, { method });
-		if (!response.ok) return { items: [], actions: {}, descriptors: {}, messages: [] };
-		const page = SirenCollectionResponseSchema.parse(await readSirenBody(response));
-		return {
-			items: page.entities.map((entity) => context.resolveItem(entity)),
-			actions: {},
-			descriptors: {},
-			messages: [],
-			nextPage: followNextPage({ body: page, context, method, pageUrl: nextUrl }),
-		};
+function followPageWith(context: ActionContext): (href: string) => Promise<NavigationResult> {
+	return async (href) => {
+		const response = await context.doFetch(href, { method: "GET" });
+		assert(response.ok, `Page load failed: ${response.status}`);
+		const body = SirenCollectionResponseSchema.parse(await readSirenBody(response));
+		return context.parseCollection(body);
 	};
 }
 
@@ -847,8 +846,9 @@ export function initExtension(
 			items,
 			actions,
 			descriptors,
+			pages: readPageList({ body, base: deps.serverUrl }),
+			followPage: followPageWith(context),
 			messages: readMessages(body),
-			nextPage: followNextPage({ body, context, method: "GET", pageUrl: resolvedUrl }),
 		};
 	}
 
@@ -914,7 +914,7 @@ export function initSirenReadingList(deps: SirenReadingListDeps): {
 	invokeAction: InvokeAction;
 	findByUrl: FindByUrl;
 	getItems: GetItems;
-	getMoreItems: GetMoreItems;
+	loadPage: LoadPage;
 	savePages: SavePages;
 } {
 	const understandings = groupOf(
@@ -943,66 +943,96 @@ export function initSirenReadingList(deps: SirenReadingListDeps): {
 		}
 	}
 
-	/** The prefix of the list loaded so far and the continuation the server
-	 * advertised after it. `undefined` loadedItems means this instance has loaded
-	 * nothing — a fresh instance, or one whose predecessor was torn down — which
-	 * is why it is a separate state from "loaded, and the server advertised no
-	 * further page": the first cannot be answered at all, the second is answered
-	 * with what is loaded. Neither the items nor the continuation are persisted,
-	 * so nothing here survives the instance that fetched it. */
-	let loadedItems: ReadingListItem[] | undefined;
-	let pendingNextPage: (() => Promise<NavigationResult>) | undefined;
-	/** The page request already in flight, so one continuation is followed at
-	 * most once: a second request arriving before the first settles is answered
-	 * by the same page instead of fetching and appending it twice. */
-	let inFlightPage: Promise<ItemsPage> | undefined;
+	/** The one page of the list this instance is showing, with the page list the
+	 * server served alongside it. `undefined` means nothing is loaded — a fresh
+	 * instance, or one whose predecessor was torn down — which is why it is a
+	 * separate state from "loaded, and there is only one page": the first cannot
+	 * be answered at all. Nothing here is persisted, so no page href outlives the
+	 * instance that was handed it. */
+	type AdoptedCollection = {
+		items: ArticleItem[];
+		pages: PageEntry[];
+		followPage: (href: string) => Promise<NavigationResult>;
+	};
+	let current: AdoptedCollection | undefined;
+	/** Bumped whenever a response is adopted or a page load starts, so a page that
+	 * settles after something newer replaced the list can tell it is stale. */
+	let requestSeq = 0;
+	/** The page request already in flight, so one page is fetched at most once: a
+	 * second request for the same page before the first settles is answered by it
+	 * rather than fetched again. */
+	let inFlight:
+		| { index: number; ticket: number; promise: Promise<LoadPageResult> }
+		| undefined;
 
-	function loadedPage(items: ReadingListItem[]): ItemsPage {
-		return { items, hasMore: pendingNextPage !== undefined };
+	function toCollectionPage(adopted: AdoptedCollection): CollectionPage {
+		/** The popup is handed labels and relations only — the server's opaque page
+		 * hrefs stay here, so a page is asked for by position and the popup can
+		 * neither build nor replay a URL. */
+		return {
+			items: adopted.items,
+			pages: adopted.pages.map(({ label, rel }) => ({ label, rel })),
+		};
 	}
 
-	/** Adopts a response as the whole of what is loaded, replacing both the items
-	 * and the continuation. A mutation's response is a fresh first page, so the
-	 * pages loaded before it no longer describe anything the server would serve. */
-	function adoptAsFirstPage(result: NavigationResult): ItemsPage {
-		loadedItems = result.items;
-		pendingNextPage = result.nextPage;
-		return loadedPage(result.items);
+	function adoptCollection(result: NavigationResult): CollectionPage {
+		requestSeq += 1;
+		current = {
+			items: result.items,
+			pages: result.pages,
+			followPage: result.followPage,
+		};
+		return toCollectionPage(current);
 	}
 
-	async function followPage(
-		next: () => Promise<NavigationResult>,
-		loaded: ReadingListItem[],
-	): Promise<ItemsPage> {
-		const page = await next();
-		trackItems(page.items);
-		/** Something replaced the loaded list while this page was in flight — a
-		 * mutation answers with a fresh first page of its own. That answer is the
-		 * newer truth, so this page is dropped rather than appended onto the prefix
-		 * it discarded. */
-		if (pendingNextPage !== next) {
-			assert(loadedItems, "a replaced list is still a loaded list");
-			return loadedPage(loadedItems);
+	function liveCollectionPage(): CollectionPage {
+		assert(current, "a replaced list is still a loaded list");
+		return toCollectionPage(current);
+	}
+
+	async function fetchPage(params: {
+		adopted: AdoptedCollection;
+		href: string;
+		ticket: number;
+	}): Promise<LoadPageResult> {
+		let result: NavigationResult;
+		try {
+			result = await params.adopted.followPage(params.href);
+		} catch (err) {
+			/** An expired session is the caller's to handle — every other failure
+			 * leaves the reader on the page they were already reading. */
+			if (err instanceof UnauthorizedError) throw err;
+			return liveCollectionPage();
 		}
-		loadedItems = [...loaded, ...page.items];
-		pendingNextPage = page.nextPage;
-		return loadedPage(loadedItems);
+		/** Something newer landed while this page was in flight — a mutation's own
+		 * answer, or a later page the reader clicked. That is the newer truth, so
+		 * this page is dropped rather than shown over it. */
+		if (params.ticket !== requestSeq) return liveCollectionPage();
+		trackItems(result.items);
+		return adoptCollection(result);
 	}
 
 	const getItems: GetItems = async () => {
 		const collection = await start();
 		trackItems(collection.items);
-		return adoptAsFirstPage(collection);
+		return adoptCollection(collection);
 	};
 
-	const getMoreItems: GetMoreItems = async () => {
-		if (inFlightPage) return inFlightPage;
-		if (!loadedItems) return { continuation: "lost" };
-		if (!pendingNextPage) return loadedPage(loadedItems);
-		inFlightPage = followPage(pendingNextPage, loadedItems).finally(() => {
-			inFlightPage = undefined;
+	const loadPage: LoadPage = async ({ index }) => {
+		const adopted = current;
+		if (!adopted) return { pageList: "lost" };
+		const entry = adopted.pages[index];
+		/** The page list moved under the click (or never had this entry): report it
+		 * lost so the caller re-reads the list rather than rendering an empty page. */
+		if (!entry) return { pageList: "lost" };
+		if (inFlight?.index === index) return inFlight.promise;
+		requestSeq += 1;
+		const ticket = requestSeq;
+		const pending = fetchPage({ adopted, href: entry.href, ticket }).finally(() => {
+			if (inFlight?.ticket === ticket) inFlight = undefined;
 		});
-		return inFlightPage;
+		inFlight = { index, ticket, promise: pending };
+		return pending;
 	};
 
 	function arrayBufferToBase64(buffer: ArrayBuffer): string {
@@ -1125,10 +1155,19 @@ export function initSirenReadingList(deps: SirenReadingListDeps): {
 				return { ok: false, messages: err.messages };
 			}
 			if (err instanceof NotSaveableError) {
-				const failure: { ok: false; reason: "not-saveable"; items: ReadingListItem[]; warning?: SaveWarning } = {
+				trackItems(err.collection.items);
+				const page = adoptCollection(err.collection);
+				const failure: {
+					ok: false;
+					reason: "not-saveable";
+					items: ReadingListItem[];
+					pages: PageDescriptor[];
+					warning?: SaveWarning;
+				} = {
 					ok: false,
 					reason: "not-saveable",
-					items: err.items,
+					items: page.items,
+					pages: page.pages,
 				};
 				if (err.warning) failure.warning = err.warning;
 				return failure;
@@ -1190,12 +1229,11 @@ export function initSirenReadingList(deps: SirenReadingListDeps): {
 			const result = await boundAction();
 			knownItems.clear();
 			trackItems(result.items);
-			/** The mutation answered with the collection itself, continuation and
-			 * all, so it becomes the whole of what is loaded. Keeping the pages
-			 * loaded before it would splice the article the reader just acted on back
-			 * in the next time they paged forward. */
-			const page = adoptAsFirstPage(result);
-			return { ok: true, items: page.items, hasMore: page.hasMore, targetUrl };
+			/** The mutation answered with the collection itself, page list and all,
+			 * so it becomes the whole of what is loaded. Keeping the page the reader
+			 * was on would splice the article they just acted on back into view. */
+			const page = adoptCollection(result);
+			return { ok: true, items: page.items, pages: page.pages, targetUrl };
 		} catch (err) {
 			/** Any advertised action whose target 404s means the item is gone. The
 			 * invoker throws a typed ItemGoneError, so not-found is detected by class
@@ -1314,5 +1352,5 @@ export function initSirenReadingList(deps: SirenReadingListDeps): {
 		return summary;
 	};
 
-	return { saveUrl, uploadContent, invokeAction, findByUrl, getItems, getMoreItems, savePages };
+	return { saveUrl, uploadContent, invokeAction, findByUrl, getItems, loadPage, savePages };
 }

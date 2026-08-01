@@ -5,7 +5,7 @@ import type {
 import type {
 	FindByUrl,
 	GetItems,
-	GetMoreItems,
+	LoadPage,
 	InvokeAction,
 	SaveUrl,
 	SavePages,
@@ -16,7 +16,7 @@ export function initInMemoryReadingList(): {
 	invokeAction: InvokeAction;
 	findByUrl: FindByUrl;
 	getItems: GetItems;
-	getMoreItems: GetMoreItems;
+	loadPage: LoadPage;
 	savePages: SavePages;
 } {
 	const items = new Map<ReadingListItemId, ReadingListItem>();
@@ -54,7 +54,7 @@ export function initInMemoryReadingList(): {
 		return {
 			ok: true,
 			items: Array.from(items.values()),
-			hasMore: false,
+			pages: [],
 			targetUrl: item.url,
 		};
 	};
@@ -68,9 +68,9 @@ export function initInMemoryReadingList(): {
 		return null;
 	};
 
-	const getItems: GetItems = async () => ({ items: Array.from(items.values()), hasMore: false });
+	const getItems: GetItems = async () => ({ items: Array.from(items.values()), pages: [] });
 
-	const getMoreItems: GetMoreItems = async () => ({ items: Array.from(items.values()), hasMore: false });
+	const loadPage: LoadPage = async () => ({ items: Array.from(items.values()), pages: [] });
 
 	const savePages: SavePages = async ({ pages }) => {
 		let saved = 0;
@@ -91,7 +91,7 @@ export function initInMemoryReadingList(): {
 		invokeAction,
 		findByUrl,
 		getItems,
-		getMoreItems,
+		loadPage,
 		savePages,
 	};
 }

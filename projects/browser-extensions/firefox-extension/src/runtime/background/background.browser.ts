@@ -12,7 +12,7 @@ import {
 	type OAuthTokens,
 	type PopupMessage,
 	captureActiveTabBytes,
-	type MoreItemsPage,
+	type LoadPageResult,
 	type SaveUrlResult,
 	type InvokeActionResult,
 	type BulkSaveResult,
@@ -328,7 +328,7 @@ const POPUP_MESSAGE_TYPES = new Set([
 	"invoke-action",
 	"save-all-tabs",
 	"get-all-items",
-	"get-more-items",
+	"load-page",
 	"login",
 	"logout",
 ]);
@@ -409,15 +409,19 @@ browser.runtime.onMessage.addListener((raw, _sender, sendResponse) => {
 					break;
 				}
 				case "get-all-items":
-				case "get-more-items": {
+				case "load-page": {
 					const pending = new Promise<unknown>((resolve) => {
 						core.once("fetched-reading-list", {
-							success: (value: MoreItemsPage) =>
+							success: (value: LoadPageResult) =>
 								resolve({ ok: true, value }),
 							failure: (err) => resolve({ ok: false, ...err }),
 						});
 					});
-					core.fetch("reading-list", { more: message.type === "get-more-items" });
+					if (message.type === "load-page") {
+						core.fetch("reading-list", { page: message.index });
+					} else {
+						core.fetch("reading-list");
+					}
 					pending.then(sendResponse);
 					break;
 				}

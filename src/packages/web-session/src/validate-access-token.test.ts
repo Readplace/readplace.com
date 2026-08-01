@@ -9,7 +9,7 @@ describe("createValidateAccessToken", () => {
 		const model = {
 			getAccessToken: async () => ({
 				accessToken: "valid-token",
-				client: { id: "c", grants: [] },
+				client: { id: "hutch-chrome-extension", grants: [] },
 				user: { id: expectedUserId, emailVerified: true },
 			}),
 		} as unknown as OAuthModel;
@@ -17,7 +17,11 @@ describe("createValidateAccessToken", () => {
 		const validate = createValidateAccessToken(model);
 		const result = await validate("valid-token" as AccessToken);
 
-		expect(result).toEqual({ userId: expectedUserId, emailVerified: true });
+		expect(result).toEqual({
+			userId: expectedUserId,
+			emailVerified: true,
+			oauthClientId: "hutch-chrome-extension",
+		});
 	});
 
 	it("reports a token minted for an unverified account as not verified", async () => {
@@ -25,7 +29,7 @@ describe("createValidateAccessToken", () => {
 		const model = {
 			getAccessToken: async () => ({
 				accessToken: "valid-token",
-				client: { id: "c", grants: [] },
+				client: { id: "ios-app", grants: [] },
 				user: { id: expectedUserId },
 			}),
 		} as unknown as OAuthModel;
@@ -33,7 +37,11 @@ describe("createValidateAccessToken", () => {
 		const validate = createValidateAccessToken(model);
 		const result = await validate("valid-token" as AccessToken);
 
-		expect(result).toEqual({ userId: expectedUserId, emailVerified: false });
+		expect(result).toEqual({
+			userId: expectedUserId,
+			emailVerified: false,
+			oauthClientId: "ios-app",
+		});
 	});
 
 	it("returns null when the token is not found", async () => {

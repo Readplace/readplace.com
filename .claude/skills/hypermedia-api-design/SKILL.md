@@ -122,6 +122,30 @@ The client owns **no** knowledge of what a message means — it only knows how t
 
 The client-side render decisions (per-`type` variant class, the `role` politeness, empty/hidden, and which media types are renderable) live in `buildMessageView` (`browser-extension-core`) — pure and unit-tested; the popup glue only paints its output.
 
+## Pagination Is Server-Owned — `properties.pages`
+
+Page size is **server policy, not a client parameter.** No client sends a page size and no client re-pages what it received: a client renders exactly the items one response carried. The server may pick a different size per client (it knows which client from the OAuth token the request carries), so "how many items is a page" is never derivable client-side.
+
+Sequential paging keeps the registered rels — `prev` and `next` (RFC 8288) — which a client **follows** as structural navigation, never renders as a control. But IANA registers nothing for numbered/arbitrary page access, so a numbered pager is custom vocabulary in any encoding. It cannot ride links or actions here: a *titled* affordance is this contract's "render me as a control" signal, so N titled page links become N mystery controls on every already-shipped client, and a *title-less* link has nowhere legal to carry the human label. It therefore rides collection `properties`, where an unknown key is inert on every shipped client:
+
+```jsonc
+"properties": {
+  "pages": [
+    { "label": "1", "rel": "prev",    "href": "/queue?status=unread&page=1" },
+    { "label": "2", "rel": "current", "href": "/queue?status=unread&page=2" },
+    { "label": "3", "rel": "next",    "href": "/queue?status=unread&page=3" }
+  ]
+}
+```
+
+This is a **published interface**: `pages`, `label`, `rel`, and `href` are the contract, and renaming any of them is a breaking change.
+
+- **Pages only, never their contents.** An entry describes a page; a page's articles arrive only when the client follows that entry's `href`. Adding items to an entry would make every response carry the whole collection.
+- **`rel` is relative to the page that carried it** — every page before the current one is `prev`, every page after is `next`, the current one is `current`. These are the registered relation names (RFC 8288) applied to pages rather than to Siren `links`, so an entry says how a page relates to the one in hand. Relations repeat, and a response for an out-of-range page carries no `current` at all.
+- **`label` is the server's display string.** A client renders it verbatim and never parses it, derives it from array position, or reads a page number out of an `href` — that is what keeps the server free to change page identity or elide entries later.
+- **`href` is opaque and server-built**, resolved through the client's one href resolver like any other. A client that builds `?page=` itself has reintroduced the coupling this removes.
+- **Which entries to display is client presentation.** The server sends the full list; windowing it (a few around the current page, plus the first and last) is the client's own layout decision, and `rel` is never used as a CSS class.
+
 ## Entity-Level vs Collection-Level Actions
 
 | Action scope | Where it lives | Example |

@@ -13,13 +13,9 @@ export interface PaginationProgress {
 	verifiedBackOnPage1: boolean;
 }
 
-/** 12 items total = 1 save-link + 1 save-extra-link + PAGINATION_LINK_COUNT.
- * 12 exceeds the 10/page threshold so pagination triggers, page 1 = 10, page 2 = 2.
- * Only 10 of those URLs match the "pagination" filter so the filter-with-match
- * action sees ≤10 results and pagination hides on the filtered view. */
 const PAGINATION_LINK_COUNT = 10;
+const PAGE_SELECTOR = `#${ELEMENT_IDS.pagination} .pagination__page`;
 const ACTIVE_PAGE_SELECTOR = `#${ELEMENT_IDS.pagination} .pagination__page--active`;
-const NEXT_PAGE_SELECTOR = `#${ELEMENT_IDS.pagination} button[aria-label="Next page"]`;
 const PREV_PAGE_SELECTOR = `#${ELEMENT_IDS.pagination} button[aria-label="Previous page"]`;
 
 async function isListViewVisible(driver: WebDriver): Promise<boolean> {
@@ -42,6 +38,22 @@ async function waitForSavedOrListView(driver: WebDriver): Promise<void> {
 			const listView = await driver.findElement(By.id("list-view"));
 			const listHidden = await listView.getAttribute("hidden");
 			return listHidden === null;
+		} catch {
+			return false;
+		}
+	});
+}
+
+async function waitForPage(
+	driver: WebDriver,
+	expected: { label: string; itemCount: number },
+): Promise<void> {
+	await waitForUi(driver, async () => {
+		try {
+			const active = await driver.findElement(By.css(ACTIVE_PAGE_SELECTOR));
+			if ((await active.getText()) !== expected.label) return false;
+			const items = await driver.findElements(By.css(CSS_SELECTORS.listItem));
+			return items.length === expected.itemCount;
 		} catch {
 			return false;
 		}
@@ -120,17 +132,16 @@ export function createPaginationActions(config: {
 			return isListViewVisible(driver);
 		},
 		async execute(driver: WebDriver): Promise<void> {
-			const nextButton = await driver.findElement(By.css(NEXT_PAGE_SELECTOR));
-			await nextButton.click();
-			await waitForUi(driver, async () => {
-				try {
-					const active = await driver.findElement(By.css(ACTIVE_PAGE_SELECTOR));
-					const text = await active.getText();
-					return text === "2";
-				} catch {
-					return false;
-				}
-			});
+			const pageButtons = await driver.findElements(By.css(PAGE_SELECTOR));
+			let clicked = false;
+			for (const button of pageButtons) {
+				if ((await button.getText()) !== "2") continue;
+				await button.click();
+				clicked = true;
+				break;
+			}
+			assert.ok(clicked, "the server should advertise a page 2 control");
+			await waitForPage(driver, { label: "2", itemCount: 2 });
 			config.progress.navigatedToPage2 = true;
 		},
 	});
@@ -143,7 +154,7 @@ export function createPaginationActions(config: {
 		},
 		async execute(driver: WebDriver): Promise<void> {
 			const items = await driver.findElements(By.css(CSS_SELECTORS.listItem));
-			assert.equal(items.length, 2, "Page 2 should show 2 items (12 total, 10 per page)");
+			assert.equal(items.length, 2, "Page 2 should show the 2 items the server put there");
 
 			const activePage = await driver.findElement(By.css(ACTIVE_PAGE_SELECTOR));
 			const activeText = await activePage.getText();
@@ -162,15 +173,7 @@ export function createPaginationActions(config: {
 		async execute(driver: WebDriver): Promise<void> {
 			const prevButton = await driver.findElement(By.css(PREV_PAGE_SELECTOR));
 			await prevButton.click();
-			await waitForUi(driver, async () => {
-				try {
-					const active = await driver.findElement(By.css(ACTIVE_PAGE_SELECTOR));
-					const text = await active.getText();
-					return text === "1";
-				} catch {
-					return false;
-				}
-			});
+			await waitForPage(driver, { label: "1", itemCount: 10 });
 			config.progress.navigatedBackToPage1 = true;
 		},
 	});

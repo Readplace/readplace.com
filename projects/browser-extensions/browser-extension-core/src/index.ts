@@ -47,7 +47,7 @@ export type {
 } from "./reading-list/siren-reading-list";
 export type { ContentBodyBuilder } from "./reading-list/content-body-parsers";
 export { pdfContentBody, htmlContentBody } from "./reading-list/content-body-parsers";
-export type { SaveUrl, UploadContent, UploadContentResult, InvokeAction, FindByUrl, GetItems, GetMoreItems, ItemsPage, MoreItemsPage, SavePages, BulkSavePage, BulkSaveResult } from "./reading-list/reading-list.types";
+export type { SaveUrl, UploadContent, UploadContentResult, InvokeAction, FindByUrl, GetItems, LoadPage, LoadPageResult, CollectionPage, PageDescriptor, PageRel, SavePages, BulkSavePage, BulkSaveResult } from "./reading-list/reading-list.types";
 export { initUploadQueue } from "./upload-queue/upload-queue";
 export { initIndexedDbPayloadStore } from "./upload-queue/indexed-db-payload-store.browser";
 export type { UploadJob } from "./upload-queue/upload-job";
@@ -60,7 +60,8 @@ export type {
 } from "./upload-queue/upload-queue.types";
 export type { PopupMessage } from "./popup-message.types";
 export { filterByUrl } from "./popup/filter-by-url";
-export { paginateItems } from "./popup/paginate-items";
+export { buildPaginationView } from "./popup/pagination-view";
+export type { PaginationView, PaginationPageView, PaginationGap } from "./popup/pagination-view";
 export { avatarColor } from "./popup/avatar-color";
 export { relativeTime } from "./popup/relative-time";
 export { buildMessageView } from "./popup/message-view";

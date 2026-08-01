@@ -1,8 +1,10 @@
 /* c8 ignore start -- popup entry point, all DOM + browser API glue, tested via Selenium E2E */
 import browser from "webextension-polyfill";
 import type {
-	ItemsPage,
-	MoreItemsPage,
+	CollectionPage,
+	LoadPageResult,
+	PageDescriptor,
+	PaginationView,
 	ReadingListItem,
 	PopupMessage,
 	GuardedResult,
@@ -12,7 +14,7 @@ import type {
 	Message,
 	ActionVariant,
 } from "browser-extension-core";
-import { filterByUrl, paginateItems, avatarColor, relativeTime, isAppUrl, itemDisplay, selectSaveableTabs, summarizeBulkSave, installShortcuts, isCmdD, buildMessageView, buildSavedView, actionLabel, actionVariant, actionIcon, linkLabel, linkPresentation, SAVE_RENDERED_MARK } from "browser-extension-core";
+import { filterByUrl, buildPaginationView, avatarColor, relativeTime, isAppUrl, itemDisplay, selectSaveableTabs, summarizeBulkSave, installShortcuts, isCmdD, buildMessageView, buildSavedView, actionLabel, actionVariant, actionIcon, linkLabel, linkPresentation, SAVE_RENDERED_MARK } from "browser-extension-core";
 import { HutchLogger, consoleLogger } from "@packages/hutch-logger";
 
 /** The client's own presentation map: an action variant -> the popup's CSS
@@ -61,70 +63,64 @@ function isNotLoggedIn(result: { ok: boolean; reason?: string }): boolean {
 	return !result.ok && result.reason === "not-logged-in";
 }
 
-let allItems: ReadingListItem[] = [];
-let serverHasMore = false;
-let currentPage = 1;
-/** A further page is being fetched. The next control is disabled while it is,
- * so one click can't queue the same page twice. */
-let loadingMore = false;
+let currentItems: ReadingListItem[] = [];
+let pageList: PageDescriptor[] = [];
+let loadingPage = false;
 
-function renderPagination(totalPages: number, visiblePages: number[]) {
+function stepButton(step: {
+	glyph: string;
+	label: string;
+	target: number | undefined;
+}): HTMLButtonElement {
+	const button = document.createElement("button");
+	button.className = "pagination__button";
+	button.textContent = step.glyph;
+	button.title = step.label;
+	button.setAttribute("aria-label", step.label);
+	button.disabled = step.target === undefined || loadingPage;
+	button.addEventListener("click", () => {
+		if (step.target !== undefined) void loadPage(step.target);
+	});
+	return button;
+}
+
+function renderPagination(view: PaginationView) {
 	const pagination = document.getElementById("pagination");
 	if (!pagination) throw new Error("pagination element not found");
 
 	pagination.innerHTML = "";
+	pagination.hidden = view.hidden;
+	if (view.hidden) return;
 
-	if (totalPages <= 1 && !serverHasMore) {
-		pagination.hidden = true;
-		return;
-	}
+	pagination.appendChild(
+		stepButton({ glyph: "\u2039", label: "Previous page", target: view.previous }),
+	);
 
-	pagination.hidden = false;
-
-	const prevButton = document.createElement("button");
-	prevButton.className = "pagination__button";
-	prevButton.textContent = "\u2039";
-	prevButton.title = "Previous page";
-	prevButton.setAttribute("aria-label", "Previous page");
-	prevButton.disabled = currentPage <= 1;
-	prevButton.addEventListener("click", () => {
-		currentPage--;
-		renderLinks(filterItems());
-	});
-	pagination.appendChild(prevButton);
-
-	for (const page of visiblePages) {
+	for (const page of view.pages) {
+		if ("gap" in page) {
+			const gap = document.createElement("span");
+			gap.className = "pagination__gap";
+			gap.textContent = "\u2026";
+			pagination.appendChild(gap);
+			continue;
+		}
 		const pageButton = document.createElement("button");
 		pageButton.className = "pagination__page";
-		if (page === currentPage) {
+		pageButton.textContent = page.label;
+		if (page.active) {
 			pageButton.classList.add("pagination__page--active");
+			pageButton.setAttribute("aria-current", "page");
 		}
-		pageButton.textContent = String(page);
+		pageButton.disabled = page.active || loadingPage;
 		pageButton.addEventListener("click", () => {
-			currentPage = page;
-			renderLinks(filterItems());
+			void loadPage(page.index);
 		});
 		pagination.appendChild(pageButton);
 	}
 
-	const nextButton = document.createElement("button");
-	nextButton.className = "pagination__button";
-	nextButton.textContent = "\u203A";
-	nextButton.title = "Next page";
-	nextButton.setAttribute("aria-label", "Next page");
-	nextButton.disabled = loadingMore || (currentPage >= totalPages && !serverHasMore);
-	nextButton.addEventListener("click", () => {
-		/** Past the last loaded page, the server's advertised next page is
-		 * fetched — the only moment a further page is ever requested. */
-		if (currentPage >= totalPages && serverHasMore) {
-			nextButton.disabled = true;
-			void loadMoreItems();
-			return;
-		}
-		currentPage++;
-		renderLinks(filterItems());
-	});
-	pagination.appendChild(nextButton);
+	pagination.appendChild(
+		stepButton({ glyph: "\u203A", label: "Next page", target: view.next }),
+	);
 }
 
 function renderLinks(items: ReadingListItem[]) {
@@ -141,26 +137,19 @@ function renderLinks(items: ReadingListItem[]) {
 	noMatches.hidden = true;
 	setListError(null);
 
-	if (allItems.length === 0) {
+	if (currentItems.length === 0) {
 		emptyList.hidden = false;
-		renderPagination(1, [1]);
+		renderPagination(buildPaginationView(visiblePageList()));
 		return;
 	}
 
 	if (items.length === 0) {
 		noMatches.hidden = false;
-		renderPagination(1, [1]);
+		renderPagination(buildPaginationView(visiblePageList()));
 		return;
 	}
 
-	const sorted = [...items].sort(
-		(a, b) => new Date(b.savedAt).getTime() - new Date(a.savedAt).getTime(),
-	);
-
-	const paginated = paginateItems(sorted, currentPage);
-	currentPage = paginated.currentPage;
-
-	for (const item of paginated.items) {
+	for (const item of items) {
 		const row = document.createElement("div");
 		row.className = "list-view__row";
 
@@ -255,13 +244,11 @@ function renderLinks(items: ReadingListItem[]) {
 					}
 
 					if (result.ok && result.value.ok) {
-						/** The mutation answered with the list as it now stands — a fresh
-						 * first page, with its own further-page answer — so the paging
-						 * counters start over from it instead of keeping the ones that
-						 * described the list before the mutation. */
-						allItems = result.value.items;
-						serverHasMore = result.value.hasMore;
-						currentPage = 1;
+						/** The mutation answered with the list as it now stands, page list
+						 * and all, so the reader lands wherever that answer says — there is
+						 * no page counter here to reconcile against it. */
+						currentItems = result.value.items;
+						pageList = result.value.pages;
 						renderLinks(filterItems());
 					} else if (result.ok) {
 						/** not-found: the item was removed elsewhere or the server no
@@ -285,17 +272,28 @@ function renderLinks(items: ReadingListItem[]) {
 		linkList.appendChild(row);
 	}
 
-	renderPagination(paginated.totalPages, paginated.visiblePages);
+	renderPagination(buildPaginationView(visiblePageList()));
+}
+
+function filterQuery(): string {
+	const filterInput = document.getElementById("filter-input");
+	if (!filterInput) throw new Error("filter-input element not found");
+	return (filterInput as HTMLInputElement).value;
 }
 
 function filterItems(): ReadingListItem[] {
-	const filterInput = document.getElementById("filter-input");
-	if (!filterInput) throw new Error("filter-input element not found");
-	return filterByUrl(allItems, (filterInput as HTMLInputElement).value);
+	return filterByUrl(currentItems, filterQuery());
+}
+
+/** No pager while a filter is on: the filter searches the page in hand, so
+ * offering the other pages would promise the reader results from pages it never
+ * looked at. */
+function visiblePageList(): PageDescriptor[] {
+	return filterQuery() === "" ? pageList : [];
 }
 
 async function loadAllItems() {
-	const result = await send<GuardedResult<ItemsPage>>({
+	const result = await send<GuardedResult<CollectionPage>>({
 		type: "get-all-items",
 	});
 
@@ -309,21 +307,22 @@ async function loadAllItems() {
 		return;
 	}
 
-	allItems = result.value.items;
-	serverHasMore = result.value.hasMore;
+	currentItems = result.value.items;
+	pageList = result.value.pages;
 	renderLinks(filterItems());
 }
 
-async function loadMoreItems(): Promise<void> {
-	if (loadingMore) return;
-	loadingMore = true;
-	let result: GuardedResult<MoreItemsPage>;
+async function loadPage(index: number): Promise<void> {
+	if (loadingPage) return;
+	loadingPage = true;
+	let result: GuardedResult<LoadPageResult>;
 	try {
-		result = await send<GuardedResult<MoreItemsPage>>({
-			type: "get-more-items",
+		result = await send<GuardedResult<LoadPageResult>>({
+			type: "load-page",
+			index,
 		});
 	} finally {
-		loadingMore = false;
+		loadingPage = false;
 	}
 
 	if (isNotLoggedIn(result)) {
@@ -336,18 +335,13 @@ async function loadMoreItems(): Promise<void> {
 		return;
 	}
 
-	if ("continuation" in result.value) {
-		/** Nothing holds the continuation any more, so there is no further page to
-		 * ask for — only the list itself, read again from its first page. Rendering
-		 * the empty answer instead would wipe the list the reader is looking at. */
-		currentPage = 1;
+	if ("pageList" in result.value) {
 		await loadAllItems();
 		return;
 	}
 
-	allItems = result.value.items;
-	serverHasMore = result.value.hasMore;
-	currentPage++;
+	currentItems = result.value.items;
+	pageList = result.value.pages;
 	renderLinks(filterItems());
 }
 
@@ -504,7 +498,8 @@ async function saveAndShowList() {
 	}
 
 	if (saveResult.ok && !saveResult.value.ok && "reason" in saveResult.value && saveResult.value.reason === "not-saveable") {
-		allItems = saveResult.value.items;
+		currentItems = saveResult.value.items;
+		pageList = saveResult.value.pages;
 		showView("list-view");
 		renderMessages([]);
 		setListWarning(saveResult.value.warning?.message ?? null);
@@ -614,7 +609,6 @@ document
 	?.addEventListener("click", performLogout);
 
 document.getElementById("filter-input")?.addEventListener("input", () => {
-	currentPage = 1;
 	renderLinks(filterItems());
 });
 
