@@ -13,6 +13,7 @@ import type { CurlFetch } from "./curl-fetch";
 import { redirectable } from "./follow-redirects";
 import type { fetchH2 } from "./h2-fetch";
 import type { ExtractPdf } from "./pdf-extract.types";
+import type { Persona } from "./persona-fallback";
 import { initXTwitterSiteRules } from "./x-twitter-site-rules";
 import { noExtract, noTransform, skipCrawl } from "@packages/site-rules";
 import type { SiteRules } from "@packages/site-rules";
@@ -41,11 +42,12 @@ function buildCrawlFetch(overrides: {
 	fetch: typeof fetch;
 	fetchCurl?: CurlFetch;
 	fetchH2?: typeof fetchH2;
+	personas?: ReadonlyArray<Persona>;
 	rateLimitRetryDelaysMs?: readonly number[];
 }): CrawlFetch {
 	return initCrawlFetch({
 		fetch: overrides.fetch,
-		personas: [{ name: "test-default", headers: { ...DEFAULT_CRAWL_HEADERS } }],
+		personas: overrides.personas ?? [{ name: "test-default", headers: { ...DEFAULT_CRAWL_HEADERS } }],
 		isBlocked: () => false,
 		fetchCurl: overrides.fetchCurl ?? stubFetchCurl,
 		fetchH2: overrides.fetchH2 ?? stubFetchH2,
@@ -60,6 +62,7 @@ function initCrawl(overrides: {
 	logInfo?: (message: string) => void;
 	fetchCurl?: CurlFetch;
 	fetchH2?: typeof fetchH2;
+	personas?: ReadonlyArray<Persona>;
 	siteRules?: readonly SiteRules[];
 	fetchTimeouts?: { headersMs: number; bodyMs: number };
 	rateLimitRetryDelaysMs?: readonly number[];
@@ -525,6 +528,40 @@ describe("initCrawlArticle — single-fetch orchestration", () => {
 		expect(result).toEqual({ status: "failed" });
 		expect(logInfo).toHaveBeenCalledWith("[CrawlArticle] HTTP 403 for https://example.com");
 		expect(logError).not.toHaveBeenCalled();
+	});
+
+	it("returns failed and logs at error when every fallback rung stays blocked with 401", async () => {
+		const blockedFetch = jest.fn<ReturnType<typeof fetch>, Parameters<typeof fetch>>(async () =>
+			new Response(null, { status: 401 }),
+		);
+		const blockedH2 = jest.fn<ReturnType<typeof fetchH2>, Parameters<typeof fetchH2>>(async () =>
+			new Response(null, { status: 401 }),
+		);
+		const blockedCurl = jest.fn<ReturnType<CurlFetch>, Parameters<CurlFetch>>(async () =>
+			new Response(null, { status: 401 }),
+		);
+		const logError = jest.fn();
+		const logInfo = jest.fn();
+		const crawlArticle = initCrawl({
+			fetch: blockedFetch,
+			fetchH2: blockedH2,
+			fetchCurl: blockedCurl,
+			personas: [
+				{ name: "test-default", headers: { ...DEFAULT_CRAWL_HEADERS } },
+				{ name: "test-honest-bot", headers: { "user-agent": "TestBot/1.0", accept: "*/*" } },
+			],
+			logError,
+			logInfo,
+		});
+
+		const result = await crawlArticle({ url: "https://example.com" });
+
+		expect(result).toEqual({ status: "failed" });
+		expect(logError).toHaveBeenCalledWith("[CrawlArticle] HTTP 401 for https://example.com");
+		expect(logInfo).not.toHaveBeenCalledWith("[CrawlArticle] HTTP 401 for https://example.com");
+		expect(blockedFetch).toHaveBeenCalledTimes(2);
+		expect(blockedH2).toHaveBeenCalledTimes(2);
+		expect(blockedCurl).toHaveBeenCalledTimes(2);
 	});
 
 	it("returns failed and logs at info when the origin keeps rate-limiting with 429", async () => {

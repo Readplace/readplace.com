@@ -3,7 +3,7 @@ import type { AssertHostAllowed, SocketLookup } from "./blocked-address-lookup";
 import type { CurlFetch } from "./curl-fetch";
 import { redirectable } from "./follow-redirects";
 
-const FALLBACK_STATUS_CODES = new Set([403, 429]);
+const FALLBACK_STATUS_CODES = new Set([401, 403, 429]);
 
 const DEFAULT_H2_TIMEOUT_MS = 10000;
 
@@ -128,17 +128,21 @@ function toFetchHeaders(incoming: http2.IncomingHttpHeaders): Headers {
 
 /**
  * Wraps a fetch with an HTTP/2 + curl-impersonate fallback that kicks in on
- * any 403 or 429 response. 403s on the crawl path are almost always
+ * any 401, 403 or 429 response. 403s on the crawl path are almost always
  * TLS-fingerprint or IP-based edge blocks (Cloudflare managed challenges and
  * "Attention Required!" interstitials, Reddit's snooserv block on AWS-range
  * IPs, Akamai BotManager, etc.), and Cloudflare expresses the same bot-score
  * verdict as a 429 with no retry-after (observed on linkedin.com from Lambda
  * egress: 429 on every request hours apart, so not a genuine rate limit).
+ * CloudFront has been observed spelling that same bot-deny as a 401 on a host
+ * that answered 200 for its own image assets in the same second, so an
+ * unauthenticated 401 is no more reliably an auth gate than a 403 is a
+ * genuine permission denial.
  * Real browsers — and curl-impersonate's Chrome ClientHello — bypass the
- * typical instance of each. The handful of true permission-denied 403s the
- * crawler can hit (paywalled subscriber pages, friends-only Medium drafts)
- * also return 403 from h2/curl; the extra attempts add ~1-2s of latency but
- * never mask a real failure.
+ * typical instance of each. The handful of true permission-denied 403s and
+ * real auth gates the crawler can hit (paywalled subscriber pages,
+ * friends-only Medium drafts) return the same status from h2/curl; the extra
+ * attempts add ~1-2s of latency but never mask a real failure.
  *
  * If the primary fetch fails with a transient TLS- or connection-level error
  * (timeout, ECONNRESET, "fetch failed", HTTP/2 RST_STREAM from Akamai
@@ -174,8 +178,8 @@ export function withH2Fallback(
 }
 
 /**
- * Try Node's http2 module, then curl subprocess. Shared by the Cloudflare
- * 403/429 path and the baseFetch-error path — both represent a
+ * Try Node's http2 module, then curl subprocess. Shared by the edge-deny
+ * status path (401/403/429) and the baseFetch-error path — both represent a
  * TLS-fingerprint block where varying the TLS client is the right remedy.
  *
  * The h2 attempt runs under its OWN deadline, not just the caller's shared
