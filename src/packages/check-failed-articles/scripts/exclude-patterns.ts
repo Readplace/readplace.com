@@ -55,6 +55,25 @@ export const EXCLUDE_PATTERNS: readonly RegExp[] = [
 	// operator cannot act on without a residential proxy; exclude them at the
 	// canary boundary.
 	/(?:^|\/\/)(?:[a-z0-9-]+\.)*reddit\.com(?:[/:?#]|$)/i,
+	// Time-limited presigned URLs — permanently dead once the signature lapses.
+	// TTLs are minutes, so the crawl fetch lands at or after expiry and the
+	// origin answers 403 for the object from then on; recrawl re-fetches the
+	// exact stored URL, so it can never succeed and the row is never operator-
+	// actionable. Matched by shape: every signature param must appear as a whole
+	// query-param name, in any order, before any fragment. A presign still valid
+	// at fetch time is excluded too — deliberately: it has lapsed long before the
+	// operator reads the report, so it is equally unactionable.
+	//
+	// S3 SigV2 query auth (`AWSAccessKeyId` + `Signature` + `Expires=<epoch>`;
+	// STS variants add `x-amz-security-token` but always carry these three).
+	/^[^#?]*(?=\?)(?=[^#]*[?&]AWSAccessKeyId=)(?=[^#]*[?&]Signature=)(?=[^#]*[?&]Expires=\d)/i,
+	// S3 SigV4 query auth (`X-Amz-Signature` + `X-Amz-Expires=<seconds>`).
+	/^[^#?]*(?=\?)(?=[^#]*[?&]X-Amz-Signature=)(?=[^#]*[?&]X-Amz-Expires=\d)/i,
+	// CloudFront canned-policy signed URLs (`Key-Pair-Id` + `Signature` +
+	// `Expires=<epoch>`). The `d1wqtxts1xzle7` entry below stays alongside this
+	// one because it also matches the query-less form of that path, which a
+	// query-string fingerprint cannot cover.
+	/^[^#?]*(?=\?)(?=[^#]*[?&]Key-Pair-Id=)(?=[^#]*[?&]Signature=)(?=[^#]*[?&]Expires=\d)/i,
 	// Operator-curated exact-URL excludes — individual rows the operator has
 	// decided are "known broken / not worth investigating again". Each entry
 	// is anchored with `^…$` so it matches only the exact stored URL, not a

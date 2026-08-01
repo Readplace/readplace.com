@@ -84,6 +84,61 @@ describe("EXCLUDE_PATTERNS — reddit.com entry", () => {
 	}
 });
 
+describe("EXCLUDE_PATTERNS — presigned-URL entries", () => {
+	const cases: ReadonlyArray<{ url: string; excluded: boolean; label: string }> = [
+		{
+			url: "https://s3-euw1-ap-pe-df-pch-content-store-p.s3.eu-west-1.amazonaws.com/9781003679479/preview.pdf?AWSAccessKeyId=ASIAQFVOSJ574BGIEP6J&Expires=1785058010&Signature=q%2BxYz%3D",
+			excluded: true,
+			label: "S3 SigV2 presign in mint order (RCA row shape)",
+		},
+		{
+			url: "https://s3-euw1-ap-pe-df-pch-content-store-p.s3.eu-west-1.amazonaws.com/9781003679479/preview.pdf?Signature=q%2BxYz%3D&x-amz-security-token=FwoGZXIvYXdzEA%3D%3D&Expires=1785058292&AWSAccessKeyId=ASIAQFVOSJ574BGIEP6J",
+			excluded: true,
+			label: "S3 SigV2 presign with params reordered and an STS token",
+		},
+		{
+			url: "https://bucket.s3.eu-west-1.amazonaws.com/doc.pdf?X-Amz-Algorithm=AWS4-HMAC-SHA256&X-Amz-Expires=300&X-Amz-Signature=deadbeef",
+			excluded: true,
+			label: "S3 SigV4 presign",
+		},
+		{
+			url: "https://cdn.test/49645891/paper.pdf?Expires=1500000000&Signature=abc&Key-Pair-Id=APKAJLOHF5GGSLRBV4ZA",
+			excluded: true,
+			label: "CloudFront canned-policy signed URL",
+		},
+		{
+			url: "https://foo.test/article?Expires=123&Signature=abc",
+			excluded: false,
+			label: "a site's own signed link — no AWS key id, X-Amz- or Key-Pair-Id",
+		},
+		{
+			url: "https://foo.test/article?AWSAccessKeyId=AKIA&Expires=123",
+			excluded: false,
+			label: "AWS key id and Expires without a Signature",
+		},
+		{
+			url: "https://foo.test/article?myAWSAccessKeyId=a&theSignature=b&preExpires=1",
+			excluded: false,
+			label: "signature params as param-name substrings, not whole names",
+		},
+		{
+			url: "https://foo.test/article?AWSAccessKeyId=a&Signature=b&Expires=session",
+			excluded: false,
+			label: "non-numeric Expires — not an epoch deadline",
+		},
+		{
+			url: "https://foo.test/page#?AWSAccessKeyId=a&Signature=b&Expires=1",
+			excluded: false,
+			label: "signature params only inside the fragment",
+		},
+	];
+	for (const { url, excluded, label } of cases) {
+		it(`${excluded ? "excludes" : "keeps"}: ${label} — ${url}`, () => {
+			assert.equal(isExcluded(url, EXCLUDE_PATTERNS), excluded);
+		});
+	}
+});
+
 describe("EXCLUDE_PATTERNS — quote-wrapped embedded-scheme entry", () => {
 	const cases: ReadonlyArray<{ url: string; excluded: boolean; label: string }> = [
 		{
