@@ -28,30 +28,6 @@ export interface HealthSource {
 
 export const HEALTH_SOURCES: readonly HealthSource[] = [
 	{
-		// web.archive.org's nginx answers the Chrome desktop UA with a non-standard
-		// HTTP 498 whose body is a plain 404 page; the honest-bot persona gets the
-		// real bytes. 498 belonged to none of the escalation sets, so the first
-		// persona's 498 was terminal and the reader got "Sorry, we couldn't save
-		// this link". An `im_` image snapshot, so it guards the thumbnail-prefetch
-		// path on the same origin too. expectedContent is the image title the
-		// finalizer derives from the last path segment (extension dropped).
-		//
-		// URL and query-parameter order are both load-bearing: /admin/recrawl 404s
-		// anything that is not already a saved article, and a row is keyed on the
-		// exact URL string, so `height&smart&width` here is the order prod stored
-		// and reordering it addresses no row. Pinned to the snapshot the redirect
-		// lands on for the same reason. It answers 498 to the Chrome persona
-		// either way, so the escalation is still what the entry exercises.
-		//
-		// Leads the list: a single image fetch with no Readability and no OCR makes
-		// it the cheapest entry, and the fail-fast loop only reaches a source when
-		// every earlier one passed — behind a broken source it would never run.
-		label: "Web Archive (Wayback im_ snapshot)",
-		url: "https://web.archive.org/web/20260705060600im_/https://www.tampabay.com/resizer/v2/LX7ER5SUP5FFTERGGD7DO5QYEI.jpg?auth=5bad6d3ff30583f1c9147dcc0dd6f5db9d445dd7e07a8178928d31205b5f1a96&height=675&smart=true&width=1200",
-		expectedContent: "LX7ER5SUP5FFTERGGD7DO5QYEI",
-		expectsThumbnail: true,
-	},
-	{
 		// Medium publications (e.g. itnext.io) serve an incomplete TLS chain —
 		// leaf cert without the Sectigo intermediate. Node's fetch fails with
 		// UNABLE_TO_VERIFY_LEAF_SIGNATURE. AIA chasing recovers
