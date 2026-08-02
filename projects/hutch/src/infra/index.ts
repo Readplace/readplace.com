@@ -308,7 +308,6 @@ const lambda = new HutchLambda(LAMBDA_NAMES.hutchHandler, {
 	assetDir: "./src/runtime",
 	memorySize: 1769,
 	timeout: 30,
-	architecture: "arm64",
 	layers: [curlImpersonateLayerArn],
 	environment: {
 		NODE_ENV: config.require("nodeEnv"),
