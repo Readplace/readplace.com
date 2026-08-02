@@ -360,7 +360,7 @@ describe("InboxPage", () => {
 		]);
 	});
 
-	it("keeps the explainer first and the create form last in the create section, with the limit error between them", () => {
+	it("keeps the explainer first and the create form last in the create section, with the limit error and create confirmation between them", () => {
 		const shape = (el: Element) => `${el.tagName.toLowerCase()}.${el.classList[0]}`;
 
 		const withoutErrors = parse(InboxPage({ addresses: [], limitReached: false }).content.html);
@@ -368,6 +368,7 @@ describe("InboxPage", () => {
 		assert.ok(section, "create section must render");
 		assert.deepEqual(Array.from(section.children).map(shape), [
 			"section.inbox__instructions",
+			"p.inbox__success",
 			"form.inbox__create",
 		]);
 
@@ -377,6 +378,7 @@ describe("InboxPage", () => {
 		assert.deepEqual(Array.from(limitedSection.children).map(shape), [
 			"section.inbox__instructions",
 			"p.inbox__error",
+			"p.inbox__success",
 			"form.inbox__create",
 		]);
 	});

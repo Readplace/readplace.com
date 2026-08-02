@@ -32,6 +32,24 @@
   font-size: 0.95rem;
 }
 
+.inbox__success {
+  margin: 0 0 24px;
+  padding: 12px 16px;
+  color: var(--success-text);
+  background: var(--card);
+  border: 1px solid var(--success);
+  border-radius: var(--radius);
+  font-size: 0.95rem;
+}
+
+.inbox__success--visible {
+  display: block;
+}
+
+.inbox__success--hidden {
+  display: none;
+}
+
 .inbox__create-section {
   border-bottom: 1px solid var(--border);
   padding-bottom: 24px;
