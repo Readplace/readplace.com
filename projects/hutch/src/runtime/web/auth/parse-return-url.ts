@@ -1,6 +1,6 @@
 import { z } from "zod";
 
-const ReturnQuerySchema = z.object({ return: z.string().optional() }).passthrough();
+const ReturnQuerySchema = z.looseObject({ return: z.string().optional() });
 
 function validatedReturnUrl(query: unknown): string | undefined {
 	const parsed = ReturnQuerySchema.safeParse(query);

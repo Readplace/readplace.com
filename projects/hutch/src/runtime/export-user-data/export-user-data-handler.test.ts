@@ -18,7 +18,7 @@ const stubAttributes: SQSRecordAttributes = {
 
 const ExportBodySchema = z.object({
 	articleCount: z.number(),
-	articles: z.array(z.object({ url: z.string(), title: z.string() }).passthrough()),
+	articles: z.array(z.looseObject({ url: z.string(), title: z.string() })),
 });
 
 function createSqsEvent(detail: {

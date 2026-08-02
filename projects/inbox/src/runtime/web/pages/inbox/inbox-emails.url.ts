@@ -12,9 +12,10 @@ const CursorValueSchema = z
 	.optional()
 	.catch(undefined);
 
-const InboxEmailsQuerySchema = z
-	.object({ older: CursorValueSchema, newer: CursorValueSchema })
-	.passthrough();
+const InboxEmailsQuerySchema = z.looseObject({
+	older: CursorValueSchema,
+	newer: CursorValueSchema,
+});
 
 export function parseInboxEmailsUrl(query: Record<string, unknown>): {
 	cursor: InboxEmailsCursor | undefined;

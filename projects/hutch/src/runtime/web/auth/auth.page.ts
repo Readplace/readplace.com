@@ -82,9 +82,9 @@ import {
 import type { EmitSubscriptionEvent } from "../../observability/subscription-events";
 import { DISPOSABLE_EMAIL_MESSAGE } from "./disposable-email";
 
-const TokenQuerySchema = z.object({ token: z.string().optional() }).passthrough();
-const CheckoutSuccessQuerySchema = z.object({ session_id: z.string().min(1) }).passthrough();
-const SignupQuerySchema = z.object({ email: z.string().email() }).passthrough();
+const TokenQuerySchema = z.looseObject({ token: z.string().optional() });
+const CheckoutSuccessQuerySchema = z.looseObject({ session_id: z.string().min(1) });
+const SignupQuerySchema = z.looseObject({ email: z.string().email() });
 
 const EMAIL_FROM = "Fayner Brack <readplace@readplace.com>";
 

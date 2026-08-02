@@ -1,12 +1,10 @@
 import { createHmac, timingSafeEqual } from "node:crypto";
 import { z } from "zod";
 
-const StripeEventSchema = z
-	.object({
-		type: z.string(),
-		data: z.object({ object: z.object({ id: z.string() }).passthrough() }).passthrough(),
-	})
-	.passthrough();
+const StripeEventSchema = z.looseObject({
+	type: z.string(),
+	data: z.looseObject({ object: z.looseObject({ id: z.string() }) }),
+});
 
 export type StripeEvent = z.infer<typeof StripeEventSchema>;
 

@@ -15,13 +15,13 @@ export interface QueueUrlState {
 	feature?: string;
 }
 
-const QueueQuerySchema = z.object({
+const QueueQuerySchema = z.looseObject({
 	tab: z.enum(TAB_IDS).optional().catch(undefined),
 	status: z.enum(["unread", "read"]).optional().catch(undefined),
 	order: z.enum(["asc", "desc"]).optional().catch(undefined),
 	page: z.coerce.number().int().min(1).optional().catch(undefined),
 	feature: z.string().optional().catch(undefined),
-}).passthrough();
+});
 
 export function parseQueueUrl(query: Record<string, unknown>): QueueUrlState {
 	const parsed = QueueQuerySchema.parse(query);
