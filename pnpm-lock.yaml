@@ -1071,6 +1071,10 @@ importers:
         version: 6.0.3
 
   src/packages/article-resource-unique-id:
+    dependencies:
+      '@noble/hashes':
+        specifier: 1.8.0
+        version: 1.8.0
     devDependencies:
       '@types/jest':
         specifier: 30.0.0

@@ -13,7 +13,7 @@ export function initReadPendingPdf(deps: {
 	const { client, bucketName } = deps;
 
 	const readPendingPdf: ReadPendingPdf = async (url) => {
-		const key = `pending-pdf/${encodeURIComponent(ArticleResourceUniqueId.parse(url).value)}.pdf`;
+		const key = ArticleResourceUniqueId.parse(url).toS3PendingPdfKey();
 		const result = await client.send(
 			new GetObjectCommand({ Bucket: bucketName, Key: key }),
 		);

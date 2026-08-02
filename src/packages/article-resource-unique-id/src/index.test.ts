@@ -230,3 +230,68 @@ describe("ArticleResourceUniqueId.toS3SourceKey", () => {
 		expect(write).toBe(read);
 	});
 });
+
+describe("ArticleResourceUniqueId S3 keys for over-long URLs", () => {
+	it("keeps every key and prefix inside the 1024-byte S3 limit for a 1574-character presigned URL", () => {
+		const id = ArticleResourceUniqueId.parse(
+			`https://s3-euw1-ap-pe-df-pch-content-store-p.s3.eu-west-1.amazonaws.com/9781003679479/preview.pdf?AWSAccessKeyId=EXAMPLEACCESSKEYID00&Expires=1785058010&x-amz-security-token=${"I".repeat(1400)}`,
+		);
+		const keys = [
+			id.toS3ContentKey(),
+			id.toS3ImageKey("0123456789abcdef.webp"),
+			id.toS3PendingHtmlKey(),
+			id.toS3PendingPdfKey(),
+			id.toS3RefreshHtmlKey(),
+			id.toS3SourceKey({ tier: "tier-0" }),
+			id.toS3ContentVersionKey({ minuteId: "2026-07-10T09:41Z" }),
+			id.toS3ImagePrefix(),
+			id.toS3SourcesPrefix(),
+			id.toS3ContentVersionsPrefix(),
+			id.toS3SourceMetadataKey({ tier: "tier-0" }),
+		];
+
+		expect(keys.filter((key) => Buffer.byteLength(key) > 1024)).toEqual([]);
+	});
+
+	it("keeps the percent-encoded segment when the encoded id is exactly 900 characters", () => {
+		const id = ArticleResourceUniqueId.parse(`https://example.com/${"a".repeat(886)}`);
+
+		expect(encodeURIComponent(id.value)).toHaveLength(900);
+		expect(id.toS3ContentKey()).toBe(`content/example.com%2F${"a".repeat(886)}/content.html`);
+	});
+
+	it("switches to a sha256 segment when the encoded id reaches 901 characters", () => {
+		const id = ArticleResourceUniqueId.parse(`https://example.com/${"a".repeat(887)}`);
+
+		expect(encodeURIComponent(id.value)).toHaveLength(901);
+		expect(id.toS3ContentKey()).toBe(
+			"content/sha256-d10aa228a89818b4a1b03366cb0fa25a018ebb9a564c3f44a57f7302ed741b6c/content.html",
+		);
+	});
+
+	it("derives one hashed key from the http and https forms of the same over-long URL", () => {
+		const path = "a".repeat(887);
+
+		expect(ArticleResourceUniqueId.parse(`https://example.com/${path}`).toS3ContentKey())
+			.toBe(ArticleResourceUniqueId.parse(`http://example.com/${path}`).toS3ContentKey());
+	});
+
+	it("keeps each prefix a string-prefix of its keys once the segment is hashed", () => {
+		const id = ArticleResourceUniqueId.parse(`https://example.com/${"a".repeat(887)}`);
+
+		expect(id.toS3ImageKey("abc123.png").startsWith(id.toS3ImagePrefix())).toBe(true);
+		expect(id.toS3SourceKey({ tier: "tier-0" }).startsWith(id.toS3SourcesPrefix())).toBe(true);
+		expect(id.toS3SourceMetadataKey({ tier: "tier-1" }).startsWith(id.toS3SourcesPrefix())).toBe(true);
+		expect(
+			id.toS3ContentVersionKey({ minuteId: "2026-07-10T09:41Z" }).startsWith(id.toS3ContentVersionsPrefix()),
+		).toBe(true);
+	});
+
+	it("URL path decodes once to match the S3 image key once the segment is hashed", () => {
+		const id = ArticleResourceUniqueId.parse(`https://example.com/${"a".repeat(887)}`);
+		const url = id.toImageCdnUrl({ baseUrl: "https://cdn.example", filename: "hash.png" });
+		const urlPath = new URL(url).pathname;
+
+		expect(decodeURIComponent(urlPath.replace(/^\//, ""))).toBe(id.toS3ImageKey("hash.png"));
+	});
+});

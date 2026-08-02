@@ -5,6 +5,9 @@
   "main": "dist/index.js",
   "types": "dist/index.d.ts",
   "private": true,
+  "dependencies": {
+    "@noble/hashes": "1.8.0"
+  },
   "scripts": {
     "compile": "rm -rf dist && tsc",
     "lint": "concurrently --kill-others-on-fail \"tsc --project tsconfig.lint.json\" \"biome lint src\" \"knip\"",
