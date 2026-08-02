@@ -779,6 +779,164 @@ describe("Queue routes", () => {
 		});
 	});
 
+	describe("card-scoped htmx status swap (swap=card)", () => {
+		const cardStatus = (
+			agent: Awaited<ReturnType<typeof loginAgent>>,
+			id: string,
+			extraQuery = "",
+		) => agent.post(`/queue/${id}/status?swap=card${extraQuery}`).set("HX-Request", "true");
+
+		async function saveArticles(
+			agent: Awaited<ReturnType<typeof loginAgent>>,
+			count: number,
+		): Promise<void> {
+			for (let i = 0; i < count; i++) {
+				await agent.post("/queue/save").type("form").send({ url: `https://example.com/article-${i}` });
+			}
+		}
+
+		async function firstCardId(
+			agent: Awaited<ReturnType<typeof loginAgent>>,
+			path = "/queue",
+		): Promise<string> {
+			const doc = new JSDOM((await agent.get(path)).text).window.document;
+			const id = doc
+				.querySelector("[data-test-article-list] .queue-article")
+				?.getAttribute("data-test-article");
+			assert(id, "expected a rendered card id");
+			return id;
+		}
+
+		it("removes the card and re-arms toast + counts on a page that still has rows", async () => {
+			const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
+			const agent = await loginAgent(harness.server, harness.auth);
+			await saveArticles(agent, 2);
+			const id = await firstCardId(agent);
+
+			const res = await cardStatus(agent, id).type("form").send({ status: "read" });
+
+			assert.equal(res.status, 200);
+			assert.equal(res.headers.location, undefined, "no redirect on the card path");
+			assert.equal(res.headers["hx-retarget"], undefined, "common case is not retargeted");
+			const doc = new JSDOM(res.text).window.document;
+			assert.equal(doc.querySelector(".queue-article"), null, "empty primary body removes the card");
+
+			const toast = doc.getElementById("status-toast");
+			assert(toast, "toast arrives out of band into the stable mount");
+			assert.equal(toast.getAttribute("hx-swap-oob"), "outerHTML");
+			assert.equal(toast.querySelector("[data-test-toast-message]")?.textContent, "Marked as read");
+			assert.equal(
+				toast.querySelector("[data-test-toast-action]")?.closest("form")?.getAttribute("action"),
+				`/queue/${id}/status?utm_source=queue-toast&utm_medium=internal&utm_content=undo`,
+			);
+
+			const counts = doc.getElementById("queue-counts");
+			assert(counts, "counts span is re-armed out of band");
+			assert.equal(counts.getAttribute("hx-swap-oob"), "outerHTML");
+			assert.equal(counts.getAttribute("hx-trigger"), "load");
+		});
+
+		it("the last row on the page answers with the full-listing fallback retargeted to main", async () => {
+			const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
+			const agent = await loginAgent(harness.server, harness.auth);
+			await saveArticles(agent, 1);
+			const id = await firstCardId(agent);
+
+			const res = await cardStatus(agent, id).type("form").send({ status: "read" });
+
+			assert.equal(res.status, 200);
+			assert.equal(res.headers["hx-retarget"], "main");
+			assert.equal(res.headers["hx-reswap"], "outerHTML show:none");
+			assert.equal(res.headers["hx-reselect"], "main");
+			const doc = new JSDOM(res.text).window.document;
+			assert(doc.querySelector("main"), "the fallback re-renders the whole listing");
+			assert(doc.querySelector("[data-test-empty-queue]"), "the unread tab is now empty");
+			assert(doc.querySelector("[data-test-toast]"), "the Undo toast survives the fallback");
+		});
+
+		it("the last row on an out-of-bounds page clamps to the last page in the fallback", async () => {
+			const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
+			const agent = await loginAgent(harness.server, harness.auth);
+			await saveArticles(agent, 21);
+			const page2Id = await firstCardId(agent, "/queue?page=2");
+
+			const res = await cardStatus(agent, page2Id, "&page=2").type("form").send({ status: "read" });
+
+			assert.equal(res.status, 200);
+			assert.equal(res.headers["hx-retarget"], "main");
+			const cards = new JSDOM(res.text).window.document.querySelectorAll(
+				"[data-test-article-list] .queue-article",
+			);
+			assert.equal(cards.length, 20, "clamped to page 1, now showing the full 20 unread");
+			assert.ok(
+				!Array.from(cards).some((c) => c.getAttribute("data-test-article") === page2Id),
+				"the just-read item is no longer listed",
+			);
+		});
+
+		it("a page left full removes just the card (the list holds its place)", async () => {
+			const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
+			const agent = await loginAgent(harness.server, harness.auth);
+			await saveArticles(agent, 21);
+			const id = await firstCardId(agent);
+
+			const res = await cardStatus(agent, id).type("form").send({ status: "read" });
+
+			assert.equal(res.status, 200);
+			assert.equal(res.headers["hx-retarget"], undefined, "status accepts the drift — no re-render");
+			const doc = new JSDOM(res.text).window.document;
+			assert.equal(doc.querySelector(".queue-article"), null, "just the one card is removed");
+			assert(doc.getElementById("queue-counts"));
+		});
+
+		it("a not-applied status change (invalid status) answers with the fallback so the DOM resyncs", async () => {
+			const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
+			const agent = await loginAgent(harness.server, harness.auth);
+			await saveArticles(agent, 1);
+			const id = await firstCardId(agent);
+
+			const res = await cardStatus(agent, id).type("form").send({ status: "not-a-status" });
+
+			assert.equal(res.status, 200);
+			assert.equal(res.headers["hx-retarget"], "main");
+			const doc = new JSDOM(res.text).window.document;
+			assert.equal(
+				doc.querySelectorAll("[data-test-article-list] .queue-article").length,
+				1,
+				"the untouched card is still listed",
+			);
+			assert.equal(doc.querySelector("[data-test-toast]"), null, "nothing changed, so no toast");
+		});
+
+		it("a card marker without HX-Request keeps the progressive-enhancement 303 (marker never leaks into the Location)", async () => {
+			const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
+			const agent = await loginAgent(harness.server, harness.auth);
+			await saveArticles(agent, 1);
+			const id = await firstCardId(agent);
+
+			const res = await agent.post(`/queue/${id}/status?swap=card`).type("form").send({ status: "read" });
+
+			assert.equal(res.status, 303);
+			assert.equal(res.headers.location, `/queue?status_changed=read&status_article=${id}`);
+		});
+
+		it("an HX-Request without the card marker (the Undo shape) keeps the 303", async () => {
+			const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
+			const agent = await loginAgent(harness.server, harness.auth);
+			await saveArticles(agent, 1);
+			const id = await firstCardId(agent);
+
+			const res = await agent
+				.post(`/queue/${id}/status`)
+				.set("HX-Request", "true")
+				.type("form")
+				.send({ status: "read" });
+
+			assert.equal(res.status, 303);
+			assert.equal(res.headers.location, `/queue?status_changed=read&status_article=${id}`);
+		});
+	});
+
 	describe("re-saving a purged URL", () => {
 		it("revives a tombstoned URL: an authenticated save clears purgedAt and the article returns to the queue", async () => {
 			const url = "https://example.com/purged-then-resaved";

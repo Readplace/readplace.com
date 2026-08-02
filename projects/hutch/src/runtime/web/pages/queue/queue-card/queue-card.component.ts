@@ -14,11 +14,12 @@ export interface ActionDisplayModel extends ArticleAction {
 	buttonClass: string;
 	formClass: string;
 	disabled: boolean;
-	/** "with-loader" for the mark-read/unread toggle — it renders the in-flight
-	 * loader affordance and hx-disabled-elt so the button behaves like the
-	 * reader's mark-read control during the htmx <main> swap. "bare" for the
-	 * delete action, a static icon that opts out of the loader treatment. */
 	affordance: "with-loader" | "bare";
+	/** Stable id on the status button so the shared toast focus script
+	 * (toast.client.ts) can restore keyboard focus after a card-scoped status
+	 * swap removes it: finding the recorded id gone, it lands focus on the
+	 * confirmation toast. Absent on the delete fallback, which keeps a full-swap. */
+	buttonId?: string;
 }
 
 export interface QueueCardDisplayModel extends QueueArticleViewModel {
@@ -37,7 +38,7 @@ export interface QueueCardDisplayModel extends QueueArticleViewModel {
 
 export function toActionDisplayModel(
 	action: ArticleAction,
-	options: { isProcessing: boolean },
+	options: { isProcessing: boolean; articleId: string },
 ): ActionDisplayModel {
 	const isStatusAction = action.testAction !== "delete";
 	const buttonClass = isStatusAction
@@ -58,6 +59,7 @@ export function toActionDisplayModel(
 			: "queue-article__action-form queue-article__delete-fallback",
 		disabled: options.isProcessing && isStatusAction,
 		affordance: isStatusAction ? "with-loader" : "bare",
+		buttonId: isStatusAction ? `queue-status-${options.articleId}` : undefined,
 	};
 }
 
@@ -81,7 +83,7 @@ export function toQueueCardDisplayModel(
 		processingHiddenClass: isProcessing ? "" : " queue-article__processing--hidden",
 		urlEmptyClass: article.siteName ? "" : " queue-article__url--empty",
 		actions: article.actions.map((action) =>
-			toActionDisplayModel(action, { isProcessing }),
+			toActionDisplayModel(action, { isProcessing, articleId: article.id }),
 		),
 		deleteTriggerDisabled: false,
 	};
