@@ -105,6 +105,27 @@ describe("renderQueueCard", () => {
 		]);
 	});
 
+	it("boosts all three open-links into <main> so opening an article swaps <main> rather than reloading the document", () => {
+		const html = renderQueueCard(
+			display(makeViewModel({ imageUrl: "https://img.example/x.png" }), { isFirst: false }),
+		);
+		const doc = parse(html);
+		const links = [
+			doc.querySelector("[data-test-article-title]"),
+			doc.querySelector("[data-test-article-excerpt]"),
+			doc.querySelector(".queue-article__thumbnail")?.closest("a") ?? null,
+		];
+		for (const link of links) {
+			assert(link, "each open-link must be rendered");
+			expect(link.getAttribute("hx-boost")).toBe("true");
+			expect(link.getAttribute("hx-target")).toBe("main");
+			expect(link.getAttribute("hx-select")).toBe("main");
+			// show:top — a freshly opened article starts at the top, unlike the
+			// mark-read action forms (show:none) which must not jump.
+			expect(link.getAttribute("hx-swap")).toBe("outerHTML show:top");
+		}
+	});
+
 	it("omits the excerpt link entirely when the excerpt is empty so no empty-name link is rendered", () => {
 		const html = renderQueueCard(
 			display(makeViewModel({ excerpt: "", imageUrl: "https://img.example/x.png" }), {

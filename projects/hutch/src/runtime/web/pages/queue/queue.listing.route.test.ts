@@ -195,7 +195,7 @@ describe("Queue routes", () => {
 			expect(unreadArticle?.querySelector("[data-test-read-status]")?.getAttribute("data-test-read-status")).toBe("unread");
 		});
 
-		it("should not include htmx attributes on article title links", async () => {
+		it("boosts article title links into <main> as a GET navigation, not a POST action", async () => {
 			const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
 			const { auth } = harness;
 			const agent = await loginAgent(harness.server, auth);
@@ -208,9 +208,14 @@ describe("Queue routes", () => {
 			const response = await agent.get("/queue");
 			const doc = new JSDOM(response.text).window.document;
 			const titleLink = doc.querySelector(".queue-article__title");
+			// Opening an article boosts the reader into <main> in place of a full reload.
+			expect(titleLink?.getAttribute("hx-boost")).toBe("true");
+			expect(titleLink?.getAttribute("hx-target")).toBe("main");
+			expect(titleLink?.getAttribute("hx-select")).toBe("main");
+			expect(titleLink?.getAttribute("hx-swap")).toBe("outerHTML show:top");
+			// It stays a GET navigation (its href), never a POST action form.
 			expect(titleLink?.getAttribute("hx-post")).toBeNull();
 			expect(titleLink?.getAttribute("hx-vals")).toBeNull();
-			expect(titleLink?.getAttribute("hx-swap")).toBeNull();
 		});
 	});
 

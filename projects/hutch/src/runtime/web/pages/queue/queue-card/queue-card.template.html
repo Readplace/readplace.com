@@ -17,12 +17,12 @@
   </div>
   <div class="queue-article__body">
     <div class="queue-article__content">
-      <a class="queue-article__title" href="{{titleLinkUrl}}" data-test-article-title>{{title}}</a>
-      {{#if excerpt}}<a class="queue-article__excerpt" href="{{excerptLinkUrl}}" tabindex="-1" data-test-article-excerpt>{{excerpt}}</a>{{/if}}
+      <a class="queue-article__title" href="{{titleLinkUrl}}" hx-boost="true" hx-target="main" hx-select="main" hx-swap="outerHTML show:top" data-test-article-title>{{title}}</a>
+      {{#if excerpt}}<a class="queue-article__excerpt" href="{{excerptLinkUrl}}" hx-boost="true" hx-target="main" hx-select="main" hx-swap="outerHTML show:top" tabindex="-1" data-test-article-excerpt>{{excerpt}}</a>{{/if}}
       <p class="queue-article__processing{{processingHiddenClass}}" data-test-processing>Processing…</p>
       {{#if isStalePending}}<p class="queue-article__stale-pending" data-test-stale-pending>Taking a while — <a href="{{url}}" target="_blank" rel="noopener">open on {{#if siteName}}{{siteName}}{{else}}the source{{/if}}</a></p>{{/if}}
     </div>
     {{!-- The thumbnail link is visibility:hidden until onload adds --loaded, so onload is the reveal-on-load for every thumbnail — removing it hides all thumbnails. The img reserves its box via width + aspect-ratio, so the card height is decided once and never jumps when the bitmap arrives or when a pending card self-swaps. When there is no thumbnail the content flexes to full width. onerror is the safety net for rows whose imageUrl points at an external host that can rot: a broken image removes its container instead of showing a placeholder. --}}
-    {{#if imageUrl}}<a href="{{thumbnailLinkUrl}}" class="queue-article__thumbnail-link" tabindex="-1" aria-hidden="true"><img class="queue-article__thumbnail" src="{{imageUrl}}" alt="" onload="this.parentElement.classList.add('queue-article__thumbnail-link--loaded')" onerror="this.parentElement.remove()"></a>{{/if}}
+    {{#if imageUrl}}<a href="{{thumbnailLinkUrl}}" class="queue-article__thumbnail-link" hx-boost="true" hx-target="main" hx-select="main" hx-swap="outerHTML show:top" tabindex="-1" aria-hidden="true"><img class="queue-article__thumbnail" src="{{imageUrl}}" alt="" onload="this.parentElement.classList.add('queue-article__thumbnail-link--loaded')" onerror="this.parentElement.remove()"></a>{{/if}}
   </div>
 </div>
