@@ -208,6 +208,7 @@ export class HutchLambda extends pulumi.ComponentResource {
 			 */
 			containerImage?: { imageUri: pulumi.Input<string> };
 			ephemeralStorageSize?: number;
+			architecture?: "arm64" | "x86_64";
 			/**
 			 * Logical name of the top-level `aws.cloudwatch.LogGroup` this call
 			 * site previously managed for the Lambda. Set only when migrating such
@@ -307,6 +308,7 @@ export class HutchLambda extends pulumi.ComponentResource {
 		const ephemeralStorageArg = args.ephemeralStorageSize
 			? { ephemeralStorage: { size: args.ephemeralStorageSize } }
 			: {};
+		const architecturesArg = args.architecture ? { architectures: [args.architecture] } : {};
 		let lambdaFunction: aws.lambda.Function;
 		if (args.containerImage) {
 			lambdaFunction = new aws.lambda.Function(lambdaName, {
@@ -364,6 +366,7 @@ export class HutchLambda extends pulumi.ComponentResource {
 				...ephemeralStorageArg,
 				...environmentArg,
 				...layersArg,
+				...architecturesArg,
 			}, { parent: this, dependsOn: [logGroup], aliases: [{ parent: pulumi.rootStackResource }] });
 		}
 
