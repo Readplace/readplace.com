@@ -26,6 +26,48 @@ const PROJECT_ROOT = path.resolve(__dirname, "..");
 const OUT_DIR = path.join(PROJECT_ROOT, "src", "runtime", "web", "client-dist");
 
 /**
+ * Page bundles ride *inside* <main> (injectPageScriptsIntoMain in web-shell) so
+ * an htmx boosted navigation re-executes them on the destination page — htmx
+ * clones and runs scripts inside the swapped subtree and drops the rest. That
+ * re-execution means a bootstrap that registers a document.body swap listener
+ * (or a rAF loop) must run at most once per document, or every same-page swap
+ * (mark-read, filter) would stack another listener. `runOnce` gates the factory
+ * on a per-outfile window flag; the factory's own swap listener, registered on
+ * that first run, handles every later swap. Global bundles (toast, local-time,
+ * webmcp, trial-countdown, extension-suggestion-banner) stay outside <main> and
+ * load once, so they keep bare footers with no guard.
+ */
+function runOnce(flag, body) {
+  return `if (!window.${flag}) {
+  window.${flag} = true;
+${body}
+}`;
+}
+
+/**
+ * Like runOnce, but for a footer that must wait for the DOM. A bare
+ * DOMContentLoaded listener never fires on a boosted arrival — htmx runs the
+ * cloned script after DOMContentLoaded has already passed — so gate on
+ * readyState instead, the same run-now-or-on-DCL shape the queue's
+ * AUTO_SUBMIT_SCRIPT uses.
+ */
+function runOnceOnReady(flag, body) {
+  return runOnce(
+    flag,
+    `  (function () {
+    function run() {
+${body}
+    }
+    if (document.readyState === "loading") {
+      document.addEventListener("DOMContentLoaded", run, { once: true });
+    } else {
+      run();
+    }
+  })();`,
+  );
+}
+
+/**
  * 1. `globalName` exposes the module exports on `window.ShareBalloon` inside the IIFE.
  * 2. the appended footer runs *after* the IIFE body, calling the exported factory with
  *    the real browser globals. The wiring stays out of the source TS so the
@@ -42,16 +84,19 @@ const BUNDLES = [
     ),
     outfile: path.join(OUT_DIR, "share-balloon.client.js"),
     globalName: "ShareBalloon",
-    footer: [
-      "ShareBalloon.initShareBalloon({",
-      "  window: window,",
-      "  document: window.document,",
-      "  storage: window.localStorage,",
-      "  navigator: window.navigator,",
-      "  setTimeoutFn: function (cb, ms) { return window.setTimeout(cb, ms); },",
-      "  clearTimeoutFn: function (id) { window.clearTimeout(id); }",
-      "}).attach();",
-    ].join("\n"),
+    footer: runOnce(
+      "__shareBalloonInit",
+      [
+        "ShareBalloon.initShareBalloon({",
+        "  window: window,",
+        "  document: window.document,",
+        "  storage: window.localStorage,",
+        "  navigator: window.navigator,",
+        "  setTimeoutFn: function (cb, ms) { return window.setTimeout(cb, ms); },",
+        "  clearTimeoutFn: function (id) { window.clearTimeout(id); }",
+        "}).attach();",
+      ].join("\n"),
+    ),
   },
   {
     entry: path.join(
@@ -60,21 +105,24 @@ const BUNDLES = [
     ),
     outfile: path.join(OUT_DIR, "progress-bar.client.js"),
     globalName: "ProgressBar",
-    footer: [
-      // HTMX fires htmx:afterSwap on the container around any swapped node,
-      // including OOB swaps targeting #article-body-progress. The listener
-      // re-anchors the bar against the new (tickAt, pct) so the rAF loop
-      // projects forward from there.
-      "ProgressBar.initProgressBars({",
-      "  document: window.document,",
-      "  now: function () { return Date.now(); },",
-      "  requestAnimationFrame: function (cb) { return window.requestAnimationFrame(cb); },",
-      "  cancelAnimationFrame: function (id) { window.cancelAnimationFrame(id); },",
-      "  addSwapListener: function (listener) {",
-      "    window.document.body.addEventListener('htmx:afterSwap', listener);",
-      "  }",
-      "});",
-    ].join("\n"),
+    footer: runOnce(
+      "__progressBarInit",
+      [
+        // HTMX fires htmx:afterSwap on the container around any swapped node,
+        // including OOB swaps targeting #article-body-progress. The listener
+        // re-anchors the bar against the new (tickAt, pct) so the rAF loop
+        // projects forward from there.
+        "ProgressBar.initProgressBars({",
+        "  document: window.document,",
+        "  now: function () { return Date.now(); },",
+        "  requestAnimationFrame: function (cb) { return window.requestAnimationFrame(cb); },",
+        "  cancelAnimationFrame: function (id) { window.cancelAnimationFrame(id); },",
+        "  addSwapListener: function (listener) {",
+        "    window.document.body.addEventListener('htmx:afterSwap', listener);",
+        "  }",
+        "});",
+      ].join("\n"),
+    ),
   },
   {
     entry: path.join(
@@ -83,15 +131,18 @@ const BUNDLES = [
     ),
     outfile: path.join(OUT_DIR, "reader-nav.client.js"),
     globalName: "ReaderNav",
-    footer: [
-      "ReaderNav.initReaderNav({",
-      "  document: window.document,",
-      "  window: window,",
-      "  addSwapListener: function (listener) {",
-      "    window.document.body.addEventListener('htmx:afterSwap', listener);",
-      "  }",
-      "});",
-    ].join("\n"),
+    footer: runOnce(
+      "__readerNavInit",
+      [
+        "ReaderNav.initReaderNav({",
+        "  document: window.document,",
+        "  window: window,",
+        "  addSwapListener: function (listener) {",
+        "    window.document.body.addEventListener('htmx:afterSwap', listener);",
+        "  }",
+        "});",
+      ].join("\n"),
+    ),
   },
   {
     entry: path.join(
@@ -115,47 +166,48 @@ const BUNDLES = [
     entry: path.join(PROJECT_ROOT, "src/runtime/web/pages/home/home.client.ts"),
     outfile: path.join(OUT_DIR, "home.client.js"),
     globalName: "HomeClient",
-    footer: [
-      "document.addEventListener('DOMContentLoaded', function () {",
-      "  HomeClient.initHeadlineRotator({",
-      "    document: window.document,",
-      "    prefersReducedMotion: function () {",
-      "      return window.matchMedia('(prefers-reduced-motion: reduce)').matches;",
-      "    },",
-      "    setTimeoutFn: function (cb, ms) { return window.setTimeout(cb, ms); },",
-      "    clearTimeoutFn: function (id) { window.clearTimeout(id); },",
-      "    addVisibilityListener: function (cb) {",
-      "      window.document.addEventListener('visibilitychange', cb);",
-      "    },",
-      "    isHidden: function () { return window.document.visibilityState === 'hidden'; }",
-      "  });",
-      "  HomeClient.initSloganRotator({",
-      "    document: window.document,",
-      "    prefersReducedMotion: function () {",
-      "      return window.matchMedia('(prefers-reduced-motion: reduce)').matches;",
-      "    },",
-      "    setTimeoutFn: function (cb, ms) { return window.setTimeout(cb, ms); },",
-      "    clearTimeoutFn: function (id) { window.clearTimeout(id); },",
-      "    addVisibilityListener: function (cb) {",
-      "      window.document.addEventListener('visibilitychange', cb);",
-      "    },",
-      "    isHidden: function () { return window.document.visibilityState === 'hidden'; }",
-      "  });",
-      "  HomeClient.initScrollHint({",
-      "    document: window.document,",
-      "    prefersReducedMotion: function () {",
-      "      return window.matchMedia('(prefers-reduced-motion: reduce)').matches;",
-      "    },",
-      "    scrollTo: function (y) { window.scrollTo(0, y); },",
-      "    pageYOffset: function () { return window.pageYOffset; },",
-      "    now: function () { return window.performance.now(); },",
-      "    requestAnimationFrame: function (cb) { return window.requestAnimationFrame(cb); },",
-      "    computedHeaderTop: function (header) {",
-      "      return parseFloat(window.getComputedStyle(header).top);",
-      "    }",
-      "  });",
-      "});",
-    ].join("\n"),
+    footer: runOnceOnReady(
+      "__homeInit",
+      [
+        "  HomeClient.initHeadlineRotator({",
+        "    document: window.document,",
+        "    prefersReducedMotion: function () {",
+        "      return window.matchMedia('(prefers-reduced-motion: reduce)').matches;",
+        "    },",
+        "    setTimeoutFn: function (cb, ms) { return window.setTimeout(cb, ms); },",
+        "    clearTimeoutFn: function (id) { window.clearTimeout(id); },",
+        "    addVisibilityListener: function (cb) {",
+        "      window.document.addEventListener('visibilitychange', cb);",
+        "    },",
+        "    isHidden: function () { return window.document.visibilityState === 'hidden'; }",
+        "  });",
+        "  HomeClient.initSloganRotator({",
+        "    document: window.document,",
+        "    prefersReducedMotion: function () {",
+        "      return window.matchMedia('(prefers-reduced-motion: reduce)').matches;",
+        "    },",
+        "    setTimeoutFn: function (cb, ms) { return window.setTimeout(cb, ms); },",
+        "    clearTimeoutFn: function (id) { window.clearTimeout(id); },",
+        "    addVisibilityListener: function (cb) {",
+        "      window.document.addEventListener('visibilitychange', cb);",
+        "    },",
+        "    isHidden: function () { return window.document.visibilityState === 'hidden'; }",
+        "  });",
+        "  HomeClient.initScrollHint({",
+        "    document: window.document,",
+        "    prefersReducedMotion: function () {",
+        "      return window.matchMedia('(prefers-reduced-motion: reduce)').matches;",
+        "    },",
+        "    scrollTo: function (y) { window.scrollTo(0, y); },",
+        "    pageYOffset: function () { return window.pageYOffset; },",
+        "    now: function () { return window.performance.now(); },",
+        "    requestAnimationFrame: function (cb) { return window.requestAnimationFrame(cb); },",
+        "    computedHeaderTop: function (header) {",
+        "      return parseFloat(window.getComputedStyle(header).top);",
+        "    }",
+        "  });",
+      ].join("\n"),
+    ),
   },
   {
     entry: path.join(
@@ -164,19 +216,22 @@ const BUNDLES = [
     ),
     outfile: path.join(OUT_DIR, "import.client.js"),
     globalName: "ImportClient",
-    footer: [
-      "ImportClient.initIndeterminateCheckboxes({",
-      "  document: window.document,",
-      "  addSwapListener: function (listener) {",
-      "    window.document.body.addEventListener('htmx:afterSwap', listener);",
-      "  }",
-      "});",
-      "ImportClient.initUploadProgress({",
-      "  document: window.document,",
-      "  formatBytes: ImportClient.formatBytes,",
-      "  nativeSubmit: function (form) { form.submit(); }",
-      "});",
-    ].join("\n"),
+    footer: runOnce(
+      "__importInit",
+      [
+        "ImportClient.initIndeterminateCheckboxes({",
+        "  document: window.document,",
+        "  addSwapListener: function (listener) {",
+        "    window.document.body.addEventListener('htmx:afterSwap', listener);",
+        "  }",
+        "});",
+        "ImportClient.initUploadProgress({",
+        "  document: window.document,",
+        "  formatBytes: ImportClient.formatBytes,",
+        "  nativeSubmit: function (form) { form.submit(); }",
+        "});",
+      ].join("\n"),
+    ),
   },
   {
     entry: path.join(
@@ -185,38 +240,41 @@ const BUNDLES = [
     ),
     outfile: path.join(OUT_DIR, "account-cards.client.js"),
     globalName: "AccountCards",
-    footer: [
-      // Stripe.js must load from js.stripe.com for PCI SAQ-A — it is the one
-      // allowed cross-origin script. This loader injects that tag on demand,
-      // then returns the Stripe instance bound to the publishable key the
-      // server rendered into the Elements container's data-* attributes.
-      "AccountCards.initAccountCards({",
-      "  document: window.document,",
-      "  loadStripe: function (publishableKey) {",
-      "    return new Promise(function (resolve, reject) {",
-      "      if (window.Stripe) { resolve(window.Stripe(publishableKey)); return; }",
-      "      var script = window.document.createElement('script');",
-      "      script.src = 'https://js.stripe.com/v3/';",
-      "      script.onload = function () { resolve(window.Stripe(publishableKey)); };",
-      "      script.onerror = function () { reject(new Error('Failed to load Stripe.js')); };",
-      "      window.document.head.appendChild(script);",
-      "    });",
-      "  },",
-      "  confirmAdd: function (confirmInput) {",
-      "    var form = window.document.createElement('form');",
-      "    form.method = 'POST';",
-      "    form.action = '/account/cards/confirm';",
-      "    var input = window.document.createElement('input');",
-      "    input.type = 'hidden';",
-      "    input.name = 'setupId';",
-      "    input.value = confirmInput.setupId;",
-      "    form.appendChild(input);",
-      "    window.document.body.appendChild(form);",
-      "    form.submit();",
-      "  },",
-      "  addSettleListener: function (cb) { window.document.body.addEventListener('htmx:afterSettle', cb); }",
-      "});",
-    ].join("\n"),
+    footer: runOnce(
+      "__accountCardsInit",
+      [
+        // Stripe.js must load from js.stripe.com for PCI SAQ-A — it is the one
+        // allowed cross-origin script. This loader injects that tag on demand,
+        // then returns the Stripe instance bound to the publishable key the
+        // server rendered into the Elements container's data-* attributes.
+        "AccountCards.initAccountCards({",
+        "  document: window.document,",
+        "  loadStripe: function (publishableKey) {",
+        "    return new Promise(function (resolve, reject) {",
+        "      if (window.Stripe) { resolve(window.Stripe(publishableKey)); return; }",
+        "      var script = window.document.createElement('script');",
+        "      script.src = 'https://js.stripe.com/v3/';",
+        "      script.onload = function () { resolve(window.Stripe(publishableKey)); };",
+        "      script.onerror = function () { reject(new Error('Failed to load Stripe.js')); };",
+        "      window.document.head.appendChild(script);",
+        "    });",
+        "  },",
+        "  confirmAdd: function (confirmInput) {",
+        "    var form = window.document.createElement('form');",
+        "    form.method = 'POST';",
+        "    form.action = '/account/cards/confirm';",
+        "    var input = window.document.createElement('input');",
+        "    input.type = 'hidden';",
+        "    input.name = 'setupId';",
+        "    input.value = confirmInput.setupId;",
+        "    form.appendChild(input);",
+        "    window.document.body.appendChild(form);",
+        "    form.submit();",
+        "  },",
+        "  addSettleListener: function (cb) { window.document.body.addEventListener('htmx:afterSettle', cb); }",
+        "});",
+      ].join("\n"),
+    ),
   },
   {
     entry: path.join(
@@ -225,14 +283,17 @@ const BUNDLES = [
     ),
     outfile: path.join(OUT_DIR, "crawl-bookmark.client.js"),
     globalName: "CrawlBookmark",
-    footer: [
-      "CrawlBookmark.initCrawlBookmark({",
-      "  document: window.document,",
-      "  isNarrow: function () { return window.matchMedia('(max-width: 767px)').matches; },",
-      "  storage: window.localStorage,",
-      "  addSwapListener: function (cb) { window.document.body.addEventListener('htmx:afterSwap', function (e) { cb(e.target); }); }",
-      "}).attach();",
-    ].join("\n"),
+    footer: runOnce(
+      "__crawlBookmarkInit",
+      [
+        "CrawlBookmark.initCrawlBookmark({",
+        "  document: window.document,",
+        "  isNarrow: function () { return window.matchMedia('(max-width: 767px)').matches; },",
+        "  storage: window.localStorage,",
+        "  addSwapListener: function (cb) { window.document.body.addEventListener('htmx:afterSwap', function (e) { cb(e.target); }); }",
+        "}).attach();",
+      ].join("\n"),
+    ),
   },
   {
     entry: path.join(
@@ -241,16 +302,17 @@ const BUNDLES = [
     ),
     outfile: path.join(OUT_DIR, "expiry-counter.client.js"),
     globalName: "ExpiryCounter",
-    footer: [
-      "document.addEventListener('DOMContentLoaded', function () {",
-      "  ExpiryCounter.initExpiryCounter({",
-      "    document: window.document,",
-      "    now: function () { return Date.now(); },",
-      "    setIntervalFn: function (cb, ms) { return window.setInterval(cb, ms); },",
-      "    clearIntervalFn: function (id) { window.clearInterval(id); }",
-      "  });",
-      "});",
-    ].join("\n"),
+    footer: runOnceOnReady(
+      "__expiryCounterInit",
+      [
+        "  ExpiryCounter.initExpiryCounter({",
+        "    document: window.document,",
+        "    now: function () { return Date.now(); },",
+        "    setIntervalFn: function (cb, ms) { return window.setInterval(cb, ms); },",
+        "    clearIntervalFn: function (id) { window.clearInterval(id); }",
+        "  });",
+      ].join("\n"),
+    ),
   },
   {
     entry: path.join(
@@ -259,15 +321,16 @@ const BUNDLES = [
     ),
     outfile: path.join(OUT_DIR, "save-error.client.js"),
     globalName: "SaveErrorCountdown",
-    footer: [
-      "document.addEventListener('DOMContentLoaded', function () {",
-      "  SaveErrorCountdown.initSaveErrorCountdown({",
-      "    document: window.document,",
-      "    setIntervalFn: function (cb, ms) { return window.setInterval(cb, ms); },",
-      "    clearIntervalFn: function (id) { window.clearInterval(id); }",
-      "  });",
-      "});",
-    ].join("\n"),
+    footer: runOnceOnReady(
+      "__saveErrorInit",
+      [
+        "  SaveErrorCountdown.initSaveErrorCountdown({",
+        "    document: window.document,",
+        "    setIntervalFn: function (cb, ms) { return window.setInterval(cb, ms); },",
+        "    clearIntervalFn: function (id) { window.clearInterval(id); }",
+        "  });",
+      ].join("\n"),
+    ),
   },
   {
     entry: path.join(
@@ -276,18 +339,19 @@ const BUNDLES = [
     ),
     outfile: path.join(OUT_DIR, "view-paywall.client.js"),
     globalName: "ViewPaywall",
-    footer: [
-      "document.addEventListener('DOMContentLoaded', function () {",
-      "  ViewPaywall.initViewPaywall({",
-      "    document: window.document,",
-      "    window: window,",
-      "    now: function () { return Date.now(); },",
-      "    setTimeoutFn: function (cb, ms) { return window.setTimeout(cb, ms); },",
-      "    clearTimeoutFn: function (id) { window.clearTimeout(id); },",
-      "    dispatchDocumentEvent: function (type) { window.document.dispatchEvent(new Event(type)); }",
-      "  });",
-      "});",
-    ].join("\n"),
+    footer: runOnceOnReady(
+      "__viewPaywallInit",
+      [
+        "  ViewPaywall.initViewPaywall({",
+        "    document: window.document,",
+        "    window: window,",
+        "    now: function () { return Date.now(); },",
+        "    setTimeoutFn: function (cb, ms) { return window.setTimeout(cb, ms); },",
+        "    clearTimeoutFn: function (id) { window.clearTimeout(id); },",
+        "    dispatchDocumentEvent: function (type) { window.document.dispatchEvent(new Event(type)); }",
+        "  });",
+      ].join("\n"),
+    ),
   },
   {
     entry: path.join(
@@ -296,16 +360,19 @@ const BUNDLES = [
     ),
     outfile: path.join(OUT_DIR, "summary-toggle.client.js"),
     globalName: "SummaryToggle",
-    footer: [
-      // navigator.sendBeacon keeps the request alive past the toggle even if
-      // the reader navigates away immediately after; the swap listener re-binds
-      // to the fresh <details> a poll response splices in.
-      "SummaryToggle.initSummaryToggleBeacon({",
-      "  document: window.document,",
-      "  sendBeacon: function (url) { window.navigator.sendBeacon(url); },",
-      "  addSwapListener: function (cb) { document.body.addEventListener('htmx:afterSwap', cb); }",
-      "});",
-    ].join("\n"),
+    footer: runOnce(
+      "__summaryToggleInit",
+      [
+        // navigator.sendBeacon keeps the request alive past the toggle even if
+        // the reader navigates away immediately after; the swap listener re-binds
+        // to the fresh <details> a poll response splices in.
+        "SummaryToggle.initSummaryToggleBeacon({",
+        "  document: window.document,",
+        "  sendBeacon: function (url) { window.navigator.sendBeacon(url); },",
+        "  addSwapListener: function (cb) { document.body.addEventListener('htmx:afterSwap', cb); }",
+        "});",
+      ].join("\n"),
+    ),
   },
 ];
 

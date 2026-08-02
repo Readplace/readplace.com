@@ -181,6 +181,27 @@ describe("Base component", () => {
 		expect(main.firstElementChild?.tagName).toBe("STYLE");
 	});
 
+	it("injects the page's own scripts at the end of <main> while global scripts stay outside it", () => {
+		const page = createTestPageBody({
+			scripts: '<script src="/client-dist/reader-iframe.client.js" defer></script>',
+			content: { html: "<main><p>Test content</p></main>" },
+		});
+		const result = Base(page, GUEST_STATE).to("text/html");
+		const doc = new JSDOM(result.body).window.document;
+
+		const main = doc.querySelector("main");
+		assert(main, "the test page renders a <main>");
+		// The page bundle rides inside <main> so an htmx boosted swap re-runs it.
+		expect(main.lastElementChild?.tagName).toBe("SCRIPT");
+		expect(main.querySelector('script[src="/client-dist/reader-iframe.client.js"]')).not.toBeNull();
+
+		// Global scripts (htmx, toast) load once, so they must stay outside <main>.
+		expect(main.querySelector('script[src*="htmx"]')).toBeNull();
+		const toast = doc.querySelector('script[src*="/client-dist/toast.client.js"]');
+		assert(toast, "toast is a global script and must still load");
+		expect(toast.closest("main")).toBeNull();
+	});
+
 	it("should apply bodyClass when provided", () => {
 		const page = createTestPageBody({ bodyClass: "page-home" });
 		const result = Base(page, GUEST_STATE).to("text/html");

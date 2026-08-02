@@ -21,6 +21,7 @@ import type { Component, ParsedComponent } from "./component.types";
 import type { CspNonce } from "./csp-nonce.middleware";
 import { HtmlPage } from "./html-page";
 import { htmxScripts } from "./htmx-script";
+import { injectPageScriptsIntoMain } from "./inject-page-scripts";
 import { injectPageStylesIntoMain } from "./inject-page-styles";
 import { htmlToMarkdown } from "./html-to-markdown";
 import { MarkdownPage } from "./markdown-page";
@@ -275,11 +276,18 @@ export function initBase(config: BaseConfig): RenderBase {
 				accessIsReadOnly: state.accessIsReadOnly ?? false,
 				trialCounter: state.trial,
 			}),
-			content: injectPageStylesIntoMain({
-				content: body.content.html,
-				styles: body.styles,
-				cspNonce: state.cspNonce,
-			}),
+			// Page scripts — the page's own bundle plus any per-request markup — ride
+			// inside <main> (see injectPageScriptsIntoMain) so an htmx boosted swap
+			// re-runs them on the destination page; the global scripts below stay
+			// outside <main> so they load exactly once.
+			content: injectPageScriptsIntoMain(
+				injectPageStylesIntoMain({
+					content: body.content.html,
+					styles: body.styles,
+					cspNonce: state.cspNonce,
+				}),
+				(body.scripts ?? "") + (state.requestScripts ?? ""),
+			),
 			footer: renderFooter(),
 			navScript: navScript(state.cspNonce),
 			offlineScript: offlineIndicatorScript(state.cspNonce),
@@ -288,8 +296,6 @@ export function initBase(config: BaseConfig): RenderBase {
 				EXTENSION_SUGGESTION_BANNER_SCRIPT +
 				TOAST_SCRIPT +
 				(trialChipCarriesInstant(state.trial) ? TRIAL_COUNTDOWN_SCRIPT : "") +
-				(body.scripts ?? "") +
-				(state.requestScripts ?? "") +
 				siteScripts +
 				liveReloadScript,
 		});
