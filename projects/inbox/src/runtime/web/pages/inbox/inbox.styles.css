@@ -1,7 +1,7 @@
 .inbox {
   max-width: 760px;
   margin: 0 auto;
-  padding: 24px 20px;
+  padding: clamp(16px, 4vw, 32px) clamp(12px, 4vw, 24px) clamp(48px, 9vw, 80px);
 }
 
 .inbox__header {
@@ -14,12 +14,14 @@
   font-weight: 700;
   color: var(--foreground);
   margin: 0 0 4px;
+  text-wrap: balance;
 }
 
 .inbox__subtitle {
   font-size: 1rem;
   color: var(--muted-foreground);
   margin: 0;
+  text-wrap: pretty;
 }
 
 .inbox__error {
@@ -30,6 +32,7 @@
   border: 1px solid var(--error-text);
   border-radius: var(--radius);
   font-size: 1rem;
+  text-wrap: pretty;
 }
 
 .inbox__success {
@@ -40,6 +43,7 @@
   border: 1px solid var(--success);
   border-radius: var(--radius);
   font-size: 1rem;
+  text-wrap: pretty;
 }
 
 .inbox__success--visible {
@@ -199,6 +203,7 @@
 .inbox__empty {
   color: var(--muted-foreground);
   margin: 0 0 24px;
+  text-wrap: pretty;
 }
 
 .inbox__empty--visible {
@@ -256,6 +261,7 @@
   font-weight: 600;
   color: var(--foreground);
   margin: 0 0 8px;
+  text-wrap: balance;
 }
 
 .inbox__steps {
@@ -263,6 +269,7 @@
   padding-left: 24px;
   color: var(--muted-foreground);
   line-height: 1.8;
+  text-wrap: pretty;
 }
 
 .inbox__steps-link {

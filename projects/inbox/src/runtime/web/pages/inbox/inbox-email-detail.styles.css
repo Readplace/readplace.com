@@ -1,7 +1,7 @@
 .inbox-email-detail {
   max-width: 760px;
   margin: 0 auto;
-  padding: 24px 20px;
+  padding: clamp(16px, 4vw, 32px) clamp(12px, 4vw, 24px) clamp(48px, 9vw, 80px);
 }
 
 .inbox-email-detail__header {
@@ -29,6 +29,7 @@
   color: var(--foreground);
   overflow-wrap: anywhere;
   margin: 0 0 8px;
+  text-wrap: balance;
 }
 
 .inbox-email-detail__meta {
@@ -120,11 +121,13 @@
   background: var(--muted);
   border: 1px solid var(--border);
   border-radius: var(--radius);
+  text-wrap: pretty;
 }
 
 .inbox-email-detail__notice {
   color: var(--muted-foreground);
   font-size: 0.875rem;
+  text-wrap: pretty;
 }
 
 .inbox-email-detail__articles {
@@ -285,6 +288,7 @@
   font-size: 0.875rem;
   color: var(--muted-foreground);
   margin: 0 0 12px;
+  text-wrap: pretty;
 }
 
 .inbox-excluded-link {
