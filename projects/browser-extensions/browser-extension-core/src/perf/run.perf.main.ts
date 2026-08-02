@@ -54,25 +54,18 @@ function initRecordingFetch(routes: Record<string, PerfRouteHandler>): {
 	return { fetchFn, calls };
 }
 
-function queueCollectionBody(): string {
-	return JSON.stringify({
-		class: ["collection", "articles"],
-		entities: [],
-		links: [{ rel: ["self"], href: "/queue" }],
-		actions: [
-			{
-				name: "save-article",
-				href: "/queue",
-				method: "POST",
-				type: "application/json",
-				fields: [{ name: "url", type: "url" }],
-			},
-		],
-	});
+function saveArticleAction() {
+	return {
+		name: "save-article",
+		href: "/queue",
+		method: "POST",
+		type: "application/json",
+		fields: [{ name: "url", type: "url" }],
+	};
 }
 
-function savedArticleBody(): string {
-	return JSON.stringify({
+function savedArticleEntity() {
+	return {
 		class: ["article"],
 		rel: ["item"],
 		properties: {
@@ -89,7 +82,22 @@ function savedArticleBody(): string {
 				method: "POST",
 			},
 		],
+	};
+}
+
+function queueCollectionBody(
+	entities: ReturnType<typeof savedArticleEntity>[],
+): string {
+	return JSON.stringify({
+		class: ["collection", "articles"],
+		entities,
+		links: [{ rel: ["self"], href: "/queue" }],
+		actions: [saveArticleAction()],
 	});
+}
+
+function savedArticleBody(): string {
+	return JSON.stringify(savedArticleEntity());
 }
 
 function tokenGrantBody(): string {
@@ -100,11 +108,12 @@ function tokenGrantBody(): string {
 }
 
 const QUEUE_ETAG = '"queue-v1"';
+const SAVED_QUEUE_ETAG = '"queue-v2"';
 
 function entryPointRoute(): PerfRoute {
 	return {
 		status: 200,
-		body: queueCollectionBody(),
+		body: queueCollectionBody([]),
 		headers: { etag: QUEUE_ETAG },
 	};
 }
@@ -246,7 +255,53 @@ function repeatSave(): SaveLatencyScenario {
 	};
 }
 
-const SCENARIOS = [warmSave(), coldBootSave(), repeatSave()];
+function saveThenViewQueue(): SaveLatencyScenario {
+	return {
+		name: "a list opened from the saved view",
+		expectedCalls: [ENTRY_POINT_CALL, SAVE_CALL, COLLECTION_CALL],
+		measure: async () => {
+			const network = initVirtualNetwork({ roundTripMs: SIMULATED_ROUND_TRIP_MS });
+			const { fetchFn, calls } = initRecordingFetch({
+				[ENTRY_POINT_CALL]: entryPointRoute(),
+				[SAVE_CALL]: saveRoute(),
+				[COLLECTION_CALL]: (init) => {
+					assert.equal(
+						new Headers(init.headers).get("If-None-Match"),
+						QUEUE_ETAG,
+						"opening the list must revalidate the entry point the save already holds",
+					);
+					return {
+						status: 200,
+						body: queueCollectionBody([savedArticleEntity()]),
+						headers: { etag: SAVED_QUEUE_ETAG },
+					};
+				},
+			});
+			const readingList = initReadingList({
+				fetchFn: network.chargeRoundTrips(fetchFn),
+				getAccessToken: async () => "perf-access-token",
+			});
+
+			const saved = await readingList.saveUrl({
+				url: SAVED_URL,
+				title: "Perf sample",
+			});
+			assert(saved.ok, "the save the list is opened from must succeed");
+			const savedMs = network.elapsedMs();
+
+			const page = await readingList.getItems();
+			assert.equal(
+				page.items.length,
+				1,
+				"the opened list must carry the article the save just added",
+			);
+
+			return { virtualMs: network.elapsedMs() - savedMs, calls };
+		},
+	};
+}
+
+const SCENARIOS = [warmSave(), coldBootSave(), repeatSave(), saveThenViewQueue()];
 const scenarioMeansMs: number[] = [];
 
 for (const scenario of SCENARIOS) {

@@ -37,6 +37,7 @@ const READY_NONCE = randomUUID();
 
 const TEST_LINK_URL = "https://example.com/test-article";
 const TEST_LINK_TITLE = "Test Article";
+const TRANSITION_FLOW = "extension-view-queue-chrome";
 
 // The suite must always end: a test cancelled by --test-timeout skips its
 // teardown, and the orphaned e2e-server child then holds this process open
@@ -259,6 +260,7 @@ async function runTest() {
 			testUrl: TEST_LINK_URL,
 			testTitle: TEST_LINK_TITLE,
 			popupWindowHandle,
+			transitionFlow: TRANSITION_FLOW,
 			progress: saveLinkProgress,
 		});
 

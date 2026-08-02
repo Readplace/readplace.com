@@ -2,6 +2,7 @@ import assert from "node:assert/strict";
 import { By, until } from "selenium-webdriver";
 import type { WebDriver } from "selenium-webdriver";
 import { CSS_SELECTORS, READER_PERMALINK_PATTERN, type FlowAction } from "../e2e";
+import { captureTransitionFrames } from "./transition-frames";
 import { waitForUi } from "./wait-budget";
 
 export interface SaveLinkProgress {
@@ -13,11 +14,43 @@ export interface SaveLinkProgress {
 const EXTRA_LINK_URL = "https://example.com/extra-test-link";
 const EXTRA_LINK_TITLE = "Extra Test Link";
 
+const REVEAL_SNAPSHOT_KEY = "__listViewRevealSnapshot";
+
+const INSTALL_REVEAL_PROBE = `
+const listView = document.getElementById("list-view");
+const linkList = document.getElementById("link-list");
+window.${REVEAL_SNAPSHOT_KEY} = null;
+const observer = new MutationObserver(() => {
+	const revealed = !listView.hidden;
+	if (!revealed) return;
+	observer.disconnect();
+	const rows = document.querySelectorAll(${JSON.stringify(CSS_SELECTORS.listItem)});
+	window.${REVEAL_SNAPSHOT_KEY} = [
+		linkList.childElementCount,
+		...Array.from(rows).map((row) => row.href),
+	];
+});
+observer.observe(listView, { attributes: true, attributeFilter: ["hidden"] });
+`;
+
+async function readRevealSnapshot(
+	driver: WebDriver,
+): Promise<{ rowCount: number; hrefs: string[] } | null> {
+	const raw = await driver.executeScript(
+		`return window.${REVEAL_SNAPSHOT_KEY};`,
+	);
+	if (raw === null) return null;
+	assert.ok(Array.isArray(raw), "the reveal probe must answer with an array");
+	const [rowCount, ...hrefs] = raw;
+	return { rowCount: Number(rowCount), hrefs: hrefs.map(String) };
+}
+
 export function createSaveLinkActions(config: {
 	popupUrl: string;
 	testUrl: string;
 	testTitle: string;
 	popupWindowHandle: string;
+	transitionFlow: string;
 	progress: SaveLinkProgress;
 }): Map<string, FlowAction<WebDriver>> {
 	const actions = new Map<string, FlowAction<WebDriver>>();
@@ -67,16 +100,32 @@ export function createSaveLinkActions(config: {
 			}
 		},
 		async execute(driver: WebDriver): Promise<void> {
-			await driver.get(config.popupUrl);
-			await waitForUi(driver, async () => {
-				try {
-					const listView = await driver.findElement(By.id("list-view"));
-					const hidden = await listView.getAttribute("hidden");
-					return hidden === null;
-				} catch {
-					return false;
-				}
-			});
+			await driver.executeScript(INSTALL_REVEAL_PROBE);
+
+			const queueButton = await driver.findElement(
+				By.css(CSS_SELECTORS.savedViewQueueButton),
+			);
+			await queueButton.click();
+
+			await captureTransitionFrames({ driver, flow: config.transitionFlow });
+
+			const revealed = await waitForUi(
+				driver,
+				() => readRevealSnapshot(driver),
+				"the saved view's queue control never revealed the list view",
+			);
+			assert.ok(revealed, "the reveal probe resolved without a snapshot");
+			assert.ok(
+				revealed.rowCount >= 1,
+				`the list view became visible with ${revealed.rowCount} rows painted, so the reader saw an empty list first`,
+			);
+			assert.ok(
+				revealed.hrefs.some(
+					(href) =>
+						href === config.testUrl || READER_PERMALINK_PATTERN.test(href),
+				),
+				`Expected "${config.testUrl}" or a reader URL among the hrefs at reveal, but found: ${revealed.hrefs.join(", ")}`,
+			);
 		},
 	});
 

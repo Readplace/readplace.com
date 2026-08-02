@@ -285,24 +285,25 @@ function visiblePageList(): PageDescriptor[] {
 	return filterQuery() === "" ? pageList : [];
 }
 
-async function loadAllItems() {
+async function loadAllItems(): Promise<"loaded" | "failed" | "logged-out"> {
 	const result = await send<GuardedResult<CollectionPage>>({
 		type: "get-all-items",
 	});
 
 	if (isNotLoggedIn(result)) {
 		await performLogout();
-		return;
+		return "logged-out";
 	}
 
 	if (!result.ok) {
 		setListError("Failed to load links");
-		return;
+		return "failed";
 	}
 
 	currentItems = result.value.items;
 	pageList = result.value.pages;
 	renderLinks(filterItems());
+	return "loaded";
 }
 
 async function loadPage(index: number): Promise<void> {
@@ -426,10 +427,10 @@ function renderSavedView(saved: { item: ReadingListItem; messages: Message[] }):
 }
 
 async function showListView() {
-	showView("list-view");
 	setListWarning(null);
 	renderMessages([]);
-	await loadAllItems();
+	if ((await loadAllItems()) === "logged-out") return;
+	showView("list-view");
 }
 
 async function getActiveTab(): Promise<{ url: string; title: string; tabId?: number } | null> {

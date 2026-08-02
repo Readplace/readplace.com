@@ -37,6 +37,7 @@ export const CSS_SELECTORS = {
 	 * button on /login and silently navigated the page away). */
 	submitButton: '[data-test-form="login"] button[type="submit"]',
 	approveButton: 'button[value="approve"]',
+	savedViewQueueButton: "#saved-affordances button",
 	listItem: "#link-list .list-view__item",
 	listItemTitle: "#link-list .list-view__item-title",
 	deleteButton: "#link-list .list-view__delete",

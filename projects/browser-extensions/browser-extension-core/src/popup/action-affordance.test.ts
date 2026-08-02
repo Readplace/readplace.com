@@ -63,6 +63,10 @@ describe("linkPresentation", () => {
 		expect(linkPresentation("read")).toBe("row-anchor");
 	});
 
+	it("maps the collection rel to the popup's own list surface", () => {
+		expect(linkPresentation("collection")).toBe("list-view");
+	});
+
 	it("falls back to a standalone control for an unknown semantic rel", () => {
 		expect(linkPresentation("summary")).toBe("control");
 	});
