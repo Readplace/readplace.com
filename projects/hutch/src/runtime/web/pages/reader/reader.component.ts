@@ -56,6 +56,7 @@ export function ReaderPage(
 		summaryPollUrl?: string;
 		crawl?: ArticleCrawl;
 		readerPollUrl?: string;
+		capturePollUrl?: string;
 		progress?: ProgressTick;
 		audioEnabled?: boolean;
 		extensionInstallUrl?: string;
@@ -92,6 +93,7 @@ export function ReaderPage(
 		content: article.content,
 		crawl: options.crawl,
 		readerPollUrl: options.readerPollUrl,
+		capturePollUrl: options.capturePollUrl,
 		summary: options.summary,
 		summaryPollUrl: options.summaryPollUrl,
 		summaryOpen: false,

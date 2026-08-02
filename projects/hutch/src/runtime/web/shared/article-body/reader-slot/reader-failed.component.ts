@@ -25,6 +25,7 @@ export interface ReaderFailedInput {
 	variant: ReaderFailedVariant;
 	/** Install URL for the browser extension; omit when the user already has it installed. */
 	extensionInstallUrl?: string;
+	capturePollUrl?: string;
 	oob?: boolean;
 }
 
@@ -43,6 +44,7 @@ export function renderReaderFailed(input: ReaderFailedInput): string {
 		hostname: new URL(input.url).hostname,
 		explanation: EXPLANATIONS[input.variant],
 		showCapture: input.variant === "blocked",
+		capturePollUrl: input.capturePollUrl,
 		extensionInstallUrl: input.extensionInstallUrl,
 		captureSurfaces: FULL_PAGE_CAPTURE_PHRASE,
 		oob: input.oob === true,

@@ -6,7 +6,7 @@
       Read it on {{hostname}} {{icon "arrow-right"}}
     </a>
     {{#if showCapture}}
-    <button type="button" class="article-body__reader-notice-capture article-body__reader-notice-capture--hidden" data-reader-capture data-test-reader-action="capture">
+    <button type="button" class="article-body__reader-notice-capture" data-reader-capture{{#if capturePollUrl}} data-reader-capture-poll="{{capturePollUrl}}"{{/if}} data-test-reader-action="capture">
       Capture it here {{icon "arrow-right"}}
     </button>
     {{/if}}

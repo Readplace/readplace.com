@@ -235,6 +235,7 @@ function handleViewArticle(deps: ViewDependencies, reader: ReturnType<typeof ini
 		const state = await reader.resolveReaderState({
 			article: { url: articleUrl, metadata, estimatedReadTime },
 			pollUrlBuilder,
+			capturing: false,
 		});
 
 		if (wantsMarkdown(req)) {
@@ -382,6 +383,7 @@ function handleViewSummary(deps: ViewDependencies, reader: ReturnType<typeof ini
 			articleUrl,
 			pollCount,
 			pollUrlBuilder: pollUrlBuilderFor(articleUrl),
+			capturing: false,
 			extensionInstallUrl: extensionInstallUrlIfMissing(req),
 			summaryToggleUrl: undefined,
 		});
@@ -407,6 +409,7 @@ function handleViewReader(deps: ViewDependencies, reader: ReturnType<typeof init
 			articleUrl,
 			pollCount,
 			pollUrlBuilder: pollUrlBuilderFor(articleUrl),
+			capturing: false,
 			extensionInstallUrl: extensionInstallUrlIfMissing(req),
 			summaryToggleUrl: undefined,
 		});

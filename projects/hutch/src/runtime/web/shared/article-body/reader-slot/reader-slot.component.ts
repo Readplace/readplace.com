@@ -12,6 +12,8 @@ export interface ReaderSlotInput {
 	readerPollUrl?: string;
 	extensionInstallUrl?: string;
 	appOrigin: string;
+	capturePollUrl?: string;
+	capturing?: boolean;
 	/* When true, the rendered slot carries `hx-swap-oob="outerHTML"` so HTMX
 	 * splices it into a sibling poll response and replaces the live slot. The
 	 * stable `id="article-body-reader-slot"` on every variant gives HTMX a
@@ -59,6 +61,29 @@ function failedVariant(reason: string): ReaderFailedVariant {
 	return "failed";
 }
 
+const CAPTURING_LABEL = "Copying the page from your device";
+
+function noticeOrCapture(
+	input: ReaderSlotInput,
+	variant: ReaderFailedVariant,
+	oob: boolean,
+): string {
+	if (input.capturing === true && input.readerPollUrl !== undefined) {
+		return renderReaderPending({
+			pollUrl: input.readerPollUrl,
+			label: CAPTURING_LABEL,
+			oob,
+		});
+	}
+	return renderReaderFailed({
+		url: input.url,
+		variant,
+		extensionInstallUrl: input.extensionInstallUrl,
+		capturePollUrl: input.capturePollUrl,
+		oob,
+	});
+}
+
 function pollOrSlow(input: ReaderSlotInput, oob: boolean): string {
 	return input.readerPollUrl
 		? renderReaderPending({
@@ -91,18 +116,8 @@ export function renderReaderSlot(input: ReaderSlotInput): string {
 		case "pending":
 			return pollOrSlow(input, oob);
 		case "failed":
-			return renderReaderFailed({
-				url: input.url,
-				variant: failedVariant(input.crawl.reason),
-				extensionInstallUrl: input.extensionInstallUrl,
-				oob,
-			});
+			return noticeOrCapture(input, failedVariant(input.crawl.reason), oob);
 		case "unsupported":
-			return renderReaderFailed({
-				url: input.url,
-				variant: "unsupported",
-				extensionInstallUrl: input.extensionInstallUrl,
-				oob,
-			});
+			return noticeOrCapture(input, "unsupported", oob);
 	}
 }

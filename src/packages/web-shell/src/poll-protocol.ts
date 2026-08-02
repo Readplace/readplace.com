@@ -9,6 +9,14 @@ import { z } from "zod";
 export const MAX_POLLS = 300;
 
 /**
+ * The same cursor, budgeted for an on-device capture rather than the server
+ * pipeline: the device render is a ~12s operation, so 20 × 3s = 60s covers it
+ * plus the upload and the row leaving `failed`. Past that the capture is not
+ * coming back, and continuing to claim it is in progress would be false.
+ */
+export const MAX_CAPTURE_POLLS = 20;
+
+/**
  * The htmx poll cursor arrives as an untrusted query string, so a non-numeric
  * `?poll=` (e.g. `?poll=abc`) coerces to NaN. Left as NaN it defeats the
  * `pollCount > maxPolls` budget check (every comparison with NaN is false), so

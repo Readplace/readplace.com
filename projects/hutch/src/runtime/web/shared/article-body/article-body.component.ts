@@ -28,6 +28,7 @@ export interface ArticleBodyInput {
 	content?: string;
 	crawl?: ArticleCrawl;
 	readerPollUrl?: string;
+	capturePollUrl?: string;
 	summary?: GeneratedSummary;
 	summaryPollUrl?: string;
 	summaryOpen?: boolean;
@@ -58,6 +59,7 @@ export function renderArticleBody(input: ArticleBodyInput): string {
 		content: input.content,
 		url: input.url,
 		readerPollUrl: input.readerPollUrl,
+		capturePollUrl: input.capturePollUrl,
 		extensionInstallUrl: input.extensionInstallUrl,
 		appOrigin: input.appOrigin,
 	});

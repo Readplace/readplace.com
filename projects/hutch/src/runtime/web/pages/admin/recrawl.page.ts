@@ -147,6 +147,7 @@ function handleShowRecrawlPage(
 				estimatedReadTime: existing.estimatedReadTime,
 			},
 			pollUrlBuilder: pollUrlBuilderFor(articleUrl),
+			capturing: false,
 		});
 
 		// `?started=1` is set by the POST-Redirect-GET landing after the recrawl
@@ -223,6 +224,7 @@ function handleSummaryPoll(reader: ReturnType<typeof initArticleReader>) {
 			articleUrl,
 			pollCount,
 			pollUrlBuilder: pollUrlBuilderFor(articleUrl),
+			capturing: false,
 			extensionInstallUrl: extensionInstallUrlIfMissing(req),
 			summaryToggleUrl: undefined,
 		});
@@ -244,6 +246,7 @@ function handleReaderPoll(reader: ReturnType<typeof initArticleReader>) {
 			articleUrl,
 			pollCount,
 			pollUrlBuilder: pollUrlBuilderFor(articleUrl),
+			capturing: false,
 			extensionInstallUrl: extensionInstallUrlIfMissing(req),
 			summaryToggleUrl: undefined,
 		});

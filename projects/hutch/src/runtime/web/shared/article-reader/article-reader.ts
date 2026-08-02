@@ -31,7 +31,7 @@ import type {
 	ReaderState,
 	ResolveReaderStateParams,
 } from "./article-reader.types";
-import { MAX_POLLS } from "@packages/web-shell";
+import { MAX_CAPTURE_POLLS, MAX_POLLS } from "@packages/web-shell";
 
 /**
  * Required input for every poll response. Holds the *full* world state — both
@@ -53,6 +53,8 @@ interface PollResponseBodyInput {
 	content: string | undefined;
 	readerPollUrl: string | undefined;
 	summaryPollUrl: string | undefined;
+	capturePollUrl: string;
+	capturing: boolean;
 	summaryOpen: boolean;
 	summaryToggleUrl: string | undefined;
 	extensionInstallUrl: string | undefined;
@@ -67,6 +69,8 @@ function renderPollResponseBody(input: PollResponseBodyInput): string {
 		content: input.content,
 		url: input.url,
 		readerPollUrl: input.readerPollUrl,
+		capturePollUrl: input.capturePollUrl,
+		capturing: input.capturing,
 		extensionInstallUrl: input.extensionInstallUrl,
 		oob: input.primary !== "reader",
 		appOrigin: input.appOrigin,
@@ -99,9 +103,21 @@ function computePollUrls(args: {
 	content: string | undefined;
 	pollCount: number;
 	pollUrlBuilder: PollUrlBuilder;
-}): { readerPollUrl: string | undefined; summaryPollUrl: string | undefined } {
+	capturing: boolean;
+}): {
+	readerPollUrl: string | undefined;
+	summaryPollUrl: string | undefined;
+	capturePollUrl: string;
+} {
+	/* The device capture is a ~12s operation, so it gets its own much shorter
+	 * budget than the server pipeline's. Past it the flag stops being re-armed
+	 * and the row falls back to the ordinary rules — a capture that died on the
+	 * device returns the user to the notice (and its retry) in a minute rather
+	 * than showing "copying" for the pipeline's full 15. */
+	const capturingStillArmed = args.capturing && args.pollCount < MAX_CAPTURE_POLLS;
 	const readerStillRunning =
-		shouldKeepPollingReader(args.crawl, args.content) && args.pollCount < MAX_POLLS;
+		shouldKeepPollingReader(args.crawl, args.content, capturingStillArmed) &&
+		args.pollCount < MAX_POLLS;
 	const crawlTerminalFailure =
 		args.crawl?.status === "failed" || args.crawl?.status === "unsupported";
 	const summaryStillRunning =
@@ -110,11 +126,12 @@ function computePollUrls(args: {
 		args.pollCount < MAX_POLLS;
 	return {
 		readerPollUrl: readerStillRunning
-			? args.pollUrlBuilder.reader(args.pollCount + 1)
+			? args.pollUrlBuilder.reader(args.pollCount + 1, capturingStillArmed)
 			: undefined,
 		summaryPollUrl: summaryStillRunning
 			? args.pollUrlBuilder.summary(args.pollCount + 1)
 			: undefined,
+		capturePollUrl: args.pollUrlBuilder.reader(1, true),
 	};
 }
 
@@ -129,7 +146,9 @@ function computePollUrls(args: {
 function shouldKeepPollingReader(
 	crawl: ArticleCrawl | undefined,
 	content: string | undefined,
+	capturing: boolean,
 ): boolean {
+	if (capturing) return true;
 	if (crawl?.status === "pending") return true; /* 1 */
 	if (crawl === undefined && content === undefined) return true; /* 2 */
 	if (crawl?.status === "ready" && content === undefined) return true; /* 3 */
@@ -228,7 +247,7 @@ export function initArticleReader(deps: ArticleReaderDeps): {
 	async function resolveReaderState(
 		params: ResolveReaderStateParams,
 	): Promise<ReaderState> {
-		const { article, pollUrlBuilder } = params;
+		const { article, pollUrlBuilder, capturing } = params;
 		const crawl = await deps.findArticleCrawlStatus(article.url);
 		const summary = await deps.findGeneratedSummary(article.url);
 		const freshness = await deps.findArticleFreshness(article.url);
@@ -239,8 +258,8 @@ export function initArticleReader(deps: ArticleReaderDeps): {
 		const summaryPollUrl = summaryStatus === "pending"
 			? pollUrlBuilder.summary(1)
 			: undefined;
-		const readerPollUrl = shouldKeepPollingReader(crawl, content)
-			? pollUrlBuilder.reader(1)
+		const readerPollUrl = shouldKeepPollingReader(crawl, content, capturing)
+			? pollUrlBuilder.reader(1, capturing)
 			: undefined;
 
 		return {
@@ -249,6 +268,7 @@ export function initArticleReader(deps: ArticleReaderDeps): {
 			summary,
 			readerPollUrl,
 			summaryPollUrl,
+			capturePollUrl: pollUrlBuilder.reader(1, true),
 			progress: buildUnifiedProgress(crawl, summary, deps.now()),
 			crawlVersions: resolveCrawlVersions(versions, freshness?.contentFetchedAt),
 		};
@@ -287,8 +307,8 @@ export function initArticleReader(deps: ArticleReaderDeps): {
 			deps.readArticleContent(articleUrl),
 			deps.findArticleByUrl(articleUrl),
 		]);
-		const { readerPollUrl, summaryPollUrl } = computePollUrls({
-			crawl, summary, content, pollCount, pollUrlBuilder,
+		const { readerPollUrl, summaryPollUrl, capturePollUrl } = computePollUrls({
+			crawl, summary, content, pollCount, pollUrlBuilder, capturing: params.capturing,
 		});
 		return HtmlPage(renderPollResponseBody({
 			primary: "summary",
@@ -298,6 +318,8 @@ export function initArticleReader(deps: ArticleReaderDeps): {
 			content,
 			readerPollUrl,
 			summaryPollUrl,
+			capturePollUrl,
+			capturing: params.capturing,
 			summaryOpen: deps.summaryOpen,
 			summaryToggleUrl: params.summaryToggleUrl,
 			extensionInstallUrl,
@@ -315,8 +337,8 @@ export function initArticleReader(deps: ArticleReaderDeps): {
 			deps.readArticleContent(articleUrl),
 			deps.findArticleByUrl(articleUrl),
 		]);
-		const { readerPollUrl, summaryPollUrl } = computePollUrls({
-			crawl, summary, content, pollCount, pollUrlBuilder,
+		const { readerPollUrl, summaryPollUrl, capturePollUrl } = computePollUrls({
+			crawl, summary, content, pollCount, pollUrlBuilder, capturing: params.capturing,
 		});
 		return HtmlPage(renderPollResponseBody({
 			primary: "reader",
@@ -326,6 +348,8 @@ export function initArticleReader(deps: ArticleReaderDeps): {
 			content,
 			readerPollUrl,
 			summaryPollUrl,
+			capturePollUrl,
+			capturing: params.capturing,
 			summaryOpen: deps.summaryOpen,
 			summaryToggleUrl: params.summaryToggleUrl,
 			extensionInstallUrl,

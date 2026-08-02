@@ -1638,14 +1638,72 @@ describe("Queue routes", () => {
 				(el) => el.getAttribute("data-test-reader-action"),
 			);
 			expect(actions).toEqual(["open", "capture"]);
-			expect(
-				slot.querySelector("[data-reader-capture]")?.classList.contains(
-					"article-body__reader-notice-capture--hidden",
-				),
-			).toBe(true);
+			expect(slot.querySelector("[data-reader-capture]")?.className).toBe(
+				"article-body__reader-notice-capture",
+			);
 			expect(
 				slot.querySelector("[data-test-reader-failed-primary]")?.getAttribute("href"),
 			).toBe(ARTICLE_URL);
+		});
+
+		it("keeps the reader poll loop armed through the in-app capture, then lets the healed row stop it", async () => {
+			const crawlArticle = async () => ({
+				status: "fetched" as const,
+				html: "<html><body><article><p>x</p></article></body></html>",
+				bodyHash: "a".repeat(64),
+			});
+			const parseArticle = async () => ({
+				ok: false as const,
+				reason: JSON.stringify({ kind: "blocked", cause: "edge-block" }),
+			});
+			const fixture = createDefaultTestAppFixture(TEST_APP_ORIGIN);
+			const applyParseResult = createFakeApplyParseResult({
+				articleStore: fixture.articleStore,
+				articleCrawl: fixture.articleCrawl,
+				parseArticle,
+			});
+			const harness = useApp({
+				...fixture,
+				parser: { parseArticle, crawlArticle },
+				events: {
+					...fixture.events,
+					publishLinkSaved: createFakePublishLinkSaved(applyParseResult),
+					publishRecrawlLinkInitiated: createFakePublishRecrawlLinkInitiated(applyParseResult),
+					publishSaveAnonymousLink: createFakePublishSaveAnonymousLink(applyParseResult),
+				},
+			});
+			const agent = await loginAgent(harness.server, harness.auth);
+			const url = "https://example.com/edge-blocked-capture";
+			await agent.post("/queue/save").type("form").send({ url });
+			const articleId = new JSDOM((await agent.get("/queue")).text).window.document
+				.querySelector("[data-test-article-list] .queue-article")
+				?.getAttribute("data-test-article");
+			assert(articleId, "the saved article must render with an id");
+
+			const capturing = await agent.get(`/queue/${articleId}/reader?poll=1&capturing=1`);
+			expect(capturing.status).toBe(200);
+			const capturingSlot = new JSDOM(capturing.text).window.document.querySelector(
+				"[data-test-reader-slot]",
+			);
+			assert(capturingSlot, "reader slot must be rendered while the capture is in flight");
+			expect(capturingSlot.getAttribute("data-reader-status")).toBe("pending");
+			expect(
+				capturingSlot.querySelector(".article-body__reader-loading")?.textContent,
+			).toBe("Copying the page from your device");
+			expect(capturingSlot.getAttribute("hx-get")).toBe(
+				`/queue/${articleId}/reader?poll=2&capturing=1`,
+			);
+
+			await fixture.articleStore.writeContent({ url, content: "<p>Captured body</p>" });
+			await fixture.articleCrawl.markCrawlReady({ url });
+
+			const healed = await agent.get(`/queue/${articleId}/reader?poll=2&capturing=1`);
+			const healedSlot = new JSDOM(healed.text).window.document.querySelector(
+				"[data-test-reader-slot]",
+			);
+			assert(healedSlot, "reader slot must be rendered once the row heals");
+			expect(healedSlot.getAttribute("data-reader-status")).toBe("ready");
+			expect(healedSlot.hasAttribute("hx-get")).toBe(false);
 		});
 	});
 

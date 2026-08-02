@@ -327,6 +327,87 @@ describe("renderReaderSlot", () => {
 		expect(slot.getAttribute("data-reader-status")).toBe("slow");
 	});
 
+	it("stamps the capture kick-off URL on the blocked notice's capture control, even though a failed crawl has no live poll URL", () => {
+		const doc = parse(
+			renderReaderSlot({
+				crawl: {
+					status: "failed",
+					reason: JSON.stringify({ kind: "blocked", cause: "edge-block" }),
+				},
+				url: URL,
+				capturePollUrl: "/queue/abc/reader?poll=1&capturing=1",
+				appOrigin: APP_ORIGIN,
+			}),
+		);
+
+		const slot = doc.querySelector("[data-test-reader-slot]");
+		assert(slot, "reader slot must be rendered");
+		expect(slot.getAttribute("hx-get")).toBeNull();
+		expect(
+			slot.querySelector("[data-reader-capture]")?.getAttribute("data-reader-capture-poll"),
+		).toBe("/queue/abc/reader?poll=1&capturing=1");
+	});
+
+	it("swaps the blocked notice for the capturing pending state while an on-device capture is in flight", () => {
+		const doc = parse(
+			renderReaderSlot({
+				crawl: {
+					status: "failed",
+					reason: JSON.stringify({ kind: "blocked", cause: "edge-block" }),
+				},
+				url: URL,
+				readerPollUrl: "/queue/abc/reader?poll=2&capturing=1",
+				capturing: true,
+				appOrigin: APP_ORIGIN,
+			}),
+		);
+
+		const slot = doc.querySelector("[data-test-reader-slot]");
+		assert(slot, "reader slot must be rendered");
+		expect(slot.getAttribute("data-reader-status")).toBe("pending");
+		expect(slot.getAttribute("hx-get")).toBe("/queue/abc/reader?poll=2&capturing=1");
+		expect(doc.querySelector(".article-body__reader-loading")?.textContent).toBe(
+			"Copying the page from your device",
+		);
+	});
+
+	it("falls back to the blocked notice when a capture outlives the poll budget", () => {
+		const doc = parse(
+			renderReaderSlot({
+				crawl: {
+					status: "failed",
+					reason: JSON.stringify({ kind: "blocked", cause: "edge-block" }),
+				},
+				url: URL,
+				capturing: true,
+				appOrigin: APP_ORIGIN,
+			}),
+		);
+
+		const slot = doc.querySelector("[data-test-reader-slot]");
+		assert(slot, "reader slot must be rendered");
+		expect(slot.getAttribute("data-reader-status")).toBe("blocked");
+		expect(slot.getAttribute("hx-get")).toBeNull();
+	});
+
+	it("renders the healed article once the capture lands, so the poll fragment stops carrying hx-get", () => {
+		const doc = parse(
+			renderReaderSlot({
+				crawl: { status: "ready" },
+				content: "<p>Captured body</p>",
+				url: URL,
+				readerPollUrl: "/queue/abc/reader?poll=3&capturing=1",
+				capturing: true,
+				appOrigin: APP_ORIGIN,
+			}),
+		);
+
+		const slot = doc.querySelector("[data-test-reader-slot]");
+		assert(slot, "reader slot must be rendered");
+		expect(slot.getAttribute("data-reader-status")).toBe("ready");
+		expect(slot.getAttribute("hx-get")).toBeNull();
+	});
+
 	it("dispatches every CrawlStatus variant — adding a new variant must break this test (and the renderer's exhaustive switch)", () => {
 		const variants: Array<{
 			input: Parameters<typeof renderReaderSlot>[0];

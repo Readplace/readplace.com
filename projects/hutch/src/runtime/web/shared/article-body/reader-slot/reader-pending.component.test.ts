@@ -24,6 +24,19 @@ describe("renderReaderPending", () => {
 		).toBe("Generating clean reader view");
 	});
 
+	it("renders a supplied label in place of the default, keeping the animated-dots treatment", () => {
+		const doc = parse(
+			renderReaderPending({
+				pollUrl: "/queue/abc/reader?poll=1&capturing=1",
+				label: "Copying the page from your device",
+			}),
+		);
+
+		const loading = doc.querySelector(".article-body__reader-loading");
+		assert(loading, "the pending label must render");
+		expect(loading.textContent).toBe("Copying the page from your device");
+	});
+
 	it("omits the loading-hint subtitle when no hint is provided", () => {
 		const doc = parse(
 			renderReaderPending({ pollUrl: "/queue/abc/reader?poll=1" }),

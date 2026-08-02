@@ -32,7 +32,8 @@ function makeSnapshot(): ArticleSnapshot {
 function makePollUrlBuilder(): PollUrlBuilder {
 	return {
 		summary: (n) => `/test/summary?poll=${n}`,
-		reader: (n) => `/test/reader?poll=${n}`,
+		reader: (n, capturing) =>
+			`/test/reader?poll=${n}${capturing ? "&capturing=1" : ""}`,
 	};
 }
 
@@ -124,6 +125,7 @@ describe("initArticleReader", () => {
 			const result = await reader.resolveReaderState({
 				article: makeSnapshot(),
 				pollUrlBuilder: makePollUrlBuilder(),
+				capturing: false,
 			});
 
 			expect(result.crawl).toEqual({ status: "pending" });
@@ -149,6 +151,7 @@ describe("initArticleReader", () => {
 			const result = await reader.resolveReaderState({
 				article: makeSnapshot(),
 				pollUrlBuilder: makePollUrlBuilder(),
+				capturing: false,
 			});
 
 			// Provider versions win over the contentFetchedAt fallback.
@@ -175,6 +178,7 @@ describe("initArticleReader", () => {
 			const result = await reader.resolveReaderState({
 				article: makeSnapshot(),
 				pollUrlBuilder: makePollUrlBuilder(),
+				capturing: false,
 			});
 
 			expect(result.crawlVersions).toHaveLength(10);
@@ -204,6 +208,7 @@ describe("initArticleReader", () => {
 			const result = await reader.resolveReaderState({
 				article: makeSnapshot(),
 				pollUrlBuilder: makePollUrlBuilder(),
+				capturing: false,
 			});
 
 			expect(result.crawlVersions).toEqual([
@@ -221,6 +226,7 @@ describe("initArticleReader", () => {
 			const result = await reader.resolveReaderState({
 				article: makeSnapshot(),
 				pollUrlBuilder: makePollUrlBuilder(),
+				capturing: false,
 			});
 
 			expect(result.crawlVersions).toEqual([]);
@@ -236,6 +242,7 @@ describe("initArticleReader", () => {
 			const result = await reader.resolveReaderState({
 				article: makeSnapshot(),
 				pollUrlBuilder: makePollUrlBuilder(),
+				capturing: false,
 			});
 
 			expect(result.progress).toEqual({
@@ -255,6 +262,7 @@ describe("initArticleReader", () => {
 			const result = await reader.resolveReaderState({
 				article: makeSnapshot(),
 				pollUrlBuilder: makePollUrlBuilder(),
+				capturing: false,
 			});
 
 			expect(result.progress).toEqual({
@@ -278,6 +286,7 @@ describe("initArticleReader", () => {
 			const result = await reader.resolveReaderState({
 				article: makeSnapshot(),
 				pollUrlBuilder: makePollUrlBuilder(),
+				capturing: false,
 			});
 
 			expect(result.progress).toEqual({
@@ -297,6 +306,7 @@ describe("initArticleReader", () => {
 			const result = await reader.resolveReaderState({
 				article: makeSnapshot(),
 				pollUrlBuilder: makePollUrlBuilder(),
+				capturing: false,
 			});
 
 			expect(result.progress).toEqual({
@@ -320,6 +330,7 @@ describe("initArticleReader", () => {
 			const result = await reader.resolveReaderState({
 				article: makeSnapshot(),
 				pollUrlBuilder: makePollUrlBuilder(),
+				capturing: false,
 			});
 
 			expect(result.progress).toEqual({
@@ -343,6 +354,7 @@ describe("initArticleReader", () => {
 			const result = await reader.resolveReaderState({
 				article: makeSnapshot(),
 				pollUrlBuilder: makePollUrlBuilder(),
+				capturing: false,
 			});
 
 			expect(result.progress).toEqual({
@@ -363,6 +375,7 @@ describe("initArticleReader", () => {
 			const result = await reader.resolveReaderState({
 				article: makeSnapshot(),
 				pollUrlBuilder: makePollUrlBuilder(),
+				capturing: false,
 			});
 
 			expect(result.progress).toEqual({
@@ -383,6 +396,7 @@ describe("initArticleReader", () => {
 			const result = await reader.resolveReaderState({
 				article: makeSnapshot(),
 				pollUrlBuilder: makePollUrlBuilder(),
+				capturing: false,
 			});
 
 			expect(result.progress).toEqual({
@@ -403,6 +417,7 @@ describe("initArticleReader", () => {
 			const result = await reader.resolveReaderState({
 				article: makeSnapshot(),
 				pollUrlBuilder: makePollUrlBuilder(),
+				capturing: false,
 			});
 
 			expect(result.progress).toBeUndefined();
@@ -418,6 +433,7 @@ describe("initArticleReader", () => {
 			const result = await reader.resolveReaderState({
 				article: makeSnapshot(),
 				pollUrlBuilder: makePollUrlBuilder(),
+				capturing: false,
 			});
 
 			expect(result.progress).toBeUndefined();
@@ -434,6 +450,7 @@ describe("initArticleReader", () => {
 			const result = await reader.resolveReaderState({
 				article: makeSnapshot(),
 				pollUrlBuilder: makePollUrlBuilder(),
+				capturing: false,
 			});
 
 			expect(result.readerPollUrl).toBeUndefined();
@@ -452,6 +469,7 @@ describe("initArticleReader", () => {
 			const result = await reader.resolveReaderState({
 				article: makeSnapshot(),
 				pollUrlBuilder: makePollUrlBuilder(),
+				capturing: false,
 			});
 
 			expect(result.summaryPollUrl).toBeUndefined();
@@ -469,6 +487,7 @@ describe("initArticleReader", () => {
 			const result = await reader.resolveReaderState({
 				article: makeSnapshot(),
 				pollUrlBuilder: makePollUrlBuilder(),
+				capturing: false,
 			});
 
 			expect(result.readerPollUrl).toBeUndefined();
@@ -486,6 +505,7 @@ describe("initArticleReader", () => {
 			const result = await reader.resolveReaderState({
 				article: makeSnapshot(),
 				pollUrlBuilder: makePollUrlBuilder(),
+				capturing: false,
 			});
 
 			// crawl + summary stay undefined; the read-after-write race branch in
@@ -508,6 +528,7 @@ describe("initArticleReader", () => {
 			const result = await reader.resolveReaderState({
 				article: makeSnapshot(),
 				pollUrlBuilder: makePollUrlBuilder(),
+				capturing: false,
 			});
 
 			expect(result.crawl).toBeUndefined();
@@ -526,6 +547,7 @@ describe("initArticleReader", () => {
 			const result = await reader.resolveReaderState({
 				article: makeSnapshot(),
 				pollUrlBuilder: makePollUrlBuilder(),
+				capturing: false,
 			});
 
 			expect(result.readerPollUrl).toBeUndefined();
@@ -542,6 +564,7 @@ describe("initArticleReader", () => {
 			const result = await reader.resolveReaderState({
 				article: makeSnapshot(),
 				pollUrlBuilder: makePollUrlBuilder(),
+				capturing: false,
 			});
 
 			expect(result.crawl).toEqual({ status: "ready" });
@@ -562,6 +585,7 @@ describe("initArticleReader", () => {
 				articleUrl: ARTICLE_URL,
 				pollCount: 3,
 				pollUrlBuilder: makePollUrlBuilder(),
+				capturing: false,
 				extensionInstallUrl: undefined,
 				summaryToggleUrl: undefined,
 			});
@@ -583,6 +607,7 @@ describe("initArticleReader", () => {
 				articleUrl: ARTICLE_URL,
 				pollCount: MAX_POLLS,
 				pollUrlBuilder: makePollUrlBuilder(),
+				capturing: false,
 				extensionInstallUrl: undefined,
 				summaryToggleUrl: undefined,
 			});
@@ -604,6 +629,7 @@ describe("initArticleReader", () => {
 				articleUrl: ARTICLE_URL,
 				pollCount: 1,
 				pollUrlBuilder: makePollUrlBuilder(),
+				capturing: false,
 				extensionInstallUrl: undefined,
 				summaryToggleUrl: undefined,
 			});
@@ -627,6 +653,7 @@ describe("initArticleReader", () => {
 				articleUrl: ARTICLE_URL,
 				pollCount: 1,
 				pollUrlBuilder: makePollUrlBuilder(),
+				capturing: false,
 				extensionInstallUrl: undefined,
 				summaryToggleUrl: undefined,
 			});
@@ -652,6 +679,7 @@ describe("initArticleReader", () => {
 				articleUrl: ARTICLE_URL,
 				pollCount: 1,
 				pollUrlBuilder: makePollUrlBuilder(),
+				capturing: false,
 				extensionInstallUrl: undefined,
 				summaryToggleUrl: "/queue/abc/summary-toggle",
 			});
@@ -674,6 +702,7 @@ describe("initArticleReader", () => {
 				articleUrl: ARTICLE_URL,
 				pollCount: 1,
 				pollUrlBuilder: makePollUrlBuilder(),
+				capturing: false,
 				extensionInstallUrl: undefined,
 				summaryToggleUrl: undefined,
 			});
@@ -697,6 +726,7 @@ describe("initArticleReader", () => {
 				articleUrl: ARTICLE_URL,
 				pollCount: 2,
 				pollUrlBuilder: makePollUrlBuilder(),
+				capturing: false,
 				extensionInstallUrl: undefined,
 				summaryToggleUrl: undefined,
 			});
@@ -717,6 +747,7 @@ describe("initArticleReader", () => {
 				articleUrl: ARTICLE_URL,
 				pollCount: MAX_POLLS,
 				pollUrlBuilder: makePollUrlBuilder(),
+				capturing: false,
 				extensionInstallUrl: undefined,
 				summaryToggleUrl: undefined,
 			});
@@ -742,6 +773,7 @@ describe("initArticleReader", () => {
 				articleUrl: ARTICLE_URL,
 				pollCount: 1,
 				pollUrlBuilder: makePollUrlBuilder(),
+				capturing: false,
 				extensionInstallUrl: undefined,
 				summaryToggleUrl: undefined,
 			});
@@ -765,6 +797,7 @@ describe("initArticleReader", () => {
 				articleUrl: ARTICLE_URL,
 				pollCount: 1,
 				pollUrlBuilder: makePollUrlBuilder(),
+				capturing: false,
 				extensionInstallUrl: undefined,
 				summaryToggleUrl: undefined,
 			});
@@ -786,6 +819,7 @@ describe("initArticleReader", () => {
 				articleUrl: ARTICLE_URL,
 				pollCount: 5,
 				pollUrlBuilder: makePollUrlBuilder(),
+				capturing: false,
 				extensionInstallUrl: undefined,
 				summaryToggleUrl: undefined,
 			});
@@ -807,6 +841,7 @@ describe("initArticleReader", () => {
 				articleUrl: ARTICLE_URL,
 				pollCount: 5,
 				pollUrlBuilder: makePollUrlBuilder(),
+				capturing: false,
 				extensionInstallUrl: undefined,
 				summaryToggleUrl: undefined,
 			});
@@ -828,6 +863,7 @@ describe("initArticleReader", () => {
 				articleUrl: ARTICLE_URL,
 				pollCount: MAX_POLLS,
 				pollUrlBuilder: makePollUrlBuilder(),
+				capturing: false,
 				extensionInstallUrl: undefined,
 				summaryToggleUrl: undefined,
 			});
@@ -847,6 +883,7 @@ describe("initArticleReader", () => {
 				articleUrl: ARTICLE_URL,
 				pollCount: 1,
 				pollUrlBuilder: makePollUrlBuilder(),
+				capturing: false,
 				extensionInstallUrl: undefined,
 				summaryToggleUrl: undefined,
 			});
@@ -876,6 +913,7 @@ describe("initArticleReader", () => {
 				articleUrl: ARTICLE_URL,
 				pollCount: 1,
 				pollUrlBuilder: makePollUrlBuilder(),
+				capturing: false,
 				extensionInstallUrl: undefined,
 				summaryToggleUrl: undefined,
 			});
@@ -909,6 +947,7 @@ describe("initArticleReader", () => {
 				articleUrl: ARTICLE_URL,
 				pollCount: 1,
 				pollUrlBuilder: makePollUrlBuilder(),
+				capturing: false,
 				extensionInstallUrl: undefined,
 				summaryToggleUrl: undefined,
 			});
@@ -932,6 +971,7 @@ describe("initArticleReader", () => {
 				articleUrl: ARTICLE_URL,
 				pollCount: 1,
 				pollUrlBuilder: makePollUrlBuilder(),
+				capturing: false,
 				extensionInstallUrl: undefined,
 				summaryToggleUrl: undefined,
 			});
@@ -968,6 +1008,7 @@ describe("initArticleReader", () => {
 				articleUrl: ARTICLE_URL,
 				pollCount: 1,
 				pollUrlBuilder: makePollUrlBuilder(),
+				capturing: false,
 				extensionInstallUrl: undefined,
 				summaryToggleUrl: undefined,
 			});
@@ -1004,6 +1045,7 @@ describe("initArticleReader", () => {
 				articleUrl: ARTICLE_URL,
 				pollCount: 0,
 				pollUrlBuilder: makePollUrlBuilder(),
+				capturing: false,
 				extensionInstallUrl: undefined,
 				summaryToggleUrl: undefined,
 			});
@@ -1028,6 +1070,7 @@ describe("initArticleReader", () => {
 				articleUrl: ARTICLE_URL,
 				pollCount: 0,
 				pollUrlBuilder: makePollUrlBuilder(),
+				capturing: false,
 				extensionInstallUrl: undefined,
 				summaryToggleUrl: undefined,
 			});
@@ -1056,6 +1099,7 @@ describe("initArticleReader", () => {
 				articleUrl: ARTICLE_URL,
 				pollCount: 0,
 				pollUrlBuilder: makePollUrlBuilder(),
+				capturing: false,
 				extensionInstallUrl: undefined,
 				summaryToggleUrl: undefined,
 			});
@@ -1080,6 +1124,7 @@ describe("initArticleReader", () => {
 				articleUrl: ARTICLE_URL,
 				pollCount: 1,
 				pollUrlBuilder: makePollUrlBuilder(),
+				capturing: false,
 				extensionInstallUrl: undefined,
 				summaryToggleUrl: undefined,
 			});
@@ -1104,6 +1149,7 @@ describe("initArticleReader", () => {
 				articleUrl: ARTICLE_URL,
 				pollCount: 1,
 				pollUrlBuilder: makePollUrlBuilder(),
+				capturing: false,
 				extensionInstallUrl: undefined,
 				summaryToggleUrl: undefined,
 			});
@@ -1134,6 +1180,7 @@ describe("initArticleReader", () => {
 				articleUrl: ARTICLE_URL,
 				pollCount: 0,
 				pollUrlBuilder: makePollUrlBuilder(),
+				capturing: false,
 				extensionInstallUrl: undefined,
 				summaryToggleUrl: undefined,
 			});
@@ -1149,6 +1196,114 @@ describe("initArticleReader", () => {
 			const bar = doc.querySelector("#article-body-progress");
 			assert(bar, "progress bar still present");
 			expect(bar.getAttribute("hx-swap-oob")).toBe("outerHTML");
+		});
+	});
+
+	describe("on-device capture keeps the reader loop armed", () => {
+		it("keeps a reader poll URL on a failed crawl while capturing, and preserves the flag on the next tick", async () => {
+			const { deps } = initFakeDeps({
+				crawl: { status: "failed", reason: JSON.stringify({ kind: "blocked", cause: "edge-block" }) },
+				content: undefined,
+			});
+			const reader = initArticleReader(deps);
+
+			const component = await reader.handleReaderPoll({
+				articleUrl: ARTICLE_URL,
+				pollCount: 1,
+				pollUrlBuilder: makePollUrlBuilder(),
+				capturing: true,
+				extensionInstallUrl: undefined,
+				summaryToggleUrl: undefined,
+			});
+
+			const slot = parse(toHtml(component)).querySelector("[data-test-reader-slot]");
+			assert(slot, "reader slot must be rendered");
+			expect(slot.getAttribute("data-reader-status")).toBe("pending");
+			expect(slot.getAttribute("hx-get")).toBe("/test/reader?poll=2&capturing=1");
+		});
+
+		it("leaves the same failed crawl unpolled when no capture is in flight", async () => {
+			const { deps } = initFakeDeps({
+				crawl: { status: "failed", reason: JSON.stringify({ kind: "blocked", cause: "edge-block" }) },
+				content: undefined,
+			});
+			const reader = initArticleReader(deps);
+
+			const component = await reader.handleReaderPoll({
+				articleUrl: ARTICLE_URL,
+				pollCount: 1,
+				pollUrlBuilder: makePollUrlBuilder(),
+				capturing: false,
+				extensionInstallUrl: undefined,
+				summaryToggleUrl: undefined,
+			});
+
+			const slot = parse(toHtml(component)).querySelector("[data-test-reader-slot]");
+			assert(slot, "reader slot must be rendered");
+			expect(slot.getAttribute("data-reader-status")).toBe("blocked");
+			expect(slot.hasAttribute("hx-get")).toBe(false);
+		});
+
+		it("stops the loop once the capture has healed the row: the ready fragment carries no hx-get even with the flag still set", async () => {
+			const { deps } = initFakeDeps({
+				crawl: { status: "ready" },
+				summary: { status: "ready", summary: "TL;DR" },
+				content: "<p>Captured body</p>",
+			});
+			const reader = initArticleReader(deps);
+
+			const component = await reader.handleReaderPoll({
+				articleUrl: ARTICLE_URL,
+				pollCount: 3,
+				pollUrlBuilder: makePollUrlBuilder(),
+				capturing: true,
+				extensionInstallUrl: undefined,
+				summaryToggleUrl: undefined,
+			});
+
+			const slot = parse(toHtml(component)).querySelector("[data-test-reader-slot]");
+			assert(slot, "reader slot must be rendered");
+			expect(slot.getAttribute("data-reader-status")).toBe("ready");
+			expect(slot.hasAttribute("hx-get")).toBe(false);
+		});
+
+		it("still stops at MAX_POLLS, so a capture that never uploads cannot poll forever", async () => {
+			const { deps } = initFakeDeps({
+				crawl: { status: "failed", reason: JSON.stringify({ kind: "blocked", cause: "edge-block" }) },
+				content: undefined,
+			});
+			const reader = initArticleReader(deps);
+
+			const component = await reader.handleReaderPoll({
+				articleUrl: ARTICLE_URL,
+				pollCount: MAX_POLLS,
+				pollUrlBuilder: makePollUrlBuilder(),
+				capturing: true,
+				extensionInstallUrl: undefined,
+				summaryToggleUrl: undefined,
+			});
+
+			const slot = parse(toHtml(component)).querySelector("[data-test-reader-slot]");
+			assert(slot, "reader slot must be rendered");
+			expect(slot.getAttribute("data-reader-status")).toBe("blocked");
+			expect(slot.hasAttribute("hx-get")).toBe(false);
+		});
+
+		it("hands the blocked notice a capture kick-off URL that arms the flag from poll 1", async () => {
+			const { deps } = initFakeDeps({
+				crawl: { status: "failed", reason: JSON.stringify({ kind: "blocked", cause: "edge-block" }) },
+				content: undefined,
+			});
+			const reader = initArticleReader(deps);
+
+			const result = await reader.resolveReaderState({
+				article: makeSnapshot(),
+				pollUrlBuilder: makePollUrlBuilder(),
+				capturing: false,
+			});
+
+			expect(result.readerPollUrl).toBeUndefined();
+			expect(result.capturePollUrl).toBe("/test/reader?poll=1&capturing=1");
 		});
 	});
 });

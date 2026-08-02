@@ -457,7 +457,7 @@
 }
 
 .article-body__reader-notice-capture {
-  display: inline-block;
+  display: none; /* 1 */
   padding: var(--button-padding);
   border: 1px solid var(--color-brand);
   border-radius: 6px;
@@ -471,8 +471,8 @@
   vertical-align: -0.15em;
 }
 
-.article-body__reader-notice-capture--hidden {
-  display: none; /* 1 */
+[data-reader-capture-host] .article-body__reader-notice-capture {
+  display: inline-block; /* 1 */
 }
 
 .article-body__reader-notice-extension-pitch {

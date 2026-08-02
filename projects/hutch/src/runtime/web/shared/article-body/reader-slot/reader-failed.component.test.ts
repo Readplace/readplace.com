@@ -117,10 +117,7 @@ describe("renderReaderFailed", () => {
 		const capture = doc.querySelector("[data-reader-capture]");
 		assert(capture, "the blocked variant must render a capture control");
 		assert.equal(capture.getAttribute("type"), "button");
-		assert.equal(
-			capture.classList.contains("article-body__reader-notice-capture--hidden"),
-			true,
-		);
+		assert.equal(capture.className, "article-body__reader-notice-capture");
 		assert.equal(
 			doc.querySelector("[data-test-reader-failed-primary]")?.getAttribute("href"),
 			"https://example.com/some-article",

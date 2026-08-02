@@ -388,12 +388,16 @@ const READER_CAPTURE_BRIDGE_SCRIPT = `<script>
 (function () {
 	var handlers = window.webkit && window.webkit.messageHandlers;
 	if (!handlers || !handlers.readplaceReader) { return; }
-	var button = document.querySelector("[data-reader-capture]");
-	if (!button) { return; }
-	button.classList.remove("article-body__reader-notice-capture--hidden");
-	button.addEventListener("click", function () {
+	document.documentElement.setAttribute("data-reader-capture-host", "");
+	document.body.addEventListener("click", function (event) {
+		var target = event.target;
+		var button = target && target.closest ? target.closest("[data-reader-capture]") : null;
+		if (!button) { return; }
 		button.disabled = true;
 		handlers.readplaceReader.postMessage({ type: "captureBlocked" });
+		var pollUrl = button.getAttribute("data-reader-capture-poll");
+		if (!pollUrl || !window.htmx) { return; }
+		window.htmx.ajax("GET", pollUrl, { target: "#article-body-reader-slot", swap: "outerHTML" });
 	});
 })();
 </script>`;
@@ -503,9 +507,13 @@ export function initQueueRoutes(deps: QueueDependencies): Router {
 	function pollUrlBuilderForId(articleId: string): PollUrlBuilder {
 		return {
 			summary: (n) => `${QUEUE_PATH}/${articleId}/summary?poll=${n}`,
-			reader: (n) => `${QUEUE_PATH}/${articleId}/reader?poll=${n}`,
+			reader: (n, capturing) =>
+				`${QUEUE_PATH}/${articleId}/reader?poll=${n}${capturing ? "&capturing=1" : ""}`,
 		};
 	}
+
+	const parseCapturingFlag = (raw: unknown): boolean =>
+		z.literal("1").safeParse(raw).success;
 
 	/** Public share-able permalink. Users copy this URL from the browser
 	 * address bar to share an article, so any visitor — owner, different
@@ -570,6 +578,7 @@ export function initQueueRoutes(deps: QueueDependencies): Router {
 				estimatedReadTime: ownedArticle.estimatedReadTime,
 			},
 			pollUrlBuilder: pollUrlBuilderForId(ownedArticle.id.value),
+			capturing: false,
 		});
 
 		return { kind: "ready", article: ownedArticle, state, audioEnabled };
@@ -596,6 +605,7 @@ export function initQueueRoutes(deps: QueueDependencies): Router {
 				summaryPollUrl: state.summaryPollUrl,
 				crawl: state.crawl,
 				readerPollUrl: state.readerPollUrl,
+				capturePollUrl: state.capturePollUrl,
 				progress: state.progress,
 				audioEnabled,
 				extensionInstallUrl: undefined,
@@ -655,6 +665,7 @@ export function initQueueRoutes(deps: QueueDependencies): Router {
 				summaryPollUrl: state.summaryPollUrl,
 				crawl: state.crawl,
 				readerPollUrl: state.readerPollUrl,
+				capturePollUrl: state.capturePollUrl,
 				progress: state.progress,
 				audioEnabled,
 				extensionInstallUrl: extensionInstallUrlIfMissing(req),
@@ -1278,6 +1289,7 @@ export function initQueueRoutes(deps: QueueDependencies): Router {
 			articleUrl: article.url,
 			pollCount,
 			pollUrlBuilder: pollUrlBuilderForId(article.id.value),
+			capturing: parseCapturingFlag(req.query.capturing),
 			extensionInstallUrl: extensionInstallUrlIfMissing(req),
 			summaryToggleUrl: `${QUEUE_PATH}/${article.id.value}/summary-toggle`,
 		});
@@ -1304,6 +1316,7 @@ export function initQueueRoutes(deps: QueueDependencies): Router {
 			articleUrl: article.url,
 			pollCount,
 			pollUrlBuilder: pollUrlBuilderForId(article.id.value),
+			capturing: parseCapturingFlag(req.query.capturing),
 			extensionInstallUrl: extensionInstallUrlIfMissing(req),
 			summaryToggleUrl: `${QUEUE_PATH}/${article.id.value}/summary-toggle`,
 		});

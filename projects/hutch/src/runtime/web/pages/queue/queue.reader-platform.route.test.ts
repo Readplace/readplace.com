@@ -71,6 +71,30 @@ function buildHarness(useServer: typeof useApp = useApp): ReturnType<typeof useA
 	});
 }
 
+function buildBlockedHarness(): ReturnType<typeof useApp> {
+	const crawlArticle = async () => ({ status: "fetched" as const, html: ARTICLE_HTML, bodyHash: "a".repeat(64) });
+	const parseArticle = async () => ({
+		ok: false as const,
+		reason: JSON.stringify({ kind: "blocked", cause: "edge-block" }),
+	});
+	const fixture = createDefaultTestAppFixture(TEST_APP_ORIGIN);
+	const applyParseResult = createFakeApplyParseResult({
+		articleStore: fixture.articleStore,
+		articleCrawl: fixture.articleCrawl,
+		parseArticle,
+	});
+	return useApp({
+		...fixture,
+		parser: { parseArticle, crawlArticle },
+		events: {
+			...fixture.events,
+			publishLinkSaved: createFakePublishLinkSaved(applyParseResult),
+			publishRecrawlLinkInitiated: createFakePublishRecrawlLinkInitiated(applyParseResult),
+			publishSaveAnonymousLink: createFakePublishSaveAnonymousLink(applyParseResult),
+		},
+	});
+}
+
 async function saveAndGetArticleId(
 	agent: Awaited<ReturnType<typeof loginAgent>>,
 	url: string,
@@ -199,10 +223,29 @@ describe("Queue reader chromeless switch (GET /queue/:id/view?platform=ios)", ()
 		const iosText = (await agent.get(`/queue/${articleId}/view?platform=ios`)).text;
 		expect(iosText).toContain("captureBlocked");
 		expect(iosText).toContain("data-reader-capture");
-		expect(iosText).toContain("article-body__reader-notice-capture--hidden");
+		expect(iosText).toContain('setAttribute("data-reader-capture-host", "")');
+		expect(iosText).toContain("data-reader-capture-poll");
+		expect(iosText).toContain('window.htmx.ajax("GET", pollUrl, { target: "#article-body-reader-slot", swap: "outerHTML" })');
 
 		const shellText = (await agent.get(`/queue/${articleId}/view`)).text;
 		expect(shellText).not.toContain("captureBlocked");
+	});
+
+	it("stamps the blocked notice's capture control with the reader-poll URL that arms the capturing state", async () => {
+		const harness = buildBlockedHarness();
+		const agent = await loginAgent(harness.server, harness.auth);
+		const articleId = await saveAndGetArticleId(agent, "https://example.com/app-capture-kickoff");
+
+		const doc = new JSDOM((await agent.get(`/queue/${articleId}/view?platform=ios`)).text).window.document;
+
+		const slot = doc.querySelector("[data-test-reader-slot]");
+		assert(slot, "reader slot must be rendered");
+		expect(slot.getAttribute("data-reader-status")).toBe("blocked");
+		const capture = slot.querySelector("[data-reader-capture]");
+		assert(capture, "the blocked notice must offer the in-app capture control");
+		expect(capture.getAttribute("data-reader-capture-poll")).toBe(
+			`/queue/${articleId}/reader?poll=1&capturing=1`,
+		);
 	});
 
 	it("marks the body chromeless so the reader CSS can pin the top actions", async () => {

@@ -69,7 +69,7 @@ export interface ArticleSnapshot {
 
 export interface PollUrlBuilder {
 	summary: (pollCount: number) => string;
-	reader: (pollCount: number) => string;
+	reader: (pollCount: number, capturing: boolean) => string;
 }
 
 export interface ReaderState {
@@ -78,6 +78,7 @@ export interface ReaderState {
 	summary: GeneratedSummary | undefined;
 	readerPollUrl: string | undefined;
 	summaryPollUrl: string | undefined;
+	capturePollUrl: string;
 	/**
 	 * Single unified progress tick driving the article-body progress bar.
 	 * Computed from whichever pipeline (crawl → summary) is in flight,
@@ -97,6 +98,7 @@ export interface ReaderState {
 export interface ResolveReaderStateParams {
 	article: ArticleSnapshot;
 	pollUrlBuilder: PollUrlBuilder;
+	capturing: boolean;
 }
 
 /**
@@ -113,6 +115,7 @@ export interface HandlePollParams {
 	articleUrl: string;
 	pollCount: number;
 	pollUrlBuilder: PollUrlBuilder;
+	capturing: boolean;
 	extensionInstallUrl: string | undefined;
 	/**
 	 * Per-poll tracking URL stamped on the re-rendered TL;DR `<details>` so the
