@@ -477,6 +477,10 @@ export function createApp(dependencies: AppDependencies): Express {
 	app.use(express.urlencoded({ extended: true }));
 	app.use(cookieParser());
 	app.use(changelogDismissMiddleware);
+	app.use((_req: Request, _res: Response, next: NextFunction) => {
+		void deps.getChangelogBanner();
+		next();
+	});
 	app.use(createVisitorIdMiddleware({ generateVisitorId: randomUUID, secure: secureCookies }));
 	app.use(
 		createClickAttributionMiddleware({

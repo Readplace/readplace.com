@@ -91,4 +91,26 @@ describe("Inbox app composition", () => {
 			await harness.close();
 		}
 	});
+
+	it("consults the changelog source once via the pre-auth kick on a redirect that never renders the shell", async () => {
+		let consultations = 0;
+		const fixture = createDefaultTestAppFixture(TEST_APP_ORIGIN);
+		const harness: RunningServer & ReturnType<typeof createInboxTestApp> = buildHarness(
+			createInboxTestApp(fixture, {
+				getChangelogBanner: async () => {
+					consultations++;
+					return undefined;
+				},
+			}),
+		);
+		try {
+			const response = await request(harness.server).get("/inbox");
+
+			expect(response.status).toBe(303);
+			expect(response.headers.location).toBe("/login");
+			expect(consultations).toBe(1);
+		} finally {
+			await harness.close();
+		}
+	});
 });

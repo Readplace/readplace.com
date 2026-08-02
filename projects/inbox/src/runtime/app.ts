@@ -61,6 +61,10 @@ export function createInboxApp(
 	app.use(express.urlencoded({ extended: true }));
 	app.use(cookieParser());
 	app.use(changelogDismissMiddleware);
+	app.use((_req: Request, _res: Response, next: NextFunction) => {
+		void deps.getChangelogBanner();
+		next();
+	});
 
 	app.use("/client-dist", express.static(resolve(__dirname, "web", "client-dist")));
 
