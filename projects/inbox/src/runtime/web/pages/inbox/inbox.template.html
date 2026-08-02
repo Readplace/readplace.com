@@ -34,8 +34,7 @@
           {{#each activeAddresses}}
           <li class="inbox__item" data-test-inbox-item>
             <span class="inbox__name" data-test-inbox-name>{{this.name}}</span>
-            <button type="button" class="btn btn--secondary btn--field inbox__copy-btn" data-inbox-copy data-inbox-address="{{this.address}}" aria-label="{{this.copyAriaLabel}}" hidden>Copy</button>
-            <input class="inbox__address-field" type="text" value="{{this.address}}" readonly aria-label="{{this.addressAriaLabel}}" data-inbox-address="{{this.address}}" />
+            {{{this.copyableHtml}}}
             <div class="inbox__controls">
               <span class="inbox__status inbox__status--enabled" data-test-inbox-status="enabled">Active</span>
               <form action="{{../disableAction}}" method="POST" class="inbox__disable">

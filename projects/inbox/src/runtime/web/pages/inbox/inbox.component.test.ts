@@ -58,13 +58,20 @@ describe("InboxPage", () => {
 
 	it("renders each address into a selectable read-only field with a copy button", () => {
 		const doc = parse(InboxPage({ addresses: [entry()], limitReached: false }).content.html);
-		const field = doc.querySelector(".inbox__address-field");
+		const field = doc.querySelector(".inbox-copyable__value");
 		assert.equal(field?.getAttribute("value"), "in-3f9a2c@read.place");
 		assert.equal(field?.getAttribute("readonly"), "");
 		assert.equal(field?.hasAttribute("disabled"), false);
 		const copy = doc.querySelector("[data-inbox-copy]");
 		assert.equal(copy?.getAttribute("data-inbox-address"), "in-3f9a2c@read.place");
 		assert.equal(copy?.hasAttribute("hidden"), true);
+		const box = doc.querySelector(".inbox-copyable");
+		assert.ok(box, "the address renders inside one copyable box");
+		assert.equal(
+			box.querySelector("[data-inbox-copy]"),
+			copy,
+			"the copy button is a child of the box, not a sibling beside it",
+		);
 	});
 
 	it("renders a disabled address as a disabled field and drops its copy button, leaving the copy affordance only on the active one", () => {
@@ -82,15 +89,22 @@ describe("InboxPage", () => {
 			}).content.html,
 		);
 
-		const fields = Array.from(doc.querySelectorAll(".inbox__address-field"));
-		assert.equal(fields.length, 2, "both addresses still render a field");
+		const fieldValues = Array.from(
+			doc.querySelectorAll(".inbox-copyable__value, .inbox__address-field"),
+		).map((el) => el.getAttribute("value"));
+		assert.deepEqual(
+			fieldValues,
+			["in-3f9a2c@read.place", "in-abc123@read.place"],
+			"both addresses still render a field",
+		);
 
-		const [active, disabled] = fields;
-		assert.equal(active.getAttribute("value"), "in-3f9a2c@read.place");
+		const active = doc.querySelector(".inbox-copyable__value");
+		assert.ok(active, "the active address renders inside the copyable box");
 		assert.equal(active.hasAttribute("readonly"), true);
 		assert.equal(active.hasAttribute("disabled"), false);
 
-		assert.equal(disabled.getAttribute("value"), "in-abc123@read.place");
+		const disabled = doc.querySelector(".inbox__address-field");
+		assert.ok(disabled, "the disabled address renders as its own field");
 		assert.equal(disabled.hasAttribute("disabled"), true);
 		assert.equal(disabled.hasAttribute("readonly"), false);
 		assert.equal(
@@ -138,7 +152,10 @@ describe("InboxPage", () => {
 			"Disable inbox email: netflix",
 		);
 
-		const [active, disabled] = Array.from(doc.querySelectorAll(".inbox__address-field"));
+		const active = doc.querySelector(".inbox-copyable__value");
+		const disabled = doc.querySelector(".inbox__address-field");
+		assert.ok(active, "the active address field must render");
+		assert.ok(disabled, "the disabled address field must render");
 		assert.equal(active.getAttribute("aria-label"), "Inbox email: netflix");
 		assert.equal(disabled.getAttribute("aria-label"), "Inbox email: stratechery");
 		assert.notEqual(
@@ -346,7 +363,7 @@ describe("InboxPage", () => {
 		assert.deepEqual(sections, ["create", "active", "disabled"]);
 	});
 
-	it("orders an active row as name, copy button, address field, then right-edge controls", () => {
+	it("orders an active row as name, the one-box copyable address, then right-edge controls", () => {
 		const doc = parse(InboxPage({ addresses: [entry()], limitReached: false }).content.html);
 
 		const row = doc.querySelector('[data-test-inbox-section="active"] [data-test-inbox-item]');
@@ -354,12 +371,7 @@ describe("InboxPage", () => {
 		const childClasses = Array.from(row.children).map(
 			(el) => el.classList[el.classList.length - 1],
 		);
-		assert.deepEqual(childClasses, [
-			"inbox__name",
-			"inbox__copy-btn",
-			"inbox__address-field",
-			"inbox__controls",
-		]);
+		assert.deepEqual(childClasses, ["inbox__name", "inbox-copyable", "inbox__controls"]);
 	});
 
 	it("keeps the explainer first and the create form last in the create section, with the limit error and create confirmation between them", () => {

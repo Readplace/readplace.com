@@ -55,12 +55,21 @@ export function toInboxAlerts(input: {
 	return keys.map((key) => ({ key, message: ALERT_MESSAGES[key] }));
 }
 
+export function toInboxAddressAriaLabels(name: string): {
+	addressAriaLabel: string;
+	copyAriaLabel: string;
+} {
+	return {
+		addressAriaLabel: `Inbox email: ${name}`,
+		copyAriaLabel: `Copy inbox email: ${name}`,
+	};
+}
+
 function toRow(entry: InboxAddressEntry): InboxAddressRowViewModel {
 	return {
 		address: entry.address,
 		name: entry.name,
-		addressAriaLabel: `Inbox email: ${entry.name}`,
-		copyAriaLabel: `Copy inbox email: ${entry.name}`,
+		...toInboxAddressAriaLabels(entry.name),
 		disableAriaLabel: `Disable inbox email: ${entry.name}`,
 	};
 }

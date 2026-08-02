@@ -4,6 +4,8 @@ import { render } from "@packages/web-shell";
 import type { PageBody } from "@packages/web-shell";
 import type { InboxAddressEntry } from "@packages/domain/inbox";
 import { INBOX_STYLES } from "./inbox.styles";
+import { INBOX_COPYABLE_ADDRESS_STYLES } from "./inbox-copyable-address.styles";
+import { renderCopyableAddress } from "./inbox-copyable-address.component";
 import { toInboxAddressesViewModel, toInboxAlerts } from "./inbox.viewmodel";
 
 const INBOX_TEMPLATE = readFileSync(join(__dirname, "inbox.template.html"), "utf-8");
@@ -18,10 +20,15 @@ export function InboxPage(params: {
 	limitReached: boolean;
 	createdName?: string;
 }): PageBody {
+	const addresses = toInboxAddressesViewModel(params.addresses);
 	const content = render(INBOX_TEMPLATE, {
 		created: params.createdName !== undefined,
 		createdName: params.createdName ?? "",
-		...toInboxAddressesViewModel(params.addresses),
+		...addresses,
+		activeAddresses: addresses.activeAddresses.map((row) => ({
+			...row,
+			copyableHtml: renderCopyableAddress(row),
+		})),
 		alerts: toInboxAlerts({
 			createFailed: params.createFailed === true,
 			nameInvalid: params.nameInvalid === true,
@@ -40,7 +47,7 @@ export function InboxPage(params: {
 			canonicalUrl: "/inbox/addresses",
 			robots: "noindex, nofollow",
 		},
-		styles: INBOX_STYLES,
+		styles: `${INBOX_STYLES}\n${INBOX_COPYABLE_ADDRESS_STYLES}`,
 		bodyClass: "page-inbox",
 		content: { html: content },
 		scripts: INBOX_SCRIPT,

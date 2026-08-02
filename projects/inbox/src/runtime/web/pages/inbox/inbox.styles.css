@@ -118,8 +118,9 @@
   user-select: none;
 }
 
-.inbox__copy-btn[hidden] {
-  display: none;
+.inbox__item .inbox-copyable {
+  flex: 1 1 200px;
+  min-width: 0;
 }
 
 .inbox__controls {
@@ -239,8 +240,7 @@
   border-radius: var(--radius);
 }
 
-.inbox__name-input:focus,
-.inbox__address-field:focus {
+.inbox__name-input:focus {
   outline: none;
   border-color: var(--ring);
   box-shadow: 0 0 0 3px var(--ring-shadow);
