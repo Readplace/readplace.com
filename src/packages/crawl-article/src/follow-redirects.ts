@@ -3,9 +3,11 @@ const MAX_REDIRECTS = 5;
 const ALLOWED_PROTOCOLS = new Set(["http:", "https:"]);
 const CROSS_ORIGIN_SENSITIVE_HEADERS = new Set(["cookie", "authorization", "proxy-authorization"]);
 
+export type OnRedirect = (hop: { fromUrl: string; toUrl: string }) => void;
+
 export type RedirectableFetch = (
 	url: string,
-	init?: { headers?: Record<string, string>; signal?: AbortSignal },
+	init?: { headers?: Record<string, string>; signal?: AbortSignal; onRedirect?: OnRedirect },
 ) => Promise<Response>;
 
 /**
@@ -24,11 +26,9 @@ export type RedirectableFetch = (
  * re-checks the target host before connecting. A 3xx without a `Location` header
  * is returned as the final response, matching WHATWG fetch.
  *
- * The returned Response carries the real post-redirect URL in `.url`: the
- * synthetic Responses the single-hop transports build start with an empty
- * `.url`, so the followed terminal is stamped onto the final one. undici's own
- * fetch already populates `.url` and never uses this wrapper, so callers read
- * `response.url` uniformly across every transport.
+ * A chain ending in a rejection leaves no Response to read `.url` off, so
+ * `onRedirect` reports each hop as it is taken: a destination that never
+ * answers is still evidence of where the link lands.
  */
 export function redirectable(baseFetch: RedirectableFetch, label: string): RedirectableFetch {
 	return async (url, init) => {
@@ -64,6 +64,7 @@ export function redirectable(baseFetch: RedirectableFetch, label: string): Redir
 					`${label} failed for ${url}: refusing to follow redirect to non-HTTP(S) scheme "${nextUrl.protocol}"`,
 				);
 			}
+			if (init?.onRedirect) init.onRedirect({ fromUrl: currentUrl, toUrl: nextUrl.href });
 			if (headers && nextUrl.origin !== currentOrigin) {
 				/* c8 ignore next -- V8 block-coverage phantom: the stripCrossOriginSensitiveHeaders call continuation gets a spurious zero-count sub-range even though the cross-origin strip tests execute it; the statement itself is covered. See bcoe/c8#319 and https://v8.dev/blog/javascript-code-coverage */
 				headers = stripCrossOriginSensitiveHeaders(headers);

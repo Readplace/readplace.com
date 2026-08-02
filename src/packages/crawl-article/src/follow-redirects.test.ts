@@ -176,6 +176,47 @@ describe("redirectable", () => {
 		expect(calls[2].headers).toEqual({});
 	});
 
+	it("reports each hop it takes, naming the URL it came from and the URL it goes to", async () => {
+		const { baseFetch } = makeBase([
+			redirect(301, "https://example.com/one"),
+			redirect(302, "https://example.com/two"),
+			new Response("done", { status: 200 }),
+		]);
+		const hops: Array<{ fromUrl: string; toUrl: string }> = [];
+
+		await redirectable(baseFetch, "fetchTest")("https://example.com/start", {
+			onRedirect: (hop) => hops.push(hop),
+		});
+
+		expect(hops).toEqual([
+			{ fromUrl: "https://example.com/start", toUrl: "https://example.com/one" },
+			{ fromUrl: "https://example.com/one", toUrl: "https://example.com/two" },
+		]);
+	});
+
+	it("reports no hop when the first response is already terminal", async () => {
+		const { baseFetch } = makeBase([new Response("done", { status: 200 })]);
+		const hops: Array<{ fromUrl: string; toUrl: string }> = [];
+
+		await redirectable(baseFetch, "fetchTest")("https://example.com/a", { onRedirect: (hop) => hops.push(hop) });
+
+		expect(hops).toEqual([]);
+	});
+
+	it("reports the hops already taken when a later hop throws, so a chain that never yields a Response still names where it led", async () => {
+		const hopError = new Error("destination never sent headers");
+		const baseFetch: RedirectableFetch = async (url) => {
+			if (url === "https://wrapper.example/link") return redirect(301, "https://dest.example/article");
+			throw hopError;
+		};
+		const hops: Array<{ fromUrl: string; toUrl: string }> = [];
+
+		await expect(
+			redirectable(baseFetch, "fetchTest")("https://wrapper.example/link", { onRedirect: (hop) => hops.push(hop) }),
+		).rejects.toBe(hopError);
+		expect(hops).toEqual([{ fromUrl: "https://wrapper.example/link", toUrl: "https://dest.example/article" }]);
+	});
+
 	it("threads the caller's signal into every hop", async () => {
 		const controller = new AbortController();
 		const seen: (AbortSignal | undefined)[] = [];

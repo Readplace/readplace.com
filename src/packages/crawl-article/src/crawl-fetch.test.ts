@@ -54,6 +54,49 @@ describe("initCrawlFetch", () => {
 		assert.equal(primaryCalls, 2);
 	});
 
+	it("follows a redirect on the primary leg itself, requesting each hop with redirect:manual and returning the terminal as response.url", async () => {
+		const requested: Array<{ url: string; redirect: RequestInit["redirect"] }> = [];
+		const redirectingOrigin: typeof fetch = async (input, init) => {
+			const url = String(input);
+			requested.push({ url, redirect: init?.redirect });
+			return url === "https://wrapper.example/link"
+				? new Response(null, { status: 301, headers: { location: "https://dest.example/article" } })
+				: new Response("<html>article</html>", { status: 200 });
+		};
+		const crawlFetch = initCrawlFetch({
+			fetch: redirectingOrigin,
+			personas: [{ name: "test", headers: { "user-agent": "test" } }],
+			isBlocked: () => false,
+		});
+
+		const response = await crawlFetch("https://wrapper.example/link");
+
+		assert.equal(response.url, "https://dest.example/article");
+		assert.deepEqual(requested, [
+			{ url: "https://wrapper.example/link", redirect: "manual" },
+			{ url: "https://dest.example/article", redirect: "manual" },
+		]);
+	});
+
+	it("reports the primary leg's redirect hops to the caller's onRedirect", async () => {
+		const redirectingOrigin: typeof fetch = async (input) =>
+			String(input) === "https://wrapper.example/link"
+				? new Response(null, { status: 301, headers: { location: "https://dest.example/article" } })
+				: new Response("<html>article</html>", { status: 200 });
+		const crawlFetch = initCrawlFetch({
+			fetch: redirectingOrigin,
+			personas: [{ name: "test", headers: { "user-agent": "test" } }],
+			isBlocked: () => false,
+		});
+		const hops: Array<{ fromUrl: string; toUrl: string }> = [];
+
+		await crawlFetch("https://wrapper.example/link", { onRedirect: (hop) => hops.push(hop) });
+
+		assert.deepEqual(hops, [
+			{ fromUrl: "https://wrapper.example/link", toUrl: "https://dest.example/article" },
+		]);
+	});
+
 	it("recovers from a persona-keyed 498 without fanning out to the TLS-client fallbacks", async () => {
 		const userAgents: string[] = [];
 		const personaAware: typeof fetch = async (_input, init) => {

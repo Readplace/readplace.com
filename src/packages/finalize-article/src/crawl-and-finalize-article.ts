@@ -15,9 +15,9 @@ export type CrawlAndFinalizeResult =
 			bodyHash: string;
 		}
 	| { status: "not-modified" }
-	| { status: "failed"; reason: string }
-	| { status: "blocked"; httpStatus: number }
-	| { status: "not-found"; httpStatus: 404 | 410 }
+	| { status: "failed"; reason: string; finalUrl?: string }
+	| { status: "blocked"; httpStatus: number; finalUrl?: string }
+	| { status: "not-found"; httpStatus: 404 | 410; finalUrl?: string }
 	| { status: "unsupported"; reason: string };
 
 export type CrawlAndFinalizeArticle = (params: {
@@ -64,13 +64,13 @@ export function initCrawlAndFinalizeArticle(deps: {
 			return { status: "unsupported", reason: crawlResult.reason };
 		}
 		if (crawlResult.status === "not-found") {
-			return { status: "not-found", httpStatus: crawlResult.httpStatus };
+			return { status: "not-found", httpStatus: crawlResult.httpStatus, finalUrl: crawlResult.finalUrl };
 		}
 		if (crawlResult.status === "blocked") {
-			return { status: "blocked", httpStatus: crawlResult.httpStatus };
+			return { status: "blocked", httpStatus: crawlResult.httpStatus, finalUrl: crawlResult.finalUrl };
 		}
 		if (crawlResult.status === "failed") {
-			return { status: "failed", reason: "crawl-failed" };
+			return { status: "failed", reason: "crawl-failed", finalUrl: crawlResult.finalUrl };
 		}
 
 		const finalized = await finalizeArticle({
@@ -83,7 +83,7 @@ export function initCrawlAndFinalizeArticle(deps: {
 			thumbnailAlreadyResolved: true,
 			mediaType: crawlResult.mediaType,
 		});
-		if (!finalized.ok) return { status: "failed", reason: finalized.reason };
+		if (!finalized.ok) return { status: "failed", reason: finalized.reason, finalUrl: crawlResult.finalUrl };
 
 		return {
 			status: "fetched",

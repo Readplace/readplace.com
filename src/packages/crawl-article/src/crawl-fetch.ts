@@ -9,6 +9,8 @@ import {
 	type ResolveAll,
 } from "./blocked-address-lookup";
 import { type CurlFetch, initGuardedCurlFetch } from "./curl-fetch";
+import { toPlainHeaders, urlFromInput } from "./fetch-input";
+import { type OnRedirect, redirectable } from "./follow-redirects";
 import { type FetchH2, initFetchH2, withH2Fallback } from "./h2-fetch";
 import { type Persona, withPersonaFallback } from "./persona-fallback";
 import { RATE_LIMIT_RETRY_DELAYS_MS, withRateLimitRetry } from "./rate-limit-retry";
@@ -18,7 +20,10 @@ export type CrawlFetchInit = {
 	signal?: AbortSignal;
 	/** Sent as `Referer`. Required by hotlink-protected origins. */
 	referer?: string;
+	onRedirect?: OnRedirect;
 };
+
+type HopReportingInit = RequestInit & { onRedirect?: OnRedirect };
 
 /**
  * Universal browser-like fetcher used for every external resource (HTML,
@@ -70,7 +75,27 @@ export function initCrawlFetch(deps: {
 			baseConnector(options, callback);
 		},
 	});
-	const guardedFetch: typeof fetch = (input, init) => deps.fetch(input, { ...init, dispatcher });
+	/* Each hop is requested here so the URL the origin pointed at stays
+	 * observable even when the next request never produces a Response. undici
+	 * deliberately skips the WHATWG opaque-redirect filtering under
+	 * `redirect: "manual"` (nodejs/undici#1193), so the real status and
+	 * `Location` survive to be read. */
+	const followRedirects = redirectable(
+		(url, hopInit) =>
+			deps.fetch(url, {
+				headers: hopInit?.headers,
+				signal: hopInit?.signal,
+				dispatcher,
+				redirect: "manual",
+			}),
+		"fetchPrimary",
+	);
+	const guardedFetch = (input: Parameters<typeof fetch>[0], init?: HopReportingInit): Promise<Response> =>
+		followRedirects(urlFromInput(input), {
+			headers: toPlainHeaders(init?.headers),
+			signal: init?.signal ?? undefined,
+			onRedirect: init?.onRedirect,
+		});
 	const fetchWithFallback = withRateLimitRetry(
 		withPersonaFallback(
 			withH2Fallback(
@@ -89,6 +114,11 @@ export function initCrawlFetch(deps: {
 		);
 		const headers: Record<string, string> = { ...init?.headers };
 		if (init?.referer) headers.referer = init.referer;
-		return fetchWithFallback(url, { headers, signal: init?.signal });
+		const hopReportingInit: HopReportingInit = {
+			headers,
+			signal: init?.signal,
+			onRedirect: init?.onRedirect,
+		};
+		return fetchWithFallback(url, hopReportingInit);
 	};
 }

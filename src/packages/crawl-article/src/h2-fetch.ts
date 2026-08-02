@@ -1,6 +1,7 @@
 import http2 from "node:http2";
 import type { AssertHostAllowed, SocketLookup } from "./blocked-address-lookup";
 import type { CurlFetch } from "./curl-fetch";
+import { toPlainHeaders, urlFromInput } from "./fetch-input";
 import { redirectable } from "./follow-redirects";
 
 const FALLBACK_STATUS_CODES = new Set([401, 403, 429]);
@@ -258,20 +259,4 @@ function shouldTryFallback(error: unknown, signal: AbortSignal | undefined): boo
 	return true;
 }
 
-type FetchInput = Parameters<typeof fetch>[0];
 type FetchInit = Parameters<typeof fetch>[1];
-
-function urlFromInput(input: FetchInput): string {
-	if (typeof input === "string") return input;
-	if (input instanceof URL) return input.href;
-	return input.url;
-}
-
-function toPlainHeaders(headers: NonNullable<FetchInit>["headers"]): Record<string, string> | undefined {
-	if (!headers) return undefined;
-	const out: Record<string, string> = {};
-	new Headers(headers).forEach((value, key) => {
-		out[key] = value;
-	});
-	return out;
-}

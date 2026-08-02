@@ -3,6 +3,12 @@ import type { ClaimCanonicalAlias, SetArticleDisplayUrl } from "@packages/articl
 import type { HutchLogger } from "@packages/hutch-logger";
 import type { SiteRules } from "@packages/site-rules";
 
+/** A crawl that never produced content has no word count to judge, which is why
+ * this is a union rather than a number with a sentinel. */
+export type AdoptionOutcome =
+	| { kind: "finalized"; wordCount: number }
+	| { kind: "crawl-failed" };
+
 /**
  * After a tier-1 crawl of the originally-saved `url` resolved a different
  * terminal URL through HTTP redirects, claim `id(terminal) → url` so a later
@@ -20,9 +26,7 @@ export type AdoptCanonicalIdentity = (params: {
 	/** The post-redirect terminal URL from the crawl. Absent when no redirect
 	 * resolved a terminal. */
 	finalUrl?: string;
-	/** Finalized article word count; a zero-word result is a bot-wall / JS-shell
-	 * / error terminal and must not capture an identity. */
-	wordCount: number;
+	outcome: AdoptionOutcome;
 	/** Admin recrawls re-fetch an existing article and must not (re-)adopt. */
 	recrawl?: boolean;
 }) => Promise<void>;
@@ -31,7 +35,11 @@ export type AdoptCanonicalIdentity = (params: {
  * The redirect terminal to adopt, or `undefined` when a gate rejects it. Pure so
  * every gate is unit-testable in isolation. Gates:
  *   - never on an admin recrawl (first-crawl-of-a-new-article only);
- *   - only when the finalize produced real content (`wordCount > 0`);
+ *   - for a finalized crawl, only when it produced real content
+ *     (`wordCount > 0`) — a zero-word 200 is a bot-wall or JS shell and must not
+ *     capture an identity. A failed crawl has no content to weigh, and applying
+ *     the content gate to it would permanently veto exactly the blocked
+ *     destinations this exists to key;
  *   - only when a redirect actually moved identity (`id(terminal) ≠ id(url)`);
  *   - never when the terminal is itself a site-rule URL (those get bespoke
  *     oembed treatment and must mint their own article on a direct save).
@@ -44,13 +52,13 @@ export type AdoptCanonicalIdentity = (params: {
 export function adoptableTerminal(params: {
 	url: string;
 	finalUrl?: string;
-	wordCount: number;
+	outcome: AdoptionOutcome;
 	recrawl?: boolean;
 	isSiteRuleUrl: (url: string) => boolean;
 }): string | undefined {
-	const { url, finalUrl, wordCount, recrawl, isSiteRuleUrl } = params;
+	const { url, finalUrl, outcome, recrawl, isSiteRuleUrl } = params;
 	if (recrawl) return undefined;
-	if (wordCount <= 0) return undefined;
+	if (outcome.kind === "finalized" && outcome.wordCount <= 0) return undefined;
 	if (finalUrl === undefined) return undefined;
 	if (ArticleResourceUniqueId.parse(finalUrl).value === ArticleResourceUniqueId.parse(url).value) return undefined;
 	if (isSiteRuleUrl(finalUrl)) return undefined;

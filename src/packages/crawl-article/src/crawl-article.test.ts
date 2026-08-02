@@ -10,7 +10,7 @@ import type { CrawlArticleResult } from "./crawl-article.types";
 import type { CrawlFetch } from "./crawl-fetch";
 import { initCrawlFetch } from "./crawl-fetch";
 import type { CurlFetch } from "./curl-fetch";
-import { redirectable } from "./follow-redirects";
+import { redirectable, type RedirectableFetch } from "./follow-redirects";
 import type { fetchH2 } from "./h2-fetch";
 import type { ExtractPdf } from "./pdf-extract.types";
 import type { Persona } from "./persona-fallback";
@@ -25,6 +25,25 @@ const PDF_MAGIC_BUFFER = Buffer.concat([Buffer.from("%PDF-1.4\n"), Buffer.alloc(
 
 const noopLogError = () => {};
 const noopLogInfo = () => {};
+
+const WRAPPER_URL = "https://wrapper.example/link/188518/8babea547d";
+const DESTINATION_URL = "https://dest.example/article";
+
+function redirectingHop(respond: () => Response): RedirectableFetch {
+	return async (url) =>
+		url === WRAPPER_URL
+			? new Response(null, { status: 301, headers: { location: DESTINATION_URL } })
+			: respond();
+}
+
+function redirectingOrigin(respond: () => Response): typeof fetch {
+	const hop = redirectingHop(respond);
+	return async (input) => hop(String(input));
+}
+
+function followingFallback(respond: () => Response): RedirectableFetch {
+	return redirectable(redirectingHop(respond), "test-fallback");
+}
 
 // Never reached in unit tests: curl/h2 fallback only fires on block-class
 // responses/errors, which these fixtures don't produce. The fallback chain has
@@ -312,6 +331,7 @@ describe("initCrawlArticle — single-fetch orchestration", () => {
 			etag: '"abc123"',
 			lastModified: "Wed, 21 Oct 2025 07:28:00 GMT",
 			bodyHash: createHash("sha256").update(Buffer.from("<html>Hello</html>")).digest("hex"),
+			finalUrl: "https://example.com",
 		});
 		expect(calls).toBe(1);
 		expect(extractPdf).not.toHaveBeenCalled();
@@ -359,6 +379,7 @@ describe("initCrawlArticle — single-fetch orchestration", () => {
 			etag: '"pdf-123"',
 			lastModified: "Wed, 21 Oct 2025 07:28:00 GMT",
 			bodyHash: createHash("sha256").update(PDF_MAGIC_BUFFER).digest("hex"),
+			finalUrl: "https://example.com/doc.pdf",
 		});
 		expect(calls).toBe(1);
 		expect(capturedExtract?.url).toBe("https://example.com/doc.pdf");
@@ -460,7 +481,7 @@ describe("initCrawlArticle — single-fetch orchestration", () => {
 
 		const result = await crawlArticle({ url: "https://example.com" });
 
-		expect(result).toEqual({ status: "failed" });
+		expect(result).toEqual({ status: "failed", finalUrl: "https://example.com" });
 		expect(logError).toHaveBeenCalledWith("[CrawlArticle] HTTP 500 for https://example.com");
 	});
 
@@ -479,7 +500,7 @@ describe("initCrawlArticle — single-fetch orchestration", () => {
 
 		const result = await crawlArticle({ url: "https://example.com" });
 
-		expect(result).toEqual({ status: "failed" });
+		expect(result).toEqual({ status: "failed", finalUrl: "https://example.com" });
 		expect(logError).toHaveBeenCalledWith(
 			"[CrawlArticle] HTTP 503 for https://example.com (server=cloudflare, cf-mitigated=challenge, cf-ray=9560a1b2c3d4e5f6-SYD)",
 		);
@@ -493,7 +514,7 @@ describe("initCrawlArticle — single-fetch orchestration", () => {
 
 		const result = await crawlArticle({ url: "https://example.com/deleted" });
 
-		expect(result).toEqual({ status: "not-found", httpStatus: 404 });
+		expect(result).toEqual({ status: "not-found", httpStatus: 404, finalUrl: "https://example.com/deleted" });
 		expect(logInfo).toHaveBeenCalledWith("[CrawlArticle] HTTP 404 for https://example.com/deleted");
 		expect(logError).not.toHaveBeenCalled();
 	});
@@ -506,7 +527,7 @@ describe("initCrawlArticle — single-fetch orchestration", () => {
 
 		const result = await crawlArticle({ url: "https://example.com" });
 
-		expect(result).toEqual({ status: "blocked", httpStatus: 406 });
+		expect(result).toEqual({ status: "blocked", httpStatus: 406, finalUrl: "https://example.com" });
 		expect(logInfo).toHaveBeenCalledWith("[CrawlArticle] HTTP 406 for https://example.com");
 		expect(logError).not.toHaveBeenCalled();
 	});
@@ -519,7 +540,7 @@ describe("initCrawlArticle — single-fetch orchestration", () => {
 
 		const result = await crawlArticle({ url: "https://example.com/geo-blocked" });
 
-		expect(result).toEqual({ status: "blocked", httpStatus: 451 });
+		expect(result).toEqual({ status: "blocked", httpStatus: 451, finalUrl: "https://example.com/geo-blocked" });
 		expect(logError).toHaveBeenCalledWith("[CrawlArticle] HTTP 451 for https://example.com/geo-blocked");
 		expect(logInfo).not.toHaveBeenCalled();
 	});
@@ -580,7 +601,7 @@ describe("initCrawlArticle — single-fetch orchestration", () => {
 
 		const result = await crawlArticle({ url: "https://example.com" });
 
-		expect(result).toEqual({ status: "blocked", httpStatus: 498 });
+		expect(result).toEqual({ status: "blocked", httpStatus: 498, finalUrl: "https://example.com" });
 		expect(logInfo).toHaveBeenCalledWith("[CrawlArticle] HTTP 498 for https://example.com");
 		expect(logError).not.toHaveBeenCalled();
 	});
@@ -646,7 +667,7 @@ describe("initCrawlArticle — single-fetch orchestration", () => {
 
 		const result = await crawlArticle({ url: "https://example.com/delisted" });
 
-		expect(result).toEqual({ status: "not-found", httpStatus: 410 });
+		expect(result).toEqual({ status: "not-found", httpStatus: 410, finalUrl: "https://example.com/delisted" });
 		expect(logError).toHaveBeenCalledWith("[CrawlArticle] HTTP 410 for https://example.com/delisted");
 	});
 
@@ -753,40 +774,117 @@ describe("initCrawlArticle — single-fetch orchestration", () => {
 		});
 	});
 
-	it("stamps finalUrl from the primary response.url onto the fetched result", async () => {
-		const fakeFetch: typeof fetch = async () => {
-			const response = new Response("<html><body>hi</body></html>", {
-				status: 200,
-				headers: { "content-type": "text/html" },
-			});
-			Object.defineProperty(response, "url", { value: "https://example.com/final" });
-			return response;
-		};
-		const crawlArticle = initCrawl({ fetch: fakeFetch });
+	it("keys a saved tracking link on the article it redirects to, not on the tracker", async () => {
+		const article = () =>
+			new Response("<html><body>hi</body></html>", { status: 200, headers: { "content-type": "text/html" } });
+		const crawlArticle = initCrawl({ fetch: redirectingOrigin(article) });
 
-		const result = await crawlArticle({ url: "https://example.com/requested" });
+		const result = await crawlArticle({ url: WRAPPER_URL });
 
 		assertFetched(result);
-		expect(result.finalUrl).toBe("https://example.com/final");
+		expect(result.finalUrl).toBe(DESTINATION_URL);
 	});
 
-	it("stamps finalUrl from a redirectable fallback response, whose .url carries the followed terminal", async () => {
-		// A fallback transport (curl/h2/aia) is `redirectable(singleHop)`: it
-		// follows redirects and stamps the terminal onto the synthetic Response's
-		// `.url`, so the orchestrator reads it the same way it reads undici's.
-		const hops = [
-			new Response(null, { status: 301, headers: { location: "https://example.com/final" } }),
-			new Response("<html><body>hi</body></html>", { status: 200, headers: { "content-type": "text/html" } }),
-		];
-		let hop = 0;
-		const fallbackResponse = await redirectable(async () => hops[hop++], "test")("https://example.com/start");
-		expect(fallbackResponse.url).toBe("https://example.com/final");
-		const crawlArticle = initCrawl({ fetch: async () => fallbackResponse });
+	it("still keys on the article when a 403 sends the crawl back down the fallback transports with the tracker URL", async () => {
+		const article = () =>
+			new Response("<html><body>hi</body></html>", { status: 200, headers: { "content-type": "text/html" } });
+		const crawlArticle = initCrawl({
+			fetch: async () => new Response(null, { status: 403 }),
+			fetchH2: async () => new Response(null, { status: 403 }),
+			fetchCurl: followingFallback(article),
+		});
 
-		const result = await crawlArticle({ url: "https://example.com/start" });
+		const result = await crawlArticle({ url: WRAPPER_URL });
 
 		assertFetched(result);
-		expect(result.finalUrl).toBe("https://example.com/final");
+		expect(result.finalUrl).toBe(DESTINATION_URL);
+	});
+
+	it("attributes a Cloudflare challenge to the destination that sent it, not to the tracker that redirected there", async () => {
+		const challenge = () =>
+			new Response(null, {
+				status: 403,
+				headers: { server: "cloudflare", "cf-mitigated": "challenge", "cf-ray": "a224aec2da7b0119-SYD" },
+			});
+		const logError = jest.fn();
+		const logInfo = jest.fn();
+		const crawlArticle = initCrawl({
+			fetch: redirectingOrigin(challenge),
+			fetchH2: followingFallback(challenge),
+			fetchCurl: followingFallback(challenge),
+			logError,
+			logInfo,
+		});
+
+		const result = await crawlArticle({ url: WRAPPER_URL });
+
+		expect(result).toEqual({ status: "blocked", httpStatus: 403, finalUrl: DESTINATION_URL });
+		expect(logInfo).toHaveBeenCalledWith(
+			`[CrawlArticle] HTTP 403 for ${WRAPPER_URL} → ${DESTINATION_URL} (server=cloudflare, cf-mitigated=challenge, cf-ray=a224aec2da7b0119-SYD)`,
+		);
+		expect(logError).not.toHaveBeenCalled();
+	});
+
+	it("keys a dead link on the destination that 404s, not on the tracker that still redirects", async () => {
+		const gone = () => new Response(null, { status: 404 });
+		const crawlArticle = initCrawl({ fetch: redirectingOrigin(gone) });
+
+		const result = await crawlArticle({ url: WRAPPER_URL });
+
+		expect(result).toEqual({ status: "not-found", httpStatus: 404, finalUrl: DESTINATION_URL });
+	});
+
+	it("names the destination that stalled, even though the aborted chain produced no response to read it off", async () => {
+		const stallsAfterRedirecting: typeof fetch = async (input, init) => {
+			if (String(input) === WRAPPER_URL) {
+				return new Response(null, { status: 301, headers: { location: DESTINATION_URL } });
+			}
+			const signal = init?.signal;
+			assert(signal, "Expected the crawl fetch to pass an AbortSignal");
+			return new Promise((_resolve, reject) => {
+				signal.addEventListener("abort", () => reject(signal.reason), { once: true });
+			});
+		};
+		const logError = jest.fn();
+		const crawlArticle = initCrawl({
+			fetch: stallsAfterRedirecting,
+			logError,
+			fetchTimeouts: { headersMs: 15, bodyMs: 5000 },
+		});
+
+		const result = await crawlArticle({ url: WRAPPER_URL });
+
+		expect(result).toEqual({ status: "failed", finalUrl: DESTINATION_URL });
+		expect(logError).toHaveBeenCalledTimes(1);
+		const [loggedMessage, loggedError] = logError.mock.calls[0];
+		expect(loggedMessage).toBe(`[CrawlArticle] Network error for ${WRAPPER_URL} → ${DESTINATION_URL}`);
+		assert(loggedError instanceof Error, "Expected the headers timeout to be logged as an Error");
+		expect(loggedError.name).toBe("TimeoutError");
+	});
+
+	it("attributes an unsupported body to the destination that served it, not to the tracker", async () => {
+		const video = () =>
+			new Response(Buffer.from([0, 1, 2, 3]), { status: 200, headers: { "content-type": "video/mp4" } });
+		const logError = jest.fn();
+		const crawlArticle = initCrawl({ fetch: redirectingOrigin(video), logError });
+
+		await crawlArticle({ url: WRAPPER_URL });
+
+		expect(logError).toHaveBeenCalledWith(
+			`[CrawlArticle] Unsupported content-type "video/mp4" for ${WRAPPER_URL} → ${DESTINATION_URL}`,
+		);
+	});
+
+	it("attributes a deferred PDF to the destination that served it, not to the tracker", async () => {
+		const pdf = () => new Response(PDF_MAGIC_BUFFER, { status: 200, headers: { "content-type": "application/pdf" } });
+		const logInfo = jest.fn();
+		const crawlArticle = initCrawl({ fetch: redirectingOrigin(pdf), logInfo });
+
+		await crawlArticle({ url: WRAPPER_URL });
+
+		expect(logInfo).toHaveBeenCalledWith(
+			`[CrawlArticle] PDF deferred to comprehensive crawl (no extractPdf in this runtime) for ${WRAPPER_URL} → ${DESTINATION_URL}`,
+		);
 	});
 
 	it("leaves finalUrl unset for the site-rule/oembed path, which issues no article fetch", async () => {
@@ -818,13 +916,10 @@ describe("initCrawlArticle — site-rule redirect restarts the crawl", () => {
 		return async (input) => {
 			const url = typeof input === "string" ? input : input instanceof URL ? input.href : input.url;
 			collector.push(url);
-			const response = new Response(
+			return new Response(
 				"<html><body><article><p>Publisher article body served at the redirect target.</p></article></body></html>",
 				{ status: 200, headers: { "content-type": "text/html" } },
 			);
-			// Mimic undici, which populates the read-only `.url` on real fetches.
-			Object.defineProperty(response, "url", { value: url });
-			return response;
 		};
 	}
 
@@ -1268,6 +1363,29 @@ describe("parsePdfFromBuffer", () => {
 	function htmlResponse(headers: Record<string, string> = {}): Response {
 		return new Response(null, { headers });
 	}
+
+	function respondedFrom(url: string): Promise<Response> {
+		return redirectable(async () => new Response(null, {}), "test-terminal")(url);
+	}
+
+	it("names the redirect destination in the extraction-failed log", async () => {
+		const extractPdf: ExtractPdf = async () => ({ kind: "failed", reason: PDF_EXTRACT_FAILURE_REASON });
+		const logError = jest.fn();
+
+		await parsePdfFromBuffer({
+			buffer: PDF_MAGIC_BUFFER,
+			bodyHash: createHash("sha256").update(PDF_MAGIC_BUFFER).digest("hex"),
+			response: await respondedFrom(DESTINATION_URL),
+			url: WRAPPER_URL,
+			maxPdfBytes: PDF_BYTES_CAP,
+			extractPdf,
+			logError,
+		});
+
+		expect(logError).toHaveBeenCalledWith(
+			`[CrawlArticle] PDF extraction failed for ${WRAPPER_URL} → ${DESTINATION_URL}: ${PDF_EXTRACT_FAILURE_REASON}`,
+		);
+	});
 
 	it("returns the extracted html with captured validators on success", async () => {
 		const extractPdf: ExtractPdf = async () => ({

@@ -133,7 +133,7 @@ describe("initComprehensiveCrawlHandler", () => {
 			expect(adoptCanonicalIdentity).toHaveBeenCalledWith({
 				url: "https://example.com/doc.pdf",
 				finalUrl: undefined,
-				wordCount: 10,
+				outcome: { kind: "finalized", wordCount: 10 },
 				recrawl: expected,
 			});
 		}

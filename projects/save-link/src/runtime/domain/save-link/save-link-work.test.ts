@@ -269,7 +269,99 @@ describe("initSaveLinkWork", () => {
 		expect(adoptCanonicalIdentity).toHaveBeenCalledWith({
 			url: "https://site.com/page.html",
 			finalUrl: "https://site.com/page",
-			wordCount: 321,
+			outcome: { kind: "finalized", wordCount: 321 },
+			recrawl: undefined,
+		});
+	});
+
+	it("claims the redirect destination on the retryable failure path, before the throw that dead-letters the message", async () => {
+		const adoptCanonicalIdentity = jest.fn().mockResolvedValue(undefined);
+		const unreachableDestination: CrawlAndFinalizeArticle = async () => ({
+			status: "failed",
+			reason: "crawl-failed",
+			finalUrl: "https://dest.example/article",
+		});
+		const { saveLinkWork } = createWork({
+			crawlAndFinalizeArticle: unreachableDestination,
+			adoptCanonicalIdentity,
+		});
+
+		await expect(saveLinkWork("https://wrapper.example/link/188518")).rejects.toThrow(
+			"crawl failed for https://wrapper.example/link/188518: crawl-failed",
+		);
+
+		expect(adoptCanonicalIdentity).toHaveBeenCalledWith({
+			url: "https://wrapper.example/link/188518",
+			finalUrl: "https://dest.example/article",
+			outcome: { kind: "crawl-failed" },
+			recrawl: undefined,
+		});
+	});
+
+	it("claims the redirect destination when an edge blocks the crawler at the destination", async () => {
+		const adoptCanonicalIdentity = jest.fn().mockResolvedValue(undefined);
+		const challengedAtDestination: CrawlAndFinalizeArticle = async () => ({
+			status: "blocked",
+			httpStatus: 403,
+			finalUrl: "https://dest.example/article",
+		});
+		const { saveLinkWork } = createWork({
+			crawlAndFinalizeArticle: challengedAtDestination,
+			adoptCanonicalIdentity,
+		});
+
+		await expect(saveLinkWork("https://wrapper.example/link/188518")).resolves.toBe("tier-1-terminal");
+
+		expect(adoptCanonicalIdentity).toHaveBeenCalledWith({
+			url: "https://wrapper.example/link/188518",
+			finalUrl: "https://dest.example/article",
+			outcome: { kind: "crawl-failed" },
+			recrawl: undefined,
+		});
+	});
+
+	it("claims the redirect destination on a parse-error failure too", async () => {
+		const adoptCanonicalIdentity = jest.fn().mockResolvedValue(undefined);
+		const unparseableAtDestination: CrawlAndFinalizeArticle = async () => ({
+			status: "failed",
+			reason: "readability crashed",
+			finalUrl: "https://dest.example/article",
+		});
+		const { saveLinkWork } = createWork({
+			crawlAndFinalizeArticle: unparseableAtDestination,
+			adoptCanonicalIdentity,
+		});
+
+		await expect(saveLinkWork("https://wrapper.example/link/188519")).rejects.toThrow(
+			"crawl failed for https://wrapper.example/link/188519: readability crashed",
+		);
+
+		expect(adoptCanonicalIdentity).toHaveBeenCalledWith({
+			url: "https://wrapper.example/link/188519",
+			finalUrl: "https://dest.example/article",
+			outcome: { kind: "crawl-failed" },
+			recrawl: undefined,
+		});
+	});
+
+	it("claims the redirect destination on a not-found, so a dead link is keyed where the chain actually landed", async () => {
+		const adoptCanonicalIdentity = jest.fn().mockResolvedValue(undefined);
+		const goneAtDestination: CrawlAndFinalizeArticle = async () => ({
+			status: "not-found",
+			httpStatus: 404,
+			finalUrl: "https://dest.example/gone",
+		});
+		const { saveLinkWork } = createWork({
+			crawlAndFinalizeArticle: goneAtDestination,
+			adoptCanonicalIdentity,
+		});
+
+		await expect(saveLinkWork("https://wrapper.example/link/188481")).resolves.toBe("tier-1-terminal");
+
+		expect(adoptCanonicalIdentity).toHaveBeenCalledWith({
+			url: "https://wrapper.example/link/188481",
+			finalUrl: "https://dest.example/gone",
+			outcome: { kind: "crawl-failed" },
 			recrawl: undefined,
 		});
 	});

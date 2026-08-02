@@ -138,6 +138,12 @@ export function initSaveLinkWork(deps: {
 				url,
 				input: { reason: { kind: "not-found", httpStatus: result.httpStatus } },
 			});
+			await adoptCanonicalIdentity({
+				url,
+				finalUrl: result.finalUrl,
+				outcome: { kind: "crawl-failed" },
+				recrawl: options?.recrawl,
+			});
 			return "tier-1-terminal";
 		}
 
@@ -150,6 +156,12 @@ export function initSaveLinkWork(deps: {
 					reason: { kind: "blocked", cause: blockedCauseForStatus(result.httpStatus) },
 				},
 			});
+			await adoptCanonicalIdentity({
+				url,
+				finalUrl: result.finalUrl,
+				outcome: { kind: "crawl-failed" },
+				recrawl: options?.recrawl,
+			});
 			return "tier-1-terminal";
 		}
 
@@ -158,6 +170,12 @@ export function initSaveLinkWork(deps: {
 				logParseError({ url, reason: result.reason });
 			}
 			await emitTier1FailureOutcome({ url });
+			await adoptCanonicalIdentity({
+				url,
+				finalUrl: result.finalUrl,
+				outcome: { kind: "crawl-failed" },
+				recrawl: options?.recrawl,
+			});
 			if (result.reason === CRAWL_FAILED_REASON) {
 				throw new CrawlFailedError(url);
 			}
@@ -206,13 +224,10 @@ export function initSaveLinkWork(deps: {
 			pickedTier: successSnapshot.pickedTier,
 		});
 
-		/* Best-effort and never throws (queues are maxReceiveCount=1): if the
-		 * crawl followed a same-host redirect to a different terminal, claim that
-		 * identity so a later save of the terminal collapses onto this article. */
 		await adoptCanonicalIdentity({
 			url,
 			finalUrl: result.finalUrl,
-			wordCount: result.article.metadata.wordCount,
+			outcome: { kind: "finalized", wordCount: result.article.metadata.wordCount },
 			recrawl: options?.recrawl,
 		});
 

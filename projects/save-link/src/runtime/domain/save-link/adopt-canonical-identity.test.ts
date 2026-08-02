@@ -9,9 +9,10 @@ describe("adoptableTerminal", () => {
 	const base = {
 		url: "https://site.com/page.html",
 		finalUrl: "https://site.com/page",
-		wordCount: 400,
+		outcome: { kind: "finalized", wordCount: 400 } as const,
 		isSiteRuleUrl: never,
 	};
+	const crawlFailed = { ...base, outcome: { kind: "crawl-failed" } as const };
 
 	it("returns the terminal when every gate passes", () => {
 		expect(adoptableTerminal(base)).toBe("https://site.com/page");
@@ -22,7 +23,7 @@ describe("adoptableTerminal", () => {
 	});
 
 	it("rejects a zero-word (bot-wall / JS-shell) finalize", () => {
-		expect(adoptableTerminal({ ...base, wordCount: 0 })).toBeUndefined();
+		expect(adoptableTerminal({ ...base, outcome: { kind: "finalized", wordCount: 0 } })).toBeUndefined();
 	});
 
 	it("rejects when no redirect resolved a terminal", () => {
@@ -41,6 +42,24 @@ describe("adoptableTerminal", () => {
 
 	it("rejects when the terminal is itself a site-rule URL (keeps its oembed treatment)", () => {
 		expect(adoptableTerminal({ ...base, isSiteRuleUrl: () => true })).toBeUndefined();
+	});
+
+	it("adopts a failed crawl's terminal — there is no content to weigh, only the redirect chain", () => {
+		expect(adoptableTerminal(crawlFailed)).toBe("https://site.com/page");
+	});
+
+	it("rejects a failed crawl on an admin recrawl", () => {
+		expect(adoptableTerminal({ ...crawlFailed, recrawl: true })).toBeUndefined();
+	});
+
+	it("rejects a failed crawl whose terminal normalizes to the same identity", () => {
+		expect(
+			adoptableTerminal({ ...crawlFailed, url: "https://site.com/page", finalUrl: "https://site.com/page?utm_source=x" }),
+		).toBeUndefined();
+	});
+
+	it("rejects a failed crawl whose terminal is itself a site-rule URL", () => {
+		expect(adoptableTerminal({ ...crawlFailed, isSiteRuleUrl: () => true })).toBeUndefined();
 	});
 });
 
@@ -66,7 +85,11 @@ describe("initAdoptCanonicalIdentity", () => {
 		const setDisplayUrl = jest.fn<ReturnType<SetArticleDisplayUrl>, Parameters<SetArticleDisplayUrl>>(async () => {});
 		const adopt = build(claimAlias, { setDisplayUrl });
 
-		await adopt({ url: "https://site.com/page.html", finalUrl: "https://site.com/page", wordCount: 300 });
+		await adopt({
+			url: "https://site.com/page.html",
+			finalUrl: "https://site.com/page",
+			outcome: { kind: "finalized", wordCount: 300 },
+		});
 
 		expect(claimAlias).toHaveBeenCalledWith({
 			aliasUrl: "https://site.com/page",
@@ -84,10 +107,36 @@ describe("initAdoptCanonicalIdentity", () => {
 		const setDisplayUrl = jest.fn<ReturnType<SetArticleDisplayUrl>, Parameters<SetArticleDisplayUrl>>(async () => {});
 		const adopt = build(claimAlias, { setDisplayUrl });
 
-		await adopt({ url: "https://site.com/page.html", finalUrl: "https://site.com/page", wordCount: 0 });
+		await adopt({
+			url: "https://site.com/page.html",
+			finalUrl: "https://site.com/page",
+			outcome: { kind: "finalized", wordCount: 0 },
+		});
 
 		expect(claimAlias).not.toHaveBeenCalled();
 		expect(setDisplayUrl).not.toHaveBeenCalled();
+	});
+
+	it("claims id(destination) → url and records it as the display URL when the crawl failed at the destination", async () => {
+		const claimAlias = jest.fn<ReturnType<ClaimCanonicalAlias>, Parameters<ClaimCanonicalAlias>>(async () => "claimed");
+		const setDisplayUrl = jest.fn<ReturnType<SetArticleDisplayUrl>, Parameters<SetArticleDisplayUrl>>(async () => {});
+		const adopt = build(claimAlias, { setDisplayUrl });
+
+		await adopt({
+			url: "https://wrapper.example/link/188518",
+			finalUrl: "https://dest.example/article",
+			outcome: { kind: "crawl-failed" },
+		});
+
+		expect(claimAlias).toHaveBeenCalledWith({
+			aliasUrl: "https://dest.example/article",
+			targetOriginalUrl: "https://wrapper.example/link/188518",
+			now: new Date("2026-07-15T10:00:00.000Z"),
+		});
+		expect(setDisplayUrl).toHaveBeenCalledWith({
+			articleUrl: "https://wrapper.example/link/188518",
+			displayUrl: "https://dest.example/article",
+		});
 	});
 
 	it("still records the display URL when the alias is already occupied (fan-in origin)", async () => {
@@ -96,7 +145,11 @@ describe("initAdoptCanonicalIdentity", () => {
 		const adopt = build(claimAlias, { setDisplayUrl });
 
 		await expect(
-			adopt({ url: "https://site.com/page.html", finalUrl: "https://site.com/page", wordCount: 300 }),
+			adopt({
+				url: "https://site.com/page.html",
+				finalUrl: "https://site.com/page",
+				outcome: { kind: "finalized", wordCount: 300 },
+			}),
 		).resolves.toBeUndefined();
 		expect(claimAlias).toHaveBeenCalled();
 		expect(setDisplayUrl).toHaveBeenCalledWith({
@@ -112,7 +165,11 @@ describe("initAdoptCanonicalIdentity", () => {
 		const adopt = build(claimAlias);
 
 		await expect(
-			adopt({ url: "https://site.com/page.html", finalUrl: "https://site.com/page", wordCount: 300 }),
+			adopt({
+				url: "https://site.com/page.html",
+				finalUrl: "https://site.com/page",
+				outcome: { kind: "finalized", wordCount: 300 },
+			}),
 		).resolves.toBeUndefined();
 	});
 });

@@ -255,7 +255,7 @@ export function initComprehensiveCrawlHandler(deps: {
 				await adoptCanonicalIdentity({
 					url,
 					finalUrl: crawlResult.finalUrl,
-					wordCount: finalized.article.metadata.wordCount,
+					outcome: { kind: "finalized", wordCount: finalized.article.metadata.wordCount },
 					recrawl: Boolean(recrawl || refresh),
 				});
 

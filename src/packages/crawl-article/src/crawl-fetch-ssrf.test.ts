@@ -205,6 +205,41 @@ describe("SSRF guard — initCrawlFetch composition", () => {
 		await expect(crawlFetch("https://attacker.test/article")).rejects.toThrow(/blocked address 10\.1\.2\.3/);
 	});
 
+	it("re-checks a redirect hop the primary leg follows itself, refusing a target that resolves to a private IP", async () => {
+		const server = await startRedirectServer("http://internal.attacker.test/secret");
+		const checkedAddresses: string[] = [];
+		// The h2 and curl legs run their own copy of the guard (covered above);
+		// stubbing them pins this test on the primary leg's redirect loop.
+		const h2Refused = new Error("h2 leg not under test");
+		const curlRefused = new Error("curl leg not under test");
+		const hops: string[] = [];
+		const crawlFetch = initCrawlFetch({
+			fetch: globalThis.fetch,
+			personas: PERSONAS,
+			isBlocked: (address) => {
+				checkedAddresses.push(address);
+				return blocksPrivateExceptLoopback(address);
+			},
+			resolve: resolverFor({ "internal.attacker.test": "10.0.0.1" }),
+			fetchH2: async () => {
+				throw h2Refused;
+			},
+			fetchCurl: async () => {
+				throw curlRefused;
+			},
+		});
+
+		try {
+			await expect(
+				crawlFetch(`${server.origin}/start`, { onRedirect: (hop) => hops.push(hop.toUrl) }),
+			).rejects.toBe(curlRefused);
+			expect(hops).toEqual(["http://internal.attacker.test/secret"]);
+			expect(checkedAddresses).toContain("10.0.0.1");
+		} finally {
+			await server.close();
+		}
+	});
+
 	it("fails closed across the whole chain for a raw private IP-literal host, before any transport connects", async () => {
 		const crawlFetch = initCrawlFetch({
 			fetch: globalThis.fetch,

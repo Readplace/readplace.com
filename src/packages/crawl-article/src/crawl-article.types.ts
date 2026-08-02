@@ -26,16 +26,17 @@ export type CrawlArticleResult =
 			 * origin returns the same bytes under a 200 OK. */
 			bodyHash: string;
 			/* Post-redirect URL so a 3xx redirect resolves the article's canonical
-			 * identity. Read straight off `response.url`, which is the real terminal
-			 * on every transport — undici on the primary path, and `redirectable`
-			 * stamps it on the h2/curl/aia fallbacks. Absent only for the
-			 * site-rule/oembed path, which never issues an HTTP fetch. */
+			 * identity. Absent only for the site-rule/oembed path, which never
+			 * issues an HTTP fetch. */
 			finalUrl?: string;
 		}
 	| { status: "not-modified" }
-	| { status: "failed" }
-	| { status: "blocked"; httpStatus: number }
-	| { status: "not-found"; httpStatus: 404 | 410 }
+	/* A failure carries the terminal too: the redirect chain's own `Location` is
+	 * the strongest available evidence of where a link lands, so a destination
+	 * that blocks or never answers can still claim its identity. */
+	| { status: "failed"; finalUrl?: string }
+	| { status: "blocked"; httpStatus: number; finalUrl?: string }
+	| { status: "not-found"; httpStatus: 404 | 410; finalUrl?: string }
 	| { status: "unsupported"; reason: string };
 
 /**

@@ -47,6 +47,21 @@ function fetchTimeoutReason(message: string): Error {
 	return reason;
 }
 
+function terminalUrl(response: Response): string | undefined {
+	return response.url || undefined;
+}
+
+/**
+ * A log line that quotes edge headers must attribute them to the host that sent
+ * them, not to the wrapper that redirected there.
+ */
+function redirectSuffix(params: { requestedUrl: string; responseUrl: string | undefined }): string {
+	const { requestedUrl, responseUrl } = params;
+	if (!responseUrl) return "";
+	if (responseUrl === requestedUrl) return "";
+	return ` → ${responseUrl}`;
+}
+
 function describeEdgeHeaders(headers: Headers): string {
 	const parts: string[] = [];
 	for (const name of ["server", "cf-mitigated", "cf-ray", "retry-after"]) {
@@ -139,9 +154,9 @@ function initConditionalGet(deps: {
 }) => Promise<
 	| { status: "ok"; response: Response; buffer: Buffer }
 	| { status: "not-modified" }
-	| { status: "failed" }
-	| { status: "blocked"; httpStatus: number }
-	| { status: "not-found"; httpStatus: 404 | 410 }
+	| { status: "failed"; finalUrl?: string }
+	| { status: "blocked"; httpStatus: number; finalUrl?: string }
+	| { status: "not-found"; httpStatus: 404 | 410; finalUrl?: string }
 > {
 	const { crawlFetch, logError, logInfo, fetchTimeouts } = deps;
 	const logFetchFailure = initLogFetchFailure({ logError, logInfo });
@@ -152,6 +167,7 @@ function initConditionalGet(deps: {
 		 * this: it fires at a fixed wall-clock point regardless of which phase
 		 * the fetch is in, which is exactly the coupling being removed. */
 		const controller = new AbortController();
+		let lastRedirectHop: string | undefined;
 		let budgetTimer = setTimeout(() => {
 			controller.abort(fetchTimeoutReason(`no response headers within ${fetchTimeouts.headersMs}ms`));
 		}, fetchTimeouts.headersMs);
@@ -162,39 +178,45 @@ function initConditionalGet(deps: {
 			const response = await crawlFetch(params.url, {
 				signal: controller.signal,
 				headers,
+				onRedirect: (hop) => {
+					lastRedirectHop = hop.toUrl;
+				},
 			});
 			clearTimeout(budgetTimer);
 			if (response.status === 304) {
 				return { status: "not-modified" };
 			}
+			const finalUrl = terminalUrl(response);
+			const suffix = redirectSuffix({ requestedUrl: params.url, responseUrl: finalUrl });
 			if (response.status === 404 || response.status === 410) {
 				logFetchFailure({
 					status: response.status,
-					message: `[CrawlArticle] HTTP ${response.status} for ${params.url}${describeEdgeHeaders(response.headers)}`,
+					message: `[CrawlArticle] HTTP ${response.status} for ${params.url}${suffix}${describeEdgeHeaders(response.headers)}`,
 				});
-				return { status: "not-found", httpStatus: response.status };
+				return { status: "not-found", httpStatus: response.status, finalUrl };
 			}
 			if (!response.ok) {
 				logFetchFailure({
 					status: response.status,
-					message: `[CrawlArticle] HTTP ${response.status} for ${params.url}${describeEdgeHeaders(response.headers)}`,
+					message: `[CrawlArticle] HTTP ${response.status} for ${params.url}${suffix}${describeEdgeHeaders(response.headers)}`,
 				});
 				if (isBlockClassResponse(response) || response.status === 429) {
-					return { status: "blocked", httpStatus: response.status };
+					return { status: "blocked", httpStatus: response.status, finalUrl };
 				}
-				return { status: "failed" };
+				return { status: "failed", finalUrl };
 			}
 			budgetTimer = setTimeout(() => {
 				controller.abort(fetchTimeoutReason(`body not fully read within ${fetchTimeouts.bodyMs}ms`));
 			}, fetchTimeouts.bodyMs);
-			/* c8 ignore next -- V8 async continuation phantom on the await, see bcoe/c8#319 */
 			const buffer = await readBodyWithCap(response, MAX_PDF_BYTES.bytes);
+			/* c8 ignore next -- V8 async continuation phantom on the await above, see bcoe/c8#319 */
 			clearTimeout(budgetTimer);
 			return { status: "ok", response, buffer };
 		} catch (error) {
 			clearTimeout(budgetTimer);
-			logError(`[CrawlArticle] Network error for ${params.url}`, error instanceof Error ? error : undefined);
-			return { status: "failed" };
+			const suffix = redirectSuffix({ requestedUrl: params.url, responseUrl: lastRedirectHop });
+			logError(`[CrawlArticle] Network error for ${params.url}${suffix}`, error instanceof Error ? error : undefined);
+			return { status: "failed", finalUrl: lastRedirectHop };
 		}
 	};
 }
@@ -257,8 +279,9 @@ export async function parsePdfFromBuffer(input: {
 	onProgress?: ComprehensiveCrawlProgress;
 	logError: (message: string, error?: Error) => void;
 }): Promise<CrawlArticleResult> {
+	const suffix = redirectSuffix({ requestedUrl: input.url, responseUrl: input.response?.url });
 	if (input.buffer.length > input.maxPdfBytes) {
-		input.logError(`[CrawlArticle] PDF body too large (${input.buffer.length} bytes) for ${input.url}`);
+		input.logError(`[CrawlArticle] PDF body too large (${input.buffer.length} bytes) for ${input.url}${suffix}`);
 		return { status: "unsupported", reason: `pdf body too large: ${input.buffer.length} bytes` };
 	}
 	const extracted = await input.extractPdf({
@@ -267,7 +290,7 @@ export async function parsePdfFromBuffer(input: {
 		onProgress: input.onProgress,
 	});
 	if (extracted.kind === "failed") {
-		input.logError(`[CrawlArticle] PDF extraction failed for ${input.url}: ${extracted.reason}`);
+		input.logError(`[CrawlArticle] PDF extraction failed for ${input.url}${suffix}: ${extracted.reason}`);
 		return { status: "unsupported", reason: `pdf extraction failed: ${extracted.reason}` };
 	}
 	const result: CrawlArticleResult & { status: "fetched" } = {
@@ -375,8 +398,8 @@ export function initCrawlArticle(deps: {
 			currentUrl = siteRedirect;
 		}
 		const fetched = await conditionalGet({ ...params, url: currentUrl });
-		/* c8 ignore next -- V8 block-coverage phantom: the early-return continuation directly after the site-rule redirect loop gets a spurious zero-count sub-range even though the ok and non-ok statuses both have tests; restructuring only relocates it. See bcoe/c8#319 and https://v8.dev/blog/javascript-code-coverage */
 		if (fetched.status !== "ok") return fetched;
+		/* c8 ignore next -- V8 block-coverage phantom: the early-return continuation directly after the site-rule redirect loop gets a spurious zero-count sub-range even though the ok and non-ok statuses both have tests; restructuring only relocates it. See bcoe/c8#319 and https://v8.dev/blog/javascript-code-coverage */
 		const { response, buffer } = fetched;
 		/* Pre-parse byte gate: many origins ignore conditional headers and
 		 * return 200 OK even when the body is byte-identical to the previous
@@ -391,7 +414,8 @@ export function initCrawlArticle(deps: {
 		const contentType = response.headers.get("content-type") ?? "";
 		const mediaType = classifyMediaType({ contentType, buffer });
 		if (mediaType === undefined) {
-			logError(`[CrawlArticle] Unsupported content-type "${contentType}" for ${currentUrl}`);
+			const suffix = redirectSuffix({ requestedUrl: currentUrl, responseUrl: terminalUrl(response) });
+			logError(`[CrawlArticle] Unsupported content-type "${contentType}" for ${currentUrl}${suffix}`);
 			return { status: "unsupported", reason: `unsupported content type: ${contentType}` };
 		}
 		const result = await dispatchSupportedMedia({
@@ -408,12 +432,9 @@ export function initCrawlArticle(deps: {
 			logError,
 			logInfo,
 		});
-		/* Stamp the post-redirect terminal URL onto every fetched result at the one
-		 * dispatch point, so a 3xx resolves the article's identity uniformly across
-		 * HTML/PDF/text/image. `response.url` is the real terminal on every
-		 * transport — undici populates it on the primary path, and `redirectable`
-		 * stamps it on the h2/curl/aia fallbacks (see follow-redirects.ts). */
-		if (result.status === "fetched" && response.url) result.finalUrl = response.url;
+		/* One dispatch point rather than one per parser, so a 3xx resolves the
+		 * article's identity uniformly across HTML/PDF/text/image. */
+		if (result.status === "fetched") result.finalUrl = terminalUrl(response);
 		return result;
 	};
 }
@@ -452,7 +473,8 @@ async function dispatchSupportedMedia(input: {
 			});
 		case "pdf":
 			if (!input.extractPdf) {
-				logInfo(`[CrawlArticle] PDF deferred to comprehensive crawl (no extractPdf in this runtime) for ${url}`);
+				const suffix = redirectSuffix({ requestedUrl: url, responseUrl: terminalUrl(response) });
+				logInfo(`[CrawlArticle] PDF deferred to comprehensive crawl (no extractPdf in this runtime) for ${url}${suffix}`);
 				return { status: "unsupported", reason: `unsupported content type: ${contentType}` };
 			}
 			return parsePdfFromBuffer({

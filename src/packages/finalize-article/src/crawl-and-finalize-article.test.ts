@@ -123,6 +123,71 @@ describe("initCrawlAndFinalizeArticle", () => {
 		expect(result).toEqual({ status: "failed", reason: "crawl-failed" });
 	});
 
+	it("carries the redirect destination through a failed crawl so a blocked destination can still be keyed", async () => {
+		const crawlAndFinalize = initCrawlAndFinalizeArticle({
+			crawlArticle: async () => ({ status: "failed", finalUrl: "https://dest.example/article" }),
+			finalizeArticle: okFinalize,
+		});
+
+		const result = await crawlAndFinalize({ url: URL_UNDER_TEST });
+
+		expect(result).toEqual({
+			status: "failed",
+			reason: "crawl-failed",
+			finalUrl: "https://dest.example/article",
+		});
+	});
+
+	it("carries the redirect destination through an edge block, the case a click-tracker most often lands on", async () => {
+		const crawlAndFinalize = initCrawlAndFinalizeArticle({
+			crawlArticle: async () => ({ status: "blocked", httpStatus: 403, finalUrl: "https://dest.example/article" }),
+			finalizeArticle: okFinalize,
+		});
+
+		const result = await crawlAndFinalize({ url: URL_UNDER_TEST });
+
+		expect(result).toEqual({
+			status: "blocked",
+			httpStatus: 403,
+			finalUrl: "https://dest.example/article",
+		});
+	});
+
+	it("carries the redirect destination through a not-found so a dead link is keyed where it landed", async () => {
+		const crawlAndFinalize = initCrawlAndFinalizeArticle({
+			crawlArticle: async () => ({ status: "not-found", httpStatus: 410, finalUrl: "https://dest.example/gone" }),
+			finalizeArticle: okFinalize,
+		});
+
+		const result = await crawlAndFinalize({ url: URL_UNDER_TEST });
+
+		expect(result).toEqual({
+			status: "not-found",
+			httpStatus: 410,
+			finalUrl: "https://dest.example/gone",
+		});
+	});
+
+	it("carries the redirect destination through a finalizer parse failure, which reaches the destination but cannot read it", async () => {
+		const crawlAndFinalize = initCrawlAndFinalizeArticle({
+			crawlArticle: async () => ({
+				status: "fetched",
+				html: "<html></html>",
+				bodyHash: "a".repeat(64),
+				finalUrl: "https://dest.example/article",
+			}),
+			finalizeArticle: async () => ({ ok: false, reason: "readability crashed" }),
+		});
+
+		const result = await crawlAndFinalize({ url: URL_UNDER_TEST });
+
+		expect(result).toEqual({
+			status: "failed",
+			reason: "readability crashed",
+			finalUrl: "https://dest.example/article",
+		});
+	});
+
 	it("maps the crawler's not-found status through with the httpStatus (callers terminalise without retries)", async () => {
 		const crawlAndFinalize = initCrawlAndFinalizeArticle({
 			crawlArticle: async () => ({ status: "not-found", httpStatus: 404 }),

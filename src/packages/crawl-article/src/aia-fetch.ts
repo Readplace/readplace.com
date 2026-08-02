@@ -3,6 +3,7 @@ import http from "node:http";
 import https from "node:https";
 import tls from "node:tls";
 import type { AssertHostAllowed, SocketLookup } from "./blocked-address-lookup";
+import { toPlainHeaders, urlFromInput } from "./fetch-input";
 import { redirectable, type RedirectableFetch } from "./follow-redirects";
 
 const TLS_CHAIN_ERROR_CODES = new Set([
@@ -250,24 +251,6 @@ export function initDefaultFetchAia(deps: { lookup?: SocketLookup; assertHostAll
 }
 
 const defaultFetchAia = initDefaultFetchAia({});
-
-type FetchInput = Parameters<typeof fetch>[0];
-type FetchInit = Parameters<typeof fetch>[1];
-
-function urlFromInput(input: FetchInput): string {
-	if (typeof input === "string") return input;
-	if (input instanceof URL) return input.href;
-	return input.url;
-}
-
-function toPlainHeaders(headers: NonNullable<FetchInit>["headers"]): Record<string, string> | undefined {
-	if (!headers) return undefined;
-	const out: Record<string, string> = {};
-	new Headers(headers).forEach((value, key) => {
-		out[key] = value;
-	});
-	return out;
-}
 
 function toFetchHeaders(incoming: http.IncomingHttpHeaders): Headers {
 	const out = new Headers();
