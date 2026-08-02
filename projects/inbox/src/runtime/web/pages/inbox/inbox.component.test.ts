@@ -351,7 +351,9 @@ describe("InboxPage", () => {
 
 		const row = doc.querySelector('[data-test-inbox-section="active"] [data-test-inbox-item]');
 		assert.ok(row, "active row must render");
-		const childClasses = Array.from(row.children).map((el) => el.classList[0]);
+		const childClasses = Array.from(row.children).map(
+			(el) => el.classList[el.classList.length - 1],
+		);
 		assert.deepEqual(childClasses, [
 			"inbox__name",
 			"inbox__copy-btn",

@@ -22,8 +22,8 @@
 }
 
 .inbox-emails__manage {
-  font-size: 0.9rem;
-  color: var(--primary-text);
+  font-size: 0.875rem;
+  color: var(--primary);
   text-decoration: none;
 }
 
@@ -46,18 +46,7 @@
 }
 
 .inbox-emails__empty-cta {
-  display: inline-block;
   margin-top: 16px;
-  padding: var(--button-padding);
-  background: var(--primary-fill);
-  color: var(--primary-foreground);
-  border-radius: var(--radius);
-  font-weight: 600;
-  text-decoration: none;
-}
-
-.inbox-emails__empty-cta:hover {
-  opacity: 0.9;
 }
 
 .inbox-emails__address-list {
@@ -82,31 +71,20 @@
 
 .inbox-emails__address-name {
   flex: 1 1 100%;
-  font-size: 0.9rem;
+  font-size: 0.875rem;
   font-weight: 600;
   color: var(--foreground);
 }
 
-.inbox-emails__copy-btn {
-  padding: var(--button-padding-sm);
-  font-size: 0.9rem;
-  font-weight: 600;
-  color: var(--primary-foreground);
-  background: var(--primary-fill);
-  border: none;
-  border-radius: var(--radius);
-  cursor: pointer;
-}
-
-.inbox-emails__copy-btn:hover {
-  opacity: 0.9;
+.inbox-emails__copy-btn[hidden] {
+  display: none;
 }
 
 .inbox-emails__address-field {
   flex: 1 1 200px;
   min-width: 0;
   padding: 8px 12px;
-  font-size: 0.95rem;
+  font-size: var(--input-font-size);
   color: var(--foreground);
   background: var(--background);
   border: 1px solid var(--border);
@@ -150,7 +128,7 @@
 }
 
 .inbox-emails__sender {
-  font-size: 0.95rem;
+  font-size: 1rem;
   font-weight: 600;
   overflow: hidden;
   text-overflow: ellipsis;
@@ -158,7 +136,7 @@
 }
 
 .inbox-emails__time {
-  font-size: 0.8rem;
+  font-size: 0.8125rem;
   color: var(--muted-foreground);
   font-variant-numeric: tabular-nums;
   white-space: nowrap;
@@ -175,7 +153,7 @@
 .inbox-emails__subject {
   flex: 0 1 auto;
   min-width: 0;
-  font-size: 0.9rem;
+  font-size: 0.875rem;
   color: var(--muted-foreground);
   overflow: hidden;
   text-overflow: ellipsis;
@@ -184,7 +162,7 @@
 
 .inbox-emails__badge {
   flex: none;
-  font-size: 0.75rem;
+  font-size: 0.8125rem;
   font-weight: 500;
   color: var(--error-text);
   border: 1px solid var(--error-text);
@@ -203,7 +181,7 @@
 
 .inbox-emails__link-count {
   flex: none;
-  font-size: 0.75rem;
+  font-size: 0.8125rem;
   color: var(--muted-foreground);
   white-space: nowrap;
 }
