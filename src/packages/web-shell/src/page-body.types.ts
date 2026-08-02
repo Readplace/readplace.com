@@ -32,7 +32,7 @@ export interface SeoMetadata {
 
 export interface PageBody {
 	seo: SeoMetadata;
-	styles: string;
+	styles: string | { href: string };
 	headerVariant?: "default" | "transparent";
 	bodyClass?: string;
 	content: { html: string; markdown?: string };

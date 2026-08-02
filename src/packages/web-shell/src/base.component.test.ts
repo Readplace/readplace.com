@@ -132,6 +132,26 @@ describe("Base component", () => {
 		expect(main?.querySelector("style")?.textContent).toBe(".lead { color: rebeccapurple; }");
 	});
 
+	it("injects page styles as a <link> in <main> and preloads it from <head> for the href variant", () => {
+		const href = "/styles/queue.abc123def456.css";
+		const page = createTestPageBody({
+			styles: { href },
+			content: { html: "<main><p>Test content</p></main>" },
+		});
+		const result = Base(page, GUEST_STATE).to("text/html");
+		const doc = new JSDOM(result.body).window.document;
+
+		const main = doc.querySelector("main");
+		const injected = main?.firstElementChild;
+		expect(injected?.tagName).toBe("LINK");
+		expect(injected?.getAttribute("rel")).toBe("stylesheet");
+		expect(injected?.getAttribute("href")).toBe(href);
+		expect(main?.querySelector("style")).toBeNull();
+
+		const preload = doc.head.querySelector('link[rel="preload"][as="style"]');
+		expect(preload?.getAttribute("href")).toBe(href);
+	});
+
 	it("preserves the reader iframe's double-escaped srcdoc when injecting page styles, so code samples stay text", () => {
 		const srcdoc =
 			"&lt;!doctype html&gt;&lt;body&gt;&lt;code&gt;&amp;lt;input&amp;gt;&lt;/code&gt;&lt;/body&gt;";

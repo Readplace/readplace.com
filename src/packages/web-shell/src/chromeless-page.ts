@@ -12,7 +12,7 @@ import { CHROMELESS_TEMPLATE } from "./chromeless-page.template";
 import type { Component } from "./component.types";
 import { HtmlPage } from "./html-page";
 import { HTMX_SCRIPTS } from "./htmx-script";
-import { injectPageStylesIntoMain } from "./inject-page-styles";
+import { injectPageStylesIntoMain, pageStylesheetPreload } from "./inject-page-styles";
 import type { PageBody, SeoMetadata } from "./page-body.types";
 import { render } from "./render";
 
@@ -64,6 +64,7 @@ export function initChromelessPage(config: ChromelessPageConfig): RenderChromele
 			bannerAreaStyles: CHROMELESS_BANNER_AREA_STYLES,
 			changelogBannerStyles: CHANGELOG_BANNER_STYLES,
 			changelogBanner: renderChangelogBannerShell(state.changelogBanner, state.currentPath),
+			pageStylesheetPreload: pageStylesheetPreload(body.styles),
 			content: injectPageStylesIntoMain(body.content.html, body.styles),
 			scripts: HTMX_SCRIPTS + (body.scripts ?? "") + siteScripts + liveReloadScript,
 		});

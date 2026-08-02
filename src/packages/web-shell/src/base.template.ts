@@ -32,6 +32,7 @@ export const BASE_TEMPLATE = `<!DOCTYPE html>
 	{{#if twitterSite}}<meta name="twitter:site" content="{{twitterSite}}">{{/if}}
 	<meta name="twitter:creator" content="@fagnerbrack">
 
+	{{{pageStylesheetPreload}}}
 	<link rel="preconnect" href="https://fonts.googleapis.com">
 	<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 	<link rel="preload" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" as="style" onload="this.onload=null;this.rel='stylesheet'">

@@ -61,6 +61,23 @@ describe("ChromelessPage", () => {
 		expect(doc.querySelector(".footer")).toBeNull();
 	});
 
+	it("injects page styles as a <link> in <main> and preloads it from <head> for the href variant", () => {
+		const href = "/styles/reader.0123456789ab.css";
+		const doc = new JSDOM(
+			ChromelessPage(createTestPageBody({ styles: { href } }), NO_BANNER).to("text/html").body,
+		).window.document;
+
+		const main = doc.querySelector("main.reader");
+		const injected = main?.firstElementChild;
+		expect(injected?.tagName).toBe("LINK");
+		expect(injected?.getAttribute("rel")).toBe("stylesheet");
+		expect(injected?.getAttribute("href")).toBe(href);
+		expect(main?.querySelector("style")).toBeNull();
+
+		const preload = doc.head.querySelector('link[rel="preload"][as="style"]');
+		expect(preload?.getAttribute("href")).toBe(href);
+	});
+
 	it("carries the page's seo title, description, and robots into <head>", () => {
 		const doc = new JSDOM(ChromelessPage(createTestPageBody(), NO_BANNER).to("text/html").body).window.document;
 		expect(doc.title).toBe("Reader");

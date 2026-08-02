@@ -20,7 +20,7 @@ import { renderChangelogBannerShell } from "./changelog-banner";
 import type { Component, ParsedComponent } from "./component.types";
 import { HtmlPage } from "./html-page";
 import { HTMX_SCRIPTS } from "./htmx-script";
-import { injectPageStylesIntoMain } from "./inject-page-styles";
+import { injectPageStylesIntoMain, pageStylesheetPreload } from "./inject-page-styles";
 import { htmlToMarkdown } from "./html-to-markdown";
 import { MarkdownPage } from "./markdown-page";
 import { buildMarkdownFrontmatter } from "./markdown-frontmatter";
@@ -269,6 +269,7 @@ export function initBase(config: BaseConfig): RenderBase {
 				accessIsReadOnly: state.accessIsReadOnly ?? false,
 				trialCounter: state.trial,
 			}),
+			pageStylesheetPreload: pageStylesheetPreload(body.styles),
 			content: injectPageStylesIntoMain(body.content.html, body.styles),
 			footer: renderFooter(),
 			navScript: NAV_SCRIPT,

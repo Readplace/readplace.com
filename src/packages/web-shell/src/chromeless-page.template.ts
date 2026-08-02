@@ -7,6 +7,7 @@ export const CHROMELESS_TEMPLATE = `<!DOCTYPE html>
 	<meta name="description" content="{{description}}">
 	<meta name="robots" content="{{robots}}">
 
+	{{{pageStylesheetPreload}}}
 	<link rel="preconnect" href="https://fonts.googleapis.com">
 	<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 	<link rel="preload" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" as="style" onload="this.onload=null;this.rel='stylesheet'">
