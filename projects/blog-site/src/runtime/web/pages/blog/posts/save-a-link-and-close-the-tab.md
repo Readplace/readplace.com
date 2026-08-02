@@ -1,12 +1,12 @@
 ---
-title: "Saving Isn't Uploading"
-description: "The Readplace browser extension used to make you wait for the whole page to upload before it said Saved. Now it confirms your link the moment it's in your queue and moves the capture and upload to a background queue that outlives the popup, in both Chrome and Firefox."
-slug: "saving-isnt-uploading"
+title: "Saved the Instant You Click, Even If You Close the Tab"
+description: "The Readplace browser extension used to make you wait for the whole page to upload before it said Saved. Now it saves your link the instant you click, so you can close the tab a second later and still keep it. The page finishes uploading on its own, in both Chrome and Firefox."
+slug: "save-a-link-and-close-the-tab"
 date: "2026-08-01"
 author: "Fayner Brack"
 keywords: "save articles fast browser extension, read it later extension instant save, chrome extension read it later, firefox extension read it later, save a link before the page uploads, background upload queue browser extension, extension save without signing you out, pocket alternative browser extension, save an article without waiting, read it later save button fast"
 tags: ["changelog"]
-banner: "I made the extension say Saved before the page finishes uploading"
+banner: "I made the extension save your link the instant you click"
 ---
 
 <details class="blog-tldr">
