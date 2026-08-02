@@ -6,8 +6,7 @@ export const ARTICLES_PAGE_SIZE = 20;
 // strings: a POST that carries no body at all leaves `req.body` undefined, and
 // an absent page size is the default page, not a request to reject.
 const ArticlesShownSchema = z
-	.object({ shown: z.coerce.number().int().min(1).optional().catch(undefined) })
-	.passthrough()
+	.looseObject({ shown: z.coerce.number().int().min(1).optional().catch(undefined) })
 	.catch({});
 
 export function parseArticlesShown(source: unknown): number {

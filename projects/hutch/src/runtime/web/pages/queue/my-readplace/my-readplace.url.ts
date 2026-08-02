@@ -7,10 +7,10 @@ export const MY_READPLACE_TAB_ID = "my";
 
 export const MY_READPLACE_SAVE_PATH = `${QUEUE_PATH}/my-readplace`;
 
-const MyReadplaceQuerySchema = z.object({
+const MyReadplaceQuerySchema = z.looseObject({
 	edit: z.string().optional().catch(undefined),
 	invalid: z.string().optional().catch(undefined),
-}).passthrough();
+});
 
 export function parseMyReadplaceState(query: Record<string, unknown>): {
 	edit: boolean;
