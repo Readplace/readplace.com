@@ -58,11 +58,29 @@ describe("ChromelessPage", () => {
 		expect(main?.querySelector("p")?.textContent).toBe("Body copy.");
 		expect(main?.querySelector("style")?.textContent).toContain("rebeccapurple");
 		expect(doc.querySelector('script[src*="/client-dist/progress-bar.client.js"]')).not.toBeNull();
-		expect(doc.querySelector('script[src*="htmx.org"]')).not.toBeNull();
+		expect(doc.querySelector('script[src="/client-dist/htmx.client.js"][defer]')).not.toBeNull();
 
 		expect(doc.querySelector(".header")).toBeNull();
 		expect(doc.querySelector(".nav")).toBeNull();
 		expect(doc.querySelector(".footer")).toBeNull();
+	});
+
+	it("serves htmx same-origin and deferred, with its config in a <head> meta rather than an inline script", () => {
+		const doc = new JSDOM(ChromelessPage(createTestPageBody(), NO_BANNER).to("text/html").body).window.document;
+
+		const htmx = doc.querySelector('script[src="/client-dist/htmx.client.js"]');
+		assert(htmx, "htmx must load from the same-origin client-dist mount");
+		expect(htmx.hasAttribute("defer")).toBe(true);
+
+		expect(doc.querySelector('script[src*="cdn.jsdelivr.net"]')).toBeNull();
+		const hasInlineHtmxConfig = Array.from(doc.querySelectorAll("script:not([src])")).some((script) =>
+			(script.textContent ?? "").includes("htmx.config"),
+		);
+		expect(hasInlineHtmxConfig).toBe(false);
+
+		const configMeta = doc.head.querySelector('meta[name="htmx-config"]');
+		assert(configMeta, "htmx config must ride a <head> meta so htmx reads it at init");
+		expect(JSON.parse(configMeta.getAttribute("content") ?? "").scrollBehavior).toBe("smooth");
 	});
 
 	it("carries the page's seo title, description, and robots into <head>", () => {
@@ -106,12 +124,16 @@ describe("ChromelessPage", () => {
 		expect(result.statusCode).toBe(404);
 	});
 
-	it("renders without scripts when the page declares none", () => {
+	it("renders only the shell's own htmx client script when the page declares none", () => {
 		const doc = new JSDOM(
 			ChromelessPage(createTestPageBody({ scripts: undefined }), NO_BANNER).to("text/html").body,
 		).window.document;
-		expect(doc.querySelector('script[src*="htmx.org"]')).not.toBeNull();
-		expect(doc.querySelector('script[src*="/client-dist/"]')).toBeNull();
+		const clientDistSrcs = Array.from(doc.querySelectorAll('script[src*="/client-dist/"]')).map((script) => {
+			const src = script.getAttribute("src");
+			assert(src, "a script matched by [src*='/client-dist/'] must carry a src");
+			return src;
+		});
+		expect(clientDistSrcs).toEqual(["/client-dist/htmx.client.js"]);
 	});
 
 	it("injects the dev livereload script only when liveReload is enabled", () => {
@@ -199,7 +221,7 @@ describe("ChromelessPage", () => {
 			),
 			style: Array.from(doc.querySelectorAll("style")).map((el) => el.getAttribute("nonce")),
 		}).toEqual({
-			script: [CSP_NONCE, CSP_NONCE],
+			script: [CSP_NONCE],
 			style: [CSP_NONCE, CSP_NONCE],
 		});
 	});

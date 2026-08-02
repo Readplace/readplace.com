@@ -380,6 +380,26 @@ describe("Base component", () => {
 		expect(script.hasAttribute("defer")).toBe(true);
 	});
 
+	it("serves htmx same-origin and deferred, with its config in a <head> meta rather than an inline script", () => {
+		const page = createTestPageBody();
+		const result = Base(page, GUEST_STATE).to("text/html");
+		const doc = new JSDOM(result.body).window.document;
+
+		const htmx = doc.querySelector('script[src="/client-dist/htmx.client.js"]');
+		assert(htmx, "htmx must load from the same-origin client-dist mount");
+		expect(htmx.hasAttribute("defer")).toBe(true);
+
+		expect(doc.querySelector('script[src*="cdn.jsdelivr.net"]')).toBeNull();
+		const hasInlineHtmxConfig = Array.from(doc.querySelectorAll("script:not([src])")).some((el) =>
+			(el.textContent ?? "").includes("htmx.config"),
+		);
+		expect(hasInlineHtmxConfig).toBe(false);
+
+		const configMeta = doc.head.querySelector('meta[name="htmx-config"]');
+		assert(configMeta, "htmx config must ride a <head> meta so htmx reads it at init");
+		expect(JSON.parse(configMeta.getAttribute("content") ?? "").scrollBehavior).toBe("smooth");
+	});
+
 	it("renders the changelog banner hidden by default (no announcement in state)", () => {
 		const page = createTestPageBody();
 		const result = Base(page, GUEST_STATE).to("text/html");
@@ -790,6 +810,7 @@ describe("Base component", () => {
 		const doc = new JSDOM(result.body).window.document;
 
 		expect(loadedClientScripts(doc)).toEqual([
+			"/client-dist/htmx.client.js",
 			"/client-dist/extension-suggestion-banner.client.js",
 			"/client-dist/toast.client.js",
 		]);
@@ -1020,7 +1041,7 @@ describe("initBase config", () => {
 		const doc = new JSDOM(result.body).window.document;
 
 		expect(inlineNonces(doc)).toEqual({
-			script: [CSP_NONCE, CSP_NONCE, CSP_NONCE, CSP_NONCE, CSP_NONCE, CSP_NONCE, CSP_NONCE],
+			script: [CSP_NONCE, CSP_NONCE, CSP_NONCE, CSP_NONCE, CSP_NONCE, CSP_NONCE],
 			style: [CSP_NONCE, CSP_NONCE],
 		});
 	});

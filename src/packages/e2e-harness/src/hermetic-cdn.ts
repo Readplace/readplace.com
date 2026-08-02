@@ -28,14 +28,6 @@ export async function pinCdnFixtures(context: BrowserContext): Promise<void> {
 			});
 		},
 	);
-	await context.route(
-		(url) => url.hostname === "cdn.jsdelivr.net",
-		(route) =>
-			route.fulfill({
-				path: path.join(FIXTURES_DIR, "htmx.min.client.js"),
-				contentType: "text/javascript",
-			}),
-	);
 }
 
 export const cdnContextFixture = async (

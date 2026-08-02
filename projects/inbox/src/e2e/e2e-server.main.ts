@@ -1,4 +1,5 @@
 import assert from "node:assert";
+import { readFileSync } from "node:fs";
 import cookieParser from "cookie-parser";
 import express from "express";
 import { z } from "zod";
@@ -171,6 +172,16 @@ server.post("/e2e/resolve-link", async (req, res) => {
 		},
 	});
 	res.json({ ok: true });
+});
+
+// The shared shell loads htmx same-origin from /client-dist/htmx.client.js;
+// production serves it from hutch's origin (this deployable sits behind hutch),
+// but standalone e2e has no hutch, so serve the pinned build here — the article
+// card's poll under test only begins once htmx runs. Send the read buffer rather
+// than sendFile: Express 5 rejects the pnpm-symlinked node_modules path.
+const htmxBundle = readFileSync(require.resolve("htmx.org/dist/htmx.min.js"));
+server.get("/client-dist/htmx.client.js", (_req, res) => {
+	res.type("text/javascript").send(htmxBundle);
 });
 
 server.use(app);

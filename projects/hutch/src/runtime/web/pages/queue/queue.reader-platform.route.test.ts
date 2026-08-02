@@ -187,7 +187,7 @@ describe("Queue reader chromeless switch (GET /queue/:id/view?platform=ios)", ()
 
 		const doc = new JSDOM((await agent.get(`/queue/${articleId}/view?platform=ios`)).text).window.document;
 
-		expect(doc.querySelector('script[src*="htmx.org"]')).not.toBe(null);
+		expect(doc.querySelector('script[src="/client-dist/htmx.client.js"]')).not.toBe(null);
 
 		const topForm = doc.querySelector("[data-test-mark-read-form]");
 		assert(topForm, "top mark-read form must be rendered");
