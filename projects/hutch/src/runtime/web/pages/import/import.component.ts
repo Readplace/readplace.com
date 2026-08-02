@@ -4,6 +4,7 @@ import { render } from "@packages/web-shell";
 import type { PageBody } from "@packages/web-shell";
 
 import { IMPORT_STYLES } from "./import.styles";
+import { addPageStylesheet } from "../../page-stylesheets";
 import type {
 	ImportAcquireViewModel,
 	ImportMode,
@@ -38,6 +39,8 @@ const IMPORT_FROM_URL_PANEL_TEMPLATE = readFileSync(
 	"utf-8",
 );
 const IMPORT_CLIENT_SCRIPT = `<script src="/client-dist/import.client.js" defer></script>`;
+
+const IMPORT_STYLESHEET = addPageStylesheet({ name: "import", css: IMPORT_STYLES });
 
 interface PanelConfig {
 	readonly template: string;
@@ -129,7 +132,7 @@ export function ImportPage(vm: ImportViewModel): PageBody {
 			canonicalUrl: `/import/${vm.sessionId}`,
 			robots: "noindex, nofollow",
 		},
-		styles: IMPORT_STYLES,
+		styles: { href: IMPORT_STYLESHEET.href },
 		bodyClass: "page-import",
 		content: { html: content },
 		scripts: IMPORT_CLIENT_SCRIPT,
@@ -216,7 +219,7 @@ export function ImportAcquirePage(vm: ImportAcquireViewModel): PageBody {
 				},
 			],
 		},
-		styles: IMPORT_STYLES,
+		styles: { href: IMPORT_STYLESHEET.href },
 		bodyClass: "page-import",
 		content: { html: content },
 		scripts: panel.scripts,

@@ -25,8 +25,11 @@ import { SAVE_SURFACES_SHORT_PHRASE } from "../../shared/client-surface-phrases"
 import type { QueueViewModel, SubscriptionBannerState } from "./queue.viewmodel";
 import { buildQueueUrl } from "./queue.url";
 import { tabQuery, type TabId } from "./queue.tabs";
+import { addPageStylesheet } from "../../page-stylesheets";
 
 const QUEUE_TEMPLATE = readFileSync(join(__dirname, "queue.template.html"), "utf-8");
+
+const QUEUE_STYLESHEET = addPageStylesheet({ name: "queue", css: `${QUEUE_STYLES}\n${ONBOARDING_STYLES}` });
 
 /** Long enough to read the message and reach for Undo, short enough not to
  * linger; the global toast.client script removes it after this delay. */
@@ -217,7 +220,7 @@ export function QueuePage(vm: QueueViewModel, options: { deviceClass: DeviceClas
 			canonicalUrl: "/queue",
 			robots: "noindex, nofollow",
 		},
-		styles: `${QUEUE_STYLES}\n${ONBOARDING_STYLES}`,
+		styles: { href: QUEUE_STYLESHEET.href },
 		bodyClass: "page-queue",
 		content: { html: content },
 		scripts: scriptParts.join("\n"),

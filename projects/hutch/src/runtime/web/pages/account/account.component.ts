@@ -6,9 +6,12 @@ import type { PageBody } from "@packages/web-shell";
 import { ACCOUNT_STYLES } from "./account.styles";
 import { ACCOUNT_EXPORT_URL } from "./account.url";
 import type { AccountViewModel, CardSectionViewModel } from "./account.view-model";
+import { addPageStylesheet } from "../../page-stylesheets";
 
 const ACCOUNT_TEMPLATE = readFileSync(join(__dirname, "account.template.html"), "utf-8");
 const ACCOUNT_CARD_TEMPLATE = readFileSync(join(__dirname, "account-card.template.html"), "utf-8");
+
+const ACCOUNT_STYLESHEET = addPageStylesheet({ name: "account", css: ACCOUNT_STYLES });
 
 /** Same-origin glue bundle (Stripe.js itself loads from js.stripe.com inside it).
  * Loaded on every /account render; it no-ops unless the Elements container is
@@ -47,7 +50,7 @@ export function AccountPage(
 			canonicalUrl: "/account",
 			robots: "noindex, nofollow",
 		},
-		styles: ACCOUNT_STYLES,
+		styles: { href: ACCOUNT_STYLESHEET.href },
 		bodyClass: surface ? "page-account page-account--chromeless" : "page-account",
 		content: {
 			html: render(ACCOUNT_TEMPLATE, {

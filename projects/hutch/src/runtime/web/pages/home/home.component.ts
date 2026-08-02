@@ -25,8 +25,11 @@ import { renderFoundingProgress } from "../../shared/founding-progress/founding-
 import type { FoundingAllocation } from "../../shared/founding-progress/founding-allocation";
 import { buildHomeSeo } from "./home.seo";
 import { HOME_PAGE_STYLES } from "./home.styles";
+import { addPageStylesheet } from "../../page-stylesheets";
 
 const HOME_TEMPLATE = readFileSync(join(__dirname, "home.template.html"), "utf-8");
+
+const HOME_STYLESHEET = addPageStylesheet({ name: "home", css: HOME_PAGE_STYLES });
 
 /** The install CTA label for the visitor's browser. Keyed by InstallBrowser, so
  * a new browser extension is a compile error here until it earns its own label —
@@ -179,7 +182,7 @@ export function HomePage(params: HomePageParams): PageBody {
 			foundingMemberLimit,
 			foundingAllocationAvailable,
 		}),
-		styles: HOME_PAGE_STYLES,
+		styles: { href: HOME_STYLESHEET.href },
 		scripts: HOME_CLIENT_SCRIPT,
 		bodyClass: `page-home variant-${variant}`,
 		content: { html: render(HOME_TEMPLATE, {

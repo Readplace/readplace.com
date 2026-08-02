@@ -47,6 +47,19 @@ describe("Queue routes", () => {
 				'<script src="/client-dist/reader-nav.client.js" defer></script>',
 			);
 		});
+
+		it("links page CSS from inside <main> instead of inlining a <style>", async () => {
+			const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
+			const { auth } = harness;
+			const agent = await loginAgent(harness.server, auth);
+
+			const response = await agent.get("/queue");
+
+			const doc = new JSDOM(response.text).window.document;
+			const link = doc.querySelector('main link[rel="stylesheet"]');
+			expect(link?.getAttribute("href")).toMatch(/^\/styles\/queue\.[a-f0-9]{12}\.css$/);
+			expect(doc.querySelector("main style")).toBeNull();
+		});
 	});
 
 	describe("GET /queue — degraded batched summary/crawl reads", () => {

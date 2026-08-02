@@ -426,9 +426,10 @@ describe("GET /account?platform=ios&shell=app (the app's in-app web sheet)", () 
 
 		const doc = new JSDOM((await agent.get("/account?platform=ios&shell=app")).text).window.document;
 
-		const style = doc.querySelector("main.account style");
-		assert(style, "the page styles must be injected into <main>");
-		expect(style.textContent).toContain(".account__back");
+		const link = doc.querySelector('main.account link[rel="stylesheet"]');
+		assert(link, "the page styles must be linked from inside <main>");
+		expect(link.getAttribute("href")).toMatch(/^\/styles\/account\.[a-f0-9]{12}\.css$/);
+		expect(doc.querySelector("main.account style")).toBeNull();
 	});
 
 	it("serves local-time (the trial cutoff would otherwise freeze at the server's UTC baseline) but neither WebMCP nor the Stripe card glue", async () => {

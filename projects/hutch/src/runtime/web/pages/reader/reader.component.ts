@@ -23,8 +23,11 @@ import {
 import { shareUserIdPrefix } from "../../shared/share-balloon/share-user-id-prefix";
 import { viewPathFor } from "../view/view-path";
 import { READER_STYLES } from "./reader.styles";
+import { addPageStylesheet } from "../../page-stylesheets";
 
 const READER_TEMPLATE = readFileSync(join(__dirname, "reader.template.html"), "utf-8");
+
+const READER_STYLESHEET = addPageStylesheet({ name: "reader", css: READER_STYLES });
 const PROGRESS_BAR_SCRIPT = `<script src="/client-dist/progress-bar.client.js" defer></script>`;
 const READER_IFRAME_SCRIPT = `<script src="/client-dist/reader-iframe.client.js" defer></script>`;
 const SUMMARY_TOGGLE_SCRIPT = `<script src="/client-dist/summary-toggle.client.js" defer></script>`;
@@ -123,7 +126,7 @@ export function ReaderPage(
 			canonicalUrl: `/queue/${articleId}/view`,
 			robots: "noindex, nofollow",
 		},
-		styles: READER_STYLES,
+		styles: { href: READER_STYLESHEET.href },
 		bodyClass: actions.bodyClass,
 		content: { html: content },
 		scripts: readerScripts({

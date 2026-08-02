@@ -5,6 +5,8 @@ describe("isStaticAssetRequestPath", () => {
 		"/client-dist",
 		"/client-dist/toast.client.js",
 		"/client-dist/view-paywall.client.js.map",
+		"/styles",
+		"/styles/queue.abc123def456.css",
 		"/toast.client.js",
 		"/extension-suggestion-banner.client.js",
 		"/progress-bar.client.js.map",

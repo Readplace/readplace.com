@@ -154,7 +154,8 @@ import {
 	initEmitSubscriptionEvent,
 	type SubscriptionLogEvent,
 } from "./observability/subscription-events";
-import { APPLE_TOUCH_ICON_PATH, CLIENT_DIST_MOUNT_PATH, isStaticAssetRequestPath } from "./web/static-asset-paths";
+import { APPLE_TOUCH_ICON_PATH, CLIENT_DIST_MOUNT_PATH, STYLES_MOUNT_PATH, isStaticAssetRequestPath } from "./web/static-asset-paths";
+import { findPageStylesheetByName } from "./web/page-stylesheets";
 import { canonicalizeViewLandingPath } from "./web/pages/view/view-path";
 import { initGoogleAuthRoutes } from "./web/auth/google-auth.page";
 import { initAppleAuthRoutes } from "./web/auth/apple-auth.page";
@@ -497,6 +498,18 @@ export function createApp(dependencies: AppDependencies): Express {
 			fallthrough: false,
 		}),
 	);
+
+	app.get(`${STYLES_MOUNT_PATH}/:file`, (req: Request, res: Response) => {
+		const match = /^([a-z0-9-]+)\.[a-f0-9]{12}\.css$/.exec(String(req.params.file));
+		const stylesheet = match ? findPageStylesheetByName(match[1]) : undefined;
+		if (!stylesheet) {
+			res.status(404).end();
+			return;
+		}
+		res.set("Content-Type", "text/css; charset=utf-8");
+		res.set("Cache-Control", "public, max-age=31536000, immutable");
+		res.send(stylesheet.css);
+	});
 
 	app.use(contentSignalMiddleware);
 	app.use(linkHeaderMiddleware);
