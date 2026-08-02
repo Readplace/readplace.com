@@ -45,10 +45,18 @@ describe("initSaveLinkWork", () => {
 
 	it("still resolves tier-1-terminal when the tier-1 failure outcome log fails — a telemetry hiccup must not dead-letter a message whose row is already terminal", async () => {
 		const readTierSnapshot = jest.fn().mockRejectedValue(new Error("DDB read timed out"));
+		const logCrawlOutcome = jest.fn();
 
-		const { saveLinkWork } = createWork({ crawlAndFinalizeArticle: notFoundCrawl(404), readTierSnapshot });
+		const { saveLinkWork } = createWork({ crawlAndFinalizeArticle: notFoundCrawl(404), readTierSnapshot, logCrawlOutcome });
 
 		await expect(saveLinkWork("https://example.com/gone")).resolves.toBe("tier-1-terminal");
+		expect(logCrawlOutcome).toHaveBeenCalledWith({
+			url: "https://example.com/gone",
+			thisTier: "tier-1",
+			thisTierStatus: "failed",
+			otherTierStatus: "not_attempted",
+			pickedTier: "none",
+		});
 	});
 
 	it("terminalises both axes atomically via markCrawlNotFound so the dead link never lands on the retry → DLQ → exhausted-retries path that would mislabel it as a crawler defect", async () => {
@@ -96,6 +104,58 @@ describe("initSaveLinkWork", () => {
 			otherTierStatus: "success",
 			pickedTier: "tier-0",
 		});
+	});
+
+	it("still reports the crawl failure as CrawlFailedError when the snapshot read throws, so the storage error cannot masquerade as an unclassified record failure", async () => {
+		const logCrawlOutcome = jest.fn();
+		const crawlAndFinalizeArticle: CrawlAndFinalizeArticle = async () => ({ status: "failed", reason: "crawl-failed" });
+		const readTierSnapshot = jest.fn().mockRejectedValue(new Error("KeyTooLongError: Your key is too long"));
+
+		const { saveLinkWork } = createWork({ crawlAndFinalizeArticle, readTierSnapshot, logCrawlOutcome });
+
+		await expect(saveLinkWork("https://example.com/presigned.pdf")).rejects.toMatchObject({
+			name: "CrawlFailedError",
+		});
+		expect(logCrawlOutcome).toHaveBeenCalledWith({
+			url: "https://example.com/presigned.pdf",
+			thisTier: "tier-1",
+			thisTierStatus: "failed",
+			otherTierStatus: "not_attempted",
+			pickedTier: "none",
+		});
+	});
+
+	it("reports a parse-class failure to both telemetry sinks even when the terminal-state write fails, and still surfaces the persistence error", async () => {
+		const logParseError = jest.fn();
+		const logCrawlOutcome = jest.fn();
+		const crawlAndFinalizeArticle: CrawlAndFinalizeArticle = async () => ({ status: "failed", reason: "Readability returned null" });
+		const transitionAndPersist = jest.fn().mockRejectedValue(new Error("conditional check failed"));
+
+		const { saveLinkWork } = createWork({ crawlAndFinalizeArticle, transitionAndPersist, logParseError, logCrawlOutcome });
+
+		await expect(saveLinkWork("https://example.com/article")).rejects.toThrow("conditional check failed");
+		expect(logParseError).toHaveBeenCalledWith({
+			url: "https://example.com/article",
+			reason: "Readability returned null",
+		});
+		expect(logCrawlOutcome).toHaveBeenCalledWith({
+			url: "https://example.com/article",
+			thisTier: "tier-1",
+			thisTierStatus: "failed",
+			otherTierStatus: "not_attempted",
+			pickedTier: "none",
+		});
+	});
+
+	it("emits the failure outcome before the terminal-state write, so a persistence throw can no longer suppress the record", async () => {
+		const logCrawlOutcome = jest.fn();
+		const transitionAndPersist = jest.fn().mockResolvedValue(undefined);
+		const crawlAndFinalizeArticle: CrawlAndFinalizeArticle = async () => ({ status: "failed", reason: "Readability returned null" });
+
+		const { saveLinkWork } = createWork({ crawlAndFinalizeArticle, transitionAndPersist, logCrawlOutcome });
+
+		await expect(saveLinkWork("https://example.com/article")).rejects.toThrow("crawl failed for https://example.com/article: Readability returned null");
+		expect(logCrawlOutcome.mock.invocationCallOrder[0]).toBeLessThan(transitionAndPersist.mock.invocationCallOrder[0]);
 	});
 
 	it("writes no tier source, records no fetch timestamp, and defers nothing to the comprehensive crawl — there is no content for a selector to pick from a page the origin no longer serves", async () => {
@@ -175,10 +235,18 @@ describe("initSaveLinkWork", () => {
 
 	it("still resolves tier-1-terminal for an edge-blocked link when the tier-1 failure outcome log fails — a telemetry hiccup must not dead-letter a row that is already terminal", async () => {
 		const readTierSnapshot = jest.fn().mockRejectedValue(new Error("DDB read timed out"));
+		const logCrawlOutcome = jest.fn();
 
-		const { saveLinkWork } = createWork({ crawlAndFinalizeArticle: blockedCrawl(403), readTierSnapshot });
+		const { saveLinkWork } = createWork({ crawlAndFinalizeArticle: blockedCrawl(403), readTierSnapshot, logCrawlOutcome });
 
 		await expect(saveLinkWork("https://example.com/walled")).resolves.toBe("tier-1-terminal");
+		expect(logCrawlOutcome).toHaveBeenCalledWith({
+			url: "https://example.com/walled",
+			thisTier: "tier-1",
+			thisTierStatus: "failed",
+			otherTierStatus: "not_attempted",
+			pickedTier: "none",
+		});
 	});
 
 	it("hands the redirect terminal + word count to adoptCanonicalIdentity after a successful tier-1 write", async () => {

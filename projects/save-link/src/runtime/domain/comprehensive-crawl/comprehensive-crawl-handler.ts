@@ -27,6 +27,7 @@ import type { PutTierSource } from "../../providers/article-store/put-tier-sourc
 import type { UpdateFetchTimestamp } from "../save-link/update-fetch-timestamp-handler";
 import type { LogCrawlOutcome, LogParseError } from "@packages/hutch-infra-components";
 import type { ReadTierSnapshot } from "../crawl-article-state/read-tier-snapshot";
+import { initEmitTier1FailureOutcome } from "../crawl-article-state/emit-tier-1-failure-outcome";
 import type { FinalizeArticle } from "@packages/finalize-article";
 import type { AdoptCanonicalIdentity } from "../save-link/adopt-canonical-identity";
 
@@ -83,16 +84,12 @@ export function initComprehensiveCrawlHandler(deps: {
 
 	const logPrefix = "[ComprehensiveCrawlCommand]";
 
-	const emitTier1Failure = async (url: string): Promise<void> => {
-		const snapshot = await readTierSnapshot({ url });
-		logCrawlOutcome({
-			url,
-			thisTier: "tier-1",
-			thisTierStatus: "failed",
-			otherTierStatus: snapshot.tier0Status,
-			pickedTier: snapshot.pickedTier,
-		});
-	};
+	const { emitTier1FailureOutcome } = initEmitTier1FailureOutcome({
+		readTierSnapshot,
+		logCrawlOutcome,
+		logger,
+		logPrefix,
+	});
 
 	/* Spend breaker, not a crawl error: the message is consumed (no SQS retry —
 	 * a retry would re-spend the very budget that is exhausted) and the row is
@@ -109,7 +106,7 @@ export function initComprehensiveCrawlHandler(deps: {
 		refresh?: boolean;
 	}): Promise<CrawlTermination> => {
 		logParseError({ url: ctx.url, reason: "paid-crawl-budget-exhausted" });
-		await emitTier1Failure(ctx.url);
+		await emitTier1FailureOutcome({ url: ctx.url });
 		if (ctx.refresh) {
 			// A refresh re-checks an article that already has served content; the
 			// prior canonical stays valid, its freshness simply doesn't bump.
@@ -139,13 +136,13 @@ export function initComprehensiveCrawlHandler(deps: {
 				// (non-PDF body, PDF too large, OCR returned nothing, …). Flip the
 				// row terminal here — no further dispatch.
 				logParseError({ url, reason: `crawl-unsupported: ${crawlResult.reason}` });
+				await emitTier1FailureOutcome({ url });
 				await transitionAndPersist(markCrawlUnsupported, {
 					url,
 					input: {
 						reason: { kind: "non-html-content", contentType: crawlResult.reason },
 					},
 				});
-				await emitTier1Failure(url);
 				logger.info(`${logPrefix} crawl unsupported — terminal`, { url });
 				return { via: "committed-in-process" };
 			}
@@ -167,11 +164,12 @@ export function initComprehensiveCrawlHandler(deps: {
 			case "failed": {
 				const reason = `crawl-${crawlResult.status}`;
 				logParseError({ url, reason });
-				await emitTier1Failure(url);
+				await emitTier1FailureOutcome({ url });
 				throw new Error(`crawl failed for ${url}: ${reason}`);
 			}
 			case "blocked": {
 				logParseError({ url, reason: `crawl-blocked: HTTP ${crawlResult.httpStatus}` });
+				await emitTier1FailureOutcome({ url });
 				/* The origin's edge refuses this egress IP, which no retry from this
 				 * Lambda can change. Settle the row so the reader can ask for a
 				 * browser capture instead of the message dead-lettering and being
@@ -185,31 +183,14 @@ export function initComprehensiveCrawlHandler(deps: {
 						},
 					},
 				});
-				/* Best-effort: the row is already terminal, and this queue is
-				 * maxReceiveCount=1 — a throw here would dead-letter the message and
-				 * let the DLQ handler overwrite the blocked classification. */
-				await emitTier1Failure(url).catch((error: unknown) => {
-					logger.warn(`${logPrefix} tier-1 failure outcome log failed`, {
-						url,
-						error: String(error),
-					});
-				});
 				return { via: "committed-in-process" };
 			}
 			case "not-found": {
 				logParseError({ url, reason: `crawl-not-found: HTTP ${crawlResult.httpStatus}` });
+				await emitTier1FailureOutcome({ url });
 				await transitionAndPersist(markCrawlNotFound, {
 					url,
 					input: { reason: { kind: "not-found", httpStatus: crawlResult.httpStatus } },
-				});
-				/* Best-effort: the row is already terminal, and this queue is
-				 * maxReceiveCount=1 — a throw here would dead-letter the message and
-				 * let the DLQ handler overwrite the not-found classification. */
-				await emitTier1Failure(url).catch((error: unknown) => {
-					logger.warn(`${logPrefix} tier-1 failure outcome log failed`, {
-						url,
-						error: String(error),
-					});
 				});
 				return { via: "committed-in-process" };
 			}
@@ -221,13 +202,13 @@ export function initComprehensiveCrawlHandler(deps: {
 				});
 				if (!finalized.ok) {
 					logParseError({ url, reason: finalized.reason });
+					await emitTier1FailureOutcome({ url });
 					await transitionAndPersist(markCrawlFailed, {
 						url,
 						input: {
 							reason: { kind: "parse-error", detail: finalized.reason },
 						},
 					});
-					await emitTier1Failure(url);
 					throw new Error(`crawl failed for ${url}: ${finalized.reason}`);
 				}
 

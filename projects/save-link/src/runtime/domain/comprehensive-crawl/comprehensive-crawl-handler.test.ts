@@ -427,11 +427,13 @@ describe("initComprehensiveCrawlHandler", () => {
 		const blockedComprehensiveCrawl: CrawlArticle = async () => ({ status: "blocked", httpStatus: 429 });
 		const transitionAndPersist = jest.fn().mockResolvedValue(undefined);
 		const readTierSnapshot = jest.fn().mockRejectedValue(new Error("DDB read timed out"));
+		const logCrawlOutcome = jest.fn();
 
 		const handler = createHandler({
 			crawlArticle: blockedComprehensiveCrawl,
 			transitionAndPersist,
 			readTierSnapshot,
+			logCrawlOutcome,
 		});
 
 		const result = await handler(
@@ -444,6 +446,13 @@ describe("initComprehensiveCrawlHandler", () => {
 		expect(transitionAndPersist).toHaveBeenCalledWith(markCrawlBlocked, {
 			url: "https://example.com/walled.pdf",
 			input: { reason: { kind: "blocked", cause: "rate-limited" } },
+		});
+		expect(logCrawlOutcome).toHaveBeenCalledWith({
+			url: "https://example.com/walled.pdf",
+			thisTier: "tier-1",
+			thisTierStatus: "failed",
+			otherTierStatus: "not_attempted",
+			pickedTier: "none",
 		});
 	});
 
@@ -476,11 +485,13 @@ describe("initComprehensiveCrawlHandler", () => {
 		const notFoundComprehensiveCrawl: CrawlArticle = async () => ({ status: "not-found", httpStatus: 404 });
 		const transitionAndPersist = jest.fn().mockResolvedValue(undefined);
 		const readTierSnapshot = jest.fn().mockRejectedValue(new Error("DDB read timed out"));
+		const logCrawlOutcome = jest.fn();
 
 		const handler = createHandler({
 			crawlArticle: notFoundComprehensiveCrawl,
 			transitionAndPersist,
 			readTierSnapshot,
+			logCrawlOutcome,
 		});
 
 		const result = await handler(
@@ -494,6 +505,74 @@ describe("initComprehensiveCrawlHandler", () => {
 			url: "https://example.com/gone.pdf",
 			input: { reason: { kind: "not-found", httpStatus: 404 } },
 		});
+		expect(logCrawlOutcome).toHaveBeenCalledWith({
+			url: "https://example.com/gone.pdf",
+			thisTier: "tier-1",
+			thisTierStatus: "failed",
+			otherTierStatus: "not_attempted",
+			pickedTier: "none",
+		});
+	});
+
+	it("reports the crawl's own error (not the snapshot read's) when the outcome emit degrades, so the DLQ line names the real failure", async () => {
+		const failingComprehensiveCrawl: CrawlArticle = async () => ({ status: "failed" });
+		const readTierSnapshot = jest.fn().mockRejectedValue(new Error("KeyTooLongError: Your key is too long"));
+		const logCrawlOutcome = jest.fn();
+		const logger = { ...noopLogger, error: jest.fn() };
+
+		const handler = createHandler({
+			crawlArticle: failingComprehensiveCrawl,
+			readTierSnapshot,
+			logCrawlOutcome,
+			logger,
+		});
+
+		const result = await handler(
+			createSqsEvent({ url: "https://example.com/doc.pdf" }),
+			buildLambdaContext(),
+			() => {},
+		);
+
+		expect(result).toEqual({ batchItemFailures: [{ itemIdentifier: "msg-1" }] });
+		expect(logCrawlOutcome).toHaveBeenCalledWith({
+			url: "https://example.com/doc.pdf",
+			thisTier: "tier-1",
+			thisTierStatus: "failed",
+			otherTierStatus: "not_attempted",
+			pickedTier: "none",
+		});
+		expect(logger.error).toHaveBeenCalledWith("[ComprehensiveCrawlCommand] record failed", {
+			messageId: "msg-1",
+			error: new Error("crawl failed for https://example.com/doc.pdf: crawl-failed"),
+		});
+	});
+
+	it("emits the failure outcome before the terminal unsupported write, so a persistence throw can no longer suppress the record", async () => {
+		const unsupportedComprehensiveCrawl: CrawlArticle = async () => ({ status: "unsupported", reason: "non-pdf body" });
+		const logCrawlOutcome = jest.fn();
+		const transitionAndPersist = jest.fn().mockResolvedValue(undefined);
+
+		const handler = createHandler({
+			crawlArticle: unsupportedComprehensiveCrawl,
+			logCrawlOutcome,
+			transitionAndPersist,
+		});
+
+		await handler(createSqsEvent({ url: "https://example.com/scan.pdf" }), buildLambdaContext(), () => {});
+
+		expect(logCrawlOutcome.mock.invocationCallOrder[0]).toBeLessThan(transitionAndPersist.mock.invocationCallOrder[0]);
+	});
+
+	it("emits the failure outcome before the terminal parse-error write, so a persistence throw can no longer suppress the record", async () => {
+		const finalizeArticle: FinalizeArticle = async () => ({ ok: false, reason: "Readability crashed on this DOM" });
+		const logCrawlOutcome = jest.fn();
+		const transitionAndPersist = jest.fn().mockResolvedValue(undefined);
+
+		const handler = createHandler({ finalizeArticle, logCrawlOutcome, transitionAndPersist });
+
+		await handler(createSqsEvent({ url: "https://example.com/bad.pdf" }), buildLambdaContext(), () => {});
+
+		expect(logCrawlOutcome.mock.invocationCallOrder[0]).toBeLessThan(transitionAndPersist.mock.invocationCallOrder[0]);
 	});
 
 	it("emits a tier-1 failure crawl-outcome on a permanently-gone page (HTTP 410), snapshotting the other tier's state", async () => {

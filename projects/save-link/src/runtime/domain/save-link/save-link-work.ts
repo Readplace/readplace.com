@@ -10,6 +10,7 @@ import type { MarkCrawlStage } from "../../providers/article-crawl/mark-crawl-st
 import type { UpdateFetchTimestamp } from "./update-fetch-timestamp-handler";
 import type { LogCrawlOutcome, LogParseError } from "@packages/hutch-infra-components";
 import type { ReadTierSnapshot } from "../crawl-article-state/read-tier-snapshot";
+import { initEmitTier1FailureOutcome } from "../crawl-article-state/emit-tier-1-failure-outcome";
 import type { PutTierSource } from "../../providers/article-store/put-tier-source";
 import type { EmitSimpleCrawlUnsupported } from "../../dep-bundles/events";
 import type { CrawlAndFinalizeArticle } from "@packages/finalize-article";
@@ -104,16 +105,12 @@ export function initSaveLinkWork(deps: {
 		logPrefix,
 	} = deps;
 
-	const emitTier1Failure = async (url: string): Promise<void> => {
-		const snapshot = await readTierSnapshot({ url });
-		logCrawlOutcome({
-			url,
-			thisTier: "tier-1",
-			thisTierStatus: "failed",
-			otherTierStatus: snapshot.tier0Status,
-			pickedTier: snapshot.pickedTier,
-		});
-	};
+	const { emitTier1FailureOutcome } = initEmitTier1FailureOutcome({
+		readTierSnapshot,
+		logCrawlOutcome,
+		logger,
+		logPrefix,
+	});
 
 	const saveLinkWork = async (url: string, options?: SaveLinkWorkOptions): Promise<SaveLinkWorkResult> => {
 		await markCrawlStage({ url, stage: "crawl-fetching" });
@@ -136,38 +133,22 @@ export function initSaveLinkWork(deps: {
 
 		if (result.status === "not-found") {
 			logParseError({ url, reason: `crawl-not-found: HTTP ${result.httpStatus}` });
+			await emitTier1FailureOutcome({ url });
 			await transitionAndPersist(markCrawlNotFound, {
 				url,
 				input: { reason: { kind: "not-found", httpStatus: result.httpStatus } },
-			});
-			/* Best-effort: the row is already terminal, and the crawl queues are
-			 * maxReceiveCount=1 — a throw here would dead-letter the message and
-			 * let the DLQ handler overwrite the not-found classification. */
-			await emitTier1Failure(url).catch((error: unknown) => {
-				logger.warn(`${logPrefix} tier-1 failure outcome log failed`, {
-					url,
-					error: String(error),
-				});
 			});
 			return "tier-1-terminal";
 		}
 
 		if (result.status === "blocked") {
 			logParseError({ url, reason: `crawl-blocked: HTTP ${result.httpStatus}` });
+			await emitTier1FailureOutcome({ url });
 			await transitionAndPersist(markCrawlBlocked, {
 				url,
 				input: {
 					reason: { kind: "blocked", cause: blockedCauseForStatus(result.httpStatus) },
 				},
-			});
-			/* Best-effort: the row is already terminal, and the crawl queues are
-			 * maxReceiveCount=1 — a throw here would dead-letter the message and
-			 * let the DLQ handler overwrite the blocked classification. */
-			await emitTier1Failure(url).catch((error: unknown) => {
-				logger.warn(`${logPrefix} tier-1 failure outcome log failed`, {
-					url,
-					error: String(error),
-				});
 			});
 			return "tier-1-terminal";
 		}
@@ -175,20 +156,20 @@ export function initSaveLinkWork(deps: {
 		if (result.status === "failed") {
 			if (result.reason !== CRAWL_FAILED_REASON) {
 				logParseError({ url, reason: result.reason });
-				/* Parse-error reasons are terminal — re-running yields the same failure.
-				 * Flip the crawl state to `failed` immediately so readers and the canary
-				 * see it on the next poll, not after the SQS retry → DLQ delay.
-				 * Network "crawl-failed" reasons let SQS retry and only land at DLQ
-				 * after maxReceiveCount. */
-				await transitionAndPersist(markCrawlFailed, {
-					url,
-					input: { reason: { kind: "parse-error", detail: result.reason } },
-				});
 			}
-			await emitTier1Failure(url);
+			await emitTier1FailureOutcome({ url });
 			if (result.reason === CRAWL_FAILED_REASON) {
 				throw new CrawlFailedError(url);
 			}
+			/* Parse-error reasons are terminal — re-running yields the same failure.
+			 * Flip the crawl state to `failed` immediately so readers and the canary
+			 * see it on the next poll, not after the SQS retry → DLQ delay.
+			 * Network "crawl-failed" reasons let SQS retry and only land at DLQ
+			 * after maxReceiveCount. */
+			await transitionAndPersist(markCrawlFailed, {
+				url,
+				input: { reason: { kind: "parse-error", detail: result.reason } },
+			});
 			throw new Error(`crawl failed for ${url}: ${result.reason}`);
 		}
 

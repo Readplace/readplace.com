@@ -391,6 +391,29 @@ describe("initSaveLinkCommandHandler", () => {
 		expect(result).toEqual({ batchItemFailures: [{ itemIdentifier: "msg-1" }] });
 	});
 
+	it("keeps the tier-1 crawl-failed classification (warn, not an opaque record failure) and still emits one outcome record when the snapshot read throws", async () => {
+		const logger = { info: jest.fn(), warn: jest.fn(), error: jest.fn(), debug: jest.fn() };
+		const logCrawlOutcome = jest.fn();
+		const crawlAndFinalizeArticle: CrawlAndFinalizeArticle = async () => ({ status: "failed", reason: "crawl-failed" });
+		const readTierSnapshot = jest.fn().mockRejectedValue(new Error("KeyTooLongError: Your key is too long"));
+
+		const handler = createHandler({ crawlAndFinalizeArticle, logger, logCrawlOutcome, readTierSnapshot });
+
+		const result = await handler(
+			createSqsEvent({ url: "https://example.com/presigned.pdf", userId: "user-1" }),
+			buildLambdaContext(),
+			() => {},
+		);
+
+		expect(logger.warn).toHaveBeenCalledWith("[SaveLinkCommand] tier-1 crawl failed", {
+			url: "https://example.com/presigned.pdf",
+			messageId: "msg-1",
+		});
+		expect(logger.error).not.toHaveBeenCalled();
+		expect(logCrawlOutcome).toHaveBeenCalledTimes(1);
+		expect(result).toEqual({ batchItemFailures: [{ itemIdentifier: "msg-1" }] });
+	});
+
 	it("logs a genuine unexpected failure at error (not warn) so real bugs still surface on the dashboard", async () => {
 		const logger = { info: jest.fn(), warn: jest.fn(), error: jest.fn(), debug: jest.fn() };
 		const publishEvent = jest.fn().mockRejectedValue(new Error("eventbridge down"));
