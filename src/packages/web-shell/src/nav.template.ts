@@ -26,7 +26,7 @@ export const NAV_TEMPLATE = `  <header class="header{{#if transparent}} header--
 						<ul class="nav__list">
 							{{#each items}}
 							<li>
-								<form method="{{method}}" action="{{href}}">
+								<form method="{{method}}" action="{{href}}"{{#if boostAttrs}} {{{boostAttrs}}}{{/if}}>
 									<input type="hidden" name="utm_source" value="{{trackSource}}">
 									<input type="hidden" name="utm_medium" value="internal">
 									<input type="hidden" name="utm_content" value="{{trackContent}}">
@@ -40,7 +40,7 @@ export const NAV_TEMPLATE = `  <header class="header{{#if transparent}} header--
 					{{#each navItems}}
 					{{#if @first}}<ul class="nav__list">{{/if}}
 					<li>
-						<form method="{{method}}" action="{{href}}">
+						<form method="{{method}}" action="{{href}}"{{#if boostAttrs}} {{{boostAttrs}}}{{/if}}>
 							<input type="hidden" name="utm_source" value="{{trackSource}}">
 							<input type="hidden" name="utm_medium" value="internal">
 							<input type="hidden" name="utm_content" value="{{trackContent}}">

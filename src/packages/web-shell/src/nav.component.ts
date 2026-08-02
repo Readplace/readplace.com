@@ -1,5 +1,5 @@
 import { render } from "./render";
-import { buildNavGroups, buildGuestNavItems } from "./banner-state";
+import { buildNavGroups, buildGuestNavItems, type NavGroup, type NavItem } from "./banner-state";
 import { NAV_TEMPLATE } from "./nav.template";
 import { SERVER_TIME_ZONE } from "./local-time.format";
 import {
@@ -56,7 +56,27 @@ export function GlobalEmptyNav(_props: NavProps): string {
 	return "";
 }
 
-export function GlobalNav(props: NavProps): string {
+/** htmx attributes that boost a nav link: swap only <main> in place instead of a
+ * full-document reload, scrolling the fresh destination's <main> to the top. */
+const NAV_BOOST_ATTRS = 'hx-boost="true" hx-target="main" hx-select="main" hx-swap="outerHTML show:top"';
+
+/** The boost attributes an item's form should carry. Only GET links boost:
+ * logout is a POST that crosses the auth boundary, and the nav lives outside
+ * <main>, so a boosted logout would swap <main> yet leave the authenticated nav
+ * stranded until a hard reload. Empty on an unboosted surface too. */
+function boostAttrsFor(item: NavItem, boost: boolean): string {
+	return boost && item.method === "GET" ? NAV_BOOST_ATTRS : "";
+}
+
+function renderItems(items: NavItem[], boost: boolean) {
+	return items.map((item) => ({ ...item, boostAttrs: boostAttrsFor(item, boost) }));
+}
+
+function renderGroups(groups: NavGroup[], boost: boolean) {
+	return groups.map((group) => ({ ...group, items: renderItems(group.items, boost) }));
+}
+
+function renderNav(props: NavProps, boost: boolean): string {
 	const trial = props.trialCounter;
 	return render(NAV_TEMPLATE, {
 		transparent: props.variant === "transparent",
@@ -74,9 +94,21 @@ export function GlobalNav(props: NavProps): string {
 		trialEndsAtIso: endsAtIsoFor(trial),
 		serverNowIso: serverNowIsoFor(trial),
 		navGroups: props.isAuthenticated
-			? buildNavGroups({ accessIsReadOnly: props.accessIsReadOnly })
+			? renderGroups(buildNavGroups({ accessIsReadOnly: props.accessIsReadOnly }), boost)
 			: undefined,
-		navItems: props.isAuthenticated ? undefined : buildGuestNavItems(),
+		navItems: props.isAuthenticated ? undefined : renderItems(buildGuestNavItems(), boost),
 		navVariant: props.isAuthenticated ? "authenticated" : "guest",
 	});
+}
+
+export function GlobalNav(props: NavProps): string {
+	return renderNav(props, false);
+}
+
+/** GlobalNav with in-place htmx boosting on its GET links, for the authenticated
+ * app surfaces (hutch, inbox) where a nav click stays in the same app so boosting
+ * swaps <main> instead of reloading. The content surfaces (blog, embed) keep
+ * GlobalNav, so a nav click there is a full cross-app navigation into the app. */
+export function GlobalBoostedNav(props: NavProps): string {
+	return renderNav(props, true);
 }

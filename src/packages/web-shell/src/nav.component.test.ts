@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import { JSDOM } from "jsdom";
-import { GlobalNav } from "./nav.component";
+import { GlobalNav, GlobalBoostedNav } from "./nav.component";
 import type { TrialDisplay } from "./trial-countdown.format";
 
 function parse(html: string): Document {
@@ -244,6 +244,16 @@ describe("GlobalNav component", () => {
 		expect(hiddenInputNames).toEqual(["utm_source", "utm_medium", "utm_content"]);
 	});
 
+	it("does not boost nav items, so the content surfaces (blog, embed) navigate full-page", () => {
+		const doc = parse(GlobalNav({ variant: "default", isAuthenticated: true, accessIsReadOnly: false }));
+		const queue = doc.querySelector('[data-test-nav-item="queue"]')?.closest("form");
+		assert(queue, "queue nav item must render inside a form");
+		expect(queue.getAttribute("hx-boost")).toBeNull();
+		expect(queue.getAttribute("hx-target")).toBeNull();
+		expect(queue.getAttribute("hx-select")).toBeNull();
+		expect(queue.getAttribute("hx-swap")).toBeNull();
+	});
+
 	it("keeps the icon out of each item's accessible name, leaving the label alone", () => {
 		const doc = parse(
 			GlobalNav({
@@ -294,5 +304,55 @@ describe("GlobalNav component", () => {
 		const header = doc.querySelector(".header");
 		assert(header, "header element must render");
 		expect(header.classList.contains("header--transparent")).toBe(true);
+	});
+});
+
+describe("GlobalBoostedNav component", () => {
+	const BOOST = {
+		"hx-boost": "true",
+		"hx-target": "main",
+		"hx-select": "main",
+		"hx-swap": "outerHTML show:top",
+	} as const;
+
+	function formFor(doc: Document, key: string): HTMLFormElement {
+		const form = doc.querySelector(`[data-test-nav-item="${key}"]`)?.closest("form");
+		assert(form, `${key} nav item must render inside a form`);
+		return form as HTMLFormElement;
+	}
+
+	it("boosts every authenticated GET nav item into <main>", () => {
+		const doc = parse(
+			GlobalBoostedNav({ variant: "default", isAuthenticated: true, accessIsReadOnly: false }),
+		);
+		for (const key of ["queue", "import", "inbox", "account"]) {
+			const form = formFor(doc, key);
+			for (const [attr, value] of Object.entries(BOOST)) {
+				expect(form.getAttribute(attr)).toBe(value);
+			}
+		}
+	});
+
+	it("leaves the logout POST unboosted so signing out fully reloads and swaps the nav to the guest one", () => {
+		const doc = parse(
+			GlobalBoostedNav({ variant: "default", isAuthenticated: true, accessIsReadOnly: false }),
+		);
+		const logout = formFor(doc, "logout");
+		expect(logout.getAttribute("method")).toBe("POST");
+		for (const attr of Object.keys(BOOST)) {
+			expect(logout.getAttribute(attr)).toBeNull();
+		}
+	});
+
+	it("boosts every guest GET nav item into <main>", () => {
+		const doc = parse(
+			GlobalBoostedNav({ variant: "default", isAuthenticated: false, accessIsReadOnly: false }),
+		);
+		for (const key of ["install", "features", "import", "login"]) {
+			const form = formFor(doc, key);
+			for (const [attr, value] of Object.entries(BOOST)) {
+				expect(form.getAttribute(attr)).toBe(value);
+			}
+		}
 	});
 });

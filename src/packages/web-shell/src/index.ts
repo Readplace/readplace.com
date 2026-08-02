@@ -68,7 +68,7 @@ export {
 export { readCookie } from "@packages/web-session";
 export type { ChangelogBanner, ChangelogVersion } from "./changelog-banner";
 export { brandMarkSvg } from "./brand-mark";
-export { GlobalNav, GlobalEmptyNav } from "./nav.component";
+export { GlobalNav, GlobalBoostedNav, GlobalEmptyNav } from "./nav.component";
 export type { NavProps } from "./nav.component";
 export { initBase } from "./base.component";
 export type { BaseConfig, RenderBase, RenderSiteNav } from "./base.component";
