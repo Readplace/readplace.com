@@ -2,11 +2,9 @@
 title: "An Off Switch Should Turn Back On"
 description: "Disabling a Readplace newsletter address used to be a one-way door. It never deleted the address, but you couldn't get it back either, and recreating the name minted a different one that broke every subscription. Every disabled address now carries an Enable button that brings the same address back to life."
 slug: "re-enable-a-disabled-newsletter-address"
-date: "2026-07-29"
+date: "2026-08-02"
 author: "Fayner Brack"
 keywords: "re-enable disabled email address, reactivate newsletter forwarding address, turn a newsletter email back on, disposable email you can re-enable, per-newsletter email alias read it later, undo disabling an inbox email, recover a disabled forwarding address, forward newsletters to read later, newsletter inbox reader, read it later newsletter address"
-tags: ["changelog"]
-banner: "I let you switch a disabled newsletter address back on"
 ---
 
 <details class="blog-tldr">
