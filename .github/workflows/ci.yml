@@ -32,6 +32,10 @@ jobs:
       PULUMI_CONFIG_PASSPHRASE: ''
       PERSISTENCE: development
       STATIC_BASE_URL: ''
+      # editorconfig-checker fetches its Go binary through api.github.com on
+      # first use. Unauthenticated that is 60 req/hr per IP, shared with every
+      # other caller behind this runner's NAT — which is what 403s the lint job.
+      GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
     steps:
       - uses: actions/checkout@v6
 
@@ -55,6 +59,29 @@ jobs:
           path: ~/.cache/ms-playwright
           key: playwright-${{ runner.os }}-${{ hashFiles('pnpm-lock.yaml') }}
           restore-keys: playwright-${{ runner.os }}-
+
+      # The binary cache lives inside node_modules, which checkout's
+      # `git clean -ffdx` wipes each job. Keep a copy on the persistent volume
+      # so the runner fetches once per version, not once per job. Downloading
+      # here rather than inside `pnpm check` also serialises what is otherwise
+      # six parallel lint tasks racing one unlocked cache directory.
+      - name: Reuse the persisted editorconfig-checker binary
+        if: runner.environment != 'github-hosted'
+        run: |
+          set -euo pipefail
+          eval "$(grep '^export EDITORCONFIG_CHECKER_VERSION=' .envrc)"
+          version="$EDITORCONFIG_CHECKER_VERSION"
+          pkg=$(echo node_modules/.pnpm/editorconfig-checker@*/node_modules/editorconfig-checker)
+          test -d "$pkg" || { echo "::error::editorconfig-checker not installed at $pkg"; exit 1; }
+          store="/persist/editorconfig-checker/$version"
+          if [ -d "$store" ]; then
+            mkdir -p "$pkg/bin"
+            cp -a "$store" "$pkg/bin/$version"
+          else
+            EC_VERSION="$version" node "$pkg/dist/index.js" --version
+            mkdir -p "$(dirname "$store")"
+            cp -a "$pkg/bin/$version" "$store"
+          fi
 
       - run: pnpm check
 
