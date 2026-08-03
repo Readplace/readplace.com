@@ -83,6 +83,8 @@ const articlesTab: VisualCheckpoint = {
 };
 
 test.describe("Inbox visual checkpoints", () => {
+	test.use({ timezoneId: "UTC" });
+
 	test("captures the empty inbox", async ({ page }) => {
 		await page.request.post("/e2e/session");
 		await page.request.post("/e2e/seed-address", { data: { name: "e2e" } });

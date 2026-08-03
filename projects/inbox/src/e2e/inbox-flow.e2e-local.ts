@@ -74,3 +74,17 @@ test.describe("Inbox article cards", () => {
 		await expect(page.locator("#inbox-card-0000 [data-test-save-state]")).toContainText("Saved");
 	});
 });
+
+test.describe("Inbox address copy control", () => {
+	test("unhides the Copy button, which only happens once this page's client bundle is served and runs", async ({
+		page,
+	}) => {
+		await page.request.post("/e2e/session");
+		await page.request.post("/e2e/seed-address", { data: { name: "e2e" } });
+		await page.goto("/inbox/addresses");
+
+		const copyButton = page.locator("[data-inbox-copy]").first();
+		await expect(copyButton).toBeVisible();
+		await expect(copyButton).toHaveText("Copy");
+	});
+});
