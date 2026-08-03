@@ -855,7 +855,7 @@ export function initQueueRoutes(deps: QueueDependencies): Router {
 	const respondCardStatusSwap = async (
 		req: Request,
 		res: Response,
-		input: { userId: UserId; applied: boolean; statusFlash?: StatusFlash },
+		{ userId, statusFlash }: { userId: UserId; statusFlash?: StatusFlash },
 	): Promise<void> => {
 		const urlState = parseQueueUrl(req.query);
 		const tab = tabQuery(urlState.tab);
@@ -863,7 +863,7 @@ export function initQueueRoutes(deps: QueueDependencies): Router {
 		const pageSize = queuePageSizeForClient(req.oauthClientId);
 		const probePage = (page: number) =>
 			deps.findArticlesByUser({
-				userId: input.userId,
+				userId,
 				status: tab.status,
 				sort: tab.sort,
 				order,
@@ -875,18 +875,28 @@ export function initQueueRoutes(deps: QueueDependencies): Router {
 		const result = await probePage(urlState.page);
 		const rows = result.articles.length;
 
-		if (input.applied && rows > 0) {
+		/** The card-removal fast path leaves <main> — and so the pagination nav —
+		 * untouched, so it is only safe while that nav stays correct. Removing the
+		 * card drops the tab total by one, which erases the Next link exactly when
+		 * that leaves the current page full with nothing after it: the next page
+		 * held the single row this page just absorbed (`rows === pageSize &&
+		 * !hasMore`). Treat that like any other DOM drift and fall through to the
+		 * full render, which re-renders the nav — the counts loader only re-arms the
+		 * unread badge and the "Page X of Y" label, never the Previous/Next links. */
+		const paginationWouldDrift = rows === pageSize && !result.hasMore;
+
+		if (statusFlash && rows > 0 && !paginationWouldDrift) {
 			res
 				.status(200)
 				.type("html")
-				.send(renderQueueMutationFragment({ filters: urlState, statusFlash: input.statusFlash }));
+				.send(renderQueueMutationFragment({ filters: urlState, statusFlash }));
 			return;
 		}
 
 		let renderState = urlState;
 		let renderResult = result;
-		if (input.applied && rows === 0 && urlState.page > 1) {
-			const total = await deps.countArticlesByUser({ userId: input.userId, status: tab.status });
+		if (statusFlash && rows === 0 && urlState.page > 1) {
+			const total = await deps.countArticlesByUser({ userId, status: tab.status });
 			const totalPages = Math.max(1, Math.ceil(total / pageSize));
 			renderState = { ...urlState, page: totalPages };
 			renderResult = await probePage(totalPages);
@@ -896,10 +906,10 @@ export function initQueueRoutes(deps: QueueDependencies): Router {
 		res.set("HX-Reswap", "outerHTML show:none");
 		res.set("HX-Reselect", "main");
 		await renderQueueListing(req, res, {
-			userId: input.userId,
+			userId,
 			urlState: renderState,
 			result: renderResult,
-			statusFlash: input.statusFlash,
+			statusFlash,
 		});
 	};
 
@@ -1684,11 +1694,7 @@ export function initQueueRoutes(deps: QueueDependencies): Router {
 		}
 
 		if (req.get("HX-Request") === "true" && req.query.swap === "card" && !activeQueueTab(deps.tabs, req)) {
-			await respondCardStatusSwap(req, res, {
-				userId,
-				applied: statusFlash !== undefined,
-				statusFlash,
-			});
+			await respondCardStatusSwap(req, res, { userId, statusFlash });
 			return;
 		}
 

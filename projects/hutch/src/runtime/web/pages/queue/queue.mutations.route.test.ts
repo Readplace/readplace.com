@@ -874,19 +874,51 @@ describe("Queue routes", () => {
 			);
 		});
 
-		it("a page left full removes just the card (the list holds its place)", async () => {
+		it("a page left full but still followed by another page removes just the card (the list holds its place)", async () => {
 			const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
 			const agent = await loginAgent(harness.server, harness.auth);
+			// 22 unread ⇒ page 1 is full (20) and page 2 still holds 2. Reading one
+			// on page 1 leaves page 1 full (20) with page 2 still non-empty, so the
+			// pagination nav is unchanged and the card is simply removed.
+			await saveArticles(agent, 22);
+			const id = await firstCardId(agent);
+
+			const res = await cardStatus(agent, id).type("form").send({ status: "read" });
+
+			assert.equal(res.status, 200);
+			assert.equal(res.headers["hx-retarget"], undefined, "nav unchanged — no re-render, just drop the card");
+			const doc = new JSDOM(res.text).window.document;
+			assert.equal(doc.querySelector(".queue-article"), null, "just the one card is removed");
+			assert(doc.getElementById("queue-counts"));
+		});
+
+		it("falls back to the full listing when reading a card empties the next page (else the Next link would dangle)", async () => {
+			const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
+			const agent = await loginAgent(harness.server, harness.auth);
+			// 21 unread ⇒ 2 pages (20 + 1). Reading one on page 1 leaves 20 unread on a
+			// single page: page 1 is still full but page 2 is now empty, so the card
+			// path's `rows === pageSize && !hasMore` drift check retargets to <main>
+			// and re-renders the nav (the OOB counts refresh never touches Prev/Next).
 			await saveArticles(agent, 21);
 			const id = await firstCardId(agent);
 
 			const res = await cardStatus(agent, id).type("form").send({ status: "read" });
 
 			assert.equal(res.status, 200);
-			assert.equal(res.headers["hx-retarget"], undefined, "status accepts the drift — no re-render");
+			assert.equal(res.headers["hx-retarget"], "main", "the collapsed page count forces the full re-render");
 			const doc = new JSDOM(res.text).window.document;
-			assert.equal(doc.querySelector(".queue-article"), null, "just the one card is removed");
-			assert(doc.getElementById("queue-counts"));
+			const cards = doc.querySelectorAll("[data-test-article-list] .queue-article");
+			assert.equal(cards.length, 20, "page 1 re-renders with the remaining 20 unread items");
+			assert.ok(
+				!Array.from(cards).some((c) => c.getAttribute("data-test-article") === id),
+				"the just-read card is gone from the re-rendered list",
+			);
+			assert.equal(
+				doc.querySelector("[data-test-pagination-next]"),
+				null,
+				"the now-single page shows no dangling Next link",
+			);
+			assert(doc.querySelector("[data-test-toast]"), "the Undo toast survives the fallback");
 		});
 
 		it("a not-applied status change (invalid status) answers with the fallback so the DOM resyncs", async () => {

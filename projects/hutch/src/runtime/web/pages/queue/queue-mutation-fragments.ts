@@ -46,19 +46,19 @@ export function renderQueueCountsTrigger(input: { countsUrl: string; oob?: boole
 	return render(COUNTS_TRIGGER_TEMPLATE, input);
 }
 
-/** The out-of-band body a card mutation answers with: a re-armed counts span,
- * plus (for an applied status change) the confirmation toast swapped into the
- * stable `#status-toast` mount. The primary body is left empty so the card
- * form's `outerHTML` swap removes the card. */
+/** The out-of-band body a card status change answers with: a re-armed counts
+ * span plus the confirmation toast swapped into the stable `#status-toast`
+ * mount. The primary body is left empty so the card form's `outerHTML` swap
+ * removes the card. `statusFlash` is required — this fragment is reached only
+ * once the change applied, so a card mutation always carries its toast. */
 export function renderQueueMutationFragment(input: {
 	filters: QueueUrlState;
-	statusFlash?: StatusFlash;
+	statusFlash: StatusFlash;
 }): string {
 	const counts = renderQueueCountsTrigger({
 		countsUrl: buildQueueCountsUrl(input.filters),
 		oob: true,
 	});
-	if (!input.statusFlash) return counts;
 	const toast = renderStatusToast({
 		message: input.statusFlash.message,
 		undoUrl: `/queue/${input.statusFlash.undoArticleId}/status${returnQueryFor(input.filters)}`,

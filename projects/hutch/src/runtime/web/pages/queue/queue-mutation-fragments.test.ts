@@ -68,18 +68,7 @@ describe("renderQueueCountsTrigger", () => {
 });
 
 describe("renderQueueMutationFragment", () => {
-	it("carries only the re-armed counts span for a delete (no toast, no primary body)", () => {
-		const doc = parse(renderQueueMutationFragment({ filters: DEFAULT_FILTERS }));
-
-		assert.equal(doc.getElementById("status-toast"), null, "delete has no toast");
-		const counts = doc.getElementById("queue-counts");
-		assert(counts, "counts span must be present");
-		assert.equal(counts.getAttribute("hx-swap-oob"), "outerHTML");
-		assert.equal(counts.getAttribute("hx-get"), "/queue/counts");
-		assert.equal(doc.querySelector(".queue-article"), null, "no card markup in the body");
-	});
-
-	it("wraps the toast in the stable #status-toast mount and re-arms counts for an applied status change", () => {
+	it("wraps the toast in the stable #status-toast mount, re-arms counts, and leaves the primary body empty so the card is removed", () => {
 		const doc = parse(
 			renderQueueMutationFragment({
 				filters: DEFAULT_FILTERS,
@@ -102,7 +91,11 @@ describe("renderQueueMutationFragment", () => {
 			mount.querySelector("[data-test-toast-action]")?.closest("form")?.getAttribute("action"),
 			"/queue/abc123/status?utm_source=queue-toast&utm_medium=internal&utm_content=undo",
 		);
-		assert(doc.getElementById("queue-counts"), "counts span must accompany the toast");
+		const counts = doc.getElementById("queue-counts");
+		assert(counts, "counts span must accompany the toast");
+		assert.equal(counts.getAttribute("hx-swap-oob"), "outerHTML");
+		assert.equal(counts.getAttribute("hx-get"), "/queue/counts");
+		assert.equal(doc.querySelector(".queue-article"), null, "no card markup in the primary body");
 	});
 
 	it("threads the reader's view state into the Undo href for a non-default view", () => {
