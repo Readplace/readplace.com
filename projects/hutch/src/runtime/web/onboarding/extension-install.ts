@@ -34,11 +34,16 @@ export function isExtensionSavedArticle(req: Request): boolean {
  *    while iOS Chrome/Firefox identify as CriOS/FxiOS (never Chrome//Firefox/),
  *    and no desktop UA contains "iPhone" — so it buckets every iPhone visitor
  *    before a desktop token can claim them.
+ * 2. `chrome` names the client a visitor can INSTALL, not the browser engine
+ *    they run: Edge, Opera, Samsung Internet and Brave all resolve here because
+ *    the Chrome Web Store serves them all. The analytics browser families are a
+ *    different axis and deliberately keep those apart, so the same visitor is
+ *    `chrome` to this module and `edge` to that one.
  */
 const UA_SIGNATURES = {
 	iphone: { token: "iPhone", rank: 0 }, /* 1 */
 	firefox: { token: "Firefox/", rank: 1 },
-	chrome: { token: "Chrome/", rank: 2 },
+	chrome: { token: "Chrome/", rank: 2 }, /* 2 */
 } satisfies Record<ClientNameInCategory<"contentCapture">, { token: string; rank: number }>;
 
 function isDetectable(name: ClientName): name is keyof typeof UA_SIGNATURES {
@@ -61,8 +66,14 @@ export function detectPlatform(req: Request): Platform {
  * unrecognised `other` bucket) so a marketing page never offers a
  * browser-specific "Install" the device can't honour. */
 export function detectInstallBrowser(req: Request): InstallBrowser {
+	return INSTALL_BROWSER_BY_PLATFORM[installablePlatform(req)];
+}
+
+/** {@link detectPlatform} narrowed to what this device can actually install, so
+ * every caller inherits the Android exclusion instead of having to remember it. */
+function installablePlatform(req: Request): Platform {
 	if (!hasInstallableClient(req)) return "other";
-	return INSTALL_BROWSER_BY_PLATFORM[detectPlatform(req)];
+	return detectPlatform(req);
 }
 
 /** True when this device has a first-party client the user can actually
@@ -87,7 +98,7 @@ const NATIVE_APP_PLATFORMS: ReadonlySet<Platform> = new Set(
 );
 
 export function extensionInstallUrlIfMissing(req: Request): string | undefined {
-	const platform = detectPlatform(req);
+	const platform = installablePlatform(req);
 	/* The reader-page suggestion CTA is extension-specific; native-app platforms
 	 * have no extension, so it must never surface with "extension" wording there. */
 	if (NATIVE_APP_PLATFORMS.has(platform)) return undefined;
