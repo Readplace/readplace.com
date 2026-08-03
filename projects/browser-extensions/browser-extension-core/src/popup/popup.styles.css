@@ -271,6 +271,24 @@ body {
   border-color: var(--popup-error);
 }
 
+.list-view__save-all {
+  background: transparent;
+  color: var(--popup-brand);
+  font-size: 12px;
+  padding: 4px 10px;
+  line-height: 1;
+  border: 1px solid var(--popup-brand);
+  border-radius: 6px;
+  cursor: pointer;
+  font-family: inherit;
+  transition: all 0.15s ease;
+}
+
+.list-view__save-all:hover {
+  background: var(--popup-brand);
+  color: var(--popup-brand-text);
+}
+
 /* --- Search / filter --- */
 
 .list-view__search {

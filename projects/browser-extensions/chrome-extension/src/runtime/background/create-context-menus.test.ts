@@ -1,3 +1,9 @@
+import {
+	MENU_ITEM_SAVE_ALL_TABS,
+	MENU_ITEM_SAVE_LINK,
+	MENU_ITEM_SAVE_PAGE,
+	type ContextMenuItem,
+} from "browser-extension-core";
 import { initCreateContextMenus } from "./create-context-menus";
 
 // Chrome's Manifest V3 uses a service worker that can be stopped and
@@ -9,37 +15,74 @@ import { initCreateContextMenus } from "./create-context-menus";
 // restarts don't produce errors.
 
 function createFakeChromeContextMenus() {
-	const ids = new Set<string>();
+	const created = new Map<string, string[]>();
 	return {
 		removeAll: async () => {
-			ids.clear();
+			created.clear();
 		},
-		create: (properties: { id: string; title: string; contexts: ("page" | "link")[] }) => {
-			if (ids.has(properties.id)) {
+		create: (properties: { id: string; title: string; contexts: string[] }) => {
+			if (created.has(properties.id)) {
 				throw new Error(`Cannot create item with duplicate id ${properties.id}`);
 			}
-			ids.add(properties.id);
+			created.set(properties.id, properties.contexts);
 		},
 		get registeredIds() {
-			return [...ids];
+			return [...created.keys()];
 		},
+		contextsOf: (id: string) => created.get(id),
 	};
 }
+
+const EVERY_ITEM: ContextMenuItem[] = [
+	{ id: MENU_ITEM_SAVE_PAGE, title: "Save Page to Readplace" },
+	{ id: MENU_ITEM_SAVE_LINK, title: "Save Link to Readplace" },
+	{ id: MENU_ITEM_SAVE_ALL_TABS, title: "Save All Tabs to Readplace" },
+];
 
 describe("createContextMenus", () => {
 	it("should not throw when called twice, because Chrome MV3 service workers restart and re-run the script", async () => {
 		const contextMenus = createFakeChromeContextMenus();
 		const createContextMenus = initCreateContextMenus(contextMenus);
 
-		await createContextMenus();
-		await createContextMenus();
+		await createContextMenus(EVERY_ITEM);
+		await createContextMenus(EVERY_ITEM);
 
-		expect(contextMenus.registeredIds).toEqual(
-			expect.arrayContaining([
-				"save-page-to-hutch",
-				"save-link-to-hutch",
-				"save-all-tabs-to-hutch",
-			]),
-		);
+		expect(contextMenus.registeredIds).toEqual([
+			MENU_ITEM_SAVE_PAGE,
+			MENU_ITEM_SAVE_LINK,
+			MENU_ITEM_SAVE_ALL_TABS,
+		]);
+	});
+
+	it("offers save-all-tabs on the page and on the toolbar icon, the two surfaces Chrome supports for it", async () => {
+		const contextMenus = createFakeChromeContextMenus();
+
+		await initCreateContextMenus(contextMenus)(EVERY_ITEM);
+
+		expect(contextMenus.contextsOf(MENU_ITEM_SAVE_ALL_TABS)).toEqual([
+			"page",
+			"action",
+		]);
+	});
+
+	it("keeps the single-save entries on the surface each one targets", async () => {
+		const contextMenus = createFakeChromeContextMenus();
+
+		await initCreateContextMenus(contextMenus)(EVERY_ITEM);
+
+		expect(contextMenus.contextsOf(MENU_ITEM_SAVE_PAGE)).toEqual(["page"]);
+		expect(contextMenus.contextsOf(MENU_ITEM_SAVE_LINK)).toEqual(["link"]);
+	});
+
+	it("registers only the items it is given, so a capability the server dropped leaves no menu behind", async () => {
+		const contextMenus = createFakeChromeContextMenus();
+		const createContextMenus = initCreateContextMenus(contextMenus);
+
+		await createContextMenus(EVERY_ITEM);
+		await createContextMenus([
+			{ id: MENU_ITEM_SAVE_PAGE, title: "Save Page to Readplace" },
+		]);
+
+		expect(contextMenus.registeredIds).toEqual([MENU_ITEM_SAVE_PAGE]);
 	});
 });

@@ -905,6 +905,7 @@ export interface SirenReadingListDeps {
 	onUnauthorized: () => Promise<void>;
 	refreshTokens: RefreshTokens;
 	logger: HutchLogger;
+	onAdvertisedActions: (names: string[]) => void;
 }
 
 export function initSirenReadingList(deps: SirenReadingListDeps): {
@@ -926,7 +927,13 @@ export function initSirenReadingList(deps: SirenReadingListDeps): {
 		 * path, so a search GET passing through both stays correct. */
 		httpCacheable(initListArticlesUnderstanding()),
 	);
-	const start = initExtension(understandings, deps);
+	const walk = initExtension(understandings, deps);
+
+	const start = async (): Promise<NavigationResult> => {
+		const collection = await walk();
+		deps.onAdvertisedActions(Object.keys(collection.descriptors));
+		return collection;
+	};
 
 	const knownItems = new Map<string, ArticleItem>();
 

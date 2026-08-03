@@ -1811,6 +1811,7 @@ describe("initSirenReadingList capability negotiation", () => {
 			onUnauthorized,
 			refreshTokens: async () => ({ ok: false, reason: "no-refresh-token" }),
 			logger: noopLogger,
+			onAdvertisedActions: () => {},
 		};
 	}
 
@@ -2173,8 +2174,31 @@ describe("initSirenReadingList", () => {
 			onUnauthorized,
 			refreshTokens: async () => ({ ok: false, reason: "no-refresh-token" }),
 			logger: noopLogger,
+			onAdvertisedActions: () => {},
 		};
 	}
+
+	describe("advertised actions", () => {
+		it("reports the collection's advertised action names on every walk", async () => {
+			const { fetchFn } = createRoutingFetch(
+				withEntryPoint({
+					"GET http://localhost:3000/queue": {
+						status: 200,
+						body: collectionResponse(),
+					},
+				}),
+			);
+			const reported: string[][] = [];
+			const list = initSirenReadingList({
+				...createAdapterDeps(fetchFn),
+				onAdvertisedActions: (names) => reported.push(names),
+			});
+
+			await list.getItems();
+
+			expect(reported).toEqual([["save-article", "search"]]);
+		});
+	});
 
 	describe("saveUrl", () => {
 		it("should discover collection via entry point, then POST to save-article action", async () => {
@@ -4394,6 +4418,7 @@ describe("initSirenReadingList", () => {
 				onUnauthorized: async () => {},
 				refreshTokens: async () => ({ ok: false, reason: "no-refresh-token" }),
 				logger: noopLogger,
+				onAdvertisedActions: () => {},
 			};
 			const list = initSirenReadingList(deps);
 			await expect(list.getItems()).rejects.toThrow(
@@ -4750,6 +4775,7 @@ describe("initSirenReadingList deferred content upload", () => {
 			onUnauthorized: async () => {},
 			refreshTokens: async () => ({ ok: false, reason: "no-refresh-token" }),
 			logger: noopLogger,
+			onAdvertisedActions: () => {},
 			...overrides,
 		};
 	}
@@ -5130,6 +5156,7 @@ describe("initSirenReadingList request budget", () => {
 			onUnauthorized: async () => {},
 			refreshTokens: async () => ({ ok: false, reason: "no-refresh-token" }),
 			logger: noopLogger,
+			onAdvertisedActions: () => {},
 		};
 	}
 

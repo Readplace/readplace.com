@@ -4,10 +4,10 @@ import {
 	initIndexedDbPayloadStore,
 	initOAuthAuth,
 	initSirenReadingList,
+	initSyncContextMenus,
 	initUploadQueue,
-	MENU_ITEM_SAVE_PAGE,
-	MENU_ITEM_SAVE_LINK,
-	MENU_ITEM_SAVE_ALL_TABS,
+	ADVERTISED_CAPABILITIES_STORAGE_KEY,
+	type AdvertisedCapabilityStore,
 	type BrowserShell,
 	type OAuthTokens,
 	type PopupMessage,
@@ -26,6 +26,7 @@ import {
 import { HutchLogger, consoleLogger } from "@packages/hutch-logger";
 import type { BuiltInOAuthClientId } from "@packages/supported-clients";
 import { createBrowserSetIcon } from "./tinted-icon.browser";
+import { initCreateContextMenus } from "./create-context-menus";
 
 const logger = HutchLogger.from(consoleLogger);
 
@@ -42,6 +43,25 @@ const uploadJobStore: UploadJobStore = {
 		await browser.storage.local.set({ [UPLOAD_JOBS_KEY]: jobs });
 	},
 };
+
+const advertisedCapabilityStore: AdvertisedCapabilityStore = {
+	async read(): Promise<unknown> {
+		const stored = await browser.storage.local.get(
+			ADVERTISED_CAPABILITIES_STORAGE_KEY,
+		);
+		return stored[ADVERTISED_CAPABILITIES_STORAGE_KEY];
+	},
+	async write(capabilities): Promise<void> {
+		await browser.storage.local.set({
+			[ADVERTISED_CAPABILITIES_STORAGE_KEY]: capabilities,
+		});
+	},
+};
+
+const syncContextMenus = initSyncContextMenus({
+	store: advertisedCapabilityStore,
+	registerMenus: initCreateContextMenus(browser.menus),
+});
 
 let wake: ReturnType<typeof setTimeout> | undefined;
 
@@ -136,24 +156,6 @@ const shell: BrowserShell = {
 
 	setIcon: createBrowserSetIcon(),
 
-	createContextMenus() {
-		browser.menus.create({
-			id: MENU_ITEM_SAVE_PAGE,
-			title: "Save Page to Readplace",
-			contexts: ["page"],
-		});
-		browser.menus.create({
-			id: MENU_ITEM_SAVE_LINK,
-			title: "Save Link to Readplace",
-			contexts: ["link"],
-		});
-		browser.menus.create({
-			id: MENU_ITEM_SAVE_ALL_TABS,
-			title: "Save All Tabs to Readplace",
-			contexts: ["page"],
-		});
-	},
-
 	onContextMenuClicked(handler) {
 		browser.menus.onClicked.addListener((info, tab) => {
 			handler(info, tab);
@@ -237,6 +239,11 @@ async function initCore() {
 			await auth.logout();
 		},
 		logger,
+		onAdvertisedActions: (names) => {
+			syncContextMenus
+				.capabilitiesDiscovered(names)
+				.catch((err) => logger.error("Failed to sync context menus", err));
+		},
 	});
 
 	const uploadQueue = initUploadQueue({
@@ -251,7 +258,9 @@ async function initCore() {
 	const core = BrowserExtensionCore(shell, { auth, logger, readingList });
 
 	core.on("pre-init", () => {
-		shell.createContextMenus();
+		syncContextMenus
+			.applyCached()
+			.catch((err) => logger.error("Failed to restore context menus", err));
 	});
 
 	core.init();

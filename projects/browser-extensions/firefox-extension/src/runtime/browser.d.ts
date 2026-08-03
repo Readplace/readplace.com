@@ -84,7 +84,12 @@ declare namespace browser {
 	}
 
 	namespace menus {
-		type ContextType = "page" | "link";
+		type ContextType =
+			| "page"
+			| "link"
+			| "browser_action"
+			| "tab"
+			| "tools_menu";
 
 		interface CreateProperties {
 			id: string;
@@ -99,6 +104,7 @@ declare namespace browser {
 		}
 
 		function create(createProperties: CreateProperties): void;
+		function removeAll(): Promise<void>;
 
 		const onClicked: {
 			addListener(

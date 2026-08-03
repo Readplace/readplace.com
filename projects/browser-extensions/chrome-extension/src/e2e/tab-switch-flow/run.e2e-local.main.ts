@@ -267,6 +267,7 @@ async function assertSavedContentIsPageA(): Promise<void> {
 			throw new Error("Unauthorized while walking the saved queue");
 		},
 		logger: HutchLogger.from(consoleLogger),
+		onAdvertisedActions: () => {},
 	});
 
 	const deadline = Date.now() + 60_000;

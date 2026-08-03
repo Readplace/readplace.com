@@ -58,7 +58,6 @@ function createFakeShell(
 				resolveIconUpdated();
 			},
 		},
-		createContextMenus: () => {},
 		onContextMenuClicked: (handler) => {
 			contextMenuHandler = handler;
 		},
@@ -326,7 +325,6 @@ function createCapturingShell(
 				showDefaultCalls.push(tabId);
 			},
 		},
-		createContextMenus: () => {},
 		onContextMenuClicked: (handler) => {
 			contextMenuHandler = handler;
 		},

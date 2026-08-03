@@ -14,7 +14,7 @@ import type {
 	Message,
 	ActionVariant,
 } from "browser-extension-core";
-import { filterByUrl, buildPaginationView, avatarColor, relativeTime, isAppUrl, itemDisplay, selectSaveableTabs, summarizeBulkSave, installShortcuts, isCmdD, buildMessageView, buildSavedView, actionLabel, actionVariant, actionIcon, linkLabel, linkPresentation, SAVE_RENDERED_MARK, SAVE_ALL_RENDERED_MARK } from "browser-extension-core";
+import { filterByUrl, buildPaginationView, avatarColor, relativeTime, isAppUrl, itemDisplay, selectSaveableTabs, summarizeBulkSave, installShortcuts, isCmdD, buildMessageView, buildSavedView, actionLabel, actionVariant, actionIcon, linkLabel, linkPresentation, advertisesBulkSave, parseStoredCapabilities, ADVERTISED_CAPABILITIES_STORAGE_KEY, SAVE_RENDERED_MARK, SAVE_ALL_RENDERED_MARK } from "browser-extension-core";
 import { HutchLogger, consoleLogger } from "@packages/hutch-logger";
 
 /** The client's own presentation map: an action variant -> the popup's CSS
@@ -561,6 +561,17 @@ async function saveAllTabsFlow() {
 	performance.mark(SAVE_ALL_RENDERED_MARK);
 }
 
+async function revealSaveAllTabs() {
+	const stored = await browser.storage.local.get(
+		ADVERTISED_CAPABILITIES_STORAGE_KEY,
+	);
+	const button = document.getElementById("save-all-tabs-button");
+	if (!button) return;
+	button.hidden = !advertisesBulkSave(
+		parseStoredCapabilities(stored[ADVERTISED_CAPABILITIES_STORAGE_KEY]),
+	);
+}
+
 async function bootstrap() {
 	const stored = await browser.storage.session.get("pendingBulkSave");
 	if (stored.pendingBulkSave) {
@@ -607,6 +618,12 @@ document.getElementById("login-button")?.addEventListener("click", async () => {
 });
 
 document
+	.getElementById("save-all-tabs-button")
+	?.addEventListener("click", async () => {
+		await saveAllTabsFlow();
+	});
+
+document
 	.getElementById("logout-button")
 	?.addEventListener("click", performLogout);
 
@@ -631,6 +648,10 @@ if (shortcutHint) {
 		shortcutHint.append(prefix, cmdKey, plus, dKey, suffix);
 	}
 }
+
+revealSaveAllTabs().catch((error) =>
+	logger.error("Failed to read advertised capabilities:", error),
+);
 
 bootstrap().catch((error) => {
 	logger.error("Failed to initialize popup:", error);

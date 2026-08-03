@@ -176,6 +176,7 @@ function initReadingList(input: {
 		onUnauthorized: async () => {},
 		refreshTokens: async () => ({ ok: true }),
 		logger: noopLogger,
+		onAdvertisedActions: () => {},
 	});
 }
 

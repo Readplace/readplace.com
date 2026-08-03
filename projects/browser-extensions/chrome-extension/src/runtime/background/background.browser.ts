@@ -5,7 +5,10 @@ import {
 	initIndexedDbPayloadStore,
 	initOAuthAuth,
 	initSirenReadingList,
+	initSyncContextMenus,
 	initUploadQueue,
+	ADVERTISED_CAPABILITIES_STORAGE_KEY,
+	type AdvertisedCapabilityStore,
 	type BrowserShell,
 	type OAuthTokens,
 	OAuthTokensSchema,
@@ -53,6 +56,25 @@ const uploadJobStore: UploadJobStore = {
 		await browser.storage.local.set({ [UPLOAD_JOBS_KEY]: jobs });
 	},
 };
+
+const advertisedCapabilityStore: AdvertisedCapabilityStore = {
+	async read(): Promise<unknown> {
+		const stored = await browser.storage.local.get(
+			ADVERTISED_CAPABILITIES_STORAGE_KEY,
+		);
+		return stored[ADVERTISED_CAPABILITIES_STORAGE_KEY];
+	},
+	async write(capabilities): Promise<void> {
+		await browser.storage.local.set({
+			[ADVERTISED_CAPABILITIES_STORAGE_KEY]: capabilities,
+		});
+	},
+};
+
+const syncContextMenus = initSyncContextMenus({
+	store: advertisedCapabilityStore,
+	registerMenus: initCreateContextMenus(browser.contextMenus),
+});
 
 const wakeScheduler: WakeScheduler = {
 	now: () => Date.now(),
@@ -121,8 +143,6 @@ const shell: BrowserShell = {
 		browser.tabs.query({ active: true, currentWindow: true }),
 
 	setIcon: createBrowserSetIcon(),
-
-	createContextMenus: initCreateContextMenus(browser.contextMenus),
 
 	onContextMenuClicked(handler) {
 		browser.contextMenus.onClicked.addListener((info, tab) => {
@@ -207,6 +227,11 @@ async function initCore() {
 			await auth.logout();
 		},
 		logger,
+		onAdvertisedActions: (names) => {
+			syncContextMenus
+				.capabilitiesDiscovered(names)
+				.catch((err) => logger.error("Failed to sync context menus", err));
+		},
 	});
 
 	const uploadQueue = initUploadQueue({
@@ -221,7 +246,9 @@ async function initCore() {
 	const core = BrowserExtensionCore(shell, { auth, logger, readingList });
 
 	core.on("pre-init", () => {
-		shell.createContextMenus();
+		syncContextMenus
+			.applyCached()
+			.catch((err) => logger.error("Failed to restore context menus", err));
 	});
 
 	core.init();

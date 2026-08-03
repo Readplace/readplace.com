@@ -99,7 +99,7 @@ declare module "webextension-polyfill" {
 	}
 
 	namespace ContextMenus {
-		type ContextType = "page" | "link";
+		type ContextType = "page" | "link" | "action";
 
 		interface CreateProperties {
 			id: string;

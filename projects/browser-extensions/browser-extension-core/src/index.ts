@@ -80,6 +80,14 @@ export {
 	MENU_ITEM_SAVE_LINK,
 	MENU_ITEM_SAVE_ALL_TABS,
 } from "./get-context-menu-target";
+export { advertisesBulkSave } from "./advertised-capabilities";
+export type { ContextMenuItem, ContextMenuItemId } from "./advertised-capabilities";
+export {
+	ADVERTISED_CAPABILITIES_STORAGE_KEY,
+	initSyncContextMenus,
+	parseStoredCapabilities,
+} from "./sync-context-menus";
+export type { AdvertisedCapabilityStore } from "./sync-context-menus";
 export { installShortcuts, isCmdD } from "./keydown-shortcuts";
 export type { Shortcut } from "./keydown-shortcuts";
 export { captureActiveTabBytes } from "./capture-active-tab-bytes";

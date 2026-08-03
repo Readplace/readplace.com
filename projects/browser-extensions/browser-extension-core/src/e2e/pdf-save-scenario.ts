@@ -173,6 +173,7 @@ export async function runPdfSaveScenario(
 			throw new Error("Unauthorized while running pdf-save scenario");
 		},
 		logger: HutchLogger.from(consoleLogger),
+		onAdvertisedActions: () => {},
 	});
 
 	const saveResult = await saveUrl({

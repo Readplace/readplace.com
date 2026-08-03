@@ -6,9 +6,9 @@ import {
 	type ContextMenuItemId,
 } from "browser-extension-core";
 
-type ContextType = "page" | "link" | "action";
+type ContextType = "page" | "link" | "browser_action" | "tab" | "tools_menu";
 
-type ContextMenusApi = {
+type MenusApi = {
 	removeAll: () => Promise<void>;
 	create: (properties: { id: string; title: string; contexts: ContextType[] }) => void;
 };
@@ -16,14 +16,14 @@ type ContextMenusApi = {
 const CONTEXTS_BY_MENU_ITEM: Record<ContextMenuItemId, ContextType[]> = {
 	[MENU_ITEM_SAVE_PAGE]: ["page"],
 	[MENU_ITEM_SAVE_LINK]: ["link"],
-	[MENU_ITEM_SAVE_ALL_TABS]: ["page", "action"],
+	[MENU_ITEM_SAVE_ALL_TABS]: ["page", "browser_action", "tab", "tools_menu"],
 };
 
-export function initCreateContextMenus(contextMenus: ContextMenusApi) {
+export function initCreateContextMenus(menus: MenusApi) {
 	return async function createContextMenus(items: ContextMenuItem[]) {
-		await contextMenus.removeAll();
+		await menus.removeAll();
 		for (const item of items) {
-			contextMenus.create({
+			menus.create({
 				id: item.id,
 				title: item.title,
 				contexts: CONTEXTS_BY_MENU_ITEM[item.id],

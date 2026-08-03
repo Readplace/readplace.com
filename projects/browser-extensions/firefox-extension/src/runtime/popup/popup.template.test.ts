@@ -16,3 +16,11 @@ describe("popup brand mark", () => {
 		expect(template).toContain(brandMarkSvg({ className: "list-view__brand-icon" }));
 	});
 });
+
+describe("save all tabs control", () => {
+	it("list-view header carries the save-all-tabs control", () => {
+		expect(template).toContain(
+			'<button id="save-all-tabs-button" class="list-view__save-all" title="Save all tabs in this window" data-test-save-all-tabs hidden>Save all tabs</button>',
+		);
+	});
+});

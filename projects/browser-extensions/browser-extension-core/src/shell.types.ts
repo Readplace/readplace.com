@@ -11,7 +11,6 @@ export interface BrowserShell {
 	getActiveTab: () => Promise<{ id?: number; url: string; title: string } | null>;
 	queryActiveTabs: () => Promise<Array<{ id?: number; url?: string; title?: string }>>;
 	setIcon: SetIcon;
-	createContextMenus: () => void;
 	onContextMenuClicked: (handler: (info: {
 		menuItemId: string;
 		linkUrl?: string;
