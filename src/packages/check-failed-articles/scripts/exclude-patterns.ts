@@ -62,6 +62,8 @@ export const EXCLUDE_PATTERNS: readonly RegExp[] = [
 	// client that executes the challenge JS. Same unactionable-noise rationale as
 	// the reddit.com entry above.
 	/(?:^|\/\/)(?:[a-z0-9-]+\.)*stackoverflow\.com(?:[/:?#]|$)/i,
+	/(?:^|\/\/)(?:[a-z0-9-]+\.)*bizjournals\.com(?:[/:?#]|$)/i,
+	/(?:^|\/\/)(?:[a-z0-9-]+\.)*archive\.ph(?:[/:?#]|$)/i,
 	// Time-limited presigned URLs — permanently dead once the signature lapses.
 	// TTLs are minutes, so the crawl fetch lands at or after expiry and the
 	// origin answers 403 for the object from then on; recrawl re-fetches the
@@ -288,6 +290,9 @@ export const EXCLUDE_PATTERNS: readonly RegExp[] = [
 	// `http://` scheme) — same wayback-throttling failure mode as the June
 	// capture above. Anchored per timestamp so other snapshots still surface.
 	/^https:\/\/web\.archive\.org\/web\/20180322015139\/http:\/{1,2}www\.abu\.org\.my\/Latest_News-@-CNA_to_launch_satellite_studio_in_Malaysia\.aspx$/i,
+	/^https:\/\/news\.ycombinator\.com\/item$/i,
+	/^https:\/\/javascriptweekly\.com\/link\/188519\/8babea547d$/i,
+	/^https:\/\/javascriptweekly\.com\/link\/188518\/8babea547d$/i,
 ];
 
 export function isExcluded(url: string, patterns: readonly RegExp[]): boolean {

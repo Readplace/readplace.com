@@ -106,6 +106,46 @@ describe("EXCLUDE_PATTERNS — stackoverflow.com entry", () => {
 	}
 });
 
+describe("EXCLUDE_PATTERNS — bizjournals.com entry", () => {
+	const cases: ReadonlyArray<{ url: string; excluded: boolean; label: string }> = [
+		{ url: "https://www.bizjournals.com/tampabay/news/2026/07/22/rays-tampa-ballpark-early-construction.html?rel=plus", excluded: true, label: "stored row shape — www article with ?rel=plus" },
+		{ url: "https://www.bizjournals.com/triad/news/2026/07/20/first-horizon-coliseum-complex-greensboro-beard-nc.html?rel=plus&__readwiseLocation=", excluded: true, label: "stored row shape — www article with a readwise suffix" },
+		{ url: "https://bizjournals.com/boston/news/2026/07/17/opinion-what-the-world-cup-taught-massachusetts.html", excluded: true, label: "apex bizjournals.com" },
+		{ url: "http://bizjournals.com/washington/news", excluded: true, label: "http scheme" },
+		{ url: "https://bizjournals.com:443/boston", excluded: true, label: "explicit port" },
+		{ url: "https://www.bizjournals.com?q=1", excluded: true, label: "query immediately after host" },
+		{ url: "https://notbizjournals.com/boston", excluded: false, label: "prefixed similar host (should NOT match)" },
+		{ url: "https://bizjournals.com.evil.com/boston", excluded: false, label: "subdomain trick (should NOT match)" },
+		{ url: "https://other.test/bizjournals.com/boston", excluded: false, label: "bizjournals.com inside a path" },
+	];
+	for (const { url, excluded, label } of cases) {
+		it(`${excluded ? "excludes" : "keeps"}: ${label} — ${url}`, () => {
+			assert.equal(isExcluded(url, EXCLUDE_PATTERNS), excluded);
+		});
+	}
+});
+
+describe("EXCLUDE_PATTERNS — archive.ph entry", () => {
+	const cases: ReadonlyArray<{ url: string; excluded: boolean; label: string }> = [
+		{ url: "https://archive.ph/moksj", excluded: true, label: "stored row shape — short capture id" },
+		{ url: "https://archive.ph/d9pPq", excluded: true, label: "stored row shape — mixed-case capture id" },
+		{ url: "https://archive.ph", excluded: true, label: "apex with no path" },
+		{ url: "http://archive.ph/7F8rl", excluded: true, label: "http scheme" },
+		{ url: "https://archive.ph?q=1", excluded: true, label: "query immediately after host" },
+		{ url: "https://archive.md/moksj", excluded: false, label: "archive.md sibling mirror — scoped to the saved host, must still surface" },
+		{ url: "https://archive.today/moksj", excluded: false, label: "archive.today sibling mirror — scoped to the saved host, must still surface" },
+		{ url: "https://archive.photo/moksj", excluded: false, label: "longer TLD without a host boundary (should NOT match)" },
+		{ url: "https://myarchive.ph/moksj", excluded: false, label: "prefixed similar host (should NOT match)" },
+		{ url: "https://archive.ph.evil.com/moksj", excluded: false, label: "subdomain trick (should NOT match)" },
+		{ url: "https://web.archive.org/web/2020/https://example.org/a", excluded: false, label: "web.archive.org capture — a different service" },
+	];
+	for (const { url, excluded, label } of cases) {
+		it(`${excluded ? "excludes" : "keeps"}: ${label} — ${url}`, () => {
+			assert.equal(isExcluded(url, EXCLUDE_PATTERNS), excluded);
+		});
+	}
+});
+
 describe("EXCLUDE_PATTERNS — presigned-URL entries", () => {
 	const cases: ReadonlyArray<{ url: string; excluded: boolean; label: string }> = [
 		{
@@ -723,6 +763,35 @@ describe("EXCLUDE_PATTERNS — permanently-unreachable saves", () => {
 			excluded: false,
 			label: "different-timestamp ABU capture — must NOT be hidden",
 		},
+	];
+	for (const { url, excluded, label } of cases) {
+		it(`${excluded ? "excludes" : "keeps"}: ${label} — ${url}`, () => {
+			assert.equal(isExcluded(url, EXCLUDE_PATTERNS), excluded);
+		});
+	}
+});
+
+describe("EXCLUDE_PATTERNS — news.ycombinator.com/item soft-404", () => {
+	const cases: ReadonlyArray<{ url: string; excluded: boolean; label: string }> = [
+		{ url: "https://news.ycombinator.com/item", excluded: true, label: "stored row shape — /item with no id query" },
+		{ url: "https://news.ycombinator.com/item?id=44567890", excluded: false, label: "a real item with its id — must NOT be hidden" },
+		{ url: "https://news.ycombinator.com/item/", excluded: false, label: "trailing slash — different stored value" },
+		{ url: "https://news.ycombinator.com/newest", excluded: false, label: "different HN page — must NOT be hidden" },
+	];
+	for (const { url, excluded, label } of cases) {
+		it(`${excluded ? "excludes" : "keeps"}: ${label} — ${url}`, () => {
+			assert.equal(isExcluded(url, EXCLUDE_PATTERNS), excluded);
+		});
+	}
+});
+
+describe("EXCLUDE_PATTERNS — javascriptweekly.com link trackers", () => {
+	const cases: ReadonlyArray<{ url: string; excluded: boolean; label: string }> = [
+		{ url: "https://javascriptweekly.com/link/188519/8babea547d", excluded: true, label: "tracker 188519 exact" },
+		{ url: "https://javascriptweekly.com/link/188518/8babea547d", excluded: true, label: "tracker 188518 exact" },
+		{ url: "https://javascriptweekly.com/link/188519/8babea547d?utm_source=x", excluded: false, label: "tracker 188519 with a query suffix — anchored exact, should NOT match" },
+		{ url: "https://javascriptweekly.com/link/188482/8babea547d", excluded: false, label: "different tracker id on the same host — must NOT be hidden" },
+		{ url: "https://nodeweekly.com/link/188598/4be0b3f821", excluded: false, label: "sibling newsletter tracker — must NOT be hidden" },
 	];
 	for (const { url, excluded, label } of cases) {
 		it(`${excluded ? "excludes" : "keeps"}: ${label} — ${url}`, () => {
