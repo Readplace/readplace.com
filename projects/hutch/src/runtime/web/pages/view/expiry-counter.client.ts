@@ -1,3 +1,7 @@
+import { initBoostedPageBundle as boostedPageBundle } from "../../shared/boosted-page-bundle.client";
+
+export const initBoostedPageBundle = boostedPageBundle;
+
 interface ExpiryCounterDeps {
 	document: Document;
 	now: () => number;

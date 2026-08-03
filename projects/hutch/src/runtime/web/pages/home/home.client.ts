@@ -14,6 +14,10 @@
  * first word and the hint falls back to the browser's native anchor jump.
  */
 
+import { initBoostedPageBundle as boostedPageBundle } from "../../shared/boosted-page-bundle.client";
+
+export const initBoostedPageBundle = boostedPageBundle;
+
 export const HEADLINE_WORDS = [
 	"articles",
 	"news",
@@ -40,8 +44,12 @@ interface SloganRotatorDeps {
 	prefersReducedMotion: () => boolean;
 	setTimeoutFn: (cb: () => void, ms: number) => unknown;
 	clearTimeoutFn: (id: unknown) => void;
-	addVisibilityListener: (listener: () => void) => void;
+	addVisibilityListener: (listener: () => void) => () => void;
 	isHidden: () => boolean;
+}
+
+export interface SloganRotatorController {
+	stop(): void;
 }
 
 function parseSlogans(raw: string | null): string[] {
@@ -65,22 +73,37 @@ function parseSlogans(raw: string | null): string[] {
  * motion all keep the one slogan the page's title and structured data claim.
  * The list rides `data-slogans` so this module holds no second copy to drift.
  */
-export function initSloganRotator(deps: SloganRotatorDeps): void {
+export function initSloganRotator(deps: SloganRotatorDeps): SloganRotatorController {
+	let stopped = false;
+	let scheduled: unknown = null;
+	let removeVisibilityListener: (() => void) | null = null;
+	const controller: SloganRotatorController = {
+		stop() {
+			if (stopped) return;
+			stopped = true;
+			if (scheduled !== null) {
+				deps.clearTimeoutFn(scheduled);
+				scheduled = null;
+			}
+			if (removeVisibilityListener !== null) removeVisibilityListener();
+		},
+	};
+
 	const found = deps.document.querySelector<HTMLElement>("[data-slogans]");
-	if (found === null) return;
+	if (found === null) return controller;
 	const heading = found; // TS doesn't propagate narrowing into function-declaration closures
 	const slogans = parseSlogans(heading.getAttribute("data-slogans"));
-	if (slogans.length < 2) return;
-	if (deps.prefersReducedMotion()) return;
+	if (slogans.length < 2) return controller;
+	if (deps.prefersReducedMotion()) return controller;
 
 	heading.classList.add("home-try__title--rotating");
 
 	let index = slogans.indexOf(heading.textContent?.trim() ?? "");
 	if (index < 0) index = 0;
-	let scheduled: unknown = null;
 	let inTick = false;
 
 	function schedule(): void {
+		if (stopped) return;
 		scheduled = deps.setTimeoutFn(tick, SLOGAN_INTERVAL_MS);
 	}
 
@@ -97,7 +120,7 @@ export function initSloganRotator(deps: SloganRotatorDeps): void {
 		}, SLOGAN_FADE_MS);
 	}
 
-	deps.addVisibilityListener(() => {
+	removeVisibilityListener = deps.addVisibilityListener(() => {
 		if (deps.isHidden()) {
 			if (scheduled !== null) {
 				deps.clearTimeoutFn(scheduled);
@@ -108,6 +131,8 @@ export function initSloganRotator(deps: SloganRotatorDeps): void {
 		}
 	});
 	schedule();
+
+	return controller;
 }
 
 interface HeadlineRotatorDeps {
@@ -115,8 +140,12 @@ interface HeadlineRotatorDeps {
 	prefersReducedMotion: () => boolean;
 	setTimeoutFn: (cb: () => void, ms: number) => unknown;
 	clearTimeoutFn: (id: unknown) => void;
-	addVisibilityListener: (listener: () => void) => void;
+	addVisibilityListener: (listener: () => void) => () => void;
 	isHidden: () => boolean;
+}
+
+export interface HeadlineRotatorController {
+	stop(): void;
 }
 
 function makeSpan(doc: Document, className: string, text: string): HTMLElement {
@@ -126,9 +155,26 @@ function makeSpan(doc: Document, className: string, text: string): HTMLElement {
 	return el;
 }
 
-export function initHeadlineRotator(deps: HeadlineRotatorDeps): void {
+export function initHeadlineRotator(
+	deps: HeadlineRotatorDeps,
+): HeadlineRotatorController {
+	let stopped = false;
+	let scheduled: unknown = null;
+	let removeVisibilityListener: (() => void) | null = null;
+	const controller: HeadlineRotatorController = {
+		stop() {
+			if (stopped) return;
+			stopped = true;
+			if (scheduled !== null) {
+				deps.clearTimeoutFn(scheduled);
+				scheduled = null;
+			}
+			if (removeVisibilityListener !== null) removeVisibilityListener();
+		},
+	};
+
 	const box = deps.document.querySelector<HTMLElement>(".hero-headline__rotator");
-	if (box === null) return;
+	if (box === null) return controller;
 	const rotator = box; // TS doesn't propagate narrowing into function-declaration closures
 
 	rotator.textContent = "";
@@ -149,11 +195,10 @@ export function initHeadlineRotator(deps: HeadlineRotatorDeps): void {
 	}
 
 	rotator.style.width = `${measure(HEADLINE_WORDS[0])}px`;
-	if (deps.prefersReducedMotion()) return;
+	if (deps.prefersReducedMotion()) return controller;
 
 	let index = 0;
 	let current = 0;
-	let scheduled: unknown = null;
 	let inTick = false;
 
 	function tick(): void {
@@ -178,10 +223,11 @@ export function initHeadlineRotator(deps: HeadlineRotatorDeps): void {
 	}
 
 	function schedule(): void {
+		if (stopped) return;
 		scheduled = deps.setTimeoutFn(tick, ROTATE_INTERVAL_MS);
 	}
 
-	deps.addVisibilityListener(() => {
+	removeVisibilityListener = deps.addVisibilityListener(() => {
 		if (deps.isHidden()) {
 			if (scheduled !== null) {
 				deps.clearTimeoutFn(scheduled);
@@ -192,6 +238,8 @@ export function initHeadlineRotator(deps: HeadlineRotatorDeps): void {
 		}
 	});
 	schedule();
+
+	return controller;
 }
 
 interface ScrollHintDeps {

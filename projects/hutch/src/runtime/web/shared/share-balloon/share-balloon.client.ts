@@ -1,4 +1,7 @@
+import { initBoostedPageBundle as boostedPageBundle } from "../boosted-page-bundle.client";
 import { PAYWALL_REVEALED_EVENT } from "../paywall-revealed-event";
+
+export const initBoostedPageBundle = boostedPageBundle;
 
 interface ShareBalloonWindow {
 	readonly scrollY: number;

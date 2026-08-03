@@ -44,18 +44,22 @@ describe("initHeadlineRotator", () => {
 		const doc = makeWindow(`<h2>No rotator here</h2>`).document;
 		const timers = createFakeTimers();
 		let visibilityListener: (() => void) | undefined;
-		initHeadlineRotator({
+		const rotator = initHeadlineRotator({
 			document: doc,
 			prefersReducedMotion: () => false,
 			setTimeoutFn: timers.setTimeoutFn,
 			clearTimeoutFn: timers.clearTimeoutFn,
 			addVisibilityListener: (cb) => {
 				visibilityListener = cb;
+				return () => {};
 			},
 			isHidden: () => false,
 		});
 		assert.equal(timers.pendingCount(), 0);
 		assert.equal(visibilityListener, undefined);
+
+		rotator.stop();
+		assert.equal(timers.pendingCount(), 0);
 	});
 
 	it("enhances the rotator and settles on the first word when reduced motion is preferred", () => {
@@ -66,7 +70,7 @@ describe("initHeadlineRotator", () => {
 			prefersReducedMotion: () => true,
 			setTimeoutFn: timers.setTimeoutFn,
 			clearTimeoutFn: timers.clearTimeoutFn,
-			addVisibilityListener: () => {},
+			addVisibilityListener: () => () => {},
 			isHidden: () => false,
 		});
 
@@ -87,7 +91,7 @@ describe("initHeadlineRotator", () => {
 			prefersReducedMotion: () => false,
 			setTimeoutFn: timers.setTimeoutFn,
 			clearTimeoutFn: timers.clearTimeoutFn,
-			addVisibilityListener: () => {},
+			addVisibilityListener: () => () => {},
 			isHidden: () => false,
 		});
 
@@ -118,6 +122,7 @@ describe("initHeadlineRotator", () => {
 			clearTimeoutFn: timers.clearTimeoutFn,
 			addVisibilityListener: (cb) => {
 				visibilityListener = cb;
+				return () => {};
 			},
 			isHidden: () => hidden,
 		});
@@ -148,6 +153,7 @@ describe("initHeadlineRotator", () => {
 			clearTimeoutFn: timers.clearTimeoutFn,
 			addVisibilityListener: (cb) => {
 				visibilityListener = cb;
+				return () => {};
 			},
 			isHidden: () => false,
 		});
@@ -161,6 +167,51 @@ describe("initHeadlineRotator", () => {
 
 		visibilityListener();
 		assert.equal(timers.pendingCount(), 1);
+	});
+
+	it("stop clears the pending rotation and unsubscribes from visibility changes", () => {
+		const doc = makeWindow(ROTATOR_HTML).document;
+		const timers = createFakeTimers();
+		let unsubscribed = 0;
+		const rotator = initHeadlineRotator({
+			document: doc,
+			prefersReducedMotion: () => false,
+			setTimeoutFn: timers.setTimeoutFn,
+			clearTimeoutFn: timers.clearTimeoutFn,
+			addVisibilityListener: () => () => {
+				unsubscribed += 1;
+			},
+			isHidden: () => false,
+		});
+		assert.equal(timers.pendingCount(), 1);
+
+		rotator.stop();
+		assert.equal(timers.pendingCount(), 0);
+		assert.equal(unsubscribed, 1);
+
+		rotator.stop();
+		assert.equal(unsubscribed, 1);
+	});
+
+	it("stop mid-rotation keeps the settle callback from rescheduling", () => {
+		const doc = makeWindow(ROTATOR_HTML).document;
+		const timers = createFakeTimers();
+		const rotator = initHeadlineRotator({
+			document: doc,
+			prefersReducedMotion: () => false,
+			setTimeoutFn: timers.setTimeoutFn,
+			clearTimeoutFn: timers.clearTimeoutFn,
+			addVisibilityListener: () => () => {},
+			isHidden: () => false,
+		});
+
+		timers.runOnce();
+		assert.equal(timers.pendingCount(), 2);
+
+		rotator.stop();
+		timers.runOnce();
+		timers.runOnce();
+		assert.equal(timers.pendingCount(), 0);
 	});
 });
 
@@ -339,18 +390,29 @@ function mountSloganRotator(
 	const doc = makeWindow(html).document;
 	const timers = createFakeTimers();
 	let visibilityListener: (() => void) | undefined;
-	initSloganRotator({
+	let unsubscribed = 0;
+	const rotator = initSloganRotator({
 		document: doc,
 		prefersReducedMotion: () => options?.prefersReducedMotion ?? false,
 		setTimeoutFn: timers.setTimeoutFn,
 		clearTimeoutFn: timers.clearTimeoutFn,
 		addVisibilityListener: (cb) => {
 			visibilityListener = cb;
+			return () => {
+				unsubscribed += 1;
+			};
 		},
 		isHidden: options?.isHidden ?? (() => false),
 	});
 	const heading = doc.querySelector("h1");
-	return { doc, timers, heading, fireVisibility: () => visibilityListener?.() };
+	return {
+		doc,
+		timers,
+		heading,
+		rotator,
+		fireVisibility: () => visibilityListener?.(),
+		unsubscribed: () => unsubscribed,
+	};
 }
 
 describe("initSloganRotator", () => {
@@ -456,5 +518,38 @@ describe("initSloganRotator", () => {
 
 		fireVisibility();
 		assert.equal(timers.pendingCount(), 1);
+	});
+
+	it("stop clears the pending rotation and unsubscribes from visibility changes", () => {
+		const { timers, rotator, unsubscribed } = mountSloganRotator(SLOGANS_HTML(TWO_SLOGANS));
+		assert.equal(timers.pendingCount(), 1);
+
+		rotator.stop();
+		assert.equal(timers.pendingCount(), 0);
+		assert.equal(unsubscribed(), 1);
+
+		rotator.stop();
+		assert.equal(unsubscribed(), 1);
+	});
+
+	it("stop is a no-op when reduced motion kept the rotator from starting", () => {
+		const { timers, rotator, unsubscribed } = mountSloganRotator(SLOGANS_HTML(TWO_SLOGANS), {
+			prefersReducedMotion: true,
+		});
+		assert.equal(timers.pendingCount(), 0);
+
+		rotator.stop();
+		assert.equal(timers.pendingCount(), 0);
+		assert.equal(unsubscribed(), 0);
+	});
+
+	it("stop mid-swap keeps the fade callback from rescheduling", () => {
+		const { timers, rotator } = mountSloganRotator(SLOGANS_HTML(TWO_SLOGANS));
+		timers.runOnce(); // the rotate interval fires; the fade timer is now pending
+		assert.equal(timers.pendingCount(), 1);
+
+		rotator.stop();
+		timers.runOnce(); // the fade completes and would reschedule, but stop() blocks it
+		assert.equal(timers.pendingCount(), 0);
 	});
 });

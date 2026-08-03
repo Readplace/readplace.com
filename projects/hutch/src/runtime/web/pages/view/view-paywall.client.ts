@@ -1,4 +1,7 @@
+import { initBoostedPageBundle as boostedPageBundle } from "../../shared/boosted-page-bundle.client";
 import { PAYWALL_REVEALED_EVENT } from "../../shared/paywall-revealed-event";
+
+export const initBoostedPageBundle = boostedPageBundle;
 
 interface ViewPaywallWindow {
 	readonly scrollY: number;
@@ -19,6 +22,12 @@ interface ViewPaywallDeps {
 	dispatchDocumentEvent: (type: string) => void;
 }
 
+export interface ViewPaywallController {
+	detach(): void;
+}
+
+const NOOP_CONTROLLER: ViewPaywallController = { detach() {} };
+
 /** The expired-public-reader paywall is a soft, scroll-gated blur. The element
  * ships hidden (`--inactive`); this reveals it once two gates are both open:
  * the reader has scrolled past 10% of the article (so the blur engages over the
@@ -30,15 +39,15 @@ interface ViewPaywallDeps {
  * revealed it latches: the scroll listener detaches and the deadline timer
  * clears, so scrolling back up does not un-blur. Absent on permanent / prod /
  * not-ready pages (no element) — no-op. */
-export function initViewPaywall(deps: ViewPaywallDeps): void {
+export function initViewPaywall(deps: ViewPaywallDeps): ViewPaywallController {
 	const root = deps.document.querySelector("[data-view-paywall]");
-	if (root === null) return;
+	if (root === null) return NOOP_CONTROLLER;
 	const expiresAtRaw = root.getAttribute("data-expires-at");
-	if (expiresAtRaw === null) return;
+	if (expiresAtRaw === null) return NOOP_CONTROLLER;
 	const deadlineMs = Date.parse(expiresAtRaw);
-	if (!Number.isFinite(deadlineMs)) return;
+	if (!Number.isFinite(deadlineMs)) return NOOP_CONTROLLER;
 	const articleEl = deps.document.querySelector<HTMLElement>("[data-article-body]");
-	if (articleEl === null) return;
+	if (articleEl === null) return NOOP_CONTROLLER;
 	// TS doesn't propagate the null-narrowing above into the nested closures below.
 	const paywall = root;
 	const article = articleEl;
@@ -74,4 +83,14 @@ export function initViewPaywall(deps: ViewPaywallDeps): void {
 		timerId = deps.setTimeoutFn(reveal, msUntilDeadline);
 	}
 	onScroll(); // page may have loaded mid-scroll
+
+	return {
+		detach() {
+			deps.window.removeEventListener("scroll", onScroll);
+			if (timerId !== null) {
+				deps.clearTimeoutFn(timerId);
+				timerId = null;
+			}
+		},
+	};
 }

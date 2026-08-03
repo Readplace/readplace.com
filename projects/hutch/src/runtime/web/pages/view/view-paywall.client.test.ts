@@ -303,6 +303,81 @@ describe("initViewPaywall — latch", () => {
 	});
 });
 
+describe("initViewPaywall — detach", () => {
+	it("removes the scroll listener and clears the armed deadline timer", () => {
+		const doc = makeDocument(
+			articleWith(paywallMarkup(` data-expires-at="${COUNTING_ISO}"`)),
+		);
+		const fake = createFakeWindow();
+		const clock = createClock(START_MS);
+		setArticleHeight(doc, ARTICLE_HEIGHT);
+
+		const controller = initViewPaywall({
+			document: doc,
+			window: fake.win,
+			now: clock.now,
+			setTimeoutFn: clock.setTimeoutFn,
+			clearTimeoutFn: clock.clearTimeoutFn,
+			dispatchDocumentEvent: () => {},
+		});
+		assert.equal(fake.hasListener(), true);
+		assert.equal(clock.pending(), 1);
+
+		controller.detach();
+
+		assert.equal(fake.hasListener(), false);
+		assert.equal(clock.pending(), 0);
+		fake.scrollTo(PAST_THRESHOLD);
+		clock.advance(5000);
+		assert.equal(paywallEl(doc).classList.contains(INACTIVE), true);
+	});
+
+	it("is safe after the reveal has already latched everything away", () => {
+		const doc = makeDocument(
+			articleWith(paywallMarkup(` data-expires-at="${EXPIRED_ISO}"`)),
+		);
+		const fake = createFakeWindow();
+		const clock = createClock(START_MS);
+		setArticleHeight(doc, ARTICLE_HEIGHT);
+
+		const controller = initViewPaywall({
+			document: doc,
+			window: fake.win,
+			now: clock.now,
+			setTimeoutFn: clock.setTimeoutFn,
+			clearTimeoutFn: clock.clearTimeoutFn,
+			dispatchDocumentEvent: () => {},
+		});
+		fake.scrollTo(PAST_THRESHOLD);
+		assert.equal(paywallEl(doc).classList.contains(ACTIVE), true);
+
+		controller.detach();
+
+		assert.equal(fake.hasListener(), false);
+		assert.equal(clock.pending(), 0);
+		assert.equal(paywallEl(doc).classList.contains(ACTIVE), true);
+	});
+
+	it("is inert on a page the paywall never armed", () => {
+		const doc = makeDocument(articleWith(""));
+		const fake = createFakeWindow();
+		const clock = createClock(START_MS);
+
+		const controller = initViewPaywall({
+			document: doc,
+			window: fake.win,
+			now: clock.now,
+			setTimeoutFn: clock.setTimeoutFn,
+			clearTimeoutFn: clock.clearTimeoutFn,
+			dispatchDocumentEvent: () => {},
+		});
+		controller.detach();
+
+		assert.equal(fake.hasListener(), false);
+		assert.equal(clock.pending(), 0);
+	});
+});
+
 describe("initViewPaywall — reveal announcement", () => {
 	it("announces the reveal once, with the latched state already applied", () => {
 		const doc = makeDocument(
