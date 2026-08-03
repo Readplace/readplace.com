@@ -2,19 +2,10 @@ import { mkdir, writeFile } from "node:fs/promises";
 import path from "node:path";
 import type { WebDriver } from "selenium-webdriver";
 import { getEnv } from "@packages/require-env";
+import { transitionFramesPath } from "../e2e/transition-frames-path";
 
 const FRAME_COUNT = 5;
 const FRAME_INTERVAL_MS = 150;
-
-function transitionFramesPath(input: {
-	root: string | undefined;
-	runId: string | undefined;
-	flow: string;
-}): string {
-	if (input.root === undefined)
-		return path.join("test-results", "transition-frames", input.flow);
-	return path.join(input.root, input.runId ?? "local", "frames", input.flow);
-}
 
 export async function captureTransitionFrames(args: {
 	driver: WebDriver;
