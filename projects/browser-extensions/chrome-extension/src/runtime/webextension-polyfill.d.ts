@@ -123,12 +123,6 @@ declare module "webextension-polyfill" {
 		};
 	}
 
-	namespace Commands {
-		const onCommand: {
-			addListener(callback: (command: string) => void): void;
-		};
-	}
-
 	const storage: { local: typeof Storage.Local; session: typeof Storage.Session };
 	const runtime: typeof Runtime;
 	const tabs: typeof Tabs;
@@ -142,7 +136,6 @@ declare module "webextension-polyfill" {
 		action: typeof Action;
 		alarms: typeof Alarms;
 		contextMenus: typeof ContextMenus;
-		commands: typeof Commands;
 	};
 
 	export default browser;

@@ -83,12 +83,6 @@ declare namespace browser {
 		function openPopup(): Promise<void>;
 	}
 
-	namespace commands {
-		const onCommand: {
-			addListener(callback: (command: string) => void): void;
-		};
-	}
-
 	namespace menus {
 		type ContextType = "page" | "link";
 

@@ -107,12 +107,6 @@ const shell: BrowserShell = {
 		});
 	},
 
-	onSaveAllTabsShortcut(handler) {
-		browser.commands.onCommand.addListener((command) => {
-			if (command === "save-all-tabs") handler();
-		});
-	},
-
 	getActiveTab: async () => {
 		const tabs = await browser.tabs.query({
 			active: true,

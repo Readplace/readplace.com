@@ -8,7 +8,6 @@ export interface BrowserShell {
 	 * its own outcome instead of asking the server which tab is showing what. */
 	openPopup: (params: { url: string; title: string; tabId?: number }) => void;
 	openSaveAllTabsPopup: () => void;
-	onSaveAllTabsShortcut: (handler: () => void) => void;
 	getActiveTab: () => Promise<{ id?: number; url: string; title: string } | null>;
 	queryActiveTabs: () => Promise<Array<{ id?: number; url?: string; title?: string }>>;
 	setIcon: SetIcon;

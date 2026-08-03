@@ -22,7 +22,6 @@ interface FakeShell {
 		info: { menuItemId: string; linkUrl?: string; pageUrl?: string },
 		tab?: { id?: number; url?: string; title?: string },
 	) => void;
-	triggerSaveAllTabsShortcut: () => void;
 }
 
 function createFakeShell(
@@ -33,7 +32,6 @@ function createFakeShell(
 	const showDefaultCalls: number[] = [];
 	let openSaveAllTabsPopupCount = 0;
 	let contextMenuHandler: Parameters<BrowserShell["onContextMenuClicked"]>[0] = () => {};
-	let saveAllTabsShortcutHandler: () => void = () => {};
 	let resolveIconUpdated!: () => void;
 	const iconUpdated = new Promise<void>((resolve) => {
 		resolveIconUpdated = resolve;
@@ -43,9 +41,6 @@ function createFakeShell(
 		openPopup: () => {},
 		openSaveAllTabsPopup: () => {
 			openSaveAllTabsPopupCount += 1;
-		},
-		onSaveAllTabsShortcut: (handler) => {
-			saveAllTabsShortcutHandler = handler;
 		},
 		getActiveTab: async () => activeTab,
 		queryActiveTabs: async () => [],
@@ -78,7 +73,6 @@ function createFakeShell(
 		iconUpdated,
 		getOpenSaveAllTabsPopupCount: () => openSaveAllTabsPopupCount,
 		triggerContextMenu: (info, tab) => contextMenuHandler(info, tab),
-		triggerSaveAllTabsShortcut: () => saveAllTabsShortcutHandler(),
 	};
 }
 
@@ -319,7 +313,6 @@ function createCapturingShell(
 			openPopupCalls.push(params);
 		},
 		openSaveAllTabsPopup: () => {},
-		onSaveAllTabsShortcut: () => {},
 		getActiveTab: async () => options.activeTab ?? null,
 		queryActiveTabs: async () => options.activeTabs ?? [],
 		setIcon: {
@@ -1094,23 +1087,6 @@ describe("BrowserExtensionCore saveAll", () => {
 		core.init();
 
 		triggerContextMenu({ menuItemId: MENU_ITEM_SAVE_ALL_TABS });
-
-		expect(getOpenSaveAllTabsPopupCount()).toBe(1);
-	});
-
-	it("opens the save-all-tabs popup from the keyboard shortcut", () => {
-		const auth = initInMemoryAuth();
-		const readingList = createRecordingReadingList();
-		const { shell, getOpenSaveAllTabsPopupCount, triggerSaveAllTabsShortcut } =
-			createFakeShell();
-		const core = BrowserExtensionCore(shell, {
-			auth,
-			logger: HutchLogger.from(noopLogger),
-			readingList,
-		});
-		core.init();
-
-		triggerSaveAllTabsShortcut();
 
 		expect(getOpenSaveAllTabsPopupCount()).toBe(1);
 	});

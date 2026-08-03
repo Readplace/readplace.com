@@ -138,8 +138,6 @@ export function BrowserExtensionCore(shell: BrowserShell, deps: { auth: Auth; lo
 				shell.openPopup(target);
 			});
 
-			shell.onSaveAllTabsShortcut(() => shell.openSaveAllTabsPopup());
-
 			shell.onShortcutPressed(() => {
 				getShortcutTarget()
 					.then((target) => {
