@@ -52,7 +52,7 @@ The refresh step is a required dependency now, not an optional one, so a build o
 
 ## Green before the page loads
 
-Chrome shipped this first. Firefox followed the same week on the same shared code, so both extensions save the link before they touch the page. The one difference left is a footnote: Firefox reads the page a beat before the save and Chrome doesn't, which only surfaces in a test that watches for a capture step Chrome no longer has anything to draw.
+Chrome shipped this first. Firefox followed the same week on the same shared code, so both extensions save the link before they touch the page, and everything that only existed to bridge the two behaviours went with it.
 
 Save the next thing you meant to get to later with [the browser extension](https://readplace.com/install) and watch the button turn green before the page it's sitting on has finished loading. What you saved is waiting at [readplace.com](/) when the evening is quieter than the afternoon.
 
