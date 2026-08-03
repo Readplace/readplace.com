@@ -1,7 +1,7 @@
 import assert from "node:assert";
 import { createHash } from "node:crypto";
 import type { Handler, SQSBatchItemFailure, SQSBatchResponse, SQSEvent } from "aws-lambda";
-import type { HutchLogger } from "@packages/hutch-logger";
+import { formatErrorLogLine, type HutchLogger } from "@packages/hutch-logger";
 import type { ExtractPdf } from "@packages/crawl-article";
 import { MAX_PDF_BYTES, parsePdfFromBuffer } from "@packages/crawl-article";
 import type { PublishEvent } from "@packages/hutch-infra-components/runtime";
@@ -79,7 +79,7 @@ export function initSaveLinkRawPdfCommandHandler(deps: {
 					url: detail.url,
 					maxPdfBytes: MAX_PDF_BYTES.bytes,
 					extractPdf,
-					logError: (msg, err) => logger.error(msg, { error: err }),
+					logError: (msg, err) => logger.error(formatErrorLogLine({ message: msg, error: err, now })),
 				});
 
 				if (crawlResult.status === "unsupported") {

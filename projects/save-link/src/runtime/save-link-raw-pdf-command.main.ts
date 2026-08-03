@@ -73,7 +73,7 @@ const parser = initParserDepBundle({
 	findAdoptedFetchUrl: canonicalAliasStore.findAdoptedFetchUrl,
 });
 const articleStore = initArticleStoreDepBundle({ s3Client, dynamoClient, contentBucketName, articlesTable });
-const media = initMediaDepBundle({ parser, articleStore, logger: consoleLogger, imagesCdnBaseUrl });
+const media = initMediaDepBundle({ parser, articleStore, logError: observability.logError, imagesCdnBaseUrl });
 const events = initEventsDepBundle({ eventBridgeClient, eventBusName, sqsClient, generateSummaryQueueUrl });
 const articleAggregate = initArticleAggregateDepBundle({ dynamoClient, articlesTable, events });
 

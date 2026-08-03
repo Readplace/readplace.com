@@ -1,4 +1,3 @@
-import { noopLogger } from "@packages/hutch-logger";
 import type { CrawlFetch } from "@packages/crawl-article";
 import { initDownloadMedia } from "./download-media";
 import type { PutImageObject } from "@packages/finalize-article";
@@ -30,14 +29,15 @@ function createDownloadMedia(overrides?: { putImageObject?: PutImageObject; fetc
 	const fakeFetch = overrides?.fetch ?? jest.fn().mockImplementation(() => Promise.resolve(createPngResponse()));
 	const crawlFetch: CrawlFetch = (url, init) => fakeFetch(url, init);
 
+	const logError = jest.fn();
 	const downloadMedia = initDownloadMedia({
 		putImageObject,
-		logger: noopLogger,
+		logError,
 		crawlFetch,
 		imagesCdnBaseUrl: "https://d123.cloudfront.net",
 	});
 
-	return { downloadMedia, putImageObject, fakeFetch };
+	return { downloadMedia, putImageObject, fakeFetch, logError };
 }
 
 describe("initDownloadMedia", () => {
@@ -181,6 +181,38 @@ describe("initDownloadMedia", () => {
 
 		expect(media).toHaveLength(0);
 		expect(putImageObject).not.toHaveBeenCalled();
+	});
+
+	it("names the failing image in the error message so the funnel entry identifies which URL stalled", async () => {
+		const fakeFetch = jest.fn().mockRejectedValue(new Error("Network error"));
+		const { downloadMedia, logError } = createDownloadMedia({ fetch: fakeFetch });
+
+		await downloadMedia({
+			html: '<p><img src="https://example.com/broken.png"></p>',
+			articleUrl: ARTICLE_URL,
+			articleResourceUniqueId,
+		});
+
+		expect(logError).toHaveBeenCalledWith(
+			"[DownloadMedia] failed to process image https://example.com/broken.png",
+			expect.any(Error),
+		);
+	});
+
+	it("still names the failing image when the rejection is not an Error", async () => {
+		const fakeFetch = jest.fn().mockRejectedValue("socket hang up");
+		const { downloadMedia, logError } = createDownloadMedia({ fetch: fakeFetch });
+
+		await downloadMedia({
+			html: '<p><img src="https://example.com/broken.png"></p>',
+			articleUrl: ARTICLE_URL,
+			articleResourceUniqueId,
+		});
+
+		expect(logError).toHaveBeenCalledWith(
+			"[DownloadMedia] failed to process image https://example.com/broken.png",
+			undefined,
+		);
 	});
 
 	it("skips images exceeding 5MB by content-length", async () => {

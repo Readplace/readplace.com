@@ -1,11 +1,11 @@
 import posthtml from "posthtml";
 import urls from "@11ty/posthtml-urls";
-import type { HutchLogger } from "@packages/hutch-logger";
 import type { DownloadMedia, ProcessContent } from "@packages/finalize-article";
 import { initDownloadMedia } from "../domain/save-link/download-media";
 import { initProcessContentWithLocalMedia } from "../domain/save-link/process-content-with-local-media";
 import type { ParserDepBundle } from "./parser";
 import type { ArticleStoreDepBundle } from "./article-store";
+import type { LogError } from "./observability";
 
 export type MediaDepBundle = {
 	downloadMedia: DownloadMedia;
@@ -15,12 +15,12 @@ export type MediaDepBundle = {
 export function initMediaDepBundle(deps: {
 	parser: ParserDepBundle;
 	articleStore: ArticleStoreDepBundle;
-	logger: HutchLogger;
+	logError: LogError;
 	imagesCdnBaseUrl: string;
 }): MediaDepBundle {
 	const downloadMedia = initDownloadMedia({
 		putImageObject: deps.articleStore.putImageObject,
-		logger: deps.logger,
+		logError: deps.logError,
 		crawlFetch: deps.parser.crawlFetch,
 		imagesCdnBaseUrl: deps.imagesCdnBaseUrl,
 	});

@@ -1,5 +1,4 @@
 import { S3Client } from "@aws-sdk/client-s3";
-import { noopLogger } from "@packages/hutch-logger";
 import { createDynamoDocumentClient } from "@packages/hutch-storage-client";
 import { initArticleStoreDepBundle } from "./article-store";
 import { initMediaDepBundle } from "./media";
@@ -21,7 +20,7 @@ function makeBundle() {
 	return initMediaDepBundle({
 		parser,
 		articleStore,
-		logger: noopLogger,
+		logError: () => {},
 		imagesCdnBaseUrl: "https://cdn.example",
 	});
 }

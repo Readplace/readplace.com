@@ -1,6 +1,5 @@
 import { createHash } from "node:crypto";
 import { extensionFromContentType, MAX_IMAGE_BYTES } from "@packages/crawl-article";
-import type { HutchLogger } from "@packages/hutch-logger";
 import { parseHTML } from "linkedom";
 import parseSrcset from "parse-srcset";
 import type { CrawlFetch } from "@packages/crawl-article";
@@ -13,11 +12,11 @@ const CONCURRENCY = 5;
 
 export function initDownloadMedia(deps: {
 	putImageObject: PutImageObject;
-	logger: HutchLogger;
+	logError: (message: string, error?: Error) => void;
 	crawlFetch: CrawlFetch;
 	imagesCdnBaseUrl: string;
 }): DownloadMedia {
-	const { putImageObject, logger, crawlFetch, imagesCdnBaseUrl } = deps;
+	const { putImageObject, logError, crawlFetch, imagesCdnBaseUrl } = deps;
 
 	return async ({ html, articleUrl, articleResourceUniqueId }) => {
 		const results: DownloadedMedia[] = [];
@@ -40,7 +39,10 @@ export function initDownloadMedia(deps: {
 					await putImageObject({ key, body: downloaded.body, contentType: downloaded.contentType });
 					results.push({ originalUrl, cdnUrl });
 				} catch (error) {
-					logger.error("[DownloadMedia] failed to process image", { url: originalUrl, error });
+					logError(
+						`[DownloadMedia] failed to process image ${originalUrl}`,
+						error instanceof Error ? error : undefined,
+					);
 				}
 			}));
 		}

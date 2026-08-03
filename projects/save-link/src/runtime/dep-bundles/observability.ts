@@ -1,4 +1,4 @@
-import { HutchLogger } from "@packages/hutch-logger";
+import { formatErrorLogLine, HutchLogger } from "@packages/hutch-logger";
 import {
 	initLogParseError,
 	initLogCrawlOutcome,
@@ -27,7 +27,8 @@ export function initObservabilityDepBundle(deps: {
 	source: ParseErrorSource;
 	now: () => Date;
 }): ObservabilityDepBundle {
-	const logError: LogError = (message, error) => deps.logger.error(message, { error });
+	const logError: LogError = (message, error) =>
+		deps.logger.error(formatErrorLogLine({ message, error, now: deps.now }));
 	const logInfo: LogInfo = (message) => deps.logger.info(message);
 	const { logParseError } = initLogParseError({
 		logger: HutchLogger.fromJSON<ParseErrorEvent>(),
