@@ -10,7 +10,7 @@ import type { ClientCategory } from "@packages/supported-clients";
 import { STRIPE_TRIAL_PERIOD_DAYS } from "../../../domain/stripe/stripe-trial-config";
 
 import type { HomepageVariantMarker } from "../../experiments/homepage-split";
-import { switchHelpers } from "../../handlebars-switch";
+import { buildExtensionInstallUrl } from "../../onboarding/extension-install";
 import type { InstallBrowser } from "../../onboarding/onboarding.types";
 import {
 	SAVE_SURFACES_SHORT_PHRASE,
@@ -19,6 +19,7 @@ import {
 import {
 	BROWSER_EXTENSIONS_AND,
 	BROWSER_EXTENSIONS_LISTED,
+	contentCaptureTrustLine,
 } from "../../shared/client-enumerations";
 import { renderFoundingProgress } from "../../shared/founding-progress/founding-progress.component";
 import type { FoundingAllocation } from "../../shared/founding-progress/founding-allocation";
@@ -26,6 +27,15 @@ import { buildHomeSeo } from "./home.seo";
 import { HOME_PAGE_STYLES } from "./home.styles";
 
 const HOME_TEMPLATE = readFileSync(join(__dirname, "home.template.html"), "utf-8");
+
+/** The install CTA label for the visitor's browser. Keyed by InstallBrowser, so
+ * a new browser extension is a compile error here until it earns its own label —
+ * the coupling the template's {{#switch browserName}} could not express. */
+const INSTALL_CTA_LABEL = {
+	firefox: "Install Firefox Extension",
+	chrome: "Install Chrome Extension",
+	other: "Install Browser Extension",
+} satisfies Record<InstallBrowser, string>;
 
 interface HomeFeatureCard {
 	name: string;
@@ -174,7 +184,9 @@ export function HomePage(params: HomePageParams): PageBody {
 		bodyClass: `page-home variant-${variant}`,
 		content: { html: render(HOME_TEMPLATE, {
 			staticBaseUrl,
-			browserName: browser,
+			installPath: buildExtensionInstallUrl(browser),
+			installLabel: INSTALL_CTA_LABEL[browser],
+			heroTrust: contentCaptureTrustLine(browser),
 			setupSurfaces: SETUP_SURFACES_PHRASE,
 			saveSurfacesShort: SAVE_SURFACES_SHORT_PHRASE,
 			waysToSave: WAYS_TO_SAVE,
@@ -249,6 +261,6 @@ export function HomePage(params: HomePageParams): PageBody {
 						"Infrastructure sits under the Australian Privacy Act. No third-party tracking, no ads, no third-party analytics inside the app.",
 				},
 			],
-		}, { helpers: switchHelpers }) },
+		}) },
 	};
 }

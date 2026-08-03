@@ -10,7 +10,7 @@
   {{/inline}}
   {{#if noClient}}
   <div data-test-onboarding-no-client>
-    {{> intro lede="Readplace doesn't have an app for this device yet. If you use Chrome or Firefox on a computer, or an iPhone, you can install Readplace there."}}
+    {{> intro lede=noClientLede}}
     <div class="onboarding__actions">
       <a href="{{installOptionsUrl}}" class="btn btn--primary btn--compact" data-test-onboarding-action="{{installOptionsUrl}}">See install options</a>
       <form method="POST" action="/queue/dismiss-onboarding">

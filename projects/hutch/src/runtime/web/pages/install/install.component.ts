@@ -260,28 +260,34 @@ function buildScreenshots(client: ClientName, staticBaseUrl: string): InstallScr
 	}));
 }
 
-type PanelData =
-	| { variant: "browser"; intro: string; ctaLabel: string; ctaTestId: string }
-	| { variant: "iphone" }
-	| { variant: "ai"; intro: string; promptLabel: string; prompt: string; requirement: string };
+/** The panel copy each client GROUP needs. Indexed by the group a client
+ * actually belongs to, so a client cannot be given another group's panel: the
+ * `group` tag is dictated by the roster rather than hand-written beside it. */
+type PanelCopy = {
+	browserExtension: { group: "browserExtension"; intro: string; ctaLabel: string; ctaTestId: string };
+	nativeApp: { group: "nativeApp" };
+	aiAssistant: { group: "aiAssistant"; intro: string; promptLabel: string; prompt: string; requirement: string };
+};
+
+type ClientGroupOf<N extends ClientName> = Extract<SupportedClient, { name: N }>["group"];
 
 const PANEL_DATA = {
 	firefox: {
-		variant: "browser",
+		group: "browserExtension",
 		intro:
 			"The extension saves the full page you're reading — the rendered article, not just what a link-only fetch would see.",
 		ctaLabel: "Install Readplace for Firefox",
 		ctaTestId: "download-firefox",
 	},
 	chrome: {
-		variant: "browser",
+		group: "browserExtension",
 		intro: "Works in Chrome, Edge, Brave, and other Chromium browsers.",
 		ctaLabel: "Install Readplace for Chrome",
 		ctaTestId: "download-chrome",
 	},
-	iphone: { variant: "iphone" },
+	iphone: { group: "nativeApp" },
 	chatgpt: {
-		variant: "ai",
+		group: "aiAssistant",
 		intro:
 			"The same MCP server connects through ChatGPT's developer mode. Once it's on, ChatGPT can read your list and save links for you.",
 		promptLabel: "Or just ask ChatGPT",
@@ -290,7 +296,7 @@ const PANEL_DATA = {
 			"Needs a paid plan (Plus, Pro, Business, Enterprise, or Edu) with developer mode turned on from the web.",
 	},
 	gemini: {
-		variant: "ai",
+		group: "aiAssistant",
 		intro:
 			"The same MCP server connects from the Gemini CLI. Add it once and Gemini can save pages to your queue and read your list back, right inside the conversation.",
 		promptLabel: "Run this once",
@@ -299,14 +305,14 @@ const PANEL_DATA = {
 			"Free from the Gemini CLI — no paid plan. Connecting inside the Gemini app instead needs Google AI Ultra, where custom connectors live in Gemini Spark.",
 	},
 	claude: {
-		variant: "ai",
+		group: "aiAssistant",
 		intro:
 			"Readplace runs an MCP server. Connect it once and Claude can save pages to your queue and read your list back, right inside the conversation.",
 		promptLabel: "Or just ask Claude",
 		prompt: "Add readplace.com/mcp as a connector so you can save pages to and read my reading list.",
 		requirement: "Works on Free, Pro, Max, Team, and Enterprise — the Free plan allows one custom connector.",
 	},
-} satisfies Record<ClientName, PanelData>;
+} satisfies { [N in ClientName]: PanelCopy[ClientGroupOf<N>] };
 
 interface BrowserExtension {
 	name: string;
@@ -325,17 +331,17 @@ interface AiAssistant {
 }
 
 type PanelView =
-	| { type: "browser"; browser: BrowserExtension }
-	| { type: "iphone" }
-	| { type: "ai"; assistant: AiAssistant };
+	| { type: "browserExtension"; browser: BrowserExtension }
+	| { type: "nativeApp" }
+	| { type: "aiAssistant"; assistant: AiAssistant };
 
 function buildPanel(active: InstallClient, firefoxDownloadUrl: string | null): PanelView {
 	const client = clientByName(active);
 	const data = PANEL_DATA[active];
-	switch (data.variant) {
-		case "browser":
+	switch (data.group) {
+		case "browserExtension":
 			return {
-				type: "browser",
+				type: "browserExtension",
 				browser: {
 					name: client.displayName,
 					intro: data.intro,
@@ -344,11 +350,11 @@ function buildPanel(active: InstallClient, firefoxDownloadUrl: string | null): P
 					ctaTestId: data.ctaTestId,
 				},
 			};
-		case "iphone":
-			return { type: "iphone" };
-		case "ai":
+		case "nativeApp":
+			return { type: "nativeApp" };
+		case "aiAssistant":
 			return {
-				type: "ai",
+				type: "aiAssistant",
 				assistant: {
 					name: client.displayName,
 					intro: data.intro,
@@ -454,6 +460,6 @@ export function InstallPage(params: { firefox: string | null; client: InstallCli
 				{ helpers: switchHelpers },
 			),
 		},
-		scripts: panel.type === "ai" ? INSTALL_COPY_SCRIPT : undefined,
+		scripts: panel.type === "aiAssistant" ? INSTALL_COPY_SCRIPT : undefined,
 	};
 }

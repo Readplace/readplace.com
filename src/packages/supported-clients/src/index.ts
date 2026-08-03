@@ -2,6 +2,7 @@ export {
 	APPLE_APP_ID,
 	APPLE_ITUNES_APP_META,
 	appStoreUrl,
+	CHROME_STORE_URL,
 	CLIENT_CATEGORIES,
 	clientCategoryOfGroup,
 	IPHONE_APP_STORE_URL,

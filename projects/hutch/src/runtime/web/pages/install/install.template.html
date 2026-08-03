@@ -17,7 +17,7 @@
       </nav>
 
       {{#switch panel.type}}
-      {{#case "iphone"}}
+      {{#case "nativeApp"}}
       <section class="install-page__panel" data-test-panel="iphone">
         <h2 class="install-page__panel-title">Readplace on iPhone</h2>
         <p class="install-page__lead">Save links from any browser on your iPhone. Open the page in Safari, Chrome, or anywhere else, tap the share button, and choose Readplace — the link drops straight into your reading queue. No copy-paste, and no need to open the app to save. The same app runs on your Mac.</p>
@@ -37,7 +37,7 @@
       </section>
       {{/case}}
 
-      {{#case "ai"}}
+      {{#case "aiAssistant"}}
       <section class="install-page__panel" data-test-panel="ai">
         <h2 class="install-page__panel-title">Connect Readplace to {{panel.assistant.name}}</h2>
         <p class="install-page__lead">{{panel.assistant.intro}}</p>
@@ -62,14 +62,14 @@
       </section>
       {{/case}}
 
-      {{#default}}
+      {{#case "browserExtension"}}
       <section class="install-page__panel" data-test-panel="browser">
         <h2 class="install-page__panel-title">Readplace for {{panel.browser.name}}</h2>
         <p class="install-page__lead">{{panel.browser.intro}}</p>
         {{#if panel.browser.downloadUrl}}
         <a href="{{panel.browser.downloadUrl}}" class="btn btn--primary install-page__download" data-test-cta="{{panel.browser.ctaTestId}}">{{panel.browser.ctaLabel}}</a>
         {{else}}
-        <p class="install-page__unavailable" data-test-section="firefox-unavailable">The Firefox extension is not available for download yet. Please check back soon.</p>
+        <p class="install-page__unavailable" data-test-section="browser-unavailable">The {{panel.browser.name}} extension is not available for download yet. Please check back soon.</p>
         {{/if}}
         <ol class="install-page__steps" data-test-section="browser-steps">
           {{#each browserSteps}}
@@ -77,7 +77,7 @@
           {{/each}}
         </ol>
       </section>
-      {{/default}}
+      {{/case}}
       {{/switch}}
 
       {{#if screenshots.length}}

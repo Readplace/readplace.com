@@ -31,30 +31,10 @@
         <h2 class="home-hero__title hero-headline"><span class="sr-only">A home for articles, newsletters, essays, longreads, news, blogs, stories, posts, reports, and interviews.</span><span class="hero-headline__visible" aria-hidden="true"><span class="hero-headline__lead">A home for</span> <span class="hero-headline__rotator">articles</span></span></h2>
         <p class="home-hero__subtitle">Pocket is gone. Omnivore is gone. I built Readplace from a personal system I've maintained for 10 years. Save from wherever you already read &mdash; browser, iPhone, AI chat, or a link pasted right here &mdash; and read when you're ready.</p>
         <div class="home-hero__actions">
-          {{#switch browserName}}
-          {{#case "firefox"}}
-          <a href="{{track '/install?client=firefox' source='home-hero' content='install'}}" class="btn btn--on-dark" data-test-cta="install-extension">Install Firefox Extension</a>
-          {{/case}}
-          {{#case "chrome"}}
-          <a href="{{track '/install?client=chrome' source='home-hero' content='install'}}" class="btn btn--on-dark" data-test-cta="install-extension">Install Chrome Extension</a>
-          {{/case}}
-          {{#default}}
-          <a href="{{track '/install' source='home-hero' content='install'}}" class="btn btn--on-dark" data-test-cta="install-extension">Install Browser Extension</a>
-          {{/default}}
-          {{/switch}}
+          <a href="{{track installPath source='home-hero' content='install'}}" class="btn btn--on-dark" data-test-cta="install-extension">{{installLabel}}</a>
           <a href="https://github.com/Readplace/readplace.com" class="btn btn--on-dark-ghost" data-test-cta="view-github">View on GitHub</a>
         </div>
-        {{#switch browserName}}
-        {{#case "firefox"}}
-        <p class="home-hero__trust">Also on Chrome, iPhone, and your AI assistant.</p>
-        {{/case}}
-        {{#case "chrome"}}
-        <p class="home-hero__trust">Also on Firefox, iPhone, and your AI assistant.</p>
-        {{/case}}
-        {{#default}}
-        <p class="home-hero__trust">Firefox, Chrome, iPhone, and your AI assistant.</p>
-        {{/default}}
-        {{/switch}}
+        <p class="home-hero__trust">{{heroTrust}}</p>
         <p class="home-hero__ways"><a href="#ways-to-save" data-test-cta="hero-ways">Every way to save {{icon "arrow-down"}}</a></p>
       </div>
     </section>
@@ -361,17 +341,7 @@
         <h2 class="home-cta__title">I'm building this in public.</h2>
         <p class="home-cta__subtitle">Try it whichever way suits you, then tell me what to build next. Readplace gets better with every user who shows up and says what they need.</p>
         <div class="home-cta__actions">
-          {{#switch browserName}}
-          {{#case "firefox"}}
-          <a href="{{track '/install?client=firefox' source='home-cta' content='install'}}" class="btn btn--primary" data-test-cta="bottom-install">Install Firefox Extension</a>
-          {{/case}}
-          {{#case "chrome"}}
-          <a href="{{track '/install?client=chrome' source='home-cta' content='install'}}" class="btn btn--primary" data-test-cta="bottom-install">Install Chrome Extension</a>
-          {{/case}}
-          {{#default}}
-          <a href="{{track '/install' source='home-cta' content='install'}}" class="btn btn--primary" data-test-cta="bottom-install">Install Browser Extension</a>
-          {{/default}}
-          {{/switch}}
+          <a href="{{track installPath source='home-cta' content='install'}}" class="btn btn--primary" data-test-cta="bottom-install">{{installLabel}}</a>
           <a href="#ways-to-save" class="home-cta__link" data-test-cta="bottom-ways">Every way to save</a>
           <a href="https://github.com/Readplace/readplace.com" class="btn btn--secondary" data-test-cta="bottom-github">View on GitHub</a>
         </div>

@@ -265,7 +265,7 @@ describe("GET /install", () => {
 		const response = await request(harness.server).get("/install?client=firefox");
 		const doc = load(response.text);
 
-		const unavailable = doc.querySelector('[data-test-section="firefox-unavailable"]');
+		const unavailable = doc.querySelector('[data-test-section="browser-unavailable"]');
 		expect(unavailable?.textContent).toBe(
 			"The Firefox extension is not available for download yet. Please check back soon.",
 		);
@@ -282,7 +282,7 @@ describe("GET /install", () => {
 		const response = await request(harness.server).get("/install?client=firefox");
 		const doc = load(response.text);
 
-		const unavailable = doc.querySelector('[data-test-section="firefox-unavailable"]');
+		const unavailable = doc.querySelector('[data-test-section="browser-unavailable"]');
 		expect(unavailable?.textContent).toBe(
 			"The Firefox extension is not available for download yet. Please check back soon.",
 		);

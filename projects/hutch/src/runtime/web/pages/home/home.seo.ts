@@ -1,5 +1,5 @@
 import { MAX_PDF_BYTES } from "@packages/crawl-article";
-import { APPLE_ITUNES_APP_META, IPHONE_APP_STORE_URL } from "@packages/supported-clients";
+import { APPLE_ITUNES_APP_META, CHROME_STORE_URL, IPHONE_APP_STORE_URL } from "@packages/supported-clients";
 import { MONTHLY_EQUIVALENT_DISPLAY } from "@packages/web-shell";
 import type { SeoMetadata } from "@packages/web-shell";
 
@@ -141,7 +141,7 @@ export function buildHomeSeo(input: {
 				logo: `${staticBaseUrl}/android-chrome-512x512.png`,
 				sameAs: [
 					"https://github.com/Readplace/readplace.com",
-					"https://chromewebstore.google.com/detail/readplace-%E2%80%94-save-articles/klblengmhlfnmjoagchagfcdbpbocgbf",
+					CHROME_STORE_URL,
 					IPHONE_APP_STORE_URL,
 				],
 				founder: {

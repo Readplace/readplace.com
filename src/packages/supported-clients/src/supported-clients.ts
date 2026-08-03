@@ -49,6 +49,12 @@ function iphoneAppleAppId(): string {
 	return iphone.install.appleAppId;
 }
 
+function chromeStoreUrl(): string {
+	const chrome = SUPPORTED_CLIENTS.find((client) => client.name === "chrome");
+	assert(chrome?.install.kind === "store", "the Chrome client must install from a store");
+	return chrome.install.url;
+}
+
 export type AuthIdentity =
 	| { readonly kind: "builtIn"; readonly oauthClientId: string }
 	| { readonly kind: "dynamicRegistration" };
@@ -194,5 +200,6 @@ export function isBuiltInOAuthClientId(value: string): value is BuiltInOAuthClie
 
 export const APPLE_APP_ID = iphoneAppleAppId();
 export const IPHONE_APP_STORE_URL = appStoreUrl(APPLE_APP_ID);
+export const CHROME_STORE_URL = chromeStoreUrl();
 
 export const APPLE_ITUNES_APP_META = `app-id=${APPLE_APP_ID}`;
