@@ -1,0 +1,152 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<bpmn:definitions xmlns:bpmn="http://www.omg.org/spec/BPMN/20100524/MODEL" xmlns:bpmndi="http://www.omg.org/spec/BPMN/20100524/DI" xmlns:dc="http://www.omg.org/spec/DD/20100524/DC" xmlns:di="http://www.omg.org/spec/DD/20100524/DI" id="Definitions_dequeue_fact" targetNamespace="http://readplace.com/architecture/bpmn">
+  <bpmn:process id="Process_dequeue_fact" name="dequeue-fact" isExecutable="false">
+    <bpmn:sendTask id="n_Del" name="POST /queue/:id/delete (queue card delete)">
+      <bpmn:outgoing>f_0</bpmn:outgoing>
+    </bpmn:sendTask>
+    <bpmn:sendTask id="n_RMC" name="POST /queue/:id/remove-my-copy (reader: erase my saved copy)">
+      <bpmn:outgoing>f_1</bpmn:outgoing>
+      <bpmn:outgoing>f_5</bpmn:outgoing>
+    </bpmn:sendTask>
+    <bpmn:sendTask id="n_Read" name="POST /queue/:id/status (mark as read)">
+      <bpmn:outgoing>f_7</bpmn:outgoing>
+    </bpmn:sendTask>
+    <bpmn:serviceTask id="n_Orchestrator" name="initDeleteArticleFromQueue (@packages/save-article) findArticleUrlById → deleteArticle → publish (even when row already gone: re-announce on retried delete)">
+      <bpmn:incoming>f_0</bpmn:incoming>
+      <bpmn:incoming>f_1</bpmn:incoming>
+      <bpmn:outgoing>f_2</bpmn:outgoing>
+      <bpmn:outgoing>f_4</bpmn:outgoing>
+    </bpmn:serviceTask>
+    <bpmn:serviceTask id="n_Unknown" name="unknown hash id → no row, no publish, 303">
+      <bpmn:incoming>f_2</bpmn:incoming>
+    </bpmn:serviceTask>
+    <bpmn:dataStoreReference id="n_UserArticles" name="hutch-user-articles DeleteItem (per-user queue row)"></bpmn:dataStoreReference>
+    <bpmn:endEvent id="n_LDQ" name="LinkDequeuedEvent url (canonical row key), userId">
+      <bpmn:incoming>f_4</bpmn:incoming>
+      <bpmn:messageEventDefinition />
+    </bpmn:endEvent>
+    <bpmn:sendTask id="n_RemoveCmd" name="RemoveMyContentCommand url, userId (no versionMinuteId)">
+      <bpmn:incoming>f_5</bpmn:incoming>
+      <bpmn:outgoing>f_6</bpmn:outgoing>
+    </bpmn:sendTask>
+    <bpmn:serviceTask id="n_Removal" name="save-link content-removal chain (unchanged — boundary)">
+      <bpmn:incoming>f_6</bpmn:incoming>
+    </bpmn:serviceTask>
+    <bpmn:serviceTask id="n_NoFact1" name="publishes NOTHING — a read article is still in the queue; its inbox button keeps reading Save again">
+      <bpmn:incoming>f_7</bpmn:incoming>
+    </bpmn:serviceTask>
+    <bpmn:businessRuleTask id="n_DelAcct" name="DeleteAccountCommand → hutch delete-account Lambda">
+      <bpmn:outgoing>f_8</bpmn:outgoing>
+    </bpmn:businessRuleTask>
+    <bpmn:serviceTask id="n_Partition" name="deleteAllByUserId — drops the whole saved-links partition directly, no fact published">
+      <bpmn:incoming>f_8</bpmn:incoming>
+    </bpmn:serviceTask>
+    <bpmn:sequenceFlow id="f_0" name="" sourceRef="n_Del" targetRef="n_Orchestrator" />
+    <bpmn:sequenceFlow id="f_1" name="" sourceRef="n_RMC" targetRef="n_Orchestrator" />
+    <bpmn:sequenceFlow id="f_2" name="" sourceRef="n_Orchestrator" targetRef="n_Unknown" />
+    <bpmn:sequenceFlow id="f_4" name="" sourceRef="n_Orchestrator" targetRef="n_LDQ" />
+    <bpmn:sequenceFlow id="f_5" name="after the dequeue publish" sourceRef="n_RMC" targetRef="n_RemoveCmd" />
+    <bpmn:sequenceFlow id="f_6" name="" sourceRef="n_RemoveCmd" targetRef="n_Removal" />
+    <bpmn:sequenceFlow id="f_7" name="" sourceRef="n_Read" targetRef="n_NoFact1" />
+    <bpmn:sequenceFlow id="f_8" name="" sourceRef="n_DelAcct" targetRef="n_Partition" />
+    <bpmn:association id="f_3" sourceRef="n_Orchestrator" targetRef="n_UserArticles" associationDirection="One" />
+    <bpmn:group id="grp_0" />
+  </bpmn:process>
+  <bpmndi:BPMNDiagram id="Diagram_dequeue_fact">
+    <bpmndi:BPMNPlane id="Plane_dequeue_fact" bpmnElement="Process_dequeue_fact">
+      <bpmndi:BPMNShape id="n_Del_di" bpmnElement="n_Del">
+        <dc:Bounds x="57.13" y="44" width="175" height="52" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="n_RMC_di" bpmnElement="n_RMC">
+        <dc:Bounds x="268.13" y="28" width="204.5" height="84" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="n_Read_di" bpmnElement="n_Read">
+        <dc:Bounds x="508.63" y="44" width="177.75" height="52" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="n_Orchestrator_di" bpmnElement="n_Orchestrator">
+        <dc:Bounds x="28" y="170" width="197.75" height="164" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="n_Unknown_di" bpmnElement="n_Unknown">
+        <dc:Bounds x="87.32" y="412.25" width="174" height="52" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="n_UserArticles_di" bpmnElement="n_UserArticles">
+        <dc:Bounds x="297.32" y="392" width="181.5" height="48" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="n_LDQ_di" bpmnElement="n_LDQ">
+        <dc:Bounds x="562.25" y="395.5" width="40" height="40" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="n_RemoveCmd_di" bpmnElement="n_RemoveCmd">
+        <dc:Bounds x="498" y="218" width="202.5" height="68" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="n_Removal_di" bpmnElement="n_Removal">
+        <dc:Bounds x="685.68" y="404.25" width="194.5" height="68" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="n_NoFact1_di" bpmnElement="n_NoFact1">
+        <dc:Bounds x="261.75" y="202" width="200.25" height="100" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="n_DelAcct_di" bpmnElement="n_DelAcct">
+        <dc:Bounds x="722.38" y="36" width="188" height="68" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="n_Partition_di" bpmnElement="n_Partition">
+        <dc:Bounds x="736.5" y="210" width="203" height="84" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="grp_0_di" bpmnElement="grp_0">
+        <dc:Bounds x="45.13" y="16" width="653.25" height="108" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNEdge id="f_0_di" bpmnElement="f_0">
+        <di:waypoint x="144.63" y="96" />
+        <di:waypoint x="144.63" y="133" />
+        <di:waypoint x="126.88" y="133" />
+        <di:waypoint x="126.88" y="170" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="f_1_di" bpmnElement="f_1">
+        <di:waypoint x="370.38" y="112" />
+        <di:waypoint x="370.38" y="141" />
+        <di:waypoint x="126.88" y="141" />
+        <di:waypoint x="126.88" y="170" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="f_2_di" bpmnElement="f_2">
+        <di:waypoint x="126.88" y="334" />
+        <di:waypoint x="126.88" y="373.13" />
+        <di:waypoint x="174.32" y="373.13" />
+        <di:waypoint x="174.32" y="412.25" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="f_4_di" bpmnElement="f_4">
+        <di:waypoint x="126.88" y="334" />
+        <di:waypoint x="126.88" y="364.75" />
+        <di:waypoint x="582.25" y="364.75" />
+        <di:waypoint x="582.25" y="395.5" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="f_5_di" bpmnElement="f_5">
+        <di:waypoint x="370.38" y="112" />
+        <di:waypoint x="370.38" y="165" />
+        <di:waypoint x="599.25" y="165" />
+        <di:waypoint x="599.25" y="218" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="f_6_di" bpmnElement="f_6">
+        <di:waypoint x="599.25" y="286" />
+        <di:waypoint x="599.25" y="345.13" />
+        <di:waypoint x="782.93" y="345.13" />
+        <di:waypoint x="782.93" y="404.25" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="f_7_di" bpmnElement="f_7">
+        <di:waypoint x="597.5" y="96" />
+        <di:waypoint x="597.5" y="149" />
+        <di:waypoint x="361.88" y="149" />
+        <di:waypoint x="361.88" y="202" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="f_8_di" bpmnElement="f_8">
+        <di:waypoint x="816.38" y="104" />
+        <di:waypoint x="816.38" y="157" />
+        <di:waypoint x="838" y="157" />
+        <di:waypoint x="838" y="210" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="f_3_di" bpmnElement="f_3">
+        <di:waypoint x="126.88" y="334" />
+        <di:waypoint x="126.88" y="363" />
+        <di:waypoint x="388.07" y="363" />
+        <di:waypoint x="388.07" y="392" />
+      </bpmndi:BPMNEdge>
+    </bpmndi:BPMNPlane>
+  </bpmndi:BPMNDiagram>
+</bpmn:definitions>
