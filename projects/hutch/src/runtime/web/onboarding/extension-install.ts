@@ -2,7 +2,7 @@ import type { Request } from "express";
 import { ALIVE_COOKIE_NAME, ALIVE_COOKIE_VALUE, SAVE_COOKIE_NAME, SAVE_COOKIE_VALUE } from "@packages/onboarding-extension-signal";
 import { SUPPORTED_CLIENTS } from "@packages/supported-clients";
 import type { ClientName, ClientNameInCategory } from "@packages/supported-clients";
-import type { InstallBrowser, Platform } from "./onboarding.types";
+import type { InstallBrowser, InstallSurface, Platform } from "./onboarding.types";
 
 const INSTALL_URLS: Record<Platform, string> = {
 	firefox: "/install?client=firefox",
@@ -84,9 +84,23 @@ export function installablePlatform(req: Request): Platform {
  * complete. Android is read from the raw UA precisely because detectPlatform
  * would otherwise mislabel it "chrome"/"firefox". */
 export function hasInstallableClient(req: Request): boolean {
-	const ua = req.headers["user-agent"] ?? "";
-	if (ua.includes("Android")) return false;
+	if (isAndroid(req)) return false;
 	return detectPlatform(req) !== "other";
+}
+
+export function isAndroid(req: Request): boolean {
+	return (req.headers["user-agent"] ?? "").includes("Android");
+}
+
+/** Where a visitor is reading from, for surfaces that must answer for every
+ * device rather than only the ones carrying a first-party client. Android earns
+ * a name of its own here — {@link detectPlatform} mislabels it `chrome`/`firefox`
+ * and {@link installablePlatform} folds it into `other`, yet it is neither. */
+export function detectInstallSurface(req: Request): InstallSurface {
+	const platform = detectPlatform(req);
+	if (platform === "iphone") return "iphone";
+	if (isAndroid(req)) return "android";
+	return platform;
 }
 
 export function buildExtensionInstallUrl(platform: Platform): string {

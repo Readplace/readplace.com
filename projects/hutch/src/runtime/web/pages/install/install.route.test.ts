@@ -43,14 +43,14 @@ function load(text: string): Document {
 describe("GET /install", () => {
 	it("should return 200 and HTML content", async () => {
 		const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
-		const response = await request(harness.server).get("/install");
+		const response = await request(harness.server).get("/install?client=chrome");
 		expect(response.status).toBe(200);
 		expect(response.headers["content-type"]).toMatch(/text\/html/);
 	});
 
 	it("should have page-install body class", async () => {
 		const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
-		const response = await request(harness.server).get("/install");
+		const response = await request(harness.server).get("/install?client=chrome");
 		const doc = load(response.text);
 
 		expect(doc.body.classList.contains("page-install")).toBe(true);
@@ -58,7 +58,7 @@ describe("GET /install", () => {
 
 	it("should render every client tab in order across both groups", async () => {
 		const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
-		const response = await request(harness.server).get("/install");
+		const response = await request(harness.server).get("/install?client=chrome");
 		const doc = load(response.text);
 
 		const tabs = Array.from(doc.querySelectorAll("[data-test-tab]")).map(
@@ -69,7 +69,7 @@ describe("GET /install", () => {
 
 	it("should split tabs into a Browsers & Devices group and an AI Assistants group", async () => {
 		const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
-		const response = await request(harness.server).get("/install");
+		const response = await request(harness.server).get("/install?client=chrome");
 		const doc = load(response.text);
 
 		const groups = Array.from(doc.querySelectorAll("[data-test-group]")).map(
@@ -94,7 +94,7 @@ describe("GET /install", () => {
 
 	it("should render the group labels visibly", async () => {
 		const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
-		const response = await request(harness.server).get("/install");
+		const response = await request(harness.server).get("/install?client=chrome");
 		const doc = load(response.text);
 
 		const labels = Array.from(
@@ -105,7 +105,7 @@ describe("GET /install", () => {
 
 	it("should expose each tab group to assistive tech via role=group and aria-labelledby", async () => {
 		const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
-		const response = await request(harness.server).get("/install");
+		const response = await request(harness.server).get("/install?client=chrome");
 		const doc = load(response.text);
 
 		const groups = Array.from(doc.querySelectorAll("[data-test-group]"));
@@ -122,7 +122,7 @@ describe("GET /install", () => {
 
 	it("should label every tab with exactly its display name and no status chip", async () => {
 		const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
-		const response = await request(harness.server).get("/install");
+		const response = await request(harness.server).get("/install?client=chrome");
 		const doc = load(response.text);
 
 		for (const client of SUPPORTED_CLIENTS) {
@@ -134,7 +134,7 @@ describe("GET /install", () => {
 
 	it("should render a decorative brand icon inside every tab", async () => {
 		const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
-		const response = await request(harness.server).get("/install");
+		const response = await request(harness.server).get("/install?client=chrome");
 		const doc = load(response.text);
 
 		const tabs = Array.from(doc.querySelectorAll("[data-test-tab]"));
@@ -150,7 +150,7 @@ describe("GET /install", () => {
 
 	it("should keep tab icons free of text so the label is the tab's whole accessible name", async () => {
 		const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
-		const response = await request(harness.server).get("/install");
+		const response = await request(harness.server).get("/install?client=chrome");
 		const doc = load(response.text);
 
 		expect(doc.querySelector('[data-test-tab="chrome"]')?.textContent).toBe("Chrome");
@@ -158,9 +158,9 @@ describe("GET /install", () => {
 		expect(doc.querySelector('[data-test-tab="iphone"]')?.textContent).toBe("iPhone");
 	});
 
-	it("should default to the Chrome tab and browser panel when no client param is provided", async () => {
+	it("should select the Chrome tab and browser panel when client=chrome", async () => {
 		const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
-		const response = await request(harness.server).get("/install");
+		const response = await request(harness.server).get("/install?client=chrome");
 		const doc = load(response.text);
 
 		const chromeTab = doc.querySelector('[data-test-tab="chrome"]');
@@ -367,7 +367,7 @@ describe("GET /install", () => {
 		const iphone = await request(harness.server).get("/install?client=iphone");
 		expect(iphone.text).not.toContain(INSTALL_CLIENT_SCRIPT);
 
-		const browser = await request(harness.server).get("/install");
+		const browser = await request(harness.server).get("/install?client=chrome");
 		expect(browser.text).not.toContain(INSTALL_CLIENT_SCRIPT);
 	});
 
@@ -571,7 +571,7 @@ describe("GET /install", () => {
 
 	it("should point og:image at the install social card", async () => {
 		const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
-		const response = await request(harness.server).get("/install");
+		const response = await request(harness.server).get("/install?client=chrome");
 		const doc = load(response.text);
 
 		const ogImage = doc.querySelector('meta[property="og:image"]');
@@ -582,7 +582,7 @@ describe("GET /install", () => {
 
 	it("should set appropriate SEO metadata", async () => {
 		const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
-		const response = await request(harness.server).get("/install");
+		const response = await request(harness.server).get("/install?client=chrome");
 		const doc = load(response.text);
 
 		expect(doc.title).toContain("Install");
@@ -593,7 +593,7 @@ describe("GET /install", () => {
 
 	it("should have SoftwareApplication and BreadcrumbList structured data", async () => {
 		const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
-		const response = await request(harness.server).get("/install");
+		const response = await request(harness.server).get("/install?client=chrome");
 		const doc = load(response.text);
 
 		const scripts = doc.querySelectorAll('script[type="application/ld+json"]');
@@ -663,107 +663,99 @@ describe("GET /install", () => {
 });
 
 describe("GET /install client detection", () => {
-	const FIREFOX_UA =
-		"Mozilla/5.0 (Macintosh; Intel Mac OS X 10.15; rv:131.0) Gecko/20100101 Firefox/131.0";
-	const CHROME_UA =
-		"Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36";
-	const SAFARI_UA =
-		"Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/17.0 Safari/605.1.15";
-	const ANDROID_FIREFOX_UA = "Mozilla/5.0 (Android 14; Mobile; rv:131.0) Gecko/131.0 Firefox/131.0";
-	const GOOGLEBOT_UA =
-		"Mozilla/5.0 (Linux; Android 6.0.1; Nexus 5X Build/MMB29P) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Mobile Safari/537.36 (compatible; Googlebot/2.1; +http://www.google.com/bot.html)";
+	const MACOS_FIREFOX = "Mozilla/5.0 (Macintosh; Intel Mac OS X 10.15; rv:131.0) Gecko/20100101 Firefox/131.0";
+	const WINDOWS_FIREFOX = "Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:131.0) Gecko/20100101 Firefox/131.0";
+	const MACOS_CHROME = "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36";
+	const WINDOWS_CHROME = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36";
+	const IPHONE_SAFARI = "Mozilla/5.0 (iPhone; CPU iPhone OS 17_5 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/17.5 Mobile/15E148 Safari/604.1";
+	const IPHONE_CHROME = "Mozilla/5.0 (iPhone; CPU iPhone OS 17_5 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) CriOS/125.0.0.0 Mobile/15E148 Safari/604.1";
+	const IPHONE_FIREFOX = "Mozilla/5.0 (iPhone; CPU iPhone OS 17_5 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) FxiOS/126.0 Mobile/15E148 Safari/605.1.15";
+	const IPHONE_EDGE = "Mozilla/5.0 (iPhone; CPU iPhone OS 17_5 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) EdgiOS/125.0.0.0 Mobile/15E148 Safari/605.1.15";
+	const ANDROID_CHROME = "Mozilla/5.0 (Linux; Android 14; Pixel 8) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/125.0.0.0 Mobile Safari/537.36";
+	const ANDROID_FIREFOX = "Mozilla/5.0 (Android 14; Mobile; rv:131.0) Gecko/131.0 Firefox/131.0";
+	const MACOS_SAFARI = "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/17.5 Safari/605.1.15";
+	const IPAD_SAFARI = "Mozilla/5.0 (iPad; CPU OS 17_5 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/17.5 Mobile/15E148 Safari/604.1";
+	const GOOGLEBOT = "Mozilla/5.0 (Linux; Android 6.0.1; Nexus 5X Build/MMB29P) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Mobile Safari/537.36 (compatible; Googlebot/2.1; +http://www.google.com/bot.html)";
 
-	it("should send a Firefox visitor on a bare /install to the Firefox tab", async () => {
+	async function landingClient(userAgent: string): Promise<string | undefined> {
 		const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
-		const response = await request(harness.server).get("/install").set("User-Agent", FIREFOX_UA);
-
+		const response = await request(harness.server).get("/install").set("User-Agent", userAgent);
 		expect(response.status).toBe(302);
-		expect(response.headers.location).toBe("/install?client=firefox");
+		return response.headers.location;
+	}
+
+	it("sends desktop Firefox to the Firefox tab on every OS, because the Chrome default offers a store Firefox cannot install from", async () => {
+		expect(await landingClient(MACOS_FIREFOX)).toBe("/install?client=firefox");
+		expect(await landingClient(WINDOWS_FIREFOX)).toBe("/install?client=firefox");
 	});
 
-	it("should carry the campaign params through the Firefox redirect", async () => {
+	it("sends desktop Chrome to the Chrome tab on every OS, because that is the one store its extension ships through", async () => {
+		expect(await landingClient(MACOS_CHROME)).toBe("/install?client=chrome");
+		expect(await landingClient(WINDOWS_CHROME)).toBe("/install?client=chrome");
+	});
+
+	it("sends every iPhone browser to the iPhone app, because iOS forbids extensions outright so no browser there can install one", async () => {
+		expect(await landingClient(IPHONE_SAFARI)).toBe("/install?client=iphone");
+		expect(await landingClient(IPHONE_CHROME)).toBe("/install?client=iphone");
+		expect(await landingClient(IPHONE_FIREFOX)).toBe("/install?client=iphone");
+		expect(await landingClient(IPHONE_EDGE)).toBe("/install?client=iphone");
+	});
+
+	it("sends Android to Gemini, because Android has neither an app nor an extension yet and Gemini is already on the device", async () => {
+		expect(await landingClient(ANDROID_CHROME)).toBe("/install?client=gemini");
+		expect(await landingClient(ANDROID_FIREFOX)).toBe("/install?client=gemini");
+	});
+
+	it("sends any browser with no first-party client to ChatGPT, because the MCP connector is the only route open to it", async () => {
+		expect(await landingClient(MACOS_SAFARI)).toBe("/install?client=chatgpt");
+		expect(await landingClient(IPAD_SAFARI)).toBe("/install?client=chatgpt");
+	});
+
+	it("carries the campaign params through the hop, because dropping them would erase the attribution of the warmest links into this page", async () => {
 		const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
 		const response = await request(harness.server)
 			.get("/install?utm_source=web-app&utm_medium=banner&utm_campaign=extension-suggestion")
-			.set("User-Agent", FIREFOX_UA);
+			.set("User-Agent", MACOS_FIREFOX);
 
 		expect(response.headers.location).toBe(
 			"/install?utm_source=web-app&utm_medium=banner&utm_campaign=extension-suggestion&client=firefox",
 		);
 	});
 
-	it("should vary the redirect on User-Agent without dropping the Accept negotiation", async () => {
+	it("varies on User-Agent, because one browser's answer must never be served from cache to another", async () => {
 		const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
-		const response = await request(harness.server).get("/install").set("User-Agent", FIREFOX_UA);
+		const response = await request(harness.server).get("/install").set("User-Agent", MACOS_FIREFOX);
 
 		expect(response.headers.vary).toBe("Accept, User-Agent");
 	});
 
-	it("should vary the rendered default on User-Agent so a cache cannot suppress the redirect", async () => {
+	it("answers a crawler at the canonical URL instead of redirecting it, because Googlebot carries a Chrome token and the sitemap submits this exact URL", async () => {
 		const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
-		const response = await request(harness.server).get("/install").set("User-Agent", CHROME_UA);
-
-		expect(response.status).toBe(200);
-		expect(response.headers.vary).toBe("Accept, User-Agent");
-	});
-
-	it("should render the Chrome tab in place for a Chrome visitor rather than redirecting", async () => {
-		const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
-		const response = await request(harness.server).get("/install").set("User-Agent", CHROME_UA);
+		const response = await request(harness.server).get("/install").set("User-Agent", GOOGLEBOT);
 		const doc = load(response.text);
 
 		const chromeTab = doc.querySelector('[data-test-tab="chrome"]');
-		assert(chromeTab, "the chrome tab must render");
-		expect(chromeTab.classList.contains("install-page__tab--active")).toBe(true);
-	});
-
-	it("should render the default tab for a browser with no installable client", async () => {
-		const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
-		const response = await request(harness.server).get("/install").set("User-Agent", SAFARI_UA);
-		const doc = load(response.text);
-
-		const chromeTab = doc.querySelector('[data-test-tab="chrome"]');
-		assert(chromeTab, "the chrome tab must render");
+		assert(chromeTab, "the chrome tab must render for a crawler");
 		expect(response.status).toBe(200);
 		expect(chromeTab.classList.contains("install-page__tab--active")).toBe(true);
 	});
 
-	it("should not send Android Firefox to the Firefox tab, which cannot install the extension", async () => {
+	it("keeps serving markdown to an agent that asked for it, because a redirect ahead of negotiation would break every MCP client", async () => {
 		const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
 		const response = await request(harness.server)
 			.get("/install")
-			.set("User-Agent", ANDROID_FIREFOX_UA);
-		const doc = load(response.text);
-
-		const firefoxTab = doc.querySelector('[data-test-tab="firefox"]');
-		assert(firefoxTab, "the firefox tab must render");
-		expect(response.status).toBe(200);
-		expect(firefoxTab.classList.contains("install-page__tab--active")).toBe(false);
-	});
-
-	it("should answer a crawler at the canonical URL rather than redirecting it", async () => {
-		const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
-		const response = await request(harness.server).get("/install").set("User-Agent", GOOGLEBOT_UA);
-
-		expect(response.status).toBe(200);
-	});
-
-	it("should keep serving markdown to a Firefox client that asked for it", async () => {
-		const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
-		const response = await request(harness.server)
-			.get("/install")
-			.set("User-Agent", FIREFOX_UA)
+			.set("User-Agent", MACOS_FIREFOX)
 			.set("Accept", "text/markdown");
 
 		expect(response.status).toBe(200);
 		expect(response.headers["content-type"]).toBe("text/markdown; charset=utf-8");
 	});
 
-	it("should keep an explicit client param over the detected browser", async () => {
+	it("honours an explicit client param over the detected one, because a shared link must land where its sender intended", async () => {
 		const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
 		const response = await request(harness.server)
 			.get("/install?client=chrome")
-			.set("User-Agent", FIREFOX_UA);
+			.set("User-Agent", MACOS_FIREFOX);
 		const doc = load(response.text);
 
 		const chromeTab = doc.querySelector('[data-test-tab="chrome"]');
@@ -772,18 +764,18 @@ describe("GET /install client detection", () => {
 		expect(chromeTab.classList.contains("install-page__tab--active")).toBe(true);
 	});
 
-	it("should still reject an unknown client from a Firefox browser", async () => {
+	it("still rejects an unknown client, because detection must not turn a 400 into a redirect", async () => {
 		const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
 		const response = await request(harness.server)
 			.get("/install?client=netscape")
-			.set("User-Agent", FIREFOX_UA);
+			.set("User-Agent", MACOS_FIREFOX);
 
 		expect(response.status).toBe(400);
 	});
 
-	it("should count the internal click once across the redirect hop", async () => {
+	it("counts one internal click across the hop, because the redirect and the page it lands on both carry utm_medium=internal", async () => {
 		const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
-		const firefoxBrowser = { ...BROWSER_REQUEST_HEADERS, "User-Agent": FIREFOX_UA };
+		const firefoxBrowser = { ...BROWSER_REQUEST_HEADERS, "User-Agent": MACOS_FIREFOX };
 		const hop = await request(harness.server)
 			.get("/install?utm_source=header-nav&utm_medium=internal&utm_content=install")
 			.set(firefoxBrowser);

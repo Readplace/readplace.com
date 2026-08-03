@@ -16,14 +16,14 @@ const useApp = useTestServer();
  */
 const SURFACES = [
 	"/", /* 1 */
-	"/install",
+	"/install?client=iphone",
 	"/pocket-alternative",
 	"/login", /* 2 */
 	"/signup",
 	"/oauth/authorize",
 ];
 
-const OFFERS_THE_BANNER = ["/", "/install", "/pocket-alternative"];
+const OFFERS_THE_BANNER = ["/", "/install?client=iphone", "/pocket-alternative"];
 
 describe("Safari Smart App Banner", () => {
 	it("is offered on the acquisition surfaces and on no sign-in surface", async () => {
