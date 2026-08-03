@@ -1,0 +1,81 @@
+# One-off diagnostic for cb0fd69f, not a standing canary: it answers whether
+# authenticating editorconfig-checker's download actually lifts the ceiling that
+# was 403ing the lint job. Delete it once the answer is recorded.
+#
+# It must run on the self-hosted runner because the limit that broke CI is keyed
+# to that runner's NAT address, and it hits the same endpoint the wrapper does.
+#
+# Phase 1 is the control and is EXPECTED to fail partway: it deliberately spends
+# the anonymous bucket for this IP, which stays spent for up to an hour. Phase 2
+# is the claim under test. Without the control, a clean phase 2 would prove
+# nothing — it could just mean the bucket was never exhausted.
+name: editorconfig-checker rate-limit probe
+
+on:
+  workflow_dispatch:
+    inputs:
+      calls:
+        description: Requests per phase (must exceed 60 to exhaust the anonymous bucket)
+        default: '100'
+
+permissions:
+  contents: read
+
+jobs:
+  probe:
+    runs-on: [self-hosted, orbstack]
+    steps:
+      - name: Compare the anonymous and authenticated ceilings
+        env:
+          PROBE_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          CALLS: ${{ inputs.calls }}
+        run: |
+          set -uo pipefail
+          endpoint=https://api.github.com/repos/editorconfig-checker/editorconfig-checker/releases/tags/v3.8.0
+
+          probe() {
+            label=$1
+            token=$2
+            ok=0
+            denied=0
+            first_denial=0
+            limit=unknown
+            for i in $(seq 1 "$CALLS"); do
+              if [ -n "$token" ]; then
+                out=$(curl -sS -o /dev/null -D - -H "authorization: Bearer $token" "$endpoint")
+              else
+                out=$(curl -sS -o /dev/null -D - "$endpoint")
+              fi
+              code=$(printf '%s' "$out" | awk 'NR==1{print $2}')
+              header_limit=$(printf '%s' "$out" | awk 'tolower($1)=="x-ratelimit-limit:"{print $2}' | tr -d '\r')
+              [ -n "$header_limit" ] && limit=$header_limit
+              if [ "$code" = "200" ]; then
+                ok=$((ok + 1))
+              else
+                denied=$((denied + 1))
+                [ "$first_denial" -eq 0 ] && first_denial=$i
+              fi
+            done
+            echo "$label | ceiling=$limit ok=$ok denied=$denied first_denial_at=$first_denial"
+          }
+
+          echo "::group::Phase 1 — anonymous (control, expected to be denied partway)"
+          probe anonymous ""
+          anonymous_denied=$denied
+          echo "::endgroup::"
+
+          echo "::group::Phase 2 — authenticated (the fix under test)"
+          probe authenticated "$PROBE_TOKEN"
+          authenticated_denied=$denied
+          echo "::endgroup::"
+
+          # The control must actually bite, or phase 2 proves nothing.
+          test "$anonymous_denied" -gt 0 || {
+            echo "::error::Anonymous phase was never denied in $CALLS calls — the control did not exhaust the bucket, so this run is inconclusive"
+            exit 1
+          }
+          test "$authenticated_denied" -eq 0 || {
+            echo "::error::Authenticated phase saw $authenticated_denied denials — authenticating did NOT lift the ceiling"
+            exit 1
+          }
+          echo "Confirmed: anonymous calls were denied after the bucket drained; $CALLS authenticated calls all succeeded."
