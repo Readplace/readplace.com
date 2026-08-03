@@ -6,6 +6,8 @@ import type { HutchSQS } from "./hutch-sqs";
 export class HutchSQSBackedLambda extends pulumi.ComponentResource {
 	public readonly queueArn: HutchSQS["queueArn"];
 	public readonly queueUrl: HutchSQS["queueUrl"];
+	public readonly dlqArn: HutchSQS["dlqArn"];
+	public readonly dlqUrl: HutchSQS["dlqUrl"];
 
 	constructor(
 		name: string,
@@ -31,6 +33,8 @@ export class HutchSQSBackedLambda extends pulumi.ComponentResource {
 
 		this.queueArn = args.queue.queueArn;
 		this.queueUrl = args.queue.queueUrl;
+		this.dlqArn = args.queue.dlqArn;
+		this.dlqUrl = args.queue.dlqUrl;
 		new aws.iam.RolePolicy(`${name}-sqs-recv`, {
 			name: `${name}-sqs-recv`,
 			role: args.lambda.role.name,

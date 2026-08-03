@@ -78,6 +78,7 @@ export class HutchEventBus {
 			rule: rule.name,
 			eventBusName: this.eventBusName,
 			arn: target.queueArn,
+			deadLetterConfig: { arn: target.dlqArn },
 		});
 
 		new aws.sqs.QueuePolicy(`${base}-queue-policy`, {
@@ -93,6 +94,28 @@ export class HutchEventBus {
 								Principal: { Service: "events.amazonaws.com" },
 								Action: "sqs:SendMessage",
 								Resource: queueArn,
+								Condition: {
+									ArnEquals: { "aws:SourceArn": ruleArn },
+								},
+							},
+						],
+					}),
+				),
+		});
+
+		new aws.sqs.QueuePolicy(`${base}-dlq-policy`, {
+			queueUrl: target.dlqUrl,
+			policy: pulumi
+				.all([target.dlqArn, rule.arn])
+				.apply(([dlqArn, ruleArn]) =>
+					JSON.stringify({
+						Version: "2012-10-17",
+						Statement: [
+							{
+								Effect: "Allow",
+								Principal: { Service: "events.amazonaws.com" },
+								Action: "sqs:SendMessage",
+								Resource: dlqArn,
 								Condition: {
 									ArnEquals: { "aws:SourceArn": ruleArn },
 								},
