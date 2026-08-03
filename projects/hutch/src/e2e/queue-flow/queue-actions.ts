@@ -384,8 +384,12 @@ export function createQueueActions(
 				// balloon's scroll listener attaches when /reader mounts below.
 				await page.evaluate(() => window.localStorage.removeItem('readplace.share-dismissed'))
 
-				await page.locator('[data-test-article-title]').first().click()
-				await page.waitForLoadState('domcontentloaded')
+				// The card title is hx-boosted, so no `load` fires — waiting on
+				// domcontentloaded returns at once and races the in-place swap.
+				await clickAndWaitForPageReload(
+					page,
+					page.locator('[data-test-article-title]').first(),
+				)
 
 				const onReader = await isOnPage(page, 'page-reader')
 				expect(onReader).toBe(true)

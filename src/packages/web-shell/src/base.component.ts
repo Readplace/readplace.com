@@ -21,6 +21,7 @@ import type { Component, ParsedComponent } from "./component.types";
 import type { CspNonce } from "./csp-nonce.middleware";
 import { HtmlPage } from "./html-page";
 import { htmxScripts } from "./htmx-script";
+import { injectPageChromeIntoMain } from "./inject-page-chrome";
 import { injectPageScriptsIntoMain } from "./inject-page-scripts";
 import { injectPageStylesIntoMain } from "./inject-page-styles";
 import { htmlToMarkdown } from "./html-to-markdown";
@@ -63,6 +64,23 @@ const navScript = (cspNonce: CspNonce) => `
 			toggle.setAttribute('aria-expanded', 'false');
 			menu.classList.remove('nav__menu--open');
 		}
+	});
+})();
+</script>`;
+
+/**
+ * Re-apply the destination page's body class after a boosted swap. Global and
+ * outside <main>, so it binds once and survives every swap; the value it reads
+ * rides inside <main> (see injectPageClassIntoMain). Only assigns when the
+ * swapped-in markup actually carries the marker, so a fragment response that
+ * replaces something smaller than <main> cannot blank the class.
+ */
+const pageClassScript = (cspNonce: CspNonce) => `
+<script nonce="${cspNonce}">
+(function() {
+	document.body.addEventListener('htmx:afterSwap', function() {
+		var main = document.querySelector('main[data-page-class]');
+		if (main) document.body.className = main.getAttribute('data-page-class');
 	});
 })();
 </script>`;
@@ -280,19 +298,26 @@ export function initBase(config: BaseConfig): RenderBase {
 			// inside <main> (see injectPageScriptsIntoMain) so an htmx boosted swap
 			// re-runs them on the destination page; the global scripts below stay
 			// outside <main> so they load exactly once.
-			content: injectPageScriptsIntoMain(
-				injectPageStylesIntoMain({
-					content: body.content.html,
-					styles: body.styles,
-					cspNonce: state.cspNonce,
-				}),
-				(body.scripts ?? "") + (state.requestScripts ?? ""),
+			content: injectPageChromeIntoMain(
+				injectPageScriptsIntoMain(
+					injectPageStylesIntoMain({
+						content: body.content.html,
+						styles: body.styles,
+						cspNonce: state.cspNonce,
+					}),
+					(body.scripts ?? "") + (state.requestScripts ?? ""),
+				),
+				{
+					bodyClass: body.bodyClass,
+					showExtensionSuggestion: state.showExtensionSuggestionBanner ?? false,
+				},
 			),
 			footer: renderFooter(),
 			navScript: navScript(state.cspNonce),
 			offlineScript: offlineIndicatorScript(state.cspNonce),
 			scripts:
 				htmxScripts(state.cspNonce) +
+				pageClassScript(state.cspNonce) +
 				EXTENSION_SUGGESTION_BANNER_SCRIPT +
 				TOAST_SCRIPT +
 				(trialChipCarriesInstant(state.trial) ? TRIAL_COUNTDOWN_SCRIPT : "") +

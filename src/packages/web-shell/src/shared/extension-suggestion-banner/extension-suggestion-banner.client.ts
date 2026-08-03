@@ -12,6 +12,7 @@ interface ExtensionSuggestionBannerStorage {
 interface ExtensionSuggestionBannerDeps {
 	document: Document;
 	storage: ExtensionSuggestionBannerStorage;
+	addSwapListener: (cb: () => void) => void;
 }
 
 interface ExtensionSuggestionBannerController {
@@ -22,6 +23,7 @@ const STORAGE_KEY = "readplace.extension-suggestion-dismissed";
 const BANNER_SELECTOR = ".extension-suggestion-banner";
 const CLOSE_SELECTOR = "[data-extension-suggestion-close]";
 const VISIBLE_CLASS = "extension-suggestion-banner--visible";
+const MAIN_MARKER_SELECTOR = "main[data-extension-suggestion]";
 
 export function initExtensionSuggestionBanner(
 	deps: ExtensionSuggestionBannerDeps,
@@ -55,12 +57,22 @@ export function initExtensionSuggestionBanner(
 		`missing element ${BANNER_SELECTOR}`,
 	);
 
+	/** The banner lives outside <main>, so a boosted swap leaves it showing the
+	 * origin page's answer. The destination's rides inside <main> — adopt it. */
+	function adoptSwappedState(): void {
+		const main = deps.document.querySelector<HTMLElement>(MAIN_MARKER_SELECTOR);
+		if (main?.dataset.extensionSuggestion) {
+			banner.dataset.showExtensionSuggestion = main.dataset.extensionSuggestion;
+		}
+	}
+
+	function sync(): void {
+		adoptSwappedState();
+		const show = banner.dataset.showExtensionSuggestion === "true" && !readDismissed();
+		banner.classList.toggle(VISIBLE_CLASS, show);
+	}
+
 	function attach(): void {
-		if (banner.dataset.showExtensionSuggestion !== "true") return;
-		if (readDismissed()) return;
-
-		banner.classList.add(VISIBLE_CLASS);
-
 		const closeBtn = ensure(
 			banner.querySelector<HTMLElement>(CLOSE_SELECTOR),
 			`missing element ${CLOSE_SELECTOR}`,
@@ -69,6 +81,9 @@ export function initExtensionSuggestionBanner(
 			banner.classList.remove(VISIBLE_CLASS);
 			writeDismissed();
 		});
+
+		sync();
+		deps.addSwapListener(sync);
 	}
 
 	return { attach };

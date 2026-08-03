@@ -210,6 +210,38 @@ describe("Base component", () => {
 		expect(doc.body.classList.contains("page-home")).toBe(true);
 	});
 
+	it("should carry bodyClass on <main> so a boosted swap can restore it", () => {
+		const page = createTestPageBody({ bodyClass: "page-home" });
+		const result = Base(page, GUEST_STATE).to("text/html");
+		const doc = new JSDOM(result.body).window.document;
+
+		const main = doc.querySelector("main");
+		assert(main, "the base shell must render a <main>");
+		expect(main.getAttribute("data-page-class")).toBe("page-home");
+	});
+
+	it("should leave <main> unmarked when the page declares no bodyClass", () => {
+		const page = createTestPageBody();
+		const result = Base(page, GUEST_STATE).to("text/html");
+		const doc = new JSDOM(result.body).window.document;
+
+		const main = doc.querySelector("main");
+		assert(main, "the base shell must render a <main>");
+		expect(main.hasAttribute("data-page-class")).toBe(false);
+	});
+
+	it("should load the body-class sync script once, outside <main>", () => {
+		const page = createTestPageBody({ bodyClass: "page-home" });
+		const result = Base(page, GUEST_STATE).to("text/html");
+		const doc = new JSDOM(result.body).window.document;
+
+		const syncScripts = [...doc.querySelectorAll("script")].filter((s) =>
+			s.textContent?.includes("main[data-page-class]"),
+		);
+		expect(syncScripts).toHaveLength(1);
+		expect(syncScripts[0]?.closest("main")).toBeNull();
+	});
+
 	it("should include navigation links", () => {
 		const page = createTestPageBody();
 		const result = Base(page, GUEST_STATE).to("text/html");
@@ -1041,7 +1073,7 @@ describe("initBase config", () => {
 		const doc = new JSDOM(result.body).window.document;
 
 		expect(inlineNonces(doc)).toEqual({
-			script: [CSP_NONCE, CSP_NONCE, CSP_NONCE, CSP_NONCE, CSP_NONCE, CSP_NONCE, CSP_NONCE],
+			script: [CSP_NONCE, CSP_NONCE, CSP_NONCE, CSP_NONCE, CSP_NONCE, CSP_NONCE, CSP_NONCE, CSP_NONCE],
 			style: [CSP_NONCE, CSP_NONCE],
 		});
 	});

@@ -50,7 +50,10 @@ const SHARED_CLIENT_BUNDLES = [
       "document.addEventListener('DOMContentLoaded', function () {",
       "  ExtensionSuggestionBanner.initExtensionSuggestionBanner({",
       "    document: window.document,",
-      "    storage: window.localStorage",
+      "    storage: window.localStorage,",
+      // The banner sits outside <main>, so a boosted swap never re-renders it;
+      // the swap listener re-reads the destination's answer from <main>.
+      "    addSwapListener: function (cb) { document.body.addEventListener('htmx:afterSwap', cb); }",
       "  }).attach();",
       "});",
     ].join("\n"),
