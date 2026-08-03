@@ -101,6 +101,7 @@ import type {
 	PublishCancelSubscriptionCommand,
 	PublishDeleteAccountCommand,
 	PublishExportUserDataCommand,
+	PublishLinkDequeued,
 	PublishLinkQueued,
 	PublishLinkSaved,
 	PublishRecrawlLinkInitiated,
@@ -321,6 +322,7 @@ export interface ParserBundle {
 export interface EventsBundle {
 	publishLinkSaved: PublishLinkSaved;
 	publishLinkQueued: PublishLinkQueued;
+	publishLinkDequeued: PublishLinkDequeued;
 	publishRecrawlLinkInitiated: PublishRecrawlLinkInitiated;
 	publishRemoveMyContent: PublishRemoveMyContent;
 	publishSaveAnonymousLink: PublishSaveAnonymousLink;

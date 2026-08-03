@@ -87,6 +87,8 @@ export {
 	type LinkQueuedDetail,
 	LinkQueueFailedEvent,
 	type LinkQueueFailedDetail,
+	LinkDequeuedEvent,
+	type LinkDequeuedDetail,
 	type HutchEvent,
 	type HutchCommand,
 } from "./events";

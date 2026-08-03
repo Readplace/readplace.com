@@ -65,10 +65,14 @@ import type {
 import { initArticleReader } from "../../shared/article-reader/article-reader";
 import type { RenderReaderActions } from "../../shared/article-body/reader-actions/reader-actions.component";
 import type { PollUrlBuilder } from "../../shared/article-reader/article-reader.types";
-import type { PublishLinkQueued, PublishLinkSaved } from "@packages/provider-contracts/events";
+import type {
+	PublishLinkDequeued,
+	PublishLinkQueued,
+	PublishLinkSaved,
+} from "@packages/provider-contracts/events";
 import type { PublishSaveLinkRawHtmlCommand } from "@packages/provider-contracts/events";
 import type { PutPendingHtml } from "@packages/provider-contracts/pending-html";
-import { initSaveArticleFromUrl } from "@packages/save-article";
+import { initDeleteArticleFromQueue, initSaveArticleFromUrl } from "@packages/save-article";
 import { Base, ChromelessPage } from "../../base.component";
 import { NotFoundPage } from "../not-found";
 import type { BuildBannerState } from "../../banner-state";
@@ -233,6 +237,7 @@ interface QueueDependencies {
 	markSummaryToggled: MarkSummaryToggled;
 	publishLinkSaved: PublishLinkSaved;
 	publishLinkQueued: PublishLinkQueued;
+	publishLinkDequeued: PublishLinkDequeued;
 	publishRemoveMyContent: PublishRemoveMyContent;
 	publishSaveLinkRawHtmlCommand: PublishSaveLinkRawHtmlCommand;
 	publishSaveLinkRawPdfCommand: PublishSaveLinkRawPdfCommand;
@@ -413,6 +418,7 @@ const isIosPlatform = (req: Request): boolean => isIosSurface(req);
 export function initQueueRoutes(deps: QueueDependencies): Router {
 	const router = express.Router();
 	const saveArticleFromUrl = initSaveArticleFromUrl(deps);
+	const deleteArticleFromQueue = initDeleteArticleFromQueue(deps);
 
 	/** The iOS onboarding signal is non-essential bookkeeping that sits on the
 	 * critical path of the app's queue load and every save. Unlike the extension's
@@ -1454,7 +1460,7 @@ export function initQueueRoutes(deps: QueueDependencies): Router {
 		const parsedId = ReaderArticleHashIdSchema.safeParse(req.params.id);
 
 		if (parsedId.success) {
-			await deps.deleteArticle(parsedId.data, userId);
+			await deleteArticleFromQueue({ articleId: parsedId.data, userId });
 		}
 
 		res.redirect(303, buildQueueUrl(parseQueueUrl(req.query)));
@@ -1499,8 +1505,10 @@ export function initQueueRoutes(deps: QueueDependencies): Router {
 			? await deps.findArticleById(parsedId.data, userId)
 			: null;
 
+		if (parsedId.success) {
+			await deleteArticleFromQueue({ articleId: parsedId.data, userId });
+		}
 		if (article) {
-			await deps.deleteArticle(article.id, userId);
 			await deps.publishRemoveMyContent({ url: article.url, userId });
 		}
 

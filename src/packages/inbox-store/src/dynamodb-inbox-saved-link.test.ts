@@ -200,6 +200,19 @@ describe("initDynamoDbInboxSavedLink", () => {
 		expect(commands).toEqual([]);
 	});
 
+	it("retracts one row by its key, unconditionally so redelivery converges", async () => {
+		const { client, commands } = createFakeClient();
+		const store = initDynamoDbInboxSavedLink({ client, tableName: TABLE, now });
+
+		await store.retractLinkSaved({ userId, url: "https://example.com/post" });
+
+		const deletes = commands.filter((command) => command.name === "DeleteCommand");
+		expect(deletes.map((command) => command.input.Key)).toEqual([
+			{ userId, linkKey: inboxSavedLinkKey("https://example.com/post") },
+		]);
+		expect(deletes.map((command) => command.input.ConditionExpression)).toEqual([undefined]);
+	});
+
 	it("deletes every row in the user's partition", async () => {
 		const { client, commands } = createFakeClient([
 			savedRow("https://example.com/one"),

@@ -16,5 +16,6 @@ const inboxSavedLinkStore = initDynamoDbInboxSavedLink({
 export const handler = initRecordLinkQueuedHandler({
 	markLinkSaved: inboxSavedLinkStore.markLinkSaved,
 	markLinkSaveFailed: inboxSavedLinkStore.markLinkSaveFailed,
+	retractLinkSaved: inboxSavedLinkStore.retractLinkSaved,
 	logger,
 });

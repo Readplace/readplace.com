@@ -4,6 +4,7 @@ import {
 	type InboxEmailLinkEntry,
 	type InboxEmailLinksMeta,
 	type InboxEmailStatus,
+	type InboxLinkSaveState,
 	InboxAddressSchema,
 	MessageIdSchema,
 	formatEmailLinkOrdinal,
@@ -62,6 +63,7 @@ function build(input: {
 	linksMeta?: InboxEmailLinksMeta | undefined;
 	shown?: number;
 	panelPollCount?: number;
+	linkSaveStates?: ReadonlyMap<string, InboxLinkSaveState>;
 }) {
 	return toInboxEmailDetailViewModel({
 		entry: input.entry ?? entry(),
@@ -71,7 +73,9 @@ function build(input: {
 		linkData: { source: "rows", links: input.links ?? [], meta: input.linksMeta },
 		maxPolls: 300,
 		shown: input.shown,
-		panelPollCount: input.panelPollCount, linkSaveStates: new Map() });
+		panelPollCount: input.panelPollCount,
+		linkSaveStates: input.linkSaveStates ?? new Map(),
+	});
 }
 
 function crawledLinks(count: number, startIndex = 0): InboxEmailLinkEntry[] {
@@ -366,6 +370,12 @@ describe("toInboxEmailDetailViewModel", () => {
 				reasonLabel: "Unsubscribe link",
 				saveAction: `/inbox/${encodeURIComponent(SK)}/links/0001/save`,
 				saveButtonId: "inbox-skipped-0001-save",
+				saveButton: {
+					label: "Save to queue",
+					ariaLabel: "Save to queue: https://news.example.com/unsub",
+					saveState: "unsaved",
+					iconName: undefined,
+				},
 			},
 			{
 				ordinal: "0002",
@@ -373,6 +383,12 @@ describe("toInboxEmailDetailViewModel", () => {
 				reasonLabel: "Advertisement",
 				saveAction: `/inbox/${encodeURIComponent(SK)}/links/0002/save`,
 				saveButtonId: "inbox-skipped-0002-save",
+				saveButton: {
+					label: "Save to queue",
+					ariaLabel: "Save to queue: https://sponsor.example.com/deal",
+					saveState: "unsaved",
+					iconName: undefined,
+				},
 			},
 		]);
 		expect(vm.linkCountLabel).toBe("1 link");
@@ -451,6 +467,49 @@ describe("toInboxEmailDetailViewModel", () => {
 		expect(vm.excluded.links[0].saveAction).toBe(
 			`/inbox/${encodeURIComponent(SK)}/links/0000/save`,
 		);
+	});
+
+	it("shows a skipped link the reader already saved as saved, and still saveable", () => {
+		const vm = build({
+			links: [link({ status: "skipped", skipReason: "llm-ad" })],
+			linksMeta: { truncated: false, extractionFailed: false },
+			linkSaveStates: new Map([["https://example.com/post", "saved"]]),
+		});
+
+		expect(vm.excluded.links[0].saveButton).toEqual({
+			label: "Save again",
+			ariaLabel: "Saved to queue \u2014 save again: https://example.com/post",
+			saveState: "saved",
+			iconName: "check",
+		});
+		expect(vm.excluded.links[0].saveAction).toBe(
+			`/inbox/${encodeURIComponent(SK)}/links/0000/save`,
+		);
+	});
+
+	it("shows a skipped link with no recorded save as unsaved", () => {
+		const vm = build({
+			links: [link({ status: "skipped", skipReason: "llm-ad" })],
+			linksMeta: { truncated: false, extractionFailed: false },
+		});
+
+		expect(vm.excluded.links[0].saveButton).toEqual({
+			label: "Save to queue",
+			ariaLabel: "Save to queue: https://example.com/post",
+			saveState: "unsaved",
+			iconName: undefined,
+		});
+	});
+
+	it("shows a skipped link whose save failed as unsaved, so the reader can try again", () => {
+		const vm = build({
+			links: [link({ status: "skipped", skipReason: "llm-ad" })],
+			linksMeta: { truncated: false, extractionFailed: false },
+			linkSaveStates: new Map([["https://example.com/post", "failed"]]),
+		});
+
+		expect(vm.excluded.links[0].saveButton.saveState).toBe("unsaved");
+		expect(vm.excluded.links[0].saveButton.label).toBe("Save to queue");
 	});
 
 	it("withholds the save action from a skipped link whose URL is unsaveable", () => {

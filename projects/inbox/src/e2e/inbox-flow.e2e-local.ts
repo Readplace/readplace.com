@@ -71,7 +71,7 @@ test.describe("Inbox article cards", () => {
 			"data-test-save-state",
 			"saved",
 		);
-		await expect(page.locator("#inbox-card-0000 [data-test-save-state]")).toContainText("Saved");
+		await expect(page.locator("#inbox-card-0000 [data-test-save-state]")).toContainText("Save again");
 	});
 });
 

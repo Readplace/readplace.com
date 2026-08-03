@@ -239,6 +239,30 @@ export const LinkQueueFailedEvent = defineEvent({
 });
 export type LinkQueueFailedDetail = z.infer<typeof LinkQueueFailedEvent.detailSchema>;
 
+/** Irreversible fact: a reader's per-user queue row was deleted, so the link is
+ * no longer in their queue. The inverse of {@link LinkQueuedEvent}, and the fact
+ * that lets a per-user read model of "is this saved?" stop reading saved.
+ *
+ * Marking an article read publishes nothing — a read article is still in the
+ * queue — and account deletion publishes nothing either, since it drops each
+ * consumer's whole partition directly.
+ *
+ * `url` is the deleted row's own key: the canonical URL after alias resolution,
+ * not the URL a save was submitted with. The two differ only for a save of an
+ * adopted terminal URL, so a consumer keyed on the submitted URL matches this
+ * fact everywhere except that case — accepted rather than closed with a
+ * second key, because no such stale row has been observed. */
+export const LinkDequeuedEvent = defineEvent({
+	name: "link-dequeued",
+	source: "hutch.save-article",
+	detailType: "LinkDequeued",
+	detailSchema: z.object({
+		url: z.string(),
+		userId: z.string(),
+	}),
+});
+export type LinkDequeuedDetail = z.infer<typeof LinkDequeuedEvent.detailSchema>;
+
 export const AnonymousLinkSavedEvent = defineEvent({
 	name: "anonymous-link-saved",
 	source: "hutch.save-link",

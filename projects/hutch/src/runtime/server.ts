@@ -102,7 +102,11 @@ import type {
 	FindGeneratedSummary,
 	MarkSummaryPending,
 } from "@packages/provider-contracts/article-summary";
-import type { PublishLinkQueued, PublishLinkSaved } from "@packages/provider-contracts/events";
+import type {
+	PublishLinkDequeued,
+	PublishLinkQueued,
+	PublishLinkSaved,
+} from "@packages/provider-contracts/events";
 import type { PublishRecrawlLinkInitiated } from "@packages/provider-contracts/events";
 import type { PublishRemoveMyContent } from "@packages/provider-contracts/events";
 import type { PublishSaveAnonymousLink } from "@packages/provider-contracts/events";
@@ -295,6 +299,7 @@ interface AppDependencies {
 	registerOAuthClient: RegisterOAuthClient;
 	publishLinkSaved: PublishLinkSaved;
 	publishLinkQueued: PublishLinkQueued;
+	publishLinkDequeued: PublishLinkDequeued;
 	publishRecrawlLinkInitiated: PublishRecrawlLinkInitiated;
 	publishRemoveMyContent: PublishRemoveMyContent;
 	publishSaveAnonymousLink: PublishSaveAnonymousLink;
@@ -1074,6 +1079,7 @@ export function createApp(dependencies: AppDependencies): Express {
 		markSummaryToggled: deps.markSummaryToggled,
 		publishLinkSaved: deps.publishLinkSaved,
 		publishLinkQueued: deps.publishLinkQueued,
+		publishLinkDequeued: deps.publishLinkDequeued,
 		publishRemoveMyContent: deps.publishRemoveMyContent,
 		publishSaveLinkRawHtmlCommand: deps.publishSaveLinkRawHtmlCommand,
 		publishSaveLinkRawPdfCommand: deps.publishSaveLinkRawPdfCommand,

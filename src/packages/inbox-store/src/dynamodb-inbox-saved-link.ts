@@ -88,6 +88,9 @@ export function initDynamoDbInboxSavedLink(deps: {
 		markLinkSaved: ({ userId, url }) => putState({ userId, url, state: "saved" }),
 		markLinkSaveFailed: ({ userId, url }) =>
 			putState({ userId, url, state: "failed", onlyIfNotSaved: true }),
+		retractLinkSaved: async ({ userId, url }) => {
+			await table.delete({ Key: { userId, linkKey: inboxSavedLinkKey(url) } });
+		},
 		findSavedLinks: async ({ userId, urls }) => {
 			const keyed = toKeyedUrls(urls);
 			const uniqueKeys = [...new Set(keyed.map((entry) => entry.linkKey))];

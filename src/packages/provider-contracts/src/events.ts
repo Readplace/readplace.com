@@ -32,6 +32,14 @@ export type PublishLinkQueued = (params: {
 	userId: UserId;
 }) => Promise<void>;
 
+/** Announce that a reader's queue row was deleted. `url` is that row's own key —
+ * the canonical URL after alias resolution — so it names the article that left
+ * the queue rather than any one URL a save arrived under. */
+export type PublishLinkDequeued = (params: {
+	url: string;
+	userId: UserId;
+}) => Promise<void>;
+
 export type PublishRecrawlLinkInitiated = (params: {
 	url: string;
 }) => Promise<void>;

@@ -177,6 +177,7 @@ describe("Queue routes", () => {
 				events: {
 					publishLinkSaved: async (params) => { publishedLinkSaved.push(params); },
 					publishLinkQueued: fixture.events.publishLinkQueued,
+					publishLinkDequeued: fixture.events.publishLinkDequeued,
 					publishRecrawlLinkInitiated: fixture.events.publishRecrawlLinkInitiated,
 					publishSaveAnonymousLink: fixture.events.publishSaveAnonymousLink,
 					publishSaveLinkRawHtmlCommand: fixture.events.publishSaveLinkRawHtmlCommand,
@@ -607,6 +608,117 @@ describe("Queue routes", () => {
 
 			const toggles = harness.analytics.events.filter((e) => e.event === "summary_toggled");
 			assert.equal(toggles.length, 0);
+		});
+	});
+
+	describe("announcing that an article left the queue", () => {
+		function useAppRecordingDequeues(): {
+			harness: ReturnType<ReturnType<typeof useTestServer>>;
+			dequeued: { url: string; userId: string }[];
+		} {
+			const dequeued: { url: string; userId: string }[] = [];
+			const fixture = createDefaultTestAppFixture(TEST_APP_ORIGIN);
+			const harness = useApp({
+				...fixture,
+				events: {
+					...fixture.events,
+					publishLinkDequeued: async (params) => {
+						dequeued.push(params);
+					},
+				},
+			});
+			return { harness, dequeued };
+		}
+
+		async function loggedInUserId(
+			harness: ReturnType<ReturnType<typeof useTestServer>>,
+		): Promise<string> {
+			const user = await harness.auth.findUserByEmail("test@example.com");
+			assert.ok(user, "the logged-in user must exist");
+			return user.userId;
+		}
+
+		async function saveAndFindArticleId(
+			agent: Awaited<ReturnType<typeof loginAgent>>,
+		): Promise<string> {
+			await agent.post("/queue/save").type("form").send({ url: "https://example.com/article" });
+			const doc = new JSDOM((await agent.get("/queue")).text).window.document;
+			const articleId = doc
+				.querySelector("[data-test-article-list] .queue-article")
+				?.getAttribute("data-test-article");
+			assert.ok(articleId, "a saved article must render with its id");
+			return articleId;
+		}
+
+		it("announces the deleted row so a read model can stop reading it as saved", async () => {
+			const { harness, dequeued } = useAppRecordingDequeues();
+			const agent = await loginAgent(harness.server, harness.auth);
+			const articleId = await saveAndFindArticleId(agent);
+
+			await agent.post(`/queue/${articleId}/delete`);
+
+			assert.deepEqual(dequeued, [
+				{ url: "https://example.com/article", userId: await loggedInUserId(harness) },
+			]);
+		});
+
+		it("announces the deleted row when the reader removes their whole copy", async () => {
+			const { harness, dequeued } = useAppRecordingDequeues();
+			const agent = await loginAgent(harness.server, harness.auth);
+			const articleId = await saveAndFindArticleId(agent);
+
+			await agent.post(`/queue/${articleId}/remove-my-copy`);
+
+			assert.deepEqual(dequeued, [
+				{ url: "https://example.com/article", userId: await loggedInUserId(harness) },
+			]);
+		});
+
+		it("re-announces the departure when the same delete is retried, without repeating the content removal", async () => {
+			const removeCalls: unknown[] = [];
+			const dequeued: { url: string; userId: string }[] = [];
+			const fixture = createDefaultTestAppFixture(TEST_APP_ORIGIN);
+			const harness = useApp({
+				...fixture,
+				events: {
+					...fixture.events,
+					publishLinkDequeued: async (params) => {
+						dequeued.push(params);
+					},
+					publishRemoveMyContent: async (params) => {
+						removeCalls.push(params);
+					},
+				},
+			});
+			const agent = await loginAgent(harness.server, harness.auth);
+			const articleId = await saveAndFindArticleId(agent);
+
+			await agent.post(`/queue/${articleId}/remove-my-copy`);
+			const retry = await agent.post(`/queue/${articleId}/remove-my-copy`);
+
+			expect(retry.status).toBe(303);
+			expect(dequeued).toHaveLength(2);
+			expect(removeCalls).toHaveLength(1);
+		});
+
+		it("announces nothing when marking an article read, which leaves it in the queue", async () => {
+			const { harness, dequeued } = useAppRecordingDequeues();
+			const agent = await loginAgent(harness.server, harness.auth);
+			const articleId = await saveAndFindArticleId(agent);
+
+			await agent.post(`/queue/${articleId}/status`).type("form").send({ status: "read" });
+
+			assert.deepEqual(dequeued, []);
+		});
+
+		it("announces nothing for an id that names no article", async () => {
+			const { harness, dequeued } = useAppRecordingDequeues();
+			const agent = await loginAgent(harness.server, harness.auth);
+			await saveAndFindArticleId(agent);
+
+			await agent.post("/queue/0123456789abcdef0123456789abcdef/delete");
+
+			assert.deepEqual(dequeued, []);
 		});
 	});
 

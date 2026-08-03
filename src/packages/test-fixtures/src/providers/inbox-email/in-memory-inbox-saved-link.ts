@@ -25,6 +25,9 @@ export function initInMemoryInboxSavedLink(): InboxSavedLinkStore {
 		markLinkSaved: ({ userId, url }) => putState({ userId, url, state: "saved" }),
 		markLinkSaveFailed: ({ userId, url }) =>
 			putState({ userId, url, state: "failed", onlyIfNotSaved: true }),
+		retractLinkSaved: async ({ userId, url }) => {
+			states.delete(rowKey(userId, inboxSavedLinkKey(url)));
+		},
 		findSavedLinks: async ({ userId, urls }) => {
 			const byUrl = new Map<string, InboxLinkSaveState>();
 			for (const url of urls) {

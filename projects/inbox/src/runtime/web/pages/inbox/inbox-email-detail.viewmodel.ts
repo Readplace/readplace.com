@@ -15,6 +15,10 @@ import { type MailTabKey, buildInboxEmailDetailUrl } from "./inbox-email-detail.
 import { buildInboxLinkSaveUrl } from "./inbox-link-save-url";
 import { buildLinkCountLabel } from "./inbox-link-count-label";
 import { type InboxLinkCardViewModel, toInboxLinkCardViewModel } from "./inbox-link-card.viewmodel";
+import {
+	type InboxSaveButtonViewModel,
+	toInboxSaveButtonViewModel,
+} from "./inbox-save-button.viewmodel";
 import { type MailTab, buildMailTabs } from "./mail-tabs";
 
 /** Initial poll count for a card on first page render: the first htmx tick then
@@ -58,6 +62,7 @@ export interface ExcludedLinkViewModel {
 	 * swap replaces the row the reader was keyboarding through. Mirrors the card
 	 * action's `inbox-card-{ordinal}-{key}` scheme. */
 	saveButtonId: string;
+	saveButton: InboxSaveButtonViewModel;
 }
 
 export interface ArticleShowMore {
@@ -219,8 +224,7 @@ export function toInboxEmailDetailViewModel(input: {
 	bodyHtml: string | undefined;
 	imagesCdnBaseUrl: string;
 	linkData: InboxEmailLinkData;
-	/** Save state for the email's links, keyed by stored URL. Empty for the View
-	 * tab, which fetches no link rows to look up. */
+	/** Empty for the View tab, which fetches no link rows to look up. */
 	linkSaveStates: ReadonlyMap<string, InboxLinkSaveState>;
 	maxPolls: number;
 	shown?: number;
@@ -259,6 +263,13 @@ export function toInboxEmailDetailViewModel(input: {
 						? buildInboxLinkSaveUrl({ emailId, ordinal: link.ordinal })
 						: undefined,
 				saveButtonId: `inbox-skipped-${link.ordinal}-save`,
+				// A skipped row shows its URL byte-exact — no crawl has resolved it —
+				// so the key it is looked up by is also the one the label names.
+				saveButton: toInboxSaveButtonViewModel({
+					linkSaveStates: input.linkSaveStates,
+					url: link.url,
+					displayUrl: link.url,
+				}),
 			}),
 		);
 	const truncated = linksMeta?.truncated === true;

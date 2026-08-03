@@ -20,11 +20,16 @@ function failedBody(url: string): string {
 	});
 }
 
+function dequeuedBody(url: string): string {
+	return JSON.stringify({ "detail-type": "LinkDequeued", detail: { url, userId } });
+}
+
 function createHandler() {
 	const store = initInMemoryInboxSavedLink();
 	const handler = initRecordLinkQueuedHandler({
 		markLinkSaved: store.markLinkSaved,
 		markLinkSaveFailed: store.markLinkSaveFailed,
+		retractLinkSaved: store.retractLinkSaved,
 		logger,
 	});
 	const run = (bodies: string[]) =>
@@ -100,6 +105,7 @@ describe("recordLinkQueuedHandler", () => {
 				throw new Error("dynamo unavailable");
 			},
 			markLinkSaveFailed: async () => {},
+			retractLinkSaved: async () => {},
 			logger,
 		});
 
@@ -118,5 +124,58 @@ describe("recordLinkQueuedHandler", () => {
 		const result = await run([queuedBody("not a url")]);
 
 		expect(result).toEqual({ batchItemFailures: [{ itemIdentifier: "m-0" }] });
+	});
+});
+
+describe("recordLinkQueuedHandler retraction", () => {
+	it("stops reading saved once the reader deletes the queue row", async () => {
+		const { store, run } = createHandler();
+
+		await run([queuedBody(POST_URL)]);
+		const result = await run([dequeuedBody(POST_URL)]);
+
+		expect(result).toEqual({ batchItemFailures: [] });
+		expect((await store.findSavedLinks({ userId, urls: [POST_URL] })).size).toBe(0);
+	});
+
+	it("re-reads saved when the reader saves the link again after deleting it", async () => {
+		const { store, run } = createHandler();
+
+		await run([queuedBody(POST_URL), dequeuedBody(POST_URL), queuedBody(POST_URL)]);
+
+		const states = await store.findSavedLinks({ userId, urls: [POST_URL] });
+		expect(states.get(POST_URL)).toBe("saved");
+	});
+
+	it("converges when the deletion fact is redelivered", async () => {
+		const { store, run } = createHandler();
+
+		await run([queuedBody(POST_URL)]);
+		const result = await run([dequeuedBody(POST_URL), dequeuedBody(POST_URL)]);
+
+		expect(result).toEqual({ batchItemFailures: [] });
+		expect((await store.findSavedLinks({ userId, urls: [POST_URL] })).size).toBe(0);
+	});
+
+	it("acknowledges a deletion for a link this reader never saved from here", async () => {
+		const { store, run } = createHandler();
+
+		const result = await run([dequeuedBody("https://example.com/never-saved")]);
+
+		expect(result).toEqual({ batchItemFailures: [] });
+		expect((await store.findSavedLinks({ userId, urls: [POST_URL] })).size).toBe(0);
+	});
+
+	it("fails a fact whose detail-type no rule delivers, leaving the record saved", async () => {
+		const { store, run } = createHandler();
+
+		await run([queuedBody(POST_URL)]);
+		const result = await run([
+			JSON.stringify({ "detail-type": "LinkSomethingElse", detail: { url: POST_URL, userId } }),
+		]);
+
+		expect(result).toEqual({ batchItemFailures: [{ itemIdentifier: "m-0" }] });
+		const states = await store.findSavedLinks({ userId, urls: [POST_URL] });
+		expect(states.get(POST_URL)).toBe("saved");
 	});
 });

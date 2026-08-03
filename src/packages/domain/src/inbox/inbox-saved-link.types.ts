@@ -8,8 +8,9 @@ import type { UserId } from "../user";
 export type InboxLinkSaveState = "saved" | "failed";
 
 /** A moment-in-time record that a save was accepted (or refused) for one URL.
- * Never retracted: removing the article from the queue publishes no fact, so a
- * link the reader later deletes still reads as saved here. */
+ * Retracted when the reader deletes the article from their queue, which is the
+ * one fact that ends the row's claim. Marking it read is not that fact — a read
+ * article is still in the queue, and still reads as saved here. */
 export interface InboxSavedLinkEntry {
 	userId: UserId;
 	linkKey: string;
@@ -45,6 +46,16 @@ export interface InboxSavedLinkStore {
 	 * whole time. Letting the failure win would strand that link reading
 	 * "Save to queue" forever, since no later fact corrects it. Saved wins. */
 	markLinkSaveFailed: (input: { userId: UserId; url: string }) => Promise<void>;
+	/** Drop the record for one URL after its queue row was deleted, restoring the
+	 * absence that means "not saved" — rather than recording a third state, so
+	 * every reader keeps treating a missing row as the only unsaved answer.
+	 *
+	 * Idempotent: the fact is re-published on every SQS redelivery, and a URL
+	 * that was never saved from here has no row to drop.
+	 *
+	 * `url` is the deleted queue row's key, which is the key a save from here was
+	 * recorded under except when the save adopted a redirect terminal. */
+	retractLinkSaved: (input: { userId: UserId; url: string }) => Promise<void>;
 	/** State for one page of cards. Keyed by the caller's own urls, not the
 	 * normalized ones, so the caller matches without re-deriving. Urls with no row
 	 * are absent from the map; a url that cannot be normalized is skipped rather

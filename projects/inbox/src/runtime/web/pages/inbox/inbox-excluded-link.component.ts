@@ -8,6 +8,18 @@ const INBOX_EXCLUDED_LINK_TEMPLATE = readFileSync(
 	"utf-8",
 );
 
+interface InboxExcludedLinkDisplayModel extends ExcludedLinkViewModel {
+	savedClass: string;
+}
+
+function toDisplayModel(vm: ExcludedLinkViewModel): InboxExcludedLinkDisplayModel {
+	return {
+		...vm,
+		savedClass:
+			vm.saveButton.saveState === "saved" ? " inbox-excluded-link__save-button--saved" : "",
+	};
+}
+
 export function renderInboxExcludedLink(vm: ExcludedLinkViewModel): string {
-	return render(INBOX_EXCLUDED_LINK_TEMPLATE, vm);
+	return render(INBOX_EXCLUDED_LINK_TEMPLATE, toDisplayModel(vm));
 }

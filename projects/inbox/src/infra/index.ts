@@ -14,6 +14,7 @@ import {
 import {
 	CrawlEmailLinkPreview,
 	EmailReceivedEvent,
+	LinkDequeuedEvent,
 	LinkQueueFailedEvent,
 	LinkQueuedEvent,
 } from "@packages/hutch-infra-components";
@@ -559,16 +560,18 @@ attachDlqConsumer("inbox-crawl-email-link-preview-dlq", {
 	batchSize: 1,
 });
 
-// --- Saved-link read model (save-side facts → Articles tab's Saved button) ---
+// --- Saved-link read model (queue-membership facts → the tabs' save button) ---
 // LinkQueuedEvent (a save reached its terminal accept state, published by every
-// save surface through @packages/save-article) and LinkQueueFailedEvent (it
-// exhausted its accept retries) both land here and stamp one row per user+URL.
-// This is how the Articles tab knows a link is already in the reader's queue
+// save surface through @packages/save-article), LinkQueueFailedEvent (it
+// exhausted its accept retries) and LinkDequeuedEvent (the reader deleted the
+// queue row a save produced) all land here and stamp or drop one row per
+// user+URL. This is how both tabs know whether a link is in the reader's queue
 // without any inbox role reading the articles/user-articles tables.
 const recordLinkQueuedDynamodb = new HutchDynamoDBAccess("inbox-record-link-queued-dynamodb", {
 	tables: [{ arn: inboxStorage.savedLinksTable.arn, includeIndexes: false }],
-	// Both writes are unconditional upserts of one row — no read, no query.
-	actions: ["dynamodb:PutItem"],
+	// Every write addresses one row by key — no read, no query. A retraction
+	// deletes that row, because absence is what this model means by "not saved".
+	actions: ["dynamodb:PutItem", "dynamodb:DeleteItem"],
 });
 
 const RECORD_LINK_QUEUED_TIMEOUT_SECONDS = 30;
@@ -587,7 +590,7 @@ const recordLinkQueuedLambda = new HutchLambda("inbox-record-link-queued", {
 
 // One rule per queue: eventBus.subscribe creates a QueuePolicy per call, and
 // two rules pointing at one queue would fight over that single physical policy.
-// The two facts therefore get their own queue each, both feeding this Lambda.
+// Each fact therefore gets its own queue, all feeding this Lambda.
 const recordLinkQueuedQueue = new HutchSQS("inbox-record-link-queued", {
 	visibilityTimeoutSeconds:
 		RECORD_LINK_QUEUED_TIMEOUT_SECONDS + RECEIVE_TO_INVOKE_GUARD_SECONDS,
@@ -621,6 +624,22 @@ const recordLinkQueueFailedWithSQS = new HutchSQSBackedLambda("inbox-record-link
 
 eventBus.subscribe(LinkQueueFailedEvent, recordLinkQueueFailedWithSQS, {
 	name: "inbox-record-link-queue-failed",
+});
+
+const recordLinkDequeuedQueue = new HutchSQS("inbox-record-link-dequeued", {
+	visibilityTimeoutSeconds:
+		RECORD_LINK_QUEUED_TIMEOUT_SECONDS + RECEIVE_TO_INVOKE_GUARD_SECONDS,
+});
+
+const recordLinkDequeuedWithSQS = new HutchSQSBackedLambda("inbox-record-link-dequeued", {
+	lambda: recordLinkQueuedLambda,
+	queue: recordLinkDequeuedQueue,
+	alertEmailDLQEntry: alertEmail,
+	batchSize: 1,
+});
+
+eventBus.subscribe(LinkDequeuedEvent, recordLinkDequeuedWithSQS, {
+	name: "inbox-record-link-dequeued",
 });
 
 export const functionName = webLambda.functionName;

@@ -54,6 +54,7 @@ import type {
 	GeneratedSummary,
 	MarkSummaryPending,
 } from "@packages/provider-contracts/article-summary";
+import { initInMemoryLinkDequeued } from "./providers/events/in-memory-link-dequeued";
 import { initInMemoryLinkQueued } from "./providers/events/in-memory-link-queued";
 import { initInMemoryLinkSaved } from "./providers/events/in-memory-link-saved";
 import { initInMemoryRecrawlLinkInitiated } from "./providers/events/in-memory-recrawl-link-initiated";
@@ -375,6 +376,7 @@ export function createDefaultTestAppFixture(appOrigin: string): TestAppFixture {
 		events: {
 			publishLinkSaved: createFakePublishLinkSaved(applyParseResult),
 			publishLinkQueued: initInMemoryLinkQueued({ logger: noopLogger }).publishLinkQueued,
+			publishLinkDequeued: initInMemoryLinkDequeued({ logger: noopLogger }).publishLinkDequeued,
 			publishRecrawlLinkInitiated: createFakePublishRecrawlLinkInitiated(applyParseResult),
 			publishSaveAnonymousLink: createFakePublishSaveAnonymousLink(applyParseResult),
 			publishSaveLinkRawHtmlCommand,

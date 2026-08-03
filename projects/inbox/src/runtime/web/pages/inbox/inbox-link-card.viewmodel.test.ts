@@ -335,7 +335,7 @@ describe("toInboxLinkCardViewModel", () => {
 			const action = saveAction(new Map([["https://example.com/post", "saved"]]));
 
 			expect(action.saveState).toBe("saved");
-			expect(action.label).toBe("Saved");
+			expect(action.label).toBe("Save again");
 			expect(action.iconName).toBe("check");
 		});
 

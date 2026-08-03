@@ -89,6 +89,51 @@ describe("initInMemoryInboxSavedLink", () => {
 		expect([...states.keys()]).toEqual(["https://example.com/post"]);
 	});
 
+	it("leaves no state behind when a save is retracted", async () => {
+		const store = initInMemoryInboxSavedLink();
+		await store.markLinkSaved({ userId, url: "https://example.com/post" });
+
+		await store.retractLinkSaved({ userId, url: "https://example.com/post" });
+
+		expect((await store.findSavedLinks({ userId, urls: ["https://example.com/post"] })).size).toBe(0);
+	});
+
+	it("retracts a recorded failure too, since the row is gone either way", async () => {
+		const store = initInMemoryInboxSavedLink();
+		await store.markLinkSaveFailed({ userId, url: "https://example.com/post" });
+
+		await store.retractLinkSaved({ userId, url: "https://example.com/post" });
+
+		expect((await store.findSavedLinks({ userId, urls: ["https://example.com/post"] })).size).toBe(0);
+	});
+
+	it("retracts a url that was never recorded without disturbing another", async () => {
+		const store = initInMemoryInboxSavedLink();
+		await store.markLinkSaved({ userId, url: "https://example.com/post" });
+
+		await store.retractLinkSaved({ userId, url: "https://example.com/other" });
+
+		expect(
+			(await store.findSavedLinks({ userId, urls: ["https://example.com/post"] })).get(
+				"https://example.com/post",
+			),
+		).toBe("saved");
+	});
+
+	it("scopes a retraction to the user who asked for it", async () => {
+		const store = initInMemoryInboxSavedLink();
+		await store.markLinkSaved({ userId, url: "https://example.com/post" });
+		await store.markLinkSaved({ userId: otherUserId, url: "https://example.com/post" });
+
+		await store.retractLinkSaved({ userId, url: "https://example.com/post" });
+
+		expect(
+			(await store.findSavedLinks({ userId: otherUserId, urls: ["https://example.com/post"] })).get(
+				"https://example.com/post",
+			),
+		).toBe("saved");
+	});
+
 	it("drops only the named user's rows on delete", async () => {
 		const store = initInMemoryInboxSavedLink();
 		await store.markLinkSaved({ userId, url: "https://example.com/post" });

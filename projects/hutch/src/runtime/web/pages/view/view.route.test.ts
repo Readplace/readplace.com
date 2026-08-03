@@ -76,6 +76,7 @@ function buildReaderHarness(mountApp: typeof useApp = useApp) {
 		events: {
 			publishLinkSaved: createFakePublishLinkSaved(applyParseResult),
 			publishLinkQueued: fixture.events.publishLinkQueued,
+			publishLinkDequeued: fixture.events.publishLinkDequeued,
 			publishRecrawlLinkInitiated: createFakePublishRecrawlLinkInitiated(applyParseResult),
 			publishSaveAnonymousLink: createFakePublishSaveAnonymousLink(applyParseResult),
 			publishSaveLinkRawHtmlCommand: fixture.events.publishSaveLinkRawHtmlCommand,
@@ -110,6 +111,7 @@ describe("View routes", () => {
 				events: {
 					publishLinkSaved: createFakePublishLinkSaved(applyParseResult),
 					publishLinkQueued: fixture.events.publishLinkQueued,
+					publishLinkDequeued: fixture.events.publishLinkDequeued,
 					publishRecrawlLinkInitiated: createFakePublishRecrawlLinkInitiated(applyParseResult),
 					publishSaveAnonymousLink: createFakePublishSaveAnonymousLink(applyParseResult),
 					publishSaveLinkRawHtmlCommand: fixture.events.publishSaveLinkRawHtmlCommand,
@@ -157,6 +159,7 @@ describe("View routes", () => {
 				events: {
 					publishLinkSaved: createFakePublishLinkSaved(applyParseResult),
 					publishLinkQueued: fixture.events.publishLinkQueued,
+					publishLinkDequeued: fixture.events.publishLinkDequeued,
 					publishRecrawlLinkInitiated: createFakePublishRecrawlLinkInitiated(applyParseResult),
 					publishSaveAnonymousLink: createFakePublishSaveAnonymousLink(applyParseResult),
 					publishSaveLinkRawHtmlCommand: fixture.events.publishSaveLinkRawHtmlCommand,
@@ -300,6 +303,7 @@ describe("View routes", () => {
 				events: {
 					publishLinkSaved: createFakePublishLinkSaved(applyParseResult),
 					publishLinkQueued: fixture.events.publishLinkQueued,
+					publishLinkDequeued: fixture.events.publishLinkDequeued,
 					publishRecrawlLinkInitiated: createFakePublishRecrawlLinkInitiated(applyParseResult),
 					publishSaveAnonymousLink: createFakePublishSaveAnonymousLink(applyParseResult),
 					publishSaveLinkRawHtmlCommand: fixture.events.publishSaveLinkRawHtmlCommand,
@@ -373,6 +377,7 @@ describe("View routes", () => {
 				events: {
 					publishLinkSaved: createFakePublishLinkSaved(applyParseResult),
 					publishLinkQueued: fixture.events.publishLinkQueued,
+					publishLinkDequeued: fixture.events.publishLinkDequeued,
 					publishRecrawlLinkInitiated: createFakePublishRecrawlLinkInitiated(applyParseResult),
 					publishSaveAnonymousLink: createFakePublishSaveAnonymousLink(applyParseResult),
 					publishSaveLinkRawHtmlCommand: fixture.events.publishSaveLinkRawHtmlCommand,
@@ -417,6 +422,7 @@ describe("View routes", () => {
 				events: {
 					publishLinkSaved: createFakePublishLinkSaved(applyParseResult),
 					publishLinkQueued: fixture.events.publishLinkQueued,
+					publishLinkDequeued: fixture.events.publishLinkDequeued,
 					publishRecrawlLinkInitiated: createFakePublishRecrawlLinkInitiated(applyParseResult),
 					publishSaveAnonymousLink: createFakePublishSaveAnonymousLink(applyParseResult),
 					publishSaveLinkRawHtmlCommand: fixture.events.publishSaveLinkRawHtmlCommand,
@@ -460,6 +466,7 @@ describe("View routes", () => {
 				events: {
 					publishLinkSaved: createFakePublishLinkSaved(applyParseResult),
 					publishLinkQueued: fixture.events.publishLinkQueued,
+					publishLinkDequeued: fixture.events.publishLinkDequeued,
 					publishRecrawlLinkInitiated: createFakePublishRecrawlLinkInitiated(applyParseResult),
 					publishSaveAnonymousLink: createFakePublishSaveAnonymousLink(applyParseResult),
 					publishSaveLinkRawHtmlCommand: fixture.events.publishSaveLinkRawHtmlCommand,
@@ -505,6 +512,7 @@ describe("View routes", () => {
 				events: {
 					publishLinkSaved: createFakePublishLinkSaved(applyParseResult),
 					publishLinkQueued: fixture.events.publishLinkQueued,
+					publishLinkDequeued: fixture.events.publishLinkDequeued,
 					publishRecrawlLinkInitiated: createFakePublishRecrawlLinkInitiated(applyParseResult),
 					publishSaveAnonymousLink: createFakePublishSaveAnonymousLink(applyParseResult),
 					publishSaveLinkRawHtmlCommand: fixture.events.publishSaveLinkRawHtmlCommand,
@@ -554,6 +562,7 @@ describe("View routes", () => {
 				events: {
 					publishLinkSaved: createFakePublishLinkSaved(applyParseResult),
 					publishLinkQueued: fixture.events.publishLinkQueued,
+					publishLinkDequeued: fixture.events.publishLinkDequeued,
 					publishRecrawlLinkInitiated: createFakePublishRecrawlLinkInitiated(applyParseResult),
 					publishSaveAnonymousLink: createFakePublishSaveAnonymousLink(applyParseResult),
 					publishSaveLinkRawHtmlCommand: fixture.events.publishSaveLinkRawHtmlCommand,
@@ -604,6 +613,7 @@ describe("View routes", () => {
 				events: {
 					publishLinkSaved: createFakePublishLinkSaved(applyParseResult),
 					publishLinkQueued: fixture.events.publishLinkQueued,
+					publishLinkDequeued: fixture.events.publishLinkDequeued,
 					publishRecrawlLinkInitiated: createFakePublishRecrawlLinkInitiated(applyParseResult),
 					publishSaveAnonymousLink: createFakePublishSaveAnonymousLink(applyParseResult),
 					publishSaveLinkRawHtmlCommand: fixture.events.publishSaveLinkRawHtmlCommand,
@@ -657,6 +667,7 @@ describe("View routes", () => {
 				events: {
 					publishLinkSaved: createFakePublishLinkSaved(applyParseResult),
 					publishLinkQueued: fixture.events.publishLinkQueued,
+					publishLinkDequeued: fixture.events.publishLinkDequeued,
 					publishRecrawlLinkInitiated: createFakePublishRecrawlLinkInitiated(applyParseResult),
 					publishSaveAnonymousLink: createFakePublishSaveAnonymousLink(applyParseResult),
 					publishSaveLinkRawHtmlCommand: fixture.events.publishSaveLinkRawHtmlCommand,
@@ -711,6 +722,7 @@ describe("View routes", () => {
 				events: {
 					publishLinkSaved: createFakePublishLinkSaved(applyParseResult),
 					publishLinkQueued: fixture.events.publishLinkQueued,
+					publishLinkDequeued: fixture.events.publishLinkDequeued,
 					publishRecrawlLinkInitiated: createFakePublishRecrawlLinkInitiated(applyParseResult),
 					publishSaveAnonymousLink: createFakePublishSaveAnonymousLink(applyParseResult),
 					publishSaveLinkRawHtmlCommand: fixture.events.publishSaveLinkRawHtmlCommand,
@@ -935,6 +947,7 @@ describe("View routes", () => {
 				events: {
 					publishLinkSaved: createFakePublishLinkSaved(applyParseResult),
 					publishLinkQueued: fixture.events.publishLinkQueued,
+					publishLinkDequeued: fixture.events.publishLinkDequeued,
 					publishRecrawlLinkInitiated: createFakePublishRecrawlLinkInitiated(applyParseResult),
 					publishSaveAnonymousLink: createFakePublishSaveAnonymousLink(applyParseResult),
 					publishSaveLinkRawHtmlCommand: fixture.events.publishSaveLinkRawHtmlCommand,
@@ -992,6 +1005,7 @@ describe("View routes", () => {
 				events: {
 					publishLinkSaved: createFakePublishLinkSaved(applyParseResult),
 					publishLinkQueued: fixture.events.publishLinkQueued,
+					publishLinkDequeued: fixture.events.publishLinkDequeued,
 					publishRecrawlLinkInitiated: createFakePublishRecrawlLinkInitiated(applyParseResult),
 					publishSaveAnonymousLink: createFakePublishSaveAnonymousLink(applyParseResult),
 					publishSaveLinkRawHtmlCommand: fixture.events.publishSaveLinkRawHtmlCommand,
@@ -1042,6 +1056,7 @@ describe("View routes", () => {
 				events: {
 					publishLinkSaved: createFakePublishLinkSaved(applyParseResult),
 					publishLinkQueued: fixture.events.publishLinkQueued,
+					publishLinkDequeued: fixture.events.publishLinkDequeued,
 					publishRecrawlLinkInitiated: createFakePublishRecrawlLinkInitiated(applyParseResult),
 					publishSaveAnonymousLink: createFakePublishSaveAnonymousLink(applyParseResult),
 					publishSaveLinkRawHtmlCommand: fixture.events.publishSaveLinkRawHtmlCommand,
@@ -1081,6 +1096,7 @@ describe("View routes", () => {
 				events: {
 					publishLinkSaved: createFakePublishLinkSaved(applyParseResult),
 					publishLinkQueued: fixture.events.publishLinkQueued,
+					publishLinkDequeued: fixture.events.publishLinkDequeued,
 					publishRecrawlLinkInitiated: createFakePublishRecrawlLinkInitiated(applyParseResult),
 					publishSaveAnonymousLink: createFakePublishSaveAnonymousLink(applyParseResult),
 					publishSaveLinkRawHtmlCommand: fixture.events.publishSaveLinkRawHtmlCommand,
@@ -1122,6 +1138,7 @@ describe("View routes", () => {
 				events: {
 					publishLinkSaved: createFakePublishLinkSaved(applyParseResult),
 					publishLinkQueued: fixture.events.publishLinkQueued,
+					publishLinkDequeued: fixture.events.publishLinkDequeued,
 					publishRecrawlLinkInitiated: createFakePublishRecrawlLinkInitiated(applyParseResult),
 					publishSaveAnonymousLink: createFakePublishSaveAnonymousLink(applyParseResult),
 					publishSaveLinkRawHtmlCommand: fixture.events.publishSaveLinkRawHtmlCommand,
@@ -1162,6 +1179,7 @@ describe("View routes", () => {
 				events: {
 					publishLinkSaved: createFakePublishLinkSaved(applyParseResult),
 					publishLinkQueued: fixture.events.publishLinkQueued,
+					publishLinkDequeued: fixture.events.publishLinkDequeued,
 					publishRecrawlLinkInitiated: createFakePublishRecrawlLinkInitiated(applyParseResult),
 					publishSaveAnonymousLink: createFakePublishSaveAnonymousLink(applyParseResult),
 					publishSaveLinkRawHtmlCommand: fixture.events.publishSaveLinkRawHtmlCommand,
@@ -1202,6 +1220,7 @@ describe("View routes", () => {
 				events: {
 					publishLinkSaved: createFakePublishLinkSaved(applyParseResult),
 					publishLinkQueued: fixture.events.publishLinkQueued,
+					publishLinkDequeued: fixture.events.publishLinkDequeued,
 					publishRecrawlLinkInitiated: createFakePublishRecrawlLinkInitiated(applyParseResult),
 					publishSaveAnonymousLink: createFakePublishSaveAnonymousLink(applyParseResult),
 					publishSaveLinkRawHtmlCommand: fixture.events.publishSaveLinkRawHtmlCommand,
@@ -1241,6 +1260,7 @@ describe("View routes", () => {
 				events: {
 					publishLinkSaved: createFakePublishLinkSaved(applyParseResult),
 					publishLinkQueued: fixture.events.publishLinkQueued,
+					publishLinkDequeued: fixture.events.publishLinkDequeued,
 					publishRecrawlLinkInitiated: createFakePublishRecrawlLinkInitiated(applyParseResult),
 					publishSaveAnonymousLink: createFakePublishSaveAnonymousLink(applyParseResult),
 					publishSaveLinkRawHtmlCommand: fixture.events.publishSaveLinkRawHtmlCommand,
@@ -1280,6 +1300,7 @@ describe("View routes", () => {
 				events: {
 					publishLinkSaved: createFakePublishLinkSaved(applyParseResult),
 					publishLinkQueued: fixture.events.publishLinkQueued,
+					publishLinkDequeued: fixture.events.publishLinkDequeued,
 					publishRecrawlLinkInitiated: createFakePublishRecrawlLinkInitiated(applyParseResult),
 					publishSaveAnonymousLink: createFakePublishSaveAnonymousLink(applyParseResult),
 					publishSaveLinkRawHtmlCommand: fixture.events.publishSaveLinkRawHtmlCommand,
@@ -1331,6 +1352,7 @@ describe("View routes", () => {
 				events: {
 					publishLinkSaved: createFakePublishLinkSaved(applyParseResult),
 					publishLinkQueued: fixture.events.publishLinkQueued,
+					publishLinkDequeued: fixture.events.publishLinkDequeued,
 					publishRecrawlLinkInitiated: createFakePublishRecrawlLinkInitiated(applyParseResult),
 					publishSaveAnonymousLink: createFakePublishSaveAnonymousLink(applyParseResult),
 					publishSaveLinkRawHtmlCommand: fixture.events.publishSaveLinkRawHtmlCommand,
@@ -1382,6 +1404,7 @@ describe("View routes", () => {
 				events: {
 					publishLinkSaved: createFakePublishLinkSaved(applyParseResult),
 					publishLinkQueued: fixture.events.publishLinkQueued,
+					publishLinkDequeued: fixture.events.publishLinkDequeued,
 					publishRecrawlLinkInitiated: createFakePublishRecrawlLinkInitiated(applyParseResult),
 					publishSaveAnonymousLink: createFakePublishSaveAnonymousLink(applyParseResult),
 					publishSaveLinkRawHtmlCommand: fixture.events.publishSaveLinkRawHtmlCommand,
@@ -1433,6 +1456,7 @@ describe("View routes", () => {
 				events: {
 					publishLinkSaved: createFakePublishLinkSaved(applyParseResult),
 					publishLinkQueued: fixture.events.publishLinkQueued,
+					publishLinkDequeued: fixture.events.publishLinkDequeued,
 					publishRecrawlLinkInitiated: createFakePublishRecrawlLinkInitiated(applyParseResult),
 					publishSaveAnonymousLink: createFakePublishSaveAnonymousLink(applyParseResult),
 					publishSaveLinkRawHtmlCommand: fixture.events.publishSaveLinkRawHtmlCommand,
@@ -1488,6 +1512,7 @@ describe("View routes", () => {
 				events: {
 					publishLinkSaved: createFakePublishLinkSaved(applyParseResult),
 					publishLinkQueued: fixture.events.publishLinkQueued,
+					publishLinkDequeued: fixture.events.publishLinkDequeued,
 					publishRecrawlLinkInitiated: createFakePublishRecrawlLinkInitiated(applyParseResult),
 					publishSaveAnonymousLink: createFakePublishSaveAnonymousLink(applyParseResult),
 					publishSaveLinkRawHtmlCommand: fixture.events.publishSaveLinkRawHtmlCommand,
@@ -1543,6 +1568,7 @@ describe("View routes", () => {
 				events: {
 					publishLinkSaved: createFakePublishLinkSaved(applyParseResult),
 					publishLinkQueued: fixture.events.publishLinkQueued,
+					publishLinkDequeued: fixture.events.publishLinkDequeued,
 					publishRecrawlLinkInitiated: createFakePublishRecrawlLinkInitiated(applyParseResult),
 					publishSaveAnonymousLink: createFakePublishSaveAnonymousLink(applyParseResult),
 					publishSaveLinkRawHtmlCommand: fixture.events.publishSaveLinkRawHtmlCommand,
@@ -1725,6 +1751,7 @@ describe("View routes", () => {
 				events: {
 					publishLinkSaved: createFakePublishLinkSaved(applyParseResult),
 					publishLinkQueued: fixture.events.publishLinkQueued,
+					publishLinkDequeued: fixture.events.publishLinkDequeued,
 					publishRecrawlLinkInitiated: createFakePublishRecrawlLinkInitiated(applyParseResult),
 					publishSaveAnonymousLink: createFakePublishSaveAnonymousLink(applyParseResult),
 					publishSaveLinkRawHtmlCommand: fixture.events.publishSaveLinkRawHtmlCommand,
@@ -1791,6 +1818,7 @@ describe("View routes", () => {
 					events: {
 						publishLinkSaved: createFakePublishLinkSaved(applyParseResult),
 						publishLinkQueued: fixture.events.publishLinkQueued,
+						publishLinkDequeued: fixture.events.publishLinkDequeued,
 						publishRecrawlLinkInitiated: createFakePublishRecrawlLinkInitiated(applyParseResult),
 						publishSaveAnonymousLink: createFakePublishSaveAnonymousLink(applyParseResult),
 						publishSaveLinkRawHtmlCommand: fixture.events.publishSaveLinkRawHtmlCommand,

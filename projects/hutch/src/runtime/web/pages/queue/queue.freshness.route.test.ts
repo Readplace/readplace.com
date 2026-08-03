@@ -51,6 +51,7 @@ describe("Queue freshness integration", () => {
 			events: {
 				publishLinkSaved: fixture.events.publishLinkSaved,
 				publishLinkQueued: fixture.events.publishLinkQueued,
+				publishLinkDequeued: fixture.events.publishLinkDequeued,
 				publishRecrawlLinkInitiated: fixture.events.publishRecrawlLinkInitiated,
 				publishSaveAnonymousLink: fixture.events.publishSaveAnonymousLink,
 				publishSaveLinkRawHtmlCommand: fixture.events.publishSaveLinkRawHtmlCommand,

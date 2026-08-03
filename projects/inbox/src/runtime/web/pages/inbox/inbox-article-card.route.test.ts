@@ -368,7 +368,30 @@ describe("Inbox link card route", () => {
 
 			const save = saveButton(response.text);
 			expect(save.getAttribute("data-test-save-state")).toBe("saved");
-			expect(save.textContent?.trim()).toBe("Saved");
+			expect(save.textContent?.trim()).toBe("Save again");
+		});
+
+		it("returns to unsaved once the reader deletes the article from their queue", async () => {
+			const fixture = createDefaultTestAppFixture(TEST_APP_ORIGIN);
+			const harness = useApp(fixture);
+			const agent = await loginAgent(harness.server, harness.auth);
+			await seed(fixture);
+			const user = await fixture.auth.findUserByEmail("test@example.com");
+			assert(user, "logged-in user must exist");
+			await fixture.inboxEmail.inboxSavedLinkStore.markLinkSaved({
+				userId: user.userId,
+				url: "https://example.com/post",
+			});
+			await fixture.inboxEmail.inboxSavedLinkStore.retractLinkSaved({
+				userId: user.userId,
+				url: "https://example.com/post",
+			});
+
+			const response = await agent.get(cardPath);
+
+			const save = saveButton(response.text);
+			expect(save.getAttribute("data-test-save-state")).toBe("unsaved");
+			expect(save.textContent?.trim()).toBe("Save to queue");
 		});
 
 		it("keeps a saved link's button posting the same save route, so re-saving still works", async () => {

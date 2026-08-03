@@ -140,16 +140,13 @@ export function initInboxRoutes(deps: InboxDependencies): Router {
 	const addressesPath = "/inbox/addresses";
 	const addressesCreateFailedPath = `${addressesPath}?error=create`;
 
-	// A skipped row's Save button never renders a saved state — only article
-	// cards do — so skipped URLs are left out of the lookup rather than costing
-	// a key each.
 	const findLinkSaveStates = async (input: {
 		userId: UserId;
 		links: readonly InboxEmailLinkEntry[];
 	}): Promise<ReadonlyMap<string, InboxLinkSaveState>> =>
 		deps.inboxSavedLinkStore.findSavedLinks({
 			userId: input.userId,
-			urls: input.links.filter((link) => link.status !== "skipped").map((link) => link.url),
+			urls: input.links.map((link) => link.url),
 		});
 
 	router.get("/", async (req: Request, res: Response) => {

@@ -709,6 +709,96 @@ describe("Inbox email detail Skipped tab", () => {
 		expect(doc.querySelector("[data-test-inbox-email-iframe]")).toBeNull();
 	});
 
+	it("shows a skipped link the reader saved as saved, and keeps it on this tab", async () => {
+		const fixture = createDefaultTestAppFixture(TEST_APP_ORIGIN);
+		const harness = useApp(fixture);
+		const agent = await loginAgent(harness.server, harness.auth);
+		await seed(fixture, "received");
+		const user = await fixture.auth.findUserByEmail("test@example.com");
+		assert(user, "logged-in user must exist");
+		await seedLinks(fixture, [
+			{
+				ordinal: EmailLinkOrdinalSchema.parse("0000"),
+				url: "https://sponsor.example.com/deal",
+				status: "skipped",
+				skipReason: "llm-ad",
+			},
+		]);
+		await fixture.inboxEmail.inboxSavedLinkStore.markLinkSaved({
+			userId: user.userId,
+			url: "https://sponsor.example.com/deal",
+		});
+
+		const doc = parseDoc((await agent.get(excludedTabPath)).text);
+
+		const excludedRow = doc.querySelector('[data-test-inbox-excluded-link="0000"]');
+		assert(excludedRow, "the saved skipped row stays on the Skipped tab");
+		const saveButton = excludedRow.querySelector("[data-test-inbox-excluded-save]");
+		assert(saveButton, "a saved skipped row still offers its save button");
+		expect(saveButton.getAttribute("data-test-save-state")).toBe("saved");
+		expect(saveButton.textContent?.trim()).toBe("Save again");
+		expect(saveButton.classList.contains("inbox-excluded-link__save-button--saved")).toBe(true);
+		expect(saveButton.getAttribute("aria-label")).toBe(
+			"Saved to queue \u2014 save again: https://sponsor.example.com/deal",
+		);
+		const saveForm = saveButton.closest("form");
+		assert(saveForm, "a saved skipped row still submits the same save form");
+		expect(saveForm.getAttribute("action")).toBe(
+			`/inbox/${encodeURIComponent(SK)}/links/0000/save`,
+		);
+	});
+
+	it("shows a skipped link with no recorded save as unsaved", async () => {
+		const fixture = createDefaultTestAppFixture(TEST_APP_ORIGIN);
+		const harness = useApp(fixture);
+		const agent = await loginAgent(harness.server, harness.auth);
+		await seed(fixture, "received");
+		await seedLinks(fixture, [
+			{
+				ordinal: EmailLinkOrdinalSchema.parse("0000"),
+				url: "https://sponsor.example.com/deal",
+				status: "skipped",
+				skipReason: "llm-ad",
+			},
+		]);
+
+		const doc = parseDoc((await agent.get(excludedTabPath)).text);
+
+		const saveButton = doc.querySelector("[data-test-inbox-excluded-save]");
+		assert(saveButton, "a saveable skipped row must offer its save button");
+		expect(saveButton.getAttribute("data-test-save-state")).toBe("unsaved");
+		expect(saveButton.textContent?.trim()).toBe("Save to queue");
+		expect(saveButton.classList.contains("inbox-excluded-link__save-button--saved")).toBe(false);
+	});
+
+	it("shows a skipped link whose save failed as unsaved, so the reader can try again", async () => {
+		const fixture = createDefaultTestAppFixture(TEST_APP_ORIGIN);
+		const harness = useApp(fixture);
+		const agent = await loginAgent(harness.server, harness.auth);
+		await seed(fixture, "received");
+		const user = await fixture.auth.findUserByEmail("test@example.com");
+		assert(user, "logged-in user must exist");
+		await seedLinks(fixture, [
+			{
+				ordinal: EmailLinkOrdinalSchema.parse("0000"),
+				url: "https://sponsor.example.com/deal",
+				status: "skipped",
+				skipReason: "llm-ad",
+			},
+		]);
+		await fixture.inboxEmail.inboxSavedLinkStore.markLinkSaveFailed({
+			userId: user.userId,
+			url: "https://sponsor.example.com/deal",
+		});
+
+		const doc = parseDoc((await agent.get(excludedTabPath)).text);
+
+		const saveButton = doc.querySelector("[data-test-inbox-excluded-save]");
+		assert(saveButton, "a failed skipped row must still offer its save button");
+		expect(saveButton.getAttribute("data-test-save-state")).toBe("unsaved");
+		expect(saveButton.textContent?.trim()).toBe("Save to queue");
+	});
+
 	it("says nothing was skipped when every link was kept", async () => {
 		const fixture = createDefaultTestAppFixture(TEST_APP_ORIGIN);
 		const harness = useApp(fixture);

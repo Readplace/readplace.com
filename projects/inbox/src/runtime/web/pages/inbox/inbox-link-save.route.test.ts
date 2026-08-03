@@ -281,6 +281,42 @@ describe("Inbox link save route with a relayed publisher", () => {
 		},
 	});
 
+	it("shows a saved skipped link as saved on the tab the save redirects back to", async () => {
+		relayed.length = 0;
+		const fixture = createDefaultTestAppFixture(TEST_APP_ORIGIN);
+		const harness = useRelayingApp(fixture);
+		const agent = await loginAgent(harness.server, harness.auth);
+		const userId = await seed(fixture, { status: "skipped", skipReason: "llm-ad" });
+		// The barrier extraction always writes on completion, so the seeded row
+		// renders as the terminal Skipped list rather than a still-extracting panel.
+		await fixture.inboxEmail.inboxEmailLinkStore.putLinksMeta({
+			userId,
+			receivedAtMessageId: SK,
+			meta: { truncated: false, extractionFailed: false },
+		});
+
+		const beforeSave = new JSDOM(
+			(await agent.get(`/inbox/${encodeURIComponent(SK)}?tab=excluded`)).text,
+		).window.document.querySelector("[data-test-inbox-excluded-save]");
+		assert(beforeSave, "the skipped row must offer its save button before the save");
+		expect(beforeSave.getAttribute("data-test-save-state")).toBe("unsaved");
+
+		const response = await agent.post(savePath);
+		// The deployed pipeline records the fact from the accepted save; the relay
+		// stands in for it so the follow-up render reads the state a reader would see.
+		await fixture.inboxEmail.inboxSavedLinkStore.markLinkSaved({
+			userId,
+			url: "https://example.com/post",
+		});
+		const doc = new JSDOM((await agent.get(response.headers.location)).text).window.document;
+
+		expect(response.headers.location).toContain("tab=excluded");
+		const afterSave = doc.querySelector("[data-test-inbox-excluded-save]");
+		assert(afterSave, "the saved skipped row stays on the Skipped tab with its button");
+		expect(afterSave.getAttribute("data-test-save-state")).toBe("saved");
+		expect(afterSave.textContent?.trim()).toBe("Save again");
+	});
+
 	it("relays the submitted link to the injected publisher as well as recording it", async () => {
 		relayed.length = 0;
 		const fixture = createDefaultTestAppFixture(TEST_APP_ORIGIN);
