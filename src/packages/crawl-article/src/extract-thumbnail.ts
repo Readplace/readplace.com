@@ -103,7 +103,7 @@ async function tryFetchImage(args: {
 	const { crawlFetch, logError, logFetchFailure, url, referer } = args;
 	try {
 		const response = await crawlFetch(url, {
-			signal: AbortSignal.timeout(THUMBNAIL_FETCH_TIMEOUT_MS),
+			budgetMs: THUMBNAIL_FETCH_TIMEOUT_MS,
 			headers: { accept: "image/*,*/*;q=0.8" },
 			referer,
 		});

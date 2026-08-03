@@ -3,8 +3,7 @@ import http from "node:http";
 import https from "node:https";
 import tls from "node:tls";
 import type { AssertHostAllowed, SocketLookup } from "./blocked-address-lookup";
-import { toPlainHeaders, urlFromInput } from "./fetch-input";
-import { redirectable, type RedirectableFetch } from "./follow-redirects";
+import { type OnRedirect, redirectable, type RedirectableFetch } from "./follow-redirects";
 
 const TLS_CHAIN_ERROR_CODES = new Set([
 	"UNABLE_TO_VERIFY_LEAF_SIGNATURE",
@@ -90,19 +89,21 @@ export function initFetchAia(deps: AiaDeps) {
  * via an AIA-chasing fetcher. Non-TLS errors and successful responses pass
  * through unchanged.
  */
+export type PrimaryFetch = (
+	url: string,
+	init: { headers: Record<string, string>; signal: AbortSignal; onRedirect?: OnRedirect },
+) => Promise<Response>;
+
 export function withAiaChasing(
-	baseFetch: typeof fetch,
+	baseFetch: PrimaryFetch,
 	fetchAiaImpl: (url: string, init?: AiaFetchInit) => Promise<Response> = defaultFetchAia,
-): typeof fetch {
-	return async (input, init) => {
+): PrimaryFetch {
+	return async (url, init) => {
 		try {
-			return await baseFetch(input, init);
+			return await baseFetch(url, init);
 		} catch (error) {
 			if (!isTlsChainError(error)) throw error;
-			return fetchAiaImpl(urlFromInput(input), {
-				headers: toPlainHeaders(init?.headers),
-				signal: init?.signal ?? undefined,
-			});
+			return fetchAiaImpl(url, { headers: init.headers, signal: init.signal });
 		}
 	};
 }

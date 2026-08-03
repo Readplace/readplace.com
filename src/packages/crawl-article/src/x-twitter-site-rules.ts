@@ -44,9 +44,7 @@ export function initXTwitterSiteRules(deps: {
 		const canonicalUrl = canonicaliseTweetUrl(params.url);
 		const oembedUrl = `https://publish.twitter.com/oembed?url=${encodeURIComponent(canonicalUrl)}`;
 		try {
-			const response = await crawlFetch(oembedUrl, {
-				signal: AbortSignal.timeout(FETCH_TIMEOUT_MS),
-			});
+			const response = await crawlFetch(oembedUrl, { budgetMs: FETCH_TIMEOUT_MS });
 			if (!response.ok) {
 				logError(`[CrawlArticle] oembed HTTP ${response.status} for ${params.url}`);
 				return { kind: "failed" };

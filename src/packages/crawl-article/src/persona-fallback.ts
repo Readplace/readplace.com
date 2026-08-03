@@ -17,6 +17,9 @@
  * persona whose inner fetcher uses that client, not by extending this
  * wrapper.
  */
+import assert from "node:assert";
+import type { LadderFetch } from "./transport-ladder";
+
 export type Persona = {
 	readonly name: string;
 	readonly headers: Readonly<Record<string, string>>;
@@ -43,33 +46,15 @@ export function isBlockClassError(error: unknown): boolean {
 	return BLOCK_ERROR_SIGNATURES.some((sig) => message.includes(sig));
 }
 
-type FetchInput = Parameters<typeof fetch>[0];
-type FetchInit = Parameters<typeof fetch>[1];
-
-function callerHeaderOverrides(headers: NonNullable<FetchInit>["headers"]): Record<string, string> {
-	const out: Record<string, string> = {};
-	if (!headers) return out;
-	new Headers(headers).forEach((value, key) => {
-		out[key] = value;
-	});
-	return out;
-}
-
-export function withPersonaFallback(
-	innerFetch: typeof fetch,
-	personas: ReadonlyArray<Persona>,
-): typeof fetch {
-	if (personas.length === 0) {
-		throw new Error("withPersonaFallback requires at least one persona");
-	}
-	return async (input: FetchInput, init?: FetchInit): Promise<Response> => {
-		const callerOverrides = callerHeaderOverrides(init?.headers);
+export function withPersonaFallback(innerFetch: LadderFetch, personas: ReadonlyArray<Persona>): LadderFetch {
+	assert(personas.length > 0, "withPersonaFallback requires at least one persona");
+	return async (url, init) => {
 		let lastError: unknown;
 		let lastResponse: Response | undefined;
 		for (const persona of personas) {
-			const headers = { ...persona.headers, ...callerOverrides };
+			const headers = { ...persona.headers, ...init.headers };
 			try {
-				const response = await innerFetch(input, { ...init, headers });
+				const response = await innerFetch(url, { ...init, headers });
 				if (isBlockClassResponse(response)) {
 					lastResponse = response;
 					continue;
@@ -81,8 +66,7 @@ export function withPersonaFallback(
 			}
 		}
 		if (lastError !== undefined) throw lastError;
-		// All personas returned block-class responses; surface the last so the
-		// caller sees the same shape as a single-attempt block.
-		return lastResponse as Response;
+		assert(lastResponse, "a persona list that blocked every attempt has a last response");
+		return lastResponse;
 	};
 }

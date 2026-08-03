@@ -8,6 +8,7 @@ function createCrawlFetch() {
 		fetch: stubFetch,
 		personas: [{ name: "test", headers: { "user-agent": "test" } }],
 		isBlocked: () => false,
+			logInfo: () => {},
 	});
 }
 
@@ -17,6 +18,7 @@ describe("initCrawlFetch", () => {
 		await assert.rejects(
 			() =>
 				crawlFetch("https://example.com", {
+					budgetMs: 30_000,
 					referer: "https://article.com",
 					headers: { referer: "https://other.com" },
 				}),
@@ -42,12 +44,13 @@ describe("initCrawlFetch", () => {
 			fetch: rateLimitedFetch,
 			personas: [{ name: "test", headers: { "user-agent": "test" } }],
 			isBlocked: () => false,
+			logInfo: () => {},
 			fetchH2: stillRateLimited,
 			fetchCurl: stillRateLimited,
 			rateLimitRetryDelaysMs: [1],
 		});
 
-		const response = await crawlFetch("https://example.com");
+		const response = await crawlFetch("https://example.com", { budgetMs: 30_000 });
 
 		assert.equal(response.status, 200);
 		assert.equal(await response.text(), "ok");
@@ -67,9 +70,10 @@ describe("initCrawlFetch", () => {
 			fetch: redirectingOrigin,
 			personas: [{ name: "test", headers: { "user-agent": "test" } }],
 			isBlocked: () => false,
+			logInfo: () => {},
 		});
 
-		const response = await crawlFetch("https://wrapper.example/link");
+		const response = await crawlFetch("https://wrapper.example/link", { budgetMs: 30_000 });
 
 		assert.equal(response.url, "https://dest.example/article");
 		assert.deepEqual(requested, [
@@ -87,14 +91,103 @@ describe("initCrawlFetch", () => {
 			fetch: redirectingOrigin,
 			personas: [{ name: "test", headers: { "user-agent": "test" } }],
 			isBlocked: () => false,
+			logInfo: () => {},
 		});
 		const hops: Array<{ fromUrl: string; toUrl: string }> = [];
 
-		await crawlFetch("https://wrapper.example/link", { onRedirect: (hop) => hops.push(hop) });
+		await crawlFetch("https://wrapper.example/link", { budgetMs: 30_000, onRedirect: (hop) => hops.push(hop) });
 
 		assert.deepEqual(hops, [
 			{ fromUrl: "https://wrapper.example/link", toUrl: "https://dest.example/article" },
 		]);
+	});
+
+	it("surfaces the budget's own timeout when every transport outlives it", async () => {
+		const outlivesTheBudget = async (): Promise<Response> => {
+			await new Promise((resolve) => setTimeout(resolve, 200));
+			throw new Error("leg failed long after the budget was spent");
+		};
+		const crawlFetch = initCrawlFetch({
+			fetch: outlivesTheBudget,
+			personas: [{ name: "test", headers: { "user-agent": "test" } }],
+			isBlocked: () => false,
+			logInfo: () => {},
+			fetchH2: outlivesTheBudget,
+			fetchCurl: outlivesTheBudget,
+		});
+
+		await assert.rejects(() => crawlFetch("https://example.com", { budgetMs: 20 }), {
+			name: "TimeoutError",
+			message: "no response headers within 20ms",
+		});
+	});
+
+	it("cancels an in-flight crawl when the caller aborts its own signal", async () => {
+		const stalls: typeof fetch = (_input, init) =>
+			new Promise((_resolve, reject) => {
+				const signal = init?.signal;
+				assert(signal, "every leg receives a deadline");
+				signal.addEventListener("abort", () => reject(signal.reason), { once: true });
+			});
+		const crawlFetch = initCrawlFetch({
+			fetch: stalls,
+			personas: [{ name: "test", headers: { "user-agent": "test" } }],
+			isBlocked: () => false,
+			logInfo: () => {},
+		});
+		const controller = new AbortController();
+
+		setTimeout(() => controller.abort(new Error("caller cancelled")), 5);
+		await assert.rejects(
+			() => crawlFetch("https://example.com", { budgetMs: 60_000, signal: controller.signal }),
+			{ message: "caller cancelled" },
+		);
+	});
+
+	it("refuses immediately when the caller's signal is already aborted", async () => {
+		const stalls: typeof fetch = (_input, init) =>
+			new Promise((_resolve, reject) => {
+				const signal = init?.signal;
+				assert(signal, "every leg receives a deadline");
+				signal.addEventListener("abort", () => reject(signal.reason), { once: true });
+			});
+		const crawlFetch = initCrawlFetch({
+			fetch: stalls,
+			personas: [{ name: "test", headers: { "user-agent": "test" } }],
+			isBlocked: () => false,
+			logInfo: () => {},
+		});
+		const controller = new AbortController();
+		controller.abort(new Error("caller gave up first"));
+
+		await assert.rejects(
+			() => crawlFetch("https://example.com", { budgetMs: 60_000, signal: controller.signal }),
+			{ message: "caller gave up first" },
+		);
+	});
+
+	it("records every leg it tried, so a failing transport is attributable in production logs", async () => {
+		const lines: string[] = [];
+		const crawlFetch = initCrawlFetch({
+			fetch: async () => new Response("challenge", { status: 403 }),
+			personas: [{ name: "test", headers: { "user-agent": "test" } }],
+			isBlocked: () => false,
+			logInfo: (message) => lines.push(message),
+			fetchH2: async () => new Response("challenge", { status: 403 }),
+			fetchCurl: async () => new Response("ok", { status: 200 }),
+		});
+
+		await crawlFetch("https://example.com", { budgetMs: 30_000 });
+
+		const attempts = lines.map((line) => JSON.parse(line));
+		assert.deepEqual(
+			attempts.map((a) => [a.stream, a.leg, a.outcome]),
+			[
+				["crawl-legs", "primary", "escalated"],
+				["crawl-legs", "h2", "escalated"],
+				["crawl-legs", "curl", "answered"],
+			],
+		);
 	});
 
 	it("recovers from a persona-keyed 498 without fanning out to the TLS-client fallbacks", async () => {
@@ -117,11 +210,12 @@ describe("initCrawlFetch", () => {
 				{ name: "allowed", headers: { "user-agent": "Allowed/1.0" } },
 			],
 			isBlocked: () => false,
+			logInfo: () => {},
 			fetchH2: neverCalled,
 			fetchCurl: neverCalled,
 		});
 
-		const response = await crawlFetch("https://example.com");
+		const response = await crawlFetch("https://example.com", { budgetMs: 30_000 });
 
 		assert.equal(response.status, 200);
 		assert.equal(await response.text(), "ok");

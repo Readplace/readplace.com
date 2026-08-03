@@ -31,15 +31,14 @@ function contentTypeIsHtml(contentType: string): boolean {
 	return HTML_CONTENT_TYPES.includes(lower);
 }
 
-function isAbortError(error: unknown): boolean {
+function isDeadlineError(error: unknown): boolean {
 	if (!(error instanceof Error)) return false;
-	return error.name === "AbortError";
+	return error.name === "AbortError" || error.name === "TimeoutError";
 }
 
-function classifyFetchFailure(error: unknown, aborted: boolean): "too_large" | "timeout" | "network" {
+function classifyFetchFailure(error: unknown): "too_large" | "timeout" | "network" {
 	if (error instanceof BodyTooLargeError) return "too_large";
-	if (aborted) return "timeout";
-	if (isAbortError(error)) return "timeout";
+	if (isDeadlineError(error)) return "timeout";
 	return "network";
 }
 
@@ -93,15 +92,11 @@ export function initExtractLinksFromPageUrl(deps: {
 		const validation = deps.validateUrl(pageUrl);
 		if (validation.status === "ERROR") return { status: "INVALID_URL" };
 
-		const controller = new AbortController();
-		const timer = setTimeout(() => controller.abort(), FETCH_TIMEOUT_MS);
 		let response: Response;
 		try {
-			response = await deps.crawlFetch(validation.url, { signal: controller.signal });
+			response = await deps.crawlFetch(validation.url, { budgetMs: FETCH_TIMEOUT_MS });
 		} catch (error) {
-			return { status: "FETCH_FAILED", reason: classifyFetchFailure(error, controller.signal.aborted) };
-		} finally {
-			clearTimeout(timer);
+			return { status: "FETCH_FAILED", reason: classifyFetchFailure(error) };
 		}
 
 		if (!response.ok) {
@@ -122,7 +117,7 @@ export function initExtractLinksFromPageUrl(deps: {
 		try {
 			buffer = await readBodyWithCap(response, MAX_PAGE_BYTES);
 		} catch (error) {
-			return { status: "FETCH_FAILED", reason: classifyFetchFailure(error, controller.signal.aborted) };
+			return { status: "FETCH_FAILED", reason: classifyFetchFailure(error) };
 		}
 
 		const html = new TextDecoder("utf-8").decode(buffer);

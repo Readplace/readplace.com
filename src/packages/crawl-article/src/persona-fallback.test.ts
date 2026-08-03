@@ -1,16 +1,18 @@
+import { createCrawlBudget } from "./crawl-budget";
 import {
 	type Persona,
 	isBlockClassError,
 	isBlockClassResponse,
 	withPersonaFallback,
 } from "./persona-fallback";
+import type { LadderFetch } from "./transport-ladder";
 
-function recordHeaders(init: Parameters<typeof fetch>[1]): Record<string, string> {
-	const out: Record<string, string> = {};
-	new Headers(init?.headers).forEach((value, key) => {
-		out[key] = value;
-	});
-	return out;
+function liveBudget() {
+	return createCrawlBudget({ signal: new AbortController().signal, totalMs: 30_000, now: () => Date.now() });
+}
+
+function request(headers: Record<string, string> = {}) {
+	return { headers, budget: liveBudget() };
 }
 
 const personaPrimary: Persona = {
@@ -63,63 +65,63 @@ describe("isBlockClassError", () => {
 
 describe("withPersonaFallback", () => {
 	it("returns the first persona's response when it isn't block-class", async () => {
-		const calls: { headers: Record<string, string> }[] = [];
-		const inner: typeof fetch = async (_input, init) => {
-			calls.push({ headers: recordHeaders(init) });
+		const calls: Record<string, string>[] = [];
+		const inner: LadderFetch = async (_url, init) => {
+			calls.push(init.headers);
 			return new Response("ok", { status: 200 });
 		};
 		const wrapped = withPersonaFallback(inner, [personaPrimary, personaFallback]);
 
-		const response = await wrapped("https://example.com");
+		const response = await wrapped("https://example.com", request());
 
 		expect(response.status).toBe(200);
 		expect(await response.text()).toBe("ok");
 		expect(calls).toHaveLength(1);
-		expect(calls[0].headers["user-agent"]).toBe("Primary/1.0");
+		expect(calls[0]["user-agent"]).toBe("Primary/1.0");
 	});
 
 	it.each([403, 498])(
 		"advances to the next persona when the response is a block-class %i",
 		async (status) => {
-			const calls: { headers: Record<string, string> }[] = [];
-			const inner: typeof fetch = async (_input, init) => {
-				calls.push({ headers: recordHeaders(init) });
+			const calls: Record<string, string>[] = [];
+			const inner: LadderFetch = async (_url, init) => {
+				calls.push(init.headers);
 				if (calls.length === 1) return new Response("blocked", { status });
 				return new Response("ok", { status: 200 });
 			};
 			const wrapped = withPersonaFallback(inner, [personaPrimary, personaFallback]);
 
-			const response = await wrapped("https://example.com");
+			const response = await wrapped("https://example.com", request());
 
 			expect(response.status).toBe(200);
 			expect(calls).toHaveLength(2);
-			expect(calls[0].headers["user-agent"]).toBe("Primary/1.0");
-			expect(calls[1].headers["user-agent"]).toBe("Fallback/1.0");
+			expect(calls[0]["user-agent"]).toBe("Primary/1.0");
+			expect(calls[1]["user-agent"]).toBe("Fallback/1.0");
 		},
 	);
 
 	it("advances to the next persona when the response is a 401", async () => {
-		const calls: { headers: Record<string, string> }[] = [];
-		const inner: typeof fetch = async (_input, init) => {
-			calls.push({ headers: recordHeaders(init) });
+		const calls: Record<string, string>[] = [];
+		const inner: LadderFetch = async (_url, init) => {
+			calls.push(init.headers);
 			if (calls.length === 1) return new Response("Unauthorized", { status: 401 });
 			return new Response("ok", { status: 200 });
 		};
 		const wrapped = withPersonaFallback(inner, [personaPrimary, personaFallback]);
 
-		const response = await wrapped("https://example.com");
+		const response = await wrapped("https://example.com", request());
 
 		expect(response.status).toBe(200);
 		expect(await response.text()).toBe("ok");
 		expect(calls).toHaveLength(2);
-		expect(calls[0].headers["user-agent"]).toBe("Primary/1.0");
-		expect(calls[1].headers["user-agent"]).toBe("Fallback/1.0");
+		expect(calls[0]["user-agent"]).toBe("Primary/1.0");
+		expect(calls[1]["user-agent"]).toBe("Fallback/1.0");
 	});
 
 	it("advances to the next persona when the inner fetch throws a block-class error", async () => {
-		const calls: { headers: Record<string, string> }[] = [];
-		const inner: typeof fetch = async (_input, init) => {
-			calls.push({ headers: recordHeaders(init) });
+		const calls: Record<string, string>[] = [];
+		const inner: LadderFetch = async (_url, init) => {
+			calls.push(init.headers);
 			if (calls.length === 1) {
 				throw new Error(
 					"fetchCurl failed for https://example.com: HTTP/2 stream 1 was not closed cleanly: INTERNAL_ERROR (err 2)",
@@ -129,7 +131,7 @@ describe("withPersonaFallback", () => {
 		};
 		const wrapped = withPersonaFallback(inner, [personaPrimary, personaFallback]);
 
-		const response = await wrapped("https://example.com");
+		const response = await wrapped("https://example.com", request());
 
 		expect(response.status).toBe(200);
 		expect(calls).toHaveLength(2);
@@ -137,21 +139,21 @@ describe("withPersonaFallback", () => {
 
 	it("propagates a non-block-class error without trying further personas", async () => {
 		let attempts = 0;
-		const inner: typeof fetch = async () => {
+		const inner: LadderFetch = async () => {
 			attempts += 1;
 			throw new Error("ENOTFOUND example.com");
 		};
 		const wrapped = withPersonaFallback(inner, [personaPrimary, personaFallback]);
 
-		await expect(wrapped("https://example.com")).rejects.toThrow("ENOTFOUND");
+		await expect(wrapped("https://example.com", request())).rejects.toThrow("ENOTFOUND");
 		expect(attempts).toBe(1);
 	});
 
 	it("returns the last block-class response when all personas exhaust without throwing", async () => {
-		const inner: typeof fetch = async () => new Response("nope", { status: 403 });
+		const inner: LadderFetch = async () => new Response("nope", { status: 403 });
 		const wrapped = withPersonaFallback(inner, [personaPrimary, personaFallback]);
 
-		const response = await wrapped("https://example.com");
+		const response = await wrapped("https://example.com", request());
 
 		expect(response.status).toBe(403);
 		expect(await response.text()).toBe("nope");
@@ -159,64 +161,64 @@ describe("withPersonaFallback", () => {
 
 	it("throws the last block-class error when all personas throw", async () => {
 		let attempts = 0;
-		const inner: typeof fetch = async () => {
+		const inner: LadderFetch = async () => {
 			attempts += 1;
 			throw new Error(`attempt-${attempts}: INTERNAL_ERROR`);
 		};
 		const wrapped = withPersonaFallback(inner, [personaPrimary, personaFallback]);
 
-		await expect(wrapped("https://example.com")).rejects.toThrow("attempt-2: INTERNAL_ERROR");
+		await expect(wrapped("https://example.com", request())).rejects.toThrow("attempt-2: INTERNAL_ERROR");
 		expect(attempts).toBe(2);
 	});
 
 	it("merges per-request headers on top of persona headers (caller wins)", async () => {
-		const calls: { headers: Record<string, string> }[] = [];
-		const inner: typeof fetch = async (_input, init) => {
-			calls.push({ headers: recordHeaders(init) });
+		const calls: Record<string, string>[] = [];
+		const inner: LadderFetch = async (_url, init) => {
+			calls.push(init.headers);
 			return new Response("ok", { status: 200 });
 		};
 		const wrapped = withPersonaFallback(inner, [personaPrimary]);
 
-		await wrapped("https://example.com", { headers: { "if-none-match": '"abc"', accept: "application/json" } });
+		await wrapped("https://example.com", request({ "if-none-match": '"abc"', accept: "application/json" }));
 
-		expect(calls[0].headers["if-none-match"]).toBe('"abc"');
-		expect(calls[0].headers.accept).toBe("application/json");
-		expect(calls[0].headers["user-agent"]).toBe("Primary/1.0");
+		expect(calls[0]["if-none-match"]).toBe('"abc"');
+		expect(calls[0].accept).toBe("application/json");
+		expect(calls[0]["user-agent"]).toBe("Primary/1.0");
 	});
 
 	it("preserves the caller's per-request headers across persona iterations", async () => {
-		const calls: { headers: Record<string, string> }[] = [];
-		const inner: typeof fetch = async (_input, init) => {
-			calls.push({ headers: recordHeaders(init) });
+		const calls: Record<string, string>[] = [];
+		const inner: LadderFetch = async (_url, init) => {
+			calls.push(init.headers);
 			if (calls.length === 1) return new Response("blocked", { status: 403 });
 			return new Response("ok", { status: 200 });
 		};
 		const wrapped = withPersonaFallback(inner, [personaPrimary, personaFallback]);
 
-		await wrapped("https://example.com", { headers: { "if-none-match": '"abc"' } });
+		await wrapped("https://example.com", request({ "if-none-match": '"abc"' }));
 
 		expect(calls).toHaveLength(2);
-		expect(calls[0].headers["if-none-match"]).toBe('"abc"');
-		expect(calls[1].headers["if-none-match"]).toBe('"abc"');
+		expect(calls[0]["if-none-match"]).toBe('"abc"');
+		expect(calls[1]["if-none-match"]).toBe('"abc"');
 	});
 
 	it("throws when constructed with an empty persona list", () => {
-		const inner: typeof fetch = async () => new Response("ok", { status: 200 });
+		const inner: LadderFetch = async () => new Response("ok", { status: 200 });
 		expect(() => withPersonaFallback(inner, [])).toThrow("at least one persona");
 	});
 
-	it("forwards the request signal and input to the inner fetch", async () => {
-		const captured: { input: unknown; signal: AbortSignal | undefined }[] = [];
-		const inner: typeof fetch = async (input, init) => {
-			captured.push({ input, signal: init?.signal ?? undefined });
+	it("forwards the url and the caller's budget to the inner fetch", async () => {
+		const captured: { url: string; budget: unknown }[] = [];
+		const inner: LadderFetch = async (url, init) => {
+			captured.push({ url, budget: init.budget });
 			return new Response("ok", { status: 200 });
 		};
 		const wrapped = withPersonaFallback(inner, [personaPrimary]);
-		const controller = new AbortController();
+		const init = request();
 
-		await wrapped("https://example.com/path", { signal: controller.signal });
+		await wrapped("https://example.com/path", init);
 
-		expect(captured[0].input).toBe("https://example.com/path");
-		expect(captured[0].signal).toBe(controller.signal);
+		expect(captured[0].url).toBe("https://example.com/path");
+		expect(captured[0].budget).toBe(init.budget);
 	});
 });

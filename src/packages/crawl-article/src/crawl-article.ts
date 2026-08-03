@@ -168,21 +168,19 @@ function initConditionalGet(deps: {
 		 * the fetch is in, which is exactly the coupling being removed. */
 		const controller = new AbortController();
 		let lastRedirectHop: string | undefined;
-		let budgetTimer = setTimeout(() => {
-			controller.abort(fetchTimeoutReason(`no response headers within ${fetchTimeouts.headersMs}ms`));
-		}, fetchTimeouts.headersMs);
+		let budgetTimer: ReturnType<typeof setTimeout> | undefined;
 		try {
 			const headers: Record<string, string> = {};
 			if (params.etag) headers["if-none-match"] = params.etag;
 			if (params.lastModified) headers["if-modified-since"] = params.lastModified;
 			const response = await crawlFetch(params.url, {
 				signal: controller.signal,
+				budgetMs: fetchTimeouts.headersMs,
 				headers,
 				onRedirect: (hop) => {
 					lastRedirectHop = hop.toUrl;
 				},
 			});
-			clearTimeout(budgetTimer);
 			if (response.status === 304) {
 				return { status: "not-modified" };
 			}

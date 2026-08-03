@@ -53,6 +53,7 @@ export function initParserDepBundle(deps: {
 		fetch: globalThis.fetch,
 		personas: CRAWL_PERSONAS,
 		isBlocked: isBlockedIpAddress,
+		logInfo: deps.logInfo,
 	});
 	const crawlClaimingSiteRules = [
 		initXTwitterSiteRules({ crawlFetch, logError: deps.logError }),
@@ -95,6 +96,7 @@ export function initComprehensiveParserDepBundle(deps: {
 		fetch: globalThis.fetch,
 		personas: CRAWL_PERSONAS,
 		isBlocked: isBlockedIpAddress,
+		logInfo: deps.logInfo,
 	});
 	const crawlClaimingSiteRules = [
 		initXTwitterSiteRules({ crawlFetch, logError: deps.logError }),

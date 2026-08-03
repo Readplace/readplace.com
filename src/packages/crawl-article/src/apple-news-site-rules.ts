@@ -44,9 +44,7 @@ export function initAppleNewsSiteRules(deps: {
 	const { crawlFetch, logError } = deps;
 	const onCrawl: SiteRules["onCrawl"] = async (params) => {
 		try {
-			const response = await crawlFetch(params.url, {
-				signal: AbortSignal.timeout(FETCH_TIMEOUT_MS),
-			});
+			const response = await crawlFetch(params.url, { budgetMs: FETCH_TIMEOUT_MS });
 			if (!response.ok) {
 				logError(`[CrawlArticle] apple.news shell HTTP ${response.status} for ${params.url}`);
 				return { kind: "failed" };

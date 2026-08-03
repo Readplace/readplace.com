@@ -1,8 +1,11 @@
+import { callerHasGivenUp } from "./crawl-budget";
+import type { LadderFetch } from "./transport-ladder";
+
 export const RATE_LIMIT_RETRY_DELAYS_MS: readonly number[] = [10_000];
 
-function sleepUnlessAborted(ms: number, signal: AbortSignal | undefined): Promise<void> {
+function sleepUnlessAborted(ms: number, signal: AbortSignal): Promise<void> {
 	return new Promise((resolve) => {
-		if (signal?.aborted) {
+		if (signal.aborted) {
 			resolve();
 			return;
 		}
@@ -11,25 +14,24 @@ function sleepUnlessAborted(ms: number, signal: AbortSignal | undefined): Promis
 			resolve();
 		};
 		const timer = setTimeout(() => {
-			signal?.removeEventListener("abort", onAbort);
+			signal.removeEventListener("abort", onAbort);
 			resolve();
 		}, ms);
-		signal?.addEventListener("abort", onAbort, { once: true });
+		signal.addEventListener("abort", onAbort, { once: true });
 	});
 }
 
 export function withRateLimitRetry(
-	innerFetch: typeof fetch,
+	innerFetch: LadderFetch,
 	options: { delaysMs: readonly number[] },
-): typeof fetch {
-	return async (input, init) => {
-		let response = await innerFetch(input, init);
+): LadderFetch {
+	return async (url, init) => {
+		let response = await innerFetch(url, init);
 		for (const delayMs of options.delaysMs) {
 			if (response.status !== 429) return response;
-			await sleepUnlessAborted(delayMs, init?.signal ?? undefined);
-			if (init?.signal?.aborted) return response;
-			await response.text();
-			response = await innerFetch(input, init);
+			await sleepUnlessAborted(delayMs, init.budget.deadline.signal);
+			if (callerHasGivenUp(init.budget.deadline)) return response;
+			response = await innerFetch(url, init);
 		}
 		return response;
 	};

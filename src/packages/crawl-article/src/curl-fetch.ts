@@ -11,11 +11,9 @@ import {
 import { redirectable } from "./follow-redirects";
 import { MAX_PDF_BYTES } from "./pdf-page-limits";
 
-const DEFAULT_TIMEOUT_MS = 10000;
-
 type CurlFetchInit = {
 	headers?: Record<string, string>;
-	signal?: AbortSignal;
+	signal: AbortSignal;
 };
 
 type CurlChild = {
@@ -28,7 +26,7 @@ export type ExecCurl = (
 	callback: (error: Error | null, stdout: Buffer) => void,
 ) => CurlChild;
 
-export type CurlFetch = (url: string, init?: CurlFetchInit) => Promise<Response>;
+export type CurlFetch = (url: string, init: CurlFetchInit) => Promise<Response>;
 
 /**
  * Binary name for the curl-impersonate Chrome variant. Lambda layers mount at
@@ -144,12 +142,12 @@ export function createCurlFetch(deps: { execCurl: ExecCurl; resolvePinnedAddress
 		 * signal is fixed here and shared by every `fetchOnce` hop. Each hop still
 		 * re-runs resolvePinnedAddress on its own target host (curl stays at
 		 * --max-redirs 0 and is never allowed to chase a redirect unguarded). */
-		const signal = init?.signal ?? AbortSignal.timeout(DEFAULT_TIMEOUT_MS);
+		const { signal } = init;
 		const followCurl = redirectable(
 			(hopUrl, hopInit) => fetchOnce(hopUrl, { headers: hopInit?.headers, signal }),
 			"fetchCurl",
 		);
-		return followCurl(url, { headers: init?.headers });
+		return followCurl(url, { headers: init.headers });
 	};
 }
 

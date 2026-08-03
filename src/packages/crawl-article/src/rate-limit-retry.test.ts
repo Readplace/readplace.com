@@ -1,11 +1,20 @@
+import { createCrawlBudget } from "./crawl-budget";
 import { withRateLimitRetry } from "./rate-limit-retry";
+
+function budgetFrom(signal: AbortSignal) {
+	return createCrawlBudget({ signal, totalMs: 30_000, now: () => Date.now() });
+}
+
+function request(signal: AbortSignal = new AbortController().signal) {
+	return { headers: {}, budget: budgetFrom(signal) };
+}
 
 describe("withRateLimitRetry", () => {
 	it("returns a non-429 response without retrying", async () => {
 		const innerFetch = jest.fn().mockResolvedValue(new Response("ok", { status: 200 }));
 		const fetchWithRetry = withRateLimitRetry(innerFetch, { delaysMs: [1] });
 
-		const response = await fetchWithRetry("https://example.com");
+		const response = await fetchWithRetry("https://example.com", request());
 
 		expect(response.status).toBe(200);
 		expect(innerFetch).toHaveBeenCalledTimes(1);
@@ -18,7 +27,7 @@ describe("withRateLimitRetry", () => {
 			.mockResolvedValueOnce(new Response("ok", { status: 200 }));
 		const fetchWithRetry = withRateLimitRetry(innerFetch, { delaysMs: [1] });
 
-		const response = await fetchWithRetry("https://example.com");
+		const response = await fetchWithRetry("https://example.com", request());
 
 		expect(response.status).toBe(200);
 		expect(await response.text()).toBe("ok");
@@ -33,28 +42,14 @@ describe("withRateLimitRetry", () => {
 			.mockResolvedValueOnce(new Response("third", { status: 429 }));
 		const fetchWithRetry = withRateLimitRetry(innerFetch, { delaysMs: [1, 1] });
 
-		const response = await fetchWithRetry("https://example.com");
+		const response = await fetchWithRetry("https://example.com", request());
 
 		expect(response.status).toBe(429);
 		expect(await response.text()).toBe("third");
 		expect(innerFetch).toHaveBeenCalledTimes(3);
 	});
 
-	it("retries while an unaborted signal is present", async () => {
-		const controller = new AbortController();
-		const innerFetch = jest
-			.fn()
-			.mockResolvedValueOnce(new Response("slow down", { status: 429 }))
-			.mockResolvedValueOnce(new Response("ok", { status: 200 }));
-		const fetchWithRetry = withRateLimitRetry(innerFetch, { delaysMs: [1] });
-
-		const response = await fetchWithRetry("https://example.com", { signal: controller.signal });
-
-		expect(response.status).toBe(200);
-		expect(innerFetch).toHaveBeenCalledTimes(2);
-	});
-
-	it("does not retry when the caller's signal is already aborted", async () => {
+	it("does not retry when the caller has already given up", async () => {
 		const controller = new AbortController();
 		const innerFetch = jest.fn().mockImplementation(async () => {
 			controller.abort(new Error("caller gave up"));
@@ -62,20 +57,20 @@ describe("withRateLimitRetry", () => {
 		});
 		const fetchWithRetry = withRateLimitRetry(innerFetch, { delaysMs: [1] });
 
-		const response = await fetchWithRetry("https://example.com", { signal: controller.signal });
+		const response = await fetchWithRetry("https://example.com", request(controller.signal));
 
 		expect(response.status).toBe(429);
 		expect(await response.text()).toBe("slow down");
 		expect(innerFetch).toHaveBeenCalledTimes(1);
 	});
 
-	it("wakes from the retry delay as soon as the caller's signal aborts", async () => {
+	it("wakes from the retry delay as soon as the caller gives up", async () => {
 		const controller = new AbortController();
 		const innerFetch = jest.fn().mockResolvedValue(new Response("slow down", { status: 429 }));
 		const fetchWithRetry = withRateLimitRetry(innerFetch, { delaysMs: [60_000] });
 
 		setTimeout(() => controller.abort(new Error("caller gave up")), 5);
-		const response = await fetchWithRetry("https://example.com", { signal: controller.signal });
+		const response = await fetchWithRetry("https://example.com", request(controller.signal));
 
 		expect(response.status).toBe(429);
 		expect(innerFetch).toHaveBeenCalledTimes(1);

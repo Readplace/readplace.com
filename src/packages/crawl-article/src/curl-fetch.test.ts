@@ -7,6 +7,8 @@ import {
 	createCurlFetch,
 } from "./curl-fetch";
 
+const live = () => new AbortController().signal;
+
 /** Default fake: every host resolves to one public address (no pin needed in
  * tests that only exercise argument/response handling). */
 const resolvePinnedAddress: ResolvePinnedAddress = async () => "93.184.216.34";
@@ -63,7 +65,7 @@ describe("fetchCurl response parsing", () => {
 			stdout: "HTTP/1.1 200 OK\r\ncontent-type: text/html\r\nserver: nginx\r\n\r\n<html>hello</html>",
 		});
 		const fetchCurl = createCurlFetch({ execCurl: fake.execCurl, resolvePinnedAddress });
-		const response = await fetchCurl("https://example.com");
+		const response = await fetchCurl("https://example.com", { signal: live() });
 		expect(response.status).toBe(200);
 		expect(response.headers.get("content-type")).toBe("text/html");
 		expect(response.headers.get("server")).toBe("nginx");
@@ -78,7 +80,7 @@ describe("fetchCurl response parsing", () => {
 			].join(""),
 		});
 		const fetchCurl = createCurlFetch({ execCurl: fake.execCurl, resolvePinnedAddress });
-		const response = await fetchCurl("https://example.com");
+		const response = await fetchCurl("https://example.com", { signal: live() });
 		expect(response.status).toBe(200);
 		expect(response.headers.get("content-type")).toBe("text/html");
 		expect(await response.text()).toBe("<html>final</html>");
@@ -89,7 +91,7 @@ describe("fetchCurl response parsing", () => {
 			stdout: "HTTP/2 403 \r\nserver: cloudflare\r\n\r\nForbidden",
 		});
 		const fetchCurl = createCurlFetch({ execCurl: fake.execCurl, resolvePinnedAddress });
-		const response = await fetchCurl("https://example.com");
+		const response = await fetchCurl("https://example.com", { signal: live() });
 		expect(response.status).toBe(403);
 		expect(response.headers.get("server")).toBe("cloudflare");
 		expect(await response.text()).toBe("Forbidden");
@@ -98,7 +100,7 @@ describe("fetchCurl response parsing", () => {
 	it("handles an empty body", async () => {
 		const fake = makeFakeExec({ stdout: "HTTP/1.1 204 No Content\r\n\r\n" });
 		const fetchCurl = createCurlFetch({ execCurl: fake.execCurl, resolvePinnedAddress });
-		const response = await fetchCurl("https://example.com");
+		const response = await fetchCurl("https://example.com", { signal: live() });
 		expect(response.status).toBe(204);
 		expect(await response.text()).toBe("");
 	});
@@ -108,7 +110,7 @@ describe("fetchCurl response parsing", () => {
 		const binaryBody = Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a]);
 		const fake = makeFakeExec({ stdout: Buffer.concat([Buffer.from(headerPart), binaryBody]) });
 		const fetchCurl = createCurlFetch({ execCurl: fake.execCurl, resolvePinnedAddress });
-		const response = await fetchCurl("https://example.com");
+		const response = await fetchCurl("https://example.com", { signal: live() });
 		expect(response.status).toBe(200);
 		expect(Buffer.from(await response.arrayBuffer())).toEqual(binaryBody);
 	});
@@ -116,7 +118,7 @@ describe("fetchCurl response parsing", () => {
 	it("treats output without a header separator as headers-only with empty body", async () => {
 		const fake = makeFakeExec({ stdout: "HTTP/1.1 502 Bad Gateway\r\n" });
 		const fetchCurl = createCurlFetch({ execCurl: fake.execCurl, resolvePinnedAddress });
-		const response = await fetchCurl("https://example.com");
+		const response = await fetchCurl("https://example.com", { signal: live() });
 		expect(response.status).toBe(502);
 		expect(await response.text()).toBe("");
 	});
@@ -126,7 +128,7 @@ describe("fetchCurl argument construction", () => {
 	it("invokes curl with --http2 and the URL after a -- separator", async () => {
 		const fake = makeFakeExec({ stdout: "HTTP/1.1 200 OK\r\n\r\n" });
 		const fetchCurl = createCurlFetch({ execCurl: fake.execCurl, resolvePinnedAddress });
-		await fetchCurl("https://example.com/page?q=1");
+		await fetchCurl("https://example.com/page?q=1", { signal: live() });
 		const args = fake.calls[0].args;
 		expect(args).toContain("--http2");
 		expect(args).toContain("--compressed");
@@ -140,7 +142,7 @@ describe("fetchCurl argument construction", () => {
 		const fake = makeFakeExec({ stdout: "HTTP/1.1 200 OK\r\n\r\n" });
 		const fetchCurl = createCurlFetch({ execCurl: fake.execCurl, resolvePinnedAddress });
 		const url = "https://www.cia.gov/readingroom/docs/COMPUTERS%20AND%20AUTOMATION%20[16505689].pdf";
-		await fetchCurl(url);
+		await fetchCurl(url, { signal: live() });
 		const args = fake.calls[0].args;
 		expect(args).toContain("--globoff");
 		const sepIdx = args.indexOf("--");
@@ -150,7 +152,7 @@ describe("fetchCurl argument construction", () => {
 	it("refuses to follow redirects (--max-redirs 0) so curl can't reach an unchecked host", async () => {
 		const fake = makeFakeExec({ stdout: "HTTP/1.1 200 OK\r\n\r\n" });
 		const fetchCurl = createCurlFetch({ execCurl: fake.execCurl, resolvePinnedAddress });
-		await fetchCurl("https://example.com/page");
+		await fetchCurl("https://example.com/page", { signal: live() });
 		const args = fake.calls[0].args;
 		expect(args[args.indexOf("--max-redirs") + 1]).toBe("0");
 	});
@@ -161,7 +163,7 @@ describe("fetchCurl argument construction", () => {
 			execCurl: fake.execCurl,
 			resolvePinnedAddress: async () => "93.184.216.34",
 		});
-		await fetchCurl("https://example.com/page");
+		await fetchCurl("https://example.com/page", { signal: live() });
 		const args = fake.calls[0].args;
 		expect(args[args.indexOf("--resolve") + 1]).toBe("example.com:443:93.184.216.34");
 	});
@@ -172,7 +174,7 @@ describe("fetchCurl argument construction", () => {
 			execCurl: fake.execCurl,
 			resolvePinnedAddress: async () => "2606:4700:4700::1111",
 		});
-		await fetchCurl("https://example.com:8443/page");
+		await fetchCurl("https://example.com:8443/page", { signal: live() });
 		const args = fake.calls[0].args;
 		expect(args[args.indexOf("--resolve") + 1]).toBe("example.com:8443:[2606:4700:4700::1111]");
 	});
@@ -183,7 +185,7 @@ describe("fetchCurl argument construction", () => {
 			execCurl: fake.execCurl,
 			resolvePinnedAddress: async () => "93.184.216.34",
 		});
-		await fetchCurl("https://93.184.216.34/page");
+		await fetchCurl("https://93.184.216.34/page", { signal: live() });
 		expect(fake.calls[0].args).not.toContain("--resolve");
 	});
 
@@ -194,7 +196,7 @@ describe("fetchCurl argument construction", () => {
 		// pass URLs with literal spaces and brackets. curl rejects literal spaces
 		// with "Malformed input to a URL function" (exit 3) even under --globoff.
 		const decoded = "https://www.cia.gov/readingroom/docs/COMPUTERS AND AUTOMATION [16505689].pdf";
-		await fetchCurl(decoded);
+		await fetchCurl(decoded, { signal: live() });
 		const args = fake.calls[0].args;
 		const sepIdx = args.indexOf("--");
 		expect(args[sepIdx + 1]).toBe(
@@ -206,6 +208,7 @@ describe("fetchCurl argument construction", () => {
 		const fake = makeFakeExec({ stdout: "HTTP/1.1 200 OK\r\n\r\n" });
 		const fetchCurl = createCurlFetch({ execCurl: fake.execCurl, resolvePinnedAddress });
 		await fetchCurl("https://example.com", {
+			signal: live(),
 			headers: {
 				"user-agent": "Test/1.0",
 				"accept-language": "en-US",
@@ -235,7 +238,7 @@ describe("fetchCurl error handling", () => {
 	it("rejects with the URL embedded in the message when curl fails", async () => {
 		const fake = makeFakeExec({ error: new Error("spawn ENOENT") });
 		const fetchCurl = createCurlFetch({ execCurl: fake.execCurl, resolvePinnedAddress });
-		await expect(fetchCurl("https://example.com/path")).rejects.toThrow(
+		await expect(fetchCurl("https://example.com/path", { signal: live() })).rejects.toThrow(
 			/fetchCurl failed for https:\/\/example\.com\/path: spawn ENOENT/,
 		);
 	});
@@ -243,7 +246,7 @@ describe("fetchCurl error handling", () => {
 	it("refuses a non-HTTP(S) entry URL before spawning curl", async () => {
 		const fake = makeFakeExec({ stdout: "HTTP/1.1 200 OK\r\n\r\n" });
 		const fetchCurl = createCurlFetch({ execCurl: fake.execCurl, resolvePinnedAddress });
-		await expect(fetchCurl("file:///etc/passwd")).rejects.toThrow(
+		await expect(fetchCurl("file:///etc/passwd", { signal: live() })).rejects.toThrow(
 			/fetchCurl failed for file:\/\/\/etc\/passwd: refusing to fetch non-HTTP\(S\) scheme "file:"/,
 		);
 		expect(fake.calls).toHaveLength(0);
@@ -305,7 +308,7 @@ describe("fetchCurl redirect following (SSRF-guarded per hop)", () => {
 		const resolveSpy = jest.fn(async () => "93.184.216.34");
 		const fetchCurl = createCurlFetch({ execCurl: seq.execCurl, resolvePinnedAddress: resolveSpy });
 
-		const response = await fetchCurl("https://example.com/start");
+		const response = await fetchCurl("https://example.com/start", { signal: live() });
 
 		expect(response.status).toBe(200);
 		expect(await response.text()).toBe("<html>final</html>");
@@ -320,7 +323,7 @@ describe("fetchCurl redirect following (SSRF-guarded per hop)", () => {
 		]);
 		const fetchCurl = createCurlFetch({ execCurl: seq.execCurl, resolvePinnedAddress });
 
-		await fetchCurl("https://example.com/a/b");
+		await fetchCurl("https://example.com/a/b", { signal: live() });
 
 		const secondArgs = seq.calls[1].args;
 		const sepIdx = secondArgs.indexOf("--");
@@ -337,7 +340,7 @@ describe("fetchCurl redirect following (SSRF-guarded per hop)", () => {
 		);
 		const fetchCurl = createCurlFetch({ execCurl: seq.execCurl, resolvePinnedAddress: resolveSpy });
 
-		await fetchCurl("https://example.com/start");
+		await fetchCurl("https://example.com/start", { signal: live() });
 
 		expect(resolveSpy).toHaveBeenCalledWith({ hostname: "other.example" });
 		const secondArgs = seq.calls[1].args;
@@ -355,7 +358,7 @@ describe("fetchCurl redirect following (SSRF-guarded per hop)", () => {
 		});
 		const fetchCurl = createCurlFetch({ execCurl: seq.execCurl, resolvePinnedAddress: resolveSpy });
 
-		await expect(fetchCurl("https://example.com/start")).rejects.toThrow(/blocked address/);
+		await expect(fetchCurl("https://example.com/start", { signal: live() })).rejects.toThrow(/blocked address/);
 		expect(seq.calls).toHaveLength(1);
 	});
 
@@ -366,7 +369,7 @@ describe("fetchCurl redirect following (SSRF-guarded per hop)", () => {
 		]);
 		const fetchCurl = createCurlFetch({ execCurl: seq.execCurl, resolvePinnedAddress });
 
-		await expect(fetchCurl("https://example.com/start")).rejects.toThrow(
+		await expect(fetchCurl("https://example.com/start", { signal: live() })).rejects.toThrow(
 			/refusing to follow redirect to non-HTTP.*gopher:/,
 		);
 		expect(seq.calls).toHaveLength(1);
@@ -378,7 +381,7 @@ describe("fetchCurl redirect following (SSRF-guarded per hop)", () => {
 		]);
 		const fetchCurl = createCurlFetch({ execCurl: seq.execCurl, resolvePinnedAddress });
 
-		await expect(fetchCurl("https://example.com/start")).rejects.toThrow(/too many redirects/);
+		await expect(fetchCurl("https://example.com/start", { signal: live() })).rejects.toThrow(/too many redirects/);
 	});
 
 	it("does not follow a non-redirect status even if a Location header is present", async () => {
@@ -387,28 +390,10 @@ describe("fetchCurl redirect following (SSRF-guarded per hop)", () => {
 		]);
 		const fetchCurl = createCurlFetch({ execCurl: seq.execCurl, resolvePinnedAddress });
 
-		const response = await fetchCurl("https://example.com/start");
+		const response = await fetchCurl("https://example.com/start", { signal: live() });
 
 		expect(response.status).toBe(200);
 		expect(seq.calls).toHaveLength(1);
-	});
-
-	it("shares a single timeout budget across every hop when no signal is passed", async () => {
-		const timeoutSpy = jest.spyOn(AbortSignal, "timeout");
-		try {
-			const seq = makeSequencedExec([
-				"HTTP/1.1 301 Moved Permanently\r\nlocation: https://example.com/final\r\n\r\n",
-				"HTTP/1.1 200 OK\r\n\r\nok",
-			]);
-			const fetchCurl = createCurlFetch({ execCurl: seq.execCurl, resolvePinnedAddress });
-
-			await fetchCurl("https://example.com/start");
-
-			expect(timeoutSpy).toHaveBeenCalledTimes(1);
-			expect(timeoutSpy).toHaveBeenCalledWith(10000);
-		} finally {
-			timeoutSpy.mockRestore();
-		}
 	});
 
 	it("wraps a malformed redirect Location in the fetchCurl error convention (no second curl spawned)", async () => {
@@ -418,7 +403,7 @@ describe("fetchCurl redirect following (SSRF-guarded per hop)", () => {
 		]);
 		const fetchCurl = createCurlFetch({ execCurl: seq.execCurl, resolvePinnedAddress });
 
-		await expect(fetchCurl("https://example.com/start")).rejects.toThrow(
+		await expect(fetchCurl("https://example.com/start", { signal: live() })).rejects.toThrow(
 			/fetchCurl failed for https:\/\/example\.com\/start: invalid redirect Location "https:\/\/exa mple\.com\/x"/,
 		);
 		expect(seq.calls).toHaveLength(1);
@@ -432,6 +417,7 @@ describe("fetchCurl redirect following (SSRF-guarded per hop)", () => {
 		const fetchCurl = createCurlFetch({ execCurl: seq.execCurl, resolvePinnedAddress });
 
 		await fetchCurl("https://example.com/start", {
+			signal: live(),
 			headers: {
 				cookie: "session=secret",
 				authorization: "Bearer token",
@@ -457,6 +443,7 @@ describe("fetchCurl redirect following (SSRF-guarded per hop)", () => {
 		const fetchCurl = createCurlFetch({ execCurl: seq.execCurl, resolvePinnedAddress });
 
 		await fetchCurl("https://example.com/start", {
+			signal: live(),
 			headers: { cookie: "session=secret", "user-agent": "Persona/1.0" },
 		});
 

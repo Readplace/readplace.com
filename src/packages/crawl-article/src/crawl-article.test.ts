@@ -68,6 +68,7 @@ function buildCrawlFetch(overrides: {
 		fetch: overrides.fetch,
 		personas: overrides.personas ?? [{ name: "test-default", headers: { ...DEFAULT_CRAWL_HEADERS } }],
 		isBlocked: () => false,
+		logInfo: () => {},
 		fetchCurl: overrides.fetchCurl ?? stubFetchCurl,
 		fetchH2: overrides.fetchH2 ?? stubFetchH2,
 		rateLimitRetryDelaysMs: overrides.rateLimitRetryDelaysMs,
@@ -845,9 +846,17 @@ describe("initCrawlArticle — single-fetch orchestration", () => {
 				signal.addEventListener("abort", () => reject(signal.reason), { once: true });
 			});
 		};
+		const stallUntilAborted = (signal: AbortSignal | undefined): Promise<Response> => {
+			assert(signal, "Expected every transport leg to receive a deadline");
+			return new Promise((_resolve, reject) => {
+				signal.addEventListener("abort", () => reject(signal.reason), { once: true });
+			});
+		};
 		const logError = jest.fn();
 		const crawlArticle = initCrawl({
 			fetch: stallsAfterRedirecting,
+			fetchH2: async (_url, init) => stallUntilAborted(init?.signal),
+			fetchCurl: async (_url, init) => stallUntilAborted(init.signal),
 			logError,
 			fetchTimeouts: { headersMs: 15, bodyMs: 5000 },
 		});
@@ -1010,11 +1019,11 @@ describe("initCrawlArticle — split fetch budgets (headers vs body)", () => {
 		return signal;
 	}
 
-	it("fails at the headers budget without granting curl a fresh timer", async () => {
+	it("spends the headers budget across the whole ladder, reaching curl without overrunning it", async () => {
 		const curlCalls: string[] = [];
 		const fakeFetchCurl: CurlFetch = async (url) => {
 			curlCalls.push(url);
-			throw new Error("curl must not run once the headers budget is spent");
+			throw new Error("curl reached, and still inside the caller's budget");
 		};
 		const fakeFetch: typeof fetch = (_input, init) =>
 			new Promise((_resolve, reject) => {
@@ -1029,16 +1038,17 @@ describe("initCrawlArticle — split fetch budgets (headers vs body)", () => {
 			fetchTimeouts: { headersMs: 15, bodyMs: 5000 },
 		});
 
+		const startedAt = Date.now();
 		const result = await crawlArticle({ url: "https://example.com/huge.pdf" });
 
 		expect(result).toEqual({ status: "failed" });
-		expect(curlCalls).toEqual([]);
+		expect(curlCalls).toEqual(["https://example.com/huge.pdf"]);
+		expect(Date.now() - startedAt).toBeLessThan(1000);
 		expect(logError).toHaveBeenCalledTimes(1);
 		const [loggedMessage, loggedError] = logError.mock.calls[0];
 		expect(loggedMessage).toBe("[CrawlArticle] Network error for https://example.com/huge.pdf");
-		assert(loggedError instanceof Error, "Expected the headers timeout to be logged as an Error");
-		expect(loggedError.name).toBe("TimeoutError");
-		expect(loggedError.message).toBe("no response headers within 15ms");
+		assert(loggedError instanceof Error, "Expected the failing leg to be logged as an Error");
+		expect(loggedError.message).toBe("curl reached, and still inside the caller's budget");
 	});
 
 	it("aborts with a TimeoutError when the body is not fully read within the body budget", async () => {
@@ -1247,7 +1257,7 @@ describe("parseHtmlFromBuffer — thumbnail prefetch (fetchThumbnail opt-in)", (
 	});
 
 	it("sends an image Accept header when fetching the thumbnail", async () => {
-		let thumbnailInit: Parameters<CrawlFetch>[1];
+		let thumbnailInit: Parameters<CrawlFetch>[1] | undefined;
 		const crawlFetch = imageCrawlFetch((_url, init) => {
 			thumbnailInit = init;
 			return new Response(imageBytes, { status: 200, headers: { "content-type": "image/jpeg" } });

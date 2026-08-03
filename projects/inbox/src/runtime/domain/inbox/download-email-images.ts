@@ -112,7 +112,7 @@ async function downloadImage(args: {
 }): Promise<{ body: Buffer; contentType: string } | undefined> {
 	const { crawlFetch, url } = args;
 	const response = await crawlFetch(url, {
-		signal: AbortSignal.timeout(DOWNLOAD_TIMEOUT_MS),
+		budgetMs: DOWNLOAD_TIMEOUT_MS,
 		headers: { accept: "image/*,*/*;q=0.8" },
 	});
 

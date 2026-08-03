@@ -189,7 +189,7 @@ describe("SSRF guard — curl transport", () => {
 			execCurl,
 			resolvePinnedAddress: createPinnedAddressResolver({ resolve: allHostsResolveTo("100.64.0.1"), isBlocked: blocksPrivate }),
 		});
-		await expect(fetchCurl("https://cgnat.attacker.test/")).rejects.toThrow(/blocked address 100\.64\.0\.1/);
+		await expect(fetchCurl("https://cgnat.attacker.test/", { signal: new AbortController().signal })).rejects.toThrow(/blocked address 100\.64\.0\.1/);
 		expect(execCurl).not.toHaveBeenCalled();
 	});
 });
@@ -199,10 +199,11 @@ describe("SSRF guard — initCrawlFetch composition", () => {
 		const crawlFetch = initCrawlFetch({
 			fetch: globalThis.fetch,
 			personas: PERSONAS,
+			logInfo: () => {},
 			isBlocked: blocksPrivate,
 			resolve: allHostsResolveTo("10.1.2.3"),
 		});
-		await expect(crawlFetch("https://attacker.test/article")).rejects.toThrow(/blocked address 10\.1\.2\.3/);
+		await expect(crawlFetch("https://attacker.test/article", { budgetMs: 30_000 })).rejects.toThrow(/blocked address 10\.1\.2\.3/);
 	});
 
 	it("re-checks a redirect hop the primary leg follows itself, refusing a target that resolves to a private IP", async () => {
@@ -216,6 +217,7 @@ describe("SSRF guard — initCrawlFetch composition", () => {
 		const crawlFetch = initCrawlFetch({
 			fetch: globalThis.fetch,
 			personas: PERSONAS,
+			logInfo: () => {},
 			isBlocked: (address) => {
 				checkedAddresses.push(address);
 				return blocksPrivateExceptLoopback(address);
@@ -231,7 +233,7 @@ describe("SSRF guard — initCrawlFetch composition", () => {
 
 		try {
 			await expect(
-				crawlFetch(`${server.origin}/start`, { onRedirect: (hop) => hops.push(hop.toUrl) }),
+				crawlFetch(`${server.origin}/start`, { budgetMs: 30_000, onRedirect: (hop) => hops.push(hop.toUrl) }),
 			).rejects.toBe(curlRefused);
 			expect(hops).toEqual(["http://internal.attacker.test/secret"]);
 			expect(checkedAddresses).toContain("10.0.0.1");
@@ -244,10 +246,11 @@ describe("SSRF guard — initCrawlFetch composition", () => {
 		const crawlFetch = initCrawlFetch({
 			fetch: globalThis.fetch,
 			personas: PERSONAS,
+			logInfo: () => {},
 			isBlocked: blocksPrivate,
 			resolve: allHostsResolveTo("169.254.169.254"),
 		});
-		await expect(crawlFetch("http://169.254.169.254/latest/meta-data/")).rejects.toThrow(
+		await expect(crawlFetch("http://169.254.169.254/latest/meta-data/", { budgetMs: 30_000 })).rejects.toThrow(
 			/blocked address 169\.254\.169\.254/,
 		);
 	});

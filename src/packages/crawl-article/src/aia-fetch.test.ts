@@ -4,6 +4,7 @@ import {
 	derOrPemToPem,
 	initFetchAia,
 	isTlsChainError,
+	type PrimaryFetch,
 	withAiaChasing,
 } from "./aia-fetch";
 
@@ -103,13 +104,15 @@ describe("derOrPemToPem", () => {
 
 describe("withAiaChasing", () => {
 	type FetchAia = ReturnType<typeof initFetchAia>;
+	const live = () => new AbortController().signal;
+	const request = (headers: Record<string, string> = {}) => ({ headers, signal: live() });
 
 	it("passes responses through unchanged when baseFetch succeeds", async () => {
-		const baseFetch: typeof fetch = async () => new Response("ok", { status: 200 });
+		const baseFetch: PrimaryFetch = async () => new Response("ok", { status: 200 });
 		const fetchAia = jest.fn<ReturnType<FetchAia>, Parameters<FetchAia>>();
 		const wrapped = withAiaChasing(baseFetch, fetchAia);
 
-		const response = await wrapped("https://example.com");
+		const response = await wrapped("https://example.com", request());
 
 		expect(response.status).toBe(200);
 		expect(await response.text()).toBe("ok");
@@ -117,96 +120,37 @@ describe("withAiaChasing", () => {
 	});
 
 	it("rethrows non-TLS errors without calling fetchAia", async () => {
-		const baseFetch: typeof fetch = async () => {
+		const baseFetch: PrimaryFetch = async () => {
 			throw new Error("network boom");
 		};
 		const fetchAia = jest.fn<ReturnType<FetchAia>, Parameters<FetchAia>>();
 		const wrapped = withAiaChasing(baseFetch, fetchAia);
 
-		await expect(wrapped("https://example.com")).rejects.toThrow("network boom");
+		await expect(wrapped("https://example.com", request())).rejects.toThrow("network boom");
 		expect(fetchAia).not.toHaveBeenCalled();
 	});
 
-	it("retries via fetchAia on a TLS chain error", async () => {
-		const baseFetch: typeof fetch = async () => {
+	it("retries via fetchAia on a TLS chain error, carrying the caller's headers and deadline", async () => {
+		const baseFetch: PrimaryFetch = async () => {
 			const cause = Object.assign(new Error("leaf"), { code: "UNABLE_TO_VERIFY_LEAF_SIGNATURE" });
 			throw Object.assign(new TypeError("fetch failed"), { cause });
 		};
-		const fetchAia = jest.fn<ReturnType<FetchAia>, Parameters<FetchAia>>(async () => new Response("<html>real</html>", { status: 200 }));
+		const fetchAia = jest.fn<ReturnType<FetchAia>, Parameters<FetchAia>>(async () => new Response("recovered"));
 		const wrapped = withAiaChasing(baseFetch, fetchAia);
+		const init = request({ "user-agent": "T" });
 
-		const response = await wrapped("https://example.com", {
-			headers: { "user-agent": "Test/1.0" },
-			signal: AbortSignal.timeout(5000),
+		const response = await wrapped("https://example.com/a?b=1", init);
+
+		expect(await response.text()).toBe("recovered");
+		expect(fetchAia).toHaveBeenCalledWith("https://example.com/a?b=1", {
+			headers: { "user-agent": "T" },
+			signal: init.signal,
 		});
-
-		expect(response.status).toBe(200);
-		expect(await response.text()).toBe("<html>real</html>");
-		expect(fetchAia).toHaveBeenCalledWith("https://example.com", expect.objectContaining({
-			headers: { "user-agent": "Test/1.0" },
-		}));
-	});
-
-	it("extracts the URL from a URL object input", async () => {
-		const baseFetch: typeof fetch = async () => {
-			const cause = Object.assign(new Error("x"), { code: "UNABLE_TO_VERIFY_LEAF_SIGNATURE" });
-			throw Object.assign(new TypeError("fetch failed"), { cause });
-		};
-		const fetchAia = jest.fn<ReturnType<FetchAia>, Parameters<FetchAia>>(async () => new Response("ok"));
-		const wrapped = withAiaChasing(baseFetch, fetchAia);
-
-		await wrapped(new URL("https://example.com/a?b=1"));
-
-		expect(fetchAia).toHaveBeenCalledWith("https://example.com/a?b=1", expect.anything());
-	});
-
-	it("extracts the URL from a Request input", async () => {
-		const baseFetch: typeof fetch = async () => {
-			const cause = Object.assign(new Error("x"), { code: "UNABLE_TO_VERIFY_LEAF_SIGNATURE" });
-			throw Object.assign(new TypeError("fetch failed"), { cause });
-		};
-		const fetchAia = jest.fn<ReturnType<FetchAia>, Parameters<FetchAia>>(async () => new Response("ok"));
-		const wrapped = withAiaChasing(baseFetch, fetchAia);
-
-		await wrapped(new Request("https://example.com/r"));
-
-		expect(fetchAia).toHaveBeenCalledWith("https://example.com/r", expect.anything());
-	});
-
-	it("normalizes Headers to a plain object when passing to fetchAia", async () => {
-		const baseFetch: typeof fetch = async () => {
-			const cause = Object.assign(new Error("x"), { code: "UNABLE_TO_VERIFY_LEAF_SIGNATURE" });
-			throw Object.assign(new TypeError("fetch failed"), { cause });
-		};
-		const fetchAia = jest.fn<ReturnType<FetchAia>, Parameters<FetchAia>>(async () => new Response("ok"));
-		const wrapped = withAiaChasing(baseFetch, fetchAia);
-
-		const headers = new Headers({ "user-agent": "T", "accept-language": "en" });
-		await wrapped("https://example.com", { headers });
-
-		expect(fetchAia).toHaveBeenCalledWith("https://example.com", {
-			headers: { "user-agent": "T", "accept-language": "en" },
-			signal: undefined,
-		});
-	});
-
-	it("passes undefined headers when init is omitted", async () => {
-		const baseFetch: typeof fetch = async () => {
-			const cause = Object.assign(new Error("x"), { code: "UNABLE_TO_VERIFY_LEAF_SIGNATURE" });
-			throw Object.assign(new TypeError("fetch failed"), { cause });
-		};
-		const fetchAia = jest.fn<ReturnType<FetchAia>, Parameters<FetchAia>>(async () => new Response("ok"));
-		const wrapped = withAiaChasing(baseFetch, fetchAia);
-
-		await wrapped("https://example.com");
-
-		expect(fetchAia).toHaveBeenCalledWith("https://example.com", { headers: undefined, signal: undefined });
 	});
 
 	it("defaults to the real fetchAia implementation when no override is given", () => {
-		const baseFetch: typeof fetch = async () => new Response("ok");
-		const wrapped = withAiaChasing(baseFetch);
-		expect(typeof wrapped).toBe("function");
+		const baseFetch: PrimaryFetch = async () => new Response("ok");
+		expect(typeof withAiaChasing(baseFetch)).toBe("function");
 	});
 });
 

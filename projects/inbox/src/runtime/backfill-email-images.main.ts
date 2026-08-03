@@ -58,6 +58,7 @@ const crawlFetch = initCrawlFetch({
 	fetch: globalThis.fetch,
 	personas: CRAWL_PERSONAS,
 	isBlocked: isBlockedIpAddress,
+	logInfo: (message) => logger.info(message),
 });
 const { putImageObject } = initS3PutImageObject({ client: s3Client, bucketName: contentBucketName });
 

@@ -44,6 +44,7 @@ const crawlFetch = initCrawlFetch({
 	fetch: globalThis.fetch,
 	personas: CRAWL_PERSONAS,
 	isBlocked: isBlockedIpAddress,
+	logInfo: (message) => logger.info(message),
 });
 // Fail cold start loudly if the curl-impersonate binary is missing rather than
 // let each image download that reaches the curl leg die on a per-URL ENOENT.

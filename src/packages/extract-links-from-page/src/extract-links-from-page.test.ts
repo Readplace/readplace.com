@@ -289,28 +289,23 @@ describe("initExtractLinksFromPageUrl", () => {
 		expect(result.status).toBe("INVALID_URL");
 	});
 
-	it("maps an AbortError from the fetch timeout to FETCH_FAILED { reason: timeout }", async () => {
-		const extract = initExtractLinksFromPageUrl({
-			validateUrl: validateSaveableUrl,
-			crawlFetch: fakeFetch(async (_url, init) => {
-				return new Promise<Response>((_resolve, reject) => {
-					init?.signal?.addEventListener("abort", () => {
-						const err = new Error("aborted");
-						err.name = "AbortError";
-						reject(err);
-					});
-				});
-			}),
-		});
+	it.each(["AbortError", "TimeoutError"])(
+		"maps a %s from the crawl deadline to FETCH_FAILED { reason: timeout }",
+		async (name) => {
+			const extract = initExtractLinksFromPageUrl({
+				validateUrl: validateSaveableUrl,
+				crawlFetch: fakeFetch(async () => {
+					const error = new Error("no response headers within 10000ms");
+					error.name = name;
+					throw error;
+				}),
+			});
 
-		jest.useFakeTimers();
-		const promise = extract("https://news.example/issues/42");
-		jest.advanceTimersByTime(10_001);
-		const result = await promise;
-		jest.useRealTimers();
+			const result = await extract("https://news.example/issues/42");
 
-		expect(result).toEqual({ status: "FETCH_FAILED", reason: "timeout" });
-	});
+			expect(result).toEqual({ status: "FETCH_FAILED", reason: "timeout" });
+		},
+	);
 
 	it("maps a network error to FETCH_FAILED { reason: network }", async () => {
 		const extract = initExtractLinksFromPageUrl({
