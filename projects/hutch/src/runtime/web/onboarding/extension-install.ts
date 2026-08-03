@@ -71,7 +71,7 @@ export function detectInstallBrowser(req: Request): InstallBrowser {
 
 /** {@link detectPlatform} narrowed to what this device can actually install, so
  * every caller inherits the Android exclusion instead of having to remember it. */
-function installablePlatform(req: Request): Platform {
+export function installablePlatform(req: Request): Platform {
 	if (!hasInstallableClient(req)) return "other";
 	return detectPlatform(req);
 }

@@ -3,6 +3,7 @@ import express from "express";
 import type { BuildBannerState } from "../../banner-state";
 import { Base } from "../../base.component";
 import { sendComponent } from "@packages/web-shell";
+import { redirectToDetectedClient } from "./detected-client.middleware";
 import {
 	InstallPage,
 	type InstallClient,
@@ -14,6 +15,8 @@ import {
 export function initInstallRoutes(deps: { buildBannerState: BuildBannerState; staticBaseUrl: string }): Router {
 	const router = express.Router();
 	const { buildBannerState, staticBaseUrl } = deps;
+
+	router.get("/install", redirectToDetectedClient);
 
 	router.get("/install", async (req: Request, res: Response) => {
 		let client: InstallClient;
