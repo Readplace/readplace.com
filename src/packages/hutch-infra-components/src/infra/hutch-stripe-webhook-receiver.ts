@@ -34,7 +34,7 @@ export class HutchStripeWebhookReceiver extends pulumi.ComponentResource {
 				arn: pulumi.Input<string>;
 				name: pulumi.Input<string>;
 			};
-			webhookSecret: pulumi.Input<string>;
+			webhookSecret: string;
 			events: readonly StripeEventType[];
 			alertEmail: string;
 		},

@@ -19,6 +19,7 @@ import {
 import { EXPORT_DOWNLOAD_TTL_DAYS, EXPORT_S3_KEY_PREFIX } from "../runtime/web/pages/export/export-ttl";
 import { ANALYTICS_EVENTS, ANALYTICS_LOG_GROUP, ERRORS_LOG_GROUP, ERRORS_LOG_GROUP_RETENTION_DAYS, LAMBDA_NAMES, METRICS, STREAMS } from "../runtime/observability/events";
 import { buildAnalyticsDashboardBody } from "../runtime/observability/analytics-dashboard";
+import { parseStripeWebhookSecret } from "../runtime/stripe-webhook-receiver/stripe-webhook-secret";
 import { DomainRegistration } from "./domain-registration";
 import { DomainRedirect } from "./domain-redirect";
 import { AgentDiscoveryDns } from "./agent-discovery-dns";
@@ -859,7 +860,7 @@ new HutchStripeWebhookReceiver("stripe-webhook-receiver", {
 		arn: storage.subscriptionProvidersTable.arn,
 		name: storage.subscriptionProvidersTable.name,
 	},
-	webhookSecret: requireEnv("STRIPE_WEBHOOK_SECRET"),
+	webhookSecret: parseStripeWebhookSecret(requireEnv("STRIPE_WEBHOOK_SECRET")),
 	events: ["customer.subscription.deleted", "invoice.payment_failed"],
 	alertEmail,
 });
