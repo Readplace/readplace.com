@@ -17,13 +17,15 @@ module.exports = {
   // extension start-up and an entry point no ETag has been issued for yet.
   warmupSaves: 2,
 
-  // A hundred tabs must paint their outcome inside ten seconds. This is the
-  // requirement the flow is held to rather than a measurement of it: a bulk save
-  // captures every tab before its first request leaves, so nothing about its
-  // cost follows from the single save above, and a two-core runner's spread over
-  // that much work is not yet known. Re-derive with the perf soak workflow when
-  // the runner image, the browser, or the save path moves.
-  meanSaveAllMs: 10000,
+  // Measured, not chosen. 2000ms is ~2.0x the slowest run mean over 20
+  // independent github-hosted runs (1012ms), which is ~16 standard deviations of
+  // run-to-run spread above the average one; a real CI run measures ~888ms. A
+  // hundred tabs cost ~19x one save because the flow captures every tab before
+  // its first request leaves. The tail is shallow — the worst single sample of
+  // the 100 was 1145ms, so a run made entirely of worst-case saves would still
+  // pass. Re-derive with the perf soak workflow when the runner image, the
+  // browser, or the save path moves.
+  meanSaveAllMs: 2000,
 
   tabsPerSaveAll: 100,
   gatedSaveAlls: 5,
