@@ -121,16 +121,11 @@ const webInboxTables = new HutchDynamoDBAccess("inbox-web-inbox-tables", {
 		{ arn: inboxStorage.emailsTable.arn, includeIndexes: false },
 		{ arn: inboxStorage.emailLinksTable.arn, includeIndexes: false },
 	],
-	// Mirrors the actions hutch's web Lambda held on these tables before the
-	// /inbox pages re-homed here.
 	actions: [
 		"dynamodb:GetItem",
-		"dynamodb:BatchGetItem",
 		"dynamodb:PutItem",
 		"dynamodb:UpdateItem",
-		"dynamodb:DeleteItem",
 		"dynamodb:Query",
-		"dynamodb:Scan",
 	],
 });
 

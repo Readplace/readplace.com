@@ -16,7 +16,8 @@
     "./local-time.format": {
       "types": "./dist/local-time.format.d.ts",
       "default": "./dist/local-time.format.js"
-    }
+    },
+    "./client-bundles": "./client-bundles.js"
   },
   "typesVersions": {
     "*": {
@@ -47,6 +48,7 @@
     "zod": "4.4.3"
   },
   "devDependencies": {
+    "@testing-library/dom": "10",
     "@types/jest": "30.0.0",
     "@types/jsdom": "21.1.7",
     "c8": "11.0.0",

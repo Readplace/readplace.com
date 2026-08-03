@@ -3,8 +3,8 @@ import {
 	formatCancellationEndsLabel,
 	formatTrialDisplay,
 	formatTrialRemaining,
-} from "@packages/web-shell/trial-countdown.format";
-import type { TrialDisplay, TrialEscalation } from "@packages/web-shell/trial-countdown.format";
+} from "./trial-countdown.format";
+import type { TrialDisplay, TrialEscalation } from "./trial-countdown.format";
 
 interface TrialCountdownDeps {
 	document: Document;
@@ -29,8 +29,10 @@ const ESCALATIONS: readonly TrialEscalation[] = [
 	"critical",
 ];
 
-function assert(cond: unknown, message: string): asserts cond {
-	if (!cond) throw new Error(message);
+function requiredAttribute(el: Element, name: string): string {
+	const value = el.getAttribute(name);
+	if (!value) throw new Error(`${SELECTOR} must carry ${name}`);
+	return value;
 }
 
 function readSkewMs(deps: TrialCountdownDeps, el: Element): number {
@@ -56,8 +58,7 @@ export function initTrialCountdown(
 	if (!root) return { attach() {}, stop() {} };
 	const el: Element = root;
 
-	const endsAtIso = el.getAttribute("data-trial-ends-at-iso");
-	assert(endsAtIso, `${SELECTOR} must carry data-trial-ends-at-iso`);
+	const endsAtIso = requiredAttribute(el, "data-trial-ends-at-iso");
 	const skewMs = readSkewMs(deps, el);
 
 	let intervalId: number | undefined;
@@ -71,7 +72,7 @@ export function initTrialCountdown(
 
 	function tick(): void {
 		const skewedNow = new Date(deps.now() + skewMs);
-		const remaining = formatTrialRemaining(endsAtIso ?? "", skewedNow);
+		const remaining = formatTrialRemaining(endsAtIso, skewedNow);
 		if (remaining.totalMs <= 0) {
 			if (!expired) {
 				const display: TrialDisplay = { state: "expired" };
@@ -90,7 +91,7 @@ export function initTrialCountdown(
 		const escalation = deriveTrialEscalation(remaining);
 		const display: TrialDisplay = {
 			state: "active",
-			endsAtIso: endsAtIso ?? "",
+			endsAtIso,
 			serverNowIso: skewedNow.toISOString(),
 			remaining,
 			escalation,
@@ -103,12 +104,12 @@ export function initTrialCountdown(
 		const timeZone = deps.timeZone();
 		const display: TrialDisplay = {
 			state: "cancellation-scheduled",
-			endsAtIso: endsAtIso ?? "",
+			endsAtIso,
 			serverNowIso: new Date(deps.now() + skewMs).toISOString(),
 		};
 		el.textContent = formatTrialDisplay(display, timeZone);
 		const label = formatCancellationEndsLabel({
-			endsAtIso: endsAtIso ?? "",
+			endsAtIso,
 			timeZone,
 		});
 		el.setAttribute("aria-label", label);

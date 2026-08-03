@@ -201,8 +201,12 @@ const dynamodb = new HutchDynamoDBAccess("hutch-dynamodb-access", {
 		"dynamodb:UpdateItem",
 		"dynamodb:DeleteItem",
 		"dynamodb:Query",
-		"dynamodb:Scan",
 	],
+});
+
+const webUsersScan = new HutchDynamoDBAccess("hutch-web-users-scan", {
+	tables: [{ arn: storage.usersTable.arn, includeIndexes: false }],
+	actions: ["dynamodb:Scan"],
 });
 
 const api = new aws.apigatewayv2.Api("hutch-api-gateway", {
@@ -364,6 +368,7 @@ const lambda = new HutchLambda(LAMBDA_NAMES.hutchHandler, {
 	},
 	policies: [
 		...dynamodb.policies,
+		...webUsersScan.policies,
 		...HutchS3ReadWrite.readPoliciesForBucket("hutch-content-s3", contentBucketName),
 		...HutchS3ReadWrite.writePoliciesForBucket("hutch-pending-html", pendingHtmlBucketName),
 		...HutchS3ReadWrite.writePoliciesForBucket("hutch-pending-pdf", pendingPdfBucketName),

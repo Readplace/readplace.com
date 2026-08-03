@@ -1,3 +1,4 @@
+import { resolve } from "node:path";
 import express, { type Express, type NextFunction, type Request, type Response } from "express";
 import cookieParser from "cookie-parser";
 import type {
@@ -60,6 +61,8 @@ export function createInboxApp(
 	app.use(express.urlencoded({ extended: true }));
 	app.use(cookieParser());
 	app.use(changelogDismissMiddleware);
+
+	app.use("/client-dist", express.static(resolve(__dirname, "web", "client-dist")));
 
 	app.use(async (req: Request, _res: Response, next: NextFunction) => {
 		const login = await deps.resolveLogin(req.headers.cookie);

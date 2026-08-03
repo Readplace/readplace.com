@@ -9,7 +9,7 @@
 import {
 	formatLocalInstant,
 	type LocalTimeStyle,
-} from "@packages/web-shell/local-time.format";
+} from "./local-time.format";
 
 export interface LocalTimeDeps {
 	document: Document;

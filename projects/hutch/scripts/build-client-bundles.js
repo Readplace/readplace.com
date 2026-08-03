@@ -20,6 +20,7 @@
 const esbuild = require("esbuild");
 const fs = require("node:fs");
 const path = require("node:path");
+const { SHARED_CLIENT_BUNDLES } = require("@packages/web-shell/client-bundles");
 
 const PROJECT_ROOT = path.resolve(__dirname, "..");
 const OUT_DIR = path.join(PROJECT_ROOT, "src", "runtime", "web", "client-dist");
@@ -49,36 +50,6 @@ const BUNDLES = [
       "  navigator: window.navigator,",
       "  setTimeoutFn: function (cb, ms) { return window.setTimeout(cb, ms); },",
       "  clearTimeoutFn: function (id) { window.clearTimeout(id); }",
-      "}).attach();",
-    ].join("\n"),
-  },
-  {
-    entry: path.join(PROJECT_ROOT, "src/runtime/web/shared/clipboard-copy/clipboard-copy.client.ts"),
-    outfile: path.join(OUT_DIR, "inbox.client.js"),
-    globalName: "ClipboardCopy",
-    footer: [
-      "ClipboardCopy.initClipboardCopy({",
-      "  document: window.document,",
-      "  navigator: window.navigator,",
-      "  setTimeoutFn: function (cb, ms) { return window.setTimeout(cb, ms); },",
-      "  clearTimeoutFn: function (id) { window.clearTimeout(id); },",
-      "  copySelector: '[data-inbox-copy]',",
-      "  textAttr: 'data-inbox-address'",
-      "}).attach();",
-    ].join("\n"),
-  },
-  {
-    entry: path.join(PROJECT_ROOT, "src/runtime/web/shared/clipboard-copy/clipboard-copy.client.ts"),
-    outfile: path.join(OUT_DIR, "install.client.js"),
-    globalName: "ClipboardCopy",
-    footer: [
-      "ClipboardCopy.initClipboardCopy({",
-      "  document: window.document,",
-      "  navigator: window.navigator,",
-      "  setTimeoutFn: function (cb, ms) { return window.setTimeout(cb, ms); },",
-      "  clearTimeoutFn: function (id) { window.clearTimeout(id); },",
-      "  copySelector: '[data-install-copy]',",
-      "  textAttr: 'data-install-text'",
       "}).attach();",
     ].join("\n"),
   },
@@ -254,57 +225,6 @@ const BUNDLES = [
   {
     entry: path.join(
       PROJECT_ROOT,
-      "src/runtime/web/shared/extension-suggestion-banner/extension-suggestion-banner.client.ts",
-    ),
-    outfile: path.join(OUT_DIR, "extension-suggestion-banner.client.js"),
-    globalName: "ExtensionSuggestionBanner",
-    footer: [
-      "document.addEventListener('DOMContentLoaded', function () {",
-      "  ExtensionSuggestionBanner.initExtensionSuggestionBanner({",
-      "    document: window.document,",
-      "    storage: window.localStorage",
-      "  }).attach();",
-      "});",
-    ].join("\n"),
-  },
-  {
-    entry: path.join(
-      PROJECT_ROOT,
-      "src/runtime/web/trial-countdown.client.ts",
-    ),
-    outfile: path.join(OUT_DIR, "trial-countdown.client.js"),
-    globalName: "TrialCountdown",
-    footer: [
-      "document.addEventListener('DOMContentLoaded', function () {",
-      "  TrialCountdown.initTrialCountdown({",
-      "    document: window.document,",
-      "    now: function () { return Date.now(); },",
-      "    timeZone: function () { return Intl.DateTimeFormat().resolvedOptions().timeZone; },",
-      "    setIntervalFn: function (cb, ms) { return window.setInterval(cb, ms); },",
-      "    clearIntervalFn: function (id) { window.clearInterval(id); },",
-      "    addSwapListener: function (cb) { document.body.addEventListener('htmx:afterSwap', cb); }",
-      "  }).attach();",
-      "});",
-    ].join("\n"),
-  },
-  {
-    entry: path.join(PROJECT_ROOT, "src/runtime/web/local-time.client.ts"),
-    outfile: path.join(OUT_DIR, "local-time.client.js"),
-    globalName: "LocalTime",
-    footer: [
-      // Loaded globally with `defer`, so the DOM is parsed before this runs
-      // and the initial scan sees every server-rendered baseline. The swap
-      // listener re-localises instants that arrive inside a swapped <main>.
-      "LocalTime.initLocalTime({",
-      "  document: window.document,",
-      "  timeZone: function () { return Intl.DateTimeFormat().resolvedOptions().timeZone; },",
-      "  addSwapListener: function (cb) { document.body.addEventListener('htmx:afterSwap', cb); }",
-      "}).attach();",
-    ].join("\n"),
-  },
-  {
-    entry: path.join(
-      PROJECT_ROOT,
       "src/runtime/web/pages/view/expiry-counter.client.ts",
     ),
     outfile: path.join(OUT_DIR, "expiry-counter.client.js"),
@@ -358,23 +278,6 @@ const BUNDLES = [
     ].join("\n"),
   },
   {
-    entry: path.join(PROJECT_ROOT, "src/runtime/web/webmcp.client.ts"),
-    outfile: path.join(OUT_DIR, "webmcp.client.js"),
-    globalName: "WebMcp",
-    footer: [
-      // The WebMCP context lives on navigator in Chrome's preview and on
-      // document in the W3C draft; pass whichever exists. Saving navigates
-      // to the same /save entrypoint the UI uses, so the agent's save and a
-      // human click are one code path.
-      "var mcNav = window.navigator && window.navigator.modelContext;",
-      "var mcDoc = window.document && window.document.modelContext;",
-      "WebMcp.initWebMcp({",
-      "  modelContext: mcNav || mcDoc || null,",
-      "  navigateTo: function (url) { window.location.assign(url); }",
-      "});",
-    ].join("\n"),
-  },
-  {
     entry: path.join(
       PROJECT_ROOT,
       "src/runtime/web/shared/article-body/summary-slot/summary-toggle.client.ts",
@@ -392,30 +295,14 @@ const BUNDLES = [
       "});",
     ].join("\n"),
   },
-  {
-    entry: path.join(
-      PROJECT_ROOT,
-      "src/runtime/web/shared/toast/toast.client.ts",
-    ),
-    outfile: path.join(OUT_DIR, "toast.client.js"),
-    globalName: "Toast",
-    footer: [
-      // Loaded with `defer`, so the DOM is parsed before this runs and the
-      // initial scan sees any toast already in the document. The swap
-      // listener catches toasts that arrive inside a swapped <main>; the
-      // beforeRequest/afterSettle pair captures keyboard focus before
-      // `hx-disabled-elt` blurs the pressed button and restores it once the
-      // swapped-in markup is live, so an action never strands the reader at
-      // the top of <main>.
-      "Toast.initToastDismiss({",
-      "  document: window.document,",
-      "  setTimeoutFn: function (cb, ms) { return window.setTimeout(cb, ms); },",
-      "  addSwapListener: function (cb) { document.body.addEventListener('htmx:afterSwap', cb); },",
-      "  addBeforeRequestListener: function (cb) { document.body.addEventListener('htmx:beforeRequest', cb); },",
-      "  addAfterSettleListener: function (cb) { document.body.addEventListener('htmx:afterSettle', cb); }",
-      "});",
-    ].join("\n"),
-  },
+];
+
+const ALL_BUNDLES = [
+  ...SHARED_CLIENT_BUNDLES.map((bundle) => ({
+    ...bundle,
+    outfile: path.join(OUT_DIR, bundle.outfile),
+  })),
+  ...BUNDLES,
 ];
 
 function buildOptions(bundle) {
@@ -444,14 +331,14 @@ async function main() {
 
   if (watch) {
     const contexts = await Promise.all(
-      BUNDLES.map((b) => esbuild.context(buildOptions(b))),
+      ALL_BUNDLES.map((b) => esbuild.context(buildOptions(b))),
     );
     await Promise.all(contexts.map((ctx) => ctx.watch()));
     console.log("build-client-bundles: watching for changes...");
     return;
   }
 
-  await Promise.all(BUNDLES.map((b) => esbuild.build(buildOptions(b))));
+  await Promise.all(ALL_BUNDLES.map((b) => esbuild.build(buildOptions(b))));
 }
 
 main().catch((err) => {

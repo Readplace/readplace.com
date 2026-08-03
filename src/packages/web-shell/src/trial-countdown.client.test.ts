@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import { JSDOM } from "jsdom";
-import { SERVER_TIME_ZONE } from "@packages/web-shell/local-time.format";
+import { SERVER_TIME_ZONE } from "./local-time.format";
 import { initTrialCountdown } from "./trial-countdown.client";
 
 const ONE_SECOND_MS = 1000;
@@ -412,6 +412,46 @@ describe("initTrialCountdown — idempotent state transitions", () => {
 		document.dispatchEvent(new (document.defaultView as Window & typeof globalThis).Event("visibilitychange"));
 
 		expect(clock.timers.size).toBe(0);
+	});
+
+	it("keeps the running interval instead of arming a second one when visibilitychange fires while already visible", () => {
+		const serverNow = "2026-01-01T00:00:00.000Z";
+		const endsAt = new Date(Date.parse(serverNow) + ONE_HOUR_MS).toISOString();
+		const { document } = createDom(
+			buildFixture({
+				endsAtIso: endsAt,
+				serverNowIso: serverNow,
+				state: "active",
+				escalation: "urgent",
+				text: "placeholder",
+			}),
+		);
+
+		const clock = createFakeClock(document, Date.parse(serverNow));
+		initTrialCountdown(clock.deps).attach();
+		expect(Array.from(clock.timers.keys())).toEqual([1]);
+
+		Object.defineProperty(document, "hidden", { configurable: true, value: false });
+		document.dispatchEvent(new (document.defaultView as Window & typeof globalThis).Event("visibilitychange"));
+
+		expect(Array.from(clock.timers.keys())).toEqual([1]);
+		expect(clock.nextId).toBe(2);
+	});
+});
+
+describe("initTrialCountdown — missing deadline attribute", () => {
+	it("throws naming the attribute when the countdown element carries no data-trial-ends-at-iso", () => {
+		const { document } = createDom(
+			`<!DOCTYPE html><html><body>
+		<p class="trial-countdown trial-countdown--urgent" role="timer">placeholder</p>
+	</body></html>`,
+		);
+
+		const clock = createFakeClock(document, Date.parse("2026-01-01T00:00:00.000Z"));
+
+		expect(() => initTrialCountdown(clock.deps)).toThrow(
+			".trial-countdown must carry data-trial-ends-at-iso",
+		);
 	});
 });
 

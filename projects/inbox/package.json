@@ -7,8 +7,8 @@
   "scripts": {
     "check": "nx run inbox:check",
     "check-infra": "PULUMI_CONFIG_PASSPHRASE='' pulumi preview --stack \"${PULUMI_STACK:?PULUMI_STACK is not set}\"",
-    "compile": "rm -rf dist && tsc && node scripts/copy-static-assets.js",
-    "dev": "tsx watch src/runtime/server.main.ts",
+    "compile": "rm -rf dist && tsc && node scripts/build-client-bundles.js && node scripts/copy-static-assets.js",
+    "dev": "node scripts/build-client-bundles.js && tsx watch src/runtime/server.main.ts",
     "lint": "concurrently --kill-others-on-fail \"tsc --project tsconfig.lint.json\" \"biome lint src\" \"knip\" \"editorconfig-checker\"",
     "start": "node dist/runtime/server.main.js",
     "test": "jest --testMatch='**/dist/**/*.test.js' --testTimeout=10000",
@@ -63,6 +63,7 @@
     "c8": "11.0.0",
     "concurrently": "10.0.0",
     "editorconfig-checker": "6.1.1",
+    "esbuild": "catalog:",
     "jest": "30.4.2",
     "jsdom": "26.1.0",
     "supertest": "7.2.2",
