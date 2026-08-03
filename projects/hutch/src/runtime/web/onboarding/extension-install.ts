@@ -1,6 +1,7 @@
 import type { Request } from "express";
 import { ALIVE_COOKIE_NAME, ALIVE_COOKIE_VALUE, SAVE_COOKIE_NAME, SAVE_COOKIE_VALUE } from "@packages/onboarding-extension-signal";
 import { SUPPORTED_CLIENTS } from "@packages/supported-clients";
+import type { ClientName, ClientNameInCategory } from "@packages/supported-clients";
 import type { InstallBrowser, Platform } from "./onboarding.types";
 
 const INSTALL_URLS: Record<Platform, string> = {
@@ -28,15 +29,29 @@ export function isExtensionSavedArticle(req: Request): boolean {
 	return req.cookies?.[SAVE_COOKIE_NAME] === SAVE_COOKIE_VALUE;
 }
 
+/**
+ * 1. iPhone holds the lowest rank because every iOS browser UA contains "iPhone"
+ *    while iOS Chrome/Firefox identify as CriOS/FxiOS (never Chrome//Firefox/),
+ *    and no desktop UA contains "iPhone" — so it buckets every iPhone visitor
+ *    before a desktop token can claim them.
+ */
+const UA_SIGNATURES = {
+	iphone: { token: "iPhone", rank: 0 }, /* 1 */
+	firefox: { token: "Firefox/", rank: 1 },
+	chrome: { token: "Chrome/", rank: 2 },
+} satisfies Record<ClientNameInCategory<"contentCapture">, { token: string; rank: number }>;
+
+function isDetectable(name: ClientName): name is keyof typeof UA_SIGNATURES {
+	return name in UA_SIGNATURES;
+}
+
+const DETECTION_ORDER = SUPPORTED_CLIENTS.flatMap((client) =>
+	isDetectable(client.name) ? [client.name] : [],
+).sort((a, b) => UA_SIGNATURES[a].rank - UA_SIGNATURES[b].rank);
+
 export function detectPlatform(req: Request): Platform {
 	const ua = req.headers["user-agent"] ?? "";
-	/* Checked first because every iOS browser UA contains "iPhone" while iOS
-	 * Chrome/Firefox identify as CriOS/FxiOS (never Chrome//Firefox/), and no
-	 * desktop UA contains "iPhone" — so this buckets every iPhone visitor here. */
-	if (ua.includes("iPhone")) return "iphone";
-	if (ua.includes("Firefox/")) return "firefox";
-	if (ua.includes("Chrome/")) return "chrome";
-	return "other";
+	return DETECTION_ORDER.find((name) => ua.includes(UA_SIGNATURES[name].token)) ?? "other";
 }
 
 /** Extension-install CTA browser for a request, projected from the canonical
