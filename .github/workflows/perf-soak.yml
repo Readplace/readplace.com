@@ -27,7 +27,7 @@ jobs:
     runs-on: ubuntu-latest
     # Same ceiling as the perf-tests job it feeds, and it matters more here:
     # twenty jobs each free to hang for the 6h default is twenty held runners.
-    timeout-minutes: 30
+    timeout-minutes: 75
     env:
       STATIC_BASE_URL: ''
     steps:

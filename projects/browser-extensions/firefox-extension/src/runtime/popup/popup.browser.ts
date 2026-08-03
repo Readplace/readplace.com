@@ -13,7 +13,7 @@ import type {
 	Message,
 	ActionVariant,
 } from "browser-extension-core";
-import { filterByUrl, buildPaginationView, avatarColor, relativeTime, isAppUrl, itemDisplay, selectSaveableTabs, summarizeBulkSave, installShortcuts, isCmdD, buildMessageView, buildSavedView, actionLabel, actionVariant, actionIcon, linkLabel, linkPresentation, SAVE_RENDERED_MARK } from "browser-extension-core";
+import { filterByUrl, buildPaginationView, avatarColor, relativeTime, isAppUrl, itemDisplay, selectSaveableTabs, summarizeBulkSave, installShortcuts, isCmdD, buildMessageView, buildSavedView, actionLabel, actionVariant, actionIcon, linkLabel, linkPresentation, SAVE_RENDERED_MARK, SAVE_ALL_RENDERED_MARK } from "browser-extension-core";
 import { HutchLogger, consoleLogger } from "@packages/hutch-logger";
 
 /** The client's own presentation map: an action variant -> the popup's CSS
@@ -551,6 +551,7 @@ async function saveAllTabsFlow() {
 
 	const queueButton = document.getElementById("save-all-view-queue");
 	if (queueButton) queueButton.hidden = false;
+	performance.mark(SAVE_ALL_RENDERED_MARK);
 }
 
 async function bootstrap() {

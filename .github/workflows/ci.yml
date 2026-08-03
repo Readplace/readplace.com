@@ -73,14 +73,15 @@ jobs:
   perf-tests:
     needs: [web-tests]
     runs-on: ubuntu-latest
-    # The suites bound themselves — 60s per UI wait, 90s for the server, 5min
-    # per test, then an 8min hard failsafe each. Two paths escape all of that:
-    # the browser install and extension build run through spawnSync with no
-    # timeout, and the fixture-user POST runs before the failsafe is armed. A
-    # job ceiling is the only layer that covers them, and without one a hang
-    # holds a runner for the 6h default. The job measures ~3min; three suites
-    # all riding their failsafe would be ~25.
-    timeout-minutes: 30
+    # The suites bound themselves — 60s per UI wait and 5min per test for the
+    # single-save ones, 5min and 15min for the bulk ones, 90s for the server,
+    # then a hard failsafe each: 8min single-save, 20min bulk. Two paths escape
+    # all of that: the browser install and the extension builds run through
+    # spawnSync with no timeout, and the fixture-user POST runs before the
+    # failsafe is armed. A job ceiling is the only layer that covers them, and
+    # without one a hang holds a runner for the 6h default. Four browser suites
+    # all riding their failsafes would be ~56min, plus installs and builds.
+    timeout-minutes: 75
     env:
       STATIC_BASE_URL: ''
     steps:

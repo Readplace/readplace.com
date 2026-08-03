@@ -52,3 +52,11 @@ export function summarizeBulkSave(params: {
 			: null;
 	return { title: "Tabs saved", summary, tooBig };
 }
+
+/** Set the instant the popup paints the summary above. The perf suite reads it
+ * against the popup document's own navigation start, so one sample spans the
+ * whole bulk critical path — enumerating the window, capturing every tab, and
+ * every chunked request — and none of the WebDriver round trips spent watching
+ * it. A bulk save paints exactly one outcome, so a second mark on a document
+ * means the sample was taken against a popup that had already run. */
+export const SAVE_ALL_RENDERED_MARK = "save-all-rendered";

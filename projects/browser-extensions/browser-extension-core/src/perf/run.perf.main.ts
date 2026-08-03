@@ -8,15 +8,25 @@ import { perfSetting, summarizeLatency } from "./latency-report";
 import { initVirtualNetwork } from "./virtual-network";
 
 const SIMULATED_BUDGET_MS = perfSetting("PERF_MEAN_SAVE_BUDGET_MS");
+const SIMULATED_SAVE_ALL_BUDGET_MS = perfSetting("PERF_MEAN_SAVE_ALL_BUDGET_MS");
 const SIMULATED_ROUND_TRIP_MS = perfSetting("PERF_ROUND_TRIP_MS");
 const SAMPLES_PER_SCENARIO = perfSetting("PERF_SAMPLES_PER_SCENARIO");
+const TABS_PER_SAVE_ALL = perfSetting("PERF_TABS_PER_SAVE_ALL");
 const SERVER_URL = "http://localhost:3000";
 const SIREN_MEDIA_TYPE = "application/vnd.siren+json";
 const ENTRY_POINT_CALL = `GET ${SERVER_URL}/`;
 const COLLECTION_CALL = `GET ${SERVER_URL}/queue`;
 const SAVE_CALL = `POST ${SERVER_URL}/queue`;
+const BULK_SAVE_CALL = `POST ${SERVER_URL}/queue/save-articles`;
 const TOKEN_CALL = `POST ${SERVER_URL}/oauth/token`;
 const SAVED_URL = "https://example.com/perf-sample";
+
+/** What the bulk route advertises on its manifest and content fields. Held here
+ * rather than imported because the simulated server exists to state the
+ * contract the client is measured against, not to follow it. */
+const BULK_MAX_ITEMS = 20;
+const BULK_MAX_CONTENT_BYTES = 4587520;
+const BULK_REQUEST_COUNT = Math.ceil(TABS_PER_SAVE_ALL / BULK_MAX_ITEMS);
 
 type PerfRoute = {
 	status: number;
@@ -31,6 +41,10 @@ type SaveLatencyScenario = {
 	expectedCalls: string[];
 	measure: () => Promise<{ virtualMs: number; calls: string[] }>;
 };
+
+function bulkRequestCalls(): string[] {
+	return Array.from({ length: BULK_REQUEST_COUNT }, () => BULK_SAVE_CALL);
+}
 
 function initRecordingFetch(routes: Record<string, PerfRouteHandler>): {
 	fetchFn: typeof fetch;
@@ -85,6 +99,19 @@ function savedArticleEntity() {
 	};
 }
 
+function saveArticlesAction() {
+	return {
+		name: "save-articles",
+		href: "/queue/save-articles",
+		method: "POST",
+		type: "multipart/form-data",
+		fields: [
+			{ name: "manifest", type: "text", maxItems: BULK_MAX_ITEMS },
+			{ name: "content", type: "file", maxBytes: BULK_MAX_CONTENT_BYTES },
+		],
+	};
+}
+
 function queueCollectionBody(
 	entities: ReturnType<typeof savedArticleEntity>[],
 ): string {
@@ -92,7 +119,7 @@ function queueCollectionBody(
 		class: ["collection", "articles"],
 		entities,
 		links: [{ rel: ["self"], href: "/queue" }],
-		actions: [saveArticleAction()],
+		actions: [saveArticleAction(), saveArticlesAction()],
 	});
 }
 
@@ -120,6 +147,22 @@ function entryPointRoute(): PerfRoute {
 
 function saveRoute(): PerfRoute {
 	return { status: 201, body: savedArticleBody() };
+}
+
+function bulkSaveRoute(): PerfRoute {
+	return {
+		status: 200,
+		body: JSON.stringify({
+			class: ["save-articles-result"],
+			properties: {
+				saved: BULK_MAX_ITEMS,
+				skipped: 0,
+				failed: 0,
+				tooBig: [],
+				skippedUrls: [],
+			},
+		}),
+	};
 }
 
 function initReadingList(input: {
@@ -301,38 +344,101 @@ function saveThenViewQueue(): SaveLatencyScenario {
 	};
 }
 
-const SCENARIOS = [warmSave(), coldBootSave(), repeatSave(), saveThenViewQueue()];
-const scenarioMeansMs: number[] = [];
+/** The bulk save the popup runs on "Save All Tabs": a window's worth of tabs,
+ * each carrying the DOM the background captured for it, packed into as many
+ * requests as the server's advertised manifest cap allows. Every page carries
+ * content because that is what the flow sends today — a scenario built on URLs
+ * alone would model a save this suite is not yet measuring. What the gate holds
+ * is the walk-then-chunk request list: one entry point, then one request per
+ * full manifest. */
+function saveAllTabs(): SaveLatencyScenario {
+	return {
+		name: `a save of ${TABS_PER_SAVE_ALL} tabs`,
+		expectedCalls: [ENTRY_POINT_CALL, ...bulkRequestCalls()],
+		measure: async () => {
+			const network = initVirtualNetwork({ roundTripMs: SIMULATED_ROUND_TRIP_MS });
+			const { fetchFn, calls } = initRecordingFetch({
+				[ENTRY_POINT_CALL]: entryPointRoute(),
+				[BULK_SAVE_CALL]: bulkSaveRoute(),
+			});
+			const readingList = initReadingList({
+				fetchFn: network.chargeRoundTrips(fetchFn),
+				getAccessToken: async () => "perf-access-token",
+			});
 
-for (const scenario of SCENARIOS) {
-	test(`${scenario.name} stays under the ${SIMULATED_BUDGET_MS}ms simulated-network budget`, async (t) => {
-		const runs: { virtualMs: number; calls: string[] }[] = [];
-		for (let sample = 0; sample < SAMPLES_PER_SCENARIO; sample += 1) {
-			runs.push(await scenario.measure());
-		}
+			const summary = await readingList.savePages({
+				pages: Array.from({ length: TABS_PER_SAVE_ALL }, (_unused, index) => ({
+					url: `https://example.com/perf-tab-${index}`,
+					title: `Perf tab ${index}`,
+					content: {
+						bytes: new TextEncoder().encode(
+							`<!doctype html><html lang="en"><body><p>Perf tab ${index}</p></body></html>`,
+						).buffer,
+						mediaType: "text/html",
+					},
+				})),
+			});
 
-		for (const run of runs) {
-			assert.deepEqual(run.calls, scenario.expectedCalls);
-		}
-
-		const samplesMs = runs.map((run) => run.virtualMs);
-		assert.equal(
-			new Set(samplesMs).size,
-			1,
-			`a simulated save must cost the same every time, got ${samplesMs.join(", ")}`,
-		);
-
-		const summary = summarizeLatency(samplesMs);
-		t.diagnostic(
-			`${scenario.name}: ${summary.meanMs}ms over ${summary.meanMs / SIMULATED_ROUND_TRIP_MS} round trips`,
-		);
-		assert.ok(
-			summary.meanMs < SIMULATED_BUDGET_MS,
-			`${scenario.name} costs ${summary.meanMs}ms, over the ${SIMULATED_BUDGET_MS}ms budget`,
-		);
-		scenarioMeansMs.push(summary.meanMs);
-	});
+			assert.equal(
+				summary.saved,
+				TABS_PER_SAVE_ALL,
+				"the measured bulk save must have saved every tab",
+			);
+			return { virtualMs: network.elapsedMs(), calls };
+		},
+	};
 }
+
+const SCENARIOS = [warmSave(), coldBootSave(), repeatSave(), saveThenViewQueue()];
+const SAVE_ALL_SCENARIOS = [saveAllTabs()];
+
+/** Registers one gated test per scenario and hands back the means they measure,
+ * so a group can be judged as a whole once every scenario in it has reported. */
+function gateScenarios(input: {
+	scenarios: SaveLatencyScenario[];
+	budgetMs: number;
+}): number[] {
+	const meansMs: number[] = [];
+	for (const scenario of input.scenarios) {
+		test(`${scenario.name} stays under the ${input.budgetMs}ms simulated-network budget`, async (t) => {
+			const runs: { virtualMs: number; calls: string[] }[] = [];
+			for (let sample = 0; sample < SAMPLES_PER_SCENARIO; sample += 1) {
+				runs.push(await scenario.measure());
+			}
+
+			for (const run of runs) {
+				assert.deepEqual(run.calls, scenario.expectedCalls);
+			}
+
+			const samplesMs = runs.map((run) => run.virtualMs);
+			assert.equal(
+				new Set(samplesMs).size,
+				1,
+				`a simulated save must cost the same every time, got ${samplesMs.join(", ")}`,
+			);
+
+			const summary = summarizeLatency(samplesMs);
+			t.diagnostic(
+				`${scenario.name}: ${summary.meanMs}ms over ${summary.meanMs / SIMULATED_ROUND_TRIP_MS} round trips`,
+			);
+			assert.ok(
+				summary.meanMs < input.budgetMs,
+				`${scenario.name} costs ${summary.meanMs}ms, over the ${input.budgetMs}ms budget`,
+			);
+			meansMs.push(summary.meanMs);
+		});
+	}
+	return meansMs;
+}
+
+const scenarioMeansMs = gateScenarios({
+	scenarios: SCENARIOS,
+	budgetMs: SIMULATED_BUDGET_MS,
+});
+gateScenarios({
+	scenarios: SAVE_ALL_SCENARIOS,
+	budgetMs: SIMULATED_SAVE_ALL_BUDGET_MS,
+});
 
 test(`the mean save stays under the ${SIMULATED_BUDGET_MS}ms simulated-network budget`, (t) => {
 	assert.equal(

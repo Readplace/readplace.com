@@ -2,7 +2,12 @@ import assert from "node:assert/strict";
 import path from "node:path";
 import { requireEnv } from "@packages/require-env";
 
-export type PerfSuite = "simulated" | "chrome" | "firefox";
+export type PerfSuite =
+	| "simulated"
+	| "chrome"
+	| "firefox"
+	| "chrome-save-all"
+	| "firefox-save-all";
 
 /** Every budget and sample count a perf suite runs under is declared in its own
  * project's perf config and reaches the suite through the environment, so a

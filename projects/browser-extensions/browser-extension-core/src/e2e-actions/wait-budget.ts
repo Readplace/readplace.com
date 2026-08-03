@@ -14,6 +14,22 @@ const SERVER_START_WAIT_MS = 90_000; /* 1 */
  * server start + the phase's --test-timeout + teardown. */
 export const SUITE_FAILSAFE_MS = 8 * 60_000;
 
+/** 2. The bulk save-all suite's counterparts. One sample there re-navigates a
+ *     hundred tabs and captures every one of them before its first request
+ *     leaves, so the single-save ceilings would report a contended runner as a
+ *     failure rather than a slow save. The failsafe clears that suite's own
+ *     `--test-timeout` the way SUITE_FAILSAFE_MS clears the single-save one. */
+const SAVE_ALL_UI_WAIT_MS = 5 * 60_000; /* 2 */
+export const SAVE_ALL_SUITE_FAILSAFE_MS = 20 * 60_000; /* 2 */
+
+export function waitForSaveAllUi<T>(
+	driver: WebDriver,
+	condition: (driver: WebDriver) => Promise<T>,
+	message?: string,
+): Promise<T> {
+	return driver.wait(condition, SAVE_ALL_UI_WAIT_MS, message);
+}
+
 export async function waitForServer(url: string): Promise<void> {
 	const deadline = Date.now() + SERVER_START_WAIT_MS;
 	while (Date.now() < deadline) {

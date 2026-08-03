@@ -14,4 +14,12 @@ module.exports = {
   // Repeats per scenario. The suite asserts they come back identical, so this
   // buys proof of determinism rather than statistical confidence.
   samplesPerScenario: 3,
+
+  // A bulk save spends one entry point walk plus one request per full manifest,
+  // so a hundred tabs at the server's twenty-page cap costs 6 round trips —
+  // 600ms. 700 is one round trip above that: a bulk save that grows by a single
+  // request fails, and today's chunking has no slack to hide in.
+  meanSaveAllMs: 700,
+
+  tabsPerSaveAll: 100,
 };

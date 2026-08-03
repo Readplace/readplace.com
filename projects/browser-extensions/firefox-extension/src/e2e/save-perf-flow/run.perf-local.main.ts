@@ -1,23 +1,19 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import { randomUUID } from "node:crypto";
-import { spawn, type ChildProcess } from "node:child_process";
+import type { ChildProcess } from "node:child_process";
 import fs from "node:fs";
 import path from "node:path";
 import { Builder, type WebDriver } from "selenium-webdriver";
 import { Options, Driver } from "selenium-webdriver/firefox";
 import {
-	FlowRunner,
-	ExtensionStateHandler,
-	type SuccessDetector,
-} from "browser-extension-core/e2e";
-import {
-	createSeleniumElementQueries,
-	createSeleniumNavigation,
-	createLoginActions,
 	waitForUi,
-	waitForServer,
 	SUITE_FAILSAFE_MS,
+	readRenderedMark,
+	armSuiteFailsafe,
+	startPerfServer,
+	stopPerfServer,
+	logInToPopup,
 } from "browser-extension-core/e2e-actions";
 import { SAVE_RENDERED_MARK } from "browser-extension-core";
 import {
@@ -35,8 +31,10 @@ const ADDON_UUID = "d3b07384-d113-4ec6-a7b8-5f7e3b4c9a12";
 const EXTENSION_DIR = path.resolve(__dirname, "../../../dist-extension-compiled");
 const POPUP_URL = `moz-extension://${ADDON_UUID}/popup/popup.template.html`;
 
-const TEST_EMAIL = "save-perf-e2e-test@example.com";
-const TEST_PASSWORD = "testpassword123";
+const TEST_USER = {
+	email: "save-perf-e2e-test@example.com",
+	password: "testpassword123",
+};
 const TEST_PORT = Number(requireEnv("E2E_PORT"));
 const READY_NONCE = randomUUID();
 const ORIGIN = `http://127.0.0.1:${TEST_PORT}`;
@@ -47,125 +45,6 @@ const ORIGIN = `http://127.0.0.1:${TEST_PORT}`;
  * what regresses, and the simulated-network suite gates that deterministically. */
 const WARMUP_SAVES = perfSetting("PERF_WARMUP_SAVES");
 const GATED_SAVES = perfSetting("PERF_GATED_SAVES");
-
-function armSuiteFailsafe(server: ChildProcess): void {
-	const reapServerGroup = () => {
-		if (server.pid === undefined || server.exitCode !== null) return;
-		try {
-			process.kill(-server.pid, "SIGKILL");
-		} catch {
-			server.kill("SIGKILL");
-		}
-	};
-	process.on("exit", reapServerGroup);
-	setTimeout(() => {
-		console.error(`suite failsafe: still running after ${SUITE_FAILSAFE_MS}ms, force-exiting`);
-		reapServerGroup();
-		process.exit(1);
-	}, SUITE_FAILSAFE_MS).unref();
-}
-
-/** `hutch:perf-server` accepts a save the way production does — state reads and
- * a published event — where `hutch:e2e-server` crawls and parses the article
- * inside the request, which would make this suite a measurement of the crawler. */
-async function startPerfServer(): Promise<ChildProcess> {
-	const child = spawn("pnpm", ["nx", "run", "hutch:perf-server"], {
-		env: {
-			...process.env,
-			E2E_PORT: String(TEST_PORT),
-			[READY_NONCE_ENV]: READY_NONCE,
-			NODE_ENV: "test",
-			NX_DAEMON: "false",
-		},
-		stdio: ["ignore", 2, 2],
-		detached: true,
-	});
-	child.on("error", () => {});
-	await waitForServer(`${ORIGIN}${readyProbePath(READY_NONCE)}`);
-	const userRes = await fetch(`${ORIGIN}/e2e/users`, {
-		method: "POST",
-		headers: { "content-type": "application/json" },
-		body: JSON.stringify({ email: TEST_EMAIL, password: TEST_PASSWORD }),
-	});
-	assert.equal(
-		userRes.status,
-		201,
-		`POST /e2e/users returned ${userRes.status} (expected 201)`,
-	);
-	return child;
-}
-
-async function stopPerfServer(child: ChildProcess): Promise<void> {
-	if (child.exitCode !== null || child.pid === undefined) return;
-	const pid = child.pid;
-	const killGroup = (signal: NodeJS.Signals) => {
-		try {
-			process.kill(-pid, signal);
-		} catch {
-			child.kill(signal);
-		}
-	};
-	await new Promise<void>((resolve) => {
-		const cleanExit = () => resolve();
-		child.once("exit", cleanExit);
-		killGroup("SIGTERM");
-		setTimeout(() => {
-			killGroup("SIGKILL");
-			child.off("exit", cleanExit);
-			resolve();
-		}, 5_000).unref();
-	});
-}
-
-async function logIn(driver: WebDriver): Promise<string> {
-	const elementQueries = createSeleniumElementQueries();
-
-	await driver.get(POPUP_URL);
-	await waitForUi(
-		driver,
-		() => elementQueries.findVisibleViewById(driver, "login-view"),
-	);
-
-	const popupWindowHandle = await driver.getWindowHandle();
-	const loginActions = createLoginActions({
-		testEmail: TEST_EMAIL,
-		testPassword: TEST_PASSWORD,
-		popupWindowHandle,
-	});
-
-	const isLoggedIntoPopup: SuccessDetector<WebDriver> = async (d) =>
-		(await elementQueries.findVisibleViewById(d, "list-view")) ||
-		(await elementQueries.findVisibleViewById(d, "saved-view"));
-
-	const stateHandler = new ExtensionStateHandler(
-		driver,
-		isLoggedIntoPopup,
-		loginActions,
-		elementQueries,
-	);
-	const flowRunner = new FlowRunner(
-		driver,
-		stateHandler,
-		createSeleniumNavigation(),
-	);
-	const result = await flowRunner.run(POPUP_URL, { maxSteps: 25 });
-	assert.equal(result.success, true, `Login flow failed: ${result.error}`);
-	await driver.switchTo().window(popupWindowHandle);
-	return popupWindowHandle;
-}
-
-async function readSavedViewMark(
-	driver: WebDriver,
-): Promise<{ marks: number; elapsedMs: number } | null> {
-	const raw = await driver.executeScript(
-		`const entries = performance.getEntriesByName(${JSON.stringify(SAVE_RENDERED_MARK)});` +
-			"return entries.length === 0 ? [] : [entries.length, entries[0].startTime];",
-	);
-	assert.ok(Array.isArray(raw), "the saved-view probe must answer with an array");
-	if (raw.length === 0) return null;
-	const [marks, elapsedMs] = raw.map(Number);
-	return { marks, elapsedMs };
-}
 
 /**
  * One sample: open the popup on a link it has never seen, and read back the
@@ -184,7 +63,7 @@ async function measureSave(
 
 	const rendered = await waitForUi(
 		driver,
-		() => readSavedViewMark(driver),
+		() => readRenderedMark(driver, SAVE_RENDERED_MARK),
 		`the popup never painted a saved view for ${target.url}`,
 	);
 
@@ -244,8 +123,13 @@ function writeReport(input: { warmupMs: number[]; samplesMs: number[] }): string
 
 const MAX_ATTEMPTS = 3;
 test(`a save paints the saved view in under ${BUDGET_MS}ms on average`, async (t) => {
-	const server = await startPerfServer();
-	armSuiteFailsafe(server);
+	const server: ChildProcess = await startPerfServer({
+		port: TEST_PORT,
+		readyUrl: `${ORIGIN}${readyProbePath(READY_NONCE)}`,
+		serverEnv: { [READY_NONCE_ENV]: READY_NONCE },
+		user: TEST_USER,
+	});
+	armSuiteFailsafe({ server, failsafeMs: SUITE_FAILSAFE_MS });
 	try {
 		for (let attempt = 1; attempt <= MAX_ATTEMPTS; attempt++) {
 			try {
@@ -286,7 +170,7 @@ async function runTest(t: { diagnostic: (message: string) => void }) {
 		await driver.installAddon(EXTENSION_DIR, true);
 
 		const runId = randomUUID().replace(/-/g, "");
-		await logIn(driver);
+		await logInToPopup({ driver, popupUrl: POPUP_URL, user: TEST_USER });
 
 		const warmupMs = await measureSaves(driver, {
 			runId,

@@ -16,4 +16,16 @@ module.exports = {
   // Reported, never gated: the first saves after a browser launch carry
   // extension start-up and an entry point no ETag has been issued for yet.
   warmupSaves: 2,
+
+  // A hundred tabs must paint their outcome inside ten seconds. This is the
+  // requirement the flow is held to rather than a measurement of it: a bulk save
+  // captures every tab before its first request leaves, so nothing about its
+  // cost follows from the single save above, and a two-core runner's spread over
+  // that much work is not yet known. Re-derive with the perf soak workflow when
+  // the runner image, the browser, or the save path moves.
+  meanSaveAllMs: 10000,
+
+  tabsPerSaveAll: 100,
+  gatedSaveAlls: 5,
+  warmupSaveAlls: 1,
 };
