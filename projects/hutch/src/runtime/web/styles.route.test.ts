@@ -26,7 +26,7 @@ describe("GET /styles/:file", () => {
 		expect(response.text).toBe(stylesheet.css);
 	});
 
-	it("serves the current css even when the hash in the url is stale", async () => {
+	it("serves the current css with a short, self-healing cache when the hash in the url is stale", async () => {
 		const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
 		const stylesheet = queueStylesheet();
 
@@ -36,6 +36,7 @@ describe("GET /styles/:file", () => {
 
 		expect(response.status).toBe(200);
 		expect(response.text).toBe(stylesheet.css);
+		expect(response.headers["cache-control"]).toBe("public, max-age=60");
 	});
 
 	it("404s an unknown stylesheet name", async () => {

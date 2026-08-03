@@ -500,14 +500,19 @@ export function createApp(dependencies: AppDependencies): Express {
 	);
 
 	app.get(`${STYLES_MOUNT_PATH}/:file`, (req: Request, res: Response) => {
-		const match = /^([a-z0-9-]+)\.[a-f0-9]{12}\.css$/.exec(String(req.params.file));
+		const file = String(req.params.file);
+		const match = /^([a-z0-9-]+)\.[a-f0-9]{12}\.css$/.exec(file);
 		const stylesheet = match ? findPageStylesheetByName(match[1]) : undefined;
 		if (!stylesheet) {
 			res.status(404).end();
 			return;
 		}
+		const requestedHrefIsCurrent = stylesheet.href === `${STYLES_MOUNT_PATH}/${file}`;
 		res.set("Content-Type", "text/css; charset=utf-8");
-		res.set("Cache-Control", "public, max-age=31536000, immutable");
+		res.set(
+			"Cache-Control",
+			requestedHrefIsCurrent ? "public, max-age=31536000, immutable" : "public, max-age=60",
+		);
 		res.send(stylesheet.css);
 	});
 
