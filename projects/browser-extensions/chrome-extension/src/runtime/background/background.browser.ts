@@ -8,6 +8,7 @@ import {
 	initSyncContextMenus,
 	initUploadQueue,
 	ADVERTISED_CAPABILITIES_STORAGE_KEY,
+	bulkSaveNotification,
 	type AdvertisedCapabilityStore,
 	type BrowserShell,
 	type OAuthTokens,
@@ -18,6 +19,7 @@ import {
 	type SaveUrlResult,
 	type InvokeActionResult,
 	type BulkSaveResult,
+	type GuardedResult,
 	type BulkSavePage,
 	type SaveableTab,
 	type TokenStorage,
@@ -328,6 +330,22 @@ async function capturePages(tabs: SaveableTab[]): Promise<BulkSavePage[]> {
 	);
 }
 
+let bulkSavesInFlight: Promise<void> = Promise.resolve();
+
+function showBulkSaveNotification(notification: {
+	title: string;
+	message: string;
+}): void {
+	browser.notifications
+		.create({
+			type: "basic",
+			iconUrl: browser.runtime.getURL("icons/light/icon-128.png"),
+			title: notification.title,
+			message: notification.message,
+		})
+		.catch((err) => logger.error("Failed to show bulk save notification", err));
+}
+
 browser.runtime.onMessage.addListener((raw, _sender, sendResponse) => {
 	if ((raw as { type: string }).type === "shortcut-pressed") {
 		browser.action.openPopup().catch((err) => logger.error(err));
@@ -408,20 +426,34 @@ browser.runtime.onMessage.addListener((raw, _sender, sendResponse) => {
 					break;
 				}
 				case "save-all-tabs": {
-					const pending = new Promise<unknown>((resolve) => {
-						core.once("saved-all-tabs", {
-							success: (value: BulkSaveResult) =>
-								resolve({ ok: true, value }),
-							failure: (err) => resolve({ ok: false, ...err }),
-						});
-					});
-					const { tabs } = message;
-					capturePages(tabs)
-						.then((pages) => core.saveAll("tabs", { pages }))
-						.catch(() =>
-							core.saveAll("tabs", { pages: tabs.map((tab) => ({ url: tab.url, title: tab.title })) }),
+					const { tabs, tabCount } = message;
+					const runBulkSave = () => {
+						const pending = new Promise<GuardedResult<BulkSaveResult>>(
+							(resolve) => {
+								core.once("saved-all-tabs", {
+									success: (value: BulkSaveResult) =>
+										resolve({ ok: true, value }),
+									failure: (err) => resolve({ ok: false, ...err }),
+								});
+							},
 						);
-					pending.then(sendResponse);
+						capturePages(tabs)
+							.then((pages) => core.saveAll("tabs", { pages }))
+							.catch(() =>
+								core.saveAll("tabs", { pages: tabs.map((tab) => ({ url: tab.url, title: tab.title })) }),
+							);
+						return withServiceWorkerKeepalive(pending).then((outcome) => {
+							sendResponse(outcome);
+							showBulkSaveNotification(
+								bulkSaveNotification({
+									outcome,
+									tabCount,
+									saveableCount: tabs.length,
+								}),
+							);
+						});
+					};
+					bulkSavesInFlight = bulkSavesInFlight.then(runBulkSave, runBulkSave);
 					break;
 				}
 			}

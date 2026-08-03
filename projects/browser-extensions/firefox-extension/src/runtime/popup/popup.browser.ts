@@ -13,7 +13,7 @@ import type {
 	Message,
 	ActionVariant,
 } from "browser-extension-core";
-import { filterByUrl, buildPaginationView, avatarColor, relativeTime, isAppUrl, itemDisplay, selectSaveableTabs, summarizeBulkSave, installShortcuts, isCmdD, buildMessageView, buildSavedView, actionLabel, actionVariant, actionIcon, linkLabel, linkPresentation, advertisesBulkSave, parseStoredCapabilities, ADVERTISED_CAPABILITIES_STORAGE_KEY, SAVE_RENDERED_MARK, SAVE_ALL_RENDERED_MARK } from "browser-extension-core";
+import { filterByUrl, buildPaginationView, avatarColor, relativeTime, isAppUrl, itemDisplay, selectSaveableTabs, summarizeBulkSave, installShortcuts, isCmdD, buildMessageView, buildSavedView, actionLabel, actionVariant, actionIcon, linkLabel, linkPresentation, BULK_SAVE_FAILED_MESSAGE, BULK_SAVE_FAILED_TITLE, advertisesBulkSave, parseStoredCapabilities, ADVERTISED_CAPABILITIES_STORAGE_KEY, SAVE_RENDERED_MARK, SAVE_ALL_RENDERED_MARK } from "browser-extension-core";
 import { HutchLogger, consoleLogger } from "@packages/hutch-logger";
 
 /** The client's own presentation map: an action variant -> the popup's CSS
@@ -520,10 +520,22 @@ async function saveAllTabsFlow() {
 	const titleEl = document.querySelector("[data-test-save-all-title]");
 	const summaryEl = document.querySelector("[data-test-save-all-summary]");
 	const tooBigEl = document.querySelector<HTMLElement>("[data-test-save-all-too-big]");
+	const hintEl = document.getElementById("save-all-hint");
+	const queueButton = document.getElementById("save-all-view-queue");
+
+	if (titleEl) titleEl.textContent = "Saving tabs\u2026";
+	if (summaryEl) summaryEl.textContent = "";
+	if (tooBigEl) {
+		tooBigEl.textContent = "";
+		tooBigEl.hidden = true;
+	}
+	if (hintEl) hintEl.hidden = false;
+	if (queueButton) queueButton.hidden = true;
 
 	const result = await send<GuardedResult<BulkSaveResult>>({
 		type: "save-all-tabs",
 		tabs: saveable,
+		tabCount: tabs.length,
 	});
 
 	if (isNotLoggedIn(result)) {
@@ -531,9 +543,11 @@ async function saveAllTabsFlow() {
 		return;
 	}
 
+	if (hintEl) hintEl.hidden = true;
+
 	if (!result.ok) {
-		if (titleEl) titleEl.textContent = "Couldn't save tabs";
-		if (summaryEl) summaryEl.textContent = "Something went wrong. Please try again.";
+		if (titleEl) titleEl.textContent = BULK_SAVE_FAILED_TITLE;
+		if (summaryEl) summaryEl.textContent = BULK_SAVE_FAILED_MESSAGE;
 		return;
 	}
 
@@ -549,7 +563,6 @@ async function saveAllTabsFlow() {
 		tooBigEl.hidden = tooBig === null;
 	}
 
-	const queueButton = document.getElementById("save-all-view-queue");
 	if (queueButton) queueButton.hidden = false;
 	performance.mark(SAVE_ALL_RENDERED_MARK);
 }

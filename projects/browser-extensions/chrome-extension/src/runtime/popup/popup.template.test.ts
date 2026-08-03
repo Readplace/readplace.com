@@ -17,6 +17,14 @@ describe("popup brand mark", () => {
 	});
 });
 
+describe("save all tabs progress", () => {
+	it("save-all view tells the reader the save survives closing the popup", () => {
+		expect(template).toContain(
+			'<p id="save-all-hint" class="saved-view__subtitle" data-test-save-all-hint>Saving continues if you close this. We&rsquo;ll notify you when it&rsquo;s done.</p>',
+		);
+	});
+});
+
 describe("save all tabs control", () => {
 	it("list-view header carries the save-all-tabs control", () => {
 		expect(template).toContain(

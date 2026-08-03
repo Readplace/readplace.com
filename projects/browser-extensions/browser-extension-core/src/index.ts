@@ -81,6 +81,11 @@ export {
 	MENU_ITEM_SAVE_ALL_TABS,
 } from "./get-context-menu-target";
 export { advertisesBulkSave } from "./advertised-capabilities";
+export {
+	BULK_SAVE_FAILED_MESSAGE,
+	BULK_SAVE_FAILED_TITLE,
+	bulkSaveNotification,
+} from "./bulk-save-notification";
 export type { ContextMenuItem, ContextMenuItemId } from "./advertised-capabilities";
 export {
 	ADVERTISED_CAPABILITIES_STORAGE_KEY,

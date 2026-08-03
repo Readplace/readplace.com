@@ -123,6 +123,17 @@ declare module "webextension-polyfill" {
 		};
 	}
 
+	namespace Notifications {
+		interface CreateNotificationOptions {
+			type: "basic";
+			iconUrl: string;
+			title: string;
+			message: string;
+		}
+
+		function create(options: CreateNotificationOptions): Promise<string>;
+	}
+
 	const storage: { local: typeof Storage.Local; session: typeof Storage.Session };
 	const runtime: typeof Runtime;
 	const tabs: typeof Tabs;
@@ -136,6 +147,7 @@ declare module "webextension-polyfill" {
 		action: typeof Action;
 		alarms: typeof Alarms;
 		contextMenus: typeof ContextMenus;
+		notifications: typeof Notifications;
 	};
 
 	export default browser;

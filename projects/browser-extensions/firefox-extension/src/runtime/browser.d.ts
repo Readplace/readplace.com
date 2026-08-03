@@ -83,6 +83,17 @@ declare namespace browser {
 		function openPopup(): Promise<void>;
 	}
 
+	namespace notifications {
+		interface CreateNotificationOptions {
+			type: "basic";
+			iconUrl: string;
+			title: string;
+			message: string;
+		}
+
+		function create(options: CreateNotificationOptions): Promise<string>;
+	}
+
 	namespace menus {
 		type ContextType =
 			| "page"
