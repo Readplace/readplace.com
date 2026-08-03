@@ -216,7 +216,8 @@ describe("Inbox link save route", () => {
 		// misclassification still reaches the operator's error widget.
 		expect(errors).toHaveLength(1);
 		assert(errors[0].startsWith("[inbox-link-feedback] "));
-		expect(JSON.parse(errors[0].slice("[inbox-link-feedback] ".length))).toMatchObject({
+		const feedback = JSON.parse(errors[0].slice("[inbox-link-feedback] ".length));
+		expect(feedback).toMatchObject({
 			verdict: "should-be-included",
 			receivedAtMessageId: SK,
 			ordinal: "0000",
@@ -224,6 +225,7 @@ describe("Inbox link save route", () => {
 			status: "skipped",
 			skipReason: "llm-ad",
 		});
+		expect(feedback).not.toHaveProperty("userId");
 	});
 
 	it("returns 404 for a skipped link the save pipeline would reject, publishing nothing", async () => {

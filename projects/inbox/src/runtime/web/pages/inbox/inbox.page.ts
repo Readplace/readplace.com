@@ -118,14 +118,12 @@ type LinkClassificationVerdict = z.infer<typeof LinkFeedbackSchema>["verdict"];
 function logLinkClassificationFeedback(input: {
 	logError: (message: string, error?: Error) => void;
 	verdict: LinkClassificationVerdict;
-	userId: UserId;
 	receivedAtMessageId: string;
 	link: InboxEmailLinkEntry;
 }): void {
 	input.logError(
 		`[inbox-link-feedback] ${JSON.stringify({
 			verdict: input.verdict,
-			userId: input.userId,
 			receivedAtMessageId: input.receivedAtMessageId,
 			ordinal: input.link.ordinal,
 			url: input.link.url,
@@ -416,7 +414,6 @@ export function initInboxRoutes(deps: InboxDependencies): Router {
 				logLinkClassificationFeedback({
 					logError: deps.logError,
 					verdict: parsedBody.data.verdict,
-					userId,
 					receivedAtMessageId,
 					link,
 				});
@@ -472,7 +469,6 @@ export function initInboxRoutes(deps: InboxDependencies): Router {
 				logLinkClassificationFeedback({
 					logError: deps.logError,
 					verdict: "should-be-included",
-					userId,
 					receivedAtMessageId,
 					link,
 				});

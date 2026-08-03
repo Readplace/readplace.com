@@ -1186,7 +1186,8 @@ describe("Inbox link feedback route", () => {
 		expect(notice.textContent?.trim()).toBe("Thanks — your report was logged.");
 		expect(errors).toHaveLength(1);
 		assert(errors[0].startsWith("[inbox-link-feedback] "));
-		expect(JSON.parse(errors[0].slice("[inbox-link-feedback] ".length))).toMatchObject({
+		const feedback = JSON.parse(errors[0].slice("[inbox-link-feedback] ".length));
+		expect(feedback).toMatchObject({
 			verdict: "should-be-included",
 			receivedAtMessageId: SK,
 			ordinal: "0000",
@@ -1194,6 +1195,7 @@ describe("Inbox link feedback route", () => {
 			status: "skipped",
 			skipReason: "list-unsubscribe",
 		});
+		expect(feedback).not.toHaveProperty("userId");
 	});
 
 	it("redirects an exclude verdict on a kept link back to the Articles tab", async () => {
