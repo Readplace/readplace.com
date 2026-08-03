@@ -2,6 +2,7 @@ import { JSDOM } from "jsdom";
 import {
 	applyIndeterminate,
 	formatBytes,
+	initBoostedPageBundle,
 	initIndeterminateCheckboxes,
 	initUploadProgress,
 } from "./import.client";
@@ -210,5 +211,54 @@ describe("initUploadProgress", () => {
 		expect(form.hasAttribute("hx-post")).toBe(false);
 		expect(calls).toEqual([form]);
 		expect(removedHxPostBeforeSubmit).toEqual([true]);
+	});
+});
+
+describe("initUploadProgress across a boosted swap", () => {
+	it("re-wires the upload form on the fresh <main> a boosted navigation swaps in", () => {
+		const dom = new JSDOM(
+			`<!doctype html><html><body><main>${UPLOAD_FORM_HTML}</main></body></html>`,
+		);
+		const doc = dom.window.document;
+
+		let swap: ((target: Element) => void) | undefined;
+		initBoostedPageBundle({
+			document: doc,
+			selector: "form.import__upload-form",
+			addSwapListener: (listener) => {
+				swap = listener;
+			},
+			create: () => {
+				initUploadProgress({
+					document: doc,
+					formatBytes,
+					nativeSubmit: () => undefined,
+				});
+				return () => undefined;
+			},
+		});
+		if (!swap) throw new Error("the bundle must register a swap listener");
+
+		const oldMain = doc.querySelector("main");
+		if (!oldMain) throw new Error("fixture must render a <main>");
+		const nextMain = doc.createElement("main");
+		nextMain.innerHTML = UPLOAD_FORM_HTML;
+		oldMain.replaceWith(nextMain);
+		swap(nextMain);
+
+		const form = doc.querySelector<HTMLFormElement>("form.import__upload-form");
+		if (!form) throw new Error("the swapped-in <main> must contain the upload form");
+
+		expect(form.dataset.importState).toBe("idle");
+		form.dispatchEvent(new dom.window.CustomEvent("htmx:beforeRequest"));
+		expect(form.dataset.importState).toBe("uploading");
+		form.dispatchEvent(
+			new dom.window.CustomEvent("htmx:xhr:progress", {
+				detail: { loaded: 600_000, total: 1_500_000 },
+			}),
+		);
+		expect(
+			form.querySelector<HTMLElement>("[data-import-progress-fill]")?.style.width,
+		).toBe("40%");
 	});
 });

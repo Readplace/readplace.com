@@ -1,3 +1,7 @@
+import { initBoostedPageBundle as boostedPageBundle } from "../../shared/boosted-page-bundle.client";
+
+export const initBoostedPageBundle = boostedPageBundle;
+
 /**
  * The HTML `indeterminate` state cannot be set via attribute — it is a JS-only
  * property on HTMLInputElement (see MDN: HTMLInputElement.indeterminate). The
