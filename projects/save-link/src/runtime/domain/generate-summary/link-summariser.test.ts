@@ -4,7 +4,7 @@ import { initLinkSummariser } from "./link-summariser";
 import type { CreateAiMessage } from "@packages/ai-message";
 import type { MarkSummaryStage } from "../../providers/article-crawl/mark-summary-stage";
 
-function createStubCreateMessage(payload: { summary: string; excerpt: string }): CreateAiMessage {
+function createStubCreateMessage(payload: { summary: string; excerpt?: string }): CreateAiMessage {
 	return async () => ({
 		content: [{ type: "text", text: JSON.stringify(payload) }],
 		usage: { input_tokens: 50, output_tokens: 10 },
@@ -188,6 +188,120 @@ describe("initLinkSummariser", () => {
 
 		const result = await summarizeArticle({
 			url: "https://example.com/long",
+			textContent: "x",
+		});
+
+		expect(result.kind).toBe("ready");
+		if (result.kind !== "ready") throw new Error("unreachable");
+		expect(result.excerpt.length).toBeLessThanOrEqual(MAX_EXCERPT_LENGTH);
+		expect(result.excerpt.endsWith("…")).toBe(true);
+	});
+
+	it("derives the excerpt from the summary when the model omits it, instead of discarding the whole result", async () => {
+		const createMessage = createStubCreateMessage({ summary: "A good summary." });
+		const info = jest.fn();
+
+		const { summarizeArticle } = initLinkSummariser({
+			createMessage,
+			markSummaryStage: noopMarkStage,
+			logger: { ...noopLogger, info },
+			cleanContent: identity,
+			isTooShortToSummarize: () => false,
+		});
+
+		const result = await summarizeArticle({
+			url: "https://example.com/no-excerpt",
+			textContent: "A long article with lots of content.",
+		});
+
+		expect(result).toEqual({
+			kind: "ready",
+			summary: "A good summary.",
+			excerpt: "A good summary.",
+			inputTokens: 50,
+			outputTokens: 10,
+		});
+		expect(info).toHaveBeenCalledWith(
+			"[summarize] no excerpt in response, deriving one from the summary",
+			{ url: "https://example.com/no-excerpt" },
+		);
+	});
+
+	it("derives the excerpt when the model returns a blank one, which would otherwise persist as an empty excerpt", async () => {
+		const createMessage = createStubCreateMessage({ summary: "A good summary.", excerpt: "   " });
+
+		const { summarizeArticle } = initLinkSummariser({
+			createMessage,
+			markSummaryStage: noopMarkStage,
+			logger: noopLogger,
+			cleanContent: identity,
+			isTooShortToSummarize: () => false,
+		});
+
+		const result = await summarizeArticle({
+			url: "https://example.com/blank-excerpt",
+			textContent: "A long article with lots of content.",
+		});
+
+		expect(result.kind).toBe("ready");
+		if (result.kind !== "ready") throw new Error("unreachable");
+		expect(result.excerpt).toBe("A good summary.");
+	});
+
+	it("substitutes every prompt placeholder, including the second MAX_EXCERPT_LENGTH the excerpt rule repeats", async () => {
+		const createMessage = jest.fn(createStubCreateMessage({ summary: "S.", excerpt: "E." }));
+
+		const { summarizeArticle } = initLinkSummariser({
+			createMessage,
+			markSummaryStage: noopMarkStage,
+			logger: noopLogger,
+			cleanContent: identity,
+			isTooShortToSummarize: () => false,
+		});
+
+		await summarizeArticle({ url: "https://example.com/x", textContent: "Long content." });
+
+		const { system } = createMessage.mock.calls[0][0];
+		expect(system).not.toMatch(/\{\{[A-Z_]+\}\}/u);
+		expect(system).toContain(`Do not exceed ${MAX_EXCERPT_LENGTH} characters under any circumstances.`);
+	});
+
+	it("flattens paragraph breaks out of a derived excerpt, which must be a single blurb", async () => {
+		const createMessage = createStubCreateMessage({ summary: "First point.\n\nSecond point." });
+
+		const { summarizeArticle } = initLinkSummariser({
+			createMessage,
+			markSummaryStage: noopMarkStage,
+			logger: noopLogger,
+			cleanContent: identity,
+			isTooShortToSummarize: () => false,
+		});
+
+		const result = await summarizeArticle({
+			url: "https://example.com/paragraphs",
+			textContent: "x",
+		});
+
+		expect(result.kind).toBe("ready");
+		if (result.kind !== "ready") throw new Error("unreachable");
+		expect(result.summary).toBe("First point.\n\nSecond point.");
+		expect(result.excerpt).toBe("First point. Second point.");
+	});
+
+	it("clips a derived excerpt to MAX_EXCERPT_LENGTH so an over-long summary cannot violate the contract", async () => {
+		const createMessage = createStubCreateMessage({ summary: `${"word ".repeat(60)}tail` });
+
+
+		const { summarizeArticle } = initLinkSummariser({
+			createMessage,
+			markSummaryStage: noopMarkStage,
+			logger: noopLogger,
+			cleanContent: identity,
+			isTooShortToSummarize: () => false,
+		});
+
+		const result = await summarizeArticle({
+			url: "https://example.com/no-excerpt-long",
 			textContent: "x",
 		});
 

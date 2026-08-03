@@ -1,5 +1,6 @@
 import { readFileSync } from "node:fs";
 import { join } from "node:path";
+import assert from "node:assert";
 import { z } from "zod";
 import type { SummarySkipReason } from "@packages/article-state-types";
 import type { HutchLogger } from "@packages/hutch-logger";
@@ -17,12 +18,17 @@ const SUMMARIZE_PROMPT = readFileSync(
 	join(__dirname, "summarize-prompt.md"),
 	"utf-8",
 )
-	.replace("{{MAX_SUMMARY_LENGTH}}", String(MAX_SUMMARY_LENGTH))
-	.replace("{{MAX_EXCERPT_LENGTH}}", String(MAX_EXCERPT_LENGTH));
+	.replaceAll("{{MAX_SUMMARY_LENGTH}}", String(MAX_SUMMARY_LENGTH))
+	.replaceAll("{{MAX_EXCERPT_LENGTH}}", String(MAX_EXCERPT_LENGTH));
+
+assert(
+	!/\{\{[A-Z_]+\}\}/u.test(SUMMARIZE_PROMPT),
+	"summarize-prompt.md has an unsubstituted placeholder",
+);
 
 const SummaryPayload = z.object({
 	summary: z.string(),
-	excerpt: z.string(),
+	excerpt: z.string().optional(),
 });
 
 export type SummarizeResult =
@@ -83,26 +89,6 @@ export function initLinkSummariser(deps: {
 					citations: { enabled: true },
 				}],
 			}],
-			output_config: {
-				format: {
-					type: "json_schema",
-					schema: {
-						type: "object",
-						properties: {
-							summary: {
-								type: "string",
-								description: `Plain text summary, max ${MAX_SUMMARY_LENGTH} characters`,
-							},
-							excerpt: {
-								type: "string",
-								description: `One or two short sentences, max ${MAX_EXCERPT_LENGTH} characters`,
-							},
-						},
-						required: ["summary", "excerpt"],
-						additionalProperties: false,
-					},
-				},
-			},
 		});
 
 		const textBlock = response.content.find(
@@ -119,7 +105,14 @@ export function initLinkSummariser(deps: {
 			deps.logger.info("[summarize] AI returned unavailable", { url: params.url });
 			return { kind: "skipped", reason: "ai-unavailable" };
 		}
-		const excerpt = clipExcerpt(parsed.excerpt.trim());
+
+		const written = parsed.excerpt?.trim();
+		if (!written) {
+			deps.logger.info("[summarize] no excerpt in response, deriving one from the summary", {
+				url: params.url,
+			});
+		}
+		const excerpt = clipExcerpt(written ? written : summary.replace(/\s+/gu, " "));
 
 		return {
 			kind: "ready",

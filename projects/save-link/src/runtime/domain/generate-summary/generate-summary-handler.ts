@@ -29,9 +29,11 @@ export function initGenerateSummaryHandler(deps: GenerateSummaryHandlerDeps): Ha
 		const batchItemFailures: SQSBatchItemFailure[] = [];
 
 		for (const record of event.Records) {
+			let url: string | undefined;
 			try {
 				const envelope = JSON.parse(record.body);
 				const command = GenerateSummaryCommand.detailSchema.parse(envelope.detail);
+				url = command.url;
 
 				/* Cache check via the aggregate's loader — `ready` and `skipped` are
 				 * terminal, short-circuit those. `failed` is retryable on redrive so
@@ -125,6 +127,7 @@ export function initGenerateSummaryHandler(deps: GenerateSummaryHandlerDeps): Ha
 			} catch (error) {
 				logger.error("[GenerateSummary] record failed", {
 					messageId: record.messageId,
+					url,
 					error,
 				});
 				batchItemFailures.push({ itemIdentifier: record.messageId });
