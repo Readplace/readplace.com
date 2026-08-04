@@ -1,3 +1,4 @@
+export { assertWithinBudget } from "./budget-verdict";
 export {
 	perfSetting,
 	summarizeLatency,

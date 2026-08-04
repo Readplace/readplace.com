@@ -25,9 +25,7 @@ export {
 } from "./save-all-perf-actions";
 export type { TabPageServer } from "./save-all-perf-actions";
 export {
-	armSuiteFailsafe,
-	startPerfServer,
-	stopPerfServer,
+	runPerfSuite,
 	discoverChromeExtensionId,
 	logInToPopup,
 } from "./perf-suite-actions";

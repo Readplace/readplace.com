@@ -1,7 +1,6 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import { randomUUID } from "node:crypto";
-import type { ChildProcess } from "node:child_process";
 import fs from "node:fs";
 import path from "node:path";
 import { Builder } from "selenium-webdriver";
@@ -20,14 +19,13 @@ import {
 	seedPendingBulkSave,
 	readRenderedMark,
 	perfTabUrls,
-	armSuiteFailsafe,
-	startPerfServer,
-	stopPerfServer,
+	runPerfSuite,
 	discoverChromeExtensionId,
 	logInToPopup,
 } from "browser-extension-core/e2e-actions";
 import { SAVE_ALL_RENDERED_MARK } from "browser-extension-core";
 import {
+	assertWithinBudget,
 	perfSetting,
 	latencyReportPath,
 	summarizeLatency,
@@ -177,35 +175,18 @@ function writeReport(input: { warmupMs: number[]; samplesMs: number[] }): string
 	return reportPath;
 }
 
-const MAX_ATTEMPTS = 3;
 test(`saving ${TABS_PER_SAVE_ALL} tabs paints the outcome in under ${BUDGET_MS}ms on average`, async (t) => {
-	const server: ChildProcess = await startPerfServer({
-		port: TEST_PORT,
-		readyUrl: `${ORIGIN}${readyProbePath(READY_NONCE)}`,
-		serverEnv: { [READY_NONCE_ENV]: READY_NONCE },
-		user: TEST_USER,
+	await runPerfSuite({
+		server: {
+			port: TEST_PORT,
+			readyUrl: `${ORIGIN}${readyProbePath(READY_NONCE)}`,
+			serverEnv: { [READY_NONCE_ENV]: READY_NONCE },
+			user: TEST_USER,
+		},
+		failsafeMs: SAVE_ALL_SUITE_FAILSAFE_MS,
+		diagnostic: (message) => t.diagnostic(message),
+		measure: () => runTest(t),
 	});
-	armSuiteFailsafe({ server, failsafeMs: SAVE_ALL_SUITE_FAILSAFE_MS });
-	try {
-		for (let attempt = 1; attempt <= MAX_ATTEMPTS; attempt++) {
-			try {
-				await runTest(t);
-				return;
-			} catch (err) {
-				/** A missed budget is the result, never a flake: only a browser or
-				 * server that failed to come up is worth another attempt. */
-				const isRetryable =
-					err instanceof Error &&
-					err.name !== "AssertionError" &&
-					(err.message.includes("ECONNREFUSED") ||
-						err.message.includes("Chrome instance exited") ||
-						err.name === "TimeoutError");
-				if (!isRetryable || attempt === MAX_ATTEMPTS) throw err;
-			}
-		}
-	} finally {
-		await stopPerfServer(server);
-	}
 });
 
 async function runTest(t: { diagnostic: (message: string) => void }) {
@@ -280,10 +261,11 @@ async function runTest(t: { diagnostic: (message: string) => void }) {
 			);
 			t.diagnostic(`report: ${reportPath}`);
 
-			assert.ok(
-				stats.meanMs < BUDGET_MS,
-				`saving ${TABS_PER_SAVE_ALL} tabs took ${Math.round(stats.meanMs)}ms on average, over the ${BUDGET_MS}ms budget`,
-			);
+			assertWithinBudget({
+				what: `saving ${TABS_PER_SAVE_ALL} tabs`,
+				meanMs: stats.meanMs,
+				budgetMs: BUDGET_MS,
+			});
 		} finally {
 			await driver.quit();
 		}

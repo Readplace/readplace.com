@@ -6,6 +6,7 @@ import {
 	ExtensionStateHandler,
 	type SuccessDetector,
 } from "../e2e";
+import { MAX_MEASURE_ATTEMPTS, measureUntilVerdict } from "../perf/budget-verdict";
 import { createLoginActions } from "./login-actions";
 import {
 	createSeleniumElementQueries,
@@ -18,7 +19,7 @@ export type PerfTestUser = { email: string; password: string };
 /** Hard deadline for a suite that stopped making progress. A test cancelled by
  * `--test-timeout` skips its teardown, and the orphaned server child then holds
  * the process open forever; this kills the whole process group and exits. */
-export function armSuiteFailsafe(input: {
+function armSuiteFailsafe(input: {
 	server: ChildProcess;
 	failsafeMs: number;
 }): void {
@@ -44,7 +45,7 @@ export function armSuiteFailsafe(input: {
  * a published event — where `hutch:e2e-server` crawls and parses the article
  * inside the request, which would make a perf suite a measurement of the
  * crawler. The ready URL is built by the caller, which owns the probe nonce. */
-export async function startPerfServer(input: {
+async function startPerfServer(input: {
 	port: number;
 	readyUrl: string;
 	serverEnv: Record<string, string>;
@@ -76,7 +77,7 @@ export async function startPerfServer(input: {
 	return child;
 }
 
-export async function stopPerfServer(child: ChildProcess): Promise<void> {
+async function stopPerfServer(child: ChildProcess): Promise<void> {
 	if (child.exitCode !== null || child.pid === undefined) return;
 	const pid = child.pid;
 	const killGroup = (signal: NodeJS.Signals) => {
@@ -96,6 +97,30 @@ export async function stopPerfServer(child: ChildProcess): Promise<void> {
 			resolve();
 		}, 5_000).unref();
 	});
+}
+
+export async function runPerfSuite(input: {
+	server: {
+		port: number;
+		readyUrl: string;
+		serverEnv: Record<string, string>;
+		user: PerfTestUser;
+	};
+	failsafeMs: number;
+	diagnostic: (message: string) => void;
+	measure: () => Promise<void>;
+}): Promise<void> {
+	const server = await startPerfServer(input.server);
+	armSuiteFailsafe({ server, failsafeMs: input.failsafeMs });
+	try {
+		await measureUntilVerdict({
+			maxAttempts: MAX_MEASURE_ATTEMPTS,
+			diagnostic: input.diagnostic,
+			measure: input.measure,
+		});
+	} finally {
+		await stopPerfServer(server);
+	}
 }
 
 /** An unpacked extension's id is assigned at load time, so it can only be read
