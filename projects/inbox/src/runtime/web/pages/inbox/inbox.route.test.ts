@@ -74,6 +74,10 @@ describe("Inbox address routes", () => {
 			expect(list.getAttribute("data-test-inbox-addresses-state")).toBe("empty");
 			assert(doc.querySelector("[data-test-inbox-empty]"), "the empty line must render");
 			assert(doc.querySelector("[data-test-inbox-create]"), "the create form must render");
+			const back = doc.querySelector("[data-test-inbox-back]");
+			assert(back, "the header back link must render");
+			expect(back.getAttribute("href")).toBe("/inbox");
+			expect(back.textContent?.trim()).toBe("Inbox");
 		});
 
 		it("shows the limit banner proactively at the cap without the &error=limit param", async () => {
