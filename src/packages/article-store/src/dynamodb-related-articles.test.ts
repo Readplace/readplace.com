@@ -54,7 +54,7 @@ describe("initDynamoDbRelatedArticles", () => {
 			await store.markRelatedArticlesReady({
 				userId: USER_ID,
 				url: TARGET_URL,
-				relatedArticles: [{ url: "https://example.com/earlier", reason: "Same argument" }],
+				relatedArticles: [{ url: "example.com/earlier", reason: "Same argument" }],
 				inputTokens: 120,
 				outputTokens: 30,
 				at: AT,
@@ -75,7 +75,7 @@ describe("initDynamoDbRelatedArticles", () => {
 			);
 			expect(update.input.ExpressionAttributeValues).toEqual({
 				":status": "ready",
-				":articles": [{ url: "https://example.com/earlier", reason: "Same argument" }],
+				":articles": [{ url: "example.com/earlier", reason: "Same argument" }],
 				":at": AT.toISOString(),
 				":inputTokens": 120,
 				":outputTokens": 30,
@@ -448,8 +448,8 @@ describe("initDynamoDbRelatedArticles", () => {
 							url: "example.com/target",
 							relatedStatus: "ready",
 							relatedArticles: [
-								{ url: "https://example.com/second", reason: "Follow-up" },
-								{ url: "https://example.com/first", reason: "Same event" },
+								{ url: "example.com/second", reason: "Follow-up" },
+								{ url: "example.com/first", reason: "Same event" },
 							],
 						},
 					};
@@ -520,7 +520,7 @@ describe("initDynamoDbRelatedArticles", () => {
 							userId: USER_ID,
 							url: "example.com/target",
 							relatedStatus: "ready",
-							relatedArticles: [{ url: "https://example.com/vanished", reason: "Gone" }],
+							relatedArticles: [{ url: "example.com/vanished", reason: "Gone" }],
 						},
 					};
 				}
@@ -550,9 +550,9 @@ describe("initDynamoDbRelatedArticles", () => {
 							url: "example.com/target",
 							relatedStatus: "ready",
 							relatedArticles: [
-								{ url: "https://example.com/deleted", reason: "Gone" },
-								{ url: "https://example.com/purged", reason: "Purged" },
-								{ url: "https://example.com/kept", reason: "Same argument" },
+								{ url: "example.com/deleted", reason: "Gone" },
+								{ url: "example.com/purged", reason: "Purged" },
+								{ url: "example.com/kept", reason: "Same argument" },
 							],
 						},
 					};

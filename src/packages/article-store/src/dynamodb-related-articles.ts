@@ -252,8 +252,11 @@ export function initDynamoDbRelatedArticles(deps: {
 		assert(links, "a ready related row is written with its relations");
 		if (links.length === 0) return { status: "ready", items: [] };
 
+		// Stored relation urls ARE canonical table keys (the candidate query reads
+		// them off the user-articles sort key), so re-parsing would reject them:
+		// the normaliser takes real URLs and a key has no scheme.
 		const keyed = links.map((link) => ({
-			key: ArticleResourceUniqueId.parse(link.url).value,
+			key: link.url,
 			reason: link.reason,
 		}));
 
