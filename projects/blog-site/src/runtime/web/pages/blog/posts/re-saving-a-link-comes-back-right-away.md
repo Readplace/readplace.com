@@ -5,8 +5,6 @@ slug: "re-saving-a-link-comes-back-right-away"
 date: "2026-08-02"
 author: "Fayner Brack"
 keywords: "fast read it later save, instant save article, why is saving an article slow, re-save read it later, save article without waiting, read it later app performance, idempotent refresh pipeline, async crawl read it later, move work off the save path, pocket alternative fast save"
-tags: ["changelog"]
-banner: "I took the wait out of saving a link Readplace already has"
 ---
 
 <details class="blog-tldr">
