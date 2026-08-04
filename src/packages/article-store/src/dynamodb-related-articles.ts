@@ -120,7 +120,11 @@ export function initDynamoDbRelatedArticles(deps: {
 			await userArticles.update({
 				Key: { userId: params.userId, url: articleResourceUniqueId.value },
 				UpdateExpression: params.updateExpression,
-				ConditionExpression: "attribute_exists(savedAt)",
+				// Terminal-once: two saves of the same article race each other through
+				// the worker, and the loser must not repaint a settled row with its own
+				// (equally valid, differently ordered) answer.
+				ConditionExpression:
+					"attribute_exists(savedAt) AND attribute_not_exists(relatedStatus)",
 				ExpressionAttributeValues: params.expressionAttributeValues,
 			});
 		} catch (error) {

@@ -70,6 +70,9 @@ describe("initDynamoDbRelatedArticles", () => {
 			expect(String(update.input.UpdateExpression)).toContain("relatedStatus = :status");
 			expect(String(update.input.UpdateExpression)).toContain("relatedArticles = :articles");
 			expect(String(update.input.ConditionExpression)).toContain("attribute_exists(savedAt)");
+			expect(String(update.input.ConditionExpression)).toContain(
+				"attribute_not_exists(relatedStatus)",
+			);
 			expect(update.input.ExpressionAttributeValues).toEqual({
 				":status": "ready",
 				":articles": [{ url: "https://example.com/earlier", reason: "Same argument" }],
@@ -77,6 +80,23 @@ describe("initDynamoDbRelatedArticles", () => {
 				":inputTokens": 120,
 				":outputTokens": 30,
 			});
+		});
+
+		it("leaves a row another invocation already settled untouched", async () => {
+			const { store } = build(() => {
+				throw new ConditionalCheckFailedException({ $metadata: {}, message: "settled" });
+			});
+
+			await expect(
+				store.markRelatedArticlesReady({
+					userId: USER_ID,
+					url: TARGET_URL,
+					relatedArticles: [{ url: "https://example.com/earlier", reason: "Same argument" }],
+					inputTokens: 120,
+					outputTokens: 30,
+					at: AT,
+				}),
+			).resolves.toBeUndefined();
 		});
 
 		it("treats a save deleted mid-computation as a no-op", async () => {
