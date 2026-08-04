@@ -7,6 +7,7 @@ import type {
 	ReadArticleContent,
 } from "@packages/provider-contracts/article-store";
 import type { FindGeneratedSummary } from "@packages/provider-contracts/article-summary";
+import type { FindRelatedArticles } from "@packages/provider-contracts/related-articles";
 import {
 	initMcpArticleOperations,
 	toMcpArticle,
@@ -41,6 +42,7 @@ interface DepOverrides {
 	findArticlesByUser?: FindArticlesByUser;
 	readArticleContent?: ReadArticleContent;
 	findGeneratedSummary?: FindGeneratedSummary;
+	findRelatedArticles?: FindRelatedArticles;
 }
 
 function buildOps(overrides: DepOverrides = {}) {
@@ -58,6 +60,8 @@ function buildOps(overrides: DepOverrides = {}) {
 		readArticleContent: overrides.readArticleContent ?? (async () => undefined),
 		findGeneratedSummary:
 			overrides.findGeneratedSummary ?? (async () => undefined),
+		findRelatedArticles:
+			overrides.findRelatedArticles ?? (async () => ({ status: "pending" })),
 	});
 }
 
@@ -271,6 +275,69 @@ describe("initMcpArticleOperations", () => {
 			expect(
 				await ops.getArticleSummary({ userId, id: article.id.value }),
 			).toEqual({ status: "ready", summary: "TL;DR" });
+		});
+	});
+
+	describe("getRelatedArticles", () => {
+		it("reports not_found when the id does not resolve", async () => {
+			const ops = buildOps({ findArticleById: async () => null });
+			expect(await ops.getRelatedArticles({ userId, id: "0".repeat(32) })).toEqual({
+				status: "not_found",
+			});
+		});
+
+		it("reports pending while the relations have not been worked out", async () => {
+			const article = buildArticle();
+			const ops = buildOps({
+				findArticleById: async () => article,
+				findRelatedArticles: async () => ({ status: "pending" }),
+			});
+			expect(
+				await ops.getRelatedArticles({ userId, id: article.id.value }),
+			).toEqual({ status: "pending" });
+		});
+
+		it("reports a skipped computation", async () => {
+			const article = buildArticle();
+			const ops = buildOps({
+				findArticleById: async () => article,
+				findRelatedArticles: async () => ({ status: "skipped" }),
+			});
+			expect(
+				await ops.getRelatedArticles({ userId, id: article.id.value }),
+			).toEqual({ status: "skipped" });
+		});
+
+		it("flattens each relation to the id an agent can look up again", async () => {
+			const article = buildArticle();
+			const relatedId = ReaderArticleHashId.from("https://example.com/earlier");
+			const ops = buildOps({
+				findArticleById: async () => article,
+				findRelatedArticles: async () => ({
+					status: "ready",
+					items: [
+						{
+							id: relatedId,
+							title: "Earlier read",
+							siteName: "Example",
+							reason: "Same argument",
+						},
+					],
+				}),
+			});
+			expect(
+				await ops.getRelatedArticles({ userId, id: article.id.value }),
+			).toEqual({
+				status: "ready",
+				articles: [
+					{
+						id: relatedId.value,
+						title: "Earlier read",
+						siteName: "Example",
+						reason: "Same argument",
+					},
+				],
+			});
 		});
 	});
 });

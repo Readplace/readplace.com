@@ -219,6 +219,36 @@ export const LinkQueuedEvent = defineEvent({
 });
 export type LinkQueuedDetail = z.infer<typeof LinkQueuedEvent.detailSchema>;
 
+export const ComputeRelatedArticlesCommand = defineEvent({
+	name: "compute-related-articles",
+	source: "hutch.save-article",
+	detailType: "ComputeRelatedArticles",
+	detailSchema: z.object({
+		url: z.string(),
+		userId: z.string(),
+	}),
+});
+export type ComputeRelatedArticlesDetail = z.infer<
+	typeof ComputeRelatedArticlesCommand.detailSchema
+>;
+
+export const RelatedArticlesComputedEvent = defineEvent({
+	name: "related-articles-computed",
+	source: "hutch.save-link",
+	detailType: "RelatedArticlesComputed",
+	detailSchema: z.object({
+		url: z.string(),
+		userId: z.string(),
+		outcome: z.enum(["ready", "skipped"]),
+		relatedCount: z.number(),
+		inputTokens: z.number(),
+		outputTokens: z.number(),
+	}),
+});
+export type RelatedArticlesComputedDetail = z.infer<
+	typeof RelatedArticlesComputedEvent.detailSchema
+>;
+
 /** Irreversible fact: a `SubmitLinkCommand` exhausted its accept-phase retries
  * and dead-lettered, so the save never reached its terminal accept state.
  * Published by save-link's `submit-link-dlq` handler off the submit-link DLQ.

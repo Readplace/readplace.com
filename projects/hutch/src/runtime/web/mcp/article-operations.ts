@@ -12,6 +12,11 @@ import type {
 	GeneratedSummary,
 } from "@packages/provider-contracts/article-summary";
 import type {
+	FindRelatedArticles,
+	RelatedArticles,
+} from "@packages/provider-contracts/related-articles";
+import type {
+	ArticleRelatedResult,
 	ArticleSummaryResult,
 	McpArticle,
 	McpServerDeps,
@@ -22,6 +27,7 @@ interface McpArticleOperationDeps {
 	findArticlesByUser: FindArticlesByUser;
 	readArticleContent: ReadArticleContent;
 	findGeneratedSummary: FindGeneratedSummary;
+	findRelatedArticles: FindRelatedArticles;
 }
 
 export function toMcpArticle(article: SavedArticle): McpArticle {
@@ -71,6 +77,25 @@ export function toSummaryResult(
 	}
 }
 
+function toRelatedResult(related: RelatedArticles): ArticleRelatedResult {
+	switch (related.status) {
+		case "pending":
+			return { status: "pending" };
+		case "skipped":
+			return { status: "skipped" };
+		case "ready":
+			return {
+				status: "ready",
+				articles: related.items.map((item) => ({
+					id: item.id.value,
+					title: item.title,
+					siteName: item.siteName,
+					reason: item.reason,
+				})),
+			};
+	}
+}
+
 /**
  * Builds the article-facing MCP operations from the same store seams the
  * hypermedia `/queue` API uses. Lives here rather than in the composition root
@@ -83,7 +108,11 @@ export function initMcpArticleOperations(
 	deps: McpArticleOperationDeps,
 ): Pick<
 	McpServerDeps,
-	"listQueue" | "getArticle" | "getArticleContent" | "getArticleSummary"
+	| "listQueue"
+	| "getArticle"
+	| "getArticleContent"
+	| "getArticleSummary"
+	| "getRelatedArticles"
 > {
 	async function resolveOwned(
 		userId: AuthenticatedUserId,
@@ -134,6 +163,16 @@ export function initMcpArticleOperations(
 			if (!article) return { status: "not_found" };
 			const summary = await deps.findGeneratedSummary(article.url);
 			return toSummaryResult(summary);
+		},
+
+		getRelatedArticles: async ({ userId, id }) => {
+			const article = await resolveOwned(userId, id);
+			if (!article) return { status: "not_found" };
+			const related = await deps.findRelatedArticles({
+				userId,
+				url: article.url,
+			});
+			return toRelatedResult(related);
 		},
 	};
 }

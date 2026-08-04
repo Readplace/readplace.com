@@ -13,6 +13,7 @@ import {
 	DELETE_ARTICLE_TOOL,
 	GET_ARTICLE_CONTENT_TOOL,
 	GET_ARTICLE_SUMMARY_TOOL,
+	GET_RELATED_ARTICLES_TOOL,
 	GET_ARTICLE_TOOL,
 	LIST_QUEUE_TOOL,
 	ListQueueArgs,
@@ -59,6 +60,19 @@ export type ArticleContentResult =
 	| { readonly status: "pending" }
 	| { readonly status: "not_found" };
 
+export interface RelatedArticleResult {
+	readonly id: string;
+	readonly title: string;
+	readonly siteName: string;
+	readonly reason: string;
+}
+
+export type ArticleRelatedResult =
+	| { readonly status: "not_found" }
+	| { readonly status: "pending" }
+	| { readonly status: "skipped" }
+	| { readonly status: "ready"; readonly articles: readonly RelatedArticleResult[] };
+
 export type ArticleSummaryResult =
 	| { readonly status: "not_found" }
 	| { readonly status: "pending" }
@@ -102,6 +116,10 @@ export interface McpServerDeps {
 		userId: AuthenticatedUserId;
 		id: string;
 	}) => Promise<ArticleSummaryResult>;
+	getRelatedArticles: (params: {
+		userId: AuthenticatedUserId;
+		id: string;
+	}) => Promise<ArticleRelatedResult>;
 	/** The subscription gate for the tool surface, resolved once per
 	 * `tools/call`: it decides whether to refuse a new save (save_link) with a
 	 * renewal upsell (inactive) or to append a trial-ending nudge to a successful
@@ -245,7 +263,7 @@ export function initMcpServer(deps: McpServerDeps): McpServer {
 			capabilities: { tools: { listChanged: false } },
 			serverInfo: MCP_SERVER_INFO,
 			instructions:
-				"save_link adds a URL to the user's Readplace reading queue; list_queue lists saved articles, each with an id you pass to get_article (metadata), get_article_content (reader HTML), and get_article_summary (AI TL;DR). Marking an article read/unread or deleting it is intentionally NOT available to the assistant — the mark_as_read, mark_as_unread, and delete_article tools only return instructions for the user to do it in the Readplace app, because reading a piece is the reader's own act and a summary is not the same as reading it.",
+				"save_link adds a URL to the user's Readplace reading queue; list_queue lists saved articles, each with an id you pass to get_article (metadata), get_article_content (reader HTML), get_article_summary (AI TL;DR), and get_related_articles (other saves in their queue that relate to it). Marking an article read/unread or deleting it is intentionally NOT available to the assistant — the mark_as_read, mark_as_unread, and delete_article tools only return instructions for the user to do it in the Readplace app, because reading a piece is the reader's own act and a summary is not the same as reading it.",
 		};
 	}
 
@@ -466,6 +484,49 @@ export function initMcpServer(deps: McpServerDeps): McpServer {
 		}
 	}
 
+	async function runGetRelatedArticles(
+		rawArgs: unknown,
+		context: McpRequestContext,
+	): Promise<ToolResult> {
+		const args = ArticleIdArgs.safeParse(rawArgs);
+		if (!args.success) {
+			return toolError("get_related_articles requires an `id` string.");
+		}
+		try {
+			const result = await deps.getRelatedArticles({
+				userId: context.userId,
+				id: args.data.id,
+			});
+			switch (result.status) {
+				case "not_found":
+					return notFoundResult(args.data.id);
+				case "pending":
+					return data(
+						"Related saves for that article are still being worked out. Try again shortly.",
+						result,
+					);
+				case "skipped":
+					return data(
+						"No related saves were worked out for that article.",
+						result,
+					);
+				case "ready":
+					return data(
+						result.articles.length === 0
+							? "Nothing else in the queue relates to that article."
+							: result.articles
+									.map((related) => `${related.title} (${related.siteName}): ${related.reason}`)
+									.join("\n"),
+						result,
+					);
+			}
+		} catch (error) {
+			return toolError(
+				`Could not load the related articles. ${errorMessage(error)}`,
+			);
+		}
+	}
+
 	/** The write actions are app-only. The handler never touches the store; it
 	 * returns the same wording the user would see if they asked the assistant to
 	 * do it, so the assistant relays "do it in the app" instead of inventing a
@@ -518,6 +579,8 @@ export function initMcpServer(deps: McpServerDeps): McpServer {
 				return runGetArticleContent(rawArgs, context);
 			case GET_ARTICLE_SUMMARY_TOOL.name:
 				return runGetArticleSummary(rawArgs, context);
+			case GET_RELATED_ARTICLES_TOOL.name:
+				return runGetRelatedArticles(rawArgs, context);
 			case MARK_AS_READ_TOOL.name:
 				return runMarkAsRead();
 			case MARK_AS_UNREAD_TOOL.name:

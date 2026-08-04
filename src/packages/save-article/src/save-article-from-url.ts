@@ -34,6 +34,12 @@ async function markUnreadIfRead(
 	return saved;
 }
 
+export type SaveArticleFromUrl = (params: {
+	userId: UserId;
+	url: SaveableUrl;
+	freshness: ContentFreshnessResult;
+}) => Promise<{ saved: SavedArticle; canonicalUrl: string }>;
+
 async function saveByFreshness(
 	deps: SaveArticleFromUrlDependencies,
 	params: { userId: UserId; url: string; freshness: ContentFreshnessResult },
@@ -83,11 +89,7 @@ async function saveByFreshness(
 
 export function initSaveArticleFromUrl(
 	deps: SaveArticleFromUrlDependencies,
-): (params: {
-	userId: UserId;
-	url: SaveableUrl;
-	freshness: ContentFreshnessResult;
-}) => Promise<{ saved: SavedArticle }> {
+): SaveArticleFromUrl {
 	return async (params) => {
 		const url = await deps.resolveCanonicalIdentity(params.url);
 		const result = await saveByFreshness(deps, {
@@ -99,6 +101,6 @@ export function initSaveArticleFromUrl(
 		// including the skip that publishes no LinkSaved. Carries the submitted URL,
 		// not the canonical one a consumer never saw.
 		await deps.publishLinkQueued({ url: params.url, userId: params.userId });
-		return result;
+		return { ...result, canonicalUrl: url };
 	};
 }

@@ -103,10 +103,12 @@ import type {
 	MarkSummaryPending,
 } from "@packages/provider-contracts/article-summary";
 import type {
+	PublishComputeRelatedArticles,
 	PublishLinkDequeued,
 	PublishLinkQueued,
 	PublishLinkSaved,
 } from "@packages/provider-contracts/events";
+import type { FindRelatedArticles } from "@packages/provider-contracts/related-articles";
 import type { PublishRecrawlLinkInitiated } from "@packages/provider-contracts/events";
 import type { PublishRemoveMyContent } from "@packages/provider-contracts/events";
 import type { PublishSaveAnonymousLink } from "@packages/provider-contracts/events";
@@ -190,7 +192,7 @@ import { initMcpRoutes } from "./web/mcp/mcp.routes";
 import { buildMcpServerCard } from "./web/mcp/server-card";
 import { initResolveSaveAccess } from "./web/mcp/save-access";
 import { initResolveToolAccess } from "./web/mcp/tool-access";
-import { initSaveArticleFromUrl } from "@packages/save-article";
+import { initSaveArticleFromUrl, initSaveArticleInteractively } from "@packages/save-article";
 import type { FoundingAllocation } from "./web/shared/founding-progress/founding-allocation";
 import { initDualAuth } from "./web/dual-auth.middleware";
 import { initMarkExtensionInstalled } from "./web/mark-extension-installed.middleware";
@@ -300,6 +302,8 @@ interface AppDependencies {
 	publishLinkSaved: PublishLinkSaved;
 	publishLinkQueued: PublishLinkQueued;
 	publishLinkDequeued: PublishLinkDequeued;
+	publishComputeRelatedArticles: PublishComputeRelatedArticles;
+	findRelatedArticles: FindRelatedArticles;
 	publishRecrawlLinkInitiated: PublishRecrawlLinkInitiated;
 	publishRemoveMyContent: PublishRemoveMyContent;
 	publishSaveAnonymousLink: PublishSaveAnonymousLink;
@@ -455,7 +459,10 @@ export function createApp(dependencies: AppDependencies): Express {
 			}
 			try {
 				const freshness = await deps.refreshArticleIfStale({ url: validation.url });
-				const { saved } = await initSaveArticleFromUrl(deps)({
+				const { saved } = await initSaveArticleInteractively({
+					saveArticleFromUrl: initSaveArticleFromUrl(deps),
+					publishComputeRelatedArticles: deps.publishComputeRelatedArticles,
+				})({
 					userId,
 					url: validation.url,
 					freshness,
@@ -474,6 +481,7 @@ export function createApp(dependencies: AppDependencies): Express {
 			findArticlesByUser: deps.findArticlesByUser,
 			readArticleContent: deps.readArticleContent,
 			findGeneratedSummary: deps.findGeneratedSummary,
+			findRelatedArticles: deps.findRelatedArticles,
 		}),
 	});
 
@@ -1080,6 +1088,8 @@ export function createApp(dependencies: AppDependencies): Express {
 		publishLinkSaved: deps.publishLinkSaved,
 		publishLinkQueued: deps.publishLinkQueued,
 		publishLinkDequeued: deps.publishLinkDequeued,
+		publishComputeRelatedArticles: deps.publishComputeRelatedArticles,
+		findRelatedArticles: deps.findRelatedArticles,
 		publishRemoveMyContent: deps.publishRemoveMyContent,
 		publishSaveLinkRawHtmlCommand: deps.publishSaveLinkRawHtmlCommand,
 		publishSaveLinkRawPdfCommand: deps.publishSaveLinkRawPdfCommand,

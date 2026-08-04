@@ -26,6 +26,7 @@ export type {
 	SharedBundle,
 	SubscriptionBillingBundle,
 	SubscriptionProvidersBundle,
+	RelatedArticlesBundle,
 	SummaryBundle,
 	TestAppFixture,
 	TrialSchedulerBundle,

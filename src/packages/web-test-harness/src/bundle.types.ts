@@ -1,6 +1,12 @@
 import type { CrawlArticle } from "@packages/crawl-article";
 import type { HutchLogger } from "@packages/hutch-logger";
 import type { ArticleMetadata, Minutes, ValidateSaveableUrl } from "@packages/domain/article";
+import type {
+	FindRelatedArticles,
+	MarkRelatedArticlesReady,
+	MarkRelatedArticlesSkipped,
+	RelatedArticleDisplay,
+} from "@packages/provider-contracts/related-articles";
 import type { ImportSessionStore } from "@packages/domain/import-session";
 import type {
 	InboxAddressStore,
@@ -102,6 +108,7 @@ import type {
 	PublishDeleteAccountCommand,
 	PublishExportUserDataCommand,
 	PublishLinkDequeued,
+	PublishComputeRelatedArticles,
 	PublishLinkQueued,
 	PublishLinkSaved,
 	PublishRecrawlLinkInitiated,
@@ -323,6 +330,7 @@ export interface EventsBundle {
 	publishLinkSaved: PublishLinkSaved;
 	publishLinkQueued: PublishLinkQueued;
 	publishLinkDequeued: PublishLinkDequeued;
+	publishComputeRelatedArticles: PublishComputeRelatedArticles;
 	publishRecrawlLinkInitiated: PublishRecrawlLinkInitiated;
 	publishRemoveMyContent: PublishRemoveMyContent;
 	publishSaveAnonymousLink: PublishSaveAnonymousLink;
@@ -357,6 +365,17 @@ export interface PendingUploadBundle {
 export interface SummaryBundle {
 	findGeneratedSummary: FindGeneratedSummary;
 	markSummaryPending: MarkSummaryPending;
+}
+
+export interface RelatedArticlesBundle {
+	findRelatedArticles: FindRelatedArticles;
+	markRelatedArticlesReady: MarkRelatedArticlesReady;
+	markRelatedArticlesSkipped: MarkRelatedArticlesSkipped;
+	seedRelatedArticles: (params: {
+		userId: UserId;
+		url: string;
+		items: readonly RelatedArticleDisplay[];
+	}) => Promise<void>;
 }
 
 export interface FreshnessBundle {
@@ -475,6 +494,7 @@ export interface TestAppFixture {
 	pendingPdf: PendingPdfBundle;
 	pendingUpload: PendingUploadBundle;
 	summary: SummaryBundle;
+	relatedArticles: RelatedArticlesBundle;
 	freshness: FreshnessBundle;
 	oauth: OAuthBundle;
 	email: EmailBundle;

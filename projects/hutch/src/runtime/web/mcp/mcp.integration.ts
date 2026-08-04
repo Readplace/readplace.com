@@ -187,6 +187,7 @@ describe("MCP server over the real app", () => {
 			"get_article",
 			"get_article_content",
 			"get_article_summary",
+			"get_related_articles",
 			"mark_as_read",
 			"mark_as_unread",
 			"delete_article",

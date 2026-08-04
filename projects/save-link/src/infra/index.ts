@@ -27,6 +27,7 @@ import {
 	LinkSavedEvent,
 	AnonymousLinkSavedEvent,
 	CanonicalContentChangedEvent,
+	ComputeRelatedArticlesCommand,
 	StaleCheckRequestedEvent,
 	SummaryGeneratedEvent,
 	SummaryGenerationFailedEvent,
@@ -42,6 +43,7 @@ import {
 } from "@packages/hutch-infra-components";
 import { requireEnv } from "@packages/require-env";
 import { GENERATE_SUMMARY_TIMEOUTS } from "../runtime/domain/generate-summary/timeouts";
+import { RELATED_ARTICLES_TIMEOUTS } from "../runtime/domain/related-articles/timeouts";
 import { SELECT_CONTENT_TIMEOUTS } from "../runtime/domain/select-content/timeouts";
 import { OCR_LLM_CLEANUP_TIMEOUTS } from "../runtime/domain/pdf-page-llm-cleanup/timeouts";
 import { OCR_DOCUMENT_DIFF_REVIEW_TIMEOUTS } from "../runtime/domain/pdf-document-diff-review/timeouts";
@@ -1386,6 +1388,63 @@ const canonicalContentChangedLambdaWithSQS = new HutchSQSBackedLambda("canonical
 });
 
 eventBus.subscribe(CanonicalContentChangedEvent, canonicalContentChangedLambdaWithSQS);
+
+// --- ComputeRelatedArticles handler ---
+// Consumes the command every interactive save publishes and writes the selected
+// relations onto the per-user save row. Waits (throw → SQS retry) while the
+// article's crawl metadata is still landing, so the model never compares against
+// the stub title a fresh save starts with. No dedicated DLQ event handler — an
+// absent relatedStatus renders as the hidden reader slot, so there is no terminal
+// row state to flip; the HutchSQSBackedLambda DLQ + email alarm is the operator
+// signal.
+
+const computeRelatedArticlesQueue = new HutchSQS("compute-related-articles", {
+	visibilityTimeoutSeconds: RELATED_ARTICLES_TIMEOUTS.sqsVisibilitySeconds,
+});
+
+const computeRelatedArticlesArticlesDynamodb = new HutchDynamoDBAccess("compute-related-articles-articles-dynamodb", {
+	tables: [{ arn: articlesTableArn, includeIndexes: false }],
+	actions: ["dynamodb:GetItem", "dynamodb:BatchGetItem"],
+});
+
+const computeRelatedArticlesUserArticlesDynamodb = new HutchDynamoDBAccess("compute-related-articles-user-articles-dynamodb", {
+	tables: [{ arn: userArticlesTableArn, includeIndexes: true }],
+	actions: [
+		"dynamodb:GetItem",
+		"dynamodb:BatchGetItem",
+		"dynamodb:Query",
+		"dynamodb:UpdateItem",
+	],
+});
+
+const computeRelatedArticlesLambda = new HutchLambda("compute-related-articles", {
+	entryPoint: "./src/runtime/compute-related-articles.main.ts",
+	outputDir: ".lib/compute-related-articles",
+	assetDir: "./src",
+	memorySize: 256,
+	timeout: RELATED_ARTICLES_TIMEOUTS.lambdaSeconds,
+	environment: {
+		DYNAMODB_ARTICLES_TABLE: articlesTableName,
+		DYNAMODB_USER_ARTICLES_TABLE: userArticlesTableName,
+		DEEPSEEK_API_KEY: deepseekApiKey,
+		EVENT_BUS_NAME: eventBus.eventBusName,
+	},
+	policies: [
+		...computeRelatedArticlesArticlesDynamodb.policies,
+		...computeRelatedArticlesUserArticlesDynamodb.policies,
+	],
+});
+
+eventBus.grantPublish(computeRelatedArticlesLambda);
+
+const computeRelatedArticlesLambdaWithSQS = new HutchSQSBackedLambda("compute-related-articles", {
+	lambda: computeRelatedArticlesLambda,
+	queue: computeRelatedArticlesQueue,
+	alertEmailDLQEntry: alertEmail,
+	batchSize: 1,
+});
+
+eventBus.subscribe(ComputeRelatedArticlesCommand, computeRelatedArticlesLambdaWithSQS);
 
 // --- RecrawlLinkInitiated handler ---
 

@@ -70,6 +70,7 @@ function buildHarness(options: { adminEmails: readonly string[] }): RecrawlHarne
 			publishLinkSaved: fixture.events.publishLinkSaved,
 			publishLinkQueued: fixture.events.publishLinkQueued,
 			publishLinkDequeued: fixture.events.publishLinkDequeued,
+			publishComputeRelatedArticles: fixture.events.publishComputeRelatedArticles,
 			publishRecrawlLinkInitiated: publishRecrawlLinkInitiated,
 			publishSaveAnonymousLink: fixture.events.publishSaveAnonymousLink,
 			publishSaveLinkRawHtmlCommand: fixture.events.publishSaveLinkRawHtmlCommand,

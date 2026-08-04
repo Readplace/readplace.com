@@ -17,6 +17,7 @@ function fakeDeps(overrides?: Partial<McpServerDeps>): McpServerDeps {
 		getArticle: async () => null,
 		getArticleContent: async () => ({ status: "not_found" }),
 		getArticleSummary: async () => ({ status: "not_found" }),
+		getRelatedArticles: async () => ({ status: "not_found" }),
 		resolveToolAccess: async () => ({ state: "ok" }),
 		...overrides,
 	};
@@ -107,6 +108,7 @@ describe("initMcpServer", () => {
 					{ name: "get_article", annotations: { readOnlyHint: true } },
 					{ name: "get_article_content" },
 					{ name: "get_article_summary" },
+					{ name: "get_related_articles", annotations: { readOnlyHint: true } },
 					{ name: "mark_as_read", annotations: { readOnlyHint: true } },
 					{ name: "mark_as_unread", annotations: { readOnlyHint: true } },
 					{ name: "delete_article", annotations: { readOnlyHint: true } },
@@ -632,6 +634,93 @@ describe("initMcpServer", () => {
 		});
 	});
 
+	describe("tools/call get_related_articles", () => {
+		it("lists each relation with the reason it was picked", async () => {
+			const server = initMcpServer(
+				fakeDeps({
+					getRelatedArticles: async () => ({
+						status: "ready",
+						articles: [
+							{
+								id: "y".repeat(32),
+								title: "Earlier read",
+								siteName: "Example",
+								reason: "Same argument",
+							},
+						],
+					}),
+				}),
+			);
+			const response = await call(server, 57, "get_related_articles", { id: "x".repeat(32) });
+			expect(response).toMatchObject({
+				result: {
+					content: [{ text: "Earlier read (Example): Same argument" }],
+					structuredContent: { status: "ready" },
+				},
+			});
+		});
+
+		it("says so plainly when nothing in the queue relates", async () => {
+			const server = initMcpServer(
+				fakeDeps({ getRelatedArticles: async () => ({ status: "ready", articles: [] }) }),
+			);
+			const response = await call(server, 58, "get_related_articles", { id: "x".repeat(32) });
+			expect(response).toMatchObject({
+				result: { content: [{ text: expect.stringContaining("Nothing else in the queue") }] },
+			});
+		});
+
+		it("reports a pending computation", async () => {
+			const server = initMcpServer(
+				fakeDeps({ getRelatedArticles: async () => ({ status: "pending" }) }),
+			);
+			const response = await call(server, 59, "get_related_articles", { id: "x".repeat(32) });
+			expect(response).toMatchObject({
+				result: { content: [{ text: expect.stringContaining("still being worked out") }] },
+			});
+		});
+
+		it("reports a skipped computation", async () => {
+			const server = initMcpServer(
+				fakeDeps({ getRelatedArticles: async () => ({ status: "skipped" }) }),
+			);
+			const response = await call(server, 66, "get_related_articles", { id: "x".repeat(32) });
+			expect(response).toMatchObject({
+				result: { content: [{ text: expect.stringContaining("No related saves") }] },
+			});
+		});
+
+		it("reports not found", async () => {
+			const server = initMcpServer(
+				fakeDeps({ getRelatedArticles: async () => ({ status: "not_found" }) }),
+			);
+			const response = await call(server, 67, "get_related_articles", { id: "x".repeat(32) });
+			expect(response).toMatchObject({
+				result: { content: [{ text: expect.stringContaining("No saved article") }] },
+			});
+		});
+
+		it("rejects a missing id", async () => {
+			const server = initMcpServer(fakeDeps());
+			const response = await call(server, 68, "get_related_articles", {});
+			expect(response).toMatchObject({ result: { isError: true } });
+		});
+
+		it("returns an error result when the lookup throws", async () => {
+			const server = initMcpServer(
+				fakeDeps({
+					getRelatedArticles: async () => {
+						throw new Error("related fail");
+					},
+				}),
+			);
+			const response = await call(server, 69, "get_related_articles", { id: "x".repeat(32) });
+			expect(response).toMatchObject({
+				result: { isError: true, content: [{ text: expect.stringContaining("related fail") }] },
+			});
+		});
+	});
+
 	describe("tools/call app-only write tools", () => {
 		it("redirects mark_as_read to the app without mutating, telling the reader to read it first", async () => {
 			const server = initMcpServer(fakeDeps());
@@ -721,6 +810,7 @@ describe("initMcpServer", () => {
 				"get_article",
 				"get_article_content",
 				"get_article_summary",
+				"get_related_articles",
 				"mark_as_read",
 				"mark_as_unread",
 				"delete_article",

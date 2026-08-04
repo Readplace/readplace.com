@@ -105,6 +105,10 @@
       "types": "./dist/refresh-html.d.ts",
       "default": "./dist/refresh-html.js"
     },
+    "./related-articles": {
+      "types": "./dist/related-articles.d.ts",
+      "default": "./dist/related-articles.js"
+    },
     "./subscription-billing": {
       "types": "./dist/subscription-billing.d.ts",
       "default": "./dist/subscription-billing.js"
@@ -144,6 +148,7 @@
       "reader-ready-state": ["./dist/reader-ready-state.d.ts"],
       "reading-preference": ["./dist/reading-preference.d.ts"],
       "refresh-html": ["./dist/refresh-html.d.ts"],
+      "related-articles": ["./dist/related-articles.d.ts"],
       "subscription-billing": ["./dist/subscription-billing.d.ts"],
       "subscription-providers": ["./dist/subscription-providers.d.ts"],
       "trial-scheduler": ["./dist/trial-scheduler.d.ts"]

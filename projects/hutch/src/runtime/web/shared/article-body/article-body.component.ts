@@ -11,6 +11,7 @@ import { renderProgressBar } from "./progress-bar.component";
 import type { ProgressTick } from "@packages/domain/article";
 import type { LocalTime } from "@packages/web-shell/local-time.format";
 import { renderReaderSlot } from "./reader-slot/reader-slot.component";
+import { renderRelatedSlot, type RelatedSlotContext } from "./related-slot/related-slot.component";
 import { renderSummarySlot } from "./summary-slot/summary-slot.component";
 
 const STATIC_BASE_URL = requireEnv("STATIC_BASE_URL");
@@ -35,6 +36,10 @@ export interface ArticleBodyInput {
 	/** Tracking URL forwarded to the ready TL;DR `<details>`. Present only on the
 	 * internal reader, where summary open/close is recorded; omitted elsewhere. */
 	summaryToggleUrl?: string;
+	/** Per-user relations, so only the owner reader passes them: the public
+	 * `/view` and the admin recrawl render another reader's page and get the
+	 * hidden slot by omission. */
+	related?: RelatedSlotContext;
 	audioEnabled?: boolean;
 	topActionsHtml: string;
 	bottomActionsHtml: string;
@@ -73,6 +78,8 @@ export function renderArticleBody(input: ArticleBodyInput): string {
 		content: input.content,
 	});
 
+	const relatedSlotHtml = renderRelatedSlot({ related: input.related });
+
 	const progressBarHtml = renderProgressBar({ progress: input.progress });
 
 	const crawlBookmarkHtml = renderCrawlBookmark({
@@ -92,6 +99,7 @@ export function renderArticleBody(input: ArticleBodyInput): string {
 		headerHtml,
 		readerSlotHtml,
 		summarySlotHtml,
+		relatedSlotHtml,
 		progressBarHtml,
 		crawlBookmarkHtml,
 		audioEnabled: input.audioEnabled,

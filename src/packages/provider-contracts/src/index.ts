@@ -21,6 +21,7 @@ export type * from "./pending-upload";
 export type * from "./rate-limit";
 export type * from "./reader-ready-state";
 export type * from "./reading-preference";
+export type * from "./related-articles";
 export type * from "./refresh-html";
 export type * from "./subscription-billing";
 export * from "./subscription-providers";

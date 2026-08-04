@@ -5,6 +5,7 @@ import type { SavedArticle } from "@packages/domain/article";
 import type { ArticleCrawl } from "@packages/provider-contracts/article-crawl";
 import { pickExcerpt, truncateForSeo } from "../../../providers/article-summary/article-summary.helpers";
 import type { GeneratedSummary } from "@packages/provider-contracts/article-summary";
+import type { RelatedArticles } from "@packages/provider-contracts/related-articles";
 import { render } from "@packages/web-shell";
 import type { PageBody } from "@packages/web-shell";
 
@@ -59,6 +60,7 @@ export function ReaderPage(
 		capturePollUrl?: string;
 		progress?: ProgressTick;
 		audioEnabled?: boolean;
+		related?: RelatedArticles;
 		extensionInstallUrl?: string;
 		backLink: { topHref: string; label: string };
 		/** Injected per variant: the sticky action toolbar (Back + Mark-as-read, no
@@ -98,6 +100,9 @@ export function ReaderPage(
 		summaryPollUrl: options.summaryPollUrl,
 		summaryOpen: false,
 		summaryToggleUrl: `/queue/${articleId}/summary-toggle`,
+		related: options.related
+			? { articles: options.related, sourceArticleId: articleId }
+			: undefined,
 		progress: options.progress,
 		audioEnabled: options.audioEnabled,
 		appOrigin: options.appOrigin,

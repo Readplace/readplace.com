@@ -55,7 +55,9 @@ import type {
 	MarkSummaryPending,
 } from "@packages/provider-contracts/article-summary";
 import { initInMemoryLinkDequeued } from "./providers/events/in-memory-link-dequeued";
+import { initInMemoryComputeRelatedArticles } from "./providers/events/in-memory-compute-related-articles";
 import { initInMemoryLinkQueued } from "./providers/events/in-memory-link-queued";
+import { initInMemoryRelatedArticles } from "./providers/related-articles/in-memory-related-articles";
 import { initInMemoryLinkSaved } from "./providers/events/in-memory-link-saved";
 import { initInMemoryRecrawlLinkInitiated } from "./providers/events/in-memory-recrawl-link-initiated";
 import { initInMemorySaveAnonymousLink } from "./providers/events/in-memory-save-anonymous-link";
@@ -377,6 +379,8 @@ export function createDefaultTestAppFixture(appOrigin: string): TestAppFixture {
 			publishLinkSaved: createFakePublishLinkSaved(applyParseResult),
 			publishLinkQueued: initInMemoryLinkQueued({ logger: noopLogger }).publishLinkQueued,
 			publishLinkDequeued: initInMemoryLinkDequeued({ logger: noopLogger }).publishLinkDequeued,
+			publishComputeRelatedArticles: initInMemoryComputeRelatedArticles({ logger: noopLogger })
+				.publishComputeRelatedArticles,
 			publishRecrawlLinkInitiated: createFakePublishRecrawlLinkInitiated(applyParseResult),
 			publishSaveAnonymousLink: createFakePublishSaveAnonymousLink(applyParseResult),
 			publishSaveLinkRawHtmlCommand,
@@ -399,6 +403,7 @@ export function createDefaultTestAppFixture(appOrigin: string): TestAppFixture {
 		},
 		pendingUpload,
 		summary,
+		relatedArticles: initInMemoryRelatedArticles(),
 		freshness: { refreshArticleIfStale: createNoopRefreshArticleIfStale() },
 		oauth: {
 			oauthModel,

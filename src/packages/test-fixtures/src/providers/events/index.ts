@@ -17,6 +17,7 @@ export * from "./publish-subscription-reactivated.types";
 export * from "./publish-subscription-start-request-command.types";
 export * from "./publish-update-fetch-timestamp.types";
 export * from "./in-memory-cancel-subscription-command";
+export * from "./in-memory-compute-related-articles";
 export * from "./in-memory-delete-account-command";
 export * from "./in-memory-export-user-data-command";
 export * from "./in-memory-link-dequeued";

@@ -161,6 +161,20 @@ export const GET_ARTICLE_SUMMARY_TOOL: McpToolDefinition = {
 	annotations: { readOnlyHint: true, openWorldHint: false },
 };
 
+export const GET_RELATED_ARTICLES_TOOL: McpToolDefinition = {
+	name: "get_related_articles",
+	title: "Get related articles from the user's own queue",
+	description:
+		"Return other articles already in the user's own Readplace queue that relate to one saved article, looked up by id, each with a short reason and an id you can pass to get_article. Reports its status (pending or skipped) when no relations have been worked out.",
+	inputSchema: {
+		type: "object",
+		properties: { ...ID_PROPERTY },
+		required: ["id"],
+		additionalProperties: false,
+	},
+	annotations: { readOnlyHint: true, openWorldHint: false },
+};
+
 export const MARK_AS_READ_TOOL: McpToolDefinition = {
 	name: "mark_as_read",
 	title: "Mark an article read (in the app)",
@@ -224,6 +238,7 @@ export const TOOL_DEFINITIONS: readonly McpToolDefinition[] = [
 	GET_ARTICLE_TOOL,
 	GET_ARTICLE_CONTENT_TOOL,
 	GET_ARTICLE_SUMMARY_TOOL,
+	GET_RELATED_ARTICLES_TOOL,
 	MARK_AS_READ_TOOL,
 	MARK_AS_UNREAD_TOOL,
 	DELETE_ARTICLE_TOOL,

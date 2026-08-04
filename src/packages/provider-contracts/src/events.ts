@@ -40,6 +40,11 @@ export type PublishLinkDequeued = (params: {
 	userId: UserId;
 }) => Promise<void>;
 
+export type PublishComputeRelatedArticles = (params: {
+	url: string;
+	userId: UserId;
+}) => Promise<void>;
+
 export type PublishRecrawlLinkInitiated = (params: {
 	url: string;
 }) => Promise<void>;

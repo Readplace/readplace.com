@@ -51,7 +51,7 @@ import { initInMemoryRateLimit } from "@packages/test-fixtures/providers/rate-li
 import type { RateLimitRules } from "@packages/provider-contracts/rate-limit";
 import { parseRateLimitRule } from "@packages/domain/rate-limit";
 import { initDynamoDbRateLimit } from "./providers/rate-limit/dynamodb-rate-limit";
-import { initDynamoDbGeneratedSummary } from "@packages/article-store";
+import { initDynamoDbGeneratedSummary, initDynamoDbRelatedArticles } from "@packages/article-store";
 import { devSummariseInline } from "./providers/article-summary/dev-summarise-inline";
 import { initDynamoDbArticleCrawl } from "@packages/article-store";
 import { initInMemoryArticleCrawl } from "@packages/test-fixtures/providers/article-crawl";
@@ -70,6 +70,7 @@ import { initReadArticleContent } from "@packages/article-store";
 import { initCanonicalAliasStore, initResolveCanonicalIdentity } from "@packages/article-store";
 import { EventBridgeClient, initEventBridgePublisher } from "@packages/hutch-infra-components/runtime";
 import { initEventBridgeLinkDequeued } from "./providers/events/eventbridge-link-dequeued";
+import { initEventBridgeComputeRelatedArticles } from "./providers/events/eventbridge-compute-related-articles";
 import { initEventBridgeLinkQueued } from "./providers/events/eventbridge-link-queued";
 import { initEventBridgeLinkSaved } from "./providers/events/eventbridge-link-saved";
 import { initEventBridgeRecrawlLinkInitiated } from "./providers/events/eventbridge-recrawl-link-initiated";
@@ -90,10 +91,12 @@ import {
 	initInMemorySubscriptionReactivated,
 } from "@packages/test-fixtures/providers/events";
 import {
+	initInMemoryComputeRelatedArticles,
 	initInMemoryLinkDequeued,
 	initInMemoryLinkQueued,
 	initInMemoryLinkSaved,
 } from "@packages/test-fixtures/providers/events";
+import { initInMemoryRelatedArticles } from "@packages/test-fixtures/providers/related-articles";
 import { initInMemoryRecrawlLinkInitiated } from "@packages/test-fixtures/providers/events";
 import { initInMemorySaveAnonymousLink } from "@packages/test-fixtures/providers/events";
 import { initInMemoryStaleCheckRequested } from "@packages/test-fixtures/providers/events";
@@ -237,6 +240,11 @@ function initProviders(input: { appOrigin: string }) {
 			markClientActive: oauthClientLookup.markClientActive,
 		});
 		const summaryStore = initDynamoDbGeneratedSummary({ client, tableName: articlesTable });
+		const relatedArticlesStore = initDynamoDbRelatedArticles({
+			client,
+			tableName: articlesTable,
+			userArticlesTableName: userArticlesTable,
+		});
 		const crawlStore = initDynamoDbArticleCrawl({
 			client,
 			tableName: articlesTable,
@@ -249,6 +257,7 @@ function initProviders(input: { appOrigin: string }) {
 		const { publishLinkSaved } = initEventBridgeLinkSaved({ publishEvent });
 		const { publishLinkQueued } = initEventBridgeLinkQueued({ publishEvent });
 		const { publishLinkDequeued } = initEventBridgeLinkDequeued({ publishEvent });
+		const { publishComputeRelatedArticles } = initEventBridgeComputeRelatedArticles({ publishEvent });
 		const { publishRecrawlLinkInitiated } = initEventBridgeRecrawlLinkInitiated({ publishEvent });
 		const { publishRemoveMyContent } = initEventBridgeRemoveMyContent({ publishEvent });
 		const { publishSaveAnonymousLink } = initEventBridgeSaveAnonymousLink({ publishEvent });
@@ -404,6 +413,7 @@ function initProviders(input: { appOrigin: string }) {
 			publishLinkSaved,
 			publishLinkQueued,
 			publishLinkDequeued,
+			publishComputeRelatedArticles,
 			publishRecrawlLinkInitiated,
 			publishRemoveMyContent,
 			publishSaveAnonymousLink,
@@ -420,6 +430,7 @@ function initProviders(input: { appOrigin: string }) {
 			createUploadSlot,
 			statPendingUpload,
 			readPendingUploadPrefix,
+			findRelatedArticles: relatedArticlesStore.findRelatedArticles,
 			findGeneratedSummary: summaryStore.findGeneratedSummary,
 			findGeneratedSummaries: summaryStore.findGeneratedSummaries,
 			markSummaryPending: summaryStore.markSummaryPending,
@@ -601,6 +612,8 @@ function initProviders(input: { appOrigin: string }) {
 	};
 	const { publishLinkQueued } = initInMemoryLinkQueued({ logger: consoleLogger });
 	const { publishLinkDequeued } = initInMemoryLinkDequeued({ logger: consoleLogger });
+	const { publishComputeRelatedArticles } = initInMemoryComputeRelatedArticles({ logger: consoleLogger });
+	const { findRelatedArticles } = initInMemoryRelatedArticles();
 	const { publishLinkSaved: logOnlyPublishLinkSaved } = initInMemoryLinkSaved({ logger: consoleLogger });
 	const publishLinkSaved: typeof logOnlyPublishLinkSaved = async (params) => {
 		await logOnlyPublishLinkSaved(params);
@@ -710,6 +723,7 @@ function initProviders(input: { appOrigin: string }) {
 		publishLinkSaved,
 		publishLinkQueued,
 		publishLinkDequeued,
+		publishComputeRelatedArticles,
 		publishRecrawlLinkInitiated,
 		publishRemoveMyContent,
 		publishSaveAnonymousLink,
@@ -726,6 +740,7 @@ function initProviders(input: { appOrigin: string }) {
 		createUploadSlot,
 		statPendingUpload,
 		readPendingUploadPrefix,
+		findRelatedArticles,
 		findGeneratedSummary: summaryStore.findGeneratedSummary,
 		findGeneratedSummaries: batchFromSingular(summaryStore.findGeneratedSummary),
 		markSummaryPending: summaryStore.markSummaryPending,

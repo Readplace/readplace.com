@@ -72,7 +72,16 @@ import type {
 } from "@packages/provider-contracts/events";
 import type { PublishSaveLinkRawHtmlCommand } from "@packages/provider-contracts/events";
 import type { PutPendingHtml } from "@packages/provider-contracts/pending-html";
-import { initDeleteArticleFromQueue, initSaveArticleFromUrl } from "@packages/save-article";
+import {
+	initDeleteArticleFromQueue,
+	initSaveArticleFromUrl,
+	initSaveArticleInteractively,
+} from "@packages/save-article";
+import type { PublishComputeRelatedArticles } from "@packages/provider-contracts/events";
+import type {
+	FindRelatedArticles,
+	RelatedArticles,
+} from "@packages/provider-contracts/related-articles";
 import { Base, ChromelessPage } from "../../base.component";
 import { NotFoundPage } from "../not-found";
 import type { BuildBannerState } from "../../banner-state";
@@ -238,6 +247,8 @@ interface QueueDependencies {
 	publishLinkSaved: PublishLinkSaved;
 	publishLinkQueued: PublishLinkQueued;
 	publishLinkDequeued: PublishLinkDequeued;
+	publishComputeRelatedArticles: PublishComputeRelatedArticles;
+	findRelatedArticles: FindRelatedArticles;
 	publishRemoveMyContent: PublishRemoveMyContent;
 	publishSaveLinkRawHtmlCommand: PublishSaveLinkRawHtmlCommand;
 	publishSaveLinkRawPdfCommand: PublishSaveLinkRawPdfCommand;
@@ -335,6 +346,27 @@ async function loadCrawls(
 	}
 }
 
+export const RELATED_FEATURE = "similar";
+
+async function loadRelatedArticles(
+	findRelatedArticles: FindRelatedArticles,
+	article: SavedArticle,
+	logError: (message: string, error?: Error) => void,
+): Promise<RelatedArticles> {
+	try {
+		return await findRelatedArticles({
+			userId: article.userId,
+			url: article.url,
+		});
+	} catch (error) {
+		logError(
+			"Failed to load related articles",
+			error instanceof Error ? error : undefined,
+		);
+		return { status: "pending" };
+	}
+}
+
 const SAVE_ROUTE = {
 	saveArticle: "/",
 	saveArticles: "/save-articles",
@@ -417,7 +449,13 @@ const isIosPlatform = (req: Request): boolean => isIosSurface(req);
 
 export function initQueueRoutes(deps: QueueDependencies): Router {
 	const router = express.Router();
-	const saveArticleFromUrl = initSaveArticleFromUrl(deps);
+	// Every save this router serves is a person acting: the save bar, the
+	// extension, Save All Tabs, a capture. The bare save (import commits, inbox
+	// auto-saves) stays in @packages/save-article and never asks for relations.
+	const saveArticleFromUrl = initSaveArticleInteractively({
+		saveArticleFromUrl: initSaveArticleFromUrl(deps),
+		publishComputeRelatedArticles: deps.publishComputeRelatedArticles,
+	});
 	const deleteArticleFromQueue = initDeleteArticleFromQueue(deps);
 
 	/** The iOS onboarding signal is non-essential bookkeeping that sits on the
@@ -544,7 +582,13 @@ export function initQueueRoutes(deps: QueueDependencies): Router {
 	type OwnerReaderResolution =
 		| { kind: "redirect"; redirect: Redirect }
 		| { kind: "not-found" }
-		| { kind: "ready"; article: SavedArticle; state: ResolvedReaderState; audioEnabled: boolean };
+		| {
+				kind: "ready";
+				article: SavedArticle;
+				state: ResolvedReaderState;
+				audioEnabled: boolean;
+				related: RelatedArticles | undefined;
+			};
 
 	/** Ownership/access (owner → reader; non-owner or anonymous → permalink
 	 * redirect) comes entirely from resolveReaderPermalink, so both the full-shell
@@ -577,6 +621,9 @@ export function initQueueRoutes(deps: QueueDependencies): Router {
 		});
 
 		const audioEnabled = deps.featureToggle.isEnabled(req, "audio");
+		const related = deps.featureToggle.isEnabled(req, RELATED_FEATURE)
+			? await loadRelatedArticles(deps.findRelatedArticles, ownedArticle, deps.logError)
+			: undefined;
 		const state = await reader.resolveReaderState({
 			article: {
 				url: ownedArticle.url,
@@ -587,7 +634,7 @@ export function initQueueRoutes(deps: QueueDependencies): Router {
 			capturing: false,
 		});
 
-		return { kind: "ready", article: ownedArticle, state, audioEnabled };
+		return { kind: "ready", article: ownedArticle, state, audioEnabled, related };
 	};
 
 	router.get("/:id/view", noindexMiddleware, async (req: Request<{ id: string }>, res: Response) => {
@@ -602,7 +649,7 @@ export function initQueueRoutes(deps: QueueDependencies): Router {
 			return;
 		}
 
-		const { article: ownedArticle, state, audioEnabled } = resolved;
+		const { article: ownedArticle, state, audioEnabled, related } = resolved;
 
 		if (isIosPlatform(req)) {
 			const readerBody = ReaderPage({ ...ownedArticle, content: state.content }, {
@@ -614,6 +661,7 @@ export function initQueueRoutes(deps: QueueDependencies): Router {
 				capturePollUrl: state.capturePollUrl,
 				progress: state.progress,
 				audioEnabled,
+				related,
 				extensionInstallUrl: undefined,
 				backLink: APP_BACK_LINK,
 				renderActions: deps.chromelessReader,
@@ -674,6 +722,7 @@ export function initQueueRoutes(deps: QueueDependencies): Router {
 				capturePollUrl: state.capturePollUrl,
 				progress: state.progress,
 				audioEnabled,
+				related,
 				extensionInstallUrl: extensionInstallUrlIfMissing(req),
 				backLink: VIEW_BACK_LINK,
 				renderActions: deps.stickyReader,
