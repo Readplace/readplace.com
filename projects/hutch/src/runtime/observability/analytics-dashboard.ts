@@ -85,12 +85,7 @@ const SUBSCRIPTION_EVENT_EMITTERS = {
 	// Lambda-driven state machine, so it stays out — the exclusion this record
 	// replaces existed for exactly this one case.
 	hutchHandler: undefined,
-	subscriptionStartRequest: LOG_GROUPS.subscriptionStartRequest,
-	subscriptionChargeSucceeded: LOG_GROUPS.subscriptionChargeSucceeded,
-	subscriptionChargeFailed: LOG_GROUPS.subscriptionChargeFailed,
-	cancelSubscription: LOG_GROUPS.cancelSubscription,
-	handleSubscriptionCancelled: LOG_GROUPS.handleSubscriptionCancelled,
-	scheduleTrialFeedbackEmail: LOG_GROUPS.scheduleTrialFeedbackEmail,
+	subscriptionEvents: LOG_GROUPS.subscriptionEvents,
 	sendTrialFeedbackEmail: LOG_GROUPS.sendTrialFeedbackEmail,
 } as const satisfies Record<keyof typeof LOG_GROUPS, string | undefined>;
 
@@ -915,11 +910,6 @@ export function buildAnalyticsDashboardBody(deps: BuildAnalyticsDashboardDeps): 
 export const FORWARDED_SOURCE_LOG_GROUPS: readonly string[] = [
 	LOG_GROUPS.hutchHandler,
 	BLOG_SITE_LOG_GROUP,
-	LOG_GROUPS.subscriptionStartRequest,
-	LOG_GROUPS.subscriptionChargeSucceeded,
-	LOG_GROUPS.subscriptionChargeFailed,
-	LOG_GROUPS.cancelSubscription,
-	LOG_GROUPS.handleSubscriptionCancelled,
-	LOG_GROUPS.scheduleTrialFeedbackEmail,
+	LOG_GROUPS.subscriptionEvents,
 	LOG_GROUPS.sendTrialFeedbackEmail,
 ];

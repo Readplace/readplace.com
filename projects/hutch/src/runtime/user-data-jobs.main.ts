@@ -4,6 +4,11 @@ import { S3Client } from "@aws-sdk/client-s3";
 import { SchedulerClient } from "@aws-sdk/client-scheduler";
 import { createDynamoDocumentClient } from "@packages/hutch-storage-client";
 import { HutchLogger, consoleLogger } from "@packages/hutch-logger";
+import {
+	EventBridgeClient,
+	initEventBridgePublisher,
+} from "@packages/hutch-infra-components/runtime";
+import { DeleteAccountCommand, ExportUserDataCommand } from "@packages/hutch-infra-components";
 import { requireEnv } from "@packages/require-env";
 import { initCreateAppleClientSecret } from "./providers/apple-auth/apple-client-secret";
 import { initDynamoDbAuth } from "./providers/auth/dynamodb-auth";
@@ -17,11 +22,15 @@ import { initDynamoDbSubscriptionProviders } from "./providers/subscription-prov
 import { initStripeSubscriptions } from "./providers/stripe-subscriptions/stripe-subscriptions";
 import { initAwsTrialScheduler } from "./providers/trial-scheduler/aws-trial-scheduler";
 import { initS3UserDataExport } from "./providers/user-data-export/s3-user-data-export";
+import { initResendEmail } from "./providers/email/resend-email";
+import { initSkipReservedDomain } from "./providers/email/skip-reserved-domain";
 import { initDynamoDbPasswordReset } from "./providers/password-reset/dynamodb-password-reset";
 import { initDynamoDbEmailVerification } from "./providers/email-verification/dynamodb-email-verification";
 import { initDynamoDbPendingSignup } from "./providers/pending-signup/dynamodb-pending-signup";
 import { initRevokeExternalIdpTokens } from "./delete-account/revoke-external-idp-tokens";
 import { initDeleteAccountHandler } from "./delete-account/delete-account-handler";
+import { initExportUserDataHandler } from "./export-user-data/export-user-data-handler";
+import { initHandleByDetailType } from "./handle-by-detail-type";
 import { initDynamoDbInboxEmail, initDynamoDbInboxEmailLink, initDynamoDbInboxSavedLink, initDynamoDbInboxAddress, initS3DeleteObjects, initS3DeleteObjectsByPrefix } from "@packages/inbox-store";
 import {
 	initCountOtherSaversByUrl,
@@ -106,7 +115,7 @@ const inboxEmailLink = initDynamoDbInboxEmailLink({
 const inboxSavedLink = initDynamoDbInboxSavedLink({
 	client: dynamoClient,
 	tableName: requireEnv("DYNAMODB_INBOX_SAVED_LINKS_TABLE"),
-	now: () => new Date(),
+	now,
 });
 
 const inboxAddress = initDynamoDbInboxAddress({
@@ -130,10 +139,20 @@ const deleteEmailImageObjects = initS3DeleteObjectsByPrefix({
 	bucketName: requireEnv("CONTENT_BUCKET_NAME"),
 });
 
-const { deleteUserExports } = initS3UserDataExport({
+const { uploadUserDataExport, deleteUserExports } = initS3UserDataExport({
 	client: s3Client,
 	bucketName: requireEnv("USER_EXPORT_BUCKET_NAME"),
 	now,
+});
+
+const { publishEvent } = initEventBridgePublisher({
+	client: new EventBridgeClient({}),
+	eventBusName: requireEnv("EVENT_BUS_NAME"),
+});
+
+const { sendEmail } = initSkipReservedDomain({
+	...initResendEmail(requireEnv("RESEND_API_KEY")),
+	logger,
 });
 
 const passwordReset = initDynamoDbPasswordReset({
@@ -188,42 +207,59 @@ const revokeExternalIdpTokens = initRevokeExternalIdpTokens({
 	logger,
 });
 
-export const handler = initDeleteAccountHandler({
-	findEmailByUserId: auth.findEmailByUserId,
-	findSubscriptionByUserId: subscriptionProviders.findByUserId,
-	deleteBillingCustomer: stripeSubscriptions.deleteCustomer,
-	deleteSubscription: subscriptionProviders.deleteSubscription,
-	deleteTrialEndSchedule: trialScheduler.deleteTrialEndSchedule,
-	deleteDeferredCancellationSchedule: trialScheduler.deleteDeferredCancellationSchedule,
-	deleteTrialFeedbackEmailSchedule: trialScheduler.deleteTrialFeedbackEmailSchedule,
-	deleteTrialReminderSchedule: trialScheduler.deleteTrialReminderSchedule,
-	deleteChargeReminderSchedule: trialScheduler.deleteChargeReminderSchedule,
-	listInboxDeletionReferences: inboxEmail.listDeletionReferencesByUserId,
-	deleteAllInboxEmails: inboxEmail.deleteAllEmailsByUserId,
-	deleteAllInboxLinks: inboxEmailLink.deleteAllLinksByUserId,
-	deleteAllInboxSavedLinks: inboxSavedLink.deleteAllByUserId,
-	tombstoneInboxAddresses: inboxAddress.tombstoneUserAddresses,
-	deleteRawEmailObjects,
-	deleteEmailContentObjects,
-	deleteEmailImageObjects,
-	deleteAllUserArticles: articleStore.deleteAllUserArticles,
-	listUserArticleUrls: articleStore.listUserArticleUrls,
-	countOtherSaversByUrl,
-	purgeArticleContent,
-	tombstoneArticle,
-	now,
-	deleteDigestByUser: digestQueue.deleteDigestByUser,
-	deleteReaderReadyState: readerReadyState.deleteReaderReadyState,
-	deleteOnboarding: onboarding.deleteOnboarding,
-	deleteReadingPreference: readingPreference.deleteReadingPreference,
-	deleteUserExports,
-	deletePasswordResetTokensByEmail: passwordReset.deleteTokensByEmail,
-	deleteVerificationTokensByUserId: emailVerification.deleteTokensByUserId,
-	deletePendingSignupsByUser: pendingSignup.deleteByUser,
-	revokeExternalIdpTokens,
-	revokeAllUserOAuthTokens,
-	destroyUserSessions: auth.destroyUserSessions,
-	closeUserAccount: auth.closeUserAccount,
+export const handler = initHandleByDetailType({
+	routes: {
+		[DeleteAccountCommand.detailType]: [
+			initDeleteAccountHandler({
+				findEmailByUserId: auth.findEmailByUserId,
+				findSubscriptionByUserId: subscriptionProviders.findByUserId,
+				deleteBillingCustomer: stripeSubscriptions.deleteCustomer,
+				deleteSubscription: subscriptionProviders.deleteSubscription,
+				deleteTrialEndSchedule: trialScheduler.deleteTrialEndSchedule,
+				deleteDeferredCancellationSchedule: trialScheduler.deleteDeferredCancellationSchedule,
+				deleteTrialFeedbackEmailSchedule: trialScheduler.deleteTrialFeedbackEmailSchedule,
+				deleteTrialReminderSchedule: trialScheduler.deleteTrialReminderSchedule,
+				deleteChargeReminderSchedule: trialScheduler.deleteChargeReminderSchedule,
+				listInboxDeletionReferences: inboxEmail.listDeletionReferencesByUserId,
+				deleteAllInboxEmails: inboxEmail.deleteAllEmailsByUserId,
+				deleteAllInboxLinks: inboxEmailLink.deleteAllLinksByUserId,
+				deleteAllInboxSavedLinks: inboxSavedLink.deleteAllByUserId,
+				tombstoneInboxAddresses: inboxAddress.tombstoneUserAddresses,
+				deleteRawEmailObjects,
+				deleteEmailContentObjects,
+				deleteEmailImageObjects,
+				deleteAllUserArticles: articleStore.deleteAllUserArticles,
+				listUserArticleUrls: articleStore.listUserArticleUrls,
+				countOtherSaversByUrl,
+				purgeArticleContent,
+				tombstoneArticle,
+				now,
+				deleteDigestByUser: digestQueue.deleteDigestByUser,
+				deleteReaderReadyState: readerReadyState.deleteReaderReadyState,
+				deleteOnboarding: onboarding.deleteOnboarding,
+				deleteReadingPreference: readingPreference.deleteReadingPreference,
+				deleteUserExports,
+				deletePasswordResetTokensByEmail: passwordReset.deleteTokensByEmail,
+				deleteVerificationTokensByUserId: emailVerification.deleteTokensByUserId,
+				deletePendingSignupsByUser: pendingSignup.deleteByUser,
+				revokeExternalIdpTokens,
+				revokeAllUserOAuthTokens,
+				destroyUserSessions: auth.destroyUserSessions,
+				closeUserAccount: auth.closeUserAccount,
+				logger,
+			}),
+		],
+		[ExportUserDataCommand.detailType]: [
+			initExportUserDataHandler({
+				findArticlesByUser: articleStore.findArticlesByUser,
+				uploadUserDataExport,
+				sendEmail,
+				publishEvent,
+				logger,
+				now,
+			}),
+		],
+	},
 	logger,
 });
 /* c8 ignore stop */

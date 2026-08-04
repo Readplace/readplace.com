@@ -354,7 +354,7 @@ describe("buildAnalyticsDashboardBody — drift prevention", () => {
 		expect(q).toBeDefined();
 		expect(q?.startsWith(`SOURCE '${ANALYTICS_LOG_GROUP}' | `)).toBe(true);
 		expect(q).not.toContain("not like");
-		expect(q).toContain(`@logStream like "${LOG_GROUPS.subscriptionStartRequest}/"`);
+		expect(q).toContain(`@logStream like "${LOG_GROUPS.subscriptionEvents}/"`);
 		expect(q).toContain(`@logStream like "${LOG_GROUPS.sendTrialFeedbackEmail}/"`);
 	});
 

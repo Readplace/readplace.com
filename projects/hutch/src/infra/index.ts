@@ -291,13 +291,13 @@ const trialSchedulerManagePolicy = {
 	policy: trialSchedulerManagePolicyDoc,
 };
 
-const cancelSubscriptionSchedulerManagePolicy = {
-	name: "hutch-cancel-subscription-scheduler-manage",
+const subscriptionEventsSchedulerManagePolicy = {
+	name: "hutch-subscription-events-scheduler-manage",
 	policy: trialSchedulerManagePolicyDoc,
 };
 
-const scheduleTrialFeedbackEmailSchedulerManagePolicy = {
-	name: "hutch-schedule-trial-feedback-email-scheduler-manage",
+const userDataJobsSchedulerManagePolicy = {
+	name: "hutch-user-data-jobs-scheduler-manage",
 	policy: trialSchedulerManagePolicyDoc,
 };
 
@@ -477,61 +477,12 @@ if (googleWorkspaceMail) {
 	});
 }
 
-// --- ExportUserData worker Lambda ---
-
-const exportUserDataDynamodb = new HutchDynamoDBAccess("export-user-data-dynamodb", {
-	tables: [
-		{ arn: storage.articlesTable.arn, includeIndexes: false },
-		{ arn: storage.userArticlesTable.arn, includeIndexes: true },
-	],
-	actions: ["dynamodb:GetItem", "dynamodb:BatchGetItem", "dynamodb:Query"],
-});
-
-const exportUserDataQueue = new HutchSQS("export-user-data", {
-	// Max single-export wall time before SQS makes the message visible again
-	// for retry. 900s matches the worker Lambda timeout below so a single
-	// invocation cannot be redelivered while still running.
-	visibilityTimeoutSeconds: 900,
-});
-
-const exportUserDataLambda = new HutchLambda("export-user-data", {
-	entryPoint: "./src/runtime/export-user-data.main.ts",
-	outputDir: ".lib/export-user-data",
-	assetDir: "./src/runtime",
-	memorySize: 1024,
-	timeout: 900,
-	environment: {
-		PERSISTENCE: "prod",
-		DYNAMODB_ARTICLES_TABLE: storage.articlesTable.name,
-		DYNAMODB_USER_ARTICLES_TABLE: storage.userArticlesTable.name,
-		EVENT_BUS_NAME: eventBus.eventBusName,
-		USER_EXPORT_BUCKET_NAME: userExportBucket.bucket,
-		RESEND_API_KEY: requireEnv("RESEND_API_KEY"),
-	},
-	policies: [
-		...exportUserDataDynamodb.policies,
-		...userExportBucket.readPolicies("export-user-data-bucket-read"),
-		...userExportBucket.writePolicies("export-user-data-bucket-write"),
-	],
-});
-
-eventBus.grantPublish(exportUserDataLambda);
-
-const exportUserDataLambdaWithSQS = new HutchSQSBackedLambda("export-user-data", {
-	lambda: exportUserDataLambda,
-	queue: exportUserDataQueue,
-	alertEmailDLQEntry: alertEmail,
-	batchSize: 1,
-});
-
-eventBus.subscribe(ExportUserDataCommand, exportUserDataLambdaWithSQS);
-
-// --- DeleteAccount worker Lambda ---
-// Durable, DLQ-backed scrub of every user-owned store when an account is
-// deleted. Runs behind SQS at-least-once with an email alert on the DLQ so a
+// --- User data jobs worker Lambda (export + account deletion) ---
+// Durable, DLQ-backed export of a user's data and scrub of every user-owned
+// store. Runs behind SQS at-least-once with an email alert on the DLQ so a
 // stuck erasure is never silent.
 
-const deleteAccountDynamodb = new HutchDynamoDBAccess("delete-account-dynamodb", {
+const userDataJobsDynamodb = new HutchDynamoDBAccess("user-data-jobs-dynamodb", {
 	tables: [
 		{ arn: storage.usersTable.arn, includeIndexes: true },
 		{ arn: storage.sessionsTable.arn, includeIndexes: true },
@@ -566,8 +517,8 @@ const deleteAccountDynamodb = new HutchDynamoDBAccess("delete-account-dynamodb",
 
 // The write-policy helpers grant only PutObject, so a delete worker needs an
 // explicit s3:DeleteObject grant (+ ListBucket for the export-prefix listing).
-const deleteAccountS3Policy = {
-	name: "delete-account-s3-delete",
+const userDataJobsS3Policy = {
+	name: "user-data-jobs-s3-delete",
 	policy: JSON.stringify({
 		Version: "2012-10-17",
 		Statement: [
@@ -593,8 +544,8 @@ const deleteAccountS3Policy = {
 	}),
 };
 
-const deleteAccountQueue = new HutchSQS("delete-account", {
-	// Matches the worker Lambda timeout so a single in-flight scrub cannot be
+const userDataJobsQueue = new HutchSQS("user-data-jobs", {
+	// Matches the worker Lambda timeout so a single in-flight job cannot be
 	// redelivered while still running.
 	visibilityTimeoutSeconds: 900,
 	// The scrub converges on partial state by design, and its Apple-revocation
@@ -604,9 +555,9 @@ const deleteAccountQueue = new HutchSQS("delete-account", {
 	dlqMaxReceiveCount: 12,
 });
 
-const deleteAccountLambda = new HutchLambda("delete-account", {
-	entryPoint: "./src/runtime/delete-account.main.ts",
-	outputDir: ".lib/delete-account",
+const userDataJobsLambda = new HutchLambda("user-data-jobs", {
+	entryPoint: "./src/runtime/user-data-jobs.main.ts",
+	outputDir: ".lib/user-data-jobs",
 	assetDir: "./src/runtime",
 	memorySize: 1024,
 	timeout: 900,
@@ -637,25 +588,35 @@ const deleteAccountLambda = new HutchLambda("delete-account", {
 		APPLE_LOGIN_TEAM_ID: requireEnv("APPLE_LOGIN_TEAM_ID"),
 		APPLE_LOGIN_KEY_ID: requireEnv("APPLE_LOGIN_KEY_ID"),
 		APPLE_LOGIN_PRIVATE_KEY_BASE64: requireEnv("APPLE_LOGIN_PRIVATE_KEY_BASE64"),
+		EVENT_BUS_NAME: eventBus.eventBusName,
 		EVENT_BUS_ARN: eventBus.eventBusArn,
 		TRIAL_SCHEDULER_GROUP_NAME: trialSchedulerGroupName,
 		TRIAL_SCHEDULER_ROLE_ARN: trialSchedulerRole.arn,
+		RESEND_API_KEY: requireEnv("RESEND_API_KEY"),
 	},
 	policies: [
-		...deleteAccountDynamodb.policies,
-		deleteAccountS3Policy,
-		cancelSubscriptionSchedulerManagePolicy,
+		...userDataJobsDynamodb.policies,
+		userDataJobsS3Policy,
+		...userExportBucket.readPolicies("user-data-jobs-bucket-read"),
+		...userExportBucket.writePolicies("user-data-jobs-bucket-write"),
+		userDataJobsSchedulerManagePolicy,
 	],
 });
 
-const deleteAccountLambdaWithSQS = new HutchSQSBackedLambda("delete-account", {
-	lambda: deleteAccountLambda,
-	queue: deleteAccountQueue,
+eventBus.grantPublish(userDataJobsLambda);
+
+const userDataJobsWithSQS = new HutchSQSBackedLambda("user-data-jobs", {
+	lambda: userDataJobsLambda,
+	queue: userDataJobsQueue,
 	alertEmailDLQEntry: alertEmail,
 	batchSize: 1,
 });
 
-eventBus.subscribe(DeleteAccountCommand, deleteAccountLambdaWithSQS);
+eventBus.subscribeAll(
+	[DeleteAccountCommand, ExportUserDataCommand],
+	userDataJobsWithSQS,
+	{ name: "user-data-jobs" },
+);
 
 // --- Reader-ready digest (fan-out + 6h flush + send) ---
 // When an article's clean reader view reaches the successful terminal state,
@@ -865,182 +826,26 @@ new HutchStripeWebhookReceiver("stripe-webhook-receiver", {
 	alertEmail,
 });
 
-// --- Handle Subscription Cancelled ---
-// SQS-backed Lambda that reacts to SubscriptionCancelledEvent by marking the
-// subscription_providers row as cancelled. Failed messages land in a DLQ with
-// an email alarm so operators can redrive without relying on Stripe retries.
+// --- Subscription lifecycle worker Lambda ---
+// One SQS-backed Lambda for the whole subscription/billing state machine; the
+// handler routes each record on its EventBridge `detail-type`. Failed records
+// land in a DLQ with an email alarm so operators can redrive without relying on
+// Stripe retries.
 
-const handleSubscriptionCancelledDynamodb = new HutchDynamoDBAccess("handle-subscription-cancelled-dynamodb", {
+const subscriptionEventsDynamodb = new HutchDynamoDBAccess("subscription-events-dynamodb", {
 	tables: [
 		{ arn: storage.subscriptionProvidersTable.arn, includeIndexes: false },
 	],
-	actions: ["dynamodb:UpdateItem"],
+	actions: ["dynamodb:GetItem", "dynamodb:UpdateItem"],
 });
 
-const handleSubscriptionCancelledQueue = new HutchSQS("handle-subscription-cancelled", {
+const subscriptionEventsQueue = new HutchSQS("subscription-events", {
 	visibilityTimeoutSeconds: 30,
 });
 
-const handleSubscriptionCancelledLambda = new HutchLambda(LAMBDA_NAMES.handleSubscriptionCancelled, {
-	priorLogGroupLogicalName: "handle-subscription-cancelled-log-group",
-	entryPoint: "./src/runtime/handle-subscription-cancelled.main.ts",
-	outputDir: ".lib/handle-subscription-cancelled",
-	assetDir: "./src/runtime",
-	memorySize: 128,
-	timeout: 30,
-	environment: {
-		PERSISTENCE: "prod",
-		DYNAMODB_SUBSCRIPTION_PROVIDERS_TABLE: storage.subscriptionProvidersTable.name,
-	},
-	policies: [
-		...handleSubscriptionCancelledDynamodb.policies,
-	],
-});
-
-const handleSubscriptionCancelledWithSQS = new HutchSQSBackedLambda("handle-subscription-cancelled", {
-	lambda: handleSubscriptionCancelledLambda,
-	queue: handleSubscriptionCancelledQueue,
-	alertEmailDLQEntry: alertEmail,
-	batchSize: 1,
-});
-
-eventBus.subscribe(SubscriptionCancelledEvent, handleSubscriptionCancelledWithSQS);
-
-// --- Cancel Subscription Command ---
-// SQS-backed Lambda that reacts to CancelSubscriptionCommand (user-initiated
-// cancel from POST /account/cancel, or deferred-cancellation scheduler fallback).
-// Branches on the row's current status:
-//   - active               → Stripe PATCH cancel_at_period_end=true
-//                             + deferred-cancellation schedule (fires at period_end + 1h)
-//                             + SubscriptionCancellationScheduledEvent
-//   - trialing             → deletes trial-end schedule
-//                             + deferred-cancellation schedule (fires at trialEndsAt + 1h)
-//                             + SubscriptionCancellationScheduledEvent
-//   - pending_cancellation → publishes SubscriptionCancelledEvent (final conversion)
-//   - cancelled            → noop
-// Failed messages land in a DLQ with an email alarm so operators can redrive.
-
-const cancelSubscriptionDynamodb = new HutchDynamoDBAccess("cancel-subscription-dynamodb", {
-	tables: [
-		{ arn: storage.subscriptionProvidersTable.arn, includeIndexes: false },
-	],
-	actions: ["dynamodb:GetItem"],
-});
-
-const cancelSubscriptionQueue = new HutchSQS("cancel-subscription", {
-	visibilityTimeoutSeconds: 30,
-});
-
-const cancelSubscriptionLambda = new HutchLambda(LAMBDA_NAMES.cancelSubscription, {
-	priorLogGroupLogicalName: "cancel-subscription-log-group",
-	entryPoint: "./src/runtime/cancel-subscription.main.ts",
-	outputDir: ".lib/cancel-subscription",
-	assetDir: "./src/runtime",
-	memorySize: 128,
-	timeout: 30,
-	environment: {
-		PERSISTENCE: "prod",
-		DYNAMODB_SUBSCRIPTION_PROVIDERS_TABLE: storage.subscriptionProvidersTable.name,
-		STRIPE_SECRET_KEY: requireEnv("STRIPE_SECRET_KEY"),
-		EVENT_BUS_NAME: eventBus.eventBusName,
-		EVENT_BUS_ARN: eventBus.eventBusArn,
-		TRIAL_SCHEDULER_GROUP_NAME: trialSchedulerGroup.name,
-		TRIAL_SCHEDULER_ROLE_ARN: trialSchedulerRole.arn,
-	},
-	policies: [
-		...cancelSubscriptionDynamodb.policies,
-		// Manage policy = create + delete. The active and trialing branches
-		// CreateSchedule for the deferred-cancellation timer; the trialing
-		// branch also DeleteSchedule on the trial-end schedule.
-		cancelSubscriptionSchedulerManagePolicy,
-	],
-});
-
-eventBus.grantPublish(cancelSubscriptionLambda);
-
-const cancelSubscriptionWithSQS = new HutchSQSBackedLambda("cancel-subscription", {
-	lambda: cancelSubscriptionLambda,
-	queue: cancelSubscriptionQueue,
-	alertEmailDLQEntry: alertEmail,
-	batchSize: 1,
-});
-
-eventBus.subscribe(CancelSubscriptionCommand, cancelSubscriptionWithSQS);
-
-// --- Handle Subscription Cancellation Scheduled ---
-// SQS-backed Lambda that reacts to SubscriptionCancellationScheduledEvent by
-// flipping the subscription_providers row to status='pending_cancellation'
-// and recording cancellationEffectiveAt. Failed messages land in a DLQ with
-// an email alarm so operators can redrive.
-
-const handleSubscriptionCancellationScheduledDynamodb = new HutchDynamoDBAccess(
-	"handle-subscription-cancellation-scheduled-dynamodb",
-	{
-		tables: [
-			{ arn: storage.subscriptionProvidersTable.arn, includeIndexes: false },
-		],
-		actions: ["dynamodb:UpdateItem"],
-	},
-);
-
-const handleSubscriptionCancellationScheduledQueue = new HutchSQS(
-	"handle-subscription-cancellation-scheduled",
-	{ visibilityTimeoutSeconds: 30 },
-);
-
-const handleSubscriptionCancellationScheduledLambda = new HutchLambda(
-	"handle-subscription-cancellation-scheduled",
-	{
-		entryPoint:
-			"./src/runtime/handle-subscription-cancellation-scheduled.main.ts",
-		outputDir: ".lib/handle-subscription-cancellation-scheduled",
-		assetDir: "./src/runtime",
-		memorySize: 128,
-		timeout: 30,
-		environment: {
-			PERSISTENCE: "prod",
-			DYNAMODB_SUBSCRIPTION_PROVIDERS_TABLE: storage.subscriptionProvidersTable.name,
-		},
-		policies: [...handleSubscriptionCancellationScheduledDynamodb.policies],
-	},
-);
-
-const handleSubscriptionCancellationScheduledWithSQS = new HutchSQSBackedLambda(
-	"handle-subscription-cancellation-scheduled",
-	{
-		lambda: handleSubscriptionCancellationScheduledLambda,
-		queue: handleSubscriptionCancellationScheduledQueue,
-		alertEmailDLQEntry: alertEmail,
-		batchSize: 1,
-	},
-);
-
-eventBus.subscribe(
-	SubscriptionCancellationScheduledEvent,
-	handleSubscriptionCancellationScheduledWithSQS,
-);
-
-// --- Subscription Start Request (trial-end auto-charge) ---
-// SQS-backed Lambda invoked by the EventBridge Scheduler one-shot rule created
-// at trial signup. Reads the subscription_providers row, attempts a Stripe
-// subscriptions.create on an existing customer if one is present (rare —
-// no-card trials are the typical case), and publishes either
-// SubscriptionChargeSucceeded or SubscriptionChargeFailed. Failed messages
-// land in a DLQ with an email alarm.
-
-const subscriptionStartRequestDynamodb = new HutchDynamoDBAccess("subscription-start-request-dynamodb", {
-	tables: [{ arn: storage.subscriptionProvidersTable.arn, includeIndexes: false }],
-	actions: ["dynamodb:GetItem"],
-});
-
-const subscriptionStartRequestQueue = new HutchSQS("subscription-start-request", {
-	visibilityTimeoutSeconds: 30,
-});
-
-const subscriptionStartRequestLambda = new HutchLambda(LAMBDA_NAMES.subscriptionStartRequest, {
-	priorLogGroupLogicalName: "subscription-start-request-log-group",
-	entryPoint: "./src/runtime/subscription-start-request.main.ts",
-	outputDir: ".lib/subscription-start-request",
+const subscriptionEventsLambda = new HutchLambda(LAMBDA_NAMES.subscriptionEvents, {
+	entryPoint: "./src/runtime/subscription-events.main.ts",
+	outputDir: ".lib/subscription-events",
 	assetDir: "./src/runtime",
 	memorySize: 128,
 	timeout: 30,
@@ -1050,131 +855,40 @@ const subscriptionStartRequestLambda = new HutchLambda(LAMBDA_NAMES.subscription
 		STRIPE_SECRET_KEY: requireEnv("STRIPE_SECRET_KEY"),
 		STRIPE_PRICE_ID: requireEnv("STRIPE_PRICE_ID"),
 		EVENT_BUS_NAME: eventBus.eventBusName,
+		EVENT_BUS_ARN: eventBus.eventBusArn,
+		TRIAL_SCHEDULER_GROUP_NAME: trialSchedulerGroup.name,
+		TRIAL_SCHEDULER_ROLE_ARN: trialSchedulerRole.arn,
 	},
-	policies: [...subscriptionStartRequestDynamodb.policies],
+	policies: [
+		...subscriptionEventsDynamodb.policies,
+		// Manage policy = create + delete. The cancel branches CreateSchedule for
+		// the deferred-cancellation timer and DeleteSchedule the trial-end one;
+		// the trial-cancel branch creates the feedback-email one-shot.
+		subscriptionEventsSchedulerManagePolicy,
+	],
 });
 
-eventBus.grantPublish(subscriptionStartRequestLambda);
+eventBus.grantPublish(subscriptionEventsLambda);
 
-const subscriptionStartRequestWithSQS = new HutchSQSBackedLambda("subscription-start-request", {
-	lambda: subscriptionStartRequestLambda,
-	queue: subscriptionStartRequestQueue,
+const subscriptionEventsWithSQS = new HutchSQSBackedLambda("subscription-events", {
+	lambda: subscriptionEventsLambda,
+	queue: subscriptionEventsQueue,
 	alertEmailDLQEntry: alertEmail,
 	batchSize: 1,
 });
 
-eventBus.subscribe(SubscriptionStartRequestCommand, subscriptionStartRequestWithSQS);
-
-// --- Subscription Charge Succeeded ---
-
-const subscriptionChargeSucceededDynamodb = new HutchDynamoDBAccess("subscription-charge-succeeded-dynamodb", {
-	tables: [{ arn: storage.subscriptionProvidersTable.arn, includeIndexes: false }],
-	actions: ["dynamodb:UpdateItem"],
-});
-
-const subscriptionChargeSucceededQueue = new HutchSQS("subscription-charge-succeeded", {
-	visibilityTimeoutSeconds: 30,
-});
-
-const subscriptionChargeSucceededLambda = new HutchLambda(LAMBDA_NAMES.subscriptionChargeSucceeded, {
-	priorLogGroupLogicalName: "subscription-charge-succeeded-log-group",
-	entryPoint: "./src/runtime/subscription-charge-succeeded.main.ts",
-	outputDir: ".lib/subscription-charge-succeeded",
-	assetDir: "./src/runtime",
-	memorySize: 128,
-	timeout: 30,
-	environment: {
-		PERSISTENCE: "prod",
-		DYNAMODB_SUBSCRIPTION_PROVIDERS_TABLE: storage.subscriptionProvidersTable.name,
-	},
-	policies: [...subscriptionChargeSucceededDynamodb.policies],
-});
-
-const subscriptionChargeSucceededWithSQS = new HutchSQSBackedLambda("subscription-charge-succeeded", {
-	lambda: subscriptionChargeSucceededLambda,
-	queue: subscriptionChargeSucceededQueue,
-	alertEmailDLQEntry: alertEmail,
-	batchSize: 1,
-});
-
-eventBus.subscribe(SubscriptionChargeSucceededEvent, subscriptionChargeSucceededWithSQS);
-
-// --- Subscription Charge Failed ---
-
-const subscriptionChargeFailedQueue = new HutchSQS("subscription-charge-failed", {
-	visibilityTimeoutSeconds: 30,
-});
-
-const subscriptionChargeFailedLambda = new HutchLambda(LAMBDA_NAMES.subscriptionChargeFailed, {
-	priorLogGroupLogicalName: "subscription-charge-failed-log-group",
-	entryPoint: "./src/runtime/subscription-charge-failed.main.ts",
-	outputDir: ".lib/subscription-charge-failed",
-	assetDir: "./src/runtime",
-	memorySize: 128,
-	timeout: 30,
-	environment: {
-		PERSISTENCE: "prod",
-		EVENT_BUS_NAME: eventBus.eventBusName,
-	},
-	policies: [],
-});
-
-eventBus.grantPublish(subscriptionChargeFailedLambda);
-
-const subscriptionChargeFailedWithSQS = new HutchSQSBackedLambda("subscription-charge-failed", {
-	lambda: subscriptionChargeFailedLambda,
-	queue: subscriptionChargeFailedQueue,
-	alertEmailDLQEntry: alertEmail,
-	batchSize: 1,
-});
-
-eventBus.subscribe(SubscriptionChargeFailedEvent, subscriptionChargeFailedWithSQS);
-
-// --- Schedule Trial Feedback Email ---
-// SQS-backed Lambda that subscribes to SubscriptionCancelledEvent. When the
-// cancel comes from a trial (reason='user_initiated_trial'), it creates a
-// one-shot EventBridge Scheduler firing TRIAL_FEEDBACK_EMAIL_DELAY_MS later
-// with SendTrialFeedbackEmailCommand. Paid cancels and stripe-webhook cancels
-// are ignored (paid churn is out of audience scope, and trial cancels never
-// route through the Stripe webhook). The schedule name is deterministic per
-// userId so at-least-once duplicates overwrite rather than stack.
-
-const scheduleTrialFeedbackEmailQueue = new HutchSQS("schedule-trial-feedback-email", {
-	visibilityTimeoutSeconds: 30,
-});
-
-const scheduleTrialFeedbackEmailLambda = new HutchLambda(
-	LAMBDA_NAMES.scheduleTrialFeedbackEmail,
-	{
-		priorLogGroupLogicalName: "schedule-trial-feedback-email-log-group",
-		entryPoint: "./src/runtime/schedule-trial-feedback-email.main.ts",
-		outputDir: ".lib/schedule-trial-feedback-email",
-		assetDir: "./src/runtime",
-		memorySize: 128,
-		timeout: 30,
-		environment: {
-			PERSISTENCE: "prod",
-			EVENT_BUS_ARN: eventBus.eventBusArn,
-			TRIAL_SCHEDULER_GROUP_NAME: trialSchedulerGroup.name,
-			TRIAL_SCHEDULER_ROLE_ARN: trialSchedulerRole.arn,
-		},
-		policies: [scheduleTrialFeedbackEmailSchedulerManagePolicy],
-	},
+eventBus.subscribeAll(
+	[
+		CancelSubscriptionCommand,
+		SubscriptionCancellationScheduledEvent,
+		SubscriptionCancelledEvent,
+		SubscriptionChargeFailedEvent,
+		SubscriptionChargeSucceededEvent,
+		SubscriptionStartRequestCommand,
+	],
+	subscriptionEventsWithSQS,
+	{ name: "subscription-events" },
 );
-
-const scheduleTrialFeedbackEmailWithSQS = new HutchSQSBackedLambda(
-	"schedule-trial-feedback-email",
-	{
-		lambda: scheduleTrialFeedbackEmailLambda,
-		queue: scheduleTrialFeedbackEmailQueue,
-		alertEmailDLQEntry: alertEmail,
-		batchSize: 1,
-	},
-);
-
-eventBus.subscribe(SubscriptionCancelledEvent, scheduleTrialFeedbackEmailWithSQS, {
-	name: "schedule-trial-feedback-email",
-});
 
 // --- Send Trial Feedback Email ---
 // SQS-backed Lambda invoked by the EventBridge Scheduler one-shots and the
@@ -1474,12 +1188,7 @@ new aws.cloudwatch.Dashboard("readplace-analytics", {
 }, {
 	dependsOn: [
 		analyticsLogGroup,
-		subscriptionStartRequestLambda,
-		subscriptionChargeSucceededLambda,
-		subscriptionChargeFailedLambda,
-		cancelSubscriptionLambda,
-		handleSubscriptionCancelledLambda,
-		scheduleTrialFeedbackEmailLambda,
+		subscriptionEventsLambda,
 		sendTrialFeedbackEmailLambda,
 	],
 });
@@ -1501,7 +1210,7 @@ export const staticBaseUrl = staticAssets.baseUrl;
 // so these outputs exist before those stacks consume them.
 export const sessionsTableName = storage.sessionsTable.name;
 export const sessionsTableArn = storage.sessionsTable.arn;
-export const exportUserDataQueueUrl = exportUserDataQueue.queueUrl;
-export const exportUserDataDlqUrl = exportUserDataQueue.dlqUrl;
+export const userDataJobsQueueUrl = userDataJobsQueue.queueUrl;
+export const userDataJobsDlqUrl = userDataJobsQueue.dlqUrl;
 export const userExportBucketOutputName = userExportBucket.bucket;
 export const _dependencies = [gateway.defaultRoute];

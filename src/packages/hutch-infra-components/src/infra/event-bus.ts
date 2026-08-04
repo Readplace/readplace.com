@@ -63,66 +63,66 @@ export class HutchEventBus {
 		opts?: { name?: string },
 	): void {
 		const base = opts?.name ?? event.name;
+		this.subscribeAll([{ ...event, name: base }], target, { name: base });
+	}
 
-		const rule = new aws.cloudwatch.EventRule(`${base}-rule`, {
-			name: `${base}-rule`,
-			eventBusName: this.eventBusName,
-			eventPattern: JSON.stringify({
-				source: [event.source],
-				"detail-type": [event.detailType],
-			}),
+	subscribeAll(
+		events: ReadonlyArray<{ name: string; source: string; detailType: string }>,
+		target: HutchSQSBackedLambda,
+		opts: { name: string },
+	): void {
+		const ruleArns = events.map((event) => {
+			const rule = new aws.cloudwatch.EventRule(`${event.name}-rule`, {
+				name: `${event.name}-rule`,
+				eventBusName: this.eventBusName,
+				eventPattern: JSON.stringify({
+					source: [event.source],
+					"detail-type": [event.detailType],
+				}),
+			});
+
+			new aws.cloudwatch.EventTarget(`${event.name}-target`, {
+				targetId: `${event.name}-target`,
+				rule: rule.name,
+				eventBusName: this.eventBusName,
+				arn: target.queueArn,
+				deadLetterConfig: { arn: target.dlqArn },
+			});
+
+			return rule.arn;
 		});
 
-		new aws.cloudwatch.EventTarget(`${base}-target`, {
-			targetId: `${base}-target`,
-			rule: rule.name,
-			eventBusName: this.eventBusName,
-			arn: target.queueArn,
-			deadLetterConfig: { arn: target.dlqArn },
-		});
-
-		new aws.sqs.QueuePolicy(`${base}-queue-policy`, {
+		new aws.sqs.QueuePolicy(`${opts.name}-queue-policy`, {
 			queueUrl: target.queueUrl,
 			policy: pulumi
-				.all([target.queueArn, rule.arn])
-				.apply(([queueArn, ruleArn]) =>
-					JSON.stringify({
-						Version: "2012-10-17",
-						Statement: [
-							{
-								Effect: "Allow",
-								Principal: { Service: "events.amazonaws.com" },
-								Action: "sqs:SendMessage",
-								Resource: queueArn,
-								Condition: {
-									ArnEquals: { "aws:SourceArn": ruleArn },
-								},
-							},
-						],
-					}),
-				),
+				.all([target.queueArn, pulumi.all(ruleArns)])
+				.apply(([queueArn, arns]) => allowRulesToSend(queueArn, arns)),
 		});
 
-		new aws.sqs.QueuePolicy(`${base}-dlq-policy`, {
+		new aws.sqs.QueuePolicy(`${opts.name}-dlq-policy`, {
 			queueUrl: target.dlqUrl,
 			policy: pulumi
-				.all([target.dlqArn, rule.arn])
-				.apply(([dlqArn, ruleArn]) =>
-					JSON.stringify({
-						Version: "2012-10-17",
-						Statement: [
-							{
-								Effect: "Allow",
-								Principal: { Service: "events.amazonaws.com" },
-								Action: "sqs:SendMessage",
-								Resource: dlqArn,
-								Condition: {
-									ArnEquals: { "aws:SourceArn": ruleArn },
-								},
-							},
-						],
-					}),
-				),
+				.all([target.dlqArn, pulumi.all(ruleArns)])
+				.apply(([dlqArn, arns]) => allowRulesToSend(dlqArn, arns)),
 		});
 	}
+}
+
+function allowRulesToSend(queueArn: string, ruleArns: string[]): string {
+	return JSON.stringify({
+		Version: "2012-10-17",
+		Statement: [
+			{
+				Effect: "Allow",
+				Principal: { Service: "events.amazonaws.com" },
+				Action: "sqs:SendMessage",
+				Resource: queueArn,
+				Condition: {
+					ArnEquals: {
+						"aws:SourceArn": ruleArns.length === 1 ? ruleArns[0] : ruleArns,
+					},
+				},
+			},
+		],
+	});
 }
