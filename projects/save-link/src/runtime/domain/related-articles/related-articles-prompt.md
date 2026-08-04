@@ -6,7 +6,15 @@ Respond with a single JSON object on one line, exactly matching this shape:
 No prose, no markdown, no code fences.
 
 SELECTION
-Pick at most {{RELATED_RESULTS_MAX}} candidates, best match first. Use the candidate numbers exactly as given. Never repeat a number. Pick only genuine relations: the same subject, the same argument seen from another side, a follow-up, a prerequisite, or the same event covered elsewhere. Shared topic words are not a relation on their own. When nothing genuinely relates, respond with {"related": []}. An empty list is a correct answer and is better than a weak match.
+Pick at most {{RELATED_RESULTS_MAX}} candidates, best match first. Use the candidate numbers exactly as given. Never repeat a number.
+
+The reader chose to save every candidate, so they already care about all of it. Your job is to find the ones they would be glad to meet again while this article is fresh, not to certify a strict match. Work down this ladder and stop at the first rung that yields something:
+
+1. The same specific subject, a follow-up, a prerequisite, or the same event covered elsewhere.
+2. The same argument seen from another side, or the same problem in a different setting.
+3. The same field, craft or era approached from a different angle — a technique piece next to a history of the thing it operates on, or two pieces about the same machine, language or discipline.
+
+Rung 3 is a real relation and worth returning. Only reach {"related": []} when the candidates share nothing beyond being saved by the same person. A merely-plausible pick beats an empty answer; a pick you cannot name a shared subject for does not.
 
 REASON
 One short sentence, max {{RELATED_REASON_MAX_CHARS}} characters, naming what the two pieces share. Write it for the reader, about the saved article they are reading. Do not restate either title.
