@@ -183,6 +183,7 @@ export function initInboxRoutes(deps: InboxDependencies): Router {
 		// (listAddressesByUserId) briefly undercounts and would otherwise drop it.
 		const limitReached =
 			req.query.error === "limit" || countLiveAddresses(addresses) >= INBOX_ADDRESS_MAX_PER_USER;
+		const submittedName = typeof req.query.name === "string" ? req.query.name : "";
 		sendComponent(
 			req,
 			res,
@@ -194,6 +195,7 @@ export function initInboxRoutes(deps: InboxDependencies): Router {
 					nameTaken,
 					limitReached,
 					createdName: createdName.success ? createdName.data : undefined,
+					submittedName,
 				}),
 				await deps.buildBannerState(req),
 			),
@@ -500,7 +502,7 @@ export function initInboxRoutes(deps: InboxDependencies): Router {
 		// random token still keeps the two addresses distinct.
 		const owned = await deps.inboxAddressStore.listAddressesByUserId(userId);
 		if (owned.some((entry) => isLiveAddress(entry) && entry.name === name)) {
-			res.redirect(303, `${addressesPath}?error=name-taken`);
+			res.redirect(303, `${addressesPath}?error=name-taken&name=${encodeURIComponent(name)}`);
 			return;
 		}
 		try {
@@ -513,14 +515,14 @@ export function initInboxRoutes(deps: InboxDependencies): Router {
 			// Hitting the per-user cap is expected user behaviour, not a fault — echo
 			// it back as a friendly message instead of logging an alerting-worthy error.
 			if (error instanceof InboxAddressLimitReachedError) {
-				res.redirect(303, `${addressesPath}?error=limit`);
+				res.redirect(303, `${addressesPath}?error=limit&name=${encodeURIComponent(name)}`);
 				return;
 			}
 			deps.logError(
 				"[Inbox] Failed to create a forwarding address",
 				error instanceof Error ? error : new Error(String(error)),
 			);
-			res.redirect(303, addressesCreateFailedPath);
+			res.redirect(303, `${addressesCreateFailedPath}&name=${encodeURIComponent(name)}`);
 			return;
 		}
 		res.redirect(303, `${addressesPath}?created=${encodeURIComponent(name)}`);
