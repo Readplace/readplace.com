@@ -5,8 +5,6 @@ slug: "save-a-link-and-close-the-tab"
 date: "2026-08-01"
 author: "Fayner Brack"
 keywords: "save articles fast browser extension, read it later extension instant save, chrome extension read it later, firefox extension read it later, save a link before the page uploads, background upload queue browser extension, extension save without signing you out, pocket alternative browser extension, save an article without waiting, read it later save button fast"
-tags: ["changelog"]
-banner: "I made the extension save your link the instant you click"
 ---
 
 <details class="blog-tldr">
