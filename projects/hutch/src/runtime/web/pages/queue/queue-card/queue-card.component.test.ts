@@ -20,7 +20,6 @@ function makeViewModel(
 		status: "unread",
 		isUnread: true,
 		saved: { iso: "2025-06-01T12:50:00.000Z", label: "10m ago", mode: "relative" },
-		hasContent: false,
 		actions: [],
 		deleteConfirm: {
 			articleId: "abc123",

@@ -88,7 +88,6 @@ function toPlaceholderViewModel(
 			iso: new Date(now.getTime() - article.savedHoursAgo * HOUR_MS).toISOString(),
 			now,
 		}),
-		hasContent: true,
 		actions: PLACEHOLDER_ACTIONS,
 		deleteConfirm: {
 			articleId: article.id,

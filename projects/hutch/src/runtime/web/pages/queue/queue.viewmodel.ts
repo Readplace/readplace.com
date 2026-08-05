@@ -51,7 +51,6 @@ export interface QueueArticleViewModel {
 	isUnread: boolean;
 	saved: LocalTime;
 	imageUrl?: string;
-	hasContent: boolean;
 	actions: ArticleAction[];
 	deleteConfirm: DeleteConfirmViewModel;
 	/**
@@ -198,7 +197,6 @@ export function toQueueArticleViewModel(params: {
 		isUnread: article.status === "unread",
 		saved: toRelativeOrDate({ iso: article.savedAt.toISOString(), now }),
 		imageUrl: article.metadata.imageUrl,
-		hasContent: Boolean(article.content),
 		actions: [...toStatusActions({ id, status: article.status }, returnQuery), deleteAction],
 		deleteConfirm: {
 			articleId: id,
