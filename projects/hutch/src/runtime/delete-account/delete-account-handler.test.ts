@@ -302,12 +302,13 @@ async function seedAccount(
 		retentionMs: COOLDOWN_MS,
 	});
 
-	const claimed = await s.readerReady.claimReaderReadyEmailSlot({
+	const claim = await s.readerReady.claimReaderReadyEmailSlot({
 		userId,
 		now: SEED_NOW,
 		cooldownMs: COOLDOWN_MS,
+		messageId: "seed",
 	});
-	assert(claimed, "expected the reader-ready slot to seed as claimed");
+	assert(claim.claimed, "expected the reader-ready slot to seed as claimed");
 
 	await s.onboarding.recordIosSavedArticle({ userId });
 
@@ -396,16 +397,17 @@ async function seedAccount(
 	};
 }
 
-/** A present reader-ready slot blocks a same-instant claim (returns false); an
- * absent slot allows it (returns true). This is the only readable signal the
+/** A present reader-ready slot blocks a same-instant claim from a different
+ * message; an absent slot allows it. This is the only readable signal the
  * fixture exposes, so deletion is inferred from a now-allowed claim. */
 async function readerReadySlotPresent(s: Subject, userId: UserId): Promise<boolean> {
-	const claimed = await s.readerReady.claimReaderReadyEmailSlot({
+	const claim = await s.readerReady.claimReaderReadyEmailSlot({
 		userId,
 		now: SEED_NOW,
 		cooldownMs: COOLDOWN_MS,
+		messageId: "probe",
 	});
-	return !claimed;
+	return !claim.claimed;
 }
 
 async function run(s: Subject, records: Array<{ messageId: string; body: string }>) {

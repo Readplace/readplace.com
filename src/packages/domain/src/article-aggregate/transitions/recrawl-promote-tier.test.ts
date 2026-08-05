@@ -171,10 +171,26 @@ describe("recrawlPromoteTier", () => {
 		assert.deepEqual(article.summary, stuckSummary);
 	});
 
-	it("declares writes for metadata, freshness, and crawl only — never the summary axis", () => {
+	it("stamps readerAvailableAt when the recrawl is what first makes the body readable", () => {
+		const { article, writes } = recrawlPromoteTier(buildArticle(), buildInput());
+
+		assert.equal(article.readerAvailableAt, NOW);
+		assert.ok(writes.includes("readerAvailability"));
+	});
+
+	it("does not stamp an already-ready article, so an operator recrawl cannot invent a later availability instant", () => {
+		const before = buildArticle({ crawl: { kind: "ready" } });
+
+		const { article, writes } = recrawlPromoteTier(before, buildInput());
+
+		assert.equal(article.readerAvailableAt, undefined);
+		assert.ok(!writes.includes("readerAvailability"));
+	});
+
+	it("declares writes for metadata, freshness, crawl and reader availability — never the summary axis", () => {
 		const { writes } = recrawlPromoteTier(buildArticle(), buildInput());
 
-		assert.deepEqual([...writes].sort(), ["crawl", "freshness", "metadata"]);
+		assert.deepEqual([...writes].sort(), ["crawl", "freshness", "metadata", "readerAvailability"]);
 	});
 
 	it("does not mutate the input article (pure function)", () => {

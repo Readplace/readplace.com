@@ -51,6 +51,15 @@ describe("markSummarySkipped", () => {
 		]);
 	});
 
+	it("emits no reader-view-loading-succeeded effect when the reader view had already succeeded, so re-skipping announces nothing new", () => {
+		const { effects } = markSummarySkipped(
+			buildArticle({ crawl: { kind: "ready" }, summary: { kind: "skipped", reason: "ai-unavailable" } }),
+			{ reason: "ai-unavailable", now: NOW },
+		);
+
+		assert.deepEqual(effects, []);
+	});
+
 	it("emits no reader-view-loading-succeeded effect when the crawl is not yet ready (reader view is still loading, not succeeded)", () => {
 		const { effects } = markSummarySkipped(
 			buildArticle({ crawl: { kind: "pending", pendingSince: "2026-01-01T00:00:00.000Z" } }),

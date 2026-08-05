@@ -27,7 +27,7 @@ import type {
 	DigestQueueItem,
 	ListDigestItemsByUser,
 } from "@packages/provider-contracts/digest-queue";
-import type { SendEmail } from "@packages/provider-contracts/email";
+import { EmailRejectedError, type SendEmail } from "@packages/provider-contracts/email";
 import { buildDigestPreview } from "../web/digest-preview";
 import { buildDigestEmailHtml, type DigestEmailItem } from "../web/digest-email";
 import { buildOwnerReaderPath } from "../web/pages/queue/owner-reader-link";
@@ -35,9 +35,9 @@ import { buildOwnerReaderPath } from "../web/pages/queue/owner-reader-link";
 const EMAIL_FROM = "Fayner from Readplace <readplace@readplace.com>";
 const DIGEST_BCC = "readplace+reader_ready@readplace.com";
 const SUBJECT = "Reader views are ready for articles you saved.";
-/** The reader view must have taken longer than a minute to qualify — a fast
- * generation means the saver watched it finish live and needs no nudge. */
-const MIN_GENERATION_MS = 60_000;
+/** The article body must have been unavailable for longer than a minute to
+ * qualify — a fast crawl means the saver watched it land live and needs no nudge. */
+const MIN_UNAVAILABLE_MS = 60_000;
 
 export interface SendUserDigestDeps {
 	findUserContactByUserId: FindUserContactByUserId;
@@ -70,7 +70,7 @@ export function initSendUserDigestHandler(
 			try {
 				const envelope = z.object({ detail: z.unknown() }).parse(JSON.parse(record.body));
 				const detail = SendUserDigestCommand.detailSchema.parse(envelope.detail);
-				await processUserDigest(detail, deps);
+				await processUserDigest({ detail, messageId: record.messageId, deps });
 			} catch (error) {
 				deps.logger.error("[SendUserDigest] record failed", { messageId: record.messageId, error });
 				batchItemFailures.push({ itemIdentifier: record.messageId });
@@ -82,18 +82,25 @@ export function initSendUserDigestHandler(
 }
 
 /** Live-state gate for one queued article. `undefined` ⇒ include; a string ⇒
- * the stale reason (the row is dropped from the queue). Mirrors the per-article
- * gate the reader-ready pipeline enforced, reading the article's own set-once
- * `succeededAt` as the reference instant. */
-function staleReason(state: UserArticleNotificationState | null): string | undefined {
+ * the stale reason (the row is dropped from the queue). The reference instant is
+ * the article's global set-once `readerAvailableAt` — when the body became
+ * renderable — because that, not the moment both axes finished, is what the
+ * reader was waiting for. */
+function staleReason(params: {
+	state: UserArticleNotificationState | null;
+	readerAvailableAt: Date | undefined;
+}): string | undefined {
+	const { state, readerAvailableAt } = params;
 	if (!state) return "row-deleted";
 	if (state.status === "read") return "already-read";
 	if (state.emailSentAt !== undefined) return "already-emailed";
-	if (state.succeededAt === undefined) return "never-succeeded";
-	const succeededAtMs = state.succeededAt.getTime();
-	if (state.savedAt.getTime() > succeededAtMs) return "re-saved-after-success";
-	if (succeededAtMs - state.savedAt.getTime() <= MIN_GENERATION_MS) return "under-min-generation";
-	if (state.viewedAt === undefined || state.viewedAt.getTime() >= succeededAtMs) {
+	if (readerAvailableAt === undefined) return "reader-availability-unrecorded";
+	const availableAtMs = readerAvailableAt.getTime();
+	if (state.savedAt.getTime() > availableAtMs) return "saved-after-reader-available";
+	if (availableAtMs - state.savedAt.getTime() <= MIN_UNAVAILABLE_MS) {
+		return "available-too-soon-after-save";
+	}
+	if (state.viewedAt === undefined || state.viewedAt.getTime() >= availableAtMs) {
 		return "not-viewed-while-loading";
 	}
 	return undefined;
@@ -104,10 +111,12 @@ interface IncludedItem {
 	email: DigestEmailItem;
 }
 
-async function processUserDigest(
-	detail: z.infer<typeof SendUserDigestCommand.detailSchema>,
-	deps: SendUserDigestDeps,
-): Promise<void> {
+async function processUserDigest(params: {
+	detail: z.infer<typeof SendUserDigestCommand.detailSchema>;
+	messageId: string;
+	deps: SendUserDigestDeps;
+}): Promise<void> {
+	const { detail, messageId, deps } = params;
 	const userId = UserIdSchema.parse(detail.userId);
 	const skip = (reason: string) => deps.logger.info("[SendUserDigest] skipped", { userId: detail.userId, reason });
 
@@ -118,11 +127,10 @@ async function processUserDigest(
 	if (queued.length === 0) return skip("empty-queue");
 
 	/* Newest first (the queue lists in canonical-url order), then bound the batch:
-	 * each item costs up to three sequential reads, so an unbounded backlog could
-	 * exceed the Lambda timeout *after* the slot is claimed and starve the digest
-	 * until TTL. Overflow rows stay queued and drain on the next tick. Items are
-	 * resolved concurrently — the three reads within one item stay sequential
-	 * (each gates the next), but distinct items don't wait on each other. */
+	 * each item costs several reads, so an unbounded backlog could exceed the
+	 * Lambda timeout *after* the slot is claimed and starve the digest until TTL.
+	 * Overflow rows stay queued and drain on the next tick. Items are resolved
+	 * concurrently, so distinct items never wait on each other. */
 	const batch = [...queued]
 		.sort((a, b) => Date.parse(b.enqueuedAt) - Date.parse(a.enqueuedAt))
 		.slice(0, deps.maxDigestItems);
@@ -141,9 +149,26 @@ async function processUserDigest(
 	}
 
 	const now = deps.now();
-	const claimed = await deps.claimReaderReadyEmailSlot({ userId, now, cooldownMs: deps.cooldownMs });
-	// Leave every row (stale included) for the flush that owns this cycle.
-	if (!claimed) return skip("rate-limited");
+	const claim = await deps.claimReaderReadyEmailSlot({ userId, now, cooldownMs: deps.cooldownMs, messageId });
+	if (!claim.claimed) {
+		/* Leave every row (stale included) for the flush that owns this cycle.
+		 * A message that reaches here after its own claim would be a swallowed
+		 * redrive, so this is a warn: the cooldown outlasts the redrive envelope
+		 * precisely to make that unreachable. */
+		deps.logger.warn("[SendUserDigest] rate-limited", { userId: detail.userId, messageId });
+		return;
+	}
+
+	if (claim.redelivery) {
+		/* This message already claimed the slot on an earlier receive, so the email
+		 * may already be out. Re-sending is the duplicate; what the crashed attempt
+		 * failed to do is drain. Rows enqueued after that claim were never in the
+		 * email, so they stay queued for the next tick instead of being drained
+		 * unsent. */
+		const claimedAtMs = claim.claimedAt.getTime();
+		const alreadyEmailed = included.filter(({ item }) => Date.parse(item.enqueuedAt) <= claimedAtMs);
+		return finishDigest({ included: alreadyEmailed, staleKeys, userId, now, redelivery: true, deps });
+	}
 
 	try {
 		await deps.sendEmail({
@@ -157,42 +182,60 @@ async function processUserDigest(
 			}),
 		});
 	} catch (error) {
-		/* A transient send failure must not burn the user's cooldown slot: release
-		 * the claim so the SQS redrive (and, if it keeps failing, the DLQ alarm)
-		 * re-attempts instead of the next tick dropping the digest as rate-limited. */
-		await deps.releaseReaderReadyEmailSlot({ userId, claimedAt: now });
+		/* Release only on a provider-confirmed rejection, where a retry cannot
+		 * duplicate: the redrive then re-claims and genuinely re-sends. An
+		 * ambiguous failure keeps the claim, so the redrive lands on the
+		 * redelivery branch and drains rather than risking a second copy. */
+		if (error instanceof EmailRejectedError) {
+			await deps.releaseReaderReadyEmailSlot({ userId, claimedAt: now, messageId });
+		}
 		throw error;
 	}
 
-	/* Post-send bookkeeping is best-effort: the email is already out, so this
-	 * record MUST ack — a throw would redrive and, past the cooldown, re-send.
-	 * Draining the queue row is the digest's real dedup, so it runs independently
-	 * of the emailSentAt stamp: a failed mark must not skip the delete, or the row
-	 * re-appears next cycle and re-sends. emailSentAt only backstops a double-fail. */
+	await finishDigest({ included, staleKeys, userId, now, redelivery: false, deps });
+}
+
+/* Post-send bookkeeping is best-effort: the email is already out, so this record
+ * MUST ack — a throw would redrive and, past the cooldown, re-send. Draining the
+ * queue row is the digest's real dedup, so it runs independently of the
+ * emailSentAt stamp: a failed mark must not skip the delete, or the row
+ * re-appears next cycle and re-sends. emailSentAt only backstops a double-fail. */
+async function finishDigest(params: {
+	included: IncludedItem[];
+	staleKeys: string[];
+	userId: UserId;
+	now: Date;
+	redelivery: boolean;
+	deps: SendUserDigestDeps;
+}): Promise<void> {
+	const { included, staleKeys, userId, now, redelivery, deps } = params;
+
 	for (const { item } of included) {
 		try {
 			await deps.markReaderReadyEmailSent({ userId, url: item.originalUrl, at: now });
 		} catch (error) {
-			deps.logger.error("[SendUserDigest] mark-email-sent failed", { userId: detail.userId, url: item.url, error });
+			deps.logger.error("[SendUserDigest] mark-email-sent failed", { userId, url: item.url, error });
 		}
 	}
 	await deleteKeys([...included.map(({ item }) => item.url), ...staleKeys], userId, deps);
-	try {
-		await deps.publishEvent(ReaderReadyEmailSentEvent, {
-			userId: detail.userId,
-			urls: included.map(({ item }) => item.originalUrl),
-			sentAt: now.toISOString(),
-		});
-	} catch (error) {
-		deps.logger.error("[SendUserDigest] event publish failed", { userId: detail.userId, error });
+	if (included.length > 0) {
+		try {
+			await deps.publishEvent(ReaderReadyEmailSentEvent, {
+				userId,
+				urls: included.map(({ item }) => item.originalUrl),
+				sentAt: now.toISOString(),
+			});
+		} catch (error) {
+			deps.logger.error("[SendUserDigest] event publish failed", { userId, error });
+		}
 	}
-	deps.logger.info("[SendUserDigest] sent digest", { userId: detail.userId, itemCount: included.length });
+	deps.logger.info("[SendUserDigest] sent digest", { userId, itemCount: included.length, redelivery });
 }
 
 /** Re-validate one queued article against live state and project it to an email
  * item. `email` present ⇒ include it; `email` undefined ⇒ drop the (stale) row.
- * The three reads run sequentially because each gates the next, but the caller
- * resolves distinct items concurrently. */
+ * The per-user row and the article are both gate inputs so they are read
+ * together; only the summary read waits on the gate passing. */
 async function resolveDigestItem(
 	item: DigestQueueItem,
 	userId: UserId,
@@ -203,12 +246,14 @@ async function resolveDigestItem(
 		return { item, email: undefined };
 	};
 
-	const state = await deps.findUserArticleNotificationState({ userId, url: item.originalUrl });
-	const stale = staleReason(state);
-	if (stale) return drop(stale);
-
-	const article = await deps.findArticleByUrl(item.originalUrl);
+	const [state, article] = await Promise.all([
+		deps.findUserArticleNotificationState({ userId, url: item.originalUrl }),
+		deps.findArticleByUrl(item.originalUrl),
+	]);
 	if (!article) return drop("article-missing");
+
+	const stale = staleReason({ state, readerAvailableAt: article.readerAvailableAt });
+	if (stale) return drop(stale);
 
 	const summary = await deps.findGeneratedSummary(item.originalUrl);
 	return {

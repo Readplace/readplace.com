@@ -90,6 +90,10 @@ export interface GlobalArticleData {
 	 * surfaces treat a purged row as gone (404) even though the row survives so
 	 * in-flight transitions still load it and its id still resolves. */
 	purgedAt?: Date;
+	/** Set-once instant the crawl axis first reached ready — when the reader
+	 * became able to render the body. Absent on rows that have never had a
+	 * readable body. */
+	readerAvailableAt?: Date;
 }
 
 export type FindArticleByUrl = (
@@ -148,7 +152,7 @@ export type FindArticleCrawlVersions = (
 /** Stamp the per-user reader-view presence signal: the owner opened or polled
  * the reader for this article. Set server-side on every reader open/poll; the
  * reader-ready notifier emails only when `viewedAt` is set AND `viewedAt <
- * succeededAt` (viewed while loading, left before ready). */
+ * readerAvailableAt` (present while the body was still unavailable). */
 export type MarkArticleViewed = (params: {
 	userId: UserId;
 	url: string;
@@ -168,24 +172,14 @@ export type MarkSummaryToggled = (params: {
 	at: Date;
 }) => Promise<void>;
 
-/** Set-once stamp of the moment the reader view reached the successful terminal
- * state, per saver. Written by the reader-ready fan-out for every user who saved
- * the URL. Set-once so it always reflects the first success, never a later
- * re-success. */
-export type MarkReaderViewSucceeded = (params: {
-	userId: UserId;
-	url: string;
-	at: Date;
-}) => Promise<void>;
-
 export interface UserArticleByUrl {
 	userId: UserId;
 	viewedAt?: Date;
 }
 
 /** Reverse lookup: every saver of a URL, via the `url-index` GSI (never a Scan).
- * The reader-ready fan-out uses it to stamp `succeededAt` per saver and decide
- * which savers had opened the reader. */
+ * The reader-ready fan-out uses it to decide which savers had opened the
+ * reader. */
 export type FindUserArticlesByUrl = (
 	url: string,
 ) => Promise<UserArticleByUrl[]>;
@@ -201,7 +195,6 @@ export type MarkReaderReadyEmailSent = (params: {
 export interface UserArticleNotificationState {
 	savedAt: Date;
 	status: ArticleStatus;
-	succeededAt?: Date;
 	viewedAt?: Date;
 	emailSentAt?: Date;
 }

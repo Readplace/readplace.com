@@ -3,6 +3,7 @@ export {
 	classifySummaryOutcome,
 	CrawlStatusSchema,
 	deriveReaderViewStatus,
+	enteredReaderViewSucceeded,
 	ReaderStatusSchema,
 	ReaderViewStatusSchema,
 	SummaryStatusSchema,

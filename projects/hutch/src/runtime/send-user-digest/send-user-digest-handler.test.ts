@@ -2,9 +2,10 @@ import { JSDOM } from "jsdom";
 import { buildSqsEvent } from "@packages/test-fixtures/sqs";
 import { buildLambdaContext } from "@packages/test-fixtures/lambda-context";
 import { noopLogger } from "@packages/hutch-logger";
-import { ReaderArticleHashId } from "@packages/domain/article";
+import { MinutesSchema, ReaderArticleHashId } from "@packages/domain/article";
 import { ReaderReadyEmailSentEvent } from "@packages/hutch-infra-components";
-import type { UserArticleNotificationState } from "@packages/provider-contracts/article-store";
+import type { GlobalArticleData, UserArticleNotificationState } from "@packages/provider-contracts/article-store";
+import { EmailRejectedError } from "@packages/provider-contracts/email";
 import { initSendUserDigestHandler, type SendUserDigestDeps } from "./send-user-digest-handler";
 
 const USER_ID = "user-1";
@@ -13,16 +14,16 @@ const URL_B = "https://example.com/b";
 const CANON_A = "example.com/a";
 const CANON_B = "example.com/b";
 const SAVED_AT = new Date("2026-06-01T12:00:00.000Z");
-const VIEWED_AT = new Date("2026-06-01T12:01:00.000Z"); // viewed while still loading
-const SUCCEEDED_AT = new Date("2026-06-01T12:02:00.000Z"); // 2 min after save -> generation > 60s
+const VIEWED_AT = new Date("2026-06-01T12:01:00.000Z"); // present while the body was still unavailable
+const READER_AVAILABLE_AT = new Date("2026-06-01T12:02:00.000Z"); // 2 min after save -> unavailable > 60s
 const NOW = new Date("2026-06-01T18:00:00.000Z");
 const COOLDOWN_MS = 5.5 * 60 * 60 * 1000;
+const MESSAGE_ID = "msg-1";
 
 function eligibleState(): UserArticleNotificationState {
 	return {
 		savedAt: SAVED_AT,
 		status: "unread",
-		succeededAt: SUCCEEDED_AT,
 		viewedAt: VIEWED_AT,
 		emailSentAt: undefined,
 	};
@@ -32,18 +33,26 @@ function digestItem(originalUrl: string, url: string, enqueuedAt = "2026-06-01T1
 	return { userId: USER_ID, url, originalUrl, enqueuedAt };
 }
 
-function article(url: string, title: string) {
+function article(url: string, title: string, overrides: Partial<GlobalArticleData> = {}): GlobalArticleData {
 	return {
 		id: ReaderArticleHashId.from(url),
 		url,
 		metadata: { title, siteName: "example.com", excerpt: "", wordCount: 100 },
-		estimatedReadTime: 3,
+		estimatedReadTime: MinutesSchema.parse(3),
 		savedAt: SAVED_AT,
+		readerAvailableAt: READER_AVAILABLE_AT,
+		...overrides,
 	};
 }
 
-function command(userId: string = USER_ID) {
-	return buildSqsEvent([{ messageId: "msg-1", body: JSON.stringify({ detail: { userId } }) }]);
+function articleFinder(overrides: Partial<GlobalArticleData> = {}) {
+	return jest
+		.fn()
+		.mockImplementation(async (url: string) => article(url, url === URL_A ? "Alpha" : "Beta", overrides));
+}
+
+function command(userId: string = USER_ID, messageId: string = MESSAGE_ID) {
+	return buildSqsEvent([{ messageId, body: JSON.stringify({ detail: { userId } }) }]);
 }
 
 function createHandler(overrides: Partial<SendUserDigestDeps> = {}) {
@@ -51,12 +60,12 @@ function createHandler(overrides: Partial<SendUserDigestDeps> = {}) {
 		findUserContactByUserId: jest.fn().mockResolvedValue({ email: "reader@example.com", emailVerified: true }),
 		listDigestItemsByUser: jest.fn().mockResolvedValue([digestItem(URL_A, CANON_A)]),
 		findUserArticleNotificationState: jest.fn().mockResolvedValue(eligibleState()),
-		findArticleByUrl: jest.fn().mockImplementation(async (url: string) => article(url, url === URL_A ? "Alpha" : "Beta")),
+		findArticleByUrl: articleFinder(),
 		findGeneratedSummary: jest
 			.fn()
 			.mockResolvedValue({ status: "ready", summary: "Full summary body.", excerpt: "Short excerpt teaser." }),
 		deleteDigestItem: jest.fn().mockResolvedValue(undefined),
-		claimReaderReadyEmailSlot: jest.fn().mockResolvedValue(true),
+		claimReaderReadyEmailSlot: jest.fn().mockResolvedValue({ claimed: true, redelivery: false }),
 		releaseReaderReadyEmailSlot: jest.fn().mockResolvedValue(undefined),
 		markReaderReadyEmailSent: jest.fn().mockResolvedValue(undefined),
 		sendEmail: jest.fn().mockResolvedValue(undefined),
@@ -88,7 +97,12 @@ describe("initSendUserDigestHandler", () => {
 			const result = await run(handler);
 
 			expect(result).toEqual({ batchItemFailures: [] });
-			expect(deps.claimReaderReadyEmailSlot).toHaveBeenCalledWith({ userId: USER_ID, now: NOW, cooldownMs: COOLDOWN_MS });
+			expect(deps.claimReaderReadyEmailSlot).toHaveBeenCalledWith({
+				userId: USER_ID,
+				now: NOW,
+				cooldownMs: COOLDOWN_MS,
+				messageId: MESSAGE_ID,
+			});
 			expect(deps.sendEmail).toHaveBeenCalledTimes(1);
 			const sent = (deps.sendEmail as jest.Mock).mock.calls[0][0];
 			expect(sent.from).toBe("Fayner from Readplace <readplace@readplace.com>");
@@ -218,20 +232,28 @@ describe("initSendUserDigestHandler", () => {
 	});
 
 	describe("per-item live-state gate (stale rows are dropped, not sent)", () => {
-		const cases: Array<[string, UserArticleNotificationState | null]> = [
-			["row-deleted", null],
-			["already-read", { ...eligibleState(), status: "read" }],
-			["already-emailed", { ...eligibleState(), emailSentAt: new Date("2026-06-01T12:05:00.000Z") }],
-			["never-succeeded", { ...eligibleState(), succeededAt: undefined }],
-			["re-saved-after-success", { ...eligibleState(), savedAt: new Date("2026-06-01T12:03:00.000Z") }],
-			["under-min-generation", { ...eligibleState(), succeededAt: new Date("2026-06-01T12:00:30.000Z") }],
-			["not-viewed-while-loading (no viewedAt)", { ...eligibleState(), viewedAt: undefined }],
-			["present-until-ready (viewedAt >= succeededAt)", { ...eligibleState(), viewedAt: new Date("2026-06-01T12:03:00.000Z") }],
+		const cases: Array<
+			[string, { state?: UserArticleNotificationState | null; article?: Partial<GlobalArticleData> }]
+		> = [
+			["row-deleted", { state: null }],
+			["already-read", { state: { ...eligibleState(), status: "read" } }],
+			["already-emailed", { state: { ...eligibleState(), emailSentAt: new Date("2026-06-01T12:05:00.000Z") } }],
+			["reader-availability-unrecorded", { article: { readerAvailableAt: undefined } }],
+			["saved-after-reader-available", { state: { ...eligibleState(), savedAt: new Date("2026-06-01T12:03:00.000Z") } }],
+			["available-too-soon-after-save", { article: { readerAvailableAt: new Date("2026-06-01T12:00:30.000Z") } }],
+			["not-viewed-while-loading (no viewedAt)", { state: { ...eligibleState(), viewedAt: undefined } }],
+			[
+				"present-until-available (viewedAt >= readerAvailableAt)",
+				{ state: { ...eligibleState(), viewedAt: new Date("2026-06-01T12:03:00.000Z") } },
+			],
 		];
 
-		it.each(cases)("drops the row and sends nothing when %s", async (_label, state) => {
+		it.each(cases)("drops the row and sends nothing when %s", async (_label, { state, article: articleOverrides }) => {
 			const { handler, deps } = createHandler({
-				findUserArticleNotificationState: jest.fn().mockResolvedValue(state),
+				...(state !== undefined && {
+					findUserArticleNotificationState: jest.fn().mockResolvedValue(state),
+				}),
+				...(articleOverrides !== undefined && { findArticleByUrl: articleFinder(articleOverrides) }),
 			});
 
 			const result = await run(handler);
@@ -240,6 +262,21 @@ describe("initSendUserDigestHandler", () => {
 			expect(deps.sendEmail).not.toHaveBeenCalled();
 			expect(deps.claimReaderReadyEmailSlot).not.toHaveBeenCalled();
 			expect(deps.deleteDigestItem).toHaveBeenCalledWith({ userId: USER_ID, url: CANON_A });
+		});
+
+		it("emails a reader who finished the body while only the TL;DR was still generating", async () => {
+			// readerAvailableAt is the body's instant, so a viewedAt before it qualifies
+			// even though both axes only completed much later.
+			const { handler, deps } = createHandler({
+				findArticleByUrl: articleFinder({ readerAvailableAt: new Date("2026-06-01T12:02:00.000Z") }),
+				findUserArticleNotificationState: jest
+					.fn()
+					.mockResolvedValue({ ...eligibleState(), viewedAt: new Date("2026-06-01T12:01:30.000Z") }),
+			});
+
+			await run(handler);
+
+			expect(deps.sendEmail).toHaveBeenCalledTimes(1);
 		});
 
 		it("drops a row whose global article can no longer be resolved", async () => {
@@ -267,7 +304,9 @@ describe("initSendUserDigestHandler", () => {
 
 	describe("cooldown + failure handling", () => {
 		it("skips without deleting when the per-user cooldown slot cannot be claimed", async () => {
-			const { handler, deps } = createHandler({ claimReaderReadyEmailSlot: jest.fn().mockResolvedValue(false) });
+			const { handler, deps } = createHandler({
+				claimReaderReadyEmailSlot: jest.fn().mockResolvedValue({ claimed: false }),
+			});
 
 			const result = await run(handler);
 
@@ -277,14 +316,31 @@ describe("initSendUserDigestHandler", () => {
 			expect(deps.deleteDigestItem).not.toHaveBeenCalled();
 		});
 
-		it("releases the slot and reports a batch failure when the send throws, so the redrive re-attempts", async () => {
-			const { handler, deps } = createHandler({ sendEmail: jest.fn().mockRejectedValue(new Error("resend down")) });
+		it("releases the slot and reports a batch failure when the provider rejects the send, so the redrive re-sends", async () => {
+			const { handler, deps } = createHandler({
+				sendEmail: jest.fn().mockRejectedValue(new EmailRejectedError({ statusCode: 422, message: "invalid to" })),
+			});
 
 			const result = await run(handler);
 
-			expect(result).toEqual({ batchItemFailures: [{ itemIdentifier: "msg-1" }] });
-			expect(deps.releaseReaderReadyEmailSlot).toHaveBeenCalledWith({ userId: USER_ID, claimedAt: NOW });
+			expect(result).toEqual({ batchItemFailures: [{ itemIdentifier: MESSAGE_ID }] });
+			expect(deps.releaseReaderReadyEmailSlot).toHaveBeenCalledWith({
+				userId: USER_ID,
+				claimedAt: NOW,
+				messageId: MESSAGE_ID,
+			});
 			expect(deps.markReaderReadyEmailSent).not.toHaveBeenCalled();
+		});
+
+		it("keeps the claim when the send fails ambiguously, so the redrive cannot post a second copy", async () => {
+			const { handler, deps } = createHandler({ sendEmail: jest.fn().mockRejectedValue(new Error("socket hang up")) });
+
+			const result = await run(handler);
+
+			expect(result).toEqual({ batchItemFailures: [{ itemIdentifier: MESSAGE_ID }] });
+			expect(deps.releaseReaderReadyEmailSlot).not.toHaveBeenCalled();
+			expect(deps.markReaderReadyEmailSent).not.toHaveBeenCalled();
+			expect(deps.deleteDigestItem).not.toHaveBeenCalled();
 		});
 
 		it("still drains the queue row when the emailSentAt stamp write fails, so the article is not re-sent next tick", async () => {
@@ -309,6 +365,79 @@ describe("initSendUserDigestHandler", () => {
 
 			expect(result).toEqual({ batchItemFailures: [] });
 			expect(deps.sendEmail).toHaveBeenCalledTimes(1);
+		});
+	});
+
+	describe("redelivery of a message that already claimed the slot", () => {
+		const CLAIMED_AT = new Date("2026-06-01T17:55:00.000Z");
+
+		function redeliveredHandler(overrides: Partial<SendUserDigestDeps> = {}) {
+			return createHandler({
+				claimReaderReadyEmailSlot: jest
+					.fn()
+					.mockResolvedValue({ claimed: true, redelivery: true, claimedAt: CLAIMED_AT }),
+				...overrides,
+			});
+		}
+
+		it("finishes the crashed attempt's bookkeeping instead of sending the digest a second time", async () => {
+			const { handler, deps } = redeliveredHandler();
+
+			const result = await run(handler);
+
+			expect(result).toEqual({ batchItemFailures: [] });
+			expect(deps.sendEmail).not.toHaveBeenCalled();
+			expect(deps.markReaderReadyEmailSent).toHaveBeenCalledWith({ userId: USER_ID, url: URL_A, at: NOW });
+			expect(deps.deleteDigestItem).toHaveBeenCalledWith({ userId: USER_ID, url: CANON_A });
+			expect(deps.publishEvent).toHaveBeenCalledTimes(1);
+		});
+
+		it("leaves rows enqueued after the original claim queued, because they were never in the sent email", async () => {
+			const { handler, deps } = redeliveredHandler({
+				listDigestItemsByUser: jest.fn().mockResolvedValue([
+					digestItem(URL_A, CANON_A, "2026-06-01T17:50:00.000Z"), // in the sent email
+					digestItem(URL_B, CANON_B, "2026-06-01T17:58:00.000Z"), // arrived after the claim
+				]),
+			});
+
+			await run(handler);
+
+			expect(deps.markReaderReadyEmailSent).toHaveBeenCalledTimes(1);
+			expect(deps.markReaderReadyEmailSent).toHaveBeenCalledWith({ userId: USER_ID, url: URL_A, at: NOW });
+			expect(deps.deleteDigestItem).toHaveBeenCalledTimes(1);
+			expect(deps.deleteDigestItem).toHaveBeenCalledWith({ userId: USER_ID, url: CANON_A });
+		});
+
+		it("publishes nothing when every eligible row arrived after the original claim", async () => {
+			const { handler, deps } = redeliveredHandler({
+				listDigestItemsByUser: jest
+					.fn()
+					.mockResolvedValue([digestItem(URL_A, CANON_A, "2026-06-01T17:58:00.000Z")]),
+			});
+
+			const result = await run(handler);
+
+			expect(result).toEqual({ batchItemFailures: [] });
+			expect(deps.publishEvent).not.toHaveBeenCalled();
+			expect(deps.markReaderReadyEmailSent).not.toHaveBeenCalled();
+			expect(deps.deleteDigestItem).not.toHaveBeenCalled();
+		});
+
+		it("still drains rows the gate dropped this time round", async () => {
+			const { handler, deps } = redeliveredHandler({
+				listDigestItemsByUser: jest.fn().mockResolvedValue([
+					digestItem(URL_A, CANON_A, "2026-06-01T17:50:00.000Z"),
+					digestItem(URL_B, CANON_B, "2026-06-01T17:50:00.000Z"),
+				]),
+				findUserArticleNotificationState: jest.fn().mockImplementation(async ({ url }: { url: string }) =>
+					url === URL_B ? { ...eligibleState(), status: "read" } : eligibleState(),
+				),
+			});
+
+			await run(handler);
+
+			expect(deps.deleteDigestItem).toHaveBeenCalledWith({ userId: USER_ID, url: CANON_A });
+			expect(deps.deleteDigestItem).toHaveBeenCalledWith({ userId: USER_ID, url: CANON_B });
 		});
 	});
 

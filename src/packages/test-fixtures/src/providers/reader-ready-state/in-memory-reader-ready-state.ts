@@ -5,31 +5,50 @@ import type {
 	ReleaseReaderReadyEmailSlot,
 } from "@packages/provider-contracts/reader-ready-state";
 
+interface Claim {
+	claimedAt: string;
+	messageId: string;
+}
+
 export function initInMemoryReaderReadyState(): {
 	claimReaderReadyEmailSlot: ClaimReaderReadyEmailSlot;
 	releaseReaderReadyEmailSlot: ReleaseReaderReadyEmailSlot;
 	deleteReaderReadyState: DeleteReaderReadyState;
 } {
-	const lastSentByUser = new Map<UserId, string>();
+	const claimByUser = new Map<UserId, Claim>();
 
-	const claimReaderReadyEmailSlot: ClaimReaderReadyEmailSlot = async ({ userId, now, cooldownMs }) => {
+	const claimReaderReadyEmailSlot: ClaimReaderReadyEmailSlot = async ({
+		userId,
+		now,
+		cooldownMs,
+		messageId,
+	}) => {
 		const cutoff = new Date(now.getTime() - cooldownMs);
-		const last = lastSentByUser.get(userId);
-		if (last === undefined || new Date(last) < cutoff) {
-			lastSentByUser.set(userId, now.toISOString());
-			return true;
+		const last = claimByUser.get(userId);
+		if (last !== undefined && last.messageId === messageId) {
+			claimByUser.set(userId, { claimedAt: now.toISOString(), messageId });
+			return { claimed: true, redelivery: true, claimedAt: new Date(last.claimedAt) };
 		}
-		return false;
+		if (last === undefined || new Date(last.claimedAt) < cutoff) {
+			claimByUser.set(userId, { claimedAt: now.toISOString(), messageId });
+			return { claimed: true, redelivery: false };
+		}
+		return { claimed: false };
 	};
 
-	const releaseReaderReadyEmailSlot: ReleaseReaderReadyEmailSlot = async ({ userId, claimedAt }) => {
-		if (lastSentByUser.get(userId) === claimedAt.toISOString()) {
-			lastSentByUser.delete(userId);
+	const releaseReaderReadyEmailSlot: ReleaseReaderReadyEmailSlot = async ({
+		userId,
+		claimedAt,
+		messageId,
+	}) => {
+		const last = claimByUser.get(userId);
+		if (last?.claimedAt === claimedAt.toISOString() && last.messageId === messageId) {
+			claimByUser.delete(userId);
 		}
 	};
 
 	const deleteReaderReadyState: DeleteReaderReadyState = async (userId) => {
-		lastSentByUser.delete(userId);
+		claimByUser.delete(userId);
 	};
 
 	return { claimReaderReadyEmailSlot, releaseReaderReadyEmailSlot, deleteReaderReadyState };

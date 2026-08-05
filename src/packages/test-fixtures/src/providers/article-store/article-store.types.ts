@@ -17,7 +17,6 @@ export type {
 	GlobalArticleData,
 	MarkArticleViewed,
 	MarkReaderReadyEmailSent,
-	MarkReaderViewSucceeded,
 	SaveArticle,
 	SaveArticleGlobally,
 	SaveArticleGloballyParams,

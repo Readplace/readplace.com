@@ -48,6 +48,16 @@ export function deriveReaderViewStatus(input: {
 	return "loading";
 }
 
+/* Reaching `succeeded` is a fact about a moment, not a standing condition: a
+ * re-summarise of an already-succeeded article re-derives `succeeded` from
+ * `succeeded` and must not re-announce it. */
+export function enteredReaderViewSucceeded(input: {
+	prior: ReaderViewStatus;
+	next: ReaderViewStatus;
+}): boolean {
+	return input.next === "succeeded" && input.prior !== "succeeded";
+}
+
 /**
  * Operator-facing terminal outcome of a single state-machine axis, used by the
  * failed-articles canary to decide what counts as a debuggable failure.

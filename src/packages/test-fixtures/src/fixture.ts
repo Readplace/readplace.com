@@ -350,7 +350,6 @@ export function createDefaultTestAppFixture(appOrigin: string): TestAppFixture {
 			updateArticleStatus: articleStoreMemory.updateArticleStatus,
 			markArticleViewed: articleStoreMemory.markArticleViewed,
 			markSummaryToggled: articleStoreMemory.markSummaryToggled,
-			markReaderViewSucceeded: articleStoreMemory.markReaderViewSucceeded,
 			findUserArticlesByUrl: articleStoreMemory.findUserArticlesByUrl,
 			markReaderReadyEmailSent: articleStoreMemory.markReaderReadyEmailSent,
 			findUserArticleNotificationState: articleStoreMemory.findUserArticleNotificationState,

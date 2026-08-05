@@ -67,4 +67,5 @@ export interface Article {
 	crawl: CrawlState;
 	summary: SummaryState;
 	summaryAutoHeal: SummaryAutoHealState;
+	readerAvailableAt?: string;
 }

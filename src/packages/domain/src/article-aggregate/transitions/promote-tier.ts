@@ -1,6 +1,7 @@
 import type { Article, ArticleMetadata } from "../article.types";
 import type { CanonicalImageUrl } from "../canonical-image-url";
 import type { Effect } from "../effects.types";
+import { stampReaderAvailability } from "../reader-availability";
 import type { AggregateField } from "../storage.types";
 
 export interface PromoteTierInput {
@@ -44,7 +45,13 @@ export function promoteTier(
 	const contentChanged =
 		previousHash === undefined || previousHash !== input.canonicalContentHash;
 
-	const writes: AggregateField[] = ["metadata", "freshness", "crawl"];
+	const available = stampReaderAvailability({
+		article,
+		nextCrawl: { kind: "ready" },
+		now: input.now,
+	});
+
+	const writes: AggregateField[] = ["metadata", "freshness", "crawl", ...available.writes];
 	const effects: Effect[] = [];
 	if (input.canonicalChanged || contentChanged) {
 		effects.push({ kind: "publish-canonical-content-changed", url: article.url });
@@ -65,7 +72,7 @@ export function promoteTier(
 	};
 
 	const next: Article = {
-		...article,
+		...available.article,
 		metadata: input.metadata,
 		freshness: nextFreshness,
 		estimatedReadTime: input.estimatedReadTime,

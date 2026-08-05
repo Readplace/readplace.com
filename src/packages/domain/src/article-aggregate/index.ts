@@ -18,6 +18,7 @@ export {
 	decideSummaryAutoHeal,
 	type SummaryAutoHealDecision,
 } from "./decide-summary-auto-heal";
+export { stampReaderAvailability } from "./reader-availability";
 export type { Effect } from "./effects.types";
 export type {
 	AggregateField,

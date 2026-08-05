@@ -136,15 +136,6 @@ describe("initDynamoDbSavedArticleStore reader-ready columns", () => {
 		expect(update?.input.UpdateExpression).toBe("SET lastSummaryClosedAt = :at");
 	});
 
-	it("markReaderViewSucceeded writes succeededAt set-once via if_not_exists, only on a still-saved row", async () => {
-		const { client, commands } = createFakeClient();
-		await initStore(client).markReaderViewSucceeded({ userId: USER, url: URL, at: new Date("2026-05-30T10:00:00.000Z") });
-
-		const update = commands.find((c) => c.name === "UpdateCommand");
-		expect(update?.input.UpdateExpression).toContain("if_not_exists(succeededAt, :at)");
-		expect(update?.input.ConditionExpression).toBe("attribute_exists(savedAt)");
-	});
-
 	it("mark stamps swallow ConditionalCheckFailedException so a concurrent delete makes the stamp a no-op", async () => {
 		const { client } = createFakeClient({
 			UpdateCommand: {
@@ -507,7 +498,7 @@ describe("initDynamoDbSavedArticleStore findArticlesByUser", () => {
 		const batch = commands.find((c) => c.name === "BatchGetCommand");
 		const requestItems = batch?.input.RequestItems as Record<string, { ProjectionExpression?: string }>;
 		expect(requestItems.articles.ProjectionExpression).toBe(
-			"#url, #routeId, #originalUrl, #displayUrl, #title, #siteName, #excerpt, #wordCount, #imageUrl, #estimatedReadTime, #savedAt, #contentSourceTier, #purgedAt",
+			"#url, #routeId, #originalUrl, #displayUrl, #title, #siteName, #excerpt, #wordCount, #imageUrl, #estimatedReadTime, #savedAt, #contentSourceTier, #purgedAt, #readerAvailableAt",
 		);
 	});
 
@@ -1011,7 +1002,6 @@ describe("initDynamoDbSavedArticleStore freshness, notification state, content a
 				default: {
 					Item: userArticleItem({
 						status: "read",
-						succeededAt: "2026-05-30T09:30:00.000Z",
 						viewedAt: "2026-05-30T09:20:00.000Z",
 						emailSentAt: "2026-05-30T09:40:00.000Z",
 					}),
@@ -1024,7 +1014,6 @@ describe("initDynamoDbSavedArticleStore freshness, notification state, content a
 		expect(state).toEqual({
 			savedAt: new Date("2026-05-30T09:00:00.000Z"),
 			status: "read",
-			succeededAt: new Date("2026-05-30T09:30:00.000Z"),
 			viewedAt: new Date("2026-05-30T09:20:00.000Z"),
 			emailSentAt: new Date("2026-05-30T09:40:00.000Z"),
 		});
@@ -1038,7 +1027,6 @@ describe("initDynamoDbSavedArticleStore freshness, notification state, content a
 		expect(state).toEqual({
 			savedAt: new Date("2026-05-30T09:00:00.000Z"),
 			status: "unread",
-			succeededAt: undefined,
 			viewedAt: undefined,
 			emailSentAt: undefined,
 		});
@@ -1063,6 +1051,28 @@ describe("initDynamoDbSavedArticleStore freshness, notification state, content a
 		expect(data?.url).toBe(URL);
 		expect(data?.savedAt).toEqual(new Date("2026-05-30T09:00:00.000Z"));
 		expect(data?.contentSourceTier).toBe("tier-1");
+	});
+
+	it("findArticleByUrl hydrates readerAvailableAt, the instant the digest gate measures presence against", async () => {
+		const { client } = createFakeClient({
+			GetCommand: {
+				default: { Item: articleItem({ readerAvailableAt: "2026-05-30T09:02:00.000Z", content: undefined }) },
+			},
+		});
+
+		const data = await initStore(client).findArticleByUrl(URL);
+
+		expect(data?.readerAvailableAt).toEqual(new Date("2026-05-30T09:02:00.000Z"));
+	});
+
+	it("findArticleByUrl leaves readerAvailableAt undefined on a row that never recorded one", async () => {
+		const { client } = createFakeClient({
+			GetCommand: { default: { Item: articleItem({ content: undefined }) } },
+		});
+
+		const data = await initStore(client).findArticleByUrl(URL);
+
+		expect(data?.readerAvailableAt).toBeUndefined();
 	});
 
 	it("findArticleByUrl surfaces the redirect destination for a merged row", async () => {

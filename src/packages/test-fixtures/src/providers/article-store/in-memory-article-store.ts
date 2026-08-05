@@ -25,7 +25,6 @@ import type {
 	FindUserArticlesByUrl,
 	MarkArticleViewed,
 	MarkReaderReadyEmailSent,
-	MarkReaderViewSucceeded,
 	MarkSummaryToggled,
 	ContentProvider,
 	SaveArticle,
@@ -58,7 +57,6 @@ interface UserArticle {
 	status: ArticleStatus;
 	savedAt: Date;
 	readAt?: Date;
-	succeededAt?: Date;
 	viewedAt?: Date;
 	emailSentAt?: Date;
 	lastSummaryOpenedAt?: Date;
@@ -97,7 +95,6 @@ export function initInMemoryArticleStore(): {
 	updateArticleStatus: UpdateArticleStatus;
 	markArticleViewed: MarkArticleViewed;
 	markSummaryToggled: MarkSummaryToggled;
-	markReaderViewSucceeded: MarkReaderViewSucceeded;
 	findUserArticlesByUrl: FindUserArticlesByUrl;
 	markReaderReadyEmailSent: MarkReaderReadyEmailSent;
 	findUserArticleNotificationState: FindUserArticleNotificationState;
@@ -329,13 +326,6 @@ export function initInMemoryArticleStore(): {
 		else ua.lastSummaryClosedAt = at;
 	};
 
-	const markReaderViewSucceeded: MarkReaderViewSucceeded = async ({ userId, url, at }) => {
-		const articleResourceUniqueId = ArticleResourceUniqueId.parse(url);
-		const ua = userArticles.get(userArticleKey(userId, articleResourceUniqueId.value));
-		if (!ua) return;
-		if (ua.succeededAt === undefined) ua.succeededAt = at;
-	};
-
 	const findUserArticlesByUrl: FindUserArticlesByUrl = async (url) => {
 		const articleResourceUniqueId = ArticleResourceUniqueId.parse(url);
 		const result: { userId: UserId; viewedAt?: Date }[] = [];
@@ -371,7 +361,6 @@ export function initInMemoryArticleStore(): {
 		return {
 			savedAt: ua.savedAt,
 			status: ua.status,
-			succeededAt: ua.succeededAt,
 			viewedAt: ua.viewedAt,
 			emailSentAt: ua.emailSentAt,
 		};
@@ -461,7 +450,6 @@ export function initInMemoryArticleStore(): {
 		updateArticleStatus,
 		markArticleViewed,
 		markSummaryToggled,
-		markReaderViewSucceeded,
 		findUserArticlesByUrl,
 		markReaderReadyEmailSent,
 		findUserArticleNotificationState,

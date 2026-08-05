@@ -32,7 +32,6 @@ import type {
 	FindUserArticlesByUrl,
 	MarkArticleViewed,
 	MarkReaderReadyEmailSent,
-	MarkReaderViewSucceeded,
 	MarkSummaryToggled,
 	SaveArticle,
 	SaveArticleGlobally,
@@ -79,6 +78,7 @@ const ArticleRow = z.object({
 	savedAt: dynamoField(z.string()),
 	contentSourceTier: dynamoField(z.enum(["tier-0", "tier-1"])),
 	purgedAt: dynamoField(z.string()),
+	readerAvailableAt: dynamoField(z.string()),
 });
 /** Every ArticleRow attribute except `content`, derived so the list stays in sync with the schema. */
 const ArticleMetadataFields = ArticleRow.omit({ content: true }).keyof().options;
@@ -95,8 +95,7 @@ const UserArticleRow = z.object({
 	savedAt: z.string(),
 	readAt: dynamoField(z.string()),
 	/* Reader-ready notification columns. All optional via dynamoField: legacy
-	 * rows and never-opened/never-succeeded rows simply lack them. */
-	succeededAt: dynamoField(z.string()),
+	 * rows and never-opened rows simply lack them. */
 	viewedAt: dynamoField(z.string()),
 	emailSentAt: dynamoField(z.string()),
 	/* Latest TL;DR open/close toggle, last-write-wins. Optional via dynamoField:
@@ -155,7 +154,6 @@ export function initDynamoDbSavedArticleStore(deps: {
 	findArticleCrawlVersions: FindArticleCrawlVersions;
 	markArticleViewed: MarkArticleViewed;
 	markSummaryToggled: MarkSummaryToggled;
-	markReaderViewSucceeded: MarkReaderViewSucceeded;
 	findUserArticlesByUrl: FindUserArticlesByUrl;
 	markReaderReadyEmailSent: MarkReaderReadyEmailSent;
 	findUserArticleNotificationState: FindUserArticleNotificationState;
@@ -578,15 +576,6 @@ export function initDynamoDbSavedArticleStore(deps: {
 		await stampUserArticleIfStillSaved({ userId, url, at, updateExpression: `SET ${attribute} = :at` });
 	};
 
-	const markReaderViewSucceeded: MarkReaderViewSucceeded = async ({ userId, url, at }) => {
-		await stampUserArticleIfStillSaved({
-			userId,
-			url,
-			at,
-			updateExpression: "SET succeededAt = if_not_exists(succeededAt, :at)",
-		});
-	};
-
 	const findUserArticlesByUrl: FindUserArticlesByUrl = async (url) => {
 		const articleResourceUniqueId = ArticleResourceUniqueId.parse(url);
 		const rows: z.infer<typeof UserArticleRow>[] = [];
@@ -631,7 +620,6 @@ export function initDynamoDbSavedArticleStore(deps: {
 		return {
 			savedAt: new Date(row.savedAt),
 			status: row.status,
-			succeededAt: toOptionalDate(row.succeededAt),
 			viewedAt: toOptionalDate(row.viewedAt),
 			emailSentAt: toOptionalDate(row.emailSentAt),
 		};
@@ -661,6 +649,7 @@ export function initDynamoDbSavedArticleStore(deps: {
 					"savedAt",
 					"contentSourceTier",
 					"purgedAt",
+					"readerAvailableAt",
 				],
 			},
 		);
@@ -686,6 +675,7 @@ export function initDynamoDbSavedArticleStore(deps: {
 			savedAt: row.savedAt ? new Date(row.savedAt) : new Date(0),
 			contentSourceTier: row.contentSourceTier,
 			purgedAt: toOptionalDate(row.purgedAt),
+			readerAvailableAt: toOptionalDate(row.readerAvailableAt),
 		};
 	};
 
@@ -715,7 +705,6 @@ export function initDynamoDbSavedArticleStore(deps: {
 		findArticleCrawlVersions,
 		markArticleViewed,
 		markSummaryToggled,
-		markReaderViewSucceeded,
 		findUserArticlesByUrl,
 		markReaderReadyEmailSent,
 		findUserArticleNotificationState,

@@ -5,6 +5,7 @@ import type {
 } from "../article.types";
 import type { CanonicalImageUrl } from "../canonical-image-url";
 import type { Effect } from "../effects.types";
+import { stampReaderAvailability } from "../reader-availability";
 import type { AggregateField } from "../storage.types";
 
 export interface RefreshContentInput {
@@ -66,8 +67,11 @@ export function refreshContent(
 		writes.push("crawl");
 	}
 
+	const available = stampReaderAvailability({ article, nextCrawl, now: input.now });
+	writes.push(...available.writes);
+
 	const next: Article = {
-		...article,
+		...available.article,
 		metadata: input.metadata,
 		freshness: nextFreshness,
 		estimatedReadTime: input.estimatedReadTime,

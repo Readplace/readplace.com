@@ -73,10 +73,17 @@ describe("recrawlTieKeptCanonical", () => {
 		]);
 	});
 
-	it("declares writes for crawl only when summary is healthy", () => {
+	it("stamps readerAvailableAt when unsticking the crawl is what makes the body readable", () => {
+		const { article, writes } = recrawlTieKeptCanonical(buildArticle(), buildInput());
+
+		assert.equal(article.readerAvailableAt, NOW);
+		assert.ok(writes.includes("readerAvailability"));
+	});
+
+	it("declares writes for crawl and reader availability when summary is healthy", () => {
 		const { writes } = recrawlTieKeptCanonical(buildArticle(), buildInput());
 
-		assert.deepEqual([...writes], ["crawl"]);
+		assert.deepEqual([...writes].sort(), ["crawl", "readerAvailability"]);
 	});
 
 	it("resets summary to pending when summary is failed(crawl-failed) — the cross-axis pairing from markCrawlExhausted is stale", () => {
@@ -119,7 +126,7 @@ describe("recrawlTieKeptCanonical", () => {
 
 		const { writes } = recrawlTieKeptCanonical(before, buildInput());
 
-		assert.deepEqual([...writes].sort(), ["crawl", "summary"]);
+		assert.deepEqual([...writes].sort(), ["crawl", "readerAvailability", "summary"]);
 	});
 
 	it("preserves failed(exhausted-retries) summary — only crawl-failed is stale", () => {

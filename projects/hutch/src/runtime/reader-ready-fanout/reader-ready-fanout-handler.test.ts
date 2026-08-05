@@ -33,7 +33,6 @@ function sqsEvent(detail: unknown, messageId = "msg-1"): SQSEvent {
 function createHandler(overrides: Partial<ReaderReadyUsersNotificationFanoutDeps> = {}) {
 	const deps: ReaderReadyUsersNotificationFanoutDeps = {
 		findUserArticlesByUrl: jest.fn().mockResolvedValue([]),
-		markReaderViewSucceeded: jest.fn().mockResolvedValue(undefined),
 		enqueueDigestItem: jest.fn().mockResolvedValue(undefined),
 		digestRetentionMs: RETENTION_MS,
 		now: () => NOW,
@@ -44,7 +43,7 @@ function createHandler(overrides: Partial<ReaderReadyUsersNotificationFanoutDeps
 }
 
 describe("initReaderReadyUsersNotificationFanoutHandler", () => {
-	it("stamps succeededAt for every saver and enqueues a digest item only for savers who viewed while loading (hasSummary=true)", async () => {
+	it("enqueues a digest item only for savers who opened the reader (hasSummary=true)", async () => {
 		const viewedSaver = { userId: UserIdSchema.parse("viewer"), viewedAt: new Date("2026-05-30T11:50:00.000Z") };
 		const neverViewedSaver = { userId: UserIdSchema.parse("never"), viewedAt: undefined };
 		const { handler, deps } = createHandler({
@@ -58,14 +57,11 @@ describe("initReaderReadyUsersNotificationFanoutHandler", () => {
 		);
 
 		expect(result).toEqual({ batchItemFailures: [] });
-		expect(deps.markReaderViewSucceeded).toHaveBeenCalledTimes(2);
-		expect(deps.markReaderViewSucceeded).toHaveBeenCalledWith({ userId: "viewer", url: URL, at: new Date(SUCCEEDED_AT) });
-		expect(deps.markReaderViewSucceeded).toHaveBeenCalledWith({ userId: "never", url: URL, at: new Date(SUCCEEDED_AT) });
 		expect(deps.enqueueDigestItem).toHaveBeenCalledTimes(1);
 		expect(deps.enqueueDigestItem).toHaveBeenCalledWith({ userId: "viewer", url: URL, enqueuedAt: NOW.toISOString(), retentionMs: RETENTION_MS });
 	});
 
-	it("stamps succeededAt but enqueues nothing when the summary was skipped (hasSummary=false)", async () => {
+	it("enqueues nothing when the summary was skipped (hasSummary=false)", async () => {
 		const viewedSaver = { userId: UserIdSchema.parse("viewer"), viewedAt: new Date("2026-05-30T11:50:00.000Z") };
 		const { handler, deps } = createHandler({
 			findUserArticlesByUrl: jest.fn().mockResolvedValue([viewedSaver]),
@@ -73,7 +69,6 @@ describe("initReaderReadyUsersNotificationFanoutHandler", () => {
 
 		await handler(sqsEvent({ url: URL, succeededAt: SUCCEEDED_AT, hasSummary: false }), buildLambdaContext(), () => {});
 
-		expect(deps.markReaderViewSucceeded).toHaveBeenCalledTimes(1);
 		expect(deps.enqueueDigestItem).not.toHaveBeenCalled();
 	});
 

@@ -32,7 +32,6 @@ const digestQueue = initDynamoDbDigestQueue({
 
 export const handler = initReaderReadyUsersNotificationFanoutHandler({
 	findUserArticlesByUrl: articleStore.findUserArticlesByUrl,
-	markReaderViewSucceeded: articleStore.markReaderViewSucceeded,
 	enqueueDigestItem: digestQueue.enqueueDigestItem,
 	digestRetentionMs: DIGEST_QUEUE_RETENTION_MS,
 	now: () => new Date(),

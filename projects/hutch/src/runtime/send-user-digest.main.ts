@@ -14,7 +14,13 @@ import { requireEnv } from "@packages/require-env";
 
 /** Dedupe cooldown for the per-user digest slot. Set below the 6h flush cadence
  * so it guards a redriven/concurrent flush of the same tick without suppressing
- * the next legitimate tick. */
+ * the next legitimate tick.
+ *
+ * It must also stay far above the queue's redrive envelope —
+ * `visibilityTimeoutSeconds` × `maxReceiveCount` on the send-user-digest queue,
+ * about six minutes. That gap is what makes a message's own claim impossible to
+ * displace before its last receive, so a redriven message always recognises its
+ * own claim instead of finding the slot free and sending a second copy. */
 const DIGEST_EMAIL_COOLDOWN_MS = 5.5 * 60 * 60 * 1000;
 
 /** Cap the articles resolved (and emailed) per digest. Bounds the per-user

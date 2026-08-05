@@ -621,9 +621,9 @@ eventBus.subscribeAll(
 // --- Reader-ready digest (fan-out + 6h flush + send) ---
 // When an article's clean reader view reaches the successful terminal state,
 // save-link publishes ReaderViewLoadingSucceeded (per-URL, global). The fan-out
-// Lambda reverse-looks-up every saver via the user-articles url-index, stamps a
-// per-user succeededAt, and — for savers who opened the reader while it was
-// loading — appends the article to that user's digest queue. A recurring
+// Lambda reverse-looks-up every saver via the user-articles url-index and — for
+// savers who had opened the reader — appends the article to that user's digest
+// queue. A recurring
 // rate(6 hours) schedule fans the sparse queue into one SendUserDigestCommand
 // per pending user; the send Lambda re-checks every per-article gate against the
 // live row, claims the per-user cooldown, and emails a single digest.
@@ -766,9 +766,10 @@ const readerReadyFanoutQueue = new HutchSQS("reader-ready-fanout", {
 });
 
 const readerReadyFanoutDynamodb = new HutchDynamoDBAccess("reader-ready-fanout-dynamodb", {
-	// Query the url-index (includeIndexes) and stamp succeededAt per saver.
+	// Query the url-index (includeIndexes) to reverse-look-up every saver. Read-only:
+	// the fan-out records nothing on the per-user row.
 	tables: [{ arn: storage.userArticlesTable.arn, includeIndexes: true }],
-	actions: ["dynamodb:Query", "dynamodb:UpdateItem"],
+	actions: ["dynamodb:Query"],
 });
 
 const readerReadyFanoutDigestDynamodb = new HutchDynamoDBAccess("reader-ready-fanout-digest-dynamodb", {

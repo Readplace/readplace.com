@@ -775,24 +775,10 @@ describe("initInMemoryArticleStore", () => {
 
 			await store.markArticleViewed({ userId: USER_A, url: URL, at: new Date("2026-05-30T10:00:00.000Z") });
 			await store.markSummaryToggled({ userId: USER_A, url: URL, state: "open", at: new Date("2026-05-30T10:00:00.000Z") });
-			await store.markReaderViewSucceeded({ userId: USER_A, url: URL, at: new Date("2026-05-30T10:00:00.000Z") });
 			await store.markReaderReadyEmailSent({ userId: USER_A, url: URL, at: new Date("2026-05-30T10:00:00.000Z") });
 
 			expect(await store.findUserArticlesByUrl(URL)).toEqual([]);
 			expect(await store.findUserArticleNotificationState({ userId: USER_A, url: URL })).toBeNull();
-		});
-
-		it("markReaderViewSucceeded is set-once: a later call does not overwrite the first success", async () => {
-			const store = initInMemoryArticleStore();
-			await store.saveArticle(makeArticleParams());
-			const first = new Date("2026-05-30T10:00:00.000Z");
-			const later = new Date("2026-05-30T11:00:00.000Z");
-
-			await store.markReaderViewSucceeded({ userId: USER_A, url: URL, at: first });
-			await store.markReaderViewSucceeded({ userId: USER_A, url: URL, at: later });
-
-			const state = await store.findUserArticleNotificationState({ userId: USER_A, url: URL });
-			expect(state?.succeededAt).toEqual(first);
 		});
 
 		it("findUserArticlesByUrl returns every saver of the URL with their viewedAt, excluding savers of other URLs", async () => {
@@ -831,7 +817,6 @@ describe("initInMemoryArticleStore", () => {
 
 			expect(state?.status).toBe("unread");
 			expect(state?.savedAt).toBeInstanceOf(Date);
-			expect(state?.succeededAt).toBeUndefined();
 			expect(state?.viewedAt).toBeUndefined();
 			expect(state?.emailSentAt).toBeUndefined();
 		});

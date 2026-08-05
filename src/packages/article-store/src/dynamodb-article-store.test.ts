@@ -23,6 +23,7 @@ const CapturedCommand = z.object({
 	input: z.object({
 		Key: z.record(z.string(), z.unknown()).optional(),
 		UpdateExpression: z.string().optional(),
+		ConditionExpression: z.string().optional(),
 		ExpressionAttributeValues: z.record(z.string(), z.unknown()).optional(),
 	}),
 });
@@ -137,6 +138,47 @@ describe("initDynamoDbArticleStore (unit)", () => {
 				},
 				summaryAutoHeal: { attempts: 0 },
 			});
+		});
+
+		it("hydrates readerAvailableAt so a later transition can see the row is already stamped", async () => {
+			const client = createFakeClient(() => ({
+				Item: {
+					title: "Title",
+					siteName: "Example",
+					excerpt: "Excerpt",
+					wordCount: 100,
+					estimatedReadTime: 1,
+					contentFetchedAt: "2026-01-01T00:00:00.000Z",
+					crawlStatus: "ready",
+					summaryStatus: "pending",
+					readerAvailableAt: "2026-05-13T12:00:00.000Z",
+				},
+			}));
+			const { store } = initDynamoDbArticleStore({ client, tableName: TABLE });
+
+			const article = await store.load(URL);
+
+			expect(article?.readerAvailableAt).toBe("2026-05-13T12:00:00.000Z");
+		});
+
+		it("leaves readerAvailableAt undefined for rows that never recorded one", async () => {
+			const client = createFakeClient(() => ({
+				Item: {
+					title: "Title",
+					siteName: "Example",
+					excerpt: "Excerpt",
+					wordCount: 100,
+					estimatedReadTime: 1,
+					contentFetchedAt: "2026-01-01T00:00:00.000Z",
+					crawlStatus: "ready",
+					summaryStatus: "pending",
+				},
+			}));
+			const { store } = initDynamoDbArticleStore({ client, tableName: TABLE });
+
+			const article = await store.load(URL);
+
+			expect(article?.readerAvailableAt).toBeUndefined();
 		});
 
 		it("leaves canonicalContentHash undefined for legacy rows that pre-date the hash column", async () => {
@@ -687,6 +729,51 @@ describe("initDynamoDbArticleStore (unit)", () => {
 			expect(
 				command.input.ExpressionAttributeValues?.[":crawlPendingSince"],
 			).toBe(PENDING_SINCE);
+		});
+
+		it("writes readerAvailableAt under if_not_exists so a concurrent writer cannot move the recorded instant", async () => {
+			let received: unknown;
+			const client = createFakeClient((input) => {
+				received = input;
+				return {};
+			});
+			const { store } = initDynamoDbArticleStore({ client, tableName: TABLE });
+
+			await store.save({
+				article: buildArticle({
+					crawl: { kind: "ready" },
+					readerAvailableAt: "2026-05-13T12:00:00.000Z",
+				}),
+				transitionName: "promoteTier",
+				writes: ["crawl", "readerAvailability"],
+			});
+
+			const command = capturedCommand(received);
+			expect(command.input.UpdateExpression).toContain(
+				"readerAvailableAt = if_not_exists(readerAvailableAt, :raa)",
+			);
+			expect(command.input.ExpressionAttributeValues?.[":raa"]).toBe("2026-05-13T12:00:00.000Z");
+			// No ConditionExpression of its own: losing the race must not turn the
+			// whole aggregate save into a no-op.
+			expect(command.input.ConditionExpression).toBe("attribute_not_exists(purgedAt)");
+		});
+
+		it("never touches readerAvailableAt when the transition does not declare the write", async () => {
+			let received: unknown;
+			const client = createFakeClient((input) => {
+				received = input;
+				return {};
+			});
+			const { store } = initDynamoDbArticleStore({ client, tableName: TABLE });
+
+			await store.save({
+				article: buildArticle({ crawl: { kind: "ready" }, readerAvailableAt: "2026-05-13T12:00:00.000Z" }),
+				transitionName: "recrawlPromoteTier",
+				writes: ["crawl"],
+			});
+
+			const command = capturedCommand(received);
+			expect(command.input.UpdateExpression).not.toContain("readerAvailableAt");
 		});
 
 		it("removes crawlPendingSince when the crawl axis transitions to ready", async () => {

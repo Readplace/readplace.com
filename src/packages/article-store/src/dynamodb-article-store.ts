@@ -59,6 +59,7 @@ const ArticleAggregateRow = z.object({
 	summarySkippedReason: dynamoField(z.string()),
 	summaryAutoHealAttempts: dynamoField(z.number()),
 	summaryAutoHealLastAttemptAt: dynamoField(z.string()),
+	readerAvailableAt: dynamoField(z.string()),
 	aggregateTransitionName: dynamoField(z.string()),
 });
 
@@ -182,6 +183,7 @@ function rowToArticle(url: string, row: RowShape): Article {
 		crawl: rowToCrawlState(row),
 		summary: rowToSummaryState(row),
 		summaryAutoHeal,
+		readerAvailableAt: row.readerAvailableAt,
 	};
 }
 
@@ -341,6 +343,23 @@ function appendSummaryAutoHealClauses(
 	}
 }
 
+/* `if_not_exists` is the concurrency backstop for the domain's read-modify-write:
+ * two writers that both read an unstamped row still agree on the first instant.
+ * Deliberately not a ConditionExpression — a losing race must not turn the whole
+ * aggregate save into a no-op. */
+function appendReaderAvailabilityClauses(
+	article: Article,
+	sets: string[],
+	values: Record<string, unknown>,
+): void {
+	assert(
+		article.readerAvailableAt,
+		"readerAvailability write requires a stamped readerAvailableAt",
+	);
+	sets.push("readerAvailableAt = if_not_exists(readerAvailableAt, :raa)");
+	values[":raa"] = article.readerAvailableAt;
+}
+
 function buildSaveCommand(params: {
 	article: Article;
 	transitionName: string;
@@ -372,6 +391,9 @@ function buildSaveCommand(params: {
 	}
 	if (writesSet.has("summaryAutoHeal")) {
 		appendSummaryAutoHealClauses(params.article, sets, removes, values);
+	}
+	if (writesSet.has("readerAvailability")) {
+		appendReaderAvailabilityClauses(params.article, sets, values);
 	}
 
 	const setClause = `SET ${sets.join(", ")}`;

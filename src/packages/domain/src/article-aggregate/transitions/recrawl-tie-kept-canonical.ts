@@ -1,5 +1,6 @@
 import type { Article } from "../article.types";
 import type { Effect } from "../effects.types";
+import { stampReaderAvailability } from "../reader-availability";
 import type { AggregateField } from "../storage.types";
 
 export interface RecrawlTieKeptCanonicalInput {
@@ -30,7 +31,13 @@ export function recrawlTieKeptCanonical(
 	}
 	effects.push({ kind: "publish-recrawl-completed", url: article.url });
 
-	const writes: AggregateField[] = ["crawl"];
+	const available = stampReaderAvailability({
+		article,
+		nextCrawl: { kind: "ready" },
+		now: input.now,
+	});
+
+	const writes: AggregateField[] = ["crawl", ...available.writes];
 	let nextSummary: Article["summary"];
 	if (staleCrawlFailedSummary) {
 		nextSummary = { kind: "pending", pendingSince: input.now };
@@ -40,7 +47,7 @@ export function recrawlTieKeptCanonical(
 	}
 
 	const next: Article = {
-		...article,
+		...available.article,
 		crawl: { kind: "ready" },
 		summary: nextSummary,
 	};

@@ -354,7 +354,24 @@ describe("promoteTier", () => {
 		);
 	});
 
-	it("declares writes for metadata, freshness, and crawl only — never the summary axis — when the hash changed", () => {
+	it("stamps readerAvailableAt with the transition clock the first time the crawl reaches ready", () => {
+		const { article, writes } = promoteTier(buildArticle(), buildInput());
+
+		assert.equal(article.readerAvailableAt, NOW);
+		assert.ok(writes.includes("readerAvailability"));
+	});
+
+	it("keeps an existing readerAvailableAt so a later promotion cannot move the instant forward", () => {
+		const first = "2026-05-01T00:00:00.000Z";
+		const before = buildArticle({ crawl: { kind: "ready" }, readerAvailableAt: first });
+
+		const { article, writes } = promoteTier(before, buildInput());
+
+		assert.equal(article.readerAvailableAt, first);
+		assert.ok(!writes.includes("readerAvailability"));
+	});
+
+	it("declares writes for metadata, freshness, crawl and reader availability — never the summary axis — when the hash changed", () => {
 		const before = buildArticle({
 			freshness: {
 				etag: '"old-etag"',
@@ -372,10 +389,10 @@ describe("promoteTier", () => {
 			}),
 		);
 
-		assert.deepEqual([...writes].sort(), ["crawl", "freshness", "metadata"]);
+		assert.deepEqual([...writes].sort(), ["crawl", "freshness", "metadata", "readerAvailability"]);
 	});
 
-	it("declares writes for metadata, freshness, and crawl only when the canonical hash is unchanged", () => {
+	it("declares writes for metadata, freshness, crawl and reader availability when the canonical hash is unchanged", () => {
 		const before = buildArticle({
 			freshness: {
 				etag: '"old-etag"',
@@ -394,7 +411,7 @@ describe("promoteTier", () => {
 			}),
 		);
 
-		assert.deepEqual([...writes].sort(), ["crawl", "freshness", "metadata"]);
+		assert.deepEqual([...writes].sort(), ["crawl", "freshness", "metadata", "readerAvailability"]);
 	});
 
 	it("does not mutate the input article (pure function)", () => {

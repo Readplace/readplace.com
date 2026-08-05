@@ -106,6 +106,32 @@ describe("markSummaryReady", () => {
 		]);
 	});
 
+	it("omits the reader-view-loading-succeeded effect when the reader view had already succeeded, so a re-summarise announces nothing new", () => {
+		const { effects } = markSummaryReady(
+			buildArticle({
+				url: "https://example.com/post",
+				crawl: { kind: "ready" },
+				summary: { kind: "ready", summary: "previous" },
+			}),
+			{
+				summary: "regenerated",
+				excerpt: "excerpt",
+				inputTokens: 1234,
+				outputTokens: 567,
+				now: NOW,
+			},
+		);
+
+		assert.deepEqual(effects, [
+			{
+				kind: "publish-summary-generated",
+				url: "https://example.com/post",
+				inputTokens: 1234,
+				outputTokens: 567,
+			},
+		]);
+	});
+
 	it("omits the reader-view-loading-succeeded effect when the crawl is not yet ready (reader view is still loading, not succeeded)", () => {
 		const { effects } = markSummaryReady(
 			buildArticle({

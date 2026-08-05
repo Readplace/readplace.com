@@ -1,6 +1,7 @@
 import type { Article, ArticleMetadata } from "../article.types";
 import type { CanonicalImageUrl } from "../canonical-image-url";
 import type { Effect } from "../effects.types";
+import { stampReaderAvailability } from "../reader-availability";
 import type { AggregateField } from "../storage.types";
 
 export interface RecrawlPromoteTierInput {
@@ -41,14 +42,25 @@ export function recrawlPromoteTier(
 		canonicalContentHash: input.canonicalContentHash,
 	};
 
+	const available = stampReaderAvailability({
+		article,
+		nextCrawl: { kind: "ready" },
+		now: input.now,
+	});
+
 	const effects: readonly Effect[] = [
 		{ kind: "publish-canonical-content-changed", url: article.url },
 		{ kind: "publish-recrawl-completed", url: article.url },
 	];
-	const writes: readonly AggregateField[] = ["metadata", "freshness", "crawl"];
+	const writes: readonly AggregateField[] = [
+		"metadata",
+		"freshness",
+		"crawl",
+		...available.writes,
+	];
 
 	const next: Article = {
-		...article,
+		...available.article,
 		metadata: input.metadata,
 		freshness: nextFreshness,
 		estimatedReadTime: input.estimatedReadTime,

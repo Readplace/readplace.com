@@ -4,6 +4,7 @@ import {
 	classifySummaryOutcome,
 	CrawlStatusSchema,
 	deriveReaderViewStatus,
+	enteredReaderViewSucceeded,
 	ReaderStatusSchema,
 	SummaryStatusSchema,
 } from "./article-state";
@@ -107,5 +108,19 @@ describe("classifySummaryOutcome", () => {
 
 	it.each(cases)("classifies summary=$status as $expected", ({ status, expected }) => {
 		expect(classifySummaryOutcome(status)).toBe(expected);
+	});
+});
+
+describe("enteredReaderViewSucceeded", () => {
+	const cases: Array<{ prior: ReaderViewStatus; next: ReaderViewStatus; expected: boolean }> = [
+		{ prior: "loading", next: "succeeded", expected: true },
+		{ prior: "failed", next: "succeeded", expected: true },
+		{ prior: "succeeded", next: "succeeded", expected: false },
+		{ prior: "loading", next: "loading", expected: false },
+		{ prior: "succeeded", next: "failed", expected: false },
+	];
+
+	it.each(cases)("$prior -> $next is $expected", ({ prior, next, expected }) => {
+		expect(enteredReaderViewSucceeded({ prior, next })).toBe(expected);
 	});
 });

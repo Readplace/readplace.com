@@ -46,7 +46,14 @@ export type DynamoTable<TSchema extends z.ZodObject> = {
 	/** Raw Put passthrough. Item is not parsed — writes bypass the read-side schema. */
 	put: (input: WithoutTable<PutCommandInput>) => Promise<void>;
 
-	update: (input: WithoutTable<UpdateCommandInput>) => Promise<void>;
+	/**
+	 * Raw Update passthrough. Returns `{ Attributes }` when the caller sets
+	 * `ReturnValues: "ALL_OLD"`, parsed through the row schema; otherwise
+	 * resolves with an empty object.
+	 */
+	update: (
+		input: WithoutTable<UpdateCommandInput>,
+	) => Promise<{ Attributes?: z.infer<TSchema> }>;
 
 	/**
 	 * Raw Delete passthrough. Returns `{ Attributes }` when the caller sets
@@ -127,7 +134,9 @@ export function defineDynamoTable<TSchema extends z.ZodObject>(config: {
 			await client.send(new PutCommand({ TableName: tableName, ...input }));
 		},
 		async update(input) {
-			await client.send(new UpdateCommand({ TableName: tableName, ...input }));
+			const result = await client.send(new UpdateCommand({ TableName: tableName, ...input }));
+			if (!result.Attributes) return {};
+			return { Attributes: schema.parse(result.Attributes) };
 		},
 		async delete(input) {
 			const result = await client.send(new DeleteCommand({ TableName: tableName, ...input }));

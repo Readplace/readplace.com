@@ -227,6 +227,24 @@ describe("refreshContent", () => {
 		assert.deepEqual(effects, []);
 	});
 
+	it("stamps readerAvailableAt when the refresh recovers a failed crawl, because the body only becomes readable now", () => {
+		const before = buildArticle({ crawl: { kind: "failed", reason: { kind: "parse-error", detail: "boom" } } });
+
+		const { article, writes } = refreshContent(before, buildInput());
+
+		assert.equal(article.readerAvailableAt, NOW);
+		assert.ok(writes.includes("readerAvailability"));
+	});
+
+	it("does not stamp readerAvailableAt when the crawl is untouched, so a routine refresh never invents an instant", () => {
+		const before = buildArticle({ crawl: { kind: "ready" } });
+
+		const { article, writes } = refreshContent(before, buildInput());
+
+		assert.equal(article.readerAvailableAt, undefined);
+		assert.ok(!writes.includes("readerAvailability"));
+	});
+
 	it("declares writes for metadata, freshness, and summary when hash changed (crawl stays untouched while in ready state)", () => {
 		const before = buildArticle({
 			freshness: {

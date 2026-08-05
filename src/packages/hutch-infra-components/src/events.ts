@@ -794,14 +794,22 @@ export type SendTrialFeedbackEmailDetail = z.infer<
 /** Global, per-URL fact: an article's clean reader view reached the successful
  * terminal state (crawl ready AND summary ready/skipped). Published by the
  * save-link effect dispatcher when `markSummaryReady` / `markSummarySkipped`
- * fire. `succeededAt` is the domain persist-moment timestamp, captured before
- * any later reader poll can land, so it is always ≤ a present user's viewedAt.
+ * fire, and only on the transition into that state — a re-summarise of an
+ * already-succeeded article is not a new fact.
+ *
+ * `succeededAt` is the domain persist-moment for *both* axes completing. It is
+ * NOT the instant the reader became usable: the reader renders the body as soon
+ * as the crawl axis is ready, so a user can read an entire article — and stamp a
+ * `viewedAt` — while the summary is still generating. Anything asking "was the
+ * article unavailable while they were looking at it?" must use the article's
+ * `readerAvailableAt` instead; `succeededAt` carries no such ordering guarantee.
+ *
  * `hasSummary` is true only for ready summaries; a skipped summary still
  * succeeds the reader view but carries no summary to announce. The reader-ready
- * fan-out Lambda subscribes and stamps a per-user `succeededAt` for every saver
- * of this URL. `contentSourceTier` is optional — a reserved slot a "loaded with a
- * more complete version" notification can use to distinguish tiers — so consumers
- * must tolerate its absence. */
+ * fan-out Lambda subscribes and queues a digest row for every saver of this URL
+ * who had opened the reader. `contentSourceTier` is optional — a reserved slot a
+ * "loaded with a more complete version" notification can use to distinguish
+ * tiers — so consumers must tolerate its absence. */
 export const ReaderViewLoadingSucceeded = defineEvent({
 	name: "reader-view-loading-succeeded",
 	source: "hutch.save-link",
@@ -823,7 +831,7 @@ export type ReaderViewLoadingSucceededDetail = z.infer<
  * SQS. The `send-user-digest` Lambda consumes it, re-checks every gate against
  * the live per-article row, claims the per-user cooldown, and sends a single
  * digest of every still-eligible article. Carries only `userId`: the reference
- * instant for each article is that article's own set-once `succeededAt`. */
+ * instant for each article is that article's own set-once `readerAvailableAt`. */
 export const SendUserDigestCommand = defineCommand({
 	detailSchema: z.object({
 		userId: z.string(),
