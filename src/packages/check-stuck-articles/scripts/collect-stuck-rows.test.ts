@@ -208,7 +208,7 @@ describe("collectStuckRows", () => {
 		assert.deepEqual(stuck[0]?.reasons, ["summary-pending", "crawl-pending"]);
 		assert.equal(
 			stuck[0]?.recrawlUrl,
-			`${ORIGIN}/admin/recrawl/${encodeURIComponent("https://example.test/article")}`,
+			`${ORIGIN}/admin/recrawl?url=${encodeURIComponent("https://example.test/article")}`,
 		);
 		assert.match(stuck[0]?.terminalCheckMessage ?? "", /crawlStatus is 'pending'/);
 	});
@@ -299,7 +299,7 @@ describe("collectStuckRows", () => {
 		assert.equal(stuck[0]?.originalUrl, "example.test/legacy");
 		assert.equal(
 			stuck[0]?.recrawlUrl,
-			`${ORIGIN}/admin/recrawl/${encodeURIComponent("example.test/legacy")}`,
+			`${ORIGIN}/admin/recrawl?url=${encodeURIComponent("example.test/legacy")}`,
 		);
 	});
 

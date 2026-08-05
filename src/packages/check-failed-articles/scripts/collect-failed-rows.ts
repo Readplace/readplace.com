@@ -188,7 +188,7 @@ export async function collectFailedRows(deps: {
 				reasons,
 				savedAt: row.savedAt,
 				contentFetchedAt: row.contentFetchedAt,
-				recrawlUrl: `${deps.origin}/admin/recrawl/${encodeURIComponent(effectiveUrl)}`,
+				recrawlUrl: `${deps.origin}/admin/recrawl?url=${encodeURIComponent(effectiveUrl)}`,
 			});
 		}
 		lastEvaluatedKey = page.lastEvaluatedKey;

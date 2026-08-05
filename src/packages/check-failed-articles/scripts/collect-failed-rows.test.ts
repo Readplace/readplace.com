@@ -177,7 +177,7 @@ describe("collectFailedRows", () => {
 		assert.equal(failed[0]?.reasons["crawl-failed"], '{"kind":"http-error","status":403}');
 		assert.equal(
 			failed[0]?.recrawlUrl,
-			`${ORIGIN}/admin/recrawl/${encodeURIComponent("https://site.test/broken")}`,
+			`${ORIGIN}/admin/recrawl?url=${encodeURIComponent("https://site.test/broken")}`,
 		);
 	});
 
@@ -534,7 +534,7 @@ describe("collectFailedRows", () => {
 		assert.equal(failed[0]?.originalUrl, "legacy.test/x");
 		assert.equal(
 			failed[0]?.recrawlUrl,
-			`${ORIGIN}/admin/recrawl/${encodeURIComponent("legacy.test/x")}`,
+			`${ORIGIN}/admin/recrawl?url=${encodeURIComponent("legacy.test/x")}`,
 		);
 	});
 

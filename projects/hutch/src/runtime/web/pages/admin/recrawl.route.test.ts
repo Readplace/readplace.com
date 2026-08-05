@@ -164,15 +164,23 @@ describe("Admin recrawl routes", () => {
 			expect(input.getAttribute("type")).toBe("url");
 		});
 
-		it("redirects submitted ?url to the encoded article path", async () => {
-			const { server, auth } = buildHarness({ adminEmails: [ADMIN_EMAIL] });
-			await auth.createUser({ email: ADMIN_EMAIL, password: ADMIN_PASSWORD });
-			const agent = await loginAs(server, ADMIN_EMAIL, ADMIN_PASSWORD);
+		it("renders the recrawl page in place for a submitted ?url — redirecting into the path form would collapse an embedded scheme back out of the address", async () => {
+			const harness = buildHarness({ adminEmails: [ADMIN_EMAIL] });
+			await harness.auth.createUser({ email: ADMIN_EMAIL, password: ADMIN_PASSWORD });
+			await harness.articleStore.saveArticleGlobally({
+				url: ARTICLE_URL,
+				metadata: { title: "T", siteName: "example.com", excerpt: "", wordCount: 0 },
+				estimatedReadTime: MinutesSchema.parse(1),
+				savedAt: new Date(),
+			});
+			await harness.articleCrawl.markCrawlReady({ url: ARTICLE_URL });
+			const agent = await loginAs(harness.server, ADMIN_EMAIL, ADMIN_PASSWORD);
 
-			const response = await agent.get(`/admin/recrawl?url=${encodeURIComponent(ARTICLE_URL)}`);
+			const response = await agent.get(`/admin/recrawl?url=${ENCODED}`);
 
-			expect(response.status).toBe(302);
-			expect(response.headers.location).toBe(`/admin/recrawl/${ENCODED}`);
+			expect(response.status).toBe(200);
+			const doc = new JSDOM(response.text).window.document;
+			assert(doc.querySelector("[data-test-admin-recrawl]"));
 		});
 
 		it("returns 404 when the submitted ?url is not a valid URL", async () => {
@@ -289,7 +297,9 @@ describe("Admin recrawl routes", () => {
 			const doc = new JSDOM(response.text).window.document;
 			const form = doc.querySelector("[data-test-admin-recrawl-trigger]");
 			expect(form?.getAttribute("method")).toBe("POST");
-			expect(form?.getAttribute("action")).toBe(`/admin/recrawl/${ENCODED}`);
+			// The form must POST to the lossless `?url=` carrier: a path action
+			// would collapse an embedded scheme the moment the browser submits.
+			expect(form?.getAttribute("action")).toBe(`/admin/recrawl?url=${ENCODED}`);
 			expect(form?.hasAttribute("data-auto-submit")).toBe(true);
 			expect(response.text).toContain("requestSubmit");
 			const recrawlMain = doc.querySelector("[data-test-admin-recrawl]");
@@ -329,11 +339,11 @@ describe("Admin recrawl routes", () => {
 
 			expect(postResponse.status).toBe(303);
 			expect(postResponse.headers.location).toBe(
-				`/admin/recrawl/${ENCODED}?started=1`,
+				`/admin/recrawl?url=${ENCODED}&started=1`,
 			);
 			expect(harness.recrawlPublishedCalls).toEqual([{ url: ARTICLE_URL }]);
 
-			const response = await agent.get(`/admin/recrawl/${ENCODED}?started=1`);
+			const response = await agent.get(`/admin/recrawl?url=${ENCODED}&started=1`);
 
 			expect(response.status).toBe(200);
 			expect(response.headers["cache-control"]).toBe("no-store");
@@ -408,6 +418,68 @@ describe("Admin recrawl routes", () => {
 				summary: "Existing summary",
 				excerpt: "Existing summary blurb",
 			});
+		});
+	});
+
+	// A wayback capture keys the row on a URL that embeds a second scheme. The
+	// path carrier cannot express it: the edge decodes `%2F` and collapses `//`
+	// before Express sees the path, and only a leading scheme is recoverable, so
+	// `…im_/https://site/x` resolves to the `https:/site/x` row instead — a
+	// different article, silently healed in place of the one that failed.
+	describe("embedded-scheme URLs (wayback captures)", () => {
+		const EMBEDDED_URL =
+			"https://web.archive.org/web/20260707152150im_/https://www.tampabay.com/a.jpg?auth=abc";
+		const EMBEDDED_ENCODED = encodeURIComponent(EMBEDDED_URL);
+
+		async function seedEmbeddedArticle() {
+			const harness = buildHarness({ adminEmails: [ADMIN_EMAIL] });
+			await harness.auth.createUser({ email: ADMIN_EMAIL, password: ADMIN_PASSWORD });
+			await harness.articleStore.saveArticleGlobally({
+				url: EMBEDDED_URL,
+				metadata: { title: "T", siteName: "web.archive.org", excerpt: "", wordCount: 0 },
+				estimatedReadTime: MinutesSchema.parse(1),
+				savedAt: new Date(),
+			});
+			await harness.articleCrawl.markCrawlReady({ url: EMBEDDED_URL });
+			return harness;
+		}
+
+		it("triggers the recrawl against the exact stored URL when addressed via ?url=", async () => {
+			const harness = await seedEmbeddedArticle();
+			const agent = await loginAs(harness.server, ADMIN_EMAIL, ADMIN_PASSWORD);
+
+			const response = await agent.post(`/admin/recrawl?url=${EMBEDDED_ENCODED}`);
+
+			expect(response.status).toBe(303);
+			// The published URL must keep BOTH slashes of the embedded scheme —
+			// one lost slash addresses a different DynamoDB row.
+			expect(harness.recrawlPublishedCalls).toEqual([{ url: EMBEDDED_URL }]);
+		});
+
+		it("renders the page for the exact stored URL via ?url=, with a form that round-trips it unchanged", async () => {
+			const harness = await seedEmbeddedArticle();
+			const agent = await loginAs(harness.server, ADMIN_EMAIL, ADMIN_PASSWORD);
+
+			const response = await agent.get(`/admin/recrawl?url=${EMBEDDED_ENCODED}`);
+
+			expect(response.status).toBe(200);
+			const doc = new JSDOM(response.text).window.document;
+			const form = doc.querySelector("[data-test-admin-recrawl-trigger]");
+			expect(form?.getAttribute("action")).toBe(`/admin/recrawl?url=${EMBEDDED_ENCODED}`);
+		});
+
+		it("404s the same URL carried in the path — the collapse makes it a different row, which must not be silently recrawled", async () => {
+			const harness = await seedEmbeddedArticle();
+			const agent = await loginAs(harness.server, ADMIN_EMAIL, ADMIN_PASSWORD);
+
+			// supertest sends the path verbatim; the collapsed form is what the
+			// edge would deliver in production.
+			const response = await agent.post(
+				"/admin/recrawl/https://web.archive.org/web/20260707152150im_/https:/www.tampabay.com/a.jpg?auth=abc",
+			);
+
+			expect(response.status).toBe(404);
+			expect(harness.recrawlPublishedCalls).toEqual([]);
 		});
 	});
 

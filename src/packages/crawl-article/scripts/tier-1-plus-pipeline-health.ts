@@ -46,7 +46,7 @@ const POLL_TIMEOUT_MS = 2_400_000;
 type TerminalReaderStatus = Exclude<ReaderStatus, "pending">;
 
 async function forceRecrawl(url: string): Promise<void> {
-	const res = await fetch(`${ORIGIN}/admin/recrawl/${encodeURIComponent(url)}`, {
+	const res = await fetch(`${ORIGIN}/admin/recrawl?url=${encodeURIComponent(url)}`, {
 		method: "POST",
 		headers: { "x-service-token": SERVICE_TOKEN },
 	});

@@ -148,7 +148,7 @@ export async function collectStuckRows(deps: {
 				originalUrl: effectiveUrl,
 				reasons: verdict.reasons,
 				contentFetchedAt: row.contentFetchedAt,
-				recrawlUrl: `${deps.origin}/admin/recrawl/${encodeURIComponent(effectiveUrl)}`,
+				recrawlUrl: `${deps.origin}/admin/recrawl?url=${encodeURIComponent(effectiveUrl)}`,
 				terminalCheckMessage: verdict.message,
 			});
 		}
