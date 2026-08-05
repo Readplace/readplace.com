@@ -273,12 +273,12 @@ describe("ViewPage", () => {
 		).toBe("View on Readplace.");
 	});
 
-	it("emits noindex robots meta so the wrapper is not indexed as a scraper proxy", () => {
+	it("emits the default indexable robots meta so the reader page is open to crawlers", () => {
 		const doc = render();
 
 		expect(
 			doc.querySelector('meta[name="robots"]')?.getAttribute("content"),
-		).toBe("noindex, follow");
+		).toBe("index, follow");
 	});
 
 	it("emits JSON-LD Article whose url is the original source (not the /view wrapper)", () => {

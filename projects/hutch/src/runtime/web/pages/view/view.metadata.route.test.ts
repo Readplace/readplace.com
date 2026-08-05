@@ -218,7 +218,7 @@ describe("View routes", () => {
 			expect(article.headline).toBe("Hello World");
 		});
 
-		it("emits robots: noindex, follow", async () => {
+		it("emits the default indexable robots meta", async () => {
 			const parseArticle: ParseArticle = async () => buildParseResult();
 			const fixture = createDefaultTestAppFixture(TEST_APP_ORIGIN);
 			const applyParseResult = createFakeApplyParseResult({
@@ -256,7 +256,7 @@ describe("View routes", () => {
 			const doc = new JSDOM(response.text).window.document;
 			expect(
 				doc.querySelector('meta[name="robots"]')?.getAttribute("content"),
-			).toBe("noindex, follow");
+			).toBe("index, follow");
 		});
 	});
 
@@ -987,8 +987,8 @@ describe("View routes", () => {
 		});
 	});
 
-	describe("noindex response hardening", () => {
-		const NOINDEX_SIGNAL = "search=no, ai-input=no, ai-train=no";
+	describe("publicly crawlable response signals", () => {
+		const SITE_CONTENT_SIGNAL = "search=yes, ai-input=yes, ai-train=no";
 
 		function headerHarness() {
 			const fixture = createDefaultTestAppFixture(TEST_APP_ORIGIN);
@@ -1001,17 +1001,17 @@ describe("View routes", () => {
 			});
 		}
 
-		it("marks the HTML article page noindex via header alongside its meta tag", async () => {
+		it("serves the HTML article page without a noindex header so importers and search engines may use it", async () => {
 			const harness = headerHarness();
 
 			const response = await request(harness.server).get(`/view/${CANONICAL_PATH}`);
 
 			expect(response.status).toBe(200);
-			expect(response.headers["x-robots-tag"]).toBe("noindex");
-			expect(response.headers["content-signal"]).toBe(NOINDEX_SIGNAL);
+			expect(response.headers["x-robots-tag"]).toBeUndefined();
+			expect(response.headers["content-signal"]).toBe(SITE_CONTENT_SIGNAL);
 		});
 
-		it("marks the markdown representation noindex — it has no head for a meta tag", async () => {
+		it("serves the markdown representation without a noindex header", async () => {
 			const harness = headerHarness();
 
 			const response = await request(harness.server)
@@ -1019,21 +1019,21 @@ describe("View routes", () => {
 				.set("Accept", "text/markdown");
 
 			expect(response.status).toBe(200);
-			expect(response.headers["x-robots-tag"]).toBe("noindex");
-			expect(response.headers["content-signal"]).toBe(NOINDEX_SIGNAL);
+			expect(response.headers["x-robots-tag"]).toBeUndefined();
+			expect(response.headers["content-signal"]).toBe(SITE_CONTENT_SIGNAL);
 		});
 
-		it("marks the bare /view 404 noindex", async () => {
+		it("keeps the bare /view 404 on the site-wide signals", async () => {
 			const harness = headerHarness();
 
 			const response = await request(harness.server).get("/view");
 
 			expect(response.status).toBe(404);
-			expect(response.headers["x-robots-tag"]).toBe("noindex");
-			expect(response.headers["content-signal"]).toBe(NOINDEX_SIGNAL);
+			expect(response.headers["x-robots-tag"]).toBeUndefined();
+			expect(response.headers["content-signal"]).toBe(SITE_CONTENT_SIGNAL);
 		});
 
-		it("marks the ?url= canonicalising redirect noindex", async () => {
+		it("keeps the ?url= canonicalising redirect on the site-wide signals", async () => {
 			const harness = headerHarness();
 
 			const response = await request(harness.server).get(
@@ -1041,12 +1041,12 @@ describe("View routes", () => {
 			);
 
 			expect(response.status).toBe(302);
-			expect(response.headers["x-robots-tag"]).toBe("noindex");
-			expect(response.headers["content-signal"]).toBe(NOINDEX_SIGNAL);
+			expect(response.headers["x-robots-tag"]).toBeUndefined();
+			expect(response.headers["content-signal"]).toBe(SITE_CONTENT_SIGNAL);
 		});
 
 		it.each(["summary", "reader"])(
-			"marks the %s poll fragment noindex — fragments have no head for a meta tag",
+			"serves the %s poll fragment without a noindex header",
 			async (fragment) => {
 				const harness = headerHarness();
 
@@ -1055,8 +1055,8 @@ describe("View routes", () => {
 				);
 
 				expect(response.status).toBe(200);
-				expect(response.headers["x-robots-tag"]).toBe("noindex");
-				expect(response.headers["content-signal"]).toBe(NOINDEX_SIGNAL);
+				expect(response.headers["x-robots-tag"]).toBeUndefined();
+				expect(response.headers["content-signal"]).toBe(SITE_CONTENT_SIGNAL);
 			},
 		);
 
@@ -1067,7 +1067,7 @@ describe("View routes", () => {
 
 			expect(response.status).toBe(301);
 			expect(response.headers.location).toBe(`/view/${CANONICAL_PATH}`);
-			expect(response.headers["x-robots-tag"]).toBe("noindex");
+			expect(response.headers["x-robots-tag"]).toBeUndefined();
 		});
 
 		it("preserves the article path case and query when normalising the /VIEW prefix", async () => {

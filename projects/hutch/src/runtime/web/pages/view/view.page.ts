@@ -32,7 +32,6 @@ import { isbot } from "isbot";
 import { decomposeTimeLeft } from "@packages/time-left";
 import type { HutchLogger } from "@packages/hutch-logger";
 import { articleHostFrom, hashIp, isCountableBrowserRequest, type AnalyticsEvent } from "@packages/web-analytics";
-import { noindexMiddleware } from "../../middleware/noindex.middleware";
 import { rateLimitKeyFromRequest, sendRateLimited } from "../../middleware/rate-limit";
 import { ANALYTICS_EVENTS, STREAMS } from "../../../observability/events";
 import { wantsMarkdown, htmlToMarkdown, buildMarkdownFrontmatter, MarkdownPage, sendComponent } from "@packages/web-shell";
@@ -100,13 +99,17 @@ function pollUrlBuilderFor(articleUrl: string): PollUrlBuilder {
 }
 
 /** A browser prefetch (`Sec-Purpose: prefetch`, its `prefetch;prerender` form,
- * or the legacy `Purpose: prefetch`) or a link-unfurler bot is not a reader
- * deciding to open the article, so it must not spend /view's first-visit crawl
- * budget. `String(...)` (not `?.`) folds the absent-header case into a plain
- * `false` without a nullish branch the coverage gate can't reach. */
-function isPrefetchOrBot(req: Request): boolean {
+ * or the legacy `Purpose: prefetch`) is not a reader deciding to open the
+ * article, so it must not spend /view's first-visit crawl budget. `String(...)`
+ * (not `?.`) folds the absent-header case into a plain `false` without a
+ * nullish branch the coverage gate can't reach. */
+function isPrefetch(req: Request): boolean {
 	if (String(req.get("sec-purpose")).includes("prefetch")) return true;
-	if (String(req.get("purpose")).includes("prefetch")) return true;
+	return String(req.get("purpose")).includes("prefetch");
+}
+
+function isPrefetchOrBot(req: Request): boolean {
+	if (isPrefetch(req)) return true;
 	return isbot(req.get("user-agent"));
 }
 
@@ -185,11 +188,14 @@ function handleViewArticle(deps: ViewDependencies, reader: ReturnType<typeof ini
 		const hostname = articleHostFrom(articleUrl);
 		const stubMetadata: ArticleMetadata = { title: hostname, siteName: hostname, excerpt: "", wordCount: 0 };
 		const stubReadTime = calculateReadTime(0);
-		// A prefetch or link-unfurler bot gets the rendered page (stub metadata
-		// below) but triggers none of the paid crawl work: skipping both the
-		// first-visit cascade and the freshness re-check keeps a background fetch
-		// from spending budget a reader hasn't asked to spend.
-		if (!isPrefetchOrBot(req)) {
+		// A prefetch gets the rendered page (stub metadata below) but triggers
+		// none of the paid crawl work: a speculative fetch is not a reader asking
+		// to spend budget. Bots are deliberately NOT excluded — a third-party
+		// importer fetching a /view link must be able to materialise the article
+		// it came for. The per-IP budget below caps the first-visit cascade; a
+		// repeat visit only publishes a stale check, which the stale-check
+		// handler TTL-bounds per article.
+		if (!isPrefetch(req)) {
 			if (!existing) {
 				// First visit is the request that triggers the whole crawl cascade
 				// (stub save → crawl → summary → possibly OCR), each leg with real
@@ -430,7 +436,6 @@ export function initViewRoutes(deps: ViewDependencies): Router {
 	const router = express.Router();
 	const reader = initArticleReader(buildArticleReaderDeps(deps));
 
-	router.use(noindexMiddleware);
 	router.use(redirectMixedCaseMount);
 
 	router.get("/", handleViewRoot(deps));

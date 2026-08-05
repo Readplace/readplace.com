@@ -178,24 +178,22 @@ describe("GET /robots.txt", () => {
 		expect(response.text).not.toContain("ai-train");
 	});
 
-	it("keeps /view crawlable for search engines but disallows it for AI crawlers", async () => {
+	it("keeps /view crawlable for every agent, with no named AI-crawler groups", async () => {
 		const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
 		const response = await request(harness.server).get("/robots.txt");
 
 		const groups = response.text.split("\n\n").map((group: string) => group.split("\n"));
 		const defaultGroup = groups.find((lines: string[]) => lines[0] === "User-agent: *");
 		assert.ok(defaultGroup, "robots.txt must have a default group");
-		expect(defaultGroup).not.toContain("Disallow: /view");
+		expect(response.text).not.toContain("Disallow: /view");
 
-		for (const agent of ["GPTBot", "ClaudeBot", "PerplexityBot", "CCBot"]) {
-			const group = groups.find((lines: string[]) => lines[0] === `User-agent: ${agent}`);
-			assert.ok(group, `robots.txt must have a group for ${agent}`);
-			expect(group).toContain("Disallow: /view");
-			expect(group).toContain("Disallow: /queue");
-		}
+		const agents = groups
+			.map((lines: string[]) => lines[0])
+			.filter((first: string) => first.startsWith("User-agent: "));
+		expect(agents).toEqual(["User-agent: *"]);
 	});
 
-	it("opens the shared queue permalinks so crawlers can follow the redirect to /view's noindex", async () => {
+	it("opens the shared queue permalinks so crawlers can follow the redirect to the public /view page", async () => {
 		const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
 		const response = await request(harness.server).get("/robots.txt");
 		expect(response.text).toContain("Allow: /queue/*/view$");

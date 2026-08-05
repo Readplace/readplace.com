@@ -903,7 +903,7 @@ describe("View routes", () => {
 		});
 	});
 
-	describe("prefetch and bot requests do not trigger the paid crawl", () => {
+	describe("prefetch requests do not trigger the paid crawl, bot requests do", () => {
 		it("skips the crawl cascade for a Sec-Purpose: prefetch request", async () => {
 			const harness = buildReaderHarness();
 
@@ -928,7 +928,7 @@ describe("View routes", () => {
 			assert(!saved, "a legacy prefetch must not save or crawl the article");
 		});
 
-		it("skips the crawl cascade for a link-unfurler bot", async () => {
+		it("runs the crawl cascade for a bot so a third-party importer can materialise the article", async () => {
 			const harness = buildReaderHarness();
 
 			const response = await request(harness.server)
@@ -937,7 +937,7 @@ describe("View routes", () => {
 
 			expect(response.status).toBe(200);
 			const saved = await harness.articleStore.findArticleByUrl(ARTICLE_URL);
-			assert(!saved, "a bot must not save or crawl the article");
+			assert(saved, "a bot open must save and crawl the article like any reader");
 		});
 	});
 

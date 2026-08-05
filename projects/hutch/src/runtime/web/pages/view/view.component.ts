@@ -226,7 +226,6 @@ export function ViewPage(input: ViewPageInput): PageBody {
 			ogImage,
 			ogImageAlt,
 			twitterImage,
-			robots: "noindex, follow",
 			structuredData: [structuredData],
 		},
 		styles: VIEW_STYLES,

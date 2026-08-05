@@ -1,23 +1,6 @@
 import assert from "node:assert/strict";
 import { buildRobotsTxt } from "./robots-txt";
 
-const EXPECTED_AI_AGENTS = [
-	"GPTBot",
-	"OAI-SearchBot",
-	"ChatGPT-User",
-	"ClaudeBot",
-	"Claude-SearchBot",
-	"Claude-User",
-	"PerplexityBot",
-	"Perplexity-User",
-	"CCBot",
-	"Google-Extended",
-	"Applebot-Extended",
-	"Meta-ExternalAgent",
-	"Amazonbot",
-	"Bytespider",
-];
-
 const SHARED_DISALLOWS = [
 	"Disallow: /queue",
 	"Disallow: /export",
@@ -40,13 +23,20 @@ function groupFor(params: { robotsTxt: string; agent: string }): string[] {
 describe("buildRobotsTxt", () => {
 	const robotsTxt = buildRobotsTxt("https://readplace.com");
 
-	it("keeps /view crawlable for search engines so they can see its noindex", () => {
+	it("keeps /view crawlable for every agent so third-party importers can fetch article pages", () => {
+		expect(robotsTxt).not.toContain("Disallow: /view");
 		const defaultGroup = groupFor({ robotsTxt, agent: "*" });
-		expect(defaultGroup).not.toContain("Disallow: /view");
 		expect(defaultGroup).toContain("Allow: /");
 	});
 
-	it("opens the shared queue permalinks so crawlers can follow the redirect to /view's noindex", () => {
+	it("has no named agent groups, so every crawler including AI agents falls back to the default rules", () => {
+		const agents = groupsOf(robotsTxt)
+			.map((lines) => lines[0])
+			.filter((first) => String(first).startsWith("User-agent: "));
+		expect(agents).toEqual(["User-agent: *"]);
+	});
+
+	it("opens the shared queue permalinks so crawlers can follow the redirect to the public /view page", () => {
 		const defaultGroup = groupFor({ robotsTxt, agent: "*" });
 		expect(defaultGroup).toContain("Allow: /queue/*/view$");
 		expect(defaultGroup).toContain("Allow: /queue/*/view?");
@@ -77,24 +67,6 @@ describe("buildRobotsTxt", () => {
 		expect(robotsTxt).not.toContain("ai-train");
 	});
 
-	it.each(EXPECTED_AI_AGENTS)(
-		"blocks %s from /view and restates every shared rule (named groups replace *)",
-		(agent) => {
-			const group = groupFor({ robotsTxt, agent });
-			expect(group).toContain("Disallow: /view");
-			expect(group).toContain("Allow: /");
-			expect(group).toContain("Content-Signal: search=yes, ai-input=yes");
-			for (const disallow of SHARED_DISALLOWS) {
-				expect(group).toContain(disallow);
-			}
-		},
-	);
-
-	it("has no Googlebot group so Googlebot falls back to the default rules", () => {
-		const agents = groupsOf(robotsTxt).map((lines) => lines[0]);
-		expect(agents).not.toContain("User-agent: Googlebot");
-	});
-
 	it("never disallows the blog", () => {
 		expect(robotsTxt).not.toContain("Disallow: /blog");
 	});
@@ -105,12 +77,5 @@ describe("buildRobotsTxt", () => {
 			"Sitemap: https://readplace.com/sitemap.xml",
 			"Sitemap: https://readplace.com/blog/sitemap.xml",
 		]);
-	});
-
-	it("pins the exact AI agent set", () => {
-		const agents = groupsOf(robotsTxt)
-			.map((lines) => String(lines[0]).replace("User-agent: ", ""))
-			.filter((agent) => agent !== "*" && !agent.startsWith("Sitemap"));
-		expect(agents).toEqual(EXPECTED_AI_AGENTS);
 	});
 });
