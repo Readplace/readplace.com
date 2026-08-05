@@ -163,7 +163,7 @@ export const HEALTH_SOURCES: readonly HealthSource[] = [
 		// carries with no link range across it, since an anchor splits the text
 		// and a substring crossing one never matches the reader output.
 		label: "Apple News (Apple News Format document, no publisher URL)",
-		url: "https://apple.news/AbxPgQQdpQSy-ERx2g-kQZA",
+		url: "https://apple.news/AbxPgQQdpQSy-ERx2g-kQZA?articleList=Aa2vGyZWlSfaFMqEGY0e4xQ,A5IRjSM4dSFWFCMYo_9X-AQ,AdzvYAQxLTW2PQZc7eRiPAw,AdLHfGuaTSHGNWIFrj0gdGg,AdJemOOpvQB2I38VCFFJ22Q,AIh7F4i7GSXe3TL-DNB6V4A,AbxPgQQdpQSy-ERx2g-kQZA,AqKXgh3yzQey0QotC7FE4QA&campaign_id=E101&campaign_type=b7194f35-8001-4ae2-ca08-b0d1b2757efb/default&creative_id=comp-id-more_story-5-14:moreStory",
 		expectedContent:
 			"I tell him that I did not realise that the wedding had happened already.",
 		expectsThumbnail: true,
