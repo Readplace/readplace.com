@@ -27,6 +27,7 @@ export interface RelatedArticleDisplay {
 	siteName: string;
 	reason: string;
 	status: ArticleStatus;
+	savedAt: Date;
 }
 
 export type RelatedArticles =

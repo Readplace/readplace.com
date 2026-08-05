@@ -21,6 +21,8 @@ const RELATED_ID = ReaderArticleHashIdSchema.parse("0123456789abcdef0123456789ab
 const FINISHED_RELATED_ID = ReaderArticleHashIdSchema.parse(
 	"fedcba9876543210fedcba9876543210",
 );
+const SAVED_AT = new Date("2026-06-05T12:00:00.000Z");
+const FINISHED_SAVED_AT = new Date("2026-05-05T12:00:00.000Z");
 
 const ARTICLE_HTML = `
 <html><head><title>Target Post</title></head>
@@ -79,6 +81,7 @@ async function buildHarness() {
 					siteName: "Example",
 					reason: "Same argument",
 					status: "unread",
+					savedAt: SAVED_AT,
 				},
 				{
 					id: FINISHED_RELATED_ID,
@@ -86,6 +89,7 @@ async function buildHarness() {
 					siteName: "Example",
 					reason: "Follow-up",
 					status: "read",
+					savedAt: FINISHED_SAVED_AT,
 				},
 			],
 		});
@@ -136,6 +140,12 @@ describe("Reader related-articles slot", () => {
 			utm_term: articleId,
 		});
 		expect(link.querySelector(".related-slot__reason")?.textContent).toBe("Same argument");
+		const saved = link.querySelector(".related-slot__saved time");
+		assert(saved, "each relation must say when the reader saved it");
+		expect({
+			datetime: saved.getAttribute("datetime"),
+			mode: saved.getAttribute("data-local-time"),
+		}).toEqual({ datetime: SAVED_AT.toISOString(), mode: "relative" });
 
 		const states = Array.from(doc.querySelectorAll("[data-test-related-item]")).map(
 			(item) => {
@@ -324,6 +334,12 @@ describe("GET /queue/:id/related", () => {
 		expect(link.getAttribute("href")).toBe(
 			`/queue/${RELATED_ID.value}/view?utm_source=reader&utm_medium=internal&utm_content=related&utm_term=${articleId}`,
 		);
+		const saved = link.querySelector(".related-slot__saved time");
+		assert(saved, "a ready poll response must carry the saved time too");
+		expect({
+			datetime: saved.getAttribute("datetime"),
+			mode: saved.getAttribute("data-local-time"),
+		}).toEqual({ datetime: SAVED_AT.toISOString(), mode: "relative" });
 	});
 
 	it("stops the chain once the poll budget is spent, even while still computing", async () => {

@@ -6,6 +6,7 @@ const USER_ID = UserIdSchema.parse("user_abc");
 const OTHER_USER_ID = UserIdSchema.parse("user_xyz");
 const URL = "https://example.com/post";
 const RELATED_ID = ReaderArticleHashIdSchema.parse("0123456789abcdef0123456789abcdef");
+const SAVED_AT = new Date("2026-06-01T00:00:00.000Z");
 
 describe("initInMemoryRelatedArticles", () => {
 	it("reports pending until something is written", async () => {
@@ -28,6 +29,7 @@ describe("initInMemoryRelatedArticles", () => {
 					siteName: "Example",
 					reason: "Same argument",
 					status: "unread",
+					savedAt: SAVED_AT,
 				},
 			],
 		});
@@ -41,6 +43,7 @@ describe("initInMemoryRelatedArticles", () => {
 					siteName: "Example",
 					reason: "Same argument",
 					status: "unread",
+					savedAt: SAVED_AT,
 				},
 			],
 		});

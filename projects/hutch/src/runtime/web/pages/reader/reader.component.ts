@@ -62,6 +62,7 @@ export function ReaderPage(
 		audioEnabled?: boolean;
 		related?: RelatedArticles;
 		relatedPollUrl?: string;
+		now: Date;
 		extensionInstallUrl?: string;
 		backLink: { topHref: string; label: string };
 		/** Injected per variant: the sticky action toolbar (Back + Mark-as-read, no
@@ -102,7 +103,7 @@ export function ReaderPage(
 		summaryOpen: false,
 		summaryToggleUrl: `/queue/${articleId}/summary-toggle`,
 		related: options.related
-			? { articles: options.related, sourceArticleId: articleId }
+			? { articles: options.related, sourceArticleId: articleId, now: options.now }
 			: undefined,
 		relatedPollUrl: options.relatedPollUrl,
 		progress: options.progress,

@@ -1,4 +1,4 @@
-<div id="article-body-related-slot" class="article-body__related-slot {{stateClass}}" data-test-reader-related data-related-status="{{status}}"{{#if pollUrl}} hx-get="{{pollUrl}}" hx-trigger="every 3s" hx-swap="outerHTML"{{/if}}><h2 class="related-slot__heading">Related from your saves</h2><ul class="related-slot__list" hx-boost="true" hx-target="main" hx-select="main" hx-swap="outerHTML show:none">
+<div id="article-body-related-slot" class="article-body__related-slot {{stateClass}}" data-test-reader-related data-related-status="{{status}}"{{#if pollUrl}} hx-get="{{pollUrl}}" hx-trigger="every 3s" hx-swap="outerHTML"{{/if}}><h2 class="related-slot__heading">This post is similar to these you saved before</h2><ul class="related-slot__list" hx-boost="true" hx-target="main" hx-select="main" hx-swap="outerHTML show:none">
   {{#each items}}
   <li class="related-slot__item">
     <a class="related-slot__link" href="{{href}}" data-test-related-item="{{id}}">
@@ -8,6 +8,7 @@
         <span class="related-slot__site">{{siteName}}</span>
       </span>
       <span class="related-slot__reason">{{reason}}</span>
+      <span class="related-slot__saved">You saved this <time datetime="{{saved.iso}}" data-local-time="{{saved.mode}}">{{saved.label}}</time></span>
     </a>
   </li>
   {{/each}}

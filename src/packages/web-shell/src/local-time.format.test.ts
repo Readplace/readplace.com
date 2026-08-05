@@ -4,6 +4,7 @@ import {
 	toAbsoluteDateTime,
 	toAbsoluteShortDateTime,
 	toRelativeOrDate,
+	toRelativePhrase,
 } from "./local-time.format";
 
 const ISO = "2026-06-24T09:00:00.000Z";
@@ -115,6 +116,63 @@ describe("toRelativeOrDate", () => {
 			iso,
 			label: "Apr 25, 2026",
 			mode: "date",
+		});
+	});
+});
+
+describe("toRelativePhrase", () => {
+	const now = new Date("2026-06-24T12:00:00.000Z");
+	const ago = (ms: number) => new Date(now.getTime() - ms).toISOString();
+	const MINUTE = 60_000;
+	const HOUR = 3_600_000;
+	const DAY = 86_400_000;
+
+	it("reports 'just now' under a minute", () => {
+		expect(toRelativePhrase({ iso: ago(30_000), now })).toEqual({
+			iso: ago(30_000),
+			label: "just now",
+			mode: "relative",
+		});
+	});
+
+	it("spells minutes out in full, singular and plural", () => {
+		expect(toRelativePhrase({ iso: ago(MINUTE), now }).label).toBe("1 minute ago");
+		expect(toRelativePhrase({ iso: ago(5 * MINUTE), now }).label).toBe("5 minutes ago");
+	});
+
+	it("spells hours out in full, singular and plural", () => {
+		expect(toRelativePhrase({ iso: ago(HOUR), now }).label).toBe("1 hour ago");
+		expect(toRelativePhrase({ iso: ago(3 * HOUR), now }).label).toBe("3 hours ago");
+	});
+
+	it("counts days until a full week has passed", () => {
+		expect(toRelativePhrase({ iso: ago(DAY), now }).label).toBe("1 day ago");
+		expect(toRelativePhrase({ iso: ago(6 * DAY), now }).label).toBe("6 days ago");
+	});
+
+	it("counts weeks from the seventh day until a month has passed", () => {
+		expect(toRelativePhrase({ iso: ago(7 * DAY), now }).label).toBe("1 week ago");
+		expect(toRelativePhrase({ iso: ago(14 * DAY), now }).label).toBe("2 weeks ago");
+		expect(toRelativePhrase({ iso: ago(29 * DAY), now }).label).toBe("4 weeks ago");
+	});
+
+	it("counts thirty-day months from the thirtieth day until a year has passed", () => {
+		expect(toRelativePhrase({ iso: ago(30 * DAY), now }).label).toBe("1 month ago");
+		expect(toRelativePhrase({ iso: ago(60 * DAY), now }).label).toBe("2 months ago");
+		expect(toRelativePhrase({ iso: ago(359 * DAY), now }).label).toBe("11 months ago");
+	});
+
+	it("counts years once twelve thirty-day months have passed", () => {
+		expect(toRelativePhrase({ iso: ago(360 * DAY), now }).label).toBe("1 year ago");
+		expect(toRelativePhrase({ iso: ago(725 * DAY), now }).label).toBe("2 years ago");
+	});
+
+	it("stays relative where toRelativeOrDate would fall back to a date, so the hover title still resolves", () => {
+		const iso = ago(60 * DAY);
+		expect(toRelativePhrase({ iso, now })).toEqual({
+			iso,
+			label: "2 months ago",
+			mode: "relative",
 		});
 	});
 });

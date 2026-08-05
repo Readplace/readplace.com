@@ -266,20 +266,22 @@ export function initDynamoDbRelatedArticles(deps: {
 		const stillSaved = await batchGetFromTable({
 			client,
 			tableName: userArticlesTableName,
-			schema: z.looseObject({ url: z.string(), status: ArticleStatusSchema }),
+			schema: z.looseObject({
+				url: z.string(),
+				status: ArticleStatusSchema,
+				savedAt: z.string(),
+			}),
 			keys: keyed.map((link) => ({ userId: params.userId, url: link.key })),
-			projection: ["url", "status"],
+			projection: ["url", "status", "savedAt"],
 		});
-		const savedStatusByKey = new Map(
-			stillSaved.map((saved) => [saved.url, saved.status] as const),
-		);
+		const savedByKey = new Map(stillSaved.map((saved) => [saved.url, saved] as const));
 
-		const byUrl = await readArticles([...savedStatusByKey.keys()], ARTICLE_FIELDS);
+		const byUrl = await readArticles([...savedByKey.keys()], ARTICLE_FIELDS);
 
 		const items: RelatedArticleDisplay[] = [];
 		for (const link of keyed) {
-			const status = savedStatusByKey.get(link.key);
-			if (!status) continue;
+			const saved = savedByKey.get(link.key);
+			if (!saved) continue;
 			const article = usable(LinkableArticle, byUrl.get(link.key));
 			if (!article) continue;
 			items.push({
@@ -287,7 +289,8 @@ export function initDynamoDbRelatedArticles(deps: {
 				title: article.title,
 				siteName: article.siteName,
 				reason: link.reason,
-				status,
+				status: saved.status,
+				savedAt: new Date(saved.savedAt),
 			});
 		}
 		return { status: "ready", items };

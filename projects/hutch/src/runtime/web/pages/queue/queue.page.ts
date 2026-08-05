@@ -682,6 +682,7 @@ export function initQueueRoutes(deps: QueueDependencies): Router {
 				audioEnabled,
 				related,
 				relatedPollUrl,
+				now: deps.now(),
 				extensionInstallUrl: undefined,
 				backLink: APP_BACK_LINK,
 				renderActions: deps.chromelessReader,
@@ -743,6 +744,7 @@ export function initQueueRoutes(deps: QueueDependencies): Router {
 				audioEnabled,
 				related,
 				relatedPollUrl,
+				now: deps.now(),
 				extensionInstallUrl: extensionInstallUrlIfMissing(req),
 				backLink: VIEW_BACK_LINK,
 				renderActions: deps.stickyReader,
@@ -1428,6 +1430,7 @@ export function initQueueRoutes(deps: QueueDependencies): Router {
 					deps.logError,
 				),
 				sourceArticleId: article.id.value,
+				now: deps.now(),
 			},
 			pollUrl:
 				pollCount < MAX_POLLS

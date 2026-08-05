@@ -466,8 +466,8 @@ describe("initDynamoDbRelatedArticles", () => {
 					return {
 						Responses: {
 							[USER_ARTICLES_TABLE]: [
-								{ url: "example.com/second", status: "read" },
-								{ url: "example.com/first", status: "unread" },
+								{ url: "example.com/second", status: "read", savedAt: "2026-06-01T00:00:00.000Z" },
+								{ url: "example.com/first", status: "unread", savedAt: "2026-05-01T00:00:00.000Z" },
 							],
 						},
 						UnprocessedKeys: {},
@@ -508,6 +508,7 @@ describe("initDynamoDbRelatedArticles", () => {
 					siteName: "Example",
 					reason: "Follow-up",
 					status: "read",
+					savedAt: new Date("2026-06-01T00:00:00.000Z"),
 				},
 				{
 					id: "0123456789abcdef0123456789abcdef",
@@ -515,6 +516,7 @@ describe("initDynamoDbRelatedArticles", () => {
 					siteName: "Example",
 					reason: "Same event",
 					status: "unread",
+					savedAt: new Date("2026-05-01T00:00:00.000Z"),
 				},
 			]);
 			expect(savedRowProjection).toContain("#status");
@@ -538,7 +540,9 @@ describe("initDynamoDbRelatedArticles", () => {
 				if (tableName === USER_ARTICLES_TABLE) {
 					return {
 						Responses: {
-							[USER_ARTICLES_TABLE]: [{ url: "example.com/vanished", status: "unread" }],
+							[USER_ARTICLES_TABLE]: [
+								{ url: "example.com/vanished", status: "unread", savedAt: "2026-06-01T00:00:00.000Z" },
+							],
 						},
 						UnprocessedKeys: {},
 					};
@@ -574,8 +578,8 @@ describe("initDynamoDbRelatedArticles", () => {
 					return {
 						Responses: {
 							[USER_ARTICLES_TABLE]: [
-								{ url: "example.com/purged", status: "unread" },
-								{ url: "example.com/kept", status: "unread" },
+								{ url: "example.com/purged", status: "unread", savedAt: "2026-06-01T00:00:00.000Z" },
+								{ url: "example.com/kept", status: "unread", savedAt: "2026-05-20T00:00:00.000Z" },
 							],
 						},
 						UnprocessedKeys: {},
@@ -617,6 +621,7 @@ describe("initDynamoDbRelatedArticles", () => {
 					siteName: "Example",
 					reason: "Same argument",
 					status: "unread",
+					savedAt: new Date("2026-05-20T00:00:00.000Z"),
 				},
 			]);
 		});

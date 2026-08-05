@@ -2,7 +2,8 @@ import { readFileSync } from "node:fs";
 import { join } from "node:path";
 import type { ArticleStatus } from "@packages/domain/article";
 import type { RelatedArticles } from "@packages/provider-contracts/related-articles";
-import { render } from "@packages/web-shell";
+import { render, toRelativePhrase } from "@packages/web-shell";
+import type { LocalTime } from "@packages/web-shell/local-time.format";
 
 const RELATED_SLOT_TEMPLATE = readFileSync(
 	join(__dirname, "related-slot.template.html"),
@@ -18,6 +19,7 @@ export interface RelatedSlotContext {
 	 * relation link, so a click records the source→target pair rather than only
 	 * the target the path already carries. */
 	sourceArticleId: string;
+	now: Date;
 }
 
 export interface RelatedSlotInput {
@@ -34,6 +36,7 @@ interface RelatedSlotItem {
 	readStatus: ArticleStatus;
 	statusClass: string;
 	statusLabel: string;
+	saved: LocalTime;
 }
 
 const STATUS_BADGE = {
@@ -68,6 +71,7 @@ function itemsOf(related: RelatedSlotContext | undefined): RelatedSlotItem[] {
 		readStatus: item.status,
 		statusClass: STATUS_BADGE[item.status].className,
 		statusLabel: STATUS_BADGE[item.status].label,
+		saved: toRelativePhrase({ iso: item.savedAt.toISOString(), now: related.now }),
 	}));
 }
 

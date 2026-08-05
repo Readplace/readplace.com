@@ -1,5 +1,8 @@
 .article-body__related-slot--visible {
   display: block;
+  margin-top: 2rem;
+  padding-top: 1.5rem;
+  border-top: 1px solid var(--color-border);
 }
 
 .article-body__related-slot--hidden {
@@ -97,4 +100,9 @@
   font-size: 0.875rem;
   color: var(--color-text-secondary);
   text-wrap: pretty;
+}
+
+.related-slot__saved {
+  font-size: 0.75rem;
+  color: var(--color-text-secondary);
 }

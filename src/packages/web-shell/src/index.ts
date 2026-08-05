@@ -26,6 +26,7 @@ export {
 	toAbsoluteDate,
 	toAbsoluteDateTime,
 	toRelativeOrDate,
+	toRelativePhrase,
 } from "./local-time.format";
 export type {
 	LocalTime,

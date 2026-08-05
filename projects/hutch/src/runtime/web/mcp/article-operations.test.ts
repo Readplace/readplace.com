@@ -323,6 +323,7 @@ describe("initMcpArticleOperations", () => {
 							siteName: "Example",
 							reason: "Same argument",
 							status: "unread",
+							savedAt: new Date("2026-06-01T00:00:00.000Z"),
 						},
 						{
 							id: finishedId,
@@ -330,6 +331,7 @@ describe("initMcpArticleOperations", () => {
 							siteName: "Example",
 							reason: "Follow-up",
 							status: "read",
+							savedAt: new Date("2026-05-01T00:00:00.000Z"),
 						},
 					],
 				}),

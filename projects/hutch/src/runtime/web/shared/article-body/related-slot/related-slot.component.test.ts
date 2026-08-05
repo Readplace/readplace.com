@@ -11,6 +11,8 @@ function parse(html: string) {
 const firstId = ReaderArticleHashIdSchema.parse("0123456789abcdef0123456789abcdef");
 const secondId = ReaderArticleHashIdSchema.parse("fedcba9876543210fedcba9876543210");
 const sourceId = ReaderArticleHashIdSchema.parse("aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa");
+const NOW = new Date("2026-08-05T12:00:00.000Z");
+const savedDaysAgo = (days: number) => new Date(NOW.getTime() - days * 86_400_000);
 
 function relatedHrefFor(targetId: string): string {
 	return `/queue/${targetId}/view?utm_source=reader&utm_medium=internal&utm_content=related&utm_term=${sourceId.value}`;
@@ -41,7 +43,11 @@ describe("renderRelatedSlot", () => {
 		const slot = slotOf(
 			parse(
 				renderRelatedSlot({
-					related: { articles: { status: "skipped" }, sourceArticleId: sourceId.value },
+					related: {
+						articles: { status: "skipped" },
+						sourceArticleId: sourceId.value,
+						now: NOW,
+					},
 				}),
 			),
 		);
@@ -57,6 +63,7 @@ describe("renderRelatedSlot", () => {
 					related: {
 						articles: { status: "ready", items: [] },
 						sourceArticleId: sourceId.value,
+						now: NOW,
 					},
 				}),
 			),
@@ -66,7 +73,7 @@ describe("renderRelatedSlot", () => {
 		expect(slot.classList.contains("article-body__related-slot--hidden")).toBe(true);
 	});
 
-	it("shows every relation with its title, site and reason", () => {
+	it("shows every relation with its title, site, reason and when it was saved", () => {
 		const doc = parse(
 			renderRelatedSlot({
 				related: {
@@ -79,6 +86,7 @@ describe("renderRelatedSlot", () => {
 								siteName: "Example",
 								reason: "Same argument",
 								status: "unread",
+								savedAt: savedDaysAgo(60),
 							},
 							{
 								id: secondId,
@@ -86,10 +94,12 @@ describe("renderRelatedSlot", () => {
 								siteName: "Other",
 								reason: "Follow-up",
 								status: "read",
+								savedAt: savedDaysAgo(7),
 							},
 						],
 					},
 					sourceArticleId: sourceId.value,
+					now: NOW,
 				},
 			}),
 		);
@@ -104,6 +114,7 @@ describe("renderRelatedSlot", () => {
 				title: link.querySelector(".related-slot__title")?.textContent,
 				siteName: link.querySelector(".related-slot__site")?.textContent,
 				reason: link.querySelector(".related-slot__reason")?.textContent,
+				saved: link.querySelector(".related-slot__saved")?.textContent,
 			})),
 		).toEqual([
 			{
@@ -112,6 +123,7 @@ describe("renderRelatedSlot", () => {
 				title: "First",
 				siteName: "Example",
 				reason: "Same argument",
+				saved: "You saved this 2 months ago",
 			},
 			{
 				id: secondId.value,
@@ -119,6 +131,7 @@ describe("renderRelatedSlot", () => {
 				title: "Second",
 				siteName: "Other",
 				reason: "Follow-up",
+				saved: "You saved this 1 week ago",
 			},
 		]);
 	});
@@ -136,6 +149,7 @@ describe("renderRelatedSlot", () => {
 								siteName: "Example",
 								reason: "Same argument",
 								status: "unread",
+								savedAt: savedDaysAgo(60),
 							},
 							{
 								id: secondId,
@@ -143,10 +157,12 @@ describe("renderRelatedSlot", () => {
 								siteName: "Other",
 								reason: "Follow-up",
 								status: "read",
+								savedAt: savedDaysAgo(7),
 							},
 						],
 					},
 					sourceArticleId: sourceId.value,
+					now: NOW,
 				},
 			}),
 		);
@@ -172,6 +188,45 @@ describe("renderRelatedSlot", () => {
 		]);
 	});
 
+	it("marks the saved time up so the client enhancer can localise it into a hover title", () => {
+		const savedAt = savedDaysAgo(60);
+		const doc = parse(
+			renderRelatedSlot({
+				related: {
+					articles: {
+						status: "ready",
+						items: [
+							{
+								id: firstId,
+								title: "First",
+								siteName: "Example",
+								reason: "Same argument",
+								status: "unread",
+								savedAt,
+							},
+						],
+					},
+					sourceArticleId: sourceId.value,
+					now: NOW,
+				},
+			}),
+		);
+
+		const time = doc.querySelector(".related-slot__saved time");
+		assert(time, "the saved line must carry a <time> the enhancer can find");
+		expect({
+			tag: time.tagName,
+			datetime: time.getAttribute("datetime"),
+			mode: time.getAttribute("data-local-time"),
+			text: time.textContent,
+		}).toEqual({
+			tag: "TIME",
+			datetime: savedAt.toISOString(),
+			mode: "relative",
+			text: "2 months ago",
+		});
+	});
+
 	it("keeps ticking while the computation is still pending", () => {
 		const slot = slotOf(
 			parse(renderRelatedSlot({ pollUrl: "/queue/abc/related?feature=similar&poll=2" })),
@@ -195,6 +250,7 @@ describe("renderRelatedSlot", () => {
 					related: {
 						articles: { status: "ready", items: [] },
 						sourceArticleId: sourceId.value,
+						now: NOW,
 					},
 					pollUrl: "/queue/abc/related?feature=similar&poll=2",
 				}),
@@ -208,7 +264,11 @@ describe("renderRelatedSlot", () => {
 		const slot = slotOf(
 			parse(
 				renderRelatedSlot({
-					related: { articles: { status: "skipped" }, sourceArticleId: sourceId.value },
+					related: {
+						articles: { status: "skipped" },
+						sourceArticleId: sourceId.value,
+						now: NOW,
+					},
 					pollUrl: "/queue/abc/related?feature=similar&poll=2",
 				}),
 			),
@@ -236,10 +296,12 @@ describe("renderRelatedSlot", () => {
 								siteName: "Example",
 								reason: "Same argument",
 								status: "unread",
+								savedAt: savedDaysAgo(60),
 							},
 						],
 					},
 					sourceArticleId: sourceId.value,
+					now: NOW,
 				},
 			}),
 		);

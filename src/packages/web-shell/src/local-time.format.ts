@@ -126,3 +126,27 @@ export function toRelativeOrDate(input: { iso: string; now: Date }): LocalTime {
 		return { iso, label: `${diffDays}d ago`, mode: "relative" };
 	return toAbsoluteDate({ iso });
 }
+
+const ONE_WEEK_MS = 604_800_000;
+const ONE_MONTH_MS = 2_592_000_000;
+const ONE_YEAR_MS = 31_104_000_000;
+
+type RelativeUnit = "minute" | "hour" | "day" | "week" | "month" | "year";
+
+export function toRelativePhrase(input: { iso: string; now: Date }): LocalTime {
+	const { iso, now } = input;
+	const diffMs = now.getTime() - new Date(iso).getTime();
+	const phrase = (count: number, unit: RelativeUnit): LocalTime => ({
+		iso,
+		label: `${count} ${unit}${count === 1 ? "" : "s"} ago`,
+		mode: "relative",
+	});
+
+	if (diffMs < ONE_MINUTE_MS) return { iso, label: "just now", mode: "relative" };
+	if (diffMs < ONE_HOUR_MS) return phrase(Math.floor(diffMs / ONE_MINUTE_MS), "minute");
+	if (diffMs < ONE_DAY_MS) return phrase(Math.floor(diffMs / ONE_HOUR_MS), "hour");
+	if (diffMs < ONE_WEEK_MS) return phrase(Math.floor(diffMs / ONE_DAY_MS), "day");
+	if (diffMs < ONE_MONTH_MS) return phrase(Math.floor(diffMs / ONE_WEEK_MS), "week");
+	if (diffMs < ONE_YEAR_MS) return phrase(Math.floor(diffMs / ONE_MONTH_MS), "month");
+	return phrase(Math.floor(diffMs / ONE_YEAR_MS), "year");
+}
