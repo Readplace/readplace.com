@@ -8,6 +8,7 @@ import {
 	createFakePublishLinkSaved,
 	createNoopLogError,
 } from "@packages/test-fixtures";
+import { MAX_POLLS } from "@packages/web-shell";
 import { JSDOM } from "jsdom";
 import request from "supertest";
 import { loginAgent, useTestServer } from "../../../test-app";
@@ -143,6 +144,33 @@ describe("Reader related-articles slot", () => {
 		expect(slot.classList.contains("article-body__related-slot--hidden")).toBe(true);
 	});
 
+	it("ticks the slot while the computation is still running", async () => {
+		const { agent, articleId } = await buildHarness();
+
+		const response = await agent.get(`/queue/${articleId}/view?feature=similar`);
+
+		expect(relatedSlotOf(response.text).getAttribute("hx-get")).toBe(
+			`/queue/${articleId}/related?feature=similar&poll=1`,
+		);
+	});
+
+	it("never ticks the slot without the feature toggle", async () => {
+		const { agent, articleId } = await buildHarness();
+
+		const response = await agent.get(`/queue/${articleId}/view`);
+
+		expect(relatedSlotOf(response.text).hasAttribute("hx-get")).toBe(false);
+	});
+
+	it("never ticks the slot when the relations are already there", async () => {
+		const { agent, articleId, seedRelated } = await buildHarness();
+		await seedRelated();
+
+		const response = await agent.get(`/queue/${articleId}/view?feature=similar`);
+
+		expect(relatedSlotOf(response.text).hasAttribute("hx-get")).toBe(false);
+	});
+
 	it("degrades to the hidden slot when the relations cannot be read", async () => {
 		const crawlArticle = async () => ({
 			status: "fetched" as const,
@@ -187,5 +215,79 @@ describe("Reader related-articles slot", () => {
 		expect(response.status).toBe(200);
 		const slot = relatedSlotOf(response.text);
 		expect(slot.classList.contains("article-body__related-slot--hidden")).toBe(true);
+	});
+});
+
+describe("GET /queue/:id/related", () => {
+	it("404s without the feature toggle, so the gate cannot be walked around", async () => {
+		const { agent, articleId } = await buildHarness();
+
+		const response = await agent.get(`/queue/${articleId}/related?poll=1`);
+
+		expect(response.status).toBe(404);
+	});
+
+	it("404s for an id that is not an article id at all", async () => {
+		const { agent } = await buildHarness();
+
+		const response = await agent.get("/queue/not-an-article-id/related?feature=similar&poll=1");
+
+		expect(response.status).toBe(404);
+	});
+
+	it("404s for an article this reader has not saved", async () => {
+		const { agent } = await buildHarness();
+
+		const response = await agent.get(
+			`/queue/${RELATED_ID.value}/related?feature=similar&poll=1`,
+		);
+
+		expect(response.status).toBe(404);
+	});
+
+	it("answers with the hidden slot and the next tick while still computing", async () => {
+		const { agent, articleId } = await buildHarness();
+
+		const response = await agent.get(`/queue/${articleId}/related?feature=similar&poll=1`);
+
+		expect(response.status).toBe(200);
+		const slot = relatedSlotOf(response.text);
+		expect(slot.getAttribute("data-related-status")).toBe("pending");
+		expect(slot.classList.contains("article-body__related-slot--hidden")).toBe(true);
+		expect(slot.getAttribute("hx-get")).toBe(
+			`/queue/${articleId}/related?feature=similar&poll=2`,
+		);
+	});
+
+	it("answers with the relations and stops the chain once they are computed", async () => {
+		const { agent, articleId, seedRelated } = await buildHarness();
+		await seedRelated();
+
+		const response = await agent.get(`/queue/${articleId}/related?feature=similar&poll=1`);
+
+		expect(response.status).toBe(200);
+		const doc = new JSDOM(response.text).window.document;
+		const slot = relatedSlotOf(response.text);
+		expect(slot.getAttribute("data-related-status")).toBe("ready");
+		expect(slot.classList.contains("article-body__related-slot--visible")).toBe(true);
+		expect(slot.hasAttribute("hx-get")).toBe(false);
+		const link = doc.querySelector(`[data-test-related-item="${RELATED_ID.value}"]`);
+		assert(link, "a ready poll response must render the relation link");
+		expect(link.getAttribute("href")).toBe(
+			`/queue/${RELATED_ID.value}/view?utm_source=reader&utm_medium=internal&utm_content=related&utm_term=${articleId}`,
+		);
+	});
+
+	it("stops the chain once the poll budget is spent, even while still computing", async () => {
+		const { agent, articleId } = await buildHarness();
+
+		const response = await agent.get(
+			`/queue/${articleId}/related?feature=similar&poll=${MAX_POLLS}`,
+		);
+
+		expect(response.status).toBe(200);
+		const slot = relatedSlotOf(response.text);
+		expect(slot.getAttribute("data-related-status")).toBe("pending");
+		expect(slot.hasAttribute("hx-get")).toBe(false);
 	});
 });

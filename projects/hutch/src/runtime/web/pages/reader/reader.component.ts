@@ -61,6 +61,7 @@ export function ReaderPage(
 		progress?: ProgressTick;
 		audioEnabled?: boolean;
 		related?: RelatedArticles;
+		relatedPollUrl?: string;
 		extensionInstallUrl?: string;
 		backLink: { topHref: string; label: string };
 		/** Injected per variant: the sticky action toolbar (Back + Mark-as-read, no
@@ -103,6 +104,7 @@ export function ReaderPage(
 		related: options.related
 			? { articles: options.related, sourceArticleId: articleId }
 			: undefined,
+		relatedPollUrl: options.relatedPollUrl,
 		progress: options.progress,
 		audioEnabled: options.audioEnabled,
 		appOrigin: options.appOrigin,

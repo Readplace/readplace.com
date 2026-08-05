@@ -21,6 +21,7 @@ export interface RelatedSlotContext {
 
 export interface RelatedSlotInput {
 	related?: RelatedSlotContext;
+	pollUrl?: string;
 }
 
 interface RelatedSlotItem {
@@ -60,9 +61,11 @@ function itemsOf(related: RelatedSlotContext | undefined): RelatedSlotItem[] {
 
 export function renderRelatedSlot(input: RelatedSlotInput): string {
 	const items = itemsOf(input.related);
+	const status = input.related?.articles.status ?? "pending";
 	return render(RELATED_SLOT_TEMPLATE, {
-		status: input.related?.articles.status ?? "pending",
+		status,
 		stateClass: items.length > 0 ? VISIBLE_CLASS : HIDDEN_CLASS,
+		pollUrl: status === "pending" ? input.pollUrl : undefined,
 		items,
 	});
 }

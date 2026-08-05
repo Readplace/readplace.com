@@ -111,6 +111,57 @@ describe("renderRelatedSlot", () => {
 		]);
 	});
 
+	it("keeps ticking while the computation is still pending", () => {
+		const slot = slotOf(
+			parse(renderRelatedSlot({ pollUrl: "/queue/abc/related?feature=similar&poll=2" })),
+		);
+
+		expect({
+			get: slot.getAttribute("hx-get"),
+			trigger: slot.getAttribute("hx-trigger"),
+			swap: slot.getAttribute("hx-swap"),
+		}).toEqual({
+			get: "/queue/abc/related?feature=similar&poll=2",
+			trigger: "every 3s",
+			swap: "outerHTML",
+		});
+	});
+
+	it("stops ticking once the computation answered, even with nothing related", () => {
+		const slot = slotOf(
+			parse(
+				renderRelatedSlot({
+					related: {
+						articles: { status: "ready", items: [] },
+						sourceArticleId: sourceId.value,
+					},
+					pollUrl: "/queue/abc/related?feature=similar&poll=2",
+				}),
+			),
+		);
+
+		expect(slot.hasAttribute("hx-get")).toBe(false);
+	});
+
+	it("stops ticking once the computation was skipped", () => {
+		const slot = slotOf(
+			parse(
+				renderRelatedSlot({
+					related: { articles: { status: "skipped" }, sourceArticleId: sourceId.value },
+					pollUrl: "/queue/abc/related?feature=similar&poll=2",
+				}),
+			),
+		);
+
+		expect(slot.hasAttribute("hx-get")).toBe(false);
+	});
+
+	it("never ticks when the reader was given no poll url", () => {
+		const slot = slotOf(parse(renderRelatedSlot({})));
+
+		expect(slot.hasAttribute("hx-get")).toBe(false);
+	});
+
 	it("boosts the relation list so each link navigates like the rest of the reader", () => {
 		const doc = parse(
 			renderRelatedSlot({

@@ -108,6 +108,7 @@ import { tabQuery } from "./queue.tabs";
 import { QUEUE_PAGE_SIZE, queuePageSizeForClient } from "./queue-page-size";
 import type { HttpErrorMessageMapping } from "./queue.error";
 import { collectStatusFlashParams, importFlashMapping, statusFlashMapping } from "./queue.error";
+import { HtmlPage } from "@packages/web-shell";
 import { MAX_POLLS } from "@packages/web-shell";
 import { parsePollParam } from "@packages/web-shell";
 import { toQueueArticleViewModel, toQueueViewModel } from "./queue.viewmodel";
@@ -124,6 +125,7 @@ import {
 import { computeQueueCardEtag } from "./queue-card/queue-card.etag";
 import { etagMatches } from "@packages/web-shell";
 import { ReaderPage, formatReaderDocumentTitle } from "../reader/reader.component";
+import { renderRelatedSlot } from "../../shared/article-body/related-slot/related-slot.component";
 import { NO_CLIENT_ONBOARDING_VERSION, ONBOARDING_VERSION } from "../../onboarding/onboarding.steps";
 import {
 	detectPlatform,
@@ -347,6 +349,9 @@ async function loadCrawls(
 }
 
 export const RELATED_FEATURE = "similar";
+
+const relatedPollUrlFor = (articleId: string, pollCount: number): string =>
+	`${QUEUE_PATH}/${articleId}/related?feature=${RELATED_FEATURE}&poll=${pollCount}`;
 
 async function loadRelatedArticles(
 	findRelatedArticles: FindRelatedArticles,
@@ -588,6 +593,7 @@ export function initQueueRoutes(deps: QueueDependencies): Router {
 				state: ResolvedReaderState;
 				audioEnabled: boolean;
 				related: RelatedArticles | undefined;
+				relatedPollUrl: string | undefined;
 			};
 
 	/** Ownership/access (owner → reader; non-owner or anonymous → permalink
@@ -621,8 +627,9 @@ export function initQueueRoutes(deps: QueueDependencies): Router {
 		});
 
 		const audioEnabled = deps.featureToggle.isEnabled(req, "audio");
+		const relatedEnabled = deps.featureToggle.isEnabled(req, RELATED_FEATURE);
 		const [related, state] = await Promise.all([
-			deps.featureToggle.isEnabled(req, RELATED_FEATURE)
+			relatedEnabled
 				? loadRelatedArticles(deps.findRelatedArticles, ownedArticle, deps.logError)
 				: Promise.resolve(undefined),
 			reader.resolveReaderState({
@@ -635,8 +642,18 @@ export function initQueueRoutes(deps: QueueDependencies): Router {
 				capturing: false,
 			}),
 		]);
+		const relatedPollUrl = relatedEnabled
+			? relatedPollUrlFor(ownedArticle.id.value, 1)
+			: undefined;
 
-		return { kind: "ready", article: ownedArticle, state, audioEnabled, related };
+		return {
+			kind: "ready",
+			article: ownedArticle,
+			state,
+			audioEnabled,
+			related,
+			relatedPollUrl,
+		};
 	};
 
 	router.get("/:id/view", noindexMiddleware, async (req: Request<{ id: string }>, res: Response) => {
@@ -651,7 +668,7 @@ export function initQueueRoutes(deps: QueueDependencies): Router {
 			return;
 		}
 
-		const { article: ownedArticle, state, audioEnabled, related } = resolved;
+		const { article: ownedArticle, state, audioEnabled, related, relatedPollUrl } = resolved;
 
 		if (isIosPlatform(req)) {
 			const readerBody = ReaderPage({ ...ownedArticle, content: state.content }, {
@@ -664,6 +681,7 @@ export function initQueueRoutes(deps: QueueDependencies): Router {
 				progress: state.progress,
 				audioEnabled,
 				related,
+				relatedPollUrl,
 				extensionInstallUrl: undefined,
 				backLink: APP_BACK_LINK,
 				renderActions: deps.chromelessReader,
@@ -725,6 +743,7 @@ export function initQueueRoutes(deps: QueueDependencies): Router {
 				progress: state.progress,
 				audioEnabled,
 				related,
+				relatedPollUrl,
 				extensionInstallUrl: extensionInstallUrlIfMissing(req),
 				backLink: VIEW_BACK_LINK,
 				renderActions: deps.stickyReader,
@@ -1380,6 +1399,43 @@ export function initQueueRoutes(deps: QueueDependencies): Router {
 			summaryToggleUrl: `${QUEUE_PATH}/${article.id.value}/summary-toggle`,
 		});
 		sendComponent(req, res, CacheableComponent(component, req));
+	});
+
+	router.get("/:id/related", async (req: Request, res: Response) => {
+		assert(req.userId, "userId required - route must be protected by requireAuth");
+		const userId = req.userId;
+
+		if (!deps.featureToggle.isEnabled(req, RELATED_FEATURE)) {
+			res.status(404).type("html").send("");
+			return;
+		}
+
+		const parsedId = ReaderArticleHashIdSchema.safeParse(req.params.id);
+		const article = parsedId.success
+			? await deps.findArticleById(parsedId.data, userId)
+			: null;
+
+		if (!article) {
+			res.status(404).type("html").send("");
+			return;
+		}
+
+		const pollCount = parsePollParam(req.query.poll, MAX_POLLS);
+		const html = renderRelatedSlot({
+			related: {
+				articles: await loadRelatedArticles(
+					deps.findRelatedArticles,
+					article,
+					deps.logError,
+				),
+				sourceArticleId: article.id.value,
+			},
+			pollUrl:
+				pollCount < MAX_POLLS
+					? relatedPollUrlFor(article.id.value, pollCount + 1)
+					: undefined,
+		});
+		sendComponent(req, res, CacheableComponent(HtmlPage(html), req));
 	});
 
 	/** Fire-and-forget beacon target for the TL;DR open/close toggle. Records the

@@ -40,6 +40,7 @@ export interface ArticleBodyInput {
 	 * `/view` and the admin recrawl render another reader's page and get the
 	 * hidden slot by omission. */
 	related?: RelatedSlotContext;
+	relatedPollUrl?: string;
 	audioEnabled?: boolean;
 	topActionsHtml: string;
 	bottomActionsHtml: string;
@@ -78,7 +79,10 @@ export function renderArticleBody(input: ArticleBodyInput): string {
 		content: input.content,
 	});
 
-	const relatedSlotHtml = renderRelatedSlot({ related: input.related });
+	const relatedSlotHtml = renderRelatedSlot({
+		related: input.related,
+		pollUrl: input.relatedPollUrl,
+	});
 
 	const progressBarHtml = renderProgressBar({ progress: input.progress });
 
