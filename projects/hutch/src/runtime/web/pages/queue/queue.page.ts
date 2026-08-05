@@ -621,18 +621,20 @@ export function initQueueRoutes(deps: QueueDependencies): Router {
 		});
 
 		const audioEnabled = deps.featureToggle.isEnabled(req, "audio");
-		const related = deps.featureToggle.isEnabled(req, RELATED_FEATURE)
-			? await loadRelatedArticles(deps.findRelatedArticles, ownedArticle, deps.logError)
-			: undefined;
-		const state = await reader.resolveReaderState({
-			article: {
-				url: ownedArticle.url,
-				metadata: ownedArticle.metadata,
-				estimatedReadTime: ownedArticle.estimatedReadTime,
-			},
-			pollUrlBuilder: pollUrlBuilderForId(ownedArticle.id.value),
-			capturing: false,
-		});
+		const [related, state] = await Promise.all([
+			deps.featureToggle.isEnabled(req, RELATED_FEATURE)
+				? loadRelatedArticles(deps.findRelatedArticles, ownedArticle, deps.logError)
+				: Promise.resolve(undefined),
+			reader.resolveReaderState({
+				article: {
+					url: ownedArticle.url,
+					metadata: ownedArticle.metadata,
+					estimatedReadTime: ownedArticle.estimatedReadTime,
+				},
+				pollUrlBuilder: pollUrlBuilderForId(ownedArticle.id.value),
+				capturing: false,
+			}),
+		]);
 
 		return { kind: "ready", article: ownedArticle, state, audioEnabled, related };
 	};
