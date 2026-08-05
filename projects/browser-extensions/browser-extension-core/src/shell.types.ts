@@ -14,8 +14,7 @@ export interface BrowserShell {
 	onContextMenuClicked: (handler: (info: {
 		menuItemId: string;
 		linkUrl?: string;
-		pageUrl?: string;
-	}, tab?: { id?: number; url?: string; title?: string }) => void) => void;
+	}) => void) => void;
 	onTabActivated: (handler: (tabId: number, url: string) => void) => void;
 	onTabUpdated: (handler: (tabId: number, url: string) => void) => void;
 }

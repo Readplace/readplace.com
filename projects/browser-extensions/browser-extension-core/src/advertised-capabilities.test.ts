@@ -5,21 +5,18 @@ import {
 import {
 	MENU_ITEM_SAVE_ALL_TABS,
 	MENU_ITEM_SAVE_LINK,
-	MENU_ITEM_SAVE_PAGE,
 } from "./get-context-menu-target";
 
 describe("contextMenuItemsFor", () => {
 	it("offers every save entry point before the first walk, so a logged-out reader can still start one", () => {
 		expect(contextMenuItemsFor(null).map((item) => item.id)).toEqual([
-			MENU_ITEM_SAVE_PAGE,
 			MENU_ITEM_SAVE_LINK,
 			MENU_ITEM_SAVE_ALL_TABS,
 		]);
 	});
 
-	it("derives the page and link entries from the single-save capability", () => {
+	it("derives the link entry from the single-save capability", () => {
 		expect(contextMenuItemsFor(["save-article"])).toEqual([
-			{ id: MENU_ITEM_SAVE_PAGE, title: "Save Page to Readplace" },
 			{ id: MENU_ITEM_SAVE_LINK, title: "Save Link to Readplace" },
 		]);
 	});

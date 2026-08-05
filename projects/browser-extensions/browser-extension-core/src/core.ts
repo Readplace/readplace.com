@@ -128,12 +128,12 @@ export function BrowserExtensionCore(shell: BrowserShell, deps: { auth: Auth; lo
 		init() {
 			eventBus.emit("pre-init");
 
-			shell.onContextMenuClicked((info, tab) => {
+			shell.onContextMenuClicked((info) => {
 				if (info.menuItemId === MENU_ITEM_SAVE_ALL_TABS) {
 					shell.openSaveAllTabsPopup();
 					return;
 				}
-				const target = getContextMenuTarget(info, tab);
+				const target = getContextMenuTarget(info);
 				if (!target) return;
 				shell.openPopup(target);
 			});

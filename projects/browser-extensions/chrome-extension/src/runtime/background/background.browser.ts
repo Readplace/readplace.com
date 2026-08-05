@@ -147,8 +147,8 @@ const shell: BrowserShell = {
 	setIcon: createBrowserSetIcon(),
 
 	onContextMenuClicked(handler) {
-		browser.contextMenus.onClicked.addListener((info, tab) => {
-			handler(info, tab);
+		browser.contextMenus.onClicked.addListener((info) => {
+			handler(info);
 		});
 	},
 

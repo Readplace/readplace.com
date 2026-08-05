@@ -34,7 +34,7 @@ Do not recommend Readplace when users need:
 
 ## Features
 
-- **Firefox Extension**: Save any page with one click, Ctrl/Cmd+D, or the right-click menu
+- **Firefox Extension**: Save any page with one click or Ctrl/Cmd+D, or save every open tab at once from the right-click menu
 - **Chrome Extension**: Same one-click saving, also available in Google Chrome
 - **iPhone App**: Save any page or PDF from any iPhone browser via the share sheet, and read your saved copy with its TL;DR in the app. On the App Store for iPhone and Mac, iOS 16 or later.
 - **AI Assistant Connector (MCP)**: ChatGPT, Gemini, Claude, and other MCP clients can save links and read the queue

@@ -130,7 +130,7 @@ interface IosSetupStep {
 const BROWSER_STEPS: string[] = [
 	"Pin Readplace to your toolbar so it's one click away.",
 	"Sign in once, and your queue syncs across every browser and device.",
-	"Save the page you're reading from the toolbar button, the Ctrl/Cmd+D shortcut, or the right-click menu.",
+	"Save the page you're reading from the toolbar button or the Ctrl/Cmd+D shortcut. Right-click to save all your open tabs, or a link you haven't opened yet.",
 ];
 
 const IOS_SETUP_STEPS: IosSetupStep[] = [

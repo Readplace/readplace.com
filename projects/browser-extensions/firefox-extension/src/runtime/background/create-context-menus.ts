@@ -1,7 +1,6 @@
 import {
 	MENU_ITEM_SAVE_ALL_TABS,
 	MENU_ITEM_SAVE_LINK,
-	MENU_ITEM_SAVE_PAGE,
 	type ContextMenuItem,
 	type ContextMenuItemId,
 } from "browser-extension-core";
@@ -14,7 +13,6 @@ type MenusApi = {
 };
 
 const CONTEXTS_BY_MENU_ITEM: Record<ContextMenuItemId, ContextType[]> = {
-	[MENU_ITEM_SAVE_PAGE]: ["page"],
 	[MENU_ITEM_SAVE_LINK]: ["link"],
 	[MENU_ITEM_SAVE_ALL_TABS]: ["page", "browser_action", "tab", "tools_menu"],
 };

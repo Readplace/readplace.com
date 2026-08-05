@@ -53,7 +53,7 @@ interface HomeFeatureCard {
 const CLIENT_CATEGORY_FEATURES = {
 	contentCapture: {
 		name: "Save the Full Page",
-		description: `Save any page with one click, Ctrl/Cmd+D, or right-click — or straight from your iPhone's share sheet. The extension and app capture the full rendered page, picking the most complete version of the content over what a URL-only crawl would see. Available for ${BROWSER_EXTENSIONS_AND}, and on iPhone.`,
+		description: `Save any page with one click or Ctrl/Cmd+D, right-click to save every open tab at once — or save straight from your iPhone's share sheet. The extension and app capture the full rendered page, picking the most complete version of the content over what a URL-only crawl would see. Available for ${BROWSER_EXTENSIONS_AND}, and on iPhone.`,
 		linkHref: "/install",
 		linkLabel: "See the ways to save",
 	},
@@ -97,7 +97,7 @@ const WAYS_TO_SAVE: readonly WayToSave[] = [
 	},
 	{
 		name: "Chrome, Edge, or Brave",
-		body: "One click, Ctrl/Cmd+D, or right-click. The extension saves the page as it renders in front of you, so sites that turn crawlers away still come across whole.",
+		body: "One click or Ctrl/Cmd+D, or right-click to save every open tab at once. The extension saves the page as it renders in front of you, so sites that turn crawlers away still come across whole.",
 		linkLabel: "Install for Chrome",
 		linkHref: "/install?client=chrome",
 		trackContent: "chrome",

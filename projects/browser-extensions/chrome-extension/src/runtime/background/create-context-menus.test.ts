@@ -1,7 +1,6 @@
 import {
 	MENU_ITEM_SAVE_ALL_TABS,
 	MENU_ITEM_SAVE_LINK,
-	MENU_ITEM_SAVE_PAGE,
 	type ContextMenuItem,
 } from "browser-extension-core";
 import { initCreateContextMenus } from "./create-context-menus";
@@ -34,7 +33,6 @@ function createFakeChromeContextMenus() {
 }
 
 const EVERY_ITEM: ContextMenuItem[] = [
-	{ id: MENU_ITEM_SAVE_PAGE, title: "Save Page to Readplace" },
 	{ id: MENU_ITEM_SAVE_LINK, title: "Save Link to Readplace" },
 	{ id: MENU_ITEM_SAVE_ALL_TABS, title: "Save All Tabs to Readplace" },
 ];
@@ -48,7 +46,6 @@ describe("createContextMenus", () => {
 		await createContextMenus(EVERY_ITEM);
 
 		expect(contextMenus.registeredIds).toEqual([
-			MENU_ITEM_SAVE_PAGE,
 			MENU_ITEM_SAVE_LINK,
 			MENU_ITEM_SAVE_ALL_TABS,
 		]);
@@ -65,12 +62,11 @@ describe("createContextMenus", () => {
 		]);
 	});
 
-	it("keeps the single-save entries on the surface each one targets", async () => {
+	it("keeps the save-link entry on the link surface, the only place a link is right-clicked", async () => {
 		const contextMenus = createFakeChromeContextMenus();
 
 		await initCreateContextMenus(contextMenus)(EVERY_ITEM);
 
-		expect(contextMenus.contextsOf(MENU_ITEM_SAVE_PAGE)).toEqual(["page"]);
 		expect(contextMenus.contextsOf(MENU_ITEM_SAVE_LINK)).toEqual(["link"]);
 	});
 
@@ -80,9 +76,9 @@ describe("createContextMenus", () => {
 
 		await createContextMenus(EVERY_ITEM);
 		await createContextMenus([
-			{ id: MENU_ITEM_SAVE_PAGE, title: "Save Page to Readplace" },
+			{ id: MENU_ITEM_SAVE_LINK, title: "Save Link to Readplace" },
 		]);
 
-		expect(contextMenus.registeredIds).toEqual([MENU_ITEM_SAVE_PAGE]);
+		expect(contextMenus.registeredIds).toEqual([MENU_ITEM_SAVE_LINK]);
 	});
 });

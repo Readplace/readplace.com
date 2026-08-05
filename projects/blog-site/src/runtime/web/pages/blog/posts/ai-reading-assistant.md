@@ -48,7 +48,7 @@ You already have plenty of those.
 
 The workflow has 4 steps, and you stay in charge of every one.
 
-**1. Save.** Hit the browser extension on any page with a click, a keyboard shortcut, or a right-click, and the article lands in your reading list.
+**1. Save.** Hit the browser extension on any page with a click or a keyboard shortcut, and the article lands in your reading list. Right-click and every tab you have open goes in at once.
 
 **2. Summarise.** Readplace writes a TL;DR for each saved article, pulling out the key points so you know what it covers before you commit to reading it.
 

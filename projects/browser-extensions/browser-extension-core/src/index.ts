@@ -76,7 +76,6 @@ export type { ActionVariant, LinkPresentation } from "./popup/action-affordance"
 export { selectSaveableTabs, summarizeBulkSave, SAVE_ALL_RENDERED_MARK } from "./popup/save-all-tabs";
 export type { SaveableTab } from "./popup/save-all-tabs";
 export {
-	MENU_ITEM_SAVE_PAGE,
 	MENU_ITEM_SAVE_LINK,
 	MENU_ITEM_SAVE_ALL_TABS,
 } from "./get-context-menu-target";

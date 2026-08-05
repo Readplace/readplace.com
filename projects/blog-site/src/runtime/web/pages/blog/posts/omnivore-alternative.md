@@ -39,7 +39,7 @@ I ran a personal reading pipeline for myself for 10 years before any of this bec
 
 Here is what is shipped and running right now:
 
-- **Firefox and Chrome extensions.** Save any page with one click, a keyboard shortcut, or the right-click menu.
+- **Firefox and Chrome extensions.** Save any page with one click or a keyboard shortcut, and every open tab at once from the right-click menu.
 - **Reader view.** A clean article layout built on Mozilla's readability engine, with the clutter stripped out.
 - **TL;DR summaries.** An AI-generated summary on every article, so you can read the key points in seconds. It is in every plan.
 - **Web app.** Manage your reading list from any browser, with no app store in the way.

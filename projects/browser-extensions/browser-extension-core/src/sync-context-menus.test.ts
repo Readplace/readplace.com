@@ -2,7 +2,6 @@ import type { ContextMenuItem } from "./advertised-capabilities";
 import {
 	MENU_ITEM_SAVE_ALL_TABS,
 	MENU_ITEM_SAVE_LINK,
-	MENU_ITEM_SAVE_PAGE,
 } from "./get-context-menu-target";
 import {
 	type AdvertisedCapabilityStore,
@@ -64,7 +63,7 @@ describe("initSyncContextMenus", () => {
 		await sync.applyCached();
 
 		expect(menus.registeredIds()).toEqual([
-			[MENU_ITEM_SAVE_PAGE, MENU_ITEM_SAVE_LINK, MENU_ITEM_SAVE_ALL_TABS],
+			[MENU_ITEM_SAVE_LINK, MENU_ITEM_SAVE_ALL_TABS],
 		]);
 	});
 
@@ -90,8 +89,8 @@ describe("initSyncContextMenus", () => {
 
 		expect(store.written).toEqual([["save-article"]]);
 		expect(menus.registeredIds()).toEqual([
-			[MENU_ITEM_SAVE_PAGE, MENU_ITEM_SAVE_LINK, MENU_ITEM_SAVE_ALL_TABS],
-			[MENU_ITEM_SAVE_PAGE, MENU_ITEM_SAVE_LINK],
+			[MENU_ITEM_SAVE_LINK, MENU_ITEM_SAVE_ALL_TABS],
+			[MENU_ITEM_SAVE_LINK],
 		]);
 	});
 
@@ -105,7 +104,7 @@ describe("initSyncContextMenus", () => {
 
 		expect(store.written).toEqual([]);
 		expect(menus.registeredIds()).toEqual([
-			[MENU_ITEM_SAVE_PAGE, MENU_ITEM_SAVE_LINK, MENU_ITEM_SAVE_ALL_TABS],
+			[MENU_ITEM_SAVE_LINK, MENU_ITEM_SAVE_ALL_TABS],
 		]);
 	});
 
@@ -119,8 +118,8 @@ describe("initSyncContextMenus", () => {
 
 		expect(store.written).toEqual([["save-article"]]);
 		expect(menus.registeredIds()).toEqual([
-			[MENU_ITEM_SAVE_PAGE, MENU_ITEM_SAVE_LINK, MENU_ITEM_SAVE_ALL_TABS],
-			[MENU_ITEM_SAVE_PAGE, MENU_ITEM_SAVE_LINK],
+			[MENU_ITEM_SAVE_LINK, MENU_ITEM_SAVE_ALL_TABS],
+			[MENU_ITEM_SAVE_LINK],
 		]);
 	});
 });

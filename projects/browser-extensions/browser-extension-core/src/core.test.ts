@@ -18,10 +18,7 @@ interface FakeShell {
 	showDefaultCalls: number[];
 	iconUpdated: Promise<void>;
 	getOpenSaveAllTabsPopupCount: () => number;
-	triggerContextMenu: (
-		info: { menuItemId: string; linkUrl?: string; pageUrl?: string },
-		tab?: { id?: number; url?: string; title?: string },
-	) => void;
+	triggerContextMenu: (info: { menuItemId: string; linkUrl?: string }) => void;
 }
 
 function createFakeShell(
@@ -71,7 +68,7 @@ function createFakeShell(
 		showDefaultCalls,
 		iconUpdated,
 		getOpenSaveAllTabsPopupCount: () => openSaveAllTabsPopupCount,
-		triggerContextMenu: (info, tab) => contextMenuHandler(info, tab),
+		triggerContextMenu: (info) => contextMenuHandler(info),
 	};
 }
 
@@ -271,10 +268,10 @@ describe("BrowserExtensionCore save", () => {
 });
 
 type ShortcutHandler = () => void;
-type ContextMenuHandler = (
-	info: { menuItemId: string; linkUrl?: string; pageUrl?: string },
-	tab?: { id?: number; url?: string; title?: string },
-) => void;
+type ContextMenuHandler = (info: {
+	menuItemId: string;
+	linkUrl?: string;
+}) => void;
 type TabHandler = (tabId: number, url: string) => void;
 
 interface Captured {
@@ -343,7 +340,7 @@ function createCapturingShell(
 		showNeedsCaptureCalls,
 		showDefaultCalls,
 		fireShortcut: () => shortcutHandler(),
-		fireContextMenu: (info, tab) => contextMenuHandler(info, tab),
+		fireContextMenu: (info) => contextMenuHandler(info),
 		fireTabActivated: (tabId, url) => tabActivatedHandler(tabId, url),
 		fireTabUpdated: (tabId, url) => tabUpdatedHandler(tabId, url),
 	};
@@ -393,31 +390,14 @@ describe("BrowserExtensionCore init", () => {
 		});
 		core.init();
 
-		cap.fireContextMenu(
-			{ menuItemId: "save-page-to-hutch", pageUrl: "https://page.example" },
-			{ url: "https://page.example", title: "Page" },
-		);
+		cap.fireContextMenu({
+			menuItemId: "save-link-to-hutch",
+			linkUrl: "https://linked.example",
+		});
 
 		expect(cap.openPopupCalls).toEqual([
-			{ url: "https://page.example", title: "Page" },
+			{ url: "https://linked.example", title: "https://linked.example" },
 		]);
-	});
-
-	it("hands the popup the tab a context-menu page save is for", () => {
-		const cap = createCapturingShell();
-		const core = BrowserExtensionCore(cap.shell, {
-			auth: loggedInAuth(),
-			logger,
-			readingList: initInMemoryReadingList(),
-		});
-		core.init();
-
-		cap.fireContextMenu(
-			{ menuItemId: "save-page-to-hutch", pageUrl: "https://page.example" },
-			{ id: 21, url: "https://page.example", title: "Page" },
-		);
-
-		expect(cap.openPopupCalls[0]?.tabId).toBe(21);
 	});
 
 	it("ignores a context-menu click with no resolvable target", () => {
