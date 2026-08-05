@@ -106,27 +106,32 @@
   border-color: var(--color-border);
 }
 
-.crawl-bookmark__remove,
-.crawl-bookmark__remove-copy {
+.crawl-bookmark__remove {
   margin: 0;
 }
 
-.crawl-bookmark__remove-copy {
-  border-top: 1px solid var(--color-border);
-  padding: 0.5rem 0.75rem;
-  background: var(--color-surface-elevated);
-}
-
-.crawl-bookmark__remove-btn,
-.crawl-bookmark__remove-copy-btn {
+.crawl-bookmark__remove-btn {
   cursor: pointer;
   font: inherit;
   font-size: 0.6875rem;
-  color: var(--color-error);
-  background: none;
-  border: none;
-  padding: 0;
-  text-decoration: underline;
+  font-weight: 500;
+  padding: var(--button-padding-xs);
+  border: 1px solid var(--color-error);
+  border-radius: var(--radius-sm);
+  background: transparent;
+  color: var(--error-text);
+}
+
+.crawl-bookmark__remove-btn:hover {
+  background: var(--error-fill);
+  border-color: var(--error-fill);
+  color: var(--error-foreground);
+}
+
+.crawl-bookmark__remove-btn:active {
+  background: var(--error-fill-hover);
+  border-color: var(--error-fill-hover);
+  color: var(--error-foreground);
 }
 
 @media (max-width: 767px) {

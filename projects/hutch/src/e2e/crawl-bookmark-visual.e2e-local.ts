@@ -1,5 +1,6 @@
 import assert from "node:assert/strict";
 import type { Page } from "@playwright/test";
+import { z } from "zod";
 import {
 	captureCheckpoint,
 	expect,
@@ -29,23 +30,49 @@ const SINGLE_VERSION_ARTICLE = {
 	url: "https://example.com/crawl-bookmark-single",
 	crawlVersions: [NEWEST_VERSION],
 };
+const OWNER_PASSWORD = "password123";
 
 interface SeededArticle {
 	url: string;
 	crawlVersions: string[];
 }
 
-async function seedCrawledArticle(page: Page, article: SeededArticle): Promise<void> {
-	const response = await page.request.post(`${BASE_URL}/e2e/seed-crawled-article`, {
-		data: {
-			url: article.url,
-			title: "Crawl Bookmark Visual",
-			content: SEEDED_BODY,
-			contentFetchedAt: CONTENT_FETCHED_AT,
-			crawlVersions: article.crawlVersions,
-		},
-	});
+async function postSeed(page: Page, data: object): Promise<unknown> {
+	const response = await page.request.post(`${BASE_URL}/e2e/seed-crawled-article`, { data });
 	assert.equal(response.status(), 201, "seed endpoint must create the crawled article");
+	return response.json();
+}
+
+async function seedCrawledArticle(page: Page, article: SeededArticle): Promise<void> {
+	await postSeed(page, {
+		url: article.url,
+		title: "Crawl Bookmark Visual",
+		content: SEEDED_BODY,
+		contentFetchedAt: CONTENT_FETCHED_AT,
+		crawlVersions: article.crawlVersions.map((crawledAtMinute) => ({ crawledAtMinute })),
+	});
+}
+
+const SeededAuthoredArticle = z.object({ articleId: z.string() });
+
+async function seedAuthoredArticle(
+	page: Page,
+	params: { article: SeededArticle; ownerUserId: string; authoredMinuteIds: string[] },
+): Promise<string> {
+	const body = await postSeed(page, {
+		url: params.article.url,
+		title: "Crawl Bookmark Visual",
+		content: SEEDED_BODY,
+		contentFetchedAt: CONTENT_FETCHED_AT,
+		crawlVersions: params.article.crawlVersions.map((crawledAtMinute) => ({
+			crawledAtMinute,
+			authorUserId: params.authoredMinuteIds.includes(crawledAtMinute)
+				? params.ownerUserId
+				: undefined,
+		})),
+		savedByUserId: params.ownerUserId,
+	});
+	return SeededAuthoredArticle.parse(body).articleId;
 }
 
 function canonicalPathOf(article: SeededArticle): string {
@@ -156,6 +183,99 @@ test.describe("Crawl bookmark visual regression", () => {
 		assert.ok(openHeight && collapsedHeight, "handle must have a measurable height in both states");
 		assert.ok(openHeight > collapsedHeight, "the open capsule grows taller than the collapsed grip");
 		assert.equal(collapsedHeight, 54, "collapsed handle stays at the 54px min-height grip, not a sliver");
+	});
+});
+
+async function deleteControlSettled(page: Page): Promise<void> {
+	await bookmarkSettled(page);
+	const deleteButton = page.locator(".crawl-bookmark__remove-btn");
+	await expect(deleteButton).toHaveCount(1);
+	await expect(deleteButton).toHaveText("Delete this version");
+}
+
+async function deleteButtonSeatedInsideCard(page: Page): Promise<void> {
+	await capsuleEdgesAligned(page);
+	const tabs = await measuredBox(page, ".crawl-bookmark__tabs");
+	const button = await measuredBox(page, ".crawl-bookmark__remove-btn");
+	assert.ok(
+		button.x >= tabs.x && button.x + button.width <= tabs.x + tabs.width,
+		"the delete button must sit inside the info card horizontally",
+	);
+	assert.ok(
+		button.y >= tabs.y && button.y + button.height <= tabs.y + tabs.height,
+		"the delete button must sit inside the info card vertically",
+	);
+}
+
+const CRAWL_BOOKMARK_DELETE_LIGHT: VisualCheckpoint = {
+	name: "crawl-bookmark-delete-light",
+	settled: deleteControlSettled,
+	geometry: deleteButtonSeatedInsideCard,
+	target: ".crawl-bookmark",
+	capture: "element",
+	pinnedText: [],
+};
+
+const CRAWL_BOOKMARK_DELETE_DARK: VisualCheckpoint = {
+	name: "crawl-bookmark-delete-dark",
+	settled: deleteControlSettled,
+	geometry: deleteButtonSeatedInsideCard,
+	target: ".crawl-bookmark",
+	capture: "element",
+	pinnedText: [],
+};
+
+test.describe("Crawl bookmark delete-version control", () => {
+	test.use({ timezoneId: "UTC", viewport: { width: 1280, height: 900 } });
+
+	const CreatedUser = z.union([
+		z.object({ ok: z.literal(true), userId: z.string() }),
+		z.object({ ok: z.literal(false), reason: z.string() }),
+	]);
+
+	async function createOwner(page: Page, email: string): Promise<string> {
+		const response = await page.request.post(`${BASE_URL}/e2e/users`, {
+			data: { email, password: OWNER_PASSWORD },
+		});
+		assert.equal(response.status(), 201, "the e2e user fixture must answer the create request");
+		const created = CreatedUser.parse(await response.json());
+		assert(created.ok, `the e2e user fixture must create the owner ${email}`);
+		return created.userId;
+	}
+
+	async function loginAs(page: Page, email: string): Promise<void> {
+		await page.goto(`${BASE_URL}/login`, { waitUntil: "domcontentloaded" });
+		await page.locator("#email").fill(email);
+		await page.locator("#password").fill(OWNER_PASSWORD);
+		await page.locator('[data-test-form="login"] button[type="submit"]').click();
+		await page.waitForSelector("body.page-queue");
+	}
+
+	async function openOwnerReader(page: Page, stamp: string): Promise<void> {
+		const email = `bookmark-owner-${stamp}@example.com`;
+		const ownerUserId = await createOwner(page, email);
+		const articleId = await seedAuthoredArticle(page, {
+			article: {
+				url: `https://example.com/crawl-bookmark-authored-${stamp}`,
+				crawlVersions: [NEWEST_VERSION, "2026-06-28T22:01Z"],
+			},
+			ownerUserId,
+			authoredMinuteIds: [NEWEST_VERSION],
+		});
+		await loginAs(page, email);
+		await page.goto(`${BASE_URL}/queue/${articleId}/view`, { waitUntil: "domcontentloaded" });
+	}
+
+	test("the authored tab offers exactly one delete-version button (light)", async ({ page }) => {
+		await page.emulateMedia({ colorScheme: "light" });
+		await openOwnerReader(page, `light-${Date.now()}`);
+		await captureCheckpoint(page, CRAWL_BOOKMARK_DELETE_LIGHT);
+	});
+
+	test("the authored tab offers exactly one delete-version button (dark)", async ({ page }) => {
+		await page.emulateMedia({ colorScheme: "dark" });
+		await openOwnerReader(page, `dark-${Date.now()}`);
+		await captureCheckpoint(page, CRAWL_BOOKMARK_DELETE_DARK);
 	});
 });
 

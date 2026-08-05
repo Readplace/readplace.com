@@ -4,6 +4,7 @@ import express from 'express'
 import { z } from 'zod'
 import { HutchLogger, consoleLogger, noopLogger } from '@packages/hutch-logger'
 import { calculateReadTime, validateSaveableUrl, type ValidateSaveableUrl } from '@packages/domain/article'
+import { UserIdSchema } from '@packages/domain/user'
 import { createTestApp } from '../runtime/test-app'
 import {
 	createDefaultTestAppFixture,
@@ -234,8 +235,8 @@ server.post('/e2e/users', async (req, res) => {
 		res.status(400).json({ error: parsed.error.flatten() })
 		return
 	}
-	await auth.createUser(parsed.data)
-	res.status(201).json({ ok: true })
+	const created = await auth.createUser(parsed.data)
+	res.status(201).json(created)
 })
 
 // Expose sent emails for E2E tests (password reset flow needs the reset token from email)
@@ -254,7 +255,10 @@ const SeedCrawledArticleBody = z.object({
 	title: z.string(),
 	content: z.string(),
 	contentFetchedAt: z.string(),
-	crawlVersions: z.array(z.string()).default([]),
+	crawlVersions: z
+		.array(z.object({ crawledAtMinute: z.string(), authorUserId: UserIdSchema.optional() }))
+		.default([]),
+	savedByUserId: UserIdSchema.optional(),
 })
 server.post('/e2e/seed-crawled-article', async (req, res) => {
 	const parsed = SeedCrawledArticleBody.safeParse(req.body)
@@ -262,22 +266,27 @@ server.post('/e2e/seed-crawled-article', async (req, res) => {
 		res.status(400).json({ error: parsed.error.flatten() })
 		return
 	}
-	const { url, title, content, contentFetchedAt, crawlVersions } = parsed.data
+	const { url, title, content, contentFetchedAt, crawlVersions, savedByUserId } = parsed.data
 	const hostname = new URL(url).hostname
+	const metadata = { title, siteName: hostname, excerpt: 'Seeded for the crawl-bookmark visual test.', wordCount: 500 }
+	const estimatedReadTime = calculateReadTime(500)
 	await fixture.articleStore.saveArticleGlobally({
 		url,
-		metadata: { title, siteName: hostname, excerpt: 'Seeded for the crawl-bookmark visual test.', wordCount: 500 },
-		estimatedReadTime: calculateReadTime(500),
+		metadata,
+		estimatedReadTime,
 		savedAt: new Date(contentFetchedAt),
 	})
+	const saved = savedByUserId
+		? await fixture.articleStore.saveArticle({ userId: savedByUserId, url, metadata, estimatedReadTime })
+		: undefined
 	await fixture.articleStore.writeContent({ url, content })
 	await fixture.articleCrawl.markCrawlReady({ url })
 	await fixture.articleStore.setContentFetchedAt({ url, at: contentFetchedAt })
 	await fixture.articleStore.setCrawlVersions({
 		url,
-		versions: crawlVersions.map((crawledAtMinute) => ({ crawledAtMinute })),
+		versions: crawlVersions,
 	})
-	res.status(201).json({ ok: true })
+	res.status(201).json({ ok: true, articleId: saved?.id.value })
 })
 
 // Simulated Stripe Checkout: marks the session as paid and redirects to the

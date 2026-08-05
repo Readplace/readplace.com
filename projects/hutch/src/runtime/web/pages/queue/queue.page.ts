@@ -718,9 +718,9 @@ export function initQueueRoutes(deps: QueueDependencies): Router {
 		});
 
 		// Owner-only removal controls: which snapshots this owner authored, so the
-		// bookmark can offer to remove their versions and their whole saved copy.
-		// Only the full-shell owner reader below gets it — never the public /view
-		// or the iOS chromeless branch above.
+		// bookmark can offer to delete their versions. Only the full-shell owner
+		// reader below gets it — never the public /view or the iOS chromeless
+		// branch above.
 		const authoredVersions = await deps.findArticleCrawlVersions(ownedArticle.url);
 		const authoredMinuteIds = authoredVersions
 			.filter((version) => version.authorUserId === ownedArticle.userId)
@@ -728,7 +728,6 @@ export function initQueueRoutes(deps: QueueDependencies): Router {
 		const crawlBookmarkRemoval = {
 			authoredMinuteIds,
 			removeVersionUrl: `${QUEUE_PATH}/${ownedArticle.id.value}/remove-my-version`,
-			removeCopyUrl: `${QUEUE_PATH}/${ownedArticle.id.value}/remove-my-copy`,
 		};
 
 		sendComponent(

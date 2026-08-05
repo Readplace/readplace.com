@@ -1587,7 +1587,7 @@ describe("Queue routes", () => {
 			return { agent, articleId };
 		}
 
-		it("marks the owner's authored snapshot with a 'me' badge and renders both remove forms", async () => {
+		it("marks the owner's authored snapshot with a 'me' badge and renders its delete form", async () => {
 			const { agent, articleId } = await seedOwnerArticle();
 
 			const doc = new JSDOM((await agent.get(`/queue/${articleId}/view`)).text).window.document;
@@ -1600,18 +1600,17 @@ describe("Queue routes", () => {
 			// Two seeded versions → the newest tab's state badge reads "best".
 			expect(badges).toEqual(["best", "me"]);
 
+			expect(doc.querySelectorAll("form.crawl-bookmark__remove").length).toBe(1);
 			const removeVersionForm = authoredTab.querySelector("form.crawl-bookmark__remove");
-			assert(removeVersionForm, "the authored tab must carry a remove-version form");
+			assert(removeVersionForm, "the authored tab must carry a delete-version form");
 			expect(removeVersionForm.getAttribute("action")).toBe(`/queue/${articleId}/remove-my-version`);
 			expect(
 				removeVersionForm.querySelector('input[name="versionMinuteId"]')?.getAttribute("value"),
 			).toBe("2026-07-10T09:14Z");
+			expect(
+				removeVersionForm.querySelector("button.crawl-bookmark__remove-btn")?.textContent,
+			).toBe("Delete this version");
 
-			const removeCopyForm = doc.querySelector("form.crawl-bookmark__remove-copy");
-			assert(removeCopyForm, "the owner reader must carry a remove-my-copy form");
-			expect(removeCopyForm.getAttribute("action")).toBe(`/queue/${articleId}/remove-my-copy`);
-
-			// The un-authored older version carries no 'me' badge and no remove form.
 			const otherTab = doc.querySelector('[data-test-crawl-bookmark-tab="2026-06-28T22:01Z"]');
 			assert(otherTab, "the older version tab must render");
 			expect(otherTab.querySelector(".crawl-bookmark__badge--me")).toBeNull();
@@ -1623,10 +1622,12 @@ describe("Queue routes", () => {
 
 			const doc = new JSDOM((await agent.get(`/queue/${articleId}/view?platform=ios`)).text).window.document;
 
-			// The bookmark tabs still render, but with no removal affordances.
+			assert(
+				doc.body.classList.contains("page-reader--chromeless"),
+				"the iOS chromeless reader must render",
+			);
 			expect(doc.querySelectorAll(".crawl-bookmark__badge--me").length).toBe(0);
-			expect(doc.querySelector("form.crawl-bookmark__remove")).toBeNull();
-			expect(doc.querySelector("form.crawl-bookmark__remove-copy")).toBeNull();
+			expect(doc.querySelectorAll("form.crawl-bookmark__remove").length).toBe(0);
 		});
 	});
 

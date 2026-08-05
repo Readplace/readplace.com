@@ -18,7 +18,6 @@ export const CRAWL_BOOKMARK_SCRIPT = `<script src="/client-dist/crawl-bookmark.c
 export interface CrawlBookmarkRemoval {
 	authoredMinuteIds: string[];
 	removeVersionUrl: string;
-	removeCopyUrl: string;
 }
 
 interface CrawlBookmarkTab {
@@ -57,9 +56,5 @@ export function renderCrawlBookmark(input: {
 			? { ...base, removeVersion: { url: removal.removeVersionUrl, minuteId: version.iso } }
 			: base;
 	});
-	const removeCopy =
-		removal !== undefined && tabs.some((tab) => tab.authoredByViewer)
-			? { url: removal.removeCopyUrl }
-			: undefined;
-	return render(CRAWL_BOOKMARK_TEMPLATE, { tabs, removeCopy });
+	return render(CRAWL_BOOKMARK_TEMPLATE, { tabs });
 }
