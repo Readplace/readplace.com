@@ -1,3 +1,4 @@
+import { mcpOperationMetadata } from "@packages/domain/mcp";
 import { z } from "zod";
 
 /** MCP tool annotations: advisory hints a client uses to decide how much to
@@ -54,10 +55,7 @@ const ID_PROPERTY = {
 } as const;
 
 export const SAVE_LINK_TOOL: McpToolDefinition = {
-	name: "save_link",
-	title: "Save a link to Readplace",
-	description:
-		"Save a web page (article, blog post, or PDF) to the user's Readplace reading queue so they can read it later. The page's title, excerpt, and reader view are fetched in the background after saving.",
+	...mcpOperationMetadata("save_link"),
 	inputSchema: {
 		type: "object",
 		properties: {
@@ -78,10 +76,7 @@ export const SAVE_LINK_TOOL: McpToolDefinition = {
 };
 
 export const LIST_QUEUE_TOOL: McpToolDefinition = {
-	name: "list_queue",
-	title: "List saved articles",
-	description:
-		"List the pages the user has saved to their Readplace reading queue, optionally filtered to unread or already-read items. Each item includes an `id` you can pass to get_article, get_article_content, or get_article_summary. Use `limit` and the `nextCursor` from a previous result to page through a long queue.",
+	...mcpOperationMetadata("list_queue"),
 	inputSchema: {
 		type: "object",
 		properties: {
@@ -120,10 +115,7 @@ export const LIST_QUEUE_TOOL: McpToolDefinition = {
 };
 
 export const GET_ARTICLE_TOOL: McpToolDefinition = {
-	name: "get_article",
-	title: "Get a saved article",
-	description:
-		"Return the full metadata (title, site, excerpt, word count, estimated read time, status, and saved/read dates) for one saved article, looked up by the id from a list_queue result.",
+	...mcpOperationMetadata("get_article"),
 	inputSchema: {
 		type: "object",
 		properties: { ...ID_PROPERTY },
@@ -134,10 +126,7 @@ export const GET_ARTICLE_TOOL: McpToolDefinition = {
 };
 
 export const GET_ARTICLE_CONTENT_TOOL: McpToolDefinition = {
-	name: "get_article_content",
-	title: "Get a saved article's reader view",
-	description:
-		"Return the cleaned, readable HTML of one saved article, looked up by id. If the reader view is still being fetched, reports that it is not ready yet rather than failing.",
+	...mcpOperationMetadata("get_article_content"),
 	inputSchema: {
 		type: "object",
 		properties: { ...ID_PROPERTY },
@@ -148,10 +137,7 @@ export const GET_ARTICLE_CONTENT_TOOL: McpToolDefinition = {
 };
 
 export const GET_ARTICLE_SUMMARY_TOOL: McpToolDefinition = {
-	name: "get_article_summary",
-	title: "Get a saved article's summary",
-	description:
-		"Return the AI-generated TL;DR for one saved article, looked up by id, or its current status (pending, failed, or skipped) when a summary is not yet available.",
+	...mcpOperationMetadata("get_article_summary"),
 	inputSchema: {
 		type: "object",
 		properties: { ...ID_PROPERTY },
@@ -162,10 +148,7 @@ export const GET_ARTICLE_SUMMARY_TOOL: McpToolDefinition = {
 };
 
 export const GET_RELATED_ARTICLES_TOOL: McpToolDefinition = {
-	name: "get_related_articles",
-	title: "Get related articles from the user's own queue",
-	description:
-		"Return other articles already in the user's own Readplace queue that relate to one saved article, looked up by id, each with a short reason and an id you can pass to get_article. Reports its status (pending or skipped) when no relations have been worked out.",
+	...mcpOperationMetadata("get_related_articles"),
 	inputSchema: {
 		type: "object",
 		properties: { ...ID_PROPERTY },
@@ -176,10 +159,7 @@ export const GET_RELATED_ARTICLES_TOOL: McpToolDefinition = {
 };
 
 export const MARK_AS_READ_TOOL: McpToolDefinition = {
-	name: "mark_as_read",
-	title: "Mark an article read (in the app)",
-	description:
-		"Marking a saved article read is done by the user in the Readplace app, not by the assistant: reading a piece is the reader's own act, and a summary is not the same as reading it. Calling this does NOT change anything — it returns instructions to open the app.",
+	...mcpOperationMetadata("mark_as_read"),
 	inputSchema: {
 		type: "object",
 		properties: { ...ID_PROPERTY },
@@ -195,10 +175,7 @@ export const MARK_AS_READ_TOOL: McpToolDefinition = {
 };
 
 export const MARK_AS_UNREAD_TOOL: McpToolDefinition = {
-	name: "mark_as_unread",
-	title: "Mark an article unread (in the app)",
-	description:
-		"Marking a saved article unread is done by the user in the Readplace app, not by the assistant. Calling this does NOT change anything — it returns instructions to open the app.",
+	...mcpOperationMetadata("mark_as_unread"),
 	inputSchema: {
 		type: "object",
 		properties: { ...ID_PROPERTY },
@@ -214,10 +191,7 @@ export const MARK_AS_UNREAD_TOOL: McpToolDefinition = {
 };
 
 export const DELETE_ARTICLE_TOOL: McpToolDefinition = {
-	name: "delete_article",
-	title: "Delete a saved article (in the app)",
-	description:
-		"Deleting a saved article is done by the user in the Readplace app, not by the assistant. Calling this does NOT delete anything — it returns instructions to open the app.",
+	...mcpOperationMetadata("delete_article"),
 	inputSchema: {
 		type: "object",
 		properties: { ...ID_PROPERTY },

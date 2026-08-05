@@ -351,6 +351,7 @@ describe("GET /sitemap.xml", () => {
 			"http://localhost:3000/",
 			"http://localhost:3000/install",
 			"http://localhost:3000/import",
+			"http://localhost:3000/mcp",
 			"http://localhost:3000/pocket-alternative",
 			"http://localhost:3000/pdf-ocr",
 			"http://localhost:3000/ai-reading-list",

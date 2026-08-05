@@ -25,8 +25,9 @@ export const MCP_CONNECT_STYLES = `
 
 .mcp-connect__url {
 	display: flex;
-	flex-direction: column;
-	gap: 6px;
+	flex-wrap: wrap;
+	align-items: center;
+	gap: 6px 10px;
 	padding: 16px 20px;
 	border: 1px solid var(--border);
 	border-radius: var(--radius-sm);
@@ -35,6 +36,7 @@ export const MCP_CONNECT_STYLES = `
 }
 
 .mcp-connect__url-label {
+	flex: 0 0 100%;
 	font-size: 0.75rem;
 	text-transform: uppercase;
 	letter-spacing: 0.06em;
@@ -42,10 +44,20 @@ export const MCP_CONNECT_STYLES = `
 }
 
 .mcp-connect__url-value {
+	flex: 1 1 auto;
+	min-width: 0;
 	font-size: 1.0625rem;
 	font-weight: 600;
 	color: var(--foreground);
 	word-break: break-all;
+}
+
+.mcp-connect__copy {
+	flex: 0 0 auto;
+}
+
+.mcp-connect__copy[hidden] {
+	display: none;
 }
 
 .mcp-connect__note {
@@ -91,6 +103,26 @@ export const MCP_CONNECT_STYLES = `
 	font-weight: 600;
 }
 
+.mcp-connect__operations {
+	list-style: none;
+	padding: 0;
+	margin: 0 0 12px;
+	display: flex;
+	flex-direction: column;
+	gap: 8px;
+}
+
+.mcp-connect__operation {
+	font-size: 1rem;
+	line-height: 1.7;
+	color: var(--muted-foreground);
+}
+
+.mcp-connect__operation-name {
+	font-weight: 600;
+	color: var(--foreground);
+}
+
 .mcp-connect__examples {
 	list-style: none;
 	padding: 0;
@@ -101,6 +133,10 @@ export const MCP_CONNECT_STYLES = `
 }
 
 .mcp-connect__example {
+	display: flex;
+	flex-wrap: wrap;
+	align-items: center;
+	gap: 6px 10px;
 	font-size: 1rem;
 	line-height: 1.6;
 	color: var(--foreground);
@@ -110,12 +146,25 @@ export const MCP_CONNECT_STYLES = `
 	background: var(--muted);
 }
 
-.mcp-connect__example::before {
+.mcp-connect__example-label {
+	flex: 0 0 100%;
+	font-size: 0.75rem;
+	text-transform: uppercase;
+	letter-spacing: 0.06em;
+	color: var(--muted-foreground);
+}
+
+.mcp-connect__example-text {
+	flex: 1 1 auto;
+	min-width: 0;
+}
+
+.mcp-connect__example-text::before {
 	content: "“";
 	color: var(--muted-foreground);
 }
 
-.mcp-connect__example::after {
+.mcp-connect__example-text::after {
 	content: "”";
 	color: var(--muted-foreground);
 }

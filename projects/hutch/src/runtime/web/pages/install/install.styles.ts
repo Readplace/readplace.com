@@ -241,6 +241,13 @@ export const INSTALL_PAGE_STYLES = `
 	margin-bottom: 20px;
 }
 
+.install-page__ai-after {
+	font-size: 0.9375rem;
+	line-height: 1.6;
+	color: var(--muted-foreground);
+	margin-bottom: 20px;
+}
+
 .install-page__ai-note {
 	font-size: 0.9375rem;
 	line-height: 1.6;

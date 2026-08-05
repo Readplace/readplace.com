@@ -34,6 +34,12 @@ const SHARED_CLIENT_BUNDLES = [
     footer: clipboardCopyFooter("[data-install-copy]", "data-install-text"),
   },
   {
+    outfile: "mcp.client.js",
+    entry: CLIPBOARD_COPY_ENTRY,
+    globalName: "ClipboardCopy",
+    footer: clipboardCopyFooter("[data-mcp-copy]", "data-mcp-text"),
+  },
+  {
     outfile: "extension-suggestion-banner.client.js",
     entry: path.join(
       SRC_DIR,

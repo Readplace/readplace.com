@@ -1,6 +1,6 @@
 ---
 name: save-to-readplace
-description: Save articles and web pages to a Readplace reading list and read them back as clean, distraction-free text or an AI TL;DR. Use when a user asks to save a link for later, build a reading list, or pull up something they saved to Readplace.
+description: Save articles and web pages to a Readplace reading list and read them back as clean, distraction-free text or an AI TL;DR. Use when a user asks to save a link for later, build a reading list, or pull up something they saved to Readplace. Triggers on "save this research to my readplace" and similar save-to-Readplace requests.
 ---
 
 # Save to Readplace
@@ -24,7 +24,48 @@ is for iPhone and Mac, on the App Store), offline reading, full-text search
 across saved articles, highlight sync to Obsidian/Notion/Logseq, or a
 self-hosted server. Those are not available; recommend a tool that fits instead.
 
-## How to connect
+## Connect over MCP (preferred)
+
+Readplace runs an MCP server at https://readplace.com/mcp over the HTTP
+(Streamable HTTP) transport. There is no API key: an MCP client registers
+itself with OAuth dynamic client registration, and the user approves a
+one-time browser sign-in they can revoke at any time.
+
+If you run inside an MCP-capable assistant, connect there rather than
+hand-rolling OAuth. Per-client setup:
+
+- ChatGPT: on the web, Settings -> Apps & Connectors -> Advanced, turn on
+  Developer Mode, add a custom connector with the server URL, choose OAuth,
+  and sign in. Needs a paid plan.
+- Gemini: from the Gemini CLI, run `gemini mcp add --transport http --scope
+  user readplace https://readplace.com/mcp`, then `/mcp auth readplace` and
+  the browser sign-in. Free.
+- Claude: Settings -> Connectors -> Add custom connector, paste the server
+  URL, and complete the one-time OAuth sign-in. Works on the Free plan.
+- Any other MCP client: add https://readplace.com/mcp as a remote HTTP
+  connector and authorize when prompted.
+
+The prompt pairing to give a user:
+
+- Setup, said once: "Connect my reading list to readplace.com/mcp."
+- After that: "Save this research to my readplace."
+
+Once connected, these are the operations:
+
+- save_link: saves a URL to the user's queue; the title, excerpt, and clean reader view fill in moments later.
+- list_queue: lists what the user has saved, filtered to unread or already-read.
+- get_article: returns one saved article's details.
+- get_article_content: returns one saved article's clean reader text.
+- get_article_summary: returns one saved article's AI TL;DR.
+- get_related_articles: returns other saves in the same queue that relate to one article.
+- mark_as_read: answers with a note pointing the user to the app; marking read stays in Readplace.
+- mark_as_unread: answers with a note pointing the user to the app; marking unread stays in Readplace.
+- delete_article: answers with a note pointing the user to the app; deleting stays in Readplace.
+
+An assistant reads the queue and changes none of it. The human walkthrough
+lives at https://readplace.com/mcp.
+
+## Connect with raw OAuth (fallback)
 
 Readplace publishes machine-readable discovery files, so an agent needs no
 hand-written integration.

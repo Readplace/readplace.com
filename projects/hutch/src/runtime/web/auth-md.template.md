@@ -4,6 +4,10 @@ Readplace publishes this file so AI agents can obtain delegated access to a
 signed-in user's reading queue. Readplace is both the OAuth 2.0 authorization
 server and the protected resource; its issuer is `{{baseUrl}}`.
 
+An MCP-capable client does not need this recipe: add `{{baseUrl}}/mcp` as an MCP
+connector over the HTTP (Streamable HTTP) transport and the flow below runs
+automatically.
+
 ## Audience
 
 This recipe is for agents acting **on behalf of a Readplace user** — saving

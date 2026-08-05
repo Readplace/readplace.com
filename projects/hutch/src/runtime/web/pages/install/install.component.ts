@@ -14,6 +14,7 @@ import {
 import type { ClientCategory, ClientName, SupportedClient } from "@packages/supported-clients";
 
 import { switchHelpers } from "../../handlebars-switch";
+import { SAVE_INTENT_PROMPT } from "../mcp";
 import { CLIENT_ICON_SVG } from "./client-icons";
 import { INSTALL_PAGE_STYLES } from "./install.styles";
 
@@ -456,6 +457,7 @@ export function InstallPage(params: { firefox: string | null; client: InstallCli
 					iosOutro: IOS_SETUP_OUTRO,
 					mcpServerUrl: MCP_SERVER_URL,
 					mcpGuideUrl: MCP_GUIDE_URL,
+					saveIntentPrompt: SAVE_INTENT_PROMPT,
 				},
 				{ helpers: switchHelpers },
 			),

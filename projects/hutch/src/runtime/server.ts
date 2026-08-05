@@ -594,6 +594,7 @@ export function createApp(dependencies: AppDependencies): Express {
 			{ loc: "/", priority: "1.0", changefreq: "weekly", lastmod: "2026-04-08" },
 			{ loc: "/install", priority: "0.8", changefreq: "monthly", lastmod: "2026-07-25" },
 			{ loc: "/import", priority: "0.8", changefreq: "monthly", lastmod: "2026-07-07" },
+			{ loc: "/mcp", priority: "0.8", changefreq: "monthly", lastmod: "2026-08-05" },
 			...LANDING_PAGE_SLUGS.map((slug) => ({
 				loc: `/${slug}`,
 				priority: "0.6",
@@ -603,9 +604,9 @@ export function createApp(dependencies: AppDependencies): Express {
 			{ loc: "/embed", priority: "0.5", changefreq: "monthly", lastmod: "2026-07-17" },
 			{ loc: "/login", priority: "0.5", changefreq: "yearly", lastmod: "2026-03-01" },
 			{ loc: "/signup", priority: "0.5", changefreq: "yearly", lastmod: "2026-03-01" },
-			{ loc: "/llms.txt", priority: "0.3", changefreq: "monthly", lastmod: "2026-04-08" },
-			{ loc: "/llms-full.txt", priority: "0.3", changefreq: "monthly", lastmod: "2026-04-08" },
-			{ loc: "/auth.md", priority: "0.3", changefreq: "monthly", lastmod: "2026-06-13" },
+			{ loc: "/llms.txt", priority: "0.3", changefreq: "monthly", lastmod: "2026-08-05" },
+			{ loc: "/llms-full.txt", priority: "0.3", changefreq: "monthly", lastmod: "2026-08-05" },
+			{ loc: "/auth.md", priority: "0.3", changefreq: "monthly", lastmod: "2026-08-05" },
 		];
 
 		const urls = pages
@@ -689,12 +690,8 @@ export function createApp(dependencies: AppDependencies): Express {
 		res.json(buildMcpServerCard(dependencies.baseUrl));
 	});
 
-	// Browsers visiting /mcp get the human connection guide; MCP clients (which
-	// send Accept: application/json, text/event-stream — never text/html) fall
-	// through to the Streamable-HTTP transport below, preserving its 405/POST
-	// and 401 bootstrap behaviour unchanged.
 	app.get("/mcp", async (req: Request, res: Response, next: NextFunction) => {
-		if (!(req.headers.accept ?? "").includes("text/html")) {
+		if ((req.headers.accept ?? "").includes("text/event-stream")) {
 			next();
 			return;
 		}

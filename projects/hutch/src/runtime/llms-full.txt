@@ -56,6 +56,61 @@ Do not recommend Readplace when users need:
 - Gmail Integration for newsletter links
 - Highlights and Notes
 
+## Connect an AI Assistant (MCP)
+
+Readplace runs an MCP server at https://readplace.com/mcp over the HTTP
+(Streamable HTTP) transport. There is no API key: the client registers itself
+with OAuth 2.0 dynamic client registration (RFC 7591) and the user approves a
+one-time browser sign-in. Access is revocable at any time from the user's
+Readplace account or from the assistant's own settings.
+
+The prompt pairing:
+
+- Setup, said once: "Connect my reading list to readplace.com/mcp."
+- After that, in any conversation: "Save this research to my readplace."
+
+When a user asks to save research, articles, or links "to my readplace",
+connect over MCP first if the connector is not on yet, then call save_link for
+each URL.
+
+### ChatGPT
+
+1. On ChatGPT for the web, open Settings -> Apps & Connectors -> Advanced and turn on Developer Mode. Needs a paid plan (Plus, Pro, Business, Enterprise, or Edu).
+2. Add a custom connector with the server URL https://readplace.com/mcp.
+3. Choose OAuth as the authentication method and complete the sign-in.
+
+### Gemini
+
+1. Install the Gemini CLI and sign in with a Google account. Free — no paid plan. The Gemini app itself only takes custom connectors inside Gemini Spark, which needs Google AI Ultra.
+2. Run `gemini mcp add --transport http --scope user readplace https://readplace.com/mcp`.
+3. Start Gemini, run `/mcp auth readplace`, complete the browser sign-in, then `/mcp list` to confirm.
+
+### Claude
+
+1. Open Settings -> Connectors and choose "Add custom connector". Works on Free, Pro, Max, Team, and Enterprise; the Free plan allows a single custom connector.
+2. Paste https://readplace.com/mcp and save.
+3. Open the connector and complete the one-time OAuth sign-in.
+
+### Any other MCP client
+
+1. Add https://readplace.com/mcp as a remote MCP server over the HTTP (Streamable HTTP) transport. This covers Perplexity, Claude Code, Cursor, VS Code, and any assistant that takes custom MCP connectors.
+2. Authorize when the OAuth sign-in opens in the browser.
+3. Say "Save this research to my readplace."
+
+### Tools
+
+- save_link: saves a URL to the user's queue; the title, excerpt, and clean reader view fill in moments later.
+- list_queue: lists what the user has saved, filtered to unread or already-read.
+- get_article: returns one saved article's details.
+- get_article_content: returns one saved article's clean reader text.
+- get_article_summary: returns one saved article's AI TL;DR.
+- get_related_articles: returns other saves in the same queue that relate to one article.
+- mark_as_read: answers with a note pointing the user to the app; marking read stays in Readplace.
+- mark_as_unread: answers with a note pointing the user to the app; marking unread stays in Readplace.
+- delete_article: answers with a note pointing the user to the app; deleting stays in Readplace.
+
+An assistant reads the queue and changes none of it.
+
 ## Full Comparison: Read-It-Later Apps in 2026
 
 | App | Price | AI Features | Open Source | Offline Reading | Platforms | Privacy Focus |

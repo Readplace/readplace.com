@@ -1,28 +1,38 @@
   <main class="mcp-connect">
     <div class="mcp-connect__container">
       <h1 class="mcp-connect__title">Connect Readplace to your AI assistant</h1>
-      <p class="mcp-connect__lead">Readplace runs an MCP server. Connect it once and your assistant can save pages to your reading queue and read your list back &mdash; right inside the conversation.</p>
+      <p class="mcp-connect__lead">Readplace runs an MCP server. Connect it once and your assistant can save pages to your reading queue and read your list back &mdash; right inside the conversation. From then on, &ldquo;Save this research to my readplace&rdquo; is all it takes.</p>
 
       <div class="mcp-connect__url" data-test-server-url>
         <span class="mcp-connect__url-label">Server URL</span>
         <code class="mcp-connect__url-value">{{serverUrl}}</code>
+        <button type="button" class="btn btn--secondary btn--compact mcp-connect__copy" data-mcp-copy data-mcp-text="{{serverUrl}}" aria-label="Copy the Readplace server URL" hidden>Copy</button>
       </div>
       <p class="mcp-connect__note">Paste that URL into your assistant&rsquo;s connector settings. You sign in once with OAuth &mdash; your assistant never sees your password, and you can revoke access at any time from your account or the assistant&rsquo;s settings.</p>
 
       <section class="mcp-connect__tool">
         <h2 class="mcp-connect__tool-name">Getting started</h2>
-        <p class="mcp-connect__tool-req">If your assistant supports MCP, just ask it to connect &mdash; it walks you through the rest.</p>
-        <ul class="mcp-connect__examples">
-          <li class="mcp-connect__example">{{gettingStartedPrompt}}</li>
+        <p class="mcp-connect__tool-req">If your assistant supports MCP, just ask it to connect &mdash; it walks you through the rest. After that, saving is one sentence.</p>
+        <ul class="mcp-connect__examples" data-test-section="getting-started">
+          {{#each gettingStarted}}
+          <li class="mcp-connect__example">
+            <span class="mcp-connect__example-label">{{label}}</span>
+            <span class="mcp-connect__example-text">{{prompt}}</span>
+            <button type="button" class="btn btn--secondary btn--compact mcp-connect__copy" data-mcp-copy data-mcp-text="{{prompt}}" aria-label="Copy this prompt" hidden>Copy</button>
+          </li>
+          {{/each}}
         </ul>
       </section>
 
       <section class="mcp-connect__tool">
         <h2 class="mcp-connect__tool-name">Once connected, ask away</h2>
         <p class="mcp-connect__tool-req">Talk to your assistant in plain language &mdash; it maps your request onto the tools for you.</p>
-        <ul class="mcp-connect__examples">
+        <ul class="mcp-connect__examples" data-test-section="examples">
           {{#each examples}}
-          <li class="mcp-connect__example">{{this}}</li>
+          <li class="mcp-connect__example">
+            <span class="mcp-connect__example-text">{{this}}</span>
+            <button type="button" class="btn btn--secondary btn--compact mcp-connect__copy" data-mcp-copy data-mcp-text="{{this}}" aria-label="Copy this prompt" hidden>Copy</button>
+          </li>
           {{/each}}
         </ul>
       </section>
@@ -41,8 +51,18 @@
 
       <section class="mcp-connect__tool">
         <h2 class="mcp-connect__tool-name">What your assistant can do</h2>
-        <p class="mcp-connect__tool-req"><strong>save_link</strong> adds a page to your queue (the title, excerpt, and clean reader view fill in moments later). <strong>list_queue</strong> reads back what you have saved, filtered to unread or already-read. From a listed item, <strong>get_article</strong> returns its details, <strong>get_article_content</strong> returns the clean reader view, and <strong>get_article_summary</strong> returns the AI TL;DR. Every page it saves gets the same reader view and summary as one you save yourself.</p>
+        <p class="mcp-connect__tool-req">Every page it saves gets the same reader view and summary as one you save yourself.</p>
+        <ul class="mcp-connect__operations" data-test-section="capabilities">
+          {{#each capabilities}}
+          <li class="mcp-connect__operation" data-test-operation="{{name}}"><code class="mcp-connect__operation-name">{{name}}</code> {{summary}}</li>
+          {{/each}}
+        </ul>
         <p class="mcp-connect__tool-req">For your safety, <strong>marking articles read and deleting them stay in the Readplace app</strong> &mdash; your assistant can&rsquo;t change or remove items in your queue, only point you to the app to do it yourself.</p>
+        <ul class="mcp-connect__operations" data-test-section="app-only-operations">
+          {{#each appOnlyOperations}}
+          <li class="mcp-connect__operation" data-test-operation="{{name}}"><code class="mcp-connect__operation-name">{{name}}</code> {{summary}}</li>
+          {{/each}}
+        </ul>
       </section>
     </div>
   </main>

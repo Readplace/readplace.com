@@ -40,6 +40,10 @@
     "./crawler-policy": {
       "types": "./dist/crawler-policy/index.d.ts",
       "default": "./dist/crawler-policy/index.js"
+    },
+    "./mcp": {
+      "types": "./dist/mcp/index.d.ts",
+      "default": "./dist/mcp/index.js"
     }
   },
   "typesVersions": {
@@ -51,7 +55,8 @@
       "import-session": ["./dist/import-session/index.d.ts"],
       "inbox": ["./dist/inbox/index.d.ts"],
       "rate-limit": ["./dist/rate-limit/index.d.ts"],
-      "crawler-policy": ["./dist/crawler-policy/index.d.ts"]
+      "crawler-policy": ["./dist/crawler-policy/index.d.ts"],
+      "mcp": ["./dist/mcp/index.d.ts"]
     }
   },
   "private": true,

@@ -400,6 +400,17 @@ describe("GET /install", () => {
 		expect(guide?.getAttribute("href")).toBe("/mcp");
 	});
 
+	it("should tell an AI panel reader the sentence that saves once the connector is on", async () => {
+		const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
+		const response = await request(harness.server).get("/install?client=claude");
+		const doc = load(response.text);
+
+		const afterConnect = doc.querySelector('[data-test-section="ai-after-connect"]');
+		expect(afterConnect?.textContent).toBe(
+			"Once connected, saving is one sentence: “Save this research to my readplace.”",
+		);
+	});
+
 	it("should show the Claude connect prompt and copy buttons hidden by default", async () => {
 		const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
 		const response = await request(harness.server).get("/install?client=claude");
