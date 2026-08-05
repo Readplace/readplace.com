@@ -153,6 +153,21 @@ export const HEALTH_SOURCES: readonly HealthSource[] = [
 			"Without an alternative map, it is difficult for plaintiffs to defeat our starting presumption that the legislature acted in good faith",
 		expectsThumbnail: true,
 	},
+	{
+		// The publisher of this story left Apple News Format's optional
+		// canonicalURL unset, so the shell carries no story URL and the crawl
+		// can never reach a publisher page — only the Apple News Format document
+		// can supply a body. That makes a green run here proof the whole ANF
+		// fingerprint still holds: asset-handle derivation, zlib inflate, and
+		// the component-tree render. expectedContent is a passage the document
+		// carries with no link range across it, since an anchor splits the text
+		// and a substring crossing one never matches the reader output.
+		label: "Apple News (Apple News Format document, no publisher URL)",
+		url: "https://apple.news/AbxPgQQdpQSy-ERx2g-kQZA",
+		expectedContent:
+			"I tell him that I did not realise that the wedding had happened already.",
+		expectsThumbnail: true,
+	},
 	// PDF sources run last and are ordered cheapest-first: each one fans out
 	// per-page OCR (rasterisation + DeepInfra vision) and burns real tokens, so
 	// the tier-1-plus canary's fail-fast gate skips every remaining PDF once any
