@@ -36,6 +36,7 @@ describe("initSaveArticleInteractively", () => {
 		const { published, saveArticleInteractively } = build(async () => ({
 			saved,
 			canonicalUrl,
+			createdUserArticle: true,
 		}));
 
 		await saveArticleInteractively({
@@ -51,6 +52,7 @@ describe("initSaveArticleInteractively", () => {
 		const { saveArticleInteractively } = build(async () => ({
 			saved,
 			canonicalUrl,
+			createdUserArticle: true,
 		}));
 
 		const result = await saveArticleInteractively({
@@ -59,7 +61,23 @@ describe("initSaveArticleInteractively", () => {
 			freshness: { action: "skip" },
 		});
 
-		expect(result).toEqual({ saved, canonicalUrl });
+		expect(result).toEqual({ saved, canonicalUrl, createdUserArticle: true });
+	});
+
+	it("does not ask again when the save landed on a queue entry the reader already had", async () => {
+		const { published, saveArticleInteractively } = build(async () => ({
+			saved,
+			canonicalUrl,
+			createdUserArticle: false,
+		}));
+
+		await saveArticleInteractively({
+			userId,
+			url: submittedUrl,
+			freshness: { action: "skip" },
+		});
+
+		expect(published).toEqual([]);
 	});
 
 	it("does not ask for related articles when the save itself fails", async () => {

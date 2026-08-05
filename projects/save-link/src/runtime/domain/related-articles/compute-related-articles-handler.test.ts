@@ -2,6 +2,7 @@ import { UserIdSchema } from "@packages/domain/user";
 import { noopLogger } from "@packages/hutch-logger";
 import type { PublishEvent } from "@packages/hutch-infra-components/runtime";
 import type {
+	MarkRelatedArticlesOutcome,
 	RelatedArticles,
 	RelatedCandidate,
 	RelatedTargetArticle,
@@ -69,6 +70,7 @@ interface HandlerOverrides {
 	target?: RelatedTargetArticle | undefined;
 	candidates?: RelatedCandidate[];
 	selectRelatedArticles?: SelectRelatedArticles;
+	markOutcome?: MarkRelatedArticlesOutcome;
 }
 
 function createHandler(overrides: HandlerOverrides = {}) {
@@ -94,9 +96,11 @@ function createHandler(overrides: HandlerOverrides = {}) {
 			})),
 		markRelatedArticlesReady: async (params) => {
 			ready.push({ url: params.url, relatedArticles: params.relatedArticles });
+			return overrides.markOutcome ?? "stored";
 		},
 		markRelatedArticlesSkipped: async (params) => {
 			skipped.push({ url: params.url, at: params.at });
+			return overrides.markOutcome ?? "stored";
 		},
 		publishEvent,
 		now: () => NOW,
@@ -129,6 +133,29 @@ describe("initComputeRelatedArticlesHandler", () => {
 				outputTokens: 30,
 			},
 		]);
+	});
+
+	it("announces nothing when another computation had already settled the row", async () => {
+		const { handler, ready, published } = createHandler({ markOutcome: "superseded" });
+
+		const result = await handler(commandEvent, buildLambdaContext(), () => {});
+
+		expect(result).toEqual({ batchItemFailures: [] });
+		expect(ready).toHaveLength(1);
+		expect(published).toEqual([]);
+	});
+
+	it("announces no skip when another computation had already settled the row", async () => {
+		const { handler, skipped, published } = createHandler({
+			target: crawledTarget({ crawlStatus: "failed", hasStubMetadata: true }),
+			markOutcome: "superseded",
+		});
+
+		const result = await handler(commandEvent, buildLambdaContext(), () => {});
+
+		expect(result).toEqual({ batchItemFailures: [] });
+		expect(skipped).toHaveLength(1);
+		expect(published).toEqual([]);
 	});
 
 	it("stores an empty result as a completed computation", async () => {

@@ -6,6 +6,8 @@ export interface RelatedArticleLink {
 	reason: string;
 }
 
+export type MarkRelatedArticlesOutcome = "stored" | "superseded";
+
 export type MarkRelatedArticlesReady = (params: {
 	userId: UserId;
 	url: string;
@@ -13,13 +15,13 @@ export type MarkRelatedArticlesReady = (params: {
 	inputTokens: number;
 	outputTokens: number;
 	at: Date;
-}) => Promise<void>;
+}) => Promise<MarkRelatedArticlesOutcome>;
 
 export type MarkRelatedArticlesSkipped = (params: {
 	userId: UserId;
 	url: string;
 	at: Date;
-}) => Promise<void>;
+}) => Promise<MarkRelatedArticlesOutcome>;
 
 export interface RelatedArticleDisplay {
 	id: ReaderArticleHashId;

@@ -48,7 +48,7 @@ function makeTracker(savedOverride?: SavedArticle): CallTracker {
 		updateArticleStatusUnread: 0,
 	};
 	const deps: SaveArticleFromUrlDependencies = {
-		saveArticle: async () => saved,
+		saveArticle: async () => ({ saved, createdUserArticle: true }),
 		updateArticleStatus: async (_id, _u, status) => {
 			if (status === "unread") calls.updateArticleStatusUnread += 1;
 			return true;
@@ -102,7 +102,7 @@ describe("saveArticleFromUrl", () => {
 			resolveCanonicalIdentity: async () => "https://example.com/canonical",
 			saveArticle: async (p) => {
 				keyedOn.push(`saveArticle:${p.url}`);
-				return tracker.saved;
+				return { saved: tracker.saved, createdUserArticle: true };
 			},
 			markCrawlPending: async ({ url }) => {
 				keyedOn.push(`markCrawlPending:${url}`);
@@ -211,6 +211,21 @@ describe("saveArticleFromUrl", () => {
 		await initSaveArticleFromUrl(deps)({ userId, url: exampleUrl, freshness: { action: "new" } });
 
 		expect(queued).toEqual([exampleUrl]);
+	});
+
+	it.each([
+		{ label: "a 'new' verdict", freshness: { action: "new" as const } },
+		{ label: "a 'skip' verdict", freshness: { action: "skip" as const } },
+	])("reports the store's queue-entry verdict through $label", async ({ freshness }) => {
+		const tracker = makeTracker();
+		const deps: SaveArticleFromUrlDependencies = {
+			...tracker.deps,
+			saveArticle: async () => ({ saved: tracker.saved, createdUserArticle: false }),
+		};
+
+		const result = await initSaveArticleFromUrl(deps)({ userId, url: exampleUrl, freshness });
+
+		expect(result.createdUserArticle).toBe(false);
 	});
 
 	it("flips a previously-read article back to unread after a re-save", async () => {

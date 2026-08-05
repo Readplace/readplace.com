@@ -2,6 +2,7 @@ import { ArticleResourceUniqueId } from "@packages/article-resource-unique-id";
 import type { UserId } from "@packages/domain/user";
 import type {
 	FindRelatedArticles,
+	MarkRelatedArticlesOutcome,
 	MarkRelatedArticlesReady,
 	MarkRelatedArticlesSkipped,
 	RelatedArticleDisplay,
@@ -29,19 +30,26 @@ export function initInMemoryRelatedArticles(): {
 	const findRelatedArticles: FindRelatedArticles = async ({ userId, url }) =>
 		states.get(keyOf(userId, url)) ?? { status: "pending" };
 
+	const settle = (
+		userId: UserId,
+		url: string,
+		state: RelatedArticles,
+	): MarkRelatedArticlesOutcome => {
+		const key = keyOf(userId, url);
+		if (states.has(key)) return "superseded";
+		states.set(key, state);
+		return "stored";
+	};
+
 	const markRelatedArticlesReady: MarkRelatedArticlesReady = async ({
 		userId,
 		url,
-	}) => {
-		states.set(keyOf(userId, url), { status: "ready", items: [] });
-	};
+	}) => settle(userId, url, { status: "ready", items: [] });
 
 	const markRelatedArticlesSkipped: MarkRelatedArticlesSkipped = async ({
 		userId,
 		url,
-	}) => {
-		states.set(keyOf(userId, url), { status: "skipped" });
-	};
+	}) => settle(userId, url, { status: "skipped" });
 
 	const seedRelatedArticles: InMemorySeedRelatedArticles = async ({
 		userId,

@@ -70,7 +70,15 @@ export function initComputeRelatedArticlesHandler(
 				}
 
 				const skip = async (reason: string): Promise<void> => {
-					await markRelatedArticlesSkipped({ userId, url: command.url, at: now() });
+					const outcome = await markRelatedArticlesSkipped({
+						userId,
+						url: command.url,
+						at: now(),
+					});
+					if (outcome === "superseded") {
+						logger.info("[ComputeRelatedArticles] superseded", { url: command.url });
+						return;
+					}
 					await publishEvent(RelatedArticlesComputedEvent, {
 						url: command.url,
 						userId,
@@ -113,7 +121,7 @@ export function initComputeRelatedArticlesHandler(
 					);
 				}
 
-				await markRelatedArticlesReady({
+				const outcome = await markRelatedArticlesReady({
 					userId,
 					url: command.url,
 					relatedArticles: result.related,
@@ -121,6 +129,10 @@ export function initComputeRelatedArticlesHandler(
 					outputTokens: result.outputTokens,
 					at: now(),
 				});
+				if (outcome === "superseded") {
+					logger.info("[ComputeRelatedArticles] superseded", { url: command.url });
+					continue;
+				}
 				await publishEvent(RelatedArticlesComputedEvent, {
 					url: command.url,
 					userId,

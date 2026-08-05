@@ -54,7 +54,7 @@ describe("initInMemoryRelatedArticles", () => {
 
 	it("records a completed computation with no relations", async () => {
 		const store = initInMemoryRelatedArticles();
-		await store.markRelatedArticlesReady({
+		const outcome = await store.markRelatedArticlesReady({
 			userId: USER_ID,
 			url: URL,
 			relatedArticles: [],
@@ -67,9 +67,24 @@ describe("initInMemoryRelatedArticles", () => {
 			status: "ready",
 			items: [],
 		});
+		expect(outcome).toBe("stored");
 	});
 
 	it("records a skip", async () => {
+		const store = initInMemoryRelatedArticles();
+		const outcome = await store.markRelatedArticlesSkipped({
+			userId: USER_ID,
+			url: URL,
+			at: new Date("2026-08-04T00:00:00.000Z"),
+		});
+
+		expect(await store.findRelatedArticles({ userId: USER_ID, url: URL })).toEqual({
+			status: "skipped",
+		});
+		expect(outcome).toBe("stored");
+	});
+
+	it("leaves a settled row untouched and reports the later answer as superseded", async () => {
 		const store = initInMemoryRelatedArticles();
 		await store.markRelatedArticlesSkipped({
 			userId: USER_ID,
@@ -77,6 +92,16 @@ describe("initInMemoryRelatedArticles", () => {
 			at: new Date("2026-08-04T00:00:00.000Z"),
 		});
 
+		const outcome = await store.markRelatedArticlesReady({
+			userId: USER_ID,
+			url: URL,
+			relatedArticles: [],
+			inputTokens: 10,
+			outputTokens: 2,
+			at: new Date("2026-08-04T00:05:00.000Z"),
+		});
+
+		expect(outcome).toBe("superseded");
 		expect(await store.findRelatedArticles({ userId: USER_ID, url: URL })).toEqual({
 			status: "skipped",
 		});

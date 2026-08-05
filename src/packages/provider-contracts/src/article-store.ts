@@ -42,7 +42,9 @@ export interface FindArticlesResult {
 	pageSize: number;
 }
 
-export type SaveArticle = (params: SaveArticleParams) => Promise<SavedArticle>;
+export type SaveArticle = (
+	params: SaveArticleParams,
+) => Promise<{ saved: SavedArticle; createdUserArticle: boolean }>;
 
 export interface SaveArticleGloballyParams {
 	url: string;

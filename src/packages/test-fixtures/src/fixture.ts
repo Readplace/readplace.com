@@ -236,6 +236,7 @@ export function createDefaultTestAppFixture(appOrigin: string): TestAppFixture {
 	const auth = initInMemoryAuth({ hashPassword: fastHashPassword, verifyPassword: fastVerifyPassword });
 	const articleStoreMemory = initInMemoryArticleStore();
 	const articleCrawl = initInMemoryArticleCrawl();
+	const computeRelatedArticles = initInMemoryComputeRelatedArticles({ logger: noopLogger });
 	const crawlArticle = stubCrawlArticle;
 	const { parseArticle } = initReadabilityParser({
 		crawlArticle,
@@ -374,12 +375,12 @@ export function createDefaultTestAppFixture(appOrigin: string): TestAppFixture {
 			markCrawlStage: articleCrawl.markCrawlStage,
 		},
 		parser: { parseArticle, crawlArticle },
+		publishedComputeRelatedArticles: computeRelatedArticles.publishedComputeRelatedArticles,
 		events: {
 			publishLinkSaved: createFakePublishLinkSaved(applyParseResult),
 			publishLinkQueued: initInMemoryLinkQueued({ logger: noopLogger }).publishLinkQueued,
 			publishLinkDequeued: initInMemoryLinkDequeued({ logger: noopLogger }).publishLinkDequeued,
-			publishComputeRelatedArticles: initInMemoryComputeRelatedArticles({ logger: noopLogger })
-				.publishComputeRelatedArticles,
+			publishComputeRelatedArticles: computeRelatedArticles.publishComputeRelatedArticles,
 			publishRecrawlLinkInitiated: createFakePublishRecrawlLinkInitiated(applyParseResult),
 			publishSaveAnonymousLink: createFakePublishSaveAnonymousLink(applyParseResult),
 			publishSaveLinkRawHtmlCommand,

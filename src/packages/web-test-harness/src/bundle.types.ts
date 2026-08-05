@@ -488,6 +488,7 @@ export interface TestAppFixture {
 	articleCrawl: ArticleCrawlBundle;
 	parser: ParserBundle;
 	events: EventsBundle;
+	publishedComputeRelatedArticles: { url: string; userId: UserId }[];
 	pendingHtml: PendingHtmlBundle;
 	pendingPdf: PendingPdfBundle;
 	pendingUpload: PendingUploadBundle;

@@ -30,7 +30,7 @@ describe("initInMemoryArticleStore", () => {
 	describe("saveArticle + findArticleById", () => {
 		it("should save and retrieve an article", async () => {
 			const store = initInMemoryArticleStore();
-			const saved = await store.saveArticle(makeArticleParams());
+			const { saved } = await store.saveArticle(makeArticleParams());
 
 			const found = await store.findArticleById(saved.id, USER_A);
 
@@ -40,7 +40,7 @@ describe("initInMemoryArticleStore", () => {
 
 		it("should return null when user has no relationship to the article", async () => {
 			const store = initInMemoryArticleStore();
-			const saved = await store.saveArticle(makeArticleParams({ userId: USER_A }));
+			const { saved } = await store.saveArticle(makeArticleParams({ userId: USER_A }));
 
 			const found = await store.findArticleById(saved.id, USER_B);
 
@@ -229,21 +229,21 @@ describe("initInMemoryArticleStore", () => {
 	describe("article deduplication", () => {
 		it("should reuse the same global article when two users save the same URL", async () => {
 			const store = initInMemoryArticleStore();
-			const savedA = await store.saveArticle(makeArticleParams({ userId: USER_A }));
-			const savedB = await store.saveArticle(makeArticleParams({ userId: USER_B }));
+			const { saved: savedA } = await store.saveArticle(makeArticleParams({ userId: USER_A }));
+			const { saved: savedB } = await store.saveArticle(makeArticleParams({ userId: USER_B }));
 
 			expect(savedA.id.value).toBe(savedB.id.value);
 		});
 
 		it("should produce the same routeId regardless of scheme or fragment", async () => {
 			const store = initInMemoryArticleStore();
-			const https = await store.saveArticle(
+			const { saved: https } = await store.saveArticle(
 				makeArticleParams({ url: "https://example.com/article" }),
 			);
-			const http = await store.saveArticle(
+			const { saved: http } = await store.saveArticle(
 				makeArticleParams({ userId: USER_B, url: "http://example.com/article" }),
 			);
-			const withFragment = await store.saveArticle(
+			const { saved: withFragment } = await store.saveArticle(
 				makeArticleParams({ url: "https://example.com/article#heading" }),
 			);
 
@@ -265,8 +265,8 @@ describe("initInMemoryArticleStore", () => {
 
 		it("should not create a duplicate user-article when the same user saves the same URL twice", async () => {
 			const store = initInMemoryArticleStore();
-			await store.saveArticle(makeArticleParams({ userId: USER_A }));
-			await store.saveArticle(makeArticleParams({ userId: USER_A }));
+			const first = await store.saveArticle(makeArticleParams({ userId: USER_A }));
+			const second = await store.saveArticle(makeArticleParams({ userId: USER_A }));
 
 			const result = await store.findArticlesByUser({
 				userId: USER_A,
@@ -275,11 +275,21 @@ describe("initInMemoryArticleStore", () => {
 
 			expect(result.articles.length).toBe(1);
 			expect(result.total).toBe(1);
+			expect(first.createdUserArticle).toBe(true);
+			expect(second.createdUserArticle).toBe(false);
+		});
+
+		it("should report a queue entry as created for each user saving an already-known URL", async () => {
+			const store = initInMemoryArticleStore();
+			await store.saveArticle(makeArticleParams({ userId: USER_A }));
+			const other = await store.saveArticle(makeArticleParams({ userId: USER_B }));
+
+			expect(other.createdUserArticle).toBe(true);
 		});
 
 		it("should bump savedAt to top on re-save so the article moves to the head of the queue", async () => {
 			const store = initInMemoryArticleStore();
-			const first = await store.saveArticle(
+			const { saved: first } = await store.saveArticle(
 				makeArticleParams({ url: "https://example.com/first" }),
 			);
 			await new Promise((resolve) => setTimeout(resolve, 10));
@@ -298,7 +308,7 @@ describe("initInMemoryArticleStore", () => {
 
 		it("should preserve status and readAt on re-save", async () => {
 			const store = initInMemoryArticleStore();
-			const saved = await store.saveArticle(makeArticleParams());
+			const { saved } = await store.saveArticle(makeArticleParams());
 			await store.updateArticleStatus(saved.id, USER_A, "read");
 
 			await store.saveArticle(makeArticleParams());
@@ -328,7 +338,7 @@ describe("initInMemoryArticleStore", () => {
 
 		it("should filter by status", async () => {
 			const store = initInMemoryArticleStore();
-			const a1 = await store.saveArticle(
+			const { saved: a1 } = await store.saveArticle(
 				makeArticleParams({ url: "https://example.com/1" }),
 			);
 			await store.saveArticle(
@@ -347,11 +357,11 @@ describe("initInMemoryArticleStore", () => {
 
 		it("should sort by savedAt descending by default", async () => {
 			const store = initInMemoryArticleStore();
-			const a1 = await store.saveArticle(
+			const { saved: a1 } = await store.saveArticle(
 				makeArticleParams({ url: "https://example.com/first" }),
 			);
 			await new Promise((resolve) => setTimeout(resolve, 10));
-			const a2 = await store.saveArticle(
+			const { saved: a2 } = await store.saveArticle(
 				makeArticleParams({ url: "https://example.com/second" }),
 			);
 
@@ -363,11 +373,11 @@ describe("initInMemoryArticleStore", () => {
 
 		it("should sort ascending when specified", async () => {
 			const store = initInMemoryArticleStore();
-			const a1 = await store.saveArticle(
+			const { saved: a1 } = await store.saveArticle(
 				makeArticleParams({ url: "https://example.com/first" }),
 			);
 			await new Promise((resolve) => setTimeout(resolve, 10));
-			const a2 = await store.saveArticle(
+			const { saved: a2 } = await store.saveArticle(
 				makeArticleParams({ url: "https://example.com/second" }),
 			);
 
@@ -382,15 +392,15 @@ describe("initInMemoryArticleStore", () => {
 
 		it("should sort by readAt descending when sort=readAt", async () => {
 			const store = initInMemoryArticleStore();
-			const a1 = await store.saveArticle(
+			const { saved: a1 } = await store.saveArticle(
 				makeArticleParams({ url: "https://example.com/first" }),
 			);
 			await new Promise((resolve) => setTimeout(resolve, 10));
-			const a2 = await store.saveArticle(
+			const { saved: a2 } = await store.saveArticle(
 				makeArticleParams({ url: "https://example.com/second" }),
 			);
 			await new Promise((resolve) => setTimeout(resolve, 10));
-			const a3 = await store.saveArticle(
+			const { saved: a3 } = await store.saveArticle(
 				makeArticleParams({ url: "https://example.com/third" }),
 			);
 
@@ -415,13 +425,13 @@ describe("initInMemoryArticleStore", () => {
 
 		it("should sort by readAt ascending when sort=readAt and order=asc", async () => {
 			const store = initInMemoryArticleStore();
-			const a1 = await store.saveArticle(
+			const { saved: a1 } = await store.saveArticle(
 				makeArticleParams({ url: "https://example.com/first" }),
 			);
-			const a2 = await store.saveArticle(
+			const { saved: a2 } = await store.saveArticle(
 				makeArticleParams({ url: "https://example.com/second" }),
 			);
-			const a3 = await store.saveArticle(
+			const { saved: a3 } = await store.saveArticle(
 				makeArticleParams({ url: "https://example.com/third" }),
 			);
 
@@ -542,7 +552,7 @@ describe("initInMemoryArticleStore", () => {
 
 		it("counts only articles matching the status filter", async () => {
 			const store = initInMemoryArticleStore();
-			const a1 = await store.saveArticle(
+			const { saved: a1 } = await store.saveArticle(
 				makeArticleParams({ url: "https://example.com/1" }),
 			);
 			await store.saveArticle(makeArticleParams({ url: "https://example.com/2" }));
@@ -585,7 +595,7 @@ describe("initInMemoryArticleStore", () => {
 	describe("deleteArticle", () => {
 		it("should remove user's relationship to the article", async () => {
 			const store = initInMemoryArticleStore();
-			const saved = await store.saveArticle(makeArticleParams());
+			const { saved } = await store.saveArticle(makeArticleParams());
 
 			const deleted = await store.deleteArticle(saved.id, USER_A);
 
@@ -595,7 +605,7 @@ describe("initInMemoryArticleStore", () => {
 
 		it("should not affect another user's relationship to the same article", async () => {
 			const store = initInMemoryArticleStore();
-			const saved = await store.saveArticle(makeArticleParams({ userId: USER_A }));
+			const { saved } = await store.saveArticle(makeArticleParams({ userId: USER_A }));
 			await store.saveArticle(makeArticleParams({ userId: USER_B }));
 
 			await store.deleteArticle(saved.id, USER_A);
@@ -606,7 +616,7 @@ describe("initInMemoryArticleStore", () => {
 
 		it("should not delete another user's article", async () => {
 			const store = initInMemoryArticleStore();
-			const saved = await store.saveArticle(makeArticleParams({ userId: USER_A }));
+			const { saved } = await store.saveArticle(makeArticleParams({ userId: USER_A }));
 
 			const deleted = await store.deleteArticle(saved.id, USER_B);
 
@@ -626,9 +636,9 @@ describe("initInMemoryArticleStore", () => {
 	describe("deleteAllUserArticles", () => {
 		it("removes every row for the user while leaving the global article and other users' rows intact", async () => {
 			const store = initInMemoryArticleStore();
-			const a1 = await store.saveArticle(makeArticleParams({ userId: USER_A, url: "https://example.com/1" }));
+			const { saved: a1 } = await store.saveArticle(makeArticleParams({ userId: USER_A, url: "https://example.com/1" }));
 			await store.saveArticle(makeArticleParams({ userId: USER_A, url: "https://example.com/2" }));
-			const shared = await store.saveArticle(makeArticleParams({ userId: USER_A }));
+			const { saved: shared } = await store.saveArticle(makeArticleParams({ userId: USER_A }));
 			await store.saveArticle(makeArticleParams({ userId: USER_B }));
 
 			await store.deleteAllUserArticles(USER_A);
@@ -714,7 +724,7 @@ describe("initInMemoryArticleStore", () => {
 	describe("updateArticleStatus", () => {
 		it("should update status and set readAt for read", async () => {
 			const store = initInMemoryArticleStore();
-			const saved = await store.saveArticle(makeArticleParams());
+			const { saved } = await store.saveArticle(makeArticleParams());
 
 			await store.updateArticleStatus(saved.id, USER_A, "read");
 			const found = await store.findArticleById(saved.id, USER_A);
@@ -725,7 +735,7 @@ describe("initInMemoryArticleStore", () => {
 
 		it("should clear readAt when marking unread", async () => {
 			const store = initInMemoryArticleStore();
-			const saved = await store.saveArticle(makeArticleParams());
+			const { saved } = await store.saveArticle(makeArticleParams());
 			await store.updateArticleStatus(saved.id, USER_A, "read");
 			await store.updateArticleStatus(saved.id, USER_A, "unread");
 
@@ -737,7 +747,7 @@ describe("initInMemoryArticleStore", () => {
 
 		it("should not update another user's article", async () => {
 			const store = initInMemoryArticleStore();
-			const saved = await store.saveArticle(makeArticleParams({ userId: USER_A }));
+			const { saved } = await store.saveArticle(makeArticleParams({ userId: USER_A }));
 
 			const updated = await store.updateArticleStatus(saved.id, USER_B, "read");
 

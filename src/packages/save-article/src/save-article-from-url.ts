@@ -38,17 +38,21 @@ export type SaveArticleFromUrl = (params: {
 	userId: UserId;
 	url: SaveableUrl;
 	freshness: ContentFreshnessResult;
-}) => Promise<{ saved: SavedArticle; canonicalUrl: string }>;
+}) => Promise<{
+	saved: SavedArticle;
+	canonicalUrl: string;
+	createdUserArticle: boolean;
+}>;
 
 async function saveByFreshness(
 	deps: SaveArticleFromUrlDependencies,
 	params: { userId: UserId; url: string; freshness: ContentFreshnessResult },
-): Promise<{ saved: SavedArticle }> {
+): Promise<{ saved: SavedArticle; createdUserArticle: boolean }> {
 	const { userId, url, freshness } = params;
 
 	if (freshness.action === "new") {
 		const hostname = new URL(url).hostname;
-		const saved = await deps.saveArticle({
+		const { saved, createdUserArticle } = await deps.saveArticle({
 			userId,
 			url,
 			metadata: {
@@ -69,10 +73,10 @@ async function saveByFreshness(
 			}),
 			deps.publishLinkSaved({ url, userId }),
 		]);
-		return { saved: unread };
+		return { saved: unread, createdUserArticle };
 	}
 
-	const saved = await deps.saveArticle({
+	const { saved, createdUserArticle } = await deps.saveArticle({
 		userId,
 		url,
 		metadata: { title: "", siteName: "", excerpt: "", wordCount: 0 },
@@ -84,7 +88,10 @@ async function saveByFreshness(
 		await deps.publishLinkSaved({ url, userId });
 	}
 
-	return { saved: await markUnreadIfRead(deps.updateArticleStatus, saved) };
+	return {
+		saved: await markUnreadIfRead(deps.updateArticleStatus, saved),
+		createdUserArticle,
+	};
 }
 
 export function initSaveArticleFromUrl(

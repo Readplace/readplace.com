@@ -82,7 +82,22 @@ describe("initDynamoDbRelatedArticles", () => {
 			});
 		});
 
-		it("leaves a row another invocation already settled untouched", async () => {
+		it("reports a stored write when the guarded update lands", async () => {
+			const { store } = build(() => ({}));
+
+			await expect(
+				store.markRelatedArticlesReady({
+					userId: USER_ID,
+					url: TARGET_URL,
+					relatedArticles: [],
+					inputTokens: 0,
+					outputTokens: 0,
+					at: AT,
+				}),
+			).resolves.toBe("stored");
+		});
+
+		it("reports a row another invocation already settled as superseded", async () => {
 			const { store } = build(() => {
 				throw new ConditionalCheckFailedException({ $metadata: {}, message: "settled" });
 			});
@@ -96,10 +111,10 @@ describe("initDynamoDbRelatedArticles", () => {
 					outputTokens: 30,
 					at: AT,
 				}),
-			).resolves.toBeUndefined();
+			).resolves.toBe("superseded");
 		});
 
-		it("treats a save deleted mid-computation as a no-op", async () => {
+		it("treats a save deleted mid-computation as superseded", async () => {
 			const { store } = build(() => {
 				throw new ConditionalCheckFailedException({ $metadata: {}, message: "gone" });
 			});
@@ -113,7 +128,7 @@ describe("initDynamoDbRelatedArticles", () => {
 					outputTokens: 0,
 					at: AT,
 				}),
-			).resolves.toBeUndefined();
+			).resolves.toBe("superseded");
 		});
 
 		it("propagates any other write failure", async () => {
@@ -138,7 +153,11 @@ describe("initDynamoDbRelatedArticles", () => {
 		it("records the skip and drops any earlier relations", async () => {
 			const { sent, store } = build(() => ({}));
 
-			await store.markRelatedArticlesSkipped({ userId: USER_ID, url: TARGET_URL, at: AT });
+			const outcome = await store.markRelatedArticlesSkipped({
+				userId: USER_ID,
+				url: TARGET_URL,
+				at: AT,
+			});
 
 			const update = sent[0];
 			assert(update, "an update must have been issued");
@@ -147,6 +166,17 @@ describe("initDynamoDbRelatedArticles", () => {
 				":status": "skipped",
 				":at": AT.toISOString(),
 			});
+			expect(outcome).toBe("stored");
+		});
+
+		it("reports a row another invocation already settled as superseded", async () => {
+			const { store } = build(() => {
+				throw new ConditionalCheckFailedException({ $metadata: {}, message: "settled" });
+			});
+
+			await expect(
+				store.markRelatedArticlesSkipped({ userId: USER_ID, url: TARGET_URL, at: AT }),
+			).resolves.toBe("superseded");
 		});
 	});
 

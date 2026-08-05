@@ -17,6 +17,7 @@ import type {
 	FindRelatedArticles,
 	FindRelatedCandidateArticles,
 	FindRelatedTargetArticle,
+	MarkRelatedArticlesOutcome,
 	MarkRelatedArticlesReady,
 	MarkRelatedArticlesSkipped,
 	RelatedArticleDisplay,
@@ -117,7 +118,7 @@ export function initDynamoDbRelatedArticles(deps: {
 		url: string;
 		updateExpression: string;
 		expressionAttributeValues: Record<string, unknown>;
-	}): Promise<void> {
+	}): Promise<MarkRelatedArticlesOutcome> {
 		const articleResourceUniqueId = ArticleResourceUniqueId.parse(params.url);
 		try {
 			await userArticles.update({
@@ -130,8 +131,9 @@ export function initDynamoDbRelatedArticles(deps: {
 					"attribute_exists(savedAt) AND attribute_not_exists(relatedStatus)",
 				ExpressionAttributeValues: params.expressionAttributeValues,
 			});
+			return "stored";
 		} catch (error) {
-			if (error instanceof ConditionalCheckFailedException) return;
+			if (error instanceof ConditionalCheckFailedException) return "superseded";
 			throw error;
 		}
 	}

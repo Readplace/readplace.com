@@ -344,7 +344,7 @@ describe("initDynamoDbSavedArticleStore global writes", () => {
 			},
 		});
 
-		const saved = await initStore(client).saveArticle({
+		const { saved, createdUserArticle } = await initStore(client).saveArticle({
 			userId: USER,
 			url: URL,
 			metadata: { title: "Title", siteName: "Example", excerpt: "Excerpt", wordCount: 250, imageUrl: "https://example.com/image.jpg" },
@@ -362,6 +362,46 @@ describe("initDynamoDbSavedArticleStore global writes", () => {
 		expect(saved.url).toBe(URL);
 		expect(saved.status).toBe("read");
 		expect(saved.readAt).toEqual(new Date("2026-05-30T11:00:00.000Z"));
+		expect(createdUserArticle).toBe(true);
+	});
+
+	it("saveArticle reports the user row as created when the update returned no prior item", async () => {
+		const { client, commands } = createFakeClient({
+			GetCommand: {
+				queue: [{ Item: articleItem() }, { Item: userArticleItem() }],
+			},
+		});
+
+		const { createdUserArticle } = await initStore(client).saveArticle({
+			userId: USER,
+			url: URL,
+			metadata: { title: "Title", siteName: "Example", excerpt: "Excerpt", wordCount: 250 },
+			estimatedReadTime: TWO_MINUTES,
+		});
+
+		const userRowUpdate = commands.find(
+			(c) => c.name === "UpdateCommand" && c.input.UpdateExpression !== "SET savedAt = :savedAt",
+		);
+		expect(userRowUpdate?.input.ReturnValues).toBe("ALL_OLD");
+		expect(createdUserArticle).toBe(true);
+	});
+
+	it("saveArticle reports the user row as pre-existing when the update returned the prior item", async () => {
+		const { client } = createFakeClient({
+			UpdateCommand: { default: { Attributes: userArticleItem() } },
+			GetCommand: {
+				queue: [{ Item: articleItem() }, { Item: userArticleItem() }],
+			},
+		});
+
+		const { createdUserArticle } = await initStore(client).saveArticle({
+			userId: USER,
+			url: URL,
+			metadata: { title: "Title", siteName: "Example", excerpt: "Excerpt", wordCount: 250 },
+			estimatedReadTime: TWO_MINUTES,
+		});
+
+		expect(createdUserArticle).toBe(false);
 	});
 
 	it("saveArticle bumps savedAt when the global row already exists", async () => {
@@ -376,7 +416,7 @@ describe("initDynamoDbSavedArticleStore global writes", () => {
 			},
 		});
 
-		const saved = await initStore(client).saveArticle({
+		const { saved } = await initStore(client).saveArticle({
 			userId: USER,
 			url: URL,
 			metadata: { title: "Title", siteName: "Example", excerpt: "Excerpt", wordCount: 250, imageUrl: "https://example.com/image.jpg" },

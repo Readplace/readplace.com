@@ -14,7 +14,8 @@ describe("initInMemoryComputeRelatedArticles", () => {
 			warn: () => {},
 			debug: () => {},
 		});
-		const { publishComputeRelatedArticles } = initInMemoryComputeRelatedArticles({ logger });
+		const { publishComputeRelatedArticles, publishedComputeRelatedArticles } =
+			initInMemoryComputeRelatedArticles({ logger });
 
 		await publishComputeRelatedArticles({
 			url: "https://example.com/post",
@@ -26,5 +27,8 @@ describe("initInMemoryComputeRelatedArticles", () => {
 			url: "https://example.com/post",
 			userId: "user_abc",
 		});
+		assert.deepEqual(publishedComputeRelatedArticles, [
+			{ url: "https://example.com/post", userId: "user_abc" },
+		]);
 	});
 });

@@ -255,7 +255,7 @@ export function initDynamoDbSavedArticleStore(deps: {
 			}
 		};
 
-		await Promise.all([
+		const [, priorUserArticle] = await Promise.all([
 			upsertGlobal(),
 			userArticles.update({
 				Key: { userId: params.userId, url: articleResourceUniqueId.value },
@@ -266,6 +266,7 @@ export function initDynamoDbSavedArticleStore(deps: {
 					":savedAt": now.toISOString(),
 					":unread": "unread",
 				},
+				ReturnValues: "ALL_OLD",
 			}),
 		]);
 
@@ -279,7 +280,10 @@ export function initDynamoDbSavedArticleStore(deps: {
 		assertItem(article, "article must exist immediately after save");
 		assertItem(userArticle, "user article must exist immediately after save");
 
-		return toSavedArticle(article, userArticle);
+		return {
+			saved: toSavedArticle(article, userArticle),
+			createdUserArticle: priorUserArticle.Attributes === undefined,
+		};
 	};
 
 	const findArticleById: FindArticleById = async (routeId, userId) => {

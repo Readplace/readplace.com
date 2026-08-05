@@ -124,7 +124,7 @@ describe("Email verification lockout", () => {
 		const agent = await loginAgent(harness.server, harness.auth);
 		const userId = (await harness.auth.findUserByEmail("test@example.com"))?.userId;
 		assert(userId, "seeded login user must exist");
-		const saved = await harness.articleStore.saveArticle({
+		const { saved } = await harness.articleStore.saveArticle({
 			userId,
 			url: "https://example.com/already-saved",
 			metadata: { title: "Already saved", siteName: "example.com", excerpt: "", wordCount: 0 },
@@ -271,7 +271,7 @@ describe("Email verification lockout (Siren API)", () => {
 	it("lets a locked account delete an existing item via Siren (delete is not a save)", async () => {
 		const harness = useApp(fixtureClockedDaysAhead(8));
 		const userId = await createUnverifiedUser(harness, "locked-delete@example.com");
-		const saved = await harness.articleStore.saveArticle({
+		const { saved } = await harness.articleStore.saveArticle({
 			userId,
 			url: "https://example.com/already-saved",
 			metadata: { title: "Already saved", siteName: "example.com", excerpt: "", wordCount: 0 },

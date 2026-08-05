@@ -11,10 +11,12 @@ export function initSaveArticleInteractively(
 ): SaveArticleFromUrl {
 	return async (params) => {
 		const result = await deps.saveArticleFromUrl(params);
-		await deps.publishComputeRelatedArticles({
-			url: result.canonicalUrl,
-			userId: params.userId,
-		});
+		if (result.createdUserArticle) {
+			await deps.publishComputeRelatedArticles({
+				url: result.canonicalUrl,
+				userId: params.userId,
+			});
+		}
 		return result;
 	};
 }

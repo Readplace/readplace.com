@@ -181,7 +181,10 @@ export function initInMemoryArticleStore(): {
 		assert(article, "Article must exist after set");
 		const ua = userArticles.get(uaKey);
 		assert(ua, "User article must exist after set");
-		return toSavedArticle(article, ua);
+		return {
+			saved: toSavedArticle(article, ua),
+			createdUserArticle: existing === undefined,
+		};
 	};
 
 	const findArticleById: FindArticleById = async (id, userId) => {
