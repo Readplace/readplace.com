@@ -29,6 +29,10 @@
     "test-with-coverage": {
       "dependsOn": ["compile"]
     },
+    "update-visual-baselines": {
+      "dependsOn": ["compile"],
+      "cache": false
+    },
     "test": {}
   }
 }

@@ -9,6 +9,7 @@
     "test": "jest --testMatch='**/dist/**/*.test.js' --testTimeout=10000",
     "test-with-coverage": "c8 node scripts/run-tests-with-coverage.js && node enforce-coverage.config.js",
     "test:e2e": "pnpm compile && E2E_PORT=3700 playwright test --config playwright.config.local-dev.ts",
+    "update-visual-baselines": "node scripts/update-visual-baselines.js",
     "lint": "tsc --project tsconfig.lint.json && concurrently --kill-others-on-fail \"biome lint src\" \"knip\" \"editorconfig-checker\"",
     "check-infra": "PULUMI_CONFIG_PASSPHRASE='' pulumi preview --stack \"${PULUMI_STACK:?PULUMI_STACK is not set}\"",
     "check": "nx run web-embed:check"
