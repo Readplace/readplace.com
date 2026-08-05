@@ -3,7 +3,10 @@
   <li class="related-slot__item">
     <a class="related-slot__link" href="{{href}}" data-test-related-item="{{id}}">
       <span class="related-slot__title">{{title}}</span>
-      <span class="related-slot__site">{{siteName}}</span>
+      <span class="related-slot__meta">
+        <span class="related-slot__status {{statusClass}}" data-test-read-status="{{readStatus}}">{{icon "check"}}<span class="related-slot__status-label">{{statusLabel}}</span></span>
+        <span class="related-slot__site">{{siteName}}</span>
+      </span>
       <span class="related-slot__reason">{{reason}}</span>
     </a>
   </li>

@@ -1,7 +1,10 @@
 import assert from "node:assert";
 import { ArticleResourceUniqueId } from "@packages/article-resource-unique-id";
 import { CrawlStatusSchema } from "@packages/article-state-types";
-import { ReaderArticleHashIdSchema } from "@packages/domain/article";
+import {
+	ArticleStatusSchema,
+	ReaderArticleHashIdSchema,
+} from "@packages/domain/article";
 import type { UserId } from "@packages/domain/user";
 import {
 	ConditionalCheckFailedException,
@@ -263,17 +266,20 @@ export function initDynamoDbRelatedArticles(deps: {
 		const stillSaved = await batchGetFromTable({
 			client,
 			tableName: userArticlesTableName,
-			schema: z.looseObject({ url: z.string() }),
+			schema: z.looseObject({ url: z.string(), status: ArticleStatusSchema }),
 			keys: keyed.map((link) => ({ userId: params.userId, url: link.key })),
-			projection: ["url"],
+			projection: ["url", "status"],
 		});
-		const savedKeys = new Set(stillSaved.map((saved) => saved.url));
+		const savedStatusByKey = new Map(
+			stillSaved.map((saved) => [saved.url, saved.status] as const),
+		);
 
-		const byUrl = await readArticles([...savedKeys], ARTICLE_FIELDS);
+		const byUrl = await readArticles([...savedStatusByKey.keys()], ARTICLE_FIELDS);
 
 		const items: RelatedArticleDisplay[] = [];
 		for (const link of keyed) {
-			if (!savedKeys.has(link.key)) continue;
+			const status = savedStatusByKey.get(link.key);
+			if (!status) continue;
 			const article = usable(LinkableArticle, byUrl.get(link.key));
 			if (!article) continue;
 			items.push({
@@ -281,6 +287,7 @@ export function initDynamoDbRelatedArticles(deps: {
 				title: article.title,
 				siteName: article.siteName,
 				reason: link.reason,
+				status,
 			});
 		}
 		return { status: "ready", items };

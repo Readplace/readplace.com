@@ -440,6 +440,7 @@ describe("initDynamoDbRelatedArticles", () => {
 		});
 
 		it("joins stored relations to their article metadata, preserving the stored order", async () => {
+			let savedRowProjection: string | undefined;
 			const { store } = build((command) => {
 				if (command.constructorName === "GetCommand") {
 					return {
@@ -454,15 +455,19 @@ describe("initDynamoDbRelatedArticles", () => {
 						},
 					};
 				}
-				const tableName = Object.keys(
-					(command.input as { RequestItems: Record<string, unknown> }).RequestItems,
-				)[0];
+				const requestItems = (
+					command.input as {
+						RequestItems: Record<string, { ProjectionExpression: string }>;
+					}
+				).RequestItems;
+				const tableName = Object.keys(requestItems)[0];
 				if (tableName === USER_ARTICLES_TABLE) {
+					savedRowProjection = requestItems[tableName].ProjectionExpression;
 					return {
 						Responses: {
 							[USER_ARTICLES_TABLE]: [
-								{ url: "example.com/second" },
-								{ url: "example.com/first" },
+								{ url: "example.com/second", status: "read" },
+								{ url: "example.com/first", status: "unread" },
 							],
 						},
 						UnprocessedKeys: {},
@@ -502,14 +507,17 @@ describe("initDynamoDbRelatedArticles", () => {
 					title: "Second",
 					siteName: "Example",
 					reason: "Follow-up",
+					status: "read",
 				},
 				{
 					id: "0123456789abcdef0123456789abcdef",
 					title: "First",
 					siteName: "Example",
 					reason: "Same event",
+					status: "unread",
 				},
 			]);
+			expect(savedRowProjection).toContain("#status");
 		});
 
 		it("drops a relation whose article row has gone missing entirely", async () => {
@@ -529,7 +537,9 @@ describe("initDynamoDbRelatedArticles", () => {
 				)[0];
 				if (tableName === USER_ARTICLES_TABLE) {
 					return {
-						Responses: { [USER_ARTICLES_TABLE]: [{ url: "example.com/vanished" }] },
+						Responses: {
+							[USER_ARTICLES_TABLE]: [{ url: "example.com/vanished", status: "unread" }],
+						},
 						UnprocessedKeys: {},
 					};
 				}
@@ -564,8 +574,8 @@ describe("initDynamoDbRelatedArticles", () => {
 					return {
 						Responses: {
 							[USER_ARTICLES_TABLE]: [
-								{ url: "example.com/purged" },
-								{ url: "example.com/kept" },
+								{ url: "example.com/purged", status: "unread" },
+								{ url: "example.com/kept", status: "unread" },
 							],
 						},
 						UnprocessedKeys: {},
@@ -606,6 +616,7 @@ describe("initDynamoDbRelatedArticles", () => {
 					title: "Kept",
 					siteName: "Example",
 					reason: "Same argument",
+					status: "unread",
 				},
 			]);
 		});

@@ -1,4 +1,4 @@
-import type { ReaderArticleHashId } from "@packages/domain/article";
+import type { ArticleStatus, ReaderArticleHashId } from "@packages/domain/article";
 import type { UserId } from "@packages/domain/user";
 
 export interface RelatedArticleLink {
@@ -26,6 +26,7 @@ export interface RelatedArticleDisplay {
 	title: string;
 	siteName: string;
 	reason: string;
+	status: ArticleStatus;
 }
 
 export type RelatedArticles =

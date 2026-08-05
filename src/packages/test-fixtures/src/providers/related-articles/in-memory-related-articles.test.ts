@@ -22,14 +22,26 @@ describe("initInMemoryRelatedArticles", () => {
 			userId: USER_ID,
 			url: URL,
 			items: [
-				{ id: RELATED_ID, title: "Earlier read", siteName: "Example", reason: "Same argument" },
+				{
+					id: RELATED_ID,
+					title: "Earlier read",
+					siteName: "Example",
+					reason: "Same argument",
+					status: "unread",
+				},
 			],
 		});
 
 		expect(await store.findRelatedArticles({ userId: USER_ID, url: URL })).toEqual({
 			status: "ready",
 			items: [
-				{ id: RELATED_ID, title: "Earlier read", siteName: "Example", reason: "Same argument" },
+				{
+					id: RELATED_ID,
+					title: "Earlier read",
+					siteName: "Example",
+					reason: "Same argument",
+					status: "unread",
+				},
 			],
 		});
 		expect(await store.findRelatedArticles({ userId: OTHER_USER_ID, url: URL })).toEqual({

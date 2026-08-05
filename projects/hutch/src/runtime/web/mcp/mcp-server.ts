@@ -65,6 +65,7 @@ export interface RelatedArticleResult {
 	readonly title: string;
 	readonly siteName: string;
 	readonly reason: string;
+	readonly status: ArticleStatus;
 }
 
 export type ArticleRelatedResult =
@@ -515,7 +516,10 @@ export function initMcpServer(deps: McpServerDeps): McpServer {
 						result.articles.length === 0
 							? "Nothing else in the queue relates to that article."
 							: result.articles
-									.map((related) => `${related.title} (${related.siteName}): ${related.reason}`)
+									.map(
+										(related) =>
+											`${related.title} (${related.siteName}) [${related.status}]: ${related.reason}`,
+									)
 									.join("\n"),
 						result,
 					);

@@ -646,6 +646,14 @@ describe("initMcpServer", () => {
 								title: "Earlier read",
 								siteName: "Example",
 								reason: "Same argument",
+								status: "unread",
+							},
+							{
+								id: "z".repeat(32),
+								title: "Already finished",
+								siteName: "Example",
+								reason: "Follow-up",
+								status: "read",
 							},
 						],
 					}),
@@ -654,7 +662,11 @@ describe("initMcpServer", () => {
 			const response = await call(server, 57, "get_related_articles", { id: "x".repeat(32) });
 			expect(response).toMatchObject({
 				result: {
-					content: [{ text: "Earlier read (Example): Same argument" }],
+					content: [
+						{
+							text: "Earlier read (Example) [unread]: Same argument\nAlready finished (Example) [read]: Follow-up",
+						},
+					],
 					structuredContent: { status: "ready" },
 				},
 			});

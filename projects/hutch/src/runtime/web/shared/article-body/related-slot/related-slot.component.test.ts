@@ -73,8 +73,20 @@ describe("renderRelatedSlot", () => {
 					articles: {
 						status: "ready",
 						items: [
-							{ id: firstId, title: "First", siteName: "Example", reason: "Same argument" },
-							{ id: secondId, title: "Second", siteName: "Other", reason: "Follow-up" },
+							{
+								id: firstId,
+								title: "First",
+								siteName: "Example",
+								reason: "Same argument",
+								status: "unread",
+							},
+							{
+								id: secondId,
+								title: "Second",
+								siteName: "Other",
+								reason: "Follow-up",
+								status: "read",
+							},
 						],
 					},
 					sourceArticleId: sourceId.value,
@@ -108,6 +120,55 @@ describe("renderRelatedSlot", () => {
 				siteName: "Other",
 				reason: "Follow-up",
 			},
+		]);
+	});
+
+	it("marks every relation with the reader's own read state", () => {
+		const doc = parse(
+			renderRelatedSlot({
+				related: {
+					articles: {
+						status: "ready",
+						items: [
+							{
+								id: firstId,
+								title: "First",
+								siteName: "Example",
+								reason: "Same argument",
+								status: "unread",
+							},
+							{
+								id: secondId,
+								title: "Second",
+								siteName: "Other",
+								reason: "Follow-up",
+								status: "read",
+							},
+						],
+					},
+					sourceArticleId: sourceId.value,
+				},
+			}),
+		);
+
+		const states = Array.from(doc.querySelectorAll("[data-test-related-item]")).map(
+			(link) => {
+				const badge = link.querySelector(".related-slot__status");
+				assert(badge, "every relation carries its read state");
+				const label = badge.querySelector(".related-slot__status-label");
+				assert(label, "a read state names itself in words, not only by its shape");
+				return {
+					state: badge.getAttribute("data-test-read-status"),
+					unread: badge.classList.contains("related-slot__status--unread"),
+					read: badge.classList.contains("related-slot__status--read"),
+					label: label.textContent,
+				};
+			},
+		);
+
+		expect(states).toEqual([
+			{ state: "unread", unread: true, read: false, label: "Unread" },
+			{ state: "read", unread: false, read: true, label: "Read" },
 		]);
 	});
 
@@ -169,7 +230,13 @@ describe("renderRelatedSlot", () => {
 					articles: {
 						status: "ready",
 						items: [
-							{ id: firstId, title: "First", siteName: "Example", reason: "Same argument" },
+							{
+								id: firstId,
+								title: "First",
+								siteName: "Example",
+								reason: "Same argument",
+								status: "unread",
+							},
 						],
 					},
 					sourceArticleId: sourceId.value,

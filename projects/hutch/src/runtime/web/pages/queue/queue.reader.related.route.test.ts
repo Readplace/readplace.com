@@ -18,6 +18,9 @@ const useApp = useTestServer();
 
 const ARTICLE_URL = "https://example.com/target-post";
 const RELATED_ID = ReaderArticleHashIdSchema.parse("0123456789abcdef0123456789abcdef");
+const FINISHED_RELATED_ID = ReaderArticleHashIdSchema.parse(
+	"fedcba9876543210fedcba9876543210",
+);
 
 const ARTICLE_HTML = `
 <html><head><title>Target Post</title></head>
@@ -70,7 +73,20 @@ async function buildHarness() {
 			userId,
 			url: ARTICLE_URL,
 			items: [
-				{ id: RELATED_ID, title: "Earlier read", siteName: "Example", reason: "Same argument" },
+				{
+					id: RELATED_ID,
+					title: "Earlier read",
+					siteName: "Example",
+					reason: "Same argument",
+					status: "unread",
+				},
+				{
+					id: FINISHED_RELATED_ID,
+					title: "Already finished",
+					siteName: "Example",
+					reason: "Follow-up",
+					status: "read",
+				},
 			],
 		});
 	}
@@ -120,6 +136,38 @@ describe("Reader related-articles slot", () => {
 			utm_term: articleId,
 		});
 		expect(link.querySelector(".related-slot__reason")?.textContent).toBe("Same argument");
+
+		const states = Array.from(doc.querySelectorAll("[data-test-related-item]")).map(
+			(item) => {
+				const badge = item.querySelector(".related-slot__status");
+				assert(badge, "every relation shows whether the reader has read it");
+				const label = badge.querySelector(".related-slot__status-label");
+				assert(label, "a read state names itself in words, not only by its shape");
+				return {
+					id: item.getAttribute("data-test-related-item"),
+					state: badge.getAttribute("data-test-read-status"),
+					unread: badge.classList.contains("related-slot__status--unread"),
+					read: badge.classList.contains("related-slot__status--read"),
+					label: label.textContent,
+				};
+			},
+		);
+		expect(states).toEqual([
+			{
+				id: RELATED_ID.value,
+				state: "unread",
+				unread: true,
+				read: false,
+				label: "Unread",
+			},
+			{
+				id: FINISHED_RELATED_ID.value,
+				state: "read",
+				unread: false,
+				read: true,
+				label: "Read",
+			},
+		]);
 	});
 
 	it("stays hidden with the toggle on while nothing has been computed", async () => {

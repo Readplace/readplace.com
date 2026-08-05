@@ -47,6 +47,45 @@
   color: var(--primary);
 }
 
+.related-slot__meta {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+.related-slot__status {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.375rem;
+  font-size: 0.75rem;
+}
+
+.related-slot__status--unread {
+  color: var(--primary-text);
+}
+
+.related-slot__status--read {
+  color: var(--success-text);
+}
+
+.related-slot__status--unread::before {
+  content: "";
+  display: block;
+  width: 0.5rem;
+  height: 0.5rem;
+  border-radius: 50%;
+  background: currentColor;
+}
+
+.related-slot__status--unread svg {
+  display: none;
+}
+
+.related-slot__status--read svg {
+  width: 0.875rem;
+  height: 0.875rem;
+}
+
 .related-slot__site {
   font-size: 0.75rem;
   text-transform: uppercase;

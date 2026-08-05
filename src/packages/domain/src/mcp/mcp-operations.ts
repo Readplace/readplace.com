@@ -67,7 +67,7 @@ export const MCP_OPERATIONS = [
 		name: "get_related_articles",
 		title: "Get related articles from the user's own queue",
 		description:
-			"Return other articles already in the user's own Readplace queue that relate to one saved article, looked up by id, each with a short reason and an id you can pass to get_article. Reports its status (pending or skipped) when no relations have been worked out.",
+			"Return other articles already in the user's own Readplace queue that relate to one saved article, looked up by id, each with a short reason, its read/unread state in the user's queue, and an id you can pass to get_article. Reports its status (pending or skipped) when no relations have been worked out.",
 		summary: "returns other saves in the same queue that relate to one article.",
 		effect: "read",
 	},
