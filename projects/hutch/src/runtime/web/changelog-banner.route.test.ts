@@ -72,4 +72,20 @@ describe("changelog banner on hutch pages", () => {
 		expect(banner.getAttribute("data-changelog-version")).toBe(VERSION);
 		expect(banner.querySelector("script")?.textContent).toBe(CHANGELOG_SEEN_SCRIPT);
 	});
+
+	it("consults the changelog source once via the pre-auth kick on a redirect that never renders the shell", async () => {
+		let consultations = 0;
+		const { app } = createTestApp(createDefaultTestAppFixture(TEST_APP_ORIGIN), {
+			getChangelogBanner: async () => {
+				consultations++;
+				return undefined;
+			},
+		});
+
+		const response = await request(app).get("/queue/counts");
+
+		expect(response.status).toBe(303);
+		expect(response.headers.location).toBe("/login");
+		expect(consultations).toBe(1);
+	});
 });
