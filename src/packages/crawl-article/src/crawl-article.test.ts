@@ -15,7 +15,7 @@ import type { fetchH2 } from "./h2-fetch";
 import type { ExtractPdf } from "./pdf-extract.types";
 import type { Persona } from "./persona-fallback";
 import { initXTwitterSiteRules } from "./x-twitter-site-rules";
-import { noExtract, noTransform, skipCrawl } from "@packages/site-rules";
+import { noExtract, noRecovery, noTransform, skipCrawl } from "@packages/site-rules";
 import type { SiteRules } from "@packages/site-rules";
 
 const PDF_BYTES_CAP = 25 * 1024 * 1024;
@@ -146,7 +146,7 @@ describe("initCrawlArticle — single-fetch orchestration", () => {
 				{ status: 200, headers: { "content-type": "text/html" } },
 			);
 		};
-		const decliningSite: SiteRules = { matches: () => true, onCrawl: skipCrawl, extract: noExtract, transform: noTransform };
+		const decliningSite: SiteRules = { matches: () => true, onCrawl: skipCrawl, recoverContent: noRecovery, extract: noExtract, transform: noTransform };
 		const crawlArticle = initCrawl({ fetch: fakeFetch, siteRules: [decliningSite] });
 
 		const result = await crawlArticle({ url: "https://example.com/post" });
@@ -165,6 +165,7 @@ describe("initCrawlArticle — single-fetch orchestration", () => {
 		const failingSite: SiteRules = {
 			matches: () => true,
 			onCrawl: async () => ({ kind: "failed" }),
+			recoverContent: noRecovery,
 			extract: noExtract,
 			transform: noTransform,
 		};
@@ -189,6 +190,7 @@ describe("initCrawlArticle — single-fetch orchestration", () => {
 			onCrawl: async () => {
 				throw onCrawlError;
 			},
+			recoverContent: noRecovery,
 			extract: noExtract,
 			transform: noTransform,
 		};
@@ -211,6 +213,7 @@ describe("initCrawlArticle — single-fetch orchestration", () => {
 			onCrawl: async () => {
 				throw "boom";
 			},
+			recoverContent: noRecovery,
 			extract: noExtract,
 			transform: noTransform,
 		};
@@ -239,6 +242,7 @@ describe("initCrawlArticle — single-fetch orchestration", () => {
 				throw matchesError;
 			},
 			onCrawl: skipCrawl,
+			recoverContent: noRecovery,
 			extract: noExtract,
 			transform: noTransform,
 		};
@@ -263,6 +267,7 @@ describe("initCrawlArticle — single-fetch orchestration", () => {
 				throw "boom";
 			},
 			onCrawl: skipCrawl,
+			recoverContent: noRecovery,
 			extract: noExtract,
 			transform: noTransform,
 		};
@@ -916,6 +921,7 @@ describe("initCrawlArticle — site-rule redirect restarts the crawl", () => {
 		return {
 			matches: ({ hostname }) => hostname === params.hostname,
 			onCrawl: async () => ({ kind: "redirect", url: params.redirectTo }),
+			recoverContent: noRecovery,
 			extract: noExtract,
 			transform: noTransform,
 		};
@@ -951,6 +957,7 @@ describe("initCrawlArticle — site-rule redirect restarts the crawl", () => {
 		const targetContentSite: SiteRules = {
 			matches: ({ hostname }) => hostname === "story.example",
 			onCrawl: async () => ({ kind: "content", html: "<html><body>bespoke</body></html>" }),
+			recoverContent: noRecovery,
 			extract: noExtract,
 			transform: noTransform,
 		};
@@ -974,6 +981,7 @@ describe("initCrawlArticle — site-rule redirect restarts the crawl", () => {
 		const selfRedirectingSite: SiteRules = {
 			matches: ({ hostname }) => hostname === "loop.example",
 			onCrawl: async () => ({ kind: "redirect", url: "https://loop.example/again" }),
+			recoverContent: noRecovery,
 			extract: noExtract,
 			transform: noTransform,
 		};
@@ -1505,5 +1513,106 @@ describe("parsePdfFromBuffer", () => {
 		expect(result).toEqual({ status: "unsupported", reason: `pdf body too large: ${oversize.length} bytes` });
 		expect(extractPdf).not.toHaveBeenCalled();
 		expect(logError).toHaveBeenCalledWith(`[CrawlArticle] PDF body too large (${oversize.length} bytes) for https://example.com/huge.pdf`);
+	});
+});
+
+describe("initCrawlArticle — a redirecting site recovers a refused terminal", () => {
+	const RECOVERED_HTML =
+		"<html><head><title>Recovered</title></head><body><article><p>A body the redirecting site supplied itself.</p></article></body></html>";
+
+	function recoveringSite(params: { redirectTo: string; recovered?: string }): SiteRules {
+		return {
+			matches: ({ hostname }) => hostname === "shell.example",
+			onCrawl: async () => ({ kind: "redirect", url: params.redirectTo }),
+			recoverContent: async () => params.recovered,
+			extract: noExtract,
+			transform: noTransform,
+		};
+	}
+
+	function refusingCrawl(params: { status: number; recovered?: string; redirectTo?: string }) {
+		const redirectTo = params.redirectTo ?? "https://paywalled.example/a";
+		return initCrawl({
+			fetch: async () => new Response(null, { status: params.status }),
+			siteRules: [recoveringSite({ redirectTo, recovered: params.recovered })],
+		});
+	}
+
+	it("serves the recovered body when the redirect terminal refuses the crawler", async () => {
+		const result = await refusingCrawl({ status: 451, recovered: RECOVERED_HTML })({
+			url: "https://shell.example/A123",
+		});
+
+		assertFetched(result);
+		expect(result.html).toBe(RECOVERED_HTML);
+	});
+
+	it("keeps the refused terminal as finalUrl so the article still adopts the publisher identity", async () => {
+		const result = await refusingCrawl({ status: 451, recovered: RECOVERED_HTML })({
+			url: "https://shell.example/A123",
+		});
+
+		assertFetched(result);
+		expect(result.finalUrl).toBe("https://paywalled.example/a");
+	});
+
+	it("serves the recovered body when the redirect terminal fails outright", async () => {
+		const result = await refusingCrawl({
+			status: 402,
+			recovered: RECOVERED_HTML,
+			redirectTo: "https://metered.example/a",
+		})({ url: "https://shell.example/A123" });
+
+		assertFetched(result);
+		expect(result.html).toBe(RECOVERED_HTML);
+	});
+
+	it("serves the recovered body when the redirect terminal is gone", async () => {
+		const result = await refusingCrawl({
+			status: 404,
+			recovered: RECOVERED_HTML,
+			redirectTo: "https://missing.example/a",
+		})({ url: "https://shell.example/A123" });
+
+		assertFetched(result);
+		expect(result.html).toBe(RECOVERED_HTML);
+	});
+
+	it("passes the origin's refusal through when the site has nothing to recover", async () => {
+		const result = await refusingCrawl({ status: 451 })({ url: "https://shell.example/A123" });
+
+		expect(result.status).toBe("blocked");
+	});
+
+	it("leaves an unchanged terminal alone rather than replacing it with a recovered body", async () => {
+		let recoveries = 0;
+		const crawlArticle = initCrawl({
+			fetch: async () => new Response(null, { status: 304 }),
+			siteRules: [
+				{
+					matches: ({ hostname }) => hostname === "shell.example",
+					onCrawl: async () => ({ kind: "redirect", url: "https://story.example/a" }),
+					recoverContent: async () => {
+						recoveries += 1;
+						return RECOVERED_HTML;
+					},
+					extract: noExtract,
+					transform: noTransform,
+				},
+			],
+		});
+
+		const result = await crawlArticle({ url: "https://shell.example/A123", etag: '"v1"' });
+
+		expect(result.status).toBe("not-modified");
+		expect(recoveries).toBe(0);
+	});
+
+	it("never recovers when no site redirected the crawl", async () => {
+		const crawlArticle = initCrawl({ fetch: async () => new Response(null, { status: 451 }) });
+
+		const result = await crawlArticle({ url: "https://direct.example/a" });
+
+		expect(result.status).toBe("blocked");
 	});
 });

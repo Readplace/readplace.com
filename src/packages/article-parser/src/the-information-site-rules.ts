@@ -1,6 +1,6 @@
 import { parseHTML } from "linkedom";
 import { z } from "zod";
-import { noTransform, skipCrawl } from "@packages/site-rules";
+import { noTransform, noRecovery, skipCrawl } from "@packages/site-rules";
 import type { SiteArticleContent, SiteRules } from "@packages/site-rules";
 
 const HOSTS = new Set(["www.theinformation.com", "theinformation.com"]);
@@ -35,6 +35,7 @@ const PAYWALL_NOTICE =
 export const theInformationSiteRules = {
 	matches: ({ hostname }) => HOSTS.has(hostname),
 	onCrawl: skipCrawl,
+	recoverContent: noRecovery,
 	extract: ({ html }): SiteArticleContent | undefined => {
 		const { document } = parseHTML(html);
 		const script = document.querySelector('script[data-component-name="Article"]');

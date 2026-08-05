@@ -1,5 +1,5 @@
 import { z } from "zod";
-import { noExtract, noTransform } from "@packages/site-rules";
+import { noExtract, noRecovery, noTransform } from "@packages/site-rules";
 import type { SiteRules } from "@packages/site-rules";
 import type { CrawlFetch } from "./crawl-fetch";
 
@@ -62,6 +62,7 @@ export function initXTwitterSiteRules(deps: {
 	return {
 		matches: ({ url }) => isTweetUrl(url),
 		onCrawl,
+		recoverContent: noRecovery,
 		extract: noExtract,
 		transform: noTransform,
 	};

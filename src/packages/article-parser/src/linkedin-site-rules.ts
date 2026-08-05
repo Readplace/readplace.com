@@ -1,5 +1,5 @@
 import assert from "node:assert";
-import { noExtract, skipCrawl } from "@packages/site-rules";
+import { noExtract, noRecovery, skipCrawl } from "@packages/site-rules";
 import type { SiteRules } from "@packages/site-rules";
 
 /* Site rules for LinkedIn posts.
@@ -25,6 +25,7 @@ export const linkedinSiteRules = {
 	matches: ({ hostname }) =>
 		hostname === "linkedin.com" || hostname.endsWith(".linkedin.com"),
 	onCrawl: skipCrawl,
+	recoverContent: noRecovery,
 	extract: noExtract,
 	transform: ({ document }) => {
 		for (const host of findPreWrapHosts(document.body)) {

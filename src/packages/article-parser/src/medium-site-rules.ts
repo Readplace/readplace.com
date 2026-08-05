@@ -1,6 +1,6 @@
 import assert from "node:assert";
 import { parseHTML } from "linkedom";
-import { noTransform, skipCrawl } from "@packages/site-rules";
+import { noTransform, noRecovery, skipCrawl } from "@packages/site-rules";
 import type { SiteArticleContent, SiteRules } from "@packages/site-rules";
 
 type DomDocument = ReturnType<typeof parseHTML>["document"];
@@ -58,6 +58,7 @@ const MIN_BODY_CHARS = 200;
 export const mediumSiteRules = {
 	matches: (_params: { url: string; hostname: string }) => true,
 	onCrawl: skipCrawl,
+	recoverContent: noRecovery,
 	extract: ({ html }): SiteArticleContent | undefined => {
 		const { document } = parseHTML(html);
 

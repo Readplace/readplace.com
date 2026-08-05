@@ -1,6 +1,7 @@
 import { noExtract, noTransform } from "@packages/site-rules";
 import type { SiteRules } from "@packages/site-rules";
 import type { CrawlFetch } from "./crawl-fetch";
+import { initFetchAnfArticle } from "./apple-news-anf";
 
 const FETCH_TIMEOUT_MS = 10000;
 const APPLE_NEWS_HOSTNAMES = new Set(["apple.news", "www.apple.news"]);
@@ -42,6 +43,8 @@ export function initAppleNewsSiteRules(deps: {
 	logError: (message: string, error?: Error) => void;
 }): SiteRules {
 	const { crawlFetch, logError } = deps;
+	const fetchAnfArticle = initFetchAnfArticle({ crawlFetch, logError });
+
 	const onCrawl: SiteRules["onCrawl"] = async (params) => {
 		try {
 			const response = await crawlFetch(params.url, { budgetMs: FETCH_TIMEOUT_MS });
@@ -50,11 +53,11 @@ export function initAppleNewsSiteRules(deps: {
 				return { kind: "failed" };
 			}
 			const storyUrl = storyUrlFromShell(await response.text());
-			if (storyUrl === undefined) {
-				logError(`[CrawlArticle] apple.news shell carries no story URL for ${params.url}`);
-				return { kind: "failed" };
-			}
-			return { kind: "redirect", url: storyUrl };
+			if (storyUrl !== undefined) return { kind: "redirect", url: storyUrl };
+			const html = await fetchAnfArticle({ url: params.url });
+			if (html !== undefined) return { kind: "content", html };
+			logError(`[CrawlArticle] apple.news shell carries no story URL for ${params.url}`);
+			return { kind: "failed" };
 		} catch (error) {
 			logError(
 				`[CrawlArticle] apple.news shell fetch error for ${params.url}`,
@@ -67,6 +70,7 @@ export function initAppleNewsSiteRules(deps: {
 	return {
 		matches: ({ hostname }) => APPLE_NEWS_HOSTNAMES.has(hostname),
 		onCrawl,
+		recoverContent: ({ url }) => fetchAnfArticle({ url }),
 		extract: noExtract,
 		transform: noTransform,
 	};

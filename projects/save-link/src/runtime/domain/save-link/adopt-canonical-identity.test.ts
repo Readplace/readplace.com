@@ -1,6 +1,6 @@
 import { noopLogger } from "@packages/hutch-logger";
 import type { ClaimCanonicalAlias, SetArticleDisplayUrl } from "@packages/article-store";
-import { noExtract, noTransform, skipCrawl, type SiteRules } from "@packages/site-rules";
+import { noExtract, noRecovery, noTransform, skipCrawl, type SiteRules } from "@packages/site-rules";
 import { adoptableTerminal, initAdoptCanonicalIdentity, initIsSiteRuleUrl } from "./adopt-canonical-identity";
 
 const never = () => false;
@@ -178,6 +178,7 @@ describe("initIsSiteRuleUrl", () => {
 	const matchHost = (host: string): SiteRules => ({
 		matches: ({ hostname }) => hostname === host,
 		onCrawl: skipCrawl,
+		recoverContent: noRecovery,
 		extract: noExtract,
 		transform: noTransform,
 	});
@@ -203,6 +204,7 @@ describe("initIsSiteRuleUrl", () => {
 				throw new Error("boom");
 			},
 			onCrawl: skipCrawl,
+			recoverContent: noRecovery,
 			extract: noExtract,
 			transform: noTransform,
 		};

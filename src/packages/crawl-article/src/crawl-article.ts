@@ -31,6 +31,31 @@ const DEFAULT_FETCH_TIMEOUTS = { headersMs: 30000, bodyMs: 180000 } as const;
 
 const MAX_SITE_RULE_REDIRECTS = 3;
 
+type RefusedTerminal = Exclude<
+	Awaited<ReturnType<ReturnType<typeof initConditionalGet>>>,
+	{ status: "ok" }
+>;
+
+async function recoverRefusedTerminal(params: {
+	fetched: RefusedTerminal;
+	site: SiteRules | undefined;
+	url: string;
+	logInfo: (message: string) => void;
+}): Promise<CrawlArticleResult> {
+	const { fetched, site, url, logInfo } = params;
+	if (site === undefined) return fetched;
+	if (fetched.status === "not-modified") return fetched;
+	const recovered = await site.recoverContent({ url });
+	if (recovered === undefined) return fetched;
+	logInfo(`[CrawlArticle] ${url} recovered from its ${fetched.status} terminal`);
+	return {
+		status: "fetched",
+		html: recovered,
+		bodyHash: createHash("sha256").update(recovered).digest("hex"),
+		finalUrl: fetched.finalUrl,
+	};
+}
+
 type FetchTimeouts = { headersMs: number; bodyMs: number };
 
 /**
@@ -339,6 +364,7 @@ export function initCrawlArticle(deps: {
 	const conditionalGet = initConditionalGet({ crawlFetch, logError, logInfo, fetchTimeouts });
 	return async (params) => {
 		let currentUrl = params.url;
+		let redirectingSite: SiteRules | undefined;
 		for (let siteRedirects = 0; ; siteRedirects++) {
 			if (siteRedirects > MAX_SITE_RULE_REDIRECTS) {
 				logError(
@@ -358,6 +384,7 @@ export function initCrawlArticle(deps: {
 			 * apple.news shell), or fails closed wins; `skip` falls through to the
 			 * normal fetch cascade below. */
 			let siteRedirect: string | undefined;
+			let claimingSite: SiteRules | undefined;
 			for (const site of siteRules) {
 				let claimed: boolean;
 				try {
@@ -370,6 +397,7 @@ export function initCrawlArticle(deps: {
 					continue;
 				}
 				if (!claimed) continue;
+				claimingSite = site;
 				let outcome: SiteCrawlOutcome;
 				try {
 					outcome = await site.onCrawl({ url: currentUrl });
@@ -393,10 +421,11 @@ export function initCrawlArticle(deps: {
 				};
 			}
 			if (siteRedirect === undefined) break;
+			redirectingSite = claimingSite;
 			currentUrl = siteRedirect;
 		}
 		const fetched = await conditionalGet({ ...params, url: currentUrl });
-		if (fetched.status !== "ok") return fetched;
+		if (fetched.status !== "ok") return recoverRefusedTerminal({ fetched, site: redirectingSite, url: params.url, logInfo });
 		/* c8 ignore next -- V8 block-coverage phantom: the early-return continuation directly after the site-rule redirect loop gets a spurious zero-count sub-range even though the ok and non-ok statuses both have tests; restructuring only relocates it. See bcoe/c8#319 and https://v8.dev/blog/javascript-code-coverage */
 		const { response, buffer } = fetched;
 		/* Pre-parse byte gate: many origins ignore conditional headers and

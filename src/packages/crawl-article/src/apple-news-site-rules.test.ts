@@ -1,3 +1,4 @@
+import { deflateSync } from "node:zlib";
 import type { CrawlFetch } from "./crawl-fetch";
 import { initAppleNewsSiteRules } from "./apple-news-site-rules";
 
@@ -6,6 +7,19 @@ const noopLogError = () => {};
 function stubCrawlFetch(handler: (url: string) => Promise<Response> | Response): CrawlFetch {
 	return async (url) => handler(url);
 }
+
+/* Every shell-path test routes the Apple News Format handle to a 404 so the
+ * shell branch under test is the only thing that decides the outcome. */
+function stubShellOnly(handler: (url: string) => Promise<Response> | Response): CrawlFetch {
+	return stubCrawlFetch((url) =>
+		url.startsWith("https://c.apple.news/") ? new Response(null, { status: 404 }) : handler(url),
+	);
+}
+
+const anfOk = (document: unknown): Response =>
+	new Response(deflateSync(Buffer.from(JSON.stringify(document))), { status: 200 });
+
+const ANF_DOCUMENT = { title: "Tom Holland", components: [{ role: "body", text: "The interview." }] };
 
 function shellWithRedirectScript(navigationCalls: string): string {
 	return [
@@ -23,7 +37,7 @@ const okHtml = (html: string): Response =>
 
 describe("appleNewsSiteRules.matches", () => {
 	const site = initAppleNewsSiteRules({
-		crawlFetch: stubCrawlFetch(() => new Response()),
+		crawlFetch: stubShellOnly(() => new Response()),
 		logError: noopLogError,
 	});
 
@@ -45,7 +59,7 @@ describe("appleNewsSiteRules.onCrawl", () => {
 		const storyUrl = "https://www.theguardian.com/law/article/2024/may/23/redistricting-case?CMP=oth_b-aplnews_d-1";
 		let capturedUrl = "";
 		const site = initAppleNewsSiteRules({
-			crawlFetch: stubCrawlFetch(async (url) => {
+			crawlFetch: stubShellOnly(async (url) => {
 				capturedUrl = url;
 				return okHtml(shellWithRedirectScript(`redirectToUrlAfterTimeout("${storyUrl}", 0);`));
 			}),
@@ -60,7 +74,7 @@ describe("appleNewsSiteRules.onCrawl", () => {
 
 	it("redirects to the story URL in a plain redirectToUrl call", async () => {
 		const site = initAppleNewsSiteRules({
-			crawlFetch: stubCrawlFetch(async () =>
+			crawlFetch: stubShellOnly(async () =>
 				okHtml(shellWithRedirectScript('redirectToUrl("https://example.com/story");')),
 			),
 			logError: noopLogError,
@@ -74,7 +88,7 @@ describe("appleNewsSiteRules.onCrawl", () => {
 	it("fails closed when the shell only defines the redirect functions without calling them", async () => {
 		const logError = jest.fn();
 		const site = initAppleNewsSiteRules({
-			crawlFetch: stubCrawlFetch(async () => okHtml(shellWithRedirectScript(""))),
+			crawlFetch: stubShellOnly(async () => okHtml(shellWithRedirectScript(""))),
 			logError,
 		});
 
@@ -89,7 +103,7 @@ describe("appleNewsSiteRules.onCrawl", () => {
 	it("fails closed when the embedded story URL is not parseable", async () => {
 		const logError = jest.fn();
 		const site = initAppleNewsSiteRules({
-			crawlFetch: stubCrawlFetch(async () => okHtml(shellWithRedirectScript('redirectToUrl("not a url");'))),
+			crawlFetch: stubShellOnly(async () => okHtml(shellWithRedirectScript('redirectToUrl("not a url");'))),
 			logError,
 		});
 
@@ -104,7 +118,7 @@ describe("appleNewsSiteRules.onCrawl", () => {
 	it("fails closed when the embedded story URL is not http(s)", async () => {
 		const logError = jest.fn();
 		const site = initAppleNewsSiteRules({
-			crawlFetch: stubCrawlFetch(async () => okHtml(shellWithRedirectScript('redirectToUrl("javascript:alert(1)");'))),
+			crawlFetch: stubShellOnly(async () => okHtml(shellWithRedirectScript('redirectToUrl("javascript:alert(1)");'))),
 			logError,
 		});
 
@@ -119,7 +133,7 @@ describe("appleNewsSiteRules.onCrawl", () => {
 	it("fails closed when the embedded story URL points back at apple.news", async () => {
 		const logError = jest.fn();
 		const site = initAppleNewsSiteRules({
-			crawlFetch: stubCrawlFetch(async () =>
+			crawlFetch: stubShellOnly(async () =>
 				okHtml(shellWithRedirectScript('redirectToUrlAfterTimeout("https://apple.news/A999", 0);')),
 			),
 			logError,
@@ -136,7 +150,7 @@ describe("appleNewsSiteRules.onCrawl", () => {
 	it("fails closed on the bare origin placeholder Apple emits for stories without a public web URL", async () => {
 		const logError = jest.fn();
 		const site = initAppleNewsSiteRules({
-			crawlFetch: stubCrawlFetch(async () =>
+			crawlFetch: stubShellOnly(async () =>
 				okHtml(shellWithRedirectScript('redirectToUrlAfterTimeout("http://www.apple.com", 0);')),
 			),
 			logError,
@@ -152,7 +166,7 @@ describe("appleNewsSiteRules.onCrawl", () => {
 
 	it("redirects to a root-path story URL when it carries a query string", async () => {
 		const site = initAppleNewsSiteRules({
-			crawlFetch: stubCrawlFetch(async () =>
+			crawlFetch: stubShellOnly(async () =>
 				okHtml(shellWithRedirectScript('redirectToUrl("https://example.com/?p=123");')),
 			),
 			logError: noopLogError,
@@ -166,7 +180,7 @@ describe("appleNewsSiteRules.onCrawl", () => {
 	it("fails closed and logs status when the shell responds non-ok", async () => {
 		const logError = jest.fn();
 		const site = initAppleNewsSiteRules({
-			crawlFetch: stubCrawlFetch(async () => new Response(null, { status: 404 })),
+			crawlFetch: stubShellOnly(async () => new Response(null, { status: 404 })),
 			logError,
 		});
 
@@ -211,5 +225,68 @@ describe("appleNewsSiteRules.onCrawl", () => {
 			"[CrawlArticle] apple.news shell fetch error for https://apple.news/A123",
 			undefined,
 		);
+	});
+});
+
+describe("appleNewsSiteRules Apple News Format body", () => {
+	it("supplies the Apple News Format body when the shell carries no story URL", async () => {
+		const logError = jest.fn();
+		const site = initAppleNewsSiteRules({
+			crawlFetch: stubCrawlFetch((url) =>
+				url.startsWith("https://c.apple.news/") ? anfOk(ANF_DOCUMENT) : okHtml(shellWithRedirectScript("")),
+			),
+			logError,
+		});
+
+		const result = await site.onCrawl({ url: "https://apple.news/AbxPgQQdpQSy-ERx2g-kQZA" });
+
+		expect(result).toEqual({
+			kind: "content",
+			html:
+				"<html><head><title>Tom Holland</title>" +
+				'<meta property="og:image" content="https://c.apple.news/AgEXQWJ4UGdRUWRwUVN5LUVSeDJnLWtRWkEAMA"></head>' +
+				'<body><article><h1>Tom Holland</h1><img src="https://c.apple.news/AgEXQWJ4UGdRUWRwUVN5LUVSeDJnLWtRWkEAMA" alt=""/>' +
+				"<p>The interview.</p></article></body></html>",
+		});
+		expect(logError).not.toHaveBeenCalledWith(
+			"[CrawlArticle] apple.news shell carries no story URL for https://apple.news/AbxPgQQdpQSy-ERx2g-kQZA",
+		);
+	});
+
+	it("prefers the publisher redirect over the Apple News Format body when the shell carries a story URL", async () => {
+		const site = initAppleNewsSiteRules({
+			crawlFetch: stubCrawlFetch((url) =>
+				url.startsWith("https://c.apple.news/")
+					? anfOk(ANF_DOCUMENT)
+					: okHtml(shellWithRedirectScript('redirectToUrl("https://example.com/story");')),
+			),
+			logError: noopLogError,
+		});
+
+		const result = await site.onCrawl({ url: "https://apple.news/AbxPgQQdpQSy-ERx2g-kQZA" });
+
+		expect(result).toEqual({ kind: "redirect", url: "https://example.com/story" });
+	});
+
+	it("recovers the Apple News Format body for a story whose publisher refused the crawl", async () => {
+		const site = initAppleNewsSiteRules({
+			crawlFetch: stubCrawlFetch(() => anfOk(ANF_DOCUMENT)),
+			logError: noopLogError,
+		});
+
+		const recovered = await site.recoverContent({ url: "https://apple.news/AbxPgQQdpQSy-ERx2g-kQZA" });
+
+		expect(recovered).toContain("<p>The interview.</p>");
+	});
+
+	it("recovers nothing when Apple holds no document for the story", async () => {
+		const site = initAppleNewsSiteRules({
+			crawlFetch: stubCrawlFetch(() => new Response(null, { status: 404 })),
+			logError: noopLogError,
+		});
+
+		const recovered = await site.recoverContent({ url: "https://apple.news/AbxPgQQdpQSy-ERx2g-kQZA" });
+
+		expect(recovered).toBeUndefined();
 	});
 });

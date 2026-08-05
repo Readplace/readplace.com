@@ -3,16 +3,22 @@ import { join } from "node:path";
 import { Readability } from "@mozilla/readability";
 import { parseHTML } from "linkedom";
 import { initReadabilityParser } from "./readability-parser";
-import { noExtract, noTransform, skipCrawl } from "@packages/site-rules";
+import { noExtract, noRecovery, noTransform, skipCrawl } from "@packages/site-rules";
 import type { SiteRules } from "@packages/site-rules";
 
 /* A test site specifies only the hooks a case exercises; the rest default to
  * the shared noops, mirroring how a real site opts out of a stage. */
 type TestSite = Pick<SiteRules, "matches"> &
-	Partial<Pick<SiteRules, "onCrawl" | "extract" | "transform">>;
+	Partial<Pick<SiteRules, "onCrawl" | "recoverContent" | "extract" | "transform">>;
 
 function toSiteRules(site: TestSite): SiteRules {
-	return { onCrawl: skipCrawl, extract: noExtract, transform: noTransform, ...site };
+	return {
+		onCrawl: skipCrawl,
+		recoverContent: noRecovery,
+		extract: noExtract,
+		transform: noTransform,
+		...site,
+	};
 }
 
 const ARTICLE_HTML = `

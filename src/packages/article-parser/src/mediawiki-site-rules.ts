@@ -1,4 +1,4 @@
-import { noExtract, skipCrawl } from "@packages/site-rules";
+import { noExtract, noRecovery, skipCrawl } from "@packages/site-rules";
 import type { SiteRules } from "@packages/site-rules";
 
 /* Site rules for MediaWiki-generated pages — Wikipedia and the wider Wikimedia
@@ -34,6 +34,7 @@ import type { SiteRules } from "@packages/site-rules";
 export const mediaWikiSiteRules = {
 	matches: (_params: { url: string; hostname: string }) => true,
 	onCrawl: skipCrawl,
+	recoverContent: noRecovery,
 	extract: noExtract,
 	transform: ({ document }) => {
 		if (!isMediaWikiPage(document)) return;

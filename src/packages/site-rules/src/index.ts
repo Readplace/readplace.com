@@ -40,6 +40,7 @@ export type SiteCrawlOutcome =
 export type SiteRules = {
 	matches: (params: { url: string; hostname: string }) => boolean;
 	onCrawl: (params: { url: string }) => Promise<SiteCrawlOutcome>;
+	recoverContent: (params: { url: string }) => Promise<string | undefined>;
 	extract: (params: { html: string }) => SiteArticleContent | undefined;
 	transform: (params: { document: Document }) => void;
 };
@@ -47,5 +48,6 @@ export type SiteRules = {
 /* Shared opt-out hooks: a site that does nothing at a stage references these
  * so the field is still spelled out (it stays required, never optional). */
 export const skipCrawl: SiteRules["onCrawl"] = async () => ({ kind: "skip" });
+export const noRecovery: SiteRules["recoverContent"] = async () => undefined;
 export const noExtract: SiteRules["extract"] = () => undefined;
 export const noTransform: SiteRules["transform"] = () => undefined;
