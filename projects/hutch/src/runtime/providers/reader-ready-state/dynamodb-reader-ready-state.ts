@@ -47,37 +47,40 @@ export function initDynamoDbReaderReadyState(deps: {
 		const cutoff = new Date(now.getTime() - cooldownMs).toISOString();
 		try {
 			/* The claim and the effect it guards are the same item, so one conditional
-			 * UpdateItem is atomic on its own — no transaction needed. ALL_OLD is the
-			 * discriminator: it reports whose claim was displaced. */
-			const { Attributes } = await table.update({
+			 * UpdateItem is atomic on its own — no transaction needed. */
+			await table.update({
 				Key: { userId },
 				UpdateExpression:
 					"SET lastReaderReadyEmailAt = :now, lastReaderReadyEmailMessageId = :messageId",
 				ConditionExpression:
-					"attribute_not_exists(lastReaderReadyEmailAt) OR lastReaderReadyEmailAt < :cutoff OR lastReaderReadyEmailMessageId = :messageId",
+					"attribute_not_exists(lastReaderReadyEmailAt) OR lastReaderReadyEmailAt < :cutoff",
 				ExpressionAttributeValues: {
 					":now": now.toISOString(),
 					":cutoff": cutoff,
 					":messageId": messageId,
 				},
-				ReturnValues: "ALL_OLD",
 			});
-			if (Attributes?.lastReaderReadyEmailMessageId !== messageId) {
-				return { claimed: true, redelivery: false };
-			}
-			assert(
-				Attributes.lastReaderReadyEmailAt,
-				"a stored claim carries its instant alongside its messageId",
-			);
-			return {
-				claimed: true,
-				redelivery: true,
-				claimedAt: new Date(Attributes.lastReaderReadyEmailAt),
-			};
+			return { claimed: true, redelivery: false };
 		} catch (error) {
-			if (error instanceof ConditionalCheckFailedException) return { claimed: false };
-			throw error;
+			if (!(error instanceof ConditionalCheckFailedException)) throw error;
 		}
+
+		/* The slot is held and still inside its cooldown. Reading it decides whose:
+		 * this message's own earlier receive, or another message's live claim. The
+		 * rejected write left the row untouched, which is what keeps the stored
+		 * instant pinned to the send it anchors — a claim that moved forward on each
+		 * receive would eventually read rows enqueued after the email as having been
+		 * in it, and drain them unsent. Strongly consistent because this read must
+		 * observe the very write that rejected the conditional: a replica still on
+		 * the pre-claim state would misread a redelivery as a foreign claim, ack the
+		 * message, and leave the rows to re-send as a duplicate on the next tick. */
+		const held = await table.get({ userId }, { consistentRead: true });
+		if (held?.lastReaderReadyEmailMessageId !== messageId) return { claimed: false };
+		assert(
+			held.lastReaderReadyEmailAt,
+			"a stored claim carries its instant alongside its messageId",
+		);
+		return { claimed: true, redelivery: true, claimedAt: new Date(held.lastReaderReadyEmailAt) };
 	};
 
 	const releaseReaderReadyEmailSlot: ReleaseReaderReadyEmailSlot = async ({

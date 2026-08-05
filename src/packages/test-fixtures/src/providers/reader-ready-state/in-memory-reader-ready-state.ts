@@ -25,15 +25,13 @@ export function initInMemoryReaderReadyState(): {
 	}) => {
 		const cutoff = new Date(now.getTime() - cooldownMs);
 		const last = claimByUser.get(userId);
-		if (last !== undefined && last.messageId === messageId) {
-			claimByUser.set(userId, { claimedAt: now.toISOString(), messageId });
-			return { claimed: true, redelivery: true, claimedAt: new Date(last.claimedAt) };
-		}
 		if (last === undefined || new Date(last.claimedAt) < cutoff) {
 			claimByUser.set(userId, { claimedAt: now.toISOString(), messageId });
 			return { claimed: true, redelivery: false };
 		}
-		return { claimed: false };
+		if (last.messageId !== messageId) return { claimed: false };
+		// Left untouched: the stored instant must keep pointing at the send it anchors.
+		return { claimed: true, redelivery: true, claimedAt: new Date(last.claimedAt) };
 	};
 
 	const releaseReaderReadyEmailSlot: ReleaseReaderReadyEmailSlot = async ({

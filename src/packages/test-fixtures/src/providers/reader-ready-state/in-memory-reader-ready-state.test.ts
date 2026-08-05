@@ -59,6 +59,34 @@ describe("initInMemoryReaderReadyState", () => {
 			expect(again).toEqual({ claimed: true, redelivery: true, claimedAt: first });
 		});
 
+		it("keeps reporting the original instant however many times the message is redelivered", async () => {
+			const store = initInMemoryReaderReadyState();
+			const first = new Date("2026-05-30T10:00:00.000Z");
+			const params = { userId: USER, cooldownMs: COOLDOWN_MS, messageId: MESSAGE };
+			await store.claimReaderReadyEmailSlot({ ...params, now: first });
+			await store.claimReaderReadyEmailSlot({ ...params, now: new Date("2026-05-30T10:02:00.000Z") });
+
+			const third = await store.claimReaderReadyEmailSlot({
+				...params,
+				now: new Date("2026-05-30T10:04:00.000Z"),
+			});
+
+			expect(third).toEqual({ claimed: true, redelivery: true, claimedAt: first });
+		});
+
+		it("treats a receive after the cooldown lapsed as a fresh claim, so a stale redrive re-sends rather than draining", async () => {
+			const store = initInMemoryReaderReadyState();
+			const params = { userId: USER, cooldownMs: COOLDOWN_MS, messageId: MESSAGE };
+			await store.claimReaderReadyEmailSlot({ ...params, now: new Date("2026-05-30T10:00:00.000Z") });
+
+			const muchLater = await store.claimReaderReadyEmailSlot({
+				...params,
+				now: new Date("2026-05-31T10:00:00.000Z"),
+			});
+
+			expect(muchLater).toEqual({ claimed: true, redelivery: false });
+		});
+
 		it("claims again once the cooldown window has elapsed", async () => {
 			const store = initInMemoryReaderReadyState();
 			await store.claimReaderReadyEmailSlot({

@@ -13,11 +13,11 @@ interface CapturedCommand {
 type SendFn = DynamoDBDocumentClient["send"];
 
 /** Records commands, optionally fails the conditional update so the
- * cooldown-rejected path can be asserted, and optionally answers with the
- * prior item so the ALL_OLD redelivery discriminator can be asserted. */
+ * cooldown-rejected path can be asserted, and optionally answers the follow-up
+ * read with the row that holds the slot. */
 function createFakeClient(opts: {
 	updateError?: Error;
-	priorItem?: Record<string, unknown>;
+	heldBy?: Record<string, unknown>;
 }): { client: Partial<DynamoDBDocumentClient>; commands: CapturedCommand[] } {
 	const commands: CapturedCommand[] = [];
 	const client: Partial<DynamoDBDocumentClient> = {
@@ -25,12 +25,14 @@ function createFakeClient(opts: {
 			const name = command.constructor.name;
 			commands.push({ name, input: command.input });
 			if (name === "UpdateCommand" && opts.updateError) throw opts.updateError;
-			if (name === "UpdateCommand" && opts.priorItem) return { Attributes: opts.priorItem };
+			if (name === "GetCommand") return { Item: opts.heldBy };
 			return {};
 		}) as unknown as SendFn,
 	};
 	return { client, commands };
 }
+
+const COOLDOWN_HELD = new ConditionalCheckFailedException({ $metadata: {}, message: "cooldown" });
 
 function initStore(client: Partial<DynamoDBDocumentClient>) {
 	return initDynamoDbReaderReadyState({
@@ -46,7 +48,7 @@ const NOW = new Date("2026-05-30T10:00:00.000Z");
 
 describe("initDynamoDbReaderReadyState", () => {
 	describe("claimReaderReadyEmailSlot", () => {
-		it("claims on the userId PK with the cooldown-or-own-message condition", async () => {
+		it("claims on the userId PK with the cooldown condition alone", async () => {
 			const { client, commands } = createFakeClient({});
 
 			const claim = await initStore(client).claimReaderReadyEmailSlot({
@@ -59,23 +61,25 @@ describe("initDynamoDbReaderReadyState", () => {
 			expect(claim).toEqual({ claimed: true, redelivery: false });
 			const update = commands.find((c) => c.name === "UpdateCommand");
 			expect(update?.input.Key).toEqual({ userId: USER });
-			expect(update?.input.ReturnValues).toBe("ALL_OLD");
 			expect(update?.input.UpdateExpression).toContain("lastReaderReadyEmailMessageId = :messageId");
 			expect(update?.input.ConditionExpression).toBe(
-				"attribute_not_exists(lastReaderReadyEmailAt) OR lastReaderReadyEmailAt < :cutoff OR lastReaderReadyEmailMessageId = :messageId",
+				"attribute_not_exists(lastReaderReadyEmailAt) OR lastReaderReadyEmailAt < :cutoff",
 			);
 			const values = update?.input.ExpressionAttributeValues as Record<string, unknown>;
 			expect(values[":cutoff"]).toBe("2026-05-30T04:00:00.000Z");
 			expect(values[":now"]).toBe("2026-05-30T10:00:00.000Z");
 			expect(values[":messageId"]).toBe(MESSAGE);
+			// A won claim is decided by the write alone — no follow-up read.
+			expect(commands.filter((c) => c.name === "GetCommand")).toHaveLength(0);
 		});
 
-		it("reports a fresh claim when the displaced slot belonged to another message", async () => {
+		it("reports no claim when another message holds the slot inside its cooldown", async () => {
 			const { client } = createFakeClient({
-				priorItem: {
+				updateError: COOLDOWN_HELD,
+				heldBy: {
 					userId: USER,
-					lastReaderReadyEmailAt: "2026-05-30T02:00:00.000Z",
-					lastReaderReadyEmailMessageId: "msg-older",
+					lastReaderReadyEmailAt: "2026-05-30T09:58:00.000Z",
+					lastReaderReadyEmailMessageId: "msg-other",
 				},
 			});
 
@@ -86,12 +90,13 @@ describe("initDynamoDbReaderReadyState", () => {
 				messageId: MESSAGE,
 			});
 
-			expect(claim).toEqual({ claimed: true, redelivery: false });
+			expect(claim).toEqual({ claimed: false });
 		});
 
-		it("reports a fresh claim for a legacy row that predates message-scoped claims", async () => {
+		it("reports no claim for a legacy row that predates message-scoped claims", async () => {
 			const { client } = createFakeClient({
-				priorItem: { userId: USER, lastReaderReadyEmailAt: "2026-05-30T02:00:00.000Z" },
+				updateError: COOLDOWN_HELD,
+				heldBy: { userId: USER, lastReaderReadyEmailAt: "2026-05-30T09:58:00.000Z" },
 			});
 
 			const claim = await initStore(client).claimReaderReadyEmailSlot({
@@ -101,12 +106,13 @@ describe("initDynamoDbReaderReadyState", () => {
 				messageId: MESSAGE,
 			});
 
-			expect(claim).toEqual({ claimed: true, redelivery: false });
+			expect(claim).toEqual({ claimed: false });
 		});
 
 		it("reports a redelivery carrying the original claim instant when the slot is already this message's", async () => {
-			const { client } = createFakeClient({
-				priorItem: {
+			const { client, commands } = createFakeClient({
+				updateError: COOLDOWN_HELD,
+				heldBy: {
 					userId: USER,
 					lastReaderReadyEmailAt: "2026-05-30T09:58:00.000Z",
 					lastReaderReadyEmailMessageId: MESSAGE,
@@ -125,12 +131,17 @@ describe("initDynamoDbReaderReadyState", () => {
 				redelivery: true,
 				claimedAt: new Date("2026-05-30T09:58:00.000Z"),
 			});
+			// The rejected write is the only write, so the stored instant is intact and
+			// a third receive still measures against the original claim.
+			expect(commands.filter((c) => c.name === "UpdateCommand")).toHaveLength(1);
+			// The discriminator must observe the write that rejected the conditional; a
+			// default (eventually consistent) read may still serve the pre-claim state.
+			const get = commands.find((c) => c.name === "GetCommand");
+			expect(get?.input.ConsistentRead).toBe(true);
 		});
 
-		it("reports no claim when the conditional update fails (still inside the cooldown window)", async () => {
-			const { client } = createFakeClient({
-				updateError: new ConditionalCheckFailedException({ $metadata: {}, message: "cooldown" }),
-			});
+		it("reports no claim when the slot row vanished between the rejected write and the read", async () => {
+			const { client } = createFakeClient({ updateError: COOLDOWN_HELD });
 
 			const claim = await initStore(client).claimReaderReadyEmailSlot({
 				userId: USER,

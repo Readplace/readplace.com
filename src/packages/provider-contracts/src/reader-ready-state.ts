@@ -12,12 +12,16 @@ export type ReaderReadyEmailSlotClaim =
 	| { claimed: true; redelivery: true; claimedAt: Date };
 
 /** Atomically claim the per-user reader-ready email cooldown slot. Succeeds when
- * no email has been sent within `cooldownMs`, writing `now` as the new slot;
- * fails when still inside the cooldown window, so the caller drops-and-logs. The
- * claim also succeeds — as a redelivery — when the stored claim belongs to
- * `messageId`, because the same SQS message being received twice is a retry of
- * one send, not a second send. The conditional write is the volume cap that
- * survives concurrent fan-out deliveries. */
+ * no email has been sent within `cooldownMs`, writing `now` as the new slot; the
+ * conditional write is the volume cap that survives concurrent fan-out
+ * deliveries.
+ *
+ * When the slot is already held inside its cooldown, the caller normally
+ * drops-and-logs — except where the holder is `messageId` itself, which means
+ * the same SQS message is being received again: a retry of one send, not a
+ * second send. That case reports `redelivery` and leaves the stored instant
+ * exactly as it was, so `claimedAt` keeps pointing at the send it describes
+ * rather than drifting forward one visibility window per receive. */
 export type ClaimReaderReadyEmailSlot = (params: {
 	userId: UserId;
 	now: Date;
