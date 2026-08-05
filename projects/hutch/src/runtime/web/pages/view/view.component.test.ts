@@ -46,13 +46,9 @@ describe("ViewPage", () => {
 		expect(doc.querySelector("[data-test-reader-site]")?.textContent).toBe(
 			"example.com",
 		);
-		const iframe = doc.querySelector("iframe[data-reader-iframe]");
-		assert(iframe, "reader iframe must be rendered");
-		const srcdoc = iframe.getAttribute("srcdoc");
-		assert(srcdoc, "iframe must carry srcdoc");
-		const iframeDoc = new JSDOM(srcdoc).window.document;
-		assert(iframeDoc.body, "iframe body must exist");
-		expect(iframeDoc.body.innerHTML.trim()).toBe("<p>Body copy.</p>");
+		const content = doc.querySelector("[data-test-reader-content]");
+		assert(content, "reader content must be rendered");
+		expect(content.innerHTML.trim()).toBe("<p>Body copy.</p>");
 	});
 
 	it("points 'View original' at the redirect destination for a merged article", () => {

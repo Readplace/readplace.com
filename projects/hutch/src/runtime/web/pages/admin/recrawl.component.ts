@@ -14,7 +14,6 @@ import type { LocalTime } from "@packages/web-shell/local-time.format";
 import { RECRAWL_STYLES } from "./recrawl.styles";
 
 const PROGRESS_BAR_SCRIPT = `<script src="/client-dist/progress-bar.client.js" defer></script>`;
-const READER_IFRAME_SCRIPT = `<script src="/client-dist/reader-iframe.client.js" defer></script>`;
 
 // POST-Redirect-GET: the recrawl is a state mutation, so the operator's
 // browser submits it via POST instead of firing it on the read-only GET.
@@ -120,7 +119,7 @@ export function AdminRecrawlPage(input: AdminRecrawlPageInput): PageBody {
 		content: { html: content },
 		scripts: readerScripts({
 			navHide: NAV_HIDE_SCRIPT,
-			page: PROGRESS_BAR_SCRIPT + READER_IFRAME_SCRIPT + CRAWL_BOOKMARK_SCRIPT + triggerScript,
+			page: PROGRESS_BAR_SCRIPT + CRAWL_BOOKMARK_SCRIPT + triggerScript,
 		}),
 	};
 }

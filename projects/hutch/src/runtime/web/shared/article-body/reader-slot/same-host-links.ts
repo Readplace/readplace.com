@@ -5,11 +5,9 @@ import { parseHTML } from "linkedom";
  * Rewrite in-article links that point back at our own host so they navigate
  * the reader's own tab (`target="_top"`) instead of opening a new one.
  *
- * The reader body renders inside a sandboxed iframe whose `<base target="_top">`
- * already sends target-less links to the parent tab, but captured article HTML
- * frequently bakes `target="_blank"` into its anchors — for a link back to
- * Readplace that would pop a second Readplace tab instead of navigating in
- * place. External links keep whatever the author wrote.
+ * Captured article HTML frequently bakes `target="_blank"` into its anchors —
+ * for a link back to Readplace that would pop a second Readplace tab instead of
+ * navigating in place. External links keep whatever the author wrote.
  *
  * `appHost` is the deployment's own host (readplace.com in prod, the staging
  * host in staging), so the same saved article classifies its links correctly

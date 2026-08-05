@@ -135,13 +135,9 @@ describe("View routes", () => {
 			expect(doc.querySelector("[data-test-reader-title]")?.textContent).toBe(
 				"Hello World",
 			);
-			const iframe = doc.querySelector("iframe[data-reader-iframe]");
-			assert(iframe, "reader iframe must be rendered");
-			const srcdoc = iframe.getAttribute("srcdoc");
-			assert(srcdoc, "iframe must carry srcdoc");
-			const iframeDoc = new JSDOM(srcdoc).window.document;
-			assert(iframeDoc.body, "iframe body must exist");
-			expect(iframeDoc.body.innerHTML.trim()).toBe("<p>Body copy.</p>");
+			const content = doc.querySelector("[data-test-reader-content]");
+			assert(content, "reader content must be rendered");
+			expect(content.innerHTML.trim()).toBe("<p>Body copy.</p>");
 			expect(response.text).toContain(
 				'<script src="/client-dist/reader-nav.client.js" defer></script>',
 			);
@@ -2154,8 +2150,8 @@ describe("View routes", () => {
 
 			expect(doc.querySelectorAll("[data-test-view-paywall]").length).toBe(0);
 
-			const iframe = doc.querySelector("iframe[data-reader-iframe]");
-			assert(iframe, "authenticated reader must see the full article iframe");
+			const content = doc.querySelector("[data-test-reader-content]");
+			assert(content, "authenticated reader must see the full article body");
 		});
 
 		it("never blurs a permanent-domain article", async () => {
@@ -2197,8 +2193,8 @@ describe("View routes", () => {
 			expect(counter.getAttribute("data-expiry-state")).toBe("permanent");
 			expect(doc.querySelectorAll("[data-test-view-paywall]").length).toBe(0);
 
-			const iframe = doc.querySelector("iframe[data-reader-iframe]");
-			assert(iframe, "a short read must show the full article, unblurred");
+			const content = doc.querySelector("[data-test-reader-content]");
+			assert(content, "a short read must show the full article, unblurred");
 		});
 
 		it("never blurs or counts down when the reader arrived from the founder's blog, even a long expired read", async () => {
@@ -2219,8 +2215,8 @@ describe("View routes", () => {
 			expect(counter.getAttribute("data-expiry-state")).toBe("permanent");
 			expect(doc.querySelectorAll("[data-test-view-paywall]").length).toBe(0);
 
-			const iframe = doc.querySelector("iframe[data-reader-iframe]");
-			assert(iframe, "a founder-blog referral must show the full article, unblurred");
+			const content = doc.querySelector("[data-test-reader-content]");
+			assert(content, "a founder-blog referral must show the full article, unblurred");
 		});
 
 		it("still counts down a long read arriving from an unrelated referrer", async () => {

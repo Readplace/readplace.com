@@ -36,13 +36,9 @@ describe("renderArticleBody", () => {
 		expect(doc.querySelector(".article-body__meta")?.textContent).toContain(
 			"3 min read",
 		);
-		const iframe = doc.querySelector("iframe[data-reader-iframe]");
-		assert(iframe, "reader iframe must be rendered");
-		const srcdoc = iframe.getAttribute("srcdoc");
-		assert(srcdoc, "iframe must carry srcdoc");
-		const iframeDoc = new JSDOM(srcdoc).window.document;
-		assert(iframeDoc.body, "iframe body must exist");
-		expect(iframeDoc.body.innerHTML.trim()).toBe("<p>Body copy</p>");
+		const content = doc.querySelector("[data-test-reader-content]");
+		assert(content, "reader content must be rendered");
+		expect(content.innerHTML.trim()).toBe("<p>Body copy</p>");
 	});
 
 	it("delegates to the summary slot renderer", () => {
@@ -108,7 +104,7 @@ describe("renderArticleBody", () => {
 		assert(doc.querySelector("[data-test-top-actions]"), "top actions must be spliced in");
 		assert(doc.querySelector("[data-test-bottom-actions]"), "bottom actions must be spliced in");
 		expect(html.indexOf("data-test-top-actions")).toBeLessThan(html.indexOf('id="article-header"'));
-		expect(html.indexOf("data-test-bottom-actions")).toBeGreaterThan(html.indexOf("data-reader-iframe"));
+		expect(html.indexOf("data-test-bottom-actions")).toBeGreaterThan(html.indexOf("data-test-reader-content"));
 	});
 
 	it("marks the audio slot as visible when audioEnabled is true", () => {

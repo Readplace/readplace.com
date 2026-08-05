@@ -29,7 +29,6 @@ import { VIEW_STYLES } from "./view.styles";
 
 const STATIC_BASE_URL = requireEnv("STATIC_BASE_URL");
 const PROGRESS_BAR_SCRIPT = `<script src="/client-dist/progress-bar.client.js" defer></script>`;
-const READER_IFRAME_SCRIPT = `<script src="/client-dist/reader-iframe.client.js" defer></script>`;
 const EXPIRY_COUNTER_SCRIPT = `<script src="/client-dist/expiry-counter.client.js" defer></script>`;
 const VIEW_PAYWALL_SCRIPT = `<script src="/client-dist/view-paywall.client.js" defer></script>`;
 
@@ -236,7 +235,6 @@ export function ViewPage(input: ViewPageInput): PageBody {
 			page:
 				SHARE_BALLOON_SCRIPT +
 				PROGRESS_BAR_SCRIPT +
-				READER_IFRAME_SCRIPT +
 				EXPIRY_COUNTER_SCRIPT +
 				VIEW_PAYWALL_SCRIPT +
 				CRAWL_BOOKMARK_SCRIPT,

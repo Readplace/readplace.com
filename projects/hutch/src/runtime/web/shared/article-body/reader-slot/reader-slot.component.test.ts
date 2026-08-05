@@ -252,13 +252,9 @@ describe("renderReaderSlot", () => {
 		const slot = doc.querySelector("[data-test-reader-slot]");
 		assert(slot, "reader slot must be rendered");
 		expect(slot.getAttribute("data-reader-status")).toBe("ready");
-		const iframe = slot.querySelector("iframe[data-reader-iframe]");
-		assert(iframe, "ready slot must wrap the body in a sandboxed iframe");
-		const srcdoc = iframe.getAttribute("srcdoc");
-		assert(srcdoc, "iframe must carry a srcdoc");
-		const iframeDoc = new JSDOM(srcdoc).window.document;
-		assert(iframeDoc.body, "iframe body must exist");
-		expect(iframeDoc.body.innerHTML.trim()).toBe("<p>Body copy</p>");
+		const content = slot.querySelector("[data-test-reader-content]");
+		assert(content, "ready slot must wrap the body in the content element");
+		expect(content.innerHTML.trim()).toBe("<p>Body copy</p>");
 	});
 
 	it("renders pending when crawl status is missing, no content, and a poll URL exists (read-after-write race)", () => {

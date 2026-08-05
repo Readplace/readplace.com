@@ -42,6 +42,7 @@ export {
 	type SaveableUrlResult,
 	type ValidateSaveableUrl,
 } from "./saveable-url";
+export { sanitizeArticleHtml } from "./sanitize-article-html";
 export { isBlockedIpAddress } from "./blocked-address";
 export { calculateReadTime } from "./estimated-read-time";
 export {

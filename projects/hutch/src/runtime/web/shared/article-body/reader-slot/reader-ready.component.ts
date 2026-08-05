@@ -1,7 +1,8 @@
 import { readFileSync } from "node:fs";
 import { join } from "node:path";
+import { sanitizeArticleHtml } from "@packages/domain/article";
 import { render } from "@packages/web-shell";
-import { buildReaderIframeSrcdoc } from "./reader-iframe-srcdoc";
+import { keepSameHostLinksInSamePage } from "./same-host-links";
 
 const TEMPLATE = readFileSync(
 	join(__dirname, "reader-ready.template.html"),
@@ -15,9 +16,12 @@ export interface ReaderReadyInput {
 }
 
 export function renderReaderReady(input: ReaderReadyInput): string {
-	const srcdoc = buildReaderIframeSrcdoc({
-		content: input.content,
-		appOrigin: input.appOrigin,
+	const retargeted = keepSameHostLinksInSamePage({
+		html: input.content,
+		appHost: new URL(input.appOrigin).host,
 	});
-	return render(TEMPLATE, { srcdoc, oob: input.oob === true });
+	return render(TEMPLATE, {
+		content: sanitizeArticleHtml(retargeted),
+		oob: input.oob === true,
+	});
 }

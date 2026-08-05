@@ -167,18 +167,15 @@ describe("ReaderPage", () => {
 			emailVerified: undefined,
 		}).to("text/html").body;
 
-		const iframe = new JSDOM(html).window.document.querySelector(
-			"iframe[data-reader-iframe]",
+		const content = new JSDOM(html).window.document.querySelector(
+			"[data-test-reader-content]",
 		);
-		assert(iframe, "reader iframe must be rendered");
-		const srcdoc = iframe.getAttribute("srcdoc");
-		assert(srcdoc, "reader iframe must carry a srcdoc");
-		const iframeDoc = new JSDOM(srcdoc).window.document;
+		assert(content, "reader content must be rendered");
 
-		const internal = iframeDoc.querySelector(
+		const internal = content.querySelector(
 			'a[href="https://readplace.com/queue"]',
 		);
-		const external = iframeDoc.querySelector(
+		const external = content.querySelector(
 			'a[href="https://example.com/other"]',
 		);
 		assert(internal, "internal link must be present");

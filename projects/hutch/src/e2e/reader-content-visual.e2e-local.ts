@@ -2,7 +2,6 @@ import assert from "node:assert/strict";
 import type { Page } from "@playwright/test";
 import {
 	captureCheckpoint,
-	measuredBox,
 	test,
 	type VisualCheckpoint,
 } from "@packages/e2e-harness";
@@ -14,7 +13,7 @@ const BASE_URL = `http://127.0.0.1:${E2E_PORT}`;
 const ARTICLE_URL = "https://example.com/reader-content-visual";
 const CANONICAL_PATH = "example.com/reader-content-visual";
 const CONTENT_FETCHED_AT = "2026-04-27T08:00:00.000Z";
-const READER_IFRAME = "iframe[data-test-reader-content]";
+const READER_CONTENT = "[data-test-reader-content]";
 const READER_VIEWPORT = { width: 1280, height: 900 };
 
 interface FixtureImage {
@@ -84,12 +83,13 @@ const WIDE_CODE_LINE =
 const HOSTILE_ARTICLE_BODY = [
 	"<p>Extraction keeps whatever the publisher shipped, so the reader renders markup it never authored.</p>",
 	WIDE_TABLE,
-	`<pre data-test-wide-code><code>${WIDE_CODE_LINE}</code></pre>`,
-	`<img data-test-zero-width-hint-image width="0" height="0" src="${WIDE_IMAGE_URL}" alt="Release pipeline diagram">`,
-	`<img data-test-narrow-image src="${NARROW_IMAGE_URL}" alt="Reproducible build badge">`,
+	`<pre><code>${WIDE_CODE_LINE}</code></pre>`,
+	`<img width="0" height="0" src="${WIDE_IMAGE_URL}" alt="Release pipeline diagram">`,
+	`<img src="${NARROW_IMAGE_URL}" alt="Reproducible build badge">`,
 	`<p class="reader-embed-facade"><a href="${EMBED_WATCH_URL}" target="_blank" rel="noopener noreferrer"><img src="${EMBED_POSTER_URL}" alt="Watch on YouTube" loading="lazy"></a></p>`,
 	"<p>Inline samples such as <code>&lt;form&gt;</code>, <code>&lt;input&gt;</code> and <code>&lt;select&gt;</code> stay text.</p>",
 	'<pre><code>&lt;form action="/search"&gt;\n  &lt;input name="q" value="reader"&gt;\n  &lt;select name="scope"&gt;&lt;option&gt;all&lt;/option&gt;&lt;/select&gt;\n&lt;/form&gt;</code></pre>',
+	'<p style="position: fixed; inset: 0; z-index: 99999;">Captured markup cannot pin itself over the page chrome.</p>',
 	"<p>Every block above has to stay inside the reader column.</p>",
 ].join("");
 
@@ -118,89 +118,75 @@ async function readerContentSettled(page: Page): Promise<void> {
 		document.querySelector("[data-test-view-cta]")?.remove();
 	});
 	await page.waitForFunction((selector) => {
-		const iframe = document.querySelector<HTMLIFrameElement>(selector);
-		const doc = iframe?.contentDocument;
-		if (!iframe || !doc || doc.readyState !== "complete") return false;
-		const images = Array.from(doc.images);
+		const content = document.querySelector(selector);
+		if (!content) return false;
+		const images = Array.from(content.querySelectorAll("img"));
 		if (images.length === 0) return false;
-		if (!images.every((image) => image.complete && image.naturalWidth > 0)) return false;
-		return Math.round(iframe.getBoundingClientRect().height) === doc.documentElement.scrollHeight;
-	}, READER_IFRAME);
+		return images.every((image) => image.complete && image.naturalWidth > 0);
+	}, READER_CONTENT);
 }
 
 async function readerContentGeometry(page: Page): Promise<void> {
-	const measured = await page
-		.frameLocator(READER_IFRAME)
-		.locator("html")
-		.evaluate(() => {
-			const root = document.documentElement;
-			const wideCode = document.querySelector("[data-test-wide-code]");
-			const zeroWidthHintImage = document.querySelector("[data-test-zero-width-hint-image]");
-			const narrowImage = document.querySelector<HTMLImageElement>("[data-test-narrow-image]");
-			const facadeLink = document.querySelector(".reader-embed-facade a");
-			if (!wideCode || !zeroWidthHintImage || !narrowImage || !facadeLink) {
-				throw new Error(
-					"the reader fixture must render the wide code block, both images and the embed facade",
-				);
-			}
-			const narrowBox = narrowImage.getBoundingClientRect();
-			const facadeBox = facadeLink.getBoundingClientRect();
-			wideCode.scrollLeft = wideCode.scrollWidth;
-			const wideCodeReachableScrollLeft = wideCode.scrollLeft;
-			wideCode.scrollLeft = 0;
-			return {
-				rootScrollHeight: root.scrollHeight,
-				rootClientHeight: root.clientHeight,
-				rootClientWidth: root.clientWidth,
-				blocksWiderThanColumn: Array.from(document.body.children)
-					.filter((block) => block.getBoundingClientRect().width > root.clientWidth + 1)
-					.map((block) => block.tagName.toLowerCase()),
-				wideCodeClientWidth: wideCode.clientWidth,
-				wideCodeScrollWidth: wideCode.scrollWidth,
-				wideCodeReachableScrollLeft,
-				imageCount: document.images.length,
-				zeroWidthHintImageClientWidth: zeroWidthHintImage.clientWidth,
-				collapsedImageSources: Array.from(document.images)
-					.filter((image) => image.clientWidth === 0)
-					.map((image) => image.src),
-				narrowImageClientWidth: narrowImage.clientWidth,
-				narrowImageNaturalWidth: narrowImage.naturalWidth,
-				narrowImageGapLeft: narrowBox.left,
-				narrowImageGapRight: root.clientWidth - narrowBox.right,
-				facadeWidth: facadeBox.width,
-				facadeHeight: facadeBox.height,
-				liveFormControls: document.querySelectorAll("form, input, select").length,
-			};
-		});
-	const iframeBox = await measuredBox(page, READER_IFRAME);
+	const measured = await page.locator(READER_CONTENT).evaluate((content) => {
+		const wideCode = content.querySelector("pre");
+		const images = Array.from(content.querySelectorAll("img"));
+		const [zeroWidthHintImage, narrowImage] = images;
+		const facadeLink = content.querySelector(".reader-embed-facade a");
+		if (!wideCode || !zeroWidthHintImage || !narrowImage || !facadeLink) {
+			throw new Error(
+				"the reader fixture must render the wide code block, both images and the embed facade",
+			);
+		}
+		const columnWidth = content.clientWidth;
+		const narrowBox = narrowImage.getBoundingClientRect();
+		const facadeBox = facadeLink.getBoundingClientRect();
+		wideCode.scrollLeft = wideCode.scrollWidth;
+		const wideCodeReachableScrollLeft = wideCode.scrollLeft;
+		wideCode.scrollLeft = 0;
+		return {
+			columnWidth,
+			blocksWiderThanColumn: Array.from(content.children)
+				.filter((block) => block.getBoundingClientRect().width > columnWidth + 1)
+				.map((block) => block.tagName.toLowerCase()),
+			wideCodeClientWidth: wideCode.clientWidth,
+			wideCodeScrollWidth: wideCode.scrollWidth,
+			wideCodeReachableScrollLeft,
+			imageCount: images.length,
+			zeroWidthHintImageClientWidth: zeroWidthHintImage.clientWidth,
+			collapsedImageSources: images
+				.filter((image) => image.clientWidth === 0)
+				.map((image) => image.src),
+			narrowImageClientWidth: narrowImage.clientWidth,
+			narrowImageNaturalWidth: narrowImage.naturalWidth,
+			narrowImageGapLeft: narrowBox.left - content.getBoundingClientRect().left,
+			narrowImageGapRight: content.getBoundingClientRect().right - narrowBox.right,
+			facadeWidth: facadeBox.width,
+			facadeHeight: facadeBox.height,
+			liveFormControls: content.querySelectorAll("form, input, select").length,
+			pinnedBlocks: Array.from(content.querySelectorAll("*")).filter((element) => {
+				const position = getComputedStyle(element).position;
+				return position === "fixed" || position === "sticky";
+			}).length,
+		};
+	});
 	const pageOverflow = await page.evaluate(() => ({
 		scrollWidth: document.documentElement.scrollWidth,
 		clientWidth: document.documentElement.clientWidth,
 	}));
 
 	assert.equal(
-		measured.rootScrollHeight,
-		measured.rootClientHeight,
-		"the reader frame must not grow a vertical scrollbar, whichever block overflows it",
-	);
-	assert.equal(
-		measured.rootClientWidth,
-		Math.round(iframeBox.width),
-		"the reader frame must lay out at the iframe's full width — a scrollbar inside it would steal from this",
-	);
-	assert.equal(
 		pageOverflow.scrollWidth,
 		pageOverflow.clientWidth,
-		"content wider than the column must stay inside the frame and never scroll the reader page sideways",
+		"content wider than the column must stay inside the column and never scroll the reader page sideways",
 	);
 	assert.deepEqual(
 		measured.blocksWiderThanColumn,
-		["table"],
-		"the wide table is the single block the reader column is known not to contain — no other block may join it, and containing the table is a change worth re-baselining",
+		[],
+		"no article block may be laid out wider than the reader column — in the page's own document there is no frame left to absorb the overflow",
 	);
 	assert.equal(
 		measured.wideCodeClientWidth,
-		measured.rootClientWidth,
+		measured.columnWidth,
 		"a wide non-table block must be laid out at column width, not pushed past it",
 	);
 	assert.ok(
@@ -209,7 +195,7 @@ async function readerContentGeometry(page: Page): Promise<void> {
 	);
 	assert.ok(
 		measured.wideCodeReachableScrollLeft > 0,
-		"a wide non-table block must scroll inside its own box instead of spilling into the frame",
+		"a wide non-table block must scroll inside its own box instead of spilling into the page",
 	);
 	assert.equal(
 		measured.imageCount,
@@ -223,7 +209,7 @@ async function readerContentGeometry(page: Page): Promise<void> {
 	);
 	assert.equal(
 		measured.zeroWidthHintImageClientWidth,
-		measured.rootClientWidth,
+		measured.columnWidth,
 		"an image carrying the extraction-time zero-width hint must recover its intrinsic size and fill the column",
 	);
 	assert.equal(
@@ -232,7 +218,7 @@ async function readerContentGeometry(page: Page): Promise<void> {
 		"a narrow image keeps its intrinsic width instead of being stretched to the column",
 	);
 	assert.ok(
-		measured.narrowImageClientWidth < measured.rootClientWidth,
+		measured.narrowImageClientWidth < measured.columnWidth,
 		"the narrow image fixture must be narrower than the column for centring to mean anything",
 	);
 	assert.ok(
@@ -248,18 +234,23 @@ async function readerContentGeometry(page: Page): Promise<void> {
 		0,
 		"escaped inline code samples must render as text, never as live form controls",
 	);
+	assert.equal(
+		measured.pinnedBlocks,
+		0,
+		"captured markup must not be able to pin itself over the page chrome now that it shares the page's document",
+	);
 }
 
 const READER_CONTENT_HOSTILE_MARKUP: VisualCheckpoint = {
 	name: "reader-content-hostile-markup",
 	settled: readerContentSettled,
 	geometry: readerContentGeometry,
-	target: READER_IFRAME,
+	target: READER_CONTENT,
 	capture: "element",
 	pinnedText: [],
 };
 
-test.describe("Reader iframe renders hostile crawled markup inside the column", () => {
+test.describe("Reader renders hostile crawled markup inside the column", () => {
 	test.use({ timezoneId: "UTC", viewport: READER_VIEWPORT });
 
 	test("a wide table, wide code, a zero-width image, a narrow image, an embed facade and escaped samples all stay contained", async ({

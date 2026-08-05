@@ -1,0 +1,87 @@
+import sanitizeHtml from "sanitize-html";
+
+const ALLOWED_TAGS = [
+	"p",
+	"br",
+	"strong",
+	"b",
+	"em",
+	"i",
+	"u",
+	"s",
+	"del",
+	"ins",
+	"mark",
+	"small",
+	"sub",
+	"sup",
+	"abbr",
+	"cite",
+	"q",
+	"time",
+	"dfn",
+	"kbd",
+	"samp",
+	"var",
+	"a",
+	"h1",
+	"h2",
+	"h3",
+	"h4",
+	"h5",
+	"h6",
+	"blockquote",
+	"pre",
+	"code",
+	"ul",
+	"ol",
+	"li",
+	"dl",
+	"dt",
+	"dd",
+	"table",
+	"caption",
+	"thead",
+	"tbody",
+	"tfoot",
+	"tr",
+	"th",
+	"td",
+	"figure",
+	"figcaption",
+	"img",
+	"hr",
+	"div",
+	"span",
+];
+
+const PARAGRAPH_CLASSES = [
+	"reader-video-placeholder",
+	"reader-embed-facade",
+	"ocr-tesseract",
+	"ocr-failed",
+];
+
+const RULE_CLASSES = ["ocr-page-break"];
+
+export function sanitizeArticleHtml(html: string): string {
+	return sanitizeHtml(html, {
+		allowedTags: ALLOWED_TAGS,
+		allowedAttributes: {
+			a: ["href", "target", "rel", "title"],
+			img: ["src", "srcset", "sizes", "alt", "width", "height", "loading"],
+			td: ["colspan", "rowspan"],
+			th: ["colspan", "rowspan"],
+			p: ["class"],
+			hr: ["class"],
+		},
+		allowedClasses: {
+			p: PARAGRAPH_CLASSES,
+			hr: RULE_CLASSES,
+		},
+		allowedSchemes: ["http", "https", "mailto"],
+		allowedSchemesByTag: { img: ["http", "https", "data"] },
+		disallowedTagsMode: "discard",
+		nonTextTags: ["style", "script", "iframe", "noscript", "xmp", "svg", "math"],
+	});
+}

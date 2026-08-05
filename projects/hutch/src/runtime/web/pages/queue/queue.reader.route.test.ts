@@ -76,13 +76,9 @@ describe("Queue routes", () => {
 
 			expect(readerResponse.status).toBe(200);
 			const doc = new JSDOM(readerResponse.text).window.document;
-			const iframe = doc.querySelector("iframe[data-reader-iframe]");
-			assert(iframe, "reader iframe must be rendered");
-			const srcdoc = iframe.getAttribute("srcdoc");
-			assert(srcdoc, "iframe must carry srcdoc");
-			const iframeDoc = new JSDOM(srcdoc).window.document;
-			assert(iframeDoc.body, "iframe body must exist");
-			expect(iframeDoc.body.textContent).toContain("archived content");
+			const readerContent = doc.querySelector("[data-test-reader-content]");
+			assert(readerContent, "reader content must be rendered");
+			expect(readerContent.textContent).toContain("archived content");
 			expect(doc.querySelector("[data-test-reader-title]")?.textContent).toBe("Saved Post");
 			expect(doc.querySelector("[data-test-back-link]")?.getAttribute("href")).toBe("/queue?utm_source=reader&utm_medium=internal&utm_content=back-top");
 			expect(doc.querySelector("[data-test-back-bottom-link]")).toBe(null);
@@ -672,7 +668,10 @@ describe("Queue routes", () => {
 
 			expect(readerResponse.status).toBe(200);
 			const doc = new JSDOM(readerResponse.text).window.document;
-			assert(doc.querySelector("iframe[data-reader-iframe]"), "private reader iframe must be rendered after login");
+			assert(
+				doc.querySelector("[data-test-reader-content]"),
+				"private reader content must be rendered after login",
+			);
 		});
 
 		it("strips the reader-ready email marker for a logged-in owner, redirecting to the clean permalink that renders the private reader", async () => {
@@ -735,7 +734,7 @@ describe("Queue routes", () => {
 
 			expect(readerResponse.status).toBe(200);
 			const doc = new JSDOM(readerResponse.text).window.document;
-			assert(doc.querySelector("iframe[data-reader-iframe]"), "reader iframe must be rendered");
+			assert(doc.querySelector("[data-test-reader-content]"), "reader content must be rendered");
 		});
 
 		it("should preserve incoming UTM params on the redirect so external campaign attribution survives", async () => {

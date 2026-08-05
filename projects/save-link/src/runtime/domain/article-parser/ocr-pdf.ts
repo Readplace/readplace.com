@@ -72,10 +72,10 @@ const PAGE_OCR_MAX_ATTEMPTS = 1;
 const PAGE_OCR_RETRY_DELAY_MS = 2000;
 
 /* Inter-chunk separator inserted between page fragments at stitch time.
- * The reader-iframe stylesheet styles `<hr class="ocr-page-break">` as a
- * dotted book-section rule using the brand `--color-border` palette so the
- * reader can visually recognise page boundaries without the OCR pipeline
- * embedding any inline styling. */
+ * The reader styles `<hr class="ocr-page-break">` as a dotted book-section
+ * rule using the brand `--color-border` palette so the reader can visually
+ * recognise page boundaries without the OCR pipeline embedding any inline
+ * styling. */
 const PAGE_BREAK_HTML = '<hr class="ocr-page-break">';
 
 // Minimum fraction of chunks that must succeed for the OCR to be accepted.
@@ -285,8 +285,8 @@ export function initOcrPdf(deps: {
 				});
 
 				// Insert a class-tagged <hr> between adjacent chunk fragments so
-				// the reader-iframe stylesheet can render a subtle dotted
-				// page-break in book-section style. Joining with the marker
+				// the reader can render a subtle dotted page-break in
+				// book-section style. Joining with the marker
 				// (rather than appending after each fragment) keeps the break
 				// strictly *between* pages — no leading/trailing rule. The
 				// document-level sanitiser allows `class` on <hr>, so the

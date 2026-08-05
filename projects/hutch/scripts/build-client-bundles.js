@@ -191,24 +191,6 @@ const BUNDLES = [
   {
     entry: path.join(
       PROJECT_ROOT,
-      "src/runtime/web/shared/article-body/reader-slot/reader-iframe.client.ts",
-    ),
-    outfile: path.join(OUT_DIR, "reader-iframe.client.js"),
-    globalName: "ReaderIframe",
-    footer: [
-      "ReaderIframe.initReaderIframes({",
-      "  document: window.document,",
-      "  ResizeObserver: window.ResizeObserver,",
-      "  MutationObserver: window.MutationObserver,",
-      "  addSwapListener: function (listener) {",
-      "    window.document.body.addEventListener('htmx:afterSwap', listener);",
-      "  }",
-      "});",
-    ].join("\n"),
-  },
-  {
-    entry: path.join(
-      PROJECT_ROOT,
       "src/runtime/web/shared/article-body/crawl-bookmark/crawl-bookmark.client.ts",
     ),
     outfile: path.join(OUT_DIR, "crawl-bookmark.client.js"),

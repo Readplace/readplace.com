@@ -7,87 +7,83 @@ function parse(html: string) {
 		.document;
 }
 
-function readSrcdoc(doc: Document): Document {
-	const iframe = doc.querySelector("iframe[data-reader-iframe]");
-	assert(iframe, "reader iframe must be rendered");
-	const srcdoc = iframe.getAttribute("srcdoc");
-	assert(srcdoc, "iframe must carry a srcdoc attribute");
-	return new JSDOM(srcdoc).window.document;
+function readerContent(doc: Document): Element {
+	const content = doc.querySelector("[data-test-reader-content]");
+	assert(content, "reader content must be rendered");
+	return content;
 }
 
 describe("renderReaderReady", () => {
-	it("renders the article content inside a sandboxed iframe", () => {
+	it("renders the article content as document text a reader or extractor can read", () => {
 		const doc = parse(renderReaderReady({ appOrigin: "https://readplace.com", content: "<p>Body copy</p>" }));
 
 		const slot = doc.querySelector("[data-test-reader-slot]");
 		assert(slot, "reader slot must be rendered");
 		expect(slot.getAttribute("data-reader-status")).toBe("ready");
-
-		const iframeDoc = readSrcdoc(doc);
-		assert(iframeDoc.body, "iframe body must exist");
-		expect(iframeDoc.body.innerHTML.trim()).toBe("<p>Body copy</p>");
+		expect(readerContent(doc).innerHTML.trim()).toBe("<p>Body copy</p>");
+		expect(doc.body.textContent).toContain("Body copy");
 	});
 
-	it("preserves the legacy data-test-reader-content attribute on the iframe so existing tests can target the body", () => {
+	it("carries the article content on a styled div, not a frame the page has to measure", () => {
 		const doc = parse(renderReaderReady({ appOrigin: "https://readplace.com", content: "<p>x</p>" }));
 
-		const legacyTarget = doc.querySelector("[data-test-reader-content]");
-		assert(legacyTarget, "legacy data-test-reader-content must be present");
-		expect(legacyTarget.tagName).toBe("IFRAME");
+		const content = readerContent(doc);
+		expect(content.tagName).toBe("DIV");
+		expect(content.classList.contains("article-body__content")).toBe(true);
 	});
 
-	it("declares a sandbox attribute that blocks scripts and permits parent-tab navigation", () => {
-		const doc = parse(renderReaderReady({ appOrigin: "https://readplace.com", content: "<p>x</p>" }));
-
-		const iframe = doc.querySelector("iframe[data-reader-iframe]");
-		assert(iframe, "reader iframe must be rendered");
-		const sandbox = iframe.getAttribute("sandbox");
-		assert(sandbox, "iframe must declare a sandbox attribute");
-
-		const flags = sandbox.split(/\s+/);
-		// allow-scripts intentionally absent: captured page JS must not run.
-		expect(flags).not.toContain("allow-scripts");
-		// allow-same-origin lets the parent measure contentDocument scrollHeight.
-		expect(flags).toContain("allow-same-origin");
-		// allow-top-navigation-by-user-activation lets in-article links retarget _top.
-		expect(flags).toContain("allow-top-navigation-by-user-activation");
-		// allow-popups + allow-popups-to-escape-sandbox keep target=_blank links usable.
-		expect(flags).toContain("allow-popups");
-		expect(flags).toContain("allow-popups-to-escape-sandbox");
-	});
-
-	it("HTML-escapes the srcdoc attribute so iframe content cannot break out of the attribute and inject parent-page markup", () => {
+	it("strips event-handler attributes from captured markup, which the page origin would otherwise execute", () => {
 		const doc = parse(
 			renderReaderReady({
-				content: '<p>safe</p><img src="x" onerror="alert(1)">',
+				content: '<p>safe</p><img src="https://cdn.example.com/x.jpg" onerror="alert(1)">',
 				appOrigin: "https://readplace.com",
 			}),
 		);
 
-		const iframe = doc.querySelector("iframe[data-reader-iframe]");
-		assert(iframe, "iframe must be rendered");
-		const srcdoc = iframe.getAttribute("srcdoc");
-		assert(srcdoc, "iframe must carry srcdoc");
-		// The attribute value must round-trip through DOM parsing — JSDOM has
-		// already unescaped the entities, so the raw quote must round-trip
-		// correctly and the dangerous attributes survive only inside the iframe
-		// boundary.
-		expect(srcdoc).toContain('<img src="x" onerror="alert(1)">');
-		// No spurious parent-side script tag escaped from the attribute.
-		expect(doc.querySelectorAll("script").length).toBe(0);
+		const image = readerContent(doc).querySelector("img");
+		assert(image, "the captured image must still render");
+		expect(image.getAttribute("src")).toBe("https://cdn.example.com/x.jpg");
+		expect(image.hasAttribute("onerror")).toBe(false);
 	});
 
-	it("matches parent theme via prefers-color-scheme so the iframe never flashes the wrong mode", () => {
-		const doc = parse(renderReaderReady({ appOrigin: "https://readplace.com", content: "<p>x</p>" }));
-		const iframeDoc = readSrcdoc(doc);
-		const style = iframeDoc.querySelector("style");
-		assert(style, "iframe document must embed reader CSS");
+	it("strips a captured stylesheet so article CSS cannot repaint the page around it", () => {
+		const doc = parse(
+			renderReaderReady({
+				content: "<style>body { position: fixed; }</style><p>safe</p>",
+				appOrigin: "https://readplace.com",
+			}),
+		);
 
-		const css = style.textContent ?? "";
-		expect(css).toContain("prefers-color-scheme: dark");
+		expect(readerContent(doc).innerHTML.trim()).toBe("<p>safe</p>");
 	});
 
-	it("flags the iframe with hx-swap-oob when oob is true so HTMX swaps replace the live slot", () => {
+	it("retargets a same-host link to the reader's own tab", () => {
+		const doc = parse(
+			renderReaderReady({
+				content: '<a href="https://readplace.com/queue" target="_blank">Queue</a>',
+				appOrigin: "https://readplace.com",
+			}),
+		);
+
+		const link = readerContent(doc).querySelector("a");
+		assert(link, "the captured link must still render");
+		expect(link.getAttribute("target")).toBe("_top");
+	});
+
+	it("leaves an external link's own target alone", () => {
+		const doc = parse(
+			renderReaderReady({
+				content: '<a href="https://example.com/post" target="_blank">Post</a>',
+				appOrigin: "https://readplace.com",
+			}),
+		);
+
+		const link = readerContent(doc).querySelector("a");
+		assert(link, "the captured link must still render");
+		expect(link.getAttribute("target")).toBe("_blank");
+	});
+
+	it("flags the slot with hx-swap-oob when oob is true so HTMX swaps replace the live slot", () => {
 		const doc = parse(
 			renderReaderReady({ content: "<p>x</p>", oob: true, appOrigin: "https://readplace.com" }),
 		);

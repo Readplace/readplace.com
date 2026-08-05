@@ -27,7 +27,6 @@ import { READER_STYLES } from "./reader.styles";
 
 const READER_TEMPLATE = readFileSync(join(__dirname, "reader.template.html"), "utf-8");
 const PROGRESS_BAR_SCRIPT = `<script src="/client-dist/progress-bar.client.js" defer></script>`;
-const READER_IFRAME_SCRIPT = `<script src="/client-dist/reader-iframe.client.js" defer></script>`;
 const SUMMARY_TOGGLE_SCRIPT = `<script src="/client-dist/summary-toggle.client.js" defer></script>`;
 
 /**
@@ -139,7 +138,6 @@ export function ReaderPage(
 			page:
 				SHARE_BALLOON_SCRIPT +
 				PROGRESS_BAR_SCRIPT +
-				READER_IFRAME_SCRIPT +
 				SUMMARY_TOGGLE_SCRIPT +
 				CRAWL_BOOKMARK_SCRIPT,
 		}),
