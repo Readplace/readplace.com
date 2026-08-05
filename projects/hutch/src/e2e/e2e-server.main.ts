@@ -277,7 +277,7 @@ server.post('/e2e/seed-crawled-article', async (req, res) => {
 		savedAt: new Date(contentFetchedAt),
 	})
 	const saved = savedByUserId
-		? await fixture.articleStore.saveArticle({ userId: savedByUserId, url, metadata, estimatedReadTime })
+		? (await fixture.articleStore.saveArticle({ userId: savedByUserId, url, metadata, estimatedReadTime })).saved
 		: undefined
 	await fixture.articleStore.writeContent({ url, content })
 	await fixture.articleCrawl.markCrawlReady({ url })
