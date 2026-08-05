@@ -1,17 +1,17 @@
 import assert from "node:assert/strict";
-import { expect, test, type Page } from "@playwright/test";
+import type { Page } from "@playwright/test";
+import { expect, test, waitForBrandFonts } from "@packages/e2e-harness";
 
 const E2E_PORT = process.env.E2E_PORT;
 assert(E2E_PORT, "E2E_PORT must be set by the Playwright webServer config");
 const BASE_URL = `http://localhost:${E2E_PORT}`;
 
-const FONTS_READY = "document.fonts.ready.then(() => undefined)";
 const IMAGES_READY =
 	"Array.from(document.images).every(img => img.complete && img.naturalWidth > 0)";
 
 async function waitForPageReady(page: Page, pageMarker: string): Promise<void> {
 	await page.waitForSelector(pageMarker);
-	await page.evaluate(FONTS_READY);
+	await waitForBrandFonts(page, ["Inter"]);
 	await page.waitForFunction(IMAGES_READY, undefined, { timeout: 5000 });
 }
 
