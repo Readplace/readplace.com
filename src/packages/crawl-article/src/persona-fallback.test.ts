@@ -25,7 +25,7 @@ const personaFallback: Persona = {
 };
 
 describe("isBlockClassResponse", () => {
-	it.each([401, 403, 406, 451, 498])("treats %i as block-class", (status) => {
+	it.each([401, 402, 403, 406, 451, 498])("treats %i as block-class", (status) => {
 		expect(isBlockClassResponse(new Response(null, { status }))).toBe(true);
 	});
 
@@ -80,7 +80,7 @@ describe("withPersonaFallback", () => {
 		expect(calls[0]["user-agent"]).toBe("Primary/1.0");
 	});
 
-	it.each([403, 498])(
+	it.each([402, 403, 498])(
 		"advances to the next persona when the response is a block-class %i",
 		async (status) => {
 			const calls: Record<string, string>[] = [];

@@ -666,6 +666,71 @@ describe("initCrawlArticle — single-fetch orchestration", () => {
 		expect(logError).not.toHaveBeenCalled();
 	});
 
+	it("returns blocked and logs at info when every fallback rung stays blocked with 402, because a pay-per-crawl edge answers the same way on every retry", async () => {
+		const blockedFetch = jest.fn<ReturnType<typeof fetch>, Parameters<typeof fetch>>(async () =>
+			new Response(null, { status: 402 }),
+		);
+		const blockedH2 = jest.fn<ReturnType<typeof fetchH2>, Parameters<typeof fetchH2>>(async () =>
+			new Response(null, { status: 402 }),
+		);
+		const blockedCurl = jest.fn<ReturnType<CurlFetch>, Parameters<CurlFetch>>(async () =>
+			new Response(null, { status: 402 }),
+		);
+		const logError = jest.fn();
+		const logInfo = jest.fn();
+		const crawlArticle = initCrawl({
+			fetch: blockedFetch,
+			fetchH2: blockedH2,
+			fetchCurl: blockedCurl,
+			personas: [
+				{ name: "test-default", headers: { ...DEFAULT_CRAWL_HEADERS } },
+				{ name: "test-honest-bot", headers: { "user-agent": "TestBot/1.0", accept: "*/*" } },
+			],
+			logError,
+			logInfo,
+		});
+
+		const result = await crawlArticle({ url: "https://example.com" });
+
+		expect(result).toEqual({ status: "blocked", httpStatus: 402 });
+		expect(logInfo).toHaveBeenCalledWith("[CrawlArticle] HTTP 402 for https://example.com");
+		expect(logError).not.toHaveBeenCalled();
+		expect(blockedFetch).toHaveBeenCalledTimes(2);
+		expect(blockedH2).toHaveBeenCalledTimes(2);
+		expect(blockedCurl).toHaveBeenCalledTimes(2);
+	});
+
+	it("fetches the article when a pay-per-crawl 402 gives way to a disclosed-bot persona", async () => {
+		const blockedH2: typeof fetchH2 = async () => new Response(null, { status: 402 });
+		const blockedCurl: CurlFetch = async () => new Response(null, { status: 402 });
+		const perPersona: typeof fetch = async (_input, init) =>
+			plainHeaders(init)["user-agent"] === "TestBot/1.0"
+				? new Response(
+						"<html><body><article><p>The publisher serves the whole recipe to a disclosed bot after refusing the browser persona with a payment demand.</p></article></body></html>",
+						{ status: 200, headers: { "content-type": "text/html" } },
+					)
+				: new Response(null, { status: 402 });
+		const logError = jest.fn();
+		const logInfo = jest.fn();
+		const crawlArticle = initCrawl({
+			fetch: perPersona,
+			fetchH2: blockedH2,
+			fetchCurl: blockedCurl,
+			personas: [
+				{ name: "test-default", headers: { ...DEFAULT_CRAWL_HEADERS } },
+				{ name: "test-honest-bot", headers: { "user-agent": "TestBot/1.0", accept: "*/*" } },
+			],
+			logError,
+			logInfo,
+		});
+
+		const result = await crawlArticle({ url: "https://example.com/recipe" });
+
+		assertFetched(result);
+		expect(result.html).toContain("the whole recipe to a disclosed bot");
+		expect(logError).not.toHaveBeenCalled();
+	});
+
 	it("returns not-found with the status on an HTTP 410 Gone", async () => {
 		const fakeFetch: typeof fetch = async () => new Response(null, { status: 410 });
 		const logError = jest.fn();

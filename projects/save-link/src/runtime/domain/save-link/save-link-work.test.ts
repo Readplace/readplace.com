@@ -177,17 +177,23 @@ describe("initSaveLinkWork", () => {
 		expect(emitSimpleCrawlUnsupported).not.toHaveBeenCalled();
 	});
 
-	it("terminalises an edge-blocked link via markCrawlBlocked instead of throwing, so the record settles and the DLQ handler can never relabel it exhausted-retries", async () => {
-		const transitionAndPersist = jest.fn().mockResolvedValue(undefined);
+	it.each([402, 403])(
+		"terminalises an edge-blocked link (HTTP %i) via markCrawlBlocked instead of throwing, so the record settles and the DLQ handler can never relabel it exhausted-retries",
+		async (httpStatus) => {
+			const transitionAndPersist = jest.fn().mockResolvedValue(undefined);
 
-		const { saveLinkWork } = createWork({ crawlAndFinalizeArticle: blockedCrawl(403), transitionAndPersist });
+			const { saveLinkWork } = createWork({
+				crawlAndFinalizeArticle: blockedCrawl(httpStatus),
+				transitionAndPersist,
+			});
 
-		await expect(saveLinkWork("https://example.com/walled")).resolves.toBe("tier-1-terminal");
-		expect(transitionAndPersist).toHaveBeenCalledWith(markCrawlBlocked, {
-			url: "https://example.com/walled",
-			input: { reason: { kind: "blocked", cause: "edge-block" } },
-		});
-	});
+			await expect(saveLinkWork("https://example.com/walled")).resolves.toBe("tier-1-terminal");
+			expect(transitionAndPersist).toHaveBeenCalledWith(markCrawlBlocked, {
+				url: "https://example.com/walled",
+				input: { reason: { kind: "blocked", cause: "edge-block" } },
+			});
+		},
+	);
 
 	it("records a 429 as rate-limited rather than an edge block, so the reader is not told to capture a page a later crawl can still fetch", async () => {
 		const transitionAndPersist = jest.fn().mockResolvedValue(undefined);

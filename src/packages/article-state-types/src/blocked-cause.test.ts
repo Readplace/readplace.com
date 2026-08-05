@@ -7,6 +7,7 @@ describe("blockedCauseForStatus", () => {
 	});
 
 	it("records a refusal of this egress as an edge block", () => {
+		assert.equal(blockedCauseForStatus(402), "edge-block");
 		assert.equal(blockedCauseForStatus(403), "edge-block");
 		assert.equal(blockedCauseForStatus(401), "edge-block");
 		assert.equal(blockedCauseForStatus(406), "edge-block");
