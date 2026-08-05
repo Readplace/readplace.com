@@ -1,11 +1,16 @@
-<div class="inbox-excluded-link" data-test-inbox-excluded-link="{{ordinal}}">
+<div
+  class="inbox-excluded-link"
+  id="{{domId}}"
+  data-test-inbox-excluded-link="{{ordinal}}"
+  {{#if pollUrl}} hx-get="{{pollUrl}}" hx-trigger="every 3s" hx-target="this" hx-swap="outerHTML"{{/if}}
+>
   <div class="inbox-excluded-link__info">
     <span class="inbox-excluded-link__url" data-test-inbox-excluded-url>{{url}}</span>
     <span class="inbox-excluded-link__reason" data-test-inbox-excluded-reason>{{reasonLabel}}</span>
   </div>
   <div class="inbox-excluded-link__actions">
-    {{#if saveAction}}<form class="inbox-excluded-link__save" method="POST" action="{{saveAction}}" hx-boost="true" hx-target="main" hx-select="main" hx-swap="outerHTML show:none" hx-disabled-elt="find button">
-      <button type="submit" id="{{saveButtonId}}" class="inbox-excluded-link__save-button{{savedClass}}" aria-label="{{saveButton.ariaLabel}}" data-test-save-state="{{saveButton.saveState}}" data-test-inbox-excluded-save>{{#if saveButton.iconName}}{{icon saveButton.iconName}}{{/if}}{{saveButton.label}}</button>
+    {{#if saveAction}}<form class="inbox-excluded-link__save" method="POST" action="{{saveAction}}" hx-post="{{saveAction}}" hx-target="#{{domId}}" hx-swap="outerHTML" hx-disabled-elt="find button">
+      <button type="submit" id="{{saveButtonId}}" class="inbox-excluded-link__save-button{{saveStateClass}}" aria-label="{{saveButton.ariaLabel}}" data-test-save-state="{{saveButton.saveState}}" data-test-inbox-excluded-save>{{#if saveButton.iconName}}{{icon saveButton.iconName}}{{/if}}{{saveButton.label}}</button>
     </form>{{/if}}
   </div>
 </div>

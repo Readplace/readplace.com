@@ -125,6 +125,40 @@ describe("requireWriteAccess middleware", () => {
 		expect(response.headers.location).toBe("/queue?inactive=1");
 	});
 
+	it("tells a non-boosted htmx client to navigate rather than swapping /queue into the fragment it targeted", async () => {
+		const { app, providers } = buildApp(TEST_USER_ID);
+		await providers.upsertTrialing({
+			userId: TEST_USER_ID,
+			trialEndsAt: new Date(NOW.getTime() - ONE_DAY_MS).toISOString(),
+		});
+
+		const response = await request(app)
+			.post("/protected")
+			.set("Accept", "text/html")
+			.set("HX-Request", "true");
+
+		expect(response.status).toBe(200);
+		expect(response.headers["hx-redirect"]).toBe("/queue?inactive=1");
+		expect(response.text).toBe("");
+	});
+
+	it("leaves a boosted htmx client on the plain redirect, which boost already follows into <main>", async () => {
+		const { app, providers } = buildApp(TEST_USER_ID);
+		await providers.upsertTrialing({
+			userId: TEST_USER_ID,
+			trialEndsAt: new Date(NOW.getTime() - ONE_DAY_MS).toISOString(),
+		});
+
+		const response = await request(app)
+			.post("/protected")
+			.set("Accept", "text/html")
+			.set("HX-Request", "true")
+			.set("HX-Boosted", "true");
+
+		expect(response.status).toBe(303);
+		expect(response.headers.location).toBe("/queue?inactive=1");
+	});
+
 	it("returns 402 JSON to API clients that did not request html so the extension surfaces a structured error", async () => {
 		const { app, providers } = buildApp(TEST_USER_ID);
 		await providers.upsertActive({

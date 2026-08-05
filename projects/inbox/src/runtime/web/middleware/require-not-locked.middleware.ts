@@ -1,6 +1,7 @@
 import type { RequestHandler } from "express";
 import { bannerStateFromRequest, sendComponent } from "@packages/web-shell";
 import { Base } from "../base.component";
+import { isNonBoostedHtmxRequest } from "../is-non-boosted-htmx-request";
 import { AccountLockedPage } from "../pages/account-locked/account-locked.component";
 
 /**
@@ -21,6 +22,13 @@ export const requireNotLocked: RequestHandler = (req, res, next) => {
 	if (req.verificationStatus?.state !== "locked") {
 		next();
 		return;
+	}
+	if (isNonBoostedHtmxRequest(req)) {
+		res.set({
+			"HX-Retarget": "main",
+			"HX-Reselect": "main",
+			"HX-Reswap": "outerHTML show:none",
+		});
 	}
 	sendComponent(req, res, Base(AccountLockedPage(), bannerStateFromRequest(req)));
 };

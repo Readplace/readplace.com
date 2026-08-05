@@ -1,39 +1,25 @@
 import { type LocalTime, toAbsoluteDateTime } from "@packages/web-shell";
 import type {
-	EmailLinkSkipReason,
 	InboxEmailEntry,
 	InboxEmailLinkCounts,
 	InboxEmailLinkEntry,
 	InboxEmailLinksMeta,
 	InboxLinkSaveState,
 } from "@packages/domain/inbox";
-import { validateSaveableUrl } from "@packages/domain/article";
 import { ARTICLES_PAGE_SIZE, buildInboxArticlesMoreUrl } from "./inbox-articles-more.url";
 import { buildInboxArticlesPollUrl } from "./inbox-articles-poll-url";
+import {
+	type ExcludedLinkViewModel,
+	toInboxExcludedLinkViewModel,
+} from "./inbox-excluded-link.viewmodel";
 import { buildInboxExcludedPollUrl } from "./inbox-excluded-poll-url";
 import { type MailTabKey, buildInboxEmailDetailUrl } from "./inbox-email-detail.url";
-import { buildInboxLinkSaveUrl } from "./inbox-link-save-url";
 import { type InboxLinkCardViewModel, toInboxLinkCardViewModel } from "./inbox-link-card.viewmodel";
-import {
-	type InboxSaveButtonViewModel,
-	toInboxSaveButtonViewModel,
-} from "./inbox-save-button.viewmodel";
 import { type MailTab, buildMailTabs } from "./mail-tabs";
 
 /** Initial poll count for a card on first page render: the first htmx tick then
  * requests `?poll=1` and the poll route increments from there. */
 const INITIAL_POLL_COUNT = 1;
-
-const SKIP_REASON_LABELS: Record<EmailLinkSkipReason, string> = {
-	"list-unsubscribe": "Unsubscribe link",
-	"action-link-pattern": "Unsubscribe or account link",
-	"llm-noise": "Not an article",
-	"llm-ad": "Advertisement",
-	"llm-menu": "Site navigation",
-	"llm-subscription": "Subscription management",
-};
-
-const GENERIC_EXCLUDED_LABEL = "Not an article";
 
 const NO_LINKS_MESSAGE = "No links found in this email.";
 const ALL_SKIPPED_MESSAGE = "Every link in this email was skipped — see the Skipped tab.";
@@ -51,18 +37,6 @@ const STALE_MESSAGE =
 // promise a row a reader jumping straight to /queue might not find yet.
 const SAVED_TOAST_MESSAGE = "Adding to your queue…";
 const FEEDBACK_TOAST_MESSAGE = "Thanks — your report was logged.";
-
-export interface ExcludedLinkViewModel {
-	ordinal: string;
-	url: string;
-	reasonLabel: string;
-	saveAction: string | undefined;
-	/** Stable id so htmx can hand keyboard focus back to the Save button after the
-	 * swap replaces the row the reader was keyboarding through. Mirrors the card
-	 * action's `inbox-card-{ordinal}-{key}` scheme. */
-	saveButtonId: string;
-	saveButton: InboxSaveButtonViewModel;
-}
 
 export interface ArticleShowMore {
 	detailHref: string;
@@ -247,26 +221,12 @@ export function toInboxEmailDetailViewModel(input: {
 	});
 	const excludedLinks = links
 		.filter((link) => link.status === "skipped")
-		.map(
-			(link): ExcludedLinkViewModel => ({
-				ordinal: link.ordinal,
-				url: link.url,
-				reasonLabel:
-					link.skipReason === undefined
-						? GENERIC_EXCLUDED_LABEL
-						: SKIP_REASON_LABELS[link.skipReason],
-				saveAction:
-					validateSaveableUrl(link.url).status === "SUCCESS"
-						? buildInboxLinkSaveUrl({ emailId, ordinal: link.ordinal })
-						: undefined,
-				saveButtonId: `inbox-skipped-${link.ordinal}-save`,
-				// A skipped row shows its URL byte-exact — no crawl has resolved it —
-				// so the key it is looked up by is also the one the label names.
-				saveButton: toInboxSaveButtonViewModel({
-					linkSaveStates: input.linkSaveStates,
-					url: link.url,
-					displayUrl: link.url,
-				}),
+		.map((link) =>
+			toInboxExcludedLinkViewModel({
+				link,
+				emailId,
+				linkSaveStates: input.linkSaveStates,
+				pollContext: { mode: "static" },
 			}),
 		);
 	const truncated = linksMeta?.truncated === true;

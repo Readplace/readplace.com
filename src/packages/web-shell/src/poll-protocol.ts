@@ -17,6 +17,15 @@ export const MAX_POLLS = 300;
 export const MAX_CAPTURE_POLLS = 20;
 
 /**
+ * The same cursor, budgeted for a queue save settling rather than a crawl. The
+ * save route only publishes a command; the read model it renders from is stamped
+ * by a downstream subscriber, so 20 × 3s = 60s covers the EventBridge → SQS →
+ * Lambda → DynamoDB round trip plus a redelivery. Past that the write is not
+ * landing, and continuing to claim "Saving…" would be false.
+ */
+export const MAX_SAVE_SETTLE_POLLS = 20;
+
+/**
  * The htmx poll cursor arrives as an untrusted query string, so a non-numeric
  * `?poll=` (e.g. `?poll=abc`) coerces to NaN. Left as NaN it defeats the
  * `pollCount > maxPolls` budget check (every comparison with NaN is false), so

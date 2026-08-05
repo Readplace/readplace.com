@@ -29,18 +29,27 @@ import { emailContentResourceId } from "../../../domain/inbox/email-content-id";
 import { stripUtmParams } from "../../../domain/inbox/strip-utm-params";
 import { Base } from "../../base.component";
 import type { BuildBannerState } from "../../banner-state";
-import { MAX_POLLS } from "@packages/web-shell";
+import { isNonBoostedHtmxRequest } from "../../is-non-boosted-htmx-request";
+import { MAX_POLLS, MAX_SAVE_SETTLE_POLLS } from "@packages/web-shell";
 import { etagMatches } from "@packages/web-shell";
 import { renderInboxArticleCard } from "./inbox-article-card.component";
 import { renderInboxArticlesMore } from "./inbox-articles-more.component";
 import { parseArticlesShown } from "./inbox-articles-more.url";
 import { renderInboxArticlesPanel } from "./inbox-articles-panel.component";
+import { renderInboxExcludedLink } from "./inbox-excluded-link.component";
+import { computeInboxExcludedRowEtag } from "./inbox-excluded-link.etag";
+import {
+	INITIAL_SAVE_POLL_COUNT,
+	type ExcludedLinkViewModel,
+	toInboxExcludedLinkViewModel,
+} from "./inbox-excluded-link.viewmodel";
 import { renderInboxExcludedPanel } from "./inbox-excluded-panel.component";
 import { InboxEmailDetailPage } from "./inbox-email-detail.component";
 import { buildInboxEmailDetailUrl, parseMailTab } from "./inbox-email-detail.url";
 import type { MailTabKey } from "./inbox-email-detail.url";
 import {
 	buildCardResolvedAnnouncement,
+	buildSaveSettledAnnouncement,
 	renderInboxLiveStatus,
 } from "./inbox-live-status.component";
 import { renderInboxMailTabs } from "./inbox-mail-tabs.component";
@@ -98,6 +107,22 @@ const POLL_PANEL_RENDERERS: Record<
 
 function tabForLinkRow(status: EmailLinkStatus): MailTabKey {
 	return status === "skipped" ? "excluded" : "articles";
+}
+
+function sendInboxExcludedRow(
+	res: Response,
+	input: { vm: ExcludedLinkViewModel; saveState: InboxLinkSaveState | undefined },
+): void {
+	const announcement = buildSaveSettledAnnouncement({
+		saveState: input.saveState,
+		url: input.vm.url,
+	});
+	const liveStatusHtml =
+		announcement === "" ? "" : renderInboxLiveStatus({ message: announcement, oob: true });
+	res
+		.status(200)
+		.type("html")
+		.send(`${renderInboxExcludedLink(input.vm)}${liveStatusHtml}`);
 }
 
 const AddressActionSchema = z.object({ address: InboxAddressSchema });
@@ -383,6 +408,51 @@ export function initInboxRoutes(deps: InboxDependencies): Router {
 		},
 	);
 
+	router.get(
+		"/:id/links/:ordinal/excluded",
+		async (req: Request<{ id: string; ordinal: string }>, res: Response) => {
+			assert(req.userId, "userId required - route must be protected by requireAuth");
+			const userId = req.userId;
+			const receivedAtMessageId = req.params.id;
+			const parsedOrdinal = EmailLinkOrdinalSchema.safeParse(req.params.ordinal);
+			const link = parsedOrdinal.success
+				? await deps.inboxEmailLinkStore.getLink({
+						userId,
+						receivedAtMessageId,
+						ordinal: parsedOrdinal.data,
+					})
+				: undefined;
+			if (link === undefined || link.status !== "skipped") {
+				res.status(404).type("html").send("");
+				return;
+			}
+			const linkSaveStates = await findLinkSaveStates({ userId, links: [link] });
+			const saveState = linkSaveStates.get(link.url);
+			const etag = computeInboxExcludedRowEtag({ link, saveState });
+			res.set("Cache-Control", "private, no-cache");
+			res.set("Vary", "Cookie");
+			res.set("ETag", etag);
+			if (etagMatches(req.get("If-None-Match"), etag)) {
+				res.status(304).end();
+				return;
+			}
+			const requestedPoll = parsePollParam(req.query.poll, MAX_SAVE_SETTLE_POLLS);
+			sendInboxExcludedRow(res, {
+				vm: toInboxExcludedLinkViewModel({
+					link,
+					emailId: receivedAtMessageId,
+					linkSaveStates,
+					pollContext: {
+						mode: "save-poll",
+						pollCount: requestedPoll + 1,
+						maxPolls: MAX_SAVE_SETTLE_POLLS,
+					},
+				}),
+				saveState,
+			});
+		},
+	);
+
 	router.post(
 		"/:id/links/:ordinal/feedback",
 		async (req: Request<{ id: string; ordinal: string }>, res: Response) => {
@@ -445,6 +515,13 @@ export function initInboxRoutes(deps: InboxDependencies): Router {
 				res.status(404).type("html").send("");
 				return;
 			}
+			// A retried save re-enters the not-yet-saved world: dropping the recorded
+			// failure is what lets this attempt's own outcome land as the row's only
+			// claim, instead of a stale refusal outliving the click that answered it.
+			const priorSaveStates = await findLinkSaveStates({ userId, links: [link] });
+			if (priorSaveStates.get(link.url) === "failed") {
+				await deps.inboxSavedLinkStore.retractLinkSaved({ userId, url: link.url });
+			}
 			// Submits the stored URL, never the resolved one — the save pipeline owns
 			// redirects. Stripping runs after the saveable gate above and only shortens,
 			// so the validated URL cannot grow back past its length cap.
@@ -464,6 +541,23 @@ export function initInboxRoutes(deps: InboxDependencies): Router {
 					receivedAtMessageId,
 					link,
 				});
+			}
+			if (isNonBoostedHtmxRequest(req) && link.status === "skipped") {
+				const linkSaveStates = await findLinkSaveStates({ userId, links: [link] });
+				sendInboxExcludedRow(res, {
+					vm: toInboxExcludedLinkViewModel({
+						link,
+						emailId: receivedAtMessageId,
+						linkSaveStates,
+						pollContext: {
+							mode: "save-poll",
+							pollCount: INITIAL_SAVE_POLL_COUNT,
+							maxPolls: MAX_SAVE_SETTLE_POLLS,
+						},
+					}),
+					saveState: linkSaveStates.get(link.url),
+				});
+				return;
 			}
 			res.redirect(
 				303,

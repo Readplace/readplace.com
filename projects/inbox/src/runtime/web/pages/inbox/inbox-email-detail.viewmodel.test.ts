@@ -362,6 +362,7 @@ describe("toInboxEmailDetailViewModel", () => {
 				url: "https://news.example.com/unsub",
 				reasonLabel: "Unsubscribe link",
 				saveAction: `/inbox/${encodeURIComponent(SK)}/links/0001/save`,
+				domId: "inbox-skipped-0001",
 				saveButtonId: "inbox-skipped-0001-save",
 				saveButton: {
 					label: "Save to queue",
@@ -369,12 +370,14 @@ describe("toInboxEmailDetailViewModel", () => {
 					saveState: "unsaved",
 					iconName: undefined,
 				},
+				pollUrl: undefined,
 			},
 			{
 				ordinal: "0002",
 				url: "https://sponsor.example.com/deal",
 				reasonLabel: "Advertisement",
 				saveAction: `/inbox/${encodeURIComponent(SK)}/links/0002/save`,
+				domId: "inbox-skipped-0002",
 				saveButtonId: "inbox-skipped-0002-save",
 				saveButton: {
 					label: "Save to queue",
@@ -382,6 +385,7 @@ describe("toInboxEmailDetailViewModel", () => {
 					saveState: "unsaved",
 					iconName: undefined,
 				},
+				pollUrl: undefined,
 			},
 		]);
 		expect(vm.articles.isEmpty).toBe(false);

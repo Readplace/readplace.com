@@ -2,6 +2,7 @@ import assert from "node:assert/strict";
 import { JSDOM } from "jsdom";
 import {
 	buildCardResolvedAnnouncement,
+	buildSaveSettledAnnouncement,
 	renderInboxLiveStatus,
 } from "./inbox-live-status.component";
 
@@ -76,6 +77,26 @@ describe("buildCardResolvedAnnouncement", () => {
 				title: "",
 				url: "https://example.com/post",
 			}),
+		).toBe("");
+	});
+});
+
+describe("buildSaveSettledAnnouncement", () => {
+	it("confirms the queue write once the read model records it", () => {
+		expect(
+			buildSaveSettledAnnouncement({ saveState: "saved", url: "https://example.com/post" }),
+		).toBe("Saved to your queue: https://example.com/post");
+	});
+
+	it("says the save is over rather than leaving it sounding in flight when it failed", () => {
+		expect(
+			buildSaveSettledAnnouncement({ saveState: "failed", url: "https://example.com/post" }),
+		).toBe("Couldn't save https://example.com/post");
+	});
+
+	it("stays silent while the save has not settled, so a 3s tick announces nothing", () => {
+		expect(
+			buildSaveSettledAnnouncement({ saveState: undefined, url: "https://example.com/post" }),
 		).toBe("");
 	});
 });

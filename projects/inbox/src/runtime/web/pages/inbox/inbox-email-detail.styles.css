@@ -254,6 +254,11 @@
   color: var(--success);
 }
 
+.inbox-excluded-link__save-button--saving {
+  color: var(--muted-foreground);
+  cursor: progress;
+}
+
 .inbox-email-detail__show-more {
   display: block;
   margin-top: 12px;

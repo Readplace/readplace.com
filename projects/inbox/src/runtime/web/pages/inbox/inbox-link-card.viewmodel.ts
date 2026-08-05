@@ -85,7 +85,12 @@ function buildCardActions(input: {
 	if (validateSaveableUrl(link.url).status === "SUCCESS") {
 		actions.push({
 			key: "save",
-			...toInboxSaveButtonViewModel({ linkSaveStates, url: link.url, displayUrl }),
+			...toInboxSaveButtonViewModel({
+				linkSaveStates,
+				url: link.url,
+				displayUrl,
+				whenNotSaved: "unsaved",
+			}),
 			buttonId: buttonId("save"),
 			href: buildInboxLinkSaveUrl({ emailId, ordinal: link.ordinal }),
 			method: "POST",

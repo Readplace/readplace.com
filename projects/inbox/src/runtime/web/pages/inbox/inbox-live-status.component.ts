@@ -1,7 +1,7 @@
 import { readFileSync } from "node:fs";
 import { join } from "node:path";
 import { render } from "@packages/web-shell";
-import type { InboxEmailLinkEntry } from "@packages/domain/inbox";
+import type { InboxEmailLinkEntry, InboxLinkSaveState } from "@packages/domain/inbox";
 
 const INBOX_LIVE_STATUS_TEMPLATE = readFileSync(
 	join(__dirname, "inbox-live-status.template.html"),
@@ -36,4 +36,18 @@ export function buildCardResolvedAnnouncement(input: {
 	if (input.status === "failed") return `No preview available for ${input.url}`;
 	if (input.status !== "crawled") return "";
 	return input.title === "" ? `Preview ready for ${input.url}` : `Preview ready: ${input.title}`;
+}
+
+const SAVE_SETTLED_PREFIXES: Record<InboxLinkSaveState, string> = {
+	saved: "Saved to your queue: ",
+	failed: "Couldn't save ",
+};
+
+export function buildSaveSettledAnnouncement(input: {
+	saveState: InboxLinkSaveState | undefined;
+	url: string;
+}): string {
+	return input.saveState === undefined
+		? ""
+		: `${SAVE_SETTLED_PREFIXES[input.saveState]}${input.url}`;
 }

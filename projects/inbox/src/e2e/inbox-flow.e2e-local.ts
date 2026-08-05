@@ -75,6 +75,40 @@ test.describe("Inbox article cards", () => {
 	});
 });
 
+test.describe("Inbox skipped links", () => {
+	test("saves a skipped row in place, without navigating away from the tab", async ({ page }) => {
+		await page.request.post("/e2e/session");
+		await page.request.post("/e2e/seed-address", { data: { name: "e2e" } });
+		const seeded = await page.request.post("/e2e/seed-email", {
+			data: {
+				messageId: "<skipped@e2e>",
+				receivedAt: RECEIVED_AT,
+				senderEmail: "news@example.com",
+				subject: "Weekly digest",
+				links: [{ url: "https://example.com/sponsored", status: "skipped" }],
+			},
+		});
+		assert.equal(seeded.status(), 200, await seeded.text());
+		const { emailId } = (await seeded.json()) as { emailId: string };
+
+		await page.goto(`/inbox/${encodeURIComponent(emailId)}?tab=excluded`);
+		const urlBeforeSave = page.url();
+		const saveControl = page.locator("#inbox-skipped-0000 [data-test-save-state]");
+		await expect(saveControl).toHaveAttribute("data-test-save-state", "unsaved");
+
+		await saveControl.click();
+
+		await expect(page.locator("#inbox-skipped-0000 [data-test-save-state]")).toHaveAttribute(
+			"data-test-save-state",
+			"saved",
+		);
+		await expect(page.locator("#inbox-skipped-0000 [data-test-save-state]")).toContainText(
+			"Save again",
+		);
+		expect(page.url()).toBe(urlBeforeSave);
+	});
+});
+
 test.describe("Inbox address copy control", () => {
 	test("unhides the Copy button, which only happens once this page's client bundle is served and runs", async ({
 		page,

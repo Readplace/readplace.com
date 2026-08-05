@@ -1,22 +1,28 @@
 import { readFileSync } from "node:fs";
 import { join } from "node:path";
 import { render } from "@packages/web-shell";
-import type { ExcludedLinkViewModel } from "./inbox-email-detail.viewmodel";
+import type { ExcludedLinkViewModel } from "./inbox-excluded-link.viewmodel";
+import type { SaveButtonState } from "./inbox-save-button.viewmodel";
 
 const INBOX_EXCLUDED_LINK_TEMPLATE = readFileSync(
 	join(__dirname, "inbox-excluded-link.template.html"),
 	"utf-8",
 );
 
+const SAVE_STATE_CLASSES: Record<SaveButtonState, string> = {
+	saved: " inbox-excluded-link__save-button--saved",
+	saving: " inbox-excluded-link__save-button--saving",
+	unsaved: "",
+};
+
 interface InboxExcludedLinkDisplayModel extends ExcludedLinkViewModel {
-	savedClass: string;
+	saveStateClass: string;
 }
 
 function toDisplayModel(vm: ExcludedLinkViewModel): InboxExcludedLinkDisplayModel {
 	return {
 		...vm,
-		savedClass:
-			vm.saveButton.saveState === "saved" ? " inbox-excluded-link__save-button--saved" : "",
+		saveStateClass: SAVE_STATE_CLASSES[vm.saveButton.saveState],
 	};
 }
 

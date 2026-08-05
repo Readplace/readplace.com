@@ -76,7 +76,12 @@ export { VERIFICATION_CONTACT_EMAIL } from "./shared/verify-banner/verify-banner
 export { renderToast } from "./shared/toast/toast.component";
 export type { ToastAction, ToastViewModel } from "./shared/toast/toast.component";
 export { etagMatches } from "./etag";
-export { MAX_CAPTURE_POLLS, MAX_POLLS, parsePollParam } from "./poll-protocol";
+export {
+	MAX_CAPTURE_POLLS,
+	MAX_POLLS,
+	MAX_SAVE_SETTLE_POLLS,
+	parsePollParam,
+} from "./poll-protocol";
 export { QuerystringFeatureToggle } from "./feature-toggle";
 export type { FeatureToggleSource } from "./feature-toggle";
 export { formatTabCountLabel } from "./tab-count-label";
