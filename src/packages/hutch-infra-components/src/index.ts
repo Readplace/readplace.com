@@ -98,6 +98,12 @@ export {
 } from "./events";
 export { PARSE_ERROR_STREAM, type ParseErrorEvent } from "./logs";
 export { SAVE_LINK_LAMBDA_NAMES, SAVE_LINK_LOG_GROUPS } from "./save-link-lambdas";
+export {
+	INBOX_DLQ_SOURCES,
+	INBOX_DLQ_SOURCE_QUEUES,
+	SAVE_LINK_DLQ_SOURCES,
+	SAVE_LINK_DLQ_SOURCE_QUEUES,
+} from "./dlq-source-queues";
 export { BLOG_SITE_LAMBDA_NAME, BLOG_SITE_LOG_GROUP } from "./blog-site-lambda";
 export {
 	FORWARD_ANALYTICS_LAMBDA_NAME,

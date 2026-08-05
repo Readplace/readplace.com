@@ -10,6 +10,7 @@ import {
 	HutchLambda,
 	HutchDynamoDBAccess,
 	HutchDLQEventHandler,
+	HutchSharedDlq,
 	HutchSQS,
 	HutchSQSBackedLambda,
 	HutchS3ReadWrite,
@@ -39,6 +40,7 @@ import {
 	RefreshContentExtractedEvent,
 	RemoveMyContentCommand,
 	ReselectAfterRemovalEvent,
+	SAVE_LINK_DLQ_SOURCES,
 	SAVE_LINK_LAMBDA_NAMES,
 } from "@packages/hutch-infra-components";
 import { requireEnv } from "@packages/require-env";
@@ -58,6 +60,9 @@ function renamePolicies(
 ): LambdaPolicy[] {
 	return policies.map((p) => ({ ...p, name: `${prefix}-${p.name}` }));
 }
+
+const SAVE_LINK_FAILURES_DLQ = "save-link-failures";
+const SAVE_LINK_FAILURES_DLQ_CONSUMER = `${SAVE_LINK_FAILURES_DLQ}-dlq`;
 
 const config = new pulumi.Config();
 const alertEmail = config.require("alertEmail");
@@ -202,8 +207,13 @@ const eventBus = HutchEventBus.fromPlatformStack(config);
 
 // --- Queues ---
 
-const generateSummaryQueue = new HutchSQS("generate-summary", {
+const failuresDlq = new HutchSharedDlq(SAVE_LINK_FAILURES_DLQ, {
+	alertEmailDLQEntry: alertEmail,
+});
+
+const generateSummaryQueue = new HutchSQS(SAVE_LINK_DLQ_SOURCES.generateSummary, {
 	visibilityTimeoutSeconds: GENERATE_SUMMARY_TIMEOUTS.sqsVisibilitySeconds,
+	sharedDlq: failuresDlq,
 });
 
 const linkSavedQueue = new HutchSQS("link-saved", {
@@ -225,37 +235,50 @@ const linkSavedQueue = new HutchSQS("link-saved", {
 // can become canonical instead. Trade-off: a genuinely transient tier-1 blip
 // (503/timeout) does not self-heal at the SQS layer; the user re-saving (or
 // /admin/recrawl) is the retry.
-const saveLinkCommandQueue = new HutchSQS("save-link-command", {
+const saveLinkCommandQueue = new HutchSQS(SAVE_LINK_DLQ_SOURCES.saveLinkCommand, {
 	visibilityTimeoutSeconds: 480,
 	dlqMaxReceiveCount: 1,
+	sharedDlq: failuresDlq,
 });
 
 // maxReceiveCount=1: SQS retries are removed for the anonymous save path.
 // A failed save does not reprime when the user re-visits /view. The DLQ → SNS
-// email alarm wired by HutchSQSBackedLambda is the operator's redrive signal,
-// and /admin/recrawl is the manual retry.
+// email alarm is the operator's redrive signal, and /admin/recrawl is the
+// manual retry.
 // Other queues that aren't user-retriable (select-most-complete-content,
 // generate-summary) keep the default maxReceiveCount=3 so transient
 // Deepseek/DDB blips still self-heal at the SQS layer.
 //
 // Now simple-only — PDFs go through the comprehensive Lambda — so the
 // timeout/visibility shrink to match save-link-command above.
-const saveAnonymousLinkCommandQueue = new HutchSQS("save-anonymous-link-command", {
-	visibilityTimeoutSeconds: 480,
-	dlqMaxReceiveCount: 1,
-});
+const saveAnonymousLinkCommandQueue = new HutchSQS(
+	SAVE_LINK_DLQ_SOURCES.saveAnonymousLinkCommand,
+	{
+		visibilityTimeoutSeconds: 480,
+		dlqMaxReceiveCount: 1,
+		sharedDlq: failuresDlq,
+	},
+);
 
-const saveLinkRawHtmlCommandQueue = new HutchSQS("save-link-raw-html-command", {
-	visibilityTimeoutSeconds: 480,
-});
+const saveLinkRawHtmlCommandQueue = new HutchSQS(
+	SAVE_LINK_DLQ_SOURCES.saveLinkRawHtmlCommand,
+	{
+		visibilityTimeoutSeconds: 480,
+		sharedDlq: failuresDlq,
+	},
+);
 
 // OCR path: 1800s visibility = 2x the
 // 900s Lambda timeout; dlqMaxReceiveCount=1 because a retry re-OCRs every page
 // from scratch, so an automatic redrive is expensive and rarely succeeds.
-const saveLinkRawPdfCommandQueue = new HutchSQS("save-link-raw-pdf-command", {
-	visibilityTimeoutSeconds: 1800,
-	dlqMaxReceiveCount: 1,
-});
+const saveLinkRawPdfCommandQueue = new HutchSQS(
+	SAVE_LINK_DLQ_SOURCES.saveLinkRawPdfCommand,
+	{
+		visibilityTimeoutSeconds: 1800,
+		dlqMaxReceiveCount: 1,
+		sharedDlq: failuresDlq,
+	},
+);
 
 const anonymousLinkSavedQueue = new HutchSQS("anonymous-link-saved", {
 	visibilityTimeoutSeconds: 60,
@@ -276,9 +299,10 @@ const summaryGenerationFailedQueue = new HutchSQS("summary-generation-failed", {
 // only delay giving up. Fail once so the row stops sitting in "fetching" for
 // ~24 min and a tier-0 (extension) save can be picked up instead of the doomed
 // server crawl.
-const recrawlLinkInitiatedQueue = new HutchSQS("recrawl-link-initiated", {
+const recrawlLinkInitiatedQueue = new HutchSQS(SAVE_LINK_DLQ_SOURCES.recrawlLinkInitiated, {
 	visibilityTimeoutSeconds: 480,
 	dlqMaxReceiveCount: 1,
+	sharedDlq: failuresDlq,
 });
 
 // Simple-only — PDF refreshes dispatch the comprehensive-crawl-command with
@@ -287,16 +311,37 @@ const staleCheckRequestedQueue = new HutchSQS("stale-check-requested", {
 	visibilityTimeoutSeconds: 480,
 });
 
-const recrawlContentExtractedQueue = new HutchSQS("recrawl-content-extracted", {
-	visibilityTimeoutSeconds: SELECT_CONTENT_TIMEOUTS.sqsVisibilitySeconds,
-});
+const recrawlContentExtractedQueue = new HutchSQS(
+	SAVE_LINK_DLQ_SOURCES.recrawlContentExtracted,
+	{
+		visibilityTimeoutSeconds: SELECT_CONTENT_TIMEOUTS.sqsVisibilitySeconds,
+		sharedDlq: failuresDlq,
+	},
+);
 
 const removeMyContentCommandQueue = new HutchSQS("remove-my-content-command", {
 	visibilityTimeoutSeconds: 60,
 });
 
-const reselectAfterRemovalQueue = new HutchSQS("reselect-after-removal", {
+const reselectAfterRemovalQueue = new HutchSQS(SAVE_LINK_DLQ_SOURCES.reselectAfterRemoval, {
 	visibilityTimeoutSeconds: SELECT_CONTENT_TIMEOUTS.sqsVisibilitySeconds,
+	sharedDlq: failuresDlq,
+});
+
+new HutchDLQEventHandler(SAVE_LINK_FAILURES_DLQ_CONSUMER, {
+	deadLetterQueueArn: failuresDlq.arn,
+	tableArn: articlesTableArn,
+	tableName: articlesTableName,
+	eventBus,
+	batchSize: 1,
+	additionalDynamoActions: ["dynamodb:GetItem"],
+	additionalEnvironment: {
+		GENERATE_SUMMARY_QUEUE_URL: generateSummaryQueue.queueUrl,
+	},
+	additionalPolicies: renamePolicies(
+		generateSummaryQueue.policies,
+		SAVE_LINK_FAILURES_DLQ_CONSUMER,
+	),
 });
 
 // --- SaveLinkCommand handler ---
@@ -343,20 +388,6 @@ const saveLinkCommandLambdaWithSQS = new HutchSQSBackedLambda("save-link-command
 
 eventBus.subscribe(SaveLinkCommand, saveLinkCommandLambdaWithSQS);
 
-// --- SaveLinkCommand DLQ consumer ---
-new HutchDLQEventHandler("save-link-dlq", {
-	sourceQueue: saveLinkCommandQueue,
-	tableArn: articlesTableArn,
-	tableName: articlesTableName,
-	eventBus,
-	batchSize: 1,
-	additionalDynamoActions: ["dynamodb:GetItem"],
-	additionalEnvironment: {
-		GENERATE_SUMMARY_QUEUE_URL: generateSummaryQueue.queueUrl,
-	},
-	additionalPolicies: renamePolicies(generateSummaryQueue.policies, "save-link-dlq"),
-});
-
 // --- SubmitLinkCommand handler ---
 // dlqMaxReceiveCount 3, not the crawl queues' fail-fast 1: crawl failures
 // terminalise in-process inside the handler and never throw, so a thrown
@@ -367,10 +398,11 @@ new HutchDLQEventHandler("save-link-dlq", {
 // claiming a queue row that never landed. That fact means "the command gave up",
 // not "nothing was queued" (the accept phase writes the queue row before several
 // calls that can still throw), so its consumer lets an accepted save outrank it.
-// The HutchSQS DLQ alarm stays wired alongside it.
-const submitLinkQueue = new HutchSQS("submit-link", {
+// The DLQ alarm stays wired alongside it.
+const submitLinkQueue = new HutchSQS(SAVE_LINK_DLQ_SOURCES.submitLink, {
 	visibilityTimeoutSeconds: 480,
 	dlqMaxReceiveCount: 3,
+	sharedDlq: failuresDlq,
 });
 
 const submitLinkArticlesDynamodb = new HutchDynamoDBAccess("submit-link-articles-dynamodb", {
@@ -428,15 +460,6 @@ const submitLinkLambdaWithSQS = new HutchSQSBackedLambda("submit-link", {
 
 eventBus.subscribe(SubmitLinkCommand, submitLinkLambdaWithSQS);
 
-// --- SubmitLinkCommand DLQ consumer ---
-new HutchDLQEventHandler("submit-link-dlq", {
-	sourceQueue: submitLinkQueue,
-	tableArn: articlesTableArn,
-	tableName: articlesTableName,
-	eventBus,
-	batchSize: 1,
-});
-
 // --- SaveLinkRawHtmlCommand handler ---
 
 const saveLinkRawHtmlCommandDynamodb = new HutchDynamoDBAccess("save-link-raw-html-command-dynamodb", {
@@ -484,20 +507,6 @@ const saveLinkRawHtmlCommandLambdaWithSQS = new HutchSQSBackedLambda("save-link-
 
 eventBus.subscribe(SaveLinkRawHtmlCommand, saveLinkRawHtmlCommandLambdaWithSQS);
 
-// --- SaveLinkRawHtmlCommand DLQ consumer ---
-new HutchDLQEventHandler("save-link-raw-html-dlq", {
-	sourceQueue: saveLinkRawHtmlCommandQueue,
-	tableArn: articlesTableArn,
-	tableName: articlesTableName,
-	eventBus,
-	batchSize: 1,
-	additionalDynamoActions: ["dynamodb:GetItem"],
-	additionalEnvironment: {
-		GENERATE_SUMMARY_QUEUE_URL: generateSummaryQueue.queueUrl,
-	},
-	additionalPolicies: renamePolicies(generateSummaryQueue.policies, "save-link-raw-html-dlq"),
-});
-
 // --- SaveAnonymousLinkCommand handler ---
 
 const saveAnonymousLinkCommandDynamodb = new HutchDynamoDBAccess("save-anonymous-link-command-dynamodb", {
@@ -541,20 +550,6 @@ const saveAnonymousLinkCommandLambdaWithSQS = new HutchSQSBackedLambda("save-ano
 
 eventBus.subscribe(SaveAnonymousLinkCommand, saveAnonymousLinkCommandLambdaWithSQS);
 
-// --- SaveAnonymousLinkCommand DLQ consumer ---
-new HutchDLQEventHandler("save-anonymous-link-dlq", {
-	sourceQueue: saveAnonymousLinkCommandQueue,
-	tableArn: articlesTableArn,
-	tableName: articlesTableName,
-	eventBus,
-	batchSize: 1,
-	additionalDynamoActions: ["dynamodb:GetItem"],
-	additionalEnvironment: {
-		GENERATE_SUMMARY_QUEUE_URL: generateSummaryQueue.queueUrl,
-	},
-	additionalPolicies: renamePolicies(generateSummaryQueue.policies, "save-anonymous-link-dlq"),
-});
-
 // --- SimpleCrawlUnsupported policy ---
 // Event-to-command reactor: subscribes to `SimpleCrawlUnsupportedEvent`
 // (emitted by the save-link Lambdas when the simple crawl bails on non-HTML)
@@ -562,9 +557,13 @@ new HutchDLQEventHandler("save-anonymous-link-dlq", {
 // Lambda. This intermediate event decouples the Command → Command dispatch
 // that would otherwise violate the Command → System → Event(s) pattern.
 // 60s visibility = 2× the 30s Lambda timeout.
-const simpleCrawlUnsupportedPolicyQueue = new HutchSQS("simple-crawl-unsupported-policy", {
-	visibilityTimeoutSeconds: 60,
-});
+const simpleCrawlUnsupportedPolicyQueue = new HutchSQS(
+	SAVE_LINK_DLQ_SOURCES.simpleCrawlUnsupportedPolicy,
+	{
+		visibilityTimeoutSeconds: 60,
+		sharedDlq: failuresDlq,
+	},
+);
 
 const simpleCrawlUnsupportedPolicyLambda = new HutchLambda("simple-crawl-unsupported-policy", {
 	entryPoint: "./src/runtime/simple-crawl-unsupported-policy.main.ts",
@@ -589,23 +588,6 @@ const simpleCrawlUnsupportedPolicyLambdaWithSQS = new HutchSQSBackedLambda("simp
 
 eventBus.subscribe(SimpleCrawlUnsupportedEvent, simpleCrawlUnsupportedPolicyLambdaWithSQS);
 
-// --- SimpleCrawlUnsupported policy DLQ consumer ---
-// Flips crawlStatus to "exhausted" when the policy Lambda exhausts its
-// maxReceiveCount. The article is stuck at `comprehensive-fetching` because
-// the policy never managed to dispatch ComprehensiveCrawlCommand.
-new HutchDLQEventHandler("simple-crawl-unsupported-policy-dlq", {
-	sourceQueue: simpleCrawlUnsupportedPolicyQueue,
-	tableArn: articlesTableArn,
-	tableName: articlesTableName,
-	eventBus,
-	batchSize: 1,
-	additionalDynamoActions: ["dynamodb:GetItem"],
-	additionalEnvironment: {
-		GENERATE_SUMMARY_QUEUE_URL: generateSummaryQueue.queueUrl,
-	},
-	additionalPolicies: renamePolicies(generateSummaryQueue.policies, "simple-crawl-unsupported-policy-dlq"),
-});
-
 // --- PDF page OCR Lambda (sync-invoked) ---
 // Per-page OCR worker fanned out from comprehensive-crawl-command. The
 // orchestrator stages the source PDF to S3, then sync-invokes this Lambda
@@ -620,8 +602,8 @@ new HutchDLQEventHandler("simple-crawl-unsupported-policy-dlq", {
 // synchronous request/response Lambda (the documented exception in
 // .claude/skills/infrastructure-design/SKILL.md). The orchestrator is the
 // queue analogue — per-page failures propagate to the orchestrator's catch,
-// which fails the SQS record so comprehensive-crawl-command-dlq captures the
-// whole-job failure with the existing alarm + DLQ row-mutator semantics.
+// which fails the SQS record so the dead-letter queue captures the whole-job
+// failure with the existing alarm + DLQ row-mutator semantics.
 const pdfPageOcrStagingRead: LambdaPolicy = {
 	name: "pdf-page-ocr-staging-read",
 	policy: contentBucket.arn.apply((arn) => JSON.stringify({
@@ -749,10 +731,14 @@ const pdfDocumentDiffReviewLambda = new HutchLambda("pdf-document-diff-review", 
 // the cost of an automatic redrive is high and the success rate of a literal
 // re-run without changed inputs is low. The DLQ → SNS alarm is the operator
 // signal; /admin/recrawl is the manual retry.
-const comprehensiveCrawlCommandQueue = new HutchSQS("comprehensive-crawl-command", {
-	visibilityTimeoutSeconds: 1800,
-	dlqMaxReceiveCount: 1,
-});
+const comprehensiveCrawlCommandQueue = new HutchSQS(
+	SAVE_LINK_DLQ_SOURCES.comprehensiveCrawlCommand,
+	{
+		visibilityTimeoutSeconds: 1800,
+		dlqMaxReceiveCount: 1,
+		sharedDlq: failuresDlq,
+	},
+);
 
 const comprehensiveCrawlCommandDynamodb = new HutchDynamoDBAccess("comprehensive-crawl-command-dynamodb", {
 	tables: [
@@ -854,20 +840,6 @@ const comprehensiveCrawlCommandLambdaWithSQS = new HutchSQSBackedLambda("compreh
 });
 
 eventBus.subscribe(ComprehensiveCrawlCommand, comprehensiveCrawlCommandLambdaWithSQS);
-
-// --- ComprehensiveCrawlCommand DLQ consumer ---
-new HutchDLQEventHandler("comprehensive-crawl-dlq", {
-	sourceQueue: comprehensiveCrawlCommandQueue,
-	tableArn: articlesTableArn,
-	tableName: articlesTableName,
-	eventBus,
-	batchSize: 1,
-	additionalDynamoActions: ["dynamodb:GetItem"],
-	additionalEnvironment: {
-		GENERATE_SUMMARY_QUEUE_URL: generateSummaryQueue.queueUrl,
-	},
-	additionalPolicies: renamePolicies(generateSummaryQueue.policies, "comprehensive-crawl-dlq"),
-});
 
 // --- SaveLinkRawPdfCommand handler ---
 // Client-uploaded PDFs (tier-0) arrive already in the browser, so there is no
@@ -971,20 +943,6 @@ const saveLinkRawPdfCommandLambdaWithSQS = new HutchSQSBackedLambda("save-link-r
 
 eventBus.subscribe(SaveLinkRawPdfCommand, saveLinkRawPdfCommandLambdaWithSQS);
 
-// --- SaveLinkRawPdfCommand DLQ consumer ---
-new HutchDLQEventHandler("save-link-raw-pdf-dlq", {
-	sourceQueue: saveLinkRawPdfCommandQueue,
-	tableArn: articlesTableArn,
-	tableName: articlesTableName,
-	eventBus,
-	batchSize: 1,
-	additionalDynamoActions: ["dynamodb:GetItem"],
-	additionalEnvironment: {
-		GENERATE_SUMMARY_QUEUE_URL: generateSummaryQueue.queueUrl,
-	},
-	additionalPolicies: renamePolicies(generateSummaryQueue.policies, "save-link-raw-pdf-dlq"),
-});
-
 // --- StaleCheckRequested handler ---
 // Background worker that runs the freshness/conditional-GET path. Reads
 // freshness + crawl status from DDB; on a stale
@@ -1051,9 +1009,13 @@ eventBus.subscribe(StaleCheckRequestedEvent, staleCheckRequestedLambdaWithSQS);
 // AnonymousLinkSavedEvent (only on canonical change) and
 // CrawlArticleCompletedEvent (every successful selection).
 
-const selectMostCompleteContentQueue = new HutchSQS(SAVE_LINK_LAMBDA_NAMES.selectMostCompleteContent, {
-	visibilityTimeoutSeconds: SELECT_CONTENT_TIMEOUTS.sqsVisibilitySeconds,
-});
+const selectMostCompleteContentQueue = new HutchSQS(
+	SAVE_LINK_DLQ_SOURCES.selectMostCompleteContent,
+	{
+		visibilityTimeoutSeconds: SELECT_CONTENT_TIMEOUTS.sqsVisibilitySeconds,
+		sharedDlq: failuresDlq,
+	},
+);
 
 const selectMostCompleteContentDynamodb = new HutchDynamoDBAccess(`${SAVE_LINK_LAMBDA_NAMES.selectMostCompleteContent}-dynamodb`, {
 	tables: [{ arn: articlesTableArn, includeIndexes: false }],
@@ -1096,20 +1058,6 @@ const selectMostCompleteContentLambdaWithSQS = new HutchSQSBackedLambda(SAVE_LIN
 });
 
 eventBus.subscribe(TierContentExtractedEvent, selectMostCompleteContentLambdaWithSQS);
-
-// --- SelectMostCompleteContent DLQ consumer ---
-	new HutchDLQEventHandler(`${SAVE_LINK_LAMBDA_NAMES.selectMostCompleteContent}-dlq`, {
-	sourceQueue: selectMostCompleteContentQueue,
-	tableArn: articlesTableArn,
-	tableName: articlesTableName,
-	eventBus,
-	batchSize: 1,
-	additionalDynamoActions: ["dynamodb:GetItem"],
-	additionalEnvironment: {
-		GENERATE_SUMMARY_QUEUE_URL: generateSummaryQueue.queueUrl,
-	},
-	additionalPolicies: renamePolicies(generateSummaryQueue.policies, "select-most-complete-content-dlq"),
-});
 
 // --- RemoveMyContentCommand handler ---
 // Content-removal orchestrator. Deletes the S3 objects the removing user
@@ -1201,20 +1149,6 @@ const reselectAfterRemovalLambdaWithSQS = new HutchSQSBackedLambda("reselect-aft
 
 eventBus.subscribe(ReselectAfterRemovalEvent, reselectAfterRemovalLambdaWithSQS);
 
-// --- ReselectAfterRemoval DLQ consumer ---
-new HutchDLQEventHandler("reselect-after-removal-dlq", {
-	sourceQueue: reselectAfterRemovalQueue,
-	tableArn: articlesTableArn,
-	tableName: articlesTableName,
-	eventBus,
-	batchSize: 1,
-	additionalDynamoActions: ["dynamodb:GetItem"],
-	additionalEnvironment: {
-		GENERATE_SUMMARY_QUEUE_URL: generateSummaryQueue.queueUrl,
-	},
-	additionalPolicies: renamePolicies(generateSummaryQueue.policies, "reselect-after-removal-dlq"),
-});
-
 // --- GenerateSummary handler ---
 
 const generateSummaryDynamodb = new HutchDynamoDBAccess("generate-summary-dynamodb", {
@@ -1252,20 +1186,6 @@ new HutchSQSBackedLambda("generate-summary", {
 	queue: generateSummaryQueue,
 	alertEmailDLQEntry: alertEmail,
 	batchSize: 1,
-});
-
-// --- GenerateSummary DLQ consumer ---
-new HutchDLQEventHandler("generate-summary-dlq", {
-	sourceQueue: generateSummaryQueue,
-	tableArn: articlesTableArn,
-	tableName: articlesTableName,
-	eventBus,
-	batchSize: 1,
-	additionalDynamoActions: ["dynamodb:GetItem"],
-	additionalEnvironment: {
-		GENERATE_SUMMARY_QUEUE_URL: generateSummaryQueue.queueUrl,
-	},
-	additionalPolicies: renamePolicies(generateSummaryQueue.policies, "generate-summary-dlq"),
 });
 
 // --- LinkSaved handler ---
@@ -1489,20 +1409,6 @@ const recrawlLinkInitiatedLambdaWithSQS = new HutchSQSBackedLambda("recrawl-link
 
 eventBus.subscribe(RecrawlLinkInitiatedEvent, recrawlLinkInitiatedLambdaWithSQS);
 
-// --- RecrawlLinkInitiated DLQ consumer ---
-new HutchDLQEventHandler("recrawl-link-initiated-dlq", {
-	sourceQueue: recrawlLinkInitiatedQueue,
-	tableArn: articlesTableArn,
-	tableName: articlesTableName,
-	eventBus,
-	batchSize: 1,
-	additionalDynamoActions: ["dynamodb:GetItem"],
-	additionalEnvironment: {
-		GENERATE_SUMMARY_QUEUE_URL: generateSummaryQueue.queueUrl,
-	},
-	additionalPolicies: renamePolicies(generateSummaryQueue.policies, "recrawl-link-initiated-dlq"),
-});
-
 // --- RecrawlContentExtracted handler ---
 // Always dispatches GenerateSummaryCommand regardless of canonical change —
 // recrawl is the operator opting out of the user-save dedup gate.
@@ -1548,20 +1454,6 @@ const recrawlContentExtractedLambdaWithSQS = new HutchSQSBackedLambda("recrawl-c
 });
 
 eventBus.subscribe(RecrawlContentExtractedEvent, recrawlContentExtractedLambdaWithSQS);
-
-// --- RecrawlContentExtracted DLQ consumer ---
-new HutchDLQEventHandler("recrawl-content-extracted-dlq", {
-	sourceQueue: recrawlContentExtractedQueue,
-	tableArn: articlesTableArn,
-	tableName: articlesTableName,
-	eventBus,
-	batchSize: 1,
-	additionalDynamoActions: ["dynamodb:GetItem"],
-	additionalEnvironment: {
-		GENERATE_SUMMARY_QUEUE_URL: generateSummaryQueue.queueUrl,
-	},
-	additionalPolicies: renamePolicies(generateSummaryQueue.policies, "recrawl-content-extracted-dlq"),
-});
 
 // --- SummaryGenerated handler ---
 

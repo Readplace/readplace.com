@@ -8,6 +8,7 @@ export class HutchSQSBackedLambda extends pulumi.ComponentResource {
 	public readonly queueUrl: HutchSQS["queueUrl"];
 	public readonly dlqArn: HutchSQS["dlqArn"];
 	public readonly dlqUrl: HutchSQS["dlqUrl"];
+	public readonly ownDlq: HutchSQS["ownDlq"];
 
 	constructor(
 		name: string,
@@ -35,6 +36,7 @@ export class HutchSQSBackedLambda extends pulumi.ComponentResource {
 		this.queueUrl = args.queue.queueUrl;
 		this.dlqArn = args.queue.dlqArn;
 		this.dlqUrl = args.queue.dlqUrl;
+		this.ownDlq = args.queue.ownDlq;
 		new aws.iam.RolePolicy(`${name}-sqs-recv`, {
 			name: `${name}-sqs-recv`,
 			role: args.lambda.role.name,
@@ -57,31 +59,34 @@ export class HutchSQSBackedLambda extends pulumi.ComponentResource {
 			functionResponseTypes: ["ReportBatchItemFailures"],
 		}, { parent: this, aliases: [{ parent: pulumi.rootStackResource }] });
 
-		const topic = new aws.sns.Topic(`${name}-dlq-topic`, {
-			name: `${name}-dlq-topic`,
-		}, { parent: this, aliases: [{ parent: pulumi.rootStackResource }] });
+		const ownDlq = args.queue.ownDlq;
+		if (ownDlq) {
+			const topic = new aws.sns.Topic(`${name}-dlq-topic`, {
+				name: `${name}-dlq-topic`,
+			}, { parent: this, aliases: [{ parent: pulumi.rootStackResource }] });
 
-		new aws.sns.TopicSubscription(`${name}-dlq-alarm-email`, {
-			topic: topic.arn,
-			protocol: "email",
-			endpoint: args.alertEmailDLQEntry,
-		}, { parent: this, aliases: [{ parent: pulumi.rootStackResource }] });
+			new aws.sns.TopicSubscription(`${name}-dlq-alarm-email`, {
+				topic: topic.arn,
+				protocol: "email",
+				endpoint: args.alertEmailDLQEntry,
+			}, { parent: this, aliases: [{ parent: pulumi.rootStackResource }] });
 
-		new aws.cloudwatch.MetricAlarm(`${name}-dlq-alarm`, {
-			name: `${name}-dlq-alarm`,
-			comparisonOperator: "GreaterThanOrEqualToThreshold",
-			evaluationPeriods: 1,
-			metricName: "ApproximateNumberOfMessagesVisible",
-			namespace: "AWS/SQS",
-			period: 300,
-			statistic: "Sum",
-			threshold: 1,
-			alarmDescription: `Message entered ${name} dead letter queue`,
-			dimensions: {
-				QueueName: args.queue.dlqName,
-			},
-			alarmActions: [topic.arn],
-		}, { parent: this, aliases: [{ parent: pulumi.rootStackResource }] });
+			new aws.cloudwatch.MetricAlarm(`${name}-dlq-alarm`, {
+				name: `${name}-dlq-alarm`,
+				comparisonOperator: "GreaterThanOrEqualToThreshold",
+				evaluationPeriods: 1,
+				metricName: "ApproximateNumberOfMessagesVisible",
+				namespace: "AWS/SQS",
+				period: 300,
+				statistic: "Sum",
+				threshold: 1,
+				alarmDescription: `Message entered ${name} dead letter queue`,
+				dimensions: {
+					QueueName: ownDlq.name,
+				},
+				alarmActions: [topic.arn],
+			}, { parent: this, aliases: [{ parent: pulumi.rootStackResource }] });
+		}
 
 		this.registerOutputs();
 	}

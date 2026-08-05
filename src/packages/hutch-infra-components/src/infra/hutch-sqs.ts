@@ -1,5 +1,6 @@
 import * as pulumi from "@pulumi/pulumi";
 import type { LambdaPolicy } from "./hutch-lambda";
+import type { HutchSharedDlq } from "./hutch-shared-dlq";
 import { HutchSqsQueue } from "./sqs-queue";
 
 export class HutchSQS extends pulumi.ComponentResource {
@@ -8,11 +9,16 @@ export class HutchSQS extends pulumi.ComponentResource {
 	public readonly dlqArn: HutchSqsQueue["dlqArn"];
 	public readonly dlqUrl: HutchSqsQueue["dlqUrl"];
 	public readonly dlqName: HutchSqsQueue["dlqName"];
+	public readonly ownDlq: HutchSqsQueue["ownDlq"];
 	public readonly policies: LambdaPolicy[];
 
 	constructor(
 		name: string,
-		args: { visibilityTimeoutSeconds: number; dlqMaxReceiveCount?: number },
+		args: {
+			visibilityTimeoutSeconds: number;
+			dlqMaxReceiveCount?: number;
+			sharedDlq?: HutchSharedDlq;
+		},
 		opts?: pulumi.ComponentResourceOptions,
 	) {
 		super("hutch:infra:HutchSQS", name, {}, opts);
@@ -20,6 +26,7 @@ export class HutchSQS extends pulumi.ComponentResource {
 		const queue = new HutchSqsQueue(name, {
 			visibilityTimeoutSeconds: args.visibilityTimeoutSeconds,
 			dlqMaxReceiveCount: args.dlqMaxReceiveCount,
+			sharedDlq: args.sharedDlq,
 		}, { parent: this });
 
 		this.queueArn = queue.queueArn;
@@ -27,6 +34,7 @@ export class HutchSQS extends pulumi.ComponentResource {
 		this.dlqArn = queue.dlqArn;
 		this.dlqUrl = queue.dlqUrl;
 		this.dlqName = queue.dlqName;
+		this.ownDlq = queue.ownDlq;
 
 		this.policies = [
 			{

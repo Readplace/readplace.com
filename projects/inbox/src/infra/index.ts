@@ -8,12 +8,14 @@ import {
 	HutchEventBus,
 	HutchLambda,
 	HutchS3ReadWrite,
+	HutchSharedDlq,
 	HutchSQS,
 	HutchSQSBackedLambda,
 } from "@packages/hutch-infra-components/infra";
 import {
 	CrawlEmailLinkPreview,
 	EmailReceivedEvent,
+	INBOX_DLQ_SOURCES,
 	LinkDequeuedEvent,
 	LinkQueueFailedEvent,
 	LinkQueuedEvent,
@@ -34,6 +36,8 @@ import { InboxStorage } from "./inbox-storage";
  * Lambda/SQS physical names are account-scoped, so a same-named resource here
  * would steal hutch's live rule/queue instead of standing up beside it.
  */
+const INBOX_FAILURES_DLQ = "inbox-failures";
+
 const config = new pulumi.Config();
 const deepseekApiKey = pulumi.secret(requireEnv("DEEPSEEK_API_KEY"));
 const nodeEnv = config.require("nodeEnv");
@@ -342,12 +346,17 @@ const EXTRACT_EMAIL_LINKS_TIMEOUT_SECONDS = 180;
  * gap or a still-running extraction gets redelivered in its final seconds. */
 const RECEIVE_TO_INVOKE_GUARD_SECONDS = 60;
 
-const extractEmailLinksQueue = new HutchSQS("inbox-extract-email-links", {
+const failuresDlq = new HutchSharedDlq(INBOX_FAILURES_DLQ, {
+	alertEmailDLQEntry: alertEmail,
+});
+
+const extractEmailLinksQueue = new HutchSQS(INBOX_DLQ_SOURCES.extractEmailLinks, {
 	visibilityTimeoutSeconds: EXTRACT_EMAIL_LINKS_TIMEOUT_SECONDS + RECEIVE_TO_INVOKE_GUARD_SECONDS,
+	sharedDlq: failuresDlq,
 });
 
 // Truncation is a successful degradation (the first N previews still shipped), not
-// a processing failure — so it must NOT land in the consumer's own failure DLQ.
+// a processing failure — so it must NOT land in the consumer's failure DLQ.
 // There it would (a) make the DLQ depth alarm ambiguous between a genuine "email
 // never extracted" and a benign "email truncated", and (b) re-enter the source
 // queue on redrive and bounce straight back (the synthetic body has no `.detail`).
@@ -454,30 +463,26 @@ eventBus.subscribe(EmailReceivedEvent, extractEmailLinksWithSQS, {
 // links…" until the reader's budget runs out. The handler writes the meta
 // barrier itself, flagged as a give-up, so the panel stops and says the scan
 // failed rather than reporting an email nobody read as having no links.
-const extractEmailLinksDlqDynamodb = new HutchDynamoDBAccess(
-	"inbox-extract-email-links-dlq-dynamodb",
-	{
-		tables: [{ arn: inboxStorage.emailLinksTable.arn, includeIndexes: false }],
-		// The barrier is a conditional Put of the reserved meta row.
-		actions: ["dynamodb:PutItem"],
-	},
-);
+const failuresDlqDynamodb = new HutchDynamoDBAccess(`${INBOX_FAILURES_DLQ}-dlq-dynamodb`, {
+	tables: [{ arn: inboxStorage.emailLinksTable.arn, includeIndexes: false }],
+	actions: ["dynamodb:PutItem", "dynamodb:UpdateItem"],
+});
 
-const extractEmailLinksDlqLambda = new HutchLambda("inbox-extract-email-links-dlq", {
-	entryPoint: "./src/runtime/inbox-extract-email-links-dlq.main.ts",
-	outputDir: ".lib/inbox-extract-email-links-dlq",
+const failuresDlqLambda = new HutchLambda(`${INBOX_FAILURES_DLQ}-dlq`, {
+	entryPoint: `./src/runtime/${INBOX_FAILURES_DLQ}-dlq.main.ts`,
+	outputDir: `.lib/${INBOX_FAILURES_DLQ}-dlq`,
 	assetDir: "./src/runtime",
 	memorySize: 256,
 	timeout: 30,
 	environment: {
 		DYNAMODB_INBOX_EMAIL_LINKS_TABLE: tableNames.inboxEmailLinks,
 	},
-	policies: [...extractEmailLinksDlqDynamodb.policies],
+	policies: [...failuresDlqDynamodb.policies],
 });
 
-attachDlqConsumer("inbox-extract-email-links-dlq", {
-	sourceQueue: extractEmailLinksQueue,
-	lambda: extractEmailLinksDlqLambda,
+attachDlqConsumer(`${INBOX_FAILURES_DLQ}-dlq`, {
+	deadLetterQueueArn: failuresDlq.arn,
+	lambda: failuresDlqLambda,
 	batchSize: 1,
 });
 
@@ -490,10 +495,11 @@ const crawlEmailLinkPreviewDynamodb = new HutchDynamoDBAccess(
 	},
 );
 
-const crawlEmailLinkPreviewQueue = new HutchSQS("inbox-crawl-email-link-preview", {
+const crawlEmailLinkPreviewQueue = new HutchSQS(INBOX_DLQ_SOURCES.crawlEmailLinkPreview, {
 	// A single dead/slow origin retries and DLQs in isolation; matches the worker
 	// timeout so an in-flight crawl cannot be redelivered.
 	visibilityTimeoutSeconds: 120,
+	sharedDlq: failuresDlq,
 });
 
 const crawlEmailLinkPreviewLambda = new HutchLambda("inbox-crawl-email-link-preview", {
@@ -532,32 +538,6 @@ const crawlEmailLinkPreviewWithSQS = new HutchSQSBackedLambda("inbox-crawl-email
 
 eventBus.subscribe(CrawlEmailLinkPreview, crawlEmailLinkPreviewWithSQS, {
 	name: "inbox-crawl-email-link-preview",
-});
-
-const crawlEmailLinkPreviewDlqDynamodb = new HutchDynamoDBAccess(
-	"inbox-crawl-email-link-preview-dlq-dynamodb",
-	{
-		tables: [{ arn: inboxStorage.emailLinksTable.arn, includeIndexes: false }],
-		actions: ["dynamodb:UpdateItem"],
-	},
-);
-
-const crawlEmailLinkPreviewDlqLambda = new HutchLambda("inbox-crawl-email-link-preview-dlq", {
-	entryPoint: "./src/runtime/crawl-email-link-preview-dlq.main.ts",
-	outputDir: ".lib/inbox-crawl-email-link-preview-dlq",
-	assetDir: "./src/runtime",
-	memorySize: 256,
-	timeout: 30,
-	environment: {
-		DYNAMODB_INBOX_EMAIL_LINKS_TABLE: tableNames.inboxEmailLinks,
-	},
-	policies: [...crawlEmailLinkPreviewDlqDynamodb.policies],
-});
-
-attachDlqConsumer("inbox-crawl-email-link-preview-dlq", {
-	sourceQueue: crawlEmailLinkPreviewQueue,
-	lambda: crawlEmailLinkPreviewDlqLambda,
-	batchSize: 1,
 });
 
 // --- Saved-link read model (queue-membership facts → the tabs' save button) ---

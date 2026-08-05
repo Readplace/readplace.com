@@ -3,18 +3,8 @@ import { attachDlqConsumer } from "./attach-dlq-consumer";
 import type { HutchEventBus } from "./event-bus";
 import { HutchDynamoDBAccess } from "./hutch-dynamodb-access";
 import { HutchLambda, type LambdaPolicy } from "./hutch-lambda";
-import type { HutchSQS } from "./hutch-sqs";
 
 /**
- * Attaches a Lambda to the DLQ of an existing `HutchSQS` so dead-lettered
- * messages drive a state transition on the articles table and publish a
- * domain failure event. Most configuration is fixed (256MB memory, 30s
- * timeout, DYNAMODB_ARTICLES_TABLE + EVENT_BUS_NAME env vars, entry point
- * derived from the component name); `batchSize` is required so every
- * callsite makes the choice explicit. The mapping always wires
- * ReportBatchItemFailures so a future `batchSize > 1` does not silently
- * drop sibling records on a partial failure.
- *
  * `additionalDynamoActions`, `additionalEnvironment`, and `additionalPolicies`
  * are escape hatches for callers whose transition needs richer access than
  * the default "UpdateItem only, no extra env". Aggregate-migrated DLQ
@@ -28,7 +18,7 @@ export class HutchDLQEventHandler extends pulumi.ComponentResource {
 	constructor(
 		name: string,
 		args: {
-			sourceQueue: HutchSQS;
+			deadLetterQueueArn: pulumi.Input<string>;
 			tableArn: pulumi.Input<string>;
 			tableName: pulumi.Input<string>;
 			eventBus: HutchEventBus;
@@ -64,7 +54,7 @@ export class HutchDLQEventHandler extends pulumi.ComponentResource {
 		args.eventBus.grantPublish(lambda);
 
 		attachDlqConsumer(name, {
-			sourceQueue: args.sourceQueue,
+			deadLetterQueueArn: args.deadLetterQueueArn,
 			lambda,
 			batchSize: args.batchSize,
 		}, { parent: this });

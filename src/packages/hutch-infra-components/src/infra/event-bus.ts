@@ -99,12 +99,15 @@ export class HutchEventBus {
 				.apply(([queueArn, arns]) => allowRulesToSend(queueArn, arns)),
 		});
 
-		new aws.sqs.QueuePolicy(`${opts.name}-dlq-policy`, {
-			queueUrl: target.dlqUrl,
-			policy: pulumi
-				.all([target.dlqArn, pulumi.all(ruleArns)])
-				.apply(([dlqArn, arns]) => allowRulesToSend(dlqArn, arns)),
-		});
+		const ownDlq = target.ownDlq;
+		if (ownDlq) {
+			new aws.sqs.QueuePolicy(`${opts.name}-dlq-policy`, {
+				queueUrl: ownDlq.url,
+				policy: pulumi
+					.all([ownDlq.arn, pulumi.all(ruleArns)])
+					.apply(([dlqArn, arns]) => allowRulesToSend(dlqArn, arns)),
+			});
+		}
 	}
 }
 

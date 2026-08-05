@@ -27,6 +27,7 @@
     "@packages/article-state-types": "workspace:*",
     "@packages/article-store": "workspace:*",
     "@packages/crawl-article": "workspace:*",
+    "@packages/dead-letter-routing": "workspace:*",
     "@packages/domain": "workspace:*",
     "@packages/finalize-article": "workspace:*",
     "@packages/hutch-infra-components": "workspace:*",

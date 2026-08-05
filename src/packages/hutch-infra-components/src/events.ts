@@ -251,7 +251,6 @@ export type RelatedArticlesComputedDetail = z.infer<
 
 /** Irreversible fact: a `SubmitLinkCommand` exhausted its accept-phase retries
  * and dead-lettered, so the save never reached its terminal accept state.
- * Published by save-link's `submit-link-dlq` handler off the submit-link DLQ.
  *
  * Only emitted for a command carrying a `userId` — the reserved anonymous
  * shapes have no per-user read model to correct, and the DLQ alarm remains the

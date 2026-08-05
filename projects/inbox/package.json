@@ -23,6 +23,7 @@
     "@packages/article-resource-unique-id": "workspace:*",
     "@packages/article-store": "workspace:*",
     "@packages/crawl-article": "workspace:*",
+    "@packages/dead-letter-routing": "workspace:*",
     "@packages/domain": "workspace:*",
     "@packages/finalize-article": "workspace:*",
     "@packages/hutch-infra-components": "workspace:*",

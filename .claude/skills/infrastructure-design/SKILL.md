@@ -35,14 +35,40 @@ Every Lambda must be invoked through an SQS queue redriving to a DLQ. Use the re
 
 | Use case | Component |
 |---|---|
-| Async worker (Command or Event handler) | `HutchSQSBackedLambda` — pairs a `HutchLambda` with a `HutchSQS` (queue + DLQ + SNS alarm + email subscription) |
-| Failure-state transition driven by DLQ exhaustion | `HutchDLQEventHandler` — Lambda fed by an existing `HutchSQS.dlqArn` |
+| Async worker (Command or Event handler) | `HutchSQSBackedLambda` — pairs a `HutchLambda` with a `HutchSQS` |
+| A dead-letter queue shared by several source queues | `HutchSharedDlq` — owns the queue and its single SNS alarm + email subscription; pass it as `sharedDlq` to each `HutchSQS` |
+| Failure-state transition driven by DLQ exhaustion | `HutchDLQEventHandler` — Lambda fed by a `deadLetterQueueArn` |
+
+Whichever component owns the DLQ owns its alarm: a `HutchSQS` that mints its own DLQ gets its alarm from `HutchSQSBackedLambda`, and one that takes a `sharedDlq` gets it from `HutchSharedDlq`. A shared DLQ needs one consumer that routes each dead letter back to the failure handler for the queue it came from — `initDeadLetterRouter` from `@packages/dead-letter-routing`.
 
 **Why:** Naked Lambdas drop messages on transient failure and leave no observable trail. The reusable components wire the redrive policy + CloudWatch alarm + SNS email subscription as a single unit, so DLQ arrivals always page the operator.
+
+**Why share a DLQ:** an event source mapping costs ~$5/yr per account before it processes anything (an idle SQS poller issues ~360 empty receives an hour), so a fleet of always-idle per-queue DLQ consumers is pure overhead. Sharing keeps the terminalisation and collapses the pollers.
 
 **How to apply:** Never instantiate `aws.lambda.Function` directly outside the `hutch-infra-components` package — `grep` for it before writing new infra code. Always pair a new `HutchLambda` with `HutchSQSBackedLambda`. When the work source is EventBridge, follow with `eventBus.subscribe(EventOrCommand, lambdaWithSQS)`.
 
 **Allowed exception:** a synchronous request/response Lambda fronted by API Gateway. API Gateway is the queue analogue and 5xx surfaces the failure to the client. Document any new exception inline with a `Why:` comment in the infra file that creates it.
+
+## Presence Is the Condition — No Boolean Beside a Value
+
+When a property answers "does X exist here?", carry X itself (`T | undefined`) and let its presence be the answer; do not add a `boolean` the reader must pair with separate fields. Introducing any new `boolean` field or input in infrastructure components requires explicit human approval.
+
+```typescript
+// BAD - flag + fields nothing ties together; an alarm on the wrong queue still compiles
+public readonly ownsDlq: boolean;
+if (queue.ownsDlq) {
+	dimensions: { QueueName: queue.dlqName },  // dlqName may be the shared DLQ
+}
+
+// GOOD - the branch narrows to the only value it may use
+public readonly ownDlq: DeadLetterQueue | undefined;
+const ownDlq = queue.ownDlq;
+if (ownDlq) {
+	dimensions: { QueueName: ownDlq.name },
+}
+```
+
+**Why:** a boolean standing in for a value discards the value, so the branch reaches for other fields the flag does not govern — coupling the compiler cannot check (connascence of name is all that holds them together). Carrying the value makes the wrong read non-representable: inside the branch, the only DLQ in scope is the one the flag used to merely promise.
 
 ## Command → System → Event(s) Pattern
 

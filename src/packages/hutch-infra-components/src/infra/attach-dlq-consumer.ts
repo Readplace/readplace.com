@@ -1,12 +1,11 @@
 import * as aws from "@pulumi/aws";
-import type * as pulumi from "@pulumi/pulumi";
+import * as pulumi from "@pulumi/pulumi";
 import type { HutchLambda } from "./hutch-lambda";
-import type { HutchSQS } from "./hutch-sqs";
 
 export function attachDlqConsumer(
 	name: string,
 	args: {
-		sourceQueue: HutchSQS;
+		deadLetterQueueArn: pulumi.Input<string>;
 		lambda: HutchLambda;
 		batchSize: number;
 	},
@@ -15,7 +14,7 @@ export function attachDlqConsumer(
 	new aws.iam.RolePolicy(`${name}-sqs-recv`, {
 		name: `${name}-sqs-recv`,
 		role: args.lambda.role.name,
-		policy: args.sourceQueue.dlqArn.apply((arn) =>
+		policy: pulumi.output(args.deadLetterQueueArn).apply((arn) =>
 			JSON.stringify({
 				Version: "2012-10-17",
 				Statement: [{
@@ -28,7 +27,7 @@ export function attachDlqConsumer(
 	}, { parent: opts?.parent });
 
 	new aws.lambda.EventSourceMapping(`${name}-mapping`, {
-		eventSourceArn: args.sourceQueue.dlqArn,
+		eventSourceArn: args.deadLetterQueueArn,
 		functionName: args.lambda.arn,
 		batchSize: args.batchSize,
 		functionResponseTypes: ["ReportBatchItemFailures"],

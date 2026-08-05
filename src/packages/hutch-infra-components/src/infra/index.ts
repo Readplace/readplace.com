@@ -8,6 +8,7 @@ export { HutchAPIGatewayLambdaRoute } from "./hutch-api-gateway-lambda-route";
 export { HutchDynamoDBAccess } from "./hutch-dynamodb-access";
 export { HutchCertificate } from "./hutch-certificate";
 export { HutchSQS } from "./hutch-sqs";
+export { HutchSharedDlq } from "./hutch-shared-dlq";
 export { HutchSQSBackedLambda } from "./hutch-sqs-backed-lambda";
 export { HutchDLQEventHandler } from "./hutch-dlq-event-handler";
 export { attachDlqConsumer } from "./attach-dlq-consumer";
