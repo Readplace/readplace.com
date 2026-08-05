@@ -39,7 +39,6 @@ import { renderInboxExcludedPanel } from "./inbox-excluded-panel.component";
 import { InboxEmailDetailPage } from "./inbox-email-detail.component";
 import { buildInboxEmailDetailUrl, parseMailTab } from "./inbox-email-detail.url";
 import type { MailTabKey } from "./inbox-email-detail.url";
-import { renderInboxLinkCount } from "./inbox-link-count.component";
 import {
 	buildCardResolvedAnnouncement,
 	renderInboxLiveStatus,
@@ -281,28 +280,19 @@ export function initInboxRoutes(deps: InboxDependencies): Router {
 				maxPolls: MAX_POLLS,
 				panelPollCount: requestedPoll + 1,
 			});
-			// The swap only replaces this one panel, so pair it with out-of-band swaps
-			// of the header badge and the tab strip — otherwise their counts would lag
-			// the swapped-in state until a full reload, and this poll is the only
-			// request in flight.
+			// The swap only replaces this one panel, so pair it with an out-of-band
+			// swap of the tab strip — otherwise its counts would lag the swapped-in
+			// state until a full reload, and this poll is the only request in flight.
 			//
 			// The tab strip ships ONLY on the tick that has counts to report. Until
 			// then it would be byte-identical to the strip already on screen, and an
 			// outerHTML swap replaces the tab links rather than editing them: a reader
 			// keyboarding through the tabs would lose focus to <body> every few
-			// seconds for the whole extraction window. The header badge is a bare
-			// <span> with nothing focusable inside, so it rides every tick as before.
+			// seconds for the whole extraction window.
 			const oobTabs = vm.extractionReported
 				? renderInboxMailTabs({ tabs: vm.tabs, oob: true })
 				: "";
-			res
-				.status(200)
-				.type("html")
-				.send(
-					POLL_PANEL_RENDERERS[panel](vm) +
-						renderInboxLinkCount({ label: vm.linkCountLabel, oob: true }) +
-						oobTabs,
-				);
+			res.status(200).type("html").send(POLL_PANEL_RENDERERS[panel](vm) + oobTabs);
 		});
 	}
 
