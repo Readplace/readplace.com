@@ -104,11 +104,6 @@ export type FindArticlesByUser = (
 	query: FindArticlesQuery,
 ) => Promise<FindArticlesResult>;
 
-/** Count a user's articles (optionally by status) with a single COUNT round
- * trip and no row fetch. Use instead of `findArticlesByUser` when only the
- * number is needed: the list path's page fetch is a `Limit:pageSize` filtered
- * walk that DynamoDB evaluates one row per round trip, which is pathological
- * for sparse matches such as an unread-count badge. */
 export type CountArticlesByUser = (
 	query: CountArticlesQuery,
 ) => Promise<number>;

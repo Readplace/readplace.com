@@ -1,10 +1,8 @@
 import { z } from "zod";
 
-const ImportPageQuerySchema = z
-	.object({
-		page: z.coerce.number().int().min(1).optional().catch(undefined),
-	})
-	.passthrough();
+const ImportPageQuerySchema = z.looseObject({
+	page: z.coerce.number().int().min(1).optional().catch(undefined),
+});
 
 export function parseImportPage(query: Record<string, unknown>): number {
 	const parsed = ImportPageQuerySchema.parse(query);

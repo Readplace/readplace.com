@@ -24,7 +24,7 @@ import { ForgotPasswordPage, ResetPasswordPage } from "./auth.component";
 import { buildPasswordResetEmailHtml } from "./password-reset-email";
 import { flattenZodErrors } from "./flatten-zod-errors";
 
-const TokenQuerySchema = z.object({ token: z.string().optional() }).passthrough();
+const TokenQuerySchema = z.looseObject({ token: z.string().optional() });
 
 const EMAIL_FROM = "Readplace Password Reset <readplace@readplace.com>";
 
