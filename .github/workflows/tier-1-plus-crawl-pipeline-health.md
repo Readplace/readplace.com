@@ -1,6 +1,6 @@
 # Tier 1+ Crawl Pipeline Canary Failure Investigation
 
-You have been triggered because the `Tier 1+ crawl pipeline health` workflow failed on its scheduled run. The canary forces a re-crawl through prod's Lambda via `https://readplace.com/admin/recrawl/<url>` and asserts the parsed article contains a known substring. A failure means prod's Lambda could not parse a URL that real users save — production traffic is also blocked for that fingerprint class (Cloudflare TLS fingerprinting, Fastly JA3, AIA chain gap, oembed flip, parser regression, etc.).
+You have been triggered because the `Tier 1+ crawl pipeline health` workflow failed on its scheduled run. The canary forces a re-crawl through prod's Lambda via `https://readplace.com/admin/recrawl?url=<url>` and asserts the parsed article contains a known substring. A failure means prod's Lambda could not parse a URL that real users save — production traffic is also blocked for that fingerprint class (Cloudflare TLS fingerprinting, Fastly JA3, AIA chain gap, oembed flip, parser regression, etc.).
 
 ## Your Task
 

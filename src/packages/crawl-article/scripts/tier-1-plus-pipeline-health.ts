@@ -3,7 +3,7 @@
  * Tier 1+ crawl pipeline health canary.
  *
  * Exercises the production crawling pipeline END-TO-END from a user's
- * perspective: force a re-crawl via `https://readplace.com/admin/recrawl/<url>`
+ * perspective: force a re-crawl via `https://readplace.com/admin/recrawl?url=<url>`
  * and wait for the Lambda-driven worker to produce a parsed article. A
  * "failed" state or a missing expectedContent substring fails the run.
  *

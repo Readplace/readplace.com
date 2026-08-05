@@ -1,7 +1,7 @@
 name: Tier 1+ crawl pipeline health
 
 # Exercises the prod Lambda's crawl pipeline end-to-end by forcing a
-# re-crawl via https://readplace.com/admin/recrawl/<url> and asserting
+# re-crawl via https://readplace.com/admin/recrawl?url=<url> and asserting
 # the parsed article contains expected content. Routes through prod so
 # a green run means prod's Lambda can reach the origin, not that the
 # GitHub Actions runner can.

@@ -20,7 +20,7 @@ import { initArticleReader } from "../../shared/article-reader/article-reader";
 import type { PollUrlBuilder } from "../../shared/article-reader/article-reader.types";
 import { SaveErrorPage } from "../save/save-error.component";
 import { AdminRecrawlLandingPage } from "./recrawl-landing.component";
-import { AdminRecrawlPage, formatRecrawlDocumentTitle } from "./recrawl.component";
+import { AdminRecrawlPage, formatRecrawlDocumentTitle, recrawlPathFor } from "./recrawl.component";
 import { initRequireAdmin } from "./require-admin.middleware";
 
 const RecrawlUrlSchema = z.url();
@@ -41,20 +41,6 @@ export interface AdminRecrawlDependencies {
 	serviceToken: string;
 	now: () => Date;
 	buildBannerState: BuildBannerState;
-}
-
-/**
- * The page's own canonical address for an article, and the form tooling should
- * emit. `?url=` is the only carrier that can name every stored row: the edge
- * decodes `%2F` and collapses `//` before Express sees a *path*, and only a
- * leading scheme survives that (an embedded one — `…/web/<ts>/https://site/x`,
- * the shape wayback captures carry — arrives as `https:/` and resolves to a
- * different DynamoDB row, so a recrawl silently heals the wrong article). Query
- * values are not path-normalised. The path form stays supported for URLs an
- * admin types by hand.
- */
-function recrawlPathFor(articleUrl: string): string {
-	return `/admin/recrawl?url=${encodeURIComponent(articleUrl)}`;
 }
 
 function pollUrlBuilderFor(articleUrl: string): PollUrlBuilder {

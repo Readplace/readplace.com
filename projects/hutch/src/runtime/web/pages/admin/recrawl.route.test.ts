@@ -456,7 +456,7 @@ describe("Admin recrawl routes", () => {
 			expect(harness.recrawlPublishedCalls).toEqual([{ url: EMBEDDED_URL }]);
 		});
 
-		it("renders the page for the exact stored URL via ?url=, with a form that round-trips it unchanged", async () => {
+		it("renders the page for the exact stored URL via ?url=, with a form and canonical link that round-trip it unchanged", async () => {
 			const harness = await seedEmbeddedArticle();
 			const agent = await loginAs(harness.server, ADMIN_EMAIL, ADMIN_PASSWORD);
 
@@ -466,6 +466,11 @@ describe("Admin recrawl routes", () => {
 			const doc = new JSDOM(response.text).window.document;
 			const form = doc.querySelector("[data-test-admin-recrawl-trigger]");
 			expect(form?.getAttribute("action")).toBe(`/admin/recrawl?url=${EMBEDDED_ENCODED}`);
+			// The canonical link is an address too: the path form would point at
+			// the collapsed twin of this row.
+			expect(doc.querySelector('link[rel="canonical"]')?.getAttribute("href")).toContain(
+				`/admin/recrawl?url=${EMBEDDED_ENCODED}`,
+			);
 		});
 
 		it("404s the same URL carried in the path — the collapse makes it a different row, which must not be silently recrawled", async () => {

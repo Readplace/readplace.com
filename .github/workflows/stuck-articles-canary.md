@@ -7,7 +7,7 @@ You have been triggered because the `Stuck articles canary` workflow failed on i
 1. **Read the issue body and any follow-up comments.** Each stuck row is listed as `[<reasons>] <url> — fetched: <ts>; failure: <reason>; recrawl: <admin-url>`. The reasons map to:
    - `summary-pending` / `crawl-pending` — the worker never produced a terminal outcome on that axis.
    - `summary-pending-after-aggregate-migration` / `crawl-pending-after-aggregate-migration` — same as above but the latest writer was a Phase 2 cross-axis transition that was supposed to flip both axes to terminal.
-   - `summary-skipped-ai-unavailable` — the summariser recorded the AI as down at the time the summary ran. The handler treats `skipped` as terminal and never re-runs, and the auto-heal only fires for `failed` rows — so the only recovery is a manual recrawl via the `/admin/recrawl/<url>` link in the row.
+   - `summary-skipped-ai-unavailable` — the summariser recorded the AI as down at the time the summary ran. The handler treats `skipped` as terminal and never re-runs, and the auto-heal only fires for `failed` rows — so the only recovery is a manual recrawl via the `/admin/recrawl?url=<url>` link in the row.
 
 ## Important Guidelines
 

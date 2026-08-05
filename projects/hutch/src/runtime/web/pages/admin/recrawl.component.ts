@@ -13,6 +13,19 @@ import type { ProgressTick } from "@packages/domain/article";
 import type { LocalTime } from "@packages/web-shell/local-time.format";
 import { RECRAWL_STYLES } from "./recrawl.styles";
 
+/**
+ * The page's own address for an article, and the form tooling should emit.
+ * `?url=` is the only carrier that can name every stored row: the edge decodes
+ * `%2F` and collapses `//` before Express sees a *path*, and only a leading
+ * scheme survives that — an embedded one (`…/web/<ts>/https://site/x`, the shape
+ * wayback captures carry) arrives as `https:/` and resolves to a different
+ * DynamoDB row, so a recrawl silently heals the wrong article. Query values are
+ * not path-normalised. The path form stays supported for hand-typed URLs.
+ */
+export function recrawlPathFor(articleUrl: string): string {
+	return `/admin/recrawl?url=${encodeURIComponent(articleUrl)}`;
+}
+
 const PROGRESS_BAR_SCRIPT = `<script src="/client-dist/progress-bar.client.js" defer></script>`;
 
 // POST-Redirect-GET: the recrawl is a state mutation, so the operator's
@@ -111,7 +124,7 @@ export function AdminRecrawlPage(input: AdminRecrawlPageInput): PageBody {
 		seo: {
 			title: formatRecrawlDocumentTitle(input.metadata.title),
 			description: "Operator recrawl view. Not for public consumption.",
-			canonicalUrl: `/admin/recrawl/${encodeURIComponent(input.articleUrl)}`,
+			canonicalUrl: recrawlPathFor(input.articleUrl),
 			robots: "noindex, nofollow",
 		},
 		styles: RECRAWL_STYLES,

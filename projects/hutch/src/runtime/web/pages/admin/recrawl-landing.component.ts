@@ -1,10 +1,6 @@
 import type { PageBody } from "@packages/web-shell";
 import { RECRAWL_STYLES } from "./recrawl.styles";
 
-/**
- * Minimal landing for the operator. Submits a URL to /admin/recrawl which
- * redirects to /admin/recrawl/:url and triggers a fresh crawl on every hit.
- */
 export function AdminRecrawlLandingPage(): PageBody {
 	const content = `
 		<main class="admin-recrawl" data-test-admin-recrawl-landing>
