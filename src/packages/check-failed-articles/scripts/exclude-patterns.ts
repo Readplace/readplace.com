@@ -293,6 +293,14 @@ export const EXCLUDE_PATTERNS: readonly RegExp[] = [
 	/^https:\/\/news\.ycombinator\.com\/item$/i,
 	/^https:\/\/javascriptweekly\.com\/link\/188519\/8babea547d$/i,
 	/^https:\/\/javascriptweekly\.com\/link\/188518\/8babea547d$/i,
+	// Third JS Weekly tracker, different destination class from the two above:
+	// it 301s to npmjs.com/package/postcss, a package-registry listing rather
+	// than readable article content (same rationale as the npmjs.com/package/jquery
+	// entry), and npmjs.com additionally answers a Cloudflare managed challenge —
+	// 403 `cf-mitigated=challenge` to a residential browser-UA client as readily as
+	// to AWS — so no egress change or curl-impersonate persona reaches it either.
+	// Anchored per link id so the other trackers on this host still surface.
+	/^https:\/\/javascriptweekly\.com\/link\/188764\/8babea547d$/i,
 ];
 
 export function isExcluded(url: string, patterns: readonly RegExp[]): boolean {

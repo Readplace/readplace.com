@@ -789,7 +789,9 @@ describe("EXCLUDE_PATTERNS — javascriptweekly.com link trackers", () => {
 	const cases: ReadonlyArray<{ url: string; excluded: boolean; label: string }> = [
 		{ url: "https://javascriptweekly.com/link/188519/8babea547d", excluded: true, label: "tracker 188519 exact" },
 		{ url: "https://javascriptweekly.com/link/188518/8babea547d", excluded: true, label: "tracker 188518 exact" },
+		{ url: "https://javascriptweekly.com/link/188764/8babea547d", excluded: true, label: "tracker 188764 exact" },
 		{ url: "https://javascriptweekly.com/link/188519/8babea547d?utm_source=x", excluded: false, label: "tracker 188519 with a query suffix — anchored exact, should NOT match" },
+		{ url: "https://javascriptweekly.com/link/188764/8babea547d?utm_source=x", excluded: false, label: "tracker 188764 with a query suffix — anchored exact, should NOT match" },
 		{ url: "https://javascriptweekly.com/link/188482/8babea547d", excluded: false, label: "different tracker id on the same host — must NOT be hidden" },
 		{ url: "https://nodeweekly.com/link/188598/4be0b3f821", excluded: false, label: "sibling newsletter tracker — must NOT be hidden" },
 	];
