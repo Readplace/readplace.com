@@ -573,18 +573,6 @@ export const UserDataExportedEvent = defineEvent({
 });
 export type UserDataExportedDetail = z.infer<typeof UserDataExportedEvent.detailSchema>;
 
-export const UserDataExportFailedEvent = defineEvent({
-	name: "user-data-export-failed",
-	source: "hutch.export-user-data",
-	detailType: "UserDataExportFailed",
-	detailSchema: z.object({
-		userId: z.string(),
-		reason: z.string(),
-		receiveCount: z.number(),
-	}),
-});
-export type UserDataExportFailedDetail = z.infer<typeof UserDataExportFailedEvent.detailSchema>;
-
 export const UpdateFetchTimestampCommand = defineEvent({
 	name: "update-fetch-timestamp-command",
 	source: "hutch.api",

@@ -55,8 +55,6 @@ export {
 	type DeleteAccountDetail,
 	UserDataExportedEvent,
 	type UserDataExportedDetail,
-	UserDataExportFailedEvent,
-	type UserDataExportFailedDetail,
 	SubscriptionCancelledEvent,
 	type SubscriptionCancelledDetail,
 	CancelSubscriptionCommand,
