@@ -28,6 +28,7 @@ import { READER_STYLES } from "./reader.styles";
 const READER_TEMPLATE = readFileSync(join(__dirname, "reader.template.html"), "utf-8");
 const PROGRESS_BAR_SCRIPT = `<script src="/client-dist/progress-bar.client.js" defer></script>`;
 const SUMMARY_TOGGLE_SCRIPT = `<script src="/client-dist/summary-toggle.client.js" defer></script>`;
+const READER_EXIT_CONFIRM_SCRIPT = `<script src="/client-dist/reader-exit-confirm.client.js" defer></script>`;
 
 /**
  * Both the initial SSR <title> and the OOB <title> swap emitted by reader
@@ -39,13 +40,37 @@ export function formatReaderDocumentTitle(articleTitle: string): string {
 	return `${articleTitle} — Readplace Reader`;
 }
 
-function markReadPostUrl(articleId: string): string {
+function markReadPostUrl({
+	articleId,
+	utmContent,
+}: { articleId: string; utmContent: string }): string {
 	const params = new URLSearchParams([
 		["utm_source", "reader"],
 		["utm_medium", "internal"],
-		["utm_content", "mark-read-top"],
+		["utm_content", utmContent],
 	]);
 	return `/queue/${articleId}/status?${params.toString()}`;
+}
+
+interface ExitConfirmDisplayModel {
+	title: string;
+	postUrl: string;
+}
+
+function buildExitConfirms(input: {
+	enabled: boolean;
+	isRead: boolean;
+	articleId: string;
+	title: string;
+}): ExitConfirmDisplayModel[] {
+	if (!input.enabled) return [];
+	if (input.isRead) return [];
+	return [
+		{
+			title: input.title,
+			postUrl: markReadPostUrl({ articleId: input.articleId, utmContent: "mark-read-exit" }),
+		},
+	];
 }
 
 export function ReaderPage(
@@ -71,6 +96,7 @@ export function ReaderPage(
 		renderActions: RenderReaderActions;
 		crawlVersions?: LocalTime[];
 		crawlBookmarkRemoval?: CrawlBookmarkRemoval;
+		exitMarkReadConfirm?: boolean;
 	},
 ): PageBody {
 	const articleId = article.id.value;
@@ -80,7 +106,7 @@ export function ReaderPage(
 	const markReadActions: MarkReadAction[] = [
 		{
 			position: "top",
-			postUrl: markReadPostUrl(articleId),
+			postUrl: markReadPostUrl({ articleId, utmContent: "mark-read-top" }),
 			label: markReadLabel,
 			fields: [{ name: "status", value: markReadStatus }],
 		},
@@ -121,7 +147,14 @@ export function ReaderPage(
 		shareSource: "reader-internal",
 		sharerUserIdPrefix: shareUserIdPrefix(article.userId),
 	});
-	const content = render(READER_TEMPLATE, { innerContent, shareBalloon });
+	const exitMarkReadConfirm = options.exitMarkReadConfirm === true;
+	const exitConfirms = buildExitConfirms({
+		enabled: exitMarkReadConfirm,
+		isRead,
+		articleId,
+		title: article.metadata.title,
+	});
+	const content = render(READER_TEMPLATE, { innerContent, shareBalloon, exitConfirms });
 
 	return {
 		seo: {
@@ -139,7 +172,8 @@ export function ReaderPage(
 				SHARE_BALLOON_SCRIPT +
 				PROGRESS_BAR_SCRIPT +
 				SUMMARY_TOGGLE_SCRIPT +
-				CRAWL_BOOKMARK_SCRIPT,
+				CRAWL_BOOKMARK_SCRIPT +
+				(exitMarkReadConfirm ? READER_EXIT_CONFIRM_SCRIPT : ""),
 		}),
 	};
 }

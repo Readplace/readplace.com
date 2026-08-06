@@ -94,6 +94,24 @@ const BUNDLES = [
     ].join("\n"),
   },
   {
+    entry: path.join(
+      PROJECT_ROOT,
+      "src/runtime/web/pages/reader/reader-exit-confirm.client.ts",
+    ),
+    outfile: path.join(OUT_DIR, "reader-exit-confirm.client.js"),
+    globalName: "ReaderExitConfirm",
+    footer: [
+      "ReaderExitConfirm.initReaderExitConfirm({",
+      "  document: window.document,",
+      "  supportsPopover: function () { return typeof HTMLElement.prototype.showPopover === 'function'; },",
+      "  showPopover: function (panel) { panel.showPopover(); },",
+      "  hidePopover: function (panel) { panel.hidePopover(); },",
+      "  fetchFn: function (url, init) { return window.fetch(url, init); },",
+      "  navigate: function (href) { window.location.assign(href); }",
+      "});",
+    ].join("\n"),
+  },
+  {
     entry: path.join(PROJECT_ROOT, "src/runtime/web/pages/home/home.client.ts"),
     outfile: path.join(OUT_DIR, "home.client.js"),
     globalName: "HomeClient",

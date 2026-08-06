@@ -750,6 +750,7 @@ export function initQueueRoutes(deps: QueueDependencies): Router {
 				renderActions: deps.stickyReader,
 				crawlVersions: state.crawlVersions,
 				crawlBookmarkRemoval,
+				exitMarkReadConfirm: true,
 			}), {
 				...(await deps.buildBannerState(req)),
 				showExtensionSuggestionBanner,

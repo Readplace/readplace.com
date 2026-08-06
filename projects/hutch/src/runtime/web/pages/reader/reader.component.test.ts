@@ -184,6 +184,53 @@ describe("ReaderPage", () => {
 		assert.equal(external.getAttribute("target"), "_blank");
 	});
 
+	it("keeps a title carrying markup as text in the exit confirmation heading", () => {
+		const article = makeArticle({
+			metadata: {
+				title: 'Why <script> & "quotes" break naive templates',
+				siteName: "example.com",
+				excerpt: "A lovely article.",
+				wordCount: 500,
+			},
+		});
+		const html = Base(
+			ReaderPage(article, {
+				appOrigin: DEFAULT_APP_ORIGIN,
+				backLink: TEST_BACK_LINK,
+				renderActions: StickyReader,
+				now: NOW,
+				exitMarkReadConfirm: true,
+			}),
+			{ isAuthenticated: true, emailVerified: undefined },
+		).to("text/html").body;
+		const doc = new JSDOM(html).window.document;
+
+		const heading = doc.querySelector(".reader-confirm__title");
+		assert(heading, "the exit confirmation heading must be rendered");
+		assert.equal(
+			heading.textContent,
+			'Mark "Why <script> & "quotes" break naive templates" as read?',
+		);
+		assert.equal(heading.querySelector("script"), null);
+	});
+
+	it("asks nothing on exit once the article is read, but still loads the script the next swap needs", () => {
+		const html = Base(
+			ReaderPage(makeArticle({ status: "read" }), {
+				appOrigin: DEFAULT_APP_ORIGIN,
+				backLink: TEST_BACK_LINK,
+				renderActions: StickyReader,
+				now: NOW,
+				exitMarkReadConfirm: true,
+			}),
+			{ isAuthenticated: true, emailVerified: undefined },
+		).to("text/html").body;
+		const doc = new JSDOM(html).window.document;
+
+		assert.equal(doc.querySelectorAll("[data-test-exit-confirm]").length, 0);
+		expect(html).toContain("/client-dist/reader-exit-confirm.client.js");
+	});
+
 	it("renders the share-balloon URLs against the supplied appOrigin, not a hardcoded host", () => {
 		const html = Base(
 			ReaderPage(makeArticle(), { appOrigin: "https://staging.readplace.com", backLink: TEST_BACK_LINK, renderActions: StickyReader, now: NOW }),
