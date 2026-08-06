@@ -65,7 +65,6 @@ export interface RelatedArticleResult {
 	readonly title: string;
 	readonly siteName: string;
 	readonly reason: string;
-	readonly status: ArticleStatus;
 }
 
 export type ArticleRelatedResult =
@@ -264,7 +263,7 @@ export function initMcpServer(deps: McpServerDeps): McpServer {
 			capabilities: { tools: { listChanged: false } },
 			serverInfo: MCP_SERVER_INFO,
 			instructions:
-				"save_link adds a URL to the user's Readplace reading queue; list_queue lists saved articles, each with an id you pass to get_article (metadata), get_article_content (reader HTML), get_article_summary (AI TL;DR), and get_related_articles (other saves in their queue that relate to it). Marking an article read/unread or deleting it is intentionally NOT available to the assistant — the mark_as_read, mark_as_unread, and delete_article tools only return instructions for the user to do it in the Readplace app, because reading a piece is the reader's own act and a summary is not the same as reading it.",
+				"save_link adds a URL to the user's Readplace reading queue; list_queue lists saved articles, each with an id you pass to get_article (metadata), get_article_content (reader HTML), get_article_summary (AI TL;DR), and get_related_articles (unread saves in their queue that relate to it). Marking an article read/unread or deleting it is intentionally NOT available to the assistant — the mark_as_read, mark_as_unread, and delete_article tools only return instructions for the user to do it in the Readplace app, because reading a piece is the reader's own act and a summary is not the same as reading it.",
 		};
 	}
 
@@ -514,11 +513,11 @@ export function initMcpServer(deps: McpServerDeps): McpServer {
 				case "ready":
 					return data(
 						result.articles.length === 0
-							? "Nothing else in the queue relates to that article."
+							? "No unread saves in the queue relate to that article."
 							: result.articles
 									.map(
 										(related) =>
-											`${related.title} (${related.siteName}) [${related.status}]: ${related.reason}`,
+											`${related.title} (${related.siteName}) [unread]: ${related.reason}`,
 									)
 									.join("\n"),
 						result,

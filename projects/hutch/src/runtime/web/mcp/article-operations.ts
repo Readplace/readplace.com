@@ -91,7 +91,6 @@ function toRelatedResult(related: RelatedArticles): ArticleRelatedResult {
 					title: item.title,
 					siteName: item.siteName,
 					reason: item.reason,
-					status: item.status,
 				})),
 			};
 	}

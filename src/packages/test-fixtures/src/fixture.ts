@@ -403,7 +403,10 @@ export function createDefaultTestAppFixture(appOrigin: string): TestAppFixture {
 		},
 		pendingUpload,
 		summary,
-		relatedArticles: initInMemoryRelatedArticles(),
+		relatedArticles: initInMemoryRelatedArticles({
+			findArticleByUrl: articleStoreMemory.findArticleByUrl,
+			findArticleById: articleStoreMemory.findArticleById,
+		}),
 		freshness: { refreshArticleIfStale: createNoopRefreshArticleIfStale() },
 		oauth: {
 			oauthModel,

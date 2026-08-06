@@ -110,7 +110,7 @@ export function initComputeRelatedArticlesHandler(
 					limit: RELATED_CANDIDATES_MAX,
 				});
 				if (candidates.length < RELATED_CANDIDATES_MIN) {
-					await skip("not enough earlier saves to compare against");
+					await skip("not enough unread saves to compare against");
 					continue;
 				}
 

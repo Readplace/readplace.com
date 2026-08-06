@@ -210,11 +210,16 @@ export function initDynamoDbRelatedArticles(deps: {
 		let exclusiveStartKey: Record<string, unknown> | undefined;
 
 		do {
-			/* c8 ignore next -- V8 async continuation branch on the awaited page read, see bcoe/c8#319 */
 			const { items, lastEvaluatedKey } = await userArticles.query({
 				IndexName: "userId-savedAt-index",
 				KeyConditionExpression: "userId = :userId",
-				ExpressionAttributeValues: { ":userId": params.userId },
+				/* c8 ignore next -- V8 block-coverage phantom on the awaited page read, see bcoe/c8#319 */
+				FilterExpression: "#status = :status",
+				ExpressionAttributeNames: { "#status": "status" },
+				ExpressionAttributeValues: {
+					":userId": params.userId,
+					":status": "unread",
+				},
 				ScanIndexForward: false,
 				ExclusiveStartKey: exclusiveStartKey,
 			});
@@ -276,7 +281,11 @@ export function initDynamoDbRelatedArticles(deps: {
 			keys: keyed.map((link) => ({ userId: params.userId, url: link.key })),
 			projection: ["url", "status", "savedAt"],
 		});
-		const savedByKey = new Map(stillSaved.map((saved) => [saved.url, saved] as const));
+		const savedByKey = new Map(
+			stillSaved
+				.filter((saved) => saved.status === "unread")
+				.map((saved) => [saved.url, saved] as const),
+		);
 
 		const byUrl = await readArticles([...savedByKey.keys()], ARTICLE_FIELDS);
 
@@ -291,7 +300,6 @@ export function initDynamoDbRelatedArticles(deps: {
 				title: article.title,
 				siteName: article.siteName,
 				reason: link.reason,
-				status: saved.status,
 				savedAt: new Date(saved.savedAt),
 			});
 		}

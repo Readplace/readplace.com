@@ -1,6 +1,5 @@
 import { readFileSync } from "node:fs";
 import { join } from "node:path";
-import type { ArticleStatus } from "@packages/domain/article";
 import type { RelatedArticles } from "@packages/provider-contracts/related-articles";
 import { render, toRelativePhrase } from "@packages/web-shell";
 import type { LocalTime } from "@packages/web-shell/local-time.format";
@@ -33,16 +32,8 @@ interface RelatedSlotItem {
 	title: string;
 	siteName: string;
 	reason: string;
-	readStatus: ArticleStatus;
-	statusClass: string;
-	statusLabel: string;
 	saved: LocalTime;
 }
-
-const STATUS_BADGE = {
-	unread: { className: "related-slot__status--unread", label: "Unread" },
-	read: { className: "related-slot__status--read", label: "Read" },
-} satisfies Record<ArticleStatus, { className: string; label: string }>;
 
 function relatedHref(params: {
 	targetArticleId: string;
@@ -68,9 +59,6 @@ function itemsOf(related: RelatedSlotContext | undefined): RelatedSlotItem[] {
 		title: item.title,
 		siteName: item.siteName,
 		reason: item.reason,
-		readStatus: item.status,
-		statusClass: STATUS_BADGE[item.status].className,
-		statusLabel: STATUS_BADGE[item.status].label,
 		saved: toRelativePhrase({ iso: item.savedAt.toISOString(), now: related.now }),
 	}));
 }

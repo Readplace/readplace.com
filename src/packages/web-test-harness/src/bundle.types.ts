@@ -5,7 +5,6 @@ import type {
 	FindRelatedArticles,
 	MarkRelatedArticlesReady,
 	MarkRelatedArticlesSkipped,
-	RelatedArticleDisplay,
 } from "@packages/provider-contracts/related-articles";
 import type { ImportSessionStore } from "@packages/domain/import-session";
 import type {
@@ -369,11 +368,6 @@ export interface RelatedArticlesBundle {
 	findRelatedArticles: FindRelatedArticles;
 	markRelatedArticlesReady: MarkRelatedArticlesReady;
 	markRelatedArticlesSkipped: MarkRelatedArticlesSkipped;
-	seedRelatedArticles: (params: {
-		userId: UserId;
-		url: string;
-		items: readonly RelatedArticleDisplay[];
-	}) => Promise<void>;
 }
 
 export interface FreshnessBundle {

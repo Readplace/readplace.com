@@ -85,7 +85,6 @@ describe("renderRelatedSlot", () => {
 								title: "First",
 								siteName: "Example",
 								reason: "Same argument",
-								status: "unread",
 								savedAt: savedDaysAgo(60),
 							},
 							{
@@ -93,7 +92,6 @@ describe("renderRelatedSlot", () => {
 								title: "Second",
 								siteName: "Other",
 								reason: "Follow-up",
-								status: "read",
 								savedAt: savedDaysAgo(7),
 							},
 						],
@@ -136,7 +134,7 @@ describe("renderRelatedSlot", () => {
 		]);
 	});
 
-	it("marks every relation with the reader's own read state", () => {
+	it("badges every relation unread, because a read one is never shown", () => {
 		const doc = parse(
 			renderRelatedSlot({
 				related: {
@@ -148,7 +146,6 @@ describe("renderRelatedSlot", () => {
 								title: "First",
 								siteName: "Example",
 								reason: "Same argument",
-								status: "unread",
 								savedAt: savedDaysAgo(60),
 							},
 							{
@@ -156,7 +153,6 @@ describe("renderRelatedSlot", () => {
 								title: "Second",
 								siteName: "Other",
 								reason: "Follow-up",
-								status: "read",
 								savedAt: savedDaysAgo(7),
 							},
 						],
@@ -176,15 +172,14 @@ describe("renderRelatedSlot", () => {
 				return {
 					state: badge.getAttribute("data-test-read-status"),
 					unread: badge.classList.contains("related-slot__status--unread"),
-					read: badge.classList.contains("related-slot__status--read"),
 					label: label.textContent,
 				};
 			},
 		);
 
 		expect(states).toEqual([
-			{ state: "unread", unread: true, read: false, label: "Unread" },
-			{ state: "read", unread: false, read: true, label: "Read" },
+			{ state: "unread", unread: true, label: "Unread" },
+			{ state: "unread", unread: true, label: "Unread" },
 		]);
 	});
 
@@ -201,7 +196,6 @@ describe("renderRelatedSlot", () => {
 								title: "First",
 								siteName: "Example",
 								reason: "Same argument",
-								status: "unread",
 								savedAt,
 							},
 						],
@@ -295,7 +289,6 @@ describe("renderRelatedSlot", () => {
 								title: "First",
 								siteName: "Example",
 								reason: "Same argument",
-								status: "unread",
 								savedAt: savedDaysAgo(60),
 							},
 						],

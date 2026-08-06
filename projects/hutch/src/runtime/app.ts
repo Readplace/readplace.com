@@ -613,7 +613,10 @@ function initProviders(input: { appOrigin: string }) {
 	const { publishLinkQueued } = initInMemoryLinkQueued({ logger: consoleLogger });
 	const { publishLinkDequeued } = initInMemoryLinkDequeued({ logger: consoleLogger });
 	const { publishComputeRelatedArticles } = initInMemoryComputeRelatedArticles({ logger: consoleLogger });
-	const { findRelatedArticles } = initInMemoryRelatedArticles();
+	const { findRelatedArticles } = initInMemoryRelatedArticles({
+		findArticleByUrl: articleStore.findArticleByUrl,
+		findArticleById: articleStore.findArticleById,
+	});
 	const { publishLinkSaved: logOnlyPublishLinkSaved } = initInMemoryLinkSaved({ logger: consoleLogger });
 	const publishLinkSaved: typeof logOnlyPublishLinkSaved = async (params) => {
 		await logOnlyPublishLinkSaved(params);

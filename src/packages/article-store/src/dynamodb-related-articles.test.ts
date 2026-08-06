@@ -333,6 +333,12 @@ describe("initDynamoDbRelatedArticles", () => {
 			assert(query, "a query must have been issued");
 			expect(query.input.IndexName).toBe("userId-savedAt-index");
 			expect(query.input.ScanIndexForward).toBe(false);
+			expect(query.input.FilterExpression).toBe("#status = :status");
+			expect(query.input.ExpressionAttributeNames).toEqual({ "#status": "status" });
+			expect(query.input.ExpressionAttributeValues).toEqual({
+				":userId": USER_ID,
+				":status": "unread",
+			});
 		});
 
 		it("stops paging once the limit is filled", async () => {
@@ -469,7 +475,7 @@ describe("initDynamoDbRelatedArticles", () => {
 			expect(sent).toHaveLength(1);
 		});
 
-		it("joins stored relations to their article metadata, preserving the stored order", async () => {
+		it("keeps only the relations the reader still has unread, preserving the stored order", async () => {
 			let savedRowProjection: string | undefined;
 			const { store } = build((command) => {
 				if (command.constructorName === "GetCommand") {
@@ -480,6 +486,7 @@ describe("initDynamoDbRelatedArticles", () => {
 							relatedStatus: "ready",
 							relatedArticles: [
 								{ url: "example.com/second", reason: "Follow-up" },
+								{ url: "example.com/finished", reason: "Already read" },
 								{ url: "example.com/first", reason: "Same event" },
 							],
 						},
@@ -496,7 +503,8 @@ describe("initDynamoDbRelatedArticles", () => {
 					return {
 						Responses: {
 							[USER_ARTICLES_TABLE]: [
-								{ url: "example.com/second", status: "read", savedAt: "2026-06-01T00:00:00.000Z" },
+								{ url: "example.com/second", status: "unread", savedAt: "2026-06-01T00:00:00.000Z" },
+								{ url: "example.com/finished", status: "read", savedAt: "2026-05-15T00:00:00.000Z" },
 								{ url: "example.com/first", status: "unread", savedAt: "2026-05-01T00:00:00.000Z" },
 							],
 						},
@@ -520,6 +528,13 @@ describe("initDynamoDbRelatedArticles", () => {
 								siteName: "Example",
 								excerpt: "",
 							},
+							{
+								url: "example.com/finished",
+								routeId: "33333333333333333333333333333333",
+								title: "Finished",
+								siteName: "Example",
+								excerpt: "",
+							},
 						],
 					},
 					UnprocessedKeys: {},
@@ -537,7 +552,6 @@ describe("initDynamoDbRelatedArticles", () => {
 					title: "Second",
 					siteName: "Example",
 					reason: "Follow-up",
-					status: "read",
 					savedAt: new Date("2026-06-01T00:00:00.000Z"),
 				},
 				{
@@ -545,11 +559,41 @@ describe("initDynamoDbRelatedArticles", () => {
 					title: "First",
 					siteName: "Example",
 					reason: "Same event",
-					status: "unread",
 					savedAt: new Date("2026-05-01T00:00:00.000Z"),
 				},
 			]);
 			expect(savedRowProjection).toContain("#status");
+		});
+
+		it("never reads an article row when the reader has finished every relation", async () => {
+			const { sent, store } = build((command) => {
+				if (command.constructorName === "GetCommand") {
+					return {
+						Item: {
+							userId: USER_ID,
+							url: "example.com/target",
+							relatedStatus: "ready",
+							relatedArticles: [{ url: "example.com/finished", reason: "Already read" }],
+						},
+					};
+				}
+				return {
+					Responses: {
+						[USER_ARTICLES_TABLE]: [
+							{ url: "example.com/finished", status: "read", savedAt: "2026-05-15T00:00:00.000Z" },
+						],
+					},
+					UnprocessedKeys: {},
+				};
+			});
+
+			expect(
+				await store.findRelatedArticles({ userId: USER_ID, url: TARGET_URL }),
+			).toEqual({ status: "ready", items: [] });
+			expect(sent.map((command) => command.constructorName)).toEqual([
+				"GetCommand",
+				"BatchGetCommand",
+			]);
 		});
 
 		it("drops a relation whose article row has gone missing entirely", async () => {
@@ -650,7 +694,6 @@ describe("initDynamoDbRelatedArticles", () => {
 					title: "Kept",
 					siteName: "Example",
 					reason: "Same argument",
-					status: "unread",
 					savedAt: new Date("2026-05-20T00:00:00.000Z"),
 				},
 			]);

@@ -311,7 +311,7 @@ describe("initMcpArticleOperations", () => {
 		it("flattens each relation to the id an agent can look up again", async () => {
 			const article = buildArticle();
 			const relatedId = ReaderArticleHashId.from("https://example.com/earlier");
-			const finishedId = ReaderArticleHashId.from("https://example.com/finished");
+			const laterId = ReaderArticleHashId.from("https://example.com/later");
 			const ops = buildOps({
 				findArticleById: async () => article,
 				findRelatedArticles: async () => ({
@@ -322,15 +322,13 @@ describe("initMcpArticleOperations", () => {
 							title: "Earlier read",
 							siteName: "Example",
 							reason: "Same argument",
-							status: "unread",
 							savedAt: new Date("2026-06-01T00:00:00.000Z"),
 						},
 						{
-							id: finishedId,
-							title: "Already finished",
+							id: laterId,
+							title: "Still to read",
 							siteName: "Example",
 							reason: "Follow-up",
-							status: "read",
 							savedAt: new Date("2026-05-01T00:00:00.000Z"),
 						},
 					],
@@ -346,14 +344,12 @@ describe("initMcpArticleOperations", () => {
 						title: "Earlier read",
 						siteName: "Example",
 						reason: "Same argument",
-						status: "unread",
 					},
 					{
-						id: finishedId.value,
-						title: "Already finished",
+						id: laterId.value,
+						title: "Still to read",
 						siteName: "Example",
 						reason: "Follow-up",
-						status: "read",
 					},
 				],
 			});

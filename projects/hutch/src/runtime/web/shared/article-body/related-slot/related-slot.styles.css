@@ -67,10 +67,6 @@
   color: var(--primary-text);
 }
 
-.related-slot__status--read {
-  color: var(--success-text);
-}
-
 .related-slot__status--unread::before {
   content: "";
   display: block;
@@ -78,15 +74,6 @@
   height: 0.5rem;
   border-radius: 50%;
   background: currentColor;
-}
-
-.related-slot__status--unread svg {
-  display: none;
-}
-
-.related-slot__status--read svg {
-  width: 0.875rem;
-  height: 0.875rem;
 }
 
 .related-slot__site {

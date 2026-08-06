@@ -104,7 +104,7 @@ each URL.
 - get_article: returns one saved article's details.
 - get_article_content: returns one saved article's clean reader text.
 - get_article_summary: returns one saved article's AI TL;DR.
-- get_related_articles: returns other saves in the same queue that relate to one article.
+- get_related_articles: returns unread saves in the same queue that relate to one article.
 - mark_as_read: answers with a note pointing the user to the app; marking read stays in Readplace.
 - mark_as_unread: answers with a note pointing the user to the app; marking unread stays in Readplace.
 - delete_article: answers with a note pointing the user to the app; deleting stays in Readplace.
