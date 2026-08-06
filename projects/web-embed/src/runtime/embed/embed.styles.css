@@ -64,17 +64,6 @@
   margin: 0 0 20px;
 }
 
-.embed-page__prose p {
-  font-size: 1rem;
-  line-height: 1.7;
-  color: var(--color-text-secondary);
-  margin: 0 0 16px;
-}
-
-.embed-page__prose p:last-child {
-  margin-bottom: 0;
-}
-
 .embed-url-input {
   margin-bottom: 32px;
 }

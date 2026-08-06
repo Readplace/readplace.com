@@ -362,12 +362,6 @@ export const OFFLINE_BANNER_STYLES = `
 		max-height: 50px;
 		padding: 8px 16px;
 	}
-
-	.offline-banner__icon {
-		display: inline-block;
-		vertical-align: middle;
-		margin-right: 8px;
-	}
 `;
 
 export const NAV_STYLES = `
