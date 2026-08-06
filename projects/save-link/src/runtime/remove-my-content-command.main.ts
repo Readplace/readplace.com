@@ -6,7 +6,7 @@ import {
 	initEventBridgePublisher,
 } from "@packages/hutch-infra-components/runtime";
 import {
-	initCountOtherSaversByUrl,
+	initCountSaversByUrl,
 	initPruneCrawlVersions,
 	initPurgeArticleContent,
 	initResolveAuthoredContentKeys,
@@ -15,6 +15,7 @@ import {
 	initTombstoneArticle,
 } from "@packages/article-store";
 import { requireEnv } from "@packages/require-env";
+import { initFindContentSourceTier } from "./providers/article-store/find-content-source-tier";
 import { initReadTierSource } from "./providers/article-store/read-tier-source";
 import { initListAvailableTierSources } from "./domain/select-content/list-available-tier-sources";
 import { initRemoveMyContentCommandHandler } from "./domain/remove-my-content/remove-my-content-command-handler";
@@ -57,7 +58,12 @@ const { readTierSource } = initReadTierSource({
 
 const { listAvailableTierSources } = initListAvailableTierSources({ readTierSource });
 
-const { countOtherSaversByUrl } = initCountOtherSaversByUrl({
+const { findContentSourceTier } = initFindContentSourceTier({
+	dynamoClient,
+	tableName: articlesTable,
+});
+
+const { countSaversByUrl } = initCountSaversByUrl({
 	client: dynamoClient,
 	userArticlesTableName: userArticlesTable,
 });
@@ -81,8 +87,9 @@ export const handler = initRemoveMyContentCommandHandler({
 	resolveAuthoredContentKeys,
 	deleteContentObjects,
 	pruneCrawlVersions,
+	findContentSourceTier,
 	listAvailableTierSources,
-	countOtherSaversByUrl,
+	countSaversByUrl,
 	purgeArticleContent,
 	tombstoneArticle,
 	publishEvent,

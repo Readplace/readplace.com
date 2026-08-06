@@ -1061,16 +1061,17 @@ eventBus.subscribe(TierContentExtractedEvent, selectMostCompleteContentLambdaWit
 
 // --- RemoveMyContentCommand handler ---
 // Content-removal orchestrator. Deletes the S3 objects the removing user
-// authored (their tier-0 capture + attributed snapshots), prunes the pruned
-// minute-ids from the crawlVersions log, then branches: re-select the canonical
-// from surviving sources, re-crawl for co-savers left with no source, or — when
-// nothing and nobody remains — purge every stored object and tombstone the row.
+// authored (their attributed snapshot, plus their tier-0 capture once it is the
+// last one they authored), prunes the pruned minute-ids from the crawlVersions
+// log, then — only when that leaves the canonical copy derived from a source
+// that is gone — re-selects from surviving sources, re-crawls for the savers
+// still holding the URL, or purges every stored object and tombstones the row.
 // Idempotent throughout so an at-least-once redelivery converges.
 
 const removeMyContentCommandDynamodb = new HutchDynamoDBAccess("remove-my-content-command-dynamodb", {
 	tables: [
 		{ arn: articlesTableArn, includeIndexes: false },
-		// url-index GSI: countOtherSaversByUrl reads it to decide purge vs re-crawl.
+		// url-index GSI: countSaversByUrl reads it to decide purge vs re-crawl.
 		{ arn: userArticlesTableArn, includeIndexes: true },
 	],
 	actions: ["dynamodb:GetItem", "dynamodb:UpdateItem", "dynamodb:Query"],

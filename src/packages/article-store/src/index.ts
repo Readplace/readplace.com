@@ -25,6 +25,8 @@ export { initS3ListContentKeys } from "./s3-list-content-keys";
 export type { ListContentKeys } from "./s3-list-content-keys";
 export { initCountOtherSaversByUrl } from "./count-other-savers-by-url";
 export type { CountOtherSaversByUrl } from "./count-other-savers-by-url";
+export { initCountSaversByUrl } from "./count-savers-by-url";
+export type { CountSaversByUrl } from "./count-savers-by-url";
 export { initResolveAuthoredContentKeys } from "./resolve-authored-content-keys";
 export type { ResolveAuthoredContentKeys } from "./resolve-authored-content-keys";
 export { initPruneCrawlVersions } from "./prune-crawl-versions";

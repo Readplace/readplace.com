@@ -26,15 +26,10 @@ function safeJsonParse(text: string): unknown {
 	}
 }
 
-/** The S3 objects a user authored for a URL: their attributed version
- * snapshots (scoped to one when `versionMinuteId` is given) and — for the
- * whole-copy scope only — their tier-0 capture with its metadata sidecar.
- * `pruneMinuteIds` names the crawlVersions entries the caller must drop from
- * the log once the objects are gone. */
 export type ResolveAuthoredContentKeys = (params: {
 	url: string;
 	userId: string;
-	versionMinuteId?: string;
+	versionMinuteId: string;
 }) => Promise<{ objectKeys: string[]; pruneMinuteIds: string[] }>;
 
 export function initResolveAuthoredContentKeys(deps: {
@@ -81,21 +76,20 @@ export function initResolveAuthoredContentKeys(deps: {
 			{ url: id.value },
 			{ projection: ["crawlVersions"] },
 		);
-		const authoredEntries = (row?.crawlVersions ?? [])
+		const allAuthored = (row?.crawlVersions ?? [])
 			.map(normalizeCrawlVersion)
-			.filter((entry) => entry.authorUserId === params.userId)
-			.filter(
-				(entry) =>
-					params.versionMinuteId === undefined ||
-					entry.minuteId === params.versionMinuteId,
-			);
+			.filter((entry) => entry.authorUserId === params.userId);
+		const namedEntries = allAuthored.filter(
+			(entry) => entry.minuteId === params.versionMinuteId,
+		);
 
-		const objectKeys = authoredEntries.map((entry) =>
+		const objectKeys = namedEntries.map((entry) =>
 			id.toS3ContentVersionKey({ minuteId: entry.minuteId }),
 		);
-		const pruneMinuteIds = authoredEntries.map((entry) => entry.minuteId);
+		const pruneMinuteIds = namedEntries.map((entry) => entry.minuteId);
 
-		if (params.versionMinuteId === undefined) {
+		const isLastAuthoredVersion = allAuthored.length === 1 && namedEntries.length === 1;
+		if (isLastAuthoredVersion) {
 			const tierZeroAuthor = await readTierZeroAuthor(id);
 			if (tierZeroAuthor === params.userId) {
 				objectKeys.push(

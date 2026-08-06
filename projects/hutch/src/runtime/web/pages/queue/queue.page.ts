@@ -1604,27 +1604,5 @@ export function initQueueRoutes(deps: QueueDependencies): Router {
 		res.redirect(303, `${QUEUE_PATH}/${req.params.id}/view`);
 	});
 
-	/** Remove the viewer's whole saved copy: drop their per-user queue row here
-	 * (hutch owns it), then hand the content erasure — their tier-0 capture, their
-	 * authored snapshots, and a re-select / re-crawl / purge — to save-link.
-	 * Guardless for the same reason as `/delete`. */
-	router.post("/:id/remove-my-copy", async (req: Request<{ id: string }>, res: Response) => {
-		assert(req.userId, "userId required - route must be protected by requireAuth");
-		const userId = req.userId;
-		const parsedId = ReaderArticleHashIdSchema.safeParse(req.params.id);
-		const article = parsedId.success
-			? await deps.findArticleById(parsedId.data, userId)
-			: null;
-
-		if (parsedId.success) {
-			await deleteArticleFromQueue({ articleId: parsedId.data, userId });
-		}
-		if (article) {
-			await deps.publishRemoveMyContent({ url: article.url, userId });
-		}
-
-		res.redirect(303, QUEUE_PATH);
-	});
-
 	return router;
 }

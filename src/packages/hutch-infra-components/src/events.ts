@@ -411,14 +411,14 @@ export type RecrawlLinkInitiatedDetail = z.infer<
 	typeof RecrawlLinkInitiatedEvent.detailSchema
 >;
 
-/** A user asked for their authored content on a URL to be removed. With
- * `versionMinuteId`: delete that one crawl-version snapshot (iff they authored
- * it) and prune it from the log — the canonical copy is untouched. Without it:
- * delete their tier-0 capture plus every snapshot they authored, then either
- * re-select the canonical from what remains, re-crawl for the co-savers left
- * with no source, or — when nothing and nobody remains — purge every stored
- * object and tombstone the row. The publisher (hutch) has already dropped the
- * remover's queue row for the whole-copy scope. */
+/** A user asked for the crawl-version snapshot they authored at
+ * `versionMinuteId` to be removed. Deletes that snapshot (iff they authored it)
+ * and prunes it from the log; when it is the last snapshot they authored, their
+ * tier-0 capture and its sidecar go too. If that leaves the canonical copy
+ * derived from a source that no longer exists, the pipeline re-selects from
+ * what remains, re-crawls for the savers still holding the URL, or — when
+ * nothing and nobody remains — purges every stored object and tombstones the
+ * row. The remover's own queue row is never touched. */
 export const RemoveMyContentCommand = defineEvent({
 	name: "remove-my-content-command",
 	source: "hutch.api",
@@ -426,7 +426,7 @@ export const RemoveMyContentCommand = defineEvent({
 	detailSchema: z.object({
 		url: z.string(),
 		userId: z.string(),
-		versionMinuteId: z.string().optional(),
+		versionMinuteId: z.string(),
 	}),
 });
 export type RemoveMyContentDetail = z.infer<typeof RemoveMyContentCommand.detailSchema>;

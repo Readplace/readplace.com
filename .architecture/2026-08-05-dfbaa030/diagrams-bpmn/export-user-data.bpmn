@@ -1,0 +1,210 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<bpmn:definitions xmlns:bpmn="http://www.omg.org/spec/BPMN/20100524/MODEL" xmlns:bpmndi="http://www.omg.org/spec/BPMN/20100524/DI" xmlns:dc="http://www.omg.org/spec/DD/20100524/DC" xmlns:di="http://www.omg.org/spec/DD/20100524/DI" id="Definitions_export_user_data" targetNamespace="http://readplace.com/architecture/bpmn">
+  <bpmn:process id="Process_export_user_data" name="export-user-data" isExecutable="false">
+    <bpmn:serviceTask id="n_UI" name="GET /export — Download your data">
+      <bpmn:outgoing>f_0</bpmn:outgoing>
+    </bpmn:serviceTask>
+    <bpmn:serviceTask id="n_Route" name="POST /export/start — hutch web Lambda">
+      <bpmn:incoming>f_0</bpmn:incoming>
+      <bpmn:outgoing>f_4</bpmn:outgoing>
+    </bpmn:serviceTask>
+    <bpmn:dataStoreReference id="n_Email" name="findEmailByUserId"></bpmn:dataStoreReference>
+    <bpmn:serviceTask id="n_NoEmail" name="no email -&gt; logError + 303 /export nothing published"></bpmn:serviceTask>
+    <bpmn:sendTask id="n_Cmd" name="ExportUserDataCommand source hutch.api detail: userId, email, requestedAt">
+      <bpmn:outgoing>f_5</bpmn:outgoing>
+    </bpmn:sendTask>
+    <bpmn:serviceTask id="n_R303" name="303 /export?status=preparing">
+      <bpmn:incoming>f_4</bpmn:incoming>
+    </bpmn:serviceTask>
+    <bpmn:serviceTask id="n_Bus" name="EventBridge — shared platform bus">
+      <bpmn:incoming>f_5</bpmn:incoming>
+      <bpmn:outgoing>f_6</bpmn:outgoing>
+    </bpmn:serviceTask>
+    <bpmn:intermediateCatchEvent id="n_Q" name="user-data-jobs queue visibility 900s, maxReceiveCount 12 shared with DeleteAccountCommand">
+      <bpmn:incoming>f_6</bpmn:incoming>
+      <bpmn:outgoing>f_7</bpmn:outgoing>
+      <bpmn:messageEventDefinition />
+    </bpmn:intermediateCatchEvent>
+    <bpmn:serviceTask id="n_L" name="user-data-jobs Lambda — 1024 MB / 900 s routes by detail-type; unrouted type dead-letters">
+      <bpmn:incoming>f_7</bpmn:incoming>
+      <bpmn:outgoing>f_8</bpmn:outgoing>
+    </bpmn:serviceTask>
+    <bpmn:serviceTask id="n_H" name="export-user-data handler">
+      <bpmn:incoming>f_8</bpmn:incoming>
+      <bpmn:outgoing>f_14</bpmn:outgoing>
+    </bpmn:serviceTask>
+    <bpmn:dataStoreReference id="n_Page" name="findArticlesByUser — 500 per page, excludeContent loop until an empty page"></bpmn:dataStoreReference>
+    <bpmn:dataStoreReference id="n_Up" name="PutObject exports/userId/timestamp.json ContentDisposition attachment presign GetObject for 7 days"></bpmn:dataStoreReference>
+    <bpmn:serviceTask id="n_Mail" name="Resend — 'Your Readplace export is ready' download link + article count + 7-day expiry copy">
+      <bpmn:outgoing>f_12</bpmn:outgoing>
+    </bpmn:serviceTask>
+    <bpmn:endEvent id="n_Ev" name="UserDataExported source hutch.export-user-data detail: userId, articleCount, s3Key, exportedAt NO SUBSCRIBER — terminal fact">
+      <bpmn:incoming>f_12</bpmn:incoming>
+      <bpmn:messageEventDefinition />
+    </bpmn:endEvent>
+    <bpmn:dataStoreReference id="n_Life" name="bucket lifecycle expires exports/ after 7 days account deletion also deletes exports/userId/"></bpmn:dataStoreReference>
+    <bpmn:intermediateCatchEvent id="n_D" name="user-data-jobs DLQ alarm + SNS email, no consumer THE failure signal for this flow">
+      <bpmn:incoming>f_14</bpmn:incoming>
+      <bpmn:outgoing>f_15</bpmn:outgoing>
+      <bpmn:messageEventDefinition />
+    </bpmn:intermediateCatchEvent>
+    <bpmn:serviceTask id="n_W" name="WITHDRAWN: UserDataExportFailedEvent declared at design time, never emitted, never subscribed — deleted in this snapshot">
+      <bpmn:incoming>f_15</bpmn:incoming>
+    </bpmn:serviceTask>
+    <bpmn:sequenceFlow id="f_0" name="" sourceRef="n_UI" targetRef="n_Route" />
+    <bpmn:sequenceFlow id="f_4" name="" sourceRef="n_Route" targetRef="n_R303" />
+    <bpmn:sequenceFlow id="f_5" name="" sourceRef="n_Cmd" targetRef="n_Bus" />
+    <bpmn:sequenceFlow id="f_6" name="" sourceRef="n_Bus" targetRef="n_Q" />
+    <bpmn:sequenceFlow id="f_7" name="" sourceRef="n_Q" targetRef="n_L" />
+    <bpmn:sequenceFlow id="f_8" name="" sourceRef="n_L" targetRef="n_H" />
+    <bpmn:sequenceFlow id="f_12" name="" sourceRef="n_Mail" targetRef="n_Ev" />
+    <bpmn:sequenceFlow id="f_14" name="throw -&gt; batchItemFailure -&gt; 12 receives" sourceRef="n_H" targetRef="n_D" />
+    <bpmn:sequenceFlow id="f_15" name="" sourceRef="n_D" targetRef="n_W" />
+    <bpmn:association id="f_1" sourceRef="n_Route" targetRef="n_Email" associationDirection="One" />
+    <bpmn:association id="f_2" sourceRef="n_Email" targetRef="n_NoEmail" associationDirection="One" />
+    <bpmn:association id="f_3" sourceRef="n_Email" targetRef="n_Cmd" associationDirection="One" />
+    <bpmn:association id="f_9" sourceRef="n_H" targetRef="n_Page" associationDirection="One" />
+    <bpmn:association id="f_10" sourceRef="n_Page" targetRef="n_Up" associationDirection="One" />
+    <bpmn:association id="f_11" sourceRef="n_Up" targetRef="n_Mail" associationDirection="One" />
+    <bpmn:association id="f_13" sourceRef="n_Up" targetRef="n_Life" associationDirection="One" />
+  </bpmn:process>
+  <bpmndi:BPMNDiagram id="Diagram_export_user_data">
+    <bpmndi:BPMNPlane id="Plane_export_user_data" bpmnElement="Process_export_user_data">
+      <bpmndi:BPMNShape id="n_UI_di" bpmnElement="n_UI">
+        <dc:Bounds x="152.75" y="28" width="179.5" height="52" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="n_Route_di" bpmnElement="n_Route">
+        <dc:Bounds x="159.25" y="138" width="166.5" height="52" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="n_Email_di" bpmnElement="n_Email">
+        <dc:Bounds x="64.52" y="248" width="128.7" height="48" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="n_NoEmail_di" bpmnElement="n_NoEmail">
+        <dc:Bounds x="32.25" y="379.5" width="196.5" height="68" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="n_Cmd_di" bpmnElement="n_Cmd">
+        <dc:Bounds x="264.75" y="371.5" width="188" height="84" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="n_R303_di" bpmnElement="n_R303">
+        <dc:Bounds x="229.22" y="254.75" width="191.25" height="52" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="n_Bus_di" bpmnElement="n_Bus">
+        <dc:Bounds x="162.13" y="513.5" width="160.75" height="52" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="n_Q_di" bpmnElement="n_Q">
+        <dc:Bounds x="222.5" y="623.5" width="40" height="40" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="n_L_di" bpmnElement="n_L">
+        <dc:Bounds x="142.63" y="794" width="199.75" height="84" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="n_H_di" bpmnElement="n_H">
+        <dc:Bounds x="148.25" y="936" width="188.5" height="48" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="n_Page_di" bpmnElement="n_Page">
+        <dc:Bounds x="56.31" y="1052" width="187.88" height="48" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="n_Up_di" bpmnElement="n_Up">
+        <dc:Bounds x="28" y="1217.5" width="190" height="48" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="n_Mail_di" bpmnElement="n_Mail">
+        <dc:Bounds x="38.28" y="1397.5" width="188.75" height="84" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="n_Ev_di" bpmnElement="n_Ev">
+        <dc:Bounds x="222.5" y="1550.5" width="40" height="40" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="n_Life_di" bpmnElement="n_Life">
+        <dc:Bounds x="263.03" y="1386.5" width="183.7" height="48" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="n_D_di" bpmnElement="n_D">
+        <dc:Bounds x="334.44" y="1042" width="40" height="40" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="n_W_di" bpmnElement="n_W">
+        <dc:Bounds x="254" y="1212.5" width="203" height="116" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNEdge id="f_0_di" bpmnElement="f_0">
+        <di:waypoint x="242.5" y="80" />
+        <di:waypoint x="242.5" y="138" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="f_4_di" bpmnElement="f_4">
+        <di:waypoint x="242.5" y="190" />
+        <di:waypoint x="242.5" y="222.38" />
+        <di:waypoint x="324.85" y="222.38" />
+        <di:waypoint x="324.85" y="254.75" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="f_5_di" bpmnElement="f_5">
+        <di:waypoint x="358.75" y="455.5" />
+        <di:waypoint x="358.75" y="484.5" />
+        <di:waypoint x="242.5" y="484.5" />
+        <di:waypoint x="242.5" y="513.5" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="f_6_di" bpmnElement="f_6">
+        <di:waypoint x="242.5" y="565.5" />
+        <di:waypoint x="242.5" y="623.5" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="f_7_di" bpmnElement="f_7">
+        <di:waypoint x="242.5" y="663.5" />
+        <di:waypoint x="242.5" y="794" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="f_8_di" bpmnElement="f_8">
+        <di:waypoint x="242.5" y="878" />
+        <di:waypoint x="242.5" y="936" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="f_12_di" bpmnElement="f_12">
+        <di:waypoint x="132.65" y="1481.5" />
+        <di:waypoint x="132.65" y="1516" />
+        <di:waypoint x="242.5" y="1516" />
+        <di:waypoint x="242.5" y="1550.5" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="f_14_di" bpmnElement="f_14">
+        <di:waypoint x="242.5" y="984" />
+        <di:waypoint x="242.5" y="1013" />
+        <di:waypoint x="354.44" y="1013" />
+        <di:waypoint x="354.44" y="1042" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="f_15_di" bpmnElement="f_15">
+        <di:waypoint x="354.44" y="1082" />
+        <di:waypoint x="355.5" y="1212.5" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="f_1_di" bpmnElement="f_1">
+        <di:waypoint x="242.5" y="190" />
+        <di:waypoint x="242.5" y="219" />
+        <di:waypoint x="128.87" y="219" />
+        <di:waypoint x="128.87" y="248" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="f_2_di" bpmnElement="f_2">
+        <di:waypoint x="128.87" y="296" />
+        <di:waypoint x="130.5" y="379.5" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="f_3_di" bpmnElement="f_3">
+        <di:waypoint x="128.87" y="296" />
+        <di:waypoint x="128.87" y="333.75" />
+        <di:waypoint x="358.75" y="333.75" />
+        <di:waypoint x="358.75" y="371.5" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="f_9_di" bpmnElement="f_9">
+        <di:waypoint x="242.5" y="984" />
+        <di:waypoint x="242.5" y="1018" />
+        <di:waypoint x="150.25" y="1018" />
+        <di:waypoint x="150.25" y="1052" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="f_10_di" bpmnElement="f_10">
+        <di:waypoint x="150.25" y="1100" />
+        <di:waypoint x="150.25" y="1158.75" />
+        <di:waypoint x="123" y="1158.75" />
+        <di:waypoint x="123" y="1217.5" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="f_11_di" bpmnElement="f_11">
+        <di:waypoint x="123" y="1265.5" />
+        <di:waypoint x="123" y="1331.5" />
+        <di:waypoint x="132.65" y="1331.5" />
+        <di:waypoint x="132.65" y="1397.5" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="f_13_di" bpmnElement="f_13">
+        <di:waypoint x="123" y="1265.5" />
+        <di:waypoint x="123" y="1326" />
+        <di:waypoint x="354.88" y="1326" />
+        <di:waypoint x="354.88" y="1386.5" />
+      </bpmndi:BPMNEdge>
+    </bpmndi:BPMNPlane>
+  </bpmndi:BPMNDiagram>
+</bpmn:definitions>

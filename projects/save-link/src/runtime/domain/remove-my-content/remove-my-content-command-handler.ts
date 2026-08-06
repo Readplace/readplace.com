@@ -7,13 +7,14 @@ import {
 	ReselectAfterRemovalEvent,
 } from "@packages/hutch-infra-components";
 import type {
-	CountOtherSaversByUrl,
+	CountSaversByUrl,
 	DeleteContentObjects,
 	PruneCrawlVersions,
 	PurgeArticleContent,
 	ResolveAuthoredContentKeys,
 	TombstoneArticle,
 } from "@packages/article-store";
+import type { FindContentSourceTier } from "../../providers/article-store/find-content-source-tier";
 import type { ListAvailableTierSources } from "../select-content/list-available-tier-sources";
 
 /* c8 ignore next -- V8 block coverage phantom on typed-parameter destructuring, see bcoe/c8#319 */
@@ -21,8 +22,9 @@ export function initRemoveMyContentCommandHandler(deps: {
 	resolveAuthoredContentKeys: ResolveAuthoredContentKeys;
 	deleteContentObjects: DeleteContentObjects;
 	pruneCrawlVersions: PruneCrawlVersions;
+	findContentSourceTier: FindContentSourceTier;
 	listAvailableTierSources: ListAvailableTierSources;
-	countOtherSaversByUrl: CountOtherSaversByUrl;
+	countSaversByUrl: CountSaversByUrl;
 	purgeArticleContent: PurgeArticleContent;
 	tombstoneArticle: TombstoneArticle;
 	publishEvent: PublishEvent;
@@ -33,8 +35,9 @@ export function initRemoveMyContentCommandHandler(deps: {
 		resolveAuthoredContentKeys,
 		deleteContentObjects,
 		pruneCrawlVersions,
+		findContentSourceTier,
 		listAvailableTierSources,
-		countOtherSaversByUrl,
+		countSaversByUrl,
 		purgeArticleContent,
 		tombstoneArticle,
 		publishEvent,
@@ -67,14 +70,19 @@ export function initRemoveMyContentCommandHandler(deps: {
 				logger.info("[RemoveMyContent] authored objects removed", {
 					url: detail.url,
 					objectCount: authored.objectKeys.length,
-					scope: detail.versionMinuteId === undefined ? "copy" : "version",
 				});
 
-				/* Single-snapshot scope stops here: the canonical copy was never
-				 * touched, so there is nothing to re-select. */
-				if (detail.versionMinuteId !== undefined) continue;
+				/* The canonical body is a copy of whichever tier source won selection,
+				 * so an erasure only completes once that source is gone AND the copy is
+				 * rebuilt. Deriving the condition from stored state rather than from
+				 * what this delivery erased keeps it correct on redelivery, when the
+				 * objects are already gone and nothing resolves. */
+				const canonicalTier = await findContentSourceTier(detail.url);
+				if (canonicalTier === undefined) continue;
 
 				const remaining = await listAvailableTierSources(detail.url);
+				if (remaining.some((source) => source.tier === canonicalTier)) continue;
+
 				if (remaining.length > 0) {
 					await publishEvent(ReselectAfterRemovalEvent, { url: detail.url });
 					logger.info("[RemoveMyContent] re-selecting canonical from remaining sources", {
@@ -84,18 +92,16 @@ export function initRemoveMyContentCommandHandler(deps: {
 					continue;
 				}
 
-				const otherSavers = await countOtherSaversByUrl({
-					url: detail.url,
-					excludeUserId: detail.userId,
-				});
-				if (otherSavers > 0) {
-					/* The single tier-0 slot held the remover's capture and there is no
-					 * tier-1: co-savers would be left contentless, so re-crawl the
-					 * public URL for them instead of purging. */
+				const savers = await countSaversByUrl(detail.url);
+				if (savers > 0) {
+					/* Nothing is left to select from, but somebody — the remover
+					 * included, since a version delete leaves their queue row — still
+					 * holds this URL, so re-crawl the public page rather than purging it
+					 * out from under them. */
 					await publishEvent(RecrawlLinkInitiatedEvent, { url: detail.url });
 					logger.info("[RemoveMyContent] re-crawling for remaining savers", {
 						url: detail.url,
-						otherSavers,
+						savers,
 					});
 					continue;
 				}

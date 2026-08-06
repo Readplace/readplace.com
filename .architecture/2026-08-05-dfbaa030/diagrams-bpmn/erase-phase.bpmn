@@ -1,0 +1,221 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<bpmn:definitions xmlns:bpmn="http://www.omg.org/spec/BPMN/20100524/MODEL" xmlns:bpmndi="http://www.omg.org/spec/BPMN/20100524/DI" xmlns:dc="http://www.omg.org/spec/DD/20100524/DC" xmlns:di="http://www.omg.org/spec/DD/20100524/DI" id="Definitions_erase_phase" targetNamespace="http://readplace.com/architecture/bpmn">
+  <bpmn:process id="Process_erase_phase" name="erase-phase" isExecutable="false">
+    <bpmn:intermediateCatchEvent id="n_Q" name="remove-my-content-command queue visibility 60s">
+      <bpmn:outgoing>f_0</bpmn:outgoing>
+      <bpmn:messageEventDefinition />
+    </bpmn:intermediateCatchEvent>
+    <bpmn:serviceTask id="n_L" name="remove-my-content-command Lambda 256 MB / 60 s / batchSize 1">
+      <bpmn:incoming>f_0</bpmn:incoming>
+      <bpmn:outgoing>f_1</bpmn:outgoing>
+    </bpmn:serviceTask>
+    <bpmn:exclusiveGateway id="n_Parse" name="RemoveMyContentCommand.detailSchema.parse versionMinuteId now REQUIRED">
+      <bpmn:incoming>f_1</bpmn:incoming>
+      <bpmn:outgoing>f_2</bpmn:outgoing>
+      <bpmn:outgoing>f_4</bpmn:outgoing>
+    </bpmn:exclusiveGateway>
+    <bpmn:serviceTask id="n_Fail" name="batchItemFailures + logger.error">
+      <bpmn:incoming>f_2</bpmn:incoming>
+      <bpmn:outgoing>f_3</bpmn:outgoing>
+    </bpmn:serviceTask>
+    <bpmn:endEvent id="n_D" name="remove-my-content-command DLQ alarm + SNS email, NO consumer">
+      <bpmn:incoming>f_3</bpmn:incoming>
+      <bpmn:errorEventDefinition />
+    </bpmn:endEvent>
+    <bpmn:serviceTask id="n_Res" name="resolveAuthoredContentKeys url, userId, versionMinuteId">
+      <bpmn:incoming>f_4</bpmn:incoming>
+    </bpmn:serviceTask>
+    <bpmn:dataStoreReference id="n_Rows" name="articles row, projection crawlVersions"></bpmn:dataStoreReference>
+    <bpmn:serviceTask id="n_All" name="allAuthored = entries where authorUserId = userId named = allAuthored where minuteId = versionMinuteId">
+      <bpmn:outgoing>f_7</bpmn:outgoing>
+      <bpmn:outgoing>f_8</bpmn:outgoing>
+    </bpmn:serviceTask>
+    <bpmn:serviceTask id="n_Keys" name="objectKeys = version snapshot key per named entry pruneMinuteIds = their minute ids">
+      <bpmn:incoming>f_7</bpmn:incoming>
+      <bpmn:incoming>f_9</bpmn:incoming>
+      <bpmn:incoming>f_13</bpmn:incoming>
+      <bpmn:incoming>f_14</bpmn:incoming>
+    </bpmn:serviceTask>
+    <bpmn:exclusiveGateway id="n_Last" name="LAST authored snapshot? allAuthored.length = 1 AND named.length = 1">
+      <bpmn:incoming>f_8</bpmn:incoming>
+      <bpmn:outgoing>f_9</bpmn:outgoing>
+    </bpmn:exclusiveGateway>
+    <bpmn:dataStoreReference id="n_Sidecar" name="GET sources/tier-0.json sidecar NoSuchKey or malformed JSON -&gt; treat as unauthored, never throw"></bpmn:dataStoreReference>
+    <bpmn:serviceTask id="n_Cred" name="sidecar authorUserId = userId?">
+      <bpmn:outgoing>f_12</bpmn:outgoing>
+      <bpmn:outgoing>f_13</bpmn:outgoing>
+    </bpmn:serviceTask>
+    <bpmn:task id="n_Add" name="append tier-0 source object + tier-0 metadata sidecar to objectKeys">
+      <bpmn:incoming>f_12</bpmn:incoming>
+      <bpmn:outgoing>f_14</bpmn:outgoing>
+    </bpmn:task>
+    <bpmn:dataStoreReference id="n_Del" name="deleteContentObjects S3 DeleteObjects, 1000-key batches empty list issues no request"></bpmn:dataStoreReference>
+    <bpmn:dataStoreReference id="n_Prune" name="pruneCrawlVersions read + CAS UpdateItem on crawlVersions already-absent ids are a no-op"></bpmn:dataStoreReference>
+    <bpmn:serviceTask id="n_Log" name="logger.info authored objects removed url, objectCount">
+      <bpmn:outgoing>f_18</bpmn:outgoing>
+    </bpmn:serviceTask>
+    <bpmn:serviceTask id="n_Next" name="-&gt; repair phase, section 3">
+      <bpmn:incoming>f_18</bpmn:incoming>
+    </bpmn:serviceTask>
+    <bpmn:sequenceFlow id="f_0" name="" sourceRef="n_Q" targetRef="n_L" />
+    <bpmn:sequenceFlow id="f_1" name="" sourceRef="n_L" targetRef="n_Parse" />
+    <bpmn:sequenceFlow id="f_2" name="throws" sourceRef="n_Parse" targetRef="n_Fail" />
+    <bpmn:sequenceFlow id="f_3" name="" sourceRef="n_Fail" targetRef="n_D" />
+    <bpmn:sequenceFlow id="f_4" name="ok" sourceRef="n_Parse" targetRef="n_Res" />
+    <bpmn:sequenceFlow id="f_7" name="" sourceRef="n_All" targetRef="n_Keys" />
+    <bpmn:sequenceFlow id="f_8" name="" sourceRef="n_All" targetRef="n_Last" />
+    <bpmn:sequenceFlow id="f_9" name="no" sourceRef="n_Last" targetRef="n_Keys" />
+    <bpmn:sequenceFlow id="f_12" name="yes" sourceRef="n_Cred" targetRef="n_Add" />
+    <bpmn:sequenceFlow id="f_13" name="no" sourceRef="n_Cred" targetRef="n_Keys" />
+    <bpmn:sequenceFlow id="f_14" name="" sourceRef="n_Add" targetRef="n_Keys" />
+    <bpmn:sequenceFlow id="f_18" name="" sourceRef="n_Log" targetRef="n_Next" />
+    <bpmn:association id="f_5" sourceRef="n_Res" targetRef="n_Rows" associationDirection="One" />
+    <bpmn:association id="f_6" sourceRef="n_Rows" targetRef="n_All" associationDirection="One" />
+    <bpmn:association id="f_10" sourceRef="n_Last" targetRef="n_Sidecar" associationDirection="One" />
+    <bpmn:association id="f_11" sourceRef="n_Sidecar" targetRef="n_Cred" associationDirection="One" />
+    <bpmn:association id="f_15" sourceRef="n_Keys" targetRef="n_Del" associationDirection="One" />
+    <bpmn:association id="f_16" sourceRef="n_Del" targetRef="n_Prune" associationDirection="One" />
+    <bpmn:association id="f_17" sourceRef="n_Prune" targetRef="n_Log" associationDirection="One" />
+  </bpmn:process>
+  <bpmndi:BPMNDiagram id="Diagram_erase_phase">
+    <bpmndi:BPMNPlane id="Plane_erase_phase" bpmnElement="Process_erase_phase">
+      <bpmndi:BPMNShape id="n_Q_di" bpmnElement="n_Q">
+        <dc:Bounds x="206.5" y="28" width="40" height="40" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="n_L_di" bpmnElement="n_L">
+        <dc:Bounds x="127.5" y="171.5" width="198" height="84" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="n_Parse_di" bpmnElement="n_Parse">
+        <dc:Bounds x="183.5" y="313.5" width="86" height="86" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="n_Fail_di" bpmnElement="n_Fail">
+        <dc:Bounds x="28" y="533.5" width="158.25" height="52" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="n_D_di" bpmnElement="n_D">
+        <dc:Bounds x="110.07" y="659.5" width="40" height="40" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="n_Res_di" bpmnElement="n_Res">
+        <dc:Bounds x="222.25" y="517.5" width="202.75" height="84" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="n_Rows_di" bpmnElement="n_Rows">
+        <dc:Bounds x="236.69" y="669.5" width="156.86" height="48" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="n_All_di" bpmnElement="n_All">
+        <dc:Bounds x="127.63" y="816.5" width="197.75" height="116" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="n_Keys_di" bpmnElement="n_Keys">
+        <dc:Bounds x="138.38" y="1594" width="176.25" height="100" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="n_Last_di" bpmnElement="n_Last">
+        <dc:Bounds x="183.5" y="990.5" width="86" height="86" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="n_Sidecar_di" bpmnElement="n_Sidecar">
+        <dc:Bounds x="131.5" y="1180.5" width="190" height="48" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="n_Cred_di" bpmnElement="n_Cred">
+        <dc:Bounds x="139.13" y="1358" width="174.75" height="52" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="n_Add_di" bpmnElement="n_Add">
+        <dc:Bounds x="125.12" y="1468" width="202.75" height="68" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="n_Del_di" bpmnElement="n_Del">
+        <dc:Bounds x="135.75" y="1752" width="181.5" height="48" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="n_Prune_di" bpmnElement="n_Prune">
+        <dc:Bounds x="131.5" y="1916" width="190" height="48" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="n_Log_di" bpmnElement="n_Log">
+        <dc:Bounds x="149" y="2080" width="155" height="68" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="n_Next_di" bpmnElement="n_Next">
+        <dc:Bounds x="131.38" y="2206" width="190.25" height="48" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNEdge id="f_0_di" bpmnElement="f_0">
+        <di:waypoint x="226.5" y="68" />
+        <di:waypoint x="226.5" y="171.5" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="f_1_di" bpmnElement="f_1">
+        <di:waypoint x="226.5" y="255.5" />
+        <di:waypoint x="226.5" y="313.5" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="f_2_di" bpmnElement="f_2">
+        <di:waypoint x="226.5" y="399.5" />
+        <di:waypoint x="226.5" y="466.5" />
+        <di:waypoint x="107.13" y="466.5" />
+        <di:waypoint x="107.13" y="533.5" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="f_3_di" bpmnElement="f_3">
+        <di:waypoint x="107.13" y="585.5" />
+        <di:waypoint x="107.13" y="622.5" />
+        <di:waypoint x="130.07" y="622.5" />
+        <di:waypoint x="130.07" y="659.5" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="f_4_di" bpmnElement="f_4">
+        <di:waypoint x="226.5" y="399.5" />
+        <di:waypoint x="226.5" y="458.5" />
+        <di:waypoint x="323.63" y="458.5" />
+        <di:waypoint x="323.63" y="517.5" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="f_7_di" bpmnElement="f_7">
+        <di:waypoint x="226.5" y="932.5" />
+        <di:waypoint x="226.5" y="1594" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="f_8_di" bpmnElement="f_8">
+        <di:waypoint x="226.5" y="932.5" />
+        <di:waypoint x="226.5" y="990.5" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="f_9_di" bpmnElement="f_9">
+        <di:waypoint x="226.5" y="1076.5" />
+        <di:waypoint x="226.5" y="1594" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="f_12_di" bpmnElement="f_12">
+        <di:waypoint x="226.5" y="1410" />
+        <di:waypoint x="226.5" y="1468" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="f_13_di" bpmnElement="f_13">
+        <di:waypoint x="226.5" y="1410" />
+        <di:waypoint x="226.5" y="1594" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="f_14_di" bpmnElement="f_14">
+        <di:waypoint x="226.5" y="1536" />
+        <di:waypoint x="226.5" y="1594" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="f_18_di" bpmnElement="f_18">
+        <di:waypoint x="226.5" y="2148" />
+        <di:waypoint x="226.5" y="2206" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="f_5_di" bpmnElement="f_5">
+        <di:waypoint x="323.63" y="601.5" />
+        <di:waypoint x="323.63" y="635.5" />
+        <di:waypoint x="315.12" y="635.5" />
+        <di:waypoint x="315.12" y="669.5" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="f_6_di" bpmnElement="f_6">
+        <di:waypoint x="315.12" y="717.5" />
+        <di:waypoint x="315.12" y="767" />
+        <di:waypoint x="226.5" y="767" />
+        <di:waypoint x="226.5" y="816.5" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="f_10_di" bpmnElement="f_10">
+        <di:waypoint x="226.5" y="1076.5" />
+        <di:waypoint x="226.5" y="1180.5" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="f_11_di" bpmnElement="f_11">
+        <di:waypoint x="226.5" y="1228.5" />
+        <di:waypoint x="226.5" y="1358" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="f_15_di" bpmnElement="f_15">
+        <di:waypoint x="226.5" y="1694" />
+        <di:waypoint x="226.5" y="1752" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="f_16_di" bpmnElement="f_16">
+        <di:waypoint x="226.5" y="1800" />
+        <di:waypoint x="226.5" y="1916" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="f_17_di" bpmnElement="f_17">
+        <di:waypoint x="226.5" y="1964" />
+        <di:waypoint x="226.5" y="2080" />
+      </bpmndi:BPMNEdge>
+    </bpmndi:BPMNPlane>
+  </bpmndi:BPMNDiagram>
+</bpmn:definitions>

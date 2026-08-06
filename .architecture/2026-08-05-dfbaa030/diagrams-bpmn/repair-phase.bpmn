@@ -1,0 +1,200 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<bpmn:definitions xmlns:bpmn="http://www.omg.org/spec/BPMN/20100524/MODEL" xmlns:bpmndi="http://www.omg.org/spec/BPMN/20100524/DI" xmlns:dc="http://www.omg.org/spec/DD/20100524/DC" xmlns:di="http://www.omg.org/spec/DD/20100524/DI" id="Definitions_repair_phase" targetNamespace="http://readplace.com/architecture/bpmn">
+  <bpmn:process id="Process_repair_phase" name="repair-phase" isExecutable="false">
+    <bpmn:serviceTask id="n_In" name="erase phase complete objects deleted, log pruned"></bpmn:serviceTask>
+    <bpmn:dataStoreReference id="n_T" name="findContentSourceTier url articles row, projection contentSourceTier"></bpmn:dataStoreReference>
+    <bpmn:exclusiveGateway id="n_G1" name="canonicalTier defined?">
+      <bpmn:outgoing>f_2</bpmn:outgoing>
+    </bpmn:exclusiveGateway>
+    <bpmn:serviceTask id="n_Stop1" name="continue — record acked, no repair">
+      <bpmn:incoming>f_2</bpmn:incoming>
+    </bpmn:serviceTask>
+    <bpmn:dataStoreReference id="n_LS" name="listAvailableTierSources url S3 GET html + sidecar for each known tier partial or malformed pair reads as absent"></bpmn:dataStoreReference>
+    <bpmn:exclusiveGateway id="n_G2" name="remaining still contains canonicalTier?">
+      <bpmn:outgoing>f_5</bpmn:outgoing>
+      <bpmn:outgoing>f_6</bpmn:outgoing>
+    </bpmn:exclusiveGateway>
+    <bpmn:serviceTask id="n_Stop2" name="continue — record acked, no repair">
+      <bpmn:incoming>f_5</bpmn:incoming>
+    </bpmn:serviceTask>
+    <bpmn:serviceTask id="n_G3" name="remaining.length &gt; 0?">
+      <bpmn:incoming>f_6</bpmn:incoming>
+      <bpmn:outgoing>f_7</bpmn:outgoing>
+      <bpmn:outgoing>f_8</bpmn:outgoing>
+    </bpmn:serviceTask>
+    <bpmn:endEvent id="n_E1" name="ReselectAfterRemovalEvent source hutch.save-link detail: url">
+      <bpmn:incoming>f_7</bpmn:incoming>
+      <bpmn:messageEventDefinition />
+    </bpmn:endEvent>
+    <bpmn:serviceTask id="n_CS" name="countSaversByUrl url url-index GSI, Select COUNT, paginated counts ALL savers, remover INCLUDED">
+      <bpmn:incoming>f_8</bpmn:incoming>
+      <bpmn:outgoing>f_9</bpmn:outgoing>
+      <bpmn:outgoing>f_14</bpmn:outgoing>
+    </bpmn:serviceTask>
+    <bpmn:serviceTask id="n_G4" name="savers &gt; 0?">
+      <bpmn:incoming>f_9</bpmn:incoming>
+      <bpmn:outgoing>f_10</bpmn:outgoing>
+    </bpmn:serviceTask>
+    <bpmn:endEvent id="n_E2" name="RecrawlLinkInitiatedEvent source hutch.api detail: url">
+      <bpmn:incoming>f_10</bpmn:incoming>
+      <bpmn:messageEventDefinition />
+    </bpmn:endEvent>
+    <bpmn:dataStoreReference id="n_Purge" name="purgeArticleContent url list + delete canonical body, rehosted images, every tier source + sidecar, every version snapshot CDN edge copies may outlive it ~24h, no invalidation"></bpmn:dataStoreReference>
+    <bpmn:dataStoreReference id="n_Tomb" name="tombstoneArticle url, now set-once purgedAt, crawl=ready, summary=skipped content-purged, title/siteName re-stubbed to hostname REMOVE every content-bearing column row itself survives so ids resolve to 'removed'"></bpmn:dataStoreReference>
+    <bpmn:serviceTask id="n_Term" name="TERMINAL — no event published"></bpmn:serviceTask>
+    <bpmn:task id="n_Why" name="Why ALL savers, not others: a version delete leaves the remover's queue row. Excluding them would purge + tombstone an article they still own — and reader-permalink's invariant is 'a tombstone can't coexist with an owning row'.">
+      <bpmn:incoming>f_14</bpmn:incoming>
+    </bpmn:task>
+    <bpmn:sequenceFlow id="f_2" name="no — never promoted, already tombstoned, or legacy" sourceRef="n_G1" targetRef="n_Stop1" />
+    <bpmn:sequenceFlow id="f_5" name="yes — canonical body still backed" sourceRef="n_G2" targetRef="n_Stop2" />
+    <bpmn:sequenceFlow id="f_6" name="no" sourceRef="n_G2" targetRef="n_G3" />
+    <bpmn:sequenceFlow id="f_7" name="yes" sourceRef="n_G3" targetRef="n_E1" />
+    <bpmn:sequenceFlow id="f_8" name="no" sourceRef="n_G3" targetRef="n_CS" />
+    <bpmn:sequenceFlow id="f_9" name="" sourceRef="n_CS" targetRef="n_G4" />
+    <bpmn:sequenceFlow id="f_10" name="yes" sourceRef="n_G4" targetRef="n_E2" />
+    <bpmn:sequenceFlow id="f_14" name="" sourceRef="n_CS" targetRef="n_Why" />
+    <bpmn:association id="f_0" sourceRef="n_In" targetRef="n_T" associationDirection="One" />
+    <bpmn:association id="f_1" sourceRef="n_T" targetRef="n_G1" associationDirection="One" />
+    <bpmn:association id="f_3" sourceRef="n_G1" targetRef="n_LS" associationDirection="One" />
+    <bpmn:association id="f_4" sourceRef="n_LS" targetRef="n_G2" associationDirection="One" />
+    <bpmn:association id="f_11" sourceRef="n_G4" targetRef="n_Purge" associationDirection="One" />
+    <bpmn:association id="f_12" sourceRef="n_Purge" targetRef="n_Tomb" associationDirection="One" />
+    <bpmn:association id="f_13" sourceRef="n_Tomb" targetRef="n_Term" associationDirection="One" />
+  </bpmn:process>
+  <bpmndi:BPMNDiagram id="Diagram_repair_phase">
+    <bpmndi:BPMNPlane id="Plane_repair_phase" bpmnElement="Process_repair_phase">
+      <bpmndi:BPMNShape id="n_In_di" bpmnElement="n_In">
+        <dc:Bounds x="133.25" y="28" width="195.75" height="52" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="n_T_di" bpmnElement="n_T">
+        <dc:Bounds x="145.99" y="138" width="170.28" height="48" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="n_G1_di" bpmnElement="n_G1">
+        <dc:Bounds x="188.13" y="288.5" width="86" height="86" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="n_Stop1_di" bpmnElement="n_Stop1">
+        <dc:Bounds x="28" y="484.25" width="180.25" height="52" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="n_LS_di" bpmnElement="n_LS">
+        <dc:Bounds x="244.25" y="450.5" width="190" height="48" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="n_G2_di" bpmnElement="n_G2">
+        <dc:Bounds x="188.13" y="628" width="86" height="86" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="n_Stop2_di" bpmnElement="n_Stop2">
+        <dc:Bounds x="41.75" y="804" width="180.25" height="52" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="n_G3_di" bpmnElement="n_G3">
+        <dc:Bounds x="258" y="806" width="162.5" height="48" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="n_E1_di" bpmnElement="n_E1">
+        <dc:Bounds x="111.88" y="914.5" width="40" height="40" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="n_CS_di" bpmnElement="n_CS">
+        <dc:Bounds x="240.92" y="914" width="162.5" height="100" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="n_G4_di" bpmnElement="n_G4">
+        <dc:Bounds x="60.13" y="1146" width="104" height="48" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="n_E2_di" bpmnElement="n_E2">
+        <dc:Bounds x="98.13" y="1349.75" width="40" height="40" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="n_Purge_di" bpmnElement="n_Purge">
+        <dc:Bounds x="227.83" y="1326" width="190" height="48" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="n_Tomb_di" bpmnElement="n_Tomb">
+        <dc:Bounds x="136.13" y="1530.5" width="190" height="48" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="n_Term_di" bpmnElement="n_Term">
+        <dc:Bounds x="148.25" y="1775.5" width="165.75" height="52" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="n_Why_di" bpmnElement="n_Why">
+        <dc:Bounds x="200.13" y="1072" width="202" height="196" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNEdge id="f_2_di" bpmnElement="f_2">
+        <di:waypoint x="231.13" y="374.5" />
+        <di:waypoint x="231.13" y="429.38" />
+        <di:waypoint x="118.13" y="429.38" />
+        <di:waypoint x="118.13" y="484.25" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="f_5_di" bpmnElement="f_5">
+        <di:waypoint x="231.13" y="714" />
+        <di:waypoint x="231.13" y="759" />
+        <di:waypoint x="131.88" y="759" />
+        <di:waypoint x="131.88" y="804" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="f_6_di" bpmnElement="f_6">
+        <di:waypoint x="231.13" y="714" />
+        <di:waypoint x="231.13" y="760" />
+        <di:waypoint x="339.25" y="760" />
+        <di:waypoint x="339.25" y="806" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="f_7_di" bpmnElement="f_7">
+        <di:waypoint x="339.25" y="854" />
+        <di:waypoint x="339.25" y="884.25" />
+        <di:waypoint x="131.88" y="884.25" />
+        <di:waypoint x="131.88" y="914.5" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="f_8_di" bpmnElement="f_8">
+        <di:waypoint x="339.25" y="854" />
+        <di:waypoint x="339.25" y="884" />
+        <di:waypoint x="322.16" y="884" />
+        <di:waypoint x="322.16" y="914" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="f_9_di" bpmnElement="f_9">
+        <di:waypoint x="322.16" y="1014" />
+        <di:waypoint x="322.16" y="1080" />
+        <di:waypoint x="112.13" y="1080" />
+        <di:waypoint x="112.13" y="1146" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="f_10_di" bpmnElement="f_10">
+        <di:waypoint x="112.13" y="1194" />
+        <di:waypoint x="112.13" y="1271.88" />
+        <di:waypoint x="118.13" y="1271.88" />
+        <di:waypoint x="118.13" y="1349.75" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="f_14_di" bpmnElement="f_14">
+        <di:waypoint x="322.16" y="1014" />
+        <di:waypoint x="322.16" y="1043" />
+        <di:waypoint x="301.13" y="1043" />
+        <di:waypoint x="301.13" y="1072" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="f_0_di" bpmnElement="f_0">
+        <di:waypoint x="231.13" y="80" />
+        <di:waypoint x="231.13" y="138" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="f_1_di" bpmnElement="f_1">
+        <di:waypoint x="231.13" y="186" />
+        <di:waypoint x="231.13" y="288.5" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="f_3_di" bpmnElement="f_3">
+        <di:waypoint x="231.13" y="374.5" />
+        <di:waypoint x="231.13" y="412.5" />
+        <di:waypoint x="339.25" y="412.5" />
+        <di:waypoint x="339.25" y="450.5" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="f_4_di" bpmnElement="f_4">
+        <di:waypoint x="339.25" y="498.5" />
+        <di:waypoint x="339.25" y="563.25" />
+        <di:waypoint x="231.13" y="563.25" />
+        <di:waypoint x="231.13" y="628" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="f_11_di" bpmnElement="f_11">
+        <di:waypoint x="112.13" y="1194" />
+        <di:waypoint x="112.13" y="1260" />
+        <di:waypoint x="322.83" y="1260" />
+        <di:waypoint x="322.83" y="1326" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="f_12_di" bpmnElement="f_12">
+        <di:waypoint x="322.83" y="1374" />
+        <di:waypoint x="322.83" y="1452.25" />
+        <di:waypoint x="231.13" y="1452.25" />
+        <di:waypoint x="231.13" y="1530.5" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="f_13_di" bpmnElement="f_13">
+        <di:waypoint x="231.13" y="1578.5" />
+        <di:waypoint x="231.13" y="1775.5" />
+      </bpmndi:BPMNEdge>
+    </bpmndi:BPMNPlane>
+  </bpmndi:BPMNDiagram>
+</bpmn:definitions>

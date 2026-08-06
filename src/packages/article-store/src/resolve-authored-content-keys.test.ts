@@ -52,6 +52,13 @@ const TABLE = "articles";
 const BUCKET = "content-bucket";
 const URL = "https://example.com/post";
 const ENCODED = "example.com%2Fpost";
+const ONLY_AUTHORED = "2026-07-10T09:41Z";
+const ONLY_AUTHORED_KEY = `content-versions/${ENCODED}/2026-07-10T09-41Z/content.html`;
+const lastAuthoredRequest = {
+	url: URL,
+	userId: "user-1",
+	versionMinuteId: ONLY_AUTHORED,
+};
 
 function createResolver(opts: {
 	crawlVersions?: unknown[];
@@ -69,7 +76,7 @@ function createResolver(opts: {
 }
 
 describe("initResolveAuthoredContentKeys", () => {
-	it("whole-copy scope: resolves the authored snapshots plus the authored tier-0 pair", async () => {
+	it("the last snapshot a user authored takes their tier-0 capture and its sidecar with it", async () => {
 		const s3Inputs: Record<string, unknown>[] = [];
 		const { resolveAuthoredContentKeys } = createResolver({
 			crawlVersions: [
@@ -81,7 +88,11 @@ describe("initResolveAuthoredContentKeys", () => {
 			captureS3: (input) => s3Inputs.push(input),
 		});
 
-		const resolved = await resolveAuthoredContentKeys({ url: URL, userId: "user-1" });
+		const resolved = await resolveAuthoredContentKeys({
+			url: URL,
+			userId: "user-1",
+			versionMinuteId: "2026-07-10T09:41Z",
+		});
 
 		expect(resolved.objectKeys).toEqual([
 			`content-versions/${ENCODED}/2026-07-10T09-41Z/content.html`,
@@ -94,24 +105,16 @@ describe("initResolveAuthoredContentKeys", () => {
 		]);
 	});
 
-	it("whole-copy scope: keeps another user's tier-0 capture and legacy authorless snapshots", async () => {
-		const { resolveAuthoredContentKeys } = createResolver({
-			crawlVersions: ["2026-03-26T14:32Z"],
-			sidecar: { body: JSON.stringify({ authorUserId: "user-2" }) },
-		});
-
-		const resolved = await resolveAuthoredContentKeys({ url: URL, userId: "user-1" });
-
-		expect(resolved).toEqual({ objectKeys: [], pruneMinuteIds: [] });
-	});
-
-	it("version scope: resolves only the named snapshot when the viewer authored it, never the tier-0 pair", async () => {
+	it("one of several authored snapshots resolves alone, leaving the capture its siblings still need", async () => {
+		const s3Inputs: Record<string, unknown>[] = [];
 		const { resolveAuthoredContentKeys } = createResolver({
 			crawlVersions: [
 				{ minuteId: "2026-07-10T09:41Z", authorUserId: "user-1" },
 				{ minuteId: "2026-06-28T22:01Z", authorUserId: "user-1" },
+				{ minuteId: "2026-03-26T14:32Z", authorUserId: "user-1" },
 			],
 			sidecar: { body: JSON.stringify({ authorUserId: "user-1" }) },
+			captureS3: (input) => s3Inputs.push(input),
 		});
 
 		const resolved = await resolveAuthoredContentKeys({
@@ -124,11 +127,29 @@ describe("initResolveAuthoredContentKeys", () => {
 			`content-versions/${ENCODED}/2026-06-28T22-01Z/content.html`,
 		]);
 		expect(resolved.pruneMinuteIds).toEqual(["2026-06-28T22:01Z"]);
+		expect(s3Inputs).toEqual([]);
 	});
 
-	it("version scope: a snapshot someone else authored resolves to nothing", async () => {
+	it("keeps the capture when the sole authored snapshot is not the one named", async () => {
+		const s3Inputs: Record<string, unknown>[] = [];
 		const { resolveAuthoredContentKeys } = createResolver({
-			crawlVersions: [{ minuteId: "2026-07-10T09:41Z", authorUserId: "user-2" }],
+			crawlVersions: [
+				{ minuteId: "2026-06-28T22:01Z", authorUserId: "user-1" },
+				{ minuteId: ONLY_AUTHORED, authorUserId: "user-2" },
+			],
+			sidecar: { body: JSON.stringify({ authorUserId: "user-1" }) },
+			captureS3: (input) => s3Inputs.push(input),
+		});
+
+		const resolved = await resolveAuthoredContentKeys(lastAuthoredRequest);
+
+		expect(resolved).toEqual({ objectKeys: [], pruneMinuteIds: [] });
+		expect(s3Inputs).toEqual([]);
+	});
+
+	it("keeps a tier-0 capture the sidecar credits to someone else", async () => {
+		const { resolveAuthoredContentKeys } = createResolver({
+			crawlVersions: [{ minuteId: "2026-07-10T09:41Z", authorUserId: "user-1" }],
 			sidecar: { body: JSON.stringify({ authorUserId: "user-2" }) },
 		});
 
@@ -138,29 +159,71 @@ describe("initResolveAuthoredContentKeys", () => {
 			versionMinuteId: "2026-07-10T09:41Z",
 		});
 
+		expect(resolved.objectKeys).toEqual([
+			`content-versions/${ENCODED}/2026-07-10T09-41Z/content.html`,
+		]);
+		expect(resolved.pruneMinuteIds).toEqual(["2026-07-10T09:41Z"]);
+	});
+
+	it("a snapshot someone else authored resolves to nothing and never reads the sidecar", async () => {
+		const s3Inputs: Record<string, unknown>[] = [];
+		const { resolveAuthoredContentKeys } = createResolver({
+			crawlVersions: [{ minuteId: "2026-07-10T09:41Z", authorUserId: "user-2" }],
+			sidecar: { body: JSON.stringify({ authorUserId: "user-1" }) },
+			captureS3: (input) => s3Inputs.push(input),
+		});
+
+		const resolved = await resolveAuthoredContentKeys({
+			url: URL,
+			userId: "user-1",
+			versionMinuteId: "2026-07-10T09:41Z",
+		});
+
+		expect(resolved).toEqual({ objectKeys: [], pruneMinuteIds: [] });
+		expect(s3Inputs).toEqual([]);
+	});
+
+	it("counts only attributed entries as the user's, so a legacy authorless log leaves the capture", async () => {
+		const { resolveAuthoredContentKeys } = createResolver({
+			crawlVersions: ["2026-03-26T14:32Z"],
+			sidecar: { body: JSON.stringify({ authorUserId: "user-1" }) },
+		});
+
+		const resolved = await resolveAuthoredContentKeys({
+			url: URL,
+			userId: "user-1",
+			versionMinuteId: "2026-03-26T14:32Z",
+		});
+
 		expect(resolved).toEqual({ objectKeys: [], pruneMinuteIds: [] });
 	});
 
 	it("treats a missing tier-0 sidecar as unauthored", async () => {
 		const { resolveAuthoredContentKeys } = createResolver({
-			crawlVersions: [],
+			crawlVersions: [{ minuteId: ONLY_AUTHORED, authorUserId: "user-1" }],
 			sidecar: "missing",
 		});
 
-		const resolved = await resolveAuthoredContentKeys({ url: URL, userId: "user-1" });
+		const resolved = await resolveAuthoredContentKeys(lastAuthoredRequest);
 
-		expect(resolved).toEqual({ objectKeys: [], pruneMinuteIds: [] });
+		expect(resolved).toEqual({
+			objectKeys: [ONLY_AUTHORED_KEY],
+			pruneMinuteIds: [ONLY_AUTHORED],
+		});
 	});
 
 	it("treats a sidecar with a non-string author field as unauthored", async () => {
 		const { resolveAuthoredContentKeys } = createResolver({
-			crawlVersions: [],
+			crawlVersions: [{ minuteId: ONLY_AUTHORED, authorUserId: "user-1" }],
 			sidecar: { body: JSON.stringify({ authorUserId: 42 }) },
 		});
 
-		const resolved = await resolveAuthoredContentKeys({ url: URL, userId: "user-1" });
+		const resolved = await resolveAuthoredContentKeys(lastAuthoredRequest);
 
-		expect(resolved).toEqual({ objectKeys: [], pruneMinuteIds: [] });
+		expect(resolved).toEqual({
+			objectKeys: [ONLY_AUTHORED_KEY],
+			pruneMinuteIds: [ONLY_AUTHORED],
+		});
 	});
 
 	it("resolves nothing for a row with no crawlVersions attribute", async () => {
@@ -168,52 +231,61 @@ describe("initResolveAuthoredContentKeys", () => {
 			sidecar: "missing",
 		});
 
-		const resolved = await resolveAuthoredContentKeys({ url: URL, userId: "user-1" });
+		const resolved = await resolveAuthoredContentKeys(lastAuthoredRequest);
 
 		expect(resolved).toEqual({ objectKeys: [], pruneMinuteIds: [] });
 	});
 
 	it("treats S3's alternate NoSuchKey encoding (S3ServiceException) as a missing sidecar", async () => {
 		const { resolveAuthoredContentKeys } = createResolver({
-			crawlVersions: [],
+			crawlVersions: [{ minuteId: ONLY_AUTHORED, authorUserId: "user-1" }],
 			sidecar: "missing-as-service-exception",
 		});
 
-		const resolved = await resolveAuthoredContentKeys({ url: URL, userId: "user-1" });
+		const resolved = await resolveAuthoredContentKeys(lastAuthoredRequest);
 
-		expect(resolved).toEqual({ objectKeys: [], pruneMinuteIds: [] });
+		expect(resolved).toEqual({
+			objectKeys: [ONLY_AUTHORED_KEY],
+			pruneMinuteIds: [ONLY_AUTHORED],
+		});
 	});
 
 	it("treats a sidecar response without a body as unauthored", async () => {
 		const { resolveAuthoredContentKeys } = createResolver({
-			crawlVersions: [],
+			crawlVersions: [{ minuteId: ONLY_AUTHORED, authorUserId: "user-1" }],
 			sidecar: "empty-body",
 		});
 
-		const resolved = await resolveAuthoredContentKeys({ url: URL, userId: "user-1" });
+		const resolved = await resolveAuthoredContentKeys(lastAuthoredRequest);
 
-		expect(resolved).toEqual({ objectKeys: [], pruneMinuteIds: [] });
+		expect(resolved).toEqual({
+			objectKeys: [ONLY_AUTHORED_KEY],
+			pruneMinuteIds: [ONLY_AUTHORED],
+		});
 	});
 
 	it("treats a sidecar holding malformed JSON as unauthored instead of redelivering forever", async () => {
 		const { resolveAuthoredContentKeys } = createResolver({
-			crawlVersions: [],
+			crawlVersions: [{ minuteId: ONLY_AUTHORED, authorUserId: "user-1" }],
 			sidecar: { body: "{truncated" },
 		});
 
-		const resolved = await resolveAuthoredContentKeys({ url: URL, userId: "user-1" });
+		const resolved = await resolveAuthoredContentKeys(lastAuthoredRequest);
 
-		expect(resolved).toEqual({ objectKeys: [], pruneMinuteIds: [] });
+		expect(resolved).toEqual({
+			objectKeys: [ONLY_AUTHORED_KEY],
+			pruneMinuteIds: [ONLY_AUTHORED],
+		});
 	});
 
 	it("rethrows genuine S3 failures so the command redelivers", async () => {
 		const { resolveAuthoredContentKeys } = createResolver({
-			crawlVersions: [],
+			crawlVersions: [{ minuteId: ONLY_AUTHORED, authorUserId: "user-1" }],
 			sidecar: { failure: new Error("access denied") },
 		});
 
-		await expect(
-			resolveAuthoredContentKeys({ url: URL, userId: "user-1" }),
-		).rejects.toThrow("access denied");
+		await expect(resolveAuthoredContentKeys(lastAuthoredRequest)).rejects.toThrow(
+			"access denied",
+		);
 	});
 });

@@ -1,7 +1,6 @@
 import { noopLogger } from "@packages/hutch-logger";
 import {
 	RecrawlLinkInitiatedEvent,
-	RemoveMyContentCommand,
 	ReselectAfterRemovalEvent,
 } from "@packages/hutch-infra-components";
 import type { SQSEvent, SQSRecordAttributes } from "aws-lambda";
@@ -59,8 +58,9 @@ function createHandler(overrides: Partial<HandlerDeps> = {}) {
 		}),
 		deleteContentObjects: jest.fn().mockResolvedValue(undefined),
 		pruneCrawlVersions: jest.fn().mockResolvedValue(undefined),
+		findContentSourceTier: jest.fn().mockResolvedValue("tier-0"),
 		listAvailableTierSources: jest.fn().mockResolvedValue([]),
-		countOtherSaversByUrl: jest.fn().mockResolvedValue(0),
+		countSaversByUrl: jest.fn().mockResolvedValue(0),
 		purgeArticleContent: jest.fn().mockResolvedValue(undefined),
 		tombstoneArticle: jest.fn().mockResolvedValue(undefined),
 		publishEvent: jest.fn().mockResolvedValue(undefined),
@@ -71,98 +71,133 @@ function createHandler(overrides: Partial<HandlerDeps> = {}) {
 	return { handler: initRemoveMyContentCommandHandler(deps), deps };
 }
 
-describe("initRemoveMyContentCommandHandler", () => {
-	it("version scope: deletes the authored snapshot, prunes the log, and leaves the canonical alone", async () => {
-		const { handler, deps } = createHandler();
+const MINUTE_ID = "2026-07-10T09:41Z";
+const removalOf = (versionMinuteId: string = MINUTE_ID) =>
+	createSqsEvent({ url: URL, userId: "user-1", versionMinuteId });
 
-		const result = await handler(
-			createSqsEvent({ url: URL, userId: "user-1", versionMinuteId: "2026-07-10T09:41Z" }),
-			buildLambdaContext(),
-			() => {},
-		);
+describe("initRemoveMyContentCommandHandler", () => {
+	it("deletes the authored snapshot and prunes the log", async () => {
+		const { handler, deps } = createHandler({
+			findContentSourceTier: jest.fn().mockResolvedValue("tier-1"),
+			listAvailableTierSources: jest.fn().mockResolvedValue([tierSource("tier-1")]),
+		});
+
+		const result = await handler(removalOf(), buildLambdaContext(), () => {});
 
 		expect(result).toEqual({ batchItemFailures: [] });
 		expect(deps.resolveAuthoredContentKeys).toHaveBeenCalledWith({
 			url: URL,
 			userId: "user-1",
-			versionMinuteId: "2026-07-10T09:41Z",
+			versionMinuteId: MINUTE_ID,
 		});
 		expect(deps.deleteContentObjects).toHaveBeenCalledWith([
 			"content-versions/example.com%2Fpost/2026-07-10T09-41Z/content.html",
 		]);
 		expect(deps.pruneCrawlVersions).toHaveBeenCalledWith({
 			url: URL,
-			minuteIds: ["2026-07-10T09:41Z"],
+			minuteIds: [MINUTE_ID],
 		});
-		expect(deps.listAvailableTierSources).not.toHaveBeenCalled();
-		expect(deps.purgeArticleContent).not.toHaveBeenCalled();
-		expect(deps.tombstoneArticle).not.toHaveBeenCalled();
-		expect(deps.publishEvent).not.toHaveBeenCalled();
 	});
 
-	it("copy scope with sources remaining: re-selects the canonical instead of purging", async () => {
+	it("leaves a canonical whose own source survived the removal untouched", async () => {
 		const { handler, deps } = createHandler({
+			findContentSourceTier: jest.fn().mockResolvedValue("tier-1"),
 			listAvailableTierSources: jest.fn().mockResolvedValue([tierSource("tier-1")]),
 		});
 
-		await handler(createSqsEvent({ url: URL, userId: "user-1" }), buildLambdaContext(), () => {});
+		await handler(removalOf(), buildLambdaContext(), () => {});
+
+		expect(deps.countSaversByUrl).not.toHaveBeenCalled();
+		expect(deps.purgeArticleContent).not.toHaveBeenCalled();
+		expect(deps.tombstoneArticle).not.toHaveBeenCalled();
+		expect(deps.publishEvent).not.toHaveBeenCalled();
+	});
+
+	it("skips the repair entirely for a URL that has no canonical yet", async () => {
+		const { handler, deps } = createHandler({
+			findContentSourceTier: jest.fn().mockResolvedValue(undefined),
+		});
+
+		await handler(removalOf(), buildLambdaContext(), () => {});
+
+		expect(deps.listAvailableTierSources).not.toHaveBeenCalled();
+		expect(deps.publishEvent).not.toHaveBeenCalled();
+		expect(deps.purgeArticleContent).not.toHaveBeenCalled();
+	});
+
+	it("re-selects the canonical when its source is gone but another tier remains", async () => {
+		const { handler, deps } = createHandler({
+			findContentSourceTier: jest.fn().mockResolvedValue("tier-0"),
+			listAvailableTierSources: jest.fn().mockResolvedValue([tierSource("tier-1")]),
+		});
+
+		await handler(removalOf(), buildLambdaContext(), () => {});
 
 		expect(deps.publishEvent).toHaveBeenCalledWith(ReselectAfterRemovalEvent, { url: URL });
-		expect(deps.countOtherSaversByUrl).not.toHaveBeenCalled();
+		expect(deps.countSaversByUrl).not.toHaveBeenCalled();
 		expect(deps.purgeArticleContent).not.toHaveBeenCalled();
 		expect(deps.tombstoneArticle).not.toHaveBeenCalled();
 	});
 
-	it("copy scope with nothing left and no other saver: purges every object and tombstones the row", async () => {
+	it("re-crawls rather than purging while anyone still holds the URL — the remover included", async () => {
 		const { handler, deps } = createHandler({
 			listAvailableTierSources: jest.fn().mockResolvedValue([]),
-			countOtherSaversByUrl: jest.fn().mockResolvedValue(0),
+			countSaversByUrl: jest.fn().mockResolvedValue(1),
 		});
 
-		await handler(createSqsEvent({ url: URL, userId: "user-1" }), buildLambdaContext(), () => {});
+		await handler(removalOf(), buildLambdaContext(), () => {});
 
-		expect(deps.countOtherSaversByUrl).toHaveBeenCalledWith({
-			url: URL,
-			excludeUserId: "user-1",
-		});
-		expect(deps.purgeArticleContent).toHaveBeenCalledWith(URL);
-		expect(deps.tombstoneArticle).toHaveBeenCalledWith({ url: URL, at: FIXED_NOW });
-		expect(deps.publishEvent).not.toHaveBeenCalled();
-	});
-
-	it("copy scope with no sources but other savers: re-crawls for them instead of purging", async () => {
-		const { handler, deps } = createHandler({
-			listAvailableTierSources: jest.fn().mockResolvedValue([]),
-			countOtherSaversByUrl: jest.fn().mockResolvedValue(2),
-		});
-
-		await handler(createSqsEvent({ url: URL, userId: "user-1" }), buildLambdaContext(), () => {});
-
+		expect(deps.countSaversByUrl).toHaveBeenCalledWith(URL);
 		expect(deps.publishEvent).toHaveBeenCalledWith(RecrawlLinkInitiatedEvent, { url: URL });
 		expect(deps.purgeArticleContent).not.toHaveBeenCalled();
 		expect(deps.tombstoneArticle).not.toHaveBeenCalled();
 	});
 
-	it("redelivery of a completed removal converges: nothing authored resolves, deletes and prune no-op, purge re-runs idempotently", async () => {
+	it("purges every object and tombstones the row once nothing and nobody remains", async () => {
+		const { handler, deps } = createHandler({
+			listAvailableTierSources: jest.fn().mockResolvedValue([]),
+			countSaversByUrl: jest.fn().mockResolvedValue(0),
+		});
+
+		await handler(removalOf(), buildLambdaContext(), () => {});
+
+		expect(deps.purgeArticleContent).toHaveBeenCalledWith(URL);
+		expect(deps.tombstoneArticle).toHaveBeenCalledWith({ url: URL, at: FIXED_NOW });
+		expect(deps.publishEvent).not.toHaveBeenCalled();
+	});
+
+	it("still repairs on redelivery after the objects were already erased", async () => {
 		const { handler, deps } = createHandler({
 			resolveAuthoredContentKeys: jest.fn().mockResolvedValue({
 				objectKeys: [],
 				pruneMinuteIds: [],
 			}),
-			listAvailableTierSources: jest.fn().mockResolvedValue([]),
-			countOtherSaversByUrl: jest.fn().mockResolvedValue(0),
+			findContentSourceTier: jest.fn().mockResolvedValue("tier-0"),
+			listAvailableTierSources: jest.fn().mockResolvedValue([tierSource("tier-1")]),
 		});
 
-		const result = await handler(
-			createSqsEvent({ url: URL, userId: "user-1" }),
-			buildLambdaContext(),
-			() => {},
-		);
+		const result = await handler(removalOf(), buildLambdaContext(), () => {});
 
 		expect(result).toEqual({ batchItemFailures: [] });
 		expect(deps.deleteContentObjects).toHaveBeenCalledWith([]);
-		expect(deps.purgeArticleContent).toHaveBeenCalledWith(URL);
-		expect(deps.tombstoneArticle).toHaveBeenCalledWith({ url: URL, at: FIXED_NOW });
+		expect(deps.publishEvent).toHaveBeenCalledWith(ReselectAfterRemovalEvent, { url: URL });
+	});
+
+	it("converges on redelivery once the repair has landed", async () => {
+		const { handler, deps } = createHandler({
+			resolveAuthoredContentKeys: jest.fn().mockResolvedValue({
+				objectKeys: [],
+				pruneMinuteIds: [],
+			}),
+			findContentSourceTier: jest.fn().mockResolvedValue("tier-1"),
+			listAvailableTierSources: jest.fn().mockResolvedValue([tierSource("tier-1")]),
+		});
+
+		await handler(removalOf(), buildLambdaContext(), () => {});
+
+		expect(deps.publishEvent).not.toHaveBeenCalled();
+		expect(deps.purgeArticleContent).not.toHaveBeenCalled();
+		expect(deps.tombstoneArticle).not.toHaveBeenCalled();
 	});
 
 	it("reports the record as a batch failure on invalid detail so it redelivers", async () => {
@@ -179,28 +214,9 @@ describe("initRemoveMyContentCommandHandler", () => {
 			pruneCrawlVersions: jest.fn().mockRejectedValue(new Error("conditional check failed")),
 		});
 
-		const result = await handler(
-			createSqsEvent({ url: URL, userId: "user-1" }),
-			buildLambdaContext(),
-			() => {},
-		);
+		const result = await handler(removalOf(), buildLambdaContext(), () => {});
 
 		expect(result).toEqual({ batchItemFailures: [{ itemIdentifier: "msg-1" }] });
 	});
 
-	it("parses its own command schema (round-trips the published shape)", async () => {
-		const detail = RemoveMyContentCommand.detailSchema.parse({
-			url: URL,
-			userId: "user-1",
-		});
-		const { handler, deps } = createHandler();
-
-		await handler(createSqsEvent(detail), buildLambdaContext(), () => {});
-
-		expect(deps.resolveAuthoredContentKeys).toHaveBeenCalledWith({
-			url: URL,
-			userId: "user-1",
-			versionMinuteId: undefined,
-		});
-	});
 });

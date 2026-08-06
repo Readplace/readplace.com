@@ -8,13 +8,7 @@ export function initEventBridgeRemoveMyContent(deps: {
 }): { publishRemoveMyContent: PublishRemoveMyContent } {
 	return {
 		publishRemoveMyContent: (params) =>
-			deps.publishEvent(RemoveMyContentCommand, {
-				url: params.url,
-				userId: params.userId,
-				...(params.versionMinuteId !== undefined
-					? { versionMinuteId: params.versionMinuteId }
-					: {}),
-			}),
+			deps.publishEvent(RemoveMyContentCommand, params),
 	};
 }
 /* c8 ignore stop */
