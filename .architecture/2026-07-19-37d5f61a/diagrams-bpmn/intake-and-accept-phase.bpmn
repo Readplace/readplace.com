@@ -1,0 +1,222 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<bpmn:definitions xmlns:bpmn="http://www.omg.org/spec/BPMN/20100524/MODEL" xmlns:bpmndi="http://www.omg.org/spec/BPMN/20100524/DI" xmlns:dc="http://www.omg.org/spec/DD/20100524/DC" xmlns:di="http://www.omg.org/spec/DD/20100524/DI" id="Definitions_intake_and_accept_phase" targetNamespace="http://readplace.com/architecture/bpmn">
+  <bpmn:process id="Process_intake_and_accept_phase" name="intake-and-accept-phase" isExecutable="false">
+    <bpmn:intermediateCatchEvent id="n_Q" name="SQS submit-link">
+      <bpmn:outgoing>f_0</bpmn:outgoing>
+      <bpmn:messageEventDefinition />
+    </bpmn:intermediateCatchEvent>
+    <bpmn:sendTask id="n_H" name="submit-link handler parse detail with SubmitLinkCommand schema">
+      <bpmn:incoming>f_0</bpmn:incoming>
+      <bpmn:outgoing>f_1</bpmn:outgoing>
+    </bpmn:sendTask>
+    <bpmn:task id="n_Guards" name="asserts: rawHtml absent AND userId present then validateSaveableUrl (http/https only, hostname shape, private-network / loopback rejected)">
+      <bpmn:incoming>f_1</bpmn:incoming>
+      <bpmn:outgoing>f_2</bpmn:outgoing>
+      <bpmn:outgoing>f_3</bpmn:outgoing>
+    </bpmn:task>
+    <bpmn:endEvent id="n_DLQ" name="submit-link DLQ assert or validation violation retries then dead-letters on 3rd receive no consumer — alarm only">
+      <bpmn:incoming>f_2</bpmn:incoming>
+      <bpmn:errorEventDefinition />
+    </bpmn:endEvent>
+    <bpmn:serviceTask id="n_Fresh" name="initSubmitFreshness refreshArticleIfStale resolveCanonicalIdentity (alias collapse), findArticleByUrl, findArticleCrawlStatus">
+      <bpmn:incoming>f_3</bpmn:incoming>
+      <bpmn:outgoing>f_5</bpmn:outgoing>
+      <bpmn:outgoing>f_8</bpmn:outgoing>
+      <bpmn:outgoing>f_9</bpmn:outgoing>
+    </bpmn:serviceTask>
+    <bpmn:dataStoreReference id="n_Articles" name="articles table (row + crawl status)"></bpmn:dataStoreReference>
+    <bpmn:intermediateThrowEvent id="n_Stale" name="StaleCheckRequestedEvent">
+      <bpmn:incoming>f_5</bpmn:incoming>
+      <bpmn:outgoing>f_6</bpmn:outgoing>
+      <bpmn:messageEventDefinition />
+    </bpmn:intermediateThrowEvent>
+    <bpmn:intermediateCatchEvent id="n_SCQ" name="SQS stale-check-requested">
+      <bpmn:incoming>f_6</bpmn:incoming>
+      <bpmn:outgoing>f_7</bpmn:outgoing>
+      <bpmn:messageEventDefinition />
+    </bpmn:intermediateCatchEvent>
+    <bpmn:serviceTask id="n_SCL" name="stale-check Lambda (existing pipeline) TTL + terminal-state gate, conditional GET; outcomes: skip / backoff / unchanged / refreshed / tier-1-deferred / new">
+      <bpmn:incoming>f_7</bpmn:incoming>
+    </bpmn:serviceTask>
+    <bpmn:intermediateThrowEvent id="n_Accept" name="Shared accept phase: initSaveArticleFromUrl (same function as /queue save bar, extension, import commit, MCP save_link) publishLinkSaved wired to an in-memory collector">
+      <bpmn:incoming>f_8</bpmn:incoming>
+      <bpmn:incoming>f_9</bpmn:incoming>
+      <bpmn:outgoing>f_15</bpmn:outgoing>
+      <bpmn:messageEventDefinition />
+    </bpmn:intermediateThrowEvent>
+    <bpmn:dataStoreReference id="n_Global" name="articles table conditional PutItem: global stub row (hostname title/excerpt, routeId) or savedAt bump when row is live"></bpmn:dataStoreReference>
+    <bpmn:dataStoreReference id="n_UserRow" name="user-articles table UpdateItem: savedAt + status if_not_exists unread"></bpmn:dataStoreReference>
+    <bpmn:dataStoreReference id="n_Resurface" name="read to unread resurface: updateArticleStatus via routeId-index Query"></bpmn:dataStoreReference>
+    <bpmn:dataStoreReference id="n_Pending" name="markCrawlPending + markSummaryPending (both axes pending, card polls at t=0)"></bpmn:dataStoreReference>
+    <bpmn:dataStoreReference id="n_Ts" name="updateFetchTimestamp direct DDB freshness write, in-process"></bpmn:dataStoreReference>
+    <bpmn:serviceTask id="n_Collect" name="collector.push canonical url + userId (enrichment list for phase 3)">
+      <bpmn:incoming>f_15</bpmn:incoming>
+    </bpmn:serviceTask>
+    <bpmn:sequenceFlow id="f_0" name="" sourceRef="n_Q" targetRef="n_H" />
+    <bpmn:sequenceFlow id="f_1" name="" sourceRef="n_H" targetRef="n_Guards" />
+    <bpmn:sequenceFlow id="f_2" name="violation: throw" sourceRef="n_Guards" targetRef="n_DLQ" />
+    <bpmn:sequenceFlow id="f_3" name="" sourceRef="n_Guards" targetRef="n_Fresh" />
+    <bpmn:sequenceFlow id="f_5" name="settled row (crawl ready / failed), not purged: action = skip" sourceRef="n_Fresh" targetRef="n_Stale" />
+    <bpmn:sequenceFlow id="f_6" name="" sourceRef="n_Stale" targetRef="n_SCQ" />
+    <bpmn:sequenceFlow id="f_7" name="" sourceRef="n_SCQ" targetRef="n_SCL" />
+    <bpmn:sequenceFlow id="f_8" name="absent / purged / legacy no-crawl-status / crawl pending: action = new (self-heals a stuck pending row)" sourceRef="n_Fresh" targetRef="n_Accept" />
+    <bpmn:sequenceFlow id="f_9" name="action = skip (accept still runs)" sourceRef="n_Fresh" targetRef="n_Accept" />
+    <bpmn:sequenceFlow id="f_15" name="new" sourceRef="n_Accept" targetRef="n_Collect" />
+    <bpmn:association id="f_4" sourceRef="n_Fresh" targetRef="n_Articles" associationDirection="One" />
+    <bpmn:association id="f_10" sourceRef="n_Accept" targetRef="n_Global" associationDirection="One" />
+    <bpmn:association id="f_11" sourceRef="n_Accept" targetRef="n_UserRow" associationDirection="One" />
+    <bpmn:association id="f_12" sourceRef="n_Accept" targetRef="n_Resurface" associationDirection="One" />
+    <bpmn:association id="f_13" sourceRef="n_Accept" targetRef="n_Pending" associationDirection="One" />
+    <bpmn:association id="f_14" sourceRef="n_Accept" targetRef="n_Ts" associationDirection="One" />
+    <bpmn:group id="grp_0" />
+    <bpmn:group id="grp_1" />
+  </bpmn:process>
+  <bpmndi:BPMNDiagram id="Diagram_intake_and_accept_phase">
+    <bpmndi:BPMNPlane id="Plane_intake_and_accept_phase" bpmnElement="Process_intake_and_accept_phase">
+      <bpmndi:BPMNShape id="n_Q_di" bpmnElement="n_Q">
+        <dc:Bounds x="735.71" y="28" width="40" height="40" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="n_H_di" bpmnElement="n_H">
+        <dc:Bounds x="676.96" y="144.5" width="157.5" height="84" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="n_Guards_di" bpmnElement="n_Guards">
+        <dc:Bounds x="654.96" y="286.5" width="201.5" height="132" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="n_DLQ_di" bpmnElement="n_DLQ">
+        <dc:Bounds x="624.71" y="476.5" width="40" height="40" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="n_Fresh_di" bpmnElement="n_Fresh">
+        <dc:Bounds x="752.87" y="481.5" width="186" height="116" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="n_Articles_di" bpmnElement="n_Articles">
+        <dc:Bounds x="502.68" y="697.5" width="143.44" height="48" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="n_Stale_di" bpmnElement="n_Stale">
+        <dc:Bounds x="734.39" y="701" width="40" height="40" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="n_SCQ_di" bpmnElement="n_SCQ">
+        <dc:Bounds x="71.47" y="908.75" width="40" height="40" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="n_SCL_di" bpmnElement="n_SCL">
+        <dc:Bounds x="655.46" y="1076" width="200.5" height="148" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="n_Accept_di" bpmnElement="n_Accept">
+        <dc:Bounds x="915.7" y="660.5" width="40" height="40" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="n_Global_di" bpmnElement="n_Global">
+        <dc:Bounds x="190.94" y="871.5" width="187" height="48" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="n_UserRow_di" bpmnElement="n_UserRow">
+        <dc:Bounds x="413.94" y="898.5" width="190" height="48" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="n_Resurface_di" bpmnElement="n_Resurface">
+        <dc:Bounds x="639.94" y="898.5" width="166.32" height="48" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="n_Pending_di" bpmnElement="n_Pending">
+        <dc:Bounds x="842.26" y="891.75" width="187.44" height="48" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="n_Ts_di" bpmnElement="n_Ts">
+        <dc:Bounds x="1065.7" y="898.5" width="181.72" height="48" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="n_Collect_di" bpmnElement="n_Collect">
+        <dc:Bounds x="1283.42" y="902.75" width="200" height="84" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="grp_0_di" bpmnElement="grp_0">
+        <dc:Bounds x="178.94" y="859.5" width="639.32" height="170.5" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="grp_1_di" bpmnElement="grp_1">
+        <dc:Bounds x="830.26" y="879.75" width="665.16" height="130" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNEdge id="f_0_di" bpmnElement="f_0">
+        <di:waypoint x="755.71" y="68" />
+        <di:waypoint x="755.71" y="144.5" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="f_1_di" bpmnElement="f_1">
+        <di:waypoint x="755.71" y="228.5" />
+        <di:waypoint x="755.71" y="286.5" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="f_2_di" bpmnElement="f_2">
+        <di:waypoint x="755.71" y="418.5" />
+        <di:waypoint x="755.71" y="447.5" />
+        <di:waypoint x="644.71" y="447.5" />
+        <di:waypoint x="644.71" y="476.5" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="f_3_di" bpmnElement="f_3">
+        <di:waypoint x="755.71" y="418.5" />
+        <di:waypoint x="755.71" y="450" />
+        <di:waypoint x="845.87" y="450" />
+        <di:waypoint x="845.87" y="481.5" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="f_5_di" bpmnElement="f_5">
+        <di:waypoint x="845.87" y="597.5" />
+        <di:waypoint x="845.87" y="649.25" />
+        <di:waypoint x="754.39" y="649.25" />
+        <di:waypoint x="754.39" y="701" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="f_6_di" bpmnElement="f_6">
+        <di:waypoint x="754.39" y="741" />
+        <di:waypoint x="754.39" y="824.88" />
+        <di:waypoint x="91.47" y="824.88" />
+        <di:waypoint x="91.47" y="908.75" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="f_7_di" bpmnElement="f_7">
+        <di:waypoint x="91.47" y="948.75" />
+        <di:waypoint x="91.47" y="1012.38" />
+        <di:waypoint x="755.71" y="1012.38" />
+        <di:waypoint x="755.71" y="1076" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="f_8_di" bpmnElement="f_8">
+        <di:waypoint x="845.87" y="597.5" />
+        <di:waypoint x="845.87" y="629" />
+        <di:waypoint x="935.7" y="629" />
+        <di:waypoint x="935.7" y="660.5" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="f_9_di" bpmnElement="f_9">
+        <di:waypoint x="845.87" y="597.5" />
+        <di:waypoint x="845.87" y="629" />
+        <di:waypoint x="935.7" y="629" />
+        <di:waypoint x="935.7" y="660.5" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="f_15_di" bpmnElement="f_15">
+        <di:waypoint x="935.7" y="700.5" />
+        <di:waypoint x="935.7" y="801.63" />
+        <di:waypoint x="1383.42" y="801.63" />
+        <di:waypoint x="1383.42" y="902.75" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="f_4_di" bpmnElement="f_4">
+        <di:waypoint x="845.87" y="597.5" />
+        <di:waypoint x="845.87" y="647.5" />
+        <di:waypoint x="574.4" y="647.5" />
+        <di:waypoint x="574.4" y="697.5" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="f_10_di" bpmnElement="f_10">
+        <di:waypoint x="935.7" y="700.5" />
+        <di:waypoint x="935.7" y="786" />
+        <di:waypoint x="284.44" y="786" />
+        <di:waypoint x="284.44" y="871.5" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="f_11_di" bpmnElement="f_11">
+        <di:waypoint x="935.7" y="700.5" />
+        <di:waypoint x="935.7" y="799.5" />
+        <di:waypoint x="508.94" y="799.5" />
+        <di:waypoint x="508.94" y="898.5" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="f_12_di" bpmnElement="f_12">
+        <di:waypoint x="935.7" y="700.5" />
+        <di:waypoint x="935.7" y="799.5" />
+        <di:waypoint x="723.1" y="799.5" />
+        <di:waypoint x="723.1" y="898.5" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="f_13_di" bpmnElement="f_13">
+        <di:waypoint x="935.7" y="700.5" />
+        <di:waypoint x="935.98" y="891.75" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="f_14_di" bpmnElement="f_14">
+        <di:waypoint x="935.7" y="700.5" />
+        <di:waypoint x="935.7" y="799.5" />
+        <di:waypoint x="1156.56" y="799.5" />
+        <di:waypoint x="1156.56" y="898.5" />
+      </bpmndi:BPMNEdge>
+    </bpmndi:BPMNPlane>
+  </bpmndi:BPMNDiagram>
+</bpmn:definitions>

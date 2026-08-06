@@ -1,0 +1,206 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<bpmn:definitions xmlns:bpmn="http://www.omg.org/spec/BPMN/20100524/MODEL" xmlns:bpmndi="http://www.omg.org/spec/BPMN/20100524/DI" xmlns:dc="http://www.omg.org/spec/DD/20100524/DC" xmlns:di="http://www.omg.org/spec/DD/20100524/DI" id="Definitions_read_model_and_button" targetNamespace="http://readplace.com/architecture/bpmn">
+  <bpmn:process id="Process_read_model_and_button" name="read-model-and-button" isExecutable="false">
+    <bpmn:startEvent id="n_LQ" name="LinkQueuedEvent url, userId">
+      <bpmn:outgoing>f_0</bpmn:outgoing>
+      <bpmn:messageEventDefinition />
+    </bpmn:startEvent>
+    <bpmn:intermediateCatchEvent id="n_RuleA" name="EventRule inbox-record-link-queued (explicit name — PutRule is an upsert)">
+      <bpmn:incoming>f_0</bpmn:incoming>
+      <bpmn:outgoing>f_1</bpmn:outgoing>
+      <bpmn:messageEventDefinition />
+    </bpmn:intermediateCatchEvent>
+    <bpmn:intermediateCatchEvent id="n_QA" name="SQS inbox-record-link-queued">
+      <bpmn:incoming>f_1</bpmn:incoming>
+      <bpmn:outgoing>f_7</bpmn:outgoing>
+      <bpmn:messageEventDefinition />
+    </bpmn:intermediateCatchEvent>
+    <bpmn:intermediateCatchEvent id="n_SubmitDLQ" name="submit-link DLQ depth alarm to SNS email stays wired">
+      <bpmn:outgoing>f_3</bpmn:outgoing>
+      <bpmn:messageEventDefinition />
+    </bpmn:intermediateCatchEvent>
+    <bpmn:serviceTask id="n_DLQH" name="save-link submit-link-dlq Lambda re-parses the dead-lettered envelope; mutates NO article row">
+      <bpmn:incoming>f_3</bpmn:incoming>
+      <bpmn:outgoing>f_2</bpmn:outgoing>
+      <bpmn:outgoing>f_4</bpmn:outgoing>
+    </bpmn:serviceTask>
+    <bpmn:serviceTask id="n_Note" name="means the command GAVE UP, not that nothing was queued: the queue row is written BEFORE calls that can still throw on every receive">
+      <bpmn:incoming>f_2</bpmn:incoming>
+    </bpmn:serviceTask>
+    <bpmn:intermediateThrowEvent id="n_LQF" name="LinkQueueFailedEvent url, userId, reason, receiveCount (only when userId is present)">
+      <bpmn:incoming>f_4</bpmn:incoming>
+      <bpmn:outgoing>f_5</bpmn:outgoing>
+      <bpmn:messageEventDefinition />
+    </bpmn:intermediateThrowEvent>
+    <bpmn:intermediateCatchEvent id="n_RuleB" name="EventRule inbox-record-link-queue-failed">
+      <bpmn:incoming>f_5</bpmn:incoming>
+      <bpmn:outgoing>f_6</bpmn:outgoing>
+      <bpmn:messageEventDefinition />
+    </bpmn:intermediateCatchEvent>
+    <bpmn:intermediateCatchEvent id="n_QB" name="SQS inbox-record-link-queue-failed">
+      <bpmn:incoming>f_6</bpmn:incoming>
+      <bpmn:outgoing>f_8</bpmn:outgoing>
+      <bpmn:messageEventDefinition />
+    </bpmn:intermediateCatchEvent>
+    <bpmn:serviceTask id="n_Rec" name="inbox record-link-queued Lambda one handler, two queues — dispatches on the envelope's detail-type">
+      <bpmn:incoming>f_7</bpmn:incoming>
+      <bpmn:incoming>f_8</bpmn:incoming>
+      <bpmn:outgoing>f_9</bpmn:outgoing>
+    </bpmn:serviceTask>
+    <bpmn:endEvent id="n_RecDLQ" name="its own DLQ + alarm: malformed envelope, unkeyable url, or a failed store write">
+      <bpmn:incoming>f_9</bpmn:incoming>
+      <bpmn:errorEventDefinition />
+    </bpmn:endEvent>
+    <bpmn:dataStoreReference id="n_Model" name="hutch-inbox-saved-links (NEW) PK userId, SK sha256(normalized url) — a sort key caps at 1024 bytes, ESP wrappers exceed it saved: unconditional upsert failed: only if not already saved"></bpmn:dataStoreReference>
+    <bpmn:serviceTask id="n_Web" name="inbox web Lambda — Articles tab one BatchGetItem per page of cards (BatchGetItem only; no articles/user-articles)">
+      <bpmn:outgoing>f_12</bpmn:outgoing>
+    </bpmn:serviceTask>
+    <bpmn:intermediateThrowEvent id="n_Btn" name="the card's Save button saved: check icon + 'Saved' unsaved / failed: 'Save to queue' — still POSTs the same save route">
+      <bpmn:incoming>f_12</bpmn:incoming>
+      <bpmn:outgoing>f_13</bpmn:outgoing>
+      <bpmn:messageEventDefinition />
+    </bpmn:intermediateThrowEvent>
+    <bpmn:sendTask id="n_SLCX" name="SubmitLinkCommand (savedAt bump + read-to-unread resurface, identical to a website/extension re-save)">
+      <bpmn:incoming>f_13</bpmn:incoming>
+    </bpmn:sendTask>
+    <bpmn:sequenceFlow id="f_0" name="" sourceRef="n_LQ" targetRef="n_RuleA" />
+    <bpmn:sequenceFlow id="f_1" name="" sourceRef="n_RuleA" targetRef="n_QA" />
+    <bpmn:sequenceFlow id="f_2" name="" sourceRef="n_DLQH" targetRef="n_Note" />
+    <bpmn:sequenceFlow id="f_3" name="" sourceRef="n_SubmitDLQ" targetRef="n_DLQH" />
+    <bpmn:sequenceFlow id="f_4" name="" sourceRef="n_DLQH" targetRef="n_LQF" />
+    <bpmn:sequenceFlow id="f_5" name="" sourceRef="n_LQF" targetRef="n_RuleB" />
+    <bpmn:sequenceFlow id="f_6" name="" sourceRef="n_RuleB" targetRef="n_QB" />
+    <bpmn:sequenceFlow id="f_7" name="" sourceRef="n_QA" targetRef="n_Rec" />
+    <bpmn:sequenceFlow id="f_8" name="" sourceRef="n_QB" targetRef="n_Rec" />
+    <bpmn:sequenceFlow id="f_9" name="" sourceRef="n_Rec" targetRef="n_RecDLQ" />
+    <bpmn:sequenceFlow id="f_12" name="" sourceRef="n_Web" targetRef="n_Btn" />
+    <bpmn:sequenceFlow id="f_13" name="re-save is the same POST" sourceRef="n_Btn" targetRef="n_SLCX" />
+    <bpmn:association id="f_10" sourceRef="n_Rec" targetRef="n_Model" associationDirection="One" />
+    <bpmn:association id="f_11" sourceRef="n_Model" targetRef="n_Web" associationDirection="One" />
+  </bpmn:process>
+  <bpmndi:BPMNDiagram id="Diagram_read_model_and_button">
+    <bpmndi:BPMNPlane id="Plane_read_model_and_button" bpmnElement="Process_read_model_and_button">
+      <bpmndi:BPMNShape id="n_LQ_di" bpmnElement="n_LQ">
+        <dc:Bounds x="185.13" y="34.75" width="40" height="40" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="n_RuleA_di" bpmnElement="n_RuleA">
+        <dc:Bounds x="163.4" y="172" width="40" height="40" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="n_QA_di" bpmnElement="n_QA">
+        <dc:Bounds x="78.29" y="351.5" width="40" height="40" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="n_SubmitDLQ_di" bpmnElement="n_SubmitDLQ">
+        <dc:Bounds x="351.26" y="28" width="40" height="40" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="n_DLQH_di" bpmnElement="n_DLQH">
+        <dc:Bounds x="289.69" y="171.5" width="186.25" height="100" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="n_Note_di" bpmnElement="n_Note">
+        <dc:Bounds x="361.8" y="329.5" width="199.25" height="116" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="n_LQF_di" bpmnElement="n_LQF">
+        <dc:Bounds x="245.19" y="331.25" width="40" height="40" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="n_RuleB_di" bpmnElement="n_RuleB">
+        <dc:Bounds x="274.52" y="503.5" width="40" height="40" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="n_QB_di" bpmnElement="n_QB">
+        <dc:Bounds x="274.52" y="633.5" width="40" height="40" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="n_Rec_di" bpmnElement="n_Rec">
+        <dc:Bounds x="198.77" y="763.5" width="191.5" height="100" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="n_RecDLQ_di" bpmnElement="n_RecDLQ">
+        <dc:Bounds x="161.52" y="958.75" width="40" height="40" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="n_Model_di" bpmnElement="n_Model">
+        <dc:Bounds x="281.88" y="921.5" width="190" height="48" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="n_Web_di" bpmnElement="n_Web">
+        <dc:Bounds x="193.65" y="1153" width="201.75" height="116" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="n_Btn_di" bpmnElement="n_Btn">
+        <dc:Bounds x="274.52" y="1327" width="40" height="40" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="n_SLCX_di" bpmnElement="n_SLCX">
+        <dc:Bounds x="196.77" y="1511" width="195.5" height="116" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNEdge id="f_0_di" bpmnElement="f_0">
+        <di:waypoint x="205.13" y="74.75" />
+        <di:waypoint x="205.13" y="123.38" />
+        <di:waypoint x="183.4" y="123.38" />
+        <di:waypoint x="183.4" y="172" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="f_1_di" bpmnElement="f_1">
+        <di:waypoint x="183.4" y="212" />
+        <di:waypoint x="183.4" y="281.75" />
+        <di:waypoint x="98.29" y="281.75" />
+        <di:waypoint x="98.29" y="351.5" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="f_2_di" bpmnElement="f_2">
+        <di:waypoint x="382.81" y="271.5" />
+        <di:waypoint x="382.81" y="300.5" />
+        <di:waypoint x="461.42" y="300.5" />
+        <di:waypoint x="461.42" y="329.5" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="f_3_di" bpmnElement="f_3">
+        <di:waypoint x="371.26" y="68" />
+        <di:waypoint x="371.26" y="119.75" />
+        <di:waypoint x="382.81" y="119.75" />
+        <di:waypoint x="382.81" y="171.5" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="f_4_di" bpmnElement="f_4">
+        <di:waypoint x="382.81" y="271.5" />
+        <di:waypoint x="382.81" y="301.38" />
+        <di:waypoint x="265.19" y="301.38" />
+        <di:waypoint x="265.19" y="331.25" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="f_5_di" bpmnElement="f_5">
+        <di:waypoint x="265.19" y="371.25" />
+        <di:waypoint x="265.19" y="437.38" />
+        <di:waypoint x="294.52" y="437.38" />
+        <di:waypoint x="294.52" y="503.5" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="f_6_di" bpmnElement="f_6">
+        <di:waypoint x="294.52" y="543.5" />
+        <di:waypoint x="294.52" y="633.5" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="f_7_di" bpmnElement="f_7">
+        <di:waypoint x="98.29" y="391.5" />
+        <di:waypoint x="98.29" y="577.5" />
+        <di:waypoint x="294.52" y="577.5" />
+        <di:waypoint x="294.52" y="763.5" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="f_8_di" bpmnElement="f_8">
+        <di:waypoint x="294.52" y="673.5" />
+        <di:waypoint x="294.52" y="763.5" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="f_9_di" bpmnElement="f_9">
+        <di:waypoint x="294.52" y="863.5" />
+        <di:waypoint x="294.52" y="911.13" />
+        <di:waypoint x="181.52" y="911.13" />
+        <di:waypoint x="181.52" y="958.75" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="f_12_di" bpmnElement="f_12">
+        <di:waypoint x="294.52" y="1269" />
+        <di:waypoint x="294.52" y="1327" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="f_13_di" bpmnElement="f_13">
+        <di:waypoint x="294.52" y="1367" />
+        <di:waypoint x="294.52" y="1511" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="f_10_di" bpmnElement="f_10">
+        <di:waypoint x="294.52" y="863.5" />
+        <di:waypoint x="294.52" y="892.5" />
+        <di:waypoint x="376.88" y="892.5" />
+        <di:waypoint x="376.88" y="921.5" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="f_11_di" bpmnElement="f_11">
+        <di:waypoint x="376.88" y="969.5" />
+        <di:waypoint x="376.88" y="1061.25" />
+        <di:waypoint x="294.52" y="1061.25" />
+        <di:waypoint x="294.52" y="1153" />
+      </bpmndi:BPMNEdge>
+    </bpmndi:BPMNPlane>
+  </bpmndi:BPMNDiagram>
+</bpmn:definitions>

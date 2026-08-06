@@ -1,0 +1,145 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<bpmn:definitions xmlns:bpmn="http://www.omg.org/spec/BPMN/20100524/MODEL" xmlns:bpmndi="http://www.omg.org/spec/BPMN/20100524/DI" xmlns:dc="http://www.omg.org/spec/DD/20100524/DC" xmlns:di="http://www.omg.org/spec/DD/20100524/DI" id="Definitions_save_button_producer" targetNamespace="http://readplace.com/architecture/bpmn">
+  <bpmn:process id="Process_save_button_producer" name="save-button-producer" isExecutable="false">
+    <bpmn:task id="n_Card" name="Articles-tab preview card Save to queue action rendered only when the viewmodel emits it — omitted for a URL failing validateSaveableUrl">
+      <bpmn:outgoing>f_0</bpmn:outgoing>
+    </bpmn:task>
+    <bpmn:serviceTask id="n_Click" name="POST /inbox/:id/links/:ordinal/save requireNotLocked + requireWriteAccess (same write gates as /create)">
+      <bpmn:incoming>f_0</bpmn:incoming>
+      <bpmn:outgoing>f_2</bpmn:outgoing>
+      <bpmn:outgoing>f_3</bpmn:outgoing>
+      <bpmn:outgoing>f_4</bpmn:outgoing>
+    </bpmn:serviceTask>
+    <bpmn:dataStoreReference id="n_LinkRow" name="inbox-email-links table getLink by userId + receivedAtMessageId + ordinal"></bpmn:dataStoreReference>
+    <bpmn:task id="n_NotFound" name="404 empty body: bad ordinal, missing row, skipped row, or unsaveable URL — shapes the card never renders a button for (out-of-band request, not a user path)">
+      <bpmn:incoming>f_2</bpmn:incoming>
+    </bpmn:task>
+    <bpmn:sendTask id="n_SLC" name="SubmitLinkCommand userId, url from the stored link row">
+      <bpmn:incoming>f_3</bpmn:incoming>
+      <bpmn:outgoing>f_7</bpmn:outgoing>
+    </bpmn:sendTask>
+    <bpmn:endEvent id="n_Notice" name="303 back to the Articles tab, saved=1 'Saved to your queue.' notice">
+      <bpmn:incoming>f_4</bpmn:incoming>
+      <bpmn:messageEventDefinition />
+    </bpmn:endEvent>
+    <bpmn:serviceTask id="n_Extract" name="inbox-extract-email-links Lambda auto-save per kept link on fresh arrivals (origin = receive; submit before preview)">
+      <bpmn:outgoing>f_5</bpmn:outgoing>
+    </bpmn:serviceTask>
+    <bpmn:sendTask id="n_SLC2" name="SubmitLinkCommand on the EventBridge bus">
+      <bpmn:incoming>f_5</bpmn:incoming>
+      <bpmn:incoming>f_6</bpmn:incoming>
+      <bpmn:incoming>f_7</bpmn:incoming>
+      <bpmn:outgoing>f_8</bpmn:outgoing>
+    </bpmn:sendTask>
+    <bpmn:serviceTask id="n_Dormant" name="article-aggregate effect dispatcher dispatch-submit-link (no transition caller — dormant)">
+      <bpmn:outgoing>f_6</bpmn:outgoing>
+    </bpmn:serviceTask>
+    <bpmn:serviceTask id="n_Sub" name="save-link submit-link subscriber — collapsed rule, queue, guards, accept phase, in-process crawl, selector, summary, reader-ready digest (see the two companion snapshots)">
+      <bpmn:incoming>f_8</bpmn:incoming>
+    </bpmn:serviceTask>
+    <bpmn:dataStoreReference id="n_Queue" name="reader's unread queue: stub card, savedAt bump, read-to-unread resurface — re-clicks converge idempotently"></bpmn:dataStoreReference>
+    <bpmn:sequenceFlow id="f_0" name="reader clicks Save" sourceRef="n_Card" targetRef="n_Click" />
+    <bpmn:sequenceFlow id="f_2" name="guard fails" sourceRef="n_Click" targetRef="n_NotFound" />
+    <bpmn:sequenceFlow id="f_3" name="guards pass: publish" sourceRef="n_Click" targetRef="n_SLC" />
+    <bpmn:sequenceFlow id="f_4" name="after the publish" sourceRef="n_Click" targetRef="n_Notice" />
+    <bpmn:sequenceFlow id="f_5" name="1st live producer (committed at this HEAD)" sourceRef="n_Extract" targetRef="n_SLC2" />
+    <bpmn:sequenceFlow id="f_6" name="still no runtime path" sourceRef="n_Dormant" targetRef="n_SLC2" />
+    <bpmn:sequenceFlow id="f_7" name="2nd live producer (new)" sourceRef="n_SLC" targetRef="n_SLC2" />
+    <bpmn:sequenceFlow id="f_8" name="" sourceRef="n_SLC2" targetRef="n_Sub" />
+    <bpmn:association id="f_1" sourceRef="n_Click" targetRef="n_LinkRow" associationDirection="One" />
+    <bpmn:association id="f_9" sourceRef="n_Sub" targetRef="n_Queue" associationDirection="One" />
+  </bpmn:process>
+  <bpmndi:BPMNDiagram id="Diagram_save_button_producer">
+    <bpmndi:BPMNPlane id="Plane_save_button_producer" bpmnElement="Process_save_button_producer">
+      <bpmndi:BPMNShape id="n_Card_di" bpmnElement="n_Card">
+        <dc:Bounds x="103.42" y="28" width="193.25" height="132" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="n_Click_di" bpmnElement="n_Click">
+        <dc:Bounds x="317.8" y="218" width="214" height="116" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="n_LinkRow_di" bpmnElement="n_LinkRow">
+        <dc:Bounds x="28" y="419.75" width="190" height="48" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="n_NotFound_di" bpmnElement="n_NotFound">
+        <dc:Bounds x="448.25" y="392" width="198.75" height="148" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="n_SLC_di" bpmnElement="n_SLC">
+        <dc:Bounds x="254" y="432" width="158.25" height="68" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="n_Notice_di" bpmnElement="n_Notice">
+        <dc:Bounds x="732.3" y="416.5" width="40" height="40" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="n_Extract_di" bpmnElement="n_Extract">
+        <dc:Bounds x="332.67" y="36" width="191.75" height="116" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="n_SLC2_di" bpmnElement="n_SLC2">
+        <dc:Bounds x="324.3" y="598" width="201" height="52" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="n_Dormant_di" bpmnElement="n_Dormant">
+        <dc:Bounds x="560.42" y="44" width="185.75" height="100" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="n_Sub_di" bpmnElement="n_Sub">
+        <dc:Bounds x="326.92" y="708" width="195.75" height="148" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="n_Queue_di" bpmnElement="n_Queue">
+        <dc:Bounds x="336.14" y="914" width="177.32" height="48" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNEdge id="f_0_di" bpmnElement="f_0">
+        <di:waypoint x="200.05" y="160" />
+        <di:waypoint x="200.05" y="189" />
+        <di:waypoint x="424.8" y="189" />
+        <di:waypoint x="424.8" y="218" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="f_2_di" bpmnElement="f_2">
+        <di:waypoint x="424.8" y="334" />
+        <di:waypoint x="424.8" y="363" />
+        <di:waypoint x="547.63" y="363" />
+        <di:waypoint x="547.63" y="392" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="f_3_di" bpmnElement="f_3">
+        <di:waypoint x="424.8" y="334" />
+        <di:waypoint x="424.8" y="383" />
+        <di:waypoint x="333.13" y="383" />
+        <di:waypoint x="333.13" y="432" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="f_4_di" bpmnElement="f_4">
+        <di:waypoint x="424.8" y="334" />
+        <di:waypoint x="424.8" y="375.25" />
+        <di:waypoint x="752.3" y="375.25" />
+        <di:waypoint x="752.3" y="416.5" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="f_5_di" bpmnElement="f_5">
+        <di:waypoint x="428.55" y="152" />
+        <di:waypoint x="428.55" y="375" />
+        <di:waypoint x="424.8" y="375" />
+        <di:waypoint x="424.8" y="598" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="f_6_di" bpmnElement="f_6">
+        <di:waypoint x="653.3" y="144" />
+        <di:waypoint x="653.3" y="371" />
+        <di:waypoint x="424.8" y="371" />
+        <di:waypoint x="424.8" y="598" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="f_7_di" bpmnElement="f_7">
+        <di:waypoint x="333.13" y="500" />
+        <di:waypoint x="333.13" y="549" />
+        <di:waypoint x="424.8" y="549" />
+        <di:waypoint x="424.8" y="598" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="f_8_di" bpmnElement="f_8">
+        <di:waypoint x="424.8" y="650" />
+        <di:waypoint x="424.8" y="708" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="f_1_di" bpmnElement="f_1">
+        <di:waypoint x="424.8" y="334" />
+        <di:waypoint x="424.8" y="376.88" />
+        <di:waypoint x="123" y="376.88" />
+        <di:waypoint x="123" y="419.75" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="f_9_di" bpmnElement="f_9">
+        <di:waypoint x="424.8" y="856" />
+        <di:waypoint x="424.8" y="914" />
+      </bpmndi:BPMNEdge>
+    </bpmndi:BPMNPlane>
+  </bpmndi:BPMNDiagram>
+</bpmn:definitions>

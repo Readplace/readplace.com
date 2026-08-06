@@ -1,0 +1,365 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<bpmn:definitions xmlns:bpmn="http://www.omg.org/spec/BPMN/20100524/MODEL" xmlns:bpmndi="http://www.omg.org/spec/BPMN/20100524/DI" xmlns:dc="http://www.omg.org/spec/DD/20100524/DC" xmlns:di="http://www.omg.org/spec/DD/20100524/DI" id="Definitions_subscription_lifecycle" targetNamespace="http://readplace.com/architecture/bpmn">
+  <bpmn:process id="Process_subscription_lifecycle" name="subscription-lifecycle" isExecutable="false">
+    <bpmn:sendTask id="n_Web" name="POST /account/cancel (hutch web Lambda)">
+      <bpmn:outgoing>f_2</bpmn:outgoing>
+    </bpmn:sendTask>
+    <bpmn:businessRuleTask id="n_Sched1" name="EventBridge Scheduler one-shot trial-end, created at signup">
+      <bpmn:outgoing>f_0</bpmn:outgoing>
+    </bpmn:businessRuleTask>
+    <bpmn:businessRuleTask id="n_Sched2" name="EventBridge Scheduler one-shot deferred cancellation (effective-at + 1h)">
+      <bpmn:incoming>f_12</bpmn:incoming>
+      <bpmn:outgoing>f_1</bpmn:outgoing>
+    </bpmn:businessRuleTask>
+    <bpmn:businessRuleTask id="n_Hook" name="Stripe webhook receiver customer.subscription.deleted">
+      <bpmn:outgoing>f_14</bpmn:outgoing>
+    </bpmn:businessRuleTask>
+    <bpmn:sendTask id="n_CSR" name="SubscriptionStartRequestCommand">
+      <bpmn:incoming>f_0</bpmn:incoming>
+      <bpmn:outgoing>f_3</bpmn:outgoing>
+    </bpmn:sendTask>
+    <bpmn:sendTask id="n_CSC" name="CancelSubscriptionCommand">
+      <bpmn:incoming>f_1</bpmn:incoming>
+      <bpmn:incoming>f_2</bpmn:incoming>
+      <bpmn:incoming>f_9</bpmn:incoming>
+      <bpmn:outgoing>f_4</bpmn:outgoing>
+    </bpmn:sendTask>
+    <bpmn:task id="n_HSR" name="subscription-start-request row missing / not trialing → noop">
+      <bpmn:incoming>f_3</bpmn:incoming>
+      <bpmn:outgoing>f_5</bpmn:outgoing>
+      <bpmn:outgoing>f_6</bpmn:outgoing>
+    </bpmn:task>
+    <bpmn:task id="n_HCS" name="cancel-subscription branches on row status">
+      <bpmn:incoming>f_4</bpmn:incoming>
+      <bpmn:outgoing>f_10</bpmn:outgoing>
+      <bpmn:outgoing>f_12</bpmn:outgoing>
+      <bpmn:outgoing>f_13</bpmn:outgoing>
+    </bpmn:task>
+    <bpmn:task id="n_HCancelled" name="handle-subscription-cancelled SET status=cancelled">
+      <bpmn:incoming>f_16</bpmn:incoming>
+    </bpmn:task>
+    <bpmn:task id="n_HFeedback" name="schedule-trial-feedback-email trial reasons only">
+      <bpmn:incoming>f_17</bpmn:incoming>
+      <bpmn:outgoing>f_18</bpmn:outgoing>
+    </bpmn:task>
+    <bpmn:task id="n_HSched" name="handle-subscription-cancellation-scheduled SET pending_cancellation">
+      <bpmn:incoming>f_11</bpmn:incoming>
+    </bpmn:task>
+    <bpmn:task id="n_HOK" name="subscription-charge-succeeded upsertActive">
+      <bpmn:incoming>f_7</bpmn:incoming>
+    </bpmn:task>
+    <bpmn:task id="n_HFail" name="subscription-charge-failed">
+      <bpmn:incoming>f_8</bpmn:incoming>
+      <bpmn:outgoing>f_9</bpmn:outgoing>
+    </bpmn:task>
+    <bpmn:intermediateThrowEvent id="n_ChargeOK" name="SubscriptionChargeSucceeded">
+      <bpmn:incoming>f_5</bpmn:incoming>
+      <bpmn:outgoing>f_7</bpmn:outgoing>
+      <bpmn:messageEventDefinition />
+    </bpmn:intermediateThrowEvent>
+    <bpmn:intermediateThrowEvent id="n_ChargeNo" name="SubscriptionChargeFailed no_card_on_file | stripe_error">
+      <bpmn:incoming>f_6</bpmn:incoming>
+      <bpmn:outgoing>f_8</bpmn:outgoing>
+      <bpmn:messageEventDefinition />
+    </bpmn:intermediateThrowEvent>
+    <bpmn:intermediateThrowEvent id="n_SchedEv" name="SubscriptionCancellationScheduled">
+      <bpmn:incoming>f_10</bpmn:incoming>
+      <bpmn:outgoing>f_11</bpmn:outgoing>
+      <bpmn:messageEventDefinition />
+    </bpmn:intermediateThrowEvent>
+    <bpmn:intermediateThrowEvent id="n_Cancelled" name="SubscriptionCancelled">
+      <bpmn:incoming>f_13</bpmn:incoming>
+      <bpmn:incoming>f_14</bpmn:incoming>
+      <bpmn:outgoing>f_15</bpmn:outgoing>
+      <bpmn:messageEventDefinition />
+    </bpmn:intermediateThrowEvent>
+    <bpmn:serviceTask id="n_FanOut" name="ONE rule, ONE queue record → BOTH handlers in ONE invocation (2nd rule deleted)">
+      <bpmn:incoming>f_15</bpmn:incoming>
+      <bpmn:outgoing>f_16</bpmn:outgoing>
+      <bpmn:outgoing>f_17</bpmn:outgoing>
+    </bpmn:serviceTask>
+    <bpmn:businessRuleTask id="n_Sched3" name="EventBridge Scheduler one-shot trial feedback, +3 days, deterministic name per user">
+      <bpmn:incoming>f_18</bpmn:incoming>
+      <bpmn:outgoing>f_19</bpmn:outgoing>
+    </bpmn:businessRuleTask>
+    <bpmn:sendTask id="n_STFE" name="SendTrialFeedbackEmailCommand">
+      <bpmn:incoming>f_19</bpmn:incoming>
+      <bpmn:outgoing>f_20</bpmn:outgoing>
+    </bpmn:sendTask>
+    <bpmn:serviceTask id="n_Sep" name="send-trial-feedback-email-handler 60/256/60 — SEPARATE by design; profile does not match the seven">
+      <bpmn:incoming>f_20</bpmn:incoming>
+    </bpmn:serviceTask>
+    <bpmn:dataStoreReference id="n_Table" name="hutch-subscription-providers merged grant: GetItem + UpdateItem"></bpmn:dataStoreReference>
+    <bpmn:dataStoreReference id="n_Analytics" name="subscriptions stream → forwarder → /readplace/analytics"></bpmn:dataStoreReference>
+    <bpmn:sequenceFlow id="f_0" name="" sourceRef="n_Sched1" targetRef="n_CSR" />
+    <bpmn:sequenceFlow id="f_1" name="" sourceRef="n_Sched2" targetRef="n_CSC" />
+    <bpmn:sequenceFlow id="f_2" name="" sourceRef="n_Web" targetRef="n_CSC" />
+    <bpmn:sequenceFlow id="f_3" name="" sourceRef="n_CSR" targetRef="n_HSR" />
+    <bpmn:sequenceFlow id="f_4" name="" sourceRef="n_CSC" targetRef="n_HCS" />
+    <bpmn:sequenceFlow id="f_5" name="" sourceRef="n_HSR" targetRef="n_ChargeOK" />
+    <bpmn:sequenceFlow id="f_6" name="" sourceRef="n_HSR" targetRef="n_ChargeNo" />
+    <bpmn:sequenceFlow id="f_7" name="" sourceRef="n_ChargeOK" targetRef="n_HOK" />
+    <bpmn:sequenceFlow id="f_8" name="" sourceRef="n_ChargeNo" targetRef="n_HFail" />
+    <bpmn:sequenceFlow id="f_9" name="closes the loop" sourceRef="n_HFail" targetRef="n_CSC" />
+    <bpmn:sequenceFlow id="f_10" name="active / trialing" sourceRef="n_HCS" targetRef="n_SchedEv" />
+    <bpmn:sequenceFlow id="f_11" name="" sourceRef="n_SchedEv" targetRef="n_HSched" />
+    <bpmn:sequenceFlow id="f_12" name="active / trialing" sourceRef="n_HCS" targetRef="n_Sched2" />
+    <bpmn:sequenceFlow id="f_13" name="pending_cancellation → final conversion" sourceRef="n_HCS" targetRef="n_Cancelled" />
+    <bpmn:sequenceFlow id="f_14" name="" sourceRef="n_Hook" targetRef="n_Cancelled" />
+    <bpmn:sequenceFlow id="f_15" name="" sourceRef="n_Cancelled" targetRef="n_FanOut" />
+    <bpmn:sequenceFlow id="f_16" name="" sourceRef="n_FanOut" targetRef="n_HCancelled" />
+    <bpmn:sequenceFlow id="f_17" name="" sourceRef="n_FanOut" targetRef="n_HFeedback" />
+    <bpmn:sequenceFlow id="f_18" name="" sourceRef="n_HFeedback" targetRef="n_Sched3" />
+    <bpmn:sequenceFlow id="f_19" name="" sourceRef="n_Sched3" targetRef="n_STFE" />
+    <bpmn:sequenceFlow id="f_20" name="" sourceRef="n_STFE" targetRef="n_Sep" />
+    <bpmn:association id="f_21" sourceRef="n_HSR" targetRef="n_Table" associationDirection="One" />
+    <bpmn:association id="f_22" sourceRef="n_HCS" targetRef="n_Table" associationDirection="One" />
+    <bpmn:association id="f_23" sourceRef="n_HCancelled" targetRef="n_Table" associationDirection="One" />
+    <bpmn:association id="f_24" sourceRef="n_HSched" targetRef="n_Table" associationDirection="One" />
+    <bpmn:association id="f_25" sourceRef="n_HOK" targetRef="n_Table" associationDirection="One" />
+    <bpmn:association id="f_26" sourceRef="n_HCancelled" targetRef="n_Analytics" associationDirection="One" />
+    <bpmn:association id="f_27" sourceRef="n_HOK" targetRef="n_Analytics" associationDirection="One" />
+    <bpmn:association id="f_28" sourceRef="n_HFail" targetRef="n_Analytics" associationDirection="One" />
+    <bpmn:group id="grp_0" />
+  </bpmn:process>
+  <bpmndi:BPMNDiagram id="Diagram_subscription_lifecycle">
+    <bpmndi:BPMNPlane id="Plane_subscription_lifecycle" bpmnElement="Process_subscription_lifecycle">
+      <bpmndi:BPMNShape id="n_Web_di" bpmnElement="n_Web">
+        <dc:Bounds x="28" y="36" width="166.5" height="52" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="n_Sched1_di" bpmnElement="n_Sched1">
+        <dc:Bounds x="230.5" y="28" width="202.75" height="68" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="n_Sched2_di" bpmnElement="n_Sched2">
+        <dc:Bounds x="93.29" y="879.5" width="169.25" height="84" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="n_Hook_di" bpmnElement="n_Hook">
+        <dc:Bounds x="469.25" y="28" width="198.75" height="68" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="n_CSR_di" bpmnElement="n_CSR">
+        <dc:Bounds x="247.25" y="154" width="201.5" height="52" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="n_CSC_di" bpmnElement="n_CSC">
+        <dc:Bounds x="248.38" y="659.5" width="199.25" height="52" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="n_HSR_di" bpmnElement="n_HSR">
+        <dc:Bounds x="246.25" y="264" width="203.5" height="68" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="n_HCS_di" bpmnElement="n_HCS">
+        <dc:Bounds x="259.88" y="769.5" width="176.25" height="52" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="n_HCancelled_di" bpmnElement="n_HCancelled">
+        <dc:Bounds x="133" y="1179.5" width="201.25" height="68" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="n_HFeedback_di" bpmnElement="n_HFeedback">
+        <dc:Bounds x="370.25" y="1179.5" width="192.75" height="68" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="n_HSched_di" bpmnElement="n_HSched">
+        <dc:Bounds x="129.13" y="1037.5" width="201.25" height="68" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="n_HOK_di" bpmnElement="n_HOK">
+        <dc:Bounds x="130.25" y="533.5" width="202.5" height="68" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="n_HFail_di" bpmnElement="n_HFail">
+        <dc:Bounds x="368.75" y="543.5" width="197" height="48" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="n_ChargeOK_di" bpmnElement="n_ChargeOK">
+        <dc:Bounds x="238.94" y="396.75" width="40" height="40" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="n_ChargeNo_di" bpmnElement="n_ChargeNo">
+        <dc:Bounds x="419.48" y="390" width="40" height="40" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="n_SchedEv_di" bpmnElement="n_SchedEv">
+        <dc:Bounds x="351.47" y="885.5" width="40" height="40" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="n_Cancelled_di" bpmnElement="n_Cancelled">
+        <dc:Bounds x="521.55" y="892.25" width="40" height="40" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="n_FanOut_di" bpmnElement="n_FanOut">
+        <dc:Bounds x="366.38" y="1021.5" width="200.5" height="100" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="n_Sched3_di" bpmnElement="n_Sched3">
+        <dc:Bounds x="277.59" y="1305.5" width="176.25" height="100" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="n_STFE_di" bpmnElement="n_STFE">
+        <dc:Bounds x="250.5" y="1463.5" width="195" height="52" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="n_Sep_di" bpmnElement="n_Sep">
+        <dc:Bounds x="247.25" y="1573.5" width="201.5" height="116" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="n_Table_di" bpmnElement="n_Table">
+        <dc:Bounds x="54.37" y="1309.25" width="187.22" height="48" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="n_Analytics_di" bpmnElement="n_Analytics">
+        <dc:Bounds x="489.84" y="1309.25" width="151.8" height="48" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="grp_0_di" bpmnElement="grp_0">
+        <dc:Bounds x="117.13" y="252" width="460.63" height="1007.5" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNEdge id="f_0_di" bpmnElement="f_0">
+        <di:waypoint x="331.88" y="96" />
+        <di:waypoint x="331.88" y="125" />
+        <di:waypoint x="348" y="125" />
+        <di:waypoint x="348" y="154" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="f_1_di" bpmnElement="f_1">
+        <di:waypoint x="208.18" y="879.5" />
+        <di:waypoint x="329.26" y="711.5" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="f_2_di" bpmnElement="f_2">
+        <di:waypoint x="111.25" y="88" />
+        <di:waypoint x="111.25" y="373.75" />
+        <di:waypoint x="348" y="373.75" />
+        <di:waypoint x="348" y="659.5" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="f_3_di" bpmnElement="f_3">
+        <di:waypoint x="348" y="206" />
+        <di:waypoint x="348" y="264" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="f_4_di" bpmnElement="f_4">
+        <di:waypoint x="348" y="711.5" />
+        <di:waypoint x="348" y="769.5" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="f_5_di" bpmnElement="f_5">
+        <di:waypoint x="348" y="332" />
+        <di:waypoint x="348" y="364.38" />
+        <di:waypoint x="258.94" y="364.38" />
+        <di:waypoint x="258.94" y="396.75" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="f_6_di" bpmnElement="f_6">
+        <di:waypoint x="348" y="332" />
+        <di:waypoint x="348" y="361" />
+        <di:waypoint x="439.48" y="361" />
+        <di:waypoint x="439.48" y="390" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="f_7_di" bpmnElement="f_7">
+        <di:waypoint x="258.94" y="436.75" />
+        <di:waypoint x="258.94" y="485.13" />
+        <di:waypoint x="231.5" y="485.13" />
+        <di:waypoint x="231.5" y="533.5" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="f_8_di" bpmnElement="f_8">
+        <di:waypoint x="439.48" y="430" />
+        <di:waypoint x="439.48" y="486.75" />
+        <di:waypoint x="467.25" y="486.75" />
+        <di:waypoint x="467.25" y="543.5" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="f_9_di" bpmnElement="f_9">
+        <di:waypoint x="467.25" y="591.5" />
+        <di:waypoint x="467.25" y="625.5" />
+        <di:waypoint x="348" y="625.5" />
+        <di:waypoint x="348" y="659.5" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="f_10_di" bpmnElement="f_10">
+        <di:waypoint x="348" y="821.5" />
+        <di:waypoint x="348" y="853.5" />
+        <di:waypoint x="371.47" y="853.5" />
+        <di:waypoint x="371.47" y="885.5" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="f_11_di" bpmnElement="f_11">
+        <di:waypoint x="371.47" y="925.5" />
+        <di:waypoint x="371.47" y="981.5" />
+        <di:waypoint x="229.75" y="981.5" />
+        <di:waypoint x="229.75" y="1037.5" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="f_12_di" bpmnElement="f_12">
+        <di:waypoint x="348" y="821.5" />
+        <di:waypoint x="348" y="850.5" />
+        <di:waypoint x="177.91" y="850.5" />
+        <di:waypoint x="177.91" y="879.5" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="f_13_di" bpmnElement="f_13">
+        <di:waypoint x="348" y="821.5" />
+        <di:waypoint x="348" y="856.88" />
+        <di:waypoint x="541.55" y="856.88" />
+        <di:waypoint x="541.55" y="892.25" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="f_14_di" bpmnElement="f_14">
+        <di:waypoint x="568.63" y="96" />
+        <di:waypoint x="568.63" y="494.13" />
+        <di:waypoint x="541.55" y="494.13" />
+        <di:waypoint x="541.55" y="892.25" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="f_15_di" bpmnElement="f_15">
+        <di:waypoint x="541.55" y="932.25" />
+        <di:waypoint x="541.55" y="976.88" />
+        <di:waypoint x="466.63" y="976.88" />
+        <di:waypoint x="466.63" y="1021.5" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="f_16_di" bpmnElement="f_16">
+        <di:waypoint x="466.63" y="1121.5" />
+        <di:waypoint x="466.63" y="1150.5" />
+        <di:waypoint x="233.63" y="1150.5" />
+        <di:waypoint x="233.63" y="1179.5" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="f_17_di" bpmnElement="f_17">
+        <di:waypoint x="466.63" y="1121.5" />
+        <di:waypoint x="466.63" y="1179.5" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="f_18_di" bpmnElement="f_18">
+        <di:waypoint x="466.63" y="1247.5" />
+        <di:waypoint x="466.63" y="1276.5" />
+        <di:waypoint x="365.71" y="1276.5" />
+        <di:waypoint x="365.71" y="1305.5" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="f_19_di" bpmnElement="f_19">
+        <di:waypoint x="365.71" y="1405.5" />
+        <di:waypoint x="365.71" y="1434.5" />
+        <di:waypoint x="348" y="1434.5" />
+        <di:waypoint x="348" y="1463.5" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="f_20_di" bpmnElement="f_20">
+        <di:waypoint x="348" y="1515.5" />
+        <di:waypoint x="348" y="1573.5" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="f_21_di" bpmnElement="f_21">
+        <di:waypoint x="348" y="332" />
+        <di:waypoint x="348" y="820.63" />
+        <di:waypoint x="147.98" y="820.63" />
+        <di:waypoint x="147.98" y="1309.25" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="f_22_di" bpmnElement="f_22">
+        <di:waypoint x="348" y="821.5" />
+        <di:waypoint x="348" y="1065.38" />
+        <di:waypoint x="147.98" y="1065.38" />
+        <di:waypoint x="147.98" y="1309.25" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="f_23_di" bpmnElement="f_23">
+        <di:waypoint x="233.63" y="1247.5" />
+        <di:waypoint x="233.63" y="1278.38" />
+        <di:waypoint x="147.98" y="1278.38" />
+        <di:waypoint x="147.98" y="1309.25" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="f_24_di" bpmnElement="f_24">
+        <di:waypoint x="229.75" y="1105.5" />
+        <di:waypoint x="229.75" y="1207.38" />
+        <di:waypoint x="147.98" y="1207.38" />
+        <di:waypoint x="147.98" y="1309.25" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="f_25_di" bpmnElement="f_25">
+        <di:waypoint x="231.5" y="601.5" />
+        <di:waypoint x="231.5" y="955.38" />
+        <di:waypoint x="147.98" y="955.38" />
+        <di:waypoint x="147.98" y="1309.25" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="f_26_di" bpmnElement="f_26">
+        <di:waypoint x="233.63" y="1247.5" />
+        <di:waypoint x="233.63" y="1278.38" />
+        <di:waypoint x="565.74" y="1278.38" />
+        <di:waypoint x="565.74" y="1309.25" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="f_27_di" bpmnElement="f_27">
+        <di:waypoint x="231.5" y="601.5" />
+        <di:waypoint x="231.5" y="955.38" />
+        <di:waypoint x="565.74" y="955.38" />
+        <di:waypoint x="565.74" y="1309.25" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="f_28_di" bpmnElement="f_28">
+        <di:waypoint x="467.25" y="591.5" />
+        <di:waypoint x="467.25" y="950.38" />
+        <di:waypoint x="565.74" y="950.38" />
+        <di:waypoint x="565.74" y="1309.25" />
+      </bpmndi:BPMNEdge>
+    </bpmndi:BPMNPlane>
+  </bpmndi:BPMNDiagram>
+</bpmn:definitions>

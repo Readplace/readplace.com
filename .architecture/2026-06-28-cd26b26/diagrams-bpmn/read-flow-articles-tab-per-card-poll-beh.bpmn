@@ -1,0 +1,157 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<bpmn:definitions xmlns:bpmn="http://www.omg.org/spec/BPMN/20100524/MODEL" xmlns:bpmndi="http://www.omg.org/spec/BPMN/20100524/DI" xmlns:dc="http://www.omg.org/spec/DD/20100524/DC" xmlns:di="http://www.omg.org/spec/DD/20100524/DI" id="Definitions_read_flow_articles_tab_per_card_poll_beh" targetNamespace="http://readplace.com/architecture/bpmn">
+  <bpmn:process id="Process_read_flow_articles_tab_per_card_poll_beh" name="read-flow-articles-tab-per-card-poll-beh" isExecutable="false">
+    <bpmn:sendTask id="n_detail" name="GET /inbox/:id">
+      <bpmn:outgoing>f_0</bpmn:outgoing>
+    </bpmn:sendTask>
+    <bpmn:serviceTask id="n_detailSys" name="inbox.page.ts GET /:id">
+      <bpmn:incoming>f_0</bpmn:incoming>
+    </bpmn:serviceTask>
+    <bpmn:dataStoreReference id="n_links" name="inbox-email-links table listLinksByEmail — links + meta"></bpmn:dataStoreReference>
+    <bpmn:task id="n_panel" name="Articles panel one card per link + N-links badge"></bpmn:task>
+    <bpmn:sendTask id="n_panelpoll" name="GET /inbox/:id/articles every 3s while extracting">
+      <bpmn:outgoing>f_3</bpmn:outgoing>
+    </bpmn:sendTask>
+    <bpmn:serviceTask id="n_panelpollSys" name="inbox.page.ts /:id/articles poll until meta barrier present">
+      <bpmn:incoming>f_3</bpmn:incoming>
+    </bpmn:serviceTask>
+    <bpmn:sendTask id="n_poll" name="GET /inbox/:id/links/:ordinal/card every 3s">
+      <bpmn:outgoing>f_5</bpmn:outgoing>
+    </bpmn:sendTask>
+    <bpmn:serviceTask id="n_pollSys" name="inbox.page.ts poll route etag + 304, omit poll url when terminal">
+      <bpmn:incoming>f_5</bpmn:incoming>
+    </bpmn:serviceTask>
+    <bpmn:dataStoreReference id="n_getLink" name="inbox-email-links table getLink"></bpmn:dataStoreReference>
+    <bpmn:serviceTask id="n_card" name="inbox-article-card fragment pending / crawled / failed"></bpmn:serviceTask>
+    <bpmn:sendTask id="n_list" name="GET /inbox">
+      <bpmn:outgoing>f_8</bpmn:outgoing>
+    </bpmn:sendTask>
+    <bpmn:serviceTask id="n_listSys" name="inbox.page.ts GET / per-email count Query, fired concurrently">
+      <bpmn:incoming>f_8</bpmn:incoming>
+      <bpmn:outgoing>f_10</bpmn:outgoing>
+    </bpmn:serviceTask>
+    <bpmn:task id="n_badge" name="N-links badge per row">
+      <bpmn:incoming>f_10</bpmn:incoming>
+    </bpmn:task>
+    <bpmn:sequenceFlow id="f_0" name="" sourceRef="n_detail" targetRef="n_detailSys" />
+    <bpmn:sequenceFlow id="f_3" name="" sourceRef="n_panelpoll" targetRef="n_panelpollSys" />
+    <bpmn:sequenceFlow id="f_5" name="" sourceRef="n_poll" targetRef="n_pollSys" />
+    <bpmn:sequenceFlow id="f_8" name="" sourceRef="n_list" targetRef="n_listSys" />
+    <bpmn:sequenceFlow id="f_10" name="" sourceRef="n_listSys" targetRef="n_badge" />
+    <bpmn:association id="f_1" sourceRef="n_detailSys" targetRef="n_links" associationDirection="One" />
+    <bpmn:association id="f_2" sourceRef="n_links" targetRef="n_panel" associationDirection="One" />
+    <bpmn:association id="f_4" sourceRef="n_panelpollSys" targetRef="n_links" associationDirection="One" />
+    <bpmn:association id="f_6" sourceRef="n_pollSys" targetRef="n_getLink" associationDirection="One" />
+    <bpmn:association id="f_7" sourceRef="n_getLink" targetRef="n_card" associationDirection="One" />
+    <bpmn:association id="f_9" sourceRef="n_listSys" targetRef="n_links" associationDirection="One" />
+  </bpmn:process>
+  <bpmndi:BPMNDiagram id="Diagram_read_flow_articles_tab_per_card_poll_beh">
+    <bpmndi:BPMNPlane id="Plane_read_flow_articles_tab_per_card_poll_beh" bpmnElement="Process_read_flow_articles_tab_per_card_poll_beh">
+      <bpmndi:BPMNShape id="n_detail_di" bpmnElement="n_detail">
+        <dc:Bounds x="71.5" y="38" width="117.5" height="48" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="n_detailSys_di" bpmnElement="n_detailSys">
+        <dc:Bounds x="28" y="164" width="165.25" height="48" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="n_links_di" bpmnElement="n_links">
+        <dc:Bounds x="141.94" y="280" width="165.88" height="48" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="n_panel_di" bpmnElement="n_panel">
+        <dc:Bounds x="229.38" y="430.5" width="191.75" height="68" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="n_panelpoll_di" bpmnElement="n_panelpoll">
+        <dc:Bounds x="225" y="36" width="190.5" height="52" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="n_panelpollSys_di" bpmnElement="n_panelpollSys">
+        <dc:Bounds x="229.25" y="154" width="193" height="68" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="n_poll_di" bpmnElement="n_poll">
+        <dc:Bounds x="451.5" y="28" width="214" height="68" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="n_pollSys_di" bpmnElement="n_pollSys">
+        <dc:Bounds x="458.25" y="154" width="182.5" height="68" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="n_getLink_di" bpmnElement="n_getLink">
+        <dc:Bounds x="343.81" y="293.5" width="190" height="48" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="n_card_di" bpmnElement="n_card">
+        <dc:Bounds x="457.13" y="430.5" width="190.5" height="68" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="n_list_di" bpmnElement="n_list">
+        <dc:Bounds x="701.5" y="38" width="104" height="48" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="n_listSys_di" bpmnElement="n_listSys">
+        <dc:Bounds x="676.75" y="154" width="172.25" height="68" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="n_badge_di" bpmnElement="n_badge">
+        <dc:Bounds x="569.82" y="302.25" width="165.25" height="48" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNEdge id="f_0_di" bpmnElement="f_0">
+        <di:waypoint x="130.25" y="86" />
+        <di:waypoint x="130.25" y="125" />
+        <di:waypoint x="110.63" y="125" />
+        <di:waypoint x="110.63" y="164" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="f_3_di" bpmnElement="f_3">
+        <di:waypoint x="320.25" y="88" />
+        <di:waypoint x="320.25" y="121" />
+        <di:waypoint x="325.75" y="121" />
+        <di:waypoint x="325.75" y="154" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="f_5_di" bpmnElement="f_5">
+        <di:waypoint x="558.5" y="96" />
+        <di:waypoint x="558.5" y="125" />
+        <di:waypoint x="549.5" y="125" />
+        <di:waypoint x="549.5" y="154" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="f_8_di" bpmnElement="f_8">
+        <di:waypoint x="753.5" y="86" />
+        <di:waypoint x="753.5" y="120" />
+        <di:waypoint x="762.88" y="120" />
+        <di:waypoint x="762.88" y="154" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="f_10_di" bpmnElement="f_10">
+        <di:waypoint x="762.88" y="222" />
+        <di:waypoint x="762.88" y="262.13" />
+        <di:waypoint x="652.44" y="262.13" />
+        <di:waypoint x="652.44" y="302.25" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="f_1_di" bpmnElement="f_1">
+        <di:waypoint x="110.63" y="212" />
+        <di:waypoint x="110.63" y="246" />
+        <di:waypoint x="224.88" y="246" />
+        <di:waypoint x="224.88" y="280" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="f_2_di" bpmnElement="f_2">
+        <di:waypoint x="224.88" y="328" />
+        <di:waypoint x="224.88" y="379.25" />
+        <di:waypoint x="325.25" y="379.25" />
+        <di:waypoint x="325.25" y="430.5" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="f_4_di" bpmnElement="f_4">
+        <di:waypoint x="325.75" y="222" />
+        <di:waypoint x="325.75" y="251" />
+        <di:waypoint x="224.88" y="251" />
+        <di:waypoint x="224.88" y="280" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="f_6_di" bpmnElement="f_6">
+        <di:waypoint x="549.5" y="222" />
+        <di:waypoint x="549.5" y="257.75" />
+        <di:waypoint x="438.81" y="257.75" />
+        <di:waypoint x="438.81" y="293.5" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="f_7_di" bpmnElement="f_7">
+        <di:waypoint x="438.81" y="341.5" />
+        <di:waypoint x="438.81" y="386" />
+        <di:waypoint x="552.38" y="386" />
+        <di:waypoint x="552.38" y="430.5" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="f_9_di" bpmnElement="f_9">
+        <di:waypoint x="762.88" y="222" />
+        <di:waypoint x="762.88" y="251" />
+        <di:waypoint x="224.88" y="251" />
+        <di:waypoint x="224.88" y="280" />
+      </bpmndi:BPMNEdge>
+    </bpmndi:BPMNPlane>
+  </bpmndi:BPMNDiagram>
+</bpmn:definitions>

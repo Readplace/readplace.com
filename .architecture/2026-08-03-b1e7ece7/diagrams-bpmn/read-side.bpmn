@@ -1,0 +1,93 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<bpmn:definitions xmlns:bpmn="http://www.omg.org/spec/BPMN/20100524/MODEL" xmlns:bpmndi="http://www.omg.org/spec/BPMN/20100524/DI" xmlns:dc="http://www.omg.org/spec/DD/20100524/DC" xmlns:di="http://www.omg.org/spec/DD/20100524/DI" id="Definitions_read_side" targetNamespace="http://readplace.com/architecture/bpmn">
+  <bpmn:process id="Process_read_side" name="read-side" isExecutable="false">
+    <bpmn:sendTask id="n_reader" name="GET /queue/:id/view owner reader">
+      <bpmn:outgoing>f_0</bpmn:outgoing>
+    </bpmn:sendTask>
+    <bpmn:sendTask id="n_publicView" name="GET /view/* public reader">
+      <bpmn:outgoing>f_4</bpmn:outgoing>
+    </bpmn:sendTask>
+    <bpmn:sendTask id="n_recrawl" name="GET admin recrawl preview">
+      <bpmn:outgoing>f_5</bpmn:outgoing>
+    </bpmn:sendTask>
+    <bpmn:task id="n_mcpTool" name="MCP get_related_articles"></bpmn:task>
+    <bpmn:exclusiveGateway id="n_toggle" name="feature=similar?">
+      <bpmn:incoming>f_0</bpmn:incoming>
+      <bpmn:outgoing>f_1</bpmn:outgoing>
+    </bpmn:exclusiveGateway>
+    <bpmn:dataStoreReference id="n_read" name="read model: stored relations joined to still-saved articles"></bpmn:dataStoreReference>
+    <bpmn:task id="n_slot" name="related slot always rendered, hidden or visible">
+      <bpmn:incoming>f_1</bpmn:incoming>
+      <bpmn:incoming>f_4</bpmn:incoming>
+      <bpmn:incoming>f_5</bpmn:incoming>
+    </bpmn:task>
+    <bpmn:sequenceFlow id="f_0" name="" sourceRef="n_reader" targetRef="n_toggle" />
+    <bpmn:sequenceFlow id="f_1" name="no" sourceRef="n_toggle" targetRef="n_slot" />
+    <bpmn:sequenceFlow id="f_4" name="" sourceRef="n_publicView" targetRef="n_slot" />
+    <bpmn:sequenceFlow id="f_5" name="" sourceRef="n_recrawl" targetRef="n_slot" />
+    <bpmn:association id="f_2" sourceRef="n_toggle" targetRef="n_read" associationDirection="One" />
+    <bpmn:association id="f_3" sourceRef="n_read" targetRef="n_slot" associationDirection="One" />
+    <bpmn:association id="f_6" sourceRef="n_mcpTool" targetRef="n_read" associationDirection="One" />
+  </bpmn:process>
+  <bpmndi:BPMNDiagram id="Diagram_read_side">
+    <bpmndi:BPMNPlane id="Plane_read_side" bpmnElement="Process_read_side">
+      <bpmndi:BPMNShape id="n_reader_di" bpmnElement="n_reader">
+        <dc:Bounds x="28" y="28" width="157" height="52" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="n_publicView_di" bpmnElement="n_publicView">
+        <dc:Bounds x="221" y="28" width="108.75" height="52" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="n_recrawl_di" bpmnElement="n_recrawl">
+        <dc:Bounds x="365.75" y="30" width="202.5" height="48" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="n_mcpTool_di" bpmnElement="n_mcpTool">
+        <dc:Bounds x="604.25" y="30" width="190.5" height="48" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="n_toggle_di" bpmnElement="n_toggle">
+        <dc:Bounds x="371.54" y="138" width="79.67" height="79.67" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="n_read_di" bpmnElement="n_read">
+        <dc:Bounds x="320.08" y="293.67" width="182.6" height="48" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="n_slot_di" bpmnElement="n_slot">
+        <dc:Bounds x="313.38" y="430.67" width="196" height="68" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNEdge id="f_0_di" bpmnElement="f_0">
+        <di:waypoint x="106.5" y="80" />
+        <di:waypoint x="106.5" y="109" />
+        <di:waypoint x="411.38" y="109" />
+        <di:waypoint x="411.38" y="138" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="f_1_di" bpmnElement="f_1">
+        <di:waypoint x="411.38" y="217.67" />
+        <di:waypoint x="411.38" y="430.67" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="f_4_di" bpmnElement="f_4">
+        <di:waypoint x="275.38" y="80" />
+        <di:waypoint x="275.38" y="255.34" />
+        <di:waypoint x="411.38" y="255.34" />
+        <di:waypoint x="411.38" y="430.67" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="f_5_di" bpmnElement="f_5">
+        <di:waypoint x="467" y="78" />
+        <di:waypoint x="467" y="254.34" />
+        <di:waypoint x="411.38" y="254.34" />
+        <di:waypoint x="411.38" y="430.67" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="f_2_di" bpmnElement="f_2">
+        <di:waypoint x="411.38" y="217.67" />
+        <di:waypoint x="411.38" y="293.67" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="f_3_di" bpmnElement="f_3">
+        <di:waypoint x="411.38" y="341.67" />
+        <di:waypoint x="411.38" y="430.67" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="f_6_di" bpmnElement="f_6">
+        <di:waypoint x="699.5" y="78" />
+        <di:waypoint x="699.5" y="185.84" />
+        <di:waypoint x="411.38" y="185.84" />
+        <di:waypoint x="411.38" y="293.67" />
+      </bpmndi:BPMNEdge>
+    </bpmndi:BPMNPlane>
+  </bpmndi:BPMNDiagram>
+</bpmn:definitions>

@@ -1,0 +1,166 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<bpmn:definitions xmlns:bpmn="http://www.omg.org/spec/BPMN/20100524/MODEL" xmlns:bpmndi="http://www.omg.org/spec/BPMN/20100524/DI" xmlns:dc="http://www.omg.org/spec/DD/20100524/DC" xmlns:di="http://www.omg.org/spec/DD/20100524/DI" id="Definitions_topology" targetNamespace="http://readplace.com/architecture/bpmn">
+  <bpmn:process id="Process_topology" name="topology" isExecutable="false">
+    <bpmn:serviceTask id="n_Bus" name="shared platform EventBridge bus (hutch-event-bus)">
+      <bpmn:outgoing>f_0</bpmn:outgoing>
+      <bpmn:outgoing>f_1</bpmn:outgoing>
+    </bpmn:serviceTask>
+    <bpmn:serviceTask id="n_R1" name="cancel-subscription-command-rule">
+      <bpmn:incoming>f_0</bpmn:incoming>
+    </bpmn:serviceTask>
+    <bpmn:serviceTask id="n_R2" name="subscription-cancellation-scheduled-rule"></bpmn:serviceTask>
+    <bpmn:serviceTask id="n_R3" name="subscription-cancelled-rule"></bpmn:serviceTask>
+    <bpmn:serviceTask id="n_R4" name="subscription-charge-failed-rule"></bpmn:serviceTask>
+    <bpmn:serviceTask id="n_R5" name="subscription-charge-succeeded-rule"></bpmn:serviceTask>
+    <bpmn:serviceTask id="n_R6" name="subscription-start-request-command-rule"></bpmn:serviceTask>
+    <bpmn:serviceTask id="n_R7" name="delete-account-command-rule"></bpmn:serviceTask>
+    <bpmn:serviceTask id="n_R8" name="export-user-data-command-rule"></bpmn:serviceTask>
+    <bpmn:endEvent id="n_Dup" name="schedule-trial-feedback-email-rule 2nd rule on SubscriptionCancelled — DELETED; fan-out is now in-process">
+      <bpmn:incoming>f_1</bpmn:incoming>
+      <bpmn:messageEventDefinition />
+    </bpmn:endEvent>
+    <bpmn:dataStoreReference id="n_QA" name="subscription-events-q visibility 30s"></bpmn:dataStoreReference>
+    <bpmn:endEvent id="n_DA" name="subscription-events-dlq 1 alarm → SNS email">
+
+      <bpmn:errorEventDefinition />
+    </bpmn:endEvent>
+    <bpmn:dataStoreReference id="n_QB" name="user-data-jobs-q visibility 900s, maxReceiveCount 12"></bpmn:dataStoreReference>
+    <bpmn:endEvent id="n_DB" name="user-data-jobs-dlq 1 alarm → SNS email">
+
+      <bpmn:errorEventDefinition />
+    </bpmn:endEvent>
+    <bpmn:serviceTask id="n_PolA" name="subscription-events-queue-policy ONE policy naming all 6 rule ARNs — SQS allows exactly one per queue"></bpmn:serviceTask>
+    <bpmn:serviceTask id="n_PolB" name="user-data-jobs-queue-policy ONE policy naming both rule ARNs"></bpmn:serviceTask>
+    <bpmn:serviceTask id="n_LA" name="subscription-events-handler 128MB / 30s / batchSize 1 / ReportBatchItemFailures">
+      <bpmn:outgoing>f_6</bpmn:outgoing>
+    </bpmn:serviceTask>
+    <bpmn:serviceTask id="n_LB" name="user-data-jobs-handler 1024MB / 900s / batchSize 1 / ReportBatchItemFailures">
+      <bpmn:outgoing>f_7</bpmn:outgoing>
+    </bpmn:serviceTask>
+    <bpmn:task id="n_Old" name="DELETED: 9 queues + 9 DLQs + 9 mappings + 9 alarms + 9 roles (log groups retained)">
+      <bpmn:incoming>f_6</bpmn:incoming>
+      <bpmn:incoming>f_7</bpmn:incoming>
+    </bpmn:task>
+    <bpmn:sequenceFlow id="f_0" name="" sourceRef="n_Bus" targetRef="n_R1" />
+    <bpmn:sequenceFlow id="f_1" name="" sourceRef="n_Bus" targetRef="n_Dup" />
+    <bpmn:sequenceFlow id="f_6" name="" sourceRef="n_LA" targetRef="n_Old" />
+    <bpmn:sequenceFlow id="f_7" name="" sourceRef="n_LB" targetRef="n_Old" />
+    <bpmn:association id="f_2" sourceRef="n_QA" targetRef="n_DA" associationDirection="One" />
+    <bpmn:association id="f_3" sourceRef="n_QB" targetRef="n_DB" associationDirection="One" />
+    <bpmn:association id="f_4" sourceRef="n_QA" targetRef="n_LA" associationDirection="One" />
+    <bpmn:association id="f_5" sourceRef="n_QB" targetRef="n_LB" associationDirection="One" />
+    <bpmn:group id="grp_0" />
+  </bpmn:process>
+  <bpmndi:BPMNDiagram id="Diagram_topology">
+    <bpmndi:BPMNPlane id="Plane_topology" bpmnElement="Process_topology">
+      <bpmndi:BPMNShape id="n_Bus_di" bpmnElement="n_Bus">
+        <dc:Bounds x="265.25" y="52" width="145" height="68" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="n_R1_di" bpmnElement="n_R1">
+        <dc:Bounds x="765.42" y="239" width="201.75" height="52" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="n_R2_di" bpmnElement="n_R2">
+        <dc:Bounds x="28" y="60" width="201.25" height="52" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="n_R3_di" bpmnElement="n_R3">
+        <dc:Bounds x="446.25" y="62" width="201.25" height="48" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="n_R4_di" bpmnElement="n_R4">
+        <dc:Bounds x="1039.3" y="60" width="204" height="52" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="n_R5_di" bpmnElement="n_R5">
+        <dc:Bounds x="1279.3" y="60" width="202.5" height="52" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="n_R6_di" bpmnElement="n_R6">
+        <dc:Bounds x="1517.8" y="60" width="202.5" height="52" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="n_R7_di" bpmnElement="n_R7">
+        <dc:Bounds x="1756.3" y="60" width="200.25" height="52" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="n_R8_di" bpmnElement="n_R8">
+        <dc:Bounds x="1992.55" y="60" width="203" height="52" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="n_Dup_di" bpmnElement="n_Dup">
+        <dc:Bounds x="1521.54" y="202" width="40" height="40" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="n_QA_di" bpmnElement="n_QA">
+        <dc:Bounds x="683.5" y="46.5" width="146.52" height="48" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="n_DA_di" bpmnElement="n_DA">
+        <dc:Bounds x="1698.12" y="229" width="40" height="40" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="n_QB_di" bpmnElement="n_QB">
+        <dc:Bounds x="866.02" y="39.75" width="137.28" height="48" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="n_DB_di" bpmnElement="n_DB">
+        <dc:Bounds x="1857.98" y="229" width="40" height="40" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="n_PolA_di" bpmnElement="n_PolA">
+        <dc:Bounds x="2231.55" y="28" width="202.5" height="116" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="n_PolB_di" bpmnElement="n_PolB">
+        <dc:Bounds x="2470.05" y="44" width="202" height="84" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="n_LA_di" bpmnElement="n_LA">
+        <dc:Bounds x="1003.17" y="215" width="201" height="100" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="n_LB_di" bpmnElement="n_LB">
+        <dc:Bounds x="1240.17" y="223" width="192" height="84" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="n_Old_di" bpmnElement="n_Old">
+        <dc:Bounds x="1253.78" y="386" width="192.5" height="100" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="grp_0_di" bpmnElement="grp_0">
+        <dc:Bounds x="16" y="48" width="2191.55" height="255" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNEdge id="f_0_di" bpmnElement="f_0">
+        <di:waypoint x="337.75" y="120" />
+        <di:waypoint x="337.75" y="179.5" />
+        <di:waypoint x="866.3" y="179.5" />
+        <di:waypoint x="866.3" y="239" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="f_1_di" bpmnElement="f_1">
+        <di:waypoint x="337.75" y="120" />
+        <di:waypoint x="337.75" y="161" />
+        <di:waypoint x="1541.54" y="161" />
+        <di:waypoint x="1541.54" y="202" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="f_6_di" bpmnElement="f_6">
+        <di:waypoint x="1103.67" y="315" />
+        <di:waypoint x="1103.67" y="350.5" />
+        <di:waypoint x="1350.03" y="350.5" />
+        <di:waypoint x="1350.03" y="386" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="f_7_di" bpmnElement="f_7">
+        <di:waypoint x="1336.17" y="307" />
+        <di:waypoint x="1336.17" y="346.5" />
+        <di:waypoint x="1350.03" y="346.5" />
+        <di:waypoint x="1350.03" y="386" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="f_2_di" bpmnElement="f_2">
+        <di:waypoint x="756.76" y="94.5" />
+        <di:waypoint x="756.76" y="161.75" />
+        <di:waypoint x="1718.12" y="161.75" />
+        <di:waypoint x="1718.12" y="229" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="f_3_di" bpmnElement="f_3">
+        <di:waypoint x="934.66" y="87.75" />
+        <di:waypoint x="934.66" y="158.38" />
+        <di:waypoint x="1877.98" y="158.38" />
+        <di:waypoint x="1877.98" y="229" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="f_4_di" bpmnElement="f_4">
+        <di:waypoint x="756.76" y="94.5" />
+        <di:waypoint x="756.76" y="154.75" />
+        <di:waypoint x="1103.67" y="154.75" />
+        <di:waypoint x="1103.67" y="215" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="f_5_di" bpmnElement="f_5">
+        <di:waypoint x="934.66" y="87.75" />
+        <di:waypoint x="934.66" y="155.38" />
+        <di:waypoint x="1336.17" y="155.38" />
+        <di:waypoint x="1336.17" y="223" />
+      </bpmndi:BPMNEdge>
+    </bpmndi:BPMNPlane>
+  </bpmndi:BPMNDiagram>
+</bpmn:definitions>

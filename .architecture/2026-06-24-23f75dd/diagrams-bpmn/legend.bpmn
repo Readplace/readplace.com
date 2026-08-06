@@ -1,0 +1,50 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<bpmn:definitions xmlns:bpmn="http://www.omg.org/spec/BPMN/20100524/MODEL" xmlns:bpmndi="http://www.omg.org/spec/BPMN/20100524/DI" xmlns:dc="http://www.omg.org/spec/DD/20100524/DC" xmlns:di="http://www.omg.org/spec/DD/20100524/DI" id="Definitions_legend" targetNamespace="http://readplace.com/architecture/bpmn">
+  <bpmn:process id="Process_legend" name="legend" isExecutable="false">
+    <bpmn:sendTask id="n_cmd" name="Command"></bpmn:sendTask>
+    <bpmn:serviceTask id="n_sys" name="System / aggregate"></bpmn:serviceTask>
+    <bpmn:endEvent id="n_evt" name="Event">
+
+      <bpmn:messageEventDefinition />
+    </bpmn:endEvent>
+    <bpmn:endEvent id="n_pol" name="Policy / reaction"></bpmn:endEvent>
+    <bpmn:dataStoreReference id="n_rm" name="Read model / store"></bpmn:dataStoreReference>
+    <bpmn:intermediateCatchEvent id="n_q" name="Queue">
+
+      <bpmn:messageEventDefinition />
+    </bpmn:intermediateCatchEvent>
+    <bpmn:endEvent id="n_dlq" name="DLQ">
+
+      <bpmn:errorEventDefinition />
+    </bpmn:endEvent>
+    <bpmn:task id="n_new" name="New in this snapshot"></bpmn:task>
+  </bpmn:process>
+  <bpmndi:BPMNDiagram id="Diagram_legend">
+    <bpmndi:BPMNPlane id="Plane_legend" bpmnElement="Process_legend">
+      <bpmndi:BPMNShape id="n_cmd_di" bpmnElement="n_cmd">
+        <dc:Bounds x="55.13" y="28" width="104" height="48" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="n_sys_di" bpmnElement="n_sys">
+        <dc:Bounds x="30.88" y="112" width="152.5" height="48" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="n_evt_di" bpmnElement="n_evt">
+        <dc:Bounds x="87.13" y="196" width="40" height="40" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="n_pol_di" bpmnElement="n_pol">
+        <dc:Bounds x="87.13" y="290.5" width="40" height="40" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="n_rm_di" bpmnElement="n_rm">
+        <dc:Bounds x="42.89" y="385" width="128.48" height="48" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="n_q_di" bpmnElement="n_q">
+        <dc:Bounds x="87.13" y="486.5" width="40" height="40" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="n_dlq_di" bpmnElement="n_dlq">
+        <dc:Bounds x="87.13" y="581" width="40" height="40" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="n_new_di" bpmnElement="n_new">
+        <dc:Bounds x="28" y="675.5" width="158.25" height="48" />
+      </bpmndi:BPMNShape>
+    </bpmndi:BPMNPlane>
+  </bpmndi:BPMNDiagram>
+</bpmn:definitions>

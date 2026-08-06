@@ -1,0 +1,79 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<bpmn:definitions xmlns:bpmn="http://www.omg.org/spec/BPMN/20100524/MODEL" xmlns:bpmndi="http://www.omg.org/spec/BPMN/20100524/DI" xmlns:dc="http://www.omg.org/spec/DD/20100524/DC" xmlns:di="http://www.omg.org/spec/DD/20100524/DI" id="Definitions_failure_and_dlq" targetNamespace="http://readplace.com/architecture/bpmn">
+  <bpmn:process id="Process_failure_and_dlq" name="failure-and-dlq" isExecutable="false">
+    <bpmn:serviceTask id="n_L" name="submit-link Lambda per-link crawl wrapped in try/catch">
+      <bpmn:outgoing>f_3</bpmn:outgoing>
+    </bpmn:serviceTask>
+    <bpmn:dataStoreReference id="n_ParseErr" name="markCrawlFailed (parse-error reasons only) crawl = failed before the throw, skipped when crawl already ready"></bpmn:dataStoreReference>
+    <bpmn:dataStoreReference id="n_Exhaust" name="markCrawlExhausted — in-process, keyed on the canonical url from the collector crawl = failed exhausted-retries, summary = failed crawl-failed; no-op if crawl already ready (another tier promoted meanwhile)"></bpmn:dataStoreReference>
+    <bpmn:endEvent id="n_CAF" name="CrawlArticleFailedEvent (no subscriber in this tree — operator-observability fact on the bus)">
+
+      <bpmn:messageEventDefinition />
+    </bpmn:endEvent>
+    <bpmn:intermediateCatchEvent id="n_DLQ" name="submit-link DLQ 3rd failed receive lands here NO consumer Lambda">
+      <bpmn:incoming>f_3</bpmn:incoming>
+      <bpmn:outgoing>f_4</bpmn:outgoing>
+      <bpmn:messageEventDefinition />
+    </bpmn:intermediateCatchEvent>
+    <bpmn:serviceTask id="n_Alarm" name="CloudWatch DLQ alarm + SNS email the whole failure surface: a dead-letter wrote no row, or touched a row owned by another saver's in-flight crawl — no row mutation is correct here">
+      <bpmn:incoming>f_4</bpmn:incoming>
+    </bpmn:serviceTask>
+    <bpmn:sequenceFlow id="f_3" name="accept-phase throw (guards, DDB/EventBridge blip) or the exhaust write itself throwing: batchItemFailure, SQS retry, then dead-letter" sourceRef="n_L" targetRef="n_DLQ" />
+    <bpmn:sequenceFlow id="f_4" name="" sourceRef="n_DLQ" targetRef="n_Alarm" />
+    <bpmn:association id="f_0" sourceRef="n_L" targetRef="n_ParseErr" associationDirection="One" />
+    <bpmn:association id="f_1" sourceRef="n_L" targetRef="n_Exhaust" associationDirection="One" />
+    <bpmn:association id="f_2" sourceRef="n_Exhaust" targetRef="n_CAF" associationDirection="One" />
+  </bpmn:process>
+  <bpmndi:BPMNDiagram id="Diagram_failure_and_dlq">
+    <bpmndi:BPMNPlane id="Plane_failure_and_dlq" bpmnElement="Process_failure_and_dlq">
+      <bpmndi:BPMNShape id="n_L_di" bpmnElement="n_L">
+        <dc:Bounds x="224.74" y="28" width="190.75" height="68" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="n_ParseErr_di" bpmnElement="n_ParseErr">
+        <dc:Bounds x="28" y="181" width="190" height="48" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="n_Exhaust_di" bpmnElement="n_Exhaust">
+        <dc:Bounds x="254" y="154" width="190" height="48" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="n_CAF_di" bpmnElement="n_CAF">
+        <dc:Bounds x="181.86" y="432.75" width="40" height="40" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="n_DLQ_di" bpmnElement="n_DLQ">
+        <dc:Bounds x="526.11" y="198" width="40" height="40" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="n_Alarm_di" bpmnElement="n_Alarm">
+        <dc:Bounds x="312.55" y="399" width="200.5" height="180" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNEdge id="f_3_di" bpmnElement="f_3">
+        <di:waypoint x="320.11" y="96" />
+        <di:waypoint x="320.11" y="147" />
+        <di:waypoint x="546.11" y="147" />
+        <di:waypoint x="546.11" y="198" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="f_4_di" bpmnElement="f_4">
+        <di:waypoint x="546.11" y="238" />
+        <di:waypoint x="546.11" y="318.5" />
+        <di:waypoint x="412.8" y="318.5" />
+        <di:waypoint x="412.8" y="399" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="f_0_di" bpmnElement="f_0">
+        <di:waypoint x="320.11" y="96" />
+        <di:waypoint x="320.11" y="138.5" />
+        <di:waypoint x="123" y="138.5" />
+        <di:waypoint x="123" y="181" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="f_1_di" bpmnElement="f_1">
+        <di:waypoint x="320.11" y="96" />
+        <di:waypoint x="320.11" y="125" />
+        <di:waypoint x="349" y="125" />
+        <di:waypoint x="349" y="154" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="f_2_di" bpmnElement="f_2">
+        <di:waypoint x="349" y="202" />
+        <di:waypoint x="349" y="317.38" />
+        <di:waypoint x="201.86" y="317.38" />
+        <di:waypoint x="201.86" y="432.75" />
+      </bpmndi:BPMNEdge>
+    </bpmndi:BPMNPlane>
+  </bpmndi:BPMNDiagram>
+</bpmn:definitions>

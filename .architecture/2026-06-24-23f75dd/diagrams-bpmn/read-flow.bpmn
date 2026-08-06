@@ -1,0 +1,146 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<bpmn:definitions xmlns:bpmn="http://www.omg.org/spec/BPMN/20100524/MODEL" xmlns:bpmndi="http://www.omg.org/spec/BPMN/20100524/DI" xmlns:dc="http://www.omg.org/spec/DD/20100524/DC" xmlns:di="http://www.omg.org/spec/DD/20100524/DI" id="Definitions_read_flow" targetNamespace="http://readplace.com/architecture/bpmn">
+  <bpmn:process id="Process_read_flow" name="read-flow" isExecutable="false">
+    <bpmn:sendTask id="n_navList" name="GET /inbox">
+      <bpmn:outgoing>f_0</bpmn:outgoing>
+    </bpmn:sendTask>
+    <bpmn:serviceTask id="n_listSys" name="inbox.page.ts GET /">
+      <bpmn:incoming>f_0</bpmn:incoming>
+    </bpmn:serviceTask>
+    <bpmn:dataStoreReference id="n_emailStore" name="inbox-emails table listEmailsByUserId, newest first"></bpmn:dataStoreReference>
+    <bpmn:serviceTask id="n_listView" name="Gmail-style list sender, subject, time, badge"></bpmn:serviceTask>
+    <bpmn:sendTask id="n_navDetail" name="GET /inbox/:id">
+      <bpmn:outgoing>f_3</bpmn:outgoing>
+    </bpmn:sendTask>
+    <bpmn:serviceTask id="n_detailSys" name="inbox.page.ts GET /:id">
+      <bpmn:incoming>f_3</bpmn:incoming>
+      <bpmn:outgoing>f_7</bpmn:outgoing>
+    </bpmn:serviceTask>
+    <bpmn:dataStoreReference id="n_getRow" name="inbox-emails table getEmail PK=userId scoped"></bpmn:dataStoreReference>
+    <bpmn:dataStoreReference id="n_contentS3" name="content bucket sanitized body HTML"></bpmn:dataStoreReference>
+    <bpmn:serviceTask id="n_iframe" name="View tab: sandboxed iframe no allow-scripts/same-origin default-src none CSP"></bpmn:serviceTask>
+    <bpmn:endEvent id="n_articles" name="Articles tab — M3 placeholder">
+      <bpmn:incoming>f_7</bpmn:incoming>
+    </bpmn:endEvent>
+    <bpmn:sendTask id="n_navAddr" name="GET /inbox/addresses">
+      <bpmn:outgoing>f_8</bpmn:outgoing>
+    </bpmn:sendTask>
+    <bpmn:serviceTask id="n_addrSys" name="inbox.page.ts GET /addresses moved M1 management">
+      <bpmn:incoming>f_8</bpmn:incoming>
+    </bpmn:serviceTask>
+    <bpmn:dataStoreReference id="n_addrStore" name="inbox-addresses table"></bpmn:dataStoreReference>
+    <bpmn:sequenceFlow id="f_0" name="" sourceRef="n_navList" targetRef="n_listSys" />
+    <bpmn:sequenceFlow id="f_3" name="" sourceRef="n_navDetail" targetRef="n_detailSys" />
+    <bpmn:sequenceFlow id="f_7" name="" sourceRef="n_detailSys" targetRef="n_articles" />
+    <bpmn:sequenceFlow id="f_8" name="" sourceRef="n_navAddr" targetRef="n_addrSys" />
+    <bpmn:association id="f_1" sourceRef="n_listSys" targetRef="n_emailStore" associationDirection="One" />
+    <bpmn:association id="f_2" sourceRef="n_emailStore" targetRef="n_listView" associationDirection="One" />
+    <bpmn:association id="f_4" sourceRef="n_detailSys" targetRef="n_getRow" associationDirection="One" />
+    <bpmn:association id="f_5" sourceRef="n_detailSys" targetRef="n_contentS3" associationDirection="One" />
+    <bpmn:association id="f_6" sourceRef="n_contentS3" targetRef="n_iframe" associationDirection="One" />
+    <bpmn:association id="f_9" sourceRef="n_addrSys" targetRef="n_addrStore" associationDirection="One" />
+  </bpmn:process>
+  <bpmndi:BPMNDiagram id="Diagram_read_flow">
+    <bpmndi:BPMNPlane id="Plane_read_flow" bpmnElement="Process_read_flow">
+      <bpmndi:BPMNShape id="n_navList_di" bpmnElement="n_navList">
+        <dc:Bounds x="240.57" y="28" width="104" height="48" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="n_listSys_di" bpmnElement="n_listSys">
+        <dc:Bounds x="189.82" y="144" width="149.75" height="48" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="n_emailStore_di" bpmnElement="n_emailStore">
+        <dc:Bounds x="28" y="260" width="180.84" height="48" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="n_listView_di" bpmnElement="n_listView">
+        <dc:Bounds x="268.19" y="418.5" width="165.25" height="68" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="n_navDetail_di" bpmnElement="n_navDetail">
+        <dc:Bounds x="380.57" y="28" width="117.5" height="48" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="n_detailSys_di" bpmnElement="n_detailSys">
+        <dc:Bounds x="375.57" y="144" width="165.25" height="48" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="n_getRow_di" bpmnElement="n_getRow">
+        <dc:Bounds x="244.84" y="266.75" width="178.2" height="48" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="n_contentS3_di" bpmnElement="n_contentS3">
+        <dc:Bounds x="459.04" y="266.75" width="137.28" height="48" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="n_iframe_di" bpmnElement="n_iframe">
+        <dc:Bounds x="469.44" y="410.5" width="202" height="84" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="n_articles_di" bpmnElement="n_articles">
+        <dc:Bounds x="661.93" y="270.25" width="40" height="40" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="n_navAddr_di" bpmnElement="n_navAddr">
+        <dc:Bounds x="534.07" y="28" width="165" height="48" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="n_addrSys_di" bpmnElement="n_addrSys">
+        <dc:Bounds x="576.82" y="134" width="173" height="68" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="n_addrStore_di" bpmnElement="n_addrStore">
+        <dc:Bounds x="767.54" y="273.5" width="144.1" height="48" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNEdge id="f_0_di" bpmnElement="f_0">
+        <di:waypoint x="292.57" y="76" />
+        <di:waypoint x="292.57" y="110" />
+        <di:waypoint x="264.69" y="110" />
+        <di:waypoint x="264.69" y="144" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="f_3_di" bpmnElement="f_3">
+        <di:waypoint x="439.32" y="76" />
+        <di:waypoint x="439.32" y="110" />
+        <di:waypoint x="458.19" y="110" />
+        <di:waypoint x="458.19" y="144" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="f_7_di" bpmnElement="f_7">
+        <di:waypoint x="458.19" y="192" />
+        <di:waypoint x="458.19" y="231.13" />
+        <di:waypoint x="681.93" y="231.13" />
+        <di:waypoint x="681.93" y="270.25" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="f_8_di" bpmnElement="f_8">
+        <di:waypoint x="616.57" y="76" />
+        <di:waypoint x="616.57" y="105" />
+        <di:waypoint x="663.32" y="105" />
+        <di:waypoint x="663.32" y="134" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="f_1_di" bpmnElement="f_1">
+        <di:waypoint x="264.69" y="192" />
+        <di:waypoint x="264.69" y="226" />
+        <di:waypoint x="118.42" y="226" />
+        <di:waypoint x="118.42" y="260" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="f_2_di" bpmnElement="f_2">
+        <di:waypoint x="118.42" y="308" />
+        <di:waypoint x="118.42" y="363.25" />
+        <di:waypoint x="350.82" y="363.25" />
+        <di:waypoint x="350.82" y="418.5" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="f_4_di" bpmnElement="f_4">
+        <di:waypoint x="458.19" y="192" />
+        <di:waypoint x="458.19" y="229.38" />
+        <di:waypoint x="333.94" y="229.38" />
+        <di:waypoint x="333.94" y="266.75" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="f_5_di" bpmnElement="f_5">
+        <di:waypoint x="458.19" y="192" />
+        <di:waypoint x="458.19" y="229.38" />
+        <di:waypoint x="527.68" y="229.38" />
+        <di:waypoint x="527.68" y="266.75" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="f_6_di" bpmnElement="f_6">
+        <di:waypoint x="527.68" y="314.75" />
+        <di:waypoint x="527.68" y="362.63" />
+        <di:waypoint x="570.44" y="362.63" />
+        <di:waypoint x="570.44" y="410.5" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="f_9_di" bpmnElement="f_9">
+        <di:waypoint x="663.32" y="202" />
+        <di:waypoint x="663.32" y="237.75" />
+        <di:waypoint x="839.59" y="237.75" />
+        <di:waypoint x="839.59" y="273.5" />
+      </bpmndi:BPMNEdge>
+    </bpmndi:BPMNPlane>
+  </bpmndi:BPMNDiagram>
+</bpmn:definitions>

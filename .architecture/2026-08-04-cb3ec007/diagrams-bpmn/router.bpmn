@@ -1,0 +1,145 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<bpmn:definitions xmlns:bpmn="http://www.omg.org/spec/BPMN/20100524/MODEL" xmlns:bpmndi="http://www.omg.org/spec/BPMN/20100524/DI" xmlns:dc="http://www.omg.org/spec/DD/20100524/DC" xmlns:di="http://www.omg.org/spec/DD/20100524/DI" id="Definitions_router" targetNamespace="http://readplace.com/architecture/bpmn">
+  <bpmn:process id="Process_router" name="router" isExecutable="false">
+    <bpmn:intermediateCatchEvent id="n_In" name="SQS batch of EventBridge envelopes">
+      <bpmn:incoming>f_9</bpmn:incoming>
+      <bpmn:outgoing>f_0</bpmn:outgoing>
+      <bpmn:messageEventDefinition />
+    </bpmn:intermediateCatchEvent>
+    <bpmn:serviceTask id="n_Parse" name="parse envelope — reads 'detail-type' ONLY; 'detail' stays opaque here">
+      <bpmn:incoming>f_0</bpmn:incoming>
+      <bpmn:outgoing>f_1</bpmn:outgoing>
+      <bpmn:outgoing>f_3</bpmn:outgoing>
+    </bpmn:serviceTask>
+    <bpmn:task id="n_Miss" name="unregistered detail-type → assert fails → that record reported as a batch item failure">
+      <bpmn:incoming>f_1</bpmn:incoming>
+      <bpmn:outgoing>f_2</bpmn:outgoing>
+    </bpmn:task>
+    <bpmn:endEvent id="n_DLQ" name="DLQ after maxReceiveCount → alarm → SNS email">
+      <bpmn:incoming>f_2</bpmn:incoming>
+      <bpmn:errorEventDefinition />
+    </bpmn:endEvent>
+    <bpmn:serviceTask id="n_Group" name="group records by handler — a type with N handlers adds the record to each of them">
+      <bpmn:incoming>f_3</bpmn:incoming>
+      <bpmn:outgoing>f_4</bpmn:outgoing>
+    </bpmn:serviceTask>
+    <bpmn:serviceTask id="n_H1" name="handler A — invoked once with its own slice">
+      <bpmn:incoming>f_4</bpmn:incoming>
+      <bpmn:outgoing>f_5</bpmn:outgoing>
+    </bpmn:serviceTask>
+    <bpmn:serviceTask id="n_H2" name="handler B — invoked once with its own slice">
+      <bpmn:outgoing>f_6</bpmn:outgoing>
+    </bpmn:serviceTask>
+    <bpmn:serviceTask id="n_Own" name="each handler parses its own detail schema, logs its own prefix, returns its own failures">
+      <bpmn:incoming>f_5</bpmn:incoming>
+      <bpmn:incoming>f_6</bpmn:incoming>
+      <bpmn:outgoing>f_7</bpmn:outgoing>
+    </bpmn:serviceTask>
+    <bpmn:serviceTask id="n_Union" name="union batchItemFailures into a Set — a record failed by two fan-out handlers is reported once">
+      <bpmn:incoming>f_7</bpmn:incoming>
+      <bpmn:outgoing>f_8</bpmn:outgoing>
+      <bpmn:outgoing>f_9</bpmn:outgoing>
+    </bpmn:serviceTask>
+    <bpmn:serviceTask id="n_Out" name="SQSBatchResponse">
+      <bpmn:incoming>f_8</bpmn:incoming>
+    </bpmn:serviceTask>
+    <bpmn:sequenceFlow id="f_0" name="" sourceRef="n_In" targetRef="n_Parse" />
+    <bpmn:sequenceFlow id="f_1" name="no route" sourceRef="n_Parse" targetRef="n_Miss" />
+    <bpmn:sequenceFlow id="f_2" name="" sourceRef="n_Miss" targetRef="n_DLQ" />
+    <bpmn:sequenceFlow id="f_3" name="routed" sourceRef="n_Parse" targetRef="n_Group" />
+    <bpmn:sequenceFlow id="f_4" name="" sourceRef="n_Group" targetRef="n_H1" />
+    <bpmn:sequenceFlow id="f_5" name="" sourceRef="n_H1" targetRef="n_Own" />
+    <bpmn:sequenceFlow id="f_6" name="" sourceRef="n_H2" targetRef="n_Own" />
+    <bpmn:sequenceFlow id="f_7" name="" sourceRef="n_Own" targetRef="n_Union" />
+    <bpmn:sequenceFlow id="f_8" name="" sourceRef="n_Union" targetRef="n_Out" />
+    <bpmn:sequenceFlow id="f_9" name="redelivery" sourceRef="n_Union" targetRef="n_In" />
+  </bpmn:process>
+  <bpmndi:BPMNDiagram id="Diagram_router">
+    <bpmndi:BPMNPlane id="Plane_router" bpmnElement="Process_router">
+      <bpmndi:BPMNShape id="n_In_di" bpmnElement="n_In">
+        <dc:Bounds x="116.5" y="28" width="40" height="40" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="n_Parse_di" bpmnElement="n_Parse">
+        <dc:Bounds x="149.63" y="158" width="188.75" height="68" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="n_Miss_di" bpmnElement="n_Miss">
+        <dc:Bounds x="28" y="284" width="194.25" height="84" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="n_DLQ_di" bpmnElement="n_DLQ">
+        <dc:Bounds x="116.5" y="426" width="40" height="40" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="n_Group_di" bpmnElement="n_Group">
+        <dc:Bounds x="258.25" y="284" width="201.75" height="84" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="n_H1_di" bpmnElement="n_H1">
+        <dc:Bounds x="228.49" y="442.75" width="179" height="52" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="n_H2_di" bpmnElement="n_H2">
+        <dc:Bounds x="244.88" y="38" width="179" height="52" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="n_Own_di" bpmnElement="n_Own">
+        <dc:Bounds x="142.5" y="569.5" width="203" height="84" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="n_Union_di" bpmnElement="n_Union">
+        <dc:Bounds x="152.25" y="711.5" width="183.5" height="100" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="n_Out_di" bpmnElement="n_Out">
+        <dc:Bounds x="171.25" y="869.5" width="145.5" height="48" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNEdge id="f_0_di" bpmnElement="f_0">
+        <di:waypoint x="136.5" y="68" />
+        <di:waypoint x="136.5" y="113" />
+        <di:waypoint x="244" y="113" />
+        <di:waypoint x="244" y="158" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="f_1_di" bpmnElement="f_1">
+        <di:waypoint x="244" y="226" />
+        <di:waypoint x="244" y="255" />
+        <di:waypoint x="125.13" y="255" />
+        <di:waypoint x="125.13" y="284" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="f_2_di" bpmnElement="f_2">
+        <di:waypoint x="125.13" y="368" />
+        <di:waypoint x="125.13" y="397" />
+        <di:waypoint x="136.5" y="397" />
+        <di:waypoint x="136.5" y="426" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="f_3_di" bpmnElement="f_3">
+        <di:waypoint x="244" y="226" />
+        <di:waypoint x="244" y="255" />
+        <di:waypoint x="359.13" y="255" />
+        <di:waypoint x="359.13" y="284" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="f_4_di" bpmnElement="f_4">
+        <di:waypoint x="359.13" y="368" />
+        <di:waypoint x="359.13" y="405.38" />
+        <di:waypoint x="317.99" y="405.38" />
+        <di:waypoint x="317.99" y="442.75" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="f_5_di" bpmnElement="f_5">
+        <di:waypoint x="317.99" y="494.75" />
+        <di:waypoint x="317.99" y="532.13" />
+        <di:waypoint x="244" y="532.13" />
+        <di:waypoint x="244" y="569.5" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="f_6_di" bpmnElement="f_6">
+        <di:waypoint x="334.38" y="90" />
+        <di:waypoint x="334.38" y="329.75" />
+        <di:waypoint x="244" y="329.75" />
+        <di:waypoint x="244" y="569.5" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="f_7_di" bpmnElement="f_7">
+        <di:waypoint x="244" y="653.5" />
+        <di:waypoint x="244" y="711.5" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="f_8_di" bpmnElement="f_8">
+        <di:waypoint x="244" y="811.5" />
+        <di:waypoint x="244" y="869.5" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="f_9_di" bpmnElement="f_9">
+        <di:waypoint x="236.47" y="711.5" />
+        <di:waypoint x="139.48" y="67.78" />
+      </bpmndi:BPMNEdge>
+    </bpmndi:BPMNPlane>
+  </bpmndi:BPMNDiagram>
+</bpmn:definitions>

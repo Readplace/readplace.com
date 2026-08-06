@@ -1,0 +1,185 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<bpmn:definitions xmlns:bpmn="http://www.omg.org/spec/BPMN/20100524/MODEL" xmlns:bpmndi="http://www.omg.org/spec/BPMN/20100524/DI" xmlns:dc="http://www.omg.org/spec/DD/20100524/DC" xmlns:di="http://www.omg.org/spec/DD/20100524/DI" id="Definitions_dlqs_left_alarm_only" targetNamespace="http://readplace.com/architecture/bpmn">
+  <bpmn:process id="Process_dlqs_left_alarm_only" name="dlqs-left-alarm-only" isExecutable="false">
+    <bpmn:serviceTask id="n_SES" name="SES catch-all receipt rule raw .eml to the forever-retained bucket, then SNS">
+      <bpmn:outgoing>f_0</bpmn:outgoing>
+    </bpmn:serviceTask>
+    <bpmn:intermediateCatchEvent id="n_RQ" name="SQS inbox-receive-email visibility 120s + 60s guard">
+      <bpmn:incoming>f_0</bpmn:incoming>
+      <bpmn:outgoing>f_1</bpmn:outgoing>
+      <bpmn:messageEventDefinition />
+    </bpmn:intermediateCatchEvent>
+    <bpmn:serviceTask id="n_RW" name="inbox receive-email Lambda">
+      <bpmn:incoming>f_1</bpmn:incoming>
+      <bpmn:outgoing>f_4</bpmn:outgoing>
+    </bpmn:serviceTask>
+    <bpmn:dataStoreReference id="n_Audit" name="hutch-inbox-emails rejected / unparsed audit row written BEFORE the record fails"></bpmn:dataStoreReference>
+    <bpmn:dataStoreReference id="n_Raw" name="raw .eml bucket, retained forever the audit trail when there is no key to write against"></bpmn:dataStoreReference>
+    <bpmn:intermediateCatchEvent id="n_RD" name="DLQ inbox-receive-email-dlq alarm only, by design">
+      <bpmn:incoming>f_4</bpmn:incoming>
+      <bpmn:outgoing>f_5</bpmn:outgoing>
+      <bpmn:messageEventDefinition />
+    </bpmn:intermediateCatchEvent>
+    <bpmn:startEvent id="n_LQE" name="LinkQueuedEvent / LinkQueueFailedEvent from the save side">
+      <bpmn:outgoing>f_8</bpmn:outgoing>
+      <bpmn:messageEventDefinition />
+    </bpmn:startEvent>
+    <bpmn:intermediateCatchEvent id="n_LQ" name="SQS inbox-record-link-queued and inbox-record-link-queue-failed">
+      <bpmn:incoming>f_8</bpmn:incoming>
+      <bpmn:outgoing>f_9</bpmn:outgoing>
+      <bpmn:messageEventDefinition />
+    </bpmn:intermediateCatchEvent>
+    <bpmn:serviceTask id="n_LW" name="inbox record-link-queued Lambda unconditional single-row upsert, no read">
+      <bpmn:incoming>f_9</bpmn:incoming>
+      <bpmn:outgoing>f_11</bpmn:outgoing>
+    </bpmn:serviceTask>
+    <bpmn:dataStoreReference id="n_Saved" name="hutch-inbox-saved-links"></bpmn:dataStoreReference>
+    <bpmn:intermediateCatchEvent id="n_LD" name="DLQ per queue alarm only, by design">
+      <bpmn:incoming>f_11</bpmn:incoming>
+      <bpmn:outgoing>f_12</bpmn:outgoing>
+      <bpmn:messageEventDefinition />
+    </bpmn:intermediateCatchEvent>
+    <bpmn:endEvent id="n_Alarm" name="CloudWatch depth alarm to SNS email the operator is the consumer">
+      <bpmn:incoming>f_5</bpmn:incoming>
+      <bpmn:incoming>f_12</bpmn:incoming>
+    </bpmn:endEvent>
+    <bpmn:sequenceFlow id="f_0" name="" sourceRef="n_SES" targetRef="n_RQ" />
+    <bpmn:sequenceFlow id="f_1" name="" sourceRef="n_RQ" targetRef="n_RW" />
+    <bpmn:sequenceFlow id="f_4" name="3 receives exhausted" sourceRef="n_RW" targetRef="n_RD" />
+    <bpmn:sequenceFlow id="f_5" name="" sourceRef="n_RD" targetRef="n_Alarm" />
+    <bpmn:sequenceFlow id="f_8" name="" sourceRef="n_LQE" targetRef="n_LQ" />
+    <bpmn:sequenceFlow id="f_9" name="" sourceRef="n_LQ" targetRef="n_LW" />
+    <bpmn:sequenceFlow id="f_11" name="3 receives exhausted" sourceRef="n_LW" targetRef="n_LD" />
+    <bpmn:sequenceFlow id="f_12" name="" sourceRef="n_LD" targetRef="n_Alarm" />
+    <bpmn:association id="f_2" sourceRef="n_RW" targetRef="n_Audit" associationDirection="One" />
+    <bpmn:association id="f_3" sourceRef="n_SES" targetRef="n_Raw" associationDirection="One" />
+    <bpmn:association id="f_6" sourceRef="n_Audit" targetRef="n_RD" associationDirection="One" />
+    <bpmn:association id="f_7" sourceRef="n_Raw" targetRef="n_RD" associationDirection="One" />
+    <bpmn:association id="f_10" sourceRef="n_LW" targetRef="n_Saved" associationDirection="One" />
+    <bpmn:association id="f_13" sourceRef="n_Saved" targetRef="n_LD" associationDirection="One" />
+  </bpmn:process>
+  <bpmndi:BPMNDiagram id="Diagram_dlqs_left_alarm_only">
+    <bpmndi:BPMNPlane id="Plane_dlqs_left_alarm_only" bpmnElement="Process_dlqs_left_alarm_only">
+      <bpmndi:BPMNShape id="n_SES_di" bpmnElement="n_SES">
+        <dc:Bounds x="135.27" y="28.75" width="193.25" height="84" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="n_RQ_di" bpmnElement="n_RQ">
+        <dc:Bounds x="76.75" y="181.75" width="40" height="40" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="n_RW_di" bpmnElement="n_RW">
+        <dc:Bounds x="100.01" y="353.5" width="202" height="48" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="n_Audit_di" bpmnElement="n_Audit">
+        <dc:Bounds x="119.3" y="477.5" width="190" height="48" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="n_Raw_di" bpmnElement="n_Raw">
+        <dc:Bounds x="201.5" y="171.5" width="182.82" height="48" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="n_RD_di" bpmnElement="n_RD">
+        <dc:Bounds x="214.32" y="641.5" width="40" height="40" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="n_LQE_di" bpmnElement="n_LQE">
+        <dc:Bounds x="405.14" y="28" width="40" height="40" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="n_LQ_di" bpmnElement="n_LQ">
+        <dc:Bounds x="486.67" y="175" width="40" height="40" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="n_LW_di" bpmnElement="n_LW">
+        <dc:Bounds x="338.01" y="335.5" width="183" height="84" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="n_Saved_di" bpmnElement="n_Saved">
+        <dc:Bounds x="345.3" y="497.75" width="156.42" height="48" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="n_LD_di" bpmnElement="n_LD">
+        <dc:Bounds x="375.28" y="648.25" width="40" height="40" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="n_Alarm_di" bpmnElement="n_Alarm">
+        <dc:Bounds x="290.51" y="785" width="40" height="40" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNEdge id="f_0_di" bpmnElement="f_0">
+        <di:waypoint x="231.9" y="112.75" />
+        <di:waypoint x="231.9" y="147.25" />
+        <di:waypoint x="96.75" y="147.25" />
+        <di:waypoint x="96.75" y="181.75" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="f_1_di" bpmnElement="f_1">
+        <di:waypoint x="96.75" y="221.75" />
+        <di:waypoint x="96.75" y="287.63" />
+        <di:waypoint x="201.01" y="287.63" />
+        <di:waypoint x="201.01" y="353.5" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="f_4_di" bpmnElement="f_4">
+        <di:waypoint x="201.01" y="401.5" />
+        <di:waypoint x="201.01" y="521.5" />
+        <di:waypoint x="234.32" y="521.5" />
+        <di:waypoint x="234.32" y="641.5" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="f_5_di" bpmnElement="f_5">
+        <di:waypoint x="234.32" y="681.5" />
+        <di:waypoint x="234.32" y="733.25" />
+        <di:waypoint x="310.51" y="733.25" />
+        <di:waypoint x="310.51" y="785" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="f_8_di" bpmnElement="f_8">
+        <di:waypoint x="425.14" y="68" />
+        <di:waypoint x="425.14" y="121.5" />
+        <di:waypoint x="506.67" y="121.5" />
+        <di:waypoint x="506.67" y="175" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="f_9_di" bpmnElement="f_9">
+        <di:waypoint x="506.67" y="215" />
+        <di:waypoint x="506.67" y="275.25" />
+        <di:waypoint x="429.51" y="275.25" />
+        <di:waypoint x="429.51" y="335.5" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="f_11_di" bpmnElement="f_11">
+        <di:waypoint x="429.51" y="419.5" />
+        <di:waypoint x="429.51" y="533.88" />
+        <di:waypoint x="395.28" y="533.88" />
+        <di:waypoint x="395.28" y="648.25" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="f_12_di" bpmnElement="f_12">
+        <di:waypoint x="395.28" y="688.25" />
+        <di:waypoint x="395.28" y="736.63" />
+        <di:waypoint x="310.51" y="736.63" />
+        <di:waypoint x="310.51" y="785" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="f_2_di" bpmnElement="f_2">
+        <di:waypoint x="201.01" y="401.5" />
+        <di:waypoint x="201.01" y="439.5" />
+        <di:waypoint x="214.3" y="439.5" />
+        <di:waypoint x="214.3" y="477.5" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="f_3_di" bpmnElement="f_3">
+        <di:waypoint x="231.9" y="112.75" />
+        <di:waypoint x="231.9" y="142.13" />
+        <di:waypoint x="292.91" y="142.13" />
+        <di:waypoint x="292.91" y="171.5" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="f_6_di" bpmnElement="f_6">
+        <di:waypoint x="214.3" y="525.5" />
+        <di:waypoint x="214.3" y="583.5" />
+        <di:waypoint x="234.32" y="583.5" />
+        <di:waypoint x="234.32" y="641.5" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="f_7_di" bpmnElement="f_7">
+        <di:waypoint x="292.91" y="219.5" />
+        <di:waypoint x="292.91" y="430.5" />
+        <di:waypoint x="234.32" y="430.5" />
+        <di:waypoint x="234.32" y="641.5" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="f_10_di" bpmnElement="f_10">
+        <di:waypoint x="429.51" y="419.5" />
+        <di:waypoint x="429.51" y="458.63" />
+        <di:waypoint x="423.51" y="458.63" />
+        <di:waypoint x="423.51" y="497.75" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="f_13_di" bpmnElement="f_13">
+        <di:waypoint x="423.51" y="545.75" />
+        <di:waypoint x="423.51" y="597" />
+        <di:waypoint x="395.28" y="597" />
+        <di:waypoint x="395.28" y="648.25" />
+      </bpmndi:BPMNEdge>
+    </bpmndi:BPMNPlane>
+  </bpmndi:BPMNDiagram>
+</bpmn:definitions>

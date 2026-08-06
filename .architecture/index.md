@@ -96,6 +96,18 @@ Hand this verbatim to a fresh agent (replace `<TOPIC>` and `<ENTRY>` first if yo
 >
 > `mmdc` writes one SVG per Mermaid block, numbered `<TOPIC>-1.svg`, `<TOPIC>-2.svg`, etc. Rename them to descriptive filenames (e.g. `legend.svg`, `end-to-end-flow.svg`). In the Markdown document, embed each SVG with `![alt](diagrams/<name>.svg)` and keep the original Mermaid source in a collapsed `<details><summary>Mermaid source</summary>...</details>` block underneath so the diagram can be re-rendered. If `mmdc` fails (network, sandbox, missing Chromium), surface the error to the user before proceeding — do not leave raw unrendered Mermaid blocks in the snapshot.
 >
+> **Step 3b — Render the same diagrams in BPMN.** Every snapshot also carries a `diagrams-bpmn/` folder — one `<name>.png` + `<name>.bpmn` per Mermaid block — produced by the browserless renderer in [`tools/bpmn/`](./tools/bpmn/README.md):
+>
+> ```bash
+> cd .architecture/tools/bpmn
+> printf '{ "private": true }\n' > package.json   # npm needs one outside the pnpm workspace
+> npm install @resvg/resvg-js --no-save
+> node generate-bpmn.mjs
+> rm package.json package-lock.json
+> ```
+>
+> The batch command rewrites **every** snapshot's `diagrams-bpmn/` folder; after it runs, `git restore` any modified renders under earlier snapshots so only the new folder lands (past snapshots are historical records — their pixels must not drift with the generating host). A snapshot whose `diagrams/` exists but `diagrams-bpmn/` does not is **incomplete**: do not proceed to Step 4 without both, and if the renderer fails, surface the error rather than skipping the folder.
+>
 > **Step 4 — Update the snapshots table in `.architecture/index.md`.** Append a row with: commit short hash linked to the folder (`[\`<hash>\`](./<commit-date>-<hash>/)`), commit date, today's date, branch, commit subject, a one-line contents summary that does **not** reference current file paths (those may rot — describe the flow at the level of "X submits → Y processes → Z stores"). Keep snapshots in chronological order (newest at the bottom).
 >
 > **Step 5 — Do not commit.** Leave everything in the working tree. The user controls when to commit.

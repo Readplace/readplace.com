@@ -1,0 +1,222 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<bpmn:definitions xmlns:bpmn="http://www.omg.org/spec/BPMN/20100524/MODEL" xmlns:bpmndi="http://www.omg.org/spec/BPMN/20100524/DI" xmlns:dc="http://www.omg.org/spec/DD/20100524/DC" xmlns:di="http://www.omg.org/spec/DD/20100524/DI" id="Definitions_extraction_terminal_state" targetNamespace="http://readplace.com/architecture/bpmn">
+  <bpmn:process id="Process_extraction_terminal_state" name="extraction-terminal-state" isExecutable="false">
+    <bpmn:serviceTask id="n_Recv" name="inbox receive-email Lambda">
+      <bpmn:outgoing>f_0</bpmn:outgoing>
+    </bpmn:serviceTask>
+    <bpmn:intermediateThrowEvent id="n_Evt" name="EmailReceivedEvent source hutch.inbox userId, receivedAtMessageId, recipientAddress, origin">
+      <bpmn:incoming>f_0</bpmn:incoming>
+      <bpmn:outgoing>f_1</bpmn:outgoing>
+      <bpmn:messageEventDefinition />
+    </bpmn:intermediateThrowEvent>
+    <bpmn:businessRuleTask id="n_Rule" name="EventBridge rule inbox-extract-email-links">
+      <bpmn:incoming>f_1</bpmn:incoming>
+      <bpmn:outgoing>f_2</bpmn:outgoing>
+    </bpmn:businessRuleTask>
+    <bpmn:intermediateCatchEvent id="n_Q" name="SQS inbox-extract-email-links visibility 180s + 60s guard - maxReceiveCount 3">
+      <bpmn:incoming>f_2</bpmn:incoming>
+      <bpmn:incoming>f_10</bpmn:incoming>
+      <bpmn:outgoing>f_3</bpmn:outgoing>
+      <bpmn:outgoing>f_11</bpmn:outgoing>
+      <bpmn:messageEventDefinition />
+    </bpmn:intermediateCatchEvent>
+    <bpmn:serviceTask id="n_Worker" name="inbox extract-email-links Lambda re-derive body from raw .eml, extract, classify, triage">
+      <bpmn:incoming>f_3</bpmn:incoming>
+      <bpmn:outgoing>f_5</bpmn:outgoing>
+      <bpmn:outgoing>f_6</bpmn:outgoing>
+      <bpmn:outgoing>f_9</bpmn:outgoing>
+      <bpmn:outgoing>f_10</bpmn:outgoing>
+    </bpmn:serviceTask>
+    <bpmn:dataStoreReference id="n_LinkRows" name="hutch-inbox-email-links one pending or skipped row per link"></bpmn:dataStoreReference>
+    <bpmn:sendTask id="n_Submit" name="SubmitLinkCommand origin receive + routed + saveable only">
+      <bpmn:incoming>f_5</bpmn:incoming>
+    </bpmn:sendTask>
+    <bpmn:sendTask id="n_Crawl" name="CrawlEmailLinkPreview one per kept link">
+      <bpmn:incoming>f_6</bpmn:incoming>
+    </bpmn:sendTask>
+    <bpmn:dataStoreReference id="n_Counts" name="hutch-inbox-emails setEmailLinkCounts"></bpmn:dataStoreReference>
+    <bpmn:dataStoreReference id="n_Meta" name="putLinksMeta unconditional truncated, extractionFailed false the extraction-finished barrier"></bpmn:dataStoreReference>
+    <bpmn:intermediateCatchEvent id="n_TruncQ" name="SQS inbox-extract-email-links-truncated-alert send-rate alarm, no consumer">
+      <bpmn:incoming>f_9</bpmn:incoming>
+      <bpmn:messageEventDefinition />
+    </bpmn:intermediateCatchEvent>
+    <bpmn:intermediateCatchEvent id="n_D" name="DLQ inbox-extract-email-links-dlq">
+      <bpmn:incoming>f_11</bpmn:incoming>
+      <bpmn:outgoing>f_12</bpmn:outgoing>
+      <bpmn:messageEventDefinition />
+    </bpmn:intermediateCatchEvent>
+    <bpmn:endEvent id="n_Alarm" name="CloudWatch depth alarm to SNS email pages the operator">
+      <bpmn:incoming>f_12</bpmn:incoming>
+    </bpmn:endEvent>
+    <bpmn:serviceTask id="n_DlqFn" name="inbox-extract-email-links-dlq Lambda attachDlqConsumer - batchSize 1 - 256MB/30s dynamodb:PutItem only">
+      <bpmn:outgoing>f_14</bpmn:outgoing>
+    </bpmn:serviceTask>
+    <bpmn:startEvent id="n_Failed" name="markLinksExtractionFailed conditional PutItem attribute_not_exists ordinal truncated false, extractionFailed true">
+      <bpmn:outgoing>f_13</bpmn:outgoing>
+      <bpmn:messageEventDefinition />
+    </bpmn:startEvent>
+    <bpmn:task id="n_Superseded" name="superseded: a barrier already exists a sibling delivery succeeded, leave it">
+      <bpmn:incoming>f_13</bpmn:incoming>
+    </bpmn:task>
+    <bpmn:endEvent id="n_BadEnvelope" name="envelope is not an EmailReceivedEvent fail the record, keep it for redrive">
+      <bpmn:incoming>f_14</bpmn:incoming>
+      <bpmn:messageEventDefinition />
+    </bpmn:endEvent>
+    <bpmn:sequenceFlow id="f_0" name="" sourceRef="n_Recv" targetRef="n_Evt" />
+    <bpmn:sequenceFlow id="f_1" name="" sourceRef="n_Evt" targetRef="n_Rule" />
+    <bpmn:sequenceFlow id="f_2" name="" sourceRef="n_Rule" targetRef="n_Q" />
+    <bpmn:sequenceFlow id="f_3" name="" sourceRef="n_Q" targetRef="n_Worker" />
+    <bpmn:sequenceFlow id="f_5" name="1 - before the preview publish" sourceRef="n_Worker" targetRef="n_Submit" />
+    <bpmn:sequenceFlow id="f_6" name="2" sourceRef="n_Worker" targetRef="n_Crawl" />
+    <bpmn:sequenceFlow id="f_9" name="per-email cap of 200 hit" sourceRef="n_Worker" targetRef="n_TruncQ" />
+    <bpmn:sequenceFlow id="f_10" name="record fails" sourceRef="n_Worker" targetRef="n_Q" />
+    <bpmn:sequenceFlow id="f_11" name="3 receives exhausted" sourceRef="n_Q" targetRef="n_D" />
+    <bpmn:sequenceFlow id="f_12" name="" sourceRef="n_D" targetRef="n_Alarm" />
+    <bpmn:sequenceFlow id="f_13" name="" sourceRef="n_Failed" targetRef="n_Superseded" />
+    <bpmn:sequenceFlow id="f_14" name="" sourceRef="n_DlqFn" targetRef="n_BadEnvelope" />
+    <bpmn:association id="f_4" sourceRef="n_Worker" targetRef="n_LinkRows" associationDirection="One" />
+    <bpmn:association id="f_7" sourceRef="n_Worker" targetRef="n_Counts" associationDirection="One" />
+    <bpmn:association id="f_8" sourceRef="n_Worker" targetRef="n_Meta" associationDirection="One" />
+  </bpmn:process>
+  <bpmndi:BPMNDiagram id="Diagram_extraction_terminal_state">
+    <bpmndi:BPMNPlane id="Plane_extraction_terminal_state" bpmnElement="Process_extraction_terminal_state">
+      <bpmndi:BPMNShape id="n_Recv_di" bpmnElement="n_Recv">
+        <dc:Bounds x="445.92" y="73.75" width="202" height="48" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="n_Evt_di" bpmnElement="n_Evt">
+        <dc:Bounds x="554.09" y="225.5" width="40" height="40" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="n_Rule_di" bpmnElement="n_Rule">
+        <dc:Bounds x="659.46" y="396" width="191.75" height="52" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="n_Q_di" bpmnElement="n_Q">
+        <dc:Bounds x="735.33" y="506" width="40" height="40" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="n_Worker_di" bpmnElement="n_Worker">
+        <dc:Bounds x="558.79" y="676.5" width="189" height="100" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="n_LinkRows_di" bpmnElement="n_LinkRows">
+        <dc:Bounds x="28" y="848" width="190" height="48" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="n_Submit_di" bpmnElement="n_Submit">
+        <dc:Bounds x="254" y="860.25" width="181.75" height="68" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="n_Crawl_di" bpmnElement="n_Crawl">
+        <dc:Bounds x="471.75" y="868.25" width="178.75" height="52" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="n_Counts_di" bpmnElement="n_Counts">
+        <dc:Bounds x="686.5" y="854.75" width="133.54" height="48" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="n_Meta_di" bpmnElement="n_Meta">
+        <dc:Bounds x="856.04" y="834.5" width="177.54" height="48" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="n_TruncQ_di" bpmnElement="n_TruncQ">
+        <dc:Bounds x="1170.58" y="844.75" width="40" height="40" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="n_D_di" bpmnElement="n_D">
+        <dc:Bounds x="847.83" y="690.5" width="40" height="40" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="n_Alarm_di" bpmnElement="n_Alarm">
+        <dc:Bounds x="1395.12" y="851.5" width="40" height="40" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="n_DlqFn_di" bpmnElement="n_DlqFn">
+        <dc:Bounds x="683.92" y="47.75" width="198.75" height="100" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="n_Failed_di" bpmnElement="n_Failed">
+        <dc:Bounds x="971.71" y="28" width="40" height="40" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="n_Superseded_di" bpmnElement="n_Superseded">
+        <dc:Bounds x="841.89" y="239.75" width="162" height="84" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="n_BadEnvelope_di" bpmnElement="n_BadEnvelope">
+        <dc:Bounds x="721.65" y="232.25" width="40" height="40" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNEdge id="f_0_di" bpmnElement="f_0">
+        <di:waypoint x="546.92" y="121.75" />
+        <di:waypoint x="546.92" y="173.63" />
+        <di:waypoint x="574.09" y="173.63" />
+        <di:waypoint x="574.09" y="225.5" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="f_1_di" bpmnElement="f_1">
+        <di:waypoint x="574.09" y="265.5" />
+        <di:waypoint x="574.09" y="330.75" />
+        <di:waypoint x="755.33" y="330.75" />
+        <di:waypoint x="755.33" y="396" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="f_2_di" bpmnElement="f_2">
+        <di:waypoint x="755.33" y="448" />
+        <di:waypoint x="755.33" y="506" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="f_3_di" bpmnElement="f_3">
+        <di:waypoint x="755.33" y="546" />
+        <di:waypoint x="755.33" y="611.25" />
+        <di:waypoint x="653.29" y="611.25" />
+        <di:waypoint x="653.29" y="676.5" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="f_5_di" bpmnElement="f_5">
+        <di:waypoint x="653.29" y="776.5" />
+        <di:waypoint x="653.29" y="818.38" />
+        <di:waypoint x="344.88" y="818.38" />
+        <di:waypoint x="344.88" y="860.25" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="f_6_di" bpmnElement="f_6">
+        <di:waypoint x="653.29" y="776.5" />
+        <di:waypoint x="653.29" y="822.38" />
+        <di:waypoint x="561.13" y="822.38" />
+        <di:waypoint x="561.13" y="868.25" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="f_9_di" bpmnElement="f_9">
+        <di:waypoint x="653.29" y="776.5" />
+        <di:waypoint x="653.29" y="810.63" />
+        <di:waypoint x="1190.58" y="810.63" />
+        <di:waypoint x="1190.58" y="844.75" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="f_10_di" bpmnElement="f_10">
+        <di:waypoint x="678.74" y="676.5" />
+        <di:waypoint x="746.26" y="543.82" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="f_11_di" bpmnElement="f_11">
+        <di:waypoint x="755.33" y="546" />
+        <di:waypoint x="755.33" y="618.25" />
+        <di:waypoint x="867.83" y="618.25" />
+        <di:waypoint x="867.83" y="690.5" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="f_12_di" bpmnElement="f_12">
+        <di:waypoint x="867.83" y="730.5" />
+        <di:waypoint x="867.83" y="791" />
+        <di:waypoint x="1415.12" y="791" />
+        <di:waypoint x="1415.12" y="851.5" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="f_13_di" bpmnElement="f_13">
+        <di:waypoint x="991.71" y="68" />
+        <di:waypoint x="991.71" y="153.88" />
+        <di:waypoint x="922.89" y="153.88" />
+        <di:waypoint x="922.89" y="239.75" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="f_14_di" bpmnElement="f_14">
+        <di:waypoint x="783.29" y="147.75" />
+        <di:waypoint x="783.29" y="190" />
+        <di:waypoint x="741.65" y="190" />
+        <di:waypoint x="741.65" y="232.25" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="f_4_di" bpmnElement="f_4">
+        <di:waypoint x="653.29" y="776.5" />
+        <di:waypoint x="653.29" y="812.25" />
+        <di:waypoint x="123" y="812.25" />
+        <di:waypoint x="123" y="848" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="f_7_di" bpmnElement="f_7">
+        <di:waypoint x="653.29" y="776.5" />
+        <di:waypoint x="653.29" y="815.63" />
+        <di:waypoint x="753.27" y="815.63" />
+        <di:waypoint x="753.27" y="854.75" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="f_8_di" bpmnElement="f_8">
+        <di:waypoint x="653.29" y="776.5" />
+        <di:waypoint x="653.29" y="805.5" />
+        <di:waypoint x="944.81" y="805.5" />
+        <di:waypoint x="944.81" y="834.5" />
+      </bpmndi:BPMNEdge>
+    </bpmndi:BPMNPlane>
+  </bpmndi:BPMNDiagram>
+</bpmn:definitions>
