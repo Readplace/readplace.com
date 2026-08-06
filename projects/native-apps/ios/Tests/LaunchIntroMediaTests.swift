@@ -26,7 +26,8 @@ final class LaunchIntroMediaTests: XCTestCase {
 			seen: seen,
 			music: silentMusic(),
 			mutePreference: IntroMutePreference(defaults: TestSupport.ephemeralDefaults()),
-			reduceMotion: false
+			reduceMotion: false,
+			isLoggedIn: false
 		)
 	}
 
@@ -101,6 +102,8 @@ final class LaunchIntroMediaTests: XCTestCase {
 	}
 
 	func testTheCompositionRootBuildsAnIdleModelOnAReturningLaunch() {
+		addTeardownBlock { IntroMusic.system.stop() }
+
 		_ = makeLaunchIntroModel(reduceMotion: true)
 		let model = makeLaunchIntroModel(reduceMotion: true)
 

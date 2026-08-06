@@ -7,13 +7,19 @@ final class LaunchIntroModel: ObservableObject {
 	private let music: IntroMusic
 	private let mutePreference: IntroMutePreference
 
-	init(seen: LaunchIntroSeen, music: IntroMusic, mutePreference: IntroMutePreference, reduceMotion: Bool) {
+	init(
+		seen: LaunchIntroSeen,
+		music: IntroMusic,
+		mutePreference: IntroMutePreference,
+		reduceMotion: Bool,
+		isLoggedIn: Bool
+	) {
 		self.music = music
 		self.mutePreference = mutePreference
 		self.isMuted = mutePreference.isMuted
 		self.phase = LaunchIntro.initialPhase(isFirstLaunch: seen.claim(), reduceMotion: reduceMotion)
 		music.setMuted(isMuted)
-		if LaunchIntro.playsMusic(phase: phase, isLoggedIn: false, isForeground: true) {
+		if LaunchIntro.playsMusic(isLoggedIn: isLoggedIn, isForeground: true) {
 			music.start()
 		}
 	}
@@ -49,7 +55,7 @@ final class LaunchIntroModel: ObservableObject {
 	}
 
 	func sync(isLoggedIn: Bool, isForeground: Bool) {
-		if LaunchIntro.playsMusic(phase: phase, isLoggedIn: isLoggedIn, isForeground: isForeground) {
+		if LaunchIntro.playsMusic(isLoggedIn: isLoggedIn, isForeground: isForeground) {
 			music.start()
 		} else {
 			music.stop()

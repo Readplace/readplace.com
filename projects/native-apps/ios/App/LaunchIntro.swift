@@ -41,8 +41,8 @@ enum LaunchIntro {
 		return end == .skipped ? .finished : .fading
 	}
 
-	static func playsMusic(phase: LaunchIntroPhase, isLoggedIn: Bool, isForeground: Bool) -> Bool {
-		phase != .idle && !isLoggedIn && isForeground
+	static func playsMusic(isLoggedIn: Bool, isForeground: Bool) -> Bool {
+		!isLoggedIn && isForeground
 	}
 
 	static let fadeDuration = 0.45

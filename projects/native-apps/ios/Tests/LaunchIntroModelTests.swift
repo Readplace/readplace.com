@@ -41,13 +41,15 @@ final class LaunchIntroModelTests: XCTestCase {
 		log: MusicLog,
 		seen: LaunchIntroSeen,
 		reduceMotion: Bool = false,
-		mute: IntroMutePreference? = nil
+		mute: IntroMutePreference? = nil,
+		isLoggedIn: Bool = false
 	) -> LaunchIntroModel {
 		LaunchIntroModel(
 			seen: seen,
 			music: makeSpy(log),
 			mutePreference: mute ?? mutePreference(),
-			reduceMotion: reduceMotion
+			reduceMotion: reduceMotion,
+			isLoggedIn: isLoggedIn
 		)
 	}
 
@@ -59,19 +61,35 @@ final class LaunchIntroModelTests: XCTestCase {
 		XCTAssertEqual(log.starts, 1)
 	}
 
-	func testAReturningLaunchNeverStartsTheMusic() {
+	func testAReturningLoggedOutLaunchStartsTheLoginMusicWithoutTheVideo() {
 		let log = MusicLog()
 		let model = makeModel(log: log, seen: consumedSeen())
 
-		XCTAssertEqual(model.phase, .idle)
-		XCTAssertEqual(log.starts, 0)
+		XCTAssertEqual(model.phase, .idle, "the video is once per install")
+		XCTAssertEqual(log.starts, 1, "the theme is standing login-screen music, not the video's soundtrack")
 	}
 
-	func testReduceMotionNeverStartsTheMusic() {
+	func testAReduceMotionLaunchPlaysTheMusicButNotTheVideo() {
 		let log = MusicLog()
 		let model = makeModel(log: log, seen: freshSeen(), reduceMotion: true)
 
+		XCTAssertEqual(model.phase, .idle, "reduce motion suppresses the video")
+		XCTAssertEqual(log.starts, 1, "reduce motion is a motion setting, not an audio one")
+	}
+
+	func testAReturningLaunchByALoggedInUserStartsNothing() {
+		let log = MusicLog()
+		let model = makeModel(log: log, seen: consumedSeen(), isLoggedIn: true)
+
 		XCTAssertEqual(model.phase, .idle)
+		XCTAssertEqual(log.starts, 0, "there is no login screen to score")
+	}
+
+	func testAFirstLaunchWhileLoggedInPlaysTheVideoSilently() {
+		let log = MusicLog()
+		let model = makeModel(log: log, seen: freshSeen(), isLoggedIn: true)
+
+		XCTAssertEqual(model.phase, .playing)
 		XCTAssertEqual(log.starts, 0)
 	}
 
@@ -199,6 +217,16 @@ final class LaunchIntroModelTests: XCTestCase {
 		model.sync(isLoggedIn: false, isForeground: true)
 
 		XCTAssertEqual(log.starts, 2, "returning to the foreground while logged out resumes the intro music")
+	}
+
+	func testSyncStartsTheLoginMusicAfterLogout() {
+		let log = MusicLog()
+		let model = makeModel(log: log, seen: consumedSeen(), isLoggedIn: true)
+		XCTAssertEqual(log.starts, 0, "a logged-in launch is silent")
+
+		model.sync(isLoggedIn: false, isForeground: true)
+
+		XCTAssertEqual(log.starts, 1, "logging out lands on the login screen, which has its music")
 	}
 
 	func testTheMusicKeepsLoopingOnTheLoginScreenAcrossABackgroundHopAfterTheVideoFinishes() {

@@ -161,6 +161,7 @@ func makeLaunchIntroModel(reduceMotion: Bool) -> LaunchIntroModel {
 		seen: LaunchIntroSeen(defaults: defaults),
 		music: .system,
 		mutePreference: IntroMutePreference(defaults: defaults),
-		reduceMotion: reduceMotion
+		reduceMotion: reduceMotion,
+		isLoggedIn: TokenStore().isLoggedIn
 	)
 }

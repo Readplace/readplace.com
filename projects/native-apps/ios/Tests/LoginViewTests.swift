@@ -25,7 +25,8 @@ final class LoginViewTests: XCTestCase {
 				seen: LaunchIntroSeen(defaults: defaults),
 				music: IntroMusic(start: {}, stop: {}, restart: {}, seek: { _ in }, setMuted: { _ in }),
 				mutePreference: mutePreference,
-				reduceMotion: true
+				reduceMotion: true,
+				isLoggedIn: false
 			)
 		}
 	}

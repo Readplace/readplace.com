@@ -63,23 +63,15 @@ final class LaunchIntroTests: XCTestCase {
 		XCTAssertEqual(LaunchIntro.next(after: .idle, end: .skipped), .idle)
 	}
 
-	func testMusicPlaysWhilePlayingAndForegroundAndLoggedOut() {
-		XCTAssertTrue(LaunchIntro.playsMusic(phase: .playing, isLoggedIn: false, isForeground: true))
-	}
-
-	func testMusicKeepsPlayingOnTheLoginScreenAfterTheVideoFinishes() {
-		XCTAssertTrue(LaunchIntro.playsMusic(phase: .finished, isLoggedIn: false, isForeground: true))
+	func testMusicPlaysWhileLoggedOutAndForeground() {
+		XCTAssertTrue(LaunchIntro.playsMusic(isLoggedIn: false, isForeground: true))
 	}
 
 	func testMusicStopsOnceLoggedIn() {
-		XCTAssertFalse(LaunchIntro.playsMusic(phase: .playing, isLoggedIn: true, isForeground: true))
+		XCTAssertFalse(LaunchIntro.playsMusic(isLoggedIn: true, isForeground: true))
 	}
 
 	func testMusicStopsInTheBackground() {
-		XCTAssertFalse(LaunchIntro.playsMusic(phase: .playing, isLoggedIn: false, isForeground: false))
-	}
-
-	func testMusicNeverPlaysWithoutTheIntro() {
-		XCTAssertFalse(LaunchIntro.playsMusic(phase: .idle, isLoggedIn: false, isForeground: true))
+		XCTAssertFalse(LaunchIntro.playsMusic(isLoggedIn: false, isForeground: false))
 	}
 }
