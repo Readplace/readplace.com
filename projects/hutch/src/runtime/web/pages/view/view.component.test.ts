@@ -597,7 +597,10 @@ describe("ViewPage", () => {
 				original,
 				"a reader who can no longer use reader view must keep the path to the original article",
 			);
-			assert.equal(original.getAttribute("href"), "https://example.com/post");
+			assert.equal(
+				original.getAttribute("href"),
+				"https://example.com/post?utm_source=readplace&utm_medium=referral&utm_content=read-original",
+			);
 			assert.equal(original.getAttribute("target"), "_blank");
 			assert.equal(original.getAttribute("rel"), "noopener");
 			assert(
@@ -610,7 +613,7 @@ describe("ViewPage", () => {
 			assert(save, "paywall save button must be rendered");
 			assert.equal(
 				save.getAttribute("href"),
-				"/save?url=https%3A%2F%2Fexample.com%2Fpost",
+				"/save?url=https%3A%2F%2Fexample.com%2Fpost&utm_source=view-paywall&utm_medium=internal&utm_content=save-to-queue",
 			);
 			assert.equal(save.textContent, "Save to My Queue");
 			assert(
@@ -634,7 +637,7 @@ describe("ViewPage", () => {
 			assert(original, "paywall original-article link must be rendered");
 			assert.equal(
 				original.getAttribute("href"),
-				"https://blog.example.org/post",
+				"https://blog.example.org/post?utm_source=readplace&utm_medium=referral&utm_content=read-original",
 			);
 			assert.match(original.textContent ?? "", /Read it on blog\.example\.org/);
 		});

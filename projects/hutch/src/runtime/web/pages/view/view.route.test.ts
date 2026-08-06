@@ -2099,7 +2099,9 @@ describe("View routes", () => {
 
 			const original = modal.querySelector("[data-test-view-paywall-original]");
 			assert(original, "the modal must keep the path to the original article");
-			expect(original.getAttribute("href")).toBe(ARTICLE_URL);
+			expect(original.getAttribute("href")).toBe(
+				`${ARTICLE_URL}?utm_source=readplace&utm_medium=referral&utm_content=read-original`,
+			);
 			expect(original.getAttribute("target")).toBe("_blank");
 			expect(original.getAttribute("rel")).toBe("noopener");
 			expect(original.classList.contains("btn--primary")).toBe(true);
@@ -2107,6 +2109,14 @@ describe("View routes", () => {
 			const save = modal.querySelector("[data-test-view-paywall-save]");
 			assert(save, "saving to the queue stays available as the secondary CTA");
 			expect(save.classList.contains("btn--secondary")).toBe(true);
+			const saveHrefRaw = save.getAttribute("href");
+			assert(saveHrefRaw, "the paywall save CTA must carry an href");
+			const saveHref = new URL(saveHrefRaw, "https://readplace.test");
+			expect(Object.fromEntries(saveHref.searchParams)).toMatchObject({
+				utm_source: "view-paywall",
+				utm_medium: "internal",
+				utm_content: "save-to-queue",
+			});
 
 			const script = doc.querySelector(
 				'script[src$="/client-dist/view-paywall.client.js"]',

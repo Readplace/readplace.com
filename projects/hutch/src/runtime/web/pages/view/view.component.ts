@@ -11,7 +11,7 @@ import { decomposeTimeLeft, formatCounter } from "@packages/time-left";
 import { pickExcerpt, truncateForSeo } from "../../../providers/article-summary/article-summary.helpers";
 import type { GeneratedSummary } from "@packages/provider-contracts/article-summary";
 import { requireEnv } from "@packages/require-env";
-import { render } from "@packages/web-shell";
+import { render, withInternalTracking } from "@packages/web-shell";
 import type { PageBody } from "@packages/web-shell";
 
 import { renderArticleBody } from "../../shared/article-body/article-body.component";
@@ -56,16 +56,32 @@ const VIEW_PAYWALL_TEMPLATE = readFileSync(
 	"utf-8",
 );
 
+const PAYWALL_TRACKING_SOURCE = "view-paywall";
+const PAYWALL_REFERRAL_SOURCE = "readplace";
+const PAYWALL_REFERRAL_MEDIUM = "referral";
+
+function paywallOriginalHref(originalUrl: URL): string {
+	const tagged = new URL(originalUrl);
+	tagged.searchParams.set("utm_source", PAYWALL_REFERRAL_SOURCE);
+	tagged.searchParams.set("utm_medium", PAYWALL_REFERRAL_MEDIUM);
+	tagged.searchParams.set("utm_content", "read-original");
+	return tagged.toString();
+}
+
 function renderViewPaywall(input: {
 	saveHref: string;
 	originalUrl: string;
 	expiresAtIso: string;
 	sharerInactive: boolean;
 }): string {
+	const originalUrl = new URL(input.originalUrl);
 	return render(VIEW_PAYWALL_TEMPLATE, {
-		saveHref: input.saveHref,
-		originalUrl: input.originalUrl,
-		originalHostname: new URL(input.originalUrl).hostname,
+		saveHref: withInternalTracking(input.saveHref, {
+			source: PAYWALL_TRACKING_SOURCE,
+			content: "save-to-queue",
+		}),
+		originalUrl: paywallOriginalHref(originalUrl),
+		originalHostname: originalUrl.hostname,
 		expiresAtIso: input.expiresAtIso,
 		sharerInactive: input.sharerInactive,
 	});
