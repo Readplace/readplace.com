@@ -144,6 +144,7 @@ function buildArticleCardsPage(input: {
 			maxPolls: input.maxPolls,
 			shown: input.to,
 			linkSaveStates: input.linkSaveStates,
+			savePollContext: { mode: "static" },
 		}),
 	);
 	const shown = Math.min(input.to, input.allCards.length);

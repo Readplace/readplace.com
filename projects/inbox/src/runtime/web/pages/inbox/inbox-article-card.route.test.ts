@@ -39,6 +39,7 @@ async function seed(
 }
 
 const cardPath = `/inbox/${encodeURIComponent(SK)}/links/0000/card`;
+const savePath = `/inbox/${encodeURIComponent(SK)}/links/0000/save`;
 
 function cardActions(card: Element): string[] {
 	return Array.from(card.querySelectorAll("[data-test-card-action]")).map(
@@ -54,15 +55,23 @@ function expectBareUrlRow(card: Element): void {
 	expect(cardActions(card)).toEqual(["save", "feedback-exclude"]);
 	const save = card.querySelector('[data-test-card-action="save"]');
 	assert(save, "the save button must render for a saveable link");
-	const form = save.closest("form");
-	expect(form?.getAttribute("action")).toBe(
-		`/inbox/${encodeURIComponent(SK)}/links/0000/save`,
-	);
-	// Boosted so the confirmation swaps in place. A full navigation would reset
-	// the scroll position, putting the toast where the reader is not looking.
-	expect(form?.getAttribute("hx-boost")).toBe("true");
-	expect(form?.getAttribute("hx-select")).toBe("main");
-	expect(form?.getAttribute("hx-disabled-elt")).toBe("find button");
+	const saveForm = save.closest("form");
+	assert(saveForm, "the save button must stay inside its form");
+	expect(saveForm.getAttribute("method")).toBe("POST");
+	expect(saveForm.getAttribute("action")).toBe(savePath);
+	expect(saveForm.getAttribute("hx-post")).toBe(savePath);
+	expect(saveForm.getAttribute("hx-target")).toBe("#inbox-card-0000");
+	expect(saveForm.getAttribute("hx-swap")).toBe("outerHTML");
+	expect(saveForm.getAttribute("hx-disabled-elt")).toBe("find button");
+	const report = card.querySelector('[data-test-card-action="feedback-exclude"]');
+	assert(report, "the report button must render");
+	const reportForm = report.closest("form");
+	assert(reportForm, "the report button must stay inside its form");
+	expect(reportForm.getAttribute("hx-boost")).toBe("true");
+	expect(reportForm.getAttribute("hx-target")).toBe("main");
+	expect(reportForm.getAttribute("hx-select")).toBe("main");
+	expect(reportForm.getAttribute("hx-swap")).toBe("outerHTML show:none");
+	expect(reportForm.getAttribute("hx-disabled-elt")).toBe("find button");
 }
 
 describe("Inbox link card route", () => {
@@ -453,6 +462,201 @@ describe("Inbox link card route", () => {
 			const response = await agent.get(cardPath);
 
 			expect(saveButton(response.text).getAttribute("data-test-save-state")).toBe("unsaved");
+		});
+	});
+	describe("the save-settle poll", () => {
+		const cardOf = (html: string): Element => {
+			const found = new JSDOM(html).window.document.querySelector(
+				"[data-test-inbox-article-card]",
+			);
+			assert(found, "the card fragment must render");
+			return found;
+		};
+
+		const saveButtonOf = (html: string): Element => {
+			const found = cardOf(html).querySelector('[data-test-card-action="save"]');
+			assert(found, "the save button must render for a saveable link");
+			return found;
+		};
+
+		const liveStatusOf = (html: string): Element => {
+			const found = new JSDOM(html).window.document.querySelector(
+				"[data-test-inbox-live-status]",
+			);
+			assert(found, "a settled save must carry the out-of-band announcement");
+			return found;
+		};
+
+		const markSaved = async (
+			fixture: ReturnType<typeof createDefaultTestAppFixture>,
+		): Promise<void> => {
+			const user = await fixture.auth.findUserByEmail("test@example.com");
+			assert(user, "logged-in user must exist");
+			await fixture.inboxEmail.inboxSavedLinkStore.markLinkSaved({
+				userId: user.userId,
+				url: "https://example.com/post",
+			});
+		};
+
+		it("advances its own cursor while the save has not reached the read model", async () => {
+			const fixture = createDefaultTestAppFixture(TEST_APP_ORIGIN);
+			const harness = useApp(fixture);
+			const agent = await loginAgent(harness.server, harness.auth);
+			await seed(fixture, { status: "crawled", title: "A crawled post" });
+
+			const response = await agent.get(`${cardPath}?poll=3&awaitSave=1`);
+
+			expect(response.status).toBe(200);
+			const card = cardOf(response.text);
+			expect(card.getAttribute("hx-get")).toBe(`${cardPath}?poll=4&shown=20&awaitSave=1`);
+			expect(card.getAttribute("hx-trigger")).toBe("every 3s");
+			expect(card.getAttribute("hx-target")).toBe("this");
+			expect(card.getAttribute("hx-swap")).toBe("outerHTML");
+			const save = saveButtonOf(response.text);
+			expect(save.getAttribute("data-test-save-state")).toBe("saving");
+			expect(save.textContent?.trim()).toBe("Saving…");
+		});
+
+		it("treats a junk cursor as the start of the settle budget instead of polling unbounded", async () => {
+			const fixture = createDefaultTestAppFixture(TEST_APP_ORIGIN);
+			const harness = useApp(fixture);
+			const agent = await loginAgent(harness.server, harness.auth);
+			await seed(fixture, { status: "crawled", title: "A crawled post" });
+
+			const response = await agent.get(`${cardPath}?poll=not-a-number&awaitSave=1`);
+
+			expect(cardOf(response.text).getAttribute("hx-get")).toBe(
+				`${cardPath}?poll=1&shown=20&awaitSave=1`,
+			);
+		});
+
+		it("gives up on Saving… once the settle budget is spent", async () => {
+			const fixture = createDefaultTestAppFixture(TEST_APP_ORIGIN);
+			const harness = useApp(fixture);
+			const agent = await loginAgent(harness.server, harness.auth);
+			await seed(fixture, { status: "crawled", title: "A crawled post" });
+
+			const response = await agent.get(`${cardPath}?poll=20&awaitSave=1`);
+
+			expect(response.status).toBe(200);
+			const card = cardOf(response.text);
+			expect(card.hasAttribute("hx-get")).toBe(false);
+			expect(card.hasAttribute("hx-trigger")).toBe(false);
+			expect(saveButtonOf(response.text).getAttribute("data-test-save-state")).toBe("unsaved");
+		});
+
+		it("swaps in the saved button and announces it once the save lands", async () => {
+			const fixture = createDefaultTestAppFixture(TEST_APP_ORIGIN);
+			const harness = useApp(fixture);
+			const agent = await loginAgent(harness.server, harness.auth);
+			await seed(fixture, { status: "crawled", title: "A crawled post" });
+			await markSaved(fixture);
+
+			const response = await agent.get(`${cardPath}?poll=3&awaitSave=1`);
+
+			expect(response.status).toBe(200);
+			expect(cardOf(response.text).hasAttribute("hx-get")).toBe(false);
+			const save = saveButtonOf(response.text);
+			expect(save.getAttribute("data-test-save-state")).toBe("saved");
+			expect(save.textContent?.trim()).toBe("Save again");
+			const live = liveStatusOf(response.text);
+			expect(live.getAttribute("hx-swap-oob")).toBe("innerHTML");
+			expect(live.textContent).toBe("Saved to your queue: https://example.com/post");
+		});
+
+		it("offers the save again and announces the outcome once the save is recorded as failed", async () => {
+			const fixture = createDefaultTestAppFixture(TEST_APP_ORIGIN);
+			const harness = useApp(fixture);
+			const agent = await loginAgent(harness.server, harness.auth);
+			await seed(fixture, { status: "crawled", title: "A crawled post" });
+			const user = await fixture.auth.findUserByEmail("test@example.com");
+			assert(user, "logged-in user must exist");
+			await fixture.inboxEmail.inboxSavedLinkStore.markLinkSaveFailed({
+				userId: user.userId,
+				url: "https://example.com/post",
+			});
+
+			const response = await agent.get(`${cardPath}?poll=3&awaitSave=1`);
+
+			expect(cardOf(response.text).hasAttribute("hx-get")).toBe(false);
+			const save = saveButtonOf(response.text);
+			expect(save.getAttribute("data-test-save-state")).toBe("unsaved");
+			expect(save.textContent?.trim()).toBe("Save to queue");
+			expect(liveStatusOf(response.text).textContent).toBe(
+				"Couldn't save https://example.com/post",
+			);
+		});
+
+		it("stays silent on a crawled card while the save is still settling, rather than re-announcing the preview", async () => {
+			const fixture = createDefaultTestAppFixture(TEST_APP_ORIGIN);
+			const harness = useApp(fixture);
+			const agent = await loginAgent(harness.server, harness.auth);
+			await seed(fixture, { status: "crawled", title: "A crawled post" });
+
+			const response = await agent.get(`${cardPath}?poll=3&awaitSave=1`);
+
+			const doc = new JSDOM(response.text).window.document;
+			expect(doc.querySelectorAll("[data-test-inbox-live-status]").length).toBe(0);
+			expect(doc.querySelectorAll("[data-test-inbox-article-card]").length).toBe(1);
+		});
+
+		it("keeps a pending card's save tick carrying the page size and the save marker", async () => {
+			const fixture = createDefaultTestAppFixture(TEST_APP_ORIGIN);
+			const harness = useApp(fixture);
+			const agent = await loginAgent(harness.server, harness.auth);
+			await seed(fixture, { status: "pending" });
+
+			const response = await agent.get(`${cardPath}?poll=2&shown=40&awaitSave=1`);
+
+			expect(cardOf(response.text).getAttribute("hx-get")).toBe(
+				`${cardPath}?poll=3&shown=40&awaitSave=1`,
+			);
+		});
+
+		it("hands a settled pending card back to its crawl poll, page size intact", async () => {
+			const fixture = createDefaultTestAppFixture(TEST_APP_ORIGIN);
+			const harness = useApp(fixture);
+			const agent = await loginAgent(harness.server, harness.auth);
+			await seed(fixture, { status: "pending" });
+			await markSaved(fixture);
+
+			const response = await agent.get(`${cardPath}?poll=2&shown=40&awaitSave=1`);
+
+			expect(cardOf(response.text).getAttribute("hx-get")).toBe(`${cardPath}?poll=3&shown=40`);
+		});
+
+		it("revalidates with a 304 while the settle has changed nothing", async () => {
+			const fixture = createDefaultTestAppFixture(TEST_APP_ORIGIN);
+			const harness = useApp(fixture);
+			const agent = await loginAgent(harness.server, harness.auth);
+			await seed(fixture, { status: "crawled", title: "A crawled post" });
+
+			const first = await agent.get(`${cardPath}?poll=3&awaitSave=1`);
+			const etag = first.headers.etag;
+			assert(etag, "the card response must carry an ETag");
+
+			const second = await agent.get(`${cardPath}?poll=4&awaitSave=1`).set("If-None-Match", etag);
+
+			expect(second.status).toBe(304);
+		});
+
+		it("serves the same card and button ids while saving and once saved, so the swap can restore focus", async () => {
+			const fixture = createDefaultTestAppFixture(TEST_APP_ORIGIN);
+			const harness = useApp(fixture);
+			const agent = await loginAgent(harness.server, harness.auth);
+			await seed(fixture, { status: "crawled", title: "A crawled post" });
+
+			const ids = (html: string) => ({
+				card: cardOf(html).getAttribute("id"),
+				button: saveButtonOf(html).getAttribute("id"),
+			});
+
+			const whileSaving = ids((await agent.get(`${cardPath}?poll=1&awaitSave=1`)).text);
+			await markSaved(fixture);
+			const onceSaved = ids((await agent.get(`${cardPath}?poll=2&awaitSave=1`)).text);
+
+			expect(whileSaving).toEqual({ card: "inbox-card-0000", button: "inbox-card-0000-save" });
+			expect(onceSaved).toEqual(whileSaving);
 		});
 	});
 });

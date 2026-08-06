@@ -2,14 +2,21 @@ import { readFileSync } from "node:fs";
 import { join } from "node:path";
 import { render } from "@packages/web-shell";
 import type { InboxCardAction, InboxLinkCardViewModel } from "./inbox-link-card.viewmodel";
+import type { SaveButtonState } from "./inbox-save-button.viewmodel";
 
 const INBOX_ARTICLE_CARD_TEMPLATE = readFileSync(
 	join(__dirname, "inbox-article-card.template.html"),
 	"utf-8",
 );
 
+const SAVE_STATE_CLASSES: Record<SaveButtonState, string> = {
+	saved: " inbox-article-card__action-button--saved",
+	saving: " inbox-article-card__action-button--saving",
+	unsaved: "",
+};
+
 interface InboxArticleCardActionDisplayModel extends InboxCardAction {
-	savedClass: string;
+	saveStateClass: string;
 }
 
 interface InboxArticleCardDisplayModel extends Omit<InboxLinkCardViewModel, "actions"> {
@@ -23,8 +30,7 @@ function toDisplayModel(vm: InboxLinkCardViewModel): InboxArticleCardDisplayMode
 		cardStatus: vm.cardPollUrl === undefined ? "terminal" : "pending",
 		actions: vm.actions.map((action) => ({
 			...action,
-			savedClass:
-				action.saveState === "saved" ? " inbox-article-card__action-button--saved" : "",
+			saveStateClass: action.saveState === undefined ? "" : SAVE_STATE_CLASSES[action.saveState],
 		})),
 	};
 }

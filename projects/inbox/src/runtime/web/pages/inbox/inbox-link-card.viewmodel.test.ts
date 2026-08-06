@@ -5,7 +5,10 @@ import {
 	type InboxLinkSaveState,
 } from "@packages/domain/inbox";
 import { UserIdSchema } from "@packages/domain/user";
-import { toInboxLinkCardViewModel } from "./inbox-link-card.viewmodel";
+import {
+	type LinkCardSavePollContext,
+	toInboxLinkCardViewModel,
+} from "./inbox-link-card.viewmodel";
 
 const EMAIL_ID = "2026-06-24T09:00:00.000Z#<m@x>";
 const SHOWN = 20;
@@ -35,7 +38,7 @@ describe("toInboxLinkCardViewModel", () => {
 			emailId: EMAIL_ID,
 			pollCount: 1,
 			maxPolls: 300,
-			shown: SHOWN, linkSaveStates: new Map() });
+			shown: SHOWN, linkSaveStates: new Map(), savePollContext: { mode: "static" } });
 
 		expect(vm.cardPollUrl).toContain("/links/0002/card");
 		expect(vm.cardPollUrl).toContain("poll=1");
@@ -59,7 +62,7 @@ describe("toInboxLinkCardViewModel", () => {
 			emailId: EMAIL_ID,
 			pollCount: 1,
 			maxPolls: 300,
-			shown: 40, linkSaveStates: new Map() });
+			shown: 40, linkSaveStates: new Map(), savePollContext: { mode: "static" } });
 
 		expect(vm.actions.map((action) => [action.key, action.hiddenParams])).toEqual([
 			["save", { shown: "40" }],
@@ -73,7 +76,7 @@ describe("toInboxLinkCardViewModel", () => {
 			emailId: EMAIL_ID,
 			pollCount: 1,
 			maxPolls: 300,
-			shown: SHOWN, linkSaveStates: new Map() });
+			shown: SHOWN, linkSaveStates: new Map(), savePollContext: { mode: "static" } });
 
 		expect(vm.actions.map((action) => action.key)).toEqual(["feedback-exclude"]);
 	});
@@ -88,7 +91,7 @@ describe("toInboxLinkCardViewModel", () => {
 			emailId: EMAIL_ID,
 			pollCount: 1,
 			maxPolls: 300,
-			shown: SHOWN, linkSaveStates: new Map() });
+			shown: SHOWN, linkSaveStates: new Map(), savePollContext: { mode: "static" } });
 
 		expect(vm.actions[0]?.ariaLabel).toBe(
 			"Save to queue: https://destination.test/the-actual-article",
@@ -101,7 +104,7 @@ describe("toInboxLinkCardViewModel", () => {
 			emailId: EMAIL_ID,
 			pollCount: 1,
 			maxPolls: 300,
-			shown: SHOWN, linkSaveStates: new Map() });
+			shown: SHOWN, linkSaveStates: new Map(), savePollContext: { mode: "static" } });
 
 		expect(crawled.cardPollUrl).toBeUndefined();
 		expect(crawled.title).toBe("T");
@@ -120,7 +123,7 @@ describe("toInboxLinkCardViewModel", () => {
 			emailId: EMAIL_ID,
 			pollCount: 1,
 			maxPolls: 300,
-			shown: SHOWN, linkSaveStates: new Map() });
+			shown: SHOWN, linkSaveStates: new Map(), savePollContext: { mode: "static" } });
 
 		expect(crawled.url).toBe("https://destination.test/the-actual-article");
 	});
@@ -135,7 +138,7 @@ describe("toInboxLinkCardViewModel", () => {
 			emailId: EMAIL_ID,
 			pollCount: 1,
 			maxPolls: 300,
-			shown: SHOWN, linkSaveStates: new Map() });
+			shown: SHOWN, linkSaveStates: new Map(), savePollContext: { mode: "static" } });
 
 		expect(crawled.url).toBe("https://example.com/post?id=7");
 	});
@@ -151,7 +154,7 @@ describe("toInboxLinkCardViewModel", () => {
 			emailId: EMAIL_ID,
 			pollCount: 1,
 			maxPolls: 300,
-			shown: SHOWN, linkSaveStates: new Map() });
+			shown: SHOWN, linkSaveStates: new Map(), savePollContext: { mode: "static" } });
 
 		expect(crawled.url).toBe("https://destination.test/article?ref=nodeweekly");
 		expect(crawled.actions.map((action) => action.ariaLabel)).toEqual([
@@ -169,7 +172,7 @@ describe("toInboxLinkCardViewModel", () => {
 			emailId: EMAIL_ID,
 			pollCount: 1,
 			maxPolls: 300,
-			shown: SHOWN, linkSaveStates: new Map() });
+			shown: SHOWN, linkSaveStates: new Map(), savePollContext: { mode: "static" } });
 
 		expect(pending.url).toBe("https://link.mail.example.com/ss/c/token?utm_source=nl");
 	});
@@ -180,7 +183,7 @@ describe("toInboxLinkCardViewModel", () => {
 			emailId: EMAIL_ID,
 			pollCount: 1,
 			maxPolls: 300,
-			shown: SHOWN, linkSaveStates: new Map() });
+			shown: SHOWN, linkSaveStates: new Map(), savePollContext: { mode: "static" } });
 
 		expect(crawled.cardPollUrl).toBeUndefined();
 		expect(crawled.hasTitle).toBe(false);
@@ -192,7 +195,7 @@ describe("toInboxLinkCardViewModel", () => {
 			emailId: EMAIL_ID,
 			pollCount: 1,
 			maxPolls: 300,
-			shown: SHOWN, linkSaveStates: new Map() });
+			shown: SHOWN, linkSaveStates: new Map(), savePollContext: { mode: "static" } });
 
 		expect(skipped.cardPollUrl).toBeUndefined();
 		expect(skipped.hasTitle).toBe(false);
@@ -204,7 +207,7 @@ describe("toInboxLinkCardViewModel", () => {
 			emailId: EMAIL_ID,
 			pollCount: 301,
 			maxPolls: 300,
-			shown: SHOWN, linkSaveStates: new Map() });
+			shown: SHOWN, linkSaveStates: new Map(), savePollContext: { mode: "static" } });
 
 		expect(vm.cardPollUrl).toBeUndefined();
 		expect(vm.hasTitle).toBe(false);
@@ -216,7 +219,7 @@ describe("toInboxLinkCardViewModel", () => {
 			emailId: EMAIL_ID,
 			pollCount: 1,
 			maxPolls: 300,
-			shown: SHOWN, linkSaveStates: new Map() });
+			shown: SHOWN, linkSaveStates: new Map(), savePollContext: { mode: "static" } });
 
 		expect(vm.statusState).toBe("working");
 		expect(vm.statusLabel).toBe("Fetching preview…");
@@ -228,13 +231,13 @@ describe("toInboxLinkCardViewModel", () => {
 			emailId: EMAIL_ID,
 			pollCount: 301,
 			maxPolls: 300,
-			shown: SHOWN, linkSaveStates: new Map() });
+			shown: SHOWN, linkSaveStates: new Map(), savePollContext: { mode: "static" } });
 		const crawled = toInboxLinkCardViewModel({
 			link: link({ status: "crawled", title: "Done" }),
 			emailId: EMAIL_ID,
 			pollCount: 301,
 			maxPolls: 300,
-			shown: SHOWN, linkSaveStates: new Map() });
+			shown: SHOWN, linkSaveStates: new Map(), savePollContext: { mode: "static" } });
 
 		// Both stopped polling, so cardPollUrl alone cannot tell them apart.
 		expect(stalled.cardPollUrl).toBeUndefined();
@@ -249,7 +252,7 @@ describe("toInboxLinkCardViewModel", () => {
 			emailId: EMAIL_ID,
 			pollCount: 1,
 			maxPolls: 300,
-			shown: SHOWN, linkSaveStates: new Map() });
+			shown: SHOWN, linkSaveStates: new Map(), savePollContext: { mode: "static" } });
 
 		expect(vm.statusState).toBe("failed");
 		expect(vm.statusLabel).toBe("No preview available");
@@ -261,7 +264,7 @@ describe("toInboxLinkCardViewModel", () => {
 			emailId: EMAIL_ID,
 			pollCount: 1,
 			maxPolls: 300,
-			shown: SHOWN, linkSaveStates: new Map() });
+			shown: SHOWN, linkSaveStates: new Map(), savePollContext: { mode: "static" } });
 
 		expect(vm.statusState).toBe("none");
 		expect(vm.statusLabel).toBe("");
@@ -273,13 +276,13 @@ describe("toInboxLinkCardViewModel", () => {
 			emailId: EMAIL_ID,
 			pollCount: 1,
 			maxPolls: 300,
-			shown: SHOWN, linkSaveStates: new Map() });
+			shown: SHOWN, linkSaveStates: new Map(), savePollContext: { mode: "static" } });
 		const crawled = toInboxLinkCardViewModel({
 			link: link({ status: "crawled", title: "Now resolved" }),
 			emailId: EMAIL_ID,
 			pollCount: 2,
 			maxPolls: 300,
-			shown: SHOWN, linkSaveStates: new Map() });
+			shown: SHOWN, linkSaveStates: new Map(), savePollContext: { mode: "static" } });
 
 		expect(crawled.domId).toBe(pending.domId);
 		expect(crawled.actions.map((a) => a.buttonId)).toEqual(
@@ -293,13 +296,13 @@ describe("toInboxLinkCardViewModel", () => {
 			emailId: EMAIL_ID,
 			pollCount: 1,
 			maxPolls: 300,
-			shown: SHOWN, linkSaveStates: new Map() });
+			shown: SHOWN, linkSaveStates: new Map(), savePollContext: { mode: "static" } });
 		const second = toInboxLinkCardViewModel({
 			link: link({ ordinal: EmailLinkOrdinalSchema.parse("0003") }),
 			emailId: EMAIL_ID,
 			pollCount: 1,
 			maxPolls: 300,
-			shown: SHOWN, linkSaveStates: new Map() });
+			shown: SHOWN, linkSaveStates: new Map(), savePollContext: { mode: "static" } });
 
 		expect(first.domId).toBe("inbox-card-0002");
 		expect(second.domId).toBe("inbox-card-0003");
@@ -317,6 +320,7 @@ describe("toInboxLinkCardViewModel", () => {
 				maxPolls: 300,
 				shown: SHOWN,
 				linkSaveStates,
+				savePollContext: { mode: "static" },
 			});
 			const action = vm.actions.find((a) => a.key === "save");
 			assert(action, "a saveable link must render a save action");
@@ -370,11 +374,118 @@ describe("toInboxLinkCardViewModel", () => {
 				maxPolls: 300,
 				shown: SHOWN,
 				linkSaveStates: new Map([["https://example.com/post", "saved"]]),
+				savePollContext: { mode: "static" },
 			});
 
 			const action = vm.actions.find((a) => a.key === "save");
 			assert(action, "a saveable link must render a save action");
 			expect(action.saveState).toBe("saved");
+		});
+	});
+	describe("the save-settle poll", () => {
+		const savePoll = (pollCount: number): LinkCardSavePollContext => ({
+			mode: "save-poll",
+			pollCount,
+			maxPolls: 20,
+		});
+
+		const build = (input: {
+			link?: InboxEmailLinkEntry;
+			saveState?: InboxLinkSaveState;
+			savePollContext: LinkCardSavePollContext;
+		}) =>
+			toInboxLinkCardViewModel({
+				link: input.link ?? link({ status: "crawled", title: "T" }),
+				emailId: EMAIL_ID,
+				pollCount: 1,
+				maxPolls: 300,
+				shown: SHOWN,
+				linkSaveStates:
+					input.saveState === undefined
+						? new Map()
+						: new Map([["https://example.com/post", input.saveState]]),
+				savePollContext: input.savePollContext,
+			});
+
+		it("polls a crawled card for its own save while the save has not reached the read model", () => {
+			const vm = build({ savePollContext: savePoll(4) });
+
+			expect(vm.cardPollUrl).toBe(
+				`/inbox/${encodeURIComponent(EMAIL_ID)}/links/0002/card?poll=4&shown=20&awaitSave=1`,
+			);
+			expect(vm.actions).toEqual([
+				{
+					key: "save",
+					label: "Saving…",
+					ariaLabel: "Saving to queue: https://example.com/post",
+					saveState: "saving",
+					iconName: undefined,
+					buttonId: "inbox-card-0002-save",
+					href: `/inbox/${encodeURIComponent(EMAIL_ID)}/links/0002/save`,
+					method: "POST",
+					hiddenParams: { shown: "20" },
+					inPlaceTargetId: "inbox-card-0002",
+				},
+				{
+					key: "feedback-exclude",
+					label: "Not an article (report)",
+					ariaLabel: "Not an article (report): https://example.com/post",
+					buttonId: "inbox-card-0002-feedback-exclude",
+					href: `/inbox/${encodeURIComponent(EMAIL_ID)}/links/0002/feedback`,
+					method: "POST",
+					hiddenParams: { shown: "20", verdict: "should-be-excluded" },
+				},
+			]);
+		});
+
+		it("stops polling the moment the save is recorded", () => {
+			const vm = build({ saveState: "saved", savePollContext: savePoll(4) });
+
+			expect(vm.cardPollUrl).toBeUndefined();
+			expect(vm.actions[0]?.saveState).toBe("saved");
+			expect(vm.actions[0]?.label).toBe("Save again");
+		});
+
+		it("stops polling on a recorded failure and offers the save again", () => {
+			const vm = build({ saveState: "failed", savePollContext: savePoll(4) });
+
+			expect(vm.cardPollUrl).toBeUndefined();
+			expect(vm.actions[0]?.saveState).toBe("unsaved");
+			expect(vm.actions[0]?.label).toBe("Save to queue");
+		});
+
+		it("keeps polling on the last tick the settle budget allows", () => {
+			expect(build({ savePollContext: savePoll(20) }).cardPollUrl).toBe(
+				`/inbox/${encodeURIComponent(EMAIL_ID)}/links/0002/card?poll=20&shown=20&awaitSave=1`,
+			);
+		});
+
+		it("gives up rather than claim Saving… forever once the settle budget is spent", () => {
+			const vm = build({ savePollContext: savePoll(21) });
+
+			expect(vm.cardPollUrl).toBeUndefined();
+			expect(vm.actions[0]?.saveState).toBe("unsaved");
+		});
+
+		it("still reads a pending crawl as working while the card is polling for its save", () => {
+			const vm = build({ link: link({ status: "pending" }), savePollContext: savePoll(4) });
+
+			expect(vm.cardPollUrl).toBe(
+				`/inbox/${encodeURIComponent(EMAIL_ID)}/links/0002/card?poll=4&shown=20&awaitSave=1`,
+			);
+			expect(vm.statusState).toBe("working");
+		});
+
+		it("hands a still-pending card back to its crawl poll once the save settles", () => {
+			const vm = build({
+				link: link({ status: "pending" }),
+				saveState: "saved",
+				savePollContext: savePoll(4),
+			});
+
+			expect(vm.cardPollUrl).toBe(
+				`/inbox/${encodeURIComponent(EMAIL_ID)}/links/0002/card?poll=1&shown=20`,
+			);
 		});
 	});
 });

@@ -66,7 +66,10 @@ import {
 } from "./inbox-emails.url";
 import { toInboxEmailsViewModel } from "./inbox-emails.viewmodel";
 import { computeInboxLinkCardEtag } from "./inbox-link-card.etag";
-import { toInboxLinkCardViewModel } from "./inbox-link-card.viewmodel";
+import {
+	type InboxLinkCardViewModel,
+	toInboxLinkCardViewModel,
+} from "./inbox-link-card.viewmodel";
 import { parsePollParam } from "@packages/web-shell";
 import { InboxPage } from "./inbox.component";
 
@@ -107,6 +110,20 @@ const POLL_PANEL_RENDERERS: Record<
 
 function tabForLinkRow(status: EmailLinkStatus): MailTabKey {
 	return status === "skipped" ? "excluded" : "articles";
+}
+
+function sendInboxArticleCard(
+	res: Response,
+	input: { vm: InboxLinkCardViewModel; announcement: string },
+): void {
+	const liveStatusHtml =
+		input.announcement === ""
+			? ""
+			: renderInboxLiveStatus({ message: input.announcement, oob: true });
+	res
+		.status(200)
+		.type("html")
+		.send(`${renderInboxArticleCard(input.vm)}${liveStatusHtml}`);
 }
 
 function sendInboxExcludedRow(
@@ -381,7 +398,11 @@ export function initInboxRoutes(deps: InboxDependencies): Router {
 				res.status(304).end();
 				return;
 			}
-			const requestedPoll = parsePollParam(req.query.poll, MAX_POLLS);
+			const awaitSave = req.query.awaitSave === "1";
+			const requestedPoll = parsePollParam(
+				req.query.poll,
+				awaitSave ? MAX_SAVE_SETTLE_POLLS : MAX_POLLS,
+			);
 			const cardVm = toInboxLinkCardViewModel({
 				link,
 				emailId: receivedAtMessageId,
@@ -389,22 +410,27 @@ export function initInboxRoutes(deps: InboxDependencies): Router {
 				maxPolls: MAX_POLLS,
 				shown: parseArticlesShown(req.query),
 				linkSaveStates,
+				savePollContext: awaitSave
+					? {
+							mode: "save-poll",
+							pollCount: requestedPoll + 1,
+							maxPolls: MAX_SAVE_SETTLE_POLLS,
+						}
+					: { mode: "static" },
 			});
-			// The card only polls while it is pending, so a poll that finds the link
-			// terminal is the transition itself — the one moment worth announcing.
-			const announcement = buildCardResolvedAnnouncement({
-				status: link.status,
-				title: cardVm.title,
-				url: cardVm.url,
+			sendInboxArticleCard(res, {
+				vm: cardVm,
+				announcement: awaitSave
+					? buildSaveSettledAnnouncement({
+							saveState: linkSaveStates.get(link.url),
+							url: cardVm.url,
+						})
+					: buildCardResolvedAnnouncement({
+							status: link.status,
+							title: cardVm.title,
+							url: cardVm.url,
+						}),
 			});
-			const liveStatusHtml =
-				announcement === ""
-					? ""
-					: renderInboxLiveStatus({ message: announcement, oob: true });
-			res
-				.status(200)
-				.type("html")
-				.send(`${renderInboxArticleCard(cardVm)}${liveStatusHtml}`);
 		},
 	);
 
@@ -542,20 +568,43 @@ export function initInboxRoutes(deps: InboxDependencies): Router {
 					link,
 				});
 			}
-			if (isNonBoostedHtmxRequest(req) && link.status === "skipped") {
+			if (isNonBoostedHtmxRequest(req)) {
 				const linkSaveStates = await findLinkSaveStates({ userId, links: [link] });
-				sendInboxExcludedRow(res, {
-					vm: toInboxExcludedLinkViewModel({
-						link,
-						emailId: receivedAtMessageId,
-						linkSaveStates,
-						pollContext: {
-							mode: "save-poll",
-							pollCount: INITIAL_SAVE_POLL_COUNT,
-							maxPolls: MAX_SAVE_SETTLE_POLLS,
-						},
+				if (link.status === "skipped") {
+					sendInboxExcludedRow(res, {
+						vm: toInboxExcludedLinkViewModel({
+							link,
+							emailId: receivedAtMessageId,
+							linkSaveStates,
+							pollContext: {
+								mode: "save-poll",
+								pollCount: INITIAL_SAVE_POLL_COUNT,
+								maxPolls: MAX_SAVE_SETTLE_POLLS,
+							},
+						}),
+						saveState: linkSaveStates.get(link.url),
+					});
+					return;
+				}
+				const cardVm = toInboxLinkCardViewModel({
+					link,
+					emailId: receivedAtMessageId,
+					pollCount: INITIAL_SAVE_POLL_COUNT,
+					maxPolls: MAX_POLLS,
+					shown: parseArticlesShown(req.body),
+					linkSaveStates,
+					savePollContext: {
+						mode: "save-poll",
+						pollCount: INITIAL_SAVE_POLL_COUNT,
+						maxPolls: MAX_SAVE_SETTLE_POLLS,
+					},
+				});
+				sendInboxArticleCard(res, {
+					vm: cardVm,
+					announcement: buildSaveSettledAnnouncement({
+						saveState: linkSaveStates.get(link.url),
+						url: cardVm.url,
 					}),
-					saveState: linkSaveStates.get(link.url),
 				});
 				return;
 			}

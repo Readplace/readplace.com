@@ -61,6 +61,7 @@ test.describe("Inbox article cards", () => {
 	test("marks a card saved after the save round trip", async ({ page }) => {
 		const emailId = await seedEmailWithPendingLink(page);
 		await page.goto(`/inbox/${encodeURIComponent(emailId)}?tab=articles`);
+		const urlBeforeSave = page.url();
 
 		const saveControl = page.locator("#inbox-card-0000 [data-test-save-state]");
 		await expect(saveControl).toHaveAttribute("data-test-save-state", "unsaved");
@@ -72,6 +73,7 @@ test.describe("Inbox article cards", () => {
 			"saved",
 		);
 		await expect(page.locator("#inbox-card-0000 [data-test-save-state]")).toContainText("Save again");
+		expect(page.url()).toBe(urlBeforeSave);
 	});
 });
 

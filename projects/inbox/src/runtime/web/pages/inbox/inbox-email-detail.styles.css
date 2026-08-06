@@ -254,6 +254,7 @@
   color: var(--success);
 }
 
+.inbox-article-card__action-button--saving,
 .inbox-excluded-link__save-button--saving {
   color: var(--muted-foreground);
   cursor: progress;

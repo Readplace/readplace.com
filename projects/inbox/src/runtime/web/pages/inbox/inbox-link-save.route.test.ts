@@ -62,6 +62,7 @@ async function seed(
 }
 
 const savePath = `/inbox/${encodeURIComponent(SK)}/links/0000/save`;
+const cardPath = `/inbox/${encodeURIComponent(SK)}/links/0000/card`;
 
 describe("Inbox link save route", () => {
 	it("publishes a submit for the stored link, reports nothing, and redirects back to the Articles tab", async () => {
@@ -305,6 +306,21 @@ describe("Inbox link save route answering htmx in place", () => {
 		return button;
 	}
 
+	function articleCard(html: string): Element {
+		const doc = new JSDOM(html).window.document;
+		const cards = doc.querySelectorAll("[data-test-inbox-article-card]");
+		assert.equal(cards.length, 1, "the response carries exactly one card");
+		const card = cards[0];
+		assert(card, "the card must render");
+		return card;
+	}
+
+	function cardSaveButton(card: Element): Element {
+		const button = card.querySelector('[data-test-card-action="save"]');
+		assert(button, "the card must keep offering its save button");
+		return button;
+	}
+
 	it("answers a non-boosted htmx save with the row itself, saving and polling for the settle", async () => {
 		const fixture = createDefaultTestAppFixture(TEST_APP_ORIGIN);
 		const errors: string[] = [];
@@ -365,7 +381,33 @@ describe("Inbox link save route answering htmx in place", () => {
 		);
 	});
 
-	it("leaves the Articles tab's save on its redirect, which this row swap does not cover", async () => {
+	it("answers a non-boosted htmx save of a kept card with the card itself, saving and polling for the settle", async () => {
+		const fixture = createDefaultTestAppFixture(TEST_APP_ORIGIN);
+		const errors: string[] = [];
+		fixture.shared.logError = (message) => {
+			errors.push(message);
+		};
+		const harness = useApp(fixture);
+		const agent = await loginAgent(harness.server, harness.auth);
+		const userId = await seed(fixture);
+
+		const response = await agent.post(savePath).set("HX-Request", "true");
+
+		expect(response.status).toBe(200);
+		const card = articleCard(response.text);
+		expect(card.getAttribute("id")).toBe("inbox-card-0000");
+		expect(card.getAttribute("hx-get")).toBe(`${cardPath}?poll=1&shown=20&awaitSave=1`);
+		expect(card.getAttribute("hx-trigger")).toBe("every 3s");
+		expect(card.getAttribute("hx-target")).toBe("this");
+		expect(card.getAttribute("hx-swap")).toBe("outerHTML");
+		const button = cardSaveButton(card);
+		expect(button.getAttribute("data-test-save-state")).toBe("saving");
+		expect(button.textContent?.trim()).toBe("Saving…");
+		expect(harness.submittedLinks).toEqual([{ userId, url: "https://example.com/post" }]);
+		expect(errors).toHaveLength(0);
+	});
+
+	it("posts the card's save form to itself while its report button keeps boosting the page", async () => {
 		const fixture = createDefaultTestAppFixture(TEST_APP_ORIGIN);
 		const harness = useApp(fixture);
 		const agent = await loginAgent(harness.server, harness.auth);
@@ -373,10 +415,100 @@ describe("Inbox link save route answering htmx in place", () => {
 
 		const response = await agent.post(savePath).set("HX-Request", "true");
 
+		const card = articleCard(response.text);
+		const saveForm = cardSaveButton(card).closest("form");
+		assert(saveForm, "the save button must stay inside its form");
+		expect(saveForm.getAttribute("method")).toBe("POST");
+		expect(saveForm.getAttribute("action")).toBe(savePath);
+		expect(saveForm.getAttribute("hx-post")).toBe(savePath);
+		expect(saveForm.getAttribute("hx-target")).toBe("#inbox-card-0000");
+		expect(saveForm.getAttribute("hx-swap")).toBe("outerHTML");
+		expect(saveForm.getAttribute("hx-disabled-elt")).toBe("find button");
+		const report = card.querySelector('[data-test-card-action="feedback-exclude"]');
+		assert(report, "the card must keep offering its report button");
+		const reportForm = report.closest("form");
+		assert(reportForm, "the report button must stay inside its form");
+		expect(reportForm.getAttribute("hx-boost")).toBe("true");
+		expect(reportForm.getAttribute("hx-target")).toBe("main");
+		expect(reportForm.getAttribute("hx-select")).toBe("main");
+		expect(reportForm.getAttribute("hx-swap")).toBe("outerHTML show:none");
+	});
+
+	it("keeps the boosted whole-page redirect for a kept card still running the old markup", async () => {
+		const fixture = createDefaultTestAppFixture(TEST_APP_ORIGIN);
+		const harness = useApp(fixture);
+		const agent = await loginAgent(harness.server, harness.auth);
+		await seed(fixture);
+
+		const response = await agent
+			.post(savePath)
+			.set("HX-Request", "true")
+			.set("HX-Boosted", "true");
+
 		expect(response.status).toBe(303);
 		expect(response.headers.location).toBe(
 			`/inbox/${encodeURIComponent(SK)}?tab=articles&saved=1`,
 		);
+	});
+
+	it("carries the expanded page size into the card's own settle poll", async () => {
+		const fixture = createDefaultTestAppFixture(TEST_APP_ORIGIN);
+		const harness = useApp(fixture);
+		const agent = await loginAgent(harness.server, harness.auth);
+		await seed(fixture);
+
+		const response = await agent
+			.post(savePath)
+			.set("HX-Request", "true")
+			.type("form")
+			.send({ shown: "40" });
+
+		expect(articleCard(response.text).getAttribute("hx-get")).toBe(
+			`${cardPath}?poll=1&shown=40&awaitSave=1`,
+		);
+	});
+
+	it("reads the kept card's save state after publishing, so a settle that already landed skips Saving… entirely", async () => {
+		const fixture = createDefaultTestAppFixture(TEST_APP_ORIGIN);
+		settlingFixture = fixture;
+		const harness = useSettlingApp(fixture);
+		const agent = await loginAgent(harness.server, harness.auth);
+		await seed(fixture);
+
+		const response = await agent.post(savePath).set("HX-Request", "true");
+
+		expect(response.status).toBe(200);
+		const card = articleCard(response.text);
+		expect(card.hasAttribute("hx-get")).toBe(false);
+		expect(cardSaveButton(card).getAttribute("data-test-save-state")).toBe("saved");
+		const live = new JSDOM(response.text).window.document.querySelector(
+			"[data-test-inbox-live-status]",
+		);
+		assert(live, "a save that settled inside the request must announce itself");
+		expect(live.textContent).toBe("Saved to your queue: https://example.com/post");
+	});
+
+	it("retracts a kept card's recorded failure before retrying, so the retry reads as in flight rather than dead", async () => {
+		const fixture = createDefaultTestAppFixture(TEST_APP_ORIGIN);
+		const harness = useApp(fixture);
+		const agent = await loginAgent(harness.server, harness.auth);
+		const userId = await seed(fixture);
+		await fixture.inboxEmail.inboxSavedLinkStore.markLinkSaveFailed({
+			userId,
+			url: "https://example.com/post",
+		});
+
+		const response = await agent.post(savePath).set("HX-Request", "true");
+
+		const card = articleCard(response.text);
+		expect(card.getAttribute("hx-get")).toBe(`${cardPath}?poll=1&shown=20&awaitSave=1`);
+		expect(cardSaveButton(card).getAttribute("data-test-save-state")).toBe("saving");
+		expect(
+			await fixture.inboxEmail.inboxSavedLinkStore.findSavedLinks({
+				userId,
+				urls: ["https://example.com/post"],
+			}),
+		).toEqual(new Map());
 	});
 
 	it("reads the save state after publishing, so a settle that already landed skips Saving… entirely", async () => {

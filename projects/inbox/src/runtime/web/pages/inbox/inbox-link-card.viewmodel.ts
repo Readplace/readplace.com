@@ -19,6 +19,7 @@ export interface InboxCardAction {
 	/** Set on the save action only. */
 	saveState?: SaveButtonState;
 	iconName?: string;
+	inPlaceTargetId?: string;
 }
 
 export interface InboxLinkCardViewModel {
@@ -26,9 +27,6 @@ export interface InboxLinkCardViewModel {
 	url: string;
 	title: string;
 	hasTitle: boolean;
-	/** Present only while the card should keep polling. Omitted once the link
-	 * reaches a terminal state (`crawled`/`failed`) or the poll budget is spent,
-	 * which is what stops the htmx `every 3s` trigger. */
 	cardPollUrl: string | undefined;
 	/** Stable across a poll swap, so htmx has something to match the replaced card
 	 * against when restoring focus. */
@@ -66,14 +64,39 @@ function cardDomId(ordinal: string): string {
 	return `inbox-card-${ordinal}`;
 }
 
+export type LinkCardSavePollContext =
+	| { mode: "static" }
+	| { mode: "save-poll"; pollCount: number; maxPolls: number };
+
+function saveSettlePollUrl(input: {
+	link: InboxEmailLinkEntry;
+	emailId: string;
+	shown: number;
+	saveState: InboxLinkSaveState | undefined;
+	pollContext: LinkCardSavePollContext;
+}): string | undefined {
+	const { pollContext } = input;
+	if (pollContext.mode === "static") return undefined;
+	if (input.saveState !== undefined) return undefined;
+	if (pollContext.pollCount > pollContext.maxPolls) return undefined;
+	return buildInboxLinkPollUrl({
+		emailId: input.emailId,
+		ordinal: input.link.ordinal,
+		pollCount: pollContext.pollCount,
+		shown: input.shown,
+		awaitSave: true,
+	});
+}
+
 function buildCardActions(input: {
 	link: InboxEmailLinkEntry;
 	emailId: string;
 	displayUrl: string;
 	shown: number;
 	linkSaveStates: ReadonlyMap<string, InboxLinkSaveState>;
+	whenNotSaved: "saving" | "unsaved";
 }): InboxCardAction[] {
-	const { link, emailId, displayUrl, shown, linkSaveStates } = input;
+	const { link, emailId, displayUrl, shown, linkSaveStates, whenNotSaved } = input;
 	const buttonId = (key: string) => `${cardDomId(link.ordinal)}-${key}`;
 	// Posted back so the redirect can rebuild the same page of cards. Without it
 	// a save from an expanded list returns a first page that no longer holds the
@@ -89,12 +112,13 @@ function buildCardActions(input: {
 				linkSaveStates,
 				url: link.url,
 				displayUrl,
-				whenNotSaved: "unsaved",
+				whenNotSaved,
 			}),
 			buttonId: buttonId("save"),
 			href: buildInboxLinkSaveUrl({ emailId, ordinal: link.ordinal }),
 			method: "POST",
 			hiddenParams: shownParam,
+			inPlaceTargetId: cardDomId(link.ordinal),
 		});
 	}
 	actions.push({
@@ -118,13 +142,22 @@ export function toInboxLinkCardViewModel(input: {
 	 * card's own poll URL so a re-rendered pending card keeps posting it back. */
 	shown: number;
 	linkSaveStates: ReadonlyMap<string, InboxLinkSaveState>;
+	savePollContext: LinkCardSavePollContext;
 }): InboxLinkCardViewModel {
 	const { link, emailId, pollCount, maxPolls, shown, linkSaveStates } = input;
 	const reachedTerminal = link.status !== "pending";
+	const savePollUrl = saveSettlePollUrl({
+		link,
+		emailId,
+		shown,
+		saveState: linkSaveStates.get(link.url),
+		pollContext: input.savePollContext,
+	});
 	const cardPollUrl =
-		reachedTerminal || pollCount > maxPolls
+		savePollUrl ??
+		(reachedTerminal || pollCount > maxPolls
 			? undefined
-			: buildInboxLinkPollUrl({ emailId, ordinal: link.ordinal, pollCount, shown });
+			: buildInboxLinkPollUrl({ emailId, ordinal: link.ordinal, pollCount, shown }));
 	const title = link.title ?? "";
 	// A pending link is often an opaque ESP wrapper whose destination lives in a
 	// path token and which may sign its own query, so it is shown byte-exact;
@@ -150,6 +183,7 @@ export function toInboxLinkCardViewModel(input: {
 			displayUrl: url,
 			shown,
 			linkSaveStates,
+			whenNotSaved: savePollUrl === undefined ? "unsaved" : "saving",
 		}),
 	};
 }
