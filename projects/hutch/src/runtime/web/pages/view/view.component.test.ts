@@ -590,6 +590,22 @@ describe("ViewPage", () => {
 				"Sign in to save it to your queue and read the whole article in reader view.",
 			);
 
+			const original = paywall.querySelector(
+				"[data-test-view-paywall-original]",
+			);
+			assert(
+				original,
+				"a reader who can no longer use reader view must keep the path to the original article",
+			);
+			assert.equal(original.getAttribute("href"), "https://example.com/post");
+			assert.equal(original.getAttribute("target"), "_blank");
+			assert.equal(original.getAttribute("rel"), "noopener");
+			assert(
+				original.classList.contains("btn--primary"),
+				"the original article is the expired modal's main call to action",
+			);
+			assert.match(original.textContent ?? "", /Read it on example\.com/);
+
 			const save = paywall.querySelector("[data-test-view-paywall-save]");
 			assert(save, "paywall save button must be rendered");
 			assert.equal(
@@ -597,6 +613,30 @@ describe("ViewPage", () => {
 				"/save?url=https%3A%2F%2Fexample.com%2Fpost",
 			);
 			assert.equal(save.textContent, "Save to My Queue");
+			assert(
+				save.classList.contains("btn--secondary"),
+				"saving stays available, ranked below the original article",
+			);
+			assert.equal(save.classList.contains("btn--primary"), false);
+		});
+
+		it("points the paywall's original-article link at the redirect destination for a merged article", () => {
+			const expiresAt = new Date("2026-04-30T23:59:59.000Z");
+			const doc = render({
+				...readyInput,
+				articleUrl: "https://example.com/post.html",
+				displayUrl: "https://blog.example.org/post",
+				expiresAt,
+				now,
+			});
+
+			const original = doc.querySelector("[data-test-view-paywall-original]");
+			assert(original, "paywall original-article link must be rendered");
+			assert.equal(
+				original.getAttribute("href"),
+				"https://blog.example.org/post",
+			);
+			assert.match(original.textContent ?? "", /Read it on blog\.example\.org/);
 		});
 
 		it("ships the paywall hidden carrying the deadline while the article is still counting down", () => {

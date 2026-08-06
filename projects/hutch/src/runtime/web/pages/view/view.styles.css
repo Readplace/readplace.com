@@ -127,6 +127,16 @@
   color: var(--color-text-secondary);
 }
 
+.view__paywall-actions {
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+}
+
+.view__paywall-actions .btn {
+  gap: 0.35em;
+}
+
 /* purgecss-ignore-start: --inactive ships hidden in markup; --active is toggled by client script and appears in no template literally */
 .view__paywall--inactive {
   display: none;

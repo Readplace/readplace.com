@@ -56,15 +56,16 @@ const VIEW_PAYWALL_TEMPLATE = readFileSync(
 	"utf-8",
 );
 
-/** The "Public access expired" paywall blurs the article below the reader's
- * scroll position and urges the visitor to save the link to their own queue. It
- * always ships hidden (`--inactive`) carrying the expiry deadline in
- * data-expires-at; a client-side script reveals it once the reader scrolls
- * past 10% of the article AND access has expired, so the blur is a soft,
- * scroll-gated paywall rather than an on-load curtain. */
-function renderViewPaywall(input: { saveHref: string; expiresAtIso: string; sharerInactive: boolean }): string {
+function renderViewPaywall(input: {
+	saveHref: string;
+	originalUrl: string;
+	expiresAtIso: string;
+	sharerInactive: boolean;
+}): string {
 	return render(VIEW_PAYWALL_TEMPLATE, {
 		saveHref: input.saveHref,
+		originalUrl: input.originalUrl,
+		originalHostname: new URL(input.originalUrl).hostname,
 		expiresAtIso: input.expiresAtIso,
 		sharerInactive: input.sharerInactive,
 	});
@@ -178,6 +179,7 @@ export function ViewPage(input: ViewPageInput): PageBody {
 		assert(expiry.expiresAtIso, "a non-permanent expiry must carry an ISO deadline");
 		paywall = renderViewPaywall({
 			saveHref: primarySaveAction.href,
+			originalUrl: input.displayUrl ?? input.articleUrl,
 			expiresAtIso: expiry.expiresAtIso,
 			sharerInactive: input.sharerInactive,
 		});

@@ -259,6 +259,8 @@ const SeedCrawledArticleBody = z.object({
 		.array(z.object({ crawledAtMinute: z.string(), authorUserId: UserIdSchema.optional() }))
 		.default([]),
 	savedByUserId: UserIdSchema.optional(),
+	wordCount: z.number().int().positive().default(500),
+	savedAt: z.string().optional(),
 })
 server.post('/e2e/seed-crawled-article', async (req, res) => {
 	const parsed = SeedCrawledArticleBody.safeParse(req.body)
@@ -266,15 +268,16 @@ server.post('/e2e/seed-crawled-article', async (req, res) => {
 		res.status(400).json({ error: parsed.error.flatten() })
 		return
 	}
-	const { url, title, content, contentFetchedAt, crawlVersions, savedByUserId } = parsed.data
+	const { url, title, content, contentFetchedAt, crawlVersions, savedByUserId, wordCount, savedAt } =
+		parsed.data
 	const hostname = new URL(url).hostname
-	const metadata = { title, siteName: hostname, excerpt: 'Seeded for the crawl-bookmark visual test.', wordCount: 500 }
-	const estimatedReadTime = calculateReadTime(500)
+	const metadata = { title, siteName: hostname, excerpt: 'Seeded for the crawl-bookmark visual test.', wordCount }
+	const estimatedReadTime = calculateReadTime(wordCount)
 	await fixture.articleStore.saveArticleGlobally({
 		url,
 		metadata,
 		estimatedReadTime,
-		savedAt: new Date(contentFetchedAt),
+		savedAt: new Date(savedAt ?? contentFetchedAt),
 	})
 	const saved = savedByUserId
 		? (await fixture.articleStore.saveArticle({ userId: savedByUserId, url, metadata, estimatedReadTime })).saved

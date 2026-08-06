@@ -2097,6 +2097,17 @@ describe("View routes", () => {
 			const modal = paywall.querySelector(".view__paywall-modal");
 			assert(modal, "the centred popup markup must be present");
 
+			const original = modal.querySelector("[data-test-view-paywall-original]");
+			assert(original, "the modal must keep the path to the original article");
+			expect(original.getAttribute("href")).toBe(ARTICLE_URL);
+			expect(original.getAttribute("target")).toBe("_blank");
+			expect(original.getAttribute("rel")).toBe("noopener");
+			expect(original.classList.contains("btn--primary")).toBe(true);
+
+			const save = modal.querySelector("[data-test-view-paywall-save]");
+			assert(save, "saving to the queue stays available as the secondary CTA");
+			expect(save.classList.contains("btn--secondary")).toBe(true);
+
 			const script = doc.querySelector(
 				'script[src$="/client-dist/view-paywall.client.js"]',
 			);
