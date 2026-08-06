@@ -356,7 +356,6 @@ describe("GET /sitemap.xml", () => {
 			"http://localhost:3000/read-it-later-that-wont-die",
 			"http://localhost:3000/embed",
 			"http://localhost:3000/login",
-			"http://localhost:3000/signup",
 			"http://localhost:3000/llms.txt",
 			"http://localhost:3000/llms-full.txt",
 			"http://localhost:3000/auth.md",

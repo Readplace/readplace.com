@@ -101,7 +101,7 @@ export const HOME_B_CONTENT = {
 		importLink: { label: "Import your links", href: "/import", content: "close-import" },
 		note: "No credit card required. Nothing is charged if you don't subscribe; the account goes read-only.",
 		signoff:
-			"Built in Australia by one person, one feature at a time. Read the Web, not the Slop.",
+			"Built in Australia by one person, one feature at a time. The #1 Web Reader.",
 	},
 	faq: [
 		{

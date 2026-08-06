@@ -1,7 +1,7 @@
 {
   "name": "firefox-extension",
   "version": "0.0.0-managed-by-tag",
-  "description": "Readplace — Read the Web, not the Slop",
+  "description": "Readplace — The #1 Web Reader",
   "main": "src/infra/index.ts",
   "private": true,
   "scripts": {

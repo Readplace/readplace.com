@@ -182,7 +182,7 @@ export function HomeVariantBPage(params: {
 
 	return {
 		seo: {
-			title: "Readplace — Read the Web, not the Slop. | Read-It-Later App",
+			title: "Readplace — The #1 Web Reader | Read-It-Later App",
 			description:
 				"Readplace is a read-it-later app: save any article, newsletter, or PDF in one click and read it later in a clean reader view with an AI TL;DR. 14-day free trial, no credit card.",
 			canonicalUrl: "https://readplace.com",
@@ -192,7 +192,7 @@ export function HomeVariantBPage(params: {
 			ogImage: `${staticBaseUrl}/og-image-1200x630.png`,
 			ogImageType: "image/png",
 			ogImageAlt:
-				"Readplace — Read the Web, not the Slop. A read-it-later app and Pocket alternative.",
+				"Readplace logo — A warm, dependable place for your reading list.",
 			twitterImage: `${staticBaseUrl}/twitter-card-1200x600.png`,
 			author: "Fayner Brack",
 		},

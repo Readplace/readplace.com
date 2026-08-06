@@ -27,11 +27,11 @@ This post compares the two along that axis, so you can pick the tool that fits h
 
 **Karakeep** is free, open-source, and self-hosted. You run it yourself with Docker. It does AI-powered auto-tagging through Ollama (local) or OpenAI, and it ships full-text search, browser extensions, and mobile apps for iOS and Android. It started as Hoarder, rebranded to Karakeep, and now has 38,000+ GitHub stars with active development.
 
-**Readplace** is hosted at $49/year. You sign up, install the browser extension, and start saving articles. It includes AI-generated TL;DR summaries, a clean reader view, Pocket import, and full-text search, and you skip Docker, server setup, and ongoing maintenance entirely. I built it as a solo developer after running my own reading system for 10 years.
+**Readplace** is hosted at $49/year. You sign up, install the browser extension, and start saving articles. It includes AI-generated TL;DR summaries, a clean reader view, and Pocket import, and you skip Docker, server setup, and ongoing maintenance entirely. I built it as a solo developer after running my own reading system for 10 years.
 
 ## The real comparison: deployment model
 
-The feature lists overlap enough that comparing them line by line tells you little, because both tools save articles, search them, and tag or summarise them with a model. The deployment model is the comparison that does matter, because every other tradeoff in this post follows from it. Once you decide who runs the server, most of the rest is already settled.
+The feature lists overlap enough that comparing them line by line tells you little, because both tools save articles and tag or summarise them with a model. The deployment model is the comparison that does matter, because every other tradeoff in this post follows from it. Once you decide who runs the server, most of the rest is already settled.
 
 ### Self-hosted (Karakeep)
 
@@ -74,7 +74,7 @@ I can't promise what a hosted service will look like in 5 years. But each of the
 | **AI features** | Auto-tagging (Ollama / OpenAI) | TL;DR summaries (included) |
 | **Browser extensions** | Chrome, Firefox | Chrome, Firefox |
 | **Mobile apps** | iOS, Android | iPhone and Mac (App Store), mobile web elsewhere |
-| **Full-text search** | Yes (Meilisearch) | Yes |
+| **Full-text search** | Yes (Meilisearch) | Not yet |
 | **Pocket import** | Yes | Yes |
 | **Data ownership** | Full (your server) | Export anytime |
 | **Setup time** | 15 to 30 min (Docker experience helps) | 2 minutes |

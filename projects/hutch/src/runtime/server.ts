@@ -595,8 +595,8 @@ export function createApp(dependencies: AppDependencies): Express {
 		/** Blog URLs live in the blog's own sitemap at /blog/sitemap.xml
 		 * (advertised in robots.txt), since the blog is a separate deployable. */
 		const pages: { loc: string; priority: string; changefreq: string; lastmod: string }[] = [
-			{ loc: "/", priority: "1.0", changefreq: "weekly", lastmod: "2026-04-08" },
-			{ loc: "/install", priority: "0.8", changefreq: "monthly", lastmod: "2026-07-25" },
+			{ loc: "/", priority: "1.0", changefreq: "weekly", lastmod: "2026-08-06" },
+			{ loc: "/install", priority: "0.8", changefreq: "monthly", lastmod: "2026-08-06" },
 			{ loc: "/import", priority: "0.8", changefreq: "monthly", lastmod: "2026-07-07" },
 			{ loc: "/mcp", priority: "0.8", changefreq: "monthly", lastmod: "2026-08-05" },
 			...LANDING_PAGE_SLUGS.map((slug) => ({
@@ -607,7 +607,6 @@ export function createApp(dependencies: AppDependencies): Express {
 			})),
 			{ loc: "/embed", priority: "0.5", changefreq: "monthly", lastmod: "2026-07-17" },
 			{ loc: "/login", priority: "0.5", changefreq: "yearly", lastmod: "2026-03-01" },
-			{ loc: "/signup", priority: "0.5", changefreq: "yearly", lastmod: "2026-03-01" },
 			{ loc: "/llms.txt", priority: "0.3", changefreq: "monthly", lastmod: "2026-08-05" },
 			{ loc: "/llms-full.txt", priority: "0.3", changefreq: "monthly", lastmod: "2026-08-05" },
 			{ loc: "/auth.md", priority: "0.3", changefreq: "monthly", lastmod: "2026-08-05" },

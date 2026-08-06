@@ -141,6 +141,7 @@ export function SignupPage(data: SignupFormData, options?: { statusCode?: number
 			description:
 				"Create a Readplace account and start saving articles to read later.",
 			canonicalUrl: "/signup",
+			robots: "noindex, nofollow",
 		},
 		styles: AUTH_STYLES,
 		bodyClass: "page-signup",

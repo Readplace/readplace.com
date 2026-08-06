@@ -33,7 +33,7 @@ struct LoginView: View {
 							(Text("Read") + Text("place").foregroundColor(.brandHighlight))
 								.font(.largeTitle.bold())
 								.allowsHitTesting(false)
-							Text("Read the Web, not the Slop")
+							Text("The #1 Web Reader")
 								.font(.subheadline)
 								.foregroundStyle(.secondary)
 								.allowsHitTesting(false)

@@ -338,6 +338,16 @@ describe("Auth routes", () => {
 			expect(doc.querySelector('input[name="password"]')?.getAttribute("type")).toBe("password");
 		});
 
+		it("should hide the signup page from search engines with a robots noindex meta", async () => {
+			const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
+			const response = await request(harness.server).get("/signup");
+
+			const doc = new JSDOM(response.text).window.document;
+			expect(doc.querySelector('meta[name="robots"]')?.getAttribute("content")).toBe(
+				"noindex, nofollow",
+			);
+		});
+
 		it("should render a visually-hidden honeypot input named 'website' inside the signup form", async () => {
 			const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
 			const response = await request(harness.server).get("/signup");

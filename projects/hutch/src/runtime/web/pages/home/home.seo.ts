@@ -66,20 +66,20 @@ export function buildHomeSeo(input: {
 		: `Readplace has a 14-day free trial and does not ask for a credit card to start it. After the trial it is ${MONTHLY_EQUIVALENT_DISPLAY}/month ($49/year), including TL;DR summaries. If you don't subscribe, nothing is charged and your account goes read-only — you keep reading every article you saved.`;
 
 	return {
-		title: "Readplace — Read the Web, not the Slop. | Read-It-Later App",
+		title: "Readplace — The #1 Web Reader | Read-It-Later App",
 		description:
-			"The read-it-later app and online reader for distraction-free reading — save from your browser, your iPhone, an AI assistant, a pasted link, or a bulk import, and read it later in a clean reader view. A privacy-first Pocket alternative with real Tesseract OCR for scanned PDFs (no LLM hallucination). Read the Web, not the Slop.",
+			"Paste any article or PDF link — read it clean with a TL;DR summary. Free, no signup. Save from browser, iPhone, or AI chat. A privacy-first Pocket alternative.",
 		canonicalUrl: "https://readplace.com",
 		ogType: "website",
 		robots: "index, follow",
 		ogImage: `${staticBaseUrl}/og-image-1200x630.png`,
 		ogImageType: "image/png",
 		ogImageAlt:
-			"Readplace — Read the Web, not the Slop. A read-it-later app and Pocket alternative.",
+			"Readplace logo — A warm, dependable place for your reading list.",
 		twitterImage: `${staticBaseUrl}/twitter-card-1200x600.png`,
 		author: "Fayner Brack",
 		appleItunesApp: APPLE_ITUNES_APP_META,
-		keywords: `read it later, read-it-later app, online reader, online reading app, read the web not the slop, slop-free reading, no LLM hallucination, real OCR, Tesseract OCR, deterministic PDF extraction, save articles, bookmark manager, reading list, Pocket alternative, Omnivore alternative, browser extension, ${BROWSER_EXTENSION_KEYWORDS}, article reader, distraction free reading, AI summaries, save from ChatGPT, MCP server, iPhone share sheet, share sheet saving, import bookmarks, import Pocket export, newsletter to read later`,
+		keywords: `read it later, read-it-later app, online reader, online reading app, web reader, no LLM hallucination, real OCR, Tesseract OCR, deterministic PDF extraction, save articles, bookmark manager, reading list, Pocket alternative, Omnivore alternative, browser extension, ${BROWSER_EXTENSION_KEYWORDS}, article reader, distraction free reading, AI summaries, save from ChatGPT, MCP server, iPhone share sheet, share sheet saving, import bookmarks, import Pocket export, newsletter to read later`,
 		structuredData: [
 			{
 				"@context": "https://schema.org",
@@ -90,7 +90,7 @@ export function buildHomeSeo(input: {
 				alternateName: ["Readplace Read-It-Later App", "Readplace App"],
 				url: "https://readplace.com",
 				description:
-					"Read the Web, not the Slop. A privacy-first read-it-later app and Pocket alternative. Save from your browser, your iPhone, an AI assistant over MCP, a pasted link, or a bulk import — then read it later. Real Tesseract OCR for scanned PDFs — no LLM hallucination.",
+					"The #1 Web Reader. A privacy-first read-it-later app and Pocket alternative. Save from your browser, your iPhone, an AI assistant over MCP, a pasted link, or a bulk import — then read it later. Real Tesseract OCR for scanned PDFs — no LLM hallucination.",
 				applicationCategory: "ProductivityApplication",
 				applicationSubCategory: "Read-It-Later",
 				operatingSystem: "Web",
@@ -170,7 +170,7 @@ export function buildHomeSeo(input: {
 					award: "Creator of js-cookie — 22 billion+ annual downloads on jsDelivr CDN",
 				},
 				description:
-					"Readplace is a privacy-first read-it-later app and Pocket alternative. Read the Web, not the Slop.",
+					"Readplace is a privacy-first read-it-later app and Pocket alternative. The #1 Web Reader.",
 				foundingDate: "2025",
 				areaServed: "Worldwide",
 				address: {
@@ -240,8 +240,8 @@ export function buildHomeSeo(input: {
 				alternateName: "Readplace App",
 				url: "https://readplace.com",
 				description:
-					"Read the Web, not the Slop. A privacy-first read-it-later app with real Tesseract OCR for PDFs — no LLM hallucination.",
-				slogan: "Read the Web, not the Slop.",
+					"The #1 Web Reader. A privacy-first read-it-later app with real Tesseract OCR for PDFs — no LLM hallucination.",
+				slogan: "The #1 Web Reader.",
 			},
 		],
 	};
