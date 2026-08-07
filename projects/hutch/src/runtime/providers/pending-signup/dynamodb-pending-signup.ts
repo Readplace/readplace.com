@@ -13,8 +13,6 @@ import {
 import type {
 	ConsumePendingSignup,
 	DeletePendingSignupsByUser,
-	ListAllPendingSignups,
-	MarkCheckoutRecoveryEmailSent,
 	PendingSignup,
 	StorePendingSignup,
 } from "@packages/provider-contracts/pending-signup";
@@ -35,14 +33,6 @@ const PendingSignupRow = z.object({
 	 * leftover row must not throw during the post-delete parse. Narrowed on read. */
 	variant: dynamoField(z.string()),
 	createdAt: dynamoField(z.number()),
-	checkoutRecoveryEmailSentAt: dynamoField(z.number()),
-});
-
-const PendingSignupSummaryRow = z.object({
-	checkoutSessionId: CheckoutSessionIdSchema,
-	email: z.string(),
-	createdAt: dynamoField(z.number()),
-	checkoutRecoveryEmailSentAt: dynamoField(z.number()),
 });
 
 /** Projection for the deletion scrub: the key to delete by, plus the two handles
@@ -61,20 +51,12 @@ export function initDynamoDbPendingSignup(deps: {
 }): {
 	storePendingSignup: StorePendingSignup;
 	consumePendingSignup: ConsumePendingSignup;
-	listAllPendingSignups: ListAllPendingSignups;
-	markCheckoutRecoveryEmailSent: MarkCheckoutRecoveryEmailSent;
 	deleteByUser: DeletePendingSignupsByUser;
 } {
 	const table = defineDynamoTable({
 		client: deps.client,
 		tableName: deps.tableName,
 		schema: PendingSignupRow,
-	});
-
-	const summaryTable = defineDynamoTable({
-		client: deps.client,
-		tableName: deps.tableName,
-		schema: PendingSignupSummaryRow,
 	});
 
 	const scrubTable = defineDynamoTable({
@@ -128,41 +110,6 @@ export function initDynamoDbPendingSignup(deps: {
 		return signup;
 	};
 
-	const listAllPendingSignups: ListAllPendingSignups = async () => {
-		const summaries = [];
-		let lastEvaluatedKey: Record<string, unknown> | undefined;
-		do {
-			const page = await summaryTable.scan({
-				ProjectionExpression:
-					"checkoutSessionId, email, createdAt, checkoutRecoveryEmailSentAt",
-				ExclusiveStartKey: lastEvaluatedKey,
-			});
-			for (const row of page.items) {
-				summaries.push({
-					checkoutSessionId: row.checkoutSessionId,
-					email: row.email,
-					...(row.createdAt !== undefined ? { createdAt: row.createdAt } : {}),
-					...(row.checkoutRecoveryEmailSentAt !== undefined
-						? { checkoutRecoveryEmailSentAt: row.checkoutRecoveryEmailSentAt }
-						: {}),
-				});
-			}
-			lastEvaluatedKey = page.lastEvaluatedKey;
-		} while (lastEvaluatedKey !== undefined);
-		return summaries;
-	};
-
-	const markCheckoutRecoveryEmailSent: MarkCheckoutRecoveryEmailSent = async ({
-		checkoutSessionId,
-		sentAt,
-	}) => {
-		await table.update({
-			Key: { checkoutSessionId },
-			UpdateExpression: "SET checkoutRecoveryEmailSentAt = :sentAt",
-			ExpressionAttributeValues: { ":sentAt": sentAt },
-		});
-	};
-
 	const deleteByUser: DeletePendingSignupsByUser = async ({ userId, email }) => {
 		// No TTL on this table, so an abandoned-checkout row keeps the deleted user's
 		// email + userId forever unless purged. Match on userId OR the normalized
@@ -191,8 +138,6 @@ export function initDynamoDbPendingSignup(deps: {
 	return {
 		storePendingSignup,
 		consumePendingSignup,
-		listAllPendingSignups,
-		markCheckoutRecoveryEmailSent,
 		deleteByUser,
 	};
 }

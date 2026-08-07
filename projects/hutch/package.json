@@ -21,8 +21,6 @@
     "start": "NODE_ENV=production node dist/runtime/server.main.js",
     "dev": "npx --yes kill-port 35729 >/dev/null 2>&1; concurrently --kill-others \"livereload src --exts html,css,ts --wait 500\" \"node scripts/build-client-bundles.js --watch\" \"LIVERELOAD=true tsx watch src/runtime/server.main.ts\"",
     "permalink": "tsx src/runtime/web/pages/save/save-permalink.cli.main.ts",
-    "backfill-registered-at": "tsx src/runtime/providers/auth/backfill-registered-at.cli.main.ts",
-    "send-checkout-recovery-emails": "tsx src/runtime/checkout-recovery/send-checkout-recovery-emails.cli.main.ts",
     "e2e-server": "E2E_SAVE_PIPELINE=inline node dist/e2e/e2e-server.main.js",
     "perf-server": "E2E_SAVE_PIPELINE=submit node dist/e2e/e2e-server.main.js",
     "test": "jest --testMatch='**/dist/**/*.test.js' --testTimeout=10000",

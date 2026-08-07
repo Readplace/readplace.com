@@ -35,59 +35,6 @@ describe("initInMemoryPendingSignup", () => {
 		expect(second).toBeNull();
 	});
 
-	it("lists all stored signups and reflects markCheckoutRecoveryEmailSent", async () => {
-		const {
-			storePendingSignup,
-			listAllPendingSignups,
-			markCheckoutRecoveryEmailSent,
-		} = initInMemoryPendingSignup();
-		const firstId = CheckoutSessionIdSchema.parse("cs_test_list_1");
-		const secondId = CheckoutSessionIdSchema.parse("cs_test_list_2");
-		const firstUserId = UserIdSchema.parse("u-list-1");
-		const secondUserId = UserIdSchema.parse("u-list-2");
-		await storePendingSignup({
-			checkoutSessionId: firstId,
-			signup: { method: "existing-user-subscribe", email: "a@example.com", userId: firstUserId },
-			createdAt: 1734000000,
-		});
-		await storePendingSignup({
-			checkoutSessionId: secondId,
-			signup: { method: "existing-user-subscribe", email: "b@example.com", userId: secondUserId },
-			createdAt: 1734000001,
-		});
-
-		const before = await listAllPendingSignups();
-		expect(before).toHaveLength(2);
-		const firstRow = before.find((r) => r.checkoutSessionId === firstId);
-		assert(firstRow, "first row must be present");
-		expect(firstRow.email).toBe("a@example.com");
-		expect(firstRow.createdAt).toBe(1734000000);
-		expect(firstRow.checkoutRecoveryEmailSentAt).toBeUndefined();
-
-		await markCheckoutRecoveryEmailSent({
-			checkoutSessionId: firstId,
-			sentAt: 1735000000,
-		});
-
-		const after = await listAllPendingSignups();
-		const firstRowAfter = after.find((r) => r.checkoutSessionId === firstId);
-		assert(firstRowAfter, "first row must still be present");
-		expect(firstRowAfter.checkoutRecoveryEmailSentAt).toBe(1735000000);
-		const secondRowAfter = after.find((r) => r.checkoutSessionId === secondId);
-		assert(secondRowAfter, "second row must still be present");
-		expect(secondRowAfter.checkoutRecoveryEmailSentAt).toBeUndefined();
-	});
-
-	it("throws when marking an unknown checkout session as checkout-recovery-email sent", async () => {
-		const { markCheckoutRecoveryEmailSent } = initInMemoryPendingSignup();
-		await expect(
-			markCheckoutRecoveryEmailSent({
-				checkoutSessionId: CheckoutSessionIdSchema.parse("cs_test_missing"),
-				sentAt: 1,
-			}),
-		).rejects.toThrow(/No pending signup/);
-	});
-
 	it("deletes every abandoned-checkout row for a user and leaves other users' rows intact", async () => {
 		const { storePendingSignup, consumePendingSignup, deleteByUser } = initInMemoryPendingSignup();
 		const targetUser = UserIdSchema.parse("u-del-target");

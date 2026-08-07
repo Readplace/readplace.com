@@ -14,13 +14,6 @@ export type PendingSignup = {
 	variant?: CheckoutVariant;
 };
 
-export interface PendingSignupSummary {
-	checkoutSessionId: CheckoutSessionId;
-	email: string;
-	createdAt?: number;
-	checkoutRecoveryEmailSentAt?: number;
-}
-
 export type StorePendingSignup = (params: {
 	checkoutSessionId: CheckoutSessionId;
 	signup: PendingSignup;
@@ -30,13 +23,6 @@ export type StorePendingSignup = (params: {
 export type ConsumePendingSignup = (
 	checkoutSessionId: CheckoutSessionId,
 ) => Promise<PendingSignup | null>;
-
-export type ListAllPendingSignups = () => Promise<PendingSignupSummary[]>;
-
-export type MarkCheckoutRecoveryEmailSent = (params: {
-	checkoutSessionId: CheckoutSessionId;
-	sentAt: number;
-}) => Promise<void>;
 
 /** Erase every abandoned-checkout row a user left behind, as part of account
  * deletion. This table has no TTL, so an un-consumed pending-signup row keeps the
