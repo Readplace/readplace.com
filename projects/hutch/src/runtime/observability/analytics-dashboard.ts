@@ -896,20 +896,3 @@ export function buildAnalyticsDashboardBody(deps: BuildAnalyticsDashboardDeps): 
 
 	return { widgets };
 }
-
-/**
- * Every source log group the forward-analytics Lambda subscribes to: the hutch
- * handler, the blog Lambda, and every subscription/trial Lambda. The forwarder
- * copies the FORWARDED_STREAMS lines from these into the never-expire analytics
- * group. Kept here — next to the subscription/worker group sets it composes — so
- * the infra permission and subscription-filter loops and the drift tests all read
- * one definition. Two groups are deliberately absent: the forwarder's own group
- * (subscribing it to its own output would loop) and the async save-link workers
- * (they emit only operational streams, which stay at 30-day retention).
- */
-export const FORWARDED_SOURCE_LOG_GROUPS: readonly string[] = [
-	LOG_GROUPS.hutchHandler,
-	BLOG_SITE_LOG_GROUP,
-	LOG_GROUPS.subscriptionEvents,
-	LOG_GROUPS.sendTrialFeedbackEmail,
-];

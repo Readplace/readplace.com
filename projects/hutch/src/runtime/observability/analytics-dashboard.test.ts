@@ -1,7 +1,6 @@
 import assert from "node:assert/strict";
 import {
 	BLOG_SITE_LOG_GROUP,
-	FORWARD_ANALYTICS_FUNCTION_NAME,
 	SAVE_LINK_LOG_GROUPS,
 } from "@packages/hutch-infra-components";
 import { campaignTag, HOMEPAGE_SPLIT } from "../web/experiments/homepage-split";
@@ -17,10 +16,7 @@ import {
 	STREAMS,
 	SUBSCRIPTION_EVENTS,
 } from "./events";
-import {
-	buildAnalyticsDashboardBody,
-	FORWARDED_SOURCE_LOG_GROUPS,
-} from "./analytics-dashboard";
+import { buildAnalyticsDashboardBody } from "./analytics-dashboard";
 
 const ANY_STREAM_RE = /\bstream\s*=\s*"([a-z][a-z0-9_-]*)"/g;
 const ANY_EVENT_RE = /\bevent\s*=\s*"([a-z][a-z0-9_]*)"/g;
@@ -376,15 +372,6 @@ describe("buildAnalyticsDashboardBody — drift prevention", () => {
 		expect(named).toHaveLength(Object.keys(LAMBDA_NAMES).length - 1);
 	});
 
-	it("FORWARDED_SOURCE_LOG_GROUPS covers hutch, blog, and every subscription group and excludes the analytics destination and the forwarder's own group so the forwarder never subscribes to its own output", () => {
-		const forwarded = new Set(FORWARDED_SOURCE_LOG_GROUPS);
-		for (const expected of [LOG_GROUPS.hutchHandler, BLOG_SITE_LOG_GROUP, ...Object.values(LOG_GROUPS)]) {
-			expect(forwarded.has(expected)).toBe(true);
-		}
-		expect(forwarded.has(ANALYTICS_LOG_GROUP)).toBe(false);
-		expect(forwarded.has(`/aws/lambda/${FORWARD_ANALYTICS_FUNCTION_NAME}`)).toBe(false);
-	});
-
 	it("both checkout-funnel widgets read the analytics group — checkout events are web-app-emitted subscriptions-stream data now forwarded there", () => {
 		const checkoutQueries = widgetQueries().filter((x) =>
 			x.includes(SUBSCRIPTION_EVENTS.checkoutStarted),
@@ -431,16 +418,6 @@ describe("buildAnalyticsDashboardBody — drift prevention", () => {
 		for (const w of body.widgets) {
 			expect(w.x + w.width).toBeLessThanOrEqual(24);
 		}
-	});
-
-	// Replaces a test asserting every LOG_GROUPS value appeared in the dashboard.
-	// It cannot survive the funnel: the dashboard now references no project group
-	// at all, on purpose. What matters instead is that every declared group is
-	// forwarded, which is what puts its errors on the dashboard.
-	it("every LOG_GROUPS value is a forwarded source — a log group that reaches no funnel is invisible to the dashboard", () => {
-		const forwarded = new Set(FORWARDED_SOURCE_LOG_GROUPS);
-		const unforwarded = Object.values(LOG_GROUPS).filter((name) => !forwarded.has(name));
-		expect(unforwarded).toEqual([]);
 	});
 
 	it("LOG_GROUPS is mechanically derived from LAMBDA_NAMES — hand-editing a LOG_GROUPS value out of sync with its LAMBDA_NAMES entry fails CI", () => {
