@@ -77,7 +77,6 @@ const blogRoutes = new HutchAPIGatewayLambdaRoute("blog-site", {
 // the forwarded stream list by hand, so widening that list never reached the
 // blog — a drift this deletion removes rather than fixes.
 
-export const functionName = lambda.functionName;
 export const routeKeys = blogRoutes.routes.map((route) => route.routeKey);
 
 /** The blog Lambda has no URL of its own — it answers on hutch's API Gateway

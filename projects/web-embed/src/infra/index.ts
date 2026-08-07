@@ -67,7 +67,6 @@ const embedRoutes = new HutchAPIGatewayLambdaRoute("web-embed", {
 	routeKeys: ["GET /embed", "ANY /embed/{proxy+}"],
 });
 
-export const functionName = lambda.functionName;
 export const routeKeys = embedRoutes.routes.map((route) => route.routeKey);
 
 /** The embed Lambda has no URL of its own — it answers on hutch's API Gateway

@@ -619,7 +619,6 @@ eventBus.subscribe(LinkDequeuedEvent, recordLinkDequeuedWithSQS, {
 	name: "inbox-record-link-dequeued",
 });
 
-export const functionName = webLambda.functionName;
 export const routeKeys = inboxRoutes.routes.map((route) => route.routeKey);
 
 /** The inbox web Lambda has no URL of its own — it answers on hutch's API
