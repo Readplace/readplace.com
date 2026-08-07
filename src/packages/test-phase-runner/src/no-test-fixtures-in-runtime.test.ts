@@ -14,7 +14,7 @@ const repoRoot = join(__dirname, "..", "..", "..", "..");
  * implementations for local dev and e2e. Every other file under a project's
  * `src/runtime` tree must depend on real packages.
  */
-const EXEMPT_SUFFIXES = [".test.ts", ".integration.ts", ".main.ts", "/app.ts", "/test-app.ts"];
+const EXEMPT_SUFFIXES = [".test.ts", ".integration.ts", ".main.ts", "/providers/dev-providers.ts", "/test-app.ts"];
 
 function isExempt(path: string): boolean {
 	return EXEMPT_SUFFIXES.some((suffix) => path.endsWith(suffix));

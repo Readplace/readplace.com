@@ -306,7 +306,7 @@ const lambda = new HutchLambda(LAMBDA_NAMES.hutchHandler, {
 	entryPoint: "./src/runtime/lambda.main.ts",
 	outputDir: ".lib/hutch-api",
 	assetDir: "./src/runtime",
-	memorySize: 512,
+	memorySize: 1769,
 	timeout: 30,
 	layers: [curlImpersonateLayerArn],
 	environment: {

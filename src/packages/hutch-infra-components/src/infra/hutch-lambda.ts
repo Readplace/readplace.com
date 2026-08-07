@@ -330,7 +330,7 @@ export class HutchLambda extends pulumi.ComponentResource {
 			const lambdaCode = build({
 				entryPoints: [entryPoint],
 				bundle: true,
-				sourcemap: true,
+				sourcemap: false,
 				platform: "node",
 				format: "cjs",
 				minify: true,
