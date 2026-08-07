@@ -22,7 +22,8 @@ const PANEL = "#reader-exit-confirm";
 const PANEL_TITLE = ".reader-confirm__title";
 const PANEL_ARTICLE = ".reader-confirm__article";
 const PANEL_QUESTION = ".reader-confirm__body";
-const PANEL_FORM = ".reader-confirm__form";
+const PANEL_CONFIRM = '[data-test-action="exit-confirm-yes"]';
+const PANEL_DECLINE = '[data-test-action="exit-confirm-no"]';
 
 const CreatedUser = z.union([
 	z.object({ ok: z.literal(true), userId: z.string() }),
@@ -85,7 +86,8 @@ async function titleLeadsArticleThenQuestionThenChoice(page: Page): Promise<void
 		["title", await measuredBox(page, PANEL_TITLE)],
 		["article title", await measuredBox(page, PANEL_ARTICLE)],
 		["question", await measuredBox(page, PANEL_QUESTION)],
-		["Yes/No choice", await measuredBox(page, PANEL_FORM)],
+		["mark-read choice", await measuredBox(page, PANEL_CONFIRM)],
+		["decline choice", await measuredBox(page, PANEL_DECLINE)],
 	] as const;
 
 	for (let i = 1; i < stacked.length; i++) {
@@ -96,6 +98,11 @@ async function titleLeadsArticleThenQuestionThenChoice(page: Page): Promise<void
 			`the ${name} must sit below the ${aboveName}, not beside it`,
 		);
 	}
+	const confirm = await measuredBox(page, PANEL_CONFIRM);
+	const decline = await measuredBox(page, PANEL_DECLINE);
+	assert.equal(decline.x, confirm.x, "the two choices must stack in one column");
+	assert.equal(decline.width, confirm.width, "the stacked choices must share the panel's width");
+
 	for (const [name, part] of stacked) {
 		assert.ok(
 			part.x >= panel.x && part.x + part.width <= panel.x + panel.width,

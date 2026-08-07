@@ -97,7 +97,7 @@ describe("Reader exit confirmation (GET /queue/:id/view)", () => {
 			.split(" ")
 			.map((id) => doc.getElementById(id)?.textContent);
 		const articleTitle = doc.querySelector("[data-test-reader-title]")?.textContent;
-		expect(described).toEqual([articleTitle, "Mark as read?"]);
+		expect(described).toEqual([articleTitle, "Did you read it?"]);
 	});
 
 	it("posts the mark-read status from inside the panel, tagged apart from the toolbar's", async () => {
@@ -109,7 +109,7 @@ describe("Reader exit confirmation (GET /queue/:id/view)", () => {
 
 		const yes = doc.querySelector('[data-test-action="exit-confirm-yes"]');
 		assert(yes, "the confirm call to action must be rendered");
-		expect(yes.textContent).toBe("Yes");
+		expect(yes.textContent).toBe("Yes, Mark as Read");
 		expect(yes.getAttribute("type")).toBe("submit");
 		expect(yes.classList.contains("btn")).toBe(true);
 		expect(yes.classList.contains("btn--primary")).toBe(true);
@@ -142,7 +142,7 @@ describe("Reader exit confirmation (GET /queue/:id/view)", () => {
 
 		const no = doc.querySelector('[data-test-action="exit-confirm-no"]');
 		assert(no, "the decline control must be rendered");
-		expect(no.textContent).toBe("No");
+		expect(no.textContent).toBe("No, Just Open Next Reading");
 		// type=button, not submit: declining must never post the mark-read form
 		// it shares a <form> with.
 		expect(no.getAttribute("type")).toBe("button");

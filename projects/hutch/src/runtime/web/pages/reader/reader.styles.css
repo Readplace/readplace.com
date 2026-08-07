@@ -194,11 +194,8 @@
 
 .reader-confirm__form {
   display: flex;
+  flex-direction: column;
   gap: 12px;
-}
-
-.reader-confirm__cta {
-  flex: 1;
 }
 
 @media (min-width: 768px) {
