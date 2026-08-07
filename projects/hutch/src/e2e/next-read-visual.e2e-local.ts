@@ -251,11 +251,17 @@ const STACK_DESKTOP_LIGHT: VisualCheckpoint = {
 	pinnedText: PINNED_SAVED,
 };
 
-const STACK_MOBILE_LIGHT: VisualCheckpoint = {
-	name: "next-read-balloon-stack-mobile-light",
+/** Captures the card rather than the whole stack. The stack's height is the sum
+ * of two independently-wrapping text blocks, so it accumulates fractional line
+ * heights and rounds to a different integer on the CI renderer than on the one
+ * that generated the baseline — and `toHaveScreenshot` rejects a size mismatch
+ * before any pixel threshold applies. The stacking itself is what
+ * `stackFitsMobileViewport` asserts numerically. */
+const CARD_MOBILE_LIGHT: VisualCheckpoint = {
+	name: "next-read-mobile-light",
 	settled: balloonOpenBelowCard,
 	geometry: stackFitsMobileViewport,
-	target: STACK,
+	target: CARD,
 	capture: "element",
 	pinnedText: PINNED_SAVED,
 };
@@ -316,6 +322,6 @@ test.describe("Next-read card (mobile)", () => {
 			stamp: `stack-mobile-${test.info().workerIndex}-${Date.now()}`,
 			suppressBalloon: false,
 		});
-		await captureCheckpoint(page, STACK_MOBILE_LIGHT);
+		await captureCheckpoint(page, CARD_MOBILE_LIGHT);
 	});
 });
