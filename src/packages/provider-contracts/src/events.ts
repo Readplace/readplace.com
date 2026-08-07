@@ -129,10 +129,6 @@ export type PublishSubscriptionReactivated = (params: {
 	subscriptionId?: string;
 }) => Promise<void>;
 
-export type PublishSubscriptionStartRequestCommand = (params: {
-	userId: UserId;
-}) => Promise<void>;
-
 export type PublishUpdateFetchTimestamp = (params: {
 	url: string;
 	contentFetchedAt: string;
