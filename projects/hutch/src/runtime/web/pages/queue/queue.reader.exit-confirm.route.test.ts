@@ -68,7 +68,7 @@ async function saveAndGetArticleId(
 }
 
 describe("Reader exit confirmation (GET /queue/:id/view)", () => {
-	it("renders one panel as a child of <main>, labelled from the article's own title", async () => {
+	it("renders one panel as a child of <main>, describing the exit with the article's own title", async () => {
 		const harness = buildHarness();
 		const agent = await loginAgent(harness.server, harness.auth);
 		const articleId = await saveAndGetArticleId(agent, "https://example.com/exit-panel");
@@ -91,8 +91,13 @@ describe("Reader exit confirmation (GET /queue/:id/view)", () => {
 		const title = doc.getElementById(panel.getAttribute("aria-labelledby") ?? "");
 		assert(title, "aria-labelledby must resolve");
 		expect(title.tagName).toBe("H2");
+		expect(title.textContent).toBe("You're leaving this article");
+
+		const described = (panel.getAttribute("aria-describedby") ?? "")
+			.split(" ")
+			.map((id) => doc.getElementById(id)?.textContent);
 		const articleTitle = doc.querySelector("[data-test-reader-title]")?.textContent;
-		expect(title.textContent).toBe(`Mark "${articleTitle}" as read?`);
+		expect(described).toEqual([articleTitle, "Mark as read?"]);
 	});
 
 	it("posts the mark-read status from inside the panel, tagged apart from the toolbar's", async () => {

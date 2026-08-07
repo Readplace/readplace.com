@@ -127,7 +127,7 @@
   align-items: flex-start;
   justify-content: space-between;
   gap: 8px;
-  margin-bottom: 24px;
+  margin-bottom: 8px;
 }
 
 /* A modal's title line is UI, so it stays on the body sans even though it is
@@ -140,6 +140,20 @@
   line-height: 1.3;
   color: var(--foreground);
   text-wrap: balance;
+}
+
+.reader-confirm__article {
+  margin-bottom: 16px;
+  font-size: 0.9375rem;
+  line-height: 1.5;
+  color: var(--muted-foreground);
+  text-wrap: pretty;
+}
+
+.reader-confirm__body {
+  margin-bottom: 24px;
+  font-size: 0.9375rem;
+  line-height: 1.5;
 }
 
 /* Icon tier padding (--button-padding-xs) with the card's own 44px touch

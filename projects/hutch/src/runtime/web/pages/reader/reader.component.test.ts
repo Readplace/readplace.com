@@ -189,7 +189,7 @@ describe("ReaderPage", () => {
 		assert.equal(external.getAttribute("target"), "_blank");
 	});
 
-	it("keeps a title carrying markup as text in the exit confirmation heading", () => {
+	it("keeps a title carrying markup as text in the exit confirmation", () => {
 		const article = makeArticle({
 			metadata: {
 				title: 'Why <script> & "quotes" break naive templates',
@@ -210,13 +210,10 @@ describe("ReaderPage", () => {
 		).to("text/html").body;
 		const doc = new JSDOM(html).window.document;
 
-		const heading = doc.querySelector(".reader-confirm__title");
-		assert(heading, "the exit confirmation heading must be rendered");
-		assert.equal(
-			heading.textContent,
-			'Mark "Why <script> & "quotes" break naive templates" as read?',
-		);
-		assert.equal(heading.querySelector("script"), null);
+		const articleTitle = doc.querySelector(".reader-confirm__article");
+		assert(articleTitle, "the exit confirmation must name the article it is leaving");
+		assert.equal(articleTitle.textContent, 'Why <script> & "quotes" break naive templates');
+		assert.equal(articleTitle.querySelector("script"), null);
 	});
 
 	it("asks nothing on exit once the article is read, but still loads the script the next swap needs", () => {
