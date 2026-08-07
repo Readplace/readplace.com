@@ -4,9 +4,12 @@ import { initBase } from "./base.component";
 import { GlobalNav, GlobalEmptyNav } from "./nav.component";
 import { CHANGELOG_SEEN_SCRIPT, isChangelogVersion } from "./changelog-banner";
 import type { BannerState } from "./banner-state";
+import { generateCspNonce } from "./csp-nonce.middleware";
 import type { PageBody } from "./page-body.types";
 
 const Base = initBase({ staticBaseUrl: "", liveReload: false, renderNav: GlobalNav });
+
+const CSP_NONCE = generateCspNonce();
 
 const CHANGELOG_VERSION = "a1b2c3d4";
 assert(isChangelogVersion(CHANGELOG_VERSION));
@@ -24,7 +27,11 @@ function createTestPageBody(overrides: Partial<PageBody> = {}): PageBody {
 	};
 }
 
-const GUEST_STATE: BannerState = { isAuthenticated: false, emailVerified: undefined };
+const GUEST_STATE: BannerState = {
+	cspNonce: CSP_NONCE,
+	isAuthenticated: false,
+	emailVerified: undefined,
+};
 
 /** Every meta the page's SeoMetadata can produce. Reading each name from this
  * fixed list — rather than a selector typed into the assertion — means a typo
@@ -36,6 +43,20 @@ function seoMetas(doc: Document): [string, string | null][] {
 		name,
 		doc.head.querySelector(`meta[name="${name}"]`)?.getAttribute("content") ?? null,
 	]);
+}
+
+/** Every element a `script-src`/`style-src` nonce has to cover: a script with no
+ * `src` and every `<style>` block. Enumerating them from the rendered document —
+ * rather than asserting on a hand-written selector per emission site — means a
+ * newly added inline script fails this test instead of silently shipping
+ * unnonced. */
+function inlineNonces(doc: Document): { script: (string | null)[]; style: (string | null)[] } {
+	return {
+		script: Array.from(doc.querySelectorAll("script:not([src])")).map((el) =>
+			el.getAttribute("nonce"),
+		),
+		style: Array.from(doc.querySelectorAll("style")).map((el) => el.getAttribute("nonce")),
+	};
 }
 
 function loadedClientScripts(doc: Document): string[] {
@@ -189,7 +210,7 @@ describe("Base component", () => {
 
 	it("should render authenticated navigation when state is authenticated", () => {
 		const page = createTestPageBody();
-		const result = Base(page, { isAuthenticated: true, emailVerified: true }).to("text/html");
+		const result = Base(page, { cspNonce: CSP_NONCE, isAuthenticated: true, emailVerified: true }).to("text/html");
 		const doc = new JSDOM(result.body).window.document;
 
 		const nav = doc.querySelector("[data-test-nav-variant]");
@@ -199,7 +220,7 @@ describe("Base component", () => {
 
 	it("renders the Import Links nav item for an authenticated request, tagged for funnel attribution", () => {
 		const page = createTestPageBody();
-		const result = Base(page, { isAuthenticated: true, emailVerified: true }).to("text/html");
+		const result = Base(page, { cspNonce: CSP_NONCE, isAuthenticated: true, emailVerified: true }).to("text/html");
 		const doc = new JSDOM(result.body).window.document;
 
 		const button = doc.querySelector('[data-test-nav-item="import"]');
@@ -235,7 +256,7 @@ describe("Base component", () => {
 
 	it("renders the Account nav item for authenticated full-access users", () => {
 		const page = createTestPageBody();
-		const result = Base(page, { isAuthenticated: true, emailVerified: true }).to("text/html");
+		const result = Base(page, { cspNonce: CSP_NONCE, isAuthenticated: true, emailVerified: true }).to("text/html");
 		const doc = new JSDOM(result.body).window.document;
 
 		const button = doc.querySelector('[data-test-nav-item="account"]');
@@ -249,7 +270,7 @@ describe("Base component", () => {
 
 	it("hides the Account nav item for unauthenticated requests", () => {
 		const page = createTestPageBody();
-		const result = Base(page, { isAuthenticated: false, emailVerified: undefined }).to("text/html");
+		const result = Base(page, { cspNonce: CSP_NONCE, isAuthenticated: false, emailVerified: undefined }).to("text/html");
 		const doc = new JSDOM(result.body).window.document;
 
 		const navItems = Array.from(doc.querySelectorAll("[data-test-nav-item]")).map(
@@ -261,6 +282,7 @@ describe("Base component", () => {
 	it("renders the full nav (queue + import + inbox + account + logout) for an authenticated full-access user", () => {
 		const page = createTestPageBody();
 		const result = Base(page, {
+			cspNonce: CSP_NONCE,
 			isAuthenticated: true,
 			emailVerified: true,
 			accessIsReadOnly: false,
@@ -276,6 +298,7 @@ describe("Base component", () => {
 	it("hides import, inbox, and account from the nav for a read-only user (trial-expired / subscription-cancelled) — only queue and logout remain", () => {
 		const page = createTestPageBody();
 		const result = Base(page, {
+			cspNonce: CSP_NONCE,
 			isAuthenticated: true,
 			emailVerified: true,
 			accessIsReadOnly: true,
@@ -333,6 +356,7 @@ describe("Base component", () => {
 	it("sets data-show='true' on the extension suggestion banner when state asks for it", () => {
 		const page = createTestPageBody();
 		const result = Base(page, {
+			cspNonce: CSP_NONCE,
 			isAuthenticated: true,
 			emailVerified: true,
 			showExtensionSuggestionBanner: true,
@@ -469,7 +493,7 @@ describe("Base component", () => {
 	});
 
 	function extractJsonLdBlock(html: string): string {
-		const openTag = '<script type="application/ld+json">';
+		const openTag = `<script type="application/ld+json" nonce="${CSP_NONCE}">`;
 		const start = html.indexOf(openTag);
 		assert(start >= 0, "JSON-LD script block must be rendered");
 		const innerStart = start + openTag.length;
@@ -549,7 +573,7 @@ describe("Base component", () => {
 
 	it("should show verification banner when authenticated and email not verified", () => {
 		const page = createTestPageBody();
-		const result = Base(page, { isAuthenticated: true, emailVerified: false }).to("text/html");
+		const result = Base(page, { cspNonce: CSP_NONCE, isAuthenticated: true, emailVerified: false }).to("text/html");
 		const doc = new JSDOM(result.body).window.document;
 
 		const banner = doc.querySelector("[data-test-verify-banner]");
@@ -561,6 +585,7 @@ describe("Base component", () => {
 	it("should show the days-only countdown when a verification deadline is approaching", () => {
 		const page = createTestPageBody();
 		const result = Base(page, {
+			cspNonce: CSP_NONCE,
 			isAuthenticated: true,
 			emailVerified: false,
 			verification: { state: "counting-down", daysLeft: 3 },
@@ -577,6 +602,7 @@ describe("Base component", () => {
 	it("should switch to the locked contact-support copy once the account is locked", () => {
 		const page = createTestPageBody();
 		const result = Base(page, {
+			cspNonce: CSP_NONCE,
 			isAuthenticated: true,
 			emailVerified: false,
 			verification: { state: "locked" },
@@ -593,7 +619,7 @@ describe("Base component", () => {
 
 	it("should hide verification banner when email is verified", () => {
 		const page = createTestPageBody();
-		const result = Base(page, { isAuthenticated: true, emailVerified: true }).to("text/html");
+		const result = Base(page, { cspNonce: CSP_NONCE, isAuthenticated: true, emailVerified: true }).to("text/html");
 		const doc = new JSDOM(result.body).window.document;
 
 		const banner = doc.querySelector("[data-test-verify-banner]");
@@ -603,7 +629,7 @@ describe("Base component", () => {
 
 	it("should hide verification banner when not authenticated", () => {
 		const page = createTestPageBody();
-		const result = Base(page, { isAuthenticated: false, emailVerified: false }).to("text/html");
+		const result = Base(page, { cspNonce: CSP_NONCE, isAuthenticated: false, emailVerified: false }).to("text/html");
 		const doc = new JSDOM(result.body).window.document;
 
 		const banner = doc.querySelector("[data-test-verify-banner]");
@@ -613,7 +639,7 @@ describe("Base component", () => {
 
 	it("should hide verification banner when emailVerified is undefined", () => {
 		const page = createTestPageBody();
-		const result = Base(page, { isAuthenticated: true, emailVerified: undefined }).to("text/html");
+		const result = Base(page, { cspNonce: CSP_NONCE, isAuthenticated: true, emailVerified: undefined }).to("text/html");
 		const doc = new JSDOM(result.body).window.document;
 
 		const banner = doc.querySelector("[data-test-verify-banner]");
@@ -745,6 +771,7 @@ describe("Base component", () => {
 	it("appends per-request markup after the page's own scripts", () => {
 		const page = createTestPageBody({ scripts: '<script src="/client-dist/page.client.js"></script>' });
 		const result = Base(page, {
+			cspNonce: CSP_NONCE,
 			isAuthenticated: false,
 			emailVerified: undefined,
 			requestScripts: '<script src="/client-dist/per-request.client.js"></script>',
@@ -759,7 +786,7 @@ describe("Base component", () => {
 
 	it("renders no per-request markup for a state that carries none", () => {
 		const page = createTestPageBody();
-		const result = Base(page, { isAuthenticated: false, emailVerified: undefined }).to("text/html");
+		const result = Base(page, { cspNonce: CSP_NONCE, isAuthenticated: false, emailVerified: undefined }).to("text/html");
 		const doc = new JSDOM(result.body).window.document;
 
 		expect(loadedClientScripts(doc)).toEqual([
@@ -770,7 +797,7 @@ describe("Base component", () => {
 
 	it("renders the trial countdown hidden (state class) and omits the client script when state.trial is undefined", () => {
 		const page = createTestPageBody();
-		const result = Base(page, { isAuthenticated: true, emailVerified: true }).to("text/html");
+		const result = Base(page, { cspNonce: CSP_NONCE, isAuthenticated: true, emailVerified: true }).to("text/html");
 		const doc = new JSDOM(result.body).window.document;
 
 		const countdown = doc.querySelector("[data-test-trial-countdown]");
@@ -786,6 +813,7 @@ describe("Base component", () => {
 	it("renders the trial countdown with text/data-attrs and includes the client script when trial.state='active'", () => {
 		const page = createTestPageBody();
 		const result = Base(page, {
+			cspNonce: CSP_NONCE,
 			isAuthenticated: true,
 			emailVerified: true,
 			trial: {
@@ -825,6 +853,7 @@ describe("Base component", () => {
 	it("renders the trial countdown as 'Subscription not active' and skips the client script when trial.state='expired'", () => {
 		const page = createTestPageBody();
 		const result = Base(page, {
+			cspNonce: CSP_NONCE,
 			isAuthenticated: true,
 			emailVerified: true,
 			trial: { state: "expired" },
@@ -846,6 +875,7 @@ describe("Base component", () => {
 	it("renders the quiet cancellation chip and loads the client script when trial.state='cancellation-scheduled' — the script is what re-renders the UTC baseline date into the viewer's timezone", () => {
 		const page = createTestPageBody();
 		const result = Base(page, {
+			cspNonce: CSP_NONCE,
 			isAuthenticated: true,
 			emailVerified: true,
 			trial: {
@@ -872,6 +902,7 @@ describe("Base component", () => {
 	it("renders the trial countdown as an anchor to /account so the user can fix the subscription state from any page", () => {
 		const page = createTestPageBody();
 		const result = Base(page, {
+			cspNonce: CSP_NONCE,
 			isAuthenticated: true,
 			emailVerified: true,
 			trial: { state: "expired" },
@@ -887,6 +918,7 @@ describe("Base component", () => {
 	it("places the trial countdown directly after the header brand inside .header__content", () => {
 		const page = createTestPageBody();
 		const result = Base(page, {
+			cspNonce: CSP_NONCE,
 			isAuthenticated: true,
 			emailVerified: true,
 			trial: {
@@ -964,6 +996,46 @@ describe("initBase config", () => {
 
 		expect(withScripts.body).toContain(marker);
 		expect(withoutScripts.body).not.toContain(marker);
+	});
+
+	it("stamps the request's nonce on every inline script and style, so a CSP can trust exactly these and nothing an injection adds", () => {
+		const page = createTestPageBody({
+			styles: ".lead { color: rebeccapurple; }",
+			scripts: '<script src="/client-dist/page.client.js" defer></script>',
+			seo: {
+				title: "Structured",
+				description: "Desc",
+				canonicalUrl: "https://readplace.com/structured",
+				structuredData: [{ "@context": "https://schema.org", "@type": "WebPage" }],
+			},
+		});
+		const result = Base(page, {
+			...GUEST_STATE,
+			changelogBanner: {
+				hook: "I added keyboard shortcuts to the reader",
+				href: "/blog/keyboard-shortcuts",
+				version: CHANGELOG_VERSION,
+			},
+		}).to("text/html");
+		const doc = new JSDOM(result.body).window.document;
+
+		expect(inlineNonces(doc)).toEqual({
+			script: [CSP_NONCE, CSP_NONCE, CSP_NONCE, CSP_NONCE, CSP_NONCE, CSP_NONCE, CSP_NONCE],
+			style: [CSP_NONCE, CSP_NONCE],
+		});
+	});
+
+	it("leaves same-origin and CDN <script src> bundles unnonced, since a source expression already authorises them", () => {
+		const page = createTestPageBody({
+			scripts: '<script src="/client-dist/page.client.js" defer></script>',
+		});
+		const doc = new JSDOM(Base(page, GUEST_STATE).to("text/html").body).window.document;
+
+		const nonces = Array.from(doc.querySelectorAll("script[src]")).map((el) =>
+			el.getAttribute("nonce"),
+		);
+		expect(nonces).toEqual(nonces.map(() => null));
+		expect(nonces.length).toBeGreaterThan(0);
 	});
 
 	it("GlobalEmptyNav renders nothing so a bare shell can opt out of the site nav", () => {

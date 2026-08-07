@@ -1,6 +1,12 @@
 import express, { type Request, type Router } from "express";
 import helmet from "helmet";
-import { bannerStateFromRequest, type RenderBase, sendComponent } from "@packages/web-shell";
+import {
+	bannerStateFromRequest,
+	createCspNonceMiddleware,
+	generateCspNonce,
+	type RenderBase,
+	sendComponent,
+} from "@packages/web-shell";
 import type { ResolveLogin } from "@packages/web-session";
 import { contentSignalMiddleware } from "./content-signal.middleware";
 import { EmbedPage } from "./embed.component";
@@ -16,6 +22,7 @@ export function initEmbedRoutes(deps: {
 	const embedOrigin = `${deps.appOrigin}/embed`;
 	const router = express.Router();
 
+	router.use(createCspNonceMiddleware({ generateCspNonce }));
 	router.use(
 		helmet({
 			contentSecurityPolicy: false,
@@ -35,6 +42,7 @@ export function initEmbedRoutes(deps: {
 			userId: login.isAuthenticated ? login.userId : undefined,
 			emailVerified: login.isAuthenticated ? login.emailVerified : undefined,
 			originalUrl: req.originalUrl,
+			cspNonce: req.cspNonce,
 		});
 	}
 

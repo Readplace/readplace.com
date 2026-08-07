@@ -4,7 +4,7 @@ import type {
 } from "@packages/domain/article";
 import type { ArticleCrawl } from "@packages/provider-contracts/article-crawl";
 import type { GeneratedSummary } from "@packages/provider-contracts/article-summary";
-import type { PageBody } from "@packages/web-shell";
+import type { CspNonce, PageBody } from "@packages/web-shell";
 import { NAV_HIDE_SCRIPT, readerScripts } from "../../shared/reader-nav-script";
 import { renderArticleBody } from "../../shared/article-body/article-body.component";
 import { RegularReader } from "../../shared/article-body/reader-actions/reader-actions.component";
@@ -30,8 +30,8 @@ const PROGRESS_BAR_SCRIPT = `<script src="/client-dist/progress-bar.client.js" d
 
 // POST-Redirect-GET: the recrawl is a state mutation, so the operator's
 // browser submits it via POST instead of firing it on the read-only GET.
-const RECRAWL_TRIGGER_SCRIPT = `
-<script>
+const recrawlTriggerScript = (cspNonce: CspNonce) => `
+<script nonce="${cspNonce}">
 	(function () {
 		function run() {
 			var form = document.querySelector('[data-auto-submit]');
@@ -77,6 +77,7 @@ export interface AdminRecrawlPageInput {
 	extensionInstallUrl?: string;
 	appOrigin: string;
 	recrawlFormAction?: string;
+	cspNonce: CspNonce;
 	crawlVersions?: LocalTime[];
 }
 
@@ -118,7 +119,7 @@ export function AdminRecrawlPage(input: AdminRecrawlPageInput): PageBody {
 	const recrawlForm = renderRecrawlForm(input.recrawlFormAction);
 	const content = `<main class="admin-recrawl" data-test-admin-recrawl>${tierBadge}${recrawlForm}<article class="admin-recrawl__body" data-article-body>${innerContent}</article></main>`;
 	const triggerScript =
-		input.recrawlFormAction === undefined ? "" : RECRAWL_TRIGGER_SCRIPT;
+		input.recrawlFormAction === undefined ? "" : recrawlTriggerScript(input.cspNonce);
 
 	return {
 		seo: {

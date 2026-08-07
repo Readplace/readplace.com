@@ -11,6 +11,12 @@ export type { MarkdownFrontmatterOpts } from "./markdown-frontmatter";
 export { MARKDOWN_MEDIA_TYPE, wantsMarkdown } from "./content-negotiation";
 export { sendComponent } from "./send-component";
 export {
+	createCspNonceMiddleware,
+	generateCspNonce,
+	requireCspNonce,
+} from "./csp-nonce.middleware";
+export type { CspNonce } from "./csp-nonce.middleware";
+export {
 	deriveTrialEscalation,
 	formatTrialDisplay,
 	formatTrialRemaining,

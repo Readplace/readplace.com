@@ -1,49 +1,55 @@
 import assert from "node:assert/strict";
 import { bannerStateFromRequest, buildGuestNavItems, buildNavGroups } from "./banner-state";
+import { generateCspNonce } from "./csp-nonce.middleware";
 
 /** The shell carries no domain dependency and reads `userId` only for
  * truthiness, so a plain string id is sufficient — there is no brand to parse. */
 const USER_ID = "user-1";
 
+const CSP_NONCE = generateCspNonce();
+
 describe("bannerStateFromRequest", () => {
 	it("maps a present userId to isAuthenticated=true", () => {
-		expect(bannerStateFromRequest({ userId: USER_ID })).toMatchObject({
+		expect(bannerStateFromRequest({ userId: USER_ID, cspNonce: CSP_NONCE })).toMatchObject({
 			isAuthenticated: true,
 		});
 	});
 
 	it("maps a missing userId to isAuthenticated=false", () => {
-		expect(bannerStateFromRequest({})).toMatchObject({
+		expect(bannerStateFromRequest({ cspNonce: CSP_NONCE })).toMatchObject({
 			isAuthenticated: false,
 		});
 	});
 
 	it("passes emailVerified through unchanged for true, false, and undefined", () => {
-		expect(bannerStateFromRequest({ emailVerified: true }).emailVerified).toBe(true);
-		expect(bannerStateFromRequest({ emailVerified: false }).emailVerified).toBe(false);
-		expect(bannerStateFromRequest({}).emailVerified).toBeUndefined();
+		expect(bannerStateFromRequest({ emailVerified: true, cspNonce: CSP_NONCE }).emailVerified).toBe(true);
+		expect(bannerStateFromRequest({ emailVerified: false, cspNonce: CSP_NONCE }).emailVerified).toBe(false);
+		expect(bannerStateFromRequest({ cspNonce: CSP_NONCE }).emailVerified).toBeUndefined();
 	});
 
 	it("carries per-request script markup through to the shell", () => {
-		expect(bannerStateFromRequest({ requestScripts: "<script>x()</script>" }).requestScripts).toBe(
+		expect(bannerStateFromRequest({ requestScripts: "<script>x()</script>", cspNonce: CSP_NONCE }).requestScripts).toBe(
 			"<script>x()</script>",
 		);
 	});
 
 	it("leaves requestScripts undefined for a site that computes none", () => {
-		expect(bannerStateFromRequest({}).requestScripts).toBeUndefined();
+		expect(bannerStateFromRequest({ cspNonce: CSP_NONCE }).requestScripts).toBeUndefined();
 	});
 
 	it("copies originalUrl to currentPath so the changelog dismiss form can post a return path", () => {
 		expect(
-			bannerStateFromRequest({ originalUrl: "/blog/x?utm_source=changelog-banner" }).currentPath,
+			bannerStateFromRequest({ originalUrl: "/blog/x?utm_source=changelog-banner", cspNonce: CSP_NONCE }).currentPath,
 		).toBe("/blog/x?utm_source=changelog-banner");
 	});
 
 	it("leaves currentPath undefined when the source carries no originalUrl", () => {
-		expect(bannerStateFromRequest({}).currentPath).toBeUndefined();
+		expect(bannerStateFromRequest({ cspNonce: CSP_NONCE }).currentPath).toBeUndefined();
 	});
 
+	it("carries the request's nonce onto the state the shell renders with", () => {
+		expect(bannerStateFromRequest({ cspNonce: CSP_NONCE }).cspNonce).toBe(CSP_NONCE);
+	});
 });
 
 describe("buildGuestNavItems", () => {

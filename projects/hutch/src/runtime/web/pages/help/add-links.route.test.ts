@@ -149,6 +149,18 @@ describe("GET /help/add-links", () => {
 		expect(doc.querySelector("main")?.className).toBe("help");
 	});
 
+	it("carries a CSP nonce on its stylesheet — the page builds its own document, so the shell never nonces it", async () => {
+		const { server } = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
+
+		const response = await request(server).get("/help/add-links");
+
+		const doc = new JSDOM(response.text).window.document;
+		const nonces = Array.from(doc.querySelectorAll("style")).map((el) =>
+			el.getAttribute("nonce"),
+		);
+		expect(nonces).toEqual([expect.stringMatching(/^[A-Za-z0-9_-]{22}$/)]);
+	});
+
 	it("falls through to HTML when text/markdown is requested", async () => {
 		const { server } = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
 

@@ -1,4 +1,5 @@
 import assert from "node:assert/strict";
+import { generateCspNonce } from "@packages/web-shell";
 import { JSDOM } from "jsdom";
 import { renderQueueCounts, toQueueCountsDisplayModel } from "./queue-counts.component";
 import { QueuePage } from "./queue.component";
@@ -154,7 +155,7 @@ describe("queue counts fragment against the initial render", () => {
 			filters,
 			{ now: new Date("2026-01-01T00:00:00.000Z") },
 		);
-		const doc = parseFragment(QueuePage(vm, { deviceClass: "desktop", extraTabs: [] }).content.html);
+		const doc = parseFragment(QueuePage(vm, { cspNonce: generateCspNonce(), deviceClass: "desktop", extraTabs: [] }).content.html);
 		const tab = doc.querySelector("#queue-filter-unread");
 		assert(tab, "the queue page must render the unread tab the counts fragment targets");
 		return tab;

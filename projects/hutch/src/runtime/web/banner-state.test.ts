@@ -1,4 +1,5 @@
 import assert from "node:assert/strict";
+import { generateCspNonce } from "@packages/web-shell";
 import { type ChangelogBanner, isChangelogVersion } from "@packages/web-shell";
 import { UserIdSchema } from "@packages/domain/user";
 import { initBuildBannerState } from "./banner-state";
@@ -6,6 +7,8 @@ import type { GetChangelogBanner } from "./changelog-banner-source";
 import type { EffectiveAccess } from "@packages/subscription-access";
 
 const USER_ID = UserIdSchema.parse("user-1");
+
+const CSP_NONCE = generateCspNonce();
 const ONE_DAY_MS = 86_400_000;
 const FIXED_NOW = new Date("2026-01-01T00:00:00.000Z");
 
@@ -28,11 +31,12 @@ describe("initBuildBannerState", () => {
 			now: () => FIXED_NOW,
 		});
 
-		const result = await buildBannerState({});
+		const result = await buildBannerState({ cspNonce: CSP_NONCE });
 
 		expect(result).toEqual({
 			isAuthenticated: false,
 			emailVerified: undefined,
+			cspNonce: CSP_NONCE,
 		});
 		expect(getEffectiveAccess).not.toHaveBeenCalled();
 	});
@@ -51,7 +55,7 @@ describe("initBuildBannerState", () => {
 			now: () => FIXED_NOW,
 		});
 
-		const result = await buildBannerState({ userId: USER_ID });
+		const result = await buildBannerState({ userId: USER_ID, cspNonce: CSP_NONCE });
 
 		expect(result.trial).toEqual({
 			state: "active",
@@ -87,10 +91,10 @@ describe("initBuildBannerState", () => {
 			now: () => FIXED_NOW,
 		});
 
-		expect((await buildExpired({ userId: USER_ID })).trial).toEqual({
+		expect((await buildExpired({ userId: USER_ID, cspNonce: CSP_NONCE })).trial).toEqual({
 			state: "expired",
 		});
-		expect((await buildCancelled({ userId: USER_ID })).trial).toEqual({
+		expect((await buildCancelled({ userId: USER_ID, cspNonce: CSP_NONCE })).trial).toEqual({
 			state: "expired",
 		});
 	});
@@ -113,7 +117,7 @@ describe("initBuildBannerState", () => {
 				getChangelogBanner: noChangelogBanner,
 				now: () => FIXED_NOW,
 			});
-			expect((await build({ userId: USER_ID })).trial).toBeUndefined();
+			expect((await build({ userId: USER_ID, cspNonce: CSP_NONCE })).trial).toBeUndefined();
 		}
 	});
 
@@ -133,7 +137,7 @@ describe("initBuildBannerState", () => {
 		});
 
 		const result = await buildBannerState(
-			{ userId: USER_ID },
+			{ userId: USER_ID, cspNonce: CSP_NONCE },
 			{ preFetchedAccess },
 		);
 
@@ -157,7 +161,7 @@ describe("initBuildBannerState", () => {
 			now: () => FIXED_NOW,
 		});
 
-		const result = await buildBannerState({ userId: USER_ID });
+		const result = await buildBannerState({ userId: USER_ID, cspNonce: CSP_NONCE });
 
 		expect(result.trial).toEqual({
 			state: "cancellation-scheduled",
@@ -176,12 +180,13 @@ describe("initBuildBannerState", () => {
 				now: () => FIXED_NOW,
 			});
 
-			const result = await build({});
+			const result = await build({ cspNonce: CSP_NONCE });
 
 			expect(result).toEqual({
 				isAuthenticated: false,
 				emailVerified: undefined,
 				changelogBanner: CHANGELOG,
+				cspNonce: CSP_NONCE,
 			});
 			expect(getEffectiveAccess).not.toHaveBeenCalled();
 		});
@@ -193,7 +198,7 @@ describe("initBuildBannerState", () => {
 				now: () => FIXED_NOW,
 			});
 
-			const result = await build({ dismissedChangelogVersion: CHANGELOG.version });
+			const result = await build({ dismissedChangelogVersion: CHANGELOG.version, cspNonce: CSP_NONCE });
 
 			expect(result.changelogBanner).toBeUndefined();
 		});
@@ -205,7 +210,7 @@ describe("initBuildBannerState", () => {
 				now: () => FIXED_NOW,
 			});
 
-			const result = await build({ dismissedChangelogVersion: "ffffffff" });
+			const result = await build({ dismissedChangelogVersion: "ffffffff", cspNonce: CSP_NONCE });
 
 			expect(result.changelogBanner).toEqual(CHANGELOG);
 		});
@@ -224,7 +229,7 @@ describe("initBuildBannerState", () => {
 				now: () => FIXED_NOW,
 			});
 
-			const result = await build({ userId: USER_ID });
+			const result = await build({ userId: USER_ID, cspNonce: CSP_NONCE });
 
 			expect(result.changelogBanner).toEqual(CHANGELOG);
 			expect(result.trial?.state).toBe("active");
@@ -237,7 +242,7 @@ describe("initBuildBannerState", () => {
 				now: () => FIXED_NOW,
 			});
 
-			const result = await build({});
+			const result = await build({ cspNonce: CSP_NONCE });
 
 			expect(result.changelogBanner).toBeUndefined();
 		});
@@ -250,7 +255,7 @@ describe("initBuildBannerState", () => {
 			now: () => FIXED_NOW,
 		});
 
-		const result = await build({ originalUrl: "/queue?filter=unread" });
+		const result = await build({ originalUrl: "/queue?filter=unread", cspNonce: CSP_NONCE });
 
 		expect(result.currentPath).toBe("/queue?filter=unread");
 	});

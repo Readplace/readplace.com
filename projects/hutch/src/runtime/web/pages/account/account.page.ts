@@ -54,7 +54,7 @@ import { Base, ChromelessPage } from "../../base.component";
 import type { BuildBannerState } from "../../banner-state";
 import { ACCOUNT_LOGOUT_HREF, APP_BACK_LINK } from "../../shared/ios-app-links";
 import { HxRedirectPage } from "../../hx-redirect-page";
-import { sendComponent } from "@packages/web-shell";
+import { requireCspNonce, sendComponent } from "@packages/web-shell";
 import type { EffectiveAccess, GetEffectiveAccess } from "@packages/subscription-access";
 import { AccountPage, renderAccountCard } from "./account.component";
 import {
@@ -185,7 +185,7 @@ export function initAccountRoutes(deps: AccountDependencies): Router {
 					AccountPage(withoutCommerce(webVm, { appShell: true }), input.cardSection, {
 						backLink: { href: APP_BACK_LINK.topHref, label: APP_BACK_LINK.label },
 					}),
-					{},
+					{ cspNonce: requireCspNonce(req) },
 				),
 			);
 			return;

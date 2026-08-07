@@ -19,7 +19,7 @@ import type { RateLimitRule } from "@packages/domain/rate-limit";
 import { createRateLimitMiddleware } from "../../middleware/rate-limit";
 import { Base } from "../../base.component";
 import type { BuildBannerState } from "../../banner-state";
-import { sendComponent } from "@packages/web-shell";
+import { requireCspNonce, sendComponent } from "@packages/web-shell";
 import { initSaveArticleFromUrl, type SaveArticleFromUrlDependencies } from "@packages/save-article";
 import { type AnalyticsEvent, hashIp } from "@packages/web-analytics";
 import { ANALYTICS_EVENTS, STREAMS } from "../../../observability/events";
@@ -125,7 +125,7 @@ export function initImportSessionRoutes(deps: ImportRouteDependencies): Router {
 			url,
 			errors: errorMessage ? [{ message: errorMessage }] : undefined,
 		});
-		sendComponent(req, res, Base(ImportAcquirePage(vm), await deps.buildBannerState(req)));
+		sendComponent(req, res, Base(ImportAcquirePage(vm, { cspNonce: requireCspNonce(req) }), await deps.buildBannerState(req)));
 	});
 
 	router.post("/", importRateLimit, rawBodyParser, sizeLimitHandler, async (req: Request, res: Response) => {

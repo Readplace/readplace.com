@@ -67,7 +67,7 @@ export const BASE_TEMPLATE = `<!DOCTYPE html>
 
 	{{{structuredDataScript}}}
 
-	<style>
+	<style nonce="{{cspNonce}}">
 		{{{baseStyles}}}
 		{{{resetStyles}}}
 		{{{buttonStyles}}}
@@ -93,7 +93,7 @@ export const BASE_TEMPLATE = `<!DOCTYPE html>
 		{{{verifyBanner}}}
 		{{{extensionSuggestionBanner}}}
 	</div>
-	<script>
+	<script nonce="{{cspNonce}}">
 		(function() {
 			var ba = document.querySelector('.banner-area');
 			if (!ba) return;
@@ -110,7 +110,7 @@ export const BASE_TEMPLATE = `<!DOCTYPE html>
 		})();
 	</script>
 	{{{header}}}
-	<script>
+	<script nonce="{{cspNonce}}">
 		(function() {
 			var h = document.querySelector('.header');
 			if (h) document.documentElement.style.setProperty('--header-height', h.offsetHeight + 'px');

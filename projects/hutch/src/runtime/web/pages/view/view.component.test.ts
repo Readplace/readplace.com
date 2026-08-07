@@ -1,4 +1,5 @@
 import assert from "node:assert/strict";
+import { generateCspNonce } from "@packages/web-shell";
 import { JSDOM } from "jsdom";
 import { calculateReadTime } from "@packages/domain/article";
 import { UserIdSchema } from "@packages/domain/user";
@@ -31,8 +32,10 @@ const baseInput: ViewPageInput = {
 	sharerInactive: false,
 };
 
+const CSP_NONCE = generateCspNonce();
+
 function render(input = baseInput) {
-	const html = Base(ViewPage(input), { isAuthenticated: false, emailVerified: undefined }).to("text/html").body;
+	const html = Base(ViewPage(input), { isAuthenticated: false, emailVerified: undefined, cspNonce: CSP_NONCE }).to("text/html").body;
 	return new JSDOM(html).window.document;
 }
 

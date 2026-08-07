@@ -10,8 +10,9 @@ import type { ChangelogBanner } from "./changelog-banner";
 import { renderChangelogBannerShell } from "./changelog-banner";
 import { CHROMELESS_TEMPLATE } from "./chromeless-page.template";
 import type { Component } from "./component.types";
+import type { CspNonce } from "./csp-nonce.middleware";
 import { HtmlPage } from "./html-page";
-import { HTMX_SCRIPTS } from "./htmx-script";
+import { htmxScripts } from "./htmx-script";
 import { injectPageStylesIntoMain } from "./inject-page-styles";
 import type { PageBody, SeoMetadata } from "./page-body.types";
 import { render } from "./render";
@@ -34,6 +35,7 @@ export interface ChromelessPageConfig {
 export interface ChromelessBannerState {
 	changelogBanner?: ChangelogBanner;
 	currentPath?: string;
+	cspNonce: CspNonce;
 }
 
 export type RenderChromelessPage = (body: PageBody, state: ChromelessBannerState) => Component;
@@ -54,6 +56,7 @@ export function initChromelessPage(config: ChromelessPageConfig): RenderChromele
 		assert(seo.robots, "chromeless pages must declare robots so the reader stays noindex");
 		const rendered = render(CHROMELESS_TEMPLATE, {
 			staticBaseUrl: config.staticBaseUrl,
+			cspNonce: state.cspNonce,
 			title: seo.title,
 			description: seo.description,
 			robots: seo.robots,
@@ -63,9 +66,17 @@ export function initChromelessPage(config: ChromelessPageConfig): RenderChromele
 			utilityStyles: UTILITY_STYLES,
 			bannerAreaStyles: CHROMELESS_BANNER_AREA_STYLES,
 			changelogBannerStyles: CHANGELOG_BANNER_STYLES,
-			changelogBanner: renderChangelogBannerShell(state.changelogBanner, state.currentPath),
-			content: injectPageStylesIntoMain(body.content.html, body.styles),
-			scripts: HTMX_SCRIPTS + (body.scripts ?? "") + siteScripts + liveReloadScript,
+			changelogBanner: renderChangelogBannerShell({
+				banner: state.changelogBanner,
+				returnTo: state.currentPath,
+				cspNonce: state.cspNonce,
+			}),
+			content: injectPageStylesIntoMain({
+				content: body.content.html,
+				styles: body.styles,
+				cspNonce: state.cspNonce,
+			}),
+			scripts: htmxScripts(state.cspNonce) + (body.scripts ?? "") + siteScripts + liveReloadScript,
 		});
 		return HtmlPage(rendered, body.statusCode);
 	};

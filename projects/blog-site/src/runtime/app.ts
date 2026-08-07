@@ -1,6 +1,11 @@
 import express, { type Express } from "express";
 import cookieParser from "cookie-parser";
-import { type BaseConfig, initBase } from "@packages/web-shell";
+import {
+	type BaseConfig,
+	createCspNonceMiddleware,
+	generateCspNonce,
+	initBase,
+} from "@packages/web-shell";
 import type { ResolveLogin } from "@packages/web-session";
 import type { HutchLogger } from "@packages/hutch-logger";
 import {
@@ -40,6 +45,7 @@ export function createBlogApp(
 	const app = express();
 	app.disable("x-powered-by");
 
+	app.use(createCspNonceMiddleware({ generateCspNonce }));
 	app.use(utmValidationMiddleware);
 	app.use(cookieParser());
 	app.use(createVisitorIdMiddleware({ generateVisitorId: deps.generateVisitorId, secure: deps.secureCookies }));

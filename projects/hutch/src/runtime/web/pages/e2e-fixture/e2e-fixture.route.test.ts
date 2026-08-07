@@ -10,6 +10,12 @@ import {
 
 const useApp = useTestServer();
 
+/** The CSP nonce is minted per request, so two responses are never byte-identical.
+ * Blank it out to compare what the route actually controls: the rendered content. */
+function withoutCspNonces(html: string): string {
+	return html.replace(/ nonce="[^"]*"/g, ' nonce=""');
+}
+
 describe("GET /e2e/article/:id", () => {
 	it("returns 200 HTML for any :id", async () => {
 		const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
@@ -22,7 +28,7 @@ describe("GET /e2e/article/:id", () => {
 		const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
 		const a = await request(harness.server).get("/e2e/article/run-a-slot-1");
 		const b = await request(harness.server).get("/e2e/article/run-b-slot-99");
-		expect(a.text).toBe(b.text);
+		expect(withoutCspNonces(a.text)).toBe(withoutCspNonces(b.text));
 	});
 
 	it("renders an <article> with an <h1> so Mozilla Readability can extract the body cleanly", async () => {

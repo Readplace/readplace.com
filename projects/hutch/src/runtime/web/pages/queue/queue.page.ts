@@ -87,7 +87,8 @@ import { NotFoundPage } from "../not-found";
 import type { BuildBannerState } from "../../banner-state";
 import { selectChangelogBanner } from "../../banner-state";
 import type { GetChangelogBanner } from "../../changelog-banner-source";
-import { sendComponent } from "@packages/web-shell";
+import { requireCspNonce, sendComponent } from "@packages/web-shell";
+import type { CspNonce } from "@packages/web-shell";
 import { noindexMiddleware } from "../../middleware/noindex.middleware";
 import { requireNotLocked } from "../../middleware/require-not-locked.middleware";
 import { RedirectComponent, type Redirect } from "../../redirect.component";
@@ -402,7 +403,7 @@ const VIEW_BACK_LINK = {
  * rather than injected by the app — keeps the htmx coupling on the server that owns
  * htmx; the app only registers the `readplaceReader` handler and reacts to the
  * `markedRead` message, with no knowledge of the front-end's event shape. */
-const READER_MARK_READ_BRIDGE_SCRIPT = `<script>
+const readerMarkReadBridgeScript = (cspNonce: CspNonce) => `<script nonce="${cspNonce}">
 (function () {
 	var handlers = window.webkit && window.webkit.messageHandlers;
 	if (!handlers || !handlers.readplaceReader) { return; }
@@ -426,7 +427,7 @@ const READER_MARK_READ_BRIDGE_SCRIPT = `<script>
 })();
 </script>`;
 
-const READER_CAPTURE_BRIDGE_SCRIPT = `<script>
+const readerCaptureBridgeScript = (cspNonce: CspNonce) => `<script nonce="${cspNonce}">
 (function () {
 	var handlers = window.webkit && window.webkit.messageHandlers;
 	if (!handlers || !handlers.readplaceReader) { return; }
@@ -671,6 +672,7 @@ export function initQueueRoutes(deps: QueueDependencies): Router {
 		const { article: ownedArticle, state, audioEnabled, related, relatedPollUrl } = resolved;
 
 		if (isIosPlatform(req)) {
+			const cspNonce = requireCspNonce(req);
 			const readerBody = ReaderPage({ ...ownedArticle, content: state.content }, {
 				appOrigin: deps.appOrigin,
 				summary: state.summary,
@@ -695,8 +697,8 @@ export function initQueueRoutes(deps: QueueDependencies): Router {
 						...readerBody,
 						scripts:
 							readerBody.scripts +
-							READER_MARK_READ_BRIDGE_SCRIPT +
-							READER_CAPTURE_BRIDGE_SCRIPT,
+							readerMarkReadBridgeScript(cspNonce) +
+							readerCaptureBridgeScript(cspNonce),
 					},
 					{
 						changelogBanner: selectChangelogBanner(
@@ -707,6 +709,7 @@ export function initQueueRoutes(deps: QueueDependencies): Router {
 						// article, still carrying `platform=ios` — so the reader returns to
 						// the chromeless shell rather than the full web one.
 						currentPath: req.originalUrl,
+						cspNonce,
 					},
 				),
 			);
@@ -903,7 +906,7 @@ export function initQueueRoutes(deps: QueueDependencies): Router {
 		sendComponent(
 			req, res,
 			Base(
-				QueuePage(vm, { ...onboarding, saveUrl: filterUrl, deviceClass: classifyDeviceClass(req.get("user-agent")), extraTabs: enabledTabLinks(req) }),
+				QueuePage(vm, { ...onboarding, cspNonce: requireCspNonce(req), saveUrl: filterUrl, deviceClass: classifyDeviceClass(req.get("user-agent")), extraTabs: enabledTabLinks(req) }),
 				await deps.buildBannerState(req, { preFetchedAccess: effectiveAccess }),
 			),
 		);
@@ -1333,7 +1336,7 @@ export function initQueueRoutes(deps: QueueDependencies): Router {
 				crawlByUrl,
 			});
 			const onboarding = await resolveOnboardingSignals(req, userId);
-			sendComponent(req, res, Base(QueuePage(vm, { ...onboarding, statusCode: 422, deviceClass: classifyDeviceClass(req.get("user-agent")), extraTabs: enabledTabLinks(req) }), await deps.buildBannerState(req)));
+			sendComponent(req, res, Base(QueuePage(vm, { ...onboarding, cspNonce: requireCspNonce(req), statusCode: 422, deviceClass: classifyDeviceClass(req.get("user-agent")), extraTabs: enabledTabLinks(req) }), await deps.buildBannerState(req)));
 			return;
 		}
 

@@ -3,6 +3,7 @@ import { JSDOM } from "jsdom";
 import { initChromelessPage } from "./chromeless-page";
 import type { ChromelessBannerState } from "./chromeless-page";
 import { isChangelogVersion } from "./changelog-banner";
+import { generateCspNonce } from "./csp-nonce.middleware";
 import type { PageBody } from "./page-body.types";
 
 const ChromelessPage = initChromelessPage({ staticBaseUrl: "https://static.example", liveReload: false });
@@ -10,7 +11,9 @@ const ChromelessPage = initChromelessPage({ staticBaseUrl: "https://static.examp
 const CHANGELOG_VERSION = "a1b2c3d4";
 assert(isChangelogVersion(CHANGELOG_VERSION));
 
-const NO_BANNER: ChromelessBannerState = {};
+const CSP_NONCE = generateCspNonce();
+
+const NO_BANNER: ChromelessBannerState = { cspNonce: CSP_NONCE };
 
 const WITH_BANNER: ChromelessBannerState = {
 	changelogBanner: {
@@ -19,6 +22,7 @@ const WITH_BANNER: ChromelessBannerState = {
 		version: CHANGELOG_VERSION,
 	},
 	currentPath: "/queue/abc/view?platform=ios",
+	cspNonce: CSP_NONCE,
 };
 
 function shellCss(state: ChromelessBannerState): string {
@@ -182,5 +186,21 @@ describe("ChromelessPage", () => {
 
 	it("reserves no space for a fixed banner bar, since this shell has none", () => {
 		expect(shellCss(NO_BANNER)).toContain("--banner-area-height: 0px");
+	});
+
+	it("stamps the request's nonce on every inline script and style this shell emits", () => {
+		const doc = new JSDOM(
+			ChromelessPage(createTestPageBody(), WITH_BANNER).to("text/html").body,
+		).window.document;
+
+		expect({
+			script: Array.from(doc.querySelectorAll("script:not([src])")).map((el) =>
+				el.getAttribute("nonce"),
+			),
+			style: Array.from(doc.querySelectorAll("style")).map((el) => el.getAttribute("nonce")),
+		}).toEqual({
+			script: [CSP_NONCE, CSP_NONCE],
+			style: [CSP_NONCE, CSP_NONCE],
+		});
 	});
 });

@@ -1,4 +1,5 @@
 import assert from "node:assert";
+import type { CspNonce } from "./csp-nonce.middleware";
 
 /**
  * Inject page-specific CSS as a <style> element inside <main>, so that htmx
@@ -13,9 +14,14 @@ import assert from "node:assert";
  * tool only for untrusted markup crossing a network boundary; this is trusted
  * server markup whose escaping must survive byte-for-byte. Do not restore parseHTML.
  */
-export function injectPageStylesIntoMain(content: string, styles: string): string {
+export function injectPageStylesIntoMain(input: {
+	content: string;
+	styles: string;
+	cspNonce: CspNonce;
+}): string {
+	const { content, styles } = input;
 	if (!styles) return content;
-	const styleTag = `<style>${styles}</style>`;
+	const styleTag = `<style nonce="${input.cspNonce}">${styles}</style>`;
 	const updated = content.replace(/<main(?=[\s/>])[^>]*>/i, (mainTag) => mainTag + styleTag);
 	assert(updated !== content, "PageBody.content must contain a <main> element when styles are provided");
 	return updated;

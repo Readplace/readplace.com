@@ -1,7 +1,7 @@
 import { readFileSync } from "node:fs";
 import { join } from "node:path";
 import { render } from "@packages/web-shell";
-import type { PageBody } from "@packages/web-shell";
+import type { CspNonce, PageBody } from "@packages/web-shell";
 
 import { IMPORT_STYLES } from "./import.styles";
 import type {
@@ -41,11 +41,11 @@ const IMPORT_CLIENT_SCRIPT = `<script src="/client-dist/import.client.js" defer>
 
 interface PanelConfig {
 	readonly template: string;
-	readonly scripts: string;
+	readonly scripts: (cspNonce: CspNonce) => string;
 }
 
-const UPLOAD_AUTO_SUBMIT_SCRIPT = `
-<script>
+const uploadAutoSubmitScript = (cspNonce: CspNonce) => `
+<script nonce="${cspNonce}">
 	(function () {
 		function wire() {
 			var form = document.querySelector('form.import__upload-form');
@@ -95,8 +95,8 @@ const UPLOAD_AUTO_SUBMIT_SCRIPT = `
 </script>
 `;
 
-const FROM_URL_AUTO_SUBMIT_SCRIPT = `
-<script>
+const fromUrlAutoSubmitScript = (cspNonce: CspNonce) => `
+<script nonce="${cspNonce}">
 	(function () {
 		function wire() {
 			var form = document.querySelector('form.import__from-url-form');
@@ -139,11 +139,11 @@ export function ImportPage(vm: ImportViewModel): PageBody {
 const PANEL_CONFIG: Record<ImportMode, PanelConfig> = {
 	upload: {
 		template: IMPORT_UPLOAD_TEMPLATE,
-		scripts: `${IMPORT_CLIENT_SCRIPT}${UPLOAD_AUTO_SUBMIT_SCRIPT}`,
+		scripts: (cspNonce) => `${IMPORT_CLIENT_SCRIPT}${uploadAutoSubmitScript(cspNonce)}`,
 	},
 	"from-url": {
 		template: IMPORT_FROM_URL_PANEL_TEMPLATE,
-		scripts: `${IMPORT_CLIENT_SCRIPT}${FROM_URL_AUTO_SUBMIT_SCRIPT}`,
+		scripts: (cspNonce) => `${IMPORT_CLIENT_SCRIPT}${fromUrlAutoSubmitScript(cspNonce)}`,
 	},
 };
 
@@ -178,7 +178,7 @@ const IMPORT_FAQ: readonly { readonly question: string; readonly answer: string 
 const IMPORT_DESCRIPTION =
 	"Paste a link or upload a bookmark, Pocket, or newsletter export and Readplace lists every URL for your reading queue. No account needed to start.";
 
-export function ImportAcquirePage(vm: ImportAcquireViewModel): PageBody {
+export function ImportAcquirePage(vm: ImportAcquireViewModel, options: { cspNonce: CspNonce }): PageBody {
 	const panel = PANEL_CONFIG[vm.mode];
 	const tabs = vm.tabs.map(renderTab);
 	const data = { ...vm, tabs, faq: IMPORT_FAQ, errorMessage: vm.errors?.[0]?.message };
@@ -219,6 +219,6 @@ export function ImportAcquirePage(vm: ImportAcquireViewModel): PageBody {
 		styles: IMPORT_STYLES,
 		bodyClass: "page-import",
 		content: { html: content },
-		scripts: panel.scripts,
+		scripts: panel.scripts(options.cspNonce),
 	};
 }

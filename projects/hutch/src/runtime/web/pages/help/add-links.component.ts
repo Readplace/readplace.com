@@ -2,7 +2,7 @@ import { readFileSync } from "node:fs";
 import { join } from "node:path";
 import assert from "node:assert";
 import { HtmlPage, render } from "@packages/web-shell";
-import type { Component } from "@packages/web-shell";
+import type { Component, CspNonce } from "@packages/web-shell";
 
 const HELP_ADD_LINKS_TEMPLATE = readFileSync(
 	join(__dirname, "add-links.template.html"),
@@ -130,6 +130,7 @@ function buildPinSteps(staticBaseUrl: string): PinStep[] {
 
 export function HelpAddLinksPage(params: {
 	staticBaseUrl: string;
+	cspNonce: CspNonce;
 	/** The app-shell "Back to queue" deep link, rendered only when the page is
 	 * hosted in the iOS web sheet (`?shell=app`). A browser visitor gets no link —
 	 * the `readplace://` scheme would be a dead end there — so the page keeps its
@@ -139,6 +140,7 @@ export function HelpAddLinksPage(params: {
 }): Component {
 	return HtmlPage(
 		render(HELP_ADD_LINKS_TEMPLATE, {
+			cspNonce: params.cspNonce,
 			backLink: params.backLink,
 			// The chromeless sheet ignores the safe area, so the app variant hard-codes
 			// the bottom pad that clears the home indicator (see the stylesheet).

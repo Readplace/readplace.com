@@ -6,7 +6,9 @@ import {
 	renderVerifyBanner,
 } from "./verify-banner.component";
 
-function parse(state: BannerState): Element {
+function parse(
+	state: Pick<BannerState, "isAuthenticated" | "emailVerified" | "verification">,
+): Element {
 	const doc = new JSDOM(renderVerifyBanner(state)).window.document;
 	const banner = doc.querySelector("[data-test-verify-banner]");
 	assert(banner, "verify banner must always be rendered");

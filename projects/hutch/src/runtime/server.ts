@@ -202,7 +202,13 @@ import { initBuildBannerState } from "./web/banner-state";
 import type { GetChangelogBanner } from "./web/changelog-banner-source";
 import { changelogDismissMiddleware } from "./web/changelog-dismiss.middleware";
 import { initChangelogDismissRoute } from "./web/pages/banner/changelog-dismiss.route";
-import { sendComponent, wantsMarkdown } from "@packages/web-shell";
+import {
+	createCspNonceMiddleware,
+	generateCspNonce,
+	requireCspNonce,
+	sendComponent,
+	wantsMarkdown,
+} from "@packages/web-shell";
 import { wantsSiren } from "./web/content-negotiation";
 import { contentSignalMiddleware } from "./web/content-signal.middleware";
 import { buildRobotsTxt } from "./web/robots-txt";
@@ -407,6 +413,7 @@ export function createApp(dependencies: AppDependencies): Express {
 	const ownHost = new URL(appOrigin).hostname;
 	const app: Express = express();
 
+	app.use(createCspNonceMiddleware({ generateCspNonce }));
 	app.use(utmValidationMiddleware);
 
 	app.use((req: Request, res: Response, next: NextFunction) => {
@@ -850,7 +857,7 @@ export function createApp(dependencies: AppDependencies): Express {
 		const backLink = isAppShell(req)
 			? { href: APP_BACK_LINK.topHref, label: APP_BACK_LINK.label }
 			: undefined;
-		sendComponent(req, res, HelpAddLinksPage({ staticBaseUrl, backLink }));
+		sendComponent(req, res, HelpAddLinksPage({ staticBaseUrl, backLink, cspNonce: requireCspNonce(req) }));
 	});
 
 	// Path-uniqued article fixture for staging e2e tests. The :id segment is

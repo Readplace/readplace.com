@@ -13,7 +13,9 @@ export const VERIFICATION_CONTACT_EMAIL = "readplace+verification@readplace.com"
  * here in TypeScript and the template renders one shape per branch — mirroring
  * the extension-suggestion banner.
  */
-export function renderVerifyBanner(state: BannerState): string {
+export function renderVerifyBanner(
+	state: Pick<BannerState, "isAuthenticated" | "emailVerified" | "verification">,
+): string {
 	const visible = state.isAuthenticated && state.emailVerified === false;
 	const status = visible ? state.verification : undefined;
 	const stateName = !visible ? "verified" : (status?.state ?? "pending");

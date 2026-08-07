@@ -18,8 +18,9 @@ import { FOOTER_TEMPLATE } from "./footer.template";
 import type { BannerState } from "./banner-state";
 import { renderChangelogBannerShell } from "./changelog-banner";
 import type { Component, ParsedComponent } from "./component.types";
+import type { CspNonce } from "./csp-nonce.middleware";
 import { HtmlPage } from "./html-page";
-import { HTMX_SCRIPTS } from "./htmx-script";
+import { htmxScripts } from "./htmx-script";
 import { injectPageStylesIntoMain } from "./inject-page-styles";
 import { htmlToMarkdown } from "./html-to-markdown";
 import { MarkdownPage } from "./markdown-page";
@@ -42,8 +43,8 @@ function renderFooter(): string {
 	});
 }
 
-const NAV_SCRIPT = `
-<script>
+const navScript = (cspNonce: CspNonce) => `
+<script nonce="${cspNonce}">
 (function() {
 	var toggle = document.querySelector('.nav__toggle');
 	var menu = document.querySelector('.nav__menu');
@@ -90,8 +91,8 @@ function trialChipCarriesInstant(trial: TrialDisplay | undefined): boolean {
  * inside an htmx-swapped <main>, which a page-scoped script would never see. */
 const TOAST_SCRIPT = `<script src="/client-dist/toast.client.js" defer></script>`;
 
-const OFFLINE_INDICATOR_SCRIPT = `
-<script>
+const offlineIndicatorScript = (cspNonce: CspNonce) => `
+<script nonce="${cspNonce}">
 (function() {
 	var banner = document.querySelector('.offline-banner');
 	if (!banner) return;
@@ -151,12 +152,12 @@ function escapeJsonForScript(json: string): string {
 		.replace(/\u2029/g, "\\u2029");
 }
 
-function renderStructuredData(data: object[] | undefined): string {
+function renderStructuredData(data: object[] | undefined, cspNonce: CspNonce): string {
 	if (!data || data.length === 0) return "";
 	return data
 		.map(
 			(item) =>
-				`<script type="application/ld+json">${escapeJsonForScript(JSON.stringify(item))}</script>`,
+				`<script type="application/ld+json" nonce="${cspNonce}">${escapeJsonForScript(JSON.stringify(item))}</script>`,
 		)
 		.join("\n  ");
 }
@@ -230,6 +231,7 @@ export function initBase(config: BaseConfig): RenderBase {
 
 		return render(BASE_TEMPLATE, {
 			staticBaseUrl: config.staticBaseUrl,
+			cspNonce: state.cspNonce,
 			title: seo.title,
 			description: seo.description,
 			headMetas: headMetas(seo, robots),
@@ -241,7 +243,7 @@ export function initBase(config: BaseConfig): RenderBase {
 			ogImageType: seo.ogImageType,
 			twitterImage: seo.twitterImage ?? seo.ogImage,
 			twitterSite: seo.twitterSite,
-			structuredDataScript: renderStructuredData(seo.structuredData),
+			structuredDataScript: renderStructuredData(seo.structuredData, state.cspNonce),
 			baseStyles: BASE_CSS_VARIABLES,
 			resetStyles: BASE_RESET_STYLES,
 			buttonStyles: BUTTON_STYLES,
@@ -256,7 +258,11 @@ export function initBase(config: BaseConfig): RenderBase {
 			verifyBannerStyles: VERIFY_BANNER_STYLES,
 			trialCountdownStyles: TRIAL_COUNTDOWN_STYLES,
 			extensionSuggestionBannerStyles: EXTENSION_SUGGESTION_BANNER_STYLES,
-			changelogBanner: renderChangelogBannerShell(state.changelogBanner, state.currentPath),
+			changelogBanner: renderChangelogBannerShell({
+				banner: state.changelogBanner,
+				returnTo: state.currentPath,
+				cspNonce: state.cspNonce,
+			}),
 			verifyBanner: renderVerifyBanner(state),
 			extensionSuggestionBanner: renderExtensionSuggestionBanner({
 				show: state.showExtensionSuggestionBanner ?? false,
@@ -269,12 +275,16 @@ export function initBase(config: BaseConfig): RenderBase {
 				accessIsReadOnly: state.accessIsReadOnly ?? false,
 				trialCounter: state.trial,
 			}),
-			content: injectPageStylesIntoMain(body.content.html, body.styles),
+			content: injectPageStylesIntoMain({
+				content: body.content.html,
+				styles: body.styles,
+				cspNonce: state.cspNonce,
+			}),
 			footer: renderFooter(),
-			navScript: NAV_SCRIPT,
-			offlineScript: OFFLINE_INDICATOR_SCRIPT,
+			navScript: navScript(state.cspNonce),
+			offlineScript: offlineIndicatorScript(state.cspNonce),
 			scripts:
-				HTMX_SCRIPTS +
+				htmxScripts(state.cspNonce) +
 				EXTENSION_SUGGESTION_BANNER_SCRIPT +
 				TOAST_SCRIPT +
 				(trialChipCarriesInstant(state.trial) ? TRIAL_COUNTDOWN_SCRIPT : "") +

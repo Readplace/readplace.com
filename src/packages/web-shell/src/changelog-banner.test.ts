@@ -9,6 +9,7 @@ import {
 	renderChangelogBannerFragment,
 	renderChangelogBannerShell,
 } from "./changelog-banner";
+import { generateCspNonce } from "./csp-nonce.middleware";
 
 function parse(html: string): Document {
 	return new JSDOM(`<!doctype html><html><body>${html}</body></html>`).window.document;
@@ -21,6 +22,7 @@ const BANNER: ChangelogBanner = {
 	href: "/blog/keyboard-shortcuts?utm_source=changelog-banner&utm_medium=internal&utm_content=read-more",
 	version: VERSION,
 };
+const CSP_NONCE = generateCspNonce();
 
 describe("renderChangelogBannerFragment", () => {
 	it("carries the version on the root data attribute", () => {
@@ -139,7 +141,7 @@ describe("isChangelogVersion", () => {
 
 describe("renderChangelogBannerShell", () => {
 	it("renders the visible banner with content when a banner is present", () => {
-		const doc = parse(renderChangelogBannerShell(BANNER));
+		const doc = parse(renderChangelogBannerShell({ banner: BANNER, cspNonce: CSP_NONCE }));
 		const banner = doc.querySelector(".changelog-banner");
 		assert(banner, "the banner element must always render");
 		expect(banner.classList.contains("changelog-banner--visible")).toBe(true);
@@ -147,14 +149,14 @@ describe("renderChangelogBannerShell", () => {
 	});
 
 	it("carries the rendered version on the visible banner so the seen-script can read it", () => {
-		const doc = parse(renderChangelogBannerShell(BANNER));
+		const doc = parse(renderChangelogBannerShell({ banner: BANNER, cspNonce: CSP_NONCE }));
 		const banner = doc.querySelector(".changelog-banner");
 		assert(banner, "the banner element must render");
 		expect(banner.getAttribute("data-changelog-version")).toBe(VERSION);
 	});
 
 	it("emits the inline seen-script as the visible banner's last child", () => {
-		const doc = parse(renderChangelogBannerShell(BANNER));
+		const doc = parse(renderChangelogBannerShell({ banner: BANNER, cspNonce: CSP_NONCE }));
 		const banner = doc.querySelector(".changelog-banner");
 		assert(banner, "the banner element must render");
 		const last = banner.lastElementChild;
@@ -164,7 +166,7 @@ describe("renderChangelogBannerShell", () => {
 	});
 
 	it("renders the hidden, empty banner when no banner is present", () => {
-		const doc = parse(renderChangelogBannerShell(undefined));
+		const doc = parse(renderChangelogBannerShell({ cspNonce: CSP_NONCE }));
 		const banner = doc.querySelector(".changelog-banner");
 		assert(banner, "the banner element must always render so layout stays stable");
 		expect(banner.classList.contains("changelog-banner--hidden")).toBe(true);
@@ -174,7 +176,7 @@ describe("renderChangelogBannerShell", () => {
 	});
 
 	it("uses role=status with a polite live region for assistive tech", () => {
-		const doc = parse(renderChangelogBannerShell(BANNER));
+		const doc = parse(renderChangelogBannerShell({ banner: BANNER, cspNonce: CSP_NONCE }));
 		const banner = doc.querySelector(".changelog-banner");
 		assert(banner, "the banner element must render");
 		expect(banner.getAttribute("role")).toBe("status");
@@ -182,7 +184,7 @@ describe("renderChangelogBannerShell", () => {
 	});
 
 	it("renders the NEW chip as aria-hidden decorative novelty", () => {
-		const doc = parse(renderChangelogBannerShell(BANNER));
+		const doc = parse(renderChangelogBannerShell({ banner: BANNER, cspNonce: CSP_NONCE }));
 		const chip = doc.querySelector(".changelog-banner__chip");
 		assert(chip, "the NEW chip must render");
 		expect(chip.textContent).toBe("NEW");
@@ -190,21 +192,21 @@ describe("renderChangelogBannerShell", () => {
 	});
 
 	it("renders the escaped hook as text", () => {
-		const doc = parse(renderChangelogBannerShell({ ...BANNER, hook: "a <b> & c" }));
+		const doc = parse(renderChangelogBannerShell({ banner: { ...BANNER, hook: "a <b> & c" }, cspNonce: CSP_NONCE }));
 		const hook = doc.querySelector(".changelog-banner__hook");
 		assert(hook, "the hook must render");
 		expect(hook.textContent).toBe("a <b> & c");
 	});
 
 	it("links 'Read more' to the banner href", () => {
-		const doc = parse(renderChangelogBannerShell(BANNER));
+		const doc = parse(renderChangelogBannerShell({ banner: BANNER, cspNonce: CSP_NONCE }));
 		const link = doc.querySelector(".changelog-banner__link");
 		assert(link, "the read-more link must render");
 		expect(link.getAttribute("href")).toBe(BANNER.href);
 	});
 
 	it("dismisses via a POST form that carries the rendered version", () => {
-		const doc = parse(renderChangelogBannerShell(BANNER));
+		const doc = parse(renderChangelogBannerShell({ banner: BANNER, cspNonce: CSP_NONCE }));
 		const form = doc.querySelector(".changelog-banner__dismiss");
 		assert(form, "the dismiss form must render");
 		expect(form.getAttribute("method")).toBe("POST");
@@ -215,7 +217,7 @@ describe("renderChangelogBannerShell", () => {
 	});
 
 	it("labels the close button for assistive tech", () => {
-		const doc = parse(renderChangelogBannerShell(BANNER));
+		const doc = parse(renderChangelogBannerShell({ banner: BANNER, cspNonce: CSP_NONCE }));
 		const close = doc.querySelector(".changelog-banner__close");
 		assert(close, "the close button must render");
 		expect(close.getAttribute("aria-label")).toBe("Dismiss changelog banner");
@@ -223,7 +225,11 @@ describe("renderChangelogBannerShell", () => {
 
 	it("carries the return path as a hidden field so dismissing returns the reader to the page they were on", () => {
 		const doc = parse(
-			renderChangelogBannerShell(BANNER, "/blog/keyboard-shortcuts?utm_source=changelog-banner"),
+			renderChangelogBannerShell({
+				banner: BANNER,
+				returnTo: "/blog/keyboard-shortcuts?utm_source=changelog-banner",
+				cspNonce: CSP_NONCE,
+			}),
 		);
 		const returnTo = doc.querySelector('.changelog-banner__dismiss input[name="returnTo"]');
 		assert(returnTo, "the dismiss form must post the return path");
@@ -233,14 +239,14 @@ describe("renderChangelogBannerShell", () => {
 	});
 
 	it("escapes the return path in the hidden field so a crafted path cannot break out of the attribute", () => {
-		const doc = parse(renderChangelogBannerShell(BANNER, '/x?a="1"&b=<2>'));
+		const doc = parse(renderChangelogBannerShell({ banner: BANNER, returnTo: '/x?a="1"&b=<2>', cspNonce: CSP_NONCE }));
 		const returnTo = doc.querySelector('.changelog-banner__dismiss input[name="returnTo"]');
 		assert(returnTo, "the dismiss form must post the return path");
 		expect(returnTo.getAttribute("value")).toBe('/x?a="1"&b=<2>');
 	});
 
 	it("renders an empty return path when none is supplied so the dismiss route falls back to /", () => {
-		const doc = parse(renderChangelogBannerShell(BANNER));
+		const doc = parse(renderChangelogBannerShell({ banner: BANNER, cspNonce: CSP_NONCE }));
 		const returnTo = doc.querySelector('.changelog-banner__dismiss input[name="returnTo"]');
 		assert(returnTo, "the dismiss form must always carry the return-path input");
 		expect(returnTo.getAttribute("value")).toBe("");
@@ -249,7 +255,7 @@ describe("renderChangelogBannerShell", () => {
 
 describe("CHANGELOG_SEEN_SCRIPT", () => {
 	function load(banner: ChangelogBanner): JSDOM {
-		return new JSDOM(`<!doctype html><html><body>${renderChangelogBannerShell(banner)}</body></html>`, {
+		return new JSDOM(`<!doctype html><html><body>${renderChangelogBannerShell({ banner, cspNonce: CSP_NONCE })}</body></html>`, {
 			url: "https://readplace.com/",
 			runScripts: "outside-only",
 		});
@@ -271,7 +277,7 @@ describe("CHANGELOG_SEEN_SCRIPT", () => {
 	it("hides NEW on a later load of the same version", () => {
 		const dom = load(BANNER);
 		dom.window.eval(CHANGELOG_SEEN_SCRIPT);
-		dom.window.document.body.innerHTML = renderChangelogBannerShell(BANNER);
+		dom.window.document.body.innerHTML = renderChangelogBannerShell({ banner: BANNER, cspNonce: CSP_NONCE });
 		dom.window.eval(CHANGELOG_SEEN_SCRIPT);
 		expect(seenClass(dom)).toBe(true);
 	});
@@ -281,7 +287,7 @@ describe("CHANGELOG_SEEN_SCRIPT", () => {
 		assert(isChangelogVersion(newer));
 		const dom = load(BANNER);
 		dom.window.eval(CHANGELOG_SEEN_SCRIPT);
-		dom.window.document.body.innerHTML = renderChangelogBannerShell({ ...BANNER, version: newer });
+		dom.window.document.body.innerHTML = renderChangelogBannerShell({ banner: { ...BANNER, version: newer }, cspNonce: CSP_NONCE });
 		dom.window.eval(CHANGELOG_SEEN_SCRIPT);
 		expect(seenClass(dom)).toBe(false);
 		expect(dom.window.localStorage.getItem(CHANGELOG_SEEN_STORAGE_KEY)).toBe(newer);
@@ -289,7 +295,7 @@ describe("CHANGELOG_SEEN_SCRIPT", () => {
 
 	it("does nothing when there is no visible banner to mark", () => {
 		const dom = new JSDOM(
-			`<!doctype html><html><body>${renderChangelogBannerShell(undefined)}</body></html>`,
+			`<!doctype html><html><body>${renderChangelogBannerShell({ cspNonce: CSP_NONCE })}</body></html>`,
 			{ url: "https://readplace.com/", runScripts: "outside-only" },
 		);
 		dom.window.eval(CHANGELOG_SEEN_SCRIPT);

@@ -1,5 +1,6 @@
 import type { IconName } from "@packages/ui-icons";
 import type { ChangelogBanner } from "./changelog-banner";
+import { type CspNonce, requireCspNonce } from "./csp-nonce.middleware";
 import { withInternalTracking } from "./internal-link-tracking";
 import type { TrialDisplay } from "./trial-countdown.format";
 
@@ -41,6 +42,11 @@ export interface BannerStateSource {
 	 * is bound once at `initBase` and is therefore the same on every render. A
 	 * site that computes none — the blog — never sets it and renders unchanged. */
 	requestScripts?: string;
+	/** The nonce `createCspNonceMiddleware` stamped on this request, which every
+	 * inline script and style the shell emits carries. Optional here only because
+	 * that is the strongest shape Express declaration merging allows; the shell
+	 * requires it. */
+	cspNonce?: CspNonce;
 }
 
 export type NavItemKey =
@@ -163,6 +169,7 @@ export interface BannerState {
 	currentPath?: string;
 	/** Per-request script markup carried through from `BannerStateSource`. */
 	requestScripts?: string;
+	cspNonce: CspNonce;
 }
 
 const NAV_QUEUE = navItem({ key: "queue", label: "Queue", path: "/queue", method: "GET", iconName: "inbox" });
@@ -217,5 +224,6 @@ export function bannerStateFromRequest(source: BannerStateSource): BannerState {
 		verification: source.verificationStatus,
 		currentPath: source.originalUrl,
 		requestScripts: source.requestScripts,
+		cspNonce: requireCspNonce(source),
 	};
 }

@@ -1,4 +1,5 @@
 import type { NextFunction, Request, Response, Router } from "express";
+import { requireCspNonce } from "@packages/web-shell";
 import express from "express";
 import { z } from "zod";
 import type {
@@ -192,6 +193,7 @@ async function renderRecrawlPage(
 		extensionInstallUrl: extensionInstallUrlIfMissing(req),
 		recrawlFormAction,
 		crawlVersions: state.crawlVersions,
+		cspNonce: requireCspNonce(req),
 	}), await deps.buildBannerState(req)).to("text/html");
 	res.status(html.statusCode).type("html").send(html.body);
 }

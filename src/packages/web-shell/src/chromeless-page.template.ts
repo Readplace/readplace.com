@@ -14,7 +14,7 @@ export const CHROMELESS_TEMPLATE = `<!DOCTYPE html>
 
 	<link rel="icon" type="image/svg+xml" href="{{staticBaseUrl}}/favicon.svg">
 
-	<style>
+	<style nonce="{{cspNonce}}">
 		{{{baseStyles}}}
 		{{{resetStyles}}}
 		{{{utilityStyles}}}

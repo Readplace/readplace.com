@@ -11,7 +11,7 @@ import {
 	withInternalTracking,
 	SUBSCRIBE_CTA_LABEL,
 } from "@packages/web-shell";
-import type { LocalTime, PageBody } from "@packages/web-shell";
+import type { CspNonce, LocalTime, PageBody } from "@packages/web-shell";
 
 import { QUEUE_STYLES } from "./queue.styles";
 import { renderQueueCard, toQueueCardDisplayModel } from "./queue-card/queue-card.component";
@@ -186,8 +186,8 @@ function toQueueDisplayModel(vm: QueueViewModel, options: { installed: boolean; 
 	};
 }
 
-const AUTO_SUBMIT_SCRIPT = `
-<script>
+const autoSubmitScript = (cspNonce: CspNonce) => `
+<script nonce="${cspNonce}">
 	(function () {
 		function run() {
 			var form = document.querySelector('[data-auto-submit]');
@@ -202,13 +202,13 @@ const AUTO_SUBMIT_SCRIPT = `
 </script>
 `;
 
-export function QueuePage(vm: QueueViewModel, options: { deviceClass: DeviceClass; extraTabs: readonly QueueTabLink[]; saveUrl?: string; installed?: boolean; savedArticle?: boolean; platform?: Platform; hasInstallableClient?: boolean; onboardingDismissed?: boolean; statusCode?: number }): PageBody {
+export function QueuePage(vm: QueueViewModel, options: { cspNonce: CspNonce; deviceClass: DeviceClass; extraTabs: readonly QueueTabLink[]; saveUrl?: string; installed?: boolean; savedArticle?: boolean; platform?: Platform; hasInstallableClient?: boolean; onboardingDismissed?: boolean; statusCode?: number }): PageBody {
 	const saveUrl = options.saveUrl;
 	const displayModel = toQueueDisplayModel(vm, { installed: options.installed ?? false, savedArticle: options.savedArticle ?? false, platform: options.platform ?? "other", hasInstallableClient: options.hasInstallableClient ?? false, onboardingDismissed: options.onboardingDismissed ?? false, deviceClass: options.deviceClass, extraTabs: options.extraTabs });
 	const content = render(QUEUE_TEMPLATE, { ...displayModel, saveUrl });
 
 	const scriptParts: string[] = [NAV_HIDE_SCRIPT];
-	if (saveUrl) scriptParts.push(AUTO_SUBMIT_SCRIPT);
+	if (saveUrl) scriptParts.push(autoSubmitScript(options.cspNonce));
 
 	return {
 		seo: {

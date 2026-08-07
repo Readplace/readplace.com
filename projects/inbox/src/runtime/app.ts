@@ -1,4 +1,5 @@
 import { resolve } from "node:path";
+import { createCspNonceMiddleware, generateCspNonce } from "@packages/web-shell";
 import express, { type Express, type NextFunction, type Request, type Response } from "express";
 import cookieParser from "cookie-parser";
 import type {
@@ -58,6 +59,7 @@ export function createInboxApp(
 	const app: Express = express();
 	app.disable("x-powered-by");
 
+	app.use(createCspNonceMiddleware({ generateCspNonce }));
 	app.use(express.urlencoded({ extended: true }));
 	app.use(cookieParser());
 	app.use(changelogDismissMiddleware);
