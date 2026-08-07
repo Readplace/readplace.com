@@ -27,8 +27,5 @@ export function buildCardPollUrl(params: {
 	if (params.filters.page && params.filters.page > 1) {
 		search.set("page", String(params.filters.page));
 	}
-	if (params.filters.feature) {
-		search.set("feature", params.filters.feature);
-	}
 	return `/queue/${params.articleId}/card?${search.toString()}`;
 }

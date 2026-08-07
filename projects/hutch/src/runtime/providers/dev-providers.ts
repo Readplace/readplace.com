@@ -4,7 +4,6 @@ import { blockedCauseForStatus } from "@packages/article-state-types";
 import { initInMemoryAuth } from "@packages/test-fixtures/providers/auth";
 import { hashPassword, verifyPassword } from "@packages/domain/user";
 import { initInMemoryIosOnboardingSignal } from "@packages/test-fixtures/providers/ios-onboarding-signal";
-import { initInMemoryReadingPreference } from "@packages/test-fixtures/providers/reading-preference";
 import { initInMemoryArticleStore } from "@packages/test-fixtures/providers/article-store";
 import type { ExtractPdf } from "@packages/crawl-article";
 import {
@@ -110,7 +109,6 @@ export function initDevProviders(input: { appOrigin: string }) {
 
 	const auth = initInMemoryAuth({ hashPassword, verifyPassword });
 	const iosOnboardingSignal = initInMemoryIosOnboardingSignal();
-	const readingPreference = initInMemoryReadingPreference();
 	const articleStore = initInMemoryArticleStore();
 	const oauthClients = initInMemoryOAuthClients({ now: () => new Date() });
 	const oauthClientLookup = initOAuthClientLookup({ dynamic: oauthClients });
@@ -414,8 +412,6 @@ export function initDevProviders(input: { appOrigin: string }) {
 		getIosAppSignals: iosOnboardingSignal.getIosAppSignals,
 		recordIosAnyActivity: iosOnboardingSignal.recordIosAnyActivity,
 		recordIosSavedArticle: iosOnboardingSignal.recordIosSavedArticle,
-		saveReadingPreference: readingPreference.saveReadingPreference,
-		getReadingPreference: readingPreference.getReadingPreference,
 		consumeRateLimit,
 		rateLimitRules,
 	};

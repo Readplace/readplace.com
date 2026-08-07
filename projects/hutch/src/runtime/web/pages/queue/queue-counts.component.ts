@@ -29,7 +29,7 @@ export function toQueueCountsDisplayModel(input: {
 	return {
 		filterUnreadClass: filterLinkClass(input.filters.tab === "queue"),
 		filterUnreadUrl: withInternalTracking(
-			buildQueueUrl({ tab: "queue", order: input.filters.order, feature: input.filters.feature }),
+			buildQueueUrl({ tab: "queue", order: input.filters.order }),
 			{ source: "queue-filters", content: "filter-unread" },
 		),
 		filterUnreadLabel: formatUnreadLabel(input.unreadCount),

@@ -20,7 +20,6 @@ import {
 	type DeleteConfirmViewModel,
 } from "./queue-card/delete-confirm";
 import { buildQueueFilters, renderQueueFilters } from "./queue-filters.component";
-import type { QueueTabLink } from "./queue-tab";
 import { SAVE_SURFACES_SHORT_PHRASE } from "../../shared/client-surface-phrases";
 import type { QueueViewModel, SubscriptionBannerState } from "./queue.viewmodel";
 import { buildQueueUrl } from "./queue.url";
@@ -83,7 +82,7 @@ export function emptyStateTitle(tab: TabId): string {
 	return EMPTY_STATE_TITLES[tab];
 }
 
-function toQueueDisplayModel(vm: QueueViewModel, options: { installed: boolean; savedArticle: boolean; platform: Platform; hasInstallableClient: boolean; onboardingDismissed: boolean; deviceClass: DeviceClass; extraTabs: readonly QueueTabLink[] }): QueueDisplayModel {
+function toQueueDisplayModel(vm: QueueViewModel, options: { installed: boolean; savedArticle: boolean; platform: Platform; hasInstallableClient: boolean; onboardingDismissed: boolean; deviceClass: DeviceClass }): QueueDisplayModel {
 	const activeTab = vm.filters.tab;
 	const effectiveOrder = vm.filters.order ?? tabQuery(activeTab).defaultOrder;
 	const nextOrder = effectiveOrder === "desc" ? "asc" : "desc";
@@ -91,10 +90,10 @@ function toQueueDisplayModel(vm: QueueViewModel, options: { installed: boolean; 
 		effectiveOrder === "desc"
 			? { label: "Newest first", iconName: "arrow-down" }
 			: { label: "Oldest first", iconName: "arrow-up" };
-	const sortUrl = withInternalTracking(
-		buildQueueUrl({ tab: activeTab, order: nextOrder, feature: vm.filters.feature }),
-		{ source: "queue-sort", content: "sort" },
-	);
+	const sortUrl = withInternalTracking(buildQueueUrl({ tab: activeTab, order: nextOrder }), {
+		source: "queue-sort",
+		content: "sort",
+	});
 
 	const onboardingHtml = OnboardingChecklist(
 		options.hasInstallableClient
@@ -135,12 +134,7 @@ function toQueueDisplayModel(vm: QueueViewModel, options: { installed: boolean; 
 			title: article.title,
 		})),
 		filtersHtml: renderQueueFilters(
-			buildQueueFilters({
-				activeTab,
-				order: vm.filters.order,
-				feature: vm.filters.feature,
-				extraTabs: options.extraTabs,
-			}),
+			buildQueueFilters({ activeTab, order: vm.filters.order }),
 		),
 		countsSpanHtml: renderQueueCountsTrigger({ countsUrl: vm.countsUrl }),
 		sortUrl,
@@ -185,9 +179,9 @@ const autoSubmitScript = (cspNonce: CspNonce) => `
 </script>
 `;
 
-export function QueuePage(vm: QueueViewModel, options: { cspNonce: CspNonce; deviceClass: DeviceClass; extraTabs: readonly QueueTabLink[]; saveUrl?: string; installed?: boolean; savedArticle?: boolean; platform?: Platform; hasInstallableClient?: boolean; onboardingDismissed?: boolean; statusCode?: number }): PageBody {
+export function QueuePage(vm: QueueViewModel, options: { cspNonce: CspNonce; deviceClass: DeviceClass; saveUrl?: string; installed?: boolean; savedArticle?: boolean; platform?: Platform; hasInstallableClient?: boolean; onboardingDismissed?: boolean; statusCode?: number }): PageBody {
 	const saveUrl = options.saveUrl;
-	const displayModel = toQueueDisplayModel(vm, { installed: options.installed ?? false, savedArticle: options.savedArticle ?? false, platform: options.platform ?? "other", hasInstallableClient: options.hasInstallableClient ?? false, onboardingDismissed: options.onboardingDismissed ?? false, deviceClass: options.deviceClass, extraTabs: options.extraTabs });
+	const displayModel = toQueueDisplayModel(vm, { installed: options.installed ?? false, savedArticle: options.savedArticle ?? false, platform: options.platform ?? "other", hasInstallableClient: options.hasInstallableClient ?? false, onboardingDismissed: options.onboardingDismissed ?? false, deviceClass: options.deviceClass });
 	const content = render(QUEUE_TEMPLATE, { ...displayModel, saveUrl });
 
 	const scriptParts: string[] = [NAV_HIDE_SCRIPT];

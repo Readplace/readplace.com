@@ -17,7 +17,6 @@ import { initDynamoDbSavedArticleStore } from "@packages/article-store";
 import { initDynamoDbDigestQueue } from "./providers/digest-queue/dynamodb-digest-queue";
 import { initDynamoDbReaderReadyState } from "./providers/reader-ready-state/dynamodb-reader-ready-state";
 import { initIosOnboardingSignal } from "./providers/ios-onboarding-signal/dynamodb-ios-onboarding-signal";
-import { initReadingPreference } from "./providers/reading-preference/dynamodb-reading-preference";
 import { initDynamoDbSubscriptionProviders } from "./providers/subscription-providers/dynamodb-subscription-providers";
 import { initStripeSubscriptions } from "./providers/stripe-subscriptions/stripe-subscriptions";
 import { initAwsTrialScheduler } from "./providers/trial-scheduler/aws-trial-scheduler";
@@ -77,11 +76,6 @@ const onboarding = initIosOnboardingSignal({
 	client: dynamoClient,
 	onboardingTableName: requireEnv("DYNAMODB_ONBOARDING_TABLE"),
 	now,
-});
-
-const readingPreference = initReadingPreference({
-	client: dynamoClient,
-	tableName: requireEnv("DYNAMODB_READING_PREFERENCES_TABLE"),
 });
 
 const subscriptionProviders = initDynamoDbSubscriptionProviders({
@@ -237,7 +231,6 @@ export const handler = initHandleByDetailType({
 				deleteDigestByUser: digestQueue.deleteDigestByUser,
 				deleteReaderReadyState: readerReadyState.deleteReaderReadyState,
 				deleteOnboarding: onboarding.deleteOnboarding,
-				deleteReadingPreference: readingPreference.deleteReadingPreference,
 				deleteUserExports,
 				deletePasswordResetTokensByEmail: passwordReset.deleteTokensByEmail,
 				deleteVerificationTokensByUserId: emailVerification.deleteTokensByUserId,

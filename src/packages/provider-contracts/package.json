@@ -97,10 +97,6 @@
       "types": "./dist/reader-ready-state.d.ts",
       "default": "./dist/reader-ready-state.js"
     },
-    "./reading-preference": {
-      "types": "./dist/reading-preference.d.ts",
-      "default": "./dist/reading-preference.js"
-    },
     "./refresh-html": {
       "types": "./dist/refresh-html.d.ts",
       "default": "./dist/refresh-html.js"
@@ -146,7 +142,6 @@
       "pending-upload": ["./dist/pending-upload.d.ts"],
       "rate-limit": ["./dist/rate-limit.d.ts"],
       "reader-ready-state": ["./dist/reader-ready-state.d.ts"],
-      "reading-preference": ["./dist/reading-preference.d.ts"],
       "refresh-html": ["./dist/refresh-html.d.ts"],
       "related-articles": ["./dist/related-articles.d.ts"],
       "subscription-billing": ["./dist/subscription-billing.d.ts"],

@@ -72,7 +72,6 @@ import type {
 import type { ExchangeGoogleCode } from "@packages/provider-contracts/google-auth";
 import type { ExchangeAppleCode } from "@packages/provider-contracts/apple-auth";
 import type { GetIosAppSignals, RecordIosAnyActivity, RecordIosSavedArticle } from "@packages/provider-contracts/ios-onboarding-signal";
-import type { GetReadingPreference, SaveReadingPreference } from "@packages/provider-contracts/reading-preference";
 import type {
 	CountArticlesByUser,
 	DeleteArticle,
@@ -168,7 +167,6 @@ import { initAppleAuthRoutes } from "./web/auth/apple-auth.page";
 import { initResolveLogin } from "@packages/web-session";
 import { initForgotPasswordRoutes } from "./web/auth/forgot-password.page";
 import { initQueueRoutes } from "./web/pages/queue/queue.page";
-import { initMyReadplaceTab } from "./web/pages/queue/my-readplace/my-readplace.tab";
 import {
 	ChromelessReader,
 	StickyReader,
@@ -340,8 +338,6 @@ interface AppDependencies {
 	getIosAppSignals: GetIosAppSignals;
 	recordIosAnyActivity: RecordIosAnyActivity;
 	recordIosSavedArticle: RecordIosSavedArticle;
-	saveReadingPreference: SaveReadingPreference;
-	getReadingPreference: GetReadingPreference;
 	adminEmails: readonly string[];
 	recrawlServiceToken: string;
 	publishUpdateFetchTimestamp: PublishUpdateFetchTimestamp;
@@ -1137,16 +1133,6 @@ export function createApp(dependencies: AppDependencies): Express {
 		getIosAppSignals: deps.getIosAppSignals,
 		recordIosAnyActivity: deps.recordIosAnyActivity,
 		recordIosSavedArticle: deps.recordIosSavedArticle,
-		tabs: [
-			initMyReadplaceTab({
-				featureToggle,
-				getReadingPreference: deps.getReadingPreference,
-				saveReadingPreference: deps.saveReadingPreference,
-				countArticlesByUser: deps.countArticlesByUser,
-				buildBannerState,
-				now: deps.now,
-			}),
-		],
 		dualAuth: dualAuthMiddleware,
 		resolveVerificationStatus,
 		requireWriteAccess,

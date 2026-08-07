@@ -45,13 +45,4 @@ describe("buildCardPollUrl", () => {
 		});
 		expect(url).toBe("/queue/abc123/card?poll=1&page=3");
 	});
-
-	it("preserves the feature flag so the refreshed card's redirects keep the flagged tab bar", () => {
-		const url = buildCardPollUrl({
-			articleId: "abc123",
-			pollCount: 1,
-			filters: { tab: "queue", page: 1, feature: "my" },
-		});
-		expect(url).toBe("/queue/abc123/card?poll=1&feature=my");
-	});
 });

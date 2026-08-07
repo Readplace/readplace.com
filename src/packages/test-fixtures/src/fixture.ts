@@ -18,7 +18,6 @@ import { initInMemoryEmailVerification } from "./providers/email-verification/in
 import { initInMemoryPasswordReset } from "./providers/password-reset/in-memory-password-reset";
 import { initInMemoryRateLimit } from "./providers/rate-limit/in-memory-rate-limit";
 import { initInMemoryIosOnboardingSignal } from "./providers/ios-onboarding-signal/in-memory-ios-onboarding-signal";
-import { initInMemoryReadingPreference } from "./providers/reading-preference/in-memory-reading-preference";
 import { initInMemoryPendingHtml } from "./providers/pending-html/in-memory-pending-html";
 import { initInMemoryPendingPdf } from "./providers/pending-pdf/in-memory-pending-pdf";
 import { initInMemoryPendingUpload } from "./providers/pending-upload/in-memory-pending-upload";
@@ -422,7 +421,6 @@ export function createDefaultTestAppFixture(appOrigin: string): TestAppFixture {
 		passwordReset,
 		rateLimit,
 		iosOnboardingSignal: initInMemoryIosOnboardingSignal(),
-		readingPreference: initInMemoryReadingPreference(),
 		google: undefined,
 		/* Apple sign-in is a mandatory dependency — the /auth/apple route is always
 		* mounted so the button always resolves — so the default fixture wires a

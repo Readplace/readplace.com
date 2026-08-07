@@ -33,7 +33,6 @@ export interface QueueCardDisplayModel extends QueueArticleViewModel {
 	processingHiddenClass: string;
 	urlEmptyClass: string;
 	actions: ActionDisplayModel[];
-	deleteTriggerDisabled: boolean;
 }
 
 export function toActionDisplayModel(
@@ -85,7 +84,6 @@ export function toQueueCardDisplayModel(
 		actions: article.actions.map((action) =>
 			toActionDisplayModel(action, { isProcessing, articleId: article.id }),
 		),
-		deleteTriggerDisabled: false,
 	};
 }
 

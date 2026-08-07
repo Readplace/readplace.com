@@ -12,7 +12,6 @@ export interface QueueUrlState {
 	tab: TabId;
 	order?: SortOrder;
 	page: number;
-	feature?: string;
 }
 
 const QueueQuerySchema = z.looseObject({
@@ -20,7 +19,6 @@ const QueueQuerySchema = z.looseObject({
 	status: z.enum(["unread", "read"]).optional().catch(undefined),
 	order: z.enum(["asc", "desc"]).optional().catch(undefined),
 	page: z.coerce.number().int().min(1).optional().catch(undefined),
-	feature: z.string().optional().catch(undefined),
 });
 
 export function parseQueueUrl(query: Record<string, unknown>): QueueUrlState {
@@ -30,7 +28,6 @@ export function parseQueueUrl(query: Record<string, unknown>): QueueUrlState {
 		tab,
 		order: parsed.order,
 		page: parsed.page ?? 1,
-		feature: parsed.feature,
 	};
 }
 
@@ -50,9 +47,6 @@ function queueQueryString(
 	}
 	if (state.page && state.page > 1) {
 		params.set("page", String(state.page));
-	}
-	if (state.feature) {
-		params.set("feature", state.feature);
 	}
 	for (const [key, value] of extraParams) {
 		params.append(key, value);

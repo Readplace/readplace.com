@@ -27,7 +27,6 @@ export type {
 	PendingPdfBundle,
 	PendingUploadBundle,
 	PendingSignupBundle,
-	ReadingPreferenceBundle,
 	SharedBundle,
 	SubscriptionBillingBundle,
 	SubscriptionProvidersBundle,
