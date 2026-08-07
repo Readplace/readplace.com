@@ -562,7 +562,6 @@ const userDataJobsLambda = new HutchLambda("user-data-jobs", {
 	memorySize: 1024,
 	timeout: 900,
 	environment: {
-		PERSISTENCE: "prod",
 		DYNAMODB_USERS_TABLE: storage.usersTable.name,
 		DYNAMODB_SESSIONS_TABLE: storage.sessionsTable.name,
 		DYNAMODB_OAUTH_TABLE: storage.oauthTable.name,
@@ -656,7 +655,6 @@ const sendUserDigestLambda = new HutchLambda("send-user-digest", {
 	memorySize: 512,
 	timeout: 60,
 	environment: {
-		PERSISTENCE: "prod",
 		APP_ORIGIN: appOrigin,
 		RESEND_API_KEY: requireEnv("RESEND_API_KEY"),
 		DYNAMODB_ARTICLES_TABLE: storage.articlesTable.name,
@@ -699,7 +697,6 @@ const digestScanLambda = new HutchLambda("digest-scan", {
 	memorySize: 512,
 	timeout: 60,
 	environment: {
-		PERSISTENCE: "prod",
 		DYNAMODB_DIGEST_QUEUE_TABLE: storage.digestQueueTable.name,
 		SEND_USER_DIGEST_QUEUE_URL: sendUserDigestQueue.queueUrl,
 	},
@@ -785,7 +782,6 @@ const readerReadyFanoutLambda = new HutchLambda("reader-ready-fanout", {
 	memorySize: 512,
 	timeout: 60,
 	environment: {
-		PERSISTENCE: "prod",
 		DYNAMODB_ARTICLES_TABLE: storage.articlesTable.name,
 		DYNAMODB_USER_ARTICLES_TABLE: storage.userArticlesTable.name,
 		DYNAMODB_DIGEST_QUEUE_TABLE: storage.digestQueueTable.name,
@@ -851,7 +847,6 @@ const subscriptionEventsLambda = new HutchLambda(LAMBDA_NAMES.subscriptionEvents
 	memorySize: 128,
 	timeout: 30,
 	environment: {
-		PERSISTENCE: "prod",
 		DYNAMODB_SUBSCRIPTION_PROVIDERS_TABLE: storage.subscriptionProvidersTable.name,
 		STRIPE_SECRET_KEY: requireEnv("STRIPE_SECRET_KEY"),
 		STRIPE_PRICE_ID: requireEnv("STRIPE_PRICE_ID"),
@@ -937,7 +932,6 @@ const sendTrialFeedbackEmailLambda = new HutchLambda(
 		memorySize: 256,
 		timeout: 60,
 		environment: {
-			PERSISTENCE: "prod",
 			DYNAMODB_SUBSCRIPTION_PROVIDERS_TABLE: storage.subscriptionProvidersTable.name,
 			DYNAMODB_USERS_TABLE: storage.usersTable.name,
 			DYNAMODB_SESSIONS_TABLE: storage.sessionsTable.name,
