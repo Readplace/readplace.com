@@ -84,6 +84,7 @@ import type {
 	MarkCrawlPending,
 	MarkEmailVerified,
 	MarkReaderReadyEmailSent,
+	MarkRelatedDismissed,
 	MarkSummaryToggled,
 	MarkSessionEmailVerified,
 	MarkSubscriptionActive,
@@ -287,6 +288,7 @@ export interface ArticleStoreBundle {
 	updateArticleStatus: UpdateArticleStatus;
 	markArticleViewed: MarkArticleViewed;
 	markSummaryToggled: MarkSummaryToggled;
+	markRelatedDismissed: MarkRelatedDismissed;
 	findUserArticlesByUrl: FindUserArticlesByUrl;
 	markReaderReadyEmailSent: MarkReaderReadyEmailSent;
 	findUserArticleNotificationState: FindUserArticleNotificationState;

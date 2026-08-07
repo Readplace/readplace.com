@@ -31,6 +31,7 @@ import type {
 	FindArticleUrlById,
 	FindArticlesByUser,
 	MarkArticleViewed,
+	MarkRelatedDismissed,
 	MarkSummaryToggled,
 	SaveArticle,
 	UpdateArticleStatus,
@@ -127,7 +128,8 @@ import {
 import { computeQueueCardEtag } from "./queue-card/queue-card.etag";
 import { etagMatches } from "@packages/web-shell";
 import { ReaderPage, formatReaderDocumentTitle } from "../reader/reader.component";
-import { renderRelatedSlot } from "../../shared/article-body/related-slot/related-slot.component";
+import { renderNextRead } from "../../shared/next-read/next-read.component";
+import { safeReturnPath } from "../../shared/safe-return-path";
 import { NO_CLIENT_ONBOARDING_VERSION, ONBOARDING_VERSION } from "../../onboarding/onboarding.steps";
 import {
 	detectPlatform,
@@ -248,6 +250,7 @@ interface QueueDependencies {
 	updateArticleStatus: UpdateArticleStatus;
 	markArticleViewed: MarkArticleViewed;
 	markSummaryToggled: MarkSummaryToggled;
+	markRelatedDismissed: MarkRelatedDismissed;
 	publishLinkSaved: PublishLinkSaved;
 	publishLinkQueued: PublishLinkQueued;
 	publishLinkDequeued: PublishLinkDequeued;
@@ -629,9 +632,11 @@ export function initQueueRoutes(deps: QueueDependencies): Router {
 		});
 
 		const audioEnabled = deps.featureToggle.isEnabled(req, "audio");
-		const relatedEnabled = deps.featureToggle.isEnabled(req, RELATED_FEATURE);
+		const relatedActive =
+			deps.featureToggle.isEnabled(req, RELATED_FEATURE) &&
+			ownedArticle.relatedDismissedAt === undefined;
 		const [related, state] = await Promise.all([
-			relatedEnabled
+			relatedActive
 				? loadRelatedArticles(deps.findRelatedArticles, ownedArticle, deps.logError)
 				: Promise.resolve(undefined),
 			reader.resolveReaderState({
@@ -644,7 +649,7 @@ export function initQueueRoutes(deps: QueueDependencies): Router {
 				capturing: false,
 			}),
 		]);
-		const relatedPollUrl = relatedEnabled
+		const relatedPollUrl = relatedActive
 			? relatedPollUrlFor(ownedArticle.id.value, 1)
 			: undefined;
 
@@ -685,6 +690,7 @@ export function initQueueRoutes(deps: QueueDependencies): Router {
 				audioEnabled,
 				related,
 				relatedPollUrl,
+				currentPath: req.originalUrl,
 				now: deps.now(),
 				extensionInstallUrl: undefined,
 				backLink: APP_BACK_LINK,
@@ -748,6 +754,7 @@ export function initQueueRoutes(deps: QueueDependencies): Router {
 				audioEnabled,
 				related,
 				relatedPollUrl,
+				currentPath: req.originalUrl,
 				now: deps.now(),
 				extensionInstallUrl: extensionInstallUrlIfMissing(req),
 				backLink: VIEW_BACK_LINK,
@@ -1448,8 +1455,18 @@ export function initQueueRoutes(deps: QueueDependencies): Router {
 			return;
 		}
 
+		const returnTo = `${QUEUE_PATH}/${article.id.value}/view?feature=${RELATED_FEATURE}`;
+
+		if (article.relatedDismissedAt !== undefined) {
+			sendComponent(
+				req, res,
+				CacheableComponent(HtmlPage(renderNextRead({ returnTo })), req),
+			);
+			return;
+		}
+
 		const pollCount = parsePollParam(req.query.poll, MAX_POLLS);
-		const html = renderRelatedSlot({
+		const html = renderNextRead({
 			related: {
 				articles: await loadRelatedArticles(
 					deps.findRelatedArticles,
@@ -1463,8 +1480,29 @@ export function initQueueRoutes(deps: QueueDependencies): Router {
 				pollCount < MAX_POLLS
 					? relatedPollUrlFor(article.id.value, pollCount + 1)
 					: undefined,
+			returnTo,
 		});
 		sendComponent(req, res, CacheableComponent(HtmlPage(html), req));
+	});
+
+	router.post("/:id/related-dismiss", async (req: Request, res: Response) => {
+		assert(req.userId, "userId required - route must be protected by requireAuth");
+		const userId = req.userId;
+
+		const parsedId = ReaderArticleHashIdSchema.safeParse(req.params.id);
+		const article = parsedId.success
+			? await deps.findArticleById(parsedId.data, userId)
+			: null;
+
+		if (article) {
+			await deps.markRelatedDismissed({
+				userId,
+				url: article.url,
+				at: deps.now(),
+			});
+		}
+
+		res.redirect(303, safeReturnPath(req.body.returnTo));
 	});
 
 	/** Fire-and-forget beacon target for the TL;DR open/close toggle. Records the

@@ -881,4 +881,35 @@ describe("initInMemoryArticleStore", () => {
 			expect(await store.getSummaryToggleState({ userId: USER_A, url: URL })).toBeNull();
 		});
 	});
+
+	describe("markRelatedDismissed", () => {
+		const URL = "https://example.com/article";
+
+		it("surfaces relatedDismissedAt on the saved article so the reader can hide the next-read card", async () => {
+			const store = initInMemoryArticleStore();
+			const { saved } = await store.saveArticle(makeArticleParams());
+
+			await store.markRelatedDismissed({ userId: USER_A, url: URL, at: new Date("2026-06-01T10:00:00.000Z") });
+
+			const article = await store.findArticleById(saved.id, USER_A);
+			assert(article);
+			assert.deepEqual(article.relatedDismissedAt, new Date("2026-06-01T10:00:00.000Z"));
+		});
+
+		it("leaves relatedDismissedAt unset until the owner dismisses", async () => {
+			const store = initInMemoryArticleStore();
+			const { saved } = await store.saveArticle(makeArticleParams());
+
+			const article = await store.findArticleById(saved.id, USER_A);
+			assert(article);
+			assert.equal(article.relatedDismissedAt, undefined);
+		});
+
+		it("is a no-op for a url the user never saved", async () => {
+			const store = initInMemoryArticleStore();
+			await store.markRelatedDismissed({ userId: USER_A, url: URL, at: new Date("2026-06-01T10:00:00.000Z") });
+
+			expect(await store.findArticleByUrl(URL)).toBeNull();
+		});
+	});
 });

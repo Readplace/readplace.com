@@ -292,6 +292,24 @@ const BUNDLES = [
   {
     entry: path.join(
       PROJECT_ROOT,
+      "src/runtime/web/shared/next-read/next-read.client.ts",
+    ),
+    outfile: path.join(OUT_DIR, "next-read.client.js"),
+    globalName: "NextRead",
+    footer: [
+      "NextRead.initNextRead({",
+      "  document: window.document,",
+      "  viewportHeight: function () { return window.innerHeight; },",
+      "  addScrollListener: function (cb) { window.addEventListener('scroll', cb, { passive: true }); },",
+      "  removeScrollListener: function (cb) { window.removeEventListener('scroll', cb); },",
+      "  addSwapListener: function (cb) { window.document.body.addEventListener('htmx:afterSwap', cb); },",
+      "  removeSwapListener: function (cb) { window.document.body.removeEventListener('htmx:afterSwap', cb); }",
+      "}).attach();",
+    ].join("\n"),
+  },
+  {
+    entry: path.join(
+      PROJECT_ROOT,
       "src/runtime/web/shared/article-body/summary-slot/summary-toggle.client.ts",
     ),
     outfile: path.join(OUT_DIR, "summary-toggle.client.js"),

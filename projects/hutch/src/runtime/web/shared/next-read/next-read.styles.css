@@ -1,0 +1,129 @@
+.next-read {
+  display: none;
+  width: min(360px, 100%);
+}
+
+.next-read--open {
+  display: block;
+}
+
+.next-read__card {
+  position: relative;
+  display: grid;
+  gap: 0.25rem;
+  padding: 20px;
+  background: var(--color-surface);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius);
+  box-shadow: 0 8px 24px rgb(0 0 0 / 12%);
+  pointer-events: auto;
+  animation: next-read-rise 250ms ease;
+}
+
+@keyframes next-read-rise {
+  from {
+    opacity: 0;
+    transform: translateY(8px);
+  }
+
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .next-read__card {
+    animation: none;
+  }
+}
+
+.next-read__eyebrow {
+  margin: 0 2rem 0.5rem 0;
+  font-size: 0.75rem;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  color: var(--color-text-secondary);
+}
+
+.next-read__dismiss-form {
+  position: absolute;
+  top: 8px;
+  right: 8px;
+  margin: 0;
+}
+
+.next-read__dismiss {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 44px;
+  height: 44px;
+  margin: -10px;
+  padding: 0;
+  background: none;
+  border: 0;
+  color: var(--color-text-secondary);
+  cursor: pointer;
+}
+
+.next-read__dismiss:hover {
+  color: var(--color-text-primary);
+}
+
+.next-read__link {
+  display: grid;
+  gap: 0.25rem;
+  color: var(--color-text-primary);
+  text-decoration: none;
+}
+
+.next-read__title {
+  font-weight: 600;
+  color: var(--primary);
+  text-wrap: pretty;
+}
+
+.next-read__meta {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+.next-read__status {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.375rem;
+  font-size: 0.75rem;
+}
+
+.next-read__status--unread {
+  color: var(--primary-text);
+}
+
+.next-read__status--unread::before {
+  content: "";
+  display: block;
+  width: 0.5rem;
+  height: 0.5rem;
+  border-radius: 50%;
+  background: currentColor;
+}
+
+.next-read__site {
+  font-size: 0.75rem;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  color: var(--color-text-secondary);
+}
+
+.next-read__reason {
+  font-size: 0.875rem;
+  color: var(--color-text-secondary);
+  text-wrap: pretty;
+}
+
+.next-read__saved {
+  font-size: 0.75rem;
+  color: var(--color-text-secondary);
+}

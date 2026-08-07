@@ -1,7 +1,6 @@
 import request from "supertest";
 import { TEST_APP_ORIGIN, createDefaultTestAppFixture } from "@packages/test-fixtures";
 import { useTestServer } from "../../../test-app";
-import { safeReturnPath } from "./changelog-dismiss.route";
 
 const useApp = useTestServer();
 const COOKIE = "rp_changelog_dismissed";
@@ -10,36 +9,6 @@ function setCookies(headers: { [key: string]: string | string[] | undefined }): 
 	const raw = headers["set-cookie"];
 	return Array.isArray(raw) ? raw : raw ? [raw] : [];
 }
-
-describe("safeReturnPath", () => {
-	it("returns / when there is no return path", () => {
-		expect(safeReturnPath(undefined)).toBe("/");
-	});
-
-	it("returns / when the return path is not a string (e.g. a duplicated form field)", () => {
-		expect(safeReturnPath(["/queue", "/account"])).toBe("/");
-	});
-
-	it("returns the path and query for a root-relative return path", () => {
-		expect(safeReturnPath("/queue?filter=unread")).toBe("/queue?filter=unread");
-	});
-
-	it("returns / for an absolute, cross-origin URL", () => {
-		expect(safeReturnPath("https://evil.example/queue")).toBe("/");
-	});
-
-	it("returns / for a protocol-relative authority a browser would resolve off-site", () => {
-		expect(safeReturnPath("//evil.example/queue")).toBe("/");
-	});
-
-	it("returns / for a path that normalises to a // authority", () => {
-		expect(safeReturnPath("/..//evil.example")).toBe("/");
-	});
-
-	it("returns / for an unparseable return path", () => {
-		expect(safeReturnPath("http://[")).toBe("/");
-	});
-});
 
 describe("POST /banner/changelog/dismiss", () => {
 	it("sets the dismissal cookie for a valid version and redirects to the posted return path", async () => {

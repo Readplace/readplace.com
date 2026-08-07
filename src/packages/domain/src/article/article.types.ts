@@ -35,4 +35,5 @@ export interface SavedArticle {
 	/** Where this save came from. Absent on rows saved before provenance was
 	 * captured; a re-save stamps one. */
 	provenance?: SaveProvenance;
+	relatedDismissedAt?: Date;
 }

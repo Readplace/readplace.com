@@ -138,6 +138,18 @@ describe("initDynamoDbSavedArticleStore reader-ready columns", () => {
 		expect(update?.input.UpdateExpression).toBe("SET lastSummaryClosedAt = :at");
 	});
 
+	it("markRelatedDismissed stamps relatedDismissedAt on a still-saved row so the next-read card stays gone", async () => {
+		const { client, commands } = createFakeClient();
+		await initStore(client).markRelatedDismissed({ userId: USER, url: URL, at: new Date("2026-05-30T10:02:00.000Z") });
+
+		const update = commands.find((c) => c.name === "UpdateCommand");
+		expect(update?.input.UpdateExpression).toBe("SET relatedDismissedAt = :at");
+		expect(update?.input.ConditionExpression).toBe("attribute_exists(savedAt)");
+		expect((update?.input.ExpressionAttributeValues as Record<string, unknown>)[":at"]).toBe(
+			"2026-05-30T10:02:00.000Z",
+		);
+	});
+
 	it("mark stamps swallow ConditionalCheckFailedException so a concurrent delete makes the stamp a no-op", async () => {
 		const { client } = createFakeClient({
 			UpdateCommand: {

@@ -171,6 +171,12 @@ export type MarkSummaryToggled = (params: {
 	at: Date;
 }) => Promise<void>;
 
+export type MarkRelatedDismissed = (params: {
+	userId: UserId;
+	url: string;
+	at: Date;
+}) => Promise<void>;
+
 export interface UserArticleByUrl {
 	userId: UserId;
 	viewedAt?: Date;

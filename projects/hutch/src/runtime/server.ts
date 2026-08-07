@@ -83,6 +83,7 @@ import type {
 	FindArticleUrlById,
 	FindArticlesByUser,
 	MarkArticleViewed,
+	MarkRelatedDismissed,
 	MarkSummaryToggled,
 	SaveArticle,
 	SaveArticleGlobally,
@@ -291,6 +292,7 @@ interface AppDependencies {
 	updateArticleStatus: UpdateArticleStatus;
 	markArticleViewed: MarkArticleViewed;
 	markSummaryToggled: MarkSummaryToggled;
+	markRelatedDismissed: MarkRelatedDismissed;
 	sendEmail: SendEmail;
 	createVerificationToken: CreateVerificationToken;
 	verifyEmailToken: VerifyEmailToken;
@@ -1105,6 +1107,7 @@ export function createApp(dependencies: AppDependencies): Express {
 		updateArticleStatus: deps.updateArticleStatus,
 		markArticleViewed: deps.markArticleViewed,
 		markSummaryToggled: deps.markSummaryToggled,
+		markRelatedDismissed: deps.markRelatedDismissed,
 		publishLinkSaved: deps.publishLinkSaved,
 		publishLinkQueued: deps.publishLinkQueued,
 		publishLinkDequeued: deps.publishLinkDequeued,

@@ -32,6 +32,7 @@ import type {
 	FindUserArticlesByUrl,
 	MarkArticleViewed,
 	MarkReaderReadyEmailSent,
+	MarkRelatedDismissed,
 	MarkSummaryToggled,
 	SaveArticle,
 	SaveArticleGlobally,
@@ -103,6 +104,7 @@ const UserArticleRow = z.object({
 	lastSummaryOpenedAt: dynamoField(z.string()),
 	lastSummaryClosedAt: dynamoField(z.string()),
 	provenance: dynamoField(SaveProvenanceSchema),
+	relatedDismissedAt: dynamoField(z.string()),
 });
 
 function toOptionalDate(value: string | undefined): Date | undefined {
@@ -131,6 +133,7 @@ function toSavedArticle(
 		savedAt: new Date(userArticle.savedAt),
 		readAt: toOptionalDate(userArticle.readAt),
 		provenance: userArticle.provenance,
+		relatedDismissedAt: toOptionalDate(userArticle.relatedDismissedAt),
 	};
 }
 
@@ -156,6 +159,7 @@ export function initDynamoDbSavedArticleStore(deps: {
 	findArticleCrawlVersions: FindArticleCrawlVersions;
 	markArticleViewed: MarkArticleViewed;
 	markSummaryToggled: MarkSummaryToggled;
+	markRelatedDismissed: MarkRelatedDismissed;
 	findUserArticlesByUrl: FindUserArticlesByUrl;
 	markReaderReadyEmailSent: MarkReaderReadyEmailSent;
 	findUserArticleNotificationState: FindUserArticleNotificationState;
@@ -583,6 +587,15 @@ export function initDynamoDbSavedArticleStore(deps: {
 		await stampUserArticleIfStillSaved({ userId, url, at, updateExpression: `SET ${attribute} = :at` });
 	};
 
+	const markRelatedDismissed: MarkRelatedDismissed = async ({ userId, url, at }) => {
+		await stampUserArticleIfStillSaved({
+			userId,
+			url,
+			at,
+			updateExpression: "SET relatedDismissedAt = :at",
+		});
+	};
+
 	const findUserArticlesByUrl: FindUserArticlesByUrl = async (url) => {
 		const articleResourceUniqueId = ArticleResourceUniqueId.parse(url);
 		const rows: z.infer<typeof UserArticleRow>[] = [];
@@ -712,6 +725,7 @@ export function initDynamoDbSavedArticleStore(deps: {
 		findArticleCrawlVersions,
 		markArticleViewed,
 		markSummaryToggled,
+		markRelatedDismissed,
 		findUserArticlesByUrl,
 		markReaderReadyEmailSent,
 		findUserArticleNotificationState,

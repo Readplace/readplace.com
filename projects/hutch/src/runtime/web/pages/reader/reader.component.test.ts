@@ -44,10 +44,11 @@ const TEST_BACK_LINK = {
 };
 const NOW = new Date("2026-08-05T12:00:00.000Z");
 const CSP_NONCE = generateCspNonce();
+const TEST_CURRENT_PATH = "/queue/abc/view";
 
 describe("ReaderPage", () => {
 	it("renders the share balloon wrap so client init can attach to it", () => {
-		const html = Base(ReaderPage(makeArticle(), { appOrigin: DEFAULT_APP_ORIGIN, backLink: TEST_BACK_LINK, renderActions: StickyReader, now: NOW }), {
+		const html = Base(ReaderPage(makeArticle(), { appOrigin: DEFAULT_APP_ORIGIN, backLink: TEST_BACK_LINK, renderActions: StickyReader, now: NOW, currentPath: TEST_CURRENT_PATH }), {
 			isAuthenticated: true,
 			emailVerified: undefined,
 			cspNonce: CSP_NONCE,
@@ -64,7 +65,7 @@ describe("ReaderPage", () => {
 			displayUrl: "https://example.com/post",
 		});
 		const html = Base(
-			ReaderPage(article, { appOrigin: DEFAULT_APP_ORIGIN, backLink: TEST_BACK_LINK, renderActions: StickyReader, now: NOW }),
+			ReaderPage(article, { appOrigin: DEFAULT_APP_ORIGIN, backLink: TEST_BACK_LINK, renderActions: StickyReader, now: NOW, currentPath: TEST_CURRENT_PATH }),
 			{ isAuthenticated: true, emailVerified: undefined, cspNonce: CSP_NONCE },
 		).to("text/html").body;
 		const doc = new JSDOM(html).window.document;
@@ -76,7 +77,7 @@ describe("ReaderPage", () => {
 
 	it("points the sticky back link at the supplied backLink href and renders no bottom bar", () => {
 		const html = Base(
-			ReaderPage(makeArticle(), { appOrigin: DEFAULT_APP_ORIGIN, backLink: TEST_BACK_LINK, renderActions: StickyReader, now: NOW }),
+			ReaderPage(makeArticle(), { appOrigin: DEFAULT_APP_ORIGIN, backLink: TEST_BACK_LINK, renderActions: StickyReader, now: NOW, currentPath: TEST_CURRENT_PATH }),
 			{ isAuthenticated: true, emailVerified: undefined, cspNonce: CSP_NONCE },
 		).to("text/html").body;
 		const doc = new JSDOM(html).window.document;
@@ -102,6 +103,7 @@ describe("ReaderPage", () => {
 				backLink: TEST_BACK_LINK,
 				renderActions: StickyReader,
 				now: NOW,
+				currentPath: TEST_CURRENT_PATH,
 			}),
 			{ isAuthenticated: true, emailVerified: undefined, cspNonce: CSP_NONCE },
 		).to("text/html").body;
@@ -121,6 +123,7 @@ describe("ReaderPage", () => {
 				backLink: TEST_BACK_LINK,
 				renderActions: StickyReader,
 				now: NOW,
+				currentPath: TEST_CURRENT_PATH,
 			}),
 			{ isAuthenticated: true, emailVerified: undefined, cspNonce: CSP_NONCE },
 		).to("text/html").body;
@@ -138,7 +141,7 @@ describe("ReaderPage", () => {
 		const article = makeArticle({
 			userId: UserIdSchema.parse("abcdef0123456789abcdef0123456789"),
 		});
-		const html = Base(ReaderPage(article, { appOrigin: DEFAULT_APP_ORIGIN, backLink: TEST_BACK_LINK, renderActions: StickyReader, now: NOW }), {
+		const html = Base(ReaderPage(article, { appOrigin: DEFAULT_APP_ORIGIN, backLink: TEST_BACK_LINK, renderActions: StickyReader, now: NOW, currentPath: TEST_CURRENT_PATH }), {
 			isAuthenticated: true,
 			emailVerified: undefined,
 			cspNonce: CSP_NONCE,
@@ -166,7 +169,7 @@ describe("ReaderPage", () => {
 				'<a href="https://readplace.com/queue" target="_blank">my queue</a>' +
 				'<a href="https://example.com/other" target="_blank">elsewhere</a>',
 		});
-		const html = Base(ReaderPage(article, { appOrigin: "https://readplace.com", backLink: TEST_BACK_LINK, renderActions: StickyReader, now: NOW }), {
+		const html = Base(ReaderPage(article, { appOrigin: "https://readplace.com", backLink: TEST_BACK_LINK, renderActions: StickyReader, now: NOW, currentPath: TEST_CURRENT_PATH }), {
 			isAuthenticated: true,
 			emailVerified: undefined,
 			cspNonce: CSP_NONCE,
@@ -204,6 +207,7 @@ describe("ReaderPage", () => {
 				backLink: TEST_BACK_LINK,
 				renderActions: StickyReader,
 				now: NOW,
+				currentPath: TEST_CURRENT_PATH,
 				exitMarkReadConfirm: true,
 			}),
 			{ isAuthenticated: true, emailVerified: undefined, cspNonce: CSP_NONCE },
@@ -223,6 +227,7 @@ describe("ReaderPage", () => {
 				backLink: TEST_BACK_LINK,
 				renderActions: StickyReader,
 				now: NOW,
+				currentPath: TEST_CURRENT_PATH,
 				exitMarkReadConfirm: true,
 			}),
 			{ isAuthenticated: true, emailVerified: undefined, cspNonce: CSP_NONCE },
@@ -235,7 +240,7 @@ describe("ReaderPage", () => {
 
 	it("renders the share-balloon URLs against the supplied appOrigin, not a hardcoded host", () => {
 		const html = Base(
-			ReaderPage(makeArticle(), { appOrigin: "https://staging.readplace.com", backLink: TEST_BACK_LINK, renderActions: StickyReader, now: NOW }),
+			ReaderPage(makeArticle(), { appOrigin: "https://staging.readplace.com", backLink: TEST_BACK_LINK, renderActions: StickyReader, now: NOW, currentPath: TEST_CURRENT_PATH }),
 			{ isAuthenticated: true, emailVerified: undefined, cspNonce: CSP_NONCE },
 		).to("text/html").body;
 		const doc = new JSDOM(html).window.document;

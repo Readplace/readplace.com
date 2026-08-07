@@ -26,6 +26,7 @@ import type {
 	FindUserArticlesByUrl,
 	MarkArticleViewed,
 	MarkReaderReadyEmailSent,
+	MarkRelatedDismissed,
 	MarkSummaryToggled,
 	ContentProvider,
 	SaveArticle,
@@ -63,6 +64,7 @@ interface UserArticle {
 	lastSummaryOpenedAt?: Date;
 	lastSummaryClosedAt?: Date;
 	provenance?: SaveProvenance;
+	relatedDismissedAt?: Date;
 }
 
 function toSavedArticle(article: GlobalArticle, userArticle: UserArticle): SavedArticle {
@@ -78,6 +80,7 @@ function toSavedArticle(article: GlobalArticle, userArticle: UserArticle): Saved
 		savedAt: userArticle.savedAt,
 		readAt: userArticle.readAt,
 		provenance: userArticle.provenance,
+		relatedDismissedAt: userArticle.relatedDismissedAt,
 	};
 }
 
@@ -98,6 +101,7 @@ export function initInMemoryArticleStore(): {
 	updateArticleStatus: UpdateArticleStatus;
 	markArticleViewed: MarkArticleViewed;
 	markSummaryToggled: MarkSummaryToggled;
+	markRelatedDismissed: MarkRelatedDismissed;
 	findUserArticlesByUrl: FindUserArticlesByUrl;
 	markReaderReadyEmailSent: MarkReaderReadyEmailSent;
 	findUserArticleNotificationState: FindUserArticleNotificationState;
@@ -333,6 +337,13 @@ export function initInMemoryArticleStore(): {
 		else ua.lastSummaryClosedAt = at;
 	};
 
+	const markRelatedDismissed: MarkRelatedDismissed = async ({ userId, url, at }) => {
+		const articleResourceUniqueId = ArticleResourceUniqueId.parse(url);
+		const ua = userArticles.get(userArticleKey(userId, articleResourceUniqueId.value));
+		if (!ua) return;
+		ua.relatedDismissedAt = at;
+	};
+
 	const findUserArticlesByUrl: FindUserArticlesByUrl = async (url) => {
 		const articleResourceUniqueId = ArticleResourceUniqueId.parse(url);
 		const result: { userId: UserId; viewedAt?: Date }[] = [];
@@ -457,6 +468,7 @@ export function initInMemoryArticleStore(): {
 		updateArticleStatus,
 		markArticleViewed,
 		markSummaryToggled,
+		markRelatedDismissed,
 		findUserArticlesByUrl,
 		markReaderReadyEmailSent,
 		findUserArticleNotificationState,

@@ -36,10 +36,10 @@ const READER = `<main class="reader">
 		<a id="hrefless-link">no href</a>
 		<span id="plain-text">not a link</span>
 	</div>
-	<ul class="related-slot__list" id="related-list">
-		<li><a class="related-slot__link" id="related-link" href="/queue/def/view">related</a></li>
-	</ul>
-	<div class="reader__share-row"><a id="outside-link" href="https://example.com/outside">outside</a></div>
+	<div class="next-read__card" id="related-list">
+		<a class="next-read__link" id="related-link" href="/queue/def/view">related</a>
+	</div>
+	<div class="reader__float-stack"><a id="outside-link" href="https://example.com/outside">outside</a></div>
 </main>`;
 
 interface FetchCall {
@@ -136,7 +136,7 @@ function createHarness(options: { withPanel?: boolean; supportsPopover?: boolean
 		},
 		replaceRelatedList(): void {
 			element("related-list").innerHTML =
-				'<li><a class="related-slot__link" id="polled-link" href="/queue/ghi/view">polled</a></li>';
+				'<a class="next-read__link" id="polled-link" href="/queue/ghi/view">polled</a>';
 		},
 		removePanel(): void {
 			element(PANEL_ID).remove();

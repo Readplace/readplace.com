@@ -133,19 +133,19 @@ describe("Reader related-articles slot", () => {
 		const response = await agent.get(`/queue/${articleId}/view`);
 
 		const slot = relatedSlotOf(response.text);
-		expect(slot.classList.contains("article-body__related-slot--hidden")).toBe(true);
+		expect(slot.classList.contains("next-read--hidden")).toBe(true);
 	});
 
-	it("shows the relations when the reader opts into the feature", async () => {
-		const { agent, articleId, related, followUp, seedRelated } = await buildHarness();
+	it("floats the first unread relation when the reader opts into the feature", async () => {
+		const { agent, articleId, related, seedRelated } = await buildHarness();
 		await seedRelated();
 
 		const response = await agent.get(`/queue/${articleId}/view?feature=similar`);
 
 		const doc = new JSDOM(response.text).window.document;
 		const slot = doc.querySelector("[data-test-reader-related]");
-		assert(slot, "the reader always renders the related slot");
-		expect(slot.classList.contains("article-body__related-slot--visible")).toBe(true);
+		assert(slot, "the reader always renders the next-read slot");
+		expect(slot.classList.contains("next-read--ready")).toBe(true);
 		const link = doc.querySelector(`[data-test-related-item="${related.id.value}"]`);
 		assert(link, "the seeded relation must render a link");
 		const href = link.getAttribute("href");
@@ -158,43 +158,33 @@ describe("Reader related-articles slot", () => {
 			utm_content: "related",
 			utm_term: articleId,
 		});
-		expect(link.querySelector(".related-slot__title")?.textContent).toBe("Earlier read");
-		expect(link.querySelector(".related-slot__reason")?.textContent).toBe("Same argument");
-		const saved = link.querySelector(".related-slot__saved time");
+		expect(link.querySelector(".next-read__title")?.textContent).toBe("Earlier read");
+		expect(link.querySelector(".next-read__reason")?.textContent).toBe("Same argument");
+		const saved = link.querySelector(".next-read__saved time");
 		assert(saved, "each relation must say when the reader saved it");
 		expect({
 			datetime: saved.getAttribute("datetime"),
 			mode: saved.getAttribute("data-local-time"),
 		}).toEqual({ datetime: related.savedAt.toISOString(), mode: "relative" });
 
-		const states = Array.from(doc.querySelectorAll("[data-test-related-item]")).map(
-			(item) => {
-				const badge = item.querySelector(".related-slot__status");
-				assert(badge, "every relation shows whether the reader has read it");
-				const label = badge.querySelector(".related-slot__status-label");
-				assert(label, "a read state names itself in words, not only by its shape");
-				return {
-					id: item.getAttribute("data-test-related-item"),
-					state: badge.getAttribute("data-test-read-status"),
-					unread: badge.classList.contains("related-slot__status--unread"),
-					label: label.textContent,
-				};
-			},
-		);
-		expect(states).toEqual([
-			{
-				id: related.id.value,
-				state: "unread",
-				unread: true,
-				label: "Unread",
-			},
-			{
-				id: followUp.id.value,
-				state: "unread",
-				unread: true,
-				label: "Unread",
-			},
-		]);
+		const badge = link.querySelector(".next-read__status");
+		assert(badge, "the suggestion shows whether the reader has read it");
+		const label = badge.querySelector(".next-read__status-label");
+		assert(label, "a read state names itself in words, not only by its shape");
+		expect({
+			state: badge.getAttribute("data-test-read-status"),
+			unread: badge.classList.contains("next-read__status--unread"),
+			label: label.textContent,
+		}).toEqual({ state: "unread", unread: true, label: "Unread" });
+	});
+
+	it("suggests only one article, so the reader is offered a single next read", async () => {
+		const { agent, articleId, related, seedRelated } = await buildHarness();
+		await seedRelated();
+
+		const response = await agent.get(`/queue/${articleId}/view?feature=similar`);
+
+		expect(relatedIdsOf(response.text)).toEqual([related.id.value]);
 	});
 
 	it("drops a relation the reader marks read, and brings it back when they mark it unread", async () => {
@@ -214,10 +204,10 @@ describe("Reader related-articles slot", () => {
 		const afterUnread = await agent.get(`/queue/${articleId}/view?feature=similar`);
 
 		expect(relatedIdsOf(afterRead.text)).toEqual([followUp.id.value]);
-		expect(relatedIdsOf(afterUnread.text)).toEqual([related.id.value, followUp.id.value]);
+		expect(relatedIdsOf(afterUnread.text)).toEqual([related.id.value]);
 	});
 
-	it("hides the slot once the reader has read every relation", async () => {
+	it("hides the card once the reader has read every relation", async () => {
 		const { agent, articleId, related, followUp, seedRelated } = await buildHarness();
 		await seedRelated();
 
@@ -228,7 +218,7 @@ describe("Reader related-articles slot", () => {
 
 		const slot = relatedSlotOf(response.text);
 		expect(slot.getAttribute("data-related-status")).toBe("ready");
-		expect(slot.classList.contains("article-body__related-slot--hidden")).toBe(true);
+		expect(slot.classList.contains("next-read--hidden")).toBe(true);
 		expect(relatedIdsOf(response.text)).toEqual([]);
 	});
 
@@ -249,7 +239,7 @@ describe("Reader related-articles slot", () => {
 
 		const slot = relatedSlotOf(response.text);
 		expect(slot.getAttribute("data-related-status")).toBe("pending");
-		expect(slot.classList.contains("article-body__related-slot--hidden")).toBe(true);
+		expect(slot.classList.contains("next-read--hidden")).toBe(true);
 	});
 
 	it("never renders another reader's relations on the public view", async () => {
@@ -260,8 +250,12 @@ describe("Reader related-articles slot", () => {
 			`${viewPathFor(ARTICLE_URL)}?feature=similar`,
 		);
 
-		const slot = relatedSlotOf(response.text);
-		expect(slot.classList.contains("article-body__related-slot--hidden")).toBe(true);
+		const doc = new JSDOM(response.text).window.document;
+		assert(
+			doc.querySelector("[data-article-body]"),
+			"the public view still renders the article it was asked for",
+		);
+		expect(relatedIdsOf(response.text)).toEqual([]);
 	});
 
 	it("ticks the slot while the computation is still running", async () => {
@@ -334,7 +328,7 @@ describe("Reader related-articles slot", () => {
 
 		expect(response.status).toBe(200);
 		const slot = relatedSlotOf(response.text);
-		expect(slot.classList.contains("article-body__related-slot--hidden")).toBe(true);
+		expect(slot.classList.contains("next-read--hidden")).toBe(true);
 	});
 });
 
@@ -373,7 +367,7 @@ describe("GET /queue/:id/related", () => {
 		expect(response.status).toBe(200);
 		const slot = relatedSlotOf(response.text);
 		expect(slot.getAttribute("data-related-status")).toBe("pending");
-		expect(slot.classList.contains("article-body__related-slot--hidden")).toBe(true);
+		expect(slot.classList.contains("next-read--hidden")).toBe(true);
 		expect(slot.getAttribute("hx-get")).toBe(
 			`/queue/${articleId}/related?feature=similar&poll=2`,
 		);
@@ -389,14 +383,14 @@ describe("GET /queue/:id/related", () => {
 		const doc = new JSDOM(response.text).window.document;
 		const slot = relatedSlotOf(response.text);
 		expect(slot.getAttribute("data-related-status")).toBe("ready");
-		expect(slot.classList.contains("article-body__related-slot--visible")).toBe(true);
+		expect(slot.classList.contains("next-read--ready")).toBe(true);
 		expect(slot.hasAttribute("hx-get")).toBe(false);
 		const link = doc.querySelector(`[data-test-related-item="${related.id.value}"]`);
 		assert(link, "a ready poll response must render the relation link");
 		expect(link.getAttribute("href")).toBe(
 			`/queue/${related.id.value}/view?utm_source=reader&utm_medium=internal&utm_content=related&utm_term=${articleId}`,
 		);
-		const saved = link.querySelector(".related-slot__saved time");
+		const saved = link.querySelector(".next-read__saved time");
 		assert(saved, "a ready poll response must carry the saved time too");
 		expect({
 			datetime: saved.getAttribute("datetime"),
@@ -415,5 +409,126 @@ describe("GET /queue/:id/related", () => {
 		const slot = relatedSlotOf(response.text);
 		expect(slot.getAttribute("data-related-status")).toBe("pending");
 		expect(slot.hasAttribute("hx-get")).toBe(false);
+	});
+});
+
+describe("POST /queue/:id/related-dismiss", () => {
+	function dismissUrlOf(html: string): string {
+		const form = new JSDOM(html).window.document.querySelector(
+			".next-read__dismiss-form",
+		);
+		assert(form, "a floated suggestion must offer a way to dismiss it");
+		const action = form.getAttribute("action");
+		assert(action, "the dismiss form must post somewhere");
+		return action;
+	}
+
+	it("counts the dismissal as a reader click, so it reaches the analytics dashboards", async () => {
+		const { agent, articleId, seedRelated } = await buildHarness();
+		await seedRelated();
+
+		const response = await agent.get(`/queue/${articleId}/view?feature=similar`);
+
+		const [path, query] = dismissUrlOf(response.text).split("?");
+		expect(path).toBe(`/queue/${articleId}/related-dismiss`);
+		expect(Object.fromEntries(new URLSearchParams(query))).toEqual({
+			utm_source: "reader",
+			utm_medium: "internal",
+			utm_content: "next-read-dismiss",
+			utm_term: articleId,
+		});
+	});
+
+	it("keeps the suggestion gone for that article once dismissed", async () => {
+		const { agent, articleId, seedRelated } = await buildHarness();
+		await seedRelated();
+		const opened = await agent.get(`/queue/${articleId}/view?feature=similar`);
+
+		const dismissal = await agent
+			.post(dismissUrlOf(opened.text))
+			.type("form")
+			.send({ returnTo: `/queue/${articleId}/view?feature=similar` });
+		const reopened = await agent.get(`/queue/${articleId}/view?feature=similar`);
+
+		expect(dismissal.status).toBe(303);
+		expect(dismissal.headers.location).toBe(`/queue/${articleId}/view?feature=similar`);
+		const slot = relatedSlotOf(reopened.text);
+		expect(slot.classList.contains("next-read--hidden")).toBe(true);
+		expect(relatedIdsOf(reopened.text)).toEqual([]);
+	});
+
+	it("leaves other articles free to suggest their own next read", async () => {
+		const { agent, articleId, related, followUp, fixture, seedRelated } = await buildHarness();
+		await seedRelated();
+		await fixture.relatedArticles.markRelatedArticlesReady({
+			userId: related.userId,
+			url: RELATED_URL,
+			relatedArticles: [{ url: FOLLOW_UP_URL, reason: "Same thread" }],
+			inputTokens: 0,
+			outputTokens: 0,
+			at: COMPUTED_AT,
+		});
+
+		await agent
+			.post(`/queue/${articleId}/related-dismiss`)
+			.type("form")
+			.send({ returnTo: `/queue/${articleId}/view?feature=similar` });
+		const otherArticle = await agent.get(`/queue/${related.id.value}/view?feature=similar`);
+
+		expect(relatedIdsOf(otherArticle.text)).toEqual([followUp.id.value]);
+	});
+
+	it("stops the poll chain for an article dismissed while a tick was in flight", async () => {
+		const { agent, articleId, seedRelated } = await buildHarness();
+		await seedRelated();
+		await agent
+			.post(`/queue/${articleId}/related-dismiss`)
+			.type("form")
+			.send({ returnTo: `/queue/${articleId}/view?feature=similar` });
+
+		const response = await agent.get(`/queue/${articleId}/related?feature=similar&poll=1`);
+
+		expect(response.status).toBe(200);
+		const slot = relatedSlotOf(response.text);
+		expect(slot.classList.contains("next-read--hidden")).toBe(true);
+		expect(slot.hasAttribute("hx-get")).toBe(false);
+	});
+
+	it("sends the reader home rather than off-site when the return path is not ours", async () => {
+		const { agent, articleId, seedRelated } = await buildHarness();
+		await seedRelated();
+
+		const response = await agent
+			.post(`/queue/${articleId}/related-dismiss`)
+			.type("form")
+			.send({ returnTo: "https://evil.example/queue" });
+
+		expect(response.status).toBe(303);
+		expect(response.headers.location).toBe("/");
+	});
+
+	it("never dead-ends on an id that is not an article id at all", async () => {
+		const { agent } = await buildHarness();
+
+		const response = await agent
+			.post("/queue/not-an-article-id/related-dismiss")
+			.type("form")
+			.send({ returnTo: "/queue" });
+
+		expect(response.status).toBe(303);
+		expect(response.headers.location).toBe("/queue");
+	});
+
+	it("does not dismiss on behalf of a reader who never saved the article", async () => {
+		const { agent, seedRelated } = await buildHarness();
+		await seedRelated();
+
+		const response = await agent
+			.post(`/queue/${UNSAVED_ID.value}/related-dismiss`)
+			.type("form")
+			.send({ returnTo: "/queue" });
+
+		expect(response.status).toBe(303);
+		expect(response.headers.location).toBe("/queue");
 	});
 });

@@ -16,7 +16,7 @@ const PANEL_ID = "reader-exit-confirm";
 const FORM_SELECTOR = ".reader-confirm__form";
 const NO_SELECTOR = ".reader-confirm__cta--no";
 const BOUND_FLAG = "data-reader-exit-confirm-bound";
-const EXIT_SCOPES = [".article-body__content", ".related-slot__list"];
+const EXIT_SCOPES = [".article-body__content", ".next-read__card"];
 const SAME_TAB_TARGETS = ["", "_self", "_top"];
 const FOLLOWED_PROTOCOLS = ["http:", "https:"];
 

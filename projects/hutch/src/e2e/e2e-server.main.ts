@@ -315,6 +315,34 @@ server.post('/e2e/seed-crawled-article', async (req, res) => {
 	res.status(201).json({ ok: true, articleId: saved?.id.value })
 })
 
+const SeedRelatedArticlesBody = z.object({
+	userId: UserIdSchema,
+	sourceUrl: z.string(),
+	related: z.array(z.object({ url: z.string(), reason: z.string() })).min(1),
+	computedAt: z.string(),
+})
+server.post('/e2e/seed-related-articles', async (req, res) => {
+	const parsed = SeedRelatedArticlesBody.safeParse(req.body)
+	if (!parsed.success) {
+		res.status(400).json({ error: parsed.error.flatten() })
+		return
+	}
+	const { userId, sourceUrl, related, computedAt } = parsed.data
+	const outcome = await fixture.relatedArticles.markRelatedArticlesReady({
+		userId,
+		url: sourceUrl,
+		relatedArticles: related,
+		inputTokens: 0,
+		outputTokens: 0,
+		at: new Date(computedAt),
+	})
+	if (outcome === 'superseded') {
+		res.status(409).json({ error: 'relations already settled for this article' })
+		return
+	}
+	res.status(201).json({ ok: true })
+})
+
 // Simulated Stripe Checkout: marks the session as paid and redirects to the
 // success URL (replacing {CHECKOUT_SESSION_ID} the same way real Stripe does).
 server.get('/e2e/stripe-checkout/:id', (req, res) => {

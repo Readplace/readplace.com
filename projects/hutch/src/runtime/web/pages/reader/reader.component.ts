@@ -18,6 +18,10 @@ import { CRAWL_BOOKMARK_SCRIPT, type CrawlBookmarkRemoval } from "../../shared/a
 import type { ProgressTick } from "@packages/domain/article";
 import type { LocalTime } from "@packages/web-shell/local-time.format";
 import {
+	NEXT_READ_SCRIPT,
+	renderNextRead,
+} from "../../shared/next-read/next-read.component";
+import {
 	SHARE_BALLOON_SCRIPT,
 	renderShareBalloon,
 } from "../../shared/share-balloon/share-balloon.component";
@@ -86,6 +90,7 @@ export function ReaderPage(
 		audioEnabled?: boolean;
 		related?: RelatedArticles;
 		relatedPollUrl?: string;
+		currentPath: string;
 		now: Date;
 		extensionInstallUrl?: string;
 		backLink: { topHref: string; label: string };
@@ -128,10 +133,6 @@ export function ReaderPage(
 		summaryPollUrl: options.summaryPollUrl,
 		summaryOpen: false,
 		summaryToggleUrl: `/queue/${articleId}/summary-toggle`,
-		related: options.related
-			? { articles: options.related, sourceArticleId: articleId, now: options.now }
-			: undefined,
-		relatedPollUrl: options.relatedPollUrl,
 		progress: options.progress,
 		audioEnabled: options.audioEnabled,
 		appOrigin: options.appOrigin,
@@ -148,6 +149,13 @@ export function ReaderPage(
 		shareSource: "reader-internal",
 		sharerUserIdPrefix: shareUserIdPrefix(article.userId),
 	});
+	const nextRead = renderNextRead({
+		related: options.related
+			? { articles: options.related, sourceArticleId: articleId, now: options.now }
+			: undefined,
+		pollUrl: options.relatedPollUrl,
+		returnTo: options.currentPath,
+	});
 	const exitMarkReadConfirm = options.exitMarkReadConfirm === true;
 	const exitConfirms = buildExitConfirms({
 		enabled: exitMarkReadConfirm,
@@ -155,7 +163,12 @@ export function ReaderPage(
 		articleId,
 		title: article.metadata.title,
 	});
-	const content = render(READER_TEMPLATE, { innerContent, shareBalloon, exitConfirms });
+	const content = render(READER_TEMPLATE, {
+		innerContent,
+		shareBalloon,
+		nextRead,
+		exitConfirms,
+	});
 
 	return {
 		seo: {
@@ -171,6 +184,7 @@ export function ReaderPage(
 			navHide: NAV_HIDE_SCRIPT,
 			page:
 				SHARE_BALLOON_SCRIPT +
+				NEXT_READ_SCRIPT +
 				PROGRESS_BAR_SCRIPT +
 				SUMMARY_TOGGLE_SCRIPT +
 				CRAWL_BOOKMARK_SCRIPT +
