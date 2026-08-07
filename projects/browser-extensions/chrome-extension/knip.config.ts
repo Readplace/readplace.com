@@ -15,7 +15,6 @@ export default {
 	],
 	ignoreDependencies: [
 		// Used by Pulumi infra (compiled separately)
-		"@pulumi/aws",
 		"@pulumi/pulumi",
 		// Workspace dependency — knip can't trace through esbuild-bundled entry points
 		"@packages/onboarding-extension-signal",

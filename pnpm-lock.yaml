@@ -245,9 +245,6 @@ importers:
       '@packages/web-shell':
         specifier: workspace:*
         version: link:../../../src/packages/web-shell
-      '@pulumi/aws':
-        specifier: 7.32.0
-        version: 7.32.0(ts-node@10.9.2(@types/node@22.19.19)(typescript@6.0.3))(typescript@6.0.3)
       '@pulumi/pulumi':
         specifier: 3.244.0
         version: 3.244.0(ts-node@10.9.2(@types/node@22.19.19)(typescript@6.0.3))(typescript@6.0.3)
