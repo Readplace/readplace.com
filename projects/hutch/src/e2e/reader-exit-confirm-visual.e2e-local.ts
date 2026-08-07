@@ -3,6 +3,7 @@ import type { Page } from "@playwright/test";
 import { z } from "zod";
 import {
 	captureCheckpoint,
+	expect,
 	measuredBox,
 	test,
 	type VisualCheckpoint,
@@ -63,7 +64,14 @@ async function openExitConfirm(page: Page, stamp: string): Promise<void> {
 	const { articleId } = SeededArticle.parse(await response.json());
 	await loginAs(page, email);
 	await page.goto(`${BASE_URL}/queue/${articleId}/view`, { waitUntil: "domcontentloaded" });
-	await page.locator(SAME_TAB_EXIT_LINK).click();
+	await clickExitLinkUntilThePanelOpens(page);
+}
+
+async function clickExitLinkUntilThePanelOpens(page: Page): Promise<void> {
+	await expect(async () => {
+		await page.locator(SAME_TAB_EXIT_LINK).click();
+		await expect(page.locator(PANEL)).toBeVisible({ timeout: 1500 });
+	}).toPass({ timeout: 30000 });
 }
 
 async function panelOpen(page: Page): Promise<void> {
@@ -121,15 +129,19 @@ const EXIT_CONFIRM_DARK: VisualCheckpoint = {
 test.describe("Reader exit confirmation panel", () => {
 	test.use({ timezoneId: "UTC", viewport: { width: 1280, height: 900 } });
 
-	test("names the exit and asks the mark-read question under it (light)", async ({ page }) => {
+	test("names the exit and asks the mark-read question under it (light)", async ({
+		page,
+	}, testInfo) => {
 		await page.emulateMedia({ colorScheme: "light" });
-		await openExitConfirm(page, `light-${Date.now()}`);
+		await openExitConfirm(page, `light-${testInfo.workerIndex}-${Date.now()}`);
 		await captureCheckpoint(page, EXIT_CONFIRM_LIGHT);
 	});
 
-	test("names the exit and asks the mark-read question under it (dark)", async ({ page }) => {
+	test("names the exit and asks the mark-read question under it (dark)", async ({
+		page,
+	}, testInfo) => {
 		await page.emulateMedia({ colorScheme: "dark" });
-		await openExitConfirm(page, `dark-${Date.now()}`);
+		await openExitConfirm(page, `dark-${testInfo.workerIndex}-${Date.now()}`);
 		await captureCheckpoint(page, EXIT_CONFIRM_DARK);
 	});
 });
