@@ -231,8 +231,8 @@ describe("initComputeRelatedArticlesHandler", () => {
 		]);
 	});
 
-	it("skips while the reader has fewer than a hundred earlier saves to compare against", async () => {
-		const { handler, skipped, published } = createHandler({ candidates: candidates(99) });
+	it("skips while the reader has fewer than fifty earlier saves to compare against", async () => {
+		const { handler, skipped, published } = createHandler({ candidates: candidates(49) });
 
 		await handler(commandEvent, buildLambdaContext(), () => {});
 
