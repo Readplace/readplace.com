@@ -142,7 +142,7 @@ describe("Reader exit confirmation (GET /queue/:id/view)", () => {
 
 		const no = doc.querySelector('[data-test-action="exit-confirm-no"]');
 		assert(no, "the decline control must be rendered");
-		expect(no.textContent).toBe("No, Just Open Next Reading");
+		expect(no.textContent).toBe("No, Continue and Keep Unread");
 		// type=button, not submit: declining must never post the mark-read form
 		// it shares a <form> with.
 		expect(no.getAttribute("type")).toBe("button");
