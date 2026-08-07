@@ -182,7 +182,7 @@ export function HomeVariantBPage(params: {
 
 	return {
 		seo: {
-			title: "Readplace — The #1 Web Reader | Read-It-Later App",
+			title: "Readplace — The #1 Personal Reading List | Read It Later",
 			description:
 				"Readplace is a read-it-later app: save any article, newsletter, or PDF in one click and read it later in a clean reader view with an AI TL;DR. 14-day free trial, no credit card.",
 			canonicalUrl: "https://readplace.com",

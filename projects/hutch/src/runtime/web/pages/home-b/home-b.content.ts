@@ -9,6 +9,8 @@
  * on top, never a substitute for it.
  */
 
+import { CANONICAL_SLOGAN } from "../../slogans";
+
 const SIGNUP_CTA_LABEL = "Start your 14-day free trial";
 
 /** The risk-reversal line under every CTA, in the approved blog-CTA style. */
@@ -100,8 +102,7 @@ export const HOME_B_CONTENT = {
 		title: "Fourteen days of your own reading answers this better than this page can.",
 		importLink: { label: "Import your links", href: "/import", content: "close-import" },
 		note: "No credit card required. Nothing is charged if you don't subscribe; the account goes read-only.",
-		signoff:
-			"Built in Australia by one person, one feature at a time. The #1 Web Reader.",
+		signoff: `Built in Australia by one person, one feature at a time. ${CANONICAL_SLOGAN}`,
 	},
 	faq: [
 		{

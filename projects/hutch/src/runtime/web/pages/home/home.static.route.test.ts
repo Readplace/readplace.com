@@ -3,6 +3,7 @@ import { createHash } from "node:crypto";
 import { JSDOM } from "jsdom";
 import request from "supertest";
 import { useTestServer, loginAgent } from "../../../test-app";
+import { CANONICAL_SLOGAN, SLOGANS } from "../../slogans";
 import {
 	TEST_APP_ORIGIN,
 	createDefaultTestAppFixture,
@@ -249,6 +250,31 @@ describe("GET /llms.txt", () => {
 		const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
 		const response = await request(harness.server).get("/llms.txt");
 		expect(response.text).toContain("Accept: text/markdown");
+	});
+});
+
+describe("GET /slogans", () => {
+	it("serves the slogan list so a client can change one without shipping a build", async () => {
+		const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
+		const response = await request(harness.server).get("/slogans");
+
+		expect(response.status).toBe(200);
+		expect(response.headers["content-type"]).toMatch(/application\/json/);
+		expect(response.body).toEqual({ slogans: [...SLOGANS] });
+	});
+
+	it("leads with the canonical slogan, which is what a failed fetch falls back to", async () => {
+		const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
+		const response = await request(harness.server).get("/slogans");
+
+		expect(response.body.slogans[0]).toBe(CANONICAL_SLOGAN);
+	});
+
+	it("needs no session, because the iOS login screen reads it before signing in", async () => {
+		const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
+		const response = await request(harness.server).get("/slogans");
+
+		expect(response.status).toBe(200);
 	});
 });
 

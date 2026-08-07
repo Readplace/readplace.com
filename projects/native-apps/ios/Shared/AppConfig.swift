@@ -70,6 +70,17 @@ enum AppConfig {
 	/// advertising it as a Siren link.
 	static let addLinksHelpPath = "/help/add-links"
 
+	/// Path of the server's slogan list, rendered on the sign-in screen. Held by the
+	/// client rather than discovered, because sign-in is the one screen that runs
+	/// before there is a session to walk the Siren entry point with.
+	static let slogansPath = "/slogans"
+
+	/// Shown until the fetched list arrives, and kept if it never does. Sign-in is
+	/// the app's first screen and often its first network call, so the slogan cannot
+	/// depend on that call succeeding. It matches the first entry the server
+	/// publishes; the server list is what changes without an App Store release.
+	static let fallbackSlogan = "The #1 Personal Reading List."
+
 	/// Query item the in-app reader appends to the server `read` link so the reader
 	/// renders chromeless — bare of the web shell — with the native reading list as
 	/// its chrome. An explicit client-sent signal, never a user-agent sniff.

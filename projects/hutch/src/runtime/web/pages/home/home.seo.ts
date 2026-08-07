@@ -66,9 +66,9 @@ export function buildHomeSeo(input: {
 		: `Readplace has a 14-day free trial and does not ask for a credit card to start it. After the trial it is ${MONTHLY_EQUIVALENT_DISPLAY}/month ($49/year), including TL;DR summaries. If you don't subscribe, nothing is charged and your account goes read-only — you keep reading every article you saved.`;
 
 	return {
-		title: "Readplace — The #1 Web Reader | Read-It-Later App",
+		title: "Readplace — The #1 Personal Reading List | Read It Later",
 		description:
-			"Paste any article or PDF link — read it clean with a TL;DR summary. Free, no signup. Save from browser, iPhone, or AI chat. A privacy-first Pocket alternative.",
+			"Read what you saved — leverage the power of AI for your reading list to know what's relevant. Paste any article or PDF link. Free, no signup. A privacy-first Pocket alternative.",
 		canonicalUrl: "https://readplace.com",
 		ogType: "website",
 		robots: "index, follow",
@@ -79,7 +79,7 @@ export function buildHomeSeo(input: {
 		twitterImage: `${staticBaseUrl}/twitter-card-1200x600.png`,
 		author: "Fayner Brack",
 		appleItunesApp: APPLE_ITUNES_APP_META,
-		keywords: `read it later, read-it-later app, online reader, online reading app, web reader, no LLM hallucination, real OCR, Tesseract OCR, deterministic PDF extraction, save articles, bookmark manager, reading list, Pocket alternative, Omnivore alternative, browser extension, ${BROWSER_EXTENSION_KEYWORDS}, article reader, distraction free reading, AI summaries, save from ChatGPT, MCP server, iPhone share sheet, share sheet saving, import bookmarks, import Pocket export, newsletter to read later`,
+		keywords: `read it later, read-it-later app, online reader, online reading app, personal reading list, web reader, no LLM hallucination, real OCR, Tesseract OCR, deterministic PDF extraction, save articles, bookmark manager, reading list, Pocket alternative, Omnivore alternative, browser extension, ${BROWSER_EXTENSION_KEYWORDS}, article reader, distraction free reading, AI summaries, save from ChatGPT, MCP server, iPhone share sheet, share sheet saving, import bookmarks, import Pocket export, newsletter to read later`,
 		structuredData: [
 			{
 				"@context": "https://schema.org",
@@ -90,7 +90,7 @@ export function buildHomeSeo(input: {
 				alternateName: ["Readplace Read-It-Later App", "Readplace App"],
 				url: "https://readplace.com",
 				description:
-					"The #1 Web Reader. A privacy-first read-it-later app and Pocket alternative. Save from your browser, your iPhone, an AI assistant over MCP, a pasted link, or a bulk import — then read it later. Real Tesseract OCR for scanned PDFs — no LLM hallucination.",
+					"The #1 Personal Reading List. A privacy-first read-it-later app and Pocket alternative. Save from your browser, your iPhone, an AI assistant over MCP, a pasted link, or a bulk import — then read what you saved, with an AI TL;DR summary on every article to help you choose. Real Tesseract OCR for scanned PDFs — no LLM hallucination.",
 				applicationCategory: "ProductivityApplication",
 				applicationSubCategory: "Read-It-Later",
 				operatingSystem: "Web",
@@ -170,7 +170,7 @@ export function buildHomeSeo(input: {
 					award: "Creator of js-cookie — 22 billion+ annual downloads on jsDelivr CDN",
 				},
 				description:
-					"Readplace is a privacy-first read-it-later app and Pocket alternative. The #1 Web Reader.",
+					"Readplace is a privacy-first read-it-later app and Pocket alternative. The #1 Personal Reading List — read what you saved, with an AI TL;DR summary on every article to help you choose.",
 				foundingDate: "2025",
 				areaServed: "Worldwide",
 				address: {
@@ -188,7 +188,7 @@ export function buildHomeSeo(input: {
 						name: "What is Readplace?",
 						acceptedAnswer: {
 							"@type": "Answer",
-							text: `Readplace is a read-it-later app built from a 10-year personal reading system. Save an article from the ${BROWSER_EXTENSIONS_OR} browser extension, the iPhone share sheet, an AI assistant like ChatGPT or Claude, a bulk import of your old export file, or by pasting the link straight on readplace.com — then read it in a clean reader view with a TL;DR summary.`,
+							text: `Readplace is a read-it-later app built from a 10-year personal reading system. Save an article from the ${BROWSER_EXTENSIONS_OR} browser extension, the iPhone share sheet, an AI assistant like ChatGPT or Claude, a bulk import of your old export file, or by pasting the link straight on readplace.com — then read what you saved in a clean reader view, with an AI TL;DR summary on every article to help you choose what is worth your time.`,
 						},
 					},
 					{
@@ -240,8 +240,8 @@ export function buildHomeSeo(input: {
 				alternateName: "Readplace App",
 				url: "https://readplace.com",
 				description:
-					"The #1 Web Reader. A privacy-first read-it-later app with real Tesseract OCR for PDFs — no LLM hallucination.",
-				slogan: "The #1 Web Reader.",
+					"The #1 Personal Reading List. Read what you saved, with an AI TL;DR summary on every article to help you choose. A privacy-first read-it-later app with real Tesseract OCR for PDFs — no LLM hallucination.",
+				slogan: "The #1 Personal Reading List.",
 			},
 		],
 	};

@@ -63,6 +63,7 @@ describe("contentSignalMiddleware", () => {
 		"/llms-full.txt",
 		"/auth.md",
 		"/sitemap.xml",
+		"/slogans",
 		"/health",
 		"/.well-known/api-catalog",
 		"/.well-known/oauth-authorization-server",

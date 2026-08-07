@@ -213,6 +213,7 @@ import { wantsSiren } from "./web/content-negotiation";
 import { contentSignalMiddleware } from "./web/content-signal.middleware";
 import { buildRobotsTxt } from "./web/robots-txt";
 import { buildSiteWebmanifest } from "./web/site-webmanifest";
+import { SLOGANS } from "./web/slogans";
 import { linkHeaderMiddleware } from "./web/link-header.middleware";
 import { readLastViewUrl } from "./web/last-view";
 import { AGENT_SCOPES_SUPPORTED, buildAgentAuthMetadata, renderAuthMarkdown } from "./web/agent-auth";
@@ -590,6 +591,13 @@ export function createApp(dependencies: AppDependencies): Express {
 
 	app.get("/site.webmanifest", (_req: Request, res: Response) => {
 		res.type("application/manifest+json").send(buildSiteWebmanifest(staticBaseUrl));
+	});
+
+	/** Read by clients that render a slogan but cannot ship a new build to
+	 * change one — the iOS login screen most of all, where the alternative is
+	 * an App Store release. */
+	app.get("/slogans", (_req: Request, res: Response) => {
+		res.json({ slogans: SLOGANS });
 	});
 
 	if (INDEXNOW_KEY) {

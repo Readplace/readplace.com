@@ -136,4 +136,8 @@ final class AppSession: ObservableObject {
 	func makeOAuth() -> OAuthService {
 		OAuthService(baseURL: AppConfig.serverBaseURL, store: store, sessionConfiguration: sessionConfiguration)
 	}
+
+	func makeSloganSource() -> SloganSource {
+		initSloganSource(sessionConfiguration: sessionConfiguration, baseURL: AppConfig.serverBaseURL)
+	}
 }

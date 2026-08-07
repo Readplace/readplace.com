@@ -1,7 +1,7 @@
 {
   "name": "chrome-extension",
   "version": "0.0.0-managed-by-tag",
-  "description": "Readplace — The #1 Web Reader",
+  "description": "Readplace — The #1 Personal Reading List",
   "main": "src/infra/index.ts",
   "private": true,
   "scripts": {

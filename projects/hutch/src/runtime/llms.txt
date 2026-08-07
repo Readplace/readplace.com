@@ -4,7 +4,7 @@
 
 > Markdown of any page is also available via Accept: text/markdown.
 
-Readplace lets you save articles with one click using browser extensions for Firefox and Chrome, from the iPhone app (via the share sheet), or through a connected AI assistant such as ChatGPT, Gemini, or Claude (MCP), read them later in a distraction-free reader view, and get an AI-generated TL;DR summary for every article. User data is hosted in Sydney, Australia under the Australian Privacy Act. No third-party tracking, no ads, no third-party analytics. Source-available on GitHub.
+Readplace lets you save articles with one click using browser extensions for Firefox and Chrome, from the iPhone app (via the share sheet), or through a connected AI assistant such as ChatGPT, Gemini, or Claude (MCP), then read what you saved in a distraction-free reader view. Every article carries an AI-generated TL;DR summary, so you can tell what is worth your time before you commit to it. User data is hosted in Sydney, Australia under the Australian Privacy Act. No third-party tracking, no ads, no third-party analytics. Source-available on GitHub.
 
 ## Pricing
 

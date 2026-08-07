@@ -417,7 +417,7 @@ final class ReadplaceAPI {
 	private func invocationRequest(for action: SirenAction, fields: [String: String]) throws -> URLRequest {
 		let url = try absoluteURL(action.href)
 		let type = action.type ?? "application/x-www-form-urlencoded"
-		if action.method.uppercased() != "GET", mediaTypeEssence(type) == "application/json" {
+		if action.method.uppercased() != "GET", MediaType.matches(type, "application/json") {
 			return jsonRequest(url, method: action.method, contentType: type, body: fields)
 		}
 		return formRequest(url, method: action.method, contentType: type, fields: fields)
@@ -452,15 +452,7 @@ final class ReadplaceAPI {
 	/// Whether a `Content-Type` header is the negotiated Siren media type, ignoring
 	/// any `;charset=…` parameters and surrounding case.
 	private func isSirenMediaType(_ header: String?) -> Bool {
-		mediaTypeEssence(header) == AppConfig.sirenMediaType
-	}
-
-	/// The lowercased media type without parameters — `application/json; charset=utf-8`
-	/// → `application/json` — or nil when the header is absent. One parser keeps the
-	/// Siren-type check and the JSON-body routing comparing the same essence.
-	private func mediaTypeEssence(_ header: String?) -> String? {
-		guard let header else { return nil }
-		return header.split(separator: ";").first.map { $0.trimmingCharacters(in: .whitespaces).lowercased() }
+		MediaType.matches(header, AppConfig.sirenMediaType)
 	}
 
 

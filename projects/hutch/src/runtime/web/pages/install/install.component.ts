@@ -373,7 +373,7 @@ export function InstallPage(params: { firefox: string | null; client: InstallCli
 		seo: {
 			title: "Install Readplace — Browser, iPhone & AI Assistants",
 			description:
-				"The #1 Web Reader. Install the Readplace browser extension for Firefox or Chrome, get the iPhone app on the App Store, or connect your AI assistant to save and read your reading list.",
+				"The #1 Personal Reading List. Install the Readplace browser extension for Firefox or Chrome, get the iPhone app on the App Store, or connect your AI assistant to save and read your reading list.",
 			canonicalUrl: "https://readplace.com/install",
 			appleItunesApp: APPLE_ITUNES_APP_META,
 			ogImage: `${params.staticBaseUrl}/screenshots/og-install-1200x630.png`,

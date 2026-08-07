@@ -15,6 +15,9 @@ final class LoginViewTests: XCTestCase {
 		/// What the injected flow answers for every attempt: `nil` models the user
 		/// dismissing the auth sheet, a `.failure` models a rejected callback.
 		var outcome: Result<Void, Error>?
+		/// What the injected slogan source answers; empty models every fetch
+		/// failure, which is the one case the fallback slogan has to cover.
+		var published: [String] = []
 		let mutePreference: IntroMutePreference
 		let intro: LaunchIntroModel
 
@@ -44,6 +47,7 @@ final class LoginViewTests: XCTestCase {
 					return captured.outcome
 				})
 			},
+			slogans: SloganSource(load: { captured.published }),
 			intro: captured.intro
 		)
 	}
@@ -139,6 +143,49 @@ final class LoginViewTests: XCTestCase {
 		makeView(captured).toggleMute()
 
 		XCTAssertFalse(captured.intro.isMuted)
+	}
+
+	func testTheSloganFallsBackToTheCompiledOneWhenNothingIsPublished() async {
+		let captured = Captured()
+		captured.published = []
+
+		let view = makeView(captured)
+		await view.runSlogans()
+
+		XCTAssertEqual(
+			view.currentSlogan, AppConfig.fallbackSlogan,
+			"sign-in is often the first network call, so a failed slogan fetch must still render a slogan"
+		)
+	}
+
+	func testTheScreenRendersWithPublishedSlogans() async {
+		let captured = Captured()
+		captured.published = ["The #1 Personal Reading List.", "Paste a link. Read it clean."]
+
+		let view = makeView(captured)
+		await view.runSlogans()
+
+		XCTAssertGreaterThan(
+			renderedViewCount(view), 1,
+			"the login screen must mount with a fetched slogan list"
+		)
+	}
+
+	func testAFetchedSloganNeverMovesTheBrandMark() throws {
+		let compiled = Captured()
+		let fetched = Captured()
+		fetched.published = [
+			String(repeating: "A much longer slogan than the compiled one ", count: 3)
+		]
+
+		let compiledFrame = try XCTUnwrap(brandMarkFrame(in: mountWindow(makeView(compiled))))
+		let fetchedFrame = try XCTUnwrap(brandMarkFrame(in: mountWindow(makeView(fetched))))
+
+		XCTAssertEqual(
+			fetchedFrame.midX, compiledFrame.midX, accuracy: 0.5,
+			"a server-authored slogan must not reflow the mark the launch intro lands on"
+		)
+		XCTAssertEqual(fetchedFrame.midY, compiledFrame.midY, accuracy: 0.5)
 	}
 
 	func testTheReplayHitTargetSitsOnTheAmberDot() {

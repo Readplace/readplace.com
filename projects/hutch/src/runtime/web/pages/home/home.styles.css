@@ -345,6 +345,20 @@ hr::before {
   }
 }
 
+/* Only the rotating heading reserves two lines. Slogans differ in length, so
+without a reserved box a swap to a wrapping slogan reflows everything below it —
+a layout shift Core Web Vitals measures. The class is added by the rotator, so a
+reader with no JavaScript or reduced motion keeps the natural height and never
+sees the reserved gap. */
+.home-try__title--rotating {
+  min-height: 2.5em;
+  transition: opacity 300ms ease;
+}
+
+.home-try__title--fading {
+  opacity: 0;
+}
+
 .home-try__lede {
   font-size: 1.0625rem;
   line-height: 1.6;

@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import { JSDOM } from "jsdom";
-import { initHeadlineRotator, initScrollHint } from "./home.client";
+import { initHeadlineRotator, initScrollHint, initSloganRotator } from "./home.client";
 
 function makeWindow(html: string): JSDOM["window"] {
 	return new JSDOM(`<!doctype html><html><body>${html}</body></html>`).window;
@@ -324,5 +324,137 @@ describe("initScrollHint", () => {
 		raf.flush(1500);
 		assert.equal(raf.pending(), 0);
 		assert.equal(scrolledTo.length, 2);
+	});
+});
+
+const SLOGANS_HTML = (json: string, text = "The #1 Personal Reading List.") =>
+	`<h1 class="home-try__title" data-slogans='${json}'>${text}</h1>`;
+
+const TWO_SLOGANS = JSON.stringify(["The #1 Personal Reading List.", "Paste a link. Read it clean."]);
+
+function mountSloganRotator(
+	html: string,
+	options?: { prefersReducedMotion?: boolean; isHidden?: () => boolean },
+) {
+	const doc = makeWindow(html).document;
+	const timers = createFakeTimers();
+	let visibilityListener: (() => void) | undefined;
+	initSloganRotator({
+		document: doc,
+		prefersReducedMotion: () => options?.prefersReducedMotion ?? false,
+		setTimeoutFn: timers.setTimeoutFn,
+		clearTimeoutFn: timers.clearTimeoutFn,
+		addVisibilityListener: (cb) => {
+			visibilityListener = cb;
+		},
+		isHidden: options?.isHidden ?? (() => false),
+	});
+	const heading = doc.querySelector("h1");
+	return { doc, timers, heading, fireVisibility: () => visibilityListener?.() };
+}
+
+describe("initSloganRotator", () => {
+	it("is a no-op when the page carries no slogan list", () => {
+		const { timers } = mountSloganRotator(`<h1>The #1 Personal Reading List.</h1>`);
+		assert.equal(timers.pendingCount(), 0);
+	});
+
+	it("leaves the server-rendered slogan alone when the attribute is malformed", () => {
+		const { timers, heading } = mountSloganRotator(SLOGANS_HTML("not json"));
+		assert.equal(timers.pendingCount(), 0);
+		assert.equal(heading?.textContent, "The #1 Personal Reading List.");
+	});
+
+	it("leaves the heading alone when the list is not an array", () => {
+		const { timers } = mountSloganRotator(SLOGANS_HTML(JSON.stringify({ a: 1 })));
+		assert.equal(timers.pendingCount(), 0);
+	});
+
+	it("does not rotate a single slogan, which would swap it for itself", () => {
+		const { timers } = mountSloganRotator(SLOGANS_HTML(JSON.stringify(["Only one."])));
+		assert.equal(timers.pendingCount(), 0);
+	});
+
+	it("drops non-string and empty entries before deciding there is nothing to rotate", () => {
+		const { timers } = mountSloganRotator(
+			SLOGANS_HTML(JSON.stringify(["The #1 Personal Reading List.", "", 7])),
+		);
+		assert.equal(timers.pendingCount(), 0);
+	});
+
+	it("settles on the server-rendered slogan when the reader asked for reduced motion", () => {
+		const { timers, heading } = mountSloganRotator(SLOGANS_HTML(TWO_SLOGANS), {
+			prefersReducedMotion: true,
+		});
+		assert.equal(timers.pendingCount(), 0);
+		assert.equal(heading?.textContent, "The #1 Personal Reading List.");
+		assert.equal(heading?.classList.contains("home-try__title--rotating"), false);
+	});
+
+	it("fades out, swaps to the next slogan, then schedules the following swap", () => {
+		const { timers, heading } = mountSloganRotator(SLOGANS_HTML(TWO_SLOGANS));
+		assert(heading);
+		assert.equal(heading.classList.contains("home-try__title--rotating"), true);
+
+		timers.runOnce(); // the rotate interval fires
+		assert.equal(heading.classList.contains("home-try__title--fading"), true);
+		assert.equal(heading.textContent, "The #1 Personal Reading List.");
+
+		timers.runOnce(); // the fade completes
+		assert.equal(heading.textContent, "Paste a link. Read it clean.");
+		assert.equal(heading.classList.contains("home-try__title--fading"), false);
+		assert.equal(timers.pendingCount(), 1);
+	});
+
+	it("wraps back to the first slogan after the last one", () => {
+		const { timers, heading } = mountSloganRotator(SLOGANS_HTML(TWO_SLOGANS));
+		for (let swap = 0; swap < 2; swap++) {
+			timers.runOnce();
+			timers.runOnce();
+		}
+		assert.equal(heading?.textContent, "The #1 Personal Reading List.");
+	});
+
+	it("starts from the slogan the server rendered, not from the top of the list", () => {
+		const { timers, heading } = mountSloganRotator(
+			SLOGANS_HTML(TWO_SLOGANS, "Paste a link. Read it clean."),
+		);
+		timers.runOnce();
+		timers.runOnce();
+		assert.equal(heading?.textContent, "The #1 Personal Reading List.");
+	});
+
+	it("starts from the first slogan when the rendered text is not in the list", () => {
+		const { timers, heading } = mountSloganRotator(SLOGANS_HTML(TWO_SLOGANS, "Something else"));
+		timers.runOnce();
+		timers.runOnce();
+		assert.equal(heading?.textContent, "Paste a link. Read it clean.");
+	});
+
+	it("stops rotating while the tab is hidden and resumes when it comes back", () => {
+		let hidden = false;
+		const { timers, fireVisibility } = mountSloganRotator(SLOGANS_HTML(TWO_SLOGANS), {
+			isHidden: () => hidden,
+		});
+		assert.equal(timers.pendingCount(), 1);
+
+		hidden = true;
+		fireVisibility();
+		assert.equal(timers.pendingCount(), 0);
+
+		hidden = false;
+		fireVisibility();
+		assert.equal(timers.pendingCount(), 1);
+	});
+
+	it("does not double-schedule when the tab returns mid-swap", () => {
+		const { timers, fireVisibility } = mountSloganRotator(SLOGANS_HTML(TWO_SLOGANS), {
+			isHidden: () => false,
+		});
+		timers.runOnce(); // now mid-swap: the fade timer is pending, no interval is
+		assert.equal(timers.pendingCount(), 1);
+
+		fireVisibility();
+		assert.equal(timers.pendingCount(), 1);
 	});
 });

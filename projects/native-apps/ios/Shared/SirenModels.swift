@@ -525,3 +525,20 @@ enum Href {
 		return components.url
 	}
 }
+
+/// Reads a `Content-Type` header. One parser keeps every caller — the Siren-type
+/// check, the JSON-body routing, and the slogan fetch — comparing the same
+/// essence, so a `;charset=…` parameter or odd casing can never make two callers
+/// disagree about what a response is.
+enum MediaType {
+	/// The lowercased media type without parameters — `application/json; charset=utf-8`
+	/// → `application/json` — or nil when the header is absent.
+	static func essence(of header: String?) -> String? {
+		guard let header else { return nil }
+		return header.split(separator: ";").first.map { $0.trimmingCharacters(in: .whitespaces).lowercased() }
+	}
+
+	static func matches(_ header: String?, _ mediaType: String) -> Bool {
+		essence(of: header) == mediaType
+	}
+}

@@ -21,6 +21,7 @@ import {
 	BROWSER_EXTENSIONS_LISTED,
 	contentCaptureTrustLine,
 } from "../../shared/client-enumerations";
+import { CANONICAL_SLOGAN, SLOGANS } from "../../slogans";
 import { renderFoundingProgress } from "../../shared/founding-progress/founding-progress.component";
 import type { FoundingAllocation } from "../../shared/founding-progress/founding-allocation";
 import { buildHomeSeo } from "./home.seo";
@@ -184,6 +185,8 @@ export function HomePage(params: HomePageParams): PageBody {
 		bodyClass: `page-home variant-${variant}`,
 		content: { html: render(HOME_TEMPLATE, {
 			staticBaseUrl,
+			canonicalSlogan: CANONICAL_SLOGAN,
+			slogansJson: JSON.stringify(SLOGANS),
 			installPath: buildExtensionInstallUrl(browser),
 			installLabel: INSTALL_CTA_LABEL[browser],
 			heroTrust: contentCaptureTrustLine(browser),

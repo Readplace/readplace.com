@@ -7,6 +7,7 @@ import {
 	createDefaultTestAppFixture,
 } from "@packages/test-fixtures";
 import { HOMEPAGE_SPLIT } from "../../experiments/homepage-split";
+import { CANONICAL_SLOGAN, SLOGANS } from "../../slogans";
 
 const TEST_FOUNDING_MEMBER_LIMIT = 3;
 const GOOGLEBOT_UA =
@@ -606,27 +607,54 @@ describe("GET /", () => {
 		const doc = new JSDOM(response.text).window.document;
 
 		expect(doc.title).toContain("Readplace");
-		expect(doc.title).toContain("The #1 Web Reader");
-		expect(doc.title).toContain("Read-It-Later App");
+		expect(doc.title).toContain("The #1 Personal Reading List");
+		expect(doc.title).toContain("Read It Later");
+		// The title has to carry the slogan and the query people actually search
+		// within the ~60 characters Google renders before truncating.
+		expect(doc.title.length).toBeLessThanOrEqual(60);
 		const description = doc.querySelector('meta[name="description"]');
-		expect(description?.getAttribute("content")).toContain("TL;DR summary");
+		expect(description?.getAttribute("content")).toContain("Read what you saved");
 		expect(description?.getAttribute("content")).toContain("no signup");
 		expect(description?.getAttribute("content")).toContain("Pocket alternative");
 
 		const keywords = doc.querySelector('meta[name="keywords"]');
-		expect(keywords?.getAttribute("content")).toContain("web reader");
+		expect(keywords?.getAttribute("content")).toContain("personal reading list");
 		expect(keywords?.getAttribute("content")).toContain("no LLM hallucination");
 		expect(keywords?.getAttribute("content")).toContain("real OCR");
 	});
 
-	it("should render the 'The #1 Web Reader.' tagline as the hero heading", async () => {
+	it("should render the 'The #1 Personal Reading List.' tagline as the hero heading", async () => {
 		const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
 		const response = await request(harness.server).get("/");
 		const doc = new JSDOM(response.text).window.document;
 
 		const tagline = doc.querySelector("[data-test-tagline]");
 		assert(tagline, "tagline must be rendered");
-		expect(tagline.textContent?.trim()).toBe("The #1 Web Reader.");
+		expect(tagline.textContent?.trim()).toBe("The #1 Personal Reading List.");
+	});
+
+	it("renders the canonical slogan so a crawler and a no-JavaScript reader see the one the title claims", async () => {
+		const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
+		const response = await request(harness.server).get("/");
+		const doc = new JSDOM(response.text).window.document;
+
+		const tagline = doc.querySelector("[data-test-tagline]");
+		assert(tagline, "tagline must be rendered");
+		expect(tagline.textContent?.trim()).toBe(CANONICAL_SLOGAN);
+	});
+
+	it("carries the whole slogan list on the heading, so the rotator holds no second copy to drift", async () => {
+		const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
+		const response = await request(harness.server).get("/");
+		const doc = new JSDOM(response.text).window.document;
+
+		const tagline = doc.querySelector("[data-test-tagline]");
+		assert(tagline, "tagline must be rendered");
+		const raw = tagline.getAttribute("data-slogans");
+		assert(raw, "the heading must carry the slogan list the rotator reads");
+		// Parsed, not string-compared: the attribute is HTML-escaped in the markup
+		// and only has to survive the browser decoding it back.
+		expect(JSON.parse(raw)).toEqual([...SLOGANS]);
 	});
 
 	it("should render the correctness-over-hallucination emphasis paragraph in the cost transparency section", async () => {
