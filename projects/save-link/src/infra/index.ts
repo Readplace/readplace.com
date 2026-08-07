@@ -1170,7 +1170,6 @@ const generateSummaryLambda = new HutchLambda("generate-summary", {
 		DYNAMODB_ARTICLES_TABLE: articlesTableName,
 		DEEPSEEK_API_KEY: deepseekApiKey,
 		EVENT_BUS_NAME: eventBus.eventBusName,
-		CONTENT_BUCKET_NAME: contentBucketName,
 		GENERATE_SUMMARY_QUEUE_URL: generateSummaryQueue.queueUrl,
 	},
 	policies: [
@@ -1205,7 +1204,6 @@ const linkSavedLambda = new HutchLambda("link-saved", {
 	environment: {
 		DYNAMODB_ARTICLES_TABLE: articlesTableName,
 		GENERATE_SUMMARY_QUEUE_URL: generateSummaryQueue.queueUrl,
-		CONTENT_BUCKET_NAME: contentBucketName,
 	},
 	policies: [
 		...linkSavedDynamodb.policies,
@@ -1239,7 +1237,6 @@ const anonymousLinkSavedLambda = new HutchLambda("anonymous-link-saved", {
 	environment: {
 		DYNAMODB_ARTICLES_TABLE: articlesTableName,
 		GENERATE_SUMMARY_QUEUE_URL: generateSummaryQueue.queueUrl,
-		CONTENT_BUCKET_NAME: contentBucketName,
 	},
 	policies: [
 		...anonymousLinkSavedDynamodb.policies,
@@ -1290,7 +1287,6 @@ const canonicalContentChangedLambda = new HutchLambda("canonical-content-changed
 		DYNAMODB_ARTICLES_TABLE: articlesTableName,
 		EVENT_BUS_NAME: eventBus.eventBusName,
 		GENERATE_SUMMARY_QUEUE_URL: generateSummaryQueue.queueUrl,
-		CONTENT_BUCKET_NAME: contentBucketName,
 	},
 	policies: [
 		...canonicalContentChangedDynamodb.policies,
@@ -1435,7 +1431,6 @@ const recrawlContentExtractedLambda = new HutchLambda("recrawl-content-extracted
 		EVENT_BUS_NAME: eventBus.eventBusName,
 		DEEPSEEK_API_KEY: deepseekApiKey,
 		GENERATE_SUMMARY_QUEUE_URL: generateSummaryQueue.queueUrl,
-		IMAGES_CDN_BASE_URL: contentMediaCdn.baseUrl,
 	},
 	policies: [
 		...recrawlContentExtractedDynamodb.policies,

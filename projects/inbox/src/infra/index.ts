@@ -173,9 +173,6 @@ const webLambda = new HutchLambda("inbox-web", {
 	timeout: 10,
 	environment: {
 		NODE_ENV: nodeEnv,
-		// The inbox is served same-origin under hutch (readplace.com/inbox), so
-		// hutch's origin is the origin the inbox is served on.
-		APP_ORIGIN: hutchApiUrl,
 		STATIC_BASE_URL: staticBaseUrl,
 		INBOX_ADDRESS_DOMAIN: inboxAddressDomain,
 		DYNAMODB_INBOX_ADDRESSES_TABLE: tableNames.inboxAddresses,
