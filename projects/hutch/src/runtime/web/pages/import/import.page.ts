@@ -321,7 +321,14 @@ export function initImportSessionRoutes(deps: ImportRouteDependencies): Router {
 				batch.map((url) =>
 					deps
 						.refreshArticleIfStale({ url })
-						.then((freshness) => initSaveArticleFromUrl(deps)({ userId, url, freshness }))
+						.then((freshness) =>
+						initSaveArticleFromUrl(deps)({
+							userId,
+							url,
+							freshness,
+							provenance: { kind: "import" },
+						}),
+					)
 						.catch((error: unknown) => {
 							deps.logError(
 								`Failed to import url=${url}`,

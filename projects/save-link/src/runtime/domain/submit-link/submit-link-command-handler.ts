@@ -3,6 +3,7 @@ import type { Handler, SQSBatchItemFailure, SQSBatchResponse, SQSEvent } from "a
 import type { UserId } from "@packages/domain/user";
 import { UserIdSchema } from "@packages/domain/user";
 import type { ValidateSaveableUrl } from "@packages/domain/article";
+import { SaveProvenanceSchema } from "@packages/domain/article";
 import type { HutchLogger } from "@packages/hutch-logger";
 import type { PublishEvent } from "@packages/hutch-infra-components/runtime";
 import type { TransitionAndPersist } from "@packages/domain/article-aggregate";
@@ -100,8 +101,9 @@ export function initSubmitLinkCommandHandler(deps: {
 					detail.rawHtml === undefined,
 					`${logPrefix} rawHtml (tier-0) submissions have no handler yet`,
 				);
-				assert(detail.userId, `${logPrefix} anonymous submissions have no handler yet`);
+				assert("userId" in detail, `${logPrefix} anonymous submissions have no handler yet`);
 				const userId = UserIdSchema.parse(detail.userId);
+				const provenance = SaveProvenanceSchema.parse(detail.provenance);
 
 				const validation = deps.validateSaveableUrl(detail.url);
 				assert(
@@ -125,7 +127,7 @@ export function initSubmitLinkCommandHandler(deps: {
 				});
 
 				const freshness = await deps.refreshArticleIfStale({ url: validation.url });
-				await saveArticleFromUrl({ userId, url: validation.url, freshness });
+				await saveArticleFromUrl({ userId, url: validation.url, freshness, provenance });
 
 				for (const link of enrichment) {
 					try {

@@ -90,10 +90,10 @@ describe("submitLink", () => {
 			]);
 		});
 
-		it("passes userId through the effect so the submit-link handler can route the save to the authenticated user's library", () => {
+		it("passes the submitter through the effect so the submit-link handler can route the save to the authenticated user's library and tag where it came from", () => {
 			const { effects } = submitLink(undefined, {
 				url: "https://example.com/post",
-				userId: "user-123",
+				submitter: { userId: "user-123", provenance: { kind: "email", senderEmail: "news@example.com" } },
 				now: NOW,
 			});
 
@@ -101,7 +101,7 @@ describe("submitLink", () => {
 				{
 					kind: "dispatch-submit-link",
 					url: "https://example.com/post",
-					userId: "user-123",
+					submitter: { userId: "user-123", provenance: { kind: "email", senderEmail: "news@example.com" } },
 				},
 			]);
 		});
@@ -109,7 +109,7 @@ describe("submitLink", () => {
 		it("passes rawHtml through the effect so the submit-link handler can write the tier-0 source for extension uploads", () => {
 			const { effects } = submitLink(undefined, {
 				url: "https://example.com/post",
-				userId: "user-123",
+				submitter: { userId: "user-123", provenance: { kind: "web" } },
 				rawHtml: "<html>captured</html>",
 				now: NOW,
 			});
@@ -118,7 +118,7 @@ describe("submitLink", () => {
 				{
 					kind: "dispatch-submit-link",
 					url: "https://example.com/post",
-					userId: "user-123",
+					submitter: { userId: "user-123", provenance: { kind: "web" } },
 					rawHtml: "<html>captured</html>",
 				},
 			]);

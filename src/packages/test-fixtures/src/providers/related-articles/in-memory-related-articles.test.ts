@@ -29,6 +29,7 @@ function build() {
 				wordCount: 400,
 			},
 			estimatedReadTime: MinutesSchema.parse(2),
+			provenance: { kind: "web" },
 		});
 		return saved;
 	}

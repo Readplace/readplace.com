@@ -39,11 +39,20 @@ export function initLambdaEffectDispatcher(deps: {
 				 * is wired on every Lambda, so no new queue / env var / IAM grant
 				 * is required at the publisher. The future subscriber Lambda
 				 * lands via eventBus.subscribe(SubmitLinkCommand, …) in infra. */
-				await publishEvent(SubmitLinkCommand, {
-					url: effect.url,
-					...(effect.userId !== undefined ? { userId: effect.userId } : {}),
-					...(effect.rawHtml !== undefined ? { rawHtml: effect.rawHtml } : {}),
-				});
+				await publishEvent(
+					SubmitLinkCommand,
+					effect.submitter
+						? {
+								url: effect.url,
+								userId: effect.submitter.userId,
+								provenance: effect.submitter.provenance,
+								...(effect.rawHtml !== undefined ? { rawHtml: effect.rawHtml } : {}),
+							}
+						: {
+								url: effect.url,
+								...(effect.rawHtml !== undefined ? { rawHtml: effect.rawHtml } : {}),
+							},
+				);
 				return;
 			case "publish-crawl-article-failed":
 				await publishEvent(CrawlArticleFailedEvent, {

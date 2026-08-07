@@ -18,6 +18,7 @@ import type { EmailLinkTriageCategory, TriageEmailLinks } from "./triage-email-l
 const USER = UserIdSchema.parse("00000000000000000000000000000001");
 const RECEIVED_AT = "2026-06-24T09:00:00.000Z";
 const RAM = `${RECEIVED_AT}#<m@x>`;
+const DIGEST_PROVENANCE = { kind: "email", senderEmail: "news@example.com" };
 const RAW_KEY = "inbound/ses-msg-1";
 
 function makeEmail(overrides: Partial<InboxEmailEntry> = {}): InboxEmailEntry {
@@ -140,8 +141,8 @@ describe("initExtractEmailLinksHandler", () => {
 		assert(result);
 		expect(result.batchItemFailures).toHaveLength(0);
 		expect(harness.submitted).toEqual([
-			{ userId: USER, url: "https://a.test/x" },
-			{ userId: USER, url: "https://b.test/y" },
+			{ userId: USER, url: "https://a.test/x", provenance: DIGEST_PROVENANCE },
+			{ userId: USER, url: "https://b.test/y", provenance: DIGEST_PROVENANCE },
 		]);
 	});
 
@@ -156,7 +157,7 @@ describe("initExtractEmailLinksHandler", () => {
 			"https://a.test/x",
 			"https://localhost/private",
 		]);
-		expect(harness.submitted).toEqual([{ userId: USER, url: "https://a.test/x" }]);
+		expect(harness.submitted).toEqual([{ userId: USER, url: "https://a.test/x", provenance: DIGEST_PROVENANCE }]);
 	});
 
 	it("stores and crawls the link byte-exact, utm tags included — the crawl input must not be rewritten", async () => {
@@ -173,7 +174,7 @@ describe("initExtractEmailLinksHandler", () => {
 			"https://link.mail.test/ss/c/token?utm_source=nl",
 		]);
 		expect(harness.submitted).toEqual([
-			{ userId: USER, url: "https://link.mail.test/ss/c/token?utm_source=nl" },
+			{ userId: USER, url: "https://link.mail.test/ss/c/token?utm_source=nl", provenance: DIGEST_PROVENANCE },
 		]);
 	});
 
@@ -595,10 +596,10 @@ describe("initExtractEmailLinksHandler", () => {
 		expect(harness.published).toHaveLength(4);
 		// Still-pending rows re-submit too; the subscriber converges duplicates.
 		expect(harness.submitted).toEqual([
-			{ userId: USER, url: "https://a.test/x" },
-			{ userId: USER, url: "https://b.test/y" },
-			{ userId: USER, url: "https://a.test/x" },
-			{ userId: USER, url: "https://b.test/y" },
+			{ userId: USER, url: "https://a.test/x", provenance: DIGEST_PROVENANCE },
+			{ userId: USER, url: "https://b.test/y", provenance: DIGEST_PROVENANCE },
+			{ userId: USER, url: "https://a.test/x", provenance: DIGEST_PROVENANCE },
+			{ userId: USER, url: "https://b.test/y", provenance: DIGEST_PROVENANCE },
 		]);
 	});
 });

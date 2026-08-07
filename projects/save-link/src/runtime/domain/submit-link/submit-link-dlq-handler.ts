@@ -4,11 +4,22 @@ import type {
 	SQSBatchResponse,
 	SQSEvent,
 } from "aws-lambda";
+import { z } from "zod";
 import type { HutchLogger } from "@packages/hutch-logger";
 import type { PublishEvent } from "@packages/hutch-infra-components/runtime";
-import { LinkQueueFailedEvent, SubmitLinkCommand } from "@packages/hutch-infra-components";
+import { LinkQueueFailedEvent } from "@packages/hutch-infra-components";
 
 const REASON = "accept-retries-exhausted";
+
+/** Deliberately looser than the command schema, and reading only the two fields
+ * the failure fact needs. A record reaches this handler *because* the accept
+ * phase could not process it — re-imposing the schema that rejected it would
+ * dead-letter the dead letter and leave the read model uncorrected, which is the
+ * one outcome this handler exists to prevent. */
+const DeadLetteredSubmission = z.object({
+	url: z.string(),
+	userId: z.string().optional(),
+});
 
 /**
  * Turns a dead-lettered `SubmitLinkCommand` into the fact that the save gave up,
@@ -41,7 +52,7 @@ export function initSubmitLinkDlqHandler(deps: {
 		for (const record of event.Records) {
 			try {
 				const envelope = JSON.parse(record.body);
-				const command = SubmitLinkCommand.detailSchema.parse(envelope.detail);
+				const command = DeadLetteredSubmission.parse(envelope.detail);
 				const receiveCount = Number(record.attributes.ApproximateReceiveCount);
 
 				if (command.userId === undefined) {

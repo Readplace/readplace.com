@@ -6,7 +6,7 @@ import type { SaveArticle, UpdateArticleStatus } from "@packages/provider-contra
 import type { PublishLinkQueued, PublishLinkSaved } from "@packages/provider-contracts/events";
 import type { PublishUpdateFetchTimestamp } from "@packages/provider-contracts/events";
 import type { UserId } from "@packages/domain/user";
-import type { SaveableUrl, SavedArticle } from "@packages/domain/article";
+import type { SaveProvenance, SaveableUrl, SavedArticle } from "@packages/domain/article";
 
 export interface SaveArticleFromUrlDependencies {
 	saveArticle: SaveArticle;
@@ -38,6 +38,7 @@ export type SaveArticleFromUrl = (params: {
 	userId: UserId;
 	url: SaveableUrl;
 	freshness: ContentFreshnessResult;
+	provenance: SaveProvenance;
 }) => Promise<{
 	saved: SavedArticle;
 	canonicalUrl: string;
@@ -46,9 +47,14 @@ export type SaveArticleFromUrl = (params: {
 
 async function saveByFreshness(
 	deps: SaveArticleFromUrlDependencies,
-	params: { userId: UserId; url: string; freshness: ContentFreshnessResult },
+	params: {
+		userId: UserId;
+		url: string;
+		freshness: ContentFreshnessResult;
+		provenance: SaveProvenance;
+	},
 ): Promise<{ saved: SavedArticle; createdUserArticle: boolean }> {
-	const { userId, url, freshness } = params;
+	const { userId, url, freshness, provenance } = params;
 
 	if (freshness.action === "new") {
 		const hostname = new URL(url).hostname;
@@ -62,6 +68,7 @@ async function saveByFreshness(
 				wordCount: 0,
 			},
 			estimatedReadTime: calculateReadTime(0),
+			provenance,
 		});
 		await deps.markCrawlPending({ url });
 		await deps.markSummaryPending({ url });
@@ -81,6 +88,7 @@ async function saveByFreshness(
 		url,
 		metadata: { title: "", siteName: "", excerpt: "", wordCount: 0 },
 		estimatedReadTime: calculateReadTime(0),
+		provenance,
 	});
 
 	if (freshness.action === "refreshed" && freshness.article.article.content) {
@@ -103,6 +111,7 @@ export function initSaveArticleFromUrl(
 			userId: params.userId,
 			url,
 			freshness: params.freshness,
+			provenance: params.provenance,
 		});
 		// The row is committed, so the save is accepted on every freshness branch —
 		// including the skip that publishes no LinkSaved. Carries the submitted URL,

@@ -3,6 +3,9 @@
   <div class="article-body__meta">
     <span data-test-reader-site>{{siteName}}</span>
     <span>{{estimatedReadTime}} min read</span>
+    {{#if provenanceLabel}}
+    <span class="article-body__provenance" data-test-reader-provenance title="{{provenanceLabel}}">{{{provenanceIconSvg}}}{{provenanceLabel}}</span>
+    {{/if}}
   </div>
   <a class="article-body__original-link" href="{{url}}" target="_blank" rel="noopener" data-test-original-link>View original</a>
 </div>

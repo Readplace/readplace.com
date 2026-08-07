@@ -14,6 +14,7 @@ import {
 	normalizeAliasName,
 } from "@packages/domain/inbox";
 import { validateSaveableUrl } from "@packages/domain/article";
+import type { SaveProvenance } from "@packages/domain/article";
 import type { UserId } from "@packages/domain/user";
 import type {
 	EmailLinkStatus,
@@ -83,7 +84,11 @@ interface InboxDependencies {
 	imagesCdnBaseUrl: string;
 	logError: (message: string, error?: Error) => void;
 	buildBannerState: BuildBannerState;
-	publishSubmitLink: (input: { userId: UserId; url: string }) => Promise<void>;
+	publishSubmitLink: (input: {
+		userId: UserId;
+		url: string;
+		provenance: SaveProvenance;
+	}) => Promise<void>;
 	/** Save gates applied to the write actions — /create and /enable (each opens
 	 * a mail-receiving save-flow input) and the per-link save (it lands an article
 	 * in the reader's queue). Both gates run: `requireNotLocked` blocks a
@@ -552,9 +557,12 @@ export function initInboxRoutes(deps: InboxDependencies): Router {
 			// redirects. Stripping runs after the saveable gate above and only shortens,
 			// so the validated URL cannot grow back past its length cap.
 			const unresolved = link.status === "pending" || link.status === "skipped";
+			const email = await deps.inboxEmailStore.getEmail({ userId, receivedAtMessageId });
+			assert(email, "the email a saved link belongs to must still exist");
 			await deps.publishSubmitLink({
 				userId,
 				url: unresolved ? link.url : stripUtmParams(link.url),
+				provenance: { kind: "email", senderEmail: email.senderEmail },
 			});
 			// Saving a skipped link is itself the reader's verdict that the classifier
 			// was wrong to skip it, so it emits the same classifier-audit line the

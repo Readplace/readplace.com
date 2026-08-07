@@ -244,6 +244,7 @@ function handleSummaryPoll(reader: ReturnType<typeof initArticleReader>) {
 			capturing: false,
 			extensionInstallUrl: extensionInstallUrlIfMissing(req),
 			summaryToggleUrl: undefined,
+			provenance: undefined,
 		});
 		const html = component.to("text/html");
 		res.status(html.statusCode).type("html").send(html.body);
@@ -266,6 +267,7 @@ function handleReaderPoll(reader: ReturnType<typeof initArticleReader>) {
 			capturing: false,
 			extensionInstallUrl: extensionInstallUrlIfMissing(req),
 			summaryToggleUrl: undefined,
+			provenance: undefined,
 		});
 		const html = component.to("text/html");
 		res.status(html.statusCode).type("html").send(html.body);

@@ -107,6 +107,7 @@ import { parseQueueUrl, buildQueueUrl, QUEUE_PATH, canonicalQueuePageRedirect } 
 import { collectUtmParams } from "../../shared/utm";
 import { tabQuery } from "./queue.tabs";
 import { QUEUE_PAGE_SIZE, queuePageSizeForClient } from "./queue-page-size";
+import { resolveSaveProvenance } from "../../shared/save-provenance";
 import type { HttpErrorMessageMapping } from "./queue.error";
 import { collectStatusFlashParams, importFlashMapping, statusFlashMapping } from "./queue.error";
 import { HtmlPage } from "@packages/web-shell";
@@ -1009,7 +1010,12 @@ export function initQueueRoutes(deps: QueueDependencies): Router {
 
 		try {
 			const freshness = await deps.refreshArticleIfStale({ url: validation.url });
-			const result = await saveArticleFromUrl({ userId, url: validation.url, freshness });
+			const result = await saveArticleFromUrl({
+				userId,
+				url: validation.url,
+				freshness,
+				provenance: resolveSaveProvenance(req.oauthClientId),
+			});
 			await recordSaveSignal(req, res, userId);
 			emitSaveIntent({ req, url: validation.url, path: SAVE_INTENT_PATH.saveArticle, surface: SAVE_SURFACES.extension, outcome: SAVE_OUTCOMES.saved });
 			res.status(201).type(SIREN_MEDIA_TYPE).json(toSavedArticleEntity(result.saved));
@@ -1114,7 +1120,12 @@ export function initQueueRoutes(deps: QueueDependencies): Router {
 					const media = saveContentMedia[normalizeMediaType(job.mediaType)];
 					if (media) await media.stageInlineBytes({ url: job.url, bytes: job.bytes, title: job.title, userId });
 				}
-				await saveArticleFromUrl({ userId, url: job.url, freshness });
+				await saveArticleFromUrl({
+					userId,
+					url: job.url,
+					freshness,
+					provenance: resolveSaveProvenance(req.oauthClientId),
+				});
 				emitSaveIntent({ req, url: job.url, path: SAVE_INTENT_PATH.saveArticles, surface: SAVE_SURFACES.extension, outcome: SAVE_OUTCOMES.saved });
 				return "saved";
 			} catch (error) {
@@ -1224,7 +1235,12 @@ export function initQueueRoutes(deps: QueueDependencies): Router {
 
 			const finishSave = async (articleUrl: SaveableUrl): Promise<void> => {
 				const freshness = await deps.refreshArticleIfStale({ url: articleUrl });
-				const result = await saveArticleFromUrl({ userId, url: articleUrl, freshness });
+				const result = await saveArticleFromUrl({
+					userId,
+					url: articleUrl,
+					freshness,
+					provenance: resolveSaveProvenance(req.oauthClientId),
+				});
 				await recordSaveSignal(req, res, userId);
 				emitSaveIntent({ req, url: articleUrl, path: SAVE_INTENT_PATH.saveContent, surface: SAVE_SURFACES.extension, outcome: SAVE_OUTCOMES.saved });
 				res.status(201).type(SIREN_MEDIA_TYPE).json(toSavedArticleEntity(result.saved));
@@ -1342,7 +1358,12 @@ export function initQueueRoutes(deps: QueueDependencies): Router {
 
 		try {
 			const freshness = await deps.refreshArticleIfStale({ url: validation.url });
-			await saveArticleFromUrl({ userId, url: validation.url, freshness });
+			await saveArticleFromUrl({
+				userId,
+				url: validation.url,
+				freshness,
+				provenance: resolveSaveProvenance(req.oauthClientId),
+			});
 			emitSaveIntent({ req, url: validation.url, path: SAVE_INTENT_PATH.save, surface: SAVE_SURFACES.queueSaveBar, outcome: SAVE_OUTCOMES.saved });
 			res.redirect(303, `${QUEUE_PATH}#latest-saved`);
 		} catch (error) {
@@ -1375,6 +1396,7 @@ export function initQueueRoutes(deps: QueueDependencies): Router {
 			capturing: parseCapturingFlag(req.query.capturing),
 			extensionInstallUrl: extensionInstallUrlIfMissing(req),
 			summaryToggleUrl: `${QUEUE_PATH}/${article.id.value}/summary-toggle`,
+			provenance: article.provenance,
 		});
 		sendComponent(req, res, CacheableComponent(component, req));
 	});
@@ -1402,6 +1424,7 @@ export function initQueueRoutes(deps: QueueDependencies): Router {
 			capturing: parseCapturingFlag(req.query.capturing),
 			extensionInstallUrl: extensionInstallUrlIfMissing(req),
 			summaryToggleUrl: `${QUEUE_PATH}/${article.id.value}/summary-toggle`,
+			provenance: article.provenance,
 		});
 		sendComponent(req, res, CacheableComponent(component, req));
 	});

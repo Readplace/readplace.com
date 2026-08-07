@@ -3,7 +3,12 @@ import { AsyncLocalStorage } from 'node:async_hooks'
 import express from 'express'
 import { z } from 'zod'
 import { HutchLogger, consoleLogger, noopLogger } from '@packages/hutch-logger'
-import { calculateReadTime, validateSaveableUrl, type ValidateSaveableUrl } from '@packages/domain/article'
+import {
+	calculateReadTime,
+	SaveProvenanceSchema,
+	validateSaveableUrl,
+	type ValidateSaveableUrl,
+} from '@packages/domain/article'
 import { UserIdSchema } from '@packages/domain/user'
 import { createTestApp } from '../runtime/test-app'
 import {
@@ -261,6 +266,7 @@ const SeedCrawledArticleBody = z.object({
 	savedByUserId: UserIdSchema.optional(),
 	wordCount: z.number().int().positive().default(500),
 	savedAt: z.string().optional(),
+	provenance: SaveProvenanceSchema.default({ kind: 'web' }),
 })
 server.post('/e2e/seed-crawled-article', async (req, res) => {
 	const parsed = SeedCrawledArticleBody.safeParse(req.body)
@@ -268,8 +274,17 @@ server.post('/e2e/seed-crawled-article', async (req, res) => {
 		res.status(400).json({ error: parsed.error.flatten() })
 		return
 	}
-	const { url, title, content, contentFetchedAt, crawlVersions, savedByUserId, wordCount, savedAt } =
-		parsed.data
+	const {
+		url,
+		title,
+		content,
+		contentFetchedAt,
+		crawlVersions,
+		savedByUserId,
+		wordCount,
+		savedAt,
+		provenance,
+	} = parsed.data
 	const hostname = new URL(url).hostname
 	const metadata = { title, siteName: hostname, excerpt: 'Seeded for the crawl-bookmark visual test.', wordCount }
 	const estimatedReadTime = calculateReadTime(wordCount)
@@ -280,7 +295,15 @@ server.post('/e2e/seed-crawled-article', async (req, res) => {
 		savedAt: new Date(savedAt ?? contentFetchedAt),
 	})
 	const saved = savedByUserId
-		? (await fixture.articleStore.saveArticle({ userId: savedByUserId, url, metadata, estimatedReadTime })).saved
+		? (
+				await fixture.articleStore.saveArticle({
+					userId: savedByUserId,
+					url,
+					metadata,
+					estimatedReadTime,
+					provenance,
+				})
+			).saved
 		: undefined
 	await fixture.articleStore.writeContent({ url, content })
 	await fixture.articleCrawl.markCrawlReady({ url })

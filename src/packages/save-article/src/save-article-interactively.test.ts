@@ -1,6 +1,6 @@
 import { ReaderArticleHashIdSchema, SaveableUrlSchema } from "@packages/domain/article";
 import { MinutesSchema } from "@packages/domain/article";
-import type { SavedArticle } from "@packages/domain/article";
+import type { SaveProvenance, SavedArticle } from "@packages/domain/article";
 import { UserIdSchema } from "@packages/domain/user";
 import { initSaveArticleInteractively } from "./save-article-interactively";
 import type { SaveArticleFromUrl } from "./save-article-from-url";
@@ -9,6 +9,7 @@ const userId = UserIdSchema.parse("00000000000000000000000000000001");
 const articleId = ReaderArticleHashIdSchema.parse("0123456789abcdef0123456789abcdef");
 const submittedUrl = SaveableUrlSchema.parse("https://redirect.test/short");
 const canonicalUrl = "https://example.com/post";
+const provenance: SaveProvenance = { kind: "web" };
 
 const saved: SavedArticle = {
 	id: articleId,
@@ -43,6 +44,7 @@ describe("initSaveArticleInteractively", () => {
 			userId,
 			url: submittedUrl,
 			freshness: { action: "skip" },
+			provenance,
 		});
 
 		expect(published).toEqual([{ url: canonicalUrl, userId }]);
@@ -59,6 +61,7 @@ describe("initSaveArticleInteractively", () => {
 			userId,
 			url: submittedUrl,
 			freshness: { action: "skip" },
+			provenance,
 		});
 
 		expect(result).toEqual({ saved, canonicalUrl, createdUserArticle: true });
@@ -75,6 +78,7 @@ describe("initSaveArticleInteractively", () => {
 			userId,
 			url: submittedUrl,
 			freshness: { action: "skip" },
+			provenance,
 		});
 
 		expect(published).toEqual([]);
@@ -90,6 +94,7 @@ describe("initSaveArticleInteractively", () => {
 				userId,
 				url: submittedUrl,
 				freshness: { action: "skip" },
+				provenance,
 			}),
 		).rejects.toThrow("save failed");
 		expect(published).toEqual([]);

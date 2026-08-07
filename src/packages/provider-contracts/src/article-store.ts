@@ -1,6 +1,7 @@
 import type { ArticleResourceUniqueId } from "@packages/article-resource-unique-id";
 import type {
 	ArticleStatus,
+	SaveProvenance,
 	SavedArticle,
 } from "@packages/domain/article";
 import type { ReaderArticleHashId } from "@packages/domain/article";
@@ -11,6 +12,7 @@ export interface SaveArticleParams {
 	url: string;
 	metadata: SavedArticle["metadata"];
 	estimatedReadTime: SavedArticle["estimatedReadTime"];
+	provenance: SaveProvenance;
 }
 
 export type SortField = "savedAt" | "readAt";

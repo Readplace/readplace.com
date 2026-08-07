@@ -198,6 +198,18 @@ export function isBuiltInOAuthClientId(value: string): value is BuiltInOAuthClie
 	return BUILT_IN_OAUTH_CLIENT_IDS.has(value);
 }
 
+export type BuiltInClientName = Extract<SupportedClient, { auth: { kind: "builtIn" } }>["name"];
+
+const BUILT_IN_CLIENT_NAME_BY_OAUTH_ID = {
+	"hutch-firefox-extension": "firefox",
+	"hutch-chrome-extension": "chrome",
+	"ios-app": "iphone",
+} as const satisfies Record<BuiltInOAuthClientId, BuiltInClientName>;
+
+export function clientNameForBuiltInOAuthClientId(oauthClientId: BuiltInOAuthClientId): BuiltInClientName {
+	return BUILT_IN_CLIENT_NAME_BY_OAUTH_ID[oauthClientId];
+}
+
 export const APPLE_APP_ID = iphoneAppleAppId();
 export const IPHONE_APP_STORE_URL = appStoreUrl(APPLE_APP_ID);
 export const CHROME_STORE_URL = chromeStoreUrl();

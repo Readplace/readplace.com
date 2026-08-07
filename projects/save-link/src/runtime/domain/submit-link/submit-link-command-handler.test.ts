@@ -31,13 +31,16 @@ const stubAttributes: SQSRecordAttributes = {
 };
 
 function createSqsEvent(
-	details: Array<{ url: string; userId?: string; rawHtml?: string }>,
+	details: Array<{ url: string; userId?: string; rawHtml?: string; provenance?: unknown }>,
 ): SQSEvent {
 	return {
 		Records: details.map((detail, index) => ({
 			messageId: `msg-${index + 1}`,
 			receiptHandle: `receipt-${index + 1}`,
-			body: JSON.stringify({ detail }),
+			body: JSON.stringify({
+				detail:
+					detail.userId === undefined ? detail : { provenance: { kind: "web" }, ...detail },
+			}),
 			attributes: stubAttributes,
 			messageAttributes: {},
 			md5OfBody: "",
@@ -232,6 +235,18 @@ describe("initSubmitLinkCommandHandler", () => {
 		const response = await run(handler, createSqsEvent([{ url: exampleUrl }]));
 
 		expect(response.batchItemFailures).toEqual([{ itemIdentifier: "msg-1" }]);
+	});
+
+	it("fails a pre-provenance record still in flight at deploy, rather than reading it as an anonymous submission", async () => {
+		const saveArticle = jest.fn();
+		const handler = createHandler({ saveArticle });
+		const event = createSqsEvent([{ url: exampleUrl }]);
+		event.Records[0].body = JSON.stringify({ detail: { url: exampleUrl, userId } });
+
+		const response = await run(handler, event);
+
+		expect(response.batchItemFailures).toEqual([{ itemIdentifier: "msg-1" }]);
+		expect(saveArticle).not.toHaveBeenCalled();
 	});
 
 	it("fails the record for an unsaveable URL instead of stub-saving garbage", async () => {

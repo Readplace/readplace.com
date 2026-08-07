@@ -1,6 +1,6 @@
 import { ReaderArticleHashIdSchema, SaveableUrlSchema } from "@packages/domain/article";
 import { MinutesSchema } from "@packages/domain/article";
-import type { SavedArticle } from "@packages/domain/article";
+import type { SaveProvenance, SavedArticle } from "@packages/domain/article";
 import { UserIdSchema } from "@packages/domain/user";
 import {
 	initSaveArticleFromUrl,
@@ -10,6 +10,7 @@ import {
 const userId = UserIdSchema.parse("00000000000000000000000000000001");
 const articleId = ReaderArticleHashIdSchema.parse("0123456789abcdef0123456789abcdef");
 const exampleUrl = SaveableUrlSchema.parse("https://example.com/post");
+const provenance: SaveProvenance = { kind: "web" };
 
 function makeSaved(overrides: Partial<SavedArticle> = {}): SavedArticle {
 	return {
@@ -81,6 +82,7 @@ describe("saveArticleFromUrl", () => {
 		await initSaveArticleFromUrl(tracker.deps)({
 			userId,
 			url: exampleUrl,
+			provenance,
 			freshness: { action: "new" },
 		});
 
@@ -112,7 +114,7 @@ describe("saveArticleFromUrl", () => {
 			},
 		};
 
-		await initSaveArticleFromUrl(deps)({ userId, url: exampleUrl, freshness: { action: "new" } });
+		await initSaveArticleFromUrl(deps)({ userId, url: exampleUrl, provenance, freshness: { action: "new" } });
 
 		expect(keyedOn).toEqual([
 			"saveArticle:https://example.com/canonical",
@@ -127,6 +129,7 @@ describe("saveArticleFromUrl", () => {
 		await initSaveArticleFromUrl(tracker.deps)({
 			userId,
 			url: exampleUrl,
+			provenance,
 			freshness: {
 				action: "refreshed",
 				article: {
@@ -153,6 +156,7 @@ describe("saveArticleFromUrl", () => {
 		await initSaveArticleFromUrl(tracker.deps)({
 			userId,
 			url: exampleUrl,
+			provenance,
 			freshness: {
 				action: "refreshed",
 				article: {
@@ -178,6 +182,7 @@ describe("saveArticleFromUrl", () => {
 		await initSaveArticleFromUrl(tracker.deps)({
 			userId,
 			url: exampleUrl,
+			provenance,
 			freshness: { action: "skip" },
 		});
 
@@ -191,6 +196,7 @@ describe("saveArticleFromUrl", () => {
 		await initSaveArticleFromUrl(tracker.deps)({
 			userId,
 			url: exampleUrl,
+			provenance,
 			freshness: { action: "skip" },
 		});
 
@@ -208,7 +214,7 @@ describe("saveArticleFromUrl", () => {
 			},
 		};
 
-		await initSaveArticleFromUrl(deps)({ userId, url: exampleUrl, freshness: { action: "new" } });
+		await initSaveArticleFromUrl(deps)({ userId, url: exampleUrl, provenance, freshness: { action: "new" } });
 
 		expect(queued).toEqual([exampleUrl]);
 	});
@@ -223,7 +229,7 @@ describe("saveArticleFromUrl", () => {
 			saveArticle: async () => ({ saved: tracker.saved, createdUserArticle: false }),
 		};
 
-		const result = await initSaveArticleFromUrl(deps)({ userId, url: exampleUrl, freshness });
+		const result = await initSaveArticleFromUrl(deps)({ userId, url: exampleUrl, provenance, freshness });
 
 		expect(result.createdUserArticle).toBe(false);
 	});
@@ -235,6 +241,7 @@ describe("saveArticleFromUrl", () => {
 		const result = await initSaveArticleFromUrl(tracker.deps)({
 			userId,
 			url: exampleUrl,
+			provenance,
 			freshness: { action: "new" },
 		});
 

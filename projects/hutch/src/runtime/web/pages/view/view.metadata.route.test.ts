@@ -464,6 +464,7 @@ describe("View routes", () => {
 					imageUrl: "https://cdn.example.com/cached.jpg",
 				},
 				estimatedReadTime: MinutesSchema.parse(2),
+				provenance: { kind: "web" },
 			});
 			await articleStore.writeContent({
 				url: ARTICLE_URL,
@@ -537,6 +538,7 @@ describe("View routes", () => {
 					wordCount: 200,
 				},
 				estimatedReadTime: MinutesSchema.parse(5),
+				provenance: { kind: "web" },
 			});
 			await articleCrawl.markCrawlFailed({ url: ARTICLE_URL, reason: "blocked" });
 

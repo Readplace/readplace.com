@@ -68,6 +68,30 @@ function setup(): {
 }
 
 describe("POST /queue/save-articles", () => {
+	it("tags each saved row with the extension whose token sent the batch", async () => {
+		const fixture = createDefaultTestAppFixture(TEST_APP_ORIGIN);
+		const provenances: unknown[] = [];
+		const testApp = useApp({
+			...fixture,
+			articleStore: {
+				...fixture.articleStore,
+				saveArticle: async (params) => {
+					provenances.push(params.provenance);
+					return fixture.articleStore.saveArticle(params);
+				},
+			},
+		});
+		const accessToken = await createAccessToken(testApp);
+
+		await request(testApp.server)
+			.post("/queue/save-articles")
+			.set("Accept", SIREN_MEDIA_TYPE)
+			.set("Authorization", `Bearer ${accessToken}`)
+			.field("manifest", manifest([{ url: "https://example.com/bulk-provenance" }]));
+
+		expect(provenances).toEqual([{ kind: "client", clientName: "firefox" }]);
+	});
+
 	it("saves a content page, a url-only page, skips an unsaveable scheme, and returns the summary", async () => {
 		const { testApp, publishedSaveHtml } = setup();
 		const accessToken = await createAccessToken(testApp);

@@ -12,10 +12,17 @@ const baseInput = {
 	siteName: "example.com",
 	estimatedReadTime: 3 as Minutes,
 	url: "https://example.com/post",
+	provenance: undefined,
 };
 
 function parse(html: string): Document {
 	return new JSDOM(`<!doctype html><html><body>${html}</body></html>`).window.document;
+}
+
+function metaRow(doc: Document): string[] {
+	const meta = doc.querySelector(".article-body__meta");
+	assert(meta, "meta row must render");
+	return Array.from(meta.querySelectorAll("span")).map((span) => span.textContent?.trim() ?? "");
 }
 
 describe("renderArticleHeader (inline)", () => {
@@ -48,6 +55,64 @@ describe("renderArticleHeader (inline)", () => {
 	});
 });
 
+describe("save provenance tag", () => {
+	it("leaves the meta row exactly as it was for an article saved before provenance was captured", () => {
+		const doc = parse(renderArticleHeader(baseInput));
+
+		expect(metaRow(doc)).toEqual(["example.com", "3 min read"]);
+	});
+
+	it("names the client a save came from and carries its logo", () => {
+		const doc = parse(
+			renderArticleHeader({ ...baseInput, provenance: { kind: "client", clientName: "chrome" } }),
+		);
+
+		const tag = doc.querySelector("[data-test-reader-provenance]");
+		assert(tag, "provenance tag must render");
+		expect(tag.textContent?.trim()).toBe("via Chrome");
+		expect(tag.getAttribute("title")).toBe("via Chrome");
+		expect(tag.classList.contains("article-body__provenance")).toBe(true);
+		expect(tag.querySelector("svg")?.getAttribute("viewBox")).toBe("0 0 24 24");
+	});
+
+	it("names the sender an emailed save arrived from, next to the mail icon", () => {
+		const doc = parse(
+			renderArticleHeader({
+				...baseInput,
+				provenance: { kind: "email", senderEmail: "news@example.com" },
+			}),
+		);
+
+		expect(metaRow(doc)).toEqual(["example.com", "3 min read", "via news@example.com"]);
+		expect(
+			doc.querySelector("[data-test-reader-provenance] svg")?.getAttribute("viewBox"),
+		).toBe("0 0 24 24");
+	});
+
+	it("carries no icon for a save the web app made itself", () => {
+		const doc = parse(renderArticleHeader({ ...baseInput, provenance: { kind: "web" } }));
+
+		const tag = doc.querySelector("[data-test-reader-provenance]");
+		assert(tag, "provenance tag must render");
+		expect(tag.textContent).toBe("via Web");
+		expect(tag.children).toHaveLength(0);
+	});
+
+	it("escapes a sender address so an email cannot inject markup into the reader it is tagged in", () => {
+		const doc = parse(
+			renderArticleHeader({
+				...baseInput,
+				provenance: { kind: "email", senderEmail: "<img src=x onerror=alert(1)>@evil.test" },
+			}),
+		);
+
+		const tag = doc.querySelector("[data-test-reader-provenance]");
+		assert(tag, "provenance tag must render");
+		expect(tag.textContent).toBe("via <img src=x onerror=alert(1)>@evil.test");
+		expect(Array.from(tag.children).map((child) => child.tagName.toLowerCase())).toEqual(["svg"]);
+	});
+});
+
 describe("renderArticleHeaderOob", () => {
 	it("emits the same header markup carrying hx-swap-oob so it slots into poll responses alongside the existing reader-slot and progress-bar OOB", () => {
 		const doc = parse(renderArticleHeaderOob(baseInput));
@@ -56,6 +121,14 @@ describe("renderArticleHeaderOob", () => {
 		assert(header, "OOB header must be rendered");
 		expect(header.getAttribute("hx-swap-oob")).toBe("outerHTML");
 		expect(doc.querySelector("[data-test-reader-title]")?.textContent).toBe("Hello World");
+	});
+
+	it("keeps the provenance tag through the swap that replaces the whole header", () => {
+		const doc = parse(
+			renderArticleHeaderOob({ ...baseInput, provenance: { kind: "web" } }),
+		);
+
+		expect(metaRow(doc)).toEqual(["example.com", "3 min read", "via Web"]);
 	});
 });
 

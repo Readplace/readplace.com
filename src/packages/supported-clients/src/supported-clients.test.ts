@@ -4,6 +4,7 @@ import {
 	CLIENT_CATEGORIES,
 	clientCategoryOfGroup,
 	clientGroupsInCategory,
+	clientNameForBuiltInOAuthClientId,
 	isBuiltInOAuthClientId,
 	isClientName,
 	SUPPORTED_CLIENTS,
@@ -113,5 +114,13 @@ describe("isBuiltInOAuthClientId", () => {
 
 	it("rejects a dynamically-registered client id", () => {
 		assert.equal(isBuiltInOAuthClientId("randomly-minted-dcr-id"), false);
+	});
+});
+
+describe("clientNameForBuiltInOAuthClientId", () => {
+	it("names the client each shipped OAuth client id belongs to", () => {
+		assert.equal(clientNameForBuiltInOAuthClientId("hutch-firefox-extension"), "firefox");
+		assert.equal(clientNameForBuiltInOAuthClientId("hutch-chrome-extension"), "chrome");
+		assert.equal(clientNameForBuiltInOAuthClientId("ios-app"), "iphone");
 	});
 });

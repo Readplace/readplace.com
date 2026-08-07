@@ -3,6 +3,7 @@ import { z } from "zod";
 import { ConditionalCheckFailedException, type DynamoDBDocumentClient } from "@packages/hutch-storage-client";
 import { ArticleResourceUniqueId } from "@packages/article-resource-unique-id";
 import { MinutesSchema, ReaderArticleHashId } from "@packages/domain/article";
+import type { SaveProvenance } from "@packages/domain/article";
 import type { UserId } from "@packages/domain/user";
 import { HutchLogger, noopLogger } from "@packages/hutch-logger";
 import { initDynamoDbSavedArticleStore } from "./dynamodb-saved-article-store";
@@ -12,6 +13,7 @@ const URL = "https://example.com/article";
 const RESOURCE_ID = "example.com/article";
 const ROUTE_ID = ReaderArticleHashId.from(URL).value;
 const TWO_MINUTES = MinutesSchema.parse(2);
+const provenance: SaveProvenance = { kind: "client", clientName: "chrome" };
 
 interface CapturedCommand {
 	name: string;
@@ -349,6 +351,7 @@ describe("initDynamoDbSavedArticleStore global writes", () => {
 			url: URL,
 			metadata: { title: "Title", siteName: "Example", excerpt: "Excerpt", wordCount: 250, imageUrl: "https://example.com/image.jpg" },
 			estimatedReadTime: TWO_MINUTES,
+			provenance,
 		});
 
 		expect(commands.some((c) => c.name === "PutCommand")).toBe(true);
@@ -365,6 +368,51 @@ describe("initDynamoDbSavedArticleStore global writes", () => {
 		expect(createdUserArticle).toBe(true);
 	});
 
+	it("saveArticle stamps provenance on the user row and reads it back onto the saved article", async () => {
+		const { client, commands } = createFakeClient({
+			GetCommand: {
+				queue: [{ Item: articleItem() }, { Item: userArticleItem({ provenance }) }],
+			},
+		});
+
+		const { saved } = await initStore(client).saveArticle({
+			userId: USER,
+			url: URL,
+			metadata: { title: "Title", siteName: "Example", excerpt: "Excerpt", wordCount: 250 },
+			estimatedReadTime: TWO_MINUTES,
+			provenance,
+		});
+
+		const userRowUpdate = commands.find(
+			(c) => c.name === "UpdateCommand" && c.input.ReturnValues === "ALL_OLD",
+		);
+		expect(userRowUpdate?.input.UpdateExpression).toBe(
+			"SET savedAt = :savedAt, provenance = :provenance, #status = if_not_exists(#status, :unread)",
+		);
+		expect(
+			(userRowUpdate?.input.ExpressionAttributeValues as Record<string, unknown>)[":provenance"],
+		).toEqual(provenance);
+		expect(saved.provenance).toEqual(provenance);
+	});
+
+	it("reads a row saved before provenance was captured without one, so the reader can leave the tag off", async () => {
+		const { client } = createFakeClient({
+			GetCommand: {
+				queue: [{ Item: articleItem() }, { Item: userArticleItem() }],
+			},
+		});
+
+		const { saved } = await initStore(client).saveArticle({
+			userId: USER,
+			url: URL,
+			metadata: { title: "Title", siteName: "Example", excerpt: "Excerpt", wordCount: 250 },
+			estimatedReadTime: TWO_MINUTES,
+			provenance,
+		});
+
+		expect(saved.provenance).toBeUndefined();
+	});
+
 	it("saveArticle reports the user row as created when the update returned no prior item", async () => {
 		const { client, commands } = createFakeClient({
 			GetCommand: {
@@ -377,6 +425,7 @@ describe("initDynamoDbSavedArticleStore global writes", () => {
 			url: URL,
 			metadata: { title: "Title", siteName: "Example", excerpt: "Excerpt", wordCount: 250 },
 			estimatedReadTime: TWO_MINUTES,
+			provenance,
 		});
 
 		const userRowUpdate = commands.find(
@@ -399,6 +448,7 @@ describe("initDynamoDbSavedArticleStore global writes", () => {
 			url: URL,
 			metadata: { title: "Title", siteName: "Example", excerpt: "Excerpt", wordCount: 250 },
 			estimatedReadTime: TWO_MINUTES,
+			provenance,
 		});
 
 		expect(createdUserArticle).toBe(false);
@@ -421,6 +471,7 @@ describe("initDynamoDbSavedArticleStore global writes", () => {
 			url: URL,
 			metadata: { title: "Title", siteName: "Example", excerpt: "Excerpt", wordCount: 250, imageUrl: "https://example.com/image.jpg" },
 			estimatedReadTime: TWO_MINUTES,
+			provenance,
 		});
 
 		const bump = commands.find((c) => c.name === "UpdateCommand" && c.input.UpdateExpression === "SET savedAt = :savedAt");

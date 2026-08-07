@@ -15,7 +15,7 @@ import type { ClientCategory, ClientName, SupportedClient } from "@packages/supp
 
 import { switchHelpers } from "../../handlebars-switch";
 import { SAVE_INTENT_PROMPT } from "../mcp";
-import { CLIENT_ICON_SVG } from "./client-icons";
+import { CLIENT_ICON_SVG } from "../../shared/client-icons";
 import { INSTALL_PAGE_STYLES } from "./install.styles";
 
 import { firefoxS3Config } from "browser-extension-core/s3-config";

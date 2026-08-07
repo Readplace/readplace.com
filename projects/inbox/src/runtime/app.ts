@@ -15,6 +15,7 @@ import type {
 } from "@packages/provider-contracts/auth";
 import type { FindSubscriptionByUserId } from "@packages/provider-contracts/subscription-providers";
 import type { UserId } from "@packages/domain/user";
+import type { SaveProvenance } from "@packages/domain/article";
 import type { ResolveLogin } from "@packages/web-session";
 import { initGetEffectiveAccess } from "@packages/subscription-access";
 import { initBuildBannerState } from "./web/banner-state";
@@ -51,7 +52,11 @@ export function createInboxApp(
 		inboxEmailLinkStore: InboxEmailLinkStore;
 		inboxSavedLinkStore: InboxSavedLinkStore;
 		readEmailContent: ContentProvider;
-		publishSubmitLink: (input: { userId: UserId; url: string }) => Promise<void>;
+		publishSubmitLink: (input: {
+			userId: UserId;
+			url: string;
+			provenance: SaveProvenance;
+		}) => Promise<void>;
 		logError: (message: string, error?: Error) => void;
 		now: () => Date;
 	},

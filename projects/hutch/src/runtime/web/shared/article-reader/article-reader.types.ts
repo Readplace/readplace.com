@@ -16,7 +16,7 @@ import type {
 	FindArticleFreshness,
 	ReadArticleContent,
 } from "@packages/provider-contracts/article-store";
-import type { ProgressTick } from "@packages/domain/article";
+import type { ProgressTick, SaveProvenance } from "@packages/domain/article";
 import type { LocalTime } from "@packages/web-shell/local-time.format";
 
 export interface ArticleReaderDeps {
@@ -125,4 +125,13 @@ export interface HandlePollParams {
 	 * each poll path makes the decision explicit, mirroring `extensionInstallUrl`.
 	 */
 	summaryToggleUrl: string | undefined;
+	/**
+	 * Where the owner's save came from, re-sent on every poll because the OOB swap
+	 * replaces the whole header — omitting it would drop the tag the moment the
+	 * crawl settles. `undefined` on the public /view and admin readers, which
+	 * render another user's article and hold no per-user row. Required (not
+	 * optional) so each poll path makes the decision explicit, mirroring
+	 * `extensionInstallUrl`.
+	 */
+	provenance: SaveProvenance | undefined;
 }

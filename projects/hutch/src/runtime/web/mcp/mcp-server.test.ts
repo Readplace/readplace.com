@@ -8,7 +8,7 @@ import {
 } from "./mcp-server";
 
 const userId = authenticatedUserIdFrom("00000000000000000000000000000001");
-const context = { userId };
+const context = { userId, oauthClientId: "dyn-registered-mcp-client" };
 
 function fakeDeps(overrides?: Partial<McpServerDeps>): McpServerDeps {
 	return {
@@ -196,7 +196,11 @@ describe("initMcpServer", () => {
 			const response = await call(server, 4, "save_link", {
 				url: "https://example.com/a",
 			});
-			expect(saveLink).toHaveBeenCalledWith({ userId, url: "https://example.com/a" });
+			expect(saveLink).toHaveBeenCalledWith({
+				userId,
+				url: "https://example.com/a",
+				oauthClientId: "dyn-registered-mcp-client",
+			});
 			expect(response).toMatchObject({
 				id: 4,
 				result: { content: [{ type: "text", text: expect.stringContaining("My Article") }] },

@@ -129,6 +129,7 @@ describe("Email verification lockout", () => {
 			url: "https://example.com/already-saved",
 			metadata: { title: "Already saved", siteName: "example.com", excerpt: "", wordCount: 0 },
 			estimatedReadTime: MinutesSchema.parse(0),
+			provenance: { kind: "web" },
 		});
 
 		const markRead = await agent
@@ -276,6 +277,7 @@ describe("Email verification lockout (Siren API)", () => {
 			url: "https://example.com/already-saved",
 			metadata: { title: "Already saved", siteName: "example.com", excerpt: "", wordCount: 0 },
 			estimatedReadTime: MinutesSchema.parse(0),
+			provenance: { kind: "web" },
 		});
 		const token = await mintAccessToken(harness, userId);
 

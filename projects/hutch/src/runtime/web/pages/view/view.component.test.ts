@@ -40,6 +40,16 @@ function render(input = baseInput) {
 }
 
 describe("ViewPage", () => {
+	it("leaves the meta row free of a provenance tag: a shared article belongs to no one reading it", () => {
+		const meta = render().querySelector(".article-body__meta");
+		assert(meta, "meta row must render");
+
+		expect(Array.from(meta.querySelectorAll("span")).map((span) => span.textContent?.trim())).toEqual([
+			"example.com",
+			"1 min read",
+		]);
+	});
+
 	it("renders the article body via the shared renderer", () => {
 		const doc = render();
 

@@ -93,11 +93,20 @@ export const SubmitLinkCommand = defineEvent({
 	name: "submit-link-command",
 	source: "hutch.api",
 	detailType: "SubmitLinkCommand",
-	detailSchema: z.object({
-		url: z.string(),
-		userId: z.string().optional(),
-		rawHtml: z.string().optional(),
-	}),
+	detailSchema: z.union([
+		/** 1. Structural on purpose — this package stays dependency-light, so the
+		 *     consumer re-parses the payload with the domain's `SaveProvenanceSchema`
+		 *     exactly as it re-parses `userId` with `UserIdSchema`.
+		 *  2. Strict so a pre-provenance `{url, userId}` still in flight at deploy
+		 *     fails loudly here instead of being read as an anonymous submission. */
+		z.object({
+			url: z.string(),
+			userId: z.string(),
+			provenance: z.looseObject({ kind: z.string() }), /* 1 */
+			rawHtml: z.string().optional(),
+		}),
+		z.strictObject({ url: z.string(), rawHtml: z.string().optional() }), /* 2 */
+	]),
 });
 export type SubmitLinkDetail = z.infer<typeof SubmitLinkCommand.detailSchema>;
 

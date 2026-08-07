@@ -226,6 +226,7 @@ import { TermsPage } from "./web/pages/terms";
 import { HelpAddLinksPage } from "./web/pages/help";
 import { isAppShell } from "./web/onboarding/ios-client";
 import { APP_BACK_LINK } from "./web/shared/ios-app-links";
+import { initResolveMcpSaveProvenance } from "./web/shared/save-provenance";
 import { E2EFixturePage } from "./web/pages/e2e-fixture";
 import { createE2EFixturePdf } from "./web/pages/e2e-fixture-pdf";
 import { initInstallRoutes } from "./web/pages/install";
@@ -454,9 +455,12 @@ export function createApp(dependencies: AppDependencies): Express {
 		getEffectiveAccess,
 		now: deps.now,
 	});
+	const resolveMcpSaveProvenance = initResolveMcpSaveProvenance({
+		findOAuthClient: deps.findOAuthClient,
+	});
 	const mcpServer = initMcpServer({
 		resolveToolAccess,
-		saveLink: async ({ userId, url }) => {
+		saveLink: async ({ userId, url, oauthClientId }) => {
 			const access = await resolveSaveAccess(userId);
 			if (!access.allowed) {
 				return { ok: false, message: access.message };
@@ -474,6 +478,7 @@ export function createApp(dependencies: AppDependencies): Express {
 					userId,
 					url: validation.url,
 					freshness,
+					provenance: await resolveMcpSaveProvenance(oauthClientId),
 				});
 				return { ok: true, title: saved.metadata.title, url: saved.url };
 			} catch (error) {

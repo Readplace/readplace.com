@@ -392,6 +392,7 @@ function handleViewSummary(deps: ViewDependencies, reader: ReturnType<typeof ini
 			capturing: false,
 			extensionInstallUrl: extensionInstallUrlIfMissing(req),
 			summaryToggleUrl: undefined,
+			provenance: undefined,
 		});
 		sendComponent(req, res, CacheableComponent(component, req));
 	};
@@ -418,6 +419,7 @@ function handleViewReader(deps: ViewDependencies, reader: ReturnType<typeof init
 			capturing: false,
 			extensionInstallUrl: extensionInstallUrlIfMissing(req),
 			summaryToggleUrl: undefined,
+			provenance: undefined,
 		});
 		sendComponent(req, res, CacheableComponent(component, req));
 	};

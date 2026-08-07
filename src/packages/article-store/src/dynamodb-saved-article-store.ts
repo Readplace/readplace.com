@@ -9,7 +9,7 @@ import {
 } from "@packages/hutch-storage-client";
 import { z } from "zod";
 import type { SavedArticle } from "@packages/domain/article";
-import { MinutesSchema, ArticleStatusSchema } from "@packages/domain/article";
+import { MinutesSchema, ArticleStatusSchema, SaveProvenanceSchema } from "@packages/domain/article";
 import { ArticleResourceUniqueId } from "@packages/article-resource-unique-id";
 import { StoredCrawlVersionSchema, normalizeCrawlVersion } from "./crawl-version-log";
 import { ReaderArticleHashId, ReaderArticleHashIdSchema } from "@packages/domain/article";
@@ -102,6 +102,7 @@ const UserArticleRow = z.object({
 	 * legacy rows and never-toggled rows simply lack them. */
 	lastSummaryOpenedAt: dynamoField(z.string()),
 	lastSummaryClosedAt: dynamoField(z.string()),
+	provenance: dynamoField(SaveProvenanceSchema),
 });
 
 function toOptionalDate(value: string | undefined): Date | undefined {
@@ -129,6 +130,7 @@ function toSavedArticle(
 		status: userArticle.status,
 		savedAt: new Date(userArticle.savedAt),
 		readAt: toOptionalDate(userArticle.readAt),
+		provenance: userArticle.provenance,
 	};
 }
 
@@ -260,10 +262,11 @@ export function initDynamoDbSavedArticleStore(deps: {
 			userArticles.update({
 				Key: { userId: params.userId, url: articleResourceUniqueId.value },
 				UpdateExpression:
-					"SET savedAt = :savedAt, #status = if_not_exists(#status, :unread)",
+					"SET savedAt = :savedAt, provenance = :provenance, #status = if_not_exists(#status, :unread)",
 				ExpressionAttributeNames: { "#status": "status" },
 				ExpressionAttributeValues: {
 					":savedAt": now.toISOString(),
+					":provenance": params.provenance,
 					":unread": "unread",
 				},
 				ReturnValues: "ALL_OLD",

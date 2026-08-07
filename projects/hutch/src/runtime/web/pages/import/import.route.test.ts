@@ -607,6 +607,27 @@ describe("Import routes", () => {
 	});
 
 	describe("POST /import/:id/commit", () => {
+		it("tags every committed URL as an import, so the reader can name where it came from", async () => {
+			const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
+			const { auth, articleStore } = harness;
+			const agent = await loginAgent(harness.server, harness.auth);
+			const { body, contentType } = multipartBody(
+				"urls.txt",
+				Buffer.from("https://example.com/imported-a https://example.com/imported-b"),
+			);
+			const create = await agent.post("/import").set("Content-Type", contentType).send(body);
+
+			await agent.post(`${create.headers.location}/commit`);
+
+			const userId = (await auth.findUserByEmail("test@example.com"))?.userId;
+			assert(userId, "user must exist");
+			const result = await articleStore.findArticlesByUser({ userId });
+			expect(result.articles.map((article) => article.provenance)).toEqual([
+				{ kind: "import" },
+				{ kind: "import" },
+			]);
+		});
+
 		it("imports selected URLs into the user's queue and deletes the session", async () => {
 			const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
 			const { auth, articleStore } = harness;

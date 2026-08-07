@@ -5,6 +5,7 @@ export {
 	CHROME_STORE_URL,
 	CLIENT_CATEGORIES,
 	clientCategoryOfGroup,
+	clientNameForBuiltInOAuthClientId,
 	IPHONE_APP_STORE_URL,
 	clientGroupsInCategory,
 	isBuiltInOAuthClientId,
@@ -13,6 +14,7 @@ export {
 } from "./supported-clients";
 export type {
 	AuthIdentity,
+	BuiltInClientName,
 	BuiltInOAuthClientId,
 	ClientCategory,
 	ClientGroup,

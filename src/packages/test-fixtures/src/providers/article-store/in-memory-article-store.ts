@@ -3,6 +3,7 @@ import type {
 	ArticleMetadata,
 	ArticleStatus,
 	Minutes,
+	SaveProvenance,
 	SavedArticle,
 } from "@packages/domain/article";
 import { ArticleResourceUniqueId } from "@packages/article-resource-unique-id";
@@ -61,6 +62,7 @@ interface UserArticle {
 	emailSentAt?: Date;
 	lastSummaryOpenedAt?: Date;
 	lastSummaryClosedAt?: Date;
+	provenance?: SaveProvenance;
 }
 
 function toSavedArticle(article: GlobalArticle, userArticle: UserArticle): SavedArticle {
@@ -75,6 +77,7 @@ function toSavedArticle(article: GlobalArticle, userArticle: UserArticle): Saved
 		status: userArticle.status,
 		savedAt: userArticle.savedAt,
 		readAt: userArticle.readAt,
+		provenance: userArticle.provenance,
 	};
 }
 
@@ -169,12 +172,13 @@ export function initInMemoryArticleStore(): {
 		const uaKey = userArticleKey(params.userId, articleResourceUniqueId.value);
 		const existing = userArticles.get(uaKey);
 		userArticles.set(uaKey, existing
-			? { ...existing, savedAt: now }
+			? { ...existing, savedAt: now, provenance: params.provenance }
 			: {
 				userId: params.userId,
 				url: articleResourceUniqueId.value,
 				status: "unread",
 				savedAt: now,
+				provenance: params.provenance,
 			});
 
 		const article = articles.get(articleResourceUniqueId.value);

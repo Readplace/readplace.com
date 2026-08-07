@@ -8,7 +8,7 @@ import { render } from "@packages/web-shell";
 import { renderArticleHeader } from "./article-header/article-header.component";
 import { renderCrawlBookmark, type CrawlBookmarkRemoval } from "./crawl-bookmark/crawl-bookmark.component";
 import { renderProgressBar } from "./progress-bar.component";
-import type { ProgressTick } from "@packages/domain/article";
+import type { ProgressTick, SaveProvenance } from "@packages/domain/article";
 import type { LocalTime } from "@packages/web-shell/local-time.format";
 import { renderReaderSlot } from "./reader-slot/reader-slot.component";
 import { renderRelatedSlot, type RelatedSlotContext } from "./related-slot/related-slot.component";
@@ -57,6 +57,9 @@ export interface ArticleBodyInput {
 	/** Owner-only removal controls for the crawl bookmark. Present only on the
 	 * authenticated owner reader; omitted on the public `/view` and iOS renders. */
 	crawlBookmarkRemoval?: CrawlBookmarkRemoval;
+	/** Where the owner's save came from. Per-user, so only the owner reader
+	 * passes it; the public `/view` and the admin recrawl omit it. */
+	provenance?: SaveProvenance;
 }
 
 export function renderArticleBody(input: ArticleBodyInput): string {
@@ -96,6 +99,7 @@ export function renderArticleBody(input: ArticleBodyInput): string {
 		siteName: input.siteName,
 		estimatedReadTime: input.estimatedReadTime,
 		url: input.url,
+		provenance: input.provenance,
 	});
 
 	return render(ARTICLE_BODY_TEMPLATE, {

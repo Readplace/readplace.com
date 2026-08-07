@@ -277,12 +277,53 @@ describe("initLambdaEffectDispatcher", () => {
 		await dispatchEffect({
 			kind: "dispatch-submit-link",
 			url: "https://example.com/article",
-			userId: "user-123",
+			submitter: { userId: "user-123", provenance: { kind: "email", senderEmail: "news@example.com" } },
 		});
 
 		expect(publishEvent).toHaveBeenCalledWith(SubmitLinkCommand, {
 			url: "https://example.com/article",
 			userId: "user-123",
+			provenance: { kind: "email", senderEmail: "news@example.com" },
+		});
+	});
+
+	it("publishes the url alone when no submitter owns the effect, which is the shape requestRecrawl emits", async () => {
+		const dispatchGenerateSummary = jest.fn().mockResolvedValue(undefined);
+		const publishEvent = jest.fn().mockResolvedValue(undefined);
+
+		const { dispatchEffect } = initLambdaEffectDispatcher({
+			dispatchGenerateSummary,
+			publishEvent,
+		});
+
+		await dispatchEffect({
+			kind: "dispatch-submit-link",
+			url: "https://example.com/article",
+		});
+
+		expect(publishEvent).toHaveBeenCalledWith(SubmitLinkCommand, {
+			url: "https://example.com/article",
+		});
+	});
+
+	it("keeps a submitter-less capture on the anonymous shape, so a tier-0 upload with no signed-in saver stays out of the authenticated one", async () => {
+		const dispatchGenerateSummary = jest.fn().mockResolvedValue(undefined);
+		const publishEvent = jest.fn().mockResolvedValue(undefined);
+
+		const { dispatchEffect } = initLambdaEffectDispatcher({
+			dispatchGenerateSummary,
+			publishEvent,
+		});
+
+		await dispatchEffect({
+			kind: "dispatch-submit-link",
+			url: "https://example.com/article",
+			rawHtml: "<html>captured DOM</html>",
+		});
+
+		expect(publishEvent).toHaveBeenCalledWith(SubmitLinkCommand, {
+			url: "https://example.com/article",
+			rawHtml: "<html>captured DOM</html>",
 		});
 	});
 
@@ -298,13 +339,14 @@ describe("initLambdaEffectDispatcher", () => {
 		await dispatchEffect({
 			kind: "dispatch-submit-link",
 			url: "https://example.com/article",
-			userId: "user-123",
+			submitter: { userId: "user-123", provenance: { kind: "web" } },
 			rawHtml: "<html>captured DOM</html>",
 		});
 
 		expect(publishEvent).toHaveBeenCalledWith(SubmitLinkCommand, {
 			url: "https://example.com/article",
 			userId: "user-123",
+			provenance: { kind: "web" },
 			rawHtml: "<html>captured DOM</html>",
 		});
 	});

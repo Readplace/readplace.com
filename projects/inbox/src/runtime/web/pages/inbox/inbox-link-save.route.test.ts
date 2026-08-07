@@ -13,6 +13,7 @@ import { loginAgent, useTestServer } from "../../../test-app";
 
 const useApp = useTestServer();
 const SK = "2026-06-24T09:00:00.000Z#<save@x>";
+const EMAIL_PROVENANCE = { kind: "email", senderEmail: "news@example.com" };
 
 function link(userId: UserId, overrides: Partial<InboxEmailLinkEntry> = {}): InboxEmailLinkEntry {
 	return {
@@ -81,7 +82,7 @@ describe("Inbox link save route", () => {
 		expect(response.headers.location).toBe(
 			`/inbox/${encodeURIComponent(SK)}?tab=articles&saved=1`,
 		);
-		expect(harness.submittedLinks).toEqual([{ userId, url: "https://example.com/post" }]);
+		expect(harness.submittedLinks).toEqual([{ userId, url: "https://example.com/post", provenance: EMAIL_PROVENANCE }]);
 		// A kept card carries no misclassification verdict, so its save logs no
 		// classifier-audit line — only a skipped row's save reports one.
 		expect(errors).toHaveLength(0);
@@ -145,7 +146,7 @@ describe("Inbox link save route", () => {
 
 		await agent.post(savePath);
 
-		expect(harness.submittedLinks).toEqual([{ userId, url: "https://example.com/post" }]);
+		expect(harness.submittedLinks).toEqual([{ userId, url: "https://example.com/post", provenance: EMAIL_PROVENANCE }]);
 	});
 
 	it("strips the newsletter's utm tags from a crawled link before submitting it", async () => {
@@ -158,7 +159,7 @@ describe("Inbox link save route", () => {
 
 		await agent.post(savePath);
 
-		expect(harness.submittedLinks).toEqual([{ userId, url: "https://example.com/post?id=7" }]);
+		expect(harness.submittedLinks).toEqual([{ userId, url: "https://example.com/post?id=7", provenance: EMAIL_PROVENANCE }]);
 	});
 
 	it("submits a pending wrapper byte-exact, so a signed query survives the redirect chain", async () => {
@@ -174,7 +175,7 @@ describe("Inbox link save route", () => {
 		await agent.post(savePath);
 
 		expect(harness.submittedLinks).toEqual([
-			{ userId, url: "https://link.mail.example.com/ss/c/token?utm_source=nl" },
+			{ userId, url: "https://link.mail.example.com/ss/c/token?utm_source=nl", provenance: EMAIL_PROVENANCE },
 		]);
 	});
 
@@ -210,7 +211,7 @@ describe("Inbox link save route", () => {
 			`/inbox/${encodeURIComponent(SK)}?tab=excluded&saved=1`,
 		);
 		expect(harness.submittedLinks).toEqual([
-			{ userId, url: "https://example.com/story?utm_source=nl&sig=abc" },
+			{ userId, url: "https://example.com/story?utm_source=nl&sig=abc", provenance: EMAIL_PROVENANCE },
 		]);
 		// Saving a skipped row IS the report now that the report button is gone: the
 		// save emits the same classifier-audit line the button used to, so a
@@ -341,7 +342,7 @@ describe("Inbox link save route answering htmx in place", () => {
 		const button = saveButton(row);
 		expect(button.getAttribute("data-test-save-state")).toBe("saving");
 		expect(button.textContent?.trim()).toBe("Saving…");
-		expect(harness.submittedLinks).toEqual([{ userId, url: "https://example.com/post" }]);
+		expect(harness.submittedLinks).toEqual([{ userId, url: "https://example.com/post", provenance: EMAIL_PROVENANCE }]);
 		expect(errors).toHaveLength(1);
 		assert(errors[0].startsWith("[inbox-link-feedback] "));
 	});
@@ -403,7 +404,7 @@ describe("Inbox link save route answering htmx in place", () => {
 		const button = cardSaveButton(card);
 		expect(button.getAttribute("data-test-save-state")).toBe("saving");
 		expect(button.textContent?.trim()).toBe("Saving…");
-		expect(harness.submittedLinks).toEqual([{ userId, url: "https://example.com/post" }]);
+		expect(harness.submittedLinks).toEqual([{ userId, url: "https://example.com/post", provenance: EMAIL_PROVENANCE }]);
 		expect(errors).toHaveLength(0);
 	});
 
@@ -694,7 +695,7 @@ describe("Inbox link save route with a relayed publisher", () => {
 		const response = await agent.post(savePath);
 
 		expect(response.status).toBe(303);
-		expect(relayed).toEqual([{ userId, url: "https://example.com/post" }]);
-		expect(harness.submittedLinks).toEqual([{ userId, url: "https://example.com/post" }]);
+		expect(relayed).toEqual([{ userId, url: "https://example.com/post", provenance: EMAIL_PROVENANCE }]);
+		expect(harness.submittedLinks).toEqual([{ userId, url: "https://example.com/post", provenance: EMAIL_PROVENANCE }]);
 	});
 });

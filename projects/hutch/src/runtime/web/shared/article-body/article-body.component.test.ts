@@ -20,6 +20,16 @@ function parse(html: string) {
 }
 
 describe("renderArticleBody", () => {
+	it("passes the owner's save provenance through to the header, and leaves it off when the caller has none", () => {
+		const tagOf = (html: string) =>
+			parse(html).querySelector("[data-test-reader-provenance]")?.textContent?.trim();
+
+		expect([
+			tagOf(renderArticleBody({ ...baseInput, provenance: { kind: "import" } })),
+			tagOf(renderArticleBody(baseInput)),
+		]).toEqual(["via Import", undefined]);
+	});
+
 	it("renders the article title, site name, reading time and content", () => {
 		const html = renderArticleBody({
 			...baseInput,

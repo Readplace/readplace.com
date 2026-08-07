@@ -23,6 +23,7 @@ import {
 import { UNROUTED_USER_ID } from "@packages/domain/inbox";
 import { extractUrls } from "@packages/domain/import-session";
 import { validateSaveableUrl } from "@packages/domain/article";
+import type { SaveProvenance } from "@packages/domain/article";
 import { type UserId, UserIdSchema } from "@packages/domain/user";
 import { collectEmailAnchors } from "./collect-email-anchors";
 import { LLM_SKIP_REASONS, type TriageEmailLinks } from "./triage-email-links";
@@ -62,7 +63,11 @@ export function initExtractEmailLinksHandler(deps: {
 		ordinal: EmailLinkOrdinal;
 		url: string;
 	}) => Promise<void>;
-	publishSubmitLink: (input: { userId: UserId; url: string }) => Promise<void>;
+	publishSubmitLink: (input: {
+		userId: UserId;
+		url: string;
+		provenance: SaveProvenance;
+	}) => Promise<void>;
 	alertTruncated: (input: {
 		userId: UserId;
 		receivedAtMessageId: string;
@@ -237,7 +242,11 @@ export function initExtractEmailLinksHandler(deps: {
 						userId !== UNROUTED_USER_ID &&
 						validateSaveableUrl(url).status === "SUCCESS"
 					) {
-						await publishSubmitLink({ userId, url });
+						await publishSubmitLink({
+							userId,
+							url,
+							provenance: { kind: "email", senderEmail: email.senderEmail },
+						});
 					}
 					await publishCrawlPreview({ userId, receivedAtMessageId, ordinal, url });
 				}

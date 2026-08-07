@@ -22,6 +22,7 @@ function makeArticleParams(
 			wordCount: 500,
 		},
 		estimatedReadTime: 3 as Minutes,
+		provenance: { kind: "web" },
 		...overrides,
 	};
 }

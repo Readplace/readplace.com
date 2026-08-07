@@ -133,6 +133,22 @@
   color: var(--color-text-secondary);
 }
 
+.article-body__provenance {
+  max-width: 100%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/** 1. One size for both icon sets: the client logos carry an 18px attribute and
+ *     the UI icons 1em, and neither matches the meta row's smaller type. */
+.article-body__provenance svg {
+  width: 0.875em; /* 1 */
+  height: 0.875em; /* 1 */
+  vertical-align: -0.125em;
+  margin-right: 0.25rem;
+}
+
 .article-body__original-link {
   display: inline-block;
   margin-top: 0.5rem;

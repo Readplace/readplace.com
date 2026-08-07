@@ -1,8 +1,9 @@
 import { readFileSync } from "node:fs";
 import { join } from "node:path";
 import Handlebars from "handlebars";
-import type { Minutes } from "@packages/domain/article";
+import type { Minutes, SaveProvenance } from "@packages/domain/article";
 import { render } from "@packages/web-shell";
+import { provenanceLabel } from "./provenance-label";
 
 const TEMPLATE = readFileSync(join(__dirname, "article-header.template.html"), "utf-8");
 
@@ -11,14 +12,21 @@ export interface ArticleHeaderInput {
 	siteName: string;
 	estimatedReadTime: Minutes;
 	url: string;
+	/** Required-undefined rather than optional: the header is re-rendered on every
+	 * poll, so every call site has to decide whether it can supply the tag instead
+	 * of dropping it by omission. */
+	provenance: SaveProvenance | undefined;
 }
 
 function renderTemplate(input: ArticleHeaderInput, oob: boolean): string {
+	const provenance = input.provenance === undefined ? undefined : provenanceLabel(input.provenance);
 	return render(TEMPLATE, {
 		title: input.title,
 		siteName: input.siteName,
 		estimatedReadTime: input.estimatedReadTime,
 		url: input.url,
+		provenanceLabel: provenance?.label,
+		provenanceIconSvg: provenance?.iconSvg,
 		oob,
 	});
 }

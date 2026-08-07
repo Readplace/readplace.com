@@ -63,6 +63,7 @@ export function initMcpRoutes(deps: McpRoutesDeps): Router {
 			return;
 		}
 		req.userId = validated.userId;
+		req.oauthClientId = validated.oauthClientId;
 		next();
 	}
 
@@ -75,6 +76,8 @@ export function initMcpRoutes(deps: McpRoutesDeps): Router {
 		express.text({ type: () => true, limit: "1mb" }),
 		async (req: Request, res: Response) => {
 			assert(req.userId, "requireBearer must set req.userId before the handler");
+			assert(req.oauthClientId, "requireBearer must set req.oauthClientId before the handler");
+			const oauthClientId = req.oauthClientId;
 			let message: unknown;
 			try {
 				message = JSON.parse(req.body);
@@ -84,6 +87,7 @@ export function initMcpRoutes(deps: McpRoutesDeps): Router {
 			}
 			const response = await deps.mcpServer.handle(message, {
 				userId: req.userId,
+				oauthClientId,
 			});
 			if (!response) {
 				res.status(202).end();

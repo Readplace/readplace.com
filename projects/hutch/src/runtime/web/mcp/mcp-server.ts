@@ -95,6 +95,7 @@ export interface McpServerDeps {
 	saveLink: (params: {
 		userId: AuthenticatedUserId;
 		url: string;
+		oauthClientId: string;
 	}) => Promise<SaveLinkResult>;
 	listQueue: (params: {
 		userId: AuthenticatedUserId;
@@ -132,6 +133,7 @@ export interface McpServerDeps {
  * token by the transport before a message reaches the server. */
 interface McpRequestContext {
 	readonly userId: AuthenticatedUserId;
+	readonly oauthClientId: string;
 }
 
 type JsonRpcId = string | number | null;
@@ -291,6 +293,7 @@ export function initMcpServer(deps: McpServerDeps): McpServer {
 			const outcome = await deps.saveLink({
 				userId: context.userId,
 				url: args.data.url,
+				oauthClientId: context.oauthClientId,
 			});
 			if (!outcome.ok) return toolError(outcome.message);
 			return text(

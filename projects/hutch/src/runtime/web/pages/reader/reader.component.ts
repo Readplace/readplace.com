@@ -119,6 +119,7 @@ export function ReaderPage(
 		// Header "View original" points at the redirect destination once merged;
 		// the share path below stays on `article.url` (the /view identity).
 		url: article.displayUrl ?? article.url,
+		provenance: article.provenance,
 		content: article.content,
 		crawl: options.crawl,
 		readerPollUrl: options.readerPollUrl,

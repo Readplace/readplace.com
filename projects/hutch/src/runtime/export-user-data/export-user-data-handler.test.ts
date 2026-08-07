@@ -110,6 +110,7 @@ describe("initExportUserDataHandler", () => {
 				wordCount: 100,
 			},
 			estimatedReadTime: MinutesSchema.parse(1),
+			provenance: { kind: "web" },
 		});
 
 		const response = await invokeHandler(harness, {
@@ -161,6 +162,7 @@ describe("initExportUserDataHandler", () => {
 					wordCount: 100,
 				},
 				estimatedReadTime: MinutesSchema.parse(1),
+				provenance: { kind: "web" },
 			});
 		}
 

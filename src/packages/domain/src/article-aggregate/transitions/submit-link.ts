@@ -1,10 +1,11 @@
+import type { SaveProvenance } from "../../article/save-provenance";
 import type { Article } from "../article.types";
 import type { Effect } from "../effects.types";
 import type { AggregateField } from "../storage.types";
 
 export interface SubmitLinkInput {
 	url: string;
-	userId?: string;
+	submitter?: { userId: string; provenance: SaveProvenance };
 	rawHtml?: string;
 	now: string;
 }
@@ -36,7 +37,7 @@ export function submitLink(
 		{
 			kind: "dispatch-submit-link",
 			url: input.url,
-			...(input.userId !== undefined ? { userId: input.userId } : {}),
+			...(input.submitter !== undefined ? { submitter: input.submitter } : {}),
 			...(input.rawHtml !== undefined ? { rawHtml: input.rawHtml } : {}),
 		},
 	];

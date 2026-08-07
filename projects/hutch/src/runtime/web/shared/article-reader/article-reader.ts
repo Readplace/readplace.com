@@ -18,6 +18,7 @@ import {
 	DEFAULT_CRAWL_STAGE,
 	DEFAULT_SUMMARY_STAGE,
 	type ProgressTick,
+	type SaveProvenance,
 	SUMMARY_STAGE_TO_PCT,
 	type SummaryStage,
 } from "@packages/domain/article";
@@ -285,6 +286,7 @@ export function initArticleReader(deps: ArticleReaderDeps): {
 	function buildMetadataOob(
 		article: GlobalArticleData | null,
 		articleUrl: string,
+		provenance: SaveProvenance | undefined,
 	): string {
 		if (!article) return "";
 		const headerOob = renderArticleHeaderOob({
@@ -292,6 +294,7 @@ export function initArticleReader(deps: ArticleReaderDeps): {
 			siteName: article.metadata.siteName,
 			estimatedReadTime: article.estimatedReadTime,
 			url: articleUrl,
+			provenance,
 		});
 		const titleOob = renderDocumentTitleOob(
 			deps.formatDocumentTitle(article.metadata.title),
@@ -324,7 +327,7 @@ export function initArticleReader(deps: ArticleReaderDeps): {
 			summaryToggleUrl: params.summaryToggleUrl,
 			extensionInstallUrl,
 			progress: buildUnifiedProgress(crawl, summary, deps.now()),
-			metadataOob: buildMetadataOob(article, articleUrl),
+			metadataOob: buildMetadataOob(article, articleUrl, params.provenance),
 			appOrigin: deps.appOrigin,
 		}));
 	}
@@ -354,7 +357,7 @@ export function initArticleReader(deps: ArticleReaderDeps): {
 			summaryToggleUrl: params.summaryToggleUrl,
 			extensionInstallUrl,
 			progress: buildUnifiedProgress(crawl, summary, deps.now()),
-			metadataOob: buildMetadataOob(article, articleUrl),
+			metadataOob: buildMetadataOob(article, articleUrl, params.provenance),
 			appOrigin: deps.appOrigin,
 		}));
 	}
