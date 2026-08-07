@@ -17,7 +17,7 @@
         <a class="btn btn--primary btn--compact queue-banner__cta" href="{{track '/account' source='queue-banner' content='resubscribe'}}" data-test-action="resubscribe">{{subscribeCtaLabel}}</a>
         {{/if}}
       </aside>
-      {{{statusToastHtml}}}
+      <div id="status-toast">{{{statusToastHtml}}}</div>
       <form class="{{saveFormClass}}" method="POST" action="{{track '/queue/save' source='queue' content='save'}}" hx-boost="true" hx-target="main" hx-select="main" hx-swap="outerHTML show:#latest-saved:top" hx-disabled-elt=".queue__save-btn" data-test-form="save-article"{{#if saveUrl}} data-auto-submit{{/if}}>
         <input class="queue__save-input" type="url" name="url" placeholder="Paste a URL to save an article…" required value="{{saveUrl}}"{{#if accessIsReadOnly}} disabled{{/if}}>
         <button class="btn btn--primary btn--field queue__save-btn" type="submit"{{#if accessIsReadOnly}} disabled{{/if}}><span class="queue__save-btn-label">Save</span><span class="queue__save-btn-saving">Saving…</span></button>
@@ -39,7 +39,7 @@
       </div>
       {{/if}}
       {{{filtersHtml}}}
-      <span hx-get="{{countsUrl}}" hx-trigger="load" hx-swap="none" data-test-queue-counts></span>
+      {{{countsSpanHtml}}}
       <div class="queue__sort" hx-boost="true" hx-target="main" hx-select="main" hx-swap="outerHTML show:none">
         <a class="queue__sort-link" href="{{sortUrl}}" data-test-sort>{{sortLabel}} {{icon sortIconName}}</a>
       </div>

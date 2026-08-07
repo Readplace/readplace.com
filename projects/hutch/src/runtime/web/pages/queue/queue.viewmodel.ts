@@ -128,10 +128,18 @@ function toStatusActions(
 ): ArticleAction[] {
 	const actions: ArticleAction[] = [];
 
+	/** `swap=card` marks a status URL as the card affordance so the shared
+	 * status route answers an htmx submit with the card-scoped fragment, while
+	 * the Undo, reader and Siren callers (which build their own hrefs without it)
+	 * keep the full-listing 303. It is a representation hint the server never
+	 * trusts as state; delete keeps its full-<main> confirm flow, so only the
+	 * status URLs carry it. */
+	const cardQuery = `${returnQuery}${returnQuery ? "&" : "?"}swap=card`;
+
 	if (article.status !== "read") {
 		actions.push({
 			method: "POST",
-			url: `/queue/${article.id}/status${returnQuery}`,
+			url: `/queue/${article.id}/status${cardQuery}`,
 			text: "Mark as read",
 			title: "Mark as read",
 			testAction: "mark-read",
@@ -142,7 +150,7 @@ function toStatusActions(
 	if (article.status !== "unread") {
 		actions.push({
 			method: "POST",
-			url: `/queue/${article.id}/status${returnQuery}`,
+			url: `/queue/${article.id}/status${cardQuery}`,
 			text: "Mark as unread",
 			title: "Mark as unread",
 			testAction: "mark-unread",

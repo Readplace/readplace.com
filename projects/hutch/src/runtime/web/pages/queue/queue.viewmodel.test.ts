@@ -309,7 +309,7 @@ describe("toQueueViewModel", () => {
 
 		const markUnreadAction = vm.articles[0].actions.find(a => a.testAction === "mark-unread");
 		expect(markUnreadAction?.method).toBe("POST");
-		expect(markUnreadAction?.url).toBe(`/queue/${ARTICLE_ID}/status`);
+		expect(markUnreadAction?.url).toBe(`/queue/${ARTICLE_ID}/status?swap=card`);
 		expect(markUnreadAction?.fields).toEqual([{ name: "status", value: "unread" }]);
 	});
 
@@ -319,7 +319,7 @@ describe("toQueueViewModel", () => {
 
 		const markReadAction = vm.articles[0].actions.find(a => a.testAction === "mark-read");
 		expect(markReadAction?.method).toBe("POST");
-		expect(markReadAction?.url).toBe(`/queue/${ARTICLE_ID}/status`);
+		expect(markReadAction?.url).toBe(`/queue/${ARTICLE_ID}/status?swap=card`);
 		expect(markReadAction?.fields).toEqual([{ name: "status", value: "read" }]);
 	});
 
@@ -329,7 +329,7 @@ describe("toQueueViewModel", () => {
 		const vm = toQueueViewModel(makeResult([article]), filters, { now: NOW });
 
 		const markReadAction = vm.articles[0].actions.find(a => a.testAction === "mark-read");
-		expect(markReadAction?.url).toBe(`/queue/${ARTICLE_ID}/status?order=asc`);
+		expect(markReadAction?.url).toBe(`/queue/${ARTICLE_ID}/status?order=asc&swap=card`);
 	});
 
 	it("should have no hidden fields in delete action", () => {

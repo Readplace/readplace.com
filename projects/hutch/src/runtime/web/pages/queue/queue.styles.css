@@ -578,9 +578,7 @@
 }
 
 /**
- * Mark-read/unread in-flight loader — mirrors the reader's mark-read control so
- * the status toggle shows the same three animated dots while htmx re-swaps the
- * <main> fragment, covering the slight round-trip delay.
+ * Mark-read/unread in-flight loader.
  *
  * 1. Scoped to the submitting form's own htmx-request, NOT an ambient
  *    descendant match: the card polls itself (hx-get on the root every 3s),

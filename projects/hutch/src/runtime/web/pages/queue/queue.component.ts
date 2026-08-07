@@ -7,13 +7,13 @@ import type { Platform } from "../../onboarding/onboarding.types";
 import type { DeviceClass } from "@packages/web-analytics";
 import {
 	render,
-	renderToast,
 	withInternalTracking,
 	SUBSCRIBE_CTA_LABEL,
 } from "@packages/web-shell";
 import type { CspNonce, LocalTime, PageBody } from "@packages/web-shell";
 
 import { QUEUE_STYLES } from "./queue.styles";
+import { renderQueueCountsTrigger, renderStatusToast } from "./queue-mutation-fragments";
 import { renderQueueCard, toQueueCardDisplayModel } from "./queue-card/queue-card.component";
 import {
 	toDeleteConfirmDisplayModel,
@@ -27,10 +27,6 @@ import { buildQueueUrl } from "./queue.url";
 import { tabQuery, type TabId } from "./queue.tabs";
 
 const QUEUE_TEMPLATE = readFileSync(join(__dirname, "queue.template.html"), "utf-8");
-
-/** Long enough to read the message and reach for Undo, short enough not to
- * linger; the global toast.client script removes it after this delay. */
-const STATUS_TOAST_DISMISS_MS = 6000;
 
 /** The confirmation panels are built from the same `vm.articles` array as the
  * cards, so the popover set and the trigger set can never disagree. They live at
@@ -65,7 +61,7 @@ interface QueueDisplayModel {
 	prevUrl?: string;
 	nextUrl?: string;
 	currentPage: number;
-	countsUrl: string;
+	countsSpanHtml: string;
 	subscriptionBannerStateClass: string;
 	subscriptionBannerIsTrialCountdown: boolean;
 	subscriptionBannerIsCancellationScheduled: boolean;
@@ -117,20 +113,7 @@ function toQueueDisplayModel(vm: QueueViewModel, options: { installed: boolean; 
 		saveError: vm.errors?.[0]?.message,
 		saveErrorCode: vm.saveErrorCode,
 		importFlash: vm.importFlash,
-		statusToastHtml: vm.statusFlash
-			? renderToast({
-				message: vm.statusFlash.message,
-				dismissMs: STATUS_TOAST_DISMISS_MS,
-				actions: [
-					{
-						method: "POST",
-						url: withInternalTracking(vm.statusFlash.undoUrl, { source: "queue-toast", content: "undo" }),
-						label: "Undo",
-						fields: [{ name: "status", value: vm.statusFlash.undoStatus }],
-					},
-				],
-			})
-			: "",
+		statusToastHtml: vm.statusFlash ? renderStatusToast(vm.statusFlash) : "",
 		hasImportSkipped: Boolean(vm.importSkipped && vm.importSkipped.entries.length > 0),
 		importSkippedEntries: vm.importSkipped?.entries ?? [],
 		importSkippedAndMore: vm.importSkipped?.andMore,
@@ -159,7 +142,7 @@ function toQueueDisplayModel(vm: QueueViewModel, options: { installed: boolean; 
 				extraTabs: options.extraTabs,
 			}),
 		),
-		countsUrl: vm.countsUrl,
+		countsSpanHtml: renderQueueCountsTrigger({ countsUrl: vm.countsUrl }),
 		sortUrl,
 		sortLabel: sort.label,
 		sortIconName: sort.iconName,

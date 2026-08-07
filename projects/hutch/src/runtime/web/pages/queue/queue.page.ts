@@ -30,6 +30,7 @@ import type {
 	FindArticleFreshness,
 	FindArticleUrlById,
 	FindArticlesByUser,
+	FindArticlesResult,
 	MarkArticleViewed,
 	MarkRelatedDismissed,
 	MarkSummaryToggled,
@@ -105,12 +106,14 @@ import { toSavedArticleEntity } from "../../api/article-siren";
 import { toUploadSlotEntity } from "../../api/upload-slot-siren";
 import { activeQueueTab, type QueueTab } from "./queue-tab";
 import { parseQueueUrl, buildQueueUrl, QUEUE_PATH, canonicalQueuePageRedirect } from "./queue.url";
+import type { QueueUrlState } from "./queue.url";
 import { collectUtmParams } from "../../shared/utm";
 import { tabQuery } from "./queue.tabs";
 import { QUEUE_PAGE_SIZE, queuePageSizeForClient } from "./queue-page-size";
 import { resolveSaveProvenance } from "../../shared/save-provenance";
-import type { HttpErrorMessageMapping } from "./queue.error";
-import { collectStatusFlashParams, importFlashMapping, statusFlashMapping } from "./queue.error";
+import type { HttpErrorMessageMapping, StatusFlash } from "./queue.error";
+import { collectStatusFlashParams, importFlashMapping, statusFlashMapping, statusFlashFor } from "./queue.error";
+import { renderQueueMutationFragment } from "./queue-mutation-fragments";
 import { HtmlPage } from "@packages/web-shell";
 import { MAX_POLLS } from "@packages/web-shell";
 import { parsePollParam } from "@packages/web-shell";
@@ -805,6 +808,118 @@ export function initQueueRoutes(deps: QueueDependencies): Router {
 	const enabledTabLinks = (req: Request) =>
 		deps.tabs.filter((tab) => tab.isEnabled(req)).map((tab) => tab.filterTab());
 
+	/** Renders the full queue listing from an already-fetched page of rows — the
+	 * tail shared by the top-of-page GET and the card-mutation fallback. Never
+	 * fetches the listing itself, so GET stays single-fetch and the fallback can
+	 * feed it the metadata-only page probe it already holds. */
+	const renderQueueListing = async (
+		req: Request,
+		res: Response,
+		input: {
+			userId: UserId;
+			urlState: QueueUrlState;
+			result: FindArticlesResult;
+			saveError?: string;
+			importFlash?: string;
+			statusFlash?: StatusFlash;
+			importSkipped?: ImportSkippedViewModel;
+			saveUrl?: string;
+		},
+	): Promise<void> => {
+		const [summaryByUrl, crawlByUrl, effectiveAccess] = await Promise.all([
+			loadSummaries(deps.findGeneratedSummaries, input.result.articles, deps.logError),
+			loadCrawls(deps.findArticleCrawlStatuses, input.result.articles, deps.logError),
+			deps.getEffectiveAccess(input.userId),
+		]);
+		const vm = toQueueViewModel(input.result, input.urlState, {
+			errors: input.saveError ? [{ message: input.saveError }] : undefined,
+			importFlash: input.importFlash,
+			statusFlash: input.statusFlash,
+			importSkipped: input.importSkipped,
+			summaryByUrl,
+			crawlByUrl,
+			effectiveAccess,
+			now: deps.now(),
+		});
+		const onboarding = await resolveOnboardingSignals(req, input.userId);
+		sendComponent(
+			req, res,
+			Base(
+				QueuePage(vm, { ...onboarding, cspNonce: requireCspNonce(req), saveUrl: input.saveUrl, deviceClass: classifyDeviceClass(req.get("user-agent")), extraTabs: enabledTabLinks(req) }),
+				await deps.buildBannerState(req, { preFetchedAccess: effectiveAccess }),
+			),
+		);
+	};
+
+	/** Answers an htmx card status change. The server — never the client —
+	 * decides the response shape from a metadata-only re-probe of the requested
+	 * page: an applied change on a page that still has rows removes just the card
+	 * (empty primary body) and refreshes toast/counts out of band; anything else
+	 * (page emptied, page beyond the last, or the change didn't apply) re-renders
+	 * the full listing exactly as the 303 → GET path would, retargeted to <main>
+	 * so the DOM resyncs to truth. Delete keeps its full-<main> confirm flow, so
+	 * this covers status only. */
+	const respondCardStatusSwap = async (
+		req: Request,
+		res: Response,
+		{ userId, statusFlash }: { userId: UserId; statusFlash?: StatusFlash },
+	): Promise<void> => {
+		const urlState = parseQueueUrl(req.query);
+		const tab = tabQuery(urlState.tab);
+		const order = urlState.order ?? tab.defaultOrder;
+		const pageSize = queuePageSizeForClient(req.oauthClientId);
+		const probePage = (page: number) =>
+			deps.findArticlesByUser({
+				userId,
+				status: tab.status,
+				sort: tab.sort,
+				order,
+				page,
+				pageSize,
+				excludeContent: true,
+			});
+
+		const result = await probePage(urlState.page);
+		const rows = result.articles.length;
+
+		/** The card-removal fast path leaves <main> — and so the pagination nav —
+		 * untouched, so it is only safe while that nav stays correct. Removing the
+		 * card drops the tab total by one, which erases the Next link exactly when
+		 * that leaves the current page full with nothing after it: the next page
+		 * held the single row this page just absorbed (`rows === pageSize &&
+		 * !hasMore`). Treat that like any other DOM drift and fall through to the
+		 * full render, which re-renders the nav — the counts loader only re-arms the
+		 * unread badge and the "Page X of Y" label, never the Previous/Next links. */
+		const paginationWouldDrift = rows === pageSize && !result.hasMore;
+
+		if (statusFlash && rows > 0 && !paginationWouldDrift) {
+			res
+				.status(200)
+				.type("html")
+				.send(renderQueueMutationFragment({ filters: urlState, statusFlash }));
+			return;
+		}
+
+		let renderState = urlState;
+		let renderResult = result;
+		if (statusFlash && rows === 0 && urlState.page > 1) {
+			const total = await deps.countArticlesByUser({ userId, status: tab.status });
+			const totalPages = Math.max(1, Math.ceil(total / pageSize));
+			renderState = { ...urlState, page: totalPages };
+			renderResult = await probePage(totalPages);
+		}
+
+		res.set("HX-Retarget", "main");
+		res.set("HX-Reswap", "outerHTML show:none");
+		res.set("HX-Reselect", "main");
+		await renderQueueListing(req, res, {
+			userId,
+			urlState: renderState,
+			result: renderResult,
+			statusFlash,
+		});
+	};
+
 	router.get("/", async (req: Request, res: Response) => {
 		assert(req.userId, "userId required - route must be protected by requireAuth");
 		const userId = req.userId;
@@ -895,29 +1010,16 @@ export function initQueueRoutes(deps: QueueDependencies): Router {
 		const importFlash = importFlashMapping(req.query);
 		const statusFlash = statusFlashMapping(req.query);
 		const importSkipped = readImportSkippedFlash(req, res);
-		const [summaryByUrl, crawlByUrl, effectiveAccess] = await Promise.all([
-			loadSummaries(deps.findGeneratedSummaries, result.articles, deps.logError),
-			loadCrawls(deps.findArticleCrawlStatuses, result.articles, deps.logError),
-			deps.getEffectiveAccess(userId),
-		]);
-		const vm = toQueueViewModel(result, urlState, {
-			errors: saveError ? [{ message: saveError }] : undefined,
+		await renderQueueListing(req, res, {
+			userId,
+			urlState,
+			result,
+			saveError,
 			importFlash,
 			statusFlash,
 			importSkipped,
-			summaryByUrl,
-			crawlByUrl,
-			effectiveAccess,
-			now: deps.now(),
+			saveUrl: filterUrl,
 		});
-		const onboarding = await resolveOnboardingSignals(req, userId);
-		sendComponent(
-			req, res,
-			Base(
-				QueuePage(vm, { ...onboarding, cspNonce: requireCspNonce(req), saveUrl: filterUrl, deviceClass: classifyDeviceClass(req.get("user-agent")), extraTabs: enabledTabLinks(req) }),
-				await deps.buildBannerState(req, { preFetchedAccess: effectiveAccess }),
-			),
-		);
 	});
 
 	router.get("/counts", async (req: Request, res: Response) => {
@@ -1608,10 +1710,12 @@ export function initQueueRoutes(deps: QueueDependencies): Router {
 		const parsedId = ReaderArticleHashIdSchema.safeParse(req.params.id);
 		const parsedStatus = ArticleStatusSchema.safeParse(req.body.status);
 
+		let statusFlash: StatusFlash | undefined;
 		const flashParams: [string, string][] = [];
 		if (parsedId.success && parsedStatus.success) {
 			const updated = await deps.updateArticleStatus(parsedId.data, userId, parsedStatus.data);
 			if (updated) {
+				statusFlash = statusFlashFor({ articleId: req.params.id, changed: parsedStatus.data });
 				flashParams.push(["status_changed", parsedStatus.data]);
 				flashParams.push(["status_article", req.params.id]);
 			}
@@ -1625,6 +1729,11 @@ export function initQueueRoutes(deps: QueueDependencies): Router {
 					device_class: classifyDeviceClass(req.get("user-agent")),
 				});
 			}
+		}
+
+		if (req.get("HX-Request") === "true" && req.query.swap === "card" && !activeQueueTab(deps.tabs, req)) {
+			await respondCardStatusSwap(req, res, { userId, statusFlash });
+			return;
 		}
 
 		res.redirect(303, buildQueueUrl(parseQueueUrl(req.query), [...collectUtmParams(req.query), ...flashParams]));

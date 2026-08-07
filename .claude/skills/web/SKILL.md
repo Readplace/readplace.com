@@ -154,6 +154,8 @@ No custom `*.client.js` is needed when htmx covers the interaction. Reserve `*.c
 
 IMPORTANT: Ask for human intervention whenever a deviation from htmx is needed away from this basic pattern for SPA navigation.
 
+**Sanctioned deviation — card-scoped list mutations.** A mutation whose only visible effect is that one list row changes may swap the row instead of re-shipping the whole `<main>`, when re-rendering `<main>` is the measured cost. The queue's card mark-read/unread do this: the form targets the row (`hx-target="closest .queue-article" hx-swap="outerHTML"`); a `swap=card` marker on the action href — a response-representation hint the server never trusts as state, consistent with the URL-as-state rule below — routes an htmx submit to a small card-removal fragment plus out-of-band toast/counts; and the **server**, never the client, decides when the DOM has drifted (page emptied, page beyond the last, the pagination controls changed, or the change didn't apply) and answers with the full listing via `HX-Retarget: main`. The no-JS, Undo, reader and API callers keep the byte-identical `<main>`/303 path, and delete keeps its full-`<main>` confirm-popover flow. This is already decided — follow it for equivalent list-row mutations instead of re-asking. See `pages/queue/queue.page.ts` (`respondCardStatusSwap`) and `queue-mutation-fragments.ts`.
+
 ### No Side Effects on GET
 
 Never mutate state on a GET — proxies cache them, prefetchers fire them, crawlers hit them. For URLs that need to trigger a mutation (e.g., a share-able permalink), render a page with an auto-submitting `<form method="POST">`:
