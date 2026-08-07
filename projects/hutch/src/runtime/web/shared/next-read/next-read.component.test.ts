@@ -12,7 +12,7 @@ const firstId = ReaderArticleHashIdSchema.parse("0123456789abcdef0123456789abcde
 const secondId = ReaderArticleHashIdSchema.parse("fedcba9876543210fedcba9876543210");
 const sourceId = ReaderArticleHashIdSchema.parse("aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa");
 const NOW = new Date("2026-08-05T12:00:00.000Z");
-const RETURN_TO = `/queue/${sourceId.value}/view?feature=similar`;
+const RETURN_TO = `/queue/${sourceId.value}/view`;
 const savedDaysAgo = (days: number) => new Date(NOW.getTime() - days * 86_400_000);
 
 function readyWith(
@@ -268,7 +268,7 @@ describe("renderNextRead", () => {
 		const slot = slotOf(
 			parse(
 				renderNextRead({
-					pollUrl: "/queue/abc/related?feature=similar&poll=2",
+					pollUrl: "/queue/abc/related?poll=2",
 					returnTo: RETURN_TO,
 				}),
 			),
@@ -279,7 +279,7 @@ describe("renderNextRead", () => {
 			trigger: slot.getAttribute("hx-trigger"),
 			swap: slot.getAttribute("hx-swap"),
 		}).toEqual({
-			get: "/queue/abc/related?feature=similar&poll=2",
+			get: "/queue/abc/related?poll=2",
 			trigger: "every 3s",
 			swap: "outerHTML",
 		});
@@ -287,7 +287,7 @@ describe("renderNextRead", () => {
 
 	it("stops ticking once the computation answered, even with nothing related", () => {
 		const slot = slotOf(
-			parse(readyWith([], "/queue/abc/related?feature=similar&poll=2")),
+			parse(readyWith([], "/queue/abc/related?poll=2")),
 		);
 
 		expect(slot.hasAttribute("hx-get")).toBe(false);
@@ -302,7 +302,7 @@ describe("renderNextRead", () => {
 						sourceArticleId: sourceId.value,
 						now: NOW,
 					},
-					pollUrl: "/queue/abc/related?feature=similar&poll=2",
+					pollUrl: "/queue/abc/related?poll=2",
 					returnTo: RETURN_TO,
 				}),
 			),
@@ -321,7 +321,7 @@ describe("renderNextRead", () => {
 		const pending = slotOf(
 			parse(
 				renderNextRead({
-					pollUrl: "/queue/abc/related?feature=similar&poll=2",
+					pollUrl: "/queue/abc/related?poll=2",
 					returnTo: RETURN_TO,
 				}),
 			),

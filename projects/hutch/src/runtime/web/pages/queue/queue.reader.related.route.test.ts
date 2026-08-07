@@ -126,21 +126,11 @@ function relatedSlotOf(html: string) {
 }
 
 describe("Reader related-articles slot", () => {
-	it("stays hidden without the feature toggle, even once relations exist", async () => {
-		const { agent, articleId, seedRelated } = await buildHarness();
-		await seedRelated();
-
-		const response = await agent.get(`/queue/${articleId}/view`);
-
-		const slot = relatedSlotOf(response.text);
-		expect(slot.classList.contains("next-read--hidden")).toBe(true);
-	});
-
-	it("floats the first unread relation when the reader opts into the feature", async () => {
+	it("floats the first unread relation", async () => {
 		const { agent, articleId, related, seedRelated } = await buildHarness();
 		await seedRelated();
 
-		const response = await agent.get(`/queue/${articleId}/view?feature=similar`);
+		const response = await agent.get(`/queue/${articleId}/view`);
 
 		const doc = new JSDOM(response.text).window.document;
 		const slot = doc.querySelector("[data-test-reader-related]");
@@ -182,7 +172,7 @@ describe("Reader related-articles slot", () => {
 		const { agent, articleId, related, seedRelated } = await buildHarness();
 		await seedRelated();
 
-		const response = await agent.get(`/queue/${articleId}/view?feature=similar`);
+		const response = await agent.get(`/queue/${articleId}/view`);
 
 		expect(relatedIdsOf(response.text)).toEqual([related.id.value]);
 	});
@@ -195,13 +185,13 @@ describe("Reader related-articles slot", () => {
 			.post(`/queue/${related.id.value}/status`)
 			.type("form")
 			.send({ status: "read" });
-		const afterRead = await agent.get(`/queue/${articleId}/view?feature=similar`);
+		const afterRead = await agent.get(`/queue/${articleId}/view`);
 
 		await agent
 			.post(`/queue/${related.id.value}/status`)
 			.type("form")
 			.send({ status: "unread" });
-		const afterUnread = await agent.get(`/queue/${articleId}/view?feature=similar`);
+		const afterUnread = await agent.get(`/queue/${articleId}/view`);
 
 		expect(relatedIdsOf(afterRead.text)).toEqual([followUp.id.value]);
 		expect(relatedIdsOf(afterUnread.text)).toEqual([related.id.value]);
@@ -214,7 +204,7 @@ describe("Reader related-articles slot", () => {
 		for (const id of [related.id.value, followUp.id.value]) {
 			await agent.post(`/queue/${id}/status`).type("form").send({ status: "read" });
 		}
-		const response = await agent.get(`/queue/${articleId}/view?feature=similar`);
+		const response = await agent.get(`/queue/${articleId}/view`);
 
 		const slot = relatedSlotOf(response.text);
 		expect(slot.getAttribute("data-related-status")).toBe("ready");
@@ -227,15 +217,15 @@ describe("Reader related-articles slot", () => {
 		await seedRelated();
 
 		await agent.post(`/queue/${related.id.value}/delete`);
-		const response = await agent.get(`/queue/${articleId}/view?feature=similar`);
+		const response = await agent.get(`/queue/${articleId}/view`);
 
 		expect(relatedIdsOf(response.text)).toEqual([followUp.id.value]);
 	});
 
-	it("stays hidden with the toggle on while nothing has been computed", async () => {
+	it("stays hidden while nothing has been computed", async () => {
 		const { agent, articleId } = await buildHarness();
 
-		const response = await agent.get(`/queue/${articleId}/view?feature=similar`);
+		const response = await agent.get(`/queue/${articleId}/view`);
 
 		const slot = relatedSlotOf(response.text);
 		expect(slot.getAttribute("data-related-status")).toBe("pending");
@@ -246,9 +236,7 @@ describe("Reader related-articles slot", () => {
 		const { harness, seedRelated } = await buildHarness();
 		await seedRelated();
 
-		const response = await request(harness.server).get(
-			`${viewPathFor(ARTICLE_URL)}?feature=similar`,
-		);
+		const response = await request(harness.server).get(viewPathFor(ARTICLE_URL));
 
 		const doc = new JSDOM(response.text).window.document;
 		assert(
@@ -261,26 +249,18 @@ describe("Reader related-articles slot", () => {
 	it("ticks the slot while the computation is still running", async () => {
 		const { agent, articleId } = await buildHarness();
 
-		const response = await agent.get(`/queue/${articleId}/view?feature=similar`);
-
-		expect(relatedSlotOf(response.text).getAttribute("hx-get")).toBe(
-			`/queue/${articleId}/related?feature=similar&poll=1`,
-		);
-	});
-
-	it("never ticks the slot without the feature toggle", async () => {
-		const { agent, articleId } = await buildHarness();
-
 		const response = await agent.get(`/queue/${articleId}/view`);
 
-		expect(relatedSlotOf(response.text).hasAttribute("hx-get")).toBe(false);
+		expect(relatedSlotOf(response.text).getAttribute("hx-get")).toBe(
+			`/queue/${articleId}/related?poll=1`,
+		);
 	});
 
 	it("never ticks the slot when the relations are already there", async () => {
 		const { agent, articleId, seedRelated } = await buildHarness();
 		await seedRelated();
 
-		const response = await agent.get(`/queue/${articleId}/view?feature=similar`);
+		const response = await agent.get(`/queue/${articleId}/view`);
 
 		expect(relatedSlotOf(response.text).hasAttribute("hx-get")).toBe(false);
 	});
@@ -324,7 +304,7 @@ describe("Reader related-articles slot", () => {
 			?.getAttribute("data-test-article");
 		assert(articleId, "the saved article must appear in the queue");
 
-		const response = await agent.get(`/queue/${articleId}/view?feature=similar`);
+		const response = await agent.get(`/queue/${articleId}/view`);
 
 		expect(response.status).toBe(200);
 		const slot = relatedSlotOf(response.text);
@@ -333,18 +313,10 @@ describe("Reader related-articles slot", () => {
 });
 
 describe("GET /queue/:id/related", () => {
-	it("404s without the feature toggle, so the gate cannot be walked around", async () => {
-		const { agent, articleId } = await buildHarness();
-
-		const response = await agent.get(`/queue/${articleId}/related?poll=1`);
-
-		expect(response.status).toBe(404);
-	});
-
 	it("404s for an id that is not an article id at all", async () => {
 		const { agent } = await buildHarness();
 
-		const response = await agent.get("/queue/not-an-article-id/related?feature=similar&poll=1");
+		const response = await agent.get("/queue/not-an-article-id/related?poll=1");
 
 		expect(response.status).toBe(404);
 	});
@@ -353,7 +325,7 @@ describe("GET /queue/:id/related", () => {
 		const { agent } = await buildHarness();
 
 		const response = await agent.get(
-			`/queue/${UNSAVED_ID.value}/related?feature=similar&poll=1`,
+			`/queue/${UNSAVED_ID.value}/related?poll=1`,
 		);
 
 		expect(response.status).toBe(404);
@@ -362,14 +334,14 @@ describe("GET /queue/:id/related", () => {
 	it("answers with the hidden slot and the next tick while still computing", async () => {
 		const { agent, articleId } = await buildHarness();
 
-		const response = await agent.get(`/queue/${articleId}/related?feature=similar&poll=1`);
+		const response = await agent.get(`/queue/${articleId}/related?poll=1`);
 
 		expect(response.status).toBe(200);
 		const slot = relatedSlotOf(response.text);
 		expect(slot.getAttribute("data-related-status")).toBe("pending");
 		expect(slot.classList.contains("next-read--hidden")).toBe(true);
 		expect(slot.getAttribute("hx-get")).toBe(
-			`/queue/${articleId}/related?feature=similar&poll=2`,
+			`/queue/${articleId}/related?poll=2`,
 		);
 	});
 
@@ -377,7 +349,7 @@ describe("GET /queue/:id/related", () => {
 		const { agent, articleId, related, seedRelated } = await buildHarness();
 		await seedRelated();
 
-		const response = await agent.get(`/queue/${articleId}/related?feature=similar&poll=1`);
+		const response = await agent.get(`/queue/${articleId}/related?poll=1`);
 
 		expect(response.status).toBe(200);
 		const doc = new JSDOM(response.text).window.document;
@@ -402,7 +374,7 @@ describe("GET /queue/:id/related", () => {
 		const { agent, articleId } = await buildHarness();
 
 		const response = await agent.get(
-			`/queue/${articleId}/related?feature=similar&poll=${MAX_POLLS}`,
+			`/queue/${articleId}/related?poll=${MAX_POLLS}`,
 		);
 
 		expect(response.status).toBe(200);
@@ -427,7 +399,7 @@ describe("POST /queue/:id/related-dismiss", () => {
 		const { agent, articleId, seedRelated } = await buildHarness();
 		await seedRelated();
 
-		const response = await agent.get(`/queue/${articleId}/view?feature=similar`);
+		const response = await agent.get(`/queue/${articleId}/view`);
 
 		const [path, query] = dismissUrlOf(response.text).split("?");
 		expect(path).toBe(`/queue/${articleId}/related-dismiss`);
@@ -442,16 +414,16 @@ describe("POST /queue/:id/related-dismiss", () => {
 	it("keeps the suggestion gone for that article once dismissed", async () => {
 		const { agent, articleId, seedRelated } = await buildHarness();
 		await seedRelated();
-		const opened = await agent.get(`/queue/${articleId}/view?feature=similar`);
+		const opened = await agent.get(`/queue/${articleId}/view`);
 
 		const dismissal = await agent
 			.post(dismissUrlOf(opened.text))
 			.type("form")
-			.send({ returnTo: `/queue/${articleId}/view?feature=similar` });
-		const reopened = await agent.get(`/queue/${articleId}/view?feature=similar`);
+			.send({ returnTo: `/queue/${articleId}/view` });
+		const reopened = await agent.get(`/queue/${articleId}/view`);
 
 		expect(dismissal.status).toBe(303);
-		expect(dismissal.headers.location).toBe(`/queue/${articleId}/view?feature=similar`);
+		expect(dismissal.headers.location).toBe(`/queue/${articleId}/view`);
 		const slot = relatedSlotOf(reopened.text);
 		expect(slot.classList.contains("next-read--hidden")).toBe(true);
 		expect(relatedIdsOf(reopened.text)).toEqual([]);
@@ -472,8 +444,8 @@ describe("POST /queue/:id/related-dismiss", () => {
 		await agent
 			.post(`/queue/${articleId}/related-dismiss`)
 			.type("form")
-			.send({ returnTo: `/queue/${articleId}/view?feature=similar` });
-		const otherArticle = await agent.get(`/queue/${related.id.value}/view?feature=similar`);
+			.send({ returnTo: `/queue/${articleId}/view` });
+		const otherArticle = await agent.get(`/queue/${related.id.value}/view`);
 
 		expect(relatedIdsOf(otherArticle.text)).toEqual([followUp.id.value]);
 	});
@@ -484,9 +456,9 @@ describe("POST /queue/:id/related-dismiss", () => {
 		await agent
 			.post(`/queue/${articleId}/related-dismiss`)
 			.type("form")
-			.send({ returnTo: `/queue/${articleId}/view?feature=similar` });
+			.send({ returnTo: `/queue/${articleId}/view` });
 
-		const response = await agent.get(`/queue/${articleId}/related?feature=similar&poll=1`);
+		const response = await agent.get(`/queue/${articleId}/related?poll=1`);
 
 		expect(response.status).toBe(200);
 		const slot = relatedSlotOf(response.text);

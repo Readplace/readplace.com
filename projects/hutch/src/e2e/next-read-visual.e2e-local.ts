@@ -125,7 +125,7 @@ async function openRevealedCard(
 	assert.equal(seeded.status(), 201, "the seed endpoint must settle the relations");
 
 	await loginAs(page, email);
-	await page.goto(`${BASE_URL}/queue/${articleId}/view?feature=similar`, {
+	await page.goto(`${BASE_URL}/queue/${articleId}/view`, {
 		waitUntil: "domcontentloaded",
 	});
 	await page.waitForSelector("body.page-reader");

@@ -356,10 +356,8 @@ async function loadCrawls(
 	}
 }
 
-export const RELATED_FEATURE = "similar";
-
 const relatedPollUrlFor = (articleId: string, pollCount: number): string =>
-	`${QUEUE_PATH}/${articleId}/related?feature=${RELATED_FEATURE}&poll=${pollCount}`;
+	`${QUEUE_PATH}/${articleId}/related?poll=${pollCount}`;
 
 async function loadRelatedArticles(
 	findRelatedArticles: FindRelatedArticles,
@@ -635,9 +633,7 @@ export function initQueueRoutes(deps: QueueDependencies): Router {
 		});
 
 		const audioEnabled = deps.featureToggle.isEnabled(req, "audio");
-		const relatedActive =
-			deps.featureToggle.isEnabled(req, RELATED_FEATURE) &&
-			ownedArticle.relatedDismissedAt === undefined;
+		const relatedActive = ownedArticle.relatedDismissedAt === undefined;
 		const [related, state] = await Promise.all([
 			relatedActive
 				? loadRelatedArticles(deps.findRelatedArticles, ownedArticle, deps.logError)
@@ -1542,11 +1538,6 @@ export function initQueueRoutes(deps: QueueDependencies): Router {
 		assert(req.userId, "userId required - route must be protected by requireAuth");
 		const userId = req.userId;
 
-		if (!deps.featureToggle.isEnabled(req, RELATED_FEATURE)) {
-			res.status(404).type("html").send("");
-			return;
-		}
-
 		const parsedId = ReaderArticleHashIdSchema.safeParse(req.params.id);
 		const article = parsedId.success
 			? await deps.findArticleById(parsedId.data, userId)
@@ -1557,7 +1548,7 @@ export function initQueueRoutes(deps: QueueDependencies): Router {
 			return;
 		}
 
-		const returnTo = `${QUEUE_PATH}/${article.id.value}/view?feature=${RELATED_FEATURE}`;
+		const returnTo = `${QUEUE_PATH}/${article.id.value}/view`;
 
 		if (article.relatedDismissedAt !== undefined) {
 			sendComponent(
