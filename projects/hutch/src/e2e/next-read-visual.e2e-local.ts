@@ -28,6 +28,7 @@ const CARD = "[data-test-reader-related]";
  * space beside it and breaking the right-edge alignment with the balloon — fails
  * the checkpoint instead of passing on the wrapper's box. */
 const CARD_SURFACE = ".next-read__card";
+const SITE = ".next-read__site";
 const STACK = "[data-test-reader-float-stack]";
 const BALLOON = "[data-test-share-balloon-wrap]";
 const DISMISS = '[data-test-action="next-read-dismiss"]';
@@ -93,7 +94,10 @@ async function openRevealedCard(
 	const email = `next-read-${options.stamp}@example.com`;
 	const userId = await createOwner(page, email);
 	const sourceUrl = `https://example.com/next-read-source-${options.stamp}`;
-	const relatedUrl = `https://example.com/next-read-related-${options.stamp}`;
+	/** A deliberately long host: the site line is the one field with no natural
+	 * bound, so the fixture drives it past the card's width to keep the
+	 * single-line truncation under test. */
+	const relatedUrl = `https://an-extremely-long-publication-hostname.example.com/next-read-related-${options.stamp}`;
 
 	const articleId = await seedArticle(page, {
 		url: sourceUrl,
@@ -176,6 +180,17 @@ async function cardAnchoredBottomRight(page: Page): Promise<void> {
 	assert.ok(
 		dismiss.x + dismiss.width > card.x + card.width / 2,
 		"the dismiss control must sit in the right half of the card",
+	);
+
+	const site = await page.locator(SITE).evaluate((el) => ({
+		clipped: el.scrollWidth > el.clientWidth,
+		wrapped: el.scrollHeight > el.clientHeight,
+	}));
+	assert.equal(site.wrapped, false, "the site name must stay on one line");
+	assert.equal(
+		site.clipped,
+		true,
+		"the seeded long host must be truncated rather than widening the card",
 	);
 }
 

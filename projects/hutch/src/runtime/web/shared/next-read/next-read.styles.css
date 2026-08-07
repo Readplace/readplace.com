@@ -9,9 +9,6 @@
 
 .next-read__card {
   position: relative;
-  display: grid;
-  gap: 0.25rem;
-  padding: 20px;
   background: var(--color-surface);
   border: 1px solid var(--color-border);
   border-radius: var(--radius);
@@ -38,18 +35,11 @@
   }
 }
 
-.next-read__eyebrow {
-  margin: 0 2rem 0.5rem 0;
-  font-size: 0.75rem;
-  text-transform: uppercase;
-  letter-spacing: 0.05em;
-  color: var(--color-text-secondary);
-}
-
 .next-read__dismiss-form {
   position: absolute;
   top: 8px;
   right: 8px;
+  z-index: 1;
   margin: 0;
 }
 
@@ -74,13 +64,45 @@
 .next-read__link {
   display: grid;
   gap: 0.25rem;
+  padding: 20px;
+  border-radius: var(--radius);
   color: var(--color-text-primary);
   text-decoration: none;
+  transition: background 0.15s ease;
+}
+
+.next-read__link:hover {
+  background: color-mix(in srgb, var(--color-brand) 8%, transparent);
+}
+
+.next-read__eyebrow {
+  padding-right: 1.75rem;
+  font-size: 0.75rem;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  color: var(--color-text-secondary);
 }
 
 .next-read__title {
   font-weight: 600;
   color: var(--primary);
+  text-wrap: pretty;
+}
+
+.next-read__site {
+  display: block;
+  overflow: hidden;
+  font-size: 0.75rem;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+  color: var(--color-text-secondary);
+}
+
+.next-read__reason {
+  font-size: 0.875rem;
+  color: var(--color-text-secondary);
   text-wrap: pretty;
 }
 
@@ -108,19 +130,6 @@
   height: 0.5rem;
   border-radius: 50%;
   background: currentColor;
-}
-
-.next-read__site {
-  font-size: 0.75rem;
-  text-transform: uppercase;
-  letter-spacing: 0.05em;
-  color: var(--color-text-secondary);
-}
-
-.next-read__reason {
-  font-size: 0.875rem;
-  color: var(--color-text-secondary);
-  text-wrap: pretty;
 }
 
 .next-read__saved {

@@ -121,7 +121,7 @@ describe("renderNextRead", () => {
 			siteName: link.querySelector(".next-read__site")?.textContent,
 			reason: link.querySelector(".next-read__reason")?.textContent,
 			saved: link.querySelector(".next-read__saved")?.textContent,
-			eyebrow: doc.querySelector(".next-read__eyebrow")?.textContent,
+			eyebrow: link.querySelector(".next-read__eyebrow")?.textContent,
 		}).toEqual({
 			href: `/queue/${firstId.value}/view?utm_source=reader&utm_medium=internal&utm_content=related&utm_term=${sourceId.value}`,
 			title: "First",
@@ -144,6 +144,40 @@ describe("renderNextRead", () => {
 			unread: badge.classList.contains("next-read__status--unread"),
 			label: label.textContent,
 		}).toEqual({ state: "unread", unread: true, label: "Unread" });
+	});
+
+	it("reads the unread badge and the saved time as one line", () => {
+		const doc = parse(readyWith([FIRST]));
+
+		const meta = doc.querySelector(".next-read__meta");
+		assert(meta, "the badge and the saved time must share a row");
+		expect(
+			Array.from(meta.children).map((child) => child.className),
+		).toEqual([
+			"next-read__status next-read__status--unread",
+			"next-read__saved",
+		]);
+	});
+
+	it("makes the whole card one link, so every part of it opens the suggestion", () => {
+		const doc = parse(readyWith([FIRST]));
+
+		const card = doc.querySelector(".next-read__card");
+		assert(card, "a ready slot must render the card");
+		const link = card.querySelector("[data-test-related-item]");
+		assert(link, "a ready slot must render the suggestion link");
+		for (const part of [
+			".next-read__eyebrow",
+			".next-read__title",
+			".next-read__site",
+			".next-read__reason",
+			".next-read__meta",
+		]) {
+			assert(link.querySelector(part), `${part} must sit inside the suggestion link`);
+		}
+		expect(
+			Array.from(card.children).map((child) => child.className),
+		).toEqual(["next-read__dismiss-form", "next-read__link"]);
 	});
 
 	it("marks the saved time up so the client enhancer can localise it into a hover title", () => {
