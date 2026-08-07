@@ -288,7 +288,7 @@ export class HutchStorage extends pulumi.ComponentResource {
 		this.readingPreferencesTable = new aws.dynamodb.Table(`hutch-reading-preferences`, {
 			name: args.tableNames.readingPreferences,
 			billingMode: "PAY_PER_REQUEST",
-			deletionProtectionEnabled: args.deletionProtection,
+			deletionProtectionEnabled: false,
 			pointInTimeRecovery: { enabled: true },
 			hashKey: "userId",
 			attributes: [{ name: "userId", type: "S" }],
