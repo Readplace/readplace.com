@@ -32,3 +32,17 @@ describe("save all tabs control", () => {
 		);
 	});
 });
+
+describe("shortcut hints", () => {
+	it("names the save shortcut before any script has read the configured binding", () => {
+		expect(template).toContain(
+			'<p id="save-shortcut-hint" class="shortcut-hint">Tip: Use <kbd>Ctrl</kbd>+<kbd>D</kbd> to save from any page</p>',
+		);
+	});
+
+	it("keeps the save-all shortcut hidden until the server advertises bulk save", () => {
+		expect(template).toContain(
+			'<p id="save-all-shortcut-hint" class="shortcut-hint" hidden>Tip: Use <kbd>Ctrl</kbd>+<kbd>Shift</kbd>+<kbd>D</kbd> to save all tabs</p>',
+		);
+	});
+});

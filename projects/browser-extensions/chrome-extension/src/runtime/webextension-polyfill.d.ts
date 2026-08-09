@@ -1,8 +1,13 @@
 declare module "webextension-polyfill" {
 	namespace Storage {
+		interface StorageChange {
+			oldValue?: unknown;
+			newValue?: unknown;
+		}
+
 		namespace Local {
 			// biome-ignore lint/suspicious/noExplicitAny: browser API returns dynamic values
-			function get(key: string): Promise<Record<string, any>>;
+			function get(key: string | string[]): Promise<Record<string, any>>;
 			function set(items: Record<string, unknown>): Promise<void>;
 			function remove(key: string): Promise<void>;
 		}
@@ -12,6 +17,29 @@ declare module "webextension-polyfill" {
 			function set(items: Record<string, unknown>): Promise<void>;
 			function remove(key: string): Promise<void>;
 		}
+
+		const onChanged: {
+			addListener(
+				callback: (
+					changes: Record<string, StorageChange>,
+					areaName: string,
+				) => void,
+			): void;
+		};
+	}
+
+	namespace Commands {
+		interface Command {
+			name?: string;
+			description?: string;
+			shortcut?: string;
+		}
+
+		function getAll(): Promise<Command[]>;
+
+		const onCommand: {
+			addListener(callback: (command: string) => void): void;
+		};
 	}
 
 	namespace Runtime {
@@ -141,11 +169,16 @@ declare module "webextension-polyfill" {
 	const contextMenus: typeof ContextMenus;
 
 	const browser: {
-		storage: { local: typeof Storage.Local; session: typeof Storage.Session };
+		storage: {
+			local: typeof Storage.Local;
+			session: typeof Storage.Session;
+			onChanged: typeof Storage.onChanged;
+		};
 		runtime: typeof Runtime;
 		tabs: typeof Tabs;
 		action: typeof Action;
 		alarms: typeof Alarms;
+		commands: typeof Commands;
 		contextMenus: typeof ContextMenus;
 		notifications: typeof Notifications;
 	};

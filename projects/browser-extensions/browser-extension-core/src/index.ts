@@ -92,8 +92,21 @@ export {
 	parseStoredCapabilities,
 } from "./sync-context-menus";
 export type { AdvertisedCapabilityStore } from "./sync-context-menus";
-export { installShortcuts, isCmdD } from "./keydown-shortcuts";
+export { installShortcuts } from "./keydown-shortcuts";
 export type { Shortcut } from "./keydown-shortcuts";
+export {
+	COMMAND_BINDINGS_STORAGE_KEY,
+	DEFAULT_SAVE_ALL_SHORTCUT,
+	DEFAULT_SAVE_SHORTCUT,
+	SAVE_ALL_SHORTCUT_MESSAGE_TYPE,
+	SAVE_ALL_TABS_COMMAND,
+	commandBindingsFromGetAll,
+	matchesShortcut,
+	resolveContentShortcuts,
+	resolveShortcut,
+	shortcutHintSegments,
+} from "./command-shortcuts";
+export type { CommandShortcut, ContentShortcuts } from "./command-shortcuts";
 export { captureActiveTabBytes } from "./capture-active-tab-bytes";
 export type { CapturedContent } from "./capture-active-tab-bytes";
 export { isHtmlDocument } from "./is-html-document";

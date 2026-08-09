@@ -8,7 +8,11 @@ import {
 	initSyncContextMenus,
 	initUploadQueue,
 	ADVERTISED_CAPABILITIES_STORAGE_KEY,
+	COMMAND_BINDINGS_STORAGE_KEY,
+	SAVE_ALL_SHORTCUT_MESSAGE_TYPE,
+	SAVE_ALL_TABS_COMMAND,
 	bulkSaveNotification,
+	commandBindingsFromGetAll,
 	type AdvertisedCapabilityStore,
 	type BrowserShell,
 	type OAuthTokens,
@@ -274,6 +278,25 @@ browser.alarms.onAlarm.addListener((alarm) => {
 	if (alarm.name === UPLOAD_ALARM_NAME) resumeUploads();
 });
 
+/** Chrome publishes no event for a shortcut being rebound, so the worker's own
+ * wake is the only refresh point the content scripts can be given. */
+function refreshCommandBindings(): void {
+	browser.commands
+		.getAll()
+		.then((commands) =>
+			browser.storage.local.set({
+				[COMMAND_BINDINGS_STORAGE_KEY]: commandBindingsFromGetAll(commands),
+			}),
+		)
+		.catch((err) => logger.error("Failed to read command shortcuts", err));
+}
+
+refreshCommandBindings();
+
+browser.commands.onCommand.addListener((command) => {
+	if (command === SAVE_ALL_TABS_COMMAND) shell.openSaveAllTabsPopup();
+});
+
 /** The job carries the tab URL verbatim: substituting anything else (a canonical
  * URL, a redirect target) would land the bytes on a different article than the one
  * the user just saw appear. The popup's response is already on its way, so the
@@ -330,6 +353,15 @@ async function capturePages(tabs: SaveableTab[]): Promise<BulkSavePage[]> {
 	);
 }
 
+function hasStringType(value: unknown): value is { type: string } {
+	return (
+		typeof value === "object" &&
+		value !== null &&
+		"type" in value &&
+		typeof value.type === "string"
+	);
+}
+
 let bulkSavesInFlight: Promise<void> = Promise.resolve();
 
 function showBulkSaveNotification(notification: {
@@ -349,6 +381,11 @@ function showBulkSaveNotification(notification: {
 browser.runtime.onMessage.addListener((raw, _sender, sendResponse) => {
 	if ((raw as { type: string }).type === "shortcut-pressed") {
 		browser.action.openPopup().catch((err) => logger.error(err));
+		return;
+	}
+
+	if (hasStringType(raw) && raw.type === SAVE_ALL_SHORTCUT_MESSAGE_TYPE) {
+		shell.openSaveAllTabsPopup();
 		return;
 	}
 

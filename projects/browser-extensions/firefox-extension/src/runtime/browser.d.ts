@@ -1,8 +1,13 @@
 declare namespace browser {
 	namespace storage {
+		interface StorageChange {
+			oldValue?: unknown;
+			newValue?: unknown;
+		}
+
 		namespace local {
 			// biome-ignore lint/suspicious/noExplicitAny: browser API returns dynamic values
-			function get(key: string): Promise<Record<string, any>>;
+			function get(key: string | string[]): Promise<Record<string, any>>;
 			function set(items: Record<string, unknown>): Promise<void>;
 			function remove(key: string): Promise<void>;
 		}
@@ -12,6 +17,37 @@ declare namespace browser {
 			function set(items: Record<string, unknown>): Promise<void>;
 			function remove(key: string): Promise<void>;
 		}
+
+		const onChanged: {
+			addListener(
+				callback: (
+					changes: Record<string, StorageChange>,
+					areaName: string,
+				) => void,
+			): void;
+		};
+	}
+
+	namespace commands {
+		interface Command {
+			name?: string;
+			description?: string;
+			shortcut?: string;
+		}
+
+		function getAll(): Promise<Command[]>;
+
+		const onCommand: {
+			addListener(callback: (command: string) => void): void;
+		};
+
+		interface CommandsChanged {
+			addListener(callback: () => void): void;
+		}
+
+		/** Firefox grew this in 115, and the manifest still supports 109 — the
+		 * optional type is what forces the caller to feature-detect. */
+		const onChanged: CommandsChanged | undefined;
 	}
 
 	namespace runtime {

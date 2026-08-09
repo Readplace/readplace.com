@@ -13,7 +13,7 @@ import type {
 	Message,
 	ActionVariant,
 } from "browser-extension-core";
-import { filterByUrl, buildPaginationView, avatarColor, relativeTime, isAppUrl, itemDisplay, selectSaveableTabs, summarizeBulkSave, installShortcuts, isCmdD, buildMessageView, buildSavedView, actionLabel, actionVariant, actionIcon, linkLabel, linkPresentation, BULK_SAVE_FAILED_MESSAGE, BULK_SAVE_FAILED_TITLE, advertisesBulkSave, parseStoredCapabilities, ADVERTISED_CAPABILITIES_STORAGE_KEY, SAVE_RENDERED_MARK, SAVE_ALL_RENDERED_MARK } from "browser-extension-core";
+import { filterByUrl, buildPaginationView, avatarColor, relativeTime, isAppUrl, itemDisplay, selectSaveableTabs, summarizeBulkSave, installShortcuts, matchesShortcut, commandBindingsFromGetAll, resolveShortcut, shortcutHintSegments, DEFAULT_SAVE_SHORTCUT, DEFAULT_SAVE_ALL_SHORTCUT, buildMessageView, buildSavedView, actionLabel, actionVariant, actionIcon, linkLabel, linkPresentation, BULK_SAVE_FAILED_MESSAGE, BULK_SAVE_FAILED_TITLE, advertisesBulkSave, parseStoredCapabilities, ADVERTISED_CAPABILITIES_STORAGE_KEY, SAVE_RENDERED_MARK, SAVE_ALL_RENDERED_MARK, type ContentShortcuts } from "browser-extension-core";
 import { HutchLogger, consoleLogger } from "@packages/hutch-logger";
 
 /** The client's own presentation map: an action variant -> the popup's CSS
@@ -29,9 +29,17 @@ declare const __APP_DOMAINS__: string[];
 
 const logger = HutchLogger.from(consoleLogger);
 
-// Suppress Cmd+D inside the popup canvas — content scripts don't run on
-// moz-extension:// pages, so the page-level intercept can't reach here.
-installShortcuts(document, [{ matches: isCmdD }]);
+// Suppress the save shortcuts inside the popup canvas — content scripts don't
+// run on moz-extension:// pages, so the page-level intercept can't reach here.
+const suppressed: ContentShortcuts = {
+	save: DEFAULT_SAVE_SHORTCUT,
+	saveAll: DEFAULT_SAVE_ALL_SHORTCUT,
+};
+
+installShortcuts(document, [
+	{ matches: (event) => suppressed.save !== null && matchesShortcut(suppressed.save)(event) },
+	{ matches: (event) => suppressed.saveAll !== null && matchesShortcut(suppressed.saveAll)(event) },
+]);
 
 function showView(id: string) {
 	for (const view of document.querySelectorAll(".view")) {
@@ -571,11 +579,13 @@ async function revealSaveAllTabs() {
 	const stored = await browser.storage.local.get(
 		ADVERTISED_CAPABILITIES_STORAGE_KEY,
 	);
-	const button = document.getElementById("save-all-tabs-button");
-	if (!button) return;
-	button.hidden = !advertisesBulkSave(
+	const advertised = advertisesBulkSave(
 		parseStoredCapabilities(stored[ADVERTISED_CAPABILITIES_STORAGE_KEY]),
 	);
+	const button = document.getElementById("save-all-tabs-button");
+	if (button) button.hidden = !advertised;
+	const hint = document.getElementById("save-all-shortcut-hint");
+	if (hint) hint.hidden = !advertised;
 }
 
 async function bootstrap() {
@@ -637,23 +647,50 @@ document.getElementById("filter-input")?.addEventListener("input", () => {
 	renderLinks(filterItems());
 });
 
-const shortcutHint = document.querySelector(".shortcut-hint");
-if (shortcutHint) {
+function paintShortcutHint(hint: {
+	id: string;
+	segments: string[];
+	suffix: string;
+}): void {
+	const element = document.getElementById(hint.id);
+	if (!element) return;
+	element.replaceChildren(document.createTextNode("Tip: Use "));
+	hint.segments.forEach((segment, index) => {
+		if (index > 0) element.appendChild(document.createTextNode("+"));
+		const key = document.createElement("kbd");
+		key.textContent = segment;
+		element.appendChild(key);
+	});
+	element.appendChild(document.createTextNode(hint.suffix));
+}
+
+/** Read straight from the browser rather than the binding the background cached:
+ * the popup can open before the background has refreshed that cache, and a hint
+ * naming a key the user no longer has is worse than no hint. */
+async function renderShortcutHints() {
+	const bindings = commandBindingsFromGetAll(await browser.commands.getAll());
 	// navigator.platform is deprecated but navigator.userAgentData is not
 	// supported in Firefox, so this is the best available approach
-	const isMac = navigator.platform.startsWith("Mac");
-	if (isMac) {
-		shortcutHint.textContent = "";
-		const prefix = document.createTextNode("Tip: Use ");
-		const cmdKey = document.createElement("kbd");
-		cmdKey.textContent = "\u2318";
-		const plus = document.createTextNode("+");
-		const dKey = document.createElement("kbd");
-		dKey.textContent = "D";
-		const suffix = document.createTextNode(" to save from any page");
-		shortcutHint.append(prefix, cmdKey, plus, dKey, suffix);
-	}
+	const mac = navigator.platform.startsWith("Mac");
+
+	paintShortcutHint({
+		id: "save-shortcut-hint",
+		segments: shortcutHintSegments({ stored: bindings.save, fallback: DEFAULT_SAVE_SHORTCUT, mac }),
+		suffix: " to save from any page",
+	});
+	paintShortcutHint({
+		id: "save-all-shortcut-hint",
+		segments: shortcutHintSegments({ stored: bindings.saveAll, fallback: DEFAULT_SAVE_ALL_SHORTCUT, mac }),
+		suffix: " to save all tabs",
+	});
+
+	suppressed.save = resolveShortcut({ stored: bindings.save, fallback: DEFAULT_SAVE_SHORTCUT });
+	suppressed.saveAll = resolveShortcut({ stored: bindings.saveAll, fallback: DEFAULT_SAVE_ALL_SHORTCUT });
 }
+
+renderShortcutHints().catch((error) =>
+	logger.error("Failed to read command shortcuts:", error),
+);
 
 revealSaveAllTabs().catch((error) =>
 	logger.error("Failed to read advertised capabilities:", error),

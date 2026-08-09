@@ -1,5 +1,8 @@
 /// <reference lib="dom" />
-import { installShortcuts, isCmdD, type Shortcut } from "./keydown-shortcuts";
+import { installShortcuts, type Shortcut } from "./keydown-shortcuts";
+
+const isCmdD = (event: KeyboardEvent): boolean =>
+	(event.metaKey || event.ctrlKey) && event.key === "d";
 
 function createFakeKeyEvent(
 	overrides: Partial<KeyboardEvent>,
@@ -35,24 +38,6 @@ function createFakeTarget() {
 	const dispatch = (event: KeyboardEvent) => registered?.(event);
 	return { target, dispatch };
 }
-
-describe("isCmdD", () => {
-	it("matches Cmd+D", () => {
-		expect(isCmdD(createFakeKeyEvent({ metaKey: true, key: "d" }))).toBe(true);
-	});
-
-	it("matches Ctrl+D", () => {
-		expect(isCmdD(createFakeKeyEvent({ ctrlKey: true, key: "d" }))).toBe(true);
-	});
-
-	it("does not match plain D", () => {
-		expect(isCmdD(createFakeKeyEvent({ key: "d" }))).toBe(false);
-	});
-
-	it("does not match Cmd+other-key", () => {
-		expect(isCmdD(createFakeKeyEvent({ metaKey: true, key: "e" }))).toBe(false);
-	});
-});
 
 describe("installShortcuts", () => {
 	it("runs action and suppresses default for a matching shortcut", () => {

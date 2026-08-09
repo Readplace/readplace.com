@@ -5,9 +5,6 @@ export interface Shortcut {
 	action?: () => void;
 }
 
-export const isCmdD = (event: KeyboardEvent): boolean =>
-	(event.metaKey || event.ctrlKey) && event.key === "d";
-
 export function installShortcuts(
 	target: Pick<Document, "addEventListener">,
 	shortcuts: Shortcut[],

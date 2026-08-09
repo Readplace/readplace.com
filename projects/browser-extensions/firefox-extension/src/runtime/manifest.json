@@ -75,6 +75,13 @@
         "mac": "Command+D"
       },
       "description": "Activate the extension"
+    },
+    "save-all-tabs": {
+      "suggested_key": {
+        "default": "Ctrl+Shift+D",
+        "mac": "Command+Shift+D"
+      },
+      "description": "Save all tabs in this window"
     }
   },
   "content_scripts": [

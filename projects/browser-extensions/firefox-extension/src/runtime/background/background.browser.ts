@@ -7,7 +7,11 @@ import {
 	initSyncContextMenus,
 	initUploadQueue,
 	ADVERTISED_CAPABILITIES_STORAGE_KEY,
+	COMMAND_BINDINGS_STORAGE_KEY,
+	SAVE_ALL_SHORTCUT_MESSAGE_TYPE,
+	SAVE_ALL_TABS_COMMAND,
 	bulkSaveNotification,
+	commandBindingsFromGetAll,
 	type AdvertisedCapabilityStore,
 	type BrowserShell,
 	type OAuthTokens,
@@ -276,6 +280,24 @@ appPromise
 	.then(({ uploadQueue }) => uploadQueue.resume())
 	.catch((err) => logger.error("Failed to resume deferred uploads", err));
 
+function refreshCommandBindings(): void {
+	browser.commands
+		.getAll()
+		.then((commands) =>
+			browser.storage.local.set({
+				[COMMAND_BINDINGS_STORAGE_KEY]: commandBindingsFromGetAll(commands),
+			}),
+		)
+		.catch((err) => logger.error("Failed to read command shortcuts", err));
+}
+
+refreshCommandBindings();
+browser.commands.onChanged?.addListener(() => refreshCommandBindings());
+
+browser.commands.onCommand.addListener((command) => {
+	if (command === SAVE_ALL_TABS_COMMAND) shell.openSaveAllTabsPopup();
+});
+
 /** The job carries the tab URL verbatim: substituting anything else would land
  * the bytes on a different article than the one the reader just saw appear. */
 function queueContentUpload(
@@ -370,6 +392,11 @@ function showBulkSaveNotification(notification: {
 browser.runtime.onMessage.addListener((raw, _sender, sendResponse) => {
 	if (hasStringType(raw) && raw.type === "shortcut-pressed") {
 		browser.browserAction.openPopup().catch((err) => logger.error(err));
+		return;
+	}
+
+	if (hasStringType(raw) && raw.type === SAVE_ALL_SHORTCUT_MESSAGE_TYPE) {
+		shell.openSaveAllTabsPopup();
 		return;
 	}
 
