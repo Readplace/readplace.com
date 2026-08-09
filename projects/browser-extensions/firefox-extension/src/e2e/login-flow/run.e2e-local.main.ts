@@ -4,7 +4,7 @@ import { randomUUID } from "node:crypto";
 import { spawn, type ChildProcess } from "node:child_process";
 import path from "node:path";
 import { Builder, By } from "selenium-webdriver";
-import { Options, Driver } from "selenium-webdriver/firefox";
+import { Options, Driver, ServiceBuilder } from "selenium-webdriver/firefox";
 import { FlowRunner, ExtensionStateHandler } from "browser-extension-core/e2e";
 import {
 	waitForServer,
@@ -147,6 +147,7 @@ test("should complete OAuth login flow, save links, and paginate the list", asyn
 		const driver = await new Builder()
 			.forBrowser("firefox")
 			.setFirefoxOptions(options)
+			.setFirefoxService(new ServiceBuilder().addArguments("--allow-system-access")) // Firefox 153 refuses WebDriver navigation to moz-extension:// without it
 			.build();
 
 		try {

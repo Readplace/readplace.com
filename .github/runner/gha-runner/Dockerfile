@@ -58,11 +58,12 @@ RUN dpkg --add-architecture amd64 \
 # Native arm64 Firefox + geckodriver for the selenium firefox-extension E2E.
 # Firefox (unlike Chrome-for-Testing) ships a linux-aarch64 build, so no
 # emulation; selenium needs both firefox and geckodriver on PATH.
+# geckodriver stays >=0.36.0: older ones reject the --allow-system-access flag the firefox suites pass.
 RUN apt-get update && apt-get install -y wget bzip2 libdbus-glib-1-2 \
  && wget -qO /tmp/ff.tar.xz "https://download.mozilla.org/?product=firefox-latest&os=linux64-aarch64&lang=en-US" \
  && tar -xJf /tmp/ff.tar.xz -C /opt \
  && ln -sf /opt/firefox/firefox /usr/local/bin/firefox \
- && wget -qO /tmp/gd.tar.gz "https://github.com/mozilla/geckodriver/releases/download/v0.35.0/geckodriver-v0.35.0-linux-aarch64.tar.gz" \
+ && wget -qO /tmp/gd.tar.gz "https://github.com/mozilla/geckodriver/releases/download/v0.37.0/geckodriver-v0.37.0-linux-aarch64.tar.gz" \
  && tar -xzf /tmp/gd.tar.gz -C /usr/local/bin \
  && rm -f /tmp/ff.tar.xz /tmp/gd.tar.gz && rm -rf /var/lib/apt/lists/*
 
