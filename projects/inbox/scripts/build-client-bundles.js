@@ -38,6 +38,11 @@ function buildOptions(bundle) {
 
 async function main() {
   fs.rmSync(OUT_DIR, { recursive: true, force: true });
+  fs.mkdirSync(OUT_DIR, { recursive: true });
+  fs.copyFileSync(
+    require.resolve("htmx.org/dist/htmx.min.js"),
+    path.join(OUT_DIR, "htmx.client.js"),
+  );
   await Promise.all(BUNDLES.map((b) => esbuild.build(buildOptions(b))));
 }
 

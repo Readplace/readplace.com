@@ -20,7 +20,7 @@ import { renderChangelogBannerShell } from "./changelog-banner";
 import type { Component, ParsedComponent } from "./component.types";
 import type { CspNonce } from "./csp-nonce.middleware";
 import { HtmlPage } from "./html-page";
-import { htmxScripts } from "./htmx-script";
+import { HTMX_SCRIPTS } from "./htmx-script";
 import { injectPageStylesIntoMain } from "./inject-page-styles";
 import { htmlToMarkdown } from "./html-to-markdown";
 import { MarkdownPage } from "./markdown-page";
@@ -284,7 +284,7 @@ export function initBase(config: BaseConfig): RenderBase {
 			navScript: navScript(state.cspNonce),
 			offlineScript: offlineIndicatorScript(state.cspNonce),
 			scripts:
-				htmxScripts(state.cspNonce) +
+				HTMX_SCRIPTS +
 				EXTENSION_SUGGESTION_BANNER_SCRIPT +
 				TOAST_SCRIPT +
 				(trialChipCarriesInstant(state.trial) ? TRIAL_COUNTDOWN_SCRIPT : "") +

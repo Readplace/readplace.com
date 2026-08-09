@@ -359,6 +359,12 @@ async function main() {
   // otherwise pick them up as 0%-coverage sources and silently fail the gate.
   fs.rmSync(OUT_DIR, { recursive: true, force: true });
 
+  fs.mkdirSync(OUT_DIR, { recursive: true });
+  fs.copyFileSync(
+    require.resolve("htmx.org/dist/htmx.min.js"),
+    path.join(OUT_DIR, "htmx.client.js"),
+  );
+
   if (watch) {
     const contexts = await Promise.all(
       ALL_BUNDLES.map((b) => esbuild.context(buildOptions(b))),

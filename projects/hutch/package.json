@@ -115,6 +115,7 @@
     "concurrently": "10.0.0",
     "editorconfig-checker": "6.1.1",
     "esbuild": "catalog:",
+    "htmx.org": "2.0.8",
     "jest": "30.4.2",
     "jsdom": "26.1.0",
     "livereload": "0.10.3",
