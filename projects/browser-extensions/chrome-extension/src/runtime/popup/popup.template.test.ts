@@ -34,15 +34,28 @@ describe("save all tabs control", () => {
 });
 
 describe("shortcut hints", () => {
-	it("names the save shortcut before any script has read the configured binding", () => {
+	it("closes the single-save view with the save shortcut, so one save teaches only its own key", () => {
 		expect(template).toContain(
-			'<p id="save-shortcut-hint" class="shortcut-hint">Tip: Use <kbd>Ctrl</kbd>+<kbd>D</kbd> to save from any page</p>',
+			[
+				'    <div id="saved-affordances"></div>',
+				'    <p id="save-shortcut-hint" class="shortcut-hint">Tip: Use <kbd>Ctrl</kbd>+<kbd>D</kbd> to save from any page</p>',
+				"  </div>",
+			].join("\n"),
 		);
 	});
 
-	it("keeps the save-all shortcut hidden until the server advertises bulk save", () => {
+	it("closes the bulk-save view with the save-all shortcut, hidden until the server advertises bulk save", () => {
 		expect(template).toContain(
-			'<p id="save-all-shortcut-hint" class="shortcut-hint" hidden>Tip: Use <kbd>Ctrl</kbd>+<kbd>Shift</kbd>+<kbd>D</kbd> to save all tabs</p>',
+			[
+				'    <button id="save-all-view-queue" class="saved-view__action" hidden>View Queue</button>',
+				'    <p id="save-all-shortcut-hint" class="shortcut-hint" hidden>Tip: Use <kbd>Ctrl</kbd>+<kbd>Shift</kbd>+<kbd>D</kbd> to save all tabs</p>',
+				"  </div>",
+			].join("\n"),
 		);
+	});
+
+	it("carries each hint exactly once, so neither view teaches the other's key", () => {
+		expect(template.split('id="save-shortcut-hint"')).toHaveLength(2);
+		expect(template.split('id="save-all-shortcut-hint"')).toHaveLength(2);
 	});
 });
