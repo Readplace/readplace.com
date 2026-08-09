@@ -127,7 +127,7 @@ export function initSubmitLinkCommandHandler(deps: {
 				});
 
 				const freshness = await deps.refreshArticleIfStale({ url: validation.url });
-				await saveArticleFromUrl({ userId, url: validation.url, freshness, provenance });
+				await saveArticleFromUrl({ userId, url: validation.url, freshness, provenance, savedAt: deps.now() });
 
 				for (const link of enrichment) {
 					try {

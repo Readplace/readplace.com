@@ -13,6 +13,7 @@ export interface SaveArticleParams {
 	metadata: SavedArticle["metadata"];
 	estimatedReadTime: SavedArticle["estimatedReadTime"];
 	provenance: SaveProvenance;
+	savedAt: Date;
 }
 
 export type SortField = "savedAt" | "readAt";
@@ -46,7 +47,7 @@ export interface FindArticlesResult {
 
 export type SaveArticle = (
 	params: SaveArticleParams,
-) => Promise<{ saved: SavedArticle; createdUserArticle: boolean }>;
+) => Promise<{ saved: SavedArticle; createdUserArticle: boolean; wroteUserArticle: boolean }>;
 
 export interface SaveArticleGloballyParams {
 	url: string;

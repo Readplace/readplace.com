@@ -46,6 +46,7 @@ const articleStore = initDynamoDbSavedArticleStore({
 	tableName: articlesTable,
 	userArticlesTableName: userArticlesTable,
 	logger,
+	now: () => new Date(),
 });
 
 const auth = initDynamoDbAuth({

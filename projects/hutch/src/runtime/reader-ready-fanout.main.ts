@@ -23,6 +23,7 @@ const articleStore = initDynamoDbSavedArticleStore({
 	tableName: articlesTable,
 	userArticlesTableName: userArticlesTable,
 	logger,
+	now: () => new Date(),
 });
 
 const digestQueue = initDynamoDbDigestQueue({

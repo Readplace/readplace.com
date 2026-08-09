@@ -39,6 +39,7 @@ const articleStore = initDynamoDbSavedArticleStore({
 	tableName: articlesTable,
 	userArticlesTableName: userArticlesTable,
 	logger: HutchLogger.from(consoleLogger),
+	now: () => new Date(),
 });
 
 const { sendEmail } = initSkipReservedDomain({

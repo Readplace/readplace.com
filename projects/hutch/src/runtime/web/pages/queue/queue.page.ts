@@ -20,7 +20,7 @@ import {
 } from "../import/import-skipped-cookie";
 import type { ImportSkippedViewModel } from "./queue.viewmodel";
 import { ReaderArticleHashIdSchema } from "@packages/domain/article";
-import type { RefreshArticleIfStale } from "@packages/provider-contracts/article-freshness";
+import type { ContentFreshnessResult, RefreshArticleIfStale } from "@packages/provider-contracts/article-freshness";
 import type {
 	CountArticlesByUser,
 	DeleteArticle,
@@ -1103,6 +1103,7 @@ export function initQueueRoutes(deps: QueueDependencies): Router {
 				url: validation.url,
 				freshness,
 				provenance: resolveSaveProvenance(req.oauthClientId),
+				savedAt: deps.now(),
 			});
 			await recordSaveSignal(req, res, userId);
 			emitSaveIntent({ req, url: validation.url, path: SAVE_INTENT_PATH.saveArticle, surface: SAVE_SURFACES.extension, outcome: SAVE_OUTCOMES.saved });
@@ -1198,9 +1199,23 @@ export function initQueueRoutes(deps: QueueDependencies): Router {
 			}
 		});
 
-		const saveOnePage = async (job: PageJob): Promise<"saved" | "failed"> => {
+		const failOnePage = (job: PageJob, error: unknown): "failed" => {
+			deps.logError(`Failed to bulk-save url=${job.url}`, error instanceof Error ? error : undefined);
+			emitSaveIntent({ req, url: job.url, path: SAVE_INTENT_PATH.saveArticles, surface: SAVE_SURFACES.extension, outcome: SAVE_OUTCOMES.error });
+			return "failed";
+		};
+
+		const prepareOnePage = async (job: PageJob): Promise<{ job: PageJob; freshness: ContentFreshnessResult } | "failed"> => {
 			try {
-				const freshness = await deps.refreshArticleIfStale({ url: job.url });
+				return { job, freshness: await deps.refreshArticleIfStale({ url: job.url }) };
+			} catch (error) {
+				return failOnePage(job, error);
+			}
+		};
+
+		const writeOnePage = async (page: { job: PageJob; freshness: ContentFreshnessResult }, savedAt: Date): Promise<"saved" | "failed"> => {
+			const { job, freshness } = page;
+			try {
 				if (job.kind === "content") {
 					/** Stage the captured bytes when the media type is supported; an
 					 * unsupported type stages nothing and the page is saved URL-only,
@@ -1213,19 +1228,21 @@ export function initQueueRoutes(deps: QueueDependencies): Router {
 					url: job.url,
 					freshness,
 					provenance: resolveSaveProvenance(req.oauthClientId),
+					savedAt,
 				});
 				emitSaveIntent({ req, url: job.url, path: SAVE_INTENT_PATH.saveArticles, surface: SAVE_SURFACES.extension, outcome: SAVE_OUTCOMES.saved });
 				return "saved";
 			} catch (error) {
-				deps.logError(`Failed to bulk-save url=${job.url}`, error instanceof Error ? error : undefined);
-				emitSaveIntent({ req, url: job.url, path: SAVE_INTENT_PATH.saveArticles, surface: SAVE_SURFACES.extension, outcome: SAVE_OUTCOMES.error });
-				return "failed";
+				return failOnePage(job, error);
 			}
 		};
 
-		const outcomes = await Promise.all(jobs.map(saveOnePage));
+		const prepared = await Promise.all(jobs.map(prepareOnePage));
+		const ready = prepared.flatMap((page) => (page === "failed" ? [] : [page]));
+		const savedAt = deps.now();
+		const outcomes = await Promise.all(ready.map((page) => writeOnePage(page, savedAt)));
 		const saved = outcomes.filter((o) => o === "saved").length;
-		const failed = outcomes.filter((o) => o === "failed").length;
+		const failed = jobs.length - ready.length + outcomes.filter((o) => o === "failed").length;
 
 		if (saved > 0) markExtensionSavedArticle(res);
 		res.status(200).type(SIREN_MEDIA_TYPE).json(
@@ -1328,6 +1345,7 @@ export function initQueueRoutes(deps: QueueDependencies): Router {
 					url: articleUrl,
 					freshness,
 					provenance: resolveSaveProvenance(req.oauthClientId),
+					savedAt: deps.now(),
 				});
 				await recordSaveSignal(req, res, userId);
 				emitSaveIntent({ req, url: articleUrl, path: SAVE_INTENT_PATH.saveContent, surface: SAVE_SURFACES.extension, outcome: SAVE_OUTCOMES.saved });
@@ -1451,6 +1469,7 @@ export function initQueueRoutes(deps: QueueDependencies): Router {
 				url: validation.url,
 				freshness,
 				provenance: resolveSaveProvenance(req.oauthClientId),
+				savedAt: deps.now(),
 			});
 			emitSaveIntent({ req, url: validation.url, path: SAVE_INTENT_PATH.save, surface: SAVE_SURFACES.queueSaveBar, outcome: SAVE_OUTCOMES.saved });
 			res.redirect(303, `${QUEUE_PATH}#latest-saved`);

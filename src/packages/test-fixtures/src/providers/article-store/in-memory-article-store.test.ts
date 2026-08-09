@@ -23,6 +23,7 @@ function makeArticleParams(
 		},
 		estimatedReadTime: 3 as Minutes,
 		provenance: { kind: "web" },
+		savedAt: new Date(),
 		...overrides,
 	};
 }
@@ -181,6 +182,42 @@ describe("initInMemoryArticleStore", () => {
 			expect(secondFound.savedAt.getTime()).toBeGreaterThan(
 				firstFound.savedAt.getTime(),
 			);
+		});
+
+		it("moves the user row to the newer savedAt when a later save lands", async () => {
+			const store = initInMemoryArticleStore();
+			await store.saveArticle(makeArticleParams({ savedAt: new Date("2026-08-01T10:00:00.000Z") }));
+
+			const { saved } = await store.saveArticle(makeArticleParams({ savedAt: new Date("2026-08-01T10:00:01.000Z") }));
+
+			expect(saved.savedAt).toEqual(new Date("2026-08-01T10:00:01.000Z"));
+		});
+
+		it("keeps the user row's newer savedAt when a slower, older-stamped save lands after it", async () => {
+			const store = initInMemoryArticleStore();
+			await store.saveArticle(makeArticleParams({ savedAt: new Date("2026-08-01T10:00:01.000Z") }));
+
+			const { saved, createdUserArticle, wroteUserArticle } = await store.saveArticle(
+				makeArticleParams({ savedAt: new Date("2026-08-01T10:00:00.000Z") }),
+			);
+
+			expect(saved.savedAt).toEqual(new Date("2026-08-01T10:00:01.000Z"));
+			expect(createdUserArticle).toBe(false);
+			expect(wroteUserArticle).toBe(false);
+		});
+
+		it("rejects a same-instant re-save exactly as the store's strict savedAt < :savedAt condition does", async () => {
+			const store = initInMemoryArticleStore();
+			const instant = new Date("2026-08-01T10:00:00.000Z");
+			await store.saveArticle(makeArticleParams({ savedAt: instant, provenance: { kind: "web" } }));
+
+			const { saved, wroteUserArticle } = await store.saveArticle(
+				makeArticleParams({ savedAt: instant, provenance: { kind: "import" } }),
+			);
+
+			expect(wroteUserArticle).toBe(false);
+			expect(saved.savedAt).toEqual(instant);
+			expect(saved.provenance).toEqual({ kind: "web" });
 		});
 
 		it("ignores a bumpArticleSavedAt call for a URL that has never been saved", async () => {

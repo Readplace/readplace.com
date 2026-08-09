@@ -290,6 +290,7 @@ async function seedAccount(
 		metadata: articleMetadata(`${label} article`),
 		estimatedReadTime: MinutesSchema.parse(4),
 		provenance: { kind: "web" },
+		savedAt: new Date(),
 	});
 
 	await s.digest.enqueueDigestItem({

@@ -465,6 +465,7 @@ describe("View routes", () => {
 				},
 				estimatedReadTime: MinutesSchema.parse(2),
 				provenance: { kind: "web" },
+				savedAt: new Date(),
 			});
 			await articleStore.writeContent({
 				url: ARTICLE_URL,
@@ -539,6 +540,7 @@ describe("View routes", () => {
 				},
 				estimatedReadTime: MinutesSchema.parse(5),
 				provenance: { kind: "web" },
+				savedAt: new Date(),
 			});
 			await articleCrawl.markCrawlFailed({ url: ARTICLE_URL, reason: "blocked" });
 

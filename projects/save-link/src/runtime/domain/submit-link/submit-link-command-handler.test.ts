@@ -93,7 +93,7 @@ const fixedNow = () => new Date("2026-06-01T12:00:00.000Z");
 function createHandler(overrides: Partial<HandlerDeps> = {}) {
 	return initSubmitLinkCommandHandler({
 		validateSaveableUrl,
-		saveArticle: jest.fn().mockResolvedValue({ saved: makeSaved(), createdUserArticle: true }),
+		saveArticle: jest.fn().mockResolvedValue({ saved: makeSaved(), createdUserArticle: true, wroteUserArticle: true }),
 		updateArticleStatus: jest.fn().mockResolvedValue(true),
 		markCrawlPending: jest.fn().mockResolvedValue(undefined),
 		markSummaryPending: jest.fn().mockResolvedValue(undefined),
@@ -135,7 +135,7 @@ async function run(handler: ReturnType<typeof createHandler>, event: SQSEvent) {
 
 describe("initSubmitLinkCommandHandler", () => {
 	it("stub-saves a new URL, crawls tier-1 in-process, and emits TierContentExtractedEvent", async () => {
-		const saveArticle = jest.fn().mockResolvedValue({ saved: makeSaved(), createdUserArticle: true });
+		const saveArticle = jest.fn().mockResolvedValue({ saved: makeSaved(), createdUserArticle: true, wroteUserArticle: true });
 		const markCrawlPending = jest.fn().mockResolvedValue(undefined);
 		const publishEvent = jest.fn().mockResolvedValue(undefined);
 		const putTierSource = jest.fn().mockResolvedValue(undefined);
@@ -160,7 +160,7 @@ describe("initSubmitLinkCommandHandler", () => {
 	});
 
 	it("attaches an existing article without re-crawling: 'skip' freshness bumps the row and emits only the accepted-save fact", async () => {
-		const saveArticle = jest.fn().mockResolvedValue({ saved: makeSaved(), createdUserArticle: true });
+		const saveArticle = jest.fn().mockResolvedValue({ saved: makeSaved(), createdUserArticle: true, wroteUserArticle: true });
 		const publishEvent = jest.fn().mockResolvedValue(undefined);
 		const crawlAndFinalizeArticle = jest.fn();
 		const handler = createHandler({
@@ -185,7 +185,7 @@ describe("initSubmitLinkCommandHandler", () => {
 		const handler = createHandler({
 			saveArticle: jest
 				.fn()
-				.mockResolvedValue({ saved: makeSaved({ status: "read", readAt: new Date("2026-06-10T00:00:00.000Z") }), createdUserArticle: true }),
+				.mockResolvedValue({ saved: makeSaved({ status: "read", readAt: new Date("2026-06-10T00:00:00.000Z") }), createdUserArticle: true, wroteUserArticle: true }),
 			updateArticleStatus,
 			refreshArticleIfStale: jest.fn().mockResolvedValue({ action: "skip" }),
 		});
@@ -201,7 +201,7 @@ describe("initSubmitLinkCommandHandler", () => {
 		const handler = createHandler({
 			saveArticle: jest.fn().mockImplementation(async () => {
 				order.push("saveArticle");
-				return { saved: makeSaved({ status: "read", readAt: new Date() }), createdUserArticle: true };
+				return { saved: makeSaved({ status: "read", readAt: new Date() }), createdUserArticle: true, wroteUserArticle: true };
 			}),
 			updateArticleStatus: jest.fn().mockImplementation(async () => {
 				order.push("resurface");

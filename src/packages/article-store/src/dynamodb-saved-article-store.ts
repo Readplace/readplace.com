@@ -142,6 +142,7 @@ export function initDynamoDbSavedArticleStore(deps: {
 	tableName: string;
 	userArticlesTableName: string;
 	logger: HutchLogger;
+	now: () => Date;
 }): {
 	saveArticle: SaveArticle;
 	saveArticleGlobally: SaveArticleGlobally;
@@ -165,7 +166,7 @@ export function initDynamoDbSavedArticleStore(deps: {
 	findUserArticleNotificationState: FindUserArticleNotificationState;
 	readContent: ContentProvider;
 } {
-	const { client, tableName, userArticlesTableName, logger } = deps;
+	const { client, tableName, userArticlesTableName, logger, now } = deps;
 
 	const articles = defineDynamoTable({ client, tableName, schema: ArticleRow });
 	const unverifiedArticles = defineDynamoTable({ client, tableName, schema: UnverifiedArticleRow });
@@ -177,7 +178,6 @@ export function initDynamoDbSavedArticleStore(deps: {
 		tableName: userArticlesTableName,
 		schema: UserArticleRow,
 	});
-
 	async function findArticleByRouteId(routeId: ReaderArticleHashId): Promise<z.infer<typeof ArticleRow> | null> {
 		const { items } = await articles.query({
 			IndexName: "routeId-index",
@@ -247,34 +247,50 @@ export function initDynamoDbSavedArticleStore(deps: {
 
 	const saveArticle: SaveArticle = async (params) => {
 		const articleResourceUniqueId = ArticleResourceUniqueId.parse(params.url);
-		const now = new Date();
+		const globallySavedAt = now();
 
 		const upsertGlobal = async () => {
 			const { created } = await saveArticleGlobally({
 				url: params.url,
 				metadata: params.metadata,
 				estimatedReadTime: params.estimatedReadTime,
-				savedAt: now,
+				savedAt: globallySavedAt,
 			});
 			if (!created) {
-				await bumpArticleSavedAt({ url: params.url, savedAt: now });
+				await bumpArticleSavedAt({ url: params.url, savedAt: globallySavedAt });
 			}
 		};
 
-		const [, priorUserArticle] = await Promise.all([
+		const writeUserArticleUnlessNewerSaveWon = async (): Promise<{
+			createdUserArticle: boolean;
+			wroteUserArticle: boolean;
+		}> => {
+			try {
+				const priorUserArticle = await userArticles.update({
+					Key: { userId: params.userId, url: articleResourceUniqueId.value },
+					UpdateExpression:
+						"SET savedAt = :savedAt, provenance = :provenance, #status = if_not_exists(#status, :unread)",
+					ConditionExpression: "attribute_not_exists(savedAt) OR savedAt < :savedAt",
+					ExpressionAttributeNames: { "#status": "status" },
+					ExpressionAttributeValues: {
+						":savedAt": params.savedAt.toISOString(),
+						":provenance": params.provenance,
+						":unread": "unread",
+					},
+					ReturnValues: "ALL_OLD",
+				});
+				return { createdUserArticle: priorUserArticle.Attributes === undefined, wroteUserArticle: true };
+			} catch (error) {
+				if (error instanceof ConditionalCheckFailedException) {
+					return { createdUserArticle: false, wroteUserArticle: false };
+				}
+				throw error;
+			}
+		};
+
+		const [, { createdUserArticle, wroteUserArticle }] = await Promise.all([
 			upsertGlobal(),
-			userArticles.update({
-				Key: { userId: params.userId, url: articleResourceUniqueId.value },
-				UpdateExpression:
-					"SET savedAt = :savedAt, provenance = :provenance, #status = if_not_exists(#status, :unread)",
-				ExpressionAttributeNames: { "#status": "status" },
-				ExpressionAttributeValues: {
-					":savedAt": now.toISOString(),
-					":provenance": params.provenance,
-					":unread": "unread",
-				},
-				ReturnValues: "ALL_OLD",
-			}),
+			writeUserArticleUnlessNewerSaveWon(),
 		]);
 
 		// Strongly-consistent read-your-writes: a default eventually-consistent read
@@ -289,7 +305,8 @@ export function initDynamoDbSavedArticleStore(deps: {
 
 		return {
 			saved: toSavedArticle(article, userArticle),
-			createdUserArticle: priorUserArticle.Attributes === undefined,
+			createdUserArticle,
+			wroteUserArticle,
 		};
 	};
 

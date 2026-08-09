@@ -477,6 +477,7 @@ export function createApp(dependencies: AppDependencies): Express {
 					url: validation.url,
 					freshness,
 					provenance: await resolveMcpSaveProvenance(oauthClientId),
+					savedAt: deps.now(),
 				});
 				return { ok: true, title: saved.metadata.title, url: saved.url };
 			} catch (error) {

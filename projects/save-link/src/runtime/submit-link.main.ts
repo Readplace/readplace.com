@@ -74,6 +74,7 @@ const savedArticleStore = initDynamoDbSavedArticleStore({
 	tableName: articlesTable,
 	userArticlesTableName: userArticlesTable,
 	logger: observability.logger,
+	now: () => new Date(),
 });
 const crawlStore = initDynamoDbArticleCrawl({ client: dynamoClient, tableName: articlesTable, now });
 const summaryStore = initDynamoDbGeneratedSummary({ client: dynamoClient, tableName: articlesTable });

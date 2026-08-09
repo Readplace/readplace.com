@@ -60,6 +60,7 @@ const articleStore = initDynamoDbSavedArticleStore({
 	tableName: requireEnv("DYNAMODB_ARTICLES_TABLE"),
 	userArticlesTableName: requireEnv("DYNAMODB_USER_ARTICLES_TABLE"),
 	logger,
+	now: () => new Date(),
 });
 
 const digestQueue = initDynamoDbDigestQueue({

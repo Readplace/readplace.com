@@ -25,13 +25,13 @@ export interface SaveArticleFromUrlDependencies {
 
 async function markUnreadIfRead(
 	updateArticleStatus: UpdateArticleStatus,
-	saved: SavedArticle,
+	result: { saved: SavedArticle; wroteUserArticle: boolean },
 ): Promise<SavedArticle> {
-	if (saved.status === "read") {
-		await updateArticleStatus(saved.id, saved.userId, "unread");
-		return { ...saved, status: "unread", readAt: undefined };
+	if (result.wroteUserArticle && result.saved.status === "read") {
+		await updateArticleStatus(result.saved.id, result.saved.userId, "unread");
+		return { ...result.saved, status: "unread", readAt: undefined };
 	}
-	return saved;
+	return result.saved;
 }
 
 export type SaveArticleFromUrl = (params: {
@@ -39,6 +39,7 @@ export type SaveArticleFromUrl = (params: {
 	url: SaveableUrl;
 	freshness: ContentFreshnessResult;
 	provenance: SaveProvenance;
+	savedAt: Date;
 }) => Promise<{
 	saved: SavedArticle;
 	canonicalUrl: string;
@@ -52,13 +53,14 @@ async function saveByFreshness(
 		url: string;
 		freshness: ContentFreshnessResult;
 		provenance: SaveProvenance;
+		savedAt: Date;
 	},
 ): Promise<{ saved: SavedArticle; createdUserArticle: boolean }> {
-	const { userId, url, freshness, provenance } = params;
+	const { userId, url, freshness, provenance, savedAt } = params;
 
 	if (freshness.action === "new") {
 		const hostname = new URL(url).hostname;
-		const { saved, createdUserArticle } = await deps.saveArticle({
+		const { saved, createdUserArticle, wroteUserArticle } = await deps.saveArticle({
 			userId,
 			url,
 			metadata: {
@@ -69,11 +71,12 @@ async function saveByFreshness(
 			},
 			estimatedReadTime: calculateReadTime(0),
 			provenance,
+			savedAt,
 		});
 		await deps.markCrawlPending({ url });
 		await deps.markSummaryPending({ url });
 		const [unread] = await Promise.all([
-			markUnreadIfRead(deps.updateArticleStatus, saved),
+			markUnreadIfRead(deps.updateArticleStatus, { saved, wroteUserArticle }),
 			deps.publishUpdateFetchTimestamp({
 				url,
 				contentFetchedAt: new Date().toISOString(),
@@ -83,12 +86,13 @@ async function saveByFreshness(
 		return { saved: unread, createdUserArticle };
 	}
 
-	const { saved, createdUserArticle } = await deps.saveArticle({
+	const { saved, createdUserArticle, wroteUserArticle } = await deps.saveArticle({
 		userId,
 		url,
 		metadata: { title: "", siteName: "", excerpt: "", wordCount: 0 },
 		estimatedReadTime: calculateReadTime(0),
 		provenance,
+		savedAt,
 	});
 
 	if (freshness.action === "refreshed" && freshness.article.article.content) {
@@ -97,7 +101,7 @@ async function saveByFreshness(
 	}
 
 	return {
-		saved: await markUnreadIfRead(deps.updateArticleStatus, saved),
+		saved: await markUnreadIfRead(deps.updateArticleStatus, { saved, wroteUserArticle }),
 		createdUserArticle,
 	};
 }
@@ -112,6 +116,7 @@ export function initSaveArticleFromUrl(
 			url,
 			freshness: params.freshness,
 			provenance: params.provenance,
+			savedAt: params.savedAt,
 		});
 		// The row is committed, so the save is accepted on every freshness branch —
 		// including the skip that publishes no LinkSaved. Carries the submitted URL,

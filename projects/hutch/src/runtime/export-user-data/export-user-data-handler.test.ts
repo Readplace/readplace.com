@@ -111,6 +111,7 @@ describe("initExportUserDataHandler", () => {
 			},
 			estimatedReadTime: MinutesSchema.parse(1),
 			provenance: { kind: "web" },
+			savedAt: new Date(),
 		});
 
 		const response = await invokeHandler(harness, {
@@ -163,6 +164,7 @@ describe("initExportUserDataHandler", () => {
 				},
 				estimatedReadTime: MinutesSchema.parse(1),
 				provenance: { kind: "web" },
+				savedAt: new Date(),
 			});
 		}
 

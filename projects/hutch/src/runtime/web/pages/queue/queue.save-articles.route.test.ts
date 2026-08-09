@@ -92,6 +92,118 @@ describe("POST /queue/save-articles", () => {
 		expect(provenances).toEqual([{ kind: "client", clientName: "firefox" }]);
 	});
 
+	it("stamps every page of one request with one savedAt, minted only after every freshness check resolved", async () => {
+		const fixture = createDefaultTestAppFixture(TEST_APP_ORIGIN);
+		const events: string[] = [];
+		const savedAts: Date[] = [];
+		const testApp = useApp({
+			...fixture,
+			freshness: {
+				refreshArticleIfStale: async ({ url }) => {
+					if (url.endsWith("/slow")) {
+						await new Promise((resolve) => setTimeout(resolve, 20));
+					}
+					events.push(`refresh ${url}`);
+					return { action: "new" };
+				},
+			},
+			articleStore: {
+				...fixture.articleStore,
+				saveArticle: async (params) => {
+					events.push(`save ${params.url}`);
+					savedAts.push(params.savedAt);
+					return fixture.articleStore.saveArticle(params);
+				},
+			},
+		});
+		const accessToken = await createAccessToken(testApp);
+
+		const response = await request(testApp.server)
+			.post("/queue/save-articles")
+			.set("Accept", SIREN_MEDIA_TYPE)
+			.set("Authorization", `Bearer ${accessToken}`)
+			.field("manifest", manifest([
+				{ url: "https://example.com/slow" },
+				{ url: "https://example.com/fast-1" },
+				{ url: "https://example.com/fast-2" },
+			]));
+
+		expect(response.status).toBe(200);
+		expect(response.body.properties).toEqual(
+			expect.objectContaining({ saved: 3, skipped: 0, failed: 0 }),
+		);
+		expect(events.slice(0, 3).sort()).toEqual([
+			"refresh https://example.com/fast-1",
+			"refresh https://example.com/fast-2",
+			"refresh https://example.com/slow",
+		]);
+		expect(events[2]).toBe("refresh https://example.com/slow");
+		expect(events.slice(3).map((e) => e.split(" ")[0])).toEqual(["save", "save", "save"]);
+		expect(savedAts).toHaveLength(3);
+		expect(new Set(savedAts.map((d) => d.toISOString())).size).toBe(1);
+	});
+
+	it("counts a page whose store write throws as failed and still saves the rest of the request", async () => {
+		const fixture = createDefaultTestAppFixture(TEST_APP_ORIGIN);
+		const testApp = useApp({
+			...fixture,
+			articleStore: {
+				...fixture.articleStore,
+				saveArticle: async (params) => {
+					if (params.url.endsWith("/broken")) throw new Error("write exploded");
+					return fixture.articleStore.saveArticle(params);
+				},
+			},
+		});
+		const accessToken = await createAccessToken(testApp);
+
+		const response = await request(testApp.server)
+			.post("/queue/save-articles")
+			.set("Accept", SIREN_MEDIA_TYPE)
+			.set("Authorization", `Bearer ${accessToken}`)
+			.field("manifest", manifest([
+				{ url: "https://example.com/broken" },
+				{ url: "https://example.com/healthy" },
+			]));
+
+		expect(response.status).toBe(200);
+		expect(response.body.properties).toEqual(
+			expect.objectContaining({ saved: 1, skipped: 0, failed: 1 }),
+		);
+		const stored = await testApp.articleStore.findArticlesByUser({ userId: TEST_USER_ID });
+		expect(stored.articles.map((a) => a.url)).toEqual(["https://example.com/healthy"]);
+	});
+
+	it("counts a page whose freshness check throws as failed and still saves the rest of the request", async () => {
+		const fixture = createDefaultTestAppFixture(TEST_APP_ORIGIN);
+		const testApp = useApp({
+			...fixture,
+			freshness: {
+				refreshArticleIfStale: async ({ url }) => {
+					if (url.endsWith("/broken")) throw new Error("crawl exploded");
+					return { action: "new" };
+				},
+			},
+		});
+		const accessToken = await createAccessToken(testApp);
+
+		const response = await request(testApp.server)
+			.post("/queue/save-articles")
+			.set("Accept", SIREN_MEDIA_TYPE)
+			.set("Authorization", `Bearer ${accessToken}`)
+			.field("manifest", manifest([
+				{ url: "https://example.com/broken" },
+				{ url: "https://example.com/healthy" },
+			]));
+
+		expect(response.status).toBe(200);
+		expect(response.body.properties).toEqual(
+			expect.objectContaining({ saved: 1, skipped: 0, failed: 1 }),
+		);
+		const stored = await testApp.articleStore.findArticlesByUser({ userId: TEST_USER_ID });
+		expect(stored.articles.map((a) => a.url)).toEqual(["https://example.com/healthy"]);
+	});
+
 	it("saves a content page, a url-only page, skips an unsaveable scheme, and returns the summary", async () => {
 		const { testApp, publishedSaveHtml } = setup();
 		const accessToken = await createAccessToken(testApp);

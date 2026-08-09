@@ -315,26 +315,37 @@ export function initImportSessionRoutes(deps: ImportRouteDependencies): Router {
 			}
 		}
 
+		const saveArticleFromUrl = initSaveArticleFromUrl(deps);
+		const logImportFailure = (url: SaveableUrl, error: unknown): "failed" => {
+			deps.logError(
+				`Failed to import url=${url}`,
+				error instanceof Error ? error : undefined,
+			);
+			return "failed";
+		};
 		for (let i = 0; i < saveable.length; i += IMPORT_COMMIT_CONCURRENCY) {
 			const batch = saveable.slice(i, i + IMPORT_COMMIT_CONCURRENCY);
-			await Promise.all(
+			const prepared = await Promise.all(
 				batch.map((url) =>
 					deps
 						.refreshArticleIfStale({ url })
-						.then((freshness) =>
-						initSaveArticleFromUrl(deps)({
-							userId,
-							url,
-							freshness,
-							provenance: { kind: "import" },
-						}),
-					)
-						.catch((error: unknown) => {
-							deps.logError(
-								`Failed to import url=${url}`,
-								error instanceof Error ? error : undefined,
-							);
-						}),
+						.then(
+							(freshness) => ({ url, freshness }),
+							(error: unknown) => logImportFailure(url, error),
+						),
+				),
+			);
+			const ready = prepared.flatMap((page) => (page === "failed" ? [] : [page]));
+			const savedAt = deps.now();
+			await Promise.all(
+				ready.map(({ url, freshness }) =>
+					saveArticleFromUrl({
+						userId,
+						url,
+						freshness,
+						provenance: { kind: "import" },
+						savedAt,
+					}).catch((error: unknown) => logImportFailure(url, error)),
 				),
 			);
 		}

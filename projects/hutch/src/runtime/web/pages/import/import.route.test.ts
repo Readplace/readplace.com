@@ -628,6 +628,103 @@ describe("Import routes", () => {
 			]);
 		});
 
+		it("stamps every URL of one commit batch with one savedAt, minted only after the batch's freshness checks resolved", async () => {
+			const fixture = createDefaultTestAppFixture(TEST_APP_ORIGIN);
+			const events: string[] = [];
+			const savedAts: Date[] = [];
+			const harness = useApp({
+				...fixture,
+				freshness: {
+					refreshArticleIfStale: async ({ url }) => {
+						if (url.endsWith("/slow")) {
+							await new Promise((resolve) => setTimeout(resolve, 20));
+						}
+						events.push(`refresh ${url}`);
+						return { action: "new" };
+					},
+				},
+				articleStore: {
+					...fixture.articleStore,
+					saveArticle: async (params) => {
+						events.push(`save ${params.url}`);
+						savedAts.push(params.savedAt);
+						return fixture.articleStore.saveArticle(params);
+					},
+				},
+			});
+			const agent = await loginAgent(harness.server, harness.auth);
+			const { body, contentType } = multipartBody(
+				"urls.txt",
+				Buffer.from("https://example.com/slow https://example.com/fast-1 https://example.com/fast-2"),
+			);
+			const create = await agent.post("/import").set("Content-Type", contentType).send(body);
+
+			const commit = await agent.post(`${create.headers.location}/commit`);
+
+			expect(commit.status).toBe(303);
+			expect(events[2]).toBe("refresh https://example.com/slow");
+			expect(events.slice(3).map((e) => e.split(" ")[0])).toEqual(["save", "save", "save"]);
+			expect(savedAts).toHaveLength(3);
+			expect(new Set(savedAts.map((d) => d.toISOString())).size).toBe(1);
+		});
+
+		it("imports the rest of a batch when one URL's store write throws", async () => {
+			const fixture = createDefaultTestAppFixture(TEST_APP_ORIGIN);
+			const harness = useApp({
+				...fixture,
+				articleStore: {
+					...fixture.articleStore,
+					saveArticle: async (params) => {
+						if (params.url.endsWith("/broken")) throw new Error("write exploded");
+						return fixture.articleStore.saveArticle(params);
+					},
+				},
+			});
+			const { auth, articleStore } = harness;
+			const agent = await loginAgent(harness.server, harness.auth);
+			const { body, contentType } = multipartBody(
+				"urls.txt",
+				Buffer.from("https://example.com/broken https://example.com/healthy"),
+			);
+			const create = await agent.post("/import").set("Content-Type", contentType).send(body);
+
+			const commit = await agent.post(`${create.headers.location}/commit`);
+
+			expect(commit.status).toBe(303);
+			const userId = (await auth.findUserByEmail("test@example.com"))?.userId;
+			assert(userId, "user must exist");
+			const stored = await articleStore.findArticlesByUser({ userId });
+			expect(stored.articles.map((a) => a.url)).toEqual(["https://example.com/healthy"]);
+		});
+
+		it("imports the rest of a batch when one URL's freshness check throws", async () => {
+			const fixture = createDefaultTestAppFixture(TEST_APP_ORIGIN);
+			const harness = useApp({
+				...fixture,
+				freshness: {
+					refreshArticleIfStale: async ({ url }) => {
+						if (url.endsWith("/broken")) throw new Error("crawl exploded");
+						return { action: "new" };
+					},
+				},
+			});
+			const { auth, articleStore } = harness;
+			const agent = await loginAgent(harness.server, harness.auth);
+			const { body, contentType } = multipartBody(
+				"urls.txt",
+				Buffer.from("https://example.com/broken https://example.com/healthy"),
+			);
+			const create = await agent.post("/import").set("Content-Type", contentType).send(body);
+
+			const commit = await agent.post(`${create.headers.location}/commit`);
+
+			expect(commit.status).toBe(303);
+			const userId = (await auth.findUserByEmail("test@example.com"))?.userId;
+			assert(userId, "user must exist");
+			const stored = await articleStore.findArticlesByUser({ userId });
+			expect(stored.articles.map((a) => a.url)).toEqual(["https://example.com/healthy"]);
+		});
+
 		it("imports selected URLs into the user's queue and deletes the session", async () => {
 			const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
 			const { auth, articleStore } = harness;

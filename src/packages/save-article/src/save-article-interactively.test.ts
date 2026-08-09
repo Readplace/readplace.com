@@ -45,6 +45,7 @@ describe("initSaveArticleInteractively", () => {
 			url: submittedUrl,
 			freshness: { action: "skip" },
 			provenance,
+			savedAt: new Date("2026-08-04T00:00:00.000Z"),
 		});
 
 		expect(published).toEqual([{ url: canonicalUrl, userId }]);
@@ -62,6 +63,7 @@ describe("initSaveArticleInteractively", () => {
 			url: submittedUrl,
 			freshness: { action: "skip" },
 			provenance,
+			savedAt: new Date("2026-08-04T00:00:00.000Z"),
 		});
 
 		expect(result).toEqual({ saved, canonicalUrl, createdUserArticle: true });
@@ -79,6 +81,7 @@ describe("initSaveArticleInteractively", () => {
 			url: submittedUrl,
 			freshness: { action: "skip" },
 			provenance,
+			savedAt: new Date("2026-08-04T00:00:00.000Z"),
 		});
 
 		expect(published).toEqual([]);
@@ -95,6 +98,7 @@ describe("initSaveArticleInteractively", () => {
 				url: submittedUrl,
 				freshness: { action: "skip" },
 				provenance,
+				savedAt: new Date("2026-08-04T00:00:00.000Z"),
 			}),
 		).rejects.toThrow("save failed");
 		expect(published).toEqual([]);

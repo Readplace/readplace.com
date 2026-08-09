@@ -121,7 +121,6 @@ export function initInMemoryArticleStore(): {
 } {
 	const articles = new Map<string, GlobalArticle>();
 	const userArticles = new Map<string, UserArticle>();
-
 	function userArticleKey(userId: UserId, url: string): string {
 		return `${userId}:${url}`;
 	}
@@ -161,29 +160,32 @@ export function initInMemoryArticleStore(): {
 	};
 
 	const saveArticle: SaveArticle = async (params) => {
-		const now = new Date();
+		const globallySavedAt = new Date();
 		const { created } = await saveArticleGlobally({
 			url: params.url,
 			metadata: params.metadata,
 			estimatedReadTime: params.estimatedReadTime,
-			savedAt: now,
+			savedAt: globallySavedAt,
 		});
 		if (!created) {
-			await bumpArticleSavedAt({ url: params.url, savedAt: now });
+			await bumpArticleSavedAt({ url: params.url, savedAt: globallySavedAt });
 		}
 		const articleResourceUniqueId = ArticleResourceUniqueId.parse(params.url);
 
 		const uaKey = userArticleKey(params.userId, articleResourceUniqueId.value);
 		const existing = userArticles.get(uaKey);
-		userArticles.set(uaKey, existing
-			? { ...existing, savedAt: now, provenance: params.provenance }
-			: {
-				userId: params.userId,
-				url: articleResourceUniqueId.value,
-				status: "unread",
-				savedAt: now,
-				provenance: params.provenance,
-			});
+		const newerSaveWon = existing !== undefined && existing.savedAt.getTime() >= params.savedAt.getTime();
+		if (!newerSaveWon) {
+			userArticles.set(uaKey, existing
+				? { ...existing, savedAt: params.savedAt, provenance: params.provenance }
+				: {
+					userId: params.userId,
+					url: articleResourceUniqueId.value,
+					status: "unread",
+					savedAt: params.savedAt,
+					provenance: params.provenance,
+				});
+		}
 
 		const article = articles.get(articleResourceUniqueId.value);
 		assert(article, "Article must exist after set");
@@ -192,6 +194,7 @@ export function initInMemoryArticleStore(): {
 		return {
 			saved: toSavedArticle(article, ua),
 			createdUserArticle: existing === undefined,
+			wroteUserArticle: !newerSaveWon,
 		};
 	};
 

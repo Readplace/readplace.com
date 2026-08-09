@@ -69,12 +69,16 @@ function batchGetKeys(commands: CapturedCommand[]): { url: string }[] {
 	return BatchGetArticleKeys.parse(batchGet.input).RequestItems.articles.Keys;
 }
 
+const STORE_NOW = new Date("2026-05-30T12:00:00.000Z");
+const OPERATION_SAVED_AT = new Date("2026-05-30T11:30:00.000Z");
+
 function initStore(client: DynamoDBDocumentClient, logger: HutchLogger = HutchLogger.from(noopLogger)) {
 	return initDynamoDbSavedArticleStore({
 		client,
 		tableName: "articles",
 		userArticlesTableName: "user-articles",
 		logger,
+		now: () => STORE_NOW,
 	});
 }
 
@@ -364,6 +368,7 @@ describe("initDynamoDbSavedArticleStore global writes", () => {
 			metadata: { title: "Title", siteName: "Example", excerpt: "Excerpt", wordCount: 250, imageUrl: "https://example.com/image.jpg" },
 			estimatedReadTime: TWO_MINUTES,
 			provenance,
+			savedAt: OPERATION_SAVED_AT,
 		});
 
 		expect(commands.some((c) => c.name === "PutCommand")).toBe(true);
@@ -393,6 +398,7 @@ describe("initDynamoDbSavedArticleStore global writes", () => {
 			metadata: { title: "Title", siteName: "Example", excerpt: "Excerpt", wordCount: 250 },
 			estimatedReadTime: TWO_MINUTES,
 			provenance,
+			savedAt: OPERATION_SAVED_AT,
 		});
 
 		const userRowUpdate = commands.find(
@@ -420,6 +426,7 @@ describe("initDynamoDbSavedArticleStore global writes", () => {
 			metadata: { title: "Title", siteName: "Example", excerpt: "Excerpt", wordCount: 250 },
 			estimatedReadTime: TWO_MINUTES,
 			provenance,
+			savedAt: OPERATION_SAVED_AT,
 		});
 
 		expect(saved.provenance).toBeUndefined();
@@ -438,6 +445,7 @@ describe("initDynamoDbSavedArticleStore global writes", () => {
 			metadata: { title: "Title", siteName: "Example", excerpt: "Excerpt", wordCount: 250 },
 			estimatedReadTime: TWO_MINUTES,
 			provenance,
+			savedAt: OPERATION_SAVED_AT,
 		});
 
 		const userRowUpdate = commands.find(
@@ -461,6 +469,7 @@ describe("initDynamoDbSavedArticleStore global writes", () => {
 			metadata: { title: "Title", siteName: "Example", excerpt: "Excerpt", wordCount: 250 },
 			estimatedReadTime: TWO_MINUTES,
 			provenance,
+			savedAt: OPERATION_SAVED_AT,
 		});
 
 		expect(createdUserArticle).toBe(false);
@@ -484,11 +493,142 @@ describe("initDynamoDbSavedArticleStore global writes", () => {
 			metadata: { title: "Title", siteName: "Example", excerpt: "Excerpt", wordCount: 250, imageUrl: "https://example.com/image.jpg" },
 			estimatedReadTime: TWO_MINUTES,
 			provenance,
+			savedAt: OPERATION_SAVED_AT,
 		});
 
 		const bump = commands.find((c) => c.name === "UpdateCommand" && c.input.UpdateExpression === "SET savedAt = :savedAt");
 		expect(bump).toBeDefined();
 		expect(saved.readAt).toBeUndefined();
+	});
+
+	it("saveArticle stamps the user row with the caller's savedAt and the global row with its own clock", async () => {
+		const { client, commands } = createFakeClient({
+			GetCommand: {
+				queue: [{ Item: articleItem() }, { Item: userArticleItem() }],
+			},
+		});
+
+		await initStore(client).saveArticle({
+			userId: USER,
+			url: URL,
+			metadata: { title: "Title", siteName: "Example", excerpt: "Excerpt", wordCount: 250 },
+			estimatedReadTime: TWO_MINUTES,
+			provenance,
+			savedAt: OPERATION_SAVED_AT,
+		});
+
+		const globalPut = commands.find((c) => c.name === "PutCommand");
+		assert(globalPut, "the store must put the global article row");
+		expect((globalPut.input.Item as Record<string, unknown>).savedAt).toBe(STORE_NOW.toISOString());
+		const userRowUpdate = commands.find(
+			(c) => c.name === "UpdateCommand" && c.input.ReturnValues === "ALL_OLD",
+		);
+		assert(userRowUpdate, "the store must update the user row");
+		expect(
+			(userRowUpdate.input.ExpressionAttributeValues as Record<string, unknown>)[":savedAt"],
+		).toBe(OPERATION_SAVED_AT.toISOString());
+	});
+
+	it("saveArticle only overwrites a user row whose savedAt is older, so a slow save cannot demote a newer one", async () => {
+		const { client, commands } = createFakeClient({
+			GetCommand: {
+				queue: [{ Item: articleItem() }, { Item: userArticleItem() }],
+			},
+		});
+
+		await initStore(client).saveArticle({
+			userId: USER,
+			url: URL,
+			metadata: { title: "Title", siteName: "Example", excerpt: "Excerpt", wordCount: 250 },
+			estimatedReadTime: TWO_MINUTES,
+			provenance,
+			savedAt: OPERATION_SAVED_AT,
+		});
+
+		const userRowUpdate = commands.find(
+			(c) => c.name === "UpdateCommand" && c.input.ReturnValues === "ALL_OLD",
+		);
+		assert(userRowUpdate, "the store must update the user row");
+		expect(userRowUpdate.input.ConditionExpression).toBe(
+			"attribute_not_exists(savedAt) OR savedAt < :savedAt",
+		);
+	});
+
+	it("saveArticle treats a lost savedAt race as pre-existing and returns the newer row it read back", async () => {
+		const { client } = createFakeClient({
+			UpdateCommand: {
+				default: () => {
+					throw new ConditionalCheckFailedException({ $metadata: {}, message: "newer save won" });
+				},
+			},
+			GetCommand: {
+				queue: [{ Item: articleItem() }, { Item: userArticleItem({ savedAt: "2026-05-30T11:45:00.000Z" }) }],
+			},
+		});
+
+		const { saved, createdUserArticle } = await initStore(client).saveArticle({
+			userId: USER,
+			url: URL,
+			metadata: { title: "Title", siteName: "Example", excerpt: "Excerpt", wordCount: 250 },
+			estimatedReadTime: TWO_MINUTES,
+			provenance,
+			savedAt: OPERATION_SAVED_AT,
+		});
+
+		expect(createdUserArticle).toBe(false);
+		expect(saved.savedAt).toEqual(new Date("2026-05-30T11:45:00.000Z"));
+	});
+
+	it("saveArticle reports whether the user-row write applied, so a losing save never flips the winner's status", async () => {
+		const winning = createFakeClient({
+			GetCommand: { queue: [{ Item: articleItem() }, { Item: userArticleItem() }] },
+		});
+		const losing = createFakeClient({
+			UpdateCommand: {
+				default: () => {
+					throw new ConditionalCheckFailedException({ $metadata: {}, message: "newer save won" });
+				},
+			},
+			GetCommand: { queue: [{ Item: articleItem() }, { Item: userArticleItem() }] },
+		});
+		const params = {
+			userId: USER,
+			url: URL,
+			metadata: { title: "Title", siteName: "Example", excerpt: "Excerpt", wordCount: 250 },
+			estimatedReadTime: TWO_MINUTES,
+			provenance,
+			savedAt: OPERATION_SAVED_AT,
+		};
+
+		const won = await initStore(winning.client).saveArticle(params);
+		const lost = await initStore(losing.client).saveArticle(params);
+
+		expect(won.wroteUserArticle).toBe(true);
+		expect(lost.wroteUserArticle).toBe(false);
+	});
+
+	it("saveArticle rethrows a non-conditional user-row write error", async () => {
+		const { client } = createFakeClient({
+			UpdateCommand: {
+				default: () => {
+					throw new Error("throttled");
+				},
+			},
+			GetCommand: {
+				queue: [{ Item: articleItem() }, { Item: userArticleItem() }],
+			},
+		});
+
+		await expect(
+			initStore(client).saveArticle({
+				userId: USER,
+				url: URL,
+				metadata: { title: "Title", siteName: "Example", excerpt: "Excerpt", wordCount: 250 },
+				estimatedReadTime: TWO_MINUTES,
+				provenance,
+				savedAt: OPERATION_SAVED_AT,
+			}),
+		).rejects.toThrow("throttled");
 	});
 });
 

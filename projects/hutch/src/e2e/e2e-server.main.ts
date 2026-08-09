@@ -302,6 +302,7 @@ server.post('/e2e/seed-crawled-article', async (req, res) => {
 					metadata,
 					estimatedReadTime,
 					provenance,
+					savedAt: new Date(),
 				})
 			).saved
 		: undefined
