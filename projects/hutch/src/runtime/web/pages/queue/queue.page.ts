@@ -442,8 +442,12 @@ const readerCaptureBridgeScript = (cspNonce: CspNonce) => `<script nonce="${cspN
 		button.disabled = true;
 		handlers.readplaceReader.postMessage({ type: "captureBlocked" });
 		var pollUrl = button.getAttribute("data-reader-capture-poll");
-		if (!pollUrl || !window.htmx) { return; }
-		window.htmx.ajax("GET", pollUrl, { target: "#article-body-reader-slot", swap: "outerHTML" });
+		if (!pollUrl) { return; }
+		function poll() {
+			window.htmx.ajax("GET", pollUrl, { target: "#article-body-reader-slot", swap: "outerHTML" });
+		}
+		if (window.htmx) { poll(); return; }
+		document.body.addEventListener("htmx:load", poll, { once: true });
 	});
 })();
 </script>`;
