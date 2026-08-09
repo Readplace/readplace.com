@@ -2,7 +2,7 @@ import { randomUUID } from "node:crypto";
 import { hashPassword, verifyPassword } from "@packages/domain/user";
 import { MAX_PORT_ATTEMPTS, findAvailablePort } from "@packages/find-available-port";
 import { HutchLogger, consoleLogger } from "@packages/hutch-logger";
-import { GlobalNav } from "@packages/web-shell";
+import { GlobalNav, HtmxOmitted } from "@packages/web-shell";
 import { initResolveLogin } from "@packages/web-session";
 import { type AnalyticsEvent, isHttpsOrigin } from "@packages/web-analytics";
 import { initInMemoryAuth } from "@packages/test-fixtures/providers/auth";
@@ -22,6 +22,7 @@ const app = createBlogApp(
 		staticBaseUrl: requireEnv("STATIC_BASE_URL"),
 		liveReload: Boolean(getEnv("LIVERELOAD")),
 		renderNav: GlobalNav,
+		htmx: HtmxOmitted,
 	},
 	{
 		resolveLogin,

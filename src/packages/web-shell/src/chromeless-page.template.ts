@@ -1,4 +1,4 @@
-import { HTMX_CONFIG_META } from "./htmx-script";
+import { HtmxLoaded } from "./htmx-script";
 
 export const CHROMELESS_TEMPLATE = `<!DOCTYPE html>
 <html lang="en-AU">
@@ -8,7 +8,7 @@ export const CHROMELESS_TEMPLATE = `<!DOCTYPE html>
 	<title id="document-title">{{title}}</title>
 	<meta name="description" content="{{description}}">
 	<meta name="robots" content="{{robots}}">
-	${HTMX_CONFIG_META}
+	${HtmxLoaded.configMeta}
 
 	<link rel="preconnect" href="https://fonts.googleapis.com">
 	<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>

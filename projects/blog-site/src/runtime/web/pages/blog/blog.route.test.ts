@@ -8,6 +8,7 @@ import {
 	initBase,
 	isChangelogVersion,
 	GlobalNav,
+	HtmxOmitted,
 } from "@packages/web-shell";
 import type { ResolveLogin } from "@packages/web-session";
 import { JSDOM } from "jsdom";
@@ -29,7 +30,7 @@ const authedResolver: ResolveLogin = async (cookieHeader) =>
 		: { isAuthenticated: false };
 
 const app = createBlogApp(
-	{ staticBaseUrl: "", liveReload: false, renderNav: GlobalNav },
+	{ staticBaseUrl: "", liveReload: false, renderNav: GlobalNav, htmx: HtmxOmitted },
 	{
 		resolveLogin: guestResolver,
 		analyticsLogger: { info: () => {}, error: () => {}, warn: () => {}, debug: () => {} },
@@ -64,7 +65,7 @@ function appWithChangelogBanner(banner: ChangelogBanner | undefined) {
 	const expressApp = express();
 	expressApp.disable("x-powered-by");
 	expressApp.use(createCspNonceMiddleware({ generateCspNonce }));
-	const base = initBase({ staticBaseUrl: "", liveReload: false, renderNav: GlobalNav });
+	const base = initBase({ staticBaseUrl: "", liveReload: false, renderNav: GlobalNav, htmx: HtmxOmitted });
 	expressApp.use(
 		"/blog",
 		initBlogRoutes({ blogPosts: blogPostsStub, base, resolveLogin: guestResolver }),
@@ -78,7 +79,7 @@ function appWithResolver(resolveLogin: ResolveLogin) {
 	const expressApp = express();
 	expressApp.disable("x-powered-by");
 	expressApp.use(createCspNonceMiddleware({ generateCspNonce }));
-	const base = initBase({ staticBaseUrl: "", liveReload: false, renderNav: GlobalNav });
+	const base = initBase({ staticBaseUrl: "", liveReload: false, renderNav: GlobalNav, htmx: HtmxOmitted });
 	expressApp.use("/blog", initBlogRoutes({ blogPosts, base, resolveLogin }));
 	return expressApp;
 }
@@ -438,7 +439,7 @@ describe("changelog banner on /blog pages", () => {
 		const expressApp = express();
 		expressApp.disable("x-powered-by");
 		expressApp.use(createCspNonceMiddleware({ generateCspNonce }));
-		const base = initBase({ staticBaseUrl: "", liveReload: false, renderNav: GlobalNav });
+		const base = initBase({ staticBaseUrl: "", liveReload: false, renderNav: GlobalNav, htmx: HtmxOmitted });
 		expressApp.use(
 			"/blog",
 			initBlogRoutes({ blogPosts: blogPostsStub, base, resolveLogin: guestResolver }),

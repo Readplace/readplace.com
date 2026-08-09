@@ -1,5 +1,3 @@
-import { HTMX_CONFIG_META } from "./htmx-script";
-
 export const BASE_TEMPLATE = `<!DOCTYPE html>
 <html lang="en-US">
 <head>
@@ -9,7 +7,7 @@ export const BASE_TEMPLATE = `<!DOCTYPE html>
 	{{#each headMetas}}
 	<meta name="{{name}}" content="{{content}}">
 	{{/each}}
-	${HTMX_CONFIG_META}
+	{{{htmxConfigMeta}}}
 	<link rel="canonical" href="{{canonicalUrl}}">
 	<meta name="theme-color" content="#2B3A55" media="(prefers-color-scheme: light)">
 	<meta name="theme-color" content="#121212" media="(prefers-color-scheme: dark)">
