@@ -7,7 +7,7 @@ module.exports = {
   // is the smallest count that keeps the standard error of a ~150ms mean under
   // a few milliseconds — small enough to read a difference of that size as
   // signal rather than spread.
-  samplesPerCondition: 23,
+  measuredSamplesPerCondition: 20,
 
   // Reported, never counted: the first opens after a condition's throttling is
   // applied carry a cold HTTP connection to the server and a stylesheet the

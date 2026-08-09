@@ -48,12 +48,18 @@ export function summarizeLatency(samplesMs: number[]): LatencySummary {
 	};
 }
 
+export function perfArtifactDirectory(input: {
+	root: string | undefined;
+	runId: string | undefined;
+}): string {
+	if (input.root === undefined) return path.join("test-results", "perf");
+	return path.join(input.root, input.runId ?? "local", "perf");
+}
+
 export function latencyReportPath(input: {
 	root: string | undefined;
 	runId: string | undefined;
 	suite: PerfSuite;
 }): string {
-	const file = `${input.suite}-save-latency.json`;
-	if (input.root === undefined) return path.join("test-results", "perf", file);
-	return path.join(input.root, input.runId ?? "local", "perf", file);
+	return path.join(perfArtifactDirectory(input), `${input.suite}-save-latency.json`);
 }

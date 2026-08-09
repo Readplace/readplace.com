@@ -24,6 +24,7 @@
     "e2e-server": "E2E_SAVE_PIPELINE=inline node dist/e2e/e2e-server.main.js",
     "perf-server": "E2E_SAVE_PIPELINE=submit node dist/e2e/e2e-server.main.js",
     "perf-article-open": "node scripts/run-perf-article-open.js",
+    "perf-article-open-compare": "node dist/e2e/article-open-perf/compare.perf-local.main.js",
     "test": "jest --testMatch='**/dist/**/*.test.js' --testTimeout=10000",
     "test:sequential": "jest --testMatch='**/dist/**/*.test.js' --testTimeout=10000 --runInBand",
     "test-integration": "jest --testMatch='**/dist/**/*.integration.js' --testTimeout=30000",

@@ -1,5 +1,7 @@
 import { parseHTML } from "linkedom";
 import {
+	ARTICLE_END_MARKER,
+	ARTICLE_END_MARKER_SELECTOR,
 	ARTICLE_FIXTURES,
 	ARTICLE_OPEN_CONDITIONS,
 	UNTHROTTLED,
@@ -10,12 +12,12 @@ import {
 } from "./article-open-conditions";
 
 describe("buildArticleHtml", () => {
-	it("builds one paragraph per declared paragraph", () => {
+	it("builds one paragraph per declared paragraph plus the end marker's own", () => {
 		const { document } = parseHTML(
 			`<body>${buildArticleHtml({ size: "small", paragraphs: 4, wordsPerParagraph: 3 })}</body>`,
 		);
 
-		expect(document.querySelectorAll("p")).toHaveLength(4);
+		expect(document.querySelectorAll("p")).toHaveLength(5);
 	});
 
 	it("fills every paragraph with the declared number of words", () => {
@@ -27,7 +29,26 @@ describe("buildArticleHtml", () => {
 			Array.from(document.querySelectorAll("p")).map(
 				(paragraph) => paragraph.textContent?.split(" ").length,
 			),
-		).toEqual([3, 3]);
+		).toEqual([3, 3, 1]);
+	});
+
+	it("ends the body with the marker both arms have to deliver in full to lay out", () => {
+		const { document } = parseHTML(
+			`<body>${buildArticleHtml({ size: "small", paragraphs: 3, wordsPerParagraph: 3 })}</body>`,
+		);
+		const paragraphs = Array.from(document.querySelectorAll("p"));
+
+		expect(paragraphs[paragraphs.length - 1].innerHTML).toBe(
+			`<${ARTICLE_END_MARKER_SELECTOR}>${ARTICLE_END_MARKER}</${ARTICLE_END_MARKER_SELECTOR}>`,
+		);
+	});
+
+	it("carries exactly one end marker, so the probe cannot settle on an earlier one", () => {
+		const { document } = parseHTML(
+			`<body>${buildArticleHtml(ARTICLE_FIXTURES.large)}</body>`,
+		);
+
+		expect(document.querySelectorAll(ARTICLE_END_MARKER_SELECTOR)).toHaveLength(1);
 	});
 
 	it("hands both arms the same bytes for the same fixture", () => {

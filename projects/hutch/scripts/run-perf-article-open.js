@@ -3,7 +3,7 @@ const assert = require('node:assert');
 const { spawnSync } = require('node:child_process');
 const { getFreePort } = require('@packages/test-phase-runner');
 const {
-  samplesPerCondition,
+  measuredSamplesPerCondition,
   warmupsPerCondition,
 } = require('../perf-article-open.config.js');
 
@@ -31,7 +31,7 @@ async function main() {
       env: {
         ...process.env,
         E2E_PORT: String(await getFreePort()),
-        PERF_ARTICLE_OPEN_SAMPLES: String(samplesPerCondition),
+        PERF_ARTICLE_OPEN_MEASURED: String(measuredSamplesPerCondition),
         PERF_ARTICLE_OPEN_WARMUPS: String(warmupsPerCondition),
       },
     }

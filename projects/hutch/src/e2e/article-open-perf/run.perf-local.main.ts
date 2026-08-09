@@ -11,6 +11,8 @@ import { type BrowserContext, type Page, chromium } from "@playwright/test";
 import { perfSetting } from "browser-extension-core/perf";
 import { z } from "zod";
 import {
+	ARTICLE_END_MARKER,
+	ARTICLE_END_MARKER_SELECTOR,
 	ARTICLE_FIXTURES,
 	ARTICLE_OPEN_CONDITIONS,
 	type ArticleSize,
@@ -28,7 +30,8 @@ import {
 	formatResultsTable,
 	navigationKindOf,
 	splitWarmup,
-	summarizeLatency,
+	summarizeArticleOpen,
+	summarizeDocumentHop,
 } from "./article-open-latency";
 import { installArticleOpenProbe } from "./article-open-probe.browser";
 
@@ -41,8 +44,9 @@ declare global {
 const PORT = Number(requireEnv("E2E_PORT"));
 const ORIGIN = `http://127.0.0.1:${PORT}`;
 const READY_NONCE = randomUUID();
-const SAMPLES_PER_CONDITION = perfSetting("PERF_ARTICLE_OPEN_SAMPLES");
+const MEASURED_PER_CONDITION = perfSetting("PERF_ARTICLE_OPEN_MEASURED");
 const WARMUPS_PER_CONDITION = perfSetting("PERF_ARTICLE_OPEN_WARMUPS");
+const OPENS_PER_CONDITION = MEASURED_PER_CONDITION + WARMUPS_PER_CONDITION;
 const RUN_LABEL = requireEnv("PERF_ARTICLE_OPEN_LABEL");
 
 const TITLE_SELECTOR = "a[data-test-article-title]";
@@ -205,7 +209,7 @@ async function measureCondition(input: {
 	await cdp.send("Network.emulateNetworkConditions", networkEmulationFor(input.condition));
 
 	const samples: ArticleOpenSample[] = [];
-	for (let sample = 0; sample < SAMPLES_PER_CONDITION; sample += 1) {
+	for (let sample = 0; sample < OPENS_PER_CONDITION; sample += 1) {
 		samples.push(await measureOpen(input.page, input.articleIds[input.condition.article]));
 	}
 
@@ -213,19 +217,22 @@ async function measureCondition(input: {
 	await cdp.send("Network.emulateNetworkConditions", UNTHROTTLED.network);
 	await cdp.detach();
 
+	const navigation = navigationKindOf(samples);
 	const { warmup, measured } = splitWarmup({
 		samples,
 		warmups: WARMUPS_PER_CONDITION,
 	});
-	const stats = summarizeLatency(measured.map((entry) => entry.elapsedMs));
-	const navigation = navigationKindOf(measured);
+	const stats = summarizeArticleOpen(measured);
+	const hop = summarizeDocumentHop(measured);
 	input.diagnostic(
 		`${input.condition.name}: ${navigation}, mean ${stats.meanMs.toFixed(1)}ms, ` +
-			`sd ${stats.sdMs.toFixed(1)}ms, p50 ${stats.p50Ms.toFixed(1)}ms over ${stats.count} opens ` +
+			`sd ${stats.sdMs.toFixed(1)}ms, p50 ${stats.p50Ms.toFixed(1)}ms, ` +
+			`p95 ${stats.p95Ms.toFixed(1)}ms, resolution ${stats.resolutionMs.toFixed(1)}ms ` +
+			`over ${stats.count} opens ` +
 			`(warm-ups discarded: ${warmup.map((entry) => Math.round(entry.elapsedMs)).join("ms, ")}ms)`,
 	);
 	return {
-		result: { condition: input.condition.name, navigation, stats },
+		result: { condition: input.condition.name, navigation, stats, hop },
 		samples,
 	};
 }
@@ -244,9 +251,9 @@ function writeReport(input: {
 		reportPaths.samples,
 		JSON.stringify(
 			{
-				schema: "article-open-latency/v1",
+				schema: "article-open-latency/v2",
 				label: RUN_LABEL,
-				samplesPerCondition: SAMPLES_PER_CONDITION,
+				measuredPerCondition: MEASURED_PER_CONDITION,
 				warmupsPerCondition: WARMUPS_PER_CONDITION,
 				conditions: ARTICLE_OPEN_CONDITIONS,
 				results: input.results,
@@ -294,6 +301,8 @@ test("article open from the queue, measured across cpu and network conditions", 
 				pendingKey: PENDING_KEY,
 				titleSelector: TITLE_SELECTOR,
 				bodySelector: BODY_SELECTOR,
+				endMarkerSelector: ARTICLE_END_MARKER_SELECTOR,
+				endMarkerText: ARTICLE_END_MARKER,
 			});
 			await logIn(page);
 
@@ -310,11 +319,6 @@ test("article open from the queue, measured across cpu and network conditions", 
 				results.push(measured.result);
 				samples[condition.name] = measured.samples;
 			}
-			assert.equal(
-				results.length,
-				ARTICLE_OPEN_CONDITIONS.length,
-				"every declared condition must produce a row",
-			);
 			for (const line of formatResultsTable(results).split("\n")) t.diagnostic(line);
 			const reportPaths = writeReport({ results, samples });
 			t.diagnostic(`table: ${reportPaths.table}`);

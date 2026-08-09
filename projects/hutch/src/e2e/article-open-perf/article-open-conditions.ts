@@ -24,22 +24,26 @@ const FIXTURE_VOCABULARY = [
 	"paint",
 ];
 
+export const ARTICLE_END_MARKER = "article-open-perf-end-of-body";
+export const ARTICLE_END_MARKER_SELECTOR = "mark";
+
 export function articleWordCount(fixture: ArticleFixture): number {
-	return fixture.paragraphs * fixture.wordsPerParagraph;
+	return fixture.paragraphs * fixture.wordsPerParagraph + 1;
 }
 
 /** Generated rather than checked in as a file so both arms are handed
  * byte-identical bodies from the same declaration, and so the only difference
  * between the small and the large cell is how much of it there is. */
 export function buildArticleHtml(fixture: ArticleFixture): string {
-	return Array.from({ length: fixture.paragraphs }, (_paragraph, index) => {
+	const paragraphs = Array.from({ length: fixture.paragraphs }, (_paragraph, index) => {
 		const words = Array.from(
 			{ length: fixture.wordsPerParagraph },
 			(_word, position) =>
 				FIXTURE_VOCABULARY[(index + position) % FIXTURE_VOCABULARY.length],
 		);
 		return `<p>${words.join(" ")}</p>`;
-	}).join("");
+	});
+	return `${paragraphs.join("")}<p><mark>${ARTICLE_END_MARKER}</mark></p>`;
 }
 
 export type NetworkShape = {

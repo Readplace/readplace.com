@@ -45,6 +45,10 @@
     "perf-article-open": {
       "dependsOn": ["compile"],
       "cache": false
+    },
+    "perf-article-open-compare": {
+      "dependsOn": ["compile"],
+      "cache": false
     }
   }
 }

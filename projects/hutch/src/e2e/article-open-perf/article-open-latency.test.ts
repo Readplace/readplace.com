@@ -1,46 +1,100 @@
 import {
+	type ArticleOpenSample,
 	articleOpenReportPaths,
 	formatResultsTable,
 	navigationKindOf,
 	splitWarmup,
-	summarizeLatency,
+	summarizeArticleOpen,
+	summarizeDocumentHop,
 } from "./article-open-latency";
 
-function sample(input: { elapsedMs: number; sameDocument: boolean }) {
-	return { elapsedMs: input.elapsedMs, documentHopMs: 12, sameDocument: input.sameDocument };
+function boostedSample(input: {
+	elapsedMs: number;
+	resolutionMs?: number;
+}): ArticleOpenSample {
+	return {
+		elapsedMs: input.elapsedMs,
+		resolutionMs: input.resolutionMs ?? 16,
+		sameDocument: true,
+	};
 }
 
-describe("summarizeLatency", () => {
-	it("summarizes an unsorted sample set with its spread", () => {
-		expect(summarizeLatency([120, 100, 140])).toEqual({
+function navigatedSample(input: {
+	elapsedMs: number;
+	resolutionMs?: number;
+	unloadEventMs?: number;
+	preRequestMs?: number;
+}): ArticleOpenSample {
+	return {
+		elapsedMs: input.elapsedMs,
+		resolutionMs: input.resolutionMs ?? 16,
+		sameDocument: false,
+		unloadEventMs: input.unloadEventMs ?? 0.2,
+		preRequestMs: input.preRequestMs ?? 1.5,
+	};
+}
+
+describe("summarizeArticleOpen", () => {
+	it("summarizes an unsorted sample set with its spread and tail", () => {
+		expect(
+			summarizeArticleOpen([
+				boostedSample({ elapsedMs: 120 }),
+				boostedSample({ elapsedMs: 100 }),
+				boostedSample({ elapsedMs: 140 }),
+			]),
+		).toEqual({
 			count: 3,
 			meanMs: 120,
 			sdMs: 20,
 			p50Ms: 120,
-			minMs: 100,
+			p95Ms: 140,
 			maxMs: 140,
+			resolutionMs: 16,
 		});
+	});
+
+	it("reports the instrument resolution the samples were observed at", () => {
+		expect(
+			summarizeArticleOpen([
+				boostedSample({ elapsedMs: 200, resolutionMs: 8 }),
+				boostedSample({ elapsedMs: 200, resolutionMs: 24 }),
+			]).resolutionMs,
+		).toBe(16);
 	});
 
 	it("reports no spread for samples that all cost the same", () => {
-		expect(summarizeLatency([200, 200])).toEqual({
-			count: 2,
-			meanMs: 200,
-			sdMs: 0,
-			p50Ms: 200,
-			minMs: 200,
-			maxMs: 200,
-		});
-	});
-
-	it("takes a real sample as the median of an even sample set rather than interpolating", () => {
-		expect(summarizeLatency([100, 200, 300, 400]).p50Ms).toBe(200);
+		expect(
+			summarizeArticleOpen([
+				boostedSample({ elapsedMs: 200 }),
+				boostedSample({ elapsedMs: 200 }),
+			]).sdMs,
+		).toBe(0);
 	});
 
 	it("refuses a single sample, which carries no standard deviation", () => {
-		expect(() => summarizeLatency([250])).toThrow(
-			"a latency summary needs at least two samples to carry a standard deviation",
+		expect(() => summarizeArticleOpen([boostedSample({ elapsedMs: 250 })])).toThrow(
+			"an article-open summary needs at least two samples to carry a standard deviation",
 		);
+	});
+});
+
+describe("summarizeDocumentHop", () => {
+	it("averages the unload and pre-request cost the destination's navigation entry carries", () => {
+		expect(
+			summarizeDocumentHop([
+				navigatedSample({ elapsedMs: 300, unloadEventMs: 1, preRequestMs: 2 }),
+				navigatedSample({ elapsedMs: 320, unloadEventMs: 3, preRequestMs: 4 }),
+			]),
+		).toEqual({ unloadEventMeanMs: 2, preRequestMeanMs: 3 });
+	});
+
+	it("reports no hop for an arm that never left the document", () => {
+		expect(
+			summarizeDocumentHop([
+				boostedSample({ elapsedMs: 100 }),
+				boostedSample({ elapsedMs: 110 }),
+			]),
+		).toBeUndefined();
 	});
 });
 
@@ -70,8 +124,8 @@ describe("navigationKindOf", () => {
 	it("reports a boosted arm, where the article arrives in the queue's own document", () => {
 		expect(
 			navigationKindOf([
-				sample({ elapsedMs: 100, sameDocument: true }),
-				sample({ elapsedMs: 110, sameDocument: true }),
+				boostedSample({ elapsedMs: 100 }),
+				boostedSample({ elapsedMs: 110 }),
 			]),
 		).toBe("same-document");
 	});
@@ -79,8 +133,8 @@ describe("navigationKindOf", () => {
 	it("reports an unboosted arm, where the article arrives in a new document", () => {
 		expect(
 			navigationKindOf([
-				sample({ elapsedMs: 100, sameDocument: false }),
-				sample({ elapsedMs: 110, sameDocument: false }),
+				navigatedSample({ elapsedMs: 100 }),
+				navigatedSample({ elapsedMs: 110 }),
 			]),
 		).toBe("new-document");
 	});
@@ -88,8 +142,8 @@ describe("navigationKindOf", () => {
 	it("refuses a condition whose samples opened the article two different ways", () => {
 		expect(() =>
 			navigationKindOf([
-				sample({ elapsedMs: 100, sameDocument: true }),
-				sample({ elapsedMs: 110, sameDocument: false }),
+				boostedSample({ elapsedMs: 100 }),
+				navigatedSample({ elapsedMs: 110 }),
 			]),
 		).toThrow("every sample in a condition must open the article the same way");
 	});
@@ -113,9 +167,11 @@ describe("formatResultsTable", () => {
 						meanMs: 141.26,
 						sdMs: 9.043,
 						p50Ms: 139.5,
-						minMs: 120,
+						p95Ms: 172.25,
 						maxMs: 180,
+						resolutionMs: 16.72,
 					},
+					hop: { unloadEventMeanMs: 0.24, preRequestMeanMs: 1.55 },
 				},
 				{
 					condition: "slow-mobile-large",
@@ -125,17 +181,19 @@ describe("formatResultsTable", () => {
 						meanMs: 612.5,
 						sdMs: 41,
 						p50Ms: 600,
-						minMs: 540,
+						p95Ms: 700,
 						maxMs: 720,
+						resolutionMs: 16.7,
 					},
+					hop: undefined,
 				},
 			]),
 		).toBe(
 			[
-				"| Condition | Open | n | mean (ms) | sd (ms) | p50 (ms) |",
-				"| --- | --- | ---: | ---: | ---: | ---: |",
-				"| loopback-cpu1x-small | new-document | 20 | 141.3 | 9.0 | 139.5 |",
-				"| slow-mobile-large | same-document | 20 | 612.5 | 41.0 | 600.0 |",
+				"| Condition | Open | n | mean (ms) | sd (ms) | p50 (ms) | p95 (ms) | resolution (ms) | unload (ms) | pre-request (ms) |",
+				"| --- | --- | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: |",
+				"| loopback-cpu1x-small | new-document | 20 | 141.3 | 9.0 | 139.5 | 172.3 | 16.7 | 0.2 | 1.6 |",
+				"| slow-mobile-large | same-document | 20 | 612.5 | 41.0 | 600.0 | 700.0 | 16.7 | — | — |",
 			].join("\n"),
 		);
 	});
