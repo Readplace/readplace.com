@@ -41,6 +41,10 @@
     },
     "perf-server": {
       "cache": false
+    },
+    "perf-article-open": {
+      "dependsOn": ["compile"],
+      "cache": false
     }
   }
 }

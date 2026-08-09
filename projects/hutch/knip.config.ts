@@ -14,6 +14,8 @@ export default {
 		// Client-side scripts loaded via HTML script tags (inherited from the
 		// monorepo workspaces config — re-listed since we strip `workspaces`).
 		"**/*.client.js",
+		// Perf harness entry point (run via node --test, not playwright).
+		"src/e2e/**/run.perf-local.main.ts",
 	],
 	ignore: [
 		...(baseConfig.ignore || []),
