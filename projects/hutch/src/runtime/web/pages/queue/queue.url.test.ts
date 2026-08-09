@@ -95,6 +95,12 @@ describe("buildQueueUrl", () => {
 		expect(url).toContain("page=3");
 	});
 
+	it("should drop unmodelled params on the round trip, so a feature flag cannot ride every tab, sort and pagination link — gate the one render site instead, and pass transient pairs through extraParams", () => {
+		expect(buildQueueUrl(parseQueueUrl({ tab: "done", feature: "my", utm_source: "x" }))).toBe(
+			"/queue?tab=done",
+		);
+	});
+
 });
 
 describe("buildQueueCountsUrl", () => {

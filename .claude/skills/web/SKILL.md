@@ -122,6 +122,8 @@ This project uses an SSR-first approach. Core principles:
 
 The URL query string represents the complete page state. All user interactions that modify state should be expressible as URL changes via HTML `<form>`.
 
+Not every query parameter is state. Some only pick a representation — a feature toggle, a `swap=card` marker, a poll counter — and those are read where they are used, never parsed into the page's state type and never added to a shared link builder. A parameter in the builder rides every link the page emits, so it spreads across the codebase on the way in and has to be unpicked from every caller on the way out.
+
 ### View Model Pattern
 
 Transform query string parameters into a structured view model before rendering. Templates should be "dumb" - they render what the view model provides without business logic.
