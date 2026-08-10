@@ -123,7 +123,7 @@ struct LoginView: View {
 		}
 	}
 
-	private static let sloganIntervalNanoseconds: UInt64 = 4_000_000_000
+	private static let sloganIntervalNanoseconds: UInt64 = 12_000_000_000
 
 	private func topGap(_ geo: GeometryProxy) -> CGFloat {
 		let markCenter = LaunchIntro.logoScreenFraction * UIScreen.main.bounds.height
