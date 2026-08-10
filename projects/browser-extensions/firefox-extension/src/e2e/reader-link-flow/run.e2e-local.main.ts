@@ -16,6 +16,7 @@ import {
 	assertReaderLinkOpensPrivateReader,
 	type SaveLinkProgress,
 	waitForUi,
+	assertGeckodriverSupportsSystemAccess,
 } from "browser-extension-core/e2e-actions";
 import { READY_NONCE_ENV, readyProbePath } from "@packages/e2e-harness/ready-probe";
 
@@ -140,6 +141,7 @@ test("saved-article link in the popup opens the private reader, not the public v
 			JSON.stringify({ [ADDON_ID]: ADDON_UUID }),
 		);
 
+		assertGeckodriverSupportsSystemAccess();
 		const driver = await new Builder()
 			.forBrowser("firefox")
 			.setFirefoxOptions(options)

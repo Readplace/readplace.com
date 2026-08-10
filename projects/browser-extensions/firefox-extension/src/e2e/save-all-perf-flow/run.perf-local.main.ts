@@ -20,6 +20,7 @@ import {
 	perfTabUrls,
 	runPerfSuite,
 	logInToPopup,
+	assertGeckodriverSupportsSystemAccess,
 } from "browser-extension-core/e2e-actions";
 import { SAVE_ALL_RENDERED_MARK } from "browser-extension-core";
 import {
@@ -201,6 +202,7 @@ async function runTest(t: { diagnostic: (message: string) => void }) {
 		 * `isAppUrl` does not read as one of the app's own pages. */
 		options.setPreference("network.dns.localDomains", PERF_TAB_HOST);
 
+		assertGeckodriverSupportsSystemAccess();
 		const driver = await new Builder()
 			.forBrowser("firefox")
 			.setFirefoxOptions(options)

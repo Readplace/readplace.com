@@ -11,6 +11,7 @@ import {
 	readRenderedMark,
 	runPerfSuite,
 	logInToPopup,
+	assertGeckodriverSupportsSystemAccess,
 } from "browser-extension-core/e2e-actions";
 import { SAVE_RENDERED_MARK } from "browser-extension-core";
 import {
@@ -143,6 +144,7 @@ async function runTest(t: { diagnostic: (message: string) => void }) {
 		JSON.stringify({ [ADDON_ID]: ADDON_UUID }),
 	);
 
+	assertGeckodriverSupportsSystemAccess();
 	const driver = await new Builder()
 		.forBrowser("firefox")
 		.setFirefoxOptions(options)

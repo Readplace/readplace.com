@@ -4,6 +4,7 @@ export { createPaginationActions, type PaginationProgress } from "./pagination-a
 export { createFilterActions, type FilterProgress } from "./filter-actions";
 export { createLogoutActions, type LogoutProgress } from "./logout-actions";
 export { createSeleniumElementQueries, createSeleniumNavigation } from "./selenium-adapter";
+export { assertGeckodriverSupportsSystemAccess } from "./geckodriver-preflight";
 export {
 	waitForUi,
 	waitForServer,
