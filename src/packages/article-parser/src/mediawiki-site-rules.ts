@@ -26,27 +26,25 @@ import type { SiteRules } from "@packages/site-rules";
  * never body content.
  *
  * `matches` is permissive because MediaWiki runs on hosts far beyond
- * *.wikipedia.org; authoritative detection is the `<meta name="generator"
- * content="MediaWiki …">` tag MediaWiki emits by default, checked in
- * `transform` so a non-MediaWiki page is left untouched. It runs as a
- * `transform`, not an `extract`, so Readability still scores the whole document
- * and picks the article body itself. */
+ * *.wikipedia.org; detection is structural — the `.mw-editsection` selector
+ * itself. The transform's only action is to remove exactly those elements, so
+ * a page without them is untouched by construction, and any page carrying
+ * them holds MediaWiki edit chrome that leaks "[edit]" into the reader either
+ * way. Detection used to gate on the `<meta name="generator"
+ * content="MediaWiki …">` tag, but Wikimedia's Parsoid read views (an
+ * anonymous-traffic rollout first served to the prod Lambda on 2026-08-09,
+ * failing the Tier 1+ canary) omit that meta while still carrying
+ * `.mw-editsection` chrome — the gate no-op'd and every section heading was
+ * dropped. It runs as a `transform`, not an `extract`, so Readability still
+ * scores the whole document and picks the article body itself. */
 export const mediaWikiSiteRules = {
 	matches: (_params: { url: string; hostname: string }) => true,
 	onCrawl: skipCrawl,
 	recoverContent: noRecovery,
 	extract: noExtract,
 	transform: ({ document }) => {
-		if (!isMediaWikiPage(document)) return;
 		for (const editSection of document.querySelectorAll(".mw-editsection")) {
 			editSection.remove();
 		}
 	},
 } satisfies SiteRules;
-
-function isMediaWikiPage(document: Document): boolean {
-	const generator = document
-		.querySelector('meta[name="generator"]')
-		?.getAttribute("content");
-	return typeof generator === "string" && generator.startsWith("MediaWiki");
-}

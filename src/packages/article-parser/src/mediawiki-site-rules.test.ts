@@ -58,15 +58,16 @@ describe("mediaWikiSiteRules.transform", () => {
 		expect(after).not.toContain(">edit<");
 	});
 
-	it("leaves the document untouched when there is no generator meta", () => {
-		const { before, after } = runTransform({ bodyHtml: MW_HEADING });
-		expect(after).toBe(before);
+	it("strips the chrome without a generator meta — Parsoid read views omit it", () => {
+		const { after } = runTransform({ bodyHtml: MW_HEADING });
+		expect(after).toContain("<h2");
+		expect(after).toContain("Ideas presented");
+		expect(after).not.toContain("mw-editsection");
 	});
 
-	it("leaves the document untouched for a non-MediaWiki generator", () => {
+	it("leaves a document with no .mw-editsection elements untouched", () => {
 		const { before, after } = runTransform({
-			bodyHtml: MW_HEADING,
-			generator: "WordPress 6.5",
+			bodyHtml: "<article><h2>Plain heading</h2><p>Plain body.</p></article>",
 		});
 		expect(after).toBe(before);
 	});
@@ -126,6 +127,47 @@ describe("mediaWikiSiteRules end-to-end through parseHtml", () => {
 		expect(content).toContain("Ideas presented");
 		expect(content).toContain("Reception");
 		expect(content).not.toContain(">edit<");
+	});
+
+	/* The 2026-08-09 Tier 1+ canary failure: Wikimedia's Parsoid read view (an
+	 * anonymous-traffic A/B rollout) serves the article URL with NO
+	 * `<meta name="generator">` while still carrying `.mw-editsection` chrome —
+	 * Parsoid fingerprints reconstructed from the leaked prod parse:
+	 * `rel="mw:WikiLink"` body links and nested bracket spans in the edit link. */
+	function parsoidReadViewArticle(): string {
+		const section = (n: number, title: string) =>
+			`<div class="mw-heading mw-heading2"><h2>${title}</h2>` +
+			`<span class="mw-editsection"><span class="mw-editsection-bracket">[</span>` +
+			`<a href="/w/index.php?title=X&amp;action=edit&amp;section=${n}" title="Edit section: ${title}"><span>edit</span></a>` +
+			`<span class="mw-editsection-bracket">]</span></span></div>` +
+			`<p>${BODY_PARAGRAPH} <a rel="mw:WikiLink" href="/wiki/Brooks%27s_law">Brooks's law</a>.</p><p>${BODY_PARAGRAPH}</p>`;
+		return (
+			"<!DOCTYPE html><html>" +
+			"<head><title>The Mythical Man-Month - Wikipedia</title></head>" +
+			'<body><div id="content"><div class="mw-parser-output">' +
+			`<p>${BODY_PARAGRAPH}</p>` +
+			section(2, "Ideas presented") +
+			section(3, "No silver bullet") +
+			section(4, "Reception") +
+			"</div></div></body></html>"
+		);
+	}
+
+	it("keeps headings on a Parsoid read view, which has no generator meta", () => {
+		const { parseHtml } = parser([mediaWikiSiteRules]);
+		const result = parseHtml({
+			url: "https://en.wikipedia.org/wiki/The_Mythical_Man-Month",
+			html: parsoidReadViewArticle(),
+			thumbnailUrl: null,
+		});
+
+		expect(result.ok).toBe(true);
+		if (!result.ok) return;
+		const content = result.article.content;
+		expect(content).toContain("Ideas presented");
+		expect(content).toContain("Reception");
+		expect(content).not.toContain(">edit<");
+		expect(content).not.toContain("action=edit");
 	});
 
 	it("loses the same headings when the rule is not registered", () => {
