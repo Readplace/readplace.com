@@ -83,6 +83,15 @@ jobs:
             cp -a "$pkg/bin/$version" "$store"
           fi
 
+      # Runner drift is invisible from test output alone: the 2026-08-09 red
+      # streak (Firefox 153's WebDriver allow-list, then geckodriver 0.35.0
+      # rejecting --allow-system-access) was only diagnosable by docker-exec'ing
+      # into the runner. One log line makes the next drift a 30-second read.
+      - name: Show browser toolchain versions
+        run: |
+          firefox --version 2>/dev/null || echo "firefox: not on PATH"
+          geckodriver --version 2>/dev/null | head -1 || echo "geckodriver: not on PATH"
+
       - run: pnpm check
 
   # Save-latency gate for both browser extensions: a save must paint the saved
@@ -124,6 +133,14 @@ jobs:
           cache: ${{ runner.environment == 'github-hosted' && 'pnpm' || '' }}
 
       - run: pnpm install --frozen-lockfile --reporter=append-only --loglevel=warn
+
+      # Same drift visibility as web-tests: the hosted-image Firefox bump
+      # (152.0.6 -> 153.0.3 in image 20260804.265.1) surfaced here first, as an
+      # apparent flake, because nothing logged which Firefox the job drew.
+      - name: Show browser toolchain versions
+        run: |
+          firefox --version 2>/dev/null || echo "firefox: not on PATH"
+          geckodriver --version 2>/dev/null | head -1 || echo "geckodriver: not on PATH"
 
       - run: pnpm perf
 
