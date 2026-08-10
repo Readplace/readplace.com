@@ -59,8 +59,13 @@ RUN dpkg --add-architecture amd64 \
 # Firefox (unlike Chrome-for-Testing) ships a linux-aarch64 build, so no
 # emulation; selenium needs both firefox and geckodriver on PATH.
 # geckodriver stays >=0.36.0: older ones reject the --allow-system-access flag the firefox suites pass.
+# Firefox is PINNED, not firefox-latest: an unpinned rebuild takes whatever
+# Mozilla ships that day — that is how a routine rebuild moved 152.0.6 -> 153.0.3
+# on 2026-08-09 and broke every firefox suite (Firefox 153's WebDriver scheme
+# allow-list) with no repo change to point at. Bump deliberately: edit the
+# version here, run rebuild.sh, and let the suites vet the new Firefox.
 RUN apt-get update && apt-get install -y wget bzip2 libdbus-glib-1-2 \
- && wget -qO /tmp/ff.tar.xz "https://download.mozilla.org/?product=firefox-latest&os=linux64-aarch64&lang=en-US" \
+ && wget -qO /tmp/ff.tar.xz "https://download.mozilla.org/?product=firefox-153.0.3&os=linux64-aarch64&lang=en-US" \
  && tar -xJf /tmp/ff.tar.xz -C /opt \
  && ln -sf /opt/firefox/firefox /usr/local/bin/firefox \
  && wget -qO /tmp/gd.tar.gz "https://github.com/mozilla/geckodriver/releases/download/v0.37.0/geckodriver-v0.37.0-linux-aarch64.tar.gz" \
@@ -138,7 +143,8 @@ RUN chmod 0755 /usr/local/bin/entrypoint-secure.sh \
 # subsequent `apt-get install --reinstall dbus systemd`). Value is the id the
 # current /nx db is already named after, so shipping this costs no cold run.
 # Because the pin removes the accidental cache-busting the id churn used to give
-# the floating chrome@stable / firefox-latest browsers above, the two extension
-# projects declare those browser versions as an explicit nx `runtime` input.
+# the floating browser builds above (chrome@stable still floats; Firefox floated
+# as firefox-latest before it was pinned), the two extension projects declare
+# those browser versions as an explicit nx `runtime` input.
 RUN mkdir -p /var/lib/dbus \
  && printf '%s\n' d8afc387deb149a1bdbfa08f1d8ff78e | tee /etc/machine-id > /var/lib/dbus/machine-id
