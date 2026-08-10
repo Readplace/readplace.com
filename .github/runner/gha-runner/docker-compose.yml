@@ -8,7 +8,8 @@
 #   2. Write the token ALONE (no KEY= prefix) to gh-pat.env — it is mounted as a
 #      root-only docker secret, never as an env var, so it never reaches a job
 #      (the container's initial env is readable from /proc/1/environ).
-#   3. docker compose up -d --build
+#   3. ./rebuild.sh — wraps `docker compose build && up -d` and prints the
+#      recreated container's toolchain; a bare `up -d` reuses the stale image.
 #   4. Verify: repo Settings -> Actions -> Runners shows the runner Idle.
 #
 # EPHEMERAL=true: runner takes exactly one job, exits, container restarts clean
