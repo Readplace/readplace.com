@@ -11,12 +11,27 @@ type Box = { x: number; y: number; width: number; height: number };
 
 type LocatorPlan = { count: number; boxes: (Box | null)[] };
 
+type FakeElement = {
+	computedTransform: string;
+	style: { transform: string };
+	getBoundingClientRect: () => Box;
+};
+
 type PagePlan = {
 	locators: Record<string, LocatorPlan>;
 	viewport: { width: number; height: number } | null;
 	scroll: { x: number; y: number };
 	pinned: Map<string, { textContent: string | null }>;
+	elements?: Map<string, FakeElement>;
 };
+
+function fakeElement(input: { rect: Box; computedTransform?: string }): FakeElement {
+	return {
+		computedTransform: input.computedTransform ?? "none",
+		style: { transform: "" },
+		getBoundingClientRect: () => input.rect,
+	};
+}
 
 type LocatorFake = { count: () => Promise<number>; boundingBox: () => Promise<Box | null> };
 
@@ -33,6 +48,7 @@ function createCheckpointPage(plan: PagePlan): {
 		scrollTo: (x: number, y: number) => {
 			calls.push(`scrollTo:${x},${y}`);
 		},
+		getComputedStyle: (el: FakeElement) => ({ transform: el.computedTransform }),
 	};
 	const documentStub = {
 		fonts: {
@@ -40,7 +56,8 @@ function createCheckpointPage(plan: PagePlan): {
 				visit({ family: "Inter", status: "loaded" });
 			},
 		},
-		querySelector: (selector: string) => plan.pinned.get(selector) ?? null,
+		querySelector: (selector: string) =>
+			plan.pinned.get(selector) ?? plan.elements?.get(selector) ?? null,
 	};
 	const inPage = <T>(run: () => T): T => {
 		Reflect.set(globalThis, "window", windowStub);
@@ -151,6 +168,7 @@ describe("measuredBox", () => {
 describe("captureCheckpoint", () => {
 	it("captures an element once its box stops moving, then restores the scroll", async () => {
 		const clock = { textContent: "just now" };
+		const card = fakeElement({ rect: { x: 0, y: 48, width: 320, height: 96 } });
 		const { page, calls, locatorFor } = createCheckpointPage({
 			locators: {
 				"[data-test-card]": {
@@ -165,6 +183,7 @@ describe("captureCheckpoint", () => {
 			viewport: { width: 1280, height: 720 },
 			scroll: { x: 24, y: 180 },
 			pinned: new Map([["[data-test-clock]", clock]]),
+			elements: new Map([["[data-test-card]", card]]),
 		});
 		const { expect: expectFake, screenshots, probeCount } = createExpectFake(calls);
 		const checkpoint: VisualCheckpoint = {
@@ -196,12 +215,14 @@ describe("captureCheckpoint", () => {
 			"locator:[data-test-card]",
 			"boundingBox:[data-test-card]",
 			"geometry",
+			"evaluate",
 			"screenshot:queue-card.png",
 			"evaluate",
 			"scrollTo:24,180",
 		]);
 		expect(probeCount()).toBe(3);
 		expect(clock.textContent).toBe("12 minutes ago");
+		expect(card.style.transform).toBe("");
 		expect(screenshots).toHaveLength(1);
 		expect(screenshots[0].name).toBe("queue-card.png");
 		expect(screenshots[0].target).toBe(locatorFor("[data-test-card]"));
@@ -219,6 +240,9 @@ describe("captureCheckpoint", () => {
 			viewport: { width: 1280, height: 720 },
 			scroll: { x: 0, y: 0 },
 			pinned: new Map(),
+			elements: new Map([
+				["[data-test-panel]", fakeElement({ rect: { x: 0, y: 10, width: 900, height: 30 } })],
+			]),
 		});
 		const { expect: expectFake, screenshots } = createExpectFake(calls);
 		const checkpoint: VisualCheckpoint = {
@@ -240,6 +264,64 @@ describe("captureCheckpoint", () => {
 		});
 	});
 
+	function snapPlanFor(card: FakeElement): PagePlan {
+		return {
+			locators: {
+				"[data-test-card]": { count: 1, boxes: [{ x: 8, y: 100.5, width: 320, height: 96 }] },
+			},
+			viewport: { width: 1280, height: 720 },
+			scroll: { x: 0, y: 0 },
+			pinned: new Map(),
+			elements: new Map([["[data-test-card]", card]]),
+		};
+	}
+
+	const snapCheckpoint: VisualCheckpoint = {
+		name: "snapped-card",
+		settled: async () => {},
+		geometry: async () => {},
+		target: "[data-test-card]",
+		capture: "element",
+		pinnedText: [],
+	};
+
+	it("snaps a fractionally-positioned target to whole pixels before the screenshot", async () => {
+		const card = fakeElement({ rect: { x: 8, y: 100.5, width: 320, height: 96 } });
+		const { page, calls } = createCheckpointPage(snapPlanFor(card));
+		const { expect: expectFake, screenshots } = createExpectFake(calls);
+
+		await initCaptureCheckpoint({ expect: expectFake })(page, snapCheckpoint);
+
+		expect(card.style.transform).toBe("translate(0px, 0.5px)");
+		expect(screenshots).toHaveLength(1);
+	});
+
+	it("leaves a target that carries its own transform unsnapped", async () => {
+		const card = fakeElement({
+			rect: { x: 8, y: 100.5, width: 320, height: 96 },
+			computedTransform: "matrix(1, 0, 0, 1, 4, 0)",
+		});
+		const { page, calls } = createCheckpointPage(snapPlanFor(card));
+		const { expect: expectFake, screenshots } = createExpectFake(calls);
+
+		await initCaptureCheckpoint({ expect: expectFake })(page, snapCheckpoint);
+
+		expect(card.style.transform).toBe("");
+		expect(screenshots).toHaveLength(1);
+	});
+
+	it("rejects when the snap target has left the document", async () => {
+		const card = fakeElement({ rect: { x: 8, y: 100.5, width: 320, height: 96 } });
+		const plan = snapPlanFor(card);
+		plan.elements = new Map();
+		const { page, calls } = createCheckpointPage(plan);
+		const { expect: expectFake } = createExpectFake(calls);
+
+		await expect(initCaptureCheckpoint({ expect: expectFake })(page, snapCheckpoint)).rejects.toThrow(
+			'snap target "[data-test-card]" matched nothing',
+		);
+	});
+
 	it("rejects a page-from-top capture when the browser has no fixed viewport", async () => {
 		const { page, calls } = createCheckpointPage({
 			locators: {
@@ -248,6 +330,9 @@ describe("captureCheckpoint", () => {
 			viewport: null,
 			scroll: { x: 0, y: 0 },
 			pinned: new Map(),
+			elements: new Map([
+				["[data-test-panel]", fakeElement({ rect: { x: 0, y: 0, width: 900, height: 30 } })],
+			]),
 		});
 		const { expect: expectFake } = createExpectFake(calls);
 		const checkpoint: VisualCheckpoint = {

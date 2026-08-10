@@ -22,6 +22,19 @@ export async function measuredBox(
 	return box;
 }
 
+async function snapToWholePixels(page: Page, selector: string): Promise<void> {
+	await page.evaluate((sel) => {
+		const el = document.querySelector<HTMLElement>(sel);
+		if (!el) throw new Error(`snap target "${sel}" matched nothing`);
+		if (window.getComputedStyle(el).transform !== "none") return;
+		const box = el.getBoundingClientRect();
+		const dx = Math.round(box.x) - box.x;
+		const dy = Math.round(box.y) - box.y;
+		if (dx === 0 && dy === 0) return;
+		el.style.transform = `translate(${dx}px, ${dy}px)`;
+	}, selector);
+}
+
 export function initCaptureCheckpoint(deps: { expect: Pick<Expect, "poll" | "soft"> }) {
 	return async function captureCheckpoint(
 		page: Page,
@@ -57,6 +70,7 @@ export function initCaptureCheckpoint(deps: { expect: Pick<Expect, "poll" | "sof
 			})
 			.toBe(true);
 		await checkpoint.geometry(page);
+		await snapToWholePixels(page, checkpoint.target);
 		if (checkpoint.capture === "page-from-top") {
 			const viewport = page.viewportSize();
 			assert.ok(
