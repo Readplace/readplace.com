@@ -6,7 +6,7 @@ import helmet from "helmet";
 import compression from "compression";
 import { HutchLogger, consoleLogger } from "@packages/hutch-logger";
 import { createDynamoDocumentClient } from "@packages/hutch-storage-client";
-import { GlobalNav } from "@packages/web-shell";
+import { GlobalNav, HtmxOmitted } from "@packages/web-shell";
 import { initGetSessionUserId, initResolveLogin } from "@packages/web-session";
 import { type AnalyticsEvent, isHttpsOrigin } from "@packages/web-analytics";
 import serverless from "serverless-http";
@@ -38,6 +38,7 @@ const application = express()
 				staticBaseUrl: requireEnv("STATIC_BASE_URL"),
 				liveReload: Boolean(getEnv("LIVERELOAD")),
 				renderNav: GlobalNav,
+				htmx: HtmxOmitted,
 			},
 			{
 				resolveLogin,

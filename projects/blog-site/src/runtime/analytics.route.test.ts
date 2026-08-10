@@ -2,7 +2,7 @@ import assert from "node:assert/strict";
 import request from "supertest";
 import type { Response as SupertestResponse } from "supertest";
 import { authenticatedUserIdFrom } from "@packages/domain/user";
-import { GlobalNav } from "@packages/web-shell";
+import { GlobalNav, HtmxOmitted } from "@packages/web-shell";
 import type { ResolveLogin } from "@packages/web-session";
 import type { HutchLogger } from "@packages/hutch-logger";
 import type { AnalyticsClick, AnalyticsEvent, AnalyticsPageview } from "@packages/web-analytics";
@@ -30,7 +30,7 @@ const OWN_HOST = "readplace.test";
 
 function makeApp(resolveLogin: ResolveLogin) {
 	return createBlogApp(
-		{ staticBaseUrl: "", liveReload: false, renderNav: GlobalNav },
+		{ staticBaseUrl: "", liveReload: false, renderNav: GlobalNav, htmx: HtmxOmitted },
 		{
 			resolveLogin,
 			analyticsLogger: capture,

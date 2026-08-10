@@ -7,6 +7,7 @@ export const BASE_TEMPLATE = `<!DOCTYPE html>
 	{{#each headMetas}}
 	<meta name="{{name}}" content="{{content}}">
 	{{/each}}
+	{{{htmxConfigMeta}}}
 	<link rel="canonical" href="{{canonicalUrl}}">
 	<meta name="theme-color" content="#2B3A55" media="(prefers-color-scheme: light)">
 	<meta name="theme-color" content="#121212" media="(prefers-color-scheme: dark)">

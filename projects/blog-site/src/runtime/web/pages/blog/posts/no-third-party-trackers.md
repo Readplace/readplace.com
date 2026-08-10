@@ -20,7 +20,7 @@ Open the network tab on most apps and you find a crowd. Google Analytics, a few 
 
 Open the same tab on Readplace and the list is short.
 
-The app loads its own code, a few open-source assets from public CDNs, one login cookie, two measurement cookies, and not much beyond that.
+The app loads its own code, one web font from a public CDN, one login cookie, two measurement cookies, and not much beyond that.
 
 A read-it-later app sees what you save. Your queue is a record of what you worry about, what you want to learn, and the things you keep to yourself. That list deserves better than an ad network.
 
@@ -50,7 +50,9 @@ Those cookies are first-party. They do not ride along to other sites, and they d
 
 ## The short list I hold
 
-Here is the full list of what loads in your browser on a Readplace page: the app's own code, the Inter web font from Google Fonts and the htmx library from jsDelivr, one session cookie to keep you logged in, two anonymous cookies to measure the funnel, and a few functional cookies that remember things like a banner you dismissed or a save you started before signing in. The icons are inline SVG in the page itself, so they come from the same server as everything else.
+Here is the full list of what loads in your browser on a Readplace page: the app's own code, the Inter web font from Google Fonts, one session cookie to keep you logged in, two anonymous cookies to measure the funnel, and a few functional cookies that remember things like a banner you dismissed or a save you started before signing in. The icons are inline SVG in the page itself, so they come from the same server as everything else.
+
+That leaves the font as the only thing on the list I do not serve myself. It used to have company. The small library that powers the interface came from a public CDN until I moved it onto Readplace's own servers, which took one request off the list and one company off the set of people who can see that you loaded a page here.
 
 The privacy policy says the same thing in plain words.
 

@@ -20,7 +20,7 @@ import { renderChangelogBannerShell } from "./changelog-banner";
 import type { Component, ParsedComponent } from "./component.types";
 import type { CspNonce } from "./csp-nonce.middleware";
 import { HtmlPage } from "./html-page";
-import { htmxScripts } from "./htmx-script";
+import type { HtmxDelivery } from "./htmx-script";
 import { injectPageStylesIntoMain } from "./inject-page-styles";
 import { htmlToMarkdown } from "./html-to-markdown";
 import { MarkdownPage } from "./markdown-page";
@@ -188,6 +188,11 @@ export interface BaseConfig {
 	 * nav explicitly: a site with a nav passes `GlobalNav`, a bare shell passes
 	 * `GlobalEmptyNav`. */
 	renderNav: RenderSiteNav;
+	/** Whether this site's pages load htmx: `HtmxLoaded` for a site whose markup
+	 * carries `hx-*` attributes, `HtmxOmitted` for one that renders none.
+	 * Mandatory for the same reason as `renderNav` — a fifth deployable adopting
+	 * the shell has to answer the question rather than inherit an answer. */
+	htmx: HtmxDelivery;
 }
 
 export type RenderSiteNav = (props: NavProps) => string;
@@ -231,6 +236,7 @@ export function initBase(config: BaseConfig): RenderBase {
 
 		return render(BASE_TEMPLATE, {
 			staticBaseUrl: config.staticBaseUrl,
+			htmxConfigMeta: config.htmx.configMeta,
 			cspNonce: state.cspNonce,
 			title: seo.title,
 			description: seo.description,
@@ -284,7 +290,7 @@ export function initBase(config: BaseConfig): RenderBase {
 			navScript: navScript(state.cspNonce),
 			offlineScript: offlineIndicatorScript(state.cspNonce),
 			scripts:
-				htmxScripts(state.cspNonce) +
+				config.htmx.script +
 				EXTENSION_SUGGESTION_BANNER_SCRIPT +
 				TOAST_SCRIPT +
 				(trialChipCarriesInstant(state.trial) ? TRIAL_COUNTDOWN_SCRIPT : "") +

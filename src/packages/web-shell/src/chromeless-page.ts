@@ -12,7 +12,7 @@ import { CHROMELESS_TEMPLATE } from "./chromeless-page.template";
 import type { Component } from "./component.types";
 import type { CspNonce } from "./csp-nonce.middleware";
 import { HtmlPage } from "./html-page";
-import { htmxScripts } from "./htmx-script";
+import { HtmxLoaded } from "./htmx-script";
 import { injectPageStylesIntoMain } from "./inject-page-styles";
 import type { PageBody, SeoMetadata } from "./page-body.types";
 import { render } from "./render";
@@ -76,7 +76,7 @@ export function initChromelessPage(config: ChromelessPageConfig): RenderChromele
 				styles: body.styles,
 				cspNonce: state.cspNonce,
 			}),
-			scripts: htmxScripts(state.cspNonce) + (body.scripts ?? "") + siteScripts + liveReloadScript,
+			scripts: HtmxLoaded.script + (body.scripts ?? "") + siteScripts + liveReloadScript,
 		});
 		return HtmlPage(rendered, body.statusCode);
 	};

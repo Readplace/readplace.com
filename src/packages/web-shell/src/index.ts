@@ -70,6 +70,8 @@ export type { ChangelogBanner, ChangelogVersion } from "./changelog-banner";
 export { brandMarkSvg } from "./brand-mark";
 export { GlobalNav, GlobalEmptyNav } from "./nav.component";
 export type { NavProps } from "./nav.component";
+export { HtmxLoaded, HtmxOmitted } from "./htmx-script";
+export type { HtmxDelivery } from "./htmx-script";
 export { initBase } from "./base.component";
 export type { BaseConfig, RenderBase, RenderSiteNav } from "./base.component";
 export { initChromelessPage } from "./chromeless-page";

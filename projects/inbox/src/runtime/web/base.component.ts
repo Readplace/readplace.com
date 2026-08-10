@@ -1,4 +1,4 @@
-import { initBase, GlobalNav } from "@packages/web-shell";
+import { initBase, GlobalNav, HtmxLoaded } from "@packages/web-shell";
 import { getEnv, requireEnv } from "@packages/require-env";
 
 /** Loaded on every page so an in-browser AI agent discovers Readplace's
@@ -20,4 +20,5 @@ export const Base = initBase({
 	liveReload: Boolean(getEnv("LIVERELOAD")),
 	siteScripts: WEBMCP_SCRIPT + LOCAL_TIME_SCRIPT,
 	renderNav: GlobalNav,
+	htmx: HtmxLoaded,
 });

@@ -1,13 +1,14 @@
 import assert from "node:assert/strict";
 import { JSDOM } from "jsdom";
 import { initBase } from "./base.component";
+import { type HtmxDelivery, HtmxLoaded, HtmxOmitted } from "./htmx-script";
 import { GlobalNav, GlobalEmptyNav } from "./nav.component";
 import { CHANGELOG_SEEN_SCRIPT, isChangelogVersion } from "./changelog-banner";
 import type { BannerState } from "./banner-state";
 import { generateCspNonce } from "./csp-nonce.middleware";
 import type { PageBody } from "./page-body.types";
 
-const Base = initBase({ staticBaseUrl: "", liveReload: false, renderNav: GlobalNav });
+const Base = initBase({ staticBaseUrl: "", liveReload: false, renderNav: GlobalNav, htmx: HtmxLoaded });
 
 const CSP_NONCE = generateCspNonce();
 
@@ -378,6 +379,57 @@ describe("Base component", () => {
 		);
 		assert(script, "extension suggestion banner client script must be rendered");
 		expect(script.hasAttribute("defer")).toBe(true);
+	});
+
+	it("loads every script from this origin, with htmx's config on a <head> meta instead of an inline script", () => {
+		const page = createTestPageBody();
+		const doc = new JSDOM(Base(page, GUEST_STATE).to("text/html").body).window.document;
+
+		const htmx = doc.querySelector('script[src="/client-dist/htmx.client.js"]');
+		assert(htmx, "htmx must load from the same-origin client-dist mount");
+		expect(htmx.hasAttribute("defer")).toBe(true);
+
+		expect(
+			Array.from(doc.querySelectorAll("script[src]")).map((script) => {
+				const src = script.getAttribute("src");
+				assert(src, "a script matched by [src] must carry a src");
+				return new URL(src, "https://readplace.com").origin;
+			}),
+		).toEqual(["https://readplace.com", "https://readplace.com", "https://readplace.com"]);
+
+		const configMeta = doc.head.querySelector('meta[name="htmx-config"]');
+		assert(configMeta, "htmx config must ride a <head> meta so htmx reads it at init");
+		expect(JSON.parse(configMeta.getAttribute("content") ?? "")).toEqual({
+			scrollBehavior: "smooth",
+		});
+	});
+
+	it("emits the htmx bundle and its config meta only for a site that opts in", () => {
+		const page = createTestPageBody();
+		const htmxConfig = (doc: Document): string =>
+			doc.head.querySelector('meta[name="htmx-config"]')?.getAttribute("content") ?? "";
+		const rendered = (htmx: HtmxDelivery): Document =>
+			new JSDOM(
+				initBase({ staticBaseUrl: "", liveReload: false, renderNav: GlobalNav, htmx })(
+					page,
+					GUEST_STATE,
+				).to("text/html").body,
+			).window.document;
+
+		const loaded = rendered(HtmxLoaded);
+		const omitted = rendered(HtmxOmitted);
+
+		expect(htmxConfig(loaded)).toBe('{"scrollBehavior":"smooth"}');
+		expect(htmxConfig(omitted)).toBe("");
+		expect(loadedClientScripts(loaded)).toEqual([
+			"/client-dist/htmx.client.js",
+			"/client-dist/extension-suggestion-banner.client.js",
+			"/client-dist/toast.client.js",
+		]);
+		expect(loadedClientScripts(omitted)).toEqual([
+			"/client-dist/extension-suggestion-banner.client.js",
+			"/client-dist/toast.client.js",
+		]);
 	});
 
 	it("renders the changelog banner hidden by default (no announcement in state)", () => {
@@ -790,6 +842,7 @@ describe("Base component", () => {
 		const doc = new JSDOM(result.body).window.document;
 
 		expect(loadedClientScripts(doc)).toEqual([
+			"/client-dist/htmx.client.js",
 			"/client-dist/extension-suggestion-banner.client.js",
 			"/client-dist/toast.client.js",
 		]);
@@ -959,7 +1012,7 @@ describe("Base component", () => {
 
 describe("initBase config", () => {
 	it("prefixes static asset URLs with the configured staticBaseUrl", () => {
-		const Base = initBase({ staticBaseUrl: "https://static.readplace.com", liveReload: false, renderNav: GlobalNav });
+		const Base = initBase({ staticBaseUrl: "https://static.readplace.com", liveReload: false, renderNav: GlobalNav, htmx: HtmxLoaded });
 		const page = createTestPageBody();
 		const result = Base(page, GUEST_STATE).to("text/html");
 		const doc = new JSDOM(result.body).window.document;
@@ -972,8 +1025,8 @@ describe("initBase config", () => {
 	it("injects the livereload script only when liveReload is enabled", () => {
 		const page = createTestPageBody();
 
-		const withReload = initBase({ staticBaseUrl: "", liveReload: true, renderNav: GlobalNav })(page, GUEST_STATE).to("text/html");
-		const withoutReload = initBase({ staticBaseUrl: "", liveReload: false, renderNav: GlobalNav })(page, GUEST_STATE).to("text/html");
+		const withReload = initBase({ staticBaseUrl: "", liveReload: true, renderNav: GlobalNav, htmx: HtmxLoaded })(page, GUEST_STATE).to("text/html");
+		const withoutReload = initBase({ staticBaseUrl: "", liveReload: false, renderNav: GlobalNav, htmx: HtmxLoaded })(page, GUEST_STATE).to("text/html");
 
 		expect(withReload.body).toContain("livereload.js?snipver=1");
 		expect(withoutReload.body).not.toContain("livereload.js?snipver=1");
@@ -988,8 +1041,9 @@ describe("initBase config", () => {
 			liveReload: false,
 			siteScripts: marker,
 			renderNav: GlobalNav,
+			htmx: HtmxLoaded,
 		})(page, GUEST_STATE).to("text/html");
-		const withoutScripts = initBase({ staticBaseUrl: "", liveReload: false, renderNav: GlobalNav })(
+		const withoutScripts = initBase({ staticBaseUrl: "", liveReload: false, renderNav: GlobalNav, htmx: HtmxLoaded })(
 			page,
 			GUEST_STATE,
 		).to("text/html");
@@ -1020,12 +1074,12 @@ describe("initBase config", () => {
 		const doc = new JSDOM(result.body).window.document;
 
 		expect(inlineNonces(doc)).toEqual({
-			script: [CSP_NONCE, CSP_NONCE, CSP_NONCE, CSP_NONCE, CSP_NONCE, CSP_NONCE, CSP_NONCE],
+			script: [CSP_NONCE, CSP_NONCE, CSP_NONCE, CSP_NONCE, CSP_NONCE, CSP_NONCE],
 			style: [CSP_NONCE, CSP_NONCE],
 		});
 	});
 
-	it("leaves same-origin and CDN <script src> bundles unnonced, since a source expression already authorises them", () => {
+	it("leaves <script src> bundles unnonced, since a source expression already authorises them", () => {
 		const page = createTestPageBody({
 			scripts: '<script src="/client-dist/page.client.js" defer></script>',
 		});

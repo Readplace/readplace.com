@@ -187,7 +187,7 @@ describe("Queue reader chromeless switch (GET /queue/:id/view?platform=ios)", ()
 
 		const doc = new JSDOM((await agent.get(`/queue/${articleId}/view?platform=ios`)).text).window.document;
 
-		expect(doc.querySelector('script[src*="htmx.org"]')).not.toBe(null);
+		expect(doc.querySelector('script[src="/client-dist/htmx.client.js"]')).not.toBe(null);
 
 		const topForm = doc.querySelector("[data-test-mark-read-form]");
 		assert(topForm, "top mark-read form must be rendered");
@@ -248,6 +248,83 @@ describe("Queue reader chromeless switch (GET /queue/:id/view?platform=ios)", ()
 		expect(capture.getAttribute("data-reader-capture-poll")).toBe(
 			`/queue/${articleId}/reader?poll=1&capturing=1`,
 		);
+	});
+
+	it("fires the reader-slot capture poll immediately when htmx is already loaded at tap time", async () => {
+		const harness = buildBlockedHarness();
+		const agent = await loginAgent(harness.server, harness.auth);
+		const articleId = await saveAndGetArticleId(agent, "https://example.com/app-capture-immediate");
+
+		const ajaxCalls: Array<{ verb: string; url: string; opts: unknown }> = [];
+		const dom = new JSDOM((await agent.get(`/queue/${articleId}/view?platform=ios`)).text, {
+			runScripts: "dangerously",
+			beforeParse(window) {
+				Object.assign(window, {
+					webkit: { messageHandlers: { readplaceReader: { postMessage: () => {} } } },
+					htmx: {
+						ajax: (verb: string, url: string, opts: unknown) => ajaxCalls.push({ verb, url, opts }),
+					},
+				});
+			},
+		});
+
+		const button = dom.window.document.querySelector<HTMLButtonElement>("[data-reader-capture]");
+		assert(button, "the blocked notice must render the capture control");
+		const pollUrl = button.getAttribute("data-reader-capture-poll");
+
+		button.dispatchEvent(new dom.window.Event("click", { bubbles: true }));
+
+		expect(button.disabled).toBe(true);
+		expect(ajaxCalls).toEqual([
+			{ verb: "GET", url: pollUrl, opts: { target: "#article-body-reader-slot", swap: "outerHTML" } },
+		]);
+
+		dom.window.close();
+	});
+
+	it("defers the reader-slot capture poll to htmx:load when a tap lands before deferred htmx initialises", async () => {
+		const harness = buildBlockedHarness();
+		const agent = await loginAgent(harness.server, harness.auth);
+		const articleId = await saveAndGetArticleId(agent, "https://example.com/app-capture-deferred");
+
+		const posted: Array<{ type?: string }> = [];
+		const dom = new JSDOM((await agent.get(`/queue/${articleId}/view?platform=ios`)).text, {
+			runScripts: "dangerously",
+			beforeParse(window) {
+				Object.assign(window, {
+					webkit: {
+						messageHandlers: {
+							readplaceReader: { postMessage: (msg: { type?: string }) => posted.push(msg) },
+						},
+					},
+				});
+			},
+		});
+
+		const button = dom.window.document.querySelector<HTMLButtonElement>("[data-reader-capture]");
+		assert(button, "the blocked notice must render the capture control");
+		const pollUrl = button.getAttribute("data-reader-capture-poll");
+
+		button.dispatchEvent(new dom.window.Event("click", { bubbles: true }));
+
+		expect(button.disabled).toBe(true);
+		expect(posted).toEqual([{ type: "captureBlocked" }]);
+
+		const ajaxCalls: Array<{ verb: string; url: string; opts: unknown }> = [];
+		Object.assign(dom.window, {
+			htmx: {
+				ajax: (verb: string, url: string, opts: unknown) => ajaxCalls.push({ verb, url, opts }),
+			},
+		});
+		expect(ajaxCalls).toEqual([]);
+
+		dom.window.document.body.dispatchEvent(new dom.window.Event("htmx:load"));
+
+		expect(ajaxCalls).toEqual([
+			{ verb: "GET", url: pollUrl, opts: { target: "#article-body-reader-slot", swap: "outerHTML" } },
+		]);
+
+		dom.window.close();
 	});
 
 	it("marks the body chromeless so the reader CSS can pin the top actions", async () => {
