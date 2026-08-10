@@ -34,7 +34,7 @@ A [recommender system](/view/en.wikipedia.org/wiki/Recommender_system) usually m
 
 The selection runs when you save, not while you read. A save hands the model the new article and up to 1,000 unread saves to compare against. The picks are stored with the article. Reading, marking unread, dismissing, and deleting cost no model call at all.
 
-It needs material to draw from. Below 50 unread saves the selection skips, and the card stays away until the queue grows past that line.
+It needs material to draw from. Below 50 unread saves the selection skips, and the card stays away until the queue reaches that line.
 
 The stored picks are filtered against your read state each time the page draws. Open a suggestion and read it, and it drops out of the pool. Read all 3 and the card has nothing left for that article, so it shows nothing. Mark one unread and it returns. What the card offers is related and still waiting, both at once.
 
