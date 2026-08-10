@@ -2,6 +2,7 @@ import SwiftUI
 
 struct ReadingListView: View {
 	@ObservedObject var session: AppSession
+	let onSignedOut: () -> Void
 	@StateObject private var viewModel: ReadingListViewModel
 	@Environment(\.scenePhase) private var scenePhase
 
@@ -24,8 +25,9 @@ struct ReadingListView: View {
 		var id: String { "\(affordance.id):\(article?.id ?? "collection")" }
 	}
 
-	init(session: AppSession) {
+	init(session: AppSession, onSignedOut: @escaping () -> Void) {
 		self.session = session
+		self.onSignedOut = onSignedOut
 		let api = session.makeAPI()
 		_viewModel = StateObject(wrappedValue: ReadingListViewModel(
 			api: api,
@@ -39,7 +41,7 @@ struct ReadingListView: View {
 				.navigationTitle("Reading List")
 				.toolbar {
 					ToolbarItem(placement: .navigationBarLeading) {
-						Button("Sign out") { Task { await session.logout() } }
+						Button("Sign out") { Task { await signOut() } }
 					}
 					ToolbarItemGroup(placement: .navigationBarTrailing) {
 						ForEach(viewModel.collectionAffordances) { affordance in
@@ -126,6 +128,12 @@ struct ReadingListView: View {
 					Text("This can't be undone.")
 				}
 		}
+	}
+
+	@MainActor
+	func signOut() async {
+		await session.logout()
+		onSignedOut()
 	}
 
 	/// Routes a tapped collection control to the side effect its advertised

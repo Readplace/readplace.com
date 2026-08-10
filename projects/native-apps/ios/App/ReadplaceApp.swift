@@ -23,7 +23,7 @@ struct RootView: View {
 	var body: some View {
 		Group {
 			if session.isLoggedIn {
-				ReadingListView(session: session)
+				ReadingListView(session: session, onSignedOut: { intro.replay() })
 			} else {
 				LoginView(
 					session: session,
