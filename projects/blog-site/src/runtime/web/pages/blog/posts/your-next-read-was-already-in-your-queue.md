@@ -18,7 +18,7 @@ Finishing an article used to be a dead end: the text ran out, and the way back t
 </div>
 </details>
 
-"You are a librarian for a read-it-later app."
+"You are a librarian for a read-it-later app called Readplace."
 
 That line opens the instructions Readplace hands a language model each time an article lands in a queue. The model reads the article that was just saved, looks through the older saves the same reader hasn't opened yet, and picks up to 3 that belong beside it. For each pick it writes one sentence naming what the two pieces share.
 
