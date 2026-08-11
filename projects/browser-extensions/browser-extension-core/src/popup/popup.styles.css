@@ -129,7 +129,7 @@ body {
 .saved-view {
   align-items: center;
   text-align: center;
-  padding: 16px 0 8px;
+  padding: 16px 24px 8px;
   gap: 4px;
 }
 
@@ -153,6 +153,7 @@ body {
 }
 
 .saved-view__subtitle {
+  overflow-wrap: anywhere;
   font-size: 13px;
   color: var(--popup-label);
   margin: 0 0 8px;
