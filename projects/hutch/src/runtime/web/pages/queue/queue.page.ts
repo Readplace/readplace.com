@@ -23,6 +23,7 @@ import { ReaderArticleHashIdSchema } from "@packages/domain/article";
 import type { ContentFreshnessResult, RefreshArticleIfStale } from "@packages/provider-contracts/article-freshness";
 import type {
 	AllocateSavedAt,
+	AllocateSavedAtSequence,
 	CountArticlesByUser,
 	DeleteArticle,
 	FindArticleById,
@@ -276,6 +277,7 @@ interface QueueDependencies {
 	markCrawlPending: MarkCrawlPending;
 	refreshArticleIfStale: RefreshArticleIfStale;
 	allocateSavedAt: AllocateSavedAt;
+	allocateSavedAtSequence: AllocateSavedAtSequence;
 	resolveCanonicalIdentity: (url: string) => Promise<string>;
 	publishUpdateFetchTimestamp: PublishUpdateFetchTimestamp;
 	readArticleContent: ReadArticleContent;
@@ -1249,13 +1251,13 @@ export function initQueueRoutes(deps: QueueDependencies): Router {
 
 		const writeAllPages = async (ready: { job: PageJob; freshness: ContentFreshnessResult }[]): Promise<("saved" | "failed")[]> => {
 			if (ready.length === 0) return [];
-			let savedAt: Date;
+			let savedAts: Date[];
 			try {
-				savedAt = await deps.allocateSavedAt({ userId });
+				savedAts = await deps.allocateSavedAtSequence({ userId, count: ready.length });
 			} catch (error) {
 				return ready.map((page) => failOnePage(page.job, error));
 			}
-			return Promise.all(ready.map((page) => writeOnePage(page, savedAt)));
+			return Promise.all(ready.map((page, index) => writeOnePage(page, savedAts[index])));
 		};
 
 		const prepared = await Promise.all(jobs.map(prepareOnePage));

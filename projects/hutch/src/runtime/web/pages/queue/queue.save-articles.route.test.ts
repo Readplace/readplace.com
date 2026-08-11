@@ -92,12 +92,12 @@ describe("POST /queue/save-articles", () => {
 		expect(provenances).toEqual([{ kind: "client", clientName: "firefox" }]);
 	});
 
-	it("stamps every page of one request with one allocator-issued savedAt, minted only after every freshness check resolved", async () => {
+	it("stamps the pages of one request with consecutive allocator instants in manifest order, minted only after every freshness check resolved", async () => {
 		const fixture = createDefaultTestAppFixture(TEST_APP_ORIGIN);
 		const allocatorBase = new Date("2031-04-05T06:07:08.090Z");
-		let allocations = 0;
+		let sequenceClaims = 0;
 		const events: string[] = [];
-		const savedAts: Date[] = [];
+		const savedAtByUrl = new Map<string, Date>();
 		const testApp = useApp({
 			...fixture,
 			freshness: {
@@ -111,13 +111,13 @@ describe("POST /queue/save-articles", () => {
 			},
 			articleStore: {
 				...fixture.articleStore,
-				allocateSavedAt: async () => {
-					allocations += 1;
-					return new Date(allocatorBase.getTime() + allocations - 1);
+				allocateSavedAtSequence: async ({ count }) => {
+					sequenceClaims += 1;
+					return Array.from({ length: count }, (_, i) => new Date(allocatorBase.getTime() + i));
 				},
 				saveArticle: async (params) => {
 					events.push(`save ${params.url}`);
-					savedAts.push(params.savedAt);
+					savedAtByUrl.set(params.url, params.savedAt);
 					return fixture.articleStore.saveArticle(params);
 				},
 			},
@@ -145,12 +145,61 @@ describe("POST /queue/save-articles", () => {
 		]);
 		expect(events[2]).toBe("refresh https://example.com/slow");
 		expect(events.slice(3).map((e) => e.split(" ")[0])).toEqual(["save", "save", "save"]);
-		expect(allocations).toBe(1);
-		expect(savedAts.map((d) => d.toISOString())).toEqual([
-			allocatorBase.toISOString(),
-			allocatorBase.toISOString(),
-			allocatorBase.toISOString(),
+		expect(sequenceClaims).toBe(1);
+		expect(savedAtByUrl.get("https://example.com/slow")).toEqual(allocatorBase);
+		expect(savedAtByUrl.get("https://example.com/fast-1")).toEqual(new Date(allocatorBase.getTime() + 1));
+		expect(savedAtByUrl.get("https://example.com/fast-2")).toEqual(new Date(allocatorBase.getTime() + 2));
+	});
+
+	it("re-saving a window after deleting one of its articles bumps every tab onto fresh consecutive instants, ordered as if each link were saved separately", async () => {
+		const fixture = createDefaultTestAppFixture(TEST_APP_ORIGIN);
+		const testApp = useApp(fixture);
+		const accessToken = await createAccessToken(testApp);
+		const URL_A = "https://example.com/window-tab-a";
+		const URL_B = "https://example.com/window-tab-b";
+		const URL_C = "https://example.com/window-tab-c";
+		const windowManifest = manifest([{ url: URL_A }, { url: URL_B }, { url: URL_C }]);
+		const savedAtOf = async (url: string): Promise<Date> => {
+			const { articles } = await testApp.articleStore.findArticlesByUser({ userId: TEST_USER_ID });
+			const row = articles.find((a) => a.url === url);
+			assert(row, `${url} must be in the queue`);
+			return row.savedAt;
+		};
+		const bulkSave = () =>
+			request(testApp.server)
+				.post("/queue/save-articles")
+				.set("Accept", SIREN_MEDIA_TYPE)
+				.set("Authorization", `Bearer ${accessToken}`)
+				.field("manifest", windowManifest);
+
+		const first = await bulkSave();
+		expect(first.status).toBe(200);
+		const firstBatchNewest = await savedAtOf(URL_C);
+
+		const articleB = await testApp.articleStore.findArticleByUrl(URL_B);
+		assert(articleB, "B must exist globally after the first save");
+		const deletion = await request(testApp.server)
+			.post(`/queue/${articleB.id.value}/delete`)
+			.set("Accept", SIREN_MEDIA_TYPE)
+			.set("Authorization", `Bearer ${accessToken}`);
+		expect(deletion.status).toBe(303);
+
+		const second = await bulkSave();
+		expect(second.status).toBe(200);
+		expect(second.body.properties).toEqual(
+			expect.objectContaining({ saved: 3, skipped: 0, failed: 0 }),
+		);
+
+		const [savedA, savedB, savedC] = await Promise.all([
+			savedAtOf(URL_A),
+			savedAtOf(URL_B),
+			savedAtOf(URL_C),
 		]);
+		expect(savedA.getTime()).toBeGreaterThan(firstBatchNewest.getTime());
+		expect(savedB.getTime()).toBe(savedA.getTime() + 1);
+		expect(savedC.getTime()).toBe(savedB.getTime() + 1);
+		const { articles } = await testApp.articleStore.findArticlesByUser({ userId: TEST_USER_ID });
+		expect(articles.slice(0, 3).map((a) => a.url)).toEqual([URL_C, URL_B, URL_A]);
 	});
 
 	it("counts a page whose store write throws as failed and still saves the rest of the request", async () => {
@@ -184,14 +233,23 @@ describe("POST /queue/save-articles", () => {
 		expect(stored.articles.map((a) => a.url)).toEqual(["https://example.com/healthy"]);
 	});
 
-	it("counts a page whose freshness check throws as failed and still saves the rest of the request", async () => {
+	it("counts a page whose freshness check throws as failed, saving the rest on a span sized to the surviving pages", async () => {
 		const fixture = createDefaultTestAppFixture(TEST_APP_ORIGIN);
+		const allocatorBase = new Date("2031-04-05T06:07:08.090Z");
+		const claimedCounts: number[] = [];
 		const testApp = useApp({
 			...fixture,
 			freshness: {
 				refreshArticleIfStale: async ({ url }) => {
 					if (url.endsWith("/broken")) throw new Error("crawl exploded");
 					return { action: "new" };
+				},
+			},
+			articleStore: {
+				...fixture.articleStore,
+				allocateSavedAtSequence: async ({ count }) => {
+					claimedCounts.push(count);
+					return Array.from({ length: count }, (_, i) => new Date(allocatorBase.getTime() + i));
 				},
 			},
 		});
@@ -210,8 +268,11 @@ describe("POST /queue/save-articles", () => {
 		expect(response.body.properties).toEqual(
 			expect.objectContaining({ saved: 1, skipped: 0, failed: 1 }),
 		);
+		expect(claimedCounts).toEqual([1]);
 		const stored = await testApp.articleStore.findArticlesByUser({ userId: TEST_USER_ID });
-		expect(stored.articles.map((a) => a.url)).toEqual(["https://example.com/healthy"]);
+		expect(stored.articles.map((a) => [a.url, a.savedAt.toISOString()])).toEqual([
+			["https://example.com/healthy", allocatorBase.toISOString()],
+		]);
 	});
 
 	it("stamps a single Siren save with the allocator's instant, not the wall clock", async () => {
@@ -286,11 +347,10 @@ describe("POST /queue/save-articles", () => {
 			expect.objectContaining({ saved: 2, failed: 0 }),
 		);
 		const stored = await testApp.articleStore.findArticlesByUser({ userId: TEST_USER_ID });
-		const order = stored.articles.map((a) => a.url);
-		expect(order[2]).toBe("https://example.com/competitor");
-		expect(order.slice(0, 2).sort()).toEqual([
+		expect(stored.articles.map((a) => a.url)).toEqual([
 			"https://example.com/companion",
 			"https://example.com/gated",
+			"https://example.com/competitor",
 		]);
 	});
 
@@ -342,9 +402,8 @@ describe("POST /queue/save-articles", () => {
 			expect.objectContaining({ saved: 2, failed: 0 }),
 		);
 		const stored = await testApp.articleStore.findArticlesByUser({ userId: TEST_USER_ID });
-		const order = stored.articles.map((a) => a.url);
-		expect(order[0]).toBe("https://example.com/competitor");
-		expect(order.slice(1).sort()).toEqual([
+		expect(stored.articles.map((a) => a.url)).toEqual([
+			"https://example.com/competitor",
 			"https://example.com/companion",
 			"https://example.com/gated",
 		]);
@@ -356,7 +415,7 @@ describe("POST /queue/save-articles", () => {
 			...fixture,
 			articleStore: {
 				...fixture.articleStore,
-				allocateSavedAt: async () => {
+				allocateSavedAtSequence: async () => {
 					throw new Error("cursor write throttled");
 				},
 			},

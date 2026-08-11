@@ -131,6 +131,7 @@ import type {
 	ReverseScheduledCancellation,
 	SaveAppleRefreshToken,
 	AllocateSavedAt,
+	AllocateSavedAtSequence,
 	SaveArticle,
 	SaveArticleGlobally,
 	ScheduleCancellationAtPeriodEnd,
@@ -283,6 +284,7 @@ export interface ArticleStoreBundle {
 	saveArticle: SaveArticle;
 	saveArticleKeepingPosition: SaveArticle;
 	allocateSavedAt: AllocateSavedAt;
+	allocateSavedAtSequence: AllocateSavedAtSequence;
 	saveArticleGlobally: SaveArticleGlobally;
 	bumpArticleSavedAt: BumpArticleSavedAt;
 	deleteArticle: DeleteArticle;

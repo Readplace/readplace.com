@@ -628,12 +628,12 @@ describe("Import routes", () => {
 			]);
 		});
 
-		it("stamps every URL of one commit batch with one allocator-issued savedAt, minted only after the batch's freshness checks resolved", async () => {
+		it("stamps the URLs of one commit batch with consecutive allocator instants in file order, minted only after the batch's freshness checks resolved", async () => {
 			const fixture = createDefaultTestAppFixture(TEST_APP_ORIGIN);
 			const allocatorBase = new Date("2031-04-05T06:07:08.090Z");
-			let allocations = 0;
+			let sequenceClaims = 0;
 			const events: string[] = [];
-			const savedAts: Date[] = [];
+			const savedAtByUrl = new Map<string, Date>();
 			const harness = useApp({
 				...fixture,
 				freshness: {
@@ -647,13 +647,13 @@ describe("Import routes", () => {
 				},
 				articleStore: {
 					...fixture.articleStore,
-					allocateSavedAt: async () => {
-						allocations += 1;
-						return new Date(allocatorBase.getTime() + allocations - 1);
+					allocateSavedAtSequence: async ({ count }) => {
+						sequenceClaims += 1;
+						return Array.from({ length: count }, (_, i) => new Date(allocatorBase.getTime() + i));
 					},
 					saveArticle: async (params) => {
 						events.push(`save ${params.url}`);
-						savedAts.push(params.savedAt);
+						savedAtByUrl.set(params.url, params.savedAt);
 						return fixture.articleStore.saveArticle(params);
 					},
 				},
@@ -670,12 +670,10 @@ describe("Import routes", () => {
 			expect(commit.status).toBe(303);
 			expect(events[2]).toBe("refresh https://example.com/slow");
 			expect(events.slice(3).map((e) => e.split(" ")[0])).toEqual(["save", "save", "save"]);
-			expect(allocations).toBe(1);
-			expect(savedAts.map((d) => d.toISOString())).toEqual([
-				allocatorBase.toISOString(),
-				allocatorBase.toISOString(),
-				allocatorBase.toISOString(),
-			]);
+			expect(sequenceClaims).toBe(1);
+			expect(savedAtByUrl.get("https://example.com/slow")).toEqual(allocatorBase);
+			expect(savedAtByUrl.get("https://example.com/fast-1")).toEqual(new Date(allocatorBase.getTime() + 1));
+			expect(savedAtByUrl.get("https://example.com/fast-2")).toEqual(new Date(allocatorBase.getTime() + 2));
 		});
 
 		it("completes the commit without allocating a position when every URL in the batch fails its freshness check", async () => {
@@ -690,9 +688,9 @@ describe("Import routes", () => {
 				},
 				articleStore: {
 					...fixture.articleStore,
-					allocateSavedAt: async () => {
+					allocateSavedAtSequence: async ({ count }) => {
 						allocations += 1;
-						return new Date();
+						return Array.from({ length: count }, () => new Date());
 					},
 				},
 			});
@@ -720,7 +718,7 @@ describe("Import routes", () => {
 				...fixture,
 				articleStore: {
 					...fixture.articleStore,
-					allocateSavedAt: async () => {
+					allocateSavedAtSequence: async () => {
 						throw new Error("cursor write throttled");
 					},
 				},
@@ -775,14 +773,23 @@ describe("Import routes", () => {
 			expect(stored.articles.map((a) => a.url)).toEqual(["https://example.com/healthy"]);
 		});
 
-		it("imports the rest of a batch when one URL's freshness check throws", async () => {
+		it("imports the rest of a batch when one URL's freshness check throws, on a span sized to the surviving URLs", async () => {
 			const fixture = createDefaultTestAppFixture(TEST_APP_ORIGIN);
+			const allocatorBase = new Date("2031-04-05T06:07:08.090Z");
+			const claimedCounts: number[] = [];
 			const harness = useApp({
 				...fixture,
 				freshness: {
 					refreshArticleIfStale: async ({ url }) => {
 						if (url.endsWith("/broken")) throw new Error("crawl exploded");
 						return { action: "new" };
+					},
+				},
+				articleStore: {
+					...fixture.articleStore,
+					allocateSavedAtSequence: async ({ count }) => {
+						claimedCounts.push(count);
+						return Array.from({ length: count }, (_, i) => new Date(allocatorBase.getTime() + i));
 					},
 				},
 			});
@@ -797,10 +804,13 @@ describe("Import routes", () => {
 			const commit = await agent.post(`${create.headers.location}/commit`);
 
 			expect(commit.status).toBe(303);
+			expect(claimedCounts).toEqual([1]);
 			const userId = (await auth.findUserByEmail("test@example.com"))?.userId;
 			assert(userId, "user must exist");
 			const stored = await articleStore.findArticlesByUser({ userId });
-			expect(stored.articles.map((a) => a.url)).toEqual(["https://example.com/healthy"]);
+			expect(stored.articles.map((a) => [a.url, a.savedAt.toISOString()])).toEqual([
+				["https://example.com/healthy", allocatorBase.toISOString()],
+			]);
 		});
 
 		it("imports selected URLs into the user's queue and deletes the session", async () => {

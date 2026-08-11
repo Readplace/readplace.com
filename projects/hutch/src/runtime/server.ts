@@ -74,6 +74,7 @@ import type { ExchangeAppleCode } from "@packages/provider-contracts/apple-auth"
 import type { GetIosAppSignals, RecordIosAnyActivity, RecordIosSavedArticle } from "@packages/provider-contracts/ios-onboarding-signal";
 import type {
 	AllocateSavedAt,
+	AllocateSavedAtSequence,
 	CountArticlesByUser,
 	DeleteArticle,
 	FindArticleById,
@@ -336,6 +337,7 @@ interface AppDependencies {
 	forceMarkCrawlPending: ForceMarkCrawlPending;
 	refreshArticleIfStale: RefreshArticleIfStale;
 	allocateSavedAt: AllocateSavedAt;
+	allocateSavedAtSequence: AllocateSavedAtSequence;
 	saveArticleKeepingPosition: SaveArticle;
 	resolveCanonicalIdentity: (url: string) => Promise<string>;
 	getIosAppSignals: GetIosAppSignals;
@@ -1132,6 +1134,7 @@ export function createApp(dependencies: AppDependencies): Express {
 		markCrawlPending: deps.markCrawlPending,
 		refreshArticleIfStale: deps.refreshArticleIfStale,
 		allocateSavedAt: deps.allocateSavedAt,
+		allocateSavedAtSequence: deps.allocateSavedAtSequence,
 		resolveCanonicalIdentity: deps.resolveCanonicalIdentity,
 		publishUpdateFetchTimestamp: deps.publishUpdateFetchTimestamp,
 		readArticleContent: deps.readArticleContent,
@@ -1172,7 +1175,7 @@ export function createApp(dependencies: AppDependencies): Express {
 		publishLinkSaved: deps.publishLinkSaved,
 		publishLinkQueued: deps.publishLinkQueued,
 		refreshArticleIfStale: deps.refreshArticleIfStale,
-		allocateSavedAt: deps.allocateSavedAt,
+		allocateSavedAtSequence: deps.allocateSavedAtSequence,
 		resolveCanonicalIdentity: deps.resolveCanonicalIdentity,
 		logError: deps.logError,
 		analytics: deps.analytics,

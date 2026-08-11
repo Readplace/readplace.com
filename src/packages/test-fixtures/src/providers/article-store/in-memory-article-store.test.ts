@@ -285,6 +285,27 @@ describe("initInMemoryArticleStore", () => {
 			expect(after.getTime()).toBeLessThan(cursorPushedAheadOfClock.getTime());
 		});
 
+		it("allocateSavedAtSequence hands out ascending contiguous instants, each strictly newer than every prior allocation", async () => {
+			const store = initInMemoryArticleStore();
+			const before = await store.allocateSavedAt({ userId: USER_A });
+
+			const sequence = await store.allocateSavedAtSequence({ userId: USER_A, count: 3 });
+
+			expect(sequence).toHaveLength(3);
+			expect(sequence[0].getTime()).toBeGreaterThan(before.getTime());
+			expect(sequence[1].getTime()).toBe(sequence[0].getTime() + 1);
+			expect(sequence[2].getTime()).toBe(sequence[1].getTime() + 1);
+		});
+
+		it("allocateSavedAtSequence advances the cursor past its own span, so the next single save lands strictly after the batch", async () => {
+			const store = initInMemoryArticleStore();
+
+			const sequence = await store.allocateSavedAtSequence({ userId: USER_A, count: 4 });
+			const next = await store.allocateSavedAt({ userId: USER_A });
+
+			expect(next.getTime()).toBeGreaterThan(sequence[3].getTime());
+		});
+
 		it("ignores a bumpArticleSavedAt call for a URL that has never been saved", async () => {
 			const store = initInMemoryArticleStore();
 

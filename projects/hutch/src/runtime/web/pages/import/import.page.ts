@@ -14,7 +14,7 @@ import type { ImportSessionStore } from "@packages/domain/import-session";
 import type { ValidateSaveableUrl, SaveableUrl, SaveableUrlErrorCode } from "@packages/domain/article";
 import type { ExtractLinksFromPageUrl } from "@packages/extract-links-from-page";
 import type { HutchLogger } from "@packages/hutch-logger";
-import type { AllocateSavedAt } from "@packages/provider-contracts/article-store";
+import type { AllocateSavedAtSequence } from "@packages/provider-contracts/article-store";
 import type { ConsumeRateLimit } from "@packages/provider-contracts/rate-limit";
 import type { RateLimitRule } from "@packages/domain/rate-limit";
 import { createRateLimitMiddleware } from "../../middleware/rate-limit";
@@ -37,7 +37,7 @@ import { parseImportPage } from "./import.url";
 
 interface ImportRouteDependencies extends SaveArticleFromUrlDependencies {
 	validateSaveableUrl: ValidateSaveableUrl;
-	allocateSavedAt: AllocateSavedAt;
+	allocateSavedAtSequence: AllocateSavedAtSequence;
 	importSessionStore: ImportSessionStore;
 	extractLinksFromPageUrl: ExtractLinksFromPageUrl;
 	logError: (message: string, error?: Error) => void;
@@ -339,21 +339,21 @@ export function initImportSessionRoutes(deps: ImportRouteDependencies): Router {
 			);
 			const ready = prepared.flatMap((page) => (page === "failed" ? [] : [page]));
 			if (ready.length === 0) continue;
-			let savedAt: Date;
+			let savedAts: Date[];
 			try {
-				savedAt = await deps.allocateSavedAt({ userId });
+				savedAts = await deps.allocateSavedAtSequence({ userId, count: ready.length });
 			} catch (error) {
 				for (const { url } of ready) logImportFailure(url, error);
 				continue;
 			}
 			await Promise.all(
-				ready.map(({ url, freshness }) =>
+				ready.map(({ url, freshness }, index) =>
 					saveArticleFromUrl({
 						userId,
 						url,
 						freshness,
 						provenance: { kind: "import" },
-						savedAt,
+						savedAt: savedAts[index],
 					}).catch((error: unknown) => logImportFailure(url, error)),
 				),
 			);

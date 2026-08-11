@@ -16,8 +16,10 @@ import { ReaderArticleHashId, ReaderArticleHashIdSchema } from "@packages/domain
 import type { HutchLogger } from "@packages/hutch-logger";
 import { UserIdSchema } from "@packages/domain/user";
 import type { UserId } from "@packages/domain/user";
+import assert from "node:assert";
 import type {
 	AllocateSavedAt,
+	AllocateSavedAtSequence,
 	BumpArticleSavedAt,
 	CountArticlesByUser,
 	DeleteAllUserArticles,
@@ -159,6 +161,7 @@ export function initDynamoDbSavedArticleStore(deps: {
 	saveArticle: SaveArticle;
 	saveArticleKeepingPosition: SaveArticle;
 	allocateSavedAt: AllocateSavedAt;
+	allocateSavedAtSequence: AllocateSavedAtSequence;
 	saveArticleGlobally: SaveArticleGlobally;
 	bumpArticleSavedAt: BumpArticleSavedAt;
 	findArticleById: FindArticleById;
@@ -198,38 +201,48 @@ export function initDynamoDbSavedArticleStore(deps: {
 		schema: SaveCursorRow,
 	});
 
-	const advanceCursorToWallClock = async (userId: UserId, nowMs: number): Promise<{ Attributes?: z.infer<typeof SaveCursorRow> }> =>
+	const claimWallClockSpan = async (userId: UserId, span: { nowMs: number; endMs: number }): Promise<{ Attributes?: z.infer<typeof SaveCursorRow> }> =>
 		saveCursors.update({
 			Key: { userId, url: saveCursorUrl(userId) },
-			UpdateExpression: "SET savedAtCursorMs = :nowMs",
+			UpdateExpression: "SET savedAtCursorMs = :endMs",
 			ConditionExpression: "attribute_not_exists(savedAtCursorMs) OR savedAtCursorMs < :nowMs",
-			ExpressionAttributeValues: { ":nowMs": nowMs },
+			ExpressionAttributeValues: { ":endMs": span.endMs, ":nowMs": span.nowMs },
 			ReturnValues: "UPDATED_NEW",
 		});
 
-	const allocateSavedAt: AllocateSavedAt = async ({ userId }) => {
+	const allocateSavedAtSequence: AllocateSavedAtSequence = async ({ userId, count }) => {
+		assert(count > 0, "a savedAt sequence allocates at least one instant");
 		const nowMs = now().getTime();
+		const endMs = nowMs + count - 1;
+		const ascendingFrom = (end: number): Date[] =>
+			Array.from({ length: count }, (_, i) => new Date(end - count + 1 + i));
 		try {
-			await advanceCursorToWallClock(userId, nowMs);
-			return new Date(nowMs);
+			await claimWallClockSpan(userId, { nowMs, endMs });
+			return ascendingFrom(endMs);
 		} catch (error) {
 			if (!(error instanceof ConditionalCheckFailedException)) throw error;
 		}
 		try {
 			const { Attributes } = await saveCursors.update({
 				Key: { userId, url: saveCursorUrl(userId) },
-				UpdateExpression: "ADD savedAtCursorMs :one",
+				UpdateExpression: "ADD savedAtCursorMs :count",
 				ConditionExpression: "attribute_exists(savedAtCursorMs)",
-				ExpressionAttributeValues: { ":one": 1 },
+				ExpressionAttributeValues: { ":count": count },
 				ReturnValues: "UPDATED_NEW",
 			});
-			assertItem(Attributes, "cursor increment must return the advanced cursor");
-			return new Date(Attributes.savedAtCursorMs);
+			assertItem(Attributes, "cursor advance must return the advanced cursor");
+			return ascendingFrom(Attributes.savedAtCursorMs);
 		} catch (error) {
 			if (!(error instanceof ConditionalCheckFailedException)) throw error;
-			await advanceCursorToWallClock(userId, nowMs);
-			return new Date(nowMs);
+			await claimWallClockSpan(userId, { nowMs, endMs });
+			return ascendingFrom(endMs);
 		}
+	};
+
+	const allocateSavedAt: AllocateSavedAt = async ({ userId }) => {
+		const [instant] = await allocateSavedAtSequence({ userId, count: 1 });
+		assert(instant, "a one-instant sequence yields exactly one instant");
+		return instant;
 	};
 
 	async function findArticleByRouteId(routeId: ReaderArticleHashId): Promise<z.infer<typeof ArticleRow> | null> {
@@ -790,6 +803,7 @@ export function initDynamoDbSavedArticleStore(deps: {
 		saveArticle,
 		saveArticleKeepingPosition,
 		allocateSavedAt,
+		allocateSavedAtSequence,
 		saveArticleGlobally,
 		bumpArticleSavedAt,
 		findArticleById,

@@ -616,11 +616,14 @@ describe("initDynamoDbSavedArticleStore global writes", () => {
 		const cas = commands.find((c) => c.name === "UpdateCommand");
 		assert(cas, "the allocator must write the cursor row");
 		expect(cas.input.Key).toEqual({ userId: USER, url: `readplace:save-cursor/${USER}` });
-		expect(cas.input.UpdateExpression).toBe("SET savedAtCursorMs = :nowMs");
+		expect(cas.input.UpdateExpression).toBe("SET savedAtCursorMs = :endMs");
 		expect(cas.input.ConditionExpression).toBe(
 			"attribute_not_exists(savedAtCursorMs) OR savedAtCursorMs < :nowMs",
 		);
-		expect(cas.input.ExpressionAttributeValues).toEqual({ ":nowMs": STORE_NOW.getTime() });
+		expect(cas.input.ExpressionAttributeValues).toEqual({
+			":endMs": STORE_NOW.getTime(),
+			":nowMs": STORE_NOW.getTime(),
+		});
 		expect(cas.input.ReturnValues).toBe("UPDATED_NEW");
 	});
 
@@ -647,9 +650,9 @@ describe("initDynamoDbSavedArticleStore global writes", () => {
 		expect(updates).toBe(2);
 		expect(allocated).toEqual(new Date(cursorAheadMs + 1));
 		const increment = commands[1];
-		expect(increment.input.UpdateExpression).toBe("ADD savedAtCursorMs :one");
+		expect(increment.input.UpdateExpression).toBe("ADD savedAtCursorMs :count");
 		expect(increment.input.ConditionExpression).toBe("attribute_exists(savedAtCursorMs)");
-		expect(increment.input.ExpressionAttributeValues).toEqual({ ":one": 1 });
+		expect(increment.input.ExpressionAttributeValues).toEqual({ ":count": 1 });
 	});
 
 	it("allocateSavedAt re-seeds from wall clock when the sentinel vanished between the two writes", async () => {
@@ -664,7 +667,68 @@ describe("initDynamoDbSavedArticleStore global writes", () => {
 
 		expect(allocated).toEqual(STORE_NOW);
 		expect(commands.filter((c) => c.name === "UpdateCommand")).toHaveLength(3);
-		expect(commands[2].input.UpdateExpression).toBe("SET savedAtCursorMs = :nowMs");
+		expect(commands[2].input.UpdateExpression).toBe("SET savedAtCursorMs = :endMs");
+	});
+
+	it("allocateSavedAtSequence claims a wall-clock span in one compare-and-set and returns ascending instants", async () => {
+		const { client, commands } = createFakeClient();
+
+		const allocated = await initStore(client).allocateSavedAtSequence({ userId: USER, count: 3 });
+
+		expect(allocated).toEqual([
+			STORE_NOW,
+			new Date(STORE_NOW.getTime() + 1),
+			new Date(STORE_NOW.getTime() + 2),
+		]);
+		const cas = commands.find((c) => c.name === "UpdateCommand");
+		assert(cas, "the allocator must write the cursor row");
+		expect(cas.input.UpdateExpression).toBe("SET savedAtCursorMs = :endMs");
+		expect(cas.input.ExpressionAttributeValues).toEqual({
+			":endMs": STORE_NOW.getTime() + 2,
+			":nowMs": STORE_NOW.getTime(),
+		});
+	});
+
+	it("allocateSavedAtSequence advances a cursor already ahead of wall clock in one atomic step, returning the trailing span", async () => {
+		const cursorAheadMs = STORE_NOW.getTime() + 5;
+		const { client, commands } = createFakeClient({
+			UpdateCommand: {
+				queue: [
+					() => {
+						throw new ConditionalCheckFailedException({ $metadata: {}, message: "cursor ahead" });
+					},
+					{ Attributes: { savedAtCursorMs: cursorAheadMs + 3 } },
+				],
+			},
+		});
+
+		const allocated = await initStore(client).allocateSavedAtSequence({ userId: USER, count: 3 });
+
+		expect(allocated).toEqual([
+			new Date(cursorAheadMs + 1),
+			new Date(cursorAheadMs + 2),
+			new Date(cursorAheadMs + 3),
+		]);
+		expect(commands[1].input.UpdateExpression).toBe("ADD savedAtCursorMs :count");
+		expect(commands[1].input.ExpressionAttributeValues).toEqual({ ":count": 3 });
+	});
+
+	it("allocateSavedAtSequence re-seeds the span from wall clock when the sentinel vanished between the two writes", async () => {
+		const ccfe = () => {
+			throw new ConditionalCheckFailedException({ $metadata: {}, message: "gone" });
+		};
+		const { client, commands } = createFakeClient({
+			UpdateCommand: { queue: [ccfe, ccfe, {}] },
+		});
+
+		const allocated = await initStore(client).allocateSavedAtSequence({ userId: USER, count: 2 });
+
+		expect(allocated).toEqual([STORE_NOW, new Date(STORE_NOW.getTime() + 1)]);
+		expect(commands.filter((c) => c.name === "UpdateCommand")).toHaveLength(3);
+		expect(commands[2].input.ExpressionAttributeValues).toEqual({
+			":endMs": STORE_NOW.getTime() + 1,
+			":nowMs": STORE_NOW.getTime(),
+		});
 	});
 
 	it("allocateSavedAt rethrows a non-conditional error from either cursor write", async () => {

@@ -51,6 +51,11 @@ export type SaveArticle = (
 
 export type AllocateSavedAt = (params: { userId: UserId }) => Promise<Date>;
 
+export type AllocateSavedAtSequence = (params: {
+	userId: UserId;
+	count: number;
+}) => Promise<Date[]>;
+
 export interface SaveArticleGloballyParams {
 	url: string;
 	metadata: SavedArticle["metadata"];

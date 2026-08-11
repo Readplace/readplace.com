@@ -11,6 +11,7 @@ import { ReaderArticleHashId } from "@packages/domain/article";
 import type { UserId } from "@packages/domain/user";
 import type {
 	AllocateSavedAt,
+	AllocateSavedAtSequence,
 	ArticleCrawlVersion,
 	BumpArticleSavedAt,
 	CountArticlesByUser,
@@ -89,6 +90,7 @@ export function initInMemoryArticleStore(): {
 	saveArticle: SaveArticle;
 	saveArticleKeepingPosition: SaveArticle;
 	allocateSavedAt: AllocateSavedAt;
+	allocateSavedAtSequence: AllocateSavedAtSequence;
 	saveArticleGlobally: SaveArticleGlobally;
 	bumpArticleSavedAt: BumpArticleSavedAt;
 	findArticleById: FindArticleById;
@@ -126,12 +128,19 @@ export function initInMemoryArticleStore(): {
 	const userArticles = new Map<string, UserArticle>();
 	const saveCursors = new Map<UserId, number>();
 
-	const allocateSavedAt: AllocateSavedAt = async ({ userId }) => {
+	const allocateSavedAtSequence: AllocateSavedAtSequence = async ({ userId, count }) => {
+		assert(count > 0, "a savedAt sequence allocates at least one instant");
 		const nowMs = Date.now();
 		const cursor = saveCursors.get(userId);
-		const next = cursor === undefined || cursor < nowMs ? nowMs : cursor + 1;
-		saveCursors.set(userId, next);
-		return new Date(next);
+		const startMs = cursor === undefined || cursor < nowMs ? nowMs : cursor + 1;
+		saveCursors.set(userId, startMs + count - 1);
+		return Array.from({ length: count }, (_, i) => new Date(startMs + i));
+	};
+
+	const allocateSavedAt: AllocateSavedAt = async ({ userId }) => {
+		const [instant] = await allocateSavedAtSequence({ userId, count: 1 });
+		assert(instant, "a one-instant sequence yields exactly one instant");
+		return instant;
 	};
 
 	function userArticleKey(userId: UserId, url: string): string {
@@ -492,6 +501,7 @@ export function initInMemoryArticleStore(): {
 		saveArticle,
 		saveArticleKeepingPosition,
 		allocateSavedAt,
+		allocateSavedAtSequence,
 		saveArticleGlobally,
 		bumpArticleSavedAt,
 		findArticleById,
