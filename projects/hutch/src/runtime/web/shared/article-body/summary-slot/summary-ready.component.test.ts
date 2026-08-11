@@ -88,8 +88,8 @@ describe("renderSummaryReady", () => {
 
 		const preview = doc.querySelector(".article-body__summary-preview");
 		assert(preview, "preview must be rendered");
-		expect(preview.textContent).toBe("A one-sentence teaser of the piece. … view more");
-		expect(doc.querySelector(".article-body__summary-more")?.textContent).toBe("… view more");
+		expect(preview.textContent).toBe("A one-sentence teaser of the piece. view more …");
+		expect(doc.querySelector(".article-body__summary-more")?.textContent).toBe("view more …");
 	});
 
 	it("renders a stored excerpt whole, even one longer than the fallback's budget", () => {
@@ -105,7 +105,7 @@ describe("renderSummaryReady", () => {
 		);
 
 		expect(doc.querySelector(".article-body__summary-preview")?.textContent).toBe(
-			`${overBudget} … view more`,
+			`${overBudget} view more …`,
 		);
 	});
 
@@ -134,7 +134,7 @@ describe("renderSummaryReady", () => {
 
 		const preview = doc.querySelector(".article-body__summary-preview");
 		assert(preview, "preview must be rendered");
-		expect(preview.textContent?.endsWith(" … view more")).toBe(true);
+		expect(preview.textContent?.endsWith(" view more …")).toBe(true);
 		expect(preview.textContent?.startsWith("The article walks through")).toBe(true);
 		// The fallback is capped well under the full summary length.
 		expect((preview.textContent ?? "").length).toBeLessThan(LONG_SUMMARY.length);
@@ -146,7 +146,7 @@ describe("renderSummaryReady", () => {
 		);
 
 		expect(doc.querySelector(".article-body__summary-preview")?.textContent).toBe(
-			"First point. Second point. … view more",
+			"First point. Second point. view more …",
 		);
 		expect(doc.querySelector(".article-body__summary-text")?.textContent).toBe(
 			"First point.\n\nSecond point.",
@@ -159,7 +159,7 @@ describe("renderSummaryReady", () => {
 		);
 
 		expect(doc.querySelector(".article-body__summary-preview")?.textContent).toBe(
-			"Cut short … view more",
+			"Cut short view more …",
 		);
 	});
 

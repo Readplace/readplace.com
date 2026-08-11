@@ -43,7 +43,7 @@ describe("renderSummarySlot", () => {
 		);
 
 		expect(doc.querySelector(".article-body__summary-preview")?.textContent).toBe(
-			"The teaser. … view more",
+			"The teaser. view more …",
 		);
 	});
 

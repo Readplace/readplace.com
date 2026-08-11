@@ -21,7 +21,7 @@ export interface SummaryReadyInput {
 	oob?: boolean;
 }
 
-// Strips a trailing ellipsis so it never doubles up with the "… view more" the
+// Strips a trailing ellipsis so it never doubles up with the "view more …" the
 // template appends after the preview.
 function buildPreview(input: { summary: string; excerpt?: string }): string {
 	if (input.excerpt) return input.excerpt.replace(/…\s*$/u, "").trimEnd();
