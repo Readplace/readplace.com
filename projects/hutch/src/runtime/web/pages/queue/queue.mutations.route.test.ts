@@ -302,6 +302,67 @@ describe("Queue routes", () => {
 		});
 	});
 
+	describe("every save returns the link to the top of the To Read queue", () => {
+		const TARGET = "https://example.com/matrix-target";
+		const OTHER = "https://example.com/matrix-other";
+
+		type MatrixHarness = ReturnType<typeof useApp>;
+		type MatrixAgent = Awaited<ReturnType<typeof loginAgent>>;
+
+		async function targetArticleId(harness: MatrixHarness): Promise<string> {
+			const article = await harness.articleStore.findArticleByUrl(TARGET);
+			assert.ok(article, "target article must exist after its first save");
+			return article.id.value;
+		}
+
+		it.each([
+			{
+				label: "a link never saved before",
+				setup: async (_agent: MatrixAgent, _harness: MatrixHarness) => {},
+			},
+			{
+				label: "a link already sitting in the queue",
+				setup: async (agent: MatrixAgent, _harness: MatrixHarness) => {
+					await agent.post("/queue/save").type("form").send({ url: TARGET });
+				},
+			},
+			{
+				label: "a link previously marked read",
+				setup: async (agent: MatrixAgent, harness: MatrixHarness) => {
+					await agent.post("/queue/save").type("form").send({ url: TARGET });
+					await agent
+						.post(`/queue/${await targetArticleId(harness)}/status`)
+						.type("form")
+						.send({ status: "read" });
+				},
+			},
+			{
+				label: "a link previously deleted",
+				setup: async (agent: MatrixAgent, harness: MatrixHarness) => {
+					await agent.post("/queue/save").type("form").send({ url: TARGET });
+					await agent.post(`/queue/${await targetArticleId(harness)}/delete`).type("form").send({});
+				},
+			},
+		])("puts $label at the top, above links saved in between", async ({ setup }) => {
+			const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
+			const agent = await loginAgent(harness.server, harness.auth);
+
+			await setup(agent, harness);
+			await agent.post("/queue/save").type("form").send({ url: OTHER });
+
+			await agent.post("/queue/save").type("form").send({ url: TARGET });
+
+			const response = await agent.get("/queue");
+			const doc = new JSDOM(response.text).window.document;
+			const articles = doc.querySelectorAll("[data-test-article-list] .queue-article");
+			expect(articles.length).toBe(2);
+			const first = articles[0];
+			assert.ok(first, "queue must render the re-saved article first");
+			expect(first.getAttribute("id")).toBe("latest-saved");
+			expect(first.querySelector(".queue-article__url")?.getAttribute("href")).toBe(TARGET);
+		});
+	});
+
 	describe("POST /queue/:id/status", () => {
 		it("should mark article as read", async () => {
 			const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));

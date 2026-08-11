@@ -87,6 +87,7 @@ function toSavedArticle(article: GlobalArticle, userArticle: UserArticle): Saved
 
 export function initInMemoryArticleStore(): {
 	saveArticle: SaveArticle;
+	saveArticleKeepingPosition: SaveArticle;
 	allocateSavedAt: AllocateSavedAt;
 	saveArticleGlobally: SaveArticleGlobally;
 	bumpArticleSavedAt: BumpArticleSavedAt;
@@ -208,6 +209,26 @@ export function initInMemoryArticleStore(): {
 			createdUserArticle: existing === undefined,
 			wroteUserArticle: !newerSaveWon,
 		};
+	};
+
+	const saveArticleKeepingPosition: SaveArticle = async (params) => {
+		const articleResourceUniqueId = ArticleResourceUniqueId.parse(params.url);
+		const existing = userArticles.get(userArticleKey(params.userId, articleResourceUniqueId.value));
+		if (existing === undefined) return saveArticle(params);
+
+		const globallySavedAt = new Date();
+		const { created } = await saveArticleGlobally({
+			url: params.url,
+			metadata: params.metadata,
+			estimatedReadTime: params.estimatedReadTime,
+			savedAt: globallySavedAt,
+		});
+		if (!created) {
+			await bumpArticleSavedAt({ url: params.url, savedAt: globallySavedAt });
+		}
+		const article = articles.get(articleResourceUniqueId.value);
+		assert(article, "Article must exist after set");
+		return { saved: toSavedArticle(article, existing), createdUserArticle: false, wroteUserArticle: false };
 	};
 
 	const findArticleById: FindArticleById = async (id, userId) => {
@@ -469,6 +490,7 @@ export function initInMemoryArticleStore(): {
 
 	return {
 		saveArticle,
+		saveArticleKeepingPosition,
 		allocateSavedAt,
 		saveArticleGlobally,
 		bumpArticleSavedAt,

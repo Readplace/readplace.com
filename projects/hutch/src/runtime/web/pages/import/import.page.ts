@@ -338,7 +338,14 @@ export function initImportSessionRoutes(deps: ImportRouteDependencies): Router {
 				),
 			);
 			const ready = prepared.flatMap((page) => (page === "failed" ? [] : [page]));
-			const savedAt = await deps.allocateSavedAt({ userId });
+			if (ready.length === 0) continue;
+			let savedAt: Date;
+			try {
+				savedAt = await deps.allocateSavedAt({ userId });
+			} catch (error) {
+				for (const { url } of ready) logImportFailure(url, error);
+				continue;
+			}
 			await Promise.all(
 				ready.map(({ url, freshness }) =>
 					saveArticleFromUrl({

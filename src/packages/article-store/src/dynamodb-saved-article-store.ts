@@ -157,6 +157,7 @@ export function initDynamoDbSavedArticleStore(deps: {
 	now: () => Date;
 }): {
 	saveArticle: SaveArticle;
+	saveArticleKeepingPosition: SaveArticle;
 	allocateSavedAt: AllocateSavedAt;
 	saveArticleGlobally: SaveArticleGlobally;
 	bumpArticleSavedAt: BumpArticleSavedAt;
@@ -298,7 +299,7 @@ export function initDynamoDbSavedArticleStore(deps: {
 		}
 	};
 
-	const saveArticle: SaveArticle = async (params) => {
+	const initSaveWrite = (userRowCondition: string): SaveArticle => async (params) => {
 		const articleResourceUniqueId = ArticleResourceUniqueId.parse(params.url);
 		const globallySavedAt = now();
 
@@ -314,7 +315,7 @@ export function initDynamoDbSavedArticleStore(deps: {
 			}
 		};
 
-		const writeUserArticleUnlessNewerSaveWon = async (): Promise<{
+		const writeUserArticleUnlessConditionLost = async (): Promise<{
 			createdUserArticle: boolean;
 			wroteUserArticle: boolean;
 		}> => {
@@ -323,7 +324,7 @@ export function initDynamoDbSavedArticleStore(deps: {
 					Key: { userId: params.userId, url: articleResourceUniqueId.value },
 					UpdateExpression:
 						"SET savedAt = :savedAt, provenance = :provenance, #status = if_not_exists(#status, :unread)",
-					ConditionExpression: "attribute_not_exists(savedAt) OR savedAt < :savedAt",
+					ConditionExpression: userRowCondition,
 					ExpressionAttributeNames: { "#status": "status" },
 					ExpressionAttributeValues: {
 						":savedAt": params.savedAt.toISOString(),
@@ -343,7 +344,7 @@ export function initDynamoDbSavedArticleStore(deps: {
 
 		const [, { createdUserArticle, wroteUserArticle }] = await Promise.all([
 			upsertGlobal(),
-			writeUserArticleUnlessNewerSaveWon(),
+			writeUserArticleUnlessConditionLost(),
 		]);
 
 		// Strongly-consistent read-your-writes: a default eventually-consistent read
@@ -362,6 +363,9 @@ export function initDynamoDbSavedArticleStore(deps: {
 			wroteUserArticle,
 		};
 	};
+
+	const saveArticle = initSaveWrite("attribute_not_exists(savedAt) OR savedAt < :savedAt");
+	const saveArticleKeepingPosition = initSaveWrite("attribute_not_exists(savedAt)");
 
 	const findArticleById: FindArticleById = async (routeId, userId) => {
 		const article = await findArticleByRouteId(routeId);
@@ -784,6 +788,7 @@ export function initDynamoDbSavedArticleStore(deps: {
 
 	return {
 		saveArticle,
+		saveArticleKeepingPosition,
 		allocateSavedAt,
 		saveArticleGlobally,
 		bumpArticleSavedAt,

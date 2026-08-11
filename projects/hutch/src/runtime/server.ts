@@ -336,6 +336,7 @@ interface AppDependencies {
 	forceMarkCrawlPending: ForceMarkCrawlPending;
 	refreshArticleIfStale: RefreshArticleIfStale;
 	allocateSavedAt: AllocateSavedAt;
+	saveArticleKeepingPosition: SaveArticle;
 	resolveCanonicalIdentity: (url: string) => Promise<string>;
 	getIosAppSignals: GetIosAppSignals;
 	recordIosAnyActivity: RecordIosAnyActivity;
@@ -1104,6 +1105,7 @@ export function createApp(dependencies: AppDependencies): Express {
 		findArticleCrawlVersions: deps.findArticleCrawlVersions,
 		findArticleUrlById: deps.findArticleUrlById,
 		saveArticle: deps.saveArticle,
+		saveArticleKeepingPosition: deps.saveArticleKeepingPosition,
 		deleteArticle: deps.deleteArticle,
 		updateArticleStatus: deps.updateArticleStatus,
 		markArticleViewed: deps.markArticleViewed,

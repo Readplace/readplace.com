@@ -681,6 +681,56 @@ describe("initDynamoDbSavedArticleStore global writes", () => {
 		await expect(initStore(second.client).allocateSavedAt({ userId: USER })).rejects.toThrow("throttled");
 	});
 
+	it("saveArticleKeepingPosition only writes the user row when it does not exist yet, so a content upload never repositions", async () => {
+		const { client, commands } = createFakeClient({
+			GetCommand: {
+				queue: [{ Item: articleItem() }, { Item: userArticleItem() }],
+			},
+		});
+
+		await initStore(client).saveArticleKeepingPosition({
+			userId: USER,
+			url: URL,
+			metadata: { title: "Title", siteName: "Example", excerpt: "Excerpt", wordCount: 250 },
+			estimatedReadTime: TWO_MINUTES,
+			provenance,
+			savedAt: OPERATION_SAVED_AT,
+		});
+
+		const userRowUpdate = commands.find(
+			(c) => c.name === "UpdateCommand" && c.input.ReturnValues === "ALL_OLD",
+		);
+		assert(userRowUpdate, "the store must attempt the user-row write");
+		expect(userRowUpdate.input.ConditionExpression).toBe("attribute_not_exists(savedAt)");
+	});
+
+	it("saveArticleKeepingPosition reports an existing row untouched and returns it as read back", async () => {
+		const { client } = createFakeClient({
+			UpdateCommand: {
+				default: () => {
+					throw new ConditionalCheckFailedException({ $metadata: {}, message: "row exists" });
+				},
+			},
+			GetCommand: {
+				queue: [{ Item: articleItem() }, { Item: userArticleItem({ savedAt: "2026-05-30T08:00:00.000Z", status: "read" }) }],
+			},
+		});
+
+		const { saved, createdUserArticle, wroteUserArticle } = await initStore(client).saveArticleKeepingPosition({
+			userId: USER,
+			url: URL,
+			metadata: { title: "Title", siteName: "Example", excerpt: "Excerpt", wordCount: 250 },
+			estimatedReadTime: TWO_MINUTES,
+			provenance,
+			savedAt: OPERATION_SAVED_AT,
+		});
+
+		expect(createdUserArticle).toBe(false);
+		expect(wroteUserArticle).toBe(false);
+		expect(saved.savedAt).toEqual(new Date("2026-05-30T08:00:00.000Z"));
+		expect(saved.status).toBe("read");
+	});
+
 	it("saveArticle rethrows a non-conditional user-row write error", async () => {
 		const { client } = createFakeClient({
 			UpdateCommand: {

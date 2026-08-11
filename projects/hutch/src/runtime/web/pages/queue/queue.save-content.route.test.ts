@@ -8,7 +8,7 @@ import type {
 	PublishSaveLinkRawHtmlCommand,
 } from "@packages/test-fixtures/providers/events";
 import type { UserId } from "@packages/domain/user";
-import { MAX_PAGES_PER_BULK_SAVE, MAX_UPLOAD_CONTENT_BYTES, MAX_BULK_PAGE_CONTENT_BYTES, MAX_UPLOAD_REQUEST_BYTES, MAX_UPLOAD_HTML_BYTES } from "@packages/domain/article";
+import { MAX_PAGES_PER_BULK_SAVE, MAX_UPLOAD_CONTENT_BYTES, MAX_BULK_PAGE_CONTENT_BYTES, MAX_UPLOAD_REQUEST_BYTES, MAX_UPLOAD_HTML_BYTES, MinutesSchema } from "@packages/domain/article";
 import { MAX_PDF_BYTES } from "@packages/crawl-article";
 import { useTestServer, type TestAppHarness, type TestAppResult } from "../../../test-app";
 import {
@@ -81,6 +81,36 @@ describe("POST /queue/save-content with PDF", () => {
 		});
 		return { testApp, publishedSavePdf };
 	}
+
+	it("keeps the queue position, status, and provenance of an already-saved link when its content arrives later", async () => {
+		const fixture = createDefaultTestAppFixture(TEST_APP_ORIGIN);
+		const testApp = useApp(fixture);
+		const accessToken = await createAccessToken(testApp);
+		const urlSaveInstant = new Date("2026-08-01T10:00:00.000Z");
+		const { saved } = await testApp.articleStore.saveArticle({
+			userId: TEST_USER_ID,
+			url: "https://example.com/url-saved-first",
+			metadata: { title: "Saved by the URL leg", siteName: "example.com", excerpt: "", wordCount: 0 },
+			estimatedReadTime: MinutesSchema.parse(1),
+			provenance: { kind: "web" },
+			savedAt: urlSaveInstant,
+		});
+		await testApp.articleStore.updateArticleStatus(saved.id, TEST_USER_ID, "read");
+
+		const response = await request(testApp.server)
+			.post("/queue/save-content")
+			.set("Accept", SIREN_MEDIA_TYPE)
+			.set("Authorization", `Bearer ${accessToken}`)
+			.field("url", "https://example.com/url-saved-first")
+			.field("mediaType", "text/html")
+			.attach("content", VALID_HTML, "content");
+
+		expect(response.status).toBe(201);
+		const stored = await testApp.articleStore.findArticlesByUser({ userId: TEST_USER_ID, status: "read" });
+		expect(stored.articles.map((a) => [a.url, a.savedAt.toISOString(), a.status, a.provenance])).toEqual([
+			["https://example.com/url-saved-first", urlSaveInstant.toISOString(), "read", { kind: "web" }],
+		]);
+	});
 
 	it("stamps a content save with the allocator's instant, not the wall clock", async () => {
 		const fixture = createDefaultTestAppFixture(TEST_APP_ORIGIN);

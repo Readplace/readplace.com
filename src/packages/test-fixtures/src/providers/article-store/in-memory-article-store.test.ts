@@ -220,6 +220,37 @@ describe("initInMemoryArticleStore", () => {
 			expect(saved.provenance).toEqual({ kind: "web" });
 		});
 
+		it("saveArticleKeepingPosition leaves an existing row's savedAt, status, and provenance untouched", async () => {
+			const store = initInMemoryArticleStore();
+			const urlSaveInstant = new Date("2026-08-01T10:00:00.000Z");
+			const { saved: first } = await store.saveArticle(makeArticleParams({ savedAt: urlSaveInstant }));
+			await store.updateArticleStatus(first.id, USER_A, "read");
+
+			const { saved, createdUserArticle, wroteUserArticle } = await store.saveArticleKeepingPosition(
+				makeArticleParams({ savedAt: new Date("2026-08-01T11:00:00.000Z"), provenance: { kind: "import" } }),
+			);
+
+			expect(createdUserArticle).toBe(false);
+			expect(wroteUserArticle).toBe(false);
+			expect(saved.savedAt).toEqual(urlSaveInstant);
+			expect(saved.status).toBe("read");
+			expect(saved.provenance).toEqual({ kind: "web" });
+		});
+
+		it("saveArticleKeepingPosition creates the row when the link was never saved, exactly like a first save", async () => {
+			const store = initInMemoryArticleStore();
+			const instant = new Date("2026-08-01T10:00:00.000Z");
+
+			const { saved, createdUserArticle, wroteUserArticle } = await store.saveArticleKeepingPosition(
+				makeArticleParams({ savedAt: instant }),
+			);
+
+			expect(createdUserArticle).toBe(true);
+			expect(wroteUserArticle).toBe(true);
+			expect(saved.savedAt).toEqual(instant);
+			expect(saved.status).toBe("unread");
+		});
+
 		it("allocateSavedAt hands out strictly increasing instants per user, even within one millisecond", async () => {
 			const store = initInMemoryArticleStore();
 

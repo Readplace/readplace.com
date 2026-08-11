@@ -239,6 +239,117 @@ describe("POST /queue/save-articles", () => {
 		]);
 	});
 
+	it("ranks the whole press above a save that landed while the press's freshness checks were still running", async () => {
+		const fixture = createDefaultTestAppFixture(TEST_APP_ORIGIN);
+		let enterPrepare: () => void = () => {};
+		const prepareEntered = new Promise<void>((resolve) => {
+			enterPrepare = resolve;
+		});
+		let releasePrepare: () => void = () => {};
+		const prepareGate = new Promise<void>((resolve) => {
+			releasePrepare = resolve;
+		});
+		const testApp = useApp({
+			...fixture,
+			freshness: {
+				refreshArticleIfStale: async ({ url }) => {
+					if (url.endsWith("/gated")) {
+						enterPrepare();
+						await prepareGate;
+					}
+					return { action: "new" };
+				},
+			},
+		});
+		const accessToken = await createAccessToken(testApp);
+
+		const press = request(testApp.server)
+			.post("/queue/save-articles")
+			.set("Accept", SIREN_MEDIA_TYPE)
+			.set("Authorization", `Bearer ${accessToken}`)
+			.field("manifest", manifest([
+				{ url: "https://example.com/gated" },
+				{ url: "https://example.com/companion" },
+			]))
+			.then((response) => response);
+		await prepareEntered;
+
+		await request(testApp.server)
+			.post("/queue")
+			.set("Accept", SIREN_MEDIA_TYPE)
+			.set("Authorization", `Bearer ${accessToken}`)
+			.send({ url: "https://example.com/competitor" });
+		releasePrepare();
+		const response = await press;
+
+		expect(response.body.properties).toEqual(
+			expect.objectContaining({ saved: 2, failed: 0 }),
+		);
+		const stored = await testApp.articleStore.findArticlesByUser({ userId: TEST_USER_ID });
+		const order = stored.articles.map((a) => a.url);
+		expect(order[2]).toBe("https://example.com/competitor");
+		expect(order.slice(0, 2).sort()).toEqual([
+			"https://example.com/companion",
+			"https://example.com/gated",
+		]);
+	});
+
+	it("accepts allocation order over completion order: a save landing during the press's row writes ranks above it, with the press contiguous below", async () => {
+		const fixture = createDefaultTestAppFixture(TEST_APP_ORIGIN);
+		let enterWrite: () => void = () => {};
+		const writeEntered = new Promise<void>((resolve) => {
+			enterWrite = resolve;
+		});
+		let releaseWrite: () => void = () => {};
+		const writeGate = new Promise<void>((resolve) => {
+			releaseWrite = resolve;
+		});
+		const testApp = useApp({
+			...fixture,
+			articleStore: {
+				...fixture.articleStore,
+				saveArticle: async (params) => {
+					if (params.url.endsWith("/gated")) {
+						enterWrite();
+						await writeGate;
+					}
+					return fixture.articleStore.saveArticle(params);
+				},
+			},
+		});
+		const accessToken = await createAccessToken(testApp);
+
+		const press = request(testApp.server)
+			.post("/queue/save-articles")
+			.set("Accept", SIREN_MEDIA_TYPE)
+			.set("Authorization", `Bearer ${accessToken}`)
+			.field("manifest", manifest([
+				{ url: "https://example.com/gated" },
+				{ url: "https://example.com/companion" },
+			]))
+			.then((response) => response);
+		await writeEntered;
+
+		await request(testApp.server)
+			.post("/queue")
+			.set("Accept", SIREN_MEDIA_TYPE)
+			.set("Authorization", `Bearer ${accessToken}`)
+			.send({ url: "https://example.com/competitor" });
+		releaseWrite();
+		const response = await press;
+
+		expect(response.body.properties).toEqual(
+			expect.objectContaining({ saved: 2, failed: 0 }),
+		);
+		const stored = await testApp.articleStore.findArticlesByUser({ userId: TEST_USER_ID });
+		const order = stored.articles.map((a) => a.url);
+		expect(order[0]).toBe("https://example.com/competitor");
+		expect(order.slice(1).sort()).toEqual([
+			"https://example.com/companion",
+			"https://example.com/gated",
+		]);
+	});
+
 	it("counts every ready page as failed when the position allocator itself fails, still answering with the Siren summary", async () => {
 		const fixture = createDefaultTestAppFixture(TEST_APP_ORIGIN);
 		const testApp = useApp({

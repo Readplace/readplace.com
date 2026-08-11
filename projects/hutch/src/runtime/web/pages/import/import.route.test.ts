@@ -678,6 +678,74 @@ describe("Import routes", () => {
 			]);
 		});
 
+		it("completes the commit without allocating a position when every URL in the batch fails its freshness check", async () => {
+			const fixture = createDefaultTestAppFixture(TEST_APP_ORIGIN);
+			let allocations = 0;
+			const harness = useApp({
+				...fixture,
+				freshness: {
+					refreshArticleIfStale: async () => {
+						throw new Error("crawl exploded");
+					},
+				},
+				articleStore: {
+					...fixture.articleStore,
+					allocateSavedAt: async () => {
+						allocations += 1;
+						return new Date();
+					},
+				},
+			});
+			const { auth, articleStore } = harness;
+			const agent = await loginAgent(harness.server, harness.auth);
+			const { body, contentType } = multipartBody(
+				"urls.txt",
+				Buffer.from("https://example.com/broken-1 https://example.com/broken-2"),
+			);
+			const create = await agent.post("/import").set("Content-Type", contentType).send(body);
+
+			const commit = await agent.post(`${create.headers.location}/commit`);
+
+			expect(commit.status).toBe(303);
+			expect(allocations).toBe(0);
+			const userId = (await auth.findUserByEmail("test@example.com"))?.userId;
+			assert(userId, "user must exist");
+			const stored = await articleStore.findArticlesByUser({ userId });
+			expect(stored.articles).toEqual([]);
+		});
+
+		it("logs the whole batch as failed and still finishes the commit when the position allocator fails", async () => {
+			const fixture = createDefaultTestAppFixture(TEST_APP_ORIGIN);
+			const harness = useApp({
+				...fixture,
+				articleStore: {
+					...fixture.articleStore,
+					allocateSavedAt: async () => {
+						throw new Error("cursor write throttled");
+					},
+				},
+			});
+			const { auth, articleStore } = harness;
+			const agent = await loginAgent(harness.server, harness.auth);
+			const { body, contentType } = multipartBody(
+				"urls.txt",
+				Buffer.from("https://example.com/a https://example.com/b"),
+			);
+			const create = await agent.post("/import").set("Content-Type", contentType).send(body);
+			const sessionPath = create.headers.location;
+
+			const commit = await agent.post(`${sessionPath}/commit`);
+
+			expect(commit.status).toBe(303);
+			const userId = (await auth.findUserByEmail("test@example.com"))?.userId;
+			assert(userId, "user must exist");
+			const stored = await articleStore.findArticlesByUser({ userId });
+			expect(stored.articles).toEqual([]);
+			const reuse = await agent.get(sessionPath);
+			expect(reuse.status).toBe(303);
+			expect(reuse.headers.location).toBe("/import?mode=upload&error_code=import_session_not_found");
+		});
+
 		it("imports the rest of a batch when one URL's store write throws", async () => {
 			const fixture = createDefaultTestAppFixture(TEST_APP_ORIGIN);
 			const harness = useApp({

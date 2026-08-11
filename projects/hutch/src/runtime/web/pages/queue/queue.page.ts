@@ -249,6 +249,7 @@ interface QueueDependencies {
 	findArticleCrawlVersions: FindArticleCrawlVersions;
 	findArticleUrlById: FindArticleUrlById;
 	saveArticle: SaveArticle;
+	saveArticleKeepingPosition: SaveArticle;
 	deleteArticle: DeleteArticle;
 	updateArticleStatus: UpdateArticleStatus;
 	markArticleViewed: MarkArticleViewed;
@@ -474,6 +475,10 @@ export function initQueueRoutes(deps: QueueDependencies): Router {
 	const saveArticleAtQueueTop = initSaveArticleAtQueueTop({
 		allocateSavedAt: deps.allocateSavedAt,
 		saveArticleFromUrl,
+	});
+	const attachArticleContent = initSaveArticleInteractively({
+		saveArticleFromUrl: initSaveArticleFromUrl({ ...deps, saveArticle: deps.saveArticleKeepingPosition }),
+		publishComputeRelatedArticles: deps.publishComputeRelatedArticles,
 	});
 	const deleteArticleFromQueue = initDeleteArticleFromQueue(deps);
 
@@ -1355,11 +1360,12 @@ export function initQueueRoutes(deps: QueueDependencies): Router {
 
 			const finishSave = async (articleUrl: SaveableUrl): Promise<void> => {
 				const freshness = await deps.refreshArticleIfStale({ url: articleUrl });
-				const result = await saveArticleAtQueueTop({
+				const result = await attachArticleContent({
 					userId,
 					url: articleUrl,
 					freshness,
 					provenance: resolveSaveProvenance(req.oauthClientId),
+					savedAt: await deps.allocateSavedAt({ userId }),
 				});
 				await recordSaveSignal(req, res, userId);
 				emitSaveIntent({ req, url: articleUrl, path: SAVE_INTENT_PATH.saveContent, surface: SAVE_SURFACES.extension, outcome: SAVE_OUTCOMES.saved });
