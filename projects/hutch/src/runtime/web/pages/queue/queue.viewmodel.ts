@@ -2,7 +2,10 @@ import type { SavedArticle, SaveableUrlErrorCode } from "@packages/domain/articl
 import type { IconName } from "@packages/ui-icons";
 import { type LocalTime, toAbsoluteDate, toRelativeOrDate } from "@packages/web-shell";
 import type { FindArticlesResult } from "@packages/provider-contracts/article-store";
-import { pickExcerpt } from "../../../providers/article-summary/article-summary.helpers";
+import {
+	type PickedExcerpt,
+	pickExcerpt,
+} from "../../../providers/article-summary/article-summary.helpers";
 import type { ArticleCrawl } from "@packages/provider-contracts/article-crawl";
 import type { GeneratedSummary } from "@packages/provider-contracts/article-summary";
 import type { ComponentError } from "../../shared/component-error.types";
@@ -46,6 +49,7 @@ export interface QueueArticleViewModel {
 	title: string;
 	siteName: string;
 	excerpt: string;
+	excerptSource: PickedExcerpt["source"];
 	url: string;
 	status: string;
 	isUnread: boolean;
@@ -193,11 +197,13 @@ export function toQueueArticleViewModel(params: {
 			: buildCardPollUrl({ articleId: id, pollCount, filters });
 	const isStalePending = !reachedTerminal && pollCount > maxPolls;
 	const deleteAction = toDeleteAction({ articleId: id, returnQuery });
+	const excerpt = pickExcerpt(summary, article.metadata.excerpt);
 	return {
 		id,
 		title: article.metadata.title,
 		siteName: article.metadata.siteName,
-		excerpt: pickExcerpt(summary, article.metadata.excerpt),
+		excerpt: excerpt.text,
+		excerptSource: excerpt.source,
 		// The card's source link shows the redirect destination once merged; the
 		// title/excerpt still open the reader by `id`, so identity is untouched.
 		url: article.displayUrl ?? article.url,

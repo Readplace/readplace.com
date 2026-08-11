@@ -18,7 +18,7 @@
   <div class="queue-article__body">
     <div class="queue-article__content">
       <a class="queue-article__title" href="{{titleLinkUrl}}" data-test-article-title>{{title}}</a>
-      {{#if excerpt}}<a class="queue-article__excerpt" href="{{excerptLinkUrl}}" tabindex="-1" data-test-article-excerpt>{{excerpt}}</a>{{/if}}
+      {{#if excerpt}}<a class="queue-article__excerpt{{excerptClampClass}}" href="{{excerptLinkUrl}}" tabindex="-1" data-test-article-excerpt>{{excerpt}}</a>{{/if}}
       <p class="queue-article__processing{{processingHiddenClass}}" data-test-processing>Processing…</p>
       {{#if isStalePending}}<p class="queue-article__stale-pending" data-test-stale-pending>Taking a while — <a href="{{url}}" target="_blank" rel="noopener">open on {{#if siteName}}{{siteName}}{{else}}the source{{/if}}</a></p>{{/if}}
     </div>

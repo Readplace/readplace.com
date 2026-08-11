@@ -1,6 +1,8 @@
 import { pickExcerpt, truncateForSeo } from "./article-summary.helpers";
 
 describe("pickExcerpt", () => {
+	const PARSED = { text: "Parsed excerpt.", source: "parsed" };
+
 	it("returns the AI excerpt when status is ready and excerpt is present", () => {
 		expect(
 			pickExcerpt(
@@ -11,7 +13,7 @@ describe("pickExcerpt", () => {
 				},
 				"Parsed excerpt.",
 			),
-		).toBe("Short decision-helper blurb.");
+		).toEqual({ text: "Short decision-helper blurb.", source: "generated" });
 	});
 
 	it("returns the fallback when status is ready but excerpt is absent (does not use summary text)", () => {
@@ -20,7 +22,7 @@ describe("pickExcerpt", () => {
 				{ status: "ready", summary: "Long AI summary covering many points." },
 				"Parsed excerpt.",
 			),
-		).toBe("Parsed excerpt.");
+		).toEqual(PARSED);
 	});
 
 	it("returns the fallback when status is ready but excerpt is the empty string", () => {
@@ -29,29 +31,35 @@ describe("pickExcerpt", () => {
 				{ status: "ready", summary: "AI summary.", excerpt: "" },
 				"Parsed excerpt.",
 			),
-		).toBe("Parsed excerpt.");
+		).toEqual(PARSED);
 	});
 
 	it("returns the fallback when summary is undefined", () => {
-		expect(pickExcerpt(undefined, "Parsed excerpt.")).toBe("Parsed excerpt.");
+		expect(pickExcerpt(undefined, "Parsed excerpt.")).toEqual(PARSED);
 	});
 
 	it("returns the fallback when status is pending", () => {
-		expect(pickExcerpt({ status: "pending" }, "Parsed excerpt.")).toBe(
-			"Parsed excerpt.",
-		);
+		expect(pickExcerpt({ status: "pending" }, "Parsed excerpt.")).toEqual(PARSED);
 	});
 
 	it("returns the fallback when status is failed", () => {
 		expect(
 			pickExcerpt({ status: "failed", reason: "boom" }, "Parsed excerpt."),
-		).toBe("Parsed excerpt.");
+		).toEqual(PARSED);
 	});
 
 	it("returns the fallback when status is skipped", () => {
-		expect(pickExcerpt({ status: "skipped" }, "Parsed excerpt.")).toBe(
-			"Parsed excerpt.",
-		);
+		expect(pickExcerpt({ status: "skipped" }, "Parsed excerpt.")).toEqual(PARSED);
+	});
+
+	it("marks a crawler-parsed excerpt so the card can render it unclamped", () => {
+		expect(pickExcerpt(undefined, "Parsed excerpt.").source).toBe("parsed");
+		expect(
+			pickExcerpt(
+				{ status: "ready", summary: "AI summary.", excerpt: "Blurb." },
+				"Parsed excerpt.",
+			).source,
+		).toBe("generated");
 	});
 });
 

@@ -173,7 +173,7 @@ export function ReaderPage(
 	return {
 		seo: {
 			title: formatReaderDocumentTitle(article.metadata.title),
-			description: truncateForSeo(pickExcerpt(options.summary, article.metadata.excerpt)),
+			description: truncateForSeo(pickExcerpt(options.summary, article.metadata.excerpt).text),
 			canonicalUrl: `/queue/${articleId}/view`,
 			robots: "noindex, nofollow",
 		},

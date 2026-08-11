@@ -1,11 +1,17 @@
 import type { GeneratedSummary } from "@packages/provider-contracts/article-summary";
 
+export interface PickedExcerpt {
+	text: string;
+	source: "generated" | "parsed";
+}
+
 export function pickExcerpt(
 	summary: GeneratedSummary | undefined,
 	fallback: string,
-): string {
-	if (summary?.status === "ready" && summary.excerpt) return summary.excerpt;
-	return fallback;
+): PickedExcerpt {
+	if (summary?.status === "ready" && summary.excerpt)
+		return { text: summary.excerpt, source: "generated" };
+	return { text: fallback, source: "parsed" };
 }
 
 const SEO_DESCRIPTION_MAX_CHARS = 160;

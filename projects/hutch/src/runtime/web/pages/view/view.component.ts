@@ -218,7 +218,7 @@ export function ViewPage(input: ViewPageInput): PageBody {
 		? input.metadata.title
 		: DEFAULT_OG_ALT;
 	const description = truncateForSeo(
-		pickExcerpt(input.summary, input.metadata.excerpt) || "View on Readplace.",
+		pickExcerpt(input.summary, input.metadata.excerpt).text || "View on Readplace.",
 	);
 
 	const structuredData: Record<string, unknown> = {

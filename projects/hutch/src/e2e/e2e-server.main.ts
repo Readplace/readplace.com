@@ -267,6 +267,8 @@ const SeedCrawledArticleBody = z.object({
 	wordCount: z.number().int().positive().default(500),
 	savedAt: z.string().optional(),
 	provenance: SaveProvenanceSchema.default({ kind: 'web' }),
+	excerpt: z.string().default('Seeded for the crawl-bookmark visual test.'),
+	generatedSummary: z.object({ summary: z.string(), excerpt: z.string() }).optional(),
 })
 server.post('/e2e/seed-crawled-article', async (req, res) => {
 	const parsed = SeedCrawledArticleBody.safeParse(req.body)
@@ -284,9 +286,11 @@ server.post('/e2e/seed-crawled-article', async (req, res) => {
 		wordCount,
 		savedAt,
 		provenance,
+		excerpt,
+		generatedSummary,
 	} = parsed.data
 	const hostname = new URL(url).hostname
-	const metadata = { title, siteName: hostname, excerpt: 'Seeded for the crawl-bookmark visual test.', wordCount }
+	const metadata = { title, siteName: hostname, excerpt, wordCount }
 	const estimatedReadTime = calculateReadTime(wordCount)
 	await fixture.articleStore.saveArticleGlobally({
 		url,
@@ -308,6 +312,7 @@ server.post('/e2e/seed-crawled-article', async (req, res) => {
 		: undefined
 	await fixture.articleStore.writeContent({ url, content })
 	await fixture.articleCrawl.markCrawlReady({ url })
+	if (generatedSummary) summary.markSummaryReady({ url, ...generatedSummary })
 	await fixture.articleStore.setContentFetchedAt({ url, at: contentFetchedAt })
 	await fixture.articleStore.setCrawlVersions({
 		url,

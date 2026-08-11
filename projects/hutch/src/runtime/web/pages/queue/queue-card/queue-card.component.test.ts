@@ -16,6 +16,7 @@ function makeViewModel(
 		title: "Article Title",
 		siteName: "example.com",
 		excerpt: "An excerpt.",
+		excerptSource: "generated",
 		url: "https://example.com/article",
 		status: "unread",
 		isUnread: true,
@@ -73,6 +74,32 @@ describe("renderQueueCard", () => {
 		expect(doc.querySelector(".queue-article__excerpt")?.textContent).toBe(
 			"An excerpt.",
 		);
+	});
+
+	it("clamps a generated excerpt, which is a teaser the model sized to a two-line budget", () => {
+		const doc = parse(
+			renderQueueCard(
+				display(makeViewModel({ excerptSource: "generated" }), { isFirst: false }),
+			),
+		);
+		expect(
+			doc.querySelector("[data-test-article-excerpt]")?.classList.contains(
+				"queue-article__excerpt--clamped",
+			),
+		).toBe(true);
+	});
+
+	it("leaves a crawler-parsed excerpt unclamped, so the page's own description is not cut mid-sentence", () => {
+		const doc = parse(
+			renderQueueCard(
+				display(makeViewModel({ excerptSource: "parsed" }), { isFirst: false }),
+			),
+		);
+		expect(
+			doc.querySelector("[data-test-article-excerpt]")?.classList.contains(
+				"queue-article__excerpt--clamped",
+			),
+		).toBe(false);
 	});
 
 	it("points the title, excerpt, and thumbnail at the reader view with a distinct utm_content each and the device class as utm_term", () => {
