@@ -76,7 +76,7 @@ describe("renderQueueCard", () => {
 		);
 	});
 
-	it("clamps a generated excerpt, which is a teaser the model sized to a two-line budget", () => {
+	it("never clamps a generated excerpt, which the model wrote to be read whole", () => {
 		const doc = parse(
 			renderQueueCard(
 				display(makeViewModel({ excerptSource: "generated" }), { isFirst: false }),
@@ -86,10 +86,10 @@ describe("renderQueueCard", () => {
 			doc.querySelector("[data-test-article-excerpt]")?.classList.contains(
 				"queue-article__excerpt--clamped",
 			),
-		).toBe(true);
+		).toBe(false);
 	});
 
-	it("leaves a crawler-parsed excerpt unclamped, so the page's own description is not cut mid-sentence", () => {
+	it("clamps a crawler-parsed excerpt, which is unbounded page prose rather than a teaser", () => {
 		const doc = parse(
 			renderQueueCard(
 				display(makeViewModel({ excerptSource: "parsed" }), { isFirst: false }),
@@ -99,7 +99,7 @@ describe("renderQueueCard", () => {
 			doc.querySelector("[data-test-article-excerpt]")?.classList.contains(
 				"queue-article__excerpt--clamped",
 			),
-		).toBe(false);
+		).toBe(true);
 	});
 
 	it("points the title, excerpt, and thumbnail at the reader view with a distinct utm_content each and the device class as utm_term", () => {

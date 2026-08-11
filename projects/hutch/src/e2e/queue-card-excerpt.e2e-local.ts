@@ -13,14 +13,15 @@ const GENERATED_CARD =
 	'[data-test-article]:has([data-test-article-title]:text-is("Generated excerpt"))';
 const EXCERPT = "[data-test-article-excerpt]";
 
-/* A real Readability first-paragraph excerpt: prose that was never written to be
- * a teaser, which is why it ends mid-word. Long enough to run past two lines at
- * every viewport this spec uses. */
+/* A real Readability first-paragraph excerpt: unbounded page prose that was never
+ * written to be a teaser, which is why it ends mid-word. Long enough to run past
+ * two lines at every viewport this spec uses. */
 const PARSED_EXCERPT =
 	'I have been a director of engineering for a bit over three years now, and I still hear and read what I call the "old rules" repeated over and over: a director should not spend time coding, good work takes time, protect the team from the business, get consensus before you commit, etc. For a while I thought the people repeating these lines were behind. Then we introduced LLMs in my org and the cost of producing code dropped, and I started checking each rule against the assumption underneath it. T';
 
-/* A model-written teaser. Also past two lines, so the clamp it keeps is doing
- * visible work rather than passing because the text happens to be short. */
+/* A model-written teaser, deliberately past two lines: the prompt asks for ~100
+ * characters but nothing enforces it since 1988e022, so "renders whole" has to
+ * hold for a long one rather than pass because the text happens to be short. */
 const GENERATED_EXCERPT =
 	"Attention is the scarce resource, and the queue is where it gets spent: every card you skim is a decision about what you will never read, which is why the teaser has to carry the whole thought instead of trailing off into an ellipsis that costs a click.";
 
@@ -78,7 +79,7 @@ async function measureExcerpt(
 test.describe("Queue card excerpt", () => {
 	test.use({ timezoneId: "UTC", viewport: { width: 1280, height: 900 } });
 
-	test("seats a crawler-parsed excerpt whole and keeps a generated one clamped", async ({
+	test("seats a generated excerpt whole and clamps an unbounded crawler-parsed one", async ({
 		page,
 	}, testInfo) => {
 		const stamp = `${testInfo.workerIndex}-${Date.now()}`;
@@ -118,13 +119,13 @@ test.describe("Queue card excerpt", () => {
 		);
 
 		assert.equal(
-			parsed.paintedHeight,
-			parsed.contentHeight,
-			"the card must grow to seat the whole parsed excerpt, not hide its tail behind a line clamp",
+			generated.paintedHeight,
+			generated.contentHeight,
+			"the model wrote this excerpt to be read whole, so the card must grow to seat all of it rather than hide its tail behind a line clamp",
 		);
 		assert.ok(
-			generated.paintedHeight < generated.contentHeight,
-			`a generated excerpt is a teaser the model sized to a two-line budget, so the card keeps clamping it — painted ${generated.paintedHeight}px of ${generated.contentHeight}px`,
+			parsed.paintedHeight < parsed.contentHeight,
+			`a crawler-parsed excerpt is unbounded page prose, so the card keeps clamping it — painted ${parsed.paintedHeight}px of ${parsed.contentHeight}px`,
 		);
 	});
 });

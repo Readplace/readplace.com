@@ -78,7 +78,7 @@ export function toQueueCardDisplayModel(
 		thumbnailLinkUrl: openReaderLink("open-article-thumbnail"),
 		unreadClass: article.isUnread ? " queue-article--unread" : " queue-article--read",
 		excerptClampClass:
-			article.excerptSource === "generated" ? " queue-article__excerpt--clamped" : "",
+			article.excerptSource === "parsed" ? " queue-article__excerpt--clamped" : "",
 		isFirst: options.isFirst,
 		cardStatus: isProcessing ? "pending" : "terminal",
 		isProcessing,
