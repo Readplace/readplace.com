@@ -329,14 +329,26 @@ hr::before {
   text-align: center;
 }
 
+/* Reserved for the longest slogan rather than sized to the one on screen: the
+rotator swaps text of differing lengths, and a heading that resizes with it
+reflows every section below. The reservation lives here rather than on the class
+the rotator adds, so the server-rendered first paint already holds the box and
+hydration doesn't jump it. */
 .home-try__title {
+  --home-try-title-font-size: 1.875rem;
+  --home-try-title-line-height: 1.25;
+  --home-try-title-lines: 4;
   font-family: var(--font-serif);
-  font-size: 1.875rem;
+  font-size: var(--home-try-title-font-size);
   font-weight: 700;
-  line-height: 1.25;
+  line-height: var(--home-try-title-line-height);
   letter-spacing: -0.01em;
   color: var(--color-secondary);
   margin: 0 0 12px;
+  height: calc(
+    var(--home-try-title-font-size) * var(--home-try-title-line-height) *
+      var(--home-try-title-lines)
+  );
 }
 
 @media (prefers-color-scheme: dark) {
@@ -345,13 +357,7 @@ hr::before {
   }
 }
 
-/* Only the rotating heading reserves two lines. Slogans differ in length, so
-without a reserved box a swap to a wrapping slogan reflows everything below it —
-a layout shift Core Web Vitals measures. The class is added by the rotator, so a
-reader with no JavaScript or reduced motion keeps the natural height and never
-sees the reserved gap. */
 .home-try__title--rotating {
-  min-height: 2.5em;
   transition: opacity 300ms ease;
 }
 
@@ -441,6 +447,18 @@ sees the reserved gap. */
   }
 }
 
+@media (min-width: 360px) {
+  .home-try__title {
+    --home-try-title-lines: 3;
+  }
+}
+
+@media (min-width: 480px) {
+  .home-try__title {
+    --home-try-title-lines: 2;
+  }
+}
+
 @media (min-width: 640px) {
   .home-try__form {
     flex-direction: row;
@@ -458,7 +476,7 @@ sees the reserved gap. */
   }
 
   .home-try__title {
-    font-size: 2.5rem;
+    --home-try-title-font-size: 2.5rem;
   }
 }
 
