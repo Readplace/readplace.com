@@ -33,6 +33,7 @@ import type {
 	FindArticleUrlById,
 	FindArticlesByUser,
 	FindArticlesResult,
+	FindSavedUrls,
 	MarkArticleViewed,
 	MarkRelatedDismissed,
 	MarkSummaryToggled,
@@ -80,6 +81,7 @@ import {
 	initDeleteArticleFromQueue,
 	initSaveArticleAtQueueTop, initSaveArticleFromUrl,
 	initSaveArticleInteractively,
+	rankNewLinksAbove,
 } from "@packages/save-article";
 import type { PublishComputeRelatedArticles } from "@packages/provider-contracts/events";
 import type {
@@ -278,6 +280,7 @@ interface QueueDependencies {
 	refreshArticleIfStale: RefreshArticleIfStale;
 	allocateSavedAt: AllocateSavedAt;
 	allocateSavedAtSequence: AllocateSavedAtSequence;
+	findSavedUrls: FindSavedUrls;
 	resolveCanonicalIdentity: (url: string) => Promise<string>;
 	publishUpdateFetchTimestamp: PublishUpdateFetchTimestamp;
 	readArticleContent: ReadArticleContent;
@@ -1220,15 +1223,21 @@ export function initQueueRoutes(deps: QueueDependencies): Router {
 			return { index: job.index, outcome: "failed" };
 		};
 
-		const prepareOnePage = async (job: PageJob): Promise<{ job: PageJob; freshness: ContentFreshnessResult } | PageOutcome> => {
+		type PreparedPage = { job: PageJob; freshness: ContentFreshnessResult; canonicalUrl: string };
+
+		const prepareOnePage = async (job: PageJob): Promise<PreparedPage | PageOutcome> => {
 			try {
-				return { job, freshness: await deps.refreshArticleIfStale({ url: job.url }) };
+				const [freshness, canonicalUrl] = await Promise.all([
+					deps.refreshArticleIfStale({ url: job.url }),
+					deps.resolveCanonicalIdentity(job.url),
+				]);
+				return { job, freshness, canonicalUrl };
 			} catch (error) {
 				return failOnePage(job, error);
 			}
 		};
 
-		const writeOnePage = async (page: { job: PageJob; freshness: ContentFreshnessResult }, savedAt: Date): Promise<PageOutcome> => {
+		const writeOnePage = async (page: PreparedPage, savedAt: Date): Promise<PageOutcome> => {
 			const { job, freshness } = page;
 			try {
 				if (job.kind === "content") {
@@ -1252,15 +1261,33 @@ export function initQueueRoutes(deps: QueueDependencies): Router {
 			}
 		};
 
-		const writeAllPages = async (ready: { job: PageJob; freshness: ContentFreshnessResult }[]): Promise<PageOutcome[]> => {
+		const findAlreadySaved = async (ready: PreparedPage[]): Promise<Set<string>> => {
+			const canonicalUrls = ready.map((page) => page.canonicalUrl);
+			try {
+				return new Set(await deps.findSavedUrls({ userId, urls: canonicalUrls }));
+			} catch (error) {
+				deps.logError("Failed to rank a bulk save; keeping manifest order", error instanceof Error ? error : undefined);
+				return new Set(canonicalUrls);
+			}
+		};
+
+		const writeAllPages = async (ready: PreparedPage[]): Promise<PageOutcome[]> => {
 			if (ready.length === 0) return [];
+			const alreadySavedPending = findAlreadySaved(ready);
 			let savedAts: Date[];
 			try {
 				savedAts = await deps.allocateSavedAtSequence({ userId, count: ready.length });
 			} catch (error) {
+				await alreadySavedPending;
 				return ready.map((page) => failOnePage(page.job, error));
 			}
-			return Promise.all(ready.map((page, index) => writeOnePage(page, savedAts[index])));
+			const alreadySaved = await alreadySavedPending;
+			const ranked = rankNewLinksAbove({
+				items: ready,
+				instants: savedAts,
+				isNew: (page) => !alreadySaved.has(page.canonicalUrl),
+			});
+			return Promise.all(ready.map((page, index) => writeOnePage(page, ranked[index])));
 		};
 
 		const prepared = await Promise.all(jobs.map(prepareOnePage));

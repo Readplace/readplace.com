@@ -306,6 +306,34 @@ describe("initInMemoryArticleStore", () => {
 			expect(next.getTime()).toBeGreaterThan(sequence[3].getTime());
 		});
 
+		it("findSavedUrls answers with the subset the user already has, so a batch can tell a re-save from a first save", async () => {
+			const store = initInMemoryArticleStore();
+			await store.saveArticle(
+				makeArticleParams({ url: "https://example.com/already-saved" }),
+			);
+
+			const saved = await store.findSavedUrls({
+				userId: USER_A,
+				urls: ["https://example.com/already-saved", "https://example.com/never-saved"],
+			});
+
+			expect(saved).toEqual(["https://example.com/already-saved"]);
+		});
+
+		it("findSavedUrls scopes the answer to the asking user, so another reader's save never counts as this one's", async () => {
+			const store = initInMemoryArticleStore();
+			await store.saveArticle(
+				makeArticleParams({ userId: USER_B, url: "https://example.com/other-users-save" }),
+			);
+
+			const saved = await store.findSavedUrls({
+				userId: USER_A,
+				urls: ["https://example.com/other-users-save"],
+			});
+
+			expect(saved).toEqual([]);
+		});
+
 		it("ignores a bumpArticleSavedAt call for a URL that has never been saved", async () => {
 			const store = initInMemoryArticleStore();
 

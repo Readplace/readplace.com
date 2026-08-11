@@ -21,6 +21,7 @@ import type {
 	AllocateSavedAt,
 	AllocateSavedAtSequence,
 	BumpArticleSavedAt,
+	FindSavedUrls,
 	CountArticlesByUser,
 	DeleteAllUserArticles,
 	DeleteArticle,
@@ -103,6 +104,8 @@ const SaveCursorRow = z.object({
 	savedAtCursorMs: z.number(),
 });
 
+const SavedUrlRow = z.looseObject({ url: z.string() });
+
 const UserArticleRow = z.object({
 	userId: UserIdSchema,
 	url: z.string(),
@@ -162,6 +165,7 @@ export function initDynamoDbSavedArticleStore(deps: {
 	saveArticleKeepingPosition: SaveArticle;
 	allocateSavedAt: AllocateSavedAt;
 	allocateSavedAtSequence: AllocateSavedAtSequence;
+	findSavedUrls: FindSavedUrls;
 	saveArticleGlobally: SaveArticleGlobally;
 	bumpArticleSavedAt: BumpArticleSavedAt;
 	findArticleById: FindArticleById;
@@ -243,6 +247,19 @@ export function initDynamoDbSavedArticleStore(deps: {
 		const [instant] = await allocateSavedAtSequence({ userId, count: 1 });
 		assert(instant, "a one-instant sequence yields exactly one instant");
 		return instant;
+	};
+
+	const findSavedUrls: FindSavedUrls = async ({ userId, urls }) => {
+		const identified = urls.map((url) => ({ url, resourceId: ArticleResourceUniqueId.parse(url).value }));
+		const rows = await batchGetFromTable({
+			client,
+			tableName: userArticlesTableName,
+			schema: SavedUrlRow,
+			keys: [...new Set(identified.map((entry) => entry.resourceId))].map((url) => ({ userId, url })),
+			projection: ["url"],
+		});
+		const savedResourceIds = new Set(rows.map((row) => row.url));
+		return identified.filter((entry) => savedResourceIds.has(entry.resourceId)).map((entry) => entry.url);
 	};
 
 	async function findArticleByRouteId(routeId: ReaderArticleHashId): Promise<z.infer<typeof ArticleRow> | null> {
@@ -804,6 +821,7 @@ export function initDynamoDbSavedArticleStore(deps: {
 		saveArticleKeepingPosition,
 		allocateSavedAt,
 		allocateSavedAtSequence,
+		findSavedUrls,
 		saveArticleGlobally,
 		bumpArticleSavedAt,
 		findArticleById,

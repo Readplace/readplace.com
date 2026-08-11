@@ -731,6 +731,61 @@ describe("initDynamoDbSavedArticleStore global writes", () => {
 		});
 	});
 
+	it("findSavedUrls reports back only the URLs the user already has, keyed on the resource id", async () => {
+		const { client, commands } = createFakeClient({
+			BatchGetCommand: {
+				default: { Responses: { "user-articles": [userArticleItem()] } },
+			},
+		});
+
+		const saved = await initStore(client).findSavedUrls({
+			userId: USER,
+			urls: [URL, "https://example.com/never-saved"],
+		});
+
+		expect(saved).toEqual([URL]);
+		const batchGet = commands.find((c) => c.name === "BatchGetCommand");
+		assert(batchGet, "the store must have sent a BatchGetCommand");
+		expect(batchGet.input).toEqual({
+			RequestItems: {
+				"user-articles": {
+					Keys: [
+						{ userId: USER, url: RESOURCE_ID },
+						{ userId: USER, url: "example.com/never-saved" },
+					],
+					ProjectionExpression: "#url",
+					ExpressionAttributeNames: { "#url": "url" },
+				},
+			},
+		});
+	});
+
+	it("findSavedUrls collapses URLs that share one resource id, which DynamoDB rejects as duplicate keys", async () => {
+		const { client, commands } = createFakeClient({
+			BatchGetCommand: {
+				default: { Responses: { "user-articles": [userArticleItem()] } },
+			},
+		});
+
+		const saved = await initStore(client).findSavedUrls({
+			userId: USER,
+			urls: [URL, `${URL}#section`],
+		});
+
+		expect(saved).toEqual([URL, `${URL}#section`]);
+		const batchGet = commands.find((c) => c.name === "BatchGetCommand");
+		assert(batchGet, "the store must have sent a BatchGetCommand");
+		expect(batchGet.input).toEqual({
+			RequestItems: {
+				"user-articles": {
+					Keys: [{ userId: USER, url: RESOURCE_ID }],
+					ProjectionExpression: "#url",
+					ExpressionAttributeNames: { "#url": "url" },
+				},
+			},
+		});
+	});
+
 	it("allocateSavedAt rethrows a non-conditional error from either cursor write", async () => {
 		const throttled = () => {
 			throw new Error("throttled");

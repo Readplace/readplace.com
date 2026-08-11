@@ -20,3 +20,4 @@ export {
 	initSubmitFreshness,
 	type SubmitFreshnessDependencies,
 } from "./submit-freshness";
+export { rankNewLinksAbove } from "./rank-new-links-above";

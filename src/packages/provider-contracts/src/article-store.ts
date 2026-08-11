@@ -56,6 +56,11 @@ export type AllocateSavedAtSequence = (params: {
 	count: number;
 }) => Promise<Date[]>;
 
+export type FindSavedUrls = (params: {
+	userId: UserId;
+	urls: readonly string[];
+}) => Promise<string[]>;
+
 export interface SaveArticleGloballyParams {
 	url: string;
 	metadata: SavedArticle["metadata"];

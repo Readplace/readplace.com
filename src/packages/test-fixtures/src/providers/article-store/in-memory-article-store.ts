@@ -12,6 +12,7 @@ import type { UserId } from "@packages/domain/user";
 import type {
 	AllocateSavedAt,
 	AllocateSavedAtSequence,
+	FindSavedUrls,
 	ArticleCrawlVersion,
 	BumpArticleSavedAt,
 	CountArticlesByUser,
@@ -91,6 +92,7 @@ export function initInMemoryArticleStore(): {
 	saveArticleKeepingPosition: SaveArticle;
 	allocateSavedAt: AllocateSavedAt;
 	allocateSavedAtSequence: AllocateSavedAtSequence;
+	findSavedUrls: FindSavedUrls;
 	saveArticleGlobally: SaveArticleGlobally;
 	bumpArticleSavedAt: BumpArticleSavedAt;
 	findArticleById: FindArticleById;
@@ -142,6 +144,11 @@ export function initInMemoryArticleStore(): {
 		assert(instant, "a one-instant sequence yields exactly one instant");
 		return instant;
 	};
+
+	const findSavedUrls: FindSavedUrls = async ({ userId, urls }) =>
+		urls.filter((url) =>
+			userArticles.has(userArticleKey(userId, ArticleResourceUniqueId.parse(url).value)),
+		);
 
 	function userArticleKey(userId: UserId, url: string): string {
 		return `${userId}:${url}`;
@@ -502,6 +509,7 @@ export function initInMemoryArticleStore(): {
 		saveArticleKeepingPosition,
 		allocateSavedAt,
 		allocateSavedAtSequence,
+		findSavedUrls,
 		saveArticleGlobally,
 		bumpArticleSavedAt,
 		findArticleById,

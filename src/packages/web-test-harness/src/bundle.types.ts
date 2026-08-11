@@ -132,6 +132,7 @@ import type {
 	SaveAppleRefreshToken,
 	AllocateSavedAt,
 	AllocateSavedAtSequence,
+	FindSavedUrls,
 	SaveArticle,
 	SaveArticleGlobally,
 	ScheduleCancellationAtPeriodEnd,
@@ -285,6 +286,7 @@ export interface ArticleStoreBundle {
 	saveArticleKeepingPosition: SaveArticle;
 	allocateSavedAt: AllocateSavedAt;
 	allocateSavedAtSequence: AllocateSavedAtSequence;
+	findSavedUrls: FindSavedUrls;
 	saveArticleGlobally: SaveArticleGlobally;
 	bumpArticleSavedAt: BumpArticleSavedAt;
 	deleteArticle: DeleteArticle;

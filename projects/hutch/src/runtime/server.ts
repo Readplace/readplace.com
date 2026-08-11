@@ -75,6 +75,7 @@ import type { GetIosAppSignals, RecordIosAnyActivity, RecordIosSavedArticle } fr
 import type {
 	AllocateSavedAt,
 	AllocateSavedAtSequence,
+	FindSavedUrls,
 	CountArticlesByUser,
 	DeleteArticle,
 	FindArticleById,
@@ -338,6 +339,7 @@ interface AppDependencies {
 	refreshArticleIfStale: RefreshArticleIfStale;
 	allocateSavedAt: AllocateSavedAt;
 	allocateSavedAtSequence: AllocateSavedAtSequence;
+	findSavedUrls: FindSavedUrls;
 	saveArticleKeepingPosition: SaveArticle;
 	resolveCanonicalIdentity: (url: string) => Promise<string>;
 	getIosAppSignals: GetIosAppSignals;
@@ -1135,6 +1137,7 @@ export function createApp(dependencies: AppDependencies): Express {
 		refreshArticleIfStale: deps.refreshArticleIfStale,
 		allocateSavedAt: deps.allocateSavedAt,
 		allocateSavedAtSequence: deps.allocateSavedAtSequence,
+		findSavedUrls: deps.findSavedUrls,
 		resolveCanonicalIdentity: deps.resolveCanonicalIdentity,
 		publishUpdateFetchTimestamp: deps.publishUpdateFetchTimestamp,
 		readArticleContent: deps.readArticleContent,

@@ -48,6 +48,12 @@ const manifest = (entries: { url: string; title?: string; mediaType?: string }[]
 
 const useApp = useTestServer();
 
+const ALIAS_URL = "https://example.com/alias-of-saved";
+const CANONICAL_URL = "https://example.com/canonical-saved";
+const useAliasFoldingApp = useTestServer({
+	resolveCanonicalIdentity: async (url: string) => (url === ALIAS_URL ? CANONICAL_URL : url),
+});
+
 function setup(): {
 	testApp: TestAppHarness;
 	publishedSaveHtml: Parameters<PublishSaveLinkRawHtmlCommand>[0][];
@@ -151,7 +157,66 @@ describe("POST /queue/save-articles", () => {
 		expect(savedAtByUrl.get("https://example.com/fast-2")).toEqual(new Date(allocatorBase.getTime() + 2));
 	});
 
-	it("re-saving a window after deleting one of its articles bumps every tab onto fresh consecutive instants, ordered as if each link were saved separately", async () => {
+	it("saves the whole press in manifest order when the ranking lookup fails, since ranking only decides position", async () => {
+		const fixture = createDefaultTestAppFixture(TEST_APP_ORIGIN);
+		const testApp = useApp({
+			...fixture,
+			articleStore: {
+				...fixture.articleStore,
+				findSavedUrls: async () => {
+					throw new Error("user-articles batch get throttled");
+				},
+			},
+		});
+		const accessToken = await createAccessToken(testApp);
+
+		const response = await request(testApp.server)
+			.post("/queue/save-articles")
+			.set("Accept", SIREN_MEDIA_TYPE)
+			.set("Authorization", `Bearer ${accessToken}`)
+			.field("manifest", manifest([
+				{ url: "https://example.com/rank-a" },
+				{ url: "https://example.com/rank-b" },
+			]));
+
+		expect(response.status).toBe(200);
+		expect(response.body.properties).toEqual(
+			expect.objectContaining({ saved: 2, skipped: 0, failed: 0 }),
+		);
+		const { articles } = await testApp.articleStore.findArticlesByUser({ userId: TEST_USER_ID });
+		expect(articles.map((a) => a.url)).toEqual([
+			"https://example.com/rank-b",
+			"https://example.com/rank-a",
+		]);
+	});
+
+	it("ranks a tab whose URL only aliases an already-saved article as a re-save, not as a new link", async () => {
+		const fixture = createDefaultTestAppFixture(TEST_APP_ORIGIN);
+		const testApp = useAliasFoldingApp(fixture);
+		const accessToken = await createAccessToken(testApp);
+
+		const first = await request(testApp.server)
+			.post("/queue/save-articles")
+			.set("Accept", SIREN_MEDIA_TYPE)
+			.set("Authorization", `Bearer ${accessToken}`)
+			.field("manifest", manifest([{ url: CANONICAL_URL }, { url: "https://example.com/companion" }]));
+		expect(first.status).toBe(200);
+
+		const second = await request(testApp.server)
+			.post("/queue/save-articles")
+			.set("Accept", SIREN_MEDIA_TYPE)
+			.set("Authorization", `Bearer ${accessToken}`)
+			.field("manifest", manifest([{ url: ALIAS_URL }, { url: "https://example.com/companion" }]));
+		expect(second.status).toBe(200);
+
+		const { articles } = await testApp.articleStore.findArticlesByUser({ userId: TEST_USER_ID });
+		expect(articles.map((a) => a.url)).toEqual([
+			"https://example.com/companion",
+			CANONICAL_URL,
+		]);
+	});
+
+	it("re-saving a window bumps every tab onto fresh consecutive instants and ranks the article deleted from its middle above them", async () => {
 		const fixture = createDefaultTestAppFixture(TEST_APP_ORIGIN);
 		const testApp = useApp(fixture);
 		const accessToken = await createAccessToken(testApp);
@@ -196,10 +261,10 @@ describe("POST /queue/save-articles", () => {
 			savedAtOf(URL_C),
 		]);
 		expect(savedA.getTime()).toBeGreaterThan(firstBatchNewest.getTime());
-		expect(savedB.getTime()).toBe(savedA.getTime() + 1);
-		expect(savedC.getTime()).toBe(savedB.getTime() + 1);
+		expect(savedC.getTime()).toBe(savedA.getTime() + 1);
+		expect(savedB.getTime()).toBe(savedC.getTime() + 1);
 		const { articles } = await testApp.articleStore.findArticlesByUser({ userId: TEST_USER_ID });
-		expect(articles.slice(0, 3).map((a) => a.url)).toEqual([URL_C, URL_B, URL_A]);
+		expect(articles.map((a) => a.url)).toEqual([URL_B, URL_C, URL_A]);
 	});
 
 	it("counts a page whose store write throws as failed and still saves the rest of the request", async () => {

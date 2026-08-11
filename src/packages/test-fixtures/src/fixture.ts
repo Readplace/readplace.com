@@ -336,6 +336,7 @@ export function createDefaultTestAppFixture(appOrigin: string): TestAppFixture {
 		articleStore: {
 			allocateSavedAt: articleStoreMemory.allocateSavedAt,
 			allocateSavedAtSequence: articleStoreMemory.allocateSavedAtSequence,
+			findSavedUrls: articleStoreMemory.findSavedUrls,
 			saveArticleKeepingPosition: articleStoreMemory.saveArticleKeepingPosition,
 			deleteAllUserArticles: articleStoreMemory.deleteAllUserArticles,
 			listUserArticleUrls: articleStoreMemory.listUserArticleUrls,
