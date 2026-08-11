@@ -1,3 +1,4 @@
+import type { BulkSaveOutcome, SaveableUrlErrorCode } from "@packages/domain/article";
 import type { SirenEntity } from "./siren";
 
 interface BulkSaveSummary {
@@ -8,7 +9,8 @@ interface BulkSaveSummary {
 	 * URL-only (so the link is kept) but reported here with their size in MB so
 	 * the client can tell the user their full capture was too big. */
 	tooBig: { url: string; mb: number }[];
-	skippedUrls: { url: string; code: string }[];
+	skippedUrls: { url: string; code: SaveableUrlErrorCode }[];
+	results: { url: string; outcome: BulkSaveOutcome; code?: SaveableUrlErrorCode }[];
 }
 
 export function toBulkSaveResultEntity(summary: BulkSaveSummary): SirenEntity {
@@ -20,6 +22,7 @@ export function toBulkSaveResultEntity(summary: BulkSaveSummary): SirenEntity {
 			failed: summary.failed,
 			tooBig: summary.tooBig,
 			skippedUrls: summary.skippedUrls,
+			results: summary.results,
 		},
 	};
 }

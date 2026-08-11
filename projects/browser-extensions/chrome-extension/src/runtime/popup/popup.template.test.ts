@@ -23,6 +23,12 @@ describe("save all tabs progress", () => {
 			'<p id="save-all-hint" class="saved-view__subtitle" data-test-save-all-hint>Saving continues if you close this. We&rsquo;ll notify you when it&rsquo;s done.</p>',
 		);
 	});
+
+	it("save-all view carries the failed-tab list, hidden until a save fails", () => {
+		expect(template).toContain(
+			'<ul class="save-all-view__failed" data-test-save-all-failed hidden></ul>',
+		);
+	});
 });
 
 describe("save all tabs control", () => {

@@ -20,6 +20,8 @@ export const BulkSavePageSchema = z.object({
 
 export const BulkSaveManifestSchema = z.array(BulkSavePageSchema).min(1);
 
+export type BulkSaveOutcome = "created" | "merged" | "skipped" | "failed";
+
 export const LAMBDA_SYNC_INVOKE_PAYLOAD_BYTES = 6 * 1024 * 1024;
 
 export const MAX_UPLOAD_REQUEST_BYTES = (LAMBDA_SYNC_INVOKE_PAYLOAD_BYTES * 3) / 4;

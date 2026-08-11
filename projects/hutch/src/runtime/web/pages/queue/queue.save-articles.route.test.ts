@@ -12,7 +12,7 @@ import {
 	createDefaultTestAppFixture,
 } from "@packages/test-fixtures";
 import { SIREN_MEDIA_TYPE } from "../../api/siren";
-import { MAX_PAGES_PER_BULK_SAVE, MAX_UPLOAD_CONTENT_BYTES } from "@packages/domain/article";
+import { MAX_PAGES_PER_BULK_SAVE, MAX_UPLOAD_CONTENT_BYTES, MAX_BULK_PAGE_CONTENT_BYTES, MAX_UPLOAD_REQUEST_BYTES } from "@packages/domain/article";
 
 const TEST_USER_ID = "test-user-bulk" as UserId;
 
@@ -777,5 +777,137 @@ describe("Collection-Siren advertises save-articles action", () => {
 		);
 		const fieldNames = saveArticlesAction.fields.map((f: { name: string }) => f.name);
 		expect(fieldNames).toEqual(["manifest", "content"]);
+	});
+
+	it("advertises the whole-request byte budget on the content field", async () => {
+		const { testApp } = setup();
+		const accessToken = await createAccessToken(testApp);
+
+		const response = await request(testApp.server)
+			.get("/queue")
+			.set("Accept", SIREN_MEDIA_TYPE)
+			.set("Authorization", `Bearer ${accessToken}`);
+
+		const saveArticlesAction = response.body.actions.find(
+			(a: { name: string }) => a.name === "save-articles",
+		);
+		const contentField = saveArticlesAction.fields.find((f: { name: string }) => f.name === "content");
+		expect(contentField).toEqual(
+			expect.objectContaining({ maxBytes: MAX_BULK_PAGE_CONTENT_BYTES, maxRequestBytes: MAX_UPLOAD_REQUEST_BYTES }),
+		);
+	});
+});
+
+describe("POST /queue/save-articles per-entry results", () => {
+	it("reports one outcome per manifest entry keyed by the submitted url when variants collapse into one row", async () => {
+		const { testApp } = setup();
+		const accessToken = await createAccessToken(testApp);
+
+		const response = await request(testApp.server)
+			.post("/queue/save-articles")
+			.set("Accept", SIREN_MEDIA_TYPE)
+			.set("Authorization", `Bearer ${accessToken}`)
+			.field("manifest", manifest([
+				{ url: "https://example.com/story#one" },
+				{ url: "https://example.com/story?utm_source=a" },
+			]));
+
+		expect(response.status).toBe(200);
+		expect(response.body.properties).toEqual(
+			expect.objectContaining({ saved: 2, skipped: 0, failed: 0 }),
+		);
+		expect(response.body.properties.results.map((r: { url: string }) => r.url)).toEqual([
+			"https://example.com/story#one",
+			"https://example.com/story?utm_source=a",
+		]);
+		expect(
+			response.body.properties.results.map((r: { outcome: string }) => r.outcome).sort(),
+		).toEqual(["created", "merged"]);
+		const stored = await testApp.articleStore.findArticlesByUser({ userId: TEST_USER_ID });
+		expect(stored.articles).toHaveLength(1);
+	});
+
+	it("keeps duplicate manifest entries as distinct results over one stored row", async () => {
+		const { testApp } = setup();
+		const accessToken = await createAccessToken(testApp);
+
+		const response = await request(testApp.server)
+			.post("/queue/save-articles")
+			.set("Accept", SIREN_MEDIA_TYPE)
+			.set("Authorization", `Bearer ${accessToken}`)
+			.field("manifest", manifest([
+				{ url: "https://example.com/dup" },
+				{ url: "https://example.com/dup" },
+			]));
+
+		expect(response.body.properties).toEqual(
+			expect.objectContaining({ saved: 2, skipped: 0, failed: 0 }),
+		);
+		expect(response.body.properties.results.map((r: { url: string }) => r.url)).toEqual([
+			"https://example.com/dup",
+			"https://example.com/dup",
+		]);
+		expect(
+			response.body.properties.results.map((r: { outcome: string }) => r.outcome).sort(),
+		).toEqual(["created", "merged"]);
+		const stored = await testApp.articleStore.findArticlesByUser({ userId: TEST_USER_ID });
+		expect(stored.articles).toHaveLength(1);
+	});
+
+	it("places a skipped entry at its manifest position with its reason code", async () => {
+		const { testApp } = setup();
+		const accessToken = await createAccessToken(testApp);
+
+		const response = await request(testApp.server)
+			.post("/queue/save-articles")
+			.set("Accept", SIREN_MEDIA_TYPE)
+			.set("Authorization", `Bearer ${accessToken}`)
+			.field("manifest", manifest([
+				{ url: "https://example.com/first" },
+				{ url: "chrome://settings" },
+				{ url: "https://example.com/second" },
+			]));
+
+		expect(response.body.properties.results).toEqual([
+			{ url: "https://example.com/first", outcome: "created" },
+			{ url: "chrome://settings", outcome: "skipped", code: "unsupported_scheme" },
+			{ url: "https://example.com/second", outcome: "created" },
+		]);
+		expect(response.body.properties).toEqual(
+			expect.objectContaining({ saved: 2, skipped: 1, failed: 0 }),
+		);
+	});
+
+	it("reports every ready page as failed by its submitted url when the savedAt allocator dies", async () => {
+		const fixture = createDefaultTestAppFixture(TEST_APP_ORIGIN);
+		const testApp = useApp({
+			...fixture,
+			articleStore: {
+				...fixture.articleStore,
+				allocateSavedAtSequence: async () => {
+					throw new Error("allocator down");
+				},
+			},
+		});
+		const accessToken = await createAccessToken(testApp);
+
+		const response = await request(testApp.server)
+			.post("/queue/save-articles")
+			.set("Accept", SIREN_MEDIA_TYPE)
+			.set("Authorization", `Bearer ${accessToken}`)
+			.field("manifest", manifest([
+				{ url: "https://example.com/a" },
+				{ url: "https://example.com/b" },
+			]));
+
+		expect(response.body.properties).toEqual(
+			expect.objectContaining({ saved: 0, skipped: 0, failed: 2 }),
+		);
+		expect(response.body.properties.results).toEqual([
+			{ url: "https://example.com/a", outcome: "failed" },
+			{ url: "https://example.com/b", outcome: "failed" },
+		]);
+		const stored = await testApp.articleStore.findArticlesByUser({ userId: TEST_USER_ID });
+		expect(stored.articles).toHaveLength(0);
 	});
 });

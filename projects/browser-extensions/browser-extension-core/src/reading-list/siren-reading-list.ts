@@ -143,6 +143,7 @@ const SirenActionSchema = z.object({
 				value: z.union([z.string(), z.number()]).optional(),
 				maxBytes: z.number().optional(),
 				maxItems: z.number().optional(),
+				maxRequestBytes: z.number().optional(),
 			}),
 		)
 		.optional(),
@@ -239,6 +240,15 @@ const SaveArticlesResultSchema = z.object({
 		failed: z.number(),
 		tooBig: z.array(z.object({ url: z.string(), mb: z.number() })),
 		skippedUrls: z.array(z.object({ url: z.string(), code: z.string() })),
+		results: z
+			.array(
+				z.object({
+					url: z.string(),
+					outcome: z.enum(["created", "merged", "skipped", "failed"]),
+					code: z.string().optional(),
+				}),
+			)
+			.optional(),
 	}),
 });
 
@@ -351,7 +361,7 @@ export type NavigationResult = {
 	followPage: (href: string) => Promise<NavigationResult>;
 	/** Set only by the save-articles understanding; carries the bulk-save
 	 * summary so `savePages` can surface it. Other actions leave it undefined. */
-	bulk?: BulkSaveResult;
+	bulk?: z.infer<typeof SaveArticlesResultSchema>["properties"];
 	/** What the server asked the client to tell the reader about this response;
 	 * empty when it asked for nothing. */
 	messages: Message[];
@@ -364,7 +374,7 @@ function bytesToMb(bytes: number): number {
 function advertisedLimit(
 	descriptor: SirenAction | undefined,
 	fieldName: string,
-	limit: "maxBytes" | "maxItems",
+	limit: "maxBytes" | "maxItems" | "maxRequestBytes",
 ): number | undefined {
 	return descriptor?.fields?.find((field) => field.name === fieldName)?.[limit];
 }
@@ -373,7 +383,9 @@ function advertisedLimit(
  * manifest cap and a 20 MiB per-page budget. Assumed whenever save-articles
  * advertises no maxItems/maxBytes, so a request never exceeds what an old
  * server accepts (an unsplit window would be refused wholesale). */
-const LEGACY_SERVER_BULK_LIMITS = { maxItems: 20, maxBytes: 20 * 1024 * 1024 };
+const LEGACY_SERVER_BULK_LIMITS = { maxItems: 20, maxBytes: 20 * 1024 * 1024, maxRequestBytes: 4_718_592 };
+
+const REQUEST_ENVELOPE_RESERVE_BYTES = 16 * 1024;
 
 /** The walker's in-memory item. It keeps the cross-boundary `ReadingListItem`
  * intact — including its serializable `actions` descriptors, which DO survive
@@ -1280,6 +1292,16 @@ export function initSirenReadingList(deps: SirenReadingListDeps): {
 		return fields;
 	}
 
+	/** A page's request cost is its captured bytes plus its manifest entry —
+	 * a long URL or tab title spends the same budget as content, so a packed
+	 * request never outgrows the server's parser cap by manifest weight. */
+	function requestCostOf(page: BulkSavePage): number {
+		return (
+			(page.content?.bytes.byteLength ?? 0) +
+			new TextEncoder().encode(JSON.stringify(manifestEntryFor(page))).length
+		);
+	}
+
 	function packRequests(
 		pages: BulkSavePage[],
 		limits: { maxItems: number; maxBytes: number },
@@ -1288,12 +1310,7 @@ export function initSirenReadingList(deps: SirenReadingListDeps): {
 		let current: BulkSavePage[] = [];
 		let currentBytes = 0;
 		for (const page of pages) {
-			/** A page's request cost is its captured bytes plus its manifest entry —
-			 * a long URL or tab title spends the same budget as content, so a packed
-			 * request never outgrows the server's parser cap by manifest weight. */
-			const bytes =
-				(page.content?.bytes.byteLength ?? 0) +
-				new TextEncoder().encode(JSON.stringify(manifestEntryFor(page))).length;
+			const bytes = requestCostOf(page);
 			const overCount = current.length > 0 && current.length >= limits.maxItems;
 			const overBytes = current.length > 0 && currentBytes + bytes > limits.maxBytes;
 			if (overCount || overBytes) {
@@ -1309,7 +1326,17 @@ export function initSirenReadingList(deps: SirenReadingListDeps): {
 	}
 
 	const savePages: SavePages = async ({ pages }) => {
-		const summary: BulkSaveResult = { saved: 0, skipped: 0, failed: 0, tooBig: [], skippedUrls: [] };
+		const summary: BulkSaveResult = {
+			saved: 0,
+			skipped: 0,
+			failed: 0,
+			tooBig: [],
+			skippedUrls: [],
+			failedUrls: [],
+			alreadySaved: 0,
+			pendingRetry: 0,
+			unauthorized: false,
+		};
 		if (pages.length === 0) return summary;
 
 		const collection = await start();
@@ -1321,32 +1348,77 @@ export function initSirenReadingList(deps: SirenReadingListDeps): {
 		const descriptor = collection.descriptors["save-articles"];
 		const maxBytes = advertisedLimit(descriptor, "content", "maxBytes") ?? LEGACY_SERVER_BULK_LIMITS.maxBytes;
 		const maxItems = advertisedLimit(descriptor, "manifest", "maxItems") ?? LEGACY_SERVER_BULK_LIMITS.maxItems;
+		const maxRequestBytes =
+			advertisedLimit(descriptor, "content", "maxRequestBytes") ?? LEGACY_SERVER_BULK_LIMITS.maxRequestBytes;
+		const requestBudget = maxRequestBytes - REQUEST_ENVELOPE_RESERVE_BYTES;
 
 		const sendable = pages.map((page) => {
 			const bytes = page.content?.bytes.byteLength ?? 0;
+			let candidate = page;
 			if (bytes > maxBytes) {
 				deps.logger.warn(
 					`Captured page of ${bytes} bytes exceeds the ${maxBytes}-byte bulk upload limit — saving URL-only`,
 				);
 				summary.tooBig.push({ url: page.url, mb: bytesToMb(bytes) });
 				const { content: _content, ...urlOnly } = page;
-				return urlOnly;
+				candidate = urlOnly;
+			} else if (page.content && requestCostOf(page) > requestBudget) {
+				deps.logger.warn(
+					`Captured page of ${bytes} bytes plus its manifest entry exceeds the ${requestBudget}-byte request budget — saving URL-only`,
+				);
+				summary.tooBig.push({ url: page.url, mb: bytesToMb(bytes) });
+				const { content: _content, ...urlOnly } = page;
+				candidate = urlOnly;
 			}
-			return page;
+			if (requestCostOf(candidate) > requestBudget) {
+				deps.logger.warn(
+					`Manifest entry for ${candidate.url} exceeds the ${requestBudget}-byte request budget — dropping its title`,
+				);
+				return { url: candidate.url };
+			}
+			return candidate;
 		});
 
-		for (const request of packRequests(sendable, { maxItems, maxBytes })) {
+		const requests = packRequests(sendable, {
+			maxItems,
+			maxBytes: Math.min(maxBytes, requestBudget),
+		});
+		for (const [i, request] of requests.entries()) {
 			try {
 				const result = await action(requestFor(request));
 				assert(result.bulk, "save-articles response missing bulk summary");
+				const results = result.bulk.results ?? [];
 				summary.saved += result.bulk.saved;
 				summary.skipped += result.bulk.skipped;
 				summary.failed += result.bulk.failed;
 				summary.tooBig.push(...result.bulk.tooBig);
 				summary.skippedUrls.push(...result.bulk.skippedUrls);
+				summary.alreadySaved += results.filter((entry) => entry.outcome === "merged").length;
+				summary.failedUrls.push(
+					...results.filter((entry) => entry.outcome === "failed").map((entry) => ({ url: entry.url })),
+				);
+				const accounted = result.bulk.saved + result.bulk.skipped + result.bulk.failed;
+				const shortfall = request.length - accounted;
+				if (shortfall > 0) {
+					const accountedUrls = new Set(results.map((entry) => entry.url));
+					summary.failed += shortfall;
+					summary.failedUrls.push(
+						...request
+							.filter((page) => !accountedUrls.has(page.url))
+							.map((page) => ({ url: page.url })),
+					);
+				}
 			} catch (err) {
-				if (err instanceof UnauthorizedError) throw err;
+				if (err instanceof UnauthorizedError) {
+					if (i === 0) throw err;
+					const unsent = requests.slice(i).flat();
+					summary.failed += unsent.length;
+					summary.failedUrls.push(...unsent.map((page) => ({ url: page.url })));
+					summary.unauthorized = true;
+					return summary;
+				}
 				summary.failed += request.length;
+				summary.failedUrls.push(...request.map((page) => ({ url: page.url })));
 			}
 		}
 		return summary;

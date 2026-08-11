@@ -9,7 +9,7 @@ import type { Request, RequestHandler, Response, Router } from "express";
 import express from "express";
 import { z } from "zod";
 import type { HutchLogger } from "@packages/hutch-logger";
-import type { SaveableUrl, ValidateSaveableUrl } from "@packages/domain/article";
+import type { BulkSaveOutcome, SaveableUrl, SaveableUrlErrorCode, ValidateSaveableUrl } from "@packages/domain/article";
 import type { UserId } from "@packages/domain/user";
 import { BulkSaveManifestSchema, MAX_PAGES_PER_BULK_SAVE, MAX_UPLOAD_REQUEST_BYTES, MAX_UPLOAD_HTML_BYTES, ArticleStatusSchema, saveableUrlErrorMessage } from "@packages/domain/article";
 import { buildSaveIntentEvent, classifyDeviceClass, hashIp, type AnalyticsEvent } from "@packages/web-analytics";
@@ -1185,15 +1185,18 @@ export function initQueueRoutes(deps: QueueDependencies): Router {
 		}
 
 		type PageJob =
-			| { kind: "content"; url: SaveableUrl; title?: string; mediaType: string; bytes: Buffer }
-			| { kind: "url-only"; url: SaveableUrl; title?: string };
+			| { kind: "content"; index: number; url: SaveableUrl; title?: string; mediaType: string; bytes: Buffer }
+			| { kind: "url-only"; index: number; url: SaveableUrl; title?: string };
+		type PageOutcome = { index: number; outcome: Exclude<BulkSaveOutcome, "skipped"> };
 		const jobs: PageJob[] = [];
-		const skipped: { url: string; code: string }[] = [];
+		const skipped: { url: string; code: SaveableUrlErrorCode }[] = [];
+		const entryOutcomes: { outcome: BulkSaveOutcome; code?: SaveableUrlErrorCode }[] = [];
 
 		manifest.data.forEach((entry, index) => {
 			const validation = deps.validateSaveableUrl(entry.url);
 			if (validation.status !== "SUCCESS") {
 				skipped.push({ url: entry.url, code: validation.error.code });
+				entryOutcomes[index] = { outcome: "skipped", code: validation.error.code };
 				return;
 			}
 			const url = validation.url;
@@ -1205,19 +1208,19 @@ export function initQueueRoutes(deps: QueueDependencies): Router {
 				? parsed.parts.find((p) => p.name === `content-${index}` && p.isFile)
 				: undefined;
 			if (mediaType && contentPart) {
-				jobs.push({ kind: "content", url, title: entry.title, mediaType, bytes: contentPart.content });
+				jobs.push({ kind: "content", index, url, title: entry.title, mediaType, bytes: contentPart.content });
 			} else {
-				jobs.push({ kind: "url-only", url, title: entry.title });
+				jobs.push({ kind: "url-only", index, url, title: entry.title });
 			}
 		});
 
-		const failOnePage = (job: PageJob, error: unknown): "failed" => {
+		const failOnePage = (job: PageJob, error: unknown): PageOutcome => {
 			deps.logError(`Failed to bulk-save url=${job.url}`, error instanceof Error ? error : undefined);
 			emitSaveIntent({ req, url: job.url, path: SAVE_INTENT_PATH.saveArticles, surface: SAVE_SURFACES.extension, outcome: SAVE_OUTCOMES.error });
-			return "failed";
+			return { index: job.index, outcome: "failed" };
 		};
 
-		const prepareOnePage = async (job: PageJob): Promise<{ job: PageJob; freshness: ContentFreshnessResult } | "failed"> => {
+		const prepareOnePage = async (job: PageJob): Promise<{ job: PageJob; freshness: ContentFreshnessResult } | PageOutcome> => {
 			try {
 				return { job, freshness: await deps.refreshArticleIfStale({ url: job.url }) };
 			} catch (error) {
@@ -1225,7 +1228,7 @@ export function initQueueRoutes(deps: QueueDependencies): Router {
 			}
 		};
 
-		const writeOnePage = async (page: { job: PageJob; freshness: ContentFreshnessResult }, savedAt: Date): Promise<"saved" | "failed"> => {
+		const writeOnePage = async (page: { job: PageJob; freshness: ContentFreshnessResult }, savedAt: Date): Promise<PageOutcome> => {
 			const { job, freshness } = page;
 			try {
 				if (job.kind === "content") {
@@ -1235,7 +1238,7 @@ export function initQueueRoutes(deps: QueueDependencies): Router {
 					const media = saveContentMedia[normalizeMediaType(job.mediaType)];
 					if (media) await media.stageInlineBytes({ url: job.url, bytes: job.bytes, title: job.title, userId });
 				}
-				await saveArticleFromUrl({
+				const { createdUserArticle } = await saveArticleFromUrl({
 					userId,
 					url: job.url,
 					freshness,
@@ -1243,13 +1246,13 @@ export function initQueueRoutes(deps: QueueDependencies): Router {
 					savedAt,
 				});
 				emitSaveIntent({ req, url: job.url, path: SAVE_INTENT_PATH.saveArticles, surface: SAVE_SURFACES.extension, outcome: SAVE_OUTCOMES.saved });
-				return "saved";
+				return { index: job.index, outcome: createdUserArticle ? "created" : "merged" };
 			} catch (error) {
 				return failOnePage(job, error);
 			}
 		};
 
-		const writeAllPages = async (ready: { job: PageJob; freshness: ContentFreshnessResult }[]): Promise<("saved" | "failed")[]> => {
+		const writeAllPages = async (ready: { job: PageJob; freshness: ContentFreshnessResult }[]): Promise<PageOutcome[]> => {
 			if (ready.length === 0) return [];
 			let savedAts: Date[];
 			try {
@@ -1261,10 +1264,20 @@ export function initQueueRoutes(deps: QueueDependencies): Router {
 		};
 
 		const prepared = await Promise.all(jobs.map(prepareOnePage));
-		const ready = prepared.flatMap((page) => (page === "failed" ? [] : [page]));
-		const outcomes = await writeAllPages(ready);
-		const saved = outcomes.filter((o) => o === "saved").length;
-		const failed = jobs.length - ready.length + outcomes.filter((o) => o === "failed").length;
+		const ready = prepared.flatMap((page) => ("outcome" in page ? [] : [page]));
+		const prepareFailures = prepared.flatMap((page) => ("outcome" in page ? [page] : []));
+		const pageOutcomes = [...prepareFailures, ...(await writeAllPages(ready))];
+		const saved = pageOutcomes.filter((o) => o.outcome !== "failed").length;
+		const failed = pageOutcomes.filter((o) => o.outcome === "failed").length;
+
+		for (const page of pageOutcomes) {
+			entryOutcomes[page.index] = { outcome: page.outcome };
+		}
+		const results = manifest.data.map((entry, index) => {
+			const entryOutcome = entryOutcomes[index];
+			assert(entryOutcome, `bulk-save outcome missing for manifest entry ${index}`);
+			return { url: entry.url, ...entryOutcome };
+		});
 
 		if (saved > 0) markExtensionSavedArticle(res);
 		res.status(200).type(SIREN_MEDIA_TYPE).json(
@@ -1274,6 +1287,7 @@ export function initQueueRoutes(deps: QueueDependencies): Router {
 				failed,
 				tooBig: [],
 				skippedUrls: skipped,
+				results,
 			}),
 		);
 	});

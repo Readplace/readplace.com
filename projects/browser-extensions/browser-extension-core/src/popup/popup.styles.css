@@ -631,6 +631,25 @@ body {
 }
 /* purgecss-ignore-end */
 
+.save-all-view__failed {
+  list-style: none;
+  margin: 0 0 8px;
+  padding: 0;
+}
+
+.save-all-view__failed[hidden] {
+  display: none;
+}
+
+/* purgecss-ignore-start: .save-all-view__failed-item rows are created from JS as failed tabs render */
+.save-all-view__failed-item {
+  font-size: 12px;
+  color: var(--popup-label);
+  margin: 0 0 4px;
+  overflow-wrap: anywhere;
+}
+/* purgecss-ignore-end */
+
 .login__error {
   color: var(--popup-error);
   font-size: 13px;

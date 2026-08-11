@@ -155,6 +155,10 @@ describe("initInMemoryReadingList", () => {
 				failed: 0,
 				tooBig: [],
 				skippedUrls: [],
+				failedUrls: [],
+				alreadySaved: 0,
+				pendingRetry: 0,
+				unauthorized: false,
 			});
 			const { items } = await list.getItems();
 			expect(items.map((i) => i.url)).toEqual([
@@ -178,6 +182,10 @@ describe("initInMemoryReadingList", () => {
 				failed: 0,
 				tooBig: [],
 				skippedUrls: [{ url: "https://example.com/a", code: "already-saved" }],
+				failedUrls: [],
+				alreadySaved: 0,
+				pendingRetry: 0,
+				unauthorized: false,
 			});
 		});
 	});

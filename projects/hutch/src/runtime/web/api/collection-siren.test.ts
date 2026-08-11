@@ -2,7 +2,7 @@ import type {
 	Minutes,
 	SavedArticle,
 } from "@packages/domain/article";
-import { ReaderArticleHashId } from "@packages/domain/article";
+import { ReaderArticleHashId, MAX_UPLOAD_REQUEST_BYTES } from "@packages/domain/article";
 import type { UserId } from "@packages/domain/user";
 import type { ArticleCrawl } from "@packages/provider-contracts/article-crawl";
 import type { FindArticlesResult } from "@packages/test-fixtures/providers/article-store";
@@ -377,6 +377,8 @@ describe("toArticleCollectionEntity", () => {
 		expect(saveArticlesAction?.method).toBe("POST");
 		expect(saveArticlesAction?.type).toBe("multipart/form-data");
 		expect(saveArticlesAction?.fields?.map((f) => f.name)).toEqual(["manifest", "content"]);
+		const contentField = saveArticlesAction?.fields?.find((f) => f.name === "content");
+		expect(contentField?.maxRequestBytes).toBe(MAX_UPLOAD_REQUEST_BYTES);
 	});
 
 	it("advertises a create-session action so a client discovers the reader session mint", () => {

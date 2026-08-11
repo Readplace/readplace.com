@@ -12,13 +12,13 @@ export type SaveableTab = { url: string; title: string; tabId?: number };
  * URLs collapse to the first tab seen (the save is idempotent on userId:url
  * server-side), so two tabs on one URL save, count, and capture once. */
 export function selectSaveableTabs(
-	tabs: readonly { id?: number; url?: string; title?: string }[],
+	tabs: readonly { id?: number; url?: string; title?: string; pendingUrl?: string }[],
 	appDomains: readonly string[],
 ): SaveableTab[] {
 	const seen = new Set<string>();
 	const saveable: SaveableTab[] = [];
 	for (const tab of tabs) {
-		const url = tab.url;
+		const url = tab.url || tab.pendingUrl;
 		if (typeof url !== "string") continue;
 		if (!/^https?:/i.test(url)) continue;
 		if (isAppUrl({ tabUrl: url, appDomains })) continue;
@@ -42,15 +42,31 @@ export function summarizeBulkSave(params: {
 }): { title: string; summary: string; tooBig: string | null } {
 	const clientSkipped = params.tabCount - params.saveableCount;
 	const skipped = params.result.skipped + clientSkipped;
-	let summary = `Saved ${params.result.saved} · Skipped ${skipped}`;
+	let summary = `Saved ${params.result.saved - params.result.alreadySaved}`;
+	if (params.result.alreadySaved > 0) summary += ` · Already in queue ${params.result.alreadySaved}`;
+	summary += ` · Skipped ${skipped}`;
 	if (params.result.failed > 0) summary += ` · Failed ${params.result.failed}`;
+	if (params.result.pendingRetry > 0) summary += ` · Retrying ${params.result.pendingRetry}`;
 	const tooBig =
 		params.result.tooBig.length > 0
 			? `Some pages were too large to capture in full (saved as links): ${params.result.tooBig
 					.map((page) => `${page.url} (${page.mb} MB)`)
 					.join(", ")}`
 			: null;
-	return { title: "Tabs saved", summary, tooBig };
+	return {
+		title: params.result.unauthorized ? "Not signed in" : "Tabs saved",
+		summary,
+		tooBig,
+	};
+}
+
+const MAX_LISTED_FAILED_URLS = 5;
+
+export function buildFailedUrlLines(failedUrls: readonly { url: string }[]): string[] {
+	const lines = failedUrls.slice(0, MAX_LISTED_FAILED_URLS).map((entry) => `Couldn't save ${entry.url}`);
+	const overflow = failedUrls.length - MAX_LISTED_FAILED_URLS;
+	if (overflow > 0) lines.push(`And ${overflow} more.`);
+	return lines;
 }
 
 /** Set the instant the popup paints the summary above. The perf suite reads it

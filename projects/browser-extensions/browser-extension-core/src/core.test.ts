@@ -934,7 +934,17 @@ describe("BrowserExtensionCore saveAll", () => {
 			});
 		});
 
-		expect(result).toEqual({ saved: 2, skipped: 0, failed: 0, tooBig: [], skippedUrls: [] });
+		expect(result).toEqual({
+			saved: 2,
+			skipped: 0,
+			failed: 0,
+			tooBig: [],
+			skippedUrls: [],
+			failedUrls: [],
+			alreadySaved: 0,
+			pendingRetry: 0,
+			unauthorized: false,
+		});
 	});
 
 	it("hands the whole window to the reading list, which splits it against what the server advertised", async () => {
@@ -962,7 +972,7 @@ describe("BrowserExtensionCore saveAll", () => {
 		const auth = initInMemoryAuth();
 		await auth.login();
 		const readingList = createRecordingReadingList({
-			savePagesResult: { saved: 1, skipped: 0, failed: 0, tooBig: [{ url: "https://big.example", mb: 25 }], skippedUrls: [] },
+			savePagesResult: { saved: 1, skipped: 0, failed: 0, tooBig: [{ url: "https://big.example", mb: 25 }], skippedUrls: [], failedUrls: [], alreadySaved: 0, pendingRetry: 0, unauthorized: false },
 		});
 		const { shell } = createFakeShell();
 		const core = BrowserExtensionCore(shell, {

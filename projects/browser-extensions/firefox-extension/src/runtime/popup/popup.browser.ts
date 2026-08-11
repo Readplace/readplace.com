@@ -13,7 +13,7 @@ import type {
 	Message,
 	ActionVariant,
 } from "browser-extension-core";
-import { filterByUrl, buildPaginationView, avatarColor, relativeTime, isAppUrl, itemDisplay, selectSaveableTabs, summarizeBulkSave, installShortcuts, matchesShortcut, commandBindingsFromGetAll, resolveShortcut, shortcutHintSegments, DEFAULT_SAVE_SHORTCUT, DEFAULT_SAVE_ALL_SHORTCUT, buildMessageView, buildSavedView, actionLabel, actionVariant, actionIcon, linkLabel, linkPresentation, BULK_SAVE_FAILED_MESSAGE, BULK_SAVE_FAILED_TITLE, advertisesBulkSave, parseStoredCapabilities, ADVERTISED_CAPABILITIES_STORAGE_KEY, SAVE_RENDERED_MARK, SAVE_ALL_RENDERED_MARK, type ContentShortcuts } from "browser-extension-core";
+import { filterByUrl, buildPaginationView, avatarColor, relativeTime, isAppUrl, itemDisplay, selectSaveableTabs, summarizeBulkSave, buildFailedUrlLines, installShortcuts, matchesShortcut, commandBindingsFromGetAll, resolveShortcut, shortcutHintSegments, DEFAULT_SAVE_SHORTCUT, DEFAULT_SAVE_ALL_SHORTCUT, buildMessageView, buildSavedView, actionLabel, actionVariant, actionIcon, linkLabel, linkPresentation, BULK_SAVE_FAILED_MESSAGE, BULK_SAVE_FAILED_TITLE, advertisesBulkSave, parseStoredCapabilities, ADVERTISED_CAPABILITIES_STORAGE_KEY, SAVE_RENDERED_MARK, SAVE_ALL_RENDERED_MARK, type ContentShortcuts } from "browser-extension-core";
 import { HutchLogger, consoleLogger } from "@packages/hutch-logger";
 
 /** The client's own presentation map: an action variant -> the popup's CSS
@@ -528,6 +528,7 @@ async function saveAllTabsFlow() {
 	const titleEl = document.querySelector("[data-test-save-all-title]");
 	const summaryEl = document.querySelector("[data-test-save-all-summary]");
 	const tooBigEl = document.querySelector<HTMLElement>("[data-test-save-all-too-big]");
+	const failedListEl = document.querySelector<HTMLElement>("[data-test-save-all-failed]");
 	const hintEl = document.getElementById("save-all-hint");
 	const queueButton = document.getElementById("save-all-view-queue");
 
@@ -536,6 +537,10 @@ async function saveAllTabsFlow() {
 	if (tooBigEl) {
 		tooBigEl.textContent = "";
 		tooBigEl.hidden = true;
+	}
+	if (failedListEl) {
+		failedListEl.textContent = "";
+		failedListEl.hidden = true;
 	}
 	if (hintEl) hintEl.hidden = false;
 	if (queueButton) queueButton.hidden = true;
@@ -569,6 +574,25 @@ async function saveAllTabsFlow() {
 	if (tooBigEl) {
 		tooBigEl.textContent = tooBig ?? "";
 		tooBigEl.hidden = tooBig === null;
+	}
+	if (failedListEl) {
+		const lines = buildFailedUrlLines(result.value.failedUrls);
+		for (const line of lines) {
+			const item = document.createElement("li");
+			item.className = "save-all-view__failed-item";
+			item.textContent = line;
+			failedListEl.append(item);
+		}
+		failedListEl.hidden = lines.length === 0;
+	}
+
+	if (result.value.unauthorized) {
+		/** The session died mid-run: the painted partial report must stay on
+		 * screen, so end the session without performLogout's swap to the login
+		 * view. The next popup open lands on login as usual. */
+		await send({ type: "logout" });
+		performance.mark(SAVE_ALL_RENDERED_MARK);
+		return;
 	}
 
 	if (queueButton) queueButton.hidden = false;

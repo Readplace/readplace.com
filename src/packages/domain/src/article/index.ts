@@ -23,6 +23,7 @@ export {
 	MAX_PAGES_PER_BULK_SAVE,
 	BulkSavePageSchema,
 	BulkSaveManifestSchema,
+	type BulkSaveOutcome,
 	MAX_UPLOAD_REQUEST_BYTES,
 	MAX_UPLOAD_CONTENT_BYTES,
 	MAX_UPLOAD_HTML_BYTES,

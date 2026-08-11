@@ -3802,6 +3802,10 @@ describe("initSirenReadingList", () => {
 				failed: 0,
 				tooBig: [],
 				skippedUrls: [{ url: "chrome://x", code: "unsupported_scheme" }],
+				failedUrls: [],
+				alreadySaved: 0,
+				pendingRetry: 0,
+				unauthorized: false,
 			});
 			assert(capturedBody, "savePages must POST a FormData body");
 			expect(capturedBody.get("manifest")).toBe(
@@ -3844,17 +3848,28 @@ describe("initSirenReadingList", () => {
 
 			const result = await list.savePages({ pages: [] });
 
-			expect(result).toEqual({ saved: 0, skipped: 0, failed: 0, tooBig: [], skippedUrls: [] });
+			expect(result).toEqual({
+				saved: 0,
+				skipped: 0,
+				failed: 0,
+				tooBig: [],
+				skippedUrls: [],
+				failedUrls: [],
+				alreadySaved: 0,
+				pendingRetry: 0,
+				unauthorized: false,
+			});
 			expect(calls).toEqual([]);
 		});
 	});
 
 	describe("savePages against server-advertised limits", () => {
-		function collectionAdvertising(limits: { maxItems?: number; maxBytes?: number }) {
+		function collectionAdvertising(limits: { maxItems?: number; maxBytes?: number; maxRequestBytes?: number }) {
 			const manifestField: Record<string, unknown> = { name: "manifest", type: "text" };
 			if (limits.maxItems !== undefined) manifestField.maxItems = limits.maxItems;
 			const contentField: Record<string, unknown> = { name: "content", type: "file" };
 			if (limits.maxBytes !== undefined) contentField.maxBytes = limits.maxBytes;
+			if (limits.maxRequestBytes !== undefined) contentField.maxRequestBytes = limits.maxRequestBytes;
 			return JSON.stringify({
 				class: ["collection", "articles"],
 				entities: [],
@@ -4099,9 +4114,210 @@ describe("initSirenReadingList", () => {
 
 			expect(result.saved).toBe(2);
 			expect(result.failed).toBe(2);
+			expect(result.failedUrls).toEqual([
+				{ url: "https://example.com/2" },
+				{ url: "https://example.com/3" },
+			]);
 		});
 
-		it("propagates a 401 rather than folding it into the failed count", async () => {
+		it("resolves the partial summary when the session dies mid-run, naming every unsent page", async () => {
+			let call = 0;
+			const { fetchFn, calls } = createRoutingFetch(
+				withEntryPoint({
+					"GET http://localhost:3000/queue": {
+						status: 200,
+						body: collectionAdvertising({ maxItems: 2 }),
+					},
+					"POST http://localhost:3000/queue/save-articles": () => {
+						call += 1;
+						if (call === 1) {
+							return {
+								status: 200,
+								body: JSON.stringify({
+									class: ["save-articles-result"],
+									properties: { saved: 2, skipped: 0, failed: 0, tooBig: [], skippedUrls: [] },
+								}),
+							};
+						}
+						return { status: 401 };
+					},
+				}),
+			);
+			const list = initSirenReadingList(createAdapterDeps(fetchFn));
+
+			const result = await list.savePages({
+				pages: Array.from({ length: 6 }, (_v, i) => ({ url: `https://example.com/tab-${i}` })),
+			});
+
+			expect(result).toEqual({
+				saved: 2,
+				skipped: 0,
+				failed: 4,
+				tooBig: [],
+				skippedUrls: [],
+				failedUrls: [
+					{ url: "https://example.com/tab-2" },
+					{ url: "https://example.com/tab-3" },
+					{ url: "https://example.com/tab-4" },
+					{ url: "https://example.com/tab-5" },
+				],
+				alreadySaved: 0,
+				pendingRetry: 0,
+				unauthorized: true,
+			});
+			expect(calls.filter((c) => c.startsWith("POST")).length).toBe(2);
+		});
+
+		it("still rejects a 401 from the entry point, where nothing was attempted", async () => {
+			const { fetchFn } = createRoutingFetch(
+				withEntryPoint({
+					"GET http://localhost:3000/queue": { status: 401 },
+				}),
+			);
+			const list = initSirenReadingList(createAdapterDeps(fetchFn));
+
+			await expect(
+				list.savePages({ pages: [{ url: "https://example.com/a" }] }),
+			).rejects.toBeInstanceOf(UnauthorizedError);
+		});
+
+		it("folds a server count shortfall into the failed count and names the chunk's pages", async () => {
+			const { fetchFn } = createRoutingFetch(
+				withEntryPoint({
+					"GET http://localhost:3000/queue": {
+						status: 200,
+						body: collectionAdvertising({ maxItems: 20 }),
+					},
+					"POST http://localhost:3000/queue/save-articles": {
+						status: 200,
+						body: JSON.stringify({
+							class: ["save-articles-result"],
+							properties: { saved: 2, skipped: 0, failed: 0, tooBig: [], skippedUrls: [] },
+						}),
+					},
+				}),
+			);
+			const list = initSirenReadingList(createAdapterDeps(fetchFn));
+
+			const result = await list.savePages({
+				pages: Array.from({ length: 3 }, (_v, i) => ({ url: `https://example.com/tab-${i}` })),
+			});
+
+			expect(result.saved + result.skipped + result.failed).toBe(3);
+			expect(result.failedUrls).toEqual([
+				{ url: "https://example.com/tab-0" },
+				{ url: "https://example.com/tab-1" },
+				{ url: "https://example.com/tab-2" },
+			]);
+		});
+
+		it("counts pages the server reports as merged in alreadySaved", async () => {
+			const { fetchFn } = createRoutingFetch(
+				withEntryPoint({
+					"GET http://localhost:3000/queue": {
+						status: 200,
+						body: collectionAdvertising({ maxItems: 20 }),
+					},
+					"POST http://localhost:3000/queue/save-articles": {
+						status: 200,
+						body: JSON.stringify({
+							class: ["save-articles-result"],
+							properties: {
+								saved: 2,
+								skipped: 0,
+								failed: 0,
+								tooBig: [],
+								skippedUrls: [],
+								results: [
+									{ url: "https://example.com/tab-0", outcome: "created" },
+									{ url: "https://example.com/tab-1", outcome: "merged" },
+								],
+							},
+						}),
+					},
+				}),
+			);
+			const list = initSirenReadingList(createAdapterDeps(fetchFn));
+
+			const result = await list.savePages({
+				pages: [{ url: "https://example.com/tab-0" }, { url: "https://example.com/tab-1" }],
+			});
+
+			expect(result.saved).toBe(2);
+			expect(result.alreadySaved).toBe(1);
+			expect(result.failedUrls).toEqual([]);
+		});
+
+		it("names the pages the server itself reports as failed", async () => {
+			const { fetchFn } = createRoutingFetch(
+				withEntryPoint({
+					"GET http://localhost:3000/queue": {
+						status: 200,
+						body: collectionAdvertising({ maxItems: 20 }),
+					},
+					"POST http://localhost:3000/queue/save-articles": {
+						status: 200,
+						body: JSON.stringify({
+							class: ["save-articles-result"],
+							properties: {
+								saved: 1,
+								skipped: 0,
+								failed: 1,
+								tooBig: [],
+								skippedUrls: [],
+								results: [
+									{ url: "https://example.com/tab-0", outcome: "created" },
+									{ url: "https://example.com/tab-1", outcome: "failed" },
+								],
+							},
+						}),
+					},
+				}),
+			);
+			const list = initSirenReadingList(createAdapterDeps(fetchFn));
+
+			const result = await list.savePages({
+				pages: [{ url: "https://example.com/tab-0" }, { url: "https://example.com/tab-1" }],
+			});
+
+			expect(result.failed).toBe(1);
+			expect(result.failedUrls).toEqual([{ url: "https://example.com/tab-1" }]);
+		});
+
+		it("names only the unaccounted pages when a shortfall arrives alongside per-entry results", async () => {
+			const { fetchFn } = createRoutingFetch(
+				withEntryPoint({
+					"GET http://localhost:3000/queue": {
+						status: 200,
+						body: collectionAdvertising({ maxItems: 20 }),
+					},
+					"POST http://localhost:3000/queue/save-articles": {
+						status: 200,
+						body: JSON.stringify({
+							class: ["save-articles-result"],
+							properties: {
+								saved: 1,
+								skipped: 0,
+								failed: 0,
+								tooBig: [],
+								skippedUrls: [],
+								results: [{ url: "https://example.com/tab-0", outcome: "created" }],
+							},
+						}),
+					},
+				}),
+			);
+			const list = initSirenReadingList(createAdapterDeps(fetchFn));
+
+			const result = await list.savePages({
+				pages: [{ url: "https://example.com/tab-0" }, { url: "https://example.com/tab-1" }],
+			});
+
+			expect(result.saved + result.skipped + result.failed).toBe(2);
+			expect(result.failedUrls).toEqual([{ url: "https://example.com/tab-1" }]);
+		});
+
+		it("rejects a 401 on the first save request, where nothing was attempted", async () => {
 			const { fetchFn } = createRoutingFetch(
 				withEntryPoint({
 					"GET http://localhost:3000/queue": {
@@ -4116,6 +4332,61 @@ describe("initSirenReadingList", () => {
 			await expect(
 				list.savePages({ pages: [{ url: "https://example.com/a" }] }),
 			).rejects.toBeInstanceOf(UnauthorizedError);
+		});
+
+		it("drops the title of a page whose manifest entry alone cannot fit one request", async () => {
+			const requestBudget = 80;
+			const requests: FormData[] = [];
+			const { fetchFn } = createRoutingFetch(
+				bulkRoutes(
+					collectionAdvertising({
+						maxItems: 20,
+						maxBytes: 64,
+						maxRequestBytes: requestBudget + 16 * 1024,
+					}),
+					(body) => requests.push(body),
+				),
+			);
+			const list = initSirenReadingList(createAdapterDeps(fetchFn));
+
+			const result = await list.savePages({
+				pages: [{ url: "https://example.com/a", title: "t".repeat(200) }],
+			});
+
+			expect(result.saved).toBe(1);
+			expect(result.tooBig).toEqual([]);
+			const request = requests[0];
+			assert(request, "the title-less page still rides in one bulk request");
+			expect(request.get("manifest")).toBe(JSON.stringify([{ url: "https://example.com/a" }]));
+		});
+
+		it("saves a page URL-only when its capture plus manifest entry cannot fit one request", async () => {
+			const requestBudget = 96;
+			const advertisedMaxRequestBytes = requestBudget + 16 * 1024;
+			const requests: FormData[] = [];
+			const { fetchFn } = createRoutingFetch(
+				bulkRoutes(
+					collectionAdvertising({ maxItems: 20, maxBytes: 64, maxRequestBytes: advertisedMaxRequestBytes }),
+					(body) => requests.push(body),
+				),
+			);
+			const list = initSirenReadingList(createAdapterDeps(fetchFn));
+
+			const result = await list.savePages({
+				pages: [
+					{
+						url: "https://example.com/at-cap",
+						title: "t".repeat(60),
+						content: { bytes: new ArrayBuffer(64), mediaType: "text/html" },
+					},
+				],
+			});
+
+			expect(result.saved).toBe(1);
+			expect(result.tooBig).toEqual([{ url: "https://example.com/at-cap", mb: 0 }]);
+			const request = requests[0];
+			assert(request, "the stripped page still rides in one bulk request");
+			expect([...request.keys()]).toEqual(["manifest"]);
 		});
 	});
 

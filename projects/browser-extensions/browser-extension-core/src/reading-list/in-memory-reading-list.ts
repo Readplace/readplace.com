@@ -84,7 +84,17 @@ export function initInMemoryReadingList(): {
 				skippedUrls.push({ url: page.url, code: "already-saved" });
 			}
 		}
-		return { saved, skipped: skippedUrls.length, failed: 0, tooBig: [], skippedUrls };
+		return {
+			saved,
+			skipped: skippedUrls.length,
+			failed: 0,
+			tooBig: [],
+			skippedUrls,
+			failedUrls: [],
+			alreadySaved: 0,
+			pendingRetry: 0,
+			unauthorized: false,
+		};
 	};
 
 	return {

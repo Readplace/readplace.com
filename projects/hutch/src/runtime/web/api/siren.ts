@@ -4,6 +4,7 @@ interface SirenField {
 	value?: string | number;
 	maxBytes?: number;
 	maxItems?: number;
+	maxRequestBytes?: number;
 }
 
 interface SirenAction {

@@ -73,7 +73,7 @@ export { itemDisplay } from "./popup/item-display";
 export type { ItemDisplay } from "./popup/item-display";
 export { actionIcon, actionLabel, actionVariant, humanize, linkLabel, linkPresentation } from "./popup/action-affordance";
 export type { ActionVariant, LinkPresentation } from "./popup/action-affordance";
-export { selectSaveableTabs, summarizeBulkSave, SAVE_ALL_RENDERED_MARK } from "./popup/save-all-tabs";
+export { selectSaveableTabs, summarizeBulkSave, buildFailedUrlLines, SAVE_ALL_RENDERED_MARK } from "./popup/save-all-tabs";
 export type { SaveableTab } from "./popup/save-all-tabs";
 export {
 	MENU_ITEM_SAVE_LINK,

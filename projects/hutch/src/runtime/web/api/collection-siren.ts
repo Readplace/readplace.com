@@ -5,7 +5,7 @@ import type {
 } from "@packages/provider-contracts/article-store";
 import type { ArticleStatus } from "@packages/domain/article";
 import type { ArticleCrawl } from "@packages/provider-contracts/article-crawl";
-import { MAX_PAGES_PER_BULK_SAVE, MAX_UPLOAD_CONTENT_BYTES, MAX_BULK_PAGE_CONTENT_BYTES } from "@packages/domain/article";
+import { MAX_PAGES_PER_BULK_SAVE, MAX_UPLOAD_CONTENT_BYTES, MAX_BULK_PAGE_CONTENT_BYTES, MAX_UPLOAD_REQUEST_BYTES } from "@packages/domain/article";
 import type { SirenEntity, SirenLink } from "./siren";
 import { buildPageList } from "./page-list";
 import { toArticleSubEntity } from "./article-siren";
@@ -126,7 +126,7 @@ export function toArticleCollectionEntity(
 				 * sibling `content-<index>` file part. */
 				fields: [
 					{ name: "manifest", type: "text", maxItems: MAX_PAGES_PER_BULK_SAVE },
-					{ name: "content", type: "file", maxBytes: MAX_BULK_PAGE_CONTENT_BYTES },
+					{ name: "content", type: "file", maxBytes: MAX_BULK_PAGE_CONTENT_BYTES, maxRequestBytes: MAX_UPLOAD_REQUEST_BYTES },
 				],
 			},
 			{

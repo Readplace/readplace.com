@@ -24,5 +24,8 @@ export function bulkSaveNotification(params: {
 		tabCount: params.tabCount,
 		saveableCount: params.saveableCount,
 	});
-	return { title, message: tooBig === null ? summary : `${summary}\n${tooBig}` };
+	const lines = [summary];
+	if (tooBig !== null) lines.push(tooBig);
+	if (params.outcome.value.unauthorized) lines.push("Sign in to Readplace to save the rest.");
+	return { title, message: lines.join("\n") };
 }

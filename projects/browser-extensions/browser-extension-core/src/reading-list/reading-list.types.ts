@@ -131,6 +131,10 @@ export type BulkSaveResult = {
 	 * reported here with their size (MB) so the popup can tell the user. */
 	tooBig: { url: string; mb: number }[];
 	skippedUrls: { url: string; code: string }[];
+	failedUrls: { url: string }[];
+	alreadySaved: number;
+	pendingRetry: number;
+	unauthorized: boolean;
 };
 
 /** One page in a bulk "Save All Tabs" request. `content` carries the captured
