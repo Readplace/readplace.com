@@ -607,6 +607,80 @@ describe("initDynamoDbSavedArticleStore global writes", () => {
 		expect(lost.wroteUserArticle).toBe(false);
 	});
 
+	it("allocateSavedAt advances the per-user cursor to wall clock with a compare-and-set the fast path", async () => {
+		const { client, commands } = createFakeClient();
+
+		const allocated = await initStore(client).allocateSavedAt({ userId: USER });
+
+		expect(allocated).toEqual(STORE_NOW);
+		const cas = commands.find((c) => c.name === "UpdateCommand");
+		assert(cas, "the allocator must write the cursor row");
+		expect(cas.input.Key).toEqual({ userId: USER, url: `readplace:save-cursor/${USER}` });
+		expect(cas.input.UpdateExpression).toBe("SET savedAtCursorMs = :nowMs");
+		expect(cas.input.ConditionExpression).toBe(
+			"attribute_not_exists(savedAtCursorMs) OR savedAtCursorMs < :nowMs",
+		);
+		expect(cas.input.ExpressionAttributeValues).toEqual({ ":nowMs": STORE_NOW.getTime() });
+		expect(cas.input.ReturnValues).toBe("UPDATED_NEW");
+	});
+
+	it("allocateSavedAt increments past a cursor at or ahead of wall clock, so same-millisecond saves stay distinct", async () => {
+		const cursorAheadMs = STORE_NOW.getTime() + 5;
+		let updates = 0;
+		const { client, commands } = createFakeClient({
+			UpdateCommand: {
+				queue: [
+					() => {
+						updates += 1;
+						throw new ConditionalCheckFailedException({ $metadata: {}, message: "cursor ahead" });
+					},
+					() => {
+						updates += 1;
+						return { Attributes: { savedAtCursorMs: cursorAheadMs + 1 } };
+					},
+				],
+			},
+		});
+
+		const allocated = await initStore(client).allocateSavedAt({ userId: USER });
+
+		expect(updates).toBe(2);
+		expect(allocated).toEqual(new Date(cursorAheadMs + 1));
+		const increment = commands[1];
+		expect(increment.input.UpdateExpression).toBe("ADD savedAtCursorMs :one");
+		expect(increment.input.ConditionExpression).toBe("attribute_exists(savedAtCursorMs)");
+		expect(increment.input.ExpressionAttributeValues).toEqual({ ":one": 1 });
+	});
+
+	it("allocateSavedAt re-seeds from wall clock when the sentinel vanished between the two writes", async () => {
+		const ccfe = () => {
+			throw new ConditionalCheckFailedException({ $metadata: {}, message: "gone" });
+		};
+		const { client, commands } = createFakeClient({
+			UpdateCommand: { queue: [ccfe, ccfe, {}] },
+		});
+
+		const allocated = await initStore(client).allocateSavedAt({ userId: USER });
+
+		expect(allocated).toEqual(STORE_NOW);
+		expect(commands.filter((c) => c.name === "UpdateCommand")).toHaveLength(3);
+		expect(commands[2].input.UpdateExpression).toBe("SET savedAtCursorMs = :nowMs");
+	});
+
+	it("allocateSavedAt rethrows a non-conditional error from either cursor write", async () => {
+		const throttled = () => {
+			throw new Error("throttled");
+		};
+		const first = createFakeClient({ UpdateCommand: { queue: [throttled] } });
+		await expect(initStore(first.client).allocateSavedAt({ userId: USER })).rejects.toThrow("throttled");
+
+		const ccfe = () => {
+			throw new ConditionalCheckFailedException({ $metadata: {}, message: "cursor ahead" });
+		};
+		const second = createFakeClient({ UpdateCommand: { queue: [ccfe, throttled] } });
+		await expect(initStore(second.client).allocateSavedAt({ userId: USER })).rejects.toThrow("throttled");
+	});
+
 	it("saveArticle rethrows a non-conditional user-row write error", async () => {
 		const { client } = createFakeClient({
 			UpdateCommand: {
@@ -1037,15 +1111,19 @@ describe("initDynamoDbSavedArticleStore deleteAllUserArticles", () => {
 		expect(deletes.map((d) => d.input.Key)).toEqual([
 			{ userId: USER, url: "a" },
 			{ userId: USER, url: "b" },
+			{ userId: USER, url: `readplace:save-cursor/${USER}` },
 		]);
 	});
 
-	it("issues no deletes when the user has no saved rows", async () => {
+	it("still deletes the cursor sentinel when the user has no saved rows", async () => {
 		const { client, commands } = createFakeClient({ QueryCommand: { default: { Items: [], Count: 0 } } });
 
 		await initStore(client).deleteAllUserArticles(USER);
 
-		expect(commands.some((c) => c.name === "DeleteCommand")).toBe(false);
+		const deletes = commands.filter((c) => c.name === "DeleteCommand");
+		expect(deletes.map((d) => d.input.Key)).toEqual([
+			{ userId: USER, url: `readplace:save-cursor/${USER}` },
+		]);
 	});
 });
 

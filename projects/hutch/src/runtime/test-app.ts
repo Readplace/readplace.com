@@ -149,6 +149,7 @@ function flattenFixtureToAppDependencies(
 		findArticlesByUser: fixture.articleStore.findArticlesByUser,
 		countArticlesByUser: fixture.articleStore.countArticlesByUser,
 		saveArticle: fixture.articleStore.saveArticle,
+		allocateSavedAt: fixture.articleStore.allocateSavedAt,
 		saveArticleGlobally: fixture.articleStore.saveArticleGlobally,
 		deleteArticle: fixture.articleStore.deleteArticle,
 		updateArticleStatus: fixture.articleStore.updateArticleStatus,

@@ -628,8 +628,10 @@ describe("Import routes", () => {
 			]);
 		});
 
-		it("stamps every URL of one commit batch with one savedAt, minted only after the batch's freshness checks resolved", async () => {
+		it("stamps every URL of one commit batch with one allocator-issued savedAt, minted only after the batch's freshness checks resolved", async () => {
 			const fixture = createDefaultTestAppFixture(TEST_APP_ORIGIN);
+			const allocatorBase = new Date("2031-04-05T06:07:08.090Z");
+			let allocations = 0;
 			const events: string[] = [];
 			const savedAts: Date[] = [];
 			const harness = useApp({
@@ -645,6 +647,10 @@ describe("Import routes", () => {
 				},
 				articleStore: {
 					...fixture.articleStore,
+					allocateSavedAt: async () => {
+						allocations += 1;
+						return new Date(allocatorBase.getTime() + allocations - 1);
+					},
 					saveArticle: async (params) => {
 						events.push(`save ${params.url}`);
 						savedAts.push(params.savedAt);
@@ -664,8 +670,12 @@ describe("Import routes", () => {
 			expect(commit.status).toBe(303);
 			expect(events[2]).toBe("refresh https://example.com/slow");
 			expect(events.slice(3).map((e) => e.split(" ")[0])).toEqual(["save", "save", "save"]);
-			expect(savedAts).toHaveLength(3);
-			expect(new Set(savedAts.map((d) => d.toISOString())).size).toBe(1);
+			expect(allocations).toBe(1);
+			expect(savedAts.map((d) => d.toISOString())).toEqual([
+				allocatorBase.toISOString(),
+				allocatorBase.toISOString(),
+				allocatorBase.toISOString(),
+			]);
 		});
 
 		it("imports the rest of a batch when one URL's store write throws", async () => {

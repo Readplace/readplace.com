@@ -130,6 +130,7 @@ import type {
 	RetrieveCheckoutSession,
 	ReverseScheduledCancellation,
 	SaveAppleRefreshToken,
+	AllocateSavedAt,
 	SaveArticle,
 	SaveArticleGlobally,
 	ScheduleCancellationAtPeriodEnd,
@@ -280,6 +281,7 @@ export interface ArticleStoreBundle {
 	findArticlesByUser: FindArticlesByUser;
 	countArticlesByUser: CountArticlesByUser;
 	saveArticle: SaveArticle;
+	allocateSavedAt: AllocateSavedAt;
 	saveArticleGlobally: SaveArticleGlobally;
 	bumpArticleSavedAt: BumpArticleSavedAt;
 	deleteArticle: DeleteArticle;

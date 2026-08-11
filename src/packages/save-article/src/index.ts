@@ -8,6 +8,11 @@ export {
 	type SaveArticleFromUrlDependencies,
 } from "./save-article-from-url";
 export {
+	initSaveArticleAtQueueTop,
+	type SaveArticleAtQueueTop,
+	type SaveArticleAtQueueTopDependencies,
+} from "./save-article-at-queue-top";
+export {
 	initSaveArticleInteractively,
 	type SaveArticleInteractivelyDependencies,
 } from "./save-article-interactively";

@@ -22,6 +22,7 @@ import type { ImportSkippedViewModel } from "./queue.viewmodel";
 import { ReaderArticleHashIdSchema } from "@packages/domain/article";
 import type { ContentFreshnessResult, RefreshArticleIfStale } from "@packages/provider-contracts/article-freshness";
 import type {
+	AllocateSavedAt,
 	CountArticlesByUser,
 	DeleteArticle,
 	FindArticleById,
@@ -76,7 +77,7 @@ import type { PublishSaveLinkRawHtmlCommand } from "@packages/provider-contracts
 import type { PutPendingHtml } from "@packages/provider-contracts/pending-html";
 import {
 	initDeleteArticleFromQueue,
-	initSaveArticleFromUrl,
+	initSaveArticleAtQueueTop, initSaveArticleFromUrl,
 	initSaveArticleInteractively,
 } from "@packages/save-article";
 import type { PublishComputeRelatedArticles } from "@packages/provider-contracts/events";
@@ -273,6 +274,7 @@ interface QueueDependencies {
 	findArticleCrawlStatuses: FindArticleCrawlStatuses;
 	markCrawlPending: MarkCrawlPending;
 	refreshArticleIfStale: RefreshArticleIfStale;
+	allocateSavedAt: AllocateSavedAt;
 	resolveCanonicalIdentity: (url: string) => Promise<string>;
 	publishUpdateFetchTimestamp: PublishUpdateFetchTimestamp;
 	readArticleContent: ReadArticleContent;
@@ -468,6 +470,10 @@ export function initQueueRoutes(deps: QueueDependencies): Router {
 	const saveArticleFromUrl = initSaveArticleInteractively({
 		saveArticleFromUrl: initSaveArticleFromUrl(deps),
 		publishComputeRelatedArticles: deps.publishComputeRelatedArticles,
+	});
+	const saveArticleAtQueueTop = initSaveArticleAtQueueTop({
+		allocateSavedAt: deps.allocateSavedAt,
+		saveArticleFromUrl,
 	});
 	const deleteArticleFromQueue = initDeleteArticleFromQueue(deps);
 
@@ -1098,12 +1104,11 @@ export function initQueueRoutes(deps: QueueDependencies): Router {
 
 		try {
 			const freshness = await deps.refreshArticleIfStale({ url: validation.url });
-			const result = await saveArticleFromUrl({
+			const result = await saveArticleAtQueueTop({
 				userId,
 				url: validation.url,
 				freshness,
 				provenance: resolveSaveProvenance(req.oauthClientId),
-				savedAt: deps.now(),
 			});
 			await recordSaveSignal(req, res, userId);
 			emitSaveIntent({ req, url: validation.url, path: SAVE_INTENT_PATH.saveArticle, surface: SAVE_SURFACES.extension, outcome: SAVE_OUTCOMES.saved });
@@ -1237,10 +1242,20 @@ export function initQueueRoutes(deps: QueueDependencies): Router {
 			}
 		};
 
+		const writeAllPages = async (ready: { job: PageJob; freshness: ContentFreshnessResult }[]): Promise<("saved" | "failed")[]> => {
+			if (ready.length === 0) return [];
+			let savedAt: Date;
+			try {
+				savedAt = await deps.allocateSavedAt({ userId });
+			} catch (error) {
+				return ready.map((page) => failOnePage(page.job, error));
+			}
+			return Promise.all(ready.map((page) => writeOnePage(page, savedAt)));
+		};
+
 		const prepared = await Promise.all(jobs.map(prepareOnePage));
 		const ready = prepared.flatMap((page) => (page === "failed" ? [] : [page]));
-		const savedAt = deps.now();
-		const outcomes = await Promise.all(ready.map((page) => writeOnePage(page, savedAt)));
+		const outcomes = await writeAllPages(ready);
 		const saved = outcomes.filter((o) => o === "saved").length;
 		const failed = jobs.length - ready.length + outcomes.filter((o) => o === "failed").length;
 
@@ -1340,12 +1355,11 @@ export function initQueueRoutes(deps: QueueDependencies): Router {
 
 			const finishSave = async (articleUrl: SaveableUrl): Promise<void> => {
 				const freshness = await deps.refreshArticleIfStale({ url: articleUrl });
-				const result = await saveArticleFromUrl({
+				const result = await saveArticleAtQueueTop({
 					userId,
 					url: articleUrl,
 					freshness,
 					provenance: resolveSaveProvenance(req.oauthClientId),
-					savedAt: deps.now(),
 				});
 				await recordSaveSignal(req, res, userId);
 				emitSaveIntent({ req, url: articleUrl, path: SAVE_INTENT_PATH.saveContent, surface: SAVE_SURFACES.extension, outcome: SAVE_OUTCOMES.saved });
@@ -1464,12 +1478,11 @@ export function initQueueRoutes(deps: QueueDependencies): Router {
 
 		try {
 			const freshness = await deps.refreshArticleIfStale({ url: validation.url });
-			await saveArticleFromUrl({
+			await saveArticleAtQueueTop({
 				userId,
 				url: validation.url,
 				freshness,
 				provenance: resolveSaveProvenance(req.oauthClientId),
-				savedAt: deps.now(),
 			});
 			emitSaveIntent({ req, url: validation.url, path: SAVE_INTENT_PATH.save, surface: SAVE_SURFACES.queueSaveBar, outcome: SAVE_OUTCOMES.saved });
 			res.redirect(303, `${QUEUE_PATH}#latest-saved`);

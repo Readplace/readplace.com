@@ -82,6 +82,33 @@ describe("POST /queue/save-content with PDF", () => {
 		return { testApp, publishedSavePdf };
 	}
 
+	it("stamps a content save with the allocator's instant, not the wall clock", async () => {
+		const fixture = createDefaultTestAppFixture(TEST_APP_ORIGIN);
+		const allocatedSavedAt = new Date("2031-04-05T06:07:08.090Z");
+		const testApp = useApp({
+			...fixture,
+			articleStore: {
+				...fixture.articleStore,
+				allocateSavedAt: async () => allocatedSavedAt,
+			},
+		});
+		const accessToken = await createAccessToken(testApp);
+
+		const response = await request(testApp.server)
+			.post("/queue/save-content")
+			.set("Accept", SIREN_MEDIA_TYPE)
+			.set("Authorization", `Bearer ${accessToken}`)
+			.field("url", "https://example.com/allocator-content")
+			.field("mediaType", "text/html")
+			.attach("content", VALID_HTML, "content");
+
+		expect(response.status).toBe(201);
+		const stored = await testApp.articleStore.findArticlesByUser({ userId: TEST_USER_ID });
+		expect(stored.articles.map((a) => [a.url, a.savedAt.toISOString()])).toEqual([
+			["https://example.com/allocator-content", allocatedSavedAt.toISOString()],
+		]);
+	});
+
 	it("returns 201 and dispatches to the PDF pipeline when mediaType is application/pdf", async () => {
 		const { testApp, publishedSavePdf } = setup();
 		const accessToken = await createAccessToken(testApp);

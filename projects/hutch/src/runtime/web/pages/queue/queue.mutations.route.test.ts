@@ -34,6 +34,32 @@ describe("Queue routes", () => {
 			expect(list.querySelectorAll(".queue-article").length).toBe(1);
 		});
 
+		it("stamps the saved row with the allocator's instant, not the wall clock", async () => {
+			const fixture = createDefaultTestAppFixture(TEST_APP_ORIGIN);
+			const allocatedSavedAt = new Date("2031-04-05T06:07:08.090Z");
+			const harness = useApp({
+				...fixture,
+				articleStore: {
+					...fixture.articleStore,
+					allocateSavedAt: async () => allocatedSavedAt,
+				},
+			});
+			const { auth, articleStore } = harness;
+			const agent = await loginAgent(harness.server, auth);
+
+			await agent
+				.post("/queue/save")
+				.type("form")
+				.send({ url: "https://example.com/allocator-stamped" });
+
+			const userId = (await auth.findUserByEmail("test@example.com"))?.userId;
+			assert(userId, "user must exist");
+			const stored = await articleStore.findArticlesByUser({ userId });
+			expect(stored.articles.map((a) => [a.url, a.savedAt.toISOString()])).toEqual([
+				["https://example.com/allocator-stamped", allocatedSavedAt.toISOString()],
+			]);
+		});
+
 		it("should show error for invalid URL", async () => {
 			const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
 			const { auth } = harness;

@@ -100,6 +100,7 @@ export const handler = initSubmitLinkCommandHandler({
 	now,
 	validateSaveableUrl,
 	saveArticle: savedArticleStore.saveArticle,
+	allocateSavedAt: savedArticleStore.allocateSavedAt,
 	updateArticleStatus: savedArticleStore.updateArticleStatus,
 	markCrawlPending: crawlStore.markCrawlPending,
 	markSummaryPending: summaryStore.markSummaryPending,

@@ -17,6 +17,7 @@ import type { HutchLogger } from "@packages/hutch-logger";
 import { UserIdSchema } from "@packages/domain/user";
 import type { UserId } from "@packages/domain/user";
 import type {
+	AllocateSavedAt,
 	BumpArticleSavedAt,
 	CountArticlesByUser,
 	DeleteAllUserArticles,
@@ -89,6 +90,17 @@ const UnverifiedArticleRow = ArticleRow.extend({
 	originalUrl: dynamoField(z.string()),
 });
 
+/** Keyed per user so every user's cursor lands on its own url-index partition,
+ * and shaped so no normalized article id can collide: ArticleResourceUniqueId
+ * only keeps a colon inside a numeric host:port, never before a path. */
+function saveCursorUrl(userId: UserId): string {
+	return `readplace:save-cursor/${userId}`;
+}
+
+const SaveCursorRow = z.object({
+	savedAtCursorMs: z.number(),
+});
+
 const UserArticleRow = z.object({
 	userId: UserIdSchema,
 	url: z.string(),
@@ -145,6 +157,7 @@ export function initDynamoDbSavedArticleStore(deps: {
 	now: () => Date;
 }): {
 	saveArticle: SaveArticle;
+	allocateSavedAt: AllocateSavedAt;
 	saveArticleGlobally: SaveArticleGlobally;
 	bumpArticleSavedAt: BumpArticleSavedAt;
 	findArticleById: FindArticleById;
@@ -178,6 +191,46 @@ export function initDynamoDbSavedArticleStore(deps: {
 		tableName: userArticlesTableName,
 		schema: UserArticleRow,
 	});
+	const saveCursors = defineDynamoTable({
+		client,
+		tableName: userArticlesTableName,
+		schema: SaveCursorRow,
+	});
+
+	const advanceCursorToWallClock = async (userId: UserId, nowMs: number): Promise<{ Attributes?: z.infer<typeof SaveCursorRow> }> =>
+		saveCursors.update({
+			Key: { userId, url: saveCursorUrl(userId) },
+			UpdateExpression: "SET savedAtCursorMs = :nowMs",
+			ConditionExpression: "attribute_not_exists(savedAtCursorMs) OR savedAtCursorMs < :nowMs",
+			ExpressionAttributeValues: { ":nowMs": nowMs },
+			ReturnValues: "UPDATED_NEW",
+		});
+
+	const allocateSavedAt: AllocateSavedAt = async ({ userId }) => {
+		const nowMs = now().getTime();
+		try {
+			await advanceCursorToWallClock(userId, nowMs);
+			return new Date(nowMs);
+		} catch (error) {
+			if (!(error instanceof ConditionalCheckFailedException)) throw error;
+		}
+		try {
+			const { Attributes } = await saveCursors.update({
+				Key: { userId, url: saveCursorUrl(userId) },
+				UpdateExpression: "ADD savedAtCursorMs :one",
+				ConditionExpression: "attribute_exists(savedAtCursorMs)",
+				ExpressionAttributeValues: { ":one": 1 },
+				ReturnValues: "UPDATED_NEW",
+			});
+			assertItem(Attributes, "cursor increment must return the advanced cursor");
+			return new Date(Attributes.savedAtCursorMs);
+		} catch (error) {
+			if (!(error instanceof ConditionalCheckFailedException)) throw error;
+			await advanceCursorToWallClock(userId, nowMs);
+			return new Date(nowMs);
+		}
+	};
+
 	async function findArticleByRouteId(routeId: ReaderArticleHashId): Promise<z.infer<typeof ArticleRow> | null> {
 		const { items } = await articles.query({
 			IndexName: "routeId-index",
@@ -487,6 +540,10 @@ export function initDynamoDbSavedArticleStore(deps: {
 				);
 			},
 		);
+		// The save-cursor sentinel carries no savedAt, so the userId-savedAt-index
+		// sweep above can never see it; without this delete a userId-bearing row
+		// would survive account deletion.
+		await saveCursors.delete({ Key: { userId, url: saveCursorUrl(userId) } });
 	};
 
 	const listUserArticleUrls: ListUserArticleUrls = async (userId) => {
@@ -727,6 +784,7 @@ export function initDynamoDbSavedArticleStore(deps: {
 
 	return {
 		saveArticle,
+		allocateSavedAt,
 		saveArticleGlobally,
 		bumpArticleSavedAt,
 		findArticleById,

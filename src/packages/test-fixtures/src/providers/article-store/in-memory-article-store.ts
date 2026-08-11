@@ -10,6 +10,7 @@ import { ArticleResourceUniqueId } from "@packages/article-resource-unique-id";
 import { ReaderArticleHashId } from "@packages/domain/article";
 import type { UserId } from "@packages/domain/user";
 import type {
+	AllocateSavedAt,
 	ArticleCrawlVersion,
 	BumpArticleSavedAt,
 	CountArticlesByUser,
@@ -86,6 +87,7 @@ function toSavedArticle(article: GlobalArticle, userArticle: UserArticle): Saved
 
 export function initInMemoryArticleStore(): {
 	saveArticle: SaveArticle;
+	allocateSavedAt: AllocateSavedAt;
 	saveArticleGlobally: SaveArticleGlobally;
 	bumpArticleSavedAt: BumpArticleSavedAt;
 	findArticleById: FindArticleById;
@@ -121,6 +123,16 @@ export function initInMemoryArticleStore(): {
 } {
 	const articles = new Map<string, GlobalArticle>();
 	const userArticles = new Map<string, UserArticle>();
+	const saveCursors = new Map<UserId, number>();
+
+	const allocateSavedAt: AllocateSavedAt = async ({ userId }) => {
+		const nowMs = Date.now();
+		const cursor = saveCursors.get(userId);
+		const next = cursor === undefined || cursor < nowMs ? nowMs : cursor + 1;
+		saveCursors.set(userId, next);
+		return new Date(next);
+	};
+
 	function userArticleKey(userId: UserId, url: string): string {
 		return `${userId}:${url}`;
 	}
@@ -295,6 +307,7 @@ export function initInMemoryArticleStore(): {
 		for (const [key, ua] of userArticles) {
 			if (ua.userId === userId) userArticles.delete(key);
 		}
+		saveCursors.delete(userId);
 	};
 
 	const listUserArticleUrls: ListUserArticleUrls = async (userId) => {
@@ -456,6 +469,7 @@ export function initInMemoryArticleStore(): {
 
 	return {
 		saveArticle,
+		allocateSavedAt,
 		saveArticleGlobally,
 		bumpArticleSavedAt,
 		findArticleById,

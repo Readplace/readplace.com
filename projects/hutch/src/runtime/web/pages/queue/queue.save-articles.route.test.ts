@@ -92,8 +92,10 @@ describe("POST /queue/save-articles", () => {
 		expect(provenances).toEqual([{ kind: "client", clientName: "firefox" }]);
 	});
 
-	it("stamps every page of one request with one savedAt, minted only after every freshness check resolved", async () => {
+	it("stamps every page of one request with one allocator-issued savedAt, minted only after every freshness check resolved", async () => {
 		const fixture = createDefaultTestAppFixture(TEST_APP_ORIGIN);
+		const allocatorBase = new Date("2031-04-05T06:07:08.090Z");
+		let allocations = 0;
 		const events: string[] = [];
 		const savedAts: Date[] = [];
 		const testApp = useApp({
@@ -109,6 +111,10 @@ describe("POST /queue/save-articles", () => {
 			},
 			articleStore: {
 				...fixture.articleStore,
+				allocateSavedAt: async () => {
+					allocations += 1;
+					return new Date(allocatorBase.getTime() + allocations - 1);
+				},
 				saveArticle: async (params) => {
 					events.push(`save ${params.url}`);
 					savedAts.push(params.savedAt);
@@ -139,8 +145,12 @@ describe("POST /queue/save-articles", () => {
 		]);
 		expect(events[2]).toBe("refresh https://example.com/slow");
 		expect(events.slice(3).map((e) => e.split(" ")[0])).toEqual(["save", "save", "save"]);
-		expect(savedAts).toHaveLength(3);
-		expect(new Set(savedAts.map((d) => d.toISOString())).size).toBe(1);
+		expect(allocations).toBe(1);
+		expect(savedAts.map((d) => d.toISOString())).toEqual([
+			allocatorBase.toISOString(),
+			allocatorBase.toISOString(),
+			allocatorBase.toISOString(),
+		]);
 	});
 
 	it("counts a page whose store write throws as failed and still saves the rest of the request", async () => {
@@ -202,6 +212,59 @@ describe("POST /queue/save-articles", () => {
 		);
 		const stored = await testApp.articleStore.findArticlesByUser({ userId: TEST_USER_ID });
 		expect(stored.articles.map((a) => a.url)).toEqual(["https://example.com/healthy"]);
+	});
+
+	it("stamps a single Siren save with the allocator's instant, not the wall clock", async () => {
+		const fixture = createDefaultTestAppFixture(TEST_APP_ORIGIN);
+		const allocatedSavedAt = new Date("2031-04-05T06:07:08.090Z");
+		const testApp = useApp({
+			...fixture,
+			articleStore: {
+				...fixture.articleStore,
+				allocateSavedAt: async () => allocatedSavedAt,
+			},
+		});
+		const accessToken = await createAccessToken(testApp);
+
+		const response = await request(testApp.server)
+			.post("/queue")
+			.set("Accept", SIREN_MEDIA_TYPE)
+			.set("Authorization", `Bearer ${accessToken}`)
+			.send({ url: "https://example.com/single-allocator" });
+
+		expect(response.status).toBe(201);
+		const stored = await testApp.articleStore.findArticlesByUser({ userId: TEST_USER_ID });
+		expect(stored.articles.map((a) => [a.url, a.savedAt.toISOString()])).toEqual([
+			["https://example.com/single-allocator", allocatedSavedAt.toISOString()],
+		]);
+	});
+
+	it("counts every ready page as failed when the position allocator itself fails, still answering with the Siren summary", async () => {
+		const fixture = createDefaultTestAppFixture(TEST_APP_ORIGIN);
+		const testApp = useApp({
+			...fixture,
+			articleStore: {
+				...fixture.articleStore,
+				allocateSavedAt: async () => {
+					throw new Error("cursor write throttled");
+				},
+			},
+		});
+		const accessToken = await createAccessToken(testApp);
+
+		const response = await request(testApp.server)
+			.post("/queue/save-articles")
+			.set("Accept", SIREN_MEDIA_TYPE)
+			.set("Authorization", `Bearer ${accessToken}`)
+			.field("manifest", manifest([
+				{ url: "https://example.com/a" },
+				{ url: "https://example.com/b" },
+			]));
+
+		expect(response.status).toBe(200);
+		expect(response.body.properties).toEqual(
+			expect.objectContaining({ saved: 0, skipped: 0, failed: 2 }),
+		);
 	});
 
 	it("saves a content page, a url-only page, skips an unsaveable scheme, and returns the summary", async () => {

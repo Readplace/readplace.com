@@ -3,6 +3,7 @@ import type { Handler, SQSBatchItemFailure, SQSBatchResponse, SQSEvent } from "a
 import type { UserId } from "@packages/domain/user";
 import { UserIdSchema } from "@packages/domain/user";
 import type { ValidateSaveableUrl } from "@packages/domain/article";
+import type { AllocateSavedAt } from "@packages/provider-contracts/article-store";
 import { SaveProvenanceSchema } from "@packages/domain/article";
 import type { HutchLogger } from "@packages/hutch-logger";
 import type { PublishEvent } from "@packages/hutch-infra-components/runtime";
@@ -14,7 +15,7 @@ import {
 	TierContentExtractedEvent,
 } from "@packages/hutch-infra-components";
 import type { LogCrawlOutcome, LogParseError } from "@packages/hutch-infra-components";
-import { initSaveArticleFromUrl, type SaveArticleFromUrlDependencies } from "@packages/save-article";
+import { initSaveArticleAtQueueTop, initSaveArticleFromUrl, type SaveArticleFromUrlDependencies } from "@packages/save-article";
 import type { CrawlAndFinalizeArticle } from "@packages/finalize-article";
 import type { MarkCrawlStage } from "../../providers/article-crawl/mark-crawl-stage";
 import type { PutTierSource } from "../../providers/article-store/put-tier-source";
@@ -32,6 +33,7 @@ export function initSubmitLinkCommandHandler(deps: {
 	markSummaryPending: SaveArticleFromUrlDependencies["markSummaryPending"];
 	publishUpdateFetchTimestamp: SaveArticleFromUrlDependencies["publishUpdateFetchTimestamp"];
 	refreshArticleIfStale: SaveArticleFromUrlDependencies["refreshArticleIfStale"];
+	allocateSavedAt: AllocateSavedAt;
 	resolveCanonicalIdentity: SaveArticleFromUrlDependencies["resolveCanonicalIdentity"];
 	crawlAndFinalizeArticle: CrawlAndFinalizeArticle;
 	emitSimpleCrawlUnsupported: EmitSimpleCrawlUnsupported;
@@ -126,8 +128,12 @@ export function initSubmitLinkCommandHandler(deps: {
 					publishLinkQueued: (params) => deps.publishEvent(LinkQueuedEvent, params),
 				});
 
+				const saveArticleAtQueueTop = initSaveArticleAtQueueTop({
+					allocateSavedAt: deps.allocateSavedAt,
+					saveArticleFromUrl,
+				});
 				const freshness = await deps.refreshArticleIfStale({ url: validation.url });
-				await saveArticleFromUrl({ userId, url: validation.url, freshness, provenance, savedAt: deps.now() });
+				await saveArticleAtQueueTop({ userId, url: validation.url, freshness, provenance });
 
 				for (const link of enrichment) {
 					try {

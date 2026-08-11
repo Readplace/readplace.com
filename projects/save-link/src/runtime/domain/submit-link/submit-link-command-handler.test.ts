@@ -89,11 +89,13 @@ const rejectingEmitSimpleCrawlUnsupported: EmitSimpleCrawlUnsupported = async ()
 type HandlerDeps = Parameters<typeof initSubmitLinkCommandHandler>[0];
 
 const fixedNow = () => new Date("2026-06-01T12:00:00.000Z");
+const allocatedSavedAt = new Date("2026-06-01T12:00:00.777Z");
 
 function createHandler(overrides: Partial<HandlerDeps> = {}) {
 	return initSubmitLinkCommandHandler({
 		validateSaveableUrl,
 		saveArticle: jest.fn().mockResolvedValue({ saved: makeSaved(), createdUserArticle: true, wroteUserArticle: true }),
+		allocateSavedAt: jest.fn().mockResolvedValue(allocatedSavedAt),
 		updateArticleStatus: jest.fn().mockResolvedValue(true),
 		markCrawlPending: jest.fn().mockResolvedValue(undefined),
 		markSummaryPending: jest.fn().mockResolvedValue(undefined),
@@ -145,7 +147,7 @@ describe("initSubmitLinkCommandHandler", () => {
 
 		expect(response.batchItemFailures).toEqual([]);
 		expect(saveArticle).toHaveBeenCalledWith(
-			expect.objectContaining({ userId, url: exampleUrl }),
+			expect.objectContaining({ userId, url: exampleUrl, savedAt: allocatedSavedAt }),
 		);
 		expect(markCrawlPending).toHaveBeenCalledWith({ url: exampleUrl });
 		expect(putTierSource).toHaveBeenCalledWith(

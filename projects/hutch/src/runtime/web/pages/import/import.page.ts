@@ -14,6 +14,7 @@ import type { ImportSessionStore } from "@packages/domain/import-session";
 import type { ValidateSaveableUrl, SaveableUrl, SaveableUrlErrorCode } from "@packages/domain/article";
 import type { ExtractLinksFromPageUrl } from "@packages/extract-links-from-page";
 import type { HutchLogger } from "@packages/hutch-logger";
+import type { AllocateSavedAt } from "@packages/provider-contracts/article-store";
 import type { ConsumeRateLimit } from "@packages/provider-contracts/rate-limit";
 import type { RateLimitRule } from "@packages/domain/rate-limit";
 import { createRateLimitMiddleware } from "../../middleware/rate-limit";
@@ -36,6 +37,7 @@ import { parseImportPage } from "./import.url";
 
 interface ImportRouteDependencies extends SaveArticleFromUrlDependencies {
 	validateSaveableUrl: ValidateSaveableUrl;
+	allocateSavedAt: AllocateSavedAt;
 	importSessionStore: ImportSessionStore;
 	extractLinksFromPageUrl: ExtractLinksFromPageUrl;
 	logError: (message: string, error?: Error) => void;
@@ -336,7 +338,7 @@ export function initImportSessionRoutes(deps: ImportRouteDependencies): Router {
 				),
 			);
 			const ready = prepared.flatMap((page) => (page === "failed" ? [] : [page]));
-			const savedAt = deps.now();
+			const savedAt = await deps.allocateSavedAt({ userId });
 			await Promise.all(
 				ready.map(({ url, freshness }) =>
 					saveArticleFromUrl({

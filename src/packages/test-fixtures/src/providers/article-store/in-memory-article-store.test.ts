@@ -220,6 +220,40 @@ describe("initInMemoryArticleStore", () => {
 			expect(saved.provenance).toEqual({ kind: "web" });
 		});
 
+		it("allocateSavedAt hands out strictly increasing instants per user, even within one millisecond", async () => {
+			const store = initInMemoryArticleStore();
+
+			const first = await store.allocateSavedAt({ userId: USER_A });
+			const second = await store.allocateSavedAt({ userId: USER_A });
+			const third = await store.allocateSavedAt({ userId: USER_A });
+
+			expect(second.getTime()).toBeGreaterThan(first.getTime());
+			expect(third.getTime()).toBeGreaterThan(second.getTime());
+		});
+
+		it("allocateSavedAt returns to tracking wall clock once it moves past the cursor", async () => {
+			const store = initInMemoryArticleStore();
+			const first = await store.allocateSavedAt({ userId: USER_A });
+			await new Promise((resolve) => setTimeout(resolve, 10));
+
+			const second = await store.allocateSavedAt({ userId: USER_A });
+
+			expect(second.getTime()).toBeGreaterThan(first.getTime() + 1);
+		});
+
+		it("allocateSavedAt restarts from wall clock after account deletion clears the cursor", async () => {
+			const store = initInMemoryArticleStore();
+			let cursorPushedAheadOfClock = new Date(0);
+			for (let i = 0; i < 50; i += 1) {
+				cursorPushedAheadOfClock = await store.allocateSavedAt({ userId: USER_A });
+			}
+
+			await store.deleteAllUserArticles(USER_A);
+			const after = await store.allocateSavedAt({ userId: USER_A });
+
+			expect(after.getTime()).toBeLessThan(cursorPushedAheadOfClock.getTime());
+		});
+
 		it("ignores a bumpArticleSavedAt call for a URL that has never been saved", async () => {
 			const store = initInMemoryArticleStore();
 

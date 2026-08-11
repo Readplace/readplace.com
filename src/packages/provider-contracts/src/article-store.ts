@@ -49,6 +49,8 @@ export type SaveArticle = (
 	params: SaveArticleParams,
 ) => Promise<{ saved: SavedArticle; createdUserArticle: boolean; wroteUserArticle: boolean }>;
 
+export type AllocateSavedAt = (params: { userId: UserId }) => Promise<Date>;
+
 export interface SaveArticleGloballyParams {
 	url: string;
 	metadata: SavedArticle["metadata"];

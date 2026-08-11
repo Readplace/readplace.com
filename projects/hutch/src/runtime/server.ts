@@ -73,6 +73,7 @@ import type { ExchangeGoogleCode } from "@packages/provider-contracts/google-aut
 import type { ExchangeAppleCode } from "@packages/provider-contracts/apple-auth";
 import type { GetIosAppSignals, RecordIosAnyActivity, RecordIosSavedArticle } from "@packages/provider-contracts/ios-onboarding-signal";
 import type {
+	AllocateSavedAt,
 	CountArticlesByUser,
 	DeleteArticle,
 	FindArticleById,
@@ -191,7 +192,7 @@ import { initMcpRoutes } from "./web/mcp/mcp.routes";
 import { buildMcpServerCard } from "./web/mcp/server-card";
 import { initResolveSaveAccess } from "./web/mcp/save-access";
 import { initResolveToolAccess } from "./web/mcp/tool-access";
-import { initSaveArticleFromUrl, initSaveArticleInteractively } from "@packages/save-article";
+import { initSaveArticleAtQueueTop, initSaveArticleFromUrl, initSaveArticleInteractively } from "@packages/save-article";
 import type { FoundingAllocation } from "./web/shared/founding-progress/founding-allocation";
 import { initDualAuth } from "./web/dual-auth.middleware";
 import { initMarkExtensionInstalled } from "./web/mark-extension-installed.middleware";
@@ -334,6 +335,7 @@ interface AppDependencies {
 	markCrawlPending: MarkCrawlPending;
 	forceMarkCrawlPending: ForceMarkCrawlPending;
 	refreshArticleIfStale: RefreshArticleIfStale;
+	allocateSavedAt: AllocateSavedAt;
 	resolveCanonicalIdentity: (url: string) => Promise<string>;
 	getIosAppSignals: GetIosAppSignals;
 	recordIosAnyActivity: RecordIosAnyActivity;
@@ -469,15 +471,17 @@ export function createApp(dependencies: AppDependencies): Express {
 			}
 			try {
 				const freshness = await deps.refreshArticleIfStale({ url: validation.url });
-				const { saved } = await initSaveArticleInteractively({
-					saveArticleFromUrl: initSaveArticleFromUrl(deps),
-					publishComputeRelatedArticles: deps.publishComputeRelatedArticles,
+				const { saved } = await initSaveArticleAtQueueTop({
+					allocateSavedAt: deps.allocateSavedAt,
+					saveArticleFromUrl: initSaveArticleInteractively({
+						saveArticleFromUrl: initSaveArticleFromUrl(deps),
+						publishComputeRelatedArticles: deps.publishComputeRelatedArticles,
+					}),
 				})({
 					userId,
 					url: validation.url,
 					freshness,
 					provenance: await resolveMcpSaveProvenance(oauthClientId),
-					savedAt: deps.now(),
 				});
 				return { ok: true, title: saved.metadata.title, url: saved.url };
 			} catch (error) {
@@ -1125,6 +1129,7 @@ export function createApp(dependencies: AppDependencies): Express {
 		findArticleCrawlStatuses: deps.findArticleCrawlStatuses,
 		markCrawlPending: deps.markCrawlPending,
 		refreshArticleIfStale: deps.refreshArticleIfStale,
+		allocateSavedAt: deps.allocateSavedAt,
 		resolveCanonicalIdentity: deps.resolveCanonicalIdentity,
 		publishUpdateFetchTimestamp: deps.publishUpdateFetchTimestamp,
 		readArticleContent: deps.readArticleContent,
@@ -1165,6 +1170,7 @@ export function createApp(dependencies: AppDependencies): Express {
 		publishLinkSaved: deps.publishLinkSaved,
 		publishLinkQueued: deps.publishLinkQueued,
 		refreshArticleIfStale: deps.refreshArticleIfStale,
+		allocateSavedAt: deps.allocateSavedAt,
 		resolveCanonicalIdentity: deps.resolveCanonicalIdentity,
 		logError: deps.logError,
 		analytics: deps.analytics,

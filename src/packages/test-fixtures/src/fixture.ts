@@ -334,6 +334,7 @@ export function createDefaultTestAppFixture(appOrigin: string): TestAppFixture {
 	return {
 		auth: { ...auth, hashPassword: fastHashPassword },
 		articleStore: {
+			allocateSavedAt: articleStoreMemory.allocateSavedAt,
 			deleteAllUserArticles: articleStoreMemory.deleteAllUserArticles,
 			listUserArticleUrls: articleStoreMemory.listUserArticleUrls,
 			findArticleById: articleStoreMemory.findArticleById,
