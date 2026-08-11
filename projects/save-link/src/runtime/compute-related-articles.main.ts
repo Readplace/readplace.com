@@ -9,6 +9,7 @@ import { createDynamoDocumentClient } from "@packages/hutch-storage-client";
 import { requireEnv } from "@packages/require-env";
 import OpenAI from "openai";
 import { initComputeRelatedArticlesHandler } from "./domain/related-articles/compute-related-articles-handler";
+import { initGatherRelatedCandidatePools } from "./domain/related-articles/related-articles-candidates";
 import { initSelectRelatedArticles } from "./domain/related-articles/related-articles-selector";
 import { RELATED_ARTICLES_TIMEOUTS } from "./domain/related-articles/timeouts";
 
@@ -36,6 +37,7 @@ const { selectRelatedArticles } = initSelectRelatedArticles({
 const {
 	findRelatedArticles,
 	findRelatedCandidateArticles,
+	findRelatedReadCandidateArticles,
 	findRelatedTargetArticle,
 	markRelatedArticlesReady,
 	markRelatedArticlesSkipped,
@@ -43,6 +45,11 @@ const {
 	client: dynamoClient,
 	tableName: articlesTable,
 	userArticlesTableName: userArticlesTable,
+});
+
+const { gatherRelatedCandidatePools } = initGatherRelatedCandidatePools({
+	findRelatedCandidateArticles,
+	findRelatedReadCandidateArticles,
 });
 
 const { publishEvent } = initEventBridgePublisher({
@@ -53,7 +60,7 @@ const { publishEvent } = initEventBridgePublisher({
 export const handler = initComputeRelatedArticlesHandler({
 	findRelatedArticles,
 	findRelatedTargetArticle,
-	findRelatedCandidateArticles,
+	gatherRelatedCandidatePools,
 	selectRelatedArticles,
 	markRelatedArticlesReady,
 	markRelatedArticlesSkipped,

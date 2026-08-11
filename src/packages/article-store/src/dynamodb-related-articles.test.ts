@@ -432,6 +432,171 @@ describe("initDynamoDbRelatedArticles", () => {
 		});
 	});
 
+	describe("findRelatedReadCandidateArticles", () => {
+		function readRows(urls: string[]): Record<string, unknown>[] {
+			return urls.map((url) => ({
+				userId: USER_ID,
+				url,
+				savedAt: AT.toISOString(),
+			}));
+		}
+
+		function readCandidateClient(params: {
+			pages: Array<{ urls: string[]; lastEvaluatedKey?: Record<string, unknown> }>;
+			articles: Record<string, unknown>[];
+		}) {
+			let page = 0;
+			return build((command) => {
+				if (command.constructorName === "QueryCommand") {
+					const current = params.pages[page];
+					page += 1;
+					assert(current, "the query asked for more pages than the test supplies");
+					return {
+						Items: readRows(current.urls),
+						LastEvaluatedKey: current.lastEvaluatedKey,
+					};
+				}
+				return {
+					Responses: { [ARTICLES_TABLE]: params.articles },
+					UnprocessedKeys: {},
+				};
+			});
+		}
+
+		it("reads the reader's most recently finished saves off the sparse read index, skipping the article being read", async () => {
+			const { sent, store } = readCandidateClient({
+				pages: [{ urls: ["example.com/target", "example.com/finished"] }],
+				articles: [
+					{
+						url: "example.com/finished",
+						title: "Finished",
+						siteName: "Example",
+						excerpt: "Finished excerpt",
+						summary: "Finished full summary.",
+					},
+				],
+			});
+
+			const candidates = await store.findRelatedReadCandidateArticles({
+				userId: USER_ID,
+				excludeUrl: TARGET_URL,
+				limit: 10,
+			});
+
+			expect(candidates).toEqual([
+				{
+					url: "example.com/finished",
+					title: "Finished",
+					siteName: "Example",
+					description: "Finished full summary.",
+				},
+			]);
+			const query = sent[0];
+			assert(query, "a query must have been issued");
+			expect({
+				index: query.input.IndexName,
+				forward: query.input.ScanIndexForward,
+				filter: query.input.FilterExpression,
+				values: query.input.ExpressionAttributeValues,
+			}).toEqual({
+				index: "userId-readAt-index",
+				forward: false,
+				filter: undefined,
+				values: { ":userId": USER_ID },
+			});
+		});
+
+		it("stops paging once the limit is filled", async () => {
+			const { store } = readCandidateClient({
+				pages: [
+					{
+						urls: ["example.com/a", "example.com/b"],
+						lastEvaluatedKey: { userId: USER_ID },
+					},
+				],
+				articles: [
+					{ url: "example.com/a", title: "A", siteName: "Example", excerpt: "" },
+					{ url: "example.com/b", title: "B", siteName: "Example", excerpt: "" },
+				],
+			});
+
+			const candidates = await store.findRelatedReadCandidateArticles({
+				userId: USER_ID,
+				excludeUrl: TARGET_URL,
+				limit: 2,
+			});
+
+			expect(candidates.map((candidate) => candidate.title)).toEqual(["A", "B"]);
+		});
+
+		it("follows the next page when the first one did not fill the limit", async () => {
+			const { store } = readCandidateClient({
+				pages: [
+					{ urls: ["example.com/a"], lastEvaluatedKey: { userId: USER_ID } },
+					{ urls: ["example.com/b"] },
+				],
+				articles: [
+					{ url: "example.com/a", title: "A", siteName: "Example", excerpt: "" },
+					{ url: "example.com/b", title: "B", siteName: "Example", excerpt: "" },
+				],
+			});
+
+			const candidates = await store.findRelatedReadCandidateArticles({
+				userId: USER_ID,
+				excludeUrl: TARGET_URL,
+				limit: 5,
+			});
+
+			expect(candidates.map((candidate) => candidate.title)).toEqual(["A", "B"]);
+		});
+
+		it("drops saves whose article was purged or never got a title", async () => {
+			const { store } = readCandidateClient({
+				pages: [
+					{
+						urls: [
+							"example.com/purged",
+							"example.com/untitled",
+							"example.com/missing",
+							"example.com/good",
+						],
+					},
+				],
+				articles: [
+					{
+						url: "example.com/purged",
+						title: "Purged",
+						siteName: "Example",
+						excerpt: "",
+						purgedAt: AT.toISOString(),
+					},
+					{ url: "example.com/untitled", siteName: "Example" },
+					{ url: "example.com/good", title: "Good", siteName: "Example", excerpt: "" },
+				],
+			});
+
+			const candidates = await store.findRelatedReadCandidateArticles({
+				userId: USER_ID,
+				excludeUrl: TARGET_URL,
+				limit: 10,
+			});
+
+			expect(candidates.map((candidate) => candidate.title)).toEqual(["Good"]);
+		});
+
+		it("returns nothing when the reader has finished nothing else", async () => {
+			const { store } = readCandidateClient({ pages: [{ urls: [] }], articles: [] });
+
+			expect(
+				await store.findRelatedReadCandidateArticles({
+					userId: USER_ID,
+					excludeUrl: TARGET_URL,
+					limit: 10,
+				}),
+			).toEqual([]);
+		});
+	});
+
 	describe("findRelatedArticles", () => {
 		it("reports pending while nothing has been computed", async () => {
 			const { store } = build(() => ({ Item: { userId: USER_ID, url: "example.com/target" } }));
@@ -475,7 +640,7 @@ describe("initDynamoDbRelatedArticles", () => {
 			expect(sent).toHaveLength(1);
 		});
 
-		it("keeps only the relations the reader still has unread, preserving the stored order", async () => {
+		it("resolves every relation the reader still has, with its live read state and the stored order", async () => {
 			let savedRowProjection: string | undefined;
 			const { store } = build((command) => {
 				if (command.constructorName === "GetCommand") {
@@ -504,7 +669,12 @@ describe("initDynamoDbRelatedArticles", () => {
 						Responses: {
 							[USER_ARTICLES_TABLE]: [
 								{ url: "example.com/second", status: "unread", savedAt: "2026-06-01T00:00:00.000Z" },
-								{ url: "example.com/finished", status: "read", savedAt: "2026-05-15T00:00:00.000Z" },
+								{
+									url: "example.com/finished",
+									status: "read",
+									savedAt: "2026-05-15T00:00:00.000Z",
+									readAt: "2026-07-02T00:00:00.000Z",
+								},
 								{ url: "example.com/first", status: "unread", savedAt: "2026-05-01T00:00:00.000Z" },
 							],
 						},
@@ -552,21 +722,33 @@ describe("initDynamoDbRelatedArticles", () => {
 					title: "Second",
 					siteName: "Example",
 					reason: "Follow-up",
+					status: "unread",
 					savedAt: new Date("2026-06-01T00:00:00.000Z"),
+				},
+				{
+					id: "33333333333333333333333333333333",
+					title: "Finished",
+					siteName: "Example",
+					reason: "Already read",
+					status: "read",
+					savedAt: new Date("2026-05-15T00:00:00.000Z"),
+					readAt: new Date("2026-07-02T00:00:00.000Z"),
 				},
 				{
 					id: "0123456789abcdef0123456789abcdef",
 					title: "First",
 					siteName: "Example",
 					reason: "Same event",
+					status: "unread",
 					savedAt: new Date("2026-05-01T00:00:00.000Z"),
 				},
 			]);
 			expect(savedRowProjection).toContain("#status");
+			expect(savedRowProjection).toContain("#readAt");
 		});
 
-		it("never reads an article row when the reader has finished every relation", async () => {
-			const { sent, store } = build((command) => {
+		it("carries a read relation whose row predates the read timestamp without one", async () => {
+			const { store } = build((command) => {
 				if (command.constructorName === "GetCommand") {
 					return {
 						Item: {
@@ -577,12 +759,66 @@ describe("initDynamoDbRelatedArticles", () => {
 						},
 					};
 				}
+				const tableName = Object.keys(
+					(command.input as { RequestItems: Record<string, unknown> }).RequestItems,
+				)[0];
+				if (tableName === USER_ARTICLES_TABLE) {
+					return {
+						Responses: {
+							[USER_ARTICLES_TABLE]: [
+								{ url: "example.com/finished", status: "read", savedAt: "2026-05-15T00:00:00.000Z" },
+							],
+						},
+						UnprocessedKeys: {},
+					};
+				}
 				return {
 					Responses: {
-						[USER_ARTICLES_TABLE]: [
-							{ url: "example.com/finished", status: "read", savedAt: "2026-05-15T00:00:00.000Z" },
+						[ARTICLES_TABLE]: [
+							{
+								url: "example.com/finished",
+								routeId: "33333333333333333333333333333333",
+								title: "Finished",
+								siteName: "Example",
+								excerpt: "",
+							},
 						],
 					},
+					UnprocessedKeys: {},
+				};
+			});
+
+			const result = await store.findRelatedArticles({ userId: USER_ID, url: TARGET_URL });
+
+			assert(result.status === "ready", "a computed row reports ready");
+			expect(
+				result.items.map((item) => ({ ...item, id: item.id.value })),
+			).toEqual([
+				{
+					id: "33333333333333333333333333333333",
+					title: "Finished",
+					siteName: "Example",
+					reason: "Already read",
+					status: "read",
+					savedAt: new Date("2026-05-15T00:00:00.000Z"),
+				},
+			]);
+		});
+
+		it("never reads an article row when every relation has left the reader's queue", async () => {
+			const { sent, store } = build((command) => {
+				if (command.constructorName === "GetCommand") {
+					return {
+						Item: {
+							userId: USER_ID,
+							url: "example.com/target",
+							relatedStatus: "ready",
+							relatedArticles: [{ url: "example.com/deleted", reason: "Gone" }],
+						},
+					};
+				}
+				return {
+					Responses: { [USER_ARTICLES_TABLE]: [] },
 					UnprocessedKeys: {},
 				};
 			});
@@ -694,6 +930,7 @@ describe("initDynamoDbRelatedArticles", () => {
 					title: "Kept",
 					siteName: "Example",
 					reason: "Same argument",
+					status: "unread",
 					savedAt: new Date("2026-05-20T00:00:00.000Z"),
 				},
 			]);

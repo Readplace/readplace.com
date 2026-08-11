@@ -67,8 +67,9 @@ export const MCP_OPERATIONS = [
 		name: "get_related_articles",
 		title: "Get related articles from the user's own queue",
 		description:
-			"Return other articles the user still has unread in their own Readplace queue that relate to one saved article, looked up by id, each with a short reason and an id you can pass to get_article. Articles the user has already read or deleted are left out. Reports its status (pending or skipped) when no relations have been worked out.",
-		summary: "returns unread saves in the same queue that relate to one article.",
+			"Return other articles in the user's own Readplace queue that relate to one saved article, looked up by id, each tagged unread or read and carrying a short reason and an id you can pass to get_article. An unread pick is the natural next read; a read pick is one they finished earlier and may want again. Articles the user has deleted are left out. Reports its status (pending or skipped) when no relations have been worked out.",
+		summary:
+			"returns saves in the same queue that relate to one article, each tagged unread or read.",
 		effect: "read",
 	},
 	{

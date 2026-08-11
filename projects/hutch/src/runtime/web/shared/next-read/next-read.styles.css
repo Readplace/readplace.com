@@ -132,6 +132,19 @@
   background: currentColor;
 }
 
+.next-read__status--read {
+  color: var(--color-text-secondary);
+}
+
+.next-read__status--read::before {
+  content: "";
+  display: block;
+  width: 0.5rem;
+  height: 0.5rem;
+  border: 1px solid currentColor;
+  border-radius: 50%;
+}
+
 .next-read__saved {
   font-size: 0.75rem;
   color: var(--color-text-secondary);

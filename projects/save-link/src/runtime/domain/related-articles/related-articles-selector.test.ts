@@ -54,7 +54,11 @@ describe("initSelectRelatedArticles", () => {
 			JSON.stringify({ related: [] }),
 		);
 
-		await selectRelatedArticles({ target, candidates: candidates(2) });
+		await selectRelatedArticles({
+			target,
+			unreadCandidates: candidates(2),
+			readCandidates: [],
+		});
 
 		const prompt = captured.prompts[0] ?? "";
 		expect(prompt).toContain("SAVED ARTICLE");
@@ -64,12 +68,117 @@ describe("initSelectRelatedArticles", () => {
 		expect(prompt).not.toContain("https://example.com/earlier-0");
 	});
 
+	it("labels the two pools and numbers them as one continuous list", async () => {
+		const { selectRelatedArticles, captured } = selectorReturning(
+			JSON.stringify({ related: [] }),
+		);
+
+		await selectRelatedArticles({
+			target,
+			unreadCandidates: candidates(2),
+			readCandidates: [
+				{
+					url: "https://example.com/finished-0",
+					title: "Finished 0",
+					siteName: "Example",
+					description: "Summary finished",
+				},
+			],
+		});
+
+		const prompt = captured.prompts[0] ?? "";
+		expect(prompt).toContain("UNREAD CANDIDATES\n[0]\nTitle: Earlier 0");
+		expect(prompt).toContain("[1]\nTitle: Earlier 1");
+		expect(prompt).toContain("PAST READS\n[2]\nTitle: Finished 0");
+	});
+
+	it("leaves out the past-reads heading for a reader who has finished nothing else", async () => {
+		const { selectRelatedArticles, captured } = selectorReturning(
+			JSON.stringify({ related: [] }),
+		);
+
+		await selectRelatedArticles({
+			target,
+			unreadCandidates: candidates(1),
+			readCandidates: [],
+		});
+
+		const prompt = captured.prompts[0] ?? "";
+		expect(prompt.split("\n").filter((line) => line.endsWith("CANDIDATES") || line === "PAST READS")).toEqual([
+			"UNREAD CANDIDATES",
+		]);
+	});
+
+	it("leaves out the unread heading for a reader with nothing left unread", async () => {
+		const { selectRelatedArticles, captured } = selectorReturning(
+			JSON.stringify({ related: [] }),
+		);
+
+		await selectRelatedArticles({
+			target,
+			unreadCandidates: [],
+			readCandidates: candidates(2),
+		});
+
+		const prompt = captured.prompts[0] ?? "";
+		expect(prompt.split("\n").filter((line) => line.endsWith("CANDIDATES") || line === "PAST READS")).toEqual([
+			"PAST READS",
+		]);
+		expect(prompt).toContain("PAST READS\n[0]\nTitle: Earlier 0");
+	});
+
+	it("resolves a position past the unread pool back to the past read it numbered", async () => {
+		const { selectRelatedArticles } = selectorReturning(
+			JSON.stringify({ related: [{ index: 2, reason: "Same craft" }] }),
+		);
+
+		const result = await selectRelatedArticles({
+			target,
+			unreadCandidates: candidates(2),
+			readCandidates: [
+				{
+					url: "https://example.com/finished-0",
+					title: "Finished 0",
+					siteName: "Example",
+					description: "Summary finished",
+				},
+			],
+		});
+
+		expect(result).toEqual({
+			kind: "ready",
+			related: [{ url: "https://example.com/finished-0", reason: "Same craft" }],
+			inputTokens: 140,
+			outputTokens: 25,
+		});
+	});
+
+	it("tells the model to spend every slot it can on the unread pile", async () => {
+		const { selectRelatedArticles, captured } = selectorReturning(
+			JSON.stringify({ related: [] }),
+		);
+
+		await selectRelatedArticles({
+			target,
+			unreadCandidates: candidates(1),
+			readCandidates: [],
+		});
+
+		expect(captured.systems[0]).toContain(
+			"List every related unread candidate before any past read.",
+		);
+	});
+
 	it("describes each candidate by the description the store chose", async () => {
 		const { selectRelatedArticles, captured } = selectorReturning(
 			JSON.stringify({ related: [] }),
 		);
 
-		await selectRelatedArticles({ target, candidates: candidates(1) });
+		await selectRelatedArticles({
+			target,
+			unreadCandidates: candidates(1),
+			readCandidates: [],
+		});
 
 		const prompt = captured.prompts[0] ?? "";
 		expect(prompt).toContain("About: Summary 0");
@@ -85,7 +194,11 @@ describe("initSelectRelatedArticles", () => {
 			}),
 		);
 
-		const result = await selectRelatedArticles({ target, candidates: candidates(5) });
+		const result = await selectRelatedArticles({
+			target,
+			unreadCandidates: candidates(5),
+			readCandidates: [],
+		});
 
 		expect(result).toEqual({
 			kind: "ready",
@@ -109,7 +222,11 @@ describe("initSelectRelatedArticles", () => {
 			}),
 		);
 
-		const result = await selectRelatedArticles({ target, candidates: candidates(3) });
+		const result = await selectRelatedArticles({
+			target,
+			unreadCandidates: candidates(3),
+			readCandidates: [],
+		});
 
 		expect(result).toEqual({
 			kind: "ready",
@@ -129,7 +246,11 @@ describe("initSelectRelatedArticles", () => {
 			}),
 		);
 
-		const result = await selectRelatedArticles({ target, candidates: candidates(3) });
+		const result = await selectRelatedArticles({
+			target,
+			unreadCandidates: candidates(3),
+			readCandidates: [],
+		});
 
 		expect(result).toEqual({
 			kind: "ready",
@@ -150,7 +271,8 @@ describe("initSelectRelatedArticles", () => {
 
 		const result = await selectRelatedArticles({
 			target,
-			candidates: candidates(RELATED_RESULTS_MAX + 5),
+			unreadCandidates: candidates(RELATED_RESULTS_MAX + 5),
+			readCandidates: [],
 		});
 
 		expect(result.kind === "ready" && result.related).toHaveLength(RELATED_RESULTS_MAX);
@@ -162,7 +284,11 @@ describe("initSelectRelatedArticles", () => {
 			JSON.stringify({ related: [{ index: 0, reason: longReason }] }),
 		);
 
-		const result = await selectRelatedArticles({ target, candidates: candidates(1) });
+		const result = await selectRelatedArticles({
+			target,
+			unreadCandidates: candidates(1),
+			readCandidates: [],
+		});
 
 		expect(result.kind === "ready" && result.related[0]?.reason).toBe(
 			`${"words ".repeat(19).trim()}…`,
@@ -178,7 +304,11 @@ describe("initSelectRelatedArticles", () => {
 			JSON.stringify({ related: [{ index: 0, reason: unbroken }] }),
 		);
 
-		const result = await selectRelatedArticles({ target, candidates: candidates(1) });
+		const result = await selectRelatedArticles({
+			target,
+			unreadCandidates: candidates(1),
+			readCandidates: [],
+		});
 
 		expect(result.kind === "ready" && result.related[0]?.reason).toBe(
 			`${"x".repeat(RELATED_REASON_MAX_CHARS - 1)}…`,
@@ -188,7 +318,11 @@ describe("initSelectRelatedArticles", () => {
 	it("reports an unreadable answer so the caller can retry", async () => {
 		const { selectRelatedArticles } = selectorReturning("");
 
-		expect(await selectRelatedArticles({ target, candidates: candidates(3) })).toEqual({
+		expect(await selectRelatedArticles({
+			target,
+			unreadCandidates: candidates(3),
+			readCandidates: [],
+		})).toEqual({
 			kind: "no-text-block",
 		});
 	});
@@ -203,7 +337,11 @@ describe("initSelectRelatedArticles", () => {
 			logger: noopLogger,
 		});
 
-		expect(await selectRelatedArticles({ target, candidates: candidates(3) })).toEqual({
+		expect(await selectRelatedArticles({
+			target,
+			unreadCandidates: candidates(3),
+			readCandidates: [],
+		})).toEqual({
 			kind: "no-text-block",
 		});
 	});
@@ -213,7 +351,11 @@ describe("initSelectRelatedArticles", () => {
 			JSON.stringify({ related: [] }),
 		);
 
-		await selectRelatedArticles({ target, candidates: candidates(1) });
+		await selectRelatedArticles({
+			target,
+			unreadCandidates: candidates(1),
+			readCandidates: [],
+		});
 
 		expect(captured.systems[0]).toContain("untrusted");
 	});

@@ -90,13 +90,14 @@ describe("initInMemoryRelatedArticles", () => {
 					title: "Earlier read",
 					siteName: "Example",
 					reason: "Same argument",
+					status: "unread",
 					savedAt: related.savedAt,
 				},
 			],
 		});
 	});
 
-	it("drops a relation once the reader marks it read, and brings it back when they mark it unread", async () => {
+	it("keeps a relation the reader marks read, dated by when they read it, and drops that date again on unread", async () => {
 		const { articleStore, store, save } = build();
 		await save({ userId: USER_ID, url: URL, title: "Target" });
 		const related = await save({
@@ -119,9 +120,17 @@ describe("initInMemoryRelatedArticles", () => {
 		await articleStore.updateArticleStatus(related.id, USER_ID, "unread");
 		const afterUnread = await store.findRelatedArticles({ userId: USER_ID, url: URL });
 
-		expect(afterRead).toEqual({ status: "ready", items: [] });
+		assert(afterRead.status === "ready", "the relation list is still computed");
+		const readItem = afterRead.items[0];
+		assert(readItem, "a relation the reader has read is still a relation");
+		expect({ status: readItem.status, dated: readItem.readAt instanceof Date }).toEqual({
+			status: "read",
+			dated: true,
+		});
 		assert(afterUnread.status === "ready", "the relation list is still computed");
-		expect(afterUnread.items.map((item) => item.title)).toEqual(["Earlier read"]);
+		expect(afterUnread.items.map((item) => ({ title: item.title, status: item.status, readAt: item.readAt }))).toEqual([
+			{ title: "Earlier read", status: "unread", readAt: undefined },
+		]);
 	});
 
 	it("drops a relation the reader has deleted from their queue", async () => {

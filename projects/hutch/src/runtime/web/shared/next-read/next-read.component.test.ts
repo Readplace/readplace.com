@@ -1,5 +1,6 @@
 import assert from "node:assert/strict";
 import { ReaderArticleHashIdSchema } from "@packages/domain/article";
+import type { RelatedArticleDisplay } from "@packages/provider-contracts/related-articles";
 import { JSDOM } from "jsdom";
 import { renderNextRead } from "./next-read.component";
 
@@ -15,16 +16,7 @@ const NOW = new Date("2026-08-05T12:00:00.000Z");
 const RETURN_TO = `/queue/${sourceId.value}/view`;
 const savedDaysAgo = (days: number) => new Date(NOW.getTime() - days * 86_400_000);
 
-function readyWith(
-	items: {
-		id: typeof firstId;
-		title: string;
-		siteName: string;
-		reason: string;
-		savedAt: Date;
-	}[],
-	pollUrl?: string,
-) {
+function readyWith(items: RelatedArticleDisplay[], pollUrl?: string) {
 	return renderNextRead({
 		related: {
 			articles: { status: "ready", items },
@@ -36,20 +28,32 @@ function readyWith(
 	});
 }
 
-const FIRST = {
+const FIRST: RelatedArticleDisplay = {
 	id: firstId,
 	title: "First",
 	siteName: "Example",
 	reason: "Same argument",
+	status: "unread",
 	savedAt: savedDaysAgo(60),
 };
 
-const SECOND = {
+const SECOND: RelatedArticleDisplay = {
 	id: secondId,
 	title: "Second",
 	siteName: "Other",
 	reason: "Follow-up",
+	status: "unread",
 	savedAt: savedDaysAgo(7),
+};
+
+const FINISHED: RelatedArticleDisplay = {
+	id: secondId,
+	title: "Finished",
+	siteName: "Other",
+	reason: "Same field",
+	status: "read",
+	savedAt: savedDaysAgo(60),
+	readAt: savedDaysAgo(5),
 };
 
 function slotOf(doc: Document) {
@@ -132,7 +136,7 @@ describe("renderNextRead", () => {
 		});
 	});
 
-	it("badges the suggestion unread, because a read one is never shown", () => {
+	it("badges an unread suggestion as unread", () => {
 		const doc = parse(readyWith([FIRST]));
 
 		const badge = doc.querySelector(".next-read__status");
@@ -144,6 +148,64 @@ describe("renderNextRead", () => {
 			unread: badge.classList.contains("next-read__status--unread"),
 			label: label.textContent,
 		}).toEqual({ state: "unread", unread: true, label: "Unread" });
+	});
+
+	it("offers the unread relation ahead of one the reader has already finished", () => {
+		const doc = parse(readyWith([FINISHED, FIRST]));
+
+		const link = doc.querySelector("[data-test-related-item]");
+		assert(link, "a ready slot must render the suggestion link");
+		expect({
+			id: link.getAttribute("data-test-related-item"),
+			eyebrow: link.querySelector(".next-read__eyebrow")?.textContent,
+		}).toEqual({ id: firstId.value, eyebrow: "Next read" });
+	});
+
+	it("falls back to a past read, dated by when the reader read it, once no relation is unread", () => {
+		const doc = parse(readyWith([FINISHED]));
+
+		const link = doc.querySelector("[data-test-related-item]");
+		assert(link, "a ready slot must render the suggestion link");
+		const badge = link.querySelector(".next-read__status");
+		assert(badge, "the suggestion carries its read state");
+		const time = link.querySelector(".next-read__saved time");
+		assert(time, "the fallback line must carry a <time> the enhancer can find");
+		expect({
+			id: link.getAttribute("data-test-related-item"),
+			eyebrow: link.querySelector(".next-read__eyebrow")?.textContent,
+			state: badge.getAttribute("data-test-read-status"),
+			read: badge.classList.contains("next-read__status--read"),
+			label: badge.querySelector(".next-read__status-label")?.textContent,
+			dated: link.querySelector(".next-read__saved")?.textContent,
+			datetime: time.getAttribute("datetime"),
+		}).toEqual({
+			id: secondId.value,
+			eyebrow: "Similar past reads",
+			state: "read",
+			read: true,
+			label: "Read",
+			dated: "You read this 5 days ago",
+			datetime: FINISHED.readAt?.toISOString(),
+		});
+	});
+
+	it("dates a past read by when it was saved when the row never recorded a read time", () => {
+		const { readAt: _readAt, ...undatedRead } = FINISHED;
+		const doc = parse(readyWith([undatedRead]));
+
+		const link = doc.querySelector("[data-test-related-item]");
+		assert(link, "a ready slot must render the suggestion link");
+		expect({
+			eyebrow: link.querySelector(".next-read__eyebrow")?.textContent,
+			state: link
+				.querySelector(".next-read__status")
+				?.getAttribute("data-test-read-status"),
+			dated: link.querySelector(".next-read__saved")?.textContent,
+		}).toEqual({
+			eyebrow: "Similar past reads",
+			state: "read",
+			dated: "You saved this 2 months ago",
+		});
 	});
 
 	it("reads the unread badge and the saved time as one line", () => {

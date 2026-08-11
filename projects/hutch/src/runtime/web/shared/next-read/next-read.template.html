@@ -6,13 +6,13 @@
       <button class="next-read__dismiss" type="submit" data-test-action="next-read-dismiss">{{icon "x"}}<span class="sr-only">Dismiss suggestion</span></button>
     </form>
     <a class="next-read__link" href="{{href}}" data-test-related-item="{{id}}" hx-boost="true" hx-target="main" hx-select="main" hx-swap="outerHTML show:none">
-      <span class="next-read__eyebrow">Next read</span>
+      <span class="next-read__eyebrow">{{eyebrow}}</span>
       <span class="next-read__title">{{title}}</span>
       <span class="next-read__site">{{siteName}}</span>
       <span class="next-read__reason">{{reason}}</span>
       <span class="next-read__meta">
-        <span class="next-read__status next-read__status--unread" data-test-read-status="unread"><span class="next-read__status-label">Unread</span></span>
-        <span class="next-read__saved">You saved this <time datetime="{{saved.iso}}" data-local-time="{{saved.mode}}">{{saved.label}}</time></span>
+        <span class="next-read__status {{statusClass}}" data-test-read-status="{{readStatus}}"><span class="next-read__status-label">{{statusLabel}}</span></span>
+        <span class="next-read__saved">{{dated.lead}} <time datetime="{{dated.time.iso}}" data-local-time="{{dated.time.mode}}">{{dated.time.label}}</time></span>
       </span>
     </a>
   </div>

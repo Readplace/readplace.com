@@ -19,6 +19,7 @@ import {
 import { EXPORT_DOWNLOAD_TTL_DAYS, EXPORT_S3_KEY_PREFIX } from "../runtime/web/pages/export/export-ttl";
 import { ANALYTICS_EVENTS, ANALYTICS_LOG_GROUP, ERRORS_LOG_GROUP, ERRORS_LOG_GROUP_RETENTION_DAYS, LAMBDA_NAMES, METRICS, STREAMS } from "../runtime/observability/events";
 import { buildAnalyticsDashboardBody } from "../runtime/observability/analytics-dashboard";
+import { buildRelatedPastReadsDashboardBody } from "../runtime/observability/related-past-reads-dashboard";
 import { parseStripeWebhookSecret } from "../runtime/stripe-webhook-receiver/stripe-webhook-secret";
 import { DomainRegistration } from "./domain-registration";
 import { DomainRedirect } from "./domain-redirect";
@@ -1182,6 +1183,22 @@ new aws.cloudwatch.Dashboard("readplace-analytics", {
 		sendTrialFeedbackEmailLambda,
 	],
 });
+
+// --- Similar-past-reads Dashboard ---
+// Its own board rather than more widgets on the analytics one: this reads a
+// single feature end to end (the offline arm experiment that chose the candidate
+// gathering, then the shipped card's engagement), and it is meant to be retired
+// once the feature has proved itself.
+new aws.cloudwatch.Dashboard("readplace-related-past-reads", {
+	dashboardName: "readplace-related-past-reads",
+	dashboardBody: analyticsLogGroup.name.apply((analyticsLogGroupName) =>
+		JSON.stringify(buildRelatedPastReadsDashboardBody({
+			region,
+			analyticsLogGroupName,
+			excludedVisitorHashes,
+		})),
+	),
+}, { dependsOn: [analyticsLogGroup] });
 
 
 // --- Exports ---

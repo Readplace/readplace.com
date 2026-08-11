@@ -91,6 +91,11 @@ function toRelatedResult(related: RelatedArticles): ArticleRelatedResult {
 					title: item.title,
 					siteName: item.siteName,
 					reason: item.reason,
+					status: item.status,
+					savedAt: item.savedAt.toISOString(),
+					...(item.readAt !== undefined
+						? { readAt: item.readAt.toISOString() }
+						: {}),
 				})),
 			};
 	}

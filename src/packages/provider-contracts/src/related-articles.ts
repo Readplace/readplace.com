@@ -1,4 +1,4 @@
-import type { ReaderArticleHashId } from "@packages/domain/article";
+import type { ArticleStatus, ReaderArticleHashId } from "@packages/domain/article";
 import type { UserId } from "@packages/domain/user";
 
 export interface RelatedArticleLink {
@@ -28,7 +28,9 @@ export interface RelatedArticleDisplay {
 	title: string;
 	siteName: string;
 	reason: string;
+	status: ArticleStatus;
 	savedAt: Date;
+	readAt?: Date;
 }
 
 export type RelatedArticles =
@@ -49,6 +51,12 @@ export interface RelatedCandidate {
 }
 
 export type FindRelatedCandidateArticles = (params: {
+	userId: UserId;
+	excludeUrl: string;
+	limit: number;
+}) => Promise<readonly RelatedCandidate[]>;
+
+export type FindRelatedReadCandidateArticles = (params: {
 	userId: UserId;
 	excludeUrl: string;
 	limit: number;

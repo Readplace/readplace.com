@@ -16,6 +16,7 @@ import {
 import type {
 	FindRelatedArticles,
 	FindRelatedCandidateArticles,
+	FindRelatedReadCandidateArticles,
 	FindRelatedTargetArticle,
 	MarkRelatedArticlesOutcome,
 	MarkRelatedArticlesReady,
@@ -96,6 +97,7 @@ export function initDynamoDbRelatedArticles(deps: {
 }): {
 	findRelatedArticles: FindRelatedArticles;
 	findRelatedCandidateArticles: FindRelatedCandidateArticles;
+	findRelatedReadCandidateArticles: FindRelatedReadCandidateArticles;
 	findRelatedTargetArticle: FindRelatedTargetArticle;
 	markRelatedArticlesReady: MarkRelatedArticlesReady;
 	markRelatedArticlesSkipped: MarkRelatedArticlesSkipped;
@@ -202,6 +204,27 @@ export function initDynamoDbRelatedArticles(deps: {
 		return new Map(rows.map((row) => [row.url, row]));
 	}
 
+	async function hydrateCandidates(
+		savedUrls: string[],
+	): Promise<readonly RelatedCandidate[]> {
+		if (savedUrls.length === 0) return [];
+
+		const byUrl = await readArticles(savedUrls, ARTICLE_FIELDS);
+
+		const candidates: RelatedCandidate[] = [];
+		for (const url of savedUrls) {
+			const article = usable(DescribableArticle, byUrl.get(url));
+			if (!article) continue;
+			candidates.push({
+				url,
+				title: article.title,
+				siteName: article.siteName,
+				description: descriptionOf(article),
+			});
+		}
+		return candidates;
+	}
+
 	const findRelatedCandidateArticles: FindRelatedCandidateArticles = async (
 		params,
 	) => {
@@ -212,8 +235,8 @@ export function initDynamoDbRelatedArticles(deps: {
 		do {
 			const { items, lastEvaluatedKey } = await userArticles.query({
 				IndexName: "userId-savedAt-index",
-				KeyConditionExpression: "userId = :userId",
 				/* c8 ignore next -- V8 block-coverage phantom on the awaited page read, see bcoe/c8#319 */
+				KeyConditionExpression: "userId = :userId",
 				FilterExpression: "#status = :status",
 				ExpressionAttributeNames: { "#status": "status" },
 				ExpressionAttributeValues: {
@@ -231,22 +254,34 @@ export function initDynamoDbRelatedArticles(deps: {
 			exclusiveStartKey = lastEvaluatedKey;
 		} while (exclusiveStartKey && savedUrls.length < params.limit);
 
-		if (savedUrls.length === 0) return [];
+		return hydrateCandidates(savedUrls);
+	};
 
-		const byUrl = await readArticles(savedUrls, ARTICLE_FIELDS);
+	/* c8 ignore next -- V8 block-coverage phantom on the awaited page read, see bcoe/c8#319 */
+	const findRelatedReadCandidateArticles: FindRelatedReadCandidateArticles = async (
+		params,
+	) => {
+		const excludeKey = ArticleResourceUniqueId.parse(params.excludeUrl).value;
+		const savedUrls: string[] = [];
+		let exclusiveStartKey: Record<string, unknown> | undefined;
 
-		const candidates: RelatedCandidate[] = [];
-		for (const url of savedUrls) {
-			const article = usable(DescribableArticle, byUrl.get(url));
-			if (!article) continue;
-			candidates.push({
-				url,
-				title: article.title,
-				siteName: article.siteName,
-				description: descriptionOf(article),
+		do {
+			const { items, lastEvaluatedKey } = await userArticles.query({
+				IndexName: "userId-readAt-index",
+				KeyConditionExpression: "userId = :userId",
+				ExpressionAttributeValues: { ":userId": params.userId },
+				ScanIndexForward: false,
+				ExclusiveStartKey: exclusiveStartKey,
 			});
-		}
-		return candidates;
+			for (const item of items) {
+				if (item.url === excludeKey) continue;
+				if (savedUrls.length >= params.limit) break;
+				savedUrls.push(item.url);
+			}
+			exclusiveStartKey = lastEvaluatedKey;
+		} while (exclusiveStartKey && savedUrls.length < params.limit);
+
+		return hydrateCandidates(savedUrls);
 	};
 
 	const findRelatedArticles: FindRelatedArticles = async (params) => {
@@ -277,14 +312,13 @@ export function initDynamoDbRelatedArticles(deps: {
 				url: z.string(),
 				status: ArticleStatusSchema,
 				savedAt: z.string(),
+				readAt: z.string().optional(),
 			}),
 			keys: keyed.map((link) => ({ userId: params.userId, url: link.key })),
-			projection: ["url", "status", "savedAt"],
+			projection: ["url", "status", "savedAt", "readAt"],
 		});
 		const savedByKey = new Map(
-			stillSaved
-				.filter((saved) => saved.status === "unread")
-				.map((saved) => [saved.url, saved] as const),
+			stillSaved.map((saved) => [saved.url, saved] as const),
 		);
 
 		const byUrl = await readArticles([...savedByKey.keys()], ARTICLE_FIELDS);
@@ -300,7 +334,9 @@ export function initDynamoDbRelatedArticles(deps: {
 				title: article.title,
 				siteName: article.siteName,
 				reason: link.reason,
+				status: saved.status,
 				savedAt: new Date(saved.savedAt),
+				...(saved.readAt !== undefined ? { readAt: new Date(saved.readAt) } : {}),
 			});
 		}
 		return { status: "ready", items };
@@ -309,6 +345,7 @@ export function initDynamoDbRelatedArticles(deps: {
 	return {
 		findRelatedArticles,
 		findRelatedCandidateArticles,
+		findRelatedReadCandidateArticles,
 		findRelatedTargetArticle,
 		markRelatedArticlesReady,
 		markRelatedArticlesSkipped,

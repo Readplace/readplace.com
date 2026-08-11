@@ -95,6 +95,13 @@ export {
 	type HutchCommand,
 } from "./events";
 export { PARSE_ERROR_STREAM, type ParseErrorEvent } from "./logs";
+export {
+	EXPERIMENT_RESULT_STREAM,
+	RELATED_ARM_IDS,
+	RELATED_PAST_READS_EXPERIMENT,
+	type ExperimentArmResultEvent,
+	type RelatedArmId,
+} from "./related-arms-experiment";
 export { SAVE_LINK_LAMBDA_NAMES, SAVE_LINK_LOG_GROUPS } from "./save-link-lambdas";
 export {
 	INBOX_DLQ_SOURCES,

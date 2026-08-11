@@ -1,8 +1,13 @@
 import { readFileSync } from "node:fs";
 import { join } from "node:path";
-import type { RelatedArticles } from "@packages/provider-contracts/related-articles";
+import type { ArticleStatus } from "@packages/domain/article";
+import type {
+	RelatedArticleDisplay,
+	RelatedArticles,
+} from "@packages/provider-contracts/related-articles";
 import { render, toRelativePhrase, withInternalTracking } from "@packages/web-shell";
 import type { LocalTime } from "@packages/web-shell/local-time.format";
+import { NEXT_READ_TRACKING } from "./next-read.tracking";
 
 const NEXT_READ_TEMPLATE = readFileSync(
 	join(__dirname, "next-read.template.html"),
@@ -11,6 +16,22 @@ const NEXT_READ_TEMPLATE = readFileSync(
 
 const READY_CLASS = "next-read--ready";
 const HIDDEN_CLASS = "next-read--hidden";
+
+const STATUS_COPY = {
+	unread: {
+		eyebrow: "Next read",
+		statusLabel: "Unread",
+		statusClass: "next-read__status--unread",
+	},
+	read: {
+		eyebrow: "Similar past reads",
+		statusLabel: "Read",
+		statusClass: "next-read__status--read",
+	},
+} satisfies Record<
+	ArticleStatus,
+	{ eyebrow: string; statusLabel: string; statusClass: string }
+>;
 
 export const NEXT_READ_SCRIPT =
 	'<script src="/client-dist/next-read.client.js" defer></script>';
@@ -27,6 +48,11 @@ export interface NextReadInput {
 	returnTo: string;
 }
 
+interface DatedLine {
+	lead: string;
+	time: LocalTime;
+}
+
 interface NextReadCard {
 	id: string;
 	href: string;
@@ -35,29 +61,66 @@ interface NextReadCard {
 	title: string;
 	siteName: string;
 	reason: string;
-	saved: LocalTime;
+	eyebrow: string;
+	readStatus: ArticleStatus;
+	statusLabel: string;
+	statusClass: string;
+	dated: DatedLine;
+}
+
+function pickOf(
+	items: readonly RelatedArticleDisplay[],
+): RelatedArticleDisplay | undefined {
+	return items.find((item) => item.status === "unread") ?? items[0];
+}
+
+function datedOf(item: RelatedArticleDisplay, now: Date): DatedLine {
+	if (item.status === "read" && item.readAt !== undefined) {
+		return {
+			lead: "You read this",
+			time: toRelativePhrase({ iso: item.readAt.toISOString(), now }),
+		};
+	}
+	return {
+		lead: "You saved this",
+		time: toRelativePhrase({ iso: item.savedAt.toISOString(), now }),
+	};
 }
 
 function cardsOf(input: NextReadInput): NextReadCard[] {
 	const related = input.related;
 	if (related?.articles.status !== "ready") return [];
-	return related.articles.items.slice(0, 1).map((item) => ({
-		id: item.id.value,
-		href: withInternalTracking(`/queue/${item.id.value}/view`, {
-			source: "reader",
-			content: "related",
-			term: related.sourceArticleId,
-		}),
-		dismissUrl: withInternalTracking(
-			`/queue/${related.sourceArticleId}/related-dismiss`,
-			{ source: "reader", content: "next-read-dismiss", term: related.sourceArticleId },
-		),
-		returnTo: input.returnTo,
-		title: item.title,
-		siteName: item.siteName,
-		reason: item.reason,
-		saved: toRelativePhrase({ iso: item.savedAt.toISOString(), now: related.now }),
-	}));
+	const item = pickOf(related.articles.items);
+	if (!item) return [];
+	const copy = STATUS_COPY[item.status];
+	const tracking = NEXT_READ_TRACKING[item.status];
+	return [
+		{
+			id: item.id.value,
+			href: withInternalTracking(`/queue/${item.id.value}/view`, {
+				source: "reader",
+				content: tracking.clickContent,
+				term: related.sourceArticleId,
+			}),
+			dismissUrl: withInternalTracking(
+				`/queue/${related.sourceArticleId}/related-dismiss`,
+				{
+					source: "reader",
+					content: tracking.dismissContent,
+					term: related.sourceArticleId,
+				},
+			),
+			returnTo: input.returnTo,
+			title: item.title,
+			siteName: item.siteName,
+			reason: item.reason,
+			readStatus: item.status,
+			eyebrow: copy.eyebrow,
+			statusLabel: copy.statusLabel,
+			statusClass: copy.statusClass,
+			dated: datedOf(item, related.now),
+		},
+	];
 }
 
 export function renderNextRead(input: NextReadInput): string {

@@ -117,6 +117,14 @@ function relatedIdsOf(html: string): (string | null)[] {
 	).map((item) => item.getAttribute("data-test-related-item"));
 }
 
+function eyebrowOf(html: string): string | undefined {
+	const eyebrow = new JSDOM(html).window.document.querySelector(
+		".next-read__eyebrow",
+	);
+	assert(eyebrow, "a floated suggestion always names why it is being offered");
+	return eyebrow.textContent ?? undefined;
+}
+
 function relatedSlotOf(html: string) {
 	const slot = new JSDOM(html).window.document.querySelector(
 		"[data-test-reader-related]",
@@ -177,7 +185,7 @@ describe("Reader related-articles slot", () => {
 		expect(relatedIdsOf(response.text)).toEqual([related.id.value]);
 	});
 
-	it("drops a relation the reader marks read, and brings it back when they mark it unread", async () => {
+	it("moves past a relation the reader marks read, and returns to it when they mark it unread", async () => {
 		const { agent, articleId, related, followUp, seedRelated } = await buildHarness();
 		await seedRelated();
 
@@ -194,11 +202,13 @@ describe("Reader related-articles slot", () => {
 		const afterUnread = await agent.get(`/queue/${articleId}/view`);
 
 		expect(relatedIdsOf(afterRead.text)).toEqual([followUp.id.value]);
+		expect(eyebrowOf(afterRead.text)).toBe("Next read");
 		expect(relatedIdsOf(afterUnread.text)).toEqual([related.id.value]);
+		expect(eyebrowOf(afterUnread.text)).toBe("Next read");
 	});
 
-	it("hides the card once the reader has read every relation", async () => {
-		const { agent, articleId, related, followUp, seedRelated } = await buildHarness();
+	it("falls back to the first past read once the reader has read every relation", async () => {
+		const { agent, articleId, fixture, related, followUp, seedRelated } = await buildHarness();
 		await seedRelated();
 
 		for (const id of [related.id.value, followUp.id.value]) {
@@ -206,10 +216,29 @@ describe("Reader related-articles slot", () => {
 		}
 		const response = await agent.get(`/queue/${articleId}/view`);
 
+		const finished = await fixture.articleStore.findArticleById(related.id, related.userId);
+		assert(finished?.readAt, "marking a save read records when the reader read it");
 		const slot = relatedSlotOf(response.text);
 		expect(slot.getAttribute("data-related-status")).toBe("ready");
-		expect(slot.classList.contains("next-read--hidden")).toBe(true);
-		expect(relatedIdsOf(response.text)).toEqual([]);
+		expect(slot.classList.contains("next-read--ready")).toBe(true);
+		expect(relatedIdsOf(response.text)).toEqual([related.id.value]);
+		expect(eyebrowOf(response.text)).toBe("Similar past reads");
+		const doc = new JSDOM(response.text).window.document;
+		const badge = doc.querySelector(".next-read__status");
+		assert(badge, "the fallback suggestion still shows its read state");
+		const time = doc.querySelector(".next-read__saved time");
+		assert(time, "the fallback suggestion is dated by when the reader read it");
+		expect({
+			state: badge.getAttribute("data-test-read-status"),
+			read: badge.classList.contains("next-read__status--read"),
+			label: badge.querySelector(".next-read__status-label")?.textContent,
+			datetime: time.getAttribute("datetime"),
+		}).toEqual({
+			state: "read",
+			read: true,
+			label: "Read",
+			datetime: finished.readAt.toISOString(),
+		});
 	});
 
 	it("drops a relation the reader deletes from their queue", async () => {

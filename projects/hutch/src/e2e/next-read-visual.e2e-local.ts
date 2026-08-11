@@ -32,6 +32,8 @@ const SITE = ".next-read__site";
 const STACK = "[data-test-reader-float-stack]";
 const BALLOON = "[data-test-share-balloon-wrap]";
 const DISMISS = '[data-test-action="next-read-dismiss"]';
+const EYEBROW = ".next-read__eyebrow";
+const READ_STATE = "[data-test-read-status]";
 const OPEN_CARD = "[data-test-reader-related].next-read--open";
 
 /** The saved-time phrase is wall-clock relative, so it is pinned to a fixed
@@ -39,6 +41,10 @@ const OPEN_CARD = "[data-test-reader-related].next-read--open";
  * generated. */
 const PINNED_SAVED = [
 	{ selector: "[data-test-reader-related] time", text: "3 days ago" },
+];
+
+const PINNED_READ = [
+	{ selector: "[data-test-reader-related] time", text: "2 hours ago" },
 ];
 
 const CreatedUser = z.object({ ok: z.literal(true), userId: z.string() });
@@ -83,7 +89,7 @@ async function loginAs(page: Page, email: string): Promise<void> {
  * the only thing that reveals the card. */
 async function openRevealedCard(
 	page: Page,
-	options: { stamp: string; suppressBalloon: boolean },
+	options: { stamp: string; suppressBalloon: boolean; markRelatedRead: boolean },
 ): Promise<void> {
 	if (options.suppressBalloon) {
 		await page.addInitScript(() => {
@@ -105,7 +111,7 @@ async function openRevealedCard(
 		userId,
 		savedAt: SOURCE_SAVED_AT,
 	});
-	await seedArticle(page, {
+	const relatedId = await seedArticle(page, {
 		url: relatedUrl,
 		title: "The Attention Economy Runs On Your Unread Queue",
 		userId,
@@ -125,6 +131,12 @@ async function openRevealedCard(
 	assert.equal(seeded.status(), 201, "the seed endpoint must settle the relations");
 
 	await loginAs(page, email);
+	if (options.markRelatedRead) {
+		const marked = await page.request.post(`${BASE_URL}/queue/${relatedId}/status`, {
+			form: { status: "read" },
+		});
+		assert.equal(marked.status(), 200, "marking the relation read must be accepted");
+	}
 	await page.goto(`${BASE_URL}/queue/${articleId}/view`, {
 		waitUntil: "domcontentloaded",
 	});
@@ -233,6 +245,15 @@ const CARD_DESKTOP_LIGHT: VisualCheckpoint = {
 	pinnedText: PINNED_SAVED,
 };
 
+const CARD_PAST_DESKTOP_LIGHT: VisualCheckpoint = {
+	name: "next-read-past-desktop-light",
+	settled: cardRevealed,
+	geometry: cardAnchoredBottomRight,
+	target: CARD,
+	capture: "element",
+	pinnedText: PINNED_READ,
+};
+
 const CARD_DESKTOP_DARK: VisualCheckpoint = {
 	name: "next-read-desktop-dark",
 	settled: cardRevealed,
@@ -276,7 +297,13 @@ test.describe("Next-read card (desktop)", () => {
 		await openRevealedCard(page, {
 			stamp: `desktop-light-${test.info().workerIndex}-${Date.now()}`,
 			suppressBalloon: true,
+			markRelatedRead: false,
 		});
+		await expect(page.locator(EYEBROW)).toHaveText("Next read");
+		await expect(page.locator(READ_STATE)).toHaveAttribute(
+			"data-test-read-status",
+			"unread",
+		);
 		await captureCheckpoint(page, CARD_DESKTOP_LIGHT);
 
 		await page.locator(DISMISS).click();
@@ -295,8 +322,26 @@ test.describe("Next-read card (desktop)", () => {
 		await openRevealedCard(page, {
 			stamp: `desktop-dark-${test.info().workerIndex}-${Date.now()}`,
 			suppressBalloon: true,
+			markRelatedRead: false,
 		});
 		await captureCheckpoint(page, CARD_DESKTOP_DARK);
+	});
+
+	test("falls back to a past read once nothing related is left unread (light)", async ({
+		page,
+	}) => {
+		await page.emulateMedia({ colorScheme: "light" });
+		await openRevealedCard(page, {
+			stamp: `past-desktop-light-${test.info().workerIndex}-${Date.now()}`,
+			suppressBalloon: true,
+			markRelatedRead: true,
+		});
+		await expect(page.locator(EYEBROW)).toHaveText("Similar past reads");
+		await expect(page.locator(READ_STATE)).toHaveAttribute(
+			"data-test-read-status",
+			"read",
+		);
+		await captureCheckpoint(page, CARD_PAST_DESKTOP_LIGHT);
 	});
 
 	test("stacks above an opened share balloon without either covering the other", async ({
@@ -306,6 +351,7 @@ test.describe("Next-read card (desktop)", () => {
 		await openRevealedCard(page, {
 			stamp: `stack-desktop-${test.info().workerIndex}-${Date.now()}`,
 			suppressBalloon: false,
+			markRelatedRead: false,
 		});
 		await captureCheckpoint(page, STACK_DESKTOP_LIGHT);
 	});
@@ -321,6 +367,7 @@ test.describe("Next-read card (mobile)", () => {
 		await openRevealedCard(page, {
 			stamp: `stack-mobile-${test.info().workerIndex}-${Date.now()}`,
 			suppressBalloon: false,
+			markRelatedRead: false,
 		});
 		await captureCheckpoint(page, CARD_MOBILE_LIGHT);
 	});

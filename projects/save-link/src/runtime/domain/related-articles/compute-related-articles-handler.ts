@@ -9,22 +9,19 @@ import type { HutchLogger } from "@packages/hutch-logger";
 import type { PublishEvent } from "@packages/hutch-infra-components/runtime";
 import type {
 	FindRelatedArticles,
-	FindRelatedCandidateArticles,
 	FindRelatedTargetArticle,
 	MarkRelatedArticlesReady,
 	MarkRelatedArticlesSkipped,
 } from "@packages/provider-contracts/related-articles";
 import { ComputeRelatedArticlesCommand, RelatedArticlesComputedEvent } from "./index";
-import {
-	RELATED_CANDIDATES_MAX,
-	RELATED_CANDIDATES_MIN,
-} from "./related-articles-limits";
+import type { GatherRelatedCandidatePools } from "./related-articles-candidates";
+import { RELATED_CANDIDATES_MIN } from "./related-articles-limits";
 import type { SelectRelatedArticles } from "./related-articles-selector";
 
 interface ComputeRelatedArticlesHandlerDeps {
 	findRelatedArticles: FindRelatedArticles;
 	findRelatedTargetArticle: FindRelatedTargetArticle;
-	findRelatedCandidateArticles: FindRelatedCandidateArticles;
+	gatherRelatedCandidatePools: GatherRelatedCandidatePools;
 	selectRelatedArticles: SelectRelatedArticles;
 	markRelatedArticlesReady: MarkRelatedArticlesReady;
 	markRelatedArticlesSkipped: MarkRelatedArticlesSkipped;
@@ -40,7 +37,7 @@ export function initComputeRelatedArticlesHandler(
 	const {
 		findRelatedArticles,
 		findRelatedTargetArticle,
-		findRelatedCandidateArticles,
+		gatherRelatedCandidatePools,
 		selectRelatedArticles,
 		markRelatedArticlesReady,
 		markRelatedArticlesSkipped,
@@ -104,17 +101,18 @@ export function initComputeRelatedArticlesHandler(
 					continue;
 				}
 
-				const candidates = await findRelatedCandidateArticles({
+				const pools = await gatherRelatedCandidatePools({
 					userId,
 					excludeUrl: command.url,
-					limit: RELATED_CANDIDATES_MAX,
 				});
-				if (candidates.length < RELATED_CANDIDATES_MIN) {
-					await skip("not enough unread saves to compare against");
+				const candidateCount =
+					pools.unreadCandidates.length + pools.readCandidates.length;
+				if (candidateCount < RELATED_CANDIDATES_MIN) {
+					await skip("not enough saves to compare against");
 					continue;
 				}
 
-				const result = await selectRelatedArticles({ target, candidates });
+				const result = await selectRelatedArticles({ target, ...pools });
 				if (result.kind === "no-text-block") {
 					throw new Error(
 						`[ComputeRelatedArticles] ${result.kind satisfies "no-text-block"} for ${command.url}`,

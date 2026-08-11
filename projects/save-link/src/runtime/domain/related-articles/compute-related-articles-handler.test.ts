@@ -7,12 +7,16 @@ import type {
 	RelatedCandidate,
 	RelatedTargetArticle,
 } from "@packages/provider-contracts/related-articles";
+import type { RelatedCandidatePools } from "./related-articles-candidates";
 import { buildLambdaContext } from "@packages/test-fixtures/lambda-context";
 import type { SQSEvent, SQSRecordAttributes } from "aws-lambda";
 import { initComputeRelatedArticlesHandler } from "./compute-related-articles-handler";
 import { RelatedArticlesComputedEvent } from "./index";
 import type { RelatedArticlesComputedDetail } from "./index";
-import type { SelectRelatedArticles } from "./related-articles-selector";
+import type {
+	SelectRelatedArticles,
+	SelectRelatedArticlesParams,
+} from "./related-articles-selector";
 
 const USER_ID = UserIdSchema.parse("00000000000000000000000000000001");
 const TARGET_URL = "https://example.com/target";
@@ -56,10 +60,10 @@ function crawledTarget(overrides: Partial<RelatedTargetArticle> = {}): RelatedTa
 	};
 }
 
-function candidates(count: number): RelatedCandidate[] {
+function candidates(prefix: string, count: number): RelatedCandidate[] {
 	return Array.from({ length: count }, (_unused, index) => ({
-		url: `https://example.com/earlier-${index}`,
-		title: `Earlier ${index}`,
+		url: `https://example.com/${prefix}-${index}`,
+		title: `${prefix} ${index}`,
 		siteName: "Example",
 		description: "",
 	}));
@@ -68,7 +72,7 @@ function candidates(count: number): RelatedCandidate[] {
 interface HandlerOverrides {
 	existing?: RelatedArticles;
 	target?: RelatedTargetArticle | undefined;
-	candidates?: RelatedCandidate[];
+	pools?: RelatedCandidatePools;
 	selectRelatedArticles?: SelectRelatedArticles;
 	markOutcome?: MarkRelatedArticlesOutcome;
 }
@@ -77,6 +81,7 @@ function createHandler(overrides: HandlerOverrides = {}) {
 	const ready: Array<{ url: string; relatedArticles: readonly { url: string }[] }> = [];
 	const skipped: Array<{ url: string; at: Date }> = [];
 	const published: RelatedArticlesComputedDetail[] = [];
+	const selected: SelectRelatedArticlesParams[] = [];
 	const publishEvent: PublishEvent = async (_event, detail) => {
 		published.push(RelatedArticlesComputedEvent.detailSchema.parse(detail));
 	};
@@ -85,15 +90,22 @@ function createHandler(overrides: HandlerOverrides = {}) {
 		findRelatedArticles: async () => overrides.existing ?? { status: "pending" },
 		findRelatedTargetArticle: async () =>
 			"target" in overrides ? overrides.target : crawledTarget(),
-		findRelatedCandidateArticles: async () => overrides.candidates ?? candidates(150),
-		selectRelatedArticles:
-			overrides.selectRelatedArticles ??
-			(async () => ({
-				kind: "ready",
-				related: [{ url: "https://example.com/earlier-0", reason: "Same argument" }],
-				inputTokens: 120,
-				outputTokens: 30,
-			})),
+		gatherRelatedCandidatePools: async () =>
+			overrides.pools ?? {
+				unreadCandidates: candidates("earlier", 150),
+				readCandidates: [],
+			},
+		selectRelatedArticles: async (params) => {
+			selected.push(params);
+			return overrides.selectRelatedArticles
+				? overrides.selectRelatedArticles(params)
+				: {
+						kind: "ready",
+						related: [{ url: "https://example.com/earlier-0", reason: "Same argument" }],
+						inputTokens: 120,
+						outputTokens: 30,
+					};
+		},
 		markRelatedArticlesReady: async (params) => {
 			ready.push({ url: params.url, relatedArticles: params.relatedArticles });
 			return overrides.markOutcome ?? "stored";
@@ -107,7 +119,7 @@ function createHandler(overrides: HandlerOverrides = {}) {
 		logger: noopLogger,
 	});
 
-	return { handler, ready, skipped, published };
+	return { handler, ready, skipped, published, selected };
 }
 
 describe("initComputeRelatedArticlesHandler", () => {
@@ -231,13 +243,33 @@ describe("initComputeRelatedArticlesHandler", () => {
 		]);
 	});
 
-	it("skips while the reader has fewer than fifty earlier saves to compare against", async () => {
-		const { handler, skipped, published } = createHandler({ candidates: candidates(49) });
+	it("skips while the reader has fewer than fifty other saves, unread and read together", async () => {
+		const { handler, skipped, published } = createHandler({
+			pools: {
+				unreadCandidates: candidates("earlier", 20),
+				readCandidates: candidates("finished", 20),
+			},
+		});
 
 		await handler(commandEvent, buildLambdaContext(), () => {});
 
 		expect(skipped).toEqual([{ url: TARGET_URL, at: NOW }]);
 		expect(published[0]?.outcome).toBe("skipped");
+	});
+
+	it("counts past reads toward the comparison floor a thin unread pile cannot reach alone", async () => {
+		const pools = {
+			unreadCandidates: candidates("earlier", 30),
+			readCandidates: candidates("finished", 25),
+		};
+		const { handler, skipped, selected } = createHandler({ pools });
+
+		await handler(commandEvent, buildLambdaContext(), () => {});
+
+		expect(skipped).toEqual([]);
+		expect(selected).toEqual([
+			{ target: crawledTarget(), ...pools },
+		]);
 	});
 
 	it("retries when the model answers with nothing readable", async () => {

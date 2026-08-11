@@ -45,10 +45,20 @@ export type SelectRelatedResult =
 		}
 	| { kind: "no-text-block" };
 
-export type SelectRelatedArticles = (params: {
+export interface SelectRelatedArticlesParams {
 	target: RelatedArticleTarget;
-	candidates: readonly RelatedCandidate[];
-}) => Promise<SelectRelatedResult>;
+	unreadCandidates: readonly RelatedCandidate[];
+	readCandidates: readonly RelatedCandidate[];
+}
+
+export type SelectRelatedArticles = (
+	params: SelectRelatedArticlesParams,
+) => Promise<SelectRelatedResult>;
+
+const CANDIDATE_SECTIONS = [
+	{ header: "UNREAD CANDIDATES", pool: "unreadCandidates" },
+	{ header: "PAST READS", pool: "readCandidates" },
+] as const;
 
 function clip(text: string, maxLength: number): string {
 	const collapsed = text.replace(/\s+/g, " ").trim();
@@ -67,20 +77,25 @@ function describe(article: RelatedArticleTarget): string {
 	].join("\n");
 }
 
-function buildRelatedArticlesMessage(params: {
-	target: RelatedArticleTarget;
-	candidates: readonly RelatedCandidate[];
-}): string {
-	const candidateBlocks = params.candidates.map(
-		(candidate, index) => `[${index}]\n${describe(candidate)}`,
-	);
-	return [
-		"SAVED ARTICLE",
-		describe(params.target),
-		"",
-		"CANDIDATES",
-		...candidateBlocks,
-	].join("\n");
+function orderedCandidates(
+	params: SelectRelatedArticlesParams,
+): readonly RelatedCandidate[] {
+	return CANDIDATE_SECTIONS.flatMap((section) => [...params[section.pool]]);
+}
+
+function buildRelatedArticlesMessage(params: SelectRelatedArticlesParams): string {
+	const lines: string[] = ["SAVED ARTICLE", describe(params.target)];
+	let index = 0;
+	for (const section of CANDIDATE_SECTIONS) {
+		const candidates = params[section.pool];
+		if (candidates.length === 0) continue;
+		lines.push("", section.header);
+		for (const candidate of candidates) {
+			lines.push(`[${index}]\n${describe(candidate)}`);
+			index += 1;
+		}
+	}
+	return lines.join("\n");
 }
 
 function selectValidRelations(params: {
@@ -172,7 +187,7 @@ export function initSelectRelatedArticles(deps: {
 			kind: "ready",
 			related: selectValidRelations({
 				entries: parsed.related,
-				candidates: params.candidates,
+				candidates: orderedCandidates(params),
 			}),
 			inputTokens: response.usage.input_tokens,
 			outputTokens: response.usage.output_tokens,

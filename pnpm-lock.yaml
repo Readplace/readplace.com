@@ -756,6 +756,9 @@ importers:
       '@11ty/posthtml-urls':
         specifier: 1.0.3
         version: 1.0.3
+      '@aws-sdk/client-cloudwatch-logs':
+        specifier: 3.1057.0
+        version: 3.1057.0
       '@aws-sdk/client-lambda':
         specifier: 3.1057.0
         version: 3.1057.0

@@ -41,13 +41,15 @@ export function initInMemoryRelatedArticles(deps: {
 			const article = await deps.findArticleByUrl(link.url);
 			if (!article) continue;
 			const saved = await deps.findArticleById(article.id, userId);
-			if (saved?.status !== "unread") continue;
+			if (!saved) continue;
 			items.push({
 				id: saved.id,
 				title: saved.metadata.title,
 				siteName: saved.metadata.siteName,
 				reason: link.reason,
+				status: saved.status,
 				savedAt: saved.savedAt,
+				...(saved.readAt !== undefined ? { readAt: saved.readAt } : {}),
 			});
 		}
 		return { status: "ready", items };

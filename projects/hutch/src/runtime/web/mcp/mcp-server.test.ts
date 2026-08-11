@@ -639,7 +639,7 @@ describe("initMcpServer", () => {
 	});
 
 	describe("tools/call get_related_articles", () => {
-		it("lists each relation with the reason it was picked", async () => {
+		it("lists each relation with the reason it was picked and how far the reader got", async () => {
 			const server = initMcpServer(
 				fakeDeps({
 					getRelatedArticles: async () => ({
@@ -650,12 +650,17 @@ describe("initMcpServer", () => {
 								title: "Earlier read",
 								siteName: "Example",
 								reason: "Same argument",
+								status: "read",
+								savedAt: "2026-06-01T00:00:00.000Z",
+								readAt: "2026-07-01T00:00:00.000Z",
 							},
 							{
 								id: "z".repeat(32),
 								title: "Still to read",
 								siteName: "Example",
 								reason: "Follow-up",
+								status: "unread",
+								savedAt: "2026-05-01T00:00:00.000Z",
 							},
 						],
 					}),
@@ -666,7 +671,7 @@ describe("initMcpServer", () => {
 				result: {
 					content: [
 						{
-							text: "Earlier read (Example) [unread]: Same argument\nStill to read (Example) [unread]: Follow-up",
+							text: "Earlier read (Example) [read]: Same argument\nStill to read (Example) [unread]: Follow-up",
 						},
 					],
 					structuredContent: { status: "ready" },
@@ -674,13 +679,13 @@ describe("initMcpServer", () => {
 			});
 		});
 
-		it("says so plainly when nothing unread in the queue relates", async () => {
+		it("says so plainly when nothing in the queue relates", async () => {
 			const server = initMcpServer(
 				fakeDeps({ getRelatedArticles: async () => ({ status: "ready", articles: [] }) }),
 			);
 			const response = await call(server, 58, "get_related_articles", { id: "x".repeat(32) });
 			expect(response).toMatchObject({
-				result: { content: [{ text: expect.stringContaining("No unread saves") }] },
+				result: { content: [{ text: expect.stringContaining("No saves in the queue") }] },
 			});
 		});
 

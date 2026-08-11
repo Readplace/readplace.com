@@ -308,7 +308,7 @@ describe("initMcpArticleOperations", () => {
 			).toEqual({ status: "skipped" });
 		});
 
-		it("flattens each relation to the id an agent can look up again", async () => {
+		it("flattens each relation to the id an agent can look up again, tagged with how far the reader got", async () => {
 			const article = buildArticle();
 			const relatedId = ReaderArticleHashId.from("https://example.com/earlier");
 			const laterId = ReaderArticleHashId.from("https://example.com/later");
@@ -322,13 +322,16 @@ describe("initMcpArticleOperations", () => {
 							title: "Earlier read",
 							siteName: "Example",
 							reason: "Same argument",
+							status: "read",
 							savedAt: new Date("2026-06-01T00:00:00.000Z"),
+							readAt: new Date("2026-07-01T00:00:00.000Z"),
 						},
 						{
 							id: laterId,
 							title: "Still to read",
 							siteName: "Example",
 							reason: "Follow-up",
+							status: "unread",
 							savedAt: new Date("2026-05-01T00:00:00.000Z"),
 						},
 					],
@@ -344,12 +347,17 @@ describe("initMcpArticleOperations", () => {
 						title: "Earlier read",
 						siteName: "Example",
 						reason: "Same argument",
+						status: "read",
+						savedAt: "2026-06-01T00:00:00.000Z",
+						readAt: "2026-07-01T00:00:00.000Z",
 					},
 					{
 						id: laterId.value,
 						title: "Still to read",
 						siteName: "Example",
 						reason: "Follow-up",
+						status: "unread",
+						savedAt: "2026-05-01T00:00:00.000Z",
 					},
 				],
 			});
