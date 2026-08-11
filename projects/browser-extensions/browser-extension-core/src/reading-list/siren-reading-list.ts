@@ -387,6 +387,124 @@ const LEGACY_SERVER_BULK_LIMITS = { maxItems: 20, maxBytes: 20 * 1024 * 1024, ma
 
 const REQUEST_ENVELOPE_RESERVE_BYTES = 16 * 1024;
 
+type BulkSaveLimits = { maxItems: number; maxBytes: number; requestBudget: number };
+
+export type BulkChunkSummary = {
+	saved: number;
+	skipped: number;
+	failed: number;
+	tooBig: { url: string; mb: number }[];
+	skippedUrls: { url: string; code: string }[];
+	results?: { url: string; outcome: "created" | "merged" | "skipped" | "failed"; code?: string }[];
+};
+
+export type BulkSaveSession = {
+	limits: BulkSaveLimits;
+	sendChunk: (pages: BulkSavePage[]) => Promise<BulkChunkSummary>;
+};
+
+export type OpenBulkSaveSession = () => Promise<BulkSaveSession>;
+
+function arrayBufferToBase64(buffer: ArrayBuffer): string {
+	const view = new Uint8Array(buffer);
+	let binaryString = "";
+	for (let i = 0; i < view.length; i += 1) {
+		const byte = view[i];
+		assert(byte !== undefined, "loop index within Uint8Array bounds");
+		binaryString += String.fromCharCode(byte);
+	}
+	return btoa(binaryString);
+}
+
+function manifestEntryFor(page: BulkSavePage): { url: string; title?: string; mediaType?: string } {
+	const entry: { url: string; title?: string; mediaType?: string } = { url: page.url };
+	if (page.title !== undefined) entry.title = page.title;
+	if (page.content) entry.mediaType = page.content.mediaType;
+	return entry;
+}
+
+function requestFor(pages: BulkSavePage[]): Record<string, string> {
+	/** The bound action takes only string fields, so the manifest is JSON and
+	 * each captured page's bytes ride along base64-encoded under a
+	 * `contentBase64-<index>` field; the understanding rebuilds the multipart
+	 * body from them. */
+	const fields: Record<string, string> = {
+		manifest: JSON.stringify(pages.map(manifestEntryFor)),
+	};
+	pages.forEach((page, index) => {
+		if (page.content) fields[`contentBase64-${index}`] = arrayBufferToBase64(page.content.bytes);
+	});
+	return fields;
+}
+
+/** A page's request cost is its captured bytes plus its manifest entry —
+ * a long URL or tab title spends the same budget as content, so a packed
+ * request never outgrows the server's parser cap by manifest weight. */
+function requestCostOf(page: BulkSavePage): number {
+	return (
+		(page.content?.bytes.byteLength ?? 0) +
+		new TextEncoder().encode(JSON.stringify(manifestEntryFor(page))).length
+	);
+}
+
+export function packRequests(
+	pages: BulkSavePage[],
+	limits: { maxItems: number; maxBytes: number },
+): BulkSavePage[][] {
+	const requests: BulkSavePage[][] = [];
+	let current: BulkSavePage[] = [];
+	let currentBytes = 0;
+	for (const page of pages) {
+		const bytes = requestCostOf(page);
+		const overCount = current.length > 0 && current.length >= limits.maxItems;
+		const overBytes = current.length > 0 && currentBytes + bytes > limits.maxBytes;
+		if (overCount || overBytes) {
+			requests.push(current);
+			current = [];
+			currentBytes = 0;
+		}
+		current.push(page);
+		currentBytes += bytes;
+	}
+	if (current.length > 0) requests.push(current);
+	return requests;
+}
+
+export function degradeOversizedPages(params: {
+	pages: readonly BulkSavePage[];
+	limits: BulkSaveLimits;
+	logger: HutchLogger;
+}): { pages: BulkSavePage[]; tooBig: { url: string; mb: number }[] } {
+	const tooBig: { url: string; mb: number }[] = [];
+	const pages = params.pages.map((page) => {
+		const bytes = page.content?.bytes.byteLength ?? 0;
+		let candidate = page;
+		if (bytes > params.limits.maxBytes) {
+			params.logger.warn(
+				`Captured page of ${bytes} bytes exceeds the ${params.limits.maxBytes}-byte bulk upload limit — saving URL-only`,
+			);
+			tooBig.push({ url: page.url, mb: bytesToMb(bytes) });
+			const { content: _content, ...urlOnly } = page;
+			candidate = urlOnly;
+		} else if (page.content && requestCostOf(page) > params.limits.requestBudget) {
+			params.logger.warn(
+				`Captured page of ${bytes} bytes plus its manifest entry exceeds the ${params.limits.requestBudget}-byte request budget — saving URL-only`,
+			);
+			tooBig.push({ url: page.url, mb: bytesToMb(bytes) });
+			const { content: _content, ...urlOnly } = page;
+			candidate = urlOnly;
+		}
+		if (requestCostOf(candidate) > params.limits.requestBudget) {
+			params.logger.warn(
+				`Manifest entry for ${candidate.url} exceeds the ${params.limits.requestBudget}-byte request budget — dropping its title`,
+			);
+			return { url: candidate.url };
+		}
+		return candidate;
+	});
+	return { pages, tooBig };
+}
+
 /** The walker's in-memory item. It keeps the cross-boundary `ReadingListItem`
  * intact — including its serializable `actions` descriptors, which DO survive
  * the popup sendMessage boundary — and adds `boundActions`: the bound callables
@@ -928,6 +1046,7 @@ export function initSirenReadingList(deps: SirenReadingListDeps): {
 	getItems: GetItems;
 	loadPage: LoadPage;
 	savePages: SavePages;
+	openBulkSaveSession: OpenBulkSaveSession;
 } {
 	const understandings = groupOf(
 		initSaveArticleUnderstanding(),
@@ -1046,17 +1165,6 @@ export function initSirenReadingList(deps: SirenReadingListDeps): {
 		inFlight = { index, ticket, promise: pending };
 		return pending;
 	};
-
-	function arrayBufferToBase64(buffer: ArrayBuffer): string {
-		const view = new Uint8Array(buffer);
-		let binaryString = "";
-		for (let i = 0; i < view.length; i += 1) {
-			const byte = view[i];
-			assert(byte !== undefined, "loop index within Uint8Array bounds");
-			binaryString += String.fromCharCode(byte);
-		}
-		return btoa(binaryString);
-	}
 
 	/** Runs the three legs of the presigned slot and hands back whichever
 	 * response ended the exchange — the first refusal, or the completion — tagged
@@ -1271,59 +1379,31 @@ export function initSirenReadingList(deps: SirenReadingListDeps): {
 		return found ?? null;
 	};
 
-	function manifestEntryFor(page: BulkSavePage): { url: string; title?: string; mediaType?: string } {
-		const entry: { url: string; title?: string; mediaType?: string } = { url: page.url };
-		if (page.title !== undefined) entry.title = page.title;
-		if (page.content) entry.mediaType = page.content.mediaType;
-		return entry;
-	}
-
-	function requestFor(pages: BulkSavePage[]): Record<string, string> {
-		/** The bound action takes only string fields, so the manifest is JSON and
-		 * each captured page's bytes ride along base64-encoded under a
-		 * `contentBase64-<index>` field; the understanding rebuilds the multipart
-		 * body from them. */
-		const fields: Record<string, string> = {
-			manifest: JSON.stringify(pages.map(manifestEntryFor)),
-		};
-		pages.forEach((page, index) => {
-			if (page.content) fields[`contentBase64-${index}`] = arrayBufferToBase64(page.content.bytes);
-		});
-		return fields;
-	}
-
-	/** A page's request cost is its captured bytes plus its manifest entry —
-	 * a long URL or tab title spends the same budget as content, so a packed
-	 * request never outgrows the server's parser cap by manifest weight. */
-	function requestCostOf(page: BulkSavePage): number {
-		return (
-			(page.content?.bytes.byteLength ?? 0) +
-			new TextEncoder().encode(JSON.stringify(manifestEntryFor(page))).length
+	const openBulkSaveSession: OpenBulkSaveSession = async () => {
+		const collection = await start();
+		const action = collection.actions["save-articles"];
+		assert(
+			action,
+			'Expected Siren action "save-articles" not found in response',
 		);
-	}
-
-	function packRequests(
-		pages: BulkSavePage[],
-		limits: { maxItems: number; maxBytes: number },
-	): BulkSavePage[][] {
-		const requests: BulkSavePage[][] = [];
-		let current: BulkSavePage[] = [];
-		let currentBytes = 0;
-		for (const page of pages) {
-			const bytes = requestCostOf(page);
-			const overCount = current.length > 0 && current.length >= limits.maxItems;
-			const overBytes = current.length > 0 && currentBytes + bytes > limits.maxBytes;
-			if (overCount || overBytes) {
-				requests.push(current);
-				current = [];
-				currentBytes = 0;
-			}
-			current.push(page);
-			currentBytes += bytes;
-		}
-		if (current.length > 0) requests.push(current);
-		return requests;
-	}
+		const descriptor = collection.descriptors["save-articles"];
+		const maxBytes = advertisedLimit(descriptor, "content", "maxBytes") ?? LEGACY_SERVER_BULK_LIMITS.maxBytes;
+		const maxItems = advertisedLimit(descriptor, "manifest", "maxItems") ?? LEGACY_SERVER_BULK_LIMITS.maxItems;
+		const maxRequestBytes =
+			advertisedLimit(descriptor, "content", "maxRequestBytes") ?? LEGACY_SERVER_BULK_LIMITS.maxRequestBytes;
+		return {
+			limits: {
+				maxItems,
+				maxBytes,
+				requestBudget: maxRequestBytes - REQUEST_ENVELOPE_RESERVE_BYTES,
+			},
+			sendChunk: async (pages) => {
+				const result = await action(requestFor(pages));
+				assert(result.bulk, "save-articles response missing bulk summary");
+				return result.bulk;
+			},
+		};
+	};
 
 	const savePages: SavePages = async ({ pages }) => {
 		const summary: BulkSaveResult = {
@@ -1339,65 +1419,28 @@ export function initSirenReadingList(deps: SirenReadingListDeps): {
 		};
 		if (pages.length === 0) return summary;
 
-		const collection = await start();
-		const action = collection.actions["save-articles"];
-		assert(
-			action,
-			'Expected Siren action "save-articles" not found in response',
-		);
-		const descriptor = collection.descriptors["save-articles"];
-		const maxBytes = advertisedLimit(descriptor, "content", "maxBytes") ?? LEGACY_SERVER_BULK_LIMITS.maxBytes;
-		const maxItems = advertisedLimit(descriptor, "manifest", "maxItems") ?? LEGACY_SERVER_BULK_LIMITS.maxItems;
-		const maxRequestBytes =
-			advertisedLimit(descriptor, "content", "maxRequestBytes") ?? LEGACY_SERVER_BULK_LIMITS.maxRequestBytes;
-		const requestBudget = maxRequestBytes - REQUEST_ENVELOPE_RESERVE_BYTES;
+		const session = await openBulkSaveSession();
+		const degraded = degradeOversizedPages({ pages, limits: session.limits, logger: deps.logger });
+		summary.tooBig.push(...degraded.tooBig);
 
-		const sendable = pages.map((page) => {
-			const bytes = page.content?.bytes.byteLength ?? 0;
-			let candidate = page;
-			if (bytes > maxBytes) {
-				deps.logger.warn(
-					`Captured page of ${bytes} bytes exceeds the ${maxBytes}-byte bulk upload limit — saving URL-only`,
-				);
-				summary.tooBig.push({ url: page.url, mb: bytesToMb(bytes) });
-				const { content: _content, ...urlOnly } = page;
-				candidate = urlOnly;
-			} else if (page.content && requestCostOf(page) > requestBudget) {
-				deps.logger.warn(
-					`Captured page of ${bytes} bytes plus its manifest entry exceeds the ${requestBudget}-byte request budget — saving URL-only`,
-				);
-				summary.tooBig.push({ url: page.url, mb: bytesToMb(bytes) });
-				const { content: _content, ...urlOnly } = page;
-				candidate = urlOnly;
-			}
-			if (requestCostOf(candidate) > requestBudget) {
-				deps.logger.warn(
-					`Manifest entry for ${candidate.url} exceeds the ${requestBudget}-byte request budget — dropping its title`,
-				);
-				return { url: candidate.url };
-			}
-			return candidate;
-		});
-
-		const requests = packRequests(sendable, {
-			maxItems,
-			maxBytes: Math.min(maxBytes, requestBudget),
+		const requests = packRequests(degraded.pages, {
+			maxItems: session.limits.maxItems,
+			maxBytes: Math.min(session.limits.maxBytes, session.limits.requestBudget),
 		});
 		for (const [i, request] of requests.entries()) {
 			try {
-				const result = await action(requestFor(request));
-				assert(result.bulk, "save-articles response missing bulk summary");
-				const results = result.bulk.results ?? [];
-				summary.saved += result.bulk.saved;
-				summary.skipped += result.bulk.skipped;
-				summary.failed += result.bulk.failed;
-				summary.tooBig.push(...result.bulk.tooBig);
-				summary.skippedUrls.push(...result.bulk.skippedUrls);
+				const bulk = await session.sendChunk(request);
+				const results = bulk.results ?? [];
+				summary.saved += bulk.saved;
+				summary.skipped += bulk.skipped;
+				summary.failed += bulk.failed;
+				summary.tooBig.push(...bulk.tooBig);
+				summary.skippedUrls.push(...bulk.skippedUrls);
 				summary.alreadySaved += results.filter((entry) => entry.outcome === "merged").length;
 				summary.failedUrls.push(
 					...results.filter((entry) => entry.outcome === "failed").map((entry) => ({ url: entry.url })),
 				);
-				const accounted = result.bulk.saved + result.bulk.skipped + result.bulk.failed;
+				const accounted = bulk.saved + bulk.skipped + bulk.failed;
 				const shortfall = request.length - accounted;
 				if (shortfall > 0) {
 					const accountedUrls = new Set(results.map((entry) => entry.url));
@@ -1424,5 +1467,5 @@ export function initSirenReadingList(deps: SirenReadingListDeps): {
 		return summary;
 	};
 
-	return { saveUrl, uploadContent, invokeAction, findByUrl, getItems, loadPage, savePages };
+	return { saveUrl, uploadContent, invokeAction, findByUrl, getItems, loadPage, savePages, openBulkSaveSession };
 }

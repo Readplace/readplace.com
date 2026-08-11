@@ -4,8 +4,10 @@ import {
 	initIndexedDbPayloadStore,
 	initOAuthAuth,
 	initSirenReadingList,
+	initBulkSaveQueue,
 	initSyncContextMenus,
 	initUploadQueue,
+	type BulkSaveJobStore,
 	ADVERTISED_CAPABILITIES_STORAGE_KEY,
 	COMMAND_BINDINGS_STORAGE_KEY,
 	SAVE_ALL_SHORTCUT_MESSAGE_TYPE,
@@ -39,6 +41,18 @@ const logger = HutchLogger.from(consoleLogger);
 const STORAGE_KEY = "hutch_oauth_tokens";
 const UPLOAD_JOBS_KEY = "hutch_upload_jobs";
 const UPLOAD_PAYLOAD_DB = "hutch-upload-payloads";
+const BULK_SAVE_JOBS_KEY = "hutch_bulk_save_jobs";
+const BULK_SAVE_PAYLOAD_DB = "hutch-bulk-save-payloads";
+
+const bulkSaveJobStore: BulkSaveJobStore = {
+	async read(): Promise<unknown> {
+		const stored = await browser.storage.local.get(BULK_SAVE_JOBS_KEY);
+		return stored[BULK_SAVE_JOBS_KEY];
+	},
+	async write(jobs): Promise<void> {
+		await browser.storage.local.set({ [BULK_SAVE_JOBS_KEY]: jobs });
+	},
+};
 
 const uploadJobStore: UploadJobStore = {
 	async read(): Promise<unknown> {
@@ -87,6 +101,25 @@ const wakeScheduler: WakeScheduler = {
 	async cancel(): Promise<void> {
 		if (wake !== undefined) clearTimeout(wake);
 		wake = undefined;
+	},
+};
+
+let bulkSaveWake: ReturnType<typeof setTimeout> | undefined;
+
+const bulkSaveWakeScheduler: WakeScheduler = {
+	now: () => Date.now(),
+	async wakeAt(timestamp): Promise<void> {
+		if (bulkSaveWake !== undefined) clearTimeout(bulkSaveWake);
+		bulkSaveWake = setTimeout(() => {
+			bulkSaveWake = undefined;
+			appPromise
+				.then(({ bulkSaveQueue }) => bulkSaveQueue.resume())
+				.catch((err) => logger.error("Failed to resume deferred bulk saves", err));
+		}, Math.max(0, timestamp - Date.now()));
+	},
+	async cancel(): Promise<void> {
+		if (bulkSaveWake !== undefined) clearTimeout(bulkSaveWake);
+		bulkSaveWake = undefined;
 	},
 };
 
@@ -242,6 +275,7 @@ async function initCore() {
 		 * here would deadlock that pass — it is already purging for itself. */
 		onUnauthorized: async () => {
 			void uploadQueue.purge();
+			void bulkSaveQueue.purge();
 			await auth.logout();
 		},
 		logger,
@@ -261,7 +295,20 @@ async function initCore() {
 		logger,
 	});
 
-	const core = BrowserExtensionCore(shell, { auth, logger, readingList });
+	const bulkSaveQueue = initBulkSaveQueue({
+		jobs: bulkSaveJobStore,
+		payloads: initIndexedDbPayloadStore({ databaseName: BULK_SAVE_PAYLOAD_DB }),
+		scheduler: bulkSaveWakeScheduler,
+		openSession: readingList.openBulkSaveSession,
+		notify: showBulkSaveNotification,
+		logger,
+	});
+
+	const core = BrowserExtensionCore(shell, {
+		auth,
+		logger,
+		readingList: { ...readingList, savePages: bulkSaveQueue.savePages },
+	});
 
 	core.on("pre-init", () => {
 		syncContextMenus
@@ -271,7 +318,7 @@ async function initCore() {
 
 	core.init();
 
-	return { core, uploadQueue };
+	return { core, uploadQueue, bulkSaveQueue };
 }
 
 const appPromise = initCore();
@@ -279,6 +326,10 @@ const appPromise = initCore();
 appPromise
 	.then(({ uploadQueue }) => uploadQueue.resume())
 	.catch((err) => logger.error("Failed to resume deferred uploads", err));
+
+appPromise
+	.then(({ bulkSaveQueue }) => bulkSaveQueue.resume())
+	.catch((err) => logger.error("Failed to resume deferred bulk saves", err));
 
 function refreshCommandBindings(): void {
 	browser.commands
@@ -404,7 +455,7 @@ browser.runtime.onMessage.addListener((raw, _sender, sendResponse) => {
 	const message = raw;
 
 	appPromise
-		.then(({ core, uploadQueue }) => {
+		.then(({ core, uploadQueue, bulkSaveQueue }) => {
 			switch (message.type) {
 				case "login": {
 					const pending = new Promise<unknown>((resolve) => {
@@ -420,9 +471,9 @@ browser.runtime.onMessage.addListener((raw, _sender, sendResponse) => {
 				case "logout": {
 					/** Page bytes captured for a signed-in reader must not outlive the
 					 * session that authorised capturing them. */
-					void uploadQueue.purge();
+					const purged = Promise.all([uploadQueue.purge(), bulkSaveQueue.purge()]);
 					core.logout();
-					sendResponse({ ok: true });
+					purged.then(() => sendResponse({ ok: true }));
 					break;
 				}
 				case "save-current-tab": {

@@ -51,6 +51,8 @@ export type { SaveUrl, UploadContent, UploadContentResult, InvokeAction, FindByU
 export { initUploadQueue } from "./upload-queue/upload-queue";
 export { initIndexedDbPayloadStore } from "./upload-queue/indexed-db-payload-store.browser";
 export type { UploadJob } from "./upload-queue/upload-job";
+export { initBulkSaveQueue, type BulkSaveJobStore, type BulkSaveQueue } from "./bulk-save-queue/bulk-save-queue";
+export type { BulkSaveJob } from "./bulk-save-queue/bulk-save-job";
 export type {
 	CaptureForJob,
 	PayloadStore,

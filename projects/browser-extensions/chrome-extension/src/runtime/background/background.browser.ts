@@ -5,8 +5,10 @@ import {
 	initIndexedDbPayloadStore,
 	initOAuthAuth,
 	initSirenReadingList,
+	initBulkSaveQueue,
 	initSyncContextMenus,
 	initUploadQueue,
+	type BulkSaveJobStore,
 	ADVERTISED_CAPABILITIES_STORAGE_KEY,
 	COMMAND_BINDINGS_STORAGE_KEY,
 	SAVE_ALL_SHORTCUT_MESSAGE_TYPE,
@@ -49,6 +51,9 @@ const STORAGE_KEY = "hutch_oauth_tokens";
 const UPLOAD_JOBS_KEY = "hutch_upload_jobs";
 const UPLOAD_ALARM_NAME = "hutch-upload-queue";
 const UPLOAD_PAYLOAD_DB = "hutch-upload-payloads";
+const BULK_SAVE_JOBS_KEY = "hutch_bulk_save_jobs";
+const BULK_SAVE_ALARM_NAME = "hutch-bulk-save-queue";
+const BULK_SAVE_PAYLOAD_DB = "hutch-bulk-save-payloads";
 declare const __SERVER_URL__: string;
 const SERVER_URL = __SERVER_URL__;
 const CLIENT_ID: BuiltInOAuthClientId = "hutch-chrome-extension";
@@ -89,6 +94,26 @@ const wakeScheduler: WakeScheduler = {
 	},
 	async cancel(): Promise<void> {
 		await browser.alarms.clear(UPLOAD_ALARM_NAME);
+	},
+};
+
+const bulkSaveJobStore: BulkSaveJobStore = {
+	async read(): Promise<unknown> {
+		const stored = await browser.storage.local.get(BULK_SAVE_JOBS_KEY);
+		return stored[BULK_SAVE_JOBS_KEY];
+	},
+	async write(jobs): Promise<void> {
+		await browser.storage.local.set({ [BULK_SAVE_JOBS_KEY]: jobs });
+	},
+};
+
+const bulkSaveWakeScheduler: WakeScheduler = {
+	now: () => Date.now(),
+	async wakeAt(timestamp): Promise<void> {
+		browser.alarms.create(BULK_SAVE_ALARM_NAME, { when: timestamp });
+	},
+	async cancel(): Promise<void> {
+		await browser.alarms.clear(BULK_SAVE_ALARM_NAME);
 	},
 };
 
@@ -230,6 +255,7 @@ async function initCore() {
 		 * here would deadlock that pass — it is already purging for itself. */
 		onUnauthorized: async () => {
 			void uploadQueue.purge();
+			void bulkSaveQueue.purge();
 			await auth.logout();
 		},
 		logger,
@@ -249,7 +275,20 @@ async function initCore() {
 		logger,
 	});
 
-	const core = BrowserExtensionCore(shell, { auth, logger, readingList });
+	const bulkSaveQueue = initBulkSaveQueue({
+		jobs: bulkSaveJobStore,
+		payloads: initIndexedDbPayloadStore({ databaseName: BULK_SAVE_PAYLOAD_DB }),
+		scheduler: bulkSaveWakeScheduler,
+		openSession: readingList.openBulkSaveSession,
+		notify: showBulkSaveNotification,
+		logger,
+	});
+
+	const core = BrowserExtensionCore(shell, {
+		auth,
+		logger,
+		readingList: { ...readingList, savePages: bulkSaveQueue.savePages },
+	});
 
 	core.on("pre-init", () => {
 		syncContextMenus
@@ -259,7 +298,7 @@ async function initCore() {
 
 	core.init();
 
-	return { core, uploadQueue };
+	return { core, uploadQueue, bulkSaveQueue };
 }
 
 const appPromise = initCore();
@@ -270,12 +309,20 @@ function resumeUploads(): void {
 		.catch((err) => logger.error("Failed to resume deferred uploads", err));
 }
 
+function resumeBulkSaves(): void {
+	appPromise
+		.then(({ bulkSaveQueue }) => withServiceWorkerKeepalive(bulkSaveQueue.resume()))
+		.catch((err) => logger.error("Failed to resume deferred bulk saves", err));
+}
+
 /** Starting the worker re-runs this module top level, so this call already
  * covers every startup and install; only an alarm-driven wake needs a listener
  * of its own. */
 resumeUploads();
+resumeBulkSaves();
 browser.alarms.onAlarm.addListener((alarm) => {
 	if (alarm.name === UPLOAD_ALARM_NAME) resumeUploads();
+	if (alarm.name === BULK_SAVE_ALARM_NAME) resumeBulkSaves();
 });
 
 /** Chrome publishes no event for a shortcut being rebound, so the worker's own
@@ -392,7 +439,7 @@ browser.runtime.onMessage.addListener((raw, _sender, sendResponse) => {
 	const message = raw as PopupMessage;
 
 	appPromise
-		.then(({ core, uploadQueue }) => {
+		.then(({ core, uploadQueue, bulkSaveQueue }) => {
 			switch (message.type) {
 				case "login": {
 					const pending = new Promise<unknown>((resolve) => {
@@ -409,7 +456,9 @@ browser.runtime.onMessage.addListener((raw, _sender, sendResponse) => {
 					/** Page bytes captured for a signed-in reader must not outlive the
 					 * session that authorised capturing them, so the worker is held open
 					 * until the purge lands and the popup is answered only then. */
-					const purged = withServiceWorkerKeepalive(uploadQueue.purge());
+					const purged = withServiceWorkerKeepalive(
+						Promise.all([uploadQueue.purge(), bulkSaveQueue.purge()]),
+					);
 					core.logout();
 					purged.then(() => sendResponse({ ok: true }));
 					break;
