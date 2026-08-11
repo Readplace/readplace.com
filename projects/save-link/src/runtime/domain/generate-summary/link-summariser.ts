@@ -47,9 +47,6 @@ export type SummarizeArticle = (params: {
 	textContent: string;
 }) => Promise<SummarizeResult>;
 
-// Safety net: if DeepSeek overshoots MAX_EXCERPT_LENGTH despite the prompt
-// instruction, clip on a word boundary so we never persist a row that violates
-// the contract downstream consumers rely on.
 function clipExcerpt(text: string): string {
 	if (text.length <= MAX_EXCERPT_LENGTH) return text;
 	const slice = text.slice(0, MAX_EXCERPT_LENGTH - 1);
@@ -112,7 +109,7 @@ export function initLinkSummariser(deps: {
 				url: params.url,
 			});
 		}
-		const excerpt = clipExcerpt(written ? written : summary.replace(/\s+/gu, " "));
+		const excerpt = written ? written : clipExcerpt(summary.replace(/\s+/gu, " "));
 
 		return {
 			kind: "ready",

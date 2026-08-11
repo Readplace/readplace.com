@@ -171,7 +171,7 @@ describe("initLinkSummariser", () => {
 		]);
 	});
 
-	it("clips excerpt on a word boundary if it exceeds MAX_EXCERPT_LENGTH", async () => {
+	it("keeps a model-written excerpt whole past MAX_EXCERPT_LENGTH, so the reader's teaser is never cut mid-sentence", async () => {
 		const overLong = `${"word ".repeat(60)}tail`;
 		const createMessage = createStubCreateMessage({
 			summary: "Body.",
@@ -193,8 +193,8 @@ describe("initLinkSummariser", () => {
 
 		expect(result.kind).toBe("ready");
 		if (result.kind !== "ready") throw new Error("unreachable");
-		expect(result.excerpt.length).toBeLessThanOrEqual(MAX_EXCERPT_LENGTH);
-		expect(result.excerpt.endsWith("…")).toBe(true);
+		expect(overLong.length).toBeGreaterThan(MAX_EXCERPT_LENGTH);
+		expect(result.excerpt).toBe(overLong);
 	});
 
 	it("derives the excerpt from the summary when the model omits it, instead of discarding the whole result", async () => {
@@ -311,12 +311,9 @@ describe("initLinkSummariser", () => {
 		expect(result.excerpt.endsWith("…")).toBe(true);
 	});
 
-	it("hard-cuts an over-length excerpt that has no whitespace", async () => {
+	it("hard-cuts a derived excerpt whose summary has no whitespace to cut on", async () => {
 		const noSpaces = "x".repeat(200);
-		const createMessage = createStubCreateMessage({
-			summary: "Body.",
-			excerpt: noSpaces,
-		});
+		const createMessage = createStubCreateMessage({ summary: noSpaces });
 
 		const { summarizeArticle } = initLinkSummariser({
 			createMessage,

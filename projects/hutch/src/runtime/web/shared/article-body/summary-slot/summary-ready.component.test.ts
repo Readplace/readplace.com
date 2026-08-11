@@ -1,4 +1,5 @@
 import assert from "node:assert/strict";
+import { MAX_EXCERPT_LENGTH } from "@packages/provider-contracts/article-summary";
 import { JSDOM } from "jsdom";
 import { renderSummaryReady } from "./summary-ready.component";
 
@@ -89,6 +90,23 @@ describe("renderSummaryReady", () => {
 		assert(preview, "preview must be rendered");
 		expect(preview.textContent).toBe("A one-sentence teaser of the piece. … view more");
 		expect(doc.querySelector(".article-body__summary-more")?.textContent).toBe("… view more");
+	});
+
+	it("renders a stored excerpt whole, even one longer than the fallback's budget", () => {
+		const overBudget =
+			"A teaser written when the excerpt budget was wider, long enough that the fallback's word-boundary cut would visibly shorten it.";
+		assert(
+			overBudget.length > MAX_EXCERPT_LENGTH,
+			"the excerpt must exceed the fallback budget or this proves nothing",
+		);
+
+		const doc = parse(
+			renderSummaryReady({ summary: LONG_SUMMARY, excerpt: overBudget, open: false }),
+		);
+
+		expect(doc.querySelector(".article-body__summary-preview")?.textContent).toBe(
+			`${overBudget} … view more`,
+		);
 	});
 
 	it("keeps the preview inside the <summary> so it shows while the <details> is closed", () => {
