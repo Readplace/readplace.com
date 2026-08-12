@@ -363,11 +363,11 @@ export function initInMemoryArticleStore(): {
 
 	const updateArticleStatus: UpdateArticleStatus = async (id, userId, status) => {
 		const article = findArticleByRouteId(id);
-		if (!article) return false;
+		if (!article) return null;
 
 		const uaKey = userArticleKey(userId, article.url);
 		const ua = userArticles.get(uaKey);
-		if (!ua) return false;
+		if (!ua) return null;
 
 		ua.status = status;
 		if (status === "read") {
@@ -376,7 +376,7 @@ export function initInMemoryArticleStore(): {
 			ua.readAt = undefined;
 		}
 		userArticles.set(uaKey, ua);
-		return true;
+		return toSavedArticle(article, ua);
 	};
 
 	const markArticleViewed: MarkArticleViewed = async ({ userId, url, at }) => {

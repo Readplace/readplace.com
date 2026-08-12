@@ -134,7 +134,7 @@ export type UpdateArticleStatus = (
 	id: ReaderArticleHashId,
 	userId: UserId,
 	status: ArticleStatus,
-) => Promise<boolean>;
+) => Promise<SavedArticle | null>;
 
 export interface ArticleFreshnessData {
 	etag?: string;

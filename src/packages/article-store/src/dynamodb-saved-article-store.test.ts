@@ -1346,9 +1346,14 @@ describe("initDynamoDbSavedArticleStore listUserArticleUrls", () => {
 });
 
 describe("initDynamoDbSavedArticleStore updateArticleStatus", () => {
-	it("stamps readAt when marking an article read", async () => {
+	it("stamps readAt when marking an article read and answers with the row it wrote", async () => {
 		const { client, commands } = createFakeClient({
 			QueryCommand: { default: { Items: [articleItem()], Count: 1 } },
+			UpdateCommand: {
+				default: {
+					Attributes: userArticleItem({ status: "read", readAt: "2026-05-30T12:00:00.000Z" }),
+				},
+			},
 		});
 
 		const updated = await initStore(client).updateArticleStatus(ReaderArticleHashId.fromHash(ROUTE_ID), USER, "read");
@@ -1356,31 +1361,38 @@ describe("initDynamoDbSavedArticleStore updateArticleStatus", () => {
 		const update = commands.find((c) => c.name === "UpdateCommand");
 		expect(update?.input.UpdateExpression).toBe("SET #status = :status, readAt = :readAt");
 		expect(update?.input.ConditionExpression).toBe("attribute_exists(savedAt)");
+		expect(update?.input.ReturnValues).toBe("ALL_NEW");
 		expect(commands.some((c) => c.name === "GetCommand")).toBe(false);
-		expect(updated).toBe(true);
+		expect(updated).toMatchObject({ status: "read", readAt: new Date("2026-05-30T12:00:00.000Z") });
 	});
 
-	it("removes readAt when marking an article unread", async () => {
+	it("removes readAt when marking an article unread and answers with the cleared row", async () => {
 		const { client, commands } = createFakeClient({
 			QueryCommand: { default: { Items: [articleItem()], Count: 1 } },
+			UpdateCommand: { default: { Attributes: userArticleItem({ status: "unread" }) } },
 		});
 
-		const updated = await initStore(client).updateArticleStatus(ReaderArticleHashId.fromHash(ROUTE_ID), USER, "unread");
+		const updated = await initStore(client).updateArticleStatus(
+			ReaderArticleHashId.fromHash(ROUTE_ID),
+			USER,
+			"unread",
+		);
 
 		const update = commands.find((c) => c.name === "UpdateCommand");
 		expect(update?.input.UpdateExpression).toBe("SET #status = :status REMOVE readAt");
-		expect(updated).toBe(true);
+		expect(updated).toMatchObject({ status: "unread" });
+		expect(updated?.readAt).toBeUndefined();
 	});
 
-	it("reports false when the article does not exist", async () => {
+	it("reports null when the article does not exist", async () => {
 		const { client } = createFakeClient({ QueryCommand: { default: { Items: [], Count: 0 } } });
 
 		const updated = await initStore(client).updateArticleStatus(ReaderArticleHashId.fromHash(ROUTE_ID), USER, "read");
 
-		expect(updated).toBe(false);
+		expect(updated).toBeNull();
 	});
 
-	it("reports false when the user never saved the article", async () => {
+	it("reports null when the user never saved the article", async () => {
 		const { client } = createFakeClient({
 			QueryCommand: { default: { Items: [articleItem()], Count: 1 } },
 			UpdateCommand: {
@@ -1392,7 +1404,7 @@ describe("initDynamoDbSavedArticleStore updateArticleStatus", () => {
 
 		const updated = await initStore(client).updateArticleStatus(ReaderArticleHashId.fromHash(ROUTE_ID), USER, "read");
 
-		expect(updated).toBe(false);
+		expect(updated).toBeNull();
 	});
 
 	it("rethrows non-conditional errors", async () => {

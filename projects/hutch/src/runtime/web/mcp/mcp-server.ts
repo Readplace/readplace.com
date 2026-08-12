@@ -24,21 +24,22 @@ import {
 	TOOL_DEFINITIONS,
 } from "./tool-definitions";
 
-/** The user's queue in the Readplace app. Status changes and deletions happen
- * here, not over MCP — the redirect tools point the user at this URL. */
+/** The user's queue in the Readplace app. Deletion happens here, not over MCP —
+ * delete_article points the user at this URL. */
 const APP_QUEUE_URL = "https://readplace.com/queue";
 
 /** The tools a read-only (lapsed) subscription pauses. The Terms keep view and
  * export open for a lapsed account and scope the pause to "new saves", so only
- * save_link — the one tool that writes — is gated; the read tools and the
- * app-only redirects (which never mutate) stay open. */
+ * save_link is gated. Marking read or unread stays open because the web's own
+ * status route carries neither the lock gate nor the write-access gate: a
+ * lapsed reader can mark read in their queue, and MCP matches that. */
 const PAYWALLED_TOOLS: ReadonlySet<string> = new Set([SAVE_LINK_TOOL.name]);
 
 type SaveLinkResult =
 	| { readonly ok: true; readonly title: string; readonly url: string }
 	| { readonly ok: false; readonly message: string };
 
-/** One saved article as the read tools expose it: metadata only (the reader
+/** One saved article as the article tools expose it: metadata only (the reader
  * HTML is fetched separately by `get_article_content`). Dates are ISO strings
  * so the structured payload is plain JSON. */
 export interface McpArticle {
@@ -83,6 +84,10 @@ export type ArticleSummaryResult =
 	| { readonly status: "failed"; readonly reason: string }
 	| { readonly status: "skipped"; readonly reason?: string };
 
+export type ArticleStatusResult =
+	| { readonly status: "not_found" }
+	| { readonly status: "ok"; readonly article: McpArticle };
+
 export interface ListQueueResult {
 	readonly total: number;
 	readonly page: number;
@@ -91,9 +96,10 @@ export interface ListQueueResult {
 }
 
 /** The domain operations the tools delegate to. The composition root wires
- * these to the same save/list/read pipeline the hypermedia `/queue` API uses,
- * so an MCP `save_link` and an extension save are the identical write, and the
- * read tools see exactly what the user's own queue shows. */
+ * these to the same save/list/read/status pipeline the hypermedia `/queue` API
+ * uses, so an MCP `save_link` and an extension save are the identical write, a
+ * mark-read over MCP is the identical write to the one the queue page makes,
+ * and the read tools see exactly what the user's own queue shows. */
 export interface McpServerDeps {
 	saveLink: (params: {
 		userId: AuthenticatedUserId;
@@ -124,10 +130,18 @@ export interface McpServerDeps {
 		userId: AuthenticatedUserId;
 		id: string;
 	}) => Promise<ArticleRelatedResult>;
+	markAsRead: (params: {
+		userId: AuthenticatedUserId;
+		id: string;
+	}) => Promise<ArticleStatusResult>;
+	markAsUnread: (params: {
+		userId: AuthenticatedUserId;
+		id: string;
+	}) => Promise<ArticleStatusResult>;
 	/** The subscription gate for the tool surface, resolved once per
 	 * `tools/call`: it decides whether to refuse a new save (save_link) with a
 	 * renewal upsell (inactive) or to append a trial-ending nudge to a successful
-	 * result. The read tools stay open for a lapsed account. Reads the same
+	 * result. Every other tool stays open for a lapsed account. Reads the same
 	 * effective access the web banner does. */
 	resolveToolAccess: (userId: AuthenticatedUserId) => Promise<ToolAccess>;
 }
@@ -268,7 +282,7 @@ export function initMcpServer(deps: McpServerDeps): McpServer {
 			capabilities: { tools: { listChanged: false } },
 			serverInfo: MCP_SERVER_INFO,
 			instructions:
-				"save_link adds a URL to the user's Readplace reading queue; list_queue lists saved articles, each with an id you pass to get_article (metadata), get_article_content (reader HTML), get_article_summary (AI TL;DR), and get_related_articles (saves in their queue that relate to it, each tagged unread or read). Marking an article read/unread or deleting it is intentionally NOT available to the assistant — the mark_as_read, mark_as_unread, and delete_article tools only return instructions for the user to do it in the Readplace app, because reading a piece is the reader's own act and a summary is not the same as reading it.",
+				"save_link adds a URL to the user's Readplace reading queue; list_queue lists saved articles, each with an id you pass to get_article (metadata), get_article_content (reader HTML), get_article_summary (AI TL;DR), and get_related_articles (saves in their queue that relate to it, each tagged unread or read). mark_as_read and mark_as_unread really change the queue: mark_as_read takes one saved article out of the unread list while it stays saved, and mark_as_unread is its undo, so use them when the user has read the piece or asks you to — but a summary you produced is not the same as the user reading it, so never mark an article read just because you fetched or summarised it. Deleting is the one thing you cannot do: delete_article changes nothing and only returns instructions for the user to remove the article themselves in the Readplace app, because a stray delete costs them something they meant to read.",
 		};
 	}
 
@@ -536,35 +550,79 @@ export function initMcpServer(deps: McpServerDeps): McpServer {
 		}
 	}
 
-	/** The write actions are app-only. The handler never touches the store; it
-	 * returns the same wording the user would see if they asked the assistant to
-	 * do it, so the assistant relays "do it in the app" instead of inventing a
-	 * capability it doesn't have. */
-	function appOnlyResult(
-		action: "mark_as_read" | "mark_as_unread" | "delete_article",
-		message: string,
-	): ToolResult {
-		return data(message, { action, performed: false, completeInApp: APP_QUEUE_URL });
+	async function runStatusChange(
+		change: {
+			tool: string;
+			confirmation: string;
+			apply: (params: {
+				userId: AuthenticatedUserId;
+				id: string;
+			}) => Promise<ArticleStatusResult>;
+		},
+		rawArgs: unknown,
+		context: McpRequestContext,
+	): Promise<ToolResult> {
+		const args = ArticleIdArgs.safeParse(rawArgs);
+		if (!args.success) {
+			return toolError(`${change.tool} requires an \`id\` string.`);
+		}
+		try {
+			const result = await change.apply({
+				userId: context.userId,
+				id: args.data.id,
+			});
+			if (result.status === "not_found") return notFoundResult(args.data.id);
+			return data(`${change.confirmation}\n${formatArticle(result.article)}`, {
+				found: true,
+				marked: true,
+				article: result.article,
+			});
+		} catch (error) {
+			return toolError(
+				`Could not change the article's status. ${errorMessage(error)}`,
+			);
+		}
 	}
 
-	function runMarkAsRead(): ToolResult {
-		return appOnlyResult(
-			"mark_as_read",
-			`Reading an article is your own act, so marking one read is done by you in the Readplace app, not by your assistant — a summary here is not the same as reading the piece. Open your queue at ${APP_QUEUE_URL} to mark an article read once you have read it.`,
+	function runMarkAsRead(
+		rawArgs: unknown,
+		context: McpRequestContext,
+	): Promise<ToolResult> {
+		return runStatusChange(
+			{
+				tool: MARK_AS_READ_TOOL.name,
+				confirmation:
+					"Marked read — it stays in your Readplace queue and has left your unread list.",
+				apply: deps.markAsRead,
+			},
+			rawArgs,
+			context,
 		);
 	}
 
-	function runMarkAsUnread(): ToolResult {
-		return appOnlyResult(
-			"mark_as_unread",
-			`Marking an article unread is done by you in the Readplace app, not by your assistant, so changes to your queue stay under your control. Open your queue at ${APP_QUEUE_URL} to mark an article unread.`,
+	function runMarkAsUnread(
+		rawArgs: unknown,
+		context: McpRequestContext,
+	): Promise<ToolResult> {
+		return runStatusChange(
+			{
+				tool: MARK_AS_UNREAD_TOOL.name,
+				confirmation: "Marked unread — it is back in your unread list.",
+				apply: deps.markAsUnread,
+			},
+			rawArgs,
+			context,
 		);
 	}
 
 	function runDeleteArticle(): ToolResult {
-		return appOnlyResult(
-			"delete_article",
+		return data(
 			`Deleting a saved article is done in the Readplace app, not by your assistant, so nothing is removed by mistake. Open your queue at ${APP_QUEUE_URL} to delete an article.`,
+			{
+				action: DELETE_ARTICLE_TOOL.name,
+				performed: false,
+				completeInApp: APP_QUEUE_URL,
+			},
 		);
 	}
 
@@ -591,9 +649,9 @@ export function initMcpServer(deps: McpServerDeps): McpServer {
 			case GET_RELATED_ARTICLES_TOOL.name:
 				return runGetRelatedArticles(rawArgs, context);
 			case MARK_AS_READ_TOOL.name:
-				return runMarkAsRead();
+				return runMarkAsRead(rawArgs, context);
 			case MARK_AS_UNREAD_TOOL.name:
-				return runMarkAsUnread();
+				return runMarkAsUnread(rawArgs, context);
 			case DELETE_ARTICLE_TOOL.name:
 				return runDeleteArticle();
 			default:
@@ -622,10 +680,6 @@ export function initMcpServer(deps: McpServerDeps): McpServer {
 			access = { state: "ok" };
 		}
 
-		// A read-only (lapsed) subscription pauses only a new save: save_link is
-		// refused with the renewal upsell before it runs, while every read tool
-		// (and the app-only redirects, which never mutate) stays open — matching
-		// the Terms' promise that a lapsed account can still view and export.
 		if (access.state === "inactive" && PAYWALLED_TOOLS.has(parsed.data.name)) {
 			return success(id, toolError(access.message));
 		}

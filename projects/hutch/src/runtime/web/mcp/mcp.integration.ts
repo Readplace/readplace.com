@@ -173,7 +173,7 @@ describe("MCP server over the real app", () => {
 		expect(list.body.result.structuredContent.total).toBe(0);
 	});
 
-	it("advertises the read tools and the app-only write tools", async () => {
+	it("advertises the read tools, the status writes, and the app-only delete", async () => {
 		const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
 		const accessToken = await obtainAccessToken(harness);
 		const response = await callTool(harness, accessToken, {
@@ -234,7 +234,47 @@ describe("MCP server over the real app", () => {
 		expect(list.body.result.structuredContent.total).toBe(0);
 	});
 
-	it("never changes status or deletes through the write tools", async () => {
+	it("marks a saved article read, leaves a repeat mark alone, and puts it back unread", async () => {
+		const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
+		const accessToken = await obtainAccessToken(harness);
+		const id = await saveAndGetFirstId(harness, accessToken);
+
+		const read = await callTool(harness, accessToken, tool("mark_as_read", { id }));
+		expect(read.body.result.isError).toBeUndefined();
+		expect(read.body.result.structuredContent.found).toBe(true);
+		expect(read.body.result.structuredContent.marked).toBe(true);
+		expect(read.body.result.structuredContent.article.status).toBe("read");
+
+		const afterRead = await callTool(harness, accessToken, tool("get_article", { id }));
+		expect(afterRead.body.result.structuredContent.article.status).toBe("read");
+		expect(typeof afterRead.body.result.structuredContent.article.readAt).toBe("string");
+
+		const readAgain = await callTool(harness, accessToken, tool("mark_as_read", { id }));
+		expect(readAgain.body.result.structuredContent.article).toEqual(
+			afterRead.body.result.structuredContent.article,
+		);
+		const stillUnread = await callTool(
+			harness,
+			accessToken,
+			tool("list_queue", { status: "unread" }),
+		);
+		expect(stillUnread.body.result.structuredContent.total).toBe(0);
+
+		const unread = await callTool(harness, accessToken, tool("mark_as_unread", { id }));
+		expect(unread.body.result.structuredContent.article.status).toBe("unread");
+
+		const afterUnread = await callTool(harness, accessToken, tool("get_article", { id }));
+		expect(afterUnread.body.result.structuredContent.article.status).toBe("unread");
+		expect(afterUnread.body.result.structuredContent.article.readAt).toBeUndefined();
+		const backInUnread = await callTool(
+			harness,
+			accessToken,
+			tool("list_queue", { status: "unread" }),
+		);
+		expect(backInUnread.body.result.structuredContent.total).toBe(1);
+	});
+
+	it("never deletes through the delete tool", async () => {
 		const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
 		const accessToken = await obtainAccessToken(harness);
 		const id = await saveAndGetFirstId(harness, accessToken);
@@ -244,10 +284,6 @@ describe("MCP server over the real app", () => {
 
 		const del = await callTool(harness, accessToken, tool("delete_article", { id }));
 		expect(del.body.result.structuredContent.performed).toBe(false);
-		const read = await callTool(harness, accessToken, tool("mark_as_read", { id }));
-		expect(read.body.result.structuredContent.performed).toBe(false);
-		const unread = await callTool(harness, accessToken, tool("mark_as_unread", { id }));
-		expect(unread.body.result.structuredContent.performed).toBe(false);
 
 		// The whole article — not just status/count — is byte-for-byte unchanged.
 		const after = await callTool(harness, accessToken, tool("get_article", { id }));
@@ -256,7 +292,7 @@ describe("MCP server over the real app", () => {
 		expect(list.body.result.structuredContent.total).toBe(1);
 	});
 
-	it("does not mutate another user's article through the write tools", async () => {
+	it("does not reach another user's article through the write tools", async () => {
 		const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
 		const ownerToken = await obtainAccessToken(harness);
 		const id = await saveAndGetFirstId(harness, ownerToken);
@@ -265,10 +301,19 @@ describe("MCP server over the real app", () => {
 		const del = await callTool(harness, otherToken, tool("delete_article", { id }));
 		expect(del.body.result.structuredContent.performed).toBe(false);
 		const read = await callTool(harness, otherToken, tool("mark_as_read", { id }));
-		expect(read.body.result.structuredContent.performed).toBe(false);
+		expect(read.body.result.structuredContent).toEqual({ found: false });
+		const unread = await callTool(harness, otherToken, tool("mark_as_unread", { id }));
+		expect(unread.body.result.structuredContent).toEqual({ found: false });
+		const malformed = await callTool(
+			harness,
+			otherToken,
+			tool("mark_as_read", { id: "not-a-hash" }),
+		);
+		expect(malformed.body.result.structuredContent).toEqual({ found: false });
 
 		const owner = await callTool(harness, ownerToken, tool("get_article", { id }));
 		expect(owner.body.result.structuredContent.article.status).toBe("unread");
+		expect(owner.body.result.structuredContent.article.readAt).toBeUndefined();
 		const ownerList = await callTool(harness, ownerToken, tool("list_queue"));
 		expect(ownerList.body.result.structuredContent.total).toBe(1);
 	});

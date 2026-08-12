@@ -39,8 +39,7 @@ export const ListQueueArgs = z.object({
 	cursor: z.string().min(1).optional(),
 });
 
-/** Shared by every by-id read tool (`get_article`, `get_article_content`,
- * `get_article_summary`). The id is the 32-hex hash an agent reads off a
+/** Shared by every by-id tool. The id is the 32-hex hash an agent reads off a
  * `list_queue` result; the server resolves it to an owned article. */
 export const ArticleIdArgs = z.object({
 	id: z.string().min(1),
@@ -167,7 +166,7 @@ export const MARK_AS_READ_TOOL: McpToolDefinition = {
 		additionalProperties: false,
 	},
 	annotations: {
-		readOnlyHint: true,
+		readOnlyHint: false,
 		destructiveHint: false,
 		idempotentHint: true,
 		openWorldHint: false,
@@ -183,7 +182,7 @@ export const MARK_AS_UNREAD_TOOL: McpToolDefinition = {
 		additionalProperties: false,
 	},
 	annotations: {
-		readOnlyHint: true,
+		readOnlyHint: false,
 		destructiveHint: false,
 		idempotentHint: true,
 		openWorldHint: false,

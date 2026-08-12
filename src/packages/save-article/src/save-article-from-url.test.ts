@@ -53,7 +53,7 @@ function makeTracker(savedOverride?: SavedArticle): CallTracker {
 		saveArticle: async () => ({ saved, createdUserArticle: true, wroteUserArticle: true }),
 		updateArticleStatus: async (_id, _u, status) => {
 			if (status === "unread") calls.updateArticleStatusUnread += 1;
-			return true;
+			return { ...saved, status, readAt: undefined };
 		},
 		markCrawlPending: async () => {
 			calls.markCrawlPending += 1;

@@ -20,6 +20,8 @@ function buildApp(): Express {
 		getArticleContent: async () => ({ status: "not_found" }),
 		getArticleSummary: async () => ({ status: "not_found" }),
 		getRelatedArticles: async () => ({ status: "not_found" }),
+		markAsRead: async () => ({ status: "not_found" }),
+		markAsUnread: async () => ({ status: "not_found" }),
 		resolveToolAccess: async () => ({ state: "ok" }),
 	});
 	const app = express();

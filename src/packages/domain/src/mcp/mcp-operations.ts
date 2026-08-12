@@ -3,7 +3,7 @@ import assert from "node:assert";
 /** What invoking the operation does to the queue. An `appOnly` operation exists
  * so an assistant can answer the request, but it changes nothing: the user
  * performs it in the Readplace app. */
-export type McpOperationEffect = "save" | "read" | "appOnly";
+export type McpOperationEffect = "save" | "read" | "update" | "appOnly";
 
 interface McpOperationShape {
 	readonly name: string;
@@ -74,19 +74,20 @@ export const MCP_OPERATIONS = [
 	},
 	{
 		name: "mark_as_read",
-		title: "Mark an article read (in the app)",
+		title: "Mark a saved article read",
 		description:
-			"Marking a saved article read is done by the user in the Readplace app, not by the assistant: reading a piece is the reader's own act, and a summary is not the same as reading it. Calling this does NOT change anything — it returns instructions to open the app.",
-		summary: "answers with a note pointing the user to the app; marking read stays in Readplace.",
-		effect: "appOnly",
+			"Mark one saved article read in the user's Readplace queue, looked up by the id from a list_queue result. The article stays in the queue and leaves the unread list. Marking an already-read article read again changes nothing. Do this when the user has read the piece or asks you to — a summary you produced is not the same as the user reading it.",
+		summary:
+			"marks one saved article read; it stays in the queue and leaves the unread list.",
+		effect: "update",
 	},
 	{
 		name: "mark_as_unread",
-		title: "Mark an article unread (in the app)",
+		title: "Mark a saved article unread",
 		description:
-			"Marking a saved article unread is done by the user in the Readplace app, not by the assistant. Calling this does NOT change anything — it returns instructions to open the app.",
-		summary: "answers with a note pointing the user to the app; marking unread stays in Readplace.",
-		effect: "appOnly",
+			"Mark one saved article unread in the user's Readplace queue, looked up by the id from a list_queue result. It returns to the unread list and its read date is cleared. This is the undo for mark_as_read.",
+		summary: "marks one saved article unread again; the undo for mark_as_read.",
+		effect: "update",
 	},
 	{
 		name: "delete_article",

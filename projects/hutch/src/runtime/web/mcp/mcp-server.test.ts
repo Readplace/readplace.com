@@ -18,6 +18,8 @@ function fakeDeps(overrides?: Partial<McpServerDeps>): McpServerDeps {
 		getArticleContent: async () => ({ status: "not_found" }),
 		getArticleSummary: async () => ({ status: "not_found" }),
 		getRelatedArticles: async () => ({ status: "not_found" }),
+		markAsRead: async () => ({ status: "not_found" }),
+		markAsUnread: async () => ({ status: "not_found" }),
 		resolveToolAccess: async () => ({ state: "ok" }),
 		...overrides,
 	};
@@ -73,15 +75,22 @@ describe("initMcpServer", () => {
 		});
 	});
 
-	it("instructs that marking read and deleting are app-only", async () => {
+	it("instructs that the mark tools change the queue and only deleting stays app-only", async () => {
 		const server = initMcpServer(fakeDeps());
 		const response = await server.handle(
 			{ jsonrpc: "2.0", id: 1, method: "initialize", params: {} },
 			context,
 		);
-		expect(response).toMatchObject({
-			result: { instructions: expect.stringContaining("Readplace app") },
-		});
+		for (const claim of [
+			"mark_as_read and mark_as_unread really change the queue",
+			"a summary you produced is not the same as the user reading it",
+			"delete_article changes nothing",
+			"Readplace app",
+		]) {
+			expect(response).toMatchObject({
+				result: { instructions: expect.stringContaining(claim) },
+			});
+		}
 	});
 
 	it("answers ping with an empty result", async () => {
@@ -109,8 +118,8 @@ describe("initMcpServer", () => {
 					{ name: "get_article_content" },
 					{ name: "get_article_summary" },
 					{ name: "get_related_articles", annotations: { readOnlyHint: true } },
-					{ name: "mark_as_read", annotations: { readOnlyHint: true } },
-					{ name: "mark_as_unread", annotations: { readOnlyHint: true } },
+					{ name: "mark_as_read", annotations: { readOnlyHint: false } },
+					{ name: "mark_as_unread", annotations: { readOnlyHint: false } },
 					{ name: "delete_article", annotations: { readOnlyHint: true } },
 				],
 			},
@@ -740,42 +749,121 @@ describe("initMcpServer", () => {
 		});
 	});
 
-	describe("tools/call app-only write tools", () => {
-		it("redirects mark_as_read to the app without mutating, telling the reader to read it first", async () => {
-			const server = initMcpServer(fakeDeps());
-			const response = await call(server, 60, "mark_as_read", { id: "x".repeat(32) });
+	describe("tools/call reading-status write tools", () => {
+		const id = "x".repeat(32);
+
+		it("marks the article read and reports the state the store now holds", async () => {
+			const article = mcpArticle({
+				title: "Deep Work",
+				status: "read",
+				readAt: "2026-03-03T00:00:00.000Z",
+			});
+			const markAsRead = jest.fn(async () => ({
+				status: "ok" as const,
+				article,
+			}));
+			const server = initMcpServer(fakeDeps({ markAsRead }));
+			const response = await call(server, 80, "mark_as_read", { id });
+
+			expect(markAsRead).toHaveBeenCalledWith({ userId, id });
 			expect(response).toMatchObject({
-				id: 60,
+				id: 80,
 				result: {
-					content: [{ text: expect.stringContaining("once you have read it") }],
+					content: [{ text: expect.stringContaining("Marked read") }],
 					structuredContent: {
-						action: "mark_as_read",
-						performed: false,
-						completeInApp: "https://readplace.com/queue",
+						found: true,
+						marked: true,
+						article: { status: "read", readAt: "2026-03-03T00:00:00.000Z" },
 					},
 				},
 			});
 			expect(response).toMatchObject({
-				result: { content: [{ text: expect.stringContaining("Readplace app") }] },
+				result: { content: [{ text: expect.stringContaining("[read]") }] },
 			});
 		});
 
-		it("redirects mark_as_unread to the app without mutating", async () => {
-			const server = initMcpServer(fakeDeps());
-			const response = await call(server, 62, "mark_as_unread", { id: "x".repeat(32) });
+		it("marks the article unread with the read date gone", async () => {
+			const markAsUnread = jest.fn(async () => ({
+				status: "ok" as const,
+				article: mcpArticle({ status: "unread" }),
+			}));
+			const server = initMcpServer(fakeDeps({ markAsUnread }));
+			const response = await call(server, 81, "mark_as_unread", { id });
+
+			expect(markAsUnread).toHaveBeenCalledWith({ userId, id });
 			expect(response).toMatchObject({
-				id: 62,
+				id: 81,
 				result: {
-					content: [{ text: expect.stringContaining("Readplace app") }],
+					content: [{ text: expect.stringContaining("Marked unread") }],
 					structuredContent: {
-						action: "mark_as_unread",
-						performed: false,
-						completeInApp: "https://readplace.com/queue",
+						found: true,
+						marked: true,
+						article: { status: "unread" },
 					},
 				},
 			});
+			expect(response).not.toMatchObject({
+				result: { structuredContent: { article: { readAt: expect.anything() } } },
+			});
 		});
 
+		it("reports not found for an id the caller does not own, without erroring", async () => {
+			const server = initMcpServer(fakeDeps());
+			const response = await call(server, 82, "mark_as_read", { id });
+			expect(response).toMatchObject({
+				id: 82,
+				result: {
+					content: [{ text: expect.stringContaining("No saved article") }],
+					structuredContent: { found: false },
+				},
+			});
+			expect(response).not.toMatchObject({ result: { isError: true } });
+		});
+
+		it("rejects a missing id, naming the tool that needs it", async () => {
+			const markAsRead = jest.fn(async () => ({ status: "not_found" as const }));
+			const markAsUnread = jest.fn(async () => ({ status: "not_found" as const }));
+			const server = initMcpServer(fakeDeps({ markAsRead, markAsUnread }));
+			expect(await call(server, 83, "mark_as_read", {})).toMatchObject({
+				id: 83,
+				result: {
+					isError: true,
+					content: [{ text: expect.stringContaining("mark_as_read requires an `id`") }],
+				},
+			});
+			expect(await call(server, 84, "mark_as_unread", {})).toMatchObject({
+				id: 84,
+				result: {
+					isError: true,
+					content: [
+						{ text: expect.stringContaining("mark_as_unread requires an `id`") },
+					],
+				},
+			});
+			expect(markAsRead).not.toHaveBeenCalled();
+			expect(markAsUnread).not.toHaveBeenCalled();
+		});
+
+		it("returns an error result when the status write throws", async () => {
+			const server = initMcpServer(
+				fakeDeps({
+					markAsRead: async () => {
+						throw new Error("status write failed");
+					},
+				}),
+			);
+			const response = await call(server, 85, "mark_as_read", { id });
+			expect(response).toMatchObject({
+				id: 85,
+				result: {
+					isError: true,
+					content: [{ text: expect.stringContaining("status write failed") }],
+				},
+			});
+		});
+	});
+
+	describe("tools/call the app-only write tool", () => {
 		it("redirects delete_article to the app without deleting", async () => {
 			const server = initMcpServer(fakeDeps());
 			const response = await call(server, 61, "delete_article", { id: "x".repeat(32) });
@@ -814,15 +902,21 @@ describe("initMcpServer", () => {
 			expect(saveLink).not.toHaveBeenCalled();
 		});
 
-		it("leaves the read and app-only tools open when inactive (the Terms keep view and export available)", async () => {
+		it("leaves the read tools, the status writes, and delete_article open when inactive (the Terms keep view and export available, and the web lets a lapsed reader mark read)", async () => {
 			const listQueue = jest.fn(async () => ({
 				total: 1,
 				page: 1,
 				pageSize: 20,
 				articles: [mcpArticle({ title: "Still readable" })],
 			}));
+			const marked = {
+				status: "ok" as const,
+				article: mcpArticle({ status: "read", readAt: "2026-03-03T00:00:00.000Z" }),
+			};
+			const markAsRead = jest.fn(async () => marked);
+			const markAsUnread = jest.fn(async () => marked);
 			const server = initMcpServer(
-				fakeDeps({ resolveToolAccess: inactive, listQueue }),
+				fakeDeps({ resolveToolAccess: inactive, listQueue, markAsRead, markAsUnread }),
 			);
 			for (const tool of [
 				"list_queue",
@@ -839,6 +933,8 @@ describe("initMcpServer", () => {
 				expect(response).not.toMatchObject({ result: { content: [{ text: UPSELL }] } });
 			}
 			expect(listQueue).toHaveBeenCalled();
+			expect(markAsRead).toHaveBeenCalledTimes(1);
+			expect(markAsUnread).toHaveBeenCalledTimes(1);
 		});
 
 		it("fails open to full access when the subscription store read throws, so a blip never blocks a save", async () => {

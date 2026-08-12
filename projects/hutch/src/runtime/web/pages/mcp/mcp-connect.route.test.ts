@@ -33,7 +33,25 @@ describe("GET /mcp (browser connection guide)", () => {
 		expect(response.text).toContain("Gemini");
 		expect(response.text).toContain("Perplexity");
 		expect(response.text).toContain("get_article");
-		expect(response.text).toContain("marking articles read and deleting them stay in the Readplace app");
+		expect(response.text).toContain("deleting stays in the Readplace app");
+		expect(response.text).toContain("your assistant can mark an article read or unread");
+	});
+
+	it("groups the reading-status tools with what the assistant does, leaving deleting app-only", async () => {
+		const { server } = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
+		const response = await request(server).get("/mcp").set("Accept", "text/html");
+		const doc = load(response.text);
+
+		function operationsIn(section: string): (string | null)[] {
+			return Array.from(
+				doc.querySelectorAll(`[data-test-section="${section}"] [data-test-operation]`),
+			).map((node) => node.getAttribute("data-test-operation"));
+		}
+
+		expect(operationsIn("capabilities")).toEqual(
+			expect.arrayContaining(["mark_as_read", "mark_as_unread"]),
+		);
+		expect(operationsIn("app-only-operations")).toEqual(["delete_article"]);
 	});
 
 	it.each([

@@ -15,10 +15,11 @@ describe("MCP operations", () => {
 		});
 	});
 
-	it("splits the operations an assistant performs from the ones the app owns", () => {
+	it("splits the operations an assistant performs from the one the app owns", () => {
 		const performed = [
 			...mcpOperationsWithEffect("save"),
 			...mcpOperationsWithEffect("read"),
+			...mcpOperationsWithEffect("update"),
 		].map((operation) => operation.name);
 		const appOnly = mcpOperationsWithEffect("appOnly").map(
 			(operation) => operation.name,
@@ -31,8 +32,17 @@ describe("MCP operations", () => {
 			"get_article_content",
 			"get_article_summary",
 			"get_related_articles",
+			"mark_as_read",
+			"mark_as_unread",
 		]);
-		assert.deepEqual(appOnly, ["mark_as_read", "mark_as_unread", "delete_article"]);
+		assert.deepEqual(appOnly, ["delete_article"]);
 		assert.equal(performed.length + appOnly.length, MCP_OPERATIONS.length);
+	});
+
+	it("counts the two reading-status tools as writes the assistant makes itself", () => {
+		assert.deepEqual(
+			mcpOperationsWithEffect("update").map((operation) => operation.name),
+			["mark_as_read", "mark_as_unread"],
+		);
 	});
 });

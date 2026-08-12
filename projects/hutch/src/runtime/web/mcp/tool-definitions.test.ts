@@ -14,7 +14,7 @@ import {
 } from "./tool-definitions";
 
 describe("MCP tool definitions", () => {
-	it("exposes the save, list, and by-id read tools plus the app-only write tools", () => {
+	it("exposes the save, list, by-id read and status-write tools plus the app-only delete", () => {
 		expect(TOOL_DEFINITIONS.map((tool) => tool.name)).toEqual([
 			"save_link",
 			"list_queue",
@@ -33,6 +33,12 @@ describe("MCP tool definitions", () => {
 			readOnlyHint: false,
 			openWorldHint: true,
 		});
+		for (const tool of [MARK_AS_READ_TOOL, MARK_AS_UNREAD_TOOL]) {
+			expect(tool.annotations).toMatchObject({
+				readOnlyHint: false,
+				openWorldHint: false,
+			});
+		}
 		for (const tool of [
 			LIST_QUEUE_TOOL,
 			GET_ARTICLE_TOOL,
@@ -107,22 +113,26 @@ describe("MCP tool definitions", () => {
 		});
 	});
 
-	describe("app-only write tools", () => {
+	describe("reading-status write tools", () => {
 		it.each([
 			["mark_as_read", MARK_AS_READ_TOOL],
 			["mark_as_unread", MARK_AS_UNREAD_TOOL],
-		])("advertises %s as a read-only, non-destructive id-only redirect", (_name, tool) => {
+		])("advertises %s as a non-destructive, id-only write", (_name, tool) => {
 			expect(tool.inputSchema).toMatchObject({
 				required: ["id"],
 				properties: { id: { type: "string" } },
 			});
 			expect(tool.inputSchema.properties).not.toHaveProperty("status");
-			expect(tool.annotations).toMatchObject({
-				readOnlyHint: true,
+			expect(tool.annotations).toEqual({
+				readOnlyHint: false,
 				destructiveHint: false,
+				idempotentHint: true,
+				openWorldHint: false,
 			});
 		});
+	});
 
+	describe("app-only write tool", () => {
 		it("advertises delete_article as a read-only, non-destructive redirect", () => {
 			expect(DELETE_ARTICLE_TOOL.inputSchema).toMatchObject({
 				required: ["id"],

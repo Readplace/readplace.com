@@ -228,6 +228,7 @@ server.get(readyProbePath(requireEnv(READY_NONCE_ENV)), (_req, res) => {
 const CreateUserBody = z.object({
 	email: z.email(),
 	password: z.string().min(8),
+	verified: z.boolean().default(false),
 })
 
 // Test fixture: create a user out-of-band so extension e2e tests can spawn this
@@ -240,7 +241,9 @@ server.post('/e2e/users', async (req, res) => {
 		res.status(400).json({ error: parsed.error.flatten() })
 		return
 	}
-	const created = await auth.createUser(parsed.data)
+	const { verified, ...credentials } = parsed.data
+	const created = await auth.createUser(credentials)
+	if (verified && created.ok) await auth.markEmailVerified(credentials.email)
 	res.status(201).json(created)
 })
 

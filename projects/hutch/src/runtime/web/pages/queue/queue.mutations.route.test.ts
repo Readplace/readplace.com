@@ -586,12 +586,11 @@ describe("Queue routes", () => {
 				assert.equal(reads.length, 0, "no article_read on unread transition");
 			});
 
-			it("does not emit article_read when updateArticleStatus returns false (article not found or not owned)", async () => {
+			it("does not emit article_read when the status write finds no row (article not found or not owned)", async () => {
 				const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
 				const { auth } = harness;
 				const agent = await loginAgent(harness.server, auth);
 
-				// Well-formed hash id that won't resolve to any article — updateArticleStatus returns false.
 				await agent
 					.post("/queue/00000000000000000000000000000000/status")
 					.type("form")

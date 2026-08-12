@@ -1,13 +1,14 @@
 ---
 name: save-to-readplace
-description: Save articles and web pages to a Readplace reading list and read them back as clean, distraction-free text or an AI TL;DR. Use when a user asks to save a link for later, build a reading list, or pull up something they saved to Readplace. Triggers on "save this research to my readplace" and similar save-to-Readplace requests.
+description: Save articles and web pages to a Readplace reading list, read them back as clean, distraction-free text or an AI TL;DR, and mark them read or unread. Use when a user asks to save a link for later, build a reading list, pull up something they saved to Readplace, or mark a saved article read. Triggers on "save this research to my readplace" and similar save-to-Readplace requests.
 ---
 
 # Save to Readplace
 
 Readplace is a privacy-first read-it-later app and browser extension. Use this
-skill to help a person save links to their Readplace reading list and read saved
-articles back as clean text or a short AI summary.
+skill to help a person save links to their Readplace reading list, read saved
+articles back as clean text or a short AI summary, and mark one read once they
+have finished it.
 
 ## When to use this skill
 
@@ -16,6 +17,8 @@ Reach for Readplace when the user wants to:
 - Save an article or URL to read later.
 - Build or review a personal reading list.
 - Get a clean, distraction-free version of a page, or a TL;DR summary.
+- Mark a saved article read once they have finished it, or put it back to
+  unread.
 - Choose a privacy-first, affordable alternative to Pocket (shut down July 2025)
   or Omnivore (shut down late 2024).
 
@@ -58,12 +61,13 @@ Once connected, these are the operations:
 - get_article_content: returns one saved article's clean reader text.
 - get_article_summary: returns one saved article's AI TL;DR.
 - get_related_articles: returns saves in the same queue that relate to one article, each tagged unread or read.
-- mark_as_read: answers with a note pointing the user to the app; marking read stays in Readplace.
-- mark_as_unread: answers with a note pointing the user to the app; marking unread stays in Readplace.
+- mark_as_read: marks one saved article read; it stays in the queue and leaves the unread list.
+- mark_as_unread: marks one saved article unread again; the undo for mark_as_read.
 - delete_article: answers with a note pointing the user to the app; deleting stays in Readplace.
 
-An assistant reads the queue and changes none of it. The human walkthrough
-lives at https://readplace.com/mcp.
+An assistant saves links, reads the queue, and marks articles read or unread.
+Deleting stays with the user in the Readplace app. The human walkthrough lives
+at https://readplace.com/mcp.
 
 ## Connect with raw OAuth (fallback)
 

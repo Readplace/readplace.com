@@ -611,7 +611,7 @@ export function initDynamoDbSavedArticleStore(deps: {
 
 	const updateArticleStatus: UpdateArticleStatus = async (routeId, userId, status) => {
 		const article = await findArticleByRouteId(routeId);
-		if (!article) return false;
+		if (!article) return null;
 
 		const expression =
 			status === "read"
@@ -625,17 +625,19 @@ export function initDynamoDbSavedArticleStore(deps: {
 					};
 
 		try {
-			await userArticles.update({
+			const { Attributes } = await userArticles.update({
 				Key: { userId, url: article.url },
 				ConditionExpression: "attribute_exists(savedAt)",
 				ExpressionAttributeNames: { "#status": "status" },
+				ReturnValues: "ALL_NEW",
 				...expression,
 			});
+			assertItem(Attributes, "ReturnValues ALL_NEW must return the updated user-article row");
+			return toSavedArticle(article, Attributes);
 		} catch (error) {
-			if (error instanceof ConditionalCheckFailedException) return false;
+			if (error instanceof ConditionalCheckFailedException) return null;
 			throw error;
 		}
-		return true;
 	};
 
 	const findArticleFreshness: FindArticleFreshness = async (url) => {

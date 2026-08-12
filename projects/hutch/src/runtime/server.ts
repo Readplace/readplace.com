@@ -452,7 +452,7 @@ export function createApp(dependencies: AppDependencies): Express {
 	});
 	/** The subscription paywall on the MCP surface: a read-only (lapsed)
 	 * subscription has a new save (save_link) refused with a renewal upsell while
-	 * the read tools stay open, and a trial in its final week gets a
+	 * every other tool stays open, and a trial in its final week gets a
 	 * convert-to-annual nudge on successful results. Reads the same effective
 	 * access the web banner does, so "lapsed" means the same thing to an agent as
 	 * it does in the browser. */
@@ -503,6 +503,7 @@ export function createApp(dependencies: AppDependencies): Express {
 			readArticleContent: deps.readArticleContent,
 			findGeneratedSummary: deps.findGeneratedSummary,
 			findRelatedArticles: deps.findRelatedArticles,
+			updateArticleStatus: deps.updateArticleStatus,
 		}),
 	});
 

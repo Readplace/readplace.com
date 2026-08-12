@@ -874,27 +874,29 @@ describe("initInMemoryArticleStore", () => {
 	});
 
 	describe("updateArticleStatus", () => {
-		it("should update status and set readAt for read", async () => {
+		it("should update status and set readAt for read, answering with the written row", async () => {
 			const store = initInMemoryArticleStore();
 			const { saved } = await store.saveArticle(makeArticleParams());
 
-			await store.updateArticleStatus(saved.id, USER_A, "read");
+			const updated = await store.updateArticleStatus(saved.id, USER_A, "read");
 			const found = await store.findArticleById(saved.id, USER_A);
 
 			expect(found?.status).toBe("read");
 			expect(found?.readAt).toBeInstanceOf(Date);
+			expect(updated).toEqual(found);
 		});
 
 		it("should clear readAt when marking unread", async () => {
 			const store = initInMemoryArticleStore();
 			const { saved } = await store.saveArticle(makeArticleParams());
 			await store.updateArticleStatus(saved.id, USER_A, "read");
-			await store.updateArticleStatus(saved.id, USER_A, "unread");
+			const updated = await store.updateArticleStatus(saved.id, USER_A, "unread");
 
 			const found = await store.findArticleById(saved.id, USER_A);
 
 			expect(found?.status).toBe("unread");
 			expect(found?.readAt).toBeUndefined();
+			expect(updated).toEqual(found);
 		});
 
 		it("should not update another user's article", async () => {
@@ -903,18 +905,18 @@ describe("initInMemoryArticleStore", () => {
 
 			const updated = await store.updateArticleStatus(saved.id, USER_B, "read");
 
-			expect(updated).toBe(false);
+			expect(updated).toBeNull();
 			const found = await store.findArticleById(saved.id, USER_A);
 			expect(found?.status).toBe("unread");
 		});
 
-		it("should return false when updating status of a non-existent article", async () => {
+		it("should return null when updating status of a non-existent article", async () => {
 			const store = initInMemoryArticleStore();
 			const fakeId = ReaderArticleHashId.fromHash("0".repeat(32));
 
 			const updated = await store.updateArticleStatus(fakeId, USER_A, "read");
 
-			expect(updated).toBe(false);
+			expect(updated).toBeNull();
 		});
 	});
 

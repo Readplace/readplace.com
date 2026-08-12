@@ -14,7 +14,7 @@ export const AI_READING_LIST_CONTENT: LandingPageContent = {
 	titleLead: "Your assistant can add to your queue. It cannot ",
 	titleHighlight: "empty",
 	titleTail: " it.",
-	lede: "Connect it once, then save links out of a conversation as they come up and read them later in a clean queue. Your assistant can read that queue back too — an article, its reader view, its summary. Marking things read and deleting them stay in the app, on purpose.",
+	lede: "Connect it once, then save links out of a conversation as they come up and read them later in a clean queue. Your assistant can read that queue back too — an article, its reader view, its summary — and mark one read or unread when you have got to it. Deleting stays in the app, on purpose.",
 	ogImageAlt:
 		"Readplace — connect Claude, ChatGPT or Gemini to a reading queue they can add to but not empty.",
 	primaryAction: { key: "connect", label: "Set up the connection", href: "/mcp" },
@@ -46,16 +46,16 @@ export const AI_READING_LIST_CONTENT: LandingPageContent = {
 		},
 		founderLine: FOUNDER_LINE,
 	},
-	mechanismTitle: "Five tools that act, three that refuse",
-	mechanismLede: "The refusals are the design, not a gap in it.",
+	mechanismTitle: "Eight tools that act, one that refuses",
+	mechanismLede: "The refusal is the design, not a gap in it.",
 	mechanismParagraphs: [
-		"Five tools do something: save a link, list your queue, and pull an article's details, its reader view, or its summary.",
-		"Three more — mark read, mark unread, delete — exist only to tell your assistant to send you to the app. They return without changing anything. An assistant that misreads a sentence can add a link to your queue; it cannot empty it.",
-		"That asymmetry is deliberate. A stray save costs you one line in a list. A stray delete costs you something you meant to read.",
+		"Eight tools do something: save a link, list your queue, pull an article's details, its reader view, its summary, or the articles related to it, and mark one read or unread.",
+		"One more — delete — exists only to tell your assistant to send you to the app. It returns without changing anything. An assistant that misreads a sentence can add a link to your queue or mark one read; it cannot empty it.",
+		"That asymmetry is deliberate. A stray save costs you one line in a list, and a stray read mark costs you one sentence to undo. A stray delete costs you something you meant to read.",
 	],
 	limitsTitle: "What this does not do",
 	limits: [
-		"Your assistant cannot mark articles read, mark them unread, or delete them. Those three tools return without acting and point you back to the app.",
+		"Your assistant cannot delete anything. That one tool returns without acting and points you back to the app.",
 		"Claude works on any plan, including Free. ChatGPT needs a paid plan with Developer Mode turned on. Gemini connects free through the CLI; the Gemini app needs a Google AI Ultra subscription.",
 		"A summary is a summary. Pulling a TL;DR is not the same as having read the piece.",
 		"A link saved through the assistant starts as a placeholder and fills in as the crawler works, so the reader view is not there the instant it is saved.",
@@ -70,7 +70,7 @@ export const AI_READING_LIST_CONTENT: LandingPageContent = {
 		{
 			question: "Can my assistant delete things from my queue?",
 			answer:
-				"No. Mark read, mark unread and delete return without acting and tell the assistant to send you to the app. Saving is the only write it can do.",
+				"No. Delete returns without acting and tells the assistant to send you to the app. It can save a link and mark an article read or unread; taking one out of the queue is yours to do.",
 		},
 		{
 			question: "What do I paste into the connector?",
@@ -94,7 +94,7 @@ export const AI_READING_LIST_CONTENT: LandingPageContent = {
 		{
 			question: "What happens to the connection if I stop paying?",
 			answer:
-				"It stays connected and goes read-only. Your assistant can still list your queue and pull an article, its reader view or its summary. Saving is the one tool that stops, and it comes back with a note that new saves are paused rather than an error.",
+				"It stays connected and goes read-only, the same as the account does in a browser. Your assistant can still list your queue, pull an article, its reader view or its summary, and mark things read or unread as you work through them. Saving is the one tool that stops, and it comes back with a note that new saves are paused rather than an error.",
 		},
 	],
 	offer: {
@@ -102,7 +102,7 @@ export const AI_READING_LIST_CONTENT: LandingPageContent = {
 		paragraphs: [
 			`Connecting costs nothing. The queue behind the connection is a subscription: ${TRIAL_TERMS}`,
 			`${MONTHLY_EQUIVALENT_DISPLAY} a month is the whole business. No ad path, no data resale, and nothing your assistant saves is sold to anyone.`,
-			"If the subscription lapses, only saving refuses. Your assistant can still list your queue and pull an article's text or summary — it just cannot add anything new.",
+			"If the subscription lapses, only saving refuses. Your assistant can still list your queue, pull an article's text or summary, and mark things read as you work through them — it just cannot add anything new.",
 		],
 		note: "Google, Apple, or an email address. No card at any point in the trial.",
 	},

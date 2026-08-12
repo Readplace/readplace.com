@@ -105,11 +105,13 @@ const EXAMPLE_PROMPTS = [
 	"What's the most relevant unread link in my readplace about the war in Iran?",
 	"Save this page to my reading queue.",
 	"List everything I've saved but haven't read yet.",
+	"Mark the article I just finished as read.",
 ] as const;
 
 const ASSISTANT_CAPABILITIES = [
 	...mcpOperationsWithEffect("save"),
 	...mcpOperationsWithEffect("read"),
+	...mcpOperationsWithEffect("update"),
 ];
 
 const APP_ONLY_OPERATIONS = mcpOperationsWithEffect("appOnly");

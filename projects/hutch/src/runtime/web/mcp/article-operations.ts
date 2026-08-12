@@ -1,11 +1,12 @@
 import assert from "node:assert";
 import { ReaderArticleHashIdSchema } from "@packages/domain/article";
-import type { SavedArticle } from "@packages/domain/article";
+import type { ArticleStatus, SavedArticle } from "@packages/domain/article";
 import type { AuthenticatedUserId } from "@packages/domain/user";
 import type {
 	FindArticleById,
 	FindArticlesByUser,
 	ReadArticleContent,
+	UpdateArticleStatus,
 } from "@packages/provider-contracts/article-store";
 import type {
 	FindGeneratedSummary,
@@ -17,6 +18,7 @@ import type {
 } from "@packages/provider-contracts/related-articles";
 import type {
 	ArticleRelatedResult,
+	ArticleStatusResult,
 	ArticleSummaryResult,
 	McpArticle,
 	McpServerDeps,
@@ -28,6 +30,7 @@ interface McpArticleOperationDeps {
 	readArticleContent: ReadArticleContent;
 	findGeneratedSummary: FindGeneratedSummary;
 	findRelatedArticles: FindRelatedArticles;
+	updateArticleStatus: UpdateArticleStatus;
 }
 
 export function toMcpArticle(article: SavedArticle): McpArticle {
@@ -105,9 +108,10 @@ function toRelatedResult(related: RelatedArticles): ArticleRelatedResult {
  * Builds the article-facing MCP operations from the same store seams the
  * hypermedia `/queue` API uses. Lives here rather than in the composition root
  * so the id→owner resolution and the metadata/summary mapping are unit-testable
- * without standing up the whole app. Every lookup is owner-scoped
- * (`findArticleById` is keyed by userId), so a cross-user or malformed id
- * resolves to "not found" rather than another user's article.
+ * without standing up the whole app. Every lookup — and the status write, which
+ * resolves its target the same way — is owner-scoped (`findArticleById` is keyed
+ * by userId), so a cross-user or malformed id resolves to "not found" rather
+ * than reaching another user's article.
  */
 export function initMcpArticleOperations(
 	deps: McpArticleOperationDeps,
@@ -118,6 +122,8 @@ export function initMcpArticleOperations(
 	| "getArticleContent"
 	| "getArticleSummary"
 	| "getRelatedArticles"
+	| "markAsRead"
+	| "markAsUnread"
 > {
 	async function resolveOwned(
 		userId: AuthenticatedUserId,
@@ -126,6 +132,29 @@ export function initMcpArticleOperations(
 		const parsed = ReaderArticleHashIdSchema.safeParse(id);
 		if (!parsed.success) return null;
 		return deps.findArticleById(parsed.data, userId);
+	}
+
+	/** Shared by both mark operations, which differ only in the status they land
+	 * on. Re-reading the row first is what makes the write idempotent: the store
+	 * restamps `readAt` on every write, so a second mark_as_read on an
+	 * already-read article would move a date the caller was told wouldn't move. */
+	async function changeStatus({
+		userId,
+		id,
+		status,
+	}: {
+		userId: AuthenticatedUserId;
+		id: string;
+		status: ArticleStatus;
+	}): Promise<ArticleStatusResult> {
+		const article = await resolveOwned(userId, id);
+		if (!article) return { status: "not_found" };
+		if (article.status === status) {
+			return { status: "ok", article: toMcpArticle(article) };
+		}
+		const updated = await deps.updateArticleStatus(article.id, userId, status);
+		if (!updated) return { status: "not_found" };
+		return { status: "ok", article: toMcpArticle(updated) };
 	}
 
 	return {
@@ -179,5 +208,10 @@ export function initMcpArticleOperations(
 			});
 			return toRelatedResult(related);
 		},
+
+		markAsRead: ({ userId, id }) => changeStatus({ userId, id, status: "read" }),
+
+		markAsUnread: ({ userId, id }) =>
+			changeStatus({ userId, id, status: "unread" }),
 	};
 }
