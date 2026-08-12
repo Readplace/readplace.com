@@ -1,4 +1,5 @@
 import type { SaveProvenance } from "../../article/save-provenance";
+import { stubMetadataFor } from "../../article/stub-metadata";
 import type { Article } from "../article.types";
 import type { Effect } from "../effects.types";
 import type { AggregateField } from "../storage.types";
@@ -58,9 +59,7 @@ function synthesiseStub(input: SubmitLinkInput): Article {
 	return {
 		url: input.url,
 		metadata: {
-			title: `Article from ${hostname}`,
-			siteName: hostname,
-			excerpt: `Saved from ${hostname}.`,
+			...stubMetadataFor(hostname),
 			wordCount: 0,
 		},
 		freshness: { contentFetchedAt: input.now },

@@ -50,6 +50,7 @@ export {
 export { sanitizeArticleHtml } from "./sanitize-article-html";
 export { isBlockedIpAddress } from "./blocked-address";
 export { calculateReadTime } from "./estimated-read-time";
+export { stubMetadataFor } from "./stub-metadata";
 export {
 	ReaderArticleHashId,
 	ReaderArticleHashIdSchema,

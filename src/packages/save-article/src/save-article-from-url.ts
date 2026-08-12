@@ -1,4 +1,4 @@
-import { calculateReadTime } from "@packages/domain/article";
+import { calculateReadTime, stubMetadataFor } from "@packages/domain/article";
 import type { ContentFreshnessResult, RefreshArticleIfStale } from "@packages/provider-contracts/article-freshness";
 import type { MarkCrawlPending } from "@packages/provider-contracts/article-crawl";
 import type { MarkSummaryPending } from "@packages/provider-contracts/article-summary";
@@ -65,9 +65,7 @@ async function saveByFreshness(
 			userId,
 			url,
 			metadata: {
-				title: `Article from ${hostname}`,
-				siteName: hostname,
-				excerpt: `Saved from ${hostname}.`,
+				...stubMetadataFor(hostname),
 				wordCount: 0,
 			},
 			estimatedReadTime: calculateReadTime(0),

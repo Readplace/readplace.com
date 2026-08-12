@@ -4,6 +4,7 @@ import { CrawlStatusSchema } from "@packages/article-state-types";
 import {
 	ArticleStatusSchema,
 	ReaderArticleHashIdSchema,
+	stubMetadataFor,
 } from "@packages/domain/article";
 import type { UserId } from "@packages/domain/user";
 import {
@@ -183,10 +184,8 @@ export function initDynamoDbRelatedArticles(deps: {
 			title: article.title,
 			siteName: article.siteName,
 			description: descriptionOf(article),
-			// The stub a fresh save writes is `Article from <hostname>` over a
-			// siteName of that same hostname, so this recognises it without
-			// re-parsing the url.
-			hasStubMetadata: article.title === `Article from ${article.siteName}`,
+			// Recognised off the stored siteName so the url never has to be re-parsed.
+			hasStubMetadata: article.title === stubMetadataFor(article.siteName).title,
 		};
 	};
 
