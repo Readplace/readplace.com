@@ -239,7 +239,7 @@ const SaveArticlesResultSchema = z.object({
 		skipped: z.number(),
 		failed: z.number(),
 		tooBig: z.array(z.object({ url: z.string(), mb: z.number() })),
-		skippedUrls: z.array(z.object({ url: z.string(), code: z.string() })),
+		skippedUrls: z.array(z.object({ url: z.string(), code: z.string(), message: z.string().optional() })),
 		results: z
 			.array(
 				z.object({
@@ -394,7 +394,7 @@ export type BulkChunkSummary = {
 	skipped: number;
 	failed: number;
 	tooBig: { url: string; mb: number }[];
-	skippedUrls: { url: string; code: string }[];
+	skippedUrls: { url: string; code: string; message?: string }[];
 	results?: { url: string; outcome: "created" | "merged" | "skipped" | "failed"; code?: string }[];
 };
 

@@ -1122,7 +1122,7 @@ export function initQueueRoutes(deps: QueueDependencies): Router {
 			});
 			await recordSaveSignal(req, res, userId);
 			emitSaveIntent({ req, url: validation.url, path: SAVE_INTENT_PATH.saveArticle, surface: SAVE_SURFACES.extension, outcome: SAVE_OUTCOMES.saved });
-			res.status(201).type(SIREN_MEDIA_TYPE).json(toSavedArticleEntity(result.saved));
+			res.status(201).type(SIREN_MEDIA_TYPE).json(toSavedArticleEntity({ article: result.saved, createdUserArticle: result.createdUserArticle, wroteUserArticle: result.wroteUserArticle }));
 		} catch (error) {
 			deps.logError("Failed to save article", error instanceof Error ? error : undefined);
 			emitSaveIntent({ req, url: validation.url, path: SAVE_INTENT_PATH.saveArticle, surface: SAVE_SURFACES.extension, outcome: SAVE_OUTCOMES.error });
@@ -1192,13 +1192,13 @@ export function initQueueRoutes(deps: QueueDependencies): Router {
 			| { kind: "url-only"; index: number; url: SaveableUrl; title?: string };
 		type PageOutcome = { index: number; outcome: Exclude<BulkSaveOutcome, "skipped"> };
 		const jobs: PageJob[] = [];
-		const skipped: { url: string; code: SaveableUrlErrorCode }[] = [];
+		const skipped: { url: string; code: SaveableUrlErrorCode; message: string }[] = [];
 		const entryOutcomes: { outcome: BulkSaveOutcome; code?: SaveableUrlErrorCode }[] = [];
 
 		manifest.data.forEach((entry, index) => {
 			const validation = deps.validateSaveableUrl(entry.url);
 			if (validation.status !== "SUCCESS") {
-				skipped.push({ url: entry.url, code: validation.error.code });
+				skipped.push({ url: entry.url, code: validation.error.code, message: validation.error.message });
 				entryOutcomes[index] = { outcome: "skipped", code: validation.error.code };
 				return;
 			}
@@ -1412,7 +1412,7 @@ export function initQueueRoutes(deps: QueueDependencies): Router {
 				});
 				await recordSaveSignal(req, res, userId);
 				emitSaveIntent({ req, url: articleUrl, path: SAVE_INTENT_PATH.saveContent, surface: SAVE_SURFACES.extension, outcome: SAVE_OUTCOMES.saved });
-				res.status(201).type(SIREN_MEDIA_TYPE).json(toSavedArticleEntity(result.saved));
+				res.status(201).type(SIREN_MEDIA_TYPE).json(toSavedArticleEntity({ article: result.saved, createdUserArticle: result.createdUserArticle, wroteUserArticle: result.wroteUserArticle }));
 			};
 
 			try {

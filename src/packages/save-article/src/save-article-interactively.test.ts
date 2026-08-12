@@ -38,6 +38,7 @@ describe("initSaveArticleInteractively", () => {
 			saved,
 			canonicalUrl,
 			createdUserArticle: true,
+			wroteUserArticle: true,
 		}));
 
 		await saveArticleInteractively({
@@ -56,6 +57,7 @@ describe("initSaveArticleInteractively", () => {
 			saved,
 			canonicalUrl,
 			createdUserArticle: true,
+			wroteUserArticle: true,
 		}));
 
 		const result = await saveArticleInteractively({
@@ -66,7 +68,7 @@ describe("initSaveArticleInteractively", () => {
 			savedAt: new Date("2026-08-04T00:00:00.000Z"),
 		});
 
-		expect(result).toEqual({ saved, canonicalUrl, createdUserArticle: true });
+		expect(result).toEqual({ saved, canonicalUrl, createdUserArticle: true, wroteUserArticle: true });
 	});
 
 	it("does not ask again when the save landed on a queue entry the reader already had", async () => {
@@ -74,6 +76,7 @@ describe("initSaveArticleInteractively", () => {
 			saved,
 			canonicalUrl,
 			createdUserArticle: false,
+			wroteUserArticle: true,
 		}));
 
 		await saveArticleInteractively({

@@ -60,12 +60,32 @@ export function summarizeBulkSave(params: {
 	};
 }
 
-const MAX_LISTED_FAILED_URLS = 5;
+const MAX_LISTED_DETAIL_URLS = 5;
+const MAX_LISTED_FAILED_URLS_BESIDE_SKIPS = 3;
 
-export function buildFailedUrlLines(failedUrls: readonly { url: string }[]): string[] {
-	const lines = failedUrls.slice(0, MAX_LISTED_FAILED_URLS).map((entry) => `Couldn't save ${entry.url}`);
-	const overflow = failedUrls.length - MAX_LISTED_FAILED_URLS;
-	if (overflow > 0) lines.push(`And ${overflow} more.`);
+/** Skips keep at least two of the listed lines when both kinds overflow, so the
+ * reasons worth acting on (a tab the server will never accept) survive a run
+ * with many transient failures; the overflow line attributes each remainder. */
+export function buildSaveAllDetailLines(result: {
+	failedUrls: readonly { url: string }[];
+	skippedUrls: readonly { url: string; code: string; message?: string }[];
+}): string[] {
+	const failedLines = result.failedUrls.map((entry) => `Couldn't save ${entry.url}`);
+	const skippedLines = result.skippedUrls.map((entry) =>
+		entry.message === undefined
+			? `Skipped ${entry.url}`
+			: `Skipped ${entry.url} — ${entry.message}`,
+	);
+	const failedCap = skippedLines.length > 0 ? MAX_LISTED_FAILED_URLS_BESIDE_SKIPS : MAX_LISTED_DETAIL_URLS;
+	const shownFailed = failedLines.slice(0, failedCap);
+	const shownSkipped = skippedLines.slice(0, MAX_LISTED_DETAIL_URLS - shownFailed.length);
+	const lines = [...shownFailed, ...shownSkipped];
+	const moreFailed = failedLines.length - shownFailed.length;
+	const moreSkipped = skippedLines.length - shownSkipped.length;
+	const overflow: string[] = [];
+	if (moreFailed > 0) overflow.push(`${moreFailed} more failed`);
+	if (moreSkipped > 0) overflow.push(`${moreSkipped} more skipped`);
+	if (overflow.length > 0) lines.push(`And ${overflow.join(", ")}.`);
 	return lines;
 }
 

@@ -14,7 +14,7 @@ import type {
 	Message,
 	ActionVariant,
 } from "browser-extension-core";
-import { filterByUrl, buildPaginationView, avatarColor, relativeTime, isAppUrl, itemDisplay, selectSaveableTabs, summarizeBulkSave, buildFailedUrlLines, installShortcuts, matchesShortcut, commandBindingsFromGetAll, resolveShortcut, shortcutHintSegments, DEFAULT_SAVE_SHORTCUT, DEFAULT_SAVE_ALL_SHORTCUT, buildMessageView, buildSavedView, actionLabel, actionVariant, actionIcon, linkLabel, linkPresentation, BULK_SAVE_FAILED_MESSAGE, BULK_SAVE_FAILED_TITLE, advertisesBulkSave, parseStoredCapabilities, ADVERTISED_CAPABILITIES_STORAGE_KEY, SAVE_RENDERED_MARK, SAVE_ALL_RENDERED_MARK, type ContentShortcuts } from "browser-extension-core";
+import { filterByUrl, buildPaginationView, avatarColor, relativeTime, isAppUrl, itemDisplay, selectSaveableTabs, summarizeBulkSave, buildSaveAllDetailLines, installShortcuts, matchesShortcut, commandBindingsFromGetAll, resolveShortcut, shortcutHintSegments, DEFAULT_SAVE_SHORTCUT, DEFAULT_SAVE_ALL_SHORTCUT, buildMessageView, buildSavedView, actionLabel, actionVariant, actionIcon, linkLabel, linkPresentation, BULK_SAVE_FAILED_MESSAGE, BULK_SAVE_FAILED_TITLE, advertisesBulkSave, parseStoredCapabilities, ADVERTISED_CAPABILITIES_STORAGE_KEY, SAVE_RENDERED_MARK, SAVE_ALL_RENDERED_MARK, type ContentShortcuts } from "browser-extension-core";
 import { HutchLogger, consoleLogger } from "@packages/hutch-logger";
 
 /** The client's own presentation map: an action variant -> the popup's CSS
@@ -583,7 +583,7 @@ async function saveAllTabsFlow() {
 		tooBigEl.hidden = tooBig === null;
 	}
 	if (failedListEl) {
-		const lines = buildFailedUrlLines(result.value.failedUrls);
+		const lines = buildSaveAllDetailLines(result.value);
 		for (const line of lines) {
 			const item = document.createElement("li");
 			item.className = "save-all-view__failed-item";

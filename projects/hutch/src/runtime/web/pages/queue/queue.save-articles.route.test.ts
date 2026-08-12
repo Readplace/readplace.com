@@ -524,7 +524,11 @@ describe("POST /queue/save-articles", () => {
 			expect.objectContaining({ saved: 2, skipped: 1, failed: 0, tooBig: [] }),
 		);
 		expect(response.body.properties.skippedUrls).toEqual([
-			{ url: "chrome://settings", code: "unsupported_scheme" },
+			{
+				url: "chrome://settings",
+				code: "unsupported_scheme",
+				message: "Only http and https URLs can be saved",
+			},
 		]);
 
 		expect(publishedSaveHtml).toEqual([

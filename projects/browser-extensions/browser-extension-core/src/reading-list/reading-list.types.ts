@@ -130,7 +130,7 @@ export type BulkSaveResult = {
 	/** Pages whose captured content was over the per-page cap: saved URL-only and
 	 * reported here with their size (MB) so the popup can tell the user. */
 	tooBig: { url: string; mb: number }[];
-	skippedUrls: { url: string; code: string }[];
+	skippedUrls: { url: string; code: string; message?: string }[];
 	failedUrls: { url: string }[];
 	alreadySaved: number;
 	pendingRetry: number;

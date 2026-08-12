@@ -9,7 +9,7 @@ interface BulkSaveSummary {
 	 * URL-only (so the link is kept) but reported here with their size in MB so
 	 * the client can tell the user their full capture was too big. */
 	tooBig: { url: string; mb: number }[];
-	skippedUrls: { url: string; code: SaveableUrlErrorCode }[];
+	skippedUrls: { url: string; code: SaveableUrlErrorCode; message: string }[];
 	results: { url: string; outcome: BulkSaveOutcome; code?: SaveableUrlErrorCode }[];
 }
 

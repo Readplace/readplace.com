@@ -68,15 +68,27 @@ export function toArticleEntity(article: SavedArticle): SirenEntity {
  * onward affordance are server-authored so a client renders the outcome from
  * this response alone — it has no reason to fetch the collection, and none of
  * the wording lives in a shipped build. */
-export function toSavedArticleEntity(article: SavedArticle): SirenEntity {
-	const entity = toArticleEntity(article);
-	const messages: SirenMessage[] = [
-		{ type: "success", content: { type: "text/html", body: "Article saved" } },
-		{
+export function toSavedArticleEntity(params: {
+	article: SavedArticle;
+	createdUserArticle: boolean;
+	wroteUserArticle: boolean;
+}): SirenEntity {
+	const entity = toArticleEntity(params.article);
+	const messages: SirenMessage[] = params.createdUserArticle
+		? [
+				{ type: "success", content: { type: "text/html", body: "Article saved" } },
+				{
+					type: "success",
+					content: { type: "text/html", body: "Saved to your reading list" },
+				},
+			]
+		: [{ type: "success", content: { type: "text/html", body: "Already in your queue" } }];
+	if (!params.createdUserArticle && params.wroteUserArticle) {
+		messages.push({
 			type: "success",
-			content: { type: "text/html", body: "Saved to your reading list" },
-		},
-	];
+			content: { type: "text/html", body: "Moved back to the top of your reading list" },
+		});
+	}
 	return {
 		...entity,
 		properties: { ...entity.properties, messages },

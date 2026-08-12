@@ -297,6 +297,59 @@ describe("POST /queue (Siren save article)", () => {
 		expect(response.body.properties.url).toBe("https://example.com/article");
 		expect(response.body.properties.id).toBeDefined();
 		expect(response.body.properties.savedAt).toBeDefined();
+		expect(response.body.properties.messages).toEqual([
+			{ type: "success", content: { type: "text/html", body: "Article saved" } },
+			{ type: "success", content: { type: "text/html", body: "Saved to your reading list" } },
+		]);
+	});
+
+	it("tells a re-saver the article was already in their queue and moved back to the top", async () => {
+		const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
+		const accessToken = await createAccessToken(harness);
+		const saveAgain = () =>
+			request(harness.server)
+				.post("/queue")
+				.set("Accept", SIREN_MEDIA_TYPE)
+				.set("Authorization", `Bearer ${accessToken}`)
+				.set("Content-Type", "application/json")
+				.send({ url: "https://example.com/twice" });
+		await saveAgain();
+
+		const response = await saveAgain();
+
+		expect(response.status).toBe(201);
+		expect(response.body.properties.messages).toEqual([
+			{ type: "success", content: { type: "text/html", body: "Already in your queue" } },
+			{ type: "success", content: { type: "text/html", body: "Moved back to the top of your reading list" } },
+		]);
+	});
+
+	it("claims no queue move when the merged save wrote nothing", async () => {
+		const fixture = createDefaultTestAppFixture(TEST_APP_ORIGIN);
+		const harness = useApp({
+			...fixture,
+			articleStore: {
+				...fixture.articleStore,
+				saveArticle: async (params) => ({
+					...(await fixture.articleStore.saveArticle(params)),
+					createdUserArticle: false,
+					wroteUserArticle: false,
+				}),
+			},
+		});
+		const accessToken = await createAccessToken(harness);
+
+		const response = await request(harness.server)
+			.post("/queue")
+			.set("Accept", SIREN_MEDIA_TYPE)
+			.set("Authorization", `Bearer ${accessToken}`)
+			.set("Content-Type", "application/json")
+			.send({ url: "https://example.com/kept-position" });
+
+		expect(response.status).toBe(201);
+		expect(response.body.properties.messages).toEqual([
+			{ type: "success", content: { type: "text/html", body: "Already in your queue" } },
+		]);
 	});
 
 	it("returns 422 for invalid URL", async () => {

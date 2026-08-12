@@ -1,4 +1,4 @@
-import { buildFailedUrlLines, selectSaveableTabs, summarizeBulkSave } from "./save-all-tabs";
+import { buildSaveAllDetailLines, selectSaveableTabs, summarizeBulkSave } from "./save-all-tabs";
 
 describe("selectSaveableTabs", () => {
 	const appDomains = ["readplace.com"];
@@ -218,22 +218,70 @@ describe("summarizeBulkSave", () => {
 	});
 });
 
-describe("buildFailedUrlLines", () => {
+describe("buildSaveAllDetailLines", () => {
 	it("names each failed tab by its url", () => {
 		expect(
-			buildFailedUrlLines([{ url: "https://example.com/a" }, { url: "https://example.com/b" }]),
+			buildSaveAllDetailLines({
+				failedUrls: [{ url: "https://example.com/a" }, { url: "https://example.com/b" }],
+				skippedUrls: [],
+			}),
 		).toEqual(["Couldn't save https://example.com/a", "Couldn't save https://example.com/b"]);
 	});
 
-	it("caps the list and reports how many more failed", () => {
+	it("names each server-skipped tab with the reason the server sent", () => {
+		expect(
+			buildSaveAllDetailLines({
+				failedUrls: [],
+				skippedUrls: [
+					{ url: "http://intranet-wiki/page", code: "malformed_url", message: "That doesn't look like a valid web address" },
+					{ url: "http://10.0.0.5/admin", code: "private_network", message: "Private-network and loopback addresses can't be saved" },
+				],
+			}),
+		).toEqual([
+			"Skipped http://intranet-wiki/page — That doesn't look like a valid web address",
+			"Skipped http://10.0.0.5/admin — Private-network and loopback addresses can't be saved",
+		]);
+	});
+
+	it("names a skipped tab without a reason when an older server sent no message", () => {
+		expect(
+			buildSaveAllDetailLines({
+				failedUrls: [],
+				skippedUrls: [{ url: "https://example.com/a", code: "private_network" }],
+			}),
+		).toEqual(["Skipped https://example.com/a"]);
+	});
+
+	it("keeps skip reasons visible past a run with many failures, attributing each remainder", () => {
+		const failedUrls = Array.from({ length: 6 }, (_v, i) => ({ url: `https://example.com/tab-${i}` }));
+		expect(
+			buildSaveAllDetailLines({
+				failedUrls,
+				skippedUrls: [
+					{ url: "http://printer.local/status", code: "private_network", message: "Private-network and loopback addresses can't be saved" },
+					{ url: "http://intranet-wiki/page", code: "malformed_url", message: "That doesn't look like a valid web address" },
+					{ url: "http://10.0.0.5/admin", code: "private_network", message: "Private-network and loopback addresses can't be saved" },
+				],
+			}),
+		).toEqual([
+			"Couldn't save https://example.com/tab-0",
+			"Couldn't save https://example.com/tab-1",
+			"Couldn't save https://example.com/tab-2",
+			"Skipped http://printer.local/status — Private-network and loopback addresses can't be saved",
+			"Skipped http://intranet-wiki/page — That doesn't look like a valid web address",
+			"And 3 more failed, 1 more skipped.",
+		]);
+	});
+
+	it("gives failures the whole list when nothing was skipped", () => {
 		const failedUrls = Array.from({ length: 7 }, (_v, i) => ({ url: `https://example.com/tab-${i}` }));
-		expect(buildFailedUrlLines(failedUrls)).toEqual([
+		expect(buildSaveAllDetailLines({ failedUrls, skippedUrls: [] })).toEqual([
 			"Couldn't save https://example.com/tab-0",
 			"Couldn't save https://example.com/tab-1",
 			"Couldn't save https://example.com/tab-2",
 			"Couldn't save https://example.com/tab-3",
 			"Couldn't save https://example.com/tab-4",
-			"And 2 more.",
+			"And 2 more failed.",
 		]);
 	});
 });

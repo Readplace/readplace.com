@@ -34,7 +34,7 @@ describe("save all tabs progress", () => {
 describe("save all tabs control", () => {
 	it("list-view header carries the save-all-tabs control", () => {
 		expect(template).toContain(
-			'<button id="save-all-tabs-button" class="list-view__save-all" title="Save all tabs in this window" data-test-save-all-tabs hidden>Save all tabs</button>',
+			'<button id="save-all-tabs-button" class="list-view__save-all" title="Save all tabs in this window" data-test-save-all-tabs hidden>Save all tabs in this window</button>',
 		);
 	});
 });

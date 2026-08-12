@@ -18,6 +18,7 @@ export type SaveArticleAtQueueTop = (params: {
 	saved: SavedArticle;
 	canonicalUrl: string;
 	createdUserArticle: boolean;
+	wroteUserArticle: boolean;
 }>;
 
 export function initSaveArticleAtQueueTop(

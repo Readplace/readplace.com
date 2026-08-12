@@ -44,6 +44,7 @@ export type SaveArticleFromUrl = (params: {
 	saved: SavedArticle;
 	canonicalUrl: string;
 	createdUserArticle: boolean;
+	wroteUserArticle: boolean;
 }>;
 
 async function saveByFreshness(
@@ -55,7 +56,7 @@ async function saveByFreshness(
 		provenance: SaveProvenance;
 		savedAt: Date;
 	},
-): Promise<{ saved: SavedArticle; createdUserArticle: boolean }> {
+): Promise<{ saved: SavedArticle; createdUserArticle: boolean; wroteUserArticle: boolean }> {
 	const { userId, url, freshness, provenance, savedAt } = params;
 
 	if (freshness.action === "new") {
@@ -83,7 +84,7 @@ async function saveByFreshness(
 			}),
 			deps.publishLinkSaved({ url, userId }),
 		]);
-		return { saved: unread, createdUserArticle };
+		return { saved: unread, createdUserArticle, wroteUserArticle };
 	}
 
 	const { saved, createdUserArticle, wroteUserArticle } = await deps.saveArticle({
@@ -103,6 +104,7 @@ async function saveByFreshness(
 	return {
 		saved: await markUnreadIfRead(deps.updateArticleStatus, { saved, wroteUserArticle }),
 		createdUserArticle,
+		wroteUserArticle,
 	};
 }
 
