@@ -4,6 +4,7 @@ import {
 	GET_ARTICLE_CONTENT_TOOL,
 	GET_ARTICLE_SUMMARY_TOOL,
 	GET_ARTICLE_TOOL,
+	GET_RELATED_ARTICLES_TOOL,
 	LIST_QUEUE_TOOL,
 	ListQueueArgs,
 	MARK_AS_READ_TOOL,
@@ -44,9 +45,11 @@ describe("MCP tool definitions", () => {
 			GET_ARTICLE_TOOL,
 			GET_ARTICLE_CONTENT_TOOL,
 			GET_ARTICLE_SUMMARY_TOOL,
+			GET_RELATED_ARTICLES_TOOL,
 		]) {
 			expect(tool.annotations).toMatchObject({
 				readOnlyHint: true,
+				destructiveHint: false,
 				openWorldHint: false,
 			});
 		}

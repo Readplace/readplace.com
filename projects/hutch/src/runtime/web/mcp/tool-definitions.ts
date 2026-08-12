@@ -110,7 +110,7 @@ export const LIST_QUEUE_TOOL: McpToolDefinition = {
 		},
 		additionalProperties: false,
 	},
-	annotations: { readOnlyHint: true, openWorldHint: false },
+	annotations: { readOnlyHint: true, destructiveHint: false, openWorldHint: false },
 };
 
 export const GET_ARTICLE_TOOL: McpToolDefinition = {
@@ -121,7 +121,7 @@ export const GET_ARTICLE_TOOL: McpToolDefinition = {
 		required: ["id"],
 		additionalProperties: false,
 	},
-	annotations: { readOnlyHint: true, openWorldHint: false },
+	annotations: { readOnlyHint: true, destructiveHint: false, openWorldHint: false },
 };
 
 export const GET_ARTICLE_CONTENT_TOOL: McpToolDefinition = {
@@ -132,7 +132,7 @@ export const GET_ARTICLE_CONTENT_TOOL: McpToolDefinition = {
 		required: ["id"],
 		additionalProperties: false,
 	},
-	annotations: { readOnlyHint: true, openWorldHint: false },
+	annotations: { readOnlyHint: true, destructiveHint: false, openWorldHint: false },
 };
 
 export const GET_ARTICLE_SUMMARY_TOOL: McpToolDefinition = {
@@ -143,7 +143,7 @@ export const GET_ARTICLE_SUMMARY_TOOL: McpToolDefinition = {
 		required: ["id"],
 		additionalProperties: false,
 	},
-	annotations: { readOnlyHint: true, openWorldHint: false },
+	annotations: { readOnlyHint: true, destructiveHint: false, openWorldHint: false },
 };
 
 export const GET_RELATED_ARTICLES_TOOL: McpToolDefinition = {
@@ -154,7 +154,7 @@ export const GET_RELATED_ARTICLES_TOOL: McpToolDefinition = {
 		required: ["id"],
 		additionalProperties: false,
 	},
-	annotations: { readOnlyHint: true, openWorldHint: false },
+	annotations: { readOnlyHint: true, destructiveHint: false, openWorldHint: false },
 };
 
 export const MARK_AS_READ_TOOL: McpToolDefinition = {
