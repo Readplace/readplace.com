@@ -413,6 +413,7 @@ function requireAuth(req: Request, res: Response, next: NextFunction): void {
 const LLMS_TXT = readFileSync(join(__dirname, "llms.txt"), "utf-8");
 const LLMS_FULL_TXT = readFileSync(join(__dirname, "llms-full.txt"), "utf-8");
 const INDEXNOW_KEY = getEnv("INDEXNOW_KEY");
+const OPENAI_APPS_CHALLENGE_TOKEN = "dfMZUMNhT2ApI31okvdB5BD1vdly8Ku5QRGcSLtDQ5k";
 const LANDING_PAGE_SLUGS = Object.keys(LANDING_PAGE_CONTENT) as LandingPageSlug[];
 
 export function createApp(dependencies: AppDependencies): Express {
@@ -720,6 +721,10 @@ export function createApp(dependencies: AppDependencies): Express {
 
 	app.get("/.well-known/mcp/server-card.json", (_req: Request, res: Response) => {
 		res.json(buildMcpServerCard(dependencies.baseUrl));
+	});
+
+	app.get("/.well-known/openai-apps-challenge", (_req: Request, res: Response) => {
+		res.type("text/plain; charset=utf-8").send(OPENAI_APPS_CHALLENGE_TOKEN);
 	});
 
 	app.get("/mcp", async (req: Request, res: Response, next: NextFunction) => {

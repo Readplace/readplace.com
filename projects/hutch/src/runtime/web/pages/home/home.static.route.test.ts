@@ -480,6 +480,16 @@ describe("GET /.well-known/api-catalog", () => {
 	});
 });
 
+describe("GET /.well-known/openai-apps-challenge", () => {
+	it("serves the ChatGPT apps domain verification token as plain text", async () => {
+		const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
+		const response = await request(harness.server).get("/.well-known/openai-apps-challenge");
+		expect(response.status).toBe(200);
+		expect(response.headers["content-type"]).toMatch(/text\/plain/);
+		expect(response.text).toBe("dfMZUMNhT2ApI31okvdB5BD1vdly8Ku5QRGcSLtDQ5k");
+	});
+});
+
 describe("GET /.well-known/agent-skills/index.json", () => {
 	it("publishes an Agent Skills Discovery RFC v0.2.0 index", async () => {
 		const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
