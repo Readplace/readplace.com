@@ -30,6 +30,14 @@ interface ComputeRelatedArticlesHandlerDeps {
 	logger: HutchLogger;
 }
 
+class MetadataNotReadyError extends Error {
+	readonly url: string;
+	constructor(url: string) {
+		super(`[ComputeRelatedArticles] article metadata not ready for ${url}`);
+		this.url = url;
+	}
+}
+
 /* c8 ignore next -- V8 block coverage phantom on typed-parameter destructuring, see bcoe/c8#319 */
 export function initComputeRelatedArticlesHandler(
 	deps: ComputeRelatedArticlesHandlerDeps,
@@ -92,9 +100,7 @@ export function initComputeRelatedArticlesHandler(
 
 				const target = await findRelatedTargetArticle(command.url);
 				if (!target || target.crawlStatus === "pending") {
-					throw new Error(
-						`[ComputeRelatedArticles] article metadata not ready for ${command.url}`,
-					);
+					throw new MetadataNotReadyError(command.url);
 				}
 				if (target.hasStubMetadata) {
 					await skip("crawl produced no metadata to compare");
@@ -150,10 +156,17 @@ export function initComputeRelatedArticlesHandler(
 					outputTokens: result.outputTokens,
 				});
 			} catch (error) {
-				logger.error("[ComputeRelatedArticles] record failed", {
-					messageId: record.messageId,
-					error,
-				});
+				if (error instanceof MetadataNotReadyError) {
+					logger.info(
+						"[ComputeRelatedArticles] waiting for crawl metadata; redelivery scheduled",
+						{ url: error.url, messageId: record.messageId },
+					);
+				} else {
+					logger.error("[ComputeRelatedArticles] record failed", {
+						messageId: record.messageId,
+						error,
+					});
+				}
 				batchItemFailures.push({ itemIdentifier: record.messageId });
 			}
 		}

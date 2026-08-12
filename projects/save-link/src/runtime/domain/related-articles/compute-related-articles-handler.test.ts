@@ -1,5 +1,5 @@
 import { UserIdSchema } from "@packages/domain/user";
-import { noopLogger } from "@packages/hutch-logger";
+import { type HutchLogger, noopLogger } from "@packages/hutch-logger";
 import type { PublishEvent } from "@packages/hutch-infra-components/runtime";
 import type {
 	MarkRelatedArticlesOutcome,
@@ -75,6 +75,7 @@ interface HandlerOverrides {
 	pools?: RelatedCandidatePools;
 	selectRelatedArticles?: SelectRelatedArticles;
 	markOutcome?: MarkRelatedArticlesOutcome;
+	logger?: HutchLogger;
 }
 
 function createHandler(overrides: HandlerOverrides = {}) {
@@ -116,7 +117,7 @@ function createHandler(overrides: HandlerOverrides = {}) {
 		},
 		publishEvent,
 		now: () => NOW,
-		logger: noopLogger,
+		logger: overrides.logger ?? noopLogger,
 	});
 
 	return { handler, ready, skipped, published, selected };
@@ -204,23 +205,36 @@ describe("initComputeRelatedArticlesHandler", () => {
 		expect({ ready, skipped }).toEqual({ ready: [], skipped: [] });
 	});
 
-	it("retries while the crawl is still filling in the article's metadata", async () => {
+	it("logs the wait at info while the crawl is still filling in the article's metadata, so a redelivery that is working as designed stays off the errors dashboard, and still retries", async () => {
+		const logger = { info: jest.fn(), warn: jest.fn(), error: jest.fn(), debug: jest.fn() };
 		const { handler, ready, skipped } = createHandler({
 			target: crawledTarget({ crawlStatus: "pending" }),
+			logger,
 		});
 
 		const result = await handler(commandEvent, buildLambdaContext(), () => {});
 
 		expect(result).toEqual({ batchItemFailures: [{ itemIdentifier: "msg-1" }] });
+		expect(logger.info).toHaveBeenCalledWith(
+			"[ComputeRelatedArticles] waiting for crawl metadata; redelivery scheduled",
+			{ url: TARGET_URL, messageId: "msg-1" },
+		);
+		expect(logger.error).not.toHaveBeenCalled();
 		expect({ ready, skipped }).toEqual({ ready: [], skipped: [] });
 	});
 
-	it("retries while the article row has not appeared yet", async () => {
-		const { handler } = createHandler({ target: undefined });
+	it("logs the same info wait while the article row has not appeared yet, and still retries", async () => {
+		const logger = { info: jest.fn(), warn: jest.fn(), error: jest.fn(), debug: jest.fn() };
+		const { handler } = createHandler({ target: undefined, logger });
 
 		const result = await handler(commandEvent, buildLambdaContext(), () => {});
 
 		expect(result).toEqual({ batchItemFailures: [{ itemIdentifier: "msg-1" }] });
+		expect(logger.info).toHaveBeenCalledWith(
+			"[ComputeRelatedArticles] waiting for crawl metadata; redelivery scheduled",
+			{ url: TARGET_URL, messageId: "msg-1" },
+		);
+		expect(logger.error).not.toHaveBeenCalled();
 	});
 
 	it("skips when the crawl gave up before writing anything to compare", async () => {
@@ -272,14 +286,21 @@ describe("initComputeRelatedArticlesHandler", () => {
 		]);
 	});
 
-	it("retries when the model answers with nothing readable", async () => {
+	it("retries at error when the model answers with nothing readable, so a genuine failure still reaches the errors dashboard", async () => {
+		const logger = { info: jest.fn(), warn: jest.fn(), error: jest.fn(), debug: jest.fn() };
 		const { handler, ready } = createHandler({
 			selectRelatedArticles: async () => ({ kind: "no-text-block" }),
+			logger,
 		});
 
 		const result = await handler(commandEvent, buildLambdaContext(), () => {});
 
 		expect(result).toEqual({ batchItemFailures: [{ itemIdentifier: "msg-1" }] });
+		expect(logger.error).toHaveBeenCalledWith(
+			"[ComputeRelatedArticles] record failed",
+			expect.objectContaining({ messageId: "msg-1" }),
+		);
+		expect(logger.info).not.toHaveBeenCalled();
 		expect(ready).toEqual([]);
 	});
 
