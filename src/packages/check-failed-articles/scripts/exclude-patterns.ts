@@ -301,6 +301,13 @@ export const EXCLUDE_PATTERNS: readonly RegExp[] = [
 	// to AWS — so no egress change or curl-impersonate persona reaches it either.
 	// Anchored per link id so the other trackers on this host still surface.
 	/^https:\/\/javascriptweekly\.com\/link\/188764\/8babea547d$/i,
+	/^https:\/\/javascriptweekly\.com\/link\/189074\/8babea547d$/i,
+	/^https:\/\/javascriptweekly\.com\/link\/189088\/8babea547d$/i,
+	/^https:\/\/javascriptweekly\.com\/link\/189105\/8babea547d$/i,
+	/^https:\/\/javascriptweekly\.com\/link\/189106\/8babea547d$/i,
+	/^https:\/\/javascriptweekly\.com\/link\/189107\/8babea547d$/i,
+	/^https:\/\/javascriptweekly\.com\/link\/189108\/8babea547d$/i,
+	/^https:\/\/javascriptweekly\.com\/link\/189109\/8babea547d$/i,
 	// programmingdigest.net newsletter link-tracker, same shape as the
 	// leadershipintech.com entry above: the tracker 30x's once to a karboosx.net
 	// post and the crawl exhausts retries past the hop. Both hops answer 200 to
