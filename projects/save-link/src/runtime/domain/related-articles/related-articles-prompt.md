@@ -11,7 +11,7 @@ Pick at most {{RELATED_RESULTS_MAX}} candidates. That number is a ceiling, not a
 
 Before anything else, look at the saved article's own text. A scraped page is sometimes not an article: a "Client Challenge" or "Attention Required" interstitial, "A required part of this site couldn't load", a "verify you are human" check, an "enable JavaScript" notice, a 404. If the saved article's text is such a page, it has no subject to relate: respond with {"related": []} and stop. Skip any candidate whose text is such a page, or whose description is too thin to name a subject from.
 
-For each candidate, ask one question: can you name, in under ten words, one specific subject both pieces are about? A named language, tool, machine, event, discipline or debate counts. A quality does not — ingenuity, craft, curiosity, "clever engineering" or "detailed technical writing" describe almost every saved article and relate none of them. Judge from the two texts in front of you, never from the site name, and never count scraper boilerplate the two pages happen to share.
+For each candidate, ask one question: can you name, in under ten words, one specific subject both pieces are about? A named language, tool, machine, event, discipline or debate counts. A quality does not — ingenuity, craft, curiosity, "clever engineering" or "detailed technical writing" describe almost every saved article and relate none of them. A passing mention does not either: the shared subject must be what both pieces are about, not a thing one of them names once while being about something else. Judge from the two texts in front of you, never from the site name, and never count scraper boilerplate the two pages happen to share.
 
 Relations worth returning, strongest first:
 
