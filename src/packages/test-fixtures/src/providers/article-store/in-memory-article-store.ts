@@ -40,6 +40,7 @@ import type {
 interface GlobalArticle {
 	url: string;
 	originalUrl: string;
+	displayUrl?: string;
 	routeId: ReaderArticleHashId;
 	metadata: ArticleMetadata;
 	content?: string;
@@ -75,6 +76,7 @@ function toSavedArticle(article: GlobalArticle, userArticle: UserArticle): Saved
 		id: article.routeId,
 		userId: userArticle.userId,
 		url: article.originalUrl,
+		displayUrl: article.displayUrl,
 		metadata: article.metadata,
 		content: article.content,
 
@@ -123,6 +125,7 @@ export function initInMemoryArticleStore(): {
 	writeMetadata: (params: { url: string; metadata: ArticleMetadata; estimatedReadTime: Minutes }) => Promise<void>;
 	setContentSourceTier: (params: { url: string; tier: "tier-0" | "tier-1" }) => Promise<void>;
 	setContentFetchedAt: (params: { url: string; at: string }) => Promise<void>;
+	setDisplayUrl: (params: { url: string; displayUrl: string }) => Promise<void>;
 	setCrawlVersions: (params: { url: string; versions: ArticleCrawlVersion[] }) => Promise<void>;
 	setPurgedAt: (params: { url: string; at: Date }) => Promise<void>;
 } {
@@ -270,6 +273,7 @@ export function initInMemoryArticleStore(): {
 		return {
 			id: article.routeId,
 			url: article.originalUrl,
+			displayUrl: article.displayUrl,
 			metadata: article.metadata,
 			content: article.content,
 
@@ -497,6 +501,13 @@ export function initInMemoryArticleStore(): {
 		article.crawlVersions = params.versions;
 	};
 
+	const setDisplayUrl = async (params: { url: string; displayUrl: string }) => {
+		const articleResourceUniqueId = ArticleResourceUniqueId.parse(params.url);
+		const article = articles.get(articleResourceUniqueId.value);
+		assert(article, `Article not found for URL: ${articleResourceUniqueId.value}`);
+		article.displayUrl = params.displayUrl;
+	};
+
 	const setPurgedAt = async (params: { url: string; at: Date }) => {
 		const articleResourceUniqueId = ArticleResourceUniqueId.parse(params.url);
 		const article = articles.get(articleResourceUniqueId.value);
@@ -535,6 +546,7 @@ export function initInMemoryArticleStore(): {
 		writeMetadata,
 		setContentSourceTier,
 		setContentFetchedAt,
+		setDisplayUrl,
 		setCrawlVersions,
 		setPurgedAt,
 	};

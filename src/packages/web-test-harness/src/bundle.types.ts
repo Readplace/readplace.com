@@ -311,6 +311,7 @@ export interface ArticleStoreBundle {
 	}) => Promise<void>;
 	setContentSourceTier: (params: { url: string; tier: "tier-0" | "tier-1" }) => Promise<void>;
 	setContentFetchedAt: (params: { url: string; at: string }) => Promise<void>;
+	setDisplayUrl: (params: { url: string; displayUrl: string }) => Promise<void>;
 	setCrawlVersions: (params: { url: string; versions: ArticleCrawlVersion[] }) => Promise<void>;
 	setPurgedAt: (params: { url: string; at: Date }) => Promise<void>;
 }

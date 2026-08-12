@@ -527,6 +527,48 @@ describe("Queue routes", () => {
 			expect(second.text).toBe("");
 		});
 
+		it("GET /queue/:id/reader keeps the poll-swapped header and CTA on the adopted redirect destination", async () => {
+			const findArticleCrawlStatus = async () => ({ status: "pending" as const });
+			const fixture = createDefaultTestAppFixture(TEST_APP_ORIGIN);
+			const harness = useApp({
+				...fixture,
+				articleCrawl: { ...fixture.articleCrawl, findArticleCrawlStatus },
+			});
+			const { auth } = harness;
+			const agent = await loginAgent(harness.server, auth);
+
+			await agent
+				.post("/queue/save")
+				.type("form")
+				.send({ url: "https://wrapper.example/link/188518" });
+			await fixture.articleStore.setDisplayUrl({
+				url: "https://wrapper.example/link/188518",
+				displayUrl: "https://destination.example/article",
+			});
+
+			const queueResponse = await agent.get("/queue");
+			const articleId = new JSDOM(queueResponse.text).window.document
+				.querySelector("[data-test-article-list] .queue-article")
+				?.getAttribute("data-test-article");
+			assert(articleId, "saved article must have an id");
+
+			const poll = await agent.get(`/queue/${articleId}/reader?poll=1`);
+			expect(poll.status).toBe(200);
+			const pollDoc = new JSDOM(poll.text).window.document;
+			const header = pollDoc.querySelector("#article-header");
+			assert(header, "header OOB fragment must accompany the reader-slot");
+			expect(header.querySelector("[data-test-original-link]")?.getAttribute("href")).toBe(
+				"https://destination.example/article",
+			);
+
+			const capped = await agent.get(`/queue/${articleId}/reader?poll=${MAX_POLLS}`);
+			const cappedDoc = new JSDOM(capped.text).window.document;
+			const primary = cappedDoc.querySelector("[data-test-reader-failed-primary]");
+			assert(primary, "primary source CTA must be rendered when polling caps out");
+			expect(primary.getAttribute("href")).toBe("https://destination.example/article");
+			expect(primary.textContent).toContain("destination.example");
+		});
+
 		it("GET /queue/:id/view does NOT re-prime a legacy row from the reader path (auto-heal removed; recovery is operator-driven via /admin/recrawl)", async () => {
 			const fixture = createDefaultTestAppFixture(TEST_APP_ORIGIN);
 			// State-machine providers always report "no state" so the cached row

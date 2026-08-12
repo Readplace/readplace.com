@@ -85,6 +85,36 @@ describe("Queue routes", () => {
 			expect(doc.querySelector("[data-test-original-link]")?.getAttribute("href")).toBe("https://example.com/saved-post");
 		});
 
+		it("points 'View original' at the adopted redirect destination on the first paint", async () => {
+			const fixture = createDefaultTestAppFixture(TEST_APP_ORIGIN);
+			const harness = useApp(fixture);
+			const { auth } = harness;
+			const agent = await loginAgent(harness.server, auth);
+
+			await agent
+				.post("/queue/save")
+				.type("form")
+				.send({ url: "https://wrapper.example/link/188518" });
+			await fixture.articleStore.setDisplayUrl({
+				url: "https://wrapper.example/link/188518",
+				displayUrl: "https://destination.example/article",
+			});
+
+			const queueResponse = await agent.get("/queue");
+			const articleId = new JSDOM(queueResponse.text).window.document
+				.querySelector("[data-test-article-list] .queue-article")
+				?.getAttribute("data-test-article");
+			assert(articleId, "saved article must have an id");
+
+			const readerResponse = await agent.get(`/queue/${articleId}/view`);
+
+			expect(readerResponse.status).toBe(200);
+			const doc = new JSDOM(readerResponse.text).window.document;
+			expect(doc.querySelector("[data-test-original-link]")?.getAttribute("href")).toBe(
+				"https://destination.example/article",
+			);
+		});
+
 		it("renders the Last crawled at bookmark only once a crawl timestamp exists", async () => {
 			const articleHtml = `
 			<html><head><title>Crawled Post</title></head>

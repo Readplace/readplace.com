@@ -366,6 +366,7 @@ export function createDefaultTestAppFixture(appOrigin: string): TestAppFixture {
 			writeMetadata: articleStoreMemory.writeMetadata,
 			setContentSourceTier: articleStoreMemory.setContentSourceTier,
 			setContentFetchedAt: articleStoreMemory.setContentFetchedAt,
+			setDisplayUrl: articleStoreMemory.setDisplayUrl,
 			setCrawlVersions: articleStoreMemory.setCrawlVersions,
 			setPurgedAt: articleStoreMemory.setPurgedAt,
 		},
