@@ -29,6 +29,10 @@ export function selectSaveableTabs(
 	return saveable;
 }
 
+export function saveAllTabsLabel(tabCount: number): string {
+	return `Save ${tabCount} ${tabCount === 1 ? "tab" : "tabs"}`;
+}
+
 /** Folds the server's bulk-save summary into the popup's title, summary line and
  * an optional "too big" detail line. The tabs filtered out before the request
  * (clientSkipped = tabCount - saveableCount) never reached the server, so they

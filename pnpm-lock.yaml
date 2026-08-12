@@ -187,12 +187,18 @@ importers:
       '@packages/check-unused-css':
         specifier: workspace:*
         version: link:../../../src/packages/check-unused-css
+      '@packages/e2e-harness':
+        specifier: workspace:*
+        version: link:../../../src/packages/e2e-harness
       '@packages/require-env':
         specifier: workspace:*
         version: link:../../../src/packages/require-env
       '@packages/test-phase-runner':
         specifier: workspace:*
         version: link:../../../src/packages/test-phase-runner
+      '@playwright/test':
+        specifier: 1.60.0
+        version: 1.60.0
       '@types/selenium-webdriver':
         specifier: 4.35.6
         version: 4.35.6
@@ -245,6 +251,9 @@ importers:
       '@packages/web-shell':
         specifier: workspace:*
         version: link:../../../src/packages/web-shell
+      '@playwright/test':
+        specifier: 1.60.0
+        version: 1.60.0
       '@pulumi/pulumi':
         specifier: 3.244.0
         version: 3.244.0(ts-node@10.9.2(@types/node@22.19.19)(typescript@6.0.3))(typescript@6.0.3)
@@ -306,6 +315,9 @@ importers:
       '@packages/web-shell':
         specifier: workspace:*
         version: link:../../../src/packages/web-shell
+      '@playwright/test':
+        specifier: 1.60.0
+        version: 1.60.0
       '@pulumi/aws':
         specifier: 7.32.0
         version: 7.32.0(ts-node@10.9.2(@types/node@22.19.19)(typescript@6.0.3))(typescript@6.0.3)

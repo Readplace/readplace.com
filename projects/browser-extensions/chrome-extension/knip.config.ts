@@ -37,4 +37,8 @@ export default {
 		"src/e2e/**/run.e2e-staging.main.ts",
 		"src/e2e/**/run.perf-local.main.ts",
 	],
+	playwright: {
+		config: ["playwright.config.local-dev.ts"],
+		entry: ["src/e2e/**/*-visual.e2e-local.ts"],
+	},
 } satisfies KnipConfig;

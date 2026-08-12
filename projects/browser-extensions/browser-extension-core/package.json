@@ -29,7 +29,11 @@
       "types": "./dist/perf/index.d.ts",
       "default": "./dist/perf/index.js"
     },
-    "./package.json": "./package.json"
+    "./package.json": "./package.json",
+    "./popup-visual": {
+      "types": "./dist/e2e-actions/popup-visual/index.d.ts",
+      "default": "./dist/e2e-actions/popup-visual/index.js"
+    }
   },
   "typesVersions": {
     "*": {
@@ -44,6 +48,9 @@
       ],
       "perf": [
         "dist/perf/index.d.ts"
+      ],
+      "popup-visual": [
+        "dist/e2e-actions/popup-visual/index.d.ts"
       ]
     }
   },
@@ -69,8 +76,10 @@
   },
   "devDependencies": {
     "@packages/check-unused-css": "workspace:*",
+    "@packages/e2e-harness": "workspace:*",
     "@packages/require-env": "workspace:*",
     "@packages/test-phase-runner": "workspace:*",
+    "@playwright/test": "1.60.0",
     "@types/selenium-webdriver": "4.35.6",
     "c8": "11.0.0",
     "concurrently": "10.0.0",

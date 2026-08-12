@@ -33,6 +33,14 @@ module.exports = {
       e2e: true,
     },
     {
+      type: 'playwright',
+      name: 'Running popup visual E2E (local)',
+      config: 'playwright.config.local-dev.ts',
+      browsers: ['chromium'],
+      env: { HEADLESS: 'true' },
+      e2e: true,
+    },
+    {
       type: 'node-test',
       name: 'Running E2E tests',
       files: ['dist/e2e/login-flow/run.e2e-local.main.js'],

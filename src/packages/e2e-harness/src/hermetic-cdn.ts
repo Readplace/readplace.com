@@ -42,10 +42,14 @@ export const test = base.extend({ context: cdnContextFixture });
 
 export async function waitForBrandFonts(page: Page, families: string[]): Promise<void> {
 	await page.waitForFunction((wanted) => {
+		// Gecko reports FontFace.family with the quotes the @font-face rule was
+		// written with (`"Inter"`); Blink reports the bare family. Comparing raw
+		// strings therefore never matches in Firefox and waits out the timeout.
+		const unquote = (family: string) => family.replace(/^["']|["']$/g, "");
 		const loadedFamilies: string[] = [];
 		document.fonts.forEach((font) => {
-			if (font.status === "loaded") loadedFamilies.push(font.family);
+			if (font.status === "loaded") loadedFamilies.push(unquote(font.family));
 		});
-		return wanted.every((family) => loadedFamilies.includes(family));
+		return wanted.every((family) => loadedFamilies.includes(unquote(family)));
 	}, families);
 }

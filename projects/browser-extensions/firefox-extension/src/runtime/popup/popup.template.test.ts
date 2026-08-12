@@ -32,9 +32,14 @@ describe("save all tabs progress", () => {
 });
 
 describe("save all tabs control", () => {
-	it("list-view header carries the save-all-tabs control", () => {
+	it("list-view header carries the save-all-tabs control, counting what it will send above its scope", () => {
 		expect(template).toContain(
-			'<button id="save-all-tabs-button" class="list-view__save-all" title="Save all tabs in this window" data-test-save-all-tabs hidden>Save all tabs in this window</button>',
+			[
+				'        <button id="save-all-tabs-button" class="list-view__save-all" title="Save all tabs in this window" data-test-save-all-tabs hidden>',
+				'          <span class="list-view__save-all-count" data-test-save-all-count>Save tabs</span>',
+				'          <span class="list-view__save-all-scope">This window</span>',
+				"        </button>",
+			].join("\n"),
 		);
 	});
 });

@@ -1,4 +1,4 @@
-import { buildSaveAllDetailLines, selectSaveableTabs, summarizeBulkSave } from "./save-all-tabs";
+import { buildSaveAllDetailLines, saveAllTabsLabel, selectSaveableTabs, summarizeBulkSave } from "./save-all-tabs";
 
 describe("selectSaveableTabs", () => {
 	const appDomains = ["readplace.com"];
@@ -116,6 +116,20 @@ describe("selectSaveableTabs", () => {
 				appDomains,
 			),
 		).toEqual([{ url: "https://example.com/a", title: "Committed", tabId: 1 }]);
+	});
+});
+
+describe("saveAllTabsLabel", () => {
+	it("counts every tab the window holds", () => {
+		expect(saveAllTabsLabel(12)).toBe("Save 12 tabs");
+	});
+
+	it("keeps the noun singular for a lone tab", () => {
+		expect(saveAllTabsLabel(1)).toBe("Save 1 tab");
+	});
+
+	it("still reads as a plural for an empty window", () => {
+		expect(saveAllTabsLabel(0)).toBe("Save 0 tabs");
 	});
 });
 

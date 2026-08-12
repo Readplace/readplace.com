@@ -86,6 +86,27 @@ describe("createPlaywrightConfig", () => {
 		});
 	});
 
+	it("names the project after the engine it runs, so each engine owns its baselines", () => {
+		const shared = {
+			testMatch: "**/*-visual.e2e-local.ts",
+			outputDir: "./test-results/local",
+			baseURL: undefined,
+			retries: 0,
+			headless: true,
+			video: "off",
+			launchOptions: undefined,
+			webServer: undefined,
+		} as const;
+
+		expect(createPlaywrightConfig({ ...shared }).projects?.[0]?.name).toBe("chromium");
+		expect(createPlaywrightConfig({ ...shared, browser: "firefox" }).projects?.[0]?.name).toBe(
+			"firefox",
+		);
+		expect(createPlaywrightConfig({ ...shared, browser: "firefox" }).projects?.[0]?.use).toMatchObject(
+			{ defaultBrowserType: "firefox" },
+		);
+	});
+
 	it("falls back to a two-minute test timeout unless the suite asks for its own", () => {
 		const shared = {
 			testMatch: "**/*.e2e-local.ts",

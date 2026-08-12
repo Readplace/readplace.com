@@ -35,6 +35,10 @@
         { "env": "CLAUDE_CODE_REMOTE" },
         { "runtime": "cat /opt/cft/binary-path /opt/cft/driver-path 2>/dev/null; true" }
       ]
+    },
+    "update-visual-baselines": {
+      "dependsOn": ["compile"],
+      "cache": false
     }
   }
 }

@@ -20,7 +20,8 @@
     "post-deploy": "nx run firefox-extension:post-deploy",
     "check-infra": "PULUMI_CONFIG_PASSPHRASE='' pulumi preview --stack \"${PULUMI_STACK:?PULUMI_STACK is not set}\"",
     "check": "nx run firefox-extension:check",
-    "ext:run": "EXTENSION_VERSION=\"${EXTENSION_VERSION:-0.0.0}\" HUTCH_SERVER_URL=https://readplace.com node scripts/build-extension.js && web-ext run --source-dir dist-extension-compiled"
+    "ext:run": "EXTENSION_VERSION=\"${EXTENSION_VERSION:-0.0.0}\" HUTCH_SERVER_URL=https://readplace.com node scripts/build-extension.js && web-ext run --source-dir dist-extension-compiled",
+    "update-visual-baselines": "node scripts/update-visual-baselines.js"
   },
   "dependencies": {
     "browser-extension-core": "workspace:*",
@@ -35,6 +36,7 @@
     "@packages/require-env": "workspace:*",
     "@packages/test-phase-runner": "workspace:*",
     "@packages/web-shell": "workspace:*",
+    "@playwright/test": "1.60.0",
     "@pulumi/aws": "7.32.0",
     "@pulumi/pulumi": "3.244.0",
     "@types/jest": "30.0.0",

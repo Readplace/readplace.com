@@ -35,6 +35,10 @@
         { "env": "CLAUDE_CODE_REMOTE" },
         { "runtime": "/opt/firefox/firefox --version 2>/dev/null; true" }
       ]
+    },
+    "update-visual-baselines": {
+      "dependsOn": ["compile"],
+      "cache": false
     }
   }
 }

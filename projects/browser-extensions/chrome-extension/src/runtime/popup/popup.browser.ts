@@ -14,7 +14,7 @@ import type {
 	Message,
 	ActionVariant,
 } from "browser-extension-core";
-import { filterByUrl, buildPaginationView, avatarColor, relativeTime, isAppUrl, itemDisplay, selectSaveableTabs, summarizeBulkSave, buildSaveAllDetailLines, installShortcuts, matchesShortcut, commandBindingsFromGetAll, resolveShortcut, shortcutHintSegments, DEFAULT_SAVE_SHORTCUT, DEFAULT_SAVE_ALL_SHORTCUT, buildMessageView, buildSavedView, actionLabel, actionVariant, actionIcon, linkLabel, linkPresentation, BULK_SAVE_FAILED_MESSAGE, BULK_SAVE_FAILED_TITLE, advertisesBulkSave, parseStoredCapabilities, ADVERTISED_CAPABILITIES_STORAGE_KEY, SAVE_RENDERED_MARK, SAVE_ALL_RENDERED_MARK, type ContentShortcuts } from "browser-extension-core";
+import { filterByUrl, buildPaginationView, avatarColor, relativeTime, isAppUrl, itemDisplay, selectSaveableTabs, saveAllTabsLabel, summarizeBulkSave, buildSaveAllDetailLines, installShortcuts, matchesShortcut, commandBindingsFromGetAll, resolveShortcut, shortcutHintSegments, DEFAULT_SAVE_SHORTCUT, DEFAULT_SAVE_ALL_SHORTCUT, buildMessageView, buildSavedView, actionLabel, actionVariant, actionIcon, linkLabel, linkPresentation, BULK_SAVE_FAILED_MESSAGE, BULK_SAVE_FAILED_TITLE, advertisesBulkSave, parseStoredCapabilities, ADVERTISED_CAPABILITIES_STORAGE_KEY, SAVE_RENDERED_MARK, SAVE_ALL_RENDERED_MARK, type ContentShortcuts } from "browser-extension-core";
 import { HutchLogger, consoleLogger } from "@packages/hutch-logger";
 
 /** The client's own presentation map: an action variant -> the popup's CSS
@@ -613,6 +613,11 @@ async function revealSaveAllTabs() {
 	const advertised = advertisesBulkSave(
 		parseStoredCapabilities(stored[ADVERTISED_CAPABILITIES_STORAGE_KEY]),
 	);
+	/** Unfiltered on purpose: the save reports an outcome for every tab counted
+	 * here, skips included, so a filtered count would under-report its own scope. */
+	const tabs = await browser.tabs.query({ currentWindow: true });
+	const count = document.querySelector(".list-view__save-all-count");
+	if (count) count.textContent = saveAllTabsLabel(tabs.length);
 	const button = document.getElementById("save-all-tabs-button");
 	if (button) button.hidden = !advertised;
 	const hint = document.getElementById("save-all-shortcut-hint");

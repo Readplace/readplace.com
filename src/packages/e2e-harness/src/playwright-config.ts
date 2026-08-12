@@ -3,6 +3,15 @@ import { randomUUID } from 'node:crypto'
 import { defineConfig, devices } from '@playwright/test'
 import { READY_NONCE_ENV, readyProbePath } from './ready-probe'
 
+// The project name reaches disk: Playwright stamps it into every snapshot
+// baseline filename, so a suite pinned to one engine names its own baselines.
+const BROWSER_DEVICES = {
+	chromium: devices['Desktop Chrome'],
+	firefox: devices['Desktop Firefox'],
+} satisfies Record<string, (typeof devices)[string]>
+
+type BrowserName = keyof typeof BROWSER_DEVICES
+
 interface PlaywrightConfigOptions {
 	testMatch: string
 	outputDir: string
@@ -10,6 +19,7 @@ interface PlaywrightConfigOptions {
 	retries: number
 	headless: boolean
 	timeout?: number
+	browser?: BrowserName
 	video: 'off' | 'on' | 'retain-on-failure' | 'on-first-retry'
 	launchOptions: { slowMo?: number } | undefined
 	webServer:
@@ -23,6 +33,7 @@ interface PlaywrightConfigOptions {
 
 export const createPlaywrightConfig = (options: PlaywrightConfigOptions) => {
 	const readyNonce = randomUUID()
+	const browser: BrowserName = options.browser ?? 'chromium'
 	return defineConfig({
 		testDir: './src/e2e',
 		testMatch: options.testMatch,
@@ -49,9 +60,9 @@ export const createPlaywrightConfig = (options: PlaywrightConfigOptions) => {
 		},
 		projects: [
 			{
-				name: 'chromium',
+				name: browser,
 				use: {
-					...devices['Desktop Chrome'],
+					...BROWSER_DEVICES[browser],
 					launchOptions: options.launchOptions,
 				},
 			},
