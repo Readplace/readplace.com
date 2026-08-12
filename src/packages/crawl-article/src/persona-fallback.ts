@@ -41,9 +41,13 @@ export function isBlockClassResponse(response: Response): boolean {
 }
 
 export function isBlockClassError(error: unknown): boolean {
-	if (!(error instanceof Error)) return false;
-	const message = error.message.toLowerCase();
-	return BLOCK_ERROR_SIGNATURES.some((sig) => message.includes(sig));
+	let link: unknown = error;
+	while (link instanceof Error) {
+		const message = link.message.toLowerCase();
+		if (BLOCK_ERROR_SIGNATURES.some((sig) => message.includes(sig))) return true;
+		link = link.cause;
+	}
+	return false;
 }
 
 export function withPersonaFallback(innerFetch: LadderFetch, personas: ReadonlyArray<Persona>): LadderFetch {

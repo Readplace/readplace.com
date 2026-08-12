@@ -240,4 +240,44 @@ describe("runTransportLadder", () => {
 		expect(response.status).toBe(429);
 		expect(attempts.map((a) => a.outcome)).toEqual(["escalated", "escalated"]);
 	});
+
+	it("returns an earlier leg's block-class response when every later leg only times out", async () => {
+		const attempts: LegAttempt[] = [];
+		const ladder = ladderOf(
+			[
+				{ name: "primary", maxRunMs: 50, fetch: answers(403, "challenge") },
+				{ name: "h2", maxRunMs: 20, fetch: tarpit() },
+				{ name: "curl", maxRunMs: 20, fetch: tarpit() },
+			],
+			attempts,
+		);
+
+		const response = await ladder("https://example.com", { headers: {}, budget: budgetOf(500) });
+
+		expect(response.status).toBe(403);
+		expect(attempts.map((a) => [a.leg, a.status])).toEqual([
+			["primary", 403],
+			["h2", undefined],
+			["curl", undefined],
+		]);
+	});
+
+	it("returns a later leg's block-class response when an earlier leg times out", async () => {
+		const attempts: LegAttempt[] = [];
+		const ladder = ladderOf(
+			[
+				{ name: "primary", maxRunMs: 20, fetch: tarpit() },
+				{ name: "curl", maxRunMs: 50, fetch: answers(429, "slow down") },
+			],
+			attempts,
+		);
+
+		const response = await ladder("https://example.com", { headers: {}, budget: budgetOf(500) });
+
+		expect(response.status).toBe(429);
+		expect(attempts.map((a) => [a.leg, a.status])).toEqual([
+			["primary", undefined],
+			["curl", 429],
+		]);
+	});
 });

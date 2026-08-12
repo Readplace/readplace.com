@@ -61,6 +61,22 @@ describe("isBlockClassError", () => {
 		expect(isBlockClassError({ message: "INTERNAL_ERROR" })).toBe(false);
 		expect(isBlockClassError(null)).toBe(false);
 	});
+
+	it("treats a timeout whose cause carries a block signature as block-class", () => {
+		const timeout = new Error("leg produced no response within 2000ms", {
+			cause: new Error("fetchPrimary failed for https://example.com: too many redirects (>5)"),
+		});
+
+		expect(isBlockClassError(timeout)).toBe(true);
+	});
+
+	it("treats a timeout whose whole cause chain is non-block-class as non-block-class", () => {
+		const timeout = new Error("leg produced no response within 2000ms", {
+			cause: new Error("socket hang up", { cause: "ECONNRESET" }),
+		});
+
+		expect(isBlockClassError(timeout)).toBe(false);
+	});
 });
 
 describe("withPersonaFallback", () => {

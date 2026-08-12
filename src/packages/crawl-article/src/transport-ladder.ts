@@ -91,8 +91,8 @@ export function runTransportLadder(deps: {
 				lease.release();
 			}
 		}
-		if (lastError !== undefined) throw lastError;
 		if (lastResponse !== undefined) return lastResponse;
+		if (lastError !== undefined) throw lastError;
 		throw budget.deadline.signal.reason;
 	};
 }
