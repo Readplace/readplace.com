@@ -117,6 +117,39 @@ describe("initStaleCheckHandler", () => {
 		expect(publishSaveAnonymousLink).not.toHaveBeenCalled();
 	});
 
+	it("does nothing when the crawl status is terminal-skip (unsupported)", async () => {
+		const findArticleFreshness: FindArticleFreshness = async () => ({
+			etag: undefined,
+			lastModified: undefined,
+			contentFetchedAt: "2026-04-01T00:00:00.000Z",
+		});
+		const findArticleCrawlStatus: FindArticleCrawlStatus = async () => ({
+			status: "unsupported",
+			reason: '{"kind":"non-html-content","contentType":"unsupported content type: "}',
+		});
+		const crawlAndFinalizeArticle = jest.fn(failingCrawlAndFinalize);
+		const publishSaveAnonymousLink: PublishSaveAnonymousLink = jest.fn().mockResolvedValue(undefined);
+		const logger = { info: jest.fn(), warn: jest.fn(), error: jest.fn(), debug: jest.fn() };
+
+		const handler = createHandler({
+			findArticleFreshness,
+			findArticleCrawlStatus,
+			crawlAndFinalizeArticle,
+			publishSaveAnonymousLink,
+			logger,
+		});
+
+		const result = await handler(createSqsEvent({ url: URL_UNDER_TEST }), buildLambdaContext(), () => {});
+
+		expect(result).toEqual({ batchItemFailures: [] });
+		expect(crawlAndFinalizeArticle).not.toHaveBeenCalled();
+		expect(publishSaveAnonymousLink).not.toHaveBeenCalled();
+		expect(logger.info).toHaveBeenCalledWith("[StaleCheckRequested] no-op", {
+			url: URL_UNDER_TEST,
+			action: "skip",
+		});
+	});
+
 	it("does nothing when the row is within the TTL window (no crawl fired)", async () => {
 		const findArticleFreshness: FindArticleFreshness = async () => ({
 			etag: undefined,

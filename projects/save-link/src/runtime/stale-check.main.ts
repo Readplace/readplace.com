@@ -13,7 +13,7 @@ import type {
 } from "@packages/provider-contracts/events";
 import { initStaleCheckHandler } from "./domain/stale-check/stale-check-handler";
 import { initObservabilityDepBundle } from "./dep-bundles/observability";
-import { initCanonicalAliasStore } from "@packages/article-store";
+import { initCanonicalAliasStore, initDynamoDbArticleCrawl } from "@packages/article-store";
 import { initParserDepBundle } from "./dep-bundles/parser";
 import { initArticleStoreDepBundle } from "./dep-bundles/article-store";
 import { initMediaDepBundle } from "./dep-bundles/media";
@@ -22,7 +22,6 @@ import { initArticleCrawlDepBundle } from "./dep-bundles/article-crawl";
 import { initArticleAggregateDepBundle } from "./dep-bundles/article-aggregate";
 import { initEmitSimpleCrawlUnsupported, initEventsDepBundle } from "./dep-bundles/events";
 import { initEventBridgeRefreshArticleContent, initPutRefreshHtml } from "@packages/refresh-article-content";
-import { initFindArticleCrawlStatus } from "./providers/article-crawl/find-article-crawl-status";
 import { initFindArticleFreshness } from "./providers/article-crawl/find-article-freshness";
 import { requireEnv } from "@packages/require-env";
 
@@ -84,9 +83,10 @@ const { findArticleFreshness } = initFindArticleFreshness({
 	tableName: articlesTable,
 });
 
-const { findArticleCrawlStatus } = initFindArticleCrawlStatus({
+const { findArticleCrawlStatus } = initDynamoDbArticleCrawl({
 	client: dynamoClient,
 	tableName: articlesTable,
+	now,
 });
 
 export const handler = initStaleCheckHandler({
