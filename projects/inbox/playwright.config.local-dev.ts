@@ -19,9 +19,7 @@ export default createPlaywrightConfig({
 	outputDir: artifacts.outputDir,
 	baseURL: serverUrl,
 	retries: 0,
-	// Headless explicitly when HEADLESS=true; also default headless in CI where
-	// there is no X server. Local dev keeps headed mode.
-	headless: process.env.HEADLESS === 'true' || process.env.CI === 'true',
+	headless: process.env.HEADLESS === 'true',
 	video: 'off',
 	launchOptions: {},
 	webServer: {
