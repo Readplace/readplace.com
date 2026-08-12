@@ -6,27 +6,43 @@ import type { BulkSaveResult } from "../reading-list/reading-list.types";
  * the tab's content script to capture its DOM; `title` seeds the page entry. */
 export type SaveableTab = { url: string; title: string; tabId?: number };
 
-/** The saveable subset of a window's tabs. Tabs with no URL, non-http(s) schemes
+/** Mirrors the server's unsupported_scheme wording so a chrome:// tab dropped
+ * here and one the server refused collapse into one reason bullet. */
+const SKIP_REASON_NOT_A_WEB_PAGE = "Only http and https URLs can be saved";
+const SKIP_REASON_APP_PAGE = "Readplace's own pages aren't saved";
+const SKIP_REASON_DUPLICATE = "Already open in another tab";
+
+/** The saveable subset of a window's tabs, with a deduplicated first-seen list
+ * of why the rest were left behind. Tabs with no URL, non-http(s) schemes
  * (chrome://, about:, file:, moz-extension://) and the app's own pages are
  * dropped here — they are client-side skips the bulk route never sees. Duplicate
  * URLs collapse to the first tab seen (the save is idempotent on userId:url
  * server-side), so two tabs on one URL save, count, and capture once. */
-export function selectSaveableTabs(
+export function classifyTabs(
 	tabs: readonly { id?: number; url?: string; title?: string; pendingUrl?: string }[],
 	appDomains: readonly string[],
-): SaveableTab[] {
+): { saveable: SaveableTab[]; skipReasons: string[] } {
 	const seen = new Set<string>();
 	const saveable: SaveableTab[] = [];
+	const skipReasons = new Set<string>();
 	for (const tab of tabs) {
 		const url = tab.url || tab.pendingUrl;
-		if (typeof url !== "string") continue;
-		if (!/^https?:/i.test(url)) continue;
-		if (isAppUrl({ tabUrl: url, appDomains })) continue;
-		if (seen.has(url)) continue;
+		if (typeof url !== "string" || !/^https?:/i.test(url)) {
+			skipReasons.add(SKIP_REASON_NOT_A_WEB_PAGE);
+			continue;
+		}
+		if (isAppUrl({ tabUrl: url, appDomains })) {
+			skipReasons.add(SKIP_REASON_APP_PAGE);
+			continue;
+		}
+		if (seen.has(url)) {
+			skipReasons.add(SKIP_REASON_DUPLICATE);
+			continue;
+		}
 		seen.add(url);
 		saveable.push({ url, title: tab.title ?? url, tabId: tab.id });
 	}
-	return saveable;
+	return { saveable, skipReasons: [...skipReasons] };
 }
 
 export function saveAllTabsLabel(tabCount: number): string {
@@ -64,32 +80,28 @@ export function summarizeBulkSave(params: {
 	};
 }
 
-const MAX_LISTED_DETAIL_URLS = 5;
-const MAX_LISTED_FAILED_URLS_BESIDE_SKIPS = 3;
+const MAX_LISTED_FAILED_URLS = 5;
+const MAX_LISTED_SKIP_REASONS = 5;
 
-/** Skips keep at least two of the listed lines when both kinds overflow, so the
- * reasons worth acting on (a tab the server will never accept) survive a run
- * with many transient failures; the overflow line attributes each remainder. */
+/** Failures stay per-URL so the reader knows which tabs to retry; skips
+ * collapse to their distinct reasons, because a skipped tab isn't coming back
+ * and the only actionable fact is why its kind was left behind. */
 export function buildSaveAllDetailLines(result: {
 	failedUrls: readonly { url: string }[];
 	skippedUrls: readonly { url: string; code: string; message?: string }[];
+	clientSkipReasons: readonly string[];
 }): string[] {
 	const failedLines = result.failedUrls.map((entry) => `Couldn't save ${entry.url}`);
-	const skippedLines = result.skippedUrls.map((entry) =>
-		entry.message === undefined
-			? `Skipped ${entry.url}`
-			: `Skipped ${entry.url} — ${entry.message}`,
-	);
-	const failedCap = skippedLines.length > 0 ? MAX_LISTED_FAILED_URLS_BESIDE_SKIPS : MAX_LISTED_DETAIL_URLS;
-	const shownFailed = failedLines.slice(0, failedCap);
-	const shownSkipped = skippedLines.slice(0, MAX_LISTED_DETAIL_URLS - shownFailed.length);
-	const lines = [...shownFailed, ...shownSkipped];
-	const moreFailed = failedLines.length - shownFailed.length;
-	const moreSkipped = skippedLines.length - shownSkipped.length;
-	const overflow: string[] = [];
-	if (moreFailed > 0) overflow.push(`${moreFailed} more failed`);
-	if (moreSkipped > 0) overflow.push(`${moreSkipped} more skipped`);
-	if (overflow.length > 0) lines.push(`And ${overflow.join(", ")}.`);
+	const lines = failedLines.slice(0, MAX_LISTED_FAILED_URLS);
+	const moreFailed = failedLines.length - lines.length;
+	if (moreFailed > 0) lines.push(`And ${moreFailed} more failed.`);
+
+	const reasons = new Set<string>(result.clientSkipReasons);
+	for (const entry of result.skippedUrls) {
+		if (entry.message !== undefined) reasons.add(entry.message);
+	}
+	lines.push(...[...reasons].slice(0, MAX_LISTED_SKIP_REASONS).map((reason) => `• ${reason}`));
+	if (reasons.size > MAX_LISTED_SKIP_REASONS) lines.push("… and others");
 	return lines;
 }
 

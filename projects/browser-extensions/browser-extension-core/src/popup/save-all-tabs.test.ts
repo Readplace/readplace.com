@@ -1,17 +1,17 @@
-import { buildSaveAllDetailLines, saveAllTabsLabel, selectSaveableTabs, summarizeBulkSave } from "./save-all-tabs";
+import { buildSaveAllDetailLines, classifyTabs, saveAllTabsLabel, summarizeBulkSave } from "./save-all-tabs";
 
-describe("selectSaveableTabs", () => {
+describe("classifyTabs", () => {
 	const appDomains = ["readplace.com"];
 
 	it("keeps http and https tabs that are not the app's own pages, carrying id and title", () => {
 		expect(
-			selectSaveableTabs(
+			classifyTabs(
 				[
 					{ id: 1, url: "https://example.com/a", title: "A" },
 					{ id: 2, url: "http://example.org/b", title: "B" },
 				],
 				appDomains,
-			),
+			).saveable,
 		).toEqual([
 			{ url: "https://example.com/a", title: "A", tabId: 1 },
 			{ url: "http://example.org/b", title: "B", tabId: 2 },
@@ -19,18 +19,18 @@ describe("selectSaveableTabs", () => {
 	});
 
 	it("falls back to the url as the title when a tab has none", () => {
-		expect(selectSaveableTabs([{ id: 3, url: "https://example.com/a" }], appDomains)).toEqual([
+		expect(classifyTabs([{ id: 3, url: "https://example.com/a" }], appDomains).saveable).toEqual([
 			{ url: "https://example.com/a", title: "https://example.com/a", tabId: 3 },
 		]);
 	});
 
 	it("drops tabs that have no url", () => {
-		expect(selectSaveableTabs([{ url: undefined }, {}], appDomains)).toEqual([]);
+		expect(classifyTabs([{ url: undefined }, {}], appDomains).saveable).toEqual([]);
 	});
 
 	it("drops non-http(s) schemes (chrome://, about:, file:, moz-extension://)", () => {
 		expect(
-			selectSaveableTabs(
+			classifyTabs(
 				[
 					{ url: "chrome://settings" },
 					{ url: "about:blank" },
@@ -39,39 +39,39 @@ describe("selectSaveableTabs", () => {
 					{ url: "https://example.com/keep", title: "Keep" },
 				],
 				appDomains,
-			),
+			).saveable,
 		).toEqual([{ url: "https://example.com/keep", title: "Keep", tabId: undefined }]);
 	});
 
 	it("drops the app's own pages, including localhost", () => {
 		expect(
-			selectSaveableTabs(
+			classifyTabs(
 				[
 					{ url: "https://readplace.com/queue" },
 					{ url: "http://localhost:3000/queue" },
 					{ url: "https://example.com/keep", title: "Keep" },
 				],
 				appDomains,
-			),
+			).saveable,
 		).toEqual([{ url: "https://example.com/keep", title: "Keep", tabId: undefined }]);
 	});
 
 	it("matches the http(s) scheme case-insensitively", () => {
-		expect(selectSaveableTabs([{ id: 4, url: "HTTPS://example.com/a", title: "A" }], appDomains)).toEqual([
+		expect(classifyTabs([{ id: 4, url: "HTTPS://example.com/a", title: "A" }], appDomains).saveable).toEqual([
 			{ url: "HTTPS://example.com/a", title: "A", tabId: 4 },
 		]);
 	});
 
 	it("dedupes tabs open on the same url, keeping the first seen", () => {
 		expect(
-			selectSaveableTabs(
+			classifyTabs(
 				[
 					{ id: 1, url: "https://example.com/a", title: "First" },
 					{ id: 2, url: "https://example.com/a", title: "Second" },
 					{ id: 3, url: "https://example.com/b", title: "B" },
 				],
 				appDomains,
-			),
+			).saveable,
 		).toEqual([
 			{ url: "https://example.com/a", title: "First", tabId: 1 },
 			{ url: "https://example.com/b", title: "B", tabId: 3 },
@@ -80,13 +80,13 @@ describe("selectSaveableTabs", () => {
 
 	it("saves a tab still mid-navigation via its pendingUrl", () => {
 		expect(
-			selectSaveableTabs(
+			classifyTabs(
 				[
 					{ id: 1, url: "", pendingUrl: "https://example.com/loading", title: "Loading" },
 					{ id: 2, url: "https://example.com/done", title: "Done" },
 				],
 				appDomains,
-			),
+			).saveable,
 		).toEqual([
 			{ url: "https://example.com/loading", title: "Loading", tabId: 1 },
 			{ url: "https://example.com/done", title: "Done", tabId: 2 },
@@ -95,27 +95,53 @@ describe("selectSaveableTabs", () => {
 
 	it("applies the scheme and app-domain filters to the pendingUrl it resolved", () => {
 		expect(
-			selectSaveableTabs(
+			classifyTabs(
 				[
 					{ id: 1, url: "", pendingUrl: "chrome://settings" },
 					{ id: 2, url: "", pendingUrl: "https://readplace.com/queue" },
 					{ id: 3, url: "", pendingUrl: "https://example.com/keep", title: "Keep" },
 				],
 				appDomains,
-			),
+			).saveable,
 		).toEqual([{ url: "https://example.com/keep", title: "Keep", tabId: 3 }]);
 	});
 
 	it("dedupes a mid-navigation tab against its committed twin", () => {
 		expect(
-			selectSaveableTabs(
+			classifyTabs(
 				[
 					{ id: 1, url: "https://example.com/a", title: "Committed" },
 					{ id: 2, url: "", pendingUrl: "https://example.com/a", title: "Loading" },
 				],
 				appDomains,
-			),
+			).saveable,
 		).toEqual([{ url: "https://example.com/a", title: "Committed", tabId: 1 }]);
+	});
+
+	it("names each kind of drop once, in the order the window first hit it", () => {
+		expect(
+			classifyTabs(
+				[
+					{ url: "chrome://settings" },
+					{ url: "about:blank" },
+					{ url: "https://readplace.com/queue" },
+					{ id: 1, url: "https://example.com/a", title: "A" },
+					{ id: 2, url: "https://example.com/a", title: "A again" },
+					{ id: 3, url: "https://example.com/a", title: "A once more" },
+				],
+				appDomains,
+			).skipReasons,
+		).toEqual([
+			"Only http and https URLs can be saved",
+			"Readplace's own pages aren't saved",
+			"Already open in another tab",
+		]);
+	});
+
+	it("reports no reasons when every tab is saveable", () => {
+		expect(
+			classifyTabs([{ id: 1, url: "https://example.com/a", title: "A" }], appDomains).skipReasons,
+		).toEqual([]);
 	});
 });
 
@@ -238,58 +264,14 @@ describe("buildSaveAllDetailLines", () => {
 			buildSaveAllDetailLines({
 				failedUrls: [{ url: "https://example.com/a" }, { url: "https://example.com/b" }],
 				skippedUrls: [],
+				clientSkipReasons: [],
 			}),
 		).toEqual(["Couldn't save https://example.com/a", "Couldn't save https://example.com/b"]);
 	});
 
-	it("names each server-skipped tab with the reason the server sent", () => {
-		expect(
-			buildSaveAllDetailLines({
-				failedUrls: [],
-				skippedUrls: [
-					{ url: "http://intranet-wiki/page", code: "malformed_url", message: "That doesn't look like a valid web address" },
-					{ url: "http://10.0.0.5/admin", code: "private_network", message: "Private-network and loopback addresses can't be saved" },
-				],
-			}),
-		).toEqual([
-			"Skipped http://intranet-wiki/page — That doesn't look like a valid web address",
-			"Skipped http://10.0.0.5/admin — Private-network and loopback addresses can't be saved",
-		]);
-	});
-
-	it("names a skipped tab without a reason when an older server sent no message", () => {
-		expect(
-			buildSaveAllDetailLines({
-				failedUrls: [],
-				skippedUrls: [{ url: "https://example.com/a", code: "private_network" }],
-			}),
-		).toEqual(["Skipped https://example.com/a"]);
-	});
-
-	it("keeps skip reasons visible past a run with many failures, attributing each remainder", () => {
-		const failedUrls = Array.from({ length: 6 }, (_v, i) => ({ url: `https://example.com/tab-${i}` }));
-		expect(
-			buildSaveAllDetailLines({
-				failedUrls,
-				skippedUrls: [
-					{ url: "http://printer.local/status", code: "private_network", message: "Private-network and loopback addresses can't be saved" },
-					{ url: "http://intranet-wiki/page", code: "malformed_url", message: "That doesn't look like a valid web address" },
-					{ url: "http://10.0.0.5/admin", code: "private_network", message: "Private-network and loopback addresses can't be saved" },
-				],
-			}),
-		).toEqual([
-			"Couldn't save https://example.com/tab-0",
-			"Couldn't save https://example.com/tab-1",
-			"Couldn't save https://example.com/tab-2",
-			"Skipped http://printer.local/status — Private-network and loopback addresses can't be saved",
-			"Skipped http://intranet-wiki/page — That doesn't look like a valid web address",
-			"And 3 more failed, 1 more skipped.",
-		]);
-	});
-
-	it("gives failures the whole list when nothing was skipped", () => {
+	it("caps the failed list and counts the rest", () => {
 		const failedUrls = Array.from({ length: 7 }, (_v, i) => ({ url: `https://example.com/tab-${i}` }));
-		expect(buildSaveAllDetailLines({ failedUrls, skippedUrls: [] })).toEqual([
+		expect(buildSaveAllDetailLines({ failedUrls, skippedUrls: [], clientSkipReasons: [] })).toEqual([
 			"Couldn't save https://example.com/tab-0",
 			"Couldn't save https://example.com/tab-1",
 			"Couldn't save https://example.com/tab-2",
@@ -297,5 +279,59 @@ describe("buildSaveAllDetailLines", () => {
 			"Couldn't save https://example.com/tab-4",
 			"And 2 more failed.",
 		]);
+	});
+
+	it("bullets each distinct skip reason once, merging the window's own drops with the server's", () => {
+		expect(
+			buildSaveAllDetailLines({
+				failedUrls: [],
+				skippedUrls: [
+					{ url: "http://10.0.0.5/admin", code: "private_network", message: "Private-network and loopback addresses can't be saved" },
+					{ url: "http://printer.local/status", code: "private_network", message: "Private-network and loopback addresses can't be saved" },
+					{ url: "ftp://example.com/file", code: "unsupported_scheme", message: "Only http and https URLs can be saved" },
+				],
+				clientSkipReasons: ["Only http and https URLs can be saved", "Already open in another tab"],
+			}),
+		).toEqual([
+			"• Only http and https URLs can be saved",
+			"• Already open in another tab",
+			"• Private-network and loopback addresses can't be saved",
+		]);
+	});
+
+	it("leaves a skip without a server message out of the bullets rather than inventing a reason", () => {
+		expect(
+			buildSaveAllDetailLines({
+				failedUrls: [],
+				skippedUrls: [{ url: "https://example.com/a", code: "private_network" }],
+				clientSkipReasons: [],
+			}),
+		).toEqual([]);
+	});
+
+	it("caps the bullets at five distinct reasons and waves at the rest", () => {
+		const skippedUrls = Array.from({ length: 7 }, (_v, i) => ({
+			url: `https://example.com/tab-${i}`,
+			code: "malformed_url",
+			message: `Reason ${i}`,
+		}));
+		expect(buildSaveAllDetailLines({ failedUrls: [], skippedUrls, clientSkipReasons: [] })).toEqual([
+			"• Reason 0",
+			"• Reason 1",
+			"• Reason 2",
+			"• Reason 3",
+			"• Reason 4",
+			"… and others",
+		]);
+	});
+
+	it("lists the failures above the reason bullets", () => {
+		expect(
+			buildSaveAllDetailLines({
+				failedUrls: [{ url: "https://example.com/a" }],
+				skippedUrls: [],
+				clientSkipReasons: ["Already open in another tab"],
+			}),
+		).toEqual(["Couldn't save https://example.com/a", "• Already open in another tab"]);
 	});
 });
