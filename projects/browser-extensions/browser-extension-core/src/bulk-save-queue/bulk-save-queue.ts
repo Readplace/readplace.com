@@ -134,7 +134,7 @@ export function initBulkSaveQueue(deps: {
 			jobs.filter((job) => urls.has(job.url)).map((job) => job.id),
 		);
 		const admitted: BulkSaveJob[] = [];
-		const captured: { id: string; blob: Blob }[] = [];
+		const captured: { id: string; bytes: ArrayBuffer }[] = [];
 		for (const page of pages) {
 			const job: BulkSaveJob = {
 				id: crypto.randomUUID(),
@@ -146,10 +146,7 @@ export function initBulkSaveQueue(deps: {
 				createdAt: now,
 			};
 			if (page.content) {
-				captured.push({
-					id: job.id,
-					blob: new Blob([page.content.bytes], { type: page.content.mediaType }),
-				});
+				captured.push({ id: job.id, bytes: page.content.bytes });
 			}
 			admitted.push(job);
 		}
@@ -162,20 +159,18 @@ export function initBulkSaveQueue(deps: {
 		const stored = await deps.payloads.getAll(
 			due.filter((job) => job.mediaType !== undefined).map((job) => job.id),
 		);
-		const pages: BulkSavePage[] = [];
-		for (const job of due) pages.push(await rehydrate(job, stored));
-		return pages;
+		return due.map((job) => rehydrate(job, stored));
 	}
 
-	async function rehydrate(job: BulkSaveJob, stored: Map<string, Blob>): Promise<BulkSavePage> {
+	function rehydrate(job: BulkSaveJob, stored: Map<string, ArrayBuffer>): BulkSavePage {
 		const page: BulkSavePage = { url: job.url, title: job.title };
 		if (job.mediaType === undefined) return page;
-		const blob = stored.get(job.id);
-		if (!blob) {
+		const bytes = stored.get(job.id);
+		if (!bytes) {
 			deps.logger.warn(`[bulk-save-queue] captured bytes for ${job.url} are gone — saving URL-only`);
 			return page;
 		}
-		return { ...page, content: { bytes: await blob.arrayBuffer(), mediaType: job.mediaType } };
+		return { ...page, content: { bytes, mediaType: job.mediaType } };
 	}
 
 	async function rescheduleAll(due: BulkSaveJob[], report: PassReport): Promise<void> {

@@ -18,8 +18,8 @@ export interface PayloadStore {
 }
 
 export interface BulkPayloadStore {
-	putAll: (items: { id: string; blob: Blob }[]) => Promise<void>;
-	getAll: (ids: string[]) => Promise<Map<string, Blob>>;
+	putAll: (items: { id: string; bytes: ArrayBuffer }[]) => Promise<void>;
+	getAll: (ids: string[]) => Promise<Map<string, ArrayBuffer>>;
 	removeAll: (ids: string[]) => Promise<void>;
 	clear: () => Promise<void>;
 }

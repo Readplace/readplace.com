@@ -18,25 +18,25 @@ function createFakeJobStore(): BulkSaveJobStore & { data: unknown } {
 }
 
 function createFakePayloads() {
-	const blobs = new Map<string, Blob>();
+	const buffers = new Map<string, ArrayBuffer>();
 	return {
-		blobs,
-		putAll: async (items: { id: string; blob: Blob }[]) => {
-			for (const { id, blob } of items) blobs.set(id, blob);
+		buffers,
+		putAll: async (items: { id: string; bytes: ArrayBuffer }[]) => {
+			for (const { id, bytes } of items) buffers.set(id, bytes);
 		},
 		getAll: async (ids: string[]) => {
-			const found = new Map<string, Blob>();
+			const found = new Map<string, ArrayBuffer>();
 			for (const id of ids) {
-				const blob = blobs.get(id);
-				if (blob) found.set(id, blob);
+				const bytes = buffers.get(id);
+				if (bytes) found.set(id, bytes);
 			}
 			return found;
 		},
 		removeAll: async (ids: string[]) => {
-			for (const id of ids) blobs.delete(id);
+			for (const id of ids) buffers.delete(id);
 		},
 		clear: async () => {
-			blobs.clear();
+			buffers.clear();
 		},
 	};
 }
@@ -149,7 +149,7 @@ describe("initBulkSaveQueue savePages", () => {
 		expect(result.saved).toBe(2);
 		expect(result.pendingRetry).toBe(0);
 		expect(storedJobs(jobs)).toEqual([]);
-		expect(payloads.blobs.size).toBe(0);
+		expect(payloads.buffers.size).toBe(0);
 		expect(scheduler.cancels).toBeGreaterThan(0);
 	});
 
@@ -286,14 +286,14 @@ describe("initBulkSaveQueue savePages", () => {
 
 		await queue.savePages({ pages: [page] });
 		expect(storedJobs(jobs)).toHaveLength(1);
-		expect(payloads.blobs.size).toBe(1);
+		expect(payloads.buffers.size).toBe(1);
 
 		await queue.savePages({ pages: [page] });
 
 		const remaining = storedJobs(jobs);
 		expect(remaining).toHaveLength(1);
 		expect(remaining.map((job) => job.attempts)).toEqual([1]);
-		expect(payloads.blobs.size).toBe(1);
+		expect(payloads.buffers.size).toBe(1);
 	});
 
 	it("excludes still-pending leftovers from an earlier window's save from the fresh summary", async () => {
@@ -333,7 +333,7 @@ describe("initBulkSaveQueue savePages", () => {
 			}),
 		).rejects.toBeInstanceOf(UnauthorizedError);
 		expect(storedJobs(jobs)).toEqual([]);
-		expect(payloads.blobs.size).toBe(0);
+		expect(payloads.buffers.size).toBe(0);
 		expect(scheduler.cancels).toBeGreaterThan(0);
 	});
 
@@ -546,7 +546,7 @@ describe("initBulkSaveQueue purge", () => {
 		await queue.purge();
 
 		expect(storedJobs(jobs)).toEqual([]);
-		expect(payloads.blobs.size).toBe(0);
+		expect(payloads.buffers.size).toBe(0);
 		expect(scheduler.cancels).toBeGreaterThan(0);
 	});
 
