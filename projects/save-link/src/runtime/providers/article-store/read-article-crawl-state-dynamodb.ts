@@ -5,10 +5,10 @@ import {
 	dynamoField,
 } from "@packages/hutch-storage-client";
 import { z } from "zod";
+import { CrawlStatusSchema } from "@packages/article-state-types";
 import { ArticleResourceUniqueId } from "../../domain/save-link/article-resource-unique-id";
 import type { ReadArticleCrawlState, CrawlStatus, PickedTier } from "../../domain/crawl-article-state/read-tier-snapshot";
 
-const CrawlStatusSchema = z.enum(["ready", "failed", "pending", "unsupported"]);
 const CanonicalSourceTierSchema = z.enum(["tier-0", "tier-1"]);
 
 const ArticleRow = z.object({

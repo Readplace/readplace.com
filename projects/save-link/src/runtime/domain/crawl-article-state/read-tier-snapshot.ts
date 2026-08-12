@@ -1,7 +1,8 @@
 import type { TierName } from "@packages/hutch-infra-components";
+import type { CrawlStatus as PersistedCrawlStatus } from "@packages/article-state-types";
 
 export type PickedTier = TierName | "none";
-export type CrawlStatus = "ready" | "failed" | "pending" | "unsupported" | "absent";
+export type CrawlStatus = PersistedCrawlStatus | "absent";
 export type TierStatus = "success" | "failed" | "not_attempted";
 
 export type TierSnapshot = {
@@ -24,10 +25,16 @@ export type ReadArticleCrawlState = (params: { url: string }) => Promise<{
  * surfaces that distinction so the dashboard's `otherTierStatus` is accurate when one
  * tier reports a failure while the other has already failed. */
 function tier1StatusFromCrawlStatus(crawlStatus: CrawlStatus): TierStatus {
-	if (crawlStatus === "ready") return "success";
-	if (crawlStatus === "failed") return "failed";
-	return "not_attempted";
+	return TIER_1_STATUSES[crawlStatus];
 }
+
+const TIER_1_STATUSES = {
+	ready: "success",
+	failed: "failed",
+	pending: "not_attempted",
+	unsupported: "not_attempted",
+	absent: "not_attempted",
+} satisfies Record<CrawlStatus, TierStatus>;
 
 export function initReadTierSnapshot(deps: {
 	checkTier0SourceExists: CheckTier0SourceExists;
