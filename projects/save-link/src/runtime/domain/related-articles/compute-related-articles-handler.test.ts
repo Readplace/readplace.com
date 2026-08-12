@@ -283,6 +283,21 @@ describe("initComputeRelatedArticlesHandler", () => {
 		expect(ready).toEqual([]);
 	});
 
+	it("skips a save whose text turned out to be a block page shared across sites", async () => {
+		const { handler, ready, skipped, published } = createHandler({
+			selectRelatedArticles: async () => ({ kind: "shared-boilerplate" }),
+		});
+
+		const result = await handler(commandEvent, buildLambdaContext(), () => {});
+
+		expect(result).toEqual({ batchItemFailures: [] });
+		expect(ready).toEqual([]);
+		expect(skipped).toHaveLength(1);
+		expect(published).toEqual([
+			expect.objectContaining({ outcome: "skipped", relatedCount: 0 }),
+		]);
+	});
+
 	it("retries a message whose payload does not match the command", async () => {
 		const { handler } = createHandler();
 

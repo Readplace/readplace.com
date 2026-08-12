@@ -43,7 +43,8 @@ export type SelectRelatedResult =
 			inputTokens: number;
 			outputTokens: number;
 		}
-	| { kind: "no-text-block" };
+	| { kind: "no-text-block" }
+	| { kind: "shared-boilerplate" };
 
 export interface SelectRelatedArticlesParams {
 	target: RelatedArticleTarget;
@@ -95,6 +96,7 @@ function buildRelatedArticlesMessage(params: SelectRelatedArticlesParams): strin
 			index += 1;
 		}
 	}
+	lines.push("", "SAVED ARTICLE (again)", describe(params.target));
 	return lines.join("\n");
 }
 

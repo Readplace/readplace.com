@@ -11,6 +11,7 @@ import OpenAI from "openai";
 import { initComputeRelatedArticlesHandler } from "./domain/related-articles/compute-related-articles-handler";
 import { initGatherRelatedCandidatePools } from "./domain/related-articles/related-articles-candidates";
 import { initSelectRelatedArticles } from "./domain/related-articles/related-articles-selector";
+import { initSelectRelatedArticlesWithoutSharedBoilerplate } from "./domain/related-articles/shared-boilerplate";
 import { RELATED_ARTICLES_TIMEOUTS } from "./domain/related-articles/timeouts";
 
 const articlesTable = requireEnv("DYNAMODB_ARTICLES_TABLE");
@@ -29,10 +30,12 @@ const createMessage = initCreateDeepseekMessage({
 	createChatCompletion: (params) => deepseekClient.chat.completions.create(params),
 });
 
-const { selectRelatedArticles } = initSelectRelatedArticles({
-	createMessage,
-	logger: consoleLogger,
-});
+const { selectRelatedArticles } = initSelectRelatedArticlesWithoutSharedBoilerplate(
+	initSelectRelatedArticles({
+		createMessage,
+		logger: consoleLogger,
+	}),
+);
 
 const {
 	findRelatedArticles,

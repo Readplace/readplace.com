@@ -68,6 +68,23 @@ describe("initSelectRelatedArticles", () => {
 		expect(prompt).not.toContain("https://example.com/earlier-0");
 	});
 
+	it("repeats the saved article after the candidates so a long list cannot bury it", async () => {
+		const { selectRelatedArticles, captured } = selectorReturning(
+			JSON.stringify({ related: [] }),
+		);
+
+		await selectRelatedArticles({
+			target,
+			unreadCandidates: candidates(2),
+			readCandidates: [],
+		});
+
+		const prompt = captured.prompts[0] ?? "";
+		const echoAt = prompt.lastIndexOf("SAVED ARTICLE (again)");
+		expect(echoAt).toBeGreaterThan(prompt.indexOf("[1]\nTitle: Earlier 1"));
+		expect(prompt.slice(echoAt)).toContain("Title: How queues decay");
+	});
+
 	it("labels the two pools and numbers them as one continuous list", async () => {
 		const { selectRelatedArticles, captured } = selectorReturning(
 			JSON.stringify({ related: [] }),

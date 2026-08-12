@@ -113,6 +113,10 @@ export function initComputeRelatedArticlesHandler(
 				}
 
 				const result = await selectRelatedArticles({ target, ...pools });
+				if (result.kind === "shared-boilerplate") {
+					await skip("the saved text is a block page shared across sites");
+					continue;
+				}
 				if (result.kind === "no-text-block") {
 					throw new Error(
 						`[ComputeRelatedArticles] ${result.kind satisfies "no-text-block"} for ${command.url}`,
