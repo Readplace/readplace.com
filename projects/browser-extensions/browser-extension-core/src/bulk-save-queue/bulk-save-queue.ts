@@ -7,7 +7,7 @@ import {
 	type BulkSaveSession,
 	type OpenBulkSaveSession,
 } from "../reading-list/siren-reading-list";
-import type { PayloadStore, WakeScheduler } from "../upload-queue/upload-queue.types";
+import type { BulkPayloadStore, WakeScheduler } from "../upload-queue/upload-queue.types";
 import { type BulkSaveJob, parseBulkSaveJobs } from "./bulk-save-job";
 
 const MAX_ATTEMPTS = 8;
@@ -81,7 +81,7 @@ function buildSettleNotification(report: PassReport): { title: string; message: 
 
 export function initBulkSaveQueue(deps: {
 	jobs: BulkSaveJobStore;
-	payloads: PayloadStore;
+	payloads: BulkPayloadStore;
 	scheduler: WakeScheduler;
 	openSession: OpenBulkSaveSession;
 	notify: (notification: { title: string; message: string }) => void;
@@ -103,8 +103,12 @@ export function initBulkSaveQueue(deps: {
 		return parseBulkSaveJobs(await deps.jobs.read());
 	}
 
-	async function removeJobs(ids: Set<string>): Promise<void> {
-		for (const id of ids) await deps.payloads.remove(id);
+	async function removeJobs(settled: BulkSaveJob[]): Promise<void> {
+		if (settled.length === 0) return;
+		await deps.payloads.removeAll(
+			settled.filter((job) => job.mediaType !== undefined).map((job) => job.id),
+		);
+		const ids = new Set(settled.map((job) => job.id));
 		await deps.jobs.write((await readJobs()).filter((job) => !ids.has(job.id)));
 	}
 
@@ -126,10 +130,11 @@ export function initBulkSaveQueue(deps: {
 		const now = deps.scheduler.now();
 		const jobs = await readJobs();
 		const urls = new Set(pages.map((page) => page.url));
-		for (const superseded of jobs.filter((job) => urls.has(job.url))) {
-			await deps.payloads.remove(superseded.id);
-		}
+		await deps.payloads.removeAll(
+			jobs.filter((job) => urls.has(job.url)).map((job) => job.id),
+		);
 		const admitted: BulkSaveJob[] = [];
+		const captured: { id: string; blob: Blob }[] = [];
 		for (const page of pages) {
 			const job: BulkSaveJob = {
 				id: crypto.randomUUID(),
@@ -141,21 +146,31 @@ export function initBulkSaveQueue(deps: {
 				createdAt: now,
 			};
 			if (page.content) {
-				await deps.payloads.put({
+				captured.push({
 					id: job.id,
 					blob: new Blob([page.content.bytes], { type: page.content.mediaType }),
 				});
 			}
 			admitted.push(job);
 		}
+		await deps.payloads.putAll(captured);
 		await deps.jobs.write([...jobs.filter((job) => !urls.has(job.url)), ...admitted]);
 		return new Set(admitted.map((job) => job.id));
 	}
 
-	async function rehydrate(job: BulkSaveJob): Promise<BulkSavePage> {
+	async function rehydrateAll(due: BulkSaveJob[]): Promise<BulkSavePage[]> {
+		const stored = await deps.payloads.getAll(
+			due.filter((job) => job.mediaType !== undefined).map((job) => job.id),
+		);
+		const pages: BulkSavePage[] = [];
+		for (const job of due) pages.push(await rehydrate(job, stored));
+		return pages;
+	}
+
+	async function rehydrate(job: BulkSaveJob, stored: Map<string, Blob>): Promise<BulkSavePage> {
 		const page: BulkSavePage = { url: job.url, title: job.title };
 		if (job.mediaType === undefined) return page;
-		const blob = await deps.payloads.get(job.id);
+		const blob = stored.get(job.id);
 		if (!blob) {
 			deps.logger.warn(`[bulk-save-queue] captured bytes for ${job.url} are gone — saving URL-only`);
 			return page;
@@ -164,13 +179,14 @@ export function initBulkSaveQueue(deps: {
 	}
 
 	async function rescheduleAll(due: BulkSaveJob[], report: PassReport): Promise<void> {
-		const terminalIds = new Set<string>();
+		if (due.length === 0) return;
+		const terminal: BulkSaveJob[] = [];
 		const updates = new Map<string, BulkSaveJob>();
 		for (const job of due) {
 			const attempts = job.attempts + 1;
 			if (attempts >= MAX_ATTEMPTS) {
 				deps.logger.warn(`[bulk-save-queue] abandoning ${job.url} after ${attempts} attempts`);
-				terminalIds.add(job.id);
+				terminal.push(job);
 				report.terminalUrls.push(job.url);
 				report.failed += 1;
 				report.failedUrls.push({ url: job.url });
@@ -184,7 +200,8 @@ export function initBulkSaveQueue(deps: {
 				report.retriedUrls.push(job.url);
 			}
 		}
-		for (const id of terminalIds) await deps.payloads.remove(id);
+		await deps.payloads.removeAll(terminal.map((job) => job.id));
+		const terminalIds = new Set(terminal.map((job) => job.id));
 		await deps.jobs.write(
 			(await readJobs())
 				.filter((job) => !terminalIds.has(job.id))
@@ -223,8 +240,7 @@ export function initBulkSaveQueue(deps: {
 			await rearm();
 			return report;
 		}
-		const pages: BulkSavePage[] = [];
-		for (const job of due) pages.push(await rehydrate(job));
+		const pages = await rehydrateAll(due);
 		const degraded = degradeOversizedPages({
 			pages,
 			limits: session.limits,
@@ -253,14 +269,14 @@ export function initBulkSaveQueue(deps: {
 				if (results) {
 					report.alreadySaved += results.filter((entry) => entry.outcome === "merged").length;
 					const outcomeByUrl = new Map(results.map((entry) => [entry.url, entry.outcome]));
-					const settled = new Set<string>();
+					const settled: BulkSaveJob[] = [];
 					const retry: BulkSaveJob[] = [];
 					for (const job of chunkJobs) {
 						const outcome = outcomeByUrl.get(job.url);
 						if (outcome === undefined || outcome === "failed") {
 							retry.push(job);
 						} else {
-							settled.add(job.id);
+							settled.push(job);
 						}
 					}
 					await removeJobs(settled);
@@ -268,7 +284,7 @@ export function initBulkSaveQueue(deps: {
 				} else {
 					const shortfall = chunk.length - (bulk.saved + bulk.skipped + bulk.failed);
 					report.failed += bulk.failed + Math.max(0, shortfall);
-					await removeJobs(new Set(chunkJobs.map((job) => job.id)));
+					await removeJobs(chunkJobs);
 				}
 			} catch (error) {
 				if (error instanceof UnauthorizedError) {

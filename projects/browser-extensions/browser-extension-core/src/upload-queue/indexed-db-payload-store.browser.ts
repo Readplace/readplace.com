@@ -1,9 +1,9 @@
 /// <reference lib="dom" />
-import type { PayloadStore } from "./upload-queue.types";
+import type { BulkPayloadStore, PayloadStore } from "./upload-queue.types";
 
 const STORE_NAME = "payloads";
 
-export function initIndexedDbPayloadStore(deps: { databaseName: string }): PayloadStore {
+export function initIndexedDbBulkPayloadStore(deps: { databaseName: string }): BulkPayloadStore {
 	function open(): Promise<IDBDatabase> {
 		return new Promise((resolve, reject) => {
 			const request = indexedDB.open(deps.databaseName, 1);
@@ -17,15 +17,15 @@ export function initIndexedDbPayloadStore(deps: { databaseName: string }): Paylo
 
 	async function run<T>(
 		mode: IDBTransactionMode,
-		work: (store: IDBObjectStore) => IDBRequest<T>,
+		work: (store: IDBObjectStore) => T,
 	): Promise<T> {
 		const db = await open();
 		try {
 			return await new Promise<T>((resolve, reject) => {
 				const transaction = db.transaction(STORE_NAME, mode);
-				const request = work(transaction.objectStore(STORE_NAME));
-				request.onsuccess = () => resolve(request.result);
-				request.onerror = () => reject(request.error);
+				const result = work(transaction.objectStore(STORE_NAME));
+				transaction.oncomplete = () => resolve(result);
+				transaction.onabort = () => reject(transaction.error);
 			});
 		} finally {
 			db.close();
@@ -33,18 +33,45 @@ export function initIndexedDbPayloadStore(deps: { databaseName: string }): Paylo
 	}
 
 	return {
-		async put({ id, blob }) {
-			await run("readwrite", (store) => store.put(blob, id));
+		async putAll(items) {
+			if (items.length === 0) return;
+			await run("readwrite", (store) => {
+				for (const { id, blob } of items) store.put(blob, id);
+			});
 		},
-		async get(id) {
-			const stored = await run<unknown>("readonly", (store) => store.get(id));
-			return stored instanceof Blob ? stored : undefined;
+		async getAll(ids) {
+			if (ids.length === 0) return new Map();
+			return run("readonly", (store) => {
+				const found = new Map<string, Blob>();
+				for (const id of ids) {
+					const request = store.get(id);
+					request.onsuccess = () => {
+						if (request.result instanceof Blob) found.set(id, request.result);
+					};
+				}
+				return found;
+			});
 		},
-		async remove(id) {
-			await run("readwrite", (store) => store.delete(id));
+		async removeAll(ids) {
+			if (ids.length === 0) return;
+			await run("readwrite", (store) => {
+				for (const id of ids) store.delete(id);
+			});
 		},
 		async clear() {
-			await run("readwrite", (store) => store.clear());
+			await run("readwrite", (store) => {
+				store.clear();
+			});
 		},
+	};
+}
+
+export function initIndexedDbPayloadStore(deps: { databaseName: string }): PayloadStore {
+	const bulk = initIndexedDbBulkPayloadStore(deps);
+	return {
+		put: ({ id, blob }) => bulk.putAll([{ id, blob }]),
+		get: async (id) => (await bulk.getAll([id])).get(id),
+		remove: (id) => bulk.removeAll([id]),
+		clear: () => bulk.clear(),
 	};
 }

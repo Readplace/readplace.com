@@ -17,6 +17,13 @@ export interface PayloadStore {
 	clear: () => Promise<void>;
 }
 
+export interface BulkPayloadStore {
+	putAll: (items: { id: string; blob: Blob }[]) => Promise<void>;
+	getAll: (ids: string[]) => Promise<Map<string, Blob>>;
+	removeAll: (ids: string[]) => Promise<void>;
+	clear: () => Promise<void>;
+}
+
 export interface WakeScheduler {
 	now: () => number;
 	wakeAt: (timestamp: number) => Promise<void>;

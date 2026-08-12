@@ -21,12 +21,19 @@ function createFakePayloads() {
 	const blobs = new Map<string, Blob>();
 	return {
 		blobs,
-		put: async ({ id, blob }: { id: string; blob: Blob }) => {
-			blobs.set(id, blob);
+		putAll: async (items: { id: string; blob: Blob }[]) => {
+			for (const { id, blob } of items) blobs.set(id, blob);
 		},
-		get: async (id: string) => blobs.get(id),
-		remove: async (id: string) => {
-			blobs.delete(id);
+		getAll: async (ids: string[]) => {
+			const found = new Map<string, Blob>();
+			for (const id of ids) {
+				const blob = blobs.get(id);
+				if (blob) found.set(id, blob);
+			}
+			return found;
+		},
+		removeAll: async (ids: string[]) => {
+			for (const id of ids) blobs.delete(id);
 		},
 		clear: async () => {
 			blobs.clear();
@@ -364,7 +371,7 @@ describe("initBulkSaveQueue savePages", () => {
 
 	it("sends a job whose stored bytes were evicted as a URL-only save", async () => {
 		const { queue, session, payloads } = createQueue();
-		payloads.get = async () => undefined;
+		payloads.getAll = async () => new Map();
 
 		const result = await queue.savePages({
 			pages: [

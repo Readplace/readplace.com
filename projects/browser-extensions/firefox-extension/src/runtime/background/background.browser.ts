@@ -1,6 +1,7 @@
 /* c8 ignore start -- composition root, all browser API glue, tested via Selenium E2E */
 import {
 	BrowserExtensionCore,
+	initIndexedDbBulkPayloadStore,
 	initIndexedDbPayloadStore,
 	initOAuthAuth,
 	initSirenReadingList,
@@ -297,7 +298,7 @@ async function initCore() {
 
 	const bulkSaveQueue = initBulkSaveQueue({
 		jobs: bulkSaveJobStore,
-		payloads: initIndexedDbPayloadStore({ databaseName: BULK_SAVE_PAYLOAD_DB }),
+		payloads: initIndexedDbBulkPayloadStore({ databaseName: BULK_SAVE_PAYLOAD_DB }),
 		scheduler: bulkSaveWakeScheduler,
 		openSession: readingList.openBulkSaveSession,
 		notify: showBulkSaveNotification,

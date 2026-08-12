@@ -49,7 +49,10 @@ export type { ContentBodyBuilder } from "./reading-list/content-body-parsers";
 export { capturedContentBody } from "./reading-list/content-body-parsers";
 export type { SaveUrl, UploadContent, UploadContentResult, InvokeAction, FindByUrl, GetItems, LoadPage, LoadPageResult, CollectionPage, PageDescriptor, PageRel, SavePages, BulkSavePage, BulkSaveResult } from "./reading-list/reading-list.types";
 export { initUploadQueue } from "./upload-queue/upload-queue";
-export { initIndexedDbPayloadStore } from "./upload-queue/indexed-db-payload-store.browser";
+export {
+	initIndexedDbBulkPayloadStore,
+	initIndexedDbPayloadStore,
+} from "./upload-queue/indexed-db-payload-store.browser";
 export type { UploadJob } from "./upload-queue/upload-job";
 export { initBulkSaveQueue, type BulkSaveJobStore, type BulkSaveQueue } from "./bulk-save-queue/bulk-save-queue";
 export type { BulkSaveJob } from "./bulk-save-queue/bulk-save-job";
