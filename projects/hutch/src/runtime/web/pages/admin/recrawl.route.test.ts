@@ -228,6 +228,51 @@ describe("Admin recrawl routes", () => {
 			expect(badge?.textContent).toContain("extension capture");
 		});
 
+		it("points 'View original' at the adopted redirect destination", async () => {
+			const harness = buildHarness({ adminEmails: [ADMIN_EMAIL] });
+			await harness.auth.createUser({ email: ADMIN_EMAIL, password: ADMIN_PASSWORD });
+			await harness.articleStore.saveArticleGlobally({
+				url: ARTICLE_URL,
+				metadata: { title: "T", siteName: "example.com", excerpt: "", wordCount: 0 },
+				estimatedReadTime: MinutesSchema.parse(1),
+				savedAt: new Date(),
+			});
+			await harness.articleStore.setDisplayUrl({
+				url: ARTICLE_URL,
+				displayUrl: "https://destination.example/article",
+			});
+			await harness.articleCrawl.markCrawlReady({ url: ARTICLE_URL });
+
+			const agent = await loginAs(harness.server, ADMIN_EMAIL, ADMIN_PASSWORD);
+			const response = await agent.get(`/admin/recrawl/${ENCODED}`);
+
+			expect(response.status).toBe(200);
+			const doc = new JSDOM(response.text).window.document;
+			expect(doc.querySelector("[data-test-original-link]")?.getAttribute("href")).toBe(
+				"https://destination.example/article",
+			);
+		});
+
+		it("keeps 'View original' on the saved URL when no redirect was ever resolved", async () => {
+			const harness = buildHarness({ adminEmails: [ADMIN_EMAIL] });
+			await harness.auth.createUser({ email: ADMIN_EMAIL, password: ADMIN_PASSWORD });
+			await harness.articleStore.saveArticleGlobally({
+				url: ARTICLE_URL,
+				metadata: { title: "T", siteName: "example.com", excerpt: "", wordCount: 0 },
+				estimatedReadTime: MinutesSchema.parse(1),
+				savedAt: new Date(),
+			});
+			await harness.articleCrawl.markCrawlReady({ url: ARTICLE_URL });
+
+			const agent = await loginAs(harness.server, ADMIN_EMAIL, ADMIN_PASSWORD);
+			const response = await agent.get(`/admin/recrawl/${ENCODED}`);
+
+			const doc = new JSDOM(response.text).window.document;
+			expect(doc.querySelector("[data-test-original-link]")?.getAttribute("href")).toBe(
+				ARTICLE_URL,
+			);
+		});
+
 		it("renders the Tier 1 badge when contentSourceTier is tier-1 (HTTP crawl)", async () => {
 			const harness = buildHarness({ adminEmails: [ADMIN_EMAIL] });
 			await harness.auth.createUser({ email: ADMIN_EMAIL, password: ADMIN_PASSWORD });

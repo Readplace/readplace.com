@@ -65,6 +65,7 @@ export function formatRecrawlDocumentTitle(articleTitle: string): string {
 
 export interface AdminRecrawlPageInput {
 	articleUrl: string;
+	displayUrl?: string;
 	metadata: ArticleMetadata;
 	estimatedReadTime: Minutes;
 	content?: string;
@@ -100,7 +101,7 @@ export function AdminRecrawlPage(input: AdminRecrawlPageInput): PageBody {
 		title: input.metadata.title,
 		siteName: input.metadata.siteName,
 		estimatedReadTime: input.estimatedReadTime,
-		url: input.articleUrl,
+		url: input.displayUrl ?? input.articleUrl,
 		content: input.content,
 		crawl: input.crawl,
 		readerPollUrl: input.readerPollUrl,
