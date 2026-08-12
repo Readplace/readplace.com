@@ -1,4 +1,5 @@
 import { ArticleResourceUniqueId } from "@packages/article-resource-unique-id";
+import { stubMetadataFor } from "@packages/domain/article";
 import {
 	ConditionalCheckFailedException,
 	type DynamoDBDocumentClient,
@@ -59,6 +60,11 @@ export type SetArticleDisplayUrl = (params: {
 	displayUrl: string;
 }) => Promise<void>;
 
+export type ReconcileStubMetadata = (params: {
+	articleUrl: string;
+	displayUrl: string;
+}) => Promise<void>;
+
 /** The URL a re-crawl of `url` must actually fetch: the redirect terminal an
  * adopted article was pinned to (its `displayUrl`), or `undefined` for a normal
  * article, so the crawl fetches `url` itself. Closes the content-poisoning
@@ -72,6 +78,7 @@ export function initCanonicalAliasStore(deps: {
 	claimAlias: ClaimCanonicalAlias;
 	resolveAlias: ResolveCanonicalAlias;
 	setDisplayUrl: SetArticleDisplayUrl;
+	reconcileStubMetadata: ReconcileStubMetadata;
 	findAdoptedFetchUrl: FindAdoptedFetchUrl;
 } {
 	const table = defineDynamoTable({
@@ -123,6 +130,27 @@ export function initCanonicalAliasStore(deps: {
 		}
 	};
 
+	const reconcileStubMetadata: ReconcileStubMetadata = async ({ articleUrl, displayUrl }) => {
+		const destinationStub = stubMetadataFor(new URL(displayUrl).hostname);
+		const originStub = stubMetadataFor(new URL(articleUrl).hostname);
+		try {
+			await table.update({
+				Key: { url: ArticleResourceUniqueId.parse(articleUrl).value },
+				UpdateExpression: "SET title = :title, siteName = :siteName, excerpt = :excerpt",
+				ConditionExpression: "attribute_exists(routeId) AND title = :originStubTitle",
+				ExpressionAttributeValues: {
+					":title": destinationStub.title,
+					":siteName": destinationStub.siteName,
+					":excerpt": destinationStub.excerpt,
+					":originStubTitle": originStub.title,
+				},
+			});
+		} catch (error) {
+			if (error instanceof ConditionalCheckFailedException) return;
+			throw error;
+		}
+	};
+
 	const findAdoptedFetchUrl: FindAdoptedFetchUrl = async (url) => {
 		const row = await table.get({ url: ArticleResourceUniqueId.parse(url).value });
 		// Only an adopted real article carries displayUrl; a normal article and an
@@ -130,7 +158,7 @@ export function initCanonicalAliasStore(deps: {
 		return row?.displayUrl;
 	};
 
-	return { claimAlias, resolveAlias, setDisplayUrl, findAdoptedFetchUrl };
+	return { claimAlias, resolveAlias, setDisplayUrl, reconcileStubMetadata, findAdoptedFetchUrl };
 }
 
 export function initResolveCanonicalIdentity(deps: {

@@ -1,5 +1,9 @@
 import { noopLogger } from "@packages/hutch-logger";
-import type { ClaimCanonicalAlias, SetArticleDisplayUrl } from "@packages/article-store";
+import type {
+	ClaimCanonicalAlias,
+	ReconcileStubMetadata,
+	SetArticleDisplayUrl,
+} from "@packages/article-store";
 import { noExtract, noRecovery, noTransform, skipCrawl, type SiteRules } from "@packages/site-rules";
 import { adoptableTerminal, initAdoptCanonicalIdentity, initIsSiteRuleUrl } from "./adopt-canonical-identity";
 
@@ -65,15 +69,21 @@ describe("adoptableTerminal", () => {
 
 describe("initAdoptCanonicalIdentity", () => {
 	const noopSetDisplayUrl: SetArticleDisplayUrl = async () => {};
+	const noopReconcileStubMetadata: ReconcileStubMetadata = async () => {};
 
 	function build(
 		claimAlias: ClaimCanonicalAlias,
-		opts: { isSiteRuleUrl?: (url: string) => boolean; setDisplayUrl?: SetArticleDisplayUrl } = {},
+		opts: {
+			isSiteRuleUrl?: (url: string) => boolean;
+			setDisplayUrl?: SetArticleDisplayUrl;
+			reconcileStubMetadata?: ReconcileStubMetadata;
+		} = {},
 	) {
 		const now = () => new Date("2026-07-15T10:00:00.000Z");
 		return initAdoptCanonicalIdentity({
 			claimAlias,
 			setDisplayUrl: opts.setDisplayUrl ?? noopSetDisplayUrl,
+			reconcileStubMetadata: opts.reconcileStubMetadata ?? noopReconcileStubMetadata,
 			isSiteRuleUrl: opts.isSiteRuleUrl ?? never,
 			now,
 			logger: noopLogger,
@@ -169,6 +179,79 @@ describe("initAdoptCanonicalIdentity", () => {
 				url: "https://site.com/page.html",
 				finalUrl: "https://site.com/page",
 				outcome: { kind: "finalized", wordCount: 300 },
+			}),
+		).resolves.toBeUndefined();
+	});
+
+	it("re-points the stub metadata at the destination when the crawl failed there", async () => {
+		const claimAlias = jest.fn<ReturnType<ClaimCanonicalAlias>, Parameters<ClaimCanonicalAlias>>(async () => "claimed");
+		const reconcileStubMetadata = jest.fn<
+			ReturnType<ReconcileStubMetadata>,
+			Parameters<ReconcileStubMetadata>
+		>(async () => {});
+		const adopt = build(claimAlias, { reconcileStubMetadata });
+
+		await adopt({
+			url: "https://wrapper.example/link/188518",
+			finalUrl: "https://dest.example/article",
+			outcome: { kind: "crawl-failed" },
+		});
+
+		expect(reconcileStubMetadata).toHaveBeenCalledWith({
+			articleUrl: "https://wrapper.example/link/188518",
+			displayUrl: "https://dest.example/article",
+		});
+	});
+
+	it("re-points the stub metadata on a successful adoption too, before the tier promotion lands", async () => {
+		const claimAlias = jest.fn<ReturnType<ClaimCanonicalAlias>, Parameters<ClaimCanonicalAlias>>(async () => "claimed");
+		const reconcileStubMetadata = jest.fn<
+			ReturnType<ReconcileStubMetadata>,
+			Parameters<ReconcileStubMetadata>
+		>(async () => {});
+		const adopt = build(claimAlias, { reconcileStubMetadata });
+
+		await adopt({
+			url: "https://site.com/page.html",
+			finalUrl: "https://other.com/page",
+			outcome: { kind: "finalized", wordCount: 300 },
+		});
+
+		expect(reconcileStubMetadata).toHaveBeenCalledWith({
+			articleUrl: "https://site.com/page.html",
+			displayUrl: "https://other.com/page",
+		});
+	});
+
+	it("does not touch the stub metadata when a gate rejects the terminal", async () => {
+		const claimAlias = jest.fn<ReturnType<ClaimCanonicalAlias>, Parameters<ClaimCanonicalAlias>>(async () => "claimed");
+		const reconcileStubMetadata = jest.fn<
+			ReturnType<ReconcileStubMetadata>,
+			Parameters<ReconcileStubMetadata>
+		>(async () => {});
+		const adopt = build(claimAlias, { reconcileStubMetadata });
+
+		await adopt({
+			url: "https://site.com/page.html",
+			finalUrl: "https://site.com/page",
+			outcome: { kind: "finalized", wordCount: 0 },
+		});
+
+		expect(reconcileStubMetadata).not.toHaveBeenCalled();
+	});
+
+	it("never throws when the stub reconcile fails (crawl must not be stranded)", async () => {
+		const claimAlias = jest.fn<ReturnType<ClaimCanonicalAlias>, Parameters<ClaimCanonicalAlias>>(async () => "claimed");
+		const reconcileStubMetadata: ReconcileStubMetadata = async () => {
+			throw new Error("DDB unavailable");
+		};
+		const adopt = build(claimAlias, { reconcileStubMetadata });
+
+		await expect(
+			adopt({
+				url: "https://wrapper.example/link/188518",
+				finalUrl: "https://dest.example/article",
+				outcome: { kind: "crawl-failed" },
 			}),
 		).resolves.toBeUndefined();
 	});

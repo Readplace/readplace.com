@@ -10,6 +10,7 @@ export {
 	type ResolveCanonicalAlias,
 	type ResolveCanonicalIdentity,
 	type SetArticleDisplayUrl,
+	type ReconcileStubMetadata,
 	type FindAdoptedFetchUrl,
 } from "./canonical-alias";
 export type { ArticleStore } from "@packages/domain/article-aggregate";

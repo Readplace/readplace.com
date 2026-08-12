@@ -126,6 +126,61 @@ describe("initCanonicalAliasStore", () => {
 		});
 	});
 
+	describe("reconcileStubMetadata", () => {
+		it("re-points the stub title, site name and excerpt at the destination host", async () => {
+			let captured: unknown;
+			const client = createFakeClient((input) => {
+				captured = input;
+				return {};
+			});
+			const { reconcileStubMetadata } = initCanonicalAliasStore({ client, tableName: TABLE });
+
+			await reconcileStubMetadata({
+				articleUrl: "https://wrapper.example/link/188518",
+				displayUrl: "https://dest.example/article?utm_source=newsletter",
+			});
+
+			const { input } = CapturedCommand.parse(captured);
+			expect(input.Key).toEqual({ url: "wrapper.example/link/188518" });
+			expect(input.UpdateExpression).toBe("SET title = :title, siteName = :siteName, excerpt = :excerpt");
+			expect(input.ConditionExpression).toBe("attribute_exists(routeId) AND title = :originStubTitle");
+			expect(input.ExpressionAttributeValues).toEqual({
+				":title": "Article from dest.example",
+				":siteName": "dest.example",
+				":excerpt": "Saved from dest.example.",
+				":originStubTitle": "Article from wrapper.example",
+			});
+		});
+
+		it("is a no-op when the row already holds real crawled metadata (conditional check fails)", async () => {
+			const client = createFakeClient(() => {
+				throw conditionalCheckFailed();
+			});
+			const { reconcileStubMetadata } = initCanonicalAliasStore({ client, tableName: TABLE });
+
+			await expect(
+				reconcileStubMetadata({
+					articleUrl: "https://wrapper.example/link/188518",
+					displayUrl: "https://dest.example/article",
+				}),
+			).resolves.toBeUndefined();
+		});
+
+		it("propagates non-conditional write errors", async () => {
+			const client = createFakeClient(() => {
+				throw new Error("DDB unavailable");
+			});
+			const { reconcileStubMetadata } = initCanonicalAliasStore({ client, tableName: TABLE });
+
+			await expect(
+				reconcileStubMetadata({
+					articleUrl: "https://wrapper.example/link/188518",
+					displayUrl: "https://dest.example/article",
+				}),
+			).rejects.toThrow("DDB unavailable");
+		});
+	});
+
 	describe("findAdoptedFetchUrl", () => {
 		it("returns the pinned destination for an adopted article", async () => {
 			const client = createFakeClient(() => ({

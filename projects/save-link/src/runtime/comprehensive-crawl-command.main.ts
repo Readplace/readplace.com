@@ -105,6 +105,7 @@ const { consumePaidCrawlBudget, refundPaidCrawlBudget } = initDynamoDbPaidCrawlB
 const adoptCanonicalIdentity = initAdoptCanonicalIdentity({
 	claimAlias: canonicalAliasStore.claimAlias,
 	setDisplayUrl: canonicalAliasStore.setDisplayUrl,
+	reconcileStubMetadata: canonicalAliasStore.reconcileStubMetadata,
 	isSiteRuleUrl: parser.isSiteRuleUrl,
 	now,
 	logger: consoleLogger,
