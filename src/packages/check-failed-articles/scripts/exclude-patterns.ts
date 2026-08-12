@@ -301,6 +301,14 @@ export const EXCLUDE_PATTERNS: readonly RegExp[] = [
 	// to AWS — so no egress change or curl-impersonate persona reaches it either.
 	// Anchored per link id so the other trackers on this host still surface.
 	/^https:\/\/javascriptweekly\.com\/link\/188764\/8babea547d$/i,
+	// programmingdigest.net newsletter link-tracker, same shape as the
+	// leadershipintech.com entry above: the tracker 30x's once to a karboosx.net
+	// post and the crawl exhausts retries past the hop. Both hops answer 200 to
+	// residential egress with any UA (curl default, none, browser), so the wall is
+	// the datacenter egress path and no crawler change reaches it. Anchored to the
+	// exact saved link id, not the `/links/` prefix, so trackers pointing at
+	// reachable hosts still surface.
+	/^https:\/\/programmingdigest\.net\/links\/22961\/2554a8ea-e370-42e6-a26f-1c86375ee7a7\/email$/i,
 ];
 
 export function isExcluded(url: string, patterns: readonly RegExp[]): boolean {

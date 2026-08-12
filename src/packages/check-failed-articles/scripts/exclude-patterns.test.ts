@@ -802,6 +802,41 @@ describe("EXCLUDE_PATTERNS — javascriptweekly.com link trackers", () => {
 	}
 });
 
+describe("EXCLUDE_PATTERNS — programmingdigest.net link tracker", () => {
+	const cases: ReadonlyArray<{ url: string; excluded: boolean; label: string }> = [
+		{
+			url: "https://programmingdigest.net/links/22961/2554a8ea-e370-42e6-a26f-1c86375ee7a7/email",
+			excluded: true,
+			label: "stored row shape — exact tracker link id",
+		},
+		{
+			url: "https://programmingdigest.net/links/22961/2554a8ea-e370-42e6-a26f-1c86375ee7a7/email?utm_source=x",
+			excluded: false,
+			label: "same tracker with a query suffix — anchored exact, should NOT match",
+		},
+		{
+			url: "https://programmingdigest.net/links/22962/2554a8ea-e370-42e6-a26f-1c86375ee7a7/email",
+			excluded: false,
+			label: "different link id on the same host — must NOT be hidden",
+		},
+		{
+			url: "https://programmingdigest.net/links/22961/2554a8ea-e370-42e6-a26f-1c86375ee7a7/web",
+			excluded: false,
+			label: "non-email delivery suffix — must NOT be hidden",
+		},
+		{
+			url: "https://karboosx.net/post/5j7jdDM3/how-to-create-your-own-decentralized-messenger-protocol",
+			excluded: false,
+			label: "the tracker's redirect destination — must NOT be hidden",
+		},
+	];
+	for (const { url, excluded, label } of cases) {
+		it(`${excluded ? "excludes" : "keeps"}: ${label} — ${url}`, () => {
+			assert.equal(isExcluded(url, EXCLUDE_PATTERNS), excluded);
+		});
+	}
+});
+
 describe("EXCLUDE_PATTERNS — doubled-URL save (issue #594)", () => {
 	const cases: ReadonlyArray<{ url: string; excluded: boolean; label: string }> = [
 		{
