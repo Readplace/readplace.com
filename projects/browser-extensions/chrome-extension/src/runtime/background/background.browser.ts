@@ -3,13 +3,13 @@ import browser from "webextension-polyfill";
 import {
 	BrowserExtensionCore,
 	initIndexedDbBulkPayloadStore,
+	initIndexedDbBulkSaveJobStore,
 	initIndexedDbPayloadStore,
 	initOAuthAuth,
 	initSirenReadingList,
 	initBulkSaveQueue,
 	initSyncContextMenus,
 	initUploadQueue,
-	type BulkSaveJobStore,
 	ADVERTISED_CAPABILITIES_STORAGE_KEY,
 	COMMAND_BINDINGS_STORAGE_KEY,
 	SAVE_ALL_SHORTCUT_MESSAGE_TYPE,
@@ -52,7 +52,7 @@ const STORAGE_KEY = "hutch_oauth_tokens";
 const UPLOAD_JOBS_KEY = "hutch_upload_jobs";
 const UPLOAD_ALARM_NAME = "hutch-upload-queue";
 const UPLOAD_PAYLOAD_DB = "hutch-upload-payloads";
-const BULK_SAVE_JOBS_KEY = "hutch_bulk_save_jobs";
+const BULK_SAVE_JOBS_DB = "hutch-bulk-save-jobs";
 const BULK_SAVE_ALARM_NAME = "hutch-bulk-save-queue";
 const BULK_SAVE_PAYLOAD_DB = "hutch-bulk-save-payloads";
 declare const __SERVER_URL__: string;
@@ -95,16 +95,6 @@ const wakeScheduler: WakeScheduler = {
 	},
 	async cancel(): Promise<void> {
 		await browser.alarms.clear(UPLOAD_ALARM_NAME);
-	},
-};
-
-const bulkSaveJobStore: BulkSaveJobStore = {
-	async read(): Promise<unknown> {
-		const stored = await browser.storage.local.get(BULK_SAVE_JOBS_KEY);
-		return stored[BULK_SAVE_JOBS_KEY];
-	},
-	async write(jobs): Promise<void> {
-		await browser.storage.local.set({ [BULK_SAVE_JOBS_KEY]: jobs });
 	},
 };
 
@@ -277,7 +267,7 @@ async function initCore() {
 	});
 
 	const bulkSaveQueue = initBulkSaveQueue({
-		jobs: bulkSaveJobStore,
+		jobs: initIndexedDbBulkSaveJobStore({ databaseName: BULK_SAVE_JOBS_DB }),
 		payloads: initIndexedDbBulkPayloadStore({ databaseName: BULK_SAVE_PAYLOAD_DB }),
 		scheduler: bulkSaveWakeScheduler,
 		openSession: readingList.openBulkSaveSession,

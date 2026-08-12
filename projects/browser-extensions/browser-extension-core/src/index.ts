@@ -51,6 +51,7 @@ export type { SaveUrl, UploadContent, UploadContentResult, InvokeAction, FindByU
 export { initUploadQueue } from "./upload-queue/upload-queue";
 export {
 	initIndexedDbBulkPayloadStore,
+	initIndexedDbBulkSaveJobStore,
 	initIndexedDbPayloadStore,
 } from "./upload-queue/indexed-db-payload-store.browser";
 export type { UploadJob } from "./upload-queue/upload-job";

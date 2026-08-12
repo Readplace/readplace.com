@@ -2,13 +2,13 @@
 import {
 	BrowserExtensionCore,
 	initIndexedDbBulkPayloadStore,
+	initIndexedDbBulkSaveJobStore,
 	initIndexedDbPayloadStore,
 	initOAuthAuth,
 	initSirenReadingList,
 	initBulkSaveQueue,
 	initSyncContextMenus,
 	initUploadQueue,
-	type BulkSaveJobStore,
 	ADVERTISED_CAPABILITIES_STORAGE_KEY,
 	COMMAND_BINDINGS_STORAGE_KEY,
 	SAVE_ALL_SHORTCUT_MESSAGE_TYPE,
@@ -42,18 +42,8 @@ const logger = HutchLogger.from(consoleLogger);
 const STORAGE_KEY = "hutch_oauth_tokens";
 const UPLOAD_JOBS_KEY = "hutch_upload_jobs";
 const UPLOAD_PAYLOAD_DB = "hutch-upload-payloads";
-const BULK_SAVE_JOBS_KEY = "hutch_bulk_save_jobs";
+const BULK_SAVE_JOBS_DB = "hutch-bulk-save-jobs";
 const BULK_SAVE_PAYLOAD_DB = "hutch-bulk-save-payloads";
-
-const bulkSaveJobStore: BulkSaveJobStore = {
-	async read(): Promise<unknown> {
-		const stored = await browser.storage.local.get(BULK_SAVE_JOBS_KEY);
-		return stored[BULK_SAVE_JOBS_KEY];
-	},
-	async write(jobs): Promise<void> {
-		await browser.storage.local.set({ [BULK_SAVE_JOBS_KEY]: jobs });
-	},
-};
 
 const uploadJobStore: UploadJobStore = {
 	async read(): Promise<unknown> {
@@ -297,7 +287,7 @@ async function initCore() {
 	});
 
 	const bulkSaveQueue = initBulkSaveQueue({
-		jobs: bulkSaveJobStore,
+		jobs: initIndexedDbBulkSaveJobStore({ databaseName: BULK_SAVE_JOBS_DB }),
 		payloads: initIndexedDbBulkPayloadStore({ databaseName: BULK_SAVE_PAYLOAD_DB }),
 		scheduler: bulkSaveWakeScheduler,
 		openSession: readingList.openBulkSaveSession,
