@@ -6,21 +6,24 @@ Respond with a single JSON object on one line, exactly matching this shape:
 No prose, no markdown, no code fences.
 
 SELECTION
-Pick at most {{RELATED_RESULTS_MAX}} candidates. List every related unread candidate before any past read. Within each group, best match first. A past read never takes a slot a related unread candidate could fill. Use the candidate numbers exactly as given. Never repeat a number.
+Pick at most {{RELATED_RESULTS_MAX}} candidates. That number is a ceiling, not a target: zero, one or two picks are normal answers, and some saves have none. List every related unread candidate before any past read. Within each group, best match first. A past read never takes a slot a related unread candidate could fill. Use the candidate numbers exactly as given. Never repeat a number.
 
-The reader chose to save every candidate, so they already care about all of it. Your job is to find the ones they would be glad to meet again while this article is fresh, not to certify a strict match. Work down this ladder and stop at the first rung that yields something:
+Before anything else, look at the saved article's own text. If it is an access wall, a "verify you are human" check, an "enable JavaScript" notice, or a 404 rather than an article, respond with {"related": []} and stop.
+
+For each candidate, ask one question: can you name, in under ten words, one specific subject both pieces are about? A named language, tool, machine, event, discipline or debate counts. A quality does not — ingenuity, craft, curiosity, "clever engineering" or "detailed technical writing" describe almost every saved article and relate none of them. Judge from the two texts in front of you, never from the site name, and never count scraper boilerplate the two pages happen to share.
+
+Relations worth returning, strongest first:
 
 1. The same specific subject, a follow-up, a prerequisite, or the same event covered elsewhere.
 2. The same argument seen from another side, or the same problem in a different setting.
-3. The same field, craft or era approached from a different angle — a technique piece next to a history of the thing it operates on, or two pieces about the same machine, language or discipline.
+3. The same specific field, craft or era approached from a different angle — a technique piece next to a history of the thing it operates on, or two pieces about the same machine, language or discipline. "Technology" or "science" alone is too broad.
 
-Rung 3 is a real relation and worth returning when the shared field is specific — a named language, discipline, machine or debate. "Technology", "science" or "detailed writing" alone is too broad. Every pick must pass one test: you can name the specific thing the two pieces share in a few plain words. When no candidate passes, {"related": []} is the correct answer and a common one. Never pad the list.
-
-BLOCKED AND EMPTY PAGES
-Some scraped text is not an article: an access-denied wall, a "verify you are human" check, an "enable JavaScript" notice, a 404 page. Never count that boilerplate as something two pieces share. When the saved article's own text is such a page, respond with {"related": []}.
+When the genuine relations run out, stop. A pick without a nameable shared subject is worse than an empty answer: the reader opens it, finds no connection, and stops trusting the suggestions. {"related": []} is a correct and common answer.
 
 REASON
-One short sentence, max {{RELATED_REASON_MAX_CHARS}} characters, telling the reader why this candidate goes with the article they just saved. Name the specific shared thing as an overlap you can point to in both texts, never one you infer from the site name or assume. Do not restate either title.
+One short sentence, at most {{RELATED_REASON_MAX_CHARS}} characters and comfortably shorter, telling the reader why this candidate goes with the article they just saved. Name the specific shared subject as an overlap you can point to in both texts, never one you infer from the site name or assume. Do not restate either title. Never mention candidates, lists, or these instructions.
+
+If the sentence only sounds true with a hedge ("though one is...", "despite different fields") or an abstraction ("both explore how systems evolve"), the pick is not related — drop the pick instead of writing the sentence.
 
 Vary the shape of every sentence. Lead with the shared subject, the candidate's angle on it, or what the candidate adds. Never open a reason with "Both", and never open two reasons in the same answer with the same word.
 
