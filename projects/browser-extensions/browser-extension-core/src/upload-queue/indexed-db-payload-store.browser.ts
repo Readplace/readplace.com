@@ -18,11 +18,12 @@ async function inOneTransaction<T>(
 	databaseName: string,
 	mode: IDBTransactionMode,
 	work: (store: IDBObjectStore) => T,
+	options?: IDBTransactionOptions,
 ): Promise<T> {
 	const db = await openDatabase(databaseName);
 	try {
 		return await new Promise<T>((resolve, reject) => {
-			const transaction = db.transaction(STORE_NAME, mode);
+			const transaction = db.transaction(STORE_NAME, mode, options);
 			const result = work(transaction.objectStore(STORE_NAME));
 			transaction.oncomplete = () => resolve(result);
 			transaction.onabort = () => reject(transaction.error);
@@ -32,13 +33,20 @@ async function inOneTransaction<T>(
 	}
 }
 
+const RECOVERABLE_WRITE: IDBTransactionOptions = { durability: "relaxed" };
+
 export function initIndexedDbBulkPayloadStore(deps: { databaseName: string }): BulkPayloadStore {
 	return {
 		async putAll(items) {
 			if (items.length === 0) return;
-			await inOneTransaction(deps.databaseName, "readwrite", (store) => {
-				for (const { id, bytes } of items) store.put(bytes, id);
-			});
+			await inOneTransaction(
+				deps.databaseName,
+				"readwrite",
+				(store) => {
+					for (const { id, bytes } of items) store.put(bytes, id);
+				},
+				RECOVERABLE_WRITE,
+			);
 		},
 		async getAll(ids) {
 			if (ids.length === 0) return new Map();
@@ -55,14 +63,24 @@ export function initIndexedDbBulkPayloadStore(deps: { databaseName: string }): B
 		},
 		async removeAll(ids) {
 			if (ids.length === 0) return;
-			await inOneTransaction(deps.databaseName, "readwrite", (store) => {
-				for (const id of ids) store.delete(id);
-			});
+			await inOneTransaction(
+				deps.databaseName,
+				"readwrite",
+				(store) => {
+					for (const id of ids) store.delete(id);
+				},
+				RECOVERABLE_WRITE,
+			);
 		},
 		async clear() {
-			await inOneTransaction(deps.databaseName, "readwrite", (store) => {
-				store.clear();
-			});
+			await inOneTransaction(
+				deps.databaseName,
+				"readwrite",
+				(store) => {
+					store.clear();
+				},
+				RECOVERABLE_WRITE,
+			);
 		},
 	};
 }
