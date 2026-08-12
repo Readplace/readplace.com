@@ -975,6 +975,88 @@ describe("initArticleReader", () => {
 			expect(titleEl.textContent).toBe("Why Rust beats Go — TestReader");
 		});
 
+		it("points the header 'View original' at the redirect destination for a merged article", async () => {
+			const { state, deps } = initFakeDeps({
+				crawl: { status: "pending" },
+				content: undefined,
+			});
+			state.article = {
+				...defaultFakeArticle(),
+				displayUrl: "https://destination.example/article",
+			};
+			const reader = initArticleReader(deps);
+
+			const component = await reader.handleReaderPoll({
+				articleUrl: ARTICLE_URL,
+				pollCount: 1,
+				pollUrlBuilder: makePollUrlBuilder(),
+				capturing: false,
+				extensionInstallUrl: undefined,
+				summaryToggleUrl: undefined,
+				provenance: undefined,
+			});
+
+			const doc = parse(toHtml(component));
+			const header = doc.querySelector("#article-header");
+			assert(header, "header OOB fragment must accompany the reader-slot");
+			expect(header.querySelector("[data-test-original-link]")?.getAttribute("href")).toBe(
+				"https://destination.example/article",
+			);
+		});
+
+		it("keeps the header 'View original' on the saved URL when no redirect was ever resolved", async () => {
+			const { deps } = initFakeDeps({
+				crawl: { status: "pending" },
+				content: undefined,
+			});
+			const reader = initArticleReader(deps);
+
+			const component = await reader.handleReaderPoll({
+				articleUrl: ARTICLE_URL,
+				pollCount: 1,
+				pollUrlBuilder: makePollUrlBuilder(),
+				capturing: false,
+				extensionInstallUrl: undefined,
+				summaryToggleUrl: undefined,
+				provenance: undefined,
+			});
+
+			const doc = parse(toHtml(component));
+			const header = doc.querySelector("#article-header");
+			assert(header, "header OOB fragment must accompany the reader-slot");
+			expect(header.querySelector("[data-test-original-link]")?.getAttribute("href")).toBe(
+				ARTICLE_URL,
+			);
+		});
+
+		it("sends the failed-slot CTA to the redirect destination for a merged article", async () => {
+			const { state, deps } = initFakeDeps({
+				crawl: { status: "pending" },
+				content: undefined,
+			});
+			state.article = {
+				...defaultFakeArticle(),
+				displayUrl: "https://destination.example/article",
+			};
+			const reader = initArticleReader(deps);
+
+			const component = await reader.handleReaderPoll({
+				articleUrl: ARTICLE_URL,
+				pollCount: MAX_POLLS,
+				pollUrlBuilder: makePollUrlBuilder(),
+				capturing: false,
+				extensionInstallUrl: undefined,
+				summaryToggleUrl: undefined,
+				provenance: undefined,
+			});
+
+			const doc = parse(toHtml(component));
+			const primary = doc.querySelector("[data-test-reader-failed-primary]");
+			assert(primary, "primary source CTA must be rendered when the poll cap is reached");
+			expect(primary.getAttribute("href")).toBe("https://destination.example/article");
+			expect(primary.textContent).toContain("destination.example");
+		});
+
 		it("omits the header + <title> OOB fragments when the row has gone missing — falling back to swapping only the slot so the existing header text stays put", async () => {
 			const { deps } = initFakeDeps({
 				crawl: { status: "pending" },
@@ -1041,6 +1123,35 @@ describe("initArticleReader", () => {
 			const titleEl = doc.querySelector("title#document-title");
 			assert(titleEl, "<title> OOB fragment must accompany the summary-slot");
 			expect(titleEl.textContent).toBe("Why Rust beats Go — TestReader");
+		});
+
+		it("points the header 'View original' at the redirect destination for a merged article", async () => {
+			const { state, deps } = initFakeDeps({
+				crawl: { status: "ready" },
+				summary: { status: "pending", stage: "summary-generating" },
+			});
+			state.article = {
+				...defaultFakeArticle(),
+				displayUrl: "https://destination.example/article",
+			};
+			const reader = initArticleReader(deps);
+
+			const component = await reader.handleSummaryPoll({
+				articleUrl: ARTICLE_URL,
+				pollCount: 1,
+				pollUrlBuilder: makePollUrlBuilder(),
+				capturing: false,
+				extensionInstallUrl: undefined,
+				summaryToggleUrl: undefined,
+				provenance: undefined,
+			});
+
+			const doc = parse(toHtml(component));
+			const header = doc.querySelector("#article-header");
+			assert(header, "header OOB fragment must accompany the summary-slot");
+			expect(header.querySelector("[data-test-original-link]")?.getAttribute("href")).toBe(
+				"https://destination.example/article",
+			);
 		});
 	});
 

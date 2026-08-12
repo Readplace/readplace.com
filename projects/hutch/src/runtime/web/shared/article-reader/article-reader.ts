@@ -285,7 +285,7 @@ export function initArticleReader(deps: ArticleReaderDeps): {
 	 */
 	function buildMetadataOob(
 		article: GlobalArticleData | null,
-		articleUrl: string,
+		displayUrl: string,
 		provenance: SaveProvenance | undefined,
 	): string {
 		if (!article) return "";
@@ -293,7 +293,7 @@ export function initArticleReader(deps: ArticleReaderDeps): {
 			title: article.metadata.title,
 			siteName: article.metadata.siteName,
 			estimatedReadTime: article.estimatedReadTime,
-			url: articleUrl,
+			url: displayUrl,
 			provenance,
 		});
 		const titleOob = renderDocumentTitleOob(
@@ -310,12 +310,13 @@ export function initArticleReader(deps: ArticleReaderDeps): {
 			deps.readArticleContent(articleUrl),
 			deps.findArticleByUrl(articleUrl),
 		]);
+		const displayUrl = article?.displayUrl ?? articleUrl;
 		const { readerPollUrl, summaryPollUrl, capturePollUrl } = computePollUrls({
 			crawl, summary, content, pollCount, pollUrlBuilder, capturing: params.capturing,
 		});
 		return HtmlPage(renderPollResponseBody({
 			primary: "summary",
-			url: articleUrl,
+			url: displayUrl,
 			crawl,
 			summary,
 			content,
@@ -327,7 +328,7 @@ export function initArticleReader(deps: ArticleReaderDeps): {
 			summaryToggleUrl: params.summaryToggleUrl,
 			extensionInstallUrl,
 			progress: buildUnifiedProgress(crawl, summary, deps.now()),
-			metadataOob: buildMetadataOob(article, articleUrl, params.provenance),
+			metadataOob: buildMetadataOob(article, displayUrl, params.provenance),
 			appOrigin: deps.appOrigin,
 		}));
 	}
@@ -340,12 +341,13 @@ export function initArticleReader(deps: ArticleReaderDeps): {
 			deps.readArticleContent(articleUrl),
 			deps.findArticleByUrl(articleUrl),
 		]);
+		const displayUrl = article?.displayUrl ?? articleUrl;
 		const { readerPollUrl, summaryPollUrl, capturePollUrl } = computePollUrls({
 			crawl, summary, content, pollCount, pollUrlBuilder, capturing: params.capturing,
 		});
 		return HtmlPage(renderPollResponseBody({
 			primary: "reader",
-			url: articleUrl,
+			url: displayUrl,
 			crawl,
 			summary,
 			content,
@@ -357,7 +359,7 @@ export function initArticleReader(deps: ArticleReaderDeps): {
 			summaryToggleUrl: params.summaryToggleUrl,
 			extensionInstallUrl,
 			progress: buildUnifiedProgress(crawl, summary, deps.now()),
-			metadataOob: buildMetadataOob(article, articleUrl, params.provenance),
+			metadataOob: buildMetadataOob(article, displayUrl, params.provenance),
 			appOrigin: deps.appOrigin,
 		}));
 	}
