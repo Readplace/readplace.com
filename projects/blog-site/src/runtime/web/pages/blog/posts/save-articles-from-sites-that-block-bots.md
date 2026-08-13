@@ -50,6 +50,17 @@ Before shipping, I ran the new fingerprint against every source in the crawler's
 
 Then production drew the line of what a fingerprint can do. StackOverflow, which had been 403 from the Lambda on Chrome 116, crawled cleanly on Chrome 131. The Hill did not. From a residential address the same binary loaded it, but from the Lambda's datacenter address it still returned 403. The Hill blocks the AWS egress range on top of the fingerprint check, and no handshake change reaches that. Getting past it needs a residential or mobile proxy, which is separate work. So the fingerprint fix shipped and The Hill came off the canary until that egress piece lands, because a canary that fails every run is noise.
 
+```rp-figure
+kind: matrix
+title: What the Chrome 131 persona reached, and what it did not
+note: Each site checked from one residential address and from the crawler Lambda.
+toggle: After the crawler posed as Chrome 131 instead of Chrome 116
+head: Check | The Hill | StackOverflow
+row: Fetch from one residential address | !403>>200 | !403>>200
+row: Crawl from the Lambda's datacenter address | !403>>Still 403 | !403>>Crawled cleanly
+row: What still blocks it | !Fingerprint plus the AWS egress range>>The AWS egress range | !Fingerprint>>Nothing
+```
+
 ## Saving the links a bare fetch bounces off
 
 A read-it-later tool is only as good as the saves it completes. The sites most worth keeping, the news and reference and discussion ones, are also the sites most likely to sit behind an anti-bot edge. A plain download gets a 403 there, and the reader gets an apology instead of the article. Matching a current browser's handshake is what turns that 403 into the text.

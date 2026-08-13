@@ -53,4 +53,19 @@ One case still comes back empty, and that one is on purpose. Share a PDF straigh
 
 Readplace files every article under its web address. A loose PDF sitting in Files has none, so there is nothing to file it under. Open the same PDF from a web page and it carries that page's address, and it saves. The file with no origin is the edge that stays open, and closing it is a separate piece of work.
 
+```rp-figure
+kind: rule
+title: What the phone sends when you share
+note: Pick what you are handing over; the first clause that matches decides it.
+choice: What you hand the share sheet | A web page | A PDF that came off a web page | A PDF straight from Files
+choice: Size of the PDF | Up to 25 MiB | Past 25 MiB
+flag: The extension still declares only web pages and plain text
+flag: The first bytes are not the marker every PDF opens with
+when: c1=1 -> ok | Saves the page | For a web page, the app loads the address in a hidden browser view and captures the cleaned page.
+when: f1 -> no | Not in the sheet | iOS hides an app that cannot name every part of what you are sharing, so the PDF pulled Readplace out of the running for the share entirely.
+when: c1=3 -> no | No link to save | Readplace files every article under its web address, and a loose PDF sitting in Files has none.
+when: f2,c2=2 -> ok | Sends the link | A failed marker check, or a PDF past the 25 MiB the extension will carry, falls back to sending the link alone and lets the server crawler fetch it, which allows far larger files.
+else: ok | Uploads the bytes | The share sheet passes the app its bytes directly, so the app uploads those bytes as they are and skips the browser view.
+```
+
 So the share sheet now offers Readplace for a PDF wherever one shows up on the phone, from Safari's viewer to a mail attachment to a file that came off a web page. Share it, and the app sends the bytes it was already holding, which is what gets a login-guarded PDF into your queue. The iPhone app is on the App Store, linked from [readplace.com/install](https://readplace.com/install?client=iphone). Put a PDF into it from your phone and open it back in the [in-app reader](/blog/read-saved-articles-in-the-iphone-app).

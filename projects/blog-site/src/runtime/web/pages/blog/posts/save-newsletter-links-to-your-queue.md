@@ -48,6 +48,16 @@ Only the articles come through.
 
 They don't stop at a preview. Each one saves to your reading queue the same way a link you paste in yourself would, crawled for a clean copy and given an AI summary. By the time you look, the 3 articles from a 14-link issue are in your queue, ready to read, and the other 11 links are gone.
 
+```rp-figure
+kind: walk
+title: What a link has to get past before it reaches your queue
+note: Yesterday's issue carried 14 links, and 3 of them were articles.
+toggle: This stage refuses the link
+step: The address you gave one newsletter | An issue arrives at an address like tldr-a7b2c9@read.place, which belongs to that newsletter and nothing else. | You switch off the single address you gave that source, and the other 24 keep working.
+step: The unsubscribe and confirm check | A link that would unsubscribe or confirm gets set aside first, before the pass reads what is left. | The link is marked done with no request ever sent to it, so nothing is unsubscribed or confirmed on your behalf.
+step: The article pass | A pass labels each link an article, an ad, a menu, a subscription page, or noise, and only the articles come through — saved to your queue the way a link you paste in yourself would be, crawled for a clean copy and given an AI summary. | The link is dropped with the packaging and gone from your queue, like the other 11 links in that issue, though it still shows as a card under the newsletter where you can save it by hand.
+```
+
 > **You subscribed for the articles, and the articles are what reach your queue.**
 
 They also show as cards under the newsletter itself, so you can see what a source has been sending and save an older one by hand if the pass set it aside.

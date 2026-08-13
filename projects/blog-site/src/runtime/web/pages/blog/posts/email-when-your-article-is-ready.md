@@ -46,6 +46,23 @@ It sends at most one of these every 6 hours. Import a big batch of links and you
 
 It also checks the basics before each send. If you marked the article read, deleted it, or saved it again after it was done, the email is dropped. Because those checks run on every send, the link you get points to something you still want to read.
 
+```rp-figure
+kind: rule
+title: What decides whether the ready email goes out
+note: The three send conditions, plus the basic checks that run before each send.
+choice: What you did with the article | Stayed in the reader until the content arrived | Opened it and left before it finished
+choice: How long the work took | Under a minute | More than a minute
+choice: Another such email in the past 6 hours | None | One already sent
+flag: You marked the article read
+flag: You deleted it
+flag: You saved it again after it was done
+when: c1=1 -> no | No email | If you stayed in the reader until the content arrived, you already have it, so you get nothing.
+when: c2=1 -> no | No email | It sends only if the work took more than a minute; quick saves finish before you close the tab.
+when: c3=2 -> no | No email | It sends at most one of these every 6 hours, so importing a big batch of links leaves your inbox calm.
+when: f1,f2,f3 -> no | No email | If you marked the article read, deleted it, or saved it again after it was done, the email is dropped.
+else: ok | Email sent | You opened the article and left before it finished, the work took more than a minute, and there has been no other such email in the past 6 hours.
+```
+
 ## No new app, no extra permission
 
 Here is the part worth saving for paying readers. The whole thing runs on Readplace's servers, so there is no new app to install, no browser permission to grant, and no background script eating your battery.

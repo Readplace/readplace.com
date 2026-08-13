@@ -50,6 +50,21 @@ The size has to match what was uploaded. The write has to be recent, measured ag
 
 A staged object that misses any of those checks is refused. The check sits on the server, past the browser, so a request that skips the page and posts straight at the route answers the same questions. Nothing lands in your queue on the strength of a key alone.
 
+```rp-figure
+kind: rule
+title: What decides whether a file counts as saved
+note: Under the budget the file rides the request; over it, the staged object is read back first.
+choice: What you are saving | Under the 3 MB budget | A 200 MB scanned book | A 500 MB PDF, 300 pages
+flag: The staged size doesn't match what was uploaded
+flag: The write is older than the roughly 30-minute window
+flag: The bytes don't start with %PDF-
+when: c1=1 -> ok | Saved | Under the budget, the save goes straight through, and it still does.
+when: f1 -> no | Refused | The size has to match what was uploaded.
+when: f2 -> no | Refused | The write has to be recent, measured against a window twice the key's own life, about 30 minutes.
+when: f3 -> no | Refused | The file has to actually be a PDF, tested by the five bytes every PDF opens with, %PDF-.
+else: ok | Saved | Over the budget the file doesn't ride the request: it gets a one-time key straight to storage, and the read-back finds nothing wrong.
+```
+
 ## The ones you most want held
 
 The ceiling now is 500 megabytes for a PDF, up to 300 pages, which covers the scanned book, the filing, and the proceedings. A web page's HTML gets 40 megabytes, well past the length of any article. Once a big PDF lands, it goes through [the same read a small one gets](/blog/pdf-ocr-pipeline-tesseract-llm-hybrid), turning scanned pages into text you can read and search.

@@ -46,6 +46,17 @@ One more change sits closer to you than to any crawled page.
 
 The cookies that keep you signed in now carry the Secure flag, so your browser only sends them back over an encrypted https connection and refuses to send them over plain http. A session cookie that leaks across an unencrypted hop is a session a stranger can borrow, and that path is closed.
 
+```rp-figure
+kind: walk
+title: What a saved link meets between your save bar and your screen
+note: The guards run on our side, on every save.
+toggle: What each stage's guard stops
+step: The first hop of the fetch | Readplace opens the page on its own servers, resolving the real address on every connection and checking the first hop | Loopback, private ranges and link-local addresses get refused at the door, so nothing is fetched from that address
+step: Every redirect after it | The address is checked again after each redirect, rather than trusting the first answer | The redirected hop is refused too, so a saved link pulls a public page and nothing else, no matter how the address shifts between the check and the fetch
+step: The title into the structured data block | Some of the title and short description from the page you saved is dropped into the structured data block, the hidden markup that search engines read to understand the article | The handful of characters that let text turn into markup are rewritten, so a script tucked inside a page title stays plain text, in your reader and in the public page you can share without anyone logging in, and none of it runs
+step: The trip back to your screen | The clean reader view reaches your screen, and the cookies that keep you signed in travel back to Readplace | Those cookies carry the Secure flag, so your browser refuses to send them over plain http and only sends them back over an encrypted https connection
+```
+
 ## Why this matters to you
 
 Your saved list is a record of what you read and what you mean to read, and you trust Readplace to hold it. The plumbing that fills that list should hold to the same standard, even on a page our crawler is seeing for the first time.

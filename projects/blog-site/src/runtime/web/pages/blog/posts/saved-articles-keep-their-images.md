@@ -44,6 +44,18 @@ The fix was to change what the limit counts.
 
 Readplace now groups every version of one photo together and spends the budget on whole photos, so each photo it keeps comes with all of its widths and the reader has the right size to load.
 
+```rp-figure
+kind: budget
+title: The same 20-slot cap, spent on files or on whole photos
+note: The cap did not move. What it counted is what emptied it early.
+input: Widths one photo ships in its srcset
+oldLabel: Old rule · the budget counted files
+newLabel: New rule · the budget counts whole photos
+unit: whole photos kept with all their widths
+step: 6 | 3 | 20
+step: 8 | 2 | 20
+```
+
 No photo gets left half-saved, which is what killed the wrong-image fallback for anything we chose to keep.
 
 Then I found a second hole while testing the first fix. Readplace re-checks saved articles over time, and sometimes the text reads the same on a re-check while the site has swapped the images underneath it. The old comparison saw matching text and kept the stale copy, so a re-save could drop a corrected set of pictures without me noticing.

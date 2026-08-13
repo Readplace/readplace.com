@@ -58,6 +58,20 @@ That reactivate path counts as much as the cancel. Changing your mind is a singl
 
 Open the same account page inside the Readplace iPhone app and the renewal line is gone. Apple's [App Store rules](/view/developer.apple.com/app-store/review/guidelines/) don't allow a web view inside an app to name a subscription price, so the line is stripped before the page renders on that surface. The status, the cancel control, and [the way out of the account](/blog/delete-your-account-with-a-typed-phrase) all stay. The one thing removed is the number, and only where a rule asks for it.
 
+```rp-figure
+kind: rule
+title: Whether the next charge line shows, and where its number came from
+note: The window, the cache rule, and the one surface where the number is stripped.
+choice: The renewal date | inside the 30 days before the charge | further out than 30 days | a day already gone
+flag: The stored copy is missing, stale, or already past
+flag: Opened inside the Readplace iPhone app
+when: f2 -> no | Hidden | Apple's App Store rules don't allow a web view inside an app to name a subscription price, so the line is stripped before the page renders on that surface.
+when: c1=3 -> no | Hidden | A charge dated in the past is not a charge to come, so the line hides then too.
+when: c1=2 -> no | Hidden | The line has a window. It appears in the 30 days before the charge and stays hidden the rest of the year.
+when: f1 -> ok | Shown live | Missing, stale, or a date already gone, so the page fetches the live figure from the provider and writes it back before showing it.
+else: ok | Shown | The stored copy is still in the future, so that is the answer, and nothing else is asked.
+```
+
 ## Seeing the bill is part of trusting the app
 
 There is no company behind Readplace and no investors, just one person paying the cloud bills. No card is asked for up front, so a trial that ends charges nothing and drops the account to read-only rather than billing you by surprise. The reminder before a trial ends says that plainly now, and says a subscription covers those bills and the hours spent building the thing, with the blog left free to read. It states where the money goes and stops. Whether that is worth it is yours to weigh.

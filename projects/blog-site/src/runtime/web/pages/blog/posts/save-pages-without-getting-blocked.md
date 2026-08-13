@@ -52,6 +52,17 @@ There was a second fetch I could cut while I was in there.
 
 When Readplace re-checks a page you already saved, it now sends the stored ETag and last-modified date on the request. If nothing changed, the origin answers with a 304 and no body, and Readplace keeps the copy it already has. The reader gets a fresh list and the publisher serves far less traffic for the same result.
 
+```rp-figure
+kind: walk
+title: One save, one request, stage by stage
+note: Pull the body a single time, then work out what it is from what came back.
+toggle: This stage refuses what it was handed
+step: Conditional re-check | Sends the stored ETag and last-modified date when Readplace re-checks a page you already saved | If nothing changed the origin answers with a 304 and no body, so the save falls back to the copy Readplace already has.
+step: X and Twitter links | Skips the fetch, because those pages are mostly a login wall to a crawler | Falls back to Twitter's public oembed endpoint, which hands back the text without the wall.
+step: One request to the origin | Sends one request and reads the whole response into memory | An edge guard answers with a managed challenge and a cf-mitigated header, and the save falls back to the sorry-we-couldn't-save-this-link line the reader sees.
+step: Content-type branch | Branches on the content type of what came back, not on what the URL looked like up front | What came back is a PDF and not the markup the article parser wants, so the bytes fall back to the PDF reader with no second connection.
+```
+
 ## Saving is the part that breaks
 
 Saving a page sounds like the easy half of a read-it-later tool. In practice it is the half that fights back.

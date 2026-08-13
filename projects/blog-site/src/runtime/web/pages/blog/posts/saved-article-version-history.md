@@ -50,6 +50,18 @@ The bookmark draws the newest 10. That is a display limit, not a storage one. Th
 
 > **Nothing past the tenth version is thrown away. The bookmark just stops drawing it.**
 
+```rp-figure
+kind: rule
+title: What a re-fetch adds to the version log
+note: The reason for the fetch never decides it. What decides it is whether the words came back different, or whether a better source took over.
+choice: What the fetch brought back | The same words | Different words | A better source that takes over
+choice: What made Readplace fetch again | A retry after a thin first try | You saved the same address again | A recrawl reached it
+flag: The log already holds 10 versions
+when: c1=1 -> no | Nothing recorded | Same hash, same words, and nothing is recorded.
+when: f1 -> ok | New version, nothing pruned | The bookmark draws the newest 10. That is a display limit, not a storage one, and nothing past the tenth version is thrown away.
+else: ok | New version | A new version goes in the log only when the text is genuinely different, or when a better source wins and takes over from the one before it.
+```
+
 ## What you can't do with them yet
 
 There's something worth being straight about. The older dates on the bookmark are listed, but they don't open yet. TBH... right now they sit there disabled, a record you can read but not click into. The reader still shows the current version, the one on top.

@@ -50,6 +50,17 @@ One wrong turn on the way is worth naming. The apex already held a Google site-v
 
 With both records live, a reply from a readplace.com address clears Apple's relay check and reaches the real inbox behind the mask.
 
+```rp-figure
+kind: matrix
+title: The two shapes of Readplace mail at Apple's relay
+note: Apple drops mail that fails the sending domain's SPF and DKIM check, so the apex now publishes both.
+toggle: After the apex published SPF and DKIM
+head: What Readplace sends | Automatic article-ready mail | A reply a person types
+row: Leaves under | Its own signed subdomain>>Its own signed subdomain | The bare readplace.com apex>>The bare readplace.com apex
+row: Apple's relay check | Already cleared it>>Clears it | !Failed the SPF and DKIM check>>Clears it
+row: Mail to a privaterelay.appleid.com mask | Reached masked inboxes>>Reaches masked inboxes | !Dropped before it reached the hidden inbox>>Reaches the real inbox behind the mask
+```
+
 > **The masked address keeps its promise now, for the automatic mail and the reply a person types alike.**
 
 ## Log in as Apple, still get reached

@@ -38,6 +38,17 @@ A second, shorter file sits next to it for additions I make by hand. A re-sync r
 
 That split is the part I would have got wrong a year ago. Mix hand edits into a generated file and the next sync wipes them, so you stop syncing, and the list goes stale. Keeping the two apart means I can pull the latest upstream blocklist any day without losing the few domains I added myself.
 
+```rp-figure
+kind: walk
+title: The chain behind the disposable-email gate
+note: Two stages build the blocklist and two test the address against it.
+toggle: This stage stops holding
+step: Sync the upstream list | A script fetches the community-maintained disposable-email-domains file, drops duplicates, sorts the result, and writes the canonical list | The check falls back to the canonical list the previous sync wrote, and that list goes stale.
+step: Keep hand edits in their own file | A second, shorter file holds the domains added by hand, and a re-sync rewrites the canonical list without ever touching it | The next sync wipes those hand edits, so the check falls back to the upstream list alone and the service it missed is on no list.
+step: Test the full host | The form reads the domain after the @ and tests the whole host against the merged list of more than 7,000 disposable domains | The address falls back to the parent domains above the host, which the check tests next.
+step: Walk up to each parent domain | 10minutemail.com on the list catches an address at mail.10minutemail.com, and a match stops the form and shows a message instead of creating the account | The address falls back to the exact host alone, so a fresh subdomain a throwaway service spins up in seconds is past the gate.
+```
+
 ## A reading list only works if you come back
 
 Readplace saves things for later. The worth of a saved article sits in the gap between the day you save it and the day you read it. That gap is the product. Close it and there is nothing left to keep.

@@ -50,6 +50,17 @@ The detection had to be careful. MediaWiki runs far past Wikipedia, on a Linux d
 
 Run against real saved pages, the pre-pass put the structure back and left the healthy pages alone. The Mythical Man-Month went from 0 headings to 6. [Bioluminescence](/view/en.wikipedia.org/wiki/Bioluminescence) went from 0 to 11. The Great Barrier Reef article, which Readability had been handling correctly all along, stayed at 10 and 10. Because the pre-pass only takes out edit links, a page that didn't have the problem doesn't notice it ran.
 
+```rp-figure
+kind: bars
+title: Section headings kept on three real saved pages
+note: The pre-pass only takes out edit links, so a page that was already correct stays where it was.
+before: Before the pre-pass
+after: After the pre-pass
+row: The Mythical Man-Month | 0 | 0 headings | 6 | 6 headings
+row: Bioluminescence | 0 | 0 headings | 11 | 11 headings
+row: The Great Barrier Reef | 10 | 10 headings | 10 | 10 headings
+```
+
 > **Bioluminescence came back with 11 headings. A page that was already right stayed exactly as it was.**
 
 ## A check that fails if a heading goes missing

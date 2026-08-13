@@ -66,6 +66,18 @@ That single decision does two things at once.
 
 **It keeps the cost predictable.** A per-user model would burn API credits on duplicate work, because 10 people saving the same article would mean 10 calls producing 10 near-identical summaries. Global caching collapses that to one call, no matter how many people end up saving the link.
 
+```rp-figure
+kind: budget
+title: One summary per URL, however many people save the link
+note: A per-user model repeats the work on every save; the cache collapses it to a single call.
+input: People who save the same URL
+oldLabel: A per-user model · one call per save
+newLabel: One summary per URL · cached globally
+unit: model calls made for that link
+step: 1 | 1 | 1
+step: 10 | 10 | 1
+```
+
 **It removes personalisation bias.** Every reader sees the same summary for the same URL, so there's no filter bubble and no reframing based on what you have read before. The summary reports what the article says, and that's the whole contract.
 
 There is also a minimum-length check. Articles below the threshold skip the summary step, because a piece short enough to scan in one sitting gains nothing from being compressed further.
