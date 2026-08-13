@@ -106,7 +106,7 @@ import type {
 	PublishDeleteAccountCommand,
 	PublishExportUserDataCommand,
 	PublishLinkDequeued,
-	PublishComputeRelatedArticles,
+	PublishQueueEntryCreated,
 	PublishLinkQueued,
 	PublishLinkSaved,
 	PublishRecrawlLinkInitiated,
@@ -335,7 +335,7 @@ export interface EventsBundle {
 	publishLinkSaved: PublishLinkSaved;
 	publishLinkQueued: PublishLinkQueued;
 	publishLinkDequeued: PublishLinkDequeued;
-	publishComputeRelatedArticles: PublishComputeRelatedArticles;
+	publishQueueEntryCreated: PublishQueueEntryCreated;
 	publishRecrawlLinkInitiated: PublishRecrawlLinkInitiated;
 	publishRemoveMyContent: PublishRemoveMyContent;
 	publishSaveAnonymousLink: PublishSaveAnonymousLink;
@@ -485,7 +485,7 @@ export interface TestAppFixture {
 	articleCrawl: ArticleCrawlBundle;
 	parser: ParserBundle;
 	events: EventsBundle;
-	publishedComputeRelatedArticles: { url: string; userId: UserId }[];
+	publishedQueueEntryCreated: { url: string; userId: UserId }[];
 	pendingHtml: PendingHtmlBundle;
 	pendingPdf: PendingPdfBundle;
 	pendingUpload: PendingUploadBundle;

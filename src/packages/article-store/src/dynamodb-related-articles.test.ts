@@ -315,7 +315,7 @@ describe("initDynamoDbRelatedArticles", () => {
 				],
 			});
 
-			const candidates = await store.findRelatedCandidateArticles({
+			const { candidates } = await store.findRelatedCandidateArticles({
 				userId: USER_ID,
 				excludeUrl: TARGET_URL,
 				limit: 10,
@@ -355,7 +355,7 @@ describe("initDynamoDbRelatedArticles", () => {
 				],
 			});
 
-			const candidates = await store.findRelatedCandidateArticles({
+			const { candidates } = await store.findRelatedCandidateArticles({
 				userId: USER_ID,
 				excludeUrl: TARGET_URL,
 				limit: 2,
@@ -376,7 +376,7 @@ describe("initDynamoDbRelatedArticles", () => {
 				],
 			});
 
-			const candidates = await store.findRelatedCandidateArticles({
+			const { candidates } = await store.findRelatedCandidateArticles({
 				userId: USER_ID,
 				excludeUrl: TARGET_URL,
 				limit: 5,
@@ -410,7 +410,7 @@ describe("initDynamoDbRelatedArticles", () => {
 				],
 			});
 
-			const candidates = await store.findRelatedCandidateArticles({
+			const { candidates } = await store.findRelatedCandidateArticles({
 				userId: USER_ID,
 				excludeUrl: TARGET_URL,
 				limit: 10,
@@ -418,6 +418,59 @@ describe("initDynamoDbRelatedArticles", () => {
 
 			expect(candidates.map((candidate) => candidate.title)).toEqual(["Good"]);
 		});
+
+		it("holds back saves whose crawl has not yet replaced the placeholder metadata", async () => {
+			const { store } = candidateClient({
+				pages: [{ urls: ["example.com/just-saved", "example.com/crawled"] }],
+				articles: [
+					{
+						url: "example.com/just-saved",
+						title: "Article from example.com",
+						siteName: "example.com",
+						excerpt: "Saved from example.com.",
+						crawlStatus: "pending",
+					},
+					{ url: "example.com/crawled", title: "Crawled", siteName: "Example", excerpt: "" },
+				],
+			});
+
+			const pool = await store.findRelatedCandidateArticles({
+				userId: USER_ID,
+				excludeUrl: TARGET_URL,
+				limit: 10,
+			});
+
+			expect(pool.candidates.map((candidate) => candidate.title)).toEqual(["Crawled"]);
+			expect(pool.awaitingCrawl).toBe(1);
+		});
+
+		it.each(["failed", "unsupported"] as const)(
+			"drops a placeholder whose crawl terminally %sed without counting it as awaited, so a dead link can never hold a thin pool in retry",
+			async (crawlStatus) => {
+				const { store } = candidateClient({
+					pages: [{ urls: ["example.com/dead-link", "example.com/crawled"] }],
+					articles: [
+						{
+							url: "example.com/dead-link",
+							title: "Article from example.com",
+							siteName: "example.com",
+							excerpt: "Saved from example.com.",
+							crawlStatus,
+						},
+						{ url: "example.com/crawled", title: "Crawled", siteName: "Example", excerpt: "" },
+					],
+				});
+
+				const pool = await store.findRelatedCandidateArticles({
+					userId: USER_ID,
+					excludeUrl: TARGET_URL,
+					limit: 10,
+				});
+
+				expect(pool.candidates.map((candidate) => candidate.title)).toEqual(["Crawled"]);
+				expect(pool.awaitingCrawl).toBe(0);
+			},
+		);
 
 		it("returns nothing when the user has no other saves", async () => {
 			const { store } = candidateClient({ pages: [{ urls: [] }], articles: [] });
@@ -428,7 +481,7 @@ describe("initDynamoDbRelatedArticles", () => {
 					excludeUrl: TARGET_URL,
 					limit: 10,
 				}),
-			).toEqual([]);
+			).toEqual({ candidates: [], awaitingCrawl: 0 });
 		});
 	});
 
@@ -477,7 +530,7 @@ describe("initDynamoDbRelatedArticles", () => {
 				],
 			});
 
-			const candidates = await store.findRelatedReadCandidateArticles({
+			const { candidates } = await store.findRelatedReadCandidateArticles({
 				userId: USER_ID,
 				excludeUrl: TARGET_URL,
 				limit: 10,
@@ -520,7 +573,7 @@ describe("initDynamoDbRelatedArticles", () => {
 				],
 			});
 
-			const candidates = await store.findRelatedReadCandidateArticles({
+			const { candidates } = await store.findRelatedReadCandidateArticles({
 				userId: USER_ID,
 				excludeUrl: TARGET_URL,
 				limit: 2,
@@ -541,7 +594,7 @@ describe("initDynamoDbRelatedArticles", () => {
 				],
 			});
 
-			const candidates = await store.findRelatedReadCandidateArticles({
+			const { candidates } = await store.findRelatedReadCandidateArticles({
 				userId: USER_ID,
 				excludeUrl: TARGET_URL,
 				limit: 5,
@@ -575,13 +628,38 @@ describe("initDynamoDbRelatedArticles", () => {
 				],
 			});
 
-			const candidates = await store.findRelatedReadCandidateArticles({
+			const { candidates } = await store.findRelatedReadCandidateArticles({
 				userId: USER_ID,
 				excludeUrl: TARGET_URL,
 				limit: 10,
 			});
 
 			expect(candidates.map((candidate) => candidate.title)).toEqual(["Good"]);
+		});
+
+		it("holds back finished saves whose crawl has not yet replaced the placeholder metadata", async () => {
+			const { store } = readCandidateClient({
+				pages: [{ urls: ["example.com/just-saved", "example.com/crawled"] }],
+				articles: [
+					{
+						url: "example.com/just-saved",
+						title: "Article from example.com",
+						siteName: "example.com",
+						excerpt: "Saved from example.com.",
+						crawlStatus: "pending",
+					},
+					{ url: "example.com/crawled", title: "Crawled", siteName: "Example", excerpt: "" },
+				],
+			});
+
+			const pool = await store.findRelatedReadCandidateArticles({
+				userId: USER_ID,
+				excludeUrl: TARGET_URL,
+				limit: 10,
+			});
+
+			expect(pool.candidates.map((candidate) => candidate.title)).toEqual(["Crawled"]);
+			expect(pool.awaitingCrawl).toBe(1);
 		});
 
 		it("returns nothing when the reader has finished nothing else", async () => {
@@ -593,7 +671,7 @@ describe("initDynamoDbRelatedArticles", () => {
 					excludeUrl: TARGET_URL,
 					limit: 10,
 				}),
-			).toEqual([]);
+			).toEqual({ candidates: [], awaitingCrawl: 0 });
 		});
 	});
 

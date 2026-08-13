@@ -659,11 +659,14 @@ async function main(): Promise<void> {
 				limit: RELATED_CANDIDATES_MAX,
 			}),
 		]);
-		poolsByAnchor.set(anchor.url, { unread, read });
+		poolsByAnchor.set(anchor.url, {
+			unread: unread.candidates,
+			read: read.candidates,
+		});
 		logger.info("[related-arms] pools", {
 			url: anchor.url,
-			unread: unread.length,
-			read: read.length,
+			unread: unread.candidates.length,
+			read: read.candidates.length,
 		});
 	}
 

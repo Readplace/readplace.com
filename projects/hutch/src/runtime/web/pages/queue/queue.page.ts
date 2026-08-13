@@ -80,10 +80,9 @@ import type { PutPendingHtml } from "@packages/provider-contracts/pending-html";
 import {
 	initDeleteArticleFromQueue,
 	initSaveArticleAtQueueTop, initSaveArticleFromUrl,
-	initSaveArticleInteractively,
 	rankNewLinksAbove,
 } from "@packages/save-article";
-import type { PublishComputeRelatedArticles } from "@packages/provider-contracts/events";
+import type { PublishQueueEntryCreated } from "@packages/provider-contracts/events";
 import type {
 	FindRelatedArticles,
 	RelatedArticles,
@@ -261,7 +260,7 @@ interface QueueDependencies {
 	publishLinkSaved: PublishLinkSaved;
 	publishLinkQueued: PublishLinkQueued;
 	publishLinkDequeued: PublishLinkDequeued;
-	publishComputeRelatedArticles: PublishComputeRelatedArticles;
+	publishQueueEntryCreated: PublishQueueEntryCreated;
 	findRelatedArticles: FindRelatedArticles;
 	publishRemoveMyContent: PublishRemoveMyContent;
 	publishSaveLinkRawHtmlCommand: PublishSaveLinkRawHtmlCommand;
@@ -470,20 +469,14 @@ const isIosPlatform = (req: Request): boolean => isIosSurface(req);
 
 export function initQueueRoutes(deps: QueueDependencies): Router {
 	const router = express.Router();
-	// Every save this router serves is a person acting: the save bar, the
-	// extension, Save All Tabs, a capture. The bare save (import commits, inbox
-	// auto-saves) stays in @packages/save-article and never asks for relations.
-	const saveArticleFromUrl = initSaveArticleInteractively({
-		saveArticleFromUrl: initSaveArticleFromUrl(deps),
-		publishComputeRelatedArticles: deps.publishComputeRelatedArticles,
-	});
+	const saveArticleFromUrl = initSaveArticleFromUrl(deps);
 	const saveArticleAtQueueTop = initSaveArticleAtQueueTop({
 		allocateSavedAt: deps.allocateSavedAt,
 		saveArticleFromUrl,
 	});
-	const attachArticleContent = initSaveArticleInteractively({
-		saveArticleFromUrl: initSaveArticleFromUrl({ ...deps, saveArticle: deps.saveArticleKeepingPosition }),
-		publishComputeRelatedArticles: deps.publishComputeRelatedArticles,
+	const attachArticleContent = initSaveArticleFromUrl({
+		...deps,
+		saveArticle: deps.saveArticleKeepingPosition,
 	});
 	const deleteArticleFromQueue = initDeleteArticleFromQueue(deps);
 

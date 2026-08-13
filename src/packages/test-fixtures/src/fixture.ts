@@ -54,7 +54,7 @@ import type {
 	MarkSummaryPending,
 } from "@packages/provider-contracts/article-summary";
 import { initInMemoryLinkDequeued } from "./providers/events/in-memory-link-dequeued";
-import { initInMemoryComputeRelatedArticles } from "./providers/events/in-memory-compute-related-articles";
+import { initInMemoryQueueEntryCreated } from "./providers/events/in-memory-queue-entry-created";
 import { initInMemoryLinkQueued } from "./providers/events/in-memory-link-queued";
 import { initInMemoryRelatedArticles } from "./providers/related-articles/in-memory-related-articles";
 import { initInMemoryLinkSaved } from "./providers/events/in-memory-link-saved";
@@ -235,7 +235,7 @@ export function createDefaultTestAppFixture(appOrigin: string): TestAppFixture {
 	const auth = initInMemoryAuth({ hashPassword: fastHashPassword, verifyPassword: fastVerifyPassword });
 	const articleStoreMemory = initInMemoryArticleStore();
 	const articleCrawl = initInMemoryArticleCrawl();
-	const computeRelatedArticles = initInMemoryComputeRelatedArticles({ logger: noopLogger });
+	const queueEntryCreated = initInMemoryQueueEntryCreated({ logger: noopLogger });
 	const crawlArticle = stubCrawlArticle;
 	const { parseArticle } = initReadabilityParser({
 		crawlArticle,
@@ -380,12 +380,12 @@ export function createDefaultTestAppFixture(appOrigin: string): TestAppFixture {
 			markCrawlStage: articleCrawl.markCrawlStage,
 		},
 		parser: { parseArticle, crawlArticle },
-		publishedComputeRelatedArticles: computeRelatedArticles.publishedComputeRelatedArticles,
+		publishedQueueEntryCreated: queueEntryCreated.publishedQueueEntryCreated,
 		events: {
 			publishLinkSaved: createFakePublishLinkSaved(applyParseResult),
 			publishLinkQueued: initInMemoryLinkQueued({ logger: noopLogger }).publishLinkQueued,
 			publishLinkDequeued: initInMemoryLinkDequeued({ logger: noopLogger }).publishLinkDequeued,
-			publishComputeRelatedArticles: computeRelatedArticles.publishComputeRelatedArticles,
+			publishQueueEntryCreated: queueEntryCreated.publishQueueEntryCreated,
 			publishRecrawlLinkInitiated: createFakePublishRecrawlLinkInitiated(applyParseResult),
 			publishSaveAnonymousLink: createFakePublishSaveAnonymousLink(applyParseResult),
 			publishSaveLinkRawHtmlCommand,

@@ -476,7 +476,7 @@ describe("POST /queue (Siren save article)", () => {
 				publishLinkSaved: createFakePublishLinkSaved(applyParseResult),
 				publishLinkQueued: fixture.events.publishLinkQueued,
 				publishLinkDequeued: fixture.events.publishLinkDequeued,
-				publishComputeRelatedArticles: fixture.events.publishComputeRelatedArticles,
+				publishQueueEntryCreated: fixture.events.publishQueueEntryCreated,
 				publishRecrawlLinkInitiated: createFakePublishRecrawlLinkInitiated(applyParseResult),
 				publishSaveAnonymousLink: createFakePublishSaveAnonymousLink(applyParseResult),
 				publishSaveLinkRawHtmlCommand: fixture.events.publishSaveLinkRawHtmlCommand,

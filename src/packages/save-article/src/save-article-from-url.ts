@@ -3,7 +3,11 @@ import type { ContentFreshnessResult, RefreshArticleIfStale } from "@packages/pr
 import type { MarkCrawlPending } from "@packages/provider-contracts/article-crawl";
 import type { MarkSummaryPending } from "@packages/provider-contracts/article-summary";
 import type { SaveArticle, UpdateArticleStatus } from "@packages/provider-contracts/article-store";
-import type { PublishLinkQueued, PublishLinkSaved } from "@packages/provider-contracts/events";
+import type {
+	PublishLinkQueued,
+	PublishLinkSaved,
+	PublishQueueEntryCreated,
+} from "@packages/provider-contracts/events";
 import type { PublishUpdateFetchTimestamp } from "@packages/provider-contracts/events";
 import type { UserId } from "@packages/domain/user";
 import type { SaveProvenance, SaveableUrl, SavedArticle } from "@packages/domain/article";
@@ -16,12 +20,21 @@ export interface SaveArticleFromUrlDependencies {
 	publishUpdateFetchTimestamp: PublishUpdateFetchTimestamp;
 	publishLinkSaved: PublishLinkSaved;
 	publishLinkQueued: PublishLinkQueued;
+	publishQueueEntryCreated: PublishQueueEntryCreated;
 	refreshArticleIfStale: RefreshArticleIfStale;
 	/** Collapse an adopted terminal URL onto the article it aliases, so the save
 	 * attaches to that article instead of minting a duplicate (and never lands on
 	 * an inert alias row). */
 	resolveCanonicalIdentity: (url: string) => Promise<string>;
 }
+
+const RESURFACES_EARLIER_SAVES = {
+	web: true,
+	client: true,
+	email: true,
+	mcp: true,
+	import: false,
+} satisfies Record<SaveProvenance["kind"], boolean>;
 
 async function markUnreadIfRead(
 	updateArticleStatus: UpdateArticleStatus,
@@ -122,6 +135,9 @@ export function initSaveArticleFromUrl(
 		// including the skip that publishes no LinkSaved. Carries the submitted URL,
 		// not the canonical one a consumer never saw.
 		await deps.publishLinkQueued({ url: params.url, userId: params.userId });
+		if (result.createdUserArticle && RESURFACES_EARLIER_SAVES[params.provenance.kind]) {
+			await deps.publishQueueEntryCreated({ url, userId: params.userId });
+		}
 		return { ...result, canonicalUrl: url };
 	};
 }

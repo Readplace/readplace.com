@@ -21,17 +21,28 @@ interface AskedFor {
 	limit: number;
 }
 
-function build(sizes: { unread: number; read: number }) {
+function build(sizes: {
+	unread: number;
+	read: number;
+	unreadAwaitingCrawl?: number;
+	readAwaitingCrawl?: number;
+}) {
 	const unreadAsks: AskedFor[] = [];
 	const readAsks: AskedFor[] = [];
 	const { gatherRelatedCandidatePools } = initGatherRelatedCandidatePools({
 		findRelatedCandidateArticles: async (params) => {
 			unreadAsks.push(params);
-			return pool("unread", sizes.unread);
+			return {
+				candidates: pool("unread", sizes.unread),
+				awaitingCrawl: sizes.unreadAwaitingCrawl ?? 0,
+			};
 		},
 		findRelatedReadCandidateArticles: async (params) => {
 			readAsks.push(params);
-			return pool("read", sizes.read);
+			return {
+				candidates: pool("read", sizes.read),
+				awaitingCrawl: sizes.readAwaitingCrawl ?? 0,
+			};
 		},
 	});
 	return { gatherRelatedCandidatePools, unreadAsks, readAsks };
@@ -73,6 +84,38 @@ describe("initGatherRelatedCandidatePools", () => {
 			{ userId: USER_ID, excludeUrl: TARGET_URL, limit: RELATED_CANDIDATES_MAX },
 		]);
 		expect(pools.readCandidates).toHaveLength(200);
+	});
+
+	it("totals the saves both indexes held back for a crawl that has not landed", async () => {
+		const { gatherRelatedCandidatePools } = build({
+			unread: 10,
+			read: 5,
+			unreadAwaitingCrawl: 7,
+			readAwaitingCrawl: 3,
+		});
+
+		const pools = await gatherRelatedCandidatePools({
+			userId: USER_ID,
+			excludeUrl: TARGET_URL,
+		});
+
+		expect(pools.awaitingCrawl).toBe(10);
+	});
+
+	it("reports only the unread index's held-back saves when the unread pile fills the budget", async () => {
+		const { gatherRelatedCandidatePools } = build({
+			unread: RELATED_CANDIDATES_MAX,
+			read: 500,
+			unreadAwaitingCrawl: 4,
+			readAwaitingCrawl: 9,
+		});
+
+		const pools = await gatherRelatedCandidatePools({
+			userId: USER_ID,
+			excludeUrl: TARGET_URL,
+		});
+
+		expect(pools.awaitingCrawl).toBe(4);
 	});
 
 	it("never reads the past-reads index for a reader whose unread pile fills the budget", async () => {

@@ -8,7 +8,10 @@ import {
 } from "@packages/domain/article";
 import type { SavedArticle } from "@packages/domain/article";
 import { UserIdSchema } from "@packages/domain/user";
-import { TierContentExtractedEvent } from "@packages/hutch-infra-components";
+import {
+	QueueEntryCreatedEvent,
+	TierContentExtractedEvent,
+} from "@packages/hutch-infra-components";
 import type {
 	CrawlAndFinalizeArticle,
 	CrawlAndFinalizeResult,
@@ -161,6 +164,36 @@ describe("initSubmitLinkCommandHandler", () => {
 		});
 	});
 
+	it("asks to resurface earlier saves for a newsletter link the reader did not already have, keyed on the alias target", async () => {
+		const publishEvent = jest.fn().mockResolvedValue(undefined);
+		const handler = createHandler({
+			publishEvent,
+			resolveCanonicalIdentity: async () => "https://example.com/canonical",
+		});
+
+		await run(handler, createSqsEvent([{ url: exampleUrl, userId }]));
+
+		expect(publishEvent).toHaveBeenCalledWith(QueueEntryCreatedEvent, {
+			url: "https://example.com/canonical",
+			userId,
+		});
+	});
+
+	it("asks nothing for a newsletter link already sitting in the reader's queue", async () => {
+		const publishEvent = jest.fn().mockResolvedValue(undefined);
+		const handler = createHandler({
+			publishEvent,
+			saveArticle: jest.fn().mockResolvedValue({ saved: makeSaved(), createdUserArticle: false, wroteUserArticle: true }),
+		});
+
+		await run(handler, createSqsEvent([{ url: exampleUrl, userId }]));
+
+		expect(publishedDetailTypes(publishEvent)).toEqual([
+			"LinkQueued",
+			"TierContentExtracted",
+		]);
+	});
+
 	it("attaches an existing article without re-crawling: 'skip' freshness bumps the row and emits only the accepted-save fact", async () => {
 		const saveArticle = jest.fn().mockResolvedValue({ saved: makeSaved(), createdUserArticle: true, wroteUserArticle: true });
 		const publishEvent = jest.fn().mockResolvedValue(undefined);
@@ -179,7 +212,7 @@ describe("initSubmitLinkCommandHandler", () => {
 			expect.objectContaining({ userId, url: exampleUrl }),
 		);
 		expect(crawlAndFinalizeArticle).not.toHaveBeenCalled();
-		expect(publishedDetailTypes(publishEvent)).toEqual(["LinkQueued"]);
+		expect(publishedDetailTypes(publishEvent)).toEqual(["LinkQueued", "QueueEntryCreated"]);
 	});
 
 	it("resurfaces a previously-read article back to unread, exactly like the queue save button", async () => {
@@ -284,7 +317,7 @@ describe("initSubmitLinkCommandHandler", () => {
 			userId,
 			recrawl: undefined,
 		});
-		expect(publishedDetailTypes(publishEvent)).toEqual(["LinkQueued"]);
+		expect(publishedDetailTypes(publishEvent)).toEqual(["LinkQueued", "QueueEntryCreated"]);
 	});
 
 	it("acks a tier-1-terminal crawl (origin no longer serves the page) without emitting a tier event", async () => {
@@ -300,7 +333,7 @@ describe("initSubmitLinkCommandHandler", () => {
 		const response = await run(handler, createSqsEvent([{ url: exampleUrl, userId }]));
 
 		expect(response.batchItemFailures).toEqual([]);
-		expect(publishedDetailTypes(publishEvent)).toEqual(["LinkQueued"]);
+		expect(publishedDetailTypes(publishEvent)).toEqual(["LinkQueued", "QueueEntryCreated"]);
 	});
 
 	it("acks an edge-blocked import (HTTP 403) after markCrawlBlocked and emits no tier event — dead-lettering would let the DLQ handler relabel the block as exhausted-retries", async () => {
@@ -322,7 +355,7 @@ describe("initSubmitLinkCommandHandler", () => {
 			url: exampleUrl,
 			input: { reason: { kind: "blocked", cause: "edge-block" } },
 		});
-		expect(publishedDetailTypes(publishEvent)).toEqual(["LinkQueued"]);
+		expect(publishedDetailTypes(publishEvent)).toEqual(["LinkQueued", "QueueEntryCreated"]);
 	});
 
 	it("terminalises the row in-process and acks the record when the tier-1 crawl throws — the accept phase already succeeded, so a retry could not help", async () => {

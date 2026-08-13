@@ -1,10 +1,10 @@
 import assert from "node:assert/strict";
 import { UserIdSchema } from "@packages/domain/user";
 import { HutchLogger } from "@packages/hutch-logger";
-import { initInMemoryComputeRelatedArticles } from "./in-memory-compute-related-articles";
+import { initInMemoryQueueEntryCreated } from "./in-memory-queue-entry-created";
 
-describe("initInMemoryComputeRelatedArticles", () => {
-	it("records the command it would have published", async () => {
+describe("initInMemoryQueueEntryCreated", () => {
+	it("records the event it would have published", async () => {
 		const logged: unknown[][] = [];
 		const logger = HutchLogger.from({
 			info: (...args: unknown[]) => {
@@ -14,10 +14,10 @@ describe("initInMemoryComputeRelatedArticles", () => {
 			warn: () => {},
 			debug: () => {},
 		});
-		const { publishComputeRelatedArticles, publishedComputeRelatedArticles } =
-			initInMemoryComputeRelatedArticles({ logger });
+		const { publishQueueEntryCreated, publishedQueueEntryCreated } =
+			initInMemoryQueueEntryCreated({ logger });
 
-		await publishComputeRelatedArticles({
+		await publishQueueEntryCreated({
 			url: "https://example.com/post",
 			userId: UserIdSchema.parse("user_abc"),
 		});
@@ -27,7 +27,7 @@ describe("initInMemoryComputeRelatedArticles", () => {
 			url: "https://example.com/post",
 			userId: "user_abc",
 		});
-		assert.deepEqual(publishedComputeRelatedArticles, [
+		assert.deepEqual(publishedQueueEntryCreated, [
 			{ url: "https://example.com/post", userId: "user_abc" },
 		]);
 	});

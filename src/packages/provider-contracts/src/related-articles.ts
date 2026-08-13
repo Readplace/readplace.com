@@ -50,17 +50,22 @@ export interface RelatedCandidate {
 	description: string;
 }
 
+export interface RelatedCandidates {
+	candidates: readonly RelatedCandidate[];
+	awaitingCrawl: number;
+}
+
 export type FindRelatedCandidateArticles = (params: {
 	userId: UserId;
 	excludeUrl: string;
 	limit: number;
-}) => Promise<readonly RelatedCandidate[]>;
+}) => Promise<RelatedCandidates>;
 
 export type FindRelatedReadCandidateArticles = (params: {
 	userId: UserId;
 	excludeUrl: string;
 	limit: number;
-}) => Promise<readonly RelatedCandidate[]>;
+}) => Promise<RelatedCandidates>;
 
 export interface RelatedTargetArticle {
 	crawlStatus: "pending" | "ready" | "failed" | "unsupported" | undefined;

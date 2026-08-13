@@ -3,6 +3,7 @@ import type { Server } from "node:http";
 import { JSDOM } from "jsdom";
 import request from "supertest";
 import { MinutesSchema } from "@packages/domain/article";
+import type { UserId } from "@packages/domain/user";
 import type { ParseArticle, ParseArticleResult } from "@packages/article-parser";
 import { useTestServer, type TestAppHarness } from "../../../test-app";
 import {
@@ -39,6 +40,7 @@ interface RecrawlHarness {
 	articleCrawl: TestAppHarness["articleCrawl"];
 	summary: ReturnType<typeof createFakeSummaryProvider>;
 	recrawlPublishedCalls: { url: string }[];
+	publishedQueueEntryCreated: { url: string; userId: UserId }[];
 }
 
 const useApp = useTestServer();
@@ -70,7 +72,7 @@ function buildHarness(options: { adminEmails: readonly string[] }): RecrawlHarne
 			publishLinkSaved: fixture.events.publishLinkSaved,
 			publishLinkQueued: fixture.events.publishLinkQueued,
 			publishLinkDequeued: fixture.events.publishLinkDequeued,
-			publishComputeRelatedArticles: fixture.events.publishComputeRelatedArticles,
+			publishQueueEntryCreated: fixture.events.publishQueueEntryCreated,
 			publishRecrawlLinkInitiated: publishRecrawlLinkInitiated,
 			publishSaveAnonymousLink: fixture.events.publishSaveAnonymousLink,
 			publishSaveLinkRawHtmlCommand: fixture.events.publishSaveLinkRawHtmlCommand,
@@ -97,6 +99,7 @@ function buildHarness(options: { adminEmails: readonly string[] }): RecrawlHarne
 		articleCrawl: harness.articleCrawl,
 		summary,
 		recrawlPublishedCalls,
+		publishedQueueEntryCreated: fixture.publishedQueueEntryCreated,
 	};
 }
 
@@ -387,6 +390,7 @@ describe("Admin recrawl routes", () => {
 				`/admin/recrawl?url=${ENCODED}&started=1`,
 			);
 			expect(harness.recrawlPublishedCalls).toEqual([{ url: ARTICLE_URL }]);
+			expect(harness.publishedQueueEntryCreated).toEqual([]);
 
 			const response = await agent.get(`/admin/recrawl?url=${ENCODED}&started=1`);
 

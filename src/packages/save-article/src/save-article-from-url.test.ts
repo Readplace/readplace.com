@@ -34,19 +34,23 @@ interface CallTracker {
 		publishUpdateFetchTimestamp: number;
 		publishLinkSaved: number;
 		publishLinkQueued: number;
+		publishQueueEntryCreated: number;
 		updateArticleStatusUnread: number;
 	};
+	queueEntryCreated: Array<{ url: string; userId: string }>;
 	deps: SaveArticleFromUrlDependencies;
 }
 
 function makeTracker(savedOverride?: SavedArticle): CallTracker {
 	const saved = savedOverride ?? makeSaved();
+	const queueEntryCreated: Array<{ url: string; userId: string }> = [];
 	const calls = {
 		markCrawlPending: 0,
 		markSummaryPending: 0,
 		publishUpdateFetchTimestamp: 0,
 		publishLinkSaved: 0,
 		publishLinkQueued: 0,
+		publishQueueEntryCreated: 0,
 		updateArticleStatusUnread: 0,
 	};
 	const deps: SaveArticleFromUrlDependencies = {
@@ -70,10 +74,14 @@ function makeTracker(savedOverride?: SavedArticle): CallTracker {
 		publishLinkQueued: async () => {
 			calls.publishLinkQueued += 1;
 		},
+		publishQueueEntryCreated: async (params) => {
+			calls.publishQueueEntryCreated += 1;
+			queueEntryCreated.push({ url: params.url, userId: params.userId });
+		},
 		refreshArticleIfStale: async () => ({ action: "new" }),
 		resolveCanonicalIdentity: async (url) => url,
 	};
-	return { saved, calls, deps };
+	return { saved, calls, queueEntryCreated, deps };
 }
 
 describe("saveArticleFromUrl", () => {
@@ -94,6 +102,7 @@ describe("saveArticleFromUrl", () => {
 			publishUpdateFetchTimestamp: 1,
 			publishLinkSaved: 1,
 			publishLinkQueued: 1,
+			publishQueueEntryCreated: 1,
 			updateArticleStatusUnread: 0,
 		});
 	});
@@ -123,6 +132,70 @@ describe("saveArticleFromUrl", () => {
 			"markCrawlPending:https://example.com/canonical",
 			"publishLinkSaved:https://example.com/canonical",
 		]);
+	});
+
+	it("asks to resurface earlier saves against the alias target, not the submitted URL", async () => {
+		const tracker = makeTracker();
+		const deps: SaveArticleFromUrlDependencies = {
+			...tracker.deps,
+			resolveCanonicalIdentity: async () => "https://example.com/canonical",
+		};
+
+		await initSaveArticleFromUrl(deps)({ userId, url: exampleUrl, provenance, savedAt: operationSavedAt, freshness: { action: "new" } });
+
+		expect(tracker.queueEntryCreated).toEqual([
+			{ url: "https://example.com/canonical", userId },
+		]);
+	});
+
+	it("asks nothing when the save landed on a row the reader already had", async () => {
+		const tracker = makeTracker();
+		const deps: SaveArticleFromUrlDependencies = {
+			...tracker.deps,
+			saveArticle: async () => ({ saved: tracker.saved, createdUserArticle: false, wroteUserArticle: true }),
+		};
+
+		await initSaveArticleFromUrl(deps)({ userId, url: exampleUrl, provenance, savedAt: operationSavedAt, freshness: { action: "new" } });
+
+		expect(tracker.queueEntryCreated).toEqual([]);
+	});
+
+	it.each<{ provenance: SaveProvenance; asks: number }>([
+		{ provenance: { kind: "web" }, asks: 1 },
+		{ provenance: { kind: "client", clientName: "hutch-chrome-extension" }, asks: 1 },
+		{ provenance: { kind: "email", senderEmail: "letter@example.com" }, asks: 1 },
+		{ provenance: { kind: "mcp", registeredName: "claude" }, asks: 1 },
+		{ provenance: { kind: "import" }, asks: 0 },
+	])("asks $asks time(s) to resurface earlier saves for a $provenance.kind save", async ({ provenance: saveProvenance, asks }) => {
+		const tracker = makeTracker();
+
+		await initSaveArticleFromUrl(tracker.deps)({
+			userId,
+			url: exampleUrl,
+			provenance: saveProvenance,
+			savedAt: operationSavedAt,
+			freshness: { action: "new" },
+		});
+
+		expect(tracker.calls.publishQueueEntryCreated).toBe(asks);
+	});
+
+	it("announces the accepted save before asking to resurface earlier ones", async () => {
+		const tracker = makeTracker();
+		const order: string[] = [];
+		const deps: SaveArticleFromUrlDependencies = {
+			...tracker.deps,
+			publishLinkQueued: async () => {
+				order.push("link-queued");
+			},
+			publishQueueEntryCreated: async () => {
+				order.push("queue-entry-created");
+			},
+		};
+
+		await initSaveArticleFromUrl(deps)({ userId, url: exampleUrl, provenance, savedAt: operationSavedAt, freshness: { action: "new" } });
+
+		expect(order).toEqual(["link-queued", "queue-entry-created"]);
 	});
 
 	it("publishes a link saved event when 'refreshed' has fresh content", async () => {

@@ -11,6 +11,7 @@ import type { TransitionAndPersist } from "@packages/domain/article-aggregate";
 import { markCrawlExhausted } from "@packages/domain/article-aggregate";
 import {
 	LinkQueuedEvent,
+	QueueEntryCreatedEvent,
 	SubmitLinkCommand,
 	TierContentExtractedEvent,
 } from "@packages/hutch-infra-components";
@@ -126,6 +127,8 @@ export function initSubmitLinkCommandHandler(deps: {
 						enrichment.push(params);
 					},
 					publishLinkQueued: (params) => deps.publishEvent(LinkQueuedEvent, params),
+					publishQueueEntryCreated: (params) =>
+						deps.publishEvent(QueueEntryCreatedEvent, params),
 				});
 
 				const saveArticleAtQueueTop = initSaveArticleAtQueueTop({

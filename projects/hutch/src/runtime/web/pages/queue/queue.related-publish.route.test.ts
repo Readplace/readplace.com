@@ -66,7 +66,7 @@ function saveContentLeg(server: TestAppHarness["server"], token: string) {
 		.attach("content", CAPTURED_PAGE, "content");
 }
 
-describe("compute-related-articles commands per save", () => {
+describe("queue-entry-created events per save", () => {
 	let fixture: TestAppFixture;
 
 	beforeEach(() => {
@@ -82,7 +82,7 @@ describe("compute-related-articles commands per save", () => {
 
 		expect(saved.status).toBe(201);
 		expect(captured.status).toBe(201);
-		expect(fixture.publishedComputeRelatedArticles).toEqual([
+		expect(fixture.publishedQueueEntryCreated).toEqual([
 			{ url: ARTICLE_URL, userId: TEST_USER_ID },
 		]);
 	});
@@ -94,7 +94,7 @@ describe("compute-related-articles commands per save", () => {
 		await saveArticleLeg(harness.server, token);
 		await saveArticleLeg(harness.server, token);
 
-		expect(fixture.publishedComputeRelatedArticles).toEqual([
+		expect(fixture.publishedQueueEntryCreated).toEqual([
 			{ url: ARTICLE_URL, userId: TEST_USER_ID },
 		]);
 	});
@@ -107,7 +107,7 @@ describe("compute-related-articles commands per save", () => {
 		await saveArticleLeg(harness.server, first);
 		await saveArticleLeg(harness.server, second);
 
-		expect(fixture.publishedComputeRelatedArticles).toEqual([
+		expect(fixture.publishedQueueEntryCreated).toEqual([
 			{ url: ARTICLE_URL, userId: TEST_USER_ID },
 			{ url: ARTICLE_URL, userId: SECOND_USER_ID },
 		]);

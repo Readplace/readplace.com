@@ -231,7 +231,7 @@ describe("Queue routes", () => {
 					publishLinkSaved: async (params) => { publishedLinkSaved.push(params); },
 					publishLinkQueued: fixture.events.publishLinkQueued,
 					publishLinkDequeued: fixture.events.publishLinkDequeued,
-					publishComputeRelatedArticles: fixture.events.publishComputeRelatedArticles,
+					publishQueueEntryCreated: fixture.events.publishQueueEntryCreated,
 					publishRecrawlLinkInitiated: fixture.events.publishRecrawlLinkInitiated,
 					publishSaveAnonymousLink: fixture.events.publishSaveAnonymousLink,
 					publishSaveLinkRawHtmlCommand: fixture.events.publishSaveLinkRawHtmlCommand,

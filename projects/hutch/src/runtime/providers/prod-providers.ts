@@ -30,7 +30,7 @@ import { initReadArticleContent } from "@packages/article-store";
 import { initCanonicalAliasStore, initResolveCanonicalIdentity } from "@packages/article-store";
 import { EventBridgeClient, initEventBridgePublisher } from "@packages/hutch-infra-components/runtime";
 import { initEventBridgeLinkDequeued } from "./events/eventbridge-link-dequeued";
-import { initEventBridgeComputeRelatedArticles } from "./events/eventbridge-compute-related-articles";
+import { initEventBridgeQueueEntryCreated } from "./events/eventbridge-queue-entry-created";
 import { initEventBridgeLinkQueued } from "./events/eventbridge-link-queued";
 import { initEventBridgeLinkSaved } from "./events/eventbridge-link-saved";
 import { initEventBridgeRecrawlLinkInitiated } from "./events/eventbridge-recrawl-link-initiated";
@@ -151,7 +151,7 @@ export function initProdProviders(input: { appOrigin: string }) {
 	const { publishLinkSaved } = initEventBridgeLinkSaved({ publishEvent });
 	const { publishLinkQueued } = initEventBridgeLinkQueued({ publishEvent });
 	const { publishLinkDequeued } = initEventBridgeLinkDequeued({ publishEvent });
-	const { publishComputeRelatedArticles } = initEventBridgeComputeRelatedArticles({ publishEvent });
+	const { publishQueueEntryCreated } = initEventBridgeQueueEntryCreated({ publishEvent });
 	const { publishRecrawlLinkInitiated } = initEventBridgeRecrawlLinkInitiated({ publishEvent });
 	const { publishRemoveMyContent } = initEventBridgeRemoveMyContent({ publishEvent });
 	const { publishSaveAnonymousLink } = initEventBridgeSaveAnonymousLink({ publishEvent });
@@ -307,7 +307,7 @@ export function initProdProviders(input: { appOrigin: string }) {
 		publishLinkSaved,
 		publishLinkQueued,
 		publishLinkDequeued,
-		publishComputeRelatedArticles,
+		publishQueueEntryCreated,
 		publishRecrawlLinkInitiated,
 		publishRemoveMyContent,
 		publishSaveAnonymousLink,

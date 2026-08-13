@@ -13,10 +13,6 @@ export {
 	type SaveArticleAtQueueTopDependencies,
 } from "./save-article-at-queue-top";
 export {
-	initSaveArticleInteractively,
-	type SaveArticleInteractivelyDependencies,
-} from "./save-article-interactively";
-export {
 	initSubmitFreshness,
 	type SubmitFreshnessDependencies,
 } from "./submit-freshness";

@@ -50,7 +50,7 @@ import {
 	initInMemorySubscriptionReactivated,
 } from "@packages/test-fixtures/providers/events";
 import {
-	initInMemoryComputeRelatedArticles,
+	initInMemoryQueueEntryCreated,
 	initInMemoryLinkDequeued,
 	initInMemoryLinkQueued,
 	initInMemoryLinkSaved,
@@ -266,7 +266,7 @@ export function initDevProviders(input: { appOrigin: string }) {
 	};
 	const { publishLinkQueued } = initInMemoryLinkQueued({ logger: consoleLogger });
 	const { publishLinkDequeued } = initInMemoryLinkDequeued({ logger: consoleLogger });
-	const { publishComputeRelatedArticles } = initInMemoryComputeRelatedArticles({ logger: consoleLogger });
+	const { publishQueueEntryCreated } = initInMemoryQueueEntryCreated({ logger: consoleLogger });
 	const { findRelatedArticles } = initInMemoryRelatedArticles({
 		findArticleByUrl: articleStore.findArticleByUrl,
 		findArticleById: articleStore.findArticleById,
@@ -380,7 +380,7 @@ export function initDevProviders(input: { appOrigin: string }) {
 		publishLinkSaved,
 		publishLinkQueued,
 		publishLinkDequeued,
-		publishComputeRelatedArticles,
+		publishQueueEntryCreated,
 		publishRecrawlLinkInitiated,
 		publishRemoveMyContent,
 		publishSaveAnonymousLink,

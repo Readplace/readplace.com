@@ -1,6 +1,6 @@
 export {
-	ComputeRelatedArticlesCommand,
-	type ComputeRelatedArticlesDetail,
+	QueueEntryCreatedEvent,
+	type QueueEntryCreatedDetail,
 	RelatedArticlesComputedEvent,
 	type RelatedArticlesComputedDetail,
 } from "@packages/hutch-infra-components";

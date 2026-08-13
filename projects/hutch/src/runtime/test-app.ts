@@ -167,7 +167,7 @@ function flattenFixtureToAppDependencies(
 		publishLinkSaved: fixture.events.publishLinkSaved,
 		publishLinkQueued: fixture.events.publishLinkQueued,
 		publishLinkDequeued: fixture.events.publishLinkDequeued,
-		publishComputeRelatedArticles: fixture.events.publishComputeRelatedArticles,
+		publishQueueEntryCreated: fixture.events.publishQueueEntryCreated,
 		publishRecrawlLinkInitiated: fixture.events.publishRecrawlLinkInitiated,
 		publishRemoveMyContent: fixture.events.publishRemoveMyContent,
 		publishSaveAnonymousLink: fixture.events.publishSaveAnonymousLink,

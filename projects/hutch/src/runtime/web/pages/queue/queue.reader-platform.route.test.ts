@@ -62,7 +62,7 @@ function buildHarness(useServer: typeof useApp = useApp): ReturnType<typeof useA
 			publishLinkSaved: createFakePublishLinkSaved(applyParseResult),
 			publishLinkQueued: fixture.events.publishLinkQueued,
 			publishLinkDequeued: fixture.events.publishLinkDequeued,
-			publishComputeRelatedArticles: fixture.events.publishComputeRelatedArticles,
+			publishQueueEntryCreated: fixture.events.publishQueueEntryCreated,
 			publishRecrawlLinkInitiated: createFakePublishRecrawlLinkInitiated(applyParseResult),
 			publishSaveAnonymousLink: createFakePublishSaveAnonymousLink(applyParseResult),
 		},

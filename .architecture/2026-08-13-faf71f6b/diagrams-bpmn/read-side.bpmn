@@ -1,0 +1,118 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<bpmn:definitions xmlns:bpmn="http://www.omg.org/spec/BPMN/20100524/MODEL" xmlns:bpmndi="http://www.omg.org/spec/BPMN/20100524/DI" xmlns:dc="http://www.omg.org/spec/DD/20100524/DC" xmlns:di="http://www.omg.org/spec/DD/20100524/DI" id="Definitions_read_side" targetNamespace="http://readplace.com/architecture/bpmn">
+  <bpmn:process id="Process_read_side" name="read-side" isExecutable="false">
+    <bpmn:sendTask id="n_reader" name="GET /queue/:id/view owner reader">
+      <bpmn:outgoing>f_0</bpmn:outgoing>
+    </bpmn:sendTask>
+    <bpmn:sendTask id="n_publicView" name="GET /view/* public reader">
+      <bpmn:outgoing>f_6</bpmn:outgoing>
+    </bpmn:sendTask>
+    <bpmn:sendTask id="n_recrawlPreview" name="GET admin recrawl preview">
+      <bpmn:outgoing>f_7</bpmn:outgoing>
+    </bpmn:sendTask>
+    <bpmn:sendTask id="n_mcpTool" name="MCP get_related_articles"></bpmn:sendTask>
+    <bpmn:sendTask id="n_poll" name="GET /queue/:id/related 3s poll, capped"></bpmn:sendTask>
+    <bpmn:sendTask id="n_dismiss" name="POST /queue/:id/related-dismiss">
+      <bpmn:outgoing>f_5</bpmn:outgoing>
+    </bpmn:sendTask>
+    <bpmn:serviceTask id="n_dismissed" name="relatedDismissedAt set?">
+      <bpmn:incoming>f_0</bpmn:incoming>
+      <bpmn:incoming>f_5</bpmn:incoming>
+      <bpmn:outgoing>f_1</bpmn:outgoing>
+    </bpmn:serviceTask>
+    <bpmn:dataStoreReference id="n_read" name="stored relations joined to still-saved, non-purged articles"></bpmn:dataStoreReference>
+    <bpmn:serviceTask id="n_slot" name="related slot always rendered, hidden or visible">
+      <bpmn:incoming>f_1</bpmn:incoming>
+      <bpmn:incoming>f_6</bpmn:incoming>
+      <bpmn:incoming>f_7</bpmn:incoming>
+    </bpmn:serviceTask>
+    <bpmn:sequenceFlow id="f_0" name="" sourceRef="n_reader" targetRef="n_dismissed" />
+    <bpmn:sequenceFlow id="f_1" name="yes" sourceRef="n_dismissed" targetRef="n_slot" />
+    <bpmn:sequenceFlow id="f_5" name="" sourceRef="n_dismiss" targetRef="n_dismissed" />
+    <bpmn:sequenceFlow id="f_6" name="" sourceRef="n_publicView" targetRef="n_slot" />
+    <bpmn:sequenceFlow id="f_7" name="" sourceRef="n_recrawlPreview" targetRef="n_slot" />
+    <bpmn:association id="f_2" sourceRef="n_dismissed" targetRef="n_read" associationDirection="One" />
+    <bpmn:association id="f_3" sourceRef="n_read" targetRef="n_slot" associationDirection="One" />
+    <bpmn:association id="f_4" sourceRef="n_poll" targetRef="n_read" associationDirection="One" />
+    <bpmn:association id="f_8" sourceRef="n_mcpTool" targetRef="n_read" associationDirection="One" />
+  </bpmn:process>
+  <bpmndi:BPMNDiagram id="Diagram_read_side">
+    <bpmndi:BPMNPlane id="Plane_read_side" bpmnElement="Process_read_side">
+      <bpmndi:BPMNShape id="n_reader_di" bpmnElement="n_reader">
+        <dc:Bounds x="28" y="28" width="157" height="52" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="n_publicView_di" bpmnElement="n_publicView">
+        <dc:Bounds x="221" y="28" width="108.75" height="52" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="n_recrawlPreview_di" bpmnElement="n_recrawlPreview">
+        <dc:Bounds x="365.75" y="30" width="202.5" height="48" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="n_mcpTool_di" bpmnElement="n_mcpTool">
+        <dc:Bounds x="604.25" y="30" width="190.5" height="48" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="n_poll_di" bpmnElement="n_poll">
+        <dc:Bounds x="830.75" y="28" width="173.5" height="52" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="n_dismiss_di" bpmnElement="n_dismiss">
+        <dc:Bounds x="1040.25" y="28" width="198.75" height="52" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="n_dismissed_di" bpmnElement="n_dismissed">
+        <dc:Bounds x="541.75" y="138" width="183.5" height="48" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="n_read_di" bpmnElement="n_read">
+        <dc:Bounds x="550.89" y="244" width="165.22" height="48" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="n_slot_di" bpmnElement="n_slot">
+        <dc:Bounds x="535.5" y="394.5" width="196" height="68" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNEdge id="f_0_di" bpmnElement="f_0">
+        <di:waypoint x="106.5" y="80" />
+        <di:waypoint x="106.5" y="109" />
+        <di:waypoint x="633.5" y="109" />
+        <di:waypoint x="633.5" y="138" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="f_1_di" bpmnElement="f_1">
+        <di:waypoint x="633.5" y="186" />
+        <di:waypoint x="633.5" y="394.5" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="f_5_di" bpmnElement="f_5">
+        <di:waypoint x="1139.63" y="80" />
+        <di:waypoint x="1139.63" y="109" />
+        <di:waypoint x="633.5" y="109" />
+        <di:waypoint x="633.5" y="138" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="f_6_di" bpmnElement="f_6">
+        <di:waypoint x="275.38" y="80" />
+        <di:waypoint x="275.38" y="237.25" />
+        <di:waypoint x="633.5" y="237.25" />
+        <di:waypoint x="633.5" y="394.5" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="f_7_di" bpmnElement="f_7">
+        <di:waypoint x="467" y="78" />
+        <di:waypoint x="467" y="236.25" />
+        <di:waypoint x="633.5" y="236.25" />
+        <di:waypoint x="633.5" y="394.5" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="f_2_di" bpmnElement="f_2">
+        <di:waypoint x="633.5" y="186" />
+        <di:waypoint x="633.5" y="244" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="f_3_di" bpmnElement="f_3">
+        <di:waypoint x="633.5" y="292" />
+        <di:waypoint x="633.5" y="394.5" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="f_4_di" bpmnElement="f_4">
+        <di:waypoint x="917.5" y="80" />
+        <di:waypoint x="917.5" y="162" />
+        <di:waypoint x="633.5" y="162" />
+        <di:waypoint x="633.5" y="244" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="f_8_di" bpmnElement="f_8">
+        <di:waypoint x="699.5" y="78" />
+        <di:waypoint x="699.5" y="161" />
+        <di:waypoint x="633.5" y="161" />
+        <di:waypoint x="633.5" y="244" />
+      </bpmndi:BPMNEdge>
+    </bpmndi:BPMNPlane>
+  </bpmndi:BPMNDiagram>
+</bpmn:definitions>

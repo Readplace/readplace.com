@@ -13,7 +13,7 @@ import type {
 	MarkRelatedArticlesReady,
 	MarkRelatedArticlesSkipped,
 } from "@packages/provider-contracts/related-articles";
-import { ComputeRelatedArticlesCommand, RelatedArticlesComputedEvent } from "./index";
+import { QueueEntryCreatedEvent, RelatedArticlesComputedEvent } from "./index";
 import type { GatherRelatedCandidatePools } from "./related-articles-candidates";
 import { RELATED_CANDIDATES_MIN } from "./related-articles-limits";
 import type { SelectRelatedArticles } from "./related-articles-selector";
@@ -60,15 +60,13 @@ export function initComputeRelatedArticlesHandler(
 		for (const record of event.Records) {
 			try {
 				const envelope = JSON.parse(record.body);
-				const command = ComputeRelatedArticlesCommand.detailSchema.parse(
-					envelope.detail,
-				);
-				const userId = UserIdSchema.parse(command.userId);
+				const entry = QueueEntryCreatedEvent.detailSchema.parse(envelope.detail);
+				const userId = UserIdSchema.parse(entry.userId);
 
-				const existing = await findRelatedArticles({ userId, url: command.url });
+				const existing = await findRelatedArticles({ userId, url: entry.url });
 				if (existing.status !== "pending") {
 					logger.info("[ComputeRelatedArticles] cache hit", {
-						url: command.url,
+						url: entry.url,
 						status: existing.status,
 					});
 					continue;
@@ -77,15 +75,15 @@ export function initComputeRelatedArticlesHandler(
 				const skip = async (reason: string): Promise<void> => {
 					const outcome = await markRelatedArticlesSkipped({
 						userId,
-						url: command.url,
+						url: entry.url,
 						at: now(),
 					});
 					if (outcome === "superseded") {
-						logger.info("[ComputeRelatedArticles] superseded", { url: command.url });
+						logger.info("[ComputeRelatedArticles] superseded", { url: entry.url });
 						return;
 					}
 					await publishEvent(RelatedArticlesComputedEvent, {
-						url: command.url,
+						url: entry.url,
 						userId,
 						outcome: "skipped",
 						relatedCount: 0,
@@ -93,14 +91,14 @@ export function initComputeRelatedArticlesHandler(
 						outputTokens: 0,
 					});
 					logger.info("[ComputeRelatedArticles] skipped", {
-						url: command.url,
+						url: entry.url,
 						reason,
 					});
 				};
 
-				const target = await findRelatedTargetArticle(command.url);
+				const target = await findRelatedTargetArticle(entry.url);
 				if (!target || target.crawlStatus === "pending") {
-					throw new MetadataNotReadyError(command.url);
+					throw new MetadataNotReadyError(entry.url);
 				}
 				if (target.hasStubMetadata) {
 					await skip("crawl produced no metadata to compare");
@@ -109,40 +107,45 @@ export function initComputeRelatedArticlesHandler(
 
 				const pools = await gatherRelatedCandidatePools({
 					userId,
-					excludeUrl: command.url,
+					excludeUrl: entry.url,
 				});
 				const candidateCount =
 					pools.unreadCandidates.length + pools.readCandidates.length;
 				if (candidateCount < RELATED_CANDIDATES_MIN) {
+					if (pools.awaitingCrawl > 0) throw new MetadataNotReadyError(entry.url);
 					await skip("not enough saves to compare against");
 					continue;
 				}
 
-				const result = await selectRelatedArticles({ target, ...pools });
+				const result = await selectRelatedArticles({
+					target,
+					unreadCandidates: pools.unreadCandidates,
+					readCandidates: pools.readCandidates,
+				});
 				if (result.kind === "shared-boilerplate") {
 					await skip("the saved text is a block page shared across sites");
 					continue;
 				}
 				if (result.kind === "no-text-block") {
 					throw new Error(
-						`[ComputeRelatedArticles] ${result.kind satisfies "no-text-block"} for ${command.url}`,
+						`[ComputeRelatedArticles] ${result.kind satisfies "no-text-block"} for ${entry.url}`,
 					);
 				}
 
 				const outcome = await markRelatedArticlesReady({
 					userId,
-					url: command.url,
+					url: entry.url,
 					relatedArticles: result.related,
 					inputTokens: result.inputTokens,
 					outputTokens: result.outputTokens,
 					at: now(),
 				});
 				if (outcome === "superseded") {
-					logger.info("[ComputeRelatedArticles] superseded", { url: command.url });
+					logger.info("[ComputeRelatedArticles] superseded", { url: entry.url });
 					continue;
 				}
 				await publishEvent(RelatedArticlesComputedEvent, {
-					url: command.url,
+					url: entry.url,
 					userId,
 					outcome: "ready",
 					relatedCount: result.related.length,
@@ -150,7 +153,7 @@ export function initComputeRelatedArticlesHandler(
 					outputTokens: result.outputTokens,
 				});
 				logger.info("[ComputeRelatedArticles] completed", {
-					url: command.url,
+					url: entry.url,
 					relatedCount: result.related.length,
 					inputTokens: result.inputTokens,
 					outputTokens: result.outputTokens,

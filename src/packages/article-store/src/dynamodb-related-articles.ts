@@ -24,6 +24,7 @@ import type {
 	MarkRelatedArticlesSkipped,
 	RelatedArticleDisplay,
 	RelatedCandidate,
+	RelatedCandidates,
 } from "@packages/provider-contracts/related-articles";
 import { z } from "zod";
 
@@ -205,15 +206,20 @@ export function initDynamoDbRelatedArticles(deps: {
 
 	async function hydrateCandidates(
 		savedUrls: string[],
-	): Promise<readonly RelatedCandidate[]> {
-		if (savedUrls.length === 0) return [];
+	): Promise<RelatedCandidates> {
+		if (savedUrls.length === 0) return { candidates: [], awaitingCrawl: 0 };
 
 		const byUrl = await readArticles(savedUrls, ARTICLE_FIELDS);
 
 		const candidates: RelatedCandidate[] = [];
+		let awaitingCrawl = 0;
 		for (const url of savedUrls) {
 			const article = usable(DescribableArticle, byUrl.get(url));
 			if (!article) continue;
+			if (article.title === stubMetadataFor(article.siteName).title) {
+				if (article.crawlStatus === "pending") awaitingCrawl += 1;
+				continue;
+			}
 			candidates.push({
 				url,
 				title: article.title,
@@ -221,7 +227,7 @@ export function initDynamoDbRelatedArticles(deps: {
 				description: descriptionOf(article),
 			});
 		}
-		return candidates;
+		return { candidates, awaitingCrawl };
 	}
 
 	const findRelatedCandidateArticles: FindRelatedCandidateArticles = async (

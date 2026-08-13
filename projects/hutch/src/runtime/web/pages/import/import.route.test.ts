@@ -628,6 +628,26 @@ describe("Import routes", () => {
 			]);
 		});
 
+		it("asks to resurface nothing, so a thousands-of-links commit costs no per-link selection", async () => {
+			const fixture = createDefaultTestAppFixture(TEST_APP_ORIGIN);
+			const harness = useApp(fixture);
+			const agent = await loginAgent(harness.server, harness.auth);
+			const { body, contentType } = multipartBody(
+				"urls.txt",
+				Buffer.from("https://example.com/imported-a https://example.com/imported-b"),
+			);
+			const create = await agent.post("/import").set("Content-Type", contentType).send(body);
+
+			const commit = await agent.post(`${create.headers.location}/commit`);
+
+			expect(commit.status).toBe(303);
+			const userId = (await harness.auth.findUserByEmail("test@example.com"))?.userId;
+			assert(userId, "user must exist");
+			const result = await harness.articleStore.findArticlesByUser({ userId });
+			expect(result.articles).toHaveLength(2);
+			expect(fixture.publishedQueueEntryCreated).toEqual([]);
+		});
+
 		it("stamps the URLs of one commit batch with consecutive allocator instants in file order, minted only after the batch's freshness checks resolved", async () => {
 			const fixture = createDefaultTestAppFixture(TEST_APP_ORIGIN);
 			const allocatorBase = new Date("2031-04-05T06:07:08.090Z");

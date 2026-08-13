@@ -28,7 +28,7 @@ import {
 	LinkSavedEvent,
 	AnonymousLinkSavedEvent,
 	CanonicalContentChangedEvent,
-	ComputeRelatedArticlesCommand,
+	QueueEntryCreatedEvent,
 	StaleCheckRequestedEvent,
 	SummaryGeneratedEvent,
 	SummaryGenerationFailedEvent,
@@ -1307,10 +1307,10 @@ const canonicalContentChangedLambdaWithSQS = new HutchSQSBackedLambda("canonical
 eventBus.subscribe(CanonicalContentChangedEvent, canonicalContentChangedLambdaWithSQS);
 
 // --- ComputeRelatedArticles handler ---
-// Consumes the command every interactive save publishes and writes the selected
-// relations onto the per-user save row. Waits (throw → SQS retry) while the
-// article's crawl metadata is still landing, so the model never compares against
-// the stub title a fresh save starts with. No dedicated DLQ event handler — an
+// Consumes the fact that a save added an article to a reader's queue and writes
+// the selected relations onto the per-user save row. Waits (throw → SQS retry)
+// while crawl metadata is still landing, so the model never compares against the
+// stub title a fresh save starts with. No dedicated DLQ event handler — an
 // absent relatedStatus renders as the hidden reader slot, so there is no terminal
 // row state to flip; the HutchSQSBackedLambda DLQ + email alarm is the operator
 // signal.
@@ -1361,7 +1361,9 @@ const computeRelatedArticlesLambdaWithSQS = new HutchSQSBackedLambda("compute-re
 	batchSize: 1,
 });
 
-eventBus.subscribe(ComputeRelatedArticlesCommand, computeRelatedArticlesLambdaWithSQS);
+eventBus.subscribe(QueueEntryCreatedEvent, computeRelatedArticlesLambdaWithSQS, {
+	name: "compute-related-articles",
+});
 
 // --- RecrawlLinkInitiated handler ---
 

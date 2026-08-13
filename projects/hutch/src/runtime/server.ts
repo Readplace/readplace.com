@@ -106,7 +106,7 @@ import type {
 	MarkSummaryPending,
 } from "@packages/provider-contracts/article-summary";
 import type {
-	PublishComputeRelatedArticles,
+	PublishQueueEntryCreated,
 	PublishLinkDequeued,
 	PublishLinkQueued,
 	PublishLinkSaved,
@@ -194,7 +194,7 @@ import { initMcpRoutes } from "./web/mcp/mcp.routes";
 import { buildMcpServerCard } from "./web/mcp/server-card";
 import { initResolveSaveAccess } from "./web/mcp/save-access";
 import { initResolveToolAccess } from "./web/mcp/tool-access";
-import { initSaveArticleAtQueueTop, initSaveArticleFromUrl, initSaveArticleInteractively } from "@packages/save-article";
+import { initSaveArticleAtQueueTop, initSaveArticleFromUrl } from "@packages/save-article";
 import type { FoundingAllocation } from "./web/shared/founding-progress/founding-allocation";
 import { initDualAuth } from "./web/dual-auth.middleware";
 import { initMarkExtensionInstalled } from "./web/mark-extension-installed.middleware";
@@ -313,7 +313,7 @@ interface AppDependencies {
 	publishLinkSaved: PublishLinkSaved;
 	publishLinkQueued: PublishLinkQueued;
 	publishLinkDequeued: PublishLinkDequeued;
-	publishComputeRelatedArticles: PublishComputeRelatedArticles;
+	publishQueueEntryCreated: PublishQueueEntryCreated;
 	findRelatedArticles: FindRelatedArticles;
 	publishRecrawlLinkInitiated: PublishRecrawlLinkInitiated;
 	publishRemoveMyContent: PublishRemoveMyContent;
@@ -479,10 +479,7 @@ export function createApp(dependencies: AppDependencies): Express {
 				const freshness = await deps.refreshArticleIfStale({ url: validation.url });
 				const { saved } = await initSaveArticleAtQueueTop({
 					allocateSavedAt: deps.allocateSavedAt,
-					saveArticleFromUrl: initSaveArticleInteractively({
-						saveArticleFromUrl: initSaveArticleFromUrl(deps),
-						publishComputeRelatedArticles: deps.publishComputeRelatedArticles,
-					}),
+					saveArticleFromUrl: initSaveArticleFromUrl(deps),
 				})({
 					userId,
 					url: validation.url,
@@ -1124,7 +1121,7 @@ export function createApp(dependencies: AppDependencies): Express {
 		publishLinkSaved: deps.publishLinkSaved,
 		publishLinkQueued: deps.publishLinkQueued,
 		publishLinkDequeued: deps.publishLinkDequeued,
-		publishComputeRelatedArticles: deps.publishComputeRelatedArticles,
+		publishQueueEntryCreated: deps.publishQueueEntryCreated,
 		findRelatedArticles: deps.findRelatedArticles,
 		publishRemoveMyContent: deps.publishRemoveMyContent,
 		publishSaveLinkRawHtmlCommand: deps.publishSaveLinkRawHtmlCommand,
@@ -1183,6 +1180,7 @@ export function createApp(dependencies: AppDependencies): Express {
 		publishUpdateFetchTimestamp: deps.publishUpdateFetchTimestamp,
 		publishLinkSaved: deps.publishLinkSaved,
 		publishLinkQueued: deps.publishLinkQueued,
+		publishQueueEntryCreated: deps.publishQueueEntryCreated,
 		refreshArticleIfStale: deps.refreshArticleIfStale,
 		allocateSavedAtSequence: deps.allocateSavedAtSequence,
 		resolveCanonicalIdentity: deps.resolveCanonicalIdentity,

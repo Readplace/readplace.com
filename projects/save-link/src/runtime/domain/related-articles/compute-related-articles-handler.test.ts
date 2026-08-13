@@ -45,7 +45,7 @@ function createSqsEvent(body: string): SQSEvent {
 	};
 }
 
-const commandEvent = createSqsEvent(
+const queueEntryEvent = createSqsEvent(
 	JSON.stringify({ detail: { url: TARGET_URL, userId: USER_ID } }),
 );
 
@@ -95,6 +95,7 @@ function createHandler(overrides: HandlerOverrides = {}) {
 			overrides.pools ?? {
 				unreadCandidates: candidates("earlier", 150),
 				readCandidates: [],
+				awaitingCrawl: 0,
 			},
 		selectRelatedArticles: async (params) => {
 			selected.push(params);
@@ -127,7 +128,7 @@ describe("initComputeRelatedArticlesHandler", () => {
 	it("stores the selected relations and announces the outcome", async () => {
 		const { handler, ready, published } = createHandler();
 
-		const result = await handler(commandEvent, buildLambdaContext(), () => {});
+		const result = await handler(queueEntryEvent, buildLambdaContext(), () => {});
 
 		expect(result).toEqual({ batchItemFailures: [] });
 		expect(ready).toEqual([
@@ -151,7 +152,7 @@ describe("initComputeRelatedArticlesHandler", () => {
 	it("announces nothing when another computation had already settled the row", async () => {
 		const { handler, ready, published } = createHandler({ markOutcome: "superseded" });
 
-		const result = await handler(commandEvent, buildLambdaContext(), () => {});
+		const result = await handler(queueEntryEvent, buildLambdaContext(), () => {});
 
 		expect(result).toEqual({ batchItemFailures: [] });
 		expect(ready).toHaveLength(1);
@@ -164,7 +165,7 @@ describe("initComputeRelatedArticlesHandler", () => {
 			markOutcome: "superseded",
 		});
 
-		const result = await handler(commandEvent, buildLambdaContext(), () => {});
+		const result = await handler(queueEntryEvent, buildLambdaContext(), () => {});
 
 		expect(result).toEqual({ batchItemFailures: [] });
 		expect(skipped).toHaveLength(1);
@@ -181,7 +182,7 @@ describe("initComputeRelatedArticlesHandler", () => {
 			}),
 		});
 
-		await handler(commandEvent, buildLambdaContext(), () => {});
+		await handler(queueEntryEvent, buildLambdaContext(), () => {});
 
 		expect(ready).toEqual([{ url: TARGET_URL, relatedArticles: [] }]);
 		expect(published[0]?.relatedCount).toBe(0);
@@ -192,7 +193,7 @@ describe("initComputeRelatedArticlesHandler", () => {
 			existing: { status: "ready", items: [] },
 		});
 
-		await handler(commandEvent, buildLambdaContext(), () => {});
+		await handler(queueEntryEvent, buildLambdaContext(), () => {});
 
 		expect({ ready, skipped, published }).toEqual({ ready: [], skipped: [], published: [] });
 	});
@@ -200,7 +201,7 @@ describe("initComputeRelatedArticlesHandler", () => {
 	it("leaves a previously skipped row alone", async () => {
 		const { handler, ready, skipped } = createHandler({ existing: { status: "skipped" } });
 
-		await handler(commandEvent, buildLambdaContext(), () => {});
+		await handler(queueEntryEvent, buildLambdaContext(), () => {});
 
 		expect({ ready, skipped }).toEqual({ ready: [], skipped: [] });
 	});
@@ -212,7 +213,7 @@ describe("initComputeRelatedArticlesHandler", () => {
 			logger,
 		});
 
-		const result = await handler(commandEvent, buildLambdaContext(), () => {});
+		const result = await handler(queueEntryEvent, buildLambdaContext(), () => {});
 
 		expect(result).toEqual({ batchItemFailures: [{ itemIdentifier: "msg-1" }] });
 		expect(logger.info).toHaveBeenCalledWith(
@@ -227,7 +228,7 @@ describe("initComputeRelatedArticlesHandler", () => {
 		const logger = { info: jest.fn(), warn: jest.fn(), error: jest.fn(), debug: jest.fn() };
 		const { handler } = createHandler({ target: undefined, logger });
 
-		const result = await handler(commandEvent, buildLambdaContext(), () => {});
+		const result = await handler(queueEntryEvent, buildLambdaContext(), () => {});
 
 		expect(result).toEqual({ batchItemFailures: [{ itemIdentifier: "msg-1" }] });
 		expect(logger.info).toHaveBeenCalledWith(
@@ -242,7 +243,7 @@ describe("initComputeRelatedArticlesHandler", () => {
 			target: crawledTarget({ crawlStatus: "failed", hasStubMetadata: true }),
 		});
 
-		await handler(commandEvent, buildLambdaContext(), () => {});
+		await handler(queueEntryEvent, buildLambdaContext(), () => {});
 
 		expect(skipped).toEqual([{ url: TARGET_URL, at: NOW }]);
 		expect(published).toEqual([
@@ -262,27 +263,65 @@ describe("initComputeRelatedArticlesHandler", () => {
 			pools: {
 				unreadCandidates: candidates("earlier", 20),
 				readCandidates: candidates("finished", 20),
+				awaitingCrawl: 0,
 			},
 		});
 
-		await handler(commandEvent, buildLambdaContext(), () => {});
+		await handler(queueEntryEvent, buildLambdaContext(), () => {});
 
 		expect(skipped).toEqual([{ url: TARGET_URL, at: NOW }]);
 		expect(published[0]?.outcome).toBe("skipped");
+	});
+
+	it("proceeds to selection with a full pile even while other saves are still crawling", async () => {
+		const { handler, ready, skipped } = createHandler({
+			pools: {
+				unreadCandidates: candidates("earlier", 60),
+				readCandidates: [],
+				awaitingCrawl: 15,
+			},
+		});
+
+		const result = await handler(queueEntryEvent, buildLambdaContext(), () => {});
+
+		expect(skipped).toEqual([]);
+		expect(ready).toHaveLength(1);
+		expect(result).toEqual({ batchItemFailures: [] });
+	});
+
+	it("waits instead of skipping when the pile is thin only because a batch of saves is still crawling", async () => {
+		const { handler, skipped, published } = createHandler({
+			pools: {
+				unreadCandidates: candidates("earlier", 20),
+				readCandidates: candidates("finished", 20),
+				awaitingCrawl: 40,
+			},
+		});
+
+		const result = await handler(queueEntryEvent, buildLambdaContext(), () => {});
+
+		expect(skipped).toEqual([]);
+		expect(published).toEqual([]);
+		expect(result).toEqual({ batchItemFailures: [{ itemIdentifier: "msg-1" }] });
 	});
 
 	it("counts past reads toward the comparison floor a thin unread pile cannot reach alone", async () => {
 		const pools = {
 			unreadCandidates: candidates("earlier", 30),
 			readCandidates: candidates("finished", 25),
+			awaitingCrawl: 0,
 		};
 		const { handler, skipped, selected } = createHandler({ pools });
 
-		await handler(commandEvent, buildLambdaContext(), () => {});
+		await handler(queueEntryEvent, buildLambdaContext(), () => {});
 
 		expect(skipped).toEqual([]);
 		expect(selected).toEqual([
-			{ target: crawledTarget(), ...pools },
+			{
+				target: crawledTarget(),
+				unreadCandidates: pools.unreadCandidates,
+				readCandidates: pools.readCandidates,
+			},
 		]);
 	});
 
@@ -293,7 +332,7 @@ describe("initComputeRelatedArticlesHandler", () => {
 			logger,
 		});
 
-		const result = await handler(commandEvent, buildLambdaContext(), () => {});
+		const result = await handler(queueEntryEvent, buildLambdaContext(), () => {});
 
 		expect(result).toEqual({ batchItemFailures: [{ itemIdentifier: "msg-1" }] });
 		expect(logger.error).toHaveBeenCalledWith(
@@ -309,7 +348,7 @@ describe("initComputeRelatedArticlesHandler", () => {
 			selectRelatedArticles: async () => ({ kind: "shared-boilerplate" }),
 		});
 
-		const result = await handler(commandEvent, buildLambdaContext(), () => {});
+		const result = await handler(queueEntryEvent, buildLambdaContext(), () => {});
 
 		expect(result).toEqual({ batchItemFailures: [] });
 		expect(ready).toEqual([]);
