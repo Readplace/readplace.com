@@ -28,7 +28,7 @@ Each card has a clear button. An unread article shows "Mark as read", a read one
 
 People mis-tap. You go to open an article on a phone, your thumb lands a few pixels off, and you mark it read instead. The old fix was to find the article again, open it, and set the state back by hand, which is slow and fiddly on a small screen.
 
-So we added a confirmation. Mark an article and a short message appears, "Marked as read", with an Undo button next to it, and one tap on Undo puts the article back where it was. The message clears itself after a few seconds, so it does not sit in your way once you have moved on.
+So I added a confirmation. Mark an article and a short message appears, "Marked as read", with an Undo button next to it, and one tap on Undo puts the article back where it was. The message clears itself after a few seconds, so it does not sit in your way once you have moved on.
 
 > **A wrong tap should cost one click to fix, not a hunt through the list.**
 
@@ -38,7 +38,7 @@ The queue keeps two filters at the top, one for unread articles and one for the 
 
 That second tab used to read "Done". It reads "Read" now, to match the label on the cards, so the same word means the same thing whether you are looking at a filter or a card.
 
-We also closed a small trap. An article you just saved spends a few seconds being fetched and summarised, and during that short window the read and unread buttons sit disabled with a "Processing…" note on the card. You cannot mark an article read before Readplace has finished saving it, because the state would not stick. The buttons wake up the moment the article is ready.
+I also closed a small trap. An article you just saved spends a few seconds being fetched and summarised, and during that short window the read and unread buttons sit disabled with a "Processing…" note on the card. You cannot mark an article read before Readplace has finished saving it, because the state would not stick. The buttons wake up the moment the article is ready.
 
 ## Why this matters for your reading
 

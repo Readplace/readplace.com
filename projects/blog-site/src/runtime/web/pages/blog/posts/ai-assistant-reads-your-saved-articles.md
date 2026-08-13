@@ -37,7 +37,7 @@ The connection carries three more tools, and they do not all act alike.
 
 `mark_as_read` and `mark_as_unread` do what they read like. One flips a saved article to read, the other flips it back and clears the read date with it. Both take a single id from your listing and change the same row the app changes when you tap the button in your queue, so a mark you make in a conversation shows up in the browser and on your phone.
 
-`delete_article` is the one left standing still. It reads like it removes an article, and it doesn't. Call it and your library stays exactly where it was; the tool answers with a short note saying deleting happens in the Readplace app, and you do it.
+`delete_article` is the one left standing still. It reads like it removes an article, and it doesn't. Call it and your library stays exactly where it was. The tool answers with a short note saying deleting happens in the Readplace app, and you do it.
 
 > **Your assistant can move an article through your list. It cannot take one out of it.**
 
@@ -49,9 +49,9 @@ The read mark was the one thing I most wanted to keep out of the assistant's han
 
 Readplace is a place to read the web. Reading a piece and asking an assistant to condense it are not the same act, and the read mark belongs to the first. The worry was the easy path: have the assistant skim the piece, hand you a few lines, tick the box, and your reading list fills with read marks over articles you never read.
 
-That worry was about an assistant marking things off its own bat. It was never about you asking for it. Refusing the tool did nothing about the first — an assistant inclined to tick a box it shouldn't is not held back by a note telling it to open the app — and it did stop the second, which is the ordinary case: you finish the piece, you are already in the conversation about it, and the app is one more trip.
+That worry was about an assistant marking things off its own bat. It was never about you asking for it. Refusing the tool did nothing about the first. An assistant inclined to tick a box it shouldn't is not held back by a note telling it to open the app. And it did stop the second, which is the ordinary case: you finish the piece, you are already in the conversation about it, and the app is one more trip.
 
-So marking read is a normal write now. `mark_as_read` sets the mark, `mark_as_unread` clears it and the read date with it, and a mark you did not want costs one sentence to undo — the same [one-tap undo](/blog/mark-articles-read-undo-in-one-tap) the queue already gives you. What is left of the old caution now lives in what the tool tells the assistant rather than in a refusal: the description says plainly that a summary it produced is not the same as you having read the piece, and that the mark is for when you have read it or when you ask. That is guidance, and I would rather call it guidance than keep a refusal that was only ever stopping the honest case.
+So marking read is a normal write now. `mark_as_read` sets the mark, `mark_as_unread` clears it and the read date with it, and a mark you did not want costs one sentence to undo, the same [one-tap undo](/blog/mark-articles-read-undo-in-one-tap) the queue already gives you. What is left of the old caution now lives in what the tool tells the assistant rather than in a refusal: the description says plainly that a summary it produced is not the same as you having read the piece, and that the mark is for when you have read it or when you ask. That is guidance, and I would rather call it guidance than keep a refusal that was only ever stopping the honest case.
 
 ## Why advertise a tool that refuses
 

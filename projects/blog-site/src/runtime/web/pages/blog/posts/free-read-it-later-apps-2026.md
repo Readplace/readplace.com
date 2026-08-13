@@ -1,6 +1,6 @@
 ---
 title: "Free Read-It-Later Apps in 2026: What You Actually Get"
-description: "An honest look at what free really means for read-it-later apps, from hosted tiers to self-hosted options — and where a paid subscription with a 14-day free trial fits."
+description: "An honest look at what free really means for read-it-later apps, from hosted tiers to self-hosted options, and where a paid subscription with a 14-day free trial fits."
 slug: "free-read-it-later-apps-2026"
 date: "2026-05-06"
 author: "Fayner Brack"
@@ -11,7 +11,7 @@ keywords: "free read it later app, read it later free, instapaper free, wallabag
 <summary class="blog-tldr__toggle">Summary (TL;DR)</summary>
 <div class="blog-tldr__body">
 
-Free read-it-later options in 2026 sort into 3 kinds. Instapaper and Raindrop.io run usable free tiers, but Pocket and Omnivore were free too and both shut down, so a free hosted tier carries a shutdown risk you should price in. Karakeep and Wallabag are free software you self-host, which trades money for time and a server bill. Browser bookmarks cost nothing and give you no reader view. Readplace — which I build — costs $4/month ($49/year), and that price is the business model: no ads, no investors, no data selling. There is a 14-day free trial with no credit card, and if it ends without a subscription nothing is charged — the account just drops to read-only. For most readers I'd start there.
+Free read-it-later options in 2026 sort into 3 kinds. Instapaper and Raindrop.io run usable free tiers, but Pocket and Omnivore were free too and both shut down, so a free hosted tier carries a shutdown risk you should price in. Karakeep and Wallabag are free software you self-host, which trades money for time and a server bill. Browser bookmarks cost nothing and give you no reader view. Readplace, which I build, costs $4/month ($49/year), and that price is the business model: no ads, no investors, no data selling. There is a 14-day free trial with no credit card, and if it ends without a subscription nothing is charged. The account just drops to read-only. For most readers I'd start there.
 
 </div>
 </details>
@@ -78,7 +78,7 @@ But the shape of how those products ended is hard to miss once you have seen it 
 
 > **Free hosted services in this category have a shelf life. The money situation changes, and the service goes with it.**
 
-If one of those shutdowns already happened to you and the export is still sitting in a downloads folder, moving that library somewhere durable is a small job, not a project. You can [import it into Readplace](/import?utm_source=blog-free-apps-2026&utm_medium=internal&utm_content=import-cta) before you have an account: the import page works logged out, so you upload the file, review what's in it, and create an account only when you commit the import. Files over 4.5 MB or imports above 2,000 links fall back to email — send those to readplace+migrate@readplace.com.
+If one of those shutdowns already happened to you and the export is still sitting in a downloads folder, moving that library somewhere durable is a small job, not a project. You can [import it into Readplace](/import?utm_source=blog-free-apps-2026&utm_medium=internal&utm_content=import-cta) before you have an account: the import page works logged out, so you upload the file, review what's in it, and create an account only when you commit the import. Files over 4.5 MB or imports above 2,000 links fall back to email. Send those to readplace+migrate@readplace.com.
 
 ## Self-Hosted Is Genuinely Free (But Not Actually Free)
 
@@ -92,7 +92,7 @@ Notice what the dollars alone add up to: $5 to $15 a month is $60 to $180 a year
 
 If you are a developer who finds the operating itself satisfying, this is the strongest option on the list, and no hosted app will match the control it gives you. If you want to save an article and read it on the train, you have signed up for a side job instead.
 
-So self-hosting trades money and a recurring server bill for time and operating skill. That is a fair deal for the right person. The mistake is taking it without seeing the second half of the price. If reading that list of chores made you tired, that reaction is data — the hosted options exist for you.
+So self-hosting trades money and a recurring server bill for time and operating skill. That is a fair deal for the right person. The mistake is taking it without seeing the second half of the price. If reading that list of chores made you tired, that reaction is data. The hosted options exist for you.
 
 ## Where Readplace Sits
 
@@ -100,19 +100,19 @@ I built Readplace after watching too many of these services close and wanting on
 
 The model is the plain one. You pay for the product, and the money keeps the product alive.
 
-Readplace costs $4/month ($49/year). That is less than a cup of coffee a month for a full-blown reader system powered by cutting-edge AI.
+Readplace costs $4/month ($49/year). That is less than a cup of coffee a month for a full-blown reader system powered by AI.
 
-That subscription is the whole funding source. There is no venture capital to run out, no acqui-hire to pull the team onto someone else's roadmap, no ads, and no data selling — nothing that needs your reading history to work. The fees cover servers and development. If the product stays good enough that people keep paying, it keeps running, which is the same test any honest business has to pass.
+That subscription is the whole funding source. There is no venture capital to run out, no acqui-hire to pull the team onto someone else's roadmap, no ads, and no data selling. Nothing here needs your reading history to work. The fees cover servers and development. If the product stays good enough that people keep paying, it keeps running, which is the same test any honest business has to pass.
 
-You don't have to pay up front to find out whether it deserves the money. Readplace starts with a 14-day free trial that doesn't ask for a credit card, and if the trial ends without a subscription nothing is charged — the account drops to read-only, so what you saved stays readable. Two weeks is enough to judge it by your own reading rather than by this post.
+You don't have to pay up front to find out whether it deserves the money. Readplace starts with a 14-day free trial that doesn't ask for a credit card, and if the trial ends without a subscription nothing is charged. The account drops to read-only, so what you saved stays readable. Two weeks is enough to judge it by your own reading rather than by this post.
 
-It is still not the right fit for every reader, and the table below should tell you why. If your budget is zero — not small, zero, indefinitely — Instapaper's free tier is the pick among the hosted options, with the ownership-change risk priced in. If you are a developer who enjoys running servers, Karakeep or Wallabag hand you full control. If you file links more than you read them, Raindrop fits. For everyone else — people who want to save an article, read it clean, and trust it will still be there next year — that is the reader I built Readplace for.
+It is still not the right fit for every reader, and the table below should tell you why. If your budget is zero (not small, zero, indefinitely), Instapaper's free tier is the pick among the hosted options, with the ownership-change risk priced in. If you are a developer who enjoys running servers, Karakeep or Wallabag hand you full control. If you file links more than you read them, Raindrop fits. Everyone else wants to save an article, read it clean, and trust it will still be there next year. That is the reader I built Readplace for.
 
 <div class="blog-cta">
 <p class="blog-cta__title">Judge it by your own reading</p>
 <p class="blog-cta__text">Fourteen days with the full product, on the articles you actually save, settles the free-versus-paid question better than any table.</p>
 <a class="blog-cta__button" href="/signup?utm_source=blog-free-apps-2026&utm_medium=internal&utm_content=inline-cta">Start your 14-day free trial</a>
-<p class="blog-cta__note">No credit card required. If the trial ends without a subscription, nothing is charged — the account drops to read-only.</p>
+<p class="blog-cta__note">No credit card required. If the trial ends without a subscription, nothing is charged. The account drops to read-only.</p>
 </div>
 
 ## The Short Version
@@ -128,7 +128,7 @@ It is still not the right fit for every reader, and the table below should tell 
 
 Every row in that table is a real bargain, not a free lunch.
 
-The choice comes down to which cost you would rather carry: the dollars, the maintenance hours, or the chance of a shutdown email. I carry the first one, obviously — I built the option the dollars keep alive. Pick the tradeoff you can live with, and pick it on purpose.
+The choice comes down to which cost you would rather carry: the dollars, the maintenance hours, or the chance of a shutdown email. I carry the first one, obviously. I built the option the dollars keep alive. Pick the tradeoff you can live with, and pick it on purpose.
 
 <div class="blog-cta">
 <p class="blog-cta__title">Try Readplace for two weeks</p>

@@ -18,7 +18,7 @@ Readplace saves a copy of an article's images on its own CDN, so your saved copy
 
 I saved a long photo feature, opened it on my phone the next morning, and a picture halfway down was the wrong one. Not a gray box where an image used to be, but a close-up of a sauce pan sitting where a wide kitchen shot should have been. The photos further down were broken gray boxes.
 
-That is the kind of thing a read-it-later app is supposed to make impossible. You save now, you read later, and what you saved stays put. Plenty of apps store only the text and point the images back at the source site, so the day that site moves a file you get a gray box. Readplace downloads the images and stores them on its own copy host, so your reader loads pictures from us and not from the source. The wrong picture meant something in our own pipeline had gone sideways.
+That is the kind of thing a read-it-later app is supposed to make impossible. You save now, you read later, and what you saved stays put. Plenty of apps store only the text and point the images back at the source site, so the day that site moves a file you get a gray box. Readplace downloads the images and stores them on its own copy host, so your reader loads pictures from that host and not from the source. The wrong picture meant something in Readplace's own pipeline had gone sideways.
 
 > **The article kept its text, but it served someone else's photo in the middle of mine.**
 
@@ -56,7 +56,7 @@ step: 6 | 3 | 20
 step: 8 | 2 | 20
 ```
 
-No photo gets left half-saved, which is what killed the wrong-image fallback for anything we chose to keep.
+No photo gets left half-saved, which is what killed the wrong-image fallback for anything Readplace chose to keep.
 
 Then I found a second hole while testing the first fix. Readplace re-checks saved articles over time, and sometimes the text reads the same on a re-check while the site has swapped the images underneath it. The old comparison saw matching text and kept the stale copy, so a re-save could drop a corrected set of pictures without me noticing.
 

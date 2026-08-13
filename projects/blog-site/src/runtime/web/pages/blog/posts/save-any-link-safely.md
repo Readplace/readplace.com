@@ -1,6 +1,6 @@
 ---
 title: "How Readplace Keeps Your Saved Links Safe From Hostile Pages"
-description: "Readplace fetches every link you save on its own servers. Two guards stop a hostile page from reaching our network or slipping code into your reader, and your login now rides https only."
+description: "Readplace fetches every link you save on its own servers. Two guards stop a hostile page from reaching Readplace's network or slipping code into your reader, and your login now rides https only."
 slug: "save-any-link-safely"
 date: "2026-06-13"
 author: "Fayner Brack"
@@ -11,20 +11,20 @@ keywords: "secure read it later, safe read later app, read it later security, SS
 <summary class="blog-tldr__toggle">Summary (TL;DR)</summary>
 <div class="blog-tldr__body">
 
-Readplace fetches every link you save on its own servers, including links from sites it has not seen, which means our servers open pages we did not write and a few of those pages try something. Two guards keep them harmless. The first refuses any link pointing at a private or internal address, rechecked on every connection and every redirect, so DNS rebinding fails. The second escapes crawled page titles so a hidden script stays plain text in your reader. Sessions now ride https-only cookies. You do nothing differently, because the guards run on our side, on every save.
+Readplace fetches every link you save on its own servers, including links from sites it has not seen, which means those servers open pages I did not write and a few of those pages try something. Two guards keep them harmless. The first refuses any link pointing at a private or internal address, rechecked on every connection and every redirect, so DNS rebinding fails. The second escapes crawled page titles so a hidden script stays plain text in your reader. Sessions now ride https-only cookies. You do nothing differently, because the guards run on Readplace's side, on every save.
 
 </div>
 </details>
 
 A read-it-later app has to fetch pages before you can read them. You paste a link, and something on the other side opens that page before it ever reaches your screen.
 
-When you save a news feature, a recipe, a PDF, or a post from a site neither of us has seen before, Readplace opens it on its own servers and builds your clean reader view from what comes back. Most of those pages are ordinary. A few are built to use the act of fetching against the service doing the fetching, so we designed for those.
+When you save a news feature, a recipe, a PDF, or a post from a site neither of us has seen before, Readplace opens it on its own servers and builds your clean reader view from what comes back. Most of those pages are ordinary. A few are built to use the act of fetching against the service doing the fetching, so I designed for those.
 
 Here is what one crafted link tries to do.
 
 ## A saved link can only reach the public web
 
-The link looks normal in your save bar. Under the hood it points somewhere it has no business going, like an internal service inside our own network that is supposed to stay off the open internet.
+The link looks normal in your save bar. Under the hood it points somewhere it has no business going, like an internal service inside Readplace's own network that is supposed to stay off the open internet.
 
 The sharper version of this trick hides the move in time. On the first lookup the link resolves to an ordinary public address, passes the check, and then flips to a private one a moment later when the fetcher actually connects. That swap has a name, DNS rebinding, and it has fooled plenty of services that go fetch a URL a stranger handed them.
 
@@ -49,7 +49,7 @@ The cookies that keep you signed in now carry the Secure flag, so your browser o
 ```rp-figure
 kind: walk
 title: What a saved link meets between your save bar and your screen
-note: The guards run on our side, on every save.
+note: The guards run on Readplace's side, on every save.
 toggle: What each stage's guard stops
 step: The first hop of the fetch | Readplace opens the page on its own servers, resolving the real address on every connection and checking the first hop | Loopback, private ranges and link-local addresses get refused at the door, so nothing is fetched from that address
 step: Every redirect after it | Readplace checks the address again after each redirect, rather than trusting the first answer | The redirected hop is refused too, so a saved link pulls a public page and nothing else, no matter how the address shifts between the check and the fetch
@@ -59,8 +59,8 @@ step: The trip back to your screen | The clean reader view reaches your screen, 
 
 ## Why this matters to you
 
-Your saved list is a record of what you read and what you mean to read, and you trust Readplace to hold it. The plumbing that fills that list should hold to the same standard, even on a page our crawler is seeing for the first time.
+Your saved list is a record of what you read and what you mean to read, and you trust Readplace to hold it. The plumbing that fills that list should hold to the same standard, even on a page the crawler is seeing for the first time.
 
-None of this asks anything of you. You paste a link the way you did yesterday, the guards run on our side on every save, and you read what you saved.
+None of this asks anything of you. You paste a link the way you did yesterday, the guards run on Readplace's side on every save, and you read what you saved.
 
 Save your first link and watch the clean reader build. [Install the browser extension](https://readplace.com/install) or start at [readplace.com](/).

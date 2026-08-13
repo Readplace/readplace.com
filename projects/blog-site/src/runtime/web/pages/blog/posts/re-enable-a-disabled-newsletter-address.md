@@ -1,6 +1,6 @@
 ---
 title: "Turn a Disabled Newsletter Address Back On"
-description: "Switch a noisy newsletter address off in Readplace, then turn it back on whenever you want it — the same address, so every subscription pointing at it keeps landing in your queue. Disabling used to be a one-way door: re-creating the address by name minted a different one and your newsletters broke with nothing to warn you. Every disabled address now carries an Enable button that brings the exact one back to life."
+description: "Switch a noisy newsletter address off in Readplace, then turn it back on whenever you want it, the same address, so every subscription pointing at it keeps landing in your queue. Disabling used to be a one-way door: re-creating the address by name minted a different one and your newsletters broke with nothing to warn you. Every disabled address now carries an Enable button that brings the exact one back to life."
 slug: "re-enable-a-disabled-newsletter-address"
 date: "2026-08-02"
 author: "Fayner Brack"
@@ -11,7 +11,7 @@ keywords: "re-enable disabled email address, reactivate newsletter forwarding ad
 <summary class="blog-tldr__toggle">Summary (TL;DR)</summary>
 <div class="blog-tldr__body">
 
-Switching a newsletter address off in Readplace used to be a one-way door — there was no switching it back on. Now every disabled address carries an Enable button that brings back the exact address you had, so the subscriptions pointing at it start landing in your queue again. The address is never deleted when you turn it off, because a forwarding address later handed to someone else could leak your mail into a stranger's queue — so Readplace keeps it, off but still yours. The catch was getting it back: re-creating the address by name minted a different one, and every subscription still aimed at the old address went quiet with nothing to warn you. Press Enable and the same address is live again, down to the last character, without opening a single newsletter's settings. Two limits worth knowing: you can keep 25 live addresses at once, so at the cap you switch one off before turning another on; and you can only bring back an address that's yours.
+Switching a newsletter address off in Readplace used to be a one-way door. There was no switching it back on. Now every disabled address carries an Enable button that brings back the exact address you had, so the subscriptions pointing at it start landing in your queue again. The address is never deleted when you turn it off, because a forwarding address later handed to someone else could leak your mail into a stranger's queue, so Readplace keeps it, off but still yours. The catch was getting it back: re-creating the address by name minted a different one, and every subscription still aimed at the old address went quiet with nothing to warn you. Press Enable and the same address is live again, down to the last character, without opening a single newsletter's settings. Two limits worth knowing: you can keep 25 live addresses at once, so at the cap you switch one off before turning another on, and you can only bring back an address that's yours.
 
 </div>
 </details>

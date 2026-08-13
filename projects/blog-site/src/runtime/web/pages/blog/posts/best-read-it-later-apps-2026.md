@@ -12,7 +12,7 @@ keywords: "read it later apps, Pocket alternative, Omnivore alternative, best re
 <summary class="blog-tldr__toggle">Summary (TL;DR)</summary>
 <div class="blog-tldr__body">
 
-Pocket and Omnivore both shut down, so here are the real 2026 alternatives. For most readers I would start with Readplace: $4/month ($49/year) with AI TL;DR summaries included, funded entirely by subscriptions (no ads, no investors, no data selling), and a 14-day free trial that needs no credit card. If the trial ends without subscribing, nothing is charged — the account just drops to read-only. The narrower fits: Readwise Reader ($119.88/year) if you need highlight sync to Obsidian or Notion. Instapaper (free tier) if you read on a Kobo. Karakeep (free, self-hosted) for developers who want to run their own stack. Raindrop.io ($28/year) for bookmark-heavy workflows. Wallabag (free, self-hosted) for the longest open source track record. Matter ($60/year) for social reading.
+Pocket and Omnivore both shut down, so here are the real 2026 alternatives. For most readers I would start with Readplace: $4/month ($49/year) with AI TL;DR summaries included, funded entirely by subscriptions (no ads, no investors, no data selling), and a 14-day free trial that needs no credit card. If the trial ends without subscribing, nothing is charged, and the account just drops to read-only. The narrower fits: Readwise Reader ($119.88/year) if you need highlight sync to Obsidian or Notion. Instapaper (free tier) if you read on a Kobo. Karakeep (free, self-hosted) for developers who want to run their own stack. Raindrop.io ($28/year) for bookmark-heavy workflows. Wallabag (free, self-hosted) for the longest open source track record. Matter ($60/year) for social reading.
 
 </div>
 </details>
@@ -33,7 +33,7 @@ These 5 axes leave things out. They say nothing about reading-view typography, p
 
 | App | Price | AI Features | Open Source | Offline Reading | Platforms |
 |-----|-------|-------------|-------------|-----------------|-----------|
-| **Readplace** | $4/month ($49/yr) — 14-day free trial, no card | TL;DR summaries | Source-available | Planned | Web, iPhone, Mac, Chrome, Firefox |
+| **Readplace** | $4/month ($49/yr), 14-day free trial, no card | TL;DR summaries | Source-available | Planned | Web, iPhone, Mac, Chrome, Firefox |
 | **Readwise Reader** | $119.88/yr | Ghostreader AI | No | Yes | Web, iOS, Android, Chrome, Firefox, Safari |
 | **Instapaper** | Free / Premium | Summaries | No | Yes | Web, iOS, macOS, Android, Kindle/Kobo |
 | **Raindrop.io** | Free / $28/yr | AI Suggestions + Stella | Clients only | Pro only | Web, iOS, Android, Chrome, Firefox, Safari |
@@ -49,7 +49,7 @@ The code is source-available, so you can read every line that touches your data.
 
 The part that matters most after watching Pocket and Omnivore die: the subscription is the entire funding source. No ads, no investors, no data selling. A reading app that pays its own bills has no parent company whose shifting priorities can wind it down.
 
-**$4/month ($49/year), with a 14-day free trial — no credit card required.** Less than a cup of coffee a month for a full-blown reader system powered by cutting-edge AI. If the trial ends and you have not subscribed, nothing is charged; the account drops to read-only, and everything you saved stays readable.
+**$4/month ($49/year), with a 14-day free trial. No credit card required.** Less than a cup of coffee a month for a full-blown reader system powered by AI. If the trial ends and you have not subscribed, nothing is charged. The account drops to read-only, and everything you saved stays readable.
 
 ### Strengths
 
@@ -63,11 +63,11 @@ The part that matters most after watching Pocket and Omnivore die: the subscript
 - The native app is for iPhone and Mac, so there is no Android version and no offline reading, and the feature set is smaller than Readwise Reader or Instapaper.
 - It is solo-built and young. If you want a mature product with years of polish behind it, Readplace is not there.
 
-**Good fit for:** Readers who want a clean save-and-read loop with AI summaries and privacy, without paying Readwise prices — unless you need offline mobile reading or highlight sync into a note-taking system today, in which case read on.
+**Good fit for:** Readers who want a clean save-and-read loop with AI summaries and privacy, without paying Readwise prices, unless you need offline mobile reading or highlight sync into a note-taking system today, in which case read on.
 
 <div class="blog-cta">
 <p class="blog-cta__title">Try Readplace on your own reading</p>
-<p class="blog-cta__text">Save a week's worth of articles and see how the reader view and the TL;DRs hold up. If it does not fit, let the trial lapse — nothing is charged and the account drops to read-only.</p>
+<p class="blog-cta__text">Save a week's worth of articles and see how the reader view and the TL;DRs hold up. If it does not fit, let the trial lapse. Nothing is charged and the account drops to read-only.</p>
 <a class="blog-cta__button" href="/signup?utm_source=blog-best-apps-2026&utm_medium=internal&utm_content=inline-cta">Start your 14-day free trial</a>
 <p class="blog-cta__note">No credit card required. $4/month ($49/year) if you stay.</p>
 </div>
@@ -95,7 +95,7 @@ Readwise Reader packs in more than any other read-it-later app I have used. It f
 
 Instapaper is the original read-it-later app, and it predates Pocket. Ownership changed several times, from Marco Arment to Betaworks to Pinterest and now Instant Paper, Inc., and the core reading experience stayed clean and reliable through each handoff.
 
-It is now the default reading app on Kobo e-readers, which gives it an edge for people who read on dedicated hardware. It does have AI features — AI-generated summaries and higher-quality AI Voices for text-to-speech — but no AI chat assistant, and the reading experience is mature and comfortable.
+It is now the default reading app on Kobo e-readers, which gives it an edge for people who read on dedicated hardware. It does have AI features (AI-generated summaries and higher-quality AI Voices for text-to-speech) but no AI chat assistant, and the reading experience is mature and comfortable.
 
 **Free (with optional premium tier)**
 
@@ -188,7 +188,7 @@ Matter takes a different shape than the rest. It layers social discovery and AI 
 
 ## How I Would Choose
 
-> **Match the app to its failure mode.** Free hosted services in this category have shut down twice now; self-hosting trades shutdown risk for your own ops work; a subscription has to keep earning its fee, year after year.
+> **Match the app to its failure mode.** Free hosted services in this category have shut down twice now. Self-hosting trades shutdown risk for your own ops work. A subscription has to keep earning its fee, year after year.
 
 The pick depends on how you use saved articles. Here is how the axes resolve into a recommendation.
 
@@ -214,7 +214,7 @@ Omnivore was an open source read-it-later app with a loyal following. In late 20
 
 ### Do any of these apps import from Pocket?
 
-Most of them do. Readwise Reader, Instapaper, and Raindrop.io all have self-serve Pocket import built in. Karakeep has built-in import tools too. Wallabag has import options, though some paths are unreliable — check each app's documentation for the current process. For Readplace, you can **[upload your Pocket export](/import?utm_source=blog-best-apps-2026&utm_medium=internal&utm_content=import-cta)** without creating an account first: the importer works logged out, pulls the URLs out of any text-shaped export for you to review, and only asks you to create an account when you commit the import, with your selections intact. Files over 4.5 MB or imports above 2,000 links fall back to emailing the file to [readplace+migrate@readplace.com](mailto:readplace+migrate@readplace.com), which I import by hand within 24 to 48 hours.
+Most of them do. Readwise Reader, Instapaper, and Raindrop.io all have self-serve Pocket import built in. Karakeep has built-in import tools too. Wallabag has import options, though some paths are unreliable. Check each app's documentation for the current process. For Readplace, you can **[upload your Pocket export](/import?utm_source=blog-best-apps-2026&utm_medium=internal&utm_content=import-cta)** without creating an account first: the importer works logged out, pulls the URLs out of any text-shaped export for you to review, and only asks you to create an account when you commit the import, with your selections intact. Files over 4.5 MB or imports above 2,000 links fall back to emailing the file to [readplace+migrate@readplace.com](mailto:readplace+migrate@readplace.com), which I import by hand within 24 to 48 hours.
 
 ### Which app has the best mobile experience?
 
@@ -228,5 +228,5 @@ Yes, inherently. I built Readplace, so I have a stake in how it lands. I wrote t
 <p class="blog-cta__title">See whether Readplace fits your reading</p>
 <p class="blog-cta__text">You have read my case and you know my bias. Fourteen days with the full product, on the articles you actually save, answers the question better than this page can.</p>
 <a class="blog-cta__button" href="/signup?utm_source=blog-best-apps-2026&utm_medium=internal&utm_content=end-cta">Start your 14-day free trial</a>
-<p class="blog-cta__note">No credit card required. $4/month ($49/year) if you stay; if you don't, nothing is charged and your account goes read-only.</p>
+<p class="blog-cta__note">No credit card required. $4/month ($49/year) if you stay. If you don't, nothing is charged and your account goes read-only.</p>
 </div>

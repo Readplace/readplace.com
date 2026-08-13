@@ -16,11 +16,11 @@ Some sites hand a full page to a browser and a 403 to a crawler, even when both 
 </div>
 </details>
 
-StackOverflow returned the full page to a browser and a 403 to our crawler. The two requests left the same machine on the same network, seconds apart. The reader showed the message it puts up when a save comes back empty: We couldn't pull the article text.
+StackOverflow returned the full page to a browser and a 403 to the crawler. The two requests left the same machine on the same network, seconds apart. The reader showed the message it puts up when a save comes back empty: We couldn't pull the article text.
 
 That message had started appearing on sites that saved fine for months. The Hill was the one that tipped me off, because a reader tried to keep a piece from it and got the empty version instead of the article.
 
-The confusing part was that nothing about the request had changed on our side.
+The confusing part was that nothing about the request had changed on my side.
 
 ## Not the IP, and not the headers
 
@@ -28,19 +28,19 @@ My first guess was the address. Cloud crawlers run from datacenter IP ranges, an
 
 Headers were the next guess. The crawler sent a normal Chrome user-agent and the usual accept headers. I copied them into a browser and the page still loaded. I stripped them back and the crawler still got 403. The 403 did not care what the request said it was.
 
-> **The block was not on who we were. It was on what we looked like.**
+> **The block was not on who the crawler was. It was on what it looked like.**
 
 ## A fingerprint that aged out
 
 The block keyed on the TLS handshake. Before any HTTP header is sent, the client and the server negotiate encryption, and the exact shape of that negotiation, the cipher list and the extensions and the order they arrive in, is specific enough to name the software making the request. The fingerprint of that handshake has a name, [JA3](/view/github.com/salesforce/ja3). Anti-bot services like Fastly read it, compare it against the handshakes that current browsers produce, and drop the ones that do not match.
 
-Our crawler used [curl-impersonate](/view/github.com/lexiforest/curl-impersonate), a build of curl that copies a real browser's handshake so a server sees a browser and not a script. It was pinned to a persona of Chrome 116. Chrome 116 shipped in 2023. Three years on, an edge that gates on current-browser fingerprints reads a Chrome 116 handshake as one no shipping browser produces, which is to say a bot.
+The crawler used [curl-impersonate](/view/github.com/lexiforest/curl-impersonate), a build of curl that copies a real browser's handshake so a server sees a browser and not a script. It was pinned to a persona of Chrome 116. Chrome 116 shipped in 2023. Three years on, an edge that gates on current-browser fingerprints reads a Chrome 116 handshake as one no shipping browser produces, which is to say a bot.
 
 > **Chrome 116 shipped in 2023. To a 2026 anti-bot edge, a client that still fingerprints as Chrome 116 reads as a bot.**
 
 ## Posing as a browser people still run
 
-The fix was to move the impersonation forward. curl-impersonate had gone from the version we pinned, 0.8.0, to 1.5.6, and the newer release carries a Chrome 131 persona. That release also renamed the binary, from curl-impersonate-chrome to curl-impersonate, so the layer build and the Dockerfile that ship it to our crawler Lambda had to track the rename along with the version.
+The fix was to move the impersonation forward. curl-impersonate had gone from the version I pinned, 0.8.0, to 1.5.6, and the newer release carries a Chrome 131 persona. That release also renamed the binary, from curl-impersonate-chrome to curl-impersonate, so the layer build and the Dockerfile that ship it to the crawler Lambda had to track the rename along with the version.
 
 I built the real Linux 1.5.6 binary into the Lambda image and ran the same URLs through it. From one residential address, Chrome 116 got 403 and Chrome 131 got 200 on The Hill, on StackOverflow, and on LinkedIn.
 

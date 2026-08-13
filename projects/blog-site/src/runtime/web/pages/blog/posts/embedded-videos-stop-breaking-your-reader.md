@@ -18,7 +18,7 @@ Readplace's reader used to leave a dead box where a native video tag sat in an a
 
 I was reading a saved tutorial on web.dev when I lost my place halfway down, because a black rectangle had pushed the next paragraph clean off the screen and I had to scroll to find where I had been.
 
-The rectangle was a `<video>` tag the site had written into its HTML, and in our reader it sat there showing nothing.
+The rectangle was a `<video>` tag the site had written into its HTML, and in the reader it sat there showing nothing.
 
 So I tried a few more saves to see how common it was. A recipe post left a spinning loader where the cooking clip should have been, and a product review left an empty grey box that shoved two paragraphs down the page every time I scrolled back to it. Same shape each time, same dead box.
 

@@ -13,7 +13,7 @@ banner: "I made newsletters drop their links straight into your reading queue"
 <summary class="blog-tldr__toggle">Summary (TL;DR)</summary>
 <div class="blog-tldr__body">
 
-A newsletter issue arrives as one email, but only a few of its links are the articles you subscribed for. The rest is packaging: an unsubscribe line, a "view in browser" link, sponsor slots, a jobs board, section menus. Sorting that has always been yours to do by hand — until now. Readplace now gives each newsletter its own forwarding address, shaped like tldr-a7b2c9@read.place, that you name after the source and point the newsletter at. When an issue lands, it pulls out the links, sets aside the ones that would unsubscribe or confirm on your behalf, and runs a pass that keeps only the articles. Those save to your reading queue like any other link, crawled and summarized, while the packaging is dropped. Each address is disposable, so a list that gets sold or noisy is one switch to cut off, and your real inbox is never in the loop. You can hold up to 25, one per newsletter.
+A newsletter issue arrives as one email, but only a few of its links are the articles you subscribed for. The rest is packaging: an unsubscribe line, a "view in browser" link, sponsor slots, a jobs board, section menus. Sorting that has always been yours to do by hand, until now. Readplace now gives each newsletter its own forwarding address, shaped like tldr-a7b2c9@read.place, that you name after the source and point the newsletter at. When an issue lands, it pulls out the links, sets aside the ones that would unsubscribe or confirm on your behalf, and runs a pass that keeps only the articles. Those save to your reading queue like any other link, crawled and summarized, while the packaging is dropped. Each address is disposable, so a list that gets sold or noisy is one switch to cut off, and your real inbox is never in the loop. You can hold up to 25, one per newsletter.
 
 </div>
 </details>
@@ -24,7 +24,7 @@ I wrote about [newsletter overload](/blog/newsletter-overload) a few months back
 
 The address earns its place because a newsletter is mostly not the thing I subscribed for.
 
-I've been running my own subscriptions through it while I built it. Yesterday's issue carried 14 links. 3 of them were articles. The other 11 were packaging — an unsubscribe line, a "view in browser" link, a couple of sponsor slots, a jobs board, and a run of section anchors that jump around inside the same email.
+I've been running my own subscriptions through it while I built it. Yesterday's issue carried 14 links. 3 of them were articles. The other 11 were packaging: an unsubscribe line, a "view in browser" link, a couple of sponsor slots, a jobs board, and a run of section anchors that jump around inside the same email.
 
 Sorting that by hand is a small tax you pay every morning. Open the issue, find the 2 or 3 links worth reading, skip past the packaging, and either read them now or leave a tab open as a promise you might not keep.
 

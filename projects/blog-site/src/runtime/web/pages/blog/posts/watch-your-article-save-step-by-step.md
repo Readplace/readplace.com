@@ -16,9 +16,9 @@ The Readplace browser extension used to play a loading animation that ran on a f
 </div>
 </details>
 
-You click save in the extension. A bar slides across. A moment later your article sits in your queue. For a long time that bar was a small lie. It ran on a fixed timer and filled to ninety percent on its own, whether or not the save had moved an inch, so a stalled save still looked healthy.
+You click save in the extension. A bar slides across. A moment later your article sits in your queue. For a long time that bar was a small lie. It ran on a fixed timer and filled to 90 percent on its own, whether or not the save had moved an inch, so a stalled save still looked healthy.
 
-We replaced it with a bar that follows the real save, step by step.
+I replaced it with a bar that follows the real save, step by step.
 
 ## Two steps you can actually see
 

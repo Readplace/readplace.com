@@ -24,7 +24,7 @@ Whole services vanish too. Pocket shut down on July 8, 2025. Omnivore shut down 
 
 ## What saving does here
 
-When you save a link, Readplace opens the page on its own servers and builds a clean reader copy. It downloads the images and stores them on its own host, so your reader loads from us and not from the source site. Your saved article does not phone home to the original page every time you open it. It reads off the copy Readplace holds. A source that goes offline next week does not empty your queue.
+When you save a link, Readplace opens the page on its own servers and builds a clean reader copy. It downloads the images and stores them on its own host, so your reader loads from that host and not from the source site. Your saved article does not phone home to the original page every time you open it. It reads off the copy Readplace holds. A source that goes offline next week does not empty your queue.
 
 ## Your copy does not run out
 
