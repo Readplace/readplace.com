@@ -56,14 +56,20 @@
   min-height: 44px;
   padding: 10px 20px;
   border-radius: var(--radius) var(--radius) 0 0;
-  font-family: var(--font-serif);
-  font-size: 0.9375rem;
+  font-size: 1rem;
   font-weight: 600;
-  background: var(--primary-fill);
+  line-height: 1.25;
+  background: var(--primary);
   color: var(--primary-foreground);
   text-decoration: none;
   white-space: nowrap;
   box-shadow: var(--shadow-sm);
+  transition: background-color 0.15s ease;
+}
+
+.queue-nav__link:hover,
+.queue-nav__link:active {
+  background: var(--primary-fill);
 }
 
 .queue--queues .queue__content {
