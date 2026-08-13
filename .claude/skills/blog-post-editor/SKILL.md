@@ -28,6 +28,32 @@ Every post must have YAML frontmatter with the fields that follow the pattern of
 
 The `slug` value in frontmatter **must** match the filename (minus `.md`). For example, a file named `my-post.md` must have `slug: "my-post"`. The discovery module asserts this at load time and will throw if they diverge.
 
+## Voice
+
+The [brand guidelines](../../../BRAND_GUIDELINES.md#voice--copy) own the voice — solo founder writing as "I", quiet and specific, no hype. One rule needs stating here rather than there, because a post has room to break it in ways a button label does not.
+
+### Name the actor
+
+**Prefer the active voice. When a sentence hides who acted, name them.** In almost every case the actor is Readplace, the code, a site, the reader, or the author, and naming it is shorter and more honest.
+
+> A summary is generated when the save finishes.
+
+> Readplace writes the summary when the save finishes.
+
+The product already holds itself to this: the TL;DR prompt in [how-ai-tldr-actually-works](../../../projects/blog-site/src/runtime/web/pages/blog/posts/how-ai-tldr-actually-works.md) demands "active voice, short sentences, plain connectors, specific facts, and no jargon" of the model. The blog should not write worse than the summariser it ships.
+
+**This is not a ban.** A passive is correct, and should be left alone, when:
+
+- The actor is genuinely unknown or irrelevant — *"The page was re-saved through Aspose."*
+- The receiver is the topic and naming the actor would bury it — *"Your article is saved."* is the shape the [UI copy patterns](../../../BRAND_GUIDELINES.md#ui-copy-patterns) endorse; *"Summaries are capped at 750 characters"* is about the cap.
+- Naming an actor would over-claim, attributing a decision to a component that does not make it.
+- It is quoted UI copy, an error string, or a term of art (*source-available*).
+- The active version reads longer or shifts emphasis off the point.
+
+And these are not passives at all, so don't "fix" them: adjectival participles (*saved articles*, *the stored copy*), present perfect (*has shipped*), and idiomatic get-passives (*the redirected hop is refused too*).
+
+Ten real fixes beat forty that flatten the prose. A sweep that de-passivises everything reads like a machine went through it, which is the one thing this blog is arguing against.
+
 ## Highlighting features (changelog banner)
 
 To surface a shipped feature to every user on every page (guests included), tag the announcing post and give it banner copy:
