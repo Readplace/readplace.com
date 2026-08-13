@@ -4,6 +4,7 @@ import { authenticatedUserIdFrom } from "@packages/domain/user";
 import type { ValidateAccessToken } from "@packages/provider-contracts/oauth";
 import { initMcpRoutes } from "./mcp.routes";
 import { initMcpServer } from "./mcp-server";
+import { MCP_PROTOCOL_VERSION } from "./protocol";
 
 const userId = authenticatedUserIdFrom("00000000000000000000000000000001");
 
@@ -75,6 +76,38 @@ describe("MCP transport routes", () => {
 		const response = await post(buildApp(), { jsonrpc: "2.0", id: 1, method: "ping" });
 		expect(response.status).toBe(200);
 		expect(response.body).toEqual({ jsonrpc: "2.0", id: 1, result: {} });
+	});
+
+	it("dispatches a request carrying the protocol version it negotiated", async () => {
+		const response = await request(buildApp())
+			.post("/mcp")
+			.set("Authorization", "Bearer good-token")
+			.set("MCP-Protocol-Version", MCP_PROTOCOL_VERSION)
+			.set("Content-Type", "application/json")
+			.send(JSON.stringify({ jsonrpc: "2.0", id: 1, method: "ping" }));
+		expect(response.status).toBe(200);
+		expect(response.body).toEqual({ jsonrpc: "2.0", id: 1, result: {} });
+	});
+
+	it("rejects a protocol version it does not speak, naming the one it does", async () => {
+		const response = await request(buildApp())
+			.post("/mcp")
+			.set("Authorization", "Bearer good-token")
+			.set("MCP-Protocol-Version", "2024-11-05")
+			.set("Content-Type", "application/json")
+			.send(JSON.stringify({ jsonrpc: "2.0", id: 1, method: "ping" }));
+		expect(response.status).toBe(400);
+		expect(response.body.error.message).toContain("2024-11-05");
+		expect(response.body.error.message).toContain(MCP_PROTOCOL_VERSION);
+	});
+
+	it("returns 401 before the protocol version is judged, so an anonymous caller learns how to authenticate", async () => {
+		const response = await request(buildApp())
+			.post("/mcp")
+			.set("MCP-Protocol-Version", "2024-11-05")
+			.set("Content-Type", "application/json")
+			.send(JSON.stringify({ jsonrpc: "2.0", id: 1, method: "ping" }));
+		expect(response.status).toBe(401);
 	});
 
 	it("returns 202 with no body for a notification", async () => {

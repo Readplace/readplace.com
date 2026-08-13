@@ -8,7 +8,7 @@ import express, {
 import { AccessTokenSchema } from "@packages/domain/oauth";
 import type { ValidateAccessToken } from "@packages/provider-contracts/oauth";
 import type { McpServer } from "./mcp-server";
-import { MCP_RESOURCE_METADATA_PATH } from "./protocol";
+import { MCP_PROTOCOL_VERSION, MCP_RESOURCE_METADATA_PATH } from "./protocol";
 
 interface McpRoutesDeps {
 	validateAccessToken: ValidateAccessToken;
@@ -68,9 +68,30 @@ export function initMcpRoutes(deps: McpRoutesDeps): Router {
 		next();
 	}
 
+	function requireSupportedProtocolVersion(
+		req: Request,
+		res: Response,
+		next: NextFunction,
+	): void {
+		const offered = req.headers["mcp-protocol-version"];
+		if (offered !== undefined && offered !== MCP_PROTOCOL_VERSION) {
+			res.status(400).json({
+				jsonrpc: "2.0",
+				id: null,
+				error: {
+					code: -32600,
+					message: `Unsupported MCP-Protocol-Version "${String(offered)}". This server speaks ${MCP_PROTOCOL_VERSION}; send that version or omit the header.`,
+				},
+			});
+			return;
+		}
+		next();
+	}
+
 	router.post(
 		"/",
 		requireBearer,
+		requireSupportedProtocolVersion,
 		// Read the raw body ourselves (any content type) and JSON-parse it inside
 		// the handler, so a malformed body becomes a JSON-RPC parse error here
 		// rather than an Express HTML 500 from express.json's thrown SyntaxError.

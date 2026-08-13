@@ -7,6 +7,7 @@ import {
 } from "@packages/test-fixtures";
 import { useTestServer } from "../../test-app";
 import type { TestAppHarness } from "../../test-app";
+import { MCP_PROTOCOL_VERSION } from "./protocol";
 
 const CLIENT_ID = "hutch-firefox-extension";
 const REDIRECT_URI = "http://127.0.0.1:3000/oauth/callback";
@@ -68,6 +69,7 @@ function callTool(harness: TestAppHarness, accessToken: string, body: unknown) {
 	return request(harness.server)
 		.post("/mcp")
 		.set("Authorization", `Bearer ${accessToken}`)
+		.set("MCP-Protocol-Version", MCP_PROTOCOL_VERSION)
 		.set("Content-Type", "application/json")
 		.send(JSON.stringify(body));
 }
