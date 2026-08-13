@@ -113,6 +113,19 @@ The vertical CJK variants (`HanS_vert`, `Hangul_vert`, `Japanese_vert`, `HanT_ve
 
 This was where I'd have stopped, with the same neat line: *old tools beat tokens*. With a hammer in hand you start seeing nails, and plenty of the things you hit are some other shape.
 
+```rp-figure
+kind: bars
+title: What changed when Tesseract replaced the vision model
+note: Timings and page counts are the Round 2 comparison on the CIA PDF; the ~35 scripts come from Tesseract's script bundles, added in a later A/B that also moved wall clock from 48 s to 63 s.
+before: DeepInfra (best round)
+after: Tesseract
+row: Orchestrator wall clock | 317 | 317 s | 48 | 48 s
+row: Pages via primary OCR | 24 | 24 of 31 | 31 | 31 of 31
+row: External API calls | 31 | 31 | 0 | 0
+row: Cost per crawl | 0.02 | ~$0.02 | 0 | $0
+row: Writing systems recognisable without code changes | 1 | 1 (English) | 35 | ~35 scripts
+```
+
 ## The sequel: the LLM came back, for the right job
 
 The pipeline shipped to the staging environment, and it sat there OCR'ing PDFs deterministically with zero LLM calls.
@@ -154,6 +167,17 @@ Pricing is favourable and latency is acceptable.
 **Stage 3: per-page semantic HTML conversion.** This is another per-page fanout, one call per page, emitting a sanitised HTML5 fragment with `h2`, `h3`, `ul`, `ol`, `pre`, `code`, `blockquote`, `table`, `strong`, `em`, and `a[href]`. Text-pattern rules in the prompt stand in for the visual cues the old vision model relied on: numbered prefixes, all-caps short lines, pipe-separated columns, indent depths. Two guardrails per page check for empty output and for at least 70% visible-text retention. On rejection the page falls back to `<p class="ocr-tesseract">` paragraphs of the Stage 2 text.
 
 Between each chunk fragment the orchestrator stitches in `<hr class="ocr-page-break">`. The reader iframe stylesheet renders that as a dotted, 60%-width centred rule that mimics a book-style section break. A document-level `sanitizeFragment` pass at the orchestrator stitches the per-page fragments together, closes any cross-page tag dangle, and re-applies an element and attribute allowlist over the stitched body. That is defence-in-depth on top of the per-page sanitisation that already runs inside each Stage 3 Lambda.
+
+```rp-figure
+kind: walk
+title: Where a page lands when a stage's guardrail refuses its output
+note: Tesseract's output stays the safety net, and the LLM rides on top of it as a correction layer.
+toggle: Show the refusal path at each stage
+step: Stage 1: per-page LLM cleanup | One DeepSeek chat.completions call per page is asked to fix the obvious OCR errors and leave the rest of the text alone, changing a word only when more than 90% confident and leaving digits and proper nouns untouched. | Length-delta is capped at 30%, the digit multiset is preserved, and whitespace round-trips; on any rejection the original Tesseract text passes through unchanged.
+step: Stage 2: document diff review | One call per document reads the word-level diff between the original and the Stage 1 text for every page, plus the full cleaned text, and emits APPROVE, REJECT, MODIFY, or NEW for each Stage 1 change with whole-document context. | A per-span 50% length-delta cap sits in front of the document-level guardrails; on failure the page falls back to its Stage 1 text.
+step: Stage 3: per-page semantic HTML conversion | Another per-page fanout, one call per page, emitting a sanitised HTML5 fragment with h2, h3, ul, ol, pre, code, blockquote, table, strong, em, and a[href]. | Two guardrails per page check for empty output and for at least 70% visible-text retention; on rejection the page falls back to p class="ocr-tesseract" paragraphs of the Stage 2 text.
+step: Document-level sanitizeFragment | The orchestrator stitches the per-page fragments together, closes any cross-page tag dangle, and re-applies an element and attribute allowlist over the stitched body. | Elements and attributes outside the allowlist are dropped from the stitched body Mozilla Readability parses; that is defence-in-depth on top of the per-page sanitisation that already runs inside each Stage 3 Lambda.
+```
 
 ### Infrastructure
 
