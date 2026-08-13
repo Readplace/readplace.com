@@ -28,6 +28,21 @@ Each of those reads asked for the whole row. A saved article row still carries, 
 
 The fix is two reads, not 40. Readplace now asks for every card's summary in one [batched read](/view/docs.aws.amazon.com/amazondynamodb/latest/APIReference/API_BatchGetItem.html), and every card's crawl status in a second. Two round trips draw the whole page.
 
+```rp-figure
+kind: budget
+title: What one page of cards costs in reads
+note: The old rule charged two reads a card. The batched pair charges two, whether the page holds one card or the full 20.
+input: Cards drawn on the page
+oldLabel: One read for the summary, one for the crawl status, per card
+newLabel: One batched read for every summary, a second for every crawl status
+unit: reads that come back before the page can paint
+step: 1 | 2 | 2
+step: 5 | 10 | 2
+step: 10 | 20 | 2
+step: 15 | 30 | 2
+step: 20 | 40 | 2
+```
+
 Both batched reads name their columns. They ask [DynamoDB](/view/en.wikipedia.org/wiki/Amazon_DynamoDB) for the handful of fields a card renders and leave the inline text alone. The row can stay heavy. The read stays light.
 
 Failure behaves the same as before, on purpose. A row that is missing, or corrupt, or shaped wrong comes back as no summary for that one card, and the card still draws. What changed is the whole-batch case. If the read to the database itself falls over, it now lands in the log instead of vanishing, so a real outage leaves a trace to find.

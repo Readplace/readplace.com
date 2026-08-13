@@ -58,6 +58,17 @@ A link already in your queue now shows a check and the word Saved. One you have 
 
 Two gaps are left in on purpose. The match reads the link's address and does not follow redirects, so the same article reached through a different wrapper URL still reads as unsaved. And links saved before this shipped are not filled in behind you. TBH, both come out the same way: one extra click, and that click saves exactly what you meant to save.
 
+```rp-figure
+kind: matrix
+title: What the Save button under a newsletter link shows
+note: An already-saved link and one you had never touched used to come out as the same button, down to the last byte.
+toggle: After every save started publishing the fact the inbox reads
+head: For each link | Saved when the issue arrived | Saved a second time | Never saved | Saved under another wrapper URL
+row: Word on the button | !Save to queue>>Saved | !Save to queue>>Saved | Save to queue>>Save to queue | Save to queue>>Save to queue
+row: Mark beside the word | !none>>a check | !none>>a check | none>>none | none>>none
+row: What the inbox was told | !nothing>>this link was accepted | !nothing>>this link was accepted | nothing>>nothing | nothing>>nothing at this address
+```
+
 ## A button you can trust again
 
 A saved-state indicator that can be wrong is worse than none at all. You learn it lies, then you stop reading it, and the doubt spreads to the parts that were telling the truth. So the button had to be right on the case that matters most, the link you saved thirty seconds ago without thinking about it.

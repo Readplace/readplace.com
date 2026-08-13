@@ -40,6 +40,18 @@ The hand-built TLS path had the same gaps. Throw on a missing Location. No heade
 
 The pages that reached those two paths were the ones a plain request had already failed on. So the article most likely to hit the weaker handling was already behind a block, and behind a redirect too. A reader saving a piece from a bot-gating site, linked through a shortener, stood on the exact spot where the three paths disagreed.
 
+```rp-figure
+kind: matrix
+title: The same redirect, three answers
+note: The two weaker paths handled the pages a plain request had already failed on.
+toggle: After the three copies became one loop
+head: Redirect rule | curl subprocess | HTTP/2 client | Hand-built TLS
+row: Relative Location resolved against | current hop>>current hop | !site's root>>current hop | !wrong base>>current hop
+row: A 3xx with no Location header | ?not stated>>comes back as the final response | !throws and fails the save>>comes back as the final response | !throws>>comes back as the final response
+row: Cookie and authorization headers on a cross-origin hop | dropped>>dropped | !carried straight across>>dropped | !no header drop>>dropped
+row: Hop cap | stops after 5>>stops after 5 | ?not stated>>stops after 5 | !its own copy of the cap>>stops after 5
+```
+
 ## One loop that owns the hop
 
 The three copies are one function now. It takes the entry address and a way to make a single request. It owns every decision about where the redirect points: the relative Location resolved against the current hop, the cap at 5, and the http-and-https-only rule. Credential headers get dropped on a cross-origin hop, and stay dropped for the rest of the chain. A 3xx with no Location comes back as the final response, [the way fetch defines it](/view/fetch.spec.whatwg.org/), instead of throwing.

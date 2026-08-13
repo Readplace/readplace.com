@@ -50,6 +50,21 @@ One group skips the wall no matter the length. A reader who arrives from the fou
 
 It's worth being clear about what did and didn't have an expiry. Your own saved articles never expired, and they still don't. [A copy you saved outlasts the page you took it from](/blog/saved-articles-outlast-the-original-page), with no window on it at all. The clock lived only on the public page a visitor sees before they sign up.
 
+```rp-figure
+kind: rule
+title: What decides whether a reader meets the sign-in wall
+note: The clock only ever lived on the page a visitor sees before they have saved anything.
+choice: Reading time | 5 min | 40 min
+choice: Since the article was last saved | within 3 days | past 3 days
+flag: The reader arrived from the founder's blog
+flag: It is my own saved copy
+when: f2 -> ok | Open | Your own saved articles never expired, and they still don't.
+when: f1 -> ok | Open | A reader who arrives from the founder's blog never meets the wall, no matter the length.
+when: c1=1 -> ok | Open | 5 minutes or under and the page never expires. No clock, no wall.
+when: c2=1 -> ok | Open | Past 5 minutes the few-day window stays, and this page is still inside the 3 days after the last save.
+else: no | Wall | Once the window passes the page shows a small wall: public access expired, sign in to save it and read the whole article.
+```
+
 So the change moves in one direction. It takes the wall off the person who hasn't signed up yet, on the exact reads where the wall bought nothing. A stranger who lands on a short article reads it start to finish and judges the rest for themselves, instead of stopping two screens in.
 
 A sign-in wall on a long report is a reasonable trade. A sign-in wall on a five-minute read is a toll charged on something that was never worth charging for.

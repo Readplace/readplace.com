@@ -50,6 +50,21 @@ The held address runs through the same validator every save uses before it reach
 
 An explicit save wins over the read. If you tapped Save on an article before signing up, that piece is already riding through the signup in its own return path, [the flow that stopped sending new readers to a sign-in page](/blog/save-button-sent-new-readers-to-sign-in). The auto-save stands down in that case, so the article you meant to keep is saved once, not twice.
 
+```rp-figure
+kind: rule
+title: Whether the article you read logged out lands in the new queue
+note: Three checks sit around the held address, and the two-hour ceiling sits over all of them.
+choice: When you sign up after reading | Straight away | Inside the two hours | Tonight, after a morning read
+flag: I tapped Save on the article before signing up
+flag: The cookie was edited by hand to point somewhere it shouldn't
+flag: Someone else on this shared browser already signed up on this read
+when: f1 -> ok | Saved once | An explicit save wins over the read, so the auto-save stands down and the article you meant to keep is saved once, not twice.
+when: f2 -> no | Nothing saved | The held address runs through the same validator every save uses, and a cookie edited by hand fails that check.
+when: f3 -> no | Spent | The cookie is read and cleared in the same step, so the read is spent the moment it's used and a later signup can't inherit an earlier reader's article.
+when: c1=3 -> no | Expired | Two hours is the ceiling on purpose, so an address you looked at this morning can't attach itself to a signup tonight.
+else: ok | Saved | The signup reads the cookie back and sends you through a save first, so the queue you land on has one article in it, the right one.
+```
+
 ## The first minute of an account
 
 The first minute inside a new account is where a reader decides whether the thing is for them. An empty queue answers that badly. It asks them to go find something to save before the app does anything worth seeing, at the moment their patience is thinnest.
