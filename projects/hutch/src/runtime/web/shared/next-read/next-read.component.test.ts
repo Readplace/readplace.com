@@ -278,7 +278,7 @@ describe("renderNextRead", () => {
 		});
 	});
 
-	it("boosts the dismissal so the card disappears without losing the reader's place", () => {
+	it("swaps only its own slot, so the share balloon floating beside it survives", () => {
 		const doc = parse(readyWith([FIRST]));
 
 		const form = doc.querySelector(".next-read__dismiss-form");
@@ -288,11 +288,13 @@ describe("renderNextRead", () => {
 			target: form.getAttribute("hx-target"),
 			select: form.getAttribute("hx-select"),
 			swap: form.getAttribute("hx-swap"),
+			pushUrl: form.getAttribute("hx-push-url"),
 		}).toEqual({
 			boost: "true",
-			target: "main",
-			select: "main",
+			target: "#article-body-related-slot",
+			select: "#article-body-related-slot",
 			swap: "outerHTML show:none",
+			pushUrl: "false",
 		});
 	});
 

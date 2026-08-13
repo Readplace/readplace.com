@@ -355,6 +355,24 @@ test.describe("Next-read card (desktop)", () => {
 		});
 		await captureCheckpoint(page, STACK_DESKTOP_LIGHT);
 	});
+
+	test("leaves the opened share balloon alone when the suggestion above it is dismissed", async ({
+		page,
+	}) => {
+		await page.emulateMedia({ colorScheme: "light" });
+		await openRevealedCard(page, {
+			stamp: `dismiss-keeps-balloon-${test.info().workerIndex}-${Date.now()}`,
+			suppressBalloon: false,
+			markRelatedRead: false,
+		});
+		await openShareBalloon(page);
+
+		await page.locator(DISMISS).click();
+		await page.waitForSelector(`${CARD}.next-read--hidden`, { state: "attached" });
+
+		await expect(page.locator(BALLOON)).toBeVisible();
+		await expect(page.locator(BALLOON)).toHaveClass(/share-balloon__wrap--open/);
+	});
 });
 
 test.describe("Next-read card (mobile)", () => {

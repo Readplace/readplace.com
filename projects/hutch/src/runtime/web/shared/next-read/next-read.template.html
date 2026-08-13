@@ -1,7 +1,7 @@
 <div id="article-body-related-slot" class="next-read {{stateClass}}" data-next-read data-test-reader-related data-related-status="{{status}}"{{#if pollUrl}} hx-get="{{pollUrl}}" hx-trigger="every 3s" hx-swap="outerHTML"{{/if}}>
   {{#each cards}}
   <div class="next-read__card">
-    <form class="next-read__dismiss-form" method="POST" action="{{dismissUrl}}" hx-boost="true" hx-target="main" hx-select="main" hx-swap="outerHTML show:none">
+    <form class="next-read__dismiss-form" method="POST" action="{{dismissUrl}}" hx-boost="true" hx-target="#article-body-related-slot" hx-select="#article-body-related-slot" hx-swap="outerHTML show:none" hx-push-url="false">
       <input type="hidden" name="returnTo" value="{{returnTo}}">
       <button class="next-read__dismiss" type="submit" data-test-action="next-read-dismiss">{{icon "x"}}<span class="sr-only">Dismiss suggestion</span></button>
     </form>
