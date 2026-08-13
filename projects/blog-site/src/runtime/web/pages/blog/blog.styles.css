@@ -400,3 +400,690 @@
   color: var(--color-text-muted);
 }
 /* purgecss-ignore-end */
+
+
+/* ==========================================================================
+  Post figures (rp-figure)
+
+  Rendered server-side from a fenced block in the post markdown; see
+  blog-figure.parse.ts for the grammar and blog-figure.render.ts for the
+  markup. Every interactive figure is driven by native radio and checkbox
+  inputs plus `:has()`, so no post ships client JavaScript.
+
+  Colour carries one meaning across all five kinds: brand amber is the
+  behaviour that ships today (the selected stage, the new rule, the changed
+  cell), muted grey is the shape it replaced, and `--color-error` is only ever
+  a failure. The `:has()` rules are wrapped in `@supports` because without
+  them the figure must still read: each kind's fallback below leaves one
+  honest state on screen rather than an empty box.
+
+  The selector lists enumerate positions, which is what keeps them in this one
+  stylesheet instead of a `<style>` per figure. The ceilings they cover are
+  MAX_STEPS and MAX_WHENS in blog-figure.parse.ts; raising either means
+  extending the matching list here.
+  ========================================================================== */
+
+.blog-post__content .rpf {
+  margin: 32px 0;
+  padding: 0;
+}
+
+.rpf__title {
+  font-size: 0.95rem;
+  font-weight: 600;
+  color: var(--color-text-primary);
+  margin: 0 0 4px;
+}
+
+.rpf__note {
+  font-size: 0.85rem;
+  color: var(--color-text-muted);
+  margin: 0 0 18px;
+  line-height: 1.5;
+}
+
+.rpf__legend {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px 18px;
+  margin: 0 0 16px;
+  font-size: 0.8rem;
+  color: var(--color-text-secondary);
+}
+
+.rpf__legend span {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+}
+
+.rpf__swatch {
+  width: 11px;
+  height: 11px;
+  border-radius: 2px;
+  flex: none;
+}
+
+.rpf__swatch--before { background: var(--color-text-muted); }
+.rpf__swatch--after { background: var(--color-brand); }
+
+/* The one switch shape the interactive figures share. */
+
+.rpf__switch {
+  display: block;
+  margin: 0 0 20px;
+}
+
+.rpf__switch input {
+  position: absolute;
+  opacity: 0;
+  width: 0;
+  height: 0;
+}
+
+.rpf__switch label {
+  display: inline-flex;
+  align-items: center;
+  gap: 10px;
+  cursor: pointer;
+  font-size: 0.85rem;
+  color: var(--color-text-secondary);
+}
+
+.rpf__switch-track {
+  width: 38px;
+  height: 22px;
+  border-radius: 11px;
+  background: var(--color-border);
+  position: relative;
+  flex: none;
+  transition: background 0.18s ease;
+}
+
+.rpf__switch-track::after {
+  content: "";
+  position: absolute;
+  top: 3px;
+  left: 3px;
+  width: 16px;
+  height: 16px;
+  border-radius: 50%;
+  background: var(--color-surface-elevated);
+  transition: transform 0.18s ease;
+}
+
+.rpf__switch input:checked + label .rpf__switch-track { background: var(--color-brand); }
+.rpf__switch input:checked + label .rpf__switch-track::after { transform: translateX(16px); }
+
+.rpf__switch input:focus-visible + label .rpf__switch-track {
+  outline: 2px solid var(--ring);
+  outline-offset: 2px;
+}
+
+/* --- bars ---------------------------------------------------------------- */
+
+.rpf-bars__rows {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+.rpf-bars__label {
+  font-size: 0.85rem;
+  color: var(--color-text-secondary);
+  margin-bottom: 5px;
+}
+
+.rpf-bars__pair {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.rpf-bars__line {
+  display: grid;
+  grid-template-columns: 1fr auto;
+  align-items: center;
+  gap: 12px;
+}
+
+.rpf-bars__track {
+  height: 14px;
+  border-radius: 3px;
+  background: color-mix(in srgb, var(--color-text-muted) 26%, transparent);
+}
+
+.rpf-bars__fill {
+  display: block;
+  height: 14px;
+  border-radius: 0 4px 4px 0;
+}
+
+.rpf-bars__fill--before { background: var(--color-text-muted); }
+.rpf-bars__fill--after { background: var(--color-brand); }
+
+.rpf-bars__value {
+  font-size: 0.8rem;
+  font-variant-numeric: tabular-nums;
+  color: var(--color-text-primary);
+  min-width: 7em;
+  text-align: right;
+}
+
+/* --- walk ---------------------------------------------------------------- */
+
+.rpf-walk__pick {
+  position: absolute;
+  opacity: 0;
+  width: 0;
+  height: 0;
+}
+
+.rpf-walk__chain {
+  display: flex;
+  flex-direction: column;
+}
+
+.rpf-walk__step {
+  display: grid;
+  grid-template-columns: 26px 1fr;
+  gap: 14px;
+  align-items: start;
+  cursor: pointer;
+}
+
+.rpf-walk__gutter {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 4px;
+  padding-top: 4px;
+}
+
+.rpf-walk__dot {
+  width: 11px;
+  height: 11px;
+  border-radius: 50%;
+  background: var(--color-background);
+  border: 2px solid var(--color-text-muted);
+  flex: none;
+  transition: background 0.15s ease, border-color 0.15s ease;
+}
+
+.rpf-walk__stem {
+  width: 2px;
+  flex: 1;
+  min-height: 24px;
+  background: var(--color-border);
+}
+
+.rpf-walk__step:last-child .rpf-walk__stem { display: none; }
+
+.rpf-walk__body { padding: 0 0 18px; }
+
+.rpf-walk__name {
+  display: block;
+  font-size: 0.92rem;
+  font-weight: 600;
+  color: var(--color-text-secondary);
+  transition: color 0.15s ease;
+}
+
+.rpf-walk__step:hover .rpf-walk__name { color: var(--color-text-primary); }
+
+.rpf-walk__note {
+  display: none;
+  font-size: 0.85rem;
+  color: var(--color-text-muted);
+  margin-top: 4px;
+  line-height: 1.5;
+}
+
+.rpf-walk__pick:focus-visible + .rpf-walk__pick,
+.rpf-walk__step:focus-within .rpf-walk__name { color: var(--color-text-primary); }
+
+/* Fallback with no `:has()`: the chain reads as a list with its first stage
+  open, which is the state the figure loads in when the selector is supported. */
+.rpf-walk__step:first-child .rpf-walk__note--does { display: block; }
+
+/* --- matrix -------------------------------------------------------------- */
+
+.rpf-matrix__scroll { overflow-x: auto; }
+
+.rpf-matrix__table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 0.85rem;
+}
+
+.rpf-matrix__table th,
+.rpf-matrix__table td {
+  text-align: left;
+  vertical-align: top;
+  border-bottom: 1px solid var(--color-border);
+  padding: 0;
+}
+
+.rpf-matrix__table thead th {
+  font-size: 0.72rem;
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+  color: var(--color-text-muted);
+  font-weight: 600;
+  padding: 8px 10px;
+}
+
+.rpf-matrix__table tbody th {
+  font-weight: 500;
+  color: var(--color-text-primary);
+  width: 26%;
+  padding: 9px 10px;
+}
+
+.rpf-matrix__table tbody tr:last-child th,
+.rpf-matrix__table tbody tr:last-child td { border-bottom: none; }
+
+/* The row's height comes from whichever cell wraps most, and a tinted cell has
+  to fill it or the highlight reads as half-drawn beside its neighbours. */
+.rpf-matrix__table tbody td {
+  height: 100%;
+}
+
+.rpf-matrix__cell {
+  display: block;
+  height: 100%;
+  padding: 9px 10px;
+  color: var(--color-text-secondary);
+}
+
+.rpf-matrix__cell--differs { color: var(--color-error); }
+
+.rpf-matrix__cell--unreported {
+  color: var(--color-text-muted);
+  font-style: italic;
+}
+
+.rpf-matrix__cell--now {
+  color: var(--color-text-primary);
+  background: color-mix(in srgb, var(--color-brand) 10%, transparent);
+  font-weight: 500;
+}
+
+/* Fallback with no `:has()`: the before column, which is the table the post
+  would otherwise have written out in prose. */
+.rpf-matrix__cell--after { display: none; }
+
+/* --- budget -------------------------------------------------------------- */
+
+.rpf-budget__pick {
+  position: absolute;
+  opacity: 0;
+  width: 0;
+  height: 0;
+}
+
+.rpf-budget__control { margin: 0 0 24px; }
+
+.rpf-budget__input {
+  display: block;
+  font-size: 0.85rem;
+  color: var(--color-text-secondary);
+  margin-bottom: 12px;
+}
+
+.rpf-budget__track {
+  display: flex;
+  justify-content: space-between;
+  gap: 4px;
+  position: relative;
+}
+
+.rpf-budget__track::before {
+  content: "";
+  position: absolute;
+  left: 0;
+  right: 0;
+  top: 5px;
+  height: 2px;
+  background: var(--color-border);
+}
+
+/* Not `flex: 1` — an equal share would centre each stop inside its own slice, so
+  a two-stop track would sit at a quarter and three quarters instead of at its
+  own ends. `space-between` puts the first and last stop on the ends. */
+.rpf-budget__tick {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 8px;
+  cursor: pointer;
+  position: relative;
+  min-width: 0;
+}
+
+.rpf-budget__stop {
+  width: 12px;
+  height: 12px;
+  border-radius: 50%;
+  background: var(--color-surface);
+  border: 2px solid var(--color-border);
+  transition: background 0.15s ease, border-color 0.15s ease, transform 0.15s ease;
+}
+
+.rpf-budget__at {
+  font-size: 0.78rem;
+  font-variant-numeric: tabular-nums;
+  color: var(--color-text-muted);
+  transition: color 0.15s ease;
+}
+
+.rpf-budget__tick:hover .rpf-budget__stop { border-color: var(--color-brand); }
+
+.rpf-budget__pick:focus-visible + .rpf-budget__control .rpf-budget__track {
+  outline: 2px solid var(--ring);
+  outline-offset: 6px;
+  border-radius: var(--radius-sm);
+}
+
+.rpf-budget__plot {
+  display: flex;
+  align-items: flex-end;
+  gap: 24px;
+  height: 150px;
+  justify-content: center;
+}
+
+.rpf-budget__column {
+  display: flex;
+  flex-direction: column;
+  justify-content: flex-end;
+  align-items: center;
+  gap: 8px;
+  height: 100%;
+  flex: 1;
+  max-width: 100px;
+}
+
+.rpf-budget__count {
+  font-size: 0.9rem;
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+  color: var(--color-text-primary);
+}
+
+.rpf-budget__bar {
+  width: 100%;
+  max-width: 24px;
+  border-radius: 4px 4px 0 0;
+  min-height: 2px;
+}
+
+.rpf-budget__bar--old { background: var(--color-text-muted); }
+.rpf-budget__bar--new { background: var(--color-brand); }
+
+.rpf-budget__axis {
+  display: flex;
+  gap: 24px;
+  justify-content: center;
+  border-top: 1px solid var(--color-border);
+  padding-top: 9px;
+}
+
+.rpf-budget__axis span {
+  flex: 1;
+  max-width: 100px;
+  font-size: 0.78rem;
+  color: var(--color-text-secondary);
+  text-align: center;
+  line-height: 1.35;
+}
+
+.rpf-budget__unit {
+  font-size: 0.85rem;
+  color: var(--color-text-muted);
+  text-align: center;
+  margin: 14px 0 0;
+}
+
+/* Fallback with no `:has()`: the last step, which is the case the post argues
+  about, and the state the figure loads in. */
+.rpf-budget__state { display: none; }
+.rpf-budget__state--fallback { display: block; }
+
+/* --- rule ---------------------------------------------------------------- */
+
+.rpf-rule__controls {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  margin: 0 0 22px;
+}
+
+.rpf-rule__legend {
+  display: block;
+  font-size: 0.8rem;
+  color: var(--color-text-muted);
+  margin-bottom: 7px;
+}
+
+.rpf-rule__options,
+.rpf-rule__group--flags {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.rpf-rule__input {
+  position: absolute;
+  opacity: 0;
+  width: 0;
+  height: 0;
+}
+
+.rpf-rule__option {
+  display: inline-flex;
+  align-items: center;
+  min-height: 36px;
+  padding: 7px 14px;
+  font-size: 0.85rem;
+  color: var(--color-text-secondary);
+  background: var(--color-surface);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-sm);
+  cursor: pointer;
+  transition: background 0.15s ease, color 0.15s ease, border-color 0.15s ease;
+}
+
+.rpf-rule__option:hover {
+  background: color-mix(in srgb, var(--color-brand) 9%, var(--color-surface));
+  color: var(--color-text-primary);
+}
+
+.rpf-rule__input:checked + .rpf-rule__option {
+  background: var(--color-brand);
+  border-color: var(--color-brand);
+  color: var(--color-on-brand);
+  font-weight: 600;
+}
+
+.rpf-rule__input:focus-visible + .rpf-rule__option {
+  outline: 2px solid var(--ring);
+  outline-offset: 2px;
+}
+
+.rpf-rule__readout {
+  background: var(--color-surface);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius);
+  padding: 16px 18px;
+}
+
+.rpf-rule__outcome {
+  display: none;
+  margin: 0;
+  flex-wrap: wrap;
+  gap: 4px 10px;
+  align-items: baseline;
+  font-size: 0.9rem;
+  color: var(--color-text-secondary);
+  line-height: 1.55;
+}
+
+.rpf-rule__verdict { font-weight: 600; }
+.rpf-rule__outcome--ok .rpf-rule__verdict { color: var(--color-success); }
+.rpf-rule__outcome--no .rpf-rule__verdict { color: var(--color-error); }
+.rpf-rule__because { flex: 1; min-width: 14em; }
+
+/* Fallback with no `:has()`: the else branch, which is the rule's default
+  answer and true whenever nothing above it fires. */
+.rpf-rule__outcome--fallback { display: flex; }
+
+@supports selector(:has(*)) {
+  /* The chain's first stage stops being unconditional once `:has()` can pick one. */
+  .rpf-walk__step:first-child .rpf-walk__note--does { display: none; }
+
+  /* The stage the reader picked shows what it does... */
+  .rpf-walk:has(.rpf-walk__pick:nth-of-type(1):checked):not(:has(.rpf-walk__reject:checked)) .rpf-walk__step:nth-child(1) .rpf-walk__note--does,
+  .rpf-walk:has(.rpf-walk__pick:nth-of-type(2):checked):not(:has(.rpf-walk__reject:checked)) .rpf-walk__step:nth-child(2) .rpf-walk__note--does,
+  .rpf-walk:has(.rpf-walk__pick:nth-of-type(3):checked):not(:has(.rpf-walk__reject:checked)) .rpf-walk__step:nth-child(3) .rpf-walk__note--does,
+  .rpf-walk:has(.rpf-walk__pick:nth-of-type(4):checked):not(:has(.rpf-walk__reject:checked)) .rpf-walk__step:nth-child(4) .rpf-walk__note--does,
+  .rpf-walk:has(.rpf-walk__pick:nth-of-type(5):checked):not(:has(.rpf-walk__reject:checked)) .rpf-walk__step:nth-child(5) .rpf-walk__note--does,
+  .rpf-walk:has(.rpf-walk__pick:nth-of-type(6):checked):not(:has(.rpf-walk__reject:checked)) .rpf-walk__step:nth-child(6) .rpf-walk__note--does,
+  .rpf-walk:has(.rpf-walk__pick:nth-of-type(7):checked):not(:has(.rpf-walk__reject:checked)) .rpf-walk__step:nth-child(7) .rpf-walk__note--does,
+  .rpf-walk:has(.rpf-walk__pick:nth-of-type(8):checked):not(:has(.rpf-walk__reject:checked)) .rpf-walk__step:nth-child(8) .rpf-walk__note--does,
+  .rpf-walk:has(.rpf-walk__pick:nth-of-type(9):checked):not(:has(.rpf-walk__reject:checked)) .rpf-walk__step:nth-child(9) .rpf-walk__note--does,
+  .rpf-walk:has(.rpf-walk__pick:nth-of-type(10):checked):not(:has(.rpf-walk__reject:checked)) .rpf-walk__step:nth-child(10) .rpf-walk__note--does {
+    display: block;
+  }
+
+  /* ...or, with its guardrail flipped, where the payload falls back to. */
+  .rpf-walk:has(.rpf-walk__pick:nth-of-type(1):checked):has(.rpf-walk__reject:checked) .rpf-walk__step:nth-child(1) .rpf-walk__note--refuses,
+  .rpf-walk:has(.rpf-walk__pick:nth-of-type(2):checked):has(.rpf-walk__reject:checked) .rpf-walk__step:nth-child(2) .rpf-walk__note--refuses,
+  .rpf-walk:has(.rpf-walk__pick:nth-of-type(3):checked):has(.rpf-walk__reject:checked) .rpf-walk__step:nth-child(3) .rpf-walk__note--refuses,
+  .rpf-walk:has(.rpf-walk__pick:nth-of-type(4):checked):has(.rpf-walk__reject:checked) .rpf-walk__step:nth-child(4) .rpf-walk__note--refuses,
+  .rpf-walk:has(.rpf-walk__pick:nth-of-type(5):checked):has(.rpf-walk__reject:checked) .rpf-walk__step:nth-child(5) .rpf-walk__note--refuses,
+  .rpf-walk:has(.rpf-walk__pick:nth-of-type(6):checked):has(.rpf-walk__reject:checked) .rpf-walk__step:nth-child(6) .rpf-walk__note--refuses,
+  .rpf-walk:has(.rpf-walk__pick:nth-of-type(7):checked):has(.rpf-walk__reject:checked) .rpf-walk__step:nth-child(7) .rpf-walk__note--refuses,
+  .rpf-walk:has(.rpf-walk__pick:nth-of-type(8):checked):has(.rpf-walk__reject:checked) .rpf-walk__step:nth-child(8) .rpf-walk__note--refuses,
+  .rpf-walk:has(.rpf-walk__pick:nth-of-type(9):checked):has(.rpf-walk__reject:checked) .rpf-walk__step:nth-child(9) .rpf-walk__note--refuses,
+  .rpf-walk:has(.rpf-walk__pick:nth-of-type(10):checked):has(.rpf-walk__reject:checked) .rpf-walk__step:nth-child(10) .rpf-walk__note--refuses {
+    display: block;
+  }
+
+  .rpf-walk:has(.rpf-walk__pick:nth-of-type(1):checked) .rpf-walk__step:nth-child(1) .rpf-walk__name,
+  .rpf-walk:has(.rpf-walk__pick:nth-of-type(2):checked) .rpf-walk__step:nth-child(2) .rpf-walk__name,
+  .rpf-walk:has(.rpf-walk__pick:nth-of-type(3):checked) .rpf-walk__step:nth-child(3) .rpf-walk__name,
+  .rpf-walk:has(.rpf-walk__pick:nth-of-type(4):checked) .rpf-walk__step:nth-child(4) .rpf-walk__name,
+  .rpf-walk:has(.rpf-walk__pick:nth-of-type(5):checked) .rpf-walk__step:nth-child(5) .rpf-walk__name,
+  .rpf-walk:has(.rpf-walk__pick:nth-of-type(6):checked) .rpf-walk__step:nth-child(6) .rpf-walk__name,
+  .rpf-walk:has(.rpf-walk__pick:nth-of-type(7):checked) .rpf-walk__step:nth-child(7) .rpf-walk__name,
+  .rpf-walk:has(.rpf-walk__pick:nth-of-type(8):checked) .rpf-walk__step:nth-child(8) .rpf-walk__name,
+  .rpf-walk:has(.rpf-walk__pick:nth-of-type(9):checked) .rpf-walk__step:nth-child(9) .rpf-walk__name,
+  .rpf-walk:has(.rpf-walk__pick:nth-of-type(10):checked) .rpf-walk__step:nth-child(10) .rpf-walk__name {
+    color: var(--color-text-primary);
+  }
+
+  .rpf-walk:has(.rpf-walk__pick:nth-of-type(1):checked) .rpf-walk__step:nth-child(1) .rpf-walk__dot,
+  .rpf-walk:has(.rpf-walk__pick:nth-of-type(2):checked) .rpf-walk__step:nth-child(2) .rpf-walk__dot,
+  .rpf-walk:has(.rpf-walk__pick:nth-of-type(3):checked) .rpf-walk__step:nth-child(3) .rpf-walk__dot,
+  .rpf-walk:has(.rpf-walk__pick:nth-of-type(4):checked) .rpf-walk__step:nth-child(4) .rpf-walk__dot,
+  .rpf-walk:has(.rpf-walk__pick:nth-of-type(5):checked) .rpf-walk__step:nth-child(5) .rpf-walk__dot,
+  .rpf-walk:has(.rpf-walk__pick:nth-of-type(6):checked) .rpf-walk__step:nth-child(6) .rpf-walk__dot,
+  .rpf-walk:has(.rpf-walk__pick:nth-of-type(7):checked) .rpf-walk__step:nth-child(7) .rpf-walk__dot,
+  .rpf-walk:has(.rpf-walk__pick:nth-of-type(8):checked) .rpf-walk__step:nth-child(8) .rpf-walk__dot,
+  .rpf-walk:has(.rpf-walk__pick:nth-of-type(9):checked) .rpf-walk__step:nth-child(9) .rpf-walk__dot,
+  .rpf-walk:has(.rpf-walk__pick:nth-of-type(10):checked) .rpf-walk__step:nth-child(10) .rpf-walk__dot {
+    background: var(--color-brand);
+    border-color: var(--color-brand);
+  }
+
+  /* A refusing stage is a failure, so it takes the error token, not amber. */
+  .rpf-walk:has(.rpf-walk__pick:nth-of-type(1):checked):has(.rpf-walk__reject:checked) .rpf-walk__step:nth-child(1) .rpf-walk__dot,
+  .rpf-walk:has(.rpf-walk__pick:nth-of-type(2):checked):has(.rpf-walk__reject:checked) .rpf-walk__step:nth-child(2) .rpf-walk__dot,
+  .rpf-walk:has(.rpf-walk__pick:nth-of-type(3):checked):has(.rpf-walk__reject:checked) .rpf-walk__step:nth-child(3) .rpf-walk__dot,
+  .rpf-walk:has(.rpf-walk__pick:nth-of-type(4):checked):has(.rpf-walk__reject:checked) .rpf-walk__step:nth-child(4) .rpf-walk__dot,
+  .rpf-walk:has(.rpf-walk__pick:nth-of-type(5):checked):has(.rpf-walk__reject:checked) .rpf-walk__step:nth-child(5) .rpf-walk__dot,
+  .rpf-walk:has(.rpf-walk__pick:nth-of-type(6):checked):has(.rpf-walk__reject:checked) .rpf-walk__step:nth-child(6) .rpf-walk__dot,
+  .rpf-walk:has(.rpf-walk__pick:nth-of-type(7):checked):has(.rpf-walk__reject:checked) .rpf-walk__step:nth-child(7) .rpf-walk__dot,
+  .rpf-walk:has(.rpf-walk__pick:nth-of-type(8):checked):has(.rpf-walk__reject:checked) .rpf-walk__step:nth-child(8) .rpf-walk__dot,
+  .rpf-walk:has(.rpf-walk__pick:nth-of-type(9):checked):has(.rpf-walk__reject:checked) .rpf-walk__step:nth-child(9) .rpf-walk__dot,
+  .rpf-walk:has(.rpf-walk__pick:nth-of-type(10):checked):has(.rpf-walk__reject:checked) .rpf-walk__step:nth-child(10) .rpf-walk__dot {
+    background: var(--color-error);
+    border-color: var(--color-error);
+  }
+
+  /* --- matrix --- */
+  .rpf-matrix:has(.rpf-matrix__flip:checked) .rpf-matrix__cell--before { display: none; }
+  .rpf-matrix:has(.rpf-matrix__flip:checked) .rpf-matrix__cell--after { display: block; }
+
+  /* --- budget --- */
+  .rpf-budget__state--fallback { display: none; }
+
+  .rpf-budget:has(.rpf-budget__pick:nth-of-type(1):checked) .rpf-budget__state:nth-child(1),
+  .rpf-budget:has(.rpf-budget__pick:nth-of-type(2):checked) .rpf-budget__state:nth-child(2),
+  .rpf-budget:has(.rpf-budget__pick:nth-of-type(3):checked) .rpf-budget__state:nth-child(3),
+  .rpf-budget:has(.rpf-budget__pick:nth-of-type(4):checked) .rpf-budget__state:nth-child(4),
+  .rpf-budget:has(.rpf-budget__pick:nth-of-type(5):checked) .rpf-budget__state:nth-child(5),
+  .rpf-budget:has(.rpf-budget__pick:nth-of-type(6):checked) .rpf-budget__state:nth-child(6),
+  .rpf-budget:has(.rpf-budget__pick:nth-of-type(7):checked) .rpf-budget__state:nth-child(7),
+  .rpf-budget:has(.rpf-budget__pick:nth-of-type(8):checked) .rpf-budget__state:nth-child(8),
+  .rpf-budget:has(.rpf-budget__pick:nth-of-type(9):checked) .rpf-budget__state:nth-child(9),
+  .rpf-budget:has(.rpf-budget__pick:nth-of-type(10):checked) .rpf-budget__state:nth-child(10) {
+    display: block;
+  }
+
+  .rpf-budget:has(.rpf-budget__pick:nth-of-type(1):checked) .rpf-budget__tick:nth-child(1) .rpf-budget__stop,
+  .rpf-budget:has(.rpf-budget__pick:nth-of-type(2):checked) .rpf-budget__tick:nth-child(2) .rpf-budget__stop,
+  .rpf-budget:has(.rpf-budget__pick:nth-of-type(3):checked) .rpf-budget__tick:nth-child(3) .rpf-budget__stop,
+  .rpf-budget:has(.rpf-budget__pick:nth-of-type(4):checked) .rpf-budget__tick:nth-child(4) .rpf-budget__stop,
+  .rpf-budget:has(.rpf-budget__pick:nth-of-type(5):checked) .rpf-budget__tick:nth-child(5) .rpf-budget__stop,
+  .rpf-budget:has(.rpf-budget__pick:nth-of-type(6):checked) .rpf-budget__tick:nth-child(6) .rpf-budget__stop,
+  .rpf-budget:has(.rpf-budget__pick:nth-of-type(7):checked) .rpf-budget__tick:nth-child(7) .rpf-budget__stop,
+  .rpf-budget:has(.rpf-budget__pick:nth-of-type(8):checked) .rpf-budget__tick:nth-child(8) .rpf-budget__stop,
+  .rpf-budget:has(.rpf-budget__pick:nth-of-type(9):checked) .rpf-budget__tick:nth-child(9) .rpf-budget__stop,
+  .rpf-budget:has(.rpf-budget__pick:nth-of-type(10):checked) .rpf-budget__tick:nth-child(10) .rpf-budget__stop {
+    background: var(--color-brand);
+    border-color: var(--color-brand);
+    transform: scale(1.3);
+  }
+
+  .rpf-budget:has(.rpf-budget__pick:nth-of-type(1):checked) .rpf-budget__tick:nth-child(1) .rpf-budget__at,
+  .rpf-budget:has(.rpf-budget__pick:nth-of-type(2):checked) .rpf-budget__tick:nth-child(2) .rpf-budget__at,
+  .rpf-budget:has(.rpf-budget__pick:nth-of-type(3):checked) .rpf-budget__tick:nth-child(3) .rpf-budget__at,
+  .rpf-budget:has(.rpf-budget__pick:nth-of-type(4):checked) .rpf-budget__tick:nth-child(4) .rpf-budget__at,
+  .rpf-budget:has(.rpf-budget__pick:nth-of-type(5):checked) .rpf-budget__tick:nth-child(5) .rpf-budget__at,
+  .rpf-budget:has(.rpf-budget__pick:nth-of-type(6):checked) .rpf-budget__tick:nth-child(6) .rpf-budget__at,
+  .rpf-budget:has(.rpf-budget__pick:nth-of-type(7):checked) .rpf-budget__tick:nth-child(7) .rpf-budget__at,
+  .rpf-budget:has(.rpf-budget__pick:nth-of-type(8):checked) .rpf-budget__tick:nth-child(8) .rpf-budget__at,
+  .rpf-budget:has(.rpf-budget__pick:nth-of-type(9):checked) .rpf-budget__tick:nth-child(9) .rpf-budget__at,
+  .rpf-budget:has(.rpf-budget__pick:nth-of-type(10):checked) .rpf-budget__tick:nth-child(10) .rpf-budget__at {
+    color: var(--color-text-primary);
+    font-weight: 600;
+  }
+
+  /* --- rule --- */
+  /* A branch shows when one of the inputs that decides it is on. */
+  .rpf-rule:has([data-fires="1"]:checked) [data-out="1"],
+  .rpf-rule:has([data-fires="2"]:checked) [data-out="2"],
+  .rpf-rule:has([data-fires="3"]:checked) [data-out="3"],
+  .rpf-rule:has([data-fires="4"]:checked) [data-out="4"] {
+    display: flex;
+  }
+
+  /* Precedence: an earlier branch hides every later one. Same specificity as
+    the rule above, so source order is what decides — this block must stay
+    below it. */
+  .rpf-rule:has([data-fires="1"]:checked) [data-out="2"],
+  .rpf-rule:has([data-fires="1"]:checked) [data-out="3"],
+  .rpf-rule:has([data-fires="1"]:checked) [data-out="4"],
+  .rpf-rule:has([data-fires="2"]:checked) [data-out="3"],
+  .rpf-rule:has([data-fires="2"]:checked) [data-out="4"],
+  .rpf-rule:has([data-fires="3"]:checked) [data-out="4"] {
+    display: none;
+  }
+
+  /* And the else branch yields to any branch at all. */
+  .rpf-rule:has([data-fires]:checked) [data-out="else"] {
+    display: none;
+  }
+}

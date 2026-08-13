@@ -12,8 +12,41 @@ import {
 } from "@packages/web-shell";
 import matter from "gray-matter";
 import MarkdownIt from "markdown-it";
+import { FIGURE_FENCE, parseFigure } from "./blog-figure.parse";
+import { renderFigure } from "./blog-figure.render";
 
-const md = new MarkdownIt({ html: true });
+/** Expands an ```rp-figure fence into a drawn figure, leaving every other fence
+ * as ordinary code. The data stays in the post as a dozen lines of `key: value`,
+ * for the same reason `withTldrCaret` keeps the caret out of the content files:
+ * a drawing does not belong in 67 markdown files. It also decides what the
+ * `text/markdown` representation carries, since that is built from the raw
+ * source — a fence reaches an AI client as labelled numbers, where the expanded
+ * HTML would reach it as markup. */
+interface FigureEnv {
+	figureCount: number;
+}
+
+function initMarkdown(): MarkdownIt {
+	const renderer = new MarkdownIt({ html: true });
+	renderer.renderer.rules.fence = (tokens, index, options, env: FigureEnv, self) => {
+		const token = tokens[index];
+		if (token.info.trim() !== FIGURE_FENCE) return self.renderToken(tokens, index, options);
+		env.figureCount += 1;
+		return `${renderFigure(parseFigure(token.content), env.figureCount)}\n`;
+	};
+	return renderer;
+}
+
+const md = initMarkdown();
+
+/** Renders one post's body. The figure counter lives in markdown-it's per-render
+ * `env` so a figure's input ids depend only on its position within its own post
+ * — a counter shared across the directory would renumber every later post's
+ * inputs whenever an earlier one gained a figure. */
+function renderPostBody(content: string): string {
+	const env: FigureEnv = { figureCount: 0 };
+	return withTldrCaret(md.render(content, env));
+}
 
 const TLDR_SUMMARY = /(<summary class="blog-tldr__toggle">[^<]*)<\/summary>/g;
 
@@ -151,7 +184,7 @@ export function initBlogPosts(): BlogPosts {
 
 			return {
 				...frontmatter,
-				htmlContent: withTldrCaret(md.render(content)),
+				htmlContent: renderPostBody(content),
 				markdownContent: content,
 				formattedDate: formatDate(frontmatter.date),
 			};
