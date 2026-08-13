@@ -13,7 +13,7 @@ export const NAV_TEMPLATE = `  <header class="header{{#if transparent}} header--
 				aria-live="off"
 				aria-atomic="true"
 				data-test-trial-countdown>{{trialDisplayText}}</a>
-			<nav class="nav">
+			<nav class="nav" aria-label="Main">
 				<button class="nav__toggle" aria-label="Toggle navigation" aria-expanded="false" aria-controls="nav-menu">
 					<span class="nav__toggle-bar"></span>
 					<span class="nav__toggle-bar"></span>

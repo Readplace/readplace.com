@@ -1,0 +1,9 @@
+<nav class="queue-nav" aria-label="Queues" hx-boost="true" hx-target="main" hx-select="main" hx-swap="outerHTML show:none" data-test-queue-nav>
+          <ul class="queue-nav__list">
+            {{#each items}}
+            <li class="queue-nav__item">
+              <a class="queue-nav__link" href="{{href}}" aria-current="page" data-test-queue="{{name}}">{{title}}</a>
+            </li>
+            {{/each}}
+          </ul>
+        </nav>

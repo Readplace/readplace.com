@@ -8,7 +8,7 @@ import {
 describe("parseQueueUrl", () => {
 	it("should default to queue tab for empty query", () => {
 		const state = parseQueueUrl({});
-		expect(state).toEqual({ tab: "queue", order: undefined, page: 1 });
+		expect(state).toEqual({ queue: "default", tab: "queue", order: undefined, page: 1 });
 	});
 
 	it("should parse tab parameter", () => {
@@ -55,6 +55,23 @@ describe("parseQueueUrl", () => {
 		expect(parseQueueUrl({ page: "0" }).page).toBe(1);
 	});
 
+	it("should parse the queue being viewed", () => {
+		expect(parseQueueUrl({ queue: "default" }).queue).toBe("default");
+	});
+
+	it("should fall back to the default queue for a queue nobody owns", () => {
+		expect(parseQueueUrl({ queue: "someone-elses" }).queue).toBe("default");
+	});
+
+	it("should read the queue and the read-state tab as independent choices", () => {
+		expect(parseQueueUrl({ queue: "default", tab: "done" })).toEqual({
+			queue: "default",
+			tab: "done",
+			order: undefined,
+			page: 1,
+		});
+	});
+
 });
 
 describe("buildQueueUrl", () => {
@@ -95,6 +112,10 @@ describe("buildQueueUrl", () => {
 		expect(url).toContain("page=3");
 	});
 
+	it("should leave the queue out of the URL while the default queue is the one being viewed", () => {
+		expect(buildQueueUrl(parseQueueUrl({ queue: "default", tab: "done" }))).toBe("/queue?tab=done");
+	});
+
 	it("should drop unmodelled params on the round trip, so a feature flag cannot ride every tab, sort and pagination link — gate the one render site instead, and pass transient pairs through extraParams", () => {
 		expect(buildQueueUrl(parseQueueUrl({ tab: "done", feature: "my", utm_source: "x" }))).toBe(
 			"/queue?tab=done",
@@ -122,32 +143,32 @@ describe("buildQueueCountsUrl", () => {
 describe("canonicalQueuePageRedirect", () => {
 	it("returns undefined for an in-bounds page", () => {
 		expect(
-			canonicalQueuePageRedirect({ state: { tab: "queue", page: 1 }, total: 20, pageSize: 20 }),
+			canonicalQueuePageRedirect({ state: { queue: "default", tab: "queue", page: 1 }, total: 20, pageSize: 20 }),
 		).toBeUndefined();
 	});
 
 	it("clamps page 2 of a single-page result back to page 1 (/queue)", () => {
 		expect(
-			canonicalQueuePageRedirect({ state: { tab: "queue", page: 2 }, total: 20, pageSize: 20 }),
+			canonicalQueuePageRedirect({ state: { queue: "default", tab: "queue", page: 2 }, total: 20, pageSize: 20 }),
 		).toBe("/queue");
 	});
 
 	it("returns undefined for the last valid page", () => {
 		expect(
-			canonicalQueuePageRedirect({ state: { tab: "queue", page: 3 }, total: 60, pageSize: 20 }),
+			canonicalQueuePageRedirect({ state: { queue: "default", tab: "queue", page: 3 }, total: 60, pageSize: 20 }),
 		).toBeUndefined();
 	});
 
 	it("clamps a page beyond the last to the last valid page", () => {
 		expect(
-			canonicalQueuePageRedirect({ state: { tab: "queue", page: 4 }, total: 60, pageSize: 20 }),
+			canonicalQueuePageRedirect({ state: { queue: "default", tab: "queue", page: 4 }, total: 60, pageSize: 20 }),
 		).toBe("/queue?page=3");
 	});
 
 	it("preserves extra params (utm + status flash) on the clamped URL", () => {
 		expect(
 			canonicalQueuePageRedirect({
-				state: { tab: "queue", page: 2 },
+				state: { queue: "default", tab: "queue", page: 2 },
 				total: 20,
 				pageSize: 20,
 				extraParams: [
@@ -161,7 +182,7 @@ describe("canonicalQueuePageRedirect", () => {
 
 	it("clamps page 2 of an empty queue to page 1 so the empty state renders", () => {
 		expect(
-			canonicalQueuePageRedirect({ state: { tab: "queue", page: 2 }, total: 0, pageSize: 20 }),
+			canonicalQueuePageRedirect({ state: { queue: "default", tab: "queue", page: 2 }, total: 0, pageSize: 20 }),
 		).toBe("/queue");
 	});
 });

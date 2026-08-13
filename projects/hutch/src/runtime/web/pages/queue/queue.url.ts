@@ -1,5 +1,6 @@
 import { z } from "zod";
 import type { SortOrder } from "@packages/provider-contracts/article-store";
+import { DEFAULT_QUEUE_NAME, QUEUE_NAMES, type QueueName } from "./queue.nav";
 import { TAB_IDS, type TabId, tabQuery } from "./queue.tabs";
 
 /** Single source of truth for where the queue router is mounted. Its redirects,
@@ -9,12 +10,14 @@ import { TAB_IDS, type TabId, tabQuery } from "./queue.tabs";
 export const QUEUE_PATH = "/queue";
 
 export interface QueueUrlState {
+	queue: QueueName;
 	tab: TabId;
 	order?: SortOrder;
 	page: number;
 }
 
 const QueueQuerySchema = z.looseObject({
+	queue: z.enum(QUEUE_NAMES).optional().catch(undefined),
 	tab: z.enum(TAB_IDS).optional().catch(undefined),
 	status: z.enum(["unread", "read"]).optional().catch(undefined),
 	order: z.enum(["asc", "desc"]).optional().catch(undefined),
@@ -25,6 +28,7 @@ export function parseQueueUrl(query: Record<string, unknown>): QueueUrlState {
 	const parsed = QueueQuerySchema.parse(query);
 	const tab = parsed.tab ?? (parsed.status === "read" ? "done" : "queue");
 	return {
+		queue: parsed.queue ?? DEFAULT_QUEUE_NAME,
 		tab,
 		order: parsed.order,
 		page: parsed.page ?? 1,

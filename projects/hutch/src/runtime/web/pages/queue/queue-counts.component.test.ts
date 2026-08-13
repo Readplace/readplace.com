@@ -14,7 +14,7 @@ function displayModelFor(input: {
 	tabTotal?: number;
 }) {
 	return toQueueCountsDisplayModel({
-		filters: { tab: "queue", page: 1, ...input.filters },
+		filters: { queue: "default", tab: "queue", page: 1, ...input.filters },
 		unreadCount: input.unreadCount ?? 0,
 		tabTotal: input.tabTotal ?? 0,
 		pageSize: PAGE_SIZE,
@@ -155,7 +155,7 @@ describe("queue counts fragment against the initial render", () => {
 			filters,
 			{ now: new Date("2026-01-01T00:00:00.000Z") },
 		);
-		const doc = parseFragment(QueuePage(vm, { cspNonce: generateCspNonce(), deviceClass: "desktop" }).content.html);
+		const doc = parseFragment(QueuePage(vm, { cspNonce: generateCspNonce(), deviceClass: "desktop", queuesFeature: false }).content.html);
 		const tab = doc.querySelector("#queue-filter-unread");
 		assert(tab, "the queue page must render the unread tab the counts fragment targets");
 		return tab;
@@ -173,10 +173,10 @@ describe("queue counts fragment against the initial render", () => {
 	}
 
 	it.each<QueueUrlState>([
-		{ tab: "queue", page: 1 },
-		{ tab: "done", page: 1 },
-		{ tab: "queue", order: "asc", page: 2 },
-		{ tab: "done", order: "asc", page: 3 },
+		{ queue: "default", tab: "queue", page: 1 },
+		{ queue: "default", tab: "done", page: 1 },
+		{ queue: "default", tab: "queue", order: "asc", page: 2 },
+		{ queue: "default", tab: "done", order: "asc", page: 3 },
 	])("should reuse the class and href the initial render produced for %o", (filters) => {
 		const initial = initialUnreadTab(filters);
 		const swapped = swappedUnreadTab(filters, 3);
@@ -188,7 +188,7 @@ describe("queue counts fragment against the initial render", () => {
 	});
 
 	it("should replace the countless initial label with the counted one", () => {
-		const filters: QueueUrlState = { tab: "queue", page: 1 };
+		const filters: QueueUrlState = { queue: "default", tab: "queue", page: 1 };
 
 		expect(initialUnreadTab(filters).textContent).toBe("To Read");
 		expect(swappedUnreadTab(filters, 3).textContent).toBe("To Read (3)");

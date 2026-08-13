@@ -277,6 +277,25 @@ describe("GET /queue (Siren content negotiation)", () => {
 		assert(saveAction, "expected save-article action");
 		expect(saveAction.method).toBe("POST");
 	});
+
+	it("answers a queue the web page names in its URL with the byte-identical collection a shipped client already reads", async () => {
+		const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
+		const userId = await loginAndSave(harness, { email: "queue-param@example.com", urlCount: 1 });
+		const accessToken = await saveAccessTokenForUser(harness, userId);
+
+		const withoutQueue = await request(harness.server)
+			.get("/queue")
+			.set("Accept", SIREN_MEDIA_TYPE)
+			.set("Authorization", `Bearer ${accessToken}`);
+		const withQueue = await request(harness.server)
+			.get("/queue?queue=default")
+			.set("Accept", SIREN_MEDIA_TYPE)
+			.set("Authorization", `Bearer ${accessToken}`);
+
+		expect(withQueue.status).toBe(200);
+		expect(withoutQueue.body.entities).toHaveLength(1);
+		expect(withQueue.body).toEqual(withoutQueue.body);
+	});
 });
 
 describe("POST /queue (Siren save article)", () => {

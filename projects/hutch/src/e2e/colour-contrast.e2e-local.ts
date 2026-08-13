@@ -190,11 +190,15 @@ test.describe("Queue colour roles hold their WCAG contrast in both themes", () =
 		await saveArticle(page, `${BASE_URL}/privacy?colour-contrast-read=${run}`, 2);
 		await markNewestArticleRead(page);
 
+		const viewUrls = {
+			"to-read": `${BASE_URL}/queue`,
+			done: `${BASE_URL}/queue?tab=done`,
+			tabs: `${BASE_URL}/queue?feature=queues`,
+		} as const;
 		for (const theme of ["light", "dark"] as const) {
 			await page.emulateMedia({ colorScheme: theme });
-			for (const view of ["to-read", "done"] as const) {
-				const url = view === "to-read" ? `${BASE_URL}/queue` : `${BASE_URL}/queue?tab=done`;
-				await page.goto(url, { waitUntil: "domcontentloaded" });
+			for (const view of ["to-read", "done", "tabs"] as const) {
+				await page.goto(viewUrls[view], { waitUntil: "domcontentloaded" });
 				await auditQueue(page, { theme, view });
 			}
 		}

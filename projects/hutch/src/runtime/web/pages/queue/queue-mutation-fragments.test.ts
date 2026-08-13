@@ -7,8 +7,8 @@ import {
 } from "./queue-mutation-fragments";
 import type { QueueUrlState } from "./queue.url";
 
-const DEFAULT_FILTERS: QueueUrlState = { tab: "queue", page: 1 };
-const DEEP_FILTERS: QueueUrlState = { tab: "done", order: "asc", page: 2 };
+const DEFAULT_FILTERS: QueueUrlState = { queue: "default", tab: "queue", page: 1 };
+const DEEP_FILTERS: QueueUrlState = { queue: "default", tab: "done", order: "asc", page: 2 };
 
 function parse(html: string): Document {
 	return new JSDOM(html).window.document;

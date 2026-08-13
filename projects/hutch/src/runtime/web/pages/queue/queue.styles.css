@@ -16,6 +16,62 @@
   color: var(--foreground);
 }
 
+.queue--queues .queue__header {
+  display: none;
+}
+
+/**
+ * 1. The tab's base edge sits on the panel's border (the -1px margin) so tab
+ *    and panel read as one piece of card stock, the way a file tab is part of
+ *    its folder.
+ * 2. proximity, not mandatory: mandatory snapping fights free scrubbing of a
+ *    row wider than the viewport.
+ * 3. thin, not none: a fully hidden scrollbar leaves a pointer user no cue
+ *    that the row continues off-screen.
+ */
+.queue-nav {
+  position: relative;
+  z-index: 1; /* 1 */
+  padding: 0 12px;
+}
+
+.queue-nav__list {
+  list-style: none;
+  display: flex;
+  gap: 6px;
+  overflow-x: auto;
+  scroll-snap-type: x proximity; /* 2 */
+  scrollbar-width: thin; /* 3 */
+  margin-bottom: -1px; /* 1 */
+}
+
+.queue-nav__item {
+  flex: 0 0 auto;
+  scroll-snap-align: start;
+}
+
+.queue-nav__link {
+  display: flex;
+  align-items: center;
+  min-height: 44px;
+  padding: 10px 20px;
+  border-radius: var(--radius) var(--radius) 0 0;
+  font-family: var(--font-serif);
+  font-size: 0.9375rem;
+  font-weight: 600;
+  background: var(--primary-fill);
+  color: var(--primary-foreground);
+  text-decoration: none;
+  white-space: nowrap;
+  box-shadow: var(--shadow-sm);
+}
+
+.queue--queues .queue__content {
+  border: 1px solid var(--border);
+  border-radius: var(--radius-lg);
+  padding: 12px;
+}
+
 /* Layout lives on the base class, not the state modifiers: a state whose modifier
  * is missing must still lay out rather than collapse to display:block. */
 .queue-banner {
@@ -846,5 +902,64 @@
 @media (min-width: 768px) {
   .queue-confirm {
     padding: 32px;
+  }
+}
+
+/**
+ * 1. 940 = 24 padding + 130 tab column + 762 panel + 24 padding.
+ * 2. minmax(0, 1fr), never a bare 1fr: a bare 1fr floors the track at the
+ *    content's min-content width, so one unbreakable article URL widens the
+ *    grid past the viewport and the page scrolls sideways.
+ * 3. align-self: start is what makes the rail sticky at all — a grid item
+ *    defaults to stretching over the full row, and an element as tall as its
+ *    scroll container never sticks.
+ */
+@media (min-width: 768px) {
+  .queue.queue--queues {
+    max-width: 940px; /* 1 */
+  }
+
+  /**
+   * 4. The panel spends 50 of its 762px on its own border and padding, so the
+   *    listing inside still renders at the width the element-scoped visual
+   *    checkpoints are pinned to.
+   */
+  .queue--queues .queue__body {
+    display: grid;
+    grid-template-columns: 130px minmax(0, 1fr); /* 2 */
+    column-gap: 0;
+  }
+
+  .queue--queues > .onboarding {
+    max-width: none;
+  }
+
+  .queue--queues .queue__content {
+    min-width: 0; /* 2 */
+    padding: 24px; /* 4 */
+  }
+
+  .queue-nav {
+    padding: 12px 0 0;
+    position: sticky;
+    top: calc(var(--banner-area-height, 38px) + var(--header-height, 64px));
+    align-self: start; /* 3 */
+  }
+
+  .queue-nav__list {
+    flex-direction: column;
+    gap: 6px;
+    overflow-x: visible;
+    overflow-y: auto;
+    scroll-snap-type: none;
+    max-height: calc(100vh - var(--banner-area-height, 38px) - var(--header-height, 64px));
+    overscroll-behavior: contain;
+    margin: 0 -1px 0 0; /* 1 */
+  }
+
+  .queue-nav__link {
+    justify-content: center;
+    padding: 12px 16px;
+    border-radius: var(--radius) 0 0 var(--radius);
   }
 }

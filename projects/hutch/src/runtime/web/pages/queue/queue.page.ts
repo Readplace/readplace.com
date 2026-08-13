@@ -158,6 +158,10 @@ import type { GetEffectiveAccess } from "@packages/subscription-access";
  * that both requests report the same device class, which a same-browser HTML form
  * submit guarantees by carrying the GET's User-Agent. Preserve that parity if
  * dismissal ever becomes a background request that could drop or alter the UA. */
+function queuesFeature(req: Request): boolean {
+	return req.query.feature === "queues";
+}
+
 function dismissTokenFor(hasClient: boolean): string {
 	return hasClient ? ONBOARDING_VERSION : NO_CLIENT_ONBOARDING_VERSION;
 }
@@ -849,7 +853,7 @@ export function initQueueRoutes(deps: QueueDependencies): Router {
 		sendComponent(
 			req, res,
 			Base(
-				QueuePage(vm, { ...onboarding, cspNonce: requireCspNonce(req), saveUrl: input.saveUrl, deviceClass: classifyDeviceClass(req.get("user-agent")) }),
+				QueuePage(vm, { ...onboarding, cspNonce: requireCspNonce(req), saveUrl: input.saveUrl, deviceClass: classifyDeviceClass(req.get("user-agent")), queuesFeature: queuesFeature(req) }),
 				await deps.buildBannerState(req, { preFetchedAccess: effectiveAccess }),
 			),
 		);
@@ -1514,7 +1518,7 @@ export function initQueueRoutes(deps: QueueDependencies): Router {
 				crawlByUrl,
 			});
 			const onboarding = await resolveOnboardingSignals(req, userId);
-			sendComponent(req, res, Base(QueuePage(vm, { ...onboarding, cspNonce: requireCspNonce(req), statusCode: 422, deviceClass: classifyDeviceClass(req.get("user-agent")) }), await deps.buildBannerState(req)));
+			sendComponent(req, res, Base(QueuePage(vm, { ...onboarding, cspNonce: requireCspNonce(req), statusCode: 422, deviceClass: classifyDeviceClass(req.get("user-agent")), queuesFeature: queuesFeature(req) }), await deps.buildBannerState(req)));
 			return;
 		}
 
