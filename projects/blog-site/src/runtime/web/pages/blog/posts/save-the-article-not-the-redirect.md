@@ -26,7 +26,7 @@ When you save a link, Readplace fetches the page the way a browser would. A plai
 
 There are 3 of them. One runs [curl-impersonate](/view/github.com/lexiforest/curl-impersonate) as a subprocess, copying a browser's TLS handshake. One speaks HTTP/2 through Node's own client, for sites that read the older protocol as a bot. One builds the TLS request by hand to fetch a missing intermediate certificate when a site serves an incomplete chain.
 
-None of the three can hand redirect-following to the thing underneath it. The curl subprocess runs with its own redirect chasing turned off, on purpose. Every hop has to be re-checked against the guard that keeps a save from reaching an internal address. The other two don't follow redirects on their own either. So the code above them walks the chain itself.
+None of the three can hand redirect-following to the thing underneath it. The curl subprocess runs with its own redirect chasing turned off, on purpose. Readplace has to re-check every hop against the guard that keeps a save from reaching an internal address. The other two don't follow redirects on their own either. So the code above them walks the chain itself.
 
 For a while, each of the three walked it in its own way.
 

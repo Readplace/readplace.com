@@ -66,7 +66,7 @@ A free hosted service still has to pay for servers, storage, bandwidth, and the 
 
 **Pocket** was free. Mozilla acquired it in 2017, ran it for 8 years, and shut it down in 2025. Millions of users scrambled to export their libraries, and some lost articles they had saved for years.
 
-**Omnivore** was free in the strongest sense: open-source, with a hosted version that cost users nothing. In late 2024 the team was acqui-hired by ElevenLabs and the service closed. Users got two weeks' notice.
+**Omnivore** was free in the strongest sense: open-source, with a hosted version that cost users nothing. In late 2024 ElevenLabs acqui-hired the team and the service closed. Users got two weeks' notice.
 
 After the Omnivore shutdown, Steph Ango, the founder of Obsidian, made a point that stuck with me. A product with no clear revenue survives only as long as the founders' runway lasts, or until an acquirer shows up, or until whoever is subsidising it stops.
 

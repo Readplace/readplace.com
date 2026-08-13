@@ -44,7 +44,7 @@ It sends only if the work took more than a minute. Quick saves finish before you
 
 It sends at most one of these every 6 hours. Import a big batch of links and your inbox stays calm.
 
-It also checks the basics before each send. If you marked the article read, deleted it, or saved it again after it was done, the email is dropped. Because those checks run on every send, the link you get points to something you still want to read.
+It also checks the basics before each send. If you marked the article read, deleted it, or saved it again after it was done, Readplace drops the email. Because those checks run on every send, the link you get points to something you still want to read.
 
 ```rp-figure
 kind: rule
@@ -59,7 +59,7 @@ flag: You saved it again after it was done
 when: c1=1 -> no | No email | If you stayed in the reader until the content arrived, you already have it, so you get nothing.
 when: c2=1 -> no | No email | It sends only if the work took more than a minute; quick saves finish before you close the tab.
 when: c3=2 -> no | No email | It sends at most one of these every 6 hours, so importing a big batch of links leaves your inbox calm.
-when: f1,f2,f3 -> no | No email | If you marked the article read, deleted it, or saved it again after it was done, the email is dropped.
+when: f1,f2,f3 -> no | No email | If you marked the article read, deleted it, or saved it again after it was done, Readplace drops the email.
 else: ok | Email sent | You opened the article and left before it finished, the work took more than a minute, and there has been no other such email in the past 6 hours.
 ```
 

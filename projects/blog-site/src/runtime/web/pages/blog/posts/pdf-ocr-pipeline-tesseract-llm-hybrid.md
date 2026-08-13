@@ -193,7 +193,7 @@ The Tesseract Lambda itself stays at **1769 MB** of memory and a 900 s timeout.
 
 On concurrency, the orchestrator fans out up to `MAX_PDF_PAGES` (300) Tesseract invocations and the same number of DeepSeek cleanup calls. AWS Lambda's account `ConcurrentExecutions` is 1000, so the orchestrator uses around 30% of it in the worst case.
 
-The `LambdaClient` HTTPS-agent `maxSockets` is set to 400 to cover both fanouts plus retry headroom. The default of 50 would have queued invocations at the SDK layer with no error, capping effective concurrency well below the fan-out.
+I set the `LambdaClient` HTTPS-agent `maxSockets` to 400 to cover both fanouts plus retry headroom. The default of 50 would have queued invocations at the SDK layer with no error, capping effective concurrency well below the fan-out.
 
 ### What the LLM is not asked to do
 

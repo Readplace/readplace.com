@@ -59,7 +59,7 @@ The simpler move is to leave it out. If the assistant can't delete, why give it 
 
 Because the missing tool gives a worse answer. Ask an assistant that has no delete tool to remove an article, and it improvises. It might say it deleted the thing, or fail in a way you can't read, or reach for `save_link` because that is the nearest tool it has. A tool that exists and declines hands it a fact to pass on: this happens in the app, and here is the reason. You get a straight answer in place of a confident wrong one. That is why `delete_article` is still on the list while doing nothing at all.
 
-The other tools follow the same habit. While the reader copy is still being fetched, `get_article_content` says it is not ready yet instead of failing, so the assistant tells you to wait a moment rather than reporting an empty article.
+The other tools follow the same habit. While Readplace is still fetching the reader copy, `get_article_content` says it is not ready yet instead of failing, so the assistant tells you to wait a moment rather than reporting an empty article.
 
 ## A reader your assistant can work over
 

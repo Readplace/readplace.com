@@ -106,7 +106,7 @@ If you downloaded the HTML export file before the shutdown, it still works fine.
 
 **How do I import Pocket articles into another app?**
 
-Most read-it-later apps take the HTML export file that Pocket handed out. Readwise Reader, Instapaper, and Raindrop.io all read it, and so does Readplace. Open your queue, upload the file with the "Import from a file" picker, and confirm the link list. For files over 4.5 MB or imports above the 2,000-URL cap, email readplace+migrate@readplace.com and the import gets handled for you within 24 to 48 hours.
+Most read-it-later apps take the HTML export file that Pocket handed out. Readwise Reader, Instapaper, and Raindrop.io all read it, and so does Readplace. Open your queue, upload the file with the "Import from a file" picker, and confirm the link list. For files over 4.5 MB or imports above the 2,000-URL cap, email readplace+migrate@readplace.com and I handle the import for you within 24 to 48 hours.
 
 **I lost my Omnivore reading list too. Can Readplace help?**
 

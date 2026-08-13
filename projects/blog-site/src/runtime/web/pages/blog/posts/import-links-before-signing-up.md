@@ -26,7 +26,7 @@ Readplace moved that form to the end. The upload, the review, and the picking no
 
 Say your links live in a Pocket export, the file that service handed you on the way out. Or they sit on one page, a column of bookmarks you saved years ago. You open [readplace.com/import](/import) and give it the file, or paste the link.
 
-Readplace reads what it is given as text. It finds every `http` and `https` address inside and lays them out as a list, each one checked by default. You page through and untick what you do not want. The list saves each choice on the server as you make it, so a long export does not lose your place.
+Readplace reads what you give it as text. It finds every `http` and `https` address inside and lays them out as a list, each one checked by default. You page through and untick what you do not want. The list saves each choice on the server as you make it, so a long export does not lose your place.
 
 None of that asked who you are. There is no account yet, and the review is yours to build before you decide Readplace is worth one.
 
@@ -44,7 +44,7 @@ On commit, the links you kept save under your account at once, showing just the 
 
 ## Where the self-serve path stops
 
-Two limits sit on the edge of this. A file over 4.5 MB, or an import past 2,000 links, hands off to a slower path: you email the export to readplace+migrate@readplace.com and it gets brought in by hand. Under those bounds, the whole thing runs start to finish without anyone else touching it.
+Two limits sit on the edge of this. A file over 4.5 MB, or an import past 2,000 links, hands off to a slower path: you email the export to readplace+migrate@readplace.com and I bring it in by hand. Under those bounds, the whole thing runs start to finish without anyone else touching it.
 
 ## Ask for trust too early and people leave
 

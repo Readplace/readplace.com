@@ -46,7 +46,7 @@ The first 3 fixes were wording. Telling the model that an empty answer is correc
 
 Of the 13 wrong picks left, 9 had explanations that never mentioned the saved article at all. The model reads the article, then a list of up to 150 candidates from your queue, and by the end of that list it had lost the beginning. No instruction fixes attention. Repeating the saved article at the bottom of the list, right where the model starts writing its answer, did.
 
-The other cluster was stranger. Some sites answer a crawler with an anti-bot wall, and 2 of those walls had been stored as real articles titled "Client Challenge". The picker matched them to each other, and to anything. The fix keys on the one property a block page cannot shed: the same exact text serving 2 different websites is not an article. There is no list of vendor phrases to go stale, and the moment a better crawl replaces the wall with the real page, the rule lets it back in on its own.
+The other cluster was stranger. Some sites answer a crawler with an anti-bot wall, and Readplace had stored 2 of those walls as real articles titled "Client Challenge". The picker matched them to each other, and to anything. The fix keys on the one property a block page cannot shed: the same exact text serving 2 different websites is not an article. There is no list of vendor phrases to go stale, and the moment a better crawl replaces the wall with the real page, the rule lets it back in on its own.
 
 Round 5, same 44 saves: 3 wrong in 98. About 1 in 32. And 9 of the 44 saves answered with silence instead of an invented neighbour.
 
@@ -84,7 +84,7 @@ Round 5, same 44 saves: 3 wrong in 98. About 1 in 32. And 9 of the 44 saves answ
 
 Finish something from your queue and look under it. If a save in your pile genuinely relates, the card names it and gives you one plain sentence for why: "A hands-on build of the transformer internals this visualization walks through." The unread save wins the slot. A past read appears only when nothing unread relates, and when nothing relates at all, there is no card.
 
-The model still overreaches about once in 30 picks, TBH, and one leftover class heals on its own as the duplicate-text rule gathers more evidence. A 6th fix shipped this week and is being graded the same way the first 5 were.
+The model still overreaches about once in 30 picks, TBH, and one leftover class heals on its own as the duplicate-text rule gathers more evidence. A 6th fix shipped this week and I am grading it the same way as the first 5.
 
 ## Save 3 things on the same subject
 

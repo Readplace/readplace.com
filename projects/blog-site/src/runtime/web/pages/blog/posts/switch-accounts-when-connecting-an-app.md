@@ -20,7 +20,7 @@ With two Google accounts on one phone, work and personal, connecting a reading a
 
 The screen that connects an app to Readplace shows two buttons, Approve and Deny. On a phone it used to leave out the one fact those buttons act on, which account the approval belongs to.
 
-That gap came from a convenience. The login was built to be fast, and fast meant reusing a session the browser already had.
+That gap came from a convenience. I built the login to be fast, and fast meant reusing a session the browser already had.
 
 ## The login that skips the question
 

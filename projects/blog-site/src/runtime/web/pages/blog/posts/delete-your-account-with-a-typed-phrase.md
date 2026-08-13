@@ -42,7 +42,7 @@ Typing that phrase is not a thing a thumb does by accident. It takes reading the
 
 ## Why the check lives on the server
 
-A typed field can check itself in the browser. The input carries a pattern, so a mismatch shows an error before anything is sent. That part is a courtesy to the person who fat-fingered a letter, and it stays on the page.
+A typed field can check itself in the browser. The input carries a pattern, so a mismatch shows an error before the browser sends anything. That part is a courtesy to the person who fat-fingered a letter, and it stays on the page.
 
 The guard that counts is on the server. The delete route reads the field again and compares it to the phrase, and anything short of an exact match deletes nothing. It redirects back to the account page with a plain notice: your account was not deleted, type the phrase exactly to confirm. A request that skips the page and posts straight to the route still has to carry the right four words, or it goes nowhere.
 

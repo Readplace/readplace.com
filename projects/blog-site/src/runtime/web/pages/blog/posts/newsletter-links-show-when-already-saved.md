@@ -56,7 +56,7 @@ A separate list, owned by the inbox, records those facts one row per saved link 
 
 A link already in your queue now shows a check and the word Saved. One you have not saved reads Save to queue, as before. Saving itself did not change. The saved button is the same POST it always was, so it stays clickable, and pressing it again moves that article back to the top of your queue, unread.
 
-Two gaps are left in on purpose. The match reads the link's address and does not follow redirects, so the same article reached through a different wrapper URL still reads as unsaved. And links saved before this shipped are not filled in behind you. TBH, both come out the same way: one extra click, and that click saves exactly what you meant to save.
+I left two gaps in on purpose. The match reads the link's address and does not follow redirects, so the same article reached through a different wrapper URL still reads as unsaved. And Readplace does not fill in links you saved before this shipped. TBH, both come out the same way: one extra click, and that click saves exactly what you meant to save.
 
 ```rp-figure
 kind: matrix

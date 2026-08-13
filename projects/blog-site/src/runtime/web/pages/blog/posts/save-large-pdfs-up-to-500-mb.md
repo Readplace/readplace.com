@@ -38,7 +38,7 @@ A big file doesn't need to travel inside the request. It needs a place to land a
 
 The browser sends the file's bytes to that address on its own. The request-size cap doesn't apply, because the file no longer rides the request. Readplace hands out the key, the file lands in storage, and the save picks up from there.
 
-One small thing had to be exactly right. The key is minted to carry no content checksum of its own, because a checksum computed for an empty body makes every real upload fail with a bad-digest error. Miss that, and nothing over 3 megabytes saves at all.
+One small thing had to be exactly right. Readplace mints the key to carry no content checksum of its own, because a checksum computed for an empty body makes every real upload fail with a bad-digest error. Miss that, and nothing over 3 megabytes saves at all.
 
 > **A file over the budget doesn't ride the request. It gets a key and goes to storage on its own.**
 

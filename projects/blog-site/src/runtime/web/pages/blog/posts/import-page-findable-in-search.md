@@ -52,7 +52,7 @@ The order matches the visitor. The fastest thing to try is the thing already in 
 
 ## A page that works is not the same as a page that's found
 
-I built the import flow to be the easy way off a service that closed. Reachable logged out, the review before the commit, the account last. All of that held while the page sat behind a noindex tag, which meant the people it was built for could not find it in the place they went looking.
+I built the import flow to be the easy way off a service that closed. Reachable logged out, the review before the commit, the account last. All of that held while the page sat behind a noindex tag, which meant the people I built it for could not find it in the place they went looking.
 
 Findable is part of the feature, not a coat of paint on top of it. A page that answers the question only helps the reader who lands on it, and landing there starts with a search engine, or an assistant, being allowed to see the page at all.
 

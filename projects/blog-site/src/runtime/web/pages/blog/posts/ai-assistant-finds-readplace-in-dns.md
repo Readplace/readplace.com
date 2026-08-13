@@ -1,6 +1,6 @@
 ---
 title: "Your AI Assistant Finds Readplace in DNS, Before It Loads a Page"
-description: "Readplace publishes agent-discovery records in DNS, so an AI assistant can find your reading queue's tools the same way a browser finds the site. The zone is signed with DNSSEC, so the agent trusts the answer it gets back."
+description: "Readplace publishes agent-discovery records in DNS, so an AI assistant can find your reading queue's tools the same way a browser finds the site. Readplace signs the zone with DNSSEC, so the agent trusts the answer it gets back."
 slug: "ai-assistant-finds-readplace-in-dns"
 date: "2026-06-19"
 author: "Fayner Brack"

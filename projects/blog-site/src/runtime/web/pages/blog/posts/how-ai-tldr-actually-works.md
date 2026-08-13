@@ -98,7 +98,7 @@ I built Readplace for people who read, not for people who skim and call it consu
 
 The model I use to draw the line is the difference between a shelf card and a book summary. A shelf card helps you pick the book off the shelf. A book summary that stands in for the book tells you not to bother reading it. The TL;DR is meant to be the shelf card.
 
-So Readplace won't generate "smart highlights" that let you skip the article, write AI commentary on the things you saved, or roll your reading list into a daily briefing. Each of those turns a reading app into a tool for avoiding reading, which is the one job it was built against.
+So Readplace won't generate "smart highlights" that let you skip the article, write AI commentary on the things you saved, or roll your reading list into a daily briefing. Each of those turns a reading app into a tool for avoiding reading, which is the one job I built it against.
 
 The TL;DR helps you choose what to read. Then you read it.
 

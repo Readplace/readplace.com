@@ -34,7 +34,7 @@ Say you disabled netflix-a7b2c9@read.place and a month later wanted it back. The
 
 So why not delete a disabled address and free the name outright? Because a forwarding address can never be safely handed out twice.
 
-The address is a private handle onto one person's mail. Delete it, mint the same string later for someone else, and a newsletter that never heard about the change forwards the first reader's issues into a stranger's queue. So an address is never deleted. Disabling stamps the row with a marker and leaves it exactly where it is. Off, but still yours, still pointing at you and nobody else.
+The address is a private handle onto one person's mail. Delete it, mint the same string later for someone else, and a newsletter that never heard about the change forwards the first reader's issues into a stranger's queue. So Readplace never deletes an address. Disabling stamps the row with a marker and leaves it exactly where it is. Off, but still yours, still pointing at you and nobody else.
 
 A per-newsletter address is [disposable](/view/en.wikipedia.org/wiki/Disposable_email_address) on purpose, so you can cut a noisy source without touching your real inbox. What was missing is that disposing of one read as final. The row survived, and that survival is the whole reason bringing an address back is possible at all.
 
@@ -52,4 +52,4 @@ The second limit is ownership. Enabling confirms the address is yours before it 
 
 Disabling a forwarding address and deleting it look the same from where you stand. The mail stops either way. The difference is whether the switch keeps a way back, and now it does.
 
-If a newsletter you cut still has a disabled address waiting in that collapsed list, open [your inbox addresses](/inbox/addresses) and turn it on. If you've never handed a newsletter an address of its own, [readplace.com](/) is where the first one gets made.
+If a newsletter you cut still has a disabled address waiting in that collapsed list, open [your inbox addresses](/inbox/addresses) and turn it on. If you've never handed a newsletter an address of its own, [readplace.com](/) is where you make the first one.

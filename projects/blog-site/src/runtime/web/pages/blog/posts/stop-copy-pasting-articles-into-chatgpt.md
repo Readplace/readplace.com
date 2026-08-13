@@ -55,7 +55,7 @@ The article gets saved and a TL;DR summary shows up on its own, without a prompt
 
 You read the summary, decide whether the full piece earns your time, and either way the article is sitting in your archive, searchable and yours. The tab-switching, the pasting, the wording of the prompt, and the chat thread you'd lose by Friday all drop out of the routine.
 
-Readplace [caches summaries by URL](/blog/how-ai-tldr-actually-works). When a popular article has already been saved by other readers, it gets summarised once and your copy is ready the moment you open it.
+Readplace [caches summaries by URL](/blog/how-ai-tldr-actually-works). When other readers have already saved a popular article, it gets summarised once and your copy is ready the moment you open it.
 
 ## What the two routines leave behind
 

@@ -53,7 +53,7 @@ Then production drew the line of what a fingerprint can do. StackOverflow, which
 ```rp-figure
 kind: matrix
 title: What the Chrome 131 persona reached, and what it did not
-note: Each site checked from one residential address and from the crawler Lambda.
+note: I checked each site from one residential address and from the crawler Lambda.
 toggle: After the crawler posed as Chrome 131 instead of Chrome 116
 head: Check | The Hill | StackOverflow
 row: Fetch from one residential address | !403>>200 | !403>>200
