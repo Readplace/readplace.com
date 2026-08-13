@@ -461,6 +461,25 @@ describe("GET /.well-known/oauth-protected-resource", () => {
 	});
 });
 
+describe("GET /.well-known/oauth-protected-resource/mcp", () => {
+	it("names the /mcp endpoint as the resource, so a client that entered that URL matches it", async () => {
+		const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
+		const response = await request(harness.server).get(
+			"/.well-known/oauth-protected-resource/mcp",
+		);
+		expect(response.status).toBe(200);
+		expect(response.headers["content-type"]).toMatch(/application\/json/);
+		expect(response.body).toEqual({
+			resource: "http://localhost:3000/mcp",
+			resource_name: "Readplace",
+			authorization_servers: ["http://localhost:3000"],
+			scopes_supported: ["queue"],
+			bearer_methods_supported: ["header"],
+			resource_documentation: "http://localhost:3000/auth.md",
+		});
+	});
+});
+
 describe("GET /.well-known/api-catalog", () => {
 	it("publishes an RFC 9727 linkset pointing at real, fetchable resources", async () => {
 		const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));

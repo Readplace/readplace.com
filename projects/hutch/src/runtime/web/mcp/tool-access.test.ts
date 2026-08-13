@@ -73,40 +73,33 @@ describe("initResolveToolAccess", () => {
 		});
 	});
 
-	it("nudges a trial in its final hours with the price and account link", async () => {
+	it("tells a trial in its final hours where to manage the subscription, and sells nothing", async () => {
 		const access = await resolve(
 			sub({ status: "trialing", trialEndsAt: at(12 * HOUR_MS) }),
 		);
-		expect(access).toMatchObject({
+		expect(access).toEqual({
 			state: "trial-ending",
-			nudge: expect.stringContaining("$4.08/month"),
-		});
-		expect(access).toMatchObject({
-			nudge: expect.stringContaining("https://readplace.com/account"),
+			nudge:
+				"This Readplace free trial ends soon; the subscription can be managed at https://readplace.com/account.",
 		});
 	});
 
-	it("gates an expired trial with the renewal upsell", async () => {
+	it("gates an expired trial on the account's state, not on a pitch", async () => {
 		const access = await resolve(
 			sub({ status: "trialing", trialEndsAt: at(-1 * DAY_MS) }),
 		);
-		expect(access).toMatchObject({
+		expect(access).toEqual({
 			state: "inactive",
-			message: expect.stringContaining("isn't active"),
-		});
-		expect(access).toMatchObject({
-			message: expect.stringContaining("$4.08/month"),
-		});
-		expect(access).toMatchObject({
-			message: expect.stringContaining("https://readplace.com/account"),
+			message:
+				"Saving new links is paused because this Readplace subscription isn't active. Everything already saved stays readable and exportable, and the subscription can be reactivated at https://readplace.com/account.",
 		});
 	});
 
-	it("gates a cancelled subscription with the renewal upsell", async () => {
+	it("gates a cancelled subscription with the same reactivation route", async () => {
 		const access = await resolve(sub({ status: "cancelled" }));
 		expect(access).toMatchObject({
 			state: "inactive",
-			message: expect.stringContaining("Reactivate"),
+			message: expect.stringContaining("reactivated"),
 		});
 	});
 

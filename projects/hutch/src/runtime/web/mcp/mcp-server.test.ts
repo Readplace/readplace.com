@@ -21,6 +21,7 @@ function fakeDeps(overrides?: Partial<McpServerDeps>): McpServerDeps {
 		markAsRead: async () => ({ status: "not_found" }),
 		markAsUnread: async () => ({ status: "not_found" }),
 		resolveToolAccess: async () => ({ state: "ok" }),
+		logError: () => {},
 		...overrides,
 	};
 }
@@ -235,16 +236,46 @@ describe("initMcpServer", () => {
 			});
 		});
 
-		it("returns an error result when the save throws", async () => {
+		it("logs the cause when the save throws and answers without echoing it", async () => {
 			const saveLink = jest.fn(async () => {
 				throw new Error("boom");
 			});
-			const server = initMcpServer(fakeDeps({ saveLink }));
+			const logError = jest.fn();
+			const server = initMcpServer(fakeDeps({ saveLink, logError }));
 			const response = await call(server, 7, "save_link", { url: "https://example.com/a" });
 			expect(response).toMatchObject({
 				id: 7,
-				result: { isError: true, content: [{ text: expect.stringContaining("boom") }] },
+				result: {
+					isError: true,
+					content: [
+						{
+							text: "Could not save the link — something went wrong on Readplace's side. Try again in a moment.",
+						},
+					],
+				},
 			});
+			expect(logError).toHaveBeenCalledWith("MCP save_link failed", new Error("boom"));
+		});
+
+		it("still answers when the save rejects with something that is not an Error", async () => {
+			const saveLink = jest.fn(async () => {
+				throw "boom";
+			});
+			const logError = jest.fn();
+			const server = initMcpServer(fakeDeps({ saveLink, logError }));
+			const response = await call(server, 7, "save_link", { url: "https://example.com/a" });
+			expect(response).toMatchObject({
+				id: 7,
+				result: {
+					isError: true,
+					content: [
+						{
+							text: "Could not save the link — something went wrong on Readplace's side. Try again in a moment.",
+						},
+					],
+				},
+			});
+			expect(logError).toHaveBeenCalledWith("MCP save_link failed", undefined);
 		});
 	});
 
@@ -413,16 +444,25 @@ describe("initMcpServer", () => {
 			expect(response).toMatchObject({ id: 10, result: { isError: true } });
 		});
 
-		it("returns an error result when the listing throws", async () => {
+		it("logs the cause when the listing throws and answers without echoing it", async () => {
 			const listQueue = jest.fn(async () => {
 				throw new Error("db down");
 			});
-			const server = initMcpServer(fakeDeps({ listQueue }));
+			const logError = jest.fn();
+			const server = initMcpServer(fakeDeps({ listQueue, logError }));
 			const response = await call(server, 11, "list_queue");
 			expect(response).toMatchObject({
 				id: 11,
-				result: { isError: true, content: [{ text: expect.stringContaining("db down") }] },
+				result: {
+					isError: true,
+					content: [
+						{
+							text: "Could not list your queue — something went wrong on Readplace's side. Try again in a moment.",
+						},
+					],
+				},
 			});
+			expect(logError).toHaveBeenCalledWith("MCP list_queue failed", new Error("db down"));
 		});
 	});
 
@@ -499,9 +539,11 @@ describe("initMcpServer", () => {
 			});
 		});
 
-		it("returns an error result when the lookup throws", async () => {
+		it("logs the cause when the lookup throws and answers without echoing it", async () => {
+			const logError = jest.fn();
 			const server = initMcpServer(
 				fakeDeps({
+					logError,
 					getArticle: async () => {
 						throw new Error("kaboom");
 					},
@@ -509,8 +551,16 @@ describe("initMcpServer", () => {
 			);
 			const response = await call(server, 33, "get_article", { id: "x".repeat(32) });
 			expect(response).toMatchObject({
-				result: { isError: true, content: [{ text: expect.stringContaining("kaboom") }] },
+				result: {
+					isError: true,
+					content: [
+						{
+							text: "Could not load the article — something went wrong on Readplace's side. Try again in a moment.",
+						},
+					],
+				},
 			});
+			expect(logError).toHaveBeenCalledWith("MCP get_article failed", new Error("kaboom"));
 		});
 	});
 
@@ -557,9 +607,11 @@ describe("initMcpServer", () => {
 			expect(response).toMatchObject({ result: { isError: true } });
 		});
 
-		it("returns an error result when the lookup throws", async () => {
+		it("logs the cause when the lookup throws and answers without echoing it", async () => {
+			const logError = jest.fn();
 			const server = initMcpServer(
 				fakeDeps({
+					logError,
 					getArticleContent: async () => {
 						throw new Error("read fail");
 					},
@@ -567,8 +619,19 @@ describe("initMcpServer", () => {
 			);
 			const response = await call(server, 44, "get_article_content", { id: "x".repeat(32) });
 			expect(response).toMatchObject({
-				result: { isError: true, content: [{ text: expect.stringContaining("read fail") }] },
+				result: {
+					isError: true,
+					content: [
+						{
+							text: "Could not load the article content — something went wrong on Readplace's side. Try again in a moment.",
+						},
+					],
+				},
 			});
+			expect(logError).toHaveBeenCalledWith(
+				"MCP get_article_content failed",
+				new Error("read fail"),
+			);
 		});
 	});
 
@@ -632,9 +695,11 @@ describe("initMcpServer", () => {
 			expect(response).toMatchObject({ result: { isError: true } });
 		});
 
-		it("returns an error result when the lookup throws", async () => {
+		it("logs the cause when the lookup throws and answers without echoing it", async () => {
+			const logError = jest.fn();
 			const server = initMcpServer(
 				fakeDeps({
+					logError,
 					getArticleSummary: async () => {
 						throw new Error("summary fail");
 					},
@@ -642,8 +707,19 @@ describe("initMcpServer", () => {
 			);
 			const response = await call(server, 56, "get_article_summary", { id: "x".repeat(32) });
 			expect(response).toMatchObject({
-				result: { isError: true, content: [{ text: expect.stringContaining("summary fail") }] },
+				result: {
+					isError: true,
+					content: [
+						{
+							text: "Could not load the article summary — something went wrong on Readplace's side. Try again in a moment.",
+						},
+					],
+				},
 			});
+			expect(logError).toHaveBeenCalledWith(
+				"MCP get_article_summary failed",
+				new Error("summary fail"),
+			);
 		});
 	});
 
@@ -734,9 +810,11 @@ describe("initMcpServer", () => {
 			expect(response).toMatchObject({ result: { isError: true } });
 		});
 
-		it("returns an error result when the lookup throws", async () => {
+		it("logs the cause when the lookup throws and answers without echoing it", async () => {
+			const logError = jest.fn();
 			const server = initMcpServer(
 				fakeDeps({
+					logError,
 					getRelatedArticles: async () => {
 						throw new Error("related fail");
 					},
@@ -744,8 +822,19 @@ describe("initMcpServer", () => {
 			);
 			const response = await call(server, 69, "get_related_articles", { id: "x".repeat(32) });
 			expect(response).toMatchObject({
-				result: { isError: true, content: [{ text: expect.stringContaining("related fail") }] },
+				result: {
+					isError: true,
+					content: [
+						{
+							text: "Could not load the related articles — something went wrong on Readplace's side. Try again in a moment.",
+						},
+					],
+				},
 			});
+			expect(logError).toHaveBeenCalledWith(
+				"MCP get_related_articles failed",
+				new Error("related fail"),
+			);
 		});
 	});
 
@@ -844,9 +933,11 @@ describe("initMcpServer", () => {
 			expect(markAsUnread).not.toHaveBeenCalled();
 		});
 
-		it("returns an error result when the status write throws", async () => {
+		it("logs the cause when the status write throws and answers without echoing it", async () => {
+			const logError = jest.fn();
 			const server = initMcpServer(
 				fakeDeps({
+					logError,
 					markAsRead: async () => {
 						throw new Error("status write failed");
 					},
@@ -857,16 +948,24 @@ describe("initMcpServer", () => {
 				id: 85,
 				result: {
 					isError: true,
-					content: [{ text: expect.stringContaining("status write failed") }],
+					content: [
+						{
+							text: "Could not change the article's status — something went wrong on Readplace's side. Try again in a moment.",
+						},
+					],
 				},
 			});
+			expect(logError).toHaveBeenCalledWith(
+				"MCP mark_as_read failed",
+				new Error("status write failed"),
+			);
 		});
 	});
 
 	describe("tools/call the app-only write tool", () => {
 		it("redirects delete_article to the app without deleting", async () => {
 			const server = initMcpServer(fakeDeps());
-			const response = await call(server, 61, "delete_article", { id: "x".repeat(32) });
+			const response = await call(server, 61, "delete_article");
 			expect(response).toMatchObject({
 				id: 61,
 				result: {

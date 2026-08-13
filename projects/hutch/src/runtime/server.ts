@@ -192,6 +192,7 @@ import { initMcpServer } from "./web/mcp/mcp-server";
 import { initMcpArticleOperations } from "./web/mcp/article-operations";
 import { initMcpRoutes } from "./web/mcp/mcp.routes";
 import { buildMcpServerCard } from "./web/mcp/server-card";
+import { MCP_RESOURCE_METADATA_PATH, MCP_RESOURCE_PATH } from "./web/mcp/protocol";
 import { initResolveSaveAccess } from "./web/mcp/save-access";
 import { initResolveToolAccess } from "./web/mcp/tool-access";
 import { initSaveArticleAtQueueTop, initSaveArticleFromUrl } from "@packages/save-article";
@@ -218,7 +219,11 @@ import { buildSiteWebmanifest } from "./web/site-webmanifest";
 import { SLOGANS } from "./web/slogans";
 import { linkHeaderMiddleware } from "./web/link-header.middleware";
 import { readLastViewUrl } from "./web/last-view";
-import { AGENT_SCOPES_SUPPORTED, buildAgentAuthMetadata, renderAuthMarkdown } from "./web/agent-auth";
+import {
+	buildAgentAuthMetadata,
+	buildProtectedResourceMetadata,
+	renderAuthMarkdown,
+} from "./web/agent-auth";
 import { QuerystringFeatureToggle } from "@packages/web-shell";
 import { buildHomepageArmBody } from "./web/pages/home";
 import { McpConnectPage } from "./web/pages/mcp";
@@ -452,11 +457,10 @@ export function createApp(dependencies: AppDependencies): Express {
 		now: deps.now,
 	});
 	/** The subscription paywall on the MCP surface: a read-only (lapsed)
-	 * subscription has a new save (save_link) refused with a renewal upsell while
-	 * every other tool stays open, and a trial in its final week gets a
-	 * convert-to-annual nudge on successful results. Reads the same effective
-	 * access the web banner does, so "lapsed" means the same thing to an agent as
-	 * it does in the browser. */
+	 * subscription has a new save (save_link) refused while every other tool
+	 * stays open, and a trial in its final week gets a nudge on successful
+	 * results. Reads the same effective access the web banner does, so "lapsed"
+	 * means the same thing to an agent as it does in the browser. */
 	const resolveToolAccess = initResolveToolAccess({
 		getEffectiveAccess,
 		now: deps.now,
@@ -466,6 +470,7 @@ export function createApp(dependencies: AppDependencies): Express {
 	});
 	const mcpServer = initMcpServer({
 		resolveToolAccess,
+		logError: deps.logError,
 		saveLink: async ({ userId, url, oauthClientId }) => {
 			const access = await resolveSaveAccess(userId);
 			if (!access.allowed) {
@@ -492,7 +497,10 @@ export function createApp(dependencies: AppDependencies): Express {
 					"MCP save_link failed",
 					error instanceof Error ? error : undefined,
 				);
-				return { ok: false, message: "Could not save the link right now." };
+				return {
+					ok: false,
+					message: `Could not save the link — something went wrong on Readplace's side. Try again in a moment, or save it from the queue at ${dependencies.baseUrl}/queue.`,
+				};
 			}
 		},
 		...initMcpArticleOperations({
@@ -670,14 +678,21 @@ export function createApp(dependencies: AppDependencies): Express {
 	});
 
 	app.get("/.well-known/oauth-protected-resource", (_req: Request, res: Response) => {
-		res.json({
-			resource: dependencies.baseUrl,
-			resource_name: "Readplace",
-			authorization_servers: [dependencies.baseUrl],
-			scopes_supported: AGENT_SCOPES_SUPPORTED,
-			bearer_methods_supported: ["header"],
-			resource_documentation: `${dependencies.baseUrl}/auth.md`,
-		});
+		res.json(
+			buildProtectedResourceMetadata({
+				baseUrl: dependencies.baseUrl,
+				resource: dependencies.baseUrl,
+			}),
+		);
+	});
+
+	app.get(MCP_RESOURCE_METADATA_PATH, (_req: Request, res: Response) => {
+		res.json(
+			buildProtectedResourceMetadata({
+				baseUrl: dependencies.baseUrl,
+				resource: `${dependencies.baseUrl}${MCP_RESOURCE_PATH}`,
+			}),
+		);
 	});
 
 	app.get("/.well-known/api-catalog", (_req: Request, res: Response) => {

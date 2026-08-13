@@ -1,4 +1,5 @@
 import type { NextFunction, Request, Response } from "express";
+import { MCP_RESOURCE_METADATA_PATH } from "./mcp/protocol";
 
 export const CONTENT_SIGNAL_VALUE = "search=yes, ai-input=yes, ai-train=no";
 
@@ -13,6 +14,7 @@ const NON_PAGE_PREFIXES = [
 	"/.well-known/api-catalog",
 	"/.well-known/oauth-authorization-server",
 	"/.well-known/oauth-protected-resource",
+	MCP_RESOURCE_METADATA_PATH,
 ];
 
 const AGENT_SKILLS_NAMESPACE = "/.well-known/agent-skills/";

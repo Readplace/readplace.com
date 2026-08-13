@@ -68,6 +68,7 @@ describe("contentSignalMiddleware", () => {
 		"/.well-known/api-catalog",
 		"/.well-known/oauth-authorization-server",
 		"/.well-known/oauth-protected-resource",
+		"/.well-known/oauth-protected-resource/mcp",
 		"/.well-known/agent-skills/index.json",
 		"/.well-known/agent-skills/save-to-readplace/SKILL.md",
 	])(

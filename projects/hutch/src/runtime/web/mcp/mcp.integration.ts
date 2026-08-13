@@ -106,6 +106,27 @@ describe("MCP server over the real app", () => {
 		expect(response.body.serverInfo.name).toBe("Readplace");
 	});
 
+	it("publishes protected-resource metadata naming the /mcp endpoint the 401 points at", async () => {
+		const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
+
+		const challenge = await request(harness.server)
+			.post("/mcp")
+			.set("Content-Type", "application/json")
+			.send(JSON.stringify({ jsonrpc: "2.0", id: 1, method: "initialize" }));
+		expect(challenge.status).toBe(401);
+
+		const pointer = /resource_metadata="([^"]+)"/.exec(
+			challenge.headers["www-authenticate"],
+		);
+		assert(pointer, "the 401 must carry a resource_metadata pointer");
+		const metadataPath = new URL(pointer[1]).pathname;
+
+		const metadata = await request(harness.server).get(metadataPath);
+		expect(metadata.status).toBe(200);
+		expect(metadata.body.resource).toBe(`${TEST_APP_ORIGIN}/mcp`);
+		expect(metadata.body.authorization_servers).toEqual([TEST_APP_ORIGIN]);
+	});
+
 	it("saves a link and then lists it back for the authenticated user", async () => {
 		const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
 		const accessToken = await obtainAccessToken(harness);
@@ -282,7 +303,7 @@ describe("MCP server over the real app", () => {
 		const before = await callTool(harness, accessToken, tool("get_article", { id }));
 		const articleBefore = before.body.result.structuredContent.article;
 
-		const del = await callTool(harness, accessToken, tool("delete_article", { id }));
+		const del = await callTool(harness, accessToken, tool("delete_article"));
 		expect(del.body.result.structuredContent.performed).toBe(false);
 
 		// The whole article — not just status/count — is byte-for-byte unchanged.

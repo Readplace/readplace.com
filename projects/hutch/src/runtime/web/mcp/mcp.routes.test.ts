@@ -23,6 +23,7 @@ function buildApp(): Express {
 		markAsRead: async () => ({ status: "not_found" }),
 		markAsUnread: async () => ({ status: "not_found" }),
 		resolveToolAccess: async () => ({ state: "ok" }),
+		logError: () => {},
 	});
 	const app = express();
 	app.use(
@@ -48,7 +49,7 @@ describe("MCP transport routes", () => {
 			.send(JSON.stringify({ jsonrpc: "2.0", id: 1, method: "ping" }));
 		expect(response.status).toBe(401);
 		expect(response.headers["www-authenticate"]).toContain(
-			'resource_metadata="https://readplace.com/.well-known/oauth-protected-resource"',
+			'resource_metadata="https://readplace.com/.well-known/oauth-protected-resource/mcp"',
 		);
 		expect(response.body).toMatchObject({ error: { code: -32001 } });
 	});

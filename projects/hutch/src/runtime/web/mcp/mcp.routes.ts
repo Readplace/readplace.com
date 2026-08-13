@@ -8,6 +8,7 @@ import express, {
 import { AccessTokenSchema } from "@packages/domain/oauth";
 import type { ValidateAccessToken } from "@packages/provider-contracts/oauth";
 import type { McpServer } from "./mcp-server";
+import { MCP_RESOURCE_METADATA_PATH } from "./protocol";
 
 interface McpRoutesDeps {
 	validateAccessToken: ValidateAccessToken;
@@ -41,7 +42,7 @@ export function initMcpRoutes(deps: McpRoutesDeps): Router {
 			.status(401)
 			.set(
 				"WWW-Authenticate",
-				`Bearer resource_metadata="${deps.baseUrl}/.well-known/oauth-protected-resource"`,
+				`Bearer resource_metadata="${deps.baseUrl}${MCP_RESOURCE_METADATA_PATH}"`,
 			)
 			.json({ jsonrpc: "2.0", id: null, error: { code: -32001, message } });
 	}

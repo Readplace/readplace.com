@@ -193,8 +193,7 @@ export const DELETE_ARTICLE_TOOL: McpToolDefinition = {
 	...mcpOperationMetadata("delete_article"),
 	inputSchema: {
 		type: "object",
-		properties: { ...ID_PROPERTY },
-		required: ["id"],
+		properties: {},
 		additionalProperties: false,
 	},
 	annotations: {

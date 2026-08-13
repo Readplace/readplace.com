@@ -137,12 +137,17 @@ describe("MCP tool definitions", () => {
 
 	describe("app-only write tool", () => {
 		it("advertises delete_article as a read-only, non-destructive redirect", () => {
-			expect(DELETE_ARTICLE_TOOL.inputSchema).toMatchObject({
-				required: ["id"],
-			});
 			expect(DELETE_ARTICLE_TOOL.annotations).toMatchObject({
 				readOnlyHint: true,
 				destructiveHint: false,
+			});
+		});
+
+		it("takes no arguments, because the handler reads none", () => {
+			expect(DELETE_ARTICLE_TOOL.inputSchema).toEqual({
+				type: "object",
+				properties: {},
+				additionalProperties: false,
 			});
 		});
 	});

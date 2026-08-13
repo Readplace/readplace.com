@@ -16,3 +16,7 @@ export const MCP_SERVER_INFO = {
 	title: "Readplace",
 	version: "1.0.0",
 } as const;
+
+export const MCP_RESOURCE_PATH = "/mcp";
+
+export const MCP_RESOURCE_METADATA_PATH = `/.well-known/oauth-protected-resource${MCP_RESOURCE_PATH}`;

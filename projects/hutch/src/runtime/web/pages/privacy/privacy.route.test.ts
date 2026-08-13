@@ -26,6 +26,15 @@ describe("GET /privacy", () => {
 		expect(response.text).toMatch(/^# /);
 	});
 
+	it("tells a reader what a connected AI assistant can do with their queue and how to cut it off", async () => {
+		const { server } = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
+		const response = await request(server).get("/privacy");
+
+		expect(response.text).toContain("Connected AI assistants");
+		expect(response.text).toContain("It cannot delete anything");
+		expect(response.text).toContain("revokes its Readplace token");
+	});
+
 	it("scopes the account-deletion claim to the saved list and reading history, not 'every saved article'", async () => {
 		const { server } = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
 		const response = await request(server).get("/privacy");

@@ -139,11 +139,12 @@ export interface McpServerDeps {
 		id: string;
 	}) => Promise<ArticleStatusResult>;
 	/** The subscription gate for the tool surface, resolved once per
-	 * `tools/call`: it decides whether to refuse a new save (save_link) with a
-	 * renewal upsell (inactive) or to append a trial-ending nudge to a successful
-	 * result. Every other tool stays open for a lapsed account. Reads the same
-	 * effective access the web banner does. */
+	 * `tools/call`: it decides whether to refuse a new save (save_link) when
+	 * inactive, or to append a trial-ending nudge to a successful result. Every
+	 * other tool stays open for a lapsed account. Reads the same effective access
+	 * the web banner does. */
 	resolveToolAccess: (userId: AuthenticatedUserId) => Promise<ToolAccess>;
+	logError: (message: string, error?: Error) => void;
 }
 
 /** The authenticated caller a request runs as. Resolved from the OAuth bearer
@@ -250,10 +251,6 @@ function appendNudge(result: ToolResult, nudge: string): ToolResult {
 	};
 }
 
-function errorMessage(error: unknown): string {
-	return error instanceof Error ? error.message : String(error);
-}
-
 function notFoundResult(id: string): ToolResult {
 	return data(`No saved article with id ${id} is in your queue.`, {
 		found: false,
@@ -276,6 +273,20 @@ function formatArticle(article: McpArticle): string {
 }
 
 export function initMcpServer(deps: McpServerDeps): McpServer {
+	function unexpectedFailure(
+		tool: string,
+		error: unknown,
+		attempted: string,
+	): ToolResult {
+		deps.logError(
+			`MCP ${tool} failed`,
+			error instanceof Error ? error : undefined,
+		);
+		return toolError(
+			`Could not ${attempted} — something went wrong on Readplace's side. Try again in a moment.`,
+		);
+	}
+
 	function initializeResult(): unknown {
 		return {
 			protocolVersion: MCP_PROTOCOL_VERSION,
@@ -317,7 +328,7 @@ export function initMcpServer(deps: McpServerDeps): McpServer {
 				`Saved "${outcome.title}" to your Readplace queue (${outcome.url}). The reader view is loading in the background.`,
 			);
 		} catch (error) {
-			return toolError(`Could not save the link. ${errorMessage(error)}`);
+			return unexpectedFailure(SAVE_LINK_TOOL.name, error, "save the link");
 		}
 	}
 
@@ -410,7 +421,7 @@ export function initMcpServer(deps: McpServerDeps): McpServer {
 			}
 			return data(`${header}\n${lines.join("\n")}`, structuredContent);
 		} catch (error) {
-			return toolError(`Could not list your queue. ${errorMessage(error)}`);
+			return unexpectedFailure(LIST_QUEUE_TOOL.name, error, "list your queue");
 		}
 	}
 
@@ -428,7 +439,7 @@ export function initMcpServer(deps: McpServerDeps): McpServer {
 			if (!article) return notFoundResult(args.data.id);
 			return data(formatArticle(article), { found: true, article });
 		} catch (error) {
-			return toolError(`Could not load the article. ${errorMessage(error)}`);
+			return unexpectedFailure(GET_ARTICLE_TOOL.name, error, "load the article");
 		}
 	}
 
@@ -457,8 +468,10 @@ export function initMcpServer(deps: McpServerDeps): McpServer {
 					return data(result.content, result);
 			}
 		} catch (error) {
-			return toolError(
-				`Could not load the article content. ${errorMessage(error)}`,
+			return unexpectedFailure(
+				GET_ARTICLE_CONTENT_TOOL.name,
+				error,
+				"load the article content",
 			);
 		}
 	}
@@ -498,8 +511,10 @@ export function initMcpServer(deps: McpServerDeps): McpServer {
 					);
 			}
 		} catch (error) {
-			return toolError(
-				`Could not load the article summary. ${errorMessage(error)}`,
+			return unexpectedFailure(
+				GET_ARTICLE_SUMMARY_TOOL.name,
+				error,
+				"load the article summary",
 			);
 		}
 	}
@@ -544,8 +559,10 @@ export function initMcpServer(deps: McpServerDeps): McpServer {
 					);
 			}
 		} catch (error) {
-			return toolError(
-				`Could not load the related articles. ${errorMessage(error)}`,
+			return unexpectedFailure(
+				GET_RELATED_ARTICLES_TOOL.name,
+				error,
+				"load the related articles",
 			);
 		}
 	}
@@ -578,8 +595,10 @@ export function initMcpServer(deps: McpServerDeps): McpServer {
 				article: result.article,
 			});
 		} catch (error) {
-			return toolError(
-				`Could not change the article's status. ${errorMessage(error)}`,
+			return unexpectedFailure(
+				change.tool,
+				error,
+				"change the article's status",
 			);
 		}
 	}

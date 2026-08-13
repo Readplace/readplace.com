@@ -1,4 +1,9 @@
-import { AGENT_SCOPES_SUPPORTED, buildAgentAuthMetadata, renderAuthMarkdown } from "./agent-auth";
+import {
+	AGENT_SCOPES_SUPPORTED,
+	buildAgentAuthMetadata,
+	buildProtectedResourceMetadata,
+	renderAuthMarkdown,
+} from "./agent-auth";
 
 const BASE_URL = "https://readplace.com";
 
@@ -36,6 +41,39 @@ describe("buildAgentAuthMetadata", () => {
 				token_endpoint_auth_methods_supported: ["none"],
 			},
 		]);
+	});
+});
+
+describe("buildProtectedResourceMetadata", () => {
+	it("names the resource it was asked to describe, not the origin it lives under", () => {
+		const metadata = buildProtectedResourceMetadata({
+			baseUrl: BASE_URL,
+			resource: `${BASE_URL}/mcp`,
+		});
+		expect(metadata.resource).toBe("https://readplace.com/mcp");
+	});
+
+	it("describes the origin itself when that is the resource", () => {
+		const metadata = buildProtectedResourceMetadata({
+			baseUrl: BASE_URL,
+			resource: BASE_URL,
+		});
+		expect(metadata.resource).toBe("https://readplace.com");
+	});
+
+	it("points at this deployment's authorization server, scopes, and documentation", () => {
+		const metadata = buildProtectedResourceMetadata({
+			baseUrl: "https://example.test",
+			resource: "https://example.test/mcp",
+		});
+		expect(metadata).toEqual({
+			resource: "https://example.test/mcp",
+			resource_name: "Readplace",
+			authorization_servers: ["https://example.test"],
+			scopes_supported: AGENT_SCOPES_SUPPORTED,
+			bearer_methods_supported: ["header"],
+			resource_documentation: "https://example.test/auth.md",
+		});
 	});
 });
 

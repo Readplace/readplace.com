@@ -1,4 +1,8 @@
-import { MCP_PROTOCOL_VERSION, MCP_SERVER_INFO } from "./protocol";
+import {
+	MCP_PROTOCOL_VERSION,
+	MCP_RESOURCE_METADATA_PATH,
+	MCP_SERVER_INFO,
+} from "./protocol";
 import { TOOL_DEFINITIONS } from "./tool-definitions";
 
 /**
@@ -28,7 +32,7 @@ export function buildMcpServerCard(baseUrl: string): object {
 		authentication: {
 			required: true,
 			schemes: ["oauth2"],
-			protectedResourceMetadata: `${baseUrl}/.well-known/oauth-protected-resource`,
+			protectedResourceMetadata: `${baseUrl}${MCP_RESOURCE_METADATA_PATH}`,
 		},
 		tools: TOOL_DEFINITIONS.map((tool) => ({
 			name: tool.name,

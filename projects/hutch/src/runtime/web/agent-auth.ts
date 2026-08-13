@@ -55,6 +55,29 @@ export function buildAgentAuthMetadata(baseUrl: string): AgentAuthMetadata {
 	};
 }
 
+interface ProtectedResourceMetadata {
+	resource: string;
+	resource_name: string;
+	authorization_servers: readonly string[];
+	scopes_supported: readonly string[];
+	bearer_methods_supported: readonly string[];
+	resource_documentation: string;
+}
+
+export function buildProtectedResourceMetadata(params: {
+	baseUrl: string;
+	resource: string;
+}): ProtectedResourceMetadata {
+	return {
+		resource: params.resource,
+		resource_name: "Readplace",
+		authorization_servers: [params.baseUrl],
+		scopes_supported: AGENT_SCOPES_SUPPORTED,
+		bearer_methods_supported: ["header"],
+		resource_documentation: `${params.baseUrl}/auth.md`,
+	};
+}
+
 export function renderAuthMarkdown(baseUrl: string): string {
 	return AUTH_MD_TEMPLATE.replaceAll("{{baseUrl}}", baseUrl);
 }

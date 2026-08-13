@@ -19,13 +19,13 @@ describe("buildMcpServerCard", () => {
 		});
 	});
 
-	it("points authentication at the existing OAuth protected-resource metadata", () => {
+	it("points authentication at the protected-resource metadata for the /mcp endpoint", () => {
 		expect(card).toMatchObject({
 			authentication: {
 				required: true,
 				schemes: ["oauth2"],
 				protectedResourceMetadata:
-					"https://readplace.com/.well-known/oauth-protected-resource",
+					"https://readplace.com/.well-known/oauth-protected-resource/mcp",
 			},
 		});
 	});
