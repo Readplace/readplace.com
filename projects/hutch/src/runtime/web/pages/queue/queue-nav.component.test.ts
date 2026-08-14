@@ -73,6 +73,17 @@ describe("buildQueueNav", () => {
 		expect(items).toEqual(QUEUES.map((queue) => queue.name));
 	});
 
+	it("should offer a way to start a new queue, named for assistive tech and inert until it does something", () => {
+		const doc = renderNav({ queues: QUEUES });
+
+		const control = doc.querySelector('nav.queue-nav > [data-test-action="new-queue"]');
+		assert(control, "the new-queue control must sit beside the queue list, not inside it");
+		expect({ label: control.textContent, type: control.getAttribute("type") }).toEqual({
+			label: "New queue",
+			type: "button",
+		});
+	});
+
 	it("should name the landmark so it is distinguishable from the page's other navs", () => {
 		const doc = renderNav({ queues: QUEUES });
 

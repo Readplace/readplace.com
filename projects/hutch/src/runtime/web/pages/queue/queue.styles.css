@@ -21,23 +21,30 @@
 }
 
 /**
- * 1. The tab's base edge sits on the panel's border (the -1px margin) so tab
- *    and panel read as one piece of card stock, the way a file tab is part of
- *    its folder.
+ * 1. The panel paints over the tab's base, so the tab reads as a sheet slid
+ *    under the card rather than a chip resting on it. The panel has to be
+ *    opaque for that: with no fill of its own the tab's shadow shows straight
+ *    through the border it is meant to stop at.
  * 2. proximity, not mandatory: mandatory snapping fights free scrubbing of a
  *    row wider than the viewport.
  * 3. thin, not none: a fully hidden scrollbar leaves a pointer user no cue
  *    that the row continues off-screen.
+ * 4. Outside the scroller so it stays reachable however far the row is
+ *    scrubbed, and outside the list so assistive tech announces the reader's
+ *    queue count rather than that count plus one.
  */
 .queue-nav {
-  position: relative;
-  z-index: 1; /* 1 */
+  display: flex;
+  align-items: flex-end;
+  gap: 6px;
   padding: 0 12px;
 }
 
 .queue-nav__list {
   list-style: none;
   display: flex;
+  flex: 1 1 auto;
+  min-width: 0;
   gap: 6px;
   overflow-x: auto;
   scroll-snap-type: x proximity; /* 2 */
@@ -63,7 +70,7 @@
   color: var(--primary-foreground);
   text-decoration: none;
   white-space: nowrap;
-  box-shadow: var(--shadow-sm);
+  box-shadow: var(--shadow-md);
   transition: background-color 0.15s ease;
 }
 
@@ -72,7 +79,38 @@
   background: var(--primary-fill);
 }
 
+.queue-nav__new {
+  flex: 0 0 auto; /* 4 */
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 44px;
+  min-height: 44px;
+  margin-bottom: -1px; /* 1 */
+  padding: var(--button-padding-xs);
+  border: 1px dashed var(--border);
+  border-radius: var(--radius) var(--radius) 0 0;
+  background: transparent;
+  color: var(--muted-foreground);
+  cursor: pointer;
+  transition: background-color 0.15s ease, color 0.15s ease;
+}
+
+.queue-nav__new:hover,
+.queue-nav__new:active {
+  background: var(--muted);
+  color: var(--foreground);
+}
+
+.queue-nav__new svg {
+  width: 1rem;
+  height: 1rem;
+}
+
 .queue--queues .queue__content {
+  position: relative;
+  z-index: 1; /* 1 */
+  background: var(--background); /* 1 */
   border: 1px solid var(--border);
   border-radius: var(--radius-lg);
   padding: 12px;
@@ -946,6 +984,8 @@
   }
 
   .queue-nav {
+    flex-direction: column;
+    align-items: stretch;
     padding: 12px 0 0;
     position: sticky;
     top: calc(var(--banner-area-height, 38px) + var(--header-height, 64px));
@@ -967,5 +1007,10 @@
     justify-content: center;
     padding: 12px 16px;
     border-radius: var(--radius) 0 0 var(--radius);
+  }
+
+  .queue-nav__new {
+    border-radius: var(--radius) 0 0 var(--radius);
+    margin: 0 -1px 0 0; /* 1 */
   }
 }
