@@ -14,12 +14,36 @@ const ARTICLE_TITLE = "Hello World";
 type ReaderStatus = "ready" | "pending" | "failed" | "unsupported";
 type PaywallState = "latched" | "unlatched" | "absent";
 
+const NEXT_URL_SHARE = "https://example.com/second?utm_medium=share";
+const NEXT_URL_COPY = "https://example.com/second?utm_medium=copy";
+const NEXT_TITLE = "The Next Article";
+
+interface FixtureArticle {
+	shareUrl: string;
+	copyUrl: string;
+	title: string;
+}
+
+const FIRST_ARTICLE: FixtureArticle = {
+	shareUrl: ARTICLE_URL_SHARE,
+	copyUrl: ARTICLE_URL_COPY,
+	title: ARTICLE_TITLE,
+};
+
+const NEXT_ARTICLE: FixtureArticle = {
+	shareUrl: NEXT_URL_SHARE,
+	copyUrl: NEXT_URL_COPY,
+	title: NEXT_TITLE,
+};
+
 interface FixtureOptions {
 	readerStatus?: ReaderStatus | "absent";
 	paywall?: PaywallState;
+	article?: FixtureArticle;
+	balloon?: "absent";
 }
 
-function buildFixture(options: FixtureOptions = {}): string {
+function buildBody(options: FixtureOptions = {}): string {
 	const readerStatus = options.readerStatus ?? "absent";
 	const readerSlot =
 		readerStatus === "absent"
@@ -30,7 +54,11 @@ function buildFixture(options: FixtureOptions = {}): string {
 		paywall === "absent"
 			? ""
 			: `<div data-view-paywall data-paywall-active="${paywall === "latched"}"></div>`;
-	return `<!DOCTYPE html><html><body>
+	if (options.balloon === "absent") {
+		return `${readerSlot}\n${paywallEl}`;
+	}
+	const article = options.article ?? FIRST_ARTICLE;
+	return `
 <span data-share-balloon-status></span>
 <div data-article-body></div>
 ${readerSlot}
@@ -38,13 +66,16 @@ ${paywallEl}
 <div data-share-balloon-wrap hidden>
 	<div data-share-balloon-buttons>
 		<div data-share-balloon-chat></div>
-		<button type="button" data-share-balloon-copy data-share-url="${ARTICLE_URL_COPY}"></button>
-		<button type="button" data-share-balloon data-share-url="${ARTICLE_URL_SHARE}" data-share-title="${ARTICLE_TITLE}"></button>
+		<button type="button" data-share-balloon-copy data-share-url="${article.copyUrl}"></button>
+		<button type="button" data-share-balloon data-share-url="${article.shareUrl}" data-share-title="${article.title}"></button>
 	</div>
 	<button type="button" data-share-balloon-close></button>
 	<span data-share-balloon-copied>Link copied!</span>
-</div>
-</body></html>`;
+</div>`;
+}
+
+function buildFixture(options: FixtureOptions = {}): string {
+	return `<!DOCTYPE html><html><body>${buildBody(options)}</body></html>`;
 }
 
 interface NavigatorStub {
@@ -102,6 +133,7 @@ function setup(
 	const navigator: NavigatorStub = options.navigator ?? {
 		share: jest.fn(() => Promise.resolve()),
 	};
+	const swapListeners: (() => void)[] = [];
 	const ctrl = initShareBalloon({
 		window,
 		document,
@@ -109,8 +141,32 @@ function setup(
 		navigator,
 		setTimeoutFn: setTimeout,
 		clearTimeoutFn: clearTimeout,
+		addSwapListener: (listener) => swapListeners.push(listener),
+		removeSwapListener: (listener) => {
+			const at = swapListeners.indexOf(listener);
+			assert(at >= 0, "removeSwapListener must be given a registered listener");
+			swapListeners.splice(at, 1);
+		},
 	});
-	return { window, document, ctrl, navigator };
+	const swap = () => {
+		for (const listener of [...swapListeners]) listener();
+	};
+	return { window, document, ctrl, navigator, swap };
+}
+
+type Harness = ReturnType<typeof setup>;
+
+/** Replays what a boosted navigation does: htmx drops the rendered page and
+ * writes fresh server markup in its place, then fires its swap event. */
+function swapIn(
+	harness: Harness,
+	options: FixtureOptions & { articleHeight?: number } = {},
+): void {
+	harness.document.body.innerHTML = buildBody(options);
+	if (options.balloon !== "absent") {
+		setArticleHeight(harness.document, options.articleHeight ?? 4000);
+	}
+	harness.swap();
 }
 
 function element(doc: Document, selector: string): HTMLElement {
@@ -271,7 +327,7 @@ describe("initShareBalloon — reader-slot gating (article loading or errored)",
 	});
 
 	it("opens after the reader-slot flips to ready via htmx:afterSwap, even without another scroll event", () => {
-		const { window, document, ctrl } = setup({
+		const { document, ctrl, swap } = setup({
 			articleHeight: 2000,
 			scrollY: 1500,
 			readerStatus: "pending",
@@ -285,14 +341,14 @@ describe("initShareBalloon — reader-slot gating (article loading or errored)",
 			"data-reader-status",
 			"ready",
 		);
-		document.dispatchEvent(new window.Event("htmx:afterSwap"));
+		swap();
 		jest.advanceTimersByTime(1000);
 
 		expect(wrap.classList.contains(OPEN_CLASS)).toBe(true);
 	});
 
 	it("ignores htmx:afterSwap once the balloon has been dismissed", () => {
-		const { window, document, ctrl } = setup({
+		const { document, ctrl, swap } = setup({
 			articleHeight: 2000,
 			scrollY: 1500,
 			readerStatus: "pending",
@@ -305,7 +361,7 @@ describe("initShareBalloon — reader-slot gating (article loading or errored)",
 			"data-reader-status",
 			"ready",
 		);
-		document.dispatchEvent(new window.Event("htmx:afterSwap"));
+		swap();
 		jest.advanceTimersByTime(5000);
 
 		expect(wrap.classList.contains(OPEN_CLASS)).toBe(false);
@@ -530,7 +586,7 @@ describe("initShareBalloon — paywall suppression", () => {
 	});
 
 	it("stays closed for later scrolls and reader-slot swaps after the reveal", () => {
-		const { window, document, ctrl } = setup({
+		const { window, document, ctrl, swap } = setup({
 			articleHeight: 2000,
 			readerStatus: "pending",
 			paywall: "unlatched",
@@ -545,7 +601,7 @@ describe("initShareBalloon — paywall suppression", () => {
 			"data-reader-status",
 			"ready",
 		);
-		fireEvent(document, new window.Event("htmx:afterSwap"));
+		swap();
 		jest.advanceTimersByTime(5000);
 
 		expect(wrap.classList.contains(OPEN_CLASS)).toBe(false);
@@ -751,6 +807,8 @@ describe("initShareBalloon — storage failures", () => {
 			navigator: { share: jest.fn(() => Promise.resolve()) },
 			setTimeoutFn: setTimeout,
 			clearTimeoutFn: clearTimeout,
+			addSwapListener: jest.fn(),
+			removeSwapListener: jest.fn(),
 		}).attach();
 		jest.advanceTimersByTime(1000);
 
@@ -773,6 +831,8 @@ describe("initShareBalloon — storage failures", () => {
 			navigator: { share: jest.fn(() => Promise.resolve()) },
 			setTimeoutFn: setTimeout,
 			clearTimeoutFn: clearTimeout,
+			addSwapListener: jest.fn(),
+			removeSwapListener: jest.fn(),
 		});
 		ctrl.attach();
 
@@ -827,5 +887,199 @@ describe("initShareBalloon — detach()", () => {
 		fireEvent.click(element(document, "[data-share-balloon]"));
 
 		expect(share).not.toHaveBeenCalled();
+	});
+});
+
+describe("initShareBalloon — a swap replaces the page it was on", () => {
+	it("unhides the balloon the swap brought in, which the server renders hidden", () => {
+		const harness = setup({ articleHeight: 2000, scrollY: 1500 });
+		harness.ctrl.attach();
+		jest.advanceTimersByTime(1000);
+
+		swapIn(harness, { articleHeight: 2000 });
+
+		const wrap = element(harness.document, "[data-share-balloon-wrap]");
+		expect(wrap.hasAttribute("hidden")).toBe(false);
+	});
+
+	it("shares the link of the article now on screen, not the one it started on", () => {
+		const share = jest.fn(() => Promise.resolve());
+		const harness = setup({ navigator: { share } });
+		harness.ctrl.attach();
+
+		swapIn(harness, { article: NEXT_ARTICLE });
+		fireEvent.click(element(harness.document, "[data-share-balloon]"));
+
+		expect(share).toHaveBeenCalledWith({
+			title: NEXT_TITLE,
+			url: NEXT_URL_SHARE,
+		});
+	});
+
+	it("copies the link of the article now on screen", async () => {
+		const writeText = jest.fn(() => Promise.resolve());
+		const harness = setup({ navigator: { clipboard: { writeText } } });
+		harness.ctrl.attach();
+
+		swapIn(harness, { article: NEXT_ARTICLE });
+		fireEvent.click(element(harness.document, "[data-share-balloon-copy]"));
+		await flushPromises();
+
+		expect(writeText).toHaveBeenCalledWith(NEXT_URL_COPY);
+		expect(element(harness.document, "[data-share-balloon-status]").textContent).toBe(
+			"Link copied to clipboard",
+		);
+	});
+
+	it("replays the entry delay on the swapped-in balloon rather than arriving open", () => {
+		const harness = setup({ articleHeight: 2000, scrollY: 1500 });
+		harness.ctrl.attach();
+		jest.advanceTimersByTime(1000);
+
+		swapIn(harness, { articleHeight: 2000 });
+
+		const wrap = element(harness.document, "[data-share-balloon-wrap]");
+		expect(wrap.classList.contains(OPEN_CLASS)).toBe(false);
+		jest.advanceTimersByTime(1000);
+		expect(wrap.classList.contains(OPEN_CLASS)).toBe(true);
+	});
+
+	it("measures the half-way mark against the article that replaced the old one", () => {
+		const harness = setup({ articleHeight: 4000, scrollY: 1500 });
+		harness.ctrl.attach();
+		jest.advanceTimersByTime(5000);
+		expect(
+			element(harness.document, "[data-share-balloon-wrap]").classList.contains(
+				OPEN_CLASS,
+			),
+		).toBe(false);
+
+		swapIn(harness, { articleHeight: 2000 });
+		jest.advanceTimersByTime(1000);
+
+		expect(
+			element(harness.document, "[data-share-balloon-wrap]").classList.contains(
+				OPEN_CLASS,
+			),
+		).toBe(true);
+	});
+
+	it("hides the share button on the swapped-in balloon when the browser cannot share", () => {
+		const harness = setup({
+			navigator: { clipboard: { writeText: jest.fn(() => Promise.resolve()) } },
+		});
+		harness.ctrl.attach();
+
+		swapIn(harness, { article: NEXT_ARTICLE });
+
+		expect(
+			element(harness.document, "[data-share-balloon]").hasAttribute("hidden"),
+		).toBe(true);
+		expect(
+			element(harness.document, "[data-share-balloon-copy]").hasAttribute("hidden"),
+		).toBe(false);
+	});
+
+	it("still closes for the paywall on the article that replaced the old one", () => {
+		const harness = setup({ scrollY: 2500, paywall: "unlatched" });
+		harness.ctrl.attach();
+
+		swapIn(harness, { paywall: "unlatched" });
+		jest.advanceTimersByTime(1000);
+		const wrap = element(harness.document, "[data-share-balloon-wrap]");
+		expect(wrap.classList.contains(OPEN_CLASS)).toBe(true);
+
+		latchPaywall(harness.document, harness.window);
+
+		expect(wrap.classList.contains(OPEN_CLASS)).toBe(false);
+	});
+
+	it("lets a poll that leaves the balloon in place finish the copied flash", async () => {
+		const writeText = jest.fn(() => Promise.resolve());
+		const harness = setup({ navigator: { clipboard: { writeText } } });
+		harness.ctrl.attach();
+		const copiedLabel = element(harness.document, "[data-share-balloon-copied]");
+
+		fireEvent.click(element(harness.document, "[data-share-balloon-copy]"));
+		await flushPromises();
+		expect(copiedLabel.classList.contains(COPIED_VISIBLE_CLASS)).toBe(true);
+
+		harness.swap();
+		jest.advanceTimersByTime(3000);
+
+		expect(copiedLabel.classList.contains(COPIED_VISIBLE_CLASS)).toBe(false);
+	});
+
+	it("keeps a dismissed balloon collapsed while the buttons stay reachable", () => {
+		const harness = setup({ dismissed: true, scrollY: 2500 });
+		harness.ctrl.attach();
+
+		swapIn(harness);
+		jest.advanceTimersByTime(5000);
+
+		const wrap = element(harness.document, "[data-share-balloon-wrap]");
+		expect(wrap.hasAttribute("hidden")).toBe(false);
+		expect(wrap.classList.contains(OPEN_CLASS)).toBe(false);
+	});
+
+	it("picks a balloon back up after swapping through pages that have none", () => {
+		const share = jest.fn(() => Promise.resolve());
+		const harness = setup({ navigator: { share } });
+		harness.ctrl.attach();
+
+		swapIn(harness, { balloon: "absent" });
+		swapIn(harness, { balloon: "absent" });
+		swapIn(harness, { article: NEXT_ARTICLE });
+
+		const wrap = element(harness.document, "[data-share-balloon-wrap]");
+		expect(wrap.hasAttribute("hidden")).toBe(false);
+		fireEvent.click(element(harness.document, "[data-share-balloon]"));
+		expect(share).toHaveBeenCalledWith({
+			title: NEXT_TITLE,
+			url: NEXT_URL_SHARE,
+		});
+	});
+
+	it("stops writing to the balloon a swap discarded", () => {
+		const harness = setup({ articleHeight: 2000, scrollY: 1500 });
+		harness.ctrl.attach();
+		const discarded = element(harness.document, "[data-share-balloon-wrap]");
+
+		swapIn(harness, { balloon: "absent" });
+		jest.advanceTimersByTime(5000);
+
+		expect(discarded.classList.contains(OPEN_CLASS)).toBe(false);
+	});
+
+	it("stops adopting swapped-in balloons once it has been detached", () => {
+		const harness = setup();
+		harness.ctrl.attach();
+		harness.ctrl.detach();
+
+		swapIn(harness, { article: NEXT_ARTICLE });
+
+		expect(
+			element(harness.document, "[data-share-balloon-wrap]").hasAttribute("hidden"),
+		).toBe(true);
+	});
+
+	it("stands down when another controller already owns the page", () => {
+		const share = jest.fn(() => Promise.resolve());
+		const harness = setup({ navigator: { share } });
+		harness.ctrl.attach();
+
+		initShareBalloon({
+			window: harness.window,
+			document: harness.document,
+			storage: harness.window.localStorage,
+			navigator: { share },
+			setTimeoutFn: setTimeout,
+			clearTimeoutFn: clearTimeout,
+			addSwapListener: jest.fn(),
+			removeSwapListener: jest.fn(),
+		}).attach();
+		fireEvent.click(element(harness.document, "[data-share-balloon]"));
+
+		expect(share).toHaveBeenCalledTimes(1);
 	});
 });

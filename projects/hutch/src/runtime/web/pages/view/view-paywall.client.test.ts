@@ -413,6 +413,8 @@ describe("initViewPaywall — share balloon suppression", () => {
 			navigator: { share: () => Promise.resolve() },
 			setTimeoutFn: setTimeout,
 			clearTimeoutFn: clearTimeout,
+			addSwapListener: () => {},
+			removeSwapListener: () => {},
 		}).attach();
 		initViewPaywall({
 			document: doc,

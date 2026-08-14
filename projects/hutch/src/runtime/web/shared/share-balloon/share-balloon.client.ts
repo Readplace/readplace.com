@@ -29,11 +29,26 @@ interface ShareBalloonDeps {
 	navigator: ShareBalloonNavigator;
 	setTimeoutFn: (cb: () => void, ms: number) => ShareTimerId;
 	clearTimeoutFn: (id: ShareTimerId) => void;
+	addSwapListener: (listener: () => void) => void;
+	removeSwapListener: (listener: () => void) => void;
 }
 
 interface ShareBalloonController {
 	attach(): void;
 	detach(): void;
+}
+
+interface ShareBalloonPage {
+	wrap: HTMLElement;
+	shareBtn: HTMLElement;
+	copyBtn: HTMLElement;
+	closeBtn: HTMLElement;
+	copiedLabel: HTMLElement;
+	status: HTMLElement;
+	articleEl: HTMLElement;
+	shareUrl: string;
+	copyUrl: string;
+	title: string;
 }
 
 export function initShareBalloon(
@@ -44,6 +59,7 @@ export function initShareBalloon(
 	const COPIED_FADE_MS = 3000;
 	const OPEN_CLASS = "share-balloon__wrap--open";
 	const COPIED_VISIBLE_CLASS = "share-balloon__copied--visible";
+	const OWNED_ATTR = "data-share-balloon-owned";
 
 	function assert(cond: unknown, message: string): asserts cond {
 		/** esbuild bundles this module for the browser, where `node:assert`
@@ -80,29 +96,35 @@ export function initShareBalloon(
 		}
 	}
 
-	const wrap = pickElement(deps.document, "[data-share-balloon-wrap]");
-	const btn = pickElement(wrap, "[data-share-balloon]");
-	const copyBtn = pickElement(wrap, "[data-share-balloon-copy]");
-	const closeBtn = pickElement(wrap, "[data-share-balloon-close]");
-	const copiedLabel = pickElement(wrap, "[data-share-balloon-copied]");
-	const status = pickElement(deps.document, "[data-share-balloon-status]");
-	const articleEl = pickElement(deps.document, "[data-article-body]");
+	function findWrap(): HTMLElement | null {
+		return deps.document.querySelector<HTMLElement>("[data-share-balloon-wrap]");
+	}
 
-	const shareUrl = pickAttribute(btn, "data-share-url");
-	const copyUrl = pickAttribute(copyBtn, "data-share-url");
-	const title = pickAttribute(btn, "data-share-title");
+	function pageOf(wrap: HTMLElement): ShareBalloonPage {
+		const shareBtn = pickElement(wrap, "[data-share-balloon]");
+		const copyBtn = pickElement(wrap, "[data-share-balloon-copy]");
+		return {
+			wrap,
+			shareBtn,
+			copyBtn,
+			closeBtn: pickElement(wrap, "[data-share-balloon-close]"),
+			copiedLabel: pickElement(wrap, "[data-share-balloon-copied]"),
+			status: pickElement(deps.document, "[data-share-balloon-status]"),
+			articleEl: pickElement(deps.document, "[data-article-body]"),
+			shareUrl: pickAttribute(shareBtn, "data-share-url"),
+			copyUrl: pickAttribute(copyBtn, "data-share-url"),
+			title: pickAttribute(shareBtn, "data-share-title"),
+		};
+	}
 
 	const canShare = typeof deps.navigator.share === "function";
 	const canCopy = deps.navigator.clipboard !== undefined;
 
+	let page: ShareBalloonPage | null = null;
 	let openTimerId: ShareTimerId | null = null;
 	let fadeTimerId: ShareTimerId | null = null;
 	let scrollListener: (() => void) | null = null;
-	let htmxSwapListener: (() => void) | null = null;
 	let paywallRevealListener: (() => void) | null = null;
-	let closeListener: ((event: Event) => void) | null = null;
-	let clickListener: (() => void) | null = null;
-	let copyListener: (() => void) | null = null;
 	let attached = false;
 
 	function isArticleReady(): boolean {
@@ -122,8 +144,9 @@ export function initShareBalloon(
 
 	function openBalloon() {
 		openTimerId = null;
+		assert(page, "an open can only be scheduled while a balloon is adopted");
 		if (isPaywallActive()) return;
-		wrap.classList.add(OPEN_CLASS);
+		page.wrap.classList.add(OPEN_CLASS);
 	}
 
 	function cancelPendingOpen() {
@@ -140,29 +163,41 @@ export function initShareBalloon(
 		}
 	}
 
-	function onScroll() {
-		const threshold = articleEl.offsetHeight * 0.5;
-		if (deps.window.scrollY < threshold) return;
-		/** Keep the scroll listener attached while the article is still loading
-		 * or errored — HTMX may transition the reader-slot to "ready" later,
-		 * and we want the next scroll (or htmx:afterSwap below) to re-trigger
-		 * this check rather than detaching prematurely. */
-		if (!isArticleReady()) return;
+	function stopScrollWatch() {
 		if (scrollListener !== null) {
 			deps.window.removeEventListener("scroll", scrollListener);
 			scrollListener = null;
 		}
+	}
+
+	function stopPaywallWatch() {
+		if (paywallRevealListener !== null) {
+			deps.document.removeEventListener(
+				PAYWALL_REVEALED_EVENT,
+				paywallRevealListener,
+			);
+			paywallRevealListener = null;
+		}
+	}
+
+	function onScroll() {
+		assert(page, "a scroll can only be watched while a balloon is adopted");
+		const threshold = page.articleEl.offsetHeight * 0.5;
+		if (deps.window.scrollY < threshold) return;
+		/** Keep the scroll listener attached while the article is still loading
+		 * or errored — HTMX may transition the reader-slot to "ready" later,
+		 * and we want the next scroll (or the swap listener below) to re-trigger
+		 * this check rather than detaching prematurely. */
+		if (!isArticleReady()) return;
+		stopScrollWatch();
 		openTimerId = deps.setTimeoutFn(openBalloon, OPEN_DELAY_MS);
 	}
 
-	function onHtmxSwap() {
-		/** After HTMX OOB-swaps the reader-slot (pending → ready), re-evaluate
-		 * the open condition so the balloon can appear without the user having
-		 * to scroll again. */
-		if (scrollListener !== null) onScroll();
-	}
-
-	function flashCopied() {
+	function flashCopied(feedback: {
+		copiedLabel: HTMLElement;
+		status: HTMLElement;
+	}) {
+		const { copiedLabel, status } = feedback;
 		copiedLabel.classList.add(COPIED_VISIBLE_CLASS);
 		status.textContent = "Link copied to clipboard";
 		fadeTimerId = deps.setTimeoutFn(() => {
@@ -173,6 +208,8 @@ export function initShareBalloon(
 	}
 
 	function onShareClick() {
+		assert(page, "the share button is only bound while a balloon is adopted");
+		const { title, shareUrl } = page;
 		if (deps.navigator.share !== undefined) {
 			deps.navigator.share({ title, url: shareUrl }).catch((err) => {
 				if (err && err.name === "AbortError") return;
@@ -181,31 +218,24 @@ export function initShareBalloon(
 	}
 
 	function onCopyClick() {
+		assert(page, "the copy button is only bound while a balloon is adopted");
+		const { copyUrl, copiedLabel, status } = page;
 		if (deps.navigator.clipboard !== undefined) {
-			deps.navigator.clipboard.writeText(copyUrl).then(flashCopied, () => {
-				status.textContent = "Unable to copy link";
-			});
+			deps.navigator.clipboard.writeText(copyUrl).then(
+				() => flashCopied({ copiedLabel, status }),
+				() => {
+					status.textContent = "Unable to copy link";
+				},
+			);
 		}
 	}
 
 	function closeAndStopReopening() {
+		assert(page, "a close can only be requested while a balloon is adopted");
 		cancelPendingOpen();
-		if (scrollListener !== null) {
-			deps.window.removeEventListener("scroll", scrollListener);
-			scrollListener = null;
-		}
-		if (htmxSwapListener !== null) {
-			deps.document.removeEventListener("htmx:afterSwap", htmxSwapListener);
-			htmxSwapListener = null;
-		}
-		if (paywallRevealListener !== null) {
-			deps.document.removeEventListener(
-				PAYWALL_REVEALED_EVENT,
-				paywallRevealListener,
-			);
-			paywallRevealListener = null;
-		}
-		wrap.classList.remove(OPEN_CLASS);
+		stopScrollWatch();
+		stopPaywallWatch();
+		page.wrap.classList.remove(OPEN_CLASS);
 	}
 
 	function onCloseClick(event: Event) {
@@ -214,67 +244,71 @@ export function initShareBalloon(
 		writeDismissed();
 	}
 
+	function release(): void {
+		cancelPendingOpen();
+		cancelPendingFade();
+		stopScrollWatch();
+		stopPaywallWatch();
+		const released = page;
+		if (released === null) return;
+		page = null;
+		released.closeBtn.removeEventListener("click", onCloseClick);
+		released.shareBtn.removeEventListener("click", onShareClick);
+		released.copyBtn.removeEventListener("click", onCopyClick);
+	}
+
+	function adopt(wrap: HTMLElement): void {
+		release();
+		page = pageOf(wrap);
+		page.wrap.hidden = false;
+		page.shareBtn.hidden = !canShare;
+		page.copyBtn.hidden = !canCopy;
+		page.closeBtn.addEventListener("click", onCloseClick);
+		page.shareBtn.addEventListener("click", onShareClick);
+		page.copyBtn.addEventListener("click", onCopyClick);
+
+		if (readDismissed()) return;
+		scrollListener = onScroll;
+		deps.window.addEventListener("scroll", scrollListener, { passive: true });
+		paywallRevealListener = closeAndStopReopening;
+		deps.document.addEventListener(
+			PAYWALL_REVEALED_EVENT,
+			paywallRevealListener,
+		);
+		onScroll();
+	}
+
+	function onSwap(): void {
+		const wrap = findWrap();
+		if (wrap === null) {
+			release();
+			return;
+		}
+		if (page !== null && wrap === page.wrap) {
+			if (scrollListener !== null) onScroll();
+			return;
+		}
+		adopt(wrap);
+	}
+
 	function attach(): void {
 		if (attached) return;
 		if (!canShare && !canCopy) return;
+		const root = deps.document.documentElement;
+		if (root.hasAttribute(OWNED_ATTR)) return;
+		const wrap = pickElement(deps.document, "[data-share-balloon-wrap]");
+		root.setAttribute(OWNED_ATTR, "");
 		attached = true;
-		wrap.hidden = false;
-		btn.hidden = !canShare;
-		copyBtn.hidden = !canCopy;
-
-		if (!readDismissed()) {
-			scrollListener = onScroll;
-			deps.window.addEventListener("scroll", scrollListener, { passive: true });
-			htmxSwapListener = onHtmxSwap;
-			deps.document.addEventListener("htmx:afterSwap", htmxSwapListener);
-			paywallRevealListener = closeAndStopReopening;
-			deps.document.addEventListener(
-				PAYWALL_REVEALED_EVENT,
-				paywallRevealListener,
-			);
-			onScroll();
-		}
-
-		closeListener = onCloseClick;
-		closeBtn.addEventListener("click", closeListener);
-		clickListener = onShareClick;
-		btn.addEventListener("click", clickListener);
-		copyListener = onCopyClick;
-		copyBtn.addEventListener("click", copyListener);
+		deps.addSwapListener(onSwap);
+		adopt(wrap);
 	}
 
 	function detach(): void {
 		if (!attached) return;
 		attached = false;
-		cancelPendingOpen();
-		cancelPendingFade();
-		if (scrollListener !== null) {
-			deps.window.removeEventListener("scroll", scrollListener);
-			scrollListener = null;
-		}
-		if (htmxSwapListener !== null) {
-			deps.document.removeEventListener("htmx:afterSwap", htmxSwapListener);
-			htmxSwapListener = null;
-		}
-		if (paywallRevealListener !== null) {
-			deps.document.removeEventListener(
-				PAYWALL_REVEALED_EVENT,
-				paywallRevealListener,
-			);
-			paywallRevealListener = null;
-		}
-		if (closeListener !== null) {
-			closeBtn.removeEventListener("click", closeListener);
-			closeListener = null;
-		}
-		if (clickListener !== null) {
-			btn.removeEventListener("click", clickListener);
-			clickListener = null;
-		}
-		if (copyListener !== null) {
-			copyBtn.removeEventListener("click", copyListener);
-			copyListener = null;
-		}
+		deps.document.documentElement.removeAttribute(OWNED_ATTR);
+		release();
+		deps.removeSwapListener(onSwap);
 	}
 
 	return { attach, detach };
