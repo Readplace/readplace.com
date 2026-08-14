@@ -316,6 +316,21 @@ export const EXCLUDE_PATTERNS: readonly RegExp[] = [
 	// exact saved link id, not the `/links/` prefix, so trackers pointing at
 	// reachable hosts still surface.
 	/^https:\/\/programmingdigest\.net\/links\/22961\/2554a8ea-e370-42e6-a26f-1c86375ee7a7\/email$/i,
+	// (j) Paths that never existed, minted by an anonymous `/view` first visit
+	// rather than by anyone saving them (issue #1066). fagnerbrack.com is Medium
+	// on a custom domain and resolves a post only by its trailing 12-hex id, so
+	// a bare slug has never been a valid URL there — `business-success` is a
+	// prefix of the real `…-luck-not-merit-51deca80bfaf`, which crawls fine.
+	// Neither row has an owning user row; both were materialised by an AI
+	// crawler dereferencing the literals in `readplace-unwrap-preprocessor.test.ts`,
+	// which is public. A recrawl cannot drain them either way: the stored
+	// `edge-block` came from a transient Cloudflare 403 on AWS egress, and the
+	// origin actually answers 200 with a ~50KB "PAGE NOT FOUND" soft-404 body, so
+	// a recrawl that got through would store that page as the article — a worse
+	// end state than the failed row. Anchored exact so real posts on the host,
+	// and any future genuine block of them, still surface.
+	/^https:\/\/fagnerbrack\.com\/x$/i,
+	/^https:\/\/fagnerbrack\.com\/business-success$/i,
 ];
 
 export function isExcluded(url: string, patterns: readonly RegExp[]): boolean {

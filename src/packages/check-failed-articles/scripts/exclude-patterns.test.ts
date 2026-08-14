@@ -875,3 +875,38 @@ describe("EXCLUDE_PATTERNS — doubled-URL save (issue #594)", () => {
 		});
 	}
 });
+
+describe("EXCLUDE_PATTERNS — never-existed /view-minted paths (issue #1066)", () => {
+	const cases: ReadonlyArray<{ url: string; excluded: boolean; label: string }> = [
+		{
+			url: "https://fagnerbrack.com/x",
+			excluded: true,
+			label: "bare slug minted by an anonymous /view visit",
+		},
+		{
+			url: "https://fagnerbrack.com/business-success",
+			excluded: true,
+			label: "prefix-truncated slug minted by an anonymous /view visit",
+		},
+		{
+			url: "https://fagnerbrack.com/business-success-luck-not-merit-51deca80bfaf?postPublishedType=repub",
+			excluded: false,
+			label: "the real article the truncation came from — must NOT be hidden",
+		},
+		{
+			url: "https://fagnerbrack.com/business-success-luck-not-merit-51deca80bfaf",
+			excluded: false,
+			label: "the real article without its query string — must NOT be hidden",
+		},
+		{
+			url: "https://fagnerbrack.com/xyz",
+			excluded: false,
+			label: "a longer slug starting with the excluded one — must NOT be hidden",
+		},
+	];
+	for (const { url, excluded, label } of cases) {
+		it(`${excluded ? "excludes" : "keeps"}: ${label} — ${url}`, () => {
+			assert.equal(isExcluded(url, EXCLUDE_PATTERNS), excluded);
+		});
+	}
+});
