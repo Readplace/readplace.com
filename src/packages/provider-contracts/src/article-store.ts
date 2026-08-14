@@ -188,6 +188,7 @@ export type MarkRelatedDismissed = (params: {
 	userId: UserId;
 	url: string;
 	at: Date;
+	suggestionId: ReaderArticleHashId | undefined;
 }) => Promise<void>;
 
 export interface UserArticleByUrl {

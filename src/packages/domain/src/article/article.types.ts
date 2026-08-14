@@ -36,4 +36,5 @@ export interface SavedArticle {
 	 * captured; a re-save stamps one. */
 	provenance?: SaveProvenance;
 	relatedDismissedAt?: Date;
+	relatedDismissedSuggestionId?: ReaderArticleHashId;
 }

@@ -2,6 +2,7 @@ import { readFileSync } from "node:fs";
 import { join } from "node:path";
 import { NAV_HIDE_SCRIPT, readerScripts } from "../../shared/reader-nav-script";
 import type { SavedArticle } from "@packages/domain/article";
+import { nextReadDismissalOf } from "@packages/domain/article";
 import type { ArticleCrawl } from "@packages/provider-contracts/article-crawl";
 import { pickExcerpt, truncateForSeo } from "../../../providers/article-summary/article-summary.helpers";
 import type { GeneratedSummary } from "@packages/provider-contracts/article-summary";
@@ -151,7 +152,12 @@ export function ReaderPage(
 	});
 	const nextRead = renderNextRead({
 		related: options.related
-			? { articles: options.related, sourceArticleId: articleId, now: options.now }
+			? {
+					articles: options.related,
+					sourceArticleId: articleId,
+					now: options.now,
+					dismissal: nextReadDismissalOf(article),
+				}
 			: undefined,
 		pollUrl: options.relatedPollUrl,
 		returnTo: options.currentPath,

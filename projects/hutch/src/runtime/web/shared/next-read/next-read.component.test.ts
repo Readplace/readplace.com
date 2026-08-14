@@ -1,5 +1,9 @@
 import assert from "node:assert/strict";
-import { ReaderArticleHashIdSchema } from "@packages/domain/article";
+import {
+	NEXT_READ_SNOOZE_MS,
+	type NextReadDismissal,
+	ReaderArticleHashIdSchema,
+} from "@packages/domain/article";
 import type { RelatedArticleDisplay } from "@packages/provider-contracts/related-articles";
 import { JSDOM } from "jsdom";
 import { renderNextRead } from "./next-read.component";
@@ -16,17 +20,27 @@ const NOW = new Date("2026-08-05T12:00:00.000Z");
 const RETURN_TO = `/queue/${sourceId.value}/view`;
 const savedDaysAgo = (days: number) => new Date(NOW.getTime() - days * 86_400_000);
 
-function readyWith(items: RelatedArticleDisplay[], pollUrl?: string) {
+function readyWith(
+	items: RelatedArticleDisplay[],
+	pollUrl?: string,
+	dismissal?: NextReadDismissal,
+) {
 	return renderNextRead({
 		related: {
 			articles: { status: "ready", items },
 			sourceArticleId: sourceId.value,
 			now: NOW,
+			dismissal,
 		},
 		pollUrl,
 		returnTo: RETURN_TO,
 	});
 }
+
+const dismissedAgo = (ms: number, suggestionId: typeof firstId): NextReadDismissal => ({
+	at: new Date(NOW.getTime() - ms),
+	suggestionId,
+});
 
 const FIRST: RelatedArticleDisplay = {
 	id: firstId,
@@ -85,6 +99,7 @@ describe("renderNextRead", () => {
 						articles: { status: "skipped" },
 						sourceArticleId: sourceId.value,
 						now: NOW,
+						dismissal: undefined,
 					},
 					returnTo: RETURN_TO,
 				}),
@@ -260,6 +275,47 @@ describe("renderNextRead", () => {
 		});
 	});
 
+	it("hides the card for the rest of the day once the reader dismisses an unread suggestion", () => {
+		const slot = slotOf(
+			parse(readyWith([FIRST], undefined, dismissedAgo(NEXT_READ_SNOOZE_MS - 1, firstId))),
+		);
+
+		expect(slot.classList.contains("next-read--hidden")).toBe(true);
+	});
+
+	it("offers a dismissed unread suggestion again once the day is up", () => {
+		const doc = parse(
+			readyWith([FIRST], undefined, dismissedAgo(NEXT_READ_SNOOZE_MS, firstId)),
+		);
+
+		expect(slotOf(doc).classList.contains("next-read--ready")).toBe(true);
+		expect(
+			Array.from(doc.querySelectorAll("[data-test-related-item]")).map((link) =>
+				link.getAttribute("data-test-related-item"),
+			),
+		).toEqual([firstId.value]);
+	});
+
+	it("keeps a dismissed past read gone however long ago it was waved away", () => {
+		const slot = slotOf(
+			parse(
+				readyWith([FINISHED], undefined, dismissedAgo(NEXT_READ_SNOOZE_MS * 30, secondId)),
+			),
+		);
+
+		expect(slot.classList.contains("next-read--hidden")).toBe(true);
+	});
+
+	it("names the suggestion in the dismiss form, so the server records which one was waved away", () => {
+		const doc = parse(readyWith([FIRST]));
+
+		const form = doc.querySelector(".next-read__dismiss-form");
+		assert(form, "a ready slot must offer a way to dismiss the suggestion");
+		const suggestionId = form.querySelector('input[name="suggestionId"]');
+		assert(suggestionId, "the dismissal must name the suggestion it was aimed at");
+		expect(suggestionId.getAttribute("value")).toBe(firstId.value);
+	});
+
 	it("dismisses through a POST the analytics middleware counts as a reader click", () => {
 		const doc = parse(readyWith([FIRST]));
 
@@ -365,6 +421,7 @@ describe("renderNextRead", () => {
 						articles: { status: "skipped" },
 						sourceArticleId: sourceId.value,
 						now: NOW,
+						dismissal: undefined,
 					},
 					pollUrl: "/queue/abc/related?poll=2",
 					returnTo: RETURN_TO,

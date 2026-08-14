@@ -19,7 +19,7 @@ import {
 	decodeImportSkippedCookie,
 } from "../import/import-skipped-cookie";
 import type { ImportSkippedViewModel } from "./queue.viewmodel";
-import { ReaderArticleHashIdSchema } from "@packages/domain/article";
+import { ReaderArticleHashIdSchema, nextReadDismissalOf } from "@packages/domain/article";
 import type { ContentFreshnessResult, RefreshArticleIfStale } from "@packages/provider-contracts/article-freshness";
 import type {
 	AllocateSavedAt,
@@ -613,7 +613,7 @@ export function initQueueRoutes(deps: QueueDependencies): Router {
 				article: SavedArticle;
 				state: ResolvedReaderState;
 				audioEnabled: boolean;
-				related: RelatedArticles | undefined;
+				related: RelatedArticles;
 				relatedPollUrl: string | undefined;
 			};
 
@@ -648,11 +648,8 @@ export function initQueueRoutes(deps: QueueDependencies): Router {
 		});
 
 		const audioEnabled = deps.featureToggle.isEnabled(req, "audio");
-		const relatedActive = ownedArticle.relatedDismissedAt === undefined;
 		const [related, state] = await Promise.all([
-			relatedActive
-				? loadRelatedArticles(deps.findRelatedArticles, ownedArticle, deps.logError)
-				: Promise.resolve(undefined),
+			loadRelatedArticles(deps.findRelatedArticles, ownedArticle, deps.logError),
 			reader.resolveReaderState({
 				article: {
 					url: ownedArticle.url,
@@ -663,9 +660,10 @@ export function initQueueRoutes(deps: QueueDependencies): Router {
 				capturing: false,
 			}),
 		]);
-		const relatedPollUrl = relatedActive
-			? relatedPollUrlFor(ownedArticle.id.value, 1)
-			: undefined;
+		const relatedPollUrl =
+			ownedArticle.relatedDismissedAt === undefined
+				? relatedPollUrlFor(ownedArticle.id.value, 1)
+				: undefined;
 
 		return {
 			kind: "ready",
@@ -1611,14 +1609,6 @@ export function initQueueRoutes(deps: QueueDependencies): Router {
 
 		const returnTo = `${QUEUE_PATH}/${article.id.value}/view`;
 
-		if (article.relatedDismissedAt !== undefined) {
-			sendComponent(
-				req, res,
-				CacheableComponent(HtmlPage(renderNextRead({ returnTo })), req),
-			);
-			return;
-		}
-
 		const pollCount = parsePollParam(req.query.poll, MAX_POLLS);
 		const html = renderNextRead({
 			related: {
@@ -1629,6 +1619,7 @@ export function initQueueRoutes(deps: QueueDependencies): Router {
 				),
 				sourceArticleId: article.id.value,
 				now: deps.now(),
+				dismissal: nextReadDismissalOf(article),
 			},
 			pollUrl:
 				pollCount < MAX_POLLS
@@ -1649,10 +1640,12 @@ export function initQueueRoutes(deps: QueueDependencies): Router {
 			: null;
 
 		if (article) {
+			const suggestionId = ReaderArticleHashIdSchema.safeParse(req.body.suggestionId);
 			await deps.markRelatedDismissed({
 				userId,
 				url: article.url,
 				at: deps.now(),
+				suggestionId: suggestionId.success ? suggestionId.data : undefined,
 			});
 		}
 

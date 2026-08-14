@@ -1,6 +1,7 @@
 import { readFileSync } from "node:fs";
 import { join } from "node:path";
-import type { ArticleStatus } from "@packages/domain/article";
+import type { ArticleStatus, NextReadDismissal } from "@packages/domain/article";
+import { decideNextReadSlot } from "@packages/domain/article";
 import type {
 	RelatedArticleDisplay,
 	RelatedArticles,
@@ -40,6 +41,7 @@ export interface NextReadContext {
 	articles: RelatedArticles;
 	sourceArticleId: string;
 	now: Date;
+	dismissal: NextReadDismissal | undefined;
 }
 
 export interface NextReadInput {
@@ -68,10 +70,18 @@ interface NextReadCard {
 	dated: DatedLine;
 }
 
-function pickOf(
-	items: readonly RelatedArticleDisplay[],
-): RelatedArticleDisplay | undefined {
-	return items.find((item) => item.status === "unread") ?? items[0];
+function pickOf(input: {
+	items: readonly RelatedArticleDisplay[];
+	dismissal: NextReadDismissal | undefined;
+	now: Date;
+}): RelatedArticleDisplay | undefined {
+	const slot = decideNextReadSlot({
+		dismissal: input.dismissal,
+		related: input.items,
+		now: input.now,
+	});
+	if (slot === "suppress") return undefined;
+	return input.items.find((item) => item.status === "unread") ?? input.items[0];
 }
 
 function datedOf(item: RelatedArticleDisplay, now: Date): DatedLine {
@@ -90,7 +100,11 @@ function datedOf(item: RelatedArticleDisplay, now: Date): DatedLine {
 function cardsOf(input: NextReadInput): NextReadCard[] {
 	const related = input.related;
 	if (related?.articles.status !== "ready") return [];
-	const item = pickOf(related.articles.items);
+	const item = pickOf({
+		items: related.articles.items,
+		dismissal: related.dismissal,
+		now: related.now,
+	});
 	if (!item) return [];
 	const copy = STATUS_COPY[item.status];
 	const tracking = NEXT_READ_TRACKING[item.status];

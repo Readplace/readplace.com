@@ -290,7 +290,7 @@ const CARD_MOBILE_LIGHT: VisualCheckpoint = {
 test.describe("Next-read card (desktop)", () => {
 	test.use({ timezoneId: "UTC", viewport: { width: 1280, height: 900 } });
 
-	test("floats one unread suggestion once the reader reaches the end, and stays dismissed (light)", async ({
+	test("floats one unread suggestion once the reader reaches the end, and stays dismissed for the day (light)", async ({
 		page,
 	}) => {
 		await page.emulateMedia({ colorScheme: "light" });

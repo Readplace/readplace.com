@@ -142,16 +142,33 @@ describe("initDynamoDbSavedArticleStore reader-ready columns", () => {
 		expect(update?.input.UpdateExpression).toBe("SET lastSummaryClosedAt = :at");
 	});
 
-	it("markRelatedDismissed stamps relatedDismissedAt on a still-saved row so the next-read card stays gone", async () => {
+	it("markRelatedDismissed records the suggestion that was waved away, so a later render can tell a snooze from a permanent dismissal", async () => {
 		const { client, commands } = createFakeClient();
-		await initStore(client).markRelatedDismissed({ userId: USER, url: URL, at: new Date("2026-05-30T10:02:00.000Z") });
+		const suggestionId = ReaderArticleHashId.fromHash("0123456789abcdef0123456789abcdef");
+		await initStore(client).markRelatedDismissed({ userId: USER, url: URL, at: new Date("2026-05-30T10:02:00.000Z"), suggestionId });
 
 		const update = commands.find((c) => c.name === "UpdateCommand");
-		expect(update?.input.UpdateExpression).toBe("SET relatedDismissedAt = :at");
-		expect(update?.input.ConditionExpression).toBe("attribute_exists(savedAt)");
-		expect((update?.input.ExpressionAttributeValues as Record<string, unknown>)[":at"]).toBe(
-			"2026-05-30T10:02:00.000Z",
+		expect(update?.input.UpdateExpression).toBe(
+			"SET relatedDismissedAt = :at, relatedDismissedSuggestionId = :suggestionId",
 		);
+		expect(update?.input.ConditionExpression).toBe("attribute_exists(savedAt)");
+		expect(update?.input.ExpressionAttributeValues).toEqual({
+			":at": "2026-05-30T10:02:00.000Z",
+			":suggestionId": suggestionId.value,
+		});
+	});
+
+	it("markRelatedDismissed clears any previously recorded suggestion when the dismissal names none", async () => {
+		const { client, commands } = createFakeClient();
+		await initStore(client).markRelatedDismissed({ userId: USER, url: URL, at: new Date("2026-05-30T10:02:00.000Z"), suggestionId: undefined });
+
+		const update = commands.find((c) => c.name === "UpdateCommand");
+		expect(update?.input.UpdateExpression).toBe(
+			"SET relatedDismissedAt = :at REMOVE relatedDismissedSuggestionId",
+		);
+		expect(update?.input.ExpressionAttributeValues).toEqual({
+			":at": "2026-05-30T10:02:00.000Z",
+		});
 	});
 
 	it("mark stamps swallow ConditionalCheckFailedException so a concurrent delete makes the stamp a no-op", async () => {
@@ -886,6 +903,31 @@ describe("initDynamoDbSavedArticleStore reads by id", () => {
 
 		expect(article?.url).toBe(URL);
 		expect(article?.status).toBe("unread");
+	});
+
+	it("findArticleById surfaces the stored dismissal pin, so a dismissal keeps its snooze-or-permanent meaning after a round trip", async () => {
+		const { client } = createFakeClient({
+			QueryCommand: { default: { Items: [articleItem()], Count: 1 } },
+			GetCommand: {
+				default: {
+					Item: userArticleItem({
+						relatedDismissedAt: "2026-05-30T10:02:00.000Z",
+						relatedDismissedSuggestionId: "0123456789abcdef0123456789abcdef",
+					}),
+				},
+			},
+		});
+
+		const article = await initStore(client).findArticleById(ReaderArticleHashId.fromHash(ROUTE_ID), USER);
+
+		assert(article);
+		expect({
+			at: article.relatedDismissedAt,
+			suggestion: article.relatedDismissedSuggestionId?.value,
+		}).toEqual({
+			at: new Date("2026-05-30T10:02:00.000Z"),
+			suggestion: "0123456789abcdef0123456789abcdef",
+		});
 	});
 
 	it("findArticleById returns null when the route id matches no article", async () => {

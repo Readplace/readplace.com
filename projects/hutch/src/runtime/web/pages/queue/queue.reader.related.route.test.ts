@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import { initReadabilityParser } from "@packages/article-parser";
-import { ReaderArticleHashIdSchema } from "@packages/domain/article";
+import { NEXT_READ_SNOOZE_MS, ReaderArticleHashIdSchema } from "@packages/domain/article";
 import {
 	TEST_APP_ORIGIN,
 	createDefaultTestAppFixture,
@@ -104,6 +104,7 @@ async function buildHarness() {
 		fixture,
 		harness,
 		agent,
+		userId,
 		articleId: target.id.value,
 		related,
 		followUp,
@@ -440,15 +441,15 @@ describe("POST /queue/:id/related-dismiss", () => {
 		});
 	});
 
-	it("keeps the suggestion gone for that article once dismissed", async () => {
-		const { agent, articleId, seedRelated } = await buildHarness();
+	it("hides an unread suggestion for the rest of the day once dismissed", async () => {
+		const { agent, articleId, related, seedRelated } = await buildHarness();
 		await seedRelated();
 		const opened = await agent.get(`/queue/${articleId}/view`);
 
 		const dismissal = await agent
 			.post(dismissUrlOf(opened.text))
 			.type("form")
-			.send({ returnTo: `/queue/${articleId}/view` });
+			.send({ returnTo: `/queue/${articleId}/view`, suggestionId: related.id.value });
 		const reopened = await agent.get(`/queue/${articleId}/view`);
 
 		expect(dismissal.status).toBe(303);
@@ -456,6 +457,114 @@ describe("POST /queue/:id/related-dismiss", () => {
 		const slot = relatedSlotOf(reopened.text);
 		expect(slot.classList.contains("next-read--hidden")).toBe(true);
 		expect(relatedIdsOf(reopened.text)).toEqual([]);
+	});
+
+	it("offers a dismissed unread suggestion again a day later", async () => {
+		const { agent, articleId, userId, related, fixture, seedRelated } = await buildHarness();
+		await seedRelated();
+		await fixture.articleStore.markRelatedDismissed({
+			userId,
+			url: ARTICLE_URL,
+			at: new Date(Date.now() - NEXT_READ_SNOOZE_MS),
+			suggestionId: related.id,
+		});
+
+		const reopened = await agent.get(`/queue/${articleId}/view`);
+
+		expect(relatedSlotOf(reopened.text).classList.contains("next-read--ready")).toBe(true);
+		expect(relatedIdsOf(reopened.text)).toEqual([related.id.value]);
+	});
+
+	it("keeps a dismissed past read gone, however long ago it was waved away", async () => {
+		const { agent, articleId, userId, related, followUp, fixture, seedRelated } =
+			await buildHarness();
+		await seedRelated();
+		await fixture.articleStore.updateArticleStatus(related.id, userId, "read");
+		await fixture.articleStore.updateArticleStatus(followUp.id, userId, "read");
+		await fixture.articleStore.markRelatedDismissed({
+			userId,
+			url: ARTICLE_URL,
+			at: new Date(Date.now() - NEXT_READ_SNOOZE_MS * 30),
+			suggestionId: related.id,
+		});
+
+		const reopened = await agent.get(`/queue/${articleId}/view`);
+
+		expect(relatedSlotOf(reopened.text).classList.contains("next-read--hidden")).toBe(true);
+		expect(relatedIdsOf(reopened.text)).toEqual([]);
+	});
+
+	it("keeps a dismissal that names no suggestion permanent, so nothing already waved away comes back", async () => {
+		const { agent, articleId, userId, fixture, seedRelated } = await buildHarness();
+		await seedRelated();
+		await fixture.articleStore.markRelatedDismissed({
+			userId,
+			url: ARTICLE_URL,
+			at: new Date(Date.now() - NEXT_READ_SNOOZE_MS * 30),
+			suggestionId: undefined,
+		});
+
+		const reopened = await agent.get(`/queue/${articleId}/view`);
+
+		expect(relatedSlotOf(reopened.text).classList.contains("next-read--hidden")).toBe(true);
+	});
+
+	it("offers the slot again once the dismissed suggestion is no longer among the relations", async () => {
+		const { agent, articleId, userId, related, fixture, seedRelated } = await buildHarness();
+		await seedRelated();
+		await fixture.articleStore.markRelatedDismissed({
+			userId,
+			url: ARTICLE_URL,
+			at: new Date(),
+			suggestionId: UNSAVED_ID,
+		});
+
+		const reopened = await agent.get(`/queue/${articleId}/view`);
+
+		expect(relatedSlotOf(reopened.text).classList.contains("next-read--ready")).toBe(true);
+		expect(relatedIdsOf(reopened.text)).toEqual([related.id.value]);
+	});
+
+	it("starts the day over when the reader dismisses the resurfaced suggestion again", async () => {
+		const { agent, articleId, userId, related, fixture, seedRelated } = await buildHarness();
+		await seedRelated();
+		await fixture.articleStore.markRelatedDismissed({
+			userId,
+			url: ARTICLE_URL,
+			at: new Date(Date.now() - NEXT_READ_SNOOZE_MS),
+			suggestionId: related.id,
+		});
+		const resurfaced = await agent.get(`/queue/${articleId}/view`);
+
+		await agent
+			.post(dismissUrlOf(resurfaced.text))
+			.type("form")
+			.send({ returnTo: `/queue/${articleId}/view`, suggestionId: related.id.value });
+		const reopened = await agent.get(`/queue/${articleId}/view`);
+
+		expect(relatedSlotOf(reopened.text).classList.contains("next-read--hidden")).toBe(true);
+		const target = await fixture.articleStore.findArticleById(
+			ReaderArticleHashIdSchema.parse(articleId),
+			userId,
+		);
+		assert(target, "the dismissed source article stays saved");
+		expect(target.relatedDismissedSuggestionId?.value).toBe(related.id.value);
+	});
+
+	it("carries the dismissal through the poll answer, not only the reader render", async () => {
+		const { agent, articleId, userId, related, fixture, seedRelated } = await buildHarness();
+		await seedRelated();
+		await fixture.articleStore.markRelatedDismissed({
+			userId,
+			url: ARTICLE_URL,
+			at: new Date(Date.now() - NEXT_READ_SNOOZE_MS),
+			suggestionId: related.id,
+		});
+
+		const response = await agent.get(`/queue/${articleId}/related?poll=1`);
+
+		expect(response.status).toBe(200);
+		expect(relatedIdsOf(response.text)).toEqual([related.id.value]);
 	});
 
 	it("leaves other articles free to suggest their own next read", async () => {
@@ -479,7 +588,7 @@ describe("POST /queue/:id/related-dismiss", () => {
 		expect(relatedIdsOf(otherArticle.text)).toEqual([followUp.id.value]);
 	});
 
-	it("stops the poll chain for an article dismissed while a tick was in flight", async () => {
+	it("answers an in-flight tick for a dismissed article with a hidden slot and no further ticks", async () => {
 		const { agent, articleId, seedRelated } = await buildHarness();
 		await seedRelated();
 		await agent

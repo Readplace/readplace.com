@@ -69,6 +69,7 @@ interface UserArticle {
 	lastSummaryClosedAt?: Date;
 	provenance?: SaveProvenance;
 	relatedDismissedAt?: Date;
+	relatedDismissedSuggestionId?: ReaderArticleHashId;
 }
 
 function toSavedArticle(article: GlobalArticle, userArticle: UserArticle): SavedArticle {
@@ -86,6 +87,7 @@ function toSavedArticle(article: GlobalArticle, userArticle: UserArticle): Saved
 		readAt: userArticle.readAt,
 		provenance: userArticle.provenance,
 		relatedDismissedAt: userArticle.relatedDismissedAt,
+		relatedDismissedSuggestionId: userArticle.relatedDismissedSuggestionId,
 	};
 }
 
@@ -394,11 +396,17 @@ export function initInMemoryArticleStore(): {
 		else ua.lastSummaryClosedAt = at;
 	};
 
-	const markRelatedDismissed: MarkRelatedDismissed = async ({ userId, url, at }) => {
+	const markRelatedDismissed: MarkRelatedDismissed = async ({
+		userId,
+		url,
+		at,
+		suggestionId,
+	}) => {
 		const articleResourceUniqueId = ArticleResourceUniqueId.parse(url);
 		const ua = userArticles.get(userArticleKey(userId, articleResourceUniqueId.value));
 		if (!ua) return;
 		ua.relatedDismissedAt = at;
+		ua.relatedDismissedSuggestionId = suggestionId;
 	};
 
 	const findUserArticlesByUrl: FindUserArticlesByUrl = async (url) => {

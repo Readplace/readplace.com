@@ -1038,15 +1038,30 @@ describe("initInMemoryArticleStore", () => {
 	describe("markRelatedDismissed", () => {
 		const URL = "https://example.com/article";
 
-		it("surfaces relatedDismissedAt on the saved article so the reader can hide the next-read card", async () => {
+		const SUGGESTION_ID = ReaderArticleHashId.fromHash("0123456789abcdef0123456789abcdef");
+
+		it("surfaces the dismissal and the suggestion it named, so the reader can tell a snooze from a permanent dismissal", async () => {
 			const store = initInMemoryArticleStore();
 			const { saved } = await store.saveArticle(makeArticleParams());
 
-			await store.markRelatedDismissed({ userId: USER_A, url: URL, at: new Date("2026-06-01T10:00:00.000Z") });
+			await store.markRelatedDismissed({ userId: USER_A, url: URL, at: new Date("2026-06-01T10:00:00.000Z"), suggestionId: SUGGESTION_ID });
 
 			const article = await store.findArticleById(saved.id, USER_A);
 			assert(article);
 			assert.deepEqual(article.relatedDismissedAt, new Date("2026-06-01T10:00:00.000Z"));
+			assert.equal(article.relatedDismissedSuggestionId, SUGGESTION_ID);
+		});
+
+		it("clears a previously recorded suggestion when the dismissal names none", async () => {
+			const store = initInMemoryArticleStore();
+			const { saved } = await store.saveArticle(makeArticleParams());
+			await store.markRelatedDismissed({ userId: USER_A, url: URL, at: new Date("2026-06-01T10:00:00.000Z"), suggestionId: SUGGESTION_ID });
+
+			await store.markRelatedDismissed({ userId: USER_A, url: URL, at: new Date("2026-06-02T10:00:00.000Z"), suggestionId: undefined });
+
+			const article = await store.findArticleById(saved.id, USER_A);
+			assert(article);
+			assert.equal(article.relatedDismissedSuggestionId, undefined);
 		});
 
 		it("leaves relatedDismissedAt unset until the owner dismisses", async () => {
@@ -1060,7 +1075,7 @@ describe("initInMemoryArticleStore", () => {
 
 		it("is a no-op for a url the user never saved", async () => {
 			const store = initInMemoryArticleStore();
-			await store.markRelatedDismissed({ userId: USER_A, url: URL, at: new Date("2026-06-01T10:00:00.000Z") });
+			await store.markRelatedDismissed({ userId: USER_A, url: URL, at: new Date("2026-06-01T10:00:00.000Z"), suggestionId: undefined });
 
 			expect(await store.findArticleByUrl(URL)).toBeNull();
 		});

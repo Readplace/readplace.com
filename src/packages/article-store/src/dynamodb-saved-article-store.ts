@@ -122,6 +122,7 @@ const UserArticleRow = z.object({
 	lastSummaryClosedAt: dynamoField(z.string()),
 	provenance: dynamoField(SaveProvenanceSchema),
 	relatedDismissedAt: dynamoField(z.string()),
+	relatedDismissedSuggestionId: dynamoField(ReaderArticleHashIdSchema),
 });
 
 function toOptionalDate(value: string | undefined): Date | undefined {
@@ -151,6 +152,7 @@ function toSavedArticle(
 		readAt: toOptionalDate(userArticle.readAt),
 		provenance: userArticle.provenance,
 		relatedDismissedAt: toOptionalDate(userArticle.relatedDismissedAt),
+		relatedDismissedSuggestionId: userArticle.relatedDismissedSuggestionId,
 	};
 }
 
@@ -659,6 +661,7 @@ export function initDynamoDbSavedArticleStore(deps: {
 		url: string;
 		updateExpression: string;
 		at: Date;
+		values?: Record<string, string>;
 	}): Promise<void> {
 		const articleResourceUniqueId = ArticleResourceUniqueId.parse(stamp.url);
 		try {
@@ -666,7 +669,7 @@ export function initDynamoDbSavedArticleStore(deps: {
 				Key: { userId: stamp.userId, url: articleResourceUniqueId.value },
 				UpdateExpression: stamp.updateExpression,
 				ConditionExpression: "attribute_exists(savedAt)",
-				ExpressionAttributeValues: { ":at": stamp.at.toISOString() },
+				ExpressionAttributeValues: { ":at": stamp.at.toISOString(), ...stamp.values },
 			});
 		} catch (error) {
 			if (error instanceof ConditionalCheckFailedException) return;
@@ -697,13 +700,23 @@ export function initDynamoDbSavedArticleStore(deps: {
 		await stampUserArticleIfStillSaved({ userId, url, at, updateExpression: `SET ${attribute} = :at` });
 	};
 
-	const markRelatedDismissed: MarkRelatedDismissed = async ({ userId, url, at }) => {
-		await stampUserArticleIfStillSaved({
-			userId,
-			url,
-			at,
-			updateExpression: "SET relatedDismissedAt = :at",
-		});
+	const markRelatedDismissed: MarkRelatedDismissed = async ({
+		userId,
+		url,
+		at,
+		suggestionId,
+	}) => {
+		const expression = suggestionId
+			? {
+					updateExpression:
+						"SET relatedDismissedAt = :at, relatedDismissedSuggestionId = :suggestionId",
+					values: { ":suggestionId": suggestionId.value },
+				}
+			: {
+					updateExpression:
+						"SET relatedDismissedAt = :at REMOVE relatedDismissedSuggestionId",
+				};
+		await stampUserArticleIfStillSaved({ userId, url, at, ...expression });
 	};
 
 	const findUserArticlesByUrl: FindUserArticlesByUrl = async (url) => {

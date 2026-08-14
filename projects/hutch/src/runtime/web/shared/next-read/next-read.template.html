@@ -3,6 +3,7 @@
   <div class="next-read__card">
     <form class="next-read__dismiss-form" method="POST" action="{{dismissUrl}}" hx-boost="true" hx-target="#article-body-related-slot" hx-select="#article-body-related-slot" hx-swap="outerHTML show:none" hx-push-url="false">
       <input type="hidden" name="returnTo" value="{{returnTo}}">
+      <input type="hidden" name="suggestionId" value="{{id}}">
       <button class="next-read__dismiss" type="submit" data-test-action="next-read-dismiss">{{icon "x"}}<span class="sr-only">Dismiss suggestion</span></button>
     </form>
     <a class="next-read__link" href="{{href}}" data-test-related-item="{{id}}" hx-boost="true" hx-target="main" hx-select="main" hx-swap="outerHTML show:none">
