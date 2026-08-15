@@ -21,10 +21,12 @@
 }
 
 /**
- * 1. The panel paints over the tab's base, so the tab reads as a sheet slid
- *    under the card rather than a chip resting on it. The panel has to be
- *    opaque for that: with no fill of its own the tab's shadow shows straight
- *    through the border it is meant to stop at.
+ * 1. The panel is the upper layer, so it paints over the tab's base and casts
+ *    the shadow into the seam, and the tab reads as a sheet slid under the card
+ *    rather than a chip resting on it. A shadow on the tab cannot do this: on
+ *    the rail the seam is a vertical edge, which a downward shadow never
+ *    reaches, and what little it casts lands under the panel. The panel has to
+ *    be opaque too, or it reveals what it overlaps instead of hiding it.
  * 2. proximity, not mandatory: mandatory snapping fights free scrubbing of a
  *    row wider than the viewport.
  * 3. thin, not none: a fully hidden scrollbar leaves a pointer user no cue
@@ -32,6 +34,10 @@
  * 4. Outside the scroller so it stays reachable however far the row is
  *    scrubbed, and outside the list so assistive tech announces the reader's
  *    queue count rather than that count plus one.
+ * 5. Off the two-token shadow scale on purpose: both tokens offset straight
+ *    down, which a seam that runs vertically on the rail never sees. This one
+ *    is aimed at the seam and flips direction with it, and carries its own
+ *    theme pair for the same reason the shared tokens do.
  */
 .queue-nav {
   display: flex;
@@ -70,7 +76,7 @@
   color: var(--primary-foreground);
   text-decoration: none;
   white-space: nowrap;
-  box-shadow: var(--shadow-md);
+  box-shadow: var(--shadow-sm);
   transition: background-color 0.15s ease;
 }
 
@@ -108,12 +114,20 @@
 }
 
 .queue--queues .queue__content {
+  --queue-seam-ink: rgb(0 0 0 / 0.16); /* 5 */
   position: relative;
   z-index: 1; /* 1 */
   background: var(--background); /* 1 */
+  box-shadow: 0 -3px 6px -2px var(--queue-seam-ink); /* 1 */
   border: 1px solid var(--border);
   border-radius: var(--radius-lg);
   padding: 12px;
+}
+
+@media (prefers-color-scheme: dark) {
+  .queue--queues .queue__content {
+    --queue-seam-ink: rgb(0 0 0 / 0.45); /* 5 */
+  }
 }
 
 /* Layout lives on the base class, not the state modifiers: a state whose modifier
@@ -998,6 +1012,7 @@
   .queue--queues .queue__content {
     min-width: 0; /* 2 */
     padding: 24px; /* 4 */
+    box-shadow: -3px 0 6px -2px var(--queue-seam-ink);
   }
 
   .queue-nav {
@@ -1028,6 +1043,6 @@
 
   .queue-nav__new {
     border-radius: var(--radius) 0 0 var(--radius);
-    margin: 0 -1px 0 0; /* 1 */
+    margin: 0 -1px 0 0;
   }
 }
