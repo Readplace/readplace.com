@@ -1,5 +1,6 @@
 import { readFileSync } from "node:fs";
 import { join } from "node:path";
+import type { ReaderFailedVariant } from "@packages/article-state-types";
 import { render } from "@packages/web-shell";
 import { FULL_PAGE_CAPTURE_PHRASE } from "../../client-surface-phrases";
 
@@ -8,7 +9,7 @@ const TEMPLATE = readFileSync(
 	"utf-8",
 );
 
-export type ReaderFailedVariant = "failed" | "unsupported" | "slow" | "blocked";
+export type { ReaderFailedVariant };
 
 export interface ReaderFailedInput {
 	url: string;

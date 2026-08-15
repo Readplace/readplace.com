@@ -31,9 +31,12 @@ describe("CrawlStatusSchema", () => {
 });
 
 describe("ReaderStatusSchema", () => {
-	it.each(["pending", "ready", "failed", "unsupported", "unavailable"])("accepts %s", (value) => {
-		expect(ReaderStatusSchema.parse(value)).toBe(value);
-	});
+	it.each(["pending", "ready", "failed", "unsupported", "unavailable", "slow", "blocked"])(
+		"accepts %s",
+		(value) => {
+			expect(ReaderStatusSchema.parse(value)).toBe(value);
+		},
+	);
 
 	it("rejects unknown values, including summary-only states", () => {
 		expect(ReaderStatusSchema.safeParse("skipped").success).toBe(false);

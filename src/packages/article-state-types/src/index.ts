@@ -4,12 +4,14 @@ export {
 	CrawlStatusSchema,
 	deriveReaderViewStatus,
 	enteredReaderViewSucceeded,
+	ReaderFailedVariantSchema,
 	ReaderStatusSchema,
 	ReaderViewStatusSchema,
 	SummaryStatusSchema,
 } from "./article-state";
 export type {
 	CrawlStatus,
+	ReaderFailedVariant,
 	ReaderStatus,
 	ReaderViewStatus,
 	SummaryStatus,

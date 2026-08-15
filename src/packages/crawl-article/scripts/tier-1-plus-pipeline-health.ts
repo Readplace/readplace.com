@@ -43,7 +43,7 @@ assert(SERVICE_TOKEN, "RECRAWL_SERVICE_TOKEN env var must not be empty");
 const POLL_INTERVAL_MS = 3000;
 const POLL_TIMEOUT_MS = 2_400_000;
 
-type TerminalReaderStatus = Exclude<ReaderStatus, "pending">;
+type TerminalReaderStatus = Exclude<ReaderStatus, "pending" | "slow">;
 
 async function forceRecrawl(url: string): Promise<void> {
 	const res = await fetch(`${ORIGIN}/admin/recrawl?url=${encodeURIComponent(url)}`, {
@@ -62,7 +62,11 @@ function extractReaderStatus(html: string): ReaderStatus | undefined {
 	const match = html.match(/data-reader-status="([^"]*)"/);
 	if (!match) return undefined;
 	const result = ReaderStatusSchema.safeParse(match[1]);
-	return result.success ? result.data : undefined;
+	assert(
+		result.success,
+		`unrecognised data-reader-status '${match[1]}' — the rendered vocabulary has drifted from ReaderStatusSchema`,
+	);
+	return result.data;
 }
 
 async function pollUntilDone(url: string): Promise<{ status: TerminalReaderStatus; html: string }> {
@@ -84,11 +88,13 @@ async function pollUntilDone(url: string): Promise<{ status: TerminalReaderStatu
 		if (status !== undefined) {
 			switch (status) {
 				case "pending":
+				case "slow":
 					break;
 				case "ready":
 				case "failed":
 				case "unsupported":
 				case "unavailable":
+				case "blocked":
 					return { status, html: lastHtml };
 				default: {
 					const _exhaustive: never = status;
