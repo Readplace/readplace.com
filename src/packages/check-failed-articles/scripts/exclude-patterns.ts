@@ -144,6 +144,16 @@ export const EXCLUDE_PATTERNS: readonly RegExp[] = [
 	/^https:\/\/github\.com\/torvalds\/linux\/pull\/17#issuecomment-5654674$/i,
 	// (b) Domain does not resolve — returns NXDOMAIN.
 	/^https:\/\/divshot\.com\/blog\/opinion\/angular-2-crazy-like-a-fox\/$/i,
+	// wowwwman.com is undelegated — apex and `www` both answer NXDOMAIN from the
+	// local resolver, 1.1.1.1 and 8.8.8.8, with no NS records at all. The row
+	// reads `exhausted-retries` rather than a DNS-specific reason because a name
+	// that does not resolve produces no response to classify, so the fetch just
+	// burns its retries; that is the same dead end as the divshot entry above,
+	// not a crawler defect. Anchored to the site root (the saved form was
+	// `http://www.wowwwman.com/`; `https?`, `www.` and the trailing slash are
+	// optional so a re-save of the same root matches) rather than the whole host,
+	// so if the domain is ever registered again its article pages still surface.
+	/^https?:\/\/(?:www\.)?wowwwman\.com\/?$/i,
 	// (c) Dead hosting platform — java.net was retired; the host serves a
 	// terminal 503.
 	/^https:\/\/jstl\.java\.net\/$/i,

@@ -876,6 +876,36 @@ describe("EXCLUDE_PATTERNS — doubled-URL save (issue #594)", () => {
 	}
 });
 
+describe("EXCLUDE_PATTERNS — undelegated wowwwman.com root (issue #1067)", () => {
+	const cases: ReadonlyArray<{ url: string; excluded: boolean; label: string }> = [
+		{
+			url: "http://www.wowwwman.com/",
+			excluded: true,
+			label: "the stored form — http, www, trailing slash",
+		},
+		{
+			url: "https://wowwwman.com",
+			excluded: true,
+			label: "re-save of the same root — https, apex, no trailing slash",
+		},
+		{
+			url: "https://www.wowwwman.com/some-article",
+			excluded: false,
+			label: "an article path on the host — must NOT be hidden if the domain returns",
+		},
+		{
+			url: "https://notwowwwman.com/",
+			excluded: false,
+			label: "a different host ending in the same name — must NOT be hidden",
+		},
+	];
+	for (const { url, excluded, label } of cases) {
+		it(`${excluded ? "excludes" : "keeps"}: ${label} — ${url}`, () => {
+			assert.equal(isExcluded(url, EXCLUDE_PATTERNS), excluded);
+		});
+	}
+});
+
 describe("EXCLUDE_PATTERNS — never-existed /view-minted paths (issue #1066)", () => {
 	const cases: ReadonlyArray<{ url: string; excluded: boolean; label: string }> = [
 		{
