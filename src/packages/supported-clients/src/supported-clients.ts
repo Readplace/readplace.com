@@ -34,7 +34,12 @@ export type InstallSource =
 	| { readonly kind: "store"; readonly url: string }
 	| { readonly kind: "appStore"; readonly appleAppId: string }
 	| { readonly kind: "selfHostedPointer" }
-	| { readonly kind: "mcpConnector"; readonly serverUrl: string; readonly guidePath: string };
+	| {
+			readonly kind: "mcpConnector";
+			readonly serverUrl: string;
+			readonly guidePath: string;
+			readonly directInstallUrl: string | null;
+	  };
 
 /** The storefront-less form. A region-prefixed link (`/au/`) shows a "not
  * available in your storefront" interstitial to everyone outside that region,
@@ -114,8 +119,13 @@ export const SUPPORTED_CLIENTS = [
 		name: "chatgpt",
 		displayName: "ChatGPT",
 		group: "aiAssistant",
-		description: "Connects through ChatGPT's developer mode via the same MCP server.",
-		install: { kind: "mcpConnector", serverUrl: "https://readplace.com/mcp", guidePath: "/mcp" },
+		description: "Installs as the official ChatGPT plugin, which connects through the same MCP server.",
+		install: {
+			kind: "mcpConnector",
+			serverUrl: "https://readplace.com/mcp",
+			guidePath: "/mcp",
+			directInstallUrl: "https://chatgpt.com/plugins/plugin_asdk_app_6a7c5944b14c8191ac9a1582ba78348a", /* 2 */
+		},
 		auth: { kind: "dynamicRegistration" },
 	},
 	{
@@ -123,7 +133,12 @@ export const SUPPORTED_CLIENTS = [
 		displayName: "Gemini",
 		group: "aiAssistant",
 		description: "Saves and reads your list from the Gemini CLI over the same MCP server.",
-		install: { kind: "mcpConnector", serverUrl: "https://readplace.com/mcp", guidePath: "/mcp" },
+		install: {
+			kind: "mcpConnector",
+			serverUrl: "https://readplace.com/mcp",
+			guidePath: "/mcp",
+			directInstallUrl: null,
+		},
 		auth: { kind: "dynamicRegistration" },
 	},
 	{
@@ -131,7 +146,12 @@ export const SUPPORTED_CLIENTS = [
 		displayName: "Claude",
 		group: "aiAssistant",
 		description: "Saves and reads your list from Claude via the MCP connector.",
-		install: { kind: "mcpConnector", serverUrl: "https://readplace.com/mcp", guidePath: "/mcp" },
+		install: {
+			kind: "mcpConnector",
+			serverUrl: "https://readplace.com/mcp",
+			guidePath: "/mcp",
+			directInstallUrl: null,
+		},
 		auth: { kind: "dynamicRegistration" },
 	},
 ] as const satisfies readonly ClientDefinition[];

@@ -476,6 +476,35 @@ describe("GET /install", () => {
 		).toBe("Connect to readplace.com so you can save pages to and read my reading list.");
 	});
 
+	it("should offer the official ChatGPT plugin ahead of the manual server URL", async () => {
+		const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
+		const response = await request(harness.server).get("/install?client=chatgpt");
+		const doc = load(response.text);
+
+		const cta = doc.querySelector('[data-test-panel="ai"] [data-test-cta="ai-direct-install"]');
+		expect(cta?.getAttribute("href")).toBe(
+			"https://chatgpt.com/plugins/plugin_asdk_app_6a7c5944b14c8191ac9a1582ba78348a",
+		);
+		expect(cta?.textContent).toBe("Add Readplace to ChatGPT");
+
+		const panelHtml = doc.querySelector('[data-test-panel="ai"]')?.innerHTML;
+		assert(panelHtml, "the AI panel must render");
+		expect(panelHtml.indexOf('data-test-cta="ai-direct-install"')).toBeLessThan(
+			panelHtml.indexOf('data-test-section="ai-server-url"'),
+		);
+	});
+
+	it.each(["gemini", "claude"])(
+		"should not offer a one-click install on the %s panel, which has no public app listing",
+		async (client) => {
+			const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
+			const response = await request(harness.server).get(`/install?client=${client}`);
+			const doc = load(response.text);
+
+			expect(doc.querySelector('[data-test-cta="ai-direct-install"]')).toBeNull();
+		},
+	);
+
 	it("should show the Gemini CLI command on the Gemini AI panel", async () => {
 		const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
 		const response = await request(harness.server).get("/install?client=gemini");

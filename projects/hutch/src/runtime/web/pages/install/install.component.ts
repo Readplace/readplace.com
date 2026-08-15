@@ -290,11 +290,11 @@ const PANEL_DATA = {
 	chatgpt: {
 		group: "aiAssistant",
 		intro:
-			"The same MCP server connects through ChatGPT's developer mode. Once it's on, ChatGPT can read your list and save links for you.",
+			"Readplace is an official ChatGPT plugin. Add it in one click and ChatGPT can read your list and save links for you — the same MCP server, with no connector to configure.",
 		promptLabel: "Or just ask ChatGPT",
 		prompt: "Connect to readplace.com so you can save pages to and read my reading list.",
 		requirement:
-			"Needs a paid plan (Plus, Pro, Business, Enterprise, or Edu) with developer mode turned on from the web.",
+			"You sign in to Readplace once when you add the plugin. The server URL above still works if you would rather add it as a custom connector yourself.",
 	},
 	gemini: {
 		group: "aiAssistant",
@@ -329,6 +329,8 @@ interface AiAssistant {
 	promptLabel: string;
 	prompt: string;
 	requirement: string;
+	directInstallUrl: string | null;
+	directInstallLabel: string;
 }
 
 type PanelView =
@@ -354,6 +356,10 @@ function buildPanel(active: InstallClient, firefoxDownloadUrl: string | null): P
 		case "nativeApp":
 			return { type: "nativeApp" };
 		case "aiAssistant":
+			assert(
+				client.install.kind === "mcpConnector",
+				`${client.name} is an AI assistant, so it must install from the MCP connector`,
+			);
 			return {
 				type: "aiAssistant",
 				assistant: {
@@ -362,6 +368,8 @@ function buildPanel(active: InstallClient, firefoxDownloadUrl: string | null): P
 					promptLabel: data.promptLabel,
 					prompt: data.prompt,
 					requirement: data.requirement,
+					directInstallUrl: client.install.directInstallUrl,
+					directInstallLabel: `Add Readplace to ${client.displayName}`,
 				},
 			};
 	}

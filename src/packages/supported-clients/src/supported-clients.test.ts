@@ -51,6 +51,21 @@ describe("SUPPORTED_CLIENTS", () => {
 		);
 	});
 
+	it("pins which MCP clients ship a public one-click listing so gaining or losing one is a conscious edit", () => {
+		assert.deepEqual(
+			Object.fromEntries(
+				SUPPORTED_CLIENTS.flatMap((client) =>
+					client.install.kind === "mcpConnector" ? [[client.name, client.install.directInstallUrl]] : [],
+				),
+			),
+			{
+				chatgpt: "https://chatgpt.com/plugins/plugin_asdk_app_6a7c5944b14c8191ac9a1582ba78348a",
+				gemini: null,
+				claude: null,
+			},
+		);
+	});
+
 	it("pins the Apple app id shipped in the App Store listing", () => {
 		const iphone = SUPPORTED_CLIENTS.find((client) => client.name === "iphone");
 		assert(iphone?.install.kind === "appStore", "the iPhone client must install from the App Store");

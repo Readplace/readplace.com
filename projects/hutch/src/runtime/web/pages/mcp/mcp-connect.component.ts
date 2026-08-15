@@ -18,19 +18,17 @@ type McpTool = {
 };
 
 /**
- * Durable, non-version-specific connection steps for each client family. The
- * requirements (paid tier, Developer Mode, OAuth) are the stable parts of each
- * product's setup; we deliberately avoid menu-label minutiae that rots.
+ * Durable, non-version-specific connection steps for each client family; we
+ * deliberately avoid menu-label minutiae that rots.
  */
 const MCP_SETUP = {
 	chatgpt: {
 		requirement:
-			"Needs a paid plan (Plus, Pro, Business, Enterprise, or Edu). Custom connectors live behind Developer Mode, which you turn on from ChatGPT on the web.",
+			"Readplace is an official ChatGPT plugin, so there is no custom connector to configure and no Developer Mode to turn on.",
 		steps: [
-			"On ChatGPT for web, open Settings → Apps & Connectors → Advanced and turn on Developer Mode.",
-			"Add a custom connector and enter the Readplace server URL.",
-			"Choose OAuth as the authentication method.",
+			"Open the Readplace plugin in ChatGPT and choose Add.",
 			"Complete the OAuth sign-in to authorize ChatGPT.",
+			"Ask ChatGPT to save a link, or to list what you have saved.",
 		],
 	},
 	gemini: {

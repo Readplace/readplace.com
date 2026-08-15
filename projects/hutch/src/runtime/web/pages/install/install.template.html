@@ -42,16 +42,20 @@
         <h2 class="install-page__panel-title">Connect Readplace to {{panel.assistant.name}}</h2>
         <p class="install-page__lead">{{panel.assistant.intro}}</p>
 
+        {{#if panel.assistant.directInstallUrl}}
+        <a href="{{panel.assistant.directInstallUrl}}" class="btn btn--primary install-page__download" data-test-cta="ai-direct-install">{{panel.assistant.directInstallLabel}}</a>
+        {{/if}}
+
         <div class="install-page__server-url" data-test-section="ai-server-url">
           <span class="install-page__server-url-label">Server URL</span>
           <code class="install-page__server-url-value">{{mcpServerUrl}}</code>
-          <button type="button" class="install-page__copy-btn" data-install-copy data-install-text="{{mcpServerUrl}}" hidden>Copy</button>
+          <button type="button" class="btn btn--secondary btn--compact install-page__copy-btn" data-install-copy data-install-text="{{mcpServerUrl}}" hidden>Copy</button>
         </div>
 
         <div class="install-page__prompt" data-test-section="ai-prompt">
           <span class="install-page__prompt-label">{{panel.assistant.promptLabel}}</span>
           <p class="install-page__prompt-text">{{panel.assistant.prompt}}</p>
-          <button type="button" class="install-page__copy-btn" data-install-copy data-install-text="{{panel.assistant.prompt}}" hidden>Copy</button>
+          <button type="button" class="btn btn--secondary btn--compact install-page__copy-btn" data-install-copy data-install-text="{{panel.assistant.prompt}}" hidden>Copy</button>
         </div>
 
         <p class="install-page__ai-req">{{panel.assistant.requirement}}</p>

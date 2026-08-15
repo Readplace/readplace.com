@@ -56,7 +56,7 @@ export const AI_READING_LIST_CONTENT: LandingPageContent = {
 	limitsTitle: "What this does not do",
 	limits: [
 		"Your assistant cannot delete anything. That one tool returns without acting and points you back to the app.",
-		"Claude works on any plan, including Free. ChatGPT needs a paid plan with Developer Mode turned on. Gemini connects free through the CLI; the Gemini app needs a Google AI Ultra subscription.",
+		"Claude works on any plan, including Free. ChatGPT installs the official Readplace plugin, so there is no connector to configure. Gemini connects free through the CLI; the Gemini app needs a Google AI Ultra subscription.",
 		"A summary is a summary. Pulling a TL;DR is not the same as having read the piece.",
 		"A link saved through the assistant starts as a placeholder and fills in as the crawler works, so the reader view is not there the instant it is saved.",
 		"I wrote the connection steps for each assistant by hand. When they change their menus, the steps can drift.",
@@ -65,7 +65,7 @@ export const AI_READING_LIST_CONTENT: LandingPageContent = {
 		{
 			question: "Which assistants work?",
 			answer:
-				"Claude on any plan including Free. ChatGPT on a paid plan with Developer Mode turned on. Gemini free through the CLI, or the Gemini app with a Google AI Ultra subscription.",
+				"Claude on any plan including Free. ChatGPT through the official Readplace plugin, added in one click. Gemini free through the CLI, or the Gemini app with a Google AI Ultra subscription.",
 		},
 		{
 			question: "Can my assistant delete things from my queue?",

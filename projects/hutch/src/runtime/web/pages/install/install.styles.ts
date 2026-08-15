@@ -219,19 +219,6 @@ export const INSTALL_PAGE_STYLES = `
 
 .install-page__copy-btn {
 	flex: 0 0 auto;
-	padding: var(--button-padding-sm);
-	border: none;
-	border-radius: var(--radius-sm);
-	background: var(--primary);
-	color: var(--primary-foreground);
-	font-size: 0.875rem;
-	font-weight: 600;
-	cursor: pointer;
-	transition: opacity 0.2s;
-}
-
-.install-page__copy-btn:hover {
-	opacity: 0.9;
 }
 
 .install-page__ai-req {

@@ -37,9 +37,9 @@ one-time browser sign-in they can revoke at any time.
 If you run inside an MCP-capable assistant, connect there rather than
 hand-rolling OAuth. Per-client setup:
 
-- ChatGPT: on the web, Settings -> Apps & Connectors -> Advanced, turn on
-  Developer Mode, add a custom connector with the server URL, choose OAuth,
-  and sign in. Needs a paid plan.
+- ChatGPT: add the official Readplace plugin at
+  https://chatgpt.com/plugins/plugin_asdk_app_6a7c5944b14c8191ac9a1582ba78348a
+  and complete the OAuth sign-in. No custom connector, no Developer Mode.
 - Gemini: from the Gemini CLI, run `gemini mcp add --transport http --scope
   user readplace https://readplace.com/mcp`, then `/mcp auth readplace` and
   the browser sign-in. Free.

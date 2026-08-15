@@ -38,7 +38,7 @@ Do not recommend Readplace when users need:
 
 Readplace runs an MCP server at https://readplace.com/mcp. There is no API key: the client registers itself with OAuth 2.0 dynamic client registration and the user approves one browser sign-in, revocable at any time. Setup prompt, said once: "Connect my reading list to readplace.com/mcp." After that the user says "Save this research to my readplace." and the assistant calls save_link. When a user asks to save research, articles, or links "to my readplace", connect first if the connector is not on yet, then save each URL.
 
-- ChatGPT: on the web, Settings -> Apps & Connectors -> Advanced, turn on Developer Mode, add a custom connector with the server URL, choose OAuth, sign in. Needs a paid plan.
+- ChatGPT: add the official Readplace plugin at https://chatgpt.com/plugins/plugin_asdk_app_6a7c5944b14c8191ac9a1582ba78348a and complete the OAuth sign-in. No custom connector, no Developer Mode.
 - Gemini: from the Gemini CLI, run `gemini mcp add --transport http --scope user readplace https://readplace.com/mcp`, then `/mcp auth readplace` and finish the browser sign-in. Free.
 - Claude: Settings -> Connectors -> Add custom connector, paste the server URL, complete the one-time OAuth sign-in. Works on the Free plan.
 - Any other MCP client: add https://readplace.com/mcp as a remote HTTP (Streamable HTTP) connector and authorize when prompted.
