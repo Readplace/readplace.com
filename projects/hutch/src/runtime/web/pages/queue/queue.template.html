@@ -43,20 +43,22 @@
           {{/if}}
           {{{filtersHtml}}}
           {{{countsSpanHtml}}}
-          <div class="queue__sort" hx-boost="true" hx-target="main" hx-select="main" hx-swap="outerHTML show:none">
-            <a class="queue__sort-link" href="{{sortUrl}}" data-test-sort>{{sortLabel}} {{icon sortIconName}}</a>
+          <div class="queue__listing">
+            <div class="queue__sort" hx-boost="true" hx-target="main" hx-select="main" hx-swap="outerHTML show:none">
+              <a class="queue__sort-link" href="{{sortUrl}}" data-test-sort>{{sortLabel}} {{icon sortIconName}}</a>
+            </div>
+            {{#if isEmpty}}
+            <div class="queue__empty" data-test-empty-queue>
+              <h2 class="queue__empty-title">{{emptyTitle}}</h2>
+              <p class="queue__empty-text">Paste a URL above to save a link. Or <a href="/install">set up one-tap saving</a> from {{saveSurfacesShort}}.</p>
+            </div>
+            {{/if}}
+            {{#if hasArticles}}
+            <div class="queue__list" data-test-article-list>
+              {{#each articleHtmls}}{{{this}}}{{/each}}
+            </div>
+            {{/if}}
           </div>
-          {{#if isEmpty}}
-          <div class="queue__empty" data-test-empty-queue>
-            <h2 class="queue__empty-title">{{emptyTitle}}</h2>
-            <p class="queue__empty-text">Paste a URL above to save a link. Or <a href="/install">set up one-tap saving</a> from {{saveSurfacesShort}}.</p>
-          </div>
-          {{/if}}
-          {{#if hasArticles}}
-          <div class="queue__list" data-test-article-list>
-            {{#each articleHtmls}}{{{this}}}{{/each}}
-          </div>
-          {{/if}}
           {{#if showPagination}}
           <nav class="queue__pagination" aria-label="Pagination" hx-boost="true" hx-target="main" hx-select="main" hx-swap="outerHTML show:none" data-test-pagination>
             {{#if hasPrev}}<a class="queue__pagination-link" href="{{prevUrl}}" data-test-pagination-prev>{{icon "arrow-left"}} Previous</a>{{/if}}

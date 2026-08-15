@@ -5,7 +5,7 @@ export interface MeasuredBox {
 	height: number;
 }
 
-export function measureBoxPair(selectors: readonly string[]): MeasuredBox[] {
+export function measureBoxes(selectors: readonly string[]): MeasuredBox[] {
 	return selectors.map((selector) => {
 		const element = document.querySelector(selector);
 		if (!element) throw new Error(`"${selector}" must be laid out to be measured`);

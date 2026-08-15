@@ -11,7 +11,7 @@ import {
 import { requireEnv } from "@packages/require-env";
 import {
 	type MeasuredBox,
-	measureBoxPair,
+	measureBoxes,
 	neutraliseVolatileChrome,
 	pageOverflowsSideways,
 } from "./queue-nav.browser";
@@ -23,6 +23,14 @@ const QUEUE_NAV = "main.queue .queue-nav";
 const QUEUE_NAV_LINK = '[data-test-queue="default"]';
 const QUEUE_CONTENT = "main.queue .queue__content";
 const QUEUE_PANEL_INNER = "main.queue .queue__save-form";
+const QUEUE_LIST = "[data-test-article-list]";
+const QUEUE_TITLE = "main.queue .queue__title";
+const QUEUE_FILTERS = "main.queue .queue__filters";
+const QUEUE_LISTING = "main.queue .queue__listing";
+const OPEN_FILTER_TAB = "main.queue .queue__filter-link--active";
+
+const DEFAULT_QUEUE = "";
+const QUEUES_PANEL = "?feature=queues";
 
 const WCAG_REFLOW_MINIMUM = { width: 320, height: 800 };
 const PHONE = { width: 390, height: 844 };
@@ -42,6 +50,9 @@ const MINIMUM_TOUCH_TARGET = 44;
 /* The tab's base edge deliberately sits on the panel's 1px border so the two
  * read as one piece — the join is the only overlap the layout may have. */
 const TAB_PANEL_JOIN_PX = 1;
+/* The filter strip is inset from the frame's corner by the same 12px the queues
+ * rail uses, so the first tab lands on the frame's straight edge, not its arc. */
+const TAB_STRIP_INSET_PX = 12;
 
 const SEEDED_FETCHED_AT = "2026-07-10T09:14:00.000Z";
 const SEEDED_ARTICLES = [
@@ -112,7 +123,10 @@ async function loginAs(page: Page, email: string): Promise<void> {
 	await page.locator("#password").fill(PASSWORD);
 	await page.locator('[data-test-form="login"] button[type="submit"]').click();
 	await page.waitForSelector("body.page-queue");
-	await page.goto(`${BASE_URL}/queue?feature=queues`, { waitUntil: "domcontentloaded" });
+}
+
+async function openQueue(page: Page, search: string): Promise<void> {
+	await page.goto(`${BASE_URL}/queue${search}`, { waitUntil: "domcontentloaded" });
 	await page.waitForSelector("body.page-queue");
 }
 
@@ -124,10 +138,20 @@ async function measurePair(
 	page: Page,
 	selectors: [string, string],
 ): Promise<[MeasuredBox, MeasuredBox]> {
-	const boxes = await page.evaluate(measureBoxPair, selectors);
+	const boxes = await page.evaluate(measureBoxes, selectors);
 	const [first, second] = boxes;
 	assert.ok(first && second, "both selectors must have matched something to measure");
 	return [first, second];
+}
+
+async function measureTrio(
+	page: Page,
+	selectors: [string, string, string],
+): Promise<[MeasuredBox, MeasuredBox, MeasuredBox]> {
+	const boxes = await page.evaluate(measureBoxes, selectors);
+	const [first, second, third] = boxes;
+	assert.ok(first && second && third, "every selector must have matched something to measure");
+	return [first, second, third];
 }
 
 async function queueNavSettled(page: Page): Promise<void> {
@@ -163,9 +187,11 @@ async function railBesideTheListing(page: Page): Promise<void> {
 	);
 }
 
-async function wholeQueueSettled(page: Page): Promise<void> {
-	await page.waitForSelector("body.page-queue");
-	await expect(page.locator(QUEUE_NAV_LINK)).toHaveText("My Queue");
+/* The count lands out of band: the page ships the tab reading "To Read" and a
+ * GET /queue/counts swaps in "To Read (2)" a round-trip later, widening it. A
+ * capture or a measurement taken before that swap records a layout the page
+ * holds for one frame. */
+async function seededQueueSettled(page: Page): Promise<void> {
 	await expect(page.locator("[data-test-article]")).toHaveCount(SEEDED_ARTICLES.length);
 	await expect(page.locator('[data-card-status="pending"]')).toHaveCount(0);
 	await expect(page.locator("#queue-filter-unread")).toHaveText(
@@ -177,16 +203,64 @@ async function wholeQueueSettled(page: Page): Promise<void> {
 	});
 }
 
+async function wholeQueueSettled(page: Page): Promise<void> {
+	await page.waitForSelector("body.page-queue");
+	await expect(page.locator(QUEUE_NAV_LINK)).toHaveText("My Queue");
+	await seededQueueSettled(page);
+}
+
+/* Without the flag there is no rail naming the open queue — the page renders the
+ * heading the panel layout hides — so settling waits on that instead. */
+async function defaultQueueSettled(page: Page): Promise<void> {
+	await page.waitForSelector("body.page-queue");
+	await expect(page.locator(QUEUE_TITLE)).toHaveText("My Queue");
+	await seededQueueSettled(page);
+}
+
 async function wholeQueueGeometry(page: Page): Promise<void> {
 	const overflows = await page.evaluate(pageOverflowsSideways);
 	assert.equal(overflows, false, "the queue page must never scroll sideways");
+	const viewport = page.viewportSize();
+	assert.ok(viewport, "a whole-page capture needs a fixed viewport to size its clip");
+	const listing = await measuredBox(page, QUEUE_LIST);
+	assert.ok(
+		listing.y + listing.height <= viewport.height,
+		`the whole-page clip runs to ${Math.ceil(listing.y + listing.height)}px, past the ${viewport.height}px viewport a clip can reach`,
+	);
+}
+
+async function tabsJoinTheListing(page: Page): Promise<void> {
+	const [strip, listing, openTab] = await measureTrio(page, [
+		QUEUE_FILTERS,
+		QUEUE_LISTING,
+		OPEN_FILTER_TAB,
+	]);
+	assert.equal(
+		strip.y + strip.height - listing.y,
+		TAB_PANEL_JOIN_PX,
+		"the status tabs must overlap the listing's border by the join, not float above it",
+	);
+	assert.equal(
+		openTab.y + openTab.height - listing.y,
+		TAB_PANEL_JOIN_PX,
+		"the open tab's base must land on the listing's border, the way a file tab meets its folder",
+	);
+	assert.equal(
+		openTab.x - listing.x,
+		TAB_STRIP_INSET_PX,
+		"the tab strip must start on the frame's straight edge, not on its corner",
+	);
+	assert.ok(
+		openTab.height >= MINIMUM_TOUCH_TARGET,
+		`a status tab must be at least ${MINIMUM_TOUCH_TARGET}px tall to be tapped`,
+	);
 }
 
 const WHOLE_QUEUE_DESKTOP_LIGHT: VisualCheckpoint = {
 	name: "queue-page-desktop-light",
 	settled: wholeQueueSettled,
 	geometry: wholeQueueGeometry,
-	target: "[data-test-article-list]",
+	target: QUEUE_LIST,
 	capture: "page-from-top",
 	pinnedText: [],
 };
@@ -195,7 +269,7 @@ const WHOLE_QUEUE_DESKTOP_DARK: VisualCheckpoint = {
 	name: "queue-page-desktop-dark",
 	settled: wholeQueueSettled,
 	geometry: wholeQueueGeometry,
-	target: "[data-test-article-list]",
+	target: QUEUE_LIST,
 	capture: "page-from-top",
 	pinnedText: [],
 };
@@ -204,7 +278,7 @@ const WHOLE_QUEUE_MOBILE_LIGHT: VisualCheckpoint = {
 	name: "queue-page-mobile-light",
 	settled: wholeQueueSettled,
 	geometry: wholeQueueGeometry,
-	target: "[data-test-article-list]",
+	target: QUEUE_LIST,
 	capture: "page-from-top",
 	pinnedText: [],
 };
@@ -236,6 +310,54 @@ const ROW_MOBILE_LIGHT: VisualCheckpoint = {
 	pinnedText: [],
 };
 
+const DEFAULT_QUEUE_DESKTOP_LIGHT: VisualCheckpoint = {
+	name: "queue-page-default-desktop-light",
+	settled: defaultQueueSettled,
+	geometry: wholeQueueGeometry,
+	target: QUEUE_LIST,
+	capture: "page-from-top",
+	pinnedText: [],
+};
+
+const DEFAULT_QUEUE_DESKTOP_DARK: VisualCheckpoint = {
+	name: "queue-page-default-desktop-dark",
+	settled: defaultQueueSettled,
+	geometry: wholeQueueGeometry,
+	target: QUEUE_LIST,
+	capture: "page-from-top",
+	pinnedText: [],
+};
+
+const DEFAULT_QUEUE_MOBILE_LIGHT: VisualCheckpoint = {
+	name: "queue-page-default-mobile-light",
+	settled: defaultQueueSettled,
+	geometry: wholeQueueGeometry,
+	target: QUEUE_LIST,
+	capture: "page-from-top",
+	pinnedText: [],
+};
+
+/* The strip's own box ends on the listing's border row, because that is what the
+ * -1px join means — so an element capture of the strip is the close-up of the
+ * seam, the same way the rail's element capture frames its join. */
+const FILTER_TABS_JOIN_LIGHT: VisualCheckpoint = {
+	name: "queue-filter-tabs-join-light",
+	settled: defaultQueueSettled,
+	geometry: tabsJoinTheListing,
+	target: QUEUE_FILTERS,
+	capture: "element",
+	pinnedText: [],
+};
+
+const FILTER_TABS_JOIN_DARK: VisualCheckpoint = {
+	name: "queue-filter-tabs-join-dark",
+	settled: defaultQueueSettled,
+	geometry: tabsJoinTheListing,
+	target: QUEUE_FILTERS,
+	capture: "element",
+	pinnedText: [],
+};
+
 test.describe("Queue nav", () => {
 	test.use({ timezoneId: "UTC", viewport: DESKTOP });
 
@@ -243,6 +365,7 @@ test.describe("Queue nav", () => {
 		const email = `queue-nav-desktop-light-${testInfo.workerIndex}-${Date.now()}@example.com`;
 		await createUser(page, email);
 		await loginAs(page, email);
+		await openQueue(page, QUEUES_PANEL);
 
 		await captureCheckpoint(page, RAIL_DESKTOP_LIGHT);
 	});
@@ -252,6 +375,7 @@ test.describe("Queue nav", () => {
 		await page.emulateMedia({ colorScheme: "dark" });
 		await createUser(page, email);
 		await loginAs(page, email);
+		await openQueue(page, QUEUES_PANEL);
 
 		await captureCheckpoint(page, RAIL_DESKTOP_DARK);
 	});
@@ -264,6 +388,7 @@ test.describe("Queue nav (mobile)", () => {
 		const email = `queue-nav-mobile-${testInfo.workerIndex}-${Date.now()}@example.com`;
 		await createUser(page, email);
 		await loginAs(page, email);
+		await openQueue(page, QUEUES_PANEL);
 
 		await captureCheckpoint(page, ROW_MOBILE_LIGHT);
 	});
@@ -276,6 +401,7 @@ test.describe("Queue page", () => {
 		const email = `queue-page-desktop-light-${testInfo.workerIndex}-${Date.now()}@example.com`;
 		await createVerifiedUserWithQueue(page, email);
 		await loginAs(page, email);
+		await openQueue(page, QUEUES_PANEL);
 
 		await captureCheckpoint(page, WHOLE_QUEUE_DESKTOP_LIGHT);
 	});
@@ -285,6 +411,7 @@ test.describe("Queue page", () => {
 		await page.emulateMedia({ colorScheme: "dark" });
 		await createVerifiedUserWithQueue(page, email);
 		await loginAs(page, email);
+		await openQueue(page, QUEUES_PANEL);
 
 		await captureCheckpoint(page, WHOLE_QUEUE_DESKTOP_DARK);
 	});
@@ -297,6 +424,7 @@ test.describe("Queue page (mobile)", () => {
 		const email = `queue-page-mobile-${testInfo.workerIndex}-${Date.now()}@example.com`;
 		await createVerifiedUserWithQueue(page, email);
 		await loginAs(page, email);
+		await openQueue(page, QUEUES_PANEL);
 
 		await captureCheckpoint(page, WHOLE_QUEUE_MOBILE_LIGHT);
 	});
@@ -311,6 +439,7 @@ test.describe("Queue nav reflow", () => {
 		const email = `queue-nav-reflow-${testInfo.workerIndex}-${Date.now()}@example.com`;
 		await createUser(page, email);
 		await loginAs(page, email);
+		await openQueue(page, QUEUES_PANEL);
 
 		for (const viewport of [WCAG_REFLOW_MINIMUM, PHONE, BREAKPOINT, DESKTOP]) {
 			await page.setViewportSize(viewport);
@@ -320,6 +449,77 @@ test.describe("Queue nav reflow", () => {
 				width: viewport.width,
 				overflows: false,
 			});
+		}
+	});
+});
+
+test.describe("Queue page (default)", () => {
+	test.use({ timezoneId: "UTC", viewport: DESKTOP_TALL });
+
+	test("renders the whole queue under its status tabs (light)", async ({ page }, testInfo) => {
+		const email = `queue-page-default-light-${testInfo.workerIndex}-${Date.now()}@example.com`;
+		await createVerifiedUserWithQueue(page, email);
+		await loginAs(page, email);
+		await openQueue(page, DEFAULT_QUEUE);
+
+		await captureCheckpoint(page, DEFAULT_QUEUE_DESKTOP_LIGHT);
+	});
+
+	test("renders the whole queue under its status tabs (dark)", async ({ page }, testInfo) => {
+		const email = `queue-page-default-dark-${testInfo.workerIndex}-${Date.now()}@example.com`;
+		await page.emulateMedia({ colorScheme: "dark" });
+		await createVerifiedUserWithQueue(page, email);
+		await loginAs(page, email);
+		await openQueue(page, DEFAULT_QUEUE);
+
+		await captureCheckpoint(page, DEFAULT_QUEUE_DESKTOP_DARK);
+	});
+});
+
+test.describe("Queue page (default, mobile)", () => {
+	test.use({ timezoneId: "UTC", viewport: PHONE_TALL });
+
+	test("renders the whole queue under its status tabs", async ({ page }, testInfo) => {
+		const email = `queue-page-default-mobile-${testInfo.workerIndex}-${Date.now()}@example.com`;
+		await createVerifiedUserWithQueue(page, email);
+		await loginAs(page, email);
+		await openQueue(page, DEFAULT_QUEUE);
+
+		await captureCheckpoint(page, DEFAULT_QUEUE_MOBILE_LIGHT);
+	});
+});
+
+test.describe("Queue status tabs", () => {
+	test.use({ timezoneId: "UTC", viewport: DESKTOP });
+
+	test("joins the tabs to the listing they scope (light)", async ({ page }, testInfo) => {
+		const email = `queue-filter-tabs-light-${testInfo.workerIndex}-${Date.now()}@example.com`;
+		await createVerifiedUserWithQueue(page, email);
+		await loginAs(page, email);
+		await openQueue(page, DEFAULT_QUEUE);
+
+		await captureCheckpoint(page, FILTER_TABS_JOIN_LIGHT);
+	});
+
+	test("joins the tabs to the listing they scope (dark)", async ({ page }, testInfo) => {
+		const email = `queue-filter-tabs-dark-${testInfo.workerIndex}-${Date.now()}@example.com`;
+		await page.emulateMedia({ colorScheme: "dark" });
+		await createVerifiedUserWithQueue(page, email);
+		await loginAs(page, email);
+		await openQueue(page, DEFAULT_QUEUE);
+
+		await captureCheckpoint(page, FILTER_TABS_JOIN_DARK);
+	});
+
+	test("holds the same join inside the queues panel", async ({ page }, testInfo) => {
+		const email = `queue-filter-tabs-panel-${testInfo.workerIndex}-${Date.now()}@example.com`;
+		await createVerifiedUserWithQueue(page, email);
+		await loginAs(page, email);
+
+		for (const search of [DEFAULT_QUEUE, QUEUES_PANEL]) {
+			await openQueue(page, search);
+			await seededQueueSettled(page);
+			await tabsJoinTheListing(page);
 		}
 	});
 });
