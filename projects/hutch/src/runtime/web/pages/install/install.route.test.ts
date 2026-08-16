@@ -314,10 +314,12 @@ describe("GET /install", () => {
 			(el) => el.getAttribute("data-test-panel"),
 		);
 		expect(panels).toEqual(["iphone"]);
-		expect(doc.querySelector('[data-test-panel="iphone"]')?.textContent).toContain("share");
+		expect(doc.querySelector('[data-test-panel="iphone"]')?.textContent).toContain(
+			"Save links from any browser on your iPhone",
+		);
 	});
 
-	it("should show the App Store CTA, setup steps and outro on the iPhone panel", async () => {
+	it("should lead the iPhone panel with the App Store CTA and close with the outro", async () => {
 		const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
 		const response = await request(harness.server).get("/install?client=iphone");
 		const doc = load(response.text);
@@ -326,15 +328,30 @@ describe("GET /install", () => {
 		expect(cta?.getAttribute("href")).toBe("https://apps.apple.com/app/readplace/id6777107238");
 		expect(cta?.textContent).toBe("Install Readplace for iPhone");
 
-		const steps = doc.querySelector('[data-test-section="ios-setup-steps"]');
-		assert(steps, "iPhone setup steps must be rendered");
-		expect(doc.querySelectorAll("[data-test-ios-step]")).toHaveLength(3);
-		expect(steps.textContent).toContain("Share to Readplace");
-		expect(steps.textContent).toContain("Favourites");
-
 		const outro = doc.querySelector('[data-test-section="ios-setup-outro"]');
 		assert(outro, "iPhone setup outro must be rendered");
 		expect(outro.textContent).toContain("feedback is welcome in-app");
+	});
+
+	it("should put the recording between the CTA and the outro, with no written walkthrough", async () => {
+		const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
+		const response = await request(harness.server).get("/install?client=iphone");
+		const doc = load(response.text);
+
+		const panel = doc.querySelector('[data-test-panel="iphone"]');
+		assert(panel, "the iPhone panel must render");
+		const order = Array.from(
+			panel.querySelectorAll("[data-test-cta], [data-test-video], [data-test-section]"),
+		).map(
+			(el) =>
+				el.getAttribute("data-test-cta") ??
+				el.getAttribute("data-test-section") ??
+				"video",
+		);
+		expect(order).toEqual(["download-iphone", "video", "ios-setup-outro"]);
+
+		// The recording demonstrates the flow, so the panel never narrates it too.
+		expect(panel.textContent).not.toContain("Favourites");
 	});
 
 	it("should offer Safari's Smart App Banner, so an iPhone visitor gets the native install prompt", async () => {
@@ -563,10 +580,6 @@ describe("GET /install", () => {
 		const captions = shots.map((shot) => shot.querySelector("figcaption")?.textContent);
 		expect(captions[0]).toBe("One click saves the full page you're reading — not just the link.");
 		expect(captions[2]).toBe("Read without the clutter — with a TL;DR before you commit.");
-
-		for (const shot of shots) {
-			expect(shot.classList.contains("install-page__screenshot--wide")).toBe(true);
-		}
 	});
 
 	it("should render the same screenshots on the firefox panel", async () => {
@@ -577,25 +590,58 @@ describe("GET /install", () => {
 		expect(doc.querySelectorAll("[data-test-screenshot]")).toHaveLength(3);
 	});
 
-	it("should render the iPhone screenshots as portrait shots sharing a row", async () => {
+	it("should teach the iPhone panel with the recording alone, carrying no screenshots", async () => {
 		const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
 		const response = await request(harness.server).get("/install?client=iphone");
 		const doc = load(response.text);
 
-		const shots = Array.from(doc.querySelectorAll("[data-test-screenshot]"));
-		expect(shots).toHaveLength(6);
+		expect(doc.querySelectorAll("[data-test-screenshot]")).toHaveLength(0);
+		expect(doc.querySelectorAll("[data-test-video]")).toHaveLength(1);
+	});
+
+	it("should teach the share flow with a captioned recording on the iPhone panel", async () => {
+		const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
+		const response = await request(harness.server).get("/install?client=iphone");
+		const doc = load(response.text);
+
+		const figures = Array.from(doc.querySelectorAll("[data-test-video]"));
+		expect(figures).toHaveLength(1);
+
+		const [figure] = figures;
+		assert(figure, "the iPhone panel must render one demo figure");
+		const video = figure.querySelector("video");
+		assert(video, "the demo figure must contain a video");
 		expect(
-			shots.map((shot) => shot.querySelector("img")?.getAttribute("src")),
-		).toEqual([
-			"https://static.test/screenshots/ios-share-sheet.webp",
-			"https://static.test/screenshots/ios-reading-list.webp",
-			"https://static.test/screenshots/ios-reader.webp",
-			"https://static.test/screenshots/ios-share-more.webp",
-			"https://static.test/screenshots/ios-share-favourite.webp",
-			"https://static.test/screenshots/ios-share-pinned.webp",
-		]);
-		for (const shot of shots) {
-			expect(shot.classList.contains("install-page__screenshot--tall")).toBe(true);
+			Array.from(video.querySelectorAll("source")).map((el) => [
+				el.getAttribute("src"),
+				el.getAttribute("type"),
+			]),
+		).toEqual([["https://static.test/videos/ios-share-demo-h264.mp4", "video/mp4"]]);
+		expect(video.getAttribute("poster")).toBe(
+			"https://static.test/videos/ios-share-demo-poster.webp",
+		);
+		expect([video.getAttribute("width"), video.getAttribute("height")]).toEqual(["540", "1174"]);
+		expect(video.hasAttribute("controls")).toBe(true);
+		expect(video.hasAttribute("playsinline")).toBe(true);
+		// Nothing starts on its own: that keeps the page out of WCAG 2.2.2 scope,
+		// needs no reduced-motion escape hatch, and leaves the file off the load.
+		expect(video.hasAttribute("autoplay")).toBe(false);
+		expect(video.hasAttribute("loop")).toBe(false);
+		expect(video.getAttribute("preload")).toBe("none");
+		assert(video.getAttribute("aria-label"), "the recording must carry a label");
+
+		expect(figure.querySelector("figcaption")?.textContent).toBe(
+			"Tap Share in any browser, choose Readplace, and the page is in your queue.",
+		);
+	});
+
+	it("should render no demo recording on the panels that have none", async () => {
+		const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
+
+		for (const client of ["chrome", "firefox", "chatgpt", "gemini", "claude"]) {
+			const response = await request(harness.server).get(`/install?client=${client}`);
+			const doc = load(response.text);
+			expect(doc.querySelectorAll("[data-test-video]")).toHaveLength(0);
 		}
 	});
 

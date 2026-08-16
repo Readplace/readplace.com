@@ -23,7 +23,14 @@ struct WebPageView: UIViewControllerRepresentable {
 
 	func makeUIViewController(context: Context) -> UIViewController {
 		let controller = UIViewController()
-		let webView = WKWebView(frame: .zero)
+		// The help page teaches Share with a video. iOS defaults a WKWebView to
+		// fullscreen-on-tap playback, which would throw the reader out of the page
+		// half way through the instruction it is following; these two let the
+		// recording run in place, as it does on every other surface that shows it.
+		let configuration = WKWebViewConfiguration()
+		configuration.allowsInlineMediaPlayback = true
+		configuration.mediaTypesRequiringUserActionForPlayback = []
+		let webView = WKWebView(frame: .zero, configuration: configuration)
 		webView.navigationDelegate = context.coordinator
 		// Let the sheet's background show through until the page paints, so the
 		// load blends into the system light/dark sheet instead of flashing white.

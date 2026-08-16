@@ -16,6 +16,8 @@ import type { ClientCategory, ClientName, SupportedClient } from "@packages/supp
 import { switchHelpers } from "../../handlebars-switch";
 import { SAVE_INTENT_PROMPT } from "../mcp";
 import { CLIENT_ICON_SVG } from "../../shared/client-icons";
+import { buildShareDemoVideo } from "../../shared/share-demo-video";
+import type { ShareDemoVideo } from "../../shared/share-demo-video";
 import { INSTALL_PAGE_STYLES } from "./install.styles";
 
 import { firefoxS3Config } from "browser-extension-core/s3-config";
@@ -123,32 +125,10 @@ function buildTabGroups(active: ClientName): InstallTabGroup[] {
 	return groups.filter((group) => group.tabs.length > 0);
 }
 
-interface IosSetupStep {
-	title: string;
-	note?: string;
-}
-
 const BROWSER_STEPS: string[] = [
 	"Pin Readplace to your toolbar so it's one click away.",
 	"Sign in once, and your queue syncs across every browser and device.",
 	"Save the page you're reading from the toolbar button or the Ctrl/Cmd+D shortcut. Right-click to save all your open tabs, or a link you haven't opened yet.",
-];
-
-const IOS_SETUP_STEPS: IosSetupStep[] = [
-	{
-		title: "Open Readplace once and sign in with your account.",
-		note: 'Opening the app the first time is what registers the "Share to Readplace" option in iOS; it will not appear in the share sheet until you have.',
-	},
-	{
-		title:
-			"Save a page: open it in Safari, Chrome, or Firefox, tap Share, and choose Readplace, just like sharing to WhatsApp. It renders and saves the page in the background, so you stay where you are.",
-		note: "If Readplace is not in the share row, scroll the row to the right and tap More, then Edit, and add Readplace to your Favourites — it sits first in the row from then on, so you never have to hunt for it. The screenshots below walk through it.",
-	},
-	{
-		title:
-			"Read from the app: saved articles appear in the list, pull down to refresh, and scroll for more. Tap one and the clean Readplace reader opens in the app, TL;DR included.",
-		note: "Swipe a row to mark it read — it stays in your list, and readplace.com shows the same queue.",
-	},
 ];
 
 const IOS_SETUP_OUTRO =
@@ -189,50 +169,7 @@ const READER_SHOT: InstallScreenshot = {
 const CLIENT_SCREENSHOTS = {
 	firefox: [SAVE_FROM_EXTENSION_SHOT, QUEUE_SHOT, READER_SHOT],
 	chrome: [SAVE_FROM_EXTENSION_SHOT, QUEUE_SHOT, READER_SHOT],
-	iphone: [
-		{
-			pathUnderStaticBase: "/screenshots/ios-share-sheet.webp",
-			alt: "The iOS share sheet with Readplace as a share target over a Safari article",
-			caption: "Save from any browser with the share sheet.",
-			width: 520,
-			height: 1127,
-		},
-		{
-			pathUnderStaticBase: "/screenshots/ios-reading-list.webp",
-			alt: "The Readplace reading list in the iPhone app",
-			caption: "Your queue, in your pocket.",
-			width: 520,
-			height: 1127,
-		},
-		{
-			pathUnderStaticBase: "/screenshots/ios-reader.webp",
-			alt: "The Readplace reader on iPhone showing an article with its AI summary",
-			caption: "The reader and TL;DR work the same on iPhone.",
-			width: 520,
-			height: 1127,
-		},
-		{
-			pathUnderStaticBase: "/screenshots/ios-share-more.webp",
-			alt: "The iOS share sheet with the app row scrolled right to reveal the More button",
-			caption: "Tap Share, scroll the row right, then tap More.",
-			width: 520,
-			height: 1127,
-		},
-		{
-			pathUnderStaticBase: "/screenshots/ios-share-favourite.webp",
-			alt: "The iOS Apps screen with Readplace listed under Favourites",
-			caption: "Tap Edit, then add Readplace to your Favourites.",
-			width: 520,
-			height: 1127,
-		},
-		{
-			pathUnderStaticBase: "/screenshots/ios-share-pinned.webp",
-			alt: "The iOS share sheet with Readplace first in the app row",
-			caption: "Readplace now sits first — no scrolling, no hunting.",
-			width: 520,
-			height: 1127,
-		},
-	],
+	iphone: [],
 	chatgpt: [],
 	gemini: [],
 	claude: [],
@@ -244,7 +181,6 @@ interface InstallScreenshotView {
 	caption: string;
 	width: number;
 	height: number;
-	orientationClass: " install-page__screenshot--wide" | " install-page__screenshot--tall";
 }
 
 function buildScreenshots(client: ClientName, staticBaseUrl: string): InstallScreenshotView[] {
@@ -254,12 +190,18 @@ function buildScreenshots(client: ClientName, staticBaseUrl: string): InstallScr
 		caption: shot.caption,
 		width: shot.width,
 		height: shot.height,
-		orientationClass:
-			shot.width > shot.height
-				? " install-page__screenshot--wide"
-				: " install-page__screenshot--tall",
 	}));
 }
+
+/** The recording carries the whole share flow, so the panel states only what it
+ * cannot show — that this works from any browser, and that the same app runs on
+ * a Mac. Everything the video demonstrates was removed rather than narrated
+ * twice. */
+const IPHONE_DEMO = {
+	ariaLabel:
+		"Saving a page to Readplace from the iOS share sheet, and moving Readplace to the front of the share row",
+	caption: "Tap Share in any browser, choose Readplace, and the page is in your queue.",
+};
 
 /** The panel copy each client GROUP needs. Indexed by the group a client
  * actually belongs to, so a client cannot be given another group's panel: the
@@ -335,10 +277,14 @@ interface AiAssistant {
 
 type PanelView =
 	| { type: "browserExtension"; browser: BrowserExtension }
-	| { type: "nativeApp" }
+	| { type: "nativeApp"; demo: ShareDemoVideo & typeof IPHONE_DEMO }
 	| { type: "aiAssistant"; assistant: AiAssistant };
 
-function buildPanel(active: InstallClient, firefoxDownloadUrl: string | null): PanelView {
+function buildPanel(
+	active: InstallClient,
+	firefoxDownloadUrl: string | null,
+	staticBaseUrl: string,
+): PanelView {
 	const client = clientByName(active);
 	const data = PANEL_DATA[active];
 	switch (data.group) {
@@ -354,7 +300,7 @@ function buildPanel(active: InstallClient, firefoxDownloadUrl: string | null): P
 				},
 			};
 		case "nativeApp":
-			return { type: "nativeApp" };
+			return { type: "nativeApp", demo: { ...buildShareDemoVideo(staticBaseUrl), ...IPHONE_DEMO } };
 		case "aiAssistant":
 			assert(
 				client.install.kind === "mcpConnector",
@@ -376,7 +322,7 @@ function buildPanel(active: InstallClient, firefoxDownloadUrl: string | null): P
 }
 
 export function InstallPage(params: { firefox: string | null; client: InstallClient; staticBaseUrl: string }): PageBody {
-	const panel = buildPanel(params.client, params.firefox);
+	const panel = buildPanel(params.client, params.firefox, params.staticBaseUrl);
 	return {
 		seo: {
 			title: "Install Readplace — Browser, iPhone & AI Assistants",
@@ -461,7 +407,6 @@ export function InstallPage(params: { firefox: string | null; client: InstallCli
 					screenshots: buildScreenshots(params.client, params.staticBaseUrl),
 					browserSteps: BROWSER_STEPS,
 					iphoneAppStoreUrl: IPHONE_APP_STORE_URL,
-					iosSteps: IOS_SETUP_STEPS,
 					iosOutro: IOS_SETUP_OUTRO,
 					mcpServerUrl: MCP_SERVER_URL,
 					mcpGuideUrl: MCP_GUIDE_URL,

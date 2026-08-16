@@ -20,18 +20,18 @@
       {{#case "nativeApp"}}
       <section class="install-page__panel" data-test-panel="iphone">
         <h2 class="install-page__panel-title">Readplace on iPhone</h2>
-        <p class="install-page__lead">Save links from any browser on your iPhone. Open the page in Safari, Chrome, or anywhere else, tap the share button, and choose Readplace — the link drops straight into your reading queue. No copy-paste, and no need to open the app to save. The same app runs on your Mac.</p>
+        <p class="install-page__lead">Save links from any browser on your iPhone — no copy-paste, and no need to open the app to save. The same app runs on your Mac.</p>
 
         <a href="{{iphoneAppStoreUrl}}" class="btn btn--primary install-page__download" data-test-cta="download-iphone">Install Readplace for iPhone</a>
 
-        <ol class="install-page__steps" data-test-section="ios-setup-steps">
-          {{#each iosSteps}}
-          <li class="install-page__step" data-test-ios-step>
-            <span class="install-page__step-title">{{title}}</span>
-            {{#if note}}<span class="install-page__step-note">{{note}}</span>{{/if}}
-          </li>
-          {{/each}}
-        </ol>
+        <figure class="install-page__video-frame" data-test-video>
+          <video class="install-page__video" width="{{panel.demo.width}}" height="{{panel.demo.height}}" poster="{{panel.demo.poster}}" muted playsinline controls preload="none" aria-label="{{panel.demo.ariaLabel}}">
+            {{#each panel.demo.sources}}
+            <source src="{{src}}" type="{{type}}">
+            {{/each}}
+          </video>
+          <figcaption class="install-page__video-caption">{{panel.demo.caption}}</figcaption>
+        </figure>
 
         <p class="install-page__steps-outro" data-test-section="ios-setup-outro">{{iosOutro}}</p>
       </section>
@@ -89,7 +89,7 @@
       {{#if screenshots.length}}
       <section class="install-page__screenshots" aria-label="Screenshots" data-test-section="screenshots">
         {{#each screenshots}}
-        <figure class="install-page__screenshot{{orientationClass}}" data-test-screenshot>
+        <figure class="install-page__screenshot" data-test-screenshot>
           <img src="{{src}}" alt="{{alt}}" width="{{width}}" height="{{height}}" loading="lazy" class="install-page__screenshot-img">
           <figcaption class="install-page__screenshot-caption">{{caption}}</figcaption>
         </figure>

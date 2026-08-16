@@ -140,8 +140,10 @@
         font-size: 0.9375rem;
       }
 
+      /* The recording carries no audio and no captions, so these steps are its
+       * text alternative — and what a reader sees while it is paused. */
       .help__pin-steps {
-        margin: 0;
+        margin: 0 0 1.25rem;
         padding: 0;
         list-style: none;
         counter-reset: help-pin-step;
@@ -150,164 +152,42 @@
       .help__pin-step {
         counter-increment: help-pin-step;
         position: relative;
-        padding: 0 0 1.5rem 3rem;
-      }
-
-      .help__pin-step:last-child {
-        padding-bottom: 0;
+        padding: 0.5rem 0 0.5rem 2.5rem;
+        font-size: 0.9375rem;
       }
 
       .help__pin-step::before {
         content: counter(help-pin-step);
         position: absolute;
         left: 0;
-        top: 0;
+        top: 0.4rem;
         display: flex;
         align-items: center;
         justify-content: center;
-        width: 2rem;
-        height: 2rem;
+        width: 1.75rem;
+        height: 1.75rem;
         background: var(--help-surface);
         color: var(--help-brand);
         border-radius: 6px;
         font-weight: 600;
       }
 
-      .help__carousel {
-        margin: 0 0 1.5rem;
-      }
-
-      .help__controls {
-        display: none;
-        align-items: center;
-        justify-content: center;
-        margin-top: 0.75rem;
-      }
-
-      .help__dots {
-        display: inline-flex;
-        gap: 0.5rem;
-      }
-
-      .help__dot {
-        width: 0.5rem;
-        height: 0.5rem;
-        border-radius: 50%;
-        background: var(--help-text-secondary);
-        opacity: 0.3;
-      }
-
-      .help__track {
-        display: grid;
-        gap: 1.5rem;
-        justify-items: center;
-        margin: 0;
-        padding: 0;
-        list-style: none;
-      }
-
-      .help__slide--loop {
-        display: none;
-      }
-
-      .help__shot {
-        margin: 0;
-        text-align: center;
-      }
-
       /**
-       * 1. Sized so a 3x device renders the 520px source at roughly 1:1 — wider
-       *    and the share-sheet UI inside the screenshot goes soft.
-       * 2. The raster is a light-theme capture on every surface; only the frame
-       *    and the caption follow the theme. Same treatment as /install.
+       * 1. Capped so the share-sheet labels inside the recording stay legible at
+       *    the sheet's width without the phone-shaped video towering over the
+       *    text it illustrates.
+       * 2. Left, not centred: the page is one left-aligned column, and a centred
+       *    frame would sit off the edge every step above it shares.
+       * 3. The recording is a light-theme capture on every surface; only the
+       *    frame around it follows the theme.
        */
-      .help__shot-img {
+      .help__video {
         display: block;
-        width: min(60%, 176px); /* 1 */
+        width: min(100%, 320px); /* 1 */
         height: auto;
-        margin: 0 auto;
-        border: 1px solid var(--help-border); /* 2 */
+        margin: 0; /* 2 */
+        border: 1px solid var(--help-border); /* 3 */
         border-radius: 10px;
-      }
-
-      .help__shot-caption {
-        padding-top: 0.5rem;
-        color: var(--help-text-secondary);
-        font-size: 0.875rem;
-      }
-
-      /**
-       * 1. `hidden` alone makes this a programmatically scrollable box whose
-       *    scrollWidth is four slides wide, so VoiceOver scrolling a slide into
-       *    view — or find-on-page matching the clone's caption — sets scrollLeft,
-       *    which then composes with the track's translateX and desyncs the
-       *    carousel for the life of the page. `clip` never becomes a scroll
-       *    container. It ships in Safari 16, which is the iOS app's floor; the
-       *    `hidden` above it is the cascade fallback for older desktop Safari.
-       * 2. Deliberately no `transition` on the track: transition declarations
-       *    outrank animation declarations, so one here fights the keyframes and
-       *    sweeps the track backwards.
-       */
-      @media (prefers-reduced-motion: no-preference) {
-        .help__controls {
-          display: flex;
-        }
-
-        .help__viewport {
-          overflow: hidden; /* 1 */
-          overflow: clip; /* 1 */
-        }
-
-        .help__track {
-          display: flex;
-          gap: 0;
-          animation: help-carousel-track 18s infinite; /* 2 */
-          animation-timing-function: ease-in-out;
-        }
-
-        .help__slide {
-          flex: 0 0 100%;
-        }
-
-        .help__slide--loop {
-          display: block;
-        }
-
-        .help__dot {
-          animation: help-carousel-dot 18s infinite;
-        }
-
-        .help__dot--2 {
-          animation-delay: 6s;
-        }
-
-        .help__dot--3 {
-          animation-delay: 12s;
-        }
-      }
-
-      @keyframes help-carousel-track {
-        0%, 26.667% {
-          transform: translateX(0);
-        }
-        33.333%, 60% {
-          transform: translateX(-100%);
-        }
-        66.667%, 93.333% {
-          transform: translateX(-200%);
-        }
-        100% {
-          transform: translateX(-300%);
-        }
-      }
-
-      @keyframes help-carousel-dot {
-        0%, 27% {
-          opacity: 1;
-        }
-        33%, 100% {
-          opacity: 0.3;
-        }
       }
     </style>
   </head>
@@ -323,40 +203,19 @@
         <li class="help__step" data-test-help-step>Choose Readplace.</li>
       </ol>
 
-      <section class="help__carousel" aria-roledescription="carousel" aria-label="Readplace on iPhone" data-test-help-carousel>
-        <div class="help__viewport" role="group" aria-label="Readplace screenshots" data-test-help-viewport>
-          <ul class="help__track" role="list">
-            {{#each trackSlides}}
-            <li class="help__slide{{loopClass}}"{{#if ariaHidden}} aria-hidden="{{ariaHidden}}"{{/if}} data-test-help-slide>
-              <figure class="help__shot">
-                <img class="help__shot-img" src="{{src}}" alt="{{alt}}" width="{{width}}" height="{{height}}" decoding="async">
-                <figcaption class="help__shot-caption">{{caption}}</figcaption>
-              </figure>
-            </li>
-            {{/each}}
-          </ul>
-        </div>
-
-        <div class="help__controls">
-          <span class="help__dots" aria-hidden="true">
-            {{#each dots}}<span class="help__dot {{positionClass}}"></span>{{/each}}
-          </span>
-        </div>
-      </section>
-
       <section class="help__pin" data-test-help-pin>
         <h2 class="help__pin-title" data-test-help-pin-title>Pin Readplace to the share row</h2>
         <p class="help__pin-lead">iOS buries new apps at the end of the share row. Favourite Readplace once and it moves to the front.</p>
         <ol class="help__pin-steps">
-          {{#each pinSteps}}
-          <li class="help__pin-step" data-test-help-pin-step>
-            <figure class="help__shot">
-              <img class="help__shot-img" src="{{src}}" alt="{{alt}}" width="{{width}}" height="{{height}}" loading="lazy" decoding="async">
-              <figcaption class="help__shot-caption">{{caption}}</figcaption>
-            </figure>
-          </li>
-          {{/each}}
+          <li class="help__pin-step" data-test-help-pin-step>Tap Share, then scroll the app row right and tap More.</li>
+          <li class="help__pin-step" data-test-help-pin-step>Tap Edit.</li>
+          <li class="help__pin-step" data-test-help-pin-step>Tap the + beside Readplace, then Done.</li>
         </ol>
+        <video class="help__video" width="{{shareDemo.width}}" height="{{shareDemo.height}}" poster="{{shareDemo.poster}}" muted playsinline controls preload="none" aria-label="Saving a page to Readplace from the iOS share sheet, and moving Readplace to the front of the share row" data-test-help-video>
+          {{#each shareDemo.sources}}
+          <source src="{{src}}" type="{{type}}">
+          {{/each}}
+        </video>
       </section>
 
       <p class="help__note" data-test-help-note>Sharing captures the full page — even on sites that block crawlers.</p>

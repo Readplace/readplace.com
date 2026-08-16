@@ -1,3 +1,4 @@
+import assert from "node:assert/strict";
 import { JSDOM } from "jsdom";
 import request from "supertest";
 import { useTestServer } from "../../../test-app";
@@ -34,73 +35,7 @@ describe("GET /help/add-links", () => {
 		);
 	});
 
-	it("renders the three iPhone screenshots from the static base url, in order", async () => {
-		const { server } = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
-
-		const response = await request(server).get("/help/add-links");
-
-		const doc = new JSDOM(response.text).window.document;
-		const shots = Array.from(
-			doc.querySelectorAll("[data-test-help-slide] .help__shot-img"),
-		);
-		expect(shots.map((el) => el.getAttribute("src"))).toEqual([
-			"https://static.test/screenshots/ios-share-sheet.webp",
-			"https://static.test/screenshots/ios-reading-list.webp",
-			"https://static.test/screenshots/ios-reader.webp",
-			"https://static.test/screenshots/ios-share-sheet.webp",
-		]);
-		expect(shots.map((el) => el.getAttribute("width"))).toEqual([
-			"520",
-			"520",
-			"520",
-			"520",
-		]);
-	});
-
-	it("captions each screenshot with the Share instruction it illustrates", async () => {
-		const { server } = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
-
-		const response = await request(server).get("/help/add-links");
-
-		const doc = new JSDOM(response.text).window.document;
-		const captions = Array.from(
-			doc.querySelectorAll("[data-test-help-slide] .help__shot-caption"),
-		).map((el) => el.textContent?.trim());
-		expect(captions).toEqual([
-			"Tap Share, then choose Readplace.",
-			"Saved links land in your queue.",
-			"Read them later, clean — with a TL;DR.",
-			"Tap Share, then choose Readplace.",
-		]);
-	});
-
-	it("hides the wrap-around clone of the first screenshot from assistive tech", async () => {
-		const { server } = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
-
-		const response = await request(server).get("/help/add-links");
-
-		const doc = new JSDOM(response.text).window.document;
-		const slides = Array.from(doc.querySelectorAll("[data-test-help-slide]"));
-		expect(
-			slides.map((el) => el.getAttribute("aria-hidden") ?? "exposed"),
-		).toEqual(["exposed", "exposed", "exposed", "true"]);
-
-		const clone = slides[slides.length - 1];
-		expect(clone?.className).toContain("help__slide--loop");
-		expect(clone?.querySelector(".help__shot-img")?.getAttribute("alt")).toBe("");
-	});
-
-	it("names the carousel region for assistive tech", async () => {
-		const { server } = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
-
-		const response = await request(server).get("/help/add-links");
-
-		const doc = new JSDOM(response.text).window.document;
-		const viewport = doc.querySelector("[data-test-help-viewport]");
-		expect(viewport?.getAttribute("aria-label")).toBe("Readplace screenshots");
-	});
-
-	it("walks through pinning Readplace to the share row, in order", async () => {
+	it("teaches pinning Readplace to the share row with the share recording", async () => {
 		const { server } = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
 
 		const response = await request(server).get("/help/add-links");
@@ -110,18 +45,54 @@ describe("GET /help/add-links", () => {
 			"Pin Readplace to the share row",
 		);
 
-		const steps = Array.from(doc.querySelectorAll("[data-test-help-pin-step]"));
-		expect(steps.map((el) => el.querySelector("img")?.getAttribute("src"))).toEqual([
-			"https://static.test/screenshots/ios-share-more.webp",
-			"https://static.test/screenshots/ios-share-favourite.webp",
-			"https://static.test/screenshots/ios-share-pinned.webp",
-		]);
+		const video = doc.querySelector("[data-test-help-video]");
+		assert(video, "the pin section must render the share recording");
 		expect(
-			steps.map((el) => el.querySelector("figcaption")?.textContent?.trim()),
-		).toEqual([
-			"Tap Share, scroll the row right, then tap More.",
-			"Tap Edit, then add Readplace to your Favourites.",
-			"Readplace now sits first — no scrolling, no hunting.",
+			Array.from(video.querySelectorAll("source")).map((el) => [
+				el.getAttribute("src"),
+				el.getAttribute("type"),
+			]),
+		).toEqual([["https://static.test/videos/ios-share-demo-h264.mp4", "video/mp4"]]);
+		expect(video.getAttribute("poster")).toBe(
+			"https://static.test/videos/ios-share-demo-poster.webp",
+		);
+		expect(video.getAttribute("aria-label")).toBe(
+			"Saving a page to Readplace from the iOS share sheet, and moving Readplace to the front of the share row",
+		);
+	});
+
+	it("reserves the recording's box and leaves playback to the reader", async () => {
+		const { server } = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
+
+		const response = await request(server).get("/help/add-links");
+
+		const doc = new JSDOM(response.text).window.document;
+		const video = doc.querySelector("[data-test-help-video]");
+		assert(video, "the pin section must render the share recording");
+		expect([video.getAttribute("width"), video.getAttribute("height")]).toEqual(["540", "1174"]);
+		expect(video.hasAttribute("controls")).toBe(true);
+		expect(video.hasAttribute("playsinline")).toBe(true);
+		expect(video.hasAttribute("muted")).toBe(true);
+		// Nothing starts on its own: that keeps the page out of WCAG 2.2.2 scope,
+		// needs no reduced-motion escape hatch, and leaves the file off the load.
+		expect(video.hasAttribute("autoplay")).toBe(false);
+		expect(video.hasAttribute("loop")).toBe(false);
+		expect(video.getAttribute("preload")).toBe("none");
+	});
+
+	it("spells the pin procedure out in text, since the recording is silent", async () => {
+		const { server } = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
+
+		const response = await request(server).get("/help/add-links");
+
+		const doc = new JSDOM(response.text).window.document;
+		const steps = Array.from(doc.querySelectorAll("[data-test-help-pin-step]")).map(
+			(el) => el.textContent?.trim(),
+		);
+		expect(steps).toEqual([
+			"Tap Share, then scroll the app row right and tap More.",
+			"Tap Edit.",
+			"Tap the + beside Readplace, then Done.",
 		]);
 	});
 

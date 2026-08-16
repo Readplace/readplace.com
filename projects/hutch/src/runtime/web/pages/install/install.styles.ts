@@ -141,14 +141,6 @@ export const INSTALL_PAGE_STYLES = `
 	font-size: 1rem;
 }
 
-.install-page__step-note {
-	display: block;
-	margin-top: 6px;
-	font-size: 0.875rem;
-	line-height: 1.5;
-	color: var(--muted-foreground);
-}
-
 .install-page__steps-outro {
 	max-width: 600px;
 	margin: 0;
@@ -269,14 +261,40 @@ export const INSTALL_PAGE_STYLES = `
 }
 
 /**
- * 1. Wide (landscape) shots span the whole strip; tall (portrait phone) shots
- *    share a row via auto-fit — no media query, mirrors the tab groups above.
- * 2. Same theme-adaptive frame as the homepage demo videos: the raster inside
+ * 1. Capped well under the container's 720px: a portrait phone recording run to
+ *    full width would tower over the page, and the share-sheet UI it teaches is
+ *    legible long before then.
+ * 2. Left, not centred: the panel is one left-aligned column, so centring the
+ *    frame would give its caption a third text edge of its own.
+ */
+.install-page__video-frame {
+	max-width: 320px; /* 1 */
+	margin: 0 0 28px; /* 2 */
+}
+
+.install-page__video {
+	display: block;
+	width: 100%;
+	height: auto;
+	border: 1px solid var(--border);
+	border-radius: var(--radius-lg);
+	box-shadow: var(--shadow-sm);
+}
+
+.install-page__video-caption {
+	padding-top: 10px;
+	font-size: 0.875rem;
+	line-height: 1.6;
+	color: var(--muted-foreground);
+	text-wrap: pretty;
+}
+
+/**
+ * 1. Same theme-adaptive frame as the homepage demo videos: the raster inside
  *    is one light-theme asset, but the border/caption chrome follows the theme.
  */
 .install-page__screenshots {
-	display: grid; /* 1 */
-	grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+	display: grid;
 	gap: 24px;
 	margin-top: 48px;
 	padding-top: 32px;
@@ -288,15 +306,11 @@ export const INSTALL_PAGE_STYLES = `
 	min-width: 0;
 }
 
-.install-page__screenshot--wide {
-	grid-column: 1 / -1;
-}
-
 .install-page__screenshot-img {
 	display: block;
 	width: 100%;
 	height: auto;
-	border: 1px solid var(--border); /* 2 */
+	border: 1px solid var(--border); /* 1 */
 	border-radius: var(--radius-lg);
 	box-shadow: var(--shadow-sm);
 }
