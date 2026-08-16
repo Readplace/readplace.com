@@ -18,6 +18,7 @@ const baseInput: ViewPageInput = {
 		imageUrl: "https://cdn.example.com/hero.jpg",
 	},
 	estimatedReadTime: calculateReadTime(0),
+	saveTip: { state: "due", html: "" },
 	content: "<p>Body copy.</p>",
 	summary: { status: "skipped" },
 	actions: [

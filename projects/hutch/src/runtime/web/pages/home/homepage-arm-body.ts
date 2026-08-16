@@ -3,6 +3,7 @@ import type { PageBody } from "@packages/web-shell";
 import type { HomepageVariantMarker } from "../../experiments/homepage-split";
 import type { InstallBrowser } from "../../onboarding/onboarding.types";
 import type { FoundingAllocation } from "../../shared/founding-progress/founding-allocation";
+import type { SaveTip } from "../../shared/save-tip/save-tip.component";
 import { HomeVariantBPage } from "../home-b";
 import { HomePage } from "./home.component";
 
@@ -13,6 +14,7 @@ export interface HomepageArmInput {
 	readonly foundingAllocation: FoundingAllocation;
 	readonly lastViewUrl: string | undefined;
 	readonly variant: HomepageVariantMarker;
+	readonly saveTip: SaveTip;
 }
 
 /**
@@ -30,12 +32,14 @@ const ARM_RENDERERS = {
 			browser: input.browser,
 			foundingAllocation: input.foundingAllocation,
 			variant: input.variant,
+			saveTip: input.saveTip,
 		}),
 	b: (input: HomepageArmInput): PageBody =>
 		HomeVariantBPage({
 			staticBaseUrl: input.staticBaseUrl,
 			variant: input.variant,
 			lastViewUrl: input.lastViewUrl,
+			saveTip: input.saveTip,
 		}),
 } satisfies Record<HomepageVariantMarker, (input: HomepageArmInput) => PageBody>;
 

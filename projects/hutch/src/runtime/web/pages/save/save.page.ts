@@ -11,6 +11,7 @@ import { collectUtmParams } from "../../shared/utm";
 import { buildSaveIntentEvent, isCountableBrowserRequest, type AnalyticsEvent } from "@packages/web-analytics";
 import { SAVE_OUTCOMES, SAVE_SURFACES } from "../../../observability/events";
 import { setPendingSaveId } from "../../pending-save";
+import { markSaveTipSeen } from "../../shared/save-tip/save-tip";
 import { SaveErrorPage } from "./save-error.component";
 
 const SaveUrlSchema = z.url();
@@ -34,6 +35,9 @@ export function initSaveRoutes(deps: {
 
 	router.get("/", async (req, res) => {
 		const url = parseUrl(typeof req.query.url === "string" ? req.query.url : undefined);
+		// Reaching /save means the reader already went through the save tip on the
+		// page they came from, so the queue's auto-submit must not stop to ask again.
+		markSaveTipSeen(res, { secureCookies: deps.secureCookies });
 
 		if (!url) {
 			const redirectUrl = req.userId ? "/queue" : "/";

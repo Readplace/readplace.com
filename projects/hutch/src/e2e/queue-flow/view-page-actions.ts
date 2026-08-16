@@ -145,10 +145,20 @@ export function createAnonymousViewPageActions(
 				await page.waitForTimeout(1500)
 				await expect(shareWrap).not.toHaveClass(/share-balloon__wrap--open/)
 
-				// Click Save as anonymous — /save redirects to /signup?return=/save?url=...
-				// (account creation converts an anonymous saver far better than the
-				// sign-in page), so submit-signup-form picks up directly from page-signup.
-				await clickAndWaitForPageReload(page, saveAction)
+				// Click Save as anonymous. The first save of a session stops at the
+				// save-tip panel, which warns that a link-only save may not capture
+				// the article; continuing from there follows the same href.
+				await saveAction.click()
+				const saveTip = page.locator("[data-test-confirm-popover='save-tip']")
+				await expect(saveTip).toBeVisible()
+
+				// /save redirects to /signup?return=/save?url=... (account creation
+				// converts an anonymous saver far better than the sign-in page), so
+				// submit-signup-form picks up directly from page-signup.
+				await clickAndWaitForPageReload(
+					page,
+					saveTip.locator("[data-test-action='save-tip-proceed']"),
+				)
 				await expect(page.locator('body.page-signup')).toHaveCount(1)
 
 				progress.visitedAnonymously = true

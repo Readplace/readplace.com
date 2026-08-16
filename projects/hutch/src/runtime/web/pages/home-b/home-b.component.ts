@@ -1,10 +1,12 @@
 import { readFileSync } from "node:fs";
 import { join } from "node:path";
 import { APPLE_ITUNES_APP_META } from "@packages/supported-clients";
-import { render, withInternalTracking } from "@packages/web-shell";
+import { CONFIRM_POPOVER_STYLES, render, withInternalTracking } from "@packages/web-shell";
 import type { PageBody } from "@packages/web-shell";
 
 import type { HomepageVariantMarker } from "../../experiments/homepage-split";
+import { SAVE_TIP_SCRIPT, type SaveTip } from "../../shared/save-tip/save-tip.component";
+import type { SaveTipState } from "../../shared/save-tip/save-tip";
 import { HOME_B_CONTENT } from "./home-b.content";
 import { HOME_B_STYLES } from "./home-b.styles";
 
@@ -37,6 +39,9 @@ interface RenderedAction {
 	readonly hiddenParams: readonly HiddenParam[];
 	readonly cssClass: ActionClass;
 	readonly input?: ActionInput;
+	/** Present on the one action the save-tip panel gates, so the client script
+	 * can tell it apart from the CTAs it must leave alone. */
+	readonly saveTipState?: SaveTipState;
 }
 
 interface RenderedLink {
@@ -63,6 +68,7 @@ function renderAction(input: {
 	content: string;
 	cssClass: ActionStyle;
 	field?: ActionInput;
+	saveTipState?: SaveTipState;
 }): RenderedAction {
 	const tracked = new URL(
 		withInternalTracking(input.href, { source: TRACKING_SOURCE, content: input.content }),
@@ -73,6 +79,7 @@ function renderAction(input: {
 		label: input.label,
 		cssClass: input.field ? `${input.cssClass} btn--field` : input.cssClass,
 		input: input.field,
+		saveTipState: input.saveTipState,
 		action: tracked.pathname,
 		hiddenParams: Array.from(tracked.searchParams, ([name, value]) => ({ name, value })),
 	};
@@ -88,9 +95,10 @@ function trackedLink(link: { label: string; href: string; content: string }): Re
 export function HomeVariantBPage(params: {
 	staticBaseUrl: string;
 	variant: HomepageVariantMarker;
+	saveTip: SaveTip;
 	lastViewUrl?: string;
 }): PageBody {
-	const { staticBaseUrl, variant, lastViewUrl } = params;
+	const { staticBaseUrl, variant, lastViewUrl, saveTip } = params;
 	const arrivedFromReader = lastViewUrl !== undefined;
 	const { hero, jobs, proof, price, limits, close, faq } = HOME_B_CONTENT;
 
@@ -125,6 +133,7 @@ export function HomeVariantBPage(params: {
 					label: hero.pasteInputLabel,
 					placeholder: hero.pasteInputPlaceholder,
 				},
+				saveTipState: saveTip.state,
 			});
 
 	const renderedJobs: readonly RenderedJob[] = jobs.items.map((job) => ({
@@ -134,6 +143,7 @@ export function HomeVariantBPage(params: {
 	}));
 
 	const content = render(TEMPLATE, {
+		saveTipHtml: saveTip.html,
 		heroEyebrow: arrivedFromReader ? hero.arrivalEyebrow : undefined,
 		heroTitle: hero.title,
 		heroSubhead: hero.subhead,
@@ -196,8 +206,9 @@ export function HomeVariantBPage(params: {
 			twitterImage: `${staticBaseUrl}/twitter-card-1200x600.png`,
 			author: "Fayner Brack",
 		},
-		styles: HOME_B_STYLES,
+		styles: `${HOME_B_STYLES}\n${CONFIRM_POPOVER_STYLES}`,
 		bodyClass: `page-home variant-${variant}`,
 		content: { html: content },
+		scripts: SAVE_TIP_SCRIPT,
 	};
 }

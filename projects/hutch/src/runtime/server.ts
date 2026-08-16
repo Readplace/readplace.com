@@ -226,6 +226,7 @@ import {
 } from "./web/agent-auth";
 import { QuerystringFeatureToggle } from "@packages/web-shell";
 import { buildHomepageArmBody } from "./web/pages/home";
+import { buildSaveTip } from "./web/shared/save-tip/save-tip.component";
 import { McpConnectPage } from "./web/pages/mcp";
 import { PrivacyPage } from "./web/pages/privacy";
 import { SupportPage } from "./web/pages/support";
@@ -844,6 +845,7 @@ export function createApp(dependencies: AppDependencies): Express {
 					foundingAllocation,
 					lastViewUrl: readLastViewUrl(req),
 					variant: arm.variant.marker,
+					saveTip: buildSaveTip(req, "article"),
 				}),
 				banner,
 			),

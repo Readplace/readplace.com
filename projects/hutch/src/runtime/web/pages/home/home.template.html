@@ -3,7 +3,7 @@
       <div class="home-try__container">
         <h1 class="home-try__title" data-test-tagline data-slogans="{{slogansJson}}">{{canonicalSlogan}}</h1>
         <p class="home-try__lede">Read what you saved, leverage the power of AI for your reading list to know what's relevant. Paste an article link and get a clean reader view &mdash; works with PDFs too. No signup. No download. Try it with that one article you've been meaning to read.</p>
-        <form class="home-try__form" method="GET" action="/view" data-test-home-try-form>
+        <form class="home-try__form" method="GET" action="/view" data-save-tip="{{saveTipState}}" data-test-home-try-form>
           <label class="home-try__label sr-only" for="home-try-url">Article URL</label>
           <input
             class="home-try__input"
@@ -347,4 +347,5 @@
         </div>
       </div>
     </section>
+    {{{saveTipHtml}}}
   </main>

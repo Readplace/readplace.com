@@ -42,6 +42,8 @@ import type { BuildBannerState } from "../../banner-state";
 
 import { extensionInstallUrlIfMissing, isExtensionInstalled } from "../../onboarding/extension-install";
 import { setLastViewUrl } from "../../last-view";
+import { buildSaveTip } from "../../shared/save-tip/save-tip.component";
+import { markSaveTipSeen } from "../../shared/save-tip/save-tip";
 import { initArticleReader } from "../../shared/article-reader/article-reader";
 import type {
 	ArticleReaderDeps,
@@ -144,6 +146,9 @@ function handleViewRoot(deps: ViewDependencies) {
 			await renderError(deps, req, res);
 			return;
 		}
+		// Only this route, never the canonical article path: a shared /view link
+		// must not spend the session's one warning on a reader who never saw it.
+		markSaveTipSeen(res, { secureCookies: deps.secureCookies });
 		res.redirect(302, viewPathFor(validation.url));
 	};
 }
@@ -316,12 +321,14 @@ function handleViewArticle(deps: ViewDependencies, reader: ReturnType<typeof ini
 		const counting = msLeft !== null && msLeft > 0;
 		if (counting) saveParams.set("utm_content", formatSaveUtmContent(decomposeTimeLeft(msLeft)));
 
+		const saveTip = buildSaveTip(req, "article");
 		const actions: ViewAction[] = [
 			{
 				name: "Save to My Queue",
 				href: `/save?${saveParams.toString()}`,
 				variant: "primary",
 				expirySaveLink: counting,
+				saveTipState: saveTip.state,
 			},
 			{
 				name: "Paste another link",
@@ -353,6 +360,7 @@ function handleViewArticle(deps: ViewDependencies, reader: ReturnType<typeof ini
 					summaryPollUrl: state.summaryPollUrl,
 					progress: state.progress,
 					actions,
+					saveTip,
 					extensionInstallUrl: extensionInstallUrlIfMissing(req),
 					expiresAt,
 					now,

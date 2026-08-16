@@ -11,7 +11,7 @@ import { decomposeTimeLeft, formatCounter } from "@packages/time-left";
 import { pickExcerpt, truncateForSeo } from "../../../providers/article-summary/article-summary.helpers";
 import type { GeneratedSummary } from "@packages/provider-contracts/article-summary";
 import { requireEnv } from "@packages/require-env";
-import { render, withInternalTracking } from "@packages/web-shell";
+import { CONFIRM_POPOVER_STYLES, render, withInternalTracking } from "@packages/web-shell";
 import type { PageBody } from "@packages/web-shell";
 
 import { renderArticleBody } from "../../shared/article-body/article-body.component";
@@ -25,6 +25,8 @@ import {
 } from "../../shared/share-balloon/share-balloon.component";
 import type { SharedUserId } from "./view-expiry";
 import { viewPathFor } from "./view-path";
+import { SAVE_TIP_SCRIPT, type SaveTip } from "../../shared/save-tip/save-tip.component";
+import type { SaveTipState } from "../../shared/save-tip/save-tip";
 import { VIEW_STYLES } from "./view.styles";
 
 const STATIC_BASE_URL = requireEnv("STATIC_BASE_URL");
@@ -92,6 +94,9 @@ export interface ViewAction {
 	href: string;
 	variant: "primary" | "secondary";
 	expirySaveLink?: boolean;
+	/** Present on the action the save-tip panel gates, so the client script can
+	 * tell it apart from the actions it must leave alone. */
+	saveTipState?: SaveTipState;
 }
 
 export type ExpiryState = "permanent" | "counting" | "expired";
@@ -137,6 +142,7 @@ export interface ViewPageInput {
 	summaryPollUrl?: string;
 	progress?: ProgressTick;
 	actions: ViewAction[];
+	saveTip: SaveTip;
 	extensionInstallUrl?: string;
 	expiresAt: Date | null;
 	now: Date;
@@ -205,6 +211,7 @@ export function ViewPage(input: ViewPageInput): PageBody {
 		innerContent,
 		articleUrl: input.articleUrl,
 		actions: input.actions,
+		saveTipHtml: input.saveTip.html,
 		shareBalloon,
 		paywall,
 		expiryState: expiry.state,
@@ -245,7 +252,7 @@ export function ViewPage(input: ViewPageInput): PageBody {
 			twitterImage,
 			structuredData: [structuredData],
 		},
-		styles: VIEW_STYLES,
+		styles: `${VIEW_STYLES}\n${CONFIRM_POPOVER_STYLES}`,
 		bodyClass: "page-view",
 		content: { html: content },
 		scripts: readerScripts({
@@ -255,7 +262,8 @@ export function ViewPage(input: ViewPageInput): PageBody {
 				PROGRESS_BAR_SCRIPT +
 				EXPIRY_COUNTER_SCRIPT +
 				VIEW_PAYWALL_SCRIPT +
-				CRAWL_BOOKMARK_SCRIPT,
+				CRAWL_BOOKMARK_SCRIPT +
+				SAVE_TIP_SCRIPT,
 		}),
 	};
 }

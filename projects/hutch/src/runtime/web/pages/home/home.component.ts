@@ -1,7 +1,7 @@
 import { readFileSync } from "node:fs";
 import { join } from "node:path";
 import { MAX_PDF_BYTES } from "@packages/crawl-article";
-import { MONTHLY_EQUIVALENT_DISPLAY, render } from "@packages/web-shell";
+import { CONFIRM_POPOVER_STYLES, MONTHLY_EQUIVALENT_DISPLAY, render } from "@packages/web-shell";
 import type { PageBody } from "@packages/web-shell";
 
 import { CLIENT_CATEGORIES } from "@packages/supported-clients";
@@ -24,6 +24,7 @@ import {
 import { CANONICAL_SLOGAN, SLOGANS } from "../../slogans";
 import { renderFoundingProgress } from "../../shared/founding-progress/founding-progress.component";
 import type { FoundingAllocation } from "../../shared/founding-progress/founding-allocation";
+import { SAVE_TIP_SCRIPT, type SaveTip } from "../../shared/save-tip/save-tip.component";
 import { buildHomeSeo } from "./home.seo";
 import { HOME_PAGE_STYLES } from "./home.styles";
 
@@ -155,10 +156,11 @@ interface HomePageParams {
 	browser: InstallBrowser;
 	foundingAllocation: FoundingAllocation;
 	variant: HomepageVariantMarker;
+	saveTip: SaveTip;
 }
 
 export function HomePage(params: HomePageParams): PageBody {
-	const { userCount, staticBaseUrl, browser, foundingAllocation, variant } = params;
+	const { userCount, staticBaseUrl, browser, foundingAllocation, variant, saveTip } = params;
 	const foundingMemberLimit = foundingAllocation.foundingMemberLimit;
 	const foundingProgressHtml = renderFoundingProgress({ userCount, foundingAllocation });
 	const foundingAllocationAvailable = !foundingAllocation.isFoundingAllocationExhausted(userCount);
@@ -180,12 +182,14 @@ export function HomePage(params: HomePageParams): PageBody {
 			foundingMemberLimit,
 			foundingAllocationAvailable,
 		}),
-		styles: HOME_PAGE_STYLES,
-		scripts: HOME_CLIENT_SCRIPT,
+		styles: `${HOME_PAGE_STYLES}\n${CONFIRM_POPOVER_STYLES}`,
+		scripts: `${HOME_CLIENT_SCRIPT}${SAVE_TIP_SCRIPT}`,
 		bodyClass: `page-home variant-${variant}`,
 		content: { html: render(HOME_TEMPLATE, {
 			staticBaseUrl,
 			canonicalSlogan: CANONICAL_SLOGAN,
+			saveTipState: saveTip.state,
+			saveTipHtml: saveTip.html,
 			slogansJson: JSON.stringify(SLOGANS),
 			installPath: buildExtensionInstallUrl(browser),
 			installLabel: INSTALL_CTA_LABEL[browser],
